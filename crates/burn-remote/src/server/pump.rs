@@ -48,14 +48,6 @@ where
     // Authorize before any session state is created.
     authorize(&init)?;
 
-    // Bind the session (creating it + its worker on demand) and claim its response receiver.
-    let task_sender = service
-        .session_task_sender(init.session_id, init.device_index)
-        .await;
-    let mut responses = service
-        .take_response_receiver(init.session_id, init.device_index)
-        .await?;
-
     // Reply with the selected device's settings + this server's identity, so the client can fill in
     // `RemoteDevice::defaults`/`enumerate` without an extra round-trip.
     let info = TaskResponse {
@@ -69,13 +61,22 @@ where
     };
     let info = rmp_serde::to_vec(&info)
         .map_err(|err| format!("Failed to encode session handshake response: {err}"))?;
-    sink.send(info.into()).await?;
 
-    // Detached writer: drain the session's responses onto the sink until the queue closes (every
-    // sender — the worker and any in-flight readback task — has dropped).
+    // Bind the session (creating it + its worker on demand) and claim its response receiver.
+    let task_sender = service
+        .session_task_sender(init.session_id, init.device_index)
+        .await;
+    let mut responses = service
+        .take_response_receiver(init.session_id, init.device_index)
+        .await?;
+
+    // Detached writer: send the handshake reply, then drain the session's responses onto the sink
+    // until the queue closes, once the worker and every in-flight readback task have dropped their
+    // senders.
     let (writer_done, writer_result) = tokio::sync::oneshot::channel();
     spawn_detached(async move {
         let result = async {
+            sink.send(info.into()).await?;
             while let Some(response) = responses.recv().await {
                 let bytes = rmp_serde::to_vec(&response)
                     .map_err(|err| format!("Failed to encode task response: {err}"))?;
@@ -87,47 +88,52 @@ where
         let _ = writer_done.send(result);
     });
 
-    // Reader loop: forward each submitted task batch to the session worker in arrival order.
-    let result = loop {
-        let Some(frame) = source.recv().await? else {
-            break Ok(());
-        };
-        let messages: Vec<RemoteMessage> = rmp_serde::from_slice(&frame)
-            .map_err(|err| format!("Invalid remote task batch: {err}"))?;
-        let mut close = false;
-        let mut protocol_error = None;
-        for message in messages {
-            match message {
-                RemoteMessage::Task(task) => {
-                    task_sender
-                        .send(task)
-                        .await
-                        .map_err(|_| "Session worker stopped".to_string())?;
-                }
-                RemoteMessage::Close(id) if id == init.session_id => {
-                    close = true;
-                    break;
-                }
-                RemoteMessage::Close(id) => {
-                    protocol_error = Some(format!(
-                        "Session {} attempted to close unrelated session {id}",
-                        init.session_id
-                    ));
-                    break;
-                }
-                RemoteMessage::Init(_) => {
-                    protocol_error = Some("A session stream cannot be initialized twice".into());
-                    break;
+    // Reader loop: forward each submitted task batch to the session worker in arrival order. Its own
+    // block keeps every exit, errors included, on the way to the teardown below.
+    let result: Result<(), String> = async {
+        loop {
+            let Some(frame) = source.recv().await? else {
+                break Ok(());
+            };
+            let messages: Vec<RemoteMessage> = rmp_serde::from_slice(&frame)
+                .map_err(|err| format!("Invalid remote task batch: {err}"))?;
+            let mut close = false;
+            let mut protocol_error = None;
+            for message in messages {
+                match message {
+                    RemoteMessage::Task(task) => {
+                        task_sender
+                            .send(task)
+                            .await
+                            .map_err(|_| "Session worker stopped".to_string())?;
+                    }
+                    RemoteMessage::Close(id) if id == init.session_id => {
+                        close = true;
+                        break;
+                    }
+                    RemoteMessage::Close(id) => {
+                        protocol_error = Some(format!(
+                            "Session {} attempted to close unrelated session {id}",
+                            init.session_id
+                        ));
+                        break;
+                    }
+                    RemoteMessage::Init(_) => {
+                        protocol_error =
+                            Some("A session stream cannot be initialized twice".into());
+                        break;
+                    }
                 }
             }
+            if let Some(err) = protocol_error {
+                break Err(err);
+            }
+            if close {
+                break Ok(());
+            }
         }
-        if let Some(err) = protocol_error {
-            break Err(err);
-        }
-        if close {
-            break Ok(());
-        }
-    };
+    }
+    .await;
 
     // Teardown: drop our task sender and close the session so its worker drains and exits, which
     // closes the response queue and ends the writer; then await the writer so we don't tear the

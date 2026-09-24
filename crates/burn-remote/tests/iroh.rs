@@ -57,6 +57,38 @@ async fn executes_over_iroh_session_stream() {
     router.shutdown().await.unwrap();
 }
 
+/// Closing the session is what frees the device memory its tensors hold.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_client_that_disconnects_without_closing_ends_its_session() {
+    use burn_remote::telemetry::TelemetryEvent;
+    use std::time::Duration;
+
+    let server = local_endpoint().await;
+    let client = local_endpoint().await;
+    let (probe, mut events) = TelemetryProbe::channel(4096);
+    let router = spawn_router::<Flex>(server.clone(), AllowAll, probe);
+
+    let remote = RemoteDevice::iroh(&client, server.addr(), 0);
+    remote.connect();
+    let device = Device::new(remote);
+    let output = Tensor::<1>::from_floats([1.0, 2.0, 3.0], &device) * 2.0;
+    output.try_into_vec_as::<f32>().unwrap();
+
+    client.close().await;
+    let session_closed = async {
+        while let Some(event) = events.recv().await {
+            if let TelemetryEvent::SessionClosed { .. } = event.as_ref() {
+                return;
+            }
+        }
+    };
+    tokio::time::timeout(Duration::from_secs(10), session_closed)
+        .await
+        .expect("the server kept the session of a client that disconnected");
+
+    router.shutdown().await.unwrap();
+}
+
 #[tokio::test(flavor = "multi_thread")]
 async fn transfers_tensor_directly_between_iroh_compute_peers() {
     let source_server = local_endpoint().await;
