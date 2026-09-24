@@ -177,8 +177,8 @@ where
     ///
     /// # Panics
     ///
-    /// If the tensor is quantized, since the output must match the input dtype and tensors
-    /// can't be created in a quantized dtype.
+    /// If the tensor is quantized. This method preserves the input dtype,
+    /// but quantized tensor creation is not supported.
     ///
     /// # Example
     /// ```rust
@@ -231,8 +231,8 @@ where
     ///
     /// # Panics
     ///
-    /// If the tensor is quantized, since the output must match the input dtype and tensors
-    /// can't be created in a quantized dtype.
+    /// If the tensor is quantized. This method preserves the input dtype,
+    /// but quantized tensor creation is not supported.
     ///
     /// # Example
     ///
@@ -275,8 +275,8 @@ where
     ///
     /// # Panics
     ///
-    /// If the tensor is quantized, since the output must match the input dtype and tensors
-    /// can't be created in a quantized dtype.
+    /// If the tensor is quantized. This method preserves the input dtype,
+    /// but quantized tensor creation is not supported.
     ///
     /// # Example
     ///
@@ -329,8 +329,8 @@ where
     ///
     /// # Panics
     ///
-    /// If the tensor is quantized, since the output must match the input dtype and tensors
-    /// can't be created in a quantized dtype.
+    /// If the tensor is quantized. This method preserves the input dtype,
+    /// but quantized tensor creation is not supported.
     ///
     /// # Example
     ///
