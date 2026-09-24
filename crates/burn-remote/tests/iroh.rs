@@ -5,10 +5,11 @@ use burn_ir::BackendIr;
 use burn_remote::{
     BURN_REMOTE_ALPN, RemoteDevice,
     server::{AllowAll, IrohRemoteProtocol},
-    telemetry::TelemetryProbe,
+    telemetry::{TelemetryEvent, TelemetryProbe},
 };
 use burn_tensor::{Device, Tensor};
 use iroh::{Endpoint, RelayMode, endpoint::presets, protocol::Router};
+use std::time::Duration;
 
 async fn local_endpoint() -> Endpoint {
     Endpoint::builder(presets::Minimal)
@@ -57,12 +58,8 @@ async fn executes_over_iroh_session_stream() {
     router.shutdown().await.unwrap();
 }
 
-/// Closing the session is what frees the device memory its tensors hold.
 #[tokio::test(flavor = "multi_thread")]
 async fn a_client_that_disconnects_without_closing_ends_its_session() {
-    use burn_remote::telemetry::TelemetryEvent;
-    use std::time::Duration;
-
     let server = local_endpoint().await;
     let client = local_endpoint().await;
     let (probe, mut events) = TelemetryProbe::channel(4096);
@@ -78,13 +75,16 @@ async fn a_client_that_disconnects_without_closing_ends_its_session() {
     let session_closed = async {
         while let Some(event) = events.recv().await {
             if let TelemetryEvent::SessionClosed { .. } = event.as_ref() {
-                return;
+                return true;
             }
         }
+        false
     };
-    tokio::time::timeout(Duration::from_secs(10), session_closed)
-        .await
-        .expect("the server kept the session of a client that disconnected");
+    let closed = tokio::time::timeout(Duration::from_secs(10), session_closed).await;
+    assert!(
+        matches!(closed, Ok(true)),
+        "the server kept the session of a client that disconnected"
+    );
 
     router.shutdown().await.unwrap();
 }
@@ -186,8 +186,7 @@ async fn passes_application_credentials_to_the_peer_authorizer() {
 #[tokio::test(flavor = "multi_thread")]
 #[cfg(feature = "fusion")]
 async fn fused_compute_surfaces_as_graph_telemetry() {
-    use burn_remote::telemetry::{TelemetryEvent, TelemetryProbe, TrafficAggregator};
-    use std::time::Duration;
+    use burn_remote::telemetry::TrafficAggregator;
 
     let server = local_endpoint().await;
     let client = local_endpoint().await;
