@@ -358,17 +358,38 @@ let model = model.apply_lora(Lora::new(8, 16.0));
 
 The `Reparameterizer` receives every floating-point parameter and its module path. It decides which
 parameters to transform, prepares their structural bases, and optionally attaches a
-`Reparameterization`. A reparameterization is itself a regular module, so its parameters
-automatically participate in visitors, mappers, optimization, records, device transfers, and
-autodiff. Custom techniques implement these traits and are applied through
-`apply_reparameterization`, making custom parameter-level PEFT methods possible without modifying
-the original model or layer.
+`Reparameterization`, whose `apply(base)` method computes the effective value. A reparameterization
+is itself a regular module, so its parameters automatically participate in visitors, mappers,
+optimization, records, device transfers, and autodiff. Custom techniques implement these traits and
+are applied through `apply_reparameterization`, making custom parameter-level PEFT methods possible
+without modifying the original model or layer.
 
 LoRA and QLoRA are built on the same mechanism but provide the convenience methods `apply_lora` and
 `apply_qlora` for normal use. Reparameterizations cannot currently be nested, so
 `apply_reparameterization` should only be called on a module that does not already contain
 reparameterized parameters. Use `Param::base()` to access the stored base directly and
 `Param::val()` to obtain the materialized value.
+
+### Validation and materialization
+
+`valid()` disables autodiff and training flags while keeping base weights and adapters separate.
+Use it for evaluation and to save learned adapter factors without the base weights.
+
+`materialize()` folds reparameterizations into the weights and removes their structure. Use a merged
+snapshot for repeated inference without recomputing adapter updates, or to export a standalone model:
+
+```rust, ignore
+let validation = model.valid(); // Keep adapters for evaluation and adapter-only export.
+let merged = validation.clone().materialize(); // Merge them for inference or full-model export.
+```
+
+Materialization does not change training mode and cannot be undone; keep the original model if you
+need its adapters. For QLoRA, it produces dense weights. Requantization is separate and can change
+the model's outputs.
+
+QLoRA forward passes can still materialize dense effective weights. Autodiff may retain them for
+backward and compute full weight-shaped gradients. Fusion can avoid a separate dequantized base
+allocation, but does not eliminate all dense intermediates.
 
 ## Module Display
 

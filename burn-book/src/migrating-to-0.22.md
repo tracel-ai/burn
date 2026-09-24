@@ -117,11 +117,11 @@ available. A `Module` bound does not establish that a value is currently trainin
 persist. `freeze()` also disables module-owned training flags, whereas `no_grad()` only changes
 parameter gradients.
 
-Keep the original training model when using `model.valid()` for validation. The snapshot folds
-adapters such as LoRA into parameter values and discards checkpointing strategies;
-`snapshot.train()` does not reconstruct those. Dropout additionally checks its input tensor's
-autodiff context, so create model inputs on the training device even when their gradients are not
-needed. See [Module](./building-blocks/module.md).
+Keep the original training model when using `model.valid()` for validation. The snapshot discards
+tensor checkpointing strategies, which `train()` does not restore.
+
+Dropout additionally checks its input tensor's autodiff context, so create model inputs on the
+training device even when their gradients are not needed. See [Module](./building-blocks/module.md).
 
 ## Datasets and dataloaders
 
@@ -261,10 +261,12 @@ them if your project only uses the built-in modules, optimizers, metrics, and st
 
 ### Modules and optimizers
 
-Handwritten `Module` implementations now implement `valid(&self)` and `train(self)`; the derive
-generates both. `ParamId::serialize()` and `deserialize()` are replaced by its `Display` and
-`FromStr` implementations. Optimizer implementations use the per-tensor `Optimizer` trait, wrapped
-by `ModuleOptimizer`. See [Module](./building-blocks/module.md) and
+For handwritten implementations, consult the `Module` trait documentation for the required methods;
+`#[derive(Module)]` generates them automatically.
+
+`ParamId::serialize()` and `deserialize()` are replaced by its `Display` and `FromStr`
+implementations. Optimizer implementations use the per-tensor `Optimizer` trait, wrapped by
+`ModuleOptimizer`. See [Module](./building-blocks/module.md) and
 [Optimizer](./building-blocks/optimizer.md).
 
 ### Custom metrics
