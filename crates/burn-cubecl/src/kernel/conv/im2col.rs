@@ -6,8 +6,12 @@ use burn_backend::{
 use burn_std::{Metadata, Shape, Slice};
 use core::iter;
 use cubecl::{
+    calculate_cube_count_elemwise,
     prelude::*,
-    std::tensor::{TensorHandle, into_contiguous_pitched},
+    std::{
+        FastDivmod,
+        tensor::{TensorHandle, into_contiguous_pitched, layout::linear::LinearViewMut},
+    },
 };
 use cubek::convolution::components::ConvSetupError;
 
@@ -18,7 +22,7 @@ use crate::{
         matmul::{MatmulStrategy, matmul},
         reduce::{KernelReduceStrategy, reduce_dim},
         slice_assign, slice_with_steps,
-        utils::split_dim,
+        utils::{address_type, decompose_linear, shape_divmod, split_dim},
     },
     ops::{
         numeric::{empty_device_dtype, zeros_client},
@@ -258,6 +262,47 @@ fn reshape_weight(weight: CubeTensor) -> CubeTensor {
     }
 }
 
+/// Data gradient of a dense convolution: `[M, C_out] @ [C_out, taps * C_in]`,
+/// then [`col2im`].
+///
+/// The matmul yields the gradient of the im2col columns `[M, taps * C_in]`;
+/// [`col2im`] scatter-adds them onto the input gradient — each input pixel
+/// receives the sum over every tap whose window read it. Declines `groups != 1`
+/// and pointwise unit stride (kept for [`dgrad_im2col_1x1`]'s unmaterialised
+/// matmul); anchored key fields are never declined explicitly.
+pub fn dgrad_im2col<const N: usize>(
+    out_grad: CubeTensor,
+    weight: CubeTensor,
+    input_shape: Shape,
+    options: ConvOptions<N>,
+) -> Result<CubeTensor, ConvSetupError> {
+    let dim_c = out_grad.meta.num_dims() - 1;
+    if options.groups != 1 {
+        return Err(ConvSetupError::Groups(options.groups));
+    }
+    if check_pointwise(&weight.meta.shape()[1..dim_c], &options).is_ok() {
+        return Err(ConvSetupError::Unknown);
+    }
+
+    let kernel_shape = weight.meta.shape()[1..dim_c].to_vec();
+    let out_channels = weight.meta.shape()[0];
+    let in_channels = weight.meta.shape()[dim_c];
+    let taps = kernel_shape.iter().product::<usize>();
+    let out_shape = out_grad.meta.shape()[1..dim_c].to_vec();
+
+    let dtype = out_grad.dtype;
+    let out_grad = reshape_input(out_grad);
+    let weight = reshape(weight, Shape::new([out_channels, taps * in_channels]));
+    let columns = matmul(out_grad, weight, None, MatmulStrategy::default(), dtype)?;
+    Ok(col2im::<N>(
+        columns,
+        &out_shape,
+        &input_shape,
+        &kernel_shape,
+        &options,
+    ))
+}
+
 /// The gradient of a pointwise convolution with respect to its input, as one
 /// matmul.
 ///
@@ -452,6 +497,106 @@ pub fn wgrad_im2col_1x1_split<const N: usize>(
     Ok(reshape(grad, weight_shape))
 }
 
+/// One kernel tap's gather slices: the image window and the column window it
+/// fills. `image` indexes `[batch, ..in_spatial, channels]`; `columns` indexes
+/// `[batch, ..out_spatial, taps * channels]`. Both select the same number of
+/// elements: the outputs whose read lands inside the image, and the input
+/// pixels those outputs read.
+struct TapBlock {
+    image: Vec<Slice>,
+    columns: Vec<Slice>,
+}
+
+/// The windows [`im2col`] gathers. [`col2im_kernel`] re-derives the same
+/// geometry from the tap formula rather than reading [`TapBlock`]s.
+///
+/// Tap `0` is the zero offset. The index increases with the last kernel axis
+/// varying fastest, which is the weight's NHWC order. A tap that misses the
+/// image on every output is omitted; `clipped` is set when any column is left
+/// unwritten, which is what tells [`im2col`] to zero its buffer first.
+fn plan_taps<const N: usize>(
+    batch: usize,
+    channels: usize,
+    in_shape: &[usize],
+    out_shape: &[usize],
+    kernel_shape: &[usize],
+    options: &ConvOptions<N>,
+) -> (Vec<TapBlock>, bool) {
+    let taps: usize = kernel_shape.iter().product();
+    let mut blocks = Vec::with_capacity(taps);
+    let mut clipped = false;
+
+    for tap in 0..taps {
+        // The tap's index per spatial dimension, innermost varying fastest —
+        // the order the column axis is laid out in.
+        let mut rest = tap;
+        let mut offsets = [0usize; N];
+        for axis in (0..N).rev() {
+            offsets[axis] = rest % kernel_shape[axis];
+            rest /= kernel_shape[axis];
+        }
+
+        let mut image = vec![Slice::from(0..batch)];
+        let mut columns = vec![Slice::from(0..batch)];
+        let mut covers_nothing = false;
+
+        for axis in 0..N {
+            let stride = options.stride[axis] as isize;
+            // Where this tap reads for output zero. Negative under padding.
+            let base = (offsets[axis] * options.dilation[axis]) as isize
+                - options.padding_begin()[axis] as isize;
+            let extent = in_shape[axis] as isize;
+
+            // The outputs whose read lands inside the image. Everything else is
+            // padding, and zero is already the answer there.
+            // Rounded up by hand: `isize::div_ceil` is not stable, and both
+            // operands are positive here.
+            let first = match base >= 0 {
+                true => 0,
+                false => (-base + stride - 1) / stride,
+            };
+            let last = match extent - 1 - base {
+                reach if reach < 0 => 0,
+                reach => Ord::min(out_shape[axis] as isize, reach / stride + 1),
+            };
+
+            if last <= first {
+                covers_nothing = true;
+                break;
+            }
+
+            clipped |= first > 0 || last < out_shape[axis] as isize;
+
+            // Exactly `last - first` elements: the end is one past the last one
+            // the step actually lands on, not one past the range it spans.
+            let start = first * stride + base;
+            image.push(Slice {
+                start,
+                end: Some(start + (last - first - 1) * stride + 1),
+                step: stride,
+            });
+            columns.push(Slice {
+                start: first,
+                end: Some(last),
+                step: 1,
+            });
+        }
+
+        // A tap that reads outside the image everywhere — a kernel wider than
+        // the padded image. Its columns stay zero.
+        if covers_nothing {
+            clipped = true;
+            continue;
+        }
+
+        image.push(Slice::from(0..channels));
+        columns.push(Slice::from(tap * channels..(tap + 1) * channels));
+        blocks.push(TapBlock { image, columns });
+    }
+
+    (blocks, clipped)
+}
+
 /// The input laid out as the matrix a weight gradient contracts against:
 /// `[(batch, ..out spatial), (..kernel, channels)]`.
 ///
@@ -492,77 +637,8 @@ fn im2col<const N: usize>(
 
     // Every tap is planned before anything is allocated, because whether *any*
     // of them is clipped is what decides if the column matrix has to be zeroed.
-    let mut blocks = Vec::with_capacity(taps);
-    let mut clipped = false;
-
-    for tap in 0..taps {
-        // The tap's index per spatial dimension, innermost varying fastest —
-        // the order the column axis is laid out in.
-        let mut rest = tap;
-        let mut offsets = vec![0usize; N];
-        for axis in (0..N).rev() {
-            offsets[axis] = rest % kernel_shape[axis];
-            rest /= kernel_shape[axis];
-        }
-
-        let mut source = vec![Slice::from(0..batch)];
-        let mut target = vec![Slice::from(0..batch)];
-        let mut covers_nothing = false;
-
-        for axis in 0..N {
-            let stride = options.stride[axis] as isize;
-            // Where this tap reads for output zero. Negative under padding.
-            let base = (offsets[axis] * options.dilation[axis]) as isize
-                - options.padding_begin()[axis] as isize;
-            let extent = in_shape[axis] as isize;
-
-            // The outputs whose read lands inside the image. Everything else is
-            // padding, and zero is already the answer there.
-            // Rounded up by hand: `isize::div_ceil` is not stable, and both
-            // operands are positive here.
-            let first = match base >= 0 {
-                true => 0,
-                false => (-base + stride - 1) / stride,
-            };
-            let last = match extent - 1 - base {
-                reach if reach < 0 => 0,
-                reach => Ord::min(out_shape[axis] as isize, reach / stride + 1),
-            };
-
-            if last <= first {
-                covers_nothing = true;
-                break;
-            }
-
-            clipped |= first > 0 || last < out_shape[axis] as isize;
-
-            // Exactly `last - first` elements: the end is one past the last one
-            // the step actually lands on, not one past the range it spans.
-            let start = first * stride + base;
-            source.push(Slice {
-                start,
-                end: Some(start + (last - first - 1) * stride + 1),
-                step: stride,
-            });
-            target.push(Slice {
-                start: first,
-                end: Some(last),
-                step: 1,
-            });
-        }
-
-        // A tap that reads outside the image everywhere — a kernel wider than
-        // the padded image. Its columns stay zero.
-        if covers_nothing {
-            clipped = true;
-            continue;
-        }
-
-        source.push(Slice::from(0..channels));
-        target.push(Slice::from(tap * channels..(tap + 1) * channels));
-
-        blocks.push((source, target));
-    }
+    let (blocks, clipped) =
+        plan_taps::<N>(batch, channels, &in_shape, out_shape, kernel_shape, options);
 
     // Only a clipped tap leaves a hole, and with no padding there is none: the
     // taps together write every column, so the fill would be a full pass over
@@ -582,12 +658,134 @@ fn im2col<const N: usize>(
         ),
     };
 
-    for (source, target) in blocks {
-        let block = slice_with_steps(input.clone(), &source);
-        columns = slice_assign(columns, &target, block);
+    for block in blocks {
+        let gathered = slice_with_steps(input.clone(), &block.image);
+        columns = slice_assign(columns, &block.columns, gathered);
     }
 
     columns
+}
+
+/// Scatter-add [`im2col`]'s adjoint in one kernel. One thread owns one input
+/// element and sums every tap that read it, so overlapping taps do not race.
+fn col2im<const N: usize>(
+    columns: CubeTensor,
+    out_shape: &[usize],
+    input_shape: &Shape,
+    kernel_shape: &[usize],
+    options: &ConvOptions<N>,
+) -> CubeTensor {
+    let channels = input_shape[N + 1]; // NHWC: [batch, ..spatial, C]
+    let taps = kernel_shape.iter().product::<usize>();
+    let dtype = columns.dtype;
+    let client = columns.client.clone();
+
+    let columns = into_contiguous_aligned(columns);
+    let grad_in = empty_device_dtype(
+        client.clone(),
+        columns.device.clone(),
+        input_shape.clone(),
+        dtype,
+    );
+
+    let num_elems = grad_in.meta.num_elements();
+    let cube_dim = CubeDim::new(&client, num_elems);
+    let cube_count = calculate_cube_count_elemwise(&client, num_elems, cube_dim);
+    let pad = options.padding_begin();
+
+    let mut kernel = SequenceArg::new();
+    let mut stride = SequenceArg::new();
+    let mut padding = SequenceArg::new();
+    let mut dilation = SequenceArg::new();
+    let mut out_spatial = SequenceArg::new();
+    for axis in 0..N {
+        kernel.push(kernel_shape[axis]);
+        stride.push(options.stride[axis]);
+        padding.push(pad[axis]);
+        dilation.push(options.dilation[axis]);
+        out_spatial.push(out_shape[axis]);
+    }
+
+    unsafe {
+        col2im_kernel::launch_unchecked(
+            &client,
+            cube_count,
+            cube_dim,
+            address_type!(columns, grad_in),
+            columns.into_tensor_arg(),
+            grad_in.clone().into_linear_view(),
+            shape_divmod(&grad_in),
+            kernel,
+            stride,
+            padding,
+            dilation,
+            out_spatial,
+            taps,
+            channels,
+            dtype_to_storage_type(dtype),
+        );
+    }
+
+    grad_in
+}
+
+#[cube(launch_unchecked, address_type = "dynamic")]
+fn col2im_kernel<E: Numeric>(
+    columns: &Tensor<E>,
+    mut grad_in: LinearViewMut<'_, E>,
+    grad_in_shape: Sequence<FastDivmod<usize>>,
+    kernel: Sequence<usize>,
+    stride: Sequence<usize>,
+    pad: Sequence<usize>,
+    dilation: Sequence<usize>,
+    out_spatial: Sequence<usize>,
+    taps: usize,
+    channels: usize,
+    #[define(E)] _dtype: ElemType,
+) {
+    if !grad_in.is_in_bounds(ABSOLUTE_POS) {
+        terminate!();
+    }
+
+    let spatial = comptime![kernel.len()];
+    let (_, pos) = decompose_linear(ABSOLUTE_POS, &grad_in_shape);
+    let n = pos[0];
+    let cin = pos[spatial + 1];
+    let mut val = E::zero();
+
+    for tap in 0..taps {
+        // Row-major over `[batch, ..out_spatial]`, matching `reshape_input`.
+        let mut m = n;
+        let mut hit = true;
+
+        #[unroll]
+        for axis in 0..spatial {
+            let mut divisor = 1;
+            #[unroll]
+            for later in 0..spatial {
+                if later > axis {
+                    divisor *= kernel[later];
+                }
+            }
+            let offset = (tap / divisor) % kernel[axis];
+            let numerator = pos[axis + 1] + pad[axis];
+            let shift = offset * dilation[axis];
+            let fits = numerator >= shift;
+            let numerator = numerator - shift;
+            let step = stride[axis];
+            let out_pos = numerator / step;
+            hit = hit && fits && out_pos * step == numerator && out_pos < out_spatial[axis];
+            m = m * out_spatial[axis] + out_pos;
+        }
+
+        if hit {
+            // Through the strides: a pitched allocator pads each matmul output
+            // row, so a row is not always `taps * channels` elements long.
+            val += columns[m * columns.stride(0) + (tap * channels + cin) * columns.stride(1)];
+        }
+    }
+
+    grad_in.write(ABSOLUTE_POS, val);
 }
 
 /// The gradient with respect to a dense convolution's weight, as one matmul
