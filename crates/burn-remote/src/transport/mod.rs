@@ -12,9 +12,9 @@ pub use identity::{PeerAddr, PeerId};
 pub(crate) mod link;
 
 #[cfg(any(feature = "iroh", all(feature = "client", feature = "websocket")))]
-mod open;
+mod error;
 #[cfg(any(feature = "iroh", all(feature = "client", feature = "websocket")))]
-pub(crate) use open::OpenError;
+pub(crate) use error::OpenError;
 
 #[cfg(feature = "iroh")]
 pub mod iroh;
