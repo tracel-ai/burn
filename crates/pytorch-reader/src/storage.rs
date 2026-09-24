@@ -8,12 +8,12 @@
 use std::collections::HashMap;
 use std::fmt;
 use std::fs::File;
-use std::io::{self, BufReader, Read};
-use std::path::Path;
-use std::sync::Mutex;
+use std::io::{self, BufReader, Cursor, Read};
+use std::sync::{Arc, Mutex};
 use zip::read::ZipFile;
 use zip::{CompressionMethod, ZipArchive, ZipReadOptions};
 
+use crate::reader::{ArcBytes, Container, ContainerRead};
 use crate::{MAX_PICKLE_SIZE, PytorchError};
 
 /// Largest `version`, `byteorder` or similar text entry accepted.
@@ -107,19 +107,18 @@ pub(crate) fn read_exact_len<R: Read>(
 /// object or an in-memory buffer use `archive/`, and some tools write the entries at the
 /// root. The directory holding `data.pkl` is the root for every other entry.
 ///
-/// The file is held open from [`open`](Self::open) until drop and never reopened by path,
-/// so a reader keeps reading the file it opened if that path is unlinked or replaced.
+/// A file container is held open from [`open`](Self::open) until drop and never reopened
+/// by path, so a reader keeps reading the file it opened if that path is unlinked or
+/// replaced. A memory container holds its buffer directly, so this does not apply.
 pub(crate) struct ZipSource {
     /// The central directory, and the stream every entry but a stored storage is read
     /// through. Locked to look any entry up, and for the whole of a read through the
     /// stream: the pickle and text entries, and a deflated storage.
-    archive: Mutex<ZipArchive<BufReader<File>>>,
-    /// A second handle to the same file, read at explicit offsets and never through its
-    /// cursor. A stored storage's bytes come through it once the lookup under `archive`
-    /// has said where they are, so tensor reads from different threads run at once instead
-    /// of queueing on `archive`. Unused past `open` on Windows and on a target without a
-    /// positional read (see `read_exact_at`).
-    file: File,
+    archive: Mutex<ZipArchive<Box<dyn ContainerRead>>>,
+    /// How a stored storage's bytes are read once the lookup under `archive` has said
+    /// where they are, bypassing that lock so tensor reads from different threads run at
+    /// once instead of queueing on `archive`.
+    backing: ZipBacking,
     /// Root directory including its trailing slash, or empty at the archive root.
     root: String,
     /// Size of the archive file. A stored storage is checked to lie within it, and it caps
@@ -127,15 +126,42 @@ pub(crate) struct ZipSource {
     file_len: u64,
 }
 
-impl ZipSource {
-    pub fn open(path: &Path) -> Result<Self, PytorchError> {
-        let file = File::open(path)?;
-        let file_len = file.metadata()?.len();
-        // The stream gets a duplicate of the handle rather than an open of its own, so a
-        // replacement of `path` cannot slip in between two opens. The duplicate shares the
-        // cursor, which is why `file` is only ever read at explicit offsets.
-        let archive = ZipArchive::new(BufReader::new(file.try_clone()?))?;
+/// How [`ZipSource`] reads a stored storage's bytes directly, bypassing `archive`'s lock.
+enum ZipBacking {
+    /// A second handle to the same file, read at explicit offsets and never through its
+    /// cursor, so concurrent reads from different threads do not queue behind one another.
+    File(File),
+    /// The buffer itself: a positional read is a plain slice, needing no lock or second
+    /// handle at all.
+    Memory(Arc<Vec<u8>>),
+}
 
+impl ZipSource {
+    pub fn open(container: &Container) -> Result<Self, PytorchError> {
+        let (archive_reader, backing, file_len): (Box<dyn ContainerRead>, ZipBacking, u64) =
+            match container {
+                Container::File(path) => {
+                    let file = File::open(path)?;
+                    let file_len = file.metadata()?.len();
+                    // The stream is a duplicate of this same handle, not a second open of
+                    // `path`, so a replacement of `path` between the two cannot slip in.
+                    let stream = file.try_clone()?;
+                    (
+                        Box::new(BufReader::new(stream)),
+                        ZipBacking::File(file),
+                        file_len,
+                    )
+                }
+                Container::Memory(buf) => {
+                    let file_len = buf.len() as u64;
+                    (
+                        Box::new(Cursor::new(ArcBytes(Arc::clone(buf)))),
+                        ZipBacking::Memory(Arc::clone(buf)),
+                        file_len,
+                    )
+                }
+            };
+        let archive = ZipArchive::new(archive_reader)?;
         let root = archive
             .file_names()
             .filter_map(|name| name.strip_suffix("data.pkl"))
@@ -151,7 +177,7 @@ impl ZipSource {
 
         Ok(Self {
             archive: Mutex::new(archive),
-            file,
+            backing,
             root,
             file_len,
         })
@@ -270,18 +296,36 @@ impl ZipSource {
                     "ZIP entry '{name}' extends beyond the end of the file"
                 ))
             })?;
-        let mut bytes = vec![0u8; len as usize];
-        read_exact_at(&self.file, &mut bytes, offset).map_err(|err| match err.kind() {
-            // The range lay within the file when it was opened, so a short read means the
-            // file has shrunk since. An operating system error passes through as it is.
-            io::ErrorKind::UnexpectedEof => io::Error::new(
-                io::ErrorKind::UnexpectedEof,
-                format!(
-                    "ZIP entry '{name}' ends before its {len} bytes: the file shrank after it was opened"
+
+        let bytes = match &self.backing {
+            ZipBacking::File(file) => {
+                let mut bytes = vec![0u8; len as usize];
+                read_exact_at(file, &mut bytes, offset).map_err(|err| match err.kind() {
+                // The range lay within the file when it was opened, so a short read means the
+                // file has shrunk since. An operating system error passes through as it is.
+                io::ErrorKind::UnexpectedEof => io::Error::new(
+                    io::ErrorKind::UnexpectedEof,
+                    format!(
+                        "ZIP entry '{name}' ends before its {len} bytes: the file shrank after it was opened"
+                    ),
                 ),
-            ),
-            _ => err,
-        })?;
+                _ => err,
+            })?;
+                bytes
+            }
+            ZipBacking::Memory(data) => {
+                let start = offset as usize;
+                let end = start + len as usize;
+                data.get(start..end)
+                .ok_or_else(|| {
+                    invalid_data(format!(
+                        "ZIP entry '{name}' ends before its {len} bytes: the buffer is shorter than declared"
+                    ))
+                })?
+                .to_vec()
+            }
+        };
+
         // The stream path checks the CRC whenever a read reaches the entry's end, since the
         // bytes it skips still pass through its checksum. Skipped bytes are never read
         // here, so only a read of the whole entry can be checked.
@@ -315,9 +359,9 @@ impl ZipSource {
 /// rather than one to fail. An empty entry's true CRC is 0 as well, and its check could
 /// only pass; a non-empty entry whose true CRC happens to be 0 loses its check.
 fn open_entry<'a>(
-    archive: &'a mut ZipArchive<BufReader<File>>,
+    archive: &'a mut ZipArchive<Box<dyn ContainerRead>>,
     name: &str,
-) -> io::Result<ZipFile<'a, BufReader<File>>> {
+) -> io::Result<ZipFile<'a, Box<dyn ContainerRead>>> {
     let index = archive
         .index_for_name(name)
         .ok_or_else(|| invalid_data(format!("ZIP entry '{name}': not found in archive")))?;
@@ -447,12 +491,13 @@ impl TarSource {
 /// persistent ids in the main pickle are collected first and the layout is derived from
 /// them once the key list is known.
 ///
-/// The file is held open from [`new`](Self::new) until drop and never reopened by path,
-/// so a reader keeps reading the file it opened if that path is unlinked or replaced.
+/// A file container is held open from [`new`](Self::new) until drop and never reopened
+/// by path, so a reader keeps reading the file it opened if that path is unlinked or
+/// replaced. A memory container holds its buffer directly, so this does not apply.
 pub(crate) struct LegacySource {
-    /// Read at explicit offsets and never through its cursor, so tensor reads from
-    /// different threads run at once.
-    file: File,
+    /// How a storage's bytes are read once `finish` has said where they are, at explicit
+    /// offsets so tensor reads from different threads run at once.
+    backing: LegacyBacking,
     state: Mutex<LegacyState>,
 }
 
@@ -465,11 +510,41 @@ enum LegacyState {
     Finished(HashMap<String, (u64, usize, usize)>),
 }
 
+/// How [`LegacySource`] reads a storage's bytes directly, at explicit offsets.
+pub(crate) enum LegacyBacking {
+    /// The checkpoint's file handle, read at explicit offsets and never through its
+    /// cursor, so concurrent reads from different threads do not queue behind one another.
+    File(File),
+    /// The buffer itself: a positional read is a plain slice, needing no lock or handle
+    /// at all.
+    Memory(Arc<Vec<u8>>),
+}
+
+impl LegacyBacking {
+    /// Fill `buf` from `offset`, through the file or the buffer.
+    fn read_exact_at(&self, buf: &mut [u8], offset: u64) -> io::Result<()> {
+        match self {
+            LegacyBacking::File(file) => read_exact_at(file, buf, offset),
+            LegacyBacking::Memory(data) => {
+                // A range past the end is a short read, as it is on a file.
+                // `finish` already bounds every storage by the checkpoint's length.
+                let start = usize::try_from(offset).unwrap_or(usize::MAX);
+                let bytes = start
+                    .checked_add(buf.len())
+                    .and_then(|end| data.get(start..end))
+                    .ok_or(io::ErrorKind::UnexpectedEof)?;
+                buf.copy_from_slice(bytes);
+                Ok(())
+            }
+        }
+    }
+}
+
 impl LegacySource {
     /// Wrap the open checkpoint, whose storages are read at explicit offsets from here on.
-    pub fn new(file: File) -> Self {
+    pub fn new(backing: LegacyBacking) -> Self {
         Self {
-            file,
+            backing,
             state: Mutex::new(LegacyState::Declaring(HashMap::new())),
         }
     }
@@ -550,7 +625,7 @@ impl LegacySource {
         };
 
         let mut count = [0u8; 8];
-        read_exact_at(&self.file, &mut count, offset)?;
+        self.backing.read_exact_at(&mut count, offset)?;
         let stored_numel = i64::from_le_bytes(count);
         let expected_numel = (byte_len / element_size) as i64;
         if stored_numel != expected_numel {
@@ -563,7 +638,8 @@ impl LegacySource {
         let start = start.min(byte_len);
         let len = (byte_len - start).min(max_len);
         let mut bytes = vec![0u8; len];
-        read_exact_at(&self.file, &mut bytes, offset + 8 + start as u64)?;
+        self.backing
+            .read_exact_at(&mut bytes, offset + 8 + start as u64)?;
         Ok((bytes, start))
     }
 }

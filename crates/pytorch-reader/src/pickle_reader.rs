@@ -1711,13 +1711,14 @@ pub(crate) fn extract_tensors(dict: HashMap<String, Object>) -> HashMap<String, 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::reader::Container;
     use crate::tests::{read_as, test_data_path};
     use std::io::Cursor;
 
     fn fixture_source() -> Arc<StorageSource> {
         let path = test_data_path("non_contiguous.pt");
         Arc::new(StorageSource::Zip(
-            crate::storage::ZipSource::open(&path).unwrap(),
+            crate::storage::ZipSource::open(&Container::File(path)).unwrap(),
         ))
     }
 
@@ -2658,7 +2659,7 @@ mod tests {
         assert!(expected.raw_os_error().is_some(), "{expected}");
 
         let source = Arc::new(StorageSource::Legacy(crate::storage::LegacySource::new(
-            file,
+            crate::storage::LegacyBacking::File(file),
         )));
         let args = rebuild_args("FloatStorage", "0", 3, 0, &[3], &[1], &source);
         let StorageSource::Legacy(legacy) = &*source else {
