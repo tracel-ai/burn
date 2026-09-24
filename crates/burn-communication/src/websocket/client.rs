@@ -209,8 +209,6 @@ impl From<tungstenite::Error> for WsClientError {
 
 #[cfg(test)]
 mod tests {
-    use std::time::Duration;
-
     use socket2::SockRef;
     use tokio::net::TcpListener;
 
@@ -221,7 +219,7 @@ mod tests {
     };
 
     #[tokio::test(flavor = "multi_thread")]
-    async fn a_connected_client_probes_an_idle_server() {
+    async fn a_connected_client_enables_keepalive() {
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let port = listener.local_addr().unwrap().port();
         let server =
@@ -235,9 +233,19 @@ mod tests {
 
         let socket = SockRef::from(channel.inner.get_ref().get_ref());
         assert!(socket.keepalive().unwrap());
+        // socket2 cannot read the first probe's delay back on Windows.
+        #[cfg(not(windows))]
         assert_eq!(
             socket.tcp_keepalive_time().unwrap(),
-            Duration::from_secs(10)
+            std::time::Duration::from_secs(10)
         );
+        #[cfg(any(
+            target_os = "linux",
+            target_os = "android",
+            target_os = "macos",
+            target_os = "ios",
+            target_os = "windows",
+        ))]
+        assert_eq!(socket.tcp_keepalive_retries().unwrap(), 4);
     }
 }
