@@ -45,9 +45,7 @@ impl RouterClient for RemoteClient {
             .expect("Service call failed");
 
         Box::pin(async move {
-            // A sync read inside a tokio task polls this without ever yielding, so a budgeted
-            // receiver runs out after 128 reads and spins forever.
-            match tokio::task::coop::unconstrained(rx).await {
+            match rx.await {
                 Ok(TaskResponseContent::ReadTensor(res)) => res,
                 Ok(_) => panic!("Invalid response type for ReadTensor"),
                 Err(e) => Err(ExecutionError::Generic {

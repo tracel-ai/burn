@@ -9,6 +9,7 @@ use burn_remote::{
 };
 use burn_tensor::{Device, Tensor};
 use iroh::{Endpoint, RelayMode, endpoint::presets, protocol::Router};
+use std::{panic, sync::mpsc, thread, time::Duration};
 
 async fn local_endpoint() -> Endpoint {
     Endpoint::builder(presets::Minimal)
@@ -39,21 +40,27 @@ fn spawn_router<B: BackendIr>(
 }
 
 /// Far beyond what a test here takes when it works, so only a hang reaches it.
-const HANG_LIMIT: std::time::Duration = std::time::Duration::from_secs(30);
+const HANG_LIMIT: Duration = Duration::from_secs(30);
 
-/// Runs `test` on its own thread and fails once [`HANG_LIMIT`] passes, for a regression that would
-/// hang instead of failing. A stuck thread is left behind.
+const TOKIO_COOP_BUDGET: usize = 128;
+
+/// A blocking hang cannot be cancelled, so this fails after [`HANG_LIMIT`] and leaks the stuck
+/// thread.
 fn within_hang_limit(test: impl FnOnce() + Send + 'static) {
-    let (done, finished) = std::sync::mpsc::channel();
-    let thread = std::thread::spawn(move || {
-        test();
-        let _ = done.send(());
-    });
-    if let Err(std::sync::mpsc::RecvTimeoutError::Timeout) = finished.recv_timeout(HANG_LIMIT) {
+    let (done, finished) = mpsc::channel();
+    let name = thread::current().name().unwrap_or("test").to_string();
+    let thread = thread::Builder::new()
+        .name(name)
+        .spawn(move || {
+            test();
+            let _ = done.send(());
+        })
+        .unwrap();
+    if let Err(mpsc::RecvTimeoutError::Timeout) = finished.recv_timeout(HANG_LIMIT) {
         panic!("still blocked after {HANG_LIMIT:?}");
     }
-    if let Err(panic) = thread.join() {
-        std::panic::resume_unwind(panic);
+    if let Err(payload) = thread.join() {
+        panic::resume_unwind(payload);
     }
 }
 
@@ -148,8 +155,6 @@ fn synchronous_client_round_trip() {
     server_runtime.block_on(router.shutdown()).unwrap();
 }
 
-/// Tokio gives a task 128 budgeted operations before it must yield, and a blocking read never
-/// yields.
 #[test]
 fn blocking_reads_inside_a_tokio_task_outlast_its_budget() {
     within_hang_limit(|| {
@@ -162,7 +167,7 @@ fn blocking_reads_inside_a_tokio_task_outlast_its_budget() {
             let remote = RemoteDevice::iroh(&client, server.addr(), 0);
             remote.connect();
             let device = Device::new(remote);
-            for _ in 0..200 {
+            for _ in 0..=TOKIO_COOP_BUDGET {
                 let output = Tensor::<1>::from_floats([1.0, 2.0, 3.0], &device) * 2.0;
                 assert_eq!(
                     output.try_into_vec_as::<f32>().unwrap(),
@@ -201,7 +206,6 @@ async fn passes_application_credentials_to_the_peer_authorizer() {
 #[cfg(feature = "fusion")]
 async fn fused_compute_surfaces_as_graph_telemetry() {
     use burn_remote::telemetry::{TelemetryEvent, TelemetryProbe, TrafficAggregator};
-    use std::time::Duration;
 
     let server = local_endpoint().await;
     let client = local_endpoint().await;
