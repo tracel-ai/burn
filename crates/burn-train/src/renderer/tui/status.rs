@@ -80,6 +80,7 @@ impl StatusState {
 }
 
 pub(crate) struct StatusView {
+    label: Option<String>,
     lines: Vec<Vec<Span<'static>>>,
 }
 
@@ -118,16 +119,10 @@ impl StatusView {
             .max("Mode".len())
             .max(event_counters.keys().map(|k| k.len()).max().unwrap_or(0));
 
-        let mut lines = vec![];
-
-        if let Some(name) = label {
-            lines.push(vec![title(name)]);
-        }
-
-        lines.push(vec![
+        let mut lines = vec![vec![
             title(&format!("{: <width$} :", "Mode")),
             value(mode_str.to_string()),
-        ]);
+        ]];
 
         if let Some(p) = progress {
             let g = &p.global;
@@ -155,13 +150,23 @@ impl StatusView {
             ]);
         }
 
-        Self { lines }
+        Self {
+            label: label.map(str::to_string),
+            lines,
+        }
     }
 
     pub(crate) fn render(self, frame: &mut TerminalFrame<'_>, size: Rect) {
         let paragraph = Paragraph::new(self.lines.into_iter().map(Line::from).collect::<Vec<_>>())
             .alignment(Alignment::Left)
-            .block(Block::default().borders(Borders::ALL).title("Status"))
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .title(match &self.label {
+                        Some(label) => format!("Status: {label}"),
+                        None => "Status".to_owned(),
+                    }),
+            )
             .wrap(Wrap { trim: false })
             .style(Style::default().fg(Color::Gray));
 
