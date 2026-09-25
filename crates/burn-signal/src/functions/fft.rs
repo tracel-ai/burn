@@ -1,8 +1,9 @@
 use crate::SignalOps;
 use alloc::vec;
+use alloc::vec::Vec;
 use burn_core::{
     backend::Dispatch,
-    tensor::{AsIndex, Tensor},
+    tensor::{AsIndex, DType, Device, Tensor, TensorData, ops::PadMode},
 };
 
 /// Computes the 1-dimensional discrete Fourier Transform of real-valued input.
@@ -28,10 +29,10 @@ where $N$ is the size of the signal along the specified dimension.
 /// * `signal` - The input tensor containing the real-valued signal.
 /// * `dim` - The dimension along which to take the FFT.
 ///   Negative dimensions are supported and count from the end.
-/// * `n` - Optional FFT length. When `None`, the signal must be a power of two along `dim`.
-///   When `Some(n)`, `n` must also be a power of two; the signal is truncated or zero-padded
-///   to length `n`. Non-power-of-two `n` is rejected with a panic (true arbitrary-size DFT
-///   support via Bluestein's algorithm is tracked as a follow-up).
+/// * `n` - Optional FFT length. When `None`, the signal length along `dim` is used.
+///   When `Some(n)`, the signal is truncated or zero-padded to length `n`.
+///   Arbitrary `n` is supported: power-of-two sizes use the radix-2 backend, and
+///   other sizes fall back to Bluestein's chirp-z algorithm.
 ///
 /// # Returns
 ///
@@ -57,20 +58,14 @@ pub fn rfft<const D: usize>(
     let dim = dim
         .try_dim_index(D)
         .unwrap_or_else(|error| panic!("RFFT: {error}"));
+    let fft_size = n.unwrap_or(signal.dims()[dim]);
+    assert!(fft_size >= 1, "rfft: n must be >= 1, got {fft_size}");
 
-    match n {
-        None => assert!(
-            signal.dims()[dim].is_power_of_two(),
-            "rfft: signal length must be a power of two"
-        ),
-        Some(n) => {
-            assert!(n >= 1, "rfft: n must be >= 1, got {n}");
-            assert!(
-                n.is_power_of_two(),
-                "rfft: n must be a power of two, got {n}. True non-power-of-two \
-                 DFT support is tracked as a follow-up (Bluestein's algorithm)."
-            );
-        }
+    if !fft_size.is_power_of_two() {
+        let zeros = Tensor::zeros_like(&signal);
+        let (re, im) = bluestein_dft(signal, zeros, dim, fft_size);
+        let half = fft_size / 2 + 1;
+        return (re.narrow(dim, 0, half), im.narrow(dim, 0, half));
     }
 
     let (re, im) = <Dispatch as SignalOps>::rfft(signal.dequantize().into_dispatch(), dim, n);
@@ -102,8 +97,9 @@ where $N$ is the size of the reconstructed signal.
 /// * `dim` - The dimension along which to take the inverse FFT.
 ///   Negative dimensions are supported and count from the end.
 /// * `n` - Optional output signal length. When `None`, the reconstructed signal length
-///   `2 * (size - 1)` must be a power of two. When `Some(n)`, `n` must also be a power of
-///   two and the output has exactly `n` samples. Non-power-of-two `n` is rejected.
+///   `2 * (size - 1)` is used. When `Some(n)`, the output has exactly `n` samples.
+///   Arbitrary `n` is supported: power-of-two sizes use the radix-2 backend, and
+///   other sizes fall back to Bluestein's chirp-z algorithm.
 ///
 /// # Returns
 ///
@@ -129,13 +125,34 @@ pub fn irfft<const D: usize>(
         .try_dim_index(D)
         .unwrap_or_else(|error| panic!("IRFFT: {error}"));
 
+    assert!(
+        spectrum_re.shape() == spectrum_im.shape(),
+        "irfft: spectrum_re and spectrum_im must have the same shape, \
+         got {:?} and {:?}",
+        spectrum_re.shape(),
+        spectrum_im.shape(),
+    );
+
     if let Some(n) = n {
         assert!(n >= 1, "irfft: n must be >= 1, got {n}");
-        assert!(
-            n.is_power_of_two(),
-            "irfft: n must be a power of two, got {n}. True non-power-of-two \
-             DFT support is tracked as a follow-up (Bluestein's algorithm)."
-        );
+    }
+    let bins = spectrum_re.dims()[dim];
+    assert!(bins >= 1, "irfft: spectrum dimension cannot be empty");
+    let out_len = n.unwrap_or((bins - 1) * 2);
+    assert!(
+        out_len >= 1,
+        "irfft: reconstructed signal length must be >= 1, got {out_len}"
+    );
+
+    if !out_len.is_power_of_two() {
+        // Rebuild the full Hermitian spectrum, then invert it through the generic
+        // Bluestein path: x = conj(DFT(conj(X))) / n.
+        let half = out_len / 2 + 1;
+        let re = resize_dim(spectrum_re, dim, half);
+        let im = resize_dim(spectrum_im, dim, half);
+        let (full_re, full_im) = hermitian_extend(re, im, dim, out_len);
+        let (x_re, _) = bluestein_dft(full_re, full_im.neg(), dim, out_len);
+        return x_re.mul_scalar(1.0 / out_len as f64);
     }
 
     Tensor::from_dispatch(<Dispatch as SignalOps>::irfft(
@@ -144,6 +161,147 @@ pub fn irfft<const D: usize>(
         dim,
         n,
     ))
+}
+
+// ============================================================================
+// Bluestein's chirp-z algorithm (arbitrary-length DFT)
+// ============================================================================
+
+/// Truncate or zero-pad `tensor` so that `dim` has exactly `len` elements.
+fn resize_dim<const D: usize>(tensor: Tensor<D>, dim: usize, len: usize) -> Tensor<D> {
+    let current = tensor.dims()[dim];
+    if current == len {
+        tensor
+    } else if current > len {
+        tensor.narrow(dim, 0, len)
+    } else {
+        let mut padding = vec![(0usize, 0usize); D];
+        padding[dim] = (0, len - current);
+        tensor.pad(&padding[..], PadMode::Constant(0.0))
+    }
+}
+
+/// Evaluates `exp(-i * pi * k^2 / n)`.
+///
+/// `k^2` is reduced modulo `2n` before scaling so the phase argument stays in `[0, 2*pi)`.
+fn chirp_phase(k: usize, n: usize) -> (f64, f64) {
+    let r = (k as u128 * k as u128 % (2 * n as u128)) as f64;
+    let angle = core::f64::consts::PI * r / n as f64;
+    (libm::cos(angle), -libm::sin(angle))
+}
+
+/// Builds a constant tensor of length `len` along `dim` (all other dimensions are `1`).
+fn broadcast_const<const D: usize>(
+    values: Vec<f64>,
+    len: usize,
+    dim: usize,
+    device: &Device,
+    dtype: DType,
+) -> Tensor<D> {
+    let data = TensorData::new(values, [len]).convert_dtype(dtype);
+    let tensor: Tensor<1> = Tensor::from_data(data, (device, dtype));
+    let mut shape = [1usize; D];
+    shape[dim] = len;
+    tensor.reshape(shape)
+}
+
+/// Forward complex DFT of size `n` via Bluestein's chirp-z transform.
+///
+/// The input is truncated or zero-padded to `n` along `dim` first. The convolution that
+/// implements the transform is evaluated with `m = next_pow2(2n - 1)` point transforms,
+/// so the backend's radix-2 FFT is reused for any `n`.
+fn bluestein_dft<const D: usize>(
+    re: Tensor<D>,
+    im: Tensor<D>,
+    dim: usize,
+    n: usize,
+) -> (Tensor<D>, Tensor<D>) {
+    debug_assert!(n >= 1);
+
+    let device = re.device();
+    let dtype = re.dtype();
+    let m = (2 * n - 1).next_power_of_two();
+
+    let re = resize_dim(re, dim, n);
+    let im = resize_dim(im, dim, n);
+
+    // Chirp sequence w[k] = exp(-i*pi*k^2/n).
+    let (w_re, w_im) = chirp_sequence(n, dim, &device, dtype);
+
+    // a[k] = x[k] * w[k]
+    let a_re = re.clone() * w_re.clone() - im.clone() * w_im.clone();
+    let a_im = re * w_im.clone() + im * w_re.clone();
+
+    let a_re = resize_dim(a_re, dim, m);
+    let a_im = resize_dim(a_im, dim, m);
+
+    let (b_re, b_im) = kernel_sequence(m, n, dim, &device, dtype);
+
+    // Circular convolution of a and b through power-of-two transforms.
+    let (fa_re, fa_im) = cfft(a_re, a_im, dim, Some(m));
+    let (fb_re, fb_im) = cfft(b_re, b_im, dim, Some(m));
+
+    let conv_re = fa_re.clone() * fb_re.clone() - fa_im.clone() * fb_im.clone();
+    let conv_im = fa_re * fb_im + fa_im * fb_re;
+
+    // ifft(conv) = conj(fft(conj(conv))) / m
+    let (ifft_re, ifft_im) = cfft(conv_re, conv_im.neg(), dim, Some(m));
+    let scale = 1.0 / m as f64;
+    let y_re = ifft_re.mul_scalar(scale).narrow(dim, 0, n);
+    let y_im = ifft_im.neg().mul_scalar(scale).narrow(dim, 0, n);
+
+    // X[k] = w[k] * (a (*) b)[k]
+    let x_re = y_re.clone() * w_re.clone() - y_im.clone() * w_im.clone();
+    let x_im = y_re * w_im + y_im * w_re;
+
+    (x_re, x_im)
+}
+
+/// Chirp sequence `w[k] = exp(-i*pi*k^2/n)` for `k in 0..n`.
+fn chirp_sequence<const D: usize>(
+    n: usize,
+    dim: usize,
+    device: &Device,
+    dtype: DType,
+) -> (Tensor<D>, Tensor<D>) {
+    let mut re = Vec::with_capacity(n);
+    let mut im = Vec::with_capacity(n);
+    for k in 0..n {
+        let (c, s) = chirp_phase(k, n);
+        re.push(c);
+        im.push(s);
+    }
+    (
+        broadcast_const(re, n, dim, device, dtype),
+        broadcast_const(im, n, dim, device, dtype),
+    )
+}
+
+/// Filter kernel `b[k] = conj(w[k])`, laid out cyclically over `m` samples:
+/// `b[0] = 1`, `b[k] = conj(w[k])`, and `b[m - k] = conj(w[k])` for `k in 1..n`.
+fn kernel_sequence<const D: usize>(
+    m: usize,
+    n: usize,
+    dim: usize,
+    device: &Device,
+    dtype: DType,
+) -> (Tensor<D>, Tensor<D>) {
+    let mut re = vec![0.0f64; m];
+    let mut im = vec![0.0f64; m];
+    for k in 0..n {
+        let (c, s) = chirp_phase(k, n);
+        // conj(w[k]) = cos + i*sin
+        re[k] = c;
+        im[k] = -s;
+        if k > 0 {
+            re[m - k] = c;
+            im[m - k] = -s;
+        }
+    }
+    (
+        broadcast_const(re, m, dim, device, dtype),
+        broadcast_const(im, m, dim, device, dtype),
+    )
 }
 
 /// Computes the 1-dimensional discrete Fourier Transform of complex-valued input.
@@ -174,9 +332,9 @@ Since $x_{re}\[n\]$ and $x_{im}\[n\]$ are purely real, their transforms can be c
 ///   same shape as `signal_re`.
 /// * `dim` - The dimension along which to take the FFT.
 ///   Negative dimensions are supported and count from the end.
-/// * `n` - Optional FFT length. When `None`, the signal must be a power of two
-///   along `dim`. When `Some(n)`, `n` must also be a power of two; the signal is
-///   truncated or zero-padded to length `n`.
+/// * `n` - Optional FFT length. When `None`, the signal length along `dim` is used.
+///   When `Some(n)`, the signal is truncated or zero-padded to length `n`.
+///   Arbitrary `n` is supported (see [`rfft`]).
 ///
 /// # Returns
 ///
@@ -212,7 +370,7 @@ pub fn cfft<const D: usize>(
         .unwrap_or_else(|error| panic!("CFFT: {error}"));
     let fft_size = n.unwrap_or(signal_re.dims()[dim]);
 
-    // rfft validates power-of-two and n constraints internally
+    // rfft handles arbitrary n (power-of-two via the backend, otherwise Bluestein)
     let (xr, xi) = rfft(signal_re, dim, n);
     let (yr, yi) = rfft(signal_im, dim, n);
 

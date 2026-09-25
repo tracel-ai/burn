@@ -8,7 +8,13 @@ fn rfft_both_outputs_match_finite_differences() {
     let values = vec![0.2f32, -0.3, 0.7, 0.1, -0.2, 0.6, 0.4, -0.5];
     let device = AutodiffDevice::new();
     let plain_device = burn_core::tensor::Device::default();
-    for (dim, n) in [(0, Some(2)), (0, Some(8)), (1, None)] {
+    for (dim, n) in [
+        (0, Some(2)),
+        (0, Some(8)),
+        (1, None),
+        (0, Some(5)),
+        (1, Some(5)),
+    ] {
         let objective = |input| {
             let (real, imag) = signal::rfft(input, dim, n);
             real.square().sum() + imag.square().sum() * 0.7
@@ -46,7 +52,7 @@ fn irfft_both_inputs_match_finite_differences() {
     let imag_values = vec![0.4f32, 0.5, -0.6, 0.3, 0.8, -0.7];
     let device = AutodiffDevice::new();
     let plain_device = burn_core::tensor::Device::default();
-    for n in [Some(2), None, Some(8)] {
+    for n in [Some(2), None, Some(8), Some(5), Some(7)] {
         let objective = |real, imag| signal::irfft(real, imag, 0, n).square().sum();
         let real =
             TestTensor::<2>::from_data(TensorData::new(real_values.clone(), [3, 2]), &device)
