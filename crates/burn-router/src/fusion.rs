@@ -201,7 +201,7 @@ impl<R: RouterChannel> RouterFuser<R> {
     /// Value-based fusion score for the currently accumulated ops.
     ///
     /// Benefit: estimated % of serialized bytes caching saves per replay (the relative graph vs the
-    /// per-replay bindings — see [`ReplaySavings`]), weighted by `FACTOR_SAVED`. Cost: a
+    /// per-replay bindings, see [`ReplaySavings`]), weighted by `FACTOR_SAVED`. Cost: a
     /// penalty that grows with op count past `FREE_OPS`, so the score *peaks* at a "right-sized"
     /// graph and then decays once the per-op overhead outweighs the savings.
     ///
@@ -399,18 +399,8 @@ impl<R: RouterChannel> RouterGraphExecution<R> {
     }
 }
 
-const TENSOR_BYTES: u64 = 10; // id (≈8) + dtype + status
-const DIM_BYTES: u64 = 8;
-const OP_BYTES: u64 = 8; // variant tag + small bookkeeping
-const BINDING_BYTES: u64 = 16; // a (relative id, concrete id) binding entry
-
-/// What a replay of the cached graph saves over sending the graph again, kept up to date per
-/// operation because the fuser asks after each one.
-///
-/// The baseline is the whole relative graph's bytes (operation overhead plus each tensor's
-/// id/dtype/status and dimensions); a replay sends only the boundary
-/// [`GraphIr::classify`](burn_ir::GraphIr::classify) finds, as id pairs, and the distinct dims.
-/// Scalars and ranges travel in both forms and cancel in the ratio.
+/// What a replay of the cached graph saves over sending it again, kept per operation because the
+/// fuser asks after each one. Scalars and ranges travel either way, so they cancel in the ratio.
 #[derive(Clone, Default)]
 struct ReplaySavings {
     baseline: u64,
@@ -418,19 +408,24 @@ struct ReplaySavings {
     referenced: HashSet<TensorId>,
     produced: HashSet<TensorId>,
     consumed: HashSet<TensorId>,
-    /// Referenced ids also produced in the graph, which are not inputs.
-    produced_referenced: usize,
-    /// Produced ids also consumed in the graph, which are not outputs.
-    produced_consumed: usize,
+    inputs: usize,
+    outputs: usize,
 }
 
 impl ReplaySavings {
+    const TENSOR_BYTES: u64 = 10; // id (≈8) + dtype + status
+    const DIM_BYTES: u64 = 8;
+    const OP_BYTES: u64 = 8; // variant tag + small bookkeeping
+    const BINDING_BYTES: u64 = 16; // a (relative id, concrete id) binding entry
+
+    /// Adds `op` under the boundary rules of [`GraphIr::classify`](burn_ir::GraphIr::classify).
     fn add(&mut self, op: &OperationIr) {
-        self.baseline += OP_BYTES;
-        for tensor in op.nodes().into_iter().chain(op.outputs()) {
-            self.baseline += TENSOR_BYTES;
+        let nodes = op.nodes();
+        self.baseline += Self::OP_BYTES;
+        for tensor in nodes.iter().copied().chain(op.outputs()) {
+            self.baseline += Self::TENSOR_BYTES;
             for dim in tensor.shape.iter() {
-                self.baseline += DIM_BYTES;
+                self.baseline += Self::DIM_BYTES;
                 self.dims.insert(*dim);
             }
         }
@@ -442,26 +437,34 @@ impl ReplaySavings {
                 self.produce(tensor.id);
             }
         }
-        for tensor in op.nodes() {
-            if self.referenced.insert(tensor.id) && self.produced.contains(&tensor.id) {
-                self.produced_referenced += 1;
-            }
+        for tensor in nodes {
+            self.reference(tensor.id);
             if tensor.status == TensorStatus::ReadWrite {
                 self.consume(tensor.id);
             }
         }
     }
 
+    fn reference(&mut self, id: TensorId) {
+        if self.referenced.insert(id) && !self.produced.contains(&id) {
+            self.inputs += 1;
+        }
+    }
+
     fn produce(&mut self, id: TensorId) {
         if self.produced.insert(id) {
-            self.produced_referenced += usize::from(self.referenced.contains(&id));
-            self.produced_consumed += usize::from(self.consumed.contains(&id));
+            if self.referenced.contains(&id) {
+                self.inputs -= 1;
+            }
+            if !self.consumed.contains(&id) {
+                self.outputs += 1;
+            }
         }
     }
 
     fn consume(&mut self, id: TensorId) {
         if self.consumed.insert(id) && self.produced.contains(&id) {
-            self.produced_consumed += 1;
+            self.outputs -= 1;
         }
     }
 
@@ -470,10 +473,8 @@ impl ReplaySavings {
         if self.baseline == 0 {
             return 0;
         }
-        let inputs = self.referenced.len() - self.produced_referenced;
-        let outputs = self.produced.len() - self.produced_consumed;
-        let bindings =
-            (inputs + outputs) as u64 * BINDING_BYTES + self.dims.len() as u64 * DIM_BYTES;
+        let bindings = (self.inputs + self.outputs) as u64 * Self::BINDING_BYTES
+            + self.dims.len() as u64 * Self::DIM_BYTES;
         (self.baseline.saturating_sub(bindings) * 100 / self.baseline).min(100)
     }
 }
@@ -591,18 +592,18 @@ impl<R: RouterChannel> Optimization<RouterFusionRuntime<R>> for RouterGraphExecu
 mod tests {
     use super::*;
     use burn_backend::Shape;
-    use burn_ir::{CustomOpIr, GraphIr};
+    use burn_ir::{CustomOpIr, GraphIr, InitOperationIr};
 
     /// The estimate recomputed over the whole graph, which the savings must match after every op.
     fn whole_graph_percent(ops: &[OperationIr]) -> u64 {
         let mut baseline = 0u64;
         let mut dims = HashSet::new();
         for op in ops {
-            baseline += OP_BYTES;
+            baseline += ReplaySavings::OP_BYTES;
             for tensor in op.nodes().into_iter().chain(op.outputs()) {
-                baseline += TENSOR_BYTES;
+                baseline += ReplaySavings::TENSOR_BYTES;
                 for dim in tensor.shape.iter() {
-                    baseline += DIM_BYTES;
+                    baseline += ReplaySavings::DIM_BYTES;
                     dims.insert(*dim);
                 }
             }
@@ -611,8 +612,9 @@ mod tests {
             return 0;
         }
         let boundary = GraphIr::classify(ops);
-        let bindings = (boundary.inputs.len() + boundary.outputs.len()) as u64 * BINDING_BYTES
-            + dims.len() as u64 * DIM_BYTES;
+        let bindings = (boundary.inputs.len() + boundary.outputs.len()) as u64
+            * ReplaySavings::BINDING_BYTES
+            + dims.len() as u64 * ReplaySavings::DIM_BYTES;
         (baseline.saturating_sub(bindings) * 100 / baseline).min(100)
     }
 
@@ -625,47 +627,53 @@ mod tests {
             self.0 ^= self.0 << 17;
             self.0 % bound
         }
-    }
 
-    fn tensor(rng: &mut Rng, id: u64) -> TensorIr {
-        let dims: Vec<usize> = (0..=rng.below(3))
-            .map(|_| 1 + rng.below(6) as usize)
-            .collect();
-        let mut tensor = TensorIr::uninit(TensorId::new(id), Shape::from(dims), DType::F32);
-        if rng.below(4) == 0 {
-            tensor.status = TensorStatus::ReadWrite;
+        fn tensor(&mut self, pool: u64) -> TensorIr {
+            let id = TensorId::new(self.below(pool));
+            let dims: Vec<usize> = (0..=self.below(3))
+                .map(|_| 1 + self.below(6) as usize)
+                .collect();
+            let mut tensor = TensorIr::uninit(id, Shape::from(dims), DType::F32);
+            if self.below(4) == 0 {
+                tensor.status = TensorStatus::ReadWrite;
+            }
+            tensor
         }
-        tensor
+
+        fn op(&mut self, pool: u64) -> OperationIr {
+            match self.below(6) {
+                0 => OperationIr::Drop(self.tensor(pool)),
+                1 => OperationIr::Init(InitOperationIr {
+                    out: self.tensor(pool),
+                }),
+                _ => {
+                    let inputs: Vec<TensorIr> =
+                        (0..self.below(3)).map(|_| self.tensor(pool)).collect();
+                    let outputs: Vec<TensorIr> =
+                        (0..self.below(3)).map(|_| self.tensor(pool)).collect();
+                    OperationIr::Custom(CustomOpIr::new("op", &inputs, &outputs))
+                }
+            }
+        }
     }
 
     #[test]
-    fn savings_match_the_whole_graph_estimate_after_every_op() {
+    fn savings_match_the_whole_graph_after_every_op() {
         let mut rng = Rng(0x9e37_79b9_7f4a_7c15);
-        for _ in 0..40 {
+        for _ in 0..500 {
+            // Few ids, so ops read, produce and drop the same tensors in every order.
+            let pool = 2 + rng.below(8);
             let mut ops = Vec::new();
             let mut savings = ReplaySavings::default();
-            let mut next_id = 0;
-            for _ in 0..60 {
-                let op = if next_id > 0 && rng.below(6) == 0 {
-                    let id = rng.below(next_id);
-                    OperationIr::Drop(tensor(&mut rng, id))
-                } else {
-                    let inputs: Vec<TensorIr> = (0..=rng.below(2))
-                        .map(|_| {
-                            let id = rng.below(next_id + 3);
-                            tensor(&mut rng, id)
-                        })
-                        .collect();
-                    let outputs: Vec<TensorIr> = (0..=rng.below(1))
-                        .map(|_| {
-                            next_id += 1;
-                            tensor(&mut rng, next_id + 2)
-                        })
-                        .collect();
-                    OperationIr::Custom(CustomOpIr::new("op", &inputs, &outputs))
-                };
+            for _ in 0..40 {
+                let op = rng.op(pool);
                 savings.add(&op);
                 ops.push(op);
+                let boundary = GraphIr::classify(&ops);
+                assert_eq!(
+                    (savings.inputs, savings.outputs),
+                    (boundary.inputs.len(), boundary.outputs.len())
+                );
                 assert_eq!(savings.percent(), whole_graph_percent(&ops));
             }
         }
