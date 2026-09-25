@@ -516,6 +516,73 @@ fn rfft_irfft_roundtrip_arbitrary_n() {
         .assert_approx_eq::<FloatElem>(&signal.into_data(), Tolerance::absolute(1e-2));
 }
 
+/// Direct O(n^2) real DFT used as an independent reference for the Bluestein
+/// path. This is the same definition used by `numpy.fft.rfft` and
+/// `torch.fft.rfft`, so agreeing with it is what the issue asks for.
+fn naive_rfft(values: &[f32], n: usize) -> (Vec<f32>, Vec<f32>) {
+    let bins = n / 2 + 1;
+    let mut re = vec![0.0f32; bins];
+    let mut im = vec![0.0f32; bins];
+    for (k, (re_k, im_k)) in re.iter_mut().zip(im.iter_mut()).enumerate() {
+        for t in 0..n {
+            let x = values.get(t).copied().unwrap_or(0.0);
+            let angle = -2.0 * core::f32::consts::PI * (k * t) as f32 / n as f32;
+            *re_k += x * angle.cos();
+            *im_k += x * angle.sin();
+        }
+    }
+    (re, im)
+}
+
+#[test]
+fn rfft_arbitrary_n_matches_naive_dft() {
+    // Prime and composite non-power-of-two sizes must match the direct DFT
+    // definition, not a zero-padded power-of-two grid.
+    let values = [
+        0.31f32, -0.72, 1.24, 0.53, -0.11, 0.97, -0.44, 0.26, 0.68, -0.83, 0.15, 0.39, -0.58,
+    ];
+    for &n in &[3usize, 5, 6, 7, 9, 10, 11, 13] {
+        let input = values[..n].to_vec();
+        let signal = TestTensor::<1>::from(input.as_slice());
+        let (re, im) = rfft(signal, 0, Some(n));
+        let (expected_re, expected_im) = naive_rfft(&input, n);
+
+        assert_eq!(re.dims(), [n / 2 + 1]);
+        assert_eq!(im.dims(), [n / 2 + 1]);
+
+        let re_v = re.into_data().try_into_vec::<FloatElem>().unwrap();
+        let im_v = im.into_data().try_into_vec::<FloatElem>().unwrap();
+        for k in 0..(n / 2 + 1) {
+            assert!(
+                (re_v[k] - expected_re[k]).abs() < 1e-3,
+                "n={n} k={k} real: got {}, want {}",
+                re_v[k],
+                expected_re[k],
+            );
+            assert!(
+                (im_v[k] - expected_im[k]).abs() < 1e-3,
+                "n={n} k={k} imag: got {}, want {}",
+                im_v[k],
+                expected_im[k],
+            );
+        }
+    }
+}
+
+#[test]
+fn rfft_irfft_roundtrip_multiple_arbitrary_n() {
+    let values = [1.0f32, -2.0, 3.5, 0.25, -4.0, 1.5, 2.0, -0.5, 0.75];
+    for &n in &[3usize, 5, 6, 7, 9] {
+        let signal = TestTensor::<1>::from(&values[..n]);
+        let (re, im) = rfft(signal.clone(), 0, Some(n));
+        let reconstructed = irfft(re, im, 0, Some(n));
+
+        reconstructed
+            .into_data()
+            .assert_approx_eq::<FloatElem>(&signal.into_data(), Tolerance::absolute(1e-3));
+    }
+}
+
 #[test]
 fn rfft_irfft_roundtrip_with_n() {
     let signal = TestTensor::<1>::from([1.0, 2.0, 3.0, 4.0]);
