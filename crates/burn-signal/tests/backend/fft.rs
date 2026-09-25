@@ -1,6 +1,6 @@
 use super::*;
 use burn_core::tensor::{TensorData, Tolerance};
-use burn_signal::{cfft, irfft, rfft};
+use burn_signal::{cfft, ifft, irfft, rfft};
 
 const SQ2INV: f64 = std::f64::consts::FRAC_1_SQRT_2;
 const SQ2INV_PLUS_HALF: f64 = SQ2INV + 0.5;
@@ -785,6 +785,161 @@ fn cfft_with_n_truncation() {
     cfft_im
         .into_data()
         .assert_approx_eq::<FloatElem>(&expected_im, Tolerance::absolute(1e-3));
+}
+
+// ---- ifft tests ----
+
+#[test]
+fn ifft_inverts_cfft() {
+    // ifft(cfft(z)) == z for a complex signal.
+    let re = TestTensor::<1>::from([1.0, 2.0, 3.0, 4.0]);
+    let im = TestTensor::<1>::from([0.5, -1.0, 0.25, 2.0]);
+    let (spec_re, spec_im) = cfft(re.clone(), im.clone(), 0, None);
+    let (out_re, out_im) = ifft(spec_re, spec_im, 0, None);
+
+    out_re
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&re.into_data(), Tolerance::absolute(1e-3));
+    out_im
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&im.into_data(), Tolerance::absolute(1e-3));
+}
+
+#[test]
+fn ifft_impulse_spectrum() {
+    // X = [1, 0, 0, 0] → x[n] = 1/N for all n.
+    let re = TestTensor::<1>::from([1.0, 0.0, 0.0, 0.0]);
+    let im = TestTensor::<1>::from([0.0, 0.0, 0.0, 0.0]);
+    let (out_re, out_im) = ifft(re, im, 0, None);
+
+    out_re.into_data().assert_approx_eq::<FloatElem>(
+        &TensorData::from([0.25, 0.25, 0.25, 0.25]),
+        Tolerance::absolute(1e-4),
+    );
+    out_im.into_data().assert_approx_eq::<FloatElem>(
+        &TensorData::from([0.0, 0.0, 0.0, 0.0]),
+        Tolerance::absolute(1e-4),
+    );
+}
+
+#[test]
+fn ifft_single_bin_complex_exponential() {
+    // X = [0, 4, 0, 0] → x[n] = exp(i·2π·n/4) = [1, i, -1, -i].
+    let re = TestTensor::<1>::from([0.0, 4.0, 0.0, 0.0]);
+    let im = TestTensor::<1>::from([0.0, 0.0, 0.0, 0.0]);
+    let (out_re, out_im) = ifft(re, im, 0, None);
+
+    out_re.into_data().assert_approx_eq::<FloatElem>(
+        &TensorData::from([1.0, 0.0, -1.0, 0.0]),
+        Tolerance::absolute(1e-3),
+    );
+    out_im.into_data().assert_approx_eq::<FloatElem>(
+        &TensorData::from([0.0, 1.0, 0.0, -1.0]),
+        Tolerance::absolute(1e-3),
+    );
+}
+
+#[test]
+fn ifft_dim1_2d_tensor() {
+    // Inverse of the spectra in `cfft_dim1_2d_tensor`.
+    let spec_re = TestTensor::<2>::from([[10.0, -2.0, -2.0, -2.0], [0.0, 4.0, 0.0, 0.0]]);
+    let spec_im = TestTensor::<2>::from([[0.0, 2.0, 0.0, -2.0], [0.0, 0.0, 0.0, 0.0]]);
+    let (out_re, out_im) = ifft(spec_re, spec_im, 1, None);
+
+    assert_eq!(out_re.dims(), [2, 4]);
+    assert_eq!(out_im.dims(), [2, 4]);
+
+    let expected_re = TensorData::from([[1.0, 2.0, 3.0, 4.0], [1.0, 0.0, -1.0, 0.0]]);
+    let expected_im = TensorData::from([[0.0, 0.0, 0.0, 0.0], [0.0, 1.0, 0.0, -1.0]]);
+
+    out_re
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&expected_re, Tolerance::absolute(1e-3));
+    out_im
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&expected_im, Tolerance::absolute(1e-3));
+}
+
+#[test]
+fn ifft_negative_dim_matches_positive_dim() {
+    let re = TestTensor::<2>::from([[10.0, -2.0, -2.0, -2.0], [0.0, 4.0, 0.0, 0.0]]);
+    let im = TestTensor::<2>::from([[0.0, 2.0, 0.0, -2.0], [0.0, 0.0, 0.0, 0.0]]);
+
+    let (expected_re, expected_im) = ifft(re.clone(), im.clone(), 1, None);
+    let (actual_re, actual_im) = ifft(re, im, -1, None);
+
+    actual_re
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&expected_re.into_data(), Tolerance::absolute(1e-4));
+    actual_im
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&expected_im.into_data(), Tolerance::absolute(1e-4));
+}
+
+#[test]
+fn ifft_with_n_padding() {
+    // X = [4, 0] padded to N=4 → x[n] = 1 for all n.
+    let re = TestTensor::<1>::from([4.0, 0.0]);
+    let im = TestTensor::<1>::from([0.0, 0.0]);
+    let (out_re, out_im) = ifft(re, im, 0, Some(4));
+
+    assert_eq!(out_re.dims(), [4]);
+    out_re.into_data().assert_approx_eq::<FloatElem>(
+        &TensorData::from([1.0, 1.0, 1.0, 1.0]),
+        Tolerance::absolute(1e-4),
+    );
+    out_im.into_data().assert_approx_eq::<FloatElem>(
+        &TensorData::from([0.0, 0.0, 0.0, 0.0]),
+        Tolerance::absolute(1e-4),
+    );
+}
+
+#[test]
+fn ifft_with_n_truncation_resizes_round_trip() {
+    // Round trip at n=4 truncates the length-8 signal, so only its first four
+    // samples are recovered. The output has length n, not the input length.
+    let re = TestTensor::<1>::from([1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0]);
+    let im = TestTensor::<1>::from([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]);
+
+    let (spec_re, spec_im) = cfft(re, im, 0, Some(4));
+    assert_eq!(spec_re.dims(), [4]);
+
+    let (out_re, out_im) = ifft(spec_re, spec_im, 0, Some(4));
+    assert_eq!(out_re.dims(), [4]);
+
+    out_re.into_data().assert_approx_eq::<FloatElem>(
+        &TensorData::from([1.0, 2.0, 3.0, 4.0]),
+        Tolerance::absolute(1e-3),
+    );
+    out_im.into_data().assert_approx_eq::<FloatElem>(
+        &TensorData::from([0.0, 0.0, 0.0, 0.0]),
+        Tolerance::absolute(1e-3),
+    );
+}
+
+#[test]
+fn ifft_length_1() {
+    assert_length_one_behavior(|| {
+        // N=1: the inverse of a single complex value is itself.
+        let re = TestTensor::<1>::from([3.0]);
+        let im = TestTensor::<1>::from([5.0]);
+        let (out_re, out_im) = ifft(re, im, 0, None);
+
+        out_re
+            .into_data()
+            .assert_approx_eq::<FloatElem>(&TensorData::from([3.0]), Tolerance::absolute(1e-4));
+        out_im
+            .into_data()
+            .assert_approx_eq::<FloatElem>(&TensorData::from([5.0]), Tolerance::absolute(1e-4));
+    });
+}
+
+#[test]
+#[should_panic(expected = "same shape")]
+fn ifft_rejects_mismatched_shapes() {
+    let re = TestTensor::<1>::from([1.0, 2.0, 3.0, 4.0]);
+    let im = TestTensor::<1>::from([1.0, 2.0]);
+    let _ = ifft(re, im, 0, None);
 }
 
 // CubeCL currently rejects length-one FFTs; Flex and LibTorch support them.
