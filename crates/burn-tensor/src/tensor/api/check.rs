@@ -1,5 +1,5 @@
 use crate::bridge::{BasicOps, Ordered};
-use crate::{Shape, Slice, Tensor, cast::ToElement};
+use crate::{DType, Shape, Slice, Tensor, cast::ToElement};
 use alloc::format;
 use alloc::string::{String, ToString};
 use alloc::vec;
@@ -370,6 +370,22 @@ impl TensorCheck {
                 )),
             );
         }
+        check
+    }
+
+    /// Checks that an operation which doesn't support quantized inputs isn't given one.
+    pub(crate) fn quantized_unsupported(ops: &str, dtype: DType) -> Self {
+        let mut check = Self::Ok;
+
+        if let DType::QFloat(scheme) = dtype {
+            check = check.register(
+                ops,
+                TensorError::new("Quantized tensors are not supported by this operation.").details(
+                    format!("Got dtype QFloat({scheme:?}). Dequantize the tensor first."),
+                ),
+            );
+        }
+
         check
     }
 
