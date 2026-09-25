@@ -579,14 +579,15 @@ Interpolation modules resize tensors using one of the available `InterpolateMode
 | `Cubic`   | Cubic interpolation (bicubic for 2D)               |
 | `Lanczos` | Lanczos3 resampling (6-tap sinc-based filter, a=3) |
 
-Configuration is done via `Interpolate1dConfig` / `Interpolate2dConfig` with these options:
+Configuration is done via `Interpolate1dConfig` / `Interpolate2dConfig` with these options. Exactly
+one of `output_size` or `scale_factor` must be set; `forward` panics otherwise.
 
-| Option          | Type                                   | Default   | Description                                             |
-| --------------- | -------------------------------------- | --------- | ------------------------------------------------------- |
-| `output_size`   | `Option<usize>` / `Option<[usize; 2]>` | `None`    | Target output size (takes precedence over scale_factor) |
-| `scale_factor`  | `Option<f32>` / `Option<[f32; 2]>`     | `None`    | Scale factor for resizing                               |
-| `mode`          | `InterpolateMode`                      | `Nearest` | Interpolation algorithm                                 |
-| `align_corners` | `bool`                                 | `true`    | Align input/output corner pixels                        |
+| Option          | Type                                   | Default   | Description                                    |
+| --------------- | -------------------------------------- | --------- | ---------------------------------------------- |
+| `output_size`   | `Option<usize>` / `Option<[usize; 2]>` | `None`    | Target output size; set this or `scale_factor` |
+| `scale_factor`  | `Option<f32>` / `Option<[f32; 2]>`     | `None`    | Output is `floor(input * scale_factor)`        |
+| `mode`          | `InterpolateMode`                      | `Nearest` | Interpolation algorithm                        |
+| `align_corners` | `bool`                                 | `true`    | Align input/output corner pixels               |
 
 ### RNNs
 
