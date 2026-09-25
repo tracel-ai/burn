@@ -8,7 +8,7 @@ use alloc::boxed::Box;
 use alloc::{string::String, vec::Vec};
 
 use burn_backend::{
-    DType, Distribution, Slice, Tiling,
+    DType, Distribution, Slice,
     ops::{
         ConvOptions, ConvTransposeOptions, DeformConvOptions, GridSampleOptions,
         GridSamplePaddingMode, InterpolateMode, InterpolateOptions, PadMode,
@@ -204,8 +204,6 @@ pub enum FloatOperationIr {
     IsNan(UnaryOpIr),
     /// Operation corresponding to [is_nan](burn_backend::ops::FloatTensorOps::float_is_inf).
     IsInf(UnaryOpIr),
-    /// Operation corresponding to [into_tiled](burn_backend::ops::FloatTensorOps::float_into_tiled).
-    IntoTiled(IntoTiledOpIr),
     /// Operation corresponding to [quantize](burn_backend::ops::QTensorOps::quantize).
     Quantize(QuantizeOpIr),
     /// Operation corresponding to [dequantize](burn_backend::ops::QTensorOps::dequantize).
@@ -1033,16 +1031,6 @@ pub struct CrossOpIr {
     pub rhs: TensorIr,
     pub out: TensorIr,
     pub dim: usize,
-}
-
-/// `input`, whose dims are the storage fragments `tiling` counts, as the lower-rank tensor they
-/// stand for: `out` is that logical tensor, stored as `input` is.
-#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
-#[allow(missing_docs)]
-pub struct IntoTiledOpIr {
-    pub input: TensorIr,
-    pub tiling: Tiling,
-    pub out: TensorIr,
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
@@ -3221,7 +3209,6 @@ impl FloatOperationIr {
             FloatOperationIr::Dequantize(repr) => Box::new([&repr.input].into_iter()),
             FloatOperationIr::IsNan(repr) => Box::new([&repr.input].into_iter()),
             FloatOperationIr::IsInf(repr) => Box::new([&repr.input].into_iter()),
-            FloatOperationIr::IntoTiled(repr) => Box::new([&repr.input].into_iter()),
             FloatOperationIr::GridSample2d(repr) => {
                 Box::new([&repr.tensor, &repr.grid].into_iter())
             }
@@ -3263,7 +3250,6 @@ impl FloatOperationIr {
             FloatOperationIr::Dequantize(repr) => Box::new([&repr.out].into_iter()),
             FloatOperationIr::IsNan(repr) => Box::new([&repr.out].into_iter()),
             FloatOperationIr::IsInf(repr) => Box::new([&repr.out].into_iter()),
-            FloatOperationIr::IntoTiled(repr) => Box::new([&repr.out].into_iter()),
             FloatOperationIr::GridSample2d(repr) => Box::new([&repr.out].into_iter()),
             FloatOperationIr::Tan(repr) => Box::new([&repr.out].into_iter()),
             FloatOperationIr::Cosh(repr) => Box::new([&repr.out].into_iter()),
@@ -3352,9 +3338,6 @@ impl FloatOperationIr {
                 repr.input.mark_read_only(nodes, &mut output);
             }
             FloatOperationIr::IsInf(repr) => {
-                repr.input.mark_read_only(nodes, &mut output);
-            }
-            FloatOperationIr::IntoTiled(repr) => {
                 repr.input.mark_read_only(nodes, &mut output);
             }
             FloatOperationIr::GridSample2d(repr) => {
@@ -3480,10 +3463,6 @@ impl FloatOperationIr {
                 v.visit_tensor_mut(&mut repr.out);
             }
             FloatOperationIr::IsInf(repr) => {
-                v.visit_tensor_mut(&mut repr.input);
-                v.visit_tensor_mut(&mut repr.out);
-            }
-            FloatOperationIr::IntoTiled(repr) => {
                 v.visit_tensor_mut(&mut repr.input);
                 v.visit_tensor_mut(&mut repr.out);
             }

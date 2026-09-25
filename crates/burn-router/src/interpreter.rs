@@ -1424,11 +1424,6 @@ impl<B: BackendIr> TensorInterpreter<B> {
                     let output = B::float_is_inf(tensor, desc.out.dtype.into());
                     handles.register_bool_tensor::<B>(&desc.out.id, output);
                 }
-                FloatOperationIr::IntoTiled(desc) => {
-                    let tensor = handles.get_float_tensor::<B>(&desc.input);
-                    let output = B::float_into_tiled(tensor, desc.tiling);
-                    handles.register_float_tensor::<B>(&desc.out.id, output);
-                }
                 FloatOperationIr::GridSample2d(desc) => {
                     let tensor = handles.get_float_tensor::<B>(&desc.tensor);
                     let grid = handles.get_float_tensor::<B>(&desc.grid);
