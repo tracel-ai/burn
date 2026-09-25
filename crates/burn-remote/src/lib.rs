@@ -15,6 +15,8 @@ pub mod server;
 
 pub(crate) mod shared;
 pub mod telemetry;
+#[cfg(any(feature = "client", all(feature = "server", feature = "iroh")))]
+pub(crate) mod time;
 mod transport;
 
 pub use burn_ir as ir;
@@ -95,6 +97,37 @@ mod tests {
                 "Deadlock: the remote multi-device workload did not finish within {timeout:?}"
             ),
         }
+    }
+
+    #[test]
+    fn a_dial_waits_for_a_websocket_server_that_starts_late() {
+        // Past the first retries, well inside the retry window.
+        const SERVER_LATE_BY: std::time::Duration = std::time::Duration::from_millis(700);
+
+        let port = std::net::TcpListener::bind("0.0.0.0:0")
+            .unwrap()
+            .local_addr()
+            .unwrap()
+            .port();
+        let rt = tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+        rt.spawn(async move {
+            tokio::time::sleep(SERVER_LATE_BY).await;
+            crate::server::RemoteServerBuilder::<Flex>::new(vec![Default::default()])
+                .port(port)
+                .start_async()
+                .await;
+        });
+
+        with_deadlock_watchdog(std::time::Duration::from_secs(30), move || {
+            let device = Device::remote_websocket(&format!("ws://localhost:{port}"), 0);
+            let output = Tensor::<1>::from_floats([1.0, 2.0], &device) * 2.0;
+            assert_eq!(output.try_into_vec_as::<f32>().unwrap(), vec![2.0, 4.0]);
+        });
+
+        rt.shutdown_background();
     }
 
     #[test]

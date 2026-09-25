@@ -60,7 +60,7 @@ hound = "3.5.1"
 image = "0.25.9"
 indicatif = "0.18.0"
 insta = "1.45.0"
-iroh = "1.0.0"
+iroh = "1.2.0"
 js-sys = "0.3.77"
 libm = "0.2.15"
 log = { default-features = false, version = "0.4.29" }
@@ -139,11 +139,6 @@ unicode-width = "0.2"
 # WGPU stuff
 text_placeholder = "0.5.1"
 
-bincode = { version = "2.0.1", features = [
-    "alloc",
-    "serde",
-], default-features = false }
-
 #
 # The following packages disable the "std" feature for no_std compatibility
 #
@@ -172,6 +167,7 @@ serde = { version = "1.0.228", default-features = false, features = [
 ] } # alloc is for no_std, derive is needed
 serde_json = { version = "1.0.148", default-features = false }
 smallvec = { version = "1", features = ["const_generics", "const_new"] }
+socket2 = { version = "0.6.5", features = ["all"] }
 uuid = { version = "1.23.0", default-features = false }
 
 byteorder = { version = "1.5.0", default-features = false }
@@ -235,7 +231,7 @@ cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false
 cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "04676cd906552cb9a2b38e869d4f3c4064d73dec" }
 cubecl-environment = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "04676cd906552cb9a2b38e869d4f3c4064d73dec" }
 cubecl-zspace = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "04676cd906552cb9a2b38e869d4f3c4064d73dec" }
-cubek = { git = "https://github.com/tracel-ai/cubek", default-features = false, rev = "333c40601407aa987f86bcc3d9975567c8384ba5" }
+cubek = { git = "https://github.com/tracel-ai/cubek", default-features = false, rev = "a066bdd491dc99f682efe6b4f260ca9fe6d59cdf" }
 ### For local development. ###
 # cubecl = { path = "../cubecl/crates/cubecl", default-features = false }
 # cubecl-common = { path = "../cubecl/crates/cubecl-common", default-features = false }

@@ -29,6 +29,20 @@ impl fmt::Display for PeerId {
     }
 }
 
+#[cfg(feature = "client")]
+impl PeerId {
+    /// The display form with an Iroh endpoint id cut short, as iroh's `fmt_short` does, for log
+    /// lines.
+    pub(crate) fn to_short_string(&self) -> String {
+        match self {
+            #[cfg(feature = "iroh")]
+            Self::Iroh(id) => format!("iroh://{}", id.fmt_short()),
+            #[cfg(feature = "websocket")]
+            Self::WebSocket(address) => address.to_string(),
+        }
+    }
+}
+
 // Only the Iroh server resolves a `PeerId` back to an endpoint id (to address tensor transfers).
 #[cfg(all(feature = "iroh", feature = "server"))]
 impl PeerId {
