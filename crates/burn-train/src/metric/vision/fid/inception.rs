@@ -8,7 +8,7 @@ use burn::module::Module;
 use burn::tensor::Device;
 use burn::tensor::Tensor;
 use burn::tensor::activation::relu;
-use burn::tensor::ops::{InterpolateMode, InterpolateOptions};
+use burn::tensor::ops::{AvgPoolOptions, InterpolateMode, InterpolateOptions, MaxPoolOptions};
 use burn_nn::conv::{Conv2d, Conv2dConfig};
 use burn_nn::{BatchNorm, BatchNormConfig, PaddingConfig2d};
 
@@ -84,8 +84,13 @@ impl InceptionA {
         let branch3x3dbl = self.branch3x3dbl_2.forward(branch3x3dbl);
         let branch3x3dbl = self.branch3x3dbl_3.forward(branch3x3dbl);
 
-        let branch_pool =
-            burn_core::tensor::module::avg_pool2d(x, [3, 3], [1, 1], [1, 1], false, false);
+        let branch_pool = burn_core::tensor::module::avg_pool2d(
+            x,
+            AvgPoolOptions::new([3, 3])
+                .with_stride([1, 1])
+                .with_padding([1, 1])
+                .with_count_include_pad(false),
+        );
         let branch_pool = self.branch_pool.forward(branch_pool);
 
         Tensor::cat(vec![branch1x1, branch5x5, branch3x3dbl, branch_pool], 1)
@@ -127,8 +132,10 @@ impl InceptionB {
         let branch3x3dbl = self.branch3x3dbl_2.forward(branch3x3dbl);
         let branch3x3dbl = self.branch3x3dbl_3.forward(branch3x3dbl);
 
-        let branch_pool =
-            burn_core::tensor::module::max_pool2d(x, [3, 3], [2, 2], [0, 0], [1, 1], false);
+        let branch_pool = burn_core::tensor::module::max_pool2d(
+            x,
+            MaxPoolOptions::new([3, 3]).with_stride([2, 2]),
+        );
 
         Tensor::cat(vec![branch3x3, branch3x3dbl, branch_pool], 1)
     }
@@ -202,8 +209,13 @@ impl InceptionC {
         let branch7x7dbl = self.branch7x7dbl_4.forward(branch7x7dbl);
         let branch7x7dbl = self.branch7x7dbl_5.forward(branch7x7dbl);
 
-        let branch_pool =
-            burn_core::tensor::module::avg_pool2d(x, [3, 3], [1, 1], [1, 1], false, false);
+        let branch_pool = burn_core::tensor::module::avg_pool2d(
+            x,
+            AvgPoolOptions::new([3, 3])
+                .with_stride([1, 1])
+                .with_padding([1, 1])
+                .with_count_include_pad(false),
+        );
         let branch_pool = self.branch_pool.forward(branch_pool);
 
         Tensor::cat(vec![branch1x1, branch7x7, branch7x7dbl, branch_pool], 1)
@@ -255,8 +267,10 @@ impl InceptionD {
         let branch7x7x3 = self.branch7x7x3_3.forward(branch7x7x3);
         let branch7x7x3 = self.branch7x7x3_4.forward(branch7x7x3);
 
-        let branch_pool =
-            burn_core::tensor::module::max_pool2d(x, [3, 3], [2, 2], [0, 0], [1, 1], false);
+        let branch_pool = burn_core::tensor::module::max_pool2d(
+            x,
+            MaxPoolOptions::new([3, 3]).with_stride([2, 2]),
+        );
 
         Tensor::cat(vec![branch3x3, branch7x7x3, branch_pool], 1)
     }
@@ -328,9 +342,20 @@ impl InceptionE {
         let branch3x3dbl = Tensor::cat(vec![branch3x3dbl_a, branch3x3dbl_b], 1);
 
         let branch_pool = if self.use_max_pool {
-            burn_core::tensor::module::max_pool2d(x, [3, 3], [1, 1], [1, 1], [1, 1], false)
+            burn_core::tensor::module::max_pool2d(
+                x,
+                MaxPoolOptions::new([3, 3])
+                    .with_stride([1, 1])
+                    .with_padding([1, 1]),
+            )
         } else {
-            burn_core::tensor::module::avg_pool2d(x, [3, 3], [1, 1], [1, 1], false, false)
+            burn_core::tensor::module::avg_pool2d(
+                x,
+                AvgPoolOptions::new([3, 3])
+                    .with_stride([1, 1])
+                    .with_padding([1, 1])
+                    .with_count_include_pad(false),
+            )
         };
         let branch_pool = self.branch_pool.forward(branch_pool);
 
@@ -414,10 +439,16 @@ impl InceptionV3FeatureExtractor {
         let x = self.conv2d_1a.forward(x);
         let x = self.conv2d_2a.forward(x);
         let x = self.conv2d_2b.forward(x);
-        let x = burn_core::tensor::module::max_pool2d(x, [3, 3], [2, 2], [0, 0], [1, 1], false);
+        let x = burn_core::tensor::module::max_pool2d(
+            x,
+            MaxPoolOptions::new([3, 3]).with_stride([2, 2]),
+        );
         let x = self.conv2d_3b.forward(x);
         let x = self.conv2d_4a.forward(x);
-        let x = burn_core::tensor::module::max_pool2d(x, [3, 3], [2, 2], [0, 0], [1, 1], false);
+        let x = burn_core::tensor::module::max_pool2d(
+            x,
+            MaxPoolOptions::new([3, 3]).with_stride([2, 2]),
+        );
 
         // InceptionA
         let x = self.mixed_5b.forward(x);

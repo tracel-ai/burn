@@ -2,6 +2,7 @@ use super::*;
 use burn_tensor::TensorData;
 use burn_tensor::Tolerance;
 use burn_tensor::module::{max_pool1d, max_pool1d_with_indices};
+use burn_tensor::ops::MaxPoolOptions;
 
 #[test]
 fn test_max_pool1d_simple() {
@@ -19,7 +20,13 @@ fn test_max_pool1d_simple() {
         [0.949, 0.949, 0.949, 0.789],
     ]]);
 
-    let output = max_pool1d(x, kernel_size, stride, padding, dilation, false);
+    let output = max_pool1d(
+        x,
+        MaxPoolOptions::new([kernel_size])
+            .with_stride([stride])
+            .with_padding([padding])
+            .with_dilation([dilation]),
+    );
 
     y.to_data()
         .assert_approx_eq::<FloatElem>(&output.into_data(), Tolerance::default());
@@ -35,7 +42,13 @@ fn test_max_pool1d_different_padding_stride_kernel() {
     let x = TestTensor::from([[[0.6309, 0.6112, 0.6998, 0.4708]]]);
     let y = TestTensor::<3>::from([[[0.6309, 0.6998]]]);
 
-    let output = max_pool1d(x, kernel_size, stride, padding, dilation, false);
+    let output = max_pool1d(
+        x,
+        MaxPoolOptions::new([kernel_size])
+            .with_stride([stride])
+            .with_padding([padding])
+            .with_dilation([dilation]),
+    );
 
     y.to_data()
         .assert_approx_eq::<FloatElem>(&output.into_data(), Tolerance::default());
@@ -51,7 +64,13 @@ fn test_max_pool1d_with_neg() {
     let x = TestTensor::from([[[-0.6309, -0.6112, -0.6998, -0.4708]]]);
     let y = TestTensor::<3>::from([[[-0.6112, -0.6112, -0.4708, -0.4708]]]);
 
-    let output = max_pool1d(x, kernel_size, stride, padding, dilation, false);
+    let output = max_pool1d(
+        x,
+        MaxPoolOptions::new([kernel_size])
+            .with_stride([stride])
+            .with_padding([padding])
+            .with_dilation([dilation]),
+    );
 
     y.to_data()
         .assert_approx_eq::<FloatElem>(&output.into_data(), Tolerance::default());
@@ -73,7 +92,13 @@ fn test_max_pool1d_with_dilation() {
         [0.5474, 0.9490, 0.7890, 0.9490, 0.7890, 0.5537],
     ]]);
 
-    let output = max_pool1d(x, kernel_size, stride, padding, dilation, false);
+    let output = max_pool1d(
+        x,
+        MaxPoolOptions::new([kernel_size])
+            .with_stride([stride])
+            .with_padding([padding])
+            .with_dilation([dilation]),
+    );
 
     y.to_data()
         .assert_approx_eq::<FloatElem>(&output.into_data(), Tolerance::default());
@@ -90,8 +115,13 @@ fn test_max_pool1d_with_indices() {
     let indices = TensorData::from([[[1, 1, 3]]]);
     let y = TestTensor::<3>::from([[[0.6386, 0.6386, 0.5742]]]);
 
-    let (output, output_indices) =
-        max_pool1d_with_indices(x, kernel_size, stride, padding, dilation, false);
+    let (output, output_indices) = max_pool1d_with_indices(
+        x,
+        MaxPoolOptions::new([kernel_size])
+            .with_stride([stride])
+            .with_padding([padding])
+            .with_dilation([dilation]),
+    );
 
     y.to_data()
         .assert_approx_eq::<FloatElem>(&output.into_data(), Tolerance::default());
@@ -109,8 +139,13 @@ fn test_max_pool1d_complex() {
     let indices = TensorData::from([[[0, 2, 3, 3, 3, 3]]]);
     let y = TestTensor::<3>::from([[[0.5388, 0.7122, 0.8316, 0.8316, 0.8316, 0.8316]]]);
 
-    let (output, output_indices) =
-        max_pool1d_with_indices(x, kernel_size, stride, padding, dilation, false);
+    let (output, output_indices) = max_pool1d_with_indices(
+        x,
+        MaxPoolOptions::new([kernel_size])
+            .with_stride([stride])
+            .with_padding([padding])
+            .with_dilation([dilation]),
+    );
 
     y.to_data()
         .assert_approx_eq::<FloatElem>(&output.into_data(), Tolerance::default());
@@ -135,7 +170,13 @@ fn test_max_pool1d_ceil_mode() {
     // Window 1: positions [2:5] -> max(3,4,5) = 5
     let y_floor = TestTensor::<3>::from([[[3.0, 5.0]]]);
 
-    let output_floor = max_pool1d(x.clone(), kernel_size, stride, padding, dilation, false);
+    let output_floor = max_pool1d(
+        x.clone(),
+        MaxPoolOptions::new([kernel_size])
+            .with_stride([stride])
+            .with_padding([padding])
+            .with_dilation([dilation]),
+    );
 
     y_floor
         .to_data()
@@ -147,7 +188,14 @@ fn test_max_pool1d_ceil_mode() {
     // Window 2: positions [4:7] -> max(5,6) = 6 (partial window)
     let y_ceil = TestTensor::<3>::from([[[3.0, 5.0, 6.0]]]);
 
-    let output_ceil = max_pool1d(x, kernel_size, stride, padding, dilation, true);
+    let output_ceil = max_pool1d(
+        x,
+        MaxPoolOptions::new([kernel_size])
+            .with_stride([stride])
+            .with_padding([padding])
+            .with_dilation([dilation])
+            .with_ceil_mode(true),
+    );
 
     y_ceil
         .to_data()
@@ -161,7 +209,12 @@ fn test_max_pool1d_ceil_mode_kernel_larger_than_input() {
     let x = TestTensor::from([[[0.0, 1.0]]]);
     let expected = TestTensor::<3>::from([[[1.0]]]);
 
-    let output = max_pool1d(x, 3, 2, 0, 1, true);
+    let output = max_pool1d(
+        x,
+        MaxPoolOptions::new([3])
+            .with_stride([2])
+            .with_ceil_mode(true),
+    );
 
     expected
         .to_data()
@@ -175,9 +228,56 @@ fn test_max_pool1d_ceil_mode_drops_window_past_input() {
     let x = TestTensor::from([[[0.0, 1.0, 2.0, 3.0, 4.0]]]);
     let expected = TestTensor::<3>::from([[[0.0, 3.0]]]);
 
-    let output = max_pool1d(x, 1, 3, 0, 1, true);
+    let output = max_pool1d(
+        x,
+        MaxPoolOptions::new([1])
+            .with_stride([3])
+            .with_ceil_mode(true),
+    );
 
     expected
         .to_data()
         .assert_approx_eq::<FloatElem>(&output.into_data(), Tolerance::default());
+}
+
+#[test]
+fn test_max_pool1d_asymmetric_padding_with_indices() {
+    // Padded input: [-inf, -inf, -1, -2, -3, -4, -inf]
+    let x = TestTensor::from([[[-1.0, -2.0, -3.0, -4.0]]]);
+    let expected_values = TestTensor::<3>::from([[[-1.0, -1.0, -1.0, -2.0, -3.0]]]);
+    let expected_indices = TensorData::from([[[0i64, 0, 0, 1, 2]]]);
+    let options = MaxPoolOptions::new([3])
+        .with_stride([1])
+        .with_padding_pairs([(2, 1)]);
+
+    let output = max_pool1d(x.clone(), options.clone());
+    expected_values
+        .to_data()
+        .assert_approx_eq::<FloatElem>(&output.into_data(), Tolerance::default());
+
+    let (output, output_indices) = max_pool1d_with_indices(x, options);
+    expected_values
+        .to_data()
+        .assert_approx_eq::<FloatElem>(&output.into_data(), Tolerance::default());
+    output_indices
+        .into_data()
+        .assert_eq(&expected_indices, false);
+}
+
+#[test]
+fn test_max_pool1d_asymmetric_padding_ceil_mode() {
+    // Padded input: [1, 2, 3, 4, -inf]. A third window would start in the end padding.
+    let x = TestTensor::from([[[1.0, 2.0, 3.0, 4.0]]]);
+    let options = MaxPoolOptions::new([2])
+        .with_padding_pairs([(0, 1)])
+        .with_ceil_mode(true);
+
+    let (output, output_indices) = max_pool1d_with_indices(x, options);
+
+    TestTensor::<3>::from([[[2.0, 4.0]]])
+        .to_data()
+        .assert_approx_eq::<FloatElem>(&output.into_data(), Tolerance::default());
+    output_indices
+        .into_data()
+        .assert_eq(&TensorData::from([[[1i64, 3]]]), false);
 }
