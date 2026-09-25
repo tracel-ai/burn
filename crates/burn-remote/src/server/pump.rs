@@ -25,8 +25,9 @@ use tokio::sync::mpsc;
 /// without one (websocket) pass an allow-all closure. `server_peer_id` is echoed to the client in
 /// the handshake response (the server's own identity, or `None` for websocket).
 ///
-/// Returns `Err` on a protocol violation or a transport error; the caller logs it. A clean client
-/// `Close` (or stream end) returns `Ok(())`.
+/// Returns `Err` on a protocol violation or a failed read; the caller logs it. A clean client
+/// `Close` (or stream end) returns `Ok(())`. A failed response send, the handshake reply included,
+/// only stops the writer and is logged.
 pub(crate) async fn drive_session<Src, Snk, S, A>(
     mut source: Src,
     mut sink: Snk,
@@ -69,8 +70,7 @@ where
         mut responses,
     } = service.bind(init.session_id, init.device_index).await?;
 
-    // Detached writer. It sends the handshake reply, so a failed send cannot skip the teardown; the
-    // response queue closes once the worker and every in-flight readback have dropped their senders.
+    // Sends the handshake reply itself, so a failed send cannot skip the teardown.
     let (writer_done, writer_result) = tokio::sync::oneshot::channel();
     spawn_detached(async move {
         let result = async {
@@ -144,17 +144,26 @@ mod tests {
         /// The worker's end of the response queue. Dropping it on close ends the writer, as the
         /// worker exiting does.
         responses: Mutex<Option<mpsc::Sender<TaskResponse>>>,
+        /// The worker's end of the task queue, kept so a task sent in a test is not refused.
+        tasks: Mutex<Option<mpsc::Receiver<Task>>>,
         closed: Mutex<Vec<SessionId>>,
+        bound_elsewhere: bool,
     }
 
     impl SessionService for FakeService {
         async fn bind(
             &self,
-            _session_id: SessionId,
+            session_id: SessionId,
             _device_index: u32,
         ) -> Result<SessionChannels, String> {
-            let (tasks, _worker) = mpsc::channel(1);
+            if self.bound_elsewhere {
+                return Err(format!(
+                    "Session {session_id} is already bound to another stream"
+                ));
+            }
+            let (tasks, worker) = mpsc::channel(1);
             let (sender, responses) = mpsc::channel(1);
+            *self.tasks.lock().unwrap() = Some(worker);
             *self.responses.lock().unwrap() = Some(sender);
             Ok(SessionChannels { tasks, responses })
         }
@@ -193,6 +202,18 @@ mod tests {
         }
     }
 
+    struct FailingSink;
+
+    impl FrameSink for FailingSink {
+        async fn send(&mut self, _frame: Bytes) -> Result<(), String> {
+            Err("connection reset".into())
+        }
+
+        async fn close(&mut self) -> Result<(), String> {
+            Ok(())
+        }
+    }
+
     fn handshake(session_id: SessionId) -> Bytes {
         let init = vec![RemoteMessage::Init(SessionInit::new(session_id, 0, vec![]))];
         rmp_serde::to_vec(&init).unwrap().into()
@@ -214,5 +235,31 @@ mod tests {
 
         assert_eq!(result, Err("connection reset".to_string()));
         assert_eq!(*service.closed.lock().unwrap(), [session_id]);
+    }
+
+    #[tokio::test]
+    async fn a_handshake_reply_that_fails_still_closes_its_session() {
+        let service = Arc::new(FakeService::default());
+        let session_id = SessionId::new();
+        let source = ScriptedSource([Ok(Some(handshake(session_id)))].into());
+
+        let _ = drive_session(source, FailingSink, service.clone(), None, |_| Ok(())).await;
+
+        assert_eq!(*service.closed.lock().unwrap(), [session_id]);
+    }
+
+    #[tokio::test]
+    async fn a_stream_that_cannot_bind_leaves_the_session_alone() {
+        let service = Arc::new(FakeService {
+            bound_elsewhere: true,
+            ..Default::default()
+        });
+        let session_id = SessionId::new();
+        let source = ScriptedSource([Ok(Some(handshake(session_id)))].into());
+
+        let result = drive_session(source, DiscardingSink, service.clone(), None, |_| Ok(())).await;
+
+        assert!(result.is_err());
+        assert!(service.closed.lock().unwrap().is_empty());
     }
 }

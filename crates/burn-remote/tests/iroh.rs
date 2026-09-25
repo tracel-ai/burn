@@ -15,7 +15,7 @@ use iroh::{
 use std::time::Duration;
 
 /// Past the first retries, well inside the retry window.
-const ADDRESS_LATE_BY: std::time::Duration = std::time::Duration::from_millis(700);
+const ADDRESS_LATE_BY: Duration = Duration::from_millis(700);
 
 async fn local_endpoint() -> Endpoint {
     Endpoint::builder(presets::Minimal)
