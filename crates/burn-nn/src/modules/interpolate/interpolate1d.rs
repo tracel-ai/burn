@@ -18,12 +18,13 @@ use super::InterpolateMode;
 #[derive(Config, Debug)]
 pub struct Interpolate1dConfig {
     /// Output size of the interpolated tensor.
-    /// If specified, this takes precedence over `scale_factor`.
+    /// Exactly one of `output_size` or `scale_factor` must be set.
     #[config(default = "None")]
     pub output_size: Option<usize>,
 
     /// Scale factor for resizing the input tensor.
-    /// This is used when `output_size` is not specified.
+    /// The output size is `floor(input_size * scale_factor)`.
+    /// Exactly one of `output_size` or `scale_factor` must be set.
     #[config(default = "None")]
     pub scale_factor: Option<f32>,
 
@@ -91,6 +92,10 @@ impl Interpolate1d {
     /// Resized tensor with shape [N, C, L'], where L' is determined by
     /// the output_size or scale_factor specified in the module configuration
     ///
+    /// # Panics
+    ///
+    /// Panics unless exactly one of `output_size` or `scale_factor` is set.
+    ///
     /// # Example
     ///
     /// ```ignore
@@ -102,62 +107,18 @@ impl Interpolate1d {
     /// assert_eq!(output.dims(), [1, 3, 128]);
     /// ```
     pub fn forward(&self, input: Tensor<3>) -> Tensor<3> {
-        let output_size = calculate_output_size(input.dims(), self.output_size, self.scale_factor);
+        let mut options = InterpolateOptions::new(self.mode.clone().into())
+            .with_align_corners(self.align_corners);
+        options.output_size = self.output_size.map(|size| [1, size]);
+        options.scale_factor = self.scale_factor.map(|scale| [1.0, scale]);
 
         // Use the interpolate operation to resize the temporal input tensor
         // by adding a new dimension for the interpolation axis
         let input = input.unsqueeze_dim(2);
 
-        let result = interpolate(
-            input,
-            [1, output_size],
-            InterpolateOptions::new(self.mode.clone().into())
-                .with_align_corners(self.align_corners),
-        );
+        let result = interpolate(input, options);
 
         result.squeeze_dims(&[2])
-    }
-}
-
-/// Calculate output size based on input dimensions, output size, and scale factor
-///
-/// # Arguments
-///
-/// * `input_dims` - Input dimensions of the tensor
-/// * `output_size` - Output size for the interpolated tensor
-/// * `scale_factor` - Scale factor for resizing the tensor
-///
-/// # Returns
-///
-/// Output size for the interpolated tensor
-///
-/// # Panics
-///
-/// Panics if neither output_size nor scale_factor is provided
-/// or if the scale factor is too large
-fn calculate_output_size(
-    input_dims: [usize; 3],
-    output_size: Option<usize>,
-    scale_factor: Option<f32>,
-) -> usize {
-    match (output_size, scale_factor) {
-        (Some(output_size), None) => {
-            // Use provided
-            output_size
-        }
-        (None, Some(scale_factor)) => {
-            // Calculate output size based on scale factor
-            let [_, _, l] = input_dims;
-
-            let new_dim = (l as f64) * (scale_factor as f64);
-
-            if new_dim > usize::MAX as f64 {
-                panic!("Scale factor is too large");
-            }
-
-            new_dim as usize
-        }
-        _ => panic!("Either output_size or scale_factor must be provided"),
     }
 }
 
@@ -183,37 +144,6 @@ mod tests {
     use burn::tensor::Distribution;
 
     use super::*;
-    #[test]
-    fn test_calculate_output_size() {
-        let input_dims = [1, 1, 4];
-
-        let output_size = calculate_output_size(input_dims, Some(2), None);
-        assert_eq!(output_size, 2);
-
-        let output_size = calculate_output_size(input_dims, None, Some(2.0));
-        assert_eq!(output_size, 8);
-
-        let output_size = calculate_output_size(input_dims, None, Some(0.5));
-        assert_eq!(output_size, 2);
-
-        let output_size = calculate_output_size(input_dims, None, Some(1.5));
-        assert_eq!(output_size, 6);
-    }
-
-    #[test]
-    #[should_panic(expected = "Either output_size or scale_factor must be provided")]
-    fn test_panic() {
-        let input_dims = [1, 1, 4];
-        calculate_output_size(input_dims, None, None);
-    }
-
-    #[test]
-    #[should_panic(expected = "Scale factor is too large")]
-    fn test_large_scale_factor() {
-        let input_dims = [1, 1, usize::MAX - 1];
-        calculate_output_size(input_dims, None, Some(2.0));
-    }
-
     #[test]
     fn test_module() {
         let input = Tensor::<3>::random(

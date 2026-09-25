@@ -83,8 +83,8 @@ impl InterpolateTestCase {
 
         let output = interpolate(
             x.clone(),
-            [self.height_out, self.width_out],
-            InterpolateOptions::new(InterpolateMode::Nearest),
+            InterpolateOptions::new(InterpolateMode::Nearest)
+                .with_output_size([self.height_out, self.width_out]),
         );
 
         let grads = output.backward();

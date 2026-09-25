@@ -21,8 +21,8 @@ pub fn nearest_interpolate_should_match_reference_backend() {
         let opts = InterpolateOptions::new(InterpolateMode::Nearest);
         let out_size = [h * 2, h * 2];
 
-        let output = module::interpolate(tensor, out_size, opts.clone());
-        let output_ref = module::interpolate(tensor_ref, out_size, opts);
+        let output = module::interpolate(tensor, opts.clone().with_output_size(out_size));
+        let output_ref = module::interpolate(tensor_ref, opts.with_output_size(out_size));
 
         output
             .into_data()

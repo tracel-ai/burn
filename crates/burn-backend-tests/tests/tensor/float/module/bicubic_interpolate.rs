@@ -99,8 +99,7 @@ fn test_1d_bicubic() {
 
     let output = interpolate(
         input,
-        [1, 9],
-        InterpolateOptions::new(InterpolateMode::Bicubic),
+        InterpolateOptions::new(InterpolateMode::Bicubic).with_output_size([1, 9]),
     );
 
     assert_eq!(output.dims(), [1, 1, 1, 9]);
@@ -147,8 +146,9 @@ impl InterpolateTestCase {
         );
         let output = interpolate(
             x,
-            [self.height_out, self.width_out],
-            InterpolateOptions::new(InterpolateMode::Bicubic).with_align_corners(align_corners),
+            InterpolateOptions::new(InterpolateMode::Bicubic)
+                .with_align_corners(align_corners)
+                .with_output_size([self.height_out, self.width_out]),
         );
 
         let tolerance = Tolerance::permissive();

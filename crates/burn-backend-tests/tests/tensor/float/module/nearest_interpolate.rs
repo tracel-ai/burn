@@ -73,8 +73,7 @@ fn test_1d_nearest() {
 
     let output = interpolate(
         input,
-        [1, 9],
-        InterpolateOptions::new(InterpolateMode::Nearest),
+        InterpolateOptions::new(InterpolateMode::Nearest).with_output_size([1, 9]),
     );
     assert_eq!(output.dims(), [1, 1, 1, 9]);
 
@@ -117,8 +116,8 @@ impl InterpolateTestCase {
         );
         let output = interpolate(
             x,
-            [self.height_out, self.width_out],
-            InterpolateOptions::new(InterpolateMode::Nearest),
+            InterpolateOptions::new(InterpolateMode::Nearest)
+                .with_output_size([self.height_out, self.width_out]),
         );
 
         y.to_data()

@@ -70,11 +70,9 @@ fn fusion_test_elementwise_operation_followed_by_interpolate_nearest() {
 
     let output = interpolate(
         input,
-        [4, 4],
-        InterpolateOptions {
-            mode: InterpolateMode::Nearest,
-            align_corners: false,
-        },
+        InterpolateOptions::new(InterpolateMode::Nearest)
+            .with_align_corners(false)
+            .with_output_size([4, 4]),
     );
 
     let expected = TensorData::from([
