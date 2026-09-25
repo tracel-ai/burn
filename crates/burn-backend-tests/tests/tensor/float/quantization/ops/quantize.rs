@@ -5,7 +5,7 @@ use burn_tensor::quantization::{
     DecodedScales, QuantScheme, QuantStore, QuantValue, QuantizationParameters, QuantizedBytes,
     ScaleDtype,
 };
-use burn_tensor::{DType, Element, TensorData};
+use burn_tensor::{DType, Device, Element, TensorData};
 
 fn get_q_params(data: TensorData) -> DecodedScales {
     let scheme = if let DType::QFloat(scheme) = data.dtype {
@@ -536,4 +536,48 @@ fn should_quantize_symmetric_two_level_f16_block_scales() {
 
     round_tripped.assert_eq(&direct, true);
     direct.assert_approx_eq(&input.into_data(), Tolerance::<f32>::rel_abs(1e-2, 1e-2));
+}
+
+fn per_block_32_scheme(device: &Device) -> QuantScheme {
+    device
+        .settings()
+        .quantization
+        .scheme
+        .with_value(QuantValue::Q8S)
+        .per_block([32], ScaleDtype::F32)
+}
+
+#[test]
+fn should_reshape_per_block_along_block_boundaries() {
+    let device = Default::default();
+    let tensor = TestTensorInt::arange(0..64, &device)
+        .float()
+        .div_scalar(64.);
+    let expected = tensor.clone().reshape([2, 32]).into_data();
+
+    let output = tensor
+        .quantize_dynamic(&per_block_32_scheme(&device))
+        .reshape([2, 32]);
+
+    output
+        .dequantize()
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&expected, Tolerance::rel_abs(2e-2, 1e-2));
+}
+
+// A single [32] block cannot tile [2, 16]: it would have to span both rows.
+#[test]
+#[should_panic(expected = "not a whole number of")]
+fn should_panic_when_reshape_splits_a_block_across_rows() {
+    let device = Default::default();
+    let tensor = TestTensorInt::arange(0..32, &device)
+        .float()
+        .div_scalar(32.);
+
+    // Read back so a lazy backend executes the reshape.
+    let _ = tensor
+        .quantize_dynamic(&per_block_32_scheme(&device))
+        .reshape([2, 16])
+        .dequantize()
+        .into_data();
 }
