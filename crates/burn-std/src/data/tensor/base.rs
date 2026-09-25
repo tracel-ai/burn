@@ -321,22 +321,18 @@ impl TensorData {
     ///
     /// # Panics
     ///
-    /// Panics if `f` changes the length of any storage.
+    /// Panics if `f` changes the length of any storage. Items whose length changed are replaced
+    /// with empty data first, and the same happens if `f` panics, so no item is left with a
+    /// length that disagrees with its shape.
     #[track_caller]
     pub fn with_bytes_mut<'a, R>(
         data: impl IntoIterator<Item = &'a mut TensorData>,
         f: impl FnOnce(Vec<&mut Bytes>) -> R,
     ) -> R {
-        let mut data: Vec<&mut TensorData> = data.into_iter().collect();
-        let lens: Vec<usize> = data.iter().map(|data| data.bytes.len()).collect();
-        let out = f(data.iter_mut().map(|data| &mut data.bytes).collect());
-        for (data, len) in data.iter().zip(lens) {
-            assert_eq!(
-                data.bytes.len(),
-                len,
-                "TensorData byte storage length must not change"
-            );
-        }
+        let mut guard = LengthGuard::new(data.into_iter().collect());
+        let out = f(guard.data.iter_mut().map(|data| &mut data.bytes).collect());
+        let changed = guard.reset_changed();
+        assert!(!changed, "TensorData byte storage length must not change");
         out
     }
 
@@ -513,6 +509,38 @@ impl TensorData {
     /// Returns the bytes representation of the data.
     pub fn into_bytes(self) -> Bytes {
         self.bytes
+    }
+}
+
+/// Resets every item whose byte length no longer matches the length it had when the guard was
+/// created, including when dropped during unwinding.
+struct LengthGuard<'a> {
+    data: Vec<&'a mut TensorData>,
+    lens: Vec<usize>,
+}
+
+impl<'a> LengthGuard<'a> {
+    fn new(data: Vec<&'a mut TensorData>) -> Self {
+        let lens = data.iter().map(|data| data.bytes.len()).collect();
+        Self { data, lens }
+    }
+
+    /// Replaces changed items with empty data and returns whether any changed.
+    fn reset_changed(&mut self) -> bool {
+        let mut changed = false;
+        for (data, len) in self.data.iter_mut().zip(&self.lens) {
+            if data.bytes.len() != *len {
+                **data = TensorData::new(Vec::<u8>::new(), [0]);
+                changed = true;
+            }
+        }
+        changed
+    }
+}
+
+impl Drop for LengthGuard<'_> {
+    fn drop(&mut self) {
+        self.reset_changed();
     }
 }
 
@@ -977,7 +1005,7 @@ mod tests {
         assert!(TensorData::try_from_bytes_vec(vec![], [0usize; 0], DType::F32).is_err());
         // Wrapped product of the dimensions matches the payload.
         assert!(
-            TensorData::try_from_bytes_vec(vec![0; 8], [9223372036854775809usize, 2], DType::F32)
+            TensorData::try_from_bytes_vec(vec![0; 8], [usize::MAX / 2 + 2, 2], DType::F32)
                 .is_err()
         );
     }
@@ -1041,6 +1069,37 @@ mod tests {
         TensorData::with_bytes_mut([&mut data], |mut bytes| {
             bytes[0].extend_from_byte_slice(&[0; 4]);
         });
+    }
+
+    #[cfg(feature = "std")]
+    #[test]
+    fn with_bytes_mut_leaves_no_invalid_data_after_unwind() {
+        use std::panic::{AssertUnwindSafe, catch_unwind};
+
+        let empty = TensorData::new(Vec::<u8>::new(), [0]);
+
+        // Length change detected after `f` returns.
+        let mut changed = TensorData::from([1.0f32]);
+        let mut unchanged = TensorData::from([2.0f32]);
+        let result = catch_unwind(AssertUnwindSafe(|| {
+            TensorData::with_bytes_mut([&mut changed, &mut unchanged], |mut bytes| {
+                bytes[0].extend_from_byte_slice(&[0; 4]);
+            })
+        }));
+        assert!(result.is_err());
+        assert_eq!(changed, empty);
+        assert_eq!(unchanged, TensorData::from([2.0f32]));
+
+        // `f` panics after changing a length.
+        let mut data = TensorData::from([1.0f32]);
+        let result = catch_unwind(AssertUnwindSafe(|| {
+            TensorData::with_bytes_mut([&mut data], |mut bytes| {
+                bytes[0].extend_from_byte_slice(&[0; 4]);
+                panic!("callback failed");
+            })
+        }));
+        assert!(result.is_err());
+        assert_eq!(data, empty);
     }
 
     #[test]
