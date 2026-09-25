@@ -608,6 +608,7 @@ Non-power-of-two sizes panic at the public API boundary; general arbitrary-size 
 | `signal::rfft(tensor, dim, n)`                        | `torch.fft.rfft(tensor, n, dim)`                                                  |
 | `signal::irfft(re, im, dim, n)`                       | `torch.fft.irfft(complex, n, dim)`                                                |
 | `signal::cfft(re, im, dim, n)`                        | `torch.fft.fft(complex, n, dim)`                                                 |
+| `signal::ifft(re, im, dim, n)`                        | `torch.fft.ifft(complex, n, dim)`                                                |
 | `signal::stft(signal, window, options)`               | `torch.stft(signal, n_fft, hop_length, win_length, window, center)`               |
 | `signal::istft(stft_matrix, window, length, options)` | `torch.istft(stft_matrix, n_fft, hop_length, win_length, window, center, length)` |
 | `signal::blackman_window(size, periodic, options)`    | `torch.blackman_window(size, periodic)`                                           |
