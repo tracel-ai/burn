@@ -11,10 +11,10 @@ But before we proceed, let's establish the fundamental principles that will empo
 your own backend extensions.
 
 Burn's user-facing tensors and modules are runtime-dispatched and don't expose a backend generic.
-Backend traits remain part of the lower layer, where they define primitive operations that can
-be registered with the Tensor → Bridge → Dispatch → Backend stack. To create an extension, define a
-backend trait specifying the new primitive operation, implement it for the backends you support,
-and expose a backend-independent `Tensor` function that calls through `Dispatch`.
+Backend traits remain part of the lower layer, where they define primitive operations that can be
+registered with the Tensor → Bridge → Dispatch → Backend stack. To create an extension, define a
+backend trait specifying the new primitive operation, implement it for the backends you support, and
+expose a backend-independent `Tensor` function that calls through `Dispatch`.
 
 ## Registering an operation
 
@@ -54,60 +54,65 @@ let gradient = input.grad(&gradients).unwrap();
 assert_eq!(gradient.try_into_vec_as::<f32>().unwrap(), vec![4.0, 6.0]);
 ```
 
-The macro generates the implementation of your trait for `Dispatch`. It does not implement the
-trait for concrete backends or derive a custom kernel's backward pass. A default trait body can
-compose existing differentiable operations, as above. To optimize the forward or backward pass,
-override that body on the concrete backend or `Autodiff<B, C>` respectively. These are alternative
+The macro generates the implementation of your trait for `Dispatch`. It does not implement the trait
+for concrete backends or derive a custom kernel's backward pass. A default trait body can compose
+existing differentiable operations, as above. To optimize the forward or backward pass, override
+that body on the concrete backend or `Autodiff<B, C>` respectively. These are alternative
 implementations; do not add overlapping implementations of the same trait.
 
 Execution backend selectors include `Cube`, `Flex`, `NdArray`, `LibTorch`, and `Remote`, plus the
 `Autodiff` routing option. `Cube` covers the CubeCL runtimes; `Wgpu` and `Cuda` are backend aliases,
-not accepted selectors. A selector may have a condition such as
-`Cube: cfg(feature = "wgpu")`. Conditions refer to features of the crate containing the macro;
-forward those features to the corresponding Burn dependency features.
+not accepted selectors. A selector may have a condition such as `Cube: cfg(feature = "wgpu")`.
+Conditions refer to features of the crate containing the macro; forward those features to the
+corresponding Burn dependency features.
 
 Listing a selector requires an implementation for that backend when the condition is enabled.
 Calling the extension on an unlisted runtime backend panics. Dispatch does not transfer operands
 between devices, and a `Cube` implementation using a WGSL kernel is still limited to a compatible
 WGPU runtime/compiler even though `Cube` also represents CUDA and other runtimes.
 
+For direct primitive access, use `tensor.try_into_primitive::<Cube>()`. This checks the backend
+type, not the execution runtime; using the `Cuda` or `Wgpu` alias does not add a runtime check.
+Extensions requiring a specific runtime must check the tensor's device and reject mismatches before
+invoking a kernel. With fusion enabled, extracting a `Cube` primitive returns a fusion handle.
+
 Autodiff contexts from tensor-bearing inputs are merged. Plain inputs act as constants; enabled
-inputs must use the same checkpointing strategy. Inputs still need compatible devices and dtypes
-for the operation. Add shape and dtype validation in your public wrapper or kernel implementation;
-the macro does not infer your operation's mathematical constraints.
+inputs must use the same checkpointing strategy. Inputs still need compatible devices and dtypes for
+the operation. Add shape and dtype validation in your public wrapper or kernel implementation; the
+macro does not infer your operation's mathematical constraints.
 
 ## Fusion
 
-When Burn's `fusion` feature is enabled, the `Cube` dispatch backend uses
-`Fusion<CubeBackend>`. Add `Fusion` to `#[backend_extension(...)]` to generate the
-extension implementation for `Fusion<B>`, and choose a behavior for each method:
+When Burn's `fusion` feature is enabled, the `Cube` dispatch backend uses `Fusion<CubeBackend>`. Add
+`Fusion` to `#[backend_extension(...)]` to generate the extension implementation for `Fusion<B>`,
+and choose a behavior for each method:
 
-- `#[fusion(dtype = input, shape = input)]` describes a single tensor output.
-  A bare operand copies its dtype or shape; a helper such as
-  `shape = output_shape(lhs, rhs, bias)` receives borrowed shapes and returns an owned `Shape`.
+- `#[fusion(dtype = input, shape = input)]` describes a single tensor output. A bare operand copies
+  its dtype or shape; a helper such as `shape = output_shape(lhs, rhs, bias)` receives borrowed
+  shapes and returns an owned `Shape`.
 - `#[fusion(meta = callable)]` describes tensor tuples or structured outputs using a callback.
-  Tensor arguments arrive as borrowed `TensorSpec` values; structured arguments arrive as
-  borrowed extension metadata. Derive `ExtensionType` with `#[extension_type(fusion)]`
-  on structs and enums used by the generated Fusion implementation.
+  Tensor arguments arrive as borrowed `TensorSpec` values; structured arguments arrive as borrowed
+  extension metadata. Derive `ExtensionType` with `#[extension_type(fusion)]` on structs and enums
+  used by the generated Fusion implementation.
 - `#[fusion(default)]` uses the method's existing default body instead of registering a custom
   operation. This is useful for bodies that compose existing backend operations.
 
 Choose exactly one form per method. `Fusion` can be conditional, for example
-`Fusion: cfg(feature = "fusion")`, using a feature of your extension crate forwarded to Burn.
-Omit the `Fusion` selector if you implement the extension for `Fusion<B>` yourself.
+`Fusion: cfg(feature = "fusion")`, using a feature of your extension crate forwarded to Burn. Omit
+the `Fusion` selector if you implement the extension for `Fusion<B>` yourself.
 
-For field expressions and `meta`, output metadata is computed when the call is registered;
-the concrete backend runs later. Shapes, dtypes, enum variants, and non-tensor output fields
-must be knowable without reading tensor contents and must match direct backend execution.
-For structured outputs, metadata supplies the **actual non-tensor return values**. Fusion returns
-them immediately and discards the backend's later values without comparison. Return
-content-dependent values as tensors, or provide a handwritten Fusion implementation that waits
-for execution. Output shapes are also not compared against backend results, even in debug builds.
+For field expressions and `meta`, output metadata is computed when the call is registered; the
+concrete backend runs later. Shapes, dtypes, enum variants, and non-tensor output fields must be
+knowable without reading tensor contents and must match direct backend execution. For structured
+outputs, metadata supplies the **actual non-tensor return values**. Fusion returns them immediately
+and discards the backend's later values without comparison. Return content-dependent values as
+tensors, or provide a handwritten Fusion implementation that waits for execution. Output shapes are
+also not compared against backend results, even in debug builds.
 
-Fusion generation supplies lazy registration, not derivatives or automatic merging of custom
-kernels with neighboring operations. A custom optimizer can recognize their IR. Keep the
-handwritten `Autodiff<B, C>` implementation for a custom backward pass, or compose differentiable
-primitives in a default body as in the Flex example above.
+Fusion generation supplies lazy registration, not derivatives or automatic merging of custom kernels
+with neighboring operations. A custom optimizer can recognize their IR. Keep the handwritten
+`Autodiff<B, C>` implementation for a custom backward pass, or compose differentiable primitives in
+a default body as in the Flex example above.
 
 The [CubeCL tutorial](./custom-cubecl-kernel.md) demonstrates a portable kernel, generated Fusion
 registration, and a handwritten backward pass. The [WGPU tutorial](./custom-wgpu-kernel.md)
@@ -158,10 +163,10 @@ pub trait Backend: burn::backend::Backend {
 ```
 
 Inputs marked this way can be freely mixed with plain tensor arguments and with each other, and an
-operation can take several of them. The backend is selected by looking at a routing tensor
-across the inputs, so an enum currently on a variant that holds no tensor simply defers to the next
-input; if no input holds a tensor at all, the backend cannot be resolved and the operation panics.
+operation can take several of them. The backend is selected by looking at a routing tensor across
+the inputs, so an enum currently on a variant that holds no tensor simply defers to the next input;
+if no input holds a tensor at all, the backend cannot be resolved and the operation panics.
 
 Struct and enum inputs also work with `Autodiff`. Float fields carry the gradient; other fields do
-not. Your `impl ... for Autodiff<B, C>` writes the backward pass by hand, exactly as it does for plain
-tensor inputs.
+not. Your `impl ... for Autodiff<B, C>` writes the backward pass by hand, exactly as it does for
+plain tensor inputs.

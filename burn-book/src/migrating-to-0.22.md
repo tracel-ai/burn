@@ -412,7 +412,11 @@ Update low-level tensor access:
 
 - Specify the backend when constructing a tensor: `Tensor::from_primitive::<B>(primitive)`.
 - Replace `into_primitive` with `try_into_primitive::<B>()` and handle backend mismatches. Shared
-  CubeCL backend aliases do not establish which runtime the tensor uses.
+  CubeCL tensors use `try_into_primitive::<Cube>()` (or `Autodiff<Cube>` for autodiff tensors) and
+  `Tensor::from_primitive::<Cube>(primitive)`. These conversions check the backend type, not the
+  execution runtime; aliases such as `Cuda` and `Wgpu` do not enforce a runtime. Extensions
+  requiring a specific runtime must check the tensor's device and reject mismatches before invoking
+  a kernel.
 - Remove backend parameters from `TensorKind` bounds. The trait is sealed and its `Primitive`
   associated type is removed; use the conversion methods above for primitives and `KIND` to inspect
   the tensor kind.

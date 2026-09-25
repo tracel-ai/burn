@@ -56,7 +56,7 @@ pub trait ExtensionType<B: Backend> {
     /// # Arguments
     ///
     /// * `map_kind` - A closure provided by the dispatch macro that knows how to map a backend-agnostic
-    ///   [`BackendTensor`] variant into the correct [`DispatchTensorKind`] variant (e.g., `Wgpu`, `Cuda`, `Cpu`).
+    ///   [`BackendTensor`] variant into the correct [`DispatchTensorKind`] variant (e.g., `Cube`, `Flex`, `NdArray`).
     /// * `autodiff` - The semantic autodiff backend context to attach to each [`DispatchTensor`].
     ///
     /// # Returns

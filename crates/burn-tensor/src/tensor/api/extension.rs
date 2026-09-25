@@ -73,25 +73,28 @@ where
     /// This is primarily intended for backend extensions where interfacing with the direct backend
     /// primitive (e.g., `B::FloatTensorPrimitive` or `AutodiffTensor<B>`) is necessary.
     ///
+    /// For CubeCL tensors, use `Cube` to name the shared backend. Aliases such as `Wgpu` and
+    /// `Cuda` do not constrain the execution runtime. Extensions requiring a specific runtime
+    /// must check the tensor's device and reject unsupported runtimes before invoking a kernel.
+    /// With fusion enabled, the primitive is a fusion handle rather than a raw CubeCL tensor.
+    ///
     /// # Examples
     ///
     /// ```rust,ignore
-    /// // Extract the underlying CubeCL tensor primitive on the `Wgpu` backend
-    /// let cube_tensor = tensor.try_into_primitive::<Wgpu>()?;
+    /// use burn::backend::{Autodiff, Cube};
     ///
-    /// // For an autodiff tensor, we can get the wrapped CubeCL tensor primitive on the `Autodiff<Wgpu>` backend
-    /// let ad_tensor = tensor.try_into_primitive::<Autodiff<Wgpu>>()?;
-    ///```
+    /// // Extract the shared CubeCL backend primitive.
+    /// let cube_tensor = tensor.try_into_primitive::<Cube>()?;
+    ///
+    /// // Extract the wrapped primitive from an autodiff tensor.
+    /// let ad_tensor = autodiff_tensor.try_into_primitive::<Autodiff<Cube>>()?;
+    /// ```
     ///
     /// # Errors
     ///
-    /// Returns a [`PrimitiveConversionError`] if the tensor does not currently live on the requested
-    /// backend `B` (including `Autodiff<B>` mismatch).
-    ///
-    /// CubeCL aliases such as `Wgpu` and `Cuda` share a backend type. A successful downcast checks
-    /// that type, not the execution runtime; inspect the primitive's device before invoking a
-    /// runtime-specific kernel. With fusion enabled, the primitive is a fusion handle rather than
-    /// a raw CubeCL tensor.
+    /// Returns a [`PrimitiveConversionError`] if the tensor's backend type does not match `B`
+    /// (including `Autodiff<B>` mismatch), or its kind does not match the requested primitive kind.
+    /// This conversion does not check the execution runtime or device.
     pub fn try_into_primitive<B: Backend>(
         self,
     ) -> Result<<K as BackendPrimitive<B>>::Primitive, PrimitiveConversionError>
