@@ -8,7 +8,7 @@ use crate::{
 };
 use burn_backend::{
     BoolDType, Distribution, ExecutionError, FloatDType, IntDType, Scalar, Shape, Slice,
-    TensorData,
+    TensorData, Tiling,
     ops::{FloatTensorOps, GridSampleOptions, PadMode},
     tensor::{BoolTensor, Device, FloatTensor, IndexingUpdateOp, IntTensor},
 };
@@ -703,6 +703,41 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
                 streams,
                 OperationIr::BaseFloat(BaseOperationIr::Reshape(desc.clone())),
                 ReshapeDimsOps::<B>::new(desc),
+            )
+            .output()
+    }
+
+    fn float_into_tiled(tensor: FloatTensor<Self>, tiling: Tiling) -> FloatTensor<Self> {
+        #[derive(new, Debug)]
+        struct IntoTiledOps<B: FusionBackend> {
+            desc: IntoTiledOpIr,
+            _b: PhantomData<B>,
+        }
+
+        impl<B: FusionBackend> Operation<B::FusionRuntime> for IntoTiledOps<B> {
+            fn execute(
+                &self,
+                handles: &mut HandleContainer<B::Handle>,
+            ) -> Result<(), ExecutionError> {
+                let input = handles.get_float_tensor::<B>(&self.desc.input);
+                let output = B::float_into_tiled(input, self.desc.tiling);
+                handles.register_float_tensor::<B>(&self.desc.out.id, output);
+
+                Ok(())
+            }
+        }
+
+        let streams = StreamId::current();
+
+        let client = tensor.client.clone();
+        let dtype = tensor.dtype;
+        let desc = IntoTiledOpIr::create(tensor.into_ir(), tiling, || client.create_empty_handle());
+
+        client
+            .register(
+                streams,
+                OperationIr::Float(dtype, FloatOperationIr::IntoTiled(desc.clone())),
+                IntoTiledOps::<B>::new(desc),
             )
             .output()
     }

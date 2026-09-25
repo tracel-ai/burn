@@ -3,6 +3,7 @@ use crate::Cast;
 use crate::DType;
 use crate::Device;
 use crate::Tensor;
+use crate::Tiling;
 use crate::cast::ToElement;
 use crate::check;
 use crate::check::TensorCheck;
@@ -712,6 +713,33 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
         let dim = unwrap_dim_index(dim.try_dim_index(D), "Cross");
         check!(TensorCheck::cross(&self, &other, dim));
         Tensor::new(cross_impl(self.primitive, other.primitive, dim))
+    }
+
+    /// This tensor, whose dims are the storage fragments of a rank-`D2` tensor as `tiling` counts
+    /// them, as that rank-`D2` tensor.
+    ///
+    /// The fragments run level-major, coarsest first ([`Tiling`]): a `[k, n]` matrix stored in
+    /// `(tr, tc)` tiles is the rank-4 `[k / tr, n / tc, tr, tc]`, which reshaping to
+    /// `[k / tr, tr, n / tc, tc]` and swapping the middle dims writes, and
+    /// `into_tiled::<2>(Tiling::new(&[2, 2]))` makes it the `[k, n]` matrix again, stored as it
+    /// lies. The kernels that read storage tiles map each logical coordinate onto its fragments;
+    /// a backend that stores no tiles lays them back into rows.
+    ///
+    /// # Panics
+    ///
+    /// When `tiling` does not fold a rank-`D` tensor into a rank-`D2` one.
+    pub fn into_tiled<const D2: usize>(self, tiling: Tiling) -> Tensor<D2> {
+        let logical = tiling
+            .logical_rank(D)
+            .unwrap_or_else(|err| panic!("into_tiled: {err:?}"));
+        assert_eq!(
+            logical, D2,
+            "into_tiled: {tiling:?} folds a rank-{D} tensor into rank {logical}, not {D2}"
+        );
+        Tensor::new(BridgeTensor::float(Dispatch::float_into_tiled(
+            self.primitive.into_float(),
+            tiling,
+        )))
     }
 
     /// Applies element wise power operation with a float Tensor

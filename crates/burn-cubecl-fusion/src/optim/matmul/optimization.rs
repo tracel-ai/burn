@@ -182,7 +182,7 @@ impl MatmulOptimization {
             context
                 .handles
                 .get_handle_ref(id)
-                .is_some_and(|handle| handle.tiling.is_tiled())
+                .is_some_and(|handle| handle.tiles.is_some())
         });
         if stored {
             arg.execute_fallback(context);
