@@ -22,9 +22,10 @@ pub trait RouterChannel: Clone + Send + Sync + 'static + Sized {
     /// Initialize a new unscoped client for the given device.
     ///
     /// [`get_client`] calls this on a cache miss and retains the result in the global client
-    /// locator. Channels whose client lifetime is externally scoped can instead construct their
-    /// client directly and install it with [`crate::register_scoped_client`]; that path deliberately
-    /// bypasses this method.
+    /// locator. It runs without the locator's lock, so it may run more than once for a device; only
+    /// the first client registered is kept. Channels whose client lifetime is externally scoped can
+    /// instead construct their client directly and install it with
+    /// [`crate::register_scoped_client`]; that path deliberately bypasses this method.
     fn init_client(device: &Self::Device) -> Self::Client;
 
     /// Get the tensor handle corresponding to the [tensor representation](TensorIr).
