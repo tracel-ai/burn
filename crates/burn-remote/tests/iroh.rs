@@ -13,9 +13,10 @@ use iroh::{
     protocol::Router,
 };
 use std::{panic, sync::mpsc, thread, time::Duration};
+use tokio::task::coop;
 
 /// Past the first retries, well inside the retry window.
-const ADDRESS_LATE_BY: std::time::Duration = std::time::Duration::from_millis(700);
+const ADDRESS_LATE_BY: Duration = Duration::from_millis(700);
 
 async fn local_endpoint() -> Endpoint {
     Endpoint::builder(presets::Minimal)
@@ -47,8 +48,6 @@ fn spawn_router<B: BackendIr>(
 
 /// Far beyond what a test here takes when it works, so only a hang reaches it.
 const HANG_LIMIT: Duration = Duration::from_secs(30);
-
-const TOKIO_COOP_BUDGET: usize = 128;
 
 /// A blocking hang cannot be cancelled, so this fails after [`HANG_LIMIT`] and leaks the stuck
 /// thread.
@@ -213,13 +212,14 @@ fn blocking_reads_inside_a_tokio_task_outlast_its_budget() {
             let remote = RemoteDevice::iroh(&client, server.addr(), 0);
             remote.connect();
             let device = Device::new(remote);
-            for _ in 0..=TOKIO_COOP_BUDGET {
-                let output = Tensor::<1>::from_floats([1.0, 2.0, 3.0], &device) * 2.0;
-                assert_eq!(
-                    output.try_into_vec_as::<f32>().unwrap(),
-                    vec![2.0, 4.0, 6.0]
-                );
+            while coop::has_budget_remaining() {
+                coop::consume_budget().await;
             }
+            let output = Tensor::<1>::from_floats([1.0, 2.0, 3.0], &device) * 2.0;
+            assert_eq!(
+                output.try_into_vec_as::<f32>().unwrap(),
+                vec![2.0, 4.0, 6.0]
+            );
 
             router.shutdown().await.unwrap();
         });

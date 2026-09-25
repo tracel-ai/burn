@@ -663,8 +663,7 @@ impl RemoteService {
         let request_id = self.pending.next_id();
         let rx = self.pending.register(request_id);
         self.submit_blocking(RemoteMessage::Task(make_task(request_id)));
-        // A blocking wait on this inside a tokio task never yields, so the task's coop budget
-        // would never refill.
+        // A blocking wait inside a tokio task never yields, so its coop budget would never refill.
         coop::unconstrained(rx)
     }
 
