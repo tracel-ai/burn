@@ -36,6 +36,7 @@ websocket = [
     "burn-communication/websocket",
     "burn-communication/data-service",
     "dep:tokio-util",
+    "tokio/net",
 ]
 
 

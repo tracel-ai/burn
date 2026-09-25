@@ -128,10 +128,7 @@ impl<B: BackendIr> RemoteServerBuilder<B> {
     /// Start the server on the caller's async runtime, serving until shutdown.
     #[cfg(not(target_family = "wasm"))]
     pub async fn start_async(self) {
-        // The backend is hosted on an async runtime: tensor readbacks must materialize
-        // eagerly rather than deferring a blocking device→host copy onto an executor worker.
-        burn_std::set_runtime_kind(burn_std::RuntimeKind::Async);
-        crate::server::ServerLogging::install();
+        Self::configure_process();
 
         match self.channel {
             #[cfg(feature = "websocket")]
@@ -153,6 +150,29 @@ impl<B: BackendIr> RemoteServerBuilder<B> {
                 .await;
             }
         }
+    }
+
+    /// Serve over WebSocket on a listener the caller already bound, until shutdown.
+    ///
+    /// For an address [`port`](Self::port) cannot express, such as `127.0.0.1:0` to stay local on
+    /// a port the OS picks. The builder's channel is not used.
+    #[cfg(all(not(target_family = "wasm"), feature = "websocket"))]
+    pub async fn start_on(self, listener: tokio::net::TcpListener) {
+        Self::configure_process();
+        crate::transport::websocket::start_websocket_on::<B>(
+            self.devices,
+            listener,
+            self.custom_ops,
+        )
+        .await;
+    }
+
+    #[cfg(not(target_family = "wasm"))]
+    fn configure_process() {
+        // The backend is hosted on an async runtime: tensor readbacks must materialize
+        // eagerly rather than deferring a blocking device→host copy onto an executor worker.
+        burn_std::set_runtime_kind(burn_std::RuntimeKind::Async);
+        crate::server::ServerLogging::install();
     }
 
     /// Start the server, blocking the current thread until shutdown.

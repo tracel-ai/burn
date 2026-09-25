@@ -18,16 +18,47 @@ use crate::server::{pump::drive_session, session::SessionManager, spawn::os_shut
 
 /// Serve a WebSocket compute node on the given port, until shutdown.
 ///
-/// The session protocol is a single full-duplex `/session` socket per session (split into a sink +
-/// source and driven by the shared [`drive_session`] pump); cross-server tensor transfers ride the
-/// same server via [`route_external_comm`](ExternalCommServer::route_external_comm). Driven through
-/// [`RemoteServerBuilder`](crate::server::RemoteServerBuilder) rather than called directly.
+/// Driven through [`RemoteServerBuilder`](crate::server::RemoteServerBuilder) rather than called
+/// directly.
 #[cfg(not(target_family = "wasm"))]
 pub(crate) async fn start_websocket_async<B: BackendIr>(
     devices: Vec<Device<B>>,
     port: u16,
     custom_ops: CustomOpRegistry<B>,
 ) {
+    let server = compute_server(devices, port, custom_ops);
+    if let Err(err) = server.serve(os_shutdown_signal()).await {
+        log::error!("Burn Remote WebSocket server stopped: {err:?}");
+    }
+}
+
+/// Serve a WebSocket compute node on a listener the caller already bound, until shutdown.
+#[cfg(not(target_family = "wasm"))]
+pub(crate) async fn start_websocket_on<B: BackendIr>(
+    devices: Vec<Device<B>>,
+    listener: tokio::net::TcpListener,
+    custom_ops: CustomOpRegistry<B>,
+) {
+    let port = listener
+        .local_addr()
+        .expect("A bound listener has an address")
+        .port();
+    let server = compute_server(devices, port, custom_ops);
+    if let Err(err) = server.serve_on(listener, os_shutdown_signal()).await {
+        log::error!("Burn Remote WebSocket server stopped: {err:?}");
+    }
+}
+
+/// The compute node's routes.
+///
+/// The session protocol is a single full-duplex `/session` socket per session (split into a sink +
+/// source and driven by the shared [`drive_session`] pump); cross-server tensor transfers ride the
+/// same server via [`route_external_comm`](ExternalCommServer::route_external_comm).
+fn compute_server<B: BackendIr>(
+    devices: Vec<Device<B>>,
+    port: u16,
+    custom_ops: CustomOpRegistry<B>,
+) -> WsServer {
     let cancel_token = CancellationToken::new();
     let external = Arc::new(ExternalCommService::<B, WebSocket>::new(cancel_token));
     let transfer = Arc::new(WebSocketTransfer {
@@ -44,7 +75,7 @@ pub(crate) async fn start_websocket_async<B: BackendIr>(
             .with_telemetry(probe),
     );
 
-    let server = WsServer::new(port)
+    WsServer::new(port)
         .route("/session", {
             let sessions = sessions.clone();
             move |channel: WsServerChannel| {
@@ -61,9 +92,5 @@ pub(crate) async fn start_websocket_async<B: BackendIr>(
                 }
             }
         })
-        .route_external_comm(external);
-
-    if let Err(err) = server.serve(os_shutdown_signal()).await {
-        log::error!("Burn Remote WebSocket server stopped: {err:?}");
-    }
+        .route_external_comm(external)
 }
