@@ -425,8 +425,8 @@ let merged = validation.clone().materialize(); // Merge them for inference or fu
 ```
 
 Materialization does not change training mode and cannot be undone; keep the original model if you
-need its adapters. For QLoRA, it produces dense weights. Requantization is separate and can change
-the model's outputs.
+need its adapters. Parameters without reparameterizations remain lazy. For QLoRA, materialization
+produces dense weights. Requantization is separate and can change the model's outputs.
 
 QLoRA forward passes can still materialize dense effective weights. Autodiff may retain them for
 backward and compute full weight-shaped gradients. Fusion can avoid a separate dequantized base

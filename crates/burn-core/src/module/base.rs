@@ -397,6 +397,7 @@ pub trait Module: Clone + Send + core::fmt::Debug {
     /// reparameterization state. Other parameters and module training flags are unchanged. The
     /// resulting parameters retain their base parameter IDs, layout mappings and configured
     /// trainability, but are detached from the computation that produced them.
+    /// Parameters without reparameterizations remain lazy; this does not initialize them.
     ///
     /// This consumes the module and cannot be undone on the returned value. Clone the module first
     /// to retain its reparameterizations. To prepare merged inference weights, use
