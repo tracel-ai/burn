@@ -5,16 +5,17 @@ use burn_ir::BackendIr;
 use burn_remote::{
     BURN_REMOTE_ALPN, RemoteDevice,
     server::{AllowAll, IrohRemoteProtocol},
-    telemetry::TelemetryProbe,
+    telemetry::{TelemetryEvent, TelemetryProbe},
 };
 use burn_tensor::{Device, Tensor};
 use iroh::{
     Endpoint, EndpointAddr, RelayMode, address_lookup::MemoryLookup, endpoint::presets,
     protocol::Router,
 };
+use std::time::Duration;
 
 /// Past the first retries, well inside the retry window.
-const ADDRESS_LATE_BY: std::time::Duration = std::time::Duration::from_millis(700);
+const ADDRESS_LATE_BY: Duration = Duration::from_millis(700);
 
 async fn local_endpoint() -> Endpoint {
     Endpoint::builder(presets::Minimal)
@@ -58,6 +59,37 @@ async fn executes_over_iroh_session_stream() {
     assert_eq!(
         output.try_into_vec_as::<f32>().unwrap(),
         vec![2.0, 4.0, 6.0]
+    );
+
+    router.shutdown().await.unwrap();
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_client_that_disconnects_without_closing_ends_its_session() {
+    let server = local_endpoint().await;
+    let client = local_endpoint().await;
+    let (probe, mut events) = TelemetryProbe::channel(4096);
+    let router = spawn_router::<Flex>(server.clone(), AllowAll, probe);
+
+    let remote = RemoteDevice::iroh(&client, server.addr(), 0);
+    remote.connect();
+    let device = Device::new(remote);
+    let output = Tensor::<1>::from_floats([1.0, 2.0, 3.0], &device) * 2.0;
+    output.try_into_vec_as::<f32>().unwrap();
+
+    client.close().await;
+    let session_closed = async {
+        while let Some(event) = events.recv().await {
+            if let TelemetryEvent::SessionClosed { .. } = event.as_ref() {
+                return true;
+            }
+        }
+        false
+    };
+    let closed = tokio::time::timeout(Duration::from_secs(10), session_closed).await;
+    assert!(
+        matches!(closed, Ok(true)),
+        "the server kept the session of a client that disconnected"
     );
 
     router.shutdown().await.unwrap();
@@ -200,8 +232,7 @@ async fn passes_application_credentials_to_the_peer_authorizer() {
 #[tokio::test(flavor = "multi_thread")]
 #[cfg(feature = "fusion")]
 async fn fused_compute_surfaces_as_graph_telemetry() {
-    use burn_remote::telemetry::{TelemetryEvent, TelemetryProbe, TrafficAggregator};
-    use std::time::Duration;
+    use burn_remote::telemetry::TrafficAggregator;
 
     let server = local_endpoint().await;
     let client = local_endpoint().await;
