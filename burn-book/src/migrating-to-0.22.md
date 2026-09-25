@@ -131,11 +131,11 @@ available. A `Module` bound does not establish that a value is currently trainin
 persist. `freeze()` also disables module-owned training flags, whereas `no_grad()` only changes
 parameter gradients.
 
-Keep the original training model when using `model.valid()` for validation. The snapshot folds
-adapters such as LoRA into parameter values and discards checkpointing strategies;
-`snapshot.train()` does not reconstruct those. Dropout additionally checks its input tensor's
-autodiff context, so create model inputs on the training device even when their gradients are not
-needed. See [Module](./building-blocks/module.md).
+Keep the original training model when using `model.valid()` for validation. The snapshot discards
+tensor checkpointing strategies, which `train()` does not restore.
+
+Dropout additionally checks its input tensor's autodiff context, so create model inputs on the
+training device even when their gradients are not needed. See [Module](./building-blocks/module.md).
 
 ## Migrating checkpoints
 
@@ -306,12 +306,13 @@ them if your project only uses the built-in modules, optimizers, metrics, and st
 
 ### Modules
 
-For handwritten module code:
+For handwritten implementations, consult the `Module` trait documentation for the required methods;
+`#[derive(Module)]` generates them automatically.
 
-- Implement `valid(&self)` and `train(self)`. `#[derive(Module)]` generates both.
-- Visit and map `Param<Flag>` fields so `freeze()` and `valid()` control layer training behavior.
-  `BatchNorm` and `Dropout` now include these flags; use their config builders instead of struct
-  literals.
+Other module API changes:
+
+- `BatchNorm` and `Dropout` now include `Param<Flag>` training controls; use their config builders
+  instead of struct literals.
 - Replace `ParamId::serialize()` / `deserialize()` with `Display` / `FromStr`.
 - Replace `Reinitializer` with `burn::nn::Initializer` for new parameters or a `ModuleMapper` for
   existing ones. Use `Param::map` to preserve IDs and configured trainability, and keep trainable
