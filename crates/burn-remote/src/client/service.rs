@@ -16,7 +16,10 @@ use burn_std::{DType, DeviceSettings, id::StreamId, profile::Instant};
 use burn_std::backtrace::BackTrace;
 use std::collections::HashMap;
 use std::sync::{Arc, OnceLock};
-use tokio::sync::oneshot;
+use tokio::{
+    sync::oneshot,
+    task::coop::{self, Unconstrained},
+};
 
 mod batch;
 mod conn;
@@ -502,7 +505,7 @@ impl RemoteService {
         &mut self,
         stream_id: StreamId,
         tensor: TensorIr,
-    ) -> oneshot::Receiver<TaskResponseContent> {
+    ) -> Unconstrained<oneshot::Receiver<TaskResponseContent>> {
         self.submit_request(|id| Task::ReadTensor(id, stream_id, tensor))
     }
 
@@ -656,11 +659,12 @@ impl RemoteService {
     fn submit_request(
         &mut self,
         make_task: impl FnOnce(RequestId) -> Task,
-    ) -> oneshot::Receiver<TaskResponseContent> {
+    ) -> Unconstrained<oneshot::Receiver<TaskResponseContent>> {
         let request_id = self.pending.next_id();
         let rx = self.pending.register(request_id);
         self.submit_blocking(RemoteMessage::Task(make_task(request_id)));
-        rx
+        // A blocking wait inside a tokio task never yields, so its coop budget would never refill.
+        coop::unconstrained(rx)
     }
 
     /// Append a task to the outgoing buffer; flush only once it hits the threshold.
