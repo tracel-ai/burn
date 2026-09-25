@@ -844,11 +844,6 @@ impl RelativeOps for FloatOperationIr {
                 input: desc.input.to_relative(converter),
                 out: desc.out.to_relative(converter),
             }),
-            FloatOperationIr::IntoTiled(desc) => FloatOperationIr::IntoTiled(IntoTiledOpIr {
-                input: desc.input.to_relative(converter),
-                tiling: desc.tiling,
-                out: desc.out.to_relative(converter),
-            }),
             FloatOperationIr::GridSample2d(desc) => {
                 FloatOperationIr::GridSample2d(GridSample2dOpIr {
                     tensor: desc.tensor.to_relative(converter),
