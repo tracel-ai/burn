@@ -99,6 +99,38 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
         Self::new(round_impl(self.primitive))
     }
 
+    /// Applies element wise round operation to the given number of decimal places.
+    ///
+    /// Halfway cases follow the same [round half to even](https://en.wikipedia.org/wiki/Rounding#Rounding_half_to_even)
+    /// strategy as [`round`](Self::round). `decimals == 0` is equivalent to [`round`](Self::round).
+    ///
+    /// # Example
+    /// ```rust
+    /// use burn_tensor::Tensor;
+    ///
+    /// let device = Default::default();
+    /// let tensor = Tensor::<1>::from_floats([1.2345, 2.3456, 3.4567], &device);
+    /// let rounded = tensor.round_to(2);
+    /// ```
+    pub fn round_to(self, decimals: u32) -> Self {
+        if decimals == 0 {
+            return self.round();
+        }
+
+        // Build 10^decimals on the host. Once the scale is no longer finite the
+        // requested precision exceeds what any float can represent, so rounding
+        // is a no-op.
+        let mut shift = 1.0f64;
+        for _ in 0..decimals {
+            shift *= 10.0;
+            if !shift.is_finite() {
+                return self;
+            }
+        }
+
+        self.mul_scalar(shift).round().div_scalar(shift)
+    }
+
     /// Applies element wise floor operation.
     pub fn floor(self) -> Self {
         Self::new(floor_impl(self.primitive))
