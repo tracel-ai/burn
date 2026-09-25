@@ -44,7 +44,7 @@ mod tests {
         // The .pt file stores int64 (PyTorch's default int dtype); we pin
         // that here to catch a regression where the loader silently casts
         // to the backend's native IntElem (i32 for Flex).
-        assert_eq!(data.dtype, DType::I64);
+        assert_eq!(data.dtype(), DType::I64);
 
         let values = data.iter::<i64>().collect::<Vec<_>>();
         assert_eq!(values, vec![1i64, 2, 3]);

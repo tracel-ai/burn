@@ -35,7 +35,7 @@ impl IntTensorOps<Self> for CubeBackend {
     }
 
     fn int_from_data(data: TensorData, device: &Device<Self>) -> IntTensor<Self> {
-        match data.dtype {
+        match data.dtype() {
             DType::I64
             | DType::I32
             | DType::I16

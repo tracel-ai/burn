@@ -271,7 +271,7 @@ mod tests {
         // Verify the tensor can be converted to data
         let view = &collector.tensors[0];
         let data = bridge::to_data(view).unwrap();
-        assert_eq!(data.shape, shape![2, 2]);
+        assert_eq!(*data.shape(), shape![2, 2]);
     }
 
     #[test]
@@ -748,7 +748,7 @@ mod tests {
             .find(|v| v.name == "backbone.encoder.block1.layer.weight")
             .unwrap();
         let data = bridge::to_data(view).unwrap();
-        assert_eq!(data.shape, shape![2, 2]);
+        assert_eq!(*data.shape(), shape![2, 2]);
     }
 
     #[test]

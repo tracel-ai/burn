@@ -41,12 +41,12 @@ fn block_max_abs(values: &[f32], blocks: &BlockLayout) -> Vec<f32> {
 
 impl QTensorOps<Flex> for Flex {
     fn q_from_data(data: TensorData, _device: &Device<Flex>) -> QuantizedTensor<Flex> {
-        let scheme = match data.dtype {
+        let scheme = match data.dtype() {
             DType::QFloat(scheme) => scheme,
-            _ => panic!("Expected quantized dtype, got {:?}", data.dtype),
+            _ => panic!("Expected quantized dtype, got {:?}", data.dtype()),
         };
 
-        let shape = data.shape.clone();
+        let shape = data.shape().clone();
 
         let q_bytes = QuantizedBytes {
             shape: shape.clone(),

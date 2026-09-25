@@ -30,7 +30,7 @@ pub(crate) struct OutgoingBatch {
 /// the byte-based flush threshold.
 fn data_len(msg: &RemoteMessage) -> usize {
     match msg {
-        RemoteMessage::Task(Task::RegisterTensor(_, _, data)) => data.bytes.len(),
+        RemoteMessage::Task(Task::RegisterTensor(_, _, data)) => data.bytes().len(),
         _ => 0,
     }
 }

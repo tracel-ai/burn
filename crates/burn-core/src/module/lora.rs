@@ -415,7 +415,7 @@ mod tests {
         // the initial delta is zero, so it is just the dequantized base.
         let composed = weight.val();
         assert_eq!(composed.dims(), [8, 8]);
-        assert_eq!(composed.into_data().shape, original.into_data().shape);
+        assert_eq!(composed.into_data().shape(), original.into_data().shape());
     }
 
     #[cfg(feature = "autodiff")]

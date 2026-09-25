@@ -98,7 +98,7 @@ fn test_adaptive_avg_pool3d_dyn_filter_size() {
     let x = TestTensor::from_data(TensorData::new(x_data, shape_x.clone()), &device);
     let output = adaptive_avg_pool3d(x, [3, 4, 5]);
     let output_data = output.into_data();
-    assert_eq!(output_data.shape, Shape::new([1, 2, 3, 4, 5]));
+    assert_eq!(*output_data.shape(), Shape::new([1, 2, 3, 4, 5]));
     let values: Vec<f32> = output_data.iter::<f32>().collect();
 
     // Verify all values are finite and positive
@@ -122,7 +122,7 @@ fn test_adaptive_avg_pool3d_bigger_output() {
     let x = TestTensor::from_data(TensorData::new(x_data, shape_x.clone()), &device);
     let output = adaptive_avg_pool3d(x, [3, 4, 5]);
     let output_data = output.into_data();
-    assert_eq!(output_data.shape, Shape::new([1, 1, 3, 4, 5]));
+    assert_eq!(*output_data.shape(), Shape::new([1, 1, 3, 4, 5]));
     let values: Vec<f32> = output_data.iter::<f32>().collect();
 
     for v in &values {

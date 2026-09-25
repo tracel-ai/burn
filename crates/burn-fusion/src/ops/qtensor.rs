@@ -25,7 +25,7 @@ use super::NoOp;
 impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
     fn q_from_data(data: TensorData, device: &Device<Self>) -> QuantizedTensor<Self> {
         let client = get_client::<B>(device);
-        let dtype = data.dtype;
+        let dtype = data.dtype();
         let tensor = B::q_from_data(data, device);
         let shape = burn_backend::TensorMetadata::shape(&tensor);
 

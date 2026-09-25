@@ -35,7 +35,7 @@ pub enum MorphKernel<B: Element> {
 }
 
 pub fn morph(input: TensorData, kernel: TensorData, op: MorphOp, opts: MorphOptions) -> TensorData {
-    dispatch_bool_dtype!(kernel.dtype.into(), |B| morph_impl::<B>(
+    dispatch_bool_dtype!(kernel.dtype().into(), |B| morph_impl::<B>(
         input, kernel, op, opts
     ))
 }
@@ -46,7 +46,7 @@ fn morph_impl<B: Element>(
     op: MorphOp,
     opts: MorphOptions,
 ) -> TensorData {
-    let [kh, kw] = kernel.shape.dims();
+    let [kh, kw] = kernel.shape().dims();
 
     let kernel = kernel.try_into_vec::<B>().unwrap();
     let is_rect = kernel.iter().all(|it| it.to_bool());
@@ -66,9 +66,9 @@ fn morph_impl<B: Element>(
         }
     };
 
-    let shape = input.shape.clone();
+    let shape = input.shape().clone();
     let data = input;
-    match data.dtype {
+    match data.dtype() {
         DType::F64 => morph_typed::<B, f64>(data, shape, kernel, op, iter, btype, bvalue),
         DType::F32 | DType::Flex32 => {
             morph_typed::<B, f32>(data, shape, kernel, op, iter, btype, bvalue)

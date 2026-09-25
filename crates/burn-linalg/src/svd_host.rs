@@ -28,8 +28,8 @@ pub(crate) fn svd_host_data(
     sweeps: usize,
     swap: bool,
 ) -> Result<(TensorData, TensorData, TensorData), ExecutionError> {
-    let rank = data.shape.num_dims();
-    let dims: alloc::vec::Vec<usize> = data.shape.iter().copied().collect();
+    let rank = data.rank();
+    let dims: alloc::vec::Vec<usize> = data.shape().iter().copied().collect();
     let batch: usize = dims[..rank - 2].iter().product();
     let (m, n) = (dims[rank - 2], dims[rank - 1]);
 
@@ -48,7 +48,7 @@ pub(crate) fn svd_host_data(
         dv[rank - 1] = m;
     }
 
-    if data.dtype == DType::F64 {
+    if data.dtype() == DType::F64 {
         let a = data.try_into_vec::<f64>().unwrap();
         let (u, s, vt) = svd_host::<f64>(&a, m, n, batch, sweeps, swap)
             .map_err(|batch| convergence_error(batch, n, sweeps))?;

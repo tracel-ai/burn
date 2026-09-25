@@ -339,14 +339,10 @@ fn remap_all_indices_with_original_prefix(
 mod tests {
     use super::*;
     use burn_core::module::ParamId;
-    use burn_core::tensor::{Bytes, DType, TensorData, shape};
+    use burn_core::tensor::{DType, TensorData, shape};
 
     fn create_test_tensor(name: &str) -> PackTensor {
-        let data = TensorData {
-            bytes: Bytes::from_bytes_vec(vec![0u8; 4 * 4]),
-            shape: shape![2, 2],
-            dtype: DType::F32,
-        };
+        let data = TensorData::from_bytes_vec(vec![0u8; 4 * 4], shape![2, 2], DType::F32);
         crate::bridge::from_data(data, name.to_string(), Some(ParamId::new().val()))
     }
 

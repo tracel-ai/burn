@@ -1488,7 +1488,7 @@ mod tests {
         let a = FlexTensor::from_data(TensorData::new(vec![u64::MAX], [1]));
         let b = FlexTensor::from_data(TensorData::new(vec![2u64], [1]));
         let result = Flex::int_div(a, b);
-        let values: Vec<u64> = bytemuck::cast_slice(&result.into_data().bytes).to_vec();
+        let values: Vec<u64> = bytemuck::cast_slice(result.into_data().as_bytes()).to_vec();
         assert_eq!(values[0], u64::MAX / 2);
     }
 
@@ -1497,7 +1497,7 @@ mod tests {
         let a = FlexTensor::from_data(TensorData::new(vec![u64::MAX], [1]));
         let b = FlexTensor::from_data(TensorData::new(vec![2u64], [1]));
         let result = Flex::int_remainder(a, b);
-        let values: Vec<u64> = bytemuck::cast_slice(&result.into_data().bytes).to_vec();
+        let values: Vec<u64> = bytemuck::cast_slice(result.into_data().as_bytes()).to_vec();
         assert_eq!(values[0], u64::MAX % 2);
     }
 
@@ -1506,7 +1506,7 @@ mod tests {
         // i64::MIN.abs() panics in debug; wrapping_abs returns MIN (matches PyTorch)
         let a = FlexTensor::from_data(TensorData::new(vec![i64::MIN], [1]));
         let result = Flex::int_abs(a);
-        let values: Vec<i64> = bytemuck::cast_slice(&result.into_data().bytes).to_vec();
+        let values: Vec<i64> = bytemuck::cast_slice(result.into_data().as_bytes()).to_vec();
         assert_eq!(values[0], i64::MIN.wrapping_abs());
     }
 
@@ -1515,7 +1515,7 @@ mod tests {
         // i64::MIN negation panics in debug; wrapping_neg returns MIN (matches PyTorch)
         let a = FlexTensor::from_data(TensorData::new(vec![i64::MIN], [1]));
         let result = Flex::int_neg(a);
-        let values: Vec<i64> = bytemuck::cast_slice(&result.into_data().bytes).to_vec();
+        let values: Vec<i64> = bytemuck::cast_slice(result.into_data().as_bytes()).to_vec();
         assert_eq!(values[0], i64::MIN.wrapping_neg());
     }
 

@@ -580,14 +580,14 @@ fn transpose_2d_tensor(tensor: PackTensor) -> PackTensor {
 
 /// Transpose tensor data (assumes 2D shape is already validated)
 fn transpose_tensor_data(data: TensorData) -> TensorData {
-    let shape = &data.shape;
+    let shape = data.shape();
     let rows = shape[0];
     let cols = shape[1];
     let transposed_shape = vec![cols, rows];
 
     // Get the raw bytes and element size
     let bytes = data.as_bytes();
-    let element_size = data.dtype.size();
+    let element_size = data.dtype().size();
 
     // Create a new buffer for transposed data
     let mut transposed_bytes = vec![0u8; bytes.len()];
@@ -606,7 +606,7 @@ fn transpose_tensor_data(data: TensorData) -> TensorData {
     }
 
     // Create new TensorData from transposed bytes
-    TensorData::from_bytes_vec(transposed_bytes, transposed_shape, data.dtype)
+    TensorData::from_bytes_vec(transposed_bytes, transposed_shape, data.dtype())
 }
 
 #[cfg(test)]
@@ -757,21 +757,21 @@ mod tests {
         // Test with F32
         let f32_data = TensorData::new(vec![1.0f32, 2.0, 3.0, 4.0, 5.0, 6.0], [2, 3]);
         let transposed = transpose_tensor_data(f32_data);
-        assert_eq!(transposed.shape, shape![3, 2]);
+        assert_eq!(*transposed.shape(), shape![3, 2]);
         let values = transposed.try_to_vec::<f32>().unwrap();
         assert_eq!(values, vec![1.0, 4.0, 2.0, 5.0, 3.0, 6.0]);
 
         // Test with I32
         let i32_data = TensorData::new(vec![1i32, 2, 3, 4, 5, 6], [2, 3]);
         let transposed = transpose_tensor_data(i32_data);
-        assert_eq!(transposed.shape, shape![3, 2]);
+        assert_eq!(*transposed.shape(), shape![3, 2]);
         let values = transposed.try_to_vec::<i32>().unwrap();
         assert_eq!(values, vec![1, 4, 2, 5, 3, 6]);
 
         // Test with F64
         let f64_data = TensorData::new(vec![1.0f64, 2.0, 3.0, 4.0], [2, 2]);
         let transposed = transpose_tensor_data(f64_data);
-        assert_eq!(transposed.shape, shape![2, 2]);
+        assert_eq!(*transposed.shape(), shape![2, 2]);
         let values = transposed.try_to_vec::<f64>().unwrap();
         assert_eq!(values, vec![1.0, 3.0, 2.0, 4.0]);
     }
@@ -989,7 +989,7 @@ mod tests {
         assert_eq!(adapted.shape, shape![2, 3]);
 
         let data = bridge::to_data(&adapted).unwrap();
-        assert_eq!(data.dtype, DType::F16);
+        assert_eq!(data.dtype(), DType::F16);
     }
 
     /// The cast has to be reflected in the declared byte length too, not only the dtype: the
@@ -1001,7 +1001,7 @@ mod tests {
 
         let adapted = adapt_in(&adapter, "fc.weight", shape![2, 3], module_names::LINEAR);
         assert_eq!(adapted.byte_len(), 6 * 2);
-        assert_eq!(bridge::to_data(&adapted).unwrap().bytes.len(), 6 * 2);
+        assert_eq!(bridge::to_data(&adapted).unwrap().bytes().len(), 6 * 2);
     }
 
     #[test]
@@ -1157,7 +1157,7 @@ mod tests {
         assert_eq!(adapted.name, "fc.weight");
 
         let data = bridge::to_data(&adapted).unwrap();
-        assert_eq!(data.dtype, DType::F16);
+        assert_eq!(data.dtype(), DType::F16);
         let values = data
             .convert_dtype(DType::F32)
             .try_into_vec::<f32>()
@@ -1211,7 +1211,7 @@ mod tests {
         let source = bridge::from_tensor(&quantized, "fc.weight".to_string(), None);
         let (shape, bytes) = (
             source.shape.clone(),
-            bridge::to_data(&source).unwrap().bytes.to_vec(),
+            bridge::to_data(&source).unwrap().as_bytes().to_vec(),
         );
 
         let containers = containers(module_names::LINEAR);
@@ -1221,7 +1221,10 @@ mod tests {
             adapted.shape, shape,
             "a quantized weight must pass through unchanged"
         );
-        assert_eq!(bridge::to_data(&adapted).unwrap().bytes.to_vec(), bytes);
+        assert_eq!(
+            bridge::to_data(&adapted).unwrap().as_bytes().to_vec(),
+            bytes
+        );
     }
 
     /// A stack of only collection wrappers has no user-defined module in it.

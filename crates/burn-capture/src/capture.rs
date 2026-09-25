@@ -515,8 +515,8 @@ impl RouterClient for CaptureClient {
         let mut state = self.state().lock();
         state.assert_open();
         let id = TensorId::new(TENSOR_COUNTER.fetch_add(1, Ordering::Relaxed));
-        let shape = data.shape.clone();
-        let dtype = data.dtype;
+        let shape = data.shape().clone();
+        let dtype = data.dtype();
         state.values.insert(id, data);
         drop(state);
         RouterTensor::new(id, shape, dtype, self.clone())

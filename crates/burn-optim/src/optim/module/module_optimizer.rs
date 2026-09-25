@@ -276,7 +276,7 @@ impl ModuleOptimizer {
             } = tensor;
             let id = param_id.expect("Optimizer record tensors should carry a parameter id.");
             // Fall back to inferring rank from a tensor shape if no `__rank` scalar was present.
-            ranks.entry(id).or_insert(data.shape.len());
+            ranks.entry(id).or_insert(data.rank());
             source.insert_tensor(name, data);
         }
 

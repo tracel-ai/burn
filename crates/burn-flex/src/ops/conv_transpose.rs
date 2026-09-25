@@ -990,7 +990,7 @@ mod tests {
         let result = conv_transpose1d_f32(x, weight, None, &options);
         assert_eq!(result.layout().shape().to_vec(), vec![1, 1, 0]);
         assert_eq!(result.dtype(), DType::F32);
-        assert!(result.into_data().bytes.is_empty());
+        assert!(result.into_data().bytes().is_empty());
     }
 
     #[test]

@@ -16,7 +16,7 @@ pub fn nms(
     options: NmsOptions,
     out_dtype: IntDType,
 ) -> Option<TensorData> {
-    let [n_boxes, _] = boxes.shape.dims();
+    let [n_boxes, _] = boxes.shape().dims();
     if n_boxes == 0 {
         return None;
     }
