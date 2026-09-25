@@ -49,6 +49,13 @@ where
 
     // Authorize before any session state is created.
     authorize(&init)?;
+    let device_count = service.device_count();
+    if init.device_index >= device_count {
+        return Err(format!(
+            "Session {} asked for device {}, but this server hosts {device_count} device(s)",
+            init.session_id, init.device_index
+        ));
+    }
 
     // Reply with the selected device's settings + this server's identity, so the client can fill in
     // `RemoteDevice::defaults`/`enumerate` without an extra round-trip.
@@ -57,7 +64,7 @@ where
         content: TaskResponseContent::Init(SessionInfo {
             version: PROTOCOL_VERSION,
             settings: service.device_settings(init.device_index),
-            device_count: service.device_count(),
+            device_count,
             peer_id: server_peer_id,
         }),
     };
@@ -283,5 +290,26 @@ mod tests {
 
         assert!(result.is_err());
         assert!(service.closed.lock().unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn a_device_the_server_does_not_host_is_refused() {
+        let service = Arc::new(FakeService::default());
+        let unhosted_device = service.device_count();
+        let init = vec![RemoteMessage::Init(SessionInit::new(
+            SessionId::new(),
+            unhosted_device,
+            vec![],
+        ))];
+        let source = ScriptedSource([Ok(Some(rmp_serde::to_vec(&init).unwrap().into()))].into());
+
+        let result = drive_session(source, DiscardingSink, service.clone(), None, |_| Ok(())).await;
+
+        let err = result.expect_err("the session was bound to a device the server does not host");
+        assert!(
+            err.contains(&format!("device {unhosted_device}")),
+            "got: {err}"
+        );
+        assert!(service.tasks.lock().unwrap().is_none());
     }
 }
