@@ -1,24 +1,35 @@
 # Runtime Configuration
 
-Burn uses `burn.toml` to configure logging, operation fusion, and remote-backend batching. For
-CubeCL backends, the same file can also configure autotuning, profiling, compilation, and memory
-management through `[cubecl.*]` sections.
+Burn provides runtime configuration for autotuning, profiling, logging, operation fusion, and
+remote-backend batching.
 
 ## Overview
 
-With filesystem support and the `std` feature enabled, Burn searches the current directory and its
-parents for `burn.toml` or `Burn.toml`. It uses the first valid file without merging files. Missing
-settings use defaults; malformed files are skipped with a warning.
+By default, Burn loads its configuration from a TOML file (`burn.toml` or `Burn.toml`) in your
+current directory or a parent directory. Missing settings use defaults. If no valid file is found,
+Burn uses the default configuration.
 
-Configuration is loaded on first use and kept for the lifetime of the process. Set environment
-variables before starting the application, and restart it after editing the file. Changing these
-settings does not require recompilation.
+You can also override configuration options using environment variables, which is useful for
+debugging, CI, and deployment.
+
+File loading and environment overrides require the `std` feature and a supported platform with
+filesystem access. Burn uses the first valid file without merging files; malformed files are skipped
+with a warning.
+
+> **Note:** Configuration is loaded on first use. Set environment variables before starting your
+> application, and restart it after editing the file. No recompilation is needed.
 
 ## Configuration File Structure
 
-A `burn.toml` file can contain both Burn and CubeCL settings:
+A typical `burn.toml` file might look like this:
 
 ```toml
+[cubecl.autotune]
+level = "balanced"
+
+[cubecl.profiling]
+logger = { level = "basic", stdout = true }
+
 [fusion]
 logger = { level = "basic", stderr = true }
 
@@ -28,23 +39,34 @@ logger = { level = "disabled" }
 [remote]
 flush_threshold = 4
 flush_bytes_threshold = 1048576
-
-[cubecl.autotune]
-level = "balanced"
-
-[cubecl.profiling]
-logger = { level = "basic", stdout = true }
 ```
 
-Burn reads the top-level `fusion`, `autodiff`, and `remote` sections. CubeCL reads the `cubecl`
-section independently when a CubeCL backend is used.
+Each section configures a different aspect of Burn:
 
-## Burn Configuration Options
+- **cubecl**: Configures autotuning, profiling, compilation, and memory for CubeCL backends.
+- **fusion**: Controls operation fusion and its logging.
+- **autodiff**: Controls automatic differentiation logging.
+- **remote**: Configures remote-backend batching and logging.
+
+## Configuration Options
+
+### CubeCL
+
+The `[cubecl]` section configures the CubeCL runtime. You can use the options from the
+[CubeCL configuration guide](https://github.com/tracel-ai/cubecl/blob/main/cubecl-book/src/advanced-usage/config.md)
+by prefixing each section with `cubecl.`. For example, `[autotune]` becomes `[cubecl.autotune]`. The
+same prefix applies to nested sections.
+
+See the guide for available options, defaults, and examples. Supported settings depend on the CubeCL
+version used by Burn.
+
+At each directory level, CubeCL checks `cubecl.toml` and `CubeCL.toml` before the `[cubecl]` section
+in `burn.toml` or `Burn.toml`, then searches parent directories. It uses the first valid
+configuration; separate files and embedded sections are not merged.
 
 ### Fusion
 
-The `[fusion]` section controls operation-fusion logging and how cached execution graphs grow. The
-`[fusion.beam_search]` subsection controls exploration of fusion opportunities.
+The `[fusion]` section controls how Burn combines operations and logs fusion activity.
 
 **Log Levels:**
 
@@ -53,17 +75,19 @@ The `[fusion]` section controls operation-fusion logging and how cached executio
 - `medium`: Adds cache hits and misses, and block merge/split decisions.
 - `full`: Adds every registration, rejection, and scoring decision.
 
-**Settings:**
+**Graph Settings:**
 
-| Setting                               | Default  | Effect                                                                                                                   |
-| ------------------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------ |
-| `fusion.max_graph_size`               | No limit | Caps the number of operations in a client-cached graph.                                                                  |
-| `fusion.growth_patience`              | `32`     | Closes a graph after this many consecutive operations fail to improve its best fusion score.                             |
-| `fusion.beam_search.max_blocks`       | `5`      | Limits the number of independent blocks explored during fusion search.                                                   |
-| `fusion.beam_search.max_explorations` | No limit | Caps optimization explorations per stream. Once reached, cache misses execute unfused; existing cache hits still replay. |
+- `max_graph_size`: Maximum operations in a client-cached graph (default: no limit).
+- `growth_patience`: Closes a graph after this many consecutive operations fail to improve its best
+  fusion score (default: `32`).
 
-Omit optional limits to leave them unlimited. Limiting exploration reduces optimization work but can
-miss fusion opportunities.
+**Fusion Search** (`[fusion.beam_search]`):
+
+- `max_blocks`: Maximum independent blocks explored during fusion search (default: `5`).
+- `max_explorations`: Maximum optimization explorations per stream (default: no limit). Once
+  reached, cache misses execute unfused; cached optimizations still run.
+
+Leave optional limits unset to keep them unlimited.
 
 **Example:**
 
@@ -103,12 +127,11 @@ The `[remote]` section controls outgoing message batching and remote-backend log
 - `basic`: Logs periodic summaries of network bytes saved by graph caching.
 - `full`: Adds every optimization registration and replay, with message sizes.
 
-**Settings:**
+**Batching Settings:**
 
-| Setting                 | Default           | Effect                                                                                          |
-| ----------------------- | ----------------- | ----------------------------------------------------------------------------------------------- |
-| `flush_threshold`       | `4`               | Flushes when this many tasks have accumulated.                                                  |
-| `flush_bytes_threshold` | `1048576` (1 MiB) | Flushes when buffered tensor data reaches this size, independently of the task-count threshold. |
+- `flush_threshold`: Sends buffered tasks when this many have accumulated (default: `4`).
+- `flush_bytes_threshold`: Sends buffered tasks when their tensor data reaches this size in bytes
+  (default: `1048576`, or 1 MiB). Either threshold triggers a flush.
 
 Larger thresholds allow more batching; smaller thresholds reduce the delay before buffered work is
 sent.
@@ -122,64 +145,48 @@ flush_threshold = 4
 flush_bytes_threshold = 1048576
 ```
 
-## Logging
-
-Each subsystem has a `logger` field. Choose a verbosity level and at least one destination:
-
-```toml
-[fusion.logger]
-level = "medium"
-stderr = true
-file = "logs/fusion.log"
-append = true
-```
-
-This is equivalent to specifying `logger = { ... }` inside `[fusion]`. Destinations can be combined:
-
-- `stdout = true` or `stderr = true` writes directly to the corresponding stream.
-- `file = "path/to/file.log"` writes to a file. `append` defaults to `true`; relative paths are
-  resolved from the process's working directory.
-- `log = "info"`, `"debug"`, or `"trace"` forwards messages to Rust's `log` crate. Initialize a
-  compatible logger in your application to receive them.
-
-No destinations are enabled by default. The subsystem's `level` controls which messages are
-generated; `log` selects the level used when forwarding those messages to the `log` crate.
-
-## CubeCL Configuration
-
-For CubeCL backends, refer to the
-[CubeCL Book's configuration reference](https://github.com/tracel-ai/cubecl/blob/main/cubecl-book/src/advanced-usage/config.md)
-for supported options, defaults, and environment variables.
-
-In `burn.toml`, prefix CubeCL sections with `cubecl.`, for example `[autotune]` becomes
-`[cubecl.autotune]`. This also applies to nested sections. Available settings depend on the CubeCL
-version used by Burn.
-
-At each directory level, CubeCL checks `cubecl.toml` and `CubeCL.toml` before the `[cubecl]` section
-in `burn.toml` or `Burn.toml`, then searches parent directories. It uses the first valid
-configuration; separate files and embedded sections are not merged.
-
 ## Environment Variable Overrides
 
-These Burn variables override the corresponding file settings when configuration is first loaded:
+Burn supports the following environment variables to override configuration at runtime:
 
-| Variable                       | Setting                               | Accepted values                       |
-| ------------------------------ | ------------------------------------- | ------------------------------------- |
-| `BURN_FUSION_LOG`              | `fusion.logger.level`                 | `disabled`, `basic`, `medium`, `full` |
-| `BURN_FUSION_MAX_EXPLORATIONS` | `fusion.beam_search.max_explorations` | Non-negative integer                  |
-| `BURN_REMOTE_LOG`              | `remote.logger.level`                 | `disabled`, `basic`, `full`           |
+- `BURN_FUSION_LOG`: Sets fusion log verbosity. Accepts `disabled`, `basic`, `medium`, or `full`;
+  `off` and `0` disable logging, and `1` selects `full`.
+- `BURN_FUSION_MAX_EXPLORATIONS`: Sets `fusion.beam_search.max_explorations` to a non-negative
+  integer.
+- `BURN_REMOTE_LOG`: Sets remote-backend log verbosity. Accepts `disabled`, `basic`, or `full`;
+  `off` and `0` disable logging, `1` selects `basic`, and `2` selects `full`.
 
-The log-level variables are case-insensitive. Both accept `off` or `0` for `disabled`.
-`BURN_FUSION_LOG=1` selects `full`; `BURN_REMOTE_LOG=1` selects `basic`, and `2` selects `full`.
-Enabling logging through these variables also enables stderr output. There is currently no
-`BURN_AUTODIFF_LOG` override; configure autodiff logging in the file.
+Log levels are case-insensitive. Enabling logging through these variables also enables stderr
+output. Configure autodiff logging in the file; there is no `BURN_AUTODIFF_LOG` override.
 
-For example, on Linux or macOS:
+**Example (Linux/macOS):**
 
 ```sh
-BURN_FUSION_LOG=medium BURN_FUSION_MAX_EXPLORATIONS=1000 cargo run --release
+export BURN_FUSION_LOG=medium
+export BURN_FUSION_MAX_EXPLORATIONS=1000
 ```
 
 CubeCL's `CUBECL_*` overrides also apply when its settings come from `[cubecl.*]` in `burn.toml`;
 see the
 [CubeCL environment variable reference](https://github.com/tracel-ai/cubecl/blob/main/cubecl-book/src/advanced-usage/config.md#environment-variable-overrides).
+
+## Logging
+
+Burn can log to multiple destinations at once. Configure them in each section's `logger` field:
+
+- `stdout = true`: Writes to stdout.
+- `stderr = true`: Writes to stderr.
+- `file = "burn.log"`: Writes to a file. `append` defaults to `true`; relative paths start from your
+  application's working directory.
+- `log = "info"`, `"debug"`, or `"trace"`: Forwards messages to Rust's `log` crate. Initialize a
+  compatible logger in your application to receive them.
+
+Choose a verbosity `level` and at least one destination. No destinations are enabled by default. The
+`level` setting controls which messages are generated; `log` sets their level in the `log` crate.
+
+**Example:**
+
+```toml
+[fusion]
+logger = { level = "medium", stderr = true, file = "burn.log", append = true }
+```
