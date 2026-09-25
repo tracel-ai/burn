@@ -1,6 +1,9 @@
 use burn_core as burn;
 
-use burn::{config::Config, tensor::Tensor};
+use burn::{
+    config::Config,
+    tensor::{DType, FloatDType, Tensor},
+};
 
 /// Gradient Clipping provides a way to mitigate exploding gradients
 #[derive(Config, Debug)]
@@ -65,15 +68,23 @@ impl GradientClipping {
     }
 
     fn clip_by_norm<const D: usize>(&self, grad: Tensor<D>, threshold: f32) -> Tensor<D> {
+        // Compute the norm in F32: in F16 the sum of squares overflows once the norm
+        // exceeds ~256, and BF16 loses too much precision accumulating it.
+        let dtype = grad.dtype();
+        let grad = match dtype {
+            DType::F16 | DType::BF16 => grad.cast(FloatDType::F32),
+            _ => grad,
+        };
+
         let norm = Self::l2_norm(grad.clone());
         let min_positive = grad
             .dtype()
             .finfo()
-            .unwrap_or(burn::tensor::FloatDType::F32.finfo())
+            .unwrap_or(FloatDType::F32.finfo())
             .min_positive;
         let clip_coef = threshold / norm.add_scalar(min_positive);
         let clip_coef_clamped = clip_coef.clamp_max(1.0);
-        grad.mul(clip_coef_clamped.unsqueeze())
+        grad.mul(clip_coef_clamped.unsqueeze()).cast(dtype)
     }
 
     fn l2_norm<const D: usize>(tensor: Tensor<D>) -> Tensor<1> {
@@ -135,5 +146,29 @@ mod tests {
         clipped_gradient
             .into_data()
             .assert_eq(&gradient.into_data(), true);
+    }
+
+    #[test]
+    fn test_clip_by_norm_f16_does_not_overflow() {
+        let gradient = Tensor::<1>::from_floats([300.0], &Default::default()).cast(FloatDType::F16);
+
+        let clipped_gradient = GradientClipping::Norm(1.0).clip_gradient(gradient);
+
+        assert_eq!(clipped_gradient.dtype(), DType::F16);
+        let actual = clipped_gradient.into_scalar::<f32>();
+        assert!((actual - 1.0).abs() < 1e-3, "actual={actual}");
+    }
+
+    #[test]
+    fn test_clip_by_norm_f16_norm_above_f16_max() {
+        let gradient =
+            Tensor::<1>::from_floats([60000.0, 60000.0], &Default::default()).cast(FloatDType::F16);
+
+        let clipped_gradient = GradientClipping::Norm(1.0).clip_gradient(gradient);
+
+        let expected = core::f32::consts::FRAC_1_SQRT_2;
+        for value in clipped_gradient.into_data().iter::<f32>() {
+            assert!((value - expected).abs() < 1e-3, "value={value}");
+        }
     }
 }

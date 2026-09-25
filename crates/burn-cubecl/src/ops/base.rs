@@ -144,7 +144,8 @@ pub(crate) fn empty(shape: Shape, device: &CubeDevice, dtype: DType) -> CubeTens
     )
 }
 
-pub(crate) fn swap_dims(mut tensor: CubeTensor, dim1: usize, dim2: usize) -> CubeTensor {
+pub(crate) fn swap_dims(tensor: CubeTensor, dim1: usize, dim2: usize) -> CubeTensor {
+    let mut tensor = crate::kernel::untile(tensor);
     tensor.meta.swap(dim1, dim2);
 
     if let DType::QFloat(scheme) = &mut tensor.dtype
@@ -174,7 +175,8 @@ pub(crate) fn swap_dims(mut tensor: CubeTensor, dim1: usize, dim2: usize) -> Cub
 }
 
 /// Permute a tensor's dimensions
-pub fn permute(mut tensor: CubeTensor, axes: &[usize]) -> CubeTensor {
+pub fn permute(tensor: CubeTensor, axes: &[usize]) -> CubeTensor {
+    let mut tensor = crate::kernel::untile(tensor);
     tensor.meta.permute(axes).unwrap();
 
     if let DType::QFloat(scheme) = &mut tensor.dtype

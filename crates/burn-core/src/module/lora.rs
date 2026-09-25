@@ -153,6 +153,20 @@ impl Reparameterizer for Lora {
 /// The quantized base is kept at rest in its low-bit representation; the adapter contribution is
 /// added on top during the forward pass (the base is dequantized on the fly when composed).
 /// Module-owned control flags are left unchanged, as with [`Lora`].
+///
+/// # Memory limitations
+///
+/// QLoRA reduces stored base-weight memory and trains only the adapter factors, but still
+/// composes a dense effective weight as `dequantize(base) + scale * (a @ b)`. For a linear
+/// projection whose input requires gradients, autodiff retains that dense weight for backward
+/// and computes a full weight-shaped gradient before propagating into the factors. Peak training
+/// memory can therefore be substantially higher than the packed weights and adapters alone suggest.
+/// Fusion can avoid a separate dequantized base allocation, but does not eliminate all of these
+/// dense intermediates.
+///
+/// [`Module::valid`](crate::module::Module::valid) preserves the packed base and adapters.
+/// Explicitly calling [`Module::materialize`](crate::module::Module::materialize) merges them
+/// into dense weights; requantization must be requested separately.
 pub struct QLora {
     lora: Lora,
     quantizer: Quantizer,
@@ -501,17 +515,39 @@ mod tests {
 
     #[cfg(feature = "autodiff")]
     #[test]
-    fn lora_valid_folds_adapter_for_inference() {
+    fn lora_valid_preserves_adapter_and_train_restores_only_factors() {
         let device = test_device().autodiff();
         let lora = Lora::new(2, 4.0);
         let model = SimpleLinear::new(4, 6, &device).apply_lora(lora);
 
         let inference = model.valid();
-        // The inference parameter has no adapter (folded) and equals the composed training weight.
-        assert!(inference.weight.adapter().is_none());
+        let adapter = inference.weight.adapter().unwrap();
+        assert!(!inference.weight.base().is_autodiff());
+        assert!(!adapter.a.val().is_autodiff());
+        assert!(!adapter.b.val().is_autodiff());
+        assert_eq!(adapter.a.id, model.weight.adapter().unwrap().a.id);
+        assert_eq!(adapter.b.id, model.weight.adapter().unwrap().b.id);
         inference.weight.val().into_data().assert_approx_eq::<f32>(
             &model.weight.val().inner().into_data(),
             Tolerance::default(),
         );
+
+        let restored = inference.valid().train();
+        assert!(!restored.weight.base().is_require_grad());
+        assert!(!restored.bias.as_ref().unwrap().is_require_grad());
+        let adapter = restored.weight.adapter().unwrap();
+        let grads = restored.weight.val().sum().backward();
+        assert!(restored.weight.base().grad(&grads).is_none());
+        assert!(adapter.a.val().grad(&grads).is_some());
+        assert!(adapter.b.val().grad(&grads).is_some());
+
+        let merged = model.valid().materialize();
+        assert!(merged.weight.adapter().is_none());
+        assert!(!merged.weight.val().is_autodiff());
+        merged.weight.val().into_data().assert_approx_eq::<f32>(
+            &model.weight.val().inner().into_data(),
+            Tolerance::default(),
+        );
+        assert!(!merged.train().weight.base().is_require_grad());
     }
 }

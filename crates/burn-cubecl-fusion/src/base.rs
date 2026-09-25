@@ -1,6 +1,6 @@
 use burn_fusion::stream::Context;
 use burn_std::{
-    DType, Shape, Strides,
+    DType, Metadata, Shape, Strides,
     quantization::{QParamTensor, global_scale_dtype},
     strides,
 };
@@ -34,11 +34,23 @@ pub struct CubeFusionHandle {
     pub dtype: DType,
     /// The strides of the tensor.
     pub strides: Strides,
-    /// How the tensor is stored: plain rows, or storage tiles. Carried so the boundary
-    /// conversions lose nothing; a fused kernel reads rows and refuses a tiled input.
-    pub tiling: Tiling,
+    /// How the tensor is stored: `None` for rows, under `strides` over the shape the IR states;
+    /// otherwise storage tiles, whose physical dims the IR cannot state (it knows the logical
+    /// shape only), so the handle carries them. A fused kernel reads rows and refuses a tiled
+    /// input.
+    pub tiles: Option<Tiles>,
     /// Quantization runtime parameters, if applicable
     pub qparams: Option<QParams>,
+}
+
+/// A storage-tiled buffer's physical shape and the tiling that folds it back into the logical
+/// shape the IR states.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Tiles {
+    /// The buffer's own dims, the fragments of the logical ones.
+    pub shape: Shape,
+    /// How many fragments each logical dim is stored as.
+    pub tiling: Tiling,
 }
 
 impl core::fmt::Debug for CubeFusionHandle {
@@ -58,7 +70,7 @@ impl Clone for CubeFusionHandle {
             handle: self.handle.clone(),
             device: self.device.clone(),
             strides: self.strides.clone(),
-            tiling: self.tiling,
+            tiles: self.tiles.clone(),
             dtype: self.dtype,
             qparams: self.qparams.clone(),
         }
@@ -69,14 +81,43 @@ unsafe impl Send for CubeFusionHandle {}
 unsafe impl Sync for CubeFusionHandle {}
 
 impl CubeFusionHandle {
-    /// Return the reference to a tensor handle.
+    /// Return the reference to a tensor handle, `shape` being the logical shape the IR states.
     pub fn binding(self, shape: Shape) -> TensorBinding {
+        let (shape, tiling) = (self.physical_shape(shape), self.tiling());
         TensorBinding {
             handle: self.handle.binding(),
-            strides: self.strides.clone(),
+            strides: self.strides,
             shape,
-            tiling: self.tiling,
+            tiling,
         }
+    }
+
+    /// The buffer's own dims, `logical` being the shape the IR states: that shape for rows, the
+    /// fragments for storage tiles.
+    pub fn physical_shape(&self, logical: Shape) -> Shape {
+        match &self.tiles {
+            Some(tiles) => tiles.shape.clone(),
+            None => logical,
+        }
+    }
+
+    /// The buffer's metadata, `logical` being the shape the IR states: rows under that shape, or
+    /// the storage tiles the handle carries, folded back to it by their tiling.
+    pub fn metadata(&self, logical: Shape) -> Metadata {
+        match &self.tiles {
+            Some(tiles) => Metadata::new(tiles.shape.clone(), self.strides.clone())
+                .with_tiling(tiles.tiling)
+                .expect("a fusion handle's tiling describes its own rank"),
+            None => Metadata::new(logical, self.strides.clone()),
+        }
+    }
+
+    /// How many fragments each logical dim is stored as; untiled for rows.
+    pub fn tiling(&self) -> Tiling {
+        self.tiles
+            .as_ref()
+            .map(|tiles| tiles.tiling)
+            .unwrap_or(Tiling::UNTILED)
     }
 
     pub fn required_address_type(&self) -> AddressType {
@@ -119,7 +160,7 @@ impl CubeFusionHandle {
                 ScaleDtype::UE8M0 | ScaleDtype::UE4M3 => unimplemented!("Not yet supported"),
             },
             strides: qparams.scales.metadata.strides().clone(),
-            tiling: Tiling::UNTILED,
+            tiles: None,
             qparams: None,
         })
     }

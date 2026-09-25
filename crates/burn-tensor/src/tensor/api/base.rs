@@ -175,6 +175,10 @@ where
 
     /// Create an empty tensor with the same shape, dtype, and device as the current tensor.
     ///
+    /// # Panics
+    ///
+    /// If the tensor is quantized. This method preserves the input dtype,
+    /// but quantized tensor creation is not supported.
     ///
     /// # Example
     /// ```rust
@@ -187,7 +191,9 @@ where
     /// let tensor = tensor.empty_like();
     /// ```
     pub fn empty_like(&self) -> Self {
-        Self::new(K::empty(self.shape(), &self.device(), self.dtype()))
+        let dtype = self.dtype();
+        check!(TensorCheck::quantized_unsupported("Empty Like", dtype));
+        Self::new(K::empty(self.shape(), &self.device(), dtype))
     }
 
     /// The dtype to create a new tensor with so that it matches this one, used by ops that
@@ -223,6 +229,11 @@ where
 
     /// Returns a new tensor with the same shape, dtype, and device as the current tensor filled with zeros.
     ///
+    /// # Panics
+    ///
+    /// If the tensor is quantized. This method preserves the input dtype,
+    /// but quantized tensor creation is not supported.
+    ///
     /// # Example
     ///
     /// ```rust
@@ -235,7 +246,9 @@ where
     /// // [[0.0, 0.0, 0.0], [0.0, 0.0, 0.0]]
     /// ```
     pub fn zeros_like(&self) -> Self {
-        Self::new(K::zeros(self.shape(), &self.device(), self.dtype()))
+        let dtype = self.dtype();
+        check!(TensorCheck::quantized_unsupported("Zeros Like", dtype));
+        Self::new(K::zeros(self.shape(), &self.device(), dtype))
     }
 
     /// Create a tensor of the given shape where each element is one.
@@ -260,6 +273,11 @@ where
 
     /// Returns a new tensor with the same shape, dtype, and device as the current tensor filled with ones.
     ///
+    /// # Panics
+    ///
+    /// If the tensor is quantized. This method preserves the input dtype,
+    /// but quantized tensor creation is not supported.
+    ///
     /// # Example
     ///
     /// ```rust
@@ -272,7 +290,9 @@ where
     /// // [[1.0, 1.0, 1.0], [1.0, 1.0, 1.0]]
     /// ```
     pub fn ones_like(&self) -> Self {
-        Self::new(K::ones(self.shape(), &self.device(), self.dtype()))
+        let dtype = self.dtype();
+        check!(TensorCheck::quantized_unsupported("Ones Like", dtype));
+        Self::new(K::ones(self.shape(), &self.device(), dtype))
     }
 
     /// Create a tensor of the given shape where each element is equal to the provided value.
@@ -307,6 +327,11 @@ where
     /// Returns a new tensor with the same shape, dtype, and device as the current tensor,
     /// filled with the provided value.
     ///
+    /// # Panics
+    ///
+    /// If the tensor is quantized. This method preserves the input dtype,
+    /// but quantized tensor creation is not supported.
+    ///
     /// # Example
     ///
     /// ```rust
@@ -320,6 +345,7 @@ where
     /// ```
     pub fn full_like<E: ElementConversion>(&self, fill_value: E) -> Self {
         let dtype = self.dtype();
+        check!(TensorCheck::quantized_unsupported("Full Like", dtype));
         Self::new(K::full(
             self.shape(),
             Scalar::new(fill_value, &dtype),

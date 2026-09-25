@@ -4648,9 +4648,9 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
                     if orig_dim_size > 1 {
                         dims[dim] = orig_dim_size;
                         let orig_dims = dims.clone();
-                        dims.insert(dim + 1, times); // shape [..., orig_dim_size, times, ...]
+                        dims.insert(dim, times); // shape [..., times, orig_dim_size, ...]
                         let grad = B::float_reshape(grad, dims);
-                        let grad = B::float_sum_dim(grad, dim + 1); // sum over repeat times
+                        let grad = B::float_sum_dim(grad, dim); // sum over repeat times
                         B::float_reshape(grad, orig_dims)
                     } else {
                         B::float_sum_dim(grad, dim)
