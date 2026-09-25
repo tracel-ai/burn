@@ -12,10 +12,7 @@
 //! `from_pytorch` (with the `pytorch` feature) leaves a checkpoint tensor's bytes unread.
 
 use alloc::format;
-use alloc::string::String;
-// Only the `std` panic guard below builds an error message from a panic payload.
-#[cfg(feature = "std")]
-use alloc::string::ToString;
+use alloc::string::{String, ToString};
 
 use burn_pack::{Error as PackError, Tensor as PackTensor};
 
