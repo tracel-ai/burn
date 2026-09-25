@@ -166,6 +166,148 @@ impl<const N: usize> From<ConvOptions<N>> for PaddedConvOptions<N> {
     }
 }
 
+/// Max pooling options.
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+pub struct MaxPoolOptions<const N: usize> {
+    /// Kernel size (non-zero).
+    pub kernel_size: [usize; N],
+
+    /// Stride (non-zero).
+    pub stride: [usize; N],
+
+    /// Padding as `(begin, end)` pairs for each spatial dimension.
+    pub padding: [(usize, usize); N],
+
+    /// Dilation (non-zero).
+    pub dilation: [usize; N],
+
+    /// If true, use ceiling instead of floor for output size calculation.
+    pub ceil_mode: bool,
+}
+
+impl<const N: usize> MaxPoolOptions<N> {
+    /// Constructs max pooling options with the given kernel size.
+    ///
+    /// Defaults to a stride equal to the kernel size, no padding, a dilation
+    /// of 1 and floor mode.
+    pub fn new(kernel_size: [usize; N]) -> Self {
+        let kernel_size = kernel_size.map(|k| check_nonzero(k, "kernel size must be non-zero"));
+        Self {
+            kernel_size,
+            stride: kernel_size,
+            padding: [(0, 0); N],
+            dilation: [1; N],
+            ceil_mode: false,
+        }
+    }
+
+    /// Sets the stride.
+    pub fn with_stride(mut self, stride: [usize; N]) -> Self {
+        self.stride = stride.map(|s| check_nonzero(s, "stride must be non-zero"));
+        self
+    }
+
+    /// Sets symmetric padding for every spatial dimension.
+    pub fn with_padding(mut self, padding: [usize; N]) -> Self {
+        self.padding = padding.map(|padding| (padding, padding));
+        self
+    }
+
+    /// Sets explicit `(begin, end)` padding for every spatial dimension.
+    pub fn with_padding_pairs(mut self, padding: [(usize, usize); N]) -> Self {
+        self.padding = padding;
+        self
+    }
+
+    /// Sets the dilation.
+    pub fn with_dilation(mut self, dilation: [usize; N]) -> Self {
+        self.dilation = dilation.map(|d| check_nonzero(d, "dilation must be non-zero"));
+        self
+    }
+
+    /// Sets whether to use ceiling instead of floor for output size calculation.
+    pub fn with_ceil_mode(mut self, ceil_mode: bool) -> Self {
+        self.ceil_mode = ceil_mode;
+        self
+    }
+
+    /// Returns true if padding is asymmetric.
+    pub fn is_asymmetric(&self) -> bool {
+        self.padding.iter().any(|(begin, end)| begin != end)
+    }
+}
+
+/// Average pooling options.
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+pub struct AvgPoolOptions<const N: usize> {
+    /// Kernel size (non-zero).
+    pub kernel_size: [usize; N],
+
+    /// Stride (non-zero).
+    pub stride: [usize; N],
+
+    /// Padding as `(begin, end)` pairs for each spatial dimension.
+    pub padding: [(usize, usize); N],
+
+    /// If true, padded values are counted in the denominator of the average.
+    pub count_include_pad: bool,
+
+    /// If true, use ceiling instead of floor for output size calculation.
+    pub ceil_mode: bool,
+}
+
+impl<const N: usize> AvgPoolOptions<N> {
+    /// Constructs average pooling options with the given kernel size.
+    ///
+    /// Defaults to a stride equal to the kernel size, no padding, counting
+    /// padded values in the average and floor mode.
+    pub fn new(kernel_size: [usize; N]) -> Self {
+        let kernel_size = kernel_size.map(|k| check_nonzero(k, "kernel size must be non-zero"));
+        Self {
+            kernel_size,
+            stride: kernel_size,
+            padding: [(0, 0); N],
+            count_include_pad: true,
+            ceil_mode: false,
+        }
+    }
+
+    /// Sets the stride.
+    pub fn with_stride(mut self, stride: [usize; N]) -> Self {
+        self.stride = stride.map(|s| check_nonzero(s, "stride must be non-zero"));
+        self
+    }
+
+    /// Sets symmetric padding for every spatial dimension.
+    pub fn with_padding(mut self, padding: [usize; N]) -> Self {
+        self.padding = padding.map(|padding| (padding, padding));
+        self
+    }
+
+    /// Sets explicit `(begin, end)` padding for every spatial dimension.
+    pub fn with_padding_pairs(mut self, padding: [(usize, usize); N]) -> Self {
+        self.padding = padding;
+        self
+    }
+
+    /// Sets whether padded values are counted in the denominator of the average.
+    pub fn with_count_include_pad(mut self, count_include_pad: bool) -> Self {
+        self.count_include_pad = count_include_pad;
+        self
+    }
+
+    /// Sets whether to use ceiling instead of floor for output size calculation.
+    pub fn with_ceil_mode(mut self, ceil_mode: bool) -> Self {
+        self.ceil_mode = ceil_mode;
+        self
+    }
+
+    /// Returns true if padding is asymmetric.
+    pub fn is_asymmetric(&self) -> bool {
+        self.padding.iter().any(|(begin, end)| begin != end)
+    }
+}
+
 /// Deformable convolution options.
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct DeformConvOptions<const N: usize> {
@@ -536,6 +678,49 @@ mod tests {
     #[should_panic = "groups must be non-zero"]
     fn conv_options_groups_zero() {
         let _opt = ConvOptions::new([1, 1], [0, 0], [1, 1], 0);
+    }
+
+    #[test]
+    fn pool_options_defaults() {
+        let max = MaxPoolOptions::new([2, 3]);
+        let avg = AvgPoolOptions::new([2, 3]);
+
+        assert_eq!(max.stride, [2, 3]);
+        assert_eq!(max.padding, [(0, 0), (0, 0)]);
+        assert_eq!(max.dilation, [1, 1]);
+        assert!(!max.ceil_mode);
+        assert_eq!(avg.stride, [2, 3]);
+        assert_eq!(avg.padding, [(0, 0), (0, 0)]);
+        assert!(avg.count_include_pad);
+        assert!(!avg.ceil_mode);
+    }
+
+    #[test]
+    fn pool_options_padding() {
+        let symmetric = MaxPoolOptions::new([2, 2]).with_padding([0, 1]);
+        let asymmetric = AvgPoolOptions::new([2]).with_padding_pairs([(0, 1)]);
+
+        assert_eq!(symmetric.padding, [(0, 0), (1, 1)]);
+        assert!(!symmetric.is_asymmetric());
+        assert!(asymmetric.is_asymmetric());
+    }
+
+    #[test]
+    #[should_panic = "kernel size must be non-zero"]
+    fn max_pool_options_kernel_size_zero() {
+        let _opt = MaxPoolOptions::new([0, 1]);
+    }
+
+    #[test]
+    #[should_panic = "dilation must be non-zero"]
+    fn max_pool_options_dilation_zero() {
+        let _opt = MaxPoolOptions::new([1, 1]).with_dilation([0, 1]);
+    }
+
+    #[test]
+    #[should_panic = "stride must be non-zero"]
+    fn avg_pool_options_stride_zero() {
+        let _opt = AvgPoolOptions::new([1, 1]).with_stride([0, 1]);
     }
 
     #[test]

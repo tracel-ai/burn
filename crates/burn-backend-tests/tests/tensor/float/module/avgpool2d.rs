@@ -2,6 +2,7 @@ use super::*;
 use burn_tensor::Shape;
 use burn_tensor::Tolerance;
 use burn_tensor::module::avg_pool2d;
+use burn_tensor::ops::AvgPoolOptions;
 
 #[test]
 fn test_avg_pool2d_simple() {
@@ -99,11 +100,10 @@ impl AvgPool2dTestCase {
         );
         let output = avg_pool2d(
             x,
-            [self.kernel_size_1, self.kernel_size_2],
-            [self.stride_1, self.stride_2],
-            [self.padding_1, self.padding_2],
-            self.count_include_pad,
-            false,
+            AvgPoolOptions::new([self.kernel_size_1, self.kernel_size_2])
+                .with_stride([self.stride_1, self.stride_2])
+                .with_padding([self.padding_1, self.padding_2])
+                .with_count_include_pad(self.count_include_pad),
         );
 
         y.to_data().assert_approx_eq::<FloatElem>(
@@ -135,14 +135,7 @@ fn test_avg_pool2d_ceil_mode() {
     // Window (1,1): avg(14,15,16,20,21,22,26,27,28) = avg(189) = 21
     let y_floor = TestTensor::<4>::from([[[[7.0, 9.0], [19.0, 21.0]]]]);
 
-    let output_floor = avg_pool2d(
-        x.clone(),
-        [3, 3],
-        [2, 2],
-        [0, 0],
-        true, // count_include_pad
-        false,
-    );
+    let output_floor = avg_pool2d(x.clone(), AvgPoolOptions::new([3, 3]).with_stride([2, 2]));
 
     y_floor.to_data().assert_approx_eq::<FloatElem>(
         &output_floor.into_data(),
@@ -162,11 +155,11 @@ fn test_avg_pool2d_ceil_mode() {
 
     let output_ceil = avg_pool2d(
         x,
-        [3, 3],
-        [2, 2],
-        [0, 0],
-        false, // count_include_pad=false to avoid dividing by full kernel size
-        true,
+        AvgPoolOptions::new([3, 3])
+            .with_stride([2, 2])
+            // count_include_pad=false to avoid dividing by full kernel size
+            .with_count_include_pad(false)
+            .with_ceil_mode(true),
     );
 
     y_ceil.to_data().assert_approx_eq::<FloatElem>(
@@ -206,11 +199,10 @@ fn test_avg_pool2d_ceil_mode_count_include_pad() {
 
     let output = avg_pool2d(
         x,
-        [3, 3],
-        [2, 2],
-        [1, 1],
-        true, // count_include_pad=true
-        true, // ceil_mode=true
+        AvgPoolOptions::new([3, 3])
+            .with_stride([2, 2])
+            .with_padding([1, 1])
+            .with_ceil_mode(true),
     );
 
     expected.to_data().assert_approx_eq::<FloatElem>(
@@ -234,7 +226,13 @@ fn test_avg_pool2d_ceil_mode_drops_window_in_padding() {
     let expected =
         TestTensor::<4>::from([[[[0.0, 1.5, 3.5], [7.5, 9.0, 11.0], [17.5, 19.0, 21.0]]]]);
 
-    let output = avg_pool2d(x, [2, 2], [2, 2], [1, 1], false, true);
+    let output = avg_pool2d(
+        x,
+        AvgPoolOptions::new([2, 2])
+            .with_padding([1, 1])
+            .with_count_include_pad(false)
+            .with_ceil_mode(true),
+    );
 
     expected.to_data().assert_approx_eq::<FloatElem>(
         &output.into_data(),
@@ -256,10 +254,46 @@ fn test_avg_pool2d_ceil_mode_drops_window_in_padding_count_include_pad() {
     let expected =
         TestTensor::<4>::from([[[[0.0, 0.75, 1.75], [3.75, 9.0, 11.0], [8.75, 19.0, 21.0]]]]);
 
-    let output = avg_pool2d(x, [2, 2], [2, 2], [1, 1], true, true);
+    let output = avg_pool2d(
+        x,
+        AvgPoolOptions::new([2, 2])
+            .with_padding([1, 1])
+            .with_ceil_mode(true),
+    );
 
     expected.to_data().assert_approx_eq::<FloatElem>(
         &output.into_data(),
         Tolerance::default().set_half_precision_relative(1e-3),
     );
+}
+
+#[test]
+fn test_avg_pool2d_asymmetric_padding() {
+    // Padding top=0, bottom=1, left=1, right=0. Padded input:
+    // [0, 1, 2]
+    // [0, 3, 4]
+    // [0, 0, 0]
+    let x = TestTensor::<4>::from([[[[1.0, 2.0], [3.0, 4.0]]]]);
+    let padding = [(0, 1), (1, 0)];
+
+    let output = avg_pool2d(
+        x.clone(),
+        AvgPoolOptions::new([2, 2])
+            .with_stride([1, 1])
+            .with_padding_pairs(padding),
+    );
+    TestTensor::<4>::from([[[[1.0, 2.5], [0.75, 1.75]]]])
+        .to_data()
+        .assert_approx_eq::<FloatElem>(&output.into_data(), Tolerance::default());
+
+    let output = avg_pool2d(
+        x,
+        AvgPoolOptions::new([2, 2])
+            .with_stride([1, 1])
+            .with_padding_pairs(padding)
+            .with_count_include_pad(false),
+    );
+    TestTensor::<4>::from([[[[2.0, 2.5], [3.0, 3.5]]]])
+        .to_data()
+        .assert_approx_eq::<FloatElem>(&output.into_data(), Tolerance::default());
 }

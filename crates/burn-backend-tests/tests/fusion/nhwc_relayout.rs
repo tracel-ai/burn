@@ -1,4 +1,5 @@
 use super::*;
+use burn_tensor::ops::MaxPoolOptions;
 use burn_tensor::{
     Device, TensorData,
     module::{adaptive_avg_pool2d, interpolate, max_pool2d},
@@ -213,7 +214,7 @@ fn add_zeros(x: TestTensor<4>, dev: &Device) -> TestTensor<4> {
 }
 
 fn pool_2x2(x: TestTensor<4>) -> TestTensor<4> {
-    max_pool2d(x, [2, 2], [2, 2], [0, 0], [1, 1], false)
+    max_pool2d(x, MaxPoolOptions::new([2, 2]))
 }
 
 fn reference_pool_2x2(

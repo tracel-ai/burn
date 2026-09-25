@@ -1,6 +1,7 @@
 use super::*;
 use burn_tensor::Tolerance;
 use burn_tensor::module::max_pool1d;
+use burn_tensor::ops::MaxPoolOptions;
 
 #[test]
 fn test_max_pool1d_simple() {
@@ -17,7 +18,13 @@ fn test_max_pool1d_simple() {
     .require_grad();
     let x_grad_expected = TestTensor::<3>::from_data([[[1., 1., 0., 0., 0., 1.]]], &device);
 
-    let output = max_pool1d(x.clone(), kernel_size, stride, padding, dilation, false);
+    let output = max_pool1d(
+        x.clone(),
+        MaxPoolOptions::new([kernel_size])
+            .with_stride([stride])
+            .with_padding([padding])
+            .with_dilation([dilation]),
+    );
     let grads = output.backward();
 
     // Asserts
@@ -52,7 +59,13 @@ fn test_max_pool1d_with_dilation() {
         &device,
     );
 
-    let output = max_pool1d(x.clone(), kernel_size, stride, padding, dilation, false);
+    let output = max_pool1d(
+        x.clone(),
+        MaxPoolOptions::new([kernel_size])
+            .with_stride([stride])
+            .with_padding([padding])
+            .with_dilation([dilation]),
+    );
     let grads = output.backward();
 
     // Asserts
@@ -87,7 +100,13 @@ fn test_max_pool1d_complex() {
         &device,
     );
 
-    let output = max_pool1d(x.clone(), kernel_size, stride, padding, dilation, false);
+    let output = max_pool1d(
+        x.clone(),
+        MaxPoolOptions::new([kernel_size])
+            .with_stride([stride])
+            .with_padding([padding])
+            .with_dilation([dilation]),
+    );
     let grads = output.backward();
 
     // Asserts
@@ -122,7 +141,13 @@ fn test_max_pool1d_complex_with_padding() {
         &device,
     );
 
-    let output = max_pool1d(x.clone(), kernel_size, stride, padding, dilation, false);
+    let output = max_pool1d(
+        x.clone(),
+        MaxPoolOptions::new([kernel_size])
+            .with_stride([stride])
+            .with_padding([padding])
+            .with_dilation([dilation]),
+    );
     let grads = output.backward();
 
     // Asserts

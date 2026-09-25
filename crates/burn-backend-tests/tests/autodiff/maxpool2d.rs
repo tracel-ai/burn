@@ -1,6 +1,7 @@
 use super::*;
 use burn_tensor::Tolerance;
 use burn_tensor::module::max_pool2d;
+use burn_tensor::ops::MaxPoolOptions;
 
 #[test]
 fn test_max_pool2d_simple_1() {
@@ -36,11 +37,10 @@ fn test_max_pool2d_simple_1() {
 
     let output = max_pool2d(
         x.clone(),
-        [kernel_size_1, kernel_size_2],
-        [stride_1, stride_2],
-        [padding_1, padding_2],
-        [dilation_1, dilation_2],
-        false,
+        MaxPoolOptions::new([kernel_size_1, kernel_size_2])
+            .with_stride([stride_1, stride_2])
+            .with_padding([padding_1, padding_2])
+            .with_dilation([dilation_1, dilation_2]),
     );
     let grads = output.backward();
 
@@ -85,11 +85,10 @@ fn test_max_pool2d_simple_2() {
 
     let output = max_pool2d(
         x.clone(),
-        [kernel_size_1, kernel_size_2],
-        [stride_1, stride_2],
-        [padding_1, padding_2],
-        [dilation_1, dilation_2],
-        false,
+        MaxPoolOptions::new([kernel_size_1, kernel_size_2])
+            .with_stride([stride_1, stride_2])
+            .with_padding([padding_1, padding_2])
+            .with_dilation([dilation_1, dilation_2]),
     );
     let grads = output.backward();
 
@@ -134,11 +133,10 @@ fn test_max_pool2d_with_dilation() {
 
     let output = max_pool2d(
         x.clone(),
-        [kernel_size_1, kernel_size_2],
-        [stride_1, stride_2],
-        [padding_1, padding_2],
-        [dilation_1, dilation_2],
-        false,
+        MaxPoolOptions::new([kernel_size_1, kernel_size_2])
+            .with_stride([stride_1, stride_2])
+            .with_padding([padding_1, padding_2])
+            .with_dilation([dilation_1, dilation_2]),
     );
     let grads = output.backward();
 
@@ -185,11 +183,10 @@ fn test_max_pool2d_complex() {
 
     let output = max_pool2d(
         x.clone(),
-        [kernel_size_1, kernel_size_2],
-        [stride_1, stride_2],
-        [padding_1, padding_2],
-        [dilation_1, dilation_2],
-        false,
+        MaxPoolOptions::new([kernel_size_1, kernel_size_2])
+            .with_stride([stride_1, stride_2])
+            .with_padding([padding_1, padding_2])
+            .with_dilation([dilation_1, dilation_2]),
     );
     let grads = output.backward();
 
@@ -255,11 +252,11 @@ fn test_max_pool2d_ceil_mode() {
 
     let output = max_pool2d(
         x.clone(),
-        [kernel_size_1, kernel_size_2],
-        [stride_1, stride_2],
-        [padding_1, padding_2],
-        [dilation_1, dilation_2],
-        true,
+        MaxPoolOptions::new([kernel_size_1, kernel_size_2])
+            .with_stride([stride_1, stride_2])
+            .with_padding([padding_1, padding_2])
+            .with_dilation([dilation_1, dilation_2])
+            .with_ceil_mode(true),
     );
     let grads = output.backward();
 
