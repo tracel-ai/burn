@@ -171,7 +171,7 @@ impl<R: RouterChannel> FusionRuntime for RouterFusionRuntime<R> {
 pub struct RouterFuser<R: RouterChannel> {
     device: R::Device,
     ops: Vec<OperationIr>,
-    tally: GraphTally,
+    savings: ReplaySavings,
     score: u64,
     score_max: u64,
     num_since_max_unchanged: usize,
@@ -189,7 +189,7 @@ impl<R: RouterChannel> RouterFuser<R> {
         Self {
             device,
             ops: Vec::new(),
-            tally: GraphTally::default(),
+            savings: ReplaySavings::default(),
             score: 0,
             score_max: 0,
             num_since_max_unchanged: 0,
@@ -201,7 +201,7 @@ impl<R: RouterChannel> RouterFuser<R> {
     /// Value-based fusion score for the currently accumulated ops.
     ///
     /// Benefit: estimated % of serialized bytes caching saves per replay (the relative graph vs the
-    /// per-replay bindings — see [`GraphTally`]), weighted by `FACTOR_SAVED`. Cost: a
+    /// per-replay bindings — see [`ReplaySavings`]), weighted by `FACTOR_SAVED`. Cost: a
     /// penalty that grows with op count past `FREE_OPS`, so the score *peaks* at a "right-sized"
     /// graph and then decays once the per-op overhead outweighs the savings.
     ///
@@ -213,7 +213,7 @@ impl<R: RouterChannel> RouterFuser<R> {
         const FREE_OPS: usize = 64; // ops below this are not penalized
         const PENALTY_PER_OP: u64 = 0; // penalty per op beyond FREE_OPS
 
-        let benefit = self.tally.saved_pct() * FACTOR_SAVED;
+        let benefit = self.savings.percent() * FACTOR_SAVED;
         let penalty = (self.ops.len().saturating_sub(FREE_OPS) as u64) * PENALTY_PER_OP;
         benefit.saturating_sub(penalty) + 1
     }
@@ -224,7 +224,7 @@ impl<R: RouterChannel> Clone for RouterFuser<R> {
         Self {
             device: self.device.clone(),
             ops: self.ops.clone(),
-            tally: self.tally.clone(),
+            savings: self.savings.clone(),
             score: self.score,
             score_max: self.score_max,
             num_since_max_unchanged: self.num_since_max_unchanged,
@@ -236,7 +236,7 @@ impl<R: RouterChannel> Clone for RouterFuser<R> {
 
 impl<R: RouterChannel> OperationFuser<RouterGraphExecution<R>> for RouterFuser<R> {
     fn fuse(&mut self, operation: &OperationIr) {
-        self.tally.add(operation);
+        self.savings.add(operation);
         self.ops.push(operation.clone());
 
         self.score = self.score();
@@ -249,14 +249,14 @@ impl<R: RouterChannel> OperationFuser<RouterGraphExecution<R>> for RouterFuser<R
     }
 
     fn finish(&mut self) -> RouterGraphExecution<R> {
-        self.tally = GraphTally::default();
+        self.savings = ReplaySavings::default();
         let ops = core::mem::take(&mut self.ops);
         RouterGraphExecution::new(ops, self.device.clone())
     }
 
     fn reset(&mut self) {
         self.ops.clear();
-        self.tally = GraphTally::default();
+        self.savings = ReplaySavings::default();
     }
 
     fn status(&self) -> FuserStatus {
@@ -404,14 +404,15 @@ const DIM_BYTES: u64 = 8;
 const OP_BYTES: u64 = 8; // variant tag + small bookkeeping
 const BINDING_BYTES: u64 = 16; // a (relative id, concrete id) binding entry
 
-/// What caching a graph saves per replay, tallied as operations join it.
+/// What a replay of the cached graph saves over sending the graph again, kept up to date per
+/// operation because the fuser asks after each one.
 ///
 /// The baseline is the whole relative graph's bytes (operation overhead plus each tensor's
-/// id/dtype/status and dimensions); each replay sends only boundary ID pairs and distinct dims.
-/// Scalars and ranges travel in both forms and cancel in the ratio. The boundary is the one
-/// [`GraphIr::classify`](burn_ir::GraphIr::classify) finds, counted as operations arrive because the fuser asks after each.
+/// id/dtype/status and dimensions); a replay sends only the boundary
+/// [`GraphIr::classify`](burn_ir::GraphIr::classify) finds, as id pairs, and the distinct dims.
+/// Scalars and ranges travel in both forms and cancel in the ratio.
 #[derive(Clone, Default)]
-struct GraphTally {
+struct ReplaySavings {
     baseline: u64,
     dims: HashSet<usize>,
     referenced: HashSet<TensorId>,
@@ -423,7 +424,7 @@ struct GraphTally {
     produced_consumed: usize,
 }
 
-impl GraphTally {
+impl ReplaySavings {
     fn add(&mut self, op: &OperationIr) {
         self.baseline += OP_BYTES;
         for tensor in op.nodes().into_iter().chain(op.outputs()) {
@@ -465,7 +466,7 @@ impl GraphTally {
     }
 
     /// The share of the baseline a replay saves, in `0..=100`.
-    fn saved_pct(&self) -> u64 {
+    fn percent(&self) -> u64 {
         if self.baseline == 0 {
             return 0;
         }
@@ -592,8 +593,8 @@ mod tests {
     use burn_backend::Shape;
     use burn_ir::{CustomOpIr, GraphIr};
 
-    /// The estimate recomputed over the whole graph, as the tally must match after every op.
-    fn whole_graph_saved_pct(ops: &[OperationIr]) -> u64 {
+    /// The estimate recomputed over the whole graph, which the savings must match after every op.
+    fn whole_graph_percent(ops: &[OperationIr]) -> u64 {
         let mut baseline = 0u64;
         let mut dims = HashSet::new();
         for op in ops {
@@ -638,11 +639,11 @@ mod tests {
     }
 
     #[test]
-    fn tally_matches_the_whole_graph_estimate_after_every_op() {
+    fn savings_match_the_whole_graph_estimate_after_every_op() {
         let mut rng = Rng(0x9e37_79b9_7f4a_7c15);
         for _ in 0..40 {
             let mut ops = Vec::new();
-            let mut tally = GraphTally::default();
+            let mut savings = ReplaySavings::default();
             let mut next_id = 0;
             for _ in 0..60 {
                 let op = if next_id > 0 && rng.below(6) == 0 {
@@ -663,9 +664,9 @@ mod tests {
                         .collect();
                     OperationIr::Custom(CustomOpIr::new("op", &inputs, &outputs))
                 };
-                tally.add(&op);
+                savings.add(&op);
                 ops.push(op);
-                assert_eq!(tally.saved_pct(), whole_graph_saved_pct(&ops));
+                assert_eq!(savings.percent(), whole_graph_percent(&ops));
             }
         }
     }
