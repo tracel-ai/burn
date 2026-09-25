@@ -8,8 +8,14 @@ use burn_remote::{
     telemetry::{TelemetryEvent, TelemetryProbe},
 };
 use burn_tensor::{Device, Tensor};
-use iroh::{Endpoint, RelayMode, endpoint::presets, protocol::Router};
+use iroh::{
+    Endpoint, EndpointAddr, RelayMode, address_lookup::MemoryLookup, endpoint::presets,
+    protocol::Router,
+};
 use std::time::Duration;
+
+/// Past the first retries, well inside the retry window.
+const ADDRESS_LATE_BY: std::time::Duration = std::time::Duration::from_millis(700);
 
 async fn local_endpoint() -> Endpoint {
     Endpoint::builder(presets::Minimal)
@@ -87,6 +93,46 @@ async fn a_client_that_disconnects_without_closing_ends_its_session() {
     );
 
     router.shutdown().await.unwrap();
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_dial_waits_for_an_iroh_address_published_late() {
+    let server = local_endpoint().await;
+    let router = spawn_router::<Flex>(server.clone(), AllowAll, TelemetryProbe::disabled());
+    let lookup = MemoryLookup::new();
+    let client = Endpoint::builder(presets::Minimal)
+        .relay_mode(RelayMode::Disabled)
+        .clear_ip_transports()
+        .bind_addr("127.0.0.1:0")
+        .unwrap()
+        .address_lookup(lookup.clone())
+        .bind()
+        .await
+        .unwrap();
+    let address = server.addr();
+    tokio::spawn(async move {
+        tokio::time::sleep(ADDRESS_LATE_BY).await;
+        lookup.add_endpoint_info(address);
+    });
+
+    let remote = RemoteDevice::iroh(&client, EndpointAddr::new(server.id()), 0);
+    remote.connect();
+    let device = Device::new(remote);
+
+    let output = Tensor::<1>::from_floats([1.0, 2.0], &device) * 2.0;
+    assert_eq!(output.try_into_vec_as::<f32>().unwrap(), vec![2.0, 4.0]);
+
+    router.shutdown().await.unwrap();
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[should_panic(expected = "no address lookup is configured")]
+async fn a_dial_with_no_address_and_no_lookup_is_not_retried() {
+    let server = local_endpoint().await;
+    let _router = spawn_router::<Flex>(server.clone(), AllowAll, TelemetryProbe::disabled());
+    let client = local_endpoint().await;
+
+    RemoteDevice::iroh(&client, EndpointAddr::new(server.id()), 0).connect();
 }
 
 #[tokio::test(flavor = "multi_thread")]

@@ -8,7 +8,10 @@ use crate::{Backend, Distribution, TensorData, get_device_settings};
 use crate::{ExecutionError, Scalar, TensorMetadata};
 use alloc::vec::Vec;
 use burn_std::reader::try_read_sync;
-use burn_std::{BoolDType, FloatDType, IndexingUpdateOp, IntDType, PadMode, Shape, Slice};
+use burn_std::{
+    BoolDType, FloatDType, IndexingUpdateOp, IntDType, PadMode, Shape, Slice, Tiling,
+    tiled_fragments,
+};
 
 /// Operations on float tensors.
 pub trait FloatTensorOps<B: Backend> {
@@ -420,6 +423,23 @@ pub trait FloatTensorOps<B: Backend> {
     ///
     /// The tensor with the new shape.
     fn float_reshape(tensor: FloatTensor<B>, shape: Shape) -> FloatTensor<B>;
+
+    /// `tensor`, whose dims are the storage fragments of a lower-rank tensor as `tiling` counts
+    /// them, as that logical tensor.
+    ///
+    /// The fragments run level-major, coarsest first ([`Tiling`]): `[k, n]` stored in `(tr, tc)`
+    /// tiles is the rank-4 `[k / tr, n / tc, tr, tc]` under `Tiling::new(&[2, 2])`, and the result
+    /// is the rank-2 `[k, n]`. A backend whose kernels read storage tiles keeps the buffer and
+    /// states the tiling on the result's metadata; this default lays the fragments back into
+    /// rows, which is the same logical tensor stored plainly.
+    ///
+    /// # Panics
+    ///
+    /// When `tiling` does not describe a tensor of this rank.
+    fn float_into_tiled(tensor: FloatTensor<B>, tiling: Tiling) -> FloatTensor<B> {
+        let (axes, logical) = tiled_fragments(&tensor.shape(), tiling);
+        B::float_reshape(B::float_permute(tensor, &axes), logical)
+    }
 
     /// Gather elements from a tensor.
     ///

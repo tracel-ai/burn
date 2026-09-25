@@ -38,7 +38,7 @@ impl<'a> InputPlanner<'a> {
                     // A fused kernel reads its inputs as rows; a storage-tiled tensor is read
                     // only by the matmul it was packed for, which falls back before this.
                     assert!(
-                        !handle.tiling.is_tiled(),
+                        handle.tiles.is_none(),
                         "fusion: a storage-tiled tensor reached a fused kernel; it is read only \
                          by the matmul it was packed for, so un-tile it for anything else"
                     );

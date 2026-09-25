@@ -284,6 +284,7 @@ where
     /// }
     /// ```
     pub fn one_hot<const D2: usize>(self, num_classes: usize) -> Tensor<D2, K> {
+        check!(TensorCheck::quantized_unsupported("One Hot", self.dtype()));
         check!(TensorCheck::one_hot_tensor(self.clone(), num_classes));
         self.one_hot_fill(num_classes, 1.0, 0.0, -1)
     }
@@ -301,6 +302,10 @@ where
     /// # Returns
     ///
     /// A tensor with one additional dimension for the one-hot encoding, where active positions are filled with `on_value` and others with `off_value`.
+    ///
+    /// # Panics
+    ///
+    /// If the tensor is quantized, since lossy quantized values can't be trusted as class indices.
     ///
     /// # Example
     /// ```rust
@@ -323,12 +328,13 @@ where
         axis: impl AsIndex,
     ) -> Tensor<D2, K> {
         check!(TensorCheck::one_hot_tensor_rank::<D, D2>());
+        check!(TensorCheck::quantized_unsupported("One Hot", self.dtype()));
         let axis = unwrap_dim_index(axis.try_dim_index(D + 1), "One Hot");
 
         // Initialize shape from the current tensor dimensions and prepare for modification
         let mut shape = self.shape();
         let device = self.device();
-        let dtype = self.creation_dtype();
+        let dtype = self.dtype();
 
         // Convert the input tensor to integer indices
         let indices: Tensor<D, Int> = Tensor::from_data(self.to_data().convert::<i64>(), &device);

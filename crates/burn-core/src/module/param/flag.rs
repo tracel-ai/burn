@@ -98,6 +98,10 @@ impl Module for Param<Flag> {
         devices
     }
 
+    fn materialize(self) -> Self {
+        self
+    }
+
     fn valid(&self) -> Self {
         let enabled = self.is_active;
         let mut flag = Self::initialized(self.id, Flag::new(false));
