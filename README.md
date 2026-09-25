@@ -163,15 +163,18 @@ models benefit from these capabilities on supported backends without changing th
 
 <details>
 <summary>
-Autodiff: Backend decorator that brings backpropagation to any backend 🔄
+Autodiff: Bringing backpropagation to any backend 🔄
 </summary>
 <br />
 
-Contrary to the aforementioned backends, Autodiff is actually a backend _decorator_. This means that
-it cannot exist by itself; it must encapsulate another backend.
+In application code, autodiff is runtime context carried by tensors. Devices provide the default
+context for newly created tensors, and each tensor can later enable or remove autodiff
+independently. Enabling autodiff permits graph recording; it does not by itself make a tensor retain
+gradients.
 
-In application code, enable autodiff on a device before creating tensors or initializing a model.
-With the `autodiff` and `wgpu` features enabled:
+Internally, Burn implements this by decorating a concrete backend, so autodiff cannot execute by
+itself. Enable it on a device before creating tensors or initializing a model. With the `autodiff`
+and `wgpu` features enabled:
 
 ```rust
 use burn::tensor::{Device, Distribution, Tensor};

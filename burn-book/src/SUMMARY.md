@@ -33,6 +33,7 @@
 - [ONNX Import](./onnx-import.md)
 - [Models & Pre-Trained Weights](./models-and-pretrained-weights.md)
 - [Advanced](./advanced/README.md)
+  - [Runtime Configuration](./advanced/runtime-configuration.md)
   - [Backend Extension](./advanced/backend-extension/README.md)
     - [Custom `CubeCL` Kernel](./advanced/backend-extension/custom-cubecl-kernel.md)
     - [Custom WGPU Kernel](./advanced/backend-extension/custom-wgpu-kernel.md)
