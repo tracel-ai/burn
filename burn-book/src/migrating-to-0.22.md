@@ -308,6 +308,28 @@ Other source changes:
 - **Interpolation:** `module::interpolate(x, output_size, options)` is now
   `module::interpolate(x, options)`. Set the size with `options.with_output_size([h, w])`, or use
   `options.with_scale_factor([sh, sw])` to scale the input size.
+- **Pooling:** the functional `max_pool1d`, `max_pool2d`, `avg_pool1d`, `avg_pool2d`, and their
+  `_with_indices` variants take `MaxPoolOptions` or `AvgPoolOptions` instead of positional
+  arguments. Only the kernel size is required; stride defaults to the kernel size, padding to 0,
+  dilation to 1, `ceil_mode` to false, and `count_include_pad` to true. 1D options use
+  single-element arrays. Use `with_padding_pairs(..)` for asymmetric padding:
+
+  ```rust,ignore
+  // Before
+  max_pool2d(x, [3, 3], [2, 2], [1, 1], [1, 1], false);
+  avg_pool1d(x, 3, 1, 1, false, false);
+
+  // After
+  max_pool2d(x, MaxPoolOptions::new([3, 3]).with_stride([2, 2]).with_padding([1, 1]));
+  avg_pool1d(
+      x,
+      AvgPoolOptions::new([3])
+          .with_stride([1])
+          .with_padding([1])
+          .with_count_include_pad(false),
+  );
+  ```
+
 - **Quantization:** replace `with_level(..)` and `with_param(..)` with `per_tensor(ScaleDtype)` or
   `per_block(block, ScaleDtype)`. See [Quantization](./performance/quantization.md).
 - **Softplus:** use `SoftplusConfig::new().with_beta(beta).with_threshold(threshold)` instead of
