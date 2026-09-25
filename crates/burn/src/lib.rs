@@ -78,8 +78,7 @@
 //! ## Feature Flags
 //!
 //! The following feature flags are available.
-//! Default features include `std`, `optim` (and therefore `autodiff`), and `rl`, but no execution
-//! backend.
+//! Default features include `std` and `optim` (and therefore `autodiff`), but no execution backend.
 //! Select a backend explicitly, for example `features = ["wgpu"]` or `["flex"]`.
 //! Specialized operations are also opt-in, for example `features = ["flex", "signal"]`.
 //! Backend-free builds can define tensor/model APIs without installing an execution backend.

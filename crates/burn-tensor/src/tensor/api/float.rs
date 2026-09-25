@@ -143,7 +143,16 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
 
     /// Returns a new tensor with the same shape, dtype, and device as the current tensor filled random
     /// values sampled from the given distribution.
+    ///
+    /// # Panics
+    ///
+    /// If the tensor is quantized. This method preserves the input dtype,
+    /// but quantized tensor creation is not supported.
     pub fn random_like(&self, distribution: Distribution) -> Self {
+        check!(TensorCheck::quantized_unsupported(
+            "Random Like",
+            self.dtype()
+        ));
         Self::new(random_like_impl(&self.primitive, distribution))
     }
 

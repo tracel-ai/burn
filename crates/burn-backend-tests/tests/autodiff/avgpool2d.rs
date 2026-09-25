@@ -19,6 +19,30 @@ fn test_avg_pool2d_ceil_mode_nonuniform_gradient() {
                     vec![3.0, 3.0, 8.0]
                 },
             ),
+            // A 4th window would start in the trailing padding and is dropped
+            (
+                5,
+                2,
+                1,
+                vec![2.0, 4.0, 8.0],
+                if count_include_pad {
+                    vec![1.0, 2.0, 2.0, 4.0, 4.0]
+                } else {
+                    vec![2.0, 2.0, 2.0, 4.0, 4.0]
+                },
+            ),
+            // Kernel larger than the padded input, one window
+            (
+                1,
+                4,
+                1,
+                vec![6.0],
+                if count_include_pad {
+                    vec![2.0]
+                } else {
+                    vec![6.0]
+                },
+            ),
         ] {
             let x = TestTensor::<4>::ones([1, 1, 1, width], &device).require_grad();
             let output = avg_pool2d(
