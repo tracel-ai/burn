@@ -39,6 +39,8 @@ use burn_ir::{BackendIr, GraphBindings, GraphId};
 use burn_router::{Graph, TensorInterpreter};
 use burn_std::id::StreamId;
 #[cfg(not(target_family = "wasm"))]
+use std::panic::{self, AssertUnwindSafe};
+#[cfg(not(target_family = "wasm"))]
 use tokio::runtime::Handle;
 use tokio::sync::mpsc;
 
@@ -92,7 +94,7 @@ where
     T: TensorTransfer<B>,
 {
     /// Start the session worker; the worker runs until every clone of the returned sender is
-    /// dropped, then flushes and exits.
+    /// dropped, then flushes and exits. Off wasm, a task that panics ends it the same way.
     pub(crate) fn spawn(
         session_id: SessionId,
         runner: TensorInterpreter<B>,
@@ -117,23 +119,41 @@ where
 
     // Must be called from within the runtime that owns the endpoint: it captures `Handle::current`.
     #[cfg(not(target_family = "wasm"))]
-    fn drive(self, receiver: mpsc::Receiver<Task>) {
+    fn drive(mut self, mut receiver: mpsc::Receiver<Task>) {
         let handle = Handle::current();
         let session_id = self.session_id;
         std::thread::Builder::new()
             .name(format!("burn-remote-session-{session_id}"))
-            .spawn(move || handle.block_on(self.run(receiver)))
+            .spawn(move || {
+                // A panic can leave the interpreter half-applied, so the session is closed rather
+                // than given another task.
+                let processed = panic::catch_unwind(AssertUnwindSafe(|| {
+                    handle.block_on(self.process_tasks(&mut receiver))
+                }));
+                if let Err(panic) = processed {
+                    let reason = panic
+                        .downcast_ref::<&str>()
+                        .copied()
+                        .or_else(|| panic.downcast_ref::<String>().map(String::as_str))
+                        .unwrap_or("no message");
+                    log::error!("Session {session_id} stopped because a task panicked: {reason}");
+                }
+                drop(receiver);
+                handle.block_on(self.close());
+            })
             .expect("Failed to spawn session worker thread");
     }
 
     #[cfg(target_family = "wasm")]
-    fn drive(self, receiver: mpsc::Receiver<Task>) {
-        spawn_detached(self.run(receiver));
+    fn drive(mut self, mut receiver: mpsc::Receiver<Task>) {
+        spawn_detached(async move {
+            self.process_tasks(&mut receiver).await;
+            self.close().await;
+        });
     }
 
-    /// Drain the task channel, running each task to completion in arrival order, then tear the
-    /// session down in an order that releases its memory.
-    async fn run(mut self, mut receiver: mpsc::Receiver<Task>) {
+    /// Run each task to completion in arrival order, until the task channel closes.
+    async fn process_tasks(&mut self, receiver: &mut mpsc::Receiver<Task>) {
         let session_id = self.session_id;
 
         log::debug!("Session {session_id} worker started");
@@ -145,19 +165,25 @@ where
                 log::error!("Task on session {session_id} failed: {err}");
             }
         }
+    }
+
+    /// Tear the session down in an order that releases its memory.
+    async fn close(self) {
+        let session_id = self.session_id;
 
         // Reclaim any same-host transfers this session exposed that no target ever took, so a
         // half-finished transfer doesn't strand device memory in the shared registry.
         self.local_comm.purge_session(session_id).await;
 
-        // The task channel closed: every submit connection bound to this session has gone away
-        // (clean `Close` or disconnect).
         log::debug!("Session {session_id} worker draining and exiting");
 
-        // Destructure so we control drop order explicitly. The `..` fields (response sender, comm
-        // services) drop here: dropping the response sender closes the fetch writer's queue, ending
-        // its task.
-        let SessionHandler { runner, .. } = self;
+        // Released first, so the client sees its session end even if a sync below hangs.
+        let SessionHandler {
+            runner,
+            response_sender,
+            ..
+        } = self;
+        drop(response_sender);
         let device = runner.device();
 
         // Flush outstanding backend work before dropping the runner so the session's tensors aren't
@@ -488,5 +514,66 @@ where
         self.probe.emit(|| {
             TelemetryEvent::graph_executed(self.session_id, graph, stream, serialized_len(bindings))
         });
+    }
+}
+
+#[cfg(all(test, not(target_family = "wasm")))]
+mod tests {
+    use super::*;
+    use crate::{server::transfer::NoTransfer, shared::LocalTransferId};
+    use burn_backend::{DType, Shape, TensorData};
+    use burn_flex::Flex;
+    use burn_ir::{TensorId, TensorIr, TensorStatus};
+    use std::time::Duration;
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_panicking_task_still_tears_its_session_down() {
+        let local_comm = Arc::new(LocalCommService::<Flex>::new());
+        let (response_sender, mut responses) = mpsc::channel(1);
+        let tasks = SessionHandler::spawn(
+            SessionId::new(),
+            TensorInterpreter::new(Default::default()),
+            response_sender,
+            Arc::new(NoTransfer),
+            local_comm.clone(),
+            TelemetryProbe::disabled(),
+        );
+
+        let stream_id = StreamId::current();
+        let exposed = TensorIr {
+            id: TensorId::new(1),
+            shape: Shape::new([2]),
+            status: TensorStatus::ReadWrite,
+            dtype: DType::F32,
+        };
+        let never_written = TensorIr {
+            id: TensorId::new(2),
+            ..exposed.clone()
+        };
+        let data = TensorData::new(vec![1.0f32, 2.0], [2]);
+        let request_id: RequestId = 0;
+        for task in [
+            Task::RegisterTensor(stream_id, exposed.id, data),
+            Task::ExposeTensorLocal {
+                stream_id,
+                tensor: exposed,
+                transfer_id: LocalTransferId::from(0),
+            },
+            Task::ReadTensor(request_id, stream_id, never_written),
+        ] {
+            tasks.send(task).await.unwrap();
+        }
+
+        let closed = tokio::time::timeout(Duration::from_secs(10), responses.recv()).await;
+        assert!(
+            matches!(closed, Ok(None)),
+            "the session worker never let go"
+        );
+        assert!(
+            local_comm.is_empty().await,
+            "the exposed tensor outlived its session"
+        );
+        // Dropped only now, so the panic alone had to end the session.
+        drop(tasks);
     }
 }

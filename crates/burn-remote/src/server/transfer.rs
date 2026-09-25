@@ -38,3 +38,18 @@ pub(crate) trait TensorTransfer<B: BackendIr>: Send + Sync + 'static {
         reason: String,
     ) -> impl Future<Output = ()> + Send;
 }
+
+/// A transfer that moves nothing, for tests of the session layer.
+#[cfg(all(test, not(target_family = "wasm")))]
+pub(crate) struct NoTransfer;
+
+#[cfg(all(test, not(target_family = "wasm")))]
+impl<B: BackendIr> TensorTransfer<B> for NoTransfer {
+    async fn expose_data(&self, _: TensorData, _: u32, _: TransferCapability, _: PeerId) {}
+
+    async fn download_tensor(&self, _: PeerAddr, _: TransferCapability) -> Option<TensorData> {
+        None
+    }
+
+    async fn fail(&self, _: TransferCapability, _: PeerId, _: String) {}
+}

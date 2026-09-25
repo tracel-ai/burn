@@ -90,4 +90,9 @@ impl<B: BackendIr> LocalCommService<B> {
             .await
             .retain(|_, pending| pending.source != session);
     }
+
+    #[cfg(all(test, not(target_family = "wasm")))]
+    pub async fn is_empty(&self) -> bool {
+        self.pending.lock().await.is_empty()
+    }
 }
