@@ -40,7 +40,7 @@ pub fn argwhere_data<B: Backend>(
 }
 
 fn argwhere_data_impl<I: Element>(data: TensorData) -> TensorData {
-    let dims = &data.shape;
+    let dims = data.shape();
     let ndims = dims.len();
     let count_nonzero = data.iter::<bool>().filter(|&v| v).count();
 

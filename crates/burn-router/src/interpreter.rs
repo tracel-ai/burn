@@ -161,7 +161,7 @@ impl<B: BackendIr> TensorInterpreter<B> {
     /// Register a tensor from its data and id.
     pub fn register_tensor_data_id(&mut self, id: TensorId, data: TensorData) {
         let ctx = &mut self.context;
-        let dtype = data.dtype;
+        let dtype = data.dtype();
 
         if dtype.is_float() {
             let tensor = B::float_from_data(data, &self.device);
@@ -181,8 +181,8 @@ impl<B: BackendIr> TensorInterpreter<B> {
     pub fn register_tensor_data_desc(&mut self, data: TensorData) -> TensorIr {
         let ctx = &mut self.context;
         let id = ctx.create_empty_handle();
-        let shape = data.shape.clone();
-        let dtype = data.dtype;
+        let shape = data.shape().clone();
+        let dtype = data.dtype();
 
         if dtype.is_float() {
             let tensor = B::float_from_data(data, &self.device);

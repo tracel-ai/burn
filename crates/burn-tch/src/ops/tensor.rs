@@ -9,7 +9,7 @@ use burn_backend::{
 
 impl FloatTensorOps<Self> for LibTorch {
     fn float_from_data(data: TensorData, device: &LibTorchDevice) -> TchTensor {
-        match data.dtype {
+        match data.dtype() {
             DType::F64 => TchTensor::from_data::<f64>(data, (*device).into()),
             DType::F32 => TchTensor::from_data::<f32>(data, (*device).into()),
             DType::F16 => TchTensor::from_data::<f16>(data, (*device).into()),

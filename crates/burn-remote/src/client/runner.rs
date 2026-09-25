@@ -57,8 +57,8 @@ impl RouterClient for RemoteClient {
     }
 
     fn register_tensor_data(&self, data: TensorData) -> RouterTensor<Self> {
-        let shape = data.shape.clone();
-        let dtype = data.dtype;
+        let shape = data.shape().clone();
+        let dtype = data.dtype();
         let id = service::new_tensor_id();
 
         // Fire-and-forget: the outgoing batch flushes itself once buffered data bytes (or the task

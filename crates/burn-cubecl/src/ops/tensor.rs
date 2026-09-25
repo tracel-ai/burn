@@ -22,10 +22,10 @@ impl FloatTensorOps<Self> for CubeBackend {
     #[cfg_attr(feature = "tracing", tracing::instrument(
         level="trace",
         skip(data),
-        fields(?data.shape, ?data.dtype)
+        fields(shape = ?data.shape(), dtype = ?data.dtype())
     ))]
     fn float_from_data(data: TensorData, device: &Device<Self>) -> FloatTensor<Self> {
-        match data.dtype {
+        match data.dtype() {
             DType::F64 | DType::F32 | DType::F16 | DType::BF16 => super::from_data(data, device),
             _ => unimplemented!("Unsupported dtype for `float_from_data`"),
         }

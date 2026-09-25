@@ -164,7 +164,7 @@ fn test_matmul_lhs_float_rhs_quantized() {
     output.assert_approx_eq::<FloatElem>(&expected, Tolerance::default());
 
     // Default quantization scheme does not propagate quantization with matmul
-    assert!(output.dtype.is_float());
+    assert!(output.dtype().is_float());
 }
 
 #[test]
@@ -197,7 +197,7 @@ fn test_matmul_lhs_quantized_rhs_float() {
     output.assert_approx_eq::<FloatElem>(&expected, Tolerance::relative(2e-2));
 
     // Default quantization scheme does not propagate quantization with matmul
-    assert!(output.dtype.is_float());
+    assert!(output.dtype().is_float());
 }
 
 #[test]
@@ -245,7 +245,7 @@ fn test_matmul_mixed_block_scale() {
     output.assert_approx_eq::<FloatElem>(&expected, Tolerance::permissive());
 
     // Default quantization scheme does not propagate quantization with matmul
-    assert!(output.dtype.is_float());
+    assert!(output.dtype().is_float());
 }
 
 /// No matmul kernel applies a per-tensor scale, and the autotune candidates panic on the level

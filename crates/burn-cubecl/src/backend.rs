@@ -292,7 +292,7 @@ impl Backend for CubeBackend {
         Iter: Iterator<Item = &'a mut TensorData>,
     {
         let client = device.client();
-        client.staging(data.map(|td| &mut td.bytes), false);
+        TensorData::with_bytes_mut(data, |bytes| client.staging(bytes.into_iter(), false));
     }
 
     fn supports_dtype(device: &Self::Device, dtype: DType) -> bool {

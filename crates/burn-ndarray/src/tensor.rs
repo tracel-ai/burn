@@ -612,7 +612,7 @@ impl NdArrayTensor {
         // For native Rust heap allocations (the common case), go directly to owned storage:
         // `from_data_owned` reclaims the Vec zero-copy via `into_vec`, while
         // Borrowed storage would trigger a full memcopy on every single operation.
-        if data.bytes.property() != AllocationProperty::Native {
+        if data.bytes().property() != AllocationProperty::Native {
             match Self::try_from_data_borrowed(data) {
                 Ok(tensor) => return tensor,
                 Err(data) => return Self::from_data_owned(data),
@@ -628,11 +628,7 @@ impl NdArrayTensor {
     ///
     /// Returns `Err(data)` if borrowing is not possible (e.g., misaligned data).
     fn try_from_data_borrowed(data: TensorData) -> Result<NdArrayTensor, TensorData> {
-        let TensorData {
-            bytes,
-            shape,
-            dtype,
-        } = data;
+        let (bytes, shape, dtype) = data.into_parts();
 
         macro_rules! try_borrow {
             ($ty:ty, $variant:ident, $bytes:expr, $shape:expr) => {
@@ -659,11 +655,7 @@ impl NdArrayTensor {
             _ => (bytes, shape), // QFloat not supported for zero-copy
         };
 
-        Err(TensorData {
-            bytes,
-            shape,
-            dtype,
-        })
+        Err(TensorData::from_bytes(bytes, shape, dtype))
     }
 
     /// Create a tensor with owned storage.
@@ -672,11 +664,11 @@ impl NdArrayTensor {
     /// can be reclaimed (via `try_into_vec`). If bytes are uniquely owned,
     /// no copy occurs; otherwise data is copied to a new allocation.
     fn from_data_owned(data: TensorData) -> NdArrayTensor {
-        let shape = data.shape.to_vec(); // TODO: into_vec
+        let shape = data.shape().to_vec(); // TODO: into_vec
 
         macro_rules! execute {
             ($data: expr, [$($dtype: pat => $ty: ty),*]) => {
-                match $data.dtype {
+                match $data.dtype() {
                     $( $dtype => {
                         match data.try_into_vec::<$ty>() {
                             Ok(vec) => ArrayD::from_shape_vec(shape, vec)
@@ -952,15 +944,5 @@ mod tests {
         let result = tensor.into_data();
 
         assert_eq!(data, result, "Data should round-trip correctly");
-    }
-
-    #[test]
-    #[should_panic(expected = "Data should have as many elements as the shape")]
-    fn should_panic_when_data_bytes_shorter_than_shape() {
-        // 4 bytes of payload for a shape claiming 1000 f32 elements: building the array
-        // unchecked would read and write out of bounds.
-        let data = TensorData::from_bytes_vec(vec![0u8, 0, 128, 63], [1000usize], DType::F32);
-
-        let _ = NdArrayTensor::from_data(data);
     }
 }

@@ -629,8 +629,8 @@ mod tests {
                 );
                 let result = mask_where_bool(tensor, mask, value);
                 assert_eq!(result.dtype(), DType::Bool(input_store));
-                assert_eq!(&result.into_data().bytes[..], expected.as_slice());
-                assert_eq!(&retained.into_data().bytes[..], &[1u8; 6]);
+                assert_eq!(result.into_data().as_bytes(), expected.as_slice());
+                assert_eq!(retained.into_data().as_bytes(), &[1u8; 6]);
             }
         }
     }

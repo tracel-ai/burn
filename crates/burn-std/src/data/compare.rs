@@ -418,8 +418,10 @@ mod tests {
     #[test]
     #[should_panic(expected = "Element counts differ")]
     fn should_assert_eq_reject_shorter_data() {
-        // Raw data can have a buffer shorter than its declared shape.
-        let data = TensorData::from_bytes(TensorData::from([1.0f32]).bytes, [2], DType::F32);
+        // The constructors reject this, but quantized data skips the length check and in-crate
+        // code can write the fields directly, so the comparison keeps its own count check.
+        let data =
+            TensorData::from_bytes_unchecked(TensorData::from([1.0f32]).bytes, [2], DType::F32);
         let expected = TensorData::from([1.0f32, 2.0]);
 
         data.assert_eq(&expected, false);
@@ -429,7 +431,8 @@ mod tests {
     #[should_panic(expected = "Element counts differ")]
     fn should_assert_eq_reject_longer_data() {
         let data = TensorData::from([1.0f32, 2.0]);
-        let expected = TensorData::from_bytes(TensorData::from([1.0f32]).bytes, [2], DType::F32);
+        let expected =
+            TensorData::from_bytes_unchecked(TensorData::from([1.0f32]).bytes, [2], DType::F32);
 
         data.assert_eq(&expected, true);
     }
@@ -437,7 +440,8 @@ mod tests {
     #[test]
     #[should_panic(expected = "Element counts differ")]
     fn should_assert_eq_reject_empty_data_with_nonempty_shape() {
-        let data = TensorData::from_bytes_vec(vec![], [1], DType::F32);
+        let data =
+            TensorData::from_bytes_unchecked(crate::Bytes::from_bytes_vec(vec![]), [1], DType::F32);
         let expected = TensorData::from([1.0f32]);
 
         data.assert_eq(&expected, false);
@@ -446,7 +450,8 @@ mod tests {
     #[test]
     #[should_panic(expected = "Element counts differ")]
     fn should_assert_eq_reject_different_counts_with_equal_byte_lengths() {
-        let data = TensorData::from_bytes(TensorData::from([1.0f64]).bytes, [2], DType::F64);
+        let data =
+            TensorData::from_bytes_unchecked(TensorData::from([1.0f64]).bytes, [2], DType::F64);
         let expected = TensorData::from([1.0f32, 2.0]);
 
         data.assert_eq(&expected, false);

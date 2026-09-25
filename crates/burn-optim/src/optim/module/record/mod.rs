@@ -80,13 +80,8 @@ impl OptimizerRecord {
             .tensors
             .into_iter()
             .map(|tensor| {
-                burn_pack::Tensor::new(
-                    tensor.name,
-                    tensor.data.dtype,
-                    tensor.data.shape,
-                    tensor.param_id,
-                    tensor.data.bytes,
-                )
+                let (bytes, shape, dtype) = tensor.data.into_parts();
+                burn_pack::Tensor::new(tensor.name, dtype, shape, tensor.param_id, bytes)
             })
             .collect();
         let mut writer = Writer::new(tensors);
@@ -144,9 +139,9 @@ mod tests {
 
         assert_eq!(tensor.name, "42.moment");
         assert_eq!(tensor.param_id, Some(42));
-        assert_eq!(tensor.data.dtype, expected.dtype);
-        assert_eq!(tensor.data.shape, expected.shape);
-        assert_eq!(&tensor.data.bytes[..], &expected.bytes[..]);
+        assert_eq!(tensor.data.dtype(), expected.dtype());
+        assert_eq!(tensor.data.shape(), expected.shape());
+        assert_eq!(tensor.data.as_bytes(), expected.as_bytes());
     }
 
     #[test]

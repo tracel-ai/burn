@@ -2319,7 +2319,7 @@ where
         let data = data.into();
         check!(TensorCheck::creation_ops::<D>(
             "From Data",
-            data.shape.as_slice()
+            data.shape().as_slice()
         ));
 
         // Use the given dtype when provided, otherwise default device dtype
@@ -3056,7 +3056,7 @@ where
     }
 
     fn _unpack_scalar<E: Element>(data: TensorData) -> Result<E, TensorReadError> {
-        let actual = data.shape.num_elements();
+        let actual = data.num_elements();
         if actual != 1 {
             return Err(TensorReadError::InvalidShape {
                 expected: 1,
@@ -3253,7 +3253,7 @@ fn fmt_elem<E: Element>(elem: E) -> String {
 // TODO: refactor display
 impl DataIterFmt {
     fn next(&self) -> String {
-        match self.data.dtype {
+        match self.data.dtype() {
             DType::F64 => fmt_float(self.next_elem::<f64>(), self.precision),
             DType::F32 | DType::Flex32 => fmt_float(self.next_elem::<f32>(), self.precision),
             DType::F16 => fmt_float(self.next_elem::<burn_std::f16>(), self.precision),

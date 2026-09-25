@@ -10,7 +10,7 @@ use alloc::collections::BTreeMap;
 use alloc::format;
 use alloc::string::{String, ToString};
 use alloc::vec::Vec;
-use burn_core::tensor::{BoolStore, DType, Shape, TensorData};
+use burn_core::tensor::{BoolStore, DType, Shape};
 use burn_pack::{Error as PackError, Tensor as PackTensor};
 use core::fmt;
 use core::ops::Deref;
@@ -1091,7 +1091,7 @@ where
 
                 // Only now do we actually copy this tensor's data
                 let bytes = burn_core::tensor::Bytes::from_bytes_vec(tensor.data().to_vec());
-                Ok(TensorData::from_bytes(bytes, tensor_shape.clone(), dtype))
+                bridge::tensor_data(bytes, tensor_shape.clone(), dtype)
             },
         ));
     }

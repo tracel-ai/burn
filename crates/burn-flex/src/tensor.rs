@@ -44,11 +44,10 @@ impl FlexTensor {
 
     /// Create a tensor from TensorData.
     pub fn from_data(data: TensorData) -> Self {
-        let shape = data.shape.clone();
+        let (bytes, shape, dtype) = data.into_parts();
         let layout = Layout::contiguous(shape);
-        let dtype = data.dtype;
         Self {
-            data: Arc::new(data.bytes),
+            data: Arc::new(bytes),
             layout,
             dtype,
         }
@@ -67,33 +66,18 @@ impl FlexTensor {
                 self.layout.num_elements(),
                 self.dtype
             );
-            if self.data.len() == expected_bytes {
+            let bytes = if self.data.len() == expected_bytes {
                 // Buffer exactly matches logical size; try zero-copy unwrap
                 match Arc::try_unwrap(self.data) {
-                    Ok(bytes) => TensorData {
-                        bytes,
-                        shape: self.layout.shape().clone(),
-                        dtype: self.dtype,
-                    },
-                    Err(arc) => {
-                        let bytes = Bytes::from_bytes_vec((*arc)[..expected_bytes].to_vec());
-                        TensorData {
-                            bytes,
-                            shape: self.layout.shape().clone(),
-                            dtype: self.dtype,
-                        }
-                    }
+                    Ok(bytes) => bytes,
+                    Err(arc) => Bytes::from_bytes_vec((*arc)[..expected_bytes].to_vec()),
                 }
             } else {
                 // Contiguous at offset 0 but buffer is oversized (e.g., narrowed view).
                 // Truncate to exact logical size.
-                let bytes = Bytes::from_bytes_vec(self.data[..expected_bytes].to_vec());
-                TensorData {
-                    bytes,
-                    shape: self.layout.shape().clone(),
-                    dtype: self.dtype,
-                }
-            }
+                Bytes::from_bytes_vec(self.data[..expected_bytes].to_vec())
+            };
+            TensorData::from_bytes(bytes, self.layout.shape().clone(), self.dtype)
         } else {
             // Non-contiguous or non-zero offset: copy to contiguous layout
             self.to_contiguous().into_data()
@@ -959,8 +943,8 @@ mod tests {
         let data = TensorData::from([1.0f32, 2.0, 3.0, 4.0, 5.0, 6.0]);
         let tensor = FlexTensor::from_data(data.clone());
         let result = tensor.into_data();
-        assert_eq!(data.shape, result.shape);
-        assert_eq!(data.dtype, result.dtype);
+        assert_eq!(data.shape(), result.shape());
+        assert_eq!(data.dtype(), result.dtype());
     }
 
     #[test]
@@ -1018,7 +1002,7 @@ mod tests {
         let contig = empty_view.to_contiguous();
         assert_eq!(contig.shape().to_vec(), vec![0]);
         assert_eq!(contig.layout().start_offset(), 0);
-        assert_eq!(contig.into_data().bytes.len(), 0);
+        assert_eq!(contig.into_data().bytes().len(), 0);
     }
 
     #[test]
@@ -1031,7 +1015,7 @@ mod tests {
         assert_eq!(empty_neg.shape().to_vec(), vec![0]);
         let contig = empty_neg.to_contiguous();
         assert_eq!(contig.shape().to_vec(), vec![0]);
-        assert_eq!(contig.into_data().bytes.len(), 0);
+        assert_eq!(contig.into_data().bytes().len(), 0);
     }
 
     /// Regression for #4855: a prefix view (e.g. `narrow(dim, 0, n)`) has
@@ -1328,9 +1312,9 @@ mod tests {
         assert_eq!(narrowed.layout().start_offset(), 0);
 
         let result = narrowed.into_data();
-        assert_eq!(result.shape.to_vec(), vec![1, 3]);
+        assert_eq!(result.shape().to_vec(), vec![1, 3]);
         // Must have exactly 3 f32s = 12 bytes, not 24
-        assert_eq!(result.bytes.len(), 3 * core::mem::size_of::<f32>());
+        assert_eq!(result.bytes().len(), 3 * core::mem::size_of::<f32>());
         let values: Vec<f32> = result.try_into_vec().unwrap();
         assert_eq!(values, vec![1.0, 2.0, 3.0]);
     }

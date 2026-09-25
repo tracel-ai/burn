@@ -299,11 +299,11 @@ impl Applier {
         };
 
         // Validate shape
-        if data.shape != target_shape {
+        if *data.shape() != target_shape {
             self.errors.push(ApplyError::ShapeMismatch {
                 path: path.clone(),
                 expected: target_shape,
-                found: data.shape,
+                found: data.shape().clone(),
             });
             return None; // Signal caller to fall back to initialization
         }
@@ -466,7 +466,11 @@ mod tests {
 
         // Create TensorData with F64 dtype explicitly
         let f64_data = TensorData::new(vec![1.0f64, 2.0, 3.0, 4.0], [2, 2]);
-        assert_eq!(f64_data.dtype, DType::F64, "Test setup: data should be F64");
+        assert_eq!(
+            f64_data.dtype(),
+            DType::F64,
+            "Test setup: data should be F64"
+        );
 
         // Create a tensor with F64 data
         let f64_tensor = tensor("weight", f64_data.clone(), Some(ParamId::new()));
@@ -511,7 +515,7 @@ mod tests {
 
         // Create TensorData with F32 dtype
         let f32_data = TensorData::new(vec![1.0f32, 2.0, 3.0, 4.0], [2, 2]);
-        assert_eq!(f32_data.dtype, DType::F32);
+        assert_eq!(f32_data.dtype(), DType::F32);
 
         // Create a tensor with F32 data
         let f32_tensor = tensor("weight", f32_data.clone(), Some(ParamId::new()));
@@ -553,7 +557,7 @@ mod tests {
         ];
         let f16_data = TensorData::new(f16_values.clone(), [2, 2]);
         assert_eq!(
-            f16_data.dtype,
+            f16_data.dtype(),
             DType::F16,
             "TensorData should have F16 dtype"
         );
@@ -571,7 +575,7 @@ mod tests {
         // Verify the data can be retrieved with correct dtype
         let retrieved_data = bridge::to_data(&f16_tensor).expect("Should be able to retrieve data");
         assert_eq!(
-            retrieved_data.dtype,
+            retrieved_data.dtype(),
             DType::F16,
             "Retrieved data should have F16 dtype"
         );
@@ -606,7 +610,7 @@ mod tests {
         ];
         let bf16_data = TensorData::new(bf16_values.clone(), [2, 2]);
         assert_eq!(
-            bf16_data.dtype,
+            bf16_data.dtype(),
             DType::BF16,
             "TensorData should have BF16 dtype"
         );
@@ -625,7 +629,7 @@ mod tests {
         let retrieved_data =
             bridge::to_data(&bf16_tensor).expect("Should be able to retrieve data");
         assert_eq!(
-            retrieved_data.dtype,
+            retrieved_data.dtype(),
             DType::BF16,
             "Retrieved data should have BF16 dtype"
         );

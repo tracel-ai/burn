@@ -98,7 +98,7 @@ pub fn save_tensor_as_image<const D: usize, P: AsRef<std::ffi::OsStr>>(
     };
 
     let data = tensor.to_data();
-    let shape = data.shape.clone();
+    let shape = data.shape().clone();
     let (batch, channels, src_height, src_width) = (shape[0], shape[1], shape[2], shape[3]);
 
     let mut img = if let Some(batch_opts) = &opts.batch_opts

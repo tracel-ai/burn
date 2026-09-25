@@ -8,13 +8,13 @@ use burn_tensor::quantization::{
 use burn_tensor::{DType, Element, TensorData};
 
 fn get_q_params(data: TensorData) -> DecodedScales {
-    let scheme = if let DType::QFloat(scheme) = data.dtype {
+    let scheme = if let DType::QFloat(scheme) = data.dtype() {
         scheme
     } else {
         unreachable!()
     };
     let q_bytes = QuantizedBytes {
-        shape: data.shape.clone(),
+        shape: data.shape().clone(),
         bytes: data.into_bytes(),
         scheme,
     };

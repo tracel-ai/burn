@@ -307,7 +307,7 @@ mod tests {
 
         assert_eq!(result.layout().shape().to_vec(), vec![1, 2]);
         let result_data = result.into_data();
-        let values: Vec<f32> = bytemuck::cast_slice(&result_data.bytes).to_vec();
+        let values: Vec<f32> = bytemuck::cast_slice(result_data.as_bytes()).to_vec();
         assert_eq!(values, vec![1.0, 2.0]);
     }
 
@@ -323,7 +323,7 @@ mod tests {
 
         assert_eq!(result.layout().shape().to_vec(), vec![3]);
         let result_data = result.into_data();
-        let values: Vec<f32> = bytemuck::cast_slice(&result_data.bytes).to_vec();
+        let values: Vec<f32> = bytemuck::cast_slice(result_data.as_bytes()).to_vec();
         assert_eq!(values, vec![0.0, 2.0, 4.0]);
     }
 
@@ -339,7 +339,7 @@ mod tests {
 
         assert_eq!(result.layout().shape().to_vec(), vec![3]);
         let result_data = result.into_data();
-        let values: Vec<f32> = bytemuck::cast_slice(&result_data.bytes).to_vec();
+        let values: Vec<f32> = bytemuck::cast_slice(result_data.as_bytes()).to_vec();
         assert_eq!(values, vec![2.0, 3.0, 4.0]);
     }
 
@@ -356,7 +356,7 @@ mod tests {
 
         assert_eq!(result.layout().shape().to_vec(), vec![5]);
         let result_data = result.into_data();
-        let values: Vec<f32> = bytemuck::cast_slice(&result_data.bytes).to_vec();
+        let values: Vec<f32> = bytemuck::cast_slice(result_data.as_bytes()).to_vec();
         assert_eq!(values, vec![4.0, 3.0, 2.0, 1.0, 0.0]);
     }
 
@@ -405,7 +405,7 @@ mod tests {
         let result = slice_assign(tensor, &slices, value);
 
         let result_data = result.into_data();
-        let values: Vec<f32> = bytemuck::cast_slice(&result_data.bytes).to_vec();
+        let values: Vec<f32> = bytemuck::cast_slice(result_data.as_bytes()).to_vec();
         assert_eq!(values, vec![0.0, 10.0, 11.0, 12.0, 4.0]);
     }
 
@@ -422,7 +422,7 @@ mod tests {
         let result = slice_assign(tensor, &slices, value);
 
         let result_data = result.into_data();
-        let values: Vec<f32> = bytemuck::cast_slice(&result_data.bytes).to_vec();
+        let values: Vec<f32> = bytemuck::cast_slice(result_data.as_bytes()).to_vec();
         assert_eq!(
             values,
             vec![0.0, 1.0, 2.0, 3.0, 10.0, 11.0, 6.0, 12.0, 13.0,]
@@ -442,7 +442,7 @@ mod tests {
         let result = slice_assign(tensor, &slices, value);
 
         let result_data = result.into_data();
-        let values: Vec<f32> = bytemuck::cast_slice(&result_data.bytes).to_vec();
+        let values: Vec<f32> = bytemuck::cast_slice(result_data.as_bytes()).to_vec();
         assert_eq!(
             values,
             vec![
@@ -469,7 +469,7 @@ mod tests {
         let result = slice_assign(tensor, &slices, value);
 
         let result_data = result.into_data();
-        let values: Vec<f32> = bytemuck::cast_slice(&result_data.bytes).to_vec();
+        let values: Vec<f32> = bytemuck::cast_slice(result_data.as_bytes()).to_vec();
         assert_eq!(values, vec![0.0, 7.0, 7.0, 7.0, 4.0]);
     }
 
@@ -482,7 +482,7 @@ mod tests {
         let result = slice_assign(tensor, &slices, value);
 
         let result_data = result.into_data();
-        let values: Vec<f32> = bytemuck::cast_slice(&result_data.bytes).to_vec();
+        let values: Vec<f32> = bytemuck::cast_slice(result_data.as_bytes()).to_vec();
         assert_eq!(
             values,
             vec![
@@ -506,7 +506,7 @@ mod tests {
         let result = slice_assign(tensor, &slices, value);
 
         let result_data = result.into_data();
-        let values: Vec<f32> = bytemuck::cast_slice(&result_data.bytes).to_vec();
+        let values: Vec<f32> = bytemuck::cast_slice(result_data.as_bytes()).to_vec();
         // Region [0..1, 0..2, 1..3] fills positions (0, 0, 1), (0, 0, 2),
         // (0, 1, 1), (0, 1, 2) with 9.0. Linear indices: 1, 2, 5, 6.
         let mut expected: Vec<f32> = (0..24).map(|i| i as f32).collect();
@@ -528,7 +528,7 @@ mod tests {
         let result = slice_assign(tensor, &slices, value);
 
         let result_data = result.into_data();
-        let values: Vec<f32> = bytemuck::cast_slice(&result_data.bytes).to_vec();
+        let values: Vec<f32> = bytemuck::cast_slice(result_data.as_bytes()).to_vec();
         assert_eq!(
             values,
             vec![0.0, 1.0, 0.0, 3.0, 0.0, 5.0, 0.0, 7.0, 0.0, 9.0]
@@ -550,7 +550,7 @@ mod tests {
         let result = slice_assign(tensor, &slices, value);
 
         let result_data = result.into_data();
-        let values: Vec<i64> = bytemuck::cast_slice(&result_data.bytes).to_vec();
+        let values: Vec<i64> = bytemuck::cast_slice(result_data.as_bytes()).to_vec();
         // Positions (0, 1), (0, 2), (1, 1), (1, 2): linear indices 1,
         // 2, 5, 6 get replaced by -7.
         assert_eq!(values, vec![0, -7, -7, 3, 4, -7, -7, 7, 8, 9, 10, 11]);
@@ -572,7 +572,7 @@ mod tests {
         let result = slice_assign(tensor, &slices, value);
 
         let result_data = result.into_data();
-        let values: Vec<f32> = bytemuck::cast_slice(&result_data.bytes).to_vec();
+        let values: Vec<f32> = bytemuck::cast_slice(result_data.as_bytes()).to_vec();
         // Step-2 on dim 2 picks indices 0 and 2, so within each
         // `[b, r, :]` row the 0 and 2 positions get 9.0.
         let mut expected: Vec<f32> = (0..24).map(|i| i as f32).collect();
@@ -599,7 +599,7 @@ mod tests {
         let result = slice_assign(tensor, &slices, value);
 
         let result_data = result.into_data();
-        let values: Vec<f32> = bytemuck::cast_slice(&result_data.bytes).to_vec();
+        let values: Vec<f32> = bytemuck::cast_slice(result_data.as_bytes()).to_vec();
         let mut expected: Vec<f32> = (0..25).map(|i| i as f32).collect();
         for r in [0, 2, 4] {
             for c in 1..4 {
