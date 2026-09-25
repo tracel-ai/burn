@@ -248,10 +248,7 @@ impl TensorData {
         // appended scales), so only the other dtypes have a shape-derived byte length. The
         // product is checked as well: a shape that overflows `usize` would otherwise wrap into
         // a small element count that matches the payload.
-        let expected = shape
-            .iter()
-            .try_fold(1usize, |numel, dim| numel.checked_mul(*dim))
-            .and_then(|numel| numel.checked_mul(dtype.size()));
+        let expected = checked_numel(&shape).and_then(|numel| numel.checked_mul(dtype.size()));
 
         if !matches!(dtype, DType::QFloat(_)) && expected != Some(bytes.len()) {
             return Err(DataError::InvalidByteLength {
@@ -544,8 +541,22 @@ impl Drop for LengthGuard<'_> {
     }
 }
 
+/// Number of elements described by `shape`, or `None` if the product overflows `usize`.
+fn checked_numel(shape: &[usize]) -> Option<usize> {
+    shape
+        .iter()
+        .try_fold(1usize, |numel, dim| numel.checked_mul(*dim))
+}
+
+/// Number of elements described by `shape`.
+///
+/// Panics if the product overflows `usize`, since a wrapped count could otherwise match a
+/// shorter buffer.
 fn numel(shape: &[usize]) -> usize {
-    shape.iter().product()
+    match checked_numel(shape) {
+        Some(numel) => numel,
+        None => panic!("Shape {shape:?} has more elements than fit in usize"),
+    }
 }
 
 impl<E: Element, const A: usize> From<[E; A]> for TensorData {
@@ -1008,6 +1019,19 @@ mod tests {
             TensorData::try_from_bytes_vec(vec![0; 8], [usize::MAX / 2 + 2, 2], DType::F32)
                 .is_err()
         );
+    }
+
+    #[test]
+    #[should_panic(expected = "more elements than fit in usize")]
+    fn new_rejects_overflowing_shape() {
+        // The wrapped product (2) matches the element count.
+        let _ = TensorData::new(vec![0.0f32; 2], [usize::MAX / 2 + 2, 2]);
+    }
+
+    #[test]
+    #[should_panic(expected = "more elements than fit in usize")]
+    fn zeros_rejects_overflowing_shape() {
+        let _ = TensorData::zeros::<f32, _>([usize::MAX / 2 + 2, 2]);
     }
 
     #[test]
