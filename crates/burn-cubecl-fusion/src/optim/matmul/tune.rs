@@ -301,27 +301,17 @@ pub(crate) fn create_key(input: &TuneInput<MatmulOptimizationTuneArg>) -> FusedM
     let rhs = tensors.get(&opt.info.matmul.op.rhs.id).unwrap();
     let out = tensors.get(&opt.info.matmul.op.out.id).unwrap();
 
-    let lhs_strides = handles
-        .get_handle_ref(&lhs.id)
-        .expect("lhs handle")
-        .strides
-        .clone();
-    let rhs_strides = handles
-        .get_handle_ref(&rhs.id)
-        .expect("rhs handle")
-        .strides
-        .clone();
-    let lhs_tiling = handles.get_handle_ref(&lhs.id).expect("lhs handle").tiling;
-    let rhs_tiling = handles.get_handle_ref(&rhs.id).expect("rhs handle").tiling;
+    let lhs_handle = handles.get_handle_ref(&lhs.id).expect("lhs handle");
+    let rhs_handle = handles.get_handle_ref(&rhs.id).expect("rhs handle");
 
     let key = MatmulAutotuneKey::generate(
         &opt.info.client,
-        &lhs.shape,
-        &rhs.shape,
-        &lhs_strides,
-        &rhs_strides,
-        lhs_tiling,
-        rhs_tiling,
+        &lhs_handle.physical_shape(lhs.shape.clone()),
+        &rhs_handle.physical_shape(rhs.shape.clone()),
+        &lhs_handle.strides,
+        &rhs_handle.strides,
+        lhs_handle.tiling(),
+        rhs_handle.tiling(),
         dtype_to_storage_type(lhs.dtype),
         dtype_to_storage_type(rhs.dtype),
         dtype_to_storage_type(out.dtype),

@@ -167,17 +167,17 @@ fn into_contiguous_quantized(tensor: CubeTensor, strategy: MemoryLayoutStrategy)
     any(feature = "wgpu", feature = "cpu", feature = "cuda", feature = "hip")
 ))]
 mod storage_tiled {
-    use burn_backend::{DType, cubecl::dtype_to_storage_type};
-    use burn_std::{Shape, TensorData};
+    use burn_backend::{DType, cubecl::dtype_to_storage_type, ops::FloatTensorOps};
+    use burn_std::{Shape, TensorData, Tiling};
 
     use crate::{
-        CubeDevice,
+        CubeBackend, CubeDevice,
         kernel::{
             into_contiguous,
             matmul::{MatmulStrategy, matmul},
             slice, untile,
         },
-        ops::{from_data, into_data_sync, reshape},
+        ops::{from_data, into_data_sync, permute, reshape, swap_dims},
         tensor::CubeTensor,
     };
 
@@ -236,6 +236,23 @@ mod storage_tiled {
         assert_close(&values(tiled), &values(plain), "packed weight");
     }
 
+    /// The fragments written by the plain layout ops, then stated: `[k, n]` reshaped to
+    /// `[k / tr, tr, n / tc, tc]` with its middle dims swapped is the view `into_tiled` lays down
+    /// as the buffer cubek's pack stores: the same metadata, so the same reads as
+    /// [`a_packed_weight_computes_the_same_product`].
+    #[test]
+    fn into_tiled_states_the_tiling_the_layout_ops_wrote() {
+        let device = CubeDevice::default();
+        let (k, n) = (64, 96);
+        let rhs = tensor(&[k, n], &device, 5);
+        let fragments = reshape(rhs.clone(), Shape::new([k / 16, 16, n / 32, 32]));
+        let fragments = swap_dims(fragments, 1, 2);
+        let weight = CubeBackend::float_into_tiled(fragments, Tiling::new(&[2, 2]).unwrap());
+
+        assert_eq!(weight.meta, packed(&rhs, (16, 32)).meta);
+        assert_eq!(values(untile(weight)), values(rhs));
+    }
+
     #[test]
     fn untile_lays_the_rows_back() {
         let device = CubeDevice::default();
@@ -266,6 +283,20 @@ mod storage_tiled {
         let sliced = slice(weight.clone(), &ranges);
         assert!(!sliced.meta.is_tiled());
         assert_eq!(values(sliced), values(slice(rhs.clone(), &ranges)));
+
+        let swapped = swap_dims(weight.clone(), 0, 1);
+        assert!(!swapped.meta.is_tiled());
+        assert_eq!(
+            values(into_contiguous(swapped)),
+            values(into_contiguous(swap_dims(rhs.clone(), 0, 1)))
+        );
+
+        let permuted = permute(weight.clone(), &[1, 0]);
+        assert!(!permuted.meta.is_tiled());
+        assert_eq!(
+            values(into_contiguous(permuted)),
+            values(into_contiguous(permute(rhs.clone(), &[1, 0])))
+        );
 
         let contiguous = into_contiguous(weight);
         assert!(!contiguous.meta.is_tiled());

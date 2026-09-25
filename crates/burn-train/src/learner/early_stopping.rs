@@ -283,6 +283,7 @@ mod tests {
         processor.process_train(crate::LearnerEvent::Start {
             total_epochs: 0,
             starting_epoch: 0,
+            label: None,
         });
         for (epoch, (points, should_start, comment)) in (1..).zip(data.iter()) {
             start_epoch(&mut processor, epoch, points.len());

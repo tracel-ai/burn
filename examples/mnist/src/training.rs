@@ -2,7 +2,6 @@ use std::{path::PathBuf, sync::Arc};
 
 use crate::{
     data::{MnistBatcher, MnistItemPrepared, MnistMapper, Transform},
-    file_progress::{FileEvaluationProgressLogger, FileTrainingProgressLogger},
     model::Model,
 };
 
@@ -104,10 +103,6 @@ pub fn run(device: Device) {
             Split::Valid,
             StoppingCondition::NoImprovementSince { n_epochs: 5 },
         ))
-        .with_progress_logger(
-            FileTrainingProgressLogger::new(format!("{ARTIFACT_DIR}/training_progress.log"))
-                .expect("Failed to create training progress log"),
-        )
         .num_epochs(config.num_epochs)
         .summary();
 
@@ -135,10 +130,6 @@ pub fn run(device: Device) {
     let mut renderer = EvaluatorBuilder::new(ARTIFACT_DIR)
         .renderer(result.renderer)
         .metrics((AccuracyMetric::new(), LossMetric::new()))
-        .with_progress_logger(
-            FileEvaluationProgressLogger::new(format!("{ARTIFACT_DIR}/evaluation_progress.log"))
-                .expect("Failed to create evaluation progress log"),
-        )
         .summary()
         .build(result.model.clone())
         .eval_all(splits);

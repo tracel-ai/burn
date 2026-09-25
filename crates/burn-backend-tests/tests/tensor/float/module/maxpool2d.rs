@@ -550,3 +550,33 @@ fn test_max_pool2d_with_indices_nan_propagation() {
         indices.into_data().assert_eq(&expected_indices, false);
     }
 }
+
+#[test]
+fn test_max_pool2d_ceil_mode_drops_window_in_padding() {
+    // Input 5x5, kernel 2, stride 2, padding 1, ceil_mode: PyTorch gives 3x3.
+    // A 4th window would start at padded index 6, in the trailing padding, and cover no input.
+    // Windows cover input rows/cols {0}, {1, 2}, {3, 4}.
+    let x = TestTensor::from([[[
+        [0.0, 1.0, 2.0, 3.0, 4.0],
+        [5.0, 6.0, 7.0, 8.0, 9.0],
+        [10.0, 11.0, 12.0, 13.0, 14.0],
+        [15.0, 16.0, 17.0, 18.0, 19.0],
+        [20.0, 21.0, 22.0, 23.0, 24.0],
+    ]]]);
+    let expected_values =
+        TestTensor::<4>::from([[[[0.0, 2.0, 4.0], [10.0, 12.0, 14.0], [20.0, 22.0, 24.0]]]]);
+    let expected_indices = TensorData::from([[[[0i64, 2, 4], [10, 12, 14], [20, 22, 24]]]]);
+
+    let output = max_pool2d(x.clone(), [2, 2], [2, 2], [1, 1], [1, 1], true);
+    expected_values
+        .to_data()
+        .assert_approx_eq::<FloatElem>(&output.into_data(), Tolerance::default());
+
+    let (output, output_indices) = max_pool2d_with_indices(x, [2, 2], [2, 2], [1, 1], [1, 1], true);
+    expected_values
+        .to_data()
+        .assert_approx_eq::<FloatElem>(&output.into_data(), Tolerance::default());
+    output_indices
+        .into_data()
+        .assert_eq(&expected_indices, false);
+}

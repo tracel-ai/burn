@@ -369,7 +369,8 @@ pub trait Module: Clone + Send + core::fmt::Debug {
     /// method applies.
     ///
     /// Tensor-bearing modules require the `autodiff` feature to enable autodiff. This does not
-    /// undo explicit freezing or reconstruct state discarded by [`valid`](Module::valid).
+    /// undo explicit freezing or restore tensor checkpointing strategies discarded by
+    /// [`valid`](Module::valid).
     fn train(self) -> Self;
 
     /// Returns a validation snapshot without autodiff or active training flags.
@@ -383,12 +384,31 @@ pub trait Module: Clone + Send + core::fmt::Debug {
     /// a plain device still disables its training flags, so the operation is idempotent but not
     /// necessarily a structural no-op.
     ///
-    /// The returned value is an inference snapshot: parameter reparameterizations are folded into
-    /// their values, and tensor checkpointing strategies are removed with autodiff. Calling
-    /// [`Module::train`] on that snapshot does not reconstruct those reparameterizations or restore
-    /// the previous checkpointing strategies. Keep the original module when continuing training
-    /// after validation.
+    /// Parameter reparameterizations and their stored bases are preserved, including quantized
+    /// bases. Their nested modules are also put into validation mode. Use
+    /// [`materialize`](Module::materialize) explicitly to fold reparameterizations into weights.
+    /// Tensor checkpointing strategies are removed with autodiff and are not restored by
+    /// [`Module::train`]. Keep the original module when continuing training after validation.
     fn valid(&self) -> Self;
+
+    /// Fold parameter reparameterizations into their effective values and remove them.
+    ///
+    /// Each reparameterized parameter is replaced by the value computed from its stored base and
+    /// reparameterization state. Other parameters and module training flags are unchanged. The
+    /// resulting parameters retain their base parameter IDs, layout mappings and configured
+    /// trainability, but are detached from the computation that produced them.
+    /// Parameters without reparameterizations remain lazy; this does not initialize them.
+    ///
+    /// This consumes the module and cannot be undone on the returned value. Clone the module first
+    /// to retain its reparameterizations. To prepare merged inference weights, use
+    /// `model.valid().materialize()`; materialization alone does not switch to validation mode.
+    ///
+    /// # Memory and precision
+    ///
+    /// LoRA adapters are merged into dense weights. For QLoRA this also replaces the packed base
+    /// with a dense effective weight, which can substantially increase memory use. Requantization
+    /// must be requested separately and may change the model's outputs.
+    fn materialize(self) -> Self;
 
     /// Get the number of parameters the module has, including all of its sub-modules, without
     /// initializing the ones not initialized yet.
@@ -453,6 +473,9 @@ pub trait Module: Clone + Send + core::fmt::Debug {
 
     /// Apply QLoRA to the module: quantize the (frozen) base tensor parameters and attach trainable
     /// LoRA adapters to 2-D weights.
+    ///
+    /// Dense effective weights can still materialize during training, even with fusion enabled.
+    /// See [`QLora`'s memory limitations](QLora#memory-limitations) before sizing a training run.
     ///
     /// Module-owned control flags are preserved. Call [`freeze`](Module::freeze) before this
     /// method if the base module's control behavior and running statistics should also be frozen.

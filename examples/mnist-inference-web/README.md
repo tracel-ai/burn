@@ -40,6 +40,12 @@ JavaScript (`index.js`) is used to transform hand-drawn digits to a format that 
 accepts. The transformation includes image cropping, scaling down, and converting it to grayscale
 values.
 
+The model runs in a module Web Worker (`inference-worker.js`) with either backend, leaving the
+main thread available for drawing. Predictions update while drawing, with one inference in flight
+at a time. When drawing changes during inference, the next request captures the latest canvas
+instead of queuing intermediate images. Clearing the canvas discards pending updates and ignores
+results from earlier drawings.
+
 ## Model
 
 Layers:

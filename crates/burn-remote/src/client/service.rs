@@ -28,7 +28,7 @@ mod registry;
 mod writer;
 
 use batch::OutgoingBatch;
-use conn::{ResponseChannel, open_channels};
+use conn::ResponseChannel;
 use pending::{PendingResponses, Responder};
 use writer::SubmitWriter;
 
@@ -158,7 +158,7 @@ impl RemoteService {
         (id, endpoint, device_index)
     }
 
-    /// Native synchronous wrapper over [`open_channels`](conn::open_channels): blocks the runner
+    /// Native synchronous wrapper over [`open_channels`](RemoteEndpoint::open_channels): blocks the runner
     /// thread until the streams are open.
     #[cfg(not(target_family = "wasm"))]
     fn connect_streams(
@@ -166,7 +166,7 @@ impl RemoteService {
         endpoint: &RemoteEndpoint,
     ) -> (SubmitChannel, ResponseChannel) {
         executor
-            .block_on(open_channels(endpoint))
+            .block_on(endpoint.open_channels())
             .unwrap_or_else(|err: String| panic!("{err}"))
     }
 
@@ -312,7 +312,9 @@ pub(crate) struct WasmConnected {
 pub(crate) async fn wasm_connect(plan: WasmConnectPlan) -> WasmConnected {
     let executor = Executor::WasmLocal;
 
-    let (mut request, mut response) = open_channels(&plan.endpoint)
+    let (mut request, mut response) = plan
+        .endpoint
+        .open_channels()
         .await
         .unwrap_or_else(|err| panic!("{err}"));
     let (settings, device_count) = RemoteService::handshake_async(

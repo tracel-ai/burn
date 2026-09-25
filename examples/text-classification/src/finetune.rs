@@ -85,10 +85,11 @@ pub fn lora_finetuning<D: TextClassificationDataset + 'static>(
     // Train the model
     let result = training.launch(Learner::new(model, optim, lr_scheduler));
 
-    // Save the configuration and the trained model
+    // Merge adapters so inference can load the record into a model without adapters.
     config.save(format!("{artifact_dir}/config.json")).unwrap();
     result
         .model
+        .materialize()
         .into_record()
         .save(format!("{artifact_dir}/model"))
         .unwrap();
