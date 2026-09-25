@@ -254,3 +254,106 @@ async fn fused_compute_surfaces_as_graph_telemetry() {
 
     router.shutdown().await.unwrap();
 }
+
+#[cfg(feature = "fusion")]
+mod loader_uploads {
+    use super::*;
+    use burn_remote::telemetry::{DrainStatus, OpClass, TelemetryEvent};
+    use burn_tensor::{Int, TensorData};
+    use std::collections::HashSet;
+    use std::sync::mpsc;
+
+    const STEPS: usize = 8;
+    const UPLOADS_PER_BATCH: usize = 2;
+
+    struct Batch {
+        images: Tensor<2>,
+        targets: Tensor<1, Int>,
+    }
+
+    impl Batch {
+        fn new(step: usize, device: &Device) -> Self {
+            Self {
+                images: Tensor::from_data(TensorData::new(vec![step as f32; 12], [3, 4]), device),
+                targets: Tensor::from_data(TensorData::new(vec![step as i64; 3], [3]), device),
+            }
+        }
+    }
+
+    fn assert_server_drops_every_upload(consume: fn(Batch)) {
+        let runtime = tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+        let server = runtime.block_on(local_endpoint());
+        let (probe, mut events) = TelemetryProbe::channel(4096);
+        let router = {
+            let _guard = runtime.enter();
+            spawn_router::<Flex>(server.clone(), AllowAll, probe)
+        };
+        let client = runtime.block_on(local_endpoint());
+        let remote = {
+            let _guard = runtime.enter();
+            RemoteDevice::iroh(&client, server.addr(), 0)
+        };
+        remote.connect();
+        let device = Device::new(remote);
+
+        // The loader only uploads, so nothing else ever executes its stream.
+        let (batches, received) = mpsc::sync_channel(2);
+        let loader = {
+            let device = device.clone();
+            std::thread::spawn(move || {
+                for step in 0..STEPS {
+                    batches.send(Batch::new(step, &device)).unwrap();
+                }
+            })
+        };
+        for batch in received {
+            consume(batch);
+        }
+        loader.join().unwrap();
+        device.sync().unwrap();
+
+        let mut seen = Vec::new();
+        assert!(matches!(
+            events.drain_into(&mut seen),
+            DrainStatus::Open { lagged: 0 }
+        ));
+        let mut uploads = HashSet::new();
+        let mut dropped = HashSet::new();
+        for event in &seen {
+            match event.as_ref() {
+                TelemetryEvent::Op {
+                    kind: OpClass::Init,
+                    outputs,
+                    ..
+                } => uploads.extend(outputs.iter().map(|output| output.id)),
+                TelemetryEvent::TensorDropped { tensor, .. } => {
+                    dropped.insert(*tensor);
+                }
+                _ => {}
+            }
+        }
+        assert_eq!(uploads.len(), STEPS * UPLOADS_PER_BATCH);
+        assert_eq!(uploads.intersection(&dropped).count(), uploads.len());
+
+        runtime.block_on(router.shutdown()).unwrap();
+    }
+
+    #[test]
+    fn are_freed_when_computed_on_another_thread() {
+        assert_server_drops_every_upload(|batch| {
+            let loss = batch.images.sum() + batch.targets.float().sum();
+            let _: f32 = loss.into_scalar();
+        });
+    }
+
+    #[test]
+    fn are_freed_when_read_on_another_thread() {
+        assert_server_drops_every_upload(|batch| {
+            batch.images.into_data();
+            batch.targets.into_data();
+        });
+    }
+}
