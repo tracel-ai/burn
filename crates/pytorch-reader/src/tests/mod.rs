@@ -2190,3 +2190,21 @@ fn from_bytes_reads_zip() {
         );
     }
 }
+
+#[test]
+fn from_bytes_reads_plain_pickle() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = write_pickle(&dir, "plain.pkl", TORCH_DEVICE_BESIDE_INT);
+    let reader = PytorchReader::from_bytes(TORCH_DEVICE_BESIDE_INT.to_vec(), None).unwrap();
+    let file_reader = PytorchReader::new(&path).unwrap();
+
+    // A plain pickle holds no tensor storages, so there is nothing to read back.
+    // The check is that format detection and the memory reader agree with the file path.
+    assert_eq!(reader.metadata().format_type, FileFormat::Pickle);
+    assert_eq!(
+        reader.metadata().format_type,
+        file_reader.metadata().format_type
+    );
+    assert!(reader.keys().is_empty());
+    assert!(file_reader.keys().is_empty());
+}

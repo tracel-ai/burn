@@ -182,6 +182,27 @@ impl PytorchReader {
         Self::open(&Container::File(path.as_ref().to_path_buf()), Some(key))
     }
 
+    /// Load a PyTorch checkpoint from an in-memory buffer
+    ///
+    /// Reads every container [`PytorchReader::new`] does (ZIP, legacy, TAR and plain
+    /// pickle) without writing a temporary file first. The buffer is moved in, not copied:
+    /// a ZIP or legacy checkpoint is read lazily from it, and it stays alive until the
+    /// reader and every tensor taken from it are dropped.
+    ///
+    /// # Arguments
+    /// * `bytes` - The bytes of a PyTorch file (.pt or .pth)
+    /// * `top_level_key` - Top-level key to extract (e.g., "state_dict"), or `None` to
+    ///   use the whole file
+    ///
+    /// # Example
+    /// ```rust,no_run
+    /// # use pytorch_reader::PytorchReader;
+    /// # fn example() -> Result<(), Box<dyn std::error::Error>> {
+    /// let bytes = std::fs::read("checkpoint.pt")?;
+    /// let reader = PytorchReader::from_bytes(bytes, Some("state_dict"))?;
+    /// # Ok(())
+    /// # }
+    /// ```
     pub fn from_bytes(bytes: Vec<u8>, top_level_key: Option<&str>) -> Result<Self> {
         Self::open(&Container::Memory(Arc::new(bytes)), top_level_key)
     }
