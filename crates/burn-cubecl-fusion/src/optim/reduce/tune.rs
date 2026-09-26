@@ -1,4 +1,4 @@
-use super::optimization::ReduceOptimizationTuneArg;
+use super::{bounds::with_fused_reduce_bounds, optimization::ReduceOptimizationTuneArg};
 use crate::{
     CubeFusionHandle,
     engine::trace::TuneOutput,
@@ -46,7 +46,7 @@ pub fn fused_reduce_autotune(
         const PRIORITY_MAX: i8 = 2;
         const PRIORITY_MIN: i8 = 1;
 
-        let mut set = TunableSet::new(create_key, FusionInputGen);
+        let mut set = with_fused_reduce_bounds(TunableSet::new(create_key, FusionInputGen));
         let group = TuneGroup::<FusedReduceAutotuneKey>::new("fused_reduce", |_key| PRIORITY_MAX);
 
         // Fallback implementation for robustness.

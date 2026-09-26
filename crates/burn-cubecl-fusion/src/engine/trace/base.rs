@@ -2,8 +2,9 @@ use crate::engine::{
     codegen::ir::{FuseArg, FuseType},
     trace::block::FuseBlock,
 };
+use burn_backend::cubecl::dtype_to_storage_type;
 use burn_ir::{TensorId, TensorIr};
-use burn_std::{Shape, Strides};
+use burn_std::{DType, Shape, Strides};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, HashSet};
 
@@ -11,8 +12,6 @@ use std::collections::{BTreeMap, HashSet};
 use crate::CubeFusionHandle;
 #[cfg(feature = "autotune-checks")]
 use burn_backend::TensorData;
-#[cfg(feature = "autotune-checks")]
-use burn_backend::cubecl::dtype_to_storage_type;
 #[cfg(feature = "autotune-checks")]
 use std::collections::HashMap;
 
@@ -31,6 +30,32 @@ impl FuseTrace {
             .iter()
             .flat_map(|block| block.shape_ref.iter().copied())
             .max()
+    }
+
+    /// Bytes a kernel running this trace moves at least, with the relative ids resolved against
+    /// the context's `tensors`: one read of every input, one write of every output, and one read
+    /// back of every output a later block reads. An intermediate the trace keeps in registers is
+    /// in none of them.
+    pub fn traffic(&self, tensors: &hashbrown::HashMap<TensorId, TensorIr>) -> usize {
+        self.resources
+            .inputs
+            .iter()
+            .chain(self.resources.outputs.iter())
+            .chain(self.resources.buffers.iter())
+            .filter_map(|registered| match registered {
+                RegisterTensor::Normal(tensor, _) | RegisterTensor::QuantValues(tensor) => {
+                    tensors.get(&tensor.id)
+                }
+                RegisterTensor::QuantParams(_) => None,
+            })
+            .map(|tensor| match tensor.dtype {
+                // Packed values move at their quantized width, not the width of the word they sit in.
+                DType::QFloat(scheme) => {
+                    (tensor.shape.num_elements() * scheme.size_bits_value()).div_ceil(8)
+                }
+                dtype => tensor.shape.num_elements() * dtype_to_storage_type(dtype).size(),
+            })
+            .sum()
     }
 }
 
