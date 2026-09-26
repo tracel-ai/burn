@@ -300,6 +300,9 @@ Other source changes:
 - **Convolution:** `ConvOptions::padding` stores `(before, after)` pairs. Keep
   `ConvOptions::new(..)` for symmetric padding; replace deprecated `PaddedConvOptions` with
   `ConvOptions::new_with_padding(..)` for asymmetric padding.
+- **Interpolation:** `module::interpolate(x, output_size, options)` is now
+  `module::interpolate(x, options)`. Set the size with `options.with_output_size([h, w])`, or use
+  `options.with_scale_factor([sh, sw])` to scale the input size.
 - **Quantization:** replace `with_level(..)` and `with_param(..)` with `per_tensor(ScaleDtype)` or
   `per_block(block, ScaleDtype)`. See [Quantization](./performance/quantization.md).
 - **Softplus:** use `SoftplusConfig::new().with_beta(beta).with_threshold(threshold)` instead of
