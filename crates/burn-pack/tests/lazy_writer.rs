@@ -231,7 +231,7 @@ fn a_plan_time_rejection_creates_no_file() {
     entry.declared_len = 8;
 
     Writer::new(vec![entry.build()])
-        .write_to_file_atomic(&dest)
+        .write_to_file(&dest)
         .unwrap_err();
 
     assert_eq!(
@@ -249,7 +249,7 @@ fn an_atomic_write_can_preserve_an_extensionless_path() {
     let log = Log::default();
     Writer::new(deferred_tensors(entries(&log)))
         .auto_extension(false)
-        .write_to_file_atomic(&dest)
+        .write_to_file(&dest)
         .unwrap();
 
     assert!(dest.exists(), "the exact requested path should exist");
@@ -273,7 +273,7 @@ fn a_failing_provider_leaves_no_file_behind() {
     entries.last_mut().unwrap().fails = true;
 
     Writer::new(deferred_tensors(entries))
-        .write_to_file_atomic(&dest)
+        .write_to_file(&dest)
         .unwrap_err();
 
     assert!(!dest.exists(), "destination should not have been created");
@@ -292,14 +292,14 @@ fn a_failed_write_leaves_an_existing_file_intact() {
     // A valid container already at the destination.
     let log = Log::default();
     Writer::new(deferred_tensors(entries(&log)))
-        .write_to_file_atomic(&dest)
+        .write_to_file(&dest)
         .unwrap();
     let original = std::fs::read(&dest).unwrap();
 
     let mut entries = entries(&log);
     entries.last_mut().unwrap().fails = true;
     Writer::new(deferred_tensors(entries))
-        .write_to_file_atomic(&dest)
+        .write_to_file(&dest)
         .unwrap_err();
 
     assert_eq!(
@@ -320,7 +320,7 @@ fn a_failed_rename_leaves_no_scratch_file() {
 
     let log = Log::default();
     Writer::new(deferred_tensors(entries(&log)))
-        .write_to_file_atomic(&dest)
+        .write_to_file(&dest)
         .unwrap_err();
 
     assert!(dest.is_dir(), "the destination should be untouched");
@@ -338,10 +338,10 @@ fn a_successful_write_replaces_an_existing_file() {
 
     let log = Log::default();
     Writer::new(vec![LazyEntry::new("old", [4], 1.0, &log).build()])
-        .write_to_file_atomic(&dest)
+        .write_to_file(&dest)
         .unwrap();
     Writer::new(deferred_tensors(entries(&log)))
-        .write_to_file_atomic(&dest)
+        .write_to_file(&dest)
         .unwrap();
 
     let names: Vec<String> = Reader::from_file(&dest)
@@ -359,9 +359,9 @@ fn a_successful_write_replaces_an_existing_file() {
     );
 }
 
-/// The counterpart to the atomicity tests: plain `write_to_file` truncates in place, which is
-/// why a caller with deferred tensors has to ask for the atomic path. Pinning it here keeps
-/// the two methods from quietly converging.
+/// The counterpart to the atomicity tests: `write_to_file_in_place` truncates in place, which
+/// is what the default path exists to avoid. Pinning it here keeps the two methods from
+/// quietly converging.
 #[test]
 fn a_failing_provider_does_truncate_an_existing_file_in_place() {
     let dir = tempfile::tempdir().unwrap();
@@ -369,14 +369,14 @@ fn a_failing_provider_does_truncate_an_existing_file_in_place() {
 
     let log = Log::default();
     Writer::new(deferred_tensors(entries(&log)))
-        .write_to_file(&dest)
+        .write_to_file_in_place(&dest)
         .unwrap();
     let original = std::fs::read(&dest).unwrap();
 
     let mut entries = entries(&log);
     entries.last_mut().unwrap().fails = true;
     Writer::new(deferred_tensors(entries))
-        .write_to_file(&dest)
+        .write_to_file_in_place(&dest)
         .unwrap_err();
 
     let after = std::fs::read(&dest).unwrap();
@@ -405,13 +405,13 @@ fn an_atomic_write_keeps_the_permissions_of_the_container_it_replaces() {
 
     let log = Log::default();
     Writer::new(deferred_tensors(entries(&log)))
-        .write_to_file_atomic(&dest)
+        .write_to_file(&dest)
         .unwrap();
     std::fs::set_permissions(&dest, std::fs::Permissions::from_mode(0o600)).unwrap();
 
     let log = Log::default();
     Writer::new(deferred_tensors(entries(&log)))
-        .write_to_file_atomic(&dest)
+        .write_to_file(&dest)
         .unwrap();
 
     assert_eq!(
@@ -440,7 +440,7 @@ fn a_no_overwrite_atomic_write_keeps_a_file_that_appears_mid_write() {
 
     let err = Writer::new(vec![plants_a_file_mid_write(&dest, b"theirs")])
         .overwrite(false)
-        .write_to_file_atomic(&dest)
+        .write_to_file(&dest)
         .unwrap_err();
 
     assert!(matches!(err, Error::AlreadyExists(_)), "got {err:?}");
@@ -460,7 +460,7 @@ fn a_no_overwrite_atomic_write_publishes_when_the_path_is_free() {
     let log = Log::default();
     Writer::new(deferred_tensors(entries(&log)))
         .overwrite(false)
-        .write_to_file_atomic(&dest)
+        .write_to_file(&dest)
         .unwrap();
 
     assert_eq!(
@@ -479,7 +479,7 @@ fn a_no_overwrite_atomic_write_publishes_when_the_path_is_free() {
 }
 
 #[test]
-fn a_no_overwrite_plain_write_refuses_an_existing_file() {
+fn a_no_overwrite_in_place_write_refuses_an_existing_file() {
     let dir = tempfile::tempdir().unwrap();
     let dest = dir.path().join("model.bpk");
     std::fs::write(&dest, b"theirs").unwrap();
@@ -487,7 +487,7 @@ fn a_no_overwrite_plain_write_refuses_an_existing_file() {
     let log = Log::default();
     let err = Writer::new(deferred_tensors(entries(&log)))
         .overwrite(false)
-        .write_to_file(&dest)
+        .write_to_file_in_place(&dest)
         .unwrap_err();
 
     assert!(matches!(err, Error::AlreadyExists(_)), "got {err:?}");
