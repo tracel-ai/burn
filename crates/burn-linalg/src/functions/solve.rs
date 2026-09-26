@@ -23,9 +23,10 @@ use burn_std::{FloatDType, Slice};
 /// inputs are computed in F32 and cast back to the input dtype.
 ///
 /// Flex and NdArray use an in-place blocked CPU factorization with SIMD matrix
-/// multiplication. Autodiff uses `dB = solve(A^T, dX)` and `dA = -dB @ X^T`,
-/// reducing broadcast batch dimensions back to each input shape. Other backends
-/// use the tensor-operation implementation.
+/// multiplication. CubeCL backends use dedicated device kernels for factorization
+/// and triangular substitution. These backends share an analytic autodiff rule:
+/// `dB = solve(A^T, dX)` and `dA = -dB @ X^T`, reducing broadcast batch dimensions
+/// back to each input shape. Other backends use the tensor-operation implementation.
 ///
 /// # Panics
 ///
@@ -115,7 +116,7 @@ fn solve_impl<const D: usize, const DB: usize, const DO: usize, const DW: usize>
         a = a.cast(FloatDType::F32);
         b = b.cast(FloatDType::F32);
     }
-    #[cfg(any(feature = "flex", feature = "ndarray"))]
+    #[cfg(any(feature = "flex", feature = "ndarray", feature = "cubecl-backend"))]
     if crate::solve_ops::supports_device(a.device().as_dispatch()) {
         use crate::solve_ops::SolveOps;
         use burn_core::backend::Dispatch;

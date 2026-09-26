@@ -1,5 +1,5 @@
 use super::*;
-use burn_core::tensor::{TensorData, Tolerance};
+use burn_core::tensor::{DType, TensorData, Tolerance};
 use burn_linalg::solve;
 
 #[test]
@@ -155,8 +155,8 @@ fn solve_rejects_incompatible_batches() {
 #[test]
 #[should_panic(expected = "dtypes must match")]
 fn solve_rejects_different_dtypes() {
-    use burn_core::tensor::DType;
-    let device = Default::default();
+    #[allow(deprecated)]
+    let device = burn_core::tensor::Device::ndarray();
     let a = TestTensor::<2>::eye(2, &device);
     let b = TestTensor::<1>::ones([2], &device).cast(DType::F64);
     let _ = solve::<2, 1, 1>(a, b);
@@ -182,11 +182,12 @@ fn solve_gradients_match_inverse_rule() {
         .assert_approx_eq::<FloatElem>(&expected_b.into_data(), Tolerance::default());
 }
 
-#[cfg(any(feature = "ndarray", feature = "flex"))]
 #[test]
 fn solve_f64_preserves_precision_and_dtype() {
-    use burn_core::tensor::DType;
-    let device = Default::default();
+    let device = burn_core::tensor::Device::default();
+    if !device.supports_dtype(DType::F64) {
+        return;
+    }
     let a = TestTensor::<2>::from_data([[3.0, 1.0], [1.0, 2.0]], &device).cast(DType::F64);
     let b = TestTensor::<1>::from_data([9.0, 8.0], &device).cast(DType::F64);
     let x = solve::<2, 1, 1>(a, b);
@@ -314,22 +315,9 @@ fn solve_gradients_accumulate_when_a_is_broadcast() {
 
 #[test]
 fn solve_dense_matrices_with_pivots_across_block_boundaries() {
-    let device = Default::default();
-    for (n, columns) in [(65, 1), (65, 3), (65, 17), (129, 33)] {
-        // Permuting a well-conditioned dense matrix forces row swaps both within
-        // and across LU panels, while keeping the reference solution accurate.
-        let values: Vec<f32> = (0..n)
-            .flat_map(|i| {
-                let row = (i + n / 2 + 1) % n;
-                (0..n).map(move |j| {
-                    if row == j {
-                        4.0
-                    } else {
-                        ((row * 13 + j * 7) % 17) as f32 / 256.0 - 8.0 / 256.0
-                    }
-                })
-            })
-            .collect();
+    let device = burn_core::tensor::Device::default();
+    for (n, columns) in [(17, 3), (33, 17), (65, 1), (65, 3), (65, 17), (129, 33)] {
+        let values = pivoting_matrix_values(n);
         let solution: Vec<f32> = (0..n * columns)
             .map(|i| ((i / columns * 5 + i % columns * 3) % 23) as f32 / 8.0 - 11.0 / 8.0)
             .collect();
@@ -353,9 +341,7 @@ fn solve_dense_matrices_with_pivots_across_block_boundaries() {
             .into_data()
             .assert_approx_eq::<FloatElem>(&b.clone().into_data(), Tolerance::rel_abs(1e-5, 1e-5));
 
-        #[cfg(any(feature = "ndarray", feature = "flex"))]
-        {
-            use burn_core::tensor::DType;
+        if device.supports_dtype(DType::F64) {
             // All reference values are dyadic fractions, exactly represented in F32.
             let a = a.cast(DType::F64);
             let b = b.cast(DType::F64);
@@ -412,12 +398,13 @@ fn solve_accepts_transposed_and_sliced_inputs() {
         .assert_approx_eq::<FloatElem>(&b.into_data(), Tolerance::default());
 }
 
-#[cfg(feature = "flex")]
 #[test]
 fn solve_half_precision_preserves_dtype() {
-    use burn_core::tensor::DType;
-    let device = Default::default();
+    let device = burn_core::tensor::Device::default();
     for dtype in [DType::F16, DType::BF16] {
+        if !device.supports_dtype(dtype) {
+            continue;
+        }
         let a = TestTensor::<2>::from_data([[0.0, 2.0], [1.0, 3.0]], &device).cast(dtype);
         let b = TestTensor::<2>::from_data([[4.0, 1.0], [7.0, 2.0]], &device).cast(dtype);
         let x = solve::<2, 2, 2>(a, b);
@@ -497,7 +484,12 @@ fn solve_matrix_gradients_reduce_both_broadcast_inputs() {
 #[cfg(any(feature = "ndarray", feature = "flex"))]
 #[test]
 fn solve_accepts_subnormal_pivot_without_reciprocal_overflow() {
-    let device = Default::default();
+    // GPU execution may flush subnormals to zero, even when CPU features are enabled.
+    #[cfg(feature = "flex")]
+    let device = burn_core::tensor::Device::flex();
+    #[cfg(all(feature = "ndarray", not(feature = "flex")))]
+    #[allow(deprecated)]
+    let device = burn_core::tensor::Device::ndarray();
     let tiny = f32::from_bits(1);
     let a = TestTensor::<2>::from_data([[tiny, 0.0], [tiny, 1.0]], &device);
     let b = TestTensor::<1>::from_data([tiny, 2.0], &device);
@@ -506,7 +498,10 @@ fn solve_accepts_subnormal_pivot_without_reciprocal_overflow() {
         .assert_approx_eq::<FloatElem>(&TensorData::from([1.0, 2.0]), Tolerance::default());
 }
 
-#[cfg(all(feature = "autodiff", any(feature = "ndarray", feature = "flex")))]
+#[cfg(all(
+    feature = "autodiff",
+    any(feature = "ndarray", feature = "flex", feature = "cubecl-backend")
+))]
 #[test]
 fn solve_zero_rhs_columns_has_zero_gradients() {
     let device = burn_core::tensor::Device::default().autodiff();
@@ -535,4 +530,207 @@ fn solve_rejects_singular_pivot_in_later_block() {
     let a = TestTensor::<2>::from_data(TensorData::new(values, [n, n]), &device);
     let b = TestTensor::<2>::ones([n, 8], &device);
     let _ = solve::<2, 2, 2>(a, b);
+}
+
+// A row permutation forces pivots across panel boundaries in a dense,
+// nonsymmetric matrix. Its small off-diagonal entries keep it well conditioned.
+fn pivoting_matrix_values(n: usize) -> Vec<f32> {
+    (0..n)
+        .flat_map(|i| {
+            let row = (i + n / 2 + 1) % n;
+            (0..n).map(move |j| {
+                if row == j {
+                    4.0
+                } else {
+                    ((row * 13 + j * 7) % 17) as f32 / 256.0 - 8.0 / 256.0
+                }
+            })
+        })
+        .collect()
+}
+
+#[test]
+fn solve_large_pivoted_matrix() {
+    let device = Default::default();
+    let n = 257;
+    let columns = 5;
+    let a = TestTensor::<2>::from_data(TensorData::new(pivoting_matrix_values(n), [n, n]), &device);
+    let values: Vec<f32> = (0..n * columns)
+        .map(|i| (i % 19) as f32 / 8.0 - 1.0)
+        .collect();
+    let expected = TestTensor::<2>::from_data(TensorData::new(values, [n, columns]), &device);
+    let b = a.clone().matmul(expected.clone());
+    let x = solve::<2, 2, 2>(a.clone(), b.clone());
+    x.clone()
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&expected.into_data(), Tolerance::rel_abs(2e-5, 2e-5));
+    a.matmul(x)
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&b.into_data(), Tolerance::rel_abs(2e-5, 2e-5));
+}
+
+#[test]
+fn solve_strided_shared_matrix_with_strided_rhs_batches() {
+    let device = Default::default();
+    let n = 33;
+    let columns = 5;
+    let values = pivoting_matrix_values(n);
+    let mut padded = vec![99.0; (n + 2) * (n + 2)];
+    for i in 0..n {
+        for j in 0..n {
+            padded[(j + 1) * (n + 2) + i + 1] = values[i * n + j];
+        }
+    }
+    let a = TestTensor::<2>::from_data(TensorData::new(padded, [n + 2, n + 2]), &device)
+        .slice([1..n + 1, 1..n + 1])
+        .transpose();
+    let values: Vec<f32> = (0..6 * n * columns)
+        .map(|i| (i % 29) as f32 / 16.0 - 0.75)
+        .collect();
+    let expected = TestTensor::<4>::from_data(TensorData::new(values, [3, 2, n, columns]), &device);
+    let b = a
+        .clone()
+        .reshape([1, 1, n, n])
+        .matmul(expected.clone())
+        .swap_dims(0, 1);
+    let x = solve::<2, 4, 4>(a, b);
+    assert_eq!(x.dims(), [2, 3, n, columns]);
+    x.into_data().assert_approx_eq::<FloatElem>(
+        &expected.swap_dims(0, 1).into_data(),
+        Tolerance::rel_abs(1e-5, 1e-5),
+    );
+}
+
+#[cfg(feature = "autodiff")]
+#[test]
+fn solve_pivoted_adjoint_with_prescribed_gradient() {
+    let device = burn_core::tensor::Device::default().autodiff();
+    let n = 33;
+    let columns = 3;
+    let a = TestTensor::<2>::from_data(TensorData::new(pivoting_matrix_values(n), [n, n]), &device);
+    let solution: Vec<f32> = (0..n * columns)
+        .map(|i| (i % 11) as f32 / 8.0 - 0.5)
+        .collect();
+    let derivative: Vec<f32> = (0..n * columns)
+        .map(|i| (i % 13) as f32 / 16.0 - 0.25)
+        .collect();
+    let expected_x = TestTensor::<2>::from_data(TensorData::new(solution, [n, columns]), &device);
+    let expected_b_grad =
+        TestTensor::<2>::from_data(TensorData::new(derivative, [n, columns]), &device);
+    // Prescribe dB and construct dX = A^T dB independently of solve's backward.
+    let upstream = a.clone().transpose().matmul(expected_b_grad.clone());
+    let b = a.clone().matmul(expected_x.clone()).require_grad();
+    let a = a.require_grad();
+    let x = solve::<2, 2, 2>(a.clone(), b.clone());
+    let grads = (x * upstream).sum().backward();
+    let expected_a_grad = expected_b_grad.clone().matmul(expected_x.transpose()).neg();
+    a.grad(&grads)
+        .unwrap()
+        .into_data()
+        .assert_approx_eq::<FloatElem>(
+            &expected_a_grad.into_data(),
+            Tolerance::rel_abs(1e-5, 1e-5),
+        );
+    b.grad(&grads)
+        .unwrap()
+        .into_data()
+        .assert_approx_eq::<FloatElem>(
+            &expected_b_grad.into_data(),
+            Tolerance::rel_abs(1e-5, 1e-5),
+        );
+}
+
+#[test]
+#[should_panic(expected = "A is singular")]
+fn solve_rejects_late_singular_pivot_with_zero_rhs_columns() {
+    let device = Default::default();
+    let n = 33;
+    let mut values = vec![0.0f32; n * n];
+    for i in 0..n - 1 {
+        values[i * n + i] = 1.0;
+    }
+    let a = TestTensor::<2>::from_data(TensorData::new(values, [n, n]), &device);
+    let b = TestTensor::<2>::empty([n, 0], &device);
+    let _ = solve::<2, 2, 2>(a, b);
+}
+
+#[cfg(feature = "cubecl-backend")]
+#[test]
+fn solve_nan_pivots_do_not_corrupt_neighboring_batch() {
+    let device = Default::default();
+    let n = 33;
+    let finite_a = pivoting_matrix_values(n);
+    let expected: Vec<f32> = (0..n).map(|i| (i % 7) as f32 / 4.0).collect();
+    let mut values = vec![f32::NAN; n * n];
+    values.extend_from_slice(&finite_a);
+    let mut rhs = vec![1.0; n];
+    for row in 0..n {
+        rhs.push(
+            (0..n)
+                .map(|col| finite_a[row * n + col] as f64 * expected[col] as f64)
+                .sum::<f64>() as f32,
+        );
+    }
+    let a = TestTensor::<3>::from_data(TensorData::new(values, [2, n, n]), &device);
+    let b = TestTensor::<2>::from_data(TensorData::new(rhs, [2, n]), &device);
+    let x = solve::<3, 2, 2>(a, b);
+    let values = x.into_data().try_to_vec::<f32>().unwrap();
+    assert!(values[..n].iter().all(|value| value.is_nan()));
+    TensorData::new(values[n..].to_vec(), [n]).assert_approx_eq::<FloatElem>(
+        &TensorData::new(expected, [n]),
+        Tolerance::rel_abs(1e-5, 1e-5),
+    );
+}
+
+#[test]
+fn solve_f64_pivoted_matrix_with_three_strided_rhs() {
+    let device = burn_core::tensor::Device::default();
+    if !device.supports_dtype(DType::F64) {
+        return;
+    }
+    let n = 129;
+    let columns = 3;
+    let values = pivoting_matrix_values(n);
+    let solution: Vec<f64> = (0..n * columns)
+        .map(|i| (i % 17) as f64 / 8.0 - 0.75 + (i % 7) as f64 * 1e-9)
+        .collect();
+    // Store A and B transposed so both inputs exercise noncontiguous indexing.
+    // Construct B on the host in F64 to retain solution details smaller than F32 epsilon.
+    let mut rhs = vec![0.0f64; columns * n];
+    for col in 0..columns {
+        for row in 0..n {
+            rhs[col * n + row] = (0..n)
+                .map(|k| values[k * n + row] as f64 * solution[k * columns + col])
+                .sum();
+        }
+    }
+    let a = TestTensor::<2>::from_data(TensorData::new(values, [n, n]), &device)
+        .cast(DType::F64)
+        .transpose();
+    let b = TestTensor::<2>::from_data(TensorData::new(rhs, [columns, n]), (&device, DType::F64))
+        .transpose();
+    let x = solve::<2, 2, 2>(a.clone(), b.clone());
+    assert_eq!(x.dtype(), DType::F64);
+    x.clone().into_data().assert_approx_eq::<f64>(
+        &TensorData::new(solution, [n, columns]),
+        Tolerance::rel_abs(1e-10, 1e-10),
+    );
+    a.matmul(x)
+        .into_data()
+        .assert_approx_eq::<f64>(&b.into_data(), Tolerance::rel_abs(1e-10, 1e-10));
+}
+
+#[test]
+fn solve_large_finite_pivots_without_reciprocal_underflow() {
+    let device = Default::default();
+    // The pivots' reciprocals are subnormal, but all matrix entries,
+    // elimination multipliers, right-hand sides, and solutions stay finite.
+    let a = TestTensor::<2>::from_data([[1e38, 0.0], [2.5e37, 1e38]], &device);
+    let b = TestTensor::<1>::from_data([1e38, 1.25e38], &device);
+    solve::<2, 1, 1>(a, b)
+        .into_data()
+        .assert_approx_eq::<FloatElem>(
+            &TensorData::from([1.0, 1.0]),
+            Tolerance::rel_abs(1e-5, 1e-5),
+        );
 }

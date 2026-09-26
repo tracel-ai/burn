@@ -30,9 +30,11 @@ macro_rules! check {
 mod check;
 mod functions;
 mod ops;
+#[cfg(feature = "cubecl-backend")]
+mod solve_cubecl;
 #[cfg(any(feature = "flex", feature = "ndarray"))]
 mod solve_host;
-#[cfg(any(feature = "flex", feature = "ndarray"))]
+#[cfg(any(feature = "flex", feature = "ndarray", feature = "cubecl-backend"))]
 mod solve_ops;
 mod svd_host;
 

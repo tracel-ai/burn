@@ -1,17 +1,30 @@
-//! CPU solve dispatch and its analytic backward pass.
+//! Backend solve dispatch and its analytic backward pass.
 use burn_core as burn;
-use burn_core::backend::{
-    Backend, DispatchDevice, TensorMetadata, backend_extension, tensor::FloatTensor,
-};
+#[cfg(any(feature = "flex", feature = "ndarray", feature = "autodiff"))]
+use burn_core::backend::TensorMetadata;
+#[cfg(any(feature = "flex", feature = "ndarray"))]
+use burn_core::backend::ops::FloatTensorOps;
+use burn_core::backend::{Backend, DispatchDevice, backend_extension, tensor::FloatTensor};
+#[cfg(any(feature = "flex", feature = "ndarray"))]
 use burn_std::reader::try_read_sync;
 
-// Other backends retain the tensor implementation, without host transfers.
+// Other backends retain the tensor implementation.
 pub(crate) fn supports_device(device: &DispatchDevice) -> bool {
     match device {
         #[cfg(feature = "flex")]
         DispatchDevice::Flex(_) => true,
         #[cfg(feature = "ndarray")]
         DispatchDevice::NdArray(_) => true,
+        #[cfg(any(
+            feature = "wgpu",
+            feature = "webgpu",
+            feature = "vulkan",
+            feature = "metal",
+            feature = "cuda",
+            feature = "rocm",
+            feature = "cpu"
+        ))]
+        DispatchDevice::Cube(_) => true,
         #[cfg(feature = "autodiff")]
         DispatchDevice::Autodiff(device) => supports_device(device),
         #[allow(unreachable_patterns)]
@@ -21,28 +34,116 @@ pub(crate) fn supports_device(device: &DispatchDevice) -> bool {
 
 #[backend_extension(
     Flex: cfg(feature = "flex"),
+    Cube: cfg(any(
+        feature = "wgpu",
+        feature = "webgpu",
+        feature = "vulkan",
+        feature = "metal",
+        feature = "cuda",
+        feature = "rocm",
+        feature = "cpu"
+    )),
     NdArray: cfg(feature = "ndarray"),
     Autodiff: cfg(feature = "autodiff"),
 )]
 pub(crate) trait SolveOps: Backend {
     // Inputs have the same rank, with unexpanded broadcast batch dimensions.
-    fn solve(a: FloatTensor<Self>, b: FloatTensor<Self>) -> FloatTensor<Self> {
-        let device = a.device();
-        let msg = "linalg::solve: failed to read CPU tensor data";
-        let a = try_read_sync(Self::float_into_data(a))
-            .expect(msg)
-            .expect(msg);
-        let b = try_read_sync(Self::float_into_data(b))
-            .expect(msg)
-            .expect(msg);
-        Self::float_from_data(crate::solve_host::solve_host_data(a, b), &device)
-    }
+    fn solve(a: FloatTensor<Self>, b: FloatTensor<Self>) -> FloatTensor<Self>;
+}
+
+#[cfg(any(feature = "flex", feature = "ndarray"))]
+macro_rules! impl_solve_host {
+    ($backend:ty) => {
+        impl SolveOps for $backend {
+            fn solve(a: FloatTensor<Self>, b: FloatTensor<Self>) -> FloatTensor<Self> {
+                let device = a.device();
+                let msg = "linalg::solve: failed to read CPU tensor data";
+                let a = try_read_sync(Self::float_into_data(a))
+                    .expect(msg)
+                    .expect(msg);
+                let b = try_read_sync(Self::float_into_data(b))
+                    .expect(msg)
+                    .expect(msg);
+                Self::float_from_data(crate::solve_host::solve_host_data(a, b), &device)
+            }
+        }
+    };
 }
 
 #[cfg(feature = "flex")]
-impl SolveOps for burn_core::backend::Flex {}
+impl_solve_host!(burn_core::backend::Flex);
 #[cfg(feature = "ndarray")]
-impl SolveOps for burn_core::backend::NdArray {}
+impl_solve_host!(burn_core::backend::NdArray);
+
+#[cfg(feature = "cubecl-backend")]
+impl SolveOps for burn_cubecl::CubeBackend {
+    fn solve(a: FloatTensor<Self>, b: FloatTensor<Self>) -> FloatTensor<Self> {
+        crate::solve_cubecl::solve(a, b)
+    }
+}
+
+#[cfg(feature = "fusion")]
+impl<B> SolveOps for burn_fusion::Fusion<B>
+where
+    B: burn_fusion::FusionBackend + SolveOps,
+{
+    fn solve(a: FloatTensor<Self>, b: FloatTensor<Self>) -> FloatTensor<Self> {
+        use burn_fusion::{
+            ExecutionError, FusionBackend, FusionRuntime,
+            custom::{
+                CustomOpIr, HandleContainer, Operation, OperationIr, OperationOutput, StreamId,
+                TensorIr,
+            },
+        };
+
+        #[derive(Debug)]
+        struct Solve<B> {
+            desc: CustomOpIr,
+            _backend: core::marker::PhantomData<B>,
+        }
+
+        impl<B: FusionBackend + SolveOps> Operation<B::FusionRuntime> for Solve<B> {
+            fn execute(
+                &self,
+                handles: &mut HandleContainer<<B::FusionRuntime as FusionRuntime>::FusionHandle>,
+            ) -> Result<(), ExecutionError> {
+                let ([a, b], [output]) = self.desc.as_fixed();
+                let a = handles.get_float_tensor::<B>(a);
+                let b = handles.get_float_tensor::<B>(b);
+                handles.register_float_tensor::<B>(&output.id, B::solve(a, b));
+                Ok(())
+            }
+        }
+
+        let client = a.client.clone();
+        let mut shape = b.shape.clone();
+        for dim in 0..shape.num_dims() - 2 {
+            if shape[dim] == 1 {
+                shape[dim] = a.shape[dim];
+            }
+        }
+        let outputs = [TensorIr::uninit(
+            client.create_empty_handle(),
+            shape,
+            a.dtype,
+        )];
+        let desc = CustomOpIr::new("linalg::solve", &[a.into_ir(), b.into_ir()], &outputs);
+        let [output] = client
+            .register(
+                StreamId::current(),
+                OperationIr::Custom(desc.clone()),
+                Solve::<B> {
+                    desc,
+                    _backend: core::marker::PhantomData,
+                },
+            )
+            .outputs();
+        // Resolve the handle to execute the operation and surface singularity
+        // errors before returning, without reading the solution back to the host.
+        let _ = client.resolve_tensor_float::<B>(output.clone());
+        output
+    }
+}
 
 #[cfg(feature = "autodiff")]
 mod autodiff {
