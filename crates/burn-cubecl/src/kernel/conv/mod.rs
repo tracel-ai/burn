@@ -21,5 +21,6 @@ pub(crate) use im2col::*;
 
 pub use base::*;
 pub use conv_transpose2d::{ConvTranspose2dStrategy, conv_transpose2d};
+pub use conv_transpose3d::{ConvTranspose3dStrategy, conv_transpose3d};
 
 pub(crate) use tune_key::*;

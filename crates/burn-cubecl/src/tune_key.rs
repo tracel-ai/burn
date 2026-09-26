@@ -1,5 +1,5 @@
 use crate::kernel::{
-    conv::{ConvAutotuneKey, ConvTranspose2dAutotuneKey},
+    conv::{ConvAutotuneKey, ConvTranspose2dAutotuneKey, ConvTranspose3dAutotuneKey},
     reduce::SumAutotuneKey,
 };
 use cubecl::tune::AutotuneKey;
@@ -15,6 +15,8 @@ pub enum CubeAutotuneKey {
     Conv(ConvAutotuneKey),
     /// Key for transpose convolution operations
     ConvTranspose(ConvTranspose2dAutotuneKey),
+    /// Key for 3D transpose convolution operations
+    ConvTranspose3d(ConvTranspose3dAutotuneKey),
 }
 
 impl Display for CubeAutotuneKey {
@@ -23,6 +25,7 @@ impl Display for CubeAutotuneKey {
             CubeAutotuneKey::Sum(reduce_key) => std::fmt::Debug::fmt(&reduce_key, f),
             CubeAutotuneKey::Conv(conv_key) => std::fmt::Debug::fmt(&conv_key, f),
             CubeAutotuneKey::ConvTranspose(conv_key) => std::fmt::Debug::fmt(&conv_key, f),
+            CubeAutotuneKey::ConvTranspose3d(conv_key) => std::fmt::Debug::fmt(&conv_key, f),
         }
     }
 }
