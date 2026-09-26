@@ -17,6 +17,7 @@ workspace = true
 [features]
 default = ["burn-core/default", "fusion", "std"]
 std = ["burn-core/std", "burn-std/std", "burn-fusion?/std"]
+autodiff = ["burn-core/autodiff"]
 tracing = ["burn-core/tracing", "burn-fusion?/tracing"]
 autotune = ["burn-core/autotune", "burn-cubecl?/autotune"]
 
