@@ -213,4 +213,4 @@ traits when implementing or extending a backend; see
 
 For the responsibilities of each layer, the reason for the opaque bridge, and an operation
 walkthrough, see the contributor book's
-[Tensor architecture chapter](https://burn.dev/contributor-book/project-architecture/tensor.html).
+[Tensor architecture chapter](https://burn.dev/books/contributor/project-architecture/tensor.html).
