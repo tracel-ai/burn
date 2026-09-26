@@ -22,7 +22,7 @@ pub struct Celu {
 /// Configuration to create a [Celu](Celu) layer using the [init function](CeluConfig::init).
 #[derive(Config, Debug)]
 pub struct CeluConfig {
-    /// The finite, positive alpha value for the CELU formulation. Default is 1.0.
+    /// The finite, non-zero alpha value for the CELU formulation. Default is 1.0.
     #[config(default = "1.0")]
     pub alpha: f64,
 }
@@ -30,9 +30,9 @@ pub struct CeluConfig {
 impl CeluConfig {
     /// Initialize a new [Celu](Celu) Layer
     pub fn init(&self) -> Celu {
-        if !self.alpha.is_finite() || self.alpha <= 0.0 {
+        if !self.alpha.is_finite() || self.alpha == 0.0 {
             panic!(
-                "CELU alpha must be finite and strictly positive, but got {}",
+                "CELU alpha must be finite and non-zero, but got {}",
                 self.alpha
             );
         }
@@ -107,25 +107,32 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "CELU alpha must be finite and strictly positive")]
+    #[should_panic(expected = "CELU alpha must be finite and non-zero")]
     fn zero_alpha_should_panic() {
         CeluConfig::new().with_alpha(0.0).init();
     }
 
     #[test]
-    #[should_panic(expected = "CELU alpha must be finite and strictly positive")]
-    fn negative_alpha_should_panic() {
-        CeluConfig::new().with_alpha(-1.0).init();
+    fn negative_alpha_is_valid() {
+        let device = Default::default();
+        let model = CeluConfig::new().with_alpha(-1.0).init();
+        let input = Tensor::<2>::from_data(TensorData::from([[-1.0, 0.0, 1.0]]), &device);
+        let expected = TensorData::from([[-1.7182819, 0.0, 1.0]]);
+
+        model
+            .forward(input)
+            .to_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::default());
     }
 
     #[test]
-    #[should_panic(expected = "CELU alpha must be finite and strictly positive")]
+    #[should_panic(expected = "CELU alpha must be finite and non-zero")]
     fn nan_alpha_should_panic() {
         CeluConfig::new().with_alpha(f64::NAN).init();
     }
 
     #[test]
-    #[should_panic(expected = "CELU alpha must be finite and strictly positive")]
+    #[should_panic(expected = "CELU alpha must be finite and non-zero")]
     fn infinite_alpha_should_panic() {
         CeluConfig::new().with_alpha(f64::INFINITY).init();
     }
