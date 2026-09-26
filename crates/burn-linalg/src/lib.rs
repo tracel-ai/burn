@@ -30,6 +30,10 @@ macro_rules! check {
 mod check;
 mod functions;
 mod ops;
+#[cfg(any(feature = "flex", feature = "ndarray"))]
+mod solve_host;
+#[cfg(any(feature = "flex", feature = "ndarray"))]
+mod solve_ops;
 mod svd_host;
 
 // Keep the moved implementations focused on their algorithms. These private
