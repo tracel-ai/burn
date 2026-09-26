@@ -1,0 +1,24 @@
+[package]
+edition.workspace = true
+license.workspace = true
+name = "layer-parallelism"
+publish = false
+version.workspace = true
+
+[lints]
+workspace = true
+
+[features]
+default = ["flex", "cpu"]
+flex = ["burn/flex"]
+cpu = ["burn/cpu"]
+cuda = ["burn/cuda"]
+rocm = ["burn/rocm"]
+# As in burn, the portable runtimes imply wgpu, which is what gates device enumeration.
+wgpu = ["burn/wgpu"]
+vulkan = ["wgpu", "burn/vulkan"]
+metal = ["wgpu", "burn/metal"]
+webgpu = ["wgpu", "burn/webgpu"]
+
+[dependencies]
+burn = { workspace = true, features = ["std", "optim", "store"] }

@@ -336,7 +336,7 @@ impl Device {
     /// Default CPU device backed by CubeCL's CPU backend.
     #[cfg(feature = "cpu")]
     pub fn cpu() -> Self {
-        Self::new(burn_dispatch::devices::CpuDevice::default())
+        Self::new(burn_dispatch::devices::CpuDevice)
     }
 
     /// CUDA device at the given hardware index.
