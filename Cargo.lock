@@ -5880,9 +5880,9 @@ dependencies = [
 
 [[package]]
 name = "macerator"
-version = "0.4.0"
+version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9b0120f03387263f785641a666a8fc3eac5942638f0a6b8db53923e4292f6822"
+checksum = "18cb9362e406c26c9cad3eb2620d91f395bcea6a7d103f80d15575ecde41458a"
 dependencies = [
  "bytemuck",
  "cfg_aliases",
@@ -5895,9 +5895,9 @@ dependencies = [
 
 [[package]]
 name = "macerator-macros"
-version = "0.3.0"
+version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4c45e189f6035b14656209d2d66235da3049f2b1706a79798dfee48e6954b350"
+checksum = "afeecb2a4dbafcef6c62069d0bc0f9543b136ea3923b57859522372ea8394fdb"
 dependencies = [
  "darling 0.24.1",
  "proc-macro2",
