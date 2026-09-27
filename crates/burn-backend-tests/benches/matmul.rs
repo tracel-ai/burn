@@ -272,6 +272,16 @@ macro_rules! bench_int_backend {
                     };
                     bencher.bench_synced(|| a.clone().matmul(b.clone()));
                 }
+
+                #[divan::bench]
+                fn matmul_1mx8x1(bencher: Bencher) {
+                    let (Some(a), Some(b)) = (make_int_matrix(1 << 20, 8), make_int_matrix(8, 1))
+                    else {
+                        bencher.bench(|| ());
+                        return;
+                    };
+                    bencher.bench_synced(|| a.clone().matmul(b.clone()));
+                }
             }
 
             #[divan::bench_group(name = "int_batched")]

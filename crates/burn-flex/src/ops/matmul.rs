@@ -560,11 +560,18 @@ fn matmul_2d_i32(lhs: &FlexTensor, rhs: &FlexTensor) -> FlexTensor {
     #[cfg(feature = "rayon")]
     if m * k * n >= PARALLEL_THRESHOLD && m > 1 && n > 0 {
         use rayon::prelude::*;
+        // A few tasks per thread keeps SIMD dispatch per chunk rather than per
+        // row, which matters for tall-skinny shapes with small n * k, while
+        // leaving rayon room to balance load.
+        let rows_per_task = m.div_ceil(4 * rayon::current_num_threads()).max(1);
         output
-            .par_chunks_mut(n)
+            .par_chunks_mut(rows_per_task * n)
             .enumerate()
-            .for_each(|(i, row_out)| {
-                matmul_rows_i32(&lhs_data[i * k..(i + 1) * k], &rhs_t, row_out, 1, n, k);
+            .for_each(|(task, out)| {
+                let row_start = task * rows_per_task;
+                let rows = out.len() / n;
+                let lhs = &lhs_data[row_start * k..(row_start + rows) * k];
+                matmul_rows_i32(lhs, &rhs_t, out, rows, n, k);
             });
     } else {
         matmul_rows_i32(lhs_data, &rhs_t, &mut output, m, n, k);
