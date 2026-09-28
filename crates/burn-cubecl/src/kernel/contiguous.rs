@@ -201,7 +201,7 @@ mod storage_tiled {
         const ROW: Axis = Axis(0);
         const COL: Axis = Axis(1);
         let client = tensor.client.clone();
-        let layout = Layout::storage(&[(COL, cols), (ROW, rows)]).grid(&[COL, ROW]);
+        let layout = Layout::tile(&[(COL, cols), (ROW, rows)]).grid(&[COL, ROW]);
         let out = tile(
             &client,
             tensor.clone().binding(),
