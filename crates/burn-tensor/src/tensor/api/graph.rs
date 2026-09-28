@@ -1,11 +1,6 @@
-use core::sync::atomic::{AtomicUsize, Ordering};
-
 use crate::Device;
 use burn_backend::{Backend, BackendGraph};
 use burn_dispatch::Dispatch;
-
-/// How many [`capture`] calls are running their closure, process-wide.
-static ACTIVE_CAPTURES: AtomicUsize = AtomicUsize::new(0);
 
 /// A captured computation.
 ///
@@ -48,7 +43,6 @@ pub fn capture<T, F>(device: &Device, mut closure: F) -> Graph<T, F>
 where
     F: FnMut() -> T,
 {
-    let _scope = CaptureScope::new();
     let dispatch = device.as_dispatch();
     // Prepare the allocator for capture, then warm up: this triggers all
     // autotuning and allocates every buffer the capture will reuse.
@@ -93,33 +87,6 @@ where
         output,
         closure,
         hardware,
-    }
-}
-
-/// Whether a [`capture`] is running its closure, on any thread.
-///
-/// A replay runs only the recorded kernels, against the buffers the recording used, so code
-/// inside a captured closure sometimes has to control where its results land, for example an
-/// optimizer keeping each state update in the state's own buffer. That control usually costs
-/// performance, which is wasted outside a capture. This is true for the warm-up runs as well as
-/// the recording: both must make the same decisions.
-pub fn is_capturing() -> bool {
-    ACTIVE_CAPTURES.load(Ordering::Relaxed) > 0
-}
-
-/// Counts a running [`capture`] for [`is_capturing`], until dropped.
-struct CaptureScope;
-
-impl CaptureScope {
-    fn new() -> Self {
-        ACTIVE_CAPTURES.fetch_add(1, Ordering::Relaxed);
-        Self
-    }
-}
-
-impl Drop for CaptureScope {
-    fn drop(&mut self) {
-        ACTIVE_CAPTURES.fetch_sub(1, Ordering::Relaxed);
     }
 }
 

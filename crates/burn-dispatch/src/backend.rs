@@ -238,6 +238,10 @@ impl Backend for Dispatch {
         dispatch_device!(device, |device| B::graph_prepare(device))
     }
 
+    fn graph_is_capturing(device: &Self::Device) -> bool {
+        dispatch_device!(device, |device| B::graph_is_capturing(device))
+    }
+
     fn graph_start_capture(device: &Self::Device) -> Result<(), ExecutionError> {
         dispatch_device!(device, |device| B::graph_start_capture(device))
     }

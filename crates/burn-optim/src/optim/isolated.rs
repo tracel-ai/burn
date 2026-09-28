@@ -1,4 +1,4 @@
-use burn_core::tensor::{Device, is_capturing};
+use burn_core::tensor::Device;
 
 /// Run one tensor operation on its own, outside any fused block, while a graph is captured.
 ///
@@ -19,7 +19,7 @@ use burn_core::tensor::{Device, is_capturing};
 /// Outside a capture, `op` runs as is: where an update lands doesn't matter there, and the
 /// flushes would keep fusion from fusing the optimizer step.
 pub(crate) fn isolated<T>(device: &Device, op: impl FnOnce() -> T) -> T {
-    if !is_capturing() {
+    if !device.is_capturing() {
         return op();
     }
 

@@ -291,6 +291,17 @@ pub trait Backend:
         Ok(())
     }
 
+    /// Whether `device` is capturing a graph on the calling stream: from
+    /// [`graph_prepare`](Backend::graph_prepare), through the warmup run and the recorded one,
+    /// until [`graph_stop_capture`](Backend::graph_stop_capture) ends it. Always `false` on
+    /// backends without graph support.
+    ///
+    /// Code whose results have to land in the same buffers during the warmup and the recording
+    /// asks it on every operation, so it must not reach the device thread.
+    fn graph_is_capturing(_device: &Self::Device) -> bool {
+        false
+    }
+
     /// Begin recording launches on `device` into a graph (see
     /// [`graph_stop_capture`](Backend::graph_stop_capture)). Errors on backends
     /// without hardware graph support, so callers fall back to re-running.

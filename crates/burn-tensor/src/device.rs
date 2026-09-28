@@ -724,6 +724,18 @@ impl Device {
         Dispatch::flush(self.as_dispatch())
     }
 
+    /// Whether the device is capturing a graph on the calling stream: during a
+    /// [`capture`](crate::capture), for the warmup runs and the recorded one, or between a manual
+    /// `graph_prepare` and `graph_stop_capture`. Always `false` on backends without graph support.
+    ///
+    /// A replay runs only the recorded kernels, against the buffers the recording used, so code
+    /// inside a captured closure sometimes has to control where its results land, for example an
+    /// optimizer keeping each state update in the state's own buffer. That control usually costs
+    /// performance, wasted outside a capture, so this answers without reaching the device.
+    pub fn is_capturing(&self) -> bool {
+        Dispatch::graph_is_capturing(self.as_dispatch())
+    }
+
     /// Measure how long this device spends on the work `func` puts on it, in
     /// device time.
     ///
