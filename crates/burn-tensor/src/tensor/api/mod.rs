@@ -27,7 +27,7 @@ pub use cartesian_grid::cartesian_grid;
 pub use cast::*;
 pub use einsum::{__einsum, EinsumOperand};
 pub use float::{DEFAULT_ATOL, DEFAULT_RTOL};
-pub use graph::{Graph, capture};
+pub use graph::{Graph, capture, is_capturing};
 pub use options::*;
 pub use transaction::*;
 
