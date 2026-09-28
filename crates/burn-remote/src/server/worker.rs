@@ -37,8 +37,6 @@ use std::sync::{Arc, Mutex};
 
 use burn_ir::{BackendIr, GraphBindings, GraphId};
 use burn_router::{Graph, TensorInterpreter};
-#[cfg(not(target_family = "wasm"))]
-use burn_std::PanicMessage;
 use burn_std::id::StreamId;
 #[cfg(not(target_family = "wasm"))]
 use std::panic::{self, AssertUnwindSafe};
@@ -133,10 +131,12 @@ where
                     handle.block_on(self.process_tasks(receiver))
                 }));
                 if let Err(panic) = processed {
-                    log::error!(
-                        "Session {session_id} stopped because a task panicked: {}",
-                        panic.message()
-                    );
+                    let reason = panic
+                        .downcast_ref::<&str>()
+                        .copied()
+                        .or_else(|| panic.downcast_ref::<String>().map(String::as_str))
+                        .unwrap_or("no message");
+                    log::error!("Session {session_id} stopped because a task panicked: {reason}");
                 }
                 handle.block_on(self.close());
             })
