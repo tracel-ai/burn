@@ -41,7 +41,7 @@ fn should_load_bool_from_data_forcing_native_store() {
     // device's default bool storage. Regression test for tracel-ai/burn#5094.
     let device = Default::default();
     let data = TensorData::new(vec![true, false, true], [3]);
-    assert_eq!(data.dtype, DType::Bool(BoolStore::Native));
+    assert_eq!(data.dtype(), DType::Bool(BoolStore::Native));
 
     let tensor = TestTensorBool::<1>::from_data(data, (&device, DType::Bool(BoolStore::Native)));
 

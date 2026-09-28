@@ -98,7 +98,7 @@ fn complex_module_round_trip() {
         .find(|v| v.name == "encoder.weight")
         .map(|v| crate::bridge::to_data(v).unwrap())
         .unwrap();
-    assert_eq!(encoder_weight.shape, shape![2, 2, 2]);
+    assert_eq!(*encoder_weight.shape(), shape![2, 2, 2]);
 }
 
 /// Safetensors stores no parameter identity, so importing from it must leave the target module's

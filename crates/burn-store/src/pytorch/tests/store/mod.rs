@@ -762,7 +762,7 @@ mod direct_access_tests {
 
         // Verify we can load data
         let data = crate::bridge::to_data(snapshot).unwrap();
-        assert!(!data.bytes.is_empty(), "Data should not be empty");
+        assert!(!data.bytes().is_empty(), "Data should not be empty");
     }
 
     #[test]

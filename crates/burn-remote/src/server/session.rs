@@ -9,7 +9,7 @@ use tokio::sync::{Mutex, mpsc};
 
 use crate::metrics::{MetricSide, logger_task};
 use crate::server::local_comm::LocalCommService;
-use crate::server::service::SessionService;
+use crate::server::service::{SessionChannels, SessionService};
 use crate::server::spawn::spawn_detached;
 use crate::server::transfer::TensorTransfer;
 use crate::server::worker::SessionHandler;
@@ -165,31 +165,20 @@ where
     B: BackendIr,
     T: TensorTransfer<B>,
 {
-    /// Resolve the channel used to forward [`Task`]s to `session_id`'s dispatcher thread,
-    /// creating the session (and spawning its handler) on demand. The pump resolves this once and
-    /// reuses it for every task, instead of re-locking the sessions map per task.
-    async fn session_task_sender(
+    /// One lock for both halves, so a `close` from another stream cannot land between them.
+    async fn bind(
         &self,
         session_id: SessionId,
         device_index: u32,
-    ) -> mpsc::Sender<Task> {
-        self.with_session(session_id, device_index, |s| s.task_sender.clone())
-            .await
-    }
-
-    /// Take the response receiver for `session_id`.
-    ///
-    /// Returns `Err` if a responder has already been registered for this session — the protocol
-    /// allows only one session stream per session.
-    async fn take_response_receiver(
-        &self,
-        session_id: SessionId,
-        device_index: u32,
-    ) -> Result<mpsc::Receiver<TaskResponse>, String> {
+    ) -> Result<SessionChannels, String> {
         self.with_session(session_id, device_index, |s| {
-            s.receiver
-                .take()
-                .ok_or_else(|| format!("Response receiver already taken for session {session_id}"))
+            let responses = s.receiver.take().ok_or_else(|| {
+                format!("Session {session_id} is already bound to another stream")
+            })?;
+            Ok(SessionChannels {
+                tasks: s.task_sender.clone(),
+                responses,
+            })
         })
         .await
     }

@@ -24,9 +24,9 @@ use super::{NdArrayMathOps, NdArrayOps};
 
 impl QTensorOps<Self> for NdArray {
     fn q_from_data(data: TensorData, _device: &NdArrayDevice) -> QuantizedTensor<Self> {
-        match data.dtype {
+        match data.dtype() {
             DType::QFloat(scheme) => {
-                let shape = data.shape.clone();
+                let shape = data.shape().clone();
                 let q_bytes = QuantizedBytes {
                     shape: shape.clone(),
                     bytes: data.into_bytes(),
@@ -74,7 +74,7 @@ impl QTensorOps<Self> for NdArray {
             }
             _ => panic!(
                 "Invalid dtype (expected DType::QFloat, got {:?})",
-                data.dtype
+                data.dtype()
             ),
         }
     }
@@ -170,7 +170,7 @@ impl QTensorOps<Self> for NdArray {
         };
 
         let q_bytes = QuantizedBytes {
-            shape: data.shape.clone(),
+            shape: data.shape().clone(),
             bytes: data.into_bytes(),
             scheme: *scheme,
         };

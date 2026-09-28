@@ -110,7 +110,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
     #[cfg_attr(feature = "tracing", tracing::instrument(
         level="trace",
         skip(data),
-        fields(?data.shape, ?data.dtype)
+        fields(shape = ?data.shape(), dtype = ?data.dtype())
     ))]
     fn float_from_data(data: TensorData, device: &Device<Self>) -> FloatTensor<Self> {
         AutodiffTensor::new(B::float_from_data(data, device))

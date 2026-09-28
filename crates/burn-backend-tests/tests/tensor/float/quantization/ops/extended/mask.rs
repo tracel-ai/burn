@@ -52,7 +52,7 @@ fn should_support_mask_select_ops() {
 
     // `mask_select` only moves existing elements around, so it stays quantized instead of
     // dequantizing like `mask_where` and `mask_fill` do.
-    assert!(matches!(output.to_data().dtype, DType::QFloat(_)));
+    assert!(matches!(output.to_data().dtype(), DType::QFloat(_)));
 
     output
         .dequantize()
@@ -72,5 +72,5 @@ fn should_support_mask_select_ops_empty_mask() {
 
     // Selecting nothing still has to keep the quantized kind, not fall back to a float tensor.
     assert_eq!(output.dims(), [0]);
-    assert!(matches!(output.to_data().dtype, DType::QFloat(_)));
+    assert!(matches!(output.to_data().dtype(), DType::QFloat(_)));
 }
