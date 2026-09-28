@@ -1,6 +1,7 @@
 use burn_core as burn;
 
 use crate::RecordState;
+use crate::optim::isolated::isolated;
 
 use super::{
     Optimizer,
@@ -128,7 +129,9 @@ impl Optimizer for RmsProp {
 
         // tensor param transform
         let delta = lr.apply(grad);
-        (tensor - delta, Some(state))
+        let device = tensor.device();
+        let tensor = isolated(&device, || tensor - delta);
+        (tensor, Some(state))
     }
 
     fn to_device<const D: usize>(mut state: Self::State<D>, device: &Device) -> Self::State<D> {
@@ -162,10 +165,10 @@ impl<const D: usize> SquareAvgState<D> {
     fn transform(alpha: f32, grad: Tensor<D>, state: Option<Self>) -> (Tensor<D>, Self) {
         match state {
             Some(state) => {
-                let square_avg = state
-                    .square_avg
-                    .mul_scalar(alpha)
-                    .add(grad.clone().square().mul_scalar(1. - alpha));
+                let grad_term = grad.clone().square().mul_scalar(1. - alpha);
+                let device = grad.device();
+                let square_avg = isolated(&device, || state.square_avg.mul_scalar(alpha));
+                let square_avg = isolated(&device, || square_avg.add(grad_term));
                 (grad, Self { square_avg })
             }
             _ => {
@@ -211,11 +214,14 @@ impl<const D: usize> CenteredState<D> {
         if centered {
             let grad_avg_constant = grad.clone().mul_scalar(1. - alpha);
             let grad_avg = match centered_state {
-                Some(state) => state
-                    .grad_avg
-                    .map_or(grad_avg_constant.clone(), move |grad_avg| {
-                        grad_avg.mul_scalar(alpha).add(grad_avg_constant)
-                    }),
+                Some(state) => match state.grad_avg {
+                    Some(grad_avg) => {
+                        let device = grad.device();
+                        let grad_avg = isolated(&device, || grad_avg.mul_scalar(alpha));
+                        isolated(&device, || grad_avg.add(grad_avg_constant))
+                    }
+                    None => grad_avg_constant,
+                },
                 _ => grad_avg_constant,
             };
             let avg = square_avg_state
@@ -279,7 +285,11 @@ impl RmsPropMomentum {
 
         if self.momentum > 0. {
             let buf = match momentum_state {
-                Some(state) => state.buf.mul_scalar(self.momentum).add(grad),
+                Some(state) => {
+                    let device = grad.device();
+                    let buf = isolated(&device, || state.buf.mul_scalar(self.momentum));
+                    isolated(&device, || buf.add(grad))
+                }
                 _ => grad,
             };
             (

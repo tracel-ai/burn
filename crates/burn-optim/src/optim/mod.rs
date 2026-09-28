@@ -12,6 +12,7 @@ mod adan;
 mod base;
 mod grad_accum;
 mod grads;
+mod isolated;
 mod lamb;
 mod lbfgs;
 mod learning_rate;

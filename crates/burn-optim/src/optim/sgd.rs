@@ -7,6 +7,7 @@ use super::momentum::{Momentum, MomentumConfig, MomentumState};
 use crate::LearningRate;
 use crate::RecordState;
 use crate::grad_clipping::GradientClippingConfig;
+use crate::optim::isolated::isolated;
 use burn::config::Config;
 use burn::tensor::Device;
 use burn::tensor::Tensor;
@@ -90,8 +91,10 @@ impl Optimizer for Sgd {
 
         let state = SgdState::new(state_momentum);
         let delta = lr.apply(grad);
+        let device = tensor.device();
+        let tensor = isolated(&device, || tensor - delta);
 
-        (tensor - delta, Some(state))
+        (tensor, Some(state))
     }
 
     fn to_device<const D: usize>(mut state: Self::State<D>, device: &Device) -> Self::State<D> {

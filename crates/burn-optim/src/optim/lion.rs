@@ -1,5 +1,6 @@
 use burn_core as burn;
 
+use crate::optim::isolated::isolated;
 use crate::{LearningRate, RecordState, grad_clipping::GradientClippingConfig};
 use burn::config::Config;
 use burn::tensor::{Device, Tensor};
@@ -89,10 +90,10 @@ impl Optimizer for Lion {
                     .mul_scalar(self.beta_1)
                     .add(grad.clone().mul_scalar(1.0 - self.beta_1))
                     .sign();
-                let momentum = state
-                    .momentum
-                    .mul_scalar(self.beta_2)
-                    .add(grad.mul_scalar(1.0 - self.beta_2));
+                let grad_term = grad.mul_scalar(1.0 - self.beta_2);
+                let device = grad_term.device();
+                let momentum = isolated(&device, || state.momentum.mul_scalar(self.beta_2));
+                let momentum = isolated(&device, || momentum.add(grad_term));
 
                 (update, momentum)
             }
@@ -105,12 +106,15 @@ impl Optimizer for Lion {
         };
 
         let decay = lr.mul_scalar(self.weight_decay as f64).rsub_scalar(1.0);
+        let delta = lr.apply(update);
         let tensor = if decay.host() == Some(1.0) || self.weight_decay == 0.0 {
-            tensor
+            let device = tensor.device();
+            isolated(&device, || tensor - delta)
         } else {
-            decay.apply(tensor)
+            let device = tensor.device();
+            let tensor = decay.apply_isolated(tensor);
+            isolated(&device, || tensor - delta)
         };
-        let tensor = tensor - lr.apply(update);
 
         (tensor, Some(LionState::new(momentum)))
     }

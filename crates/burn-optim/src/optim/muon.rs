@@ -1,6 +1,7 @@
 use burn_core as burn;
 
 use crate::RecordState;
+use crate::optim::isolated::isolated;
 
 use burn::config::Config;
 use burn::tensor::Device;
@@ -404,20 +405,24 @@ impl Optimizer for Muon {
         // Step 3: Adjust learning rate based on parameter shape
         let adjusted_lr = self.adjust_lr(&lr, &tensor.shape());
 
+        let device = tensor.device();
+
         // Step 4: Apply weight decay (using ORIGINAL lr, not adjusted)
         // Muon applies weight decay AFTER orthogonalization
-        let tensor = if let Some(penalty) = self.weight_decay_penalty {
-            let decay_factor = lr.mul_scalar(penalty as f64).rsub_scalar(1.0);
-            decay_factor.apply(tensor)
-        } else {
-            tensor
+        let tensor = match self.weight_decay_penalty {
+            Some(penalty) => lr
+                .mul_scalar(penalty as f64)
+                .rsub_scalar(1.0)
+                .apply_isolated(tensor),
+            None => tensor,
         };
 
         // Step 5: Update parameter (using ADJUSTED lr)
         let delta = adjusted_lr.apply(update);
+        let tensor = isolated(&device, || tensor - delta);
         let new_state = MuonState::new(new_momentum_state);
 
-        (tensor - delta, Some(new_state))
+        (tensor, Some(new_state))
     }
 
     fn to_device<const D: usize>(mut state: Self::State<D>, device: &Device) -> Self::State<D> {

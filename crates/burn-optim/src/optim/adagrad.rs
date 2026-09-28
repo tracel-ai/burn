@@ -1,6 +1,7 @@
 use burn_core as burn;
 
 use crate::RecordState;
+use crate::optim::isolated::isolated;
 
 use burn::config::Config;
 use burn::tensor::Device;
@@ -63,7 +64,10 @@ impl Optimizer for AdaGrad {
 
         let state = AdaGradState::new(state_lr_decay);
 
-        (tensor - grad, Some(state))
+        let device = tensor.device();
+        let tensor = isolated(&device, || tensor - grad);
+
+        (tensor, Some(state))
     }
 
     fn to_device<const D: usize>(mut state: Self::State<D>, device: &Device) -> Self::State<D> {
@@ -124,7 +128,9 @@ impl LrDecay {
         lr_decay_state: Option<LrDecayState<D>>,
     ) -> (Tensor<D>, LrDecayState<D>) {
         let state = if let Some(mut state) = lr_decay_state {
-            state.sum = state.sum.add(grad.clone().square());
+            let grad_squared = grad.clone().square();
+            let device = grad.device();
+            state.sum = isolated(&device, || state.sum.add(grad_squared));
             state.time += 1;
             state
         } else {

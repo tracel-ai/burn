@@ -5,6 +5,7 @@ use burn::{
     tensor::{DType, Device, FloatDType, Tensor},
 };
 
+use crate::optim::isolated::isolated;
 use crate::{LearningRate, RecordState, grad_clipping::GradientClippingConfig};
 
 use super::{ModuleOptimizer, Optimizer};
@@ -167,17 +168,18 @@ impl Optimizer for Adafactor {
                 state.time += 1;
                 let new_weight = (state.time as f64).powf(self.decay_rate);
                 let old_weight = 1.0 - new_weight;
-                state.second_moment = state
-                    .second_moment
-                    .mul_scalar(old_weight)
-                    .add(second_moment.mul_scalar(new_weight));
+                let second_moment = second_moment.mul_scalar(new_weight);
+                let device = second_moment.device();
+                let moment = isolated(&device, || state.second_moment.mul_scalar(old_weight));
+                state.second_moment = isolated(&device, || moment.add(second_moment));
                 state.column_second_moment = column_second_moment.map(|column| {
-                    state
+                    let column = column.mul_scalar(new_weight);
+                    let moment = state
                         .column_second_moment
                         .take()
-                        .expect("Factored Adafactor state must contain a column second moment")
-                        .mul_scalar(old_weight)
-                        .add(column.mul_scalar(new_weight))
+                        .expect("Factored Adafactor state must contain a column second moment");
+                    let moment = isolated(&device, || moment.mul_scalar(old_weight));
+                    isolated(&device, || moment.add(column))
                 });
                 state
             }
@@ -215,14 +217,16 @@ impl Optimizer for Adafactor {
         }
         update = step_size.apply(update);
 
+        // A half-precision parameter was cast above, so it can't be updated in its own buffer.
         let tensor = if self.weight_decay == 0.0 {
-            tensor
+            let device = tensor.device();
+            isolated(&device, || tensor - update)
         } else {
-            lr.mul_scalar(self.weight_decay as f64)
-                .rsub_scalar(1.0)
-                .apply(tensor)
+            let device = tensor.device();
+            let factor = lr.mul_scalar(self.weight_decay as f64).rsub_scalar(1.0);
+            let tensor = factor.apply_isolated(tensor);
+            isolated(&device, || tensor - update)
         };
-        let tensor = tensor - update;
         let tensor = match dtype {
             DType::F16 | DType::BF16 => tensor.cast(FloatDType::from(dtype)),
             _ => tensor,

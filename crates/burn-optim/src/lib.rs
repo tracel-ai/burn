@@ -26,10 +26,6 @@ pub mod lr_scheduler;
 /// is plain arithmetic on the step count, with no reason to touch the device. It also implements
 /// [`LrScheduler`](crate::lr_scheduler::LrScheduler) itself, for a constant learning rate.
 ///
-/// An optimizer step takes a [`LearningRate`], which a host value converts into: the fastest
-/// option for eager training. A captured optimizer step (see `burn::tensor::capture`) keeps the
-/// host value it was recorded with on every replay, though, so the learning rate would stay
-/// constant. To follow a schedule there, keep stepping the scheduler on the host and pass the
-/// learning rate as a [device](LearningRate::Device) tensor refreshed before each replay (see
-/// [`LearningRate`]).
+/// An optimizer step takes a [`LearningRate`], which a host value converts into; see its graph
+/// capture section for a schedule in a captured step.
 pub type HostLr = f64;

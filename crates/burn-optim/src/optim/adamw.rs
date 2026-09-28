@@ -1,6 +1,7 @@
 use burn_core as burn;
 
 use crate::RecordState;
+use crate::optim::isolated::isolated;
 use burn::config::Config;
 use burn::tensor::Device;
 use burn::tensor::Tensor;
@@ -82,8 +83,11 @@ impl Optimizer for AdamW {
 
         let decay_rate = lr.mul_scalar(self.weight_decay as f64);
 
-        let decayed_tensor = if decay_rate.host() == Some(0.0) || self.weight_decay == 0.0 {
-            tensor.clone()
+        let delta = lr.apply(raw_delta);
+        let device = tensor.device();
+
+        let tensor_updated = if decay_rate.host() == Some(0.0) || self.weight_decay == 0.0 {
+            isolated(&device, || tensor - delta)
         } else if self.cautious_weight_decay {
             // Cautious weight decay.
             // See: https://arxiv.org/abs/2510.12402
@@ -92,12 +96,13 @@ impl Optimizer for AdamW {
             let differ = tensor_pos.not_equal(grad_pos);
 
             // Zero out the decay where the decay is counter to the update direction.
-            tensor.clone() - decay_rate.apply(tensor).mask_fill(differ, 0.0)
+            let decay = decay_rate.apply(tensor.clone()).mask_fill(differ, 0.0);
+            let tensor = isolated(&device, || tensor - decay);
+            isolated(&device, || tensor - delta)
         } else {
-            decay_rate.rsub_scalar(1.0).apply(tensor.clone())
+            let tensor = decay_rate.rsub_scalar(1.0).apply_isolated(tensor);
+            isolated(&device, || tensor - delta)
         };
-
-        let tensor_updated = decayed_tensor - lr.apply(raw_delta);
 
         let state = AdamWState {
             momentum: momentum_state,
@@ -164,24 +169,24 @@ impl AdaptiveMomentumW {
         let factor_2 = 1.0 - self.beta_2;
 
         let state = if let Some(mut state) = state {
+            let device = grad.device();
             // Update first moment estimate.
-            state.moment_1 = state
-                .moment_1
-                .mul_scalar(self.beta_1)
-                .add(grad.clone().mul_scalar(factor_1));
+            let grad_term = grad.clone().mul_scalar(factor_1);
+            let moment = isolated(&device, || state.moment_1.mul_scalar(self.beta_1));
+            state.moment_1 = isolated(&device, || moment.add(grad_term));
 
             // Update second moment estimate.
-            state.moment_2 = state
-                .moment_2
-                .mul_scalar(self.beta_2)
-                .add(grad.square().mul_scalar(factor_2));
+            let grad_term = grad.square().mul_scalar(factor_2);
+            let moment = isolated(&device, || state.moment_2.mul_scalar(self.beta_2));
+            state.moment_2 = isolated(&device, || moment.add(grad_term));
 
             if self.amsgrad {
                 let max_v = state
                     .max_moment_2
                     .take()
                     .unwrap_or_else(|| state.moment_2.clone());
-                state.max_moment_2 = Some(max_v.max_pair(state.moment_2.clone()));
+                let moment_2 = state.moment_2.clone();
+                state.max_moment_2 = Some(isolated(&device, || max_v.max_pair(moment_2)));
             }
 
             // Update time.

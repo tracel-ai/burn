@@ -1,6 +1,7 @@
 use burn_core::tensor::{Device, FloatDType, Tensor};
 
 use crate::HostLr;
+use crate::optim::isolated::isolated;
 
 /// The learning rate of an [optimizer step](crate::Optimizer::step).
 ///
@@ -26,7 +27,7 @@ use crate::HostLr;
 /// ```rust,ignore
 /// let lr = Tensor::<1>::from_floats([scheduler.step()], &device);
 /// let mut graph = capture(&device, || {
-///     // Runs while recording only.
+///     // Runs while capturing only: a replay doesn't run the closure.
 ///     model = optim.step(lr.clone(), model, grads);
 /// });
 /// for _ in 0..steps {
@@ -36,8 +37,8 @@ use crate::HostLr;
 /// }
 /// ```
 ///
-/// On a host value, the arithmetic below is plain `f64` arithmetic, so eager training with a host
-/// learning rate is unaffected.
+/// Its arithmetic mirrors what optimizers derive from a learning rate: plain `f64` arithmetic on a
+/// host value, tensor ops on a device one.
 #[derive(Clone, Debug)]
 #[allow(clippy::large_enum_variant)] // Built once per step, the tensor is only a handle.
 pub enum LearningRate {
@@ -84,6 +85,32 @@ impl LearningRate {
             Self::Device(lr) => {
                 let lr = Self::broadcast(lr, &tensor);
                 tensor.div(lr)
+            }
+        }
+    }
+
+    /// [`apply`](Self::apply) as an [isolated](super::isolated::isolated) op: the product lands
+    /// in `tensor`'s buffer.
+    pub(crate) fn apply_isolated<const D: usize>(&self, tensor: Tensor<D>) -> Tensor<D> {
+        let device = tensor.device();
+        match self {
+            Self::Host(lr) => isolated(&device, || tensor.mul_scalar(*lr)),
+            Self::Device(lr) => {
+                let lr = Self::broadcast(lr, &tensor);
+                isolated(&device, || tensor.mul(lr))
+            }
+        }
+    }
+
+    /// [`divide`](Self::divide) as an [isolated](super::isolated::isolated) op: the quotient
+    /// lands in `tensor`'s buffer.
+    pub(crate) fn divide_isolated<const D: usize>(&self, tensor: Tensor<D>) -> Tensor<D> {
+        let device = tensor.device();
+        match self {
+            Self::Host(lr) => isolated(&device, || tensor.div_scalar(*lr)),
+            Self::Device(lr) => {
+                let lr = Self::broadcast(lr, &tensor);
+                isolated(&device, || tensor.div(lr))
             }
         }
     }

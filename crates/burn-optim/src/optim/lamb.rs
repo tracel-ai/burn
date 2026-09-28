@@ -1,5 +1,6 @@
 use burn_core as burn;
 
+use crate::optim::isolated::isolated;
 use crate::{LearningRate, RecordState, grad_clipping::GradientClippingConfig};
 use burn::{
     config::Config,
@@ -76,14 +77,13 @@ impl Optimizer for Lamb {
         let factor_2 = 1.0 - self.beta_2;
 
         let state = if let Some(mut state) = state {
-            state.moment_1 = state
-                .moment_1
-                .mul_scalar(self.beta_1)
-                .add(grad.clone().mul_scalar(factor_1));
-            state.moment_2 = state
-                .moment_2
-                .mul_scalar(self.beta_2)
-                .add(grad.square().mul_scalar(factor_2));
+            let device = grad.device();
+            let grad_term = grad.clone().mul_scalar(factor_1);
+            let moment = isolated(&device, || state.moment_1.mul_scalar(self.beta_1));
+            state.moment_1 = isolated(&device, || moment.add(grad_term));
+            let grad_term = grad.square().mul_scalar(factor_2);
+            let moment = isolated(&device, || state.moment_2.mul_scalar(self.beta_2));
+            state.moment_2 = isolated(&device, || moment.add(grad_term));
             state.time += 1;
             state
         } else {
@@ -131,7 +131,9 @@ impl Optimizer for Lamb {
             update
         };
 
-        let tensor = tensor - lr.apply(update);
+        let delta = lr.apply(update);
+        let device = tensor.device();
+        let tensor = isolated(&device, || tensor - delta);
         (tensor, Some(state))
     }
 
