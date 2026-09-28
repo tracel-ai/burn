@@ -103,6 +103,10 @@ syn = { workspace = true }
 # Used to initialize device settings (test dtypes)
 ctor = "0.10.1"
 divan = "0.1"
+# Optimizer graph-capture tests. No default features: they would enable the `flex` backend.
+burn-core = { workspace = true, features = ["std"] }
+burn-nn = { workspace = true, features = ["std"] }
+burn-optim = { workspace = true, features = ["std"] }
 
 [[test]]
 name = "autodiff_transfer"
