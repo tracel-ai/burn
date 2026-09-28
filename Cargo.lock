@@ -1304,6 +1304,7 @@ version = "0.22.0-pre.4"
 dependencies = [
  "burn-backend",
  "burn-communication",
+ "burn-cubecl",
  "burn-flex",
  "burn-fusion",
  "burn-ir",
