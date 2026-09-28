@@ -429,9 +429,10 @@ impl Optimizer for Muon {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::optim::test_utils::assert_optimizer_resume;
     use crate::{GradientsParams, Optimizer};
     use burn::module::Param;
-    use burn::tensor::{Distribution, Tensor, TensorData};
+    use burn::tensor::{Tensor, TensorData};
     use burn_nn::{Linear, LinearConfig};
 
     const TOLERANCE: f64 = 1e-8;
@@ -499,25 +500,9 @@ mod tests {
     #[test]
     fn test_muon_optimizer_save_load_state() {
         let device = Device::default().autodiff();
-        // Use Linear layer WITHOUT bias for Muon optimizer
-        let linear = LinearConfig::new(6, 6)
-            .with_bias(false) // No bias - only 2D weight matrix
-            .init(&device);
-
-        let x = Tensor::<2>::random([2, 6], Distribution::Default, &device);
-
-        let mut optimizer = MuonConfig::new().init();
-        let grads = linear.forward(x).backward();
-        let grads = GradientsParams::from_grads(grads, &linear);
-        let _linear = optimizer.step(0.01, linear, grads);
-
-        let state_before = optimizer.to_record();
-        let bytes = optimizer.into_bytes().unwrap();
-
-        let optimizer_loaded = MuonConfig::new().init().from_bytes(bytes).unwrap();
-        let state_after = optimizer_loaded.to_record();
-
-        assert_eq!(state_before.len(), state_after.len());
+        // Muon only supports matrix parameters.
+        let linear = LinearConfig::new(6, 6).with_bias(false).init(&device);
+        assert_optimizer_resume(|| MuonConfig::new().init(), linear, 0.01);
     }
 
     #[test]

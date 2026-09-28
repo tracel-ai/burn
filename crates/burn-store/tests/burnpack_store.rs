@@ -11,9 +11,12 @@
 use burn_core as burn;
 
 use burn_core::module::Module;
-use burn_core::tensor::{DType, Device};
+use burn_core::tensor::{DType, Device, TensorData};
 use burn_nn::{Linear, LinearConfig};
-use burn_store::{BurnpackStore, HalfPrecisionAdapter, ModuleSnapshot};
+use burn_pack::Tensor as PackTensor;
+use burn_store::{
+    BurnpackStore, HalfPrecisionAdapter, ModuleAdapter, ModuleContext, ModuleSnapshot,
+};
 
 #[derive(Module, Debug)]
 struct TestModel {
@@ -43,6 +46,34 @@ fn first_weight(model: &TestModel) -> Vec<f32> {
         .convert_dtype(DType::F32)
         .try_to_vec()
         .unwrap()
+}
+
+/// Plants a file at `dest` from inside each tensor's provider, i.e. partway through the save
+/// and after the store's own existence check has passed.
+#[derive(Debug, Clone)]
+struct PlantingAdapter {
+    dest: std::path::PathBuf,
+}
+
+impl ModuleAdapter for PlantingAdapter {
+    fn adapt(&self, tensor: PackTensor, _ctx: ModuleContext<'_>) -> PackTensor {
+        let dest = self.dest.clone();
+        let shape = tensor.shape.clone();
+        burn_store::bridge::deferred(
+            tensor.name.clone(),
+            DType::F32,
+            tensor.shape.clone(),
+            None,
+            move || {
+                std::fs::write(&dest, b"theirs").unwrap();
+                Ok(TensorData::zeros::<f32, _>(shape.clone()))
+            },
+        )
+    }
+
+    fn clone_box(&self) -> Box<dyn ModuleAdapter> {
+        Box::new(self.clone())
+    }
 }
 
 #[test]
@@ -157,6 +188,55 @@ fn overwrite_guards_an_existing_file() {
         .unwrap();
     assert_eq!(first_weight(&loaded), first_weight(&second));
     assert_ne!(first_weight(&loaded), first_weight(&first));
+}
+
+/// A dangling symlink is still something at the destination: `Path::exists` follows it and
+/// says no, but the save must neither replace the link nor write through it.
+#[cfg(unix)]
+#[test]
+fn overwrite_guards_a_dangling_symlink() {
+    let device = Device::default();
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("model.bpk");
+    std::os::unix::fs::symlink("nowhere", &path).unwrap();
+
+    let err = TestModel::new(&device)
+        .save_into(&mut BurnpackStore::from_file(&path))
+        .unwrap_err();
+
+    assert!(
+        matches!(err, burn_pack::Error::AlreadyExists(_)),
+        "got {err:?}"
+    );
+    assert_eq!(
+        std::fs::read_link(&path).unwrap(),
+        std::path::Path::new("nowhere")
+    );
+    assert_eq!(std::fs::read_dir(dir.path()).unwrap().count(), 1);
+}
+
+/// The up-front check above is only a fast path. A file that appears while the save is
+/// running has already slipped past it, so the writer's publish is what must refuse.
+#[test]
+fn overwrite_guards_a_file_that_appears_mid_write() {
+    let device = Device::default();
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("model.bpk");
+
+    let mut store =
+        BurnpackStore::from_file(&path).with_to_adapter(PlantingAdapter { dest: path.clone() });
+    let err = TestModel::new(&device).save_into(&mut store).unwrap_err();
+
+    assert!(
+        matches!(err, burn_pack::Error::AlreadyExists(_)),
+        "got {err:?}"
+    );
+    assert_eq!(std::fs::read(&path).unwrap(), b"theirs");
+    assert_eq!(
+        std::fs::read_dir(dir.path()).unwrap().count(),
+        1,
+        "the scratch file should have been cleaned up"
+    );
 }
 
 /// Adapters rebuild a tensor with a declared dtype while the bytes are produced later,

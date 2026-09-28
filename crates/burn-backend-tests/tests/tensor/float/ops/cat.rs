@@ -146,3 +146,34 @@ fn should_support_cat_all_empty_tensors() {
 
     assert_eq!(output.shape().as_slice(), [2, 0]);
 }
+
+// Skip on metal - F64 not supported
+#[cfg(not(feature = "metal"))]
+#[test]
+fn should_keep_dtype_on_cat_all_empty_tensors() {
+    let device = Default::default();
+    let tensor_1: TestTensor<2> = TestTensor::empty([2, 0], (&device, DType::F64));
+    let tensor_2: TestTensor<2> = TestTensor::empty([2, 0], (&device, DType::F64));
+
+    let output = TestTensor::cat(vec![tensor_1, tensor_2], 1);
+
+    assert_eq!(output.shape().as_slice(), [2, 0]);
+    assert_eq!(output.dtype(), DType::F64);
+}
+
+// Skip on metal - F64 not supported
+#[cfg(not(feature = "metal"))]
+#[test]
+fn should_keep_dtype_on_cat_with_empty_tensors() {
+    let device = Default::default();
+    let tensor_1: TestTensor<2> = TestTensor::empty([2, 0], (&device, DType::F64));
+    let tensor_2 = TestTensor::from_data([[1.0, 2.0], [3.0, 4.0]], (&device, DType::F64));
+    let tensor_3: TestTensor<2> = TestTensor::empty([2, 0], (&device, DType::F64));
+
+    let output = TestTensor::cat(vec![tensor_1, tensor_2, tensor_3], 1);
+
+    assert_eq!(output.dtype(), DType::F64);
+    output
+        .into_data()
+        .assert_eq(&TensorData::from([[1.0, 2.0], [3.0, 4.0]]), false);
+}

@@ -77,7 +77,7 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     /// let tensor_in_radians = tensor.deg2rad();
     /// ```
     pub fn deg2rad(self) -> Self {
-        self.mul_scalar(f32::consts::PI / 180.0)
+        self.mul_scalar(core::f64::consts::PI / 180.0)
     }
 
     /// Converts each of the elements of the input tensor from angles in radians to degrees.
@@ -87,7 +87,7 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     /// let tensor_in_degrees = tensor.rad2deg();
     /// ```
     pub fn rad2deg(self) -> Self {
-        self.mul_scalar(180.0 / f32::consts::PI)
+        self.mul_scalar(180.0 / core::f64::consts::PI)
     }
 
     /// Applies element wise round operation.
@@ -142,7 +142,16 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
 
     /// Returns a new tensor with the same shape, dtype, and device as the current tensor filled random
     /// values sampled from the given distribution.
+    ///
+    /// # Panics
+    ///
+    /// If the tensor is quantized. This method preserves the input dtype,
+    /// but quantized tensor creation is not supported.
     pub fn random_like(&self, distribution: Distribution) -> Self {
+        check!(TensorCheck::quantized_unsupported(
+            "Random Like",
+            self.dtype()
+        ));
         Self::new(random_like_impl(&self.primitive, distribution))
     }
 

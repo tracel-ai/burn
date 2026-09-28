@@ -8,11 +8,10 @@ Burn's default Cargo features do not include an execution backend. Applications 
 one explicitly, for example WGPU:
 
 ```toml
-burn = { version = "0.22.0-pre.3", features = ["wgpu"] }
+burn = { version = "0.22", features = ["wgpu"] }
 ```
 
 ```rust , ignore
-# #![recursion_limit = "256"]
 # mod data;
 # mod model;
 # mod training;

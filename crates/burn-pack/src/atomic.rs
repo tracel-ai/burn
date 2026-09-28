@@ -7,6 +7,7 @@
 //! checkpoint that was already there.
 
 use alloc::format;
+use alloc::string::ToString;
 use std::fs::File;
 use std::path::{Path, PathBuf};
 
@@ -19,13 +20,13 @@ use crate::base::Error;
 /// the partial file.
 ///
 /// The destination is fixed at [`create`](Self::create) and the scratch path is a sibling of
-/// it, so [`commit`](Self::commit) stays on one filesystem: never `EXDEV`, and atomic on
-/// POSIX. (Windows documents no atomicity guarantee when the rename replaces an existing
-/// file.)
+/// it, so publishing stays on one filesystem: never `EXDEV`, and atomic on POSIX. (Windows
+/// documents no atomicity guarantee when the rename replaces an existing file.)
 ///
-/// Publishing replaces the destination rather than truncating it. Its permission bits are
-/// carried over on Unix, but its ownership and hard links cannot be: the published file is a
-/// new inode.
+/// [`commit`](Self::commit) replaces the destination rather than truncating it. Its
+/// permission bits are carried over on Unix, but its ownership and hard links cannot be: the
+/// published file is a new inode. [`commit_new`](Self::commit_new) never replaces anything
+/// and fails if the destination exists.
 ///
 /// # Example
 ///
@@ -58,9 +59,10 @@ impl AtomicFile {
     /// doing the writing opens the path itself) can drop the returned one; the exclusive
     /// create has already done its job by then.
     ///
-    /// The guard keeps `destination`, so [`commit`](Self::commit) can only publish to the
-    /// path the scratch file was placed beside. That is what makes the same-filesystem
-    /// rename a property of the type rather than a contract the caller has to honour.
+    /// The guard keeps `destination`, so [`commit`](Self::commit) and
+    /// [`commit_new`](Self::commit_new) can only publish to the path the scratch file was
+    /// placed beside. That is what makes the same-filesystem publish a property of the type
+    /// rather than a contract the caller has to honour.
     ///
     /// The file is opened with `create_new`, which refuses a path that already exists and
     /// does not follow a symlink planted there - a plain `File::create` would truncate
@@ -93,7 +95,7 @@ impl AtomicFile {
     }
 
     /// Where to write. Nothing may be written to the destination itself until
-    /// [`commit`](Self::commit).
+    /// [`commit`](Self::commit) or [`commit_new`](Self::commit_new).
     pub fn path(&self) -> &Path {
         &self.path
     }
@@ -138,6 +140,27 @@ impl AtomicFile {
     /// the handle that wrote the bytes and is lost once that handle is closed, so the sync
     /// here cannot stand in for it.
     pub fn commit(mut self) -> Result<(), Error> {
+        self.sync_scratch()?;
+        self.rename_onto()
+    }
+
+    /// Like [`commit`](Self::commit), but refuses to replace an existing destination.
+    ///
+    /// Returns [`Error::AlreadyExists`] if anything is at the destination when the file is
+    /// published, and the guard removes the scratch file. Checking for the destination
+    /// beforehand cannot give this guarantee: another writer can create it between the check
+    /// and the rename, which would then silently replace it.
+    ///
+    /// The file is published with a hard link, which refuses an existing destination in the
+    /// same call that creates it. On filesystems without hard links (FAT, exFAT, some network
+    /// mounts) this falls back to a check followed by a rename, which leaves a short window.
+    pub fn commit_new(mut self) -> Result<(), Error> {
+        self.sync_scratch()?;
+        self.link_onto()
+    }
+
+    /// Reopen the scratch file and flush it to disk. See [`commit`](Self::commit).
+    fn sync_scratch(&self) -> Result<(), Error> {
         File::options()
             .write(true)
             .open(&self.path)
@@ -147,9 +170,7 @@ impl AtomicFile {
                     "cannot flush '{}' to disk: {e}",
                     self.path.display()
                 ))
-            })?;
-
-        self.rename_onto()
+            })
     }
 
     /// Give the scratch file the permission bits of the file it is about to replace.
@@ -188,12 +209,9 @@ impl AtomicFile {
     /// Assumes the data is already durable; [`commit`](Self::commit) is the form that makes
     /// sure of it.
     ///
-    /// On Unix the parent directory is synced after the rename, making the rename itself
-    /// durable: once this returns `Ok`, power loss cannot revert the destination to the old
-    /// file. (Windows has no portable directory sync; NTFS journals metadata on its own
-    /// schedule.) If that final sync fails, the error says so explicitly - the new file is at
-    /// the destination and intact, only its durability is unconfirmed - because the generic
-    /// rename error below would wrongly imply the save did not happen.
+    /// The rename is made durable by [`sync_parent`](Self::sync_parent), whose failure is
+    /// reported separately because the generic rename error below would wrongly imply the
+    /// save did not happen.
     ///
     /// On rename failure the finished file is deleted by the guard, so the error names it:
     /// the bytes were written and then discarded, which is worth saying out loud.
@@ -210,6 +228,73 @@ impl AtomicFile {
         })?;
         self.persisted = true;
 
+        self.sync_parent()
+    }
+
+    /// Publish the completed file at the destination only if nothing is there yet.
+    ///
+    /// A hard link from the destination to the scratch file is created and the scratch name
+    /// then removed. Unlike a rename, `link` fails with `AlreadyExists` instead of replacing,
+    /// and the check and the publish are one call, so no other writer can slip in between.
+    /// The destination is never left partial: the link names a file that is already
+    /// complete.
+    ///
+    /// Filesystems without hard links (FAT, exFAT, some network mounts) fail the link with
+    /// some other error. There this falls back to renaming, but only once the destination is
+    /// confirmed absent: that leaves a window between the check and the rename, which is no
+    /// worse than a caller checking first. Any other outcome of the check is an error, so a
+    /// failure to look cannot be mistaken for nothing being there.
+    pub(crate) fn link_onto(&mut self) -> Result<(), Error> {
+        use std::io::ErrorKind;
+
+        match std::fs::hard_link(&self.path, &self.destination) {
+            Ok(()) => {}
+            Err(e) if e.kind() == ErrorKind::AlreadyExists => {
+                return Err(Error::AlreadyExists(self.destination.display().to_string()));
+            }
+            Err(link_error) => {
+                return match std::fs::symlink_metadata(&self.destination) {
+                    Ok(_) => Err(Error::AlreadyExists(self.destination.display().to_string())),
+                    Err(e) if e.kind() == ErrorKind::NotFound => {
+                        self.rename_onto().map_err(|e| match e {
+                            Error::IoError(message) => Error::IoError(format!(
+                                "{message} (after linking failed: {link_error})"
+                            )),
+                            other => other,
+                        })
+                    }
+                    Err(e) => Err(Error::IoError(format!(
+                        "cannot link '{}' onto '{}' ({link_error}), nor check whether it \
+                         exists: {e}",
+                        self.path.display(),
+                        self.destination.display()
+                    ))),
+                };
+            }
+        }
+
+        // The destination now holds the file and the scratch name is a second link to the
+        // same bytes. A name left behind keeps the checkpoint's space in use after the model
+        // is deleted, so failing to remove it is reported rather than ignored.
+        self.persisted = true;
+        std::fs::remove_file(&self.path).map_err(|e| {
+            Error::IoError(format!(
+                "'{}' was saved, but its scratch link '{}' could not be removed: {e}",
+                self.destination.display(),
+                self.path.display()
+            ))
+        })?;
+
+        self.sync_parent()
+    }
+
+    /// Make the destination's new directory entry durable.
+    ///
+    /// On Unix the parent directory is synced, so once a publish returns `Ok`, power loss
+    /// cannot revert it. (Windows has no portable directory sync; NTFS journals metadata on
+    /// its own schedule.) If the sync fails, the error says so explicitly - the new file is at
+    /// the destination and intact, only its durability is unconfirmed.
+    fn sync_parent(&self) -> Result<(), Error> {
         #[cfg(unix)]
         {
             // An empty parent means a bare relative file name; the directory is the cwd.
@@ -221,8 +306,8 @@ impl AtomicFile {
                 .and_then(|directory| directory.sync_all())
                 .map_err(|e| {
                     Error::IoError(format!(
-                        "'{}' was saved, but syncing its directory failed, so the rename may \
-                         not survive power loss: {e}",
+                        "'{}' was saved, but syncing its directory failed, so it may not \
+                         survive power loss: {e}",
                         self.destination.display()
                     ))
                 })?;

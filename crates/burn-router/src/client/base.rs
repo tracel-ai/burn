@@ -2,7 +2,7 @@ use crate::{RouterChannel, RouterTensor};
 use alloc::boxed::Box;
 use alloc::vec::Vec;
 use burn_backend::{
-    DType, TensorData,
+    DType, ProfileDuration, ProfileOptions, ProfileToken, TensorData,
     backend::{DeviceId, DeviceOps, ExecutionError},
 };
 use burn_ir::{GraphBindings, GraphId, OperationIr, TensorId, TensorIr};
@@ -58,6 +58,37 @@ pub trait RouterClient: Clone + Send + Sync + Sized {
     fn seed(&self, seed: u64);
     /// Returns the supported data type usage set
     fn dtype_usage(&self, dtype: DType) -> burn_backend::DTypeUsageSet;
+    /// Open a profiling window on the interpreter, where the calling stream
+    /// stands — see [`Backend::profile_start`](burn_backend::Backend::profile_start).
+    ///
+    /// `None`, the default, from an interpreter that opens no windows.
+    fn profile_start(&self) -> Result<Option<ProfileToken>, ExecutionError> {
+        Ok(None)
+    }
+    /// Close the window `token` where the calling stream stands, flushing the
+    /// interpreter's backend first when `options` ask for it.
+    fn profile_end(
+        &self,
+        token: ProfileToken,
+        options: ProfileOptions,
+    ) -> Result<ProfileDuration, ExecutionError> {
+        let _ = (token, options);
+        Err(ExecutionError::with_context(
+            "profiling windows are not supported by this interpreter",
+        ))
+    }
+
+    /// Drop the window `token` without measuring it, for a caller that will
+    /// never reach [`profile_end`](Self::profile_end) — see
+    /// [`Backend::profile_abandon`](burn_backend::Backend::profile_abandon).
+    ///
+    /// The default closes the window and discards the measurement, which any
+    /// interpreter that opens one can already do. An interpreter that can say
+    /// so more cheaply — a remote one, where the close is a round trip and
+    /// the caller is unwinding — does that instead.
+    fn profile_abandon(&self, token: ProfileToken) {
+        let _ = self.profile_end(token, ProfileOptions::default());
+    }
 
     /// Register a reusable group of operations (in relative form) under `graph_id` *and* run its
     /// first invocation with `bindings`, so it can later be replayed by id with

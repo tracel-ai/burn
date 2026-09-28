@@ -17,6 +17,7 @@ pub(crate) trait ModuleCodegen {
     fn gen_map(&self) -> TokenStream;
     fn gen_valid(&self) -> TokenStream;
     fn gen_train(&self) -> TokenStream;
+    fn gen_materialize(&self) -> TokenStream;
     fn gen_clone(&self) -> TokenStream;
 
     fn gen_display(&self) -> TokenStream;
@@ -42,6 +43,7 @@ pub(crate) fn generate_module_standard<Codegen: ModuleCodegen>(
     let fork = codegen.gen_fork();
     let valid_fn = codegen.gen_valid();
     let train_fn = codegen.gen_train();
+    let materialize_fn = codegen.gen_materialize();
     let clone_fn = codegen.gen_clone();
 
     let (generics_module, generics_ty_module, generics_where_module) =
@@ -62,6 +64,7 @@ pub(crate) fn generate_module_standard<Codegen: ModuleCodegen>(
             #valid_fn
 
             #train_fn
+            #materialize_fn
         }
 
         impl #generics_module core::fmt::Display for #name #generics_ty_module #generics_where_module {

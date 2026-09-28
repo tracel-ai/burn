@@ -103,7 +103,7 @@ pub use traits::{ModuleSnapshot, ModuleStore};
 #[cfg(feature = "std")]
 mod keyremapper;
 #[cfg(feature = "std")]
-pub use keyremapper::{KeyRemapper, map_indices_contiguous};
+pub use keyremapper::{KeyRemapper, map_indices_contiguous, map_indices_contiguous_except};
 
 #[cfg(feature = "pytorch")]
 pub mod pytorch;

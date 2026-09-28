@@ -24,7 +24,7 @@ pub struct LoraAdapter {
 impl Reparameterization for LoraAdapter {
     const NAME: &'static str = "lora";
 
-    fn materialize<const D: usize>(&self, base: Tensor<D>) -> Tensor<D> {
+    fn apply<const D: usize>(&self, base: Tensor<D>) -> Tensor<D> {
         let delta = self.delta().reshape(base.shape());
         // Compose at the factors' dtype: cast a mismatched dense base, but leave
         // a packed base untouched so mixed addition dequantizes it directly to
@@ -55,7 +55,7 @@ mod tests {
     use burn_tensor::DType;
 
     #[test]
-    fn materialize_casts_a_dense_base_to_the_factor_dtype() {
+    fn apply_casts_a_dense_base_to_the_factor_dtype() {
         let device = test_device();
         let base = Tensor::<2>::ones([4, 4], (&device, DType::F32));
         let adapter = LoraAdapter {
@@ -64,7 +64,7 @@ mod tests {
             scale: 1.0,
         };
 
-        let materialized = adapter.materialize(base);
+        let materialized = adapter.apply(base);
 
         assert_eq!(materialized.dtype(), DType::F16);
     }

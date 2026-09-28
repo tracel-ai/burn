@@ -33,8 +33,9 @@ Use `Writer::write_to_file` / `Reader::from_file` for disk I/O (the default `std
 it for no-std targets). `write_to_file` replaces the destination in place, so a save that fails
 partway leaves it truncated. `write_to_file_atomic` instead builds the container beside the
 destination and renames it into place once complete, so the old file survives a failed save; that
-is what deferred tensors want, since their bytes are produced mid-write. See the API docs for how
-far each guarantee reaches.
+is what deferred tensors want, since their bytes are produced mid-write. `Writer::overwrite(false)`
+makes both refuse an existing destination, checked when the file is created or published rather
+than beforehand. See the API docs for how far each guarantee reaches.
 
 ## Writing models larger than memory
 

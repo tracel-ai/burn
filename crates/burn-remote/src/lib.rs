@@ -15,6 +15,8 @@ pub mod server;
 
 pub(crate) mod shared;
 pub mod telemetry;
+#[cfg(any(feature = "client", all(feature = "server", feature = "iroh")))]
+pub(crate) mod time;
 mod transport;
 
 pub use burn_ir as ir;
@@ -98,6 +100,37 @@ mod tests {
     }
 
     #[test]
+    fn a_dial_waits_for_a_websocket_server_that_starts_late() {
+        // Past the first retries, well inside the retry window.
+        const SERVER_LATE_BY: std::time::Duration = std::time::Duration::from_millis(700);
+
+        let port = std::net::TcpListener::bind("0.0.0.0:0")
+            .unwrap()
+            .local_addr()
+            .unwrap()
+            .port();
+        let rt = tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+        rt.spawn(async move {
+            tokio::time::sleep(SERVER_LATE_BY).await;
+            crate::server::RemoteServerBuilder::<Flex>::new(vec![Default::default()])
+                .port(port)
+                .start_async()
+                .await;
+        });
+
+        with_deadlock_watchdog(std::time::Duration::from_secs(30), move || {
+            let device = Device::remote_websocket(&format!("ws://localhost:{port}"), 0);
+            let output = Tensor::<1>::from_floats([1.0, 2.0], &device) * 2.0;
+            assert_eq!(output.try_into_vec_as::<f32>().unwrap(), vec![2.0, 4.0]);
+        });
+
+        rt.shutdown_background();
+    }
+
+    #[test]
     pub fn test_to_device_over_websocket() {
         let rt = tokio::runtime::Builder::new_multi_thread()
             .enable_io()
@@ -135,6 +168,43 @@ mod tests {
         let input = input.to_device(&device_1);
         let numbers: Vec<f32> = input.into_data().try_into_vec().unwrap();
         assert_eq!(numbers, numbers_expected);
+
+        rt.shutdown_background();
+    }
+
+    /// A profiling window over the wire. The server here hosts a backend with
+    /// no device clock, so the window it is asked to open is answered with
+    /// none and the client measures between two syncs instead — the path a
+    /// remote device that opens no windows has to keep working on, with or
+    /// without fusion in front of the router.
+    #[test]
+    pub fn test_profile_over_websocket() {
+        let rt = tokio::runtime::Builder::new_multi_thread()
+            .enable_io()
+            .build()
+            .unwrap();
+
+        rt.spawn(
+            crate::server::RemoteServerBuilder::<Flex>::new(vec![Default::default()])
+                .port(3180)
+                .start_async(),
+        );
+
+        std::thread::sleep(std::time::Duration::from_millis(500));
+
+        let device = Device::remote_websocket("ws://localhost:3180", 0);
+        let (sum, duration) = device
+            .profile(|| {
+                Tensor::<1>::ones([1024], &device)
+                    .sum()
+                    .into_scalar::<f32>()
+            })
+            .expect("a window the server cannot open is measured between syncs");
+
+        assert_eq!(sum, 1024.0);
+        let ticks = burn_std::future::block_on(duration.resolve())
+            .expect("a system-time window always carries a measurement");
+        assert!(ticks.duration() > std::time::Duration::ZERO);
 
         rt.shutdown_background();
     }

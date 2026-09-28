@@ -13,7 +13,7 @@ use iroh::{
 };
 use tokio::sync::OnceCell;
 
-use crate::{PeerAddr, PeerId};
+use crate::{PeerAddr, PeerId, transport::OpenError};
 
 /// ALPN used by the version-one Burn Remote protocol.
 pub const BURN_REMOTE_ALPN: &[u8] = b"burn/remote/1";
@@ -144,7 +144,7 @@ impl RemoteNode {
         &self,
         peer: &PeerAddr,
         kind: StreamKind,
-    ) -> Result<(SendStream, RecvStream), String> {
+    ) -> Result<(SendStream, RecvStream), OpenError> {
         // Only the Iroh variant remains when the websocket transport is compiled out.
         #[cfg_attr(
             not(feature = "websocket"),
@@ -154,24 +154,28 @@ impl RemoteNode {
             PeerAddr::Iroh(peer) => peer,
             #[cfg(feature = "websocket")]
             PeerAddr::WebSocket(_) => {
-                return Err("Iroh node cannot open a stream to a non-Iroh peer".into());
+                return Err(OpenError::Failed(
+                    "Iroh node cannot open a stream to a non-Iroh peer".into(),
+                ));
             }
         };
         let connection = self.connection(peer.clone()).await?;
         let (mut send, recv) = connection
             .open_bi()
             .await
-            .map_err(|err| format!("Failed to open Iroh stream to {}: {err}", peer.id))?;
+            .map_err(|err| OpenError::Failed(format!("Failed to open an Iroh stream: {err}")))?;
         let header = rmp_serde::to_vec(&StreamHeader {
             version: STREAM_VERSION,
             kind,
         })
-        .map_err(|err| format!("Failed to encode Iroh stream header: {err}"))?;
-        send_frame(&mut send, &header).await?;
+        .map_err(|err| OpenError::Failed(format!("Failed to encode Iroh stream header: {err}")))?;
+        send_frame(&mut send, &header)
+            .await
+            .map_err(OpenError::Failed)?;
         Ok((send, recv))
     }
 
-    async fn connection(&self, peer: EndpointAddr) -> Result<Connection, String> {
+    async fn connection(&self, peer: EndpointAddr) -> Result<Connection, OpenError> {
         loop {
             let cell = {
                 let mut connections = self.inner.connections.lock().await;
@@ -203,16 +207,11 @@ impl RemoteNode {
                     let connection = endpoint
                         .connect(peer_for_connect.clone(), BURN_REMOTE_ALPN)
                         .await
-                        .map_err(|err| {
-                            format!(
-                                "Failed to connect to Iroh peer {}: {err}",
-                                peer_for_connect.id
-                            )
-                        })?;
+                        .map_err(OpenError::from)?;
                     // Runs once per connection, since the cell initializes once.
                     #[cfg(feature = "server")]
                     crate::server::spawn::spawn_detached(answer_dialed(node, connection.clone()));
-                    Ok::<Connection, String>(connection)
+                    Ok::<Connection, OpenError>(connection)
                 })
                 .await?;
             return Ok(connection.clone());

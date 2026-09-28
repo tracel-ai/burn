@@ -106,3 +106,19 @@ fn should_repeat_0_times_empty() {
 
     assert_eq!(output.shape(), [2, 0, 8].into());
 }
+
+// Skip on metal - F64 not supported
+#[cfg(not(feature = "metal"))]
+#[test]
+fn should_keep_dtype_on_repeat_0_times() {
+    let tensor =
+        TestTensor::<3>::ones([2, 3, 4], &Default::default()).cast(burn_tensor::DType::F64);
+
+    let output = tensor.clone().repeat(&[1, 0, 2]);
+    assert_eq!(output.shape(), [2, 0, 8].into());
+    assert_eq!(output.dtype(), burn_tensor::DType::F64);
+
+    let output = tensor.repeat(&[0, 0, 1]);
+    assert_eq!(output.shape(), [0, 0, 4].into());
+    assert_eq!(output.dtype(), burn_tensor::DType::F64);
+}

@@ -14,8 +14,6 @@ pub mod protocol;
 #[cfg(all(feature = "server", not(target_family = "wasm")))]
 pub mod server;
 #[cfg(feature = "server")]
-mod time;
-#[cfg(feature = "server")]
 mod transfer;
 #[cfg(feature = "server")]
 pub(crate) use transfer::IrohTransfer;

@@ -414,6 +414,41 @@ where
                 self.send_response(request_id, TaskResponseContent::DTypeUsage(res))
                     .await
             }
+            Task::ProfileStart(request_id, stream_id) => {
+                let res = stream_id.executes(|| self.runner.profile_start());
+                self.send_response(request_id, TaskResponseContent::ProfileStart(res))
+                    .await
+            }
+            Task::ProfileAbandon(stream_id, token) => {
+                stream_id.executes(|| self.runner.profile_abandon(token));
+                Ok(())
+            }
+            Task::ProfileEnd(request_id, stream_id, token, options) => {
+                // Closing the window is sync and in order, like the read
+                // above; the measurement is the device's to answer, so the
+                // wait for it is detached rather than stalling the worker.
+                let duration = stream_id.executes(|| self.runner.profile_end(token, options));
+                let sender = self.response_sender.clone();
+                spawn_detached(async move {
+                    let res = match duration {
+                        Ok(duration) => Ok(duration.resolve().await.map(|ticks| ticks.duration())),
+                        Err(err) => Err(err),
+                    };
+                    if sender
+                        .send(TaskResponse {
+                            content: TaskResponseContent::ProfileEnd(res),
+                            id: request_id,
+                        })
+                        .await
+                        .is_err()
+                    {
+                        log::warn!(
+                            "Response receiver dropped before the profile for request {request_id} could be sent"
+                        );
+                    }
+                });
+                Ok(())
+            }
         }
     }
 

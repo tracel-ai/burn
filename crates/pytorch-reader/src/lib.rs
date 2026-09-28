@@ -47,9 +47,13 @@
 //! **Plain pickle.** A pickle with a dictionary at its root, as some tools write for
 //! configuration on its own.
 //!
-//! Full-model saves (as opposed to a `state_dict`) are refused, as are checkpoints holding
-//! sparse, quantized or nested tensors, since those cannot be represented. Only little-endian
-//! files are supported.
+//! A full-model save (`torch.save(model)` rather than `torch.save(model.state_dict())`) is
+//! read as the module's `state_dict()`: its parameters and buffers under the names
+//! `state_dict()` gives them, leaving out non-persistent buffers and every other attribute.
+//! What a module computes for its state dict rather than stores, extra state
+//! (`get_extra_state()`) and the work of state dict hooks, is not in the pickle and so is
+//! not read. Checkpoints holding sparse, quantized or nested tensors are refused, since those cannot
+//! be represented. Only little-endian files are supported.
 //!
 //! # Safety limits
 //!

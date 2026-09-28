@@ -32,6 +32,10 @@ macro_rules! empty {
             devices
         }
 
+        fn materialize(self) -> Self {
+            self
+        }
+
         fn valid(&self) -> Self {
             self.clone()
         }
@@ -116,6 +120,10 @@ impl<const D: usize, K: Autodiff> Module for Tensor<D, K> {
         devices
     }
 
+    fn materialize(self) -> Self {
+        self
+    }
+
     fn valid(&self) -> Self {
         self.clone().without_autodiff()
     }
@@ -165,6 +173,10 @@ where
 
     fn collect_devices(&self, devices: Devices) -> Devices {
         devices
+    }
+
+    fn materialize(self) -> Self {
+        self
     }
 
     fn valid(&self) -> Self {

@@ -93,6 +93,17 @@ impl ReduceBlockOptimArg {
             }
         }
     }
+
+    pub fn execute_empty_axis_fallback(&self, context: &mut Context<CubeFusionHandle>) {
+        match self {
+            ReduceBlockOptimArg::Reduce(reduce) => {
+                reduce.execute_fallback(context);
+            }
+            ReduceBlockOptimArg::Elemwise(elem) => {
+                elem.execute(context);
+            }
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -132,6 +143,12 @@ impl ReduceBroadcastedOptimizationTuneArg {
             fallback.execute_fallback(context);
         }
     }
+
+    pub fn execute_empty_axis_fallback(&self, context: &mut Context<CubeFusionHandle>) {
+        for fallback in self.fallbacks.iter() {
+            fallback.execute_empty_axis_fallback(context);
+        }
+    }
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -169,12 +186,24 @@ impl ReduceBroadcastedOptimization {
             })
             .collect();
 
+        let empty_reduce_axis = self.info.fallbacks.iter().any(|fallback| match fallback {
+            ReduceBlockOptimInfo::Reduce(info) => {
+                context.tensors.get(&info.reduce.op.input.id).unwrap().shape[info.reduce.axis] == 0
+            }
+            ReduceBlockOptimInfo::Elemwise(_) => false,
+        });
+
         let arg = ReduceBroadcastedOptimizationTuneArg {
             fallbacks,
             client: client.unwrap(),
             device: device.unwrap(),
             broadcasted: self.info.broadcasted.clone(),
         };
+
+        if empty_reduce_axis {
+            arg.execute_empty_axis_fallback(context);
+            return;
+        }
 
         #[cfg(feature = "autotune")]
         fused_broadcasted_reduce_autotune(arg, context);

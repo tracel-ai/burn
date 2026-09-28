@@ -56,11 +56,18 @@ this by using the `GradientsAccumulator`.
 
 ```rust, ignore
 let mut accumulator = GradientsAccumulator::new();
-let grads = model.backward();
+let loss = loss_fn.forward(model.forward(input), targets);
+let grads = loss.backward();
 let grads = GradientsParams::from_grads(grads, &model);
-accumulator.accumulate(&model, grads); ...
+accumulator.accumulate(&model, grads);
+// Repeat the forward/backward/accumulate steps for each microbatch in the window.
 let grads = accumulator.grads(); // Pop the accumulated gradients.
+model = optimizer.step(learning_rate, model, grads);
 ```
+
+The accumulator sums gradients. Apply the final partial window and advance the learning-rate
+scheduler when updating the optimizer; see
+[Gradient accumulation](./building-blocks/learner.md#gradient-accumulation).
 
 Note that after each epoch, we include a validation loop to assess our model's performance on
 previously unseen data. To disable gradient tracking during this validation step, we can invoke

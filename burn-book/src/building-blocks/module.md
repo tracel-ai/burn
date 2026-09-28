@@ -179,7 +179,8 @@ the same behavior only to values matched by the parameter group.
 
 Parameter setters preserve configured trainability even on devices without autodiff, applying it
 when `module.train()` enables autodiff. This differs from calling `Tensor::require_grad()` or
-`Tensor::set_require_grad(true)` directly, which requires the tensor to already have autodiff enabled.
+`Tensor::set_require_grad(true)` directly, which requires the tensor to already have autodiff
+enabled.
 
 | Burn API                                           | PyTorch Equivalent                       |
 | -------------------------------------------------- | ---------------------------------------- |
@@ -206,27 +207,42 @@ when `module.train()` enables autodiff. This differs from calling `Tensor::requi
 | `module.load_file(file_path)`                      | Similar to `torch.load(...)`             |
 | `module.save_file(file_path)`                      | Similar to `torch.save(state_dict, ...)` |
 
-Choose a module transfer according to where its parameters should be optimized. For a module with
-trainable autodiff parameters:
+### Moving between devices
+
+Use `fork` when you want to train a module on the destination device. Use `to_device` when gradients
+should flow back to the original parameters. For a module with trainable autodiff parameters:
 
 ```rust, ignore
 let moved = model.clone().to_device(&destination); // Gradients flow to model's source parameters.
 let independent = model.fork(&destination); // Optimize this module on the destination.
 ```
 
-`to_device` records transfers of tracked parameters, even when the compute device is unchanged.
-The destination parameters are intermediates whose own gradients are not retained, so the moved
-module cannot itself be optimized with gradient descent. `fork` starts independent graph lineages
-and preserves the parameters' gradient-retention settings.
+Once a parameter's tensor has been initialized, `to_device` records the transfer in its autodiff
+graph, even if the compute device is unchanged. Gradients flow through the transferred tensor, but
+are not retained for that tensor itself, so an optimizer cannot update the moved parameter. `fork`
+detaches the transferred tensor from the original graph and restores its gradient-retention setting,
+allowing the destination parameter to be optimized independently.
 
-Both operations preserve the source tensors' autodiff association and checkpointing strategy;
-the destination's autodiff defaults do not enable training. For a module created without autodiff
-or returned by `valid()`, use `module.train().fork(&destination)` to enable autodiff, restore its
+Burn initializes module parameters lazily by default: their tensor values are created when first
+accessed. If a parameter is still uninitialized and no clone shares its state, both `to_device` and
+`fork` simply change where it will be initialized. No transfer is recorded in this case, and
+built-in initializers use the destination device's random number generator and default dtype. If a
+clone still shares the state, the parameter is initialized on the source device before being
+transferred. Use `fork` for training on the destination so that your code works regardless of
+initialization or cloning.
+
+Both operations preserve the source tensors' autodiff association and checkpointing strategy; the
+destination's autodiff defaults do not enable training. For a module created without autodiff or
+returned by `valid()`, use `module.train().fork(&destination)` to enable autodiff, restore its
 configured training state, and create independent destination parameters.
 
-The `Module` trait provides both `valid()` and `train()`. Importing `Module` is sufficient for
-these transitions; there is no separate `AutodiffModule` trait. A `Module` bound does not establish
-the current autodiff state. Training and validation modules have the same Rust type.
+### Training and validation
+
+The `Module` trait provides both `valid()` and `train()`. Importing `Module` is sufficient for these
+transitions; there is no separate `AutodiffModule` trait. A `Module` bound does not establish the
+current autodiff state. Training and validation modules have the same Rust type. Inspect individual
+parameter tensors with `is_autodiff()` to check whether autodiff is enabled and `is_require_grad()`
+to check whether their gradients are retained.
 
 | Burn API         | PyTorch Equivalent |
 | ---------------- | ------------------ |
@@ -234,9 +250,14 @@ the current autodiff state. Training and validation modules have the same Rust t
 | `module.train()` | `module.train()`   |
 
 Unlike their PyTorch counterparts, Burn's `valid()` and `train()` also transition a module between
-its autodiff and inner backends. `valid()` temporarily disables gradient tracking and training
-flags while preserving their configured state. `train()` returns the module to the autodiff backend
-and reapplies that state; it does not undo an explicit `no_grad()` or `freeze()`.
+its autodiff and inner backends. `valid()` temporarily disables gradient tracking and training flags
+while preserving their configured state. `train()` returns the module to the autodiff backend and
+reapplies that state; it does not undo an explicit `no_grad()` or `freeze()`.
+
+For dropout, training behavior also requires an autodiff-associated input. `dropout.train()` cannot
+change the context of inputs supplied later. Create inputs on the training device, or explicitly
+call `input.autodiff()`; `input.to_device(&training_device)` alone does not enable autodiff.
+Ordinary model inputs need no `require_grad()` unless their own gradients are needed.
 
 Burn's `freeze()` and `unfreeze()` persistently set both tensor gradient tracking and module-owned
 training flags, so they have no direct PyTorch equivalent.
@@ -253,8 +274,8 @@ Burn, optimizers are essentially just sophisticated module mappers. Visitors, on
 used when you don't intend to modify the module but need to retrieve specific information from it,
 such as the number of parameters or a list of devices in use.
 
-You can implement your own mapper or visitor using the following tensor hooks. They receive
-`Param` values, which provide access to both the parameter ID and its tensor:
+You can implement your own mapper or visitor using the following tensor hooks. They receive `Param`
+values, which provide access to both the parameter ID and its tensor:
 
 ```rust, ignore
 use burn::{
@@ -352,17 +373,64 @@ let model = model.apply_lora(Lora::new(8, 16.0));
 
 The `Reparameterizer` receives every floating-point parameter and its module path. It decides which
 parameters to transform, prepares their structural bases, and optionally attaches a
-`Reparameterization`. A reparameterization is itself a regular module, so its parameters
-automatically participate in visitors, mappers, optimization, records, device transfers, and
-autodiff. Custom techniques implement these traits and are applied through
-`apply_reparameterization`, making custom parameter-level PEFT methods possible without modifying
-the original model or layer.
+`Reparameterization`, whose `apply(base)` method computes the effective value. A reparameterization
+is itself a regular module, so its parameters automatically participate in visitors, mappers,
+optimization, records, device transfers, and autodiff. Custom techniques implement these traits and
+are applied through `apply_reparameterization`, making custom parameter-level PEFT methods possible
+without modifying the original model or layer.
 
 LoRA and QLoRA are built on the same mechanism but provide the convenience methods `apply_lora` and
 `apply_qlora` for normal use. Reparameterizations cannot currently be nested, so
 `apply_reparameterization` should only be called on a module that does not already contain
 reparameterized parameters. Use `Param::base()` to access the stored base directly and
 `Param::val()` to obtain the materialized value.
+
+### Validation and materialization
+
+`valid()` disables autodiff and training flags while keeping base weights and adapters separate. It
+does not select which parameters are saved: `valid().into_record()` includes both the base weights
+and adapter factors. For adapter-only export, select the factors with `into_record_group`:
+
+```rust, ignore
+use burn::module::{Lora, Module, ParamGroup};
+use burn::store::ModuleRecord;
+
+// Select the built-in LoRA factors, including those used by QLoRA.
+let adapters = ParamGroup::from_regex(r"(^|\.)lora\.(a|b)$").unwrap();
+model
+    .valid()
+    .into_record_group(adapters)
+    .save("adapters.bpk")
+    .unwrap();
+
+// Start from the original base checkpoint and attach the same adapter configuration.
+let restored = base_model
+    .apply_lora(Lora::new(8, 16.0))
+    .valid()
+    .load_record(ModuleRecord::load("adapters.bpk").unwrap().allow_partial(true));
+```
+
+Here, `base_model` has already loaded the original base weights, and the LoRA configuration matches
+the one used for training. For QLoRA, recreate the same packed base and adapters with `apply_qlora`
+instead. Adapter-only records contain the factor tensors; they do not include the base weights or
+adapter configuration. `allow_partial(true)` leaves parameters absent from the record unchanged.
+
+`materialize()` folds reparameterizations into the weights and removes their structure. Use a merged
+snapshot for repeated inference without recomputing adapter updates, or to export a standalone
+model:
+
+```rust, ignore
+let validation = model.valid(); // Keep adapters for evaluation and adapter-only export.
+let merged = validation.clone().materialize(); // Merge them for inference or full-model export.
+```
+
+Materialization does not change training mode and cannot be undone; keep the original model if you
+need its adapters. Parameters without reparameterizations remain lazy. For QLoRA, materialization
+produces dense weights. Requantization is separate and can change the model's outputs.
+
+QLoRA forward passes can still materialize dense effective weights. Autodiff may retain them for
+backward and compute full weight-shaped gradients. Fusion can avoid a separate dequantized base
+allocation, but does not eliminate all dense intermediates.
 
 ## Module Display
 
@@ -431,14 +499,17 @@ Burn comes with built-in modules that you can use to build your own modules.
 | `Dropout`           | `nn.Dropout`                                  |
 | `Elu`               | `nn.ELU`                                      |
 | `Embedding`         | `nn.Embedding`                                |
+| `Fold4d`            | `nn.Fold`                                     |
 | `GaussianNoise`     | _No direct equivalent_                        |
 | `Gelu`              | `nn.Gelu`                                     |
-| `Glu`               | `nn.Glu`                                      |
+| `GLU`               | `nn.GLU`                                      |
 | `GroupNorm`         | `nn.GroupNorm`                                |
 | `HardShrink`        | `nn.Hardshrink`                               |
 | `HardSigmoid`       | `nn.Hardsigmoid`                              |
+| `Hardtanh`          | `nn.Hardtanh`                                 |
 | `CosineSimilarity`  | `nn.CosineSimilarity`                         |
 | `HardSwish`         | `nn.Hardswish`                                |
+| `Identity`          | `nn.Identity`                                 |
 | `InstanceNorm`      | `nn.InstanceNorm1d`, `nn.InstanceNorm2d` etc. |
 | `LayerNorm`         | `nn.LayerNorm`                                |
 | `LocalResponseNorm` | `nn.LocalResponseNorm`                        |
@@ -449,8 +520,10 @@ Burn comes with built-in modules that you can use to build your own modules.
 | `PairwiseDistance`  | `nn.PairwiseDistance`                         |
 | `PixelShuffle`      | `nn.PixelShuffle`                             |
 | `PixelUnshuffle`    | `nn.PixelUnshuffle`                           |
-| `Prelu`             | `nn.PReLu`                                    |
+| `PRelu`             | `nn.PReLU`                                    |
 | `Relu`              | `nn.ReLU`                                     |
+| `Relu6`             | `nn.ReLU6`                                    |
+| `RRelu`             | `nn.RReLU`                                    |
 | `Selu`              | `nn.SELU`                                     |
 | `Sigmoid`           | `nn.Sigmoid`                                  |
 | `SiLU`              | `nn.SiLU`                                     |
@@ -461,7 +534,10 @@ Burn comes with built-in modules that you can use to build your own modules.
 | `RmsNorm`           | _No direct equivalent_                        |
 | `SwiGlu`            | _No direct equivalent_                        |
 | `Tanh`              | `nn.Tanh`                                     |
+| `Tanhshrink`        | `nn.Tanhshrink`                               |
+| `Threshold`         | `nn.Threshold`                                |
 | `ThresholdedRelu`   | _No direct equivalent_                        |
+| `Unfold4d`          | `nn.Unfold`                                   |
 
 ### Convolutions
 
@@ -481,6 +557,7 @@ Burn comes with built-in modules that you can use to build your own modules.
 | ------------------- | ---------------------- |
 | `AdaptiveAvgPool1d` | `nn.AdaptiveAvgPool1d` |
 | `AdaptiveAvgPool2d` | `nn.AdaptiveAvgPool2d` |
+| `AdaptiveAvgPool3d` | `nn.AdaptiveAvgPool3d` |
 | `AvgPool1d`         | `nn.AvgPool1d`         |
 | `AvgPool2d`         | `nn.AvgPool2d`         |
 | `MaxPool1d`         | `nn.MaxPool1d`         |
@@ -549,4 +626,5 @@ Configuration is done via `Interpolate1dConfig` / `Interpolate2dConfig` with the
 | `PoissonNllLoss`         | `nn.PoissonNLLLoss`               |
 | `RNNTLoss`               | `torchaudio.functional.rnnt_loss` |
 | `SmoothL1Loss`           | `nn.SmoothL1Loss`                 |
+| `SoftMarginLoss`         | `nn.SoftMarginLoss`               |
 | `TripletMarginLoss`      | `nn.TripletMarginLoss`            |

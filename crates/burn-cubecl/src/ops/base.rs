@@ -18,19 +18,19 @@ pub(crate) fn from_data(data: TensorData, device: &CubeDevice) -> CubeTensor {
     // `TensorData` may contain lazily materialized device-backed bytes produced
     // by `into_data()`. These unnecessary round-trips should be avoided, but
     // materializing before re-uploading avoids recursive runtime submission.
-    if data.bytes.property() == burn_std::AllocationProperty::Device {
-        let _ = data.bytes.read(burn_std::Reader::new());
+    if data.bytes().property() == burn_std::AllocationProperty::Device {
+        let _ = data.bytes().read(burn_std::Reader::new());
     }
 
+    let (bytes, shape, dtype) = data.into_parts();
     let client = device.client();
-    let alloc = client.create_tensor(data.bytes, data.shape.clone(), data.dtype.size());
-    let shape: Shape = (&data.shape).into();
+    let alloc = client.create_tensor(bytes, shape.clone(), dtype.size());
     CubeTensor::new(
         client,
         alloc.memory,
         Metadata::new(shape, alloc.strides),
         device.clone(),
-        data.dtype,
+        dtype,
     )
 }
 
@@ -144,7 +144,8 @@ pub(crate) fn empty(shape: Shape, device: &CubeDevice, dtype: DType) -> CubeTens
     )
 }
 
-pub(crate) fn swap_dims(mut tensor: CubeTensor, dim1: usize, dim2: usize) -> CubeTensor {
+pub(crate) fn swap_dims(tensor: CubeTensor, dim1: usize, dim2: usize) -> CubeTensor {
+    let mut tensor = crate::kernel::untile(tensor);
     tensor.meta.swap(dim1, dim2);
 
     if let DType::QFloat(scheme) = &mut tensor.dtype
@@ -174,7 +175,8 @@ pub(crate) fn swap_dims(mut tensor: CubeTensor, dim1: usize, dim2: usize) -> Cub
 }
 
 /// Permute a tensor's dimensions
-pub fn permute(mut tensor: CubeTensor, axes: &[usize]) -> CubeTensor {
+pub fn permute(tensor: CubeTensor, axes: &[usize]) -> CubeTensor {
+    let mut tensor = crate::kernel::untile(tensor);
     tensor.meta.permute(axes).unwrap();
 
     if let DType::QFloat(scheme) = &mut tensor.dtype

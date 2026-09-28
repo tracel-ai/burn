@@ -1,6 +1,9 @@
 use burn::server::{Channel, RemoteSecret};
 use burn::tensor::{Device, Distribution, Tensor};
-use iroh::{Endpoint, EndpointId, endpoint::presets};
+use iroh::{
+    Endpoint, EndpointId,
+    endpoint::{QuicTransportConfig, presets},
+};
 use tracing_subscriber::{EnvFilter, fmt};
 
 fn init_logging() {
@@ -40,7 +43,12 @@ pub async fn run_client(topic: &str) {
     println!("server id : {server_id}");
     println!("connecting...");
 
+    // https://github.com/n0-computer/iroh/issues/4555
+    let transport = QuicTransportConfig::builder()
+        .enable_segmentation_offload(false)
+        .build();
     let endpoint = Endpoint::builder(presets::N0)
+        .transport_config(transport)
         .bind()
         .await
         .expect("bind failed");

@@ -43,10 +43,10 @@ cargo test-cuda --no-fail-fast
 
 > [!NOTE]  
 > CubeCL-based backends are tested with `fusion` by default. If you want to run the tests without
-> fusion, just append `-nofuse` to the cargo command. For example:
+> fusion, just append `-no-fusion` to the cargo command. For example:
 >
 > ```sh
-> cargo test-cuda-nofuse
+> cargo test-cuda-no-fusion
 > ```
 
 ## Structure

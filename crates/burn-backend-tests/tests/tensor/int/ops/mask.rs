@@ -56,6 +56,19 @@ fn should_support_int_mask_fill_ops() {
 }
 
 #[test]
+fn should_support_int_mask_fill_broadcast_input_smaller_than_mask() {
+    let device = Default::default();
+    let tensor = TestTensorInt::<2>::from_data([[2]], &device);
+    let mask = TestTensorBool::<2>::from_data([[true, false], [false, true]], &device);
+
+    let output = tensor.mask_fill(mask, 7);
+
+    output
+        .into_data()
+        .assert_eq(&TensorData::from([[7, 2], [2, 7]]), false);
+}
+
+#[test]
 fn should_support_int_mask_fill_flipped() {
     // [10, 20, 30, 40] flipped -> [40, 30, 20, 10]; mask [T, F, T, F] -> [-1, 30, -1, 10]
     let tensor = TestTensorInt::<1>::from([10, 20, 30, 40]).flip([0]);

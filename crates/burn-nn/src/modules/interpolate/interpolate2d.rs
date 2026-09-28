@@ -94,7 +94,7 @@ impl Interpolate2d {
     /// # Example
     ///
     /// ```ignore
-    /// let input = Tensor::<Backend, 2>::random([1, 3, 64, 64], Distribution::Uniform(0.0, 1.0), &device);
+    /// let input = Tensor::<4>::random([1, 3, 64, 64], Distribution::Uniform(0.0, 1.0), &device);
     /// let interpolate = Interpolate2dConfig::new()
     ///     .with_output_size(Some([128, 128]))
     ///     .init();

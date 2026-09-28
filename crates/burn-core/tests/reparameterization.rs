@@ -19,7 +19,7 @@ struct WeightNorm {
 impl Reparameterization for WeightNorm {
     const NAME: &'static str = "weight_norm";
 
-    fn materialize<const D: usize>(&self, base: Tensor<D>) -> Tensor<D> {
+    fn apply<const D: usize>(&self, base: Tensor<D>) -> Tensor<D> {
         assert!(self.dim < D, "Weight normalization dimension is invalid");
         let reduce_dims: Vec<_> = (0..D).filter(|dim| *dim != self.dim).collect();
         let norm = base.clone().powf_scalar(2.0).sum_dims(&reduce_dims).sqrt();
@@ -192,36 +192,74 @@ mod tests {
             .assert_approx_eq::<f32>(&source.weight.val().into_data(), Tolerance::default());
     }
 
+    #[test]
+    fn materialize_traverses_nested_modules_and_preserves_skipped_fields_and_flags() {
+        #[derive(Debug, Module)]
+        enum Choice<T> {
+            Layer(T),
+        }
+
+        #[derive(Debug, Module)]
+        struct Container<T> {
+            nested: Vec<Option<[Choice<T>; 1]>>,
+            pair: (T, T),
+            enabled: Param<burn::module::Flag>,
+            #[module(skip)]
+            skipped: SimpleLinear,
+        }
+
+        let original = simple_model();
+        let expected = original.weight.val().into_data();
+        let container = Container {
+            nested: vec![Some([Choice::Layer(original.clone())]), None],
+            pair: (original.clone(), original.clone()),
+            enabled: Param::from_bool(true),
+            skipped: original,
+        };
+        let merged = container.materialize();
+        assert!(merged.enabled.is_enabled());
+        let skipped = &merged.skipped.weight;
+        assert!(skipped.reparameterization::<WeightNorm>().is_some());
+        assert!(merged.nested[1].is_none());
+        let Choice::Layer(nested) = &merged.nested[0].as_ref().unwrap()[0];
+        for model in [nested, &merged.pair.0, &merged.pair.1] {
+            assert!(model.weight.reparameterization::<WeightNorm>().is_none());
+            let actual = model.weight.val().into_data();
+            actual.assert_approx_eq::<f32>(&expected, Tolerance::default());
+        }
+        assert!(!merged.valid().materialize().enabled.is_enabled());
+    }
+
     #[cfg(feature = "autodiff")]
     #[test]
     fn gradients_flow_to_direction_and_magnitude() {
         let device = test_device().autodiff();
         let model = SimpleLinear::new(4, 6, &device)
             .apply_reparameterization(WeightNormMapper::new(WeightNormConfig::new()));
-        let grads = model.weight.val().sum().backward();
-        let weight_norm = model.weight.reparameterization::<WeightNorm>().unwrap();
-
-        assert!(model.weight.base().grad(&grads).is_some());
-        assert!(weight_norm.g.val().grad(&grads).is_some());
+        for model in [model.clone(), model.valid().train()] {
+            let grads = model.weight.val().sum().backward();
+            let weight_norm = model.weight.reparameterization::<WeightNorm>().unwrap();
+            assert!(model.weight.base().grad(&grads).is_some());
+            assert!(weight_norm.g.val().grad(&grads).is_some());
+        }
     }
 
     #[cfg(feature = "autodiff")]
     #[test]
-    fn valid_folds_reparameterization() {
+    fn valid_preserves_reparameterization_and_materialize_folds_it() {
         let device = test_device().autodiff();
         let model = SimpleLinear::new(4, 6, &device)
             .apply_reparameterization(WeightNormMapper::new(WeightNormConfig::new()));
+        let expected = model.weight.val().into_data();
         let inference = model.valid();
+        let weight = &inference.weight;
+        assert!(weight.reparameterization::<WeightNorm>().is_some());
+        let actual = weight.val().into_data();
+        actual.assert_approx_eq::<f32>(&expected, Tolerance::default());
 
-        assert!(
-            inference
-                .weight
-                .reparameterization::<WeightNorm>()
-                .is_none()
-        );
-        inference.weight.val().into_data().assert_approx_eq::<f32>(
-            &model.weight.val().inner().into_data(),
-            Tolerance::default(),
-        );
+        let merged = inference.materialize();
+        assert!(merged.weight.reparameterization::<WeightNorm>().is_none());
+        let actual = merged.weight.val().into_data();
+        actual.assert_approx_eq::<f32>(&expected, Tolerance::default());
     }
 }

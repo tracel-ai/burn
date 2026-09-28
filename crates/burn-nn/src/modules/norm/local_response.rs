@@ -534,7 +534,7 @@ mod tests {
         let output = module.forward(input);
 
         let out_data = output.to_data();
-        assert_eq!(out_data.shape, [2, 3, 4, 4].into());
+        assert_eq!(*out_data.shape(), [2, 3, 4, 4].into());
         let expected_full = TensorData::from([
             [
                 [

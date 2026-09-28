@@ -118,7 +118,7 @@ macro_rules! module {
         impl<'a> ModuleVisitor for Visitor<'a> {
             fn visit_float<const D: usize>(&mut self, param: &Param<Tensor<D>>) {
                 let func = $item;
-                func(&param.val(), &mut self.state)
+                func(param, &mut self.state)
             }
         }
         #[allow(clippy::redundant_closure_call)]
@@ -133,7 +133,7 @@ macro_rules! module {
 ///
 /// Modules should be created using the [derive](burn_derive::Module) attribute.
 /// This will make your module trainable, savable and loadable via
-/// `state` and `load`.
+/// [`into_record`](Module::into_record) and [`load_record`](Module::load_record).
 ///
 /// # Example
 ///
@@ -159,9 +159,16 @@ macro_rules! module {
 pub trait Module: Clone + Send + core::fmt::Debug {
     /// Return all the devices found in the underneath module tree added to the given vector
     /// without duplicates.
+    ///
+    /// Device collection should not initialize lazy parameters. Use [`Param::lazy_device`]
+    /// to inspect their devices without accessing tensor values.
     fn collect_devices(&self, devices: Devices) -> Devices;
 
     /// Return all the devices found in the underneath module tree without duplicates.
+    ///
+    /// Lazy tensor parameters report their initialization device without being initialized.
+    /// Device equality ignores autodiff and checkpointing settings, so this list is not a summary
+    /// of the module's training state.
     fn devices(&self) -> Devices {
         self.collect_devices(Devices::new())
     }
@@ -175,16 +182,24 @@ pub trait Module: Clone + Send + core::fmt::Debug {
     /// Both transfers preserve the source tensors' autodiff association and checkpointing
     /// strategy. The destination's autodiff defaults do not enable training; use
     /// [`train`](Module::train) first when starting from a validation module.
+    ///
+    /// A parameter not initialized yet initializes on the destination, unless a clone shares
+    /// it, in which case it initializes where it is and is then copied.
     fn fork(self, device: &Device) -> Self;
 
     /// Move the module and all of its sub-modules to the given device.
     ///
     /// # Warnings
     ///
-    /// The operation supports autodiff and it will be registered when activated. However, this may
-    /// not be what you want. The output model will be an intermediary model, meaning that you
+    /// For initialized parameters, the operation supports autodiff and is registered when activated.
+    /// This may not be what you want. The output model will be an intermediary model, meaning that you
     /// can't optimize it with gradient descent. If you want to optimize the output network on the
     /// target device, use [fork](Module::fork) instead.
+    ///
+    /// A parameter not initialized yet initializes on the destination, unless a clone shares
+    /// it, in which case it initializes where it is and is then moved.
+    /// To train the module on the destination device, use [`fork`](Module::fork). This preserves
+    /// gradient retention whether the parameters are uninitialized, initialized, or shared with clones.
     fn to_device(self, device: &Device) -> Self;
 
     /// Set whether every floating-point tensor parameter in the module tree requires gradients.
@@ -354,7 +369,8 @@ pub trait Module: Clone + Send + core::fmt::Debug {
     /// method applies.
     ///
     /// Tensor-bearing modules require the `autodiff` feature to enable autodiff. This does not
-    /// undo explicit freezing or reconstruct state discarded by [`valid`](Module::valid).
+    /// undo explicit freezing or restore tensor checkpointing strategies discarded by
+    /// [`valid`](Module::valid).
     fn train(self) -> Self;
 
     /// Returns a validation snapshot without autodiff or active training flags.
@@ -368,19 +384,39 @@ pub trait Module: Clone + Send + core::fmt::Debug {
     /// a plain device still disables its training flags, so the operation is idempotent but not
     /// necessarily a structural no-op.
     ///
-    /// The returned value is an inference snapshot: parameter reparameterizations are folded into
-    /// their values, and tensor checkpointing strategies are removed with autodiff. Calling
-    /// [`Module::train`] on that snapshot does not reconstruct those reparameterizations or restore
-    /// the previous checkpointing strategies. Keep the original module when continuing training
-    /// after validation.
+    /// Parameter reparameterizations and their stored bases are preserved, including quantized
+    /// bases. Their nested modules are also put into validation mode. Use
+    /// [`materialize`](Module::materialize) explicitly to fold reparameterizations into weights.
+    /// Tensor checkpointing strategies are removed with autodiff and are not restored by
+    /// [`Module::train`]. Keep the original module when continuing training after validation.
     fn valid(&self) -> Self;
 
-    /// Get the number of parameters the module has, including all of its sub-modules.
+    /// Fold parameter reparameterizations into their effective values and remove them.
+    ///
+    /// Each reparameterized parameter is replaced by the value computed from its stored base and
+    /// reparameterization state. Other parameters and module training flags are unchanged. The
+    /// resulting parameters retain their base parameter IDs, layout mappings and configured
+    /// trainability, but are detached from the computation that produced them.
+    /// Parameters without reparameterizations remain lazy; this does not initialize them.
+    ///
+    /// This consumes the module and cannot be undone on the returned value. Clone the module first
+    /// to retain its reparameterizations. To prepare merged inference weights, use
+    /// `model.valid().materialize()`; materialization alone does not switch to validation mode.
+    ///
+    /// # Memory and precision
+    ///
+    /// LoRA adapters are merged into dense weights. For QLoRA this also replaces the packed base
+    /// with a dense effective weight, which can substantially increase memory use. Requantization
+    /// must be requested separately and may change the model's outputs.
+    fn materialize(self) -> Self;
+
+    /// Get the number of parameters the module has, including all of its sub-modules, without
+    /// initializing the ones not initialized yet.
     fn num_params(&self) -> usize {
         module!(
             visit_float = self,
-            ops = |tensor: &Tensor<D>, state: &mut usize| {
-                *state += tensor.shape().num_elements();
+            ops = |param: &Param<Tensor<D>>, state: &mut usize| {
+                *state += param.lazy_shape().num_elements();
             },
             state = usize,
             init = || 0
@@ -437,6 +473,9 @@ pub trait Module: Clone + Send + core::fmt::Debug {
 
     /// Apply QLoRA to the module: quantize the (frozen) base tensor parameters and attach trainable
     /// LoRA adapters to 2-D weights.
+    ///
+    /// Dense effective weights can still materialize during training, even with fusion enabled.
+    /// See [`QLora`'s memory limitations](QLora#memory-limitations) before sizing a training run.
     ///
     /// Module-owned control flags are preserved. Call [`freeze`](Module::freeze) before this
     /// method if the base module's control behavior and running statistics should also be frozen.

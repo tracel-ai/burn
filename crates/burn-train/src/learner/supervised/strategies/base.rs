@@ -95,6 +95,8 @@ impl<M: LearnerModel> Default for TrainingStrategy<M> {
 /// Struct to minimise parameters passed to [SupervisedLearningStrategy::train].
 /// These components are used during training.
 pub struct TrainingComponents<M: LearnerModel> {
+    /// An optional label for this training.
+    pub label: Option<String>,
     /// The total number of epochs
     pub num_epochs: usize,
     /// The epoch number from which to continue the training.
@@ -134,6 +136,7 @@ pub trait SupervisedLearningStrategy<M: LearnerModel> {
             .process_train(LearnerEvent::Start {
                 total_epochs: training_components.num_epochs,
                 starting_epoch,
+                label: training_components.label.clone(),
             });
         // Training loop
         let (model, mut event_processor) = self.fit(

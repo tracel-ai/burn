@@ -33,12 +33,12 @@ cd burn
 export TORCH_CUDA_VERSION=cu128  # Set the cuda version (CUDA users)
 
 # AG News
-cargo run --example ag-news-train --release --features tch-gpu   # Train on the ag news dataset
-cargo run --example ag-news-infer --release --features tch-gpu   # Run inference on the ag news dataset
+cargo run -p text-classification --example ag-news-train --release --features tch-gpu   # Train on the ag news dataset
+cargo run -p text-classification --example ag-news-infer --release --features tch-gpu   # Run inference on the ag news dataset
 
 # DbPedia
-cargo run --example db-pedia-train --release --features tch-gpu  # Train on the db pedia dataset
-cargo run --example db-pedia-infer --release --features tch-gpu  # Run inference db pedia dataset
+cargo run -p text-classification --example db-pedia-train --release --features tch-gpu  # Train on the db pedia dataset
+cargo run -p text-classification --example db-pedia-infer --release --features tch-gpu  # Run inference db pedia dataset
 ```
 
 ## Torch CPU backend
@@ -50,12 +50,12 @@ cd burn
 # Use the --release flag to really speed up training.
 
 # AG News
-cargo run --example ag-news-train --release --features tch-cpu   # Train on the ag news dataset
-cargo run --example ag-news-infer --release --features tch-cpu   # Run inference on the ag news dataset
+cargo run -p text-classification --example ag-news-train --release --features tch-cpu   # Train on the ag news dataset
+cargo run -p text-classification --example ag-news-infer --release --features tch-cpu   # Run inference on the ag news dataset
 
 # DbPedia
-cargo run --example db-pedia-train --release --features tch-cpu  # Train on the db pedia dataset
-cargo run --example db-pedia-infer --release --features tch-cpu  # Run inference db pedia dataset
+cargo run -p text-classification --example db-pedia-train --release --features tch-cpu  # Train on the db pedia dataset
+cargo run -p text-classification --example db-pedia-infer --release --features tch-cpu  # Run inference db pedia dataset
 ```
 
 ## Flex backend
@@ -67,12 +67,12 @@ cd burn
 # Use the --release flag to really speed up training.
 
 # AG News
-cargo run --example ag-news-train --release --features flex   # Train on the ag news dataset
-cargo run --example ag-news-infer --release --features flex   # Run inference on the ag news dataset
+cargo run -p text-classification --example ag-news-train --release --features flex   # Train on the ag news dataset
+cargo run -p text-classification --example ag-news-infer --release --features flex   # Run inference on the ag news dataset
 
 # DbPedia
-cargo run --example db-pedia-train --release --features flex  # Train on the db pedia dataset
-cargo run --example db-pedia-infer --release --features flex  # Run inference db pedia dataset
+cargo run -p text-classification --example db-pedia-train --release --features flex  # Train on the db pedia dataset
+cargo run -p text-classification --example db-pedia-infer --release --features flex  # Run inference db pedia dataset
 ```
 
 ## WGPU backend
@@ -84,12 +84,12 @@ cd burn
 # Use the --release flag to really speed up training.
 
 # AG News
-cargo run --example ag-news-train --release --features wgpu   # Train on the ag news dataset
-cargo run --example ag-news-infer --release --features wgpu   # Run inference on the ag news dataset
+cargo run -p text-classification --example ag-news-train --release --features wgpu   # Train on the ag news dataset
+cargo run -p text-classification --example ag-news-infer --release --features wgpu   # Run inference on the ag news dataset
 
 # DbPedia
-cargo run --example db-pedia-train --release --features wgpu  # Train on the db pedia dataset
-cargo run --example db-pedia-infer --release --features wgpu  # Run inference db pedia dataset
+cargo run -p text-classification --example db-pedia-train --release --features wgpu  # Train on the db pedia dataset
+cargo run -p text-classification --example db-pedia-infer --release --features wgpu  # Run inference db pedia dataset
 ```
 
 ## CUDA backend
@@ -102,8 +102,8 @@ cd burn
 # Add the f16 feature to run in f16. 
 
 # AG News
-cargo run --example ag-news-train --release --features cuda   # Train on the ag news dataset
-cargo run --example ag-news-infer --release --features cuda   # Run inference on the ag news dataset
+cargo run -p text-classification --example ag-news-train --release --features cuda   # Train on the ag news dataset
+cargo run -p text-classification --example ag-news-infer --release --features cuda   # Run inference on the ag news dataset
 ```
 
 ## Metal backend
@@ -116,8 +116,8 @@ cd burn
 # Add the f16 feature to run in f16. 
 
 # AG News
-cargo run --example ag-news-train --release --features metal   # Train on the ag news dataset
-cargo run --example ag-news-infer --release --features metal   # Run inference on the ag news dataset
+cargo run -p text-classification --example ag-news-train --release --features metal   # Train on the ag news dataset
+cargo run -p text-classification --example ag-news-infer --release --features metal   # Run inference on the ag news dataset
 ```
 
 # Finetuning Using LoRA
@@ -134,5 +134,5 @@ cd burn
 # Use the --release flag to really speed up training.
 
 # AG News
-cargo run --example ag-news-finetune --release --features wgpu   # Finetune pre-trained `model.bpk` weights on the ag news dataset
+cargo run -p text-classification --example ag-news-finetune --release --features wgpu   # Finetune pre-trained `model.bpk` weights on the ag news dataset
 ```

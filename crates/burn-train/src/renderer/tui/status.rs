@@ -12,6 +12,7 @@ use ratatui::{
 
 /// Show the training status with various information.
 pub(crate) struct StatusState {
+    label: Option<String>,
     progress: Option<ProgressSnapshot>,
     mode: Mode,
     event_counters: BTreeMap<String, usize>,
@@ -29,11 +30,17 @@ impl Default for StatusState {
             progress: None,
             mode: Mode::Train,
             event_counters: BTreeMap::new(),
+            label: None,
         }
     }
 }
 
 impl StatusState {
+    /// Reset all counters at the end of a split.
+    pub(crate) fn update_label(&mut self, label: Option<&str>) {
+        self.label = label.map(str::to_string)
+    }
+
     /// Update the training information.
     pub(crate) fn update_train(&mut self, progress: &ProgressSnapshot) {
         self.progress = Some(progress.clone());
@@ -63,11 +70,17 @@ impl StatusState {
 
     /// Create a view.
     pub(crate) fn view(&self) -> StatusView {
-        StatusView::new(self.progress.as_ref(), &self.mode, &self.event_counters)
+        StatusView::new(
+            self.label.as_deref(),
+            self.progress.as_ref(),
+            &self.mode,
+            &self.event_counters,
+        )
     }
 }
 
 pub(crate) struct StatusView {
+    label: Option<String>,
     lines: Vec<Vec<Span<'static>>>,
 }
 
@@ -81,6 +94,7 @@ fn capitalize(s: &str) -> String {
 
 impl StatusView {
     fn new(
+        label: Option<&str>,
         progress: Option<&ProgressSnapshot>,
         mode: &Mode,
         event_counters: &BTreeMap<String, usize>,
@@ -136,13 +150,23 @@ impl StatusView {
             ]);
         }
 
-        Self { lines }
+        Self {
+            label: label.map(str::to_string),
+            lines,
+        }
     }
 
     pub(crate) fn render(self, frame: &mut TerminalFrame<'_>, size: Rect) {
         let paragraph = Paragraph::new(self.lines.into_iter().map(Line::from).collect::<Vec<_>>())
             .alignment(Alignment::Left)
-            .block(Block::default().borders(Borders::ALL).title("Status"))
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .title(match &self.label {
+                        Some(label) => format!("Status: {label} "),
+                        None => "Status".to_owned(),
+                    }),
+            )
             .wrap(Wrap { trim: false })
             .style(Style::default().fg(Color::Gray));
 

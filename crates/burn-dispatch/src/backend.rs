@@ -12,8 +12,8 @@ use alloc::vec;
 #[cfg(feature = "autodiff")]
 use burn_backend::distributed::{DistributedParamId, DistributedParams};
 use burn_backend::{
-    AutodiffBackend, Backend, BackendGraph, BackendTypes, DType, ExecutionError,
-    InstallMemoryPoolsError, MemoryPoolLayout, MemoryPoolUsage, SlicedPoolReport,
+    AutodiffBackend, Backend, BackendGraph, BackendTypes, DType, ExecutionError, MemoryPoolUsage,
+    ProfileDuration, ProfileOptions, ProfileToken, SlicedPoolReport,
 };
 
 /// A captured graph from one of the dispatched backends (see
@@ -210,6 +210,30 @@ impl Backend for Dispatch {
         dispatch_device!(device, |device| B::sync(device))
     }
 
+    fn profile<O: Send + 'static>(
+        device: &Self::Device,
+        options: ProfileOptions,
+        func: impl FnOnce() -> O + Send,
+    ) -> Result<(O, ProfileDuration), ExecutionError> {
+        dispatch_device!(device, |device| B::profile(device, options, func))
+    }
+
+    fn profile_start(device: &Self::Device) -> Result<Option<ProfileToken>, ExecutionError> {
+        dispatch_device!(device, |device| B::profile_start(device))
+    }
+
+    fn profile_end(
+        device: &Self::Device,
+        token: ProfileToken,
+        options: ProfileOptions,
+    ) -> Result<ProfileDuration, ExecutionError> {
+        dispatch_device!(device, |device| B::profile_end(device, token, options))
+    }
+
+    fn profile_abandon(device: &Self::Device, token: ProfileToken) {
+        dispatch_device!(device, |device| B::profile_abandon(device, token))
+    }
+
     fn graph_prepare(device: &Self::Device) -> Result<(), ExecutionError> {
         dispatch_device!(device, |device| B::graph_prepare(device))
     }
@@ -276,16 +300,6 @@ impl Backend for Dispatch {
 
     fn memory_cleanup(device: &Self::Device) {
         dispatch_device!(device, |device| B::memory_cleanup(device))
-    }
-
-    fn memory_install_pools(
-        device: &Self::Device,
-        layout: MemoryPoolLayout,
-    ) -> Result<(), InstallMemoryPoolsError> {
-        dispatch_device!(device, |device| B::memory_install_pools(
-            device,
-            layout.clone()
-        ))
     }
 
     fn memory_pool_report(device: &Self::Device) -> Option<Vec<SlicedPoolReport>> {

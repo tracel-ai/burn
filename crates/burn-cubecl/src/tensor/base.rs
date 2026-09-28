@@ -454,4 +454,14 @@ mod tests {
     fn is_contiguous_4d_unit_shape() {
         assert!(!is_contiguous(&[1, 1, 1, 9], &[72, 1, 72, 8]));
     }
+
+    /// A permute leaves a unit axis holding the stride it had before, which says nothing
+    /// about the layout: both of these are contiguous.
+    #[test]
+    fn is_contiguous_unit_axis_keeps_a_stale_stride() {
+        // [2, 1, 3] strides [3, 3, 1] permuted by [0, 2, 1]
+        assert!(is_contiguous(&[2, 3, 1], &[3, 1, 3]));
+        // only the first axis is ever indexed, and it steps by one
+        assert!(is_contiguous(&[32, 1, 1, 1], &[1, 32, 32, 32]));
+    }
 }

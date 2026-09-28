@@ -8,7 +8,8 @@ Read PyTorch checkpoint files (`.pt`, `.pth`) without PyTorch or Burn.
 The crate parses the pickle inside a checkpoint and hands back each tensor's name, element
 type and shape, with the bytes produced only when asked for. It reads every container
 `torch.save` has written: the ZIP archive of PyTorch 1.6 and later, the legacy pickle stream
-of 0.1.10 through 1.5, and the TAR archive before that.
+of 0.1.10 through 1.5, the TAR archive before that, and the plain pickle some tools write
+for configuration on its own.
 
 ```rust
 use pytorch_reader::PytorchReader;
@@ -21,12 +22,15 @@ for tensor in reader.tensors().values() {
 // Bytes are read from the file here, not at open.
 let weight = reader.get("fc.weight").unwrap();
 let bytes: Vec<u8> = weight.read()?;
+# Ok::<(), Box<dyn std::error::Error>>(())
 ```
 
 A checkpoint that nests its weights under a key (`"state_dict"`, `"model"`, ...) is opened
-with `PytorchReader::with_top_level_key("checkpoint.pt", "state_dict")`. Non-tensor values
-(configuration dictionaries, say) can be deserialized into any `serde` type with
-`PytorchReader::load_config`.
+with `PytorchReader::with_top_level_key("checkpoint.pt", "state_dict")`. A full-model save
+(`torch.save(model)` rather than `torch.save(model.state_dict())`) is read as the module's
+parameters and buffers under the names `state_dict()` gives them; extra state
+(`get_extra_state()`) and state dict hooks are not run. Non-tensor values (configuration dictionaries, say) can be deserialized into
+any `serde` type with `PytorchReader::load_config`.
 
 This is the reader behind [`burn-store`](https://crates.io/crates/burn-store), which wraps
 its tensors for loading into [Burn](https://github.com/tracel-ai/burn) modules.

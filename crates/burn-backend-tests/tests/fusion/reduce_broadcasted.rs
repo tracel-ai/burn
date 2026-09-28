@@ -74,6 +74,24 @@ fn test_reduce_broadcasted_2() {
 }
 
 #[test]
+fn test_reduce_broadcasted_empty_axis() {
+    let device = Default::default();
+    let tensor = TestTensor::<2>::zeros([4, 0], &device);
+    let fused_on_read = TestTensor::<2>::zeros([4, 0], &device);
+    let fused_on_write =
+        TestTensor::<2>::from_data(TensorData::from([[1.0], [2.0], [3.0], [4.0]]), &device);
+
+    device.sync().unwrap();
+
+    let x = tensor + fused_on_read.clone();
+    let x = x.sum_dim(1);
+    let end = x + fused_on_write;
+
+    let actual = end.into_data();
+    actual.assert_eq(&TensorData::from([[1.0], [2.0], [3.0], [4.0]]), false);
+}
+
+#[test]
 fn test_reduce_broadcasted_3() {
     let device = Default::default();
     let tensor = TestTensorInt::<1>::arange(0..32, &device)

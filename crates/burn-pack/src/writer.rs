@@ -56,6 +56,9 @@ pub struct Writer {
     /// Automatically append the canonical extension to extensionless file paths.
     #[cfg(feature = "std")]
     auto_extension: bool,
+    /// Replace an existing file at the destination on file writes.
+    #[cfg(feature = "std")]
+    overwrite: bool,
 }
 
 impl Writer {
@@ -67,6 +70,8 @@ impl Writer {
             scalars: BTreeMap::new(),
             #[cfg(feature = "std")]
             auto_extension: true,
+            #[cfg(feature = "std")]
+            overwrite: true,
         }
     }
 
@@ -91,6 +96,20 @@ impl Writer {
     #[cfg(feature = "std")]
     pub fn auto_extension(mut self, enable: bool) -> Self {
         self.auto_extension = enable;
+        self
+    }
+
+    /// Allow or refuse replacing an existing file on file writes.
+    ///
+    /// When enabled (the default), [`write_to_file`](Self::write_to_file) and
+    /// [`write_to_file_atomic`](Self::write_to_file_atomic) replace whatever is at the
+    /// destination. When disabled, both return [`Error::AlreadyExists`] instead. The check is
+    /// not a separate step that another writer could slip past: `write_to_file` makes it when
+    /// it creates the file, and `write_to_file_atomic` when it publishes the finished one (see
+    /// [`AtomicFile::commit_new`] for the one exception, filesystems without hard links).
+    #[cfg(feature = "std")]
+    pub fn overwrite(mut self, enable: bool) -> Self {
+        self.overwrite = enable;
         self
     }
 
@@ -158,9 +177,12 @@ impl Writer {
     ///
     /// By default, the canonical [`crate::EXTENSION`] (`.bpk`) is appended when `path` has no
     /// extension. Use [`auto_extension(false)`](Self::auto_extension) to preserve the path.
+    /// With [`overwrite(false)`](Self::overwrite), an existing file is refused rather than
+    /// replaced.
     ///
     /// The file is truncated as soon as writing starts, so a failure partway through leaves it
-    /// truncated. That only matters when a tensor's bytes can fail to materialize, which for
+    /// truncated. Under `overwrite(false)` that partial file is new, and it blocks a retry
+    /// until removed. That only matters when a tensor's bytes can fail to materialize, which for
     /// resident tensors they cannot: the write fails only if the disk does. Callers holding
     /// [`deferred`](Tensor::deferred) tensors, whose providers run mid-write, want
     /// [`write_to_file_atomic`](Self::write_to_file_atomic) instead.
@@ -169,8 +191,18 @@ impl Writer {
         let path = self.resolve_path(path.as_ref());
         let layout = self.plan()?;
 
-        let file = File::create(&path)
-            .map_err(|e| Error::IoError(format!("cannot create '{}': {e}", path.display())))?;
+        let file = File::options()
+            .write(true)
+            .truncate(true)
+            .create(self.overwrite)
+            .create_new(!self.overwrite)
+            .open(&path)
+            .map_err(|e| match e.kind() {
+                std::io::ErrorKind::AlreadyExists => {
+                    Error::AlreadyExists(path.display().to_string())
+                }
+                _ => Error::IoError(format!("cannot create '{}': {e}", path.display())),
+            })?;
         let mut sink = FileSink { file, path };
 
         self.write_container(&layout, &mut sink)
@@ -201,6 +233,10 @@ impl Writer {
     /// destination may hold the old container or the new one, and the finished scratch file may
     /// still be beside it.
     ///
+    /// With [`overwrite(false)`](Self::overwrite) the finished file is hard-linked into place
+    /// instead of renamed, and [`Error::AlreadyExists`] is returned if anything is at `path`
+    /// by then; see [`AtomicFile::commit_new`].
+    ///
     /// Building alongside the destination has four consequences, which is why
     /// [`write_to_file`](Self::write_to_file) does not do it:
     ///
@@ -221,6 +257,7 @@ impl Writer {
     pub fn write_to_file_atomic<P: AsRef<Path>>(self, path: P) -> Result<(), Error> {
         let path = self.resolve_path(path.as_ref());
         let layout = self.plan()?;
+        let overwrite = self.overwrite;
         let (scratch, file) = AtomicFile::create(&path)?;
         let mut sink = FileSink {
             file,
@@ -229,7 +266,7 @@ impl Writer {
 
         self.write_container(&layout, &mut sink)?;
 
-        scratch.persist(sink)
+        scratch.persist(sink, overwrite)
     }
 
     /// Apply the configured extension policy to a requested path.
@@ -500,17 +537,21 @@ impl Sink for BufferSink<'_> {
     }
 }
 
-/// Flushing a sink and moving its scratch file onto the destination.
+/// Flushing a sink and publishing its scratch file at the destination.
 ///
 /// Lives here rather than on [`AtomicFile`] itself because it is what enforces the ordering
 /// the all-or-nothing guarantee rests on: persisting without first surrendering the file
 /// handle is unrepresentable, so the deferred-write-error check in [`FileSink::finish`]
-/// cannot be skipped and the handle is closed before the rename.
+/// cannot be skipped and the handle is closed before publishing.
 #[cfg(feature = "std")]
 impl AtomicFile {
-    fn persist(mut self, sink: FileSink) -> Result<(), Error> {
+    fn persist(mut self, sink: FileSink, overwrite: bool) -> Result<(), Error> {
         sink.finish()?;
-        self.rename_onto()
+        if overwrite {
+            self.rename_onto()
+        } else {
+            self.link_onto()
+        }
     }
 }
 
@@ -532,12 +573,12 @@ impl FileSink {
     /// This is the only place a deferred write error can still be caught. `File::flush` is a
     /// no-op because the handle is unbuffered, and dropping it discards whatever `close`
     /// reports, yet filesystems that allocate lazily (NFS over quota, a failing disk) report
-    /// exactly there. Without this, such a write would be renamed over a good container
+    /// exactly there. Without this, such a write would be published over a good container
     /// while `write_to_file_atomic` returned `Ok`.
     ///
-    /// It also orders durability: the data is on disk before the rename happens, so a crash
+    /// It also orders durability: the data is on disk before it is published, so a crash
     /// cannot leave the destination pointing at data that never reached the platter.
-    /// (Durability of the rename itself is [`AtomicFile::rename_onto`]'s job.)
+    /// (Durability of the publish itself is [`AtomicFile`]'s job.)
     fn finish(self) -> Result<(), Error> {
         self.file.sync_all().map_err(|e| {
             Error::IoError(format!(

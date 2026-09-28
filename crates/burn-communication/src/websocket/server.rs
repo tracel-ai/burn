@@ -1,6 +1,9 @@
 use std::net::SocketAddr;
 
-use crate::base::{CommunicationChannel, CommunicationError, Message, ProtocolServer};
+use crate::{
+    base::{CommunicationChannel, CommunicationError, Message, ProtocolServer},
+    websocket::base::DeadPeerTimeout,
+};
 use axum::{
     Router,
     extract::{
@@ -8,6 +11,7 @@ use axum::{
         ws::{self, WebSocket},
     },
     routing::get,
+    serve::ListenerExt,
 };
 use futures::{
     SinkExt, StreamExt,
@@ -51,6 +55,8 @@ impl WsServer {
             Ok(addr) => log::info!("Server started, listening on {addr}"),
             Err(err) => log::info!("Server started (could not resolve bound address: {err})"),
         }
+
+        let listener = listener.tap_io(|tcp| tcp.set_dead_peer_timeout());
 
         axum::serve(
             listener,

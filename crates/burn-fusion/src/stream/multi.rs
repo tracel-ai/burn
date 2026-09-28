@@ -142,6 +142,10 @@ impl<R: FusionRuntime> MultiStream<R> {
             self.shared_sources.remove(&ir.id);
         }
 
+        // Before it is queued: queueing it can run earlier operations, and an
+        // observer pairs this one with what the program was doing when it was
+        // recorded, not with whatever runs because of it.
+        crate::observer::notify_registered(&repr);
         self.enqueue_operation(stream, repr, operation, handles);
 
         #[cfg(feature = "memory-checks")]

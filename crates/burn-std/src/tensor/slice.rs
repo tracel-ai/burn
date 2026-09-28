@@ -134,7 +134,7 @@ where
 /// ```rust,ignore
 /// use burn_tensor::{Tensor, s};
 ///
-/// # fn example<B: Backend>(tensor: Tensor<B, 3>) {
+/// # fn example(tensor: Tensor<3>) {
 /// // Select rows 0-5 (exclusive)
 /// let subset = tensor.slice(s![0..5, .., ..]);
 ///
@@ -154,7 +154,7 @@ where
 /// ```rust,ignore
 /// use burn_tensor::{Tensor, s};
 ///
-/// # fn example<B: Backend>(tensor: Tensor<B, 2>) {
+/// # fn example(tensor: Tensor<2>) {
 /// // Select every 2nd row
 /// let even_rows = tensor.slice(s![0..10;2, ..]);
 ///
@@ -171,7 +171,7 @@ where
 /// ```rust,ignore
 /// use burn_tensor::{Tensor, s};
 ///
-/// # fn example<B: Backend>(tensor: Tensor<B, 2>) {
+/// # fn example(tensor: Tensor<2>) {
 /// // Reverse the first dimension
 /// let reversed = tensor.slice(s![..;-1, ..]);
 ///
@@ -188,7 +188,7 @@ where
 /// ```rust,ignore
 /// use burn_tensor::{Tensor, s};
 ///
-/// # fn example<B: Backend>(tensor: Tensor<B, 4>) {
+/// # fn example(tensor: Tensor<4>) {
 /// // Mix of different slice types
 /// let complex = tensor.slice(s![
 ///     0..10;2,    // Every 2nd element from 0 to 10
@@ -210,7 +210,7 @@ where
 /// ```rust,ignore
 /// use burn_tensor::{Tensor, s};
 ///
-/// # fn example<B: Backend>(tensor: Tensor<B, 2>, values: Tensor<B, 2>) {
+/// # fn example(tensor: Tensor<2>, values: Tensor<2>) {
 /// // Assign to every 2nd row
 /// let tensor = tensor.slice_assign(s![0..10;2, ..], values);
 ///

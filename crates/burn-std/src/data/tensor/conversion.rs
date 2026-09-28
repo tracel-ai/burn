@@ -102,6 +102,11 @@ impl TensorData {
 
     /// Returns an iterator over the values of the tensor data.
     pub fn iter<E: Element>(&self) -> Box<dyn Iterator<Item = E> + '_> {
+        self.iter_exact::<E>()
+    }
+
+    /// Returns an exact-size iterator for internal data comparisons.
+    pub(crate) fn iter_exact<E: Element>(&self) -> Box<dyn ExactSizeIterator<Item = E> + '_> {
         if E::dtype() == self.dtype {
             Box::new(bytemuck::checked::cast_slice(&self.bytes).iter().copied())
         } else {

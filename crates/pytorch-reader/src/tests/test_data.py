@@ -152,6 +152,12 @@ save_test_file("empty.pt", {"tensor": empty_tensor}, "Empty tensor")
 scalar_tensor = torch.tensor(42.0)
 save_test_file("scalar.pt", {"tensor": scalar_tensor}, "Scalar tensor (0-dim)")
 
+# Saved without ZIP checksums: every entry's CRC-32 is written as 0 (torch >= 2.7)
+from torch.utils.serialization import config as serialization_config
+serialization_config.save.compute_crc32 = False
+save_test_file("no_crc32.pt", {"tensor": float32_tensor}, "Float32 tensor saved with compute_crc32=False")
+serialization_config.save.compute_crc32 = True
+
 # Large shape but small data (testing shape vs actual data)
 sparse_like = torch.zeros(100, 100)
 sparse_like[0, 0] = 1.0

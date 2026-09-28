@@ -109,6 +109,10 @@ impl<const D: usize> Module for RunningState<Tensor<D>> {
         devices
     }
 
+    fn materialize(self) -> Self {
+        self
+    }
+
     fn valid(&self) -> Self {
         self.sync();
         let value = self.value();

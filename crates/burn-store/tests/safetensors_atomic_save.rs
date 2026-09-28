@@ -8,7 +8,7 @@
 use burn_core as burn;
 
 use burn_core::module::{Module, Param, ParamId};
-use burn_core::tensor::{DType, Device, Tensor};
+use burn_core::tensor::{DType, Device, Tensor, TensorData};
 use burn_pack::Tensor as PackTensor;
 use burn_store::{ModuleAdapter, ModuleContext, ModuleSnapshot, SafetensorsStore};
 
@@ -39,6 +39,34 @@ impl ModuleAdapter for FailingAdapter {
             tensor.shape.clone(),
             None,
             || Err(burn_pack::Error::IoError("device readback failed".into())),
+        )
+    }
+
+    fn clone_box(&self) -> Box<dyn ModuleAdapter> {
+        Box::new(self.clone())
+    }
+}
+
+/// Plants a file at `dest` from inside each tensor's provider, i.e. partway through the save
+/// and after the store's own existence check has passed.
+#[derive(Debug, Clone)]
+struct PlantingAdapter {
+    dest: std::path::PathBuf,
+}
+
+impl ModuleAdapter for PlantingAdapter {
+    fn adapt(&self, tensor: PackTensor, _ctx: ModuleContext<'_>) -> PackTensor {
+        let dest = self.dest.clone();
+        let shape = tensor.shape.clone();
+        burn_store::bridge::deferred(
+            tensor.name.clone(),
+            DType::F32,
+            tensor.shape.clone(),
+            None,
+            move || {
+                std::fs::write(&dest, b"theirs").unwrap();
+                Ok(TensorData::zeros::<f32, _>(shape.clone()))
+            },
         )
     }
 
@@ -145,5 +173,26 @@ fn a_save_keeps_the_permissions_of_the_checkpoint_it_replaces() {
         std::fs::metadata(&path).unwrap().permissions().mode() & 0o777,
         0o600,
         "the save republished the checkpoint at the process umask"
+    );
+}
+
+/// Without `overwrite`, a file that appears while the save is running must survive it: the
+/// store's up-front check has already passed by then, so only the publish can refuse.
+#[test]
+fn a_save_does_not_replace_a_file_that_appears_mid_write() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("model.safetensors");
+    let device: Device = Default::default();
+
+    let mut store =
+        SafetensorsStore::from_file(&path).with_to_adapter(PlantingAdapter { dest: path.clone() });
+    let err = model(&device).save_into(&mut store).unwrap_err();
+
+    assert!(err.to_string().contains("File already exists"), "got {err}");
+    assert_eq!(std::fs::read(&path).unwrap(), b"theirs");
+    assert_eq!(
+        std::fs::read_dir(dir.path()).unwrap().count(),
+        1,
+        "the scratch file should have been cleaned up"
     );
 }

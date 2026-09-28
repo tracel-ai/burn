@@ -7,6 +7,7 @@
 
 This library provides the core abstractions required to run tensor operations with Burn.
 
-`Tensor`s are generic over the backend to allow users to perform operations using different
-`Backend` implementations. Burn's tensors also support auto-differentiation thanks to the
-`AutodiffBackend` trait.
+`Tensor<D, K>` is generic over rank and tensor kind. Its `Device` selects the backend at runtime;
+operations pass through an opaque bridge and dispatch to backend primitives. With the `autodiff`
+feature, create tensors on `device.autodiff()` and call `require_grad()` on source leaves whose
+gradients you need. Models and tensor functions do not need a backend type parameter.

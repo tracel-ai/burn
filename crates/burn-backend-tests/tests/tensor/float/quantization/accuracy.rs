@@ -8,11 +8,23 @@
 
 use super::*;
 use burn_tensor::{
-    Shape, TensorData,
+    DType, Shape, TensorData,
     quantization::{
         QuantScheme, QuantValue, ScaleDtype, global_scale_size, params_shape, scale_size,
     },
 };
+
+/// Whether this runtime can hold an 8-bit scale at all.
+///
+/// WGSL has no 8-bit type: cubek packs fp8 four lanes to a `u32`, and a scalar scale has no
+/// representation there. Those backends sit out the `ue4m3` cases, as cubek's own scale tests do.
+fn addresses_8bit_scales() -> bool {
+    let addressable = burn_tensor::Device::default().supports_dtype(DType::U8);
+    if !addressable {
+        println!("no 8-bit type on this runtime, a ue4m3 scale has nowhere to live");
+    }
+    addressable
+}
 
 /// Total storage cost of a quantized tensor, per element of the original tensor.
 ///
@@ -111,6 +123,9 @@ const SHAPE: [usize; 2] = [64, 64];
 /// lands in e4m3's subnormals or below, where almost no precision is left.
 #[test]
 fn narrow_scale_dtype_degrades_without_normalization() {
+    if !addresses_8bit_scales() {
+        return;
+    }
     let values = normal_samples(SHAPE[0] * SHAPE[1], 0.02);
     let levels = Levels::Block(32);
 
@@ -148,11 +163,7 @@ fn error_responds_to_scale_dtype() {
 
     let error_for =
         |dtype| quantization_error(&values, SHAPE, &scheme_for(QuantValue::Q8S, levels, dtype));
-    let (f32_err, f16_err, ue4m3_err) = (
-        error_for(ScaleDtype::F32),
-        error_for(ScaleDtype::F16),
-        error_for(ScaleDtype::UE4M3),
-    );
+    let (f32_err, f16_err) = (error_for(ScaleDtype::F32), error_for(ScaleDtype::F16));
 
     // Generous on purpose. The measured gap is near zero on the backends checked so far, but this
     // runs on every backend and float element type, and the point is only to separate
@@ -161,6 +172,11 @@ fn error_responds_to_scale_dtype() {
         (f16_err - f32_err).abs() / f32_err < 0.20,
         "a 16-bit scale should be indistinguishable from f32, got f32={f32_err} f16={f16_err}"
     );
+
+    if !addresses_8bit_scales() {
+        return;
+    }
+    let ue4m3_err = error_for(ScaleDtype::UE4M3);
     assert!(
         ue4m3_err > f32_err,
         "an 8-bit scale should cost some accuracy, got f32={f32_err} ue4m3={ue4m3_err}"

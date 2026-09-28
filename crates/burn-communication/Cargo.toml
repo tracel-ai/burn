@@ -18,7 +18,7 @@ tracing = [
 ]
 
 data-service = ["burn-backend"]
-websocket = ["axum", "tokio-tungstenite", "futures"]
+websocket = ["axum", "tokio-tungstenite", "futures", "socket2"]
 
 [dependencies]
 burn-std = { workspace = true, features = ["default"] }
@@ -39,6 +39,7 @@ burn-backend = { workspace = true, optional = true, features = ["default"] }
 axum = { workspace = true, features = ["ws"], optional = true }
 tokio-tungstenite = { workspace = true, optional = true }
 futures = { workspace = true, optional = true }
+socket2 = { workspace = true, optional = true }
 
 [dev-dependencies]
 # Integration tests for the websocket server (run with `--features websocket`).

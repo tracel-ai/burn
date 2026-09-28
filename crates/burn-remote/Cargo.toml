@@ -25,7 +25,7 @@ tracing = [
     "burn-backend/tracing",
 ]
 
-client = ["tokio/sync"]
+client = ["tokio/sync", "tokio/rt"]
 # A test that runs on this machine's GPU through the cubecl backend, rather than on Flex.
 gpu-tests = ["dep:burn-cubecl"]
 # Cache recurring op-groups on the server and invoke them by id. Wraps `RemoteBackend` in `Fusion`.

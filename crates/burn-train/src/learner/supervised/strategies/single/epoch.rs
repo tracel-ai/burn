@@ -102,7 +102,6 @@ impl<M: LearnerModel> SingleDeviceTrainEpoch<M> {
                 }
             };
             iteration += 1;
-            learner.lr_step();
             log::info!("Iteration {iteration}");
 
             let progress = iterator.progress();
@@ -113,14 +112,18 @@ impl<M: LearnerModel> SingleDeviceTrainEpoch<M> {
                     accumulator.accumulate(&learner.model(), item.grads);
                     accumulation_current += 1;
 
-                    if accumulation <= accumulation_current {
+                    if accumulation <= accumulation_current || progress.is_completed() {
                         let grads = accumulator.grads();
 
+                        learner.lr_step();
                         learner.optimizer_step(grads);
                         accumulation_current = 0;
                     }
                 }
-                None => learner.optimizer_step(item.grads),
+                None => {
+                    learner.lr_step();
+                    learner.optimizer_step(item.grads);
+                }
             }
 
             let item = TrainingItem::new(

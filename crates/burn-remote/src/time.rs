@@ -1,4 +1,4 @@
-use core::{future::Future, time::Duration};
+use core::time::Duration;
 
 #[cfg(not(target_family = "wasm"))]
 pub(crate) async fn sleep(duration: Duration) {
@@ -11,13 +11,19 @@ pub(crate) async fn sleep(duration: Duration) {
 }
 
 /// `Err(())` if `duration` elapses before `future` completes.
-#[cfg(not(target_family = "wasm"))]
-pub(crate) async fn timeout<F: Future>(duration: Duration, future: F) -> Result<F::Output, ()> {
+#[cfg(all(not(target_family = "wasm"), feature = "server", feature = "iroh"))]
+pub(crate) async fn timeout<F: core::future::Future>(
+    duration: Duration,
+    future: F,
+) -> Result<F::Output, ()> {
     tokio::time::timeout(duration, future).await.map_err(|_| ())
 }
 
-#[cfg(target_family = "wasm")]
-pub(crate) async fn timeout<F: Future>(duration: Duration, future: F) -> Result<F::Output, ()> {
+#[cfg(all(target_family = "wasm", feature = "server", feature = "iroh"))]
+pub(crate) async fn timeout<F: core::future::Future>(
+    duration: Duration,
+    future: F,
+) -> Result<F::Output, ()> {
     use futures_util::future::{Either, select};
 
     let timer = gloo_timers::future::sleep(duration);

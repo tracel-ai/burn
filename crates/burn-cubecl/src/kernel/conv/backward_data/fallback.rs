@@ -6,10 +6,7 @@ use burn_std::Shape;
 use cubek::convolution::components::ConvSetupError;
 
 use crate::{
-    kernel::{
-        conv::{conv_transpose2d, conv_transpose3d},
-        slice,
-    },
+    kernel::{conv::conv_transpose2d, conv::conv_transpose3d, slice},
     ops::{permute_nchw_to_nhwc, permute_nhwc_to_nchw, reshape},
     tensor::CubeTensor,
 };
@@ -63,62 +60,81 @@ pub(crate) fn conv_data_backward_fallback<const N_DIM: usize>(
         );
     }
 
-    // We don't yet have NHWC kernels for conv_transpose so need to do this.
-    // Should eventually use NHWC kernels instead
-    let out_grad = permute_nhwc_to_nchw(out_grad);
-    let weights = permute_nhwc_to_nchw(weights);
+    // Through `conv_transpose2d` so its autotune keeps both routes: the direct NHWC kernel
+    // (its direct candidate) and col2im. 3D has neither and flips to NCHW below.
+    match N_DIM {
+        1 => {
+            let out_grad = permute_nhwc_to_nchw(out_grad);
+            let weights = permute_nhwc_to_nchw(weights);
 
-    let in_grad = match N_DIM {
-        1 => conv_transpose1d_from_conv_transpose2d(
-            out_grad,
-            weights,
-            ConvTransposeOptions::new(
-                [options.stride[0]],
-                [options.padding_begin()[0]],
-                [padding_out[0]],
-                [options.dilation[0]],
-                options.groups,
-            ),
-        ),
-        2 => conv_transpose2d(
-            out_grad,
-            weights,
-            None,
-            ConvTransposeOptions::new(
-                [options.stride[0], options.stride[1]],
-                [options.padding_begin()[0], options.padding_begin()[1]],
-                [padding_out[0], padding_out[1]],
-                [options.dilation[0], options.dilation[1]],
-                options.groups,
-            ),
-            Default::default(),
-        ),
-        3 => Ok(conv_transpose3d(
-            out_grad,
-            weights,
-            None,
-            ConvTransposeOptions::new(
-                [options.stride[0], options.stride[1], options.stride[2]],
-                [
-                    options.padding_begin()[0],
-                    options.padding_begin()[1],
-                    options.padding_begin()[2],
-                ],
-                [padding_out[0], padding_out[1], padding_out[2]],
-                [
-                    options.dilation[0],
-                    options.dilation[1],
-                    options.dilation[2],
-                ],
-                options.groups,
-            ),
-        )
-        .unwrap()),
+            let in_grad = conv_transpose1d_from_conv_transpose2d(
+                out_grad,
+                weights,
+                ConvTransposeOptions::new(
+                    [options.stride[0]],
+                    [options.padding_begin()[0]],
+                    [padding_out[0]],
+                    [options.dilation[0]],
+                    options.groups,
+                ),
+            )?;
+
+            Ok(permute_nchw_to_nhwc(in_grad))
+        }
+        2 => {
+            let out_grad = permute_nhwc_to_nchw(out_grad);
+            let weights = permute_nhwc_to_nchw(weights);
+
+            let in_grad = conv_transpose2d(
+                out_grad,
+                weights,
+                None,
+                ConvTransposeOptions::new(
+                    [options.stride[0], options.stride[1]],
+                    [options.padding_begin()[0], options.padding_begin()[1]],
+                    [padding_out[0], padding_out[1]],
+                    [options.dilation[0], options.dilation[1]],
+                    options.groups,
+                ),
+                Default::default(),
+            )?;
+
+            Ok(permute_nchw_to_nhwc(in_grad))
+        }
+        3 => {
+            // `conv_transpose3d` is NCHW-only.
+            let out_grad = permute_nhwc_to_nchw(out_grad);
+            let weights = permute_nhwc_to_nchw(weights);
+
+            let in_grad = conv_transpose3d(
+                out_grad,
+                weights,
+                None,
+                ConvTransposeOptions::new(
+                    [options.stride[0], options.stride[1], options.stride[2]],
+                    [
+                        options.padding_begin()[0],
+                        options.padding_begin()[1],
+                        options.padding_begin()[2],
+                    ],
+                    [padding_out[0], padding_out[1], padding_out[2]],
+                    [
+                        options.dilation[0],
+                        options.dilation[1],
+                        options.dilation[2],
+                    ],
+                    options.groups,
+                ),
+            )
+            .unwrap();
+
+            Ok(permute_nchw_to_nhwc(in_grad))
+        }
         _ => unimplemented!("Invalid dimensionality"),
-    }?;
-    Ok(permute_nchw_to_nhwc(in_grad))
+    }
 }
 
+/// Runs a 1D transposition as a 2D one whose width is a single column.
 fn conv_transpose1d_from_conv_transpose2d(
     x: CubeTensor,
     weight: CubeTensor,
@@ -146,7 +162,7 @@ fn conv_transpose1d_from_conv_transpose2d(
         ),
         Default::default(),
     )?;
-    let [batch_size, channels_out, height_out, _weight_out] = tensor.shape().dims();
+    let [batch_size, channels_out, height_out, _width_out] = tensor.shape().dims();
     Ok(reshape(
         tensor,
         Shape::from([batch_size, channels_out, height_out]),

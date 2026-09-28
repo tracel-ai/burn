@@ -175,6 +175,10 @@ where
 
     /// Create an empty tensor with the same shape, dtype, and device as the current tensor.
     ///
+    /// # Panics
+    ///
+    /// If the tensor is quantized. This method preserves the input dtype,
+    /// but quantized tensor creation is not supported.
     ///
     /// # Example
     /// ```rust
@@ -187,7 +191,20 @@ where
     /// let tensor = tensor.empty_like();
     /// ```
     pub fn empty_like(&self) -> Self {
-        Self::new(K::empty(self.shape(), &self.device(), self.dtype()))
+        let dtype = self.dtype();
+        check!(TensorCheck::quantized_unsupported("Empty Like", dtype));
+        Self::new(K::empty(self.shape(), &self.device(), dtype))
+    }
+
+    /// The dtype to create a new tensor with so that it matches this one, used by ops that
+    /// build their output from scratch (e.g. short-circuiting to an empty result). Quantized
+    /// dtypes fall back to the device default float dtype, since tensors can't be created
+    /// directly in a quantized dtype.
+    pub(crate) fn creation_dtype(&self) -> DType {
+        match self.dtype() {
+            DType::QFloat(_) => TensorCreationOptions::new(self.device()).resolve_dtype::<K>(),
+            dtype => dtype,
+        }
     }
 
     /// Create a tensor of the given shape where each element is zero.
@@ -212,6 +229,11 @@ where
 
     /// Returns a new tensor with the same shape, dtype, and device as the current tensor filled with zeros.
     ///
+    /// # Panics
+    ///
+    /// If the tensor is quantized. This method preserves the input dtype,
+    /// but quantized tensor creation is not supported.
+    ///
     /// # Example
     ///
     /// ```rust
@@ -224,7 +246,9 @@ where
     /// // [[0.0, 0.0, 0.0], [0.0, 0.0, 0.0]]
     /// ```
     pub fn zeros_like(&self) -> Self {
-        Self::new(K::zeros(self.shape(), &self.device(), self.dtype()))
+        let dtype = self.dtype();
+        check!(TensorCheck::quantized_unsupported("Zeros Like", dtype));
+        Self::new(K::zeros(self.shape(), &self.device(), dtype))
     }
 
     /// Create a tensor of the given shape where each element is one.
@@ -249,6 +273,11 @@ where
 
     /// Returns a new tensor with the same shape, dtype, and device as the current tensor filled with ones.
     ///
+    /// # Panics
+    ///
+    /// If the tensor is quantized. This method preserves the input dtype,
+    /// but quantized tensor creation is not supported.
+    ///
     /// # Example
     ///
     /// ```rust
@@ -261,7 +290,9 @@ where
     /// // [[1.0, 1.0, 1.0], [1.0, 1.0, 1.0]]
     /// ```
     pub fn ones_like(&self) -> Self {
-        Self::new(K::ones(self.shape(), &self.device(), self.dtype()))
+        let dtype = self.dtype();
+        check!(TensorCheck::quantized_unsupported("Ones Like", dtype));
+        Self::new(K::ones(self.shape(), &self.device(), dtype))
     }
 
     /// Create a tensor of the given shape where each element is equal to the provided value.
@@ -296,6 +327,11 @@ where
     /// Returns a new tensor with the same shape, dtype, and device as the current tensor,
     /// filled with the provided value.
     ///
+    /// # Panics
+    ///
+    /// If the tensor is quantized. This method preserves the input dtype,
+    /// but quantized tensor creation is not supported.
+    ///
     /// # Example
     ///
     /// ```rust
@@ -309,6 +345,7 @@ where
     /// ```
     pub fn full_like<E: ElementConversion>(&self, fill_value: E) -> Self {
         let dtype = self.dtype();
+        check!(TensorCheck::quantized_unsupported("Full Like", dtype));
         Self::new(K::full(
             self.shape(),
             Scalar::new(fill_value, &dtype),
@@ -1318,7 +1355,7 @@ where
 
         // Return empty tensor if any dimension is 0 (empty slice)
         if output_dims.contains(&0) {
-            return Self::empty(output_dims, &self.device());
+            return Self::new(K::empty(output_dims, &self.device(), self.creation_dtype()));
         }
         Self::new(K::slice(self.primitive, &slices))
     }
@@ -2308,7 +2345,7 @@ where
         let data = data.into();
         check!(TensorCheck::creation_ops::<D>(
             "From Data",
-            data.shape.as_slice()
+            data.shape().as_slice()
         ));
 
         // Use the given dtype when provided, otherwise default device dtype
@@ -2351,7 +2388,7 @@ where
             Self::new(K::repeat_dim(self.primitive, dim, times))
         } else {
             let shape = self.shape().repeat(dim, times).unwrap();
-            Self::empty(shape, &self.device())
+            Self::new(K::empty(shape, &self.device(), self.creation_dtype()))
         }
     }
 
@@ -2389,7 +2426,7 @@ where
                 shape = shape.repeat(dim, times).unwrap();
             }
 
-            return Self::empty(shape, &self.device());
+            return Self::new(K::empty(shape, &self.device(), self.creation_dtype()));
         }
 
         let mut tensor = self;
@@ -2543,6 +2580,7 @@ where
         // Safety: TensorCheck::cat ensures tensors is non-empty
         let first_tensor = tensors.first().unwrap();
         let device = first_tensor.device();
+        let dtype = first_tensor.creation_dtype();
         let mut shape = first_tensor.shape();
 
         let non_empty_primitives: Vec<_> = tensors
@@ -2554,7 +2592,7 @@ where
         // If all tensors were empty, return an empty tensor with size 0 on concat dim
         if non_empty_primitives.is_empty() {
             shape[dim] = 0;
-            return Self::empty(shape, &device);
+            return Self::new(K::empty(shape, &device, dtype));
         }
 
         Self::new(K::cat(non_empty_primitives, dim))
@@ -3044,7 +3082,7 @@ where
     }
 
     fn _unpack_scalar<E: Element>(data: TensorData) -> Result<E, TensorReadError> {
-        let actual = data.shape.num_elements();
+        let actual = data.num_elements();
         if actual != 1 {
             return Err(TensorReadError::InvalidShape {
                 expected: 1,
@@ -3241,7 +3279,7 @@ fn fmt_elem<E: Element>(elem: E) -> String {
 // TODO: refactor display
 impl DataIterFmt {
     fn next(&self) -> String {
-        match self.data.dtype {
+        match self.data.dtype() {
             DType::F64 => fmt_float(self.next_elem::<f64>(), self.precision),
             DType::F32 | DType::Flex32 => fmt_float(self.next_elem::<f32>(), self.precision),
             DType::F16 => fmt_float(self.next_elem::<burn_std::f16>(), self.precision),

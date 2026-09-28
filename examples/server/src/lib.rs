@@ -1,5 +1,3 @@
-#![recursion_limit = "141"]
-
 use burn::{server::Channel, tensor::Device};
 
 pub fn start() {

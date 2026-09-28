@@ -26,7 +26,7 @@ fn assert_same<const D: usize>(permuted: TestTensor<D>, contiguous: TestTensor<D
     let expected = contiguous.into_data();
     let actual = permuted.into_data();
 
-    assert_eq!(actual.shape, expected.shape);
+    assert_eq!(actual.shape(), expected.shape());
     actual.assert_approx_eq::<FloatElem>(&expected, Tolerance::default());
 }
 
@@ -85,6 +85,24 @@ fn unary_on_a_permuted_operand_matches_the_contiguous_answer() {
     let (permuted, contiguous) = permuted_and_contiguous();
 
     assert_same(permuted.exp(), contiguous.exp());
+}
+
+#[test]
+fn cast_on_a_permuted_operand_matches_the_contiguous_answer() {
+    let (permuted, contiguous) = permuted_and_contiguous();
+
+    // Two casts in a row: the second walks the first's output, which keeps the
+    // input's memory order rather than the logical one.
+    let permuted = permuted.mul_scalar(100.0);
+    let contiguous = contiguous.mul_scalar(100.0);
+    assert_same(
+        permuted.clone().int().float(),
+        contiguous.clone().int().float(),
+    );
+    assert_same(
+        permuted.int().float().reshape([120]),
+        contiguous.int().float().reshape([120]),
+    );
 }
 
 #[test]
@@ -204,8 +222,8 @@ fn empty_binary_outputs_bypass_buffer_reuse_checks() {
     let empty = TestTensor::<2>::from_data(TensorData::new(Vec::<f32>::new(), [0, 8]), &device);
     let row = TestTensor::<2>::ones([1, 8], &device);
     assert_eq!(
-        (empty.clone() + row.clone()).into_data().shape.as_slice(),
+        (empty.clone() + row.clone()).into_data().shape().as_slice(),
         &[0, 8]
     );
-    assert_eq!(empty.atan2(row).into_data().shape.as_slice(), &[0, 8]);
+    assert_eq!(empty.atan2(row).into_data().shape().as_slice(), &[0, 8]);
 }

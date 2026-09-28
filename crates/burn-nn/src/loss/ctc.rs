@@ -33,7 +33,7 @@ impl CTCLossConfig {
 /// CTC sums over the probability of all possible alignments of the input to the target,
 /// producing a loss value that is differentiable with respect to each input node.
 ///
-/// The input to this loss is expected to be **log-probabilities** (e.g,, via `log_softmax`),
+/// The input to this loss is expected to be **log-probabilities** (e.g., via `log_softmax`),
 /// not raw logits.
 ///
 /// # References
@@ -162,7 +162,7 @@ impl CTCLoss {
     ///   sequences of varying lengths.
     /// - `target_lengths`: A 1D tensor containing the actual length of the target sequence for each target
     ///   sequence in `targets`.
-    /// - `reduction`: The reduction stratey to apply to the loss tensor containing the CTC loss values for
+    /// - `reduction`: The reduction strategy to apply to the loss tensor containing the CTC loss values for
     ///   each sample (e.g., mean, sum). For the mean reduction strategy, the output losses will be divided
     ///   by the target lengths and then the mean over the batch is taken. This follows PyTorch's behavior.
     ///

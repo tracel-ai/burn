@@ -9,7 +9,7 @@ pub use burn_backend::cubecl::{
 };
 use burn_backend::{Backend, DeviceOps};
 pub use burn_backend::{
-    InstallMemoryPoolsError, MemoryPoolLayout, MemoryPoolUsage, SlicedPool, SlicedPoolReport,
+    MemoryPoolUsage, ProfileDuration, ProfileOptions, ProfileTicks, SlicedPoolReport, TimingMethod,
 };
 #[allow(unused)]
 use burn_dispatch::DispatchDeviceId;
@@ -59,10 +59,8 @@ use alloc::vec::Vec;
 ///
 /// [`Device::default()`] selects the first enabled backend in this order:
 /// CUDA, Metal, ROCm, Vulkan, WebGPU, wgpu, CPU, LibTorch, Flex, Remote, NdArray.
-/// In std builds, `BURN_DEVICE` overrides this selection. Use an explicit factory
-/// method when the choice must be independent of Cargo feature unification.
+/// Use an explicit factory method when the choice must be independent of Cargo feature unification.
 /// Without an execution backend, `Device::default()` panics with configuration guidance.
-/// Capture is never selected implicitly; use `Device::capture()` to record a graph.
 ///
 /// Enable the desired backend via Cargo feature flags, then call the
 /// corresponding factory method:
@@ -669,8 +667,11 @@ impl Device {
         }
     }
 
-    /// Applies `source`'s autodiff context to this device.
-    pub(crate) fn with_autodiff_context_from(self, source: &Self) -> Self {
+    /// Applies `source`'s autodiff association and gradient-checkpointing strategy to this device,
+    /// discarding this device's own.
+    #[must_use]
+    #[doc(hidden)]
+    pub fn with_autodiff_context_from(self, source: &Self) -> Self {
         #[cfg(feature = "autodiff")]
         {
             match source.gradient_checkpointing_strategy() {
@@ -721,6 +722,57 @@ impl Device {
     /// operation as it is registered, have nothing buffered and treat this as a no-op.
     pub fn flush(&self) {
         Dispatch::flush(self.as_dispatch())
+    }
+
+    /// Measure how long this device spends on the work `func` puts on it, in
+    /// device time.
+    ///
+    /// The measurement is a [`ProfileDuration`]: a future the device answers
+    /// once it has run both ends of the window, so nothing here waits on the
+    /// device, and windows nest — an inner `profile` costs the outer one
+    /// nothing. Collect them and [`resolve`](ProfileDuration::resolve) once
+    /// the run is over.
+    ///
+    /// The window spans the stream from the call to `func`'s return. Work the
+    /// stream still owed from before falls in; work a backend queues past the
+    /// end falls out — the fusion backend holds a closure's last operations
+    /// back to batch them, so a window over lazy work alone can read as
+    /// empty. Ending the closure with a read, or
+    /// [`profile_with`](Self::profile_with) and
+    /// [`ProfileOptions::flush`], closes the window over all of it. A window
+    /// that nothing ran in reads as no time.
+    ///
+    /// A backend with no device clock (ndarray, LibTorch, a remote device
+    /// whose server has none) measures wall-clock time between two syncs
+    /// instead: that one waits, and an inner window's syncs are charged to
+    /// the outer.
+    ///
+    /// ```rust,ignore
+    /// let (output, duration) = device.profile(|| model.forward(input))?;
+    /// // Later, once the run is over:
+    /// let ticks = duration.resolve().await.expect("the window carried work");
+    /// println!("forward: {:?}", ticks.duration());
+    /// ```
+    ///
+    /// # Errors
+    ///
+    /// Returns an [`ExecutionError`] when the device refuses to open or close
+    /// the window — a remote device does from a browser thread, which cannot
+    /// wait on the server.
+    pub fn profile<O: Send + 'static>(
+        &self,
+        func: impl FnOnce() -> O + Send,
+    ) -> Result<(O, ProfileDuration), ExecutionError> {
+        self.profile_with(ProfileOptions::default(), func)
+    }
+
+    /// [`profile`](Self::profile) with [`ProfileOptions`].
+    pub fn profile_with<O: Send + 'static>(
+        &self,
+        options: ProfileOptions,
+        func: impl FnOnce() -> O + Send,
+    ) -> Result<(O, ProfileDuration), ExecutionError> {
+        Dispatch::profile(self.as_dispatch(), options, func)
     }
 
     /// Seeds the random number generator for this device.
@@ -804,41 +856,6 @@ impl Device {
         Dispatch::memory_cleanup(self.as_dispatch());
     }
 
-    /// Installs a layout for this device's dynamic memory pools.
-    ///
-    /// The allocator otherwise keeps whatever a workload's worst moment asked
-    /// for. To reserve a measured amount instead, install a growable layout,
-    /// run the workload, read [`memory_pool_report`](Self::memory_pool_report),
-    /// and install the same layout capped at what it reported.
-    ///
-    /// Pools are rebuilt only while nothing is live in them, so this belongs at
-    /// a quiescent point — after the previous workload's tensors have dropped
-    /// and a [`memory_cleanup`](Self::memory_cleanup). Long-lived allocations
-    /// that would block every rebuild (a model's parameters, say) belong in the
-    /// persistent pool
-    /// → [`memory_persistent_allocations`](Self::memory_persistent_allocations).
-    ///
-    /// ```rust,ignore
-    /// device.memory_cleanup();
-    /// device.memory_install_pools(MemoryPoolLayout::Sliced(vec![SlicedPool {
-    ///     page_size: 256 * 1024 * 1024,
-    ///     pages: Some(8),
-    ///     max_slice: None,
-    /// }]))?;
-    /// ```
-    ///
-    /// # Errors
-    ///
-    /// As [`Backend::memory_install_pools`](burn_backend::Backend::memory_install_pools).
-    /// The layout in force is unchanged in every case, so discarding the error
-    /// leaves a caller believing in a reservation the device is not running.
-    pub fn memory_install_pools(
-        &self,
-        layout: MemoryPoolLayout,
-    ) -> Result<(), InstallMemoryPoolsError> {
-        Dispatch::memory_install_pools(self.as_dispatch(), layout)
-    }
-
     /// This device's dynamic pools, in the order they were installed. `None` on
     /// a backend that does not report them.
     pub fn memory_pool_report(&self) -> Option<Vec<SlicedPoolReport>> {
@@ -864,7 +881,7 @@ impl Device {
 
     /// Returns the [`DeviceSettings`] for this device.
     ///
-    /// Settings include the default float and integer data types used when creating
+    /// Settings include the default float, integer, and boolean data types used when creating
     /// tensors on this device.
     ///
     /// See [`configure`](Device::configure) to configure them.
@@ -877,23 +894,28 @@ impl Device {
     /// This configures the dtype used when no explicit type is specified at tensor
     /// creation time.
     ///
-    /// Settings can only be initialized once per device, and must happen before any
-    /// tensor is created on the device. The first tensor operation will lock the device
-    /// to its defaults, causing subsequent initializations attempt to return
-    /// [`DeviceError::AlreadyInitialized`].
+    /// Settings can only be initialized once per device. Configure defaults before creating
+    /// tensors or initializing model parameters: the first read of the settings locks them to the
+    /// backend's defaults, and any later call returns [`DeviceError::AlreadyInitialized`].
+    /// Creating any tensor on the device, even with an explicit dtype, and calling
+    /// [`settings`](Device::settings) both read them.
+    ///
+    /// Individual tensors can still use an explicit supported dtype at creation or be converted
+    /// with [`Tensor::cast`](crate::Tensor::cast); neither changes the defaults.
     ///
     /// # Errors
     ///
-    /// Returns [`DeviceError::AlreadyInitialized`] if settings have already been set
-    /// for this device (either by a prior call or because a tensor operation has
-    /// already occurred).
+    /// Returns [`DeviceError::UnsupportedDType`] if a requested dtype is unsupported.
+    /// Returns [`DeviceError::AlreadyInitialized`] if settings have already been initialized
+    /// for this device, either by a prior call or by a read of the settings.
     ///
     /// # Example
     ///
     /// ```rust,ignore
-    /// let device = Default::default();
+    /// use burn_tensor::{Device, FloatDType, Int, IntDType, Tensor};
     ///
-    /// device.configure((FloatDType::F16, IntDType::I32))?
+    /// let mut device = Device::cuda(0);
+    /// device.configure((FloatDType::F16, IntDType::I32))?;
     ///
     /// // Float tensors will now use F16
     /// let floats = Tensor::<2>::zeros([2, 3], &device);
@@ -1411,10 +1433,11 @@ impl Devices {
     /// This configures the dtype used when no explicit type is specified at tensor
     /// creation time.
     ///
-    /// Settings can only be initialized once per device, and must happen before any
-    /// tensor is created on the device. The first tensor operation will lock the device
-    /// to its defaults, causing subsequent initializations attempt to return
-    /// [`DeviceError::AlreadyInitialized`].
+    /// Settings can only be initialized once per device. Configure defaults before creating
+    /// tensors or initializing model parameters; the first read of a device's settings, including
+    /// by tensor creation, locks them.
+    ///
+    /// Stops at the first error; devices configured before it keep their settings.
     ///
     /// See [`Device::configure`].
     pub fn configure(&mut self, config: impl Into<DeviceConfig>) -> Result<(), DeviceError> {

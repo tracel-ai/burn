@@ -17,6 +17,19 @@ fn should_support_bool_mask_where_ops() {
 }
 
 #[test]
+fn should_support_bool_mask_fill_broadcast_input_smaller_than_mask() {
+    let device = Default::default();
+    let tensor = TestTensorBool::<2>::from_data([[false]], &device);
+    let mask = TestTensorBool::<2>::from_data([[true, false], [false, true]], &device);
+
+    let output = tensor.mask_fill(mask, true);
+
+    output
+        .into_data()
+        .assert_eq(&TensorData::from([[true, false], [false, true]]), false);
+}
+
+#[test]
 fn should_support_bool_mask_fill_ops() {
     let device = Default::default();
     let tensor = TestTensorBool::<2>::from_data([[false, true], [false, false]], &device);

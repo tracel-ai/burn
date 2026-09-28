@@ -5,7 +5,8 @@
 //!
 //! ## Features
 //!
-//! - **Direct .pth/.pt file loading**: Load PyTorch checkpoint and state dict files
+//! - **Direct .pth/.pt file loading**: Load PyTorch checkpoint, state dict and full-model
+//!   (`torch.save(model)`) files
 //! - **Automatic weight transformation**: `PyTorchToBurnAdapter` is applied by default:
 //!   - Linear layer weights are automatically transposed
 //!   - Normalization parameters are renamed (gamma → weight, beta → bias)

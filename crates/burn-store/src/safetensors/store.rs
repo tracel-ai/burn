@@ -4,13 +4,13 @@ use crate::bridge;
 use crate::{ApplyResult, IdentityAdapter, ModuleAdapter, ModuleSnapshot, ModuleStore, PathFilter};
 
 #[cfg(feature = "std")]
-use crate::{KeyRemapper, map_indices_contiguous};
+use crate::{KeyRemapper, map_indices_contiguous_except};
 use alloc::boxed::Box;
 use alloc::collections::BTreeMap;
 use alloc::format;
 use alloc::string::{String, ToString};
 use alloc::vec::Vec;
-use burn_core::tensor::{BoolStore, DType, Shape, TensorData};
+use burn_core::tensor::{BoolStore, DType, Shape};
 use burn_pack::{Error as PackError, Tensor as PackTensor};
 use core::fmt;
 use core::ops::Deref;
@@ -112,7 +112,8 @@ impl SafetensorsStore {
     /// Saving is atomic: the container is built in a scratch sibling of `path` and renamed
     /// into place only once every byte is on disk, so a tensor that fails to materialize
     /// partway through leaves the checkpoint already at `path` exactly as it was, rather than
-    /// truncated.
+    /// truncated. Without [`overwrite`](Self::overwrite) it is hard-linked into place instead,
+    /// which refuses a file that appeared at `path` while the save was running.
     ///
     /// Replacing rather than truncating has consequences worth knowing about. The saved file
     /// is a new inode, so `path`'s ownership and hard links do not survive a save; its
@@ -134,6 +135,7 @@ impl SafetensorsStore {
             // Contiguous index mapping is off by default for SafeTensors
             // (SafeTensors files typically have clean, contiguous indices)
             map_indices_contiguous: false,
+            keep_indices: PathFilter::new(),
             from_adapter: Box::new(IdentityAdapter),
             to_adapter: Box::new(IdentityAdapter),
             tensors_cache: None,
@@ -154,6 +156,8 @@ impl SafetensorsStore {
             // Contiguous index mapping is off by default for SafeTensors
             #[cfg(feature = "std")]
             map_indices_contiguous: false,
+            #[cfg(feature = "std")]
+            keep_indices: PathFilter::new(),
             from_adapter: Box::new(IdentityAdapter),
             to_adapter: Box::new(IdentityAdapter),
             tensors_cache: None,
@@ -295,6 +299,7 @@ impl SafetensorsStore {
             Self::File(p) => p.remapper = remapper,
             Self::Memory(p) => p.remapper = remapper,
         }
+        self.clear_tensors_cache();
         self
     }
 
@@ -329,6 +334,7 @@ impl SafetensorsStore {
                     .expect("Invalid regex pattern");
             }
         }
+        self.clear_tensors_cache();
         self
     }
 
@@ -446,6 +452,37 @@ impl SafetensorsStore {
             Self::File(p) => p.map_indices_contiguous = map,
             Self::Memory(p) => p.map_indices_contiguous = map,
         }
+        self.clear_tensors_cache();
+        self
+    }
+
+    /// Leave the indices under prefixes matching `pattern` untouched when contiguous
+    /// index mapping is enabled.
+    ///
+    /// The regex is matched against the prefix before a numeric segment (`flows` for
+    /// `flows.2.weight`), so anchor it to keep exactly one list. Can be called multiple
+    /// times. See [`map_indices_contiguous_except`](crate::map_indices_contiguous_except)
+    /// for the prefix rules.
+    ///
+    /// # Example
+    /// ```rust,no_run
+    /// # use burn_store::SafetensorsStore;
+    /// // flows.{0,2,4} stay as-is, every other list is renumbered
+    /// let store = SafetensorsStore::from_file("model.safetensors")
+    ///     .map_indices_contiguous(true)
+    ///     .map_indices_contiguous_except(r"^model_g\.flow\.flows$");
+    /// ```
+    ///
+    /// # Panics
+    ///
+    /// Panics if `pattern` is not a valid regular expression.
+    #[cfg(feature = "std")]
+    pub fn map_indices_contiguous_except<S: AsRef<str>>(mut self, pattern: S) -> Self {
+        match &mut self {
+            Self::File(p) => p.keep_indices = p.keep_indices.clone().with_regex(pattern),
+            Self::Memory(p) => p.keep_indices = p.keep_indices.clone().with_regex(pattern),
+        }
+        self.clear_tensors_cache();
         self
     }
 
@@ -533,6 +570,8 @@ pub struct FileStore {
     skip_enum_variants: bool,
     /// Enable contiguous mapping of layer indices (default: false)
     map_indices_contiguous: bool,
+    /// Prefixes whose indices contiguous mapping leaves untouched
+    keep_indices: PathFilter,
     from_adapter: Box<dyn ModuleAdapter>,
     to_adapter: Box<dyn ModuleAdapter>,
     /// Cached tensors (parsed once, reused)
@@ -552,6 +591,9 @@ pub struct MemoryStore {
     /// Enable contiguous mapping of layer indices (default: false)
     #[cfg(feature = "std")]
     map_indices_contiguous: bool,
+    /// Prefixes whose indices contiguous mapping leaves untouched
+    #[cfg(feature = "std")]
+    keep_indices: PathFilter,
     from_adapter: Box<dyn ModuleAdapter>,
     to_adapter: Box<dyn ModuleAdapter>,
     /// Cached tensors (parsed once, reused)
@@ -571,6 +613,8 @@ impl Default for MemoryStore {
             skip_enum_variants: false,
             #[cfg(feature = "std")]
             map_indices_contiguous: false,
+            #[cfg(feature = "std")]
+            keep_indices: PathFilter::new(),
             from_adapter: Box::new(IdentityAdapter),
             to_adapter: Box::new(IdentityAdapter),
             tensors_cache: None,
@@ -632,11 +676,7 @@ impl ModuleStore for SafetensorsStore {
 
     fn collect_from<M: ModuleSnapshot>(&mut self, module: &M) -> Result<(), Self::Error> {
         // Invalidate cache since we're writing new data
-        match self {
-            #[cfg(feature = "std")]
-            Self::File(p) => p.tensors_cache = None,
-            Self::Memory(p) => p.tensors_cache = None,
-        }
+        self.clear_tensors_cache();
 
         // Collect the module's tensors with the adapter applied
         // The to_adapter converts from Burn format to target format for saving
@@ -669,11 +709,13 @@ impl ModuleStore for SafetensorsStore {
         match self {
             #[cfg(feature = "std")]
             Self::File(p) => {
-                // Check if file exists and overwrite is disabled
-                if p.path.exists() && !p.overwrite {
-                    return Err(SafetensorsStoreError::Other(format!(
-                        "File already exists: {}. Use .overwrite(true) to overwrite.",
-                        p.path.display()
+                // Fail fast before any tensor is read back. This check alone is racy; the
+                // no-clobber commit below is what enforces `overwrite` (apart from filesystems
+                // without hard links, see `AtomicFile::commit_new`). `symlink_metadata` rather
+                // than `exists` so a dangling symlink is caught here too, not after the save.
+                if !p.overwrite && std::fs::symlink_metadata(&p.path).is_ok() {
+                    return Err(pack(burn_pack::Error::AlreadyExists(
+                        p.path.display().to_string(),
                     )));
                 }
 
@@ -684,8 +726,8 @@ impl ModuleStore for SafetensorsStore {
                 // at a time), so a device readback that fails partway must not truncate
                 // whatever was already at this path: `serialize_to_file` opens with
                 // `File::create`, which empties the destination before the first tensor is
-                // even asked for. Build the container beside it and rename it into place, the
-                // way `BurnpackStore` does. See #5479.
+                // even asked for. Build the container beside it and publish it once complete,
+                // the way `BurnpackStore` does. See #5479.
                 //
                 // The reserved handle is dropped because `serialize_to_file` opens the path
                 // itself; the exclusive create has already ruled out a pre-existing file or a
@@ -699,7 +741,11 @@ impl ModuleStore for SafetensorsStore {
                     safetensors::serialize_to_file(tensors, Some(std_metadata), &scratch_path)
                 })??;
 
-                scratch.commit().map_err(pack)?;
+                if p.overwrite {
+                    scratch.commit().map_err(pack)?;
+                } else {
+                    scratch.commit_new().map_err(pack)?;
+                }
                 Ok(())
             }
             Self::Memory(p) => {
@@ -850,6 +896,23 @@ impl SafetensorsStore {
         }
     }
 
+    #[cfg(feature = "std")]
+    fn get_keep_indices(&self) -> &PathFilter {
+        match self {
+            Self::File(p) => &p.keep_indices,
+            Self::Memory(p) => &p.keep_indices,
+        }
+    }
+
+    /// Drop the cached tensors so the next access rebuilds them with the current settings
+    fn clear_tensors_cache(&mut self) {
+        match self {
+            #[cfg(feature = "std")]
+            Self::File(p) => p.tensors_cache = None,
+            Self::Memory(p) => p.tensors_cache = None,
+        }
+    }
+
     /// Ensure the tensors cache is populated
     fn ensure_tensors_cache(&mut self) -> Result<(), SafetensorsStoreError> {
         // Check if cache exists
@@ -890,7 +953,8 @@ impl SafetensorsStore {
         // This must be done after remapping so that remapped paths are mapped
         #[cfg(feature = "std")]
         if self.get_map_indices_contiguous() {
-            let (mapped, _) = map_indices_contiguous(tensors);
+            let keep = self.get_keep_indices();
+            let (mapped, _) = map_indices_contiguous_except(tensors, |prefix| keep.matches(prefix));
             tensors = mapped;
         }
 
@@ -1027,7 +1091,7 @@ where
 
                 // Only now do we actually copy this tensor's data
                 let bytes = burn_core::tensor::Bytes::from_bytes_vec(tensor.data().to_vec());
-                Ok(TensorData::from_bytes(bytes, tensor_shape.clone(), dtype))
+                bridge::tensor_data(bytes, tensor_shape.clone(), dtype)
             },
         ));
     }

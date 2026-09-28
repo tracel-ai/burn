@@ -27,10 +27,14 @@ provides you with numerous options when it comes to configurations.
 | Validation Metric Plot | Register a validation metric with plotting (requires the metric to be numeric)                                                          |
 | Metric Logger          | Configure the metric loggers (default is saving them to files)                                                                          |
 | Renderer               | Configure how to render metrics (default is CLI)                                                                                        |
+| Progress Logger        | Register a `TrainingProgressLogger` that observes the training lifecycle                                                                |
 | Grad Accumulation      | Configure the number of steps before applying gradients                                                                                 |
-| File Checkpointer      | Configure how the model, optimizer and scheduler states are saved                                                                       |
+| Gradient Checkpointing | Recompute memory-bound activations during backpropagation to reduce peak memory                                                         |
+| Checkpointers          | Save the model, optimizer and scheduler states with the default burnpack file checkpointers or custom `Checkpointer` implementations    |
+| Checkpointing Strategy | Configure which checkpoints are kept (default keeps the last two and the best validation loss)                                          |
+| Early Stopping         | Stop training early based on a metric                                                                                                   |
 | Num Epochs             | Set the number of epochs                                                                                                                |
-| Devices                | Set the devices to be used                                                                                                              |
+| Devices                | Set the devices to be used through the training strategy (single device, multi-device, or DDP)                                          |
 | Checkpoint             | Restart training from a checkpoint                                                                                                      |
 | Application logging    | Configure the application logging installer (default is writing to `experiment.log`)                                                    |
 | Training Strategy      | Use a custom training strategy, allowing you to use your own training loop with all the capabilities of the `SupervisedTraining` struct |
@@ -45,6 +49,25 @@ The `launch` method will start the training and return the trained model once fi
 Again, please refer to the [training section](../basic-workflow/training.md) for a relevant code
 snippet.
 
+## Gradient Accumulation
+
+Gradient accumulation lets each optimizer update use gradients from several batches without
+increasing the dataloader's batch size. This is useful when a larger batch would exceed device
+memory.
+
+Enable it with `SupervisedTraining::grads_accumulation(n)`, where `n` must be greater than zero. On
+a single device, Burn computes gradients for each batch and sums them over `n` batches before
+updating the model parameters.
+
+Burn applies any remaining accumulated gradients at the end of each epoch. Learning-rate
+schedulers advance once per optimizer update, so warmup and decay durations should use that unit.
+
+Accumulated gradients are summed without normalization. Account for this when choosing loss
+scaling and learning rates.
+
+Custom training strategies and loops are responsible for their own accumulation and scheduler
+timing.
+
 ## Parameter Groups
 
 It's common to use different learning rates or optimizer settings for different parts of a model.
@@ -52,16 +75,31 @@ Burn's `ParamGroup` routes module parameters by path or ID. Optimizers and learn
 use the same matching rules but can be configured independently.
 
 ```rust,ignore
+use burn::{
+    module::ParamGroup,
+    optim::{
+        AdamWConfig,
+        lr_scheduler::{
+            composed::ComposedLrSchedulerConfig,
+            cosine::CosineAnnealingLrSchedulerConfig,
+            linear::LinearLrSchedulerConfig,
+            module_lr_scheduler::ModuleLrSchedulerConfig,
+        },
+    },
+    train::Learner,
+};
+
 let lr_scheduler_base = ComposedLrSchedulerConfig::new()
     .cosine(CosineAnnealingLrSchedulerConfig::new(1.0, 2000))
     .linear(LinearLrSchedulerConfig::new(1e-8, 1.0, 2000))
     .linear(LinearLrSchedulerConfig::new(1e-2, 1e-6, 10000));
-let lr_scheduler = lr_scheduler_base.init().unwrap().with_group(
-    ParamGroup::from_predicate("conv"),
-    LinearLrSchedulerConfig::new(1e-6, 1e-3, 14000)
-        .build()
-        .unwrap(),
-);
+let lr_scheduler = ModuleLrSchedulerConfig::new(lr_scheduler_base.into())
+    .with_group(
+        ParamGroup::from_predicate("conv"),
+        LinearLrSchedulerConfig::new(1e-6, 1e-3, 14000),
+    )
+    .init()
+    .unwrap();
 
 let optim = AdamWConfig::new()
     .with_cautious_weight_decay(true)
@@ -74,6 +112,11 @@ let result = training.launch(Learner::new(
     lr_scheduler,
 ));
 ```
+
+The composed base schedule multiplies the values of its three component schedules at every step.
+`ModuleLrSchedulerConfig` assigns that base policy to parameters outside the `conv` group and the
+separate linear policy to parameters inside it. Configure the groups before calling `init()`; the
+individual scheduler configurations' `build()` methods are internal APIs.
 
 For group-specific optimizers, matching precedence, gradient clipping, and optimizer state, see
 [Optimizer](./optimizer.md#parameter-groups).

@@ -81,8 +81,8 @@ impl SmoothL1LossConfig {
 /// // Create Smooth L1 loss with the default beta=1.0
 /// let smooth_l1 = SmoothL1LossConfig::new().init();
 ///
-/// let predictions: Tensor<Backend, 2> = /* model output */;
-/// let targets: Tensor<Backend, 2> = /* ground truth */;
+/// let predictions: Tensor<2> = /* model output */;
+/// let targets: Tensor<2> = /* ground truth */;
 ///
 /// // Compute element-wise loss without reduction
 /// let element_wise = smooth_l1.forward(predictions.clone(), targets.clone());

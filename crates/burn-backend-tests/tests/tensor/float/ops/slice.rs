@@ -469,6 +469,23 @@ fn should_support_empty_slice_2d() {
     assert_eq!(output.dims(), [2, 0]);
 }
 
+// Skip on metal - F64 not supported
+#[cfg(not(feature = "metal"))]
+#[test]
+fn should_keep_dtype_on_empty_slice() {
+    let device = Default::default();
+    let tensor = TestTensor::<2>::from_data([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]], &device)
+        .cast(burn_tensor::DType::F64);
+
+    let output = tensor.clone().slice([0..2, 1..1]);
+    assert_eq!(output.dims(), [2, 0]);
+    assert_eq!(output.dtype(), burn_tensor::DType::F64);
+
+    let output = tensor.slice_dim(0, 2..2);
+    assert_eq!(output.dims(), [0, 3]);
+    assert_eq!(output.dtype(), burn_tensor::DType::F64);
+}
+
 #[test]
 fn test_slice_with_positive_step() {
     let device = Default::default();

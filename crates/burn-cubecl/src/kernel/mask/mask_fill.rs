@@ -1,5 +1,5 @@
+use burn_backend::DType;
 use burn_backend::cubecl::dtype_to_storage_type;
-use burn_backend::{DType, TensorMetadata};
 use cubecl::{
     calculate_cube_count_elemwise,
     prelude::*,
@@ -7,7 +7,7 @@ use cubecl::{
 };
 
 use crate::{
-    kernel::utils::address_type,
+    kernel::utils::{address_type, broadcast_shape},
     ops::{max_vector_size_many, numeric::empty_device_dtype},
     tensor::CubeTensor,
 };
@@ -53,20 +53,30 @@ pub fn mask_fill(
     dtype_bool: DType,
 ) -> CubeTensor {
     let ndims = input.meta.num_dims();
+    let out_shape = broadcast_shape(&[&input, &mask]);
+    if out_shape.num_elements() == 0 {
+        return empty_device_dtype(
+            input.client.clone(),
+            input.device.clone(),
+            out_shape,
+            input.dtype,
+        );
+    }
+
+    let vector_size = max_vector_size_many(&[&input, &mask], ndims - 1);
+    let working_units = out_shape.num_elements() / vector_size as usize;
+    let cube_dim = CubeDim::new(&input.client, working_units);
+    let cube_count = calculate_cube_count_elemwise(&input.client, working_units, cube_dim);
+
     let output = match strategy {
         MaskFillStrategy::Readonly => empty_device_dtype(
             input.client.clone(),
             input.device.clone(),
-            input.shape(),
+            out_shape,
             input.dtype,
         ),
         MaskFillStrategy::Inplace => input.clone(),
     };
-
-    let vector_size = max_vector_size_many(&[&input, &mask], ndims - 1);
-    let working_units = input.meta.num_elements() / vector_size as usize;
-    let cube_dim = CubeDim::new(&input.client, working_units);
-    let cube_count = calculate_cube_count_elemwise(&input.client, working_units, cube_dim);
 
     let out_arg = match strategy {
         MaskFillStrategy::Readonly => output.clone().into_linear_view(),
@@ -74,7 +84,7 @@ pub fn mask_fill(
     };
 
     let at = address_type!(input, mask, output);
-    let mask = mask.into_linear_view_like(&input);
+    let mask = mask.into_linear_view_like(&output);
 
     unsafe {
         mask_fill_kernel::launch_unchecked(
@@ -83,7 +93,7 @@ pub fn mask_fill(
             cube_dim,
             at,
             vector_size,
-            input.into_linear_view(),
+            input.into_linear_view_like(&output),
             mask,
             out_arg,
             value,

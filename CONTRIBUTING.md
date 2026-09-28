@@ -74,6 +74,12 @@ Do not use "AI generated" as a justification for low-quality code.
 - Prefer clarity over cleverness.
 - Bug fixes should include a regression test.
 
+### Documentation Changes
+
+Prioritize documentation changes that improve correctness or understanding, such as fixing incorrect
+explanations, broken examples, or misleading API documentation. Maintainers may close purely
+cosmetic PRs to preserve review capacity.
+
 ### Large Pull Requests
 
 Large, complex PRs are harder to review effectively and carry more risk. To help both yourself and

@@ -40,3 +40,14 @@ fn should_support_repeat_on_dims_larger_than_1() {
         .into_data()
         .assert_approx_eq::<FloatElem>(&expected, Tolerance::rel_abs(1e-1, 1e-1));
 }
+
+#[test]
+fn should_repeat_dim_0_times_empty() {
+    let tensor = QTensor::<2>::int8([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
+
+    let output = tensor.repeat_dim(1, 0);
+
+    assert_eq!(output.dims(), [2, 0]);
+    // Quantized inputs fall back to the default float dtype
+    assert_eq!(output.dtype(), <FloatElem as burn_tensor::Element>::dtype());
+}

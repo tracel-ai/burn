@@ -4,6 +4,9 @@ Saving your trained machine learning model is quite easy. As mentioned in the
 [Record](./building-blocks/record.md) section, a module's parameters are captured in a
 `ModuleRecord` and serialized to the [burnpack](./building-blocks/record.md) format (`.bpk`).
 
+For checkpoints saved with an older Burn release, see
+[Migrating checkpoints](./migrating-to-0.22.md#migrating-checkpoints).
+
 ```rust, ignore
 use burn::store::ModuleRecord;
 
@@ -65,9 +68,8 @@ let record = ModuleRecord::load(model_path)
 let model = Model::init(&device).load_record(record);
 ```
 
-For partial loading (only some parameters present in the record), use
-`record.allow_partial(true)` before applying it, or `model.try_load_record(record)` for fallible
-loading.
+For partial loading (only some parameters present in the record), use `record.allow_partial(true)`
+before applying it, or `model.try_load_record(record)` for fallible loading.
 
 ## Model Weight Store
 
@@ -126,7 +128,7 @@ model.load_from(&mut store)?;
 
 #### Exporting from PyTorch
 
-Save only the model weights (state_dict), not the entire model:
+Save the model weights (state_dict):
 
 ```python
 import torch
@@ -142,9 +144,15 @@ class Net(nn.Module):
         return self.conv2(self.conv1(x))
 
 model = Net()
-torch.save(model.state_dict(), "model.pt")  # Correct: save state_dict
-# torch.save(model, "model.pt")             # Wrong: saves entire model
+torch.save(model.state_dict(), "model.pt")
 ```
+
+A file saved with `torch.save(model)` (the whole module rather than its `state_dict()`) loads
+too: its parameters and buffers are read under the names `state_dict()` gives them, so the
+tensor names are the same either way. Non-persistent buffers and tensors assigned as plain
+attributes are not part of it, exactly as `state_dict()` leaves them out. A module that
+customizes its state dict (`get_extra_state()`, state dict hooks) is read from its stored
+parameters and buffers only, so entries those would add are absent.
 
 #### Accessing Nested State Dicts
 
@@ -160,8 +168,8 @@ model.load_from(&mut store)?;
 
 The parser behind `PytorchStore` is its own crate,
 [`pytorch-reader`](https://crates.io/crates/pytorch-reader), with no dependency on Burn. Use it
-directly for tools that only need to list or convert a checkpoint's tensors. It is re-exported
-as `burn_store::pytorch_reader`.
+directly for tools that only need to list or convert a checkpoint's tensors. It is re-exported as
+`burn_store::pytorch_reader`.
 
 ### Loading from SafeTensors
 
@@ -209,8 +217,8 @@ model.save_into(&mut store)?;
 
 The `load_from` method returns detailed information about the loading process.
 
-> **Note:** Inspecting `result.missing`, `result.errors`, etc. requires the store to be configured with
-> [`.allow_partial(true)`](#partial-loading). Without it, a missing tensor causes a hard `Err`
+> **Note:** Inspecting `result.missing`, `result.errors`, etc. requires the store to be configured
+> with [`.allow_partial(true)`](#partial-loading). Without it, a missing tensor causes a hard `Err`
 > before you ever receive an `ApplyResult`.
 
 ```rust, ignore
@@ -333,6 +341,20 @@ let mut store = PytorchStore::from_file("model.pt")
     .map_indices_contiguous(false);
 ```
 
+Some lists mirror their indices on the Burn side, for example a `Vec` whose odd entries are
+parameter-free flips, while other lists in the same file still have gaps to collapse. Exclude
+those prefixes instead of turning the mapping off:
+
+```rust, ignore
+// flows.{0,2,4} stay as-is, fc.{0,2} still become fc.{0,1}
+let mut store = PytorchStore::from_file("model.pt")
+    .map_indices_contiguous_except(r"^model_g\.flow\.flows$");
+```
+
+The regex is matched against the path up to the numeric segment (`model_g.flow.flows`, not the
+full tensor name), so anchor it to keep exactly one list; a nested list such as
+`model_g.flow.flows.2.enc.in_layers` is matched separately.
+
 #### Zero-Copy Loading
 
 For embedded models or large files, use zero-copy loading to avoid memory copies:
@@ -366,10 +388,10 @@ This applies to file saves. `BurnpackStore::from_bytes` has to build the whole c
 by definition, so prefer a file path for large models.
 
 File saves through `BurnpackStore` are also all-or-nothing: because parameters are read back
-mid-write, the container is written beside the destination and renamed into place once complete,
-so a save that fails, panics, or has its process killed leaves any existing file untouched rather
-than replacing it with a truncated one. Surviving power loss is a stronger guarantee and holds on
-Unix only; see `Writer::write_to_file_atomic` for the details.
+mid-write, the container is written beside the destination and renamed into place once complete, so
+a save that fails, panics, or has its process killed leaves any existing file untouched rather than
+replacing it with a truncated one. Surviving power loss is a stronger guarantee and holds on Unix
+only; see `Writer::write_to_file_atomic` for the details.
 
 #### Half-Precision Storage
 
@@ -447,42 +469,40 @@ model2.apply(snapshots, Some(filter), None, false);
 
 #### Builder Methods
 
-| Category      | Method                         | Description                  |
-| ------------- | ------------------------------ | ---------------------------- |
-| **Filtering** | `with_regex(pattern)`          | Filter by regex pattern      |
-|               | `with_full_path(path)`         | Include specific tensor      |
-|               | `with_predicate(fn)`           | Custom filter logic          |
-| **Remapping** | `with_key_remapping(from, to)` | Regex-based renaming         |
-|               | `remap(KeyRemapper)`           | Complex remapping rules      |
-| **Adapters**  | `with_from_adapter(adapter)`   | Loading transformations      |
-|               | `with_to_adapter(adapter)`     | Saving transformations       |
-|               | `HalfPrecisionAdapter::new()`  | F32/F16 mixed-precision      |
-| **Config**    | `allow_partial(bool)`          | Continue on missing tensors  |
-|               | `with_top_level_key(key)`      | Access nested dict (PyTorch) |
-|               | `skip_enum_variants(bool)`     | Skip enum variants in paths  |
-|               | `map_indices_contiguous(bool)` | Remap non-contiguous indices |
-|               | `metadata(key, value)`         | Add custom metadata          |
-|               | `zero_copy(bool)`              | Enable zero-copy loading     |
+| Category      | Method                                 | Description                          |
+| ------------- | -------------------------------------- | ------------------------------------ |
+| **Filtering** | `with_regex(pattern)`                  | Filter by regex pattern              |
+|               | `with_full_path(path)`                 | Include specific tensor              |
+|               | `with_predicate(fn)`                   | Custom filter logic                  |
+| **Remapping** | `with_key_remapping(from, to)`         | Regex-based renaming                 |
+|               | `remap(KeyRemapper)`                   | Complex remapping rules              |
+| **Adapters**  | `with_from_adapter(adapter)`           | Loading transformations              |
+|               | `with_to_adapter(adapter)`             | Saving transformations               |
+|               | `HalfPrecisionAdapter::new()`          | F32/F16 mixed-precision              |
+| **Config**    | `allow_partial(bool)`                  | Continue on missing tensors          |
+|               | `with_top_level_key(key)`              | Access nested dict (PyTorch)         |
+|               | `skip_enum_variants(bool)`             | Skip enum variants in paths          |
+|               | `map_indices_contiguous(bool)`         | Remap non-contiguous indices         |
+|               | `map_indices_contiguous_except(regex)` | Keep indices under matching prefixes |
+|               | `metadata(key, value)`                 | Add custom metadata                  |
+|               | `zero_copy(bool)`                      | Enable zero-copy loading             |
 
 #### Direct Access Methods
 
-| Method                | Description                      |
-| --------------------- | -------------------------------- |
-| `keys()`              | Get ordered list of tensor names |
-| `get_all_tensors()`   | Get all tensors as BTreeMap      |
-| `get_tensor(name)`    | Get specific tensor by name      |
+| Method              | Description                      |
+| ------------------- | -------------------------------- |
+| `keys()`            | Get ordered list of tensor names |
+| `get_all_tensors()` | Get all tensors as BTreeMap      |
+| `get_tensor(name)`  | Get specific tensor by name      |
 
 ### Troubleshooting
 
 #### Common Issues
 
-1. **"Missing source values" error**: You saved the entire PyTorch model instead of the state_dict.
-   Re-export with `torch.save(model.state_dict(), "model.pt")`.
-
-2. **Shape mismatch**: Your Burn model doesn't match the source architecture. Verify layer
+1. **Shape mismatch**: Your Burn model doesn't match the source architecture. Verify layer
    configurations (channels, kernel sizes, bias settings).
 
-3. **Key not found**: Parameter names don't match. Use `with_key_remapping()` or inspect keys:
+2. **Key not found**: Parameter names don't match. Use `with_key_remapping()` or inspect keys:
 
    ```rust, ignore
    let store = PytorchStore::from_file("model.pt");
@@ -496,5 +516,5 @@ Use [Netron](https://github.com/lutzroeder/netron) to visualize `.pt` and `.safe
 For Burnpack files:
 
 ```bash
-cargo run --example burnpack_inspect model.bpk
+cargo run -p burn-store --example burnpack_inspect -- model.bpk
 ```

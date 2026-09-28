@@ -227,3 +227,14 @@ fn should_panic_when_slice_with_too_many_dimensions() {
 
     let _output = tensor.slice([0..1, 0..1]);
 }
+
+#[test]
+fn should_support_empty_slice() {
+    let tensor = QTensor::<2>::int8([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
+
+    let output = tensor.slice([0..2, 1..1]);
+
+    assert_eq!(output.dims(), [2, 0]);
+    // Quantized inputs fall back to the default float dtype
+    assert_eq!(output.dtype(), <FloatElem as burn_tensor::Element>::dtype());
+}

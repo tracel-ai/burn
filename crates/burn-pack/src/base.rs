@@ -357,6 +357,8 @@ pub enum Error {
     TensorNotFound(String),
     TensorBytesSizeMismatch(String),
     ValidationError(String),
+    /// A write that must not replace an existing file found one at this path.
+    AlreadyExists(String),
 }
 
 impl core::fmt::Display for Error {
@@ -377,6 +379,12 @@ impl core::fmt::Display for Error {
                 write!(f, "Tensor bytes size mismatch: {}", e)
             }
             Error::ValidationError(e) => write!(f, "Validation error: {}", e),
+            Error::AlreadyExists(path) => write!(
+                f,
+                "File already exists: {}. To replace it, use .overwrite(true), or \
+                 AtomicFile::commit instead of commit_new.",
+                path
+            ),
         }
     }
 }
@@ -395,12 +403,13 @@ impl Error {
             | Error::TensorBytesSizeMismatch(message)
             | Error::ValidationError(message) => *message = format!("tensor '{name}': {message}"),
             // Header failures carry no message to annotate (and are not expected from an
-            // entry), while `TensorNotFound`'s payload is a tensor name, not a sentence -
-            // prefixing either would garble its Display output.
+            // entry), while `TensorNotFound` and `AlreadyExists` carry a name or path, not a
+            // sentence - prefixing either would garble its Display output.
             Error::InvalidHeader
             | Error::InvalidMagicNumber
             | Error::InvalidVersion
-            | Error::TensorNotFound(_) => {}
+            | Error::TensorNotFound(_)
+            | Error::AlreadyExists(_) => {}
         }
         self
     }

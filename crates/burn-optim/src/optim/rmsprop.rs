@@ -317,12 +317,13 @@ impl<const D: usize> RmsPropMomentumState<D> {
 
 #[cfg(test)]
 mod tests {
+    use crate::optim::test_utils::assert_optimizer_resume;
     use burn::tensor::Tolerance;
 
     use super::*;
     use crate::optim::GradientsParams;
     use burn::module::Param;
-    use burn::tensor::{Distribution, Tensor, TensorData};
+    use burn::tensor::{Tensor, TensorData};
     use burn_nn::{Linear, LinearConfig};
 
     type FT = f32;
@@ -333,25 +334,18 @@ mod tests {
     fn test_rmsprop_optimizer_save_load_state() {
         let device = Device::default().autodiff();
         let linear = LinearConfig::new(6, 6).init(&device);
-        let x = Tensor::<2>::random([2, 6], Distribution::Default, &device);
-        let mut optimizer = create_rmsprop();
-        let grads = linear.forward(x).backward();
-        let grads = GradientsParams::from_grads(grads, &linear);
-        let _linear = optimizer.step(LEARNING_RATE, linear, grads);
-
-        let bytes = optimizer.into_bytes().unwrap();
-        assert!(!bytes.is_empty());
-
-        #[cfg(feature = "std")]
-        optimizer
-            .save(std::env::temp_dir().as_path().join("test_optim_rmsprop"))
-            .unwrap();
-
-        let state_optim_before = optimizer.to_record();
-        let optimizer = create_rmsprop().from_bytes(bytes).unwrap();
-        let state_optim_after = optimizer.to_record();
-
-        assert_eq!(state_optim_before.len(), state_optim_after.len());
+        for centered in [false, true] {
+            assert_optimizer_resume(
+                || {
+                    RmsPropConfig::new()
+                        .with_centered(centered)
+                        .with_momentum(0.9)
+                        .init()
+                },
+                linear.clone(),
+                LEARNING_RATE,
+            );
+        }
     }
 
     /// used for test differences and debug
@@ -523,17 +517,5 @@ mod tests {
             weight: Param::from_data(weight, device),
             bias: Some(Param::from_data(bias, device)),
         }
-    }
-
-    fn create_rmsprop() -> ModuleOptimizer {
-        RmsPropConfig {
-            alpha: 0.99,
-            epsilon: 1e-9,
-            centered: false,
-            weight_decay: Some(WeightDecayConfig { penalty: 0.05 }),
-            momentum: 0.9,
-            grad_clipping: None,
-        }
-        .init()
     }
 }

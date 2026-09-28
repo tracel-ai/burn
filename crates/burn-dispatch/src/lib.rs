@@ -1,7 +1,6 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 #![warn(missing_docs)]
 #![cfg_attr(docsrs, feature(doc_cfg))]
-#![recursion_limit = "138"]
 // Without a backend, generated dispatch bodies diverge and their arguments/imports
 // are unused. Keep the API available for libraries that let consumers select a backend.
 #![cfg_attr(
