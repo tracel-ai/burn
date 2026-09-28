@@ -358,9 +358,20 @@ impl<'a> Vectorization for FusedMatmulLaunch<'a> {
 
         let mut axis = VectorizationAxis::default();
 
+        // A transposed operand is loaded along its contiguous dimension, the second to last.
+        // Its vector size belongs to the input, though, and an element-wise block reading the
+        // same input applies it along the last dimension, which isn't contiguous: it would
+        // read the wrong elements. Such an operand keeps the default axis.
+        let read_by_block = |relative_id| {
+            plan.blocks
+                .iter()
+                .any(|block| block.reads.contains_key(&relative_id))
+        };
+
         if let MatrixBatchLayout::MildlyPermuted { transposed, .. } =
             matrix_batch_layout(lhs_strides, self.matmul.lhs.scheme())
             && transposed
+            && !read_by_block(lhs_id)
         {
             axis.insert(lhs_id_global, lhs_strides.len() - 2);
         }
@@ -368,6 +379,7 @@ impl<'a> Vectorization for FusedMatmulLaunch<'a> {
         if let MatrixBatchLayout::MildlyPermuted { transposed, .. } =
             matrix_batch_layout(rhs_strides, self.matmul.rhs.scheme())
             && transposed
+            && !read_by_block(rhs_id)
         {
             axis.insert(rhs_id_global, rhs_strides.len() - 2);
         }
