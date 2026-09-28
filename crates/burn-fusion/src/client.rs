@@ -141,14 +141,9 @@ where
     ///
     /// Routes to [`FusionServer::register_foreign_drop`]. Same-stream drops must keep using
     /// [`Self::register`].
-    pub(crate) fn register_foreign_drop<O>(&self, stream: StreamId, ir: TensorIr, operation: O)
-    where
-        O: Operation<R> + 'static,
-    {
-        self.server.submit(move |server| {
-            let operation = UnfusedOp::new(operation, stream);
-            server.register_foreign_drop(stream, ir, operation);
-        });
+    pub(crate) fn register_foreign_drop(&self, stream: StreamId, ir: TensorIr) {
+        self.server
+            .submit(move |server| server.register_foreign_drop(stream, ir));
     }
 
     /// Run `func` on the server, in order with the operations registered so
