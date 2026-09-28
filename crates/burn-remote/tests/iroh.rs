@@ -12,9 +12,11 @@ use iroh::{
     Endpoint, EndpointAddr, RelayMode, address_lookup::MemoryLookup, endpoint::presets,
     protocol::Router,
 };
+use std::{panic, sync::mpsc, thread, time::Duration};
+use tokio::task::coop;
 
 /// Past the first retries, well inside the retry window.
-const ADDRESS_LATE_BY: std::time::Duration = std::time::Duration::from_millis(700);
+const ADDRESS_LATE_BY: Duration = Duration::from_millis(700);
 
 async fn local_endpoint() -> Endpoint {
     Endpoint::builder(presets::Minimal)
@@ -42,6 +44,29 @@ fn spawn_router<B: BackendIr>(
     Router::builder(endpoint)
         .accept(BURN_REMOTE_ALPN, protocol)
         .spawn()
+}
+
+/// Far beyond what a test here takes when it works, so only a hang reaches it.
+const HANG_LIMIT: Duration = Duration::from_secs(30);
+
+/// A blocking hang cannot be cancelled, so this fails after [`HANG_LIMIT`] and leaks the stuck
+/// thread.
+fn within_hang_limit(test: impl FnOnce() + Send + 'static) {
+    let (done, finished) = mpsc::channel();
+    let name = thread::current().name().unwrap_or("test").to_string();
+    let thread = thread::Builder::new()
+        .name(name)
+        .spawn(move || {
+            test();
+            let _ = done.send(());
+        })
+        .unwrap();
+    if let Err(mpsc::RecvTimeoutError::Timeout) = finished.recv_timeout(HANG_LIMIT) {
+        panic!("still blocked after {HANG_LIMIT:?}");
+    }
+    if let Err(payload) = thread.join() {
+        panic::resume_unwind(payload);
+    }
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -175,6 +200,32 @@ fn synchronous_client_round_trip() {
     server_runtime.block_on(router.shutdown()).unwrap();
 }
 
+#[test]
+fn blocking_reads_inside_a_tokio_task_outlast_its_budget() {
+    within_hang_limit(|| {
+        let runtime = tokio::runtime::Runtime::new().unwrap();
+        runtime.block_on(async {
+            let server = local_endpoint().await;
+            let client = local_endpoint().await;
+            let router = spawn_router::<Flex>(server.clone(), AllowAll, TelemetryProbe::disabled());
+
+            let remote = RemoteDevice::iroh(&client, server.addr(), 0);
+            remote.connect();
+            let device = Device::new(remote);
+            while coop::has_budget_remaining() {
+                coop::consume_budget().await;
+            }
+            let output = Tensor::<1>::from_floats([1.0, 2.0, 3.0], &device) * 2.0;
+            assert_eq!(
+                output.try_into_vec_as::<f32>().unwrap(),
+                vec![2.0, 4.0, 6.0]
+            );
+
+            router.shutdown().await.unwrap();
+        });
+    });
+}
+
 #[tokio::test(flavor = "multi_thread")]
 async fn passes_application_credentials_to_the_peer_authorizer() {
     let server = local_endpoint().await;
@@ -201,7 +252,6 @@ async fn passes_application_credentials_to_the_peer_authorizer() {
 #[cfg(feature = "fusion")]
 async fn fused_compute_surfaces_as_graph_telemetry() {
     use burn_remote::telemetry::{TelemetryEvent, TelemetryProbe, TrafficAggregator};
-    use std::time::Duration;
 
     let server = local_endpoint().await;
     let client = local_endpoint().await;
