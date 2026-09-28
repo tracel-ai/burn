@@ -38,7 +38,7 @@ fn test_mm_independent_trees() {
 }
 
 #[test]
-#[should_panic]
+#[should_panic(expected = "graph tape has already been consumed")]
 fn test_mm_crossover_trees_root_unavailable() {
     let data = TensorData::from([[1.0, 2.0], [3.0, 4.0]]);
     let device = AutodiffDevice::new();
@@ -123,7 +123,7 @@ fn test_mm_three_crossover_trees_last_still_usable() {
 }
 
 #[test]
-#[should_panic]
+#[should_panic(expected = "graph tape has already been consumed")]
 fn test_mm_three_crossover_trees_middle_one_unavailable() {
     let data = TensorData::from([[1.0, 2.0], [3.0, 4.0]]);
     let device = AutodiffDevice::new();
@@ -234,7 +234,7 @@ fn test_mm_with_detach_after_cleanup() {
 }
 
 #[test]
-#[should_panic]
+#[should_panic(expected = "graph tape has already been consumed")]
 fn test_mm_deletables_propagate_well() {
     let data = TensorData::from([[1.0, 2.0], [3.0, 4.0]]);
     let device = AutodiffDevice::new();
