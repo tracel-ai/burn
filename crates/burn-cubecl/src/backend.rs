@@ -12,7 +12,7 @@ use cubecl::{
     client::{Client, ProfileWindow},
     features::{MmaConfig, TypeUsage},
     ir::ElemType,
-    server::{ProfileError, ProfilingToken},
+    server::{ProfileError, ProfilingToken, ServerError},
 };
 
 #[cfg(not(feature = "fusion"))]
@@ -32,6 +32,15 @@ fn qfloat_params_usable(client: &Client, dtype: DType) -> bool {
             .properties()
             .type_usage(ElemType::from_scale_dtype(scheme.scale_dtype()))
             .is_superset(TypeUsage::Buffer | TypeUsage::Conversion)
+}
+
+/// Turn a cubecl server error into a backend [`ExecutionError`], keeping the
+/// one distinction a caller acts on: whether the device is poisoned.
+pub(crate) fn server_err(err: ServerError) -> ExecutionError {
+    match err.is_device_poisoned() {
+        true => ExecutionError::device_poisoned(format!("{err}")),
+        false => ExecutionError::with_context(format!("{err}")),
+    }
 }
 
 /// Turn a cubecl graph-capture error into a backend [`ExecutionError`].
@@ -116,9 +125,7 @@ impl Backend for CubeBackend {
         // the read of one of them, so it is not this sync's to report.
         // `client.sync_buffers` is the same barrier plus a check of named
         // tensors, for a caller that wants both.
-        futures_lite::future::block_on(client.sync()).map_err(|err| ExecutionError::WithContext {
-            reason: format!("{err}"),
-        })
+        futures_lite::future::block_on(client.sync()).map_err(server_err)
     }
 
     fn profile<O: Send + 'static>(

@@ -2,15 +2,41 @@ use crate::metric::processor::{EvaluatorEvent, EventProcessorEvaluation};
 
 use super::EventProcessorTraining;
 use async_channel::{Receiver, Sender};
+use std::thread::JoinHandle;
 
 /// Event processor for the training process.
 pub struct AsyncProcessorTraining<ET, EV> {
     sender: Sender<Message<ET, EV>>,
+    worker: Worker,
 }
 
 /// Event processor for the model evaluation.
 pub struct AsyncProcessorEvaluation<P: EventProcessorEvaluation> {
     sender: Sender<EvalMessage<P>>,
+    worker: Worker,
+}
+
+/// The thread a processor runs on, kept so its failure can be reported.
+///
+/// A processor reads tensors (metrics) where a failed computation surfaces.
+struct Worker {
+    handle: Option<JoinHandle<()>>,
+}
+
+impl Worker {
+    fn new(handle: JoinHandle<()>) -> Self {
+        Self {
+            handle: Some(handle),
+        }
+    }
+
+    /// The channel to the worker is closed: re-raise whatever stopped it.
+    fn died(&mut self) -> ! {
+        match self.handle.take().map(JoinHandle::join) {
+            Some(Err(payload)) => std::panic::resume_unwind(payload),
+            _ => panic!("the event processor worker stopped without reporting an error"),
+        }
+    }
 }
 
 struct WorkerTraining<ET, EV, P: EventProcessorTraining<ET, EV>> {
@@ -26,7 +52,7 @@ struct WorkerEvaluation<P: EventProcessorEvaluation> {
 impl<ET: Send + 'static, EV: Send + 'static, P: EventProcessorTraining<ET, EV> + 'static>
     WorkerTraining<ET, EV, P>
 {
-    pub fn start(processor: P, rec: Receiver<Message<ET, EV>>) {
+    pub fn start(processor: P, rec: Receiver<Message<ET, EV>>) -> JoinHandle<()> {
         let mut worker = Self { processor, rec };
         std::thread::Builder::new()
             .name("train-worker".into())
@@ -46,11 +72,11 @@ impl<ET: Send + 'static, EV: Send + 'static, P: EventProcessorTraining<ET, EV> +
                     }
                 }
             })
-            .unwrap();
+            .unwrap()
     }
 }
 impl<P: EventProcessorEvaluation + 'static> WorkerEvaluation<P> {
-    pub fn start(processor: P, rec: Receiver<EvalMessage<P>>) {
+    pub fn start(processor: P, rec: Receiver<EvalMessage<P>>) -> JoinHandle<()> {
         let mut worker = Self { processor, rec };
 
         std::thread::Builder::new()
@@ -66,7 +92,7 @@ impl<P: EventProcessorEvaluation + 'static> WorkerEvaluation<P> {
                     }
                 }
             })
-            .unwrap();
+            .unwrap()
     }
 }
 
@@ -75,9 +101,9 @@ impl<ET: Send + 'static, EV: Send + 'static> AsyncProcessorTraining<ET, EV> {
     pub fn new<P: EventProcessorTraining<ET, EV> + 'static>(processor: P) -> Self {
         let (sender, rec) = async_channel::bounded(1);
 
-        WorkerTraining::start(processor, rec);
+        let worker = Worker::new(WorkerTraining::start(processor, rec));
 
-        Self { sender }
+        Self { sender, worker }
     }
 }
 
@@ -86,9 +112,9 @@ impl<P: EventProcessorEvaluation + 'static> AsyncProcessorEvaluation<P> {
     pub fn new(processor: P) -> Self {
         let (sender, rec) = async_channel::bounded(1);
 
-        WorkerEvaluation::start(processor, rec);
+        let worker = Worker::new(WorkerEvaluation::start(processor, rec));
 
-        Self { sender }
+        Self { sender, worker }
     }
 }
 
@@ -106,30 +132,39 @@ enum EvalMessage<P: EventProcessorEvaluation> {
 
 impl<ET: Send, EV: Send> EventProcessorTraining<ET, EV> for AsyncProcessorTraining<ET, EV> {
     fn process_train(&mut self, event: ET) {
-        self.sender.send_blocking(Message::Train(event)).unwrap();
+        if self.sender.send_blocking(Message::Train(event)).is_err() {
+            self.worker.died();
+        }
     }
 
     fn process_valid(&mut self, event: EV) {
-        self.sender.send_blocking(Message::Valid(event)).unwrap();
+        if self.sender.send_blocking(Message::Valid(event)).is_err() {
+            self.worker.died();
+        }
     }
 
     fn flush(&mut self) {
         let (sender, receiver) = async_channel::bounded(1);
-        self.sender.send_blocking(Message::Flush(sender)).unwrap();
-        receiver
-            .recv_blocking()
-            .expect("training event processor flush should complete");
+        if self.sender.send_blocking(Message::Flush(sender)).is_err()
+            || receiver.recv_blocking().is_err()
+        {
+            self.worker.died();
+        }
     }
 
-    fn renderer(self) -> Box<dyn crate::renderer::MetricsRenderer> {
+    fn renderer(mut self) -> Box<dyn crate::renderer::MetricsRenderer> {
         let (sender, rec) = async_channel::bounded(1);
-        self.sender
+        if self
+            .sender
             .send_blocking(Message::Renderer(sender))
-            .unwrap();
+            .is_err()
+        {
+            self.worker.died();
+        }
 
         match rec.recv_blocking() {
             Ok(value) => value,
-            Err(err) => panic!("{err:?}"),
+            Err(_) => self.worker.died(),
         }
     }
 }
@@ -138,18 +173,24 @@ impl<P: EventProcessorEvaluation> EventProcessorEvaluation for AsyncProcessorEva
     type ItemTest = P::ItemTest;
 
     fn process_test(&mut self, event: EvaluatorEvent<Self::ItemTest>) {
-        self.sender.send_blocking(EvalMessage::Test(event)).unwrap();
+        if self.sender.send_blocking(EvalMessage::Test(event)).is_err() {
+            self.worker.died();
+        }
     }
 
-    fn renderer(self) -> Box<dyn crate::renderer::MetricsRenderer> {
+    fn renderer(mut self) -> Box<dyn crate::renderer::MetricsRenderer> {
         let (sender, rec) = async_channel::bounded(1);
-        self.sender
+        if self
+            .sender
             .send_blocking(EvalMessage::Renderer(sender))
-            .unwrap();
+            .is_err()
+        {
+            self.worker.died();
+        }
 
         match rec.recv_blocking() {
             Ok(value) => value,
-            Err(err) => panic!("{err:?}"),
+            Err(_) => self.worker.died(),
         }
     }
 }
@@ -203,5 +244,48 @@ mod tests {
         assert_eq!(processed.load(Ordering::SeqCst), 5);
         // The wrapped processor is flushed before the acknowledgement is sent back.
         assert_eq!(processed_on_flush.load(Ordering::SeqCst), 5);
+    }
+
+    /// A processor that fails the way a metric does when the computation it
+    /// reads failed: by panicking on the worker thread.
+    struct FailingProcessor;
+
+    impl EventProcessorTraining<usize, usize> for FailingProcessor {
+        fn process_train(&mut self, _event: usize) {
+            panic!("the loss could not be read: the device is poisoned");
+        }
+
+        fn process_valid(&mut self, _event: usize) {}
+
+        fn flush(&mut self) {}
+
+        fn renderer(self) -> Box<dyn MetricsRenderer> {
+            Box::new(CliMetricsRenderer::new())
+        }
+    }
+
+    #[test]
+    fn a_worker_failure_reaches_the_caller_with_its_cause() {
+        let mut processor = AsyncProcessorTraining::new(FailingProcessor);
+
+        let payload = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            // The worker dies on the first event; the channel has room for
+            // one more, so the failure is noticed by the second send or the
+            // flush at the latest.
+            processor.process_train(1);
+            processor.process_train(2);
+            processor.flush();
+        }))
+        .expect_err("the worker's failure must reach the caller");
+
+        let message = payload
+            .downcast_ref::<&str>()
+            .map(|message| message.to_string())
+            .or_else(|| payload.downcast_ref::<String>().cloned())
+            .unwrap_or_default();
+        assert!(
+            message.contains("the device is poisoned"),
+            "the caller must see the worker's own panic, got: {message:?}"
+        );
     }
 }

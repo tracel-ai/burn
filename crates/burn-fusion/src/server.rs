@@ -22,6 +22,9 @@ use hashbrown::HashSet;
 fn execution_error(error: TensorError) -> ExecutionError {
     match error.depth() {
         0 => error.cause().clone(),
+        _ if error.cause().is_device_poisoned() => {
+            ExecutionError::device_poisoned(format!("{error}"))
+        }
         _ => ExecutionError::with_context(format!("{error}")),
     }
 }
