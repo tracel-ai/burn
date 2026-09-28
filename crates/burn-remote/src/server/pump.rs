@@ -25,9 +25,8 @@ use tokio::sync::mpsc;
 /// without one (websocket) pass an allow-all closure. `server_peer_id` is echoed to the client in
 /// the handshake response (the server's own identity, or `None` for websocket).
 ///
-/// Returns `Err` on a protocol violation or a failed read; the caller logs it. A clean client
-/// `Close` (or stream end) returns `Ok(())`. A failed response send, the handshake reply included,
-/// only stops the writer and is logged.
+/// Returns `Err` on a protocol violation or a failed read or write; the caller logs it. A clean
+/// client `Close` (or stream end) drains the remaining responses before returning `Ok(())`.
 pub(crate) async fn drive_session<Src, Snk, S, A>(
     mut source: Src,
     mut sink: Snk,
@@ -70,8 +69,8 @@ where
         mut responses,
     } = service.bind(init.session_id, init.device_index).await?;
 
-    // Sends the handshake reply itself, so a failed send cannot skip the teardown.
-    let (writer_done, writer_result) = tokio::sync::oneshot::channel();
+    // The writer sends the handshake reply before any task responses.
+    let (writer_done, mut writer_result) = tokio::sync::oneshot::channel();
     spawn_detached(async move {
         let result = async {
             sink.send(info.into()).await?;
@@ -86,19 +85,24 @@ where
         let _ = writer_done.send(result);
     });
 
-    let result = forward_tasks(source, &task_sender, init.session_id).await;
+    // Either half ending triggers teardown: a failed write need not close the incoming half.
+    // Save a completed writer result so we don't poll the oneshot receiver twice.
+    let (read_result, completed_writer) = tokio::select! {
+        result = forward_tasks(source, &task_sender, init.session_id) => (result, None),
+        result = &mut writer_result => (Ok(()), Some(result)),
+    };
 
     // Teardown: drop our task sender and close the session so its worker drains and exits, which
     // closes the response queue and ends the writer; then await the writer so we don't tear the
     // runtime down mid-send.
     drop(task_sender);
     service.close(init.session_id).await;
-    match writer_result.await {
-        Ok(Ok(())) => {}
-        Ok(Err(err)) => log::warn!("Session response writer failed: {err}"),
-        Err(_) => log::warn!("Session response writer stopped before finishing"),
+    let write_result = match completed_writer {
+        Some(result) => result,
+        None => writer_result.await,
     }
-    result
+    .unwrap_or_else(|_| Err("Session response writer stopped before finishing".into()));
+    read_result.and(write_result)
 }
 
 /// Forward each submitted task batch to the session worker in arrival order, until the client
@@ -190,6 +194,18 @@ mod tests {
         }
     }
 
+    /// Send the handshake, then keep the incoming half open indefinitely.
+    struct OpenSource(Option<Bytes>);
+
+    impl FrameSource for OpenSource {
+        async fn recv(&mut self) -> Result<Option<Bytes>, String> {
+            match self.0.take() {
+                Some(frame) => Ok(Some(frame)),
+                None => std::future::pending().await,
+            }
+        }
+    }
+
     struct DiscardingSink;
 
     impl FrameSink for DiscardingSink {
@@ -241,10 +257,16 @@ mod tests {
     async fn a_handshake_reply_that_fails_still_closes_its_session() {
         let service = Arc::new(FakeService::default());
         let session_id = SessionId::new();
-        let source = ScriptedSource([Ok(Some(handshake(session_id)))].into());
+        let source = OpenSource(Some(handshake(session_id)));
 
-        let _ = drive_session(source, FailingSink, service.clone(), None, |_| Ok(())).await;
+        let result = tokio::time::timeout(
+            std::time::Duration::from_secs(1),
+            drive_session(source, FailingSink, service.clone(), None, |_| Ok(())),
+        )
+        .await
+        .expect("a failed handshake reply must close the session even if input stays open");
 
+        assert_eq!(result, Err("connection reset".to_string()));
         assert_eq!(*service.closed.lock().unwrap(), [session_id]);
     }
 
