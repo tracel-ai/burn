@@ -197,17 +197,17 @@ mod storage_tiled {
     /// `tensor` stored in `(rows, cols)` tiles, a tile's rows one after another and the tiles
     /// row-major.
     fn tiled(tensor: &CubeTensor, (rows, cols): (usize, usize)) -> CubeTensor {
-        use cubek::matmul::tiled::storage::{Axis, LayoutBuilder, tile};
+        use cubek::matmul::tiled::storage::{Axis, StorageLevels, tile};
         const ROW: Axis = Axis(0);
         const COL: Axis = Axis(1);
         let client = tensor.client.clone();
-        let layout = LayoutBuilder::new(&[(COL, cols), (ROW, rows)]).grid(&[COL, ROW]);
+        let storage = StorageLevels::new(&[(COL, cols), (ROW, rows)]).grid(&[COL, ROW]);
         let out = tile(
             &client,
             tensor.clone().binding(),
             [ROW, COL],
             dtype_to_storage_type(tensor.dtype),
-            layout,
+            storage,
         )
         .expect("the tile divides the matrix");
         CubeTensor::new(
