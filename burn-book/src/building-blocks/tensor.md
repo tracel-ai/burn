@@ -165,7 +165,7 @@ println!("{}", input.to_data());// Success: [0.0, 0.33333334, 0.6666667, 1.0]
 We don't need to be worried about memory overhead because with cloning, the tensor's buffer isn't
 copied, and only a reference to it is increased. This makes it possible to determine exactly how
 many times a tensor is used, which is very convenient for reusing tensor buffers or even fusing
-operations into a single kernel ([burn-fusion](https://burn.dev/docs/burn_fusion/index.htmls)). For
+operations into a single kernel ([burn-fusion](https://docs.rs/burn-fusion/latest/burn_fusion/)). For
 that reason, we don't provide explicit inplace operations. If a tensor is used only one time,
 inplace operations will always be used when available.
 
