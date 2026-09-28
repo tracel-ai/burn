@@ -84,6 +84,7 @@ mod softplus;
 mod sort;
 mod sqrt;
 mod sub;
+mod to_device;
 mod topk;
 mod transpose;
 mod trig;

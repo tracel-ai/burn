@@ -156,6 +156,12 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         )
     ))]
     fn float_to_device(tensor: FloatTensor<Self>, device: &Device<Self>) -> FloatTensor<Self> {
+        // Moving to the current device is a no-op. Registering a node here would turn a leaf
+        // into an intermediate, so a parameter moved this way could no longer be trained.
+        if tensor.primitive.device() == *device {
+            return tensor;
+        }
+
         #[derive(Debug)]
         struct ToDevice;
 
