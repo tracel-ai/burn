@@ -89,7 +89,7 @@ impl Optimizer for Sgd {
         }
 
         let state = SgdState::new(state_momentum);
-        let delta = grad.mul_scalar(lr);
+        let delta = lr.apply(grad);
 
         (tensor - delta, Some(state))
     }
@@ -103,12 +103,13 @@ impl Optimizer for Sgd {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::HostLr;
     use crate::optim::test_utils::assert_optimizer_resume;
     use crate::{grad_clipping::GradientClipping, optim::GradientsParams};
     use burn::tensor::{Distribution, Shape};
     use burn_nn::{Linear, LinearConfig};
 
-    const LEARNING_RATE: LearningRate = 0.02;
+    const LEARNING_RATE: HostLr = 0.02;
 
     #[test]
     fn with_updated_params_should_have_state() {

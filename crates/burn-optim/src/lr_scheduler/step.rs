@@ -4,7 +4,7 @@ use burn::config::Config;
 
 use super::{LrScheduler, LrSchedulerRecord, String};
 use crate::lr_scheduler::module_lr_scheduler::ModuleLrScheduler;
-use crate::{LearningRate, RecordState};
+use crate::{HostLr, RecordState};
 
 /// The configuration for create a [step learning rate scheduler](StepLrScheduler).
 ///
@@ -22,7 +22,7 @@ use crate::{LearningRate, RecordState};
 #[derive(Config, Debug)]
 pub struct StepLrSchedulerConfig {
     // The learning rate at the initial step.
-    initial_lr: LearningRate,
+    initial_lr: HostLr,
     // The number of iterations over which the learning rate remains unchanged before the next
     // update.
     step_size: usize,
@@ -76,7 +76,7 @@ impl StepLrSchedulerConfig {
 /// Step learning rate scheduler.
 #[derive(Clone, Debug)]
 pub struct StepLrScheduler {
-    init_lr: LearningRate,
+    init_lr: HostLr,
     step_size: usize,
     gamma: f64,
     // The index of the current iteration.
@@ -85,7 +85,7 @@ pub struct StepLrScheduler {
 }
 
 impl LrScheduler for StepLrScheduler {
-    fn step(&mut self) -> LearningRate {
+    fn step(&mut self) -> HostLr {
         self.iter_idx = self
             .iter_idx
             .checked_add(1)
@@ -153,7 +153,7 @@ mod tests {
 
     #[test]
     fn test_config_default_gamma() {
-        const INIT_LR: LearningRate = 0.4;
+        const INIT_LR: HostLr = 0.4;
         const STEP_SIZE: usize = 2;
 
         let mut default = StepLrSchedulerConfig::new(INIT_LR, STEP_SIZE)

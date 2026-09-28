@@ -5,7 +5,7 @@ use burn::config::Config;
 
 use super::module_lr_scheduler::ModuleLrScheduler;
 use super::{DynLrScheduler, LrScheduler, LrSchedulerConfig, LrSchedulerRecord, String};
-use crate::{LearningRate, RecordState};
+use crate::{HostLr, RecordState};
 
 /// Configuration for a [sequential learning rate scheduler](SequentialLrScheduler).
 ///
@@ -101,7 +101,7 @@ impl SequentialLrScheduler {
 }
 
 impl LrScheduler for SequentialLrScheduler {
-    fn step(&mut self) -> LearningRate {
+    fn step(&mut self) -> HostLr {
         let index = self.active_scheduler();
         let lr = self.schedulers[index].step();
         self.step = self

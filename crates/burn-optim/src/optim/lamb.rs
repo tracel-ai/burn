@@ -131,7 +131,7 @@ impl Optimizer for Lamb {
             update
         };
 
-        let tensor = tensor - update.mul_scalar(lr);
+        let tensor = tensor - lr.apply(update);
         (tensor, Some(state))
     }
 
@@ -193,7 +193,7 @@ mod tests {
         let tensor = Tensor::<1>::from_floats([1.0, -2.0, 3.0], &device);
 
         let (tensor, state) = optimizer.step(
-            0.01,
+            0.01.into(),
             tensor,
             Tensor::from_floats([0.1, -0.2, 0.3], &device),
             None,
@@ -204,7 +204,7 @@ mod tests {
         );
 
         let (tensor, state) = optimizer.step(
-            0.01,
+            0.01.into(),
             tensor,
             Tensor::from_floats([-0.4, 0.5, -0.6], &device),
             state,
@@ -233,7 +233,7 @@ mod tests {
         let tensor = Tensor::<1>::zeros([2], &device);
         let grad = Tensor::<1>::zeros([2], &device);
 
-        let (tensor, _) = optimizer.step(0.01, tensor, grad, None);
+        let (tensor, _) = optimizer.step(0.01.into(), tensor, grad, None);
 
         tensor
             .to_data()
@@ -251,7 +251,7 @@ mod tests {
         let tensor = Tensor::<1>::from_floats([1.0, -2.0, 3.0], &device);
         let grad = Tensor::<1>::from_floats([0.1, -0.2, 0.3], &device);
 
-        let (tensor, _) = optimizer.step(0.01, tensor, grad, None);
+        let (tensor, _) = optimizer.step(0.01.into(), tensor, grad, None);
 
         tensor.to_data().assert_approx_eq::<f32>(
             &TensorData::from([0.9890001, -1.988, 2.987]),

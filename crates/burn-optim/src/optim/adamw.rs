@@ -80,9 +80,9 @@ impl Optimizer for AdamW {
     ) -> (Tensor<D>, Option<Self::State<D>>) {
         let (raw_delta, momentum_state) = self.momentum.transform(grad, state.map(|s| s.momentum));
 
-        let decay_rate = lr * (self.weight_decay as f64);
+        let decay_rate = lr.mul_scalar(self.weight_decay as f64);
 
-        let decayed_tensor = if decay_rate == 0.0 {
+        let decayed_tensor = if decay_rate.host() == Some(0.0) || self.weight_decay == 0.0 {
             tensor.clone()
         } else if self.cautious_weight_decay {
             // Cautious weight decay.
@@ -92,12 +92,12 @@ impl Optimizer for AdamW {
             let differ = tensor_pos.not_equal(grad_pos);
 
             // Zero out the decay where the decay is counter to the update direction.
-            tensor.clone() - tensor.mul_scalar(decay_rate).mask_fill(differ, 0.0)
+            tensor.clone() - decay_rate.apply(tensor).mask_fill(differ, 0.0)
         } else {
-            tensor.clone().mul_scalar(1.0 - decay_rate)
+            decay_rate.rsub_scalar(1.0).apply(tensor.clone())
         };
 
-        let tensor_updated = decayed_tensor - raw_delta.mul_scalar(lr);
+        let tensor_updated = decayed_tensor - lr.apply(raw_delta);
 
         let state = AdamWState {
             momentum: momentum_state,
@@ -230,6 +230,7 @@ impl AdaptiveMomentumW {
 mod tests {
     use super::*;
     use crate::GradientsParams;
+    use crate::HostLr;
     use crate::optim::test_utils::assert_optimizer_resume;
     use burn::module::Param;
     use burn::tensor::Tolerance;
@@ -238,7 +239,7 @@ mod tests {
 
     type FT = f32;
 
-    const LEARNING_RATE: LearningRate = 0.01;
+    const LEARNING_RATE: HostLr = 0.01;
 
     #[test]
     fn test_adamw_optimizer_save_load_state() {

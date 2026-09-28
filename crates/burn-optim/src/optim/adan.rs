@@ -72,21 +72,22 @@ impl Optimizer for Adan {
     ) -> (Tensor<D>, Option<Self::State<D>>) {
         let (raw_delta, momentum_state) = self.momentum.transform(grad, state.map(|s| s.momentum));
 
-        let decay_rate = lr * (self.weight_decay as f64);
-        let delta = raw_delta.mul_scalar(lr);
+        let decay_rate = lr.mul_scalar(self.weight_decay as f64);
+        let no_decay = decay_rate.host() == Some(0.0) || self.weight_decay == 0.0;
+        let delta = lr.apply(raw_delta);
 
         let tensor_updated = if self.no_prox {
-            if decay_rate == 0.0 {
+            if no_decay {
                 tensor - delta
             } else {
-                tensor.mul_scalar(1.0 - decay_rate) - delta
+                decay_rate.rsub_scalar(1.0).apply(tensor) - delta
             }
         } else {
             let updated = tensor - delta;
-            if decay_rate == 0.0 {
+            if no_decay {
                 updated
             } else {
-                updated.div_scalar(1.0 + decay_rate)
+                decay_rate.add_scalar(1.0).divide(updated)
             }
         };
 
@@ -235,6 +236,7 @@ impl<const D: usize> AdaptiveNesterovMomentumState<D> {
 mod tests {
     use super::*;
     use crate::GradientsParams;
+    use crate::HostLr;
     use crate::optim::test_utils::assert_optimizer_resume;
     use burn::module::Param;
     use burn::tensor::Tolerance;
@@ -243,7 +245,7 @@ mod tests {
 
     type FT = f32;
 
-    const LEARNING_RATE: LearningRate = 0.01;
+    const LEARNING_RATE: HostLr = 0.01;
 
     #[test]
     fn test_adan_optimizer_save_load_state() {

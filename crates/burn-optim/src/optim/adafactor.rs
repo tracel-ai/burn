@@ -205,20 +205,22 @@ impl Optimizer for Adafactor {
         update = update.div(clipping.unsqueeze());
 
         let step_size = if self.relative_step {
-            lr.min(1.0 / (state.time as f64).sqrt())
+            lr.min_scalar(1.0 / (state.time as f64).sqrt())
         } else {
-            lr
+            lr.clone()
         };
         if self.scale_parameter {
             let scale = rms(tensor.clone()).clamp_min(self.epsilon_2);
             update = update.mul(scale.unsqueeze());
         }
-        update = update.mul_scalar(step_size);
+        update = step_size.apply(update);
 
         let tensor = if self.weight_decay == 0.0 {
             tensor
         } else {
-            tensor.mul_scalar(1.0 - lr * self.weight_decay as f64)
+            lr.mul_scalar(self.weight_decay as f64)
+                .rsub_scalar(1.0)
+                .apply(tensor)
         };
         let tensor = tensor - update;
         let tensor = match dtype {

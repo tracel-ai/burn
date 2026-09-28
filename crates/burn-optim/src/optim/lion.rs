@@ -104,13 +104,13 @@ impl Optimizer for Lion {
             }
         };
 
-        let decay = 1.0 - lr * self.weight_decay as f64;
-        let tensor = if decay == 1.0 {
+        let decay = lr.mul_scalar(self.weight_decay as f64).rsub_scalar(1.0);
+        let tensor = if decay.host() == Some(1.0) || self.weight_decay == 0.0 {
             tensor
         } else {
-            tensor.mul_scalar(decay)
+            decay.apply(tensor)
         };
-        let tensor = tensor - update.mul_scalar(lr);
+        let tensor = tensor - lr.apply(update);
 
         (tensor, Some(LionState::new(momentum)))
     }
@@ -124,6 +124,7 @@ impl Optimizer for Lion {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::HostLr;
     use crate::optim::test_utils::assert_optimizer_resume;
     use crate::{AdamWConfig, GradientsParams, ModuleOptimizer};
     use burn::module::Param;
@@ -142,7 +143,7 @@ mod tests {
         let tensor = Tensor::<1>::from_floats([1.0, -2.0, 3.0], &device);
         let grad = Tensor::<1>::from_floats([0.5, -0.25, 0.0], &device);
 
-        let (tensor, state) = optimizer.step(0.1, tensor, grad, None);
+        let (tensor, state) = optimizer.step(0.1.into(), tensor, grad, None);
         tensor.clone().into_data().assert_approx_eq::<f32>(
             &TensorData::from([0.89, -1.88, 2.97]),
             Tolerance::absolute(1e-6),
@@ -154,7 +155,7 @@ mod tests {
         );
 
         let grad = Tensor::<1>::from_floats([-0.1, 0.5, -2.0], &device);
-        let (tensor, state) = optimizer.step(0.1, tensor, grad, Some(state));
+        let (tensor, state) = optimizer.step(0.1.into(), tensor, grad, Some(state));
         tensor.into_data().assert_approx_eq::<f32>(
             &TensorData::from([0.9811, -1.9612, 3.0403]),
             Tolerance::absolute(1e-6),
@@ -246,7 +247,7 @@ mod tests {
     fn train_tiny_regression(
         mut model: Linear,
         mut optimizer: ModuleOptimizer,
-        peak_lr: LearningRate,
+        peak_lr: HostLr,
         device: &Device,
     ) -> (f32, f32) {
         let input =

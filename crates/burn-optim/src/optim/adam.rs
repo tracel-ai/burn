@@ -79,7 +79,7 @@ impl Optimizer for Adam {
         let (grad, state_momentum) = self.momentum.transform(grad, state_momentum);
 
         let state = AdamState::new(state_momentum);
-        let delta = grad.mul_scalar(lr);
+        let delta = lr.apply(grad);
 
         (tensor - delta, Some(state))
     }
@@ -236,11 +236,12 @@ mod tests {
 
     use super::*;
     use crate::GradientsParams;
+    use crate::HostLr;
     use burn::module::Param;
     use burn::tensor::{Tensor, TensorData};
     use burn_nn::{Linear, LinearConfig};
 
-    const LEARNING_RATE: LearningRate = 0.01;
+    const LEARNING_RATE: HostLr = 0.01;
 
     #[test]
     fn test_adam_optimizer_save_load_state() {

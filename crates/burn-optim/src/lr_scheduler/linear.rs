@@ -1,7 +1,7 @@
 use burn_core as burn;
 
 use super::{LrScheduler, LrSchedulerRecord, String};
-use crate::LearningRate;
+use crate::HostLr;
 use crate::RecordState;
 use crate::lr_scheduler::module_lr_scheduler::ModuleLrScheduler;
 use burn::config::Config;
@@ -15,9 +15,9 @@ use burn::config::Config;
 #[derive(Config, Debug)]
 pub struct LinearLrSchedulerConfig {
     // The initial learning rate.
-    initial_lr: LearningRate,
+    initial_lr: HostLr,
     // The final learning rate.
-    final_lr: LearningRate,
+    final_lr: HostLr,
     // The number of iterations before reaching the final learning rate.
     num_iters: usize,
 }
@@ -62,7 +62,7 @@ impl LinearLrSchedulerConfig {
 #[derive(Clone, Copy, Debug)]
 pub struct LinearLrScheduler {
     // The final learning rate after the linear changing process stops.
-    final_lr: LearningRate,
+    final_lr: HostLr,
     // The amount that the learning rate changes by on each iteration.
     step_size: f64,
     // The number of iterations left before reaching the final learning rate.
@@ -70,7 +70,7 @@ pub struct LinearLrScheduler {
 }
 
 impl LrScheduler for LinearLrScheduler {
-    fn step(&mut self) -> LearningRate {
+    fn step(&mut self) -> HostLr {
         self.remaining_iters -= (self.remaining_iters != 0) as usize;
         self.final_lr - self.step_size * self.remaining_iters as f64
     }

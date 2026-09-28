@@ -127,7 +127,7 @@ impl Optimizer for RmsProp {
         let state = RmsPropState::new(state_square_avg, state_centered, state_momentum);
 
         // tensor param transform
-        let delta = grad.mul_scalar(lr);
+        let delta = lr.apply(grad);
         (tensor - delta, Some(state))
     }
 
@@ -321,6 +321,7 @@ mod tests {
     use burn::tensor::Tolerance;
 
     use super::*;
+    use crate::HostLr;
     use crate::optim::GradientsParams;
     use burn::module::Param;
     use burn::tensor::{Tensor, TensorData};
@@ -328,7 +329,7 @@ mod tests {
 
     type FT = f32;
 
-    const LEARNING_RATE: LearningRate = 0.01;
+    const LEARNING_RATE: HostLr = 0.01;
 
     #[test]
     fn test_rmsprop_optimizer_save_load_state() {

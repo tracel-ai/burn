@@ -5,7 +5,7 @@ use super::exponential::ExponentialLrSchedulerConfig;
 use super::linear::LinearLrSchedulerConfig;
 use super::noam::NoamLrSchedulerConfig;
 use super::{LrScheduler, LrSchedulerRecord, String};
-use crate::LearningRate;
+use crate::HostLr;
 use crate::lr_scheduler::module_lr_scheduler::ModuleLrScheduler;
 use crate::lr_scheduler::step::StepLrSchedulerConfig;
 use crate::lr_scheduler::{DynLrScheduler, LrSchedulerConfig};
@@ -59,7 +59,7 @@ impl ComposedLrSchedulerConfig {
     }
 
     /// Appends a [constant learning rate](crate::lr_scheduler::constant::ConstantLr).
-    pub fn constant(mut self, lr: LearningRate) -> Self {
+    pub fn constant(mut self, lr: HostLr) -> Self {
         self.schedulers.push(LrSchedulerConfig::Constant(lr));
         self
     }
@@ -110,7 +110,7 @@ impl ComposedLrScheduler {
 }
 
 impl LrScheduler for ComposedLrScheduler {
-    fn step(&mut self) -> LearningRate {
+    fn step(&mut self) -> HostLr {
         let mut step = match self.reduction {
             SchedulerReduction::Avg => 0.0,
             SchedulerReduction::Sum => 0.0,
