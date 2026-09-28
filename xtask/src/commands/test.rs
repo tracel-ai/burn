@@ -100,11 +100,13 @@ pub(crate) fn handle_backend_tests(
         }
     }
 
-    if matches!(backend, TestBackend::Cuda) {
-        // Collective (all-reduce) tests require a CUDA build with NCCL, which the CI runner
-        // provides. Kept behind its own feature so plain `--features cuda` still works without it.
-        test_args.extend(["--features", "distributed"]);
-    }
+    // TODO: Re-enable collective (all-reduce) tests once NCCL is installed and loadable on
+    // the CUDA CI runners. The documented runner image setup does not install NCCL.
+    // if matches!(backend, TestBackend::Cuda) {
+    //     // Collective (all-reduce) tests require a CUDA build with NCCL, which the CI runner
+    //     // provides. Kept behind its own feature so plain `--features cuda` still works without it.
+    //     test_args.extend(["--features", "distributed"]);
+    // }
 
     if !matches!(backend, TestBackend::Ndarray | TestBackend::Flex) {
         // Fusion enabled tests first
