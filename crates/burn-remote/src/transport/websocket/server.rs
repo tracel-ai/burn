@@ -34,7 +34,7 @@ pub(crate) async fn start_websocket_async<B: BackendIr>(
 
 /// Serve a WebSocket compute node on a listener the caller already bound, until shutdown.
 #[cfg(not(target_family = "wasm"))]
-pub(crate) async fn start_websocket_on<B: BackendIr>(
+pub(crate) async fn start_websocket_async_on<B: BackendIr>(
     devices: Vec<Device<B>>,
     listener: std::net::TcpListener,
     custom_ops: CustomOpRegistry<B>,

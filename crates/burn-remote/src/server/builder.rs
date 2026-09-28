@@ -160,7 +160,7 @@ impl<B: BackendIr> RemoteServerBuilder<B> {
     #[cfg(all(not(target_family = "wasm"), feature = "websocket"))]
     pub async fn start_async_on(self, listener: std::net::TcpListener) {
         Self::configure_process();
-        crate::transport::websocket::start_websocket_on::<B>(
+        crate::transport::websocket::start_websocket_async_on::<B>(
             self.devices,
             listener,
             self.custom_ops,

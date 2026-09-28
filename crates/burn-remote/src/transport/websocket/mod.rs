@@ -14,4 +14,4 @@ mod transfer;
 #[cfg(not(target_family = "wasm"))]
 mod server;
 #[cfg(not(target_family = "wasm"))]
-pub(crate) use server::{start_websocket_async, start_websocket_on};
+pub(crate) use server::{start_websocket_async, start_websocket_async_on};
