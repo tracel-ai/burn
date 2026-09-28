@@ -56,7 +56,7 @@ impl TensorCreationOptions {
 
     /// Returns the tensor data type, or the default from the [device settings](crate::DeviceSettings).
     pub(crate) fn resolve_dtype<K: BasicOps>(&self) -> DType {
-        let settings = self.device.settings();
+        let settings = self.device.get_or_init_settings();
         let default = match K::KIND {
             Kind::Float => settings.float_dtype.into(),
             Kind::Int => settings.int_dtype.into(),
