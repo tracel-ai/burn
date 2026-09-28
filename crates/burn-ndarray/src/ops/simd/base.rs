@@ -1,6 +1,6 @@
 use core::{marker::PhantomData, mem::MaybeUninit};
 
-use macerator::{Arch, Scalar, Simd};
+use macerator::{AutoArch, Scalar, Simd};
 use ndarray::{ArcArray, ArrayD, IxDyn, ShapeBuilder};
 
 /// Whether SIMD instructions are worth using
@@ -53,7 +53,7 @@ pub(crate) fn lanes<E: Scalar>() -> usize {
             }
         }
     }
-    (Arch::new()).dispatch(lanes(PhantomData::<E>))
+    AutoArch::new().dispatch(lanes(PhantomData::<E>))
 }
 
 fn lanes_simd<S: Simd, E: Scalar>(_ty: PhantomData<E>) -> usize {

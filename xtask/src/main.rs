@@ -48,6 +48,9 @@ pub enum Command {
     Test(commands::test::BurnTestCmdArgs),
     /// Run the fast checks expected before opening a pull request.
     Validate(commands::validate::BurnValidateCmdArgs),
+    /// Internal Cargo runner for the Linux GPU CI shutdown workaround.
+    #[command(hide = true)]
+    WgpuTestRunner(commands::wgpu_test_runner::WgpuTestRunnerArgs),
 }
 
 fn dispatch_base_commands(args: XtaskArgs<Command>, env: Environment) -> anyhow::Result<()> {
@@ -71,7 +74,13 @@ fn dispatch_base_commands(args: XtaskArgs<Command>, env: Environment) -> anyhow:
 
 fn main() -> anyhow::Result<()> {
     let start = Instant::now();
-    let (args, environment) = init_xtask::<Command>(parse_args::<Command>()?)?;
+    let (args, environment) = parse_args::<Command>()?;
+    // Cargo launches this subcommand once per test executable. Preserve the child's
+    // environment and exit status without normal xtask setup or completion logging.
+    if let Command::WgpuTestRunner(runner) = &args.command {
+        std::process::exit(commands::wgpu_test_runner::run(runner)?);
+    }
+    let (args, environment) = init_xtask::<Command>((args, environment))?;
 
     if args.context == Context::NoStd {
         // Install additional targets for no-std execution environments

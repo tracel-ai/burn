@@ -81,6 +81,11 @@ assert!(model.linear.weight.grad(&gradients).is_some());
 Configure device dtype defaults before creating tensors. Configuration is shared by the compute
 device and can only be initialized once. See [Backend and Device](./building-blocks/backend.md).
 
+`get_device_settings` no longer initializes or locks defaults. Use
+`burn_backend::get_or_init_device_settings` to preserve the 0.21 behavior, or `device.settings()` to
+query settings in application code. Tensor creation still locks defaults, even with an explicit
+dtype.
+
 Prefer explicit device constructors during migration. `Device::default()` chooses from compiled-in
 backends, not from available hardware. Enabling an additional backend through Cargo feature
 unification can therefore change the default. This also affects implicit device selection by
@@ -300,6 +305,9 @@ Other source changes:
 - **Convolution:** `ConvOptions::padding` stores `(before, after)` pairs. Keep
   `ConvOptions::new(..)` for symmetric padding; replace deprecated `PaddedConvOptions` with
   `ConvOptions::new_with_padding(..)` for asymmetric padding.
+- **Interpolation:** `module::interpolate(x, output_size, options)` is now
+  `module::interpolate(x, options)`. Set the size with `options.with_output_size([h, w])`, or use
+  `options.with_scale_factor([sh, sw])` to scale the input size.
 - **Quantization:** replace `with_level(..)` and `with_param(..)` with `per_tensor(ScaleDtype)` or
   `per_block(block, ScaleDtype)`. See [Quantization](./performance/quantization.md).
 - **Softplus:** use `SoftplusConfig::new().with_beta(beta).with_threshold(threshold)` instead of

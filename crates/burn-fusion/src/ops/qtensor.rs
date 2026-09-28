@@ -2,7 +2,7 @@ use std::marker::PhantomData;
 
 use burn_backend::{
     DType, ExecutionError, FloatDType, Shape, Slice, TensorData, TensorMetadata, TensorPrimitive,
-    get_device_settings,
+    get_or_init_device_settings,
     ops::QTensorOps,
     quantization::{QuantPropagation, QuantScheme, QuantizationParametersPrimitive},
     tensor::{Device, FloatTensor, IntTensor, QuantizedTensor},
@@ -516,7 +516,7 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
             TensorPrimitive::QFloat(lhs) => lhs.client.clone(),
         };
 
-        let settings = get_device_settings::<Self>(client.device());
+        let settings = get_or_init_device_settings::<Self>(client.device());
 
         if let TensorPrimitive::QFloat(lhs) = &lhs {
             propagation = settings.quantization.propagation;

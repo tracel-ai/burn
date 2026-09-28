@@ -300,21 +300,49 @@ pub struct InterpolateOptions {
     /// If `true`, the input and output tensors are aligned by their corner pixels.
     /// If `false`, half-pixel coordinate mapping is used instead.
     pub align_corners: bool,
+    /// Output spatial size `[height, width]`.
+    ///
+    /// Exactly one of `output_size` or `scale_factor` must be set when calling
+    /// `burn_tensor::module::interpolate`. Backends receive the resolved size as a
+    /// separate argument and ignore this field.
+    pub output_size: Option<[usize; 2]>,
+    /// Scale factor `[scale_height, scale_width]` applied to the input spatial size.
+    /// The output size is `floor(input_size * scale_factor)`.
+    ///
+    /// Exactly one of `output_size` or `scale_factor` must be set when calling
+    /// `burn_tensor::module::interpolate`. Backends ignore this field.
+    pub scale_factor: Option<[f32; 2]>,
 }
 
 impl InterpolateOptions {
     /// Create new interpolate options with the given mode.
-    /// Defaults to `align_corners = true`.
+    /// Defaults to `align_corners = true` and no output size or scale factor.
     pub fn new(mode: InterpolateMode) -> Self {
         Self {
             mode,
             align_corners: true,
+            output_size: None,
+            scale_factor: None,
         }
     }
 
     /// Set align_corners.
     pub fn with_align_corners(mut self, align_corners: bool) -> Self {
         self.align_corners = align_corners;
+        self
+    }
+
+    /// Set the output size `[height, width]`, clearing any scale factor.
+    pub fn with_output_size(mut self, output_size: [usize; 2]) -> Self {
+        self.output_size = Some(output_size);
+        self.scale_factor = None;
+        self
+    }
+
+    /// Set the scale factor `[scale_height, scale_width]`, clearing any output size.
+    pub fn with_scale_factor(mut self, scale_factor: [f32; 2]) -> Self {
+        self.scale_factor = Some(scale_factor);
+        self.output_size = None;
         self
     }
 }
