@@ -92,7 +92,7 @@ impl<B: BackendIr> LocalCommService<B> {
     }
 
     #[cfg(all(test, not(target_family = "wasm")))]
-    pub async fn is_empty(&self) -> bool {
+    pub(crate) async fn is_empty(&self) -> bool {
         self.pending.lock().await.is_empty()
     }
 }

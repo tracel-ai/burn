@@ -121,7 +121,7 @@ where
 
     // Must be called from within the runtime that owns the endpoint: it captures `Handle::current`.
     #[cfg(not(target_family = "wasm"))]
-    fn drive(mut self, mut receiver: mpsc::Receiver<Task>) {
+    fn drive(mut self, receiver: mpsc::Receiver<Task>) {
         let handle = Handle::current();
         let session_id = self.session_id;
         std::thread::Builder::new()
@@ -130,7 +130,7 @@ where
                 // A panic can leave the interpreter half-applied, so the session is closed rather
                 // than given another task.
                 let processed = panic::catch_unwind(AssertUnwindSafe(|| {
-                    handle.block_on(self.process_tasks(&mut receiver))
+                    handle.block_on(self.process_tasks(receiver))
                 }));
                 if let Err(panic) = processed {
                     log::error!(
@@ -138,22 +138,21 @@ where
                         panic.message()
                     );
                 }
-                drop(receiver);
                 handle.block_on(self.close());
             })
             .expect("Failed to spawn session worker thread");
     }
 
     #[cfg(target_family = "wasm")]
-    fn drive(mut self, mut receiver: mpsc::Receiver<Task>) {
+    fn drive(mut self, receiver: mpsc::Receiver<Task>) {
         spawn_detached(async move {
-            self.process_tasks(&mut receiver).await;
+            self.process_tasks(receiver).await;
             self.close().await;
         });
     }
 
     /// Run each task to completion in arrival order, until the task channel closes.
-    async fn process_tasks(&mut self, receiver: &mut mpsc::Receiver<Task>) {
+    async fn process_tasks(&mut self, mut receiver: mpsc::Receiver<Task>) {
         let session_id = self.session_id;
 
         log::debug!("Session {session_id} worker started");
@@ -520,11 +519,26 @@ where
 #[cfg(all(test, not(target_family = "wasm")))]
 mod tests {
     use super::*;
-    use crate::{server::transfer::NoTransfer, shared::LocalTransferId};
+    use crate::{
+        PeerAddr, PeerId,
+        shared::{LocalTransferId, TransferCapability},
+    };
     use burn_backend::{DType, Shape, TensorData};
     use burn_flex::Flex;
     use burn_ir::{TensorId, TensorIr, TensorStatus};
     use std::time::Duration;
+
+    struct NoTransfer;
+
+    impl<B: BackendIr> TensorTransfer<B> for NoTransfer {
+        async fn expose_data(&self, _: TensorData, _: u32, _: TransferCapability, _: PeerId) {}
+
+        async fn download_tensor(&self, _: PeerAddr, _: TransferCapability) -> Option<TensorData> {
+            None
+        }
+
+        async fn fail(&self, _: TransferCapability, _: PeerId, _: String) {}
+    }
 
     #[tokio::test(flavor = "multi_thread")]
     async fn a_panicking_task_still_tears_its_session_down() {
