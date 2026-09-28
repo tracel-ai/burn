@@ -141,8 +141,10 @@ let settings = device.settings();
 ```
 
 Configure defaults before the first tensor operation on that device. Device settings are initialized
-once; the first read of the settings, including by tensor creation or `settings()`, locks them to
-the backend's defaults, and a later `configure()` call returns `DeviceError::AlreadyInitialized`.
+once; tensor creation locks them to the backend's defaults, even with an explicit dtype, and a later
+`configure()` call returns `DeviceError::AlreadyInitialized`. Querying `settings()` does not lock
+defaults: before initialization, it returns a snapshot of the backend defaults, which subsequent
+configuration may change.
 
 These settings choose defaults, not a single precision for every tensor on the device. You can still
 specify a supported float or integer dtype at creation or cast an existing tensor:
@@ -177,8 +179,7 @@ application.
 
 A GPU can be reachable through more than one runtime: an NVIDIA card enumerates under
 `DeviceType::Cuda` and again under `DeviceType::Vulkan`. `Device::enumerate_physical` lists each
-card once, with every device that runs on it, and `Device::identity` says which card a device
-is on:
+card once, with every device that runs on it, and `Device::identity` says which card a device is on:
 
 ```rust, ignore
 for gpu in Device::enumerate_physical() {
@@ -187,10 +188,10 @@ for gpu in Device::enumerate_physical() {
 }
 ```
 
-A card is recognized by its PCI address, which CUDA, ROCm and Vulkan report, or by its Windows
-LUID. A card that reports neither, such as an Apple GPU, is listed as a card of its own. The LUID changes when the machine restarts, so anything stored to recognize a card later
-should use the PCI address. Both calls open the devices they report on, so enumerate once and keep
-the answer.
+A card is recognized by its PCI address, which CUDA, ROCm and Vulkan report, or by its Windows LUID.
+A card that reports neither, such as an Apple GPU, is listed as a card of its own. The LUID changes
+when the machine restarts, so anything stored to recognize a card later should use the PCI address.
+Both calls open the devices they report on, so enumerate once and keep the answer.
 
 ## Execution Stack
 

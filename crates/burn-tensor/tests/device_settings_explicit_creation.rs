@@ -1,10 +1,12 @@
 //! A separate test binary starts with uninitialized device settings.
 
+use burn_dispatch::devices::FlexDevice;
 use burn_tensor::{DType, Device, DeviceError, FloatDType, Tensor};
 
 #[test]
 fn explicit_tensor_creation_locks_default_settings() {
-    let mut device = Device::default();
+    // Flex supports F64 regardless of which other backends are enabled.
+    let mut device = Device::new(FlexDevice);
     let tensor = Tensor::<1>::from_data([1.0f64], (&device, DType::F64));
 
     assert_eq!(tensor.dtype(), DType::F64);

@@ -1,10 +1,12 @@
 //! A separate test binary keeps device configuration independent of other tensor tests.
 
+use burn_dispatch::devices::FlexDevice;
 use burn_tensor::{DType, Device, DeviceError, FloatDType, Tensor};
 
 #[test]
 fn querying_settings_allows_configuration_and_observes_it_across_threads() {
-    let device = Device::default();
+    // Flex supports F64 regardless of which other backends are enabled.
+    let device = Device::new(FlexDevice);
     assert_eq!(device.settings().float_dtype, FloatDType::F32);
     assert_eq!(device.settings().float_dtype, FloatDType::F32);
 
