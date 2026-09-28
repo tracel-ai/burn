@@ -336,12 +336,14 @@ impl TraceRunner for FusedReduceLaunch<'_> {
         configs: &'a [FuseBlockConfig],
     ) -> Result<(), FusedReduceError> {
         let [config_read, config_write] = [&configs[0], &configs[1]];
-        let shape = match &config_read.ref_layout {
-            RefLayout::Concrete(FuseArg::Output(..)) => {
-                outputs.shape_ref(&config_read.ref_layout, config_read.rank)
-            }
-            _ => inputs.shape_ref(&config_read.ref_layout, config_read.rank),
+        // An output-concrete reference indexes the output arguments; shape and
+        // strides must both be resolved against that list.
+        let ref_args = match &config_read.ref_layout {
+            RefLayout::Concrete(FuseArg::Output(..)) => &outputs,
+            _ => &inputs,
         };
+        let shape = ref_args.shape_ref(&config_read.ref_layout, config_read.rank);
+        let ref_strides = ref_args.strides_ref(&config_read.ref_layout, config_read.rank);
         let reduce_count: usize = shape
             .iter()
             .enumerate()
@@ -395,11 +397,8 @@ impl TraceRunner for FusedReduceLaunch<'_> {
             }
         };
 
-        let out_vec_axis = output_vectorization_axis(
-            &inputs.strides_ref(&config_read.ref_layout, config_read.rank),
-            self.reduce.axis,
-            vectorization_mode,
-        );
+        let out_vec_axis =
+            output_vectorization_axis(&ref_strides, self.reduce.axis, vectorization_mode);
 
         let kwargs = ReduceKwArgs {
             client,
