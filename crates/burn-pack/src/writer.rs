@@ -90,7 +90,7 @@ impl Writer {
     /// Enable or disable automatic extension appending for file writes.
     ///
     /// When enabled (the default), [`write_to_file`](Self::write_to_file) and
-    /// [`write_to_file_atomic`](Self::write_to_file_atomic) append the canonical
+    /// [`write_to_file_in_place`](Self::write_to_file_in_place) append the canonical
     /// [`crate::EXTENSION`] when the requested path has no extension. When disabled,
     /// both methods use the requested path exactly as provided.
     #[cfg(feature = "std")]
@@ -102,11 +102,12 @@ impl Writer {
     /// Allow or refuse replacing an existing file on file writes.
     ///
     /// When enabled (the default), [`write_to_file`](Self::write_to_file) and
-    /// [`write_to_file_atomic`](Self::write_to_file_atomic) replace whatever is at the
+    /// [`write_to_file_in_place`](Self::write_to_file_in_place) replace whatever is at the
     /// destination. When disabled, both return [`Error::AlreadyExists`] instead. The check is
-    /// not a separate step that another writer could slip past: `write_to_file` makes it when
-    /// it creates the file, and `write_to_file_atomic` when it publishes the finished one (see
-    /// [`AtomicFile::commit_new`] for the one exception, filesystems without hard links).
+    /// not a separate step that another writer could slip past: `write_to_file_in_place`
+    /// makes it when it creates the file, and `write_to_file` when it publishes the finished
+    /// one (see [`AtomicFile::commit_new`] for the one exception, filesystems without hard
+    /// links).
     #[cfg(feature = "std")]
     pub fn overwrite(mut self, enable: bool) -> Self {
         self.overwrite = enable;
@@ -134,8 +135,9 @@ impl Writer {
     /// On failure the buffer's contents are unspecified: a deferred [`Tensor`] produces its bytes
     /// during the write, so an entry that fails partway leaves everything before it already
     /// copied in. Callers reusing a buffer across writes cannot treat an error as "nothing
-    /// happened". [`write_to_file_atomic`](Self::write_to_file_atomic) has no such caveat;
-    /// [`write_to_file`](Self::write_to_file) has the same one, on the destination itself.
+    /// happened". [`write_to_file`](Self::write_to_file) has no such caveat;
+    /// [`write_to_file_in_place`](Self::write_to_file_in_place) has the same one, on the
+    /// destination itself.
     ///
     /// # Arguments
     ///
@@ -173,41 +175,6 @@ impl Writer {
         Ok(Bytes::from_bytes_vec(buffer))
     }
 
-    /// Write directly to a file, replacing its contents in place.
-    ///
-    /// By default, the canonical [`crate::EXTENSION`] (`.bpk`) is appended when `path` has no
-    /// extension. Use [`auto_extension(false)`](Self::auto_extension) to preserve the path.
-    /// With [`overwrite(false)`](Self::overwrite), an existing file is refused rather than
-    /// replaced.
-    ///
-    /// The file is truncated as soon as writing starts, so a failure partway through leaves it
-    /// truncated. Under `overwrite(false)` that partial file is new, and it blocks a retry
-    /// until removed. That only matters when a tensor's bytes can fail to materialize, which for
-    /// resident tensors they cannot: the write fails only if the disk does. Callers holding
-    /// [`deferred`](Tensor::deferred) tensors, whose providers run mid-write, want
-    /// [`write_to_file_atomic`](Self::write_to_file_atomic) instead.
-    #[cfg(feature = "std")]
-    pub fn write_to_file<P: AsRef<Path>>(self, path: P) -> Result<(), Error> {
-        let path = self.resolve_path(path.as_ref());
-        let layout = self.plan()?;
-
-        let file = File::options()
-            .write(true)
-            .truncate(true)
-            .create(self.overwrite)
-            .create_new(!self.overwrite)
-            .open(&path)
-            .map_err(|e| match e.kind() {
-                std::io::ErrorKind::AlreadyExists => {
-                    Error::AlreadyExists(path.display().to_string())
-                }
-                _ => Error::IoError(format!("cannot create '{}': {e}", path.display())),
-            })?;
-        let mut sink = FileSink { file, path };
-
-        self.write_container(&layout, &mut sink)
-    }
-
     /// Write to a file without ever leaving a partial one at `path`.
     ///
     /// By default, the canonical [`crate::EXTENSION`] (`.bpk`) is appended when `path` has no
@@ -215,10 +182,11 @@ impl Writer {
     ///
     /// The container is built in a scratch sibling of `path` and renamed into place only once
     /// every byte is on disk, so `path` either ends up holding a complete container or is left
-    /// exactly as it was. This is what [`deferred`](Tensor::deferred) tensors need: their bytes
-    /// are produced during the write, so a provider that fails partway through (or hands back a
-    /// different length than it declared) is an ordinary error, and it must not leave a
-    /// truncated file where a valid one used to be.
+    /// exactly as it was. A write can fail partway for reasons that have nothing to do with the
+    /// caller: the disk fills up, a quota is hit, the device reports an I/O error. It can also
+    /// fail because a [`deferred`](Tensor::deferred) tensor's provider, which runs during the
+    /// write, returns an error or hands back a different length than it declared. None of these
+    /// may leave a truncated file where a valid one used to be.
     ///
     /// That much holds everywhere, for failure at the process level: a returned error, a panic,
     /// the process being killed. The rename is a single call, so it either took effect or it
@@ -237,8 +205,9 @@ impl Writer {
     /// instead of renamed, and [`Error::AlreadyExists`] is returned if anything is at `path`
     /// by then; see [`AtomicFile::commit_new`].
     ///
-    /// Building alongside the destination has four consequences, which is why
-    /// [`write_to_file`](Self::write_to_file) does not do it:
+    /// Building alongside the destination has four consequences.
+    /// [`write_to_file_in_place`](Self::write_to_file_in_place) avoids them, at the cost of the
+    /// guarantee above:
     ///
     /// - The data is fsynced before the rename, so the call does not return until the bytes are
     ///   durable rather than merely handed to the page cache.
@@ -254,7 +223,7 @@ impl Writer {
     ///   extension is appended), so leftovers are identifiable and safe to delete once no
     ///   writer is running.
     #[cfg(feature = "std")]
-    pub fn write_to_file_atomic<P: AsRef<Path>>(self, path: P) -> Result<(), Error> {
+    pub fn write_to_file<P: AsRef<Path>>(self, path: P) -> Result<(), Error> {
         let path = self.resolve_path(path.as_ref());
         let layout = self.plan()?;
         let overwrite = self.overwrite;
@@ -267,6 +236,44 @@ impl Writer {
         self.write_container(&layout, &mut sink)?;
 
         scratch.persist(sink, overwrite)
+    }
+
+    /// Write directly to a file, replacing its contents in place.
+    ///
+    /// By default, the canonical [`crate::EXTENSION`] (`.bpk`) is appended when `path` has no
+    /// extension. Use [`auto_extension(false)`](Self::auto_extension) to preserve the path.
+    /// With [`overwrite(false)`](Self::overwrite), an existing file is refused rather than
+    /// replaced.
+    ///
+    /// The file is truncated as soon as writing starts, so a failure partway through (a full
+    /// disk, an I/O error, a [`deferred`](Tensor::deferred) tensor's provider failing) leaves
+    /// it truncated, destroying whatever container was there before. Under `overwrite(false)`
+    /// that partial file is new, and it blocks a retry until removed.
+    ///
+    /// In exchange it skips the costs of [`write_to_file`](Self::write_to_file): no fsync, no
+    /// transient second copy, and an existing file keeps its inode, so its ownership and hard
+    /// links survive and a symlink at `path` is followed rather than replaced. Use it when
+    /// those matter more than keeping the previous container on failure.
+    #[cfg(feature = "std")]
+    pub fn write_to_file_in_place<P: AsRef<Path>>(self, path: P) -> Result<(), Error> {
+        let path = self.resolve_path(path.as_ref());
+        let layout = self.plan()?;
+
+        let file = File::options()
+            .write(true)
+            .truncate(true)
+            .create(self.overwrite)
+            .create_new(!self.overwrite)
+            .open(&path)
+            .map_err(|e| match e.kind() {
+                std::io::ErrorKind::AlreadyExists => {
+                    Error::AlreadyExists(path.display().to_string())
+                }
+                _ => Error::IoError(format!("cannot create '{}': {e}", path.display())),
+            })?;
+        let mut sink = FileSink { file, path };
+
+        self.write_container(&layout, &mut sink)
     }
 
     /// Apply the configured extension policy to a requested path.
@@ -488,7 +495,7 @@ fn write_tensor_data(data: &Bytes, sink: &mut impl Sink) -> Result<(), Error> {
 /// Captures everything needed to emit the bytes: the serialized metadata, the
 /// header, where the aligned data section begins, and how large it is. Built once
 /// via [`Writer::plan`] and shared by `size`, `write_into`, `to_bytes`, `write_to_file` and
-/// `write_to_file_atomic`.
+/// `write_to_file_in_place`.
 struct Layout {
     metadata_bytes: Vec<u8>,
     /// Where each tensor's bytes go, in `Writer::tensors` order.
@@ -574,7 +581,7 @@ impl FileSink {
     /// no-op because the handle is unbuffered, and dropping it discards whatever `close`
     /// reports, yet filesystems that allocate lazily (NFS over quota, a failing disk) report
     /// exactly there. Without this, such a write would be published over a good container
-    /// while `write_to_file_atomic` returned `Ok`.
+    /// while `write_to_file` returned `Ok`.
     ///
     /// It also orders durability: the data is on disk before it is published, so a crash
     /// cannot leave the destination pointing at data that never reached the platter.
@@ -688,8 +695,8 @@ mod tests {
                 writer.write_to_file(path).unwrap();
                 std::fs::metadata(path).unwrap().len() as usize
             }),
-            ("write_to_file_atomic", |writer, path| {
-                writer.write_to_file_atomic(path).unwrap();
+            ("write_to_file_in_place", |writer, path| {
+                writer.write_to_file_in_place(path).unwrap();
                 std::fs::metadata(path).unwrap().len() as usize
             }),
             ("into_bytes", |writer, _| writer.into_bytes().unwrap().len()),

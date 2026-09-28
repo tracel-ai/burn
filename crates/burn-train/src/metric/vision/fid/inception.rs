@@ -403,8 +403,7 @@ impl InceptionV3FeatureExtractor {
         let x = if h != 299 || w != 299 {
             burn_core::tensor::module::interpolate(
                 x,
-                [299, 299],
-                InterpolateOptions::new(InterpolateMode::Bilinear),
+                InterpolateOptions::new(InterpolateMode::Bilinear).with_output_size([299, 299]),
             )
         } else {
             x

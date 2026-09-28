@@ -273,7 +273,7 @@ impl BasicOps for Float {
     }
 
     fn from_data(data: TensorData, device: &Device, dtype: DType) -> BridgeTensor {
-        if matches!(data.dtype, DType::QFloat(_)) {
+        if matches!(data.dtype(), DType::QFloat(_)) {
             // When the source is QFloat, there is no conversion path possible.
             BridgeTensor::qfloat(Dispatch::q_from_data(data, device.as_dispatch()))
         } else if dtype.is_float() {

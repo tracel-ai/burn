@@ -163,15 +163,18 @@ models benefit from these capabilities on supported backends without changing th
 
 <details>
 <summary>
-Autodiff: Backend decorator that brings backpropagation to any backend 🔄
+Autodiff: Bringing backpropagation to any backend 🔄
 </summary>
 <br />
 
-Contrary to the aforementioned backends, Autodiff is actually a backend _decorator_. This means that
-it cannot exist by itself; it must encapsulate another backend.
+In application code, autodiff is runtime context carried by tensors. Devices provide the default
+context for newly created tensors, and each tensor can later enable or remove autodiff
+independently. Enabling autodiff permits graph recording; it does not by itself make a tensor retain
+gradients.
 
-In application code, enable autodiff on a device before creating tensors or initializing a model.
-With the `autodiff` and `wgpu` features enabled:
+Internally, Burn implements this by decorating a concrete backend, so autodiff cannot execute by
+itself. Enable it on a device before creating tensors or initializing a model. With the `autodiff`
+and `wgpu` features enabled:
 
 ```rust
 use burn::tensor::{Device, Distribution, Tensor};
@@ -458,11 +461,11 @@ Additional examples:
 - [Custom Image Dataset](./examples/custom-image-dataset) : Trains a simple CNN on custom image
   dataset following a simple folder structure.
 - [Custom Renderer](./examples/custom-renderer) : Implements a custom renderer to display the
-  [`Learner`](./building-blocks/learner.md) progress.
-- [Image Classification Web](./examples/image-classification-web) : Image classification web browser
+  [`Learner`](https://burn.dev/books/burn/building-blocks/learner.html) progress.
+- [Image Classification Web](https://github.com/tracel-ai/burn-onnx/tree/main/examples/image-classification-web) : Image classification web browser
   demo using Burn, WGPU and WebAssembly.
 - [MNIST Inference on Web](./examples/mnist-inference-web) : An interactive MNIST inference demo in
-  the browser. The demo is available [online](https://burn.dev/demo/).
+  the browser.
 - [MNIST Training](./examples/mnist) : Demonstrates how to train a custom `Module` (MLP) with the
   `Learner` configured to log metrics and keep training checkpoints.
 - [PyTorch Import Inference](./examples/import-model-weights) : Imports a PyTorch model pre-trained
@@ -566,7 +569,7 @@ any background. You can ask your questions and share what you built with the com
 ### Contributing
 
 Before contributing, please read the [Contributing Guidelines](./CONTRIBUTING.md) and our
-[Code of Conduct](./CODE-OF-CONDUCT.md). The [Contributor Book](https://burn.dev/contributor-book/)
+[Code of Conduct](./CODE-OF-CONDUCT.md). The [Contributor Book](https://burn.dev/books/contributor/)
 covers architecture, environment setup, and guides for common tasks.
 
 ## Status

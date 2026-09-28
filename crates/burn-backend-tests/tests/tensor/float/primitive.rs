@@ -1,5 +1,5 @@
 use super::*;
-use burn_tensor::{Element, Shape, TensorData};
+use burn_tensor::{DType, Device, Element, Shape, TensorData};
 
 #[test]
 fn should_support_float_dtype() {
@@ -10,6 +10,25 @@ fn should_support_float_dtype() {
         tensor.dtype(),
         FloatElem::dtype() // default float elem type
     );
+}
+
+#[test]
+fn explicit_dtype_is_preserved_after_default_dtype_is_locked() {
+    let device = Device::default();
+    // Tensor creation locks device settings to the configured dtype
+    let _default = TestTensor::<1>::zeros([1], &device);
+    let settings = device.settings();
+    assert_eq!(DType::from(settings.float_dtype), FloatElem::dtype());
+
+    for dtype in [DType::F16, DType::BF16, DType::F32, DType::F64] {
+        if !device.supports_dtype(dtype) {
+            continue;
+        }
+
+        let explicit = TestTensor::<1>::from_data(TensorData::from([1.0f64]), (&device, dtype));
+
+        assert_eq!(explicit.dtype(), dtype);
+    }
 }
 
 #[test]

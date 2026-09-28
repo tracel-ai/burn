@@ -46,10 +46,10 @@ impl BoolTensorOps<Self> for CubeBackend {
 
     fn bool_from_data(data: TensorData, device: &Device<Self>) -> BoolTensor<Self> {
         if !matches!(
-            data.dtype,
+            data.dtype(),
             DType::Bool(BoolStore::U8) | DType::Bool(BoolStore::U32)
         ) {
-            unimplemented!("Unsupported dtype for `bool_from_data` {:?}", data.dtype);
+            unimplemented!("Unsupported dtype for `bool_from_data` {:?}", data.dtype());
         }
         super::from_data(data, device)
     }

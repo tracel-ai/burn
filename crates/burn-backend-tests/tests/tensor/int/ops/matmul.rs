@@ -201,3 +201,44 @@ fn int_should_panic_when_inner_dimensions_are_not_equal() {
 
     tensor_3.into_data().assert_eq(&expected, false);
 }
+
+#[test]
+fn test_int_matmul_large_matches_naive() {
+    // Large enough to take multithreaded paths on CPU backends; k = 203 is not
+    // a multiple of any SIMD width, so vectorized dot products hit their tail.
+    let (m, k, n) = (200, 203, 197);
+    let lhs: Vec<i32> = (0..m * k).map(|i| (i % 17) as i32 - 8).collect();
+    let rhs: Vec<i32> = (0..k * n).map(|i| (i % 13) as i32 - 6).collect();
+    let naive = |lhs: &[i32]| {
+        let mut out = vec![0i32; m * n];
+        for i in 0..m {
+            for j in 0..n {
+                out[i * n + j] = (0..k).map(|p| lhs[i * k + p] * rhs[p * n + j]).sum();
+            }
+        }
+        out
+    };
+    let expected = naive(&lhs);
+
+    let device = Default::default();
+    let output =
+        TestTensorInt::<2>::from_data(TensorData::new(lhs.clone(), [m, k]), &device).matmul(
+            TestTensorInt::from_data(TensorData::new(rhs.clone(), [k, n]), &device),
+        );
+    output
+        .into_data()
+        .assert_eq(&TensorData::new(expected.clone(), [m, n]), false);
+
+    // Batched: the second batch negates lhs so each batch has distinct output.
+    let lhs_neg: Vec<i32> = lhs.iter().map(|v| -v).collect();
+    let expected_batched = [expected, naive(&lhs_neg)].concat();
+    let output =
+        TestTensorInt::<3>::from_data(TensorData::new([lhs, lhs_neg].concat(), [2, m, k]), &device)
+            .matmul(TestTensorInt::from_data(
+                TensorData::new(rhs.repeat(2), [2, k, n]),
+                &device,
+            ));
+    output
+        .into_data()
+        .assert_eq(&TensorData::new(expected_batched, [2, m, n]), false);
+}

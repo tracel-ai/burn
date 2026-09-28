@@ -1,6 +1,6 @@
 use burn_backend::{
     Bytes, DType, ExecutionError, Shape, SplitPolicy, TensorData, TensorMetadata, TensorPrimitive,
-    get_device_settings,
+    get_or_init_device_settings,
     ops::QTensorOps,
     quantization::{
         QParamTensor, QuantMode, QuantPropagation, QuantScheme, QuantValue,
@@ -217,7 +217,7 @@ fn new_quantized(
 
 impl QTensorOps<Self> for CubeBackend {
     fn q_from_data(data: TensorData, device: &Device<Self>) -> QuantizedTensor<Self> {
-        match data.dtype {
+        match data.dtype() {
             DType::QFloat(scheme) => match scheme {
                 QuantScheme {
                     mode: QuantMode::Symmetric,
@@ -235,7 +235,8 @@ impl QTensorOps<Self> for CubeBackend {
                 } => {
                     // TensorData quantized representation is the same, with multiple quantized values
                     // packed into u32 and quantization parameters appended to the bytes
-                    new_qtensor_optimized(data.bytes, data.shape.clone(), scheme, device)
+                    let (bytes, shape, _) = data.into_parts();
+                    new_qtensor_optimized(bytes, shape, scheme, device)
                 }
                 QuantScheme {
                     mode: QuantMode::Lookup,
@@ -244,7 +245,7 @@ impl QTensorOps<Self> for CubeBackend {
             },
             _ => panic!(
                 "Invalid dtype (expected DType::QFloat, got {:?})",
-                data.dtype
+                data.dtype()
             ),
         }
     }
@@ -289,21 +290,17 @@ impl QTensorOps<Self> for CubeBackend {
         let global = tensor.global();
         let (values, params) = tensor.quantized_handles().unwrap();
 
-        let mut data_values = into_data(values).await?;
+        let mut bytes = into_data(values).await?.into_bytes();
         let data_params = into_data(params).await?;
 
-        data_values.bytes.extend_from_byte_slice(&data_params.bytes);
+        bytes.extend_from_byte_slice(data_params.as_bytes());
 
         if let Some(global) = global {
             let data_global = into_data(global).await?;
-            data_values.bytes.extend_from_byte_slice(&data_global.bytes);
+            bytes.extend_from_byte_slice(data_global.as_bytes());
         }
 
-        Ok(TensorData {
-            bytes: data_values.bytes,
-            shape,
-            dtype,
-        })
+        Ok(TensorData::from_bytes(bytes, shape, dtype))
     }
 
     fn q_swap_dims(
@@ -324,12 +321,14 @@ impl QTensorOps<Self> for CubeBackend {
 
     fn q_matmul(lhs: TensorPrimitive<Self>, rhs: TensorPrimitive<Self>) -> TensorPrimitive<Self> {
         let (settings, scheme) = match (&lhs, &rhs) {
-            (TensorPrimitive::QFloat(lhs), _) => {
-                (get_device_settings::<Self>(&lhs.device), lhs.scheme())
-            }
-            (_, TensorPrimitive::QFloat(rhs)) => {
-                (get_device_settings::<Self>(&rhs.device), rhs.scheme())
-            }
+            (TensorPrimitive::QFloat(lhs), _) => (
+                get_or_init_device_settings::<Self>(&lhs.device),
+                lhs.scheme(),
+            ),
+            (_, TensorPrimitive::QFloat(rhs)) => (
+                get_or_init_device_settings::<Self>(&rhs.device),
+                rhs.scheme(),
+            ),
             _ => unreachable!(),
         };
 

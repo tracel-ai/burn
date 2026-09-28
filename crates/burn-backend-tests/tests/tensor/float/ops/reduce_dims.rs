@@ -27,7 +27,7 @@ fn assert_same(actual: TestTensor<4>, expected: TestTensor<4>) {
     let expected = expected.into_data();
     let actual = actual.into_data();
 
-    assert_eq!(actual.shape, expected.shape);
+    assert_eq!(actual.shape(), expected.shape());
     actual.assert_approx_eq::<FloatElem>(&expected, Tolerance::default());
 }
 

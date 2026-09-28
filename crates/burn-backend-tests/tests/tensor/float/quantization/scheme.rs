@@ -156,5 +156,5 @@ fn quant_scheme_should_inhibit_by_default() {
     // assert_eq!(tensor_3.to_data().dtype, FloatElem::dtype());
 
     let tensor_4 = tensor_1.add_scalar(1.);
-    assert_eq!(tensor_4.to_data().dtype, FloatElem::dtype());
+    assert_eq!(tensor_4.to_data().dtype(), FloatElem::dtype());
 }

@@ -95,7 +95,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
 
     fn int_from_data(data: TensorData, device: &Device<Self>) -> IntTensor<Self> {
         let client = get_client::<B>(device);
-        let dtype = data.dtype;
+        let dtype = data.dtype();
         let tensor = B::int_from_data(data, device);
         let shape = burn_backend::TensorMetadata::shape(&tensor);
 

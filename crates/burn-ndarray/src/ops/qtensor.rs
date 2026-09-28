@@ -1,7 +1,8 @@
 use alloc::{vec, vec::Vec};
 
 use burn_backend::{
-    DType, ExecutionError, Shape, TensorData, TensorMetadata, TensorPrimitive, get_device_settings,
+    DType, ExecutionError, Shape, TensorData, TensorMetadata, TensorPrimitive,
+    get_or_init_device_settings,
     ops::{FloatTensorOps, QTensorOps},
     quantization::{
         BlockSize, QuantMode, QuantPropagation, QuantScheme, QuantStore, QuantValue,
@@ -24,9 +25,9 @@ use super::{NdArrayMathOps, NdArrayOps};
 
 impl QTensorOps<Self> for NdArray {
     fn q_from_data(data: TensorData, _device: &NdArrayDevice) -> QuantizedTensor<Self> {
-        match data.dtype {
+        match data.dtype() {
             DType::QFloat(scheme) => {
-                let shape = data.shape.clone();
+                let shape = data.shape().clone();
                 let q_bytes = QuantizedBytes {
                     shape: shape.clone(),
                     bytes: data.into_bytes(),
@@ -74,7 +75,7 @@ impl QTensorOps<Self> for NdArray {
             }
             _ => panic!(
                 "Invalid dtype (expected DType::QFloat, got {:?})",
-                data.dtype
+                data.dtype()
             ),
         }
     }
@@ -170,7 +171,7 @@ impl QTensorOps<Self> for NdArray {
         };
 
         let q_bytes = QuantizedBytes {
-            shape: data.shape.clone(),
+            shape: data.shape().clone(),
             bytes: data.into_bytes(),
             scheme: *scheme,
         };
@@ -240,7 +241,7 @@ impl QTensorOps<Self> for NdArray {
         let lhs = match lhs {
             TensorPrimitive::Float(lhs) => lhs,
             TensorPrimitive::QFloat(lhs) => {
-                let settings = get_device_settings::<Self>(&lhs.device());
+                let settings = get_or_init_device_settings::<Self>(&lhs.device());
                 propagation = settings.quantization.propagation;
                 scheme = lhs.scheme;
                 let float_dtype = target_dtype.unwrap_or(settings.float_dtype);
@@ -250,7 +251,7 @@ impl QTensorOps<Self> for NdArray {
         let rhs = match rhs {
             TensorPrimitive::Float(rhs) => rhs,
             TensorPrimitive::QFloat(rhs) => {
-                let settings = get_device_settings::<Self>(&rhs.device());
+                let settings = get_or_init_device_settings::<Self>(&rhs.device());
                 propagation = settings.quantization.propagation;
                 scheme = rhs.scheme;
                 let float_dtype = target_dtype.unwrap_or(settings.float_dtype);

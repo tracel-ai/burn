@@ -82,7 +82,7 @@ fn rfft_dim1_sine_wave_produces_imaginary_spectrum() {
     let expected_im = TensorData::from([[0, -4, -2, 0, 0]]);
 
     assert_eq!(spectrum_re.shape(), spectrum_im.shape());
-    assert_eq!(spectrum_re.shape(), expected_re.shape);
+    assert_eq!(spectrum_re.shape(), *expected_re.shape());
 
     spectrum_re
         .into_data()
@@ -103,7 +103,7 @@ fn rfft_dim1_cosine_wave_produces_real_spectrum() {
     let expected_im = TensorData::from([[0.0, 0.0, 0.0, 0.0, 0.0]]);
 
     assert_eq!(spectrum_re.shape(), spectrum_im.shape());
-    assert_eq!(spectrum_re.shape(), expected_re.shape);
+    assert_eq!(spectrum_re.shape(), *expected_re.shape());
 
     spectrum_re
         .into_data()
@@ -128,7 +128,7 @@ fn rfft_dim1_2d_tensor_distinct_rows() {
     let expected_im = TensorData::from([[0.0, -4.0, 0.0, 0.0, 0.0], [0.0, 0.0, -4.0, 0.0, 0.0]]);
 
     assert_eq!(spectrum_re.shape(), spectrum_im.shape());
-    assert_eq!(spectrum_re.shape(), expected_re.shape);
+    assert_eq!(spectrum_re.shape(), *expected_re.shape());
 
     spectrum_re
         .into_data()
@@ -176,7 +176,7 @@ fn rfft_dim0_2d_tensor() {
         TensorData::from([[0.0, 0.0], [-4.0, 0.0], [0.0, -4.0], [0.0, 0.0], [0.0, 0.0]]);
 
     assert_eq!(spectrum_re.shape(), spectrum_im.shape());
-    assert_eq!(spectrum_re.shape(), expected_re.shape);
+    assert_eq!(spectrum_re.shape(), *expected_re.shape());
 
     spectrum_re
         .into_data()
@@ -213,7 +213,7 @@ fn rfft_dim2_3d_tensor() {
     ]);
 
     assert_eq!(spectrum_re.shape(), spectrum_im.shape());
-    assert_eq!(spectrum_re.shape(), expected_re.shape);
+    assert_eq!(spectrum_re.shape(), *expected_re.shape());
 
     spectrum_re
         .into_data()
@@ -244,7 +244,7 @@ fn rfft_dim1_3d_tensor() {
     ]);
 
     assert_eq!(spectrum_re.shape(), spectrum_im.shape());
-    assert_eq!(spectrum_re.shape(), expected_re.shape);
+    assert_eq!(spectrum_re.shape(), *expected_re.shape());
 
     spectrum_re
         .into_data()

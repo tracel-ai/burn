@@ -12,16 +12,13 @@
 //! `from_pytorch` (with the `pytorch` feature) leaves a checkpoint tensor's bytes unread.
 
 use alloc::format;
-use alloc::string::String;
-// Only the `std` panic guard below builds an error message from a panic payload.
-#[cfg(feature = "std")]
-use alloc::string::ToString;
+use alloc::string::{String, ToString};
 
 use burn_pack::{Error as PackError, Tensor as PackTensor};
 
 use burn_core::tensor::kind::Basic;
 use burn_core::tensor::quantization::quantized_data_len;
-use burn_core::tensor::{DType, Shape, Tensor, TensorData};
+use burn_core::tensor::{Bytes, DType, Shape, Tensor, TensorData};
 
 /// Number of bytes a tensor of this dtype and shape serializes to.
 ///
@@ -120,14 +117,17 @@ pub fn deferred(
         // The byte length is checked downstream, but two dtypes of the same width (F32 and
         // I32, say) produce identical lengths, and the declared one is what a reader will
         // reinterpret the bytes as. Nothing else catches that, so check it here.
-        if data.dtype != dtype || data.shape != declared {
+        if data.dtype() != dtype || *data.shape() != declared {
             return Err(PackError::ValidationError(format!(
                 "provider produced {:?} {:?}, but the tensor declared {:?} {:?}",
-                data.dtype, data.shape, dtype, declared
+                data.dtype(),
+                data.shape(),
+                dtype,
+                declared
             )));
         }
 
-        Ok(data.bytes)
+        Ok(data.into_bytes())
     })
 }
 
@@ -149,7 +149,8 @@ pub fn from_tensor<const D: usize, K: Basic + 'static>(
 
 /// Build a tensor from data already in hand.
 pub fn from_data(data: TensorData, name: String, param_id: Option<u64>) -> PackTensor {
-    PackTensor::new(name, data.dtype, data.shape.clone(), param_id, data.bytes)
+    let (bytes, shape, dtype) = data.into_parts();
+    PackTensor::new(name, dtype, shape, param_id, bytes)
 }
 
 /// Read a tensor's bytes back as [`TensorData`], leaving it intact.
@@ -158,18 +159,25 @@ pub fn from_data(data: TensorData, name: String, param_id: Option<u64>) -> PackT
 /// cached, and a resident one copies its bytes unless they can be shared. Prefer [`into_data`]
 /// where the tensor is not needed afterwards.
 pub fn to_data(tensor: &PackTensor) -> Result<TensorData, PackError> {
-    Ok(TensorData::from_bytes(
-        tensor.to_bytes()?,
-        tensor.shape.clone(),
-        tensor.dtype,
-    ))
+    tensor_data(tensor.to_bytes()?, tensor.shape.clone(), tensor.dtype)
 }
 
 /// Take a tensor's bytes as [`TensorData`], producing them if deferred.
 pub fn into_data(tensor: PackTensor) -> Result<TensorData, PackError> {
     let (_, dtype, shape, _, bytes) = tensor.into_parts()?;
 
-    Ok(TensorData::from_bytes(bytes, shape, dtype))
+    tensor_data(bytes, shape, dtype)
+}
+
+/// Build [`TensorData`] from raw bytes, reporting a length that disagrees with the shape and
+/// dtype as an error rather than a panic.
+pub(crate) fn tensor_data(
+    bytes: Bytes,
+    shape: Shape,
+    dtype: DType,
+) -> Result<TensorData, PackError> {
+    TensorData::try_from_bytes(bytes, shape, dtype)
+        .map_err(|err| PackError::TensorBytesSizeMismatch(err.to_string()))
 }
 
 /// Wrap a tensor's data in a transform, keeping it deferred.
@@ -217,7 +225,7 @@ pub fn from_pytorch(tensor: pytorch_reader::Tensor) -> PackTensor {
             }
             _ => PackError::IoError(err.to_string()),
         })?;
-        Ok(TensorData::from_bytes_vec(bytes, declared.clone(), dtype))
+        tensor_data(Bytes::from_bytes_vec(bytes), declared.clone(), dtype)
     })
 }
 
@@ -264,7 +272,7 @@ mod tests {
         match to_data(&tensor) {
             Ok(data) => assert_eq!(
                 declared,
-                data.bytes.len(),
+                data.bytes().len(),
                 "byte_len disagrees with the materialized bytes for {name}"
             ),
             Err(e) => panic!("byte_len disagrees with the materialized bytes for {name}: {e}"),
@@ -341,8 +349,8 @@ mod tests {
                     TensorData::quantized(vec![0i8; values], [values], scheme, &scales, global);
 
                 assert_eq!(
-                    data_len(data.dtype, &data.shape),
-                    data.bytes.len(),
+                    data_len(data.dtype(), data.shape()),
+                    data.bytes().len(),
                     "predicted size disagrees with the written bytes for {values} values \
                      in blocks of {block}, {scheme:?}"
                 );
@@ -473,7 +481,7 @@ mod tests {
         assert_eq!(floats.name, "float");
         assert_eq!(floats.shape, shape![2, 2]);
         assert_eq!(floats.param_id, Some(7));
-        assert_eq!(to_data(&floats).unwrap().shape, shape![2, 2]);
+        assert_eq!(*to_data(&floats).unwrap().shape(), shape![2, 2]);
 
         let ints = from_tensor(
             &Tensor::<2, Int>::from_data([[1, 2], [3, 4]], &device),
@@ -487,7 +495,7 @@ mod tests {
             "bool".to_string(),
             None,
         );
-        assert_eq!(to_data(&bools).unwrap().shape, shape![2, 2]);
+        assert_eq!(*to_data(&bools).unwrap().shape(), shape![2, 2]);
     }
 
     /// A provider that returns a different dtype than the tensor declared must be refused.
@@ -531,9 +539,9 @@ mod tests {
 
         let borrowed = to_data(&tensor).unwrap();
         let taken = into_data(tensor).unwrap();
-        assert_eq!(borrowed.shape, taken.shape);
-        assert_eq!(borrowed.dtype, taken.dtype);
-        assert_eq!(borrowed.bytes.to_vec(), taken.bytes.to_vec());
+        assert_eq!(borrowed.shape(), taken.shape());
+        assert_eq!(borrowed.dtype(), taken.dtype());
+        assert_eq!(borrowed.as_bytes(), taken.as_bytes());
     }
 
     /// `map_data` has to declare the length its transform will produce, not the one it

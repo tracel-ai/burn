@@ -58,7 +58,7 @@ fn an_int_source_keeps_its_own_width() {
     assert!(result.errors.is_empty(), "{:?}", result.errors);
 
     let data = model.ids.val().to_data();
-    assert_eq!(data.dtype, DType::I64);
+    assert_eq!(data.dtype(), DType::I64);
     assert_eq!(data.try_to_vec::<i64>().unwrap(), vec![9, 8, 7]);
 }
 
@@ -89,7 +89,7 @@ fn float_data_is_refused_by_an_int_parameter() {
     );
 
     let after = model.ids.val().to_data();
-    assert_eq!(after.dtype, before.dtype, "the parameter was modified");
+    assert_eq!(after.dtype(), before.dtype(), "the parameter was modified");
     assert_eq!(after.try_to_vec::<i32>().unwrap(), vec![1, 2, 3]);
 }
 
@@ -135,7 +135,7 @@ fn a_float_parameter_still_keeps_the_sources_precision() {
 
     assert_eq!(result.applied, vec!["w".to_string()]);
     assert!(result.errors.is_empty(), "{:?}", result.errors);
-    assert_eq!(model.w.val().to_data().dtype, DType::F16);
+    assert_eq!(model.w.val().to_data().dtype(), DType::F16);
 }
 
 /// SafeTensors has no boolean dtype for the non-native bool stores, so it writes `Bool(U32)`
@@ -206,7 +206,7 @@ fn a_wide_integer_source_is_refused_by_a_bool_parameter() {
         TensorData::from([1u64, 0]),
         TensorData::from([1u16, 0]),
     ] {
-        let dtype = data.dtype;
+        let dtype = data.dtype();
         let mut model = BoolModel {
             mask: Param::initialized(
                 ParamId::new(),
@@ -243,7 +243,7 @@ fn the_bool_store_widths_are_accepted_by_a_bool_parameter() {
         TensorData::from([1u32, 0]),
         TensorData::from([true, false]),
     ] {
-        let dtype = data.dtype;
+        let dtype = data.dtype();
         let mut model = BoolModel {
             mask: Param::initialized(
                 ParamId::new(),
