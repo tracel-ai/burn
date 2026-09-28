@@ -13,7 +13,6 @@ use burn_backend::{
     quantization::{QuantScheme, QuantStore},
     tensor::IndexingUpdateOp,
 };
-use burn_std::{Tiling, tiled_fragments};
 
 use crate::{ScalarIr, TensorId, TensorIr};
 
@@ -115,14 +114,6 @@ impl ShapeOpIr {
     fn create(input: TensorIr, shape: Shape, new_id: impl FnOnce() -> TensorId) -> Self {
         let out = TensorIr::uninit(new_id(), shape, input.dtype);
         ShapeOpIr { input, out }
-    }
-}
-
-impl IntoTiledOpIr {
-    pub fn create(input: TensorIr, tiling: Tiling, new_id: impl FnOnce() -> TensorId) -> Self {
-        let (_, logical) = tiled_fragments(&input.shape, tiling);
-        let out = TensorIr::uninit(new_id(), logical, input.dtype);
-        IntoTiledOpIr { input, tiling, out }
     }
 }
 

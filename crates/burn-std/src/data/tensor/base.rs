@@ -1,7 +1,6 @@
 use core::f32;
 
 use alloc::format;
-use alloc::string::String;
 use alloc::vec::Vec;
 use bytemuck::checked::CheckedCastError;
 use rand::Rng;
@@ -58,6 +57,22 @@ pub enum DataError {
         /// The number of elements present in storage.
         actual: usize,
     },
+
+    /// The byte storage length doesn't match the size implied by the shape and dtype.
+    #[error(
+        "Shape {:?} with dtype {dtype:?} is invalid for input of size {len} bytes",
+        shape.as_slice()
+    )]
+    InvalidByteLength {
+        /// The shape describing the tensor.
+        shape: Shape,
+
+        /// The storage DType.
+        dtype: DType,
+
+        /// The number of bytes present in storage.
+        len: usize,
+    },
 }
 
 /// Errors that can occur while reading host data from a tensor.
@@ -93,18 +108,22 @@ impl DataError {
 }
 
 /// Data structure for tensors.
+///
+/// The byte length of the storage always matches the size implied by the shape and dtype, except
+/// for quantized data, whose length isn't validated yet (tracel-ai/burn#5836). Element values
+/// aren't validated on construction; the checked accessors reject invalid representations.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(try_from = "TensorDataDe")]
 pub struct TensorData {
     /// The values of the tensor (as bytes).
-    pub bytes: Bytes,
+    pub(in crate::data) bytes: Bytes,
 
     /// The shape of the tensor.
     #[serde(with = "shape_inner")]
-    pub shape: Shape,
+    pub(in crate::data) shape: Shape,
 
     /// The data type of the tensor.
-    pub dtype: DType,
+    pub(in crate::data) dtype: DType,
 }
 
 /// Unvalidated wire form of [`TensorData`], used so that deserialization enforces the same
@@ -118,32 +137,10 @@ struct TensorDataDe {
 }
 
 impl TryFrom<TensorDataDe> for TensorData {
-    type Error = String;
+    type Error = DataError;
 
     fn try_from(data: TensorDataDe) -> Result<Self, Self::Error> {
-        // `dtype.size()` is not the stored width of quantized data (sub-byte values plus
-        // appended scales), so only the other dtypes have a shape-derived byte length. The
-        // product is checked as well: an encoded shape that overflows `usize` would otherwise
-        // wrap into a small element count that matches the payload.
-        let expected = data
-            .shape
-            .iter()
-            .try_fold(1usize, |numel, dim| numel.checked_mul(*dim))
-            .and_then(|numel| numel.checked_mul(data.dtype.size()));
-
-        if !matches!(data.dtype, DType::QFloat(_)) && expected != Some(data.bytes.len()) {
-            return Err(format!(
-                "Shape {:?} is invalid for input of size {:?} bytes",
-                data.shape,
-                data.bytes.len(),
-            ));
-        }
-
-        Ok(Self {
-            bytes: data.bytes,
-            shape: data.shape,
-            dtype: data.dtype,
-        })
+        TensorData::try_from_bytes(data.bytes, data.shape, data.dtype)
     }
 }
 
@@ -203,7 +200,92 @@ impl TensorData {
     }
 
     /// Creates a new tensor data structure from raw bytes.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the byte length doesn't match the shape and dtype. See
+    /// [`TensorData::try_from_bytes`] for the fallible version.
+    #[track_caller]
     pub fn from_bytes<S: Into<Shape>>(bytes: Bytes, shape: S, dtype: DType) -> Self {
+        match Self::try_from_bytes(bytes, shape, dtype) {
+            Ok(data) => data,
+            Err(err) => panic!("{err}"),
+        }
+    }
+
+    /// Creates a new tensor data structure from raw bytes stored in a vector.
+    ///
+    /// Prefer [`TensorData::new`] or [`TensorData::quantized`] over this method unless you are
+    /// certain that the element values are valid for `dtype`; only the length is checked.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the byte length doesn't match the shape and dtype. See
+    /// [`TensorData::try_from_bytes_vec`] for the fallible version.
+    #[track_caller]
+    pub fn from_bytes_vec<S: Into<Shape>>(bytes: Vec<u8>, shape: S, dtype: DType) -> Self {
+        Self::from_bytes(Bytes::from_bytes_vec(bytes), shape, dtype)
+    }
+
+    /// Creates a new tensor data structure from raw bytes.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DataError::InvalidByteLength`] if the byte length doesn't match the number of
+    /// elements described by the shape times the dtype size. Quantized dtypes aren't checked,
+    /// since their packed layout isn't derived from the shape alone.
+    ///
+    /// The element values themselves aren't validated here (e.g. a `bool` byte other than 0 or
+    /// 1); the checked accessors ([`TensorData::as_slice`], [`TensorData::try_to_vec`],
+    /// [`TensorData::try_view`]) reject invalid representations.
+    pub fn try_from_bytes<S: Into<Shape>>(
+        bytes: Bytes,
+        shape: S,
+        dtype: DType,
+    ) -> Result<Self, DataError> {
+        let shape = shape.into();
+        // `dtype.size()` is not the stored width of quantized data (sub-byte values plus
+        // appended scales), so only the other dtypes have a shape-derived byte length. The
+        // product is checked as well: a shape that overflows `usize` would otherwise wrap into
+        // a small element count that matches the payload.
+        let expected = checked_numel(&shape).and_then(|numel| numel.checked_mul(dtype.size()));
+
+        if !matches!(dtype, DType::QFloat(_)) && expected != Some(bytes.len()) {
+            return Err(DataError::InvalidByteLength {
+                shape,
+                dtype,
+                len: bytes.len(),
+            });
+        }
+
+        Ok(Self {
+            bytes,
+            shape,
+            dtype,
+        })
+    }
+
+    /// Creates a new tensor data structure from raw bytes stored in a vector.
+    ///
+    /// # Errors
+    ///
+    /// See [`TensorData::try_from_bytes`].
+    pub fn try_from_bytes_vec<S: Into<Shape>>(
+        bytes: Vec<u8>,
+        shape: S,
+        dtype: DType,
+    ) -> Result<Self, DataError> {
+        Self::try_from_bytes(Bytes::from_bytes_vec(bytes), shape, dtype)
+    }
+
+    /// Builds tensor data without validating it, so tests can exercise the defensive checks
+    /// on storage that the public constructors reject.
+    #[cfg(test)]
+    pub(crate) fn from_bytes_unchecked<S: Into<Shape>>(
+        bytes: Bytes,
+        shape: S,
+        dtype: DType,
+    ) -> Self {
         Self {
             bytes,
             shape: shape.into(),
@@ -211,16 +293,44 @@ impl TensorData {
         }
     }
 
-    /// Creates a new tensor data structure from raw bytes stored in a vector.
+    /// Returns the shape of the tensor data.
+    pub fn shape(&self) -> &Shape {
+        &self.shape
+    }
+
+    /// Returns the data type of the tensor data.
+    pub fn dtype(&self) -> DType {
+        self.dtype
+    }
+
+    /// Returns the underlying byte storage.
+    pub fn bytes(&self) -> &Bytes {
+        &self.bytes
+    }
+
+    /// Consumes the tensor data and returns its byte storage, shape and data type.
+    pub fn into_parts(self) -> (Bytes, Shape, DType) {
+        (self.bytes, self.shape, self.dtype)
+    }
+
+    /// Gives `f` mutable access to the byte storage of every item at once, e.g. to move it into
+    /// staging memory in a single batch.
     ///
-    /// Prefer [`TensorData::new`] or [`TensorData::quantized`] over this method unless you are
-    /// certain that the byte representation is valid.
-    pub fn from_bytes_vec<S: Into<Shape>>(bytes: Vec<u8>, shape: S, dtype: DType) -> Self {
-        Self {
-            bytes: Bytes::from_bytes_vec(bytes),
-            shape: shape.into(),
-            dtype,
-        }
+    /// # Panics
+    ///
+    /// Panics if `f` changes the length of any storage. Items whose length changed are replaced
+    /// with empty data first, and the same happens if `f` panics, so no item is left with a
+    /// length that disagrees with its shape.
+    #[track_caller]
+    pub fn with_bytes_mut<'a, R>(
+        data: impl IntoIterator<Item = &'a mut TensorData>,
+        f: impl FnOnce(Vec<&mut Bytes>) -> R,
+    ) -> R {
+        let mut guard = LengthGuard::new(data.into_iter().collect());
+        let out = f(guard.data.iter_mut().map(|data| &mut data.bytes).collect());
+        let changed = guard.reset_changed();
+        assert!(!changed, "TensorData byte storage length must not change");
+        out
     }
 
     // Check that the input vector contains a correct number of elements
@@ -399,8 +509,54 @@ impl TensorData {
     }
 }
 
+/// Resets every item whose byte length no longer matches the length it had when the guard was
+/// created, including when dropped during unwinding.
+struct LengthGuard<'a> {
+    data: Vec<&'a mut TensorData>,
+    lens: Vec<usize>,
+}
+
+impl<'a> LengthGuard<'a> {
+    fn new(data: Vec<&'a mut TensorData>) -> Self {
+        let lens = data.iter().map(|data| data.bytes.len()).collect();
+        Self { data, lens }
+    }
+
+    /// Replaces changed items with empty data and returns whether any changed.
+    fn reset_changed(&mut self) -> bool {
+        let mut changed = false;
+        for (data, len) in self.data.iter_mut().zip(&self.lens) {
+            if data.bytes.len() != *len {
+                **data = TensorData::new(Vec::<u8>::new(), [0]);
+                changed = true;
+            }
+        }
+        changed
+    }
+}
+
+impl Drop for LengthGuard<'_> {
+    fn drop(&mut self) {
+        self.reset_changed();
+    }
+}
+
+/// Number of elements described by `shape`, or `None` if the product overflows `usize`.
+fn checked_numel(shape: &[usize]) -> Option<usize> {
+    shape
+        .iter()
+        .try_fold(1usize, |numel, dim| numel.checked_mul(*dim))
+}
+
+/// Number of elements described by `shape`.
+///
+/// Panics if the product overflows `usize`, since a wrapped count could otherwise match a
+/// shorter buffer.
 fn numel(shape: &[usize]) -> usize {
-    shape.iter().product()
+    match checked_numel(shape) {
+        Some(numel) => numel,
+        None => panic!("Shape {shape:?} has more elements than fit in usize"),
+    }
 }
 
 impl<E: Element, const A: usize> From<[E; A]> for TensorData {
@@ -819,13 +975,15 @@ mod tests {
 
     #[test]
     fn try_view_validates_storage() {
-        let invalid_representation = TensorData::from_bytes_vec(vec![0; 3], [1], DType::F32);
+        let invalid_representation =
+            TensorData::from_bytes_unchecked(Bytes::from_bytes_vec(vec![0; 3]), [1], DType::F32);
         assert!(matches!(
             invalid_representation.try_view::<f32>(),
             Err(DataError::InvalidRepresentation(_))
         ));
 
-        let invalid_count = TensorData::from_bytes_vec(vec![0; 8], [1], DType::F32);
+        let invalid_count =
+            TensorData::from_bytes_unchecked(Bytes::from_bytes_vec(vec![0; 8]), [1], DType::F32);
         assert!(matches!(
             invalid_count.try_view::<f32>(),
             Err(DataError::ElementCountMismatch {
@@ -839,6 +997,133 @@ mod tests {
             invalid_bool.try_view::<bool>(),
             Err(DataError::InvalidRepresentation(_))
         ));
+    }
+
+    #[test]
+    fn try_from_bytes_rejects_invalid_length() {
+        let err = TensorData::try_from_bytes_vec(vec![0; 3], [1], DType::F32).unwrap_err();
+        assert_eq!(
+            err,
+            DataError::InvalidByteLength {
+                shape: Shape::from([1]),
+                dtype: DType::F32,
+                len: 3,
+            }
+        );
+
+        assert!(TensorData::try_from_bytes_vec(vec![0; 8], [1], DType::F32).is_err());
+        assert!(TensorData::try_from_bytes_vec(vec![], [1], DType::F32).is_err());
+        assert!(TensorData::try_from_bytes_vec(vec![], [0usize; 0], DType::F32).is_err());
+        // Wrapped product of the dimensions matches the payload.
+        assert!(
+            TensorData::try_from_bytes_vec(vec![0; 8], [usize::MAX / 2 + 2, 2], DType::F32)
+                .is_err()
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "more elements than fit in usize")]
+    fn new_rejects_overflowing_shape() {
+        // The wrapped product (2) matches the element count.
+        let _ = TensorData::new(vec![0.0f32; 2], [usize::MAX / 2 + 2, 2]);
+    }
+
+    #[test]
+    #[should_panic(expected = "more elements than fit in usize")]
+    fn zeros_rejects_overflowing_shape() {
+        let _ = TensorData::zeros::<f32, _>([usize::MAX / 2 + 2, 2]);
+    }
+
+    #[test]
+    fn try_from_bytes_accepts_valid_length() {
+        let data = TensorData::try_from_bytes_vec(vec![0; 8], [2], DType::F32).unwrap();
+        assert_eq!(data.shape(), &Shape::from([2]));
+        assert_eq!(data.dtype(), DType::F32);
+        assert_eq!(data.bytes().len(), 8);
+
+        let empty = TensorData::try_from_bytes_vec(vec![], [0, 3], DType::F32).unwrap();
+        assert_eq!(empty.num_elements(), 0);
+
+        let scalar = TensorData::try_from_bytes_vec(vec![0; 4], [0usize; 0], DType::F32).unwrap();
+        assert_eq!(scalar.rank(), 0);
+    }
+
+    #[test]
+    #[should_panic(expected = "is invalid for input of size 3 bytes")]
+    fn from_bytes_panics_on_invalid_length() {
+        let _ = TensorData::from_bytes_vec(vec![0; 3], [1], DType::F32);
+    }
+
+    #[test]
+    fn try_from_bytes_accepts_quantized_layout() {
+        // Quantized storage holds the values followed by the scales, so its length isn't
+        // `numel * dtype.size()`.
+        let data = TensorData::quantized(vec![0i8; 4], [4], QuantScheme::default(), &[1.0], None);
+        let (bytes, shape, dtype) = data.clone().into_parts();
+        assert_eq!(
+            TensorData::try_from_bytes(bytes, shape, dtype).unwrap(),
+            data
+        );
+
+        let serialized = serde_json::to_string(&data).unwrap();
+        let deserialized: TensorData = serde_json::from_str(&serialized).unwrap();
+        assert_eq!(deserialized, data);
+    }
+
+    #[test]
+    fn with_bytes_mut_allows_length_preserving_writes() {
+        let mut a = TensorData::from([1.0f32, 2.0]);
+        let mut b = TensorData::from([3i32]);
+
+        TensorData::with_bytes_mut([&mut a, &mut b], |bytes| {
+            assert_eq!(bytes.len(), 2);
+            for bytes in bytes {
+                bytes.fill(0);
+            }
+        });
+
+        assert_eq!(a, TensorData::from([0.0f32, 0.0]));
+        assert_eq!(b, TensorData::from([0i32]));
+    }
+
+    #[test]
+    #[should_panic(expected = "length must not change")]
+    fn with_bytes_mut_rejects_length_change() {
+        let mut data = TensorData::from([1.0f32]);
+        TensorData::with_bytes_mut([&mut data], |mut bytes| {
+            bytes[0].extend_from_byte_slice(&[0; 4]);
+        });
+    }
+
+    #[cfg(feature = "std")]
+    #[test]
+    fn with_bytes_mut_leaves_no_invalid_data_after_unwind() {
+        use std::panic::{AssertUnwindSafe, catch_unwind};
+
+        let empty = TensorData::new(Vec::<u8>::new(), [0]);
+
+        // Length change detected after `f` returns.
+        let mut changed = TensorData::from([1.0f32]);
+        let mut unchanged = TensorData::from([2.0f32]);
+        let result = catch_unwind(AssertUnwindSafe(|| {
+            TensorData::with_bytes_mut([&mut changed, &mut unchanged], |mut bytes| {
+                bytes[0].extend_from_byte_slice(&[0; 4]);
+            })
+        }));
+        assert!(result.is_err());
+        assert_eq!(changed, empty);
+        assert_eq!(unchanged, TensorData::from([2.0f32]));
+
+        // `f` panics after changing a length.
+        let mut data = TensorData::from([1.0f32]);
+        let result = catch_unwind(AssertUnwindSafe(|| {
+            TensorData::with_bytes_mut([&mut data], |mut bytes| {
+                bytes[0].extend_from_byte_slice(&[0; 4]);
+                panic!("callback failed");
+            })
+        }));
+        assert!(result.is_err());
+        assert_eq!(data, empty);
     }
 
     #[test]
@@ -886,7 +1171,8 @@ mod tests {
 
     #[test]
     fn try_mut_view_validates_storage() {
-        let mut invalid_representation = TensorData::from_bytes_vec(vec![0; 3], [1], DType::F32);
+        let mut invalid_representation =
+            TensorData::from_bytes_unchecked(Bytes::from_bytes_vec(vec![0; 3]), [1], DType::F32);
         assert!(matches!(
             invalid_representation.try_mut_view::<f32>(),
             Err(DataError::InvalidRepresentation(_))
@@ -895,19 +1181,22 @@ mod tests {
 
     #[test]
     fn try_cast_propagates_invalid_storage() {
-        let invalid_inplace = TensorData::from_bytes_vec(vec![0; 3], [1], DType::F32);
+        let invalid_inplace =
+            TensorData::from_bytes_unchecked(Bytes::from_bytes_vec(vec![0; 3]), [1], DType::F32);
         assert!(matches!(
             invalid_inplace.try_cast(DType::I32),
             Err(DataError::InvalidRepresentation(_))
         ));
 
-        let invalid_clone = TensorData::from_bytes_vec(vec![0; 3], [1], DType::F32);
+        let invalid_clone =
+            TensorData::from_bytes_unchecked(Bytes::from_bytes_vec(vec![0; 3]), [1], DType::F32);
         assert!(matches!(
             invalid_clone.try_cast(DType::F64),
             Err(DataError::InvalidRepresentation(_))
         ));
 
-        let invalid_count = TensorData::from_bytes_vec(vec![0; 8], [1], DType::F32);
+        let invalid_count =
+            TensorData::from_bytes_unchecked(Bytes::from_bytes_vec(vec![0; 8]), [1], DType::F32);
         assert!(matches!(
             invalid_count.try_cast(DType::F64),
             Err(DataError::ElementCountMismatch {

@@ -133,7 +133,7 @@ fn load_resnet18_materialize_sequential(bencher: Bencher) {
             let data = materialize(tensor).expect("Failed to materialize tensor data");
 
             // Do minimal work with the data to prevent optimization
-            let sum = match data.dtype {
+            let sum = match data.dtype() {
                 burn_core::tensor::DType::F32 => data
                     .as_slice::<f32>()
                     .map(|s| s.iter().sum::<f32>())

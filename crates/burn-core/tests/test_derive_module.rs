@@ -368,7 +368,7 @@ mod lazy_clone {
 
         // Accessing the clone should produce a valid tensor with the right shape.
         let data = cloned.weight_basic.to_data();
-        assert_eq!(data.shape, [20, 20].into());
+        assert_eq!(*data.shape(), [20, 20].into());
 
         data.assert_eq(&module.weight_basic.val().into_data(), true);
     }
@@ -382,8 +382,8 @@ mod lazy_clone {
         let clone_data = cloned.weight_basic.to_data();
         let orig_data = module.weight_basic.to_data();
 
-        assert_eq!(clone_data.shape, [20, 20].into());
-        assert_eq!(orig_data.shape, [20, 20].into());
+        assert_eq!(*clone_data.shape(), [20, 20].into());
+        assert_eq!(*orig_data.shape(), [20, 20].into());
         assert_eq!(clone_data, orig_data);
     }
 

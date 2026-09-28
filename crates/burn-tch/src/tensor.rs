@@ -358,9 +358,9 @@ impl TchTensor {
     ///
     /// A new tensor.
     pub fn from_data<E: TchElement>(data: TensorData, device: tch::Device) -> Self {
-        let shape_tch = TchShape::from(data.shape.as_slice());
+        let shape_tch = TchShape::from(data.shape().as_slice());
         let tensor =
-            tch::Tensor::from_data_size(&data.bytes, &shape_tch.dims, E::kind()).to(device);
+            tch::Tensor::from_data_size(data.as_bytes(), &shape_tch.dims, E::kind()).to(device);
 
         Self::new(tensor)
     }

@@ -15,7 +15,7 @@ macro_rules! sort_dispatch_dtype {
     ($fn:ident, |$index_dtype:ident|, $data:ident, $($args:expr),*) => {{
         macro_rules! dispatch_index {
             ($index_ty:ty) => {
-                match $data.dtype {
+                match $data.dtype() {
                     DType::F64 => $fn::<f64, $index_ty>($data, $($args),*),
                     DType::F32 | DType::Flex32 => {
                         $fn::<f32, $index_ty>($data, $($args),*)
@@ -51,7 +51,7 @@ macro_rules! sort_dispatch_dtype {
 
     // Dispatch only element dtype.
     ($fn:ident, $data:ident, $($args:expr),*) => {
-        match $data.dtype {
+        match $data.dtype() {
             DType::F64 => $fn::<f64>($data, $($args),*),
             DType::F32 | DType::Flex32 => $fn::<f32>($data, $($args),*),
             DType::F16 => $fn::<f16>($data, $($args),*),
@@ -105,7 +105,7 @@ where
     FD: Fn(TensorData, &Device<B>, DType) -> T,
 {
     let data = into_data(tensor);
-    let dtype = data.dtype;
+    let dtype = data.dtype();
     let data = sort_dispatch_dtype!(sort_data, data, dim, descending);
     from_data(data, &device, dtype)
 }
@@ -115,7 +115,7 @@ pub fn sort_data<E: ElementOrdered>(
     dim: usize,
     descending: bool,
 ) -> TensorData {
-    let dims = data.shape.clone();
+    let dims = data.shape().clone();
     let data_slice = data.as_mut_slice().unwrap();
     if dims.len() == 1 {
         // 1D sort
@@ -164,7 +164,7 @@ where
     FD: Fn(TensorData, &Device<B>, DType) -> T,
 {
     let data = into_data(tensor);
-    let dtype = data.dtype;
+    let dtype = data.dtype();
     let (values, indices) =
         sort_dispatch_dtype!(sort_data_with_indices, |indices_dtype|, data, dim, descending);
 
@@ -179,7 +179,7 @@ fn sort_data_with_indices<E: ElementOrdered, I: Element>(
     dim: usize,
     descending: bool,
 ) -> (TensorData, TensorData) {
-    let dims = data.shape.clone();
+    let dims = data.shape().clone();
     let mut indices_data = dim_indices::<I>(&dims, dim);
     let data_slice = data.as_mut_slice().unwrap();
     if dims.len() == 1 {
@@ -273,7 +273,7 @@ fn argsort_data<E: ElementOrdered, I: Element>(
     dim: usize,
     descending: bool,
 ) -> TensorData {
-    let dims = data.shape.clone();
+    let dims = data.shape().clone();
     let mut indices_data = dim_indices::<I>(&dims, dim);
     if dims.len() == 1 {
         // 1D sort
