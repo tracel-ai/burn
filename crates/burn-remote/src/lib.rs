@@ -72,9 +72,17 @@ mod __client {
 #[cfg(feature = "client")]
 pub use __client::*;
 
+// No lib test may name burn_tensor: its burn-remote copy's device ids collide with this one's.
 #[cfg(all(test, feature = "client", feature = "server"))]
 mod tests {
+    use crate::{
+        RemoteBackend, RemoteDevice,
+        shared::{RemoteMessage, SessionId, Task},
+    };
+    use burn_backend::{Scalar, TensorData, ops::FloatTensorOps};
+    use burn_communication::{CommunicationChannel, Message, ProtocolClient};
     use burn_flex::Flex;
+    use std::str::FromStr;
 
     /// Serve `server` over WebSocket on a port the OS picks, returning the address to dial.
     ///
@@ -83,11 +91,9 @@ mod tests {
         rt: &tokio::runtime::Runtime,
         server: crate::server::RemoteServerBuilder<Flex>,
     ) -> String {
-        let listener = rt
-            .block_on(tokio::net::TcpListener::bind("127.0.0.1:0"))
-            .unwrap();
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
         let address = format!("ws://{}", listener.local_addr().unwrap());
-        rt.spawn(server.start_on(listener));
+        rt.spawn(server.start_async_on(listener));
         address
     }
 
@@ -100,8 +106,7 @@ mod tests {
     #[test]
     #[cfg(not(feature = "fusion"))]
     pub fn test_custom_op_over_websocket() {
-        use crate::{RemoteBackend, RemoteDevice};
-        use burn_backend::{Scalar, TensorData, TensorMetadata, ops::FloatTensorOps};
+        use burn_backend::TensorMetadata;
         use burn_ir::{CustomOpIr, OperationIr, ScalarIr, TensorIr};
         use burn_router::RouterClient;
 
@@ -164,11 +169,11 @@ mod tests {
     #[cfg(not(feature = "fusion"))]
     pub fn test_custom_op_over_iroh() {
         use crate::{
-            BURN_REMOTE_ALPN, RemoteBackend, RemoteDevice,
+            BURN_REMOTE_ALPN,
             server::{AllowAll, CustomOpRegistry, IrohRemoteProtocol},
             telemetry::TelemetryProbe,
         };
-        use burn_backend::{Scalar, TensorData, TensorMetadata, ops::FloatTensorOps};
+        use burn_backend::TensorMetadata;
         use burn_ir::{CustomOpIr, OperationIr, ScalarIr, TensorIr};
         use burn_router::RouterClient;
         use iroh::{Endpoint, RelayMode, endpoint::presets, protocol::Router};
@@ -247,19 +252,13 @@ mod tests {
         rt.block_on(router.shutdown()).unwrap();
     }
 
-    /// Exercises the cross-backend transfer body: local tensor → remote (data round-trip
-    /// through `TensorData`), an op on the remote, then remote → local.
     /// Run `body` on a worker thread and report whether it finished within `timeout`.
     ///
-    /// Unlike [`with_deadlock_watchdog`], a panic inside `body` counts as "finished": these error
-    /// tests assert that a failure *surfaces* (as an `Err` or a panic) instead of hanging, so all
-    /// that matters is the thread came back. Returns `false` if it was still running at the
-    /// deadline — i.e. the call hung.
+    /// A panic inside `body` counts as finished: a failure that surfaces is what these tests want,
+    /// only a hang fails them.
     fn finishes_within(timeout: std::time::Duration, body: impl FnOnce() + Send + 'static) -> bool {
         let (tx, rx) = std::sync::mpsc::channel();
         std::thread::spawn(move || {
-            // Swallow panics: a disconnected read panicking on the error path is an acceptable
-            // "didn't hang" outcome and must not abort the whole test process.
             let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(body));
             let _ = tx.send(());
         });
@@ -271,14 +270,6 @@ mod tests {
     /// connection here because a `Device`'s client is process-cached and never dropped mid-test.
     #[test]
     fn test_client_disconnect_handled_cleanly_by_server() {
-        use crate::{
-            RemoteBackend, RemoteDevice,
-            shared::{RemoteMessage, SessionId, Task},
-        };
-        use burn_backend::{Scalar, TensorData, ops::FloatTensorOps};
-        use burn_communication::{CommunicationChannel, Message, ProtocolClient};
-        use std::str::FromStr;
-
         type Client = burn_communication::websocket::WsClient;
 
         let rt = tokio::runtime::Builder::new_multi_thread()
@@ -450,7 +441,7 @@ mod fusion_tests {
                 &rt,
                 crate::server::RemoteServerBuilder::<Flex>::new(vec![Default::default()])
                     .custom_op("make_floats", |handles, ir, device| {
-                        // Build a 1-D float tensor from the op's scalars — a pure source (no inputs).
+                        // Build a 1-D float tensor from the op's scalars: a pure source, with no inputs.
                         let values: Vec<f32> = ir.scalars.iter().map(|s| s.elem::<f32>()).collect();
                         let n = values.len();
                         let tensor = Flex::float_from_data(TensorData::new(values, [n]), device);

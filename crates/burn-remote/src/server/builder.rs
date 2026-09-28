@@ -54,7 +54,8 @@ impl Default for Channel {
 ///
 /// Configures the transport ([`channel`](Self::channel) / [`port`](Self::port)) and the custom
 /// operation handlers ([`custom_op`](Self::custom_op) / [`custom_ops`](Self::custom_ops)), then
-/// starts the server with [`start`](Self::start) (blocking) or [`start_async`](Self::start_async).
+/// starts the server with [`start`](Self::start) (blocking) or [`start_async`](Self::start_async),
+/// or over WebSocket on a listener the caller bound with [`start_async_on`](Self::start_async_on).
 ///
 /// The builder is generic over the concrete backend `B`: custom ops are typed by `B`, since their
 /// handlers call into `B`'s primitives. A backend extension hosts its ops here — the server-side
@@ -152,12 +153,12 @@ impl<B: BackendIr> RemoteServerBuilder<B> {
         }
     }
 
-    /// Serve over WebSocket on a listener the caller already bound, until shutdown.
+    /// Serve over WebSocket on a listener the caller bound, until shutdown.
     ///
-    /// For an address [`port`](Self::port) cannot express, such as `127.0.0.1:0` to stay local on
-    /// a port the OS picks. The builder's channel is not used.
+    /// The caller picks the interface and knows the address, an OS-picked port included, before
+    /// any client dials. The builder's channel is ignored.
     #[cfg(all(not(target_family = "wasm"), feature = "websocket"))]
-    pub async fn start_on(self, listener: tokio::net::TcpListener) {
+    pub async fn start_async_on(self, listener: std::net::TcpListener) {
         Self::configure_process();
         crate::transport::websocket::start_websocket_on::<B>(
             self.devices,

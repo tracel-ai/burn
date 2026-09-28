@@ -36,15 +36,18 @@ pub(crate) async fn start_websocket_async<B: BackendIr>(
 #[cfg(not(target_family = "wasm"))]
 pub(crate) async fn start_websocket_on<B: BackendIr>(
     devices: Vec<Device<B>>,
-    listener: tokio::net::TcpListener,
+    listener: std::net::TcpListener,
     custom_ops: CustomOpRegistry<B>,
 ) {
-    let port = listener
-        .local_addr()
-        .expect("A bound listener has an address")
-        .port();
-    let server = compute_server(devices, port, custom_ops);
-    if let Err(err) = server.serve_on(listener, os_shutdown_signal()).await {
+    let served = async {
+        let port = listener.local_addr()?.port();
+        listener.set_nonblocking(true)?;
+        let listener = tokio::net::TcpListener::from_std(listener)?;
+        compute_server(devices, port, custom_ops)
+            .serve_on(listener, os_shutdown_signal())
+            .await
+    };
+    if let Err(err) = served.await {
         log::error!("Burn Remote WebSocket server stopped: {err:?}");
     }
 }

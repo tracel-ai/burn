@@ -4,12 +4,9 @@ use burn_flex::Flex;
 use burn_remote::server::RemoteServerBuilder;
 use burn_tensor::{Device, DeviceType, Distribution, Tensor};
 
-/// Run `body` on a worker thread and fail the test if it doesn't finish within `timeout`.
+/// Run `body` on a worker thread and fail the test if it does not finish within `timeout`.
 ///
-/// A deadlock in the remote backend manifests as a hung worker, so without a watchdog the
-/// test would block the whole suite forever. We can't forcibly kill the hung thread (it's
-/// parked on a blocking recv deep in the backend), so on timeout we panic from the test
-/// thread and let the process exit carry the stuck worker away.
+/// A hung worker cannot be killed, so the test thread panics and the process exit takes it away.
 fn with_deadlock_watchdog(timeout: std::time::Duration, body: impl FnOnce() + Send + 'static) {
     let (tx, rx) = std::sync::mpsc::channel();
     let handle = std::thread::spawn(move || {
@@ -30,11 +27,9 @@ fn with_deadlock_watchdog(timeout: std::time::Duration, body: impl FnOnce() + Se
 ///
 /// The listener is bound before this returns, so a client can connect at once.
 fn serve(rt: &tokio::runtime::Runtime, server: RemoteServerBuilder<Flex>) -> String {
-    let listener = rt
-        .block_on(tokio::net::TcpListener::bind("127.0.0.1:0"))
-        .unwrap();
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
     let address = format!("ws://{}", listener.local_addr().unwrap());
-    rt.spawn(server.start_on(listener));
+    rt.spawn(server.start_async_on(listener));
     address
 }
 
@@ -42,26 +37,26 @@ fn serve(rt: &tokio::runtime::Runtime, server: RemoteServerBuilder<Flex>) -> Str
 fn a_dial_waits_for_a_websocket_server_that_starts_late() {
     // Past the first retries, well inside the retry window.
     const SERVER_LATE_BY: std::time::Duration = std::time::Duration::from_millis(700);
+    const LISTEN_BACKLOG: u32 = 128;
 
-    let port = std::net::TcpListener::bind("0.0.0.0:0")
-        .unwrap()
-        .local_addr()
-        .unwrap()
-        .port();
+    // Bound but not listening: dials are refused, and no other socket can take the port.
+    let socket = tokio::net::TcpSocket::new_v4().unwrap();
+    socket.bind("127.0.0.1:0".parse().unwrap()).unwrap();
+    let address = format!("ws://{}", socket.local_addr().unwrap());
     let rt = tokio::runtime::Builder::new_multi_thread()
         .enable_all()
         .build()
         .unwrap();
     rt.spawn(async move {
         tokio::time::sleep(SERVER_LATE_BY).await;
+        let listener = socket.listen(LISTEN_BACKLOG).unwrap().into_std().unwrap();
         RemoteServerBuilder::<Flex>::new(vec![Default::default()])
-            .port(port)
-            .start_async()
+            .start_async_on(listener)
             .await;
     });
 
     with_deadlock_watchdog(std::time::Duration::from_secs(30), move || {
-        let device = Device::remote_websocket(&format!("ws://localhost:{port}"), 0);
+        let device = Device::remote_websocket(&address, 0);
         let output = Tensor::<1>::from_floats([1.0, 2.0], &device) * 2.0;
         assert_eq!(output.try_into_vec_as::<f32>().unwrap(), vec![2.0, 4.0]);
     });
@@ -106,11 +101,8 @@ fn test_to_device_over_websocket() {
     rt.shutdown_background();
 }
 
-/// A profiling window over the wire. The server here hosts a backend with
-/// no device clock, so the window it is asked to open is answered with
-/// none and the client measures between two syncs instead — the path a
-/// remote device that opens no windows has to keep working on, with or
-/// without fusion in front of the router.
+/// The server's backend has no device clock, so it opens no profiling window and the client
+/// measures between two syncs instead.
 #[test]
 fn test_profile_over_websocket() {
     let rt = tokio::runtime::Builder::new_multi_thread()
@@ -178,16 +170,8 @@ fn test_multi_device_single_server() {
     rt.shutdown_background();
 }
 
-/// Concurrent multi-device regression (DDP-style): two user threads, each pinned to a device,
-/// running simultaneously and each iteration moving a tensor to the *other* device and back.
-///
-/// This used to deadlock because the client's transfer-id counter never persisted its
-/// increment (`LocalTransferId` is `Copy`, so the increment landed on a throwaway local).
-/// Every same-host transfer after the first reused the same id; sequentially that's harmless
-/// (each expose is taken before the next), but two transfers in flight at once then collided
-/// in the server's `local_comm` rendezvous and one `take` hung forever. Single-threaded
-/// workloads never tripped it — `into_data` serializes each iteration — so the bug only shows
-/// up under genuine concurrency.
+/// Two threads, each pinned to a device, move tensors to the other device and back at once, so
+/// two same-host transfers are in flight together and need distinct transfer ids.
 #[test]
 fn test_multi_device_concurrent_to_device_deadlock() {
     let rt = tokio::runtime::Builder::new_multi_thread()
@@ -265,29 +249,19 @@ fn test_enumerate_remote_devices() {
     rt.shutdown_background();
 }
 
-/// Exercises the cross-backend transfer body: local tensor → remote (data round-trip
-/// through `TensorData`), an op on the remote, then remote → local.
 /// Run `body` on a worker thread and report whether it finished within `timeout`.
 ///
-/// Unlike [`with_deadlock_watchdog`], a panic inside `body` counts as "finished": these error
-/// tests assert that a failure *surfaces* (as an `Err` or a panic) instead of hanging, so all
-/// that matters is the thread came back. Returns `false` if it was still running at the
-/// deadline — i.e. the call hung.
+/// Unlike [`with_deadlock_watchdog`], a panic inside `body` counts as finished: a failure that
+/// surfaces is what these tests want, only a hang fails them.
 fn finishes_within(timeout: std::time::Duration, body: impl FnOnce() + Send + 'static) -> bool {
     let (tx, rx) = std::sync::mpsc::channel();
     std::thread::spawn(move || {
-        // Swallow panics: a disconnected read panicking on the error path is an acceptable
-        // "didn't hang" outcome and must not abort the whole test process.
         let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(body));
         let _ = tx.send(());
     });
     rx.recv_timeout(timeout).is_ok()
 }
 
-/// When the server goes down, a client call that awaits a response (here a tensor read) must
-/// fail promptly instead of blocking forever. Before the fix the response-demux task just
-/// exited on the closed stream, leaving every pending callback — and any later request —
-/// parked on a oneshot that would never be completed.
 #[test]
 fn test_server_down_does_not_hang_client() {
     let rt = tokio::runtime::Builder::new_multi_thread()
@@ -324,6 +298,7 @@ fn test_server_down_does_not_hang_client() {
     );
 }
 
+/// The tensor crosses backends as `TensorData`: local to remote, an op there, then back.
 #[test]
 fn test_to_device_local_to_remote() {
     let rt = tokio::runtime::Builder::new_multi_thread()
