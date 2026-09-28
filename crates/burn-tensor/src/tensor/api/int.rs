@@ -222,7 +222,7 @@ fn arange_step_impl(
 }
 
 fn int_to_float_impl(p: BridgeTensor, device: Device) -> BridgeTensor {
-    let out_dtype = device.settings().float_dtype;
+    let out_dtype = device.get_or_init_settings().float_dtype;
     BridgeTensor::float(Dispatch::int_into_float(p.into(), out_dtype))
 }
 fn square_impl(tensor: BridgeTensor) -> BridgeTensor {

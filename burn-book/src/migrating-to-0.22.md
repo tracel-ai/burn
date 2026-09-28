@@ -81,6 +81,11 @@ assert!(model.linear.weight.grad(&gradients).is_some());
 Configure device dtype defaults before creating tensors. Configuration is shared by the compute
 device and can only be initialized once. See [Backend and Device](./building-blocks/backend.md).
 
+`get_device_settings` no longer initializes or locks defaults. Use
+`burn_backend::get_or_init_device_settings` to preserve the 0.21 behavior, or `device.settings()` to
+query settings in application code. Tensor creation still locks defaults, even with an explicit
+dtype.
+
 Prefer explicit device constructors during migration. `Device::default()` chooses from compiled-in
 backends, not from available hardware. Enabling an additional backend through Cargo feature
 unification can therefore change the default. This also affects implicit device selection by

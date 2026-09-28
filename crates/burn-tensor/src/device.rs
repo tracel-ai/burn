@@ -884,9 +884,17 @@ impl Device {
     /// Settings include the default float, integer, and boolean data types used when creating
     /// tensors on this device.
     ///
+    /// Before initialization, returns the backend defaults without locking them. A later call to
+    /// [`configure`](Device::configure) may change the settings returned by this method.
+    ///
     /// See [`configure`](Device::configure) to configure them.
     pub fn settings(&self) -> DeviceSettings {
         burn_backend::get_device_settings::<Dispatch>(self.as_dispatch())
+    }
+
+    /// Returns settings for tensor operations, initializing them to defaults if unset.
+    pub(crate) fn get_or_init_settings(&self) -> DeviceSettings {
+        burn_backend::get_or_init_device_settings::<Dispatch>(self.as_dispatch())
     }
 
     /// Configures the [settings](DeviceSettings) for this device.
@@ -895,10 +903,9 @@ impl Device {
     /// creation time.
     ///
     /// Settings can only be initialized once per device. Configure defaults before creating
-    /// tensors or initializing model parameters: the first read of the settings locks them to the
-    /// backend's defaults, and any later call returns [`DeviceError::AlreadyInitialized`].
-    /// Creating any tensor on the device, even with an explicit dtype, and calling
-    /// [`settings`](Device::settings) both read them.
+    /// tensors or initializing model parameters: tensor creation locks them to the backend's
+    /// defaults, even with an explicit dtype, and any later call returns
+    /// [`DeviceError::AlreadyInitialized`]. Querying [`settings`](Device::settings) does not lock them.
     ///
     /// Individual tensors can still use an explicit supported dtype at creation or be converted
     /// with [`Tensor::cast`](crate::Tensor::cast); neither changes the defaults.
@@ -907,7 +914,7 @@ impl Device {
     ///
     /// Returns [`DeviceError::UnsupportedDType`] if a requested dtype is unsupported.
     /// Returns [`DeviceError::AlreadyInitialized`] if settings have already been initialized
-    /// for this device, either by a prior call or by a read of the settings.
+    /// for this device, either by a prior call or by a tensor operation.
     ///
     /// # Example
     ///
@@ -1434,8 +1441,8 @@ impl Devices {
     /// creation time.
     ///
     /// Settings can only be initialized once per device. Configure defaults before creating
-    /// tensors or initializing model parameters; the first read of a device's settings, including
-    /// by tensor creation, locks them.
+    /// tensors or initializing model parameters; tensor creation locks them, even with an explicit
+    /// dtype. Querying [`Device::settings`] does not lock them.
     ///
     /// Stops at the first error; devices configured before it keep their settings.
     ///
