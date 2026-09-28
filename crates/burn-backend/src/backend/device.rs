@@ -140,6 +140,8 @@ pub fn get_or_init_device_settings<B: Backend>(device: &B::Device) -> DeviceSett
 /// Returns the configured settings, or backend defaults without initializing them.
 ///
 /// Before initialization, this is a snapshot: subsequent configuration may change the settings.
+/// Use [`get_or_init_device_settings`] when the returned settings must remain fixed for subsequent
+/// operations.
 pub fn get_device_settings<B: Backend>(device: &B::Device) -> DeviceSettings {
     DeviceSettingsRegistry::get(device).unwrap_or_else(|| device.defaults())
 }

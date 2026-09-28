@@ -884,10 +884,9 @@ impl Device {
     /// Settings include the default float, integer, and boolean data types used when creating
     /// tensors on this device.
     ///
-    /// Before initialization, returns the backend defaults without locking them. A later call to
-    /// [`configure`](Device::configure) may change the settings returned by this method.
-    ///
-    /// See [`configure`](Device::configure) to configure them.
+    /// Before initialization, returns a snapshot of the backend defaults without locking them.
+    /// Another thread may configure the device afterward, so subsequent tensor operations may use
+    /// different settings. [Configure the device](Device::configure) before relying on its defaults.
     pub fn settings(&self) -> DeviceSettings {
         burn_backend::get_device_settings::<Dispatch>(self.as_dispatch())
     }
