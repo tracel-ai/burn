@@ -506,16 +506,51 @@ pub fn adaptive_avg_pool1d(x: Tensor<3>, output_size: usize) -> Tensor<3> {
 }
 
 /// Applies a [2D interpolation](burn_backend::ops::ModuleOps::interpolate).
-pub fn interpolate(
-    x: Tensor<4>,
-    output_size: [usize; 2],
-    options: InterpolateOptions,
-) -> Tensor<4> {
+///
+/// The output spatial size is taken from `options.output_size`, or computed as
+/// `floor(input_size * scale_factor)` from `options.scale_factor`.
+///
+/// # Panics
+///
+/// Panics unless exactly one of `output_size` or `scale_factor` is set, or if the
+/// scaled size exceeds `usize::MAX`.
+///
+/// # Example
+///
+/// ```rust,ignore
+/// // Resize to a fixed size.
+/// interpolate(x, InterpolateOptions::new(mode).with_output_size([224, 224]));
+/// // Upsample by 2x.
+/// interpolate(x, InterpolateOptions::new(mode).with_scale_factor([2.0, 2.0]));
+/// ```
+pub fn interpolate(x: Tensor<4>, options: InterpolateOptions) -> Tensor<4> {
+    let [_, _, h, w] = x.dims();
+    let output_size = interpolate_output_size([h, w], &options);
     Tensor::new(BridgeTensor::float(Dispatch::interpolate(
         x.primitive.into_float(),
         output_size,
         options,
     )))
+}
+
+fn interpolate_output_size(input_size: [usize; 2], options: &InterpolateOptions) -> [usize; 2] {
+    match (options.output_size, options.scale_factor) {
+        (Some(output_size), None) => output_size,
+        (None, Some(scale_factor)) => core::array::from_fn(|i| {
+            let size = input_size[i] as f64 * scale_factor[i] as f64;
+            assert!(
+                size <= usize::MAX as f64,
+                "Interpolate scale factor {} is too large for input size {}",
+                scale_factor[i],
+                input_size[i]
+            );
+            size as usize
+        }),
+        (Some(_), Some(_)) => {
+            panic!("Interpolate options must set only one of output_size or scale_factor")
+        }
+        (None, None) => panic!("Interpolate options must set output_size or scale_factor"),
+    }
 }
 
 /// Applies a linear transformation to the input tensor using the given weight and bias.
@@ -763,4 +798,60 @@ fn layer_norm_impl(
         beta.map(|b| b.into_float()),
         epsilon,
     ))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::ops::InterpolateMode;
+
+    fn options() -> InterpolateOptions {
+        InterpolateOptions::new(InterpolateMode::Nearest)
+    }
+
+    #[test]
+    fn interpolate_output_size_from_output_size() {
+        let size = interpolate_output_size([4, 4], &options().with_output_size([2, 3]));
+        assert_eq!(size, [2, 3]);
+    }
+
+    #[test]
+    fn interpolate_output_size_from_scale_factor_floors() {
+        let size = interpolate_output_size([4, 5], &options().with_scale_factor([2.0, 1.5]));
+        assert_eq!(size, [8, 7]);
+    }
+
+    #[test]
+    fn interpolate_options_last_sizing_builder_wins() {
+        let size = interpolate_output_size(
+            [4, 4],
+            &options()
+                .with_output_size([2, 2])
+                .with_scale_factor([2.0, 2.0]),
+        );
+        assert_eq!(size, [8, 8]);
+    }
+
+    #[test]
+    #[should_panic(expected = "must set output_size or scale_factor")]
+    fn interpolate_output_size_requires_size() {
+        interpolate_output_size([4, 4], &options());
+    }
+
+    #[test]
+    #[should_panic(expected = "only one of output_size or scale_factor")]
+    fn interpolate_output_size_rejects_both() {
+        let mut options = options().with_output_size([2, 2]);
+        options.scale_factor = Some([2.0, 2.0]);
+        interpolate_output_size([4, 4], &options);
+    }
+
+    #[test]
+    #[should_panic(expected = "too large")]
+    fn interpolate_output_size_rejects_overflow() {
+        interpolate_output_size(
+            [4, usize::MAX - 1],
+            &options().with_scale_factor([1.0, 2.0]),
+        );
+    }
 }
