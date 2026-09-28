@@ -1,13 +1,10 @@
 use crate::{
     CubeTuneId,
-    kernel::{
-        autotune_bounds,
-        interpolate::{execute_interpolate, map_options},
-    },
+    kernel::interpolate::{execute_interpolate, map_options},
     ops::permute_nchw_to_nhwc_shape,
     tensor::CubeTensor,
 };
-use burn_backend::cubecl::dtype_to_elem_type;
+use burn_backend::cubecl::{autotune::with_roofline_bounds, dtype_to_elem_type};
 use burn_backend::ops::InterpolateOptions;
 use cubecl::{
     std::throughput::roofline_bounds,
@@ -81,7 +78,7 @@ pub fn interpolate_autotune(
 fn with_bounds<Out: 'static>(
     set: TunableSet<InterpolateAutotuneKey, Inputs, Out>,
 ) -> TunableSet<InterpolateAutotuneKey, Inputs, Out> {
-    autotune_bounds::with_bounds(
+    with_roofline_bounds(
         set,
         |_key, (input, output_size, options): &Inputs, thresholds| {
             let problem = forward_problem(input, output_size, options);
