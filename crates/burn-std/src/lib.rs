@@ -34,6 +34,9 @@ pub use element::*;
 mod device_settings;
 pub use device_settings::*;
 
+mod panic_message;
+pub use panic_message::*;
+
 /// Runtime kind of the host program (async / sync / no-std).
 pub mod runtime_kind;
 pub use runtime_kind::*;
