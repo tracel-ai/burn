@@ -32,7 +32,7 @@ pub fn untile(tensor: CubeTensor) -> CubeTensor {
 
 /// Make a jit tensor contiguous.
 pub fn into_contiguous(tensor: CubeTensor) -> CubeTensor {
-    // A tiled buffer has row-major strides over its physical dims, which is not rows.
+    // A tiled buffer's strides order its tiles, not a matrix's rows: contiguous says nothing.
     let tensor = untile(tensor);
     if tensor.is_contiguous() {
         return tensor;
