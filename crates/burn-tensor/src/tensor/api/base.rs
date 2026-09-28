@@ -3297,7 +3297,8 @@ impl DataIterFmt {
                 burn_std::BoolStore::U8 => fmt_elem(self.next_elem::<u8>().to_bool()),
                 burn_std::BoolStore::U32 => fmt_elem(self.next_elem::<u32>().to_bool()),
             },
-            DType::QFloat(_) => todo!(), // unreachable but we should fix that
+            // Never panic: quantized tensors are displayed as metadata only.
+            DType::QFloat(_) => String::from("<quantized>"),
         }
     }
 
@@ -3690,29 +3691,35 @@ fn display_fmt_impl(
 ) -> core::fmt::Result {
     writeln!(f, "Tensor {{")?;
     {
-        let mut po = { PRINT_OPTS.read().clone() };
-        if let Some(precision) = f.precision() {
-            po.precision = Some(precision);
+        // Quantized tensors show metadata only (like candle): values are codes with scales,
+        // so use `dequantize()` for values or `to_data()` for the stored codes.
+        if primitive.is_qfloat() {
+            writeln!(f, "  data:  <quantized, use .dequantize() to view values>,")?;
+        } else {
+            let mut po = { PRINT_OPTS.read().clone() };
+            if let Some(precision) = f.precision() {
+                po.precision = Some(precision);
+            }
+            let shape = primitive.shape();
+            let dims: Vec<usize> = shape.iter().copied().collect();
+            let mut acc = String::new();
+            let mut multi_index = vec![0; dims.len()];
+            let num_elements: usize = dims.iter().product();
+            let summarize = num_elements > po.threshold;
+            display_fmt_recursive(
+                primitive,
+                kind,
+                &mut acc,
+                0,
+                &mut multi_index,
+                &po,
+                summarize,
+                &dims,
+            );
+            writeln!(f, "  data:")?;
+            write!(f, "{acc}")?;
+            writeln!(f, ",")?;
         }
-        let shape = primitive.shape();
-        let dims: Vec<usize> = shape.iter().copied().collect();
-        let mut acc = String::new();
-        let mut multi_index = vec![0; dims.len()];
-        let num_elements: usize = dims.iter().product();
-        let summarize = num_elements > po.threshold;
-        display_fmt_recursive(
-            primitive,
-            kind,
-            &mut acc,
-            0,
-            &mut multi_index,
-            &po,
-            summarize,
-            &dims,
-        );
-        writeln!(f, "  data:")?;
-        write!(f, "{acc}")?;
-        writeln!(f, ",")?;
     }
     writeln!(f, "  shape:  {},", primitive.shape())?;
     let device = match kind {
@@ -3724,6 +3731,9 @@ fn display_fmt_impl(
     writeln!(f, "  kind:  {:?},", kind_name)?;
     let dtype = primitive.dtype();
     writeln!(f, "  dtype:  {:?},", dtype.name())?;
+    if let DType::QFloat(scheme) = dtype {
+        writeln!(f, "  scheme:  {scheme:?},")?;
+    }
     write!(f, "}}")
 }
 
