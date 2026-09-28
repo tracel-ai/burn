@@ -272,6 +272,12 @@ macro_rules! bench_int_backend {
                     };
                     bencher.bench_synced(|| a.clone().matmul(b.clone()));
                 }
+            }
+
+            // Many rows with little work each: per-row overhead dominates.
+            #[divan::bench_group(name = "int_tall_skinny")]
+            mod tall_skinny {
+                use super::*;
 
                 #[divan::bench]
                 fn matmul_1mx8x1(bencher: Bencher) {
