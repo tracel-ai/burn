@@ -7,7 +7,7 @@ use burn_remote::{
     server::{AllowAll, IrohRemoteProtocol},
     telemetry::{TelemetryEvent, TelemetryProbe},
 };
-use burn_tensor::{Device, Tensor};
+use burn_tensor::{DType, Device, Int, Tensor, TensorData};
 use iroh::{
     Endpoint, EndpointAddr, RelayMode, address_lookup::MemoryLookup, endpoint::presets,
     protocol::Router,
@@ -229,6 +229,45 @@ fn synchronous_client_round_trip() {
     );
 
     server_runtime.block_on(router.shutdown()).unwrap();
+}
+
+#[test]
+fn unsigned_int_uploads_read_back_and_cast() {
+    within_hang_limit(|| {
+        let server_runtime = tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+        let server = server_runtime.block_on(local_endpoint());
+        let router = {
+            let _guard = server_runtime.enter();
+            spawn_router::<Flex>(server.clone(), AllowAll, TelemetryProbe::disabled())
+        };
+        let client_runtime = tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+        let client = client_runtime.block_on(local_endpoint());
+        let remote = {
+            let _guard = client_runtime.enter();
+            RemoteDevice::iroh(&client, server.addr(), 0)
+        };
+        remote.connect();
+        let device = Device::new(remote);
+
+        let pixels = TensorData::new(vec![0u8, 7, 128, 255], [2, 2]);
+        let pixels = Tensor::<2, Int>::from_data(pixels, (&device, DType::U8));
+        assert_eq!(
+            pixels.clone().try_into_vec_as::<u8>().unwrap(),
+            vec![0, 7, 128, 255]
+        );
+        assert_eq!(
+            pixels.float().try_into_vec_as::<f32>().unwrap(),
+            vec![0.0, 7.0, 128.0, 255.0]
+        );
+
+        server_runtime.block_on(router.shutdown()).unwrap();
+    });
 }
 
 #[test]
