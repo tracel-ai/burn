@@ -21,9 +21,12 @@ pub fn untile(tensor: CubeTensor) -> CubeTensor {
         "untile: a quantized tensor is never storage-tiled"
     );
     let (client, device, dtype) = (tensor.client.clone(), tensor.device.clone(), tensor.dtype);
-    let output =
-        cubek::matmul::tiled::pack::unpack(&client, tensor.binding(), dtype_to_storage_type(dtype))
-            .expect("a storage-tiled binding describes its own tiles");
+    let output = cubek::matmul::tiled::storage::untile(
+        &client,
+        tensor.binding(),
+        dtype_to_storage_type(dtype),
+    )
+    .expect("a storage-tiled binding describes its own tiles");
     CubeTensor::new(client, output.handle, *output.metadata, device, dtype)
 }
 
@@ -193,7 +196,7 @@ mod storage_tiled {
 
     fn packed(tensor: &CubeTensor, tile: (usize, usize)) -> CubeTensor {
         let client = tensor.client.clone();
-        let out = cubek::matmul::tiled::pack::pack(
+        let out = cubek::matmul::tiled::storage::tile(
             &client,
             tensor.clone().binding(),
             dtype_to_storage_type(tensor.dtype),
