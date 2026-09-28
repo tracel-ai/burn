@@ -3,7 +3,7 @@ use super::repeat_dim::repeat_with_slice_assign;
 use super::sort::{argsort, sort, sort_with_indices};
 use crate::tensor::{BoolTensor, Device, FloatTensor, IntTensor};
 use crate::{Backend, Distribution, TensorData, TensorMetadata};
-use crate::{ExecutionError, Scalar, get_device_settings};
+use crate::{ExecutionError, Scalar, get_or_init_device_settings};
 use alloc::vec::Vec;
 use burn_std::reader::try_read_sync;
 use burn_std::{BoolDType, FloatDType, IndexingUpdateOp, IntDType, PadMode, Shape, Slice};
@@ -171,7 +171,7 @@ pub trait IntTensorOps<B: Backend> {
             // Data-dependent output length, so we defer to `bool_argwhere` (the only pre-existing
             // data-dependent op) to collect the flat indices of the true mask values, then select.
             let n = mask.shape().num_elements();
-            let int_dtype = get_device_settings::<B>(&mask.device()).int_dtype;
+            let int_dtype = get_or_init_device_settings::<B>(&mask.device()).int_dtype;
             let mask = B::bool_reshape(mask, Shape::new([n]));
             let indices = B::bool_argwhere(mask, int_dtype).await; // [count, 1]
             let count = indices.shape()[0];
@@ -509,7 +509,7 @@ pub trait IntTensorOps<B: Backend> {
     /// The elements of `lhs` raised to the power of the elements of `rhs`.
     fn int_powi(lhs: IntTensor<B>, rhs: IntTensor<B>) -> IntTensor<B> {
         let dtype = lhs.dtype();
-        let float_dtype = get_device_settings::<B>(&lhs.device()).float_dtype;
+        let float_dtype = get_or_init_device_settings::<B>(&lhs.device()).float_dtype;
         B::float_into_int(
             B::float_powi(B::int_into_float(lhs, float_dtype), rhs),
             dtype.into(),
@@ -572,7 +572,7 @@ pub trait IntTensorOps<B: Backend> {
     /// The elements of `lhs` raised to the value of `rhs`.
     fn int_powi_scalar_impl(lhs: IntTensor<B>, rhs: Scalar) -> IntTensor<B> {
         let dtype = lhs.dtype();
-        let float_dtype = get_device_settings::<B>(&lhs.device()).float_dtype;
+        let float_dtype = get_or_init_device_settings::<B>(&lhs.device()).float_dtype;
         B::float_into_int(
             B::float_powi_scalar_impl(B::int_into_float(lhs, float_dtype), rhs),
             dtype.into(),
@@ -590,7 +590,7 @@ pub trait IntTensorOps<B: Backend> {
     ///
     /// The clamped tensor.
     fn int_clamp_min(tensor: IntTensor<B>, min: Scalar) -> IntTensor<B> {
-        let dtype = get_device_settings::<B>(&tensor.device()).bool_dtype;
+        let dtype = get_or_init_device_settings::<B>(&tensor.device()).bool_dtype;
         let mask = Self::int_lower_elem(tensor.clone(), min, dtype);
         Self::int_mask_fill(tensor, mask, min)
     }
@@ -606,7 +606,7 @@ pub trait IntTensorOps<B: Backend> {
     ///
     /// The clamped tensor.
     fn int_clamp_max(tensor: IntTensor<B>, max: Scalar) -> IntTensor<B> {
-        let dtype = get_device_settings::<B>(&tensor.device()).bool_dtype;
+        let dtype = get_or_init_device_settings::<B>(&tensor.device()).bool_dtype;
         let mask = Self::int_greater_elem(tensor.clone(), max, dtype);
         Self::int_mask_fill(tensor, mask, max)
     }
@@ -949,7 +949,7 @@ pub trait IntTensorOps<B: Backend> {
     /// The indices of the maximum elements along the dimension.
     fn int_argtopk(tensor: IntTensor<B>, dim: usize, k: usize) -> IntTensor<B> {
         let device = &tensor.device();
-        let dtype = get_device_settings::<B>(device).int_dtype;
+        let dtype = get_or_init_device_settings::<B>(device).int_dtype;
         let k_indices = B::int_arange(0..k as i64, device, dtype);
         Self::int_select(Self::int_argsort(tensor, dim, true), dim, k_indices)
     }
@@ -966,7 +966,7 @@ pub trait IntTensorOps<B: Backend> {
     /// The values of the maximum elements along the dimension.
     fn int_topk(tensor: IntTensor<B>, dim: usize, k: usize) -> IntTensor<B> {
         let device = &tensor.device();
-        let dtype = get_device_settings::<B>(device).int_dtype;
+        let dtype = get_or_init_device_settings::<B>(device).int_dtype;
         let k_indices = Self::int_arange(0..k as i64, device, dtype);
         Self::int_select(Self::int_sort(tensor, dim, true), dim, k_indices)
     }
@@ -994,7 +994,7 @@ pub trait IntTensorOps<B: Backend> {
         k: usize,
     ) -> (IntTensor<B>, IntTensor<B>) {
         let device = tensor.device();
-        let dtype = get_device_settings::<B>(&device).int_dtype;
+        let dtype = get_or_init_device_settings::<B>(&device).int_dtype;
         let k_indices = Self::int_arange(0..k as i64, &device, dtype);
         let (values, indices) = Self::int_sort_with_indices(tensor, dim, true);
 
@@ -1352,7 +1352,7 @@ pub trait IntTensorOps<B: Backend> {
     fn int_sign(tensor: IntTensor<B>) -> IntTensor<B> {
         let dtype = tensor.dtype();
         let device = &tensor.device();
-        let bool_dtype = get_device_settings::<B>(&tensor.device()).bool_dtype;
+        let bool_dtype = get_or_init_device_settings::<B>(&tensor.device()).bool_dtype;
         let zeros = B::int_zeros(tensor.shape(), device, dtype.into());
         let less_than_zero = B::int_lower_elem(tensor.clone(), 0.into(), bool_dtype);
         let greater_than_zero = B::int_greater_elem(tensor, 0.into(), bool_dtype);

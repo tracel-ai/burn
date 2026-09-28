@@ -12571,6 +12571,7 @@ version = "4.10.0"
 dependencies = [
  "cargo_metadata",
  "log",
+ "regex",
  "strum 0.28.0",
  "tracel-xtask",
 ]

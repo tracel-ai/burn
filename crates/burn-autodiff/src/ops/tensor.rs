@@ -20,7 +20,7 @@ use crate::{
 };
 
 use burn_backend::{
-    Backend, ExecutionError, TensorData, TensorMetadata, get_device_settings,
+    Backend, ExecutionError, TensorData, TensorMetadata, get_or_init_device_settings,
     ops::FloatTensorOps,
     tensor::{BoolTensor, Device, FloatTensor, IntTensor},
 };
@@ -56,7 +56,7 @@ fn prod_backward<B: Backend>(
     let shape = input.shape();
     let device = input.device();
     let dtype = input.dtype();
-    let bool_dtype = get_device_settings::<B>(&device).bool_dtype;
+    let bool_dtype = get_or_init_device_settings::<B>(&device).bool_dtype;
 
     let zero_mask_bool = B::float_equal_elem(input.clone(), 0.into(), bool_dtype);
     let zero_mask = B::bool_into_float(zero_mask_bool.clone(), dtype.into());
@@ -1288,7 +1288,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
                         let device = data.device();
                         let data_shape = data.shape();
                         let data_dtype = data.dtype();
-                        let settings = get_device_settings::<B>(&device);
+                        let settings = get_or_init_device_settings::<B>(&device);
                         let bool_dtype = settings.bool_dtype;
 
                         let data_at_idx = B::float_gather(dim, data.clone(), indices.clone());
@@ -1592,7 +1592,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
                         let device = data.device();
                         let data_dtype = data.dtype();
                         let data_shape = data.shape();
-                        let settings = get_device_settings::<B>(&device);
+                        let settings = get_or_init_device_settings::<B>(&device);
                         let bool_dtype = settings.bool_dtype;
 
                         // data_at_idx — needed for both winner masks
@@ -2123,7 +2123,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
                         let device = tensor.device();
                         let tensor_shape = tensor.shape();
                         let tensor_dtype = tensor.dtype();
-                        let settings = get_device_settings::<B>(&device);
+                        let settings = get_or_init_device_settings::<B>(&device);
                         let bool_dtype = settings.bool_dtype;
 
                         let data_at_idx = B::float_select(tensor, dim, indices.clone());
@@ -2857,7 +2857,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
 
                     let ndims = input.shape().num_dims();
                     let dtype = grad.dtype();
-                    let bool_dtype = get_device_settings::<B>(&grad.device()).bool_dtype;
+                    let bool_dtype = get_or_init_device_settings::<B>(&grad.device()).bool_dtype;
 
                     let reverse = |tensor: FloatTensor<B>| {
                         let mut slices = vec![Slice::full(); ndims];
@@ -2946,7 +2946,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
 
                     let shape = input.shape();
                     let device = input.device();
-                    let settings = get_device_settings::<B>(&device);
+                    let settings = get_or_init_device_settings::<B>(&device);
                     let dim_size = shape[dim] as i64;
 
                     // Create indices [0, 1, 2, ...] along the dimension
@@ -3013,7 +3013,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
 
                     let shape = input.shape();
                     let device = input.device();
-                    let settings = get_device_settings::<B>(&device);
+                    let settings = get_or_init_device_settings::<B>(&device);
                     let dim_size = shape[dim] as i64;
 
                     // Create indices [0, 1, 2, ...] along the dimension
@@ -3079,7 +3079,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         {
             OpsKind::Tracked(prep) => {
                 let shape = tensor.primitive.shape();
-                let settings = get_device_settings::<B>(&tensor.primitive.device());
+                let settings = get_or_init_device_settings::<B>(&tensor.primitive.device());
                 let (tensor, indices) =
                     B::float_topk_with_indices(tensor.primitive, dim, k, settings.int_dtype);
                 prep.finish((indices, shape, dim), tensor)
@@ -4232,7 +4232,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         {
             OpsKind::Tracked(prep) => {
                 let shape = tensor.primitive.shape();
-                let settings = get_device_settings::<B>(&tensor.primitive.device());
+                let settings = get_or_init_device_settings::<B>(&tensor.primitive.device());
                 let (tensor, index) =
                     B::float_max_dim_with_indices(tensor.primitive, dim, settings.int_dtype);
                 prep.finish((index, shape, dim), tensor)
@@ -4276,7 +4276,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         {
             OpsKind::Tracked(prep) => {
                 let shape = tensor.primitive.shape();
-                let settings = get_device_settings::<B>(&tensor.primitive.device());
+                let settings = get_or_init_device_settings::<B>(&tensor.primitive.device());
                 let (tensor, index) =
                     B::float_min_dim_with_indices(tensor.primitive, dim, settings.int_dtype);
                 prep.finish((index, shape, dim), tensor)
@@ -4558,7 +4558,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         {
             OpsKind::Tracked(prep) => {
                 let shape = tensor.primitive.shape();
-                let settings = get_device_settings::<B>(&tensor.primitive.device());
+                let settings = get_or_init_device_settings::<B>(&tensor.primitive.device());
                 let (tensor, indices) = B::float_sort_with_indices(
                     tensor.primitive,
                     dim,
