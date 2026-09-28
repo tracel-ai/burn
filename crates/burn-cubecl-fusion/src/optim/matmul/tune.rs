@@ -1,4 +1,4 @@
-use super::optimization::MatmulOptimizationTuneArg;
+use super::{bounds::with_fused_matmul_bounds, optimization::MatmulOptimizationTuneArg};
 use crate::{
     CubeFusionHandle,
     engine::trace::TuneOutput,
@@ -155,7 +155,7 @@ pub fn fused_matmul_autotune(
         }
 
         // First entry should always work, since it is considered the fallback.
-        let mut set = TunableSet::new(create_key, FusionInputGen).with(
+        let mut set = with_fused_matmul_bounds(TunableSet::new(create_key, FusionInputGen)).with(
             Tunable::new("fused_matmul_fallback", tune_fallback).group(&unit, |key| {
                 if matches!(key.matmul_key.analysis.kind, MatmulKind::InnerProduct) {
                     PRIORITY_MAX

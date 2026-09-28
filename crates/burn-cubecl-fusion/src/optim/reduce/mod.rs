@@ -1,3 +1,4 @@
+mod bounds;
 mod fuser;
 mod optimization;
 
