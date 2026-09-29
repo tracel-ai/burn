@@ -9,6 +9,7 @@ mod fusion_shape;
 #[cfg(feature = "cube")]
 mod inplace;
 mod int_bitwise;
+mod matmul;
 // Asserts the matmul and its epilogue fuse, which only the cube fusion backend does.
 #[cfg(feature = "cube")]
 mod matmul_epilogue_view;
