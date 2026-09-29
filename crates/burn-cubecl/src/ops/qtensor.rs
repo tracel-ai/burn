@@ -1,6 +1,6 @@
 use burn_backend::{
     Bytes, DType, ExecutionError, Shape, SplitPolicy, TensorData, TensorMetadata, TensorPrimitive,
-    get_device_settings,
+    get_or_init_device_settings,
     ops::QTensorOps,
     quantization::{
         QParamTensor, QuantMode, QuantPropagation, QuantScheme, QuantValue,
@@ -321,12 +321,14 @@ impl QTensorOps<Self> for CubeBackend {
 
     fn q_matmul(lhs: TensorPrimitive<Self>, rhs: TensorPrimitive<Self>) -> TensorPrimitive<Self> {
         let (settings, scheme) = match (&lhs, &rhs) {
-            (TensorPrimitive::QFloat(lhs), _) => {
-                (get_device_settings::<Self>(&lhs.device), lhs.scheme())
-            }
-            (_, TensorPrimitive::QFloat(rhs)) => {
-                (get_device_settings::<Self>(&rhs.device), rhs.scheme())
-            }
+            (TensorPrimitive::QFloat(lhs), _) => (
+                get_or_init_device_settings::<Self>(&lhs.device),
+                lhs.scheme(),
+            ),
+            (_, TensorPrimitive::QFloat(rhs)) => (
+                get_or_init_device_settings::<Self>(&rhs.device),
+                rhs.scheme(),
+            ),
             _ => unreachable!(),
         };
 

@@ -1,4 +1,4 @@
-use crate::{Backend, BackendTypes, DeviceOps, get_device_settings};
+use crate::{Backend, BackendTypes, DeviceOps, get_or_init_device_settings};
 use burn_std::{DType, QuantScheme, Shape};
 
 #[derive(Debug, Clone)]
@@ -15,7 +15,7 @@ impl<B: Backend> TensorPrimitive<B> {
     pub fn tensor(self) -> B::FloatTensorPrimitive {
         match self {
             Self::QFloat(tensor) => {
-                let dtype = get_device_settings::<B>(&tensor.device()).float_dtype;
+                let dtype = get_or_init_device_settings::<B>(&tensor.device()).float_dtype;
                 B::dequantize(tensor, dtype)
             }
             Self::Float(tensor) => tensor,

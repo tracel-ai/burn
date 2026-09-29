@@ -16,7 +16,9 @@ use crate::{
 };
 use burn_backend::tensor::{BoolTensor, Device, FloatTensor, IntTensor};
 use burn_backend::{DType, IntDType, Slice, ops::IntTensorOps};
-use burn_backend::{Distribution, ElementConversion, Shape, TensorData, get_device_settings};
+use burn_backend::{
+    Distribution, ElementConversion, Shape, TensorData, get_or_init_device_settings,
+};
 use burn_backend::{ExecutionError, Scalar};
 use burn_std::{BoolDType, FloatDType};
 use cubecl::frontend::Numeric;
@@ -686,7 +688,7 @@ impl IntTensorOps<Self> for CubeBackend {
     }
 
     fn int_flip(tensor: IntTensor<Self>, axes: &[usize]) -> IntTensor<Self> {
-        let bool_dtype = get_device_settings::<Self>(&tensor.device).bool_dtype;
+        let bool_dtype = get_or_init_device_settings::<Self>(&tensor.device).bool_dtype;
         kernel::flip(tensor, axes, bool_dtype.into())
     }
 

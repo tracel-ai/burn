@@ -152,7 +152,7 @@ half = { version = "2.7.1", features = [
     "num-traits",
     "serde",
 ], default-features = false }
-macerator = { version = "0.3.4" }
+macerator = { version = "0.5.0" }
 matrixmultiply = { version = "0.3.10", default-features = false }
 ndarray = { version = "0.17.2", default-features = false }
 num-traits = { version = "0.2.19", default-features = false, features = [
@@ -227,11 +227,11 @@ burn-wgpu = { path = "crates/burn-wgpu", version = "=0.22.0-pre.4", default-feat
 pytorch-reader = { path = "crates/pytorch-reader", version = "=0.22.0-pre.4" }
 
 ### For the main burn branch. ###
-cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "a1bb768ce919260eea56dbd0b59c70e55236e22d" }
-cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "a1bb768ce919260eea56dbd0b59c70e55236e22d" }
-cubecl-environment = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "a1bb768ce919260eea56dbd0b59c70e55236e22d" }
-cubecl-zspace = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "a1bb768ce919260eea56dbd0b59c70e55236e22d" }
-cubek = { git = "https://github.com/tracel-ai/cubek", default-features = false, rev = "7d60e30a9a467c141b9d47000743abd87ea204c3" }
+cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "f0cf8383f20cf3e6768a6bdf276b9bb346ec9c87" }
+cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "f0cf8383f20cf3e6768a6bdf276b9bb346ec9c87" }
+cubecl-environment = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "f0cf8383f20cf3e6768a6bdf276b9bb346ec9c87" }
+cubecl-zspace = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "f0cf8383f20cf3e6768a6bdf276b9bb346ec9c87" }
+cubek = { git = "https://github.com/tracel-ai/cubek", default-features = false, rev = "9f35e2ab0f9ae3eb1f12919ad49280f48107cdb6" }
 ### For local development. ###
 # cubecl = { path = "../cubecl/crates/cubecl", default-features = false }
 # cubecl-common = { path = "../cubecl/crates/cubecl-common", default-features = false }

@@ -438,7 +438,7 @@ pub fn max_pool1d_with_indices(
     dilation: usize,
     ceil_mode: bool,
 ) -> (Tensor<3>, Tensor<3, Int>) {
-    let indices_dtype = x.device().settings().int_dtype;
+    let indices_dtype = x.device().get_or_init_settings().int_dtype;
     let output = Dispatch::max_pool1d_with_indices(
         x.primitive.into_float(),
         kernel_size,
@@ -464,7 +464,7 @@ pub fn max_pool2d_with_indices(
     dilation: [usize; 2],
     ceil_mode: bool,
 ) -> (Tensor<4>, Tensor<4, Int>) {
-    let indices_dtype = x.device().settings().int_dtype;
+    let indices_dtype = x.device().get_or_init_settings().int_dtype;
     let output = Dispatch::max_pool2d_with_indices(
         x.primitive.into_float(),
         kernel_size,

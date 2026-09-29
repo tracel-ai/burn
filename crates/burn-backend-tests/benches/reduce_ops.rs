@@ -99,6 +99,13 @@ macro_rules! bench_backend {
                     let t = make_tensor_2d(1024, 1024);
                     bencher.bench_synced(|| t.clone().sum_dim(1));
                 }
+
+                // Short rows: per-row overhead dominates.
+                #[divan::bench]
+                fn s_1mx16_dim1(bencher: Bencher) {
+                    let t = make_tensor_2d(1024 * 1024, 16);
+                    bencher.bench_synced(|| t.clone().sum_dim(1));
+                }
             }
 
             // Mean along dimension
