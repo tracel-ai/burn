@@ -265,6 +265,14 @@ impl ReduceOptimization {
             fallback: Arc::new(fallback),
         };
 
+        // Same as `ReduceBroadcastedOptimization::execute`: an empty input leaves the fused
+        // kernels either an axis they reject or nothing to launch over.
+        let input = context.tensors.get(&self.info.reduce.op.input.id).unwrap();
+        if input.shape.num_elements() == 0 {
+            arg.execute_fallback(context);
+            return;
+        }
+
         #[cfg(feature = "autotune")]
         fused_reduce_autotune(arg, context);
 
