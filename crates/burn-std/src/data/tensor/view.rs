@@ -15,7 +15,7 @@ impl TensorData {
     /// use burn_std::*;
     ///
     /// let data = TensorData::from([[1.0, 2.0], [3.0, 4.0]]);
-    /// let shape = data.shape.clone();
+    /// let shape = data.shape().clone();
     /// let view: TensorDataView<f64> = data.try_view().unwrap();
     ///
     /// assert_eq!(view[&[0, 0]], 1.0);
@@ -39,7 +39,7 @@ impl TensorData {
     /// use burn_std::*;
     ///
     /// let data = TensorData::from([[1.0, 2.0], [3.0, 4.0]]);
-    /// let shape = data.shape.clone();
+    /// let shape = data.shape().clone();
     /// let view: TensorDataView<f64> = data.view();
     ///
     /// assert_eq!(view[&[0, 0]], 1.0);
@@ -68,7 +68,7 @@ impl TensorData {
     /// use burn_std::*;
     ///
     /// let mut data = TensorData::from([[1.0, 2.0], [3.0, 4.0]]);
-    /// let shape = data.shape.clone();
+    /// let shape = data.shape().clone();
     /// let mut view: TensorDataViewMut<f64> = data.try_mut_view().unwrap();
     ///
     /// assert_eq!(view[&[0, 0]], 1.0);
@@ -95,7 +95,7 @@ impl TensorData {
     /// use burn_std::*;
     ///
     /// let mut data = TensorData::from([[1.0, 2.0], [3.0, 4.0]]);
-    /// let shape = data.shape.clone();
+    /// let shape = data.shape().clone();
     /// let mut view: TensorDataViewMut<f64> = data.mut_view();
     ///
     /// assert_eq!(view[&[0, 0]], 1.0);
@@ -133,8 +133,8 @@ impl TensorData {
 /// let data = TensorData::from([[1.0, 2.0], [3.0, 4.0]]);
 /// let view: TensorDataView<f64> = data.view();
 ///
-/// assert_eq!(view.shape(), &data.shape);
-/// assert_eq!(&view.dtype(), &data.dtype);
+/// assert_eq!(view.shape(), data.shape());
+/// assert_eq!(view.dtype(), data.dtype());
 ///
 /// assert_eq!(view[&[0, 0]], 1.0);
 /// assert_eq!(view[&[0, 1]], 2.0);
@@ -158,8 +158,8 @@ impl<'a, E: Element> TensorDataView<'a, E> {
     /// let data = TensorData::from([[1.0, 2.0], [3.0, 4.0]]);
     /// let view: TensorDataView<f64> = data.try_view().unwrap();
     ///
-    /// assert_eq!(view.shape(), &data.shape);
-    /// assert_eq!(&view.dtype(), &data.dtype);
+    /// assert_eq!(view.shape(), data.shape());
+    /// assert_eq!(view.dtype(), data.dtype());
     ///
     /// assert_eq!(view[&[0, 0]], 1.0);
     /// assert_eq!(view[&[0, 1]], 2.0);
@@ -224,8 +224,8 @@ impl<'a, I: AsIndex, E: Element> Index<&[I]> for TensorDataView<'a, E> {
 /// use burn_std::*;
 ///
 /// let mut data = TensorData::from([[1.0, 2.0], [3.0, 4.0]]);
-/// let shape = data.shape.clone();
-/// let dtype = data.dtype;
+/// let shape = data.shape().clone();
+/// let dtype = data.dtype();
 /// let mut view: TensorDataViewMut<f64> = data.mut_view();
 ///
 /// assert_eq!(view.shape(), &shape);
@@ -256,8 +256,8 @@ impl<'a, E: Element> TensorDataViewMut<'a, E> {
     /// use burn_std::*;
     ///
     /// let mut data = TensorData::from([[1.0, 2.0], [3.0, 4.0]]);
-    /// let shape = data.shape.clone();
-    /// let dtype = data.dtype;
+    /// let shape = data.shape().clone();
+    /// let dtype = data.dtype();
     ///
     /// let mut view: TensorDataViewMut<f64> =
     ///     TensorDataViewMut::try_mut_view(&mut data).unwrap();

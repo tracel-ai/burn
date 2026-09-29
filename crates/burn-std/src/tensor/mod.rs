@@ -12,8 +12,6 @@ pub mod quantization;
 pub mod shape;
 /// Tensor slicing utilities.
 pub mod slice;
-/// Storage tiling: a buffer's dims as the fragments of a lower-rank tensor.
-pub mod tiled;
 
 pub use dtype::*;
 pub use layout::*;
@@ -21,10 +19,9 @@ pub use matmul::*;
 pub use quantization::*;
 pub use shape::*;
 pub use slice::*;
-pub use tiled::*;
 
 pub use cubecl_zspace::indexing::{self, *};
-pub use cubecl_zspace::{Strides, Tiling, metadata::Metadata, strides};
+pub use cubecl_zspace::{Strides, metadata::Metadata, strides};
 
 /// Check if the current tensor is contiguous.
 ///

@@ -11,8 +11,8 @@ use burn_backend::cubecl::dtype_to_storage_type;
 use burn_backend::ops::GridSampleOptions;
 use burn_backend::tensor::{BoolTensor, Device, FloatTensor, IntTensor};
 use burn_backend::{DType, ElementConversion, FloatDType, Slice};
-use burn_backend::{Distribution, Shape, TensorData, Tiling, ops::FloatTensorOps};
-use burn_backend::{ExecutionError, Scalar, get_device_settings};
+use burn_backend::{Distribution, Shape, TensorData, ops::FloatTensorOps};
+use burn_backend::{ExecutionError, Scalar, get_or_init_device_settings};
 use burn_std::{BoolDType, IntDType};
 use cubecl::prelude::*;
 use cubek::reduce::components::instructions::ReduceOperationConfig;
@@ -22,10 +22,10 @@ impl FloatTensorOps<Self> for CubeBackend {
     #[cfg_attr(feature = "tracing", tracing::instrument(
         level="trace",
         skip(data),
-        fields(?data.shape, ?data.dtype)
+        fields(shape = ?data.shape(), dtype = ?data.dtype())
     ))]
     fn float_from_data(data: TensorData, device: &Device<Self>) -> FloatTensor<Self> {
-        match data.dtype {
+        match data.dtype() {
             DType::F64 | DType::F32 | DType::F16 | DType::BF16 => super::from_data(data, device),
             _ => unimplemented!("Unsupported dtype for `float_from_data`"),
         }
@@ -164,28 +164,6 @@ impl FloatTensorOps<Self> for CubeBackend {
 
     fn float_reshape(tensor: FloatTensor<Self>, shape: Shape) -> FloatTensor<Self> {
         super::reshape(tensor, shape)
-    }
-
-    /// The fragments laid down row-major over their own dims, copied only where the strides do
-    /// not already (a `swap_dims` view), and the tiling stated on the metadata. The kernels that
-    /// read storage tiles map each logical coordinate onto them; everything else lays the tensor
-    /// back into rows first ([`untile`](crate::kernel::untile)).
-    fn float_into_tiled(tensor: FloatTensor<Self>, tiling: Tiling) -> FloatTensor<Self> {
-        assert!(
-            !tensor.meta.is_tiled(),
-            "into_tiled: the tensor is already storage-tiled ({:?})",
-            tensor.meta.tiling
-        );
-        let mut tensor = kernel::into_contiguous(tensor);
-        tensor.meta = Box::new(
-            tensor
-                .meta
-                .as_ref()
-                .clone()
-                .with_tiling(tiling)
-                .unwrap_or_else(|err| panic!("into_tiled: {err:?}")),
-        );
-        tensor
     }
 
     fn float_gather(
@@ -855,7 +833,7 @@ impl FloatTensorOps<Self> for CubeBackend {
     }
 
     fn float_flip(tensor: FloatTensor<Self>, axes: &[usize]) -> FloatTensor<Self> {
-        let bool_dtype = get_device_settings::<Self>(&tensor.device).bool_dtype;
+        let bool_dtype = get_or_init_device_settings::<Self>(&tensor.device).bool_dtype;
         kernel::flip(tensor, axes, bool_dtype.into())
     }
 

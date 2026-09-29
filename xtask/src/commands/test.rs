@@ -1,15 +1,9 @@
 use tracel_xtask::{
     prelude::{clap::ValueEnum, *},
-    utils::{
-        process::{ExitSignal, ProcessExitError, run_process},
-        workspace::WorkspaceMember,
-    },
+    utils::process::run_process,
 };
 
 use crate::NO_STD_CRATES;
-
-#[cfg(unix)]
-use std::os::unix::process::ExitStatusExt;
 
 #[macros::extend_command_args(TestCmdArgs, Target, TestSubCommand)]
 pub struct BurnTestCmdArgs {
@@ -100,11 +94,13 @@ pub(crate) fn handle_backend_tests(
         }
     }
 
-    if matches!(backend, TestBackend::Cuda) {
-        // Collective (all-reduce) tests require a CUDA build with NCCL, which the CI runner
-        // provides. Kept behind its own feature so plain `--features cuda` still works without it.
-        test_args.extend(["--features", "distributed"]);
-    }
+    // TODO: Re-enable collective (all-reduce) tests once NCCL is installed and loadable on
+    // the CUDA CI runners. The documented runner image setup does not install NCCL.
+    // if matches!(backend, TestBackend::Cuda) {
+    //     // Collective (all-reduce) tests require a CUDA build with NCCL, which the CI runner
+    //     // provides. Kept behind its own feature so plain `--features cuda` still works without it.
+    //     test_args.extend(["--features", "distributed"]);
+    // }
 
     if !matches!(backend, TestBackend::Ndarray | TestBackend::Flex) {
         // Fusion enabled tests first
@@ -190,37 +186,18 @@ pub(crate) fn handle_backend_tests(
     Ok(())
 }
 
-fn handle_wgpu_test(member: &str, args: &TestCmdArgs) -> anyhow::Result<()> {
-    #[cfg(unix)]
-    let filter_err = |e: &&ProcessExitError| {
-        e.status.signal() == Some(11) || matches!(e.signal, Some(ExitSignal { code: 11, .. }))
-    };
-    #[cfg(not(unix))]
-    let filter_err = |e: &&ProcessExitError| matches!(e.signal, Some(ExitSignal { code: 11, .. }));
-
-    let workspace_member = WorkspaceMember {
-        name: member.into(),
-        path: "".into(), // unused
-    };
-
-    if let Err(err) = base_commands::test::run_unit_test(&workspace_member, args) {
-        let should_ignore = err
-            .downcast_ref::<ProcessExitError>()
-            .filter(filter_err)
-            // Failed to execute unit test for '{member}'
-            .map(|e| e.message.contains(member))
-            .unwrap_or(false);
-
-        if should_ignore {
-            // Ignore intermittent successful failures
-            // https://github.com/gfx-rs/wgpu/issues/2949
-            // https://github.com/KhronosGroup/Vulkan-ValidationLayers/issues/4391
-            eprintln!("⚠️ Ignored SIGSEGV in wgpu test");
-        } else {
-            return Err(err);
-        }
+fn run_crate_unit_tests(packages: &[&str], args: &TestCmdArgs) -> anyhow::Result<()> {
+    let mut selected = args.clone();
+    selected.only = packages
+        .iter()
+        .filter(|package| args.only.is_empty() || args.only.iter().any(|only| only == *package))
+        .map(|package| (*package).to_owned())
+        .collect();
+    // An empty selection means all crates to xtask, so skip an empty intersection.
+    if selected.only.is_empty() {
+        return Ok(());
     }
-    Ok(())
+    base_commands::test::run_unit(&Target::Crates, &selected)
 }
 
 /// Compile compatible Metal suites together instead of rebuilding their shared GPU stack
@@ -386,6 +363,23 @@ pub(crate) fn handle_command(
     env: Environment,
     context: Context,
 ) -> anyhow::Result<()> {
+    if cfg!(target_os = "linux")
+        && matches!(
+            args.ci,
+            CiTestType::GcpWgpuRunner | CiTestType::GcpVulkanRunner
+        )
+    {
+        // These GCP runners use x86_64 Linux. Handle shutdown crashes per test binary so
+        // Cargo still runs the remaining integration tests and preserves real failures.
+        // TODO: Investigate GPU shutdown and remove this workaround once it is fixed.
+        let mut runner = std::env::current_exe()?.into_os_string();
+        runner.push(" wgpu-test-runner");
+        // SAFETY: xtask configures the environment before spawning test processes.
+        unsafe {
+            std::env::set_var("CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUNNER", runner);
+        }
+    }
+
     match context {
         Context::NoStd => {
             // burn-flex's unit tests use `std::f32::consts` and bare `vec!`
@@ -509,7 +503,6 @@ pub(crate) fn handle_command(
                         context,
                     )?;
 
-                    args.target = Target::AllPackages;
                     let mut args_vulkan = args.clone();
                     args_vulkan
                         .features
@@ -517,17 +510,14 @@ pub(crate) fn handle_command(
                         .push("vulkan".to_string());
 
                     let args_vulkan = args_vulkan.try_into().unwrap();
-                    handle_wgpu_test("burn-wgpu", &args_vulkan)?;
-                    handle_wgpu_test("burn-core", &args_vulkan)?;
-                    handle_wgpu_test("burn-vision", &args_vulkan)?;
+                    run_crate_unit_tests(&["burn-wgpu", "burn-core", "burn-vision"], &args_vulkan)?;
 
                     // Enable burn-core/vulkan
                     args.features
                         .get_or_insert_with(Vec::new)
                         .push("burn-core/vulkan".to_string());
                     let args_vulkan = args.clone().try_into().unwrap();
-                    handle_wgpu_test("burn-optim", &args_vulkan)?;
-                    handle_wgpu_test("burn-nn", &args_vulkan)?;
+                    run_crate_unit_tests(&["burn-optim", "burn-nn"], &args_vulkan)?;
                 }
                 CiTestType::GcpWgpuRunner => {
                     handle_backend_tests(
@@ -535,8 +525,10 @@ pub(crate) fn handle_command(
                         TestBackend::Wgpu,
                         context,
                     )?;
-                    args.target = Target::AllPackages;
-                    handle_wgpu_test("burn-cubecl-fusion", &args.clone().try_into().unwrap())?;
+                    run_crate_unit_tests(
+                        &["burn-cubecl-fusion"],
+                        &args.clone().try_into().unwrap(),
+                    )?;
 
                     let mut args_wgpu = args.clone();
                     args_wgpu
@@ -545,17 +537,14 @@ pub(crate) fn handle_command(
                         .push("webgpu".to_string());
 
                     let args_wgpu = args_wgpu.try_into().unwrap();
-                    handle_wgpu_test("burn-wgpu", &args_wgpu)?;
-                    handle_wgpu_test("burn-core", &args_wgpu)?;
-                    handle_wgpu_test("burn-vision", &args_wgpu)?;
+                    run_crate_unit_tests(&["burn-wgpu", "burn-core", "burn-vision"], &args_wgpu)?;
 
                     // Enable burn-core/webgpu
                     args.features
                         .get_or_insert_with(Vec::new)
                         .push("burn-core/webgpu".to_string());
                     let args_wgpu = args.clone().try_into().unwrap();
-                    handle_wgpu_test("burn-optim", &args_wgpu)?;
-                    handle_wgpu_test("burn-nn", &args_wgpu)?;
+                    run_crate_unit_tests(&["burn-optim", "burn-nn"], &args_wgpu)?;
                 }
             }
 

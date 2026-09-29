@@ -190,13 +190,8 @@ impl ModuleRecord {
         self.tensors
             .into_iter()
             .map(|t| {
-                burn_pack::Tensor::new(
-                    t.path,
-                    t.data.dtype,
-                    t.data.shape,
-                    Some(t.id.val()),
-                    t.data.bytes,
-                )
+                let (bytes, shape, dtype) = t.data.into_parts();
+                burn_pack::Tensor::new(t.path, dtype, shape, Some(t.id.val()), bytes)
             })
             .collect()
     }
@@ -379,14 +374,15 @@ impl ModuleRecordMapper {
 
         // Resolve the dtype to load with (CastToModule casts to the module's dtype).
         let dtype = match self.dtype_policy {
-            DTypePolicy::FromRecord => data.dtype,
+            DTypePolicy::FromRecord => data.dtype(),
             DTypePolicy::CastToModule => module_dtype(),
         };
 
-        if data.shape != target_shape {
+        if *data.shape() != target_shape {
             self.errors.push(format!(
                 "{path}: shape mismatch, expected {:?} but record has {:?}",
-                target_shape, data.shape
+                target_shape,
+                data.shape()
             ));
             return None;
         }
@@ -753,7 +749,7 @@ mod tests {
         assert_eq!(saved.weight.val().dims(), [2, 3]);
         let record = saved.into_record();
         assert_eq!(
-            record.tensors[0].data.shape,
+            *record.tensors[0].data.shape(),
             Shape::from([3, 2]),
             "the record must hold the save form, not the live form"
         );

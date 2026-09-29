@@ -18,19 +18,19 @@ pub(crate) fn from_data(data: TensorData, device: &CubeDevice) -> CubeTensor {
     // `TensorData` may contain lazily materialized device-backed bytes produced
     // by `into_data()`. These unnecessary round-trips should be avoided, but
     // materializing before re-uploading avoids recursive runtime submission.
-    if data.bytes.property() == burn_std::AllocationProperty::Device {
-        let _ = data.bytes.read(burn_std::Reader::new());
+    if data.bytes().property() == burn_std::AllocationProperty::Device {
+        let _ = data.bytes().read(burn_std::Reader::new());
     }
 
+    let (bytes, shape, dtype) = data.into_parts();
     let client = device.client();
-    let alloc = client.create_tensor(data.bytes, data.shape.clone(), data.dtype.size());
-    let shape: Shape = (&data.shape).into();
+    let alloc = client.create_tensor(bytes, shape.clone(), dtype.size());
     CubeTensor::new(
         client,
         alloc.memory,
         Metadata::new(shape, alloc.strides),
         device.clone(),
-        data.dtype,
+        dtype,
     )
 }
 
@@ -414,7 +414,13 @@ pub fn q_reshape(tensor: CubeTensor, shape: Shape) -> CubeTensor {
             if scales.meta.shape().num_elements() > 1 {
                 unimplemented!("Reshape would split a block across multiple rows.");
             }
-            // Exception: allow if there is exactly 1 block total (essentially per-tensor quantization)
+            // A lone block is still fine as a single row (e.g. an unsqueeze), but spread over
+            // several rows the per-row block index points past the one scale.
+            if shape.num_elements() > shape_last {
+                unimplemented!(
+                    "Cannot reshape block-quantized tensor to {shape:?}: not a whole number of {block_size:?} blocks"
+                );
+            }
             scales.meta.shape().clone()
         }
         Some(_) => {
