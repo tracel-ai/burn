@@ -30,6 +30,9 @@ pub(crate) fn parse_ws_address(address: Address) -> Result<Address, String> {
     }
 }
 
+/// Read limit at both ends; a message goes out as one frame, so frames get the same limit.
+pub(crate) const MAX_MESSAGE_SIZE: usize = 1024 * 1024 * 1024;
+
 /// Probe an idle connection after 10 s, then every 5 s, and drop it after 4 unanswered probes: a
 /// vanished peer is noticed in 30 s, like iroh's idle timeout.
 #[cfg(any(

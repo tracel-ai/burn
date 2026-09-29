@@ -1,6 +1,7 @@
 use super::*;
+use burn_tensor::Distribution;
 use burn_tensor::Tolerance;
-use burn_tensor::module::max_pool2d;
+use burn_tensor::module::{max_pool2d, max_pool2d_with_indices};
 
 #[test]
 fn test_max_pool2d_simple_1() {
@@ -268,4 +269,100 @@ fn test_max_pool2d_ceil_mode() {
     x_grad_expected
         .to_data()
         .assert_approx_eq::<FloatElem>(&x_grad_actual.to_data(), Tolerance::default());
+}
+
+#[test]
+fn test_max_pool2d_with_indices_grads_overlapping_padded() {
+    let test = MaxPool2dWithIndicesTestCase {
+        height: 9,
+        width: 7,
+        kernel_size: 3,
+        stride: 1,
+        padding: 1,
+        dilation: 1,
+        ceil_mode: false,
+    };
+    test.assert_grads_match_max_pool2d();
+}
+
+#[test]
+fn test_max_pool2d_with_indices_grads_ceil_mode() {
+    // (8 - 3) / 2 + 1 and (6 - 3) / 2 + 1: floor gives 3x2 windows, ceil gives 4x3.
+    let test = MaxPool2dWithIndicesTestCase {
+        height: 8,
+        width: 6,
+        kernel_size: 3,
+        stride: 2,
+        padding: 0,
+        dilation: 1,
+        ceil_mode: true,
+    };
+    test.assert_grads_match_max_pool2d();
+}
+
+#[test]
+fn test_max_pool2d_with_indices_grads_dilated() {
+    let test = MaxPool2dWithIndicesTestCase {
+        height: 9,
+        width: 7,
+        kernel_size: 2,
+        stride: 2,
+        padding: 1,
+        dilation: 2,
+        ceil_mode: false,
+    };
+    test.assert_grads_match_max_pool2d();
+}
+
+/// `max_pool2d_with_indices` registers its own backward and must route gradients like
+/// `max_pool2d`.
+struct MaxPool2dWithIndicesTestCase {
+    height: usize,
+    width: usize,
+    kernel_size: usize,
+    stride: usize,
+    padding: usize,
+    dilation: usize,
+    ceil_mode: bool,
+}
+
+impl MaxPool2dWithIndicesTestCase {
+    fn assert_grads_match_max_pool2d(self) {
+        let device = AutodiffDevice::new();
+        let shape = [2, 3, self.height, self.width];
+        let data = TestTensor::<4>::random(shape, Distribution::Default, &device).into_data();
+        let [kernel_size, stride, padding, dilation] =
+            [self.kernel_size, self.stride, self.padding, self.dilation].map(|v| [v, v]);
+
+        let grad = |with_indices: bool| {
+            let x = TestTensor::<4>::from_data(data.clone(), &device).require_grad();
+            let output = if with_indices {
+                max_pool2d_with_indices(
+                    x.clone(),
+                    kernel_size,
+                    stride,
+                    padding,
+                    dilation,
+                    self.ceil_mode,
+                )
+                .0
+            } else {
+                max_pool2d(
+                    x.clone(),
+                    kernel_size,
+                    stride,
+                    padding,
+                    dilation,
+                    self.ceil_mode,
+                )
+            };
+            let weights =
+                TestTensorInt::<1>::arange(1..output.shape().num_elements() as i64 + 1, &device)
+                    .float()
+                    .reshape::<4, _>(output.shape());
+            let grads = (output * weights).sum().backward();
+            x.grad(&grads).unwrap().into_data()
+        };
+        grad(true).assert_eq(&grad(false), false);
+    }
 }
