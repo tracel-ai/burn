@@ -3754,6 +3754,7 @@ mod tests {
     use burn_std::SliceOps;
 
     use crate::Slice;
+    use crate::quantization::QuantScheme;
 
     use crate::s;
 
@@ -3902,5 +3903,24 @@ mod tests {
         let slices = shape.into_slices(slice);
         assert_eq!(slices[0].to_range(3), 1..2);
         assert_eq!(slices[1].to_range(4), 0..4);
+    }
+
+    #[test]
+    fn data_iter_fmt_formats_quantized_as_placeholder() {
+        let data = TensorData::quantized(
+            vec![-127i8, 0, 64, 127],
+            [4],
+            QuantScheme::default(),
+            &[0.1],
+            None,
+        );
+        assert_eq!(
+            DataIterFmt {
+                data,
+                precision: None
+            }
+            .next(),
+            "<quantized>"
+        );
     }
 }
