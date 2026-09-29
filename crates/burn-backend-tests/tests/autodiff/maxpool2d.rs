@@ -271,20 +271,71 @@ fn test_max_pool2d_ceil_mode() {
         .assert_approx_eq::<FloatElem>(&x_grad_actual.to_data(), Tolerance::default());
 }
 
-/// `max_pool2d_with_indices` registers its own backward and must route gradients like
-/// `max_pool2d`, across overlapping windows, padding, dilation and ceil mode.
 #[test]
-fn test_max_pool2d_with_indices_grads_match_max_pool2d() {
-    let device = AutodiffDevice::new();
-    let data = TestTensor::<4>::random([2, 3, 9, 7], Distribution::Default, &device).into_data();
+fn test_max_pool2d_with_indices_grads_overlapping_padded() {
+    let test = MaxPool2dWithIndicesTestCase {
+        height: 9,
+        width: 7,
+        kernel_size: 3,
+        stride: 1,
+        padding: 1,
+        dilation: 1,
+        ceil_mode: false,
+    };
+    test.assert_grads_match_max_pool2d();
+}
 
-    for (kernel_size, stride, padding, dilation, ceil_mode) in
-        [(3, 1, 1, 1, false), (3, 2, 0, 1, true), (2, 2, 1, 2, false)]
-    {
+#[test]
+fn test_max_pool2d_with_indices_grads_ceil_mode() {
+    // (8 - 3) / 2 + 1 and (6 - 3) / 2 + 1: floor gives 3x2 windows, ceil gives 4x3.
+    let test = MaxPool2dWithIndicesTestCase {
+        height: 8,
+        width: 6,
+        kernel_size: 3,
+        stride: 2,
+        padding: 0,
+        dilation: 1,
+        ceil_mode: true,
+    };
+    test.assert_grads_match_max_pool2d();
+}
+
+#[test]
+fn test_max_pool2d_with_indices_grads_dilated() {
+    let test = MaxPool2dWithIndicesTestCase {
+        height: 9,
+        width: 7,
+        kernel_size: 2,
+        stride: 2,
+        padding: 1,
+        dilation: 2,
+        ceil_mode: false,
+    };
+    test.assert_grads_match_max_pool2d();
+}
+
+/// `max_pool2d_with_indices` registers its own backward and must route gradients like
+/// `max_pool2d`.
+struct MaxPool2dWithIndicesTestCase {
+    height: usize,
+    width: usize,
+    kernel_size: usize,
+    stride: usize,
+    padding: usize,
+    dilation: usize,
+    ceil_mode: bool,
+}
+
+impl MaxPool2dWithIndicesTestCase {
+    fn assert_grads_match_max_pool2d(self) {
+        let device = AutodiffDevice::new();
+        let shape = [2, 3, self.height, self.width];
+        let data = TestTensor::<4>::random(shape, Distribution::Default, &device).into_data();
+        let [kernel_size, stride, padding, dilation] =
+            [self.kernel_size, self.stride, self.padding, self.dilation].map(|v| [v, v]);
+
         let grad = |with_indices: bool| {
             let x = TestTensor::<4>::from_data(data.clone(), &device).require_grad();
-            let [kernel_size, stride, padding, dilation] =
-                [kernel_size, stride, padding, dilation].map(|v| [v, v]);
             let output = if with_indices {
                 max_pool2d_with_indices(
                     x.clone(),
@@ -292,11 +343,18 @@ fn test_max_pool2d_with_indices_grads_match_max_pool2d() {
                     stride,
                     padding,
                     dilation,
-                    ceil_mode,
+                    self.ceil_mode,
                 )
                 .0
             } else {
-                max_pool2d(x.clone(), kernel_size, stride, padding, dilation, ceil_mode)
+                max_pool2d(
+                    x.clone(),
+                    kernel_size,
+                    stride,
+                    padding,
+                    dilation,
+                    self.ceil_mode,
+                )
             };
             let weights =
                 TestTensorInt::<1>::arange(1..output.shape().num_elements() as i64 + 1, &device)
