@@ -557,32 +557,27 @@ fn matmul_2d_i32(lhs: &FlexTensor, rhs: &FlexTensor) -> FlexTensor {
 
     let mut output = vec![0i32; m * n];
 
-    let run_row = |i: usize, row_out: &mut [i32]| {
-        let lhs_row = &lhs_data[i * k..(i + 1) * k];
-        for j in 0..n {
-            let rhs_col = &rhs_t[j * k..(j + 1) * k];
-            row_out[j] = dot_i32(lhs_row, rhs_col);
-        }
-    };
-
     #[cfg(feature = "rayon")]
     if m * k * n >= PARALLEL_THRESHOLD && m > 1 && n > 0 {
         use rayon::prelude::*;
+        // A few tasks per thread keeps SIMD dispatch per chunk rather than per
+        // row, which matters for tall-skinny shapes with small n * k, while
+        // leaving rayon room to balance load.
+        let rows_per_task = m.div_ceil(4 * rayon::current_num_threads()).max(1);
         output
-            .par_chunks_mut(n)
+            .par_chunks_mut(rows_per_task * n)
             .enumerate()
-            .for_each(|(i, row_out)| run_row(i, row_out));
+            .for_each(|(task, out)| {
+                let row_start = task * rows_per_task;
+                let rows = out.len() / n;
+                let lhs = &lhs_data[row_start * k..(row_start + rows) * k];
+                matmul_rows_i32(lhs, &rhs_t, out, rows, n, k);
+            });
     } else {
-        for i in 0..m {
-            let row_start = i * n;
-            run_row(i, &mut output[row_start..row_start + n]);
-        }
+        matmul_rows_i32(lhs_data, &rhs_t, &mut output, m, n, k);
     }
     #[cfg(not(feature = "rayon"))]
-    for i in 0..m {
-        let row_start = i * n;
-        run_row(i, &mut output[row_start..row_start + n]);
-    }
+    matmul_rows_i32(lhs_data, &rhs_t, &mut output, m, n, k);
 
     let out_shape = Shape::from(vec![m, n]);
     FlexTensor::new(
@@ -592,20 +587,47 @@ fn matmul_2d_i32(lhs: &FlexTensor, rhs: &FlexTensor) -> FlexTensor {
     )
 }
 
-/// Dot product for i32 slices. Uses macerator SIMD when the `simd` feature is enabled.
+/// `out[i * n + j] = dot(lhs row i, rhs_t row j)` for an `[m, k]` lhs and an
+/// `[n, k]` transposed rhs. Uses macerator SIMD when the `simd` feature is
+/// enabled, dispatching once for the whole block rather than per element.
 #[inline]
-fn dot_i32(a: &[i32], b: &[i32]) -> i32 {
-    debug_assert_eq!(a.len(), b.len());
-
+fn matmul_rows_i32(lhs: &[i32], rhs_t: &[i32], out: &mut [i32], m: usize, n: usize, k: usize) {
     #[cfg(feature = "simd")]
-    {
-        dot_i32_simd(a, b)
-    }
+    matmul_rows_i32_simd(lhs, rhs_t, out, m, n, k);
 
     #[cfg(not(feature = "simd"))]
-    {
-        dot_i32_scalar(a, b)
+    matmul_rows_i32_with(lhs, rhs_t, out, m, n, k, dot_i32_scalar);
+}
+
+#[inline(always)]
+fn matmul_rows_i32_with(
+    lhs: &[i32],
+    rhs_t: &[i32],
+    out: &mut [i32],
+    m: usize,
+    n: usize,
+    k: usize,
+    dot: impl Fn(&[i32], &[i32]) -> i32,
+) {
+    for i in 0..m {
+        let lhs_row = &lhs[i * k..(i + 1) * k];
+        for j in 0..n {
+            out[i * n + j] = dot(lhs_row, &rhs_t[j * k..(j + 1) * k]);
+        }
     }
+}
+
+#[cfg(feature = "simd")]
+#[macerator::with_simd]
+fn matmul_rows_i32_simd<S: macerator::Simd>(
+    lhs: &[i32],
+    rhs_t: &[i32],
+    out: &mut [i32],
+    m: usize,
+    n: usize,
+    k: usize,
+) {
+    matmul_rows_i32_with(lhs, rhs_t, out, m, n, k, dot_i32_simd::<S>);
 }
 
 #[cfg(not(feature = "simd"))]
@@ -619,7 +641,7 @@ fn dot_i32_scalar(a: &[i32], b: &[i32]) -> i32 {
 }
 
 #[cfg(feature = "simd")]
-#[macerator::with_simd]
+#[inline(always)]
 fn dot_i32_simd<S: macerator::Simd>(a: &[i32], b: &[i32]) -> i32 {
     use macerator::{Scalar, VMulAdd, vload_unaligned};
 
@@ -699,13 +721,7 @@ fn matmul_batched_i32(lhs: FlexTensor, rhs: FlexTensor) -> FlexTensor {
         let lhs_slice = &lhs_data[lhs_offset..lhs_offset + lhs_matrix_size];
         let rhs_t_slice = &rhs_transposed[rhs_t_offset..rhs_t_offset + n * k];
 
-        for i in 0..m {
-            let lhs_row = &lhs_slice[i * k..(i + 1) * k];
-            for j in 0..n {
-                let rhs_col = &rhs_t_slice[j * k..(j + 1) * k];
-                out_slice[i * n + j] = dot_i32(lhs_row, rhs_col);
-            }
-        }
+        matmul_rows_i32(lhs_slice, rhs_t_slice, out_slice, m, n, k);
     };
 
     #[cfg(feature = "rayon")]

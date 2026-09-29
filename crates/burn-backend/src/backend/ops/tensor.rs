@@ -4,7 +4,7 @@ use super::repeat_dim::repeat_with_slice_assign;
 use super::sort::{argsort, sort, sort_with_indices};
 use crate::ops::GridSampleOptions;
 use crate::tensor::{BoolTensor, Device, FloatTensor, IntTensor};
-use crate::{Backend, Distribution, TensorData, get_device_settings};
+use crate::{Backend, Distribution, TensorData, get_or_init_device_settings};
 use crate::{ExecutionError, Scalar, TensorMetadata};
 use alloc::vec::Vec;
 use burn_std::reader::try_read_sync;
@@ -205,7 +205,7 @@ pub trait FloatTensorOps<B: Backend> {
     ///
     /// The clamped tensor.
     fn float_clamp_min(tensor: FloatTensor<B>, min: Scalar) -> FloatTensor<B> {
-        let dtype = get_device_settings::<B>(&tensor.device()).bool_dtype;
+        let dtype = get_or_init_device_settings::<B>(&tensor.device()).bool_dtype;
         let mask = Self::float_lower_elem(tensor.clone(), min, dtype);
         B::float_mask_fill(tensor, mask, min)
     }
@@ -221,7 +221,7 @@ pub trait FloatTensorOps<B: Backend> {
     ///
     /// The clamped tensor.
     fn float_clamp_max(tensor: FloatTensor<B>, max: Scalar) -> FloatTensor<B> {
-        let dtype = get_device_settings::<B>(&tensor.device()).bool_dtype;
+        let dtype = get_or_init_device_settings::<B>(&tensor.device()).bool_dtype;
         let mask = Self::float_greater_elem(tensor.clone(), max, dtype);
         B::float_mask_fill(tensor, mask, max)
     }
@@ -596,7 +596,7 @@ pub trait FloatTensorOps<B: Backend> {
             // Data-dependent output length, so we defer to `bool_argwhere` (the only pre-existing
             // data-dependent op) to collect the flat indices of the true mask values, then select.
             let n = mask.shape().num_elements();
-            let int_dtype = get_device_settings::<B>(&mask.device()).int_dtype;
+            let int_dtype = get_or_init_device_settings::<B>(&mask.device()).int_dtype;
             let mask = B::bool_reshape(mask, Shape::new([n]));
             let indices = B::bool_argwhere(mask, int_dtype).await; // [count, 1]
             let count = indices.shape()[0];
@@ -1468,7 +1468,7 @@ pub trait FloatTensorOps<B: Backend> {
         out_dtype: IntDType,
     ) -> IntTensor<B> {
         let device = tensor.device();
-        let dtype = get_device_settings::<B>(&device).int_dtype;
+        let dtype = get_or_init_device_settings::<B>(&device).int_dtype;
         let k_indices = B::int_arange(0..k as i64, &device, dtype);
         B::int_select(
             Self::float_argsort(tensor, dim, true, out_dtype),
@@ -1491,7 +1491,7 @@ pub trait FloatTensorOps<B: Backend> {
     /// A tensor with the values of the maximum elements of `tensor` along `dim`.
     fn float_topk(tensor: FloatTensor<B>, dim: usize, k: usize) -> FloatTensor<B> {
         let device = tensor.device();
-        let dtype = get_device_settings::<B>(&device).int_dtype;
+        let dtype = get_or_init_device_settings::<B>(&device).int_dtype;
         let k_indices = B::int_arange(0..k as i64, &device, dtype);
         Self::float_select(Self::float_sort(tensor, dim, true), dim, k_indices)
     }
@@ -1522,7 +1522,7 @@ pub trait FloatTensorOps<B: Backend> {
         out_dtype: IntDType,
     ) -> (FloatTensor<B>, IntTensor<B>) {
         let device = tensor.device();
-        let dtype = get_device_settings::<B>(&device).int_dtype;
+        let dtype = get_or_init_device_settings::<B>(&device).int_dtype;
         let k_indices = B::int_arange(0..k as i64, &device, dtype);
         let (values, indices) = Self::float_sort_with_indices(tensor, dim, true, out_dtype);
 
@@ -1572,7 +1572,7 @@ pub trait FloatTensorOps<B: Backend> {
     ///
     /// A tensor with the maximum elements of `tensor` along `dim`.
     fn float_max_dim(tensor: FloatTensor<B>, dim: usize) -> FloatTensor<B> {
-        let dtype = get_device_settings::<B>(&tensor.device()).int_dtype;
+        let dtype = get_or_init_device_settings::<B>(&tensor.device()).int_dtype;
         let index = B::float_argmax(tensor.clone(), dim, dtype);
 
         B::float_gather(dim, tensor, index)
@@ -1627,7 +1627,7 @@ pub trait FloatTensorOps<B: Backend> {
     ///
     /// A tensor with the minimum elements of `tensor` along `dim`.
     fn float_min_dim(tensor: FloatTensor<B>, dim: usize) -> FloatTensor<B> {
-        let dtype = get_device_settings::<B>(&tensor.device()).int_dtype;
+        let dtype = get_or_init_device_settings::<B>(&tensor.device()).int_dtype;
         let index = B::float_argmin(tensor.clone(), dim, dtype);
 
         B::float_gather(dim, tensor, index)
@@ -1780,7 +1780,7 @@ pub trait FloatTensorOps<B: Backend> {
     /// `sign(NaN) == 0` is part of this contract and every backend override must uphold it too.
     fn float_sign(tensor: FloatTensor<B>) -> FloatTensor<B> {
         let device = tensor.device();
-        let bool_dtype = get_device_settings::<B>(&tensor.device()).bool_dtype;
+        let bool_dtype = get_or_init_device_settings::<B>(&tensor.device()).bool_dtype;
         let zeros = B::float_zeros(tensor.shape(), &device, tensor.dtype().into());
         let less_than_zero = B::float_lower_elem(tensor.clone(), 0f32.into(), bool_dtype);
         let greater_than_zero = B::float_greater_elem(tensor, 0f32.into(), bool_dtype);

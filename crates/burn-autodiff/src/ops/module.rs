@@ -10,7 +10,7 @@ use burn_backend::TensorMetadata;
 use burn_backend::ops::attention::attention_fallback;
 use burn_backend::ops::*;
 use burn_backend::tensor::{FloatTensor, IntTensor};
-use burn_backend::{Backend, get_device_settings};
+use burn_backend::{Backend, get_or_init_device_settings};
 use burn_std::IntDType;
 
 use super::OpsKind;
@@ -1600,7 +1600,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
         {
             OpsKind::Tracked(mut prep) => {
                 let x_state = prep.checkpoint(&x);
-                let settings = get_device_settings::<B>(&x.primitive.device());
+                let settings = get_or_init_device_settings::<B>(&x.primitive.device());
                 let output = B::max_pool1d_with_indices(
                     x.primitive,
                     kernel_size,
@@ -1730,7 +1730,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
         {
             OpsKind::Tracked(mut prep) => {
                 let x_state = prep.checkpoint(&x);
-                let settings = get_device_settings::<B>(&x.primitive.device());
+                let settings = get_or_init_device_settings::<B>(&x.primitive.device());
                 let output = B::max_pool2d_with_indices(
                     x.primitive,
                     kernel_size,

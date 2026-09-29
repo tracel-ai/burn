@@ -99,8 +99,7 @@ fn test_1d_bilinear() {
 
     let output = interpolate(
         input,
-        [1, 9],
-        InterpolateOptions::new(InterpolateMode::Bilinear),
+        InterpolateOptions::new(InterpolateMode::Bilinear).with_output_size([1, 9]),
     );
 
     assert_eq!(output.dims(), [1, 1, 1, 9]);
@@ -183,8 +182,7 @@ fn should_interpolate_cast() {
     .cast(DType::F32); // ok for f32 backends, casts dtype for f16 tests
     let output = interpolate(
         x,
-        [8, 8],
-        InterpolateOptions::new(InterpolateMode::Bilinear),
+        InterpolateOptions::new(InterpolateMode::Bilinear).with_output_size([8, 8]),
     );
 
     let expected = TestTensor::<4>::from([[[
@@ -233,8 +231,9 @@ impl InterpolateTestCase {
         );
         let output = interpolate(
             x,
-            [self.height_out, self.width_out],
-            InterpolateOptions::new(InterpolateMode::Bilinear).with_align_corners(align_corners),
+            InterpolateOptions::new(InterpolateMode::Bilinear)
+                .with_align_corners(align_corners)
+                .with_output_size([self.height_out, self.width_out]),
         );
 
         let tolerance = Tolerance::permissive();

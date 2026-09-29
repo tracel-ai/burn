@@ -21,9 +21,12 @@ pub fn untile(tensor: CubeTensor) -> CubeTensor {
         "untile: a quantized tensor is never storage-tiled"
     );
     let (client, device, dtype) = (tensor.client.clone(), tensor.device.clone(), tensor.dtype);
-    let output =
-        cubek::matmul::tiled::pack::unpack(&client, tensor.binding(), dtype_to_storage_type(dtype))
-            .expect("a storage-tiled binding describes its own tiles");
+    let output = cubek::matmul::tiled::storage::untile(
+        &client,
+        tensor.binding(),
+        dtype_to_storage_type(dtype),
+    )
+    .expect("a storage-tiled binding describes its own tiles");
     CubeTensor::new(client, output.handle, *output.metadata, device, dtype)
 }
 
@@ -191,13 +194,18 @@ mod storage_tiled {
         from_data(TensorData::new(data, shape.to_vec()), device)
     }
 
-    fn packed(tensor: &CubeTensor, tile: (usize, usize)) -> CubeTensor {
+    fn packed(tensor: &CubeTensor, (tile_k, tile_n): (usize, usize)) -> CubeTensor {
+        use cubek::matmul::tiled::storage::{Axis, LayoutBuilder, tile};
+        const K: Axis = Axis(0);
+        const N: Axis = Axis(1);
         let client = tensor.client.clone();
-        let out = cubek::matmul::tiled::pack::pack(
+        let layout = LayoutBuilder::new(&[(N, tile_n), (K, tile_k)]).grid(&[N, K]);
+        let out = tile(
             &client,
             tensor.clone().binding(),
+            [K, N],
             dtype_to_storage_type(tensor.dtype),
-            tile,
+            layout,
         )
         .expect("the tile divides the matrix");
         CubeTensor::new(

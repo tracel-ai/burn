@@ -416,7 +416,13 @@ pub fn q_reshape(tensor: CubeTensor, shape: Shape) -> CubeTensor {
             if scales.meta.shape().num_elements() > 1 {
                 unimplemented!("Reshape would split a block across multiple rows.");
             }
-            // Exception: allow if there is exactly 1 block total (essentially per-tensor quantization)
+            // A lone block is still fine as a single row (e.g. an unsqueeze), but spread over
+            // several rows the per-row block index points past the one scale.
+            if shape.num_elements() > shape_last {
+                unimplemented!(
+                    "Cannot reshape block-quantized tensor to {shape:?}: not a whole number of {block_size:?} blocks"
+                );
+            }
             scales.meta.shape().clone()
         }
         Some(_) => {
