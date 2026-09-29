@@ -287,12 +287,20 @@ pub(crate) mod tests {
             AgentEvaluationEvent<MockActionContext>,
         > for MockProcessor
     {
-        fn process_train(&mut self, _event: RLEvent<(), MockActionContext>) {
+        fn process_train(
+            &mut self,
+            _event: RLEvent<(), MockActionContext>,
+        ) -> Result<(), burn_core::tensor::TensorReadError> {
             // Mock process train
+            Ok(())
         }
 
-        fn process_valid(&mut self, _event: AgentEvaluationEvent<MockActionContext>) {
+        fn process_valid(
+            &mut self,
+            _event: AgentEvaluationEvent<MockActionContext>,
+        ) -> Result<(), burn_core::tensor::TensorReadError> {
             // Mock process valid
+            Ok(())
         }
 
         fn renderer(self) -> Box<dyn crate::renderer::MetricsRenderer> {

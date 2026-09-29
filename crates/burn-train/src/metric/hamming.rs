@@ -5,7 +5,7 @@ use super::{MetricMetadata, SerializedEntry};
 use crate::metric::{
     Metric, MetricAttributes, MetricName, Numeric, NumericAttributes, NumericEntry,
 };
-use burn_core::tensor::{Int, Tensor, activation::sigmoid};
+use burn_core::tensor::{Int, Tensor, TensorReadError, activation::sigmoid};
 
 /// The hamming score, sometimes referred to as multi-label or label-based accuracy.
 #[derive(Clone)]
@@ -66,7 +66,11 @@ impl Default for HammingScore {
 impl Metric for HammingScore {
     type Input = HammingScoreInput;
 
-    fn update(&mut self, input: &HammingScoreInput, _metadata: &MetricMetadata) -> SerializedEntry {
+    fn update(
+        &mut self,
+        input: &HammingScoreInput,
+        _metadata: &MetricMetadata,
+    ) -> Result<SerializedEntry, TensorReadError> {
         let [batch_size, _n_classes] = input.outputs.dims();
 
         let targets = input.targets.clone();
@@ -82,16 +86,18 @@ impl Metric for HammingScore {
             .equal(targets.bool())
             .float()
             .mean()
-            .into_scalar::<f64>();
+            .try_into_scalar::<f64>()?;
 
         self.state.update(100.0 * score, batch_size);
-        self.state
-            .compute_update(FormatOptions::new(self.name()).unit("%").precision(2))
+        Ok(self
+            .state
+            .compute_update(FormatOptions::new(self.name()).unit("%").precision(2)))
     }
 
-    fn compute(&mut self) -> SerializedEntry {
-        self.state
-            .compute_final(FormatOptions::new(self.name()).unit("%").precision(2))
+    fn compute(&mut self) -> Result<SerializedEntry, TensorReadError> {
+        Ok(self
+            .state
+            .compute_final(FormatOptions::new(self.name()).unit("%").precision(2)))
     }
 
     fn clear(&mut self) {
@@ -153,18 +159,22 @@ mod tests {
             &device,
         );
 
-        let _entry = metric.update(
-            &HammingScoreInput::new(x.clone(), y.clone()),
-            &MetricMetadata::fake(),
-        );
+        let _entry = metric
+            .update(
+                &HammingScoreInput::new(x.clone(), y.clone()),
+                &MetricMetadata::fake(),
+            )
+            .unwrap();
         assert_eq!(100.0, metric.value().unwrap().current());
 
         // Invert all targets: y = (1 - y)
         let y = y.neg().add_scalar(1);
-        let _entry = metric.update(
-            &HammingScoreInput::new(x.clone(), y), // invert targets (1 - y)
-            &MetricMetadata::fake(),
-        );
+        let _entry = metric
+            .update(
+                &HammingScoreInput::new(x.clone(), y), // invert targets (1 - y)
+                &MetricMetadata::fake(),
+            )
+            .unwrap();
         assert_eq!(0.0, metric.value().unwrap().current());
 
         // Invert 5 target values -> 1 - (5/20) = 0.75
@@ -177,10 +187,12 @@ mod tests {
             ],
             &device,
         );
-        let _entry = metric.update(
-            &HammingScoreInput::new(x, y), // invert targets (1 - y)
-            &MetricMetadata::fake(),
-        );
+        let _entry = metric
+            .update(
+                &HammingScoreInput::new(x, y), // invert targets (1 - y)
+                &MetricMetadata::fake(),
+            )
+            .unwrap();
         assert_eq!(75.0, metric.value().unwrap().current());
     }
 

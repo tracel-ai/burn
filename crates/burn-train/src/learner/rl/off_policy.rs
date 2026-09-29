@@ -149,18 +149,22 @@ where
                     let train_item = learner_agent.train(batch);
                     intermediary_update = Some(learner_agent.policy().state());
 
-                    event_processor.process_train(RLEvent::TrainStep(EvaluationItem::new(
-                        train_item.item,
-                        progress.clone(),
-                        None,
-                    )));
+                    event_processor
+                        .process_train(RLEvent::TrainStep(EvaluationItem::new(
+                            train_item.item,
+                            progress.clone(),
+                            None,
+                        )))
+                        .unwrap();
                 }
             }
 
             if valid_next > previous_steps && valid_next <= progress.items_processed {
-                event_processor.process_valid(crate::AgentEvaluationEvent::Start(
-                    self.config.eval_episodes,
-                ));
+                event_processor
+                    .process_valid(crate::AgentEvaluationEvent::Start(
+                        self.config.eval_episodes,
+                    ))
+                    .unwrap();
 
                 env_runner_valid.update_policy(learner_agent.policy().state());
                 env_runner_valid.run_episodes(
@@ -181,7 +185,9 @@ where
 
                 valid_next += self.config.eval_interval;
 
-                event_processor.process_valid(crate::AgentEvaluationEvent::End);
+                event_processor
+                    .process_valid(crate::AgentEvaluationEvent::End)
+                    .unwrap();
             }
         }
 

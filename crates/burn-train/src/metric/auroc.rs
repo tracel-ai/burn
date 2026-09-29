@@ -5,7 +5,7 @@ use super::state::{FormatOptions, PredictionAccumulatorState};
 use crate::metric::{
     ClassReduction, ConfusionStatsInput, Metric, MetricName, Numeric, SerializedEntry,
 };
-use burn_core::tensor::{Bool, Tensor};
+use burn_core::tensor::{Bool, Tensor, TensorReadError};
 use std::sync::Arc;
 
 /// The Area Under the Receiver Operating Characteristic Curve (AUROC, also
@@ -85,7 +85,11 @@ impl AurocMetric {
         (correct_pairs + 0.5 * tied_pairs) / num_pairs
     }
 
-    fn compute_auc(&self, predictions: &Tensor<2>, targets: &Tensor<2, Bool>) -> f64 {
+    fn compute_auc(
+        &self,
+        predictions: &Tensor<2>,
+        targets: &Tensor<2, Bool>,
+    ) -> Result<f64, TensorReadError> {
         let [n, c] = predictions.dims();
 
         let (scores, targets) = match self.class_reduction {
@@ -110,10 +114,10 @@ impl AurocMetric {
                 "AUROC is undefined (no class has both positive and negative samples in the \
                  epoch); reporting 0.5 (chance level)."
             );
-            return 0.5;
+            return Ok(0.5);
         }
 
-        auc.select(0, keep).mean().into_scalar()
+        auc.select(0, keep).mean().try_into_scalar::<f64>()
     }
 }
 
@@ -124,33 +128,34 @@ impl Metric for AurocMetric {
         &mut self,
         input: &ConfusionStatsInput,
         _metadata: &MetricMetadata,
-    ) -> SerializedEntry {
+    ) -> Result<SerializedEntry, TensorReadError> {
         // Update the state with predictions and targets
         self.state
             .accumulate(input.predictions.clone(), input.targets.clone());
 
         // Serialize placeholder to indicate no valid scalar exists yet mid-epoch
-        self.state
-            .serialize_placeholder(FormatOptions::new(self.name()).unit("%").precision(2))
+        Ok(self
+            .state
+            .serialize_placeholder(FormatOptions::new(self.name()).unit("%").precision(2)))
     }
 
-    fn compute(&mut self) -> SerializedEntry {
+    fn compute(&mut self) -> Result<SerializedEntry, TensorReadError> {
         // Guard against an empty epoch calculation
         if self.state.is_empty() {
-            return self
+            return Ok(self
                 .state
-                .serialize_placeholder(FormatOptions::new(self.name()).unit("%").precision(2));
+                .serialize_placeholder(FormatOptions::new(self.name()).unit("%").precision(2)));
         }
 
         // Recompute over the whole epoch
         let (predictions, targets) = self.state.tensors();
-        let metric = self.compute_auc(&predictions, &targets);
+        let metric = self.compute_auc(&predictions, &targets)?;
 
         // Complete the state with the calculated scalar
-        self.state.compute(
+        Ok(self.state.compute(
             100.0 * metric,
             FormatOptions::new(self.name()).unit("%").precision(2),
-        )
+        ))
     }
 
     fn clear(&mut self) {
@@ -269,8 +274,10 @@ mod tests {
     ) {
         let mut metric = AurocMetric::new(class_reduction);
 
-        let _entry = metric.update(&input(data), &MetricMetadata::fake());
-        let _entry = metric.compute();
+        let _entry = metric
+            .update(&input(data), &MetricMetadata::fake())
+            .unwrap();
+        let _entry = metric.compute().unwrap();
 
         TensorData::from([metric.final_value().current()])
             .assert_approx_eq::<f64>(&TensorData::from([expected * 100.0]), Tolerance::default());
@@ -288,8 +295,8 @@ mod tests {
             Tensor::from_data([[0, 1], [1, 0], [1, 0], [0, 1]], &device),
         );
 
-        let _entry = metric.update(&input, &MetricMetadata::fake());
-        let _entry = metric.compute();
+        let _entry = metric.update(&input, &MetricMetadata::fake()).unwrap();
+        let _entry = metric.compute().unwrap();
         assert_eq!(metric.final_value().current(), 100.0);
     }
 
@@ -306,8 +313,8 @@ mod tests {
             Tensor::from_data([[0, 1], [1, 0], [1, 0], [0, 1]], &device),
         );
 
-        let _entry = metric.update(&input, &MetricMetadata::fake());
-        let _entry = metric.compute();
+        let _entry = metric.update(&input, &MetricMetadata::fake()).unwrap();
+        let _entry = metric.compute().unwrap();
         assert_eq!(metric.final_value().current(), 50.0);
     }
 
@@ -331,8 +338,8 @@ mod tests {
             Tensor::from_data([[1, 0, 0], [0, 1, 0], [1, 0, 0], [0, 1, 0]], &device),
         );
 
-        let _entry = metric.update(&input, &MetricMetadata::fake());
-        let _entry = metric.compute();
+        let _entry = metric.update(&input, &MetricMetadata::fake()).unwrap();
+        let _entry = metric.compute().unwrap();
         assert_eq!(metric.final_value().current(), 100.0);
     }
 
@@ -348,8 +355,8 @@ mod tests {
             Tensor::from_data([[1], [1], [1], [1]], &device),
         );
 
-        let _entry = metric.update(&input, &MetricMetadata::fake());
-        let _entry = metric.compute();
+        let _entry = metric.update(&input, &MetricMetadata::fake()).unwrap();
+        let _entry = metric.compute().unwrap();
         assert_eq!(metric.final_value().current(), 50.0);
     }
 
@@ -367,32 +374,38 @@ mod tests {
 
         // Whole dataset as a single batch.
         let mut single = AurocMetric::binary();
-        single.update(
-            &ConfusionStatsInput::new(
-                Tensor::from_data([[0.9], [0.4], [0.8], [0.2], [0.6], [0.1]], &dev),
-                Tensor::from_data([[1], [0], [1], [0], [1], [0]], &dev),
-            ),
-            &MetricMetadata::fake(),
-        );
-        single.compute();
+        single
+            .update(
+                &ConfusionStatsInput::new(
+                    Tensor::from_data([[0.9], [0.4], [0.8], [0.2], [0.6], [0.1]], &dev),
+                    Tensor::from_data([[1], [0], [1], [0], [1], [0]], &dev),
+                ),
+                &MetricMetadata::fake(),
+            )
+            .unwrap();
+        single.compute().unwrap();
 
         // Same dataset split across two batches.
         let mut split = AurocMetric::binary();
-        split.update(
-            &ConfusionStatsInput::new(
-                Tensor::from_data([[0.9], [0.4], [0.8]], &dev),
-                Tensor::from_data([[1], [0], [1]], &dev),
-            ),
-            &MetricMetadata::fake(),
-        );
-        split.update(
-            &ConfusionStatsInput::new(
-                Tensor::from_data([[0.2], [0.6], [0.1]], &dev),
-                Tensor::from_data([[0], [1], [0]], &dev),
-            ),
-            &MetricMetadata::fake(),
-        );
-        split.compute();
+        split
+            .update(
+                &ConfusionStatsInput::new(
+                    Tensor::from_data([[0.9], [0.4], [0.8]], &dev),
+                    Tensor::from_data([[1], [0], [1]], &dev),
+                ),
+                &MetricMetadata::fake(),
+            )
+            .unwrap();
+        split
+            .update(
+                &ConfusionStatsInput::new(
+                    Tensor::from_data([[0.2], [0.6], [0.1]], &dev),
+                    Tensor::from_data([[0], [1], [0]], &dev),
+                ),
+                &MetricMetadata::fake(),
+            )
+            .unwrap();
+        split.compute().unwrap();
 
         TensorData::from([split.final_value().current()]).assert_approx_eq::<f64>(
             &TensorData::from([single.final_value().current()]),
@@ -406,13 +419,15 @@ mod tests {
         let dev = Default::default();
 
         let mut split = AurocMetric::binary();
-        split.update(
-            &ConfusionStatsInput::new(
-                Tensor::from_data([[0.9], [0.4], [0.8]], &dev),
-                Tensor::from_data([[1], [0], [1]], &dev),
-            ),
-            &MetricMetadata::fake(),
-        );
+        split
+            .update(
+                &ConfusionStatsInput::new(
+                    Tensor::from_data([[0.9], [0.4], [0.8]], &dev),
+                    Tensor::from_data([[1], [0], [1]], &dev),
+                ),
+                &MetricMetadata::fake(),
+            )
+            .unwrap();
 
         // AUROC is not valid for a batch, and is not meaningful until all statistics have been accumulated
         assert!(split.value().is_none());

@@ -55,7 +55,9 @@ impl<M: LearnerModel> SingleDeviceValidEpoch<M> {
             let item = InferenceStep::step(&model, item);
             let item = TrainingItem::new(item, progress, Some(iteration), None);
 
-            processor.process_valid(LearnerEvent::ProcessedItem(item));
+            processor
+                .process_valid(LearnerEvent::ProcessedItem(item))
+                .unwrap();
 
             if interrupter.should_stop() {
                 break;
@@ -133,7 +135,9 @@ impl<M: LearnerModel> SingleDeviceTrainEpoch<M> {
                 Some(learner.lr_current()),
             );
 
-            processor.process_train(LearnerEvent::ProcessedItem(item));
+            processor
+                .process_train(LearnerEvent::ProcessedItem(item))
+                .unwrap();
 
             if interrupter.should_stop() {
                 break;

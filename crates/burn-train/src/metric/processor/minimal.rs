@@ -4,6 +4,7 @@ use crate::{
     metric::store::{EpochSummary, EventStoreClient, Split},
     renderer::cli::CliMetricsRenderer,
 };
+use burn_core::tensor::TensorReadError;
 use std::sync::Arc;
 
 /// An [event processor](EventProcessor) that handles:
@@ -35,7 +36,7 @@ impl<T: ItemLazy, V: ItemLazy> MinimalEventProcessor<T, V> {
 impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining<LearnerEvent<T>, LearnerEvent<V>>
     for MinimalEventProcessor<T, V>
 {
-    fn process_train(&mut self, event: LearnerEvent<T>) {
+    fn process_train(&mut self, event: LearnerEvent<T>) -> Result<(), TensorReadError> {
         match event {
             LearnerEvent::Start {
                 total_epochs,
@@ -63,7 +64,7 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining<LearnerEvent<T>, LearnerEv
                 let item = item.sync();
                 let metadata = (&item).into();
 
-                let update = self.metrics.update_train(&item, &metadata);
+                let update = self.metrics.update_train(&item, &metadata)?;
                 self.store
                     .add_event_train(crate::metric::store::Event::MetricsUpdate(update));
 
@@ -72,9 +73,12 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining<LearnerEvent<T>, LearnerEv
                 }
             }
             LearnerEvent::EndSplit(epoch) => {
-                let update = self.metrics.end_epoch_train();
-                self.store
-                    .add_event_train(crate::metric::store::Event::MetricsUpdate(update));
+                // The split ends even when a metric fails to compute: its metrics are
+                // cleared either way, and the error is reported once the split is closed.
+                let computed = self.metrics.end_epoch_train().map(|update| {
+                    self.store
+                        .add_event_train(crate::metric::store::Event::MetricsUpdate(update))
+                });
 
                 self.store
                     .add_event_train(crate::metric::store::Event::EndEpoch(EpochSummary::new(
@@ -84,6 +88,7 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining<LearnerEvent<T>, LearnerEv
                 if let Some(logger) = &mut self.progress_logger {
                     logger.end_split();
                 }
+                computed?;
             }
             LearnerEvent::EndEpoch(epoch) => {
                 if let Some(logger) = &mut self.progress_logger {
@@ -96,9 +101,10 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining<LearnerEvent<T>, LearnerEv
                 }
             }
         }
+        Ok(())
     }
 
-    fn process_valid(&mut self, event: LearnerEvent<V>) {
+    fn process_valid(&mut self, event: LearnerEvent<V>) -> Result<(), TensorReadError> {
         match event {
             LearnerEvent::Start { .. } => {} // no-op
             LearnerEvent::StartSplit {
@@ -115,7 +121,7 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining<LearnerEvent<T>, LearnerEv
                 let item = item.sync();
                 let metadata = (&item).into();
 
-                let update = self.metrics.update_valid(&item, &metadata);
+                let update = self.metrics.update_valid(&item, &metadata)?;
                 self.store
                     .add_event_valid(crate::metric::store::Event::MetricsUpdate(update));
 
@@ -124,9 +130,12 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining<LearnerEvent<T>, LearnerEv
                 }
             }
             LearnerEvent::EndSplit(epoch) => {
-                let update = self.metrics.end_epoch_valid();
-                self.store
-                    .add_event_valid(crate::metric::store::Event::MetricsUpdate(update));
+                // The split ends even when a metric fails to compute: its metrics are
+                // cleared either way, and the error is reported once the split is closed.
+                let computed = self.metrics.end_epoch_valid().map(|update| {
+                    self.store
+                        .add_event_valid(crate::metric::store::Event::MetricsUpdate(update))
+                });
 
                 self.store
                     .add_event_valid(crate::metric::store::Event::EndEpoch(EpochSummary::new(
@@ -136,10 +145,12 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining<LearnerEvent<T>, LearnerEv
                 if let Some(logger) = &mut self.progress_logger {
                     logger.end_split();
                 }
+                computed?;
             }
             LearnerEvent::EndEpoch(_) => {} // update_epoch handled in process_train(EndEpoch)
             LearnerEvent::End(_) => {}      // no-op: End is only emitted on process_train
         }
+        Ok(())
     }
     fn renderer(self) -> Box<dyn crate::renderer::MetricsRenderer> {
         // TODO: Check for another default.

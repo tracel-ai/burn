@@ -47,7 +47,8 @@ impl<EC: EvaluatorComponentTypes> Evaluator<EC> {
         let total_tests = splits.len();
 
         self.event_processor
-            .process_test(EvaluatorEvent::Start { total_tests });
+            .process_test(EvaluatorEvent::Start { total_tests })
+            .unwrap();
 
         for (name, dataloader) in splits {
             let dataloader = dataloader.to_device(self.model.devices().first().unwrap());
@@ -57,7 +58,8 @@ impl<EC: EvaluatorComponentTypes> Evaluator<EC> {
             let mut iteration = 0;
 
             self.event_processor
-                .process_test(EvaluatorEvent::StartTest(name.clone(), total_items));
+                .process_test(EvaluatorEvent::StartTest(name.clone(), total_items))
+                .unwrap();
 
             while let Some(item) = iterator.next() {
                 let item = match item {
@@ -75,7 +77,8 @@ impl<EC: EvaluatorComponentTypes> Evaluator<EC> {
                 let item = EvaluationItem::new(item, progress, Some(iteration));
 
                 self.event_processor
-                    .process_test(EvaluatorEvent::ProcessedItem(name.clone(), item));
+                    .process_test(EvaluatorEvent::ProcessedItem(name.clone(), item))
+                    .unwrap();
 
                 if self.interrupter.should_stop() {
                     log::info!("Testing interrupted.");
@@ -83,7 +86,9 @@ impl<EC: EvaluatorComponentTypes> Evaluator<EC> {
                 }
             }
 
-            self.event_processor.process_test(EvaluatorEvent::EndTest);
+            self.event_processor
+                .process_test(EvaluatorEvent::EndTest)
+                .unwrap();
         }
 
         let summary = self.summary.and_then(|summary| {
@@ -94,7 +99,8 @@ impl<EC: EvaluatorComponentTypes> Evaluator<EC> {
         });
 
         self.event_processor
-            .process_test(EvaluatorEvent::End(summary));
+            .process_test(EvaluatorEvent::End(summary))
+            .unwrap();
 
         self.event_processor.renderer()
     }

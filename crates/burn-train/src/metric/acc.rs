@@ -1,7 +1,7 @@
 use super::MetricMetadata;
 use super::state::{FormatOptions, NumericMetricState};
 use crate::metric::{Metric, MetricAttributes, MetricName, Numeric, SerializedEntry};
-use burn_core::tensor::{Int, Tensor};
+use burn_core::tensor::{Int, Tensor, TensorReadError};
 
 /// The accuracy metric.
 #[derive(Clone)]
@@ -44,7 +44,11 @@ impl AccuracyMetric {
 impl Metric for AccuracyMetric {
     type Input = AccuracyInput;
 
-    fn update(&mut self, input: &AccuracyInput, _metadata: &MetricMetadata) -> SerializedEntry {
+    fn update(
+        &mut self,
+        input: &AccuracyInput,
+        _metadata: &MetricMetadata,
+    ) -> Result<SerializedEntry, TensorReadError> {
         let targets = input.targets.clone();
         let outputs = input.outputs.clone();
 
@@ -56,23 +60,32 @@ impl Metric for AccuracyMetric {
             Some(pad_token) => {
                 let mask = targets.clone().equal_scalar(pad_token as i64);
                 let matches = outputs.equal(targets).float().mask_fill(mask.clone(), 0);
-                let num_pad = mask.int().sum().into_scalar::<i64>() as usize;
+                let num_pad = mask.int().sum().try_into_scalar::<i64>()? as usize;
 
-                (matches.sum().into_scalar::<f64>(), num_pad)
+                (matches.sum().try_into_scalar::<f64>()?, num_pad)
             }
-            None => (outputs.equal(targets).int().sum().into_scalar::<f64>(), 0),
+            None => (
+                outputs
+                    .equal(targets)
+                    .int()
+                    .sum()
+                    .try_into_scalar::<f64>()?,
+                0,
+            ),
         };
         let valid_count = batch_size - num_pad;
         let accuracy = num_matches / valid_count as f64;
 
         self.state.update(100.0 * accuracy, valid_count);
-        self.state
-            .compute_update(FormatOptions::new(self.name()).unit("%").precision(2))
+        Ok(self
+            .state
+            .compute_update(FormatOptions::new(self.name()).unit("%").precision(2)))
     }
 
-    fn compute(&mut self) -> SerializedEntry {
-        self.state
-            .compute_final(FormatOptions::new(self.name()).unit("%").precision(2))
+    fn compute(&mut self) -> Result<SerializedEntry, TensorReadError> {
+        Ok(self
+            .state
+            .compute_final(FormatOptions::new(self.name()).unit("%").precision(2)))
     }
 
     fn clear(&mut self) {
@@ -132,7 +145,7 @@ mod tests {
             Tensor::from_data([2, 2, 1, 1], &device),
         );
 
-        let _entry = metric.update(&input, &MetricMetadata::fake());
+        let _entry = metric.update(&input, &MetricMetadata::fake()).unwrap();
         assert_eq!(50.0, metric.value().unwrap().current());
     }
 
@@ -156,7 +169,7 @@ mod tests {
             Tensor::from_data([2, 2, 1, 1, 3, 3, 3], &device),
         );
 
-        let _entry = metric.update(&input, &MetricMetadata::fake());
+        let _entry = metric.update(&input, &MetricMetadata::fake()).unwrap();
         assert_eq!(50.0, metric.value().unwrap().current());
     }
 
@@ -166,21 +179,25 @@ mod tests {
         let mut metric = AccuracyMetric::new().with_pad_token(2);
 
         // One valid, correct sample and three padding samples.
-        metric.update(
-            &AccuracyInput::new(
-                Tensor::from_data([[0.9, 0.1], [0.9, 0.1], [0.9, 0.1], [0.9, 0.1]], &device),
-                Tensor::from_data([0, 2, 2, 2], &device),
-            ),
-            &MetricMetadata::fake(),
-        );
+        metric
+            .update(
+                &AccuracyInput::new(
+                    Tensor::from_data([[0.9, 0.1], [0.9, 0.1], [0.9, 0.1], [0.9, 0.1]], &device),
+                    Tensor::from_data([0, 2, 2, 2], &device),
+                ),
+                &MetricMetadata::fake(),
+            )
+            .unwrap();
         // Four valid, incorrect samples.
-        metric.update(
-            &AccuracyInput::new(
-                Tensor::from_data([[0.9, 0.1]; 4], &device),
-                Tensor::from_data([1, 1, 1, 1], &device),
-            ),
-            &MetricMetadata::fake(),
-        );
+        metric
+            .update(
+                &AccuracyInput::new(
+                    Tensor::from_data([[0.9, 0.1]; 4], &device),
+                    Tensor::from_data([1, 1, 1, 1], &device),
+                ),
+                &MetricMetadata::fake(),
+            )
+            .unwrap();
 
         // One correct prediction out of five valid samples.
         assert_eq!(20.0, metric.final_value().current());
@@ -191,20 +208,24 @@ mod tests {
         let device = Default::default();
         let mut metric = AccuracyMetric::new().with_pad_token(2);
 
-        metric.update(
-            &AccuracyInput::new(
-                Tensor::from_data([[0.9, 0.1]; 2], &device),
-                Tensor::from_data([2, 2], &device),
-            ),
-            &MetricMetadata::fake(),
-        );
-        metric.update(
-            &AccuracyInput::new(
-                Tensor::from_data([[0.9, 0.1]], &device),
-                Tensor::from_data([0], &device),
-            ),
-            &MetricMetadata::fake(),
-        );
+        metric
+            .update(
+                &AccuracyInput::new(
+                    Tensor::from_data([[0.9, 0.1]; 2], &device),
+                    Tensor::from_data([2, 2], &device),
+                ),
+                &MetricMetadata::fake(),
+            )
+            .unwrap();
+        metric
+            .update(
+                &AccuracyInput::new(
+                    Tensor::from_data([[0.9, 0.1]], &device),
+                    Tensor::from_data([0], &device),
+                ),
+                &MetricMetadata::fake(),
+            )
+            .unwrap();
 
         assert_eq!(100.0, metric.final_value().current());
     }
@@ -221,7 +242,7 @@ mod tests {
         .sync();
         let input = output.adapt();
 
-        let _entry = metric.update(&input, &MetricMetadata::fake());
+        let _entry = metric.update(&input, &MetricMetadata::fake()).unwrap();
         assert_eq!(100.0, metric.value().unwrap().current());
     }
 }

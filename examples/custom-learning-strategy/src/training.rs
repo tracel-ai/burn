@@ -148,10 +148,12 @@ impl<M: LearnerModel> SupervisedLearningStrategy<M> for MyCustomLearningStrategy
             log::info!("Executing training step for epoch {}", epoch,);
 
             // Single device / dataloader
-            event_processor.process_train(LearnerEvent::StartSplit {
-                epoch_number: epoch,
-                total_items: train_total_items,
-            });
+            event_processor
+                .process_train(LearnerEvent::StartSplit {
+                    epoch_number: epoch,
+                    total_items: train_total_items,
+                })
+                .unwrap();
             let mut iterator = dataloader_train.iter();
             let mut iteration = 0;
 
@@ -178,7 +180,9 @@ impl<M: LearnerModel> SupervisedLearningStrategy<M> for MyCustomLearningStrategy
                     Some(learner.lr_current()),
                 );
 
-                event_processor.process_train(LearnerEvent::ProcessedItem(item));
+                event_processor
+                    .process_train(LearnerEvent::ProcessedItem(item))
+                    .unwrap();
 
                 if interrupter.should_stop() {
                     let reason = interrupter
@@ -188,14 +192,18 @@ impl<M: LearnerModel> SupervisedLearningStrategy<M> for MyCustomLearningStrategy
                     break;
                 }
             }
-            event_processor.process_train(LearnerEvent::EndSplit(epoch));
+            event_processor
+                .process_train(LearnerEvent::EndSplit(epoch))
+                .unwrap();
 
             let model_valid = learner.model().valid();
 
-            event_processor.process_valid(LearnerEvent::StartSplit {
-                epoch_number: epoch,
-                total_items: valid_total_items,
-            });
+            event_processor
+                .process_valid(LearnerEvent::StartSplit {
+                    epoch_number: epoch,
+                    total_items: valid_total_items,
+                })
+                .unwrap();
             let mut iterator = dataloader_valid.iter();
             let mut iteration = 0;
 
@@ -213,10 +221,16 @@ impl<M: LearnerModel> SupervisedLearningStrategy<M> for MyCustomLearningStrategy
                 let item = InferenceStep::step(&model_valid, item);
                 let item = TrainingItem::new(item, progress, Some(iteration), None);
 
-                event_processor.process_valid(LearnerEvent::ProcessedItem(item));
+                event_processor
+                    .process_valid(LearnerEvent::ProcessedItem(item))
+                    .unwrap();
             }
-            event_processor.process_valid(LearnerEvent::EndSplit(epoch));
-            event_processor.process_train(LearnerEvent::EndEpoch(epoch));
+            event_processor
+                .process_valid(LearnerEvent::EndSplit(epoch))
+                .unwrap();
+            event_processor
+                .process_train(LearnerEvent::EndEpoch(epoch))
+                .unwrap();
 
             if let Some(checkpointer) = &mut checkpointer {
                 checkpointer.checkpoint(&learner, epoch, &training_components.event_store);

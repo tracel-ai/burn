@@ -188,21 +188,25 @@ where
 
             if !self.eval {
                 progress.items_processed += 1;
-                processor.process_train(RLEvent::EnvStep(EvaluationItem::new(
-                    transition.action_context,
-                    progress.clone(),
-                    None,
-                )));
-
-                if transition.done {
-                    processor.process_train(RLEvent::EpisodeEnd(EvaluationItem::new(
-                        EpisodeSummary {
-                            episode_length: transition.ep_len,
-                            cum_reward: transition.cum_reward,
-                        },
+                processor
+                    .process_train(RLEvent::EnvStep(EvaluationItem::new(
+                        transition.action_context,
                         progress.clone(),
                         None,
-                    )));
+                    )))
+                    .unwrap();
+
+                if transition.done {
+                    processor
+                        .process_train(RLEvent::EpisodeEnd(EvaluationItem::new(
+                            EpisodeSummary {
+                                episode_length: transition.ep_len,
+                                cum_reward: transition.cum_reward,
+                            },
+                            progress.clone(),
+                            None,
+                        )))
+                        .unwrap();
                 }
             }
 
@@ -234,15 +238,17 @@ where
             for (i, step) in trajectory.timesteps.iter().enumerate() {
                 // TODO : clean this.
                 if self.eval {
-                    processor.process_valid(AgentEvaluationEvent::EnvStep(EvaluationItem::new(
-                        step.action_context.clone(),
-                        Progress::new(i, i, Some("steps".to_string())),
-                        None,
-                    )));
+                    processor
+                        .process_valid(AgentEvaluationEvent::EnvStep(EvaluationItem::new(
+                            step.action_context.clone(),
+                            Progress::new(i, i, Some("steps".to_string())),
+                            None,
+                        )))
+                        .unwrap();
 
                     if step.done {
-                        processor.process_valid(AgentEvaluationEvent::EpisodeEnd(
-                            EvaluationItem::new(
+                        processor
+                            .process_valid(AgentEvaluationEvent::EpisodeEnd(EvaluationItem::new(
                                 EpisodeSummary {
                                     episode_length: step.ep_len,
                                     cum_reward: step.cum_reward,
@@ -253,29 +259,33 @@ where
                                     Some("episodes".to_string()),
                                 ),
                                 None,
-                            ),
-                        ));
+                            )))
+                            .unwrap();
                     }
                 } else {
-                    processor.process_train(RLEvent::EnvStep(EvaluationItem::new(
-                        step.action_context.clone(),
-                        Progress::new(i, i, Some("steps".to_string())),
-                        None,
-                    )));
+                    processor
+                        .process_train(RLEvent::EnvStep(EvaluationItem::new(
+                            step.action_context.clone(),
+                            Progress::new(i, i, Some("steps".to_string())),
+                            None,
+                        )))
+                        .unwrap();
 
                     if step.done {
-                        processor.process_train(RLEvent::EpisodeEnd(EvaluationItem::new(
-                            EpisodeSummary {
-                                episode_length: step.ep_len,
-                                cum_reward: step.cum_reward,
-                            },
-                            Progress::new(
-                                episode_num + 1,
-                                num_episodes,
-                                Some("episodes".to_string()),
-                            ),
-                            None,
-                        )));
+                        processor
+                            .process_train(RLEvent::EpisodeEnd(EvaluationItem::new(
+                                EpisodeSummary {
+                                    episode_length: step.ep_len,
+                                    cum_reward: step.cum_reward,
+                                },
+                                Progress::new(
+                                    episode_num + 1,
+                                    num_episodes,
+                                    Some("episodes".to_string()),
+                                ),
+                                None,
+                            )))
+                            .unwrap();
                     }
                 }
             }
@@ -391,21 +401,25 @@ where
 
             if !self.eval {
                 progress.items_processed += 1;
-                processor.process_train(RLEvent::EnvStep(EvaluationItem::new(
-                    transition.action_context,
-                    progress.clone(),
-                    None,
-                )));
-
-                if transition.done {
-                    processor.process_train(RLEvent::EpisodeEnd(EvaluationItem::new(
-                        EpisodeSummary {
-                            episode_length: transition.ep_len,
-                            cum_reward: transition.cum_reward,
-                        },
+                processor
+                    .process_train(RLEvent::EnvStep(EvaluationItem::new(
+                        transition.action_context,
                         progress.clone(),
                         None,
-                    )));
+                    )))
+                    .unwrap();
+
+                if transition.done {
+                    processor
+                        .process_train(RLEvent::EpisodeEnd(EvaluationItem::new(
+                            EpisodeSummary {
+                                episode_length: transition.ep_len,
+                                cum_reward: transition.cum_reward,
+                            },
+                            progress.clone(),
+                            None,
+                        )))
+                        .unwrap();
                 }
             }
 
@@ -459,15 +473,17 @@ where
             }
             for (i, step) in trajectory.timesteps.iter().enumerate() {
                 if self.eval {
-                    processor.process_valid(AgentEvaluationEvent::EnvStep(EvaluationItem::new(
-                        step.action_context.clone(),
-                        Progress::new(i, i, Some("steps".to_string())),
-                        None,
-                    )));
+                    processor
+                        .process_valid(AgentEvaluationEvent::EnvStep(EvaluationItem::new(
+                            step.action_context.clone(),
+                            Progress::new(i, i, Some("steps".to_string())),
+                            None,
+                        )))
+                        .unwrap();
 
                     if step.done {
-                        processor.process_valid(AgentEvaluationEvent::EpisodeEnd(
-                            EvaluationItem::new(
+                        processor
+                            .process_valid(AgentEvaluationEvent::EpisodeEnd(EvaluationItem::new(
                                 EpisodeSummary {
                                     episode_length: step.ep_len,
                                     cum_reward: step.cum_reward,
@@ -478,29 +494,33 @@ where
                                     Some("episodes".to_string()),
                                 ),
                                 None,
-                            ),
-                        ));
+                            )))
+                            .unwrap();
                     }
                 } else {
-                    processor.process_train(RLEvent::EnvStep(EvaluationItem::new(
-                        step.action_context.clone(),
-                        Progress::new(i, i, Some("steps".to_string())),
-                        None,
-                    )));
+                    processor
+                        .process_train(RLEvent::EnvStep(EvaluationItem::new(
+                            step.action_context.clone(),
+                            Progress::new(i, i, Some("steps".to_string())),
+                            None,
+                        )))
+                        .unwrap();
 
                     if step.done {
-                        processor.process_train(RLEvent::EpisodeEnd(EvaluationItem::new(
-                            EpisodeSummary {
-                                episode_length: step.ep_len,
-                                cum_reward: step.cum_reward,
-                            },
-                            Progress::new(
-                                episode_num + 1,
-                                num_episodes,
-                                Some("episodes".to_string()),
-                            ),
-                            None,
-                        )));
+                        processor
+                            .process_train(RLEvent::EpisodeEnd(EvaluationItem::new(
+                                EpisodeSummary {
+                                    episode_length: step.ep_len,
+                                    cum_reward: step.cum_reward,
+                                },
+                                Progress::new(
+                                    episode_num + 1,
+                                    num_episodes,
+                                    Some("episodes".to_string()),
+                                ),
+                                None,
+                            )))
+                            .unwrap();
                     }
                 }
             }

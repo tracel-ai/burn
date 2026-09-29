@@ -51,10 +51,12 @@ impl<M: LearnerModel> SupervisedLearningStrategy<M> for MultiDeviceLearningStrat
         for training_progress in TrainingLoop::new(starting_epoch, training_components.num_epochs) {
             let epoch = training_progress.items_processed;
 
-            event_processor.process_train(LearnerEvent::StartSplit {
-                epoch_number: epoch,
-                total_items: train_total_items,
-            });
+            event_processor
+                .process_train(LearnerEvent::StartSplit {
+                    epoch_number: epoch,
+                    total_items: train_total_items,
+                })
+                .unwrap();
             epoch_train.run(
                 &mut learner,
                 &training_progress,
@@ -63,7 +65,9 @@ impl<M: LearnerModel> SupervisedLearningStrategy<M> for MultiDeviceLearningStrat
                 self.devices.to_vec(),
                 self.optim,
             );
-            event_processor.process_train(LearnerEvent::EndSplit(epoch));
+            event_processor
+                .process_train(LearnerEvent::EndSplit(epoch))
+                .unwrap();
 
             if training_components.interrupter.should_stop() {
                 let reason = training_components
@@ -80,20 +84,26 @@ impl<M: LearnerModel> SupervisedLearningStrategy<M> for MultiDeviceLearningStrat
                 learner.fork(main_device);
             }
 
-            event_processor.process_valid(LearnerEvent::StartSplit {
-                epoch_number: epoch,
-                total_items: valid_total_items,
-            });
+            event_processor
+                .process_valid(LearnerEvent::StartSplit {
+                    epoch_number: epoch,
+                    total_items: valid_total_items,
+                })
+                .unwrap();
             epoch_valid.run(
                 &learner,
                 &training_progress,
                 &mut event_processor,
                 &training_components.interrupter,
             );
-            event_processor.process_valid(LearnerEvent::EndSplit(epoch));
-            event_processor.process_train(LearnerEvent::EndEpoch(epoch));
+            event_processor
+                .process_valid(LearnerEvent::EndSplit(epoch))
+                .unwrap();
+            event_processor
+                .process_train(LearnerEvent::EndEpoch(epoch))
+                .unwrap();
             if checkpointer.is_some() || early_stopping.is_some() {
-                event_processor.flush();
+                event_processor.flush().unwrap();
             }
 
             if let Some(checkpointer) = &mut checkpointer {

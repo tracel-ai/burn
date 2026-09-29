@@ -1,3 +1,4 @@
+use burn_core::tensor::TensorReadError;
 use std::sync::Arc;
 
 use crate::{
@@ -106,7 +107,7 @@ impl<TS: ItemLazy, ES: ItemLazy> RLEventProcessor<TS, ES> {
 impl<TS: ItemLazy, ES: ItemLazy> EventProcessorTraining<RLEvent<TS, ES>, AgentEvaluationEvent<ES>>
     for RLEventProcessor<TS, ES>
 {
-    fn process_train(&mut self, event: RLEvent<TS, ES>) {
+    fn process_train(&mut self, event: RLEvent<TS, ES>) -> Result<(), TensorReadError> {
         match event {
             RLEvent::Start { total_items, label } => {
                 let definitions = self.metrics.metric_definitions();
@@ -125,7 +126,7 @@ impl<TS: ItemLazy, ES: ItemLazy> EventProcessorTraining<RLEvent<TS, ES>, AgentEv
                 let item = item.sync();
                 let metadata = (&item).into();
 
-                let update = self.metrics.update_train_step(&item, &metadata);
+                let update = self.metrics.update_train_step(&item, &metadata)?;
                 self.process_update_train(update);
 
                 if let Some(logger) = &mut self.training_progress_logger {
@@ -137,7 +138,7 @@ impl<TS: ItemLazy, ES: ItemLazy> EventProcessorTraining<RLEvent<TS, ES>, AgentEv
                 let item = item.sync();
                 let metadata = (&item).into();
 
-                let update = self.metrics.update_env_step(&item, &metadata);
+                let update = self.metrics.update_env_step(&item, &metadata)?;
                 self.process_update_train(update);
 
                 if let Some(logger) = &mut self.training_progress_logger {
@@ -151,7 +152,7 @@ impl<TS: ItemLazy, ES: ItemLazy> EventProcessorTraining<RLEvent<TS, ES>, AgentEv
                 let item = item.sync();
                 let metadata = (&item).into();
 
-                let update = self.metrics.update_episode_end(&item, &metadata);
+                let update = self.metrics.update_episode_end(&item, &metadata)?;
                 self.process_update_train(update);
 
                 if let Some(logger) = &mut self.training_progress_logger {
@@ -167,9 +168,10 @@ impl<TS: ItemLazy, ES: ItemLazy> EventProcessorTraining<RLEvent<TS, ES>, AgentEv
                 self.renderer.on_train_end(learner_summary).ok();
             }
         }
+        Ok(())
     }
 
-    fn process_valid(&mut self, event: AgentEvaluationEvent<ES>) {
+    fn process_valid(&mut self, event: AgentEvaluationEvent<ES>) -> Result<(), TensorReadError> {
         match event {
             AgentEvaluationEvent::Start(num_episodes) => {
                 if let Some(logger) = &mut self.training_progress_logger {
@@ -181,7 +183,7 @@ impl<TS: ItemLazy, ES: ItemLazy> EventProcessorTraining<RLEvent<TS, ES>, AgentEv
                 let item = item.sync();
                 let metadata = (&item).into();
 
-                let update = self.metrics.update_env_step_valid(&item, &metadata);
+                let update = self.metrics.update_env_step_valid(&item, &metadata)?;
                 self.process_update_valid(update);
 
                 if let Some(logger) = &mut self.training_progress_logger {
@@ -193,7 +195,7 @@ impl<TS: ItemLazy, ES: ItemLazy> EventProcessorTraining<RLEvent<TS, ES>, AgentEv
                 let item = item.sync();
                 let metadata = (&item).into();
 
-                let update = self.metrics.update_episode_end_valid(&item, &metadata);
+                let update = self.metrics.update_episode_end_valid(&item, &metadata)?;
                 self.process_update_valid(update);
 
                 if let Some(logger) = &mut self.training_progress_logger {
@@ -210,6 +212,7 @@ impl<TS: ItemLazy, ES: ItemLazy> EventProcessorTraining<RLEvent<TS, ES>, AgentEv
                 self.renderer.end_split();
             }
         }
+        Ok(())
     }
 
     fn renderer(self) -> Box<dyn MetricsRenderer> {

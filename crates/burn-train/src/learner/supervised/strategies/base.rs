@@ -137,7 +137,8 @@ pub trait SupervisedLearningStrategy<M: LearnerModel> {
                 total_epochs: training_components.num_epochs,
                 starting_epoch,
                 label: training_components.label.clone(),
-            });
+            })
+            .unwrap();
         // Training loop
         let (model, mut event_processor) = self.fit(
             training_components,
@@ -155,7 +156,9 @@ pub trait SupervisedLearningStrategy<M: LearnerModel> {
         });
 
         // Signal training end. For the TUI renderer, this handles the exit & return to main screen.
-        event_processor.process_train(LearnerEvent::End(summary));
+        event_processor
+            .process_train(LearnerEvent::End(summary))
+            .unwrap();
 
         let model = model.valid();
         let renderer = event_processor.renderer();

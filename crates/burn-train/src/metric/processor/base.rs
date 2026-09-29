@@ -1,4 +1,5 @@
 use burn_core::data::dataloader::Progress;
+use burn_core::tensor::TensorReadError;
 use burn_optim::lr_scheduler::module_lr_scheduler::ModuleLearningRate;
 
 use crate::{
@@ -62,11 +63,28 @@ pub trait ItemLazy: Send {
 /// Process events happening during training and validation.
 pub trait EventProcessorTraining<TrainEvent, ValidEvent>: Send {
     /// Collect a training event.
-    fn process_train(&mut self, event: TrainEvent);
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`TensorReadError`] if a metric could not read the event's tensors.
+    /// Note that an asynchronous processor reports it on a later call instead (see
+    /// [`AsyncProcessorTraining`](super::AsyncProcessorTraining)).
+    fn process_train(&mut self, event: TrainEvent) -> Result<(), TensorReadError>;
     /// Collect a validation event.
-    fn process_valid(&mut self, event: ValidEvent);
+    ///
+    /// # Errors
+    ///
+    /// Same as [`process_train`](Self::process_train).
+    fn process_valid(&mut self, event: ValidEvent) -> Result<(), TensorReadError>;
     /// Wait until previously submitted events are processed (no-op for sync processors).
-    fn flush(&mut self) {}
+    ///
+    /// # Errors
+    ///
+    /// Returns the first [`TensorReadError`] among the events processed since the last
+    /// error was reported.
+    fn flush(&mut self) -> Result<(), TensorReadError> {
+        Ok(())
+    }
     /// Returns the renderer used for training.
     fn renderer(self) -> Box<dyn MetricsRenderer>;
 }
@@ -77,7 +95,16 @@ pub trait EventProcessorEvaluation: Send {
     type ItemTest: ItemLazy;
 
     /// Collect a test event.
-    fn process_test(&mut self, event: EvaluatorEvent<Self::ItemTest>);
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`TensorReadError`] if a metric could not read the event's tensors.
+    /// Note that an asynchronous processor reports it on a later call instead (see
+    /// [`AsyncProcessorTraining`](super::AsyncProcessorTraining)).
+    fn process_test(
+        &mut self,
+        event: EvaluatorEvent<Self::ItemTest>,
+    ) -> Result<(), TensorReadError>;
 
     /// Returns the renderer used for evaluation.
     fn renderer(self) -> Box<dyn MetricsRenderer>;

@@ -125,7 +125,9 @@ impl<M: LearnerModel> MultiDeviceTrainEpoch<M> {
                     Some(learner.lr_current()),
                 );
 
-                event_processor.process_train(LearnerEvent::ProcessedItem(item));
+                event_processor
+                    .process_train(LearnerEvent::ProcessedItem(item))
+                    .unwrap();
             }
 
             if interrupter.should_stop() {
@@ -204,7 +206,9 @@ impl<M: LearnerModel> MultiDeviceTrainEpoch<M> {
                     Some(learner.lr_current()),
                 );
 
-                event_processor.process_train(LearnerEvent::ProcessedItem(item));
+                event_processor
+                    .process_train(LearnerEvent::ProcessedItem(item))
+                    .unwrap();
             }
 
             if interrupter.should_stop() {

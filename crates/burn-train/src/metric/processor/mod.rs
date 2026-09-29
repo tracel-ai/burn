@@ -55,12 +55,14 @@ pub(crate) mod test_utils {
         };
         let dummy_iteration = Some(1);
 
-        processor.process_train(LearnerEvent::ProcessedItem(TrainingItem::new(
-            value,
-            dummy_progress,
-            dummy_iteration,
-            None,
-        )));
+        processor
+            .process_train(LearnerEvent::ProcessedItem(TrainingItem::new(
+                value,
+                dummy_progress,
+                dummy_iteration,
+                None,
+            )))
+            .unwrap();
     }
 
     pub(crate) fn start_epoch(
@@ -68,18 +70,26 @@ pub(crate) mod test_utils {
         epoch: usize,
         num_items: usize,
     ) {
-        processor.process_train(LearnerEvent::StartSplit {
-            epoch_number: epoch,
-            total_items: num_items,
-        });
-        processor.process_valid(LearnerEvent::StartSplit {
-            epoch_number: epoch,
-            total_items: num_items,
-        });
+        processor
+            .process_train(LearnerEvent::StartSplit {
+                epoch_number: epoch,
+                total_items: num_items,
+            })
+            .unwrap();
+        processor
+            .process_valid(LearnerEvent::StartSplit {
+                epoch_number: epoch,
+                total_items: num_items,
+            })
+            .unwrap();
     }
 
     pub(crate) fn end_epoch(processor: &mut MinimalEventProcessor<f64, f64>, epoch: usize) {
-        processor.process_train(LearnerEvent::EndSplit(epoch));
-        processor.process_valid(LearnerEvent::EndSplit(epoch));
+        processor
+            .process_train(LearnerEvent::EndSplit(epoch))
+            .unwrap();
+        processor
+            .process_valid(LearnerEvent::EndSplit(epoch))
+            .unwrap();
     }
 }

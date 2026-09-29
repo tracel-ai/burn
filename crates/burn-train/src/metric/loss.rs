@@ -6,7 +6,7 @@ use super::state::FormatOptions;
 use super::state::NumericMetricState;
 use crate::metric::MetricName;
 use crate::metric::{Metric, MetricAttributes, Numeric, NumericAttributes, NumericEntry};
-use burn_core::tensor::Tensor;
+use burn_core::tensor::{Tensor, TensorReadError};
 
 /// The loss metric.
 #[derive(Clone)]
@@ -40,25 +40,31 @@ impl LossMetric {
 impl Metric for LossMetric {
     type Input = LossInput;
 
-    fn update(&mut self, loss: &Self::Input, _metadata: &MetricMetadata) -> SerializedEntry {
+    fn update(
+        &mut self,
+        loss: &Self::Input,
+        _metadata: &MetricMetadata,
+    ) -> Result<SerializedEntry, TensorReadError> {
         let [batch_size] = loss.tensor.dims();
         let loss = loss
             .tensor
             .clone()
             .mean()
-            .into_data()
+            .try_into_data()?
             .iter::<f64>()
             .next()
             .unwrap();
 
         self.state.update(loss, batch_size);
-        self.state
-            .compute_update(FormatOptions::new(self.name()).precision(2))
+        Ok(self
+            .state
+            .compute_update(FormatOptions::new(self.name()).precision(2)))
     }
 
-    fn compute(&mut self) -> SerializedEntry {
-        self.state
-            .compute_final(FormatOptions::new(self.name()).precision(2))
+    fn compute(&mut self) -> Result<SerializedEntry, TensorReadError> {
+        Ok(self
+            .state
+            .compute_final(FormatOptions::new(self.name()).precision(2)))
     }
 
     fn clear(&mut self) {

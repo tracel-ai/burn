@@ -62,7 +62,8 @@ pub trait RLStrategy<RLC: RLComponentsTypes> {
             .process_train(RLEvent::Start {
                 total_items: training_components.num_steps,
                 label: training_components.label.clone(),
-            });
+            })
+            .unwrap();
 
         // Training loop
         let (policy, mut event_processor) = self.train_loop(
@@ -76,7 +77,9 @@ pub trait RLStrategy<RLC: RLComponentsTypes> {
 
         // Signal training end. For the TUI renderer, this handles the exit & return to main screen.
         // TODO: summary makes sense for RL?
-        event_processor.process_train(RLEvent::End(summary));
+        event_processor
+            .process_train(RLEvent::End(summary))
+            .unwrap();
 
         // let model = model.valid();
         let renderer = event_processor.renderer();

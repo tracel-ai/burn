@@ -1,5 +1,7 @@
 use std::collections::HashMap;
 
+use burn_core::tensor::TensorReadError;
+
 use super::{ItemLazy, TrainingItem};
 use crate::{
     EvaluationItem,
@@ -86,21 +88,21 @@ impl<T: ItemLazy> MetricsEvaluation<T> {
         &mut self,
         item: &EvaluationItem<T>,
         metadata: &MetricMetadata,
-    ) -> MetricsUpdate {
+    ) -> Result<MetricsUpdate, TensorReadError> {
         let mut entries = Vec::with_capacity(self.test.len());
         let mut entries_numeric = Vec::with_capacity(self.test_numeric.len());
 
         for metric in self.test.iter_mut() {
-            let state = metric.update(&item.item, metadata);
+            let state = metric.update(&item.item, metadata)?;
             entries.push(state);
         }
 
         for metric in self.test_numeric.iter_mut() {
-            let numeric_update = metric.update(&item.item, metadata);
+            let numeric_update = metric.update(&item.item, metadata)?;
             entries_numeric.push(numeric_update);
         }
 
-        MetricsUpdate::new(entries, entries_numeric)
+        Ok(MetricsUpdate::new(entries, entries_numeric))
     }
 }
 
@@ -170,21 +172,21 @@ impl<T: ItemLazy, V: ItemLazy> MetricsTraining<T, V> {
         &mut self,
         item: &TrainingItem<T>,
         metadata: &MetricMetadata,
-    ) -> MetricsUpdate {
+    ) -> Result<MetricsUpdate, TensorReadError> {
         let mut entries = Vec::with_capacity(self.train.len());
         let mut entries_numeric = Vec::with_capacity(self.train_numeric.len());
 
         for metric in self.train.iter_mut() {
-            let state = metric.update(&item.item, metadata);
+            let state = metric.update(&item.item, metadata)?;
             entries.push(state);
         }
 
         for metric in self.train_numeric.iter_mut() {
-            let numeric_update = metric.update(&item.item, metadata);
+            let numeric_update = metric.update(&item.item, metadata)?;
             entries_numeric.push(numeric_update);
         }
 
-        MetricsUpdate::new(entries, entries_numeric)
+        Ok(MetricsUpdate::new(entries, entries_numeric))
     }
 
     /// Update the training information from the validation item.
@@ -192,57 +194,95 @@ impl<T: ItemLazy, V: ItemLazy> MetricsTraining<T, V> {
         &mut self,
         item: &TrainingItem<V>,
         metadata: &MetricMetadata,
-    ) -> MetricsUpdate {
+    ) -> Result<MetricsUpdate, TensorReadError> {
         let mut entries = Vec::with_capacity(self.valid.len());
         let mut entries_numeric = Vec::with_capacity(self.valid_numeric.len());
 
         for metric in self.valid.iter_mut() {
-            let state = metric.update(&item.item, metadata);
+            let state = metric.update(&item.item, metadata)?;
             entries.push(state);
         }
 
         for metric in self.valid_numeric.iter_mut() {
-            let numeric_update = metric.update(&item.item, metadata);
+            let numeric_update = metric.update(&item.item, metadata)?;
             entries_numeric.push(numeric_update);
         }
 
-        MetricsUpdate::new(entries, entries_numeric)
+        Ok(MetricsUpdate::new(entries, entries_numeric))
     }
 
     /// Signal the end of a training epoch.
     /// Returns the final metric entries for the epoch.
-    pub(crate) fn end_epoch_train(&mut self) -> MetricsUpdate {
+    ///
+    /// # Errors
+    ///
+    /// Returns the first [`TensorReadError`] a metric's computation reported. Other metrics
+    /// are still computed and cleared so the next epoch starts clean.
+    pub(crate) fn end_epoch_train(&mut self) -> Result<MetricsUpdate, TensorReadError> {
         let mut entries = Vec::with_capacity(self.train.len());
         let mut entries_numeric = Vec::with_capacity(self.train_numeric.len());
+        let mut first_error = None;
 
         for metric in self.train.iter_mut() {
-            entries.push(metric.compute());
+            match metric.compute() {
+                Ok(entry) => entries.push(entry),
+                Err(err) => {
+                    first_error.get_or_insert(err);
+                }
+            }
             metric.clear();
         }
         for metric in self.train_numeric.iter_mut() {
-            entries_numeric.push(metric.compute());
+            match metric.compute() {
+                Ok(entry) => entries_numeric.push(entry),
+                Err(err) => {
+                    first_error.get_or_insert(err);
+                }
+            }
             metric.clear();
         }
 
-        MetricsUpdate::new(entries, entries_numeric)
+        match first_error {
+            Some(err) => Err(err),
+            None => Ok(MetricsUpdate::new(entries, entries_numeric)),
+        }
     }
 
     /// Signal the end of a validation epoch.
     /// Returns the final metric entries for the epoch.
-    pub(crate) fn end_epoch_valid(&mut self) -> MetricsUpdate {
+    ///
+    /// # Errors
+    ///
+    /// Returns the first [`TensorReadError`] a metric's computation reported. Other metrics
+    /// are still computed and cleared so the next epoch starts clean.
+    pub(crate) fn end_epoch_valid(&mut self) -> Result<MetricsUpdate, TensorReadError> {
         let mut entries = Vec::with_capacity(self.valid.len());
         let mut entries_numeric = Vec::with_capacity(self.valid_numeric.len());
+        let mut first_error = None;
 
         for metric in self.valid.iter_mut() {
-            entries.push(metric.compute());
+            match metric.compute() {
+                Ok(entry) => entries.push(entry),
+                Err(err) => {
+                    first_error.get_or_insert(err);
+                }
+            }
             metric.clear();
         }
         for metric in self.valid_numeric.iter_mut() {
-            entries_numeric.push(metric.compute());
+            match metric.compute() {
+                Ok(entry) => entries_numeric.push(entry),
+                Err(err) => {
+                    first_error.get_or_insert(err);
+                }
+            }
             metric.clear();
         }
 
-        MetricsUpdate::new(entries, entries_numeric)
+        match first_error {
+            Some(err) => Err(err),
+            None => Ok(MetricsUpdate::new(entries, entries_numeric)),
+        }
     }
 }
 
@@ -267,14 +307,22 @@ impl<T> From<&EvaluationItem<T>> for MetricMetadata {
 }
 
 pub(crate) trait NumericMetricUpdater<T>: Send + Sync {
-    fn update(&mut self, item: &T, metadata: &MetricMetadata) -> NumericMetricUpdate;
-    fn compute(&mut self) -> NumericMetricUpdate;
+    fn update(
+        &mut self,
+        item: &T,
+        metadata: &MetricMetadata,
+    ) -> Result<NumericMetricUpdate, TensorReadError>;
+    fn compute(&mut self) -> Result<NumericMetricUpdate, TensorReadError>;
     fn clear(&mut self);
 }
 
 pub(crate) trait MetricUpdater<T>: Send + Sync {
-    fn update(&mut self, item: &T, metadata: &MetricMetadata) -> MetricEntry;
-    fn compute(&mut self) -> MetricEntry;
+    fn update(
+        &mut self,
+        item: &T,
+        metadata: &MetricMetadata,
+    ) -> Result<MetricEntry, TensorReadError>;
+    fn compute(&mut self) -> Result<MetricEntry, TensorReadError>;
     fn clear(&mut self);
 }
 
@@ -298,30 +346,34 @@ where
     M: Metric + Numeric + 'static,
     T: Adaptor<M::Input>,
 {
-    fn update(&mut self, item: &T, metadata: &MetricMetadata) -> NumericMetricUpdate {
-        let serialized_entry = self.metric.update(&item.adapt(), metadata);
+    fn update(
+        &mut self,
+        item: &T,
+        metadata: &MetricMetadata,
+    ) -> Result<NumericMetricUpdate, TensorReadError> {
+        let serialized_entry = self.metric.update(&item.adapt(), metadata)?;
         let update = MetricEntry::new(self.id.clone(), serialized_entry);
         let numeric = self.metric.value();
         let running = self.metric.running_value();
 
-        NumericMetricUpdate {
+        Ok(NumericMetricUpdate {
             entry: update,
             numeric_entry: numeric,
             running_entry: running,
-        }
+        })
     }
 
-    fn compute(&mut self) -> NumericMetricUpdate {
-        let serialized_entry = self.metric.compute();
+    fn compute(&mut self) -> Result<NumericMetricUpdate, TensorReadError> {
+        let serialized_entry = self.metric.compute()?;
         let update = MetricEntry::new(self.id.clone(), serialized_entry);
         let final_entry = self.metric.final_value();
 
-        NumericMetricUpdate {
+        Ok(NumericMetricUpdate {
             entry: update,
             // Running entry is not applicable. This is the final epoch-level value computed.
             numeric_entry: Some(final_entry),
             running_entry: None,
-        }
+        })
     }
 
     fn clear(&mut self) {
@@ -335,14 +387,18 @@ where
     M: Metric + 'static,
     T: Adaptor<M::Input>,
 {
-    fn update(&mut self, item: &T, metadata: &MetricMetadata) -> MetricEntry {
-        let serialized_entry = self.metric.update(&item.adapt(), metadata);
-        MetricEntry::new(self.id.clone(), serialized_entry)
+    fn update(
+        &mut self,
+        item: &T,
+        metadata: &MetricMetadata,
+    ) -> Result<MetricEntry, TensorReadError> {
+        let serialized_entry = self.metric.update(&item.adapt(), metadata)?;
+        Ok(MetricEntry::new(self.id.clone(), serialized_entry))
     }
 
-    fn compute(&mut self) -> MetricEntry {
-        let serialized_entry = self.metric.compute();
-        MetricEntry::new(self.id.clone(), serialized_entry)
+    fn compute(&mut self) -> Result<MetricEntry, TensorReadError> {
+        let serialized_entry = self.metric.compute()?;
+        Ok(MetricEntry::new(self.id.clone(), serialized_entry))
     }
 
     fn clear(&mut self) {
