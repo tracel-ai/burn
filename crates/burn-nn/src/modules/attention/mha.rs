@@ -194,6 +194,7 @@ impl MhaInput {
 #[derive(Debug, Clone)]
 pub struct MhaOutput {
     /// The attention weights `[batch_size, n_heads, seq_length_1, seq_length_2]`.
+    /// During training, dropout is applied to these weights after softmax, so rows may not sum to 1.
     pub weights: Tensor<4>,
     /// The context tensor `[batch_size, seq_length_1, d_model]`.
     pub context: Tensor<3>,
@@ -284,11 +285,9 @@ impl MultiHeadAttention {
     }
 
     fn attn_scores(&self, query: Tensor<4>, key: Tensor<4>) -> Tensor<4> {
-        let attn_scores = query
+        query
             .matmul(key.transpose())
-            .div_scalar((self.d_k as f32).sqrt());
-
-        self.dropout.forward(attn_scores)
+            .div_scalar((self.d_k as f32).sqrt())
     }
 
     fn attn_weights(
@@ -315,11 +314,13 @@ impl MultiHeadAttention {
             );
         }
 
-        if self.quiet_softmax {
+        let weights = if self.quiet_softmax {
             quiet_softmax(attn_scores, 3)
         } else {
             softmax(attn_scores, 3)
-        }
+        };
+
+        self.dropout.forward(weights)
     }
 
     fn attention_linear(&self, x: Tensor<3>, linear: &Linear) -> Tensor<4> {
@@ -392,6 +393,26 @@ mod tests {
     use burn::tensor::Int;
     use burn::tensor::Tolerance;
     use burn::tensor::{Distribution, Shape};
+
+    #[test]
+    fn attention_dropout_applies_after_softmax() {
+        let device = Device::default().autodiff();
+        device.seed(42);
+        let mha = MultiHeadAttentionConfig::new(1, 1)
+            .with_dropout(0.5)
+            .init(&device);
+
+        // Equal logits give probabilities of 0.5. Inverted dropout then makes
+        // every returned weight either 0 or 1, regardless of the random mask.
+        let scores = Tensor::<4>::ones([64, 1, 1, 2], &device).mul_scalar(-1.0);
+        let weights = mha.attn_weights(scores, None, None).into_data();
+        for &weight in weights.as_slice::<f32>().unwrap() {
+            assert!(
+                (weight - 0.0).abs() < 1e-6 || (weight - 1.0).abs() < 1e-6,
+                "expected post-softmax dropout weight 0 or 1, got {weight}"
+            );
+        }
+    }
 
     #[test]
     #[should_panic(
