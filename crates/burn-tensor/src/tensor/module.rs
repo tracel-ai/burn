@@ -604,6 +604,11 @@ fn avg_pool<const D: usize, const N: usize>(
 /// Backends only drop such windows for padding they apply themselves, so one extra window
 /// survives once asymmetric padding has been materialized. For backend-applied padding
 /// the condition never holds and the output is returned unchanged.
+///
+/// One window is all there is to drop when the end padding is smaller than the kernel (the
+/// range PyTorch and ONNX Runtime accept): floor mode never starts a window in it, and ceil
+/// mode adds at most one. Larger end padding keeps floor-mode windows there, and only the
+/// extra ceil window is dropped, as in the PyTorch and ONNX output-size formulas.
 fn drop_end_padding_windows<const D: usize, const N: usize, K: Basic>(
     output: Tensor<D, K>,
     input_dims: [usize; D],
