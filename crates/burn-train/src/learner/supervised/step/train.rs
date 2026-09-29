@@ -15,22 +15,51 @@ type StepOutput<TO> = (Vec<MultiTrainOutput<TO>>, Progress);
 pub enum MultiDeviceStepError {
     /// Error while loading data.
     Dataset(DatasetError),
-    /// The training step panicked on a worker.
-    Worker {
-        /// The worker's device index.
-        device_id: usize,
-        /// The panic message.
-        message: String,
-    },
+    /// The training step panicked on one or more workers.
+    Workers(Vec<WorkerFailure>),
+}
+
+/// A training step that panicked on a worker.
+#[derive(Debug)]
+pub struct WorkerFailure {
+    /// The worker's device index.
+    pub device_id: usize,
+    /// The panic message.
+    pub message: String,
+}
+
+impl core::fmt::Display for WorkerFailure {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(
+            f,
+            "training worker on device {} failed: {}",
+            self.device_id, self.message
+        )
+    }
+}
+
+/// Every failure, on one line if there is only one.
+pub(crate) fn fmt_worker_failures(
+    failures: &[WorkerFailure],
+    f: &mut core::fmt::Formatter<'_>,
+) -> core::fmt::Result {
+    match failures {
+        [failure] => write!(f, "{failure}"),
+        failures => {
+            write!(f, "{} training workers failed:", failures.len())?;
+            for failure in failures {
+                write!(f, "\n  {failure}")?;
+            }
+            Ok(())
+        }
+    }
 }
 
 impl core::fmt::Display for MultiDeviceStepError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::Dataset(err) => write!(f, "dataset error during training step: {err}"),
-            Self::Worker { device_id, message } => {
-                write!(f, "training worker on device {device_id} failed: {message}")
-            }
+            Self::Workers(failures) => fmt_worker_failures(failures, f),
         }
     }
 }
@@ -201,7 +230,7 @@ impl<M: LearnerModel> MultiDevicesTrainStep<M> {
         }
 
         let mut outputs = Vec::with_capacity(num_send);
-        let mut failure = None;
+        let mut failures = Vec::new();
 
         // Every worker answers before this returns, even after one failed: an answer left in
         // the channel would be taken for the next step's.
@@ -209,18 +238,41 @@ impl<M: LearnerModel> MultiDevicesTrainStep<M> {
             match self.receiver.recv().unwrap() {
                 WorkerMessage::Output(output) => outputs.push(output),
                 WorkerMessage::Error(device_id, message) => {
-                    let error = MultiDeviceStepError::Worker { device_id, message };
-                    match failure {
-                        None => failure = Some(error),
-                        Some(_) => log::error!("{error}"),
-                    }
+                    failures.push(WorkerFailure { device_id, message })
                 }
             }
         }
 
-        match failure {
-            Some(error) => Err(error),
-            None => Ok((outputs, Progress::new(items_processed, items_total, unit))),
+        if !failures.is_empty() {
+            return Err(MultiDeviceStepError::Workers(failures));
         }
+        Ok((outputs, Progress::new(items_processed, items_total, unit)))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn failure(device_id: usize, message: &str) -> WorkerFailure {
+        WorkerFailure {
+            device_id,
+            message: message.to_string(),
+        }
+    }
+
+    #[test]
+    fn every_failed_worker_is_reported() {
+        let error = MultiDeviceStepError::Workers(vec![
+            failure(0, "out of memory"),
+            failure(2, "illegal address"),
+        ]);
+
+        assert_eq!(
+            error.to_string(),
+            "2 training workers failed:\n  \
+             training worker on device 0 failed: out of memory\n  \
+             training worker on device 2 failed: illegal address"
+        );
     }
 }

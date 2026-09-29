@@ -1,6 +1,10 @@
 use burn_core::data::dataset::DatasetError;
 
-use crate::{MetricsError, checkpoint::CheckpointerError, train::MultiDeviceStepError};
+use crate::{
+    MetricsError,
+    checkpoint::CheckpointerError,
+    train::{MultiDeviceStepError, WorkerFailure, fmt_worker_failures},
+};
 
 /// An error that stopped training or evaluation.
 #[derive(Debug)]
@@ -9,13 +13,8 @@ pub enum TrainingError {
     Metrics(MetricsError),
     /// Error while loading data.
     Dataset(DatasetError),
-    /// The training step panicked on a worker of a multi-device strategy.
-    Worker {
-        /// The worker's device index.
-        device_id: usize,
-        /// The panic message.
-        message: String,
-    },
+    /// The training step panicked on one or more workers of a multi-device strategy.
+    Workers(Vec<WorkerFailure>),
     /// Error while saving, restoring or deleting a checkpoint.
     Checkpoint(CheckpointerError),
 }
@@ -36,9 +35,7 @@ impl core::fmt::Display for TrainingError {
         match self {
             Self::Metrics(err) => write!(f, "{err}"),
             Self::Dataset(err) => write!(f, "Dataset error: {err}"),
-            Self::Worker { device_id, message } => {
-                write!(f, "Training worker on device {device_id} failed: {message}")
-            }
+            Self::Workers(failures) => fmt_worker_failures(failures, f),
             Self::Checkpoint(err) => write!(f, "Checkpoint error: {err}"),
         }
     }
@@ -49,7 +46,7 @@ impl core::error::Error for TrainingError {
         match self {
             Self::Metrics(err) => Some(err),
             Self::Dataset(err) => Some(err),
-            Self::Worker { .. } => None,
+            Self::Workers(_) => None,
             Self::Checkpoint(err) => Some(err),
         }
     }
@@ -77,9 +74,7 @@ impl From<MultiDeviceStepError> for TrainingError {
     fn from(err: MultiDeviceStepError) -> Self {
         match err {
             MultiDeviceStepError::Dataset(err) => Self::Dataset(err),
-            MultiDeviceStepError::Worker { device_id, message } => {
-                Self::Worker { device_id, message }
-            }
+            MultiDeviceStepError::Workers(failures) => Self::Workers(failures),
         }
     }
 }

@@ -11,6 +11,7 @@ use burn_train::{
     EvaluatorBuilder, Interrupter, Interruption, LearningResult, SupervisedTraining, TrainingError,
     logger::InMemoryMetricLogger,
     metric::{Metric, MetricMetadata, MetricName, SerializedEntry, store::Split},
+    train::WorkerFailure,
 };
 use common::*;
 
@@ -121,9 +122,11 @@ fn a_stop_request_and_an_error_are_kept_apart() {
     failed.fail_on_error(Ok::<(), TrainingError>(()));
     assert!(!failed.should_stop());
 
-    let worker = |message: &str| TrainingError::Worker {
-        device_id: 0,
-        message: message.to_string(),
+    let worker = |message: &str| {
+        TrainingError::Workers(vec![WorkerFailure {
+            device_id: 0,
+            message: message.to_string(),
+        }])
     };
     failed.fail(worker("the first error"));
     failed.fail(worker("a consequence of it"));
@@ -134,7 +137,9 @@ fn a_stop_request_and_an_error_are_kept_apart() {
         "an error is not an interruption"
     );
     match failed.error().as_deref() {
-        Some(TrainingError::Worker { message, .. }) => assert_eq!(message, "the first error"),
+        Some(TrainingError::Workers(failures)) => {
+            assert_eq!(failures[0].message, "the first error")
+        }
         other => panic!("expected the first error, got {other:?}"),
     }
 
