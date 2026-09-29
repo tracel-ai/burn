@@ -78,7 +78,7 @@ impl Device for CaptureDevice {
     fn from_id(device_id: DeviceId) -> Self {
         assert_eq!(
             device_id.type_id,
-            RouterDeviceType::Capture.type_id(),
+            u16::from(RouterDeviceType::Capture),
             "invalid capture device type"
         );
         Self {
@@ -88,7 +88,7 @@ impl Device for CaptureDevice {
 
     fn to_id(&self) -> DeviceId {
         DeviceId {
-            type_id: RouterDeviceType::Capture.type_id(),
+            type_id: RouterDeviceType::Capture.into(),
             index_id: self.id,
         }
     }
@@ -853,7 +853,7 @@ mod tests {
         assert_eq!(restored, device);
         assert_eq!(
             restored.to_id().type_id,
-            RouterDeviceType::Capture.type_id()
+            u16::from(RouterDeviceType::Capture)
         );
     }
 
