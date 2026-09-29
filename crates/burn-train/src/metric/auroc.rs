@@ -95,8 +95,7 @@ impl AurocMetric {
                 index += 1;
             }
 
-            twice_winning_pairs +=
-                group_positives * (2 * negatives_below + group_negatives);
+            twice_winning_pairs += group_positives * (2 * negatives_below + group_negatives);
             negatives_below += group_negatives;
         }
 
