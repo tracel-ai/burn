@@ -704,7 +704,7 @@ impl core::fmt::Display for TensorData {
                             QuantValue::E4M3 | QuantValue::E5M2 | QuantValue::E2M1,
                         ..
                     } => {
-                        unimplemented!("Can't format yet");
+                        format!("<float-quantized> {scheme:?}")
                     }
                 QuantScheme {
                     mode: QuantMode::Lookup,
