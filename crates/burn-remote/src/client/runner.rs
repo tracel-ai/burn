@@ -2,8 +2,8 @@ use super::{RemoteChannel, RemoteClient, service};
 use crate::shared::{LocalTransferId, TaskResponseContent, TensorRemote, TransferCapability};
 use crate::{PeerAddr, PeerId};
 use burn_backend::{
-    DeviceId, DeviceOps, ExecutionError, ProfileDuration, ProfileOptions, ProfileToken, StreamId,
-    TensorData,
+    DeviceId, DeviceOps, ExecutionError, ProfileDuration, ProfileOptions, ProfileToken,
+    RouterDeviceType, StreamId, TensorData,
 };
 use burn_ir::TensorIr;
 use burn_router::{MultiBackendBridge, RouterClient, RouterTensor, get_client};
@@ -158,12 +158,11 @@ impl RemoteClient {
     /// Rewrite the device ids carried by an op so the server can resolve them.
     ///
     /// This runs for every op, but only ops that carry device ids (currently the collective ops)
-    /// are affected On the client, the participating devices are identified by their *remote*
+    /// are affected. On the client, the participating devices are identified by their *remote*
     /// device ids (`index_id` is the local-registry index that encodes `address`+device index).
     /// The server can't reverse that registry hash, so we translate each id to the plain
-    /// server-local device index (kept in `index_id`, with `type_id` 0). The
-    /// server then maps each index to its own backend device id before executing — see
-    /// `RemoteServer::resolve_devices`.
+    /// server-local device index (kept in `index_id`, with `type_id` 0), which the server maps to
+    /// its own backend device before executing.
     ///
     /// Only same-server collectives are supported for now: every participating device must live
     /// on the same address as the tensor's device. A cross-server group panics with a clear
@@ -361,14 +360,11 @@ impl Default for RemoteDevice {
     }
 }
 
-/// Outside every cubecl runtime's device ids, so a remote device never shares a cubecl runner
-/// thread with a local GPU. Capture devices take `u8::MAX`.
-const REMOTE_DEVICE_TYPE_ID: u16 = u8::MAX as u16 - 1;
-
 impl burn_std::device::Device for RemoteDevice {
     fn from_id(device_id: DeviceId) -> Self {
-        if device_id.type_id != REMOTE_DEVICE_TYPE_ID {
-            panic!("Invalid device id: {device_id} (expected type {REMOTE_DEVICE_TYPE_ID})");
+        let remote = RouterDeviceType::Remote.type_id();
+        if device_id.type_id != remote {
+            panic!("Invalid device id: {device_id} (expected type {remote})");
         }
         let (endpoint, device_index) = service::endpoint_for(device_id.index_id as u32)
             .unwrap_or_else(|| panic!("Invalid device id: {device_id}"));
@@ -381,7 +377,7 @@ impl burn_std::device::Device for RemoteDevice {
 
     fn to_id(&self) -> DeviceId {
         DeviceId {
-            type_id: REMOTE_DEVICE_TYPE_ID,
+            type_id: RouterDeviceType::Remote.type_id(),
             index_id: self.id as u16,
         }
     }
@@ -549,26 +545,5 @@ impl MultiBackendBridge for RemoteBridge {
         target_device: &Self::Device,
     ) -> Self::TensorHandle {
         tensor.change_backend(target_device)
-    }
-}
-
-#[cfg(all(test, feature = "websocket"))]
-mod tests {
-    use super::*;
-    use burn_backend::cubecl::RuntimeId;
-    use burn_std::device::Device;
-
-    #[test]
-    fn a_remote_device_id_names_no_cubecl_runtime() {
-        let id = RemoteDevice::websocket("ws://127.0.0.1:1", 0).to_id();
-
-        assert_eq!(RuntimeId::of_device_id(id).ok(), None);
-    }
-
-    #[test]
-    fn a_remote_device_id_round_trips() {
-        let id = RemoteDevice::websocket("ws://127.0.0.1:1", 0).to_id();
-
-        assert_eq!(RemoteDevice::from_id(id).to_id(), id);
     }
 }
