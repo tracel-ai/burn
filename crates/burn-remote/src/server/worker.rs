@@ -45,7 +45,7 @@ use tokio::runtime::Handle;
 use tokio::sync::mpsc;
 
 use crate::server::local_comm::LocalCommService;
-use crate::server::spawn::spawn_detached;
+use crate::server::spawn::{ResponseTasks, spawn_detached};
 use crate::server::transfer::TensorTransfer;
 use crate::shared::{RequestId, SessionId, Task, TaskResponse, TaskResponseContent};
 use crate::telemetry::{
@@ -74,6 +74,7 @@ where
     session_id: SessionId,
     runner: TensorInterpreter<B>,
     response_sender: mpsc::Sender<TaskResponse>,
+    response_tasks: ResponseTasks,
     transfer: Arc<T>,
     local_comm: Arc<LocalCommService<B>>,
     /// Cache of client-registered reusable op-graphs, keyed by id (see
@@ -107,6 +108,7 @@ where
             session_id,
             runner,
             response_sender,
+            response_tasks: ResponseTasks::default(),
             transfer,
             local_comm,
             graphs: Mutex::new(HashMap::new()),
@@ -131,6 +133,9 @@ where
                     handle.block_on(self.process_tasks(receiver))
                 }));
                 if let Err(payload) = processed {
+                    // A read or profile still in flight may never resolve, and holds the
+                    // response queue open.
+                    self.response_tasks.abort_all();
                     let reason = payload
                         .downcast_ref::<&str>()
                         .copied()
@@ -405,7 +410,7 @@ where
                 });
                 let fut = stream_id.executes(|| self.runner.read_tensor_async(tensor));
                 let sender = self.response_sender.clone();
-                spawn_detached(async move {
+                self.response_tasks.spawn(async move {
                     // Under an async runtime the backend reads eagerly (see `RuntimeKind::Async`),
                     // so `data` is already host-resident here — the fetch handler only serializes
                     // resident bytes and no blocking device→host copy runs on the shared runtime.
@@ -454,7 +459,7 @@ where
                 // wait for it is detached rather than stalling the worker.
                 let duration = stream_id.executes(|| self.runner.profile_end(token, options));
                 let sender = self.response_sender.clone();
-                spawn_detached(async move {
+                self.response_tasks.spawn(async move {
                     let res = match duration {
                         Ok(duration) => Ok(duration.resolve().await.map(|ticks| ticks.duration())),
                         Err(err) => Err(err),
