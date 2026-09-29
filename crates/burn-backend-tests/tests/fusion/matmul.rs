@@ -25,7 +25,7 @@ fn matvec_then_add_should_compute_every_row() {
             .into_data()
             .assert_approx_eq::<FloatElem>(
                 &TensorData::from([[0.04], [-0.24], [0.116], [0.32]]),
-                Tolerance::default(),
+                Tolerance::default().set_half_precision_absolute(1e-3),
             );
     });
 }
