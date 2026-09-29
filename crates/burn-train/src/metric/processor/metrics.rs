@@ -415,7 +415,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::metric::{SerializedEntry, processor::MetricsError};
+    use crate::metric::{SerializedEntry, processor::EventProcessorError};
     use burn_std::ExecutionError;
     use std::sync::Arc;
 
@@ -556,7 +556,7 @@ mod tests {
             split: Split::Test(Some(Arc::new("holdout".to_string()))),
             source: source.into(),
         };
-        let error = MetricsError::from_errors(vec![
+        let error = EventProcessorError::from_errors(vec![
             failure("Accuracy", ExecutionError::with_context("refused")),
             failure("Loss", ExecutionError::device_poisoned("status 700")),
         ])
@@ -564,10 +564,33 @@ mod tests {
 
         assert!(error.is_device_poisoned());
         let message = error.to_string();
-        assert!(message.starts_with("2 metrics failed:"), "{message}");
+        assert!(
+            message.starts_with("Event processing failed 2 times:"),
+            "{message}"
+        );
         assert!(message.contains("test/holdout/Accuracy"), "{message}");
         assert!(message.contains("test/holdout/Loss"), "{message}");
 
-        assert!(MetricsError::from_errors(Vec::new()).is_ok());
+        assert!(EventProcessorError::from_errors(Vec::new()).is_ok());
+    }
+
+    #[test]
+    fn a_sync_failure_is_one_failure_naming_its_split() {
+        let error = EventProcessorError::sync(
+            Split::Test(Some(Arc::new("holdout".to_string()))),
+            ExecutionError::device_poisoned("status 700"),
+        );
+
+        assert!(error.is_device_poisoned());
+        assert_eq!(
+            error.failures().len(),
+            1,
+            "one failure, whatever the metrics"
+        );
+        let message = error.to_string();
+        assert!(
+            message.contains("test/holdout: the event could not be synced"),
+            "{message}"
+        );
     }
 }

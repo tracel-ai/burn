@@ -8,7 +8,8 @@ use std::sync::{
 use burn_core::tensor::{Device, TensorReadError};
 use burn_std::ExecutionError;
 use burn_train::{
-    EvaluatorBuilder, Interrupter, Interruption, LearningResult, SupervisedTraining, TrainingError,
+    EvaluatorBuilder, Interrupter, Interruption, LearningResult, EventProcessorFailure,
+    SupervisedTraining, TrainingError,
     logger::InMemoryMetricLogger,
     metric::{Metric, MetricMetadata, MetricName, SerializedEntry, store::Split},
     train::WorkerFailure,
@@ -71,10 +72,12 @@ fn train(fail_from: usize) -> (LearningResult<ToyModel>, usize) {
 /// The failing metric's name and split, from the reported error.
 fn metric_failure(error: Option<Arc<TrainingError>>) -> (String, Split) {
     match error.as_deref() {
-        Some(TrainingError::Metrics(err)) => {
-            let failure = &err.errors()[0];
-            (failure.metric.to_string(), failure.split.clone())
-        }
+        Some(TrainingError::EventProcessor(err)) => match &err.failures()[0] {
+            EventProcessorFailure::Metric(failure) => {
+                (failure.metric.to_string(), failure.split.clone())
+            }
+            other => panic!("expected a metric failure, got {other}"),
+        },
         other => panic!("expected a metric error, got {other:?}"),
     }
 }

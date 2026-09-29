@@ -720,7 +720,12 @@ impl Device {
     /// Unlike [`sync`](Self::sync), this does not block on results — it only ensures buffered
     /// operations are dispatched instead of sitting idle. Eager backends, which execute each
     /// operation as it is registered, have nothing buffered and treat this as a no-op.
-    pub fn flush(&self) {
+    ///
+    /// # Errors
+    ///
+    /// Returns an [`ExecutionError`] when the buffered operations cannot be dispatched, e.g. on a
+    /// device that is poisoned.
+    pub fn flush(&self) -> Result<(), ExecutionError> {
         Dispatch::flush(self.as_dispatch())
     }
 

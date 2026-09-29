@@ -176,8 +176,8 @@ pub(crate) mod tests {
     }
 
     impl ItemLazy for MockActionContext {
-        fn sync(self) -> Self {
-            self
+        fn sync(self) -> Result<Self, burn_std::ExecutionError> {
+            Ok(self)
         }
     }
 
@@ -290,7 +290,7 @@ pub(crate) mod tests {
         fn process_train(
             &mut self,
             _event: RLEvent<(), MockActionContext>,
-        ) -> Result<(), crate::MetricsError> {
+        ) -> Result<(), crate::ProcessorError> {
             // Mock process train
             Ok(())
         }
@@ -298,7 +298,7 @@ pub(crate) mod tests {
         fn process_valid(
             &mut self,
             _event: AgentEvaluationEvent<MockActionContext>,
-        ) -> Result<(), crate::MetricsError> {
+        ) -> Result<(), crate::ProcessorError> {
             // Mock process valid
             Ok(())
         }

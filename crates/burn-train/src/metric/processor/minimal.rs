@@ -1,4 +1,4 @@
-use super::{EventProcessorTraining, ItemLazy, LearnerEvent, MetricsError, MetricsTraining};
+use super::{EventProcessorError, EventProcessorTraining, ItemLazy, LearnerEvent, MetricsTraining};
 use crate::{
     logger::TrainingProgressLogger,
     metric::store::{EpochSummary, EventStoreClient, Split},
@@ -35,7 +35,7 @@ impl<T: ItemLazy, V: ItemLazy> MinimalEventProcessor<T, V> {
 impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining<LearnerEvent<T>, LearnerEvent<V>>
     for MinimalEventProcessor<T, V>
 {
-    fn process_train(&mut self, event: LearnerEvent<T>) -> Result<(), MetricsError> {
+    fn process_train(&mut self, event: LearnerEvent<T>) -> Result<(), EventProcessorError> {
         let mut failures = Vec::new();
         match event {
             LearnerEvent::Start {
@@ -61,7 +61,10 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining<LearnerEvent<T>, LearnerEv
                 }
             }
             LearnerEvent::ProcessedItem(item) => {
-                let item = item.sync();
+                let item = match item.sync() {
+                    Ok(item) => item,
+                    Err(error) => return Err(EventProcessorError::sync(Split::Train, error)),
+                };
                 let metadata = (&item).into();
 
                 let (update, failed) = self.metrics.update_train(&item, &metadata);
@@ -99,10 +102,10 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining<LearnerEvent<T>, LearnerEv
                 }
             }
         }
-        MetricsError::from_errors(failures)
+        EventProcessorError::from_errors(failures)
     }
 
-    fn process_valid(&mut self, event: LearnerEvent<V>) -> Result<(), MetricsError> {
+    fn process_valid(&mut self, event: LearnerEvent<V>) -> Result<(), EventProcessorError> {
         let mut failures = Vec::new();
         match event {
             LearnerEvent::Start { .. } => {} // no-op
@@ -117,7 +120,10 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining<LearnerEvent<T>, LearnerEv
                 }
             }
             LearnerEvent::ProcessedItem(item) => {
-                let item = item.sync();
+                let item = match item.sync() {
+                    Ok(item) => item,
+                    Err(error) => return Err(EventProcessorError::sync(Split::Valid, error)),
+                };
                 let metadata = (&item).into();
 
                 let (update, failed) = self.metrics.update_valid(&item, &metadata);
@@ -147,7 +153,7 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining<LearnerEvent<T>, LearnerEv
             LearnerEvent::EndEpoch(_) => {} // update_epoch handled in process_train(EndEpoch)
             LearnerEvent::End(_) => {}      // no-op: End is only emitted on process_train
         }
-        MetricsError::from_errors(failures)
+        EventProcessorError::from_errors(failures)
     }
     fn renderer(self) -> Box<dyn crate::renderer::MetricsRenderer> {
         // TODO: Check for another default.

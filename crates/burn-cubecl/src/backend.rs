@@ -366,9 +366,9 @@ impl Backend for CubeBackend {
         CubeDevice::enumerate(DeviceId::new(type_id, 0)).len()
     }
 
-    fn flush(device: &Self::Device) {
+    fn flush(device: &Self::Device) -> Result<(), ExecutionError> {
         let client = device.client();
-        client.flush().unwrap();
+        client.flush().map_err(server_err)
     }
 }
 

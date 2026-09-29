@@ -3,7 +3,7 @@ use crate::{NdArrayQTensor, NdArrayTensor};
 use alloc::string::String;
 use burn_backend::quantization::{QuantMode, QuantScheme, QuantStore, QuantValue, quantizable};
 use burn_backend::tensor::{BoolTensor, FloatTensor, IntTensor, QuantizedTensor};
-use burn_backend::{Backend, BackendTypes, DType, DeviceId, DeviceOps};
+use burn_backend::{Backend, BackendTypes, DType, DeviceId, DeviceOps, ExecutionError};
 use burn_ir::{BackendIr, HandleKind, TensorHandle};
 use burn_std::sync::Mutex;
 use burn_std::{BoolStore, DeviceSettings, QuantConfig};
@@ -125,7 +125,9 @@ impl Backend for NdArray {
         1
     }
 
-    fn flush(_device: &Self::Device) {}
+    fn flush(_device: &Self::Device) -> Result<(), ExecutionError> {
+        Ok(())
+    }
 }
 
 impl BackendIr for NdArray {

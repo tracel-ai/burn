@@ -195,10 +195,12 @@ impl<B: FusionBackend> Backend for Fusion<B> {
         B::device_count(type_id)
     }
 
-    fn flush(device: &Self::Device) {
+    fn flush(device: &Self::Device) -> Result<(), ExecutionError> {
         let client = GlobalFusionClient::<B::FusionRuntime>::load(device);
         let device = device.clone();
-        client.sync(move || B::flush(&device))
+        client
+            .try_sync(move || B::flush(&device))
+            .map_err(server_error)?
     }
 
     fn graph_prepare(device: &Self::Device) -> Result<(), ExecutionError> {

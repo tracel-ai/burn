@@ -239,7 +239,8 @@ mod tests {
             Tensor::from_data([[0.1, 0.9]], &device),
             Tensor::from_data([1], &device),
         )
-        .sync();
+        .sync()
+        .unwrap();
         let input = output.adapt();
 
         let _entry = metric.update(&input, &MetricMetadata::fake()).unwrap();

@@ -487,7 +487,7 @@ pub struct SimpleTrainOutput {
 }
 
 impl ItemLazy for SimpleTrainOutput {
-    fn sync(self) -> Self {
+    fn sync(self) -> Result<Self, burn::tensor::ExecutionError> {
         let [loss] = Transaction::default()
             .register(self.policy_model_loss)
             .execute()
@@ -496,9 +496,9 @@ impl ItemLazy for SimpleTrainOutput {
 
         let device = &Device::flex();
 
-        SimpleTrainOutput {
+        Ok(SimpleTrainOutput {
             policy_model_loss: Tensor::from_data(loss, device),
-        }
+        })
     }
 }
 

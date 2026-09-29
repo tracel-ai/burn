@@ -34,8 +34,8 @@ pub(crate) mod test_utils {
     use super::ItemLazy;
 
     impl ItemLazy for f64 {
-        fn sync(self) -> Self {
-            self
+        fn sync(self) -> Result<Self, burn_std::ExecutionError> {
+            Ok(self)
         }
     }
 

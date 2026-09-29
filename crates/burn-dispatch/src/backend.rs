@@ -321,7 +321,7 @@ impl Backend for Dispatch {
         dispatch_device!(device, |device| B::supports_dtype(device, dtype))
     }
 
-    fn flush(device: &Self::Device) {
+    fn flush(device: &Self::Device) -> Result<(), ExecutionError> {
         dispatch_device!(device, |device| B::flush(device))
     }
 }
