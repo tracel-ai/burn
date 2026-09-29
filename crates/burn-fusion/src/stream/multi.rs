@@ -68,10 +68,9 @@ use hashbrown::{HashMap, HashSet};
 /// # Bounding `shared_sources`
 ///
 /// Naively the set would grow forever, since `tag_shared_view` only ever inserts.
-/// Cleanup happens when the last live `FusionTensor` with an id drops, in
-/// `register` for a `Drop` op and in `foreign_drop`, without waiting for the
-/// free to actually run. No future `tag_shared_view` can then receive that id
-/// as a `src`, so removing the entry cannot trigger a redundant drain.
+/// Cleanup happens when the last live `FusionTensor` with an id drops, without
+/// waiting for the free to actually run. No future `tag_shared_view` can then
+/// receive that id as a `src`, so removing the entry cannot trigger a redundant drain.
 ///
 /// # The SSA-like invariant
 ///
@@ -130,11 +129,7 @@ impl<R: FusionRuntime> MultiStream<R> {
         operation: UnfusedOp<R>,
         handles: &mut HandleContainer<R::FusionHandle>,
     ) {
-        // Bound `shared_sources` (see struct-level docs). When the last `FusionTensor`
-        // for an id is dropped, a `Drop` op is registered here. At that point no live
-        // `FusionTensor` holds this id, so no future `tag_shared_view` can use it as
-        // a source — it is safe to drop the entry immediately, without waiting for
-        // the queued `Drop` op to actually execute.
+        // No live `FusionTensor` holds a dropped id, so no future share can use it as a source.
         if let OperationIr::Drop(ir) = &repr {
             self.shared_sources.remove(&ir.id);
         }
@@ -165,7 +160,7 @@ impl<R: FusionRuntime> MultiStream<R> {
     ///   chained-share case where `src` is itself a previously-aliased view).
     /// - Then alias the backing handle under `dst`. `register_handle` clones the
     ///   cubecl handle (`Arc`-style), so both ids share refcount on the buffer
-    ///   until each side's own `Drop` op runs.
+    ///   until each side is freed.
     pub fn tag_shared_view(
         &mut self,
         src_stream: StreamId,

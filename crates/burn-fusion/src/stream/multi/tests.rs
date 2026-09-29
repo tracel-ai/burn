@@ -773,7 +773,7 @@ fn foreign_drop_of_unmaterialized_tensor_waits_for_its_producer() {
         UnfusedOp::new(ReadOp { input: t1, out: t2 }, id),
     );
 
-    server.register_foreign_drop(id, tensor_ir(t1, TensorStatus::ReadWrite));
+    server.foreign_drop(id, tensor_ir(t1, TensorStatus::ReadWrite));
     assert!(
         !server.handles.has_handle(&t2),
         "the pending segment must not run"
@@ -801,11 +801,11 @@ fn foreign_drop_waits_for_a_reader_past_a_segment_boundary() {
         exp_op(t0, t1),
         UnfusedOp::new(ProduceOp { out: t1 }, id),
     );
-    server.register_foreign_drop(id, tensor_ir(t1, TensorStatus::ReadWrite));
+    server.foreign_drop(id, tensor_ir(t1, TensorStatus::ReadWrite));
     server.register(
         id,
         exp_op(t1, t2),
-        UnfusedOp::new(ReadOp { input: t1, out: t2 }, id),
+        UnfusedOp::new(ProduceOp { out: t2 }, id),
     );
     assert!(
         server.handles.has_handle(&t1) && !server.handles.has_handle(&t2),
@@ -813,7 +813,7 @@ fn foreign_drop_waits_for_a_reader_past_a_segment_boundary() {
     );
 
     server.drain_stream(id);
-    assert!(server.handles.has_handle(&t2), "the reader found its input");
+    assert!(server.handles.has_handle(&t2), "the reader ran");
     assert!(!server.handles.has_handle(&t1), "freed after its reader");
 }
 

@@ -137,13 +137,11 @@ where
         outputs
     }
 
-    /// Register a `Drop` issued from a thread other than the tensor's home `stream`.
-    ///
-    /// Routes to [`FusionServer::register_foreign_drop`]. Same-stream drops must keep using
-    /// [`Self::register`].
-    pub(crate) fn register_foreign_drop(&self, stream: StreamId, ir: TensorIr) {
+    /// Free a tensor dropped on a thread other than its home `stream`. Same-stream drops must
+    /// keep using [`Self::register`].
+    pub(crate) fn foreign_drop(&self, stream: StreamId, ir: TensorIr) {
         self.server
-            .submit(move |server| server.register_foreign_drop(stream, ir));
+            .submit(move |server| server.foreign_drop(stream, ir));
     }
 
     /// Run `func` on the server, in order with the operations registered so

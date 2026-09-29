@@ -55,12 +55,12 @@ where
             .register(stream, repr, operation, &mut self.handles)
     }
 
-    /// Register a `Drop` that originates from a thread other than the tensor's home stream.
+    /// Free a tensor dropped on a thread other than its home stream.
     ///
     /// A foreign drop must neither enqueue into the pending segment (the block DAG could reorder
     /// the free ahead of a pending read) nor cut it by draining (see
     /// [`ReadPlan`](crate::stream::ReadPlan)), so it never touches the queue.
-    pub fn register_foreign_drop(&mut self, stream: StreamId, ir: TensorIr) {
+    pub fn foreign_drop(&mut self, stream: StreamId, ir: TensorIr) {
         self.streams.foreign_drop(stream, ir, &mut self.handles);
     }
 
