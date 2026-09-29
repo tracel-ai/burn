@@ -1,8 +1,7 @@
-use crate::metric::processor::{EvaluatorEvent, EventProcessorEvaluation};
+use crate::metric::processor::{EvaluatorEvent, EventProcessorEvaluation, MetricsError};
 
 use super::EventProcessorTraining;
 use async_channel::{Receiver, Sender};
-use burn_core::tensor::TensorReadError;
 use std::thread::JoinHandle;
 
 /// Event processor for the training process.
@@ -11,7 +10,8 @@ use std::thread::JoinHandle;
 /// the call that submitted it has returned and is reported by a later call:
 /// [`process_train`](EventProcessorTraining::process_train),
 /// [`process_valid`](EventProcessorTraining::process_valid) or
-/// [`flush`](EventProcessorTraining::flush), whichever comes first.
+/// [`flush`](EventProcessorTraining::flush), whichever comes first. That call returns every
+/// failure since the last one it reported, as one [`MetricsError`].
 pub struct AsyncProcessorTraining<ET, EV> {
     sender: Sender<Message<ET, EV>>,
     worker: Worker,
@@ -31,29 +31,26 @@ pub struct AsyncProcessorEvaluation<P: EventProcessorEvaluation> {
 /// back as errors through `error_rec`.
 struct Worker {
     handle: Option<JoinHandle<()>>,
-    error_rec: Receiver<TensorReadError>,
+    error_rec: Receiver<MetricsError>,
 }
 
 impl Worker {
-    fn new(handle: JoinHandle<()>, error_rec: Receiver<TensorReadError>) -> Self {
+    fn new(handle: JoinHandle<()>, error_rec: Receiver<MetricsError>) -> Self {
         Self {
             handle: Some(handle),
             error_rec,
         }
     }
 
-    /// The first error the worker reported since the last call, if any.
-    ///
-    /// Later ones are logged and dropped: they usually share the first one's cause, and one
-    /// error per call is what the caller can act on.
-    fn reported(&self) -> Result<(), TensorReadError> {
-        let Ok(first) = self.error_rec.try_recv() else {
+    /// Every error the worker reported since the last call, merged in order.
+    fn reported(&self) -> Result<(), MetricsError> {
+        let Ok(mut reported) = self.error_rec.try_recv() else {
             return Ok(());
         };
-        while let Ok(other) = self.error_rec.try_recv() {
-            log::error!("an event processor error was dropped in favor of an earlier one: {other}");
+        while let Ok(later) = self.error_rec.try_recv() {
+            reported.merge(later);
         }
-        Err(first)
+        Err(reported)
     }
 
     /// The channel to the worker is closed: re-raise whatever stopped it.
@@ -68,16 +65,16 @@ impl Worker {
 struct WorkerTraining<ET, EV, P: EventProcessorTraining<ET, EV>> {
     processor: P,
     rec: Receiver<Message<ET, EV>>,
-    error_sender: Sender<TensorReadError>,
+    error_sender: Sender<MetricsError>,
 }
 
 struct WorkerEvaluation<P: EventProcessorEvaluation> {
     processor: P,
     rec: Receiver<EvalMessage<P>>,
-    error_sender: Sender<TensorReadError>,
+    error_sender: Sender<MetricsError>,
 }
 
-fn report(error_sender: &Sender<TensorReadError>, result: Result<(), TensorReadError>) {
+fn report(error_sender: &Sender<MetricsError>, result: Result<(), MetricsError>) {
     if let Err(err) = result {
         let _ = error_sender.try_send(err);
     }
@@ -89,7 +86,7 @@ impl<ET: Send + 'static, EV: Send + 'static, P: EventProcessorTraining<ET, EV> +
     pub fn start(
         processor: P,
         rec: Receiver<Message<ET, EV>>,
-        error_sender: Sender<TensorReadError>,
+        error_sender: Sender<MetricsError>,
     ) -> JoinHandle<()> {
         let mut worker = Self {
             processor,
@@ -125,7 +122,7 @@ impl<P: EventProcessorEvaluation + 'static> WorkerEvaluation<P> {
     pub fn start(
         processor: P,
         rec: Receiver<EvalMessage<P>>,
-        error_sender: Sender<TensorReadError>,
+        error_sender: Sender<MetricsError>,
     ) -> JoinHandle<()> {
         let mut worker = Self {
             processor,
@@ -195,21 +192,21 @@ enum EvalMessage<P: EventProcessorEvaluation> {
 }
 
 impl<ET: Send, EV: Send> EventProcessorTraining<ET, EV> for AsyncProcessorTraining<ET, EV> {
-    fn process_train(&mut self, event: ET) -> Result<(), TensorReadError> {
+    fn process_train(&mut self, event: ET) -> Result<(), MetricsError> {
         if self.sender.send_blocking(Message::Train(event)).is_err() {
             self.worker.died();
         }
         self.worker.reported()
     }
 
-    fn process_valid(&mut self, event: EV) -> Result<(), TensorReadError> {
+    fn process_valid(&mut self, event: EV) -> Result<(), MetricsError> {
         if self.sender.send_blocking(Message::Valid(event)).is_err() {
             self.worker.died();
         }
         self.worker.reported()
     }
 
-    fn flush(&mut self) -> Result<(), TensorReadError> {
+    fn flush(&mut self) -> Result<(), MetricsError> {
         let (sender, receiver) = async_channel::bounded(1);
         if self.sender.send_blocking(Message::Flush(sender)).is_err()
             || receiver.recv_blocking().is_err()
@@ -239,10 +236,7 @@ impl<ET: Send, EV: Send> EventProcessorTraining<ET, EV> for AsyncProcessorTraini
 impl<P: EventProcessorEvaluation> EventProcessorEvaluation for AsyncProcessorEvaluation<P> {
     type ItemTest = P::ItemTest;
 
-    fn process_test(
-        &mut self,
-        event: EvaluatorEvent<Self::ItemTest>,
-    ) -> Result<(), TensorReadError> {
+    fn process_test(&mut self, event: EvaluatorEvent<Self::ItemTest>) -> Result<(), MetricsError> {
         if self.sender.send_blocking(EvalMessage::Test(event)).is_err() {
             self.worker.died();
         }
@@ -269,7 +263,9 @@ impl<P: EventProcessorEvaluation> EventProcessorEvaluation for AsyncProcessorEva
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::metric::{processor::MetricError, store::Split};
     use crate::renderer::{MetricsRenderer, cli::CliMetricsRenderer};
+    use burn_core::tensor::TensorReadError;
     use burn_std::ExecutionError;
     use std::sync::{
         Arc,
@@ -282,17 +278,17 @@ mod tests {
     }
 
     impl EventProcessorTraining<usize, usize> for TestProcessor {
-        fn process_train(&mut self, event: usize) -> Result<(), TensorReadError> {
+        fn process_train(&mut self, event: usize) -> Result<(), MetricsError> {
             self.processed.fetch_add(event, Ordering::SeqCst);
             Ok(())
         }
 
-        fn process_valid(&mut self, event: usize) -> Result<(), TensorReadError> {
+        fn process_valid(&mut self, event: usize) -> Result<(), MetricsError> {
             self.processed.fetch_add(event, Ordering::SeqCst);
             Ok(())
         }
 
-        fn flush(&mut self) -> Result<(), TensorReadError> {
+        fn flush(&mut self) -> Result<(), MetricsError> {
             self.processed_on_flush
                 .store(self.processed.load(Ordering::SeqCst), Ordering::SeqCst);
             Ok(())
@@ -321,22 +317,26 @@ mod tests {
         assert_eq!(processed_on_flush.load(Ordering::SeqCst), 5);
     }
 
-    /// A processor whose metrics cannot read event `0`, the way they fail when the computation
-    /// they read failed. Every other event is counted.
+    /// A processor whose metric cannot read events `0` and `1`, the way metrics fail when the
+    /// computation they read failed. Every other event is counted.
     struct FailingProcessor {
         processed: Arc<AtomicUsize>,
     }
 
     impl EventProcessorTraining<usize, usize> for FailingProcessor {
-        fn process_train(&mut self, event: usize) -> Result<(), TensorReadError> {
-            if event == 0 {
-                return Err(ExecutionError::device_poisoned("the loss could not be read").into());
+        fn process_train(&mut self, event: usize) -> Result<(), MetricsError> {
+            if event < 2 {
+                return MetricsError::from_errors(vec![MetricError {
+                    metric: Arc::new(format!("event-{event}")),
+                    split: Split::Train,
+                    source: ExecutionError::device_poisoned("the loss could not be read").into(),
+                }]);
             }
             self.processed.fetch_add(event, Ordering::SeqCst);
             Ok(())
         }
 
-        fn process_valid(&mut self, _event: usize) -> Result<(), TensorReadError> {
+        fn process_valid(&mut self, _event: usize) -> Result<(), MetricsError> {
             Ok(())
         }
 
@@ -346,25 +346,33 @@ mod tests {
     }
 
     #[test]
-    fn an_event_error_reaches_the_caller_and_the_worker_keeps_going() {
+    fn every_event_error_reaches_the_caller_and_the_worker_keeps_going() {
         let processed = Arc::new(AtomicUsize::new(0));
         let mut processor = AsyncProcessorTraining::new(FailingProcessor {
             processed: processed.clone(),
         });
 
-        // The failing event's own call usually returns before the worker processed it, so its
-        // error is reported by the flush at the latest.
-        let error = processor
-            .process_train(0)
-            .err()
-            .or_else(|| processor.flush().err())
-            .expect("the event's error must reach the caller");
-        assert!(
-            matches!(&error, TensorReadError::Execution(err) if err.is_device_poisoned()),
-            "the caller must see the metric's own error, got: {error}"
-        );
+        // Each call returns whatever failed since the last report, so the failures are split
+        // across these calls depending on how far the worker got; the flush gets the rest.
+        let reports = [
+            processor.process_train(0),
+            processor.process_train(1),
+            processor.flush(),
+        ];
+        let failures: Vec<MetricError> = reports
+            .into_iter()
+            .filter_map(Result::err)
+            .flat_map(MetricsError::into_errors)
+            .collect();
 
-        // The error was reported once, and the worker still processes what comes next.
+        let failed: Vec<&str> = failures.iter().map(|err| err.metric.as_str()).collect();
+        assert_eq!(failed, ["event-0", "event-1"], "every failure, in order");
+        assert!(failures.iter().all(|err| matches!(
+            &err.source,
+            TensorReadError::Execution(err) if err.is_device_poisoned()
+        )));
+
+        // Each failure was reported once, and the worker still processes what comes next.
         processor.process_train(2).unwrap();
         processor.flush().unwrap();
         assert_eq!(processed.load(Ordering::SeqCst), 2);
@@ -374,11 +382,11 @@ mod tests {
     struct PanickingProcessor;
 
     impl EventProcessorTraining<usize, usize> for PanickingProcessor {
-        fn process_train(&mut self, _event: usize) -> Result<(), TensorReadError> {
+        fn process_train(&mut self, _event: usize) -> Result<(), MetricsError> {
             panic!("the processor panicked");
         }
 
-        fn process_valid(&mut self, _event: usize) -> Result<(), TensorReadError> {
+        fn process_valid(&mut self, _event: usize) -> Result<(), MetricsError> {
             Ok(())
         }
 

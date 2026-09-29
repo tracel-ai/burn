@@ -1,6 +1,7 @@
 use burn_core::data::dataloader::Progress;
-use burn_core::tensor::TensorReadError;
 use burn_optim::lr_scheduler::module_lr_scheduler::ModuleLearningRate;
+
+use super::MetricsError;
 
 use crate::{
     LearnerSummary,
@@ -66,23 +67,23 @@ pub trait EventProcessorTraining<TrainEvent, ValidEvent>: Send {
     ///
     /// # Errors
     ///
-    /// Returns a [`TensorReadError`] if a metric could not read the event's tensors.
-    /// Note that an asynchronous processor reports it on a later call instead (see
-    /// [`AsyncProcessorTraining`](super::AsyncProcessorTraining)).
-    fn process_train(&mut self, event: TrainEvent) -> Result<(), TensorReadError>;
+    /// Returns a [`MetricsError`] listing every metric that could not process the event.
+    /// The other metrics still processed it. Note that an asynchronous processor reports
+    /// it on a later call instead (see [`AsyncProcessorTraining`](super::AsyncProcessorTraining)).
+    fn process_train(&mut self, event: TrainEvent) -> Result<(), MetricsError>;
     /// Collect a validation event.
     ///
     /// # Errors
     ///
     /// Same as [`process_train`](Self::process_train).
-    fn process_valid(&mut self, event: ValidEvent) -> Result<(), TensorReadError>;
+    fn process_valid(&mut self, event: ValidEvent) -> Result<(), MetricsError>;
     /// Wait until previously submitted events are processed (no-op for sync processors).
     ///
     /// # Errors
     ///
-    /// Returns the first [`TensorReadError`] among the events processed since the last
-    /// error was reported.
-    fn flush(&mut self) -> Result<(), TensorReadError> {
+    /// Returns a [`MetricsError`] listing every metric failure among the events processed
+    /// since the last error was reported.
+    fn flush(&mut self) -> Result<(), MetricsError> {
         Ok(())
     }
     /// Returns the renderer used for training.
@@ -98,13 +99,10 @@ pub trait EventProcessorEvaluation: Send {
     ///
     /// # Errors
     ///
-    /// Returns a [`TensorReadError`] if a metric could not read the event's tensors.
-    /// Note that an asynchronous processor reports it on a later call instead (see
-    /// [`AsyncProcessorTraining`](super::AsyncProcessorTraining)).
-    fn process_test(
-        &mut self,
-        event: EvaluatorEvent<Self::ItemTest>,
-    ) -> Result<(), TensorReadError>;
+    /// Returns a [`MetricsError`] listing every metric that could not process the event.
+    /// The other metrics still processed it. Note that an asynchronous processor reports
+    /// it on a later call instead (see [`AsyncProcessorEvaluation`](super::AsyncProcessorEvaluation)).
+    fn process_test(&mut self, event: EvaluatorEvent<Self::ItemTest>) -> Result<(), MetricsError>;
 
     /// Returns the renderer used for evaluation.
     fn renderer(self) -> Box<dyn MetricsRenderer>;

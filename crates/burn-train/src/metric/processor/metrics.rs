@@ -2,12 +2,13 @@ use std::collections::HashMap;
 
 use burn_core::tensor::TensorReadError;
 
-use super::{ItemLazy, TrainingItem};
+use super::{ItemLazy, MetricError, TrainingItem};
 use crate::{
     EvaluationItem,
     metric::{
-        Adaptor, Metric, MetricDefinition, MetricEntry, MetricId, MetricMetadata, Numeric,
-        store::{MetricsUpdate, NumericMetricUpdate},
+        Adaptor, Metric, MetricDefinition, MetricEntry, MetricId, MetricMetadata, MetricName,
+        Numeric,
+        store::{MetricsUpdate, NumericMetricUpdate, Split},
     },
 };
 
@@ -84,25 +85,22 @@ impl<T: ItemLazy> MetricsEvaluation<T> {
     }
 
     /// Update the testing information from the testing item.
+    ///
+    /// Every metric is updated, even after one fails: returns the entries of those that
+    /// succeeded and the failures of the others.
     pub(crate) fn update_test(
         &mut self,
         item: &EvaluationItem<T>,
         metadata: &MetricMetadata,
-    ) -> Result<MetricsUpdate, TensorReadError> {
-        let mut entries = Vec::with_capacity(self.test.len());
-        let mut entries_numeric = Vec::with_capacity(self.test_numeric.len());
-
-        for metric in self.test.iter_mut() {
-            let state = metric.update(&item.item, metadata)?;
-            entries.push(state);
-        }
-
-        for metric in self.test_numeric.iter_mut() {
-            let numeric_update = metric.update(&item.item, metadata)?;
-            entries_numeric.push(numeric_update);
-        }
-
-        Ok(MetricsUpdate::new(entries, entries_numeric))
+        split: Split,
+    ) -> (MetricsUpdate, Vec<MetricError>) {
+        update_metrics(
+            &mut self.test,
+            &mut self.test_numeric,
+            &item.item,
+            metadata,
+            split,
+        )
     }
 }
 
@@ -172,21 +170,14 @@ impl<T: ItemLazy, V: ItemLazy> MetricsTraining<T, V> {
         &mut self,
         item: &TrainingItem<T>,
         metadata: &MetricMetadata,
-    ) -> Result<MetricsUpdate, TensorReadError> {
-        let mut entries = Vec::with_capacity(self.train.len());
-        let mut entries_numeric = Vec::with_capacity(self.train_numeric.len());
-
-        for metric in self.train.iter_mut() {
-            let state = metric.update(&item.item, metadata)?;
-            entries.push(state);
-        }
-
-        for metric in self.train_numeric.iter_mut() {
-            let numeric_update = metric.update(&item.item, metadata)?;
-            entries_numeric.push(numeric_update);
-        }
-
-        Ok(MetricsUpdate::new(entries, entries_numeric))
+    ) -> (MetricsUpdate, Vec<MetricError>) {
+        update_metrics(
+            &mut self.train,
+            &mut self.train_numeric,
+            &item.item,
+            metadata,
+            Split::Train,
+        )
     }
 
     /// Update the training information from the validation item.
@@ -194,96 +185,101 @@ impl<T: ItemLazy, V: ItemLazy> MetricsTraining<T, V> {
         &mut self,
         item: &TrainingItem<V>,
         metadata: &MetricMetadata,
-    ) -> Result<MetricsUpdate, TensorReadError> {
-        let mut entries = Vec::with_capacity(self.valid.len());
-        let mut entries_numeric = Vec::with_capacity(self.valid_numeric.len());
-
-        for metric in self.valid.iter_mut() {
-            let state = metric.update(&item.item, metadata)?;
-            entries.push(state);
-        }
-
-        for metric in self.valid_numeric.iter_mut() {
-            let numeric_update = metric.update(&item.item, metadata)?;
-            entries_numeric.push(numeric_update);
-        }
-
-        Ok(MetricsUpdate::new(entries, entries_numeric))
+    ) -> (MetricsUpdate, Vec<MetricError>) {
+        update_metrics(
+            &mut self.valid,
+            &mut self.valid_numeric,
+            &item.item,
+            metadata,
+            Split::Valid,
+        )
     }
 
     /// Signal the end of a training epoch.
     /// Returns the final metric entries for the epoch.
     ///
-    /// # Errors
-    ///
-    /// Returns the first [`TensorReadError`] a metric's computation reported. Other metrics
-    /// are still computed and cleared so the next epoch starts clean.
-    pub(crate) fn end_epoch_train(&mut self) -> Result<MetricsUpdate, TensorReadError> {
-        let mut entries = Vec::with_capacity(self.train.len());
-        let mut entries_numeric = Vec::with_capacity(self.train_numeric.len());
-        let mut first_error = None;
-
-        for metric in self.train.iter_mut() {
-            match metric.compute() {
-                Ok(entry) => entries.push(entry),
-                Err(err) => {
-                    first_error.get_or_insert(err);
-                }
-            }
-            metric.clear();
-        }
-        for metric in self.train_numeric.iter_mut() {
-            match metric.compute() {
-                Ok(entry) => entries_numeric.push(entry),
-                Err(err) => {
-                    first_error.get_or_insert(err);
-                }
-            }
-            metric.clear();
-        }
-
-        match first_error {
-            Some(err) => Err(err),
-            None => Ok(MetricsUpdate::new(entries, entries_numeric)),
-        }
+    /// Every metric is computed and cleared, even after one fails, so the next epoch starts
+    /// clean: returns the entries of those that succeeded and the failures of the others.
+    pub(crate) fn end_epoch_train(&mut self) -> (MetricsUpdate, Vec<MetricError>) {
+        end_epoch_metrics(&mut self.train, &mut self.train_numeric, Split::Train)
     }
 
     /// Signal the end of a validation epoch.
     /// Returns the final metric entries for the epoch.
     ///
-    /// # Errors
-    ///
-    /// Returns the first [`TensorReadError`] a metric's computation reported. Other metrics
-    /// are still computed and cleared so the next epoch starts clean.
-    pub(crate) fn end_epoch_valid(&mut self) -> Result<MetricsUpdate, TensorReadError> {
-        let mut entries = Vec::with_capacity(self.valid.len());
-        let mut entries_numeric = Vec::with_capacity(self.valid_numeric.len());
-        let mut first_error = None;
+    /// Every metric is computed and cleared, even after one fails, so the next epoch starts
+    /// clean: returns the entries of those that succeeded and the failures of the others.
+    pub(crate) fn end_epoch_valid(&mut self) -> (MetricsUpdate, Vec<MetricError>) {
+        end_epoch_metrics(&mut self.valid, &mut self.valid_numeric, Split::Valid)
+    }
+}
 
-        for metric in self.valid.iter_mut() {
-            match metric.compute() {
-                Ok(entry) => entries.push(entry),
-                Err(err) => {
-                    first_error.get_or_insert(err);
-                }
-            }
-            metric.clear();
-        }
-        for metric in self.valid_numeric.iter_mut() {
-            match metric.compute() {
-                Ok(entry) => entries_numeric.push(entry),
-                Err(err) => {
-                    first_error.get_or_insert(err);
-                }
-            }
-            metric.clear();
-        }
+pub(crate) fn update_metrics<I>(
+    metrics: &mut [Box<dyn MetricUpdater<I>>],
+    metrics_numeric: &mut [Box<dyn NumericMetricUpdater<I>>],
+    item: &I,
+    metadata: &MetricMetadata,
+    split: Split,
+) -> (MetricsUpdate, Vec<MetricError>) {
+    let mut entries = Vec::with_capacity(metrics.len());
+    let mut entries_numeric = Vec::with_capacity(metrics_numeric.len());
+    let mut failures = Vec::new();
+    let mut fail = |metric: MetricName, source| {
+        failures.push(MetricError {
+            metric,
+            split: split.clone(),
+            source,
+        })
+    };
 
-        match first_error {
-            Some(err) => Err(err),
-            None => Ok(MetricsUpdate::new(entries, entries_numeric)),
+    for metric in metrics.iter_mut() {
+        match metric.update(item, metadata) {
+            Ok(entry) => entries.push(entry),
+            Err(source) => fail(metric.name(), source),
         }
     }
+    for metric in metrics_numeric.iter_mut() {
+        match metric.update(item, metadata) {
+            Ok(entry) => entries_numeric.push(entry),
+            Err(source) => fail(metric.name(), source),
+        }
+    }
+
+    (MetricsUpdate::new(entries, entries_numeric), failures)
+}
+
+pub(crate) fn end_epoch_metrics<I>(
+    metrics: &mut [Box<dyn MetricUpdater<I>>],
+    metrics_numeric: &mut [Box<dyn NumericMetricUpdater<I>>],
+    split: Split,
+) -> (MetricsUpdate, Vec<MetricError>) {
+    let mut entries = Vec::with_capacity(metrics.len());
+    let mut entries_numeric = Vec::with_capacity(metrics_numeric.len());
+    let mut failures = Vec::new();
+    let mut fail = |metric: MetricName, source| {
+        failures.push(MetricError {
+            metric,
+            split: split.clone(),
+            source,
+        })
+    };
+
+    for metric in metrics.iter_mut() {
+        match metric.compute() {
+            Ok(entry) => entries.push(entry),
+            Err(source) => fail(metric.name(), source),
+        }
+        metric.clear();
+    }
+    for metric in metrics_numeric.iter_mut() {
+        match metric.compute() {
+            Ok(entry) => entries_numeric.push(entry),
+            Err(source) => fail(metric.name(), source),
+        }
+        metric.clear();
+    }
+
+    (MetricsUpdate::new(entries, entries_numeric), failures)
 }
 
 impl<T> From<&TrainingItem<T>> for MetricMetadata {
@@ -314,6 +310,7 @@ pub(crate) trait NumericMetricUpdater<T>: Send + Sync {
     ) -> Result<NumericMetricUpdate, TensorReadError>;
     fn compute(&mut self) -> Result<NumericMetricUpdate, TensorReadError>;
     fn clear(&mut self);
+    fn name(&self) -> MetricName;
 }
 
 pub(crate) trait MetricUpdater<T>: Send + Sync {
@@ -324,6 +321,7 @@ pub(crate) trait MetricUpdater<T>: Send + Sync {
     ) -> Result<MetricEntry, TensorReadError>;
     fn compute(&mut self) -> Result<MetricEntry, TensorReadError>;
     fn clear(&mut self);
+    fn name(&self) -> MetricName;
 }
 
 pub(crate) struct MetricWrapper<M> {
@@ -379,6 +377,10 @@ where
     fn clear(&mut self) {
         self.metric.clear()
     }
+
+    fn name(&self) -> MetricName {
+        self.metric.name()
+    }
 }
 
 impl<T, M> MetricUpdater<T> for MetricWrapper<M>
@@ -403,5 +405,169 @@ where
 
     fn clear(&mut self) {
         self.metric.clear()
+    }
+
+    fn name(&self) -> MetricName {
+        self.metric.name()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::metric::{SerializedEntry, processor::MetricsError};
+    use burn_std::ExecutionError;
+    use std::sync::Arc;
+
+    /// A metric that fails its update, its compute, or neither, and counts its clears.
+    #[derive(Clone)]
+    struct TestMetric {
+        name: &'static str,
+        fail_update: bool,
+        fail_compute: bool,
+        cleared: Arc<std::sync::atomic::AtomicUsize>,
+    }
+
+    impl TestMetric {
+        fn new(name: &'static str, fail_update: bool, fail_compute: bool) -> Self {
+            Self {
+                name,
+                fail_update,
+                fail_compute,
+                cleared: Default::default(),
+            }
+        }
+
+        fn failure(&self) -> TensorReadError {
+            ExecutionError::with_context(format!("{} could not read", self.name)).into()
+        }
+    }
+
+    impl Metric for TestMetric {
+        type Input = ();
+
+        fn name(&self) -> MetricName {
+            Arc::new(self.name.to_string())
+        }
+
+        fn update(
+            &mut self,
+            _item: &(),
+            _metadata: &MetricMetadata,
+        ) -> Result<SerializedEntry, TensorReadError> {
+            match self.fail_update {
+                true => Err(self.failure()),
+                false => Ok(SerializedEntry::new(self.name.into(), self.name.into())),
+            }
+        }
+
+        fn compute(&mut self) -> Result<SerializedEntry, TensorReadError> {
+            match self.fail_compute {
+                true => Err(self.failure()),
+                false => Ok(SerializedEntry::new(self.name.into(), self.name.into())),
+            }
+        }
+
+        fn clear(&mut self) {
+            self.cleared
+                .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        }
+    }
+
+    fn metrics(list: &[TestMetric]) -> Vec<Box<dyn MetricUpdater<()>>> {
+        list.iter()
+            .map(|metric| Box::new(MetricWrapper::new(metric.clone())) as Box<_>)
+            .collect()
+    }
+
+    fn names(failures: &[MetricError]) -> Vec<String> {
+        failures.iter().map(|err| err.to_string()).collect()
+    }
+
+    fn metadata() -> MetricMetadata {
+        MetricMetadata {
+            progress: burn_core::data::dataloader::Progress {
+                items_processed: 1,
+                items_total: 1,
+                unit: None,
+            },
+            iteration: None,
+            lr: None,
+        }
+    }
+
+    #[test]
+    fn update_reports_failing_metric_and_keeps_others() {
+        let list = [
+            TestMetric::new("first", true, false),
+            TestMetric::new("working", false, false),
+            TestMetric::new("last", true, false),
+        ];
+
+        let (update, failures) =
+            update_metrics(&mut metrics(&list), &mut [], &(), &metadata(), Split::Train);
+
+        assert_eq!(
+            update.entries.len(),
+            1,
+            "the working metric's entry is kept"
+        );
+        assert_eq!(
+            names(&failures),
+            [
+                "train/first: An error happened during execution\nCaused by:\n  first could not read",
+                "train/last: An error happened during execution\nCaused by:\n  last could not read",
+            ]
+        );
+    }
+
+    #[test]
+    fn epoch_end_clears_metrics_and_reports_failures() {
+        let list = [
+            TestMetric::new("first", false, true),
+            TestMetric::new("working", false, false),
+            TestMetric::new("last", false, true),
+        ];
+
+        let (update, failures) = end_epoch_metrics(&mut metrics(&list), &mut [], Split::Valid);
+
+        assert_eq!(
+            update.entries.len(),
+            1,
+            "the working metric's entry is kept"
+        );
+        let failed: Vec<_> = failures.iter().map(|err| err.metric.as_str()).collect();
+        assert_eq!(failed, ["first", "last"]);
+        assert!(failures.iter().all(|err| err.split == Split::Valid));
+        for metric in &list {
+            assert_eq!(
+                metric.cleared.load(std::sync::atomic::Ordering::SeqCst),
+                1,
+                "{} must be cleared so the next epoch starts clean",
+                metric.name
+            );
+        }
+    }
+
+    #[test]
+    fn metrics_error_reports_failures_and_poisoned_device() {
+        let failure = |metric: &str, source: ExecutionError| MetricError {
+            metric: Arc::new(metric.to_string()),
+            split: Split::Test(Some(Arc::new("holdout".to_string()))),
+            source: source.into(),
+        };
+        let error = MetricsError::from_errors(vec![
+            failure("Accuracy", ExecutionError::with_context("refused")),
+            failure("Loss", ExecutionError::device_poisoned("status 700")),
+        ])
+        .unwrap_err();
+
+        assert!(error.is_device_poisoned());
+        let message = error.to_string();
+        assert!(message.starts_with("2 metrics failed:"), "{message}");
+        assert!(message.contains("test/holdout/Accuracy"), "{message}");
+        assert!(message.contains("test/holdout/Loss"), "{message}");
+
+        assert!(MetricsError::from_errors(Vec::new()).is_ok());
     }
 }

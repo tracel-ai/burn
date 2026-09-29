@@ -290,7 +290,7 @@ pub(crate) mod tests {
         fn process_train(
             &mut self,
             _event: RLEvent<(), MockActionContext>,
-        ) -> Result<(), burn_core::tensor::TensorReadError> {
+        ) -> Result<(), crate::MetricsError> {
             // Mock process train
             Ok(())
         }
@@ -298,7 +298,7 @@ pub(crate) mod tests {
         fn process_valid(
             &mut self,
             _event: AgentEvaluationEvent<MockActionContext>,
-        ) -> Result<(), burn_core::tensor::TensorReadError> {
+        ) -> Result<(), crate::MetricsError> {
             // Mock process valid
             Ok(())
         }

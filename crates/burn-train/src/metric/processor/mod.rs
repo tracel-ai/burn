@@ -1,5 +1,6 @@
 mod async_wrapper;
 mod base;
+mod error;
 mod full;
 mod metrics;
 mod minimal;
@@ -9,6 +10,7 @@ mod rl_metrics;
 mod rl_processor;
 
 pub use base::*;
+pub use error::*;
 pub(crate) use full::*;
 pub(crate) use metrics::*;
 #[cfg(feature = "rl")]
