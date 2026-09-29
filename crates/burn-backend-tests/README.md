@@ -43,10 +43,10 @@ cargo test-cuda --no-fail-fast
 
 > [!NOTE]  
 > CubeCL-based backends are tested with `fusion` by default. If you want to run the tests without
-> fusion, just append `-nofuse` to the cargo command. For example:
+> fusion, just append `-no-fusion` to the cargo command. For example:
 >
 > ```sh
-> cargo test-cuda-nofuse
+> cargo test-cuda-no-fusion
 > ```
 
 ## Structure
@@ -118,10 +118,21 @@ cargo bench-metal
 
 # Flex
 cargo bench-flex
+# Flex+Simd
+cargo bench-flex --features flex-simd
+# Flex+Rayon
+cargo bench-flex --features flex-rayon
+# Flex+Simd+Rayon
+cargo bench-flex --features flex-simd,flex-rayon
 # NdArray
 cargo bench-ndarray
 # LibTorch
 cargo bench-tch
+```
+
+Get a more compact output without memory allocations using:
+```sh
+cargo bench-* --features bench-disable-alloc
 ```
 
 Run a single bench file by passing `--bench <name>`:

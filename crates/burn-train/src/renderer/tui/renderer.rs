@@ -56,6 +56,7 @@ enum TuiRendererEvent {
         reset: bool,
     },
     CounterUpdate(String),
+    LabelUpdate(Option<String>),
     SplitEnd,
     ManualClose,
     Close,
@@ -148,6 +149,17 @@ impl TuiMetricsRendererWrapper {
         self.send_event(TuiRendererEvent::Persistent);
         self
     }
+
+    /// Joins the render thread if it hasn't already been joined.
+    ///
+    /// Both `manual_close` and `drop` can trigger this, so the handle may already have been
+    /// taken by the time either one runs. Safe to call multiple times: only the first call
+    /// actually joins the thread, subsequent calls are a no-op.
+    fn join_render_thread(&mut self) {
+        if let Some(handle) = self.handle_join.take() {
+            let _ = handle.join();
+        }
+    }
 }
 
 struct TuiMetricsRenderer {
@@ -190,7 +202,7 @@ impl MetricsRendererEvaluation for TuiMetricsRendererWrapper {
 impl MetricsRenderer for TuiMetricsRendererWrapper {
     fn manual_close(&mut self) {
         self.send_event(TuiRendererEvent::ManualClose);
-        let _ = self.handle_join.take().unwrap().join();
+        self.join_render_thread();
     }
 
     fn register_metric(&mut self, definition: MetricDefinition) {
@@ -228,7 +240,14 @@ impl MetricsRendererTraining for TuiMetricsRendererWrapper {
 }
 
 impl TrainingProgressLogger for TuiMetricsRendererWrapper {
-    fn start(&mut self, total_epochs: usize, starting_epoch: usize, total_items: Option<usize>) {
+    fn start(
+        &mut self,
+        total_epochs: usize,
+        starting_epoch: usize,
+        total_items: Option<usize>,
+        label: Option<&str>,
+    ) {
+        self.send_event(TuiRendererEvent::LabelUpdate(label.map(str::to_string)));
         self.training_progress.global =
             Progress::new(starting_epoch, total_epochs, Some("epochs".to_string()));
         if let Some(items) = total_items {
@@ -312,9 +331,7 @@ impl Drop for TuiMetricsRendererWrapper {
     fn drop(&mut self) {
         if !std::thread::panicking() {
             self.send_event(TuiRendererEvent::Close);
-            if let Some(handle) = self.handle_join.take() {
-                let _ = handle.join();
-            }
+            self.join_render_thread();
         }
     }
 }
@@ -446,6 +463,7 @@ impl TuiMetricsRenderer {
             TuiRendererEvent::CounterUpdate(event) => {
                 self.status.update_counter(event);
             }
+            TuiRendererEvent::LabelUpdate(label) => self.status.update_label(label.as_deref()),
             TuiRendererEvent::SplitEnd => {
                 self.status.reset_counters();
             }
@@ -664,5 +682,50 @@ impl Drop for TuiMetricsRenderer {
                 log::info!("{summary}");
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // `TuiMetricsRendererWrapper::new` spawns a `TuiMetricsRenderer`, which requires a real
+    // terminal (raw mode + alternate screen), unavailable in CI. Build the wrapper directly
+    // instead, with a plain no-op thread standing in for the render thread, to exercise the
+    // `handle_join` shutdown logic on its own.
+    fn wrapper_with_dummy_thread() -> TuiMetricsRendererWrapper {
+        let (sender, _receiver) = mpsc::channel();
+        let (_kill_signal_sender, kill_signal_receiver) = mpsc::channel();
+        let handle_join = std::thread::spawn(|| {});
+
+        let init = Progress::new(0, 0, None);
+        TuiMetricsRendererWrapper {
+            sender,
+            interrupter: Interrupter::new(),
+            handle_join: Some(handle_join),
+            kill_signal: Arc::new(Mutex::new(kill_signal_receiver)),
+            current_split: TuiSplit::Train,
+            training_progress: ProgressSnapshot::new(init.clone(), init.clone()),
+            eval_progress: ProgressSnapshot::new(init.clone(), init),
+        }
+    }
+
+    #[test]
+    fn manual_close_twice_does_not_panic() {
+        let mut renderer = wrapper_with_dummy_thread();
+
+        // The first call takes and joins the render thread's handle.
+        renderer.manual_close();
+        // Regression test for #4793: a second call used to panic on
+        // `handle_join.take().unwrap()` since the handle was already taken.
+        renderer.manual_close();
+    }
+
+    #[test]
+    fn drop_after_manual_close_does_not_panic() {
+        let mut renderer = wrapper_with_dummy_thread();
+
+        renderer.manual_close();
+        drop(renderer);
     }
 }

@@ -138,6 +138,42 @@ fn should_diff_sum_dim() {
 }
 
 #[test]
+fn should_diff_sum_dim_empty_axis() {
+    let device = AutodiffDevice::new();
+    let tensor = TestTensor::<2>::empty([3, 0], &device).require_grad();
+
+    let output = tensor.clone().sum_dim(1);
+    output
+        .to_data()
+        .assert_eq(&TensorData::from([[0.0], [0.0], [0.0]]), false);
+
+    let grads = output.sum().backward();
+    let grad = tensor.grad(&grads).unwrap();
+
+    assert_eq!(grad.shape().dims(), [3, 0]);
+    grad.to_data()
+        .assert_eq(&TensorData::new(Vec::<FloatElem>::new(), [3, 0]), false);
+}
+
+#[test]
+fn should_diff_prod_dim_empty_axis() {
+    let device = AutodiffDevice::new();
+    let tensor = TestTensor::<2>::empty([3, 0], &device).require_grad();
+
+    let output = tensor.clone().prod_dim(1);
+    output
+        .to_data()
+        .assert_eq(&TensorData::from([[1.0], [1.0], [1.0]]), false);
+
+    let grads = output.sum().backward();
+    let grad = tensor.grad(&grads).unwrap();
+
+    assert_eq!(grad.shape().dims(), [3, 0]);
+    grad.to_data()
+        .assert_eq(&TensorData::new(Vec::<FloatElem>::new(), [3, 0]), false);
+}
+
+#[test]
 fn should_diff_prod() {
     let device = AutodiffDevice::new();
     let tensor =
@@ -220,14 +256,7 @@ fn should_diff_prod_dim_with_negatives() {
         .assert_approx_eq::<FloatElem>(&expected, Tolerance::default());
 }
 
-// The following tests are ignored due to the same limitation as cumprod: the
-// gradient divides by the input, which produces NaN when the input contains
-// zeros. The true gradient at a zero is finite (the product of the other
-// elements), but recovering it needs the zero-safe exclusive-cumulative-product
-// algorithm tracked in https://github.com/tracel-ai/burn/issues/3864.
-
 #[test]
-#[ignore = "prod gradient with zeros not yet implemented - produces NaN due to division by zero"]
 fn should_diff_prod_single_zero() {
     let device = AutodiffDevice::new();
     let tensor =
@@ -244,7 +273,22 @@ fn should_diff_prod_single_zero() {
 }
 
 #[test]
-#[ignore = "prod gradient with zeros not yet implemented - produces NaN due to division by zero"]
+fn should_diff_prod_single_zero_with_broadcast_upstream() {
+    let device = AutodiffDevice::new();
+    let tensor = TestTensor::<2>::from_data(TensorData::from([[2.0, 0.0], [3.0, 4.0]]), &device)
+        .require_grad();
+
+    let output = tensor.clone().prod();
+    let grads = output.mul_scalar(2.0).backward();
+    let grad = tensor.grad(&grads).unwrap();
+
+    // The scalar upstream gradient broadcasts over the input shape.
+    let expected = TensorData::from([[0.0, 48.0], [0.0, 0.0]]);
+    grad.to_data()
+        .assert_approx_eq::<FloatElem>(&expected, Tolerance::default());
+}
+
+#[test]
 fn should_diff_prod_multiple_zeros() {
     let device = AutodiffDevice::new();
     let tensor = TestTensor::<1>::from_data(TensorData::from([2.0, 0.0, 3.0, 0.0, 5.0]), &device)
@@ -256,6 +300,48 @@ fn should_diff_prod_multiple_zeros() {
 
     // Every leave-one-out product still contains a zero, so the gradient is zero.
     let expected = TensorData::from([0.0, 0.0, 0.0, 0.0, 0.0]);
+    grad.to_data()
+        .assert_approx_eq::<FloatElem>(&expected, Tolerance::default());
+}
+
+#[test]
+fn should_diff_prod_dim_with_zeros() {
+    let device = AutodiffDevice::new();
+    let tensor = TestTensor::<2>::from_data(
+        TensorData::from([[1.0, 0.0, 0.0], [2.0, 2.0, 2.0], [3.0, 3.0, 0.0]]),
+        &device,
+    )
+    .require_grad();
+    let upstream = TestTensor::<2>::from_data(TensorData::from([[2.0, 3.0, 4.0]]), &device);
+
+    let output = tensor.clone().prod_dim(0);
+    let grads = output.mul(upstream).sum().backward();
+    let grad = tensor.grad(&grads).unwrap();
+
+    // The columns contain zero, one, and two zeros respectively. Their local
+    // derivatives are also scaled by distinct upstream gradients.
+    let expected = TensorData::from([[12.0, 18.0, 0.0], [6.0, 0.0, 0.0], [4.0, 0.0, 0.0]]);
+    grad.to_data()
+        .assert_approx_eq::<FloatElem>(&expected, Tolerance::default());
+}
+
+#[test]
+fn should_diff_prod_dim_with_zeros_last_dim() {
+    let device = AutodiffDevice::new();
+    let tensor = TestTensor::<2>::from_data(
+        TensorData::from([[1.0, 2.0, 3.0], [2.0, 0.0, 4.0], [0.0, 5.0, 0.0]]),
+        &device,
+    )
+    .require_grad();
+    let upstream = TestTensor::<2>::from_data(TensorData::from([[2.0], [3.0], [4.0]]), &device);
+
+    let output = tensor.clone().prod_dim(1);
+    let grads = output.mul(upstream).sum().backward();
+    let grad = tensor.grad(&grads).unwrap();
+
+    // The rows contain zero, one, and two zeros respectively, reduced along the
+    // last dimension and scaled by distinct upstream gradients.
+    let expected = TensorData::from([[12.0, 6.0, 4.0], [0.0, 24.0, 0.0], [0.0, 0.0, 0.0]]);
     grad.to_data()
         .assert_approx_eq::<FloatElem>(&expected, Tolerance::default());
 }

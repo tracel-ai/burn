@@ -1,4 +1,5 @@
-#![recursion_limit = "256"]
+// The LibTorch bench group exists to compare against the deprecated backend.
+#![cfg_attr(feature = "tch", allow(deprecated))]
 
 //! Unified benchmark comparing all loading methods:
 //! - BurnpackStore (new native format)
@@ -294,7 +295,7 @@ macro_rules! bench_backend {
 }
 
 // Generate benchmarks for each backend
-bench_backend!(Device::flex(), ndarray_backend, "NdArray Backend (CPU)");
+bench_backend!(Device::flex(), flex_backend, "Flex Backend (CPU)");
 
 #[cfg(feature = "wgpu")]
 bench_backend!(

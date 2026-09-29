@@ -16,7 +16,7 @@ workspace = true
 
 [features]
 default = ["std", "burn-dispatch/default"]
-doc = ["default"]
+doc = ["default", "flex"]
 std = [
     "num-traits/std",
     "burn-std/std",
@@ -53,6 +53,7 @@ remote = ["std", "burn-dispatch/remote"]
 remote-server = ["remote", "burn-dispatch/remote-server"]
 # Add the legacy WebSocket transport.
 remote-websocket = ["remote", "burn-dispatch/remote-websocket"]
+capture = ["burn-dispatch/capture"]
 
 # For backend extensions
 extension = []
@@ -61,11 +62,22 @@ extension = []
 autotune = ["burn-dispatch/autotune"]
 autotune-checks = ["burn-dispatch/autotune-checks"]
 fusion = ["burn-dispatch/fusion"]
+simd = ["burn-dispatch/simd"]
+rayon = ["burn-dispatch/rayon"]
+x86-v4 = ["burn-dispatch/x86-v4"]
+apple-amx = ["burn-dispatch/apple-amx"]
+accelerate = ["burn-dispatch/accelerate"]
+blas-netlib = ["burn-dispatch/blas-netlib"]
+openblas = ["burn-dispatch/openblas"]
+openblas-system = ["burn-dispatch/openblas-system"]
+template = ["burn-dispatch/template"]
 
 [dependencies]
 burn-std = { workspace = true }
 burn-backend = { workspace = true }
 burn-dispatch = { workspace = true }
+burn-derive = { workspace = true }
+burn-einsum = { workspace = true }
 
 colored = { workspace = true, optional = true }
 derive-new = { workspace = true }
@@ -73,6 +85,10 @@ num-traits = { workspace = true }
 
 # Serialization
 serde = { workspace = true }
+
+[dev-dependencies]
+# Execution backend for tensor integration tests; ordinary builds remain backend-free.
+burn-dispatch = { workspace = true, features = ["flex"] }
 
 [package.metadata.docs.rs]
 features = ["doc"]

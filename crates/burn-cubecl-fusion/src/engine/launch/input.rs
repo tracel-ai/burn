@@ -7,27 +7,20 @@ use crate::engine::trace::{FuseResources, RegisterTensor, TensorView};
 use burn_fusion::stream::Context;
 use burn_ir::{TensorIr, TensorStatus};
 use burn_std::quantization::params_shape;
-use cubecl::Runtime;
-use std::marker::PhantomData;
 
 /// Fetch and register [input handles](HandleInput). Also identifies potential inputs that
-/// can be used inplace and/or as the [reference layout](super::super::ir::RefLayout).
-pub struct InputPlanner<'a, R: Runtime> {
+/// can be used inplace and/or as the [reference layout](crate::engine::codegen::ir::RefLayout).
+pub struct InputPlanner<'a> {
     resources: &'a FuseResources,
     blocks: &'a Vec<FuseBlock>,
-    _r: PhantomData<R>,
 }
 
-impl<'a, R: Runtime> InputPlanner<'a, R> {
+impl<'a> InputPlanner<'a> {
     pub fn new(resources: &'a FuseResources, blocks: &'a Vec<FuseBlock>) -> Self {
-        Self {
-            resources,
-            blocks,
-            _r: PhantomData,
-        }
+        Self { resources, blocks }
     }
 
-    pub fn run(self, context: &mut Context<CubeFusionHandle<R>>, plan: &mut LaunchPlan<'a, R>) {
+    pub fn run(self, context: &mut Context<CubeFusionHandle>, plan: &mut LaunchPlan<'a>) {
         for (pos, input) in self.resources.inputs.iter().enumerate() {
             match input {
                 RegisterTensor::Normal(tensor_relative, precision) => {
@@ -42,6 +35,13 @@ impl<'a, R: Runtime> InputPlanner<'a, R> {
                     let handle = context
                         .handles
                         .get_handle(&tensor_global.id, &tensor_relative.status);
+                    // A fused kernel reads its inputs as rows; a storage-tiled tensor is read
+                    // only by the matmul it was packed for, which falls back before this.
+                    assert!(
+                        handle.tiles.is_none(),
+                        "fusion: a storage-tiled tensor reached a fused kernel; it is read only \
+                         by the matmul it was packed for, so un-tile it for anything else"
+                    );
 
                     let mut new_strides = handle.strides.clone();
 
@@ -79,7 +79,7 @@ impl<'a, R: Runtime> InputPlanner<'a, R> {
                     let precision_scales = params.dtype.into();
 
                     let global_shape = tensor_global.shape.clone();
-                    let shape_params = params_shape(&global_shape, scheme.level);
+                    let shape_params = params_shape(&global_shape, &scheme);
                     plan.handle_inputs
                         .push(HandleInput::QuantValues(QuantValuesHandleInput {
                             relative_id: tensor_relative.id,
@@ -107,10 +107,10 @@ impl<'a, R: Runtime> InputPlanner<'a, R> {
 
     fn analyze(
         &self,
-        plan: &mut LaunchPlan<'a, R>,
+        plan: &mut LaunchPlan<'a>,
         pos: usize,
         tensor_relative: &'a TensorIr,
-        handle: &CubeFusionHandle<R>,
+        handle: &CubeFusionHandle,
     ) {
         if !self
             .resources
@@ -135,10 +135,10 @@ impl<'a, R: Runtime> InputPlanner<'a, R> {
     /// Analyzes if the given tensor can be used inplace in one of the block.
     fn analyze_normal(
         &self,
-        plan: &mut LaunchPlan<'a, R>,
+        plan: &mut LaunchPlan<'a>,
         pos: usize,
         tensor_relative: &'a TensorIr,
-        handle: &CubeFusionHandle<R>,
+        handle: &CubeFusionHandle,
     ) {
         enum BlockInplaceSelection {
             Notinit,

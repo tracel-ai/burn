@@ -2,7 +2,7 @@
 //!
 //! Run with:
 //! ```bash
-//! cargo bench --bench interpolate_ops --features simd,rayon
+//! cargo bench -p burn-backend-tests --bench interpolate_ops --features flex
 //! ```
 //!
 //! Memory allocation tracking is enabled via divan's AllocProfiler.
@@ -15,10 +15,11 @@ use burn_tensor::{
     Tensor, TensorData, module,
     ops::{InterpolateMode, InterpolateOptions},
 };
-use divan::{AllocProfiler, Bencher};
+use divan::Bencher;
 
+#[cfg(not(feature = "bench-disable-alloc"))]
 #[global_allocator]
-static ALLOC: AllocProfiler = AllocProfiler::system();
+static ALLOC: divan::AllocProfiler = divan::AllocProfiler::system();
 
 fn main() {
     println!("Interpolate Benchmarks");
@@ -51,40 +52,41 @@ macro_rules! bench_backend {
                 #[divan::bench]
                 fn upsample_2x_64x64_to_128x128(bencher: Bencher) {
                     let x = make_input(1, 3, 64, 64);
-                    let opts = InterpolateOptions::new(InterpolateMode::Nearest);
-                    bencher
-                        .bench_synced(|| module::interpolate(x.clone(), [128, 128], opts.clone()));
+                    let opts = InterpolateOptions::new(InterpolateMode::Nearest)
+                        .with_output_size([128, 128]);
+                    bencher.bench_synced(|| module::interpolate(x.clone(), opts.clone()));
                 }
 
                 #[divan::bench]
                 fn upsample_4x_32x32_to_128x128(bencher: Bencher) {
                     let x = make_input(1, 3, 32, 32);
-                    let opts = InterpolateOptions::new(InterpolateMode::Nearest);
-                    bencher
-                        .bench_synced(|| module::interpolate(x.clone(), [128, 128], opts.clone()));
+                    let opts = InterpolateOptions::new(InterpolateMode::Nearest)
+                        .with_output_size([128, 128]);
+                    bencher.bench_synced(|| module::interpolate(x.clone(), opts.clone()));
                 }
 
                 #[divan::bench]
                 fn downsample_2x_256x256_to_128x128(bencher: Bencher) {
                     let x = make_input(1, 3, 256, 256);
-                    let opts = InterpolateOptions::new(InterpolateMode::Nearest);
-                    bencher
-                        .bench_synced(|| module::interpolate(x.clone(), [128, 128], opts.clone()));
+                    let opts = InterpolateOptions::new(InterpolateMode::Nearest)
+                        .with_output_size([128, 128]);
+                    bencher.bench_synced(|| module::interpolate(x.clone(), opts.clone()));
                 }
 
                 #[divan::bench]
                 fn batch8_upsample_2x_64x64_to_128x128(bencher: Bencher) {
                     let x = make_input(8, 3, 64, 64);
-                    let opts = InterpolateOptions::new(InterpolateMode::Nearest);
-                    bencher
-                        .bench_synced(|| module::interpolate(x.clone(), [128, 128], opts.clone()));
+                    let opts = InterpolateOptions::new(InterpolateMode::Nearest)
+                        .with_output_size([128, 128]);
+                    bencher.bench_synced(|| module::interpolate(x.clone(), opts.clone()));
                 }
 
                 #[divan::bench]
                 fn channels64_upsample_2x_32x32_to_64x64(bencher: Bencher) {
                     let x = make_input(1, 64, 32, 32);
-                    let opts = InterpolateOptions::new(InterpolateMode::Nearest);
-                    bencher.bench_synced(|| module::interpolate(x.clone(), [64, 64], opts.clone()));
+                    let opts = InterpolateOptions::new(InterpolateMode::Nearest)
+                        .with_output_size([64, 64]);
+                    bencher.bench_synced(|| module::interpolate(x.clone(), opts.clone()));
                 }
             }
 
@@ -95,40 +97,41 @@ macro_rules! bench_backend {
                 #[divan::bench]
                 fn upsample_2x_64x64_to_128x128(bencher: Bencher) {
                     let x = make_input(1, 3, 64, 64);
-                    let opts = InterpolateOptions::new(InterpolateMode::Bilinear);
-                    bencher
-                        .bench_synced(|| module::interpolate(x.clone(), [128, 128], opts.clone()));
+                    let opts = InterpolateOptions::new(InterpolateMode::Bilinear)
+                        .with_output_size([128, 128]);
+                    bencher.bench_synced(|| module::interpolate(x.clone(), opts.clone()));
                 }
 
                 #[divan::bench]
                 fn upsample_4x_32x32_to_128x128(bencher: Bencher) {
                     let x = make_input(1, 3, 32, 32);
-                    let opts = InterpolateOptions::new(InterpolateMode::Bilinear);
-                    bencher
-                        .bench_synced(|| module::interpolate(x.clone(), [128, 128], opts.clone()));
+                    let opts = InterpolateOptions::new(InterpolateMode::Bilinear)
+                        .with_output_size([128, 128]);
+                    bencher.bench_synced(|| module::interpolate(x.clone(), opts.clone()));
                 }
 
                 #[divan::bench]
                 fn downsample_2x_256x256_to_128x128(bencher: Bencher) {
                     let x = make_input(1, 3, 256, 256);
-                    let opts = InterpolateOptions::new(InterpolateMode::Bilinear);
-                    bencher
-                        .bench_synced(|| module::interpolate(x.clone(), [128, 128], opts.clone()));
+                    let opts = InterpolateOptions::new(InterpolateMode::Bilinear)
+                        .with_output_size([128, 128]);
+                    bencher.bench_synced(|| module::interpolate(x.clone(), opts.clone()));
                 }
 
                 #[divan::bench]
                 fn batch8_upsample_2x_64x64_to_128x128(bencher: Bencher) {
                     let x = make_input(8, 3, 64, 64);
-                    let opts = InterpolateOptions::new(InterpolateMode::Bilinear);
-                    bencher
-                        .bench_synced(|| module::interpolate(x.clone(), [128, 128], opts.clone()));
+                    let opts = InterpolateOptions::new(InterpolateMode::Bilinear)
+                        .with_output_size([128, 128]);
+                    bencher.bench_synced(|| module::interpolate(x.clone(), opts.clone()));
                 }
 
                 #[divan::bench]
                 fn channels64_upsample_2x_32x32_to_64x64(bencher: Bencher) {
                     let x = make_input(1, 64, 32, 32);
-                    let opts = InterpolateOptions::new(InterpolateMode::Bilinear);
-                    bencher.bench_synced(|| module::interpolate(x.clone(), [64, 64], opts.clone()));
+                    let opts = InterpolateOptions::new(InterpolateMode::Bilinear)
+                        .with_output_size([64, 64]);
+                    bencher.bench_synced(|| module::interpolate(x.clone(), opts.clone()));
                 }
 
                 // Segmentation-model sized shapes mirroring the user's
@@ -138,25 +141,25 @@ macro_rules! bench_backend {
                 #[divan::bench]
                 fn model_downsample_488x448_to_244x224(bencher: Bencher) {
                     let x = make_input(1, 3, 488, 448);
-                    let opts = InterpolateOptions::new(InterpolateMode::Bilinear);
-                    bencher
-                        .bench_synced(|| module::interpolate(x.clone(), [244, 224], opts.clone()));
+                    let opts = InterpolateOptions::new(InterpolateMode::Bilinear)
+                        .with_output_size([244, 224]);
+                    bencher.bench_synced(|| module::interpolate(x.clone(), opts.clone()));
                 }
 
                 #[divan::bench]
                 fn model_upsample_244x224_to_488x448(bencher: Bencher) {
                     let x = make_input(1, 48, 244, 224);
-                    let opts = InterpolateOptions::new(InterpolateMode::Bilinear);
-                    bencher
-                        .bench_synced(|| module::interpolate(x.clone(), [488, 448], opts.clone()));
+                    let opts = InterpolateOptions::new(InterpolateMode::Bilinear)
+                        .with_output_size([488, 448]);
+                    bencher.bench_synced(|| module::interpolate(x.clone(), opts.clone()));
                 }
 
                 #[divan::bench]
                 fn model_upsample_61x56_to_122x112(bencher: Bencher) {
                     let x = make_input(1, 192, 61, 56);
-                    let opts = InterpolateOptions::new(InterpolateMode::Bilinear);
-                    bencher
-                        .bench_synced(|| module::interpolate(x.clone(), [122, 112], opts.clone()));
+                    let opts = InterpolateOptions::new(InterpolateMode::Bilinear)
+                        .with_output_size([122, 112]);
+                    bencher.bench_synced(|| module::interpolate(x.clone(), opts.clone()));
                 }
 
                 // Explicit align_corners=false variant at a model size,
@@ -165,9 +168,9 @@ macro_rules! bench_backend {
                 fn model_upsample_61x56_to_122x112_halfpixel(bencher: Bencher) {
                     let x = make_input(1, 192, 61, 56);
                     let opts = InterpolateOptions::new(InterpolateMode::Bilinear)
-                        .with_align_corners(false);
-                    bencher
-                        .bench_synced(|| module::interpolate(x.clone(), [122, 112], opts.clone()));
+                        .with_align_corners(false)
+                        .with_output_size([122, 112]);
+                    bencher.bench_synced(|| module::interpolate(x.clone(), opts.clone()));
                 }
             }
 
@@ -176,42 +179,96 @@ macro_rules! bench_backend {
                 use super::*;
 
                 #[divan::bench]
+                fn small_upsample_2x_4x4_to_8x8(bencher: Bencher) {
+                    let x = make_input(1, 3, 4, 4);
+                    let opts =
+                        InterpolateOptions::new(InterpolateMode::Bicubic).with_output_size([8, 8]);
+                    bencher.bench_synced(|| module::interpolate(x.clone(), opts.clone()));
+                }
+
+                #[divan::bench]
                 fn upsample_2x_64x64_to_128x128(bencher: Bencher) {
                     let x = make_input(1, 3, 64, 64);
-                    let opts = InterpolateOptions::new(InterpolateMode::Bicubic);
-                    bencher
-                        .bench_synced(|| module::interpolate(x.clone(), [128, 128], opts.clone()));
+                    let opts = InterpolateOptions::new(InterpolateMode::Bicubic)
+                        .with_output_size([128, 128]);
+                    bencher.bench_synced(|| module::interpolate(x.clone(), opts.clone()));
                 }
 
                 #[divan::bench]
                 fn upsample_4x_32x32_to_128x128(bencher: Bencher) {
                     let x = make_input(1, 3, 32, 32);
-                    let opts = InterpolateOptions::new(InterpolateMode::Bicubic);
-                    bencher
-                        .bench_synced(|| module::interpolate(x.clone(), [128, 128], opts.clone()));
+                    let opts = InterpolateOptions::new(InterpolateMode::Bicubic)
+                        .with_output_size([128, 128]);
+                    bencher.bench_synced(|| module::interpolate(x.clone(), opts.clone()));
                 }
 
                 #[divan::bench]
                 fn downsample_2x_256x256_to_128x128(bencher: Bencher) {
                     let x = make_input(1, 3, 256, 256);
-                    let opts = InterpolateOptions::new(InterpolateMode::Bicubic);
-                    bencher
-                        .bench_synced(|| module::interpolate(x.clone(), [128, 128], opts.clone()));
+                    let opts = InterpolateOptions::new(InterpolateMode::Bicubic)
+                        .with_output_size([128, 128]);
+                    bencher.bench_synced(|| module::interpolate(x.clone(), opts.clone()));
                 }
 
                 #[divan::bench]
                 fn batch8_upsample_2x_64x64_to_128x128(bencher: Bencher) {
                     let x = make_input(8, 3, 64, 64);
-                    let opts = InterpolateOptions::new(InterpolateMode::Bicubic);
-                    bencher
-                        .bench_synced(|| module::interpolate(x.clone(), [128, 128], opts.clone()));
+                    let opts = InterpolateOptions::new(InterpolateMode::Bicubic)
+                        .with_output_size([128, 128]);
+                    bencher.bench_synced(|| module::interpolate(x.clone(), opts.clone()));
                 }
 
                 #[divan::bench]
                 fn channels64_upsample_2x_32x32_to_64x64(bencher: Bencher) {
                     let x = make_input(1, 64, 32, 32);
-                    let opts = InterpolateOptions::new(InterpolateMode::Bicubic);
-                    bencher.bench_synced(|| module::interpolate(x.clone(), [64, 64], opts.clone()));
+                    let opts = InterpolateOptions::new(InterpolateMode::Bicubic)
+                        .with_output_size([64, 64]);
+                    bencher.bench_synced(|| module::interpolate(x.clone(), opts.clone()));
+                }
+            }
+
+            #[divan::bench_group(name = "lanczos3")]
+            mod lanczos3 {
+                use super::*;
+
+                #[divan::bench]
+                fn small_upsample_2x_4x4_to_8x8(bencher: Bencher) {
+                    let x = make_input(1, 3, 4, 4);
+                    let opts =
+                        InterpolateOptions::new(InterpolateMode::Lanczos3).with_output_size([8, 8]);
+                    bencher.bench_synced(|| module::interpolate(x.clone(), opts.clone()));
+                }
+
+                #[divan::bench]
+                fn upsample_2x_64x64_to_128x128(bencher: Bencher) {
+                    let x = make_input(1, 3, 64, 64);
+                    let opts = InterpolateOptions::new(InterpolateMode::Lanczos3)
+                        .with_output_size([128, 128]);
+                    bencher.bench_synced(|| module::interpolate(x.clone(), opts.clone()));
+                }
+
+                #[divan::bench]
+                fn downsample_2x_256x256_to_128x128(bencher: Bencher) {
+                    let x = make_input(1, 3, 256, 256);
+                    let opts = InterpolateOptions::new(InterpolateMode::Lanczos3)
+                        .with_output_size([128, 128]);
+                    bencher.bench_synced(|| module::interpolate(x.clone(), opts.clone()));
+                }
+
+                #[divan::bench]
+                fn batch8_upsample_2x_64x64_to_128x128(bencher: Bencher) {
+                    let x = make_input(8, 3, 64, 64);
+                    let opts = InterpolateOptions::new(InterpolateMode::Lanczos3)
+                        .with_output_size([128, 128]);
+                    bencher.bench_synced(|| module::interpolate(x.clone(), opts.clone()));
+                }
+
+                #[divan::bench]
+                fn channels64_upsample_2x_32x32_to_64x64(bencher: Bencher) {
+                    let x = make_input(1, 64, 32, 32);
+                    let opts = InterpolateOptions::new(InterpolateMode::Lanczos3)
+                        .with_output_size([64, 64]);
+                    bencher.bench_synced(|| module::interpolate(x.clone(), opts.clone()));
                 }
             }
         }

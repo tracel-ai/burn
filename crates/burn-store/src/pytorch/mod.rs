@@ -5,7 +5,8 @@
 //!
 //! ## Features
 //!
-//! - **Direct .pth/.pt file loading**: Load PyTorch checkpoint and state dict files
+//! - **Direct .pth/.pt file loading**: Load PyTorch checkpoint, state dict and full-model
+//!   (`torch.save(model)`) files
 //! - **Automatic weight transformation**: `PyTorchToBurnAdapter` is applied by default:
 //!   - Linear layer weights are automatically transposed
 //!   - Normalization parameters are renamed (gamma → weight, beta → bias)
@@ -35,14 +36,12 @@
 //! }
 //! ```
 
-pub mod lazy_data;
-pub mod pickle_reader;
-pub mod reader;
 pub mod store;
 
 #[cfg(test)]
 pub mod tests;
 
-// Main public interface
-pub use reader::{PytorchError, PytorchReader};
+// Kept at their pre-crate paths for compatibility; everything else the reader defines is
+// under `burn_store::pytorch_reader`.
+pub use pytorch_reader::{OpCode, PickleError, PytorchError, PytorchReader};
 pub use store::{PytorchStore, PytorchStoreError};

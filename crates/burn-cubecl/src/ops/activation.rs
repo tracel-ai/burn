@@ -1,4 +1,4 @@
-use crate::{CubeBackend, CubeRuntime};
+use crate::CubeBackend;
 use burn_backend::ops::ActivationOps;
 
-impl<R: CubeRuntime> ActivationOps<Self> for CubeBackend<R> {}
+impl ActivationOps<Self> for CubeBackend {}

@@ -21,16 +21,26 @@ use crate::{Flex, FlexTensor, Layout};
 
 impl ActivationOps<Flex> for Flex {
     fn relu(tensor: FloatTensor<Flex>) -> FloatTensor<Flex> {
-        unary_op(tensor, |x: f32| x.max(0.0), |x: f64| x.max(0.0))
+        // `max` returns the non-NaN operand, which would map NaN to the bound.
+        // Testing `is_nan` first lets NaN propagate, as PyTorch does. `!(x <= 0.0)` is
+        // equivalent and compiles to the same code, but trips
+        // `clippy::neg_cmp_op_on_partial_ord`.
+        unary_op(
+            tensor,
+            |x: f32| if x.is_nan() || x > 0.0 { x } else { 0.0 },
+            |x: f64| if x.is_nan() || x > 0.0 { x } else { 0.0 },
+        )
     }
 
     fn relu_backward(output: FloatTensor<Flex>, grad: FloatTensor<Flex>) -> FloatTensor<Flex> {
-        // grad * (output > 0): zero the gradient where output was zero
+        // Zero the gradient where the output was zero, but keep it for a NaN output:
+        // the trait default masks with `float_lower_equal_elem(output, 0)`, which is
+        // false for NaN.
         binary_op(
             output,
             grad,
-            |out: f32, g| if out > 0.0 { g } else { 0.0 },
-            |out: f64, g| if out > 0.0 { g } else { 0.0 },
+            |out: f32, g| if out.is_nan() || out > 0.0 { g } else { 0.0 },
+            |out: f64, g| if out.is_nan() || out > 0.0 { g } else { 0.0 },
             None,
         )
     }
@@ -183,10 +193,8 @@ fn sigmoid_f64(x: f64) -> f64 {
 // Fused softmax
 // ============================================================================
 //
-// `ActivationOps` does not currently expose a `softmax` hook, so
-// `burn_tensor::activation::softmax` falls back to a 5-op decomposition
-// (`max_dim`/`sub`/`exp`/`sum_dim`/`div`). This module provides a fused
-// alternative users can opt into directly.
+// Backs the `ActivationOps::softmax` hook, replacing the default 5-op
+// decomposition (`max_dim`/`sub`/`exp`/`sum_dim`/`div`).
 
 /// Fused softmax along `dim`.
 ///
@@ -413,14 +421,23 @@ macro_rules! softmax_last_dtype {
             #[cfg(feature = "rayon")]
             {
                 use rayon::prelude::*;
+                const ROWS_PER_TASK: usize = 64;
+                let chunk_elems = ROWS_PER_TASK * last;
                 output
-                    .par_chunks_mut(last)
-                    .zip(input.par_chunks(last))
-                    .for_each(|(o, i)| $row_fn(i, o));
+                    .par_chunks_mut(chunk_elems)
+                    .zip(input.par_chunks(chunk_elems))
+                    .for_each(|(o_chunk, i_chunk)| {
+                        for (i, o) in i_chunk
+                            .chunks_exact(last)
+                            .zip(o_chunk.chunks_exact_mut(last))
+                        {
+                            $row_fn(i, o);
+                        }
+                    });
             }
             #[cfg(not(feature = "rayon"))]
             {
-                for (i, o) in input.chunks(last).zip(output.chunks_mut(last)) {
+                for (i, o) in input.chunks_exact(last).zip(output.chunks_exact_mut(last)) {
                     $row_fn(i, o);
                 }
             }
@@ -503,11 +520,10 @@ softmax_last_dtype!(
 // Fused layer_norm
 // ============================================================================
 //
-// `burn::nn::LayerNorm::forward` decomposes into ~6 primitive tensor ops
-// with intermediate allocations, and there is no backend trait hook for
-// layer_norm. This module provides a fused alternative users can opt into
-// directly. Two-pass row kernel (sum+sumsq sweep, then normalize+affine
-// sweep), both vectorized via macerator.
+// Backs the `ModuleOps::layer_norm` hook, replacing the default decomposition
+// into ~6 primitive tensor ops with intermediate allocations. The f32 SIMD
+// row kernel makes three passes (mean, centered variance, normalize+affine)
+// via macerator; the scalar fallback and f64 paths use Welford.
 
 /// Fused layer normalization along the last axis.
 ///
@@ -516,9 +532,9 @@ softmax_last_dtype!(
 /// `gamma` and `beta` are 1-D tensors of length `input.shape()[-1]`;
 /// `beta` is optional (set to `None` for a bias-free layer norm).
 ///
-/// Two-pass row kernel (mean/variance via a single sum+sum-of-squares
-/// sweep, then one normalize+affine sweep). Both passes are SIMD via
-/// macerator; each row stays cache-hot across both passes.
+/// The f32 SIMD row kernel makes three passes (mean, centered variance,
+/// normalize+affine) via macerator; each row stays cache-hot across them.
+/// With the `simd` feature off, the scalar fallback uses Welford.
 ///
 /// Supports `f32` (SIMD-vectorized), `f64` (scalar + LLVM autovec), and
 /// `f16`/`bf16` (via an f32 cast-fuse-cast shell; the f32 row kernel
@@ -863,8 +879,7 @@ fn layer_norm_rows_f32_no_beta(
 }
 
 /// Scalar fallback row kernel for layer_norm when the `simd` feature is
-/// disabled. Two-pass algorithm matching the SIMD version (sum+sumsq,
-/// then normalize+affine).
+/// disabled. Welford mean/variance, then normalize+affine.
 #[cfg(not(feature = "simd"))]
 #[inline]
 fn layer_norm_row_f32_scalar(
@@ -874,14 +889,9 @@ fn layer_norm_row_f32_scalar(
     beta: Option<&[f32]>,
     epsilon: f32,
 ) {
-    // Welford's online algorithm for mean and variance, rather than the
-    // `sumsq / n - mean * mean` identity the SIMD path uses. The identity
-    // is vulnerable to catastrophic cancellation when the two terms are
-    // close in magnitude (large mean relative to variance). Welford's
-    // single-pass formulation avoids that by tracking the running mean
-    // and accumulating squared deviations from it. The scalar path is
-    // the contract used when `simd` is disabled, so we prefer numerical
-    // stability over bit-for-bit match with the SIMD tree reduction.
+    // Welford's online algorithm tracks a running mean instead of a raw
+    // sum, so it avoids the E[x^2] - E[x]^2 cancellation and the mean stays
+    // finite for inputs whose raw sum would overflow f32.
     let len = input.len();
     let mut mean = 0.0f32;
     let mut m2 = 0.0f32;
@@ -943,7 +953,8 @@ fn layer_norm_rows_f32_no_beta_simd<S: macerator::Simd>(
     }
 }
 
-/// Single-row layer_norm kernel. Two vectorized passes.
+/// Single-row layer_norm kernel. Three vectorized passes: mean, centered
+/// variance, normalize+affine. The row stays cache-hot across all three.
 #[cfg(feature = "simd")]
 #[inline(always)]
 fn layer_norm_row_f32_simd<S: macerator::Simd>(
@@ -957,55 +968,49 @@ fn layer_norm_row_f32_simd<S: macerator::Simd>(
     let lanes = <f32 as Scalar>::lanes::<S>();
     let len = input.len();
     let simd_len = len / lanes * lanes;
-
-    // Pass 1: compute sum and sum-of-squares in one sweep, then derive
-    // mean and variance. Two independent SIMD accumulators (sum, sumsq)
-    // expose ILP to the two FMA ports.
-    let (sum, sumsq) = if simd_len >= lanes {
-        let mut acc_sum = 0.0f32.splat::<S>();
-        let mut acc_sumsq = 0.0f32.splat::<S>();
-        let mut i = 0;
-        while i < simd_len {
-            unsafe {
-                let v = vload_unaligned::<S, _>(input.as_ptr().add(i));
-                acc_sum += v;
-                // acc_sumsq += v * v; Vector::mul_add(self, a, b) = self*a + b,
-                // so v.mul_add(v, acc_sumsq) = v*v + acc_sumsq.
-                acc_sumsq = v.mul_add(v, acc_sumsq);
-            }
-            i += lanes;
-        }
-        let mut s = acc_sum.reduce_add();
-        let mut sq = acc_sumsq.reduce_add();
-        for &x in &input[simd_len..] {
-            s += x;
-            sq += x * x;
-        }
-        (s, sq)
-    } else {
-        let mut s = 0.0f32;
-        let mut sq = 0.0f32;
-        for &x in input {
-            s += x;
-            sq += x * x;
-        }
-        (s, sq)
-    };
-
     let n = len as f32;
+
+    // Pass 1: mean.
+    let mut acc = 0.0f32.splat::<S>();
+    let mut i = 0;
+    while i < simd_len {
+        unsafe {
+            acc += vload_unaligned::<S, _>(input.as_ptr().add(i));
+        }
+        i += lanes;
+    }
+    let mut sum = acc.reduce_add();
+    for &x in &input[simd_len..] {
+        sum += x;
+    }
     let mean = sum / n;
-    // Biased variance: E[x^2] - E[x]^2. Matches burn::nn::LayerNorm which
-    // uses var_mean_bias (the biased estimator) rather than Bessel's
-    // correction.
-    let var = (sumsq / n) - mean * mean;
+    let mean_vec = mean.splat::<S>();
+
+    // Pass 2: biased variance, centered to avoid the E[x^2] - E[x]^2
+    // cancellation (#5607). Matches burn::nn::LayerNorm (var_mean_bias).
+    let mut acc = 0.0f32.splat::<S>();
+    let mut i = 0;
+    while i < simd_len {
+        unsafe {
+            let d = vload_unaligned::<S, _>(input.as_ptr().add(i)) - mean_vec;
+            // Vector::mul_add(self, a, b) = self*a + b, so d*d + acc.
+            acc = d.mul_add(d, acc);
+        }
+        i += lanes;
+    }
+    let mut sumsq = acc.reduce_add();
+    for &x in &input[simd_len..] {
+        let d = x - mean;
+        sumsq += d * d;
+    }
+    let var = sumsq / n;
     let inv_std = 1.0f32 / (var + epsilon).sqrt();
 
-    // Pass 2: normalize and affine transform.
+    // Pass 3: normalize and affine transform.
     //   out[i] = (x[i] - mean) * inv_std * gamma[i] + beta[i]
-    // mean_vec and inv_std_vec are hoisted outside the loop (one splat
-    // each per row). gamma and beta are read once per element; both
-    // fit in L1 and are shared across all rows within a rayon chunk.
-    let mean_vec = mean.splat::<S>();
+    // mean_vec and inv_std_vec are splatted once per row. gamma and beta
+    // are read once per element; both fit in L1 and are shared across all
+    // rows within a rayon chunk.
     let inv_std_vec = inv_std.splat::<S>();
     let mut i = 0;
     while i < simd_len {
@@ -1259,6 +1264,80 @@ mod tests {
         fused.into_data().assert_approx_eq::<bf16>(
             &TensorData::new(expected, vec![2, 4]),
             Tolerance::absolute(5e-2),
+        );
+    }
+
+    #[test]
+    fn test_softmax_multi_chunk_f64() {
+        // 150 rows > 64 triggers the multi-chunk rayon path for f64
+        let n_rows = 150;
+        let d_cols = 8;
+        let data: Vec<f64> = (0..n_rows * d_cols)
+            .map(|i| ((i % 11) as f64) * 0.1 - 0.5)
+            .collect();
+        let expected = softmax_last_ref(&data, d_cols);
+        let fused = crate::ops::activation::softmax(flex_f64(data, &[n_rows, d_cols]), 1);
+        fused.into_data().assert_approx_eq::<f64>(
+            &TensorData::new(expected, vec![n_rows, d_cols]),
+            Tolerance::absolute(1e-10),
+        );
+    }
+
+    #[test]
+    fn test_softmax_multi_chunk_f16() {
+        // 150 rows > 64 triggers the multi-chunk rayon path for f16
+        let n_rows = 150;
+        let d_cols = 8;
+        let source: Vec<f32> = (0..n_rows * d_cols)
+            .map(|i| ((i % 11) as f32) * 0.1 - 0.5)
+            .collect();
+        let data: Vec<f16> = source.iter().map(|&x| f16::from_f32(x)).collect();
+        let expected = softmax_last_ref(&data, d_cols);
+        let fused = crate::ops::activation::softmax(flex_half(data, &[n_rows, d_cols]), 1);
+        fused.into_data().assert_approx_eq::<f16>(
+            &TensorData::new(expected, vec![n_rows, d_cols]),
+            Tolerance::absolute(1e-2),
+        );
+    }
+
+    #[test]
+    fn test_softmax_multi_chunk_bf16() {
+        // 150 rows > 64 triggers the multi-chunk rayon path for bf16
+        let n_rows = 150;
+        let d_cols = 8;
+        let source: Vec<f32> = (0..n_rows * d_cols)
+            .map(|i| ((i % 11) as f32) * 0.1 - 0.5)
+            .collect();
+        let data: Vec<bf16> = source.iter().map(|&x| bf16::from_f32(x)).collect();
+        let expected = softmax_last_ref(&data, d_cols);
+        let fused = crate::ops::activation::softmax(flex_half(data, &[n_rows, d_cols]), 1);
+        fused.into_data().assert_approx_eq::<bf16>(
+            &TensorData::new(expected, vec![n_rows, d_cols]),
+            Tolerance::absolute(5e-2),
+        );
+    }
+
+    #[test]
+    fn test_layer_norm_large_mean_small_spread() {
+        // Row mean far larger than row spread. A one-pass E[x^2] - E[x]^2
+        // variance cancels catastrophically here and is off by ~1.0 (issue
+        // #5607). Odd length also covers the SIMD tail. Larger means are
+        // omitted: f32 rounding of the mean itself then exceeds the tolerance.
+        let data: Vec<f32> = (0..17).map(|i| 100.0 + i as f32 * 1e-3).collect();
+        let data_f64: Vec<f64> = data.iter().map(|&x| x as f64).collect();
+        let expected: Vec<f32> = layer_norm_last_ref(&data_f64, &[1.0; 17], None, 1e-5, 17)
+            .into_iter()
+            .map(|x| x as f32)
+            .collect();
+        let out = crate::ops::activation::layer_norm(
+            flex_f32(data, &[1, 17]),
+            flex_f32(vec![1.0; 17], &[17]),
+            None,
+            1e-5,
+        );
+        out.into_data().assert_approx_eq::<f32>(
+            &TensorData::new(expected, vec![1, 17]),
+            Tolerance::absolute(1e-2),
         );
     }
 

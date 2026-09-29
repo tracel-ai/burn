@@ -5,7 +5,7 @@ use burn::{
     tensor::{Device, Gradients, container::TensorContainer},
 };
 
-use burn::module::{AutodiffModule, ParamId};
+use burn::module::{Module, ParamId};
 
 use super::visitor::{GradientsParamsChangeDevice, GradientsParamsConverter};
 
@@ -21,29 +21,25 @@ impl GradientsParams {
         Self::default()
     }
 
-    /// Extract each tensor gradients for the given [module](AutodiffModule).
+    /// Extract each tensor gradients for the given [module](Module).
     ///
     /// Note: This consumes the gradients. See ['from_module'] to extract gradients only for
     ///  a specific module.
-    pub fn from_grads<M: AutodiffModule>(grads: Gradients, module: &M) -> Self {
+    pub fn from_grads<M: Module>(grads: Gradients, module: &M) -> Self {
         let mut grads = grads;
         Self::from_module(&mut grads, module)
     }
 
-    /// Extract each tensor gradients for the given [module](AutodiffModule).
-    pub fn from_module<M: AutodiffModule>(grads: &mut Gradients, module: &M) -> Self {
+    /// Extract each tensor gradients for the given [module](Module).
+    pub fn from_module<M: Module>(grads: &mut Gradients, module: &M) -> Self {
         let mut grads_params = GradientsParams::new();
         let mut visitor = GradientsParamsConverter::<M>::new(grads, &mut grads_params, None);
         module.visit(&mut visitor);
         grads_params
     }
 
-    /// Extract tensor gradients for the given [module](AutodiffModule) and given parameters.
-    pub fn from_params<M: AutodiffModule>(
-        grads: &mut Gradients,
-        module: &M,
-        params: &[ParamId],
-    ) -> Self {
+    /// Extract tensor gradients for the given [module](Module) and given parameters.
+    pub fn from_params<M: Module>(grads: &mut Gradients, module: &M, params: &[ParamId]) -> Self {
         let mut grads_params = GradientsParams::new();
         let mut visitor =
             GradientsParamsConverter::<M>::new(grads, &mut grads_params, Some(params.to_vec()));
@@ -86,8 +82,8 @@ impl GradientsParams {
         self.len() == 0
     }
 
-    /// Change the device of each tensor gradients registered for the given [module](AutodiffModule).
-    pub fn to_device<M: AutodiffModule>(mut self, device: &Device, module: &M) -> Self {
+    /// Change the device of each tensor gradients registered for the given [module](Module).
+    pub fn to_device<M: Module>(mut self, device: &Device, module: &M) -> Self {
         let mut visitor = GradientsParamsChangeDevice::<M>::new(device, &mut self);
         module.visit(&mut visitor);
         self
@@ -97,7 +93,7 @@ impl GradientsParams {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use burn::module::{Module, list_param_ids};
+    use burn::module::{Module, ParamGroup};
     use burn::tensor::Distribution;
     use burn_nn::{Linear, LinearConfig};
 
@@ -112,12 +108,13 @@ mod tests {
         let grads_1 = GradientsParams::from_grads(loss_1.backward(), &layer_1);
         let grads_2 = GradientsParams::from_grads(loss_2.backward(), &layer_2);
 
-        let param_ids_1 = list_param_ids(&layer_1);
-        let param_ids_2 = list_param_ids(&layer_2);
+        let group = ParamGroup::ids_from_module(layer_1.clone());
+        let bias_2 = layer_2.bias.as_ref().unwrap();
 
-        assert_eq!(param_ids_1, param_ids_2);
-        assert_eq!(grads_1.len(), param_ids_1.len());
-        assert_eq!(grads_2.len(), param_ids_2.len());
+        assert!(group.matches(&layer_2.weight.id, None));
+        assert!(group.matches(&bias_2.id, None));
+        assert_eq!(grads_1.len(), 2);
+        assert_eq!(grads_2.len(), 2);
     }
 
     fn layer(device: &Device) -> Linear {

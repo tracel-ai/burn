@@ -41,7 +41,7 @@ pub(crate) fn nearest_interpolate<E: FloatNdArrayElement>(
             let x_in = (x_ratio * w as f64).floor() as usize;
 
             unsafe {
-                let output = unsafe_shared_out.get();
+                let mut output = unsafe_shared_out.get();
                 output[(b, c, h, w)] = x[(b, c, y_in, x_in)];
             }
         });
@@ -67,7 +67,7 @@ pub(crate) fn nearest_interpolate_backward<E: FloatNdArrayElement>(
             let b = k / channels;
             let c = k % channels;
 
-            let output_grad = unsafe_shared_out.get();
+            let mut output_grad = unsafe_shared_out.get();
 
             for oh in 0..output_height {
                 for ow in 0..output_width {
@@ -137,7 +137,7 @@ pub(crate) fn bilinear_interpolate<E: FloatNdArrayElement>(
                 bilinear_interpolate_single(&x, b, c, x_frac, y_frac, in_width - 1, in_height - 1);
 
             unsafe {
-                let output = unsafe_shared_out.get();
+                let mut output = unsafe_shared_out.get();
                 output[(b, c, h, w)] = val.elem();
             }
         });
@@ -248,7 +248,7 @@ pub(crate) fn bicubic_interpolate<E: FloatNdArrayElement>(
             .elem();
 
             unsafe {
-                let output = unsafe_shared_out.get();
+                let mut output = unsafe_shared_out.get();
                 output[(b, c, h, w)] = result;
             }
         });
@@ -343,7 +343,7 @@ pub(crate) fn lanczos3_interpolate<E: FloatNdArrayElement>(
             }
 
             unsafe {
-                let output = unsafe_shared_out.get();
+                let mut output = unsafe_shared_out.get();
                 output[(b, c, h, w)] = result.elem();
             }
         });

@@ -1,5 +1,8 @@
 # Config
 
+For process-wide settings such as logging and fusion in `burn.toml`, see
+[Runtime Configuration](../advanced/runtime-configuration.md).
+
 When writing scientific code, you normally have a lot of values that are set, and Deep Learning is
 no exception. Python has the possibility to define default parameters for functions, which helps
 improve the developer experience. However, this has the downside of potentially breaking your code
@@ -46,7 +49,7 @@ be implemented on the config type with the device as argument.
 ```rust, ignore
 impl MyModuleConfig {
     /// Create a module on the given device.
-    pub fn init<B: Backend>(&self, device: &B::Device) -> MyModule {
+    pub fn init(&self, device: &Device) -> MyModule {
         MyModule {
             linear: LinearConfig::new(self.d_model, self.d_ff).init(device),
             dropout: DropoutConfig::new(self.dropout).init(),
@@ -58,7 +61,7 @@ impl MyModuleConfig {
 Then we could add this line to the above `main`:
 
 ```rust, ignore
-use burn::backend::Wgpu;
-let device = Default::default();
-let my_module = config.init::<Wgpu>(&device);
+use burn::tensor::Device;
+let device = Device::wgpu(Default::default());
+let my_module = config.init(&device);
 ```

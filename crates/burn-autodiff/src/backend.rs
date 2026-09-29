@@ -3,11 +3,14 @@ use crate::{
     grads::Gradients,
     tensor::AutodiffTensor,
 };
-use alloc::{format, string::String};
+use alloc::{format, string::String, vec::Vec};
 use core::marker::PhantomData;
 
 use burn_backend::{
-    backend::{AutodiffBackend, Backend, BackendTypes, ExecutionError},
+    backend::{
+        AutodiffBackend, Backend, BackendTypes, ExecutionError, MemoryPoolUsage, ProfileDuration,
+        ProfileOptions, ProfileToken, SlicedPoolReport,
+    },
     tensor::{BoolTensor, IntTensor, QuantizedTensor},
 };
 
@@ -56,6 +59,30 @@ impl<B: Backend, C: CheckpointStrategy> Backend for Autodiff<B, C> {
         B::sync(device)
     }
 
+    fn profile<O: Send + 'static>(
+        device: &Self::Device,
+        options: ProfileOptions,
+        func: impl FnOnce() -> O + Send,
+    ) -> Result<(O, ProfileDuration), ExecutionError> {
+        B::profile(device, options, func)
+    }
+
+    fn profile_start(device: &Self::Device) -> Result<Option<ProfileToken>, ExecutionError> {
+        B::profile_start(device)
+    }
+
+    fn profile_end(
+        device: &Self::Device,
+        token: ProfileToken,
+        options: ProfileOptions,
+    ) -> Result<ProfileDuration, ExecutionError> {
+        B::profile_end(device, token, options)
+    }
+
+    fn profile_abandon(device: &Self::Device, token: ProfileToken) {
+        B::profile_abandon(device, token)
+    }
+
     fn memory_persistent_allocations<
         Output: Send,
         Input: Send,
@@ -70,6 +97,14 @@ impl<B: Backend, C: CheckpointStrategy> Backend for Autodiff<B, C> {
 
     fn memory_cleanup(device: &Self::Device) {
         B::memory_cleanup(device)
+    }
+
+    fn memory_pool_report(device: &Self::Device) -> Option<Vec<SlicedPoolReport>> {
+        B::memory_pool_report(device)
+    }
+
+    fn memory_pool_usage(device: &Self::Device) -> Option<MemoryPoolUsage> {
+        B::memory_pool_usage(device)
     }
 
     fn staging<'a, Iter>(data: Iter, device: &Self::Device)

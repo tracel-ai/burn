@@ -1,13 +1,14 @@
 use super::{conv, ctc, linear, pool};
 use crate::ops::unfold::{create_unfolding_weight, unfold4d_using_conv2d};
 use crate::tensor::{BoolTensor, FloatTensor, IntTensor};
-use crate::{Backend, TensorMetadata};
+use crate::{Backend, Scalar, TensorMetadata};
+#[allow(deprecated)]
 pub use burn_std::ops::{
     AttentionModuleOptions, ConvOptions, ConvTransposeOptions, DeformConvOptions,
     GridSampleOptions, GridSamplePaddingMode, InterpolateMode, InterpolateOptions, PadMode,
     PaddedConvOptions, UnfoldOptions,
 };
-use burn_std::{IntDType, Shape};
+use burn_std::{IndexingUpdateOp, IntDType, Shape};
 
 /// Gradient computed during the backward pass for each tensor used by [conv2d](ModuleOps::conv2d).
 #[derive(new)]
@@ -78,6 +79,33 @@ pub struct MaxPool2dBackward<B: Backend> {
     pub x_grad: FloatTensor<B>,
 }
 
+/// Results from [batch_norm_train](ModuleOps::batch_norm_train).
+#[derive(new)]
+pub struct BatchNormTrain<B: Backend> {
+    /// The normalized input.
+    pub output: FloatTensor<B>,
+
+    /// The batch mean per channel, `[channels]`.
+    pub mean: FloatTensor<B>,
+
+    /// The biased batch variance per channel, `[channels]`.
+    pub variance: FloatTensor<B>,
+}
+
+/// Gradient computed during the backward pass for each tensor used by
+/// [batch_norm_train](ModuleOps::batch_norm_train).
+#[derive(new)]
+pub struct BatchNormTrainBackward<B: Backend> {
+    /// Gradient of the input.
+    pub x_grad: FloatTensor<B>,
+
+    /// Gradient of `gamma`, `[channels]`.
+    pub gamma_grad: FloatTensor<B>,
+
+    /// Gradient of `beta`, `[channels]`.
+    pub beta_grad: FloatTensor<B>,
+}
+
 /// Results from [max_pool2d](ModuleOps::max_pool2d_with_indices).
 #[derive(new)]
 pub struct MaxPool2dWithIndices<B: Backend> {
@@ -97,6 +125,142 @@ pub struct InterpolateBackward<B: Backend> {
 
 /// Module operations trait.
 pub trait ModuleOps<B: Backend> {
+    /// Applies batch normalization using explicitly supplied channel statistics.
+    ///
+    /// The input has shape `[batch, channels, ...]`; all other tensors have
+    /// shape `[channels]`.
+    ///
+    /// This operation doesn't calculate or update statistics. Callers may
+    /// supply running statistics for inference or batch statistics calculated
+    /// by a training path.
+    fn batch_norm(
+        x: FloatTensor<B>,
+        gamma: FloatTensor<B>,
+        beta: FloatTensor<B>,
+        mean: FloatTensor<B>,
+        variance: FloatTensor<B>,
+        epsilon: f64,
+    ) -> FloatTensor<B> {
+        let rank = x.shape().num_dims();
+        let channels = x.shape()[1];
+        let mut dimensions = alloc::vec![1; rank];
+        dimensions[1] = channels;
+        let shape = Shape::from(dimensions);
+        let gamma = B::float_reshape(gamma, shape.clone());
+        let beta = B::float_reshape(beta, shape.clone());
+        let mean = B::float_reshape(mean, shape.clone());
+        let variance = B::float_reshape(variance, shape);
+        let std = B::float_sqrt(B::float_add_scalar(variance, Scalar::Float(epsilon)));
+        let normalized = B::float_div(B::float_sub(x, mean), std);
+        B::float_add(B::float_mul(normalized, gamma), beta)
+    }
+
+    /// Applies batch normalization with the statistics of the batch itself,
+    /// and returns them.
+    ///
+    /// The input has shape `[batch, channels, ...]`; `gamma` and `beta` have
+    /// shape `[channels]`, as do the returned mean and biased variance — what
+    /// a training path feeds its running statistics.
+    ///
+    /// An autodiff backend differentiates this as one operation, through
+    /// [batch_norm_train_backward](ModuleOps::batch_norm_train_backward),
+    /// rather than through the reductions and broadcasts that computing the
+    /// statistics out of tensor operations would record.
+    fn batch_norm_train(
+        x: FloatTensor<B>,
+        gamma: FloatTensor<B>,
+        beta: FloatTensor<B>,
+        epsilon: f64,
+    ) -> BatchNormTrain<B> {
+        let shape = x.shape();
+        let channels = shape[1];
+        let samples_per_channel = shape.num_elements() / channels;
+        let flattened = Shape::new([channels, samples_per_channel]);
+        let mut per_channel = alloc::vec![1; shape.num_dims()];
+        per_channel[1] = channels;
+
+        // Use mean directly to avoid overflowing intermediate sums in f16.
+        let mean = B::float_mean_dim(
+            B::float_reshape(B::float_swap_dims(x.clone(), 0, 1), flattened.clone()),
+            1,
+        );
+        let mean = B::float_reshape(mean, Shape::from(per_channel));
+        let centered = B::float_sub(x.clone(), mean.clone());
+        let variance = B::float_mean_dim(
+            B::float_reshape(
+                B::float_swap_dims(B::float_mul(centered.clone(), centered), 0, 1),
+                flattened,
+            ),
+            1,
+        );
+        let mean = B::float_reshape(mean, Shape::new([channels]));
+        let variance = B::float_reshape(variance, Shape::new([channels]));
+        let output = B::batch_norm(x, gamma, beta, mean.clone(), variance.clone(), epsilon);
+
+        BatchNormTrain::new(output, mean, variance)
+    }
+
+    /// Gradients of [batch_norm_train](ModuleOps::batch_norm_train) with
+    /// respect to its input, `gamma` and `beta`, given the gradient of its
+    /// output. `mean` and `variance` are the statistics it returned.
+    fn batch_norm_train_backward(
+        x: FloatTensor<B>,
+        gamma: FloatTensor<B>,
+        mean: FloatTensor<B>,
+        variance: FloatTensor<B>,
+        epsilon: f64,
+        output_grad: FloatTensor<B>,
+    ) -> BatchNormTrainBackward<B> {
+        let shape = x.shape();
+        let rank = shape.num_dims();
+        let channels = shape[1];
+        let flattened = Shape::new([channels, shape.num_elements() / channels]);
+        let mut per_channel = alloc::vec![1; rank];
+        per_channel[1] = channels;
+        let per_channel = Shape::from(per_channel);
+
+        let inv_std = B::float_reshape(
+            B::float_recip(B::float_sqrt(B::float_add_scalar(
+                variance,
+                Scalar::Float(epsilon),
+            ))),
+            per_channel.clone(),
+        );
+        let normalized = B::float_mul(
+            B::float_sub(x, B::float_reshape(mean, per_channel.clone())),
+            inv_std.clone(),
+        );
+
+        let output_grad_flat = B::float_reshape(
+            B::float_swap_dims(output_grad.clone(), 0, 1),
+            flattened.clone(),
+        );
+        let normalized_grad_flat = B::float_reshape(
+            B::float_swap_dims(B::float_mul(output_grad.clone(), normalized.clone()), 0, 1),
+            flattened,
+        );
+        let beta_grad = B::float_sum_dim(output_grad_flat.clone(), 1);
+        let gamma_grad = B::float_sum_dim(normalized_grad_flat.clone(), 1);
+
+        // Compute means independently: parameter-gradient sums can overflow in f16.
+        let mean_grad =
+            B::float_reshape(B::float_mean_dim(output_grad_flat, 1), per_channel.clone());
+        let mean_normalized_grad = B::float_reshape(
+            B::float_mean_dim(normalized_grad_flat, 1),
+            per_channel.clone(),
+        );
+        let centred_grad = B::float_sub(output_grad, mean_grad);
+        let projected = B::float_mul(normalized, mean_normalized_grad);
+        let scale = B::float_mul(B::float_reshape(gamma, per_channel), inv_std);
+        let x_grad = B::float_mul(scale, B::float_sub(centred_grad, projected));
+
+        BatchNormTrainBackward::new(
+            x_grad,
+            B::float_reshape(gamma_grad, Shape::new([channels])),
+            B::float_reshape(beta_grad, Shape::new([channels])),
+        )
+    }
+
     /// Embedding operation.
     ///
     /// # Arguments
@@ -143,7 +307,7 @@ pub trait ModuleOps<B: Backend> {
             B::float_reshape(output_grad, Shape::new([batch_size * seq_length, d_model]));
         let grad = B::float_zeros(Shape::new([n_embeddings, d_model]), &device, dtype.into());
 
-        B::float_select_add(grad, 0, indices, output_grad)
+        B::float_select_assign(grad, 0, indices, output_grad, IndexingUpdateOp::Add)
     }
 
     /// Linear transformation.
@@ -476,7 +640,7 @@ pub trait ModuleOps<B: Backend> {
 
     /// Four dimensional fold (`col2im`), the adjoint of [unfold4d](ModuleOps::unfold4d).
     ///
-    /// Composes [conv_transpose2d](ModuleOps::conv_transpose2d) with the same one-hot weight
+    /// Composes [conv_transpose2d](ModuleOps::conv_transpose2d) with the same one-hot channel mapping
     /// [unfold4d](ModuleOps::unfold4d) uses, so backends inherit a correct (and differentiable)
     /// implementation for free and may override it with a custom one.
     ///
@@ -520,8 +684,11 @@ pub trait ModuleOps<B: Backend> {
             "fold4d: number of blocks ({num_blocks}) does not match the expected grid ({blocks_height} x {blocks_width}) for the given output size and options"
         );
 
-        // The fold weight is identical to the one `unfold4d` builds for its `conv2d` — fold is its adjoint.
-        let weight = create_unfolding_weight::<B>(channels, kernel_size, &x.device(), x.dtype());
+        // Fold is the adjoint of unfold and uses the same one-hot channel mapping. Grouping by
+        // channel removes the otherwise unused cross-channel weights.
+        let groups = channels.max(1);
+        let weight =
+            create_unfolding_weight::<B>(channels, kernel_size, groups, &x.device(), x.dtype());
 
         // Reshape the columns into the spatial grid of blocks, then scatter-add them back.
         let x = B::float_reshape(
@@ -546,7 +713,7 @@ pub trait ModuleOps<B: Backend> {
                 options.padding,
                 padding_out,
                 options.dilation,
-                1,
+                groups,
             ),
         )
     }
@@ -624,6 +791,14 @@ pub trait ModuleOps<B: Backend> {
     fn adaptive_avg_pool2d(x: FloatTensor<B>, output_size: [usize; 2]) -> FloatTensor<B>;
     /// Backward pass for the [adaptive avg pooling 2d](ModuleOps::adaptive_avg_pool2d) operation.
     fn adaptive_avg_pool2d_backward(x: FloatTensor<B>, grad: FloatTensor<B>) -> FloatTensor<B>;
+    /// Three dimensional adaptive avg pooling.
+    ///
+    /// # Shapes
+    ///
+    /// x: [batch_size, channels, depth, height, width],
+    fn adaptive_avg_pool3d(x: FloatTensor<B>, output_size: [usize; 3]) -> FloatTensor<B>;
+    /// Backward pass for the [adaptive avg pooling 3d](ModuleOps::adaptive_avg_pool3d) operation.
+    fn adaptive_avg_pool3d_backward(x: FloatTensor<B>, grad: FloatTensor<B>) -> FloatTensor<B>;
     /// One dimensional adaptive avg pooling.
     ///
     /// # Shapes
@@ -909,35 +1084,4 @@ pub trait ModuleOps<B: Backend> {
             "ctc_loss_backward called on a backend whose has_ctc_loss_backward() returns false"
         )
     }
-
-    /// Real-valued FFT with optional size parameter.
-    ///
-    /// When `n` is `None`, the signal must be a power of two along `dim`, and the output has
-    /// `signal_len / 2 + 1` frequency bins.
-    ///
-    /// When `n` is `Some(size)`, `size` must also be a power of two. The signal is truncated
-    /// or zero-padded to `size` and the output has `size / 2 + 1` frequency bins. Non-power-
-    /// of-two sizes are currently rejected at the public API boundary; true arbitrary-`n` DFT
-    /// support (Bluestein's algorithm) is tracked as a follow-up.
-    ///
-    /// Returns two tensors: the real part and the imaginary part.
-    fn rfft(
-        signal: FloatTensor<B>,
-        dim: usize,
-        n: Option<usize>,
-    ) -> (FloatTensor<B>, FloatTensor<B>);
-
-    /// Inverse real-valued FFT with optional output size.
-    ///
-    /// When `n` is `None`, the reconstructed signal length `2 * (spectrum_size - 1)` must be
-    /// a power of two.
-    ///
-    /// When `n` is `Some(size)`, `size` must also be a power of two. Output has exactly
-    /// `size` samples.
-    fn irfft(
-        spectrum_re: FloatTensor<B>,
-        spectrum_im: FloatTensor<B>,
-        dim: usize,
-        n: Option<usize>,
-    ) -> FloatTensor<B>;
 }

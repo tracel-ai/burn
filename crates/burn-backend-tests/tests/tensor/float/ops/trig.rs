@@ -218,6 +218,21 @@ fn should_support_atanh_ops() {
 }
 
 #[test]
+#[should_panic(expected = "The provided tensors have incompatible shapes.")]
+fn should_panic_atan2_incompatible_shapes() {
+    let device = Default::default();
+    // Same rank, but [2, 2] vs [2, 3]: dimension 1 cannot broadcast.
+    let y = TestTensor::<2>::from_data(TensorData::from([[0.0, 1.0], [-1.0, -1.0]]), &device);
+    let x = TestTensor::<2>::from_data(
+        TensorData::from([[1.0, 1.0, 0.0], [1.0, 0.0, -1.0]]),
+        &device,
+    );
+
+    let output = y.atan2(x);
+    output.into_data();
+}
+
+#[test]
 fn should_support_atan2_ops() {
     let y = TensorData::from([[0.0, 1.0, 1.0], [-1.0, -1.0, 0.0]]);
     let x = TensorData::from([[1.0, 1.0, 0.0], [1.0, 0.0, -1.0]]);
@@ -289,4 +304,26 @@ fn should_support_rad2deg_ops() {
     output
         .into_data()
         .assert_approx_eq::<FloatElem>(&expected, Tolerance::default());
+}
+
+#[cfg(any(feature = "flex", feature = "ndarray"))]
+#[test]
+fn degree_radian_conversions_preserve_f64_precision() {
+    use burn_tensor::DType;
+    let device = Default::default();
+
+    let radians = TestTensor::<1>::from_data(TensorData::from([180.0f64]), (&device, DType::F64))
+        .deg2rad()
+        .into_data();
+    let radians = radians.as_slice::<f64>().unwrap()[0];
+    assert!((radians - core::f64::consts::PI).abs() < 1e-14);
+
+    let degrees = TestTensor::<1>::from_data(
+        TensorData::from([core::f64::consts::PI]),
+        (&device, DType::F64),
+    )
+    .rad2deg()
+    .into_data();
+    let degrees = degrees.as_slice::<f64>().unwrap()[0];
+    assert!((degrees - 180.0).abs() < 1e-12);
 }

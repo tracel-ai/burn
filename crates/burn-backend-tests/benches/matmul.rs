@@ -12,10 +12,11 @@ mod common;
 use common::BencherExt;
 
 use burn_tensor::{Tensor, TensorData};
-use divan::{AllocProfiler, Bencher};
+use divan::Bencher;
 
+#[cfg(not(feature = "bench-disable-alloc"))]
 #[global_allocator]
-static ALLOC: AllocProfiler = AllocProfiler::system();
+static ALLOC: divan::AllocProfiler = divan::AllocProfiler::system();
 
 fn main() {
     println!("Matrix Multiplication Benchmarks");
@@ -266,6 +267,22 @@ macro_rules! bench_int_backend {
                         return;
                     };
                     let Some(b) = make_int_matrix(512, 512) else {
+                        bencher.bench(|| ());
+                        return;
+                    };
+                    bencher.bench_synced(|| a.clone().matmul(b.clone()));
+                }
+            }
+
+            // Many rows with little work each: per-row overhead dominates.
+            #[divan::bench_group(name = "int_tall_skinny")]
+            mod tall_skinny {
+                use super::*;
+
+                #[divan::bench]
+                fn matmul_1mx8x1(bencher: Bencher) {
+                    let (Some(a), Some(b)) = (make_int_matrix(1 << 20, 8), make_int_matrix(8, 1))
+                    else {
                         bencher.bench(|| ());
                         return;
                     };

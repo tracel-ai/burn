@@ -147,6 +147,15 @@ pub(crate) trait RelativeOps {
 }
 
 impl OperationConverter {
+    /// How many relative shape ids have been handed out so far.
+    ///
+    /// Ids are dense from zero, so this is also one past the highest valid id, and therefore
+    /// what a cached plan's
+    /// [`max_relative_shape_id`](crate::NumOperations::max_relative_shape_id) has to fit under.
+    pub(crate) fn num_relative_shapes(&self) -> usize {
+        self.shapes_relative2global.len()
+    }
+
     pub(crate) fn clear(&mut self) {
         self.tensors_relative2global.clear();
         self.tensors_global2relative.clear();
@@ -208,6 +217,15 @@ impl RelativeOps for OperationIr {
 impl RelativeOps for ModuleOperationIr {
     fn to_relative(&self, converter: &mut OperationConverter) -> Self {
         match self {
+            ModuleOperationIr::BatchNorm(desc) => ModuleOperationIr::BatchNorm(BatchNormOpIr {
+                x: desc.x.to_relative(converter),
+                gamma: desc.gamma.to_relative(converter),
+                beta: desc.beta.to_relative(converter),
+                mean: desc.mean.to_relative(converter),
+                variance: desc.variance.to_relative(converter),
+                epsilon: desc.epsilon.to_relative(converter),
+                out: desc.out.to_relative(converter),
+            }),
             ModuleOperationIr::Embedding(desc) => ModuleOperationIr::Embedding(EmbeddingOpIr {
                 weights: desc.weights.to_relative(converter),
                 indices: desc.indices.to_relative(converter),
@@ -470,6 +488,20 @@ impl RelativeOps for ModuleOperationIr {
                     out: desc.out.to_relative(converter),
                 })
             }
+            ModuleOperationIr::AdaptiveAvgPool3d(desc) => {
+                ModuleOperationIr::AdaptiveAvgPool3d(AdaptiveAvgPool3dOpIr {
+                    x: desc.x.to_relative(converter),
+                    output_size: desc.output_size,
+                    out: desc.out.to_relative(converter),
+                })
+            }
+            ModuleOperationIr::AdaptiveAvgPool3dBackward(desc) => {
+                ModuleOperationIr::AdaptiveAvgPool3dBackward(AdaptiveAvgPool3dBackwardOpIr {
+                    x: desc.x.to_relative(converter),
+                    grad: desc.grad.to_relative(converter),
+                    out: desc.out.to_relative(converter),
+                })
+            }
             ModuleOperationIr::MaxPool1d(desc) => ModuleOperationIr::MaxPool1d(MaxPool1dOpIr {
                 x: desc.x.to_relative(converter),
                 kernel_size: desc.kernel_size,
@@ -555,20 +587,6 @@ impl RelativeOps for ModuleOperationIr {
                     out: desc.out.to_relative(converter),
                 })
             }
-            ModuleOperationIr::Rfft(desc) => ModuleOperationIr::Rfft(RfftOpIr {
-                signal: desc.signal.to_relative(converter),
-                dim: desc.dim,
-                n: desc.n,
-                out_re: desc.out_re.to_relative(converter),
-                out_im: desc.out_im.to_relative(converter),
-            }),
-            ModuleOperationIr::IRfft(desc) => ModuleOperationIr::IRfft(IRfftOpIr {
-                input_re: desc.input_re.to_relative(converter),
-                input_im: desc.input_im.to_relative(converter),
-                dim: desc.dim,
-                n: desc.n,
-                out_signal: desc.out_signal.to_relative(converter),
-            }),
             ModuleOperationIr::Attention(desc) => ModuleOperationIr::Attention(AttentionOpIr {
                 query: desc.query.to_relative(converter),
                 key: desc.key.to_relative(converter),
@@ -789,6 +807,11 @@ impl RelativeOps for FloatOperationIr {
                 tensor: desc.tensor.to_relative(converter),
                 qparams: QuantizationParametersIr {
                     scales: desc.qparams.scales.to_relative(converter),
+                    global: desc
+                        .qparams
+                        .global
+                        .as_ref()
+                        .map(|global| global.to_relative(converter)),
                 },
                 scheme: desc.scheme,
                 out: desc.out.to_relative(converter),
@@ -1137,6 +1160,11 @@ impl RelativeOps for NumericOperationIr {
                 input: desc.input.to_relative(converter),
                 out: desc.out.to_relative(converter),
             }),
+            NumericOperationIr::SumDims(desc) => NumericOperationIr::SumDims(ReduceDimsOpIr {
+                input: desc.input.to_relative(converter),
+                out: desc.out.to_relative(converter),
+                axes: desc.axes.clone(),
+            }),
             NumericOperationIr::SumDim(desc) => {
                 NumericOperationIr::SumDim(ReduceDimOpIr {
                     input: desc.input.to_relative(converter),
@@ -1358,6 +1386,15 @@ impl RelativeOps for NumericOperationIr {
                 dim: desc.dim,
                 descending: desc.descending,
                 out: desc.out.to_relative(converter),
+            }),
+            NumericOperationIr::Pad(desc) => NumericOperationIr::Pad(PadOpIr {
+                input: desc.input.to_relative(converter),
+                out: desc.out.to_relative(converter),
+                padding: desc.padding.clone(),
+                mode: match desc.mode {
+                    PadModeIr::Constant(value) => PadModeIr::Constant(value.to_relative(converter)),
+                    mode => mode,
+                },
             }),
         }
     }
@@ -1796,6 +1833,29 @@ mod tests_ir {
         assert_eq!(
             converter.scalars.get(&ScalarId { value: 0 }),
             Some(&ScalarIr::Bool(true))
+        );
+    }
+
+    #[test]
+    fn pad_constant_to_relative_tracks_scalar() {
+        let input = TensorIr::uninit(TensorId::new(10), Shape::new([2, 3]), DType::F32);
+        let desc = PadOpIr::create(
+            input,
+            vec![(1, 0), (0, 2)],
+            PadModeIr::Constant(ScalarIr::Float(4.5)),
+            || TensorId::new(11),
+        );
+        let mut converter = OperationConverter::default();
+
+        let relative = NumericOperationIr::Pad(desc).to_relative(&mut converter);
+
+        let NumericOperationIr::Pad(desc) = relative else {
+            panic!("expected pad operation");
+        };
+        assert_eq!(desc.mode, PadModeIr::Constant(ScalarIr::UInt(0)));
+        assert_eq!(
+            converter.scalars.get(&ScalarId { value: 0 }),
+            Some(&ScalarIr::Float(4.5))
         );
     }
 }

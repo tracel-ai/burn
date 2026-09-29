@@ -1,3 +1,4 @@
+use super::axis::VectorAxes;
 use super::{
     super::{BlockPlan, HandleOutput, LaunchPlan},
     Vect,
@@ -17,37 +18,31 @@ use burn_backend::cubecl::dtype_to_storage_type;
 use burn_fusion::stream::Context;
 use burn_ir::TensorId;
 use cubecl::{
-    Runtime,
-    client::ComputeClient,
-    ir::{ElemType, StorageType, UIntKind},
+    client::Client,
+    ir::{ElemType, UIntKind},
 };
 use cubecl::{
     ir::VectorSize,
     quant::scheme::{QuantScheme, QuantStore, QuantValue},
 };
-use std::marker::PhantomData;
 
 /// Select the best vectorization factor for each tensor handle.
-pub struct VectorizationPlanner<'a, R: Runtime> {
+pub struct VectorizationPlanner<'a> {
     resources: &'a FuseResources,
     blocks: &'a Vec<FuseBlock>,
-    _r: PhantomData<R>,
 }
 
-impl<'a, R: Runtime> VectorizationPlanner<'a, R> {
+impl<'a> VectorizationPlanner<'a> {
     pub fn new(resources: &'a FuseResources, blocks: &'a Vec<FuseBlock>) -> Self {
-        Self {
-            resources,
-            blocks,
-            _r: PhantomData,
-        }
+        Self { resources, blocks }
     }
-    pub fn run<Runner: Vectorization<R>>(
+
+    pub fn run<Runner: Vectorization>(
         self,
-        client: &ComputeClient<R>,
+        client: &Client,
         runner: &Runner,
-        context: &Context<CubeFusionHandle<R>>,
-        plan: &mut LaunchPlan<'a, R>,
+        context: &Context<CubeFusionHandle>,
+        plan: &mut LaunchPlan<'a>,
     ) {
         let has_multiple_read = |tensor: &TensorId| {
             let mut read_count = 0;
@@ -83,11 +78,11 @@ impl<'a, R: Runtime> VectorizationPlanner<'a, R> {
             TensorView::NhwcStrides { .. } => None,
         });
 
-        let mut ref_elem = (ElemType::UInt(UIntKind::U64).into(), 8);
+        let mut ref_elem = (ElemType::UInt(UIntKind::U64), 8);
         let mut quants_vector_sizes: Option<Vec<VectorSize>> = None;
 
         for input in plan.handle_inputs.iter() {
-            let elem: StorageType = match input {
+            let elem: ElemType = match input {
                 HandleInput::Normal(h) => dtype_to_storage_type(h.global_ir.dtype),
                 HandleInput::QuantValues(handle) => match handle.global_ir.dtype {
                     burn_std::DType::QFloat(scheme) => {
@@ -105,7 +100,7 @@ impl<'a, R: Runtime> VectorizationPlanner<'a, R> {
             }
         }
         for r in plan.global_outputs.iter() {
-            let elem: StorageType = dtype_to_storage_type(r.dtype);
+            let elem: ElemType = dtype_to_storage_type(r.dtype);
             let elem_size = elem.size();
 
             if ref_elem.1 >= elem_size {
@@ -132,7 +127,8 @@ impl<'a, R: Runtime> VectorizationPlanner<'a, R> {
                 .io_optimized_vector_sizes(ref_elem.0.size())
                 .collect::<Vec<_>>(),
         };
-        let vectorization_axis = runner.axis(plan);
+        let (vectorization_axis, refusals) =
+            VectorAxes::resolve(runner, self.resources, context, plan).split();
 
         runner.vectorization(
             context,
@@ -174,6 +170,10 @@ impl<'a, R: Runtime> VectorizationPlanner<'a, R> {
                 plan.vectorizations.insert(global.id, Vect::Aligned(1));
             }
         }
+
+        // Tensors whose own layout cannot be lined up with the one their block
+        // iterates in.
+        refusals.apply(&mut plan.vectorizations);
 
         let mut block_vectorization = Vec::with_capacity(self.blocks.len());
         for _ in 0..self.blocks.len() {
@@ -333,10 +333,10 @@ struct BlockVectorization {
     broadcasted: bool,
 }
 
-fn apply_vectorization_block<R: Runtime>(
+fn apply_vectorization_block(
     block_vectorization: Vec<BlockVectorization>,
-    inputs: &mut [HandleInput<R>],
-    outputs: &mut [HandleOutput<R>],
+    inputs: &mut [HandleInput],
+    outputs: &mut [HandleOutput],
     block_plan: &mut BlockPlan,
     max: VectorSize,
 ) {
@@ -384,8 +384,8 @@ fn apply_vectorization_block<R: Runtime>(
     }
 }
 
-fn vector_sizes_quants<R: Runtime>(
-    client: &ComputeClient<R>,
+fn vector_sizes_quants(
+    client: &Client,
     quants_vector_sizes: &mut Option<Vec<VectorSize>>,
     scheme: QuantScheme,
 ) {
@@ -416,7 +416,7 @@ fn vector_sizes_quants<R: Runtime>(
                 unreachable!("Can't store native sub-byte values")
             }
         },
-        QuantStore::PackedU32(_) => {
+        QuantStore::PackedU32(packed_dim) => {
             let mut vector_sizes = client
                 .io_optimized_vector_sizes(size_of::<u32>())
                 .collect::<Vec<_>>();
@@ -433,6 +433,13 @@ fn vector_sizes_quants<R: Runtime>(
                 if val < min {
                     vector_sizes.push(val);
                 }
+            }
+
+            if packed_dim != 0 {
+                // A moved packed axis uses scalar gathers and unpacks one storage word at a time.
+                // Keep output vectors at most as wide as the unpacked word to preserve the
+                // dynamic vector type used by the dequantization kernel.
+                vector_sizes.retain(|size| *size <= scheme.num_quants());
             }
 
             match &quants_vector_sizes {

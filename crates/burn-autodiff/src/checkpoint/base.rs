@@ -2,10 +2,10 @@ use super::{
     retro_forward::RetroForwards,
     state::{BackwardStates, State},
 };
-use crate::collections::HashMap;
+use crate::collections::{HashMap, HashSet};
 use crate::graph::NodeId;
 
-use alloc::{format, vec, vec::Vec};
+use alloc::{format, vec::Vec};
 use burn_std::config::{autodiff::AutodiffLogLevel, log_autodiff};
 
 #[derive(new, Debug)]
@@ -59,27 +59,42 @@ impl Checkpointer {
     /// The sort on a compute bound state or a memory bound that is already computed is trivial.
     /// The match on State::Computed also serves as a stopping criterion for the sort,
     /// we don't need to look higher than that during recursivity.
+    ///
+    /// Ancestors shared by multiple branches (e.g. a recurrent chain revisited through several
+    /// paths) are only expanded once: a `visited` set is checked before recursing into a node's
+    /// parents at all, not just before appending it. Without that, both the membership check and
+    /// the re-expansion of already-sorted subtrees are redone on every branch, which turns a
+    /// single retrieval into quadratic (or worse) work as the ancestor chain grows.
     fn topological_sort(&self, node_id: NodeId) -> Vec<NodeId> {
+        let mut sorted = Vec::new();
+        let mut visited = HashSet::new();
+        self.topological_sort_visit(node_id, &mut visited, &mut sorted);
+        sorted
+    }
+
+    fn topological_sort_visit(
+        &self,
+        node_id: NodeId,
+        visited: &mut HashSet<NodeId>,
+        sorted: &mut Vec<NodeId>,
+    ) {
+        if !visited.insert(node_id) {
+            return;
+        }
+
         match self.backward_states.get_state_ref(&node_id) {
             Some(state) => match state {
                 State::Recompute { n_required: _ } => {
-                    let mut sorted = Vec::new();
                     let parents = self.node_tree.parents(&node_id).unwrap();
                     for parent_node in parents {
-                        let parent_sorted = self.topological_sort(parent_node);
-                        for ps in parent_sorted {
-                            if !sorted.contains(&ps) {
-                                sorted.push(ps)
-                            }
-                        }
+                        self.topological_sort_visit(parent_node, visited, sorted);
                     }
                     sorted.push(node_id);
-                    sorted
                 }
                 State::Computed {
                     state_content: _,
                     n_required: _,
-                } => vec![node_id],
+                } => sorted.push(node_id),
             },
             None => panic!("Node {node_id:?} is not in the backward_states. "),
         }

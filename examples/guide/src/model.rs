@@ -1,3 +1,8 @@
+// The Burn Book includes sections of this file using mdBook's ANCHOR / ANCHOR_END
+// markers. Keep each pair around the code it documents, and update the includes in
+// `burn-book/src/basic-workflow/model.md` if you rename or remove a marker.
+
+// ANCHOR: model
 use burn::{
     nn::{
         Dropout, DropoutConfig, Linear, LinearConfig, Relu,
@@ -18,6 +23,8 @@ pub struct Model {
     activation: Relu,
 }
 
+// ANCHOR_END: model
+// ANCHOR: model_config
 #[derive(Config, Debug)]
 pub struct ModelConfig {
     num_classes: usize,
@@ -41,6 +48,8 @@ impl ModelConfig {
     }
 }
 
+// ANCHOR_END: model_config
+// ANCHOR: forward
 impl Model {
     /// # Shapes
     ///   - Images [batch_size, height, width]
@@ -66,3 +75,4 @@ impl Model {
         self.linear2.forward(x) // [batch_size, num_classes]
     }
 }
+// ANCHOR_END: forward

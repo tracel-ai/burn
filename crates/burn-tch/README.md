@@ -5,6 +5,16 @@
 [![Current Crates.io Version](https://img.shields.io/crates/v/burn-tch.svg)](https://crates.io/crates/burn-tch)
 [![license](https://shields.io/badge/license-MIT%2FApache--2.0-blue)](https://github.com/tracel-ai/burn-tch/blob/master/README.md)
 
+> **Deprecated:** This crate is deprecated as of `0.22.0` and will be removed in a future release.
+> Please migrate to one of the actively maintained backends:
+>
+> - **CubeCL GPU backends** for GPU acceleration: [`burn-cuda`](https://crates.io/crates/burn-cuda)
+>   (NVIDIA), [`burn-rocm`](https://crates.io/crates/burn-rocm) (AMD), and
+>   [`burn-wgpu`](https://crates.io/crates/burn-wgpu) (Metal, Vulkan, WebGPU).
+> - **CPU backends**: [`burn-cpu`](https://crates.io/crates/burn-cpu) (CubeCL) or
+>   [`burn-flex`](https://crates.io/crates/burn-flex) for portable pure-Rust CPU execution (std,
+>   no_std, WebAssembly).
+
 This crate provides a Torch backend for [Burn](https://github.com/tracel-ai/burn) utilizing the
 [`tch-rs`](https://github.com/LaurentMazare/tch-rs) crate, which offers a Rust interface to the
 [PyTorch](https://pytorch.org/) C++ API.
@@ -45,7 +55,7 @@ commands:
 
 ```shell
 export TORCH_CUDA_VERSION=cu128
-cargo run --bin cuda --release
+cargo run -p burn-tch --bin cuda --release
 ```
 
 **Important:** make sure your driver version is compatible with the selected CUDA version. A CUDA
@@ -62,9 +72,9 @@ Once your installation is complete, you should be able to build/run your project
 validate your installation by running the appropriate `cpu`, `cuda` or `mps` sample as below.
 
 ```shell
-cargo run --bin cpu --release
-cargo run --bin cuda --release
-cargo run --bin mps --release
+cargo run -p burn-tch --bin cpu --release
+cargo run -p burn-tch --bin cuda --release
+cargo run -p burn-tch --bin mps --release
 ```
 
 _Note: no MPS distribution is available for automatic download at this time, please check out the

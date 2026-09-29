@@ -2,22 +2,21 @@ use super::*;
 use alloc::{vec, vec::Vec};
 use burn_tensor::Tolerance;
 use burn_tensor::quantization::{
-    QParams, QuantLevel, QuantScheme, QuantStore, QuantValue, QuantizationParameters,
-    QuantizedBytes,
+    DecodedScales, QuantScheme, QuantStore, QuantValue, QuantizationParameters, QuantizedBytes,
+    ScaleDtype,
 };
-use burn_tensor::{DType, Element, TensorData};
+use burn_tensor::{DType, Device, Element, TensorData};
 
-fn get_q_params(data: TensorData) -> QParams<Vec<f32>> {
-    let num_elements = data.num_elements();
-    let scheme = if let DType::QFloat(scheme) = data.dtype {
+fn get_q_params(data: TensorData) -> DecodedScales {
+    let scheme = if let DType::QFloat(scheme) = data.dtype() {
         scheme
     } else {
         unreachable!()
     };
     let q_bytes = QuantizedBytes {
+        shape: data.shape().clone(),
         bytes: data.into_bytes(),
         scheme,
-        num_elements,
     };
     q_bytes.into_vec_i8().1
 }
@@ -37,6 +36,7 @@ fn should_support_quantize_symmetric_int8() {
         .with_value(QuantValue::Q8S);
     let qparams = QuantizationParameters {
         scales: TestTensor::from_data([0.014_173_228], &device),
+        global: None,
     };
 
     let x_q = tensor.clone().quantize(&scheme, qparams);
@@ -46,7 +46,8 @@ fn should_support_quantize_symmetric_int8() {
         vec![-127i8, -71, 0, 35],
         [4],
         scheme.with_store(QuantStore::Native),
-        &[0.014_173_228], // scale
+        &[0.014_173_228], // scale,
+        None,
     );
 
     // Values equality
@@ -55,9 +56,9 @@ fn should_support_quantize_symmetric_int8() {
     // Quantization parameters check
     let qparams = get_q_params(x_q_data);
     let expected = get_q_params(expected);
-    assert_eq!(qparams.scales.len(), 1);
+    assert_eq!(qparams.block.len(), 1);
     // TODO: check scales
-    assert_eq!(qparams.scales, expected.scales);
+    assert_eq!(qparams, expected);
 
     // Dequantize
     let x = x_q.dequantize();
@@ -84,7 +85,8 @@ fn should_support_quantize_dynamic_int8() {
         vec![50i8, 0, 40, -127],
         [4],
         scheme.with_store(QuantStore::Native),
-        &[0.1], // scale
+        &[0.1], // scale,
+        None,
     );
 
     x_q.into_data().assert_eq(&expected, false);
@@ -150,7 +152,7 @@ fn should_quantize_dequantize_symmetric_per_block_arange_16x16() {
         .quantization
         .scheme
         .with_value(QuantValue::Q8S)
-        .with_level(QuantLevel::block([2, 16]));
+        .per_block([2, 16], ScaleDtype::F32);
 
     let output = input.clone().quantize_dynamic(&scheme);
     let output = output.dequantize();
@@ -161,7 +163,145 @@ fn should_quantize_dequantize_symmetric_per_block_arange_16x16() {
     );
 }
 
-fn should_quantize_transposed<const D: usize>(tensor: Tensor<D>, scheme: QuantScheme) {
+/// A block that does not span the trailing dimension is a rectangle, not a run of the flat
+/// storage. Each `[2, 4]` block here holds one magnitude, so its scale is that magnitude over
+/// 127; chunking the flat storage in eights would instead pair the two blocks of a row and give
+/// both the larger scale. Four wide, so a packed store still keeps one word inside one block.
+#[test]
+fn should_quantize_blocks_that_do_not_span_the_trailing_dim() {
+    let device = Default::default();
+
+    let input = TestTensor::<2>::from_data(
+        [
+            [1.0, 1.0, 1.0, 1.0, 10.0, 10.0, 10.0, 10.0],
+            [1.0, 1.0, 1.0, 1.0, 10.0, 10.0, 10.0, 10.0],
+            [100.0, 100.0, 100.0, 100.0, 1000.0, 1000.0, 1000.0, 1000.0],
+            [100.0, 100.0, 100.0, 100.0, 1000.0, 1000.0, 1000.0, 1000.0],
+        ],
+        &device,
+    );
+
+    let scheme = device
+        .settings()
+        .quantization
+        .scheme
+        .with_value(QuantValue::Q8S)
+        .per_block([2, 4], ScaleDtype::F32);
+
+    let quantized = input.clone().quantize_dynamic(&scheme);
+
+    let scales = get_q_params(quantized.to_data()).block;
+    let expected = [1.0f32, 10.0, 100.0, 1000.0].map(|magnitude| magnitude / 127.0);
+    TensorData::new(scales, [2, 2]).assert_approx_eq::<f32>(
+        &TensorData::new(expected.to_vec(), [2, 2]),
+        Tolerance::relative(1e-3),
+    );
+
+    // Every block is uniform, so a right grid reconstructs it exactly and a wrong one is off by
+    // the ratio between the two magnitudes it merged.
+    quantized
+        .dequantize()
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&input.into_data(), Tolerance::relative(1e-2));
+}
+
+/// Bit equality rather than a tolerance: both paths reconstruct from the same stored scales, so
+/// any difference means a level was rounded, folded or sliced differently on one of them.
+///
+/// WGSL has no e4m3, so a ue4m3 scale reconstructs as NaN there. The f16 sibling below covers the
+/// byte layout on those backends.
+#[cfg(not(feature = "wgpu"))]
+#[test]
+fn should_round_trip_two_level_through_bytes() {
+    let device = Default::default();
+
+    let input: TestTensor<2> = TestTensorInt::arange(0..256, &device)
+        .float()
+        .div_scalar(256.)
+        .reshape([16, 16]);
+
+    let scheme = device
+        .settings()
+        .quantization
+        .scheme
+        .with_value(QuantValue::Q8S)
+        .per_block([2, 16], ScaleDtype::UE4M3)
+        .per_tensor(ScaleDtype::F32);
+
+    let quantized = input.quantize_dynamic(&scheme);
+    let direct = quantized.clone().dequantize().into_data();
+
+    let reloaded = TestTensor::<2>::from_data(quantized.into_data(), &device);
+    let round_tripped = reloaded.dequantize().into_data();
+
+    round_tripped.assert_eq(&direct, true);
+}
+
+/// The per-tensor scale exists so that accuracy stops depending on how large the weights are.
+///
+/// WGSL has no e4m3, so a ue4m3 scale reconstructs as NaN there.
+#[cfg(not(feature = "wgpu"))]
+#[test]
+fn two_level_error_should_not_track_weight_magnitude() {
+    use burn_tensor::ElementConversion;
+
+    let device = Default::default();
+
+    let big: TestTensor<2> = TestTensorInt::arange(-128..128, &device)
+        .float()
+        .div_scalar(128.)
+        .reshape([16, 16]);
+    let small = big.clone().mul_scalar(0.02);
+
+    let base = device
+        .settings()
+        .quantization
+        .scheme
+        .with_value(QuantValue::Q8S);
+    let two_level = base
+        .per_block([2, 16], ScaleDtype::UE4M3)
+        .per_tensor(ScaleDtype::F32);
+    let one_level = base.per_block([2, 16], ScaleDtype::UE4M3);
+
+    let error = |tensor: TestTensor<2>, scheme: &QuantScheme| -> f32 {
+        let reference = tensor.clone();
+        let dequantized = tensor.quantize_dynamic(scheme).dequantize();
+        let diff: FloatElem = (reference.clone() - dequantized).abs().sum().into_scalar();
+        let total: FloatElem = reference.abs().sum().into_scalar();
+        diff.elem::<f32>() / total.elem::<f32>()
+    };
+
+    let big_error = error(big.clone(), &two_level);
+    let small_error = error(small.clone(), &two_level);
+
+    assert!(
+        (small_error - big_error).abs() / big_error < 0.2,
+        "two-level error should be the same at either magnitude, \
+         got {big_error} and {small_error}"
+    );
+
+    // A one-level scheme's scales have to cover the magnitude themselves, and underflow here.
+    let small_one_level = error(small, &one_level);
+    assert!(
+        small_one_level > small_error * 2.0,
+        "one-level 8-bit scales should degrade on small weights where two-level does not, \
+         got one-level {small_one_level} and two-level {small_error}"
+    );
+}
+
+/// Compare a view applied to a quantized tensor with the same view applied after dequantization.
+/// Both paths reconstruct from the same quantized values and scales, so they must be bit-exact.
+fn assert_layout_matches_dequantize<const D: usize>(
+    layout_quantized: Tensor<D>,
+    layout_dequantized: Tensor<D>,
+) {
+    layout_quantized
+        .dequantize()
+        .into_data()
+        .assert_eq(&layout_dequantized.into_data(), true);
+}
+
+fn should_quantize_after_transpose<const D: usize>(tensor: Tensor<D>, scheme: QuantScheme) {
     let tensor_t = tensor.clone().transpose();
 
     let output = tensor_t.quantize_dynamic(&scheme).dequantize().transpose();
@@ -172,8 +312,20 @@ fn should_quantize_transposed<const D: usize>(tensor: Tensor<D>, scheme: QuantSc
     );
 }
 
+fn should_transpose_after_quantize_match_dequantized_layout<const D: usize>(
+    tensor: Tensor<D>,
+    scheme: QuantScheme,
+) {
+    let quantized = tensor.quantize_dynamic(&scheme);
+
+    assert_layout_matches_dequantize(
+        quantized.clone().transpose(),
+        quantized.dequantize().transpose(),
+    );
+}
+
 #[test]
-fn should_quantize_symmetric_int8_transposed_8x32() {
+fn should_quantize_symmetric_int8_after_transpose_8x32() {
     let device = Default::default();
 
     let tensor = TestTensorInt::arange(0..256, &device)
@@ -186,11 +338,28 @@ fn should_quantize_symmetric_int8_transposed_8x32() {
         .quantization
         .scheme
         .with_value(QuantValue::Q8S);
-    should_quantize_transposed(tensor, scheme);
+    should_quantize_after_transpose(tensor, scheme);
 }
 
 #[test]
-fn should_quantize_symmetric_int8_transposed_48x64() {
+fn should_transpose_symmetric_int8_after_quantize_8x32_match_dequantized_layout() {
+    let device = Default::default();
+
+    let values = (0..256)
+        .map(|value| value as f32 / 256.)
+        .collect::<Vec<_>>();
+    let tensor = TestTensor::<2>::from_data(TensorData::new(values, [8, 32]), &device);
+
+    let scheme = device
+        .settings()
+        .quantization
+        .scheme
+        .with_value(QuantValue::Q8S);
+    should_transpose_after_quantize_match_dequantized_layout(tensor, scheme);
+}
+
+#[test]
+fn should_quantize_symmetric_int8_after_transpose_48x64() {
     let device = Default::default();
 
     let tensor = TestTensorInt::arange(0..3072, &device)
@@ -203,11 +372,11 @@ fn should_quantize_symmetric_int8_transposed_48x64() {
         .quantization
         .scheme
         .with_value(QuantValue::Q8S);
-    should_quantize_transposed(tensor, scheme);
+    should_quantize_after_transpose(tensor, scheme);
 }
 
 #[test]
-fn should_quantize_symmetric_per_block_int8_transposed_32x64() {
+fn should_quantize_symmetric_per_block_int8_after_transpose_32x64() {
     let device = Default::default();
 
     let tensor = TestTensorInt::arange(0..2048, &device)
@@ -220,12 +389,100 @@ fn should_quantize_symmetric_per_block_int8_transposed_32x64() {
         .quantization
         .scheme
         .with_value(QuantValue::Q8S)
-        .with_level(QuantLevel::block([32]));
-    should_quantize_transposed(tensor, scheme);
+        .per_block([32], ScaleDtype::F32);
+    should_quantize_after_transpose(tensor, scheme);
 }
 
 #[test]
-fn should_quantize_symmetric_int8_permuted_batch_dims() {
+fn should_transpose_symmetric_per_block_int8_after_quantize_32x64_match_dequantized_layout() {
+    let device = Default::default();
+
+    let values = (0..2048)
+        .map(|value| value as f32 / 2048.)
+        .collect::<Vec<_>>();
+    let tensor = TestTensor::<2>::from_data(TensorData::new(values, [32, 64]), &device);
+
+    let scheme = device
+        .settings()
+        .quantization
+        .scheme
+        .with_value(QuantValue::Q8S)
+        .per_block([32], ScaleDtype::F32);
+
+    should_transpose_after_quantize_match_dequantized_layout(tensor, scheme);
+}
+
+#[test]
+fn should_swap_dims_symmetric_per_block_int8_after_quantize_match_dequantized_layout() {
+    let device = Default::default();
+
+    let values = (0..256)
+        .map(|value| value as f32 / 256.)
+        .collect::<Vec<_>>();
+    let tensor = TestTensor::<3>::from_data(TensorData::new(values, [2, 8, 16]), &device);
+
+    let scheme = device
+        .settings()
+        .quantization
+        .scheme
+        .with_value(QuantValue::Q8S)
+        .per_block([1, 2, 16], ScaleDtype::F32);
+    let quantized = tensor.quantize_dynamic(&scheme);
+
+    assert_layout_matches_dequantize(
+        quantized.clone().swap_dims(0, 2),
+        quantized.dequantize().swap_dims(0, 2),
+    );
+}
+
+#[test]
+fn should_permute_symmetric_per_block_int8_after_quantize_2x8x16_match_dequantized_layout() {
+    let device = Default::default();
+
+    let values = (0..256)
+        .map(|value| value as f32 / 256.)
+        .collect::<Vec<_>>();
+    let tensor = TestTensor::<3>::from_data(TensorData::new(values, [2, 8, 16]), &device);
+
+    let scheme = device
+        .settings()
+        .quantization
+        .scheme
+        .with_value(QuantValue::Q8S)
+        .per_block([1, 2, 16], ScaleDtype::F32);
+    let quantized = tensor.quantize_dynamic(&scheme);
+
+    assert_layout_matches_dequantize(
+        quantized.clone().permute([1, 2, 0]),
+        quantized.dequantize().permute([1, 2, 0]),
+    );
+}
+
+#[test]
+fn should_permute_packed_axis_first_after_quantize_match_dequantized_layout() {
+    let device = Default::default();
+
+    let values = (0..256)
+        .map(|value| value as f32 / 256.)
+        .collect::<Vec<_>>();
+    let tensor = TestTensor::<3>::from_data(TensorData::new(values, [2, 8, 16]), &device);
+
+    let scheme = device
+        .settings()
+        .quantization
+        .scheme
+        .with_value(QuantValue::Q8S)
+        .per_block([1, 2, 16], ScaleDtype::F32);
+    let quantized = tensor.quantize_dynamic(&scheme);
+
+    assert_layout_matches_dequantize(
+        quantized.clone().permute([2, 0, 1]),
+        quantized.dequantize().permute([2, 0, 1]),
+    );
+}
+
+#[test]
+fn should_quantize_symmetric_int8_after_permuting_batch_dims() {
     let device = Default::default();
 
     let tensor = TestTensorInt::arange(0..2048, &device)
@@ -252,4 +509,75 @@ fn should_quantize_symmetric_int8_permuted_batch_dims() {
         &output.into_data(),
         Tolerance::absolute(1e-1).set_relative(1e-2),
     );
+}
+
+#[test]
+fn should_quantize_symmetric_two_level_f16_block_scales() {
+    let device = Default::default();
+
+    let input: TestTensor<2> = TestTensorInt::arange(0..256, &device)
+        .float()
+        .div_scalar(256.)
+        .reshape([16, 16]);
+
+    let scheme = device
+        .settings()
+        .quantization
+        .scheme
+        .with_value(QuantValue::Q8S)
+        .per_block([2, 16], ScaleDtype::F16)
+        .per_tensor(ScaleDtype::F32);
+
+    let quantized = input.clone().quantize_dynamic(&scheme);
+    let direct = quantized.clone().dequantize().into_data();
+
+    let reloaded = TestTensor::<2>::from_data(quantized.into_data(), &device);
+    let round_tripped = reloaded.dequantize().into_data();
+
+    round_tripped.assert_eq(&direct, true);
+    direct.assert_approx_eq(&input.into_data(), Tolerance::<f32>::rel_abs(1e-2, 1e-2));
+}
+
+fn per_block_32_scheme(device: &Device) -> QuantScheme {
+    device
+        .settings()
+        .quantization
+        .scheme
+        .with_value(QuantValue::Q8S)
+        .per_block([32], ScaleDtype::F32)
+}
+
+#[test]
+fn should_reshape_per_block_along_block_boundaries() {
+    let device = Default::default();
+    let tensor = TestTensorInt::arange(0..64, &device)
+        .float()
+        .div_scalar(64.);
+    let expected = tensor.clone().reshape([2, 32]).into_data();
+
+    let output = tensor
+        .quantize_dynamic(&per_block_32_scheme(&device))
+        .reshape([2, 32]);
+
+    output
+        .dequantize()
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&expected, Tolerance::rel_abs(2e-2, 1e-2));
+}
+
+// A single [32] block cannot tile [2, 16]: it would have to span both rows.
+#[test]
+#[should_panic]
+fn should_panic_when_reshape_splits_a_block_across_rows() {
+    let device = Default::default();
+    let tensor = TestTensorInt::arange(0..32, &device)
+        .float()
+        .div_scalar(32.);
+
+    // Read back so a lazy backend executes the reshape.
+    let _ = tensor
+        .quantize_dynamic(&per_block_32_scheme(&device))
+        .reshape([2, 16])
+        .dequantize()
+        .into_data();
 }

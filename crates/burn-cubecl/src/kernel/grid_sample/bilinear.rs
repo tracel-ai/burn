@@ -2,9 +2,7 @@ use burn_backend::cubecl::dtype_to_storage_type;
 use cubecl::std::FastDivmod;
 use cubecl::{calculate_cube_count_elemwise, prelude::*};
 
-use crate::{
-    CubeRuntime, kernel::utils::address_type, ops::numeric::empty_device_dtype, tensor::CubeTensor,
-};
+use crate::{kernel::utils::address_type, ops::numeric::empty_device_dtype, tensor::CubeTensor};
 use burn_backend::{Shape, ops::GridSampleOptions};
 
 use super::base::{PaddingMode, fetch_value, reflect_coord};
@@ -23,7 +21,7 @@ fn grid_sample_bilinear_kernel<F: Float>(
     shape_spatial: Sequence<FastDivmod<usize>>, // [N, H_out, W_out] for thread decomposition
     #[comptime] align_corners: bool,
     #[comptime] pad_mode: PaddingMode,
-    #[define(F)] _dtype: StorageType,
+    #[define(F)] _dtype: ElemType,
 ) {
     // Thread index maps to spatial position (n, h_out, w_out) only
     let spatial_idx = ABSOLUTE_POS;
@@ -129,11 +127,11 @@ fn grid_sample_bilinear_kernel<F: Float>(
 }
 
 /// Launch the grid sample bilinear kernel
-pub(crate) fn grid_sample_bilinear_launch<R: CubeRuntime>(
-    input: CubeTensor<R>,
-    grid: CubeTensor<R>,
+pub(crate) fn grid_sample_bilinear_launch(
+    input: CubeTensor,
+    grid: CubeTensor,
     options: GridSampleOptions,
-) -> CubeTensor<R> {
+) -> CubeTensor {
     let [batch_size, channels, _h_in, _w_in] = input.meta.shape().dims();
     let [_n, h_out, w_out, two] = grid.meta.shape().dims();
     assert_eq!(two, 2, "Grid last dimension must be 2");

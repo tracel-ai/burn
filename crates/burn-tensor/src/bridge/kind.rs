@@ -1,5 +1,5 @@
 use alloc::vec::Vec;
-use burn_backend::{TensorMetadata, TensorPrimitive, get_device_settings};
+use burn_backend::{TensorMetadata, TensorPrimitive, get_or_init_device_settings};
 use burn_dispatch::{Dispatch, DispatchTensor};
 use burn_std::DeviceSettings;
 
@@ -326,6 +326,16 @@ impl BridgeTensor {
         }
     }
 
+    /// The float primitive when the tensor holds one; `None` for the other
+    /// kinds, a packed (quantized) tensor included.
+    #[cfg(feature = "autodiff")]
+    pub(crate) fn try_as_float(&self) -> Option<&DispatchTensor> {
+        match self.as_variant() {
+            BridgeTensorVariant::Float(tensor) => Some(tensor),
+            _ => None,
+        }
+    }
+
     pub(crate) fn into_dispatch_vec(tensors: Vec<Self>) -> Vec<DispatchTensor> {
         tensors.into_iter().map(Into::into).collect()
     }
@@ -349,7 +359,7 @@ impl BridgeTensor {
             BridgeTensorVariant::QFloat(tensor) => tensor.device(),
         };
 
-        get_device_settings::<Dispatch>(&device)
+        get_or_init_device_settings::<Dispatch>(&device)
     }
 }
 

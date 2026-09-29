@@ -12,7 +12,7 @@ use burn_backend::{Shape, TensorData, TensorMetadata, ops::BoolTensorOps};
 
 impl BoolTensorOps<Self> for LibTorch {
     fn bool_from_data(data: TensorData, device: &LibTorchDevice) -> TchTensor {
-        match data.dtype {
+        match data.dtype() {
             burn_backend::DType::Bool(BoolStore::Native) => {
                 TchTensor::from_data::<bool>(data, (*device).into())
             }
@@ -196,6 +196,13 @@ impl BoolTensorOps<Self> for LibTorch {
                     .unwrap()
             },
         )
+    }
+
+    async fn bool_mask_select(
+        tensor: BoolTensor<Self>,
+        mask: BoolTensor<Self>,
+    ) -> BoolTensor<Self> {
+        TchTensor::new(tensor.tensor.masked_select(&mask.tensor))
     }
 
     fn bool_gather(

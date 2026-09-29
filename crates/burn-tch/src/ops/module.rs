@@ -5,6 +5,7 @@ use burn_backend::{
         AttentionModuleOptions, ConvOptions, ConvTransposeOptions, DeformConv2dBackward,
         DeformConvOptions, InterpolateMode, InterpolateOptions, MaxPool1dWithIndices,
         MaxPool2dBackward, MaxPool2dWithIndices, ModuleOps, attention::attention_fallback,
+        conv::pad_asymmetric_conv_input,
     },
     tensor::{FloatTensor, IntTensor},
 };
@@ -66,12 +67,13 @@ impl ModuleOps<Self> for LibTorch {
         bias: Option<TchTensor>,
         options: ConvOptions<1>,
     ) -> TchTensor {
+        let (x, options) = pad_asymmetric_conv_input::<LibTorch, 1>(x, options);
         let tensor = tch::Tensor::conv1d(
             &x.tensor,
             &weight.tensor,
             bias.map(|t| t.tensor),
             options.stride.map(|i| i as i64),
-            options.padding.map(|i| i as i64),
+            options.padding_begin().map(|i| i as i64),
             options.dilation.map(|i| i as i64),
             options.groups as i64,
         );
@@ -85,12 +87,13 @@ impl ModuleOps<Self> for LibTorch {
         bias: Option<TchTensor>,
         options: ConvOptions<2>,
     ) -> TchTensor {
+        let (x, options) = pad_asymmetric_conv_input::<LibTorch, 2>(x, options);
         let tensor = tch::Tensor::conv2d(
             &x.tensor,
             &weight.tensor,
             bias.map(|t| t.tensor),
             options.stride.map(|i| i as i64),
-            options.padding.map(|i| i as i64),
+            options.padding_begin().map(|i| i as i64),
             options.dilation.map(|i| i as i64),
             options.groups as i64,
         );
@@ -109,7 +112,7 @@ impl ModuleOps<Self> for LibTorch {
             &weight.tensor,
             bias.map(|t| t.tensor),
             options.stride.map(|i| i as i64),
-            options.padding.map(|i| i as i64),
+            options.padding_begin().map(|i| i as i64),
             options.dilation.map(|i| i as i64),
             options.groups as i64,
         );
@@ -387,6 +390,18 @@ impl ModuleOps<Self> for LibTorch {
         TchTensor::new(tensor)
     }
 
+    fn adaptive_avg_pool3d(x: TchTensor, output_size: [usize; 3]) -> TchTensor {
+        let tensor = tch::Tensor::adaptive_avg_pool3d(&x.tensor, output_size.map(|e| e as i64));
+
+        TchTensor::new(tensor)
+    }
+
+    fn adaptive_avg_pool3d_backward(x: TchTensor, grad: TchTensor) -> TchTensor {
+        let tensor = tch::Tensor::internal_adaptive_avg_pool3d_backward(&x.tensor, &grad.tensor);
+
+        TchTensor::new(tensor)
+    }
+
     fn adaptive_avg_pool1d(x: TchTensor, output_size: usize) -> TchTensor {
         let tensor = tch::Tensor::adaptive_avg_pool1d(&x.tensor, output_size as i64);
 
@@ -583,29 +598,6 @@ impl ModuleOps<Self> for LibTorch {
         );
 
         TchTensor::new(grad)
-    }
-
-    fn rfft(
-        signal: FloatTensor<Self>,
-        dim: usize,
-        n: Option<usize>,
-    ) -> (FloatTensor<Self>, FloatTensor<Self>) {
-        let complex = signal
-            .tensor
-            .fft_rfft(n.map(|v| v as i64), dim as i64, "backward");
-        let re = TchTensor::new(complex.real().contiguous());
-        let im = TchTensor::new(complex.imag().contiguous());
-        (re, im)
-    }
-
-    fn irfft(
-        spectrum_re: FloatTensor<Self>,
-        spectrum_im: FloatTensor<Self>,
-        dim: usize,
-        n: Option<usize>,
-    ) -> FloatTensor<Self> {
-        let complex = tch::Tensor::complex(&spectrum_re.tensor, &spectrum_im.tensor);
-        TchTensor::new(complex.fft_irfft(n.map(|v| v as i64), dim as i64, "backward"))
     }
 }
 

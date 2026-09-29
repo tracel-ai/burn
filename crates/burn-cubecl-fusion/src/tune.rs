@@ -1,21 +1,20 @@
 use crate::CubeFusionHandle;
 use burn_fusion::stream::Context;
 use burn_ir::{HandleContainer, TensorId, TensorIr};
-use cubecl::Runtime;
 use cubecl::tune::{InputGenerator, TuneInputs};
 use hashbrown::HashMap;
 use std::marker::PhantomData;
 use std::sync::Arc;
 
 /// [`TuneInputs`] marker for [`TuneInput`]. This is the indirection that lets a
-/// `TunableSet<_, FusionTuneInputs<R, O>, _>` live `'static` inside `LocalTuner::init`'s
+/// `TunableSet<_, FusionTuneInputs<O>, _>` live `'static` inside `LocalTuner::init`'s
 /// cache while still accepting a borrowing `TuneInput<'a, …>` at `execute` time, via HRTB
 /// over `'a`.
 #[allow(clippy::type_complexity)]
-pub(crate) struct FusionTuneInputs<R: Runtime, O>(PhantomData<(fn() -> R, fn() -> O)>);
+pub(crate) struct FusionTuneInputs<O>(PhantomData<fn() -> O>);
 
-impl<R: Runtime, O: Send + Sync + 'static> TuneInputs for FusionTuneInputs<R, O> {
-    type At<'a> = TuneInput<'a, R, O>;
+impl<O: Send + Sync + 'static> TuneInputs for FusionTuneInputs<O> {
+    type At<'a> = TuneInput<'a, O>;
 }
 
 /// [`InputGenerator`] for [`TuneInput`]: produces a benchmark-only [`TuneState::Fork`]
@@ -23,17 +22,16 @@ impl<R: Runtime, O: Send + Sync + 'static> TuneInputs for FusionTuneInputs<R, O>
 /// input skips the handle-tracking machinery that a wasm-fallback fork carries.
 pub(crate) struct FusionInputGen;
 
-impl<K, R, O> InputGenerator<K, FusionTuneInputs<R, O>> for FusionInputGen
+impl<K, O> InputGenerator<K, FusionTuneInputs<O>> for FusionInputGen
 where
     K: 'static,
-    R: Runtime,
     O: Send + Sync + 'static,
 {
     fn generate<'a>(
         &self,
         _key: &K,
-        inputs: &<FusionTuneInputs<R, O> as TuneInputs>::At<'a>,
-    ) -> <FusionTuneInputs<R, O> as TuneInputs>::At<'a> {
+        inputs: &<FusionTuneInputs<O> as TuneInputs>::At<'a>,
+    ) -> <FusionTuneInputs<O> as TuneInputs>::At<'a> {
         inputs.for_benchmark()
     }
 }
@@ -47,15 +45,15 @@ where
 ///
 /// The pipeline is strictly serial, so
 /// the lock is always uncontended; `spin::Mutex` is there purely to give
-/// `Arc<HandleCollector<R>>` `Send + Sync`.
-pub(crate) struct HandleCollector<R: Runtime>(spin::Mutex<HashMap<TensorId, CubeFusionHandle<R>>>);
+/// `Arc<HandleCollector>` `Send + Sync`.
+pub(crate) struct HandleCollector(spin::Mutex<HashMap<TensorId, CubeFusionHandle>>);
 
-impl<R: Runtime> HandleCollector<R> {
+impl HandleCollector {
     fn new() -> Self {
         Self(spin::Mutex::new(HashMap::new()))
     }
 
-    fn capture(&self, handles: &HandleContainer<CubeFusionHandle<R>>) {
+    fn capture(&self, handles: &HandleContainer<CubeFusionHandle>) {
         let mut bag = self.0.lock();
         bag.clear();
         for id in handles.handle_ids() {
@@ -65,24 +63,24 @@ impl<R: Runtime> HandleCollector<R> {
         }
     }
 
-    fn take(&self) -> HashMap<TensorId, CubeFusionHandle<R>> {
+    fn take(&self) -> HashMap<TensorId, CubeFusionHandle> {
         core::mem::take(&mut *self.0.lock())
     }
 }
 
 /// Fusion input for autotuning. Thread the caller's `&mut Context` through the tuning
 /// pipeline without `unsafe` by riding cubecl's `'a` lifetime parameter.
-pub(crate) struct TuneInput<'a, R: Runtime, O> {
+pub(crate) struct TuneInput<'a, O> {
     optimization: Arc<O>,
-    state: TuneState<'a, R>,
+    state: TuneState<'a>,
 }
 
-enum TuneState<'a, R: Runtime> {
+enum TuneState<'a> {
     Original {
-        context: &'a mut Context<CubeFusionHandle<R>>,
+        context: &'a mut Context<CubeFusionHandle>,
         /// Shared with any `Fork` spawned from this `Original`. `Drop` drains from here
         /// if the cache-hit path never ran (e.g. wasm fallback succeeded on a fork).
-        new_handles: Arc<HandleCollector<R>>,
+        new_handles: Arc<HandleCollector>,
         /// Set by [`TuneInput::execute`] when the winner ran on this context, which
         /// suppresses the drain above.
         executed: bool,
@@ -91,13 +89,13 @@ enum TuneState<'a, R: Runtime> {
     /// `Some(…)` is the wasm try-all path that promotes outputs back into the paired
     /// `Original` on drop.
     Fork {
-        context: Box<Context<CubeFusionHandle<R>>>,
-        new_handles: Option<Arc<HandleCollector<R>>>,
+        context: Box<Context<CubeFusionHandle>>,
+        new_handles: Option<Arc<HandleCollector>>,
     },
 }
 
-impl<'a, R: Runtime, O> TuneInput<'a, R, O> {
-    pub(crate) fn new(context: &'a mut Context<CubeFusionHandle<R>>, optimization: O) -> Self {
+impl<'a, O> TuneInput<'a, O> {
+    pub(crate) fn new(context: &'a mut Context<CubeFusionHandle>, optimization: O) -> Self {
         Self {
             optimization: Arc::new(optimization),
             state: TuneState::Original {
@@ -125,7 +123,7 @@ impl<'a, R: Runtime, O> TuneInput<'a, R, O> {
     }
 
     /// Read-only access to the wrapped context.
-    pub(crate) fn context(&self) -> &Context<CubeFusionHandle<R>> {
+    pub(crate) fn context(&self) -> &Context<CubeFusionHandle> {
         match &self.state {
             TuneState::Original { context, .. } => context,
             TuneState::Fork { context, .. } => context,
@@ -136,7 +134,7 @@ impl<'a, R: Runtime, O> TuneInput<'a, R, O> {
         &self.context().tensors
     }
 
-    pub(crate) fn handles(&self) -> &HandleContainer<CubeFusionHandle<R>> {
+    pub(crate) fn handles(&self) -> &HandleContainer<CubeFusionHandle> {
         &self.context().handles
     }
 
@@ -148,7 +146,7 @@ impl<'a, R: Runtime, O> TuneInput<'a, R, O> {
     /// optimization.
     pub(crate) fn execute<F, T>(mut self, f: F) -> T
     where
-        F: FnOnce(&mut Context<CubeFusionHandle<R>>, &O) -> T,
+        F: FnOnce(&mut Context<CubeFusionHandle>, &O) -> T,
     {
         match &mut self.state {
             TuneState::Original {
@@ -163,7 +161,7 @@ impl<'a, R: Runtime, O> TuneInput<'a, R, O> {
     }
 }
 
-impl<'a, R: Runtime, O> Clone for TuneInput<'a, R, O> {
+impl<'a, O> Clone for TuneInput<'a, O> {
     fn clone(&self) -> Self {
         // `Original` clones come from the wasm fallback path (`operations.fastest(i)
         // .execute(inputs.clone())`) and must track outputs. `Fork` clones inherit the
@@ -182,7 +180,7 @@ impl<'a, R: Runtime, O> Clone for TuneInput<'a, R, O> {
     }
 }
 
-impl<'a, R: Runtime, O> Drop for TuneInput<'a, R, O> {
+impl<'a, O> Drop for TuneInput<'a, O> {
     fn drop(&mut self) {
         match &mut self.state {
             TuneState::Original {

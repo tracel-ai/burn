@@ -1,14 +1,217 @@
-# Backend
+# Backend and Device
 
-Nearly everything in Burn is based on the `Backend` trait, which enables you to run tensor
-operations using different implementations without having to modify your code. While a backend may
-not necessarily have autodiff capabilities, the `AutodiffBackend` trait specifies when autodiff is
-needed. This trait not only abstracts operations but also tensor, device, and element types,
-providing each backend the flexibility they need. It's worth noting that the trait assumes eager
-mode since burn fully supports dynamic graphs. However, we may create another API to assist with
-integrating graph-based backends, without requiring any changes to the user's code.
+Burn's user-facing API is centered on `Tensor`, `Module`, and `Device`. These types are not generic
+over a backend. Instead, every tensor carries a runtime `Device` that identifies where and how its
+operations execute.
 
-Users are not expected to directly use the backend trait methods, as it is primarily designed with
-backend developers in mind rather than Burn users. Therefore, most Burn userland APIs are generic
-across backends. This approach helps users discover the API more organically with proper
-autocomplete and documentation.
+```rust, ignore
+use burn::tensor::{Device, Tensor};
+
+let device = Device::wgpu(Default::default());
+let tensor = Tensor::<2>::ones([2, 3], &device);
+
+// The same model and tensor API can target another backend.
+let other_device = Device::cuda(0);
+let tensor = tensor.to_device(&other_device);
+```
+
+The corresponding Cargo feature must be enabled for each device constructor. For example, the `wgpu`
+and `cuda` features make `Device::wgpu` and `Device::cuda` available.
+
+## Selecting a Device
+
+`Device` provides constructors for the backends enabled in your build. Common choices include:
+
+| Constructor                                | Target                                          |
+| ------------------------------------------ | ----------------------------------------------- |
+| `Device::wgpu(Default::default())`         | Best WGPU adapter available                     |
+| `Device::wgpu(DeviceKind::DiscreteGpu(0))` | First discrete GPU through WGPU                 |
+| `Device::vulkan(Default::default())`       | Best Vulkan adapter                             |
+| `Device::metal(Default::default())`        | Best Metal adapter                              |
+| `Device::webgpu(Default::default())`       | Browser WebGPU device                           |
+| `Device::cuda(0)`                          | CUDA GPU at index 0                             |
+| `Device::cuda(DeviceIndex::Default)`       | Backend-selected CUDA GPU                       |
+| `Device::rocm(0)`                          | ROCm/HIP GPU at index 0                         |
+| `Device::cpu()`                            | CubeCL CPU backend                              |
+| `Device::flex()`                           | Flex CPU backend                                |
+| `Device::ndarray()`                        | NdArray CPU backend (deprecated)                |
+| `Device::libtorch()`                       | LibTorch CPU backend (deprecated)               |
+| `Device::libtorch_cuda(0)`                 | LibTorch CUDA GPU at index 0 (deprecated)       |
+| `Device::libtorch_mps()`                   | LibTorch Metal Performance Shaders (deprecated) |
+| `Device::libtorch_vulkan()`                | LibTorch Vulkan device (deprecated)             |
+
+Indexed devices accept either an integer or `DeviceIndex`. WGPU-family constructors accept a
+`DeviceKind`, which can select a discrete, integrated, or virtual GPU, a CPU adapter, or the best
+available device:
+
+```rust, ignore
+use burn::tensor::{Device, DeviceIndex, DeviceKind};
+
+let default_wgpu = Device::wgpu(Default::default());
+let discrete_wgpu = Device::wgpu(DeviceKind::DiscreteGpu(0));
+let integrated_wgpu = Device::wgpu(DeviceKind::IntegratedGpu(0));
+let default_cuda = Device::cuda(DeviceIndex::Default);
+let second_cuda = Device::cuda(1);
+```
+
+Burn also supports remote devices when the corresponding remote feature is enabled. Constructors
+include `Device::remote_websocket` for WebSocket connections and `Device::remote_iroh` for
+peer-to-peer remote execution.
+
+## Using a Device
+
+Tensor creation methods take `&Device`. Modules receive the same device when their parameters are
+initialized:
+
+```rust, ignore
+let device = Device::cuda(0);
+let input = Tensor::<2>::zeros([32, 128], &device);
+let model = ModelConfig::new().init(&device);
+let output = model.forward(input);
+```
+
+Use `Tensor::to_device` or `Module::to_device` to move existing values. Operations involving
+multiple tensors require compatible devices, so move them explicitly before combining them.
+
+```rust, ignore
+let cpu = Device::flex();
+let gpu = Device::cuda(0);
+
+let tensor = Tensor::<2>::ones([2, 3], &cpu);
+let tensor = tensor.to_device(&gpu);
+let model = model.to_device(&gpu);
+```
+
+To move a trainable module and optimize its parameters on the destination, use `Module::fork`.
+`Module::to_device` preserves connections to the source parameters instead. See the
+[module transfer semantics](./module.md#methods).
+
+## Autodiff and Execution
+
+Devices provide the autodiff and checkpointing defaults for newly created tensors. Each tensor
+carries its own context and can later change it independently. `Tensor::to_device` preserves the
+source tensor's context, regardless of the destination's defaults. Calling `autodiff` returns a
+device whose newly created tensors have autodiff enabled:
+
+```rust, ignore
+let device = Device::wgpu(Default::default());
+let training_device = device.autodiff();
+
+assert!(training_device.is_autodiff());
+let inference_device = training_device.without_autodiff();
+assert!(!inference_device.is_autodiff());
+```
+
+`autodiff()` and `without_autodiff()` are idempotent. The historical `inner()` method is equivalent
+to `without_autodiff()`. Chain `autodiff().gradient_checkpointing()` to enable autodiff with the
+balanced checkpointing strategy. Repeating `autodiff()` doesn't enable higher-order differentiation;
+Burn currently supports first-order autodiff only.
+
+Device equality compares compute resources and ignores autodiff and checkpointing settings. Use
+`tensor.is_autodiff()` to inspect a tensor's association; equality with an autodiff device does not
+establish that the tensor has autodiff enabled.
+
+The following methods are also useful when coordinating execution:
+
+- `seed(seed)` seeds random operations on the device.
+- `sync()` waits for queued work and reports an execution error if one occurred.
+- `flush()` submits queued work without waiting for completion.
+- `is_autodiff()` reports whether autodiff is associated with the device.
+- `gradient_checkpointing_strategy()` returns the active strategy, or `None` without autodiff.
+- `supports_dtype(dtype)` reports whether the device supports a dtype.
+- `memory_cleanup()` asks the backend to release unused cached allocations.
+
+## Device Settings
+
+Each device has runtime settings, including its default float, integer, and boolean dtypes. Set them
+with `configure()` before creating tensors or initializing model parameters, then inspect them with
+`settings()`:
+
+```rust, ignore
+use burn::tensor::{Device, DeviceConfig, FloatDType, IntDType};
+
+let mut device = Device::cuda(0);
+device.configure(
+    DeviceConfig::default()
+        .float_dtype(FloatDType::F16)
+        .int_dtype(IntDType::I32),
+)?;
+
+let settings = device.settings();
+```
+
+Configure defaults before the first tensor operation on that device. Device settings are initialized
+once; tensor creation locks them to the backend's defaults, even with an explicit dtype, and a later
+`configure()` call returns `DeviceError::AlreadyInitialized`. Querying `settings()` does not lock
+defaults: before initialization, it returns a snapshot of the backend defaults, which subsequent
+configuration may change.
+
+These settings choose defaults, not a single precision for every tensor on the device. You can still
+specify a supported float or integer dtype at creation or cast an existing tensor:
+
+```rust, ignore
+use burn::tensor::{DType, FloatDType, Tensor};
+
+let tensor = Tensor::<2>::zeros([2, 3], (&device, DType::F32));
+let tensor = tensor.cast(FloatDType::F16);
+```
+
+Neither choice changes the device's defaults.
+
+## Enumerating Devices
+
+`Device::enumerate` discovers enabled devices matching a filter. This is useful for selecting
+hardware dynamically or setting up multi-device training:
+
+```rust, ignore
+use burn::tensor::{Device, DeviceFilter, DeviceType};
+
+let devices = Device::enumerate(
+    DeviceFilter::new()
+        .with(DeviceType::Cuda)
+        .with(DeviceType::Wgpu),
+);
+let devices = devices.into_vec();
+```
+
+The exact `DeviceType` variants available depend on the backend features enabled for the
+application.
+
+A GPU can be reachable through more than one runtime: an NVIDIA card enumerates under
+`DeviceType::Cuda` and again under `DeviceType::Vulkan`. `Device::enumerate_physical` lists each
+card once, with every device that runs on it, and `Device::identity` says which card a device is on:
+
+```rust, ignore
+for gpu in Device::enumerate_physical() {
+    let address = gpu.physical.pci_address.map(|address| address.to_string());
+    println!("{} at {address:?}: {:?}", gpu.name, gpu.devices);
+}
+```
+
+A card is recognized by its PCI address, which CUDA, ROCm and Vulkan report, or by its Windows LUID.
+A card that reports neither, such as an Apple GPU, is listed as a card of its own. The LUID changes
+when the machine restarts, so anything stored to recognize a card later should use the PCI address.
+Both calls open the devices they report on, so enumerate once and keep the answer.
+
+## Execution Stack
+
+Under the hood, an operation flows through the **Tensor → Bridge → Dispatch → Backend** stack:
+
+- `Tensor` provides the stable, backend-independent API used by applications.
+- A bridge converts tensor handles into dispatch values.
+- `Dispatch` selects the implementation associated with the tensor's device.
+- The backend executes the primitive operation.
+
+This replaces the backend parameter in the former `Tensor<B, D, K>` API. Cargo features make
+backends available, and devices select them at runtime, so one application can use several backends
+with the same tensor and model types. The opaque bridge keeps their concrete implementation types
+out of the public tensor representation.
+
+The `Backend` and `AutodiffBackend` traits still define the low-level implementation contract, but
+ordinary application code does not need bounds such as `B: Backend`. You will mainly encounter those
+traits when implementing or extending a backend; see
+[Backend Extension](../advanced/backend-extension/).
+
+For the responsibilities of each layer, the reason for the opaque bridge, and an operation
+walkthrough, see the contributor book's
+[Tensor architecture chapter](https://burn.dev/books/contributor/project-architecture/tensor.html).

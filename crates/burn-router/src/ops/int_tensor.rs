@@ -4,18 +4,39 @@ use burn_std::{BoolDType, FloatDType};
 
 use crate::{BackendRouter, RouterChannel, RouterClient, get_client};
 use burn_backend::tensor::{BoolTensor, Device, FloatTensor, IndexingUpdateOp, IntTensor};
-use burn_backend::{Distribution, IntDType, Scalar, Shape, Slice, TensorData, ops::IntTensorOps};
+use burn_backend::{
+    Distribution, IntDType, Scalar, Shape, Slice, TensorData,
+    ops::{IntTensorOps, PadMode},
+};
 use burn_ir::{
     BaseOperationIr, BinaryOpIr, CastOpIr, CatOpIr, ClampOpIr, CreationOpIr, DimOpIr, FlipOpIr,
     FullOpIr, GatherNdOpIr, GatherOpIr, InitOperationIr, IntOperationIr, MaskFillOpIr,
-    MaskWhereOpIr, MatmulOpIr, NumericOperationIr, OperationIr, OperationOutput, PermuteOpIr,
-    RandomOpIr, ReduceDimOpIr, ReduceDimWithIndicesOpIr, ReduceOpIr, RepeatDimOpIr, ScalarOpIr,
-    ScatterNdOpIr, ScatterOpIr, SelectAssignOpIr, SelectOpIr, ShapeOpIr, SliceAssignOpIr,
-    SliceOpIr, SortOpIr, SortWithIndicesOpIr, SwapDimsOpIr, TopKWithIndicesOpIr, UnaryOpIr,
-    UnfoldOpIr,
+    MaskWhereOpIr, MatmulOpIr, NumericOperationIr, OperationIr, OperationOutput, PadOpIr,
+    PermuteOpIr, RandomOpIr, ReduceDimOpIr, ReduceDimWithIndicesOpIr, ReduceOpIr, RepeatDimOpIr,
+    ScalarOpIr, ScatterNdOpIr, ScatterOpIr, SelectAssignOpIr, SelectOpIr, ShapeOpIr,
+    SliceAssignOpIr, SliceOpIr, SortOpIr, SortWithIndicesOpIr, SwapDimsOpIr, TopKWithIndicesOpIr,
+    UnaryOpIr, UnfoldOpIr,
 };
 
 impl<R: RouterChannel> IntTensorOps<Self> for BackendRouter<R> {
+    fn int_pad(
+        tensor: IntTensor<Self>,
+        padding: &[(usize, usize)],
+        mode: PadMode,
+    ) -> IntTensor<Self> {
+        let client = tensor.client.clone();
+        let desc = PadOpIr::create(tensor.into_ir(), padding.into(), mode.into(), || {
+            client.create_empty_handle()
+        });
+
+        client
+            .register(OperationIr::NumericInt(
+                desc.out.dtype,
+                NumericOperationIr::Pad(desc),
+            ))
+            .output()
+    }
+
     fn int_empty(shape: Shape, device: &Device<Self>, dtype: IntDType) -> IntTensor<Self> {
         let client = get_client::<R>(device);
         let desc = CreationOpIr::create(shape, dtype.into(), || client.create_empty_handle());
@@ -142,11 +163,12 @@ impl<R: RouterChannel> IntTensorOps<Self> for BackendRouter<R> {
             .output()
     }
 
-    fn int_scatter_add(
+    fn int_scatter(
         dim: usize,
         tensor: IntTensor<Self>,
         indices: IntTensor<Self>,
         value: IntTensor<Self>,
+        update: IndexingUpdateOp,
     ) -> IntTensor<Self> {
         let client = tensor.client.clone();
         let desc = ScatterOpIr::create(
@@ -154,7 +176,7 @@ impl<R: RouterChannel> IntTensorOps<Self> for BackendRouter<R> {
             dim,
             indices.into_ir(),
             value.into_ir(),
-            IndexingUpdateOp::Add,
+            update,
             || client.create_empty_handle(),
         );
 
@@ -209,11 +231,12 @@ impl<R: RouterChannel> IntTensorOps<Self> for BackendRouter<R> {
             .output()
     }
 
-    fn int_select_add(
+    fn int_select_assign(
         tensor: IntTensor<Self>,
         dim: usize,
         indices: IntTensor<Self>,
         value: IntTensor<Self>,
+        update: IndexingUpdateOp,
     ) -> IntTensor<Self> {
         let client = tensor.client.clone();
         let desc = SelectAssignOpIr::create(
@@ -221,7 +244,7 @@ impl<R: RouterChannel> IntTensorOps<Self> for BackendRouter<R> {
             dim,
             indices.into_ir(),
             value.into_ir(),
-            IndexingUpdateOp::Add,
+            update,
             || client.create_empty_handle(),
         );
 

@@ -1,6 +1,7 @@
 use super::base::{
     Error, FORMAT_VERSION, HEADER_SIZE, Header, MAX_CBOR_RECURSION_DEPTH, MAX_METADATA_SIZE,
     MAX_TENSOR_COUNT, MAX_TENSOR_SIZE, Metadata, TensorDescriptor, aligned_data_section_start,
+    validate_tensor_byte_len,
 };
 use super::tensor::Tensor;
 use alloc::format;
@@ -66,7 +67,23 @@ impl Reader {
             path.to_path_buf()
         };
 
-        let mut file = File::open(&path).map_err(io_err)?;
+        Self::from_resolved_file(&path)
+    }
+
+    /// Load a pack from a file using the exact path provided.
+    ///
+    /// Unlike [`from_file`](Self::from_file), this never appends [`crate::EXTENSION`] when the
+    /// requested path has no extension and does not probe for a fallback path. It is useful when
+    /// a higher-level caller has already applied its own path policy.
+    #[cfg(feature = "std")]
+    pub fn from_file_exact<P: AsRef<Path>>(path: P) -> Result<Self, Error> {
+        Self::from_resolved_file(path.as_ref())
+    }
+
+    #[cfg(feature = "std")]
+    fn from_resolved_file(path: &Path) -> Result<Self, Error> {
+        let mut file = File::open(path)
+            .map_err(|e| Error::IoError(format!("cannot open '{}': {e}", path.display())))?;
 
         let file_size = file.metadata().map_err(io_err)?.len();
         if file_size > MAX_FILE_SIZE {
@@ -83,7 +100,7 @@ impl Reader {
         file.read_exact(&mut metadata_bytes).map_err(io_err)?;
         let metadata = parse_metadata(&metadata_bytes)?;
 
-        let source = Source::File(Bytes::from_file(path.as_path(), file_size, 0));
+        let source = Source::File(Bytes::from_file(path, file_size, 0));
         Self::assemble(&header, metadata, source, file_size as usize)
     }
 
@@ -98,13 +115,13 @@ impl Reader {
         source: Source,
         available: usize,
     ) -> Result<Self, Error> {
-        let metadata_end = HEADER_SIZE + header.metadata_size as usize;
-        validate_total_size(&metadata, metadata_end, available)?;
+        let data_offset = aligned_data_section_start(header.metadata_size as usize);
+        validate_total_size(&metadata, data_offset, available)?;
 
         Ok(Self {
             metadata,
             source,
-            data_offset: aligned_data_section_start(header.metadata_size as usize),
+            data_offset,
         })
     }
 
@@ -268,24 +285,24 @@ fn parse_metadata(bytes: &[u8]) -> Result<Metadata, Error> {
 /// Ensure the available bytes can hold every tensor the metadata claims.
 fn validate_total_size(
     metadata: &Metadata,
-    metadata_end: usize,
+    data_offset: usize,
     available: usize,
 ) -> Result<(), Error> {
-    if metadata.tensors.is_empty() {
-        return Ok(());
+    let mut min_size = None;
+    for (name, descriptor) in &metadata.tensors {
+        let (start, end) = tensor_range(data_offset, name, descriptor)?;
+        validate_tensor_byte_len(
+            name,
+            descriptor.dtype,
+            &descriptor.shape,
+            (end - start) as u64,
+        )?;
+        min_size = Some(min_size.map_or(end, |current: usize| current.max(end)));
     }
-    let max_offset = metadata
-        .tensors
-        .values()
-        .map(|t| t.data_offsets.1)
-        .max()
-        .unwrap_or(0);
-    let max_offset: usize = max_offset.try_into().map_err(|_| {
-        Error::ValidationError(format!("Data offset {max_offset} exceeds platform maximum"))
-    })?;
-    let min_size = metadata_end
-        .checked_add(max_offset)
-        .ok_or_else(|| Error::ValidationError("File size calculation overflow".into()))?;
+
+    let Some(min_size) = min_size else {
+        return Ok(());
+    };
     if available < min_size {
         return Err(Error::ValidationError(format!(
             "File truncated: expected at least {min_size} bytes, got {available} bytes"
@@ -351,6 +368,7 @@ fn io_err(e: std::io::Error) -> Error {
 mod tests {
     use super::*;
     use crate::{TENSOR_ALIGNMENT, Tensor, Writer};
+    use alloc::collections::BTreeMap;
     use burn_std::DType;
 
     fn tensor(name: &str, elems: usize) -> Tensor {
@@ -361,6 +379,43 @@ mod tests {
             None,
             Bytes::from_bytes_vec(alloc::vec![0u8; elems * 4]),
         )
+    }
+
+    fn pack_with_descriptor(shape: Vec<u64>, data_len: u64) -> Bytes {
+        let mut tensors = BTreeMap::new();
+        tensors.insert(
+            "weight".to_string(),
+            TensorDescriptor {
+                dtype: DType::F32,
+                shape,
+                data_offsets: (0, data_len),
+                param_id: None,
+            },
+        );
+        let metadata = Metadata {
+            tensors,
+            metadata: BTreeMap::new(),
+            scalars: BTreeMap::new(),
+        };
+        let mut metadata_bytes = Vec::new();
+        ciborium::ser::into_writer(&metadata, &mut metadata_bytes).unwrap();
+        let header = Header::new(metadata_bytes.len() as u32);
+        let data_offset = aligned_data_section_start(metadata_bytes.len());
+
+        let mut bytes = header.into_bytes().to_vec();
+        bytes.extend(metadata_bytes);
+        bytes.resize(data_offset + data_len as usize, 0);
+        Bytes::from_bytes_vec(bytes)
+    }
+
+    fn assert_byte_length_error(bytes: Bytes, expected: &str) {
+        match Reader::from_bytes(bytes) {
+            Err(Error::ValidationError(message)) => assert!(
+                message.contains(expected),
+                "expected error containing {expected:?}, got {message:?}"
+            ),
+            _ => panic!("expected a byte-length validation error"),
+        }
     }
 
     #[test]
@@ -378,5 +433,23 @@ mod tests {
                 "tensor '{name}' start offset is not 256-aligned"
             );
         }
+    }
+
+    #[test]
+    fn rejects_tensor_data_shorter_than_declared_shape() {
+        assert_byte_length_error(pack_with_descriptor(vec![2, 3], 16), "need 24");
+    }
+
+    #[test]
+    fn rejects_tensor_data_longer_than_declared_shape() {
+        assert_byte_length_error(pack_with_descriptor(vec![2, 3], 32), "need 24");
+    }
+
+    #[test]
+    fn rejects_tensor_byte_length_overflow() {
+        assert_byte_length_error(
+            pack_with_descriptor(vec![u64::MAX, 2], 0),
+            "calculation overflows u64",
+        );
     }
 }

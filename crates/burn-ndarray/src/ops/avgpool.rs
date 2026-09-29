@@ -48,7 +48,7 @@ pub(crate) fn avg_pool2d<E: FloatNdArrayElement>(
             let b = k / channels;
             let c = k % channels;
 
-            let output = unsafe_shared_out.get();
+            let mut output = unsafe_shared_out.get();
 
             for oh in 0..out_height {
                 for ow in 0..out_width {
@@ -125,7 +125,7 @@ pub(crate) fn avg_pool2d_backward<E: FloatNdArrayElement>(
             let b = k / channels;
             let c = k % channels;
 
-            let output_grad = unsafe_shared_grad.get();
+            let mut output_grad = unsafe_shared_grad.get();
 
             for oh in 0..out_height {
                 for ow in 0..out_width {

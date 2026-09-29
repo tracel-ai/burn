@@ -373,6 +373,22 @@ impl TensorCheck {
         check
     }
 
+    /// Checks that an operation which doesn't support quantized inputs isn't given one.
+    pub(crate) fn quantized_unsupported(ops: &str, dtype: DType) -> Self {
+        let mut check = Self::Ok;
+
+        if let DType::QFloat(scheme) = dtype {
+            check = check.register(
+                ops,
+                TensorError::new("Quantized tensors are not supported by this operation.").details(
+                    format!("Got dtype QFloat({scheme:?}). Dequantize the tensor first."),
+                ),
+            );
+        }
+
+        check
+    }
+
     pub(crate) fn one_hot_tensor<const D: usize, K: Ordered>(
         index_tensor: Tensor<D, K>,
         num_classes: usize,
@@ -477,7 +493,12 @@ impl TensorCheck {
         check = check.binary_ops_device("Matmul", &lhs.device(), &rhs.device());
 
         if D < 2 {
-            return check;
+            return check.register(
+                "Matmul",
+                TensorError::new(format!(
+                    "Matmul requires tensors with at least 2 dimensions, but got {D} dimension(s)."
+                )),
+            );
         }
 
         let shape_lhs = lhs.shape();
@@ -498,6 +519,26 @@ impl TensorCheck {
                     shape_lhs, shape_rhs
                 )),
             );
+        }
+
+        // Check batch dimension broadcast compatibility. The last two dimensions
+        // are the matrix dimensions (validated above), the remaining leading
+        // dimensions are the batch dimensions and must be broadcast-compatible.
+        for i in 0..D - 2 {
+            let l = shape_lhs[i];
+            let r = shape_rhs[i];
+            if l != r && l != 1 && r != 1 {
+                check = check.register(
+                    "Matmul",
+                    TensorError::new(format!(
+                        "Tensors are not broadcastable along batch dimension {i}: {l} and {r}."
+                    ))
+                    .details(format!(
+                        "Lhs shape {:?}, rhs shape {:?}.",
+                        shape_lhs, shape_rhs
+                    )),
+                );
+            }
         }
 
         check
@@ -761,21 +802,6 @@ impl TensorCheck {
         check
     }
 
-    pub(crate) fn check_is_power_of_two<const D: usize>(shape: &Shape, dim: usize) -> Self {
-        let mut check = Self::Ok;
-        let dim_size = shape[dim];
-
-        if !dim_size.is_power_of_two() {
-            check = check.register(
-                "Check Is Power of two",
-                TensorError::new("The provided dimension size must be a power of two.")
-                    .details(format!("The length of dimension {dim} is {dim_size}.")),
-            );
-        }
-
-        check
-    }
-
     pub(crate) fn gather<const D: usize>(dim: usize, shape: &Shape, shape_indices: &Shape) -> Self {
         Self::check_gather_scatter_indices::<D>(Self::Ok, "Gather", dim, shape, shape_indices)
     }
@@ -953,34 +979,6 @@ impl TensorCheck {
                     "Expected output dimension {} (D={} + DI={} - 1) but got DO={}",
                     expected_do, D, DI, DO
                 )),
-            );
-        }
-
-        check
-    }
-
-    pub(crate) fn diag<const D: usize, const DO: usize>() -> Self {
-        let mut check = Self::Ok;
-
-        if D < 2 {
-            check = check.register(
-                "Diag",
-                TensorError::new(
-                    "Diagonal operations require
-                tensors with at least 2 dimensions.",
-                )
-                .details(format!(
-                    "Got tensor with {D} dimensions,
-                expected at least 2"
-                )),
-            );
-        }
-
-        if DO != D - 1 {
-            check = check.register(
-                "Diag",
-                TensorError::new("Output rank must be input rank minus 1 for diagonal")
-                    .details(format!("Expected output rank {}, got {DO}", D - 1)),
             );
         }
 
@@ -1306,101 +1304,16 @@ impl TensorCheck {
         check
     }
 
-    /// Check the generic parameters for lu decomposition is valid.
-    pub fn lu_generic_param<const D: usize, const D1: usize>(ops: &str) -> Self {
-        let mut check = TensorCheck::Ok;
-        if D - 1 != D1 {
+    pub(crate) fn topk(op: &str, k: usize, dim: usize, shape: &Shape) -> Self {
+        let mut check = Self::Ok;
+
+        if k > shape[dim] {
             check = check.register(
-                ops,
-                TensorError::new(
-                    "D - 1 = D1 must hold for the generic parameters of LU decomposition.",
-                )
-                .details(format!("Got generic parameters D = {} and D1 = {}", D, D1)),
-            );
-        }
-        check
-    }
-
-    /// Check the input tensor for lu decomposition is valid.
-    pub fn lu_input_tensor<const D: usize>(ops: &str, dims: &[usize], dtype: DType) -> Self {
-        let mut check = TensorCheck::Ok;
-
-        if matches!(dtype, DType::QFloat(_)) {
-            check = check.register(
-                ops,
-                TensorError::new("The input tensor must have a real float dtype")
-                    .details("Got an input tensor with a quantized float dtype".to_string()),
-            );
-        }
-
-        let n_dims = dims.len();
-        if n_dims < 2 {
-            check = check.register(
-                ops,
-                TensorError::new(
-                    "The input tensor for LU decomposition must have at least two dimensions.",
-                )
-                .details(format!("Got input tensor with {} dimensions", n_dims)),
-            );
-        }
-
-        check
-    }
-
-    /// Check if input tensor for qr decomposition is valid
-    pub fn qr_input_tensor<const D: usize>(ops: &str, dims: &[usize], dtype: DType) -> Self {
-        Self::lu_input_tensor::<D>(ops, dims, dtype)
-    }
-
-    /// Check if input tensor and generic parameters of `linalg::det()` are valid.
-    pub fn det<const D: usize, const D1: usize, const D2: usize>(
-        dims: [usize; D],
-        dtype: DType,
-    ) -> Self {
-        let mut check = TensorCheck::Ok;
-
-        if matches!(dtype, DType::QFloat(_)) {
-            check = check.register(
-                "det",
-                TensorError::new("The input tensor must have a real float dtype.")
-                    .details("Got an input tensor with a quantized float dtype".to_string()),
-            );
-        }
-
-        if D1 != D - 1 {
-            check = check.register(
-                "det",
-                TensorError::new(
-                    "D - 1 = D1 must hold for the generic parameters of the linalg::det function.",
-                )
-                .details(format!("Got generic parameters D = {D} and D1 = {D1}")),
-            );
-        }
-
-        if D2 != D - 2 {
-            check = check.register(
-                "det",
-                TensorError::new("The output tensor rank must be less than input tensor rank by 2")
-                    .details(format!(
-                        "Got input tensor rank {D} and output tensor rank {D2}"
-                    )),
-            );
-        }
-
-        if D < 3 {
-            check = check.register(
-                "det",
-                TensorError::new(format!(
-                    "The input tensor must have at least 3 dimensions, got {D}"
+                op,
+                TensorError::new("The selected index k is out of range.").details(format!(
+                    "Got k={k} for dimension {dim} with input shape {:?}.",
+                    shape.as_slice(),
                 )),
-            );
-        }
-
-        if dims[D - 1] != dims[D - 2] {
-            check = check.register(
-                "det",
-                TensorError::new("The last two dimensions of the input tensor must be equal")
-                    .details(format!("Got input tensor with shape {:?}", dims)),
             );
         }
 

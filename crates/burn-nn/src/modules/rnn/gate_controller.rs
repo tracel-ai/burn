@@ -1,7 +1,8 @@
+use crate::Initializer;
 use burn_core as burn;
 
 use crate::{Linear, LinearConfig, LinearLayout};
-use burn::module::{Initializer, Module};
+use burn::module::Module;
 use burn::tensor::{Device, Tensor};
 
 /// A GateController represents a gate in an LSTM cell. An

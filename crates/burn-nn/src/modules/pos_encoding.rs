@@ -5,7 +5,7 @@ use burn::config::Config;
 use burn::module::{Content, DisplaySettings, Module, ModuleDisplay};
 
 use burn::tensor::TensorData;
-use burn::tensor::{Device, Tensor};
+use burn::tensor::{Device, Tensor, assert_shape};
 
 #[cfg(not(feature = "std"))]
 #[allow(unused_imports)]
@@ -101,18 +101,13 @@ impl PositionalEncoding {
     /// * Panics if the input sequence length is greater than the maximum sequence size.
     /// * Panics if the input d_model is not equal to the d_model of the sinusoids.
     pub fn forward(&self, input: Tensor<3>) -> Tensor<3> {
-        let [_, seq_length, d_model_input] = input.dims();
-
+        let [_, seq_length, _] = input.dims();
         let [batch_size, max_sequence_size, d_model] = self.sinusoids.dims();
+        assert_shape!(input, [_, _, d_model]);
 
         assert!(
             max_sequence_size >= seq_length,
             "max_sequence_size({max_sequence_size}) must be greater or equal than length({seq_length})"
-        );
-
-        assert!(
-            d_model_input == d_model,
-            "d_model({d_model_input}) of the input must be equal to d_model of encoding({d_model})"
         );
 
         let slices = [0..batch_size, 0..seq_length, 0..d_model];
@@ -257,7 +252,7 @@ mod tests {
     }
 
     #[test]
-    #[should_panic]
+    #[should_panic(expected = "assert_shape!(input, [_, _, d_model]): axis 2 expected 8, got 10")]
     fn d_model_input_should_match() {
         let d_model = 8;
         let device = Default::default();
@@ -267,7 +262,17 @@ mod tests {
     }
 
     #[test]
-    #[should_panic]
+    #[should_panic(expected = "assert_shape!(input, [_, _, d_model]): axis 2 expected 8, got 1")]
+    fn d_model_input_of_one_does_not_broadcast() {
+        let d_model = 8;
+        let device = Default::default();
+        let pe = PositionalEncodingConfig::new(d_model).init(&device);
+        let input = Tensor::zeros([1, 5, 1], &device);
+        let _output = pe.forward(input);
+    }
+
+    #[test]
+    #[should_panic(expected = "max_sequence_size(")]
     fn input_length_should_be_less_than_max_len() {
         let d_model = 8;
         let device = Default::default();

@@ -106,17 +106,6 @@ export function cropImageFromCanvas(ctx) {
 }
 
 /**
- * Truncates number to a given decimal position
- * @param {number} num - Number to truncate.
- * @param {number} fixed - Decimal positions.
- * src: https://stackoverflow.com/a/11818658
- */
-export function toFixed(num, fixed) {
-    const re = new RegExp('^-?\\d+(?:\.\\d{0,' + (fixed || -1) + '})?');
-    return num.toString().match(re)[0];
-}
-
-/**
  * Looks up element by an id.
  * @param {string} - Element id.
  */
@@ -160,7 +149,7 @@ export function chartConfigBuilder(chartEl) {
                 datalabels: {
                     color: "white",
                     formatter: function (value, context) {
-                        return toFixed(value, 2);
+                        return value.toFixed(2);
                     },
                 },
             },

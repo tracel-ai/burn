@@ -6,10 +6,18 @@ In the [next chapter](./basic-workflow) you'll have the opportunity to implement
 Many additional Burn examples are available in the
 [examples](https://github.com/tracel-ai/burn/tree/main/examples) directory. Burn examples are
 organized as library crates with one or more examples that are executable binaries. An example can
-then be executed using the following cargo command line in the root of the Burn repository:
+then be executed using the following cargo command line in the root of the example's directory:
 
 ```bash
-cargo run --example <example name>
+cargo run --release --example <example name>
+```
+
+From the repository root the package has to be named too. A root invocation with no `-p` selects
+every workspace member and unifies their features, which builds backends the example never asked
+for:
+
+```bash
+cargo run -p <package name> --release --example <example name>
 ```
 
 To learn more about crates and examples, read the Rust section below.
@@ -17,7 +25,7 @@ To learn more about crates and examples, read the Rust section below.
 <details>
 <summary><strong>🦀 About Rust crates</strong></summary>
 
-Each Burn example is a **package** which are subdirectories of the `examples` directory. A package
+Each Burn example is a **package**, which is a subdirectory of the `examples` directory. A package
 is composed of one or more **crates**.
 
 A package is a bundle of one or more crates that provides a set of functionality. A package contains
@@ -45,8 +53,8 @@ crate, the compiler first looks in the crate root file (`src/lib.rs` for a libra
 `src/main.rs` for a binary crate). Any module declared in the crate root file will be inserted in
 the crate for compilation.
 
-All Burn examples are library crates and they can contain one or more executable examples that uses
-the library. We even have some Burn examples that uses the library crate of other examples.
+All Burn examples are library crates and they can contain one or more executable examples that use
+the library. We even have some Burn examples that use the library crate of other examples.
 
 The examples are unique files under the `examples` directory. Each file produces an executable file
 with the same name. Each example can then be executed with `cargo run --example <executable name>`.
@@ -78,7 +86,7 @@ The following additional examples are currently available if you want to check t
 | [Custom Image Dataset](https://github.com/tracel-ai/burn/tree/main/examples/custom-image-dataset)         | Trains a simple CNN on custom image dataset following a simple folder structure.                                                                                                             |
 | [Custom Renderer](https://github.com/tracel-ai/burn/tree/main/examples/custom-renderer)                   | Implements a custom renderer to display the [`Learner`](./building-blocks/learner.md) progress.                                                                                              |
 | [Image Classification Web](https://github.com/tracel-ai/burn-onnx/tree/main/examples/image-classification-web) | Image classification web browser demo using Burn, WGPU and WebAssembly.                                                                                                                      |
-| [MNIST Inference on Web](https://github.com/tracel-ai/burn/tree/main/examples/mnist-inference-web)        | An interactive MNIST inference demo in the browser. The demo is available [online](https://burn.dev/demo/).                                                                                  |
+| [MNIST Inference on Web](https://github.com/tracel-ai/burn/tree/main/examples/mnist-inference-web)        | An interactive MNIST inference demo in the browser.                                                                                  |
 | [MNIST Training](https://github.com/tracel-ai/burn/tree/main/examples/mnist)                              | Demonstrates how to train a custom [`Module`](./building-blocks/module.md) (MLP) with the [`Learner`](./building-blocks/learner.md) configured to log metrics and keep training checkpoints. |
 | [ONNX Import Inference](https://github.com/tracel-ai/burn-onnx/tree/main/examples/onnx-inference)         | Imports an ONNX model pre-trained on MNIST to perform inference on a sample image with Burn.                                                                                                 |
 | [PyTorch Import Inference](https://github.com/tracel-ai/burn/tree/main/examples/import-model-weights)          | Imports a PyTorch model pre-trained on MNIST to perform inference on a sample image with Burn.                                                                                               |

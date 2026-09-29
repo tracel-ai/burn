@@ -1,6 +1,5 @@
 use crate::{CubeFusionHandle, FallbackOperation};
 use burn_fusion::stream::Context;
-use cubecl::Runtime;
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 
 /// The runnable result of fusing a segment of tensor operations — the single
@@ -11,7 +10,7 @@ use serde::{Deserialize, Serialize, de::DeserializeOwned};
 ///
 /// User-defined fused operations are registered through the optimization
 /// registry in `burn-cubecl` (`fusion::register`).
-pub trait FusedOperation<R: Runtime>: Send + 'static {
+pub trait FusedOperation: Send + 'static {
     /// Name of the fused operation — the key serialized execution plans are
     /// restored by, also shown in diagnostics and fusion logs.
     const NAME: &'static str;
@@ -22,13 +21,19 @@ pub trait FusedOperation<R: Runtime>: Send + 'static {
     /// The number of operations fused.
     fn num_ops_fused(&self) -> usize;
 
+    /// The highest relative shape id this operation's traces name, if any. See
+    /// [`NumOperations::max_relative_shape_id`](burn_fusion::NumOperations::max_relative_shape_id).
+    fn max_relative_shape_id(&self) -> Option<usize> {
+        None
+    }
+
     /// Run the fused operation. `fallback` builds the unfused operation at
     /// the given index within the segment, for implementations that need to
     /// run part of it unfused (autotune fallbacks).
     fn run(
         &mut self,
-        context: &mut Context<CubeFusionHandle<R>>,
-        fallback: &dyn Fn(usize) -> Box<dyn FallbackOperation<R>>,
+        context: &mut Context<CubeFusionHandle>,
+        fallback: &dyn Fn(usize) -> Box<dyn FallbackOperation>,
     );
 
     /// The state of the fused operation, from which
@@ -36,18 +41,18 @@ pub trait FusedOperation<R: Runtime>: Send + 'static {
     fn to_state(&self) -> Self::State;
 
     /// Recover the fused operation from its [state](Self::to_state).
-    fn from_state(device: &R::Device, state: Self::State) -> Self;
+    fn from_state(device: &cubecl::Device, state: Self::State) -> Self;
 }
 
 /// A fusion optimization ready to run on an execution stream: what fusers
 /// finish and the fusion runtime executes. Wraps any [`FusedOperation`].
-pub struct CubeOptimization<R: Runtime> {
-    optimization: Box<dyn DynFusedOperation<R>>,
+pub struct CubeOptimization {
+    optimization: Box<dyn DynFusedOperation>,
 }
 
-impl<R: Runtime> CubeOptimization<R> {
+impl CubeOptimization {
     /// Wrap the fused operation.
-    pub fn new(optimization: impl FusedOperation<R>) -> Self {
+    pub fn new(optimization: impl FusedOperation) -> Self {
         Self {
             optimization: Box::new(optimization),
         }
@@ -66,8 +71,8 @@ impl<R: Runtime> CubeOptimization<R> {
     /// Run the fused operation. See [`FusedOperation::run`].
     pub fn run(
         &mut self,
-        context: &mut Context<CubeFusionHandle<R>>,
-        fallback: &dyn Fn(usize) -> Box<dyn FallbackOperation<R>>,
+        context: &mut Context<CubeFusionHandle>,
+        fallback: &dyn Fn(usize) -> Box<dyn FallbackOperation>,
     ) {
         self.optimization.run(context, fallback)
     }
@@ -79,15 +84,19 @@ impl<R: Runtime> CubeOptimization<R> {
     }
 }
 
-impl<R: Runtime> core::fmt::Debug for CubeOptimization<R> {
+impl core::fmt::Debug for CubeOptimization {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         write!(f, "{} ({} ops)", self.name(), self.num_ops_fused())
     }
 }
 
-impl<R: Runtime> burn_fusion::NumOperations for CubeOptimization<R> {
+impl burn_fusion::NumOperations for CubeOptimization {
     fn len(&self) -> usize {
         self.num_ops_fused()
+    }
+
+    fn max_relative_shape_id(&self) -> Option<usize> {
+        self.optimization.max_relative_shape_id()
     }
 
     fn name(&self) -> &'static str {
@@ -98,18 +107,19 @@ impl<R: Runtime> burn_fusion::NumOperations for CubeOptimization<R> {
 /// Object-safe view of a [`FusedOperation`], implemented for every one of
 /// them below. Private on purpose: the erasure, like the box holding it, is an
 /// implementation detail of [`CubeOptimization`].
-trait DynFusedOperation<R: Runtime>: Send {
+trait DynFusedOperation: Send {
     fn name(&self) -> &'static str;
     fn num_ops_fused(&self) -> usize;
+    fn max_relative_shape_id(&self) -> Option<usize>;
     fn run(
         &mut self,
-        context: &mut Context<CubeFusionHandle<R>>,
-        fallback: &dyn Fn(usize) -> Box<dyn FallbackOperation<R>>,
+        context: &mut Context<CubeFusionHandle>,
+        fallback: &dyn Fn(usize) -> Box<dyn FallbackOperation>,
     );
     fn to_state(&self) -> CubeOptimizationState;
 }
 
-impl<R: Runtime, O: FusedOperation<R>> DynFusedOperation<R> for O {
+impl<O: FusedOperation> DynFusedOperation for O {
     fn name(&self) -> &'static str {
         O::NAME
     }
@@ -118,10 +128,14 @@ impl<R: Runtime, O: FusedOperation<R>> DynFusedOperation<R> for O {
         FusedOperation::num_ops_fused(self)
     }
 
+    fn max_relative_shape_id(&self) -> Option<usize> {
+        FusedOperation::max_relative_shape_id(self)
+    }
+
     fn run(
         &mut self,
-        context: &mut Context<CubeFusionHandle<R>>,
-        fallback: &dyn Fn(usize) -> Box<dyn FallbackOperation<R>>,
+        context: &mut Context<CubeFusionHandle>,
+        fallback: &dyn Fn(usize) -> Box<dyn FallbackOperation>,
     ) {
         FusedOperation::run(self, context, fallback)
     }
@@ -147,8 +161,12 @@ impl CubeOptimizationState {
     pub fn new(name: &str, state: &impl Serialize) -> Self {
         Self {
             name: name.to_string(),
-            state: rmp_serde::to_vec(state)
-                .expect("fusion optimization state must be serializable"),
+            state: {
+                let mut bytes = Vec::new();
+                ciborium::into_writer(state, &mut bytes)
+                    .expect("fusion optimization state must be serializable");
+                bytes
+            },
         }
     }
 
@@ -159,7 +177,7 @@ impl CubeOptimizationState {
     /// When the bytes don't decode as `T` — the state was produced by a
     /// different optimization sharing the name, or by an incompatible version.
     pub fn decode<T: DeserializeOwned>(&self) -> T {
-        rmp_serde::from_slice(&self.state).unwrap_or_else(|err| {
+        ciborium::from_reader(self.state.as_slice()).unwrap_or_else(|err| {
             panic!(
                 "state of fusion optimization `{}` failed to decode: {err}",
                 self.name

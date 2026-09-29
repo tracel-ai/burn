@@ -24,7 +24,13 @@ where
     }
 }
 
-/// List all the parameter ids in a module.
+/// Lists the IDs of all tensor-backed parameters in a module.
+///
+/// This includes floating-point, integer and boolean tensor parameters. Module-owned non-tensor
+/// control values such as [`Flag`](crate::module::Flag) are excluded.
+///
+/// To create a group containing every module-owned value in a subtree, including flags, use
+/// [`ParamGroup::ids_from_module`](crate::module::ParamGroup::ids_from_module).
 pub fn list_param_ids<M: Module>(module: &M) -> Vec<ParamId> {
     let mut params_ids = Vec::new();
     let mut visitor = ParamIdCollector {

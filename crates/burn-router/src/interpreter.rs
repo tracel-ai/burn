@@ -1,5 +1,3 @@
-use core::sync::atomic::{AtomicU64, Ordering};
-
 use super::{RouterClient, RouterTensor};
 use crate::CustomOpRegistry;
 use crate::{
@@ -9,8 +7,8 @@ use crate::{
 };
 use alloc::boxed::Box;
 use burn_backend::{
-    Backend, DType, DeviceOps, ExecutionError, Shape, TensorData, distributed::DistributedOps,
-    tensor::IndexingUpdateOp,
+    Backend, DType, DeviceOps, ExecutionError, ProfileDuration, ProfileOptions, ProfileToken,
+    Shape, TensorData, distributed::DistributedOps, tensor::IndexingUpdateOp,
 };
 use burn_ir::{
     ActivationOperationIr, BackendIr, BaseOperationIr, BoolOperationIr, FloatOperationIr,
@@ -18,6 +16,7 @@ use burn_ir::{
     OperationIr, TensorId, TensorIr, TensorStatus,
 };
 use burn_std::{DeviceSettings, future::DynFut};
+use portable_atomic::{AtomicU64, Ordering};
 
 /// An interpreter's context contains a [handle container](HandleContainer) to manage
 /// (i.e., fetch and update) existing tensors.
@@ -91,7 +90,7 @@ impl<B: BackendIr> TensorInterpreter<B> {
         let dtype = tensor.dtype;
         if dtype.is_float() {
             HandleKind::Float(handles.get_float_tensor::<B>(tensor))
-        } else if dtype.is_int() {
+        } else if dtype.is_int() || dtype.is_uint() {
             HandleKind::Int(handles.get_int_tensor::<B>(tensor))
         } else if dtype.is_bool() {
             HandleKind::Bool(handles.get_bool_tensor::<B>(tensor))
@@ -162,12 +161,12 @@ impl<B: BackendIr> TensorInterpreter<B> {
     /// Register a tensor from its data and id.
     pub fn register_tensor_data_id(&mut self, id: TensorId, data: TensorData) {
         let ctx = &mut self.context;
-        let dtype = data.dtype;
+        let dtype = data.dtype();
 
         if dtype.is_float() {
             let tensor = B::float_from_data(data, &self.device);
             ctx.handles.register_float_tensor::<B>(&id, tensor)
-        } else if dtype.is_int() {
+        } else if dtype.is_int() || dtype.is_uint() {
             let tensor = B::int_from_data(data, &self.device);
             ctx.handles.register_int_tensor::<B>(&id, tensor)
         } else if dtype.is_bool() {
@@ -182,13 +181,13 @@ impl<B: BackendIr> TensorInterpreter<B> {
     pub fn register_tensor_data_desc(&mut self, data: TensorData) -> TensorIr {
         let ctx = &mut self.context;
         let id = ctx.create_empty_handle();
-        let shape = data.shape.clone();
-        let dtype = data.dtype;
+        let shape = data.shape().clone();
+        let dtype = data.dtype();
 
         if dtype.is_float() {
             let tensor = B::float_from_data(data, &self.device);
             ctx.handles.register_float_tensor::<B>(&id, tensor)
-        } else if dtype.is_int() {
+        } else if dtype.is_int() || dtype.is_uint() {
             let tensor = B::int_from_data(data, &self.device);
             ctx.handles.register_int_tensor::<B>(&id, tensor)
         } else if dtype.is_bool() {
@@ -283,12 +282,7 @@ impl<B: BackendIr> TensorInterpreter<B> {
                     let indices = handles.get_int_tensor::<B>(&desc.indices);
                     let value = handles.get_float_tensor::<B>(&desc.value);
 
-                    let output = match desc.update {
-                        IndexingUpdateOp::Add => {
-                            B::float_scatter_add(desc.dim, tensor, indices, value)
-                        }
-                        _ => unimplemented!(),
-                    };
+                    let output = B::float_scatter(desc.dim, tensor, indices, value, desc.update);
                     handles.register_float_tensor::<B>(&desc.out.id, output);
                 }
                 BaseOperationIr::ScatterNd(desc) => {
@@ -318,12 +312,8 @@ impl<B: BackendIr> TensorInterpreter<B> {
                     let indices = handles.get_int_tensor::<B>(&desc.indices);
                     let value = handles.get_float_tensor::<B>(&desc.value);
 
-                    let output = match desc.update {
-                        IndexingUpdateOp::Add => {
-                            B::float_select_add(tensor, desc.dim, indices, value)
-                        }
-                        _ => unimplemented!(),
-                    };
+                    let output =
+                        B::float_select_assign(tensor, desc.dim, indices, value, desc.update);
                     handles.register_float_tensor::<B>(&desc.out.id, output);
                 }
                 BaseOperationIr::MaskWhere(desc) => {
@@ -472,12 +462,7 @@ impl<B: BackendIr> TensorInterpreter<B> {
                     let indices = handles.get_int_tensor::<B>(&desc.indices);
                     let value = handles.get_int_tensor::<B>(&desc.value);
 
-                    let output = match desc.update {
-                        IndexingUpdateOp::Add => {
-                            B::int_scatter_add(desc.dim, tensor, indices, value)
-                        }
-                        _ => unimplemented!(),
-                    };
+                    let output = B::int_scatter(desc.dim, tensor, indices, value, desc.update);
                     handles.register_int_tensor::<B>(&desc.out.id, output);
                 }
                 BaseOperationIr::ScatterNd(desc) => {
@@ -507,12 +492,8 @@ impl<B: BackendIr> TensorInterpreter<B> {
                     let indices = handles.get_int_tensor::<B>(&desc.indices);
                     let value = handles.get_int_tensor::<B>(&desc.value);
 
-                    let output = match desc.update {
-                        IndexingUpdateOp::Add => {
-                            B::int_select_add(tensor, desc.dim, indices, value)
-                        }
-                        _ => unimplemented!(),
-                    };
+                    let output =
+                        B::int_select_assign(tensor, desc.dim, indices, value, desc.update);
                     handles.register_int_tensor::<B>(&desc.out.id, output);
                 }
                 BaseOperationIr::MaskWhere(desc) => {
@@ -784,6 +765,11 @@ impl<B: BackendIr> TensorInterpreter<B> {
                 }
             },
             OperationIr::NumericFloat(_dtype, op) => match op {
+                NumericOperationIr::Pad(desc) => {
+                    let tensor = handles.get_float_tensor::<B>(&desc.input);
+                    let output = B::float_pad(tensor, &desc.padding, desc.mode.into());
+                    handles.register_float_tensor::<B>(&desc.out.id, output);
+                }
                 NumericOperationIr::Add(desc) => {
                     binary_float_ops!(handles, desc, B::float_add)
                 }
@@ -842,6 +828,11 @@ impl<B: BackendIr> TensorInterpreter<B> {
                     reduce_float_dim_ops!(handles, desc, |tensor, axis, _| B::float_sum_dim(
                         tensor, axis
                     ))
+                }
+                NumericOperationIr::SumDims(desc) => {
+                    let input = handles.get_float_tensor::<B>(&desc.input);
+                    let output = B::float_sum_dims(input, &desc.axes);
+                    handles.register_float_tensor::<B>(&desc.out.id, output);
                 }
                 NumericOperationIr::Prod(desc) => {
                     unary_float_ops!(handles, desc, B::float_prod)
@@ -1021,6 +1012,11 @@ impl<B: BackendIr> TensorInterpreter<B> {
                 }
             },
             OperationIr::NumericInt(_dtype, op) => match op {
+                NumericOperationIr::Pad(desc) => {
+                    let tensor = handles.get_int_tensor::<B>(&desc.input);
+                    let output = B::int_pad(tensor, &desc.padding, desc.mode.into());
+                    handles.register_int_tensor::<B>(&desc.out.id, output);
+                }
                 NumericOperationIr::Add(desc) => {
                     binary_int_ops!(handles, desc, B::int_add)
                 }
@@ -1079,6 +1075,14 @@ impl<B: BackendIr> TensorInterpreter<B> {
                     reduce_int_dim_ops!(handles, desc, |tensor, axis, _| B::int_sum_dim(
                         tensor, axis
                     ))
+                }
+                NumericOperationIr::SumDims(desc) => {
+                    let input = handles.get_int_tensor::<B>(&desc.input);
+                    let output = desc
+                        .axes
+                        .iter()
+                        .fold(input, |tensor, &axis| B::int_sum_dim(tensor, axis));
+                    handles.register_int_tensor::<B>(&desc.out.id, output);
                 }
                 NumericOperationIr::Prod(desc) => {
                     unary_int_ops!(handles, desc, B::int_prod)
@@ -1429,6 +1433,15 @@ impl<B: BackendIr> TensorInterpreter<B> {
                 }
             },
             OperationIr::Module(op) => match op {
+                ModuleOperationIr::BatchNorm(desc) => {
+                    let x = handles.get_float_tensor::<B>(&desc.x);
+                    let gamma = handles.get_float_tensor::<B>(&desc.gamma);
+                    let beta = handles.get_float_tensor::<B>(&desc.beta);
+                    let mean = handles.get_float_tensor::<B>(&desc.mean);
+                    let variance = handles.get_float_tensor::<B>(&desc.variance);
+                    let output = B::batch_norm(x, gamma, beta, mean, variance, desc.epsilon.elem());
+                    handles.register_float_tensor::<B>(&desc.out.id, output);
+                }
                 ModuleOperationIr::Embedding(desc) => {
                     let weights = handles.get_float_tensor::<B>(&desc.weights);
                     let indices = handles.get_int_tensor::<B>(&desc.indices);
@@ -1772,6 +1785,19 @@ impl<B: BackendIr> TensorInterpreter<B> {
                     let output = B::adaptive_avg_pool2d_backward(x, grad);
                     handles.register_float_tensor::<B>(&desc.out.id, output);
                 }
+                ModuleOperationIr::AdaptiveAvgPool3d(desc) => {
+                    let x = handles.get_float_tensor::<B>(&desc.x);
+
+                    let output = B::adaptive_avg_pool3d(x, desc.output_size);
+                    handles.register_float_tensor::<B>(&desc.out.id, output);
+                }
+                ModuleOperationIr::AdaptiveAvgPool3dBackward(desc) => {
+                    let x = handles.get_float_tensor::<B>(&desc.x);
+                    let grad = handles.get_float_tensor::<B>(&desc.grad);
+
+                    let output = B::adaptive_avg_pool3d_backward(x, grad);
+                    handles.register_float_tensor::<B>(&desc.out.id, output);
+                }
                 ModuleOperationIr::MaxPool1d(desc) => {
                     let x = handles.get_float_tensor::<B>(&desc.x);
 
@@ -1879,20 +1905,6 @@ impl<B: BackendIr> TensorInterpreter<B> {
                         desc.options.clone().into(),
                     );
                     handles.register_float_tensor::<B>(&desc.out.id, output);
-                }
-                ModuleOperationIr::Rfft(desc) => {
-                    let signal = handles.get_float_tensor::<B>(&desc.signal);
-                    let (out_re, out_im) = B::rfft(signal, desc.dim, desc.n);
-
-                    handles.register_float_tensor::<B>(&desc.out_re.id, out_re);
-                    handles.register_float_tensor::<B>(&desc.out_im.id, out_im);
-                }
-                ModuleOperationIr::IRfft(desc) => {
-                    let spectrum_re = handles.get_float_tensor::<B>(&desc.input_re);
-                    let spectrum_im = handles.get_float_tensor::<B>(&desc.input_im);
-                    let signal = B::irfft(spectrum_re, spectrum_im, desc.dim, desc.n);
-
-                    handles.register_float_tensor::<B>(&desc.out_signal.id, signal);
                 }
                 ModuleOperationIr::Attention(desc) => {
                     let query = handles.get_float_tensor::<B>(&desc.query);
@@ -2148,7 +2160,7 @@ impl<B: BackendIr> TensorInterpreter<B> {
         let tensor = if tensor.dtype.is_float() {
             let tensor = ctx.handles.get_float_tensor::<B>(&tensor);
             Output::<B>::Float(tensor)
-        } else if tensor.dtype.is_int() {
+        } else if tensor.dtype.is_int() || tensor.dtype.is_uint() {
             let tensor = ctx.handles.get_int_tensor::<B>(&tensor);
             Output::Int(tensor)
         } else if tensor.dtype.is_bool() {
@@ -2185,5 +2197,25 @@ impl<B: BackendIr> TensorInterpreter<B> {
     /// The set of supported usages for `dtype` on this backend.
     pub fn dtype_usage(&self, dtype: DType) -> burn_backend::DTypeUsageSet {
         B::dtype_usage(&self.device, dtype)
+    }
+
+    /// Open a profiling window on the backend where the calling stream stands.
+    pub fn profile_start(&self) -> Result<Option<ProfileToken>, ExecutionError> {
+        B::profile_start(&self.device)
+    }
+
+    /// Close the window `token` where the calling stream stands.
+    pub fn profile_end(
+        &self,
+        token: ProfileToken,
+        options: ProfileOptions,
+    ) -> Result<ProfileDuration, ExecutionError> {
+        B::profile_end(&self.device, token, options)
+    }
+
+    /// Drop the window `token` where the calling stream stands without
+    /// measuring it.
+    pub fn profile_abandon(&self, token: ProfileToken) {
+        B::profile_abandon(&self.device, token)
     }
 }

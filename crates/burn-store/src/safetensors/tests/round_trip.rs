@@ -95,11 +95,10 @@ fn complex_module_round_trip() {
     let module2_views = module2.collect(None, None, false);
     let encoder_weight = module2_views
         .iter()
-        .find(|v| v.full_path() == "encoder.weight")
-        .unwrap()
-        .to_data()
+        .find(|v| v.name == "encoder.weight")
+        .map(|v| crate::bridge::to_data(v).unwrap())
         .unwrap();
-    assert_eq!(encoder_weight.shape, shape![2, 2, 2]);
+    assert_eq!(*encoder_weight.shape(), shape![2, 2, 2]);
 }
 
 /// Safetensors stores no parameter identity, so importing from it must leave the target module's

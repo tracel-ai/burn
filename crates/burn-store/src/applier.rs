@@ -1,4 +1,4 @@
-//! Applier that correctly applies tensor snapshots with adapter support
+//! Applier that applies loaded tensors onto module parameters, with adapter support
 
 use alloc::boxed::Box;
 use alloc::format;
@@ -8,16 +8,73 @@ use alloc::vec::Vec;
 use hashbrown::{HashMap, HashSet};
 
 use burn_core::module::{ModuleMapper, Param, ParamId};
-use burn_core::tensor::{Bool, Device, Int, Shape, Tensor};
+use burn_core::tensor::{Bool, DType, Device, Int, Shape, Tensor};
+
+use burn_pack::Tensor as PackTensor;
 
 use crate::apply_result::{ApplyError, ApplyResult};
-use crate::{ModuleAdapter, PathFilter, TensorSnapshot};
+use crate::bridge;
+use crate::{ModuleAdapter, ModuleContext, PathFilter};
 
-/// Applier that applies tensor snapshots to module parameters
+/// The kind of parameter a loaded tensor is going into.
+///
+/// A loaded float or int parameter keeps whatever dtype the source declared. For floats that
+/// is what makes a half-precision save loadable into a module written for full precision
+/// (`dtype_preservation_f64` below pins it); for ints it is what keeps a PyTorch checkpoint's
+/// int64 buffers at int64 rather than narrowing them to the backend's element (pinned by
+/// `pytorch-tests`' `integer_full_precision`, added deliberately in #4854).
+///
+/// Bool is the exception, and is not preserved: `TensorCreationOptions::resolve_dtype` always
+/// resolves a bool tensor to the device's own bool storage, because a `BoolStore` variant is a
+/// backend-specific layout rather than a semantic type and the one a file names may not exist
+/// on this device. A bool source is accepted for its kind and then re-stored.
+///
+/// What is checked here is only that the source is of the right *kind*. Shape agreement says
+/// nothing about that, so before #5478 float data loaded into an `Int` parameter and left it
+/// holding `F32` - a tensor whose declared element type cannot read its own data.
+#[derive(Clone, Copy)]
+enum TargetDType {
+    Float,
+    Int,
+    Bool,
+}
+
+impl TargetDType {
+    /// Whether a source of `dtype` can be loaded into a parameter of this kind.
+    fn accepts(self, dtype: DType) -> bool {
+        match self {
+            // Quantized data is a float tensor's packed form, so it belongs to this kind too.
+            Self::Float => dtype.is_float() || matches!(dtype, DType::QFloat(_)),
+            // `is_int` covers only signed integers, so unsigned needs asking for separately.
+            Self::Int => dtype.is_int() || dtype.is_uint(),
+            // An integer source is how bools survive a format with no boolean dtype:
+            // SafeTensors stores `Bool(U32)` as `U32` and reads it back as an integer. Only
+            // the widths `BoolStore` actually uses qualify: accepting any integer would let
+            // an I64 tensor land in a bool parameter unremarked.
+            Self::Bool => dtype.is_bool() || matches!(dtype, DType::U8 | DType::U32),
+        }
+    }
+
+    /// What to name as expected when [`accepts`](Self::accepts) turns a source away.
+    ///
+    /// The device's own element for this kind, which is the best available stand-in: there is
+    /// no `lazy_dtype` on [`Param`] to ask a lazily-initialized parameter for its dtype
+    /// without forcing it to materialize. Only the kind is load-bearing in the message.
+    fn expected(self, device: &Device) -> DType {
+        let settings = device.settings();
+        match self {
+            Self::Float => settings.float_dtype.into(),
+            Self::Int => settings.int_dtype.into(),
+            Self::Bool => settings.bool_dtype.into(),
+        }
+    }
+}
+
+/// Applier that applies loaded tensors to module parameters
 /// with proper adapter support using container type information
 pub struct Applier {
-    /// Map of tensor paths to their snapshots
-    snapshots: HashMap<String, TensorSnapshot>,
+    /// Map of tensor paths to the tensors to load there
+    tensors: HashMap<String, PackTensor>,
     /// Current path in the module hierarchy
     path_stack: Vec<String>,
     /// Current container type stack in the module hierarchy
@@ -34,34 +91,36 @@ pub struct Applier {
     errors: Vec<ApplyError>,
     /// Track visited paths with their container stacks (in dot notation) to find missing tensors
     visited_paths: HashMap<String, String>,
+    /// Track source tensor paths matched during application to find unused tensors
+    consumed_paths: HashSet<String>,
     /// Skip enum variant names when matching paths
     /// When true, "feature.BaseConv.weight" will also try to match "feature.weight"
     skip_enum_variants: bool,
 }
 
 impl Applier {
-    /// Create a new applier with snapshots, optional filter, and optional adapter
+    /// Create a new applier with tensors, optional filter, and optional adapter
     ///
     /// # Arguments
     ///
-    /// * `views` - A vector of TensorSnapshot objects to apply
+    /// * `tensors` - The tensors to apply, keyed by their names
     /// * `filter` - An optional [`PathFilter`] to determine which tensors to apply.
     ///   When `None`, all available tensors are applied.
     /// * `adapter` - Optional adapter to transform tensors based on container types
     /// * `skip_enum_variants` - Skip enum variant names when matching paths
     pub fn new(
-        views: Vec<TensorSnapshot>,
+        tensors: Vec<PackTensor>,
         filter: Option<PathFilter>,
         adapter: Option<Box<dyn ModuleAdapter>>,
         skip_enum_variants: bool,
     ) -> Self {
-        let views_map: HashMap<String, TensorSnapshot> = views
+        let tensors: HashMap<String, PackTensor> = tensors
             .into_iter()
-            .map(|view| (view.full_path(), view))
+            .map(|tensor| (tensor.name.clone(), tensor))
             .collect();
 
         Self {
-            snapshots: views_map,
+            tensors,
             path_stack: Vec::new(),
             container_stack: Vec::new(),
             filter,
@@ -70,6 +129,7 @@ impl Applier {
             skipped: HashSet::new(),
             errors: Vec::new(),
             visited_paths: HashMap::new(),
+            consumed_paths: HashSet::new(),
             skip_enum_variants,
         }
     }
@@ -79,13 +139,9 @@ impl Applier {
         self.path_stack.join(".")
     }
 
-    /// Get the current module type (last Struct/Enum in container stack)
-    fn current_module_type(&self) -> Option<&str> {
-        self.container_stack
-            .iter()
-            .rev()
-            .find(|ct| ct.starts_with("Struct:") || ct.starts_with("Enum:"))
-            .map(|s| s.as_str())
+    /// The module position live on this traversal, as adapters see it.
+    fn context(&self) -> ModuleContext<'_> {
+        ModuleContext::new(&self.container_stack)
     }
 
     /// Check if a tensor should be applied based on filter
@@ -99,9 +155,9 @@ impl Applier {
     /// Convert the applier into a result
     pub fn into_result(self) -> ApplyResult {
         let mut unused: Vec<String> = self
-            .snapshots
+            .tensors
             .keys()
-            .filter(|path| !self.visited_paths.contains_key(*path) && !self.skipped.contains(*path))
+            .filter(|path| !self.consumed_paths.contains(*path) && !self.skipped.contains(*path))
             .cloned()
             .collect();
         // Sort for stable output order
@@ -147,15 +203,16 @@ impl Applier {
         }
     }
 
-    /// Apply a tensor snapshot with shape validation and optional adapter transformation.
+    /// Apply a loaded tensor with shape validation and optional adapter transformation.
     ///
-    /// Returns the loaded tensor and the snapshot's persisted [`ParamId`], or `None` for that id
+    /// Returns the loaded tensor and the source's persisted [`ParamId`], or `None` for that id
     /// when the source format carries no parameter identity (e.g. PyTorch, Safetensors). Callers
     /// must keep the target parameter's own id in that case.
     fn apply_tensor<const D: usize, K>(
         &mut self,
         target_device: &Device,
         target_shape: Shape,
+        target_dtype: TargetDType,
     ) -> Option<(Tensor<D, K>, Option<ParamId>)>
     where
         K: burn_core::tensor::kind::Basic,
@@ -164,13 +221,14 @@ impl Applier {
         let container_stack_str = self.container_stack.join(".");
         self.visited_paths.insert(path.clone(), container_stack_str);
 
-        // Try to get snapshot with original path first
-        let mut snapshot = self.snapshots.get(&path).cloned();
+        // Try to get the tensor with original path first
+        let mut source_path = path.clone();
+        let mut tensor = self.tensors.get(&source_path).cloned();
 
         // If not found and we have an adapter, try alternative parameter names
-        if snapshot.is_none()
+        if tensor.is_none()
             && let Some(ref adapter) = self.adapter
-            && let Some(module_type) = self.current_module_type()
+            && let Some(module_type) = self.context().module_type()
         {
             // Get alternative name based on current module type (user-defined module only)
             let param_name = self.path_stack.last()?;
@@ -179,33 +237,28 @@ impl Applier {
                 // Build alternative path with parameter name substitution
                 let mut alt_path_stack = self.path_stack.clone();
                 *alt_path_stack.last_mut().unwrap() = alt_name.clone();
-                let alt_path = alt_path_stack.join(".");
+                source_path = alt_path_stack.join(".");
 
-                // Try to get snapshot with alternative name
-                snapshot = self.snapshots.get(&alt_path).cloned();
+                // Try to get the tensor under the alternative name
+                tensor = self.tensors.get(&source_path).cloned();
 
                 // Don't mark the alternative path as visited - only the original Burn path
                 // should be tracked. The alternative path is just for lookup.
             }
         }
 
-        let mut snapshot = snapshot?;
-        let tensor_id = snapshot.tensor_id;
+        let mut tensor = tensor?;
+        self.consumed_paths.insert(source_path);
+        let source_id = tensor.param_id.map(ParamId::from);
 
-        // Apply adapter transformation using current container_stack context (for data transformation like transpose)
+        // Apply adapter transformation using the module context live on this traversal (for
+        // data transformation like transpose). The adapter is given the module's own path
+        // rather than the name the tensor was stored under: a tensor found through an
+        // alternative name is on its way into *this* parameter, and a rename keyed on the
+        // source name would undo the match that just succeeded.
         if let Some(ref adapter) = self.adapter {
-            // Create a temporary snapshot with current context for adaptation
-            let snapshot_with_context = TensorSnapshot::from_closure(
-                snapshot.clone_data_fn(),
-                snapshot.dtype,
-                snapshot.shape.clone(),
-                self.path_stack.clone(),
-                self.container_stack.clone(),
-                snapshot.tensor_id.unwrap_or_default(),
-            );
-
-            // Transform using adapter (handles transpose)
-            snapshot = adapter.adapt(&snapshot_with_context);
+            tensor.name = path.clone();
+            tensor = adapter.adapt(tensor, self.context());
         }
 
         // Check if we should apply based on filter
@@ -214,8 +267,27 @@ impl Applier {
             return None;
         }
 
-        // Load tensor data
-        let data = match snapshot.to_data() {
+        // Validate the dtype's kind. Shape agreement alone is not enough: it says nothing
+        // about whether the bytes mean what the parameter's element type says they mean. The
+        // width is left alone on purpose, so a half-precision or int64 source still loads as
+        // itself; only a source of the wrong kind entirely is refused.
+        //
+        // Checked before the load rather than after, since the kind is already in the
+        // descriptor: a rejected tensor is then never read, which for a file-backed source
+        // would be the whole thing off disk.
+        let dtype = tensor.dtype;
+        if !target_dtype.accepts(dtype) {
+            self.errors.push(ApplyError::DTypeMismatch {
+                path: path.clone(),
+                expected: target_dtype.expected(target_device),
+                found: dtype,
+            });
+            return None; // Signal caller to fall back to initialization
+        }
+
+        // Load tensor data. The tensor is not needed afterwards, so take its bytes rather
+        // than copying them out.
+        let data = match bridge::into_data(tensor) {
             Ok(data) => data,
             Err(e) => {
                 self.errors.push(ApplyError::LoadError {
@@ -227,20 +299,17 @@ impl Applier {
         };
 
         // Validate shape
-        if data.shape != target_shape {
+        if *data.shape() != target_shape {
             self.errors.push(ApplyError::ShapeMismatch {
                 path: path.clone(),
                 expected: target_shape,
-                found: data.shape,
+                found: data.shape().clone(),
             });
             return None; // Signal caller to fall back to initialization
         }
 
         self.applied.push(path);
-        Some((
-            Tensor::from_data(data, (target_device, snapshot.dtype)),
-            tensor_id,
-        ))
+        Some((Tensor::from_data(data, (target_device, dtype)), source_id))
     }
 }
 
@@ -270,16 +339,16 @@ impl ModuleMapper for Applier {
         let target_device = param.lazy_device();
         let target_shape = param.lazy_shape();
 
-        // Try to apply snapshot with shape validation
-        match self.apply_tensor(&target_device, target_shape) {
-            Some((tensor, snapshot_id)) => {
-                // Prefer the snapshot's persisted ParamId so optimizer state (keyed by ParamId)
+        // Try to apply the loaded tensor with shape validation
+        match self.apply_tensor(&target_device, target_shape, TargetDType::Float) {
+            Some((tensor, source_id)) => {
+                // Prefer the source's persisted ParamId so optimizer state (keyed by ParamId)
                 // survives save/load cycles, but keep the target's id when the source format
                 // carries no identity of its own.
-                param.transform_for_load(tensor, snapshot_id.unwrap_or(param_id))
+                param.transform_for_load(tensor, source_id.unwrap_or(param_id))
             }
             None => {
-                // No snapshot, filtered, or validation failed - return param unchanged
+                // Nothing to load, filtered, or validation failed - return param unchanged
                 param
             }
         }
@@ -290,13 +359,13 @@ impl ModuleMapper for Applier {
         let target_device = param.lazy_device();
         let target_shape = param.lazy_shape();
 
-        // Try to apply snapshot with shape validation
-        match self.apply_tensor(&target_device, target_shape) {
-            Some((tensor, snapshot_id)) => {
-                param.transform_for_load(tensor, snapshot_id.unwrap_or(param_id))
+        // Try to apply the loaded tensor with shape validation
+        match self.apply_tensor(&target_device, target_shape, TargetDType::Int) {
+            Some((tensor, source_id)) => {
+                param.transform_for_load(tensor, source_id.unwrap_or(param_id))
             }
             None => {
-                // No snapshot, filtered, or validation failed - return param unchanged
+                // Nothing to load, filtered, or validation failed - return param unchanged
                 param
             }
         }
@@ -310,13 +379,13 @@ impl ModuleMapper for Applier {
         let target_device = param.lazy_device();
         let target_shape = param.lazy_shape();
 
-        // Try to apply snapshot with shape validation
-        match self.apply_tensor(&target_device, target_shape) {
-            Some((tensor, snapshot_id)) => {
-                param.transform_for_load(tensor, snapshot_id.unwrap_or(param_id))
+        // Try to apply the loaded tensor with shape validation
+        match self.apply_tensor(&target_device, target_shape, TargetDType::Bool) {
+            Some((tensor, source_id)) => {
+                param.transform_for_load(tensor, source_id.unwrap_or(param_id))
             }
             None => {
-                // No snapshot, filtered, or validation failed - return param unchanged
+                // Nothing to load, filtered, or validation failed - return param unchanged
                 param
             }
         }
@@ -328,7 +397,12 @@ mod tests {
     use super::*;
     use crate::PyTorchToBurnAdapter;
     use burn_core::module::{ModuleMapper, Param, ParamId};
-    use burn_core::tensor::{DType, Tensor, TensorData};
+    use burn_core::tensor::{DType, Tensor, TensorData, shape};
+
+    /// A resident tensor named `name`, standing in for one read from a store.
+    fn tensor(name: &str, data: TensorData, id: Option<ParamId>) -> PackTensor {
+        bridge::from_data(data, name.to_string(), id.map(|id| id.val()))
+    }
 
     #[test]
     fn root_level_parameters() {
@@ -338,23 +412,21 @@ mod tests {
         let weight = Param::<Tensor<2>>::from_data([[1.0, 2.0], [3.0, 4.0]], &device);
         let bias = Param::<Tensor<1>>::from_data([5.0, 6.0], &device);
 
-        // Create snapshots with root-level paths (single-element path, no nested modules)
-        let weight_snapshot = crate::TensorSnapshot::from_data(
+        // Create tensors with root-level names (single segment, no nested modules)
+        let weight_tensor = tensor(
+            "weight", // root-level parameter name
             weight.val().to_data(),
-            vec!["weight".to_string()], // root-level parameter name
-            vec![],                     // no container
-            ParamId::new(),
+            Some(ParamId::new()),
         );
 
-        let bias_snapshot = crate::TensorSnapshot::from_data(
+        let bias_tensor = tensor(
+            "bias", // root-level parameter name
             bias.val().to_data(),
-            vec!["bias".to_string()], // root-level parameter name
-            vec![],                   // no container
-            ParamId::new(),
+            Some(ParamId::new()),
         );
 
-        // Create applier with root-level snapshots
-        let mut applier = Applier::new(vec![weight_snapshot, bias_snapshot], None, None, false);
+        // Create applier with root-level tensors
+        let mut applier = Applier::new(vec![weight_tensor, bias_tensor], None, None, false);
 
         // Create new params to load into
         let weight_target = Param::initialized(ParamId::new(), Tensor::<2>::zeros([2, 2], &device));
@@ -372,8 +444,8 @@ mod tests {
         applier.exit_module("bias", "");
 
         // Verify values were loaded
-        let weight_data = weight_loaded.val().to_data().to_vec::<f32>().unwrap();
-        let bias_data = bias_loaded.val().to_data().to_vec::<f32>().unwrap();
+        let weight_data = weight_loaded.val().try_into_vec_as::<f32>().unwrap();
+        let bias_data = bias_loaded.val().try_into_vec_as::<f32>().unwrap();
 
         assert_eq!(weight_data, vec![1.0, 2.0, 3.0, 4.0]);
         assert_eq!(bias_data, vec![5.0, 6.0]);
@@ -394,23 +466,18 @@ mod tests {
 
         // Create TensorData with F64 dtype explicitly
         let f64_data = TensorData::new(vec![1.0f64, 2.0, 3.0, 4.0], [2, 2]);
-        assert_eq!(f64_data.dtype, DType::F64, "Test setup: data should be F64");
-
-        // Create a snapshot with F64 data
-        let snapshot = crate::TensorSnapshot::from_data(
-            f64_data.clone(),
-            vec!["weight".to_string()],
-            vec![],
-            ParamId::new(),
-        );
         assert_eq!(
-            snapshot.dtype,
+            f64_data.dtype(),
             DType::F64,
-            "Snapshot should preserve F64 dtype"
+            "Test setup: data should be F64"
         );
 
-        // Create applier with the F64 snapshot
-        let mut applier = Applier::new(vec![snapshot], None, None, false);
+        // Create a tensor with F64 data
+        let f64_tensor = tensor("weight", f64_data.clone(), Some(ParamId::new()));
+        assert_eq!(f64_tensor.dtype, DType::F64, "should preserve F64 dtype");
+
+        // Create applier with the F64 tensor
+        let mut applier = Applier::new(vec![f64_tensor], None, None, false);
 
         // Create target parameter
         let target = Param::initialized(
@@ -418,7 +485,7 @@ mod tests {
             Tensor::<2>::zeros([2, 2], (&device, DType::F64)),
         );
 
-        // Apply the snapshot
+        // Apply the tensor
         applier.enter_module("weight", "");
         let loaded = applier.map_float(target);
         applier.exit_module("weight", "");
@@ -432,7 +499,7 @@ mod tests {
         );
 
         // Verify data values are correct
-        let loaded_data = loaded.val().to_data().to_vec::<f64>().unwrap();
+        let loaded_data = loaded.val().try_into_vec_as::<f64>().unwrap();
         assert_eq!(loaded_data, vec![1.0, 2.0, 3.0, 4.0]);
 
         // Verify applier result
@@ -448,24 +515,19 @@ mod tests {
 
         // Create TensorData with F32 dtype
         let f32_data = TensorData::new(vec![1.0f32, 2.0, 3.0, 4.0], [2, 2]);
-        assert_eq!(f32_data.dtype, DType::F32);
+        assert_eq!(f32_data.dtype(), DType::F32);
 
-        // Create a snapshot with F32 data
-        let snapshot = crate::TensorSnapshot::from_data(
-            f32_data.clone(),
-            vec!["weight".to_string()],
-            vec![],
-            ParamId::new(),
-        );
-        assert_eq!(snapshot.dtype, DType::F32);
+        // Create a tensor with F32 data
+        let f32_tensor = tensor("weight", f32_data.clone(), Some(ParamId::new()));
+        assert_eq!(f32_tensor.dtype, DType::F32);
 
-        // Create applier with the F32 snapshot
-        let mut applier = Applier::new(vec![snapshot], None, None, false);
+        // Create applier with the F32 tensor
+        let mut applier = Applier::new(vec![f32_tensor], None, None, false);
 
         // Create target parameter
         let target = Param::initialized(ParamId::new(), Tensor::<2>::zeros([2, 2], &device));
 
-        // Apply the snapshot
+        // Apply the tensor
         applier.enter_module("weight", "");
         let loaded = applier.map_float(target);
         applier.exit_module("weight", "");
@@ -474,16 +536,16 @@ mod tests {
         assert_eq!(loaded.val().dtype(), DType::F32);
 
         // Verify data values
-        let loaded_data = loaded.val().to_data().to_vec::<f32>().unwrap();
+        let loaded_data = loaded.val().try_into_vec_as::<f32>().unwrap();
         assert_eq!(loaded_data, vec![1.0, 2.0, 3.0, 4.0]);
     }
 
-    /// Test that F16 dtype is correctly preserved in TensorSnapshot.
+    /// Test that F16 dtype is correctly preserved by the transport tensor.
     ///
-    /// Verifies the snapshot layer preserves the F16 dtype tag through a
-    /// round-trip; does not materialize the data through a backend.
+    /// Verifies the dtype tag survives a round-trip; does not materialize the
+    /// data through a backend.
     #[test]
-    fn dtype_preservation_f16_snapshot() {
+    fn dtype_preservation_f16_transport() {
         use half::f16;
 
         // Create TensorData with F16 dtype using the half crate
@@ -495,37 +557,32 @@ mod tests {
         ];
         let f16_data = TensorData::new(f16_values.clone(), [2, 2]);
         assert_eq!(
-            f16_data.dtype,
+            f16_data.dtype(),
             DType::F16,
             "TensorData should have F16 dtype"
         );
 
-        // Create a snapshot with F16 data
-        let snapshot = crate::TensorSnapshot::from_data(
-            f16_data.clone(),
-            vec!["weight".to_string()],
-            vec![],
-            ParamId::new(),
-        );
+        // Create a tensor with F16 data
+        let f16_tensor = tensor("weight", f16_data.clone(), Some(ParamId::new()));
 
-        // Verify snapshot preserves F16 dtype
+        // Verify it preserves F16 dtype
         assert_eq!(
-            snapshot.dtype,
+            f16_tensor.dtype,
             DType::F16,
-            "TensorSnapshot should preserve F16 dtype"
+            "the tensor should preserve F16 dtype"
         );
 
         // Verify the data can be retrieved with correct dtype
-        let retrieved_data = snapshot.to_data().expect("Should be able to retrieve data");
+        let retrieved_data = bridge::to_data(&f16_tensor).expect("Should be able to retrieve data");
         assert_eq!(
-            retrieved_data.dtype,
+            retrieved_data.dtype(),
             DType::F16,
             "Retrieved data should have F16 dtype"
         );
 
         // Verify the actual values are preserved
         let retrieved_values: Vec<f16> = retrieved_data
-            .to_vec()
+            .try_to_vec()
             .expect("Should be able to convert to f16 vec");
         assert_eq!(
             retrieved_values, f16_values,
@@ -534,14 +591,14 @@ mod tests {
 
         // Note: To fully test F16 tensor creation, you would need a backend
         // that supports F16 (like CUDA or WebGPU). The applier fix ensures
-        // that `Tensor::from_data(data, (device, snapshot.dtype))` is
+        // that `Tensor::from_data(data, (device, tensor.dtype))` is
         // called with DType::F16, which will correctly create an F16 tensor
         // on backends that support it.
     }
 
-    /// Test that BF16 dtype is correctly preserved in TensorSnapshot.
+    /// Test that BF16 dtype is correctly preserved by the transport tensor.
     #[test]
-    fn dtype_preservation_bf16_snapshot() {
+    fn dtype_preservation_bf16_transport() {
         use half::bf16;
 
         // Create TensorData with BF16 dtype
@@ -553,37 +610,33 @@ mod tests {
         ];
         let bf16_data = TensorData::new(bf16_values.clone(), [2, 2]);
         assert_eq!(
-            bf16_data.dtype,
+            bf16_data.dtype(),
             DType::BF16,
             "TensorData should have BF16 dtype"
         );
 
-        // Create a snapshot with BF16 data
-        let snapshot = crate::TensorSnapshot::from_data(
-            bf16_data.clone(),
-            vec!["weight".to_string()],
-            vec![],
-            ParamId::new(),
-        );
+        // Create a tensor with BF16 data
+        let bf16_tensor = tensor("weight", bf16_data.clone(), Some(ParamId::new()));
 
-        // Verify snapshot preserves BF16 dtype
+        // Verify it preserves BF16 dtype
         assert_eq!(
-            snapshot.dtype,
+            bf16_tensor.dtype,
             DType::BF16,
-            "TensorSnapshot should preserve BF16 dtype"
+            "the tensor should preserve BF16 dtype"
         );
 
         // Verify the data can be retrieved with correct dtype
-        let retrieved_data = snapshot.to_data().expect("Should be able to retrieve data");
+        let retrieved_data =
+            bridge::to_data(&bf16_tensor).expect("Should be able to retrieve data");
         assert_eq!(
-            retrieved_data.dtype,
+            retrieved_data.dtype(),
             DType::BF16,
             "Retrieved data should have BF16 dtype"
         );
 
         // Verify the actual values are preserved
         let retrieved_values: Vec<bf16> = retrieved_data
-            .to_vec()
+            .try_to_vec()
             .expect("Should be able to convert to bf16 vec");
         assert_eq!(
             retrieved_values, bf16_values,
@@ -591,25 +644,26 @@ mod tests {
         );
     }
 
-    /// Regression test for issue #5159:
+    /// Regression test for issues #5159 and #5483:
     /// Verifies normalization parameter renaming (gamma <-> weight)
-    /// works through the full Applier flow with PyTorchToBurnAdapter.
+    /// works through the full Applier flow with PyTorchToBurnAdapter without
+    /// reporting the source tensor as unused.
     #[test]
     fn normalization_renaming_with_adapter() {
         let device = Default::default();
 
-        // Create snapshot with PyTorch naming: "norm.weight"
+        // Tensor with PyTorch naming: "norm.weight"
         let data = TensorData::new(vec![1.0f32, 2.0, 3.0, 4.0, 5.0], [5]);
-        let snapshot = crate::TensorSnapshot::from_data(
-            data,
-            vec!["norm".to_string(), "weight".to_string()],
-            vec!["Struct:RmsNorm".to_string()],
-            ParamId::new(),
+        let source = tensor("norm.weight", data, Some(ParamId::new()));
+        let unrelated = tensor(
+            "unused.weight",
+            TensorData::new(vec![0.0f32], [1]),
+            Some(ParamId::new()),
         );
 
         // Applier with PyTorchToBurnAdapter
         let mut applier = Applier::new(
-            vec![snapshot],
+            vec![source, unrelated],
             None,
             Some(Box::new(PyTorchToBurnAdapter)),
             false,
@@ -631,14 +685,14 @@ mod tests {
             "gamma should be applied via alt name 'weight'"
         );
         assert_eq!(result.errors.len(), 0);
-        // The snapshot "norm.weight" was found via alt lookup — 'norm.gamma' is visited,
-        // and 'norm.weight' is NOT in visited_paths (by design). Both should not be "missing" or "unused"
-        // if the applied count is 1.
+        // The tensor "norm.weight" was found via alt lookup: 'norm.gamma' is visited,
+        // while the source path is tracked separately so only the unrelated tensor is unused.
         assert!(
             result.missing.is_empty(),
             "no paths should be missing: {:?}",
             result.missing
         );
+        assert_eq!(result.unused, vec!["unused.weight"]);
     }
 
     /// Same as above but for a nested module path to ensure the alternative
@@ -647,21 +701,12 @@ mod tests {
     fn normalization_renaming_nested_path() {
         let device = Default::default();
 
-        // Snapshot with PyTorch naming: "encoder.norm.weight"
+        // Tensor with PyTorch naming: "encoder.norm.weight"
         let data = TensorData::new(vec![1.0f32, 2.0, 3.0], [3]);
-        let snapshot = crate::TensorSnapshot::from_data(
-            data,
-            vec![
-                "encoder".to_string(),
-                "norm".to_string(),
-                "weight".to_string(),
-            ],
-            vec!["Struct:RmsNorm".to_string()],
-            ParamId::new(),
-        );
+        let source = tensor("encoder.norm.weight", data, Some(ParamId::new()));
 
         let mut applier = Applier::new(
-            vec![snapshot],
+            vec![source],
             None,
             Some(Box::new(PyTorchToBurnAdapter)),
             false,
@@ -680,23 +725,27 @@ mod tests {
         let result = applier.into_result();
         assert_eq!(result.applied.len(), 1);
         assert_eq!(result.errors.len(), 0);
+        assert!(
+            result.unused.is_empty(),
+            "the nested alternative source should not be unused: {:?}",
+            result.unused
+        );
     }
 
-    /// Verify that the Applier restores the persisted ParamId from the snapshot
+    /// Verify that the Applier restores the persisted ParamId from the source
     /// instead of keeping the target param's fresh id (regression for #5130).
     #[test]
     fn applier_preserves_param_id() {
         let device = Default::default();
 
         let persisted_id = ParamId::from(42u64);
-        let snapshot = crate::TensorSnapshot::from_data(
+        let source = tensor(
+            "weight",
             TensorData::new(vec![1.0f32, 2.0], [2]),
-            vec!["weight".to_string()],
-            vec!["Struct:Linear".to_string()],
-            persisted_id,
+            Some(persisted_id),
         );
 
-        let mut applier = Applier::new(vec![snapshot], None, None, false);
+        let mut applier = Applier::new(vec![source], None, None, false);
 
         applier.enter_module("weight", "Struct:Linear");
         let target = Param::initialized(
@@ -710,26 +759,61 @@ mod tests {
         // The loaded param should have the persisted ParamId, not the fresh one.
         assert_eq!(
             loaded.id, persisted_id,
-            "Applier should restore persisted ParamId from snapshot"
+            "Applier should restore persisted ParamId from the source"
         );
     }
 
-    /// Formats without parameter identity (PyTorch, Safetensors) leave `tensor_id` empty. Loading
+    /// A provider failure must land in `errors` as a LoadError, leave the parameter at its
+    /// initialized value, and not also be counted as missing: `into_result` excludes errored
+    /// paths on purpose, so under `validate(false)` `errors` is the only place it shows up.
+    ///
+    /// This arm was near-unreachable before every materialization was length- and
+    /// dtype-checked; now a truncated file or a backend panic lands here.
+    #[test]
+    fn a_failing_tensor_is_reported_and_leaves_the_param_untouched() {
+        let device = Default::default();
+        let failing = bridge::deferred("weight".to_string(), DType::F32, shape![2], None, || {
+            Err(burn_pack::Error::IoError("device read failed".to_string()))
+        });
+
+        let mut applier = Applier::new(vec![failing], None, None, false);
+        applier.enter_module("weight", "Struct:Linear");
+        let loaded = applier.map_float(Param::initialized(
+            ParamId::from(7u64),
+            Tensor::<1>::zeros([2], &device),
+        ));
+        applier.exit_module("weight", "Struct:Linear");
+
+        assert_eq!(
+            loaded.val().try_into_vec_as::<f32>().unwrap(),
+            vec![0.0, 0.0],
+            "the parameter must keep its initialized value"
+        );
+
+        let result = applier.into_result();
+        assert!(result.applied.is_empty());
+        assert!(
+            result.missing.is_empty(),
+            "an errored path must not also be reported missing: {:?}",
+            result.missing
+        );
+        assert!(
+            matches!(&result.errors[..], [ApplyError::LoadError { path, .. }] if path == "weight"),
+            "expected one LoadError naming the path, got {:?}",
+            result.errors
+        );
+    }
+
+    /// Formats without parameter identity (PyTorch, Safetensors) leave `param_id` empty. Loading
     /// one must keep the target module's id rather than minting a fresh one, otherwise importing
     /// weights orphans optimizer state keyed by ParamId.
     #[test]
-    fn applier_keeps_target_param_id_when_snapshot_has_none() {
+    fn applier_keeps_target_param_id_when_source_has_none() {
         let device = Default::default();
 
-        let mut snapshot = crate::TensorSnapshot::from_data(
-            TensorData::new(vec![1.0f32, 2.0], [2]),
-            vec!["weight".to_string()],
-            vec!["Struct:Linear".to_string()],
-            ParamId::new(),
-        );
-        snapshot.tensor_id = None;
+        let source = tensor("weight", TensorData::new(vec![1.0f32, 2.0], [2]), None);
 
-        let mut applier = Applier::new(vec![snapshot], None, None, false);
+        let mut applier = Applier::new(vec![source], None, None, false);
 
         applier.enter_module("weight", "Struct:Linear");
         let target_id = ParamId::from(7u64);
@@ -740,7 +824,7 @@ mod tests {
 
         assert_eq!(
             loaded.id, target_id,
-            "Applier should keep the target ParamId when the snapshot carries none"
+            "Applier should keep the target ParamId when the source carries none"
         );
     }
 }

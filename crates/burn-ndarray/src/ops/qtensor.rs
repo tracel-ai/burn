@@ -1,15 +1,18 @@
 use alloc::{vec, vec::Vec};
 
 use burn_backend::{
-    DType, ExecutionError, Shape, TensorData, TensorMetadata, TensorPrimitive, get_device_settings,
+    DType, ExecutionError, Shape, TensorData, TensorMetadata, TensorPrimitive,
+    get_or_init_device_settings,
     ops::{FloatTensorOps, QTensorOps},
     quantization::{
-        QParams, QuantLevel, QuantMode, QuantPropagation, QuantScheme, QuantStore, QuantValue,
-        QuantizationParametersPrimitive, QuantizedBytes, scale_to_param,
+        BlockSize, QuantMode, QuantPropagation, QuantScheme, QuantStore, QuantValue,
+        QuantizationParametersPrimitive, QuantizedBytes, global_scale_dtype, params_shape,
+        scale_to_dtype,
     },
     tensor::{FloatTensor, IntTensor, QuantizedTensor},
 };
 use burn_std::{FloatDType, IntDType};
+use ndarray::ArrayD;
 
 use crate::{
     NdArray, NdArrayDevice, NdArrayQTensor, NdArrayTensor, SharedArray, element::QuantElement,
@@ -22,19 +25,17 @@ use super::{NdArrayMathOps, NdArrayOps};
 
 impl QTensorOps<Self> for NdArray {
     fn q_from_data(data: TensorData, _device: &NdArrayDevice) -> QuantizedTensor<Self> {
-        match data.dtype {
+        match data.dtype() {
             DType::QFloat(scheme) => {
-                let shape = data.shape.clone();
-                let num_elements = data.num_elements();
+                let shape = data.shape().clone();
                 let q_bytes = QuantizedBytes {
+                    shape: shape.clone(),
                     bytes: data.into_bytes(),
                     scheme,
-                    num_elements,
                 };
 
                 match scheme {
                     QuantScheme {
-                        level: QuantLevel::Tensor | QuantLevel::Block(_),
                         mode: QuantMode::Symmetric,
                         value: QuantValue::Q8F | QuantValue::Q8S,
                         ..
@@ -45,16 +46,14 @@ impl QTensorOps<Self> for NdArray {
                         // Overwrite storage
                         let scheme = scheme.with_store(QuantStore::Native);
 
-                        let qparams = qparams
-                            .scales
-                            .into_iter()
-                            .map(|scales| QParams { scales })
-                            .collect();
+                        let global = qparams.global;
+                        let qparams = qparams.block;
 
                         NdArrayQTensor {
                             qtensor: NdArrayTensor::from_data(data),
                             scheme,
                             qparams,
+                            global,
                         }
                     }
                     QuantScheme {
@@ -67,12 +66,16 @@ impl QTensorOps<Self> for NdArray {
                             | QuantValue::E4M3
                             | QuantValue::E5M2,
                         ..
+                    }
+                    | QuantScheme {
+                        mode: QuantMode::Lookup,
+                        ..
                     } => unimplemented!("from_data not supported for scheme {scheme:?}"),
                 }
             }
             _ => panic!(
                 "Invalid dtype (expected DType::QFloat, got {:?})",
-                data.dtype
+                data.dtype()
             ),
         }
     }
@@ -86,85 +89,91 @@ impl QTensorOps<Self> for NdArray {
         let data_f = tensor.into_data();
         let scales = qparams.scales.into_data().convert::<f32>();
         // Quantize against the scale that will actually be stored, so a save/load round trip
-        // reproduces these values instead of drifting by the param's rounding error.
+        // reproduces these values instead of drifting by the scale dtype's rounding error.
         let scales: Vec<f32> = scales
             .iter::<f32>()
-            .map(|s| scale_to_param(s, scheme.param))
+            .map(|s| scale_to_dtype(s, scheme.scale_dtype()))
             .collect();
+        let global = qparams.global.map(|global| {
+            let dtype = global_scale_dtype(scheme)
+                .expect("a per-tensor scale should come with a two-level scheme");
+            let global = global.into_data().convert::<f32>();
+            scale_to_dtype(global.iter::<f32>().next().unwrap(), dtype)
+        });
 
         // Implement with ndarray instead of QuantizationStrategy?
-        let (data, qparams) = match scheme {
-            QuantScheme {
-                level: QuantLevel::Tensor,
-                mode: QuantMode::Symmetric,
-                // `Q2S` is supported natively (stored as i8) — it feeds the multiply-free
-                // ternary matmul fast path in `q_matmul` (BitNet b1.58).
-                #[cfg(not(feature = "export_tests"))]
-                    value: QuantValue::Q8F | QuantValue::Q8S | QuantValue::Q2S,
-                // For tests, "native" sub-byte quant serves as a reference for value equality.
-                // Values are stored as i8 regardless.
-                #[cfg(feature = "export_tests")]
-                    value:
-                    QuantValue::Q8F
-                    | QuantValue::Q8S
-                    | QuantValue::Q4F
-                    | QuantValue::Q4S
-                    | QuantValue::Q2F
-                    | QuantValue::Q2S,
-                store: QuantStore::Native,
-                ..
-            } => {
+        let (data, qparams) = match (scheme.block_size(), scheme) {
+            (
+                None,
+                QuantScheme {
+                    mode: QuantMode::Symmetric,
+                    // `Q2S` is supported natively (stored as i8): it feeds the multiply-free
+                    // ternary matmul fast path in `q_matmul` (BitNet b1.58).
+                    #[cfg(not(feature = "export_tests"))]
+                        value: QuantValue::Q8F | QuantValue::Q8S | QuantValue::Q2S,
+                    // For tests, "native" sub-byte quant serves as a reference for value equality.
+                    // Values are stored as i8 regardless.
+                    #[cfg(feature = "export_tests")]
+                        value:
+                        QuantValue::Q8F
+                        | QuantValue::Q8S
+                        | QuantValue::Q4F
+                        | QuantValue::Q4S
+                        | QuantValue::Q2F
+                        | QuantValue::Q2S,
+                    store: QuantStore::Native,
+                    ..
+                },
+            ) => {
                 let scales = scales[0];
                 let strategy = QuantizationStrategy::PerTensorSymmetric(
                     SymmetricQuantization::init(scales, scheme.value),
                 );
-                let values = strategy.quantize(data_f.as_slice().unwrap());
+                let values = strategy.quantize(data_f.as_slice().unwrap(), &shape);
                 (
-                    TensorData::quantized(values, shape.clone(), *scheme, &[scales]),
-                    vec![QParams { scales }],
+                    TensorData::quantized(values, shape.clone(), *scheme, &[scales], None),
+                    vec![scales],
                 )
             }
-            QuantScheme {
-                level: QuantLevel::Block(block_size),
-                mode: QuantMode::Symmetric,
-                #[cfg(not(feature = "export_tests"))]
-                    value: QuantValue::Q8F | QuantValue::Q8S,
-                #[cfg(feature = "export_tests")]
-                    value:
-                    QuantValue::Q8F
-                    | QuantValue::Q8S
-                    | QuantValue::Q4F
-                    | QuantValue::Q4S
-                    | QuantValue::Q2F
-                    | QuantValue::Q2S,
-                store: QuantStore::Native,
-                ..
-            } => {
-                let scales = scales.as_slice();
-                let (strategy, qparams) = scales
-                    .iter()
-                    .map(|&s| {
-                        (
-                            SymmetricQuantization::init(s, scheme.value),
-                            QParams { scales: s },
-                        )
-                    })
-                    .unzip();
-                let strategy = QuantizationStrategy::PerBlockSymmetric(strategy, *block_size);
-                let values = strategy.quantize(data_f.as_slice().unwrap());
-                (
-                    TensorData::quantized(values, shape.clone(), *scheme, scales),
-                    qparams,
+            (
+                Some(block_size),
+                QuantScheme {
+                    mode: QuantMode::Symmetric,
+                    #[cfg(not(feature = "export_tests"))]
+                        value: QuantValue::Q8F | QuantValue::Q8S,
+                    #[cfg(feature = "export_tests")]
+                        value:
+                        QuantValue::Q8F
+                        | QuantValue::Q8S
+                        | QuantValue::Q4F
+                        | QuantValue::Q4S
+                        | QuantValue::Q2F
+                        | QuantValue::Q2S,
+                    store: QuantStore::Native,
+                    ..
+                },
+            ) => {
+                let global = if global_scale_dtype(scheme).is_some() {
+                    Some(global.expect("a two-level scheme should have a per-tensor scale"))
+                } else {
+                    None
+                };
+                quantize_per_block(
+                    data_f.as_slice().unwrap(),
+                    shape.clone(),
+                    scheme,
+                    block_size,
+                    scales.as_slice(),
+                    global,
                 )
             }
-            scheme => unimplemented!("Quantization not supported for scheme {scheme:?}"),
+            (_, scheme) => unimplemented!("Quantization not supported for scheme {scheme:?}"),
         };
 
-        let num_elements = data.num_elements();
         let q_bytes = QuantizedBytes {
+            shape: data.shape().clone(),
             bytes: data.into_bytes(),
             scheme: *scheme,
-            num_elements,
         };
         let (values, _) = q_bytes.into_vec_i8();
         let data = TensorData::new(values, shape);
@@ -173,6 +182,7 @@ impl QTensorOps<Self> for NdArray {
             qtensor: NdArrayTensor::from_data(data),
             scheme: *scheme,
             qparams,
+            global,
         }
     }
 
@@ -180,10 +190,20 @@ impl QTensorOps<Self> for NdArray {
         let strategy = tensor.strategy();
         let scheme = tensor.scheme;
         let shape = tensor.shape();
+        let scales = tensor.qparams;
+        let global = tensor.global;
         let data = match tensor.qtensor {
             NdArrayTensor::I8(storage) => {
                 let data = storage.into_shared().into_iter().collect();
-                dequantize(data, shape, scheme, &strategy, dtype.into())
+                dequantize(
+                    data,
+                    shape,
+                    scheme,
+                    &strategy,
+                    &scales,
+                    global,
+                    dtype.into(),
+                )
             }
             _ => unreachable!(),
         };
@@ -221,7 +241,7 @@ impl QTensorOps<Self> for NdArray {
         let lhs = match lhs {
             TensorPrimitive::Float(lhs) => lhs,
             TensorPrimitive::QFloat(lhs) => {
-                let settings = get_device_settings::<Self>(&lhs.device());
+                let settings = get_or_init_device_settings::<Self>(&lhs.device());
                 propagation = settings.quantization.propagation;
                 scheme = lhs.scheme;
                 let float_dtype = target_dtype.unwrap_or(settings.float_dtype);
@@ -231,7 +251,7 @@ impl QTensorOps<Self> for NdArray {
         let rhs = match rhs {
             TensorPrimitive::Float(rhs) => rhs,
             TensorPrimitive::QFloat(rhs) => {
-                let settings = get_device_settings::<Self>(&rhs.device());
+                let settings = get_or_init_device_settings::<Self>(&rhs.device());
                 propagation = settings.quantization.propagation;
                 scheme = rhs.scheme;
                 let float_dtype = target_dtype.unwrap_or(settings.float_dtype);
@@ -261,18 +281,19 @@ impl QTensorOps<Self> for NdArray {
             }),
             scheme: tensor.scheme,
             qparams: tensor.qparams,
+            global: tensor.global,
         }
     }
 
     async fn q_into_data(tensor: QuantizedTensor<Self>) -> Result<TensorData, ExecutionError> {
         let shape = tensor.qtensor.shape();
-        let scales = tensor.qparams.iter().map(|q| q.scales).collect::<Vec<_>>();
+        let scales = tensor.qparams;
         Ok(execute_with_numeric_dtype!(
             tensor.qtensor,
             E,
             |array: SharedArray<E>| {
                 let values = array.into_iter().collect();
-                TensorData::quantized(values, shape, tensor.scheme, &scales)
+                TensorData::quantized(values, shape, tensor.scheme, &scales, tensor.global)
             }
         ))
     }
@@ -282,22 +303,36 @@ impl QTensorOps<Self> for NdArray {
         dim1: usize,
         dim2: usize,
     ) -> QuantizedTensor<Self> {
-        NdArrayQTensor {
-            qtensor: execute_with_dtype!(tensor.qtensor, E, |array: SharedArray<E>| {
-                NdArrayOps::swap_dims(array, dim1, dim2)
-            }),
-            scheme: tensor.scheme,
-            qparams: tensor.qparams,
-        }
+        let mut axes = (0..tensor.qtensor.shape().num_dims()).collect::<Vec<_>>();
+        axes.swap(dim1, dim2);
+        Self::q_permute(tensor, &axes)
     }
 
     fn q_permute(tensor: QuantizedTensor<Self>, axes: &[usize]) -> QuantizedTensor<Self> {
+        let (scheme, qparams) = match tensor.scheme.block_size() {
+            None => (tensor.scheme, tensor.qparams),
+            Some(_) => {
+                let shape = tensor.qtensor.shape();
+                let qparams_shape = params_shape(&shape, &tensor.scheme);
+                let scales = ArrayD::from_shape_vec(qparams_shape.as_slice(), tensor.qparams)
+                    .unwrap()
+                    .into_shared();
+                let qparams = NdArrayOps::permute(scales, axes).into_iter().collect();
+
+                let mut scheme = tensor.scheme;
+                scheme.permute_block_dims(shape.num_dims(), axes);
+
+                (scheme, qparams)
+            }
+        };
+
         NdArrayQTensor {
             qtensor: execute_with_dtype!(tensor.qtensor, E, |array: SharedArray<E>| {
                 NdArrayOps::permute(array, axes)
             }),
-            scheme: tensor.scheme,
-            qparams: tensor.qparams,
+            scheme,
+            qparams,
+            global: tensor.global,
         }
     }
 
@@ -308,6 +343,7 @@ impl QTensorOps<Self> for NdArray {
             }),
             scheme: tensor.scheme,
             qparams: tensor.qparams,
+            global: tensor.global,
         }
     }
 
@@ -328,6 +364,7 @@ impl QTensorOps<Self> for NdArray {
             qtensor,
             scheme: tensor.scheme,
             qparams: tensor.qparams,
+            global: tensor.global,
         }
     }
 
@@ -348,6 +385,7 @@ impl QTensorOps<Self> for NdArray {
             qtensor,
             scheme: tensor.scheme,
             qparams: tensor.qparams,
+            global: tensor.global,
         }
     }
 
@@ -359,6 +397,7 @@ impl QTensorOps<Self> for NdArray {
             qtensor: slice!(tensor.qtensor, slices),
             scheme: tensor.scheme,
             qparams: tensor.qparams,
+            global: tensor.global,
         }
     }
 
@@ -385,6 +424,7 @@ impl QTensorOps<Self> for NdArray {
             }),
             scheme: tensor.scheme,
             qparams: tensor.qparams,
+            global: tensor.global,
         }
     }
 }
@@ -405,15 +445,16 @@ fn ternary_matmul(
     rhs: &NdArrayQTensor,
 ) -> Option<FloatTensor<NdArray>> {
     // Canonical BitNet b1.58 weight quantization: Q2S, symmetric, per-tensor.
-    if !matches!(
-        rhs.scheme,
-        QuantScheme {
-            value: QuantValue::Q2S,
-            mode: QuantMode::Symmetric,
-            level: QuantLevel::Tensor,
-            ..
-        }
-    ) {
+    if rhs.scheme.block_size().is_some()
+        || !matches!(
+            rhs.scheme,
+            QuantScheme {
+                value: QuantValue::Q2S,
+                mode: QuantMode::Symmetric,
+                ..
+            }
+        )
+    {
         return None;
     }
     // Only an f32 activation (the reference float dtype) takes the fast path.
@@ -436,7 +477,7 @@ fn ternary_matmul(
     let m: usize = ldims[..ldims.len() - 1].iter().product();
 
     // Per-tensor scale γ.
-    let gamma = rhs.qparams.first()?.scales;
+    let gamma = *rhs.qparams.first()?;
 
     // Canonical row-major values for both operands (`into_data` normalizes any strided layout).
     let a_data = lhs.clone().into_data();
@@ -476,20 +517,39 @@ fn ternary_matmul(
     )))
 }
 
+/// `global: None` is a one-level block scheme (multiplier 1.0).
+fn quantize_per_block(
+    data_f: &[f32],
+    shape: Shape,
+    scheme: &QuantScheme,
+    block: BlockSize,
+    scales: &[f32],
+    global: Option<f32>,
+) -> (TensorData, Vec<f32>) {
+    let multiplier = global.unwrap_or(1.0);
+    let (strategy, qparams): (Vec<_>, Vec<_>) = scales
+        .iter()
+        .map(|&s| (SymmetricQuantization::init(multiplier * s, scheme.value), s))
+        .unzip();
+    let strategy = QuantizationStrategy::PerBlockSymmetric(strategy, block);
+    let values = strategy.quantize(data_f, &shape);
+    (
+        TensorData::quantized(values, shape, *scheme, scales, global),
+        qparams,
+    )
+}
+
 fn dequantize<Q: QuantElement>(
     data: Vec<Q>,
     shape: Shape,
     scheme: QuantScheme,
     strategy: &QuantizationStrategy,
+    qparams: &[f32],
+    global: Option<f32>,
     dtype: DType,
 ) -> TensorData {
-    let qparams = match strategy {
-        QuantizationStrategy::PerTensorSymmetric(quant) => vec![quant.scale],
-        QuantizationStrategy::PerBlockSymmetric(quant, _block_size) => {
-            quant.iter().map(|q| q.scale).collect()
-        }
-    };
-    let q_bytes = QuantizedBytes::new(data, scheme, &qparams);
+    let q_bytes = QuantizedBytes::new(data, shape.clone(), scheme, qparams, global);
     let (values, _qparams) = q_bytes.into_vec_i8();
-    TensorData::new(strategy.dequantize(&values), shape).convert_dtype(dtype)
+    let values = strategy.dequantize(&values, &shape);
+    TensorData::new(values, shape).convert_dtype(dtype)
 }

@@ -2,7 +2,7 @@ use std::marker::PhantomData;
 
 use burn_backend::{
     DType, ExecutionError, FloatDType, Shape, Slice, TensorData, TensorMetadata, TensorPrimitive,
-    get_device_settings,
+    get_or_init_device_settings,
     ops::QTensorOps,
     quantization::{QuantPropagation, QuantScheme, QuantizationParametersPrimitive},
     tensor::{Device, FloatTensor, IntTensor, QuantizedTensor},
@@ -25,7 +25,7 @@ use super::NoOp;
 impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
     fn q_from_data(data: TensorData, device: &Device<Self>) -> QuantizedTensor<Self> {
         let client = get_client::<B>(device);
-        let dtype = data.dtype;
+        let dtype = data.dtype();
         let tensor = B::q_from_data(data, device);
         let shape = burn_backend::TensorMetadata::shape(&tensor);
 
@@ -53,13 +53,24 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
         }
 
         impl<B: FusionBackend> Operation<B::FusionRuntime> for QuantizeOp<B> {
-            fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
+            fn execute(
+                &self,
+                handles: &mut HandleContainer<B::Handle>,
+            ) -> Result<(), ExecutionError> {
                 let tensor = handles.get_float_tensor::<B>(&self.desc.tensor);
                 let scales = handles.get_float_tensor::<B>(&self.desc.qparams.scales);
+                let global = self
+                    .desc
+                    .qparams
+                    .global
+                    .as_ref()
+                    .map(|global| handles.get_float_tensor::<B>(global));
 
-                let qparams = QuantizationParametersPrimitive { scales };
+                let qparams = QuantizationParametersPrimitive { scales, global };
                 let output = B::quantize(tensor, &self.desc.scheme, qparams);
                 handles.register_quantized_tensor::<B>(&self.desc.out.id, output);
+
+                Ok(())
             }
         }
 
@@ -68,6 +79,7 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
         let client = tensor.client.clone();
         let qparams = QuantizationParametersIr {
             scales: qparams.scales.into_ir(),
+            global: qparams.global.map(|global| global.into_ir()),
         };
         let desc = QuantizeOpIr::create(tensor.into_ir(), qparams, *scheme, || {
             client.create_empty_handle()
@@ -90,11 +102,16 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
         }
 
         impl<B: FusionBackend> Operation<B::FusionRuntime> for DequantizeOp<B> {
-            fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
+            fn execute(
+                &self,
+                handles: &mut HandleContainer<B::Handle>,
+            ) -> Result<(), ExecutionError> {
                 let tensor = handles.get_quantized_tensor::<B>(&self.desc.input);
 
                 let output = B::dequantize(tensor, self.desc.out.dtype.into());
                 handles.register_float_tensor::<B>(&self.desc.out.id, output);
+
+                Ok(())
             }
         }
 
@@ -148,10 +165,15 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
         }
 
         impl<B: FusionBackend> Operation<B::FusionRuntime> for ReshapeDimsOps<B> {
-            fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
+            fn execute(
+                &self,
+                handles: &mut HandleContainer<B::Handle>,
+            ) -> Result<(), ExecutionError> {
                 let input = handles.get_quantized_tensor::<B>(&self.desc.input);
                 let output = B::q_reshape(input, self.desc.out.shape.clone());
                 handles.register_quantized_tensor::<B>(&self.desc.out.id, output);
+
+                Ok(())
             }
         }
 
@@ -185,10 +207,15 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
         }
 
         impl<B: FusionBackend> Operation<B::FusionRuntime> for SwapDimsOps<B> {
-            fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
+            fn execute(
+                &self,
+                handles: &mut HandleContainer<B::Handle>,
+            ) -> Result<(), ExecutionError> {
                 let input = handles.get_quantized_tensor::<B>(&self.desc.input);
                 let output = B::q_swap_dims(input, self.desc.dim1, self.desc.dim2);
                 handles.register_quantized_tensor::<B>(&self.desc.out.id, output);
+
+                Ok(())
             }
         }
 
@@ -216,10 +243,15 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
         }
 
         impl<B: FusionBackend> Operation<B::FusionRuntime> for PermuteDimsOps<B> {
-            fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
+            fn execute(
+                &self,
+                handles: &mut HandleContainer<B::Handle>,
+            ) -> Result<(), ExecutionError> {
                 let input = handles.get_quantized_tensor::<B>(&self.desc.input);
                 let output = B::q_permute(input, self.desc.axes.as_slice());
                 handles.register_quantized_tensor::<B>(&self.desc.out.id, output);
+
+                Ok(())
             }
         }
 
@@ -247,10 +279,15 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
         }
 
         impl<B: FusionBackend> Operation<B::FusionRuntime> for FlipOps<B> {
-            fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
+            fn execute(
+                &self,
+                handles: &mut HandleContainer<B::Handle>,
+            ) -> Result<(), ExecutionError> {
                 let input = handles.get_quantized_tensor::<B>(&self.desc.input);
                 let output = B::q_flip(input, &self.desc.axes);
                 handles.register_quantized_tensor::<B>(&self.desc.out.id, output);
+
+                Ok(())
             }
         }
 
@@ -282,12 +319,17 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
         }
 
         impl<B: FusionBackend> Operation<B::FusionRuntime> for GatherOps<B> {
-            fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
+            fn execute(
+                &self,
+                handles: &mut HandleContainer<B::Handle>,
+            ) -> Result<(), ExecutionError> {
                 let tensor = handles.get_quantized_tensor::<B>(&self.desc.tensor);
                 let indices = handles.get_int_tensor::<B>(&self.desc.indices);
 
                 let output = B::q_gather(self.desc.dim, tensor, indices);
                 handles.register_quantized_tensor::<B>(&self.desc.out.id, output);
+
+                Ok(())
             }
         }
 
@@ -319,13 +361,18 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
         }
 
         impl<B: FusionBackend> Operation<B::FusionRuntime> for SelectOps<B> {
-            fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
+            fn execute(
+                &self,
+                handles: &mut HandleContainer<B::Handle>,
+            ) -> Result<(), ExecutionError> {
                 let tensor = handles.get_quantized_tensor::<B>(&self.desc.tensor);
                 let indices = handles.get_int_tensor::<B>(&self.desc.indices);
 
                 let output = B::q_select(tensor, self.desc.dim, indices);
 
                 handles.register_quantized_tensor::<B>(&self.desc.out.id, output);
+
+                Ok(())
             }
         }
 
@@ -353,12 +400,17 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
         }
 
         impl<B: FusionBackend> Operation<B::FusionRuntime> for SliceOps<B> {
-            fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
+            fn execute(
+                &self,
+                handles: &mut HandleContainer<B::Handle>,
+            ) -> Result<(), ExecutionError> {
                 let tensor = handles.get_quantized_tensor::<B>(&self.desc.tensor);
 
                 let output = B::q_slice(tensor, self.desc.ranges.as_slice());
 
                 handles.register_quantized_tensor::<B>(&self.desc.out.id, output);
+
+                Ok(())
             }
         }
 
@@ -386,11 +438,16 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
         }
 
         impl<B: FusionBackend> Operation<B::FusionRuntime> for ExpandOps<B> {
-            fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
+            fn execute(
+                &self,
+                handles: &mut HandleContainer<B::Handle>,
+            ) -> Result<(), ExecutionError> {
                 let input = handles.get_quantized_tensor::<B>(&self.desc.input);
                 let output = B::q_expand(input, self.desc.out.shape.clone());
 
                 handles.register_quantized_tensor::<B>(&self.desc.out.id, output);
+
+                Ok(())
             }
         }
 
@@ -418,7 +475,10 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
         }
 
         impl<B: FusionBackend> Operation<B::FusionRuntime> for MatmulOps<B> {
-            fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
+            fn execute(
+                &self,
+                handles: &mut HandleContainer<B::Handle>,
+            ) -> Result<(), ExecutionError> {
                 let lhs = match self.lhs_quantized {
                     true => {
                         TensorPrimitive::QFloat(handles.get_quantized_tensor::<B>(&self.desc.lhs))
@@ -440,6 +500,8 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
                         handles.register_quantized_tensor::<B>(&self.desc.out.id, output);
                     }
                 }
+
+                Ok(())
             }
         }
 
@@ -454,7 +516,7 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
             TensorPrimitive::QFloat(lhs) => lhs.client.clone(),
         };
 
-        let settings = get_device_settings::<Self>(client.device());
+        let settings = get_or_init_device_settings::<Self>(client.device());
 
         if let TensorPrimitive::QFloat(lhs) = &lhs {
             propagation = settings.quantization.propagation;

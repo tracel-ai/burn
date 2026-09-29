@@ -7,9 +7,103 @@ use crate::{
     check::TensorCheck,
     ops::{
         AttentionModuleOptions, BridgeTensor, ConvOptions, ConvTransposeOptions, DeformConvOptions,
-        InterpolateOptions, PadMode, PaddedConvOptions, UnfoldOptions,
+        InterpolateOptions, UnfoldOptions,
     },
 };
+
+/// Applies batch normalization using explicitly supplied channel statistics.
+///
+/// `input` has shape `[batch, channels, ...]`; `gamma`, `beta`, `mean`, and
+/// `variance` each have shape `[channels]`.
+///
+/// This function doesn't calculate or update statistics. Callers may supply
+/// running statistics for inference or batch statistics calculated by a
+/// training path.
+pub fn batch_norm<const D: usize>(
+    input: Tensor<D>,
+    gamma: Tensor<1>,
+    beta: Tensor<1>,
+    mean: Tensor<1>,
+    variance: Tensor<1>,
+    epsilon: f64,
+) -> Tensor<D> {
+    assert!(D >= 2, "batch norm requires an input rank of at least 2");
+    let channels = input.dims()[1];
+    assert_eq!(gamma.dims(), [channels], "invalid batch norm gamma shape");
+    assert_eq!(beta.dims(), [channels], "invalid batch norm beta shape");
+    assert_eq!(mean.dims(), [channels], "invalid batch norm mean shape");
+    assert_eq!(
+        variance.dims(),
+        [channels],
+        "invalid batch norm variance shape"
+    );
+    Tensor::new(BridgeTensor::float(Dispatch::batch_norm(
+        input.primitive.into_float(),
+        gamma.primitive.into_float(),
+        beta.primitive.into_float(),
+        mean.primitive.into_float(),
+        variance.primitive.into_float(),
+        epsilon,
+    )))
+}
+
+/// Output and batch statistics from [`batch_norm_train`].
+pub struct BatchNormTrainOutput<const D: usize> {
+    /// The normalized input, with the same shape as the input.
+    pub output: Tensor<D>,
+
+    /// The batch mean with shape `[channels]`, detached on autodiff devices.
+    pub mean: Tensor<1>,
+
+    /// The biased (population) batch variance with shape `[channels]`, excluding
+    /// epsilon and detached on autodiff devices.
+    pub variance: Tensor<1>,
+}
+
+/// Applies batch normalization using statistics computed from the input batch.
+///
+/// `input` has shape `[batch, channels, ...]`; `gamma` and `beta` have shape
+/// `[channels]`.
+///
+/// Returns the normalized input with its original shape, along with the batch
+/// mean and biased (population) variance, both with shape `[channels]`.
+/// Statistics are computed over every dimension except the channel dimension.
+/// The returned variance excludes `epsilon`.
+///
+/// This function does not update running statistics. For normalization using
+/// explicitly supplied statistics, use [`batch_norm`].
+///
+/// # Autodiff
+///
+/// This function can be used with or without autodiff. It does not enable
+/// gradient tracking.
+///
+/// On an autodiff-enabled device, gradients through the normalized output
+/// account for the dependence of the batch statistics on the input. The returned
+/// mean and variance remain on the same device but are detached.
+pub fn batch_norm_train<const D: usize>(
+    input: Tensor<D>,
+    gamma: Tensor<1>,
+    beta: Tensor<1>,
+    epsilon: f64,
+) -> BatchNormTrainOutput<D> {
+    assert!(D >= 2, "batch norm requires an input rank of at least 2");
+    let channels = input.dims()[1];
+    assert_eq!(gamma.dims(), [channels], "invalid batch norm gamma shape");
+    assert_eq!(beta.dims(), [channels], "invalid batch norm beta shape");
+    let result = Dispatch::batch_norm_train(
+        input.primitive.into_float(),
+        gamma.primitive.into_float(),
+        beta.primitive.into_float(),
+        epsilon,
+    );
+
+    BatchNormTrainOutput {
+        output: Tensor::new(BridgeTensor::float(result.output)),
+        mean: Tensor::new(BridgeTensor::float(result.mean)),
+        variance: Tensor::new(BridgeTensor::float(result.variance)),
+    }
+}
 
 /// Computes the [CTC loss](burn_backend::ops::ModuleOps::ctc_loss).
 ///
@@ -50,117 +144,78 @@ pub fn embedding(weights: Tensor<2>, indices: Tensor<2, Int>) -> Tensor<3> {
 
 /// Applies a [1D convolution](burn_backend::ops::ModuleOps::conv1d).
 ///
-/// Accepts [`ConvOptions`] for symmetric padding, or [`PaddedConvOptions`] for
-/// asymmetric padding. When asymmetric padding is specified, an explicit pad
-/// operation is applied before the convolution backend op.
+/// Supports symmetric and asymmetric padding through [`ConvOptions`].
+/// The deprecated [`PaddedConvOptions`](crate::ops::PaddedConvOptions) is also
+/// accepted for compatibility.
 pub fn conv1d(
     x: Tensor<3>,
     weight: Tensor<3>,
     bias: Option<Tensor<1>>,
-    options: impl Into<PaddedConvOptions<1>>,
+    options: impl Into<ConvOptions<1>>,
 ) -> Tensor<3> {
-    let padded_options = options.into();
+    let options = options.into();
     check!(TensorCheck::conv(
         "conv1d",
         x.dims(),
         weight.dims(),
-        padded_options.options.groups,
+        options.groups,
     ));
 
-    if let Some(padding_end) = padded_options.padding_end {
-        let left = padded_options.options.padding[0];
-        let right = padding_end[0];
-        // For 1D (NCL format), pad the length dimension
-        let padded = x.pad((left, right, 0, 0), PadMode::Constant(0.0));
-        let zero_options = ConvOptions::new(
-            padded_options.options.stride,
-            [0],
-            padded_options.options.dilation,
-            padded_options.options.groups,
-        );
-        Tensor::new(BridgeTensor::float(Dispatch::conv1d(
-            padded.primitive.into_float(),
-            weight.primitive.into_float(),
-            bias.map(|b| b.primitive.into_float()),
-            zero_options,
-        )))
-    } else {
-        Tensor::new(BridgeTensor::float(Dispatch::conv1d(
-            x.primitive.into_float(),
-            weight.primitive.into_float(),
-            bias.map(|b| b.primitive.into_float()),
-            padded_options.options,
-        )))
-    }
+    Tensor::new(BridgeTensor::float(Dispatch::conv1d(
+        x.primitive.into_float(),
+        weight.primitive.into_float(),
+        bias.map(|b| b.primitive.into_float()),
+        options,
+    )))
 }
 
 /// Applies a [2D convolution](burn_backend::ops::ModuleOps::conv2d).
 ///
-/// Accepts [`ConvOptions`] for symmetric padding, or [`PaddedConvOptions`] for
-/// asymmetric padding. When asymmetric padding is specified, an explicit pad
-/// operation is applied before the convolution backend op.
+/// Supports symmetric and asymmetric padding through [`ConvOptions`].
+/// The deprecated [`PaddedConvOptions`](crate::ops::PaddedConvOptions) is also
+/// accepted for compatibility.
 pub fn conv2d(
     x: Tensor<4>,
     weight: Tensor<4>,
     bias: Option<Tensor<1>>,
-    options: impl Into<PaddedConvOptions<2>>,
+    options: impl Into<ConvOptions<2>>,
 ) -> Tensor<4> {
-    let padded_options = options.into();
+    let options = options.into();
     check!(TensorCheck::conv(
         "conv2d",
         x.dims(),
         weight.dims(),
-        padded_options.options.groups,
+        options.groups,
     ));
 
-    if let Some(padding_end) = padded_options.padding_end {
-        let top = padded_options.options.padding[0];
-        let left = padded_options.options.padding[1];
-        let bottom = padding_end[0];
-        let right = padding_end[1];
-        // For 2D (NCHW format), pad height and width
-        let padded = x.pad((left, right, top, bottom), PadMode::Constant(0.0));
-        let zero_options = ConvOptions::new(
-            padded_options.options.stride,
-            [0, 0],
-            padded_options.options.dilation,
-            padded_options.options.groups,
-        );
-        Tensor::new(BridgeTensor::float(Dispatch::conv2d(
-            padded.primitive.into_float(),
-            weight.primitive.into_float(),
-            bias.map(|b| b.primitive.into_float()),
-            zero_options,
-        )))
-    } else {
-        Tensor::new(BridgeTensor::float(Dispatch::conv2d(
-            x.primitive.into_float(),
-            weight.primitive.into_float(),
-            bias.map(|b| b.primitive.into_float()),
-            padded_options.options,
-        )))
-    }
+    Tensor::new(BridgeTensor::float(Dispatch::conv2d(
+        x.primitive.into_float(),
+        weight.primitive.into_float(),
+        bias.map(|b| b.primitive.into_float()),
+        options,
+    )))
 }
 
 /// Applies a [3D convolution](burn_backend::ops::ModuleOps::conv3d).
 ///
-/// Accepts [`ConvOptions`] for symmetric padding, or [`PaddedConvOptions`] for
-/// asymmetric padding. Asymmetric 3D padding is not yet supported.
+/// Asymmetric 3D padding is not yet supported.
+/// The deprecated [`PaddedConvOptions`](crate::ops::PaddedConvOptions) is also
+/// accepted for compatibility.
 pub fn conv3d(
     x: Tensor<5>,
     weight: Tensor<5>,
     bias: Option<Tensor<1>>,
-    options: impl Into<PaddedConvOptions<3>>,
+    options: impl Into<ConvOptions<3>>,
 ) -> Tensor<5> {
-    let padded_options = options.into();
+    let options = options.into();
     check!(TensorCheck::conv(
         "conv3d",
         x.dims(),
         weight.dims(),
-        padded_options.options.groups,
+        options.groups,
     ));
 
-    if padded_options.is_asymmetric() {
+    if options.is_asymmetric() {
         panic!("Asymmetric padding is not yet supported for conv3d");
     }
 
@@ -168,7 +223,7 @@ pub fn conv3d(
         x.primitive.into_float(),
         weight.primitive.into_float(),
         bias.map(|b| b.primitive.into_float()),
-        padded_options.options,
+        options,
     )))
 }
 
@@ -383,7 +438,7 @@ pub fn max_pool1d_with_indices(
     dilation: usize,
     ceil_mode: bool,
 ) -> (Tensor<3>, Tensor<3, Int>) {
-    let indices_dtype = x.device().settings().int_dtype;
+    let indices_dtype = x.device().get_or_init_settings().int_dtype;
     let output = Dispatch::max_pool1d_with_indices(
         x.primitive.into_float(),
         kernel_size,
@@ -409,7 +464,7 @@ pub fn max_pool2d_with_indices(
     dilation: [usize; 2],
     ceil_mode: bool,
 ) -> (Tensor<4>, Tensor<4, Int>) {
-    let indices_dtype = x.device().settings().int_dtype;
+    let indices_dtype = x.device().get_or_init_settings().int_dtype;
     let output = Dispatch::max_pool2d_with_indices(
         x.primitive.into_float(),
         kernel_size,
@@ -434,6 +489,14 @@ pub fn adaptive_avg_pool2d(x: Tensor<4>, output_size: [usize; 2]) -> Tensor<4> {
     )))
 }
 
+/// Applies a [3D adaptive avg pooling](burn_backend::ops::ModuleOps::adaptive_avg_pool3d).
+pub fn adaptive_avg_pool3d(x: Tensor<5>, output_size: [usize; 3]) -> Tensor<5> {
+    Tensor::new(BridgeTensor::float(Dispatch::adaptive_avg_pool3d(
+        x.primitive.into_float(),
+        output_size,
+    )))
+}
+
 /// Applies a [1D adaptive avg pooling](burn_backend::ops::ModuleOps::adaptive_avg_pool1d).
 pub fn adaptive_avg_pool1d(x: Tensor<3>, output_size: usize) -> Tensor<3> {
     Tensor::new(BridgeTensor::float(Dispatch::adaptive_avg_pool1d(
@@ -443,16 +506,51 @@ pub fn adaptive_avg_pool1d(x: Tensor<3>, output_size: usize) -> Tensor<3> {
 }
 
 /// Applies a [2D interpolation](burn_backend::ops::ModuleOps::interpolate).
-pub fn interpolate(
-    x: Tensor<4>,
-    output_size: [usize; 2],
-    options: InterpolateOptions,
-) -> Tensor<4> {
+///
+/// The output spatial size is taken from `options.output_size`, or computed as
+/// `floor(input_size * scale_factor)` from `options.scale_factor`.
+///
+/// # Panics
+///
+/// Panics unless exactly one of `output_size` or `scale_factor` is set, or if the
+/// scaled size exceeds `usize::MAX`.
+///
+/// # Example
+///
+/// ```rust,ignore
+/// // Resize to a fixed size.
+/// interpolate(x, InterpolateOptions::new(mode).with_output_size([224, 224]));
+/// // Upsample by 2x.
+/// interpolate(x, InterpolateOptions::new(mode).with_scale_factor([2.0, 2.0]));
+/// ```
+pub fn interpolate(x: Tensor<4>, options: InterpolateOptions) -> Tensor<4> {
+    let [_, _, h, w] = x.dims();
+    let output_size = interpolate_output_size([h, w], &options);
     Tensor::new(BridgeTensor::float(Dispatch::interpolate(
         x.primitive.into_float(),
         output_size,
         options,
     )))
+}
+
+fn interpolate_output_size(input_size: [usize; 2], options: &InterpolateOptions) -> [usize; 2] {
+    match (options.output_size, options.scale_factor) {
+        (Some(output_size), None) => output_size,
+        (None, Some(scale_factor)) => core::array::from_fn(|i| {
+            let size = input_size[i] as f64 * scale_factor[i] as f64;
+            assert!(
+                size <= usize::MAX as f64,
+                "Interpolate scale factor {} is too large for input size {}",
+                scale_factor[i],
+                input_size[i]
+            );
+            size as usize
+        }),
+        (Some(_), Some(_)) => {
+            panic!("Interpolate options must set only one of output_size or scale_factor")
+        }
+        (None, None) => panic!("Interpolate options must set output_size or scale_factor"),
+    }
 }
 
 /// Applies a linear transformation to the input tensor using the given weight and bias.
@@ -700,4 +798,60 @@ fn layer_norm_impl(
         beta.map(|b| b.into_float()),
         epsilon,
     ))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::ops::InterpolateMode;
+
+    fn options() -> InterpolateOptions {
+        InterpolateOptions::new(InterpolateMode::Nearest)
+    }
+
+    #[test]
+    fn interpolate_output_size_from_output_size() {
+        let size = interpolate_output_size([4, 4], &options().with_output_size([2, 3]));
+        assert_eq!(size, [2, 3]);
+    }
+
+    #[test]
+    fn interpolate_output_size_from_scale_factor_floors() {
+        let size = interpolate_output_size([4, 5], &options().with_scale_factor([2.0, 1.5]));
+        assert_eq!(size, [8, 7]);
+    }
+
+    #[test]
+    fn interpolate_options_last_sizing_builder_wins() {
+        let size = interpolate_output_size(
+            [4, 4],
+            &options()
+                .with_output_size([2, 2])
+                .with_scale_factor([2.0, 2.0]),
+        );
+        assert_eq!(size, [8, 8]);
+    }
+
+    #[test]
+    #[should_panic(expected = "must set output_size or scale_factor")]
+    fn interpolate_output_size_requires_size() {
+        interpolate_output_size([4, 4], &options());
+    }
+
+    #[test]
+    #[should_panic(expected = "only one of output_size or scale_factor")]
+    fn interpolate_output_size_rejects_both() {
+        let mut options = options().with_output_size([2, 2]);
+        options.scale_factor = Some([2.0, 2.0]);
+        interpolate_output_size([4, 4], &options);
+    }
+
+    #[test]
+    #[should_panic(expected = "too large")]
+    fn interpolate_output_size_rejects_overflow() {
+        interpolate_output_size(
+            [4, usize::MAX - 1],
+            &options().with_scale_factor([1.0, 2.0]),
+        );
+    }
 }

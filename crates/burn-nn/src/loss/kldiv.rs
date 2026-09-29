@@ -57,7 +57,7 @@ impl ModuleDisplay for KLDivLoss {
 impl KLDivLoss {
     /// Compute the criterion on the input tensor.
     ///
-    /// `Reduction::Auto` behaves as `Reduction::BatchMean`,`Reduction::Mean` dose not align with the math definition.
+    /// `Reduction::Auto` behaves as `Reduction::BatchMean`,`Reduction::Mean` does not align with the math definition.
     ///
     /// # Shapes
     ///

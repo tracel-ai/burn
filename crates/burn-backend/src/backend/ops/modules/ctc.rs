@@ -1,7 +1,7 @@
-use burn_std::{Shape, Slice};
+use burn_std::{IndexingUpdateOp, Shape, Slice};
 
 use crate::{
-    Backend, TensorMetadata, get_device_settings,
+    Backend, TensorMetadata, get_or_init_device_settings,
     tensor::{BoolTensor, FloatTensor, IntTensor},
 };
 
@@ -72,7 +72,7 @@ pub fn ctc_grad_from_alpha_beta_default<B: Backend>(
     let max_l_prime_len = 2 * max_target_len + 1;
     let device = log_probs.device();
     let int_dtype: burn_std::IntDType = targets.dtype().into();
-    let settings = get_device_settings::<B>(&device);
+    let settings = get_or_init_device_settings::<B>(&device);
 
     let blank_inserted_targets = insert_blanks::<B>(
         &targets,
@@ -137,7 +137,7 @@ pub fn ctc_grad_from_alpha_beta_default<B: Backend>(
     );
     let scatter_value = B::float_neg(B::float_mul(B::float_exp(log_post), grad_loss_post));
 
-    grad = B::float_scatter_add(2, grad, indices_3d, scatter_value);
+    grad = B::float_scatter(2, grad, indices_3d, scatter_value, IndexingUpdateOp::Add);
 
     // Mask out timesteps where t >= input_lengths[n].
     let t_indices = B::int_arange(0..max_input_length as i64, &device, int_dtype);
@@ -196,7 +196,7 @@ impl<B: Backend> AlphaCtx<B> {
         let device = log_probs.device();
         let float_dtype: burn_std::FloatDType = log_probs.dtype().into();
         let int_dtype: burn_std::IntDType = targets.dtype().into();
-        let settings = get_device_settings::<B>(&device);
+        let settings = get_or_init_device_settings::<B>(&device);
 
         let max_l_prime_len = 2 * max_target_len + 1;
         let blank_inserted_targets = insert_blanks::<B>(
@@ -405,7 +405,7 @@ impl<B: Backend> AlphaCtx<B> {
 fn extract_loss<B: Backend>(alpha: &AlphaCtx<B>, target_lengths: IntTensor<B>) -> FloatTensor<B> {
     let log_alpha_shape = alpha.last.shape();
     let [batch_size, _] = log_alpha_shape.dims::<2>();
-    let settings = get_device_settings::<B>(&alpha.last.device());
+    let settings = get_or_init_device_settings::<B>(&alpha.last.device());
 
     let last_blank_idx = B::int_mul_scalar(target_lengths.clone(), 2.into());
     let last_blank_idx = B::int_reshape(last_blank_idx, Shape::new([batch_size, 1]));

@@ -36,6 +36,22 @@ impl Quantizer {
     pub fn set_param_group(&mut self, group: ParamGroup) {
         self.group = group
     }
+
+    pub(crate) fn map_float_at_path<const D: usize>(
+        &self,
+        param: Param<Tensor<D>>,
+        path: &str,
+    ) -> Param<Tensor<D>> {
+        if self.group.matches(&param.id, Some(path)) {
+            return param.map(|tensor| {
+                let range = compute_range(&self.scheme, &tensor, &self.calibration);
+                let qparams = compute_q_params(&self.scheme, range);
+                tensor.quantize(&self.scheme, qparams)
+            });
+        }
+
+        param
+    }
 }
 
 impl ModuleMapper for Quantizer {
@@ -48,14 +64,8 @@ impl ModuleMapper for Quantizer {
     }
 
     fn map_float<const D: usize>(&mut self, param: Param<Tensor<D>>) -> Param<Tensor<D>> {
-        let (id, mut tensor, mapper) = param.consume();
         let path = self.path.join(".");
-        if self.group.matches(&id, Some(&path)) {
-            let range = compute_range(&self.scheme, &tensor, &self.calibration);
-            let qparams = compute_q_params(&self.scheme, range);
-            tensor = tensor.quantize(&self.scheme, qparams);
-        }
-        Param::from_mapped_value(id, tensor, mapper)
+        self.map_float_at_path(param, &path)
     }
 }
 
@@ -67,7 +77,7 @@ mod tests {
     use crate::test_utils::SimpleLinear;
     use burn_tensor::{
         Device, Tensor, Tolerance,
-        quantization::{Calibration, QuantLevel, QuantParam, QuantScheme, QuantValue},
+        quantization::{Calibration, QuantScheme, QuantValue},
     };
 
     /// Per-tensor Q8 symmetric scheme used across these tests.
@@ -77,8 +87,6 @@ mod tests {
             .quantization
             .scheme
             .with_value(QuantValue::Q8S)
-            .with_level(QuantLevel::Tensor)
-            .with_param(QuantParam::F32)
     }
 
     /// Whether a tensor currently holds quantized (`QFloat`) data.

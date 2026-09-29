@@ -1,7 +1,6 @@
 use super::block::ReduceBlockKind;
 use crate::optim::reduce_broadcasted::fuser::block::ReduceBlockFuser;
 use burn_ir::{TensorId, TensorIr};
-use cubecl::Runtime;
 use std::collections::BTreeMap;
 
 #[derive(Debug)]
@@ -11,7 +10,7 @@ pub struct FullFuserAnalyzer {
 }
 
 impl FullFuserAnalyzer {
-    pub fn new<R: Runtime>(blocks: &[ReduceBlockFuser<R>]) -> Self {
+    pub fn new(blocks: &[ReduceBlockFuser]) -> Self {
         let mut state = AnalysisState::default();
 
         for block in blocks.iter() {

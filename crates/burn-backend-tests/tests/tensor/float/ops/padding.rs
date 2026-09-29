@@ -1,5 +1,5 @@
 use super::*;
-use burn_tensor::{TensorData, ops::PadMode};
+use burn_tensor::{DType, TensorData, ops::PadMode};
 
 #[test]
 fn padding_constant_2d_test() {
@@ -456,6 +456,83 @@ fn padding_edge_batch_dim_3d_test() {
         [[1.0, 2.0]],
         [[3.0, 4.0]],
         [[3.0, 4.0]],
+    ]);
+    padded.into_data().assert_eq(&expected, false);
+}
+
+fn tensor_with_non_default_dtype() -> Option<TestTensor<2>> {
+    let device = burn_tensor::Device::default();
+    let default_dtype = <FloatElem as burn_tensor::Element>::dtype();
+    let dtype = if default_dtype == DType::F16 {
+        DType::F32
+    } else {
+        DType::F16
+    };
+
+    device.supports_dtype(dtype).then(|| {
+        TestTensor::<2>::from_data(
+            [[1.0, 2.0, 3.0], [4.0, 5.0, 6.0], [7.0, 8.0, 9.0]],
+            (&device, dtype),
+        )
+    })
+}
+
+#[test]
+fn padding_constant_preserves_non_default_dtype() {
+    let Some(tensor) = tensor_with_non_default_dtype() else {
+        return;
+    };
+    let dtype = tensor.dtype();
+
+    let padded = tensor.pad([(1, 1), (1, 1)], PadMode::Constant(0.0));
+
+    assert_eq!(padded.dtype(), dtype);
+    let expected = TensorData::from([
+        [0.0, 0.0, 0.0, 0.0, 0.0],
+        [0.0, 1.0, 2.0, 3.0, 0.0],
+        [0.0, 4.0, 5.0, 6.0, 0.0],
+        [0.0, 7.0, 8.0, 9.0, 0.0],
+        [0.0, 0.0, 0.0, 0.0, 0.0],
+    ]);
+    padded.into_data().assert_eq(&expected, false);
+}
+
+#[test]
+fn padding_reflect_preserves_non_default_dtype() {
+    let Some(tensor) = tensor_with_non_default_dtype() else {
+        return;
+    };
+    let dtype = tensor.dtype();
+
+    let padded = tensor.pad([(1, 1), (1, 1)], PadMode::Reflect);
+
+    assert_eq!(padded.dtype(), dtype);
+    let expected = TensorData::from([
+        [5.0, 4.0, 5.0, 6.0, 5.0],
+        [2.0, 1.0, 2.0, 3.0, 2.0],
+        [5.0, 4.0, 5.0, 6.0, 5.0],
+        [8.0, 7.0, 8.0, 9.0, 8.0],
+        [5.0, 4.0, 5.0, 6.0, 5.0],
+    ]);
+    padded.into_data().assert_eq(&expected, false);
+}
+
+#[test]
+fn padding_edge_preserves_non_default_dtype() {
+    let Some(tensor) = tensor_with_non_default_dtype() else {
+        return;
+    };
+    let dtype = tensor.dtype();
+
+    let padded = tensor.pad([(1, 1), (1, 1)], PadMode::Edge);
+
+    assert_eq!(padded.dtype(), dtype);
+    let expected = TensorData::from([
+        [1.0, 1.0, 2.0, 3.0, 3.0],
+        [1.0, 1.0, 2.0, 3.0, 3.0],
+        [4.0, 4.0, 5.0, 6.0, 6.0],
+        [7.0, 7.0, 8.0, 9.0, 9.0],
+        [7.0, 7.0, 8.0, 9.0, 9.0],
     ]);
     padded.into_data().assert_eq(&expected, false);
 }

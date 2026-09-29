@@ -1,5 +1,8 @@
 use super::{
-    adaptive_avgpool::{adaptive_avg_pool2d, adaptive_avg_pool2d_backward},
+    adaptive_avgpool::{
+        adaptive_avg_pool2d, adaptive_avg_pool2d_backward, adaptive_avg_pool3d,
+        adaptive_avg_pool3d_backward,
+    },
     avgpool::{avg_pool2d, avg_pool2d_backward},
     conv::{conv_transpose2d, conv_transpose3d, conv2d, conv3d},
     deform_conv::{backward::deform_conv2d_backward, deform_conv2d},
@@ -18,7 +21,7 @@ use crate::{
 };
 use burn_backend::{
     TensorMetadata,
-    ops::{attention::attention_fallback, *},
+    ops::{attention::attention_fallback, conv::pad_asymmetric_conv_input, *},
     tensor::FloatTensor,
 };
 use burn_std::IntDType;
@@ -55,6 +58,7 @@ impl ModuleOps<Self> for NdArray {
         bias: Option<NdArrayTensor>,
         options: ConvOptions<2>,
     ) -> NdArrayTensor {
+        let (x, options) = pad_asymmetric_conv_input::<NdArray, 2>(x, options);
         module_op!(inp(x, weight), opt(bias), E, |x, weight, bias| {
             #[cfg(feature = "simd")]
             let (x, weight, bias) = match try_conv2d_simd(x, weight, bias, options.clone()) {
@@ -272,6 +276,23 @@ impl ModuleOps<Self> for NdArray {
         })
     }
 
+    fn adaptive_avg_pool3d(x: FloatTensor<Self>, output_size: [usize; 3]) -> FloatTensor<Self> {
+        module_op!(inp(x), opt(), E, |x| adaptive_avg_pool3d::<E>(
+            x,
+            output_size
+        )
+        .into())
+    }
+
+    fn adaptive_avg_pool3d_backward(
+        x: FloatTensor<Self>,
+        grad: FloatTensor<Self>,
+    ) -> FloatTensor<Self> {
+        module_op!(inp(x, grad), opt(), E, |x, grad| {
+            adaptive_avg_pool3d_backward::<E>(x, grad).into()
+        })
+    }
+
     fn interpolate(
         x: FloatTensor<Self>,
         output_size: [usize; 2],
@@ -375,22 +396,5 @@ impl ModuleOps<Self> for NdArray {
         options: AttentionModuleOptions,
     ) -> FloatTensor<Self> {
         attention_fallback::<Self>(query, key, value, mask, attn_bias, options)
-    }
-
-    fn rfft(
-        _signal: FloatTensor<Self>,
-        _dim: usize,
-        _n: Option<usize>,
-    ) -> (FloatTensor<Self>, FloatTensor<Self>) {
-        todo!("rfft is not supported for ndarray")
-    }
-
-    fn irfft(
-        _spectrum_re: FloatTensor<Self>,
-        _spectrum_im: FloatTensor<Self>,
-        _dim: usize,
-        _n: Option<usize>,
-    ) -> FloatTensor<Self> {
-        todo!("irfft is not supported for ndarray")
     }
 }

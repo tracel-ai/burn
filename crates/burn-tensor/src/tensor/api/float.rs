@@ -1,5 +1,6 @@
 use crate::AsIndex;
 use crate::Cast;
+use crate::DType;
 use crate::Device;
 use crate::Tensor;
 use crate::cast::ToElement;
@@ -8,7 +9,7 @@ use crate::check::TensorCheck;
 use crate::check::unwrap_dim_index;
 use crate::kind::FloatMath;
 use crate::ops::{BridgeKind, BridgeTensor};
-use crate::quantization::{QuantScheme, QuantizationParameters};
+use crate::quantization::{QuantScheme, QuantizationParameters, global_scale_dtype};
 use crate::tensor::stats;
 use crate::tensor::{Distribution, TensorData};
 use crate::{Bool, Float, Int, TensorPrimitive};
@@ -56,6 +57,7 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     #[cfg_attr(doc, doc = r#"$y_i = \sqrt{x_i^2 + y_i^2}$"#)]
     #[cfg_attr(not(doc), doc = "`y_i = sqrt(x_i^2 + y_i^2)`")]
     pub fn hypot(self, other: Self) -> Self {
+        check!(TensorCheck::binary_ops_ew("Hypot", &self, &other));
         Self::new(hypot_impl(self.primitive, other.primitive))
     }
 
@@ -75,7 +77,7 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     /// let tensor_in_radians = tensor.deg2rad();
     /// ```
     pub fn deg2rad(self) -> Self {
-        self.mul_scalar(f32::consts::PI / 180.0)
+        self.mul_scalar(core::f64::consts::PI / 180.0)
     }
 
     /// Converts each of the elements of the input tensor from angles in radians to degrees.
@@ -85,7 +87,7 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     /// let tensor_in_degrees = tensor.rad2deg();
     /// ```
     pub fn rad2deg(self) -> Self {
-        self.mul_scalar(180.0 / f32::consts::PI)
+        self.mul_scalar(180.0 / core::f64::consts::PI)
     }
 
     /// Applies element wise round operation.
@@ -113,11 +115,9 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     /// ```rust
     /// use burn_tensor::Tensor;
     ///
-    /// fn example() {
-    ///     let device = Default::default();
-    ///     let _ = Tensor::<1>::from_floats([1.0, 2.0], &device);
-    ///     let _ = Tensor::<2>::from_floats([[1.0, 2.0], [3.0, 4.0]], &device);
-    /// }
+    /// let device = Default::default();
+    /// let _ = Tensor::<1>::from_floats([1.0, 2.0], &device);
+    /// let _ = Tensor::<2>::from_floats([[1.0, 2.0], [3.0, 4.0]], &device);
     /// ```
     pub fn from_floats<A: Into<TensorData>>(floats: A, device: &Device) -> Self {
         Self::from_data(floats.into().convert::<f32>(), device)
@@ -131,11 +131,9 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     /// ```rust
     /// use burn_tensor::Tensor;
     ///
-    /// fn example() {
-    ///     let device = Default::default();
-    ///     let float_tensor = Tensor::<1>::from_floats([1.0, 2.0], &device);
-    ///     let int_tensor = float_tensor.int();
-    /// }
+    /// let device = Default::default();
+    /// let float_tensor = Tensor::<1>::from_floats([1.0, 2.0], &device);
+    /// let int_tensor = float_tensor.int();
     /// ```
     pub fn int(self) -> Tensor<D, Int> {
         let device = self.device();
@@ -144,7 +142,16 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
 
     /// Returns a new tensor with the same shape, dtype, and device as the current tensor filled random
     /// values sampled from the given distribution.
+    ///
+    /// # Panics
+    ///
+    /// If the tensor is quantized. This method preserves the input dtype,
+    /// but quantized tensor creation is not supported.
     pub fn random_like(&self, distribution: Distribution) -> Self {
+        check!(TensorCheck::quantized_unsupported(
+            "Random Like",
+            self.dtype()
+        ));
         Self::new(random_like_impl(&self.primitive, distribution))
     }
 
@@ -302,16 +309,14 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     /// ```rust
     /// use burn_tensor::{Tensor, FloatDType, IntDType};
     ///
-    /// fn example() {
-    ///     let device = Default::default();
-    ///     let float_tensor = Tensor::<1>::from_floats([1.0, 2.5], &device);
+    /// let device = Default::default();
+    /// let float_tensor = Tensor::<1>::from_floats([1.0, 2.5], &device);
     ///
-    ///     // Within-kind cast (float to float)
-    ///     let f64_tensor = float_tensor.clone().cast(FloatDType::F64);
+    /// // Within-kind cast (float to float)
+    /// let f64_tensor = float_tensor.clone().cast(FloatDType::F64);
     ///
-    ///     // Cross-kind cast (float to int)
-    ///     let int_tensor = float_tensor.cast(IntDType::I64);
-    /// }
+    /// // Cross-kind cast (float to int)
+    /// let int_tensor = float_tensor.cast(IntDType::I64);
     /// ```
     #[must_use]
     pub fn cast<T: Cast<D, Float>>(self, dtype: T) -> Tensor<D, T::OutputKind> {
@@ -320,29 +325,51 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
 
     /// Detach the current tensor from the autodiff graph.
     ///
-    /// This function does nothing when autodiff is not enabled.
-    /// This can be used in batchers or elsewhere to ensure that previous operations are not
-    /// considered in the autodiff graph.
+    /// The returned tensor keeps its autodiff association but starts a new graph lineage, so
+    /// previous operations aren't considered during backward. A leaf tensor also preserves its
+    /// current `require_grad` setting. This function does nothing when autodiff isn't enabled.
+    #[must_use]
     pub fn detach(self) -> Self {
         Self::new(detach_impl(self.primitive))
     }
 
     /// Mark the tensor to keep gradients during the backward pass.
     ///
-    /// This function does nothing when autodiff is not enabled.
+    /// This function does nothing when the tensor is quantized.
+    /// Enabling gradient retention doesn't enable autodiff; use [`autodiff`](Tensor::autodiff)
+    /// first when needed.
+    ///
+    /// # Panics
+    ///
+    /// For non-quantized tensors, panics if autodiff is disabled or the tensor is a non-leaf.
+    /// Enable autodiff with [`autodiff`](Tensor::autodiff) before requesting gradients.
+    /// Use [`detach`](Tensor::detach) first to start a new graph lineage.
+    #[must_use]
     pub fn require_grad(self) -> Self {
         self.set_require_grad(true)
     }
 
-    /// Returns true if the tensor requires gradients during the backward pass.
+    /// Returns whether this tensor's gradient is retained after backward.
+    ///
+    /// This is distinct from [`Tensor::is_autodiff`], which reports whether operations use an
+    /// autodiff context, and `Tensor::is_tracked()`, which reports graph participation when the
+    /// `autodiff` feature is enabled.
     pub fn is_require_grad(&self) -> bool {
         is_require_grad_impl(&self.primitive)
     }
 
-    /// Mark the tensor as tracked or untracked depending on the require_grad argument.
-    /// When tracked, the gradients will be available after the backward pass.
+    /// Sets whether this tensor's gradient is retained after backward.
     ///
-    /// This function does nothing when autodiff is not enabled.
+    /// This function does nothing when the tensor is quantized.
+    /// Setting this to `false` on a non-leaf tensor starts a new graph lineage, like
+    /// [`detach`](Tensor::detach), while leaving gradient retention disabled.
+    ///
+    /// # Panics
+    ///
+    /// Panics when setting this to `true` without autodiff or on a non-leaf tensor.
+    /// Enable autodiff with [`autodiff`](Tensor::autodiff) first. Setting this to `false`
+    /// on a tensor without autodiff is harmless. Quantized tensors remain unchanged.
+    #[must_use]
     pub fn set_require_grad(self, require_grad: bool) -> Self {
         Self::new(set_require_grad_impl(self.primitive, require_grad))
     }
@@ -381,10 +408,31 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     ///
     /// The quantized tensor.
     pub fn quantize(self, scheme: &QuantScheme, qparams: QuantizationParameters) -> Tensor<D> {
+        assert_eq!(
+            global_scale_dtype(scheme).is_some(),
+            qparams.global.is_some(),
+            "{scheme:?} does not match a per-tensor scale of {:?}",
+            qparams.global,
+        );
+        if let Some(global) = &qparams.global {
+            assert_eq!(
+                global.dims()[0],
+                1,
+                "the per-tensor scale must have exactly one element, got {:?}",
+                global.dims()
+            );
+            assert_eq!(
+                global.dtype(),
+                DType::F32,
+                "the per-tensor scale must be an f32 tensor, got {:?}",
+                global.dtype()
+            );
+        }
         Tensor::new(quantize_impl(
             self.primitive,
             scheme,
             qparams.scales.primitive,
+            qparams.global.map(|global| global.primitive),
         ))
     }
 
@@ -441,14 +489,12 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     /// ```rust
     /// use burn_tensor::{Tensor, Shape};
     ///
-    /// fn example() {
-    ///    let device = Default::default();
-    ///    let tensor1 = Tensor::<2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
-    ///    let tensor2 = Tensor::<2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
-    ///    let tensor = tensor1.is_close(tensor2, None, None);
-    ///    println!("{tensor}");
-    ///    // [[true, true, true], [true, true, true]]
-    /// }
+    /// let device = Default::default();
+    /// let tensor1 = Tensor::<2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
+    /// let tensor2 = Tensor::<2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
+    /// let tensor = tensor1.is_close(tensor2, None, None);
+    /// println!("{tensor}");
+    /// // [[true, true, true], [true, true, true]]
     /// ```
     pub fn is_close(self, other: Self, rtol: Option<f64>, atol: Option<f64>) -> Tensor<D, Bool> {
         let rtol = rtol.unwrap_or(DEFAULT_RTOL);
@@ -504,14 +550,12 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     /// ```rust
     /// use burn_tensor::{Tensor, Shape};
     ///
-    /// fn example() {
-    ///    let device = Default::default();
-    ///    let tensor1 = Tensor::<2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
-    ///    let tensor2 = Tensor::<2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
-    ///    let result = tensor1.all_close(tensor2, None, None);
-    ///    println!("{}", result);
-    ///    // true
-    /// }
+    /// let device = Default::default();
+    /// let tensor1 = Tensor::<2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
+    /// let tensor2 = Tensor::<2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
+    /// let result = tensor1.all_close(tensor2, None, None);
+    /// println!("{}", result);
+    /// // true
     /// ```
     pub fn all_close(self, other: Self, rtol: Option<f64>, atol: Option<f64>) -> bool {
         self.is_close(other, rtol, atol)
@@ -531,13 +575,11 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     /// ```rust
     /// use burn_tensor::{Tensor, Bool, Shape};
     ///
-    /// fn example() {
-    ///    let device = Default::default();
-    ///    let tensor = Tensor::<2>::from_data([[1.0, f64::NAN, 3.0], [5.0, 9.0, 6.0]], &device);
-    ///    let tensor = tensor.is_nan();
-    ///    println!("{tensor}");
-    ///    // [[false, true, false], [false, false, false]]
-    /// }
+    /// let device = Default::default();
+    /// let tensor = Tensor::<2>::from_data([[1.0, f64::NAN, 3.0], [5.0, 9.0, 6.0]], &device);
+    /// let tensor = tensor.is_nan();
+    /// println!("{tensor}");
+    /// // [[false, true, false], [false, false, false]]
     /// ```
     pub fn is_nan(self) -> Tensor<D, Bool> {
         Tensor::new(is_nan_impl(self.primitive))
@@ -554,17 +596,15 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     /// ```rust
     /// use burn_tensor::{Tensor, Bool, Shape};
     ///
-    /// fn example() {
-    ///   let device = Default::default();
-    ///   let tensor = Tensor::<2>::from_data([[1.0, -2.0, 3.0], [f64::NAN, 9.0, 6.0]], &device);
-    ///   let tensor = tensor.contains_nan();
-    ///   println!("{tensor}");
-    ///   // [true]
-    ///   let tensor = Tensor::<2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
-    ///   let tensor = tensor.contains_nan();
-    ///   println!("{tensor}");
-    ///   // [false]
-    /// }
+    /// let device = Default::default();
+    /// let tensor = Tensor::<2>::from_data([[1.0, -2.0, 3.0], [f64::NAN, 9.0, 6.0]], &device);
+    /// let tensor = tensor.contains_nan();
+    /// println!("{tensor}");
+    /// // [true]
+    /// let tensor = Tensor::<2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
+    /// let tensor = tensor.contains_nan();
+    /// println!("{tensor}");
+    /// // [false]
     /// ```
     pub fn contains_nan(self) -> Tensor<1, Bool> {
         self.is_nan().any()
@@ -581,13 +621,11 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     /// ```rust
     /// use burn_tensor::{Tensor, Bool, Shape};
     ///
-    /// fn example() {
-    ///    let device = Default::default();
-    ///    let tensor = Tensor::<2>::from_data([[1.0, f64::INFINITY, 3.0], [f64::NAN, 9.0, 6.0]], &device);
-    ///    let tensor = tensor.is_finite();
-    ///    println!("{tensor}");
-    ///    // [[false, true, false], [false, false, false]]
-    /// }
+    /// let device = Default::default();
+    /// let tensor = Tensor::<2>::from_data([[1.0, f64::INFINITY, 3.0], [f64::NAN, 9.0, 6.0]], &device);
+    /// let tensor = tensor.is_finite();
+    /// println!("{tensor}");
+    /// // [[false, true, false], [false, false, false]]
     /// ```
     pub fn is_inf(self) -> Tensor<D, Bool> {
         Tensor::new(is_inf_impl(self.primitive))
@@ -605,13 +643,11 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     /// ```rust
     /// use burn_tensor::{Tensor, Bool, Shape};
     ///
-    /// fn example() {
-    ///    let device = Default::default();
-    ///    let tensor = Tensor::<2>::from_data([[1.0, f64::INFINITY, 3.0], [f64::NAN, 9.0, 6.0]], &device);
-    ///    let tensor = tensor.is_finite();
-    ///    println!("{tensor}");
-    ///    // [[true, false, true], [false, true, true]]
-    /// }
+    /// let device = Default::default();
+    /// let tensor = Tensor::<2>::from_data([[1.0, f64::INFINITY, 3.0], [f64::NAN, 9.0, 6.0]], &device);
+    /// let tensor = tensor.is_finite();
+    /// println!("{tensor}");
+    /// // [[true, false, true], [false, true, true]]
     /// ```
     pub fn is_finite(self) -> Tensor<D, Bool> {
         self.clone()
@@ -689,16 +725,15 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     /// ```rust
     /// use burn_tensor::{Tensor, Shape};
     ///
-    /// fn example() {
-    ///    let device = Default::default();
-    ///    let tensor1 = Tensor::<2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
-    ///    let tensor2 = Tensor::<2>::from_data([[2.0, 3.0, 4.0], [1.0, 2.0, 3.0]], &device);
-    ///    let tensor = tensor1.powf(tensor2);
-    ///    println!("{tensor}");
-    ///    // [[1.0, 8.0, 81.0], [5.0, 81.0, 216.0]]
-    /// }
+    /// let device = Default::default();
+    /// let tensor1 = Tensor::<2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
+    /// let tensor2 = Tensor::<2>::from_data([[2.0, 3.0, 4.0], [1.0, 2.0, 3.0]], &device);
+    /// let tensor = tensor1.powf(tensor2);
+    /// println!("{tensor}");
+    /// // [[1.0, 8.0, 81.0], [5.0, 81.0, 216.0]]
     /// ```
     pub fn powf(self, other: Self) -> Self {
+        check!(TensorCheck::binary_ops_ew("Powf", &self, &other));
         Tensor::new(powf_impl(self.primitive, other.primitive))
     }
 
@@ -713,13 +748,11 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     /// ```rust
     /// use burn_tensor::{Tensor, Shape};
     ///
-    /// fn example() {
-    ///    let device = Default::default();
-    ///    let tensor = Tensor::<2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
-    ///    let tensor = tensor.powf_scalar(2.0);
-    ///    println!("{tensor}");
-    ///    // [[1.0, 4.0, 9.0], [25.0, 81.0, 36.0]]
-    /// }
+    /// let device = Default::default();
+    /// let tensor = Tensor::<2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
+    /// let tensor = tensor.powf_scalar(2.0);
+    /// println!("{tensor}");
+    /// // [[1.0, 4.0, 9.0], [25.0, 81.0, 36.0]]
     /// ```
     pub fn powf_scalar<E: ElementConversion>(self, other: E) -> Self {
         let rhs = Scalar::new(other, &self.dtype());
@@ -761,16 +794,14 @@ impl<const D: usize> Tensor<D> {
     /// ```rust
     /// use burn_tensor::Tensor;
     ///
-    /// fn example() {
-    ///     let device = Default::default();
-    ///     let probs = Tensor::<2>::from_floats(
-    ///         [[0.0, 1.0, 0.0], [0.0, 0.0, 1.0]],
-    ///         &device,
-    ///     );
-    ///     let samples = probs.categorical(4);
-    ///     // First row always samples index 1, second row always samples index 2
-    ///     println!("{samples}");
-    /// }
+    /// let device = Default::default();
+    /// let probs = Tensor::<2>::from_floats(
+    ///     [[0.0, 1.0, 0.0], [0.0, 0.0, 1.0]],
+    ///     &device,
+    /// );
+    /// let samples = probs.categorical(4);
+    /// // First row always samples index 1, second row always samples index 2
+    /// println!("{samples}");
     /// ```
     pub fn categorical(self, num_samples: usize) -> Tensor<D, Int> {
         assert!(num_samples > 0, "categorical: num_samples must be >= 1");
@@ -908,12 +939,10 @@ where
     /// ```rust
     /// use burn_tensor::Tensor;
     ///
-    /// fn example() {
-    ///     let device = Default::default();
+    /// let device = Default::default();
     ///
-    ///     let tensor = Tensor::<1>::from_data([0.0, -1.0, 2.0], &device);
-    ///     println!("{}", tensor.cosh()); // [1.0, 1.5430, 3.7621]
-    /// }
+    /// let tensor = Tensor::<1>::from_data([0.0, -1.0, 2.0], &device);
+    /// println!("{}", tensor.cosh()); // [1.0, 1.5430, 3.7621]
     /// ```
     pub fn cosh(self) -> Self {
         Tensor::new(K::cosh(self.primitive))
@@ -929,12 +958,10 @@ where
     /// ```rust
     /// use burn_tensor::Tensor;
     ///
-    /// fn example() {
-    ///     let device = Default::default();
+    /// let device = Default::default();
     ///
-    ///     let tensor = Tensor::<1>::from_data([0.0, -1.0, 2.0], &device);
-    ///     println!("{}", tensor.sinh()); // [0.0, -1.1752, 3.6269]
-    /// }
+    /// let tensor = Tensor::<1>::from_data([0.0, -1.0, 2.0], &device);
+    /// println!("{}", tensor.sinh()); // [0.0, -1.1752, 3.6269]
     /// ```
     pub fn sinh(self) -> Self {
         Tensor::new(K::sinh(self.primitive))
@@ -950,12 +977,10 @@ where
     /// ```rust
     /// use burn_tensor::Tensor;
     ///
-    /// fn example() {
-    ///     let device = Default::default();
+    /// let device = Default::default();
     ///
-    ///     let tensor = Tensor::<1>::from_data([0.0, -1.0, 2.0], &device);
-    ///     println!("{}", tensor.tanh()); // [0.0, -0.7616, 0.9640]
-    /// }
+    /// let tensor = Tensor::<1>::from_data([0.0, -1.0, 2.0], &device);
+    /// println!("{}", tensor.tanh()); // [0.0, -0.7616, 0.9640]
     /// ```
     pub fn tanh(self) -> Self {
         Tensor::new(K::tanh(self.primitive))
@@ -971,12 +996,10 @@ where
     /// ```rust
     /// use burn_tensor::Tensor;
     ///
-    /// fn example() {
-    ///     let device = Default::default();
+    /// let device = Default::default();
     ///
-    ///     let tensor = Tensor::<1>::from_data([0.0, -1.0, 1.0], &device);
-    ///     println!("{}", tensor.acos()); // [1.5708, 3.1416, 0.0]
-    /// }
+    /// let tensor = Tensor::<1>::from_data([0.0, -1.0, 1.0], &device);
+    /// println!("{}", tensor.acos()); // [1.5708, 3.1416, 0.0]
     /// ```
     pub fn acos(self) -> Self {
         Tensor::new(K::acos(self.primitive))
@@ -992,12 +1015,10 @@ where
     /// ```rust
     /// use burn_tensor::Tensor;
     ///
-    /// fn example() {
-    ///     let device = Default::default();
+    /// let device = Default::default();
     ///
-    ///     let tensor = Tensor::<1>::from_data([1.0, 2.0, 3.0], &device);
-    ///     println!("{}", tensor.acosh()); // [0.0000, 1.3170, 1.7627]
-    /// }
+    /// let tensor = Tensor::<1>::from_data([1.0, 2.0, 3.0], &device);
+    /// println!("{}", tensor.acosh()); // [0.0000, 1.3170, 1.7627]
     /// ```
     pub fn acosh(self) -> Self {
         Tensor::new(K::acosh(self.primitive))
@@ -1013,12 +1034,10 @@ where
     /// ```rust
     /// use burn_tensor::Tensor;
     ///
-    /// fn example() {
-    ///     let device = Default::default();
+    /// let device = Default::default();
     ///
-    ///     let tensor = Tensor::<1>::from_data([0.0, -1.0, 1.0], &device);
-    ///     println!("{}", tensor.asin()); // [ 0.0000, -1.5708,  1.5708]
-    /// }
+    /// let tensor = Tensor::<1>::from_data([0.0, -1.0, 1.0], &device);
+    /// println!("{}", tensor.asin()); // [ 0.0000, -1.5708,  1.5708]
     /// ```
     pub fn asin(self) -> Self {
         Tensor::new(K::asin(self.primitive))
@@ -1034,12 +1053,10 @@ where
     /// ```rust
     /// use burn_tensor::Tensor;
     ///
-    /// fn example() {
-    ///     let device = Default::default();
+    /// let device = Default::default();
     ///
-    ///     let tensor = Tensor::<1>::from_data([0.0, -1.0, 1.0], &device);
-    ///     println!("{}", tensor.asinh()); // [ 0.0000, -0.8814,  0.8814]
-    /// }
+    /// let tensor = Tensor::<1>::from_data([0.0, -1.0, 1.0], &device);
+    /// println!("{}", tensor.asinh()); // [ 0.0000, -0.8814,  0.8814]
     /// ```
     pub fn asinh(self) -> Self {
         Tensor::new(K::asinh(self.primitive))
@@ -1055,12 +1072,10 @@ where
     /// ```rust
     /// use burn_tensor::Tensor;
     ///
-    /// fn example() {
-    ///     let device = Default::default();
+    /// let device = Default::default();
     ///
-    ///     let tensor = Tensor::<1>::from_data([0.0, -1.0, 2.0], &device);
-    ///     println!("{}", tensor.atan()); // [ 0.0, -0.7854,  1.1071]
-    /// }
+    /// let tensor = Tensor::<1>::from_data([0.0, -1.0, 2.0], &device);
+    /// println!("{}", tensor.atan()); // [ 0.0, -0.7854,  1.1071]
     /// ```
     pub fn atan(self) -> Self {
         Tensor::new(K::atan(self.primitive))
@@ -1076,12 +1091,10 @@ where
     /// ```rust
     /// use burn_tensor::Tensor;
     ///
-    /// fn example() {
-    ///     let device = Default::default();
+    /// let device = Default::default();
     ///
-    ///     let tensor = Tensor::<1>::from_data([0.0, -0.5, 0.5], &device);
-    ///     println!("{}", tensor.atanh()); // [ 0.0, -0.5493,  0.5493]
-    /// }
+    /// let tensor = Tensor::<1>::from_data([0.0, -0.5, 0.5], &device);
+    /// println!("{}", tensor.atanh()); // [ 0.0, -0.5493,  0.5493]
     /// ```
     pub fn atanh(self) -> Self {
         Tensor::new(K::atanh(self.primitive))
@@ -1097,15 +1110,14 @@ where
     /// ```rust
     /// use burn_tensor::Tensor;
     ///
-    /// fn example() {
-    ///     let device = Default::default();
+    /// let device = Default::default();
     ///
-    ///     let lhs = Tensor::<1>::from_data([-2.0, 2.0, -2.0], &device);
-    ///     let rhs = Tensor::<1>::from_data([1.0, -1.0, -1.0], &device);
-    ///     println!("{}", lhs.atan2(rhs)); // [-1.1071,  2.0344, -2.0344]
-    /// }
+    /// let lhs = Tensor::<1>::from_data([-2.0, 2.0, -2.0], &device);
+    /// let rhs = Tensor::<1>::from_data([1.0, -1.0, -1.0], &device);
+    /// println!("{}", lhs.atan2(rhs)); // [-1.1071,  2.0344, -2.0344]
     /// ```
     pub fn atan2(self, other: Self) -> Self {
+        check!(TensorCheck::binary_ops_ew("Atan2", &self, &other));
         Tensor::new(K::atan2(self.primitive, other.primitive))
     }
 }
@@ -1140,7 +1152,7 @@ fn ceil_impl(p: BridgeTensor) -> BridgeTensor {
 }
 
 fn int_impl(p: BridgeTensor, device: Device) -> BridgeTensor {
-    let out_dtype = device.settings().int_dtype;
+    let out_dtype = device.get_or_init_settings().int_dtype;
     BridgeTensor::int(Dispatch::float_into_int(p.into_float(), out_dtype))
 }
 
@@ -1170,6 +1182,11 @@ fn set_require_grad_impl(p: BridgeTensor, require_grad: bool) -> BridgeTensor {
     let (kind, tensor) = p.into_parts();
     match kind {
         BridgeKind::Float => {
+            assert!(
+                !require_grad
+                    || tensor.autodiff != burn_dispatch::DispatchAutodiffContext::Disabled,
+                "Tensor::require_grad requires autodiff; call Tensor::autodiff first"
+            );
             BridgeTensor::float(Dispatch::float_set_require_grad(tensor, require_grad))
         }
         BridgeKind::QFloat => {
@@ -1183,12 +1200,18 @@ fn relu_impl(p: BridgeTensor) -> BridgeTensor {
     BridgeTensor::float(Dispatch::relu(p.into_float()))
 }
 
-fn quantize_impl(p: BridgeTensor, scheme: &QuantScheme, scales: BridgeTensor) -> BridgeTensor {
+fn quantize_impl(
+    p: BridgeTensor,
+    scheme: &QuantScheme,
+    scales: BridgeTensor,
+    global: Option<BridgeTensor>,
+) -> BridgeTensor {
     BridgeTensor::qfloat(Dispatch::quantize(
         p.into_float(),
         scheme,
         QuantizationParametersPrimitive {
             scales: scales.into_float(),
+            global: global.map(|global| global.into_float()),
         },
     ))
 }

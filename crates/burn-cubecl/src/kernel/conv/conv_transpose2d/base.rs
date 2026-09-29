@@ -1,4 +1,4 @@
-use crate::{CubeRuntime, tensor::CubeTensor};
+use crate::tensor::CubeTensor;
 use burn_backend::ops::ConvTransposeOptions;
 use cubek::convolution::components::ConvSetupError;
 
@@ -36,13 +36,13 @@ impl Default for ConvTranspose2dStrategy {
 /// * `bias` - The bias added to each channel
 /// * `options` - The options to use for the convolution
 /// * `strategy` - The convolution algorithm to use. Autotune will pick the fastest available option.
-pub fn conv_transpose2d<R: CubeRuntime>(
-    input: CubeTensor<R>,
-    weight: CubeTensor<R>,
-    bias: Option<CubeTensor<R>>,
+pub fn conv_transpose2d(
+    input: CubeTensor,
+    weight: CubeTensor,
+    bias: Option<CubeTensor>,
     options: ConvTransposeOptions<2>,
     strategy: ConvTranspose2dStrategy,
-) -> Result<CubeTensor<R>, ConvSetupError> {
+) -> Result<CubeTensor, ConvSetupError> {
     match strategy {
         ConvTranspose2dStrategy::Direct => conv_transpose2d_direct(input, weight, bias, options),
         #[cfg(feature = "autotune")]

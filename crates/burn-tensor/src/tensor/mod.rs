@@ -7,7 +7,7 @@ pub use api::*;
 // Re-exported types
 pub use burn_std::{
     BoolDType, BoolStore, DType, DataError, FloatDType, IndexingUpdateOp, IntDType, TensorData,
-    Tolerance, distribution::*, element::*, indexing::*, s, shape::*, slice::*,
+    TensorReadError, Tolerance, distribution::*, element::*, indexing::*, s, shape::*, slice::*,
 };
 
 /// The tensor kind module.
@@ -25,17 +25,11 @@ pub mod container {
 /// The grid module.
 pub mod grid;
 
-/// The linalg module.
-pub mod linalg;
-
 /// The loss module.
 pub mod loss;
 
 /// The neural network module.
 pub mod module;
-
-/// The signal processing module.
-pub mod signal;
 
 /// Operations on tensors module.
 pub mod ops {

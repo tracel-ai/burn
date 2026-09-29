@@ -3,10 +3,10 @@ use crate::FloatTensor;
 use super::Backend;
 use burn::{
     backend::wgpu::{
-        CubeBackend, CubeTensor, KernelSource, SourceKernel, SourceTemplate, WgpuRuntime,
-        build_info, into_contiguous, kernel_source,
+        CubeBackend, CubeTensor, KernelSource, SourceKernel, SourceTemplate, build_info,
+        into_contiguous, kernel_source,
     },
-    tensor::{DType, Shape},
+    tensor::DType,
 };
 use cubecl::{CubeCount, CubeDim, prelude::KernelId, server::KernelArguments};
 use derive_new::new;
@@ -37,10 +37,17 @@ impl KernelSource for FusedMatmulAddRelu {
     fn id(&self) -> KernelId {
         KernelId::new::<Self>().info(self.cube_dim)
     }
+
+    // `kernel.wgsl` is WGSL, so this runs on a wgpu build that compiles to WGSL. A build whose
+    // `AutoCompiler` picks SPIR-V or MSL instead rejects the kernel rather than mis-reading it.
+    fn lang(&self) -> &'static str {
+        "wgsl"
+    }
 }
 
-/// Implement our custom backend trait for the existing backend `WgpuBackend`.
-impl Backend for CubeBackend<WgpuRuntime> {
+/// Implement our custom backend trait for the cubecl backend. The WGSL source below only
+/// compiles on the wgpu runtime, which is the one this example's device selects.
+impl Backend for CubeBackend {
     fn fused_matmul_add_relu(
         lhs: FloatTensor<Self>,
         rhs: FloatTensor<Self>,
@@ -48,7 +55,7 @@ impl Backend for CubeBackend<WgpuRuntime> {
     ) -> FloatTensor<Self> {
         let dtype = lhs.dtype;
         // Define cube dim, hardcoded for simplicity.
-        let cube_dim = CubeDim { x: 16, y: 16, z: 1 };
+        let cube_dim = CubeDim::new_3d(16, 16, 1);
 
         lhs.assert_is_on_same_device(&rhs);
         lhs.assert_is_on_same_device(&bias);
@@ -63,16 +70,10 @@ impl Backend for CubeBackend<WgpuRuntime> {
         let num_rows = lhs.meta.shape()[ndims - 2];
         let num_cols = rhs.meta.shape()[ndims - 1];
 
-        // Compute shape of output, while tracking number of batches.
-        let mut num_batches = 1;
-        let mut shape_out = vec![0; ndims];
-        for i in shape_out.clone().into_iter().take(ndims - 2) {
-            shape_out[i] = usize::max(lhs.meta.shape()[i], rhs.meta.shape()[i]);
-            num_batches *= shape_out[i];
-        }
-        shape_out[ndims - 2] = num_rows;
-        shape_out[ndims - 1] = num_cols;
-        let shape_out = Shape::from(shape_out);
+        assert_eq!(lhs.dtype, rhs.dtype, "matrix dtypes must match");
+        assert_eq!(lhs.dtype, bias.dtype, "bias dtype must match");
+        let shape_out = crate::output_shape(lhs.meta.shape(), rhs.meta.shape(), bias.meta.shape());
+        let num_batches: usize = (0..ndims - 2).map(|i| shape_out[i]).product();
 
         // Create a buffer for the output tensor.
         let buffer = lhs.client.empty(shape_out.num_elements() * dtype.size());
@@ -114,15 +115,5 @@ impl Backend for CubeBackend<WgpuRuntime> {
 
         // Return the output tensor.
         output
-    }
-}
-
-impl Backend for burn_fusion::Fusion<CubeBackend<WgpuRuntime>> {
-    fn fused_matmul_add_relu(
-        _lhs: FloatTensor<Self>,
-        _rhs: FloatTensor<Self>,
-        _bias: FloatTensor<Self>,
-    ) -> FloatTensor<Self> {
-        todo!()
     }
 }

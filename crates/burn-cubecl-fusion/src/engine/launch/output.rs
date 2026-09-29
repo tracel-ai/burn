@@ -6,8 +6,11 @@ use crate::{
     CubeFusionHandle,
     engine::{
         codegen::ir::{FuseArg, FuseOp, LayoutInfo},
-        launch::HandleInput,
-        settings::RefLayoutSetting,
+        launch::{
+            HandleInput,
+            layout::{DimOrder, dim_order, is_contiguous_order, nested_dim_order, strides_for},
+        },
+        settings::{FuseSettings, RefLayoutSetting},
         trace::{FuseResources, RegisterTensor, RuntimeLayout, TensorView, block::FuseBlock},
     },
     strides_dyn_rank,
@@ -18,17 +21,18 @@ use burn_ir::{TensorId, TensorIr};
 use burn_std::Shape;
 use burn_std::{
     Strides,
-    tensor::{ReshapeAction, contiguous_strides, is_contiguous, reshape_action},
+    tensor::{ReshapeAction, contiguous_strides, is_contiguous, is_dense, reshape_action},
 };
-use cubecl::{Runtime, client::ComputeClient};
+use cubecl::client::Client;
+use std::collections::BTreeMap;
 
 /// Create or reuse handles for the outputs.
 ///
 /// It is also responsible to select the reference tensor.
-pub struct OutputPlanner<'a, R: Runtime> {
+pub struct OutputPlanner<'a> {
     resources: &'a FuseResources,
     outputs_sorted: Vec<OutputSorted<'a>>,
-    handles: Vec<Option<HandleOutput<R>>>,
+    handles: Vec<Option<HandleOutput>>,
     globals: Vec<Option<TensorIr>>,
     blocks: &'a Vec<FuseBlock>,
 }
@@ -50,7 +54,7 @@ enum OutputKind {
     Transform(TensorView),
 }
 
-impl<'a, R: Runtime> OutputPlanner<'a, R> {
+impl<'a> OutputPlanner<'a> {
     pub fn new(resources: &'a FuseResources, blocks: &'a Vec<FuseBlock>) -> Self {
         let mut outputs_sorted: Vec<_> = resources
             .outputs
@@ -94,10 +98,10 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
 
     pub fn run(
         mut self,
-        client: &ComputeClient<R>,
-        device: &R::Device,
-        context: &mut Context<CubeFusionHandle<R>>,
-        plan: &mut LaunchPlan<'a, R>,
+        client: &Client,
+        device: &cubecl::Device,
+        context: &mut Context<CubeFusionHandle>,
+        plan: &mut LaunchPlan<'a>,
     ) {
         // So that we can borrow self during the iteration.
         let mut outputs = Vec::new();
@@ -110,21 +114,24 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
                 .unwrap()
                 .clone();
             let strides = strides_dyn_rank(&tensor_global.shape);
-            let (kind, block_idx) = self.output_kind(plan, &tensor_global, &output, &strides);
+            let (kind, block_idx) = self.output_kind(plan, &tensor_global, &output);
 
             match kind {
                 OutputKind::Inplace { input_pos } => {
-                    self.inplace_output(
-                        context,
-                        plan,
-                        output,
-                        tensor_global,
-                        strides,
-                        input_pos,
-                        block_idx,
-                    );
+                    self.inplace_output(context, plan, output, tensor_global, input_pos, block_idx);
                 }
                 OutputKind::Normal => {
+                    // A normal output has no layout forced on it by a view, so the
+                    // block is free to lay it out in whatever order costs its inputs
+                    // the least traffic. The transform kinds below keep the strides
+                    // their view dictates.
+                    let strides = self.chosen_strides(
+                        plan,
+                        block_idx,
+                        &tensor_global.shape,
+                        &output.tensor_relative.shape,
+                    );
+
                     self.normal_output(
                         client,
                         device,
@@ -204,7 +211,9 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
                             let pos = plan.runtime_layouts.len();
                             let mut shape_global = shape.clone();
                             for (i, s) in shape.iter().enumerate() {
-                                shape_global[i] = *context.shapes_relative2global.get(s).unwrap();
+                                shape_global[i] = *context.shapes_relative2global.get(s).expect(
+                                    "reference shape ids to be assigned by the running stream",
+                                );
                             }
 
                             let strides = strides_dyn_rank(&shape_global);
@@ -233,7 +242,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
     fn select_reference_from_inputs(
         block: &FuseBlock,
         block_plan: &mut BlockPlan<'_>,
-        handle_inputs: &[HandleInput<R>],
+        handle_inputs: &[HandleInput],
     ) -> Option<Shape> {
         if let Some(input_ref) = block_plan.potential_reference_input.take() {
             match input_ref {
@@ -269,7 +278,16 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
                     };
 
                     match block.settings.ref_layout {
-                        RefLayoutSetting::Any => set_ref_as_concrete(block_plan),
+                        RefLayoutSetting::Any => {
+                            // A padded reference would make the kernel walk a prefix of the
+                            // buffer: the launch is sized from the logical element count while a
+                            // position indexes the buffer.
+                            if is_dense(&reference.global_ir.shape, &reference.handle.strides) {
+                                set_ref_as_concrete(block_plan)
+                            } else {
+                                set_ref_as_virtual(block_plan)
+                            }
+                        }
                         RefLayoutSetting::SameAsBlock { .. } => {
                             // Skip set ref.
                         }
@@ -310,7 +328,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
         }
     }
 
-    fn add_layout_info_inputs(block: &mut BlockPlan<'_>, handle_inputs: &[HandleInput<R>]) {
+    fn add_layout_info_inputs(block: &mut BlockPlan<'_>, handle_inputs: &[HandleInput]) {
         for hi in handle_inputs.iter().filter_map(|h| match h {
             HandleInput::Normal(input) => Some(input),
             _ => None,
@@ -334,12 +352,157 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
         }
     }
 
+    /// The strides to allocate a normal output of this block with.
+    ///
+    /// The reference layout is taken from the first output allocated, so this is
+    /// what decides how the whole block iterates. Contiguous strides in logical
+    /// dimension order — what this used to be, unconditionally — are the right
+    /// answer only when the inputs are contiguous too, and after a convolution
+    /// they are not.
+    fn chosen_strides(
+        &self,
+        plan: &LaunchPlan<'a>,
+        block_idx: usize,
+        shape: &Shape,
+        shape_relative: &Shape,
+    ) -> Strides {
+        // Once a reference exists, the remaining outputs follow it, so their writes
+        // are linear as well. Their shapes can differ from the reference's; the
+        // dimension *order* is what carries over.
+        if let ReferenceSelection::Concrete {
+            shape: ref_shape,
+            strides: ref_strides,
+            ..
+        } = &plan.blocks[block_idx].reference
+            && ref_shape.num_dims() == shape.num_dims()
+            && let Some(order) = dim_order(ref_shape, ref_strides)
+        {
+            return strides_for(shape, &order);
+        }
+
+        // Only the output that goes on to *be* the reference gets to pick a layout.
+        // Any other output is written against a reference it does not define, so a
+        // layout of its own would leave its own writes strided and nothing else
+        // improved — and would hand the vectorization planner an output whose
+        // innermost dimension is not the one the block iterates along.
+        // [Self::normal_output] selects the reference on exactly this condition.
+        if &self.blocks[block_idx].shape_ref != shape_relative {
+            return strides_dyn_rank(shape);
+        }
+
+        match self.preferred_dim_order(plan, block_idx, shape) {
+            Some(order) => strides_for(shape, &order),
+            None => strides_dyn_rank(shape),
+        }
+    }
+
+    /// The dimension order that costs this block's inputs the least strided
+    /// traffic, or `None` to keep the contiguous one.
+    ///
+    /// Writing an output in any dense order costs the same, so the output layout
+    /// is free and the only price of a choice is the inputs that disagree with
+    /// it. That makes the best choice the plurality of the inputs, weighted by
+    /// the bytes each one moves.
+    ///
+    /// Normally only inputs of exactly this shape vote. This heuristic favors
+    /// full-sized inputs over broadcast parameters, which typically benefit from
+    /// cache reuse. A voter need not qualify for `SameAsRef`: padded inputs can
+    /// benefit from the chosen order while still using their own strides.
+    ///
+    /// A concatenated operand is the exception, and votes despite being shorter
+    /// than the output along the axis it is joined on: `concat` computes its
+    /// offset itself rather than reading it through the reference, so its layout
+    /// is free for the same reason the output's is. See the voter loop below.
+    ///
+    /// Because a convolution's output is NHWC and its consumers' outputs then
+    /// become NHWC too, this propagates forward on its own: a `conv -> norm ->
+    /// silu -> conv` chain settles into NHWC end to end, and the permutes around
+    /// each convolution stay the metadata changes they are meant to be.
+    fn preferred_dim_order(
+        &self,
+        plan: &LaunchPlan<'a>,
+        block_idx: usize,
+        shape: &Shape,
+    ) -> Option<DimOrder> {
+        if !may_permute_layout(
+            &self.blocks[block_idx].settings,
+            &self.blocks[block_idx].ops,
+        ) {
+            return None;
+        }
+
+        let block = &plan.blocks[block_idx];
+        let concatenated = concat_operands(&self.blocks[block_idx].ops);
+        let mut votes: Vec<(DimOrder, usize)> = Vec::new();
+
+        for (pos, input) in plan.handle_inputs.iter().enumerate() {
+            let Some(input) = input.as_normal() else {
+                // A quantized input cannot be `SameAsRef`.
+                continue;
+            };
+
+            // A concatenated operand is registered as an indexed input — `concat`
+            // computes its offset itself rather than reading it through the
+            // reference — and it is shorter than the output along the axis it is
+            // joined on, so it matches neither the usual eligibility test nor the
+            // output's shape. Both exclusions cost it a vote it should have: its
+            // layout is free precisely *because* the offset is computed, and it is
+            // the whole of the traffic a concatenation moves. Without this a
+            // concatenation has no voters at all and keeps the contiguous order by
+            // default, which is what its consumer then transposes.
+            let voter_shape = match concatenated.get(&pos) {
+                Some(axis) => match joined_only_along(shape, &input.global_ir.shape, *axis) {
+                    true => &input.global_ir.shape,
+                    false => continue,
+                },
+                None => {
+                    if !block.reads.contains_key(&input.relative_id)
+                        || self.resources.indexed.contains_key(&input.relative_id)
+                        || self.resources.inputs_unhandled.contains(&input.relative_id)
+                        || &input.global_ir.shape != shape
+                    {
+                        continue;
+                    }
+                    shape
+                }
+            };
+
+            // Padding is tolerated where [dim_order] would reject it: a pitched
+            // allocation can leave gaps between channel rows when the channel
+            // count is not aligned. Nested sliced views can vote too, regardless
+            // of backend. Only the order is voted on; the output is still
+            // allocated dense in the winning order, and a padded
+            // input is read through the strided path as before.
+            let Some(order) = nested_dim_order(voter_shape, &input.handle.strides) else {
+                continue;
+            };
+
+            let bytes =
+                voter_shape.num_elements() * dtype_to_storage_type(input.global_ir.dtype).size();
+
+            match votes.iter_mut().find(|(candidate, _)| candidate == &order) {
+                Some((_, total)) => *total += bytes,
+                None => votes.push((order, bytes)),
+            }
+        }
+
+        let winner = votes.into_iter().max_by_key(|(order, bytes)| {
+            // Ties go to the contiguous order, so a block whose inputs disagree
+            // keeps behaving the way it always has.
+            (*bytes, is_contiguous_order(order))
+        })?;
+
+        match is_contiguous_order(&winner.0) {
+            true => None,
+            false => Some(winner.0),
+        }
+    }
+
     fn output_kind(
         &self,
-        plan: &mut LaunchPlan<'a, R>,
+        plan: &mut LaunchPlan<'a>,
         tensor_global: &TensorIr,
         output: &OutputSorted,
-        strides: &[usize],
     ) -> (OutputKind, usize) {
         let mut block_idx = None;
         for (i, block) in plan.blocks.iter().enumerate() {
@@ -360,6 +523,10 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
 
         let block = &plan.blocks[block_idx];
         let ref_layout_setting = &self.blocks[block_idx].settings.ref_layout;
+        let may_permute = may_permute_layout(
+            &self.blocks[block_idx].settings,
+            &self.blocks[block_idx].ops,
+        );
         let kind = block
             .potential_inplaces
             .iter()
@@ -367,20 +534,35 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
             .find(|(_pos, pi)| {
                 pi.tensor_relative.dtype == tensor_global.dtype
                     && pi.tensor_relative.shape == output.tensor_relative.shape
-                    && &*pi.strides == strides
+                    // The candidate only has to be *dense*, not contiguous. Requiring
+                    // contiguity here made every convolution output ineligible — a
+                    // convolution hands over an NCHW view of NHWC memory — so the one
+                    // buffer whose layout the block should have adopted was the one
+                    // buffer it always refused, and the block allocated a contiguous
+                    // output and read its input strided instead.
+                    && dim_order(&tensor_global.shape, &pi.strides).is_some()
                     && if block.reference.is_found() {
                         // An already-selected reference must have compatible strides.
-                        block.reference.compatible_strides_for_inplace(strides)
-                    } else {
+                        // Compared against the candidate's own strides, since those are
+                        // what the aliased buffer actually has.
+                        block.reference.compatible_strides_for_inplace(&pi.strides)
+                    } else if may_permute {
                         // When no reference has been selected yet, this output becomes
                         // the reference (see [Self::inplace_output]); requiring an
                         // existing reference here made the first output of every block
                         // ineligible, since the reference is only selected while
-                        // processing outputs. Blocks that inherit their reference from
-                        // another block are excluded: the inherited layout is unknown
-                        // at this point, so it cannot be validated against the
-                        // candidate's strides.
+                        // processing outputs. This block can iterate in the candidate's
+                        // order, so any dense layout will do.
+                        true
+                    } else {
+                        // Aliasing here makes the candidate's layout the block's
+                        // reference, and this block is not one that can iterate in a
+                        // permuted order — so let it in only when it is contiguous,
+                        // which is what this check was before dense candidates were
+                        // allowed at all. A block that inherits its reference from
+                        // another cannot validate one here regardless.
                         !matches!(ref_layout_setting, RefLayoutSetting::SameAsBlock { .. })
+                            && is_contiguous(&tensor_global.shape, &pi.strides)
                     }
             })
             .map(|(pos, _)| OutputKind::Inplace { input_pos: pos })
@@ -392,11 +574,10 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
     #[allow(clippy::too_many_arguments)]
     fn inplace_output(
         &mut self,
-        context: &mut Context<CubeFusionHandle<R>>,
-        plan: &mut LaunchPlan<'a, R>,
+        context: &mut Context<CubeFusionHandle>,
+        plan: &mut LaunchPlan<'a>,
         output: OutputSorted,
         tensor_global: TensorIr,
-        strides: Strides,
         input_index: usize,
         block_idx: usize,
     ) {
@@ -471,7 +652,9 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
             input_pos: potential_inplace.input_pos,
             precision: output.precision,
             global_shape: tensor_global.shape.clone(),
-            strides,
+            // The aliased buffer keeps the input's layout, which is not contiguous
+            // when the input came out of a convolution.
+            strides: handle_input.handle.strides.clone(),
             #[cfg(feature = "autotune-checks")]
             debug_info: super::HandleOutputAliasDebugInfo {
                 relative_id: output.tensor_relative.id,
@@ -485,10 +668,10 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
     #[allow(clippy::too_many_arguments)]
     fn normal_output(
         &mut self,
-        client: &ComputeClient<R>,
-        device: &R::Device,
-        context: &mut Context<CubeFusionHandle<R>>,
-        plan: &mut LaunchPlan<'a, R>,
+        client: &Client,
+        device: &cubecl::Device,
+        context: &mut Context<CubeFusionHandle>,
+        plan: &mut LaunchPlan<'a>,
         output: OutputSorted,
         tensor_global: TensorIr,
         strides: Strides,
@@ -549,6 +732,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
             handle: client.empty(size),
             device: device.clone(),
             strides,
+            tiles: None,
             dtype,
             qparams: None,
         };
@@ -572,10 +756,10 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
     #[allow(clippy::too_many_arguments)]
     fn reshaped_output(
         &mut self,
-        client: &ComputeClient<R>,
-        device: &R::Device,
-        context: &mut Context<CubeFusionHandle<R>>,
-        plan: &mut LaunchPlan<'a, R>,
+        client: &Client,
+        device: &cubecl::Device,
+        context: &mut Context<CubeFusionHandle>,
+        plan: &mut LaunchPlan<'a>,
         output: OutputSorted,
         tensor_global: TensorIr,
         strides: Strides,
@@ -605,11 +789,18 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
                 // We modify the metadata instead.
                 remove_concrete_write(block, output.tensor_relative.id, output.pos_original);
 
+                // The strides are rewritten, which only a plain input allows; a tiled one
+                // never reaches a fused kernel (its inputs refuse it).
+                assert!(
+                    original_handle.handle.tiles.is_none(),
+                    "fusion: a storage-tiled input cannot be restrided in place"
+                );
                 let handle = CubeFusionHandle {
                     client: client.clone(),
                     handle: original_handle.handle.handle.clone(),
                     device: device.clone(),
                     strides,
+                    tiles: None,
                     dtype,
                     qparams: original_handle.handle.qparams.clone(),
                 };
@@ -651,10 +842,10 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
     #[allow(clippy::too_many_arguments)]
     fn swapped_dims_output(
         &mut self,
-        client: &ComputeClient<R>,
-        device: &R::Device,
-        context: &mut Context<CubeFusionHandle<R>>,
-        plan: &mut LaunchPlan<'a, R>,
+        client: &Client,
+        device: &cubecl::Device,
+        context: &mut Context<CubeFusionHandle>,
+        plan: &mut LaunchPlan<'a>,
         output: OutputSorted,
         tensor_global: TensorIr,
         original: TensorId,
@@ -671,6 +862,12 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
         // We modify the metadata instead.
         remove_concrete_write(block, output.tensor_relative.id, output.pos_original);
 
+        // The strides are swapped as logical dims, which only rows are; a tiled input never
+        // reaches a fused kernel (its inputs refuse it).
+        assert!(
+            original_handle.handle.tiles.is_none(),
+            "fusion: a storage-tiled input cannot have its dims swapped in place"
+        );
         let strides = original_handle.handle.strides.clone();
 
         let mut handle = CubeFusionHandle {
@@ -678,6 +875,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
             handle: original_handle.handle.handle.clone(),
             device: device.clone(),
             strides,
+            tiles: None,
             dtype,
             qparams: original_handle.handle.qparams.clone(),
         };
@@ -706,10 +904,10 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
     #[allow(clippy::too_many_arguments)]
     fn nhwc_strides_output(
         &mut self,
-        client: &ComputeClient<R>,
-        device: &R::Device,
-        context: &mut Context<CubeFusionHandle<R>>,
-        plan: &mut LaunchPlan<'a, R>,
+        client: &Client,
+        device: &cubecl::Device,
+        context: &mut Context<CubeFusionHandle>,
+        plan: &mut LaunchPlan<'a>,
         output: OutputSorted,
         tensor_global: TensorIr,
         mut strides: Strides,
@@ -739,9 +937,9 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
     }
 
     fn find_child_input(
-        handle_inputs: &[HandleInput<R>],
+        handle_inputs: &[HandleInput],
         original: TensorId,
-    ) -> (usize, &NormalHandleInput<R>) {
+    ) -> (usize, &NormalHandleInput) {
         handle_inputs
             .iter()
             .enumerate()
@@ -754,6 +952,78 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
             })
             .unwrap()
     }
+}
+
+/// Whether a block may iterate — and so write its outputs — in a permuted
+/// dimension order.
+///
+/// Three things have to hold, and each one has bitten:
+///
+/// The settings must allow a free reference at all. A reduce pins it contiguous,
+/// and a block that inherits its reference from another is not the one making the
+/// decision.
+///
+/// The runner must read and write every operand through the generic fused paths.
+/// The matmul one does not: it describes its output to the matmul algorithm as
+/// row-major while building the output view from the reference's last two strides,
+/// so a permuted reference has it writing lines that are not contiguous along the
+/// column. That is what [FuseSettings::choose_output_layout] gates.
+///
+/// And the block must contain no operation that indexes its operands against the
+/// last dimension directly rather than through the reference. `gather` walks its
+/// lanes with the stride of `rank - 1`; it agrees with the rest of the kernel only
+/// while the reference is contiguous. `concat` used to be counted here and no
+/// longer is — it reaches the vectorization axis through
+/// [FuseBlockConfig::vector_axis](crate::engine::codegen::FuseBlockConfig::vector_axis),
+/// which follows a permuted reference.
+fn may_permute_layout(settings: &FuseSettings, ops: &[FuseOp]) -> bool {
+    if !matches!(settings.ref_layout, RefLayoutSetting::Any) || !settings.choose_output_layout {
+        return false;
+    }
+
+    // `Cat` is absent: `concat` asks whether the concatenation axis is the
+    // vectorization axis, and steps a vector along it, through
+    // [FuseBlockConfig::vector_axis] rather than the last dimension — so it
+    // follows a permuted reference correctly. The rest still index the last
+    // dimension directly and must keep the contiguous order.
+    !ops.iter().any(|op| {
+        matches!(
+            op,
+            FuseOp::Gather { .. } | FuseOp::Select { .. } | FuseOp::Dequantize { .. }
+        )
+    })
+}
+
+/// The input positions this block concatenates, each mapped to the axis it is
+/// joined on.
+///
+/// An operand shared by two concatenations along different axes keeps the last
+/// one. Two concatenations can only sit in one block when their outputs fit its
+/// shape, which for a shared operand forces the same axis — so the disagreement
+/// this would misjudge does not arise, and misjudging it would only cost a vote
+/// rather than produce a layout the kernel cannot express.
+fn concat_operands(ops: &[FuseOp]) -> BTreeMap<usize, usize> {
+    let mut operands = BTreeMap::new();
+
+    for op in ops {
+        if let FuseOp::Cat { inputs, dim, .. } = op {
+            for input in inputs {
+                if let FuseArg::Input(pos, ..) = input {
+                    operands.insert(*pos, *dim);
+                }
+            }
+        }
+    }
+
+    operands
+}
+
+/// Whether `operand` is `shape` shortened along `axis` alone — which is what a
+/// concatenated operand is, and what makes its dimension order comparable to the
+/// output's.
+fn joined_only_along(shape: &Shape, operand: &Shape, axis: usize) -> bool {
+    shape.num_dims() == operand.num_dims()
+        && (0..shape.num_dims()).all(|dim| dim == axis || shape[dim] == operand[dim])
 }
 
 fn remove_concrete_write(block: &mut BlockPlan, id: TensorId, output_pos: usize) {
@@ -808,4 +1078,271 @@ fn relayout_strides(strides: &mut Strides, shape: &Shape, stride_relayout: &Shap
     }
 
     strides_changed
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::engine::{
+        codegen::ir::{FuseType, QuantSchemeFuse, UnaryFuseArgs},
+        settings::VectorizationSetting,
+    };
+    use cubecl::quant::scheme::QuantScheme;
+
+    fn arg(pos: usize) -> FuseArg {
+        FuseArg::Input(pos, FuseType::F32, LayoutInfo::Unknown)
+    }
+
+    fn elemwise_op() -> FuseOp {
+        FuseOp::Assign(UnaryFuseArgs {
+            input: arg(0),
+            out: FuseArg::Output(0, FuseType::F32, LayoutInfo::IsRef),
+        })
+    }
+
+    fn cat_op(inputs: &[usize], dim: usize) -> FuseOp {
+        FuseOp::Cat {
+            inputs: inputs.iter().copied().map(arg).collect(),
+            output: FuseArg::Output(0, FuseType::F32, LayoutInfo::IsRef),
+            dim,
+        }
+    }
+
+    fn settings(ref_layout: RefLayoutSetting, choose_output_layout: bool) -> FuseSettings {
+        FuseSettings {
+            broadcast: true,
+            output_shape_updates: true,
+            inplace: true,
+            vectorization: VectorizationSetting::Activated,
+            ref_layout,
+            choose_output_layout,
+        }
+    }
+
+    #[test]
+    fn an_elementwise_block_may_choose_its_layout() {
+        let settings = settings(RefLayoutSetting::Any, true);
+
+        assert!(may_permute_layout(&settings, &[elemwise_op()]));
+        assert!(may_permute_layout(&settings, &[]));
+    }
+
+    #[test]
+    fn padded_input_selects_dense_nhwc_output_without_same_as_ref() {
+        use burn_ir::TensorStatus;
+        use burn_std::DType;
+
+        let device = cubecl::test_device();
+        let client = device.client();
+        for channels in [3, 48] {
+            let shape = Shape::from([2, channels, 3, 5]);
+            let pitch = 64;
+            let padded_strides = Strides::new(&[3 * 5 * pitch, 1, 5 * pitch, pitch]);
+            let input = TensorIr {
+                id: TensorId::new(0),
+                shape: shape.clone(),
+                dtype: DType::F32,
+                status: TensorStatus::ReadOnly,
+            };
+            let output = TensorIr {
+                id: TensorId::new(1),
+                status: TensorStatus::NotInit,
+                ..input.clone()
+            };
+            let blocks = vec![FuseBlock {
+                settings: settings(RefLayoutSetting::Any, true),
+                shape_ref: shape.clone(),
+                ops: vec![elemwise_op()],
+                reads: BTreeMap::from([(input.id, vec![elemwise_op()])]),
+                writes: BTreeMap::from([(output.id, vec![elemwise_op()])]),
+            }];
+            let mut resources = FuseResources::default();
+            resources.inputs.insert(FuseType::F32, input.clone());
+            resources.outputs.insert(FuseType::F32, output.clone());
+            let mut plan = LaunchPlan::new(&blocks);
+            plan.handle_inputs
+                .push(HandleInput::Normal(NormalHandleInput {
+                    relative_id: input.id,
+                    global_ir: input,
+                    precision: FuseType::F32,
+                    handle: CubeFusionHandle {
+                        client: client.clone(),
+                        handle: client.empty(2 * 3 * 5 * pitch * 4),
+                        device: device.clone(),
+                        dtype: DType::F32,
+                        strides: padded_strides.clone(),
+                        tiles: None,
+                        qparams: None,
+                    },
+                    vector_size: 1,
+                    broadcated: false,
+                    orig_strides: padded_strides,
+                }));
+            let mut context = Context {
+                tensors: [(output.id, output)].into_iter().collect(),
+                handles: Default::default(),
+                scalars: Default::default(),
+                shapes_relative2global: Default::default(),
+                ranges: Vec::new(),
+            };
+
+            OutputPlanner::new(&resources, &blocks).run(&client, &device, &mut context, &mut plan);
+
+            let HandleOutput::Owned { handle, .. } = &plan.handle_outputs[0] else {
+                panic!("a padded input must not be reused as a dense output");
+            };
+            let expected = Strides::new(&[3 * 5 * channels, 1, 5 * channels, channels]);
+            assert_eq!(handle.strides, expected);
+            assert!(matches!(
+                &plan.blocks[0].reference,
+                ReferenceSelection::Concrete { strides, .. } if strides == &expected
+            ));
+            let FuseOp::Assign(read) = &plan.blocks[0].reads[&TensorId::new(0)][0] else {
+                panic!("expected an input read");
+            };
+            assert!(matches!(
+                read.input,
+                FuseArg::Input(0, _, LayoutInfo::Unknown)
+            ));
+        }
+    }
+
+    #[test]
+    fn a_runner_that_did_not_opt_in_keeps_the_contiguous_layout() {
+        // What a matmul block is: `RefLayoutSetting::Any` by way of
+        // `FuseSettings::default()`, but its output view is built from the
+        // reference's last two strides while the matmul algorithm is told the output
+        // is row-major. A permuted reference makes those two disagree.
+        let settings = settings(RefLayoutSetting::Any, false);
+
+        assert!(!may_permute_layout(&settings, &[elemwise_op()]));
+        assert!(
+            !may_permute_layout(&FuseSettings::default(), &[elemwise_op()]),
+            "opting in has to be deliberate, so the default must not",
+        );
+    }
+
+    #[test]
+    fn a_block_that_needs_a_contiguous_reference_may_not_choose() {
+        for ref_layout in [
+            RefLayoutSetting::OnlyContiguous,
+            RefLayoutSetting::SameAsBlock { block_pos: 0 },
+        ] {
+            assert!(!may_permute_layout(
+                &settings(ref_layout, true),
+                &[elemwise_op()]
+            ));
+        }
+    }
+
+    #[test]
+    fn an_operation_that_indexes_the_last_dimension_rules_out_a_permuted_layout() {
+        // These index their operands against `rank - 1` directly rather than through
+        // the reference, so they agree with the rest of the kernel only while the
+        // reference is contiguous.
+        let indexing = [
+            FuseOp::Gather {
+                input: arg(0),
+                indices: arg(1),
+                output: FuseArg::Output(0, FuseType::F32, LayoutInfo::IsRef),
+                dim: 0,
+            },
+            FuseOp::Select {
+                input: arg(0),
+                indices: arg(1),
+                output: FuseArg::Output(0, FuseType::F32, LayoutInfo::IsRef),
+                dim: 0,
+            },
+            FuseOp::Dequantize {
+                values: arg(0),
+                params: arg(1),
+                output: FuseArg::Output(0, FuseType::F32, LayoutInfo::IsRef),
+                scheme: QuantSchemeFuse {
+                    scheme: QuantScheme::default(),
+                },
+            },
+        ];
+
+        let settings = settings(RefLayoutSetting::Any, true);
+
+        for op in indexing {
+            assert!(
+                !may_permute_layout(&settings, &[elemwise_op(), op.clone()]),
+                "{op:?} must pin the block to a contiguous layout",
+            );
+        }
+    }
+
+    /// `concat` reaches the vectorization axis through
+    /// [FuseBlockConfig::vector_axis], so unlike its neighbours above it follows a
+    /// permuted reference rather than assuming the last dimension.
+    #[test]
+    fn a_concatenation_does_not_rule_out_a_permuted_layout() {
+        assert!(may_permute_layout(
+            &settings(RefLayoutSetting::Any, true),
+            &[elemwise_op(), cat_op(&[0, 1], 0)]
+        ));
+    }
+
+    #[test]
+    fn a_block_without_a_concatenation_has_no_operands() {
+        assert!(concat_operands(&[]).is_empty());
+        assert!(concat_operands(&[elemwise_op()]).is_empty());
+    }
+
+    #[test]
+    fn every_operand_of_every_concatenation_maps_to_its_axis() {
+        let operands = concat_operands(&[elemwise_op(), cat_op(&[1, 2], 3), cat_op(&[4, 5, 6], 1)]);
+
+        assert_eq!(
+            operands,
+            BTreeMap::from([(1, 3), (2, 3), (4, 1), (5, 1), (6, 1)])
+        );
+    }
+
+    #[test]
+    fn an_operand_of_two_concatenations_keeps_the_last_axis() {
+        // Documented in [concat_operands]: the block shapes that would let this
+        // happen force the same axis, so the choice only has to be harmless.
+        let operands = concat_operands(&[cat_op(&[0, 1], 2), cat_op(&[0, 3], 1)]);
+
+        assert_eq!(operands.get(&0), Some(&1));
+    }
+
+    #[test]
+    fn an_operand_is_joined_along_its_axis_alone() {
+        let output = Shape::from(vec![1, 6, 2, 2]);
+
+        assert!(joined_only_along(
+            &output,
+            &Shape::from(vec![1, 3, 2, 2]),
+            1
+        ));
+        assert!(
+            joined_only_along(&output, &output, 1),
+            "an operand the full length of the output is joined along it too",
+        );
+        assert!(
+            joined_only_along(&output, &Shape::from(vec![1, 0, 2, 2]), 1),
+            "an empty operand is still only shortened along the axis",
+        );
+    }
+
+    #[test]
+    fn an_operand_that_differs_elsewhere_is_not_a_concatenated_one() {
+        let output = Shape::from(vec![1, 6, 2, 2]);
+
+        assert!(
+            !joined_only_along(&output, &Shape::from(vec![4, 3, 2, 2]), 1),
+            "a broadcast operand differs on an axis it is not joined on",
+        );
+        assert!(
+            !joined_only_along(&output, &Shape::from(vec![6, 2, 2]), 1),
+            "a rank the block cannot line up with its own is refused, not indexed past",
+        );
+        assert!(
+            !joined_only_along(&output, &Shape::from(vec![1, 3, 2, 2]), 9),
+            "an axis past the rank asks for full equality rather than panicking",
+        );
+    }
 }

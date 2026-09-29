@@ -23,14 +23,30 @@ use super::conv_common::{add_bias, squeeze_3d_to_1d, squeeze_3d_to_2d};
 
 /// Generates a conv_transpose3d typed function.
 macro_rules! conv_transpose3d_typed {
-    ($fn_name:ident, $T:ty, $dtype:expr, $zero:expr, $gemm_fn:ident, $add_fn:expr) => {
+    ($fn_name:ident, $T:ty, $dtype:expr, $zero:expr, $gemm_fn:ident) => {
         pub fn $fn_name(
             x: FlexTensor,
             weight: FlexTensor,
             bias: Option<FlexTensor>,
             options: &ConvTransposeOptions<3>,
         ) -> FlexTensor {
-            conv_transpose3d_impl::<$T>(x, weight, bias, options, $dtype, $zero, $gemm_fn, $add_fn)
+            const COLUMNS_BYTES: usize = 8 * 1024 * 1024;
+            let columns_bytes = weight.layout().shape()[1..]
+                .iter()
+                .chain(&x.layout().shape()[2..])
+                .try_fold(core::mem::size_of::<$T>(), |size, &dim| {
+                    size.checked_mul(dim)
+                });
+            // Keep the original loop for small buffers, without tile bounds.
+            if columns_bytes.is_some_and(|bytes| bytes <= COLUMNS_BYTES) {
+                conv_transpose3d_impl::<$T, COLUMNS_BYTES, false>(
+                    x, weight, bias, options, $dtype, $zero, $gemm_fn,
+                )
+            } else {
+                conv_transpose3d_impl::<$T, COLUMNS_BYTES, true>(
+                    x, weight, bias, options, $dtype, $zero, $gemm_fn,
+                )
+            }
         }
     };
 }
@@ -166,24 +182,21 @@ conv_transpose3d_typed!(
     f32,
     DType::F32,
     0.0f32,
-    conv_transpose_gemm_f32,
-    |a, b| a + b
+    conv_transpose_gemm_f32
 );
 conv_transpose3d_typed!(
     conv_transpose3d_f64,
     f64,
     DType::F64,
     0.0f64,
-    conv_transpose_gemm_f64,
-    |a, b| a + b
+    conv_transpose_gemm_f64
 );
 conv_transpose3d_typed!(
     conv_transpose3d_f16,
     f16,
     DType::F16,
     f16::from_f32(0.0),
-    conv_transpose_gemm_f16,
-    |a: f16, b: f16| f16::from_f32(a.to_f32() + b.to_f32())
+    conv_transpose_gemm_f16
 );
 bf16_via_f32!(
     conv_transpose3d_bf16,
@@ -192,12 +205,49 @@ bf16_via_f32!(
     ConvTransposeOptions
 );
 
-/// GEMM for conv_transpose: writes `c = a^T @ b` where a is [k,m] and b is [k,n].
-type ConvTransposeGemmFn<T> = fn(&mut [T], &[T], &[T], usize, usize, usize);
+/// GEMM for conv_transpose: `c = a^T @ b`, with a row stride for each input tile.
+type ConvTransposeGemmFn<T> = fn(&mut [T], &[T], &[T], usize, usize, usize, usize);
+
+#[cfg(feature = "rayon")]
+const GEMM_PARALLEL_WORK: usize = 192 * 192 * 192;
+
+/// Compute the half-open range `[in_start, in_end)` of input spatial positions `i`
+/// for which the corresponding output index `i * stride + k * dilation - pad`
+/// lies inside `[0, out_size)`.
+#[inline]
+fn valid_in_range(
+    k: usize,
+    dilation: usize,
+    pad: usize,
+    stride: usize,
+    in_size: usize,
+    out_size: usize,
+) -> (usize, usize) {
+    debug_assert!(stride >= 1, "stride must be >= 1");
+    let offset = k * dilation;
+    let in_start = if offset >= pad {
+        0
+    } else {
+        (pad - offset).div_ceil(stride)
+    };
+    let threshold = out_size + pad;
+    let in_end = if offset >= threshold {
+        0
+    } else {
+        (threshold - offset).div_ceil(stride)
+    };
+    let in_end = in_end.min(in_size);
+    let in_start = in_start.min(in_end);
+    (in_start, in_end)
+}
 
 /// 3D transposed convolution via GEMM + col2im.
 #[allow(clippy::too_many_arguments)]
-fn conv_transpose3d_impl<T: bytemuck::Pod + Clone + Copy + Send + Sync + burn_backend::Element>(
+fn conv_transpose3d_impl<
+    T: bytemuck::Pod + Clone + Copy + Send + Sync + burn_backend::Element + burn_backend::ElementAdd,
+    const COLUMNS_BYTES: usize,
+    const TILED: bool,
+>(
     x: FlexTensor,
     weight: FlexTensor,
     bias: Option<FlexTensor>,
@@ -205,7 +255,6 @@ fn conv_transpose3d_impl<T: bytemuck::Pod + Clone + Copy + Send + Sync + burn_ba
     dtype: DType,
     zero: T,
     gemm_fn: ConvTransposeGemmFn<T>,
-    add_fn: fn(T, T) -> T,
 ) -> FlexTensor {
     let x = x.to_contiguous();
     let weight = weight.to_contiguous();
@@ -259,93 +308,214 @@ fn conv_transpose3d_impl<T: bytemuck::Pod + Clone + Copy + Send + Sync + burn_ba
     let col_ch = out_channels_per_group
         .checked_mul(k_spatial)
         .expect("conv_transpose: columns dimensions would overflow");
+    // Limit the column buffer per batch/group. One input position is the minimum
+    // tile, even when its columns alone exceed the byte limit.
+    let tile_size = if TILED {
+        (COLUMNS_BYTES / core::mem::size_of::<T>() / col_ch.max(1))
+            .max(1)
+            .min(in_spatial.max(1))
+    } else {
+        in_spatial.max(1)
+    };
     let columns_len = col_ch
-        .checked_mul(in_spatial)
+        .checked_mul(in_spatial.min(tile_size))
         .expect("conv_transpose: columns buffer size would overflow");
 
     let output_size = [batch_size, out_channels, out_d, out_h, out_w]
         .iter()
         .try_fold(1usize, |acc, &x| acc.checked_mul(x))
         .expect("conv_transpose: output dimensions would overflow");
+    if output_size == 0 {
+        // Empty spatial output would otherwise reach chunks_mut(0).
+        return FlexTensor::empty(
+            Shape::from(vec![batch_size, out_channels, out_d, out_h, out_w]),
+            dtype,
+        );
+    }
     let mut output = vec![zero; output_size];
 
-    // Reuse columns buffer across (batch, group) iterations; GEMM overwrites it fully.
-    let mut columns = vec![zero; columns_len];
+    let group_chunk_len = out_channels_per_group * out_spatial;
+    #[cfg(feature = "rayon")]
+    let total_groups = batch_size * groups;
+    // Use channels when batch/group parallelism does not fill the thread pool.
+    #[cfg(feature = "rayon")]
+    let gemm_min_columns = GEMM_PARALLEL_WORK.div_ceil(in_channels_per_group.max(1));
+    #[cfg(feature = "rayon")]
+    let mut channel_min_columns = super::PARALLEL_THRESHOLD;
+    #[cfg(feature = "rayon")]
+    let parallel_channels = columns_len
+        >= super::PARALLEL_THRESHOLD.min(gemm_min_columns.max(super::PARALLEL_THRESHOLD / 2))
+        && out_channels_per_group > 1
+        && {
+            let threads = rayon::current_num_threads();
+            // Lower the limit only when GEMM uses Rayon. Keep at least two
+            // channel tasks per thread, with enough column work per thread.
+            if out_channels_per_group >= 2 * threads {
+                channel_min_columns = (super::PARALLEL_THRESHOLD / 2)
+                    .max(32 * 1024 * threads)
+                    .max(gemm_min_columns)
+                    .min(super::PARALLEL_THRESHOLD);
+            }
+            columns_len >= channel_min_columns && total_groups < threads
+        };
 
-    for b in 0..batch_size {
-        for g in 0..groups {
-            let ic_start = g * in_channels_per_group;
-            let oc_start = g * out_channels_per_group;
+    let process_group = |b: usize, g: usize, group_output: &mut [T], columns: &mut [T]| {
+        let ic_start = g * in_channels_per_group;
+        let x_offset = b * in_channels * in_spatial + ic_start * in_spatial;
+        let w_offset = ic_start * out_channels_per_group * k_spatial;
 
-            let x_offset = b * in_channels * in_spatial + ic_start * in_spatial;
-            let w_offset = ic_start * out_channels_per_group * k_spatial;
+        let x_group = &x_data[x_offset..x_offset + in_channels_per_group * in_spatial];
+        let w_group = &w_data[w_offset..w_offset + in_channels_per_group * col_ch];
 
-            let x_group = &x_data[x_offset..x_offset + in_channels_per_group * in_spatial];
-            let w_group = &w_data[w_offset..w_offset + in_channels_per_group * col_ch];
-
+        if in_channels_per_group == 0 {
+            return;
+        }
+        let mut process_tile = |tile_start: usize, tile_len: usize| {
+            let tile_end = tile_start + tile_len;
+            let columns = &mut columns[..col_ch * tile_len];
             gemm_fn(
-                &mut columns,
+                columns,
                 w_group,
-                x_group,
+                &x_group[tile_start..],
                 col_ch,
                 in_channels_per_group,
+                tile_len,
                 in_spatial,
             );
 
-            // col2im: scatter columns into output for this (batch, group)
-            let out_base = b * out_channels * out_spatial;
-            for oc in 0..out_channels_per_group {
-                let out_ch_base = out_base + (oc_start + oc) * out_spatial;
-                let oc_col_base = oc * k_spatial;
+            // Add this tile to the output for this (batch, group).
+            let process_channels = |first_channel: usize, channel_output: &mut [T]| {
+                for local_channel in 0..channel_output.len() / out_spatial {
+                    let out_ch_base = local_channel * out_spatial;
+                    let oc_col_base = (first_channel + local_channel) * k_spatial;
 
-                for kd in 0..kernel_d {
-                    for kh in 0..kernel_h {
-                        for kw in 0..kernel_w {
-                            let k_idx = kd * kernel_h * kernel_w + kh * kernel_w + kw;
-                            let col_base = (oc_col_base + k_idx) * in_spatial;
-
-                            for id in 0..in_d {
-                                let od_raw = id * stride_d + kd * dilation_d;
-                                if od_raw < pad_d {
+                    for kd in 0..kernel_d {
+                        let (id_start, id_end) =
+                            valid_in_range(kd, dilation_d, pad_d, stride_d, in_d, out_d);
+                        let (id_start, id_end) = if TILED {
+                            (
+                                id_start.max(tile_start / (in_h * in_w)),
+                                id_end.min(tile_end.div_ceil(in_h * in_w)),
+                            )
+                        } else {
+                            (id_start, id_end)
+                        };
+                        if id_start >= id_end {
+                            continue;
+                        }
+                        for kh in 0..kernel_h {
+                            let (ih_start, ih_end) =
+                                valid_in_range(kh, dilation_h, pad_h, stride_h, in_h, out_h);
+                            if ih_start >= ih_end {
+                                continue;
+                            }
+                            for kw in 0..kernel_w {
+                                let (iw_start, iw_end) =
+                                    valid_in_range(kw, dilation_w, pad_w, stride_w, in_w, out_w);
+                                if iw_start >= iw_end {
                                     continue;
                                 }
-                                let od = od_raw - pad_d;
-                                if od >= out_d {
-                                    continue;
-                                }
+                                let k_idx = kd * kernel_h * kernel_w + kh * kernel_w + kw;
+                                let col_base = (oc_col_base + k_idx) * tile_len;
 
-                                for ih in 0..in_h {
-                                    let oh_raw = ih * stride_h + kh * dilation_h;
-                                    if oh_raw < pad_h {
-                                        continue;
-                                    }
-                                    let oh = oh_raw - pad_h;
-                                    if oh >= out_h {
-                                        continue;
-                                    }
+                                for id in id_start..id_end {
+                                    let od = id * stride_d + kd * dilation_d - pad_d;
+                                    let in_d_base = id * in_h * in_w;
+                                    let out_d_base = od * out_h * out_w;
+                                    let (ih_start, ih_end) = if TILED {
+                                        (
+                                            ih_start
+                                                .max(tile_start.saturating_sub(in_d_base) / in_w),
+                                            ih_end.min(
+                                                tile_end.saturating_sub(in_d_base).div_ceil(in_w),
+                                            ),
+                                        )
+                                    } else {
+                                        (ih_start, ih_end)
+                                    };
 
-                                    for iw in 0..in_w {
-                                        let ow_raw = iw * stride_w + kw * dilation_w;
-                                        if ow_raw < pad_w {
-                                            continue;
+                                    for ih in ih_start..ih_end {
+                                        let oh = ih * stride_h + kh * dilation_h - pad_h;
+                                        let in_h_base = in_d_base + ih * in_w;
+                                        let out_h_base = out_d_base + oh * out_w;
+                                        let (iw_start, iw_end) = if TILED {
+                                            (
+                                                iw_start.max(tile_start.saturating_sub(in_h_base)),
+                                                iw_end.min(tile_end.saturating_sub(in_h_base)),
+                                            )
+                                        } else {
+                                            (iw_start, iw_end)
+                                        };
+                                        for iw in iw_start..iw_end {
+                                            let ow = iw * stride_w + kw * dilation_w - pad_w;
+                                            let s = in_h_base + iw - tile_start;
+                                            let val = columns[col_base + s];
+                                            let out_idx = out_ch_base + out_h_base + ow;
+                                            channel_output[out_idx] =
+                                                T::add(channel_output[out_idx], val);
                                         }
-                                        let ow = ow_raw - pad_w;
-                                        if ow >= out_w {
-                                            continue;
-                                        }
-
-                                        let s = id * in_h * in_w + ih * in_w + iw;
-                                        let val = columns[col_base + s];
-                                        let out_idx =
-                                            out_ch_base + od * out_h * out_w + oh * out_w + ow;
-                                        output[out_idx] = add_fn(output[out_idx], val);
                                     }
                                 }
                             }
                         }
                     }
                 }
+            };
+            #[cfg(feature = "rayon")]
+            if parallel_channels && columns.len() >= channel_min_columns {
+                use rayon::prelude::*;
+                group_output
+                    .par_chunks_mut(out_spatial)
+                    .enumerate()
+                    .for_each(|(oc, channel_output)| {
+                        process_channels(oc, channel_output);
+                    });
+            } else {
+                process_channels(0, group_output);
             }
+            #[cfg(not(feature = "rayon"))]
+            process_channels(0, group_output);
+        };
+        if TILED {
+            // For a fixed output, increasing kernel indices read decreasing input
+            // positions. Visit tiles in reverse to keep the col2im addition order.
+            for tile_start in (0..in_spatial).step_by(tile_size).rev() {
+                process_tile(tile_start, tile_size.min(in_spatial - tile_start));
+            }
+        } else {
+            process_tile(0, in_spatial);
+        }
+    };
+
+    #[cfg(feature = "rayon")]
+    if total_groups > 1
+        && (total_groups * out_channels_per_group * out_spatial) >= super::PARALLEL_THRESHOLD
+    {
+        use rayon::prelude::*;
+        output
+            .par_chunks_mut(group_chunk_len)
+            .enumerate()
+            .for_each(|(bg, group_output)| {
+                let b = bg / groups;
+                let g = bg % groups;
+                let mut columns = vec![zero; columns_len];
+                process_group(b, g, group_output, &mut columns);
+            });
+    } else {
+        let mut columns = vec![zero; columns_len];
+        for (bg, group_output) in output.chunks_mut(group_chunk_len).enumerate() {
+            let b = bg / groups;
+            let g = bg % groups;
+            process_group(b, g, group_output, &mut columns);
+        }
+    }
+    #[cfg(not(feature = "rayon"))]
+    {
+        let mut columns = vec![zero; columns_len];
+        for (bg, group_output) in output.chunks_mut(group_chunk_len).enumerate() {
+            let b = bg / groups;
+            let g = bg % groups;
+            process_group(b, g, group_output, &mut columns);
         }
     }
 
@@ -359,7 +529,6 @@ fn conv_transpose3d_impl<T: bytemuck::Pod + Clone + Copy + Send + Sync + burn_ba
             batch_size,
             out_channels,
             out_spatial,
-            add_fn,
         );
     }
 
@@ -377,12 +546,20 @@ fn conv_transpose3d_impl<T: bytemuck::Pod + Clone + Copy + Send + Sync + burn_ba
 
 macro_rules! conv_transpose_gemm_typed {
     ($fn_name:ident, $T:ty, $zero:expr, $one:expr) => {
-        fn $fn_name(c: &mut [$T], a: &[$T], b: &[$T], m: usize, k: usize, n: usize) {
+        fn $fn_name(
+            c: &mut [$T],
+            a: &[$T],
+            b: &[$T],
+            m: usize,
+            k: usize,
+            n: usize,
+            b_stride: usize,
+        ) {
             debug_assert_eq!(c.len(), m * n);
             debug_assert_eq!(a.len(), k * m);
-            debug_assert_eq!(b.len(), k * n);
+            debug_assert!(k == 0 || b.len() >= (k - 1) * b_stride + n);
             #[cfg(feature = "rayon")]
-            let parallelism = if m * n * k >= 192 * 192 * 192 {
+            let parallelism = if m * n * k >= GEMM_PARALLEL_WORK {
                 gemm::Parallelism::Rayon(0)
             } else {
                 gemm::Parallelism::None
@@ -402,8 +579,8 @@ macro_rules! conv_transpose_gemm_typed {
                     m as isize, // lhs_cs: A^T column stride = row length of A
                     1,          // lhs_rs: A^T row stride = 1
                     b.as_ptr(),
-                    1,          // rhs_cs
-                    n as isize, // rhs_rs
+                    1,                 // rhs_cs
+                    b_stride as isize, // rhs_rs
                     $zero,
                     $one,
                     false,
@@ -441,6 +618,381 @@ mod tests {
     use super::*;
     use burn_backend::TensorData;
 
+    fn check_tiled_matches_untiled<const BYTES: usize>(
+        spatial: [usize; 3],
+        options: ConvTransposeOptions<3>,
+    ) {
+        let [d, h, w] = spatial;
+        let x_shape = [2, 4, d, h, w];
+        let w_shape = [4, 3, 3, 2, 4];
+        let x_values: Vec<f32> = (0..x_shape.iter().product())
+            .map(|i| ((i * 17 % 31) as f32 - 15.0) / 8.0)
+            .collect();
+        let w_values: Vec<f32> = (0..w_shape.iter().product())
+            .map(|i| ((i * 7 % 19) as f32 - 9.0) / 16.0)
+            .collect();
+        let bias_values: Vec<f32> = (0..3 * options.groups).map(|i| i as f32 / 4.0).collect();
+        let x = FlexTensor::from_data(TensorData::new(x_values, x_shape));
+        let weight = FlexTensor::from_data(TensorData::new(w_values, w_shape));
+        let bias = FlexTensor::from_data(TensorData::new(bias_values, [3 * options.groups]));
+
+        // Public backend tests check convolution correctness. Here, check that
+        // splitting the column buffer into tiles preserves the untiled result.
+        let expected = conv_transpose3d_impl::<f32, { usize::MAX }, false>(
+            x.clone(),
+            weight.clone(),
+            Some(bias.clone()),
+            &options,
+            DType::F32,
+            0.0,
+            conv_transpose_gemm_f32,
+        );
+        let actual = conv_transpose3d_impl::<f32, BYTES, true>(
+            x,
+            weight,
+            Some(bias),
+            &options,
+            DType::F32,
+            0.0,
+            conv_transpose_gemm_f32,
+        );
+        assert_eq!(actual.layout().shape(), expected.layout().shape());
+        assert_eq!(
+            actual.storage::<f32>(),
+            expected.storage::<f32>(),
+            "spatial {spatial:?}, groups {}, tile limit {BYTES}",
+            options.groups
+        );
+    }
+
+    #[test]
+    fn test_conv_transpose_tiles_cross_rows_and_planes() {
+        for groups in [1, 2] {
+            for spatial in [[1, 1, 11], [1, 5, 7], [3, 4, 5]] {
+                let options =
+                    ConvTransposeOptions::new([2, 1, 3], [1, 1, 2], [1, 0, 2], [2, 2, 1], groups);
+                check_tiled_matches_untiled::<{ 7 * 3 * 3 * 2 * 4 * 4 }>(spatial, options.clone());
+                // A single position can exceed the byte limit.
+                check_tiled_matches_untiled::<1>(spatial, options);
+            }
+        }
+    }
+
+    macro_rules! check_column_buffer_limit {
+        ($name:ident, $ty:ty, $dtype:expr, $conv:ident) => {
+            #[test]
+            fn $name() {
+                let max_len = 8 * 1024 * 1024 / core::mem::size_of::<$ty>() / (8 * 8);
+                let options = ConvTransposeOptions::new([2], [3], [0], [1], 1);
+                // Exercise the typed entry point at the production byte limit.
+                for len in [max_len - 1, max_len, max_len + 1] {
+                    let x_values: Vec<f32> = (0..len).map(|i| (i % 7) as f32 - 3.0).collect();
+                    let w_values: Vec<f32> = (0..64).map(|i| (i % 5) as f32 - 2.0).collect();
+                    let x = FlexTensor::from_data(
+                        TensorData::new(x_values.clone(), [1, 1, len]).convert_dtype($dtype),
+                    );
+                    let weight = FlexTensor::from_data(
+                        TensorData::new(w_values.clone(), [1, 8, 8]).convert_dtype($dtype),
+                    );
+                    let actual = $conv(x, weight, None, &options);
+
+                    // Small integers make this direct reference exact for all three types.
+                    let out_len = 2 * len;
+                    let mut expected = vec![0.0f32; 8 * out_len];
+                    for (oc, kernel) in w_values.chunks_exact(8).enumerate() {
+                        for (i, &input) in x_values.iter().enumerate() {
+                            for (k, &weight) in kernel.iter().enumerate() {
+                                let out = 2 * i + k;
+                                if (3..out_len + 3).contains(&out) {
+                                    expected[oc * out_len + out - 3] += input * weight;
+                                }
+                            }
+                        }
+                    }
+                    let expected = TensorData::new(expected, [1, 8, out_len]).convert_dtype($dtype);
+                    assert_eq!(actual.layout().shape().to_vec(), vec![1, 8, out_len]);
+                    assert_eq!(actual.dtype(), $dtype);
+                    assert_eq!(actual.storage::<$ty>(), expected.as_slice::<$ty>().unwrap());
+                }
+            }
+        };
+    }
+
+    check_column_buffer_limit!(
+        test_column_buffer_limit_f32,
+        f32,
+        DType::F32,
+        conv_transpose1d_f32
+    );
+    check_column_buffer_limit!(
+        test_column_buffer_limit_f64,
+        f64,
+        DType::F64,
+        conv_transpose1d_f64
+    );
+    check_column_buffer_limit!(
+        test_column_buffer_limit_f16,
+        f16,
+        DType::F16,
+        conv_transpose1d_f16
+    );
+
+    #[cfg(feature = "rayon")]
+    macro_rules! check_parallel_channels {
+        ($name:ident, $lower_limit_name:ident, $ty:ty, $dtype:expr, $zero:expr, $gemm:ident) => {
+            #[test]
+            fn $name() {
+                let serial = rayon::ThreadPoolBuilder::new()
+                    .num_threads(1)
+                    .build()
+                    .unwrap();
+                let parallel = rayon::ThreadPoolBuilder::new()
+                    .num_threads(4)
+                    .build()
+                    .unwrap();
+                for (batch, groups) in [(1, 1), (2, 1), (1, 4)] {
+                    let x_shape = [batch, 4, 3, 65, 67];
+                    let w_shape = [4, 4, 3, 3, 3];
+                    let x = FlexTensor::from_data(
+                        TensorData::new(
+                            (0..x_shape.iter().product())
+                                .map(|i| ((i % 17) as f32 - 8.0) / 8.0)
+                                .collect::<Vec<_>>(),
+                            x_shape,
+                        )
+                        .convert_dtype($dtype),
+                    );
+                    let weight = FlexTensor::from_data(
+                        TensorData::new(
+                            (0..w_shape.iter().product())
+                                .map(|i| ((i % 13) as f32 - 6.0) / 16.0)
+                                .collect::<Vec<_>>(),
+                            w_shape,
+                        )
+                        .convert_dtype($dtype),
+                    );
+                    let options =
+                        ConvTransposeOptions::new([1, 2, 3], [1; 3], [0; 3], [1; 3], groups);
+                    let expected = serial.install(|| {
+                        conv_transpose3d_impl::<$ty, { usize::MAX }, false>(
+                            x.clone(),
+                            weight.clone(),
+                            None,
+                            &options,
+                            $dtype,
+                            $zero,
+                            $gemm,
+                        )
+                    });
+                    // Full tiles exceed the parallel threshold. The short last tile does not.
+                    let actual = parallel.install(|| {
+                        conv_transpose3d_impl::<
+                            $ty,
+                            { 384 * 1024 * core::mem::size_of::<$ty>() },
+                            true,
+                        >(
+                            x.clone(),
+                            weight.clone(),
+                            None,
+                            &options,
+                            $dtype,
+                            $zero,
+                            $gemm,
+                        )
+                    });
+                    assert_eq!(expected.storage::<$ty>(), actual.storage::<$ty>());
+                    let untiled = parallel.install(|| {
+                        conv_transpose3d_impl::<$ty, { usize::MAX }, false>(
+                            x.clone(),
+                            weight.clone(),
+                            None,
+                            &options,
+                            $dtype,
+                            $zero,
+                            $gemm,
+                        )
+                    });
+                    assert_eq!(expected.storage::<$ty>(), untiled.storage::<$ty>());
+                }
+            }
+
+            #[test]
+            fn $lower_limit_name() {
+                let serial = rayon::ThreadPoolBuilder::new()
+                    .num_threads(1)
+                    .build()
+                    .unwrap();
+                let parallel = rayon::ThreadPoolBuilder::new()
+                    .num_threads(4)
+                    .build()
+                    .unwrap();
+                let x_shape = [1, 64, 1, 1, 6145];
+                let w_shape = [64, 8, 1, 1, 8];
+                let x = FlexTensor::from_data(
+                    TensorData::new(
+                        (0..x_shape.iter().product())
+                            .map(|i| ((i % 17) as f32 - 8.0) / 8.0)
+                            .collect::<Vec<_>>(),
+                        x_shape,
+                    )
+                    .convert_dtype($dtype),
+                );
+                let weight = FlexTensor::from_data(
+                    TensorData::new(
+                        (0..w_shape.iter().product())
+                            .map(|i| ((i % 13) as f32 - 6.0) / 16.0)
+                            .collect::<Vec<_>>(),
+                        w_shape,
+                    )
+                    .convert_dtype($dtype),
+                );
+                let options = ConvTransposeOptions::new([1, 1, 2], [0, 0, 3], [0, 0, 1], [1; 3], 1);
+                let expected = serial.install(|| {
+                    conv_transpose3d_impl::<$ty, { usize::MAX }, false>(
+                        x.clone(),
+                        weight.clone(),
+                        None,
+                        &options,
+                        $dtype,
+                        $zero,
+                        $gemm,
+                    )
+                });
+                // GEMM uses Rayon for the 128K-element tiles. The final tile has
+                // one input position and stays on the serial col2im path.
+                let actual =
+                    parallel.install(|| {
+                        conv_transpose3d_impl::<
+                            $ty,
+                            { 128 * 1024 * core::mem::size_of::<$ty>() },
+                            true,
+                        >(x, weight, None, &options, $dtype, $zero, $gemm)
+                    });
+                assert_eq!(expected.storage::<$ty>(), actual.storage::<$ty>());
+            }
+        };
+    }
+
+    #[cfg(feature = "rayon")]
+    check_parallel_channels!(
+        test_conv_transpose_parallel_channels_f32,
+        test_conv_transpose_parallel_channels_lower_limit_and_serial_tail_f32,
+        f32,
+        DType::F32,
+        0.0,
+        conv_transpose_gemm_f32
+    );
+    #[cfg(feature = "rayon")]
+    check_parallel_channels!(
+        test_conv_transpose_parallel_channels_f64,
+        test_conv_transpose_parallel_channels_lower_limit_and_serial_tail_f64,
+        f64,
+        DType::F64,
+        0.0,
+        conv_transpose_gemm_f64
+    );
+    #[cfg(feature = "rayon")]
+    check_parallel_channels!(
+        test_conv_transpose_parallel_channels_f16,
+        test_conv_transpose_parallel_channels_lower_limit_and_serial_tail_f16,
+        f16,
+        DType::F16,
+        f16::from_f32(0.0),
+        conv_transpose_gemm_f16
+    );
+
+    macro_rules! check_addition_order {
+        ($name:ident, $ty:ty, $dtype:expr, $gemm:ident, $values:expr, $one:expr, $zero:expr) => {
+            #[test]
+            fn $name() {
+                let values: &[$ty] = &$values;
+                let x = FlexTensor::from_data(TensorData::new(
+                    (0..180)
+                        .map(|i| values[i % values.len()])
+                        .collect::<Vec<_>>(),
+                    [1, 3, 3, 4, 5],
+                ));
+                let one: $ty = $one;
+                let weight = FlexTensor::from_data(TensorData::new(vec![one; 81], [3, 1, 3, 3, 3]));
+                let options = ConvTransposeOptions::new([1; 3], [1; 3], [0; 3], [1; 3], 1);
+                let full = conv_transpose3d_impl::<$ty, { usize::MAX }, false>(
+                    x.clone(),
+                    weight.clone(),
+                    None,
+                    &options,
+                    $dtype,
+                    $zero,
+                    $gemm,
+                );
+                let tiled =
+                    conv_transpose3d_impl::<$ty, { 7 * 27 * core::mem::size_of::<$ty>() }, true>(
+                        x, weight, None, &options, $dtype, $zero, $gemm,
+                    );
+                assert_eq!(full.storage::<$ty>(), tiled.storage::<$ty>());
+            }
+        };
+    }
+
+    // Cancellation makes changes to the col2im addition order visible.
+    check_addition_order!(
+        test_tiles_f32_addition_order,
+        f32,
+        DType::F32,
+        conv_transpose_gemm_f32,
+        [1e20, 1.0, -1e20, 3.0, 0.5],
+        1.0,
+        0.0
+    );
+    check_addition_order!(
+        test_tiles_f64_addition_order,
+        f64,
+        DType::F64,
+        conv_transpose_gemm_f64,
+        [1e100, 1.0, -1e100, 3.0, 0.5],
+        1.0,
+        0.0
+    );
+    check_addition_order!(
+        test_tiles_f16_addition_order,
+        f16,
+        DType::F16,
+        conv_transpose_gemm_f16,
+        [2048.0, 1.0, -2048.0, 3.0, 0.5].map(f16::from_f32),
+        f16::ONE,
+        f16::ZERO
+    );
+
+    #[test]
+    fn test_conv_transpose_tiles_empty_channels() {
+        let x = FlexTensor::from_data(TensorData::new(Vec::<f32>::new(), [1, 0, 2, 3, 4]));
+        let weight = FlexTensor::from_data(TensorData::new(Vec::<f32>::new(), [0, 1, 2, 2, 2]));
+        let bias = FlexTensor::from_data(TensorData::new(vec![2.0f32], [1]));
+        let options = ConvTransposeOptions::new([1; 3], [0; 3], [0; 3], [1; 3], 1);
+        let result = conv_transpose3d_impl::<f32, 1, true>(
+            x,
+            weight,
+            Some(bias),
+            &options,
+            DType::F32,
+            0.0,
+            conv_transpose_gemm_f32,
+        );
+        assert_eq!(result.storage::<f32>(), vec![2.0; 3 * 4 * 5]);
+    }
+
+    #[test]
+    fn test_conv_transpose_empty_output_group() {
+        // Padding removes the entire spatial output. The group copier must
+        // return before constructing chunks with a zero length.
+        let x = FlexTensor::from_data(TensorData::new(vec![1.0f32, 2.0], [1, 1, 2]));
+        let weight = FlexTensor::from_data(TensorData::new(vec![1.0f32], [1, 1, 1]));
+        let options = ConvTransposeOptions::new([1], [1], [0], [1], 1);
+        let result = conv_transpose1d_f32(x, weight, None, &options);
+        assert_eq!(result.layout().shape().to_vec(), vec![1, 1, 0]);
+        assert_eq!(result.dtype(), DType::F32);
+        assert!(result.into_data().bytes().is_empty());
+    }
+
     #[test]
     fn test_conv_transpose2d_f64() {
         let x = FlexTensor::from_data(TensorData::new(
@@ -450,7 +1002,7 @@ mod tests {
         let w = FlexTensor::from_data(TensorData::new(vec![1.0f64; 4], vec![1, 1, 2, 2]));
         let opts = ConvTransposeOptions::new([1, 1], [0, 0], [0, 0], [1, 1], 1);
         let result = conv_transpose2d_f64(x, w, None, &opts);
-        let out: Vec<f64> = result.into_data().to_vec().unwrap();
+        let out: Vec<f64> = result.into_data().try_into_vec().unwrap();
         assert_eq!(out, vec![1.0, 3.0, 2.0, 4.0, 10.0, 6.0, 3.0, 7.0, 4.0]);
     }
 
@@ -465,7 +1017,7 @@ mod tests {
         let w = FlexTensor::from_data(TensorData::new(w_data, vec![1, 1, 2, 2]));
         let opts = ConvTransposeOptions::new([1, 1], [0, 0], [0, 0], [1, 1], 1);
         let result = conv_transpose2d_f16(x, w, None, &opts);
-        let out: Vec<f16> = result.into_data().to_vec().unwrap();
+        let out: Vec<f16> = result.into_data().try_into_vec().unwrap();
         let expected = [1.0f32, 3.0, 2.0, 4.0, 10.0, 6.0, 3.0, 7.0, 4.0];
         for (a, e) in out.iter().zip(expected.iter()) {
             assert!((a.to_f32() - e).abs() < 0.1);

@@ -1,7 +1,30 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 #![warn(missing_docs)]
 #![cfg_attr(docsrs, feature(doc_cfg))]
-#![recursion_limit = "138"]
+// Without a backend, generated dispatch bodies diverge and their arguments/imports
+// are unused. Keep the API available for libraries that let consumers select a backend.
+#![cfg_attr(
+    not(backend_enabled),
+    allow(
+        unused_imports,
+        unused_variables,
+        unused_mut,
+        unused_macros,
+        unused_assignments,
+        dead_code,
+        irrefutable_let_patterns,
+        unreachable_code
+    )
+)]
+// Wiring up the deprecated `NdArray` and `LibTorch` backends is this crate's job, and the backend
+// registry macros expand them into every dispatch impl, so the warnings land on `macros.rs` rather
+// than on any site we could annotate individually. `allow(deprecated)` is a lint level scoped to
+// this crate, and lint levels never propagate to dependents, so downstream code naming `NdArray` or
+// `LibTorch` (directly or via our re-export) still gets the warning. The `cfg_attr` keeps this
+// confined to the builds that enable them: neither `ndarray` nor `tch` is a default feature, so the
+// default build that CI lints with `--deny warnings` retains full deprecation signal for every
+// other dependency.
+#![cfg_attr(any(feature = "ndarray", feature = "tch"), allow(deprecated))]
 
 //! Burn multi-backend dispatch.
 //!
@@ -11,20 +34,16 @@
 //!
 //! | Backend    | Feature    | Description |
 //! |------------|------------|-------------|
-//! | `Cpu`      | `cpu`      | Rust CPU backend (MLIR + LLVM) |
-//! | `Cuda`     | `cuda`     | NVIDIA CUDA backend |
-//! | `Metal`    | `metal`    | Apple Metal backend via `wgpu` (MSL) |
-//! | `Rocm`     | `rocm`     | AMD ROCm backend |
-//! | `Vulkan`   | `vulkan`   | Vulkan backend via `wgpu` (SPIR-V) |
-//! | `Wgpu`     | `webgpu`   | WebGPU backend via `wgpu` (WGSL) |
+//! | `Cube`     | `cpu`, `cuda`, `metal`, `rocm`, `vulkan`, `webgpu`, `wgpu` | Every cubecl runtime. One backend: the features decide which runtimes are compiled in, and a tensor's device says which one it runs on |
 //! | `Flex`     | `flex`     | Pure Rust CPU backend using `burn-flex` |
-//! | `NdArray`  | `ndarray`  | Pure Rust CPU backend using `ndarray` (legacy - prefer `flex`) |
-//! | `LibTorch` | `tch`      | Libtorch backend via `tch` |
+//! | `NdArray`  | `ndarray`  | Pure Rust CPU backend using `ndarray` (deprecated - use `flex`) |
+//! | `LibTorch` | `tch`      | Libtorch backend via `tch` (deprecated - use a CubeCL backend) |
 //! | `Autodiff` | `autodiff` | Autodiff-enabled backend (used in combination with any of the backends above) |
 //!
-//! **Note:** All backends, including the WGPU-based ones (`wgpu`, `metal`, `vulkan`, `webgpu`),
-//! can be combined freely. Each enabled wgpu backend appears as its own
-//! [`DispatchDevice`] variant.
+//! **Note:** The features can be combined freely. The cubecl-backed ones all
+//! select the same backend, so they share the one `DispatchDevice::Cube`
+//! variant — enabling several compiles several runtimes in, and the device a
+//! tensor carries is what picks between them.
 
 #[macro_use]
 mod macros;
@@ -47,6 +66,23 @@ pub use tensor::*;
 
 extern crate alloc;
 
+// Keep backend-free dispatch types opaque to downstream crates. An actually empty
+// enum makes every API accepting/returning a tensor appear unreachable there.
+// The private field prevents construction without leaking uninhabitedness.
+#[cfg(not(backend_enabled))]
+#[doc(hidden)]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct NoBackend {
+    never: core::convert::Infallible,
+}
+
+#[cfg(not(backend_enabled))]
+impl NoBackend {
+    pub(crate) fn unreachable(&self) -> ! {
+        match self.never {}
+    }
+}
+
 /// Backends and devices used.
 pub mod backends {
     #[cfg(feature = "autodiff")]
@@ -54,32 +90,15 @@ pub mod backends {
     #[cfg(feature = "autodiff")]
     pub use burn_autodiff::Autodiff; // re-export for extensions
 
-    #[cfg(feature = "cpu")]
-    pub use burn_cpu as cpu;
-    #[cfg(feature = "cpu")]
-    pub use burn_cpu::Cpu;
-    #[cfg(feature = "cuda")]
-    pub use burn_cuda as cuda;
-    #[cfg(feature = "cuda")]
-    pub use burn_cuda::Cuda;
-    #[cfg(feature = "rocm")]
-    pub use burn_rocm as rocm;
-    #[cfg(feature = "rocm")]
-    pub use burn_rocm::Rocm;
-    #[cfg(feature = "wgpu")]
-    pub use burn_wgpu as wgpu;
-    #[cfg(feature = "metal")]
-    pub use burn_wgpu::Metal;
-    #[cfg(feature = "vulkan")]
-    pub use burn_wgpu::Vulkan;
-    #[cfg(feature = "webgpu")]
-    pub use burn_wgpu::WebGpu;
-    #[cfg(feature = "wgpu")]
-    pub use burn_wgpu::Wgpu;
+    /// The cubecl backend: CUDA, ROCm, Metal, Vulkan, WebGPU, wgpu and the CPU
+    /// runtime are all this one type, and a tensor's device says which of them
+    /// it runs on. The features still decide which runtimes are compiled in.
+    #[cfg(cube_backend)]
+    pub use burn_cubecl::Cube;
 
-    #[cfg(any(feature = "flex", default_backend))]
+    #[cfg(feature = "flex")]
     pub use burn_flex as flex;
-    #[cfg(any(feature = "flex", default_backend))]
+    #[cfg(feature = "flex")]
     pub use burn_flex::Flex;
     #[cfg(feature = "ndarray")]
     pub use burn_ndarray as ndarray;
@@ -95,7 +114,16 @@ pub mod backends {
     #[cfg(feature = "remote")]
     pub use burn_remote::RemoteBackend as Remote;
 
-    pub use super::devices::*;
+    /// Public graph-capture API types.
+    #[cfg(feature = "capture")]
+    pub mod capture {
+        pub use burn_capture::{
+            CaptureBackend, CaptureError, CaptureScope, CapturedGraph, CompletedCaptureScope,
+            TensorId,
+        };
+    }
+    #[cfg(feature = "capture")]
+    pub use burn_capture::CaptureBackend as Capture;
 }
 
 // Re-export devices
@@ -103,15 +131,24 @@ pub mod backends {
 /// Backend devices.
 pub mod devices {
     #[cfg(feature = "cpu")]
-    pub use burn_cpu::CpuDevice;
+    pub use burn_cubecl::cubecl::cpu::CpuDevice;
     #[cfg(feature = "cuda")]
-    pub use burn_cuda::CudaDevice;
+    pub use burn_cubecl::cubecl::cuda::CudaDevice;
     #[cfg(feature = "rocm")]
-    pub use burn_rocm::RocmDevice;
+    pub use burn_cubecl::cubecl::hip::AmdDevice as RocmDevice;
     #[cfg(feature = "wgpu")]
-    pub use burn_wgpu::WgpuDevice;
+    pub use burn_cubecl::cubecl::wgpu::{
+        AutoCompiler, AutoGraphicsApi, WgpuBackend, WgpuDevice, WgpuDeviceKind, init_setup_async,
+    };
 
-    #[cfg(any(feature = "flex", default_backend))]
+    /// The device every cubecl runtime shares; which runtime it names is a
+    /// property of the value, not of its type, and [`RuntimeId`] is how that
+    /// property is named.
+    #[cfg(cube_backend)]
+    pub use burn_cubecl::CubeDevice;
+    #[cfg(cube_backend)]
+    pub use burn_cubecl::cubecl::RuntimeId;
+    #[cfg(feature = "flex")]
     pub use burn_flex::FlexDevice;
     #[cfg(feature = "ndarray")]
     pub use burn_ndarray::NdArrayDevice;

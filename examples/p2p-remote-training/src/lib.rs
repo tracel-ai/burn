@@ -1,6 +1,9 @@
 use burn::server::{Channel, RemoteSecret};
 use burn::tensor::{Device, Distribution, Tensor};
-use iroh::{Endpoint, EndpointId, endpoint::presets};
+use iroh::{
+    Endpoint, EndpointId,
+    endpoint::{QuicTransportConfig, presets},
+};
 use tracing_subscriber::{EnvFilter, fmt};
 
 fn init_logging() {
@@ -40,7 +43,12 @@ pub async fn run_client(topic: &str) {
     println!("server id : {server_id}");
     println!("connecting...");
 
+    // https://github.com/n0-computer/iroh/issues/4555
+    let transport = QuicTransportConfig::builder()
+        .enable_segmentation_offload(false)
+        .build();
     let endpoint = Endpoint::builder(presets::N0)
+        .transport_config(transport)
         .bind()
         .await
         .expect("bind failed");
@@ -77,13 +85,13 @@ fn train(device: &Device) {
         b = b - db * LR;
 
         if step % 10 == 0 || step == STEPS - 1 {
-            let loss_val = loss.to_data().to_vec::<f32>().unwrap()[0];
+            let loss_val = loss.try_into_vec_as::<f32>().unwrap()[0];
             println!("{:>5}  {:>10.6}", step + 1, loss_val);
         }
     }
 
-    let w_val = w.to_data().to_vec::<f32>().unwrap()[0];
-    let b_val = b.to_data().to_vec::<f32>().unwrap()[0];
+    let w_val = w.try_into_vec_as::<f32>().unwrap()[0];
+    let b_val = b.try_into_vec_as::<f32>().unwrap()[0];
 
     println!("\nlearned: y = {w_val:.4} * x + {b_val:.4}");
     println!("target : y = 2.5000 * x + 0.5000");

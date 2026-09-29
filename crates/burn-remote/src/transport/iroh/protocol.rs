@@ -77,6 +77,10 @@ impl<B: BackendIr> fmt::Debug for IrohRemoteProtocol<B> {
 
 impl<B: BackendIr> IrohRemoteProtocol<B> {
     /// Create a handler hosting `devices` on `node`.
+    ///
+    /// Anything hosting this runs on an async runtime, so it says so: a session's tensor read then
+    /// materializes eagerly instead of parking a blocking device to host copy on an executor worker.
+    /// Logging stays the application's, see [`ServerLogging`](crate::server::ServerLogging).
     pub fn new(
         endpoint: Endpoint,
         devices: Vec<Device<B>>,
@@ -84,6 +88,7 @@ impl<B: BackendIr> IrohRemoteProtocol<B> {
         probe: TelemetryProbe,
         custom_ops: CustomOpRegistry<B>,
     ) -> Self {
+        burn_std::set_runtime_kind(burn_std::RuntimeKind::Async);
         let node = RemoteNode::from_endpoint(endpoint);
         let transfer = Arc::new(IrohTransfer::new(node.clone()));
 

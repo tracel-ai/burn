@@ -8,17 +8,17 @@ This example corresponds to the [book's guide](https://burn.dev/books/burn/basic
 ### Training
 
 ```sh
-cargo run --bin train --release
+cargo run -p guide --bin train --release
 ```
 
 ### Inference
 
 ```sh
-cargo run --bin infer --release
+cargo run -p guide --bin infer --release
 ```
 
 ### Print the model
 
 ```sh
-cargo run --bin print --release
+cargo run -p guide --bin print --release
 ```

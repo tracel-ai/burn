@@ -571,6 +571,37 @@ fn test_sum_dim_flipped_axis1() {
 }
 
 #[test]
+fn test_sum_dim_last_column_sliced() {
+    // Rows of the view are contiguous but not packed: each is 70 wide with a
+    // row stride of 80, starting at a nonzero offset.
+    let tensor = TestTensorInt::arange(0..400, &Default::default())
+        .float()
+        .reshape([5, 80]);
+    let output = tensor.slice([1..5, 3..73]).sum_dim(1);
+
+    // Row r sums 80 * r + c for c in 3..73.
+    output.into_data().assert_eq(
+        &TensorData::from([[8225.0], [13825.0], [19425.0], [25025.0]]),
+        false,
+    );
+}
+
+#[test]
+fn test_sum_dim_middle_swapped_batched() {
+    // [2, 3, 4] swapped to [2, 4, 3] (strides [12, 1, 4]): the reduced dim has
+    // stride 1 with both outer and inner batches, so output order matters.
+    let tensor = TestTensorInt::arange(0..24, &Default::default())
+        .float()
+        .reshape([2, 3, 4]);
+    let output = tensor.swap_dims(1, 2).sum_dim(1);
+
+    output.into_data().assert_eq(
+        &TensorData::from([[[6.0, 22.0, 38.0]], [[54.0, 70.0, 86.0]]]),
+        false,
+    );
+}
+
+#[test]
 fn test_mean_dim_flipped() {
     // Flip axis 0, mean axis 1: row means appear in reversed row order.
     let tensor = TestTensor::<2>::from([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]);
@@ -603,6 +634,33 @@ fn test_sum_narrowed() {
     output
         .into_data()
         .assert_eq(&TensorData::from([6.0]), false);
+}
+
+#[test]
+fn test_sum_expanded_over_full_buffer() {
+    // Narrow [1, 4] to [1, 2] then broadcast to [2, 2]: the view holds four
+    // elements over a four-element buffer, but only reads the first two of
+    // them, each twice. Summing the raw buffer would give 6.0.
+    let tensor = TestTensor::<2>::from([[0.0, 1.0, 2.0, 3.0]]);
+    let output = tensor.narrow(1, 0, 2).expand([2, 2]).sum();
+
+    output
+        .into_data()
+        .assert_eq(&TensorData::from([2.0]), false);
+}
+
+#[test]
+fn test_sum_overlapping_unfold() {
+    // Unfold into [[0, 1, 2], [2, 3, 4]]: six logical elements over a
+    // six-element buffer, but index 2 is repeated and index 5 is unused.
+    // Summing the raw buffer would incorrectly give 15.0.
+    let tensor = TestTensor::<1>::from([0.0, 1.0, 2.0, 3.0, 4.0, 5.0]);
+    let unfolded: TestTensor<2> = tensor.unfold(0, 3, 2);
+    let output = unfolded.sum();
+
+    output
+        .into_data()
+        .assert_eq(&TensorData::from([12.0]), false);
 }
 
 #[test]
@@ -642,4 +700,96 @@ fn test_should_mean_overflow_intermediate_sum() {
     output
         .into_data()
         .assert_approx_eq::<FloatElem>(&TensorData::from([511.5]), Tolerance::default());
+}
+
+// Reducing zero elements returns the identity of the folded operation. The extrema have no
+// identity; those cases live in `maxmin.rs`.
+#[test]
+fn test_should_sum_empty() {
+    let tensor = TestTensor::<1>::empty([0], &Default::default());
+
+    let output = tensor.sum();
+
+    output
+        .into_data()
+        .assert_eq(&TensorData::from([0.0]), false);
+}
+
+#[test]
+fn test_should_prod_empty() {
+    let tensor = TestTensor::<1>::empty([0], &Default::default());
+
+    let output = tensor.prod();
+
+    output
+        .into_data()
+        .assert_eq(&TensorData::from([1.0]), false);
+}
+
+#[test]
+fn test_should_mean_empty_is_nan() {
+    let tensor = TestTensor::<1>::empty([0], &Default::default());
+
+    let output = tensor.mean().into_data();
+
+    let values = output.as_slice::<FloatElem>().unwrap();
+    assert_eq!(values.len(), 1);
+    assert!(values[0].is_nan(), "mean of an empty tensor should be NaN");
+}
+
+// Shape [3, 0]: the reduced axis is empty but the output is not, so an identity has to be written
+// per surviving position. This is the case that had no viable autotune candidate.
+#[test]
+fn test_should_sum_dim_empty_axis() {
+    let tensor = TestTensor::<2>::empty([3, 0], &Default::default());
+
+    let output = tensor.sum_dim(1);
+
+    output
+        .into_data()
+        .assert_eq(&TensorData::from([[0.0], [0.0], [0.0]]), false);
+}
+
+#[test]
+fn test_should_prod_dim_empty_axis() {
+    let tensor = TestTensor::<2>::empty([3, 0], &Default::default());
+
+    let output = tensor.prod_dim(1);
+
+    output
+        .into_data()
+        .assert_eq(&TensorData::from([[1.0], [1.0], [1.0]]), false);
+}
+
+#[test]
+fn test_should_mean_dim_empty_axis_is_nan() {
+    let tensor = TestTensor::<2>::empty([3, 0], &Default::default());
+
+    let output = tensor.mean_dim(1).into_data();
+
+    let values = output.as_slice::<FloatElem>().unwrap();
+    assert_eq!(values.len(), 3);
+    assert!(values.iter().all(|v| v.is_nan()));
+}
+
+// Shape [0, 3]: the reduced axis is non-empty, but every output position is eliminated by the
+// zero-length outer axis, so the result is empty rather than an identity.
+#[test]
+fn test_should_sum_dim_empty_tensor_non_empty_axis() {
+    let tensor = TestTensor::<2>::empty([0, 3], &Default::default());
+
+    let output = tensor.sum_dim(1);
+
+    assert_eq!(output.dims(), [0, 1]);
+}
+
+// Rejected even though the output would have been empty anyway: emptiness of the output depends on
+// the *other* axis, so accepting this while rejecting [3, 0] would make the same operation succeed
+// or fail based on an unrelated dimension.
+#[test]
+#[should_panic]
+fn test_should_max_dim_empty_axis_empty_output() {
+    let tensor = TestTensor::<2>::empty([0, 0], &Default::default());
+
+    let _ = tensor.max_dim(1).into_data();
 }

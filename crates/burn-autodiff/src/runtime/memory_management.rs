@@ -6,17 +6,13 @@ use crate::{
 };
 use alloc::{borrow::ToOwned, vec, vec::Vec};
 
-#[cfg(target_has_atomic = "ptr")]
-use alloc::sync::Arc;
-
-#[cfg(not(target_has_atomic = "ptr"))]
-use portable_atomic_util::Arc;
+use burn_std::sync::Arc;
 
 use core::mem;
 
 #[derive(Default, Debug)]
 pub struct GraphMemoryManagement {
-    nodes: HashMap<NodeRefCount, Vec<NodeId>>,
+    nodes: HashMap<NodeRefCount, Vec<Parent>>,
     leaves: HashSet<NodeId>,
     statuses: HashMap<NodeId, NodeMemoryStatus>,
 }
@@ -44,8 +40,7 @@ impl GraphMemoryManagement {
         }
 
         self.leaves.insert(node_id);
-        self.nodes
-            .insert(node, parents.iter().map(|p| p.id).collect());
+        self.nodes.insert(node, parents.to_vec());
     }
 
     /// Free the node from the state.
@@ -114,7 +109,7 @@ impl GraphMemoryManagement {
             );
 
             // Check if parents are either empty or absent from self.nodes
-            let parents_absent = parents.iter().all(|p| !self.nodes.contains_key(p));
+            let parents_absent = parents.iter().all(|p| !self.nodes.contains_key(&p.id));
 
             if !is_useful && Arc::strong_count(id) == 1 && parents_absent {
                 to_delete.push(*id.as_ref())
@@ -135,7 +130,12 @@ impl GraphMemoryManagement {
             Some(parents) => {
                 let mut node_status = NodeMemoryStatus::Unknown;
                 for parent in parents {
-                    let parent_status = self.unavailable_propagation(parent);
+                    // Consuming a leaf's no-op step must not invalidate another branch,
+                    // including when the leaf's tensor handle has already been dropped.
+                    if parent.is_leaf && !self.nodes.contains_key(&parent.id) {
+                        continue;
+                    }
+                    let parent_status = self.unavailable_propagation(parent.id);
                     if let NodeMemoryStatus::Unavailable = parent_status {
                         node_status = NodeMemoryStatus::Unavailable;
                     }
@@ -168,6 +168,8 @@ impl GraphMemoryManagement {
                 .cloned()
                 .unwrap_or_default()
                 .into_iter()
+                .filter(|parent| !parent.is_leaf || self.nodes.contains_key(&parent.id))
+                .map(|parent| parent.id)
         };
 
         loop {
@@ -251,6 +253,8 @@ impl GraphMemoryManagement {
                         .cloned()
                         .unwrap_or_default()
                         .into_iter()
+                        .filter(|parent| !parent.is_leaf || self.nodes.contains_key(&parent.id))
+                        .map(|parent| parent.id)
                     {
                         if !visited.contains(&parent) {
                             to_visit.push(parent);

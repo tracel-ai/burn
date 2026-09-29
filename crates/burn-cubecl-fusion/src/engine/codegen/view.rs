@@ -11,7 +11,6 @@ use super::{
 use cubecl::{
     CubeType,
     io::read_masked,
-    ir::StorageType,
     prelude::{barrier::BarrierExpand, *},
     std::tensor::{
         ViewOperations, ViewOperationsExpand, ViewOperationsMut, ViewOperationsMutExpand,
@@ -27,7 +26,7 @@ pub struct GlobalInput {
     #[cube(comptime)]
     pos: usize,
     #[cube(comptime)]
-    ty: StorageType,
+    ty: ElemType,
     #[cube(comptime)]
     layout: LayoutInfo,
     #[cube(comptime)]
@@ -158,9 +157,8 @@ impl<E: CubePrimitive> ViewOperationsExpand<E, Coords1d> for GlobalInputExpand {
 
 impl Vectorized for GlobalInput {}
 impl VectorizedExpand for GlobalInputExpand {
-    fn vector_size(&self) -> VectorSize {
-        let temp_scope = Scope::root(false);
-        global_vector_size::expand(&temp_scope, &self.inputs, self.pos)
+    fn __expand_vector_size_method(&self, scope: &Scope) -> VectorSize {
+        global_vector_size::expand(scope, &self.inputs, self.pos)
     }
 }
 
@@ -352,7 +350,7 @@ impl<E: CubePrimitive> ViewOperationsMutExpand<E, Coords1d> for FusedOutputExpan
 
 impl Vectorized for FusedOutput {}
 impl VectorizedExpand for FusedOutputExpand {
-    fn vector_size(&self) -> VectorSize {
+    fn __expand_vector_size_method(&self, _scope: &Scope) -> VectorSize {
         self.locals.ref_vector_size
     }
 }

@@ -1,5 +1,4 @@
 use crate::{
-    CubeRuntime,
     kernel::utils::address_type,
     ops::{max_vector_size, numeric::empty_device_dtype},
     tensor::CubeTensor,
@@ -18,7 +17,7 @@ use cubecl::{
 fn bool_cast_kernel<B: Int, T: Numeric, N: Size>(
     input: LinearView<'_, Vector<B, N>>,
     mut output: LinearViewMut<'_, Vector<T, N>>,
-    #[define(B, T)] _dtypes: [StorageType; 2],
+    #[define(B, T)] _dtypes: [ElemType; 2],
 ) {
     if !output.is_in_bounds(ABSOLUTE_POS) {
         terminate!();
@@ -36,7 +35,7 @@ fn bool_cast_kernel<B: Int, T: Numeric, N: Size>(
 /// where any non-zero value means true. Depending how it was created
 /// it may hold an uncanny bit combination. Naively casting it would not
 /// necessarily yield 0 or 1.
-pub fn bool_cast<R: CubeRuntime>(tensor: CubeTensor<R>, out_dtype: DType) -> CubeTensor<R> {
+pub fn bool_cast(tensor: CubeTensor, out_dtype: DType) -> CubeTensor {
     let output = empty_device_dtype(
         tensor.client.clone(),
         tensor.device.clone(),

@@ -122,7 +122,7 @@ mod nhwc {
                 let block = k % blocks;
                 let b = k / blocks;
 
-                let output = unsafe_shared_out.get();
+                let mut output = unsafe_shared_out.get();
                 let x = x.slice(s![b, .., .., ..]);
                 let out = output.slice_mut(s![b, .., .., ..]);
                 loop_blocked(x, out, kernel_size, stride, padding, dilation, block);
@@ -132,7 +132,7 @@ mod nhwc {
                 let ch = (k % simd_unblocked) * lanes + blocks_end;
                 let b = k / simd_unblocked;
 
-                let output = unsafe_shared_out.get();
+                let mut output = unsafe_shared_out.get();
                 let x = x.slice(s![b, .., .., ..]);
                 let out = output.slice_mut(s![b, .., .., ..]);
                 loop_unblocked(x, out, kernel_size, stride, padding, dilation, ch);
@@ -142,7 +142,7 @@ mod nhwc {
                 let ch = (k % remainder) + simd_end;
                 let b = k / remainder;
 
-                let output = unsafe_shared_out.get();
+                let mut output = unsafe_shared_out.get();
                 let x = x.slice(s![b, .., .., ..]);
                 let out = output.slice_mut(s![b, .., .., ..]);
                 loop_scalar(x, out, kernel_size, stride, padding, dilation, ch);

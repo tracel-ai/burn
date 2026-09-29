@@ -170,11 +170,15 @@ impl NumericMetricState {
     /// `count` is the number of underlying units `value` is averaged over.
     /// This is typically the batch size (e.g. for accuracy, loss), but it can be any
     /// unit the metric's `value` is implicitly a rate over.
+    /// A zero-count update records the current value without changing the running aggregate.
     pub fn update(&mut self, value: f64, count: usize) {
-        self.sum += value * count as f64;
-        self.count += count;
         self.current = value;
         self.current_count = count;
+
+        if count > 0 {
+            self.sum += value * count as f64;
+            self.count += count;
+        }
     }
 
     /// Compute the metric for the current update.

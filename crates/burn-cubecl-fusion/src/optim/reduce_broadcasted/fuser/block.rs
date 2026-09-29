@@ -6,14 +6,13 @@ use crate::optim::{
 use burn_fusion::{FuserProperties, OperationFuser};
 use burn_ir::OperationIr;
 use burn_std::Shape;
-use cubecl::Runtime;
 use std::sync::Arc;
 
 /// Responsible for fusing a single reduce block or elementwise block.
 ///
 /// When the block kind is reduce, it supports fuse-on-read and fuse-on-write fusion.
 /// Broadcasting isn't supported; another block should handle it instead.
-pub struct ReduceBlockFuser<R: Runtime> {
+pub struct ReduceBlockFuser {
     /// We use [ReduceFuser] for both elementwise and reduce blocks, keeping only the
     /// fuse-on-read trace if the block is tagged as elementwise.
     ///
@@ -21,7 +20,7 @@ pub struct ReduceBlockFuser<R: Runtime> {
     ///
     /// A single elementwise block can only exist at the end of a full [ReduceBlockFuser],
     /// otherwise the optimization will be included in the reduce fusion block.
-    pub fuser: ReduceFuser<R>,
+    pub fuser: ReduceFuser,
     pub(crate) ops: Vec<OperationIr>,
     pub(crate) kind: ReduceBlockKind,
 }
@@ -54,9 +53,9 @@ pub enum ReduceBlockFusionAnalysis {
     NewBlockRequired,
 }
 
-impl<R: Runtime> ReduceBlockFuser<R> {
+impl ReduceBlockFuser {
     /// Creates a new block.
-    pub fn new(fuser: ReduceFuser<R>) -> Self {
+    pub fn new(fuser: ReduceFuser) -> Self {
         Self {
             fuser: fuser.clone(),
             ops: Vec::new(),
@@ -74,7 +73,7 @@ impl<R: Runtime> ReduceBlockFuser<R> {
         &self,
         op: &OperationIr,
         status: &ReduceBroadcastedStatus,
-        default_node: &ReduceFuser<R>,
+        default_node: &ReduceFuser,
     ) -> ReduceBlockFusionAnalysis {
         let mut fuser_try = self.fuser.clone();
         let before = fuser_try.len();
@@ -180,7 +179,7 @@ impl<R: Runtime> ReduceBlockFuser<R> {
         &mut self,
         num_ops: &mut usize,
         full: &mut ReduceBroadcastedFullFuser,
-    ) -> ReduceBlockOptimInfo<R> {
+    ) -> ReduceBlockOptimInfo {
         full.register(self);
 
         match &self.kind {
@@ -189,7 +188,7 @@ impl<R: Runtime> ReduceBlockFuser<R> {
                 let device = self.fuser.device.clone();
                 *num_ops += len;
                 let trace = self.fuser.fuser_read_fallback.finish();
-                let client = R::client(&device);
+                let client = device.client();
                 let elementwise = ElemwiseOptimization::new(trace, client, device, len);
                 ReduceBlockOptimInfo::Elemwise(Arc::new(elementwise))
             }
@@ -210,7 +209,7 @@ pub enum ReduceBlockKind {
     },
 }
 
-impl<R: Runtime> Clone for ReduceBlockFuser<R> {
+impl Clone for ReduceBlockFuser {
     fn clone(&self) -> Self {
         Self {
             fuser: self.fuser.clone(),

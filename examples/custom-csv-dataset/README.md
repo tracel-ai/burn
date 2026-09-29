@@ -9,7 +9,7 @@ The [custom-csv-dataset](src/dataset.rs) example uses [`InMemDataset::from_csv(p
 ### Example Usage
 
 ```sh
-cargo run --example custom-csv-dataset
+cargo run -p custom-csv-dataset --example custom-csv-dataset
 ```
 
 ## DataframeDataset (Polars)
@@ -21,5 +21,5 @@ The same diabetes dataset is loaded into a Polars DataFrame, which is then wrapp
 ### Example Usage
 
 ```sh
-cargo run --example dataframe-dataset --features dataframe
+cargo run -p custom-csv-dataset --example dataframe-dataset --features dataframe
 ```

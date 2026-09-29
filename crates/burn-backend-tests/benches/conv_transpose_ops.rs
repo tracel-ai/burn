@@ -13,10 +13,11 @@ use common::BencherExt;
 
 use burn_tensor::ops::ConvTransposeOptions;
 use burn_tensor::{Tensor, TensorData, module};
-use divan::{AllocProfiler, Bencher};
+use divan::Bencher;
 
+#[cfg(not(feature = "bench-disable-alloc"))]
 #[global_allocator]
-static ALLOC: AllocProfiler = AllocProfiler::system();
+static ALLOC: divan::AllocProfiler = divan::AllocProfiler::system();
 
 fn main() {
     println!("Conv Transpose Benchmarks");
@@ -115,6 +116,16 @@ macro_rules! bench_backend {
             #[divan::bench_group(name = "conv_transpose2d")]
             mod conv_transpose2d {
                 use super::*;
+
+                #[divan::bench]
+                fn conv_transpose2d_1x32x256x256_to_512x512(bencher: Bencher) {
+                    let x = make_input_2d(1, 32, 256, 256);
+                    let w = make_weight_2d(32, 32, 4, 4);
+                    let opts = ConvTransposeOptions::new([2, 2], [1, 1], [0, 0], [1, 1], 1);
+                    bencher.bench_synced(|| {
+                        module::conv_transpose2d(x.clone(), w.clone(), None, opts.clone())
+                    });
+                }
 
                 #[divan::bench]
                 fn conv_transpose2d_1x64x7x7_to_14x14(bencher: Bencher) {
@@ -221,6 +232,36 @@ macro_rules! bench_backend {
                 use super::*;
 
                 #[divan::bench]
+                fn conv_transpose1d_1x64x3072_to_6144(bencher: Bencher) {
+                    let x = make_input_1d(1, 64, 3072);
+                    let w = make_weight_1d(64, 8, 8);
+                    let opts = ConvTransposeOptions::new([2], [3], [0], [1], 1);
+                    bencher.bench_synced(|| {
+                        module::conv_transpose1d(x.clone(), w.clone(), None, opts.clone())
+                    });
+                }
+
+                #[divan::bench]
+                fn conv_transpose1d_1x64x2048_to_8192(bencher: Bencher) {
+                    let x = make_input_1d(1, 64, 2048);
+                    let w = make_weight_1d(64, 64, 8);
+                    let opts = ConvTransposeOptions::new([4], [2], [0], [1], 1);
+                    bencher.bench_synced(|| {
+                        module::conv_transpose1d(x.clone(), w.clone(), None, opts.clone())
+                    });
+                }
+
+                #[divan::bench]
+                fn conv_transpose1d_1x32x8192_to_65536(bencher: Bencher) {
+                    let x = make_input_1d(1, 32, 8192);
+                    let w = make_weight_1d(32, 32, 16);
+                    let opts = ConvTransposeOptions::new([8], [4], [0], [1], 1);
+                    bencher.bench_synced(|| {
+                        module::conv_transpose1d(x.clone(), w.clone(), None, opts.clone())
+                    });
+                }
+
+                #[divan::bench]
                 fn conv_transpose1d_1x64x32_to_64(bencher: Bencher) {
                     let x = make_input_1d(1, 64, 32);
                     let w = make_weight_1d(64, 64, 4);
@@ -254,6 +295,16 @@ macro_rules! bench_backend {
             #[divan::bench_group(name = "conv_transpose3d")]
             mod conv_transpose3d {
                 use super::*;
+
+                #[divan::bench]
+                fn conv_transpose3d_1x16x32x32x32_to_63x63x63(bencher: Bencher) {
+                    let x = make_input_3d(1, 16, 32, 32, 32);
+                    let w = make_weight_3d(16, 16, 3, 3, 3);
+                    let opts = ConvTransposeOptions::new([2; 3], [1; 3], [0; 3], [1; 3], 1);
+                    bencher.bench_synced(|| {
+                        module::conv_transpose3d(x.clone(), w.clone(), None, opts.clone())
+                    });
+                }
 
                 #[divan::bench]
                 fn conv_transpose3d_1x32x4x4x4_to_8x8x8(bencher: Bencher) {

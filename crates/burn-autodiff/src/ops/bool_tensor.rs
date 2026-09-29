@@ -130,6 +130,13 @@ impl<B: Backend, C: CheckpointStrategy> BoolTensorOps<Self> for Autodiff<B, C> {
         B::bool_mask_fill(tensor, mask, value)
     }
 
+    async fn bool_mask_select(
+        tensor: BoolTensor<Self>,
+        mask: BoolTensor<Self>,
+    ) -> BoolTensor<Self> {
+        B::bool_mask_select(tensor, mask).await
+    }
+
     fn bool_gather(
         dim: usize,
         tensor: BoolTensor<Self>,

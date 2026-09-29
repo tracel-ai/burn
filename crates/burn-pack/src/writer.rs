@@ -1,8 +1,10 @@
 use super::base::{
     Error, FORMAT_VERSION, HEADER_SIZE, Header, MAGIC_NUMBER, Metadata, Scalar, TENSOR_ALIGNMENT,
-    TensorDescriptor, aligned_data_section_start,
+    TensorDescriptor, aligned_data_section_start, validate_tensor_byte_len,
 };
 use super::tensor::Tensor;
+#[cfg(feature = "std")]
+use crate::atomic::AtomicFile;
 use alloc::collections::BTreeMap;
 use alloc::format;
 use alloc::string::{String, ToString};
@@ -35,7 +37,15 @@ const fn align_offset(offset: u64, alignment: u64) -> u64 {
 /// so each window starts on an aligned device offset.
 const WRITE_CHUNK_SIZE: usize = 8 * 1024 * 1024;
 
-/// Writer for creating Burnpack files
+/// What [`Writer::build_descriptors`] produces: descriptors keyed by name for the metadata
+/// blob, each tensor's [`Placement`] in write order, and the total size of the data section.
+type Descriptors = (BTreeMap<String, TensorDescriptor>, Vec<Placement>, usize);
+
+/// Writer for creating Burnpack files.
+///
+/// Takes the tensors to write, each carrying bytes that are either already resident or
+/// produced on demand ([`Tensor::deferred`]). Deferred tensors are drawn one at a time
+/// during the write, so a model need not fit in memory to be saved.
 pub struct Writer {
     /// Tensors to write
     pub(crate) tensors: Vec<Tensor>,
@@ -43,6 +53,12 @@ pub struct Writer {
     pub(crate) metadata: BTreeMap<String, String>,
     /// Typed scalars keyed by name
     pub(crate) scalars: BTreeMap<String, Scalar>,
+    /// Automatically append the canonical extension to extensionless file paths.
+    #[cfg(feature = "std")]
+    auto_extension: bool,
+    /// Replace an existing file at the destination on file writes.
+    #[cfg(feature = "std")]
+    overwrite: bool,
 }
 
 impl Writer {
@@ -52,6 +68,10 @@ impl Writer {
             tensors,
             metadata: BTreeMap::new(),
             scalars: BTreeMap::new(),
+            #[cfg(feature = "std")]
+            auto_extension: true,
+            #[cfg(feature = "std")]
+            overwrite: true,
         }
     }
 
@@ -64,6 +84,33 @@ impl Writer {
     /// Builder pattern: add a typed scalar and return self.
     pub fn with_scalar(mut self, key: &str, value: Scalar) -> Self {
         self.scalars.insert(key.to_string(), value);
+        self
+    }
+
+    /// Enable or disable automatic extension appending for file writes.
+    ///
+    /// When enabled (the default), [`write_to_file`](Self::write_to_file) and
+    /// [`write_to_file_in_place`](Self::write_to_file_in_place) append the canonical
+    /// [`crate::EXTENSION`] when the requested path has no extension. When disabled,
+    /// both methods use the requested path exactly as provided.
+    #[cfg(feature = "std")]
+    pub fn auto_extension(mut self, enable: bool) -> Self {
+        self.auto_extension = enable;
+        self
+    }
+
+    /// Allow or refuse replacing an existing file on file writes.
+    ///
+    /// When enabled (the default), [`write_to_file`](Self::write_to_file) and
+    /// [`write_to_file_in_place`](Self::write_to_file_in_place) replace whatever is at the
+    /// destination. When disabled, both return [`Error::AlreadyExists`] instead. The check is
+    /// not a separate step that another writer could slip past: `write_to_file_in_place`
+    /// makes it when it creates the file, and `write_to_file` when it publishes the finished
+    /// one (see [`AtomicFile::commit_new`] for the one exception, filesystems without hard
+    /// links).
+    #[cfg(feature = "std")]
+    pub fn overwrite(mut self, enable: bool) -> Self {
+        self.overwrite = enable;
         self
     }
 
@@ -84,6 +131,13 @@ impl Writer {
     /// - Buffer reuse across multiple writes
     /// - Custom allocators
     /// - Pinned memory for GPU transfers
+    ///
+    /// On failure the buffer's contents are unspecified: a deferred [`Tensor`] produces its bytes
+    /// during the write, so an entry that fails partway leaves everything before it already
+    /// copied in. Callers reusing a buffer across writes cannot treat an error as "nothing
+    /// happened". [`write_to_file`](Self::write_to_file) has no such caveat;
+    /// [`write_to_file_in_place`](Self::write_to_file_in_place) has the same one, on the
+    /// destination itself.
     ///
     /// # Arguments
     ///
@@ -121,31 +175,130 @@ impl Writer {
         Ok(Bytes::from_bytes_vec(buffer))
     }
 
-    /// Write directly to a file (more memory efficient for large models).
+    /// Write to a file without ever leaving a partial one at `path`.
     ///
-    /// If `path` has no extension, the canonical [`crate::EXTENSION`] (`.bpk`) is appended.
+    /// By default, the canonical [`crate::EXTENSION`] (`.bpk`) is appended when `path` has no
+    /// extension. Use [`auto_extension(false)`](Self::auto_extension) to preserve the path.
+    ///
+    /// The container is built in a scratch sibling of `path` and renamed into place only once
+    /// every byte is on disk, so `path` either ends up holding a complete container or is left
+    /// exactly as it was. A write can fail partway for reasons that have nothing to do with the
+    /// caller: the disk fills up, a quota is hit, the device reports an I/O error. It can also
+    /// fail because a [`deferred`](Tensor::deferred) tensor's provider, which runs during the
+    /// write, returns an error or hands back a different length than it declared. None of these
+    /// may leave a truncated file where a valid one used to be.
+    ///
+    /// That much holds everywhere, for failure at the process level: a returned error, a panic,
+    /// the process being killed. The rename is a single call, so it either took effect or it
+    /// did not, and neither outcome is a partial file.
+    ///
+    /// Power loss is narrower, and Unix-only. There the data is synced before the rename and
+    /// the parent directory after it, so a crash mid-save leaves the old container and a crash
+    /// after `Ok` leaves the new one - never a mixture, and never a lost save. Elsewhere both
+    /// halves are missing: the directory sync is unavailable, and the replace carries no
+    /// documented atomicity guarantee (Windows `MoveFileEx` is not specified as a single
+    /// metadata transaction when it replaces an existing file). After power loss the
+    /// destination may hold the old container or the new one, and the finished scratch file may
+    /// still be beside it.
+    ///
+    /// With [`overwrite(false)`](Self::overwrite) the finished file is hard-linked into place
+    /// instead of renamed, and [`Error::AlreadyExists`] is returned if anything is at `path`
+    /// by then; see [`AtomicFile::commit_new`].
+    ///
+    /// Building alongside the destination has four consequences.
+    /// [`write_to_file_in_place`](Self::write_to_file_in_place) avoids them, at the cost of the
+    /// guarantee above:
+    ///
+    /// - The data is fsynced before the rename, so the call does not return until the bytes are
+    ///   durable rather than merely handed to the page cache.
+    /// - Overwriting needs room for a second copy. Re-saving a model over itself transiently
+    ///   occupies twice its size, since the old file keeps its blocks until the rename.
+    /// - The destination is replaced rather than truncated, so its ownership and hard links do
+    ///   not carry over. Its permission bits do: on Unix an existing regular file's mode is
+    ///   copied onto the new file before the rename, so a `0600` container stays `0600` rather
+    ///   than reappearing at the process umask. (Windows has no mode to copy.) A symlink at
+    ///   `path` is replaced by a regular file rather than followed.
+    /// - A hard kill (SIGKILL, OOM) skips the cleanup and strands the scratch file. Scratch
+    ///   names are `<file_name>.<pid>-<n>.tmp` siblings of the resolved path (after any
+    ///   extension is appended), so leftovers are identifiable and safe to delete once no
+    ///   writer is running.
     #[cfg(feature = "std")]
     pub fn write_to_file<P: AsRef<Path>>(self, path: P) -> Result<(), Error> {
-        let path = path.as_ref();
-        let path = if path.extension().is_none() {
+        let path = self.resolve_path(path.as_ref());
+        let layout = self.plan()?;
+        let overwrite = self.overwrite;
+        let (scratch, file) = AtomicFile::create(&path)?;
+        let mut sink = FileSink {
+            file,
+            path: scratch.path().to_path_buf(),
+        };
+
+        self.write_container(&layout, &mut sink)?;
+
+        scratch.persist(sink, overwrite)
+    }
+
+    /// Write directly to a file, replacing its contents in place.
+    ///
+    /// By default, the canonical [`crate::EXTENSION`] (`.bpk`) is appended when `path` has no
+    /// extension. Use [`auto_extension(false)`](Self::auto_extension) to preserve the path.
+    /// With [`overwrite(false)`](Self::overwrite), an existing file is refused rather than
+    /// replaced.
+    ///
+    /// The file is truncated as soon as writing starts, so a failure partway through (a full
+    /// disk, an I/O error, a [`deferred`](Tensor::deferred) tensor's provider failing) leaves
+    /// it truncated, destroying whatever container was there before. Under `overwrite(false)`
+    /// that partial file is new, and it blocks a retry until removed.
+    ///
+    /// In exchange it skips the costs of [`write_to_file`](Self::write_to_file): no fsync, no
+    /// transient second copy, and an existing file keeps its inode, so its ownership and hard
+    /// links survive and a symlink at `path` is followed rather than replaced. Use it when
+    /// those matter more than keeping the previous container on failure.
+    #[cfg(feature = "std")]
+    pub fn write_to_file_in_place<P: AsRef<Path>>(self, path: P) -> Result<(), Error> {
+        let path = self.resolve_path(path.as_ref());
+        let layout = self.plan()?;
+
+        let file = File::options()
+            .write(true)
+            .truncate(true)
+            .create(self.overwrite)
+            .create_new(!self.overwrite)
+            .open(&path)
+            .map_err(|e| match e.kind() {
+                std::io::ErrorKind::AlreadyExists => {
+                    Error::AlreadyExists(path.display().to_string())
+                }
+                _ => Error::IoError(format!("cannot create '{}': {e}", path.display())),
+            })?;
+        let mut sink = FileSink { file, path };
+
+        self.write_container(&layout, &mut sink)
+    }
+
+    /// Apply the configured extension policy to a requested path.
+    #[cfg(feature = "std")]
+    fn resolve_path(&self, path: &Path) -> std::path::PathBuf {
+        if self.auto_extension && path.extension().is_none() {
             path.with_extension(crate::EXTENSION)
         } else {
             path.to_path_buf()
-        };
-
-        let layout = self.plan()?;
-        let file = File::create(path).map_err(|e| Error::IoError(e.to_string()))?;
-
-        let mut sink = FileSink { file };
-        self.write_container(&layout, &mut sink)?;
-
-        sink.file.flush().map_err(|e| Error::IoError(e.to_string()))
+        }
     }
 
     /// Build the complete on-disk layout: header, serialized metadata, and the
     /// position and size of the (aligned) tensor data section.
     fn plan(&self) -> Result<Layout, Error> {
-        let (metadata, metadata_bytes, data_size) = self.build_metadata()?;
+        let (tensors, placements, data_size) = self.build_descriptors()?;
+        let metadata = Metadata {
+            tensors,
+            metadata: self.metadata.clone(),
+            scalars: self.scalars.clone(),
+        };
+
+        let mut metadata_bytes = Vec::new();
+        ciborium::ser::into_writer(&metadata, &mut metadata_bytes)
+            .map_err(|e| Error::MetadataSerializationError(e.to_string()))?;
 
         let metadata_size: u32 = metadata_bytes.len().try_into().map_err(|_| {
             Error::IoError(format!(
@@ -164,43 +317,33 @@ impl Writer {
         let data_section_start = aligned_data_section_start(metadata_bytes.len());
 
         Ok(Layout {
-            metadata,
             metadata_bytes,
+            placements,
             header,
             data_section_start,
             data_size,
         })
     }
 
-    /// Serialize the metadata structure (tensor descriptors + key-value pairs) to CBOR.
-    ///
-    /// Also returns the size of the tensor data section, computed while assigning offsets.
-    fn build_metadata(&self) -> Result<(Metadata, Vec<u8>, usize), Error> {
-        let (tensors, data_size) = self.build_descriptors()?;
-        let metadata = Metadata {
-            tensors,
-            metadata: self.metadata.clone(),
-            scalars: self.scalars.clone(),
-        };
-
-        let mut metadata_bytes = Vec::new();
-        ciborium::ser::into_writer(&metadata, &mut metadata_bytes)
-            .map_err(|e| Error::MetadataSerializationError(e.to_string()))?;
-
-        Ok((metadata, metadata_bytes, data_size))
-    }
-
     /// Build tensor descriptors, assigning each tensor an aligned offset within
     /// the data section so that absolute file positions are mmap-friendly.
     ///
-    /// Returns the descriptors plus the total data-section size — the running offset after the
-    /// last tensor. Offsets only grow, so this is also the highest descriptor end offset.
-    fn build_descriptors(&self) -> Result<(BTreeMap<String, TensorDescriptor>, usize), Error> {
+    /// Returns the descriptors keyed by name (for the metadata blob), the [`Placement`] of
+    /// each tensor in `self.tensors` order (for the write pass), and the total data-section
+    /// size (the running offset after the last tensor). Offsets only grow, so this is also
+    /// the highest descriptor end offset.
+    fn build_descriptors(&self) -> Result<Descriptors, Error> {
         let mut tensors = BTreeMap::new();
+        let mut placements = Vec::with_capacity(self.tensors.len());
         let mut current_offset = 0u64;
 
         for tensor in &self.tensors {
-            let data_len = tensor.bytes.len() as u64;
+            let name = &tensor.name;
+            let dtype = tensor.dtype;
+            let shape: Vec<u64> = tensor.shape.iter().map(|&size| size as u64).collect();
+            let data_len = tensor.byte_len() as u64;
+
+            validate_tensor_byte_len(name, dtype, &shape, data_len)?;
 
             // Align the start offset for mmap zero-copy support.
             let aligned_start = align_offset(current_offset, TENSOR_ALIGNMENT);
@@ -216,10 +359,10 @@ impl Writer {
             // descriptor while still writing two data blocks, corrupting the container.
             if tensors
                 .insert(
-                    tensor.name.clone(),
+                    name.clone(),
                     TensorDescriptor {
-                        dtype: tensor.dtype,
-                        shape: tensor.shape.iter().map(|&s| s as u64).collect(),
+                        dtype,
+                        shape,
                         data_offsets: (aligned_start, end),
                         param_id: tensor.param_id,
                     },
@@ -228,14 +371,18 @@ impl Writer {
             {
                 return Err(Error::ValidationError(format!(
                     "Duplicate tensor name '{}'",
-                    tensor.name
+                    name
                 )));
             }
 
+            placements.push(Placement {
+                name: name.clone(),
+                offset: aligned_start as usize,
+            });
             current_offset = end;
         }
 
-        Ok((tensors, current_offset as usize))
+        Ok((tensors, placements, current_offset as usize))
     }
 
     /// Emit the full container — header, metadata, alignment padding, then tensor data
@@ -250,100 +397,109 @@ impl Writer {
             sink.pad(layout.data_section_start - unaligned_data_start)?;
         }
 
-        self.write_tensors(&layout.metadata, sink)
+        self.write_tensors(&layout.placements, sink)
     }
 
     /// Write each tensor's data into `sink`, inserting alignment padding between
-    /// tensors so every tensor lands at its descriptor's aligned offset.
-    fn write_tensors(self, metadata: &Metadata, sink: &mut impl Sink) -> Result<(), Error> {
+    /// tensors so every tensor lands at its planned offset.
+    ///
+    /// `placements` was built by walking `self.tensors` in this same order, so zipping the
+    /// two pairs each tensor with its own offset by construction, with no lookup to get out
+    /// of step.
+    fn write_tensors(self, placements: &[Placement], sink: &mut impl Sink) -> Result<(), Error> {
+        // The zip below would silently drop tensors if the two ever diverged in length, and
+        // that is a corrupt container; one integer comparison per write buys a loud abort
+        // (which the scratch-file guard turns into a clean one) in release builds too.
+        assert_eq!(placements.len(), self.tensors.len());
+
         // Position within the data section (relative to its aligned start).
         let mut data_offset = 0usize;
 
-        for tensor in self.tensors.into_iter() {
-            let (aligned_offset, data) = Self::resolve_tensor(tensor, metadata)?;
-
-            if aligned_offset > data_offset {
-                sink.pad(aligned_offset - data_offset)?;
-                data_offset = aligned_offset;
+        for (tensor, placement) in self.tensors.into_iter().zip(placements) {
+            if placement.offset > data_offset {
+                sink.pad(placement.offset - data_offset)?;
+                data_offset = placement.offset;
             }
 
-            Self::write_tensor_data(&data, sink)?;
+            let data = Self::materialize(tensor, placement)?;
+            write_tensor_data(&data, sink)?;
             data_offset += data.len();
         }
 
         Ok(())
     }
 
-    /// Stream a single tensor's bytes into `sink`, materializing at most
-    /// [`WRITE_CHUNK_SIZE`] bytes at a time.
+    /// Materialize one tensor's bytes and check they fill exactly the space reserved for it.
     ///
-    /// When the backing supports zero-copy windows — device-resident
-    /// ([lazy](burn_std::Bytes) device readback), file, or shared buffers — each
-    /// chunk is taken as a [`Bytes::view`] and read just-in-time, then dropped
-    /// before the next one. A large device tensor is therefore copied to host in
-    /// bounded pieces rather than through one big (pinned) staging buffer, so the
-    /// whole tensor never has to be resident at once.
-    ///
-    /// Backings without a zero-copy window (e.g. a plain heap `Vec`) are already
-    /// host-resident, so [`Bytes::view`] reports it can't window them and the
-    /// remaining bytes are written in a single pass.
-    fn write_tensor_data(data: &Bytes, sink: &mut impl Sink) -> Result<(), Error> {
-        let len = data.len();
-        let mut offset = 0;
+    /// The length check is what keeps a lazy entry honest: the offset table was committed
+    /// from [`Tensor::byte_len`] long before these bytes existed, so a provider that
+    /// reports one size and produces another would misplace every tensor after it.
+    fn materialize(tensor: Tensor, placement: &Placement) -> Result<Bytes, Error> {
+        // Name the tensor on the way out. `into_bytes` runs mid-write, so its failures arrive
+        // interleaved with the writer's own disk errors; without this, a device readback that
+        // fails on one tensor of eight hundred is indistinguishable from a full disk.
+        tensor
+            .into_bytes()
+            .map_err(|e| e.in_tensor(&placement.name))
+    }
+}
 
-        while offset < len {
-            let end = (offset + WRITE_CHUNK_SIZE).min(len);
-            match data.view(offset, end) {
-                Ok(chunk) => {
-                    sink.write(&chunk)?;
-                    offset = end;
-                }
-                // No zero-copy window available (already host-resident): write
-                // whatever remains in one shot. View support is a property of the
-                // backing, so this only ever happens on the first iteration.
-                Err(_) => {
-                    sink.write(&data[offset..])?;
-                    break;
-                }
+/// Where one tensor's bytes belong in the data section, computed during planning and
+/// carried forward so the write pass needs nothing from the tensor but its bytes.
+struct Placement {
+    /// The tensor's name, for error messages after the tensor has been consumed.
+    name: String,
+    /// Aligned start, relative to the beginning of the data section.
+    offset: usize,
+}
+
+/// Stream a single tensor's bytes into `sink`, materializing at most
+/// [`WRITE_CHUNK_SIZE`] bytes at a time.
+///
+/// When the backing supports zero-copy windows (device-resident
+/// [lazy](burn_std::Bytes) device readback, file, or shared buffers), each
+/// chunk is taken as a [`Bytes::view`] and read just-in-time, then dropped
+/// before the next one. A large device tensor is therefore copied to host in
+/// bounded pieces rather than through one big (pinned) staging buffer, so the
+/// whole tensor never has to be resident at once.
+///
+/// Backings without a zero-copy window (e.g. a plain heap `Vec`) are already
+/// host-resident, so [`Bytes::view`] reports it can't window them and the
+/// remaining bytes are written in a single pass.
+fn write_tensor_data(data: &Bytes, sink: &mut impl Sink) -> Result<(), Error> {
+    let len = data.len();
+    let mut offset = 0;
+
+    while offset < len {
+        let end = (offset + WRITE_CHUNK_SIZE).min(len);
+        match data.view(offset, end) {
+            Ok(chunk) => {
+                sink.write(&chunk)?;
+                offset = end;
+            }
+            // No zero-copy window available (already host-resident): write
+            // whatever remains in one shot. View support is a property of the
+            // backing, so this only ever happens on the first iteration.
+            Err(_) => {
+                sink.write(&data[offset..])?;
+                break;
             }
         }
-
-        Ok(())
     }
 
-    /// Look up a tensor's aligned offset from the metadata and validate that its
-    /// bytes match the length the descriptor reserved for it.
-    fn resolve_tensor(tensor: Tensor, metadata: &Metadata) -> Result<(usize, Bytes), Error> {
-        let descriptor = metadata.tensors.get(&tensor.name).ok_or_else(|| {
-            Error::IoError(format!(
-                "Internal error: tensor '{}' not found in metadata",
-                tensor.name
-            ))
-        })?;
-
-        let (start, end) = descriptor.data_offsets;
-        let declared_len = (end - start) as usize;
-        let actual_len = tensor.bytes.len();
-        if actual_len != declared_len {
-            return Err(Error::TensorBytesSizeMismatch(format!(
-                "tensor '{}' has inconsistent length (expected {}, got {})",
-                tensor.name, declared_len, actual_len
-            )));
-        }
-
-        Ok((start as usize, tensor.bytes))
-    }
+    Ok(())
 }
 
 /// The computed on-disk layout of a burnpack container.
 ///
 /// Captures everything needed to emit the bytes: the serialized metadata, the
 /// header, where the aligned data section begins, and how large it is. Built once
-/// via [`Writer::plan`] and shared by `size`, `write_into`, `to_bytes`, and
-/// `write_to_file`.
+/// via [`Writer::plan`] and shared by `size`, `write_into`, `to_bytes`, `write_to_file` and
+/// `write_to_file_in_place`.
 struct Layout {
-    metadata: Metadata,
     metadata_bytes: Vec<u8>,
+    /// Where each tensor's bytes go, in `Writer::tensors` order.
+    placements: Vec<Placement>,
     header: Header,
     data_section_start: usize,
     data_size: usize,
@@ -388,10 +544,56 @@ impl Sink for BufferSink<'_> {
     }
 }
 
+/// Flushing a sink and publishing its scratch file at the destination.
+///
+/// Lives here rather than on [`AtomicFile`] itself because it is what enforces the ordering
+/// the all-or-nothing guarantee rests on: persisting without first surrendering the file
+/// handle is unrepresentable, so the deferred-write-error check in [`FileSink::finish`]
+/// cannot be skipped and the handle is closed before publishing.
+#[cfg(feature = "std")]
+impl AtomicFile {
+    fn persist(mut self, sink: FileSink, overwrite: bool) -> Result<(), Error> {
+        sink.finish()?;
+        if overwrite {
+            self.rename_onto()
+        } else {
+            self.link_onto()
+        }
+    }
+}
+
 /// Sink that streams directly to a file.
+///
+/// Carries the path so its errors can name the file. The writer works on a scratch file
+/// whose name the caller never chose, so "No space left on device" with nothing attached
+/// would leave them with no idea which file the writer was even touching.
 #[cfg(feature = "std")]
 struct FileSink {
     file: File,
+    path: std::path::PathBuf,
+}
+
+#[cfg(feature = "std")]
+impl FileSink {
+    /// Flush the container to the device and close the handle.
+    ///
+    /// This is the only place a deferred write error can still be caught. `File::flush` is a
+    /// no-op because the handle is unbuffered, and dropping it discards whatever `close`
+    /// reports, yet filesystems that allocate lazily (NFS over quota, a failing disk) report
+    /// exactly there. Without this, such a write would be published over a good container
+    /// while `write_to_file` returned `Ok`.
+    ///
+    /// It also orders durability: the data is on disk before it is published, so a crash
+    /// cannot leave the destination pointing at data that never reached the platter.
+    /// (Durability of the publish itself is [`AtomicFile`]'s job.)
+    fn finish(self) -> Result<(), Error> {
+        self.file.sync_all().map_err(|e| {
+            Error::IoError(format!(
+                "cannot flush '{}' to disk: {e}",
+                self.path.display()
+            ))
+        })
+    }
 }
 
 #[cfg(feature = "std")]
@@ -400,12 +602,121 @@ impl Sink for FileSink {
         // Stream zeros without allocating a `count`-sized buffer per call.
         std::io::copy(&mut std::io::repeat(0).take(count as u64), &mut self.file)
             .map(|_| ())
-            .map_err(|e| Error::IoError(e.to_string()))
+            .map_err(|e| Error::IoError(format!("cannot write to '{}': {e}", self.path.display())))
     }
 
     fn write(&mut self, data: &[u8]) -> Result<(), Error> {
         self.file
             .write_all(data)
-            .map_err(|e| Error::IoError(e.to_string()))
+            .map_err(|e| Error::IoError(format!("cannot write to '{}': {e}", self.path.display())))
+    }
+}
+
+// Checks the peak-memory guarantee at the loop that provides it: `write_tensors` drops each
+// deferred tensor's bytes before it asks the next provider for its own. Every other test would
+// still pass if the writer collected all the bytes first and wrote them afterwards, so the
+// backing of each tensor logs when it is freed and each provider checks that log.
+#[cfg(all(test, feature = "std"))]
+mod tests {
+    use super::*;
+    use burn_std::{AllocationProperty, DType};
+    use std::sync::{Arc, Mutex};
+
+    const PAYLOAD: usize = 1024 * 1024;
+    const COUNT: usize = 4;
+
+    type FreedLog = Arc<Mutex<Vec<usize>>>;
+
+    /// Writes a container through one of the writer's sinks and returns its size in bytes.
+    type WriteFn = fn(Writer, &Path) -> usize;
+
+    /// The backing of one tensor's bytes. Records its index in the log when it is freed.
+    struct Tracked {
+        data: Vec<u8>,
+        index: usize,
+        freed: FreedLog,
+    }
+
+    impl AsRef<[u8]> for Tracked {
+        fn as_ref(&self) -> &[u8] {
+            &self.data
+        }
+    }
+
+    impl Drop for Tracked {
+        fn drop(&mut self) {
+            self.freed.lock().unwrap().push(self.index);
+        }
+    }
+
+    /// Deferred tensors whose providers assert that every earlier tensor's bytes are already
+    /// freed, in write order, before they produce their own.
+    fn tracked_tensors(freed: &FreedLog) -> Vec<Tensor> {
+        (0..COUNT)
+            .map(|index| {
+                let freed = freed.clone();
+                Tensor::deferred(
+                    format!("t{index}"),
+                    DType::U8,
+                    vec![PAYLOAD],
+                    None,
+                    PAYLOAD,
+                    move || {
+                        let already_freed = freed.lock().unwrap().clone();
+                        assert_eq!(
+                            already_freed,
+                            (0..index).collect::<Vec<_>>(),
+                            "tensor t{index} was requested while an earlier tensor's bytes were \
+                             still live"
+                        );
+                        let backing = Tracked {
+                            data: vec![index as u8; PAYLOAD],
+                            index,
+                            freed: freed.clone(),
+                        };
+                        Ok(Bytes::from_shared(
+                            bytes::Bytes::from_owner(backing),
+                            AllocationProperty::Native,
+                        ))
+                    },
+                )
+            })
+            .collect()
+    }
+
+    #[test]
+    fn each_tensor_is_freed_before_the_next_is_produced() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("model.bpk");
+
+        // Every write path goes through `write_tensors`, with a different sink.
+        let writes: [(&str, WriteFn); 3] = [
+            ("write_to_file", |writer, path| {
+                writer.write_to_file(path).unwrap();
+                std::fs::metadata(path).unwrap().len() as usize
+            }),
+            ("write_to_file_in_place", |writer, path| {
+                writer.write_to_file_in_place(path).unwrap();
+                std::fs::metadata(path).unwrap().len() as usize
+            }),
+            ("into_bytes", |writer, _| writer.into_bytes().unwrap().len()),
+        ];
+
+        for (name, write) in writes {
+            let freed = FreedLog::default();
+            let written = write(Writer::new(tracked_tensors(&freed)), &path);
+
+            // Also guards against a vacuous pass: a backing is only logged once its provider
+            // has run.
+            assert_eq!(
+                *freed.lock().unwrap(),
+                (0..COUNT).collect::<Vec<_>>(),
+                "{name}: every tensor's bytes should be freed by the end of the write"
+            );
+            assert!(
+                written >= COUNT * PAYLOAD,
+                "{name}: all tensors should have been written"
+            );
+        }
     }
 }

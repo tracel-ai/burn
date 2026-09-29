@@ -50,7 +50,7 @@ where
     /// Converts from a dispatch tensor into a tensor.
     ///
     /// # Panics
-    /// Panis if the dispatch dtype does not match the tensor kind `K`.
+    /// Panics if the dispatch dtype does not match the tensor kind `K`.
     pub fn from_dispatch(tensor: DispatchTensor) -> Self {
         match (tensor.dtype(), K::KIND) {
             (DType::QFloat(_), Kind::Float) => Self::new(BridgeTensor::qfloat(tensor)),
@@ -87,6 +87,11 @@ where
     ///
     /// Returns a [`PrimitiveConversionError`] if the tensor does not currently live on the requested
     /// backend `B` (including `Autodiff<B>` mismatch).
+    ///
+    /// CubeCL aliases such as `Wgpu` and `Cuda` share a backend type. A successful downcast checks
+    /// that type, not the execution runtime; inspect the primitive's device before invoking a
+    /// runtime-specific kernel. With fusion enabled, the primitive is a fusion handle rather than
+    /// a raw CubeCL tensor.
     pub fn try_into_primitive<B: Backend>(
         self,
     ) -> Result<<K as BackendPrimitive<B>>::Primitive, PrimitiveConversionError>
@@ -107,7 +112,7 @@ where
     /// This is the inverse of [`Tensor::try_into_primitive`].
     ///
     /// # Panics
-    /// Panis if the tensor kind `K` does not match the tensor underlying primitive kind.
+    /// Panics if the tensor kind `K` does not match the tensor underlying primitive kind.
     pub fn from_primitive<B: Backend>(primitive: <K as BackendPrimitive<B>>::Primitive) -> Self
     where
         K: BackendPrimitive<B>,
@@ -124,7 +129,8 @@ where
 pub enum PrimitiveConversionError {
     /// The dispatch tensor's backend variant does not match the requested backend.
     ///
-    /// For example, extracting a `Wgpu` primitive from a `Cuda` dispatch tensor.
+    /// For example, extracting a `Flex` primitive from a CubeCL dispatch tensor. CubeCL runtime
+    /// aliases such as `Wgpu` and `Cuda` are not distinct backend types.
     BackendMismatch(String),
     /// The tensor kind does not match the requested primitive kind.
     ///
@@ -412,7 +418,7 @@ mod tests {
 
     #[cfg(feature = "autodiff")]
     #[test]
-    fn try_into_primitive_backend_mismatch() {
+    fn try_into_primitive_autodiff_context_mismatch() {
         let device = Default::default();
         let tensor = Tensor::<2>::zeros([2, 3], &device);
 
@@ -421,7 +427,19 @@ mod tests {
             .unwrap_err();
 
         assert!(matches!(err, PrimitiveConversionError::BackendMismatch(_)));
-        assert!(format!("{err:?}").contains("Expected Autodiff tensor, got backend:"));
+        assert!(format!("{err:?}").contains("autodiff context"));
+    }
+
+    #[cfg(feature = "autodiff")]
+    #[test]
+    fn concrete_downcast_rejects_autodiff_associated_int() {
+        let device = crate::Device::default().autodiff();
+        let tensor = Tensor::<2, Int>::zeros([2, 3], &device);
+
+        let err = tensor.try_into_primitive::<TestBackend>().unwrap_err();
+
+        assert!(matches!(err, PrimitiveConversionError::BackendMismatch(_)));
+        assert!(format!("{err:?}").contains("autodiff"));
     }
 
     #[test]

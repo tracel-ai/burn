@@ -10,13 +10,40 @@ use burn_backend::{
         },
         unfold::calculate_unfold_shape,
     },
-    quantization::QuantScheme,
+    quantization::{QuantScheme, QuantStore},
     tensor::IndexingUpdateOp,
 };
 
 use crate::{ScalarIr, TensorId, TensorIr};
 
 use super::operation::*;
+
+fn permute_quantized_dtype(dtype: DType, rank: usize, axes: &[usize]) -> DType {
+    let DType::QFloat(mut scheme) = dtype else {
+        return dtype;
+    };
+
+    scheme.permute_block_dims(rank, axes);
+
+    if let QuantStore::PackedU32(packed_dim) | QuantStore::PackedNative(packed_dim) =
+        &mut scheme.store
+    {
+        let packed_axis = rank - *packed_dim - 1;
+        let new_axis = axes
+            .iter()
+            .position(|axis| *axis == packed_axis)
+            .expect("Permute axes to contain the packed axis");
+        *packed_dim = rank - new_axis - 1;
+    }
+
+    DType::QFloat(scheme)
+}
+
+fn swap_dims_quantized_dtype(dtype: DType, rank: usize, dim1: usize, dim2: usize) -> DType {
+    let mut axes = (0..rank).collect::<Vec<_>>();
+    axes.swap(dim1, dim2);
+    permute_quantized_dtype(dtype, rank, &axes)
+}
 
 impl CreationOpIr {
     pub fn create(shape: Shape, dtype: DType, new_id: impl FnOnce() -> TensorId) -> Self {
@@ -75,13 +102,45 @@ impl ShapeOpIr {
     }
 
     pub fn reshape(input: TensorIr, shape: Shape, new_id: impl FnOnce() -> TensorId) -> Self {
-        let shape = input.shape.reshape(shape).unwrap();
+        // The shape is already resolved; zeros represent empty dimensions here.
+        assert_eq!(
+            input.shape.num_elements(),
+            shape.num_elements(),
+            "Reshape must preserve the number of elements"
+        );
         Self::create(input, shape, new_id)
     }
 
     fn create(input: TensorIr, shape: Shape, new_id: impl FnOnce() -> TensorId) -> Self {
         let out = TensorIr::uninit(new_id(), shape, input.dtype);
         ShapeOpIr { input, out }
+    }
+}
+
+impl PadOpIr {
+    pub fn create(
+        input: TensorIr,
+        padding: Vec<(usize, usize)>,
+        mode: PadModeIr,
+        new_id: impl FnOnce() -> TensorId,
+    ) -> Self {
+        burn_backend::ops::validate_padding(&input.shape, &padding, mode.into());
+        let shape = Shape::from(
+            input
+                .shape
+                .iter()
+                .zip(padding.iter())
+                .map(|(size, (before, after))| size + before + after)
+                .collect::<Vec<_>>(),
+        );
+        let out = TensorIr::uninit(new_id(), shape, input.dtype);
+
+        Self {
+            input,
+            out,
+            padding,
+            mode,
+        }
     }
 }
 
@@ -260,13 +319,13 @@ impl_ir_create!(
         dim2: usize
     },
     shape = input.shape.clone().swapped(dim1, dim2).unwrap(),
-    dtype = input.dtype
+    dtype = swap_dims_quantized_dtype(input.dtype, input.shape.rank(), dim1, dim2)
 );
 
 impl_ir_create!(
     PermuteOpIr { input: TensorIr, axes: Vec<usize> },
     shape = input.shape.clone().permuted(&axes).unwrap(),
-    dtype = input.dtype
+    dtype = permute_quantized_dtype(input.dtype, input.shape.rank(), &axes)
 );
 
 impl_ir_create!(
@@ -827,6 +886,30 @@ impl_ir_create!(
 );
 
 impl_ir_create!(
+    AdaptiveAvgPool3dOpIr {
+        x: TensorIr,
+        output_size: [usize; 3]
+    },
+    shape = Shape::new([
+        x.shape[0],
+        x.shape[1],
+        output_size[0],
+        output_size[1],
+        output_size[2]
+    ]),
+    dtype = x.dtype
+);
+
+impl_ir_create!(
+    AdaptiveAvgPool3dBackwardOpIr {
+        x: TensorIr,
+        grad: TensorIr,
+    },
+    shape = x.shape.clone(),
+    dtype = x.dtype
+);
+
+impl_ir_create!(
     InterpolateOpIr {
         x: TensorIr,
         output_size: [usize; 2],
@@ -888,6 +971,26 @@ impl_ir_create!(
     },
     shape = weights.shape.clone(),
     dtype = output_dtype([&weights.dtype, &out_grad.dtype]).unwrap()
+);
+
+impl_ir_create!(
+    BatchNormOpIr {
+        x: TensorIr,
+        gamma: TensorIr,
+        beta: TensorIr,
+        mean: TensorIr,
+        variance: TensorIr,
+        epsilon: ScalarIr,
+    },
+    shape = x.shape.clone(),
+    dtype = output_dtype([
+        &x.dtype,
+        &gamma.dtype,
+        &beta.dtype,
+        &mean.dtype,
+        &variance.dtype
+    ])
+    .unwrap()
 );
 
 impl_ir_create!(
@@ -1087,7 +1190,7 @@ impl_ir_create!(
             &x.shape,
             &weight.shape,
             &options.stride,
-            &options.padding,
+            &options.padding.map(|padding| (padding, padding)),
             &options.dilation,
         )
         .unwrap(),
@@ -1148,7 +1251,7 @@ impl_ir_create!(
             &x.shape,
             &weight.shape,
             &options.stride,
-            &options.padding,
+            &options.padding.map(|padding| (padding, padding)),
             &options.dilation,
         )
         .unwrap(),
@@ -1500,5 +1603,42 @@ impl MaxPool2dWithIndicesOpIr {
             out,
             out_indices,
         }
+    }
+}
+
+#[cfg(test)]
+mod shape_tests {
+    use super::*;
+
+    #[test]
+    fn reshape_preserves_concrete_shape() {
+        for (source, target) in [
+            (Shape::new([2, 3]), Shape::new([3, 1, 2])),
+            (Shape::new([2, 0]), Shape::new([2, 1, 0])),
+            (Shape::new([2, 0]), Shape::new([0, 2])),
+            (Shape::new([0, 3]), Shape::new([1, 0, 3])),
+        ] {
+            let input = TensorIr::uninit(TensorId::new(1), source, DType::F32);
+            let desc = ShapeOpIr::reshape(input.clone(), target.clone(), || TensorId::new(2));
+
+            assert_eq!(desc.input, input);
+            assert_eq!(desc.out.shape, target);
+            assert_eq!(desc.out.dtype, input.dtype);
+            assert_eq!(desc.out.id, TensorId::new(2));
+        }
+    }
+
+    #[test]
+    #[should_panic(expected = "Reshape must preserve the number of elements")]
+    fn reshape_rejects_different_element_counts() {
+        let input = TensorIr::uninit(TensorId::new(1), Shape::new([2, 3]), DType::F32);
+        ShapeOpIr::reshape(input, Shape::new([2, 2]), || TensorId::new(2));
+    }
+
+    #[test]
+    #[should_panic(expected = "Reshape must preserve the number of elements")]
+    fn reshape_rejects_zero_as_copy_dimension() {
+        let input = TensorIr::uninit(TensorId::new(1), Shape::new([2, 3]), DType::F32);
+        ShapeOpIr::reshape(input, Shape::new([0, 3]), || TensorId::new(2));
     }
 }

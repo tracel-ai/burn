@@ -2,10 +2,12 @@
 
 use crate::{
     ApplyResult, KeyRemapper, ModuleSnapshot, ModuleStore, PathFilter, PyTorchToBurnAdapter,
-    TensorSnapshot, map_indices_contiguous,
+    bridge, map_indices_contiguous_except,
 };
 
 use alloc::collections::BTreeMap;
+
+use burn_pack::Tensor as PackTensor;
 
 use alloc::format;
 use alloc::string::{String, ToString};
@@ -13,7 +15,7 @@ use alloc::vec::Vec;
 use core::fmt;
 use std::path::PathBuf;
 
-use super::reader::{PytorchError as ReaderError, PytorchReader};
+use pytorch_reader::{PytorchError as ReaderError, PytorchReader};
 
 /// Errors that can occur during PyTorch operations.
 #[derive(Debug)]
@@ -78,8 +80,10 @@ pub struct PytorchStore {
     pub(crate) skip_enum_variants: bool,
     /// Enable contiguous mapping of layer indices (default: true)
     pub(crate) map_indices_contiguous: bool,
-    /// Cached tensor snapshots (parsed once, reused)
-    snapshots_cache: Option<BTreeMap<String, TensorSnapshot>>,
+    /// Prefixes whose indices contiguous mapping leaves untouched
+    pub(crate) keep_indices: PathFilter,
+    /// Cached tensors (parsed once, reused until a builder that feeds the cache is called)
+    tensors_cache: Option<BTreeMap<String, PackTensor>>,
 }
 
 impl PytorchStore {
@@ -107,7 +111,8 @@ impl PytorchStore {
             // Enable contiguous index mapping by default for PyTorch files
             // This handles nn.Sequential models with gaps in layer indices
             map_indices_contiguous: true,
-            snapshots_cache: None,
+            keep_indices: PathFilter::new(),
+            tensors_cache: None,
         }
     }
 
@@ -124,6 +129,7 @@ impl PytorchStore {
     /// ```
     pub fn with_top_level_key(mut self, key: impl Into<String>) -> Self {
         self.top_level_key = Some(key.into());
+        self.tensors_cache = None;
         self
     }
 
@@ -136,6 +142,10 @@ impl PytorchStore {
     /// Add a regex pattern to filter tensors.
     ///
     /// Multiple patterns can be added and they work with OR logic.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `pattern` is not a valid regular expression.
     ///
     /// # Example
     /// ```rust,no_run
@@ -150,6 +160,10 @@ impl PytorchStore {
     }
 
     /// Add multiple regex patterns to filter tensors.
+    ///
+    /// # Panics
+    ///
+    /// Panics if any pattern is not a valid regular expression.
     pub fn with_regexes<I, S>(mut self, patterns: I) -> Self
     where
         I: IntoIterator<Item = S>,
@@ -216,6 +230,7 @@ impl PytorchStore {
     /// Remap tensor names during load.
     pub fn remap(mut self, remapper: KeyRemapper) -> Self {
         self.remapper = remapper;
+        self.tensors_cache = None;
         self
     }
 
@@ -237,6 +252,7 @@ impl PytorchStore {
             .remapper
             .add_pattern(from_pattern, to_pattern)
             .expect("Invalid regex pattern");
+        self.tensors_cache = None;
         self
     }
 
@@ -300,16 +316,41 @@ impl PytorchStore {
     /// ```
     pub fn map_indices_contiguous(mut self, map: bool) -> Self {
         self.map_indices_contiguous = map;
+        self.tensors_cache = None;
         self
     }
 
-    /// Apply remapping to tensor snapshots.
-    fn apply_remapping(&self, snapshots: Vec<TensorSnapshot>) -> Vec<TensorSnapshot> {
+    /// Leave the indices under prefixes matching `pattern` untouched when contiguous
+    /// index mapping is enabled.
+    ///
+    /// The regex is matched against the prefix before a numeric segment (`flows` for
+    /// `flows.2.weight`), so anchor it to keep exactly one list. Can be called multiple
+    /// times. See [`map_indices_contiguous_except`] for the prefix rules.
+    ///
+    /// # Example
+    /// ```rust,no_run
+    /// # use burn_store::PytorchStore;
+    /// // flows.{0,2,4} stay as-is, every other list is still renumbered
+    /// let store = PytorchStore::from_file("model.pth")
+    ///     .map_indices_contiguous_except(r"^model_g\.flow\.flows$");
+    /// ```
+    ///
+    /// # Panics
+    ///
+    /// Panics if `pattern` is not a valid regular expression.
+    pub fn map_indices_contiguous_except<S: AsRef<str>>(mut self, pattern: S) -> Self {
+        self.keep_indices = self.keep_indices.with_regex(pattern);
+        self.tensors_cache = None;
+        self
+    }
+
+    /// Apply remapping to tensors.
+    fn apply_remapping(&self, tensors: Vec<PackTensor>) -> Vec<PackTensor> {
         if self.remapper.is_empty() {
-            return snapshots;
+            return tensors;
         }
 
-        let (remapped, _) = self.remapper.remap(snapshots);
+        let (remapped, _) = self.remapper.remap(tensors);
         remapped
     }
 
@@ -336,8 +377,8 @@ impl ModuleStore for PytorchStore {
     }
 
     fn apply_to<M: ModuleSnapshot>(&mut self, module: &mut M) -> Result<ApplyResult, Self::Error> {
-        // Get snapshots from cache
-        let snapshots: Vec<TensorSnapshot> = self.get_all_snapshots()?.values().cloned().collect();
+        // Get tensors from cache
+        let tensors: Vec<PackTensor> = self.get_all_tensors()?.values().cloned().collect();
 
         // Get filter (convert to Option for apply)
         let filter_opt = if self.filter.is_empty() {
@@ -352,7 +393,7 @@ impl ModuleStore for PytorchStore {
         // - Renaming normalization parameters (gamma -> weight, beta -> bias)
         // Filter is applied here during apply, not during cache population
         let result = module.apply(
-            snapshots,
+            tensors,
             filter_opt,
             Some(Box::new(PyTorchToBurnAdapter)),
             self.skip_enum_variants,
@@ -377,63 +418,55 @@ impl ModuleStore for PytorchStore {
         Ok(result)
     }
 
-    fn get_snapshot(&mut self, name: &str) -> Result<Option<&TensorSnapshot>, Self::Error> {
-        self.ensure_snapshots_cache()?;
-        Ok(self.snapshots_cache.as_ref().unwrap().get(name))
+    fn get_tensor(&mut self, name: &str) -> Result<Option<&PackTensor>, Self::Error> {
+        self.ensure_tensors_cache()?;
+        Ok(self.tensors_cache.as_ref().unwrap().get(name))
     }
 
-    fn get_all_snapshots(&mut self) -> Result<&BTreeMap<String, TensorSnapshot>, Self::Error> {
-        self.ensure_snapshots_cache()?;
-        Ok(self.snapshots_cache.as_ref().unwrap())
+    fn get_all_tensors(&mut self) -> Result<&BTreeMap<String, PackTensor>, Self::Error> {
+        self.ensure_tensors_cache()?;
+        Ok(self.tensors_cache.as_ref().unwrap())
     }
 
     fn keys(&mut self) -> Result<Vec<String>, Self::Error> {
         // Always use the cache to ensure remapping is applied consistently
-        Ok(self.get_all_snapshots()?.keys().cloned().collect())
+        Ok(self.get_all_tensors()?.keys().cloned().collect())
     }
 }
 
 impl PytorchStore {
-    /// Ensure the snapshots cache is populated
-    fn ensure_snapshots_cache(&mut self) -> Result<(), PytorchStoreError> {
-        if self.snapshots_cache.is_some() {
+    /// Ensure the tensors cache is populated
+    fn ensure_tensors_cache(&mut self) -> Result<(), PytorchStoreError> {
+        if self.tensors_cache.is_some() {
             return Ok(());
         }
 
         let reader = self.create_reader()?;
 
-        // Convert to tensor snapshots
-        let mut snapshots: Vec<TensorSnapshot> = reader
+        // The reader already names each tensor by its key, so nothing has to be patched up
+        // here beyond wrapping each one for the applier.
+        let mut tensors: Vec<PackTensor> = reader
             .into_tensors()
-            .into_iter()
-            .map(|(key, mut snapshot)| {
-                // Parse the key into path parts (split by '.')
-                let path_parts: Vec<String> = key.split('.').map(|s| s.to_string()).collect();
-
-                // Set the path stack from the key
-                snapshot.path_stack = Some(path_parts);
-                snapshot.container_stack = None;
-                snapshot.tensor_id = None;
-
-                snapshot
-            })
+            .into_values()
+            .map(bridge::from_pytorch)
             .collect();
 
         // Apply remapping (but NOT filtering - that's done at apply time)
-        snapshots = self.apply_remapping(snapshots);
+        tensors = self.apply_remapping(tensors);
 
         // Apply contiguous index mapping if enabled
         // This must be done after remapping so that remapped paths are mapped
         if self.map_indices_contiguous {
-            let (mapped, _) = map_indices_contiguous(snapshots);
-            snapshots = mapped;
+            let (mapped, _) =
+                map_indices_contiguous_except(tensors, |prefix| self.keep_indices.matches(prefix));
+            tensors = mapped;
         }
 
         // Build cache as BTreeMap
-        let cache: BTreeMap<String, TensorSnapshot> =
-            snapshots.into_iter().map(|s| (s.full_path(), s)).collect();
+        let cache: BTreeMap<String, PackTensor> =
+            tensors.into_iter().map(|t| (t.name.clone(), t)).collect();
 
-        self.snapshots_cache = Some(cache);
+        self.tensors_cache = Some(cache);
         Ok(())
     }
 }

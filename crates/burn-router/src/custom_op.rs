@@ -73,6 +73,7 @@ mod tests {
     use burn_backend::{DType, Scalar, Shape, TensorData, ops::FloatTensorOps};
     use burn_flex::Flex;
     use burn_ir::{OperationIr, ScalarIr, TensorId, TensorIr};
+    use core::slice;
     use std::sync::Mutex;
 
     #[test]
@@ -126,7 +127,7 @@ mod tests {
         let desc = CustomOpIr::with_scalars(
             "load",
             &[],
-            &[out.clone()],
+            slice::from_ref(&out),
             vec![ScalarIr::Int(10), ScalarIr::Int(20), ScalarIr::Int(30)],
         );
         interp.register_op(OperationIr::Custom(desc));

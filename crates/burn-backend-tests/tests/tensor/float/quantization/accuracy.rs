@@ -8,20 +8,22 @@
 
 use super::*;
 use burn_tensor::{
-    Shape, TensorData,
-    quantization::{QuantLevel, QuantParam, QuantScheme, QuantValue, params_shape},
+    DType, Shape, TensorData,
+    quantization::{
+        QuantScheme, QuantValue, ScaleDtype, global_scale_size, params_shape, scale_size,
+    },
 };
 
-/// Bits per stored scale.
-// TODO: replace with `QuantParam::size_bits()` once it exists upstream in cubecl. This is the
-// fourth copy of this table (see also `burn-std`'s `scale_size` and `burn-store`'s
-// `quant_param_size`).
-fn param_size_bits(param: QuantParam) -> usize {
-    match param {
-        QuantParam::F32 => 32,
-        QuantParam::F16 | QuantParam::BF16 => 16,
-        QuantParam::UE8M0 | QuantParam::UE4M3 => 8,
+/// Whether this runtime can hold an 8-bit scale at all.
+///
+/// WGSL has no 8-bit type: cubek packs fp8 four lanes to a `u32`, and a scalar scale has no
+/// representation there. Those backends sit out the `ue4m3` cases, as cubek's own scale tests do.
+fn addresses_8bit_scales() -> bool {
+    let addressable = burn_tensor::Device::default().supports_dtype(DType::U8);
+    if !addressable {
+        println!("no 8-bit type on this runtime, a ue4m3 scale has nowhere to live");
     }
+    addressable
 }
 
 /// Total storage cost of a quantized tensor, per element of the original tensor.
@@ -30,10 +32,10 @@ fn param_size_bits(param: QuantParam) -> usize {
 /// scales, so only error-at-equal-bits distinguishes a real improvement from a trade.
 fn bits_per_element(scheme: &QuantScheme, shape: &Shape) -> f64 {
     let numel = shape.num_elements();
-    let num_scales = params_shape(shape, scheme.level).num_elements();
-
+    let num_scales = params_shape(shape, scheme).num_elements();
     scheme.size_bits_value() as f64
-        + (param_size_bits(scheme.param) * num_scales) as f64 / numel as f64
+        + ((scale_size(scheme.scale_dtype()) * num_scales + global_scale_size(scheme)) * 8) as f64
+            / numel as f64
 }
 
 /// Deterministic standard-normal samples, so a reported number is reproducible across runs and
@@ -72,7 +74,7 @@ fn relative_error(original: &[f32], dequantized: &[f32]) -> f32 {
 
 /// Read a tensor back as `f32`, whatever float type the backend is built with.
 fn to_f32(tensor: TestTensor<2>) -> Vec<f32> {
-    tensor.into_data().convert::<f32>().to_vec::<f32>().unwrap()
+    tensor.try_into_vec_as().unwrap()
 }
 
 /// Quantize with `scheme`, dequantize, and report the relative error.
@@ -91,38 +93,51 @@ fn quantization_error(values: &[f32], shape: [usize; 2], scheme: &QuantScheme) -
     relative_error(&reference, &dequantized)
 }
 
-fn scheme_for(value: QuantValue, level: QuantLevel, param: QuantParam) -> QuantScheme {
+/// The scale levels a case measures, with the block extent it quantizes on.
+#[derive(Clone, Copy, PartialEq)]
+enum Levels {
+    Tensor,
+    Block(u8),
+    BlockUnderTensor(u8),
+}
+
+fn scheme_for(value: QuantValue, levels: Levels, dtype: ScaleDtype) -> QuantScheme {
     let device = burn_tensor::Device::default();
-    device
-        .settings()
-        .quantization
-        .scheme
-        .with_value(value)
-        .with_level(level)
-        .with_param(param)
+    let scheme = device.settings().quantization.scheme.with_value(value);
+
+    match levels {
+        Levels::Tensor => scheme.per_tensor(dtype),
+        Levels::Block(block) => scheme.per_block([block], dtype),
+        Levels::BlockUnderTensor(block) => {
+            scheme.per_block([block], dtype).per_tensor(ScaleDtype::F32)
+        }
+    }
 }
 
 const SHAPE: [usize; 2] = [64, 64];
 
-/// A scale that underflows the param's representable range is the failure the per-tensor scale of
+/// A scale that underflows the dtype's representable range is the failure the per-tensor scale of
 /// a two-level scheme exists to prevent, so it has to be visible here before that scheme is built.
 ///
 /// `Q8S` divides the block maximum by 127, so for weights of a realistic magnitude the block scale
 /// lands in e4m3's subnormals or below, where almost no precision is left.
 #[test]
-fn narrow_scale_param_degrades_without_normalization() {
+fn narrow_scale_dtype_degrades_without_normalization() {
+    if !addresses_8bit_scales() {
+        return;
+    }
     let values = normal_samples(SHAPE[0] * SHAPE[1], 0.02);
-    let level = QuantLevel::block([32]);
+    let levels = Levels::Block(32);
 
     let exact = quantization_error(
         &values,
         SHAPE,
-        &scheme_for(QuantValue::Q8S, level, QuantParam::F32),
+        &scheme_for(QuantValue::Q8S, levels, ScaleDtype::F32),
     );
     let narrow = quantization_error(
         &values,
         SHAPE,
-        &scheme_for(QuantValue::Q8S, level, QuantParam::UE4M3),
+        &scheme_for(QuantValue::Q8S, levels, ScaleDtype::UE4M3),
     );
 
     assert!(
@@ -132,27 +147,23 @@ fn narrow_scale_param_degrades_without_normalization() {
     );
 }
 
-/// At a magnitude where no scale underflows, the two 16-bit params cost nothing measurable while
+/// At a magnitude where no scale underflows, the two 16-bit dtypes cost nothing measurable while
 /// the 8-bit one already costs something. Pinning both directions keeps the harness honest: it
 /// has to be sensitive enough to see the 8-bit loss, and not so noisy that it invents a 16-bit one.
 ///
-/// The upper bound on the 8-bit cost is what keeps `scale_to_param` rounding up. Rounding a scale
+/// The upper bound on the 8-bit cost is what keeps `scale_to_dtype` rounding up. Rounding a scale
 /// to nearest instead lets a block's largest value clip, which measured several times worse.
 ///
 /// Note this is not monotone in scale width. Rounding a scale can land favourably on a given
 /// sample, so f16 sitting a hair below f32 is expected and is not a signal.
 #[test]
-fn error_responds_to_scale_param() {
+fn error_responds_to_scale_dtype() {
     let values = normal_samples(SHAPE[0] * SHAPE[1], 1.0);
-    let level = QuantLevel::block([32]);
+    let levels = Levels::Block(32);
 
     let error_for =
-        |param| quantization_error(&values, SHAPE, &scheme_for(QuantValue::Q8S, level, param));
-    let (f32_err, f16_err, ue4m3_err) = (
-        error_for(QuantParam::F32),
-        error_for(QuantParam::F16),
-        error_for(QuantParam::UE4M3),
-    );
+        |dtype| quantization_error(&values, SHAPE, &scheme_for(QuantValue::Q8S, levels, dtype));
+    let (f32_err, f16_err) = (error_for(ScaleDtype::F32), error_for(ScaleDtype::F16));
 
     // Generous on purpose. The measured gap is near zero on the backends checked so far, but this
     // runs on every backend and float element type, and the point is only to separate
@@ -161,6 +172,11 @@ fn error_responds_to_scale_param() {
         (f16_err - f32_err).abs() / f32_err < 0.20,
         "a 16-bit scale should be indistinguishable from f32, got f32={f32_err} f16={f16_err}"
     );
+
+    if !addresses_8bit_scales() {
+        return;
+    }
+    let ue4m3_err = error_for(ScaleDtype::UE4M3);
     assert!(
         ue4m3_err > f32_err,
         "an 8-bit scale should cost some accuracy, got f32={f32_err} ue4m3={ue4m3_err}"
@@ -175,15 +191,17 @@ fn error_responds_to_scale_param() {
 #[test]
 #[ignore = "reports measurements rather than asserting; run with --ignored --nocapture"]
 fn report_quantization_accuracy() {
-    let levels = [
-        ("tensor", QuantLevel::Tensor),
-        ("block16", QuantLevel::block([16])),
-        ("block32", QuantLevel::block([32])),
+    let cases = [
+        ("tensor", Levels::Tensor),
+        ("block16", Levels::Block(16)),
+        ("block32", Levels::Block(32)),
+        ("block16+f32", Levels::BlockUnderTensor(16)),
+        ("block32+f32", Levels::BlockUnderTensor(32)),
     ];
-    let params = [
-        ("f32", QuantParam::F32),
-        ("f16", QuantParam::F16),
-        ("ue4m3", QuantParam::UE4M3),
+    let dtypes = [
+        ("f32", ScaleDtype::F32),
+        ("f16", ScaleDtype::F16),
+        ("ue4m3", ScaleDtype::UE4M3),
     ];
     let shape = Shape::from(SHAPE);
 
@@ -192,17 +210,21 @@ fn report_quantization_accuracy() {
 
         println!("\nweight std = {std}  (shape {SHAPE:?})");
         println!(
-            "{:<10} {:<7} {:>8} {:>12}",
-            "level", "param", "bits/el", "rel. error"
+            "{:<13} {:<7} {:>8} {:>12}",
+            "levels", "scale", "bits/el", "rel. error"
         );
 
-        for (level_name, level) in levels {
-            for (param_name, param) in params {
-                let scheme = scheme_for(QuantValue::Q8S, level, param);
+        for (case_name, levels) in cases {
+            for (dtype_name, dtype) in dtypes {
+                // A per-tensor scale has nothing to absorb at f32 block scales.
+                if matches!(levels, Levels::BlockUnderTensor(_)) && dtype == ScaleDtype::F32 {
+                    continue;
+                }
+                let scheme = scheme_for(QuantValue::Q8S, levels, dtype);
                 let error = quantization_error(&values, SHAPE, &scheme);
 
                 println!(
-                    "{level_name:<10} {param_name:<7} {:>8.3} {error:>12.5}",
+                    "{case_name:<13} {dtype_name:<7} {:>8.3} {error:>12.5}",
                     bits_per_element(&scheme, &shape)
                 );
             }

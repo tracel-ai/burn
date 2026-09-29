@@ -11,6 +11,7 @@ pub struct Transform2D {
     // 2x3 transformation matrix, to be used with column vectors:
     // T(x) = Ax
     transform: [[f32; 3]; 2],
+    padding_mode: GridSamplePaddingMode,
 }
 
 impl Transform2D {
@@ -29,9 +30,20 @@ impl Transform2D {
         let grid = affine_grid_2d(transform, [batch_size, channels, height, width]);
 
         let options = GridSampleOptions::new(InterpolateMode::Bilinear)
-            .with_padding_mode(GridSamplePaddingMode::Border)
+            .with_padding_mode(self.padding_mode)
             .with_align_corners(true);
         img.grid_sample_2d(grid, options)
+    }
+
+    /// Set the padding mode for the transformed images.
+    ///
+    /// # Default
+    /// [GridSamplePaddingMode::Border]
+    pub fn with_padding_mode(self, padding_mode: GridSamplePaddingMode) -> Self {
+        Self {
+            transform: self.transform,
+            padding_mode,
+        }
     }
 
     /// Makes a 2d transformation composed of other transformations
@@ -65,13 +77,17 @@ impl Transform2D {
             + self.transform[1][1] * other.transform[1][2]
             + self.transform[1][2];
 
-        Transform2D { transform: result }
+        Transform2D {
+            transform: result,
+            padding_mode: self.padding_mode,
+        }
     }
 
     /// Makes an identity transform (x = Ax)
     pub fn identity() -> Self {
         Self {
             transform: [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0]],
+            padding_mode: GridSamplePaddingMode::Border,
         }
     }
 
@@ -89,7 +105,10 @@ impl Transform2D {
             [sin_theta, cos_theta, cy - sin_theta * cx - cos_theta * cy],
         ];
 
-        Self { transform }
+        Self {
+            transform,
+            padding_mode: GridSamplePaddingMode::Border,
+        }
     }
 
     /// Makes a [`Transform2D`] for scaling an image tensor
@@ -101,7 +120,10 @@ impl Transform2D {
     pub fn scale(sx: f32, sy: f32, cx: f32, cy: f32) -> Self {
         let transform = [[sx, 0.0, cx - sx * cx], [0.0, sy, cy - sy * cy]];
 
-        Self { transform }
+        Self {
+            transform,
+            padding_mode: GridSamplePaddingMode::Border,
+        }
     }
 
     /// Makes a [`Transform2D`] for translating an image tensor
@@ -111,7 +133,10 @@ impl Transform2D {
     pub fn translation(tx: f32, ty: f32) -> Self {
         let transform = [[1.0, 0.0, tx], [0.0, 1.0, ty]];
 
-        Self { transform }
+        Self {
+            transform,
+            padding_mode: GridSamplePaddingMode::Border,
+        }
     }
 
     /// Applies a general shear transformation around the image center,
@@ -127,7 +152,10 @@ impl Transform2D {
     pub fn shear(shx: f32, shy: f32, cx: f32, cy: f32) -> Self {
         let transform = [[1.0, shx, -shx * cy], [shy, 1.0, -shy * cx]];
 
-        Self { transform }
+        Self {
+            transform,
+            padding_mode: GridSamplePaddingMode::Border,
+        }
     }
 }
 

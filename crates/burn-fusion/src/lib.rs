@@ -23,14 +23,29 @@ mod ops;
 mod server;
 mod tensor;
 
+pub mod observer;
+
 /// Test-only introspection into fusion runtime behavior — see
 /// [`inspect::FusionInspector`].
 #[cfg(feature = "test-util")]
 pub mod inspect;
 
 pub use op::UnfusedOp;
+
+/// The error an [operation](stream::Operation) reports when it cannot run.
+///
+/// Re-exported because the trait names it, so anything implementing an
+/// operation can reach it through this crate rather than taking a dependency
+/// of its own.
+pub use burn_backend::ExecutionError;
 pub(crate) use server::*;
 
 pub use backend::*;
 pub use ops::NoOp;
 pub use tensor::*;
+
+/// Types used to define and register custom Fusion operations.
+///
+/// Backend extension crates can use this module without depending directly on
+/// `burn-ir` or coordinating its version with `burn-fusion`.
+pub mod custom;

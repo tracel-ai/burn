@@ -1,10 +1,10 @@
 use alloc::vec::Vec;
 use burn_backend::{
     AutodiffBackend, Distribution, Scalar, TensorData, TensorMetadata, TensorPrimitive,
-    ops::{FloatTensorOps, QTensorOps, TransactionPrimitive},
+    ops::{BoolTensorOps, FloatTensorOps, IntTensorOps, QTensorOps, TransactionPrimitive},
 };
 use burn_dispatch::Dispatch;
-use burn_std::{DType, ExecutionError, IndexingUpdateOp, Shape, Slice};
+use burn_std::{DType, ExecutionError, IndexingUpdateOp, PadMode, Shape, Slice};
 
 use crate::{
     Device, Float,
@@ -146,15 +146,13 @@ impl BasicOps for Float {
         update: IndexingUpdateOp,
     ) -> BridgeTensor {
         // Select assign is ambiguous for QFloat
-        match update {
-            IndexingUpdateOp::Add => BridgeTensor::float(Dispatch::float_select_add(
-                tensor.into_float(),
-                dim,
-                indices.into(),
-                values.into_float(),
-            )),
-            other => unimplemented!("Unsupported update op {other:?}"),
-        }
+        BridgeTensor::float(Dispatch::float_select_assign(
+            tensor.into_float(),
+            dim,
+            indices.into(),
+            values.into_float(),
+            update,
+        ))
     }
 
     fn mask_where(tensor: BridgeTensor, mask: BridgeTensor, source: BridgeTensor) -> BridgeTensor {
@@ -171,6 +169,29 @@ impl BasicOps for Float {
             mask.into(),
             value,
         ))
+    }
+
+    async fn mask_select(tensor: BridgeTensor, mask: BridgeTensor) -> BridgeTensor {
+        let (kind, tensor) = tensor.into_parts();
+        match kind {
+            BridgeKind::Float => {
+                BridgeTensor::float(Dispatch::float_mask_select(tensor, mask.into()).await)
+            }
+            BridgeKind::QFloat => {
+                // Preserve the quantized kind by composing `argwhere` + `q_select` on the
+                // quantized primitive, mirroring the default backend op (there is no
+                // `q_mask_select`). Using `into_float` here would silently drop quantization.
+                let out_dtype = mask.device_settings().int_dtype;
+                let n = mask.shape().num_elements();
+                let mask = Dispatch::bool_reshape(mask.into(), Shape::new([n]));
+                let indices = Dispatch::bool_argwhere(mask, out_dtype).await; // [count, 1]
+                let count = indices.shape()[0];
+                let indices = Dispatch::int_reshape(indices, Shape::new([count])); // squeeze
+                let tensor = Dispatch::q_reshape(tensor, Shape::new([n]));
+                BridgeTensor::qfloat(Dispatch::q_select(tensor, 0, indices))
+            }
+            _ => panic!("Should be Float primitive kind"),
+        }
     }
 
     fn gather(dim: usize, tensor: BridgeTensor, indices: BridgeTensor) -> BridgeTensor {
@@ -193,15 +214,13 @@ impl BasicOps for Float {
         values: BridgeTensor,
         update: IndexingUpdateOp,
     ) -> BridgeTensor {
-        match update {
-            IndexingUpdateOp::Add => BridgeTensor::float(Dispatch::float_scatter_add(
-                dim,
-                tensor.into_float(),
-                indices.into(),
-                values.into_float(),
-            )),
-            other => unimplemented!("Unsupported update op {other:?}"),
-        }
+        BridgeTensor::float(Dispatch::float_scatter(
+            dim,
+            tensor.into_float(),
+            indices.into(),
+            values.into_float(),
+            update,
+        ))
     }
 
     fn scatter_nd(
@@ -254,7 +273,7 @@ impl BasicOps for Float {
     }
 
     fn from_data(data: TensorData, device: &Device, dtype: DType) -> BridgeTensor {
-        if matches!(data.dtype, DType::QFloat(_)) {
+        if matches!(data.dtype(), DType::QFloat(_)) {
             // When the source is QFloat, there is no conversion path possible.
             BridgeTensor::qfloat(Dispatch::q_from_data(data, device.as_dispatch()))
         } else if dtype.is_float() {
@@ -368,6 +387,10 @@ impl BasicOps for Float {
 }
 
 impl Numeric for Float {
+    fn pad(tensor: BridgeTensor, padding: &[(usize, usize)], mode: PadMode) -> BridgeTensor {
+        BridgeTensor::float(Dispatch::float_pad(tensor.into_float(), padding, mode))
+    }
+
     fn add(lhs: BridgeTensor, rhs: BridgeTensor) -> BridgeTensor {
         q_bin_ops!(lhs, rhs, float_add, q_add)
     }
@@ -473,6 +496,20 @@ impl Numeric for Float {
                 TensorPrimitive::Float(out) => BridgeTensor::float(out),
                 TensorPrimitive::QFloat(out) => BridgeTensor::qfloat(out),
             },
+            _ => panic!("Should be Float primitive kind"),
+        }
+    }
+
+    fn sum_dims(tensor: BridgeTensor, dims: &[usize]) -> BridgeTensor {
+        let (kind, tensor) = tensor.into_parts();
+        match kind {
+            BridgeKind::Float => BridgeTensor::float(Dispatch::float_sum_dims(tensor, dims)),
+            // Quantized reductions have no multi-dimension form; one at a time.
+            BridgeKind::QFloat => dims
+                .iter()
+                .fold(BridgeTensor::qfloat(tensor), |tensor, &dim| {
+                    Self::sum_dim(tensor, dim)
+                }),
             _ => panic!("Should be Float primitive kind"),
         }
     }

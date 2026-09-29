@@ -1,16 +1,13 @@
 use crate::module::{Module, ModuleVisitor, Param};
 
 use alloc::string::String;
-#[cfg(target_has_atomic = "ptr")]
-use alloc::sync::Arc;
 use alloc::vec;
 use alloc::vec::Vec;
-#[cfg(not(target_has_atomic = "ptr"))]
-use portable_atomic_util::Arc;
 #[cfg(feature = "std")]
 use regex::Regex;
 
 use burn_std::id::ParamId;
+use burn_std::sync::Arc;
 use burn_tensor::{Bool, Int, Tensor};
 
 /// Errors tied to [ParamGroup]'s.
@@ -42,6 +39,12 @@ impl ModuleVisitor for ParamIdCollector {
 
     fn visit_bool<const D: usize>(&mut self, param: &Param<Tensor<D, Bool>>) {
         self.ids.push(param.id);
+    }
+
+    /// A flag is collected like any other parameter value, so `ids_from_module` over a subtree
+    /// includes its module-owned control state.
+    fn visit_flag(&mut self, flag: &crate::module::Param<crate::module::Flag>) {
+        self.ids.push(flag.id);
     }
 }
 
@@ -414,7 +417,7 @@ mod tests {
     fn explicit_matches_only_selected_ids() {
         let id = ParamId::new();
         let other_id = ParamId::new();
-        let group = ParamGroup::from_ids(vec![id.clone()]);
+        let group = ParamGroup::from_ids(vec![id]);
 
         assert!(group.matches(&id, None));
         assert!(!group.matches(&other_id, None));
@@ -464,7 +467,7 @@ mod tests {
     #[test]
     fn fuse_combines_multiple_groups() {
         let id = ParamId::new();
-        let group1 = ParamGroup::from_ids(vec![id.clone()]);
+        let group1 = ParamGroup::from_ids(vec![id]);
         let group2 = ParamGroup::from_path("model.layer.weight");
         let fused = group1.fuse(&group2);
 
@@ -477,9 +480,8 @@ mod tests {
     fn exclude_removes_matching_ids_from_a_group() {
         let id = ParamId::new();
         let excluded_id = ParamId::new();
-        let exclude_group = ParamGroup::from_ids(vec![excluded_id.clone()]);
-        let group =
-            ParamGroup::from_ids(vec![id.clone(), excluded_id.clone()]).exclude(exclude_group);
+        let exclude_group = ParamGroup::from_ids(vec![excluded_id]);
+        let group = ParamGroup::from_ids(vec![id, excluded_id]).exclude(exclude_group);
 
         assert!(group.matches(&id, None));
         assert!(!group.matches(&excluded_id, None));

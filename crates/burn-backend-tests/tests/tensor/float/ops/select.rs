@@ -81,6 +81,125 @@ fn should_select_add_1d() {
 }
 
 #[test]
+fn should_select_assign_2d_dim0() {
+    let device = Default::default();
+    let tensor = TestTensor::<2>::from_data([[10.0, 20.0], [30.0, 40.0], [50.0, 60.0]], &device);
+    let values = TestTensor::from_data([[5.0, 70.0], [80.0, 1.0]], &device);
+    let indices = TestTensorInt::from_data(TensorData::from([2, 0]), &device);
+
+    let output = tensor.select_assign(0, indices, values, IndexingUpdateOp::Assign);
+    let expected = TensorData::from([[80.0, 1.0], [30.0, 40.0], [5.0, 70.0]]);
+
+    output.into_data().assert_eq(&expected, false);
+}
+
+#[test]
+fn should_select_assign_2d_dim1() {
+    let device = Default::default();
+    let tensor = TestTensor::<2>::from_data([[10.0, 20.0, 30.0], [40.0, 50.0, 60.0]], &device);
+    let values = TestTensor::from_data([[7.0, 8.0], [9.0, 10.0]], &device);
+    let indices = TestTensorInt::from_data(TensorData::from([2, 0]), &device);
+
+    let output = tensor.select_assign(1, indices, values, IndexingUpdateOp::Assign);
+    let expected = TensorData::from([[8.0, 20.0, 7.0], [10.0, 50.0, 9.0]]);
+
+    output.into_data().assert_eq(&expected, false);
+}
+
+#[test]
+fn should_select_assign_mul_2d_dim0() {
+    let device = Default::default();
+    let tensor = TestTensor::<2>::from_data([[10.0, 20.0], [30.0, 40.0], [50.0, 60.0]], &device);
+    let values = TestTensor::from_data([[5.0, 70.0], [80.0, 1.0]], &device);
+    let indices = TestTensorInt::from_data(TensorData::from([2, 0]), &device);
+
+    let output = tensor.select_assign(0, indices, values, IndexingUpdateOp::Mul);
+    let expected = TensorData::from([[800.0, 20.0], [30.0, 40.0], [250.0, 4200.0]]);
+
+    output.into_data().assert_eq(&expected, false);
+}
+
+#[test]
+fn should_select_assign_mul_2d_dim1() {
+    let device = Default::default();
+    let tensor = TestTensor::<2>::from_data([[2.0, 3.0, 4.0], [5.0, 6.0, 7.0]], &device);
+    let values = TestTensor::from_data([[10.0, 20.0], [30.0, 40.0]], &device);
+    let indices = TestTensorInt::from_ints([2, 0], &device);
+
+    let output = tensor.select_assign(1, indices, values, IndexingUpdateOp::Mul);
+    let expected = TensorData::from([[40.0, 3.0, 40.0], [200.0, 6.0, 210.0]]);
+
+    output.into_data().assert_eq(&expected, false);
+}
+
+#[test]
+fn should_select_assign_max_1d() {
+    let device = Default::default();
+    let tensor = TestTensor::<1>::from_data([10.0, 20.0, 30.0, 40.0], &device);
+    let values = TestTensor::from_data([7.0, 50.0], &device);
+    let indices = TestTensorInt::from_data(TensorData::from([1, 3]), &device);
+
+    let output = tensor.select_assign(0, indices, values, IndexingUpdateOp::Max);
+    let expected = TensorData::from([10.0, 20.0, 30.0, 50.0]);
+
+    output.into_data().assert_eq(&expected, false);
+}
+
+#[test]
+fn should_select_assign_min_1d_repeated_indices() {
+    let device = Default::default();
+    // index 0 receives 100 then 3 (keeps 3); index 1 receives 7 then 50 (keeps 7).
+    let tensor = TestTensor::<1>::from_data([10.0, 20.0, 30.0, 40.0], &device);
+    let values = TestTensor::from_data([100.0, 3.0, 7.0, 50.0], &device);
+    let indices = TestTensorInt::from_data(TensorData::from([0, 0, 1, 1]), &device);
+
+    let output = tensor.select_assign(0, indices, values, IndexingUpdateOp::Min);
+    let expected = TensorData::from([3.0, 7.0, 30.0, 40.0]);
+
+    output.into_data().assert_eq(&expected, false);
+}
+
+#[test]
+fn should_select_assign_max_1d_repeated_indices() {
+    let device = Default::default();
+    // index 0 receives 100 then 3 (keeps 100); index 1 receives 7 then 50 (keeps 50).
+    let tensor = TestTensor::<1>::from_data([10.0, 20.0, 30.0, 40.0], &device);
+    let values = TestTensor::from_data([100.0, 3.0, 7.0, 50.0], &device);
+    let indices = TestTensorInt::from_data(TensorData::from([0, 0, 1, 1]), &device);
+
+    let output = tensor.select_assign(0, indices, values, IndexingUpdateOp::Max);
+    let expected = TensorData::from([100.0, 50.0, 30.0, 40.0]);
+
+    output.into_data().assert_eq(&expected, false);
+}
+
+#[test]
+fn should_select_assign_min_2d_dim0() {
+    let device = Default::default();
+    let tensor = TestTensor::<2>::from_data([[10.0, 20.0], [30.0, 40.0], [50.0, 60.0]], &device);
+    let values = TestTensor::from_data([[5.0, 70.0], [80.0, 1.0]], &device);
+    let indices = TestTensorInt::from_data(TensorData::from([2, 0]), &device);
+
+    let output = tensor.select_assign(0, indices, values, IndexingUpdateOp::Min);
+    let expected = TensorData::from([[10.0, 1.0], [30.0, 40.0], [5.0, 60.0]]);
+
+    output.into_data().assert_eq(&expected, false);
+}
+
+#[test]
+fn should_select_assign_max_2d_dim0() {
+    let device = Default::default();
+    let tensor = TestTensor::<2>::from_data([[10.0, 20.0], [30.0, 40.0], [50.0, 60.0]], &device);
+    let values = TestTensor::from_data([[5.0, 70.0], [80.0, 1.0]], &device);
+    let indices = TestTensorInt::from_data(TensorData::from([2, 0]), &device);
+
+    let output = tensor.select_assign(0, indices, values, IndexingUpdateOp::Max);
+    let expected = TensorData::from([[80.0, 20.0], [30.0, 40.0], [50.0, 70.0]]);
+
+    output.into_data().assert_eq(&expected, false);
+}
+
+#[test]
 fn should_select_add_1d_int() {
     let device = Default::default();
     let tensor = TestTensorInt::<1>::from_data([7, 8, 9], &device);
@@ -246,6 +365,6 @@ fn should_select_2d_dim0_empty_indices() {
     let output = tensor.select(0, indices);
 
     assert_eq!(output.dims(), [0, 2]);
-    let out: Vec<FloatElem> = output.into_data().to_vec().unwrap();
+    let out: Vec<FloatElem> = output.try_into_vec_as().unwrap();
     assert!(out.is_empty());
 }

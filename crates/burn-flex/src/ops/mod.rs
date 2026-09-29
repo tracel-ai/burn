@@ -101,6 +101,7 @@ pub mod conv_transpose;
 pub mod cumulative;
 pub mod deform_conv;
 pub mod expand;
+#[cfg(feature = "fft")]
 pub mod fft;
 pub mod flip;
 mod float;

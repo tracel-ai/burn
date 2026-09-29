@@ -16,7 +16,6 @@ use crate::{
     },
 };
 use burn_fusion::OperationFuser;
-use cubecl::Runtime;
 use cubek::reduce::components::instructions::ReduceOperationConfig;
 
 /// Responsible for fusing a single trace for all operations involved in this optimization.
@@ -36,6 +35,7 @@ impl ReduceBroadcastedFullFuser {
             broadcast: true,
             inplace: false,
             ref_layout: RefLayoutSetting::OnlyContiguous,
+            choose_output_layout: false,
             vectorization: VectorizationSetting::Activated,
         };
         let settings_write = FuseSettings {
@@ -43,6 +43,7 @@ impl ReduceBroadcastedFullFuser {
             inplace: false,
             broadcast: false,
             ref_layout: RefLayoutSetting::OnlyContiguous,
+            choose_output_layout: false,
             // Deactivated for now, but would be cool to support vectorization of the output.
             vectorization: VectorizationSetting::Deactivated,
         };
@@ -115,7 +116,7 @@ impl ReduceBroadcastedFullFuser {
     }
 
     /// Registers a [ReduceBlockFuser] to build the trace.
-    pub fn register<R: Runtime>(&mut self, block: &ReduceBlockFuser<R>) {
+    pub fn register(&mut self, block: &ReduceBlockFuser) {
         // Helper to close previous blocks if necessary
         if !self.fuser.is_empty() {
             let mut settings = self.settings_read;

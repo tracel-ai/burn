@@ -20,8 +20,13 @@ default = [
     "burn-std/default",
     "burn-dataset?/default",
     "burn-tensor/default",
+    "burn-cpu?/default",
+    "burn-cuda?/default",
+    "burn-rocm?/default",
+    "burn-wgpu?/default",
 ]
 doc = [
+    "flex",
     "std",
     "dataset",
     "audio",
@@ -31,7 +36,15 @@ doc = [
     "burn-tensor/doc",
     "dep:regex"
 ]
-tracing = ["burn-std/tracing", "burn-tensor/tracing", "burn-dataset?/tracing"]
+tracing = [
+    "burn-std/tracing",
+    "burn-tensor/tracing",
+    "burn-dataset?/tracing",
+    "burn-cpu?/tracing",
+    "burn-cuda?/tracing",
+    "burn-rocm?/tracing",
+    "burn-wgpu?/tracing",
+]
 
 dataset = ["burn-dataset"]
 
@@ -48,6 +61,10 @@ std = [
     "serde/std",
     "serde_json/std",
     "num-traits/std",
+    "burn-cpu?/std",
+    "burn-cuda?/std",
+    "burn-rocm?/std",
+    "burn-wgpu?/std",
 ]
 vision = ["burn-dataset?/vision"]
 audio = ["burn-dataset?/audio"]
@@ -56,27 +73,63 @@ audio = ["burn-dataset?/audio"]
 remote = ["burn-tensor/remote"]
 remote-server = ["burn-tensor/remote-server"]
 remote-websocket = ["burn-tensor/remote-websocket"]
-cuda = ["burn-tensor/cuda"]
-rocm = ["burn-tensor/rocm"]
+cuda = ["burn-tensor/cuda", "dep:burn-cuda"]
+rocm = ["burn-tensor/rocm", "dep:burn-rocm"]
 flex = ["burn-tensor/flex"]
 ndarray = ["burn-tensor/ndarray"]
 tch = ["burn-tensor/tch"]
-vulkan = ["burn-tensor/vulkan"]
-webgpu = ["burn-tensor/webgpu"]
-wgpu = ["burn-tensor/wgpu"]
-metal = ["burn-tensor/metal"]
-cpu = ["burn-tensor/cpu"]
+vulkan = ["wgpu", "burn-tensor/vulkan", "burn-wgpu/vulkan"]
+webgpu = ["wgpu", "burn-tensor/webgpu", "burn-wgpu/webgpu"]
+wgpu = ["burn-tensor/wgpu", "dep:burn-wgpu"]
+metal = ["wgpu", "burn-tensor/metal", "burn-wgpu/metal"]
+cpu = ["burn-tensor/cpu", "dep:burn-cpu"]
 autodiff = ["burn-tensor/autodiff"]
+capture = ["burn-tensor/capture"]
 ir = ["burn-ir"]
 
 # Backend features
-autotune = ["burn-tensor/autotune"]
-autotune-checks = ["burn-tensor/autotune-checks"]
-fusion = ["burn-tensor/fusion"]
+autotune = [
+    "burn-tensor/autotune",
+    "burn-cpu?/autotune",
+    "burn-cuda?/autotune",
+    "burn-rocm?/autotune",
+    "burn-wgpu?/autotune",
+]
+autotune-checks = [
+    "burn-tensor/autotune-checks",
+    "burn-cpu?/autotune-checks",
+    "burn-cuda?/autotune-checks",
+    "burn-rocm?/autotune-checks",
+    "burn-wgpu?/autotune-checks",
+]
+fusion = [
+    "dep:burn-fusion",
+    "burn-tensor/fusion",
+    "burn-cpu?/fusion",
+    "burn-cuda?/fusion",
+    "burn-rocm?/fusion",
+    "burn-wgpu?/fusion",
+]
+simd = ["burn-tensor/simd"]
+rayon = ["burn-tensor/rayon"]
+x86-v4 = ["burn-tensor/x86-v4"]
+apple-amx = ["burn-tensor/apple-amx"]
+accelerate = ["burn-tensor/accelerate"]
+blas-netlib = ["burn-tensor/blas-netlib"]
+openblas = ["burn-tensor/openblas"]
+openblas-system = ["burn-tensor/openblas-system"]
+template = ["burn-tensor/template", "burn-wgpu?/template"]
 
 # Backend extensions
 # burn-dispatch features are enabled from burn-tensor, we just re-export the public types
 extension = ["burn-tensor/extension", "burn-backend-extension", "burn-dispatch", "burn-backend"]
+
+# These integration tests need CubeCL and Fusion's test utilities.
+# Keep them opt-in so default `burn-core` builds and tests avoid those dependencies;
+# dev-dependencies would be compiled for every test build, even when the tests are skipped.
+# Enable a CubeCL runtime separately (e.g. `cpu` or `metal`) and select it with BURN_DEVICE.
+# Gate the test files with cfg instead of required-features so CI's --test '*' can select them.
+extension-tests = ["extension", "fusion", "dep:burn-cubecl", "burn-fusion/test-util"]
 
 [dependencies]
 
@@ -88,11 +141,21 @@ burn-derive = { workspace = true }
 burn-pack = { workspace = true, default-features = false }
 burn-tensor = { workspace = true }
 
+# Public backend facades re-exported by `burn-core::backend`.
+burn-cpu = { workspace = true, optional = true }
+burn-cuda = { workspace = true, optional = true }
+burn-rocm = { workspace = true, optional = true }
+burn-wgpu = { workspace = true, optional = true }
+
 # Backend extensions
 burn-backend = { workspace = true, optional = true }
 burn-dispatch = { workspace = true, optional = true }
 burn-backend-extension = { workspace = true, optional = true }
+burn-fusion = { workspace = true, optional = true }
 burn-ir = { workspace = true, optional = true }
+
+# Backend extension integration tests.
+burn-cubecl = { workspace = true, optional = true }
 
 derive-new = { workspace = true }
 log = { workspace = true, optional = true }
@@ -104,24 +167,17 @@ hashbrown = { workspace = true, features = ["serde"] } # no_std compatible
 # Serialize Deserialize
 serde = { workspace = true, features = ["derive"] }
 
-ahash = { workspace = true }
 half = { workspace = true }
 num-traits = { workspace = true }
 serde_json = { workspace = true, features = ["alloc"] } #Default enables std
 spin = { workspace = true }                             # Using in place of use std::sync::Mutex when std is disabled
-thiserror = { workspace = true, optional = true }
 regex = { workspace = true, optional = true }
 
 [target.'cfg(target_has_atomic = "ptr")'.dependencies]
 regex = { workspace = true }
 
-[target.'cfg(not(target_has_atomic = "ptr"))'.dependencies]
-portable-atomic-util = { workspace = true }
-portable-atomic = { workspace = true }
-
 [dev-dependencies]
 burn-dataset = { workspace = true, features = ["fake"] }
-rstest = { workspace = true }
 serial_test = { workspace = true }
 tempfile = { workspace = true }
 

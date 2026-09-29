@@ -1,5 +1,5 @@
+use crate::kernel::memory_order::in_memory_order;
 use crate::{
-    CubeRuntime,
     kernel::utils::address_type,
     ops::{max_vector_size, numeric::empty_device_dtype},
     tensor::CubeTensor,
@@ -29,7 +29,7 @@ pub(crate) fn unary_float<F: Float, N: Size, O: FloatUnaryOpFamily>(
     input: LinearView<'_, Vector<F, N>>,
     mut output: LinearViewMut<'_, Vector<F, N>>,
     options: &O::Options,
-    #[define(F)] _dtype: StorageType,
+    #[define(F)] _dtype: ElemType,
 ) {
     if !output.is_in_bounds(ABSOLUTE_POS) {
         terminate!();
@@ -41,62 +41,64 @@ pub(crate) fn unary_float<F: Float, N: Size, O: FloatUnaryOpFamily>(
     );
 }
 
-pub(crate) fn launch_unary_float<R, O, Args>(tensor: CubeTensor<R>, args: Args) -> CubeTensor<R>
+pub(crate) fn launch_unary_float<O, Args>(tensor: CubeTensor, args: Args) -> CubeTensor
 where
     // Magic fix for lifetime, the closure is supposed to capture everything required to create the
     // argument.
-    for<'a> Args: FnOnce(&'a ()) -> RuntimeArg<O::Options, R>,
-    R: CubeRuntime,
+    for<'a> Args: FnOnce(&'a ()) -> RuntimeArg<O::Options>,
     O: FloatUnaryOpFamily,
 {
-    let vector_size = max_vector_size(&tensor);
+    let output_shape = tensor.shape();
+    in_memory_order([tensor], output_shape, |[tensor], shape_out| {
+        let vector_size = max_vector_size(&tensor);
 
-    let client = tensor.client.clone();
-    let num_elems = tensor.meta.num_elements();
+        let client = tensor.client.clone();
+        let num_elems = tensor.meta.num_elements();
 
-    let working_units = num_elems / vector_size as usize;
-    let cube_dim = CubeDim::new(&tensor.client, working_units);
-    let cube_count = calculate_cube_count_elemwise(&tensor.client, working_units, cube_dim);
-    let dtype = tensor.dtype;
+        let working_units = num_elems / vector_size as usize;
+        let cube_dim = CubeDim::new(&tensor.client, working_units);
+        let cube_count = calculate_cube_count_elemwise(&tensor.client, working_units, cube_dim);
+        let dtype = tensor.dtype;
 
-    unsafe {
-        if tensor.can_mut() && tensor.is_nonoverlapping() {
-            unary_float::launch_unchecked::<O, R>(
-                &client,
-                cube_count,
-                cube_dim,
-                address_type!(tensor),
-                vector_size,
-                tensor.clone().into_linear_view(),
-                tensor.as_linear_view_alias(0),
-                args(&()),
-                dtype_to_storage_type(dtype),
-            );
+        unsafe {
+            if tensor.can_mut() && tensor.is_nonoverlapping() {
+                unary_float::launch_unchecked::<O>(
+                    &client,
+                    cube_count,
+                    cube_dim,
+                    address_type!(tensor),
+                    vector_size,
+                    tensor.clone().into_linear_view(),
+                    tensor.as_linear_view_alias(0),
+                    args(&()),
+                    dtype_to_storage_type(dtype),
+                );
 
-            tensor
-        } else {
-            let output = empty_device_dtype(
-                tensor.client.clone(),
-                tensor.device.clone(),
-                tensor.shape(),
-                tensor.dtype,
-            );
+                tensor
+            } else {
+                let output = empty_device_dtype(
+                    tensor.client.clone(),
+                    tensor.device.clone(),
+                    shape_out,
+                    tensor.dtype,
+                );
 
-            unary_float::launch_unchecked::<O, R>(
-                &client,
-                cube_count,
-                cube_dim,
-                address_type!(tensor, output),
-                vector_size,
-                tensor.into_linear_view(),
-                output.clone().into_linear_view(),
-                args(&()),
-                dtype_to_storage_type(dtype),
-            );
+                unary_float::launch_unchecked::<O>(
+                    &client,
+                    cube_count,
+                    cube_dim,
+                    address_type!(tensor, output),
+                    vector_size,
+                    tensor.into_linear_view(),
+                    output.clone().into_linear_view(),
+                    args(&()),
+                    dtype_to_storage_type(dtype),
+                );
 
-            output
+                output
+            }
         }
-    }
+    })
 }
 
 /// Use comptime enum to implement all unary operations that don't have any input argument in the
@@ -106,12 +108,11 @@ pub(crate) mod unary_basic {
 
     use super::*;
 
-    pub(crate) fn launch<R, Args>(tensor: CubeTensor<R>, args: Args) -> CubeTensor<R>
+    pub(crate) fn launch<Args>(tensor: CubeTensor, args: Args) -> CubeTensor
     where
-        R: CubeRuntime,
         for<'a> Args: FnOnce(&'a ()) -> BasicFloatUnaryKind,
     {
-        launch_unary_float::<R, BasicFloatUnary, _>(tensor, |input| {
+        launch_unary_float::<BasicFloatUnary, _>(tensor, |input| {
             BasicFloatUnaryOptionsLaunch::new(args(input))
         })
     }

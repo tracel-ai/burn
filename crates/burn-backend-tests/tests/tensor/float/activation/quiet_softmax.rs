@@ -25,3 +25,29 @@ fn test_quiet_softmax_negative_dim() {
         .into_data()
         .assert_approx_eq::<FloatElem>(&expected, Tolerance::default());
 }
+
+#[test]
+fn test_quiet_softmax_all_negative_infinity_last_dim() {
+    let tensor = TestTensor::<2>::from([
+        [f32::NEG_INFINITY, f32::NEG_INFINITY],
+        [f32::NEG_INFINITY, 0.0],
+    ]);
+
+    let output = activation::quiet_softmax(tensor, 1);
+    let expected = TensorData::from([[0.0, 0.0], [0.0, 0.5]]);
+
+    output.into_data().assert_eq(&expected, false);
+}
+
+#[test]
+fn test_quiet_softmax_all_negative_infinity_first_dim() {
+    let tensor = TestTensor::<2>::from([
+        [f32::NEG_INFINITY, f32::NEG_INFINITY],
+        [f32::NEG_INFINITY, 0.0],
+    ]);
+
+    let output = activation::quiet_softmax(tensor, 0);
+    let expected = TensorData::from([[0.0, 0.0], [0.0, 0.5]]);
+
+    output.into_data().assert_eq(&expected, false);
+}

@@ -1,10 +1,10 @@
 use burn_core as burn;
+use burn_linalg as linalg;
 
 use burn::config::Config;
 use burn::module::Module;
 use burn::tensor::Device;
 use burn::tensor::Tensor;
-use burn::tensor::linalg;
 
 use super::inception::InceptionV3FeatureExtractor;
 

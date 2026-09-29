@@ -32,12 +32,34 @@ pub(crate) fn handle_command(
                     build_args.extend(vec!["--target", *build_target]);
                 }
 
+                // Resolve independently: burn-no-std-tests selects Flex for execution,
+                // which would otherwise hide regressions in backend-free library builds.
+                build_helpers::custom_crates_build(
+                    vec!["burn"],
+                    build_args.clone(),
+                    None,
+                    None,
+                    &format!("backend-free no-std with target {}", *build_target),
+                )?;
+
+                // Fusion does not build on embedded targets, so only cover it on the host.
+                // Without this, the fusion paths in burn-linalg are only compiled with std.
+                if *build_target == "Default" {
+                    build_helpers::custom_crates_build(
+                        vec!["burn-linalg"],
+                        vec!["--no-default-features", "--features", "fusion"],
+                        None,
+                        None,
+                        "no-std with fusion",
+                    )?;
+                }
+
                 let mut crates = NO_STD_CRATES.to_vec();
 
                 if *build_target == ARM_NO_ATOMIC_PTR_TARGET {
                     // Only build a subset of crates which require `portable_atomic_unsafe_assume_single_core`.
-                    // Other crates build with `burn-flex` (default_backend) which requires the `critical-section`
-                    // feature (automatically enabled via `burn-dispatch` when `not(target_has_atomic = "ptr")`),
+                    // Dispatch and the explicit Flex integration tests enable `critical-section`
+                    // on targets without pointer atomics,
                     // which is mutually exclusive with `portable_atomic_unsafe_assume_single_core` cfg.
                     crates = vec!["burn-std", "burn-backend", "burn-ndarray"];
                     env_vars.insert(
@@ -45,7 +67,7 @@ pub(crate) fn handle_command(
                         "--cfg portable_atomic_unsafe_assume_single_core",
                     );
                 }
-                helpers::custom_crates_build(
+                build_helpers::custom_crates_build(
                     crates,
                     build_args.clone(),
                     Some(env_vars.clone()),
@@ -58,19 +80,20 @@ pub(crate) fn handle_command(
                 // portable-atomic for CAS emulation.
                 if *build_target == ARM_NO_ATOMIC_PTR_TARGET {
                     crates = NO_STD_CRATES.to_vec();
-                    // Remove `burn-autodiff` from building with the
-                    // target `thumbv6m-none-eabi` as it requires enabling the
-                    // `arbitrary_self_types` feature for the
-                    // `clone_if_require_grad` method of
-                    // `burn-autodiff::graph::Node`.
+                    // Exclude crates already covered by the unsafe-assume-single-core pass, plus
+                    // crates that don't support Thumbv6-M:
+                    // - `burn-autodiff` requires `arbitrary_self_types` for
+                    //   `clone_if_require_grad`;
+                    // - `burn-capture` relies on `Arc`, which requires pointer-width atomics.
                     crates.retain(|&v| {
                         v != "burn-autodiff"
                             && v != "burn-std"
                             && v != "burn-ndarray"
                             && v != "burn-backend"
+                            && v != "burn-capture"
                     });
 
-                    helpers::custom_crates_build(
+                    build_helpers::custom_crates_build(
                         crates,
                         build_args,
                         None,
@@ -99,7 +122,7 @@ pub(crate) fn handle_command(
             base_commands::build::handle_command(args.try_into().unwrap(), env, context)?;
             // Specific additional commands to test specific features
             // burn-dataset
-            helpers::custom_crates_build(
+            build_helpers::custom_crates_build(
                 vec!["burn-dataset"],
                 vec!["--all-features"],
                 None,

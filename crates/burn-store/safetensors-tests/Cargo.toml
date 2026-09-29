@@ -10,4 +10,3 @@ burn-flex = { workspace = true, features = ["default"] }
 burn-autodiff = { workspace = true, features = ["default"] }
 burn-store = { workspace = true, features = ["default", "std", "safetensors"] }
 serde = { workspace = true }
-float-cmp = { workspace = true }

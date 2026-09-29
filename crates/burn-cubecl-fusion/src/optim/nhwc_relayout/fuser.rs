@@ -6,17 +6,16 @@ use crate::{
     optim::{CubeOptimization, nhwc_relayout::optimization::NHWCRelayoutOptimization},
 };
 use burn_fusion::{FuserProperties, FuserStatus, OperationFuser};
-use burn_ir::{ModuleOperationIr, OperationIr, TensorIr};
+use burn_ir::{ModuleOperationIr, OperationIr, TensorIr, TensorStatus};
 use burn_std::Shape;
-use cubecl::Runtime;
 
 /// Fuses element wise operations.
 #[derive(Clone)]
-pub struct NHWCRelayoutFuser<R: Runtime> {
+pub struct NHWCRelayoutFuser {
     fuser: TraceOperationFuser,
     op: Option<OperationIr>,
     status: FuserStatus,
-    device: R::Device,
+    device: cubecl::Device,
 }
 
 /// Build the stride relayout permutation for a tensor of the given `rank`.
@@ -52,7 +51,7 @@ fn nhwc_relayout_tensor(ir: &ModuleOperationIr) -> Option<&TensorIr> {
     }
 }
 
-impl<R: Runtime> NHWCRelayoutFuser<R> {
+impl NHWCRelayoutFuser {
     pub fn shape_id(&self) -> Shape {
         self.fuser.current_output_shape.clone()
     }
@@ -64,11 +63,14 @@ impl<R: Runtime> NHWCRelayoutFuser<R> {
             inplace: true,
             vectorization: VectorizationSetting::Activated,
             ref_layout: RefLayoutSetting::Any,
+            // This fuser exists to impose a layout of its own; it does not want one
+            // picked for it.
+            choose_output_layout: false,
         }
     }
 
-    pub fn new(device: R::Device) -> Self {
-        let client = R::client(&device);
+    pub fn new(device: cubecl::Device) -> Self {
+        let client = device.client();
         let max_bindings = client.properties().hardware.max_bindings;
         let fuser = TraceOperationFuser::new(max_bindings, Self::settings());
 
@@ -81,14 +83,19 @@ impl<R: Runtime> NHWCRelayoutFuser<R> {
     }
 }
 
-impl<R: Runtime> OperationFuser<CubeOptimization<R>> for NHWCRelayoutFuser<R> {
+impl OperationFuser<CubeOptimization> for NHWCRelayoutFuser {
     fn fuse(&mut self, operation: &OperationIr) {
         if let FuserStatus::Closed = &self.status {
             return;
         }
 
         match operation {
-            OperationIr::Module(ir) if let Some(tensor) = nhwc_relayout_tensor(ir) => {
+            // A `ReadOnly` tensor cannot be a relayout candidate: another consumer
+            // is still expecting NCHW.
+            OperationIr::Module(ir)
+                if let Some(tensor) = nhwc_relayout_tensor(ir)
+                    && tensor.status == TensorStatus::ReadWrite =>
+            {
                 self.op = Some(operation.clone());
                 self.fuser
                     .output_nhwc_layout(tensor, permutation(tensor.shape.num_dims()));
@@ -101,8 +108,8 @@ impl<R: Runtime> OperationFuser<CubeOptimization<R>> for NHWCRelayoutFuser<R> {
         };
     }
 
-    fn finish(&mut self) -> CubeOptimization<R> {
-        let client = R::client(&self.device);
+    fn finish(&mut self) -> CubeOptimization {
+        let client = self.device.client();
         let trace = self.fuser.finish();
         let relayout =
             NHWCRelayoutOptimization::new(trace, client, self.device.clone(), self.len());
@@ -137,7 +144,7 @@ impl<R: Runtime> OperationFuser<CubeOptimization<R>> for NHWCRelayoutFuser<R> {
             }
     }
 
-    fn clone_dyn(&self) -> Box<dyn OperationFuser<CubeOptimization<R>>> {
+    fn clone_dyn(&self) -> Box<dyn OperationFuser<CubeOptimization>> {
         Box::new(self.clone())
     }
 }

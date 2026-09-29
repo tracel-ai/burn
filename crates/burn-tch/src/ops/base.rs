@@ -233,6 +233,74 @@ impl TchOps {
         TchTensor::from_existing(tensor, storage)
     }
 
+    pub fn scatter_assign(
+        dim: usize,
+        tensor: TchTensor,
+        indices: TchTensor,
+        value: TchTensor,
+    ) -> TchTensor {
+        let storage = tensor.storage.clone();
+        let tensor = tensor
+            .tensor
+            .scatter(dim as i64, &indices.tensor, &value.tensor);
+
+        TchTensor::from_existing(tensor, storage)
+    }
+
+    pub fn scatter_mul(
+        dim: usize,
+        tensor: TchTensor,
+        indices: TchTensor,
+        value: TchTensor,
+    ) -> TchTensor {
+        let storage = tensor.storage.clone();
+        let tensor = tensor.tensor.internal_scatter_reduce(
+            dim as i64,
+            &indices.tensor,
+            &value.tensor,
+            "prod",
+            true,
+        );
+
+        TchTensor::from_existing(tensor, storage)
+    }
+
+    pub fn scatter_min(
+        dim: usize,
+        tensor: TchTensor,
+        indices: TchTensor,
+        value: TchTensor,
+    ) -> TchTensor {
+        let storage = tensor.storage.clone();
+        let tensor = tensor.tensor.internal_scatter_reduce(
+            dim as i64,
+            &indices.tensor,
+            &value.tensor,
+            "amin",
+            true,
+        );
+
+        TchTensor::from_existing(tensor, storage)
+    }
+
+    pub fn scatter_max(
+        dim: usize,
+        tensor: TchTensor,
+        indices: TchTensor,
+        value: TchTensor,
+    ) -> TchTensor {
+        let storage = tensor.storage.clone();
+        let tensor = tensor.tensor.internal_scatter_reduce(
+            dim as i64,
+            &indices.tensor,
+            &value.tensor,
+            "amax",
+            true,
+        );
+
+        TchTensor::from_existing(tensor, storage)
+    }
+
     /// Flatten K-dimensional index tuples into 1D linear offsets, suitable for
     /// use with PyTorch's scatter/gather along dim 0 of a flattened tensor.
     ///
@@ -338,6 +406,60 @@ impl TchOps {
         tensor.clone().unary_ops(
             |mut tensor| tensor.index_add_(dim as i64, &indices.tensor, &value.tensor),
             |tensor| tensor.index_add(dim as i64, &indices.tensor, &value.tensor),
+        )
+    }
+
+    pub fn select_assign_replace(
+        tensor: TchTensor,
+        dim: usize,
+        indices: TchTensor,
+        value: TchTensor,
+    ) -> TchTensor {
+        tensor.clone().unary_ops(
+            |mut tensor| tensor.index_copy_(dim as i64, &indices.tensor, &value.tensor),
+            |tensor| tensor.index_copy(dim as i64, &indices.tensor, &value.tensor),
+        )
+    }
+
+    pub fn select_assign_mul(
+        tensor: TchTensor,
+        dim: usize,
+        indices: TchTensor,
+        value: TchTensor,
+    ) -> TchTensor {
+        tensor.clone().unary_ops(
+            |mut tensor| {
+                tensor.index_reduce_(dim as i64, &indices.tensor, &value.tensor, "prod", true)
+            },
+            |tensor| tensor.index_reduce(dim as i64, &indices.tensor, &value.tensor, "prod", true),
+        )
+    }
+
+    pub fn select_assign_min(
+        tensor: TchTensor,
+        dim: usize,
+        indices: TchTensor,
+        value: TchTensor,
+    ) -> TchTensor {
+        tensor.clone().unary_ops(
+            |mut tensor| {
+                tensor.index_reduce_(dim as i64, &indices.tensor, &value.tensor, "amin", true)
+            },
+            |tensor| tensor.index_reduce(dim as i64, &indices.tensor, &value.tensor, "amin", true),
+        )
+    }
+
+    pub fn select_assign_max(
+        tensor: TchTensor,
+        dim: usize,
+        indices: TchTensor,
+        value: TchTensor,
+    ) -> TchTensor {
+        tensor.clone().unary_ops(
+            |mut tensor| {
+                tensor.index_reduce_(dim as i64, &indices.tensor, &value.tensor, "amax", true)
+            },
+            |tensor| tensor.index_reduce(dim as i64, &indices.tensor, &value.tensor, "amax", true),
         )
     }
 
@@ -650,15 +772,22 @@ impl TchOps {
     }
 
     pub fn swap_dims(tensor: TchTensor, dim1: usize, dim2: usize) -> TchTensor {
+        // `transpose` returns a view sharing the parent's buffer, so the child
+        // must inherit the parent's storage handle. `TchTensor::new` would mint a
+        // fresh `Arc` for still-shared memory and `can_mut()` would then approve
+        // an in-place op that writes over the parent.
+        let storage = tensor.storage.clone();
         let tensor = tensor.tensor.transpose(dim1 as i64, dim2 as i64);
-        TchTensor::new(tensor)
+        TchTensor::from_existing(tensor, storage)
     }
 
     pub fn permute(tensor: TchTensor, axes: &[usize]) -> TchTensor {
+        // A view over the parent's buffer — see `swap_dims`.
+        let storage = tensor.storage.clone();
         let tensor = tensor
             .tensor
             .permute(axes.iter().map(|x| *x as i64).collect::<Vec<_>>());
-        TchTensor::new(tensor)
+        TchTensor::from_existing(tensor, storage)
     }
 
     pub fn flip(tensor: TchTensor, axes: &[usize]) -> TchTensor {

@@ -7,11 +7,7 @@ use core::sync::atomic::{AtomicU64, Ordering};
 #[cfg(not(target_has_atomic = "64"))]
 use portable_atomic::{AtomicU64, Ordering};
 
-#[cfg(target_has_atomic = "ptr")]
-use alloc::sync::Arc;
-
-#[cfg(not(target_has_atomic = "ptr"))]
-use portable_atomic_util::Arc;
+use burn_std::sync::Arc;
 
 use crate::checkpoint::retro_forward::RetroForward;
 use crate::runtime::AutodiffClientImpl;
@@ -52,6 +48,8 @@ pub type NodeRef = Arc<Node>;
 #[derive(new, Debug, Clone, PartialEq, Eq)]
 pub struct Parent {
     pub id: NodeId,
+    /// Leaves remain valid gradient endpoints after their no-op root step is consumed.
+    pub is_leaf: bool,
 }
 
 impl Node {

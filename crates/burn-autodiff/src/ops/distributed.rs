@@ -64,12 +64,13 @@ impl<B: Backend, C: CheckpointStrategy> DistributedOps<Self> for Autodiff<B, C> 
             }
         }
 
+        let input_guard = tensor.node();
         let collective = B::all_reduce(tensor.primitive, op, device_ids.clone());
         // Safety: we call `assume_resolved` only to wrap it in a new `CollectiveTensor`.
         let resolved = unsafe { collective.assume_resolved() };
 
         match AllReduce
-            .prepare::<C>([tensor.node.clone()])
+            .prepare::<C>([input_guard])
             .compute_bound()
             .stateful()
         {

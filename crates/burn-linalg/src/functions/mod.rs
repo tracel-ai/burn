@@ -1,0 +1,21 @@
+mod cosine_similarity;
+mod det;
+mod diag;
+mod lu;
+mod matvec;
+mod outer;
+mod qr;
+mod svd;
+mod trace;
+mod vector_norm;
+
+pub use cosine_similarity::*;
+pub use det::*;
+pub use diag::*;
+pub use lu::*;
+pub use matvec::*;
+pub use outer::*;
+pub use qr::*;
+pub use svd::*;
+pub use trace::*;
+pub use vector_norm::*;

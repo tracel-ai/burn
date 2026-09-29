@@ -1,20 +1,20 @@
 use burn_core as burn;
 use burn_core::module::ParamGroup;
 
-use super::Optimizer;
+use super::{Optimizer, ParameterContext};
 use crate::lr_scheduler::module_lr_scheduler::ModuleLearningRate;
 use crate::{
-    DynOptimizer, DynState, MultiGradientsParams, OptimizerRecord, StateSink, StateSource,
-    grad_clipping::GradientClipping, optim::GradientsParams, optim::state::join_path,
+    DynOptimizer, DynState, MultiGradientsParams, OptimizerRecord, RecordTensor, StateSink,
+    StateSource, grad_clipping::GradientClipping, optim::GradientsParams, optim::state::join_path,
 };
 
 use alloc::collections::BTreeMap;
 use alloc::string::ToString;
 use alloc::sync::Arc;
 use alloc::vec::Vec;
-use burn::module::{AutodiffModule, ModuleMapper, Param, ParamId};
+use burn::module::{Module, ModuleMapper, Param, ParamId};
 use burn::store::RecordError;
-use burn::tensor::{Bytes, Device, Tensor, TensorData};
+use burn::tensor::{Bytes, Device, Tensor};
 use hashbrown::HashMap;
 
 /// Scalar key (per parameter) under which the parameter's state rank is persisted.
@@ -112,7 +112,7 @@ impl ModuleOptimizer {
         self
     }
 
-    fn step_common<M: AutodiffModule>(
+    fn step_common<M: Module>(
         &mut self,
         lr_policy: ModuleLearningRate,
         module: M,
@@ -160,23 +160,23 @@ impl ModuleOptimizer {
 
 impl ModuleOptimizer {
     /// Update the `module` parameters with the given `gradients`, advancing the optimizer state.
-    pub fn step<M: AutodiffModule>(
+    pub fn step<M: Module>(
         &mut self,
-        lr_module: ModuleLearningRate,
+        lr_module: impl Into<ModuleLearningRate>,
         module: M,
         grads: GradientsParams,
     ) -> M {
-        self.step_common(lr_module, module, grads.into())
+        self.step_common(lr_module.into(), module, grads.into())
     }
 
     /// Like [`step`](Self::step), but accumulating gradients sourced from multiple devices.
-    pub fn step_multi<M: AutodiffModule>(
+    pub fn step_multi<M: Module>(
         &mut self,
-        lr_module: ModuleLearningRate,
+        lr_module: impl Into<ModuleLearningRate>,
         module: M,
         grads: MultiGradientsParams,
     ) -> M {
-        self.step_common(lr_module, module, grads.into())
+        self.step_common(lr_module.into(), module, grads.into())
     }
 
     fn optim_from_param(
@@ -220,13 +220,11 @@ impl ModuleOptimizer {
             }
 
             for (name, data) in sink.tensors {
-                tensors.push(burn_pack::Tensor::new(
+                tensors.push(RecordTensor {
                     name,
-                    data.dtype,
-                    data.shape,
-                    Some(id.val()),
-                    data.bytes,
-                ));
+                    param_id: Some(id.val()),
+                    data,
+                });
             }
             for (name, value) in sink.scalars {
                 scalars.insert(name, value);
@@ -271,13 +269,14 @@ impl ModuleOptimizer {
         let mut source = StateSource::new(record.scalars);
 
         for tensor in record.tensors {
-            let id = tensor
-                .param_id
-                .expect("Optimizer record tensors should carry a parameter id.");
-            let name = tensor.name;
-            let data = TensorData::from_bytes(tensor.bytes, tensor.shape, tensor.dtype);
+            let RecordTensor {
+                name,
+                param_id,
+                data,
+            } = tensor;
+            let id = param_id.expect("Optimizer record tensors should carry a parameter id.");
             // Fall back to inferring rank from a tensor shape if no `__rank` scalar was present.
-            ranks.entry(id).or_insert(data.shape.len());
+            ranks.entry(id).or_insert(data.rank());
             source.insert_tensor(name, data);
         }
 
@@ -421,9 +420,7 @@ impl ModuleMapper for ModuleOptimizerMapper<'_> {
         let grad = self.grads.remove(id);
 
         let tensor = if let Some((grad, device)) = grad {
-            let is_require_grad = tensor.is_require_grad();
-            #[cfg(feature = "std")]
-            let is_distributed = tensor.is_distributed();
+            let context = ParameterContext::capture(&tensor);
 
             let entry = self.states.remove_entry(&id);
             let key = entry.as_ref().map(|(k, _)| *k);
@@ -486,17 +483,7 @@ impl ModuleMapper for ModuleOptimizerMapper<'_> {
                 );
             }
 
-            let mut tensor = Tensor::from_inner(Tensor::from_bridge(tensor));
-
-            if is_require_grad {
-                tensor = tensor.require_grad();
-            }
-            #[cfg(feature = "std")]
-            if is_distributed {
-                tensor = tensor.set_distributed(id)
-            }
-
-            tensor
+            context.restore(Tensor::from_bridge(tensor), id)
         } else {
             tensor
         };
@@ -539,8 +526,30 @@ mod tests {
         ModuleLearningRate::from(0.01_f64)
     }
 
+    /// A parameter trains under the checkpointing strategy of the device it
+    /// was created on. The update leaves the tape and comes back, and it must
+    /// come back with that strategy, or the next step's operations merge
+    /// parameters of two strategies and refuse.
+    #[test]
+    fn step_keeps_the_gradient_checkpointing_strategy() {
+        let device = Device::default().autodiff().gradient_checkpointing();
+        let model = make_model(&device);
+        let mut optim = sgd();
+
+        let x = Tensor::<2>::random([2, 4], Distribution::Default, &device);
+        let model = optim.step(lr(), model.clone(), make_grads(&model, x.clone()));
+
+        assert_eq!(
+            model.layer_a.weight.val().gradient_checkpointing_strategy(),
+            device.gradient_checkpointing_strategy()
+        );
+        // Panics without the fix: the updated parameter and the input meet
+        // under two strategies.
+        let _ = optim.step(lr(), model.clone(), make_grads(&model, x));
+    }
+
     fn sgd() -> ModuleOptimizer {
-        ModuleOptimizer::from(SgdConfig::new().init())
+        SgdConfig::new().init()
     }
 
     /// to_record / load_record must fully preserve a stateful optimizer's internal state so that

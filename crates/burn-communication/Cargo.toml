@@ -18,7 +18,7 @@ tracing = [
 ]
 
 data-service = ["burn-backend"]
-websocket = ["axum", "tokio-tungstenite", "futures"]
+websocket = ["axum", "tokio-tungstenite", "futures", "socket2"]
 
 [dependencies]
 burn-std = { workspace = true, features = ["default"] }
@@ -28,12 +28,9 @@ futures-util = { workspace = true }
 log = { workspace = true }
 rmp-serde = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
-serde_bytes = { workspace = true }
 tokio = { workspace = true, features = ["rt-multi-thread", "sync", "signal", "tracing"] }
 tokio-util = { workspace = true }
 tracing = { workspace = true, features = ["default"] }
-tracing-core = { workspace = true, features = ["default"] }
-tracing-subscriber = { workspace = true, features = ["default", "fmt", "env-filter"] }
 
 # Tensor Data Service
 burn-backend = { workspace = true, optional = true, features = ["default"] }
@@ -42,6 +39,7 @@ burn-backend = { workspace = true, optional = true, features = ["default"] }
 axum = { workspace = true, features = ["ws"], optional = true }
 tokio-tungstenite = { workspace = true, optional = true }
 futures = { workspace = true, optional = true }
+socket2 = { workspace = true, optional = true }
 
 [dev-dependencies]
 # Integration tests for the websocket server (run with `--features websocket`).

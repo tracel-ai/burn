@@ -33,9 +33,12 @@ impl MetricsView<'_> {
         let size_other = chunks[0];
         let size_metric_numeric = chunks[1];
 
+        // TODO: constraints are still hardcoded, but could be computed dynamically. For example,
+        // the constraints on `size_status` could depend on the number of different progress events
+        // logged with [`TrainingProgressLogger::log_event_training`].
         let chunks = Layout::default()
             .direction(Direction::Vertical)
-            .constraints([Constraint::Max(5), Constraint::Min(6), Constraint::Max(6)].as_ref())
+            .constraints([Constraint::Max(5), Constraint::Min(6), Constraint::Max(7)].as_ref())
             .split(size_other);
         let size_controls = chunks[0];
         let size_metric_text = chunks[1];

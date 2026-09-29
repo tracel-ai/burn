@@ -18,13 +18,18 @@ From README:
 burn-flex is tested for edge-case robustness to ensure safe behavior on embedded devices and in
 production. This includes:
 
-- **Integer overflow safety**: `wrapping_abs`, `wrapping_neg`, `wrapping_shl/shr` for signed
-  integers at type boundaries (e.g. `i64::MIN`), matching PyTorch two's complement semantics
+- **Integer overflow safety**: `wrapping_abs` and `wrapping_neg` for signed integers at type
+  boundaries (e.g. `i64::MIN`), matching PyTorch two's complement semantics. The shift ops use
+  `wrapping_shl/shr` on each dtype's native type, so the shift amount is masked to the operand's
+  own width and unsigned right shifts are logical. `u64` scalar arithmetic, division and remainder
+  take a dedicated `u64` path (`ops/int.rs`), since values above `i64::MAX` cannot round-trip
+  through `i64`
 - **Rounding correctness**: Uses `num_traits::Float::round` with a ties-to-even correction,
   correct for the full float range (values beyond integer precision have no fractional bits)
 - **Input validation**: Hard assertions for invalid pooling parameters (zero kernel/stride) and
   zero-sized reduce dimensions, preventing undefined behavior on malformed inputs
-- **Negative index detection**: Debug assertions on gather/scatter index conversions
+- **Negative index detection**: `checked_index` validates gather/scatter indices in release builds
+  too, panicking with the offending index and dimension size
 - **Index dtype correctness**: Index-producing ops (argmax, argmin, argsort, argwhere,
   sort_with_indices) must respect `out_dtype`/`indices_dtype` parameters. Internally use
   `isize` + `INDEX_DTYPE` for platform portability, then cast to the requested dtype via
@@ -79,15 +84,25 @@ Measured via `cargo bench -p burn-flex --bench {matmul,attention,conv_ops}` with
 | --------------------------------------- | --------------- | ------------------- | -------- |
 | matmul 1024×1024 f32                    | 7.0x            | 1.7x                | **12.2x** |
 | matmul 512×512 f32                      | 3.8x            | 1.5x                | 5.8x     |
-| attention self b1·h32·s256·d128         | 1.0x            | 2.0x                | 2.0x     |
-| attention self b1·h12·s512·d64          | 1.0x            | 1.6x                | 1.6x     |
+| attention self b1·h32·s256·d128         | TBD (#5612)     | TBD (#5612)         | TBD      |
+| attention self b1·h12·s512·d64          | TBD (#5612)     | TBD (#5612)         | TBD      |
 | conv2d first_layer 4×3×224×224 k7×7 s2  | 9.8x            | 1.2x                | **11.6x** |
 | conv2d large 16×128×64×64 k3×3          | 7.7x            | 1.5x                | 11.1x    |
 | conv2d k7×7                             | 6.5x            | 1.4x                | 9.2x     |
 
 Notes:
-- Attention ops currently see no rayon uplift; the per-head matmul pipeline does not
-  propagate `Parallelism::Rayon` to gemm. AMX still delivers a standalone speedup.
+- Attention parallelizes over `(batch, head)` slices when there is more than one
+  slice and the estimated work across both GEMMs is at least 256K multiply-accumulates
+  (`batch * heads * seq_q * seq_kv * (head_dim + val_dim)`). Smaller workloads run
+  serially to avoid scheduling overhead. Flash attention's `ScratchBuffers` and
+  naive attention's score buffer are reused within each Rayon job via
+  `for_each_init`; initialization can occur more than once per worker. The serial
+  path reuses one scratch buffer across all heads. GEMMs inside each head stay
+  single-threaded (`Parallelism::None`) to avoid nested parallelism.
+  Benchmark numbers marked TBD need to be re-measured, including AMX's benefit
+  on top of outer Rayon parallelism. Divan's allocation profiler excludes Rayon
+  worker allocations, so its reported counts do not measure total attention
+  allocations or establish allocation savings from parallelization.
 - Small shapes (e.g. `batch8_64x64` matmul, `depthwise_k3_8x32x512` conv1d) can regress
   under rayon due to thread-spawn overhead; a size-based gating in the matmul/conv
   paths would recover those without losing the large-shape wins.

@@ -1,4 +1,4 @@
-use burn::module::Initializer;
+use crate::Initializer;
 use burn_core as burn;
 
 use burn::config::Config;
@@ -8,6 +8,7 @@ use burn::module::{Content, DisplaySettings, ModuleDisplay};
 use burn::tensor::Device;
 use burn::tensor::FloatDType;
 use burn::tensor::Tensor;
+use burn::tensor::assert_shape;
 
 use super::accumulation_dtype;
 
@@ -111,14 +112,12 @@ impl GroupNorm {
     ///
     /// - input: `[batch_size, num_channels, *]`
     /// - output: `[batch_size, num_channels, *]`
+    ///
+    /// # Panics
+    ///
+    /// Panics if the input has rank < 2 or its second axis is not `num_channels`.
     pub fn forward<const D: usize>(&self, input: Tensor<D>) -> Tensor<D> {
-        if input.shape()[1] != self.num_channels {
-            panic!(
-                "The number of channels in the input tensor should be equal to the number of channels in the GroupNorm module. Expected {}, got {}",
-                self.num_channels,
-                input.shape()[1]
-            );
-        }
+        assert_shape!(input, [_, self.num_channels, ..]);
 
         let gamma = self.gamma.as_ref().map(|x| x.val());
         let beta = self.beta.as_ref().map(|x| x.val());
@@ -181,10 +180,12 @@ pub(crate) fn group_norm<const D: usize>(
         None => input,
     };
 
-    let mean = input.clone().sum_dim(2) / hidden_size as f64;
+    // Keep the denominator inside the backend reduction so it is applied in
+    // the accumulator precision instead of through a narrow `div_scalar`.
+    let mean = input.clone().mean_dim(2);
     let input = input.sub(mean);
 
-    let var = input.clone().square().sum_dim(2) / hidden_size as f64;
+    let var = input.clone().square().mean_dim(2);
     let input_normalized = input.div(var.add_scalar(epsilon).sqrt());
 
     let input_normalized = match widened {
@@ -212,6 +213,16 @@ mod tests {
     use burn::tensor::TensorData;
     use burn::tensor::Tolerance;
     type FT = f32;
+
+    #[test]
+    #[should_panic(
+        expected = "assert_shape!(input, [_, self.num_channels, ..]): axis 1 expected 6, got 4"
+    )]
+    fn input_channels_must_match() {
+        let device = Default::default();
+        let module = GroupNormConfig::new(3, 6).init(&device);
+        let _ = module.forward(Tensor::<3>::zeros([1, 4, 2], &device));
+    }
 
     #[test]
     fn group_norm_forward_affine_false() {
@@ -335,6 +346,25 @@ mod tests {
         output
             .to_data()
             .assert_approx_eq::<FT>(&expected, tolerance);
+    }
+
+    #[test]
+    fn group_norm_f16_large_group_does_not_underflow_mean() {
+        use burn::tensor::DType;
+        let device = Default::default();
+        let module = GroupNormConfig::new(4, 64).with_affine(false).init(&device);
+
+        // 64 / 4 channels * 64 * 64 spatial elements = 65_536 values per
+        // group. Applying the denominator through f16 `div_scalar` turns the
+        // mean into zero on Vulkan, producing a large non-zero output.
+        let input = Tensor::<4>::full([1, 64, 64, 64], 0.5, (&device, DType::F16));
+        assert_eq!(input.dtype(), DType::F16);
+
+        let output = module.forward(input);
+        assert_eq!(output.dtype(), DType::F16);
+
+        let max_abs: f32 = output.abs().max().into_scalar();
+        assert_eq!(max_abs, 0.0);
     }
 
     #[test]

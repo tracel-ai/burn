@@ -4,16 +4,23 @@ use crate::{
     stream::{Context, OrderedExecution},
 };
 use burn_backend::{
-    Backend, BackendGraph, BackendTypes, DType, DeviceOps, ExecutionError,
+    Backend, BackendGraph, BackendTypes, DType, DeviceOps, ExecutionError, MemoryPoolUsage,
+    ProfileDuration, ProfileOptions, ProfileToken, SlicedPoolReport, profile_with_tokens,
     tensor::{BoolTensor, Device, FloatTensor, IntTensor, QuantizedTensor},
 };
 use burn_ir::{BackendIr, HandleContainer, OperationIr, TensorHandle, TensorIr};
+use burn_std::device_handle::CallError;
 use serde::{Serialize, de::DeserializeOwned};
 use std::marker::PhantomData;
 
 /// Get the client for the given device.
 pub fn get_client<B: FusionBackend>(device: &Device<B>) -> Client<B::FusionRuntime> {
     GlobalFusionClient::load(device)
+}
+
+/// The fusion server could not run a task at all: it panicked, or is gone.
+fn server_error(err: CallError) -> ExecutionError {
+    ExecutionError::with_context(format!("the fusion server failed to run a task: {err:?}"))
 }
 
 /// Enable dynamic operation fusion on a backend that implements [fusion backend](crate::FusionBackend).
@@ -50,6 +57,61 @@ impl<B: FusionBackend> Backend for Fusion<B> {
         let client = GlobalFusionClient::<B::FusionRuntime>::load(device);
         let device = device.clone();
         client.sync(move || B::sync(&device))
+    }
+
+    fn profile<O: Send + 'static>(
+        device: &Self::Device,
+        options: ProfileOptions,
+        func: impl FnOnce() -> O + Send,
+    ) -> Result<(O, ProfileDuration), ExecutionError> {
+        // The inner backend's closure-bracketed window would open on the
+        // *calling* thread's stream, but fused operations execute on the
+        // fusion server thread and launch on its stream — and only when the
+        // queue decides to. So the window is opened and closed from that
+        // thread instead, as two tasks in order with the registered
+        // operations. Neither touches the queue: what was still queued when
+        // the window opened may run inside it, and what is still queued when
+        // it closes stays out, unless the caller asked for a flush — the
+        // measurement never changes how the queue batches.
+        //
+        // An inner backend with no windows is measured the way it measures
+        // itself: between two syncs, which drain the queue as they go.
+        profile_with_tokens::<Self, O>(device, options, func)
+    }
+
+    fn profile_start(device: &Self::Device) -> Result<Option<ProfileToken>, ExecutionError> {
+        let client = GlobalFusionClient::<B::FusionRuntime>::load(device);
+        let device = device.clone();
+        client
+            .run(move || B::profile_start(&device))
+            .map_err(server_error)?
+    }
+
+    fn profile_end(
+        device: &Self::Device,
+        token: ProfileToken,
+        options: ProfileOptions,
+    ) -> Result<ProfileDuration, ExecutionError> {
+        let client = GlobalFusionClient::<B::FusionRuntime>::load(device);
+        let device = device.clone();
+        // The options go on down: a flush here drains this queue, and the
+        // inner backend's own queue (a remote server's) is its to drain.
+        match options.flushes() {
+            true => client.sync(move || B::profile_end(&device, token, options)),
+            false => client
+                .run(move || B::profile_end(&device, token, options))
+                .map_err(server_error)?,
+        }
+    }
+
+    /// Sent through the queue the window's own marks travelled, so it is
+    /// dropped in order with them — and never flushed: abandoning happens on
+    /// a panic, where draining the queue would run the very work that was
+    /// unwinding out from under it.
+    fn profile_abandon(device: &Self::Device, token: ProfileToken) {
+        let client = GlobalFusionClient::<B::FusionRuntime>::load(device);
+        let device = device.clone();
+        let _ = client.run(move || B::profile_abandon(&device, token));
     }
 
     fn ad_enabled(_device: &Self::Device) -> bool {
@@ -90,6 +152,26 @@ impl<B: FusionBackend> Backend for Fusion<B> {
 
     fn memory_cleanup(device: &Self::Device) {
         B::memory_cleanup(device)
+    }
+
+    fn memory_pool_report(device: &Self::Device) -> Option<Vec<SlicedPoolReport>> {
+        // Reads the *calling* stream, which is the one the layout was installed
+        // on and the one fused operations allocate from, so it hops exactly as
+        // the install does.
+        let client = GlobalFusionClient::<B::FusionRuntime>::load(device);
+        let device = device.clone();
+
+        client.sync(move || B::memory_pool_report(&device))
+    }
+
+    fn memory_pool_usage(device: &Self::Device) -> Option<MemoryPoolUsage> {
+        // Combined across the runtime's streams, so no hop is needed for the
+        // reading itself — but recorded operations have to be drained first or
+        // they are missing from it.
+        let client = GlobalFusionClient::<B::FusionRuntime>::load(device);
+        let device = device.clone();
+
+        client.sync(move || B::memory_pool_usage(&device))
     }
 
     fn staging<'a, Iter>(data: Iter, device: &Self::Device)
@@ -215,6 +297,11 @@ pub trait NumOperations: core::fmt::Debug {
     }
     /// The name of the optimization.
     fn name(&self) -> &'static str;
+    /// The highest relative shape id this optimization names, if it names any.
+    /// `None` means the optimization names no relative shape, so it fits any stream.
+    fn max_relative_shape_id(&self) -> Option<usize> {
+        None
+    }
 }
 
 /// The optimization created from a [fuser](OperationFuser).
@@ -272,14 +359,36 @@ pub trait FusionRuntime: Send + Sync + Sized + core::fmt::Debug + 'static {
     /// resource. This is correct for local backends, whose handle is an `Arc`-style buffer refcount.
     ///
     /// A runtime whose handle is a *remote* resource must override this. The router/remote backend
-    /// frees a tensor by registering an `OperationIr::Drop`, but the drained block **already** freed
-    /// it server-side — every consumed op (including any `Drop`) is replayed on the server, popping
-    /// its `ReadWrite` inputs. So letting the handle's `Drop` run here registers a *second*,
-    /// redundant `Drop` for the same id (the "unfused drop" traffic). The override removes the
-    /// container entry while suppressing that re-registration.
-    fn free_handle(handles: &mut HandleContainer<Self::FusionHandle>, tensor: &TensorIr) {
+    /// frees a tensor by registering an `OperationIr::Drop`, but a block that ran **already** freed
+    /// it server-side — a replayed op (including any `Drop`) pops its `ReadWrite` inputs there. So
+    /// letting the handle's `Drop` run registers a *second*, redundant `Drop` for the same id (the
+    /// "unfused drop" traffic), and the override suppresses that re-registration.
+    ///
+    /// `ran` is what says whether that holds for *this* operation: a block is drained whether or
+    /// not its operations ran, and one that did not was never replayed, so the server still holds
+    /// its inputs and only the handle's own `Drop` will free them.
+    fn free_handle(
+        handles: &mut HandleContainer<Self::FusionHandle>,
+        tensor: &TensorIr,
+        ran: OperationRan,
+    ) {
+        let _ = ran;
         handles.free(tensor);
     }
+}
+
+/// Whether the operation that consumed a tensor ran.
+///
+/// A drained block has usually run everything in it, but an operation whose input held a
+/// [`TensorError`](burn_ir::TensorError) is skipped, and one that panicked stopped part way. Both
+/// are consumed by the queue all the same — the difference is only visible to a backend whose
+/// handles live somewhere the operation never reached.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum OperationRan {
+    /// It ran to completion.
+    Yes,
+    /// It was skipped, or it failed part way through.
+    No,
 }
 
 /// Trait that allows an existing [backend](Backend) to specify graph optimizations using

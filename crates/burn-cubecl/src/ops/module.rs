@@ -1,5 +1,5 @@
 use crate::{
-    CubeBackend, CubeRuntime,
+    CubeBackend,
     kernel::{self, conv::ConvTranspose2dStrategy},
 };
 use burn_backend::tensor::{BoolTensor, FloatTensor, IntTensor};
@@ -12,17 +12,14 @@ use burn_backend::{
 };
 use burn_std::IntDType;
 
-impl<R> ModuleOps<Self> for CubeBackend<R>
-where
-    R: CubeRuntime,
-{
+impl ModuleOps<Self> for CubeBackend {
     fn conv1d(
         x: FloatTensor<Self>,
         weight: FloatTensor<Self>,
         bias: Option<FloatTensor<Self>>,
         options: ConvOptions<1>,
     ) -> FloatTensor<Self> {
-        kernel::conv::conv_forward::<R, 1>(x, weight, bias, options, Default::default()).unwrap()
+        kernel::conv::conv_forward::<1>(x, weight, bias, options, Default::default()).unwrap()
     }
 
     fn conv1d_x_backward(
@@ -47,7 +44,7 @@ where
         output_grad: FloatTensor<Self>,
         options: ConvOptions<1>,
     ) -> FloatTensor<Self> {
-        kernel::conv::conv_weight_backward::<R, 1>(
+        kernel::conv::conv_weight_backward::<1>(
             x,
             output_grad,
             weight.shape(),
@@ -63,7 +60,7 @@ where
         bias: Option<FloatTensor<Self>>,
         options: ConvOptions<2>,
     ) -> FloatTensor<Self> {
-        kernel::conv::conv_forward::<R, 2>(x, weight, bias, options, Default::default()).unwrap()
+        kernel::conv::conv_forward::<2>(x, weight, bias, options, Default::default()).unwrap()
     }
 
     fn conv2d_x_backward(
@@ -88,7 +85,7 @@ where
         output_grad: FloatTensor<Self>,
         options: ConvOptions<2>,
     ) -> FloatTensor<Self> {
-        kernel::conv::conv_weight_backward::<R, 2>(
+        kernel::conv::conv_weight_backward::<2>(
             x,
             output_grad,
             weight.shape(),
@@ -137,7 +134,7 @@ where
         bias: Option<FloatTensor<Self>>,
         options: ConvOptions<3>,
     ) -> FloatTensor<Self> {
-        kernel::conv::conv_forward::<R, 3>(x, weight, bias, options, Default::default()).unwrap()
+        kernel::conv::conv_forward::<3>(x, weight, bias, options, Default::default()).unwrap()
     }
 
     fn conv3d_x_backward(
@@ -162,7 +159,7 @@ where
         output_grad: FloatTensor<Self>,
         options: ConvOptions<3>,
     ) -> FloatTensor<Self> {
-        kernel::conv::conv_weight_backward::<R, 3>(
+        kernel::conv::conv_weight_backward::<3>(
             x,
             output_grad,
             weight.shape(),
@@ -295,6 +292,17 @@ where
         kernel::pool::adaptive_avg_pool2d_backward(x, grad)
     }
 
+    fn adaptive_avg_pool3d(x: FloatTensor<Self>, output_size: [usize; 3]) -> FloatTensor<Self> {
+        kernel::pool::adaptive_avg_pool3d(x, output_size)
+    }
+
+    fn adaptive_avg_pool3d_backward(
+        x: FloatTensor<Self>,
+        grad: FloatTensor<Self>,
+    ) -> FloatTensor<Self> {
+        kernel::pool::adaptive_avg_pool3d_backward(x, grad)
+    }
+
     fn interpolate(
         x: FloatTensor<Self>,
         output_size: [usize; 2],
@@ -378,22 +386,5 @@ where
             nll,
             blank,
         )
-    }
-
-    fn rfft(
-        signal: FloatTensor<Self>,
-        dim: usize,
-        n: Option<usize>,
-    ) -> (FloatTensor<Self>, FloatTensor<Self>) {
-        kernel::fft::rfft(signal, dim, n)
-    }
-
-    fn irfft(
-        spectrum_re: FloatTensor<Self>,
-        spectrum_im: FloatTensor<Self>,
-        dim: usize,
-        n: Option<usize>,
-    ) -> FloatTensor<Self> {
-        kernel::fft::irfft(spectrum_re, spectrum_im, dim, n)
     }
 }

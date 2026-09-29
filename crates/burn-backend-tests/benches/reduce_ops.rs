@@ -10,10 +10,11 @@ mod common;
 use common::BencherExt;
 
 use burn_tensor::{FloatDType, Tensor, TensorData};
-use divan::{AllocProfiler, Bencher};
+use divan::Bencher;
 
+#[cfg(not(feature = "bench-disable-alloc"))]
 #[global_allocator]
-static ALLOC: AllocProfiler = AllocProfiler::system();
+static ALLOC: divan::AllocProfiler = divan::AllocProfiler::system();
 
 fn main() {
     println!("Reduction ops Benchmarks");
@@ -96,6 +97,13 @@ macro_rules! bench_backend {
                 #[divan::bench]
                 fn s_1024x1024_dim1(bencher: Bencher) {
                     let t = make_tensor_2d(1024, 1024);
+                    bencher.bench_synced(|| t.clone().sum_dim(1));
+                }
+
+                // Short rows: per-row overhead dominates.
+                #[divan::bench]
+                fn s_1mx16_dim1(bencher: Bencher) {
+                    let t = make_tensor_2d(1024 * 1024, 16);
                     bencher.bench_synced(|| t.clone().sum_dim(1));
                 }
             }

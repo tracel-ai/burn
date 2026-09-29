@@ -2,6 +2,38 @@ use super::*;
 use burn_tensor::TensorData;
 use burn_tensor::Tolerance;
 
+#[test]
+fn should_support_remainder_broadcast() {
+    let device = Default::default();
+    let lhs = TestTensor::<2>::from_data(TensorData::from([[3.0, 4.0, 5.0]]), &device);
+    let rhs = TestTensor::<2>::from_data(
+        TensorData::from([[2.0, 2.0, 2.0], [3.0, 3.0, 3.0]]),
+        &device,
+    );
+
+    let output = lhs.remainder(rhs);
+    let expected = TensorData::from([[1.0, 0.0, 1.0], [0.0, 1.0, 2.0]]);
+
+    output
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&expected, Tolerance::default());
+}
+
+#[test]
+#[should_panic(expected = "The provided tensors have incompatible shapes.")]
+fn should_panic_remainder_incompatible_shapes() {
+    let device = Default::default();
+    // Same rank, but [2, 2] vs [2, 3]: dimension 1 cannot broadcast.
+    let lhs = TestTensor::<2>::from_data(TensorData::from([[1.0, 2.0], [3.0, 4.0]]), &device);
+    let rhs = TestTensor::<2>::from_data(
+        TensorData::from([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]),
+        &device,
+    );
+
+    let output = lhs.remainder(rhs);
+    output.into_data();
+}
+
 /// From https://pytorch.org/docs/stable/generated/torch.remainder.html
 #[test]
 fn should_support_remainder_basic() {
@@ -238,4 +270,49 @@ fn should_support_remainder_scalar_op() {
     output
         .into_data()
         .assert_approx_eq::<FloatElem>(&expected, Tolerance::default());
+}
+
+/// The double-modulo formula can round a tiny negative remainder to the
+/// divisor and then incorrectly wrap it to zero.
+#[test]
+fn should_support_remainder_tiny() {
+    let device = Default::default();
+    // -1e-20 underflows to zero in f16. Use a representable value whose
+    // corrected remainder still rounds to 1.0 at half precision.
+    let tiny =
+        if core::any::TypeId::of::<FloatElem>() == core::any::TypeId::of::<burn_tensor::f16>() {
+            -1e-4
+        } else {
+            -1e-20
+        };
+    let lhs = TestTensor::<1>::from_data(TensorData::from([tiny, 5.0]), &device);
+    let rhs = TestTensor::<1>::from_data(TensorData::from([1.0, -3.0]), &device);
+
+    lhs.remainder(rhs)
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&TensorData::from([1.0, -1.0]), Tolerance::default());
+
+    TestTensor::<1>::from_data(TensorData::from([tiny]), &device)
+        .remainder_scalar(1.0)
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&TensorData::from([1.0]), Tolerance::default());
+}
+
+// CubeCL remainder (including fusion) uses mod_floor: a - b * floor(a / b).
+// An infinite divisor produces inf * 0 = NaN; enable once that path is fixed.
+#[cfg(not(feature = "cube"))]
+#[test]
+fn should_support_remainder_infinite_divisor() {
+    let device = Default::default();
+    let lhs = TestTensor::<1>::from_data(TensorData::from([-1.0]), &device);
+    let rhs = TestTensor::<1>::from_data(TensorData::from([f32::INFINITY]), &device);
+
+    lhs.remainder(rhs)
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&TensorData::from([f32::INFINITY]), Tolerance::default());
+
+    TestTensor::<1>::from_data(TensorData::from([-1.0]), &device)
+        .remainder_scalar(f32::INFINITY)
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&TensorData::from([f32::INFINITY]), Tolerance::default());
 }

@@ -1,4 +1,5 @@
 use super::{HandleInput, HandleOutput, LaunchPlan, ReferenceSelection};
+use crate::engine::launch::layout::permuted_innermost_axis;
 use crate::engine::launch::runner::TraceRunner;
 use crate::engine::trace::{FuseResources, TensorView, TraceError, TuneOutput, block::FuseBlock};
 use crate::{
@@ -13,43 +14,36 @@ use crate::{
 use burn_fusion::stream::{Context, ScalarId};
 use burn_ir::ScalarIr;
 use cubecl::{
-    Runtime,
-    client::ComputeClient,
+    client::Client,
     ir::{AddressType, Type},
     prelude::{InputScalar, TensorArg},
 };
-use std::marker::PhantomData;
 
 /// Execute a [plan](LaunchPlan) using a [runner](TraceRunner) modifying the [context](Context).
-pub struct LaunchPlanExecutor<'a, R: Runtime> {
+pub struct LaunchPlanExecutor<'a> {
     resources: &'a FuseResources,
     blocks: &'a Vec<FuseBlock>,
-    _r: PhantomData<R>,
 }
 
 #[derive(new, Debug)]
-pub struct ExecutionError<R: Runtime, Runner: TraceRunner<R>> {
+pub struct ExecutionError<Runner: TraceRunner> {
     pub error: TraceError<Runner::Error>,
-    pub handles_input: Vec<HandleInput<R>>,
-    pub handles_output: Vec<HandleOutput<R>>,
+    pub handles_input: Vec<HandleInput>,
+    pub handles_output: Vec<HandleOutput>,
 }
 
-impl<'a, R: Runtime> LaunchPlanExecutor<'a, R> {
+impl<'a> LaunchPlanExecutor<'a> {
     pub fn new(resources: &'a FuseResources, blocks: &'a Vec<FuseBlock>) -> Self {
-        Self {
-            resources,
-            blocks,
-            _r: PhantomData,
-        }
+        Self { resources, blocks }
     }
 
-    pub fn execute<Runner: TraceRunner<R>>(
+    pub fn execute<Runner: TraceRunner>(
         self,
-        client: &ComputeClient<R>,
+        client: &Client,
         runner: &Runner,
-        context: &mut Context<CubeFusionHandle<R>>,
-        plan: LaunchPlan<'a, R>,
-    ) -> Result<TuneOutput<R>, ExecutionError<R, Runner>> {
+        context: &mut Context<CubeFusionHandle>,
+        plan: LaunchPlan<'a>,
+    ) -> Result<TuneOutput, ExecutionError<Runner>> {
         let mut num_writes = 0;
         for b in plan.blocks.iter() {
             for writes in b.writes.values() {
@@ -63,7 +57,7 @@ impl<'a, R: Runtime> LaunchPlanExecutor<'a, R> {
         };
 
         #[cfg(not(feature = "autotune-checks"))]
-        let mut tune_output = TuneOutput::UnChecked(PhantomData);
+        let mut tune_output = TuneOutput::UnChecked;
 
         if num_writes == 0 {
             // Nothing to write, can skip execution.
@@ -93,7 +87,7 @@ impl<'a, R: Runtime> LaunchPlanExecutor<'a, R> {
             context,
             &mut inputs,
         );
-        register_outputs::<R>(
+        register_outputs(
             plan.handle_outputs.clone(),
             &input_vector_sizes,
             &mut outputs,
@@ -112,6 +106,19 @@ impl<'a, R: Runtime> LaunchPlanExecutor<'a, R> {
         let mut configs = Vec::with_capacity(plan.blocks.len());
 
         for (block_plan, block) in plan.blocks.into_iter().zip(self.blocks) {
+            // Which axis a vector runs along. Only a concrete reference can be
+            // permuted; the virtual ones are indexed through a transform written
+            // against the last dimension. The vectorization planner picks a tensor's
+            // axis by the same rule, so the axis a vector is sized along and the one
+            // it is stepped along are the same.
+            let vector_axis = match &block_plan.reference {
+                ReferenceSelection::Concrete { shape, strides, .. } => {
+                    permuted_innermost_axis(shape, strides)
+                }
+                _ => None,
+            }
+            .unwrap_or(plan.rank.saturating_sub(1));
+
             let reference = match block_plan.reference {
                 ReferenceSelection::Concrete { layout, .. } => RefLayout::Concrete(layout),
                 ReferenceSelection::VirtualShape { original, .. } => {
@@ -161,6 +168,7 @@ impl<'a, R: Runtime> LaunchPlanExecutor<'a, R> {
                 ref_layout: reference,
                 ops,
                 width: block_plan.width,
+                vector_axis,
             };
             configs.push(config);
         }
@@ -177,10 +185,7 @@ impl<'a, R: Runtime> LaunchPlanExecutor<'a, R> {
     }
 }
 
-fn register_inputs<R: Runtime>(
-    handle_inputs: Vec<HandleInput<R>>,
-    inputs: &mut GlobalArgsLaunch<R>,
-) {
+fn register_inputs(handle_inputs: Vec<HandleInput>, inputs: &mut GlobalArgsLaunch) {
     for hi in handle_inputs {
         match hi {
             HandleInput::Normal(hi) => {
@@ -217,11 +222,11 @@ fn register_inputs<R: Runtime>(
     }
 }
 
-fn register_outputs<R: Runtime>(
-    handle_outputs: Vec<HandleOutput<R>>,
+fn register_outputs(
+    handle_outputs: Vec<HandleOutput>,
     input_vector_sizes: &[usize],
-    outputs: &mut GlobalArgsLaunch<R>,
-    #[allow(unused_variables)] tune_output: &mut TuneOutput<R>,
+    outputs: &mut GlobalArgsLaunch,
+    #[allow(unused_variables)] tune_output: &mut TuneOutput,
 ) {
     for item in handle_outputs {
         match item {
@@ -275,7 +280,7 @@ fn register_outputs<R: Runtime>(
                 let arg = handle.into_tensor_arg(global_shape.clone());
 
                 let elem = precision.into_elem();
-                let ty = Type::new(elem.into()).with_vector_size(vector_size);
+                let ty = Type::new(elem).with_vector_size(vector_size);
 
                 outputs
                     .tensors
@@ -285,11 +290,11 @@ fn register_outputs<R: Runtime>(
     }
 }
 
-fn register_scalars<'h, R: Runtime>(
+fn register_scalars<'h>(
     scalars: impl Iterator<Item = &'h (FuseType, u64)>,
     views: impl DoubleEndedIterator<Item = &'h TensorView>,
-    context: &mut Context<CubeFusionHandle<R>>,
-    inputs: &mut GlobalArgsLaunch<R>,
+    context: &mut Context<CubeFusionHandle>,
+    inputs: &mut GlobalArgsLaunch,
 ) {
     for (precision, id) in scalars {
         let dtype = precision.into_storage_type();

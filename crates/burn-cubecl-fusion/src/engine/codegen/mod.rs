@@ -1,8 +1,8 @@
-pub(crate) mod io;
-pub(crate) mod ir;
-pub(crate) mod kernel;
-pub(crate) mod tensor;
-pub(crate) mod view;
+pub mod io;
+pub mod ir;
+pub mod kernel;
+pub mod tensor;
+pub mod view;
 
 mod base;
-pub(crate) use base::*;
+pub use base::*;

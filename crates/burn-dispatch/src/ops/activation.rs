@@ -1,61 +1,63 @@
 use burn_backend::{Scalar, ops::ActivationOps, tensor::FloatTensor};
+use burn_backend_extension::backend_dispatch;
 
 use crate::Dispatch;
 
+#[backend_dispatch]
 impl ActivationOps<Self> for Dispatch {
     fn leaky_relu(tensor: FloatTensor<Self>, negative_slope: Scalar) -> FloatTensor<Self> {
-        unary_float!(tensor, float, |tensor| B::leaky_relu(tensor, negative_slope) => Float)
+        B::leaky_relu(tensor, negative_slope)
     }
 
     fn relu(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        unary_float!(tensor, float, |tensor| B::relu(tensor) => Float)
+        B::relu(tensor)
     }
 
     fn relu_backward(output: FloatTensor<Self>, grad: FloatTensor<Self>) -> FloatTensor<Self> {
-        binary_float!((output, float), (grad, float), |output, grad| B::relu_backward(output, grad) => Float)
+        B::relu_backward(output, grad)
     }
 
     fn gelu(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        unary_float!(tensor, float, |tensor| B::gelu(tensor) => Float)
+        B::gelu(tensor)
     }
 
     fn prelu(tensor: FloatTensor<Self>, alpha: FloatTensor<Self>) -> FloatTensor<Self> {
-        binary_float!((tensor, float), (alpha, float), |tensor, alpha| B::prelu(tensor, alpha) => Float)
+        B::prelu(tensor, alpha)
     }
 
     fn gelu_backward(x: FloatTensor<Self>, grad: FloatTensor<Self>) -> FloatTensor<Self> {
-        binary_float!((x, float), (grad, float), |x, grad| B::gelu_backward(x, grad) => Float)
+        B::gelu_backward(x, grad)
     }
 
     fn sigmoid(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        unary_float!(tensor, float, |tensor| B::sigmoid(tensor) => Float)
+        B::sigmoid(tensor)
     }
 
     fn sigmoid_backward(output: FloatTensor<Self>, grad: FloatTensor<Self>) -> FloatTensor<Self> {
-        binary_float!((output, float), (grad, float), |output, grad| B::sigmoid_backward(output, grad) => Float)
+        B::sigmoid_backward(output, grad)
     }
 
     fn hard_sigmoid(tensor: FloatTensor<Self>, alpha: Scalar, beta: Scalar) -> FloatTensor<Self> {
-        unary_float!(tensor, float, |tensor| B::hard_sigmoid(tensor, alpha, beta) => Float)
+        B::hard_sigmoid(tensor, alpha, beta)
     }
 
     fn softmax(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
-        unary_float!(tensor, float, |tensor| B::softmax(tensor, dim) => Float)
+        B::softmax(tensor, dim)
     }
 
     fn log_softmax(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
-        unary_float!(tensor, float, |tensor| B::log_softmax(tensor, dim) => Float)
+        B::log_softmax(tensor, dim)
     }
 
     fn softmin(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
-        unary_float!(tensor, float, |tensor| B::softmin(tensor, dim) => Float)
+        B::softmin(tensor, dim)
     }
 
     fn log_sigmoid(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        unary_float!(tensor, float, |tensor| B::log_sigmoid(tensor) => Float)
+        B::log_sigmoid(tensor)
     }
 
     fn log_sigmoid_backward(x: FloatTensor<Self>, grad: FloatTensor<Self>) -> FloatTensor<Self> {
-        binary_float!((x, float), (grad, float), |x, grad| B::log_sigmoid_backward(x, grad) => Float)
+        B::log_sigmoid_backward(x, grad)
     }
 }

@@ -1,6 +1,5 @@
 use crate::{
-    CubeRuntime,
-    kernel::utils::address_type,
+    kernel::{memory_order::in_memory_order, utils::address_type},
     ops::{max_vector_size, numeric::empty_device_dtype},
     tensor::CubeTensor,
 };
@@ -13,7 +12,7 @@ use cubecl::{calculate_cube_count_elemwise, prelude::*};
 pub(crate) fn cast_element<I: Numeric, O: Numeric, N: Size>(
     input: LinearView<'_, Vector<I, N>>,
     mut output: LinearViewMut<'_, Vector<O, N>>,
-    #[define(I, O)] _dtypes: [StorageType; 2],
+    #[define(I, O)] _dtypes: [ElemType; 2],
 ) {
     if !output.is_in_bounds(ABSOLUTE_POS) {
         terminate!();
@@ -25,7 +24,7 @@ pub(crate) fn cast_element<I: Numeric, O: Numeric, N: Size>(
 /// Cast a tensor to the given element type.
 ///
 /// Note: When input element is semantically a boolean, prefer bool_cast function.
-pub fn cast<R: CubeRuntime>(input: CubeTensor<R>, dtype: DType) -> CubeTensor<R> {
+pub fn cast(input: CubeTensor, dtype: DType) -> CubeTensor {
     let dtype_output = match dtype {
         DType::Flex32 => DType::F32,
         _ => dtype,
@@ -39,36 +38,39 @@ pub fn cast<R: CubeRuntime>(input: CubeTensor<R>, dtype: DType) -> CubeTensor<R>
         return input;
     }
 
-    let client = input.client.clone();
+    // Walked in the input's memory order, like the unary kernels: a channels-last tensor is then
+    // read along its contiguous dimension, vectorized, and its output is laid out the same way.
+    let output_shape = input.shape();
+    in_memory_order([input], output_shape, |[input], shape| {
+        let client = input.client.clone();
+        let vector_size = max_vector_size(&input);
+        let num_elems: usize = input.meta.num_elements();
 
-    let vector_size = max_vector_size(&input);
+        let working_units = num_elems / vector_size as usize;
+        let cube_dim = CubeDim::new(&client, working_units);
+        let cube_count = calculate_cube_count_elemwise(&client, working_units, cube_dim);
 
-    let num_elems: usize = input.meta.num_elements();
+        let output = empty_device_dtype(
+            client.clone(),
+            input.device.clone(),
+            shape,
+            dtype, // We take the same dtype as passed as input (Flex32 not F32)
+        );
 
-    let working_units = num_elems / vector_size as usize;
-    let cube_dim = CubeDim::new(&client, working_units);
-    let cube_count = calculate_cube_count_elemwise(&client, working_units, cube_dim);
+        cast_element::launch(
+            &client,
+            cube_count,
+            cube_dim,
+            address_type!(input, output),
+            vector_size,
+            input.into_linear_view(),
+            output.clone().into_linear_view(),
+            [
+                dtype_to_storage_type(dtype_input),
+                dtype_to_storage_type(dtype_output),
+            ],
+        );
 
-    let output = empty_device_dtype(
-        client.clone(),
-        input.device.clone(),
-        input.shape(),
-        dtype, // We take the same dtype as passed as input (Flex32 not F32)
-    );
-
-    cast_element::launch(
-        &client,
-        cube_count,
-        cube_dim,
-        address_type!(input, output),
-        vector_size,
-        input.into_linear_view(),
-        output.clone().into_linear_view(),
-        [
-            dtype_to_storage_type(dtype_input),
-            dtype_to_storage_type(dtype_output),
-        ],
-    );
-
-    output
+        output
+    })
 }

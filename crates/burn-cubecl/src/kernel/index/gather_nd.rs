@@ -1,7 +1,5 @@
 use crate::kernel::utils::{shape_divmod, shape_divmod_range};
-use crate::{
-    CubeRuntime, kernel::utils::address_type, ops::numeric::empty_device_dtype, tensor::CubeTensor,
-};
+use crate::{kernel::utils::address_type, ops::numeric::empty_device_dtype, tensor::CubeTensor};
 use burn_backend::cubecl::dtype_to_storage_type;
 use cubecl::prelude::*;
 use cubecl::std::FastDivmod;
@@ -22,7 +20,7 @@ fn gather_nd_kernel<T: Numeric, I: Int>(
     slice_size: usize,
     k: usize,
     working_units: usize,
-    #[define(T, I)] _dtypes: [StorageType; 2],
+    #[define(T, I)] _dtypes: [ElemType; 2],
 ) {
     if ABSOLUTE_POS >= working_units {
         terminate!();
@@ -64,10 +62,7 @@ fn gather_nd_kernel<T: Numeric, I: Int>(
     output[out_offset] = data[base_offset + data_slice_offset];
 }
 
-pub(crate) fn gather_nd<R: CubeRuntime>(
-    tensor: CubeTensor<R>,
-    indices: CubeTensor<R>,
-) -> CubeTensor<R> {
+pub(crate) fn gather_nd(tensor: CubeTensor, indices: CubeTensor) -> CubeTensor {
     let data_shape = &tensor.meta.shape;
     let idx_shape = &indices.meta.shape;
     let m = idx_shape.num_dims();

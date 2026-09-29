@@ -1,13 +1,16 @@
 use crate::engine::codegen::{DynElem, DynSize, DynVector};
 
-use cubecl::{ir::Type, prelude::*};
+use cubecl::{
+    ir::Type,
+    prelude::{polyfills::set_polyfill, *},
+};
 use std::hash::Hash;
 
 /// Represents a global tensor with the given [element type](ElemType).
 ///
 /// # Warning
 ///
-/// The `tensor` field type [Vector<NumericExpand<DYN_ELEM_ID>>] must be set using polyfill before
+/// The `tensor` field type [`DynVector`] must be set using polyfill before
 /// use.
 #[derive(CubeType, Clone)]
 #[expand(derive(Clone))]
@@ -32,21 +35,18 @@ pub struct GlobalTensorCompilationArg {
 }
 
 #[derive(new, Debug)]
-pub struct GlobalTensorArg<R: Runtime> {
-    pub tensor: <OwnedTensor<DynVector> as LaunchArg>::RuntimeArg<R>,
+pub struct GlobalTensorArg {
+    pub tensor: <OwnedTensor<DynVector> as LaunchArg>::RuntimeArg,
     pub ty: Type,
     pub broadcasted: bool,
     pub address_type: AddressType,
 }
 
 impl LaunchArg for GlobalTensor {
-    type RuntimeArg<R: Runtime> = GlobalTensorArg<R>;
+    type RuntimeArg = GlobalTensorArg;
     type CompilationArg = GlobalTensorCompilationArg;
 
-    fn register<R: Runtime>(
-        arg: Self::RuntimeArg<R>,
-        launcher: &mut KernelLauncher<R>,
-    ) -> Self::CompilationArg {
+    fn register(arg: Self::RuntimeArg, launcher: &mut KernelLauncher) -> Self::CompilationArg {
         launcher.with_scope(|scope| set_polyfill::expand::<DynElem, DynSize>(scope, arg.ty));
         let tensor = OwnedTensor::<DynVector>::register(arg.tensor, launcher);
         GlobalTensorCompilationArg {

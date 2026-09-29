@@ -1,17 +1,19 @@
 [fusion]
-logger = { file = "/tmp/fusion.log", level = "full" }
+logger = { file = "/tmp/fusion.log", level = "disabled" }
+
+[cubecl.environment]
+path = "target"
 
 [cubecl.profiling]
 logger = { log = "info", level = "disabled" }
 
 [cubecl.autotune]
 level = "balanced"
-cache = "target"
-logger = { info = true, level = "full" }
+logger = { log = "info", level = "disabled" }
 
 [cubecl.compilation]
 logger = { level = "disabled" }
-cache = "target"
+cache = true
 check_mode = "auto"
 
 [cubecl.memory]

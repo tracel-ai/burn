@@ -7,7 +7,7 @@ pub fn fused_matmul_add_relu_kernel<F: Float>(
     rhs: &Tensor<F>,
     bias: &Tensor<F>,
     output: &mut Tensor<F>,
-    #[define(F)] _dtype: StorageType,
+    #[define(F)] _dtype: ElemType,
 ) {
     let row = ABSOLUTE_POS_X as usize;
     let col = ABSOLUTE_POS_Y as usize;
@@ -15,7 +15,7 @@ pub fn fused_matmul_add_relu_kernel<F: Float>(
 
     let n_rows = output.shape(output.rank() - 2);
     let n_cols = output.shape(output.rank() - 1);
-    let dim_k = rhs.shape(rhs.rank() - 1);
+    let dim_k = rhs.shape(rhs.rank() - 2);
 
     if row >= n_rows || col >= n_cols {
         terminate!();

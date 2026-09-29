@@ -43,3 +43,50 @@ fn shape_mismatch_errors() {
     let validation_result = incompatible_module.load_from(&mut load_store_with_validation);
     assert!(validation_result.is_err());
 }
+
+/// `safetensors::View::data` has no error channel, so a tensor that fails to materialize can
+/// only be reported by panicking out of it. `collect_from` declares a `Result`, so that unwind
+/// has to be caught at the boundary and handed back as an error, rather than escaping the
+/// store and leaving a half-written file behind.
+#[test]
+fn a_failing_tensor_does_not_unwind_out_of_collect_from() {
+    use crate::{ModuleAdapter, ModuleContext, bridge};
+    use alloc::boxed::Box;
+    use burn_pack::Tensor as PackTensor;
+
+    /// Stands in for a backend that panics reading a parameter back from its device.
+    #[derive(Clone)]
+    struct PanickingAdapter;
+
+    impl ModuleAdapter for PanickingAdapter {
+        fn adapt(&self, tensor: PackTensor, _ctx: ModuleContext<'_>) -> PackTensor {
+            bridge::deferred(
+                tensor.name.clone(),
+                tensor.dtype,
+                tensor.shape.clone(),
+                None,
+                || panic!("device readback panicked"),
+            )
+        }
+
+        fn clone_box(&self) -> Box<dyn ModuleAdapter> {
+            Box::new(self.clone())
+        }
+    }
+
+    let device = Default::default();
+    let module = LinearConfig::new(2, 2).init(&device);
+
+    let mut store = SafetensorsStore::from_bytes(None).with_to_adapter(PanickingAdapter);
+    let err = module
+        .save_into(&mut store)
+        .expect_err("a panicking provider must be returned, not unwound");
+
+    // Which parameter serializes first is not fixed, so assert on the shape of the report:
+    // it names the tensor it failed on and carries the original panic's message.
+    let message = alloc::format!("{err}");
+    assert!(
+        message.contains("tensor '") && message.contains("device readback panicked"),
+        "the error should name the tensor and carry the cause, got: {message}"
+    );
+}

@@ -62,6 +62,8 @@ pub struct AgNewsDataset {
 /// This lock ensures that only one thread downloads the AG NEWS dataset at a time.
 static DOWNLOAD_LOCK: Mutex<()> = Mutex::new(());
 
+// new() downloads the dataset, so a Default impl would hide a network side effect.
+#[allow(clippy::new_without_default)]
 impl AgNewsDataset {
     /// Creates a new AG NEWS dataset accessor.
     ///
@@ -119,7 +121,7 @@ impl AgNewsDataset {
         let mut rdr = csv::ReaderBuilder::new();
         let rdr = rdr.has_headers(false);
 
-        InMemDataset::from_csv(file_path, &rdr).expect("Failed to parse CSV file")
+        InMemDataset::from_csv(file_path, rdr).expect("Failed to parse CSV file")
     }
 
     /// Gets the training dataset.

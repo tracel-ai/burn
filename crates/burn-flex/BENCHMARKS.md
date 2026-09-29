@@ -972,5 +972,5 @@ cargo bench --bench deform_conv_ops
 cargo bench --bench quantization_ops
 cargo bench --bench cat_max_min_ops
 cargo bench --bench default_ops
-cargo bench --bench fft_ops
+cargo bench -p burn-signal --bench fft_ops
 ```

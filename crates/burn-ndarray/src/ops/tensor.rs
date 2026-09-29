@@ -179,21 +179,70 @@ impl FloatTensorOps<Self> for NdArray {
         )
     }
 
-    fn float_scatter_add(
+    fn float_scatter(
         dim: usize,
         tensor: FloatTensor<Self>,
         indices: NdArrayTensor,
         value: FloatTensor<Self>,
+        update: burn_backend::tensor::IndexingUpdateOp,
     ) -> FloatTensor<Self> {
-        execute_with_int_dtype!(
-            indices,
-            IntElem,
-            |idx_array: SharedArray<IntElem>| -> NdArrayTensor {
-                execute_with_float_dtype!((tensor, value), |tensor, value| NdArrayOps::scatter(
-                    dim, tensor, idx_array, value
-                ))
+        match update {
+            burn_backend::tensor::IndexingUpdateOp::Add => {
+                execute_with_int_dtype!(
+                    indices,
+                    IntElem,
+                    |idx_array: SharedArray<IntElem>| -> NdArrayTensor {
+                        execute_with_float_dtype!((tensor, value), |tensor, value| {
+                            NdArrayOps::scatter(dim, tensor, idx_array, value)
+                        })
+                    }
+                )
             }
-        )
+            burn_backend::tensor::IndexingUpdateOp::Assign => {
+                execute_with_int_dtype!(
+                    indices,
+                    IntElem,
+                    |idx_array: SharedArray<IntElem>| -> NdArrayTensor {
+                        execute_with_float_dtype!((tensor, value), |tensor, value| {
+                            NdArrayOps::scatter_assign(dim, tensor, idx_array, value)
+                        })
+                    }
+                )
+            }
+            burn_backend::tensor::IndexingUpdateOp::Mul => {
+                execute_with_int_dtype!(
+                    indices,
+                    IntElem,
+                    |idx_array: SharedArray<IntElem>| -> NdArrayTensor {
+                        execute_with_float_dtype!((tensor, value), |tensor, value| {
+                            NdArrayOps::scatter_mul(dim, tensor, idx_array, value)
+                        })
+                    }
+                )
+            }
+            burn_backend::tensor::IndexingUpdateOp::Min => {
+                execute_with_int_dtype!(
+                    indices,
+                    IntElem,
+                    |idx_array: SharedArray<IntElem>| -> NdArrayTensor {
+                        execute_with_float_dtype!((tensor, value), |tensor, value| {
+                            NdArrayOps::scatter_min(dim, tensor, idx_array, value)
+                        })
+                    }
+                )
+            }
+            burn_backend::tensor::IndexingUpdateOp::Max => {
+                execute_with_int_dtype!(
+                    indices,
+                    IntElem,
+                    |idx_array: SharedArray<IntElem>| -> NdArrayTensor {
+                        execute_with_float_dtype!((tensor, value), |tensor, value| {
+                            NdArrayOps::scatter_max(dim, tensor, idx_array, value)
+                        })
+                    }
+                )
+            }
+        }
     }
 
     fn float_scatter_nd(
@@ -241,21 +290,70 @@ impl FloatTensorOps<Self> for NdArray {
         )
     }
 
-    fn float_select_add(
+    fn float_select_assign(
         tensor: FloatTensor<Self>,
         dim: usize,
         indices: NdArrayTensor,
         value: FloatTensor<Self>,
+        update: burn_backend::tensor::IndexingUpdateOp,
     ) -> FloatTensor<Self> {
-        execute_with_int_dtype!(
-            indices,
-            IntElem,
-            |idx_array: SharedArray<IntElem>| -> NdArrayTensor {
-                execute_with_float_dtype!((tensor, value), |tensor, value| {
-                    NdArrayMathOps::select_assign(tensor, dim, idx_array, value)
-                })
+        match update {
+            burn_backend::tensor::IndexingUpdateOp::Add => {
+                execute_with_int_dtype!(
+                    indices,
+                    IntElem,
+                    |idx_array: SharedArray<IntElem>| -> NdArrayTensor {
+                        execute_with_float_dtype!((tensor, value), |tensor, value| {
+                            NdArrayMathOps::select_assign(tensor, dim, idx_array, value)
+                        })
+                    }
+                )
             }
-        )
+            burn_backend::tensor::IndexingUpdateOp::Assign => {
+                execute_with_int_dtype!(
+                    indices,
+                    IntElem,
+                    |idx_array: SharedArray<IntElem>| -> NdArrayTensor {
+                        execute_with_float_dtype!((tensor, value), |tensor, value| {
+                            NdArrayMathOps::select_assign_replace(tensor, dim, idx_array, value)
+                        })
+                    }
+                )
+            }
+            burn_backend::tensor::IndexingUpdateOp::Mul => {
+                execute_with_int_dtype!(
+                    indices,
+                    IntElem,
+                    |idx_array: SharedArray<IntElem>| -> NdArrayTensor {
+                        execute_with_float_dtype!((tensor, value), |tensor, value| {
+                            NdArrayMathOps::select_assign_mul(tensor, dim, idx_array, value)
+                        })
+                    }
+                )
+            }
+            burn_backend::tensor::IndexingUpdateOp::Min => {
+                execute_with_int_dtype!(
+                    indices,
+                    IntElem,
+                    |idx_array: SharedArray<IntElem>| -> NdArrayTensor {
+                        execute_with_float_dtype!((tensor, value), |tensor, value| {
+                            NdArrayMathOps::select_assign_min(tensor, dim, idx_array, value)
+                        })
+                    }
+                )
+            }
+            burn_backend::tensor::IndexingUpdateOp::Max => {
+                execute_with_int_dtype!(
+                    indices,
+                    IntElem,
+                    |idx_array: SharedArray<IntElem>| -> NdArrayTensor {
+                        execute_with_float_dtype!((tensor, value), |tensor, value| {
+                            NdArrayMathOps::select_assign_max(tensor, dim, idx_array, value)
+                        })
+                    }
+                )
+            }
+        }
     }
 
     fn float_slice(tensor: FloatTensor<Self>, slices: &[burn_backend::Slice]) -> FloatTensor<Self> {
@@ -486,14 +584,14 @@ impl FloatTensorOps<Self> for NdArray {
     fn float_max(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
         // Use view() for zero-copy on borrowed storage
         execute_with_float_dtype!(tensor, FloatElem, |array: SharedArray<FloatElem>| {
-            NdArrayMathOps::max_view(array.view())
+            NdArrayMathOps::max_float_view(array.view())
         })
     }
 
     fn float_min(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
         // Use view() for zero-copy on borrowed storage
         execute_with_float_dtype!(tensor, FloatElem, |array: SharedArray<FloatElem>| {
-            NdArrayMathOps::min_view(array.view())
+            NdArrayMathOps::min_float_view(array.view())
         })
     }
 

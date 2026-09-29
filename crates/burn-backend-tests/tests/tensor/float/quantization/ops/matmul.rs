@@ -2,6 +2,7 @@ use super::qtensor::*;
 use super::*;
 use burn_tensor::TensorData;
 use burn_tensor::Tolerance;
+use burn_tensor::quantization::{QuantValue, ScaleDtype};
 
 #[test]
 #[ignore]
@@ -163,7 +164,7 @@ fn test_matmul_lhs_float_rhs_quantized() {
     output.assert_approx_eq::<FloatElem>(&expected, Tolerance::default());
 
     // Default quantization scheme does not propagate quantization with matmul
-    assert!(output.dtype.is_float());
+    assert!(output.dtype().is_float());
 }
 
 #[test]
@@ -196,7 +197,7 @@ fn test_matmul_lhs_quantized_rhs_float() {
     output.assert_approx_eq::<FloatElem>(&expected, Tolerance::relative(2e-2));
 
     // Default quantization scheme does not propagate quantization with matmul
-    assert!(output.dtype.is_float());
+    assert!(output.dtype().is_float());
 }
 
 #[test]
@@ -244,5 +245,38 @@ fn test_matmul_mixed_block_scale() {
     output.assert_approx_eq::<FloatElem>(&expected, Tolerance::permissive());
 
     // Default quantization scheme does not propagate quantization with matmul
-    assert!(output.dtype.is_float());
+    assert!(output.dtype().is_float());
+}
+
+/// No matmul kernel applies a per-tensor scale, and the autotune candidates panic on the level
+/// instead of declining it, so failing to fall back takes down the whole tuning run.
+#[test]
+fn should_matmul_two_level_rhs() {
+    let device = Default::default();
+
+    let lhs: TestTensor<2> = TestTensorInt::arange(0..256, &device)
+        .float()
+        .div_scalar(256.)
+        .reshape([16, 16]);
+    let rhs: TestTensor<2> = TestTensorInt::arange(0..256, &device)
+        .float()
+        .div_scalar(256.)
+        .reshape([16, 16]);
+
+    let scheme = device
+        .settings()
+        .quantization
+        .scheme
+        .with_value(QuantValue::Q8S)
+        .per_block([2, 16], ScaleDtype::F16)
+        .per_tensor(ScaleDtype::F32);
+
+    let quantized = rhs.quantize_dynamic(&scheme);
+    let expected = lhs
+        .clone()
+        .matmul(quantized.clone().dequantize())
+        .into_data();
+    let actual = lhs.matmul(quantized).into_data();
+
+    actual.assert_approx_eq::<FloatElem>(&expected, Tolerance::relative(1e-2));
 }

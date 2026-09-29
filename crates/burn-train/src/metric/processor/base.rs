@@ -14,6 +14,8 @@ pub enum LearnerEvent<T> {
         total_epochs: usize,
         /// The starting epoch.
         starting_epoch: usize,
+        /// An optional label for this training.
+        label: Option<String>,
     },
     /// Signal that an item have been processed.
     ProcessedItem(TrainingItem<T>),
@@ -63,6 +65,8 @@ pub trait EventProcessorTraining<TrainEvent, ValidEvent>: Send {
     fn process_train(&mut self, event: TrainEvent);
     /// Collect a validation event.
     fn process_valid(&mut self, event: ValidEvent);
+    /// Wait until previously submitted events are processed (no-op for sync processors).
+    fn flush(&mut self) {}
     /// Returns the renderer used for training.
     fn renderer(self) -> Box<dyn MetricsRenderer>;
 }

@@ -1,4 +1,4 @@
-pub(crate) mod block;
+pub mod block;
 
 mod base;
 mod fuser;

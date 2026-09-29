@@ -10,8 +10,10 @@ mod scheme;
 pub mod qtensor {
     use super::TestTensor;
 
-    use burn_tensor::quantization::QuantLevel;
-    use burn_tensor::{TensorData, quantization::QuantValue};
+    use burn_tensor::{
+        TensorData,
+        quantization::{QuantValue, ScaleDtype},
+    };
 
     pub struct QTensor<const D: usize>;
 
@@ -31,7 +33,7 @@ pub mod qtensor {
                     .quantization
                     .scheme
                     .with_value(QuantValue::Q8S)
-                    .with_level(QuantLevel::block([16])),
+                    .per_block([16], ScaleDtype::F32),
             )
         }
 

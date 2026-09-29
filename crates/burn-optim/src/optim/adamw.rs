@@ -114,7 +114,12 @@ impl Optimizer for AdamW {
 
 impl AdamWConfig {
     /// Build an [`AdamW`] from the config.
-    pub(crate) fn build(&self) -> AdamW {
+    ///
+    /// The bare optimizer, which
+    /// [`ModuleOptimizer::with_group`](crate::ModuleOptimizer::with_group) takes to
+    /// optimize one parameter group. [`init`](Self::init) is the whole-module
+    /// counterpart, and the only one that applies the configured gradient clipping.
+    pub fn build(&self) -> AdamW {
         AdamW {
             momentum: AdaptiveMomentumW {
                 beta_1: self.beta_1,
@@ -225,9 +230,10 @@ impl AdaptiveMomentumW {
 mod tests {
     use super::*;
     use crate::GradientsParams;
+    use crate::optim::test_utils::assert_optimizer_resume;
     use burn::module::Param;
     use burn::tensor::Tolerance;
-    use burn::tensor::{Distribution, Tensor, TensorData};
+    use burn::tensor::{Tensor, TensorData};
     use burn_nn::{Linear, LinearConfig};
 
     type FT = f32;
@@ -238,25 +244,13 @@ mod tests {
     fn test_adamw_optimizer_save_load_state() {
         let device = Device::default().autodiff();
         let linear = LinearConfig::new(6, 6).init(&device);
-        let x = Tensor::<2>::random([2, 6], Distribution::Default, &device);
-        let mut optimizer = create_adamw();
-        let grads = linear.forward(x).backward();
-        let grads = GradientsParams::from_grads(grads, &linear);
-        let _linear = optimizer.step(LEARNING_RATE.into(), linear, grads);
-
-        let bytes = optimizer.into_bytes().unwrap();
-        assert!(!bytes.is_empty());
-
-        #[cfg(feature = "std")]
-        optimizer
-            .save(std::env::temp_dir().as_path().join("test_optim_adamw"))
-            .unwrap();
-
-        let state_optim_before = optimizer.to_record();
-        let optimizer = create_adamw().from_bytes(bytes).unwrap();
-        let state_optim_after = optimizer.to_record();
-
-        assert_eq!(state_optim_before.len(), state_optim_after.len());
+        for amsgrad in [false, true] {
+            assert_optimizer_resume(
+                || AdamWConfig::new().with_amsgrad(amsgrad).init(),
+                linear.clone(),
+                LEARNING_RATE,
+            );
+        }
     }
     #[test]
     fn test_adamw_optimizer_with_amsgrad_50_steps() {
@@ -289,7 +283,7 @@ mod tests {
 
             let grads = linear.forward(x).backward();
             let grads = GradientsParams::from_grads(grads, &linear);
-            linear = optimizer.step(LEARNING_RATE.into(), linear, grads);
+            linear = optimizer.step(LEARNING_RATE, linear, grads);
         }
 
         let state_updated = linear;
@@ -400,11 +394,11 @@ mod tests {
 
         let grads = linear.forward(x_1).backward();
         let grads = GradientsParams::from_grads(grads, &linear);
-        let linear = optimizer.step(LEARNING_RATE.into(), linear, grads);
+        let linear = optimizer.step(LEARNING_RATE, linear, grads);
 
         let grads = linear.forward(x_2).backward();
         let grads = GradientsParams::from_grads(grads, &linear);
-        let linear = optimizer.step(LEARNING_RATE.into(), linear, grads);
+        let linear = optimizer.step(LEARNING_RATE, linear, grads);
 
         let state_updated = linear;
         let weights_expected = TensorData::from([
@@ -479,11 +473,11 @@ mod tests {
 
         let grads = linear.forward(x_1).backward();
         let grads = GradientsParams::from_grads(grads, &linear);
-        let linear = optimizer.step(LEARNING_RATE.into(), linear, grads);
+        let linear = optimizer.step(LEARNING_RATE, linear, grads);
 
         let grads = linear.forward(x_2).backward();
         let grads = GradientsParams::from_grads(grads, &linear);
-        let linear = optimizer.step(LEARNING_RATE.into(), linear, grads);
+        let linear = optimizer.step(LEARNING_RATE, linear, grads);
 
         let state_updated = linear;
         let weights_expected = TensorData::from([
@@ -552,11 +546,11 @@ mod tests {
 
         let grads = linear.forward(x.clone()).backward();
         let grads = GradientsParams::from_grads(grads, &linear);
-        let linear = optimizer.step(LEARNING_RATE.into(), linear, grads);
+        let linear = optimizer.step(LEARNING_RATE, linear, grads);
 
         let grads = linear.forward(x).backward();
         let grads = GradientsParams::from_grads(grads, &linear);
-        let linear = optimizer.step(LEARNING_RATE.into(), linear, grads);
+        let linear = optimizer.step(LEARNING_RATE, linear, grads);
 
         let state_updated = linear;
         assert!(!state_updated.weight.to_data().as_slice::<f32>().unwrap()[0].is_nan());
@@ -567,20 +561,5 @@ mod tests {
             weight: Param::from_data(weight, device),
             bias: Some(Param::from_data(bias, device)),
         }
-    }
-
-    fn create_adamw() -> ModuleOptimizer {
-        let config = AdamWConfig::new();
-        AdamW {
-            momentum: AdaptiveMomentumW {
-                beta_1: config.beta_1,
-                beta_2: config.beta_2,
-                epsilon: config.epsilon,
-                amsgrad: config.amsgrad,
-            },
-            weight_decay: config.weight_decay,
-            cautious_weight_decay: false,
-        }
-        .into()
     }
 }

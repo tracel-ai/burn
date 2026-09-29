@@ -1,9 +1,11 @@
+#![allow(clippy::approx_constant)]
+
 use burn_core as burn;
 
 use burn::config::Config;
 use burn::module::{Content, DisplaySettings, Module, ModuleDisplay};
 use burn::tensor::Tensor;
-use burn::tensor::linalg::cosine_similarity;
+use burn_linalg::cosine_similarity;
 
 /// Configuration to create a [CosineSimilarity](CosineSimilarity) layer using the
 /// [init function](CosineSimilarityConfig::init).

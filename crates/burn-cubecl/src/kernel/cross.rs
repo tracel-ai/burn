@@ -1,5 +1,4 @@
 use crate::{
-    CubeRuntime,
     kernel::{
         into_contiguous,
         utils::{address_type, broadcast_shape},
@@ -16,7 +15,7 @@ fn cross_kernel<E: Float>(
     lhs: LinearView<'_, E>,
     rhs: LinearView<'_, E>,
     mut output: LinearViewMut<'_, E>,
-    #[define(E)] _dtype: StorageType,
+    #[define(E)] _dtype: ElemType,
 ) {
     // Each thread processes one 3-element vector
     let vector_idx = ABSOLUTE_POS;
@@ -45,11 +44,7 @@ fn cross_kernel<E: Float>(
     output.write(base_pos + 2, z);
 }
 
-pub(crate) fn cross<R: CubeRuntime>(
-    lhs: CubeTensor<R>,
-    rhs: CubeTensor<R>,
-    dim: usize,
-) -> CubeTensor<R> {
+pub(crate) fn cross(lhs: CubeTensor, rhs: CubeTensor, dim: usize) -> CubeTensor {
     let ndims = lhs.meta.num_dims();
 
     // Validate that the cross dimension has size 3
@@ -76,6 +71,16 @@ pub(crate) fn cross<R: CubeRuntime>(
     }
 
     let output_shape = broadcast_shape(&[&lhs, &rhs]);
+
+    // A zero-sized broadcast output has no elements to compute. Return the empty output directly.
+    if output_shape.num_elements() == 0 {
+        return empty_device_dtype(
+            lhs.client.clone(),
+            lhs.device.clone(),
+            output_shape,
+            lhs.dtype,
+        );
+    }
 
     let output = empty_device_dtype(
         lhs.client.clone(),

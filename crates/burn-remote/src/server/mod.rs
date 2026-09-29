@@ -7,9 +7,11 @@ pub(crate) mod transfer;
 pub(crate) mod worker;
 
 mod builder;
+mod logging;
 
 pub use builder::{Channel, RemoteServerBuilder};
 pub use burn_router::{CustomOpHandler, CustomOpRegistry};
+pub use logging::ServerLogging;
 
 #[cfg(feature = "iroh")]
 pub use crate::transport::iroh::protocol::{

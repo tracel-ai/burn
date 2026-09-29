@@ -1,3 +1,6 @@
+// This sample exists to validate a burn-tch install, so naming the deprecated crate is the point.
+#![allow(deprecated)]
+
 use burn_backend::{TensorMetadata, ops::FloatTensorOps};
 use burn_tch::{LibTorch, LibTorchDevice};
 

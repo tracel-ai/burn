@@ -87,7 +87,7 @@ pub(crate) fn grid_sample_2d<E: FloatNdArrayElement>(
                 bilinear_interpolate(&tensor, b, c, px, py, width_in, height_in, pad_mode, align);
 
             unsafe {
-                let output = unsafe_shared_out.get();
+                let mut output = unsafe_shared_out.get();
                 output[(b, c, y, x)] = val.elem();
             }
         });

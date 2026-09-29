@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use burn::data::dataloader::DataLoaderBuilder;
 use burn::data::dataset::transform::SamplerDataset;
-use burn::module::LoraConfig;
+use burn::module::Lora;
 use burn::prelude::*;
 use burn::train::metric::{
     AccuracyMetric, CudaMetric, IterationSpeedMetric, LearningRateMetric, LossMetric,
@@ -47,7 +47,7 @@ pub fn lora_finetuning<D: TextClassificationDataset + 'static>(
 
     // Apply LoRA to the attention module's query, value, output and feed-forward weights.
     let r = 8.0;
-    let mut model = model.apply_lora(LoraConfig::new(r as usize, 2.0 * r));
+    let mut model = model.apply_lora(Lora::new(r as usize, 2.0 * r));
     // Reset the classification head with the current dataset's number of classes.
     model.reset_head(D::num_classes());
 
@@ -85,10 +85,11 @@ pub fn lora_finetuning<D: TextClassificationDataset + 'static>(
     // Train the model
     let result = training.launch(Learner::new(model, optim, lr_scheduler));
 
-    // Save the configuration and the trained model
+    // Merge adapters so inference can load the record into a model without adapters.
     config.save(format!("{artifact_dir}/config.json")).unwrap();
     result
         .model
+        .materialize()
         .into_record()
         .save(format!("{artifact_dir}/model"))
         .unwrap();

@@ -1,5 +1,4 @@
 use crate::{
-    CubeRuntime,
     kernel::utils::{address_type, broadcast_shape},
     ops::{max_vector_size, numeric::empty_device_dtype},
     tensor::CubeTensor,
@@ -8,7 +7,7 @@ use burn_backend::TensorMetadata;
 use burn_backend::cubecl::dtype_to_storage_type;
 use cubecl::{
     calculate_cube_count_elemwise,
-    prelude::*,
+    prelude::{polyfills::powi_int, *},
     std::tensor::layout::linear::{LinearView, LinearViewMut},
 };
 
@@ -27,6 +26,7 @@ pub(crate) struct BitwiseOrOp;
 pub(crate) struct BitwiseXorOp;
 pub(crate) struct BitwiseShrOp;
 pub(crate) struct BitwiseShlOp;
+pub(crate) struct PowiOp;
 
 impl BinaryOpIntFamily for BitwiseAndOp {
     type BinaryOp<C: Int, N: Size> = Self;
@@ -45,6 +45,10 @@ impl BinaryOpIntFamily for BitwiseShrOp {
 }
 
 impl BinaryOpIntFamily for BitwiseShlOp {
+    type BinaryOp<C: Int, N: Size> = Self;
+}
+
+impl BinaryOpIntFamily for PowiOp {
     type BinaryOp<C: Int, N: Size> = Self;
 }
 
@@ -83,12 +87,19 @@ impl<T: Int, N: Size> BinaryOpInt<T, N> for BitwiseShlOp {
     }
 }
 
+#[cube]
+impl<T: Int, N: Size> BinaryOpInt<T, N> for PowiOp {
+    fn execute(lhs: Vector<T, N>, rhs: Vector<T, N>) -> Vector<T, N> {
+        powi_int(lhs, Vector::<i32, N>::cast_from(rhs))
+    }
+}
+
 #[cube(launch_unchecked, address_type = "dynamic")]
 pub(crate) fn kernel_scalar_binop_int<C: Int, N: Size, O: BinaryOpIntFamily>(
     input: LinearView<'_, Vector<C, N>>,
     scalar: InputScalar,
     mut output: LinearViewMut<'_, Vector<C, N>>,
-    #[define(C)] _dtype: StorageType,
+    #[define(C)] _dtype: ElemType,
 ) {
     if !output.is_in_bounds(ABSOLUTE_POS) {
         terminate!();
@@ -105,7 +116,7 @@ pub(crate) fn kernel_binop_int<C: Int, N: Size, O: BinaryOpIntFamily>(
     lhs: LinearView<'_, Vector<C, N>>,
     rhs: LinearView<'_, Vector<C, N>>,
     mut out: LinearViewMut<'_, Vector<C, N>>,
-    #[define(C)] _dtype: StorageType,
+    #[define(C)] _dtype: ElemType,
 ) {
     if !out.is_in_bounds(ABSOLUTE_POS) {
         terminate!();
@@ -117,15 +128,21 @@ pub(crate) fn kernel_binop_int<C: Int, N: Size, O: BinaryOpIntFamily>(
     );
 }
 
-pub(crate) fn launch_binop_int<R: CubeRuntime, O: BinaryOpIntFamily>(
-    lhs: CubeTensor<R>,
-    rhs: CubeTensor<R>,
-) -> CubeTensor<R> {
+pub(crate) fn launch_binop_int<O: BinaryOpIntFamily>(
+    lhs: CubeTensor,
+    rhs: CubeTensor,
+) -> CubeTensor {
     let vector_size_lhs = max_vector_size(&lhs);
     let vector_size_rhs = max_vector_size(&rhs);
     let vector_size = Ord::min(vector_size_lhs, vector_size_rhs);
 
     let shape_out = broadcast_shape(&[&lhs, &rhs]);
+
+    // A zero-sized broadcast output has no elements to compute, and the in-place/kernel paths
+    // below assume a non-empty output. Return the empty output directly.
+    if shape_out.num_elements() == 0 {
+        return empty_device_dtype(lhs.client.clone(), lhs.device.clone(), shape_out, lhs.dtype);
+    }
 
     let client = lhs.client.clone();
     let num_elems = shape_out.num_elements();
@@ -137,7 +154,7 @@ pub(crate) fn launch_binop_int<R: CubeRuntime, O: BinaryOpIntFamily>(
 
     unsafe {
         if lhs.can_mut_broadcast(&rhs) {
-            kernel_binop_int::launch_unchecked::<O, R>(
+            kernel_binop_int::launch_unchecked::<O>(
                 &client,
                 cube_count,
                 cube_dim,
@@ -151,7 +168,7 @@ pub(crate) fn launch_binop_int<R: CubeRuntime, O: BinaryOpIntFamily>(
 
             lhs
         } else if rhs.can_mut_broadcast(&lhs) {
-            kernel_binop_int::launch_unchecked::<O, R>(
+            kernel_binop_int::launch_unchecked::<O>(
                 &client,
                 cube_count,
                 cube_dim,
@@ -168,7 +185,7 @@ pub(crate) fn launch_binop_int<R: CubeRuntime, O: BinaryOpIntFamily>(
             let output =
                 empty_device_dtype(lhs.client.clone(), lhs.device.clone(), shape_out, lhs.dtype);
 
-            kernel_binop_int::launch_unchecked::<O, R>(
+            kernel_binop_int::launch_unchecked::<O>(
                 &client,
                 cube_count,
                 cube_dim,
@@ -185,10 +202,10 @@ pub(crate) fn launch_binop_int<R: CubeRuntime, O: BinaryOpIntFamily>(
     }
 }
 
-pub(crate) fn launch_scalar_binop_int<R: CubeRuntime, O: BinaryOpIntFamily>(
-    tensor: CubeTensor<R>,
+pub(crate) fn launch_scalar_binop_int<O: BinaryOpIntFamily>(
+    tensor: CubeTensor,
     scalar: InputScalar,
-) -> CubeTensor<R> {
+) -> CubeTensor {
     let vector_size = max_vector_size(&tensor);
     let client = tensor.client.clone();
     let num_elems = tensor.meta.shape.num_elements();
@@ -199,7 +216,7 @@ pub(crate) fn launch_scalar_binop_int<R: CubeRuntime, O: BinaryOpIntFamily>(
 
     unsafe {
         if tensor.can_mut() && tensor.is_nonoverlapping() {
-            kernel_scalar_binop_int::launch_unchecked::<O, R>(
+            kernel_scalar_binop_int::launch_unchecked::<O>(
                 &client,
                 cube_count,
                 cube_dim,
@@ -220,7 +237,7 @@ pub(crate) fn launch_scalar_binop_int<R: CubeRuntime, O: BinaryOpIntFamily>(
                 tensor.dtype,
             );
 
-            kernel_scalar_binop_int::launch_unchecked::<O, R>(
+            kernel_scalar_binop_int::launch_unchecked::<O>(
                 &client,
                 cube_count,
                 cube_dim,

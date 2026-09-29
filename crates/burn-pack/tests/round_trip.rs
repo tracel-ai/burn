@@ -151,8 +151,8 @@ fn dtype_and_byte_len_preserved() {
         assert_eq!(t.dtype, *dtype, "dtype preserved for t{i}");
         assert_eq!(t.shape.to_vec(), vec![n]);
         assert_eq!(t.byte_len(), n * elem, "byte_len preserved for t{i}");
-        let materialized: &[u8] = &t.bytes;
-        assert_eq!(materialized, &vec![i as u8 + 1; n * elem][..]);
+        let materialized = t.clone().into_bytes().unwrap();
+        assert_eq!(&materialized[..], &vec![i as u8 + 1; n * elem][..]);
     }
 }
 
@@ -203,9 +203,9 @@ fn shared_tensor_chunked_write_round_trip() {
     let read = reader.into_tensors().unwrap();
 
     assert_eq!(read.len(), 1);
-    let materialized: &[u8] = &read[0].bytes;
+    let materialized = read.into_iter().next().unwrap().into_bytes().unwrap();
     assert_eq!(materialized.len(), len);
-    assert_eq!(materialized, &data[..]);
+    assert_eq!(&materialized[..], &data[..]);
 }
 
 #[test]
@@ -220,7 +220,9 @@ fn read_single_tensor_data_by_name() {
     let reader = Reader::from_bytes(packed).unwrap();
     let raw = reader.tensor_data("a").unwrap();
     let values: Vec<f32> = raw
-        .chunks_exact(4)
+        .as_chunks::<4>()
+        .0
+        .iter()
         .map(|c| f32::from_le_bytes([c[0], c[1], c[2], c[3]]))
         .collect();
     assert_eq!(values, vec![1.0, 2.0]);
@@ -276,6 +278,38 @@ fn extensionless_path_appends_bpk() {
     let tensors = reader.into_tensors().unwrap();
     assert_eq!(read_f32(&tensors[0]), vec![1.0, 2.0]);
     assert_eq!(tensors[0].param_id, Some(7));
+}
+
+#[test]
+fn extensionless_path_can_be_preserved() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("model");
+
+    Writer::new(vec![f32_tensor("weight", &[1.0, 2.0], &[2], None)])
+        .auto_extension(false)
+        .write_to_file(&path)
+        .unwrap();
+
+    assert!(path.exists(), "the exact requested path should exist");
+    assert!(
+        !path.with_extension("bpk").exists(),
+        "the canonical extension should not be appended"
+    );
+    assert!(Reader::from_file_exact(&path).is_ok());
+}
+
+#[test]
+fn exact_reader_does_not_fall_back_to_bpk() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("model");
+
+    Writer::new(vec![f32_tensor("weight", &[1.0], &[1], None)])
+        .write_to_file(&path)
+        .unwrap();
+
+    assert!(path.with_extension("bpk").exists());
+    assert!(Reader::from_file(&path).is_ok());
+    assert!(Reader::from_file_exact(&path).is_err());
 }
 
 #[test]

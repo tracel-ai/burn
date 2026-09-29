@@ -14,8 +14,8 @@ pub(crate) trait BasicAutodiffOps: BasicOps {
     /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
     /// or use this function directly.
     ///
-    /// Users should prefer the [`Tensor::inner`](crate::Tensor::inner)
-    /// function, which is more high-level and designed for public use.
+    /// Users should prefer [`Tensor::without_autodiff`](crate::Tensor::without_autodiff), or its
+    /// [`Tensor::inner`](crate::Tensor::inner) equivalent, which are designed for public use.
     fn inner(tensor: BridgeTensor) -> BridgeTensor;
 
     /// Convert a tensor to the autodiff backend.
@@ -26,7 +26,8 @@ pub(crate) trait BasicAutodiffOps: BasicOps {
     /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
     /// or use this function directly.
     ///
-    /// Users should prefer the [`Tensor::from_inner`](crate::Tensor::from_inner)
-    /// function, which is more high-level and designed for public use.
+    /// Users should prefer [`Tensor::autodiff`](crate::Tensor::autodiff), or its
+    /// [`Tensor::from_inner`](crate::Tensor::from_inner) equivalent, which are designed for public
+    /// use.
     fn from_inner(inner: BridgeTensor) -> BridgeTensor;
 }

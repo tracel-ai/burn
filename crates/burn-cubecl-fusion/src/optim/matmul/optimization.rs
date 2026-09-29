@@ -20,32 +20,36 @@ use crate::{
 use burn_fusion::stream::Context;
 use burn_ir::BinaryOpIr;
 use cubecl::{
-    client::ComputeClient,
-    prelude::*,
+    client::Client,
     std::tensor::{MatrixBatchLayout, matrix_batch_layout},
 };
 use cubek::{
     matmul::{
-        components::tile::TileMatmulKind,
         definition::{
             MatmulElems, MatmulGlobalElems, MatmulProblem, MatmulSetupError, MatmulVectorSizes,
         },
-        routines::{
-            BatchMatmulRoutine, BlueprintStrategy,
-            batch::{
-                double_buffering::{CyclicDoubleBufferingAlgorithm, DoubleBufferingArgs},
-                double_unit::DoubleUnitAlgorithm,
-                gemv_innerproduct::{
-                    DoubleVecMatInnerProductAlgorithm, VecMatInnerProductAlgorithm,
+        multi_level::{
+            BatchMatmulRoutine,
+            components::tile::TileMatmulKind,
+            launch_kernel_virtual,
+            routines::{
+                batch::{
+                    double_buffering::{CyclicDoubleBufferingAlgorithm, DoubleBufferingArgs},
+                    double_unit::DoubleUnitAlgorithm,
+                    gemv_innerproduct::{
+                        DoubleVecMatInnerProductAlgorithm, VecMatInnerProductAlgorithm,
+                    },
+                    ordered_double_buffering::{
+                        OrderedDoubleBufferingAlgorithm, OrderedSelectionArgs,
+                    },
+                    simple::{SimpleAlgorithm, SimpleArgs},
+                    simple_unit::SimpleUnitAlgorithm,
                 },
-                ordered_double_buffering::{OrderedDoubleBufferingAlgorithm, OrderedSelectionArgs},
-                simple::{SimpleAlgorithm, SimpleArgs},
-                simple_unit::SimpleUnitAlgorithm,
+                gemm::GemmRoutine,
+                gemv_unit_perpendicular::GemvUnitPerpendicularRoutine,
             },
-            gemm::GemmRoutine,
-            gemv_unit_perpendicular::GemvUnitPerpendicularRoutine,
         },
-        strategy::launch_kernel_virtual,
+        routine::BlueprintStrategy,
     },
     std::MatrixLayout,
 };
@@ -53,20 +57,20 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
 /// Fuse matmul operation followed by elemwise operations into a single kernel.
-pub struct MatmulOptimization<R: Runtime> {
-    pub(crate) info: Arc<MatmulOptimizationInfo<R>>,
+pub struct MatmulOptimization {
+    pub(crate) info: Arc<MatmulOptimizationInfo>,
 }
 
-pub struct MatmulOptimizationTuneArg<R: Runtime> {
-    pub(crate) info: Arc<MatmulOptimizationInfo<R>>,
-    pub(crate) fallback: Box<dyn FallbackOperation<R>>,
+pub struct MatmulOptimizationTuneArg {
+    pub(crate) info: Arc<MatmulOptimizationInfo>,
+    pub(crate) fallback: Box<dyn FallbackOperation>,
 }
 
-pub(crate) struct MatmulOptimizationInfo<R: Runtime> {
-    trace: FuseTrace,
+pub(crate) struct MatmulOptimizationInfo {
+    pub(crate) trace: FuseTrace,
     trace_fallback: FuseTrace,
-    pub(crate) client: ComputeClient<R>,
-    pub(crate) device: R::Device,
+    pub(crate) client: Client,
+    pub(crate) device: cubecl::Device,
     pub(crate) len: usize,
     pub(crate) matmul: FusedMatmul,
 }
@@ -80,7 +84,7 @@ pub struct MatmulOptimizationState {
     len: usize,
 }
 
-impl<R: Runtime> MatmulOptimizationInfo<R> {
+impl MatmulOptimizationInfo {
     /// Returns the number of output buffers added by fusion.
     pub fn num_output_buffers(&self) -> usize {
         self.trace_fallback.resources.outputs.len()
@@ -92,19 +96,19 @@ impl<R: Runtime> MatmulOptimizationInfo<R> {
     }
 }
 
-impl<R: Runtime> MatmulOptimizationTuneArg<R> {
+impl MatmulOptimizationTuneArg {
     pub(crate) fn execute_fused(
         &self,
-        context: &mut Context<CubeFusionHandle<R>>,
+        context: &mut Context<CubeFusionHandle>,
         selector: FusedMatmulSelector,
-    ) -> Result<TuneOutput<R>, TraceError<FusedMatmulError>> {
+    ) -> Result<TuneOutput, TraceError<FusedMatmulError>> {
         let launch = FusedMatmulLaunch::new(&self.info.matmul, selector);
         let launcher = FuseTraceLauncher::new(&self.info.trace, &launch);
 
         launcher.launch(&self.info.client, &self.info.device, context)
     }
 
-    pub fn execute_fallback(&self, context: &mut Context<CubeFusionHandle<R>>) -> TuneOutput<R> {
+    pub fn execute_fallback(&self, context: &mut Context<CubeFusionHandle>) -> TuneOutput {
         self.fallback.run(context);
 
         #[cfg(feature = "autotune-checks")]
@@ -112,7 +116,7 @@ impl<R: Runtime> MatmulOptimizationTuneArg<R> {
             handles: Default::default(),
         };
         #[cfg(not(feature = "autotune-checks"))]
-        let output = TuneOutput::UnChecked(core::marker::PhantomData);
+        let output = TuneOutput::UnChecked;
 
         #[cfg(feature = "autotune-checks")]
         if let TuneOutput::Checked { handles } = &mut output {
@@ -136,12 +140,12 @@ impl<R: Runtime> MatmulOptimizationTuneArg<R> {
     }
 }
 
-impl<R: Runtime> MatmulOptimization<R> {
+impl MatmulOptimization {
     pub fn new(
         trace: FuseTrace,
         trace_fallback: FuseTrace,
-        client: ComputeClient<R>,
-        device: R::Device,
+        client: Client,
+        device: cubecl::Device,
         len: usize,
         matmul: FusedMatmul,
     ) -> Self {
@@ -161,8 +165,8 @@ impl<R: Runtime> MatmulOptimization<R> {
     /// Execute the optimization.
     pub fn execute(
         &mut self,
-        context: &mut Context<CubeFusionHandle<R>>,
-        fallback: impl FnOnce(usize) -> Box<dyn FallbackOperation<R>>,
+        context: &mut Context<CubeFusionHandle>,
+        fallback: impl FnOnce(usize) -> Box<dyn FallbackOperation>,
     ) {
         // The index of the fallback matmul is always 0.
         let fallback = fallback(0);
@@ -171,8 +175,22 @@ impl<R: Runtime> MatmulOptimization<R> {
             fallback,
         };
 
+        // A storage-tiled operand is read through its binding by the eager matmul, which stages
+        // to its tiles; the fused kernel assembles its own arguments and would read it as rows.
+        let op = &self.info.matmul.op;
+        let stored = [op.lhs.id, op.rhs.id].iter().any(|id| {
+            context
+                .handles
+                .get_handle_ref(id)
+                .is_some_and(|handle| handle.tiles.is_some())
+        });
+        if stored {
+            arg.execute_fallback(context);
+            return;
+        }
+
         #[cfg(feature = "autotune")]
-        fused_matmul_autotune::<R>(arg, context);
+        fused_matmul_autotune(arg, context);
 
         #[cfg(not(feature = "autotune"))]
         if arg
@@ -189,12 +207,12 @@ impl<R: Runtime> MatmulOptimization<R> {
     }
 
     /// Create an optimization from its [state](MatmulOptimizationState).
-    pub fn from_state(device: &R::Device, state: MatmulOptimizationState) -> Self {
+    pub fn from_state(device: &cubecl::Device, state: MatmulOptimizationState) -> Self {
         let info = MatmulOptimizationInfo {
             trace: state.trace,
             trace_fallback: state.trace_fallback,
             len: state.len,
-            client: R::client(device),
+            client: device.client(),
             device: device.clone(),
             matmul: state.matmul.clone(),
         };
@@ -215,7 +233,7 @@ impl<R: Runtime> MatmulOptimization<R> {
     }
 }
 
-#[derive(Clone, Copy, Serialize, Deserialize, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Debug)]
 pub enum FusedMatmulSelector {
     Simple {
         multi_rows: bool,
@@ -305,8 +323,8 @@ impl From<MatmulSetupError> for FusedMatmulError {
     }
 }
 
-impl<'a, R: Runtime> Vectorization<R> for FusedMatmulLaunch<'a> {
-    fn axis(&self, plan: &LaunchPlan<'_, R>) -> VectorizationAxis {
+impl<'a> Vectorization for FusedMatmulLaunch<'a> {
+    fn axis(&self, plan: &LaunchPlan<'_>) -> VectorizationAxis {
         let lhs_id = self.matmul.op.lhs.id;
         let rhs_id = self.matmul.op.rhs.id;
 
@@ -340,9 +358,20 @@ impl<'a, R: Runtime> Vectorization<R> for FusedMatmulLaunch<'a> {
 
         let mut axis = VectorizationAxis::default();
 
+        // A transposed operand is loaded along its contiguous dimension, the second to last.
+        // Its vector size belongs to the input, though, and an element-wise block reading the
+        // same input applies it along the last dimension, which isn't contiguous: it would
+        // read the wrong elements. Such an operand keeps the default axis.
+        let read_by_block = |relative_id| {
+            plan.blocks
+                .iter()
+                .any(|block| block.reads.contains_key(&relative_id))
+        };
+
         if let MatrixBatchLayout::MildlyPermuted { transposed, .. } =
             matrix_batch_layout(lhs_strides, self.matmul.lhs.scheme())
             && transposed
+            && !read_by_block(lhs_id)
         {
             axis.insert(lhs_id_global, lhs_strides.len() - 2);
         }
@@ -350,6 +379,7 @@ impl<'a, R: Runtime> Vectorization<R> for FusedMatmulLaunch<'a> {
         if let MatrixBatchLayout::MildlyPermuted { transposed, .. } =
             matrix_batch_layout(rhs_strides, self.matmul.rhs.scheme())
             && transposed
+            && !read_by_block(rhs_id)
         {
             axis.insert(rhs_id_global, rhs_strides.len() - 2);
         }
@@ -358,14 +388,14 @@ impl<'a, R: Runtime> Vectorization<R> for FusedMatmulLaunch<'a> {
     }
 }
 
-impl<R: Runtime> TraceRunner<R> for FusedMatmulLaunch<'_> {
+impl TraceRunner for FusedMatmulLaunch<'_> {
     type Error = FusedMatmulError;
 
     fn run<'a>(
         &'a self,
-        client: &'a ComputeClient<R>,
-        inputs: GlobalArgsLaunch<R>,
-        outputs: GlobalArgsLaunch<R>,
+        client: &'a Client,
+        inputs: GlobalArgsLaunch,
+        outputs: GlobalArgsLaunch,
         configs: &'a [FuseBlockConfig],
     ) -> Result<(), FusedMatmulError> {
         let global_elems = MatmulGlobalElems {
@@ -387,11 +417,11 @@ pub enum AcceleratedTileKind {
 }
 
 impl FusedMatmulLaunch<'_> {
-    fn matmul_fused<'a, R: Runtime>(
+    fn matmul_fused<'a>(
         &'a self,
-        client: &'a ComputeClient<R>,
-        inputs: GlobalArgsLaunch<R>,
-        outputs: GlobalArgsLaunch<R>,
+        client: &'a Client,
+        inputs: GlobalArgsLaunch,
+        outputs: GlobalArgsLaunch,
         config: &'a FuseBlockConfig,
         dtypes: MatmulElems,
     ) -> Result<(), FusedMatmulError> {
@@ -472,7 +502,7 @@ impl FusedMatmulLaunch<'_> {
                     },
                 };
 
-                match launch_inner_fix_dtype::<R, SimpleAlgorithm>(
+                match launch_inner_fix_dtype::<SimpleAlgorithm>(
                     client,
                     FusedMatmulInputLaunch::new(
                         inputs,
@@ -504,7 +534,7 @@ impl FusedMatmulLaunch<'_> {
                     },
                 };
 
-                match launch_inner_fix_dtype::<R, CyclicDoubleBufferingAlgorithm>(
+                match launch_inner_fix_dtype::<CyclicDoubleBufferingAlgorithm>(
                     client,
                     FusedMatmulInputLaunch::new(
                         inputs,
@@ -540,7 +570,7 @@ impl FusedMatmulLaunch<'_> {
                     },
                 };
 
-                match launch_inner_fix_dtype::<R, OrderedDoubleBufferingAlgorithm>(
+                match launch_inner_fix_dtype::<OrderedDoubleBufferingAlgorithm>(
                     client,
                     FusedMatmulInputLaunch::new(
                         inputs,
@@ -561,7 +591,7 @@ impl FusedMatmulLaunch<'_> {
             }
 
             FusedMatmulSelector::SimpleUnit => {
-                match launch_inner_fix_dtype::<R, SimpleUnitAlgorithm>(
+                match launch_inner_fix_dtype::<SimpleUnitAlgorithm>(
                     client,
                     FusedMatmulInputLaunch::new(
                         inputs,
@@ -582,7 +612,7 @@ impl FusedMatmulLaunch<'_> {
             }
 
             FusedMatmulSelector::DoubleUnit => {
-                match launch_inner_fix_dtype::<R, DoubleUnitAlgorithm>(
+                match launch_inner_fix_dtype::<DoubleUnitAlgorithm>(
                     client,
                     FusedMatmulInputLaunch::new(
                         inputs,
@@ -603,7 +633,7 @@ impl FusedMatmulLaunch<'_> {
             }
 
             FusedMatmulSelector::SimpleVecMat => {
-                match launch_inner_fix_dtype::<R, VecMatInnerProductAlgorithm>(
+                match launch_inner_fix_dtype::<VecMatInnerProductAlgorithm>(
                     client,
                     FusedMatmulInputLaunch::new(
                         inputs,
@@ -624,7 +654,7 @@ impl FusedMatmulLaunch<'_> {
             }
 
             FusedMatmulSelector::DoubleVecMat => {
-                match launch_inner_fix_dtype::<R, DoubleVecMatInnerProductAlgorithm>(
+                match launch_inner_fix_dtype::<DoubleVecMatInnerProductAlgorithm>(
                     client,
                     FusedMatmulInputLaunch::new(
                         inputs,
@@ -645,7 +675,7 @@ impl FusedMatmulLaunch<'_> {
             }
 
             FusedMatmulSelector::GemmNoStage => {
-                match launch_inner_fix_dtype::<R, GemmRoutine>(
+                match launch_inner_fix_dtype::<GemmRoutine>(
                     client,
                     FusedMatmulInputLaunch::new(
                         inputs,
@@ -666,7 +696,7 @@ impl FusedMatmulLaunch<'_> {
             }
 
             FusedMatmulSelector::GemvUnitPerpendicular => {
-                match launch_inner_fix_dtype::<R, GemvUnitPerpendicularRoutine>(
+                match launch_inner_fix_dtype::<GemvUnitPerpendicularRoutine>(
                     client,
                     FusedMatmulInputLaunch::new(
                         inputs,
@@ -689,15 +719,15 @@ impl FusedMatmulLaunch<'_> {
     }
 }
 
-fn launch_inner_fix_dtype<R: Runtime, A: BatchMatmulRoutine<()>>(
-    client: &ComputeClient<R>,
-    input: FusedMatmulInputLaunch<R>,
-    output: GlobalArgsLaunch<R>,
+fn launch_inner_fix_dtype<A: BatchMatmulRoutine<()>>(
+    client: &Client,
+    input: FusedMatmulInputLaunch,
+    output: GlobalArgsLaunch,
     problem: MatmulProblem,
     vector_sizes: MatmulVectorSizes,
     blueprint_strategy: &BlueprintStrategy<(), A>,
 ) -> Result<(), MatmulSetupError> {
-    launch_kernel_virtual::<FusedMatmulArgs, R, A>(
+    launch_kernel_virtual::<FusedMatmulArgs, A>(
         client,
         input,
         output,
@@ -711,7 +741,17 @@ fn launch_inner_fix_dtype<R: Runtime, A: BatchMatmulRoutine<()>>(
 /// Name of the matmul fusion optimization.
 pub const NAME: &str = "Matmul";
 
-impl<R: Runtime> FusedOperation<R> for MatmulOptimization<R> {
+impl FusedOperation for MatmulOptimization {
+    fn max_relative_shape_id(&self) -> Option<usize> {
+        [
+            self.info.trace.max_relative_shape_id(),
+            self.info.trace_fallback.max_relative_shape_id(),
+        ]
+        .into_iter()
+        .flatten()
+        .max()
+    }
+
     const NAME: &'static str = self::NAME;
     type State = MatmulOptimizationState;
 
@@ -721,8 +761,8 @@ impl<R: Runtime> FusedOperation<R> for MatmulOptimization<R> {
 
     fn run(
         &mut self,
-        context: &mut Context<CubeFusionHandle<R>>,
-        fallback: &dyn Fn(usize) -> Box<dyn FallbackOperation<R>>,
+        context: &mut Context<CubeFusionHandle>,
+        fallback: &dyn Fn(usize) -> Box<dyn FallbackOperation>,
     ) {
         Self::execute(self, context, |index| fallback(index))
     }
@@ -731,7 +771,7 @@ impl<R: Runtime> FusedOperation<R> for MatmulOptimization<R> {
         Self::to_state(self)
     }
 
-    fn from_state(device: &R::Device, state: Self::State) -> Self {
+    fn from_state(device: &cubecl::Device, state: Self::State) -> Self {
         Self::from_state(device, state)
     }
 }

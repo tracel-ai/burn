@@ -16,7 +16,9 @@ workspace = true
 
 [features]
 default = ["std", "simd", "rayon"]
-doc = ["default"]
+doc = ["default", "fft"]
+# Native FFT kernels, enabled by burn-signal.
+fft = []
 std = [
     "gemm/std",
     "burn-backend/std",
@@ -38,7 +40,6 @@ critical-section = [
     "once_cell/critical-section",
     "dep:portable-atomic",
     "portable-atomic/critical-section",
-    "dep:portable-atomic-util",
 ]
 
 [dependencies]
@@ -71,11 +72,10 @@ rayon = { workspace = true, optional = true }
 # no_std targets without atomic CAS (enabled via `critical-section` feature)
 once_cell = { workspace = true, optional = true }
 portable-atomic = { workspace = true, optional = true }
-portable-atomic-util = { workspace = true, optional = true }
 
 [dev-dependencies]
 realfft = { workspace = true }
 
 [package.metadata.docs.rs]
-features = ["default"]
+features = ["doc"]
 rustdoc-args = ["--cfg", "docsrs"]

@@ -36,6 +36,7 @@ burn-std = { workspace = true, features = ["default"] }
 cubecl = { workspace = true }
 cubek = { workspace = true, features = [
     "matmul",
+    "matmul-multi-level",
     "reduce",
     "quantization",
     "stdlib",
@@ -47,7 +48,7 @@ burn-backend = { workspace = true, features = ["cubecl"] }
 
 derive-new = { workspace = true }
 hashbrown = { workspace = true }
-rmp-serde = { workspace = true }
+ciborium = { workspace = true }
 serde = { workspace = true }
 spin = { workspace = true }
 

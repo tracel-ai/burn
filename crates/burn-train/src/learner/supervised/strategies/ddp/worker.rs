@@ -100,7 +100,9 @@ impl<M: LearnerModel> DdpWorker<M> {
                     .process_train(LearnerEvent::EndSplit(epoch));
             }
 
-            if interrupter.should_stop() {
+            // Workers using early stopping must all reach the epoch barrier below. Validation will
+            // observe the interruption and return promptly on the main worker.
+            if interrupter.should_stop() && self.components.early_stopping.is_none() {
                 break;
             }
 
@@ -124,6 +126,21 @@ impl<M: LearnerModel> DdpWorker<M> {
                 );
                 event_processor.process_valid(LearnerEvent::EndSplit(epoch));
                 event_processor.process_train(LearnerEvent::EndEpoch(epoch));
+            }
+
+            if self.components.early_stopping.is_some() {
+                // Only the main worker runs validation, so every worker waits for its validation
+                // and epoch end events to be queued before draining the event processor. This way
+                // early stopping never reads a missing or stale metric value.
+                self.components.epoch_barrier.wait();
+            }
+
+            if self.checkpointer.is_some() || self.components.early_stopping.is_some() {
+                self.event_processor.lock().unwrap().flush();
+            }
+
+            if interrupter.should_stop() {
+                break;
             }
 
             if let Some(checkpointer) = &mut self.checkpointer {

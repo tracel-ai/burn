@@ -23,3 +23,20 @@ fn test_full_precision() {
     assert!(x1_grad.is_some());
     assert!(x2_grad.is_some());
 }
+
+#[test]
+fn one_hot_preserves_autodiff_device() {
+    let device = AutodiffDevice::new();
+    let targets = TestTensorInt::<1>::from_data([0, 1], &device);
+    assert!(targets.device().is_autodiff());
+    let one_hot = targets.one_hot::<2>(2).float();
+
+    assert!(one_hot.device().is_autodiff());
+
+    let logits = TestTensor::<2>::ones([2, 2], &device).require_grad();
+    let loss = (logits.clone() * one_hot).sum();
+    let grads = loss.backward();
+
+    let logits_grad = logits.grad(&grads).expect("logits should have gradients");
+    assert!(!logits_grad.device().is_autodiff());
+}

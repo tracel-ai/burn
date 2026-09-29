@@ -5,9 +5,26 @@ use crate::{
     stream::{MultiStream, ReadPlan, StreamId},
 };
 use burn_backend::{TensorData, backend::ExecutionError};
-use burn_ir::{HandleContainer, OperationIr, TensorId, TensorIr, TensorStatus};
+use burn_ir::{HandleContainer, OperationIr, TensorError, TensorId, TensorIr, TensorStatus};
 use burn_std::{CommunicationId, sync::RwLock};
 use hashbrown::HashSet;
+
+/// The failure a read found, as the error a read reports.
+///
+/// [`TensorError`] is how the failure is carried while it claims a tensor;
+/// [`ExecutionError`] is how a caller receives it.
+///
+/// At depth zero this tensor is an output of the work that actually failed,
+/// so the caller gets that error itself — its variant and its backtrace
+/// intact, rather than a rendering of it. Below a skip there is a second
+/// fact to report, how far down the chain this tensor sits, and no error of
+/// its own to lose: `Display` names both.
+fn execution_error(error: TensorError) -> ExecutionError {
+    match error.depth() {
+        0 => error.cause().clone(),
+        _ => ExecutionError::with_context(format!("{error}")),
+    }
+}
 
 pub(crate) struct FusionUtilities {
     // Used in client using a downcast.
@@ -93,35 +110,68 @@ where
         }
     }
 
-    pub fn read_float<B>(&mut self, tensor: TensorIr, id: StreamId) -> B::FloatTensorPrimitive
+    pub fn read_float<B>(
+        &mut self,
+        tensor: TensorIr,
+        id: StreamId,
+    ) -> Result<B::FloatTensorPrimitive, TensorError>
     where
         B: FusionBackend<FusionRuntime = R>,
     {
         // The underlying backend can still be async.
         let tensor = self.prepare_read(&tensor, id);
-        let tensor_float = self.handles.get_float_tensor::<B>(&tensor);
+        // Asked after the drain, which is what runs the work that was going to
+        // write this tensor — and so what records the failure claiming it if
+        // that work never got there.
+        let tensor_float = match self.handles.take_error(&tensor) {
+            Some(error) => Err(error),
+            None => Ok(self.handles.get_float_tensor::<B>(&tensor)),
+        };
+        // Stream bookkeeping either way: the read happened, whatever it found.
         self.streams.mark_read(id, &tensor, &self.handles);
         tensor_float
     }
 
-    pub fn read_int<B>(&mut self, tensor: TensorIr, id: StreamId) -> B::IntTensorPrimitive
+    pub fn read_int<B>(
+        &mut self,
+        tensor: TensorIr,
+        id: StreamId,
+    ) -> Result<B::IntTensorPrimitive, TensorError>
     where
         B: FusionBackend<FusionRuntime = R>,
     {
         // The underlying backend can still be async.
         let tensor = self.prepare_read(&tensor, id);
-        let tensor_int = self.handles.get_int_tensor::<B>(&tensor);
+        // Asked after the drain, which is what runs the work that was going to
+        // write this tensor — and so what records the failure claiming it if
+        // that work never got there.
+        let tensor_int = match self.handles.take_error(&tensor) {
+            Some(error) => Err(error),
+            None => Ok(self.handles.get_int_tensor::<B>(&tensor)),
+        };
+        // Stream bookkeeping either way: the read happened, whatever it found.
         self.streams.mark_read(id, &tensor, &self.handles);
         tensor_int
     }
 
-    pub fn read_bool<B>(&mut self, tensor: TensorIr, id: StreamId) -> B::BoolTensorPrimitive
+    pub fn read_bool<B>(
+        &mut self,
+        tensor: TensorIr,
+        id: StreamId,
+    ) -> Result<B::BoolTensorPrimitive, TensorError>
     where
         B: FusionBackend<FusionRuntime = R>,
     {
         // The underlying backend can still be async.
         let tensor = self.prepare_read(&tensor, id);
-        let tensor_bool = self.handles.get_bool_tensor::<B>(&tensor);
+        // Asked after the drain, which is what runs the work that was going to
+        // write this tensor — and so what records the failure claiming it if
+        // that work never got there.
+        let tensor_bool = match self.handles.take_error(&tensor) {
+            Some(error) => Err(error),
+            None => Ok(self.handles.get_bool_tensor::<B>(&tensor)),
+        };
+        // Stream bookkeeping either way: the read happened, whatever it found.
         self.streams.mark_read(id, &tensor, &self.handles);
         tensor_bool
     }
@@ -130,13 +180,20 @@ where
         &mut self,
         tensor: TensorIr,
         id: StreamId,
-    ) -> B::QuantizedTensorPrimitive
+    ) -> Result<B::QuantizedTensorPrimitive, TensorError>
     where
         B: FusionBackend<FusionRuntime = R>,
     {
         // The underlying backend can still be async.
         let tensor = self.prepare_read(&tensor, id);
-        let tensor_q = self.handles.get_quantized_tensor::<B>(&tensor);
+        // Asked after the drain, which is what runs the work that was going to
+        // write this tensor — and so what records the failure claiming it if
+        // that work never got there.
+        let tensor_q = match self.handles.take_error(&tensor) {
+            Some(error) => Err(error),
+            None => Ok(self.handles.get_quantized_tensor::<B>(&tensor)),
+        };
+        // Stream bookkeeping either way: the read happened, whatever it found.
         self.streams.mark_read(id, &tensor, &self.handles);
         tensor_q
     }
@@ -149,7 +206,17 @@ where
     where
         B: FusionBackend<FusionRuntime = R>,
     {
-        B::float_into_data(self.read_float::<B>(tensor, id))
+        // The claim check is synchronous and belongs with the drain that
+        // records it, so it runs here on the server thread; only the backend's
+        // read is awaited.
+        let read = self.read_float::<B>(tensor, id).map(B::float_into_data);
+
+        async move {
+            match read {
+                Ok(data) => data.await,
+                Err(error) => Err(execution_error(error)),
+            }
+        }
     }
 
     pub fn int_data<B>(
@@ -160,7 +227,17 @@ where
     where
         B: FusionBackend<FusionRuntime = R>,
     {
-        B::int_into_data(self.read_int::<B>(tensor, id))
+        // The claim check is synchronous and belongs with the drain that
+        // records it, so it runs here on the server thread; only the backend's
+        // read is awaited.
+        let read = self.read_int::<B>(tensor, id).map(B::int_into_data);
+
+        async move {
+            match read {
+                Ok(data) => data.await,
+                Err(error) => Err(execution_error(error)),
+            }
+        }
     }
 
     pub fn bool_data<B>(
@@ -171,7 +248,17 @@ where
     where
         B: FusionBackend<FusionRuntime = R>,
     {
-        B::bool_into_data(self.read_bool::<B>(tensor, id))
+        // The claim check is synchronous and belongs with the drain that
+        // records it, so it runs here on the server thread; only the backend's
+        // read is awaited.
+        let read = self.read_bool::<B>(tensor, id).map(B::bool_into_data);
+
+        async move {
+            match read {
+                Ok(data) => data.await,
+                Err(error) => Err(execution_error(error)),
+            }
+        }
     }
 
     pub fn quantized_data<B>(
@@ -182,7 +269,17 @@ where
     where
         B: FusionBackend<FusionRuntime = R>,
     {
-        B::q_into_data(self.read_quantized::<B>(tensor, id))
+        // The claim check is synchronous and belongs with the drain that
+        // records it, so it runs here on the server thread; only the backend's
+        // read is awaited.
+        let read = self.read_quantized::<B>(tensor, id).map(B::q_into_data);
+
+        async move {
+            match read {
+                Ok(data) => data.await,
+                Err(error) => Err(execution_error(error)),
+            }
+        }
     }
 
     pub fn resolve_server_float<B>(&mut self, tensor: &TensorIr) -> B::FloatTensorPrimitive

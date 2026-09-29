@@ -20,10 +20,9 @@ use crate::Interrupter;
 ///     a terminal, or
 ///   - `CliMetricsRenderer`, when the `tui` feature is not enabled, or `stdout`
 ///     is not a terminal.
-#[allow(unused_variables)]
-pub(crate) fn default_renderer(
-    interuptor: Interrupter,
-    checkpoint: Option<usize>,
+pub fn default_renderer(
+    #[cfg_attr(not(feature = "tui"), allow(unused_variables))] interuptor: Interrupter,
+    #[cfg_attr(not(feature = "tui"), allow(unused_variables))] checkpoint: Option<usize>,
 ) -> Box<dyn MetricsRenderer> {
     #[cfg(feature = "tui")]
     if std::io::stdout().is_terminal() {

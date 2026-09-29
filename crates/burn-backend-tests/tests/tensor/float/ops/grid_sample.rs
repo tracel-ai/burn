@@ -124,3 +124,33 @@ fn should_pad_reflection_grid_sample_2d() {
         .to_data()
         .assert_approx_eq::<FloatElem>(&expected, Tolerance::default());
 }
+
+/// Tests nearest grid_sample_2d on coordinates that fall exactly halfway between two pixels.
+///
+/// PyTorch picks the pixel with `nearbyint`, so ties go to the even index. For a 2x4 input with
+/// align_corners=false:
+/// - (-0.5, -0.5) maps to pixel (0.5, 0.0) -> x rounds to 0 -> 0.0
+/// - (0.0, -0.5) maps to pixel (1.5, 0.0) -> x rounds to 2 -> 2.0
+/// - (0.5, -0.5) maps to pixel (2.5, 0.0) -> x rounds to 2 -> 2.0
+/// - (-0.75, 0.0) maps to pixel (0.0, 0.5) -> y rounds to 0 -> 0.0
+///
+/// Other backends do not implement nearest grid sampling yet.
+#[cfg(feature = "flex")]
+#[test]
+fn should_grid_sample_2d_nearest_round_half_to_even() {
+    let device = Default::default();
+    let tensor =
+        TestTensor::<4>::from_data([[[[0.0, 1.0, 2.0, 3.0], [4.0, 5.0, 6.0, 7.0]]]], &device);
+    let grid = TestTensor::<4>::from_data(
+        [[[[-0.5, -0.5], [0.0, -0.5], [0.5, -0.5], [-0.75, 0.0]]]],
+        &device,
+    );
+
+    let output = tensor.grid_sample_2d(grid, InterpolateMode::Nearest);
+
+    // Expected values follow PyTorch's nearbyint rule for grid_sample(mode='nearest')
+    let expected = TensorData::from([[[[0.0, 2.0, 2.0, 0.0]]]]);
+    output
+        .to_data()
+        .assert_approx_eq::<FloatElem>(&expected, Tolerance::default());
+}

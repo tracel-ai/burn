@@ -4,7 +4,7 @@ use burn_backend::{
     ops::{IntTensorOps, TransactionPrimitive},
 };
 use burn_dispatch::Dispatch;
-use burn_std::{DType, ExecutionError, IndexingUpdateOp, Shape, Slice};
+use burn_std::{DType, ExecutionError, IndexingUpdateOp, PadMode, Shape, Slice};
 
 use crate::{
     Device, Int,
@@ -85,15 +85,13 @@ impl BasicOps for Int {
         values: BridgeTensor,
         update: IndexingUpdateOp,
     ) -> BridgeTensor {
-        match update {
-            IndexingUpdateOp::Add => BridgeTensor::int(Dispatch::int_select_add(
-                tensor.into(),
-                dim,
-                indices.into(),
-                values.into(),
-            )),
-            _ => unimplemented!(),
-        }
+        BridgeTensor::int(Dispatch::int_select_assign(
+            tensor.into(),
+            dim,
+            indices.into(),
+            values.into(),
+            update,
+        ))
     }
 
     fn mask_where(tensor: BridgeTensor, mask: BridgeTensor, source: BridgeTensor) -> BridgeTensor {
@@ -108,6 +106,10 @@ impl BasicOps for Int {
         BridgeTensor::int(Dispatch::int_mask_fill(tensor.into(), mask.into(), value))
     }
 
+    async fn mask_select(tensor: BridgeTensor, mask: BridgeTensor) -> BridgeTensor {
+        BridgeTensor::int(Dispatch::int_mask_select(tensor.into(), mask.into()).await)
+    }
+
     fn gather(dim: usize, tensor: BridgeTensor, indices: BridgeTensor) -> BridgeTensor {
         BridgeTensor::int(Dispatch::int_gather(dim, tensor.into(), indices.into()))
     }
@@ -119,15 +121,13 @@ impl BasicOps for Int {
         values: BridgeTensor,
         update: IndexingUpdateOp,
     ) -> BridgeTensor {
-        match update {
-            IndexingUpdateOp::Add => BridgeTensor::int(Dispatch::int_scatter_add(
-                dim,
-                tensor.into(),
-                indices.into(),
-                values.into(),
-            )),
-            _ => unimplemented!(),
-        }
+        BridgeTensor::int(Dispatch::int_scatter(
+            dim,
+            tensor.into(),
+            indices.into(),
+            values.into(),
+            update,
+        ))
     }
 
     fn scatter_nd(
@@ -236,6 +236,10 @@ impl BasicOps for Int {
 }
 
 impl Numeric for Int {
+    fn pad(tensor: BridgeTensor, padding: &[(usize, usize)], mode: PadMode) -> BridgeTensor {
+        BridgeTensor::int(Dispatch::int_pad(tensor.into(), padding, mode))
+    }
+
     fn add(lhs: BridgeTensor, rhs: BridgeTensor) -> BridgeTensor {
         BridgeTensor::int(Dispatch::int_add(lhs.into(), rhs.into()))
     }
@@ -278,6 +282,11 @@ impl Numeric for Int {
         BridgeTensor::int(Dispatch::int_sum_dim(tensor.into(), dim))
     }
 
+    fn sum_dims(tensor: BridgeTensor, dims: &[usize]) -> BridgeTensor {
+        dims.iter()
+            .fold(tensor, |tensor, &dim| Self::sum_dim(tensor, dim))
+    }
+
     fn prod(tensor: BridgeTensor) -> BridgeTensor {
         BridgeTensor::int(Dispatch::int_prod(tensor.into()))
     }
@@ -287,9 +296,19 @@ impl Numeric for Int {
     }
 
     fn mean(tensor: BridgeTensor) -> BridgeTensor {
+        // A float mean of nothing is `NaN`; an integer has no such value. Checked here rather than
+        // in `int_mean` so a backend that overrides it cannot report an arbitrary number instead.
+        assert!(
+            tensor.shape().num_elements() > 0,
+            "Cannot compute mean of an empty int tensor"
+        );
         BridgeTensor::int(Dispatch::int_mean(tensor.into()))
     }
     fn mean_dim(tensor: BridgeTensor, dim: usize) -> BridgeTensor {
+        assert!(
+            tensor.shape()[dim] > 0,
+            "Cannot compute mean of an empty axis for an int tensor"
+        );
         BridgeTensor::int(Dispatch::int_mean_dim(tensor.into(), dim))
     }
     fn cumsum(tensor: BridgeTensor, dim: usize) -> BridgeTensor {

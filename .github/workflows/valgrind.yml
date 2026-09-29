@@ -25,7 +25,7 @@ jobs:
         uses: actions/checkout@v7
       # --------------------------------------------------------------------------------
       - name: Install Mesa
-        uses: tracel-ai/github-actions/install-mesa@v9
+        uses: tracel-ai/github-actions/install-mesa@v11
       # --------------------------------------------------------------------------------
       - name: Install valgrind
         run: |

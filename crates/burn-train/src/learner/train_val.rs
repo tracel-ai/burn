@@ -1,5 +1,5 @@
 use crate::{ItemLazy, renderer::MetricsRenderer};
-use burn_core::{module::AutodiffModule, tensor::Gradients};
+use burn_core::{module::Module, tensor::Gradients};
 use burn_optim::{
     GradientsParams, ModuleOptimizer, MultiGradientsParams,
     lr_scheduler::module_lr_scheduler::ModuleLearningRate,
@@ -26,7 +26,7 @@ impl<TO> TrainOutput<TO> {
     /// # Returns
     ///
     /// A new training output.
-    pub fn new<M: AutodiffModule>(module: &M, grads: Gradients, item: TO) -> Self {
+    pub fn new<M: Module>(module: &M, grads: Gradients, item: TO) -> Self {
         let grads = GradientsParams::from_grads(grads, module);
         Self { grads, item }
     }
@@ -43,8 +43,7 @@ impl<TO> TrainOutput<TO> {
 /// # Notes
 ///
 /// To be used with the [Learner](crate::Learner) struct, the struct which implements this trait must
-/// also implement the [AutodiffModule] trait, which is done automatically with the
-/// [Module](burn_core::module::Module) derive.
+/// also implement the [Module] trait, which is done automatically with its derive.
 pub trait TrainStep {
     /// Type of input for a step of the training stage.
     type Input: Send + 'static;
@@ -78,7 +77,7 @@ pub trait TrainStep {
         grads: GradientsParams,
     ) -> Self
     where
-        Self: AutodiffModule + Sized,
+        Self: Module + Sized,
     {
         optim.step(lr_module, self, grads)
     }
@@ -100,7 +99,7 @@ pub trait TrainStep {
         grads: MultiGradientsParams,
     ) -> Self
     where
-        Self: AutodiffModule + Sized,
+        Self: Module + Sized,
     {
         optim.step_multi(lr_module, self, grads)
     }
@@ -126,7 +125,10 @@ pub trait InferenceStep {
 
 /// The result of a training, containing the model along with the [renderer](MetricsRenderer).
 pub struct LearningResult<M> {
-    /// The model with the learned weights.
+    /// The model with the learned weights, converted to validation mode.
+    ///
+    /// Call [`Module::train`](burn_core::module::Module::train) before using it for follow-up
+    /// training. To continue on another device, use `model.train().fork(device)`.
     pub model: M,
     /// The renderer that can be used for follow up training and evaluation.
     pub renderer: Box<dyn MetricsRenderer>,

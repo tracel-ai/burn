@@ -25,10 +25,10 @@ tracing = [
     "burn-backend/tracing",
 ]
 
-client = ["tokio/sync"]
+client = ["tokio/sync", "tokio/rt"]
 # Cache recurring op-groups on the server and invoke them by id. Wraps `RemoteBackend` in `Fusion`.
 fusion = ["client", "dep:burn-fusion", "burn-router/fusion"]
-server = ["tokio/sync"]
+server = ["tokio/sync", "dep:tracing-subscriber"]
 iroh = ["dep:iroh", "tokio/io-util"]
 websocket = [
     "server",
@@ -36,6 +36,7 @@ websocket = [
     "burn-communication/websocket",
     "burn-communication/data-service",
     "dep:tokio-util",
+    "tokio/net",
 ]
 
 
@@ -62,6 +63,7 @@ rmp-serde = { workspace = true }
 iroh = { workspace = true, optional = true }
 
 tokio-util = { workspace = true, optional = true }
+tracing-subscriber = { workspace = true, features = ["default", "fmt", "env-filter"], optional = true }
 
 # Native server runtime: multi-thread, timers, signals. The wasm build uses the JS event loop/timers.
 [target.'cfg(not(target_family = "wasm"))'.dependencies]
@@ -75,7 +77,7 @@ futures-util = { workspace = true }
 [dev-dependencies]
 # Use path instead of workspace dep (which specifies a version, creating a circular publish dependency chain)
 burn-flex = { path = "../burn-flex", features = ["default"] }
-burn-tensor = { path = "../burn-tensor", features = ["default", "remote-websocket"] }
+burn-tensor = { path = "../burn-tensor", features = ["default", "flex", "remote-websocket"] }
 
 [package.metadata.docs.rs]
 features = ["doc"]

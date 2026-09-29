@@ -128,6 +128,10 @@ impl BasicOps for Bool {
         BridgeTensor::bool(Dispatch::bool_mask_fill(tensor.into(), mask.into(), value))
     }
 
+    async fn mask_select(tensor: BridgeTensor, mask: BridgeTensor) -> BridgeTensor {
+        BridgeTensor::bool(Dispatch::bool_mask_select(tensor.into(), mask.into()).await)
+    }
+
     fn gather(dim: usize, tensor: BridgeTensor, indices: BridgeTensor) -> BridgeTensor {
         BridgeTensor::bool(Dispatch::bool_gather(dim, tensor.into(), indices.into()))
     }

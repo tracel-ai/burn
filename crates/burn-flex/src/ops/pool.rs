@@ -10,7 +10,7 @@
 use alloc::vec;
 use alloc::vec::Vec;
 use burn_backend::{DType, Element};
-use burn_std::{Bytes, Shape, bf16, f16};
+use burn_std::{Bytes, ElementAdd, Shape, bf16, f16};
 
 use crate::{FlexTensor, Layout};
 
@@ -45,7 +45,7 @@ macro_rules! max_pool3d_with_indices_typed {
 
 /// Generates avg_pool3d typed dispatchers.
 macro_rules! avg_pool3d_typed {
-    ($fn_name:ident, $T:ty, $dtype:expr, $zero:expr, $add_fn:expr, $div_fn:expr) => {
+    ($fn_name:ident, $T:ty, $dtype:expr, $zero:expr, $div_fn:expr) => {
         pub fn $fn_name(
             x: FlexTensor,
             kernel_size: [usize; 3],
@@ -54,7 +54,7 @@ macro_rules! avg_pool3d_typed {
             count_include_pad: bool,
             ceil_mode: bool,
         ) -> FlexTensor {
-            avg_pool3d_impl::<$T>(
+            avg_pool3d_impl::<$T, _>(
                 x,
                 kernel_size,
                 stride,
@@ -63,7 +63,6 @@ macro_rules! avg_pool3d_typed {
                 ceil_mode,
                 $dtype,
                 $zero,
-                $add_fn,
                 $div_fn,
             )
         }
@@ -72,30 +71,22 @@ macro_rules! avg_pool3d_typed {
 
 /// Generates adaptive_avg_pool3d typed dispatchers.
 macro_rules! adaptive_avg_pool3d_typed {
-    ($fn_name:ident, $T:ty, $dtype:expr, $zero:expr, $add_fn:expr, $div_fn:expr) => {
+    ($fn_name:ident, $T:ty, $dtype:expr, $zero:expr, $div_fn:expr) => {
         pub fn $fn_name(x: FlexTensor, output_size: [usize; 3]) -> FlexTensor {
-            adaptive_avg_pool3d_impl::<$T>(x, output_size, $dtype, $zero, $add_fn, $div_fn)
+            adaptive_avg_pool3d_impl::<$T, _>(x, output_size, $dtype, $zero, $div_fn)
         }
     };
 }
 
 /// Generates max_pool3d_backward typed dispatchers.
 macro_rules! max_pool3d_backward_typed {
-    ($fn_name:ident, $T:ty, $dtype:expr, $zero:expr, $add_fn:expr) => {
+    ($fn_name:ident, $T:ty, $dtype:expr, $zero:expr) => {
         pub fn $fn_name(x: FlexTensor, grad: FlexTensor, indices: FlexTensor) -> FlexTensor {
             match indices.dtype() {
-                DType::I64 => {
-                    max_pool3d_backward_impl::<$T, i64>(x, grad, indices, $dtype, $zero, $add_fn)
-                }
-                DType::I32 => {
-                    max_pool3d_backward_impl::<$T, i32>(x, grad, indices, $dtype, $zero, $add_fn)
-                }
-                DType::I16 => {
-                    max_pool3d_backward_impl::<$T, i16>(x, grad, indices, $dtype, $zero, $add_fn)
-                }
-                DType::I8 => {
-                    max_pool3d_backward_impl::<$T, i8>(x, grad, indices, $dtype, $zero, $add_fn)
-                }
+                DType::I64 => max_pool3d_backward_impl::<$T, i64>(x, grad, indices, $dtype, $zero),
+                DType::I32 => max_pool3d_backward_impl::<$T, i32>(x, grad, indices, $dtype, $zero),
+                DType::I16 => max_pool3d_backward_impl::<$T, i16>(x, grad, indices, $dtype, $zero),
+                DType::I8 => max_pool3d_backward_impl::<$T, i8>(x, grad, indices, $dtype, $zero),
                 other => panic!("max_pool3d_backward: unsupported index dtype {other:?}",),
             }
         }
@@ -104,7 +95,7 @@ macro_rules! max_pool3d_backward_typed {
 
 /// Generates avg_pool3d_backward typed dispatchers.
 macro_rules! avg_pool3d_backward_typed {
-    ($fn_name:ident, $T:ty, $dtype:expr, $zero:expr, $add_fn:expr, $div_fn:expr) => {
+    ($fn_name:ident, $T:ty, $dtype:expr, $zero:expr, $div_fn:expr) => {
         pub fn $fn_name(
             x: FlexTensor,
             grad: FlexTensor,
@@ -122,7 +113,6 @@ macro_rules! avg_pool3d_backward_typed {
                 count_include_pad,
                 $dtype,
                 $zero,
-                $add_fn,
                 $div_fn,
             )
         }
@@ -131,9 +121,9 @@ macro_rules! avg_pool3d_backward_typed {
 
 /// Generates adaptive_avg_pool3d_backward typed dispatchers.
 macro_rules! adaptive_avg_pool3d_backward_typed {
-    ($fn_name:ident, $T:ty, $dtype:expr, $zero:expr, $add_fn:expr, $div_fn:expr) => {
+    ($fn_name:ident, $T:ty, $dtype:expr, $zero:expr, $div_fn:expr) => {
         pub fn $fn_name(x: FlexTensor, grad: FlexTensor) -> FlexTensor {
-            adaptive_avg_pool3d_backward_impl::<$T>(x, grad, $dtype, $zero, $add_fn, $div_fn)
+            adaptive_avg_pool3d_backward_impl::<$T>(x, grad, $dtype, $zero, $div_fn)
         }
     };
 }
@@ -160,7 +150,14 @@ fn pool_output_size(
     }
     let numerator = padded - effective_kernel;
     if ceil_mode {
-        numerator.div_ceil(stride) + 1
+        let out = numerator.div_ceil(stride) + 1;
+        // Drop the last window if it would start at or past the end of the input
+        // (in the trailing padding, or beyond the input without padding) (PyTorch/ONNX)
+        if (out - 1) * stride >= input + padding {
+            out - 1
+        } else {
+            out
+        }
     } else {
         numerator / stride + 1
     }
@@ -203,6 +200,33 @@ pub fn max_pool3d_with_indices_bf16(
     (convert_f32_to_bf16(&output_f32), indices)
 }
 
+#[inline]
+fn valid_range_maxpool(
+    out: usize,
+    kernel: usize,
+    stride: usize,
+    pad: usize,
+    dilation: usize,
+    input: usize,
+) -> (usize, usize) {
+    let out = out as isize;
+    let kernel = kernel as isize;
+    let stride = stride as isize;
+    let pad = pad as isize;
+    let dilation = dilation as isize;
+    let input = input as isize;
+
+    let p = pad - out * stride;
+    let start = if p > 0 { (p - 1) / dilation + 1 } else { 0 };
+    let start = start.max(0).min(kernel);
+
+    let c = input + pad - out * stride;
+    let end = if c > 0 { (c - 1) / dilation + 1 } else { 0 };
+    let end = end.max(0).min(kernel).max(start);
+
+    (start as usize, end as usize)
+}
+
 /// Generic 3D max pooling with indices implementation.
 #[allow(clippy::too_many_arguments)]
 fn max_pool3d_with_indices_impl<T>(
@@ -216,7 +240,7 @@ fn max_pool3d_with_indices_impl<T>(
     neg_inf: T,
 ) -> (FlexTensor, FlexTensor)
 where
-    T: bytemuck::Pod + Copy + PartialOrd + Send + Sync + Element,
+    T: bytemuck::Pod + Copy + PartialOrd + Send + Sync + Element + num_traits::Float,
 {
     let x = x.to_contiguous();
     let x_shape = x.layout().shape();
@@ -238,6 +262,44 @@ where
 
     let spatial_out = out_d * out_h * out_w;
     let x_data: &[T] = x.storage();
+    let kernel = |od: usize, oh: usize, ow: usize, x_offset: usize| {
+        let (kd_start, kd_end) =
+            valid_range_maxpool(od, kernel_d, stride_d, pad_d, dilation_d, in_d);
+        let (kh_start, kh_end) =
+            valid_range_maxpool(oh, kernel_h, stride_h, pad_h, dilation_h, in_h);
+        let (kw_start, kw_end) =
+            valid_range_maxpool(ow, kernel_w, stride_w, pad_w, dilation_w, in_w);
+
+        let mut max_val = neg_inf;
+        let mut max_idx: i64 = -1;
+
+        for kd in kd_start..kd_end {
+            // These subtractions are safe because valid_range guarantees no underflow.
+            let id = od * stride_d + kd * dilation_d - pad_d;
+            let id_base = id * in_h * in_w;
+
+            for kh in kh_start..kh_end {
+                let ih = oh * stride_h + kh * dilation_h - pad_h;
+                let ih_base = ih * in_w;
+
+                for kw in kw_start..kw_end {
+                    let iw = ow * stride_w + kw * dilation_w - pad_w;
+
+                    let x_idx = x_offset + id_base + ih_base + iw;
+                    let val = x_data[x_idx];
+
+                    // NaN always wins, so it propagates like in PyTorch, which also
+                    // reports the index of the last NaN in the window.
+                    if max_idx < 0 || val > max_val || val.is_nan() {
+                        max_val = val;
+                        max_idx = (id_base + ih_base + iw) as i64;
+                    }
+                }
+            }
+        }
+
+        (max_val, max_idx)
+    };
 
     let (output, indices) = {
         #[cfg(feature = "rayon")]
@@ -262,43 +324,7 @@ where
                     for oh in 0..out_h {
                         for ow in 0..out_w {
                             let out_idx = out_offset + od * out_h * out_w + oh * out_w + ow;
-                            let mut max_val = neg_inf;
-                            let mut max_idx: i64 = -1;
-
-                            for kd in 0..kernel_d {
-                                let id =
-                                    (od * stride_d + kd * dilation_d) as isize - pad_d as isize;
-                                if id < 0 || id >= in_d as isize {
-                                    continue;
-                                }
-                                let id = id as usize;
-
-                                for kh in 0..kernel_h {
-                                    let ih =
-                                        (oh * stride_h + kh * dilation_h) as isize - pad_h as isize;
-                                    if ih < 0 || ih >= in_h as isize {
-                                        continue;
-                                    }
-                                    let ih = ih as usize;
-
-                                    for kw in 0..kernel_w {
-                                        let iw = (ow * stride_w + kw * dilation_w) as isize
-                                            - pad_w as isize;
-                                        if iw < 0 || iw >= in_w as isize {
-                                            continue;
-                                        }
-                                        let iw = iw as usize;
-
-                                        let x_idx = x_offset + id * in_h * in_w + ih * in_w + iw;
-                                        let val = x_data[x_idx];
-
-                                        if max_idx < 0 || val > max_val {
-                                            max_val = val;
-                                            max_idx = (id * in_h * in_w + ih * in_w + iw) as i64;
-                                        }
-                                    }
-                                }
-                            }
+                            let (max_val, max_idx) = kernel(od, oh, ow, x_offset);
 
                             unsafe {
                                 out_ptr.write(out_idx, max_val);
@@ -324,45 +350,7 @@ where
                         for oh in 0..out_h {
                             for ow in 0..out_w {
                                 let out_idx = out_offset + od * out_h * out_w + oh * out_w + ow;
-                                let mut max_val = neg_inf;
-                                let mut max_idx: i64 = -1;
-
-                                for kd in 0..kernel_d {
-                                    let id =
-                                        (od * stride_d + kd * dilation_d) as isize - pad_d as isize;
-                                    if id < 0 || id >= in_d as isize {
-                                        continue;
-                                    }
-                                    let id = id as usize;
-
-                                    for kh in 0..kernel_h {
-                                        let ih = (oh * stride_h + kh * dilation_h) as isize
-                                            - pad_h as isize;
-                                        if ih < 0 || ih >= in_h as isize {
-                                            continue;
-                                        }
-                                        let ih = ih as usize;
-
-                                        for kw in 0..kernel_w {
-                                            let iw = (ow * stride_w + kw * dilation_w) as isize
-                                                - pad_w as isize;
-                                            if iw < 0 || iw >= in_w as isize {
-                                                continue;
-                                            }
-                                            let iw = iw as usize;
-
-                                            let x_idx =
-                                                x_offset + id * in_h * in_w + ih * in_w + iw;
-                                            let val = x_data[x_idx];
-
-                                            if max_idx < 0 || val > max_val {
-                                                max_val = val;
-                                                max_idx =
-                                                    (id * in_h * in_w + ih * in_w + iw) as i64;
-                                            }
-                                        }
-                                    }
-                                }
+                                let (max_val, max_idx) = kernel(od, oh, ow, x_offset);
 
                                 output[out_idx] = max_val;
                                 indices[out_idx] = max_idx;
@@ -615,28 +603,15 @@ pub fn max_pool1d_f32(
 // Avg Pool 3D - core implementation
 // ============================================================================
 
-avg_pool3d_typed!(
-    avg_pool3d_f32,
-    f32,
-    DType::F32,
-    0.0f32,
-    |a, b| a + b,
-    |sum, count| sum / count as f32
-);
-avg_pool3d_typed!(
-    avg_pool3d_f64,
-    f64,
-    DType::F64,
-    0.0f64,
-    |a, b| a + b,
-    |sum, count| sum / count as f64
-);
+avg_pool3d_typed!(avg_pool3d_f32, f32, DType::F32, 0.0f32, |sum, count| sum
+    / count as f32);
+avg_pool3d_typed!(avg_pool3d_f64, f64, DType::F64, 0.0f64, |sum, count| sum
+    / count as f64);
 avg_pool3d_typed!(
     avg_pool3d_f16,
     f16,
     DType::F16,
     f16::from_f32(0.0),
-    |a: f16, b: f16| f16::from_f32(a.to_f32() + b.to_f32()),
     |sum: f16, count| f16::from_f32(sum.to_f32() / count as f32)
 );
 
@@ -659,10 +634,46 @@ pub fn avg_pool3d_bf16(
     );
     convert_f32_to_bf16(&result_f32)
 }
+#[inline(always)]
+fn padded_len_avgpool(out: usize, kernel: usize, stride: usize, pad: usize, input: usize) -> usize {
+    let out = out as isize;
+    let kernel = kernel as isize;
+    let stride = stride as isize;
+    let pad = pad as isize;
+    let input = input as isize;
+
+    let start = 0isize;
+    let end = (input + 2 * pad - out * stride).max(0).min(kernel);
+
+    (end - start).max(0) as usize
+}
+
+#[inline(always)]
+fn valid_range_avgpool(
+    out: usize,
+    kernel: usize,
+    stride: usize,
+    pad: usize,
+    input: usize,
+) -> (usize, usize) {
+    let out = out as isize;
+    let kernel = kernel as isize;
+    let stride = stride as isize;
+    let pad = pad as isize;
+    let input = input as isize;
+
+    let start = (pad - out * stride).max(0).min(kernel);
+    let end = (input + pad - out * stride).max(0).min(kernel);
+    let end = end.max(start);
+
+    (start as usize, end as usize)
+}
 
 /// Generic 3D average pooling implementation.
 #[allow(clippy::too_many_arguments)]
-fn avg_pool3d_impl<T>(
+#[allow(clippy::extra_unused_type_parameters)]
+#[cfg_attr(feature = "simd", macerator::with_simd)]
+fn avg_pool3d_impl<#[cfg(feature = "simd")] S: macerator::Simd, T, Div>(
     x: FlexTensor,
     kernel_size: [usize; 3],
     stride: [usize; 3],
@@ -671,11 +682,11 @@ fn avg_pool3d_impl<T>(
     ceil_mode: bool,
     dtype: DType,
     zero: T,
-    add_fn: fn(T, T) -> T,
-    div_fn: fn(T, usize) -> T,
+    div_fn: Div,
 ) -> FlexTensor
 where
-    T: bytemuck::Pod + Copy + Send + Sync + Element,
+    T: bytemuck::Pod + Copy + Send + Sync + Element + ElementAdd,
+    Div: Fn(T, usize) -> T + Copy + Send + Sync,
 {
     let x = x.to_contiguous();
     let x_shape = x.layout().shape();
@@ -703,6 +714,39 @@ where
     let x_data: &[T] = x.storage();
     let _kernel_volume = kernel_d * kernel_h * kernel_w;
 
+    let kernel = |od: usize, oh: usize, ow: usize, x_offset: usize| {
+        let pd_len = padded_len_avgpool(od, kernel_d, stride_d, pad_d, in_d);
+        let ph_len = padded_len_avgpool(oh, kernel_h, stride_h, pad_h, in_h);
+        let pw_len = padded_len_avgpool(ow, kernel_w, stride_w, pad_w, in_w);
+
+        let pad_count = pd_len * ph_len * pw_len;
+
+        let (kd_start, kd_end) = valid_range_avgpool(od, kernel_d, stride_d, pad_d, in_d);
+        let (kh_start, kh_end) = valid_range_avgpool(oh, kernel_h, stride_h, pad_h, in_h);
+        let (kw_start, kw_end) = valid_range_avgpool(ow, kernel_w, stride_w, pad_w, in_w);
+
+        let count = (kd_end - kd_start) * (kh_end - kh_start) * (kw_end - kw_start);
+
+        let mut sum = zero;
+
+        for kd in kd_start..kd_end {
+            let id = od * stride_d + kd - pad_d; // safe: valid range guarantees no underflow
+            let id_base = id * in_h * in_w;
+
+            for kh in kh_start..kh_end {
+                let ih = oh * stride_h + kh - pad_h;
+                let ih_base = ih * in_w;
+
+                for kw in kw_start..kw_end {
+                    let iw = ow * stride_w + kw - pad_w;
+                    sum = T::add(sum, x_data[x_offset + id_base + ih_base + iw]);
+                }
+            }
+        }
+
+        (sum, count, pad_count)
+    };
+
     let output = {
         #[cfg(feature = "rayon")]
         {
@@ -722,52 +766,7 @@ where
                     for oh in 0..out_h {
                         for ow in 0..out_w {
                             let out_idx = out_offset + od * out_h * out_w + oh * out_w + ow;
-                            let mut sum = zero;
-                            let mut count = 0usize;
-                            let mut pad_count = 0usize;
-
-                            for kd in 0..kernel_d {
-                                let id = (od * stride_d + kd) as isize - pad_d as isize;
-                                let id_in_bounds =
-                                    id >= -(pad_d as isize) && id < (in_d + pad_d) as isize;
-                                if !id_in_bounds {
-                                    continue;
-                                }
-                                let id_valid = id >= 0 && id < in_d as isize;
-
-                                for kh in 0..kernel_h {
-                                    let ih = (oh * stride_h + kh) as isize - pad_h as isize;
-                                    let ih_in_bounds =
-                                        ih >= -(pad_h as isize) && ih < (in_h + pad_h) as isize;
-                                    if !ih_in_bounds {
-                                        continue;
-                                    }
-                                    let ih_valid = ih >= 0 && ih < in_h as isize;
-
-                                    for kw in 0..kernel_w {
-                                        let iw = (ow * stride_w + kw) as isize - pad_w as isize;
-                                        let iw_in_bounds =
-                                            iw >= -(pad_w as isize) && iw < (in_w + pad_w) as isize;
-                                        if !iw_in_bounds {
-                                            continue;
-                                        }
-
-                                        pad_count += 1;
-
-                                        let iw_valid = iw >= 0 && iw < in_w as isize;
-                                        if !id_valid || !ih_valid || !iw_valid {
-                                            continue;
-                                        }
-
-                                        let id = id as usize;
-                                        let ih = ih as usize;
-                                        let iw = iw as usize;
-                                        let x_idx = x_offset + id * in_h * in_w + ih * in_w + iw;
-                                        sum = add_fn(sum, x_data[x_idx]);
-                                        count += 1;
-                                    }
-                                }
-                            }
+                            let (sum, count, pad_count) = kernel(od, oh, ow, x_offset);
 
                             let divisor = if count_include_pad {
                                 pad_count.max(1)
@@ -797,57 +796,7 @@ where
                         for oh in 0..out_h {
                             for ow in 0..out_w {
                                 let out_idx = out_offset + od * out_h * out_w + oh * out_w + ow;
-                                let mut sum = zero;
-                                let mut count = 0usize;
-
-                                // Track count for count_include_pad (positions within padded bounds)
-                                let mut pad_count = 0usize;
-
-                                for kd in 0..kernel_d {
-                                    let id = (od * stride_d + kd) as isize - pad_d as isize;
-                                    // Check if within padded bounds (not ceil_mode extension)
-                                    let id_in_bounds =
-                                        id >= -(pad_d as isize) && id < (in_d + pad_d) as isize;
-                                    if !id_in_bounds {
-                                        continue; // ceil_mode extension - skip entirely
-                                    }
-                                    let id_valid = id >= 0 && id < in_d as isize;
-
-                                    for kh in 0..kernel_h {
-                                        let ih = (oh * stride_h + kh) as isize - pad_h as isize;
-                                        let ih_in_bounds =
-                                            ih >= -(pad_h as isize) && ih < (in_h + pad_h) as isize;
-                                        if !ih_in_bounds {
-                                            continue;
-                                        }
-                                        let ih_valid = ih >= 0 && ih < in_h as isize;
-
-                                        for kw in 0..kernel_w {
-                                            let iw = (ow * stride_w + kw) as isize - pad_w as isize;
-                                            let iw_in_bounds = iw >= -(pad_w as isize)
-                                                && iw < (in_w + pad_w) as isize;
-                                            if !iw_in_bounds {
-                                                continue;
-                                            }
-
-                                            // Position is within padded bounds
-                                            pad_count += 1;
-
-                                            let iw_valid = iw >= 0 && iw < in_w as isize;
-                                            if !id_valid || !ih_valid || !iw_valid {
-                                                continue; // In padding zone - count but don't add
-                                            }
-
-                                            let id = id as usize;
-                                            let ih = ih as usize;
-                                            let iw = iw as usize;
-                                            let x_idx =
-                                                x_offset + id * in_h * in_w + ih * in_w + iw;
-                                            sum = add_fn(sum, x_data[x_idx]);
-                                            count += 1;
-                                        }
-                                    }
-                                }
+                                let (sum, count, pad_count) = kernel(od, oh, ow, x_offset);
 
                                 let divisor = if count_include_pad {
                                     pad_count.max(1) // Positions within padded bounds
@@ -995,7 +944,6 @@ adaptive_avg_pool3d_typed!(
     f32,
     DType::F32,
     0.0f32,
-    |a, b| a + b,
     |sum, count| sum / count as f32
 );
 adaptive_avg_pool3d_typed!(
@@ -1003,7 +951,6 @@ adaptive_avg_pool3d_typed!(
     f64,
     DType::F64,
     0.0f64,
-    |a, b| a + b,
     |sum, count| sum / count as f64
 );
 adaptive_avg_pool3d_typed!(
@@ -1011,7 +958,6 @@ adaptive_avg_pool3d_typed!(
     f16,
     DType::F16,
     f16::from_f32(0.0),
-    |a: f16, b: f16| f16::from_f32(a.to_f32() + b.to_f32()),
     |sum: f16, count| f16::from_f32(sum.to_f32() / count as f32)
 );
 
@@ -1021,17 +967,26 @@ pub fn adaptive_avg_pool3d_bf16(x: FlexTensor, output_size: [usize; 3]) -> FlexT
     convert_f32_to_bf16(&result_f32)
 }
 
+pub fn adaptive_avg_pool3d_backward_bf16(x: FlexTensor, grad: FlexTensor) -> FlexTensor {
+    let x_f32 = convert_bf16_to_f32(&x);
+    let grad_f32 = convert_bf16_to_f32(&grad);
+    let result_f32 = adaptive_avg_pool3d_backward_f32(x_f32, grad_f32);
+    convert_f32_to_bf16(&result_f32)
+}
+
 /// Generic 3D adaptive average pooling implementation.
-fn adaptive_avg_pool3d_impl<T>(
+#[allow(clippy::extra_unused_type_parameters)]
+#[cfg_attr(feature = "simd", macerator::with_simd)]
+fn adaptive_avg_pool3d_impl<#[cfg(feature = "simd")] S: macerator::Simd, T, Div>(
     x: FlexTensor,
     output_size: [usize; 3],
     dtype: DType,
     zero: T,
-    add_fn: fn(T, T) -> T,
-    div_fn: fn(T, usize) -> T,
+    div_fn: Div,
 ) -> FlexTensor
 where
-    T: bytemuck::Pod + Copy + Send + Sync + Element,
+    T: bytemuck::Pod + Copy + Send + Sync + Element + ElementAdd,
+    Div: Fn(T, usize) -> T + Copy + Send + Sync,
 {
     let x = x.to_contiguous();
     let x_shape = x.layout().shape();
@@ -1082,7 +1037,7 @@ where
                                         for iw in w_start..w_end {
                                             let x_idx =
                                                 x_offset + id * in_h * in_w + ih * in_w + iw;
-                                            sum = add_fn(sum, x_data[x_idx]);
+                                            sum = T::add(sum, x_data[x_idx]);
                                             count += 1;
                                         }
                                     }
@@ -1128,7 +1083,7 @@ where
                                         for iw in w_start..w_end {
                                             let x_idx =
                                                 x_offset + id * in_h * in_w + ih * in_w + iw;
-                                            sum = add_fn(sum, x_data[x_idx]);
+                                            sum = T::add(sum, x_data[x_idx]);
                                             count += 1;
                                         }
                                     }
@@ -1238,17 +1193,9 @@ pub fn max_pool2d_backward_bf16(
     convert_f32_to_bf16(&result_f32)
 }
 
-max_pool3d_backward_typed!(max_pool3d_backward_f32, f32, DType::F32, 0.0f32, |a, b| a
-    + b);
-max_pool3d_backward_typed!(max_pool3d_backward_f64, f64, DType::F64, 0.0f64, |a, b| a
-    + b);
-max_pool3d_backward_typed!(
-    max_pool3d_backward_f16,
-    f16,
-    DType::F16,
-    f16::from_f32(0.0),
-    |a: f16, b: f16| f16::from_f32(a.to_f32() + b.to_f32())
-);
+max_pool3d_backward_typed!(max_pool3d_backward_f32, f32, DType::F32, 0.0f32);
+max_pool3d_backward_typed!(max_pool3d_backward_f64, f64, DType::F64, 0.0f64);
+max_pool3d_backward_typed!(max_pool3d_backward_f16, f16, DType::F16, f16::from_f32(0.0));
 
 /// Generic max pool 3D backward implementation.
 fn max_pool3d_backward_impl<T, I>(
@@ -1257,10 +1204,9 @@ fn max_pool3d_backward_impl<T, I>(
     indices: FlexTensor,
     dtype: DType,
     zero: T,
-    add_fn: fn(T, T) -> T,
 ) -> FlexTensor
 where
-    T: bytemuck::Pod + Copy + Send + Sync + Element,
+    T: bytemuck::Pod + Copy + Send + Sync + Element + ElementAdd,
     I: bytemuck::Pod + Copy + Send + Sync + Element,
 {
     let x_shape = x.layout().shape();
@@ -1283,21 +1229,38 @@ where
     let grad_data: &[T] = grad.storage();
     let indices_data: &[I] = indices.storage();
 
-    // Accumulate gradients back to input positions
-    let mut output = vec![zero; batch_size * channels * spatial_in];
+    let bc_total = batch_size * channels;
+    let mut output = vec![zero; bc_total * spatial_in];
 
-    for b in 0..batch_size {
-        for c in 0..channels {
-            let grad_offset = b * channels * spatial_out + c * spatial_out;
-            let out_offset = b * channels * spatial_in + c * spatial_in;
-
+    if spatial_in > 0 && bc_total > 0 {
+        let run_plane = |bc: usize, out_slice: &mut [T]| {
+            let grad_offset = bc * spatial_out;
             for i in 0..spatial_out {
                 let idx = indices_data[grad_offset + i].elem::<i64>();
                 if idx >= 0 {
-                    let input_idx = out_offset + idx as usize;
-                    output[input_idx] = add_fn(output[input_idx], grad_data[grad_offset + i]);
+                    let input_idx = idx as usize;
+                    out_slice[input_idx] = T::add(out_slice[input_idx], grad_data[grad_offset + i]);
                 }
             }
+        };
+
+        #[cfg(feature = "rayon")]
+        if output.len() >= crate::ops::PARALLEL_THRESHOLD && bc_total > 1 {
+            use rayon::prelude::*;
+            output
+                .par_chunks_mut(spatial_in)
+                .enumerate()
+                .for_each(|(bc, out_slice)| run_plane(bc, out_slice));
+        } else {
+            for bc in 0..bc_total {
+                let out_offset = bc * spatial_in;
+                run_plane(bc, &mut output[out_offset..out_offset + spatial_in]);
+            }
+        }
+        #[cfg(not(feature = "rayon"))]
+        for bc in 0..bc_total {
+            let out_offset = bc * spatial_in;
+            run_plane(bc, &mut output[out_offset..out_offset + spatial_in]);
         }
     }
 
@@ -1402,7 +1365,6 @@ avg_pool3d_backward_typed!(
     f32,
     DType::F32,
     0.0f32,
-    |a, b| a + b,
     |val, count| val / count as f32
 );
 avg_pool3d_backward_typed!(
@@ -1410,7 +1372,6 @@ avg_pool3d_backward_typed!(
     f64,
     DType::F64,
     0.0f64,
-    |a, b| a + b,
     |val, count| val / count as f64
 );
 avg_pool3d_backward_typed!(
@@ -1418,7 +1379,6 @@ avg_pool3d_backward_typed!(
     f16,
     DType::F16,
     f16::from_f32(0.0),
-    |a: f16, b: f16| f16::from_f32(a.to_f32() + b.to_f32()),
     |val: f16, count| f16::from_f32(val.to_f32() / count as f32)
 );
 
@@ -1433,11 +1393,10 @@ fn avg_pool3d_backward_impl<T>(
     count_include_pad: bool,
     dtype: DType,
     zero: T,
-    add_fn: fn(T, T) -> T,
-    div_fn: fn(T, usize) -> T,
+    div_fn: impl Fn(T, usize) -> T + Send + Sync,
 ) -> FlexTensor
 where
-    T: bytemuck::Pod + Copy + Send + Sync + Element,
+    T: bytemuck::Pod + Copy + Send + Sync + Element + ElementAdd,
 {
     let x_shape = x.layout().shape();
     let grad = grad.to_contiguous();
@@ -1452,7 +1411,6 @@ where
     let [kernel_d, kernel_h, kernel_w] = kernel_size;
     let [stride_d, stride_h, stride_w] = stride;
     let [pad_d, pad_h, pad_w] = padding;
-    let kernel_volume = kernel_d * kernel_h * kernel_w;
 
     let grad_shape = grad.layout().shape();
     let out_d = grad_shape[2];
@@ -1462,13 +1420,12 @@ where
 
     let grad_data: &[T] = grad.storage();
 
-    // Distribute gradient equally across window
-    let mut output = vec![zero; batch_size * channels * spatial_in];
+    let bc_total = batch_size * channels;
+    let mut output = vec![zero; bc_total * spatial_in];
 
-    for b in 0..batch_size {
-        for c in 0..channels {
-            let grad_offset = b * channels * spatial_out + c * spatial_out;
-            let out_offset = b * channels * spatial_in + c * spatial_in;
+    if spatial_in > 0 && bc_total > 0 {
+        let run_plane = |bc: usize, out_slice: &mut [T]| {
+            let grad_offset = bc * spatial_out;
 
             for od in 0..out_d {
                 for oh in 0..out_h {
@@ -1496,7 +1453,10 @@ where
                         }
 
                         let divisor = if count_include_pad {
-                            kernel_volume
+                            let pd_len = padded_len_avgpool(od, kernel_d, stride_d, pad_d, in_d);
+                            let ph_len = padded_len_avgpool(oh, kernel_h, stride_h, pad_h, in_h);
+                            let pw_len = padded_len_avgpool(ow, kernel_w, stride_w, pad_w, in_w);
+                            (pd_len * ph_len * pw_len).max(1)
                         } else {
                             count.max(1)
                         };
@@ -1524,14 +1484,34 @@ where
                                     }
                                     let iw = iw as usize;
 
-                                    let input_idx = out_offset + id * in_h * in_w + ih * in_w + iw;
-                                    output[input_idx] = add_fn(output[input_idx], distributed);
+                                    let input_idx = id * in_h * in_w + ih * in_w + iw;
+                                    out_slice[input_idx] =
+                                        T::add(out_slice[input_idx], distributed);
                                 }
                             }
                         }
                     }
                 }
             }
+        };
+
+        #[cfg(feature = "rayon")]
+        if output.len() >= crate::ops::PARALLEL_THRESHOLD && bc_total > 1 {
+            use rayon::prelude::*;
+            output
+                .par_chunks_mut(spatial_in)
+                .enumerate()
+                .for_each(|(bc, out_slice)| run_plane(bc, out_slice));
+        } else {
+            for bc in 0..bc_total {
+                let out_offset = bc * spatial_in;
+                run_plane(bc, &mut output[out_offset..out_offset + spatial_in]);
+            }
+        }
+        #[cfg(not(feature = "rayon"))]
+        for bc in 0..bc_total {
+            let out_offset = bc * spatial_in;
+            run_plane(bc, &mut output[out_offset..out_offset + spatial_in]);
         }
     }
 
@@ -1580,7 +1560,6 @@ adaptive_avg_pool3d_backward_typed!(
     f32,
     DType::F32,
     0.0f32,
-    |a, b| a + b,
     |val, count| val / count as f32
 );
 adaptive_avg_pool3d_backward_typed!(
@@ -1588,7 +1567,6 @@ adaptive_avg_pool3d_backward_typed!(
     f64,
     DType::F64,
     0.0f64,
-    |a, b| a + b,
     |val, count| val / count as f64
 );
 adaptive_avg_pool3d_backward_typed!(
@@ -1596,7 +1574,6 @@ adaptive_avg_pool3d_backward_typed!(
     f16,
     DType::F16,
     f16::from_f32(0.0),
-    |a: f16, b: f16| f16::from_f32(a.to_f32() + b.to_f32()),
     |val: f16, count| f16::from_f32(val.to_f32() / count as f32)
 );
 
@@ -1606,11 +1583,10 @@ fn adaptive_avg_pool3d_backward_impl<T>(
     grad: FlexTensor,
     dtype: DType,
     zero: T,
-    add_fn: fn(T, T) -> T,
-    div_fn: fn(T, usize) -> T,
+    div_fn: impl Fn(T, usize) -> T + Send + Sync,
 ) -> FlexTensor
 where
-    T: bytemuck::Pod + Copy + Send + Sync + Element,
+    T: bytemuck::Pod + Copy + Send + Sync + Element + ElementAdd,
 {
     let x_shape = x.layout().shape();
     let grad = grad.to_contiguous();
@@ -1630,12 +1606,12 @@ where
 
     let grad_data: &[T] = grad.storage();
 
-    let mut output = vec![zero; batch_size * channels * spatial_in];
+    let bc_total = batch_size * channels;
+    let mut output = vec![zero; bc_total * spatial_in];
 
-    for b in 0..batch_size {
-        for c in 0..channels {
-            let grad_offset = b * channels * spatial_out + c * spatial_out;
-            let out_offset = b * channels * spatial_in + c * spatial_in;
+    if spatial_in > 0 && bc_total > 0 {
+        let run_plane = |bc: usize, out_slice: &mut [T]| {
+            let grad_offset = bc * spatial_out;
 
             for od in 0..out_d {
                 let d_start = (od * in_d) / out_d;
@@ -1658,14 +1634,34 @@ where
                         for id in d_start..d_end {
                             for ih in h_start..h_end {
                                 for iw in w_start..w_end {
-                                    let input_idx = out_offset + id * in_h * in_w + ih * in_w + iw;
-                                    output[input_idx] = add_fn(output[input_idx], distributed);
+                                    let input_idx = id * in_h * in_w + ih * in_w + iw;
+                                    out_slice[input_idx] =
+                                        T::add(out_slice[input_idx], distributed);
                                 }
                             }
                         }
                     }
                 }
             }
+        };
+
+        #[cfg(feature = "rayon")]
+        if output.len() >= crate::ops::PARALLEL_THRESHOLD && bc_total > 1 {
+            use rayon::prelude::*;
+            output
+                .par_chunks_mut(spatial_in)
+                .enumerate()
+                .for_each(|(bc, out_slice)| run_plane(bc, out_slice));
+        } else {
+            for bc in 0..bc_total {
+                let out_offset = bc * spatial_in;
+                run_plane(bc, &mut output[out_offset..out_offset + spatial_in]);
+            }
+        }
+        #[cfg(not(feature = "rayon"))]
+        for bc in 0..bc_total {
+            let out_offset = bc * spatial_in;
+            run_plane(bc, &mut output[out_offset..out_offset + spatial_in]);
         }
     }
 
@@ -1766,6 +1762,12 @@ mod tests {
         // effective_kernel = 2*(2-1)+1 = 3
         // output = (7 - 3) / 1 + 1 = 5
         assert_eq!(pool_output_size(7, 2, 0, 1, 2, false), 5);
+
+        // Ceil mode drops a last window that would start in the trailing padding:
+        // input=5, kernel=2, padding=1, stride=2 -> 3 (PyTorch), not 4
+        assert_eq!(pool_output_size(5, 2, 1, 2, 1, true), 3);
+        // With dilation 2 and stride 3: input=5, kernel=2, padding=1 -> 2
+        assert_eq!(pool_output_size(5, 2, 1, 3, 2, true), 2);
     }
 
     #[test]
@@ -1776,11 +1778,11 @@ mod tests {
 
         // count_include_pad = true: divide by kernel size (4)
         let result_include = avg_pool2d_f32(x.clone(), [2, 2], [2, 2], [1, 1], true, false);
-        let out_include: Vec<f32> = result_include.into_data().to_vec().unwrap();
+        let out_include: Vec<f32> = result_include.into_data().try_into_vec().unwrap();
 
         // count_include_pad = false: divide by actual count
         let result_exclude = avg_pool2d_f32(x, [2, 2], [2, 2], [1, 1], false, false);
-        let out_exclude: Vec<f32> = result_exclude.into_data().to_vec().unwrap();
+        let out_exclude: Vec<f32> = result_exclude.into_data().try_into_vec().unwrap();
 
         // Corner position with padding: only 1 valid element
         // With count_include_pad: 1.0 / 4 = 0.25
@@ -1795,7 +1797,7 @@ mod tests {
         let x = FlexTensor::from_data(TensorData::new(x_data, vec![1, 1, 4, 4]));
 
         let result = max_pool2d_f64(x, [2, 2], [2, 2], [0, 0], [1, 1], false);
-        let out: Vec<f64> = result.into_data().to_vec().unwrap();
+        let out: Vec<f64> = result.into_data().try_into_vec().unwrap();
         assert_eq!(out, vec![6.0, 8.0, 14.0, 16.0]);
     }
 
@@ -1805,7 +1807,7 @@ mod tests {
         let x = FlexTensor::from_data(TensorData::new(x_data, vec![1, 1, 4, 4]));
 
         let result = max_pool2d_f16(x, [2, 2], [2, 2], [0, 0], [1, 1], false);
-        let out: Vec<f16> = result.into_data().to_vec().unwrap();
+        let out: Vec<f16> = result.into_data().try_into_vec().unwrap();
 
         assert!((out[0].to_f32() - 6.0).abs() < 0.1);
         assert!((out[1].to_f32() - 8.0).abs() < 0.1);
@@ -1819,7 +1821,7 @@ mod tests {
         let x = FlexTensor::from_data(TensorData::new(x_data, vec![1, 1, 4, 4]));
 
         let result = max_pool2d_bf16(x, [2, 2], [2, 2], [0, 0], [1, 1], false);
-        let out: Vec<bf16> = result.into_data().to_vec().unwrap();
+        let out: Vec<bf16> = result.into_data().try_into_vec().unwrap();
 
         assert!((out[0].to_f32() - 6.0).abs() < 0.5);
         assert!((out[1].to_f32() - 8.0).abs() < 0.5);
@@ -1837,7 +1839,7 @@ mod tests {
         let grad = FlexTensor::from_data(TensorData::new(vec![1.0f32; 4], vec![1, 1, 2, 2]));
 
         let x_grad = max_pool2d_backward_f32(x, grad, indices);
-        let grad_data: Vec<f32> = x_grad.into_data().to_vec().unwrap();
+        let grad_data: Vec<f32> = x_grad.into_data().try_into_vec().unwrap();
 
         // Gradient should be 1.0 at max positions, 0.0 elsewhere
         // Max positions were: 5, 7, 13, 15 (0-indexed)
@@ -1849,6 +1851,31 @@ mod tests {
     }
 
     #[test]
+    fn test_avg_pool3d_backward_ceil_mode_nonuniform_gradient() {
+        for count_include_pad in [true, false] {
+            let x = FlexTensor::from_data(TensorData::new(vec![1.0f32; 27], [1, 1, 3, 3, 3]));
+            let output = avg_pool3d_f32(x.clone(), [3; 3], [3; 3], [1; 3], count_include_pad, true);
+            let grad = FlexTensor::from_data(TensorData::new(
+                vec![216.0f32, 144.0, 144.0, 96.0, 144.0, 96.0, 96.0, 64.0],
+                output.layout().shape().clone(),
+            ));
+            let actual =
+                avg_pool3d_backward_f32(x, grad, [3; 3], [3; 3], [1; 3], count_include_pad);
+            let actual: Vec<f32> = actual.into_data().try_into_vec().unwrap();
+            let expected = if count_include_pad {
+                vec![8.0; 27]
+            } else {
+                vec![
+                    27.0, 27.0, 36.0, 27.0, 27.0, 36.0, 36.0, 36.0, 48.0, 27.0, 27.0, 36.0, 27.0,
+                    27.0, 36.0, 36.0, 36.0, 48.0, 36.0, 36.0, 48.0, 36.0, 36.0, 48.0, 48.0, 48.0,
+                    64.0,
+                ]
+            };
+            assert_eq!(actual, expected);
+        }
+    }
+
+    #[test]
     fn test_avg_pool_backward() {
         let x_data: Vec<f32> = (1..=16).map(|x| x as f32).collect();
         let x = FlexTensor::from_data(TensorData::new(x_data, vec![1, 1, 4, 4]));
@@ -1857,7 +1884,7 @@ mod tests {
         let grad = FlexTensor::from_data(TensorData::new(vec![4.0f32; 4], vec![1, 1, 2, 2]));
 
         let x_grad = avg_pool2d_backward_f32(x, grad, [2, 2], [2, 2], [0, 0], false);
-        let grad_data: Vec<f32> = x_grad.into_data().to_vec().unwrap();
+        let grad_data: Vec<f32> = x_grad.into_data().try_into_vec().unwrap();
 
         // Each position in input should receive grad/4 = 1.0
         assert!(grad_data.iter().all(|&v| (v - 1.0).abs() < 1e-5));
@@ -1871,7 +1898,7 @@ mod tests {
         // Backward with gradient of 4.0 for each output element
         let grad = FlexTensor::from_data(TensorData::new(vec![4.0f32; 4], vec![1, 1, 2, 2]));
         let x_grad = adaptive_avg_pool2d_backward_f32(x, grad);
-        let grad_data: Vec<f32> = x_grad.into_data().to_vec().unwrap();
+        let grad_data: Vec<f32> = x_grad.into_data().try_into_vec().unwrap();
 
         // Each input position receives gradient from its output region
         assert!(grad_data.iter().all(|&v| (v - 1.0).abs() < 1e-5));

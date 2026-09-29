@@ -3,8 +3,9 @@ use std::fmt;
 /// Default error type used by [`Dataset`](crate::Dataset) implementations that don't define
 /// their own.
 ///
-/// Wraps any error so that specific dataset error types (e.g. `SqliteDatasetError`) can be
-/// converted into it with `?` at call sites that don't care about the concrete error.
+/// Wraps specific dataset error types (e.g. `SqliteDatasetError`) at call sites that don't need
+/// the concrete error type. Use `result.map_err(DatasetError::new)?` to convert and propagate an
+/// error; `?` alone does not perform this wrapping.
 #[derive(Debug)]
 pub struct DatasetError(Box<dyn std::error::Error + Send + Sync + 'static>);
 

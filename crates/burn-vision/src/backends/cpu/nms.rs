@@ -16,14 +16,14 @@ pub fn nms(
     options: NmsOptions,
     out_dtype: IntDType,
 ) -> Option<TensorData> {
-    let [n_boxes, _] = boxes.shape.dims();
+    let [n_boxes, _] = boxes.shape().dims();
     if n_boxes == 0 {
         return None;
     }
 
     // Get raw data
-    let boxes_vec: Vec<f32> = boxes.convert::<f32>().to_vec().unwrap();
-    let scores_vec: Vec<f32> = scores.convert::<f32>().to_vec().unwrap();
+    let boxes_vec: Vec<f32> = boxes.try_into_vec_as().unwrap();
+    let scores_vec: Vec<f32> = scores.try_into_vec_as().unwrap();
 
     let indices_data = dispatch_int_dtype!(out_dtype, |I| {
         let keep = nms_vec::<I>(boxes_vec, scores_vec, options);

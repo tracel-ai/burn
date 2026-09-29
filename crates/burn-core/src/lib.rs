@@ -1,7 +1,6 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 #![warn(missing_docs)]
 #![cfg_attr(docsrs, feature(doc_cfg))]
-#![recursion_limit = "135"]
 
 //! The core crate of Burn.
 
@@ -86,8 +85,7 @@ pub mod prelude {
         module::Module,
         tensor::{
             Bool, Device, DeviceIndex, DeviceKind, ElementConversion, Float, Int, Shape, SliceArg,
-            Tensor, TensorData, cast::ToElement, s,
+            Tensor, TensorData, assert_shape, cast::ToElement, debug_assert_shape, s,
         },
     };
-    pub use burn_std::device::Device as DeviceOps;
 }

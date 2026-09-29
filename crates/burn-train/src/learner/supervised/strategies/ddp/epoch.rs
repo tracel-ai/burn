@@ -102,10 +102,7 @@ impl<M: LearnerModel> DdpTrainEpoch<M> {
                     break;
                 }
             };
-            for _ in 0..peer_count {
-                iteration += 1;
-                learner.lr_step();
-            }
+            iteration += peer_count;
             log::info!("Iteration {iteration}");
 
             let mut progress = iterator.progress();
@@ -119,14 +116,16 @@ impl<M: LearnerModel> DdpTrainEpoch<M> {
                     accumulator.accumulate(&learner.model(), item.grads);
                     accumulation_current += 1;
 
-                    if accumulation <= accumulation_current {
+                    if accumulation <= accumulation_current || progress.is_completed() {
                         let grads = accumulator.grads();
 
+                        learner.lr_step();
                         learner.optimizer_step(grads);
                         accumulation_current = 0;
                     }
                 }
                 None => {
+                    learner.lr_step();
                     learner.optimizer_step(item.grads);
                 }
             }

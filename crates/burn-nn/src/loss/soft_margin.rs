@@ -86,4 +86,22 @@ mod tests {
         sum.into_data()
             .assert_approx_eq::<FT>(&TensorData::from([3.888344]), Tolerance::default());
     }
+
+    #[test]
+    fn test_soft_margin_loss_confidently_wrong() {
+        let device = Default::default();
+        // A confidently wrong prediction drives `-target * logit` large and positive, which
+        // is exactly where a naive softplus overflows to `inf` and poisons the backward pass.
+        let logits = Tensor::<2>::from_data(TensorData::from([[-100.0, -20.0, -5.0]]), &device);
+        let targets = Tensor::<2>::from_data(TensorData::from([[1.0, 1.0, 1.0]]), &device);
+
+        let loss = SoftMarginLoss::new();
+        let no_reduction = loss.forward_no_reduction(logits, targets);
+
+        // The loss converges to `-target * logit` for confidently wrong predictions.
+        let expected = TensorData::from([[100.0, 20.0, 5.006715]]);
+        no_reduction
+            .into_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::default());
+    }
 }

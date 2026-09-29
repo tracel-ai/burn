@@ -1,7 +1,7 @@
 use crate::rand::NdArrayRng;
 use crate::{NdArrayQTensor, NdArrayTensor};
 use alloc::string::String;
-use burn_backend::quantization::{QuantLevel, QuantMode, QuantScheme, QuantStore, QuantValue};
+use burn_backend::quantization::{QuantMode, QuantScheme, QuantStore, QuantValue, quantizable};
 use burn_backend::tensor::{BoolTensor, FloatTensor, IntTensor, QuantizedTensor};
 use burn_backend::{Backend, BackendTypes, DType, DeviceId, DeviceOps};
 use burn_ir::{BackendIr, HandleKind, TensorHandle};
@@ -98,7 +98,6 @@ impl Backend for NdArray {
             DType::QFloat(scheme) => {
                 match scheme {
                     QuantScheme {
-                        level: QuantLevel::Tensor | QuantLevel::Block(_),
                         mode: QuantMode::Symmetric,
                         #[cfg(not(feature = "export_tests"))]
                             value: QuantValue::Q8F | QuantValue::Q8S,
@@ -114,7 +113,8 @@ impl Backend for NdArray {
                             | QuantValue::Q2S,
                         store: QuantStore::Native,
                         ..
-                    } => burn_backend::DTypeUsage::general(),
+                    // The value and store alone do not say which levels `quantize` will accept.
+                    } if quantizable(&scheme) => burn_backend::DTypeUsage::general(),
                     _scheme => burn_backend::DTypeUsageSet::empty(),
                 }
             }
@@ -206,6 +206,39 @@ mod tests {
         assert!(!B::supports_dtype(
             &device,
             DType::QFloat(QuantScheme::default())
+        ));
+    }
+
+    /// A scheme this claims and then panics on is worse than one it declines, because the panic
+    /// lands on the first tensor rather than where the scheme was chosen.
+    #[test]
+    fn should_support_the_two_level_schemes_it_can_quantize() {
+        use burn_backend::ops::{FloatTensorOps, QTensorOps};
+        use burn_std::{ScaleDtype, TensorData};
+
+        type B = NdArray;
+        let device = NdArrayDevice::Cpu;
+        let scheme = device
+            .defaults()
+            .quantization
+            .scheme
+            .with_value(QuantValue::Q8S)
+            .per_block([4], ScaleDtype::UE4M3)
+            .per_tensor(ScaleDtype::F32);
+
+        assert!(B::supports_dtype(&device, DType::QFloat(scheme)));
+
+        let tensor = B::float_from_data(
+            TensorData::from([0.1f32, -0.4, 0.2, 0.9, -1.5, 0.3, 0.05, -0.02]),
+            &device,
+        );
+        let quantized = B::quantize_dynamic(tensor, &scheme);
+        assert_eq!(quantized.scheme.num_levels(), 2);
+
+        // Block scales already spanning f32's range are rejected by `quantize`.
+        assert!(!B::supports_dtype(
+            &device,
+            DType::QFloat(scheme.per_block([4], ScaleDtype::F32))
         ));
     }
 }

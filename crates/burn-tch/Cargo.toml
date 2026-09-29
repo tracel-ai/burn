@@ -1,7 +1,7 @@
 [package]
 authors = ["nathanielsimard <nathaniel.simard.42@gmail.com>"]
 categories = ["science"]
-description = "LibTorch backend for the Burn framework using the tch bindings."
+description = "[Deprecated] LibTorch backend for the Burn framework - use burn-cuda, burn-rocm, burn-wgpu, burn-cpu, or burn-flex instead"
 documentation = "https://docs.rs/burn-tch"
 edition.workspace = true
 keywords = ["deep-learning", "machine-learning", "data"]

@@ -98,8 +98,8 @@ impl LpLossConfig {
 /// // Create L2 loss
 /// let l2_loss = LpLossConfig::l2();
 ///
-/// let predictions: Tensor<Backend, 2> = /* model output */;
-/// let targets: Tensor<Backend, 2> = /* ground truth */;
+/// let predictions: Tensor<2> = /* model output */;
+/// let targets: Tensor<2> = /* ground truth */;
 ///
 /// // Compute loss with mean reduction (MSE)
 /// let mse = l2_loss.forward(predictions.clone(), targets.clone(), Reduction::Mean);

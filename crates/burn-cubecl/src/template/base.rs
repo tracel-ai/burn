@@ -1,6 +1,10 @@
 use super::SourceTemplate;
-use crate::{CubeRuntime, tensor::CubeTensor};
-use cubecl::{CompilationError, Compiler, CubeTask, prelude::*};
+use crate::tensor::CubeTensor;
+use cubecl::{
+    CubeKernel, PrecompiledSource,
+    ir::{UIntKind, metadata::Info},
+    prelude::*,
+};
 
 /// Kernel source to create a [source](SourceTemplate)
 pub trait KernelSource: Send + 'static + Sync {
@@ -8,51 +12,44 @@ pub trait KernelSource: Send + 'static + Sync {
     fn source(&self) -> SourceTemplate;
     /// Identifier for the kernel, used for caching kernel compilation.
     fn id(&self) -> KernelId;
+    /// The language [`source`](Self::source) is written in, as the compiler for the target tags
+    /// it: `"wgsl"`, `"spirv"`, `"msl"`, `"cpp"`, ...
+    ///
+    /// A template is text the compiler never sees, so nothing can infer this — and nothing can
+    /// translate it either. It is checked against the compiler the runtime selected, and a
+    /// mismatch is a launch error rather than a silent reinterpretation: a wgpu build that picks
+    /// SPIR-V will not run a WGSL template, whatever this says.
+    fn lang(&self) -> &'static str;
 }
 
 #[derive(new)]
-/// Wraps a [kernel source](KernelSource) into a [cube task](CubeTask).
+/// Wraps a [kernel source](KernelSource) into a [cube kernel](CubeKernel).
 pub struct SourceKernel<K> {
     kernel_source: K,
     cube_dim: CubeDim,
 }
 
-impl<C: Compiler, K: KernelSource> CubeTask<C> for SourceKernel<K> {
+impl<K: KernelSource> CubeKernel for SourceKernel<K> {
     fn define(&self) -> KernelDefinition {
         // A source kernel has no expanded IR, the source text is the kernel. The definition only
         // keys the compilation cache, so the source rides along in the kernel name to keep a
         // cached artifact from outliving an edit to the template.
+        let settings =
+            KernelSettings::new(self.cube_dim.0, ExecutionMode::Checked, AddressType::U32);
         KernelDefinition {
-            buffers: Vec::new(),
-            tensor_maps: Vec::new(),
-            scalars: Vec::new(),
-            cube_dim: self.cube_dim,
-            body: Scope::root(false),
-            options: KernelOptions {
-                kernel_name: self.kernel_source.source().complete(),
-                ..Default::default()
-            },
+            body: Scope::root(settings.clone()),
+            settings,
+            info: Info::default(),
         }
     }
 
-    fn compile(
-        &self,
-        _definition: KernelDefinition,
-        _compiler: &mut C,
-        _options: &C::CompilationOptions,
-        _mode: ExecutionMode,
-        _address_type: StorageType,
-    ) -> Result<CompiledKernel<C>, CompilationError> {
-        let source_template = self.kernel_source.source();
-        let source = source_template.complete();
-
-        Ok(CompiledKernel {
+    /// The template's text is already in the target language, so it stands in
+    /// for what the compiler would have produced and `define` is never compiled.
+    fn source(&self) -> Option<PrecompiledSource> {
+        Some(PrecompiledSource {
+            source: self.kernel_source.source().complete(),
             entrypoint_name: "main".to_string(),
-            debug_name: Some(core::any::type_name::<K>()),
-            source,
-            cube_dim: self.cube_dim,
-            debug_info: None,
-            repr: None,
+            lang: self.kernel_source.lang(),
         })
     }
 }
@@ -62,8 +59,8 @@ impl<K: KernelSource> KernelMetadata for SourceKernel<K> {
         self.kernel_source.id()
     }
 
-    fn address_type(&self) -> StorageType {
-        u32::as_type_native_unchecked().storage_type()
+    fn address_type(&self) -> ElemType {
+        UIntKind::U32.into()
     }
 }
 
@@ -99,7 +96,7 @@ macro_rules! kernel_source {
 /// |     (D + 1)..(2 * D + 1) | rhs strides |
 /// | (2 * D + 1)..(3 * D + 1) | lhs shape   |
 /// | (3 * D + 1)..(4 * D + 1) | rhs shape   |
-pub fn build_info<R: CubeRuntime>(tensors: &[&CubeTensor<R>]) -> Vec<u32> {
+pub fn build_info(tensors: &[&CubeTensor]) -> Vec<u32> {
     let ndims = tensors[0].meta.num_dims();
     let mut info: Vec<u32> = vec![0; tensors.len() * 2 * ndims + 1];
     info[0] = ndims as u32;

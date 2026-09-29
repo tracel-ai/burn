@@ -1,19 +1,12 @@
 use super::ParamId;
 use crate::module::{
-    AutodiffModule, Content, Module, ModuleDisplay, ModuleDisplayDefault, ModuleMapper,
-    ModuleVisitor, Param,
+    Content, Module, ModuleDisplay, ModuleDisplayDefault, ModuleMapper, ModuleVisitor, Param,
 };
 
 use alloc::string::ToString;
 use alloc::vec::Vec;
 
-#[cfg(target_has_atomic = "ptr")]
-use alloc::sync::Arc;
-
-#[cfg(not(target_has_atomic = "ptr"))]
-use portable_atomic_util::Arc;
-
-use burn_std::sync::Mutex;
+use burn_std::sync::{Arc, Mutex};
 use burn_tensor::{Device, Tensor};
 
 #[cfg(feature = "std")]
@@ -84,7 +77,9 @@ impl<const D: usize> Module for RunningState<Tensor<D>> {
         let param_out = mapper.map_float(param);
         let (_, tensor_out, _) = param_out.consume();
 
-        *tensor = tensor_out;
+        // Running state is a buffer, not an optimizer target. Mappers may transform its value,
+        // but must not make it require gradients.
+        *tensor = tensor_out.set_require_grad(false);
         core::mem::drop(tensor);
 
         self
@@ -112,6 +107,24 @@ impl<const D: usize> Module for RunningState<Tensor<D>> {
         }
 
         devices
+    }
+
+    fn materialize(self) -> Self {
+        self
+    }
+
+    fn valid(&self) -> Self {
+        self.sync();
+        let value = self.value();
+
+        RunningState::with_id(self.id, value.without_autodiff())
+    }
+
+    fn train(self) -> Self {
+        self.sync();
+        let value = self.value();
+
+        RunningState::with_id(self.id, Tensor::from_inner(value))
     }
 }
 
@@ -213,21 +226,5 @@ impl<const D: usize> RunningState<Tensor<D>> {
             let mut value_old = self.value.lock();
             *value_old = value;
         }
-    }
-}
-
-impl<const D: usize> AutodiffModule for RunningState<Tensor<D>> {
-    fn valid(&self) -> Self {
-        self.sync();
-        let value = self.value();
-
-        RunningState::with_id(self.id, value.inner())
-    }
-
-    fn from_inner(module: Self) -> Self {
-        module.sync();
-        let value = module.value();
-
-        RunningState::with_id(module.id, Tensor::from_inner(value))
     }
 }

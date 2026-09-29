@@ -214,13 +214,14 @@ impl<B: Backend, C: CheckpointStrategy> IntTensorOps<Self> for Autodiff<B, C> {
         B::int_gather(dim, tensor, indices)
     }
 
-    fn int_scatter_add(
+    fn int_scatter(
         dim: usize,
         tensor: IntTensor<B>,
         indices: IntTensor<B>,
         value: IntTensor<B>,
+        update: IndexingUpdateOp,
     ) -> IntTensor<B> {
-        B::int_scatter_add(dim, tensor, indices, value)
+        B::int_scatter(dim, tensor, indices, value, update)
     }
 
     fn int_scatter_nd(
@@ -236,13 +237,14 @@ impl<B: Backend, C: CheckpointStrategy> IntTensorOps<Self> for Autodiff<B, C> {
         B::int_select(tensor, dim, indices)
     }
 
-    fn int_select_add(
+    fn int_select_assign(
         tensor: IntTensor<B>,
         dim: usize,
         indices: IntTensor<B>,
         value: IntTensor<B>,
+        update: IndexingUpdateOp,
     ) -> IntTensor<B> {
-        B::int_select_add(tensor, dim, indices, value)
+        B::int_select_assign(tensor, dim, indices, value, update)
     }
 
     fn int_mask_where(
@@ -255,6 +257,10 @@ impl<B: Backend, C: CheckpointStrategy> IntTensorOps<Self> for Autodiff<B, C> {
 
     fn int_mask_fill(tensor: IntTensor<B>, mask: BoolTensor<B>, value: Scalar) -> IntTensor<B> {
         B::int_mask_fill(tensor, mask, value)
+    }
+
+    async fn int_mask_select(tensor: IntTensor<B>, mask: BoolTensor<B>) -> IntTensor<B> {
+        B::int_mask_select(tensor, mask).await
     }
 
     fn int_argmax(tensor: IntTensor<B>, dim: usize) -> IntTensor<B> {

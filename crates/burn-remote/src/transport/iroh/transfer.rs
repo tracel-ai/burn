@@ -80,7 +80,7 @@ impl<B: BackendIr> IrohTransfer<B> {
         capability: TransferCapability,
         remote: iroh::EndpointId,
     ) -> Result<bytes::Bytes, String> {
-        super::time::timeout(TRANSFER_WAIT_TIMEOUT, async {
+        crate::time::timeout(TRANSFER_WAIT_TIMEOUT, async {
             loop {
                 let notified = self.exposed_notify.notified();
                 tokio::pin!(notified);
@@ -129,7 +129,7 @@ impl<B: BackendIr> IrohTransfer<B> {
 
         let exposed = self.exposed.clone();
         crate::server::spawn::spawn_detached(async move {
-            super::time::sleep(TRANSFER_CAPABILITY_TTL).await;
+            crate::time::sleep(TRANSFER_CAPABILITY_TTL).await;
             exposed.lock().await.remove(&capability);
         });
     }
@@ -181,7 +181,7 @@ impl<B: BackendIr> TensorTransfer<B> for IrohTransfer<B> {
         {
             Ok(streams) => streams,
             Err(err) => {
-                log::error!("{err}");
+                log::error!("Cannot open a tensor-transfer stream to {remote}: {err}");
                 return None;
             }
         };

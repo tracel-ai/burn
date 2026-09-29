@@ -277,20 +277,31 @@ impl TchTensor {
         let mut out_shape = Shape::from(vec![1usize; d_out]);
 
         for i in 0..d_out {
-            out_shape[i] = usize::max(lhs_shape[i], rhs_shape[i]);
+            // A zero-sized dim broadcasts to zero, not `max`: `[0]` vs `[1]` is
+            // `[0]`. `max` overstated the length and took the in-place fast path
+            // below, panicking in LibTorch on the shape mismatch (#5287).
+            out_shape[i] = if lhs_shape[i] == 0 || rhs_shape[i] == 0 {
+                0
+            } else {
+                usize::max(lhs_shape[i], rhs_shape[i])
+            };
         }
 
-        let num_elements_out = out_shape.num_elements();
+        // Gate the in-place fast path on shape equality, not element count: at a
+        // zero-sized output every operand with a zero dim has 0 elements and would
+        // wrongly match, taking the in-place path for a broadcast it can't do
+        // (e.g. `[1, 0] * [2, 0]`). For non-empty operands `numel == out numel`
+        // already implies equal shapes, so routing is otherwise unchanged (#5287).
 
         // Attempt to mutate lhs tensor
-        if lhs_shape.num_elements() == num_elements_out
+        if lhs_shape == out_shape
             && let Some(output) = lhs.mut_ops(|lhs| flmut(lhs, &rhs.tensor))
         {
             return output;
         }
 
         // Attempt to mutate rhs tensor
-        if rhs_shape.num_elements() == num_elements_out
+        if rhs_shape == out_shape
             && let Some(output) = rhs.mut_ops(|rhs| frmut(&lhs.tensor, rhs))
         {
             return output;
@@ -347,9 +358,9 @@ impl TchTensor {
     ///
     /// A new tensor.
     pub fn from_data<E: TchElement>(data: TensorData, device: tch::Device) -> Self {
-        let shape_tch = TchShape::from(data.shape.as_slice());
+        let shape_tch = TchShape::from(data.shape().as_slice());
         let tensor =
-            tch::Tensor::from_data_size(&data.bytes, &shape_tch.dims, E::kind()).to(device);
+            tch::Tensor::from_data_size(data.as_bytes(), &shape_tch.dims, E::kind()).to(device);
 
         Self::new(tensor)
     }
@@ -442,6 +453,7 @@ fn f_copy_data<T: TchElement>(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::ops::TchOps;
     use burn_backend::ops::FloatTensorOps;
     use burn_backend::{Backend, quantization::QuantScheme, read_sync};
 
@@ -486,6 +498,49 @@ mod tests {
     }
 
     #[test]
+    fn mul_broadcasts_zero_sized_dim_without_panic() {
+        // Regression for #5287: broadcasting against a zero-sized dim yields 0.
+        let device = Default::default();
+        let one: TchTensor = B::float_from_data(TensorData::from([1.0]), &device);
+        let empty: TchTensor = B::float_from_data(TensorData::new(Vec::<f32>::new(), [0]), &device);
+
+        // Both operand orders (each exercises a different in-place fast path).
+        assert_eq!(B::float_mul(one.clone(), empty.clone()).shape().dims(), [0]);
+        assert_eq!(B::float_mul(empty, one).shape().dims(), [0]);
+
+        // Multi-dim: only the zero-sized dimension collapses.
+        let m: TchTensor = B::float_from_data(TensorData::new(vec![1.0f32, 2.0], [2, 1]), &device);
+        let m_empty: TchTensor =
+            B::float_from_data(TensorData::new(Vec::<f32>::new(), [2, 0]), &device);
+        assert_eq!(B::float_mul(m, m_empty).shape().dims(), [2, 0]);
+
+        // Two empty operands with *different* shapes still broadcast: `[1, 0]`
+        // vs `[2, 0]` -> `[2, 0]`. Both have 0 elements, so an element-count
+        // guard wrongly takes the in-place path and panics. Operands must be
+        // freshly owned (no shared storage) or `mut_ops` bails and never
+        // exercises that fast path.
+        let mk = |dims: [usize; 2]| -> TchTensor {
+            B::float_from_data(TensorData::new(Vec::<f32>::new(), dims), &device)
+        };
+        // lhs `[1, 0]` must not be mutated in place toward `[2, 0]`.
+        assert_eq!(B::float_mul(mk([1, 0]), mk([2, 0])).shape().dims(), [2, 0]);
+    }
+
+    #[test]
+    fn mul_empty_broadcast_does_not_mutate_smaller_rhs_in_place() {
+        // Companion to the lhs case above, isolating the rhs in-place guard.
+        // Sharing `lhs` makes its own in-place attempt bail, so the smaller rhs
+        // `[1, 0]` is the operand an element-count guard would grab and panic on
+        // when broadcasting to `[2, 0]`.
+        let device = Default::default();
+        let mk = |dims: [usize; 2]| -> TchTensor {
+            B::float_from_data(TensorData::new(Vec::<f32>::new(), dims), &device)
+        };
+        let lhs = mk([2, 0]);
+        assert_eq!(B::float_mul(lhs.clone(), mk([1, 0])).shape().dims(), [2, 0]);
+    }
+
+    #[test]
     fn should_support_from_bf16() {
         let data = TensorData::from([[1.0], [1.]]).convert_dtype(DType::BF16);
         let tensor_1: TchTensor = B::float_from_data(data, &Default::default());
@@ -499,6 +554,53 @@ mod tests {
         let out = read_sync(B::float_into_data(tensor_3)).unwrap();
 
         out.assert_eq(&TensorData::from([[3.0], [3.0]]), false);
+    }
+
+    #[test]
+    fn view_ops_preserve_parent_storage() {
+        // Regression for #5375: a view op must inherit its parent's storage
+        // handle, so `can_mut()` still sees the buffer as shared. Building the
+        // child with `TchTensor::new` mints a fresh `Arc` for aliased memory and
+        // `can_mut()` wrongly approves writing over the parent.
+        let device = Default::default();
+        let parent: TchTensor =
+            B::float_from_data(TensorData::from([[1.0, 2.0], [3.0, 4.0]]), &device);
+
+        for (name, view) in [
+            ("permute", TchOps::permute(parent.clone(), &[1, 0])),
+            ("swap_dims", TchOps::swap_dims(parent.clone(), 0, 1)),
+        ] {
+            assert!(
+                !view.can_mut(),
+                "{name} lost the parent alias: can_mut() is true for a view whose \
+                 parent is still alive, so an in-place op would write over shared \
+                 memory"
+            );
+        }
+
+        // `flip` is intentionally not in the list above: unlike NumPy's, libtorch's
+        // `flip` allocates instead of returning a view, so the child owns its
+        // buffer and `can_mut()` is correctly true.
+        let flipped = TchOps::flip(parent.clone(), &[0]);
+        assert!(flipped.can_mut(), "flip is expected to allocate, not alias");
+    }
+
+    #[test]
+    fn bool_and_over_permuted_alias_does_not_panic() {
+        // Regression for #5375: `x & xᵀ` is the attention-mask pattern burn-import
+        // generates. With the alias lost, `bool_and` takes libtorch's in-place
+        // `logical_and_` over overlapping memory and libtorch's overlap assert
+        // aborts the op.
+        use burn_backend::ops::BoolTensorOps;
+
+        let device = Default::default();
+        let mask = B::bool_from_data(TensorData::from([[true, false], [true, true]]), &device);
+        let permuted = TchOps::permute(mask.clone(), &[1, 0]);
+
+        let out = B::bool_and(mask, permuted);
+
+        let data = read_sync(B::bool_into_data(out)).unwrap();
+        data.assert_eq(&TensorData::from([[true, false], [false, true]]), false);
     }
 }
 

@@ -8,8 +8,7 @@ use crate::{
     },
 };
 use cubecl::{
-    Runtime,
-    ir::{ElemType, FloatKind, StorageType},
+    ir::{ElemType, FloatKind},
     prelude::*,
     server::LaunchError,
 };
@@ -40,27 +39,29 @@ pub struct FusedReduceBroadcastedLaunch<'a> {
     _strategy: RoutineStrategy,
 }
 
-impl<R: Runtime> Vectorization<R> for FusedReduceBroadcastedLaunch<'_> {}
+impl Vectorization for FusedReduceBroadcastedLaunch<'_> {}
 
-impl<R: Runtime> TraceRunner<R> for FusedReduceBroadcastedLaunch<'_> {
+impl TraceRunner for FusedReduceBroadcastedLaunch<'_> {
     type Error = LaunchError;
 
     fn run<'a>(
         &'a self,
-        client: &'a ComputeClient<R>,
-        inputs: GlobalArgsLaunch<R>,
-        outputs: GlobalArgsLaunch<R>,
+        client: &'a Client,
+        inputs: GlobalArgsLaunch,
+        outputs: GlobalArgsLaunch,
         configs: &'a [FuseBlockConfig],
     ) -> Result<(), Self::Error> {
         let routine = UnitRoutine;
         let first_config = &configs[0];
 
-        let shape = match &first_config.ref_layout {
-            RefLayout::Concrete(FuseArg::Output(..)) => {
-                outputs.shape_ref(&first_config.ref_layout, first_config.rank)
-            }
-            _ => inputs.shape_ref(&first_config.ref_layout, first_config.rank),
+        // An output-concrete reference indexes the output arguments; shape and
+        // strides must both be resolved against that list.
+        let ref_args = match &first_config.ref_layout {
+            RefLayout::Concrete(FuseArg::Output(..)) => &outputs,
+            _ => &inputs,
         };
+        let shape = ref_args.shape_ref(&first_config.ref_layout, first_config.rank);
+        let ref_strides = ref_args.strides_ref(&first_config.ref_layout, first_config.rank);
 
         let reduce_len = shape[self.reduce_axis];
         let reduce_count = shape.iter().product::<usize>() / reduce_len;
@@ -69,16 +70,16 @@ impl<R: Runtime> TraceRunner<R> for FusedReduceBroadcastedLaunch<'_> {
             .max(outputs.required_address_type());
 
         let (blueprint, settings) = routine
-            .prepare::<R>(
+            .prepare(
                 client,
                 ReduceProblem {
                     reduce_len,
                     reduce_count,
                     axis: self.reduce_axis,
                     dtypes: ReduceDtypes {
-                        input: StorageType::Scalar(ElemType::Float(FloatKind::F32)),
-                        output: StorageType::Scalar(ElemType::Float(FloatKind::F32)),
-                        accumulation: StorageType::Scalar(ElemType::Float(FloatKind::F32)),
+                        input: ElemType::Float(FloatKind::F32),
+                        output: ElemType::Float(FloatKind::F32),
+                        accumulation: ElemType::Float(FloatKind::F32),
                     },
                     address_type,
                     // We assume at least one block.
@@ -127,16 +128,13 @@ impl<R: Runtime> TraceRunner<R> for FusedReduceBroadcastedLaunch<'_> {
             false => ComptimeOptionArgs::None,
         };
 
-        let out_vec_axis = output_vectorization_axis(
-            &inputs.strides_ref(&first_config.ref_layout, first_config.rank),
-            self.reduce_axis,
-            VectorizationMode::Parallel,
-        );
+        let out_vec_axis =
+            output_vectorization_axis(&ref_strides, self.reduce_axis, VectorizationMode::Parallel);
 
         // TODO: Ensure parallel is selected.
 
         unsafe {
-            reduce_kernel_broadcasted::launch_unchecked::<R>(
+            reduce_kernel_broadcasted::launch_unchecked(
                 client,
                 settings.cube_count,
                 settings.cube_dim,

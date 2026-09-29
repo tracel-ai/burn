@@ -32,11 +32,8 @@ autotune-checks = ["burn-cubecl/autotune-checks"]
 
 [dependencies]
 cubecl = { workspace = true, features = ["hip"] }
-burn-cubecl = { workspace = true, features = ["default"] }
-burn-backend = { workspace = true, features = [
-    "default",
-    "cubecl-hip",
-] }
+burn-cubecl = { workspace = true }
+burn-backend = { workspace = true, features = ["cubecl-hip"] }
 burn-fusion = { workspace = true, optional = true, features = ["default"] }
 
 [package.metadata.docs.rs]

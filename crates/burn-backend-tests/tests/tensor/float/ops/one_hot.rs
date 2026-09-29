@@ -87,3 +87,17 @@ fn one_hot_fill_should_panic_when_negative_axis_out_range_of_rank() {
 
     let _one_hot_tensor: TestTensor<3> = tensor.one_hot_fill(2, 5.0, 0.0, -4_i64);
 }
+
+// Skip on metal - F64 not supported
+#[cfg(not(feature = "metal"))]
+#[test]
+fn one_hot_fill_should_keep_dtype() {
+    let tensor = TestTensor::<1>::from([0.0, 2.0]).cast(burn_tensor::DType::F64);
+
+    let one_hot_tensor: TestTensor<2> = tensor.one_hot_fill(3, 5.0, 1.0, -1);
+
+    assert_eq!(one_hot_tensor.dtype(), burn_tensor::DType::F64);
+    one_hot_tensor
+        .into_data()
+        .assert_eq(&TensorData::from([[5.0, 1.0, 1.0], [1.0, 1.0, 5.0]]), false);
+}

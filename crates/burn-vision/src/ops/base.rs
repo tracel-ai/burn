@@ -5,7 +5,8 @@ use crate::{
 use bon::Builder;
 
 use burn_core::backend::{
-    Backend, ExtensionType, TensorMetadata, backend_extension, tensor::{BoolTensor, IntTensor}
+    Backend, ExtensionType, TensorMetadata, backend_extension,
+    tensor::{BoolTensor, IntTensor},
 };
 use burn_core::tensor::{Int, IntDType, Scalar, Tensor, read_sync};
 use burn_core::{self as burn, backend::tensor::FloatTensor}; // for backend_extension
@@ -96,7 +97,13 @@ pub struct ConnectedStats {
 }
 
 #[derive(ExtensionType)]
-/// Primitive version of [`ConnectedStats`], to be returned by the backend
+#[extension_type(fusion: cfg(feature = "fusion"))]
+/// Primitive version of [`ConnectedStats`], to be returned by the backend.
+///
+/// Accelerated Cube operations reserve `height * width` entries for each statistics
+/// array. CPU fallbacks return one entry per component, including background.
+/// Fusion retains image-sized metadata for these arrays even on CPU fallback,
+/// preserving the existing discrepancy with their compact data. `max_label` has one entry.
 pub struct ConnectedStatsPrimitive<B: Backend> {
     /// Total area of each component
     pub area: IntTensor<B>,
@@ -161,56 +168,39 @@ impl Default for NmsOptions {
     }
 }
 
-#[cfg(feature = "flex")]
-use burn_core::backend::Flex;
-
-#[cfg(feature = "wgpu")]
-use burn_core::backend::Wgpu;
-
-#[cfg(feature = "webgpu")]
-use burn_core::backend::WebGpu;
-
-#[cfg(feature = "vulkan")]
-use burn_core::backend::Vulkan;
-
-#[cfg(feature = "metal")]
-use burn_core::backend::Metal;
-
-#[cfg(feature = "cuda")]
-use burn_core::backend::Cuda;
-
-#[cfg(feature = "rocm")]
-use burn_core::backend::Rocm;
-
-#[cfg(feature = "cpu")]
-use burn_core::backend::Cpu;
-
-#[cfg(feature = "tch")]
-use burn_core::backend::LibTorch;
-
 /// Vision capable backend, implemented by each backend
 #[backend_extension(
+    Fusion: cfg(feature = "fusion"),
     Flex: cfg(feature = "flex"),
-    Wgpu: cfg(feature = "wgpu"),
-    WebGpu: cfg(feature = "webgpu"),
-    Vulkan: cfg(feature = "vulkan"),
-    Metal: cfg(feature = "metal"),
-    Cuda: cfg(feature = "cuda"),
-    Rocm: cfg(feature = "rocm"),
-    Cpu: cfg(feature = "cpu"),
+    // Every cubecl runtime is the one `Cube` backend, so one entry covers what used to be a
+    // row per runtime; the features still decide whether any of them is compiled in.
+    Cube: cfg(any(
+        feature = "wgpu",
+        feature = "webgpu",
+        feature = "vulkan",
+        feature = "metal",
+        feature = "cuda",
+        feature = "rocm",
+        feature = "cpu"
+    )),
     LibTorch: cfg(feature = "tch"),
 )]
 pub trait VisionBackend: Backend + BoolVisionOps + IntVisionOps + FloatVisionOps {}
 
 #[backend_extension(
+    Fusion: cfg(feature = "fusion"),
     Flex: cfg(feature = "flex"),
-    Wgpu: cfg(feature = "wgpu"),
-    WebGpu: cfg(feature = "webgpu"),
-    Vulkan: cfg(feature = "vulkan"),
-    Metal: cfg(feature = "metal"),
-    Cuda: cfg(feature = "cuda"),
-    Rocm: cfg(feature = "rocm"),
-    Cpu: cfg(feature = "cpu"),
+    // Every cubecl runtime is the one `Cube` backend, so one entry covers what used to be a
+    // row per runtime; the features still decide whether any of them is compiled in.
+    Cube: cfg(any(
+        feature = "wgpu",
+        feature = "webgpu",
+        feature = "vulkan",
+        feature = "metal",
+        feature = "cuda",
+        feature = "rocm",
+        feature = "cpu"
+    )),
     LibTorch: cfg(feature = "tch"),
 )]
 /// Vision ops on bool tensors
@@ -219,6 +209,7 @@ pub trait BoolVisionOps: Backend {
     /// connectivity - returns a tensor of the component label of each pixel.
     ///
     /// `img`- The boolean image tensor in the format [batches, height, width]
+    #[fusion(dtype = (*out_dtype).into(), shape = img)]
     fn connected_components(
         img: BoolTensor<Self>,
         connectivity: Connectivity,
@@ -236,6 +227,7 @@ pub trait BoolVisionOps: Backend {
     /// label of each pixel, along with stats collected for each component.
     ///
     /// `img`- The boolean image tensor in the format [batches, height, width]
+    #[fusion(meta = connected_components_metadata)]
     fn connected_components_with_stats(
         img: BoolTensor<Self>,
         connectivity: Connectivity,
@@ -249,6 +241,7 @@ pub trait BoolVisionOps: Backend {
     }
 
     /// Erodes an input tensor with the specified kernel.
+    #[fusion(default)]
     fn bool_erode(
         input: BoolTensor<Self>,
         kernel: BoolTensor<Self>,
@@ -262,6 +255,7 @@ pub trait BoolVisionOps: Backend {
     }
 
     /// Dilates an input tensor with the specified kernel.
+    #[fusion(default)]
     fn bool_dilate(
         input: BoolTensor<Self>,
         kernel: BoolTensor<Self>,
@@ -276,19 +270,25 @@ pub trait BoolVisionOps: Backend {
 }
 
 #[backend_extension(
+    Fusion: cfg(feature = "fusion"),
     Flex: cfg(feature = "flex"),
-    Wgpu: cfg(feature = "wgpu"),
-    WebGpu: cfg(feature = "webgpu"),
-    Vulkan: cfg(feature = "vulkan"),
-    Metal: cfg(feature = "metal"),
-    Cuda: cfg(feature = "cuda"),
-    Rocm: cfg(feature = "rocm"),
-    Cpu: cfg(feature = "cpu"),
+    // Every cubecl runtime is the one `Cube` backend, so one entry covers what used to be a
+    // row per runtime; the features still decide whether any of them is compiled in.
+    Cube: cfg(any(
+        feature = "wgpu",
+        feature = "webgpu",
+        feature = "vulkan",
+        feature = "metal",
+        feature = "cuda",
+        feature = "rocm",
+        feature = "cpu"
+    )),
     LibTorch: cfg(feature = "tch"),
 )]
 /// Vision ops on int tensors
 pub trait IntVisionOps: Backend {
     /// Erodes an input tensor with the specified kernel.
+    #[fusion(default)]
     fn int_erode(
         input: IntTensor<Self>,
         kernel: BoolTensor<Self>,
@@ -302,6 +302,7 @@ pub trait IntVisionOps: Backend {
     }
 
     /// Dilates an input tensor with the specified kernel.
+    #[fusion(default)]
     fn int_dilate(
         input: IntTensor<Self>,
         kernel: BoolTensor<Self>,
@@ -316,19 +317,25 @@ pub trait IntVisionOps: Backend {
 }
 
 #[backend_extension(
+    Fusion: cfg(feature = "fusion"),
     Flex: cfg(feature = "flex"),
-    Wgpu: cfg(feature = "wgpu"),
-    WebGpu: cfg(feature = "webgpu"),
-    Vulkan: cfg(feature = "vulkan"),
-    Metal: cfg(feature = "metal"),
-    Cuda: cfg(feature = "cuda"),
-    Rocm: cfg(feature = "rocm"),
-    Cpu: cfg(feature = "cpu"),
+    // Every cubecl runtime is the one `Cube` backend, so one entry covers what used to be a
+    // row per runtime; the features still decide whether any of them is compiled in.
+    Cube: cfg(any(
+        feature = "wgpu",
+        feature = "webgpu",
+        feature = "vulkan",
+        feature = "metal",
+        feature = "cuda",
+        feature = "rocm",
+        feature = "cpu"
+    )),
     LibTorch: cfg(feature = "tch"),
 )]
 /// Vision ops on float tensors
 pub trait FloatVisionOps: Backend {
     /// Erodes an input tensor with the specified kernel.
+    #[fusion(default)]
     fn float_erode(
         input: FloatTensor<Self>,
         kernel: BoolTensor<Self>,
@@ -342,6 +349,7 @@ pub trait FloatVisionOps: Backend {
     }
 
     /// Dilates an input tensor with the specified kernel.
+    #[fusion(default)]
     fn float_dilate(
         input: FloatTensor<Self>,
         kernel: BoolTensor<Self>,
@@ -367,6 +375,7 @@ pub trait FloatVisionOps: Backend {
     ///
     /// # Returns
     /// Indices of kept boxes as \[M\] tensor where M <= N
+    #[fusion(default)]
     fn nms(
         boxes: FloatTensor<Self>,
         scores: FloatTensor<Self>,
@@ -382,4 +391,29 @@ pub trait FloatVisionOps: Backend {
             None => Self::int_zeros([0].into(), device, out_dtype),
         }
     }
+}
+
+#[cfg(feature = "fusion")]
+fn connected_components_metadata(
+    img: &burn::backend::fusion::custom::TensorSpec,
+    _connectivity: &Connectivity,
+    _opts: &ConnectedStatsOptions,
+    dtype: &IntDType,
+) -> (
+    burn::backend::fusion::custom::TensorSpec,
+    ConnectedStatsPrimitiveMetadata,
+) {
+    use burn::backend::fusion::custom::TensorSpec;
+    let stat = || TensorSpec::new([img.shape.num_elements()].into(), (*dtype).into());
+    (
+        TensorSpec::new(img.shape.clone(), (*dtype).into()),
+        ConnectedStatsPrimitiveMetadata {
+            area: stat(),
+            left: stat(),
+            top: stat(),
+            right: stat(),
+            bottom: stat(),
+            max_label: TensorSpec::new([1].into(), (*dtype).into()),
+        },
+    )
 }

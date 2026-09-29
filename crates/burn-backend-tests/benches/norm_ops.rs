@@ -15,7 +15,7 @@ mod common;
 use common::BencherExt;
 
 use burn_tensor::{Tensor, TensorData};
-use divan::{AllocProfiler, Bencher};
+use divan::Bencher;
 
 /// Route through the `B::layer_norm` backend hook. On Flex this hits the
 /// fused override; on NdArray this hits the `ModuleOps` default decomposition.
@@ -28,8 +28,9 @@ fn trait_layer_norm<const D: usize>(
     burn_tensor::module::layer_norm(input, gamma, Some(beta), epsilon)
 }
 
+#[cfg(not(feature = "bench-disable-alloc"))]
 #[global_allocator]
-static ALLOC: AllocProfiler = AllocProfiler::system();
+static ALLOC: divan::AllocProfiler = divan::AllocProfiler::system();
 
 fn main() {
     println!("Normalization Benchmarks");

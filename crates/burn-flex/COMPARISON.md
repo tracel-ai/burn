@@ -122,14 +122,19 @@ Both backends support the same integer dtypes.
 | Quantize       | Per-tensor and per-block symmetric                              | Per-tensor and per-block symmetric      |
 | Dequantize     | `scale * x_q` (direct multiply, **135-232x faster**)            | Reparses `QuantizedBytes` on every call |
 | Scale storage  | `Vec<f32>` stored separately                                    | `QParams<f32>` in `NdArrayQTensor`      |
-| Q layout ops   | **Zero-copy** (permute, flip, expand, slice, select)            | Copies entire tensor                    |
-| Q ordering ops | **Skip dequantization** (argmax, argmin, gather on i8 directly) | Dequantize to f32, then operate         |
+| Q layout ops   | **Zero-copy** per-tensor (permute, flip, expand, slice)         | Copies entire tensor                    |
+| Q ordering ops | **Skip dequantization** (argmax, argmin; per-tensor gather)     | Dequantize to f32, then operate         |
 | QuantStore     | Native                                                          | Native                                  |
 | QuantValue     | Q8F, Q8S                                                        | Q8F, Q8S (+ Q4/Q2 for export_tests)     |
 
 The fundamental difference is scale storage. Flex stores scales separately so dequantization is a
 simple `scale * x_q` multiply. NdArray stores everything in `QuantizedBytes` which must be parsed on
 every access, making it the bottleneck for all quantized operations.
+
+The zero-copy layout paths and `q_gather` apply to per-tensor schemes; block-quantized tensors
+dequantize, move, and requantize so the blocks follow the move. `q_select` always materializes, but
+for per-tensor schemes it copies the `i8` payload directly instead of dequantizing. `q_argmax` and
+`q_argmin` reduce over the `i8` payload for every scheme, so they never dequantize.
 
 ---
 
@@ -208,7 +213,7 @@ All operations listed below are implemented by both backends unless marked other
 | max_pool2d_with_indices_backward | Yes       | Yes          |                                                                                        |
 | adaptive_avg_pool2d              | Yes       | Yes          |                                                                                        |
 | adaptive_avg_pool2d_backward     | Yes       | Yes          |                                                                                        |
-| interpolate                      | Yes       | Yes          | Nearest, bilinear, bicubic                                                             |
+| interpolate                      | Yes       | Yes          | Both: nearest, bilinear, bicubic, Lanczos3. Neither implements nearest-exact           |
 | attention (SDPA)                 | Yes       | Yes          | Flex: auto-selects naive or flash by score matrix size; NdArray: matmul + softmax      |
 | rfft                             | Yes       | No           | Flex: Cooley-Tukey with complex packing, radix-4, SIMD, compile-time twiddles. no_std. |
 | irfft                            | Yes       | No           | Flex: Inverse packing trick, SIMD via conjugate-forward-conjugate. no_std.             |
@@ -225,12 +230,16 @@ Both backends implement all QTensorOps. The ops follow a dequantize-op-requantiz
 operations. Flex optimizes by:
 
 - Storing scales separately for O(1) dequantization access
-- Zero-copy layout ops on quantized tensors (permute, flip, expand, slice, select)
-- Skipping dequantization for ordering ops (argmax, argmin, gather with tensor-level quant)
+- Zero-copy layout ops on per-tensor quantized tensors (permute, flip, expand, slice)
+- Skipping dequantization for argmax/argmin (any scheme) and gather (per-tensor schemes)
 
 ### Activation Operations (ActivationOps)
 
-Both backends implement all ActivationOps via the default trait implementations (relu, gelu, etc.).
+NdArray overrides `relu` and takes the default trait implementations for the rest. Flex overrides
+every `ActivationOps` method except `log_softmax` and `softmin` with a fused kernel, replacing the
+multi-op decompositions the defaults build (`src/ops/activation.rs`). Fused does not always mean
+single-pass: `softmax` is a three-pass row kernel (max, exp+sum, normalize) that keeps each row
+cache-hot instead of materializing five intermediate tensors.
 
 ### Transaction Operations
 
@@ -306,7 +315,7 @@ Both backends support zero-copy loading from external sources (burnpack files, m
 | Aspect       | burn-flex                                                   | burn-ndarray                                   |
 | ------------ | ----------------------------------------------------------- | ---------------------------------------------- |
 | Library      | macerator (required with `simd` feature)                    | macerator (optional with `simd` feature)       |
-| Dispatch     | `Arch::new().dispatch(kernel)`                              | Same macerator dispatch                        |
+| Dispatch     | `#[macerator::with_simd]`                                   | Same macerator dispatch                        |
 | ISAs         | NEON, AVX2, AVX512, SSE, SIMD128, scalar fallback           | NEON, AVX2, SSE, SIMD128, scalar fallback      |
 | Coverage     | Binary ops, comparisons, boolean ops, reductions, unary ops | Binary ops, comparisons, unary ops, conv, pool |
 | Without SIMD | Scalar fallback module (`simd/scalar.rs`)                   | Falls back to ndarray operations               |
@@ -320,7 +329,7 @@ Flex relies on the gemm crate's built-in SIMD for matmul/conv performance.
 
 | Aspect      | burn-flex                              | burn-ndarray                                         |
 | ----------- | -------------------------------------- | ---------------------------------------------------- |
-| Library     | `gemm` crate (v0.18)                   | `matrixmultiply` crate (via ndarray)                 |
+| Library     | `gemm` crate (v0.19)                   | `matrixmultiply` crate (via ndarray)                 |
 | f32         | Native gemm kernel                     | matrixmultiply                                       |
 | f64         | Native gemm kernel                     | matrixmultiply                                       |
 | f16         | **Native gemm kernel (since v0.15)**   | **Not supported**                                    |
@@ -392,20 +401,23 @@ suite (MNIST model inference).
 
 ### burn-flex
 
-| Dependency   | Purpose                             | Required           |
-| ------------ | ----------------------------------- | ------------------ |
-| burn-backend | Backend traits, types               | Always             |
-| burn-ir      | BackendIr trait                     | Always             |
-| burn-std     | Bytes, Shape, platform abstractions | Always             |
-| half         | f16/bf16 types                      | Always             |
-| bytemuck     | Zero-copy type casting              | Always             |
-| num-traits   | Numeric traits (libm for no_std)    | Always             |
-| gemm         | Matrix multiplication               | Always             |
-| macerator    | Portable SIMD                       | Optional (`simd`)  |
-| aligned-vec  | SIMD-aligned allocation             | Optional (`simd`)  |
-| rayon        | Parallelism                         | Optional (`rayon`) |
+| Dependency      | Purpose                                | Required                      |
+| --------------- | -------------------------------------- | ----------------------------- |
+| burn-backend    | Backend traits, types                  | Always                        |
+| burn-ir         | BackendIr trait                        | Always                        |
+| burn-std        | Bytes, Shape, platform abstractions    | Always                        |
+| half            | f16/bf16 types                         | Always                        |
+| bytemuck        | Zero-copy type casting                 | Always                        |
+| num-traits      | Numeric traits                         | Always                        |
+| libm            | `erf` for f32/f64                      | Always                        |
+| gemm            | Matrix multiplication                  | Always                        |
+| macerator       | Portable SIMD                          | Optional (`simd`)             |
+| aligned-vec     | SIMD-aligned allocation                | Optional (`simd`)             |
+| rayon           | Parallelism                            | Optional (`rayon`)            |
+| once_cell       | Lazy statics without atomic CAS        | Optional (`critical-section`) |
+| portable-atomic | Atomics for targets without atomic CAS | Optional (`critical-section`) |
 
-**Total: 7 required + 3 optional**
+**Total: 8 required + 5 optional**
 
 ### burn-ndarray
 
@@ -442,14 +454,17 @@ utility crates, and no BLAS bindings.
 
 ## 13. Codebase Size
 
+Counting `*.rs` under `src/`, inline `#[cfg(test)]` modules included. The SIMD row is
+`burn-flex/src/simd/` and `burn-ndarray/src/ops/simd/`, excluded from the `ops/` row for both.
+
 | Metric         | burn-flex     | burn-ndarray |
 | -------------- | ------------- | ------------ |
-| Source files   | 38            | 37           |
-| Total lines    | ~23,500       | ~11,400      |
-| ops/ directory | ~19,700 lines | ~8,200 lines |
-| SIMD module    | ~1,200 lines  | ~2,100 lines |
+| Source files   | 44            | 37           |
+| Total lines    | ~34,200       | ~12,800      |
+| ops/ directory | ~29,300 lines | ~7,800 lines |
+| SIMD module    | ~2,100 lines  | ~2,800 lines |
 
-burn-flex has roughly 2x the code. This is because:
+burn-flex has roughly 2.7x the code. This is because:
 
 1. Flex implements all ops from scratch (ndarray delegates to the ndarray crate's built-in ops)
 2. Flex has dedicated optimized implementations (pool, conv, reduce, cumulative, gather/scatter)
@@ -482,7 +497,7 @@ Genuine algorithmic and library improvements:
 
 | Category         | Flex vs NdArray      | Why                                       |
 | ---------------- | -------------------- | ----------------------------------------- |
-| Binary ops (f32) | **2.4-3.9x faster**  | Arc COW avoids allocation; 3x less memory |
+| Binary ops (f32) | **~1-1.4x faster**   | SIMD parity; COW avoids output allocation |
 | Binary ops (i64) | **1.5-6.4x faster**  | Same COW benefits                         |
 | Matmul (square)  | **1.1-3.4x faster**  | gemm > matrixmultiply                     |
 | Matmul (batched) | **1.8-3.2x faster**  | Better batch parallelism                  |

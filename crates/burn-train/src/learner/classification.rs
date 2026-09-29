@@ -2,7 +2,7 @@ use crate::metric::{
     AccuracyInput, Adaptor, ConfusionStatsInput, HammingScoreInput, LossInput, PerplexityInput,
     TopKAccuracyInput, processor::ItemLazy,
 };
-use burn_core::tensor::{Device, Int, Tensor, Transaction};
+use burn_core::tensor::{Int, Tensor};
 
 /// Simple classification output adapted for multiple metrics.
 ///
@@ -29,20 +29,18 @@ pub struct ClassificationOutput {
 
 impl ItemLazy for ClassificationOutput {
     fn sync(self) -> Self {
-        let [output, loss, targets] = Transaction::default()
-            .register(self.output)
-            .register(self.loss)
-            .register(self.targets)
-            .execute()
-            .try_into()
-            .expect("Correct amount of tensor data");
-
-        let device: Device = Device::flex();
+        // No readback: the metrics compute on the device the tensors live on
+        // and read back only their final scalars. Flushing dispatches the
+        // producing stream's buffered work so the metric thread doesn't wait
+        // on an idle queue; all tensors in a training item come off the
+        // autodiff backend entirely, so the metric thread neither retains the
+        // tape nor carries its dispatch context.
+        self.loss.device().flush();
 
         ClassificationOutput {
-            output: Tensor::from_data(output, &device),
-            loss: Tensor::from_data(loss, &device),
-            targets: Tensor::from_data(targets, &device),
+            output: self.output.without_autodiff(),
+            loss: self.loss.without_autodiff(),
+            targets: self.targets.without_autodiff(),
         }
     }
 }
@@ -110,20 +108,14 @@ pub struct MultiLabelClassificationOutput {
 
 impl ItemLazy for MultiLabelClassificationOutput {
     fn sync(self) -> Self {
-        let [output, loss, targets] = Transaction::default()
-            .register(self.output)
-            .register(self.loss)
-            .register(self.targets)
-            .execute()
-            .try_into()
-            .expect("Correct amount of tensor data");
-
-        let device: Device = Device::flex();
+        // Same contract as `ClassificationOutput::sync`: flush and take every
+        // tensor off the autodiff backend, no readback.
+        self.loss.device().flush();
 
         MultiLabelClassificationOutput {
-            output: Tensor::from_data(output, &device),
-            loss: Tensor::from_data(loss, &device),
-            targets: Tensor::from_data(targets, &device),
+            output: self.output.without_autodiff(),
+            loss: self.loss.without_autodiff(),
+            targets: self.targets.without_autodiff(),
         }
     }
 }

@@ -49,6 +49,10 @@ macro_rules! dispatch_distributed_devices_arms {
                     let $inner_devices = $devices
                         .iter()
                         .map(|d| {
+                            // In a build with only one dispatch variant compiled in, the
+                            // pattern is irrefutable and the else clause is dead — which is
+                            // the point: it only guards the multi-backend builds.
+                            #[allow(irrefutable_let_patterns)]
                             let DispatchDevice::$Backend(dev) = d else {
                                 unreachable!("All devices are expected to be of the same variant.")
                             };
@@ -58,6 +62,7 @@ macro_rules! dispatch_distributed_devices_arms {
                     $body
                 }
             )*
+            #[allow(unreachable_patterns)]
             other => panic!("Distributed operations are not supported for device {other:?}"),
         }
     };
@@ -76,6 +81,10 @@ macro_rules! dispatch_distributed_devices_arms {
                     let $inner_devices = $devices
                         .iter()
                         .map(|d| {
+                            // In a build with only one dispatch variant compiled in, the
+                            // pattern is irrefutable and the else clause is dead — which is
+                            // the point: it only guards the multi-backend builds.
+                            #[allow(irrefutable_let_patterns)]
                             let DispatchDevice::$Backend(dev) = d else {
                                 unreachable!("All devices are expected to be of the same variant.")
                             };
@@ -86,6 +95,7 @@ macro_rules! dispatch_distributed_devices_arms {
                 }
             )*
             $crate::DispatchDevice::Autodiff(_) => panic!("Autodiff should not wrap an autodiff device."),
+            #[allow(unreachable_patterns)]
             other => panic!("Distributed operations are not supported for device {other:?}"),
         }
     };
@@ -100,6 +110,64 @@ macro_rules! dispatch_distributed_devices {
             $devices,
             |$inner_devices| $body
         )
+    };
+}
+
+macro_rules! dispatch_distributed_float_arms {
+    ($tensor:expr, |$inner:ident| $body:expr; $([$Backend:ident, $cfg:meta]),*) => {{
+        let autodiff = $tensor.autodiff;
+        match $tensor.kind {
+            #[cfg(feature = "autodiff")]
+            $crate::DispatchTensorKind::Autodiff(inner) => match *inner {
+                $(
+                    #[cfg($cfg)]
+                    $crate::DispatchTensorKind::$Backend($inner) => {
+                        let $crate::DispatchAutodiffContext::Enabled(checkpointing) = autodiff else {
+                            panic!("an autodiff float primitive must have an enabled autodiff context")
+                        };
+                        with_autodiff_backend!($Backend, checkpointing, |B| {
+                            let $inner = $inner.autodiff();
+                            $crate::DispatchTensor {
+                                kind: $crate::DispatchTensorKind::Autodiff(alloc::boxed::Box::new(
+                                    $crate::DispatchTensorKind::$Backend(
+                                        $crate::BackendTensor::Autodiff($body),
+                                    ),
+                                )),
+                                autodiff,
+                            }
+                        })
+                    }
+                )*
+                #[allow(unreachable_patterns)]
+                other => panic!("Distributed operations are not supported for tensor kind {other:?}"),
+            },
+            $(
+                #[cfg($cfg)]
+                $crate::DispatchTensorKind::$Backend($inner) => {
+                    assert_eq!(
+                        autodiff,
+                        $crate::DispatchAutodiffContext::Disabled,
+                        "an enabled float tensor must use an autodiff primitive",
+                    );
+                    type B = $crate::backends::$Backend;
+                    let $inner = $inner.float();
+                    $crate::DispatchTensor {
+                        kind: $crate::DispatchTensorKind::$Backend(
+                            $crate::BackendTensor::Float($body),
+                        ),
+                        autodiff,
+                    }
+                }
+            )*
+            #[allow(unreachable_patterns)]
+            other => panic!("Distributed operations are not supported for tensor kind {other:?}"),
+        }
+    }};
+}
+
+macro_rules! dispatch_distributed_float {
+    ($tensor:expr, |$inner:ident| $body:expr) => {
+        distributed_backend_list!(dispatch_distributed_float_arms, $tensor, |$inner| $body)
     };
 }
 
@@ -150,10 +218,10 @@ impl DistributedOps<Self> for Dispatch {
         // Explicit type: the distributed dispatch only emits arms for collective-capable
         // backends (Cuda, Remote), so a build with none of them leaves only the diverging
         // fallback and the match would otherwise infer `!`.
-        let tensor: FloatTensor<Self> = unary_float!(@distributed tensor, float, |tensor| {
+        let tensor: FloatTensor<Self> = dispatch_distributed_float!(tensor, |tensor| {
             let collective_tensor = B::all_reduce(tensor, op, device_ids);
             unsafe { collective_tensor.assume_resolved() }
-        } => Float);
+        });
         CollectiveTensor::new(tensor)
     }
 

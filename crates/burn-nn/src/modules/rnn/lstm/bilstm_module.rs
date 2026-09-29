@@ -1,3 +1,4 @@
+use crate::Initializer;
 use burn_core as burn;
 
 use crate::activation::ActivationConfig;
@@ -5,7 +6,7 @@ use crate::{Lstm, LstmConfig, LstmState};
 use alloc::vec;
 use burn::Tensor;
 use burn::config::Config;
-use burn::module::{Content, DisplaySettings, Initializer, Module, ModuleDisplay};
+use burn::module::{Content, DisplaySettings, Module, ModuleDisplay};
 use burn::prelude::Device;
 use burn::prelude::s;
 

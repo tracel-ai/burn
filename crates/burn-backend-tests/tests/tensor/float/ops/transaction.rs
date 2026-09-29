@@ -4,7 +4,9 @@ use burn_tensor::Transaction;
 // https://github.com/tracel-ai/burn/issues/4021
 #[test]
 fn should_support_transaction() {
-    let rows = 261120;
+    // The original reproduction used 261120 rows, but the regression only requires reading the
+    // transposed (non-contiguous) 408x408 matmul output through a transaction.
+    let rows = 32;
     let cols = 408;
 
     let device = Default::default();

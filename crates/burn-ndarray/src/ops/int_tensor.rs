@@ -23,10 +23,10 @@ use burn_backend::{DType, Shape, TensorData};
 
 impl IntTensorOps<Self> for NdArray {
     fn int_from_data(data: TensorData, _device: &NdArrayDevice) -> NdArrayTensor {
-        if data.dtype.is_int() || data.dtype.is_uint() {
+        if data.dtype().is_int() || data.dtype().is_uint() {
             NdArrayTensor::from_data(data)
         } else {
-            unimplemented!("Unsupported dtype for `int_from_data`: {:?}", data.dtype)
+            unimplemented!("Unsupported dtype for `int_from_data`: {:?}", data.dtype())
         }
     }
 
@@ -266,17 +266,50 @@ impl IntTensorOps<Self> for NdArray {
         })
     }
 
-    fn int_scatter_add(
+    fn int_scatter(
         dim: usize,
         tensor: NdArrayTensor,
         indices: NdArrayTensor,
         value: NdArrayTensor,
+        update: burn_backend::tensor::IndexingUpdateOp,
     ) -> NdArrayTensor {
-        execute_with_int_dtype!((tensor, value), I, |tensor, value| -> NdArrayTensor {
-            execute_with_int_dtype!(indices, |idx_array| NdArrayOps::<I>::scatter(
-                dim, tensor, idx_array, value
-            ))
-        })
+        match update {
+            burn_backend::tensor::IndexingUpdateOp::Add => {
+                execute_with_int_dtype!((tensor, value), I, |tensor, value| -> NdArrayTensor {
+                    execute_with_int_dtype!(indices, |idx_array| NdArrayOps::<I>::scatter(
+                        dim, tensor, idx_array, value
+                    ))
+                })
+            }
+            burn_backend::tensor::IndexingUpdateOp::Assign => {
+                execute_with_int_dtype!((tensor, value), I, |tensor, value| -> NdArrayTensor {
+                    execute_with_int_dtype!(indices, |idx_array| NdArrayOps::<I>::scatter_assign(
+                        dim, tensor, idx_array, value
+                    ))
+                })
+            }
+            burn_backend::tensor::IndexingUpdateOp::Mul => {
+                execute_with_int_dtype!((tensor, value), I, |tensor, value| -> NdArrayTensor {
+                    execute_with_int_dtype!(indices, |idx_array| NdArrayOps::<I>::scatter_mul(
+                        dim, tensor, idx_array, value
+                    ))
+                })
+            }
+            burn_backend::tensor::IndexingUpdateOp::Min => {
+                execute_with_int_dtype!((tensor, value), I, |tensor, value| -> NdArrayTensor {
+                    execute_with_int_dtype!(indices, |idx_array| NdArrayOps::<I>::scatter_min(
+                        dim, tensor, idx_array, value
+                    ))
+                })
+            }
+            burn_backend::tensor::IndexingUpdateOp::Max => {
+                execute_with_int_dtype!((tensor, value), I, |tensor, value| -> NdArrayTensor {
+                    execute_with_int_dtype!(indices, |idx_array| NdArrayOps::<I>::scatter_max(
+                        dim, tensor, idx_array, value
+                    ))
+                })
+            }
+        }
     }
 
     fn int_scatter_nd(
@@ -306,17 +339,50 @@ impl IntTensorOps<Self> for NdArray {
         })
     }
 
-    fn int_select_add(
+    fn int_select_assign(
         tensor: NdArrayTensor,
         dim: usize,
         indices: NdArrayTensor,
         value: NdArrayTensor,
+        update: burn_backend::tensor::IndexingUpdateOp,
     ) -> NdArrayTensor {
-        execute_with_int_dtype!((tensor, value), I, |tensor, value| -> NdArrayTensor {
-            execute_with_int_dtype!(indices, |idx_array| NdArrayMathOps::<I>::select_assign(
-                tensor, dim, idx_array, value
-            ))
-        })
+        match update {
+            burn_backend::tensor::IndexingUpdateOp::Add => {
+                execute_with_int_dtype!((tensor, value), I, |tensor, value| -> NdArrayTensor {
+                    execute_with_int_dtype!(indices, |idx_array| {
+                        NdArrayMathOps::<I>::select_assign(tensor, dim, idx_array, value)
+                    })
+                })
+            }
+            burn_backend::tensor::IndexingUpdateOp::Assign => {
+                execute_with_int_dtype!((tensor, value), I, |tensor, value| -> NdArrayTensor {
+                    execute_with_int_dtype!(indices, |idx_array| {
+                        NdArrayMathOps::<I>::select_assign_replace(tensor, dim, idx_array, value)
+                    })
+                })
+            }
+            burn_backend::tensor::IndexingUpdateOp::Mul => {
+                execute_with_int_dtype!((tensor, value), I, |tensor, value| -> NdArrayTensor {
+                    execute_with_int_dtype!(indices, |idx_array| {
+                        NdArrayMathOps::<I>::select_assign_mul(tensor, dim, idx_array, value)
+                    })
+                })
+            }
+            burn_backend::tensor::IndexingUpdateOp::Min => {
+                execute_with_int_dtype!((tensor, value), I, |tensor, value| -> NdArrayTensor {
+                    execute_with_int_dtype!(indices, |idx_array| {
+                        NdArrayMathOps::<I>::select_assign_min(tensor, dim, idx_array, value)
+                    })
+                })
+            }
+            burn_backend::tensor::IndexingUpdateOp::Max => {
+                execute_with_int_dtype!((tensor, value), I, |tensor, value| -> NdArrayTensor {
+                    execute_with_int_dtype!(indices, |idx_array| {
+                        NdArrayMathOps::<I>::select_assign_max(tensor, dim, idx_array, value)
+                    })
+                })
+            }
+        }
     }
     fn int_argmax(tensor: NdArrayTensor, dim: usize) -> NdArrayTensor {
         // Use view() for zero-copy on borrowed storage

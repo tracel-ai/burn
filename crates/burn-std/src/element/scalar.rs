@@ -80,6 +80,18 @@ impl_from_scalar! {
     u64  => UInt, u32  => UInt, u16  => UInt, u8 => UInt, bool => Bool,
 }
 
+impl From<isize> for Scalar {
+    fn from(value: isize) -> Self {
+        Self::Int(value as i64)
+    }
+}
+
+impl From<usize> for Scalar {
+    fn from(value: usize) -> Self {
+        Self::UInt(value as u64)
+    }
+}
+
 // CubeCL requirement
 impl ToPrimitive for Scalar {
     fn to_i64(&self) -> Option<i64> {

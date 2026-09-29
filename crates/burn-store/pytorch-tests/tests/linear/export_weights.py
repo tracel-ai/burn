@@ -39,6 +39,8 @@ def main():
 
     torch.save(model.state_dict(), "linear.pt")
     torch.save(model_with_bias.state_dict(), "linear_with_bias.pt")
+    # The whole module rather than its state_dict, which must load the same.
+    torch.save(model, "linear_full_model.pt")
     
     input = torch.rand(1, 2, 2, 2)
     print("Input shape: {}", input.shape)

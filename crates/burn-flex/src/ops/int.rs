@@ -6,12 +6,23 @@ use burn_backend::{
     ops::IntTensorOps,
     tensor::{BoolTensor, Device, FloatTensor, IntTensor},
 };
-use burn_std::{Bytes, IntDType, Shape, Slice, bf16, f16};
-use num_traits::ToPrimitive;
+use burn_std::{Bytes, Element, IntDType, Shape, Slice, bf16, f16};
+use num_traits::{AsPrimitive, ToPrimitive, WrappingShl, WrappingShr};
 
 use crate::Layout;
 use crate::ops::binary::{binary_op_typed, int_binary_op, int_scalar_op, scalar_op_typed};
 use crate::{Flex, FlexTensor, ops::matmul};
+
+/// Python/PyTorch-style remainder: result has same sign as divisor.
+#[inline]
+fn remainder_int(a: i64, b: i64) -> i64 {
+    let r = a.wrapping_rem(b);
+    if r != 0 && (r < 0) != (b < 0) {
+        r.wrapping_add(b)
+    } else {
+        r
+    }
+}
 
 /// Convert a Scalar to (i64, u64) pair for the given dtype.
 /// Only the matching type's conversion is validated; the other gets a dummy 0.
@@ -21,6 +32,63 @@ fn scalar_to_int_pair(dtype: DType, rhs: &Scalar) -> (i64, u64) {
     } else {
         (rhs.to_i64().unwrap(), 0)
     }
+}
+
+enum ShiftAmount {
+    Tensor(FlexTensor),
+    Scalar(u32),
+}
+
+// Shifts run on each dtype's native type instead of going through the i64
+// widening of int_binary_op/int_scalar_op. That keeps u64 right shifts logical
+// and makes wrapping_shl/wrapping_shr mask the shift amount to the operand's
+// own bit width.
+fn int_shift<const LEFT: bool>(lhs: FlexTensor, rhs: ShiftAmount) -> FlexTensor {
+    let (lhs, rhs) = match rhs {
+        ShiftAmount::Tensor(rhs) => {
+            let (lhs, rhs) = crate::ops::expand::broadcast_binary(lhs, rhs);
+            (lhs, ShiftAmount::Tensor(rhs))
+        }
+        scalar => (lhs, scalar),
+    };
+    match lhs.dtype() {
+        DType::I64 => shift_typed::<i64, LEFT>(lhs, rhs),
+        DType::I32 => shift_typed::<i32, LEFT>(lhs, rhs),
+        DType::I16 => shift_typed::<i16, LEFT>(lhs, rhs),
+        DType::I8 => shift_typed::<i8, LEFT>(lhs, rhs),
+        DType::U64 => shift_typed::<u64, LEFT>(lhs, rhs),
+        DType::U32 => shift_typed::<u32, LEFT>(lhs, rhs),
+        DType::U16 => shift_typed::<u16, LEFT>(lhs, rhs),
+        DType::U8 => shift_typed::<u8, LEFT>(lhs, rhs),
+        dtype => panic!("int_shift: unsupported dtype {:?}", dtype),
+    }
+}
+
+fn shift_typed<E, const LEFT: bool>(lhs: FlexTensor, rhs: ShiftAmount) -> FlexTensor
+where
+    E: Element + bytemuck::Pod + WrappingShl + WrappingShr + AsPrimitive<u32>,
+{
+    let shift = |a: E, n: u32| {
+        if LEFT {
+            a.wrapping_shl(n)
+        } else {
+            a.wrapping_shr(n)
+        }
+    };
+    match rhs {
+        ShiftAmount::Tensor(rhs) => binary_op_typed(lhs, rhs, move |a: E, b: E| shift(a, b.as_())),
+        ShiftAmount::Scalar(n) => scalar_op_typed(lhs, E::zeroed(), move |a: E, _| shift(a, n)),
+    }
+}
+
+/// Any integer scalar is accepted; the amount is masked to the operand width.
+fn scalar_shift_amount(rhs: &Scalar) -> ShiftAmount {
+    let n = rhs
+        .to_i64()
+        .map(|v| v as u32)
+        .or_else(|| rhs.to_u64().map(|v| v as u32))
+        .unwrap();
+    ShiftAmount::Scalar(n)
 }
 
 impl IntTensorOps<Flex> for Flex {
@@ -126,44 +194,164 @@ impl IntTensorOps<Flex> for Flex {
         }
     }
 
-    /// Scatter-add int values at the given indices along `dim`.
-    ///
-    /// `tensor` and `value` must share the same int dtype; `indices` may be
-    /// any supported int width. See [`int_gather`](Self::int_gather) for the
-    /// full index-width policy.
-    fn int_scatter_add(
+    fn int_scatter(
         dim: usize,
         tensor: IntTensor<Flex>,
         indices: IntTensor<Flex>,
         value: IntTensor<Flex>,
+        update: burn_backend::tensor::IndexingUpdateOp,
     ) -> IntTensor<Flex> {
-        debug_assert_eq!(
-            tensor.dtype(),
-            value.dtype(),
-            "int_scatter_add: dtype mismatch"
-        );
-        match tensor.dtype() {
-            DType::I64 => {
-                crate::ops::gather_scatter::scatter_add::<i64>(tensor, dim, indices, value)
+        match update {
+            burn_backend::tensor::IndexingUpdateOp::Assign => {
+                debug_assert_eq!(tensor.dtype(), value.dtype(), "int_scatter: dtype mismatch");
+                match tensor.dtype() {
+                    DType::I64 => crate::ops::gather_scatter::scatter_assign::<i64>(
+                        tensor, dim, indices, value,
+                    ),
+                    DType::I32 => crate::ops::gather_scatter::scatter_assign::<i32>(
+                        tensor, dim, indices, value,
+                    ),
+                    DType::I16 => crate::ops::gather_scatter::scatter_assign::<i16>(
+                        tensor, dim, indices, value,
+                    ),
+                    DType::I8 => crate::ops::gather_scatter::scatter_assign::<i8>(
+                        tensor, dim, indices, value,
+                    ),
+                    DType::U64 => crate::ops::gather_scatter::scatter_assign::<u64>(
+                        tensor, dim, indices, value,
+                    ),
+                    DType::U32 => crate::ops::gather_scatter::scatter_assign::<u32>(
+                        tensor, dim, indices, value,
+                    ),
+                    DType::U16 => crate::ops::gather_scatter::scatter_assign::<u16>(
+                        tensor, dim, indices, value,
+                    ),
+                    DType::U8 => crate::ops::gather_scatter::scatter_assign::<u8>(
+                        tensor, dim, indices, value,
+                    ),
+                    dt => panic!("int_scatter: unsupported dtype {:?}", dt),
+                }
             }
-            DType::I32 => {
-                crate::ops::gather_scatter::scatter_add::<i32>(tensor, dim, indices, value)
+            burn_backend::tensor::IndexingUpdateOp::Add => {
+                debug_assert_eq!(tensor.dtype(), value.dtype(), "int_scatter: dtype mismatch");
+                match tensor.dtype() {
+                    DType::I64 => {
+                        crate::ops::gather_scatter::scatter_add::<i64>(tensor, dim, indices, value)
+                    }
+                    DType::I32 => {
+                        crate::ops::gather_scatter::scatter_add::<i32>(tensor, dim, indices, value)
+                    }
+                    DType::I16 => {
+                        crate::ops::gather_scatter::scatter_add::<i16>(tensor, dim, indices, value)
+                    }
+                    DType::I8 => {
+                        crate::ops::gather_scatter::scatter_add::<i8>(tensor, dim, indices, value)
+                    }
+                    DType::U64 => {
+                        crate::ops::gather_scatter::scatter_add::<u64>(tensor, dim, indices, value)
+                    }
+                    DType::U32 => {
+                        crate::ops::gather_scatter::scatter_add::<u32>(tensor, dim, indices, value)
+                    }
+                    DType::U16 => {
+                        crate::ops::gather_scatter::scatter_add::<u16>(tensor, dim, indices, value)
+                    }
+                    DType::U8 => {
+                        crate::ops::gather_scatter::scatter_add::<u8>(tensor, dim, indices, value)
+                    }
+                    dt => panic!("int_scatter: unsupported dtype {:?}", dt),
+                }
             }
-            DType::I16 => {
-                crate::ops::gather_scatter::scatter_add::<i16>(tensor, dim, indices, value)
+            burn_backend::tensor::IndexingUpdateOp::Mul => {
+                debug_assert_eq!(tensor.dtype(), value.dtype(), "int_scatter: dtype mismatch");
+                match tensor.dtype() {
+                    DType::I64 => {
+                        crate::ops::gather_scatter::scatter_mul::<i64>(tensor, dim, indices, value)
+                    }
+                    DType::I32 => {
+                        crate::ops::gather_scatter::scatter_mul::<i32>(tensor, dim, indices, value)
+                    }
+                    DType::I16 => {
+                        crate::ops::gather_scatter::scatter_mul::<i16>(tensor, dim, indices, value)
+                    }
+                    DType::I8 => {
+                        crate::ops::gather_scatter::scatter_mul::<i8>(tensor, dim, indices, value)
+                    }
+                    DType::U64 => {
+                        crate::ops::gather_scatter::scatter_mul::<u64>(tensor, dim, indices, value)
+                    }
+                    DType::U32 => {
+                        crate::ops::gather_scatter::scatter_mul::<u32>(tensor, dim, indices, value)
+                    }
+                    DType::U16 => {
+                        crate::ops::gather_scatter::scatter_mul::<u16>(tensor, dim, indices, value)
+                    }
+                    DType::U8 => {
+                        crate::ops::gather_scatter::scatter_mul::<u8>(tensor, dim, indices, value)
+                    }
+                    dt => panic!("int_scatter: unsupported dtype {:?}", dt),
+                }
             }
-            DType::I8 => crate::ops::gather_scatter::scatter_add::<i8>(tensor, dim, indices, value),
-            DType::U64 => {
-                crate::ops::gather_scatter::scatter_add::<u64>(tensor, dim, indices, value)
+            burn_backend::tensor::IndexingUpdateOp::Min => {
+                debug_assert_eq!(tensor.dtype(), value.dtype(), "int_scatter: dtype mismatch");
+                match tensor.dtype() {
+                    DType::I64 => {
+                        crate::ops::gather_scatter::scatter_min::<i64>(tensor, dim, indices, value)
+                    }
+                    DType::I32 => {
+                        crate::ops::gather_scatter::scatter_min::<i32>(tensor, dim, indices, value)
+                    }
+                    DType::I16 => {
+                        crate::ops::gather_scatter::scatter_min::<i16>(tensor, dim, indices, value)
+                    }
+                    DType::I8 => {
+                        crate::ops::gather_scatter::scatter_min::<i8>(tensor, dim, indices, value)
+                    }
+                    DType::U64 => {
+                        crate::ops::gather_scatter::scatter_min::<u64>(tensor, dim, indices, value)
+                    }
+                    DType::U32 => {
+                        crate::ops::gather_scatter::scatter_min::<u32>(tensor, dim, indices, value)
+                    }
+                    DType::U16 => {
+                        crate::ops::gather_scatter::scatter_min::<u16>(tensor, dim, indices, value)
+                    }
+                    DType::U8 => {
+                        crate::ops::gather_scatter::scatter_min::<u8>(tensor, dim, indices, value)
+                    }
+                    dt => panic!("int_scatter: unsupported dtype {:?}", dt),
+                }
             }
-            DType::U32 => {
-                crate::ops::gather_scatter::scatter_add::<u32>(tensor, dim, indices, value)
+            burn_backend::tensor::IndexingUpdateOp::Max => {
+                debug_assert_eq!(tensor.dtype(), value.dtype(), "int_scatter: dtype mismatch");
+                match tensor.dtype() {
+                    DType::I64 => {
+                        crate::ops::gather_scatter::scatter_max::<i64>(tensor, dim, indices, value)
+                    }
+                    DType::I32 => {
+                        crate::ops::gather_scatter::scatter_max::<i32>(tensor, dim, indices, value)
+                    }
+                    DType::I16 => {
+                        crate::ops::gather_scatter::scatter_max::<i16>(tensor, dim, indices, value)
+                    }
+                    DType::I8 => {
+                        crate::ops::gather_scatter::scatter_max::<i8>(tensor, dim, indices, value)
+                    }
+                    DType::U64 => {
+                        crate::ops::gather_scatter::scatter_max::<u64>(tensor, dim, indices, value)
+                    }
+                    DType::U32 => {
+                        crate::ops::gather_scatter::scatter_max::<u32>(tensor, dim, indices, value)
+                    }
+                    DType::U16 => {
+                        crate::ops::gather_scatter::scatter_max::<u16>(tensor, dim, indices, value)
+                    }
+                    DType::U8 => {
+                        crate::ops::gather_scatter::scatter_max::<u8>(tensor, dim, indices, value)
+                    }
+                    dt => panic!("int_scatter: unsupported dtype {:?}", dt),
+                }
             }
-            DType::U16 => {
-                crate::ops::gather_scatter::scatter_add::<u16>(tensor, dim, indices, value)
-            }
-            DType::U8 => crate::ops::gather_scatter::scatter_add::<u8>(tensor, dim, indices, value),
-            dt => panic!("int_scatter_add: unsupported dtype {:?}", dt),
         }
     }
 
@@ -238,44 +426,184 @@ impl IntTensorOps<Flex> for Flex {
         }
     }
 
-    /// Select-add int values at a 1D index tensor along `dim`.
-    ///
-    /// `tensor` and `value` must share the same int dtype; `indices` may be
-    /// any supported int width. See [`int_gather`](Self::int_gather) for the
-    /// full index-width policy.
-    fn int_select_add(
+    fn int_select_assign(
         tensor: IntTensor<Flex>,
         dim: usize,
         indices: IntTensor<Flex>,
         value: IntTensor<Flex>,
+        update: burn_backend::tensor::IndexingUpdateOp,
     ) -> IntTensor<Flex> {
-        debug_assert_eq!(
-            tensor.dtype(),
-            value.dtype(),
-            "int_select_add: dtype mismatch"
-        );
-        match tensor.dtype() {
-            DType::I64 => {
-                crate::ops::gather_scatter::select_add::<i64>(tensor, dim, indices, value)
+        match update {
+            burn_backend::tensor::IndexingUpdateOp::Assign => {
+                debug_assert_eq!(
+                    tensor.dtype(),
+                    value.dtype(),
+                    "int_select_assign: dtype mismatch"
+                );
+                match tensor.dtype() {
+                    DType::I64 => crate::ops::gather_scatter::select_assign::<i64>(
+                        tensor, dim, indices, value,
+                    ),
+                    DType::I32 => crate::ops::gather_scatter::select_assign::<i32>(
+                        tensor, dim, indices, value,
+                    ),
+                    DType::I16 => crate::ops::gather_scatter::select_assign::<i16>(
+                        tensor, dim, indices, value,
+                    ),
+                    DType::I8 => {
+                        crate::ops::gather_scatter::select_assign::<i8>(tensor, dim, indices, value)
+                    }
+                    DType::U64 => crate::ops::gather_scatter::select_assign::<u64>(
+                        tensor, dim, indices, value,
+                    ),
+                    DType::U32 => crate::ops::gather_scatter::select_assign::<u32>(
+                        tensor, dim, indices, value,
+                    ),
+                    DType::U16 => crate::ops::gather_scatter::select_assign::<u16>(
+                        tensor, dim, indices, value,
+                    ),
+                    DType::U8 => {
+                        crate::ops::gather_scatter::select_assign::<u8>(tensor, dim, indices, value)
+                    }
+                    dt => panic!("int_select_assign: unsupported dtype {:?}", dt),
+                }
             }
-            DType::I32 => {
-                crate::ops::gather_scatter::select_add::<i32>(tensor, dim, indices, value)
+            burn_backend::tensor::IndexingUpdateOp::Add => {
+                debug_assert_eq!(
+                    tensor.dtype(),
+                    value.dtype(),
+                    "int_select_assign: dtype mismatch"
+                );
+                match tensor.dtype() {
+                    DType::I64 => {
+                        crate::ops::gather_scatter::select_add::<i64>(tensor, dim, indices, value)
+                    }
+                    DType::I32 => {
+                        crate::ops::gather_scatter::select_add::<i32>(tensor, dim, indices, value)
+                    }
+                    DType::I16 => {
+                        crate::ops::gather_scatter::select_add::<i16>(tensor, dim, indices, value)
+                    }
+                    DType::I8 => {
+                        crate::ops::gather_scatter::select_add::<i8>(tensor, dim, indices, value)
+                    }
+                    DType::U64 => {
+                        crate::ops::gather_scatter::select_add::<u64>(tensor, dim, indices, value)
+                    }
+                    DType::U32 => {
+                        crate::ops::gather_scatter::select_add::<u32>(tensor, dim, indices, value)
+                    }
+                    DType::U16 => {
+                        crate::ops::gather_scatter::select_add::<u16>(tensor, dim, indices, value)
+                    }
+                    DType::U8 => {
+                        crate::ops::gather_scatter::select_add::<u8>(tensor, dim, indices, value)
+                    }
+                    dt => panic!("int_select_assign: unsupported dtype {:?}", dt),
+                }
             }
-            DType::I16 => {
-                crate::ops::gather_scatter::select_add::<i16>(tensor, dim, indices, value)
+            burn_backend::tensor::IndexingUpdateOp::Mul => {
+                debug_assert_eq!(
+                    tensor.dtype(),
+                    value.dtype(),
+                    "int_select_assign: dtype mismatch"
+                );
+                match tensor.dtype() {
+                    DType::I64 => {
+                        crate::ops::gather_scatter::select_mul::<i64>(tensor, dim, indices, value)
+                    }
+                    DType::I32 => {
+                        crate::ops::gather_scatter::select_mul::<i32>(tensor, dim, indices, value)
+                    }
+                    DType::I16 => {
+                        crate::ops::gather_scatter::select_mul::<i16>(tensor, dim, indices, value)
+                    }
+                    DType::I8 => {
+                        crate::ops::gather_scatter::select_mul::<i8>(tensor, dim, indices, value)
+                    }
+                    DType::U64 => {
+                        crate::ops::gather_scatter::select_mul::<u64>(tensor, dim, indices, value)
+                    }
+                    DType::U32 => {
+                        crate::ops::gather_scatter::select_mul::<u32>(tensor, dim, indices, value)
+                    }
+                    DType::U16 => {
+                        crate::ops::gather_scatter::select_mul::<u16>(tensor, dim, indices, value)
+                    }
+                    DType::U8 => {
+                        crate::ops::gather_scatter::select_mul::<u8>(tensor, dim, indices, value)
+                    }
+                    dt => panic!("int_select_assign: unsupported dtype {:?}", dt),
+                }
             }
-            DType::I8 => crate::ops::gather_scatter::select_add::<i8>(tensor, dim, indices, value),
-            DType::U64 => {
-                crate::ops::gather_scatter::select_add::<u64>(tensor, dim, indices, value)
+            burn_backend::tensor::IndexingUpdateOp::Min => {
+                debug_assert_eq!(
+                    tensor.dtype(),
+                    value.dtype(),
+                    "int_select_assign: dtype mismatch"
+                );
+                match tensor.dtype() {
+                    DType::I64 => {
+                        crate::ops::gather_scatter::select_min::<i64>(tensor, dim, indices, value)
+                    }
+                    DType::I32 => {
+                        crate::ops::gather_scatter::select_min::<i32>(tensor, dim, indices, value)
+                    }
+                    DType::I16 => {
+                        crate::ops::gather_scatter::select_min::<i16>(tensor, dim, indices, value)
+                    }
+                    DType::I8 => {
+                        crate::ops::gather_scatter::select_min::<i8>(tensor, dim, indices, value)
+                    }
+                    DType::U64 => {
+                        crate::ops::gather_scatter::select_min::<u64>(tensor, dim, indices, value)
+                    }
+                    DType::U32 => {
+                        crate::ops::gather_scatter::select_min::<u32>(tensor, dim, indices, value)
+                    }
+                    DType::U16 => {
+                        crate::ops::gather_scatter::select_min::<u16>(tensor, dim, indices, value)
+                    }
+                    DType::U8 => {
+                        crate::ops::gather_scatter::select_min::<u8>(tensor, dim, indices, value)
+                    }
+                    dt => panic!("int_select_assign: unsupported dtype {:?}", dt),
+                }
             }
-            DType::U32 => {
-                crate::ops::gather_scatter::select_add::<u32>(tensor, dim, indices, value)
+            burn_backend::tensor::IndexingUpdateOp::Max => {
+                debug_assert_eq!(
+                    tensor.dtype(),
+                    value.dtype(),
+                    "int_select_assign: dtype mismatch"
+                );
+                match tensor.dtype() {
+                    DType::I64 => {
+                        crate::ops::gather_scatter::select_max::<i64>(tensor, dim, indices, value)
+                    }
+                    DType::I32 => {
+                        crate::ops::gather_scatter::select_max::<i32>(tensor, dim, indices, value)
+                    }
+                    DType::I16 => {
+                        crate::ops::gather_scatter::select_max::<i16>(tensor, dim, indices, value)
+                    }
+                    DType::I8 => {
+                        crate::ops::gather_scatter::select_max::<i8>(tensor, dim, indices, value)
+                    }
+                    DType::U64 => {
+                        crate::ops::gather_scatter::select_max::<u64>(tensor, dim, indices, value)
+                    }
+                    DType::U32 => {
+                        crate::ops::gather_scatter::select_max::<u32>(tensor, dim, indices, value)
+                    }
+                    DType::U16 => {
+                        crate::ops::gather_scatter::select_max::<u16>(tensor, dim, indices, value)
+                    }
+                    DType::U8 => {
+                        crate::ops::gather_scatter::select_max::<u8>(tensor, dim, indices, value)
+                    }
+                    dt => panic!("int_select_assign: unsupported dtype {:?}", dt),
+                }
             }
-            DType::U16 => {
-                crate::ops::gather_scatter::select_add::<u16>(tensor, dim, indices, value)
-            }
-            DType::U8 => crate::ops::gather_scatter::select_add::<u8>(tensor, dim, indices, value),
-            dt => panic!("int_select_add: unsupported dtype {:?}", dt),
         }
     }
 
@@ -407,7 +735,7 @@ impl IntTensorOps<Flex> for Flex {
         // U64 values > i64::MAX produce wrong results through i64 cast
         if lhs.dtype() == DType::U64 {
             let (lhs, rhs) = crate::ops::expand::broadcast_binary(lhs, rhs);
-            return binary_op_typed(lhs, &rhs, |a: u64, b: u64| a / b);
+            return binary_op_typed(lhs, rhs, |a: u64, b: u64| a / b);
         }
         int_binary_op(lhs, rhs, |a, b| a / b)
     }
@@ -423,10 +751,10 @@ impl IntTensorOps<Flex> for Flex {
         // U64 values > i64::MAX produce wrong results through i64 cast
         if lhs.dtype() == DType::U64 {
             let (lhs, rhs) = crate::ops::expand::broadcast_binary(lhs, rhs);
-            return binary_op_typed(lhs, &rhs, |a: u64, b: u64| a % b);
+            return binary_op_typed(lhs, rhs, |a: u64, b: u64| a % b);
         }
         // Python/PyTorch-style remainder: result has same sign as divisor
-        int_binary_op(lhs, rhs, |a, b| ((a % b) + b) % b)
+        int_binary_op(lhs, rhs, remainder_int)
     }
 
     fn int_remainder_scalar(lhs: IntTensor<Flex>, rhs: Scalar) -> IntTensor<Flex> {
@@ -434,7 +762,7 @@ impl IntTensorOps<Flex> for Flex {
             return scalar_op_typed(lhs, rhs.to_u64().unwrap(), |a: u64, b: u64| a % b);
         }
         // Python/PyTorch-style remainder: result has same sign as divisor
-        int_scalar_op(lhs, rhs.to_i64().unwrap(), |a, b| ((a % b) + b) % b)
+        int_scalar_op(lhs, rhs.to_i64().unwrap(), remainder_int)
     }
 
     // Precision limits: i64/u64 > 2^24 for f32/f16/bf16, > 2^53 for f64.
@@ -653,21 +981,20 @@ impl IntTensorOps<Flex> for Flex {
         int_scalar_op(tensor, 0, |a, _| !a)
     }
 
-    // Shift amounts masked to type width via wrapping_shl/wrapping_shr.
     fn bitwise_left_shift(lhs: IntTensor<Flex>, rhs: IntTensor<Flex>) -> IntTensor<Flex> {
-        int_binary_op(lhs, rhs, |a, b| a.wrapping_shl(b as u32))
+        int_shift::<true>(lhs, ShiftAmount::Tensor(rhs))
     }
 
     fn bitwise_left_shift_scalar(lhs: IntTensor<Flex>, rhs: Scalar) -> IntTensor<Flex> {
-        int_scalar_op(lhs, rhs.to_i64().unwrap(), |a, b| a.wrapping_shl(b as u32))
+        int_shift::<true>(lhs, scalar_shift_amount(&rhs))
     }
 
     fn bitwise_right_shift(lhs: IntTensor<Flex>, rhs: IntTensor<Flex>) -> IntTensor<Flex> {
-        int_binary_op(lhs, rhs, |a, b| a.wrapping_shr(b as u32))
+        int_shift::<false>(lhs, ShiftAmount::Tensor(rhs))
     }
 
     fn bitwise_right_shift_scalar(lhs: IntTensor<Flex>, rhs: Scalar) -> IntTensor<Flex> {
-        int_scalar_op(lhs, rhs.to_i64().unwrap(), |a, b| a.wrapping_shr(b as u32))
+        int_shift::<false>(lhs, scalar_shift_amount(&rhs))
     }
 
     fn int_cast(tensor: IntTensor<Flex>, dtype: IntDType) -> IntTensor<Flex> {
@@ -684,97 +1011,148 @@ impl IntTensorOps<Flex> for Flex {
 
         // Helper macro to convert between types
         macro_rules! cast_impl {
-            ($src_type:ty, $dst_type:ty, $dst_dtype:expr) => {{
-                let src: &[$src_type] = tensor.storage();
-                let dst: Vec<$dst_type> = src.iter().map(|&x| x as $dst_type).collect();
-                FlexTensor::new(
-                    Bytes::from_elems(dst),
-                    Layout::contiguous(shape),
-                    $dst_dtype,
-                )
+            ($storage:ident, $dst_type:ty) => {{
+                Some(Bytes::from_elems(
+                    $storage
+                        .iter()
+                        .map(|&x| x as $dst_type)
+                        .collect::<Vec<$dst_type>>(),
+                ))
             }};
         }
 
         // Match source dtype to target dtype
-        match (tensor.dtype(), target_dtype) {
+        let bytes = match tensor.dtype() {
             // From I64
-            (DType::I64, DType::I32) => cast_impl!(i64, i32, DType::I32),
-            (DType::I64, DType::I16) => cast_impl!(i64, i16, DType::I16),
-            (DType::I64, DType::I8) => cast_impl!(i64, i8, DType::I8),
-            (DType::I64, DType::U64) => cast_impl!(i64, u64, DType::U64),
-            (DType::I64, DType::U32) => cast_impl!(i64, u32, DType::U32),
-            (DType::I64, DType::U16) => cast_impl!(i64, u16, DType::U16),
-            (DType::I64, DType::U8) => cast_impl!(i64, u8, DType::U8),
+            DType::I64 => {
+                let storage: &[i64] = tensor.storage();
+                match target_dtype {
+                    DType::I32 => cast_impl!(storage, i32),
+                    DType::I16 => cast_impl!(storage, i16),
+                    DType::I8 => cast_impl!(storage, i8),
+                    DType::U64 => cast_impl!(storage, u64),
+                    DType::U32 => cast_impl!(storage, u32),
+                    DType::U16 => cast_impl!(storage, u16),
+                    DType::U8 => cast_impl!(storage, u8),
+                    _ => None,
+                }
+            }
 
             // From I32
-            (DType::I32, DType::I64) => cast_impl!(i32, i64, DType::I64),
-            (DType::I32, DType::I16) => cast_impl!(i32, i16, DType::I16),
-            (DType::I32, DType::I8) => cast_impl!(i32, i8, DType::I8),
-            (DType::I32, DType::U64) => cast_impl!(i32, u64, DType::U64),
-            (DType::I32, DType::U32) => cast_impl!(i32, u32, DType::U32),
-            (DType::I32, DType::U16) => cast_impl!(i32, u16, DType::U16),
-            (DType::I32, DType::U8) => cast_impl!(i32, u8, DType::U8),
+            DType::I32 => {
+                let storage: &[i32] = tensor.storage();
+                match target_dtype {
+                    DType::I64 => cast_impl!(storage, i64),
+                    DType::I16 => cast_impl!(storage, i16),
+                    DType::I8 => cast_impl!(storage, i8),
+                    DType::U64 => cast_impl!(storage, u64),
+                    DType::U32 => cast_impl!(storage, u32),
+                    DType::U16 => cast_impl!(storage, u16),
+                    DType::U8 => cast_impl!(storage, u8),
+                    _ => None,
+                }
+            }
 
             // From I16
-            (DType::I16, DType::I64) => cast_impl!(i16, i64, DType::I64),
-            (DType::I16, DType::I32) => cast_impl!(i16, i32, DType::I32),
-            (DType::I16, DType::I8) => cast_impl!(i16, i8, DType::I8),
-            (DType::I16, DType::U64) => cast_impl!(i16, u64, DType::U64),
-            (DType::I16, DType::U32) => cast_impl!(i16, u32, DType::U32),
-            (DType::I16, DType::U16) => cast_impl!(i16, u16, DType::U16),
-            (DType::I16, DType::U8) => cast_impl!(i16, u8, DType::U8),
+            DType::I16 => {
+                let storage: &[i16] = tensor.storage();
+                match target_dtype {
+                    DType::I64 => cast_impl!(storage, i64),
+                    DType::I32 => cast_impl!(storage, i32),
+                    DType::I8 => cast_impl!(storage, i8),
+                    DType::U64 => cast_impl!(storage, u64),
+                    DType::U32 => cast_impl!(storage, u32),
+                    DType::U16 => cast_impl!(storage, u16),
+                    DType::U8 => cast_impl!(storage, u8),
+                    _ => None,
+                }
+            }
 
             // From I8
-            (DType::I8, DType::I64) => cast_impl!(i8, i64, DType::I64),
-            (DType::I8, DType::I32) => cast_impl!(i8, i32, DType::I32),
-            (DType::I8, DType::I16) => cast_impl!(i8, i16, DType::I16),
-            (DType::I8, DType::U64) => cast_impl!(i8, u64, DType::U64),
-            (DType::I8, DType::U32) => cast_impl!(i8, u32, DType::U32),
-            (DType::I8, DType::U16) => cast_impl!(i8, u16, DType::U16),
-            (DType::I8, DType::U8) => cast_impl!(i8, u8, DType::U8),
+            DType::I8 => {
+                let storage: &[i8] = tensor.storage();
+                match target_dtype {
+                    DType::I64 => cast_impl!(storage, i64),
+                    DType::I32 => cast_impl!(storage, i32),
+                    DType::I16 => cast_impl!(storage, i16),
+                    DType::U64 => cast_impl!(storage, u64),
+                    DType::U32 => cast_impl!(storage, u32),
+                    DType::U16 => cast_impl!(storage, u16),
+                    DType::U8 => cast_impl!(storage, u8),
+                    _ => None,
+                }
+            }
 
             // From U64
-            (DType::U64, DType::I64) => cast_impl!(u64, i64, DType::I64),
-            (DType::U64, DType::I32) => cast_impl!(u64, i32, DType::I32),
-            (DType::U64, DType::I16) => cast_impl!(u64, i16, DType::I16),
-            (DType::U64, DType::I8) => cast_impl!(u64, i8, DType::I8),
-            (DType::U64, DType::U32) => cast_impl!(u64, u32, DType::U32),
-            (DType::U64, DType::U16) => cast_impl!(u64, u16, DType::U16),
-            (DType::U64, DType::U8) => cast_impl!(u64, u8, DType::U8),
+            DType::U64 => {
+                let storage: &[u64] = tensor.storage();
+                match target_dtype {
+                    DType::I64 => cast_impl!(storage, i64),
+                    DType::I32 => cast_impl!(storage, i32),
+                    DType::I16 => cast_impl!(storage, i16),
+                    DType::I8 => cast_impl!(storage, i8),
+                    DType::U32 => cast_impl!(storage, u32),
+                    DType::U16 => cast_impl!(storage, u16),
+                    DType::U8 => cast_impl!(storage, u8),
+                    _ => None,
+                }
+            }
 
             // From U32
-            (DType::U32, DType::I64) => cast_impl!(u32, i64, DType::I64),
-            (DType::U32, DType::I32) => cast_impl!(u32, i32, DType::I32),
-            (DType::U32, DType::I16) => cast_impl!(u32, i16, DType::I16),
-            (DType::U32, DType::I8) => cast_impl!(u32, i8, DType::I8),
-            (DType::U32, DType::U64) => cast_impl!(u32, u64, DType::U64),
-            (DType::U32, DType::U16) => cast_impl!(u32, u16, DType::U16),
-            (DType::U32, DType::U8) => cast_impl!(u32, u8, DType::U8),
+            DType::U32 => {
+                let storage: &[u32] = tensor.storage();
+                match target_dtype {
+                    DType::I64 => cast_impl!(storage, i64),
+                    DType::I32 => cast_impl!(storage, i32),
+                    DType::I16 => cast_impl!(storage, i16),
+                    DType::I8 => cast_impl!(storage, i8),
+                    DType::U64 => cast_impl!(storage, u64),
+                    DType::U16 => cast_impl!(storage, u16),
+                    DType::U8 => cast_impl!(storage, u8),
+                    _ => None,
+                }
+            }
 
             // From U16
-            (DType::U16, DType::I64) => cast_impl!(u16, i64, DType::I64),
-            (DType::U16, DType::I32) => cast_impl!(u16, i32, DType::I32),
-            (DType::U16, DType::I16) => cast_impl!(u16, i16, DType::I16),
-            (DType::U16, DType::I8) => cast_impl!(u16, i8, DType::I8),
-            (DType::U16, DType::U64) => cast_impl!(u16, u64, DType::U64),
-            (DType::U16, DType::U32) => cast_impl!(u16, u32, DType::U32),
-            (DType::U16, DType::U8) => cast_impl!(u16, u8, DType::U8),
+            DType::U16 => {
+                let storage: &[u16] = tensor.storage();
+                match target_dtype {
+                    DType::I64 => cast_impl!(storage, i64),
+                    DType::I32 => cast_impl!(storage, i32),
+                    DType::I16 => cast_impl!(storage, i16),
+                    DType::I8 => cast_impl!(storage, i8),
+                    DType::U64 => cast_impl!(storage, u64),
+                    DType::U32 => cast_impl!(storage, u32),
+                    DType::U8 => cast_impl!(storage, u8),
+                    _ => None,
+                }
+            }
 
             // From U8
-            (DType::U8, DType::I64) => cast_impl!(u8, i64, DType::I64),
-            (DType::U8, DType::I32) => cast_impl!(u8, i32, DType::I32),
-            (DType::U8, DType::I16) => cast_impl!(u8, i16, DType::I16),
-            (DType::U8, DType::I8) => cast_impl!(u8, i8, DType::I8),
-            (DType::U8, DType::U64) => cast_impl!(u8, u64, DType::U64),
-            (DType::U8, DType::U32) => cast_impl!(u8, u32, DType::U32),
-            (DType::U8, DType::U16) => cast_impl!(u8, u16, DType::U16),
+            DType::U8 => {
+                let storage: &[u8] = tensor.storage();
+                match target_dtype {
+                    DType::I64 => cast_impl!(storage, i64),
+                    DType::I32 => cast_impl!(storage, i32),
+                    DType::I16 => cast_impl!(storage, i16),
+                    DType::I8 => cast_impl!(storage, i8),
+                    DType::U64 => cast_impl!(storage, u64),
+                    DType::U32 => cast_impl!(storage, u32),
+                    DType::U16 => cast_impl!(storage, u16),
+                    _ => None,
+                }
+            }
 
-            _ => panic!(
+            _ => None,
+        };
+        let Some(bytes) = bytes else {
+            panic!(
                 "int_cast: unsupported conversion from {:?} to {:?}",
                 tensor.dtype(),
                 target_dtype
-            ),
-        }
+            )
+        };
+        FlexTensor::new(bytes, Layout::contiguous(shape), target_dtype)
     }
 
     fn int_unfold(
@@ -1089,11 +1467,28 @@ mod tests {
     use crate::FlexTensor;
 
     #[test]
+    fn test_i64_remainder_overflow() {
+        // The shared suite uses i32, which Flex promotes to i64. Keep the
+        // actual i64 limits covered for both tensor and scalar dispatch.
+        for (a, b, expected) in [(i64::MAX - 1, i64::MAX, i64::MAX - 1), (i64::MIN, -1, 0)] {
+            let lhs = FlexTensor::from_data(TensorData::new(vec![a], [1]));
+            let rhs = FlexTensor::from_data(TensorData::new(vec![b], [1]));
+            for result in [
+                Flex::int_remainder(lhs.clone(), rhs),
+                Flex::int_remainder_scalar(lhs, b.into()),
+            ] {
+                let values: Vec<i64> = result.into_data().try_into_vec().unwrap();
+                assert_eq!(values, vec![expected]);
+            }
+        }
+    }
+
+    #[test]
     fn test_u64_div_large_values() {
         let a = FlexTensor::from_data(TensorData::new(vec![u64::MAX], [1]));
         let b = FlexTensor::from_data(TensorData::new(vec![2u64], [1]));
         let result = Flex::int_div(a, b);
-        let values: Vec<u64> = bytemuck::cast_slice(&result.into_data().bytes).to_vec();
+        let values: Vec<u64> = bytemuck::cast_slice(result.into_data().as_bytes()).to_vec();
         assert_eq!(values[0], u64::MAX / 2);
     }
 
@@ -1102,7 +1497,7 @@ mod tests {
         let a = FlexTensor::from_data(TensorData::new(vec![u64::MAX], [1]));
         let b = FlexTensor::from_data(TensorData::new(vec![2u64], [1]));
         let result = Flex::int_remainder(a, b);
-        let values: Vec<u64> = bytemuck::cast_slice(&result.into_data().bytes).to_vec();
+        let values: Vec<u64> = bytemuck::cast_slice(result.into_data().as_bytes()).to_vec();
         assert_eq!(values[0], u64::MAX % 2);
     }
 
@@ -1111,7 +1506,7 @@ mod tests {
         // i64::MIN.abs() panics in debug; wrapping_abs returns MIN (matches PyTorch)
         let a = FlexTensor::from_data(TensorData::new(vec![i64::MIN], [1]));
         let result = Flex::int_abs(a);
-        let values: Vec<i64> = bytemuck::cast_slice(&result.into_data().bytes).to_vec();
+        let values: Vec<i64> = bytemuck::cast_slice(result.into_data().as_bytes()).to_vec();
         assert_eq!(values[0], i64::MIN.wrapping_abs());
     }
 
@@ -1120,7 +1515,7 @@ mod tests {
         // i64::MIN negation panics in debug; wrapping_neg returns MIN (matches PyTorch)
         let a = FlexTensor::from_data(TensorData::new(vec![i64::MIN], [1]));
         let result = Flex::int_neg(a);
-        let values: Vec<i64> = bytemuck::cast_slice(&result.into_data().bytes).to_vec();
+        let values: Vec<i64> = bytemuck::cast_slice(result.into_data().as_bytes()).to_vec();
         assert_eq!(values[0], i64::MIN.wrapping_neg());
     }
 
@@ -1134,6 +1529,105 @@ mod tests {
     }
 
     #[test]
+    fn test_int_shift_masks_to_operand_width() {
+        // wrapping_shl/wrapping_shr mask the shift amount to the operand's own
+        // bit width, so shifting by BITS + 1 behaves like shifting by 1.
+        macro_rules! check {
+            ($t:ty) => {{
+                let amount = <$t>::BITS as $t + 1;
+                let a = FlexTensor::from_data(TensorData::new(vec![4 as $t], [1]));
+                let b = FlexTensor::from_data(TensorData::new(vec![amount], [1]));
+                for (result, expected) in [
+                    (Flex::bitwise_left_shift(a.clone(), b.clone()), 8 as $t),
+                    (Flex::bitwise_right_shift(a.clone(), b), 2),
+                    (
+                        Flex::bitwise_left_shift_scalar(a.clone(), (amount as i64).into()),
+                        8,
+                    ),
+                    (
+                        Flex::bitwise_right_shift_scalar(a, (amount as i64).into()),
+                        2,
+                    ),
+                ] {
+                    let data: Vec<$t> = result.into_data().try_into_vec().unwrap();
+                    assert_eq!(data, vec![expected], "{}", stringify!($t));
+                }
+            }};
+        }
+        check!(i8);
+        check!(i16);
+        check!(i32);
+        check!(i64);
+        check!(u8);
+        check!(u16);
+        check!(u32);
+        check!(u64);
+    }
+
+    #[test]
+    fn test_int_shift_negative_amount() {
+        // -1 as u32 is masked to BITS - 1, the same on tensor and scalar paths.
+        let a = FlexTensor::from_data(TensorData::new(vec![1i32], [1]));
+        let min = FlexTensor::from_data(TensorData::new(vec![i32::MIN], [1]));
+        let b = FlexTensor::from_data(TensorData::new(vec![-1i32], [1]));
+        for (result, expected) in [
+            (Flex::bitwise_left_shift(a.clone(), b.clone()), i32::MIN),
+            (Flex::bitwise_left_shift_scalar(a, (-1i64).into()), i32::MIN),
+            (Flex::bitwise_right_shift(min.clone(), b), -1),
+            (Flex::bitwise_right_shift_scalar(min, (-1i64).into()), -1),
+        ] {
+            let data: Vec<i32> = result.into_data().try_into_vec().unwrap();
+            assert_eq!(data, vec![expected]);
+        }
+    }
+
+    #[test]
+    fn test_shift_scalar_accepts_any_int_amount() {
+        // Negative and above-i64::MAX scalars are masked to the operand width
+        // instead of failing to_u64/to_i64, whatever the operand's signedness.
+        let a = FlexTensor::from_data(TensorData::new(vec![1u64], [1]));
+        let result = Flex::bitwise_left_shift_scalar(a.clone(), u64::MAX.into());
+        let data: Vec<u64> = result.into_data().try_into_vec().unwrap();
+        assert_eq!(data, vec![1u64 << 63]);
+        let result = Flex::bitwise_left_shift_scalar(a, (-1i64).into());
+        let data: Vec<u64> = result.into_data().try_into_vec().unwrap();
+        assert_eq!(data, vec![1u64 << 63]);
+
+        let a = FlexTensor::from_data(TensorData::new(vec![1u8], [1]));
+        let result = Flex::bitwise_left_shift_scalar(a, u64::MAX.into());
+        let data: Vec<u8> = result.into_data().try_into_vec().unwrap();
+        assert_eq!(data, vec![1u8 << 7]);
+    }
+
+    #[test]
+    fn test_u64_right_shift_is_logical() {
+        // Values above i64::MAX have the top bit set; the right shift must still fill with zeros.
+        let values = vec![u64::MAX, 1u64 << 63, 12];
+        let a = FlexTensor::from_data(TensorData::new(values.clone(), [3]));
+        let b = FlexTensor::from_data(TensorData::new(vec![1u64, 63, 2], [3]));
+        let result = Flex::bitwise_right_shift(a.clone(), b);
+        let data: Vec<u64> = result.into_data().try_into_vec().unwrap();
+        assert_eq!(data, vec![u64::MAX >> 1, 1, 3]);
+
+        let result = Flex::bitwise_right_shift_scalar(a, burn_backend::Scalar::from(1i64));
+        let data: Vec<u64> = result.into_data().try_into_vec().unwrap();
+        assert_eq!(data, values.iter().map(|v| v >> 1).collect::<Vec<_>>());
+    }
+
+    #[test]
+    fn test_u64_right_shift_broadcast() {
+        let a = FlexTensor::from_data(TensorData::new(vec![u64::MAX, 1u64 << 63], [2, 1]));
+        let b = FlexTensor::from_data(TensorData::new(vec![1u64, 4], [1, 2]));
+        let result = Flex::bitwise_right_shift(a, b);
+        assert_eq!(result.layout().shape().to_vec(), vec![2, 2]);
+        let data: Vec<u64> = result.into_data().try_into_vec().unwrap();
+        assert_eq!(
+            data,
+            vec![u64::MAX >> 1, u64::MAX >> 4, 1u64 << 62, 1u64 << 59]
+        );
+    }
+
+    #[test]
     fn test_int_into_float_f64() {
         use burn_backend::ops::IntTensorOps;
         use burn_std::FloatDType;
@@ -1141,7 +1635,7 @@ mod tests {
         let t = FlexTensor::from_data(TensorData::new(vec![1i64, 2, -3], [3]));
         let result = Flex::int_into_float(t, FloatDType::F64);
         assert_eq!(result.dtype(), burn_backend::DType::F64);
-        let data: Vec<f64> = result.into_data().to_vec().unwrap();
+        let data: Vec<f64> = result.into_data().try_into_vec().unwrap();
         assert_eq!(data, vec![1.0f64, 2.0, -3.0]);
     }
 
@@ -1150,7 +1644,7 @@ mod tests {
         let t = FlexTensor::from_data(TensorData::new(vec![1u64, 2, 3], [3]));
         let big: u64 = (i64::MAX as u64) + 100;
         let result = Flex::int_add_scalar(t, burn_backend::Scalar::from(big));
-        let data: Vec<u64> = result.into_data().to_vec().unwrap();
+        let data: Vec<u64> = result.into_data().try_into_vec().unwrap();
         assert_eq!(data, vec![big + 1, big + 2, big + 3]);
     }
 
@@ -1163,7 +1657,7 @@ mod tests {
             burn_backend::Scalar::from(big),
             burn_std::BoolStore::Native,
         );
-        let data: Vec<bool> = result.into_data().to_vec().unwrap();
+        let data: Vec<bool> = result.into_data().try_into_vec().unwrap();
         assert_eq!(data, vec![false, true, false]);
     }
 
@@ -1172,7 +1666,7 @@ mod tests {
         let t = FlexTensor::from_data(TensorData::new(vec![1i32, 2, 3, 4], [4]));
         let mask = FlexTensor::from_data(TensorData::new(vec![true, false, true, false], [4]));
         let result = Flex::int_mask_fill(t, mask, burn_backend::Scalar::from(0i64));
-        let data: Vec<i32> = result.into_data().to_vec().unwrap();
+        let data: Vec<i32> = result.into_data().try_into_vec().unwrap();
         assert_eq!(data, vec![0, 2, 0, 4]);
     }
 
@@ -1181,7 +1675,7 @@ mod tests {
         let t = FlexTensor::from_data(TensorData::new(vec![10i16, 20, 30, 40], [4]));
         let mask = FlexTensor::from_data(TensorData::new(vec![false, true, false, true], [4]));
         let result = Flex::int_mask_fill(t, mask, burn_backend::Scalar::from(-1i64));
-        let data: Vec<i16> = result.into_data().to_vec().unwrap();
+        let data: Vec<i16> = result.into_data().try_into_vec().unwrap();
         assert_eq!(data, vec![10, -1, 30, -1]);
     }
 
@@ -1190,7 +1684,7 @@ mod tests {
         let t = FlexTensor::from_data(TensorData::new(vec![1u8, 2, 3, 4], [4]));
         let mask = FlexTensor::from_data(TensorData::new(vec![true, true, false, false], [4]));
         let result = Flex::int_mask_fill(t, mask, burn_backend::Scalar::from(255i64));
-        let data: Vec<u8> = result.into_data().to_vec().unwrap();
+        let data: Vec<u8> = result.into_data().try_into_vec().unwrap();
         assert_eq!(data, vec![255, 255, 3, 4]);
     }
 
@@ -1199,7 +1693,7 @@ mod tests {
         let t = FlexTensor::from_data(TensorData::new(vec![100u32, 200, 300], [3]));
         let mask = FlexTensor::from_data(TensorData::new(vec![true, false, true], [3]));
         let result = Flex::int_mask_fill(t, mask, burn_backend::Scalar::from(0i64));
-        let data: Vec<u32> = result.into_data().to_vec().unwrap();
+        let data: Vec<u32> = result.into_data().try_into_vec().unwrap();
         assert_eq!(data, vec![0, 200, 0]);
     }
 
@@ -1209,7 +1703,7 @@ mod tests {
         let mask = FlexTensor::from_data(TensorData::new(vec![true, false, true, false], [4]));
         let v = FlexTensor::from_data(TensorData::new(vec![10i32, 20, 30, 40], [4]));
         let result = Flex::int_mask_where(t, mask, v);
-        let data: Vec<i32> = result.into_data().to_vec().unwrap();
+        let data: Vec<i32> = result.into_data().try_into_vec().unwrap();
         assert_eq!(data, vec![10, 2, 30, 4]);
     }
 
@@ -1219,7 +1713,7 @@ mod tests {
         let mask = FlexTensor::from_data(TensorData::new(vec![false, true, false, true], [4]));
         let v = FlexTensor::from_data(TensorData::new(vec![10u8, 20, 30, 40], [4]));
         let result = Flex::int_mask_where(t, mask, v);
-        let data: Vec<u8> = result.into_data().to_vec().unwrap();
+        let data: Vec<u8> = result.into_data().try_into_vec().unwrap();
         assert_eq!(data, vec![1, 20, 3, 40]);
     }
 
@@ -1228,7 +1722,7 @@ mod tests {
         let t = FlexTensor::from_data(TensorData::new(vec![10i32, 20, 30, 40, 50, 60], [2, 3]));
         let indices = FlexTensor::from_data(TensorData::new(vec![2i64, 0, 1, 2], [2, 2]));
         let result = Flex::int_gather(1, t, indices);
-        let data: Vec<i32> = result.into_data().to_vec().unwrap();
+        let data: Vec<i32> = result.into_data().try_into_vec().unwrap();
         assert_eq!(data, vec![30, 10, 50, 60]);
     }
 
@@ -1237,7 +1731,7 @@ mod tests {
         let t = FlexTensor::from_data(TensorData::new(vec![10u16, 20, 30, 40, 50, 60], [2, 3]));
         let indices = FlexTensor::from_data(TensorData::new(vec![0i64, 1], [2]));
         let result = Flex::int_select(t, 1, indices);
-        let data: Vec<u16> = result.into_data().to_vec().unwrap();
+        let data: Vec<u16> = result.into_data().try_into_vec().unwrap();
         assert_eq!(data, vec![10, 20, 40, 50]);
     }
 
@@ -1245,7 +1739,7 @@ mod tests {
     fn test_int_cumsum_i32() {
         let t = FlexTensor::from_data(TensorData::new(vec![1i32, 2, 3, 4], [4]));
         let result = Flex::int_cumsum(t, 0);
-        let data: Vec<i32> = result.into_data().to_vec().unwrap();
+        let data: Vec<i32> = result.into_data().try_into_vec().unwrap();
         assert_eq!(data, vec![1, 3, 6, 10]);
     }
 
@@ -1253,7 +1747,7 @@ mod tests {
     fn test_int_cumprod_u8() {
         let t = FlexTensor::from_data(TensorData::new(vec![1u8, 2, 3, 4], [4]));
         let result = Flex::int_cumprod(t, 0);
-        let data: Vec<u8> = result.into_data().to_vec().unwrap();
+        let data: Vec<u8> = result.into_data().try_into_vec().unwrap();
         assert_eq!(data, vec![1, 2, 6, 24]);
     }
 
@@ -1261,7 +1755,7 @@ mod tests {
     fn test_int_cummin_i32() {
         let t = FlexTensor::from_data(TensorData::new(vec![3i32, 1, 4, 1, 5], [5]));
         let result = Flex::int_cummin(t, 0);
-        let data: Vec<i32> = result.into_data().to_vec().unwrap();
+        let data: Vec<i32> = result.into_data().try_into_vec().unwrap();
         assert_eq!(data, vec![3, 1, 1, 1, 1]);
     }
 
@@ -1269,7 +1763,7 @@ mod tests {
     fn test_int_cummax_u16() {
         let t = FlexTensor::from_data(TensorData::new(vec![3u16, 1, 4, 1, 5], [5]));
         let result = Flex::int_cummax(t, 0);
-        let data: Vec<u16> = result.into_data().to_vec().unwrap();
+        let data: Vec<u16> = result.into_data().try_into_vec().unwrap();
         assert_eq!(data, vec![3, 3, 4, 4, 5]);
     }
 
@@ -1278,8 +1772,14 @@ mod tests {
         let t = FlexTensor::from_data(TensorData::new(vec![0i32, 0, 0], [1, 3]));
         let indices = FlexTensor::from_data(TensorData::new(vec![0i64, 2, 1], [1, 3]));
         let values = FlexTensor::from_data(TensorData::new(vec![10i32, 20, 30], [1, 3]));
-        let result = Flex::int_scatter_add(1, t, indices, values);
-        let data: Vec<i32> = result.into_data().to_vec().unwrap();
+        let result = Flex::int_scatter(
+            1,
+            t,
+            indices,
+            values,
+            burn_backend::tensor::IndexingUpdateOp::Add,
+        );
+        let data: Vec<i32> = result.into_data().try_into_vec().unwrap();
         assert_eq!(data, vec![10, 30, 20]);
     }
 
@@ -1288,8 +1788,14 @@ mod tests {
         let t = FlexTensor::from_data(TensorData::new(vec![1u8, 2, 3], [3]));
         let indices = FlexTensor::from_data(TensorData::new(vec![0i64, 2], [2]));
         let values = FlexTensor::from_data(TensorData::new(vec![10u8, 20], [2]));
-        let result = Flex::int_select_add(t, 0, indices, values);
-        let data: Vec<u8> = result.into_data().to_vec().unwrap();
+        let result = Flex::int_select_assign(
+            t,
+            0,
+            indices,
+            values,
+            burn_backend::tensor::IndexingUpdateOp::Add,
+        );
+        let data: Vec<u8> = result.into_data().try_into_vec().unwrap();
         assert_eq!(data, vec![11, 2, 23]);
     }
 
@@ -1303,7 +1809,7 @@ mod tests {
         let device = crate::FlexDevice;
         let t = Flex::int_random(shape, dist, &device, IntDType::I32);
         assert_eq!(t.dtype(), DType::I32);
-        let data: Vec<i32> = t.into_data().to_vec().unwrap();
+        let data: Vec<i32> = t.into_data().try_into_vec().unwrap();
         assert!(data.iter().all(|&v| (0..=10).contains(&v)));
     }
 
@@ -1326,7 +1832,7 @@ mod tests {
         let t = FlexTensor::from_data(TensorData::new(vec![10i32, 20, 30], [3]));
         let result = Flex::int_mean(t);
         assert_eq!(result.dtype(), DType::I32);
-        let data: Vec<i32> = result.into_data().to_vec().unwrap();
+        let data: Vec<i32> = result.into_data().try_into_vec().unwrap();
         assert_eq!(data, vec![20]); // (10 + 20 + 30) / 3 = 20
     }
 }

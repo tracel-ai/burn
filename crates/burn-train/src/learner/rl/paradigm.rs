@@ -47,6 +47,7 @@ pub struct RLTraining<RLC: RLComponentsTypes> {
     summary: bool,
     env_initializer: RLC::EnvInit,
     inference_device: Device,
+    label: Option<String>,
 }
 
 impl<E, EI, A> RLTraining<RLComponentsMarker<E, EI, A>>
@@ -108,6 +109,7 @@ where
             summary: false,
             env_initializer,
             inference_device: Default::default(),
+            label: None,
         }
     }
 }
@@ -150,11 +152,8 @@ impl<RLC: RLComponentsTypes + 'static> RLTraining<RLC> {
     /// # Arguments
     ///
     /// * `renderer` - The custom renderer.
-    pub fn renderer<MR>(mut self, renderer: MR) -> Self
-    where
-        MR: MetricsRenderer + 'static,
-    {
-        self.renderer = Some(Box::new(renderer));
+    pub fn renderer(mut self, renderer: Box<dyn MetricsRenderer + 'static>) -> Self {
+        self.renderer = Some(renderer);
         self
     }
 
@@ -319,6 +318,12 @@ impl<RLC: RLComponentsTypes + 'static> RLTraining<RLC> {
         self
     }
 
+    /// Set a label for this training, making it easier to differentiate multiple runs.
+    pub fn label(mut self, label: &str) -> Self {
+        self.label = Some(label.to_string());
+        self
+    }
+
     /// Launch the training with the specified [PolicyLearner](PolicyLearner) on the specified environment.
     pub fn launch(mut self, learner_agent: RLC::LearningAgent) -> RLResult<RLC::Policy>
     where
@@ -369,6 +374,7 @@ impl<RLC: RLComponentsTypes + 'static> RLTraining<RLC> {
             grad_accumulation: self.grad_accumulation,
             summary,
             inference_device: self.inference_device,
+            label: self.label,
         };
 
         let mut learner_agent = learner_agent;

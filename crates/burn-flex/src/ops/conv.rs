@@ -41,14 +41,14 @@ use super::conv_common::{add_bias, squeeze_3d_to_1d, squeeze_3d_to_2d};
 
 /// Generates a conv3d_1x1 function that uses the optimized gemm fast path.
 macro_rules! conv3d_1x1_typed {
-    ($fn_name:ident, $T:ty, $dtype:expr, $zero:expr, $one:expr, $add_fn:expr) => {
+    ($fn_name:ident, $T:ty, $dtype:expr, $zero:expr, $one:expr) => {
         fn $fn_name(
             x: FlexTensor,
             weight: FlexTensor,
             bias: Option<FlexTensor>,
             options: &ConvOptions<3>,
         ) -> FlexTensor {
-            conv3d_1x1_impl::<$T>(x, weight, bias, options, $dtype, $zero, $one, $add_fn)
+            conv3d_1x1_impl::<$T>(x, weight, bias, options, $dtype, $zero, $one)
         }
     };
 }
@@ -56,7 +56,7 @@ macro_rules! conv3d_1x1_typed {
 /// Generates a conv3d typed function with 1x1, depthwise, small-channel, and
 /// direct fast-path checks.
 macro_rules! conv3d_typed {
-    ($fn_name:ident, $T:ty, $dtype:expr, $zero:expr, $gemm_fn:ident, $add_fn:expr, $fn_1x1:ident, $fn_depthwise:ident, $fn_small_channel:ident $(, $fn_direct:ident)?) => {
+    ($fn_name:ident, $T:ty, $dtype:expr, $zero:expr, $gemm_fn:ident, $fn_1x1:ident, $fn_depthwise:ident, $fn_small_channel:ident $(, $fn_direct:ident)?) => {
         pub fn $fn_name(
             x: FlexTensor,
             weight: FlexTensor,
@@ -79,7 +79,7 @@ macro_rules! conv3d_typed {
                     return $fn_direct(x, weight, bias, options);
                 }
             )?
-            conv3d_impl::<$T>(x, weight, bias, options, $dtype, $zero, $gemm_fn, $add_fn)
+            conv3d_impl::<$T>(x, weight, bias, options, $dtype, $zero, $gemm_fn)
         }
     };
 }
@@ -127,7 +127,7 @@ fn expand_1d_to_3d(
 
     let options_3d = ConvOptions::new(
         [1, 1, options.stride[0]],
-        [0, 0, options.padding[0]],
+        [0, 0, options.padding_begin()[0]],
         [1, 1, options.dilation[0]],
         options.groups,
     );
@@ -182,7 +182,7 @@ fn expand_2d_to_3d(
 
     let options_3d = ConvOptions::new(
         [1, options.stride[0], options.stride[1]],
-        [0, options.padding[0], options.padding[1]],
+        [0, options.padding_begin()[0], options.padding_begin()[1]],
         [1, options.dilation[0], options.dilation[1]],
         options.groups,
     );
@@ -200,7 +200,6 @@ conv3d_typed!(
     DType::F32,
     0.0f32,
     gemm_f32,
-    |a, b| a + b,
     conv3d_1x1_f32,
     conv3d_depthwise_f32,
     conv3d_small_channel_f32,
@@ -212,7 +211,6 @@ conv3d_typed!(
     DType::F64,
     0.0f64,
     gemm_f64,
-    |a, b| a + b,
     conv3d_1x1_f64,
     conv3d_depthwise_f64,
     conv3d_small_channel_f64,
@@ -224,7 +222,6 @@ conv3d_typed!(
     DType::F16,
     f16::from_f32(0.0),
     gemm_f16,
-    |a: f16, b: f16| f16::from_f32(a.to_f32() + b.to_f32()),
     conv3d_1x1_f16,
     conv3d_depthwise_f16,
     conv3d_small_channel_f16
@@ -238,7 +235,9 @@ bf16_via_f32!(conv3d_bf16, conv3d_f32, 3, ConvOptions);
 /// - Enables tile-level parallelism
 /// - Improves cache utilization
 #[allow(clippy::too_many_arguments, clippy::type_complexity)]
-fn conv3d_impl<T: bytemuck::Pod + Clone + Copy + burn_backend::Element + Send + Sync>(
+fn conv3d_impl<
+    T: bytemuck::Pod + Clone + Copy + burn_backend::Element + burn_backend::ElementAdd + Send + Sync,
+>(
     x: FlexTensor,
     weight: FlexTensor,
     bias: Option<FlexTensor>,
@@ -246,7 +245,6 @@ fn conv3d_impl<T: bytemuck::Pod + Clone + Copy + burn_backend::Element + Send + 
     dtype: DType,
     zero: T,
     gemm_fn: fn(&[T], &[T], usize, usize, usize) -> Vec<T>,
-    add_fn: fn(T, T) -> T,
 ) -> FlexTensor {
     let x = x.to_contiguous();
     let weight = weight.to_contiguous();
@@ -267,7 +265,7 @@ fn conv3d_impl<T: bytemuck::Pod + Clone + Copy + burn_backend::Element + Send + 
     let kernel_w = w_shape[4];
 
     let [stride_d, stride_h, stride_w] = options.stride;
-    let [pad_d, pad_h, pad_w] = options.padding;
+    let [pad_d, pad_h, pad_w] = options.padding_begin();
     let groups = options.groups;
     let out_channels_per_group = channels_out / groups;
 
@@ -525,7 +523,6 @@ fn conv3d_impl<T: bytemuck::Pod + Clone + Copy + burn_backend::Element + Send + 
             batch_size,
             channels_out,
             spatial_out,
-            add_fn,
         );
     }
 
@@ -624,7 +621,7 @@ fn is_1x1_conv(
         && kernel_h == 1
         && kernel_w == 1
         && options.stride == [1, 1, 1]
-        && options.padding == [0, 0, 0]
+        && options.padding_begin() == [0, 0, 0]
 }
 
 /// Optimized 1x1 convolution: skip im2col, call gemm directly on NCHW data.
@@ -634,7 +631,9 @@ fn is_1x1_conv(
 /// to gemm as the RHS with appropriate strides, avoiding the transpose allocation
 /// and the intermediate result buffer.
 #[allow(clippy::too_many_arguments, clippy::type_complexity)]
-fn conv3d_1x1_impl<T: bytemuck::Pod + Clone + Copy + burn_backend::Element + Send + Sync>(
+fn conv3d_1x1_impl<
+    T: bytemuck::Pod + Clone + Copy + burn_backend::Element + burn_backend::ElementAdd + Send + Sync,
+>(
     x: FlexTensor,
     weight: FlexTensor,
     bias: Option<FlexTensor>,
@@ -642,7 +641,6 @@ fn conv3d_1x1_impl<T: bytemuck::Pod + Clone + Copy + burn_backend::Element + Sen
     dtype: DType,
     zero: T,
     one: T,
-    add_fn: fn(T, T) -> T,
 ) -> FlexTensor {
     let x = x.to_contiguous();
     let weight = weight.to_contiguous();
@@ -766,14 +764,7 @@ fn conv3d_1x1_impl<T: bytemuck::Pod + Clone + Copy + burn_backend::Element + Sen
     if let Some(bias) = bias {
         let bias = bias.to_contiguous();
         let bias_data: &[T] = bias.storage();
-        add_bias(
-            &mut output,
-            bias_data,
-            batch_size,
-            channels_out,
-            spatial,
-            add_fn,
-        );
+        add_bias(&mut output, bias_data, batch_size, channels_out, spatial);
     }
 
     let out_shape = Shape::from(vec![
@@ -790,17 +781,14 @@ fn conv3d_1x1_impl<T: bytemuck::Pod + Clone + Copy + burn_backend::Element + Sen
     )
 }
 
-conv3d_1x1_typed!(conv3d_1x1_f32, f32, DType::F32, 0.0f32, 1.0f32, |a, b| a
-    + b);
-conv3d_1x1_typed!(conv3d_1x1_f64, f64, DType::F64, 0.0f64, 1.0f64, |a, b| a
-    + b);
+conv3d_1x1_typed!(conv3d_1x1_f32, f32, DType::F32, 0.0f32, 1.0f32);
+conv3d_1x1_typed!(conv3d_1x1_f64, f64, DType::F64, 0.0f64, 1.0f64);
 conv3d_1x1_typed!(
     conv3d_1x1_f16,
     f16,
     DType::F16,
     f16::from_f32(0.0),
-    f16::from_f32(1.0),
-    |a: f16, b: f16| f16::from_f32(a.to_f32() + b.to_f32())
+    f16::from_f32(1.0)
 );
 
 // ============================================================================
@@ -848,7 +836,7 @@ fn should_use_depthwise_conv(
     if w_shape[2] != 1 || x_shape[2] != 1 {
         return false;
     }
-    if options.stride[0] != 1 || options.padding[0] != 0 || options.dilation[0] != 1 {
+    if options.stride[0] != 1 || options.padding_begin()[0] != 0 || options.dilation[0] != 1 {
         return false;
     }
 
@@ -928,9 +916,12 @@ const CONV_PLANE_OH_OUTER_THRESHOLD: usize = 8192;
 /// themselves stay `inline(always)` so LLVM sees the concrete inner loop
 /// pattern and emits SIMD fmuladd. Using `num_traits::Float` bounds (rather
 /// than fn-pointer arithmetic) is load-bearing for vectorization.
-#[inline]
-#[allow(clippy::too_many_arguments)]
-fn conv_plane_accumulate<T: num_traits::Float + Copy>(
+#[allow(clippy::too_many_arguments, clippy::extra_unused_type_parameters)]
+#[cfg_attr(feature = "simd", macerator::with_simd)]
+fn conv_plane_accumulate<
+    #[cfg(feature = "simd")] S: macerator::Simd,
+    T: num_traits::Float + Copy,
+>(
     out_plane: &mut [T],
     in_plane: &[T],
     w_plane: &[T],
@@ -944,6 +935,7 @@ fn conv_plane_accumulate<T: num_traits::Float + Copy>(
     pad_w: usize,
     dilation_h: usize,
     dilation_w: usize,
+    has_non_finite_weights: bool,
     oh_ranges: &[(usize, usize)],
     ow_ranges: &[(usize, usize)],
 ) {
@@ -957,6 +949,50 @@ fn conv_plane_accumulate<T: num_traits::Float + Copy>(
             out_plane, in_plane, w_plane, kernel_h, kernel_w, in_w, out_w, stride_h, stride_w,
             pad_h, pad_w, dilation_h, dilation_w, oh_ranges, ow_ranges,
         );
+    }
+
+    // The vectorized paths skip padded positions. That is equivalent to
+    // multiplying materialized zeros only while every weight is finite; IEEE
+    // arithmetic requires `0 * inf` and `0 * NaN` to produce NaN. Preserve
+    // that result after the fast accumulation without changing its hot loops.
+    if has_non_finite_weights && (pad_h != 0 || pad_w != 0) {
+        propagate_non_finite_padding(out_plane, w_plane, kernel_w, out_w, oh_ranges, ow_ranges);
+    }
+}
+
+/// Mark outputs where a skipped padding term would multiply a non-finite weight.
+fn propagate_non_finite_padding<T: num_traits::Float + Copy>(
+    out_plane: &mut [T],
+    w_plane: &[T],
+    kernel_w: usize,
+    out_w: usize,
+    oh_ranges: &[(usize, usize)],
+    ow_ranges: &[(usize, usize)],
+) {
+    if out_plane.is_empty() || out_w == 0 {
+        return;
+    }
+
+    debug_assert_eq!(out_plane.len() % out_w, 0);
+    let out_h = out_plane.len() / out_w;
+    let nan = T::nan();
+
+    for (kh, &(oh_start, oh_end)) in oh_ranges.iter().enumerate() {
+        for (kw, &(ow_start, ow_end)) in ow_ranges.iter().enumerate() {
+            if w_plane[kh * kernel_w + kw].is_finite() {
+                continue;
+            }
+
+            for oh in 0..out_h {
+                let out_row = &mut out_plane[oh * out_w..(oh + 1) * out_w];
+                if oh < oh_start || oh >= oh_end {
+                    out_row.fill(nan);
+                } else {
+                    out_row[..ow_start].fill(nan);
+                    out_row[ow_end..].fill(nan);
+                }
+            }
+        }
     }
 }
 
@@ -1030,13 +1066,16 @@ fn conv_plane_accumulate_oh_outer<T: num_traits::Float + Copy>(
                     let run_len = ow_end - ow_start;
                     let in_slice = &in_row[iw_start..iw_start + run_len];
                     let out_slice = &mut out_row[ow_start..ow_end];
-                    for (o, &xv) in out_slice.iter_mut().zip(in_slice.iter()) {
-                        *o = *o + w_val * xv;
+                    for i in 0..run_len {
+                        unsafe {
+                            *out_slice.get_unchecked_mut(i) =
+                                *in_slice.get_unchecked(i) * w_val + *out_slice.get_unchecked(i);
+                        }
                     }
                 } else {
                     let mut iw = iw_start;
                     for o in &mut out_row[ow_start..ow_end] {
-                        *o = *o + w_val * in_row[iw];
+                        *o = *o + w_val * unsafe { *in_row.get_unchecked(iw) };
                         iw += stride_w;
                     }
                 }
@@ -1089,13 +1128,16 @@ fn conv_plane_accumulate_kh_outer<T: num_traits::Float + Copy>(
                 if stride_w == 1 {
                     let in_slice = &in_row[iw_start..iw_start + run_len];
                     let out_slice = &mut out_row[ow_start..ow_end];
-                    for (o, &xv) in out_slice.iter_mut().zip(in_slice.iter()) {
-                        *o = *o + w_val * xv;
+                    for i in 0..run_len {
+                        unsafe {
+                            *out_slice.get_unchecked_mut(i) =
+                                *in_slice.get_unchecked(i) * w_val + *out_slice.get_unchecked(i);
+                        }
                     }
                 } else {
                     let mut iw = iw_start;
                     for o in &mut out_row[ow_start..ow_end] {
-                        *o = *o + w_val * in_row[iw];
+                        *o = *o + w_val * unsafe { *in_row.get_unchecked(iw) };
                         iw += stride_w;
                     }
                 }
@@ -1140,7 +1182,14 @@ fn conv3d_depthwise_impl<T>(
     dtype: DType,
 ) -> FlexTensor
 where
-    T: num_traits::Float + bytemuck::Pod + Clone + Copy + burn_backend::Element + Send + Sync,
+    T: num_traits::Float
+        + bytemuck::Pod
+        + Clone
+        + Copy
+        + burn_backend::Element
+        + burn_backend::ElementAdd
+        + Send
+        + Sync,
 {
     let zero = <T as num_traits::Zero>::zero();
     let x = x.to_contiguous();
@@ -1158,7 +1207,7 @@ where
     let kernel_w = w_shape[4];
 
     let [_, stride_h, stride_w] = options.stride;
-    let [_, pad_h, pad_w] = options.padding;
+    let [_, pad_h, pad_w] = options.padding_begin();
     let [_, dilation_h, dilation_w] = options.dilation;
 
     let out_h = calculate_conv_output_size(kernel_h, stride_h, pad_h, dilation_h, in_h);
@@ -1171,6 +1220,8 @@ where
 
     let x_data: &[T] = x.storage();
     let w_data: &[T] = weight.storage();
+    let has_non_finite_weights =
+        (pad_h != 0 || pad_w != 0) && w_data.iter().any(|value| !value.is_finite());
 
     let in_spatial = in_h * in_w;
     let out_spatial = out_h * out_w;
@@ -1207,6 +1258,7 @@ where
             pad_w,
             dilation_h,
             dilation_w,
+            has_non_finite_weights,
             &oh_ranges,
             &ow_ranges,
         );
@@ -1243,14 +1295,7 @@ where
             "conv depthwise: bias length ({}) must equal channels ({channels})",
             bias_data.len()
         );
-        add_bias(
-            &mut output,
-            bias_data,
-            batch_size,
-            channels,
-            out_spatial,
-            |a, b| a + b,
-        );
+        add_bias(&mut output, bias_data, batch_size, channels, out_spatial);
     }
 
     let out_shape = Shape::from(vec![batch_size, channels, 1, out_h, out_w]);
@@ -1319,7 +1364,7 @@ fn should_use_small_channel_conv(
     if w_shape[2] != 1 || x_shape[2] != 1 {
         return false;
     }
-    if options.stride[0] != 1 || options.padding[0] != 0 || options.dilation[0] != 1 {
+    if options.stride[0] != 1 || options.padding_begin()[0] != 0 || options.dilation[0] != 1 {
         return false;
     }
 
@@ -1362,7 +1407,14 @@ fn conv3d_small_channel_impl<T>(
     dtype: DType,
 ) -> FlexTensor
 where
-    T: num_traits::Float + bytemuck::Pod + Clone + Copy + burn_backend::Element + Send + Sync,
+    T: num_traits::Float
+        + bytemuck::Pod
+        + Clone
+        + Copy
+        + burn_backend::Element
+        + burn_backend::ElementAdd
+        + Send
+        + Sync,
 {
     let zero = <T as num_traits::Zero>::zero();
     let x = x.to_contiguous();
@@ -1381,7 +1433,7 @@ where
     let kernel_w = w_shape[4];
 
     let [_, stride_h, stride_w] = options.stride;
-    let [_, pad_h, pad_w] = options.padding;
+    let [_, pad_h, pad_w] = options.padding_begin();
     let [_, dilation_h, dilation_w] = options.dilation;
 
     let out_h = calculate_conv_output_size(kernel_h, stride_h, pad_h, dilation_h, in_h);
@@ -1394,6 +1446,8 @@ where
 
     let x_data: &[T] = x.storage();
     let w_data: &[T] = weight.storage();
+    let has_non_finite_weights =
+        (pad_h != 0 || pad_w != 0) && w_data.iter().any(|value| !value.is_finite());
 
     let in_spatial = in_h * in_w;
     let out_spatial = out_h * out_w;
@@ -1433,6 +1487,7 @@ where
                 pad_w,
                 dilation_h,
                 dilation_w,
+                has_non_finite_weights,
                 &oh_ranges,
                 &ow_ranges,
             );
@@ -1481,7 +1536,6 @@ where
             batch_size,
             channels_out,
             out_spatial,
-            |a, b| a + b,
         );
     }
 
@@ -1505,7 +1559,8 @@ where
 /// overhead is significant relative to compute.
 fn should_use_direct_conv(x_shape: &[usize], w_shape: &[usize], options: &ConvOptions<3>) -> bool {
     // Only for groups=1, no padding, dilation=1 (the wav2vec2 case).
-    if options.groups != 1 || options.padding != [0, 0, 0] || options.dilation != [1, 1, 1] {
+    if options.groups != 1 || options.padding_begin() != [0, 0, 0] || options.dilation != [1, 1, 1]
+    {
         return false;
     }
 
@@ -1531,34 +1586,20 @@ fn should_use_direct_conv(x_shape: &[usize], w_shape: &[usize], options: &ConvOp
 }
 
 macro_rules! conv3d_direct_typed {
-    ($fn_name:ident, $T:ty, $dtype:expr, $zero:expr, $one:expr, $add_fn:expr) => {
+    ($fn_name:ident, $T:ty, $dtype:expr, $zero:expr, $one:expr) => {
         fn $fn_name(
             x: FlexTensor,
             weight: FlexTensor,
             bias: Option<FlexTensor>,
             options: &ConvOptions<3>,
         ) -> FlexTensor {
-            conv3d_direct_impl::<$T>(x, weight, bias, options, $dtype, $zero, $one, $add_fn)
+            conv3d_direct_impl::<$T>(x, weight, bias, options, $dtype, $zero, $one)
         }
     };
 }
 
-conv3d_direct_typed!(
-    conv3d_direct_f32,
-    f32,
-    DType::F32,
-    0.0f32,
-    1.0f32,
-    |a, b| a + b
-);
-conv3d_direct_typed!(
-    conv3d_direct_f64,
-    f64,
-    DType::F64,
-    0.0f64,
-    1.0f64,
-    |a, b| a + b
-);
+conv3d_direct_typed!(conv3d_direct_f32, f32, DType::F32, 0.0f32, 1.0f32);
+conv3d_direct_typed!(conv3d_direct_f64, f64, DType::F64, 0.0f64, 1.0f64);
 
 /// Direct conv3d: decompose into kw gemm calls on NCHW data directly.
 ///
@@ -1572,7 +1613,9 @@ conv3d_direct_typed!(
 ///
 /// Constraints: groups=1, padding=0, dilation=1, 1D-like (d=1, h=1).
 #[allow(clippy::too_many_arguments, clippy::type_complexity)]
-fn conv3d_direct_impl<T: bytemuck::Pod + Clone + Copy + burn_backend::Element + Send + Sync>(
+fn conv3d_direct_impl<
+    T: bytemuck::Pod + Clone + Copy + burn_backend::Element + burn_backend::ElementAdd + Send + Sync,
+>(
     x: FlexTensor,
     weight: FlexTensor,
     bias: Option<FlexTensor>,
@@ -1580,7 +1623,6 @@ fn conv3d_direct_impl<T: bytemuck::Pod + Clone + Copy + burn_backend::Element + 
     dtype: DType,
     zero: T,
     one: T,
-    add_fn: fn(T, T) -> T,
 ) -> FlexTensor {
     let x = x.to_contiguous();
     let weight = weight.to_contiguous();
@@ -1706,14 +1748,7 @@ fn conv3d_direct_impl<T: bytemuck::Pod + Clone + Copy + burn_backend::Element + 
     if let Some(bias) = bias {
         let bias = bias.to_contiguous();
         let bias_data: &[T] = bias.storage();
-        add_bias(
-            &mut output,
-            bias_data,
-            batch_size,
-            channels_out,
-            out_w,
-            add_fn,
-        );
+        add_bias(&mut output, bias_data, batch_size, channels_out, out_w);
     }
 
     let out_shape = Shape::from(vec![batch_size, channels_out, 1, 1, out_w]);
@@ -1817,7 +1852,7 @@ mod tests {
         let weight = FlexTensor::from_data(TensorData::new(w_data.clone(), vec![c_out, c_in, kw]));
         let options = ConvOptions::new([stride], [0], [1], 1);
         let result = conv1d_f32(x, weight, None, &options);
-        let out: Vec<f32> = result.into_data().to_vec().unwrap();
+        let out: Vec<f32> = result.into_data().try_into_vec().unwrap();
 
         assert_eq!(out.len(), c_out * out_w);
 
@@ -1861,7 +1896,7 @@ mod tests {
         let weight = FlexTensor::from_data(TensorData::new(w_data.clone(), vec![c_out, c_in, kw]));
         let options = ConvOptions::new([stride], [0], [1], 1);
         let result = conv1d_f32(x, weight, None, &options);
-        let out: Vec<f32> = result.into_data().to_vec().unwrap();
+        let out: Vec<f32> = result.into_data().try_into_vec().unwrap();
 
         for co in 0..c_out {
             for o in 0..out_w {
@@ -1901,7 +1936,7 @@ mod tests {
         let weight = FlexTensor::from_data(TensorData::new(w_data.clone(), vec![c_out, c_in, kw]));
         let options = ConvOptions::new([stride], [0], [1], 1);
         let result = conv1d_f64(x, weight, None, &options);
-        let out: Vec<f64> = result.into_data().to_vec().unwrap();
+        let out: Vec<f64> = result.into_data().try_into_vec().unwrap();
 
         for co in 0..c_out {
             for o in 0..out_w {
@@ -1943,7 +1978,7 @@ mod tests {
         let bias = FlexTensor::from_data(TensorData::new(bias_data.clone(), vec![c_out]));
         let options = ConvOptions::new([stride], [0], [1], 1);
         let result = conv1d_f32(x, weight, Some(bias), &options);
-        let out: Vec<f32> = result.into_data().to_vec().unwrap();
+        let out: Vec<f32> = result.into_data().try_into_vec().unwrap();
 
         for co in 0..c_out {
             for o in 0..out_w {
@@ -1971,7 +2006,7 @@ mod tests {
         let weight = FlexTensor::from_data(TensorData::new(w_data, vec![1, 1, 2, 2]));
         let options = ConvOptions::new([1, 1], [0, 0], [1, 1], 1);
         let result = conv2d_f64(x, weight, None, &options);
-        let out: Vec<f64> = result.into_data().to_vec().unwrap();
+        let out: Vec<f64> = result.into_data().try_into_vec().unwrap();
         assert_eq!(
             out,
             vec![14.0, 18.0, 22.0, 30.0, 34.0, 38.0, 46.0, 50.0, 54.0]
@@ -1986,7 +2021,7 @@ mod tests {
         let weight = FlexTensor::from_data(TensorData::new(w_data, vec![1, 1, 2, 2]));
         let options = ConvOptions::new([1, 1], [0, 0], [1, 1], 1);
         let result = conv2d_f16(x, weight, None, &options);
-        let out: Vec<f16> = result.into_data().to_vec().unwrap();
+        let out: Vec<f16> = result.into_data().try_into_vec().unwrap();
         let expected = vec![14.0, 18.0, 22.0, 30.0, 34.0, 38.0, 46.0, 50.0, 54.0];
         for (a, e) in out.iter().zip(expected.iter()) {
             assert!((a.to_f32() - e).abs() < 0.5);
@@ -2001,7 +2036,7 @@ mod tests {
         let weight = FlexTensor::from_data(TensorData::new(w_data, vec![1, 1, 2, 2]));
         let options = ConvOptions::new([1, 1], [0, 0], [1, 1], 1);
         let result = conv2d_bf16(x, weight, None, &options);
-        let out: Vec<bf16> = result.into_data().to_vec().unwrap();
+        let out: Vec<bf16> = result.into_data().try_into_vec().unwrap();
         let expected = vec![14.0, 18.0, 22.0, 30.0, 34.0, 38.0, 46.0, 50.0, 54.0];
         for (a, e) in out.iter().zip(expected.iter()) {
             assert!((a.to_f32() - e).abs() < 0.5);
@@ -2141,7 +2176,7 @@ mod tests {
             "output shape mismatch"
         );
 
-        let out: Vec<f32> = result.into_data().to_vec().unwrap();
+        let out: Vec<f32> = result.into_data().try_into_vec().unwrap();
         assert_eq!(out.len(), expected.len());
         for (i, (a, e)) in out.iter().zip(expected.iter()).enumerate() {
             assert!(
@@ -2214,7 +2249,7 @@ mod tests {
         let weight = FlexTensor::from_data(TensorData::new(w_data.clone(), vec![4, 1, 3, 3]));
         let options = ConvOptions::new([1, 1], [1, 1], [1, 1], 4);
         let result = conv2d_f64(x, weight, None, &options);
-        let out: Vec<f64> = result.into_data().to_vec().unwrap();
+        let out: Vec<f64> = result.into_data().try_into_vec().unwrap();
 
         // Verify against a naive f64 reference for one element (center of channel 2).
         let b = 0usize;
@@ -2252,7 +2287,7 @@ mod tests {
         let options = ConvOptions::new([1, 1], [0, 0], [1, 1], 4);
         let result = conv2d_f16(x, weight, None, &options);
         assert_eq!(result.layout().shape().to_vec(), vec![1, 4, 1, 1]);
-        let out: Vec<f16> = result.into_data().to_vec().unwrap();
+        let out: Vec<f16> = result.into_data().try_into_vec().unwrap();
 
         // Depthwise: out[c] = sum over (kh, kw) of x[c, kh, kw] * w[c, 0, kh, kw].
         // The input per-channel is 4 elements (2x2) and the kernel is 2x2, so
@@ -2287,7 +2322,7 @@ mod tests {
         let result = conv1d_f32(x, weight, None, &options);
         let out_w = in_w;
         assert_eq!(result.layout().shape().to_vec(), vec![1, channels, out_w]);
-        let out: Vec<f32> = result.into_data().to_vec().unwrap();
+        let out: Vec<f32> = result.into_data().try_into_vec().unwrap();
 
         // Naive reference.
         for c in 0..channels {
@@ -2335,7 +2370,7 @@ mod tests {
             result.layout().shape().to_vec(),
             vec![batch, channels, out_w]
         );
-        let out: Vec<f32> = result.into_data().to_vec().unwrap();
+        let out: Vec<f32> = result.into_data().try_into_vec().unwrap();
 
         // Naive reference.
         for b in 0..batch {
@@ -2488,7 +2523,7 @@ mod tests {
             "output shape mismatch"
         );
 
-        let out: Vec<f32> = result.into_data().to_vec().unwrap();
+        let out: Vec<f32> = result.into_data().try_into_vec().unwrap();
         assert_eq!(out.len(), expected.len());
         for (i, (a, e)) in out.iter().zip(expected.iter()).enumerate() {
             assert!(
@@ -2548,7 +2583,7 @@ mod tests {
         let weight = FlexTensor::from_data(TensorData::new(w_data.clone(), vec![4, 3, 3, 3]));
         let options = ConvOptions::new([1, 1], [1, 1], [1, 1], 1);
         let result = conv2d_f64(x, weight, None, &options);
-        let out: Vec<f64> = result.into_data().to_vec().unwrap();
+        let out: Vec<f64> = result.into_data().try_into_vec().unwrap();
 
         // Verify against a naive reference for one element (center of channel 2).
         let b = 0usize;
@@ -2601,8 +2636,8 @@ mod tests {
         assert_eq!(result_f16.layout().shape().to_vec(), vec![1, 4, 4, 4]);
         assert_eq!(result_f32.layout().shape().to_vec(), vec![1, 4, 4, 4]);
 
-        let out_f16: Vec<f16> = result_f16.into_data().to_vec().unwrap();
-        let out_f32: Vec<f32> = result_f32.into_data().to_vec().unwrap();
+        let out_f16: Vec<f16> = result_f16.into_data().try_into_vec().unwrap();
+        let out_f32: Vec<f32> = result_f32.into_data().try_into_vec().unwrap();
         assert_eq!(out_f16.len(), out_f32.len());
 
         // f16 has ~11 bits of mantissa (~0.1% relative precision). With
@@ -2691,6 +2726,7 @@ mod tests {
             /* pad_w */ 0,
             /* dilation_h */ 1,
             /* dilation_w */ 1,
+            /* has_non_finite_weights */ false,
             &oh_ranges,
             &ow_ranges,
         );
@@ -2727,7 +2763,7 @@ mod tests {
             result.layout().shape().to_vec(),
             vec![batch, channels_out, out_w]
         );
-        let out: Vec<f32> = result.into_data().to_vec().unwrap();
+        let out: Vec<f32> = result.into_data().try_into_vec().unwrap();
 
         for b in 0..batch {
             for co in 0..channels_out {
@@ -2965,5 +3001,56 @@ mod tests {
         // dilation 2, pad 2, stride 1: kernel position 0 iw = o*1 + 0 - 2 -> o >= 2.
         let (s, e) = valid_out_range(0, 2, 2, 1, 5, 5);
         assert_eq!((s, e), (2, 5));
+    }
+
+    fn conv2d_with_non_finite_weight(
+        channels_in: usize,
+        channels_out: usize,
+        groups: usize,
+    ) -> Vec<f32> {
+        let x_data: Vec<f32> = (0..channels_in * 16).map(|i| i as f32 + 1.0).collect();
+        let channels_per_group = channels_in / groups;
+        let mut w_data = vec![1.0; channels_out * channels_per_group * 9];
+        w_data[0] = f32::NEG_INFINITY;
+
+        let x = FlexTensor::from_data(TensorData::new(x_data, vec![1, channels_in, 4, 4]));
+        let weight = FlexTensor::from_data(TensorData::new(
+            w_data,
+            vec![channels_out, channels_per_group, 3, 3],
+        ));
+        let options = ConvOptions::new([1, 1], [1, 1], [1, 1], groups);
+
+        conv2d_f32(x, weight, None, &options)
+            .into_data()
+            .try_into_vec::<f32>()
+            .unwrap()
+    }
+
+    fn assert_non_finite_padding_pattern(output: &[f32]) {
+        for row in 0..4 {
+            for col in 0..4 {
+                let value = output[row * 4 + col];
+                if row == 0 || col == 0 {
+                    assert!(
+                        value.is_nan(),
+                        "expected NaN at ({row}, {col}), got {value}"
+                    );
+                } else {
+                    assert_eq!(value, f32::NEG_INFINITY);
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn test_conv2d_padding_with_non_finite_weight_is_path_independent() {
+        // Zero padding participates in convolution just like materialized zeros, so
+        // multiplying it by a non-finite weight must produce NaN on every fast path.
+        assert_non_finite_padding_pattern(&conv2d_with_non_finite_weight(4, 1, 1));
+        assert_non_finite_padding_pattern(&conv2d_with_non_finite_weight(5, 1, 1));
+
+        let depthwise = conv2d_with_non_finite_weight(2, 2, 2);
+        assert_non_finite_padding_pattern(&depthwise[..16]);
+        assert!(depthwise[16..].iter().all(|value| value.is_finite()));
     }
 }

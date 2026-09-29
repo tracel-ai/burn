@@ -2,12 +2,12 @@ use crate::{RouterChannel, RouterTensor};
 use alloc::boxed::Box;
 use alloc::vec::Vec;
 use burn_backend::{
-    DType, TensorData,
+    DType, ProfileDuration, ProfileOptions, ProfileToken, TensorData,
     backend::{DeviceId, DeviceOps, ExecutionError},
 };
 use burn_ir::{GraphBindings, GraphId, OperationIr, TensorId, TensorIr};
 use burn_std::future::DynFut;
-use core::ops::DerefMut;
+use core::{marker::PhantomData, ops::DerefMut};
 use hashbrown::HashMap;
 use spin::Mutex;
 
@@ -58,6 +58,37 @@ pub trait RouterClient: Clone + Send + Sync + Sized {
     fn seed(&self, seed: u64);
     /// Returns the supported data type usage set
     fn dtype_usage(&self, dtype: DType) -> burn_backend::DTypeUsageSet;
+    /// Open a profiling window on the interpreter, where the calling stream
+    /// stands — see [`Backend::profile_start`](burn_backend::Backend::profile_start).
+    ///
+    /// `None`, the default, from an interpreter that opens no windows.
+    fn profile_start(&self) -> Result<Option<ProfileToken>, ExecutionError> {
+        Ok(None)
+    }
+    /// Close the window `token` where the calling stream stands, flushing the
+    /// interpreter's backend first when `options` ask for it.
+    fn profile_end(
+        &self,
+        token: ProfileToken,
+        options: ProfileOptions,
+    ) -> Result<ProfileDuration, ExecutionError> {
+        let _ = (token, options);
+        Err(ExecutionError::with_context(
+            "profiling windows are not supported by this interpreter",
+        ))
+    }
+
+    /// Drop the window `token` without measuring it, for a caller that will
+    /// never reach [`profile_end`](Self::profile_end) — see
+    /// [`Backend::profile_abandon`](burn_backend::Backend::profile_abandon).
+    ///
+    /// The default closes the window and discards the measurement, which any
+    /// interpreter that opens one can already do. An interpreter that can say
+    /// so more cheaply — a remote one, where the close is a round trip and
+    /// the caller is unwinding — does that instead.
+    fn profile_abandon(&self, token: ProfileToken) {
+        let _ = self.profile_end(token, ProfileOptions::default());
+    }
 
     /// Register a reusable group of operations (in relative form) under `graph_id` *and* run its
     /// first invocation with `bindings`, so it can later be replayed by id with
@@ -91,9 +122,54 @@ pub(crate) struct RouterClientLocator {
     clients: Mutex<Option<HashMap<Key, Box<dyn core::any::Any + Send>>>>,
 }
 
-/// Get the client for the given device
+/// Get the client currently associated with `device`.
+///
+/// An existing scoped or unscoped registration is returned as-is. On a cache miss, the channel's
+/// [`RouterChannel::init_client`] implementation creates an unscoped client that remains cached in
+/// the global locator. Use [`register_scoped_client`] when the caller, rather than the locator,
+/// must control the client's lifetime.
 pub fn get_client<R: RouterChannel>(device: &R::Device) -> Client<R> {
     CLIENTS.client::<R>(device)
+}
+
+/// Guard owning a router client's registration in the global locator.
+///
+/// The locator stores a clone of the registered client; this guard stores the corresponding lookup
+/// key. Dropping the guard removes that clone. Tensor handles remain safe because they own client
+/// clones independently of the locator. Most router clients are process-long lived and use
+/// [`get_client`]; lifecycle-owned channels use [`register_scoped_client`] and retain this guard.
+#[must_use = "dropping the registration immediately unregisters its router client"]
+pub struct RouterClientRegistration<R: RouterChannel> {
+    key: Key,
+    _channel: PhantomData<R>,
+}
+
+impl<R: RouterChannel> Drop for RouterClientRegistration<R> {
+    fn drop(&mut self) {
+        CLIENTS.remove(self.key);
+    }
+}
+
+/// Register `client` with a locator entry owned by the returned guard.
+///
+/// This inserts the caller-created client directly and does not call
+/// [`RouterChannel::init_client`]. While the guard is alive, [`get_client`] for the same channel and
+/// device returns a clone of this client. Dropping the guard removes the locator entry, allowing a
+/// later scope to associate the same device with a different client.
+///
+/// Unlike [`get_client`], this requires the device not to have a registered client already. The
+/// guard gives one lifecycle owner responsibility for cleanup and prevents exposing unrestricted
+/// client removal to downstream crates. Returns `None` when the device already has a client.
+pub fn register_scoped_client<R: RouterChannel>(
+    device: &R::Device,
+    client: Client<R>,
+) -> Option<RouterClientRegistration<R>> {
+    CLIENTS
+        .register_scoped::<R>(device, client)
+        .map(|key| RouterClientRegistration {
+            key,
+            _channel: PhantomData,
+        })
 }
 
 /// Initialize a new client for the given device.
@@ -138,6 +214,30 @@ impl RouterClientLocator {
                 }
             },
             _ => unreachable!(),
+        }
+    }
+
+    /// Register a client with a unique lifecycle owner.
+    fn register_scoped<R: RouterChannel + 'static>(
+        &self,
+        device: &R::Device,
+        client: Client<R>,
+    ) -> Option<Key> {
+        let key = (core::any::TypeId::of::<R>(), device.id());
+        let mut clients = self.clients.lock();
+        let clients = clients.get_or_insert_with(HashMap::new);
+        if clients.contains_key(&key) {
+            return None;
+        }
+        clients.insert(key, Box::new(client));
+        Some(key)
+    }
+
+    /// Remove the client identified by a scoped registration guard.
+    fn remove(&self, key: Key) {
+        let mut clients = self.clients.lock();
+        if let Some(clients) = clients.as_mut() {
+            clients.remove(&key);
         }
     }
 

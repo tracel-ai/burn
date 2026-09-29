@@ -11,8 +11,12 @@
 //! tensor/snapshot types.
 //!
 //! Write a pack with [`Writer`], read one with [`Reader`]; both operate on [`Tensor`]
-//! entries that carry the format-level metadata plus a lazy provider of the raw
-//! little-endian bytes.
+//! entries carrying the format-level metadata plus the raw little-endian bytes.
+//!
+//! A tensor's bytes need not exist yet. A [`Reader`] reads them from the source only when
+//! they are accessed, and a caller that knows a tensor's length without holding its data (a
+//! module snapshot, an ONNX initializer) can build one with [`Tensor::deferred`] to write a
+//! model larger than host memory to a file - see that constructor for the contract.
 //!
 //! ```
 //! use burn_pack::{Bytes, DType, Reader, Tensor, Writer};
@@ -102,15 +106,20 @@
 //!
 //! ## Feature Flags
 //!
-//! - `std`: Enables file I/O ([`Reader::from_file`] / [`Writer::write_to_file`]) (default)
+//! - `std`: Enables file I/O ([`Reader::from_file`], [`Reader::from_file_exact`],
+//!   [`Writer::write_to_file`], and [`Writer::write_to_file_in_place`]) (default)
 
 extern crate alloc;
 
+#[cfg(feature = "std")]
+mod atomic;
 mod base;
 mod reader;
 mod tensor;
 mod writer;
 
+#[cfg(feature = "std")]
+pub use atomic::AtomicFile;
 #[cfg(feature = "std")]
 pub use base::MAX_FILE_SIZE;
 pub use base::{

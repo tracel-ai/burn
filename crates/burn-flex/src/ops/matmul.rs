@@ -557,14 +557,27 @@ fn matmul_2d_i32(lhs: &FlexTensor, rhs: &FlexTensor) -> FlexTensor {
 
     let mut output = vec![0i32; m * n];
 
-    // Now both lhs rows and rhs columns (transposed rows) are contiguous
-    for i in 0..m {
-        let lhs_row = &lhs_data[i * k..(i + 1) * k];
-        for j in 0..n {
-            let rhs_col = &rhs_t[j * k..(j + 1) * k];
-            output[i * n + j] = dot_i32(lhs_row, rhs_col);
-        }
+    #[cfg(feature = "rayon")]
+    if m * k * n >= PARALLEL_THRESHOLD && m > 1 && n > 0 {
+        use rayon::prelude::*;
+        // A few tasks per thread keeps SIMD dispatch per chunk rather than per
+        // row, which matters for tall-skinny shapes with small n * k, while
+        // leaving rayon room to balance load.
+        let rows_per_task = m.div_ceil(4 * rayon::current_num_threads()).max(1);
+        output
+            .par_chunks_mut(rows_per_task * n)
+            .enumerate()
+            .for_each(|(task, out)| {
+                let row_start = task * rows_per_task;
+                let rows = out.len() / n;
+                let lhs = &lhs_data[row_start * k..(row_start + rows) * k];
+                matmul_rows_i32(lhs, &rhs_t, out, rows, n, k);
+            });
+    } else {
+        matmul_rows_i32(lhs_data, &rhs_t, &mut output, m, n, k);
     }
+    #[cfg(not(feature = "rayon"))]
+    matmul_rows_i32(lhs_data, &rhs_t, &mut output, m, n, k);
 
     let out_shape = Shape::from(vec![m, n]);
     FlexTensor::new(
@@ -574,20 +587,47 @@ fn matmul_2d_i32(lhs: &FlexTensor, rhs: &FlexTensor) -> FlexTensor {
     )
 }
 
-/// Dot product for i32 slices. Uses macerator SIMD when the `simd` feature is enabled.
+/// `out[i * n + j] = dot(lhs row i, rhs_t row j)` for an `[m, k]` lhs and an
+/// `[n, k]` transposed rhs. Uses macerator SIMD when the `simd` feature is
+/// enabled, dispatching once for the whole block rather than per element.
 #[inline]
-fn dot_i32(a: &[i32], b: &[i32]) -> i32 {
-    debug_assert_eq!(a.len(), b.len());
-
+fn matmul_rows_i32(lhs: &[i32], rhs_t: &[i32], out: &mut [i32], m: usize, n: usize, k: usize) {
     #[cfg(feature = "simd")]
-    {
-        dot_i32_simd(a, b)
-    }
+    matmul_rows_i32_simd(lhs, rhs_t, out, m, n, k);
 
     #[cfg(not(feature = "simd"))]
-    {
-        dot_i32_scalar(a, b)
+    matmul_rows_i32_with(lhs, rhs_t, out, m, n, k, dot_i32_scalar);
+}
+
+#[inline(always)]
+fn matmul_rows_i32_with(
+    lhs: &[i32],
+    rhs_t: &[i32],
+    out: &mut [i32],
+    m: usize,
+    n: usize,
+    k: usize,
+    dot: impl Fn(&[i32], &[i32]) -> i32,
+) {
+    for i in 0..m {
+        let lhs_row = &lhs[i * k..(i + 1) * k];
+        for j in 0..n {
+            out[i * n + j] = dot(lhs_row, &rhs_t[j * k..(j + 1) * k]);
+        }
     }
+}
+
+#[cfg(feature = "simd")]
+#[macerator::with_simd]
+fn matmul_rows_i32_simd<S: macerator::Simd>(
+    lhs: &[i32],
+    rhs_t: &[i32],
+    out: &mut [i32],
+    m: usize,
+    n: usize,
+    k: usize,
+) {
+    matmul_rows_i32_with(lhs, rhs_t, out, m, n, k, dot_i32_simd::<S>);
 }
 
 #[cfg(not(feature = "simd"))]
@@ -601,7 +641,7 @@ fn dot_i32_scalar(a: &[i32], b: &[i32]) -> i32 {
 }
 
 #[cfg(feature = "simd")]
-#[macerator::with_simd]
+#[inline(always)]
 fn dot_i32_simd<S: macerator::Simd>(a: &[i32], b: &[i32]) -> i32 {
     use macerator::{Scalar, VMulAdd, vload_unaligned};
 
@@ -681,22 +721,21 @@ fn matmul_batched_i32(lhs: FlexTensor, rhs: FlexTensor) -> FlexTensor {
         let lhs_slice = &lhs_data[lhs_offset..lhs_offset + lhs_matrix_size];
         let rhs_t_slice = &rhs_transposed[rhs_t_offset..rhs_t_offset + n * k];
 
-        for i in 0..m {
-            let lhs_row = &lhs_slice[i * k..(i + 1) * k];
-            for j in 0..n {
-                let rhs_col = &rhs_t_slice[j * k..(j + 1) * k];
-                out_slice[i * n + j] = dot_i32(lhs_row, rhs_col);
-            }
-        }
+        matmul_rows_i32(lhs_slice, rhs_t_slice, out_slice, m, n, k);
     };
 
     #[cfg(feature = "rayon")]
-    {
+    if batch_size * m * k * n >= BATCH_PARALLEL_THRESHOLD && batch_size > 1 && out_matrix_size > 0 {
         use rayon::prelude::*;
         output
             .par_chunks_mut(out_matrix_size)
             .enumerate()
             .for_each(|(b, out_slice)| run_one(b, out_slice));
+    } else {
+        for b in 0..batch_size {
+            let offset = b * out_matrix_size;
+            run_one(b, &mut output[offset..offset + out_matrix_size]);
+        }
     }
 
     #[cfg(not(feature = "rayon"))]
@@ -745,14 +784,34 @@ fn matmul_2d_i64(lhs: &FlexTensor, rhs: &FlexTensor) -> FlexTensor {
 
     let mut output = vec![0i64; m * n];
 
-    for i in 0..m {
+    let run_row = |i: usize, row_out: &mut [i64]| {
+        let lhs_row = &lhs_data[i * k..(i + 1) * k];
         for j in 0..n {
             let mut sum = 0i64;
             for l in 0..k {
-                sum = sum.wrapping_add(lhs_data[i * k + l].wrapping_mul(rhs_data[l * n + j]));
+                sum = sum.wrapping_add(lhs_row[l].wrapping_mul(rhs_data[l * n + j]));
             }
-            output[i * n + j] = sum;
+            row_out[j] = sum;
         }
+    };
+
+    #[cfg(feature = "rayon")]
+    if m * k * n >= PARALLEL_THRESHOLD && m > 1 && n > 0 {
+        use rayon::prelude::*;
+        output
+            .par_chunks_mut(n)
+            .enumerate()
+            .for_each(|(i, row_out)| run_row(i, row_out));
+    } else {
+        for i in 0..m {
+            let row_start = i * n;
+            run_row(i, &mut output[row_start..row_start + n]);
+        }
+    }
+    #[cfg(not(feature = "rayon"))]
+    for i in 0..m {
+        let row_start = i * n;
+        run_row(i, &mut output[row_start..row_start + n]);
     }
 
     let out_shape = Shape::from(vec![m, n]);
@@ -795,12 +854,11 @@ fn matmul_batched_i64(lhs: FlexTensor, rhs: FlexTensor) -> FlexTensor {
 
     let mut output = vec![0i64; batch_size * out_matrix_size];
 
-    for b in 0..batch_size {
+    let run_one = |b: usize, out_slice: &mut [i64]| {
         let lhs_batch_idx = batch_index_to_offset(b, &broadcast_shape, &lhs_strides);
         let rhs_batch_idx = batch_index_to_offset(b, &broadcast_shape, &rhs_strides);
         let lhs_offset = lhs_batch_idx * lhs_matrix_size;
         let rhs_offset = rhs_batch_idx * rhs_matrix_size;
-        let out_offset = b * out_matrix_size;
 
         for i in 0..m {
             for j in 0..n {
@@ -810,9 +868,28 @@ fn matmul_batched_i64(lhs: FlexTensor, rhs: FlexTensor) -> FlexTensor {
                     let rhs_idx = rhs_offset + l * n + j;
                     sum = sum.wrapping_add(lhs_data[lhs_idx].wrapping_mul(rhs_data[rhs_idx]));
                 }
-                output[out_offset + i * n + j] = sum;
+                out_slice[i * n + j] = sum;
             }
         }
+    };
+
+    #[cfg(feature = "rayon")]
+    if batch_size * m * k * n >= BATCH_PARALLEL_THRESHOLD && batch_size > 1 && out_matrix_size > 0 {
+        use rayon::prelude::*;
+        output
+            .par_chunks_mut(out_matrix_size)
+            .enumerate()
+            .for_each(|(b, out_slice)| run_one(b, out_slice));
+    } else {
+        for b in 0..batch_size {
+            let offset = b * out_matrix_size;
+            run_one(b, &mut output[offset..offset + out_matrix_size]);
+        }
+    }
+    #[cfg(not(feature = "rayon"))]
+    for b in 0..batch_size {
+        let offset = b * out_matrix_size;
+        run_one(b, &mut output[offset..offset + out_matrix_size]);
     }
 
     FlexTensor::new(
@@ -850,7 +927,7 @@ mod tests {
         let rhs = FlexTensor::from_data(TensorData::new(vec![5.0f64, 6.0, 7.0, 8.0], [2, 2]));
 
         let result = Flex::float_matmul(lhs, rhs);
-        let values: Vec<f64> = result.into_data().to_vec().unwrap();
+        let values: Vec<f64> = result.into_data().try_into_vec().unwrap();
 
         assert_eq!(values, vec![19.0, 22.0, 43.0, 50.0]);
     }
@@ -872,7 +949,7 @@ mod tests {
         let rhs = FlexTensor::from_data(TensorData::new(rhs_vals, [2, 2]));
 
         let result = Flex::float_matmul(lhs, rhs);
-        let values: Vec<f16> = result.into_data().to_vec().unwrap();
+        let values: Vec<f16> = result.into_data().try_into_vec().unwrap();
 
         let expected = [19.0f32, 22.0, 43.0, 50.0];
         for (a, e) in values.iter().zip(expected.iter()) {
@@ -897,7 +974,7 @@ mod tests {
         let rhs = FlexTensor::from_data(TensorData::new(rhs_vals, [2, 2]));
 
         let result = Flex::float_matmul(lhs, rhs);
-        let values: Vec<bf16> = result.into_data().to_vec().unwrap();
+        let values: Vec<bf16> = result.into_data().try_into_vec().unwrap();
 
         let expected = [19.0f32, 22.0, 43.0, 50.0];
         for (a, e) in values.iter().zip(expected.iter()) {
@@ -922,8 +999,8 @@ mod tests {
             .to_contiguous();
         let expected = Flex::float_matmul(q2, k2);
 
-        let values: Vec<f64> = result.into_data().to_vec().unwrap();
-        let expected: Vec<f64> = expected.into_data().to_vec().unwrap();
+        let values: Vec<f64> = result.into_data().try_into_vec().unwrap();
+        let expected: Vec<f64> = expected.into_data().try_into_vec().unwrap();
         assert_eq!(values, expected);
     }
 
@@ -969,8 +1046,8 @@ mod tests {
             .to_contiguous();
         let expected = Flex::float_matmul(q2, k2);
 
-        let values: Vec<f16> = result.into_data().to_vec().unwrap();
-        let expected: Vec<f16> = expected.into_data().to_vec().unwrap();
+        let values: Vec<f16> = result.into_data().try_into_vec().unwrap();
+        let expected: Vec<f16> = expected.into_data().try_into_vec().unwrap();
         assert_eq!(values, expected);
     }
 }

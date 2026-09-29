@@ -30,8 +30,36 @@ assert_eq!(reader.into_tensors().unwrap()[0].shape.to_vec(), vec![2, 2]);
 ```
 
 Use `Writer::write_to_file` / `Reader::from_file` for disk I/O (the default `std` feature; disable
-it for no-std targets). See the [docs](https://docs.rs/burn-pack) for the format layout and the
-full API.
+it for no-std targets). `write_to_file` builds the container beside the destination and renames it
+into place once complete, so the old file survives a save that fails partway, whether from a full
+disk or a deferred tensor whose provider errors mid-write. `write_to_file_in_place` truncates and
+rewrites the destination instead: no fsync and no transient second copy, but a failed save leaves
+it truncated. `Writer::overwrite(false)` makes both refuse an existing destination, checked when
+the file is created or published rather than beforehand. See the API docs for how far each
+guarantee reaches.
+
+## Writing models larger than memory
+
+A tensor's bytes need not exist yet. `Tensor::deferred` describes one by its length plus a provider
+that yields the data on demand, so the writer can lay out the whole container before any I/O and
+then draw the bytes one tensor at a time, dropping each before asking for the next:
+
+```rust,ignore
+let tensor = Tensor::deferred(
+    name,
+    DType::F32,
+    shape,
+    None,
+    rows * cols * 4,              // length, without the data
+    move || weight.read_from_device(),  // called once, when the writer reaches it
+);
+```
+
+Paired with `write_to_file`, peak host memory is bounded by the largest single tensor rather than
+by the whole model. `burn-store` collects a module's parameters directly as these, so saving a
+`Module` gets it for free.
+
+See the [docs](https://docs.rs/burn-pack) for the format layout and the full API.
 
 ## License
 

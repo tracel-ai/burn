@@ -1,10 +1,11 @@
+use crate::Initializer;
 use burn_core as burn;
 
 use burn::config::Config;
 use burn::module::Param;
-use burn::module::{Content, DisplaySettings, Initializer, Module, ModuleDisplay};
+use burn::module::{Content, DisplaySettings, Module, ModuleDisplay};
 use burn::tensor::module::linear;
-use burn::tensor::{Device, Tensor};
+use burn::tensor::{Device, Tensor, assert_shape};
 
 /// Configuration to create a [`Linear`] layer using the [init function](LinearConfig::init).
 #[derive(Config, Debug)]
@@ -125,12 +126,16 @@ impl Linear {
     /// # Returns
     ///
     /// The transformed tensor of shape `[..., d_output]`.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the last axis of `input` is not `d_input`.
     pub fn forward<const D: usize>(&self, input: Tensor<D>) -> Tensor<D> {
-        linear(
-            input,
-            self.weight.val(),
-            self.bias.as_ref().map(|b| b.val()),
-        )
+        let weight = self.weight.val();
+        let [d_input, _] = weight.dims();
+        assert_shape!(input, [.., d_input]);
+
+        linear(input, weight, self.bias.as_ref().map(|b| b.val()))
     }
 }
 
@@ -154,12 +159,20 @@ impl ModuleDisplay for Linear {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use burn::module::ParamId;
+    use burn::module::{Module, ParamId};
     use burn::store::ModuleRecord;
     use burn::tensor::ElementConversion;
     use burn::tensor::Tolerance;
     use burn::tensor::{Shape, TensorData};
     type FT = f32;
+
+    #[test]
+    #[should_panic(expected = "assert_shape!(input, [.., d_input]): axis 1 expected 4, got 3")]
+    fn input_d_input_must_match() {
+        let device = Default::default();
+        let linear = LinearConfig::new(4, 2).init(&device);
+        let _ = linear.forward(Tensor::<2>::zeros([1, 3], &device));
+    }
 
     #[test]
     fn initializer_default() {
@@ -287,6 +300,56 @@ mod tests {
             .val()
             .to_data()
             .assert_eq(&weight_before, true);
+    }
+
+    fn assert_col_layout_round_trip(linear: Linear, config: &LinearConfig) {
+        let device = linear.weight.val().device();
+        let weight_before = linear.weight.val().to_data();
+        let data = linear.into_record().into_bytes().unwrap();
+
+        let linear = config
+            .init(&device)
+            .load_record(ModuleRecord::from_bytes(data).unwrap());
+
+        linear
+            .weight
+            .val()
+            .to_data()
+            .assert_eq(&weight_before, true);
+    }
+
+    #[test]
+    fn col_layout_mapper_is_preserved_after_valid() {
+        let device = Device::default();
+        let config = LinearConfig::new(6, 12).with_layout(LinearLayout::Col);
+        let linear = config
+            .init(&device)
+            .to_device(&device.clone().autodiff())
+            .valid();
+
+        assert_col_layout_round_trip(linear, &config);
+    }
+
+    #[test]
+    fn col_layout_mapper_is_preserved_after_train() {
+        let device = Device::default();
+        let config = LinearConfig::new(6, 12).with_layout(LinearLayout::Col);
+        let linear = config.init(&device).train();
+
+        assert_col_layout_round_trip(linear, &config);
+    }
+
+    #[test]
+    fn col_layout_trains_on_an_autodiff_device() {
+        let device = Device::default().autodiff();
+        let linear = LinearConfig::new(6, 12)
+            .with_layout(LinearLayout::Col)
+            .init(&device);
+        let signal = Tensor::<2>::random([8, 6], burn::tensor::Distribution::Default, &device);
+
+        let grads = linear.forward(signal).sum().backward();
+
+        assert!(linear.weight.grad(&grads).is_some());
     }
 
     #[test]

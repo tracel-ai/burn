@@ -49,9 +49,8 @@ pub(crate) fn matmul<E: NdArrayElement>(
             let rhs_slice = rhs_array.slice(s!(r_batch, .., ..));
 
             unsafe {
-                let mut out_slice = unsafe_shared_out_array
-                    .get()
-                    .slice_mut(s!(out_batch, .., ..));
+                let mut out_array = unsafe_shared_out_array.get();
+                let mut out_slice = out_array.slice_mut(s!(out_batch, .., ..));
 
                 ndarray::linalg::general_mat_mul(
                     alpha,

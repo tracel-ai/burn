@@ -2,13 +2,13 @@
 
 use burn_core as burn;
 
-use super::GradientsParams;
-use crate::{LearningRate, OptimizerRecord};
+use super::{GradientsParams, ParameterContext};
+use crate::{LearningRate, OptimizerRecord, RecordTensor};
 use crate::{RecordState, StateSink, StateSource};
 use burn::config::Config;
-use burn::module::{AutodiffModule, Module, ModuleMapper, ModuleVisitor, Param};
+use burn::module::{Module, ModuleMapper, ModuleVisitor, Param};
 use burn::store::RecordError;
-use burn::tensor::{Bytes, Device, Tensor, TensorData};
+use burn::tensor::{Bytes, Device, Tensor};
 use serde::{Deserialize, Serialize};
 
 use alloc::vec;
@@ -435,7 +435,7 @@ impl ModuleMapper for ParamsFromFlatMapperInner<'_> {
         let numel = tensor.shape().num_elements();
         let slice_1d = self.take_slice(numel);
         let new_inner = slice_1d.reshape(tensor.shape());
-        let new_tensor = Tensor::from_inner(new_inner).require_grad();
+        let new_tensor = ParameterContext::capture(&tensor).restore(new_inner, id);
         Param::from_mapped_value(id, new_tensor, mapper)
     }
 }
@@ -541,8 +541,10 @@ impl LBFGS {
         let tensors = sink
             .tensors
             .into_iter()
-            .map(|(name, data)| {
-                burn_pack::Tensor::new(name, data.dtype, data.shape, None, data.bytes)
+            .map(|(name, data)| RecordTensor {
+                name,
+                param_id: None,
+                data,
             })
             .collect();
         let scalars = sink.scalars.into_iter().collect();
@@ -562,8 +564,7 @@ impl LBFGS {
         let device = Device::default();
         let mut source = StateSource::new(record.scalars);
         for tensor in record.tensors {
-            let data = TensorData::from_bytes(tensor.bytes, tensor.shape, tensor.dtype);
-            source.insert_tensor(tensor.name, data);
+            source.insert_tensor(tensor.name, tensor.data);
         }
         if let Some(state) = LBFGSState::state_unflatten("", &mut source, &device) {
             self.state = state;
@@ -596,7 +597,7 @@ impl LBFGS {
     /// A single optimization step for any tensor that represents the parameters of a model.
     pub fn step<M, F>(&mut self, lr: LearningRate, mut module: M, mut closure: F) -> (M, f64)
     where
-        M: AutodiffModule + Clone,
+        M: Module + Clone,
         F: FnMut(M) -> (f64, GradientsParams),
     {
         // evaluate initial f(x) and df/dx

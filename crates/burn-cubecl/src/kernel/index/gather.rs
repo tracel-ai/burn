@@ -1,5 +1,4 @@
 use crate::{
-    CubeRuntime,
     kernel::utils::{address_type, broadcast_strides, shape_divmod},
     ops::numeric::empty_device_dtype,
     tensor::CubeTensor,
@@ -22,7 +21,7 @@ fn gather_kernel<T: Numeric, I: Numeric>(
     in_strides: Sequence<usize>, // zeroed out for broadcast dims and `dim`
     out_shape: Sequence<FastDivmod<usize>>,
     dim: usize,
-    #[define(T, I)] _dtypes: [StorageType; 2],
+    #[define(T, I)] _dtypes: [ElemType; 2],
 ) {
     if !indices.is_in_bounds(ABSOLUTE_POS) {
         terminate!();
@@ -40,11 +39,7 @@ fn gather_kernel<T: Numeric, I: Numeric>(
     output.write(ABSOLUTE_POS, input[offset]);
 }
 
-pub(crate) fn gather<R: CubeRuntime>(
-    dim: usize,
-    tensor: CubeTensor<R>,
-    indices: CubeTensor<R>,
-) -> CubeTensor<R> {
+pub(crate) fn gather(dim: usize, tensor: CubeTensor, indices: CubeTensor) -> CubeTensor {
     let shape_output = indices.shape();
     let total_elem = shape_output.num_elements();
     let output = empty_device_dtype(

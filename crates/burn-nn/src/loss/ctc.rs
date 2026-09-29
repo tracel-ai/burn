@@ -3,7 +3,7 @@
 use super::Reduction;
 use burn::config::Config;
 use burn::module::Module;
-use burn::tensor::{Int, Tensor};
+use burn::tensor::{Int, Tensor, assert_shape};
 use burn_core as burn;
 
 /// Configuration for the [CTC Loss](CTCLoss) module.
@@ -33,7 +33,7 @@ impl CTCLossConfig {
 /// CTC sums over the probability of all possible alignments of the input to the target,
 /// producing a loss value that is differentiable with respect to each input node.
 ///
-/// The input to this loss is expected to be **log-probabilities** (e.g,, via `log_softmax`),
+/// The input to this loss is expected to be **log-probabilities** (e.g., via `log_softmax`),
 /// not raw logits.
 ///
 /// # References
@@ -104,6 +104,11 @@ impl CTCLoss {
     /// - `targets`: `[batch_size, max_target_length]`
     /// - `input_lengths`: `[batch_size]`
     /// - `target_lengths`: `[batch_size]`
+    ///
+    /// # Panics
+    ///
+    /// - If the batch dimension of `targets`, `input_lengths` or `target_lengths` differs from `log_probs`.
+    /// - If `blank` is greater than or equal to `num_classes`.
     pub fn forward(
         &self,
         log_probs: Tensor<3>,
@@ -112,15 +117,15 @@ impl CTCLoss {
         target_lengths: Tensor<1, Int>,
     ) -> Tensor<1> {
         let [max_input_length, batch_size, num_classes] = log_probs.dims();
-        let max_target_len = targets.dims()[1];
-        let input_lengths_len = input_lengths.dims()[0];
-        let target_lengths_len = target_lengths.dims()[0];
-        self.assertions(
-            batch_size,
-            num_classes,
-            targets.clone(),
-            input_lengths_len,
-            target_lengths_len,
+        let [_, max_target_len] = targets.dims();
+        assert_shape!(targets, [batch_size, _]);
+        assert_shape!(input_lengths, [batch_size]);
+        assert_shape!(target_lengths, [batch_size]);
+        assert!(
+            self.blank < num_classes,
+            "blank index {} must be less than num_classes {}",
+            self.blank,
+            num_classes
         );
         self.length_assertions(
             input_lengths.clone(),
@@ -157,7 +162,7 @@ impl CTCLoss {
     ///   sequences of varying lengths.
     /// - `target_lengths`: A 1D tensor containing the actual length of the target sequence for each target
     ///   sequence in `targets`.
-    /// - `reduction`: The reduction stratey to apply to the loss tensor containing the CTC loss values for
+    /// - `reduction`: The reduction strategy to apply to the loss tensor containing the CTC loss values for
     ///   each sample (e.g., mean, sum). For the mean reduction strategy, the output losses will be divided
     ///   by the target lengths and then the mean over the batch is taken. This follows PyTorch's behavior.
     ///
@@ -242,39 +247,6 @@ impl CTCLoss {
             }
         }
     }
-
-    fn assertions(
-        &self,
-        batch_size: usize,
-        num_classes: usize,
-        targets: Tensor<2, Int>,
-        input_lengths_len: usize,
-        target_lengths_len: usize,
-    ) {
-        assert!(
-            self.blank < num_classes,
-            "blank index {} must be less than num_classes {}",
-            self.blank,
-            num_classes
-        );
-        assert_eq!(
-            targets.dims()[0],
-            batch_size,
-            "targets batch dimension {} must equal batch_size {}",
-            targets.dims()[0],
-            batch_size
-        );
-        assert_eq!(
-            input_lengths_len, batch_size,
-            "input_lengths length {} must equal batch_size {}",
-            input_lengths_len, batch_size
-        );
-        assert_eq!(
-            target_lengths_len, batch_size,
-            "target_lengths length {} must equal batch_size {}",
-            target_lengths_len, batch_size
-        );
-    }
 }
 
 #[cfg(test)]
@@ -303,7 +275,7 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "must equal batch_size")]
+    #[should_panic(expected = "assert_shape!(targets, [batch_size, _]): axis 0 expected 2, got 1")]
     fn test_ctc_loss_panics_mismatched_batch_size() {
         let device = Default::default();
         let ctc = CTCLossConfig::new().init();
@@ -319,7 +291,9 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "input_lengths length")]
+    #[should_panic(
+        expected = "assert_shape!(input_lengths, [batch_size]): axis 0 expected 2, got 1"
+    )]
     fn test_ctc_loss_panics_input_lengths_mismatch() {
         let device = Default::default();
         let ctc = CTCLossConfig::new().init();
@@ -336,7 +310,9 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "target_lengths length")]
+    #[should_panic(
+        expected = "assert_shape!(target_lengths, [batch_size]): axis 0 expected 2, got 1"
+    )]
     fn test_ctc_loss_panics_target_lengths_mismatch() {
         let device = Default::default();
         let ctc = CTCLossConfig::new().init();
@@ -419,7 +395,7 @@ mod tests {
         let target_lengths = Tensor::<1, Int>::from_data([2_i32], &device);
 
         let loss = ctc.forward(log_probs, targets, input_lengths, target_lengths);
-        let loss_data = loss.into_data().to_vec::<f32>().unwrap();
+        let loss_data = loss.try_into_vec_as::<f32>().unwrap();
         assert!(
             loss_data[0].is_infinite() && loss_data[0] > 0.0,
             "Expected +inf, got {}",

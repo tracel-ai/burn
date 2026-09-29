@@ -9,67 +9,37 @@ you can safely use `config.init(device).load_record(record)` without any meaning
 cost. Let's create a simple `infer` method in a new file `src/inference.rs` which we will use to
 load our trained model.
 
-```rust , ignore
-# use crate::{data::MnistBatcher, training::TrainingConfig};
-# use burn::{
-#     data::{dataloader::batcher::Batcher, dataset::vision::MnistItem},
-#     prelude::*,
-#     store::ModuleRecord,
-# };
-#
-pub fn infer<B: Backend>(artifact_dir: &str, device: B::Device, item: MnistItem) {
-    let config = TrainingConfig::load(format!("{artifact_dir}/config.json"))
-        .expect("Config should exist for the model; run train first");
-    let record = ModuleRecord::load(format!("{artifact_dir}/model"))
-        .expect("Trained model should exist; run train first");
-
-    let model = config.model.init::<B>(&device).load_record(record);
-
-    let label = item.label;
-    let batcher = MnistBatcher::default();
-    let batch = batcher.batch(vec![item], &device);
-    let output = model.forward(batch.images);
-    let predicted = output.argmax(1).flatten::<1>(0, 1).into_scalar();
-
-    println!("Predicted {predicted} Expected {label}");
-}
+```rust,ignore
+{{#include ../../../examples/guide/src/inference.rs}}
 ```
 
 The first step is to load the configuration of the training to fetch the correct model
 configuration. Then we can load the saved record from its burnpack file. Finally we can init the
-model with the configuration and apply the record. For simplicity we can use the
-same batcher used during the training to pass from a MnistItem to a tensor.
+model with the configuration and apply the record. For simplicity we can use the same batcher used
+during the training to pass from a MnistItem to a tensor.
 
 By running the infer function, you should see the predictions of your model!
 
 Add the call to `infer` to the `main.rs` file after the `train` function call:
 
 ```rust , ignore
-# #![recursion_limit = "256"]
 # mod data;
 # mod inference;
 # mod model;
 # mod training;
 #
+# use burn::{data::dataset::Dataset, optim::AdamConfig, prelude::*};
 # use crate::{model::ModelConfig, training::TrainingConfig};
-# use burn::{
-#     backend::{Autodiff, Wgpu},
-#     data::dataset::Dataset,
-#     optim::AdamConfig,
-# };
 #
 # fn main() {
-#     type MyBackend = Wgpu<f32, i32>;
-#     type MyAutodiffBackend = Autodiff<MyBackend>;
-#
-#     let device = burn::backend::wgpu::WgpuDevice::default();
-#     let artifact_dir = "/tmp/guide";
-#     crate::training::train::<MyAutodiffBackend>(
+#     let device = Device::wgpu(Default::default());
+#     let artifact_dir = "target/guide";
+#     crate::training::train(
 #         artifact_dir,
 #         TrainingConfig::new(ModelConfig::new(10, 512), AdamConfig::new()),
 #         device.clone(),
 #     );
-    crate::inference::infer::<MyBackend>(
+    crate::inference::infer(
         artifact_dir,
         device,
         burn::data::dataset::vision::MnistDataset::test()

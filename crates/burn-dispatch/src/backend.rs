@@ -1,18 +1,20 @@
 use alloc::format;
 use alloc::string::String;
 use alloc::vec::Vec;
+#[cfg(cube_backend)]
+use burn_backend::cubecl::{Device as CubeDevice, RuntimeId};
 
-#[cfg(any(
-    feature = "cpu",
-    feature = "ndarray",
-    feature = "flex",
-    default_backend
-))]
+// The cubecl runtimes — `cpu` among them — enumerate through `cube_devices` rather than a
+// `vec![]` literal, so only the backends that still list a fixed device need this.
+#[cfg(any(feature = "ndarray", feature = "flex"))]
 use alloc::vec;
 
 #[cfg(feature = "autodiff")]
 use burn_backend::distributed::{DistributedParamId, DistributedParams};
-use burn_backend::{AutodiffBackend, Backend, BackendGraph, BackendTypes, DType, ExecutionError};
+use burn_backend::{
+    AutodiffBackend, Backend, BackendGraph, BackendTypes, DType, ExecutionError, MemoryPoolUsage,
+    ProfileDuration, ProfileOptions, ProfileToken, SlicedPoolReport,
+};
 
 /// A captured graph from one of the dispatched backends (see
 /// [`BackendTypes::GraphPrimitive`]).
@@ -21,36 +23,15 @@ use burn_backend::{AutodiffBackend, Backend, BackendGraph, BackendTypes, DType, 
 /// captured by, and can only replay on, the backend it was recorded on.
 #[derive(Debug, Clone)]
 pub enum DispatchGraph {
-    /// A graph captured on the [CPU backend](Cpu).
-    #[cfg(feature = "cpu")]
-    Cpu(BackendGraph<Cpu>),
-
-    /// A graph captured on the [CUDA backend](Cuda).
-    #[cfg(feature = "cuda")]
-    Cuda(BackendGraph<Cuda>),
-
-    /// A graph captured on the [Metal backend](Metal).
-    #[cfg(feature = "metal")]
-    Metal(BackendGraph<Metal>),
-
-    /// A graph captured on the [ROCm backend](Rocm).
-    #[cfg(feature = "rocm")]
-    Rocm(BackendGraph<Rocm>),
-
-    /// A graph captured on the [Vulkan backend](Vulkan).
-    #[cfg(feature = "vulkan")]
-    Vulkan(BackendGraph<Vulkan>),
-
-    /// A graph captured on the [Wgpu backend](Wgpu).
-    #[cfg(feature = "wgpu")]
-    Wgpu(BackendGraph<Wgpu>),
-
-    /// A graph captured on the [WebGPU backend](WebGpu).
-    #[cfg(feature = "webgpu")]
-    WebGpu(BackendGraph<WebGpu>),
+    #[cfg(not(backend_enabled))]
+    #[doc(hidden)]
+    Unavailable(crate::NoBackend),
+    /// A graph captured on the [cubecl backend](Cube).
+    #[cfg(cube_backend)]
+    Cube(BackendGraph<Cube>),
 
     /// A graph captured on the [Flex backend](Flex).
-    #[cfg(any(feature = "flex", default_backend))]
+    #[cfg(feature = "flex")]
     Flex(BackendGraph<Flex>),
 
     /// A graph captured on the [NdArray backend](NdArray).
@@ -64,6 +45,9 @@ pub enum DispatchGraph {
     /// A graph captured on the [Remote backend](Remote).
     #[cfg(feature = "remote")]
     Remote(BackendGraph<Remote>),
+    /// A graph captured by the non-executing capture backend.
+    #[cfg(feature = "capture")]
+    Capture(BackendGraph<Capture>),
 }
 
 /// The error returned when a graph operation cannot be dispatched.
@@ -116,16 +100,54 @@ macro_rules! graph_replay_arms {
 }
 
 #[cfg(feature = "autodiff")]
+macro_rules! is_tracked_arms {
+    ($tensor:expr; $([$Backend:ident, $cfg:meta]),*) => {
+        match &$tensor.kind {
+            DispatchTensorKind::Autodiff(inner) => match &**inner {
+                $(
+                    #[cfg($cfg)]
+                    DispatchTensorKind::$Backend(tensor) => tensor.as_autodiff().is_tracked(),
+                )*
+                DispatchTensorKind::Autodiff(_) => {
+                    unreachable!("Autodiff should not wrap an autodiff tensor")
+                }
+                #[allow(unreachable_patterns)]
+                _ => false,
+            },
+            _ => false,
+        }
+    };
+}
+
+#[cfg(all(
+    feature = "autodiff",
+    any(
+        cube_backend,
+        feature = "flex",
+        feature = "ndarray",
+        feature = "tch",
+        feature = "remote"
+    )
+))]
 use alloc::boxed::Box;
 #[cfg(feature = "autodiff")]
 use burn_autodiff::grads::Gradients;
 
+#[cfg(feature = "autodiff")]
+use crate::DispatchAutodiffContext;
 #[allow(unused)]
 use crate::DispatchDeviceId;
 #[allow(unused)]
 use crate::DispatchTensorKind;
-use crate::backends::*;
-use crate::{DispatchDevice, DispatchTensor};
+#[cfg(feature = "flex")]
+use crate::devices::FlexDevice;
+#[cfg(feature = "tch")]
+use crate::devices::LibTorchDevice;
+#[cfg(feature = "ndarray")]
+use crate::devices::NdArrayDevice;
+#[cfg(feature = "remote-websocket")]
+use crate::devices::RemoteDevice;
+use crate::{DispatchDevice, DispatchTensor, backends::*};
 
 /// The main execution backend in Burn.
 ///
@@ -146,13 +168,22 @@ use crate::{DispatchDevice, DispatchTensor};
 /// use burn::DispatchDevice;
 ///
 /// // Select the device to execute operations on
-/// let device = DispatchDevice::Cuda(Default::default());
+/// let device = DispatchDevice::Cube(cubecl::Device::Cuda(Default::default()));
 ///
 /// // Create a tensor using the global backend
 /// let t = Tensor::<Dispatch, 2>::zeros([128, 128], &device);
 /// ```
 #[derive(Debug, Default, Clone)]
 pub struct Dispatch;
+
+#[cfg(feature = "autodiff")]
+impl Dispatch {
+    /// Returns whether an autodiff tensor's node is marked for graph participation.
+    #[doc(hidden)]
+    pub fn is_tracked(tensor: &DispatchTensor) -> bool {
+        backend_list!(is_tracked_arms, tensor)
+    }
+}
 
 impl BackendTypes for Dispatch {
     type Device = DispatchDevice;
@@ -177,6 +208,30 @@ impl Backend for Dispatch {
 
     fn sync(device: &Self::Device) -> Result<(), ExecutionError> {
         dispatch_device!(device, |device| B::sync(device))
+    }
+
+    fn profile<O: Send + 'static>(
+        device: &Self::Device,
+        options: ProfileOptions,
+        func: impl FnOnce() -> O + Send,
+    ) -> Result<(O, ProfileDuration), ExecutionError> {
+        dispatch_device!(device, |device| B::profile(device, options, func))
+    }
+
+    fn profile_start(device: &Self::Device) -> Result<Option<ProfileToken>, ExecutionError> {
+        dispatch_device!(device, |device| B::profile_start(device))
+    }
+
+    fn profile_end(
+        device: &Self::Device,
+        token: ProfileToken,
+        options: ProfileOptions,
+    ) -> Result<ProfileDuration, ExecutionError> {
+        dispatch_device!(device, |device| B::profile_end(device, token, options))
+    }
+
+    fn profile_abandon(device: &Self::Device, token: ProfileToken) {
+        dispatch_device!(device, |device| B::profile_abandon(device, token))
     }
 
     fn graph_prepare(device: &Self::Device) -> Result<(), ExecutionError> {
@@ -213,21 +268,9 @@ impl Backend for Dispatch {
     fn device_count(type_id: u16) -> usize {
         let (dispatch_id, backend_type_id) = DispatchDevice::decode_type_id(type_id);
         match dispatch_id {
-            #[cfg(feature = "cpu")]
-            DispatchDeviceId::Cpu => Cpu::device_count(backend_type_id),
-            #[cfg(feature = "cuda")]
-            DispatchDeviceId::Cuda => Cuda::device_count(backend_type_id),
-            #[cfg(feature = "metal")]
-            DispatchDeviceId::Metal => Metal::device_count(backend_type_id),
-            #[cfg(feature = "rocm")]
-            DispatchDeviceId::Rocm => Rocm::device_count(backend_type_id),
-            #[cfg(feature = "vulkan")]
-            DispatchDeviceId::Vulkan => Vulkan::device_count(backend_type_id),
-            #[cfg(feature = "wgpu")]
-            DispatchDeviceId::Wgpu => Wgpu::device_count(backend_type_id),
-            #[cfg(feature = "webgpu")]
-            DispatchDeviceId::WebGpu => WebGpu::device_count(backend_type_id),
-            #[cfg(any(feature = "flex", default_backend))]
+            #[cfg(cube_backend)]
+            DispatchDeviceId::Cube => Cube::device_count(backend_type_id),
+            #[cfg(feature = "flex")]
             DispatchDeviceId::Flex => Flex::device_count(backend_type_id),
             #[cfg(feature = "ndarray")]
             DispatchDeviceId::NdArray => NdArray::device_count(backend_type_id),
@@ -235,6 +278,8 @@ impl Backend for Dispatch {
             DispatchDeviceId::LibTorch => LibTorch::device_count(backend_type_id),
             #[cfg(feature = "remote")]
             DispatchDeviceId::Remote => Remote::device_count(backend_type_id),
+            #[cfg(feature = "capture")]
+            DispatchDeviceId::Capture => Capture::device_count(backend_type_id),
             _ => unreachable!("No backend feature enabled."),
         }
     }
@@ -257,6 +302,14 @@ impl Backend for Dispatch {
         dispatch_device!(device, |device| B::memory_cleanup(device))
     }
 
+    fn memory_pool_report(device: &Self::Device) -> Option<Vec<SlicedPoolReport>> {
+        dispatch_device!(device, |device| B::memory_pool_report(device))
+    }
+
+    fn memory_pool_usage(device: &Self::Device) -> Option<MemoryPoolUsage> {
+        dispatch_device!(device, |device| B::memory_pool_usage(device))
+    }
+
     fn staging<'a, Iter>(data: Iter, device: &Self::Device)
     where
         Iter: Iterator<Item = &'a mut burn_backend::TensorData>,
@@ -274,6 +327,37 @@ impl Backend for Dispatch {
 }
 
 #[cfg(feature = "autodiff")]
+fn disable_autodiff_context(context: DispatchAutodiffContext) -> DispatchAutodiffContext {
+    assert!(
+        matches!(context, DispatchAutodiffContext::Enabled(_)),
+        "tensor is already on the inner backend"
+    );
+    DispatchAutodiffContext::Disabled
+}
+
+#[cfg(feature = "autodiff")]
+fn enable_autodiff_context(context: DispatchAutodiffContext) -> DispatchAutodiffContext {
+    assert_eq!(
+        context,
+        DispatchAutodiffContext::Disabled,
+        "tensor is already associated with autodiff"
+    );
+    DispatchAutodiffContext::Enabled(crate::GradientCheckpointingStrategy::Disabled)
+}
+
+#[cfg(feature = "autodiff")]
+// Capture does not support autodiff. Without an execution backend, the dispatch
+// arms below only panic, leaving gradient arguments unused and return code unreachable.
+#[cfg_attr(
+    not(any(
+        cube_backend,
+        feature = "flex",
+        feature = "ndarray",
+        feature = "tch",
+        feature = "remote"
+    )),
+    allow(unused_variables, unreachable_code)
+)]
 impl AutodiffBackend for Dispatch {
     type InnerBackend = Dispatch;
 
@@ -284,21 +368,11 @@ impl AutodiffBackend for Dispatch {
 
         match kind {
             DispatchTensorKind::Autodiff(tensor) => match *tensor {
-                #[cfg(feature = "cpu")]
-                DispatchTensorKind::Cpu(tensor) => tensor.autodiff().backward(),
-                #[cfg(feature = "cuda")]
-                DispatchTensorKind::Cuda(tensor) => tensor.autodiff().backward(),
-                #[cfg(feature = "metal")]
-                DispatchTensorKind::Metal(tensor) => tensor.autodiff().backward(),
-                #[cfg(feature = "rocm")]
-                DispatchTensorKind::Rocm(tensor) => tensor.autodiff().backward(),
-                #[cfg(feature = "vulkan")]
-                DispatchTensorKind::Vulkan(tensor) => tensor.autodiff().backward(),
-                #[cfg(feature = "wgpu")]
-                DispatchTensorKind::Wgpu(tensor) => tensor.autodiff().backward(),
-                #[cfg(feature = "webgpu")]
-                DispatchTensorKind::WebGpu(tensor) => tensor.autodiff().backward(),
-                #[cfg(any(feature = "flex", default_backend))]
+                #[cfg(not(backend_enabled))]
+                DispatchTensorKind::Unavailable(never) => never.unreachable(),
+                #[cfg(cube_backend)]
+                DispatchTensorKind::Cube(tensor) => tensor.autodiff().backward(),
+                #[cfg(feature = "flex")]
                 DispatchTensorKind::Flex(tensor) => tensor.autodiff().backward(),
                 #[cfg(feature = "ndarray")]
                 DispatchTensorKind::NdArray(tensor) => tensor.autodiff().backward(),
@@ -306,6 +380,10 @@ impl AutodiffBackend for Dispatch {
                 DispatchTensorKind::LibTorch(tensor) => tensor.autodiff().backward(),
                 #[cfg(feature = "remote")]
                 DispatchTensorKind::Remote(tensor) => tensor.autodiff().backward(),
+                #[cfg(feature = "capture")]
+                DispatchTensorKind::Capture(_) => {
+                    panic!("Capture tensors do not support autodiff")
+                }
                 DispatchTensorKind::Autodiff(_) => {
                     panic!("Autodiff should not wrap an autodiff tensor.")
                 }
@@ -315,48 +393,17 @@ impl AutodiffBackend for Dispatch {
     }
 
     fn grad(tensor: &DispatchTensor, grads: &Self::Gradients) -> Option<DispatchTensor> {
-        let DispatchTensor {
-            kind,
-            checkpointing,
-        } = tensor;
+        let DispatchTensor { kind, .. } = tensor;
         let grad: Option<DispatchTensorKind> = match &kind {
             DispatchTensorKind::Autodiff(inner_kind) => match &**inner_kind {
-                #[cfg(feature = "cpu")]
-                DispatchTensorKind::Cpu(tensor) => tensor
+                #[cfg(not(backend_enabled))]
+                DispatchTensorKind::Unavailable(never) => never.unreachable(),
+                #[cfg(cube_backend)]
+                DispatchTensorKind::Cube(tensor) => tensor
                     .as_autodiff()
                     .grad(grads)
-                    .map(|t| DispatchTensorKind::Cpu(crate::BackendTensor::Float(t))),
-                #[cfg(feature = "cuda")]
-                DispatchTensorKind::Cuda(tensor) => tensor
-                    .as_autodiff()
-                    .grad(grads)
-                    .map(|t| DispatchTensorKind::Cuda(crate::BackendTensor::Float(t))),
-                #[cfg(feature = "metal")]
-                DispatchTensorKind::Metal(tensor) => tensor
-                    .as_autodiff()
-                    .grad(grads)
-                    .map(|t| DispatchTensorKind::Metal(crate::BackendTensor::Float(t))),
-                #[cfg(feature = "rocm")]
-                DispatchTensorKind::Rocm(tensor) => tensor
-                    .as_autodiff()
-                    .grad(grads)
-                    .map(|t| DispatchTensorKind::Rocm(crate::BackendTensor::Float(t))),
-                #[cfg(feature = "vulkan")]
-                DispatchTensorKind::Vulkan(tensor) => tensor
-                    .as_autodiff()
-                    .grad(grads)
-                    .map(|t| DispatchTensorKind::Vulkan(crate::BackendTensor::Float(t))),
-                #[cfg(feature = "wgpu")]
-                DispatchTensorKind::Wgpu(tensor) => tensor
-                    .as_autodiff()
-                    .grad(grads)
-                    .map(|t| DispatchTensorKind::Wgpu(crate::BackendTensor::Float(t))),
-                #[cfg(feature = "webgpu")]
-                DispatchTensorKind::WebGpu(tensor) => tensor
-                    .as_autodiff()
-                    .grad(grads)
-                    .map(|t| DispatchTensorKind::WebGpu(crate::BackendTensor::Float(t))),
-                #[cfg(any(feature = "flex", default_backend))]
+                    .map(|t| DispatchTensorKind::Cube(crate::BackendTensor::Float(t))),
+                #[cfg(feature = "flex")]
                 DispatchTensorKind::Flex(tensor) => tensor
                     .as_autodiff()
                     .grad(grads)
@@ -376,6 +423,10 @@ impl AutodiffBackend for Dispatch {
                     .as_autodiff()
                     .grad(grads)
                     .map(|t| DispatchTensorKind::Remote(crate::BackendTensor::Float(t))),
+                #[cfg(feature = "capture")]
+                DispatchTensorKind::Capture(_) => {
+                    panic!("Capture tensors do not support autodiff")
+                }
                 DispatchTensorKind::Autodiff(_) => {
                     panic!("Autodiff should not wrap an autodiff tensor.")
                 }
@@ -384,53 +435,22 @@ impl AutodiffBackend for Dispatch {
         };
         grad.map(|kind| DispatchTensor {
             kind,
-            checkpointing: *checkpointing,
+            autodiff: DispatchAutodiffContext::Disabled,
         })
     }
 
     fn grad_remove(tensor: &DispatchTensor, grads: &mut Self::Gradients) -> Option<DispatchTensor> {
-        let DispatchTensor {
-            kind,
-            checkpointing,
-        } = tensor;
+        let DispatchTensor { kind, .. } = tensor;
         let grad: Option<DispatchTensorKind> = match &kind {
             DispatchTensorKind::Autodiff(inner_kind) => match &**inner_kind {
-                #[cfg(feature = "cpu")]
-                DispatchTensorKind::Cpu(tensor) => tensor
+                #[cfg(not(backend_enabled))]
+                DispatchTensorKind::Unavailable(never) => never.unreachable(),
+                #[cfg(cube_backend)]
+                DispatchTensorKind::Cube(tensor) => tensor
                     .as_autodiff()
                     .grad_remove(grads)
-                    .map(|t| DispatchTensorKind::Cpu(crate::BackendTensor::Float(t))),
-                #[cfg(feature = "cuda")]
-                DispatchTensorKind::Cuda(tensor) => tensor
-                    .as_autodiff()
-                    .grad_remove(grads)
-                    .map(|t| DispatchTensorKind::Cuda(crate::BackendTensor::Float(t))),
-                #[cfg(feature = "metal")]
-                DispatchTensorKind::Metal(tensor) => tensor
-                    .as_autodiff()
-                    .grad_remove(grads)
-                    .map(|t| DispatchTensorKind::Metal(crate::BackendTensor::Float(t))),
-                #[cfg(feature = "rocm")]
-                DispatchTensorKind::Rocm(tensor) => tensor
-                    .as_autodiff()
-                    .grad_remove(grads)
-                    .map(|t| DispatchTensorKind::Rocm(crate::BackendTensor::Float(t))),
-                #[cfg(feature = "vulkan")]
-                DispatchTensorKind::Vulkan(tensor) => tensor
-                    .as_autodiff()
-                    .grad_remove(grads)
-                    .map(|t| DispatchTensorKind::Vulkan(crate::BackendTensor::Float(t))),
-                #[cfg(feature = "wgpu")]
-                DispatchTensorKind::Wgpu(tensor) => tensor
-                    .as_autodiff()
-                    .grad_remove(grads)
-                    .map(|t| DispatchTensorKind::Wgpu(crate::BackendTensor::Float(t))),
-                #[cfg(feature = "webgpu")]
-                DispatchTensorKind::WebGpu(tensor) => tensor
-                    .as_autodiff()
-                    .grad_remove(grads)
-                    .map(|t| DispatchTensorKind::WebGpu(crate::BackendTensor::Float(t))),
-                #[cfg(any(feature = "flex", default_backend))]
+                    .map(|t| DispatchTensorKind::Cube(crate::BackendTensor::Float(t))),
+                #[cfg(feature = "flex")]
                 DispatchTensorKind::Flex(tensor) => tensor
                     .as_autodiff()
                     .grad_remove(grads)
@@ -450,6 +470,10 @@ impl AutodiffBackend for Dispatch {
                     .as_autodiff()
                     .grad_remove(grads)
                     .map(|t| DispatchTensorKind::Remote(crate::BackendTensor::Float(t))),
+                #[cfg(feature = "capture")]
+                DispatchTensorKind::Capture(_) => {
+                    panic!("Capture tensors do not support autodiff")
+                }
                 DispatchTensorKind::Autodiff(_) => {
                     panic!("Autodiff should not wrap an autodiff tensor.")
                 }
@@ -458,52 +482,29 @@ impl AutodiffBackend for Dispatch {
         };
         grad.map(|kind| DispatchTensor {
             kind,
-            checkpointing: *checkpointing,
+            autodiff: DispatchAutodiffContext::Disabled,
         })
     }
 
     fn grad_replace(tensor: &DispatchTensor, grads: &mut Self::Gradients, grad: DispatchTensor) {
-        let DispatchTensor {
-            kind,
-            checkpointing,
-        } = tensor;
+        let DispatchTensor { kind, .. } = tensor;
         let DispatchTensor {
             kind: grad,
-            checkpointing: grad_ckp,
+            autodiff,
         } = grad;
-        debug_assert_eq!(checkpointing, &grad_ckp);
+        assert_eq!(
+            autodiff,
+            DispatchAutodiffContext::Disabled,
+            "replacement gradients must use the inner backend"
+        );
 
         match &kind {
             DispatchTensorKind::Autodiff(inner_kind) => match (&**inner_kind, grad) {
-                #[cfg(feature = "cpu")]
-                (DispatchTensorKind::Cpu(tensor), DispatchTensorKind::Cpu(grad)) => {
+                #[cfg(cube_backend)]
+                (DispatchTensorKind::Cube(tensor), DispatchTensorKind::Cube(grad)) => {
                     tensor.as_autodiff().grad_replace(grads, grad.float())
                 }
-                #[cfg(feature = "cuda")]
-                (DispatchTensorKind::Cuda(tensor), DispatchTensorKind::Cuda(grad)) => {
-                    tensor.as_autodiff().grad_replace(grads, grad.float())
-                }
-                #[cfg(feature = "metal")]
-                (DispatchTensorKind::Metal(tensor), DispatchTensorKind::Metal(grad)) => {
-                    tensor.as_autodiff().grad_replace(grads, grad.float())
-                }
-                #[cfg(feature = "rocm")]
-                (DispatchTensorKind::Rocm(tensor), DispatchTensorKind::Rocm(grad)) => {
-                    tensor.as_autodiff().grad_replace(grads, grad.float())
-                }
-                #[cfg(feature = "vulkan")]
-                (DispatchTensorKind::Vulkan(tensor), DispatchTensorKind::Vulkan(grad)) => {
-                    tensor.as_autodiff().grad_replace(grads, grad.float())
-                }
-                #[cfg(feature = "wgpu")]
-                (DispatchTensorKind::Wgpu(tensor), DispatchTensorKind::Wgpu(grad)) => {
-                    tensor.as_autodiff().grad_replace(grads, grad.float())
-                }
-                #[cfg(feature = "webgpu")]
-                (DispatchTensorKind::WebGpu(tensor), DispatchTensorKind::WebGpu(grad)) => {
-                    tensor.as_autodiff().grad_replace(grads, grad.float())
-                }
-                #[cfg(any(feature = "flex", default_backend))]
+                #[cfg(feature = "flex")]
                 (DispatchTensorKind::Flex(tensor), DispatchTensorKind::Flex(grad)) => {
                     tensor.as_autodiff().grad_replace(grads, grad.float())
                 }
@@ -528,57 +529,40 @@ impl AutodiffBackend for Dispatch {
     }
 
     fn inner(tensor: DispatchTensor) -> DispatchTensor {
-        let DispatchTensor {
-            kind,
-            checkpointing: _,
-        } = tensor;
+        let DispatchTensor { kind, autodiff } = tensor;
+        assert!(
+            matches!(autodiff, DispatchAutodiffContext::Enabled(_)),
+            "Requires autodiff tensor."
+        );
 
         let kind = match kind {
             DispatchTensorKind::Autodiff(inner_kind) => match *inner_kind {
-                #[cfg(feature = "cpu")]
-                DispatchTensorKind::Cpu(tensor) => DispatchTensorKind::Cpu(
-                    crate::BackendTensor::Float(tensor.autodiff().primitive),
+                #[cfg(not(backend_enabled))]
+                DispatchTensorKind::Unavailable(ref never) => never.unreachable(),
+                #[cfg(cube_backend)]
+                DispatchTensorKind::Cube(tensor) => DispatchTensorKind::Cube(
+                    crate::BackendTensor::Float(tensor.autodiff().into_primitive()),
                 ),
-                #[cfg(feature = "cuda")]
-                DispatchTensorKind::Cuda(tensor) => DispatchTensorKind::Cuda(
-                    crate::BackendTensor::Float(tensor.autodiff().primitive),
-                ),
-                #[cfg(feature = "metal")]
-                DispatchTensorKind::Metal(tensor) => DispatchTensorKind::Metal(
-                    crate::BackendTensor::Float(tensor.autodiff().primitive),
-                ),
-                #[cfg(feature = "rocm")]
-                DispatchTensorKind::Rocm(tensor) => DispatchTensorKind::Rocm(
-                    crate::BackendTensor::Float(tensor.autodiff().primitive),
-                ),
-                #[cfg(feature = "vulkan")]
-                DispatchTensorKind::Vulkan(tensor) => DispatchTensorKind::Vulkan(
-                    crate::BackendTensor::Float(tensor.autodiff().primitive),
-                ),
-                #[cfg(feature = "wgpu")]
-                DispatchTensorKind::Wgpu(tensor) => DispatchTensorKind::Wgpu(
-                    crate::BackendTensor::Float(tensor.autodiff().primitive),
-                ),
-                #[cfg(feature = "webgpu")]
-                DispatchTensorKind::WebGpu(tensor) => DispatchTensorKind::WebGpu(
-                    crate::BackendTensor::Float(tensor.autodiff().primitive),
-                ),
-                #[cfg(any(feature = "flex", default_backend))]
+                #[cfg(feature = "flex")]
                 DispatchTensorKind::Flex(tensor) => DispatchTensorKind::Flex(
-                    crate::BackendTensor::Float(tensor.autodiff().primitive),
+                    crate::BackendTensor::Float(tensor.autodiff().into_primitive()),
                 ),
                 #[cfg(feature = "ndarray")]
                 DispatchTensorKind::NdArray(tensor) => DispatchTensorKind::NdArray(
-                    crate::BackendTensor::Float(tensor.autodiff().primitive),
+                    crate::BackendTensor::Float(tensor.autodiff().into_primitive()),
                 ),
                 #[cfg(feature = "tch")]
                 DispatchTensorKind::LibTorch(tensor) => DispatchTensorKind::LibTorch(
-                    crate::BackendTensor::Float(tensor.autodiff().primitive),
+                    crate::BackendTensor::Float(tensor.autodiff().into_primitive()),
                 ),
                 #[cfg(feature = "remote")]
                 DispatchTensorKind::Remote(tensor) => DispatchTensorKind::Remote(
-                    crate::BackendTensor::Float(tensor.autodiff().primitive),
+                    crate::BackendTensor::Float(tensor.autodiff().into_primitive()),
                 ),
+                #[cfg(feature = "capture")]
+                DispatchTensorKind::Capture(_) => {
+                    panic!("Capture tensors do not support autodiff")
+                }
                 DispatchTensorKind::Autodiff(_) => {
                     panic!("Autodiff should not wrap an autodiff tensor.")
                 }
@@ -587,72 +571,41 @@ impl AutodiffBackend for Dispatch {
         };
         DispatchTensor {
             kind,
-            checkpointing: None,
+            autodiff: DispatchAutodiffContext::Disabled,
         }
     }
 
-    fn int_inner(tensor: DispatchTensor) -> DispatchTensor {
+    fn int_inner(mut tensor: DispatchTensor) -> DispatchTensor {
+        tensor.autodiff = disable_autodiff_context(tensor.autodiff);
         tensor
     }
 
-    fn bool_inner(tensor: DispatchTensor) -> DispatchTensor {
+    fn bool_inner(mut tensor: DispatchTensor) -> DispatchTensor {
+        tensor.autodiff = disable_autodiff_context(tensor.autodiff);
         tensor
     }
 
-    fn q_inner(tensor: DispatchTensor) -> DispatchTensor {
+    fn q_inner(mut tensor: DispatchTensor) -> DispatchTensor {
+        tensor.autodiff = disable_autodiff_context(tensor.autodiff);
         tensor
     }
 
     fn from_inner(tensor: DispatchTensor) -> DispatchTensor {
-        let DispatchTensor {
-            kind,
-            checkpointing,
-        } = tensor;
+        let DispatchTensor { kind, autodiff } = tensor;
+        assert_eq!(
+            autodiff,
+            DispatchAutodiffContext::Disabled,
+            "tensor is already associated with autodiff"
+        );
 
         let kind = match kind {
-            #[cfg(feature = "cpu")]
-            DispatchTensorKind::Cpu(tensor) => {
-                DispatchTensorKind::Autodiff(Box::new(DispatchTensorKind::Cpu(
-                    crate::BackendTensor::Autodiff(Autodiff::<Cpu>::from_inner(tensor.float())),
+            #[cfg(cube_backend)]
+            DispatchTensorKind::Cube(tensor) => {
+                DispatchTensorKind::Autodiff(Box::new(DispatchTensorKind::Cube(
+                    crate::BackendTensor::Autodiff(Autodiff::<Cube>::from_inner(tensor.float())),
                 )))
             }
-            #[cfg(feature = "cuda")]
-            DispatchTensorKind::Cuda(tensor) => {
-                DispatchTensorKind::Autodiff(Box::new(DispatchTensorKind::Cuda(
-                    crate::BackendTensor::Autodiff(Autodiff::<Cuda>::from_inner(tensor.float())),
-                )))
-            }
-            #[cfg(feature = "metal")]
-            DispatchTensorKind::Metal(tensor) => {
-                DispatchTensorKind::Autodiff(Box::new(DispatchTensorKind::Metal(
-                    crate::BackendTensor::Autodiff(Autodiff::<Metal>::from_inner(tensor.float())),
-                )))
-            }
-            #[cfg(feature = "rocm")]
-            DispatchTensorKind::Rocm(tensor) => {
-                DispatchTensorKind::Autodiff(Box::new(DispatchTensorKind::Rocm(
-                    crate::BackendTensor::Autodiff(Autodiff::<Rocm>::from_inner(tensor.float())),
-                )))
-            }
-            #[cfg(feature = "vulkan")]
-            DispatchTensorKind::Vulkan(tensor) => {
-                DispatchTensorKind::Autodiff(Box::new(DispatchTensorKind::Vulkan(
-                    crate::BackendTensor::Autodiff(Autodiff::<Vulkan>::from_inner(tensor.float())),
-                )))
-            }
-            #[cfg(feature = "wgpu")]
-            DispatchTensorKind::Wgpu(tensor) => {
-                DispatchTensorKind::Autodiff(Box::new(DispatchTensorKind::Wgpu(
-                    crate::BackendTensor::Autodiff(Autodiff::<Wgpu>::from_inner(tensor.float())),
-                )))
-            }
-            #[cfg(feature = "webgpu")]
-            DispatchTensorKind::WebGpu(tensor) => {
-                DispatchTensorKind::Autodiff(Box::new(DispatchTensorKind::WebGpu(
-                    crate::BackendTensor::Autodiff(Autodiff::<WebGpu>::from_inner(tensor.float())),
-                )))
-            }
-            #[cfg(any(feature = "flex", default_backend))]
+            #[cfg(feature = "flex")]
             DispatchTensorKind::Flex(tensor) => {
                 DispatchTensorKind::Autodiff(Box::new(DispatchTensorKind::Flex(
                     crate::BackendTensor::Autodiff(Autodiff::<Flex>::from_inner(tensor.float())),
@@ -676,53 +629,59 @@ impl AutodiffBackend for Dispatch {
                     crate::BackendTensor::Autodiff(Autodiff::<Remote>::from_inner(tensor.float())),
                 )))
             }
+            #[cfg(feature = "capture")]
+            DispatchTensorKind::Capture(_) => {
+                panic!("Capture tensors do not support autodiff")
+            }
             DispatchTensorKind::Autodiff(_) => {
                 panic!("Autodiff should not wrap an autodiff tensor.")
             }
         };
 
-        // TODO: should use C::STRATEGY
-        let checkpointing = if let Some(strategy) = checkpointing {
-            Some(strategy)
-        } else {
-            Some(crate::CheckpointingStrategy::None)
-        };
         DispatchTensor {
             kind,
-            checkpointing,
+            autodiff: DispatchAutodiffContext::Enabled(
+                crate::GradientCheckpointingStrategy::Disabled,
+            ),
         }
     }
 
-    fn int_from_inner(tensor: DispatchTensor) -> DispatchTensor {
+    fn int_from_inner(mut tensor: DispatchTensor) -> DispatchTensor {
+        tensor.autodiff = enable_autodiff_context(tensor.autodiff);
         tensor
     }
 
-    fn bool_from_inner(tensor: DispatchTensor) -> DispatchTensor {
+    fn bool_from_inner(mut tensor: DispatchTensor) -> DispatchTensor {
+        tensor.autodiff = enable_autodiff_context(tensor.autodiff);
         tensor
     }
 
-    fn q_from_inner(tensor: DispatchTensor) -> DispatchTensor {
+    fn q_from_inner(mut tensor: DispatchTensor) -> DispatchTensor {
+        tensor.autodiff = enable_autodiff_context(tensor.autodiff);
         tensor
     }
 
-    // Only the collective-capable backends (Cuda/Remote) carry distributed params; in builds
+    // Only the collective-capable backends (Cube/Remote) carry distributed params; in builds
     // without them the match arms cfg out, leaving the bindings unused and the tail unreachable.
     #[allow(unused_variables, unreachable_code)]
     fn set_distributed_params(
         tensor: DispatchTensor,
         param_id: DistributedParamId,
     ) -> DispatchTensor {
-        let DispatchTensor {
-            kind,
-            checkpointing,
-        } = tensor;
+        let DispatchTensor { kind, autodiff } = tensor;
+        assert!(
+            matches!(autodiff, DispatchAutodiffContext::Enabled(_)),
+            "Requires autodiff tensor."
+        );
 
         let kind = match kind {
             DispatchTensorKind::Autodiff(inner_kind) => match *inner_kind {
-                #[cfg(feature = "cuda")]
-                DispatchTensorKind::Cuda(tensor) => {
-                    DispatchTensorKind::Autodiff(Box::new(DispatchTensorKind::Cuda(
-                        crate::BackendTensor::Autodiff(Autodiff::<Cuda>::set_distributed_params(
+                #[cfg(not(backend_enabled))]
+                DispatchTensorKind::Unavailable(ref never) => never.unreachable(),
+                #[cfg(cube_backend)]
+                DispatchTensorKind::Cube(tensor) => {
+                    DispatchTensorKind::Autodiff(Box::new(DispatchTensorKind::Cube(
+                        crate::BackendTensor::Autodiff(Autodiff::<Cube>::set_distributed_params(
                             tensor.as_autodiff().clone(),
                             param_id,
                         )),
@@ -740,6 +699,7 @@ impl AutodiffBackend for Dispatch {
                 DispatchTensorKind::Autodiff(_) => {
                     panic!("Autodiff should not wrap an autodiff tensor.")
                 }
+                #[allow(unreachable_patterns)]
                 other => {
                     panic!("Distributed operations are not supported for tensor kind {other:?}")
                 }
@@ -747,39 +707,31 @@ impl AutodiffBackend for Dispatch {
             _ => panic!("Requires autodiff tensor."),
         };
 
-        let checkpointing = if let Some(strategy) = checkpointing {
-            Some(strategy)
-        } else {
-            Some(crate::CheckpointingStrategy::None)
-        };
-        DispatchTensor {
-            kind,
-            checkpointing,
-        }
+        DispatchTensor { kind, autodiff }
     }
 
     #[allow(unused_variables)]
     fn distributed_params(tensor: &DispatchTensor) -> Option<DistributedParams> {
-        let DispatchTensor {
-            kind,
-            checkpointing: _,
-        } = tensor;
+        let DispatchTensor { kind, autodiff: _ } = tensor;
 
         match &kind {
             DispatchTensorKind::Autodiff(inner_kind) => match &**inner_kind {
-                #[cfg(feature = "cuda")]
-                DispatchTensorKind::Cuda(tensor) => {
-                    tensor.as_autodiff().node.distributed_params.clone()
+                #[cfg(not(backend_enabled))]
+                DispatchTensorKind::Unavailable(never) => never.unreachable(),
+                #[cfg(cube_backend)]
+                DispatchTensorKind::Cube(tensor) => {
+                    Autodiff::<Cube>::distributed_params(tensor.as_autodiff())
                 }
                 #[cfg(feature = "remote")]
                 DispatchTensorKind::Remote(tensor) => {
-                    tensor.as_autodiff().node.distributed_params.clone()
+                    Autodiff::<Remote>::distributed_params(tensor.as_autodiff())
                 }
 
                 DispatchTensorKind::Autodiff(_) => {
                     panic!("Autodiff should not wrap an autodiff tensor.")
                 }
                 // Backends without distributed support never carry distributed params.
+                #[allow(unreachable_patterns)]
                 _ => None,
             },
             _ => panic!("Requires autodiff tensor."),
@@ -788,30 +740,331 @@ impl AutodiffBackend for Dispatch {
 
     #[allow(unused_variables)]
     fn is_distributed(tensor: &DispatchTensor) -> bool {
-        let DispatchTensor {
-            kind,
-            checkpointing: _,
-        } = tensor;
+        let DispatchTensor { kind, autodiff: _ } = tensor;
 
         match &kind {
             DispatchTensorKind::Autodiff(inner_kind) => match &**inner_kind {
-                #[cfg(feature = "cuda")]
-                DispatchTensorKind::Cuda(tensor) => {
-                    tensor.as_autodiff().node.distributed_params.is_some()
+                #[cfg(not(backend_enabled))]
+                DispatchTensorKind::Unavailable(never) => never.unreachable(),
+                #[cfg(cube_backend)]
+                DispatchTensorKind::Cube(tensor) => {
+                    Autodiff::<Cube>::is_distributed(tensor.as_autodiff())
                 }
                 #[cfg(feature = "remote")]
                 DispatchTensorKind::Remote(tensor) => {
-                    tensor.as_autodiff().node.distributed_params.is_some()
+                    Autodiff::<Remote>::is_distributed(tensor.as_autodiff())
                 }
 
                 DispatchTensorKind::Autodiff(_) => {
                     panic!("Autodiff should not wrap an autodiff tensor.")
                 }
                 // Backends without distributed support are never distributed.
+                #[allow(unreachable_patterns)]
                 _ => false,
             },
             _ => panic!("Requires autodiff tensor."),
         }
+    }
+}
+
+#[cfg(all(test, feature = "autodiff", feature = "flex"))]
+mod autodiff_context_tests {
+    use super::*;
+    use crate::{DispatchAutodiffContext, DispatchTensorKind, GradientCheckpointingStrategy};
+    use alloc::vec;
+    use burn_backend::{
+        TensorData, TensorMetadata, TensorPrimitive,
+        ops::{BoolTensorOps, FloatTensorOps, IntTensorOps, ModuleOps, QTensorOps},
+        quantization::QuantScheme,
+        tensor::{FloatTensor, IntTensor},
+    };
+    use burn_backend_extension::backend_dispatch;
+
+    #[backend_dispatch]
+    impl Dispatch {
+        fn direct_float(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
+            tensor
+        }
+
+        fn conditional_float_route(
+            int: IntTensor<Self>,
+            float: Option<FloatTensor<Self>>,
+        ) -> IntTensor<Self> {
+            // `optional_float_only_uses_autodiff_when_present` exercises both routes: an enabled
+            // int alone uses the concrete backend, while a present float selects `Autodiff<B>`.
+            assert_eq!(float.is_some(), B::ad_enabled(&int.device()));
+            int
+        }
+
+        fn optional_routing_tensor(
+            first: Option<FloatTensor<Self>>,
+            second: Option<FloatTensor<Self>>,
+        ) -> FloatTensor<Self> {
+            first.or(second).expect("test requires one tensor")
+        }
+
+        fn vector_routing_tensor(
+            first: Vec<IntTensor<Self>>,
+            second: Vec<IntTensor<Self>>,
+        ) -> IntTensor<Self> {
+            first
+                .into_iter()
+                .chain(second)
+                .next()
+                .expect("test requires one tensor")
+        }
+    }
+
+    fn device(strategy: GradientCheckpointingStrategy) -> DispatchDevice {
+        DispatchDevice::autodiff_with_gradient_checkpointing(
+            DispatchDevice::Flex(Default::default()),
+            strategy,
+        )
+    }
+
+    fn inner_device() -> DispatchDevice {
+        DispatchDevice::Flex(Default::default())
+    }
+
+    fn float(values: [f32; 2], device: &DispatchDevice) -> DispatchTensor {
+        Dispatch::float_from_data(TensorData::from(values), device)
+    }
+
+    fn float_2d(values: [[f32; 2]; 2], device: &DispatchDevice) -> DispatchTensor {
+        Dispatch::float_from_data(TensorData::from(values), device)
+    }
+
+    fn assert_enabled_float(tensor: &DispatchTensor, strategy: GradientCheckpointingStrategy) {
+        assert_eq!(tensor.autodiff, DispatchAutodiffContext::Enabled(strategy));
+        assert!(matches!(tensor.kind, DispatchTensorKind::Autodiff(_)));
+        let DispatchDevice::Autodiff(device) = tensor.device() else {
+            panic!("enabled float should report an autodiff device")
+        };
+        assert_eq!(device.checkpointing, strategy);
+    }
+
+    #[test]
+    fn enabled_float_creation_is_untracked_for_both_strategies() {
+        for strategy in [
+            GradientCheckpointingStrategy::Disabled,
+            GradientCheckpointingStrategy::Balanced,
+        ] {
+            let tensor = float([1.0, 2.0], &device(strategy));
+            assert_enabled_float(&tensor, strategy);
+            assert!(!Dispatch::float_is_require_grad(&tensor));
+        }
+    }
+
+    #[test]
+    fn enabled_int_bool_and_float_conversions_preserve_association() {
+        let strategy = GradientCheckpointingStrategy::Balanced;
+        let device = device(strategy);
+        let int = Dispatch::int_from_data(TensorData::from([1i32, 2]), &device);
+        assert_eq!(int.autodiff, DispatchAutodiffContext::Enabled(strategy));
+        assert!(!matches!(int.kind, DispatchTensorKind::Autodiff(_)));
+        assert!(matches!(int.device(), DispatchDevice::Autodiff(_)));
+
+        let converted = Dispatch::int_into_float(int, burn_backend::FloatDType::F32);
+        assert_enabled_float(&converted, strategy);
+
+        let boolean = Dispatch::bool_from_data(TensorData::from([true, false]), &device);
+        assert_eq!(boolean.autodiff, DispatchAutodiffContext::Enabled(strategy));
+        assert!(!matches!(boolean.kind, DispatchTensorKind::Autodiff(_)));
+        let converted = Dispatch::bool_into_float(boolean, burn_backend::FloatDType::F32);
+        assert_enabled_float(&converted, strategy);
+    }
+
+    #[test]
+    fn uniform_contexts_propagate_through_fixed_arity_and_vector_ops() {
+        let strategy = GradientCheckpointingStrategy::Disabled;
+        let lhs = float([1.0, 2.0], &device(strategy));
+        let rhs = float([3.0, 4.0], &device(strategy));
+
+        let added = Dispatch::float_add(lhs.clone(), rhs.clone());
+        assert_enabled_float(&added, strategy);
+
+        let concatenated = Dispatch::float_cat(vec![lhs.clone(), rhs], 0);
+        assert_enabled_float(&concatenated, strategy);
+
+        let normalized = Dispatch::layer_norm(
+            lhs,
+            float([1.0, 1.0], &device(strategy)),
+            Some(float([0.0, 0.0], &device(strategy))),
+            1e-5,
+        );
+        assert_enabled_float(&normalized, strategy);
+    }
+
+    #[test]
+    fn optional_and_vector_routing_candidates_skip_empty_inputs() {
+        let strategy = GradientCheckpointingStrategy::Balanced;
+        let float = float([1.0, 2.0], &device(strategy));
+        let output = Dispatch::optional_routing_tensor(None, Some(float));
+        assert_enabled_float(&output, strategy);
+
+        let int = Dispatch::int_from_data(TensorData::from([1i32, 2]), &device(strategy));
+        let output = Dispatch::vector_routing_tensor(vec![], vec![int]);
+        assert_eq!(output.autodiff, DispatchAutodiffContext::Enabled(strategy));
+    }
+
+    #[test]
+    fn optional_float_only_uses_autodiff_when_present() {
+        let strategy = GradientCheckpointingStrategy::Balanced;
+        let int = Dispatch::int_from_data(TensorData::from([1i32, 2]), &device(strategy));
+        let output = Dispatch::conditional_float_route(int, None);
+        assert_eq!(output.autodiff, DispatchAutodiffContext::Enabled(strategy));
+
+        let int = Dispatch::int_from_data(TensorData::from([1i32, 2]), &inner_device());
+        let float = float([1.0, 2.0], &device(strategy));
+        let output = Dispatch::conditional_float_route(int, Some(float));
+        assert_eq!(output.autodiff, DispatchAutodiffContext::Enabled(strategy));
+    }
+
+    #[test]
+    #[should_panic(expected = "an enabled float tensor must use an autodiff primitive")]
+    fn direct_routing_tensor_validates_its_context() {
+        let mut malformed = float([1.0, 2.0], &inner_device());
+        malformed.autodiff =
+            DispatchAutodiffContext::Enabled(GradientCheckpointingStrategy::Disabled);
+        let _ = Dispatch::direct_float(malformed);
+    }
+
+    #[test]
+    #[should_panic(expected = "Gradient checkpointing strategy mismatch")]
+    fn fixed_arity_inputs_reject_mismatched_checkpointing_strategies() {
+        let lhs = float([1.0, 2.0], &device(GradientCheckpointingStrategy::Balanced));
+        let rhs = float([3.0, 4.0], &device(GradientCheckpointingStrategy::Disabled));
+        let _ = Dispatch::float_add(lhs, rhs);
+    }
+
+    #[test]
+    fn disabled_and_enabled_integer_contexts_merge_in_both_orders() {
+        for strategy in [
+            GradientCheckpointingStrategy::Disabled,
+            GradientCheckpointingStrategy::Balanced,
+        ] {
+            let lhs = Dispatch::int_from_data(TensorData::from([1i32, 2]), &inner_device());
+            let rhs = Dispatch::int_from_data(TensorData::from([3i32, 4]), &device(strategy));
+            let output = Dispatch::int_add(lhs, rhs);
+            assert_eq!(output.autodiff, DispatchAutodiffContext::Enabled(strategy));
+
+            let lhs = Dispatch::int_from_data(TensorData::from([1i32, 2]), &device(strategy));
+            let rhs = Dispatch::int_from_data(TensorData::from([3i32, 4]), &inner_device());
+            let output = Dispatch::int_add(lhs, rhs);
+            assert_eq!(output.autodiff, DispatchAutodiffContext::Enabled(strategy));
+        }
+    }
+
+    #[test]
+    fn disabled_and_enabled_float_contexts_merge_in_both_orders() {
+        for strategy in [
+            GradientCheckpointingStrategy::Disabled,
+            GradientCheckpointingStrategy::Balanced,
+        ] {
+            let enabled = float([1.0, 2.0], &device(strategy));
+            let disabled = float([3.0, 4.0], &inner_device());
+
+            let output = Dispatch::float_add(enabled, disabled);
+            assert_enabled_float(&output, strategy);
+
+            let enabled = float([1.0, 2.0], &device(strategy));
+            let disabled = float([3.0, 4.0], &inner_device());
+            let output = Dispatch::float_add(disabled, enabled);
+            assert_enabled_float(&output, strategy);
+        }
+    }
+
+    #[test]
+    fn disabled_and_enabled_contexts_merge_across_vector_inputs() {
+        let strategy = GradientCheckpointingStrategy::Balanced;
+        let disabled = float([1.0, 2.0], &inner_device());
+        let enabled = float([3.0, 4.0], &device(strategy));
+
+        let output = Dispatch::float_cat(vec![disabled, enabled], 0);
+        assert_enabled_float(&output, strategy);
+    }
+
+    #[test]
+    #[should_panic(expected = "Gradient checkpointing strategy mismatch")]
+    fn vector_inputs_reject_mismatched_checkpointing_strategies() {
+        let balanced = float([1.0, 2.0], &device(GradientCheckpointingStrategy::Balanced));
+        let disabled = float([3.0, 4.0], &device(GradientCheckpointingStrategy::Disabled));
+        let _ = Dispatch::float_cat(vec![balanced, disabled], 0);
+    }
+
+    #[test]
+    #[should_panic(expected = "Gradient checkpointing strategy mismatch")]
+    fn q_matmul_rejects_mismatched_checkpointing_strategies() {
+        let balanced = Dispatch::quantize_dynamic(
+            float([1.0, 2.0], &device(GradientCheckpointingStrategy::Balanced)),
+            &QuantScheme::default(),
+        );
+        let disabled = Dispatch::quantize_dynamic(
+            float([3.0, 4.0], &device(GradientCheckpointingStrategy::Disabled)),
+            &QuantScheme::default(),
+        );
+        let _ = Dispatch::q_matmul(
+            TensorPrimitive::QFloat(balanced),
+            TensorPrimitive::QFloat(disabled),
+        );
+    }
+
+    #[test]
+    fn q_matmul_merges_disabled_and_enabled_contexts() {
+        let strategy = GradientCheckpointingStrategy::Balanced;
+        let disabled = Dispatch::quantize_dynamic(
+            float_2d([[1.0, 2.0], [3.0, 4.0]], &inner_device()),
+            &QuantScheme::default(),
+        );
+        let enabled = Dispatch::quantize_dynamic(
+            float_2d([[1.0, 0.0], [0.0, 1.0]], &device(strategy)),
+            &QuantScheme::default(),
+        );
+        let output = Dispatch::q_matmul(
+            TensorPrimitive::QFloat(disabled),
+            TensorPrimitive::QFloat(enabled),
+        );
+        let output = match output {
+            TensorPrimitive::QFloat(output) | TensorPrimitive::Float(output) => output,
+        };
+
+        assert_eq!(output.autodiff, DispatchAutodiffContext::Enabled(strategy));
+    }
+
+    #[test]
+    fn inner_transitions_clear_and_restore_context() {
+        let tensor = float([1.0, 2.0], &device(GradientCheckpointingStrategy::Balanced));
+        let inner = <Dispatch as AutodiffBackend>::inner(tensor);
+        assert_eq!(inner.autodiff, DispatchAutodiffContext::Disabled);
+        assert!(!matches!(inner.kind, DispatchTensorKind::Autodiff(_)));
+
+        let enabled = <Dispatch as AutodiffBackend>::from_inner(inner);
+        assert_enabled_float(&enabled, GradientCheckpointingStrategy::Disabled);
+
+        let int = Dispatch::int_from_data(
+            TensorData::from([1i32, 2]),
+            &device(GradientCheckpointingStrategy::Balanced),
+        );
+        let int = <Dispatch as AutodiffBackend>::int_inner(int);
+        assert_eq!(int.autodiff, DispatchAutodiffContext::Disabled);
+        let int = <Dispatch as AutodiffBackend>::int_from_inner(int);
+        assert_eq!(
+            int.autodiff,
+            DispatchAutodiffContext::Enabled(GradientCheckpointingStrategy::Disabled)
+        );
+    }
+
+    #[test]
+    fn gradients_are_inner_backend_tensors() {
+        let x = Dispatch::float_set_require_grad(
+            float([2.0, 3.0], &device(GradientCheckpointingStrategy::Balanced)),
+            true,
+        );
+        let output = Dispatch::float_mul(x.clone(), x.clone());
+        let gradients = <Dispatch as AutodiffBackend>::backward(output);
+        let gradient = <Dispatch as AutodiffBackend>::grad(&x, &gradients).unwrap();
+        assert_eq!(gradient.autodiff, DispatchAutodiffContext::Disabled);
+        assert!(!matches!(gradient.kind, DispatchTensorKind::Autodiff(_)));
     }
 }
 
@@ -879,33 +1132,13 @@ impl Dispatch {
     pub fn enumerate(type_id: DispatchDeviceId) -> Vec<DispatchDevice> {
         // TODO: right now this assumes `type_id = 0`, but WgpuDevice and LibTorchDevice have other types.
         match type_id {
-            #[cfg(feature = "cpu")]
-            DispatchDeviceId::Cpu => vec![CpuDevice.into()],
-            #[cfg(feature = "cuda")]
-            DispatchDeviceId::Cuda => (0..Cuda::device_count(0))
-                .map(|i| CudaDevice::new(i).into())
+            #[cfg(cube_backend)]
+            DispatchDeviceId::Cube => CubeDevice::enumerate_all()
+                .into_iter()
+                .filter(|device| cube_runtime_enabled(device.runtime()))
+                .map(DispatchDevice::Cube)
                 .collect(),
-            #[cfg(feature = "metal")]
-            DispatchDeviceId::Metal => (0..Metal::device_count(0))
-                .map(|i| DispatchDevice::Metal(WgpuDevice::DiscreteGpu(i)))
-                .collect(),
-            #[cfg(feature = "rocm")]
-            DispatchDeviceId::Rocm => (0..Rocm::device_count(0))
-                .map(|i| RocmDevice::new(i).into())
-                .collect(),
-            #[cfg(feature = "vulkan")]
-            DispatchDeviceId::Vulkan => (0..Vulkan::device_count(0))
-                .map(|i| DispatchDevice::Vulkan(WgpuDevice::DiscreteGpu(i)))
-                .collect(),
-            #[cfg(feature = "wgpu")]
-            DispatchDeviceId::Wgpu => (0..Wgpu::device_count(0))
-                .map(|i| DispatchDevice::Wgpu(WgpuDevice::DiscreteGpu(i)))
-                .collect(),
-            #[cfg(feature = "webgpu")]
-            DispatchDeviceId::WebGpu => (0..WebGpu::device_count(0))
-                .map(|i| DispatchDevice::WebGpu(WgpuDevice::DiscreteGpu(i)))
-                .collect(),
-            #[cfg(any(feature = "flex", default_backend))]
+            #[cfg(feature = "flex")]
             DispatchDeviceId::Flex => vec![FlexDevice.into()],
             #[cfg(feature = "ndarray")]
             DispatchDeviceId::NdArray => vec![NdArrayDevice::Cpu.into()],
@@ -918,8 +1151,27 @@ impl Dispatch {
             // `enumerate` can't carry. Use [`Dispatch::enumerate_remote_websocket`] to list the devices
             // behind a given address.
             DispatchDeviceId::Remote => Vec::new(),
+            #[cfg(feature = "capture")]
+            // Capture devices are created together with a lifecycle handle and therefore
+            // cannot be reconstructed from a type ID alone.
+            DispatchDeviceId::Capture => Vec::new(),
             _ => unreachable!("No backend feature enabled."),
         }
+    }
+
+    /// List every device of the cubecl `runtime`.
+    ///
+    /// The cubecl runtimes share one backend, so [`enumerate`](Self::enumerate) with
+    /// [`DispatchDeviceId::Cube`] lists all of them at once. A caller that asked for one
+    /// runtime — CUDA, say — wants that runtime's devices and not the wgpu and CPU ones found
+    /// beside them, which is what this narrows to. Empty for a runtime this build's features
+    /// did not enable.
+    #[cfg(cube_backend)]
+    pub fn enumerate_cube(runtime: RuntimeId) -> Vec<DispatchDevice> {
+        cube_devices(runtime)
+            .into_iter()
+            .map(DispatchDevice::Cube)
+            .collect()
     }
 
     /// List every device hosted by the remote server at `address`.
@@ -937,4 +1189,42 @@ impl Dispatch {
             .map(DispatchDevice::Remote)
             .collect()
     }
+}
+
+/// Whether `runtime` is one this crate's features asked for.
+///
+/// `CubeDevice::enumerate_all` answers for the runtimes *cubecl* compiled in, and cargo unifies
+/// features across a build: a workspace that also builds `burn-cuda` gives cubecl the CUDA
+/// runtime even where this crate was built with only `wgpu`. What this crate hands out has to
+/// follow its own features, so enumeration is filtered through here.
+#[cfg(cube_backend)]
+fn cube_runtime_enabled(runtime: RuntimeId) -> bool {
+    match runtime {
+        RuntimeId::Cuda => cfg!(feature = "cuda"),
+        RuntimeId::Hip => cfg!(feature = "rocm"),
+        RuntimeId::Wgpu => cfg!(any(
+            feature = "wgpu",
+            feature = "vulkan",
+            feature = "metal",
+            feature = "webgpu"
+        )),
+        RuntimeId::Cpu => cfg!(feature = "cpu"),
+        // burn's `metal` feature is wgpu compiling to MSL; cubecl's native Metal runtime has no
+        // burn feature to enable it.
+        RuntimeId::Metal => false,
+    }
+}
+
+/// The cubecl devices belonging to `runtime`, in enumeration order. Empty for a runtime this
+/// build's features did not ask for, even where cubecl compiled it in.
+#[cfg(cube_backend)]
+pub(crate) fn cube_devices(runtime: RuntimeId) -> Vec<CubeDevice> {
+    if !cube_runtime_enabled(runtime) {
+        return Vec::new();
+    }
+
+    CubeDevice::enumerate_all()
+        .into_iter()
+        .filter(|device| device.runtime() == runtime)
+        .collect()
 }

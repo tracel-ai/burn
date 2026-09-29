@@ -12,7 +12,7 @@ use burn_core::backend::{TensorMetadata, ops::IntTensorOps};
 use burn_core::tensor::DType;
 use burn_core::tensor::{Shape, cast::ToElement};
 use burn_cubecl::{
-    CubeBackend, CubeRuntime, kernel,
+    CubeBackend, kernel,
     ops::{into_data_sync, numeric::zeros_client},
     tensor::CubeTensor,
 };
@@ -63,7 +63,7 @@ fn end_distance(pixels: u32, tx: u32) -> u32 {
 #[allow(unconditional_panic, reason = "clippy thinks PLANE_DIM is always 2")]
 fn ballot_dyn(y: u32, pred: bool) -> u32 {
     let index = y % (PLANE_DIM / 32);
-    plane_ballot(pred).extract(index as usize)
+    plane_ballot(pred).extract_dynamic(index as usize)
 }
 
 #[cube(launch_unchecked)]
@@ -71,7 +71,7 @@ fn strip_labeling<I: Int, BT: CubePrimitive>(
     img: &Tensor<BT>,
     labels: &Tensor<Atomic<I>>,
     #[comptime] connectivity: Connectivity,
-    #[define(I, BT)] _dtypes: [StorageType; 2],
+    #[define(I, BT)] _dtypes: [ElemType; 2],
 ) {
     let mut shared_pixels = Shared::new_slice(BLOCK_H);
 
@@ -199,7 +199,7 @@ fn strip_merge<I: Int, BT: CubePrimitive>(
     img: &Tensor<BT>,
     labels: &Tensor<Atomic<I>>,
     #[comptime] connectivity: Connectivity,
-    #[define(I, BT)] _dtypes: [StorageType; 2],
+    #[define(I, BT)] _dtypes: [ElemType; 2],
 ) {
     let plane_start_x = CUBE_POS_X * (CUBE_DIM_X * CUBE_DIM_Z - PLANE_DIM) + UNIT_POS_Z * PLANE_DIM;
     let y = (CUBE_POS_Y + 1) * BLOCK_H as u32;
@@ -302,7 +302,7 @@ fn strip_merge<I: Int, BT: CubePrimitive>(
 fn relabeling<I: Int, BT: CubePrimitive>(
     img: &Tensor<BT>,
     labels: &mut Tensor<I>,
-    #[define(I, BT)] _dtypes: [StorageType; 2],
+    #[define(I, BT)] _dtypes: [ElemType; 2],
 ) {
     let plane_start_x = CUBE_POS_X * CUBE_DIM_X;
     let y = ABSOLUTE_POS_Y;
@@ -353,7 +353,7 @@ fn analysis<I: Int, BT: CubePrimitive>(
     bottom: &mut Tensor<Atomic<I>>,
     max_label: &mut Tensor<Atomic<I>>,
     #[comptime] opts: ConnectedStatsOptions,
-    #[define(I, BT)] _dtypes: [StorageType; 2],
+    #[define(I, BT)] _dtypes: [ElemType; 2],
 ) {
     let y = ABSOLUTE_POS_Y;
     let x = ABSOLUTE_POS_X;
@@ -413,7 +413,7 @@ fn compact_labels<I: Int>(
     labels: &mut Tensor<I>,
     remap: &Tensor<I>,
     max_label: &Tensor<Atomic<I>>,
-    #[define(I)] _dtype: StorageType,
+    #[define(I)] _dtype: ElemType,
 ) {
     let x = ABSOLUTE_POS_X;
     let y = ABSOLUTE_POS_Y;
@@ -445,7 +445,7 @@ fn compact_stats<I: Int>(
     bottom: &Tensor<I>,
     bottom_new: &mut Tensor<I>,
     remap: &Tensor<I>,
-    #[define(I)] _dtype: StorageType,
+    #[define(I)] _dtype: ElemType,
 ) {
     let label = ABSOLUTE_POS_X;
     if label as usize >= remap.len() {
@@ -467,12 +467,15 @@ fn compact_stats<I: Int>(
     bottom_new[new_label as usize] = bottom[label as usize];
 }
 
-pub fn hardware_accelerated<R: CubeRuntime>(
-    img: CubeTensor<R>,
+pub fn hardware_accelerated(
+    img: CubeTensor,
     stats_opt: ConnectedStatsOptions,
     connectivity: Connectivity,
     int_dtype: DType,
-) -> Result<(CubeTensor<R>, ConnectedStatsPrimitive<CubeBackend<R>>), String> {
+) -> Result<(CubeTensor, ConnectedStatsPrimitive<CubeBackend>), String> {
+    if img.meta.shape().num_elements() <= 1 {
+        return Err("Small images use the CPU fallback".into());
+    }
     let client = img.client.clone();
     let device = img.device.clone();
     let dtypes = [
@@ -500,7 +503,7 @@ pub fn hardware_accelerated<R: CubeRuntime>(
 
     let [rows, cols] = img.meta.shape().dims();
 
-    let labels = zeros_client::<R>(client.clone(), device.clone(), img.shape(), int_dtype);
+    let labels = zeros_client(client.clone(), device.clone(), img.shape(), int_dtype);
 
     // Assume 32 wide warp. Currently, larger warps are handled by just exiting everything past 32.
     // This isn't ideal but we require CUBE_DIM_X == warp_size, and we can't query the actual warp
@@ -546,7 +549,7 @@ pub fn hardware_accelerated<R: CubeRuntime>(
         (rows as u32).div_ceil(cube_dim.y),
     );
 
-    let mut stats = stats_from_opts::<R>(labels.clone(), stats_opt, int_dtype);
+    let mut stats = stats_from_opts(labels.clone(), stats_opt, int_dtype);
 
     if stats_opt == ConnectedStatsOptions::none() {
         unsafe {
@@ -578,15 +581,15 @@ pub fn hardware_accelerated<R: CubeRuntime>(
             )
         };
         if stats_opt.compact_labels {
-            let max_label = CubeBackend::<R>::int_max(stats.max_label);
-            let max_label = into_data_sync::<R>(max_label);
+            let max_label = CubeBackend::int_max(stats.max_label);
+            let max_label = into_data_sync(max_label);
             let max_label = ToElement::to_usize(&max_label.iter::<i32>().next().unwrap());
-            let sliced = kernel::slice::<R>(
+            let sliced = kernel::slice(
                 stats.area.clone(),
                 #[allow(clippy::single_range_in_vec_init)]
                 &[0..(max_label + 1).next_multiple_of(4)],
             );
-            let relabel = prefix_sum::<R>(sliced, int_dtype);
+            let relabel = prefix_sum(sliced, int_dtype);
 
             let cube_dim = CubeDim::new_2d(32, 8);
             let cube_count = CubeCount::new_2d(
@@ -594,7 +597,7 @@ pub fn hardware_accelerated<R: CubeRuntime>(
                 (rows as u32).div_ceil(cube_dim.y),
             );
             stats.max_label =
-                zeros_client::<R>(client.clone(), device.clone(), Shape::new([1]), int_dtype);
+                zeros_client(client.clone(), device.clone(), Shape::new([1]), int_dtype);
             unsafe {
                 compact_labels::launch_unchecked(
                     &client,

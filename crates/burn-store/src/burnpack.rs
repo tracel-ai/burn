@@ -3,16 +3,15 @@ use std::path::PathBuf;
 
 #[cfg(feature = "std")]
 use crate::KeyRemapper;
-use crate::bridge;
-use crate::{
-    IdentityAdapter, ModuleAdapter, ModuleSnapshot, ModuleStore, PathFilter, TensorSnapshot,
-};
+use crate::{IdentityAdapter, ModuleAdapter, ModuleSnapshot, ModuleStore, PathFilter};
 use alloc::boxed::Box;
 use alloc::collections::BTreeMap;
 use alloc::format;
 use alloc::string::String;
 use alloc::vec::Vec;
 use burn_core::tensor::Bytes;
+#[cfg(feature = "std")]
+use burn_pack::EXTENSION;
 use burn_pack::{Error as PackError, Reader, Tensor as PackTensor, Writer};
 
 /// Store mode for BurnpackStore
@@ -48,8 +47,8 @@ pub struct BurnpackStore {
     to_adapter: Box<dyn ModuleAdapter>,
     /// Reader for loading
     reader: Option<Reader>,
-    /// Cached tensor snapshots (parsed once, reused)
-    snapshots_cache: Option<BTreeMap<String, TensorSnapshot>>,
+    /// Cached tensors (parsed once, reused)
+    tensors_cache: Option<BTreeMap<String, PackTensor>>,
 }
 
 impl BurnpackStore {
@@ -103,7 +102,7 @@ impl BurnpackStore {
             from_adapter: Box::new(IdentityAdapter),
             to_adapter: Box::new(IdentityAdapter),
             reader: None,
-            snapshots_cache: None,
+            tensors_cache: None,
         }
     }
 
@@ -123,7 +122,7 @@ impl BurnpackStore {
             from_adapter: Box::new(IdentityAdapter),
             to_adapter: Box::new(IdentityAdapter),
             reader: None,
-            snapshots_cache: None,
+            tensors_cache: None,
         }
     }
 
@@ -162,7 +161,7 @@ impl BurnpackStore {
             from_adapter: Box::new(IdentityAdapter),
             to_adapter: Box::new(IdentityAdapter),
             reader: None,
-            snapshots_cache: None,
+            tensors_cache: None,
         }
     }
 
@@ -260,6 +259,10 @@ impl BurnpackStore {
     }
 
     /// Add regex pattern to filter
+    ///
+    /// # Panics
+    ///
+    /// Panics if `pattern` is not a valid regular expression.
     #[cfg(feature = "std")]
     pub fn with_regex(mut self, pattern: &str) -> Self {
         let filter = self.filter.unwrap_or_default();
@@ -329,9 +332,9 @@ impl BurnpackStore {
             return path.to_path_buf();
         }
 
-        // No extension, append .bpk
+        // No extension, append the canonical burnpack extension.
         let mut new_path = path.to_path_buf();
-        new_path.set_extension("bpk");
+        new_path.set_extension(EXTENSION);
         new_path
     }
 
@@ -342,7 +345,9 @@ impl BurnpackStore {
                 #[cfg(feature = "std")]
                 StoreMode::File(path) => {
                     let final_path = self.process_path(path);
-                    Reader::from_file(&final_path)?
+                    // The store has already applied its own extension policy. Loading the exact
+                    // resolved path prevents `auto_extension(false)` from falling back to `.bpk`.
+                    Reader::from_file_exact(&final_path)?
                 }
                 StoreMode::Bytes(Some(bytes)) => Reader::from_bytes(bytes.clone())?,
                 StoreMode::Bytes(None) => {
@@ -363,19 +368,15 @@ impl ModuleStore for BurnpackStore {
 
     fn collect_from<M: ModuleSnapshot>(&mut self, module: &M) -> Result<(), Self::Error> {
         // Invalidate cache since we're writing new data
-        self.snapshots_cache = None;
+        self.tensors_cache = None;
         self.reader = None;
 
-        // Collect snapshots from module with adapter
-        let snapshots = module.collect(self.filter.clone(), Some(self.to_adapter.clone()), false);
-
-        // Bridge snapshots to tensor-agnostic burnpack entries (materializing their data)
-        let tensors: Vec<PackTensor> = snapshots
-            .iter()
-            .map(bridge::snapshot_to_tensor)
-            .collect::<Result<_, _>>()?;
-
-        // Initialize writer with tensors
+        // Collect the module's tensors with the adapter applied. Nothing is materialized
+        // here: each one reads its data back only when the writer reaches it in the data
+        // section. In file mode that bounds peak host memory by the largest single tensor
+        // rather than the model; the bytes mode below still builds the whole container in
+        // memory.
+        let tensors = module.collect(self.filter.clone(), Some(self.to_adapter.clone()), false);
         let mut writer = Writer::new(tensors);
 
         // Add metadata using builder pattern
@@ -391,14 +392,22 @@ impl ModuleStore for BurnpackStore {
                 // Process path with auto-extension logic
                 let final_path = self.process_path(path);
 
-                // Check if file exists and overwrite is disabled
-                if final_path.exists() && !self.overwrite {
-                    return Err(PackError::IoError(format!(
-                        "File already exists: {}. Use .overwrite(true) to overwrite.",
-                        final_path.display()
-                    )));
+                // Fail fast before any tensor is read back. This check alone is racy; the
+                // writer's own no-clobber publish below is what enforces `overwrite` (apart
+                // from filesystems without hard links, see `AtomicFile::commit_new`).
+                // `symlink_metadata` rather than `exists` so a dangling symlink is caught here
+                // too, not after the save.
+                if !self.overwrite && std::fs::symlink_metadata(&final_path).is_ok() {
+                    return Err(PackError::AlreadyExists(final_path.display().to_string()));
                 }
-                writer.write_to_file(&final_path)?;
+                // Atomic: tensors materialize mid-write, so a device readback that
+                // fails partway must not truncate whatever was already at this path.
+                // The store already applied its own auto-extension policy above. Disable
+                // the writer's default so an explicitly extensionless path stays exact.
+                writer
+                    .auto_extension(false)
+                    .overwrite(self.overwrite)
+                    .write_to_file(&final_path)?;
             }
             StoreMode::Bytes(_) => {
                 // Generate and store the bytes
@@ -419,14 +428,14 @@ impl ModuleStore for BurnpackStore {
         &mut self,
         module: &mut M,
     ) -> Result<crate::ApplyResult, Self::Error> {
-        // Get all snapshots using the cached method
-        let snapshots: Vec<TensorSnapshot> = self.get_all_snapshots()?.values().cloned().collect();
+        // Get all tensors using the cached method
+        let tensors: Vec<PackTensor> = self.get_all_tensors()?.values().cloned().collect();
 
-        // Apply all snapshots at once to the module
+        // Apply all tensors at once to the module
         // Burnpack is Burn's native format, so no enum variant skipping needed
         // Filter is applied here during apply, not during cache population
         let result = module.apply(
-            snapshots,
+            tensors,
             self.filter.clone(),
             Some(self.from_adapter.clone()),
             false,
@@ -451,62 +460,58 @@ impl ModuleStore for BurnpackStore {
         Ok(result)
     }
 
-    fn get_snapshot(&mut self, name: &str) -> Result<Option<&TensorSnapshot>, Self::Error> {
+    fn get_tensor(&mut self, name: &str) -> Result<Option<&PackTensor>, Self::Error> {
         // Ensure cache is populated
-        self.ensure_snapshots_cache()?;
-        Ok(self.snapshots_cache.as_ref().unwrap().get(name))
+        self.ensure_tensors_cache()?;
+        Ok(self.tensors_cache.as_ref().unwrap().get(name))
     }
 
-    fn get_all_snapshots(&mut self) -> Result<&BTreeMap<String, TensorSnapshot>, Self::Error> {
+    fn get_all_tensors(&mut self) -> Result<&BTreeMap<String, PackTensor>, Self::Error> {
         // Ensure cache is populated
-        self.ensure_snapshots_cache()?;
-        Ok(self.snapshots_cache.as_ref().unwrap())
+        self.ensure_tensors_cache()?;
+        Ok(self.tensors_cache.as_ref().unwrap())
     }
 
     fn keys(&mut self) -> Result<Vec<String>, Self::Error> {
         // Always use the cache to ensure remapping is applied consistently
-        Ok(self.get_all_snapshots()?.keys().cloned().collect())
+        Ok(self.get_all_tensors()?.keys().cloned().collect())
     }
 }
 
 impl BurnpackStore {
-    /// Ensure the snapshots cache is populated
-    fn ensure_snapshots_cache(&mut self) -> Result<(), PackError> {
-        if self.snapshots_cache.is_some() {
+    /// Ensure the tensors cache is populated
+    fn ensure_tensors_cache(&mut self) -> Result<(), PackError> {
+        if self.tensors_cache.is_some() {
             return Ok(());
         }
 
         // Ensure reader is loaded
         self.ensure_reader()?;
 
-        // Consume the reader, bridging its tensors to snapshots. File-backed readers keep the
-        // tensor data lazy (read on materialization); in-memory shared sources are zero-copy.
-        // Taking the reader hands the source's ownership to the tensor views, so nothing is read
-        // or copied eagerly. The snapshots cache below is what's reused on later calls.
+        // Consume the reader to take its tensors. File-backed readers keep the tensor data
+        // lazy (read on materialization); in-memory shared sources are zero-copy. Taking the
+        // reader hands the source's ownership to the tensors, so nothing is read or copied
+        // eagerly. The cache below is what's reused on later calls.
         let reader = self
             .reader
             .take()
             .expect("reader initialized by ensure_reader");
-        let snapshots: Vec<TensorSnapshot> = reader
-            .into_tensors()?
-            .into_iter()
-            .map(bridge::tensor_to_snapshot)
-            .collect();
+        let tensors = reader.into_tensors()?;
 
         // Apply remapping if configured (but NOT filtering - that's done at apply time)
         #[cfg(feature = "std")]
-        let snapshots = if !self.remapper.patterns.is_empty() {
-            let (remapped, _remapped_names) = self.remapper.remap(snapshots);
+        let tensors = if !self.remapper.patterns.is_empty() {
+            let (remapped, _remapped_names) = self.remapper.remap(tensors);
             remapped
         } else {
-            snapshots
+            tensors
         };
 
         // Build the cache as BTreeMap
-        let cache: BTreeMap<String, TensorSnapshot> =
-            snapshots.into_iter().map(|s| (s.full_path(), s)).collect();
+        let cache: BTreeMap<String, PackTensor> =
+            tensors.into_iter().map(|t| (t.name.clone(), t)).collect();
 
-        self.snapshots_cache = Some(cache);
+        self.tensors_cache = Some(cache);
         Ok(())
     }
 }

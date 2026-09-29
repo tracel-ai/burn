@@ -1,56 +1,56 @@
-use crate::CubeRuntime;
+use crate::CubeDevice;
 use crate::kernel::{NumericUnaryOp, NumericUnaryOpFamily, launch_unary_numeric};
 use burn_backend::cubecl::{dtype_to_elem_type, dtype_to_storage_type};
 use burn_backend::quantization::QuantScheme;
 use burn_backend::{DType, Shape, TensorMetadata};
 use burn_std::{Metadata, strides, tensor::is_contiguous};
+use cubecl::ir::{ElemType, UIntKind};
 use cubecl::server::Handle;
 use cubecl::std::tensor::TensorHandle;
-use cubecl::{client::ComputeClient, std::tensor::layout::linear::LinearViewLaunch};
+use cubecl::{client::Client, std::tensor::layout::linear::LinearViewLaunch};
 use cubecl::{frontend::Numeric, std::tensor::layout::linear::LinearViewLayoutLaunch};
 use cubecl::{
     prelude::{TensorBinding, *},
     std::tensor::layout::linear::LinearViewLayout,
 };
-use std::marker::PhantomData;
 
 use super::QParams;
 
 /// The basic tensor primitive struct.
-pub struct CubeTensor<R: CubeRuntime> {
-    /// Compute client for the [runtime](CubeRuntime).
-    pub client: ComputeClient<R>,
+pub struct CubeTensor {
+    /// Compute client for the runtime this tensor's device names.
+    pub client: Client,
     /// The buffer where the data are stored.
     pub handle: Handle,
     /// The metadata of the tensor.
     pub meta: Box<Metadata>,
     /// The device of the tensor.
-    pub device: R::Device,
+    pub device: CubeDevice,
     /// The datatype of the tensor.
     pub dtype: DType,
     /// Runtime quantization parameters, if applicable
     pub qparams: Option<QParams>,
 }
 
-impl<R: CubeRuntime> From<CubeTensor<R>> for TensorHandle<R> {
-    fn from(val: CubeTensor<R>) -> Self {
-        TensorHandle::new(
+impl From<CubeTensor> for TensorHandle {
+    fn from(val: CubeTensor) -> Self {
+        // The metadata whole: rebuilt from shape and strides it would lose the storage tiling.
+        TensorHandle::from_metadata(
             val.handle.clone(),
-            val.meta.shape().clone(),
-            val.meta.strides().clone(),
+            *val.meta.clone(),
             dtype_to_storage_type(val.dtype),
         )
     }
 }
 
-impl<R: CubeRuntime> cubecl::tune::AutotuneOutput for CubeTensor<R> {
+impl cubecl::tune::AutotuneOutput for CubeTensor {
     #[cfg(feature = "autotune-checks")]
     fn check_equivalence(&self, other: Self) {
         use crate::ops::into_data_sync;
         use burn_backend::Tolerance;
 
-        let expected = into_data_sync::<R>(self.clone());
-        let actual = into_data_sync::<R>(other);
+        let expected = into_data_sync(self.clone());
+        let actual = into_data_sync(other);
         expected.assert_approx_eq::<f32>(&actual, Tolerance::permissive());
     }
 }
@@ -60,16 +60,13 @@ impl<R: CubeRuntime> cubecl::tune::AutotuneOutput for CubeTensor<R> {
 // Maybe not needed when fusion is activated, since we have a detector there.
 // We could rely on basic GC strategy when not using fusion.
 //
-// impl<R: CubeRuntime> Drop for CubeTensor<R> {
+// impl Drop for CubeTensor {
 //     fn drop(&mut self) {
 //         todo!()
 //     }
 // }
 
-impl<R> core::fmt::Debug for CubeTensor<R>
-where
-    R: CubeRuntime,
-{
+impl core::fmt::Debug for CubeTensor {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_fmt(format_args!(
             "CubeTensor {{ shape: {:?}, device: {:?}, strides: {:?}, elem: {}, runtime: {}}}",
@@ -77,15 +74,12 @@ where
             self.device,
             self.meta.strides(),
             self.dtype.name(),
-            R::name(&self.client),
+            self.client.name(),
         ))
     }
 }
 
-impl<R> Clone for CubeTensor<R>
-where
-    R: CubeRuntime,
-{
+impl Clone for CubeTensor {
     fn clone(&self) -> Self {
         Self {
             client: self.client.clone(),
@@ -98,18 +92,24 @@ where
     }
 }
 
-impl<R: CubeRuntime> TensorMetadata for CubeTensor<R> {
-    type Device = R::CubeDevice;
+impl TensorMetadata for CubeTensor {
+    type Device = CubeDevice;
     fn dtype(&self) -> DType {
         self.dtype
     }
 
+    /// The logical shape: a storage-tiled tensor's physical dims split each matrix dim in two,
+    /// and its own metadata folds them back. Identity on a plain tensor.
     fn shape(&self) -> Shape {
-        self.meta.shape().clone()
+        self.meta
+            .logical_shape()
+            .expect("a tensor's tiling describes its own rank")
     }
 
     fn rank(&self) -> usize {
-        self.meta.rank()
+        self.meta
+            .logical_rank()
+            .expect("a tensor's tiling describes its own rank")
     }
 
     fn device(&self) -> Self::Device {
@@ -121,16 +121,13 @@ impl<R: CubeRuntime> TensorMetadata for CubeTensor<R> {
     }
 }
 
-impl<R> CubeTensor<R>
-where
-    R: CubeRuntime,
-{
+impl CubeTensor {
     /// Create a new standard tensor
     pub fn new(
-        client: ComputeClient<R>,
+        client: Client,
         handle: Handle,
         metadata: Metadata,
-        device: R::Device,
+        device: CubeDevice,
         dtype: DType,
     ) -> Self {
         CubeTensor {
@@ -145,8 +142,8 @@ where
 
     /// Create a new tensor with a contiguous memory layout.
     pub fn new_contiguous(
-        client: ComputeClient<R>,
-        device: R::Device,
+        client: Client,
+        device: CubeDevice,
         shape: Shape,
         handle: Handle,
         dtype: DType,
@@ -171,33 +168,70 @@ where
     }
 
     /// Change the context of the current tensor and return the newly transferred tensor.
-    pub fn to_client(&mut self, client: ComputeClient<R>, device: R::Device) -> Self {
-        let desc = self.handle.clone().copy_descriptor(
-            self.meta.shape().clone(),
-            self.meta.strides().clone(),
-            self.elem_size(),
-        );
-        let handle = self
-            .client
-            .to_client_tensor(desc, &client, dtype_to_elem_type(self.dtype));
+    pub fn to_client(&mut self, client: Client, device: CubeDevice) -> Self {
+        let (handle, qparams) = match self.qparams.clone() {
+            Some(qparams) => {
+                let (handle, qparams) = self.whole_allocation_to_client(&client, qparams);
+                (handle, Some(qparams))
+            }
+            None => {
+                let handle = self.client.to_client(
+                    self.handle.clone(),
+                    &client,
+                    dtype_to_elem_type(self.dtype),
+                );
+                (handle, None)
+            }
+        };
 
+        // The copy keeps the physical layout, so the metadata travels whole, tiling included.
         Self {
             client,
             handle,
-            meta: Box::new(Metadata::new(self.shape(), self.meta.strides().clone())),
+            meta: self.meta.clone(),
             device,
             dtype: self.dtype,
-            qparams: self.qparams.clone(),
+            qparams,
         }
     }
 
+    /// Copy the whole allocation behind the handle, not the region its offsets bound.
+    ///
+    /// A quantized tensor's scales live in the same allocation as its values, past the region
+    /// `handle` bounds, and `qparams` names them by offset into that allocation. Moving all of it
+    /// as bytes keeps every start offset valid on the destination. End offsets count back from the
+    /// end of the allocation, which the destination may round up to its own alignment, so each one
+    /// grows by what the allocation did.
+    fn whole_allocation_to_client(
+        &mut self,
+        client: &Client,
+        mut qparams: QParams,
+    ) -> (Handle, QParams) {
+        let mut whole = self.handle.clone();
+        whole.offset_start = None;
+        whole.offset_end = None;
+
+        let mut moved = self
+            .client
+            .to_client(whole, client, ElemType::UInt(UIntKind::U8));
+        let grown = moved.size() - self.handle.size();
+
+        moved.offset_start = self.handle.offset_start;
+        moved.offset_end = Some(self.handle.offset_end.unwrap_or(0) + grown);
+        qparams.scales.offset_end += grown as usize;
+        if let Some(global) = &mut qparams.global {
+            global.offset_end += grown as usize;
+        }
+        (moved, qparams)
+    }
+
     /// Return the reference to a tensor handle.
-    pub fn binding(self) -> TensorBinding<R> {
+    pub fn binding(self) -> TensorBinding {
         TensorBinding {
             handle: self.handle.binding(),
             strides: self.meta.strides,
             shape: self.meta.shape,
-            runtime: PhantomData,
+            tiling: self.meta.tiling,
         }
     }
 
@@ -207,17 +241,35 @@ where
     }
 
     /// Return the reference to a tensor argument.
-    pub fn into_tensor_arg(self) -> TensorArg<R> {
+    ///
+    /// # Panics
+    ///
+    /// On a storage-tiled tensor: a kernel argument is read as rows, and only cubek's matmul
+    /// reads storage tiles, through [`binding`](Self::binding). Un-tile it first
+    /// ([`untile`](crate::kernel::untile)).
+    pub fn into_tensor_arg(self) -> TensorArg {
+        self.assert_rows("into_tensor_arg");
         self.binding().into_tensor_arg()
     }
 
+    /// A storage-tiled tensor is read as rows by nothing but cubek's matmul; every other kernel
+    /// refuses it here rather than read its tiles as rows.
+    fn assert_rows(&self, op: &str) {
+        assert!(
+            !self.meta.is_tiled(),
+            "CubeTensor::{op}: a storage-tiled tensor is read only by the matmul it was packed \
+             for; un-tile it (kernel::untile) for anything else"
+        );
+    }
+
     /// Return the reference to a buffer argument.
-    pub fn into_buffer_arg(self) -> BufferArg<R> {
+    pub fn into_buffer_arg(self) -> BufferArg {
         self.into_tensor_arg().into_buffer_arg()
     }
 
     /// Returns a reference to the aliased tensor argument.
-    pub fn as_tensor_alias(&self, input_pos: usize) -> TensorArg<R> {
+    pub fn as_tensor_alias(&self, input_pos: usize) -> TensorArg {
+        self.assert_rows("as_tensor_alias");
         TensorArg::Alias {
             input_pos,
             strides: self.meta.strides().clone(),
@@ -226,21 +278,21 @@ where
     }
 
     /// Return a linear view of this tensor.
-    pub fn into_linear_view(self) -> LinearViewLaunch<R> {
+    pub fn into_linear_view(self) -> LinearViewLaunch {
         let layout = LinearViewLayoutLaunch::new();
         let buffer = self.into_tensor_arg();
         LinearViewLaunch::new_tensor::<LinearViewLayout>(buffer, layout)
     }
 
     /// Return an aliased linear view of this tensor
-    pub fn as_linear_view_alias(&self, input_pos: usize) -> LinearViewLaunch<R> {
+    pub fn as_linear_view_alias(&self, input_pos: usize) -> LinearViewLaunch {
         let layout = LinearViewLayoutLaunch::new();
         let buffer = self.as_tensor_alias(input_pos);
         LinearViewLaunch::new_tensor::<LinearViewLayout>(buffer, layout)
     }
 
     /// Return a linear view broadcast to the reference tensor's shape
-    pub fn into_linear_view_like(self, reference: &Self) -> LinearViewLaunch<R> {
+    pub fn into_linear_view_like(self, reference: &Self) -> LinearViewLaunch {
         let layout = LinearViewLayoutLaunch::from_reference_shape(reference.shape());
         let buffer = self.into_tensor_arg();
         LinearViewLaunch::new_tensor::<LinearViewLayout>(buffer, layout)
@@ -303,7 +355,7 @@ where
         }
 
         let tensor = self.clone();
-        launch_unary_numeric::<R, Copy, _>(tensor, |_| ())
+        launch_unary_numeric::<Copy, _>(tensor, |_| ())
     }
 
     /// Check if the tensor is safe to mutate.
@@ -401,5 +453,15 @@ mod tests {
     #[test]
     fn is_contiguous_4d_unit_shape() {
         assert!(!is_contiguous(&[1, 1, 1, 9], &[72, 1, 72, 8]));
+    }
+
+    /// A permute leaves a unit axis holding the stride it had before, which says nothing
+    /// about the layout: both of these are contiguous.
+    #[test]
+    fn is_contiguous_unit_axis_keeps_a_stale_stride() {
+        // [2, 1, 3] strides [3, 3, 1] permuted by [0, 2, 1]
+        assert!(is_contiguous(&[2, 3, 1], &[3, 1, 3]));
+        // only the first axis is ever indexed, and it steps by one
+        assert!(is_contiguous(&[32, 1, 1, 1], &[1, 32, 32, 32]));
     }
 }

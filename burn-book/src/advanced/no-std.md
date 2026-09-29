@@ -25,11 +25,11 @@ Some other dependencies have to be added
 ```toml
 [dependencies]
 embedded-alloc = "0.6.0" # Only if there is no default allocator for your chip
-burn = { version = "0.21", default-features = false, features = ["flex"] } # Flex supports no_std
-burn-store = { version = "0.21", default-features = false, features = ["burnpack"] }
+burn = { version = "0.22", default-features = false, features = ["flex"] } # Flex supports no_std
+burn-store = { version = "0.22", default-features = false }
 
 [build-dependencies]
-burn-onnx = { version = "0.21" } # Used to auto generate the rust code to import the model
+burn-onnx = { version = "0.22" } # Used to auto generate the rust code to import the model
 ```
 
 ### Import the Model
@@ -66,31 +66,30 @@ async fn main(_spawner: Spawner) {
 }
 ```
 
-### Define Backend
-We are using Flex, so we just need to define the Flex backend as usual
-```rs
-use burn::{backend::Flex, tensor::{Device, Tensor}};
+### Define the Device
 
-type Backend = Flex;
-type BackendDevice = Device<Backend>;
+We use a Flex device for CPU execution:
+
+```rs
+use burn::tensor::{Device, Tensor};
 ```
 
 Then inside the `main` function add
 ```rs
 use your_model::Model;
 
-// Get a default device for the backend
-let device = BackendDevice::default();
+// Get a Flex-backed CPU device
+let device = Device::flex();
 
 // Create a new model and load the state
-let model: Model<Backend> = Model::default();
+let model = Model::default();
 ```
 
 ### Running the Model
 To run the model, just call it as you would normally
 ```rs
 // Define the tensor
-let input = Tensor::<Backend, 2>::from_floats([[input]], &device);
+let input = Tensor::<2>::from_floats([[input]], &device);
 
 // Run the model on the input
 let output = model.forward(input);

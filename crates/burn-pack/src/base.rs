@@ -1,8 +1,9 @@
 //! Core types and constants for the Burnpack file format.
 //!
-//! See the [parent module](crate::burnpack) for the complete file format specification.
+//! See the [crate root](crate) for the complete file format specification.
 
 use alloc::collections::BTreeMap;
+use alloc::format;
 use alloc::string::String;
 use alloc::vec::Vec;
 use burn_std::DType;
@@ -310,6 +311,40 @@ pub(crate) struct TensorDescriptor {
     pub param_id: Option<u64>,
 }
 
+/// Validate that a tensor's byte range agrees with its declared shape and dtype.
+///
+/// Quantized tensors are exempt because their packed values and inline scales don't follow the
+/// ordinary `num_elements * dtype_size` layout.
+pub(crate) fn validate_tensor_byte_len(
+    name: &str,
+    dtype: DType,
+    shape: &[u64],
+    data_len: u64,
+) -> Result<(), Error> {
+    if matches!(dtype, DType::QFloat(_)) {
+        return Ok(());
+    }
+
+    let num_elements = shape
+        .iter()
+        .try_fold(1u64, |total, &dimension| total.checked_mul(dimension));
+    let expected = num_elements
+        .and_then(|num_elements| num_elements.checked_mul(dtype.size() as u64))
+        .ok_or_else(|| {
+            Error::ValidationError(format!(
+                "tensor '{name}' byte length calculation overflows u64 for shape {shape:?} and dtype {dtype:?}"
+            ))
+        })?;
+
+    if data_len != expected {
+        return Err(Error::ValidationError(format!(
+            "tensor '{name}' declares {data_len} bytes but its shape {shape:?} and dtype {dtype:?} need {expected}"
+        )));
+    }
+
+    Ok(())
+}
+
 /// Error types for Burnpack operations
 #[derive(Debug)]
 pub enum Error {
@@ -322,6 +357,8 @@ pub enum Error {
     TensorNotFound(String),
     TensorBytesSizeMismatch(String),
     ValidationError(String),
+    /// A write that must not replace an existing file found one at this path.
+    AlreadyExists(String),
 }
 
 impl core::fmt::Display for Error {
@@ -342,7 +379,39 @@ impl core::fmt::Display for Error {
                 write!(f, "Tensor bytes size mismatch: {}", e)
             }
             Error::ValidationError(e) => write!(f, "Validation error: {}", e),
+            Error::AlreadyExists(path) => write!(
+                f,
+                "File already exists: {}. To replace it, use .overwrite(true), or \
+                 AtomicFile::commit instead of commit_new.",
+                path
+            ),
         }
+    }
+}
+
+impl Error {
+    /// Name the tensor an error came from, keeping the variant intact.
+    ///
+    /// Used on the write path, where a tensor's bytes are produced by caller code partway
+    /// through the container: without the name, a failure on one tensor of many says only
+    /// that something went wrong somewhere.
+    pub(crate) fn in_tensor(mut self, name: &str) -> Self {
+        match &mut self {
+            Error::MetadataSerializationError(message)
+            | Error::MetadataDeserializationError(message)
+            | Error::IoError(message)
+            | Error::TensorBytesSizeMismatch(message)
+            | Error::ValidationError(message) => *message = format!("tensor '{name}': {message}"),
+            // Header failures carry no message to annotate (and are not expected from an
+            // entry), while `TensorNotFound` and `AlreadyExists` carry a name or path, not a
+            // sentence - prefixing either would garble its Display output.
+            Error::InvalidHeader
+            | Error::InvalidMagicNumber
+            | Error::InvalidVersion
+            | Error::TensorNotFound(_)
+            | Error::AlreadyExists(_) => {}
+        }
+        self
     }
 }
 

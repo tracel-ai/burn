@@ -464,3 +464,26 @@ fn float_should_panic_when_inner_dimensions_are_not_equal() {
 
     tensor_3.into_data().assert_eq(&expected, false);
 }
+
+#[test]
+#[should_panic(expected = "Matmul requires tensors with at least 2 dimensions")]
+fn float_should_panic_when_rank_is_less_than_2() {
+    let device = Default::default();
+    let tensor_1 = TestTensor::<1>::from_data([1., 2., 3.], &device);
+    let tensor_2 = TestTensor::<1>::from_data([4., 5., 6.], &device);
+
+    let tensor_3 = tensor_1.matmul(tensor_2);
+    tensor_3.into_data();
+}
+
+#[test]
+#[should_panic(expected = "Tensors are not broadcastable along batch dimension")]
+fn float_should_panic_when_batch_dimensions_are_not_broadcastable() {
+    let device = Default::default();
+    // Inner dims match (3 == 3) but batch dims [4] vs [2] cannot broadcast.
+    let tensor_1 = TestTensor::<3>::zeros([4, 5, 3], &device);
+    let tensor_2 = TestTensor::<3>::zeros([2, 3, 7], &device);
+
+    let tensor_3 = tensor_1.matmul(tensor_2);
+    tensor_3.into_data();
+}
