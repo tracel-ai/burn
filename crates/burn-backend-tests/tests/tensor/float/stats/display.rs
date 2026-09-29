@@ -319,3 +319,110 @@ fn test_display_precision() {
     );
     assert_eq!(output, expected);
 }
+
+// Quantized tensors display identity metadata only: values are stored as codes with scales,
+// so `Display` points to `dequantize()` / `to_data()` instead of printing them.
+#[cfg(feature = "quantization")]
+mod quantized {
+    use super::super::super::quantization::qtensor::QTensor;
+    use super::*;
+    use burn_tensor::Device;
+    use burn_tensor::quantization::QuantValue;
+
+    const BLOCK_DATA: [[f32; 16]; 2] = [
+        [
+            -1.8, -1.0, 0.0, 0.5, -1.8, -1.0, 0.0, 0.5, 0.01, 0.025, 0.03, 0.04, 0.01, 0.025, 0.03,
+            0.04,
+        ],
+        [
+            0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.1, 1.2, 1.3, 1.4, 1.5, 1.6,
+        ],
+    ];
+
+    /// Asserts the full metadata-only display output of a quantized tensor.
+    fn assert_display<const D: usize>(tensor: &TestTensor<D>, shape: &str) {
+        let scheme = match tensor.dtype() {
+            DType::QFloat(scheme) => scheme,
+            _ => panic!("Expected a quantized dtype"),
+        };
+        let expected = format!(
+            r#"Tensor {{
+  data:  <quantized, use .dequantize() to view values>,
+  shape:  {shape},
+  device:  {:?},
+  kind:  "Float",
+  dtype:  "qfloat",
+  scheme:  {scheme:?},
+}}"#,
+            tensor.device(),
+        );
+        assert_eq!(format!("{}", tensor), expected);
+    }
+
+    #[test]
+    fn test_display_quantized_tensor() {
+        let tensor = QTensor::<2>::int8([[-127.0, 0.0, 64.0, 127.0], [1.0, -2.0, 3.0, -4.0]]);
+        assert_display(&tensor, "[2, 4]");
+    }
+
+    #[test]
+    fn test_display_quantized_block_tensor() {
+        let tensor = QTensor::<2>::int8_block(BLOCK_DATA);
+        assert_display(&tensor, "[2, 16]");
+    }
+
+    #[test]
+    fn test_display_quantized_large_tensor() {
+        // Above the print threshold: metadata-only display reads no data and never summarizes.
+        let tensor = QTensor::<2>::int8_block(TensorData::new(vec![0.5f32; 1024], [64usize, 16]));
+        assert_display(&tensor, "[64, 16]");
+    }
+
+    #[test]
+    fn test_display_quantized_data_default_scheme() {
+        // Built from quantized data since `quantize_dynamic` doesn't support every scheme on
+        // every backend.
+        let device = Device::default();
+        let data = TensorData::quantized(
+            vec![-127i8, -71, 0, 35],
+            [4],
+            device.settings().quantization.scheme,
+            &[0.014_173_228],
+            None,
+        );
+        assert_display(&TestTensor::<1>::from_data(data, &device), "[4]");
+    }
+
+    #[test]
+    fn test_display_quantized_precision() {
+        // Trailing dim must be divisible by 4 for packed storage on cubecl backends.
+        let tensor = QTensor::<1>::int8([1.0, 2.0, 3.0, 4.0]);
+        // Precision only affects float formatting; metadata display is unchanged.
+        assert_eq!(format!("{:.3}", tensor), format!("{}", tensor));
+    }
+
+    #[test]
+    fn test_display_quantized_data_float_codes() {
+        // Float-code schemes have no readable codes; `TensorData` display must not panic.
+        let device = Device::default();
+        let data = TensorData::quantized(
+            vec![-127i8, -71, 0, 35],
+            [4],
+            device
+                .settings()
+                .quantization
+                .scheme
+                .with_value(QuantValue::E4M3),
+            &[0.014_173_228],
+            None,
+        );
+        let scheme = match data.dtype() {
+            DType::QFloat(scheme) => scheme,
+            _ => panic!("Expected a quantized dtype"),
+        };
+        assert_eq!(
+            format!("{}", data),
+            format!("<float-quantized> {:?}", scheme)
+        );
+    }
+}

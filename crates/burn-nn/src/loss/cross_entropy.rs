@@ -145,7 +145,7 @@ impl CrossEntropyLoss {
         let tensor = if self.logits {
             log_softmax(logits, 1)
         } else {
-            logits.log()
+            Self::clamp_probs(logits).log()
         };
         let [batch_size, nr_classes] = tensor.dims();
         let tensor = tensor
@@ -176,10 +176,7 @@ impl CrossEntropyLoss {
         let tensor = if self.logits {
             log_softmax(logits, 1).gather(1, target_indices)
         } else {
-            // TODO: finfo stable eps
-            let finfo = logits.dtype().finfo().unwrap();
-            let eps = finfo.min_positive.sqrt();
-            logits.clamp_min(eps).gather(1, target_indices).log()
+            Self::clamp_probs(logits).gather(1, target_indices).log()
         };
 
         let tensor = tensor.reshape([batch_size]);
@@ -192,6 +189,14 @@ impl CrossEntropyLoss {
         };
 
         Self::reduce_mean(tensor, weights, mask)
+    }
+
+    /// Clamps probabilities away from zero so their log stays finite.
+    fn clamp_probs(probs: Tensor<2>) -> Tensor<2> {
+        // TODO: finfo stable eps
+        let finfo = probs.dtype().finfo().unwrap();
+        let eps = finfo.min_positive.sqrt();
+        probs.clamp_min(eps)
     }
 
     fn compute_smoothed_targets(
@@ -508,6 +513,46 @@ mod tests {
             loss_probs.as_slice::<f32>().unwrap(),
             "logits flag should change computation (log_softmax vs log)"
         );
+    }
+
+    #[test]
+    fn test_label_smoothing_with_zero_probabilities() {
+        let device = Default::default();
+
+        let probs = Tensor::<2>::from_data(
+            TensorData::from([
+                [0.1, 0.2, 0.7, 0.0, 0.0],
+                [0.7, 0.1, 0.1, 0.1, 0.0],
+                [0.2, 0.2, 0.2, 0.2, 0.2],
+                [0.0, 0.3, 0.3, 0.2, 0.2],
+            ]),
+            &device,
+        );
+        let targets = Tensor::<1, Int>::from_data(TensorData::from([2, 0, 4, 1]), &device);
+
+        let loss_default = CrossEntropyLossConfig::new()
+            .with_logits(false)
+            .init(&device)
+            .forward(probs.clone(), targets.clone());
+        let loss_no_smoothing = CrossEntropyLossConfig::new()
+            .with_logits(false)
+            .with_smoothing(Some(0.0))
+            .init(&device)
+            .forward(probs.clone(), targets.clone());
+        let loss_smoothed = CrossEntropyLossConfig::new()
+            .with_logits(false)
+            .with_smoothing(Some(0.1))
+            .init(&device)
+            .forward(probs, targets);
+
+        // Zero probabilities are clamped like in the non-smoothed path, so alpha = 0
+        // matches it and alpha > 0 stays finite.
+        loss_no_smoothing
+            .into_data()
+            .assert_approx_eq::<FT>(&loss_default.into_data(), Tolerance::default());
+        loss_smoothed
+            .into_data()
+            .assert_approx_eq::<FT>(&TensorData::from([1.7929223]), Tolerance::default());
     }
 
     fn assert_padding_invariant(weights: Option<Vec<f32>>, smoothing: Option<f32>, logits: bool) {

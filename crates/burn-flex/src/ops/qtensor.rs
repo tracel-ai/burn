@@ -22,7 +22,7 @@ use crate::{Flex, FlexQTensor, FlexTensor, Layout};
 /// The blocks over `shape`, which must be a whole number of blocks along every axis.
 fn block_layout(shape: &Shape, block: &BlockSize) -> BlockLayout {
     let blocks = BlockLayout::new(shape, block);
-    debug_assert!(
+    assert!(
         blocks.divides(),
         "tensor {shape:?} is not a whole number of {block:?} blocks"
     );
