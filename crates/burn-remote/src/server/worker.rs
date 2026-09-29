@@ -130,11 +130,11 @@ where
                 let processed = panic::catch_unwind(AssertUnwindSafe(|| {
                     handle.block_on(self.process_tasks(receiver))
                 }));
-                if let Err(panic) = processed {
-                    let reason = panic
+                if let Err(payload) = processed {
+                    let reason = payload
                         .downcast_ref::<&str>()
                         .copied()
-                        .or_else(|| panic.downcast_ref::<String>().map(String::as_str))
+                        .or_else(|| payload.downcast_ref::<String>().map(String::as_str))
                         .unwrap_or("no message");
                     log::error!("Session {session_id} stopped because a task panicked: {reason}");
                 }
