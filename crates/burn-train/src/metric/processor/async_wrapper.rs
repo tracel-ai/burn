@@ -42,8 +42,8 @@ impl Worker {
         }
     }
 
-    /// Every error the worker reported since the last call, merged in order.
-    fn reported(&self) -> Result<(), MetricsError> {
+    /// Every error the worker reported since the last call, if any, merged in order.
+    fn check_errors(&self) -> Result<(), MetricsError> {
         let Ok(mut reported) = self.error_rec.try_recv() else {
             return Ok(());
         };
@@ -196,14 +196,14 @@ impl<ET: Send, EV: Send> EventProcessorTraining<ET, EV> for AsyncProcessorTraini
         if self.sender.send_blocking(Message::Train(event)).is_err() {
             self.worker.died();
         }
-        self.worker.reported()
+        self.worker.check_errors()
     }
 
     fn process_valid(&mut self, event: EV) -> Result<(), MetricsError> {
         if self.sender.send_blocking(Message::Valid(event)).is_err() {
             self.worker.died();
         }
-        self.worker.reported()
+        self.worker.check_errors()
     }
 
     fn flush(&mut self) -> Result<(), MetricsError> {
@@ -213,7 +213,7 @@ impl<ET: Send, EV: Send> EventProcessorTraining<ET, EV> for AsyncProcessorTraini
         {
             self.worker.died();
         }
-        self.worker.reported()
+        self.worker.check_errors()
     }
 
     fn renderer(mut self) -> Box<dyn crate::renderer::MetricsRenderer> {
@@ -240,7 +240,7 @@ impl<P: EventProcessorEvaluation> EventProcessorEvaluation for AsyncProcessorEva
         if self.sender.send_blocking(EvalMessage::Test(event)).is_err() {
             self.worker.died();
         }
-        self.worker.reported()
+        self.worker.check_errors()
     }
 
     fn renderer(mut self) -> Box<dyn crate::renderer::MetricsRenderer> {
