@@ -138,6 +138,10 @@ impl<P: EventProcessorEvaluation + 'static> WorkerEvaluation<P> {
                         EvalMessage::Test(event) => {
                             report(&worker.error_sender, worker.processor.process_test(event))
                         }
+                        EvalMessage::Flush(callback) => {
+                            report(&worker.error_sender, worker.processor.flush());
+                            callback.send_blocking(()).unwrap();
+                        }
                         EvalMessage::Renderer(sender) => {
                             sender.send_blocking(worker.processor.renderer()).unwrap();
                             return;
@@ -188,6 +192,7 @@ enum Message<EventTrain, EventValid> {
 
 enum EvalMessage<P: EventProcessorEvaluation> {
     Test(EvaluatorEvent<P::ItemTest>),
+    Flush(Sender<()>),
     Renderer(Sender<Box<dyn crate::renderer::MetricsRenderer>>),
 }
 
@@ -243,6 +248,19 @@ impl<P: EventProcessorEvaluation> EventProcessorEvaluation for AsyncProcessorEva
         self.worker.check_errors()
     }
 
+    fn flush(&mut self) -> Result<(), MetricsError> {
+        let (sender, receiver) = async_channel::bounded(1);
+        if self
+            .sender
+            .send_blocking(EvalMessage::Flush(sender))
+            .is_err()
+            || receiver.recv_blocking().is_err()
+        {
+            self.worker.died();
+        }
+        self.worker.check_errors()
+    }
+
     fn renderer(mut self) -> Box<dyn crate::renderer::MetricsRenderer> {
         let (sender, rec) = async_channel::bounded(1);
         if self
@@ -263,7 +281,10 @@ impl<P: EventProcessorEvaluation> EventProcessorEvaluation for AsyncProcessorEva
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::metric::{processor::MetricError, store::Split};
+    use crate::metric::{
+        processor::{ItemLazy, MetricError},
+        store::Split,
+    };
     use crate::renderer::{MetricsRenderer, cli::CliMetricsRenderer};
     use burn_core::tensor::TensorReadError;
     use burn_std::ExecutionError;
@@ -376,6 +397,52 @@ mod tests {
         processor.process_train(2).unwrap();
         processor.flush().unwrap();
         assert_eq!(processed.load(Ordering::SeqCst), 2);
+    }
+
+    /// An evaluation processor whose metric fails at the end of every test split.
+    struct FailingEvalProcessor;
+
+    struct NoItem;
+
+    impl ItemLazy for NoItem {
+        fn sync(self) -> Self {
+            self
+        }
+    }
+
+    impl EventProcessorEvaluation for FailingEvalProcessor {
+        type ItemTest = NoItem;
+
+        fn process_test(&mut self, event: EvaluatorEvent<NoItem>) -> Result<(), MetricsError> {
+            match event {
+                EvaluatorEvent::EndTest => MetricsError::from_errors(vec![MetricError {
+                    metric: Arc::new("Accuracy".to_string()),
+                    split: Split::Test(None),
+                    source: ExecutionError::with_context("refused").into(),
+                }]),
+                _ => Ok(()),
+            }
+        }
+
+        fn renderer(self) -> Box<dyn MetricsRenderer> {
+            Box::new(CliMetricsRenderer::new())
+        }
+    }
+
+    #[test]
+    fn flush_reports_last_events_errors() {
+        let mut processor = AsyncProcessorEvaluation::new(FailingEvalProcessor);
+
+        // The last event's own call may return before the worker processed it: the flush
+        // is what guarantees its error is seen before the processor is consumed.
+        let reported = processor
+            .process_test(EvaluatorEvent::EndTest)
+            .err()
+            .or_else(|| processor.flush().err())
+            .expect("the last event's error must reach the caller");
+        assert_eq!(reported.errors()[0].metric.as_str(), "Accuracy");
+
+        processor.flush().unwrap();
     }
 
     /// A processor that panics, the one failure that still stops the worker.

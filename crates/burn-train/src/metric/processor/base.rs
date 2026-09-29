@@ -104,6 +104,16 @@ pub trait EventProcessorEvaluation: Send {
     /// it on a later call instead (see [`AsyncProcessorEvaluation`](super::AsyncProcessorEvaluation)).
     fn process_test(&mut self, event: EvaluatorEvent<Self::ItemTest>) -> Result<(), MetricsError>;
 
+    /// Wait until previously submitted events are processed (no-op for sync processors).
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`MetricsError`] listing every metric failure among the events processed
+    /// since the last error was reported.
+    fn flush(&mut self) -> Result<(), MetricsError> {
+        Ok(())
+    }
+
     /// Returns the renderer used for evaluation.
     fn renderer(self) -> Box<dyn MetricsRenderer>;
 }

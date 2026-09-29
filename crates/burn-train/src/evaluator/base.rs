@@ -102,6 +102,8 @@ impl<EC: EvaluatorComponentTypes> Evaluator<EC> {
             .process_test(EvaluatorEvent::End(summary))
             .unwrap();
 
+        // Finish processing remaining events.
+        self.event_processor.flush().unwrap();
         self.event_processor.renderer()
     }
 }

@@ -161,6 +161,8 @@ pub trait SupervisedLearningStrategy<M: LearnerModel> {
             .unwrap();
 
         let model = model.valid();
+        // Finish processing remaining events.
+        event_processor.flush().unwrap();
         let renderer = event_processor.renderer();
 
         LearningResult::<M> { model, renderer }
