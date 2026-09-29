@@ -35,7 +35,10 @@ where
                 Message::Restore(epoch, callback) => {
                     let record = self.checkpointer.restore(epoch);
                     if let Err(err) = callback.send(record) {
-                        self.fail("Error when sending response through callback channel", err);
+                        self.fail(
+                            "Error when sending response through callback channel",
+                            CheckpointerError::Unknown(err.to_string()),
+                        );
                     }
                 }
                 Message::Save(epoch, state) => {
@@ -59,9 +62,9 @@ where
     }
 
     /// Interrupt training with `err`, or panic when there is no interrupter to report it to.
-    fn fail(&self, context: &str, err: impl core::fmt::Display) {
+    fn fail(&self, context: &str, err: CheckpointerError) {
         match &self.interrupter {
-            Some(interrupter) => interrupter.stop(Some(&err.to_string())),
+            Some(interrupter) => interrupter.fail(err),
             None => panic!("{context}: {err}"),
         }
     }

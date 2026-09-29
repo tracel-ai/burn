@@ -10,6 +10,33 @@ use std::thread::spawn;
 /// Outputs and progress collected from workers for one step.
 type StepOutput<TO> = (Vec<MultiTrainOutput<TO>>, Progress);
 
+/// Error that happened on one device during a step of multi-device training.
+#[derive(Debug)]
+pub enum MultiDeviceStepError {
+    /// Error while loading data.
+    Dataset(DatasetError),
+    /// The training step panicked on a worker.
+    Worker {
+        /// The worker's device index.
+        device_id: usize,
+        /// The panic message.
+        message: String,
+    },
+}
+
+impl core::fmt::Display for MultiDeviceStepError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::Dataset(err) => write!(f, "dataset error during training step: {err}"),
+            Self::Worker { device_id, message } => {
+                write!(f, "training worker on device {device_id} failed: {message}")
+            }
+        }
+    }
+}
+
+impl core::error::Error for MultiDeviceStepError {}
+
 /// Multi devices train step.
 pub struct MultiDevicesTrainStep<M: LearnerModel> {
     workers: Vec<Worker<M>>,
@@ -151,7 +178,7 @@ impl<M: LearnerModel> MultiDevicesTrainStep<M> {
         &self,
         dataloaders: &mut [Box<dyn DataLoaderIterator<TrainingModelInput<M>> + 'a>],
         model: &M,
-    ) -> Result<StepOutput<TrainingModelOutput<M>>, DatasetError> {
+    ) -> Result<StepOutput<TrainingModelOutput<M>>, MultiDeviceStepError> {
         let mut num_send = 0;
 
         let mut items_total = 0;
@@ -168,22 +195,32 @@ impl<M: LearnerModel> MultiDevicesTrainStep<M> {
                     items_total += progress.items_total;
                     items_processed += progress.items_processed;
                 }
-                Some(Err(err)) => return Err(err),
+                Some(Err(err)) => return Err(MultiDeviceStepError::Dataset(err)),
                 None => {}
             }
         }
 
         let mut outputs = Vec::with_capacity(num_send);
+        let mut failure = None;
 
+        // Every worker answers before this returns, even after one failed: an answer left in
+        // the channel would be taken for the next step's.
         for _ in 0..num_send {
             match self.receiver.recv().unwrap() {
                 WorkerMessage::Output(output) => outputs.push(output),
-                WorkerMessage::Error(device_id, msg) => {
-                    panic!("training worker on device {device_id} failed: {msg}");
+                WorkerMessage::Error(device_id, message) => {
+                    let error = MultiDeviceStepError::Worker { device_id, message };
+                    match failure {
+                        None => failure = Some(error),
+                        Some(_) => log::error!("{error}"),
+                    }
                 }
             }
         }
 
-        Ok((outputs, Progress::new(items_processed, items_total, unit)))
+        match failure {
+            Some(error) => Err(error),
+            None => Ok((outputs, Progress::new(items_processed, items_total, unit))),
+        }
     }
 }

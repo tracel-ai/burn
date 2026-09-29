@@ -129,16 +129,16 @@ pub trait SupervisedLearningStrategy<M: LearnerModel> {
     ) -> LearningResult<M> {
         let starting_epoch = training_components.checkpoint.unwrap_or(0) + 1;
         let summary_config = training_components.summary.clone();
+        let interrupter = training_components.interrupter.clone();
 
         // Event processor start training
-        training_components
-            .event_processor
-            .process_train(LearnerEvent::Start {
+        interrupter.fail_on_error(training_components.event_processor.process_train(
+            LearnerEvent::Start {
                 total_epochs: training_components.num_epochs,
                 starting_epoch,
                 label: training_components.label.clone(),
-            })
-            .unwrap();
+            },
+        ));
         // Training loop
         let (model, mut event_processor) = self.fit(
             training_components,
@@ -156,16 +156,19 @@ pub trait SupervisedLearningStrategy<M: LearnerModel> {
         });
 
         // Signal training end. For the TUI renderer, this handles the exit & return to main screen.
-        event_processor
-            .process_train(LearnerEvent::End(summary))
-            .unwrap();
+        interrupter.fail_on_error(event_processor.process_train(LearnerEvent::End(summary)));
 
         let model = model.valid();
         // Finish processing remaining events.
-        event_processor.flush().unwrap();
+        interrupter.fail_on_error(event_processor.flush());
         let renderer = event_processor.renderer();
 
-        LearningResult::<M> { model, renderer }
+        LearningResult::<M> {
+            model,
+            renderer,
+            interrupted: interrupter.interruption(),
+            error: interrupter.error(),
+        }
     }
 
     /// Training loop for this strategy

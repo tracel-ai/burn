@@ -402,6 +402,11 @@ pub struct RLResult<P> {
     pub policy: P,
     /// The renderer that can be used for follow up training and evaluation.
     pub renderer: Box<dyn MetricsRenderer>,
+    /// The stop that ended training early, if
+    /// [`Interrupter::stop`](crate::Interrupter::stop) was called and no error happened.
+    pub interrupted: Option<crate::Interruption>,
+    /// The error that ended training early, if it hit one.
+    pub error: Option<std::sync::Arc<crate::TrainingError>>,
 }
 
 /// Trait to fake variadic generics for train step metrics.

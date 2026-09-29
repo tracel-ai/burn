@@ -45,7 +45,7 @@ impl<M: LearnerModel> DdpValidEpoch<M> {
             let item = match item {
                 Ok(item) => item,
                 Err(err) => {
-                    interrupter.stop(Some(&format!("dataset error during validation: {err}")));
+                    interrupter.fail(err);
                     break;
                 }
             };
@@ -100,7 +100,7 @@ impl<M: LearnerModel> DdpTrainEpoch<M> {
             let item = match item {
                 Ok(item) => item,
                 Err(err) => {
-                    interrupter.stop(Some(&format!("dataset error during training: {err}")));
+                    interrupter.fail(err);
                     break;
                 }
             };

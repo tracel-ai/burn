@@ -13,6 +13,19 @@ pub(crate) type TestOutput<EC> = <<EC as EvaluatorComponentTypes>::Model as Infe
 
 pub(crate) type TestLoader<EC> = Arc<dyn DataLoader<TestInput<EC>>>;
 
+/// The result of an evaluation.
+pub struct EvaluationResult {
+    /// The renderer that can be used for follow up training and evaluation.
+    pub renderer: Box<dyn MetricsRenderer>,
+    /// The stop that ended evaluation early, if
+    /// [`Interrupter::stop`](crate::Interrupter::stop) was called and no error happened.
+    pub interrupted: Option<crate::Interruption>,
+    /// The error that ended evaluation early, if it hit one.
+    ///
+    /// Both are `None` when every dataset was evaluated.
+    pub error: Option<Arc<crate::TrainingError>>,
+}
+
 /// Evaluates a model on a specific dataset.
 pub struct Evaluator<EC: EvaluatorComponentTypes> {
     pub(crate) model: EC::Model,
@@ -31,7 +44,7 @@ impl<EC: EvaluatorComponentTypes> Evaluator<EC> {
         self,
         name: S,
         dataloader: TestLoader<EC>,
-    ) -> Box<dyn MetricsRenderer> {
+    ) -> EvaluationResult {
         self.eval_all([(name, dataloader)])
     }
 
@@ -42,13 +55,14 @@ impl<EC: EvaluatorComponentTypes> Evaluator<EC> {
     pub fn eval_all<S: core::fmt::Display>(
         mut self,
         splits: impl IntoIterator<Item = (S, TestLoader<EC>)>,
-    ) -> Box<dyn MetricsRenderer> {
+    ) -> EvaluationResult {
         let splits: Vec<_> = splits.into_iter().collect();
         let total_tests = splits.len();
 
-        self.event_processor
-            .process_test(EvaluatorEvent::Start { total_tests })
-            .unwrap();
+        self.interrupter.fail_on_error(
+            self.event_processor
+                .process_test(EvaluatorEvent::Start { total_tests }),
+        );
 
         for (name, dataloader) in splits {
             let dataloader = dataloader.to_device(self.model.devices().first().unwrap());
@@ -57,16 +71,16 @@ impl<EC: EvaluatorComponentTypes> Evaluator<EC> {
             let mut iterator = dataloader.iter();
             let mut iteration = 0;
 
-            self.event_processor
-                .process_test(EvaluatorEvent::StartTest(name.clone(), total_items))
-                .unwrap();
+            self.interrupter.fail_on_error(
+                self.event_processor
+                    .process_test(EvaluatorEvent::StartTest(name.clone(), total_items)),
+            );
 
             while let Some(item) = iterator.next() {
                 let item = match item {
                     Ok(item) => item,
                     Err(err) => {
-                        self.interrupter
-                            .stop(Some(&format!("dataset error during evaluation: {err}")));
+                        self.interrupter.fail(err);
                         break;
                     }
                 };
@@ -76,9 +90,10 @@ impl<EC: EvaluatorComponentTypes> Evaluator<EC> {
                 let item = self.model.step(item);
                 let item = EvaluationItem::new(item, progress, Some(iteration));
 
-                self.event_processor
-                    .process_test(EvaluatorEvent::ProcessedItem(name.clone(), item))
-                    .unwrap();
+                self.interrupter.fail_on_error(
+                    self.event_processor
+                        .process_test(EvaluatorEvent::ProcessedItem(name.clone(), item)),
+                );
 
                 if self.interrupter.should_stop() {
                     log::info!("Testing interrupted.");
@@ -86,9 +101,13 @@ impl<EC: EvaluatorComponentTypes> Evaluator<EC> {
                 }
             }
 
-            self.event_processor
-                .process_test(EvaluatorEvent::EndTest)
-                .unwrap();
+            self.interrupter
+                .fail_on_error(self.event_processor.process_test(EvaluatorEvent::EndTest));
+
+            // The remaining datasets are not evaluated once interrupted.
+            if self.interrupter.should_stop() {
+                break;
+            }
         }
 
         let summary = self.summary.and_then(|summary| {
@@ -98,12 +117,18 @@ impl<EC: EvaluatorComponentTypes> Evaluator<EC> {
                 .ok()
         });
 
-        self.event_processor
-            .process_test(EvaluatorEvent::End(summary))
-            .unwrap();
+        self.interrupter.fail_on_error(
+            self.event_processor
+                .process_test(EvaluatorEvent::End(summary)),
+        );
 
         // Finish processing remaining events.
-        self.event_processor.flush().unwrap();
-        self.event_processor.renderer()
+        self.interrupter.fail_on_error(self.event_processor.flush());
+
+        EvaluationResult {
+            renderer: self.event_processor.renderer(),
+            interrupted: self.interrupter.interruption(),
+            error: self.interrupter.error(),
+        }
     }
 }
