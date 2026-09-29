@@ -30,8 +30,7 @@ pub(crate) fn parse_ws_address(address: Address) -> Result<Address, String> {
     }
 }
 
-/// The largest message either end reads. Messages are sent whole, one frame each, so a frame gets
-/// the same limit.
+/// Read limit at both ends; a message goes out as one frame, so frames get the same limit.
 pub(crate) const MAX_MESSAGE_SIZE: usize = 1024 * 1024 * 1024;
 
 /// Probe an idle connection after 10 s, then every 5 s, and drop it after 4 unanswered probes: a
