@@ -205,8 +205,9 @@ mod storage_tiled {
         let out = tile(
             &client,
             tensor.clone().binding(),
-            [ROW, COL],
+            &[ROW, COL],
             dtype_to_storage_type(tensor.dtype),
+            None,
             storage,
         )
         .expect("the tile divides the matrix");
