@@ -255,10 +255,23 @@ Update your training configuration:
 | `renderer(renderer)`                             | `renderer(Box::new(renderer))`                                                                         |
 | `AurocMetric::new()`                             | `AurocMetric::binary()`, `AurocMetric::multiclass(reduction)`, or `AurocMetric::multilabel(reduction)` |
 | `AurocInput`                                     | `ClassificationOutput` or `MultiLabelClassificationOutput`                                             |
+| `evaluator.eval(..)` returning the renderer      | `EvaluationResult`; read its `renderer` field                                                          |
 
 Default checkpointers save the model, optimizer, and scheduler as burnpack files. AUROC's multiclass
 and multilabel constructors take a `ClassReduction`. See [Learner](./building-blocks/learner.md) for
 training configuration.
+
+Training and evaluation now stop instead of panicking when a metric cannot read its tensors, a
+dataloader fails, a checkpointer fails, or a multi-device worker panics. `LearningResult`,
+`RLResult`, and `EvaluationResult` report the reason for an early stopping:
+
+- `error`: the `TrainingError` that stopped it. `TrainingError::is_device_poisoned()` tells whether
+  the device is poisoned and, consequentially, if the process needs to be restarted.
+- `interrupted`: the `Interruption` requested through `Interrupter::stop`, if the run stopped
+  without an error.
+
+Check `error` after `launch` or `eval` to detect a failed run. If you destructure these results or
+build them with struct literals, add the two fields.
 
 Review configurations and numerical baselines affected by these behavior changes:
 
@@ -281,6 +294,9 @@ These methods return `Result<Vec<E>, DataError>` and require `E` to match the st
 conversion, use `try_to_vec_as::<E>()` or `try_into_vec_as::<E>()` on `TensorData` or `Tensor`.
 Update error matches for the revised `DataError` variants and `Tensor::try_into_scalar`'s
 `TensorReadError`.
+`ExecutionError` has a new `DevicePoisoned` variant for faults the device cannot recover from, such
+as an illegal memory access; add it to exhaustive matches. `ExecutionError::is_device_poisoned()`
+detects it.
 
 `TensorData` fields are private, so its byte length always matches its shape and dtype (quantized
 data is not checked yet). Replace field access with the accessors:
@@ -368,6 +384,9 @@ Update the metric lifecycle:
 - Return `Option<NumericEntry>` from `Numeric::value()` and `running_value()`. Use `None` when the
   metric is only defined at the end of an epoch.
 - Return the computed epoch value from `final_value()`.
+- Return `Result<SerializedEntry, TensorReadError>` from `update` and `compute`. Read tensors with
+  `try_into_data()` or `try_into_scalar()` and propagate errors with `?`; wrap other return values
+  in `Ok(..)`. `ConfusionStatsState::compute_update` also returns a `Result`.
 
 See [Custom Metric](./building-blocks/metric.md#custom-metric) for an implementation example.
 
@@ -386,6 +405,17 @@ Update custom event matches:
 | `EvaluatorEvent::Start`                 | Match struct field `total_tests`                        |
 | `LearnerEvent::StartSplit` / `EndSplit` | Handle the new split lifecycle events                   |
 | `EvaluatorEvent::StartTest` / `EndTest` | Handle the new test lifecycle events                    |
+
+Event processor methods return `Result<(), MetricsError>`: `process_train`, `process_valid`,
+`flush`, and `process_test`. A `MetricsError` lists every metric that failed, with its name and
+split. `EventProcessorEvaluation` gains a `flush` method with a default implementation. Custom
+processors return `Ok(())` on success.
+
+In a custom `SupervisedLearningStrategy`, handle each processor result: pass it to
+`interrupter.fail_on_error(..)` to stop training cleanly, or call `unwrap()` to panic as before.
+Report dataset errors with `interrupter.fail(err)` rather than `interrupter.stop(..)`, so the run
+reports them as errors. `MultiDevicesTrainStep::step` returns `MultiDeviceStepError` instead of
+`DatasetError`.
 
 ### Distributed training
 
