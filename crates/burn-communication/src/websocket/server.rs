@@ -2,7 +2,7 @@ use std::net::SocketAddr;
 
 use crate::{
     base::{CommunicationChannel, CommunicationError, Message, ProtocolServer},
-    websocket::base::{DeadPeerTimeout, MAX_MESSAGE_SIZE},
+    websocket::base::DeadPeerTimeout,
 };
 use axum::{
     Router,
@@ -99,12 +99,9 @@ impl ProtocolServer for WsServer {
         };
 
         let method = get(|ws: WebSocketUpgrade, _: State<()>| async {
-            // Left unset, axum reads with tungstenite's defaults: 16 MiB a frame, 64 MiB a message.
-            ws.max_message_size(MAX_MESSAGE_SIZE)
-                .max_frame_size(MAX_MESSAGE_SIZE)
-                .on_upgrade(async move |socket| {
-                    callback(WsServerChannel { inner: socket }).await;
-                })
+            ws.on_upgrade(async move |socket| {
+                callback(WsServerChannel { inner: socket }).await;
+            })
         });
 
         self.router = self.router.route(&path, method);
@@ -251,49 +248,3 @@ impl core::fmt::Display for WsServerError {
 }
 
 impl std::error::Error for WsServerError {}
-
-#[cfg(test)]
-mod tests {
-    use std::time::Duration;
-
-    use tokio::{net::TcpListener, sync::mpsc, time::timeout};
-
-    use super::*;
-    use crate::{
-        base::{Address, ProtocolClient},
-        websocket::WsClient,
-    };
-
-    #[tokio::test(flavor = "multi_thread")]
-    async fn a_message_over_sixty_four_mib_reaches_the_server() {
-        const MESSAGE_LEN: usize = 65 * 1024 * 1024;
-
-        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
-        let port = listener.local_addr().unwrap().port();
-        let (length_sender, mut lengths) = mpsc::channel(1);
-        let server =
-            WsServer::new(port).route("/upload", move |mut channel: WsServerChannel| async move {
-                let length = channel
-                    .recv()
-                    .await
-                    .map(|message| message.map(|message| message.data.len()))
-                    .map_err(|err| err.to_string());
-                length_sender.send(length).await.unwrap();
-            });
-        tokio::spawn(server.serve_on(listener, std::future::pending()));
-
-        let address = Address::from(format!("ws://127.0.0.1:{port}").as_str());
-        let mut channel = WsClient::connect(address, "upload").await.unwrap();
-        let sent = channel
-            .send(Message::new(vec![0u8; MESSAGE_LEN].into()))
-            .await;
-
-        let read = timeout(Duration::from_secs(30), lengths.recv()).await;
-        assert_eq!(
-            read,
-            Ok(Some(Ok(Some(MESSAGE_LEN)))),
-            "what the server read"
-        );
-        sent.unwrap();
-    }
-}
