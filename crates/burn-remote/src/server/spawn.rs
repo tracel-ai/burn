@@ -18,7 +18,7 @@ where
 
 /// Detached tasks that each send one response. Each holds a response sender, and the response
 /// queue stays open until every sender drops, so a failed session has to be able to stop them.
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub(crate) struct ResponseTasks {
     #[cfg(not(target_family = "wasm"))]
     running: Vec<tokio::task::AbortHandle>,
@@ -42,7 +42,7 @@ impl ResponseTasks {
         spawn_detached(future);
     }
 
-    /// Stop every task still running, dropping the response senders they hold.
+    /// Cancel every task still running; each drops its sender when the runtime next runs it.
     #[cfg(not(target_family = "wasm"))]
     pub(crate) fn abort_all(&mut self) {
         for task in self.running.drain(..) {
@@ -96,6 +96,7 @@ mod tests {
             std::future::pending::<()>().await
         });
 
+        tokio::task::yield_now().await;
         tasks.abort_all();
 
         let closed = timeout(Duration::from_secs(10), responses.recv()).await;

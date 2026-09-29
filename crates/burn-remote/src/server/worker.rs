@@ -67,8 +67,7 @@ const TASK_CHANNEL_CAPACITY: usize = 64;
 /// Everything constant for the lifetime of a session.
 ///
 /// Owned by the session's worker thread, which runs every task against this one interpreter and
-/// these comm services. Held behind an [`Arc`] only so detached readback tasks can be spawned with
-/// a clone of the result sender; the interpreter itself is single-owner here.
+/// these comm services.
 pub(crate) struct SessionHandler<B, T>
 where
     B: BackendIr,
@@ -136,17 +135,25 @@ where
                     handle.block_on(self.process_tasks(receiver))
                 }));
                 if let Err(payload) = processed {
-                    self.abandon_after_panic(payload);
+                    self.abort_responses_after_panic(payload);
                 }
                 handle.block_on(self.close());
             })
             .expect("Failed to spawn session worker thread");
     }
 
-    /// Log why a task panicked, and abort the responses still in flight.
+    #[cfg(target_family = "wasm")]
+    fn drive(mut self, receiver: mpsc::Receiver<Task>) {
+        spawn_detached(async move {
+            self.process_tasks(receiver).await;
+            self.close().await;
+        });
+    }
+
+    /// Abort the responses still in flight, since one may never resolve and holds the response
+    /// queue open, and log why the task panicked.
     #[cfg(not(target_family = "wasm"))]
-    fn abandon_after_panic(&mut self, payload: Box<dyn Any + Send>) {
-        // A read or profile still in flight may never resolve, and holds the response queue open.
+    fn abort_responses_after_panic(&mut self, payload: Box<dyn Any + Send>) {
         self.response_tasks.abort_all();
         let reason = payload
             .downcast_ref::<&str>()
@@ -157,14 +164,6 @@ where
             "Session {} stopped because a task panicked: {reason}",
             self.session_id
         );
-    }
-
-    #[cfg(target_family = "wasm")]
-    fn drive(mut self, receiver: mpsc::Receiver<Task>) {
-        spawn_detached(async move {
-            self.process_tasks(receiver).await;
-            self.close().await;
-        });
     }
 
     /// Run each task to completion in arrival order, until the task channel closes.
@@ -605,5 +604,34 @@ mod tests {
         );
         // Dropped only now, so the panic alone had to end the session.
         drop(tasks);
+    }
+
+    #[tokio::test]
+    async fn a_panic_aborts_the_responses_still_in_flight() {
+        let (response_sender, mut responses) = mpsc::channel(1);
+        let mut handler = SessionHandler {
+            session_id: SessionId::new(),
+            runner: TensorInterpreter::new(Default::default()),
+            response_sender,
+            response_tasks: ResponseTasks::default(),
+            transfer: Arc::new(NoTransfer),
+            local_comm: Arc::new(LocalCommService::<Flex>::new()),
+            graphs: Mutex::new(HashMap::new()),
+            probe: TelemetryProbe::disabled(),
+        };
+        let stalled = handler.response_sender.clone();
+        handler.response_tasks.spawn(async move {
+            let _held = stalled;
+            std::future::pending::<()>().await
+        });
+
+        handler.abort_responses_after_panic(Box::new("a task panicked"));
+        handler.close().await;
+
+        let closed = tokio::time::timeout(Duration::from_secs(10), responses.recv()).await;
+        assert!(
+            matches!(closed, Ok(None)),
+            "a stalled response kept the session open"
+        );
     }
 }
