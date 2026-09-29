@@ -39,7 +39,10 @@ use burn_ir::{BackendIr, GraphBindings, GraphId};
 use burn_router::{Graph, TensorInterpreter};
 use burn_std::id::StreamId;
 #[cfg(not(target_family = "wasm"))]
-use std::panic::{self, AssertUnwindSafe};
+use std::{
+    any::Any,
+    panic::{self, AssertUnwindSafe},
+};
 #[cfg(not(target_family = "wasm"))]
 use tokio::runtime::Handle;
 use tokio::sync::mpsc;
@@ -133,19 +136,27 @@ where
                     handle.block_on(self.process_tasks(receiver))
                 }));
                 if let Err(payload) = processed {
-                    // A read or profile still in flight may never resolve, and holds the
-                    // response queue open.
-                    self.response_tasks.abort_all();
-                    let reason = payload
-                        .downcast_ref::<&str>()
-                        .copied()
-                        .or_else(|| payload.downcast_ref::<String>().map(String::as_str))
-                        .unwrap_or("no message");
-                    log::error!("Session {session_id} stopped because a task panicked: {reason}");
+                    self.abandon_after_panic(payload);
                 }
                 handle.block_on(self.close());
             })
             .expect("Failed to spawn session worker thread");
+    }
+
+    /// Log why a task panicked, and abort the responses still in flight.
+    #[cfg(not(target_family = "wasm"))]
+    fn abandon_after_panic(&mut self, payload: Box<dyn Any + Send>) {
+        // A read or profile still in flight may never resolve, and holds the response queue open.
+        self.response_tasks.abort_all();
+        let reason = payload
+            .downcast_ref::<&str>()
+            .copied()
+            .or_else(|| payload.downcast_ref::<String>().map(String::as_str))
+            .unwrap_or("no message");
+        log::error!(
+            "Session {} stopped because a task panicked: {reason}",
+            self.session_id
+        );
     }
 
     #[cfg(target_family = "wasm")]
