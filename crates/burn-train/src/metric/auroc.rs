@@ -1,11 +1,9 @@
-use core::f64;
-
 use super::MetricMetadata;
 use super::state::{FormatOptions, PredictionAccumulatorState};
 use crate::metric::{
     ClassReduction, ConfusionStatsInput, Metric, MetricName, Numeric, SerializedEntry,
 };
-use burn_core::tensor::{Bool, Tensor, TensorReadError};
+use burn_core::tensor::{Bool, Tensor, TensorReadError, Transaction};
 use std::sync::Arc;
 
 /// The Area Under the Receiver Operating Characteristic Curve (AUROC, also
@@ -65,59 +63,91 @@ impl AurocMetric {
         Self::new(class_reduction)
     }
 
-    fn pairwise_auc(scores: Tensor<2>, targets: Tensor<2>) -> Tensor<1> {
-        let [n, c] = scores.dims();
+    /// Exact AUROC from a score sort and a scan of equal-score groups.
+    /// A group contributes one win for each lower-scored negative and half a
+    /// win for each negative in the same group, for every positive in it.
+    fn sorted_auc(samples: &mut Vec<(f64, bool)>) -> Option<f64> {
+        let positives = samples.iter().filter(|(_, target)| *target).count() as u128;
+        let negatives = samples.len() as u128 - positives;
+        if positives == 0 || negatives == 0 {
+            return None;
+        }
 
-        let si = scores.clone().reshape([n, 1, c]);
-        let sj = scores.reshape([1, n, c]);
+        // Comparisons with NaN contributed no wins or ties in the pairwise
+        // implementation, but those pairs still counted in the denominator.
+        samples.retain(|(score, _)| !score.is_nan());
+        samples.sort_unstable_by(|a, b| a.0.total_cmp(&b.0));
 
-        let yi = targets.clone().reshape([n, 1, c]);
-        let yj = targets.reshape([1, n, c]);
+        let mut negatives_below = 0u128;
+        let mut twice_winning_pairs = 0u128;
+        let mut index = 0;
+        while index < samples.len() {
+            let score = samples[index].0;
+            let mut group_positives = 0u128;
+            let mut group_negatives = 0u128;
+            // Numeric equality keeps -0.0 and +0.0 in the same tie group.
+            while index < samples.len() && samples[index].0 == score {
+                if samples[index].1 {
+                    group_positives += 1;
+                } else {
+                    group_negatives += 1;
+                }
+                index += 1;
+            }
 
-        let valid: Tensor<3> = yi * (1.0 - yj);
+            twice_winning_pairs += group_positives * (2 * negatives_below + group_negatives);
+            negatives_below += group_negatives;
+        }
 
-        let reduce = |t: Tensor<3>| t.sum_dim(0).sum_dim(1).squeeze_dims::<1>(&[0, 1]);
-
-        let num_pairs = reduce(valid.clone());
-        let correct_pairs = reduce(si.clone().greater(sj.clone()).float() * valid.clone());
-        let tied_pairs = reduce(si.equal(sj).float() * valid);
-
-        (correct_pairs + 0.5 * tied_pairs) / num_pairs
+        Some(twice_winning_pairs as f64 / (2 * positives * negatives) as f64)
     }
 
     fn compute_auc(
         &self,
-        predictions: &Tensor<2>,
-        targets: &Tensor<2, Bool>,
+        predictions: Tensor<2>,
+        targets: Tensor<2, Bool>,
     ) -> Result<f64, TensorReadError> {
         let [n, c] = predictions.dims();
+        let [scores_data, targets_data] = Transaction::default()
+            .register(predictions)
+            .register(targets)
+            .try_execute()?
+            .try_into()
+            .expect("Expected predictions and targets");
+        let scores = scores_data.try_into_vec_as::<f64>()?;
+        let targets = targets_data.try_into_vec_as::<bool>()?;
 
-        let (scores, targets) = match self.class_reduction {
-            ClassReduction::Macro => (predictions.clone(), targets.clone().float()),
-            ClassReduction::Micro => (
-                predictions.clone().reshape([n * c, 1]),
-                targets.clone().float().reshape([n * c, 1]),
-            ),
+        let auc = match self.class_reduction {
+            ClassReduction::Macro => {
+                let mut samples = Vec::with_capacity(n);
+                let mut sum = 0.0;
+                let mut count = 0;
+                for class in 0..c {
+                    samples.clear();
+                    for row in 0..n {
+                        let index = row * c + class;
+                        samples.push((scores[index], targets[index]));
+                    }
+                    if let Some(value) = Self::sorted_auc(&mut samples) {
+                        sum += value;
+                        count += 1;
+                    }
+                }
+                (count > 0).then(|| sum / count as f64)
+            }
+            ClassReduction::Micro => {
+                let mut samples = scores.into_iter().zip(targets).collect();
+                Self::sorted_auc(&mut samples)
+            }
         };
 
-        let auc = Self::pairwise_auc(scores, targets);
-
-        let keep = auc
-            .clone()
-            .is_nan()
-            .bool_not()
-            .argwhere()
-            .squeeze_dim::<1>(1);
-
-        if keep.dims()[0] == 0 {
+        Ok(auc.unwrap_or_else(|| {
             log::warn!(
                 "AUROC is undefined (no class has both positive and negative samples in the \
                  epoch); reporting 0.5 (chance level)."
             );
-            return Ok(0.5);
-        }
-
-        auc.select(0, keep).mean().try_into_scalar::<f64>()
+            0.5
+        }))
     }
 }
 
@@ -149,7 +179,7 @@ impl Metric for AurocMetric {
 
         // Recompute over the whole epoch
         let (predictions, targets) = self.state.tensors();
-        let metric = self.compute_auc(&predictions, &targets)?;
+        let metric = self.compute_auc(predictions, targets)?;
 
         // Complete the state with the calculated scalar
         Ok(self.state.compute(
@@ -316,6 +346,71 @@ mod tests {
         let _entry = metric.update(&input, &MetricMetadata::fake()).unwrap();
         let _entry = metric.compute().unwrap();
         assert_eq!(metric.final_value().current(), 50.0);
+    }
+
+    #[test]
+    fn test_auroc_mixed_ties() {
+        let device = Default::default();
+        let mut metric = AurocMetric::binary();
+        let input = ConfusionStatsInput::new(
+            Tensor::from_data([[0.9], [0.5], [0.5], [0.1]], &device),
+            Tensor::from_data([[1], [0], [1], [0]], &device),
+        );
+
+        metric.update(&input, &MetricMetadata::fake()).unwrap();
+        metric.compute().unwrap();
+
+        // Three wins and one tie among four positive-negative pairs.
+        assert_eq!(metric.final_value().current(), 87.5);
+    }
+
+    #[test]
+    fn test_auroc_signed_zero_tie() {
+        let device = Default::default();
+        let mut metric = AurocMetric::binary();
+        let input = ConfusionStatsInput::new(
+            Tensor::from_data([[0.0], [-0.0]], &device),
+            Tensor::from_data([[1], [0]], &device),
+        );
+
+        metric.update(&input, &MetricMetadata::fake()).unwrap();
+        metric.compute().unwrap();
+
+        assert_eq!(metric.final_value().current(), 50.0);
+    }
+
+    #[test]
+    fn test_auroc_nan_keeps_pairwise_semantics() {
+        let device = Default::default();
+        let mut metric = AurocMetric::binary();
+        let input = ConfusionStatsInput::new(
+            Tensor::from_data([[f32::NAN], [0.9], [0.8]], &device),
+            Tensor::from_data([[1], [1], [0]], &device),
+        );
+
+        metric.update(&input, &MetricMetadata::fake()).unwrap();
+        metric.compute().unwrap();
+
+        // The NaN pair stays in the denominator but contributes no win or tie.
+        assert_eq!(metric.final_value().current(), 50.0);
+    }
+
+    #[test]
+    fn test_auroc_large_epoch() {
+        let device = Default::default();
+        let n = 20_000;
+        let scores = (0..n).map(|i| i as f32 / n as f32).collect();
+        let targets = (0..n).map(|i| i32::from(i >= n / 2)).collect();
+        let input = ConfusionStatsInput::new(
+            Tensor::from_data(TensorData::new(scores, [n, 1]), &device),
+            Tensor::from_data(TensorData::new(targets, [n, 1]), &device),
+        );
+        let mut metric = AurocMetric::binary();
+
+        metric.update(&input, &MetricMetadata::fake()).unwrap();
+        metric.compute().unwrap();
+
+        assert_eq!(metric.final_value().current(), 100.0);
     }
 
     #[test]
