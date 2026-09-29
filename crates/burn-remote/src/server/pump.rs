@@ -237,8 +237,15 @@ mod tests {
         }
     }
 
-    fn handshake(session_id: SessionId) -> Bytes {
-        let init = vec![RemoteMessage::Init(SessionInit::new(session_id, 0, vec![]))];
+    /// The one device `FakeService` hosts.
+    const HOSTED_DEVICE: u32 = 0;
+
+    fn handshake(session_id: SessionId, device_index: u32) -> Bytes {
+        let init = vec![RemoteMessage::Init(SessionInit::new(
+            session_id,
+            device_index,
+            vec![],
+        ))];
         rmp_serde::to_vec(&init).unwrap().into()
     }
 
@@ -248,7 +255,7 @@ mod tests {
         let session_id = SessionId::new();
         let source = ScriptedSource(
             [
-                Ok(Some(handshake(session_id))),
+                Ok(Some(handshake(session_id, HOSTED_DEVICE))),
                 Err("connection reset".into()),
             ]
             .into(),
@@ -264,7 +271,7 @@ mod tests {
     async fn a_handshake_reply_that_fails_still_closes_its_session() {
         let service = Arc::new(FakeService::default());
         let session_id = SessionId::new();
-        let source = OpenSource(Some(handshake(session_id)));
+        let source = OpenSource(Some(handshake(session_id, HOSTED_DEVICE)));
 
         let result = tokio::time::timeout(
             std::time::Duration::from_secs(1),
@@ -284,7 +291,7 @@ mod tests {
             ..Default::default()
         });
         let session_id = SessionId::new();
-        let source = ScriptedSource([Ok(Some(handshake(session_id)))].into());
+        let source = ScriptedSource([Ok(Some(handshake(session_id, HOSTED_DEVICE)))].into());
 
         let result = drive_session(source, DiscardingSink, service.clone(), None, |_| Ok(())).await;
 
@@ -296,12 +303,8 @@ mod tests {
     async fn a_device_the_server_does_not_host_is_refused() {
         let service = Arc::new(FakeService::default());
         let unhosted_device = service.device_count();
-        let init = vec![RemoteMessage::Init(SessionInit::new(
-            SessionId::new(),
-            unhosted_device,
-            vec![],
-        ))];
-        let source = ScriptedSource([Ok(Some(rmp_serde::to_vec(&init).unwrap().into()))].into());
+        let source =
+            ScriptedSource([Ok(Some(handshake(SessionId::new(), unhosted_device)))].into());
 
         let result = drive_session(source, DiscardingSink, service.clone(), None, |_| Ok(())).await;
 
