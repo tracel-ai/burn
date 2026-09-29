@@ -2,7 +2,7 @@ use std::net::SocketAddr;
 
 use crate::{
     base::{CommunicationChannel, CommunicationError, Message, ProtocolServer},
-    websocket::base::DeadPeerTimeout,
+    websocket::base::{DeadPeerTimeout, MAX_MESSAGE_SIZE},
 };
 use axum::{
     Router,
@@ -99,9 +99,12 @@ impl ProtocolServer for WsServer {
         };
 
         let method = get(|ws: WebSocketUpgrade, _: State<()>| async {
-            ws.on_upgrade(async move |socket| {
-                callback(WsServerChannel { inner: socket }).await;
-            })
+            // Left unset, axum reads with tungstenite's defaults: 16 MiB a frame, 64 MiB a message.
+            ws.max_message_size(MAX_MESSAGE_SIZE)
+                .max_frame_size(MAX_MESSAGE_SIZE)
+                .on_upgrade(async move |socket| {
+                    callback(WsServerChannel { inner: socket }).await;
+                })
         });
 
         self.router = self.router.route(&path, method);
