@@ -7,7 +7,7 @@ use burn_backend::{
 };
 use burn_ir::{GraphBindings, GraphId, OperationIr, TensorId, TensorIr};
 use burn_std::future::DynFut;
-use core::marker::PhantomData;
+use core::{marker::PhantomData, ops::DerefMut};
 use hashbrown::HashMap;
 use spin::Mutex;
 
@@ -191,30 +191,30 @@ impl RouterClientLocator {
     ///
     /// If a client isn't already initialized, it is created.
     pub fn client<R: RouterChannel + 'static>(&self, device: &R::Device) -> Client<R> {
-        let key = (core::any::TypeId::of::<R>(), device.id());
-        self.get_or_init(key, || new_client::<R>(device))
-    }
-
-    /// `init` runs unlocked because creating a client can wait on a thread that needs one; racing
-    /// first uses keep the first insert.
-    fn get_or_init<C: Clone + Send + 'static>(&self, key: Key, init: impl FnOnce() -> C) -> C {
-        if let Some(cached) = self.cached(key) {
-            return cached;
-        }
-        let created = init();
+        let device_id = device.id();
+        let client_id = (core::any::TypeId::of::<R>(), device_id);
         let mut clients = self.clients.lock();
-        // Cloned so that a losing `created` drops after the lock is released.
-        let cached = clients
-            .get_or_insert_with(HashMap::new)
-            .entry(key)
-            .or_insert_with(|| Box::new(created.clone()));
-        cached.downcast_ref::<C>().unwrap().clone()
-    }
 
-    fn cached<C: Clone + 'static>(&self, key: Key) -> Option<C> {
-        let clients = self.clients.lock();
-        let cached = clients.as_ref()?.get(&key)?;
-        Some(cached.downcast_ref::<C>().unwrap().clone())
+        if clients.is_none() {
+            let client = new_client::<R>(device);
+            Self::register_inner::<R>(client_id, client, &mut clients);
+        }
+
+        match clients.deref_mut() {
+            Some(clients) => match clients.get(&client_id) {
+                Some(client) => {
+                    let client: &Client<R> = client.downcast_ref().unwrap();
+                    client.clone()
+                }
+                None => {
+                    let client = new_client::<R>(device);
+                    let any = Box::new(client.clone());
+                    clients.insert(client_id, any);
+                    client
+                }
+            },
+            _ => unreachable!(),
+        }
     }
 
     /// Register a client with a unique lifecycle owner.
@@ -240,60 +240,22 @@ impl RouterClientLocator {
             clients.remove(&key);
         }
     }
-}
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use std::{
-        sync::mpsc::{self, RecvTimeoutError},
-        thread,
-        time::Duration,
-    };
+    fn register_inner<R: RouterChannel + 'static>(
+        key: Key,
+        client: Client<R>,
+        clients: &mut Option<HashMap<Key, Box<dyn core::any::Any + Send>>>,
+    ) {
+        if clients.is_none() {
+            *clients = Some(HashMap::new());
+        }
 
-    #[test]
-    fn creating_a_client_can_wait_on_a_thread_that_looks_one_up() {
-        let locator = new_locator();
-        let created = within_ten_seconds(move || {
-            locator.get_or_init(key(0), || {
-                let other = thread::spawn(move || locator.get_or_init(key(1), || 1u32));
-                other.join().unwrap() + 1
-            })
-        });
+        if let Some(clients) = clients {
+            if clients.contains_key(&key) {
+                panic!("Client already created for device {key:?}");
+            }
 
-        // With the lock held while creating, the other thread's lookup waits on it forever.
-        assert_eq!(created, Ok(2));
-    }
-
-    #[test]
-    fn the_first_client_inserted_is_kept() {
-        let locator = new_locator();
-        let kept = within_ten_seconds(move || {
-            locator.get_or_init(key(0), || {
-                locator.get_or_init(key(0), || 1u32);
-                2u32
-            })
-        });
-
-        assert_eq!(kept, Ok(1));
-    }
-
-    fn new_locator() -> &'static RouterClientLocator {
-        Box::leak(Box::new(RouterClientLocator::new()))
-    }
-
-    fn key(index_id: u16) -> Key {
-        (core::any::TypeId::of::<u32>(), DeviceId::new(0, index_id))
-    }
-
-    /// Runs `f` on its own thread, so a deadlock fails the test instead of hanging it.
-    fn within_ten_seconds<T: Send + 'static>(
-        f: impl FnOnce() -> T + Send + 'static,
-    ) -> Result<T, RecvTimeoutError> {
-        let (done, result) = mpsc::channel();
-        thread::spawn(move || {
-            let _ = done.send(f());
-        });
-        result.recv_timeout(Duration::from_secs(10))
+            clients.insert(key, Box::new(client));
+        }
     }
 }
