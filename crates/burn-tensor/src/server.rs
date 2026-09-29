@@ -6,8 +6,9 @@
 //!
 //! Two serving modes:
 //!
-//! - Turnkey (start / start_async): no Iroh exposure. Pick an identity with RemoteSecret and pass
-//!   it in a Channel::Iroh; clients dial its public id.
+//! - Turnkey (start / start_async): no Iroh exposure. Pick an identity with RemoteSecret, configure
+//!   relays, port and authorizer on an IrohChannel, and pass it in a Channel::Iroh; clients dial
+//!   its public id.
 //! - Composed (protocol): for applications that own their own Iroh router. Burn hands back only
 //!   its protocol handler to register alongside the application's own protocols.
 //!
@@ -19,7 +20,8 @@ use std::sync::Arc;
 
 use crate::Device;
 pub use burn_dispatch::backends::remote::server::{
-    AllowAll, AuthorizationRequest, PeerAuthorizer, RemoteProtocol,
+    AllowAll, AuthorizationRequest, IrohChannel, PeerAuthorizer, RemoteProtocol, ServerLogging,
+    TokenAuthorizer,
 };
 pub use burn_dispatch::backends::remote::telemetry;
 pub use burn_dispatch::backends::remote::{Endpoint, RemoteSecret};

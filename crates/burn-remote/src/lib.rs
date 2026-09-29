@@ -28,11 +28,15 @@ pub use burn_router::RouterClient;
 pub(crate) mod metrics;
 
 #[cfg(feature = "iroh")]
-pub use iroh::{Endpoint, EndpointAddr, EndpointId};
-#[cfg(feature = "iroh")]
-pub use transport::iroh::RemoteSecret;
+pub use iroh::{Endpoint, EndpointAddr, EndpointId, endpoint::BindError};
+#[cfg(all(feature = "iroh", feature = "server"))]
+pub use transport::iroh::IrohChannel;
+#[cfg(all(feature = "iroh", feature = "client"))]
+pub use transport::iroh::IrohPeer;
 #[cfg(feature = "iroh")]
 pub use transport::iroh::node::BURN_REMOTE_ALPN;
+#[cfg(feature = "iroh")]
+pub use transport::iroh::{IrohRelays, RemoteSecret};
 pub use transport::{PeerAddr, PeerId};
 
 #[cfg(feature = "client")]

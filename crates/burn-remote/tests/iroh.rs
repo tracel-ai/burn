@@ -477,3 +477,56 @@ mod loader_uploads {
         });
     }
 }
+
+fn free_udp_port() -> u16 {
+    std::net::UdpSocket::bind("127.0.0.1:0")
+        .unwrap()
+        .local_addr()
+        .unwrap()
+        .port()
+}
+
+fn serve_with_token(port: u16) -> burn_remote::EndpointId {
+    use burn_remote::{
+        IrohChannel, IrohRelays, RemoteSecret,
+        server::{Channel, RemoteServerBuilder, TokenAuthorizer},
+    };
+    let channel = IrohChannel::new(RemoteSecret::random())
+        .relays(IrohRelays::Disabled)
+        .port(port)
+        .authorizer(TokenAuthorizer::new("fleet-token").unwrap());
+    let id = channel.id();
+    tokio::spawn(
+        RemoteServerBuilder::<Flex>::new(vec![Default::default()])
+            .channel(Channel::Iroh(Box::new(channel)))
+            .start_async(),
+    );
+    id
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_peer_with_the_token_reaches_a_relay_free_server_by_address() {
+    let port = free_udp_port();
+    let id = serve_with_token(port);
+    let peer = burn_remote::IrohPeer::new(id)
+        .relays(burn_remote::IrohRelays::Disabled)
+        .address(([127, 0, 0, 1], port).into())
+        .credential("fleet-token");
+
+    let device = Device::new(RemoteDevice::iroh_peer(&peer, 0).await.unwrap());
+    let data = Tensor::<1>::from_floats([4.0], &device) * 2.0;
+    assert_eq!(data.try_into_vec_as::<f32>().unwrap(), vec![8.0]);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_peer_with_the_wrong_token_is_refused() {
+    let port = free_udp_port();
+    let id = serve_with_token(port);
+    let peer = burn_remote::IrohPeer::new(id)
+        .relays(burn_remote::IrohRelays::Disabled)
+        .address(([127, 0, 0, 1], port).into())
+        .credential("wrong-token");
+
+    let connecting = tokio::spawn(async move { RemoteDevice::iroh_peer(&peer, 0).await });
+    assert!(connecting.await.is_err_and(|err| err.is_panic()));
+}

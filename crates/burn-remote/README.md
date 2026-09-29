@@ -39,17 +39,20 @@ tenant policy, and fleet membership remain application concerns.
 ## Compute peer
 
 ```rust,ignore
-use burn::{Device, server::{self, Channel}};
-use burn::backend::remote::RemoteNode;
+use burn::server::{self, Channel, IrohChannel, RemoteSecret, TokenAuthorizer};
+use burn::tensor::Device;
 
-let node = RemoteNode::bind().await?;
-println!("compute peer: {}", node.endpoint().addr());
+let secret = RemoteSecret::load_or_create("server.key")?;
+let channel = IrohChannel::new(secret)
+    .authorizer(TokenAuthorizer::new(token).expect("A non-empty token"));
+println!("compute peer: {}", channel.id());
 
-server::start_async(
-    Device::cuda(0),
-    Channel::Iroh { node },
-).await;
+server::start_async(Device::cuda(0), Channel::Iroh(Box::new(channel))).await;
 ```
+
+The channel uses n0's public relays by default. `.relays(IrohRelays::Private(url))` goes through a
+relay you run instead, and `.relays(IrohRelays::Disabled).port(4433)` serves direct connections
+only, on a UDP port clients dial.
 
 For an endpoint shared with other Iroh protocols, register Burn's composable handler in the
 application router:

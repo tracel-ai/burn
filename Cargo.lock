@@ -1319,6 +1319,7 @@ dependencies = [
  "rmp-serde",
  "serde",
  "serde_bytes",
+ "subtle",
  "tokio",
  "tokio-util",
  "tracing-subscriber",

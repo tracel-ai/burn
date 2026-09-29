@@ -121,32 +121,29 @@ let output = model.to_device(&device).forward(tensor);
 
 WebSocket remote devices are retained for existing deployments. New native integrations should
 prefer the Iroh transport, which identifies a server by its peer identity instead of requiring a
-fixed WebSocket address. The server exposes a local device with `Channel::Iroh` and a
-`RemoteSecret`; clients connect through an Iroh endpoint and receive the same unified `Device`:
+fixed WebSocket address. The server exposes a local device with an `IrohChannel`: its
+`RemoteSecret`, its relays, and who it serves. Clients describe the server with an `IrohPeer` and
+receive the same unified `Device`:
 
 ```rust, ignore
-let transport = QuicTransportConfig::builder()
-    .enable_segmentation_offload(false)
-    .build();
-let endpoint = Endpoint::builder(presets::N0)
-    .transport_config(transport)
-    .bind()
-    .await?;
-let device = Device::remote_iroh(&endpoint, server_id, 0);
+let peer = IrohPeer::new(server_id).credential(token);
+let device = Device::remote_iroh_peer(&peer, 0).await?;
 
 let tensor = Tensor::<1>::from_floats([1.0, 2.0, 3.0], &device);
 let output = tensor.square().sum(); // Executed by the remote server.
 ```
 
-Segmentation offload (GSO) is off because of an Iroh bug
+Segmentation offload (GSO) is off by default on both sides because of an Iroh bug
 ([iroh#4555](https://github.com/n0-computer/iroh/issues/4555)). On Linux before 6.11, a network card
 without TX checksum offload, such as most MediaTek wifi cards, refuses GSO sends, and Iroh keeps
-sending them on connections that are already open until those connections time out. The built-in
-server turns GSO off for the same reason.
+sending them on connections that are already open until those connections time out. Where the
+network stack is known to accept them, `segmentation_offload(true)` on the `IrohPeer` or the
+`IrohChannel` turns it back on.
 
 A system should generate a random `RemoteSecret` and distribute its public identity through a
-trusted channel. `Device::remote_iroh_authorized` also sends an application-defined credential to
-servers that enforce peer authorization. Async constructors are available for browser targets, where
+trusted channel. An `IrohChannel` serves every peer unless given an authorizer, such as a
+`TokenAuthorizer` checking the credential its clients set on their `IrohPeer`. Applications that own
+an Iroh endpoint can still pass it to `Device::remote_iroh` or `Device::remote_iroh_authorized`. Async constructors are available for browser targets, where
 a synchronous connection cannot be established.
 
 ### DDP on Remote Devices

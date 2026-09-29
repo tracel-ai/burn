@@ -56,6 +56,42 @@ impl PeerAuthorizer for AllowAll {
     }
 }
 
+/// Serves only the clients whose credential is this token, given with
+/// [`IrohPeer::credential`](crate::IrohPeer::credential).
+#[derive(Clone)]
+pub struct TokenAuthorizer {
+    token: Arc<[u8]>,
+}
+
+impl TokenAuthorizer {
+    /// `None` for an empty token, which every client that sends no credential would present.
+    pub fn new(token: impl Into<Vec<u8>>) -> Option<Self> {
+        let token: Vec<u8> = token.into();
+        (!token.is_empty()).then(|| Self {
+            token: token.into(),
+        })
+    }
+}
+
+impl PeerAuthorizer for TokenAuthorizer {
+    fn authorize(&self, request: AuthorizationRequest<'_>) -> Result<(), String> {
+        use subtle::ConstantTimeEq;
+
+        // Constant time, so how long a guess takes reveals nothing about the token.
+        if bool::from(request.credential.ct_eq(&self.token)) {
+            Ok(())
+        } else {
+            Err(format!("{} presented the wrong token", request.peer))
+        }
+    }
+}
+
+impl fmt::Debug for TokenAuthorizer {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("TokenAuthorizer").finish_non_exhaustive()
+    }
+}
+
 /// Iroh protocol handler for Burn Remote compute and tensor-transfer streams.
 ///
 /// Register this handler in an existing Iroh `Router` to compose Burn with other application
@@ -203,4 +239,30 @@ impl<B: BackendIr> ProtocolHandler for IrohRemoteProtocol<B> {
 
 fn user_error(reason: String) -> AcceptError {
     AcceptError::from_err(std::io::Error::other(reason))
+}
+
+#[cfg(test)]
+mod token_tests {
+    use super::*;
+
+    fn request(credential: &[u8]) -> AuthorizationRequest<'_> {
+        AuthorizationRequest {
+            peer: iroh::SecretKey::generate().public(),
+            device_index: 0,
+            credential,
+        }
+    }
+
+    #[test]
+    fn an_empty_token_is_refused() {
+        assert!(TokenAuthorizer::new(Vec::new()).is_none());
+    }
+
+    #[test]
+    fn only_the_token_is_let_in() {
+        let authorizer = TokenAuthorizer::new("secret-token").unwrap();
+        assert!(authorizer.authorize(request(b"secret-token")).is_ok());
+        assert!(authorizer.authorize(request(b"secret-toke")).is_err());
+        assert!(authorizer.authorize(request(b"")).is_err());
+    }
 }

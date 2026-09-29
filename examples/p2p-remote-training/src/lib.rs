@@ -1,4 +1,4 @@
-use burn::server::{Channel, RemoteSecret};
+use burn::server::{Channel, IrohChannel, RemoteSecret};
 use burn::tensor::{Device, Distribution, Tensor};
 use iroh::{
     Endpoint, EndpointId,
@@ -28,9 +28,7 @@ pub async fn run_server(topic: &str) {
     tracing::info!("waiting for clients (press Ctrl-C to stop)");
     burn::server::start_async(
         Device::flex(),
-        Channel::Iroh {
-            secret: Box::new(secret),
-        },
+        Channel::Iroh(Box::new(IrohChannel::new(secret))),
     )
     .await;
     tracing::info!("server stopped");

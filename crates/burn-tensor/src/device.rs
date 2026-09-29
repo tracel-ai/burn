@@ -492,6 +492,25 @@ impl Device {
         Self::new(device)
     }
 
+    /// A device on the Iroh server `peer` describes, dialed from an endpoint Burn binds for it.
+    ///
+    /// # Errors
+    ///
+    /// The endpoint could not be bound.
+    ///
+    /// # Panics
+    ///
+    /// The server refused the session, or could not be reached.
+    #[cfg(all(feature = "remote", not(target_family = "wasm")))]
+    pub async fn remote_iroh_peer(
+        peer: &crate::remote::IrohPeer,
+        index: impl Into<DeviceIndex>,
+    ) -> Result<Self, crate::remote::BindError> {
+        let index = index.into().resolve();
+        let device = burn_dispatch::backends::remote::RemoteDevice::iroh_peer(peer, index).await?;
+        Ok(Self::new(device))
+    }
+
     /// Browser counterpart of `remote_iroh_authorized`. Establishes the session asynchronously.
     #[cfg(all(feature = "remote", any(target_family = "wasm", doc)))]
     pub async fn remote_iroh_authorized_async(

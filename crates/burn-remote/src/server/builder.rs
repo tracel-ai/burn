@@ -13,12 +13,9 @@ pub enum Channel {
         /// Port to bind on.
         port: u16,
     },
-    /// Iroh peer-to-peer transport. The server's address is `secret.id()`; clients dial that.
+    /// Iroh peer-to-peer transport. Clients dial the channel's [`id`](crate::IrohChannel::id).
     #[cfg(feature = "iroh")]
-    Iroh {
-        /// The server's stable identity, its address knob (like a port for WebSocket).
-        secret: Box<crate::RemoteSecret>,
-    },
+    Iroh(Box<crate::IrohChannel>),
 }
 
 /// Default port used when none is configured on the builder.
@@ -30,9 +27,8 @@ impl core::fmt::Debug for Channel {
         match self {
             #[cfg(feature = "websocket")]
             Channel::WebSocket { port } => f.debug_struct("WebSocket").field("port", port).finish(),
-            // Show the public identity, never the secret key material.
             #[cfg(feature = "iroh")]
-            Channel::Iroh { secret } => f.debug_struct("Iroh").field("id", &secret.id()).finish(),
+            Channel::Iroh(channel) => f.debug_tuple("Iroh").field(channel).finish(),
         }
     }
 }
@@ -44,9 +40,9 @@ impl Default for Channel {
         // Without WebSocket the default is Iroh on a fresh random identity; a host that wants a
         // dialable address sets its own secret with [`Channel::Iroh`].
         #[cfg(all(feature = "iroh", not(feature = "websocket")))]
-        return Channel::Iroh {
-            secret: Box::new(crate::RemoteSecret::random()),
-        };
+        return Channel::Iroh(Box::new(crate::IrohChannel::new(
+            crate::RemoteSecret::random(),
+        )));
     }
 }
 
@@ -142,9 +138,9 @@ impl<B: BackendIr> RemoteServerBuilder<B> {
                 .await;
             }
             #[cfg(feature = "iroh")]
-            Channel::Iroh { secret } => {
+            Channel::Iroh(channel) => {
                 crate::transport::iroh::server::start_iroh_async::<B>(
-                    *secret,
+                    *channel,
                     self.devices,
                     self.custom_ops,
                 )
