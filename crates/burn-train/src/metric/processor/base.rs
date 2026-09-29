@@ -73,7 +73,7 @@ pub trait EventProcessorTraining<TrainEvent, ValidEvent>: Send {
     ///
     /// # Errors
     ///
-    /// Returns a [`ProcessorError`] listing every metric that could not process the event.
+    /// Returns a [`EventProcessorError`] listing every metric that could not process the event.
     /// The other metrics still processed it. Note that an asynchronous processor reports
     /// it on a later call instead (see [`AsyncProcessorTraining`](super::AsyncProcessorTraining)).
     fn process_train(&mut self, event: TrainEvent) -> Result<(), EventProcessorError>;
@@ -87,7 +87,7 @@ pub trait EventProcessorTraining<TrainEvent, ValidEvent>: Send {
     ///
     /// # Errors
     ///
-    /// Returns a [`ProcessorError`] listing every metric failure among the events processed
+    /// Returns a [`EventProcessorError`] listing every metric failure among the events processed
     /// since the last error was reported.
     fn flush(&mut self) -> Result<(), EventProcessorError> {
         Ok(())
@@ -105,7 +105,7 @@ pub trait EventProcessorEvaluation: Send {
     ///
     /// # Errors
     ///
-    /// Returns a [`ProcessorError`] listing every metric that could not process the event.
+    /// Returns a [`EventProcessorError`] listing every metric that could not process the event.
     /// The other metrics still processed it. Note that an asynchronous processor reports
     /// it on a later call instead (see [`AsyncProcessorEvaluation`](super::AsyncProcessorEvaluation)).
     fn process_test(
@@ -117,7 +117,7 @@ pub trait EventProcessorEvaluation: Send {
     ///
     /// # Errors
     ///
-    /// Returns a [`ProcessorError`] listing every metric failure among the events processed
+    /// Returns a [`EventProcessorError`] listing every metric failure among the events processed
     /// since the last error was reported.
     fn flush(&mut self) -> Result<(), EventProcessorError> {
         Ok(())

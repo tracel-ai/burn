@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
 use crate::{
-    EpisodeSummary, EvaluationItem, EventProcessorTraining, ItemLazy, LearnerSummary,
-    ProcessorError, RLMetrics,
+    EpisodeSummary, EvaluationItem, EventProcessorError, EventProcessorTraining, ItemLazy,
+    LearnerSummary, RLMetrics,
     logger::TrainingProgressLogger,
     metric::store::{Event, EventStoreClient, MetricsUpdate, Split},
     renderer::{MetricState, MetricsRenderer},
@@ -107,7 +107,7 @@ impl<TS: ItemLazy, ES: ItemLazy> RLEventProcessor<TS, ES> {
 impl<TS: ItemLazy, ES: ItemLazy> EventProcessorTraining<RLEvent<TS, ES>, AgentEvaluationEvent<ES>>
     for RLEventProcessor<TS, ES>
 {
-    fn process_train(&mut self, event: RLEvent<TS, ES>) -> Result<(), ProcessorError> {
+    fn process_train(&mut self, event: RLEvent<TS, ES>) -> Result<(), EventProcessorError> {
         let mut failures = Vec::new();
         match event {
             RLEvent::Start { total_items, label } => {
@@ -126,7 +126,7 @@ impl<TS: ItemLazy, ES: ItemLazy> EventProcessorTraining<RLEvent<TS, ES>, AgentEv
             RLEvent::TrainStep(item) => {
                 let item = match item.sync() {
                     Ok(item) => item,
-                    Err(error) => return Err(ProcessorError::sync(Split::Train, error)),
+                    Err(error) => return Err(EventProcessorError::sync(Split::Train, error)),
                 };
                 let metadata = (&item).into();
 
@@ -142,7 +142,7 @@ impl<TS: ItemLazy, ES: ItemLazy> EventProcessorTraining<RLEvent<TS, ES>, AgentEv
             RLEvent::EnvStep(item) => {
                 let item = match item.sync() {
                     Ok(item) => item,
-                    Err(error) => return Err(ProcessorError::sync(Split::Train, error)),
+                    Err(error) => return Err(EventProcessorError::sync(Split::Train, error)),
                 };
                 let metadata = (&item).into();
 
@@ -160,7 +160,7 @@ impl<TS: ItemLazy, ES: ItemLazy> EventProcessorTraining<RLEvent<TS, ES>, AgentEv
             RLEvent::EpisodeEnd(item) => {
                 let item = match item.sync() {
                     Ok(item) => item,
-                    Err(error) => return Err(ProcessorError::sync(Split::Train, error)),
+                    Err(error) => return Err(EventProcessorError::sync(Split::Train, error)),
                 };
                 let metadata = (&item).into();
 
@@ -181,10 +181,13 @@ impl<TS: ItemLazy, ES: ItemLazy> EventProcessorTraining<RLEvent<TS, ES>, AgentEv
                 self.renderer.on_train_end(learner_summary).ok();
             }
         }
-        ProcessorError::from_errors(failures)
+        EventProcessorError::from_errors(failures)
     }
 
-    fn process_valid(&mut self, event: AgentEvaluationEvent<ES>) -> Result<(), ProcessorError> {
+    fn process_valid(
+        &mut self,
+        event: AgentEvaluationEvent<ES>,
+    ) -> Result<(), EventProcessorError> {
         let mut failures = Vec::new();
         match event {
             AgentEvaluationEvent::Start(num_episodes) => {
@@ -196,7 +199,7 @@ impl<TS: ItemLazy, ES: ItemLazy> EventProcessorTraining<RLEvent<TS, ES>, AgentEv
             AgentEvaluationEvent::EnvStep(item) => {
                 let item = match item.sync() {
                     Ok(item) => item,
-                    Err(error) => return Err(ProcessorError::sync(Split::Valid, error)),
+                    Err(error) => return Err(EventProcessorError::sync(Split::Valid, error)),
                 };
                 let metadata = (&item).into();
 
@@ -212,7 +215,7 @@ impl<TS: ItemLazy, ES: ItemLazy> EventProcessorTraining<RLEvent<TS, ES>, AgentEv
             AgentEvaluationEvent::EpisodeEnd(item) => {
                 let item = match item.sync() {
                     Ok(item) => item,
-                    Err(error) => return Err(ProcessorError::sync(Split::Valid, error)),
+                    Err(error) => return Err(EventProcessorError::sync(Split::Valid, error)),
                 };
                 let metadata = (&item).into();
 
@@ -234,7 +237,7 @@ impl<TS: ItemLazy, ES: ItemLazy> EventProcessorTraining<RLEvent<TS, ES>, AgentEv
                 self.renderer.end_split();
             }
         }
-        ProcessorError::from_errors(failures)
+        EventProcessorError::from_errors(failures)
     }
 
     fn renderer(self) -> Box<dyn MetricsRenderer> {

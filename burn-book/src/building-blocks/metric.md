@@ -167,7 +167,7 @@ pub trait Metric: Send + Sync + Clone {
 In `update` and `compute`, read tensors with the fallible methods (`try_into_data`, `try_into_scalar`)
 and propagate the error with `?` to keep the event processor reporting errors to the learner. The
 processor still updates the other metrics, and reports every metric that failed, each with its
-name and split, as a `MetricsError`. When `update` fails, the metric state could hold part or none of that update.
+name and split, as a `EventProcessorError`. When `update` fails, the metric state could hold part or none of that update.
 This includes tensors the metric keeps across batches, such as running totals: once one of them was computed from
 a failed input, reading it fails too, until `clear` resets the state at the end of the epoch.
 

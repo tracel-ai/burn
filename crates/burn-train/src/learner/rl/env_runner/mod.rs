@@ -290,7 +290,7 @@ pub(crate) mod tests {
         fn process_train(
             &mut self,
             _event: RLEvent<(), MockActionContext>,
-        ) -> Result<(), crate::ProcessorError> {
+        ) -> Result<(), crate::EventProcessorError> {
             // Mock process train
             Ok(())
         }
@@ -298,7 +298,7 @@ pub(crate) mod tests {
         fn process_valid(
             &mut self,
             _event: AgentEvaluationEvent<MockActionContext>,
-        ) -> Result<(), crate::ProcessorError> {
+        ) -> Result<(), crate::EventProcessorError> {
             // Mock process valid
             Ok(())
         }

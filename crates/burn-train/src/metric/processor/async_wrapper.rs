@@ -11,7 +11,7 @@ use std::thread::JoinHandle;
 /// [`process_train`](EventProcessorTraining::process_train),
 /// [`process_valid`](EventProcessorTraining::process_valid) or
 /// [`flush`](EventProcessorTraining::flush), whichever comes first. That call returns every
-/// failure since the last one it reported, as one [`ProcessorError`].
+/// failure since the last one it reported, as one [`EventProcessorError`].
 pub struct AsyncProcessorTraining<ET, EV> {
     sender: Sender<Message<ET, EV>>,
     worker: Worker,

@@ -45,6 +45,9 @@ default features.
 Device-level operations previously called through `B: Backend`, such as seeding and synchronization,
 are now methods on `Device`. See [Using a Device](./building-blocks/backend.md#using-a-device).
 
+`Device::flush()` returns `Result<(), ExecutionError>`: it fails when the buffered operations cannot
+be dispatched, e.g. on a poisoned device. Propagate the error with `?` or handle it.
+
 When upgrading a model, remove its backend parameter and the corresponding parameters on fields and
 methods. The rank and kind remain part of the tensor type:
 
@@ -388,6 +391,10 @@ Update the metric lifecycle:
   `try_into_data()` or `try_into_scalar()` and propagate errors with `?`; wrap other return values
   in `Ok(..)`. `ConfusionStatsState::compute_update` also returns a `Result`.
 
+Custom training outputs implement `ItemLazy::sync(self) -> Result<Self, ExecutionError>`: propagate
+`device.flush()?` and wrap the returned output in `Ok(..)`. When an output cannot be synced, the
+event processor reports it once, as a `EventProcessorFailure::Sync`, and no metric processes that event.
+
 See [Custom Metric](./building-blocks/metric.md#custom-metric) for an implementation example.
 
 ### Renderers and event processors
@@ -406,9 +413,10 @@ Update custom event matches:
 | `LearnerEvent::StartSplit` / `EndSplit` | Handle the new split lifecycle events                   |
 | `EvaluatorEvent::StartTest` / `EndTest` | Handle the new test lifecycle events                    |
 
-Event processor methods return `Result<(), MetricsError>`: `process_train`, `process_valid`,
-`flush`, and `process_test`. A `MetricsError` lists every metric that failed, with its name and
-split. `EventProcessorEvaluation` gains a `flush` method with a default implementation. Custom
+Event processor methods return `Result<(), EventProcessorError>`: `process_train`, `process_valid`,
+`flush`, and `process_test`. A `EventProcessorError` lists every failure: a metric that failed
+(`EventProcessorFailure::Metric`, with its name and split) or an event that could not be synced
+(`EventProcessorFailure::Sync`). `EventProcessorEvaluation` gains a `flush` method with a default implementation. Custom
 processors return `Ok(())` on success.
 
 In a custom `SupervisedLearningStrategy`, handle each processor result: pass it to
