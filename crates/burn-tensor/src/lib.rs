@@ -62,6 +62,8 @@ pub use burn_std::{
 mod device;
 pub use device::*;
 
+#[cfg(feature = "remote")]
+pub mod remote;
 #[cfg(feature = "remote-server")]
 pub mod server;
 

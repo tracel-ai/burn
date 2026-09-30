@@ -106,7 +106,7 @@ pub enum RemoteMessage {
 
 /// Client-side session handshake.
 #[allow(missing_docs)]
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct SessionInit {
     pub version: u16,
     pub session_id: SessionId,
@@ -114,6 +114,17 @@ pub struct SessionInit {
     /// Opaque application credential interpreted by the compute node's authorizer.
     #[serde(with = "serde_bytes")]
     pub authorization: Vec<u8>,
+}
+
+impl core::fmt::Debug for SessionInit {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        // Never the authorization, which is often a shared secret.
+        f.debug_struct("SessionInit")
+            .field("version", &self.version)
+            .field("session_id", &self.session_id)
+            .field("device_index", &self.device_index)
+            .finish_non_exhaustive()
+    }
 }
 
 impl SessionInit {

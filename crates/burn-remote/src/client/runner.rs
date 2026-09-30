@@ -241,6 +241,17 @@ impl RemoteDevice {
         authorization: Vec<u8>,
     ) -> Self {
         let node = crate::transport::iroh::node::RemoteNode::from_endpoint(endpoint.clone());
+        Self::iroh_on_node(node, peer, device_index, authorization)
+    }
+
+    /// Like [`iroh_authorized`](Self::iroh_authorized), sharing `node`'s connections.
+    #[cfg(feature = "iroh")]
+    pub(crate) fn iroh_on_node(
+        node: crate::transport::iroh::node::RemoteNode,
+        peer: iroh::EndpointAddr,
+        device_index: usize,
+        authorization: Vec<u8>,
+    ) -> Self {
         let endpoint = RemoteEndpoint::Iroh {
             node,
             peer,

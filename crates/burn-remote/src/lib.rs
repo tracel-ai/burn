@@ -1,7 +1,8 @@
 //! Peer-to-peer remote tensor execution for Burn.
 //!
-//! Iroh is the primary transport. Applications own an Iroh [`Endpoint`] and build remote devices
-//! from it; a server hosts compute on its own endpoint. Compute sessions use bidirectional QUIC
+//! Iroh is the primary transport. A client describes a server with an `IrohPeer`, or dials it from
+//! an Iroh [`Endpoint`] the application owns; a server hosts compute on its own endpoint, or
+//! registers Burn's protocol on the application's. Compute sessions use bidirectional QUIC
 //! streams, while cross-peer tensor movement uses independent authenticated streams without
 //! routing payloads through the controlling client.
 //!
@@ -28,11 +29,13 @@ pub use burn_router::RouterClient;
 pub(crate) mod metrics;
 
 #[cfg(feature = "iroh")]
-pub use iroh::{Endpoint, EndpointAddr, EndpointId};
-#[cfg(feature = "iroh")]
-pub use transport::iroh::RemoteSecret;
+pub use iroh::{Endpoint, EndpointAddr, EndpointId, RelayUrl};
 #[cfg(feature = "iroh")]
 pub use transport::iroh::node::BURN_REMOTE_ALPN;
+#[cfg(all(feature = "iroh", feature = "client", not(target_family = "wasm")))]
+pub use transport::iroh::{ConnectError, IrohPeer, IrohPeerBuilder};
+#[cfg(feature = "iroh")]
+pub use transport::iroh::{IrohRelays, RemoteSecret};
 pub use transport::{PeerAddr, PeerId};
 
 #[cfg(feature = "client")]
@@ -43,13 +46,13 @@ mod __client {
 
     /// The remote backend allows you to run computation on a remote device.
     ///
-    /// Iroh is the primary transport. Applications own an Iroh [`Endpoint`], resolve a compute peer
-    /// through their own discovery/control plane, and construct devices from the endpoint and the
-    /// peer's address with [`RemoteDevice::iroh`] (or the `Device::remote_iroh` facade).
+    /// Iroh is the primary transport. Describe a compute server with an `IrohPeer` and connect to
+    /// one of its devices, or dial it from an Iroh [`Endpoint`] the application owns with
+    /// [`RemoteDevice::iroh`] (or the `Device::remote_iroh` facade).
     ///
     /// ```rust, ignore
-    /// let endpoint = Endpoint::builder(presets::N0).bind().await?;
-    /// let remote = RemoteDevice::iroh(&endpoint, compute_peer, 0);
+    /// let peer = IrohPeerBuilder::new(server_id).with_credential(token).build();
+    /// let remote = peer.connect(0).await?;
     /// ```
     ///
     /// For backends that aren't part of `DispatchDevice` but implement

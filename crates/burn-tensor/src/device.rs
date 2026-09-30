@@ -492,6 +492,24 @@ impl Device {
         Self::new(device)
     }
 
+    /// A device on the Iroh server `peer` describes, dialed from the peer's endpoint.
+    ///
+    /// # Errors
+    ///
+    /// See [`ConnectError`](crate::remote::ConnectError).
+    ///
+    /// # Panics
+    ///
+    /// The server refused the session, or could not be reached.
+    #[cfg(all(feature = "remote", not(target_family = "wasm")))]
+    pub async fn remote_iroh_peer(
+        peer: &crate::remote::IrohPeer,
+        index: impl Into<DeviceIndex>,
+    ) -> Result<Self, crate::remote::ConnectError> {
+        let index = index.into().resolve();
+        Ok(Self::new(peer.connect(index).await?))
+    }
+
     /// Browser counterpart of `remote_iroh_authorized`. Establishes the session asynchronously.
     #[cfg(all(feature = "remote", any(target_family = "wasm", doc)))]
     pub async fn remote_iroh_authorized_async(
