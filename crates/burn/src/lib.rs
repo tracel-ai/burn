@@ -197,6 +197,8 @@ pub mod rl {
     pub use burn_rl::*;
 }
 
+#[cfg(feature = "remote")]
+pub use burn_core::tensor::remote;
 #[cfg(feature = "remote-server")]
 pub use burn_core::tensor::server;
 

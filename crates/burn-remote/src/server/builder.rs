@@ -13,11 +13,12 @@ pub enum Channel {
         /// Port to bind on.
         port: u16,
     },
-    /// Iroh peer-to-peer transport. The server's address is `secret.id()`; clients dial that.
+    /// Iroh peer-to-peer transport.
     #[cfg(feature = "iroh")]
     Iroh {
-        /// The server's stable identity, its address knob (like a port for WebSocket).
-        secret: Box<crate::RemoteSecret>,
+        /// The server's identity, relays, port and authorizer. Clients dial its
+        /// [`id`](crate::server::IrohChannel::id).
+        channel: crate::server::IrohChannel,
     },
 }
 
@@ -30,9 +31,8 @@ impl core::fmt::Debug for Channel {
         match self {
             #[cfg(feature = "websocket")]
             Channel::WebSocket { port } => f.debug_struct("WebSocket").field("port", port).finish(),
-            // Show the public identity, never the secret key material.
             #[cfg(feature = "iroh")]
-            Channel::Iroh { secret } => f.debug_struct("Iroh").field("id", &secret.id()).finish(),
+            Channel::Iroh { channel } => f.debug_struct("Iroh").field("channel", channel).finish(),
         }
     }
 }
@@ -42,10 +42,10 @@ impl Default for Channel {
         #[cfg(feature = "websocket")]
         return Channel::WebSocket { port: DEFAULT_PORT };
         // Without WebSocket the default is Iroh on a fresh random identity; a host that wants a
-        // dialable address sets its own secret with [`Channel::Iroh`].
+        // stable address builds its own channel with an `IrohChannelBuilder`.
         #[cfg(all(feature = "iroh", not(feature = "websocket")))]
         return Channel::Iroh {
-            secret: Box::new(crate::RemoteSecret::random()),
+            channel: crate::server::IrohChannelBuilder::new(crate::RemoteSecret::random()).build(),
         };
     }
 }
@@ -142,14 +142,7 @@ impl<B: BackendIr> RemoteServerBuilder<B> {
                 .await;
             }
             #[cfg(feature = "iroh")]
-            Channel::Iroh { secret } => {
-                crate::transport::iroh::server::start_iroh_async::<B>(
-                    *secret,
-                    self.devices,
-                    self.custom_ops,
-                )
-                .await;
-            }
+            Channel::Iroh { channel } => channel.serve(self.devices, self.custom_ops).await,
         }
     }
 
