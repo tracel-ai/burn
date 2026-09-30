@@ -5,7 +5,7 @@ use iroh::{Endpoint, EndpointAddr, endpoint::BindError};
 use tokio::sync::OnceCell;
 
 use super::{node::RemoteNode, relays::IrohRelays};
-use crate::RemoteDevice;
+use crate::{RemoteDevice, client::SessionError};
 
 /// An Iroh compute server as a client dials it: its id and any addresses to try directly, the
 /// relays it uses, and the credential its authorizer checks. Built with [`IrohPeerBuilder`].
@@ -26,12 +26,7 @@ impl IrohPeer {
     ///
     /// # Errors
     ///
-    /// Relays are disabled and no address was given, the endpoint could not be bound, or the
-    /// runtime shut down first.
-    ///
-    /// # Panics
-    ///
-    /// The server refused the session, or could not be reached.
+    /// See [`ConnectError`].
     pub async fn connect(&self, device_index: usize) -> Result<RemoteDevice, ConnectError> {
         // An application's endpoint may find the server through its own address lookup.
         let has_endpoint = self.node.initialized();
@@ -58,8 +53,9 @@ impl IrohPeer {
 
         // The handshake blocks until the server answers, so it runs off the async workers.
         let connecting = device.clone();
-        match tokio::task::spawn_blocking(move || connecting.connect()).await {
-            Ok(()) => Ok(device),
+        match tokio::task::spawn_blocking(move || connecting.try_connect()).await {
+            Ok(Ok(())) => Ok(device),
+            Ok(Err(err)) => Err(err.into()),
             Err(err) => match err.try_into_panic() {
                 Ok(panic) => std::panic::resume_unwind(panic),
                 Err(_) => Err(ConnectError::Interrupted),
@@ -159,6 +155,34 @@ pub enum ConnectError {
     },
     /// The runtime shut down before the connection was attempted.
     Interrupted,
+    /// No connection to the server could be opened: it is not running, or nothing answered at
+    /// its addresses.
+    Unreachable {
+        /// Why, as the transport reported it.
+        reason: String,
+    },
+    /// The server refused the session: its authorizer rejected the credential, or it does not
+    /// host the device.
+    Refused {
+        /// The server's reason.
+        reason: String,
+    },
+    /// The server was reached, but the session handshake broke off or its reply made no sense,
+    /// as with a server on another version of Burn.
+    Handshake {
+        /// What went wrong.
+        reason: String,
+    },
+}
+
+impl From<SessionError> for ConnectError {
+    fn from(err: SessionError) -> Self {
+        match err {
+            SessionError::Unreachable { reason } => Self::Unreachable { reason },
+            SessionError::Refused { reason } => Self::Refused { reason },
+            SessionError::Handshake { reason } => Self::Handshake { reason },
+        }
+    }
 }
 
 impl fmt::Display for ConnectError {
@@ -167,6 +191,9 @@ impl fmt::Display for ConnectError {
             Self::NoAddress => f.write_str("relays are disabled and no address was given"),
             Self::Bind { source } => write!(f, "cannot bind an Iroh endpoint: {source}"),
             Self::Interrupted => f.write_str("the runtime shut down before connecting"),
+            Self::Unreachable { reason } => f.write_str(reason),
+            Self::Refused { reason } => write!(f, "the server refused the session: {reason}"),
+            Self::Handshake { reason } => write!(f, "the session handshake failed: {reason}"),
         }
     }
 }
@@ -175,7 +202,11 @@ impl std::error::Error for ConnectError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
             Self::Bind { source } => Some(source),
-            Self::NoAddress | Self::Interrupted => None,
+            Self::NoAddress
+            | Self::Interrupted
+            | Self::Unreachable { .. }
+            | Self::Refused { .. }
+            | Self::Handshake { .. } => None,
         }
     }
 }

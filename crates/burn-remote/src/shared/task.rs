@@ -14,8 +14,8 @@ use crate::{PeerAddr, PeerId};
 ///
 /// Bumped whenever [`Task`] or [`TaskResponseContent`] changes shape, so a
 /// mismatched peer is refused at the handshake rather than failing to decode
-/// a batch mid-session. `2`: profiling windows.
-pub const PROTOCOL_VERSION: u16 = 2;
+/// a batch mid-session. `2`: profiling windows. `3`: a refused session says why.
+pub const PROTOCOL_VERSION: u16 = 3;
 
 /// Routing id for a task whose result is fetched back.
 ///
@@ -269,4 +269,7 @@ pub enum TaskResponseContent {
     /// The window's duration on the server's clock; `None` when it carried no
     /// measurement.
     ProfileEnd(Result<Option<Duration>, ExecutionError>),
+    /// The server's answer to an `Init` it will not serve, in place of [`Init`](Self::Init):
+    /// why, before it closes the session.
+    InitRefused(String),
 }

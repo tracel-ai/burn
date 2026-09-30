@@ -497,10 +497,6 @@ impl Device {
     /// # Errors
     ///
     /// See [`ConnectError`](crate::remote::ConnectError).
-    ///
-    /// # Panics
-    ///
-    /// The server refused the session, or could not be reached.
     #[cfg(all(feature = "remote", not(target_family = "wasm")))]
     pub async fn remote_iroh_peer(
         peer: &crate::remote::IrohPeer,

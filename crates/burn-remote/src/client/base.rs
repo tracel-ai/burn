@@ -1,3 +1,5 @@
+#[cfg(all(feature = "iroh", not(target_family = "wasm")))]
+use super::SessionError;
 use super::{RemoteDevice, service::RemoteService};
 use burn_backend::{DeviceHandle, backend::Device};
 
@@ -30,6 +32,15 @@ impl RemoteClient {
         self.handle
             .submit_blocking(|s| s.ensure_connected())
             .expect("Service call failed");
+    }
+
+    /// [`ensure_connected`](Self::ensure_connected), returning why the session could not be
+    /// opened instead of panicking.
+    #[cfg(all(feature = "iroh", not(target_family = "wasm")))]
+    pub(crate) fn try_connect(&self) -> Result<(), SessionError> {
+        self.handle
+            .submit_blocking(|s| s.try_connect())
+            .expect("Service call failed")
     }
 
     /// Establish the session asynchronously, the way the browser requires.

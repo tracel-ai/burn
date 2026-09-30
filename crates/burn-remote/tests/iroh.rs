@@ -543,18 +543,41 @@ mod iroh_peer {
         admitted.connect(0).await.unwrap();
 
         let refused = direct_peer(id, Ipv4Addr::LOCALHOST.into(), port, "wrong-token");
-        let panic = tokio::spawn(async move { refused.connect(0).await })
-            .await
-            .unwrap_err()
-            .into_panic();
-        let message = panic
-            .downcast_ref::<String>()
-            .map(String::as_str)
-            .or_else(|| panic.downcast_ref::<&str>().copied())
-            .unwrap();
+        let result = refused.connect(0).await;
         assert!(
-            message.contains("disconnected during initialization"),
-            "{message}"
+            matches!(&result, Err(ConnectError::Refused { reason }) if reason.contains("wrong token")),
+            "{result:?}"
+        );
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_peer_asking_for_a_device_the_server_lacks_is_refused() {
+        let port = free_udp_port();
+        let peer = direct_peer(
+            serve_with_token(port),
+            Ipv4Addr::LOCALHOST.into(),
+            port,
+            TOKEN,
+        );
+
+        let result = peer.connect(1).await;
+        assert!(
+            matches!(&result, Err(ConnectError::Refused { reason }) if reason.contains("hosts 1 device")),
+            "{result:?}"
+        );
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_peer_whose_server_is_not_at_the_address_cannot_reach_it() {
+        let port = free_udp_port();
+        serve_with_token(port);
+        let elsewhere = RemoteSecret::random().id();
+        let peer = direct_peer(elsewhere, Ipv4Addr::LOCALHOST.into(), port, TOKEN);
+
+        let result = peer.connect(0).await;
+        assert!(
+            matches!(&result, Err(ConnectError::Unreachable { .. })),
+            "{result:?}"
         );
     }
 

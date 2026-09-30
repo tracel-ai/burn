@@ -45,17 +45,25 @@ where
         .recv()
         .await?
         .ok_or_else(|| "Session stream closed before initialization".to_string())?;
-    let init = parse_init_handshake(&handshake)?;
-
-    // Authorize before any session state is created.
-    authorize(&init)?;
     let device_count = service.device_count();
-    if init.device_index >= device_count {
-        return Err(format!(
-            "Session {} asked for device {}, but this server hosts {device_count} device(s)",
-            init.session_id, init.device_index
-        ));
-    }
+    let admitted = parse_init_handshake(&handshake).and_then(|init| {
+        // Authorize before any session state is created.
+        authorize(&init)?;
+        if init.device_index >= device_count {
+            return Err(format!(
+                "Session {} asked for device {}, but this server hosts {device_count} device(s)",
+                init.session_id, init.device_index
+            ));
+        }
+        Ok(init)
+    });
+    let init = match admitted {
+        Ok(init) => init,
+        Err(reason) => {
+            refuse(&mut sink, &reason).await;
+            return Err(reason);
+        }
+    };
 
     // Reply with the selected device's settings + this server's identity, so the client can fill in
     // `RemoteDevice::defaults`/`enumerate` without an extra round-trip.
@@ -110,6 +118,19 @@ where
     }
     .unwrap_or_else(|_| Err("Session response writer stopped before finishing".into()));
     read_result.and(write_result)
+}
+
+/// Answer a refused `Init` with why, then close, so the client can report more than a closed
+/// stream. The session is refused whether or not the client hears it.
+async fn refuse(sink: &mut impl FrameSink, reason: &str) {
+    let refusal = TaskResponse {
+        id: 0,
+        content: TaskResponseContent::InitRefused(reason.to_string()),
+    };
+    if let Ok(refusal) = rmp_serde::to_vec(&refusal) {
+        let _ = sink.send(refusal.into()).await;
+    }
+    let _ = sink.close().await;
 }
 
 /// Forward each submitted task batch to the session worker in arrival order, until the client
@@ -225,6 +246,36 @@ mod tests {
         }
     }
 
+    /// Keeps every frame written to it.
+    #[derive(Clone, Default)]
+    struct RecordingSink(Arc<Mutex<Vec<Bytes>>>);
+
+    impl RecordingSink {
+        fn replies(&self) -> Vec<TaskResponseContent> {
+            self.0
+                .lock()
+                .unwrap()
+                .iter()
+                .map(|frame| {
+                    rmp_serde::from_slice::<TaskResponse>(frame)
+                        .unwrap()
+                        .content
+                })
+                .collect()
+        }
+    }
+
+    impl FrameSink for RecordingSink {
+        async fn send(&mut self, frame: Bytes) -> Result<(), String> {
+            self.0.lock().unwrap().push(frame);
+            Ok(())
+        }
+
+        async fn close(&mut self) -> Result<(), String> {
+            Ok(())
+        }
+    }
+
     struct FailingSink;
 
     impl FrameSink for FailingSink {
@@ -305,8 +356,9 @@ mod tests {
         let unhosted_device = service.device_count();
         let source =
             ScriptedSource([Ok(Some(handshake(SessionId::new(), unhosted_device)))].into());
+        let sink = RecordingSink::default();
 
-        let result = drive_session(source, DiscardingSink, service.clone(), None, |_| Ok(())).await;
+        let result = drive_session(source, sink.clone(), service.clone(), None, |_| Ok(())).await;
 
         let err = result.expect_err("the session was bound to a device the server does not host");
         assert!(
@@ -314,5 +366,26 @@ mod tests {
             "got: {err}"
         );
         assert!(service.tasks.lock().unwrap().is_none());
+        assert!(
+            matches!(&sink.replies()[..], [TaskResponseContent::InitRefused(reason)] if *reason == err)
+        );
+    }
+
+    #[tokio::test]
+    async fn an_unauthorized_session_is_told_why() {
+        let service = Arc::new(FakeService::default());
+        let source = ScriptedSource([Ok(Some(handshake(SessionId::new(), HOSTED_DEVICE)))].into());
+        let sink = RecordingSink::default();
+
+        let result = drive_session(source, sink.clone(), service.clone(), None, |_| {
+            Err("the wrong token".to_string())
+        })
+        .await;
+
+        assert_eq!(result, Err("the wrong token".to_string()));
+        assert!(service.tasks.lock().unwrap().is_none());
+        assert!(
+            matches!(&sink.replies()[..], [TaskResponseContent::InitRefused(reason)] if reason == "the wrong token")
+        );
     }
 }

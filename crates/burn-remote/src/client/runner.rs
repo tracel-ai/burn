@@ -275,6 +275,13 @@ impl RemoteDevice {
         get_client::<RemoteChannel>(self).ensure_connected();
     }
 
+    /// [`connect`](Self::connect), returning why the session could not be opened instead of
+    /// panicking.
+    #[cfg(all(feature = "iroh", not(target_family = "wasm")))]
+    pub(crate) fn try_connect(&self) -> Result<(), super::SessionError> {
+        get_client::<RemoteChannel>(self).try_connect()
+    }
+
     /// Establish the session asynchronously. Browser entry point: wasm cannot block to connect,
     /// so call and await this once before using the device. No-op if already connected.
     #[cfg(target_family = "wasm")]
