@@ -31,9 +31,8 @@ pub struct OperationQueue<R: FusionRuntime> {
     pub(crate) converter: OperationConverter,
     pub(crate) operations: Vec<UnfusedOp<R>>,
     pub(crate) variables: HashMap<TensorId, TensorStatus>,
-    /// Last-use frees of materialized tensors received from another thread,
-    /// run at the next execution boundary instead of interrupting the queue
-    /// (see [`ReadPlan`](crate::stream::ReadPlan)).
+    /// Frees waiting on the pending ops that reference their tensor, from last-use
+    /// reads (see [`ReadPlan`](crate::stream::ReadPlan)) and cross-thread drops.
     pub(crate) deferred_frees: Vec<TensorIr>,
 }
 

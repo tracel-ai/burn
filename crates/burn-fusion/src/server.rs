@@ -55,28 +55,13 @@ where
             .register(stream, repr, operation, &mut self.handles)
     }
 
-    /// Register a `Drop` that originates from a thread other than the tensor's home stream.
+    /// Free a tensor dropped on a thread other than its home stream.
     ///
     /// A foreign drop must neither enqueue into the pending segment (the block DAG could reorder
     /// the free ahead of a pending read) nor cut it by draining (see
-    /// [`ReadPlan`](crate::stream::ReadPlan)). A materialized tensor bypasses the queue entirely;
-    /// otherwise only the queue can order the drop after its producer, so fall back to
-    /// drain-then-enqueue.
-    pub fn register_foreign_drop(
-        &mut self,
-        stream: StreamId,
-        ir: TensorIr,
-        operation: UnfusedOp<R>,
-    ) {
-        if self
-            .streams
-            .foreign_drop(stream, ir.clone(), &mut self.handles)
-        {
-            return;
-        }
-        self.streams.drain(&mut self.handles, stream);
-        self.streams
-            .register(stream, OperationIr::Drop(ir), operation, &mut self.handles);
+    /// [`ReadPlan`](crate::stream::ReadPlan)), so it never touches the queue.
+    pub fn foreign_drop(&mut self, stream: StreamId, ir: TensorIr) {
+        self.streams.foreign_drop(stream, ir, &mut self.handles);
     }
 
     pub fn tag_shared_view(&mut self, src_stream: StreamId, src: TensorId, dst: TensorId) {
