@@ -478,3 +478,16 @@ fn test_argmin_empty_axis_should_panic() {
 
     let _ = tensor.argmin(1).into_data();
 }
+
+// Shape [0, 3]: the reduced axis is non-empty, so there is nothing to reject, only nothing to compute.
+#[test]
+fn test_max_dim_with_indices_empty_output() {
+    let tensor = TestTensor::<2>::empty([0, 3], &Default::default());
+
+    let (values, indices) = tensor.max_dim_with_indices(1);
+
+    assert_eq!(values.dims(), [0, 1]);
+    assert_eq!(indices.dims(), [0, 1]);
+    assert_eq!(values.into_data().num_elements(), 0);
+    assert_eq!(indices.into_data().num_elements(), 0);
+}

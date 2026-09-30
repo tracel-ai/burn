@@ -365,3 +365,31 @@ async fn normal_close_ends_recv_cleanly() {
 
     server.shutdown().await;
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn a_message_over_sixty_four_mib_reaches_the_server() {
+    const MESSAGE_LEN: usize = 65 * 1024 * 1024;
+
+    let (length_sender, mut lengths) = mpsc::channel(1);
+    let server = TestServer::start(move |s| {
+        s.route("/upload", move |mut channel: WsServerChannel| async move {
+            let length = channel
+                .recv()
+                .await
+                .map(|message| message.map(|message| message.data.len()))
+                .map_err(|err| err.to_string());
+            let _ = length_sender.send(length).await;
+        })
+    })
+    .await;
+
+    let mut ws = connect(&server.url("upload")).await;
+    send_binary(&mut ws, &vec![0u8; MESSAGE_LEN]).await;
+
+    let read = timeout(TIMEOUT, lengths.recv())
+        .await
+        .expect("the server never reported its read");
+    assert_eq!(read, Some(Ok(Some(MESSAGE_LEN))));
+
+    server.shutdown().await;
+}
