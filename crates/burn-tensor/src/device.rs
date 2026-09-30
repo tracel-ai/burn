@@ -429,12 +429,19 @@ impl Device {
     /// Connects to a burn-remote WebSocket server at the given address. `index` selects which of
     /// the server's devices to use; two devices with the same address but different indices target
     /// distinct devices on the same host.
+    ///
+    /// # Errors
+    ///
+    /// See [`ConnectError`](crate::remote::ConnectError).
     #[cfg(feature = "remote-websocket")]
-    pub fn remote_websocket(address: &str, index: impl Into<DeviceIndex>) -> Self {
+    pub fn remote_websocket(
+        address: &str,
+        index: impl Into<DeviceIndex>,
+    ) -> Result<Self, crate::remote::ConnectError> {
         let index = index.into().resolve();
         let device = burn_dispatch::devices::RemoteDevice::websocket(address, index);
-        device.connect(); // initializes the connection (required to get the device default settings)
-        Self::new(device)
+        device.connect()?; // required to get the device default settings
+        Ok(Self::new(device))
     }
 
     /// Iroh peer-to-peer remote device.
@@ -444,43 +451,55 @@ impl Device {
     /// optionally carrying direct/relay dialing hints.
     /// On wasm, use [`remote_iroh_async`](Self::remote_iroh_async) instead since sessions cannot
     /// be opened synchronously.
+    ///
+    /// # Errors
+    ///
+    /// See [`ConnectError`](crate::remote::ConnectError).
     #[cfg(all(feature = "remote", not(target_family = "wasm")))]
     pub fn remote_iroh(
         endpoint: &burn_dispatch::backends::remote::Endpoint,
         peer: impl Into<burn_dispatch::backends::remote::EndpointAddr>,
         index: impl Into<DeviceIndex>,
-    ) -> Self {
+    ) -> Result<Self, crate::remote::ConnectError> {
         let index = index.into().resolve();
         let device =
             burn_dispatch::backends::remote::RemoteDevice::iroh(endpoint, peer.into(), index);
-        device.connect();
-        Self::new(device)
+        device.connect()?;
+        Ok(Self::new(device))
     }
 
     /// Browser counterpart of [`remote_iroh`](Self::remote_iroh). Wasm cannot block to connect,
     /// so the session is established asynchronously before the device is returned.
+    ///
+    /// # Errors
+    ///
+    /// See [`ConnectError`](crate::remote::ConnectError).
     #[cfg(all(feature = "remote", any(target_family = "wasm", doc)))]
     pub async fn remote_iroh_async(
         endpoint: &burn_dispatch::backends::remote::Endpoint,
         peer: impl Into<burn_dispatch::backends::remote::EndpointAddr>,
         index: impl Into<DeviceIndex>,
-    ) -> Self {
+    ) -> Result<Self, crate::remote::ConnectError> {
         let index = index.into().resolve();
         let device =
             burn_dispatch::backends::remote::RemoteDevice::iroh(endpoint, peer.into(), index);
-        device.connect_async().await;
-        Self::new(device)
+        device.connect_async().await?;
+        Ok(Self::new(device))
     }
 
     /// Like `remote_iroh`, but carries an authorization credential the server's PeerAuthorizer
     /// will check. Use against servers that require a credential; open servers take `remote_iroh`.
+    ///
+    /// # Errors
+    ///
+    /// See [`ConnectError`](crate::remote::ConnectError).
     #[cfg(all(feature = "remote", not(target_family = "wasm")))]
     pub fn remote_iroh_authorized(
         endpoint: &burn_dispatch::backends::remote::Endpoint,
         peer: impl Into<burn_dispatch::backends::remote::EndpointAddr>,
         index: impl Into<DeviceIndex>,
         credential: Vec<u8>,
-    ) -> Self {
+    ) -> Result<Self, crate::remote::ConnectError> {
         let index = index.into().resolve();
         let device = burn_dispatch::backends::remote::RemoteDevice::iroh_authorized(
             endpoint,
@@ -488,8 +507,8 @@ impl Device {
             index,
             credential,
         );
-        device.connect();
-        Self::new(device)
+        device.connect()?;
+        Ok(Self::new(device))
     }
 
     /// A device on the Iroh server `peer` describes, dialed from the peer's endpoint.
@@ -507,13 +526,17 @@ impl Device {
     }
 
     /// Browser counterpart of `remote_iroh_authorized`. Establishes the session asynchronously.
+    ///
+    /// # Errors
+    ///
+    /// See [`ConnectError`](crate::remote::ConnectError).
     #[cfg(all(feature = "remote", any(target_family = "wasm", doc)))]
     pub async fn remote_iroh_authorized_async(
         endpoint: &burn_dispatch::backends::remote::Endpoint,
         peer: impl Into<burn_dispatch::backends::remote::EndpointAddr>,
         index: impl Into<DeviceIndex>,
         credential: Vec<u8>,
-    ) -> Self {
+    ) -> Result<Self, crate::remote::ConnectError> {
         let index = index.into().resolve();
         let device = burn_dispatch::backends::remote::RemoteDevice::iroh_authorized(
             endpoint,
@@ -521,8 +544,8 @@ impl Device {
             index,
             credential,
         );
-        device.connect_async().await;
-        Self::new(device)
+        device.connect_async().await?;
+        Ok(Self::new(device))
     }
 
     /// WGPU device, selected via [`DeviceKind`].
@@ -976,6 +999,10 @@ impl Device {
     /// // Filters combine with `|`.
     /// let both = Device::enumerate(DeviceType::Cuda | DeviceType::remote_websocket("ws://host:3000"));
     /// ```
+    ///
+    /// # Panics
+    ///
+    /// A `Remote` server cannot be connected.
     pub fn enumerate(filter: impl Into<DeviceFilter>) -> Devices {
         #[allow(unused)]
         let mut devices = Vec::new();
@@ -1034,9 +1061,13 @@ impl Device {
                 // dedicated enumeration path (connecting to the server for its device count).
                 #[cfg(feature = "remote-websocket")]
                 DeviceType::Remote(address) => {
-                    for device in Dispatch::enumerate_remote_websocket(&address) {
-                        devices.push(Device::new(device));
-                    }
+                    let remote =
+                        Dispatch::enumerate_remote_websocket(&address).unwrap_or_else(|err| {
+                            panic!(
+                                "Cannot list the devices of the remote server at {address}: {err}"
+                            )
+                        });
+                    devices.extend(remote.into_iter().map(Device::new));
                     continue;
                 }
             };

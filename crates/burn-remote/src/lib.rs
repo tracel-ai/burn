@@ -33,7 +33,7 @@ pub use iroh::{Endpoint, EndpointAddr, EndpointId, RelayUrl};
 #[cfg(feature = "iroh")]
 pub use transport::iroh::node::BURN_REMOTE_ALPN;
 #[cfg(all(feature = "iroh", feature = "client", not(target_family = "wasm")))]
-pub use transport::iroh::{ConnectError, IrohPeer, IrohPeerBuilder};
+pub use transport::iroh::{IrohPeer, IrohPeerBuilder};
 #[cfg(feature = "iroh")]
 pub use transport::iroh::{IrohRelays, RemoteSecret};
 pub use transport::{PeerAddr, PeerId};
@@ -70,7 +70,7 @@ mod __client {
     #[cfg(feature = "fusion")]
     pub type RemoteBackend = burn_fusion::Fusion<BackendRouter<RemoteChannel>>;
 
-    pub use client::{CustomOpClient, RemoteChannel, RemoteDevice};
+    pub use client::{ConnectError, CustomOpClient, RemoteChannel, RemoteDevice};
 }
 #[cfg(feature = "client")]
 pub use __client::*;

@@ -1,4 +1,4 @@
-use super::{RemoteDevice, SessionOpenError, service::RemoteService};
+use super::{ConnectError, RemoteDevice, service::RemoteService};
 use burn_backend::{DeviceHandle, backend::Device};
 
 /// A thin handle to a `RemoteService` running on its own device-runner thread.
@@ -16,7 +16,7 @@ impl RemoteClient {
         // `DeviceHandle::new` initializes the service the first time it's called for a given
         // device id. `RemoteService::init` is deliberately cheap — it records the endpoint but
         // does NOT connect, because cubecl holds a process-global lock across it; the actual
-        // connect + handshake happens lazily on first use (or via `try_connect`).
+        // connect + handshake happens lazily on first use (or via `connect`).
         // Subsequent calls return a handle to the existing service.
         let handle = DeviceHandle::<RemoteService>::new(device.to_id());
         Self { device, handle }
@@ -25,7 +25,7 @@ impl RemoteClient {
     /// Open the lazily-established connection now, populating the device's settings/device-count
     /// cells, or return why it could not be opened. Runs the connect on the service's runner
     /// thread, so it can't sit under cubecl's global lock.
-    pub(crate) fn try_connect(&self) -> Result<(), SessionOpenError> {
+    pub(crate) fn connect(&self) -> Result<(), ConnectError> {
         self.handle
             .submit_blocking(|s| s.try_connect())
             .expect("Service call failed")
@@ -38,7 +38,7 @@ impl RemoteClient {
     /// with `.await`, and the opened session is installed back into the service. A no-op once the
     /// session is up.
     #[cfg(target_family = "wasm")]
-    pub(crate) async fn connect_async(&self) {
+    pub(crate) async fn connect_async(&self) -> Result<(), ConnectError> {
         use crate::client::service::wasm_connect;
 
         let Some(plan) = self
@@ -46,14 +46,15 @@ impl RemoteClient {
             .submit_blocking(|s| s.wasm_connect_plan())
             .expect("Service call failed")
         else {
-            return;
+            return Ok(());
         };
 
-        let connected = wasm_connect(plan).await;
+        let connected = wasm_connect(plan).await?;
 
         self.handle
             .submit_blocking(move |s| s.wasm_install(connected))
             .expect("Service call failed");
+        Ok(())
     }
 }
 

@@ -76,7 +76,7 @@ async fn executes_over_iroh_session_stream() {
     let router = spawn_router::<Flex>(server.clone(), AllowAll, TelemetryProbe::disabled());
 
     let remote = RemoteDevice::iroh(&client, server.addr(), 0);
-    remote.connect();
+    remote.connect().unwrap();
     let device = Device::new(remote);
 
     let output = Tensor::<1>::from_floats([1.0, 2.0, 3.0], &device) * 2.0;
@@ -96,7 +96,7 @@ async fn a_client_that_disconnects_without_closing_ends_its_session() {
     let router = spawn_router::<Flex>(server.clone(), AllowAll, probe);
 
     let remote = RemoteDevice::iroh(&client, server.addr(), 0);
-    remote.connect();
+    remote.connect().unwrap();
     let device = Device::new(remote);
     let output = Tensor::<1>::from_floats([1.0, 2.0, 3.0], &device) * 2.0;
     output.try_into_vec_as::<f32>().unwrap();
@@ -140,7 +140,7 @@ async fn a_dial_waits_for_an_iroh_address_published_late() {
     });
 
     let remote = RemoteDevice::iroh(&client, EndpointAddr::new(server.id()), 0);
-    remote.connect();
+    remote.connect().unwrap();
     let device = Device::new(remote);
 
     let output = Tensor::<1>::from_floats([1.0, 2.0], &device) * 2.0;
@@ -156,7 +156,9 @@ async fn a_dial_with_no_address_and_no_lookup_is_not_retried() {
     let _router = spawn_router::<Flex>(server.clone(), AllowAll, TelemetryProbe::disabled());
     let client = local_endpoint().await;
 
-    RemoteDevice::iroh(&client, EndpointAddr::new(server.id()), 0).connect();
+    RemoteDevice::iroh(&client, EndpointAddr::new(server.id()), 0)
+        .connect()
+        .unwrap();
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -172,8 +174,8 @@ async fn transfers_tensor_directly_between_iroh_compute_peers() {
 
     let source_remote = RemoteDevice::iroh(&client, source_server.addr(), 0);
     let target_remote = RemoteDevice::iroh(&client, target_server.addr(), 0);
-    source_remote.connect();
-    target_remote.connect();
+    source_remote.connect().unwrap();
+    target_remote.connect().unwrap();
     let source = Device::new(source_remote);
     let target = Device::new(target_remote);
 
@@ -219,7 +221,7 @@ fn synchronous_client_round_trip() {
         let _guard = client_runtime.enter();
         RemoteDevice::iroh(&client_endpoint, server_addr, 0)
     };
-    remote.connect();
+    remote.connect().unwrap();
     let device = Device::new(remote);
 
     let output = Tensor::<1>::from_floats([1.0, 2.0, 3.0], &device) * 2.0;
@@ -252,7 +254,7 @@ fn unsigned_int_uploads_read_back_and_cast() {
             let _guard = client_runtime.enter();
             RemoteDevice::iroh(&client, server.addr(), 0)
         };
-        remote.connect();
+        remote.connect().unwrap();
         let device = Device::new(remote);
 
         let pixels = TensorData::new(vec![0u8, 7, 128, 255], [2, 2]);
@@ -280,7 +282,7 @@ fn blocking_reads_inside_a_tokio_task_outlast_its_budget() {
             let router = spawn_router::<Flex>(server.clone(), AllowAll, TelemetryProbe::disabled());
 
             let remote = RemoteDevice::iroh(&client, server.addr(), 0);
-            remote.connect();
+            remote.connect().unwrap();
             let device = Device::new(remote);
             while coop::has_budget_remaining() {
                 coop::consume_budget().await;
@@ -310,7 +312,7 @@ async fn passes_application_credentials_to_the_peer_authorizer() {
         TelemetryProbe::disabled(),
     );
     let remote = RemoteDevice::iroh_authorized(&client, server.addr(), 0, b"fleet-ticket".to_vec());
-    remote.connect();
+    remote.connect().unwrap();
     let device = Device::new(remote);
     let data = Tensor::<1>::from_floats([4.0], &device).to_data();
     assert_eq!(data.try_into_vec::<f32>().unwrap(), vec![4.0]);
@@ -329,7 +331,7 @@ async fn fused_compute_surfaces_as_graph_telemetry() {
     let (probe, mut events) = TelemetryProbe::channel(4096);
     let router = spawn_router::<Flex>(server.clone(), AllowAll, probe);
     let remote = RemoteDevice::iroh(&client, server.addr(), 0);
-    remote.connect();
+    remote.connect().unwrap();
     let device = Device::new(remote);
 
     // A multi-op float expression fuses into a cached graph; running it twice forces a replay, and
@@ -416,7 +418,7 @@ mod loader_uploads {
             let _guard = runtime.enter();
             RemoteDevice::iroh(&client, server.addr(), 0)
         };
-        remote.connect();
+        remote.connect().unwrap();
         let device = Device::new(remote);
 
         // The loader only uploads, so nothing else ever executes its stream.

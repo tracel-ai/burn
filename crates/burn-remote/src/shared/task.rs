@@ -167,20 +167,6 @@ pub enum SessionRefusal {
     IncompatibleProtocol,
 }
 
-impl Display for SessionRefusal {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        match self {
-            Self::Unauthorized => f.write_str("the server's authorizer rejected the credential"),
-            Self::NoSuchDevice { device_count } => {
-                write!(f, "the server hosts only {device_count} device(s)")
-            }
-            Self::IncompatibleProtocol => {
-                f.write_str("the server speaks another version of the Burn Remote protocol")
-            }
-        }
-    }
-}
-
 #[allow(missing_docs)]
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct TensorRemote {

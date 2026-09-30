@@ -250,9 +250,10 @@ fn main_server() {
     burn::server::start(Device::cuda(0), burn::server::Channel::WebSocket { port: 3000 });
 }
 
-fn main_client() {
-    let device = Device::remote_websocket("ws://localhost:3000", 0).autodiff();
+fn main_client() -> Result<(), burn::remote::ConnectError> {
+    let device = Device::remote_websocket("ws://localhost:3000", 0)?.autodiff();
     let tensor_gpu = Tensor::<2>::random([3, 3], Distribution::Default, &device);
+    Ok(())
 }
 ```
 

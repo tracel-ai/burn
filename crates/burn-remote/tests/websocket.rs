@@ -1,7 +1,7 @@
 #![cfg(all(feature = "client", feature = "server", feature = "websocket"))]
 
 use burn_flex::Flex;
-use burn_remote::server::RemoteServerBuilder;
+use burn_remote::{ConnectError, server::RemoteServerBuilder};
 use burn_tensor::{Device, DeviceType, Distribution, Tensor};
 
 /// Run `body` on a worker thread and fail the test if it does not finish within `timeout`.
@@ -34,6 +34,26 @@ fn serve(rt: &tokio::runtime::Runtime, server: RemoteServerBuilder<Flex>) -> Str
 }
 
 #[test]
+fn a_device_the_server_does_not_host_is_an_error() {
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()
+        .unwrap();
+    let address = serve(
+        &rt,
+        RemoteServerBuilder::<Flex>::new(vec![Default::default()]),
+    );
+
+    let result = Device::remote_websocket(&address, 1);
+
+    assert!(
+        matches!(result, Err(ConnectError::NoSuchDevice { device_count: 1 })),
+        "{result:?}"
+    );
+    rt.shutdown_background();
+}
+
+#[test]
 fn a_dial_waits_for_a_websocket_server_that_starts_late() {
     // Past the first retries, well inside the retry window.
     const SERVER_LATE_BY: std::time::Duration = std::time::Duration::from_millis(700);
@@ -56,7 +76,7 @@ fn a_dial_waits_for_a_websocket_server_that_starts_late() {
     });
 
     with_deadlock_watchdog(std::time::Duration::from_secs(30), move || {
-        let device = Device::remote_websocket(&address, 0);
+        let device = Device::remote_websocket(&address, 0).unwrap();
         let output = Tensor::<1>::from_floats([1.0, 2.0], &device) * 2.0;
         assert_eq!(output.try_into_vec_as::<f32>().unwrap(), vec![2.0, 4.0]);
     });
@@ -80,8 +100,8 @@ fn test_to_device_over_websocket() {
         RemoteServerBuilder::<Flex>::new(vec![Default::default()]),
     );
 
-    let device_1 = Device::remote_websocket(&address_1, 0);
-    let device_2 = Device::remote_websocket(&address_2, 0);
+    let device_1 = Device::remote_websocket(&address_1, 0).unwrap();
+    let device_2 = Device::remote_websocket(&address_2, 0).unwrap();
 
     // Some random input on device 1.
     let input_shape = [1, 28, 28];
@@ -115,7 +135,7 @@ fn test_profile_over_websocket() {
         RemoteServerBuilder::<Flex>::new(vec![Default::default()]),
     );
 
-    let device = Device::remote_websocket(&address, 0);
+    let device = Device::remote_websocket(&address, 0).unwrap();
     let (sum, duration) = device
         .profile(|| {
             Tensor::<1>::ones([1024], &device)
@@ -148,8 +168,8 @@ fn test_multi_device_single_server() {
         RemoteServerBuilder::<Flex>::new(vec![Default::default(), Default::default()]),
     );
 
-    let device_0 = Device::remote_websocket(&address, 0);
-    let device_1 = Device::remote_websocket(&address, 1);
+    let device_0 = Device::remote_websocket(&address, 0).unwrap();
+    let device_1 = Device::remote_websocket(&address, 1).unwrap();
 
     // Distinct indices on the same address must be distinct devices.
     assert_ne!(device_0, device_1);
@@ -185,8 +205,8 @@ fn test_multi_device_concurrent_to_device_deadlock() {
     );
 
     with_deadlock_watchdog(std::time::Duration::from_secs(30), move || {
-        let device0 = Device::remote_websocket(&address, 0);
-        let device1 = Device::remote_websocket(&address, 1);
+        let device0 = Device::remote_websocket(&address, 0).unwrap();
+        let device1 = Device::remote_websocket(&address, 1).unwrap();
 
         let run = |home: Device, away: Device| {
             move || {
@@ -233,9 +253,9 @@ fn test_enumerate_remote_devices() {
 
     // The server reports its three devices, in index order.
     assert_eq!(devices.len(), 3);
-    assert_eq!(devices[0], Device::remote_websocket(&address, 0));
-    assert_eq!(devices[1], Device::remote_websocket(&address, 1));
-    assert_eq!(devices[2], Device::remote_websocket(&address, 2));
+    assert_eq!(devices[0], Device::remote_websocket(&address, 0).unwrap());
+    assert_eq!(devices[1], Device::remote_websocket(&address, 1).unwrap());
+    assert_eq!(devices[2], Device::remote_websocket(&address, 2).unwrap());
 
     // Distinct indices are distinct devices.
     assert_ne!(devices[0], devices[1]);
@@ -274,7 +294,7 @@ fn test_server_down_does_not_hang_client() {
         RemoteServerBuilder::<Flex>::new(vec![Default::default()]),
     );
 
-    let device = Device::remote_websocket(&address, 0);
+    let device = Device::remote_websocket(&address, 0).unwrap();
 
     // One successful round-trip so the sockets are actually up and the demux task is running.
     let input = Tensor::<2>::from_floats([[1.0, 2.0], [3.0, 4.0]], &device);
@@ -312,7 +332,7 @@ fn test_to_device_local_to_remote() {
     );
 
     let local = Device::flex();
-    let remote = Device::remote_websocket(&address, 0);
+    let remote = Device::remote_websocket(&address, 0).unwrap();
 
     // Create on local, move to remote.
     let input = Tensor::<2>::from_floats([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]], &local);
