@@ -375,3 +375,55 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining<LearnerEvent<T>, LearnerEv
         self.renderer
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::TrainingItem;
+    use crate::metric::processor::EventProcessorFailure;
+    use crate::metric::store::LogEventStore;
+    use crate::renderer::cli::CliMetricsRenderer;
+    use burn_core::data::dataloader::Progress;
+    use burn_std::ExecutionError;
+
+    /// An item whose sync can fail.
+    struct Item {
+        fails: bool,
+    }
+
+    impl ItemLazy for Item {
+        fn sync(self) -> Result<Self, ExecutionError> {
+            match self.fails {
+                true => Err(ExecutionError::with_context("the sync failed")),
+                false => Ok(self),
+            }
+        }
+    }
+
+    fn processed(fails: bool) -> LearnerEvent<Item> {
+        LearnerEvent::ProcessedItem(TrainingItem::new(
+            Item { fails },
+            Progress::new(1, 1, None),
+            Some(1),
+            None,
+        ))
+    }
+
+    #[test]
+    fn a_failed_sync_is_reported_as_one_sync_failure() {
+        let mut processor = FullEventProcessorTraining::new(
+            MetricsTraining::<Item, Item>::default(),
+            Box::new(CliMetricsRenderer::new()),
+            Arc::new(EventStoreClient::new(LogEventStore::default())),
+        );
+
+        let error = processor.process_train(processed(true)).unwrap_err();
+        match error.failures() {
+            [EventProcessorFailure::Sync { split, .. }] => assert_eq!(*split, Split::Train),
+            other => panic!("expected one sync failure, got {other:?}"),
+        }
+
+        // The processor keeps working once items sync again.
+        processor.process_train(processed(false)).unwrap();
+    }
+}
