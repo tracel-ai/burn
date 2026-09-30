@@ -311,7 +311,7 @@ fn tensors_dropped_on_another_thread_still_feed_their_queued_reader() {
         let device = Device::new(remote);
 
         let computed = Tensor::<1>::from_floats([1.0, 2.0, 3.0], &device) + 1.0;
-        // Freeing a tensor before its producer runs frees nothing, so one of the two has to exist.
+        // A free before the producer runs is a no-op, so only `computed` can catch an early free.
         device.sync().unwrap();
         let pending = computed.clone() * 2.0;
         let reader = pending.clone() + computed.clone();
