@@ -1,6 +1,6 @@
 fn main() {
     println!("cargo::rustc-check-cfg=cfg(cube_backend)");
-    println!("cargo::rustc-check-cfg=cfg(local_backend)");
+    println!("cargo::rustc-check-cfg=cfg(executing_backend)");
     println!("cargo::rustc-check-cfg=cfg(backend_enabled)");
 
     let cuda = cfg!(feature = "cuda");
@@ -19,21 +19,21 @@ fn main() {
 
     let cube = cuda || rocm || cpu || metal || vulkan || webgpu || wgpu;
     let local = cube || flex || ndarray || tch;
+    let executing = local || remote;
 
     // Backend-free builds expose tensor/model APIs without installing an execution backend.
-    if local || remote || capture {
+    if executing || capture {
         println!("cargo::rustc-cfg=backend_enabled");
     }
 
-    // Every cubecl-backed feature selects the same backend type now — the
-    // runtime is what the device says, not what the type is — so they share one
-    // variant, under one cfg rather than a seven-way list at each use.
+    // Every cubecl-backed feature selects the same backend type, since the device says which
+    // runtime, so they share one variant under one cfg rather than a seven-way list at each use.
     if cube {
-        println!("cargo:rustc-cfg=cube_backend");
+        println!("cargo::rustc-cfg=cube_backend");
     }
 
-    // A backend that runs on this machine, unlike remote and capture.
-    if local {
-        println!("cargo::rustc-cfg=local_backend");
+    // Capture records operations but never executes them.
+    if executing {
+        println!("cargo::rustc-cfg=executing_backend");
     }
 }
