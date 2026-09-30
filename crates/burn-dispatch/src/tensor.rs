@@ -254,14 +254,9 @@ pub struct DispatchTensor {
 ///
 /// Each variant corresponds to a specific backend implementation.
 #[derive(Clone, Debug)]
-// Boxing Remote would cost every remote tensor an allocation.
-#[cfg_attr(
-    all(
-        feature = "remote",
-        not(any(cube_backend, feature = "flex", feature = "ndarray", feature = "tch"))
-    ),
-    allow(clippy::large_enum_variant)
-)]
+// Backend tensors are stored inline, so in a single-backend build the next largest variant is
+// Autodiff's 8-byte box and the lint fires. Boxing them would cost every tensor an allocation.
+#[allow(clippy::large_enum_variant)]
 pub enum DispatchTensorKind {
     #[cfg(not(backend_enabled))]
     #[doc(hidden)]
