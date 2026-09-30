@@ -58,6 +58,7 @@ mod __client {
     /// (backend extensions) are hosted, via
     /// [`custom_op`](server::RemoteServerBuilder::custom_op).
     #[cfg(not(feature = "fusion"))]
+    #[cfg_attr(not(feature = "server"), allow(rustdoc::broken_intra_doc_links))]
     pub type RemoteBackend = BackendRouter<RemoteChannel>;
 
     /// With the `fusion` feature enabled, the remote backend is wrapped in

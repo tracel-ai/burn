@@ -75,7 +75,10 @@ impl Default for Channel {
 ///     })
 ///     .start();
 /// ```
+#[cfg_attr(not(feature = "websocket"), allow(rustdoc::broken_intra_doc_links))]
 pub struct RemoteServerBuilder<B: BackendIr> {
+    // Only the native server starts, so wasm never reads it.
+    #[cfg_attr(target_family = "wasm", allow(dead_code))]
     devices: Vec<Device<B>>,
     channel: Channel,
     custom_ops: CustomOpRegistry<B>,

@@ -28,7 +28,7 @@ impl RemoteSecret {
         self.0.public()
     }
 
-    #[cfg(feature = "server")]
+    #[cfg(all(feature = "server", not(target_family = "wasm")))]
     pub(crate) fn secret_key(&self) -> iroh::SecretKey {
         self.0.clone()
     }
