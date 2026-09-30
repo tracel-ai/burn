@@ -75,8 +75,6 @@ impl Model {
 
     pub fn forward_classification(&self, item: MnistBatch) -> ClassificationOutput {
         let targets = item.targets;
-        #[cfg(feature = "fault-injection")]
-        let targets = crate::fault::scheduled(targets);
         let output = self.forward(item.images);
         let loss = CrossEntropyLossConfig::new()
             .init(&output.device())

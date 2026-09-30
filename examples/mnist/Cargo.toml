@@ -20,8 +20,6 @@ cuda = ["burn/cuda"]
 vulkan = ["burn/vulkan"]
 rocm = ["burn/rocm"]
 remote = ["burn/remote-websocket"]
-# Deliberate device failures, for the `mnist-fault` example.
-fault-injection = ["burn/extension", "dep:burn-cubecl", "dep:cubecl"]
 
 [dependencies]
 burn = { workspace = true, features = [
@@ -32,11 +30,5 @@ burn = { workspace = true, features = [
     "flex",
 ] }
 
-burn-cubecl = { workspace = true, optional = true, features = ["default"] }
-cubecl = { workspace = true, optional = true }
 log = { workspace = true }
 rand.workspace = true
-
-[[example]]
-name = "mnist-fault"
-required-features = ["fault-injection"]

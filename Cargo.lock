@@ -6070,8 +6070,6 @@ name = "mnist"
 version = "0.22.0-pre.4"
 dependencies = [
  "burn",
- "burn-cubecl",
- "cubecl",
  "log",
  "rand 0.10.2",
 ]
