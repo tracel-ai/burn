@@ -51,14 +51,7 @@ mod __client {
     /// let endpoint = Endpoint::builder(presets::N0).bind().await?;
     /// let remote = RemoteDevice::iroh(&endpoint, compute_peer, 0);
     /// ```
-    ///
-    /// For backends that aren't part of `DispatchDevice` but implement
-    /// `BackendIr`, build a [`server::RemoteServerBuilder`] directly with the
-    /// concrete backend type parameter — that is also how custom operations
-    /// (backend extensions) are hosted, via
-    /// [`custom_op`](server::RemoteServerBuilder::custom_op).
     #[cfg(not(feature = "fusion"))]
-    #[cfg_attr(not(feature = "server"), allow(rustdoc::broken_intra_doc_links))]
     pub type RemoteBackend = BackendRouter<RemoteChannel>;
 
     /// With the `fusion` feature enabled, the remote backend is wrapped in

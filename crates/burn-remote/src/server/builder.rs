@@ -52,15 +52,18 @@ impl Default for Channel {
 
 /// Builder for a remote-execution server.
 ///
-/// Configures the transport ([`channel`](Self::channel) / [`port`](Self::port)) and the custom
-/// operation handlers ([`custom_op`](Self::custom_op) / [`custom_ops`](Self::custom_ops)), then
-/// starts the server with [`start`](Self::start) (blocking) or [`start_async`](Self::start_async),
-/// or over WebSocket on a listener the caller bound with [`start_async_on`](Self::start_async_on).
+/// Configures the transport ([`channel`](Self::channel)) and the custom operation handlers
+/// ([`custom_op`](Self::custom_op) / [`custom_ops`](Self::custom_ops)), then starts the server
+/// with [`start`](Self::start) (blocking) or [`start_async`](Self::start_async). Over WebSocket,
+/// `port` picks the port and `start_async_on` serves on a listener the caller bound.
 ///
 /// The builder is generic over the concrete backend `B`: custom ops are typed by `B`, since their
 /// handlers call into `B`'s primitives. A backend extension hosts its ops here — the server-side
 /// counterpart of the client building `OperationIr::Custom`. Custom ops are served the same way over
 /// either transport.
+///
+/// It also serves a backend that implements `BackendIr` without being part of `DispatchDevice`:
+/// build it with that backend as `B`.
 ///
 /// ```rust,ignore
 /// RemoteServerBuilder::new(devices)
@@ -75,7 +78,6 @@ impl Default for Channel {
 ///     })
 ///     .start();
 /// ```
-#[cfg_attr(not(feature = "websocket"), allow(rustdoc::broken_intra_doc_links))]
 pub struct RemoteServerBuilder<B: BackendIr> {
     // Only the native server starts, so wasm never reads it.
     #[cfg_attr(target_family = "wasm", allow(dead_code))]
