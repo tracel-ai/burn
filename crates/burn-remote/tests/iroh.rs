@@ -544,9 +544,9 @@ mod iroh_peer {
     async fn peers_built_from_clones_of_one_builder_bind_their_own_endpoints() {
         let port = free_udp_port();
         let builder = IrohPeerBuilder::new(serve_with_token(port))
-            .relays(IrohRelays::Disabled)
-            .address(SocketAddr::new(Ipv4Addr::LOCALHOST.into(), port))
-            .credential(TOKEN);
+            .with_relays(IrohRelays::Disabled)
+            .with_address(SocketAddr::new(Ipv4Addr::LOCALHOST.into(), port))
+            .with_credential(TOKEN);
 
         let first = builder.clone().build().connect(0).await.unwrap();
         assert_ne!(builder.build().connect(0).await.unwrap(), first);
@@ -558,10 +558,10 @@ mod iroh_peer {
         let server = serve_with_token(port);
         let endpoint = local_endpoint().await;
         let peer = IrohPeerBuilder::new(server)
-            .relays(IrohRelays::Disabled)
-            .address(SocketAddr::new(Ipv4Addr::LOCALHOST.into(), port))
-            .credential(TOKEN)
-            .endpoint(endpoint.clone())
+            .with_relays(IrohRelays::Disabled)
+            .with_address(SocketAddr::new(Ipv4Addr::LOCALHOST.into(), port))
+            .with_credential(TOKEN)
+            .with_endpoint(endpoint.clone())
             .build();
 
         let device = peer.connect(0).await.unwrap();
@@ -604,7 +604,7 @@ mod iroh_peer {
     #[tokio::test]
     async fn a_peer_without_relays_or_an_address_is_not_dialed() {
         let peer = IrohPeerBuilder::new(RemoteSecret::random().id())
-            .relays(IrohRelays::Disabled)
+            .with_relays(IrohRelays::Disabled)
             .build();
 
         assert!(matches!(
@@ -623,9 +623,9 @@ mod iroh_peer {
 
     fn serve_with_token(port: u16) -> EndpointId {
         let channel = IrohChannelBuilder::new(RemoteSecret::random())
-            .relays(IrohRelays::Disabled)
-            .port(port)
-            .authorizer(TokenAuthorizer::new(TOKEN).unwrap())
+            .with_relays(IrohRelays::Disabled)
+            .with_port(port)
+            .with_authorizer(TokenAuthorizer::new(TOKEN).unwrap())
             .build();
         let id = channel.id();
         tokio::spawn(
@@ -638,9 +638,9 @@ mod iroh_peer {
 
     fn direct_peer(id: EndpointId, ip: std::net::IpAddr, port: u16, token: &str) -> IrohPeer {
         IrohPeerBuilder::new(id)
-            .relays(IrohRelays::Disabled)
-            .address(SocketAddr::new(ip, port))
-            .credential(token)
+            .with_relays(IrohRelays::Disabled)
+            .with_address(SocketAddr::new(ip, port))
+            .with_credential(token)
             .build()
     }
 }

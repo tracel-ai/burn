@@ -14,14 +14,14 @@ authorizer checks. Burn binds the endpoint and dials every device of the peer ov
 use burn::remote::IrohPeerBuilder;
 use burn::tensor::{Device, Tensor};
 
-let peer = IrohPeerBuilder::new(server_id).credential(token).build();
+let peer = IrohPeerBuilder::new(server_id).with_credential(token).build();
 let device = Device::remote_iroh_peer(&peer, 0).await?;
 
 let output = Tensor::<1>::from_floats([1.0, 2.0], &device) * 2.0;
 ```
 
-The peer's relays must match the server's. With relays disabled, `.address(...)` gives each address
-the server listens on.
+The peer's relays must match the server's. With relays disabled, `.with_address(...)` gives each
+address the server listens on.
 
 An application that manages identity, address lookup or discovery itself passes its own Iroh
 endpoint to `Device::remote_iroh` instead. That endpoint keeps Iroh's settings, including
@@ -50,16 +50,17 @@ use burn::tensor::Device;
 
 let secret = RemoteSecret::load_or_create("server.key")?;
 let channel = IrohChannelBuilder::new(secret)
-    .authorizer(TokenAuthorizer::new(token).expect("A non-empty token"))
+    .with_authorizer(TokenAuthorizer::new(token).expect("A non-empty token"))
     .build();
 println!("compute peer: {}", channel.id());
 
 server::start_async(Device::cuda(0), Channel::Iroh { channel }).await;
 ```
 
-The channel uses n0's public relays by default. `.relays(IrohRelays::Private { url })` goes through
-a relay you run instead, and `.relays(IrohRelays::Disabled).port(4433)` serves direct connections
-only, on a UDP port clients dial. `IrohRelays` and `RelayUrl` come from `burn::server`.
+The channel uses n0's public relays by default. `.with_relays(IrohRelays::Private { url })` goes
+through a relay you run instead, and `.with_relays(IrohRelays::Disabled).with_port(4433)` serves
+direct connections only, on a UDP port clients dial. `IrohRelays` and `RelayUrl` come from
+`burn::server`.
 
 For an endpoint shared with other Iroh protocols, register Burn's composable handler in the
 application router:
@@ -69,7 +70,7 @@ use burn::server::{self, BURN_REMOTE_ALPN};
 use iroh::protocol::Router;
 
 let burn = server::protocol(Device::cuda(0), &endpoint)
-    .authorizer(|request| platform.verify(request.peer, request.credential))
+    .with_authorizer(|request| platform.verify(request.peer, request.credential))
     .build();
 
 let router = Router::builder(endpoint)

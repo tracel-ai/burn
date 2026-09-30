@@ -97,27 +97,27 @@ impl IrohPeerBuilder {
     }
 
     /// The relays the server uses.
-    pub fn relays(mut self, relays: IrohRelays) -> Self {
+    pub fn with_relays(mut self, relays: IrohRelays) -> Self {
         self.relays = relays;
         self
     }
 
     /// An address to try directly, required when relays are disabled. Give every address a host
     /// name resolves to: the server may listen on only one of IPv4 and IPv6.
-    pub fn address(mut self, address: SocketAddr) -> Self {
+    pub fn with_address(mut self, address: SocketAddr) -> Self {
         self.addr = self.addr.with_ip_addr(address);
         self
     }
 
     /// What the server's authorizer checks, such as the token of a server's `TokenAuthorizer`.
-    pub fn credential(mut self, credential: impl Into<Vec<u8>>) -> Self {
+    pub fn with_credential(mut self, credential: impl Into<Vec<u8>>) -> Self {
         self.credential = Credential(credential.into());
         self
     }
 
     /// Dial from `endpoint`, shared with the application's other Iroh protocols, instead of
     /// binding one. Its own relay and segmentation offload settings then apply.
-    pub fn endpoint(mut self, endpoint: Endpoint) -> Self {
+    pub fn with_endpoint(mut self, endpoint: Endpoint) -> Self {
         self.endpoint = Some(endpoint);
         self
     }

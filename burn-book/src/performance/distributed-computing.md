@@ -126,7 +126,7 @@ fixed WebSocket address. The server exposes a local device with an `IrohChannel`
 receive the same unified `Device`:
 
 ```rust, ignore
-let peer = IrohPeerBuilder::new(server_id).credential(token).build();
+let peer = IrohPeerBuilder::new(server_id).with_credential(token).build();
 let device = Device::remote_iroh_peer(&peer, 0).await?;
 
 let tensor = Tensor::<1>::from_floats([1.0, 2.0, 3.0], &device);

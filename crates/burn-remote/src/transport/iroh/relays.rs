@@ -1,6 +1,13 @@
 use core::{fmt, str::FromStr};
 
+#[cfg(not(target_family = "wasm"))]
+use burn_std::config::config;
 use iroh::RelayUrl;
+#[cfg(not(target_family = "wasm"))]
+use iroh::{
+    Endpoint, RelayMode,
+    endpoint::{Builder, QuicTransportConfig, presets},
+};
 
 /// How an Iroh endpoint reaches peers it cannot dial directly. A server and its clients must agree.
 ///
@@ -43,36 +50,24 @@ impl fmt::Display for IrohRelays {
     }
 }
 
-#[cfg(not(target_family = "wasm"))]
-mod endpoint {
-    use burn_std::config::config;
-    use iroh::{
-        Endpoint, RelayMode,
-        endpoint::{Builder, QuicTransportConfig, presets},
-    };
-
-    use super::IrohRelays;
-
-    impl IrohRelays {
-        /// An endpoint builder with these relays.
-        pub(crate) fn endpoint_builder(&self) -> Builder {
-            let builder = match self {
-                Self::Public => Endpoint::builder(presets::N0),
-                Self::Private { url } => {
-                    Endpoint::builder(presets::Minimal).relay_mode(RelayMode::custom([url.clone()]))
-                }
-                Self::Disabled => {
-                    Endpoint::builder(presets::Minimal).relay_mode(RelayMode::Disabled)
-                }
-            };
-            // Drop with iroh#4555.
-            let segmentation_offload = config().remote().iroh_segmentation_offload;
-            builder.transport_config(
-                QuicTransportConfig::builder()
-                    .enable_segmentation_offload(segmentation_offload)
-                    .build(),
-            )
-        }
+impl IrohRelays {
+    /// An endpoint builder with these relays.
+    #[cfg(not(target_family = "wasm"))]
+    pub(crate) fn endpoint_builder(&self) -> Builder {
+        let builder = match self {
+            Self::Public => Endpoint::builder(presets::N0),
+            Self::Private { url } => {
+                Endpoint::builder(presets::Minimal).relay_mode(RelayMode::custom([url.clone()]))
+            }
+            Self::Disabled => Endpoint::builder(presets::Minimal).relay_mode(RelayMode::Disabled),
+        };
+        // Drop with iroh#4555.
+        let segmentation_offload = config().remote().iroh_segmentation_offload;
+        builder.transport_config(
+            QuicTransportConfig::builder()
+                .enable_segmentation_offload(segmentation_offload)
+                .build(),
+        )
     }
 }
 

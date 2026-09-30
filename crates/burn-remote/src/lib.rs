@@ -51,7 +51,7 @@ mod __client {
     /// [`RemoteDevice::iroh`] (or the `Device::remote_iroh` facade).
     ///
     /// ```rust, ignore
-    /// let peer = IrohPeerBuilder::new(server_id).credential(token).build();
+    /// let peer = IrohPeerBuilder::new(server_id).with_credential(token).build();
     /// let remote = peer.connect(0).await?;
     /// ```
     ///

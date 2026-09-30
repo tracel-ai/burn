@@ -57,7 +57,7 @@ impl PeerAuthorizer for AllowAll {
 }
 
 /// Serves only the clients whose credential is this token, which a client sets with
-/// `IrohPeerBuilder::credential`.
+/// `IrohPeerBuilder::with_credential`.
 #[derive(Clone)]
 pub struct TokenAuthorizer {
     // A digest compares in constant time whatever the credential's length, so timing reveals
