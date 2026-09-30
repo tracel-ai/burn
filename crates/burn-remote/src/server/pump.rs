@@ -99,7 +99,7 @@ where
         result = &mut writer_result => (Ok(()), Some(result)),
     };
 
-    // Teardown: drop our task sender and close the session so its worker drains and exits, which
+    // Drop our task sender and close the session so its worker drains and starts closing, which
     // closes the response queue and ends the writer; then await the writer so we don't tear the
     // runtime down mid-send.
     drop(task_sender);
