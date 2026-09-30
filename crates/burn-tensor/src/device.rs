@@ -492,7 +492,7 @@ impl Device {
         Self::new(device)
     }
 
-    /// A device on the Iroh server `peer` describes, dialed from an endpoint Burn binds for it.
+    /// A device on the Iroh server `peer` describes, dialed from the peer's endpoint.
     ///
     /// # Errors
     ///

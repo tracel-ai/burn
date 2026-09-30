@@ -23,10 +23,10 @@ let output = Tensor::<1>::from_floats([1.0, 2.0], &device) * 2.0;
 The peer's relays must match the server's. With relays disabled, `.with_address(...)` gives each
 address the server listens on.
 
-An application that manages identity, address lookup or discovery itself passes its own Iroh
-endpoint to `Device::remote_iroh` instead. That endpoint keeps Iroh's settings, including
-segmentation offload, which [iroh#4555](https://github.com/n0-computer/iroh/issues/4555) makes
-worth turning off:
+An application that already runs an Iroh endpoint, for its own identity, address lookup or other
+protocols, hands it to the peer with `.with_endpoint(endpoint)`, or dials with `Device::remote_iroh`
+directly. That endpoint keeps Iroh's settings, including segmentation offload, which
+[iroh#4555](https://github.com/n0-computer/iroh/issues/4555) makes worth turning off:
 
 ```rust,ignore
 use burn::remote::Endpoint;
@@ -39,7 +39,7 @@ let endpoint = Endpoint::builder(presets::N0)
     .transport_config(transport)
     .bind()
     .await?;
-let device = Device::remote_iroh(&endpoint, compute_peer, 0);
+let peer = IrohPeerBuilder::new(server_id).with_endpoint(endpoint).build();
 ```
 
 ## Compute peer

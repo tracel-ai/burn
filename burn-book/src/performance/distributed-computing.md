@@ -144,7 +144,8 @@ A system should generate a random `RemoteSecret` and distribute its public ident
 trusted channel. An `IrohChannel` serves every peer unless its builder is given an authorizer, such
 as a `TokenAuthorizer` checking the credential its clients set on their `IrohPeerBuilder`.
 
-Applications that own an Iroh endpoint can still pass it to `Device::remote_iroh` or
+An application that already runs an Iroh endpoint hands it to the peer with
+`IrohPeerBuilder::with_endpoint`, or dials with `Device::remote_iroh` or
 `Device::remote_iroh_authorized`. Such an endpoint keeps Iroh's own settings, so it sends GSO
 batches unless its transport config turns them off:
 
@@ -156,7 +157,7 @@ let endpoint = Endpoint::builder(presets::N0)
     .transport_config(transport)
     .bind()
     .await?;
-let device = Device::remote_iroh(&endpoint, server_id, 0);
+let peer = IrohPeerBuilder::new(server_id).with_endpoint(endpoint).build();
 ```
 
 Async constructors are available for browser targets, where a synchronous connection cannot be

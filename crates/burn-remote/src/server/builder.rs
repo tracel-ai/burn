@@ -42,7 +42,7 @@ impl Default for Channel {
         #[cfg(feature = "websocket")]
         return Channel::WebSocket { port: DEFAULT_PORT };
         // Without WebSocket the default is Iroh on a fresh random identity; a host that wants a
-        // dialable address sets its own secret with [`Channel::Iroh`].
+        // stable address builds its own channel with an `IrohChannelBuilder`.
         #[cfg(all(feature = "iroh", not(feature = "websocket")))]
         return Channel::Iroh {
             channel: crate::server::IrohChannelBuilder::new(crate::RemoteSecret::random()).build(),

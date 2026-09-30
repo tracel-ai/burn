@@ -613,12 +613,19 @@ mod iroh_peer {
         ));
     }
 
+    /// A port free on IPv4, and on IPv6 where the host has it.
     fn free_udp_port() -> u16 {
-        UdpSocket::bind((Ipv4Addr::UNSPECIFIED, 0))
-            .unwrap()
-            .local_addr()
-            .unwrap()
-            .port()
+        loop {
+            let port = UdpSocket::bind((Ipv4Addr::UNSPECIFIED, 0))
+                .unwrap()
+                .local_addr()
+                .unwrap()
+                .port();
+            let ipv6 = UdpSocket::bind((Ipv6Addr::UNSPECIFIED, port));
+            if ipv6.is_ok() || UdpSocket::bind((Ipv6Addr::UNSPECIFIED, 0)).is_err() {
+                return port;
+            }
+        }
     }
 
     fn serve_with_token(port: u16) -> EndpointId {

@@ -28,8 +28,8 @@ tracing = [
 client = ["tokio/sync", "tokio/rt"]
 # Cache recurring op-groups on the server and invoke them by id. Wraps `RemoteBackend` in `Fusion`.
 fusion = ["client", "dep:burn-fusion", "burn-router/fusion"]
-server = ["tokio/sync", "dep:tracing-subscriber", "dep:blake3"]
-iroh = ["dep:iroh", "tokio/io-util", "dep:tempfile"]
+server = ["tokio/sync", "dep:tracing-subscriber"]
+iroh = ["dep:iroh", "dep:blake3", "tokio/io-util", "dep:tempfile"]
 websocket = [
     "server",
     "dep:burn-communication",

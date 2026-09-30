@@ -1,9 +1,15 @@
 use core::{fmt, str::FromStr};
 
-#[cfg(not(target_family = "wasm"))]
+#[cfg(all(
+    any(feature = "client", feature = "server"),
+    not(target_family = "wasm")
+))]
 use burn_std::config::config;
 use iroh::RelayUrl;
-#[cfg(not(target_family = "wasm"))]
+#[cfg(all(
+    any(feature = "client", feature = "server"),
+    not(target_family = "wasm")
+))]
 use iroh::{
     Endpoint, RelayMode,
     endpoint::{Builder, QuicTransportConfig, presets},
@@ -52,7 +58,10 @@ impl fmt::Display for IrohRelays {
 
 impl IrohRelays {
     /// An endpoint builder with these relays.
-    #[cfg(not(target_family = "wasm"))]
+    #[cfg(all(
+        any(feature = "client", feature = "server"),
+        not(target_family = "wasm")
+    ))]
     pub(crate) fn endpoint_builder(&self) -> Builder {
         let builder = match self {
             Self::Public => Endpoint::builder(presets::N0),
