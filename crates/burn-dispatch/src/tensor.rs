@@ -254,9 +254,14 @@ pub struct DispatchTensor {
 ///
 /// Each variant corresponds to a specific backend implementation.
 #[derive(Clone, Debug)]
-// Remote only stands out when no local backend is compiled in; boxing it would cost an allocation
-// per remote tensor.
-#[cfg_attr(feature = "remote", allow(clippy::large_enum_variant))]
+// Boxing Remote would cost every remote tensor an allocation.
+#[cfg_attr(
+    all(
+        feature = "remote",
+        not(any(cube_backend, feature = "flex", feature = "ndarray", feature = "tch"))
+    ),
+    allow(clippy::large_enum_variant)
+)]
 pub enum DispatchTensorKind {
     #[cfg(not(backend_enabled))]
     #[doc(hidden)]
