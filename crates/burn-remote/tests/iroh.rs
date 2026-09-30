@@ -484,9 +484,27 @@ mod iroh_peer {
         ConnectError, EndpointId, IrohPeer, IrohPeerBuilder, IrohRelays, RemoteSecret,
         server::{Channel, IrohChannelBuilder, RemoteServerBuilder, TokenAuthorizer},
     };
+    use iroh_relay::server::{RelayConfig, Server, ServerConfig};
     use std::net::{Ipv4Addr, Ipv6Addr, SocketAddr, UdpSocket};
 
     const TOKEN: &str = "fleet-token";
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_peer_reaches_a_server_through_a_private_relay() {
+        let relay = private_relay().await;
+        let relays = IrohRelays::Private {
+            url: format!("http://{}", relay.http_addr().unwrap())
+                .parse()
+                .unwrap(),
+        };
+        let id = serve(IrohChannelBuilder::new(RemoteSecret::random()).with_relays(relays.clone()));
+        let peer = IrohPeerBuilder::new(id)
+            .with_relays(relays)
+            .with_credential(TOKEN)
+            .build();
+
+        peer.connect(0).await.unwrap();
+    }
 
     #[tokio::test(flavor = "multi_thread")]
     async fn a_peer_with_the_token_reaches_a_relay_free_server_by_address() {
@@ -629,9 +647,15 @@ mod iroh_peer {
     }
 
     fn serve_with_token(port: u16) -> EndpointId {
-        let channel = IrohChannelBuilder::new(RemoteSecret::random())
-            .with_relays(IrohRelays::Disabled)
-            .with_port(port)
+        serve(
+            IrohChannelBuilder::new(RemoteSecret::random())
+                .with_relays(IrohRelays::Disabled)
+                .with_port(port),
+        )
+    }
+
+    fn serve(channel: IrohChannelBuilder) -> EndpointId {
+        let channel = channel
             .with_authorizer(TokenAuthorizer::new(TOKEN).unwrap())
             .build();
         let id = channel.id();
@@ -641,6 +665,13 @@ mod iroh_peer {
                 .start_async(),
         );
         id
+    }
+
+    /// A relay on a free local port, over plain HTTP so no certificate is needed.
+    async fn private_relay() -> Server {
+        let mut config = ServerConfig::default();
+        config.relay = Some(RelayConfig::new((Ipv4Addr::LOCALHOST, 0)));
+        Server::spawn(config).await.unwrap()
     }
 
     fn direct_peer(id: EndpointId, ip: std::net::IpAddr, port: u16, token: &str) -> IrohPeer {

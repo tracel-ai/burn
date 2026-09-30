@@ -29,6 +29,10 @@ pub struct IrohChannel {
     secret: Box<RemoteSecret>,
     relays: IrohRelays,
     port: Option<u16>,
+    #[cfg_attr(
+        target_family = "wasm",
+        allow(dead_code, reason = "only `serve` reads it")
+    )]
     authorizer: Arc<dyn PeerAuthorizer>,
 }
 
