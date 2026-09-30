@@ -133,32 +133,15 @@ let tensor = Tensor::<1>::from_floats([1.0, 2.0, 3.0], &device);
 let output = tensor.square().sum(); // Executed by the remote server.
 ```
 
-Endpoints Burn binds for an `IrohChannel` or an `IrohPeer` send no segmentation-offloaded (GSO)
-batches, because of an Iroh bug ([iroh#4555](https://github.com/n0-computer/iroh/issues/4555)). On
-Linux before 6.11, a network card without TX checksum offload, such as most MediaTek wifi cards,
-refuses GSO sends, and Iroh keeps sending them on connections that are already open until those
-connections time out. Where the network stack is known to accept them,
-`iroh_segmentation_offload = true` under `[remote]` in `burn.toml` turns them back on.
-
 A system should generate a random `RemoteSecret` and distribute its public identity through a
 trusted channel. An `IrohChannel` serves every peer unless its builder is given an authorizer, such
-as a `TokenAuthorizer` checking the credential its clients set on their `IrohPeerBuilder`.
+as a `TokenAuthorizer` checking the credential its clients set.
 
-An application that already runs an Iroh endpoint hands it to the peer with
-`IrohPeerBuilder::with_endpoint`, or dials with `Device::remote_iroh` or
-`Device::remote_iroh_authorized`. Such an endpoint keeps Iroh's own settings, so it sends GSO
-batches unless its transport config turns them off:
-
-```rust, ignore
-let transport = QuicTransportConfig::builder()
-    .enable_segmentation_offload(false)
-    .build();
-let endpoint = Endpoint::builder(presets::N0)
-    .transport_config(transport)
-    .bind()
-    .await?;
-let peer = IrohPeerBuilder::new(server_id).with_endpoint(endpoint).build();
-```
+An application that already runs an Iroh endpoint passes it with `IrohPeerBuilder::with_endpoint`,
+or dials with `Device::remote_iroh`. Endpoints Burn binds send no segmentation-offloaded (GSO)
+batches because of [iroh#4555](https://github.com/n0-computer/iroh/issues/4555);
+`iroh_segmentation_offload` under `[remote]` in `burn.toml` turns them on. An application's own
+endpoint keeps its own setting.
 
 Async constructors are available for browser targets, where a synchronous connection cannot be
 established.
