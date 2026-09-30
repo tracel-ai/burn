@@ -39,8 +39,9 @@ memory configuration are exposed through `burn_wgpu::init_setup` and `RuntimeOpt
 
 Enable `vulkan`, `metal`, or `webgpu` and select the corresponding `Device` constructor to target
 that graphics API. `AutoCompiler` selects the shader compiler at runtime. There is no `spirv`
-feature or compiler type parameter on `Wgpu` in 0.22. The low-level `Wgpu`, `Vulkan`, `Metal`, and
-`WebGpu` aliases share a backend type; the device determines the runtime.
+feature or compiler type parameter on `Wgpu` in 0.22. Multiple backend features can be enabled
+together. The `Vulkan`, `Metal`, and `WebGpu` aliases are deprecated: use `Wgpu` with an explicit
+device constructor to select the graphics API.
 
 ## Platform Support
 

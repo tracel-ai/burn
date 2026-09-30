@@ -52,8 +52,9 @@ type WgpuInner = CubeBackend;
 /// [`graphics::Metal`]. Importing through [`init_device`] retains automatic compiler selection
 /// and fallback.
 ///
-/// The `Vulkan`, `WebGpu` and `Metal` aliases name the same backend. The device selects the
-/// graphics API; naming an alias alone does not select a compiler.
+/// Multiple backend features can be enabled together. The deprecated `Vulkan`, `WebGpu` and
+/// `Metal` aliases name the same backend; use [`Wgpu`] with an explicit device constructor to
+/// select the graphics API. Compiler selection follows the device and enabled features.
 ///
 /// To configure the wgpu backend, eg. to select what graphics API to use or what memory strategy to use,
 /// you have to manually initialize the runtime. For example:
@@ -78,21 +79,31 @@ type WgpuInner = CubeBackend;
 /// for now.
 pub type Wgpu = WgpuInner;
 
-/// Tensor backend that leverages the Vulkan graphics API to execute GPU compute shaders compiled to SPIR-V.
+/// Deprecated alias of [`Wgpu`].
 ///
-/// An alias of [`Wgpu`]. Compiler selection follows the device; see [`Wgpu`].
+/// Select Vulkan explicitly with Burn's `burn::tensor::Device::vulkan` or
+/// [`cubecl::Device::vulkan`]. Compiler selection follows the device; see [`Wgpu`].
 #[cfg(feature = "vulkan")]
+#[deprecated(
+    since = "0.22.0",
+    note = "Use `Wgpu` with `burn::tensor::Device::vulkan` to select Vulkan explicitly. This alias is identical to `Wgpu` and does not select a graphics API."
+)]
 pub type Vulkan = WgpuInner;
 
-/// Tensor backend that uses the wgpu crate to execute GPU compute shaders written in WGSL.
+/// Deprecated alias of [`Wgpu`].
 ///
-/// An alias of [`Wgpu`]. Compiler selection follows the device; see [`Wgpu`].
+/// Select WebGPU explicitly with Burn's `burn::tensor::Device::webgpu` or
+/// [`cubecl::Device::webgpu`]. Compiler selection follows the device; see [`Wgpu`].
 #[cfg(feature = "webgpu")]
+#[deprecated(
+    since = "0.22.0",
+    note = "Use `Wgpu` with `burn::tensor::Device::webgpu` to select WebGPU explicitly. This alias is identical to `Wgpu` and does not select a graphics API."
+)]
 pub type WebGpu = WgpuInner;
 
-/// Tensor backend that leverages the Metal graphics API to execute GPU compute shaders compiled to MSL.
+/// Deprecated alias of [`Wgpu`].
 ///
-/// An alias of [`Wgpu`]. Use Burn's `burn::tensor::Device::metal` or
+/// Use Burn's `burn::tensor::Device::metal` or
 /// [`cubecl::Device::metal_msl`] to select Metal explicitly. Both select
 /// [`WgpuBackend::Metal`], which requires native MSL support with `metal` enabled and panics
 /// during initialization if it is unavailable. Automatic devices retain WGSL fallback.
@@ -100,6 +111,10 @@ pub type WebGpu = WgpuInner;
 /// To import an existing Metal setup with the same requirement, use
 /// `init_device_with_api::<graphics::Metal>(setup, RuntimeOptions::default())`.
 #[cfg(feature = "metal")]
+#[deprecated(
+    since = "0.22.0",
+    note = "Use `Wgpu` with `burn::tensor::Device::metal` to select Metal explicitly. This alias is identical to `Wgpu` and does not select a graphics API."
+)]
 pub type Metal = WgpuInner;
 
 #[cfg(test)]
@@ -152,7 +167,7 @@ mod tests {
     #[cfg(all(feature = "vulkan", not(target_family = "wasm")))]
     #[test]
     fn should_support_vulkan_dtypes() {
-        type B = Vulkan;
+        type B = Wgpu;
         let device = cubecl::Device::Wgpu(WgpuDevice::default().on(WgpuBackend::Vulkan));
         assert_common_dtypes(&device);
 
@@ -173,7 +188,7 @@ mod tests {
     #[cfg(all(feature = "metal", target_vendor = "apple"))]
     #[test]
     fn should_support_metal_dtypes() {
-        type B = Metal;
+        type B = Wgpu;
         let device = cubecl::Device::Wgpu(WgpuDevice::default().on(WgpuBackend::Metal));
         assert_common_dtypes(&device);
 
