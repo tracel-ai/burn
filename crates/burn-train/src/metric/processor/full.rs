@@ -1,4 +1,4 @@
-use super::{EventProcessorTraining, ItemLazy, LearnerEvent, MetricsTraining, EventProcessorError};
+use super::{EventProcessorError, EventProcessorTraining, ItemLazy, LearnerEvent, MetricsTraining};
 use crate::logger::{EvaluationProgressLogger, TrainingProgressLogger};
 use crate::metric::MetricMetadata;
 use crate::metric::processor::{EvaluatorEvent, EventProcessorEvaluation, MetricsEvaluation};

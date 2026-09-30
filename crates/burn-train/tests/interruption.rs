@@ -8,7 +8,7 @@ use std::sync::{
 use burn_core::tensor::{Device, TensorReadError};
 use burn_std::ExecutionError;
 use burn_train::{
-    EvaluatorBuilder, Interrupter, Interruption, LearningResult, EventProcessorFailure,
+    EvaluatorBuilder, EventProcessorFailure, Interrupter, Interruption, LearningResult,
     SupervisedTraining, TrainingError,
     logger::InMemoryMetricLogger,
     metric::{Metric, MetricMetadata, MetricName, SerializedEntry, store::Split},
