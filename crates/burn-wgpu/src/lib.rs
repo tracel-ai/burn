@@ -14,9 +14,12 @@ pub use burn_cubecl::{CubeBackend, tensor::CubeTensor};
 pub use cubecl::CubeDim;
 pub use cubecl::flex32;
 
+#[cfg(feature = "metal")]
+pub use cubecl::wgpu::MslCompiler;
 pub use cubecl::wgpu::{
-    AutoCompiler, MemoryConfiguration, RuntimeOptions, WgpuDevice, WgpuResource, WgpuRuntime,
-    WgpuSetup, WgpuStorage, init_device, init_setup, init_setup_async,
+    AutoCompiler, MemoryConfiguration, RuntimeOptions, WgpuBackend, WgpuDevice, WgpuResource,
+    WgpuRuntime, WgpuSetup, WgpuStorage, init_device, init_device_with_api, init_setup,
+    init_setup_async,
 };
 // Vulkan and WebGpu would have conflicting type names
 pub mod graphics {
@@ -38,10 +41,19 @@ type WgpuInner = CubeBackend;
 ///   - [Metal][crate::graphics::Metal] on Apple hardware.
 ///   - [WebGPU](crate::graphics::WebGpu) on supported browsers and `wasm` runtimes.
 ///
-/// The selected graphics API is chosen automatically at runtime, and the appropriate shader
-/// compiler (WGSL, SPIR-V or MSL) is dispatched via [`AutoCompiler`]. The `Vulkan`, `WebGpu`
-/// and `Metal` aliases name the same backend; the compiler is a runtime choice, not a
-/// compile-time one.
+/// Automatic devices use [`AutoCompiler`] to select WGSL, SPIR-V or MSL, with WGSL fallback
+/// when a native compiler is unavailable. Enabling `metal` makes MSL available without changing
+/// the compiler used by unrelated devices.
+///
+/// With `metal` enabled, an explicitly selected Metal device, created with Burn's
+/// `burn::tensor::Device::metal` or [`cubecl::Device::metal_msl`], requires native MSL and panics
+/// during initialization if it is unavailable. The same applies to [`init_setup`] or
+/// [`init_setup_async`] with [`graphics::Metal`], and to [`init_device_with_api`] with
+/// [`graphics::Metal`]. Importing through [`init_device`] retains automatic compiler selection
+/// and fallback.
+///
+/// The `Vulkan`, `WebGpu` and `Metal` aliases name the same backend. The device selects the
+/// graphics API; naming an alias alone does not select a compiler.
 ///
 /// To configure the wgpu backend, eg. to select what graphics API to use or what memory strategy to use,
 /// you have to manually initialize the runtime. For example:
@@ -55,7 +67,7 @@ type WgpuInner = CubeBackend;
 ///     );
 /// }
 /// ```
-/// will mean the given device (in this case the default) will be initialized to use Vulkan as the graphics API.
+/// initializes the given device (in this case the default) to use Vulkan as the graphics API.
 /// It's also possible to use an existing wgpu device, by using `init_device`.
 ///
 /// # Notes
@@ -68,23 +80,25 @@ pub type Wgpu = WgpuInner;
 
 /// Tensor backend that leverages the Vulkan graphics API to execute GPU compute shaders compiled to SPIR-V.
 ///
-/// An alias of [`Wgpu`] kept for the name: a backend no longer carries its
-/// runtime, so the shader compiler is chosen by [`AutoCompiler`] from the
-/// features the build enables rather than by which alias is named here.
+/// An alias of [`Wgpu`]. Compiler selection follows the device; see [`Wgpu`].
 #[cfg(feature = "vulkan")]
 pub type Vulkan = WgpuInner;
 
 /// Tensor backend that uses the wgpu crate to execute GPU compute shaders written in WGSL.
 ///
-/// An alias of [`Wgpu`]; see [`Vulkan`] for why the compiler is no longer part
-/// of the type.
+/// An alias of [`Wgpu`]. Compiler selection follows the device; see [`Wgpu`].
 #[cfg(feature = "webgpu")]
 pub type WebGpu = WgpuInner;
 
 /// Tensor backend that leverages the Metal graphics API to execute GPU compute shaders compiled to MSL.
 ///
-/// An alias of [`Wgpu`]; see [`Vulkan`] for why the compiler is no longer part
-/// of the type.
+/// An alias of [`Wgpu`]. Use Burn's `burn::tensor::Device::metal` or
+/// [`cubecl::Device::metal_msl`] to select Metal explicitly. Both select
+/// [`WgpuBackend::Metal`], which requires native MSL support with `metal` enabled and panics
+/// during initialization if it is unavailable. Automatic devices retain WGSL fallback.
+///
+/// To import an existing Metal setup with the same requirement, use
+/// `init_device_with_api::<graphics::Metal>(setup, RuntimeOptions::default())`.
 #[cfg(feature = "metal")]
 pub type Metal = WgpuInner;
 
@@ -93,87 +107,105 @@ mod tests {
     use super::*;
     use burn_backend::{Backend, BoolStore, DType, DeviceOps};
 
+    fn assert_common_dtypes(device: &cubecl::Device) {
+        // Metal and Vulkan alias Wgpu; the device selects the compiler.
+        type B = Wgpu;
+        let defaults = device.defaults();
+        let scheme = defaults.quantization.scheme;
+
+        assert!(B::supports_dtype(device, DType::F32));
+        assert!(B::supports_dtype(device, DType::F16));
+        assert!(B::supports_dtype(device, DType::I64));
+        assert!(B::supports_dtype(device, DType::I32));
+        assert!(B::supports_dtype(device, DType::U64));
+        assert!(B::supports_dtype(device, DType::U32));
+        assert!(B::supports_dtype(device, DType::QFloat(scheme)));
+        assert!(!B::supports_dtype(device, DType::Bool(BoolStore::Native)));
+        assert!(B::supports_dtype(device, defaults.bool_dtype.into()));
+    }
+
+    #[cfg(any(
+        all(feature = "vulkan", not(target_family = "wasm")),
+        all(feature = "metal", target_vendor = "apple")
+    ))]
+    fn assert_fp4_dtypes(device: &cubecl::Device) {
+        use burn_backend::quantization::{QuantScheme, QuantStore, QuantValue, ScaleDtype};
+
+        // FP8 block scale storage and software conversion support NVFP4 and MXFP4.
+        let fp4 = QuantScheme::default()
+            .with_value(QuantValue::E2M1)
+            .with_store(QuantStore::PackedU32(0));
+        let nvfp4 = fp4
+            .per_block([16], ScaleDtype::UE4M3)
+            .per_tensor(ScaleDtype::F32);
+        let mxfp4 = fp4.per_block([32], ScaleDtype::UE8M0);
+        assert!(Wgpu::supports_dtype(device, DType::QFloat(nvfp4)));
+        assert!(Wgpu::supports_dtype(device, DType::QFloat(mxfp4)));
+    }
+
     #[test]
     fn should_support_dtypes() {
+        let device = cubecl::Device::Wgpu(WgpuDevice::default());
+        assert_common_dtypes(&device);
+    }
+
+    #[cfg(all(feature = "vulkan", not(target_family = "wasm")))]
+    #[test]
+    fn should_support_vulkan_dtypes() {
+        type B = Vulkan;
+        let device = cubecl::Device::Wgpu(WgpuDevice::default().on(WgpuBackend::Vulkan));
+        assert_common_dtypes(&device);
+
+        assert!(B::supports_dtype(&device, DType::I16));
+        assert!(B::supports_dtype(&device, DType::I8));
+        assert!(B::supports_dtype(&device, DType::U16));
+        assert!(B::supports_dtype(&device, DType::U8));
+
+        // F64 is supported through the shader_float64 feature.
+        assert!(B::supports_dtype(&device, DType::F64));
+        assert!(!B::supports_dtype(&device, DType::Flex32));
+        // BF16 supports storage and conversion, but not all scalar arithmetic operations.
+        assert!(!B::supports_dtype(&device, DType::BF16));
+
+        assert_fp4_dtypes(&device);
+    }
+
+    #[cfg(all(feature = "metal", target_vendor = "apple"))]
+    #[test]
+    fn should_support_metal_dtypes() {
+        type B = Metal;
+        let device = cubecl::Device::Wgpu(WgpuDevice::default().on(WgpuBackend::Metal));
+        assert_common_dtypes(&device);
+
+        assert!(B::supports_dtype(&device, DType::I16));
+        assert!(B::supports_dtype(&device, DType::I8));
+        assert!(B::supports_dtype(&device, DType::U16));
+        assert!(B::supports_dtype(&device, DType::U8));
+
+        assert!(!B::supports_dtype(&device, DType::F64));
+        // MSL 3.2 carries bfloat natively.
+        assert!(B::supports_dtype(&device, DType::BF16));
+        assert!(!B::supports_dtype(&device, DType::Flex32));
+
+        assert_fp4_dtypes(&device);
+    }
+
+    #[cfg(not(any(feature = "vulkan", feature = "metal")))]
+    #[test]
+    fn should_support_wgsl_dtypes() {
         type B = Wgpu;
         let device = cubecl::Device::Wgpu(WgpuDevice::default());
-        let scheme = device.defaults().quantization.scheme;
+        assert_common_dtypes(&device);
 
-        assert!(B::supports_dtype(&device, DType::F32));
-        assert!(B::supports_dtype(&device, DType::I64));
-        assert!(B::supports_dtype(&device, DType::I32));
-        assert!(B::supports_dtype(&device, DType::U64));
-        assert!(B::supports_dtype(&device, DType::U32));
-        assert!(B::supports_dtype(&device, DType::QFloat(scheme)));
-        assert!(!B::supports_dtype(&device, DType::Bool(BoolStore::Native)));
-
-        #[cfg(feature = "vulkan")]
-        {
-            assert!(B::supports_dtype(&device, DType::F16));
-            assert!(B::supports_dtype(&device, DType::I16));
-            assert!(B::supports_dtype(&device, DType::I8));
-            assert!(B::supports_dtype(&device, DType::U16));
-            assert!(B::supports_dtype(&device, DType::U8));
-
-            // NOTE: F64 is not part of the default types, but is supported based on `shader_float64` feature
-            assert!(B::supports_dtype(&device, DType::F64));
-            assert!(!B::supports_dtype(&device, DType::Flex32));
-            // Not supported for any arithmetics, but buffer, conversion and possibly matmul (hw dependent)
-            assert!(!B::supports_dtype(&device, DType::BF16));
-        }
-
-        #[cfg(feature = "metal")]
-        {
-            assert!(B::supports_dtype(&device, DType::F16));
-            assert!(B::supports_dtype(&device, DType::I16));
-            assert!(B::supports_dtype(&device, DType::I8));
-            assert!(B::supports_dtype(&device, DType::U16));
-            assert!(B::supports_dtype(&device, DType::U8));
-
-            assert!(!B::supports_dtype(&device, DType::F64));
-            // MSL 3.2 carries bfloat natively.
-            assert!(B::supports_dtype(&device, DType::BF16));
-            assert!(!B::supports_dtype(&device, DType::Flex32));
-
-            // fp8 block scales are stored and converted in software: NVFP4 and MXFP4 quantize.
-            use burn_backend::quantization::{QuantScheme, QuantStore, QuantValue, ScaleDtype};
-            let fp4 = QuantScheme::default()
-                .with_value(QuantValue::E2M1)
-                .with_store(QuantStore::PackedU32(0));
-            let nvfp4 = fp4
-                .per_block([16], ScaleDtype::UE4M3)
-                .per_tensor(ScaleDtype::F32);
-            let mxfp4 = fp4.per_block([32], ScaleDtype::UE8M0);
-            assert!(B::supports_dtype(&device, DType::QFloat(nvfp4)));
-            assert!(B::supports_dtype(&device, DType::QFloat(mxfp4)));
-        }
-
-        // On macOS without the `metal` feature, wgpu still uses Metal at runtime,
-        // which doesn't support F64 or BF16.
-        #[cfg(all(not(any(feature = "vulkan", feature = "metal")), target_os = "macos"))]
-        {
-            assert!(B::supports_dtype(&device, DType::Flex32));
-            assert!(B::supports_dtype(&device, DType::F16));
-
-            assert!(!B::supports_dtype(&device, DType::F64));
-            assert!(!B::supports_dtype(&device, DType::BF16));
-            assert!(!B::supports_dtype(&device, DType::I16));
-            assert!(!B::supports_dtype(&device, DType::I8));
-            assert!(!B::supports_dtype(&device, DType::U16));
-            assert!(!B::supports_dtype(&device, DType::U8));
-        }
-
-        #[cfg(not(any(feature = "vulkan", feature = "metal", target_os = "macos")))]
-        {
-            assert!(B::supports_dtype(&device, DType::F64));
-            assert!(B::supports_dtype(&device, DType::Flex32));
-            assert!(B::supports_dtype(&device, DType::F16));
-
-            assert!(!B::supports_dtype(&device, DType::BF16));
-            assert!(!B::supports_dtype(&device, DType::I16));
-            assert!(!B::supports_dtype(&device, DType::I8));
-            assert!(!B::supports_dtype(&device, DType::U16));
-            assert!(!B::supports_dtype(&device, DType::U8));
-        }
+        assert!(B::supports_dtype(&device, DType::Flex32));
+        #[cfg(target_os = "macos")]
+        assert!(!B::supports_dtype(&device, DType::F64));
+        #[cfg(not(target_os = "macos"))]
+        assert!(B::supports_dtype(&device, DType::F64));
+        assert!(!B::supports_dtype(&device, DType::BF16));
+        assert!(!B::supports_dtype(&device, DType::I16));
+        assert!(!B::supports_dtype(&device, DType::I8));
+        assert!(!B::supports_dtype(&device, DType::U16));
+        assert!(!B::supports_dtype(&device, DType::U8));
     }
 }
