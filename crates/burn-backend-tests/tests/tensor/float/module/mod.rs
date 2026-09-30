@@ -6,6 +6,7 @@ mod adaptive_avgpool3d;
 mod attention;
 mod avgpool1d;
 mod avgpool2d;
+#[cfg(feature = "flex")]
 mod avgpool3d;
 mod batch_norm;
 mod bicubic_interpolate;
@@ -24,6 +25,7 @@ mod lanczos3_interpolate;
 mod linear;
 mod maxpool1d;
 mod maxpool2d;
+#[cfg(feature = "flex")]
 mod maxpool3d;
 mod nearest_interpolate;
 mod unfold4d;
