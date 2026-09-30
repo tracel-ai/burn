@@ -1,7 +1,6 @@
 use super::*;
 use burn_tensor::TensorData;
 
-#[ignore = "0 size resources are not yet supported"]
 #[test]
 fn test_roll_empty() {
     let device = Default::default();
