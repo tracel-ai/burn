@@ -485,14 +485,16 @@ pub(crate) fn max_pool3d_backward<E: FloatNdArrayElement, I: IntNdArrayElement>(
     indices: SharedArray<I>,
 ) -> SharedArray<E> {
     let [_batch_size, _channels, out_depth, out_height, out_width] = output_grad.shape().dims();
-    let [batch_size, channels, depth_x, height_x, width_x] = x.shape().dims();
+    let [batch_size, channels, in_d, in_h, in_w] = x.shape().dims();
 
-    let mut output = Array5::zeros((batch_size, channels, depth_x, height_x, width_x));
-    let slice_size = height_x * width_x;
+    let mut output = Array5::zeros((batch_size, channels, in_d, in_h, in_w));
+    let slice_size = in_h * in_w;
 
-    if slice_size == 0 || width_x == 0 {
+    if slice_size == 0 || in_w == 0 {
         return output.into_dyn().into_shared();
     }
+
+    let total_spatial = in_d * in_h * in_w;
 
     for b in 0..batch_size {
         for c in 0..channels {
@@ -502,17 +504,18 @@ pub(crate) fn max_pool3d_backward<E: FloatNdArrayElement, I: IntNdArrayElement>(
                         let index = indices[[b, c, od, oh, ow]].elem::<i64>();
                         let grad = output_grad[[b, c, od, oh, ow]];
 
-                        if index >= 0 {
-                            let idx = index as usize;
-                            let index_d = idx / slice_size;
-                            let rem = idx % slice_size;
-                            let index_h = rem / width_x;
-                            let index_w = rem % width_x;
+                        assert!(
+                            index >= 0 && (index as usize) < total_spatial,
+                            "max_pool3d_with_indices_backward: index {index} out of bounds for input spatial extent [d={in_d}, h={in_h}, w={in_w}]"
+                        );
 
-                            if index_d < depth_x && index_h < height_x && index_w < width_x {
-                                output[[b, c, index_d, index_h, index_w]] += grad;
-                            }
-                        }
+                        let idx = index as usize;
+                        let index_d = idx / slice_size;
+                        let rem = idx % slice_size;
+                        let index_h = rem / in_w;
+                        let index_w = rem % in_w;
+
+                        output[[b, c, index_d, index_h, index_w]] += grad;
                     }
                 }
             }

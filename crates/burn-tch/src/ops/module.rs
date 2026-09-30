@@ -4,8 +4,8 @@ use burn_backend::{
     ops::{
         AttentionModuleOptions, ConvOptions, ConvTransposeOptions, DeformConv2dBackward,
         DeformConvOptions, InterpolateMode, InterpolateOptions, MaxPool1dWithIndices,
-        MaxPool2dBackward, MaxPool2dWithIndices, ModuleOps, attention::attention_fallback,
-        conv::pad_asymmetric_conv_input,
+        MaxPool2dBackward, MaxPool2dWithIndices, MaxPool3dBackward, MaxPool3dWithIndices,
+        ModuleOps, attention::attention_fallback, conv::pad_asymmetric_conv_input,
     },
     tensor::{FloatTensor, IntTensor},
 };
@@ -266,6 +266,58 @@ impl ModuleOps<Self> for LibTorch {
         TchTensor::new(tensor)
     }
 
+    fn avg_pool3d(
+        x: TchTensor,
+        kernel_size: [usize; 3],
+        stride: [usize; 3],
+        padding: [usize; 3],
+        count_include_pad: bool,
+        ceil_mode: bool,
+    ) -> TchTensor {
+        let tensor = tch::Tensor::avg_pool3d(
+            &x.tensor,
+            [
+                kernel_size[0] as i64,
+                kernel_size[1] as i64,
+                kernel_size[2] as i64,
+            ],
+            [stride[0] as i64, stride[1] as i64, stride[2] as i64],
+            [padding[0] as i64, padding[1] as i64, padding[2] as i64],
+            ceil_mode,
+            count_include_pad,
+            None,
+        );
+
+        TchTensor::new(tensor)
+    }
+
+    fn avg_pool3d_backward(
+        x: TchTensor,
+        grad: TchTensor,
+        kernel_size: [usize; 3],
+        stride: [usize; 3],
+        padding: [usize; 3],
+        count_include_pad: bool,
+        ceil_mode: bool,
+    ) -> TchTensor {
+        let tensor = tch::Tensor::avg_pool3d_backward(
+            &x.tensor,
+            &grad.tensor,
+            [
+                kernel_size[0] as i64,
+                kernel_size[1] as i64,
+                kernel_size[2] as i64,
+            ],
+            [stride[0] as i64, stride[1] as i64, stride[2] as i64],
+            [padding[0] as i64, padding[1] as i64, padding[2] as i64],
+            ceil_mode,
+            count_include_pad,
+            None,
+        );
+
+        TchTensor::new(tensor)
+    }
+
     fn max_pool1d(
         x: TchTensor,
         kernel_size: usize,
@@ -376,6 +428,86 @@ impl ModuleOps<Self> for LibTorch {
         );
 
         MaxPool2dBackward::new(TchTensor::new(grad))
+    }
+
+    fn max_pool3d(
+        x: TchTensor,
+        kernel_size: [usize; 3],
+        stride: [usize; 3],
+        padding: [usize; 3],
+        dilation: [usize; 3],
+        ceil_mode: bool,
+    ) -> TchTensor {
+        let tensor = tch::Tensor::max_pool3d(
+            &x.tensor,
+            [
+                kernel_size[0] as i64,
+                kernel_size[1] as i64,
+                kernel_size[2] as i64,
+            ],
+            [stride[0] as i64, stride[1] as i64, stride[2] as i64],
+            [padding[0] as i64, padding[1] as i64, padding[2] as i64],
+            [dilation[0] as i64, dilation[1] as i64, dilation[2] as i64],
+            ceil_mode,
+        );
+
+        TchTensor::new(tensor)
+    }
+
+    fn max_pool3d_with_indices(
+        x: TchTensor,
+        kernel_size: [usize; 3],
+        stride: [usize; 3],
+        padding: [usize; 3],
+        dilation: [usize; 3],
+        ceil_mode: bool,
+        indices_dtype: IntDType,
+    ) -> MaxPool3dWithIndices<Self> {
+        let (tensor, indices) = tch::Tensor::max_pool3d_with_indices(
+            &x.tensor,
+            [
+                kernel_size[0] as i64,
+                kernel_size[1] as i64,
+                kernel_size[2] as i64,
+            ],
+            [stride[0] as i64, stride[1] as i64, stride[2] as i64],
+            [padding[0] as i64, padding[1] as i64, padding[2] as i64],
+            [dilation[0] as i64, dilation[1] as i64, dilation[2] as i64],
+            ceil_mode,
+        );
+
+        MaxPool3dWithIndices::new(
+            TchTensor::new(tensor),
+            TchTensor::new(indices.to_kind(indices_dtype.into_kind())),
+        )
+    }
+
+    fn max_pool3d_with_indices_backward(
+        x: TchTensor,
+        kernel_size: [usize; 3],
+        stride: [usize; 3],
+        padding: [usize; 3],
+        dilation: [usize; 3],
+        ceil_mode: bool,
+        output_grad: TchTensor,
+        indices: TchTensor,
+    ) -> MaxPool3dBackward<Self> {
+        let grad = tch::Tensor::max_pool3d_with_indices_backward(
+            &x.tensor,
+            &output_grad.tensor,
+            [
+                kernel_size[0] as i64,
+                kernel_size[1] as i64,
+                kernel_size[2] as i64,
+            ],
+            [stride[0] as i64, stride[1] as i64, stride[2] as i64],
+            [padding[0] as i64, padding[1] as i64, padding[2] as i64],
+            [dilation[0] as i64, dilation[1] as i64, dilation[2] as i64],
+            ceil_mode,
+            &indices.tensor,
+        );
+
+        MaxPool3dBackward::new(TchTensor::new(grad))
     }
 
     fn adaptive_avg_pool2d(x: TchTensor, output_size: [usize; 2]) -> TchTensor {

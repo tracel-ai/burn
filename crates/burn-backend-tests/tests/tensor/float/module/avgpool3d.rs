@@ -71,8 +71,22 @@ fn test_avg_pool3d_ceil_mode() {
     let out_floor = avg_pool3d(x.clone(), [2, 2, 2], [2, 2, 2], [0, 0, 0], true, false);
     assert_eq!(out_floor.dims(), [1, 1, 2, 2, 2]);
 
-    let out_ceil = avg_pool3d(x, [2, 2, 2], [2, 2, 2], [0, 0, 0], true, true);
-    assert_eq!(out_ceil.dims(), [1, 1, 3, 3, 3]);
+    // Ceil mode with count_include_pad = true:
+    // With no explicit padding (padding=0), all windows evaluate to 1.0.
+    let out_ceil_include = avg_pool3d(x.clone(), [2, 2, 2], [2, 2, 2], [0, 0, 0], true, true);
+    assert_eq!(out_ceil_include.dims(), [1, 1, 3, 3, 3]);
+    let expected_ceil = TestTensor::<5>::ones([1, 1, 3, 3, 3], &Default::default());
+    expected_ceil
+        .to_data()
+        .assert_approx_eq::<FloatElem>(&out_ceil_include.into_data(), Tolerance::default());
+
+    // Ceil mode with count_include_pad = false:
+    // The partial trailing edge window value is verified to be exactly 1.0.
+    let out_ceil_exclude = avg_pool3d(x, [2, 2, 2], [2, 2, 2], [0, 0, 0], false, true);
+    assert_eq!(out_ceil_exclude.dims(), [1, 1, 3, 3, 3]);
+    expected_ceil
+        .to_data()
+        .assert_approx_eq::<FloatElem>(&out_ceil_exclude.into_data(), Tolerance::default());
 }
 
 #[test]
