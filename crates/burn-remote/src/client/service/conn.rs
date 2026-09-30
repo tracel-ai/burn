@@ -129,12 +129,10 @@ impl RemoteEndpoint {
             OpenError::NotReachableYet(reason) => {
                 let waited: Duration = OPEN_RETRY_DELAYS.iter().sum();
                 format!(
-                    "Cannot reach {peer} after trying for {waited:?} ({reason}). Is its server running?"
+                    "nothing answered after trying for {waited:?} ({reason}); is the server running?"
                 )
             }
-            OpenError::Failed(message) => {
-                format!("Cannot open a remote session to {peer}: {message}")
-            }
+            OpenError::Failed(message) => message,
         };
 
         for delay in OPEN_RETRY_DELAYS {

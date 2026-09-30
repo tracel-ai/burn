@@ -482,10 +482,18 @@ mod iroh_peer {
     use super::*;
     use burn_remote::{
         ConnectError, EndpointId, IrohPeer, IrohPeerBuilder, IrohRelays, RemoteSecret,
-        server::{Channel, IrohChannelBuilder, RemoteServerBuilder, TokenAuthorizer},
+        server::{
+            AuthorizationRequest, Channel, IrohChannelBuilder, RemoteServerBuilder, TokenAuthorizer,
+        },
     };
     use iroh_relay::server::{RelayConfig, Server, ServerConfig};
-    use std::net::{Ipv4Addr, Ipv6Addr, SocketAddr, UdpSocket};
+    use std::{
+        net::{Ipv4Addr, Ipv6Addr, SocketAddr, UdpSocket},
+        sync::{
+            Arc,
+            atomic::{AtomicBool, Ordering},
+        },
+    };
 
     const TOKEN: &str = "fleet-token";
 
@@ -545,13 +553,13 @@ mod iroh_peer {
         let refused = direct_peer(id, Ipv4Addr::LOCALHOST.into(), port, "wrong-token");
         let result = refused.connect(0).await;
         assert!(
-            matches!(&result, Err(ConnectError::Refused { reason }) if reason.contains("wrong token")),
+            matches!(result, Err(ConnectError::Unauthorized)),
             "{result:?}"
         );
     }
 
     #[tokio::test(flavor = "multi_thread")]
-    async fn a_peer_asking_for_a_device_the_server_lacks_is_refused() {
+    async fn a_peer_asking_for_a_device_the_server_lacks_is_told_how_many_it_hosts() {
         let port = free_udp_port();
         let peer = direct_peer(
             serve_with_token(port),
@@ -562,9 +570,37 @@ mod iroh_peer {
 
         let result = peer.connect(1).await;
         assert!(
-            matches!(&result, Err(ConnectError::Refused { reason }) if reason.contains("hosts 1 device")),
+            matches!(result, Err(ConnectError::NoSuchDevice { device_count: 1 })),
             "{result:?}"
         );
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_peer_refused_once_connects_on_its_next_try() {
+        let port = free_udp_port();
+        let open = Arc::new(AtomicBool::new(false));
+        let admits = open.clone();
+        let id = start(
+            IrohChannelBuilder::new(RemoteSecret::random())
+                .with_relays(IrohRelays::Disabled)
+                .with_port(port)
+                .with_authorizer(move |_: AuthorizationRequest<'_>| {
+                    if admits.load(Ordering::Relaxed) {
+                        Ok(())
+                    } else {
+                        Err("not yet".to_string())
+                    }
+                }),
+        );
+        let peer = direct_peer(id, Ipv4Addr::LOCALHOST.into(), port, TOKEN);
+
+        let result = peer.connect(0).await;
+        assert!(
+            matches!(result, Err(ConnectError::Unauthorized)),
+            "{result:?}"
+        );
+        open.store(true, Ordering::Relaxed);
+        peer.connect(0).await.unwrap();
     }
 
     #[tokio::test(flavor = "multi_thread")]
@@ -678,9 +714,11 @@ mod iroh_peer {
     }
 
     fn serve(channel: IrohChannelBuilder) -> EndpointId {
-        let channel = channel
-            .with_authorizer(TokenAuthorizer::new(TOKEN).unwrap())
-            .build();
+        start(channel.with_authorizer(TokenAuthorizer::new(TOKEN).unwrap()))
+    }
+
+    fn start(channel: IrohChannelBuilder) -> EndpointId {
+        let channel = channel.build();
         let id = channel.id();
         tokio::spawn(
             RemoteServerBuilder::<Flex>::new(vec![Default::default()])

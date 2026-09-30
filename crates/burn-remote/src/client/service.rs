@@ -1,7 +1,8 @@
 use crate::metrics::{MetricSide, TelemetryLogger, logger_task};
 use crate::shared::{
     LocalTransferId, PROTOCOL_VERSION, RemoteMessage, RequestId, SessionId, SessionInfo,
-    SessionInit, Task, TaskResponse, TaskResponseContent, TensorRemote, TransferCapability,
+    SessionInit, SessionRefusal, Task, TaskResponse, TaskResponseContent, TensorRemote,
+    TransferCapability,
 };
 use crate::telemetry::{CHANNEL_CAPACITY, TelemetryEvent, TelemetryProbe, serialized_len};
 use burn_backend::{
@@ -32,7 +33,7 @@ use conn::ResponseChannel;
 use pending::{PendingResponses, Responder};
 use writer::SubmitWriter;
 
-use super::{SessionError, runtime::Executor};
+use super::{SessionOpenError, runtime::Executor};
 pub(crate) use conn::{RemoteEndpoint, SubmitChannel};
 use registry::{device_count_cell, executor_for, settings_cell};
 pub(crate) use registry::{device_count_for, has_settings, new_tensor_id, settings_for};
@@ -164,10 +165,10 @@ impl RemoteService {
     fn connect_streams(
         executor: &Executor,
         endpoint: &RemoteEndpoint,
-    ) -> Result<(SubmitChannel, ResponseChannel), SessionError> {
+    ) -> Result<(SubmitChannel, ResponseChannel), SessionOpenError> {
         executor
             .block_on(endpoint.open_channels())
-            .map_err(|reason| SessionError::Unreachable { reason })
+            .map_err(|reason| SessionOpenError::Unreachable { reason })
     }
 
     /// Send the session-init handshake on both streams and wait for the device settings the
@@ -179,8 +180,8 @@ impl RemoteService {
         endpoint: &RemoteEndpoint,
         session_id: SessionId,
         device_index: u32,
-    ) -> Result<(DeviceSettings, u32), SessionError> {
-        let failed = |reason: String| SessionError::Handshake { reason };
+    ) -> Result<(DeviceSettings, u32), SessionOpenError> {
+        let failed = |reason: String| SessionOpenError::Handshake { reason };
         let init_bytes: bytes::Bytes = rmp_serde::to_vec(&vec![RemoteMessage::Init(
             SessionInit::new(session_id, device_index, endpoint.authorization().to_vec()),
         )])
@@ -204,14 +205,13 @@ impl RemoteService {
                 ..
             }) => {
                 if version != PROTOCOL_VERSION {
-                    return Err(failed(format!(
-                        "the server uses Burn Remote protocol version {version}, this client \
-                         {PROTOCOL_VERSION}"
-                    )));
+                    return Err(SessionOpenError::Refused {
+                        refusal: SessionRefusal::IncompatibleProtocol,
+                    });
                 }
                 Ok((settings, device_count))
             }
-            TaskResponseContent::InitRefused(reason) => Err(SessionError::Refused { reason }),
+            TaskResponseContent::InitRefused(refusal) => Err(SessionOpenError::Refused { refusal }),
             other => Err(failed(format!(
                 "expected the handshake reply, got {other:?}"
             ))),
@@ -227,7 +227,7 @@ impl RemoteService {
         endpoint: &RemoteEndpoint,
         session_id: SessionId,
         device_index: u32,
-    ) -> Result<(DeviceSettings, u32), SessionError> {
+    ) -> Result<(DeviceSettings, u32), SessionOpenError> {
         executor.block_on(Self::handshake_async(
             request,
             response,
@@ -299,7 +299,7 @@ pub(crate) struct WasmConnected {
 
 /// Open and hand-shake a session on the browser event loop.
 ///
-/// This is the async counterpart of [`RemoteService::ensure_connected`]: it runs the parts that
+/// This is the async counterpart of [`RemoteService::try_connect`]: it runs the parts that
 /// would block (connecting the Iroh streams, the init round-trip) with `.await`, then spawns the
 /// response-demux and writer tasks with `spawn_local`. The returned [`WasmConnected`] is `Send`,
 /// so the caller can install it back into the service through the device handle.
@@ -312,7 +312,7 @@ pub(crate) async fn wasm_connect(plan: WasmConnectPlan) -> WasmConnected {
             .endpoint
             .open_channels()
             .await
-            .map_err(|reason| SessionError::Unreachable { reason })?;
+            .map_err(|reason| SessionOpenError::Unreachable { reason })?;
         let (settings, device_count) = RemoteService::handshake_async(
             &mut request,
             &mut response,
@@ -324,12 +324,13 @@ pub(crate) async fn wasm_connect(plan: WasmConnectPlan) -> WasmConnected {
         Ok((request, response, settings, device_count))
     }
     .await;
-    let (request, response, settings, device_count) = opened.unwrap_or_else(|err: SessionError| {
-        panic!(
-            "Failed to open a remote session at {}: {err}",
-            plan.endpoint.peer_addr()
-        )
-    });
+    let (request, response, settings, device_count) =
+        opened.unwrap_or_else(|err: SessionOpenError| {
+            panic!(
+                "Failed to open a remote session at {}: {err}",
+                plan.endpoint.peer_addr()
+            )
+        });
 
     RemoteService::spawn_response_demux(&executor, response, plan.responder);
     let writer = SubmitWriter::spawn(&executor, request);
@@ -705,14 +706,16 @@ impl RemoteService {
         }
     }
 
-    /// Open the session socket and run the init handshake — exactly once.
+    /// Open the session and run the init handshake, unless it is already open. A failed attempt
+    /// leaves nothing behind, so the next call tries again.
     ///
-    /// Called lazily from the device-runner thread: from [`flush`](Self::flush) on the first
-    /// task, or via [`RemoteClient::ensure_connected`](super::RemoteClient) on the settings
-    /// path. Never from [`init`](Self::init), so the blocking connect + handshake runs off
-    /// cubecl's global device-registry lock and devices connect in parallel. Always runs on
-    /// the single runner thread, so the idempotent check needs no locking.
-    pub(crate) fn try_connect(&mut self) -> Result<(), SessionError> {
+    /// Runs on the device-runner thread, so the check needs no lock, and never from
+    /// [`init`](Self::init), which holds cubecl's global device-registry lock.
+    ///
+    /// # Panics
+    ///
+    /// On wasm, where only `RemoteDevice::connect_async` can open the session.
+    pub(crate) fn try_connect(&mut self) -> Result<(), SessionOpenError> {
         if self.writer.is_some() {
             return Ok(());
         }

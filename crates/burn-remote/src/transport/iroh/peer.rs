@@ -5,7 +5,7 @@ use iroh::{Endpoint, EndpointAddr, endpoint::BindError};
 use tokio::sync::OnceCell;
 
 use super::{node::RemoteNode, relays::IrohRelays};
-use crate::{RemoteDevice, client::SessionError};
+use crate::{RemoteDevice, client::SessionOpenError, shared::SessionRefusal};
 
 /// An Iroh compute server as a client dials it: its id and any addresses to try directly, the
 /// relays it uses, and the credential its authorizer checks. Built with [`IrohPeerBuilder`].
@@ -155,32 +155,42 @@ pub enum ConnectError {
     },
     /// The runtime shut down before the connection was attempted.
     Interrupted,
-    /// No connection to the server could be opened: it is not running, or nothing answered at
-    /// its addresses.
+    /// No session could be opened with the server: it is not running, nothing answered at its
+    /// addresses, or another endpoint answered there.
     Unreachable {
-        /// Why, as the transport reported it.
+        /// What failed.
         reason: String,
     },
-    /// The server refused the session: its authorizer rejected the credential, or it does not
-    /// host the device.
-    Refused {
-        /// The server's reason.
-        reason: String,
+    /// The server's authorizer rejected the credential. Its reason is in the server's log.
+    Unauthorized,
+    /// The server does not host the device index asked for.
+    NoSuchDevice {
+        /// How many devices the server hosts.
+        device_count: usize,
     },
-    /// The server was reached, but the session handshake broke off or its reply made no sense,
-    /// as with a server on another version of Burn.
+    /// The server speaks another version of the Burn Remote protocol: build both with the same
+    /// Burn release.
+    IncompatibleProtocol,
+    /// The server was reached, but the session handshake broke off or its reply made no sense. A
+    /// server on an older Burn release refuses a session by closing it unanswered, which lands here.
     Handshake {
         /// What went wrong.
         reason: String,
     },
 }
 
-impl From<SessionError> for ConnectError {
-    fn from(err: SessionError) -> Self {
+impl From<SessionOpenError> for ConnectError {
+    fn from(err: SessionOpenError) -> Self {
         match err {
-            SessionError::Unreachable { reason } => Self::Unreachable { reason },
-            SessionError::Refused { reason } => Self::Refused { reason },
-            SessionError::Handshake { reason } => Self::Handshake { reason },
+            SessionOpenError::Unreachable { reason } => Self::Unreachable { reason },
+            SessionOpenError::Refused { refusal } => match refusal {
+                SessionRefusal::Unauthorized => Self::Unauthorized,
+                SessionRefusal::NoSuchDevice { device_count } => Self::NoSuchDevice {
+                    device_count: device_count as usize,
+                },
+                SessionRefusal::IncompatibleProtocol => Self::IncompatibleProtocol,
+            },
+            SessionOpenError::Handshake { reason } => Self::Handshake { reason },
         }
     }
 }
@@ -191,8 +201,14 @@ impl fmt::Display for ConnectError {
             Self::NoAddress => f.write_str("relays are disabled and no address was given"),
             Self::Bind { source } => write!(f, "cannot bind an Iroh endpoint: {source}"),
             Self::Interrupted => f.write_str("the runtime shut down before connecting"),
-            Self::Unreachable { reason } => f.write_str(reason),
-            Self::Refused { reason } => write!(f, "the server refused the session: {reason}"),
+            Self::Unreachable { reason } => write!(f, "the server cannot be reached: {reason}"),
+            Self::Unauthorized => f.write_str("the server's authorizer rejected the credential"),
+            Self::NoSuchDevice { device_count } => {
+                write!(f, "the server hosts only {device_count} device(s)")
+            }
+            Self::IncompatibleProtocol => {
+                f.write_str("the server speaks another version of the Burn Remote protocol")
+            }
             Self::Handshake { reason } => write!(f, "the session handshake failed: {reason}"),
         }
     }
@@ -205,7 +221,9 @@ impl std::error::Error for ConnectError {
             Self::NoAddress
             | Self::Interrupted
             | Self::Unreachable { .. }
-            | Self::Refused { .. }
+            | Self::Unauthorized
+            | Self::NoSuchDevice { .. }
+            | Self::IncompatibleProtocol
             | Self::Handshake { .. } => None,
         }
     }

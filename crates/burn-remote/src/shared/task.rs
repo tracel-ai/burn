@@ -14,8 +14,8 @@ use crate::{PeerAddr, PeerId};
 ///
 /// Bumped whenever [`Task`] or [`TaskResponseContent`] changes shape, so a
 /// mismatched peer is refused at the handshake rather than failing to decode
-/// a batch mid-session. `2`: profiling windows. `3`: a refused session says why.
-pub const PROTOCOL_VERSION: u16 = 3;
+/// a batch mid-session. `2`: profiling windows.
+pub const PROTOCOL_VERSION: u16 = 2;
 
 /// Routing id for a task whose result is fetched back.
 ///
@@ -150,6 +150,37 @@ pub struct SessionInfo {
     pub peer_id: Option<PeerId>,
 }
 
+/// Why a server will not serve a session, as the client is told.
+///
+/// A category and never the authorizer's own words: the client is not yet authorized, and an
+/// authorizer writes its reasons for the server's log.
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SessionRefusal {
+    /// The server's authorizer rejected the client's credential.
+    Unauthorized,
+    /// The server does not host the device the client asked for. Only an authorized client is
+    /// told how many it hosts.
+    NoSuchDevice { device_count: u32 },
+    /// The server cannot read the client's handshake, as when the client speaks another version
+    /// of the Burn Remote protocol. Told before authorization, so it reveals whether the
+    /// client's version matches.
+    IncompatibleProtocol,
+}
+
+impl Display for SessionRefusal {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::Unauthorized => f.write_str("the server's authorizer rejected the credential"),
+            Self::NoSuchDevice { device_count } => {
+                write!(f, "the server hosts only {device_count} device(s)")
+            }
+            Self::IncompatibleProtocol => {
+                f.write_str("the server speaks another version of the Burn Remote protocol")
+            }
+        }
+    }
+}
+
 #[allow(missing_docs)]
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct TensorRemote {
@@ -269,7 +300,34 @@ pub enum TaskResponseContent {
     /// The window's duration on the server's clock; `None` when it carried no
     /// measurement.
     ProfileEnd(Result<Option<Duration>, ExecutionError>),
-    /// The server's answer to an `Init` it will not serve, in place of [`Init`](Self::Init):
-    /// why, before it closes the session.
-    InitRefused(String),
+    /// The server's answer to an `Init` it will not serve, in place of [`Init`](Self::Init),
+    /// before it closes the session. A client decodes it whatever protocol version it speaks, and
+    /// rmp-serde encodes variants by name: add refusal categories, never rename or remove one.
+    InitRefused(SessionRefusal),
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_refusal_keeps_its_wire_encoding() {
+        let refusal = TaskResponse {
+            content: TaskResponseContent::InitRefused(SessionRefusal::NoSuchDevice {
+                device_count: 2,
+            }),
+            id: 0,
+        };
+
+        // `[content, id]`, each variant a one-entry map keyed by its name.
+        let expected = [
+            &[0x92, 0x81, 0xab][..],
+            b"InitRefused",
+            &[0x81, 0xac],
+            b"NoSuchDevice",
+            &[0x91, 0x02, 0x00],
+        ]
+        .concat();
+        assert_eq!(rmp_serde::to_vec(&refusal).unwrap(), expected);
+    }
 }

@@ -268,17 +268,26 @@ impl RemoteDevice {
 
     /// Forces the client connection to be established immediately using the default protocol.
     /// This is a no-op if the connection is already up for this device.
+    ///
+    /// # Panics
+    ///
+    /// The server cannot be reached or refuses the session. `IrohPeer::connect` returns these as
+    /// a `ConnectError` instead.
     pub fn connect(&self) {
-        // `get_client` initializes the (lazy) service if needed; `ensure_connected` then opens
-        // the sockets and runs the handshake on the runner thread, so the settings/device-count
-        // cells are populated by the time we return.
-        get_client::<RemoteChannel>(self).ensure_connected();
+        if let Err(err) = self.try_connect() {
+            panic!(
+                "Failed to open a remote session at {}: {err}",
+                self.peer_addr()
+            );
+        }
     }
 
     /// [`connect`](Self::connect), returning why the session could not be opened instead of
     /// panicking.
-    #[cfg(all(feature = "iroh", not(target_family = "wasm")))]
-    pub(crate) fn try_connect(&self) -> Result<(), super::SessionError> {
+    pub(crate) fn try_connect(&self) -> Result<(), super::SessionOpenError> {
+        // `get_client` initializes the (lazy) service if needed; `try_connect` then opens the
+        // sockets and runs the handshake on the runner thread, so the settings/device-count
+        // cells are populated by the time we return.
         get_client::<RemoteChannel>(self).try_connect()
     }
 

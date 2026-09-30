@@ -95,7 +95,7 @@ impl RemoteNode {
             #[cfg(feature = "websocket")]
             PeerAddr::WebSocket(_) => {
                 return Err(OpenError::Failed(
-                    "Iroh node cannot open a stream to a non-Iroh peer".into(),
+                    "an Iroh node cannot open a stream to a non-Iroh peer".into(),
                 ));
             }
         };
@@ -103,12 +103,12 @@ impl RemoteNode {
         let (mut send, recv) = connection
             .open_bi()
             .await
-            .map_err(|err| OpenError::Failed(format!("Failed to open an Iroh stream: {err}")))?;
+            .map_err(|err| OpenError::Failed(format!("cannot open an Iroh stream: {err}")))?;
         let header = rmp_serde::to_vec(&StreamHeader {
             version: STREAM_VERSION,
             kind,
         })
-        .map_err(|err| OpenError::Failed(format!("Failed to encode Iroh stream header: {err}")))?;
+        .map_err(|err| OpenError::Failed(format!("cannot encode the Iroh stream header: {err}")))?;
         send_frame(&mut send, &header)
             .await
             .map_err(OpenError::Failed)?;
