@@ -4,11 +4,6 @@
 //! local `cube_backend` cfg set by this crate's `build.rs`,
 //! plus visibility of every in-tree `BackendIr` type. The user surface
 //! (`Channel` enum, opaque `Device` argument) lives in `burn-tensor`.
-// With no backend that can host a server, every arm of `with_backend!` panics.
-#![cfg_attr(
-    not(any(cube_backend, feature = "flex", feature = "ndarray")),
-    allow(unused_imports, unused_macros, unused_variables)
-)]
 
 use std::sync::Arc;
 
