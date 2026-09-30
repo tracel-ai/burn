@@ -5,7 +5,7 @@ use burn::config::Config;
 use burn::module::Module;
 use burn::module::{Content, DisplaySettings, ModuleDisplay};
 use burn::tensor::Tensor;
-use burn::tensor::ops::PadMode;
+use burn::tensor::ops::MaxPoolOptions;
 
 use burn::tensor::module::max_pool2d;
 
@@ -92,45 +92,21 @@ impl MaxPool2d {
     /// - output: `[batch_size, channels, height_out, width_out]`
     pub fn forward(&self, input: Tensor<4>) -> Tensor<4> {
         let [_batch_size, _channels_in, height_in, width_in] = input.dims();
-
-        // Calculate padding as pairs - handles Same, Valid, and Explicit uniformly
-        let ((top, bottom), (left, right)) = self.padding.calculate_padding_2d_pairs(
+        let (padding_height, padding_width) = self.padding.calculate_padding_2d_pairs(
             height_in,
             width_in,
             &self.kernel_size,
             &self.stride,
         );
 
-        // TODO: Move asymmetric padding to functional level via PoolOptions
-        // See: https://github.com/tracel-ai/burn/issues/4362
-        // Handle asymmetric padding by applying explicit pad operation first
-        if top != bottom || left != right {
-            // Burn's pad takes (left, right, top, bottom) for the last two dimensions
-            // Use -inf for max pooling so padded values don't affect the max
-            let padded = input.pad(
-                (left, right, top, bottom),
-                PadMode::Constant(f32::NEG_INFINITY),
-            );
-            // Use zero padding for the pool operation since we already padded
-            max_pool2d(
-                padded,
-                self.kernel_size,
-                self.stride,
-                [0, 0],
-                self.dilation,
-                self.ceil_mode,
-            )
-        } else {
-            // Symmetric padding
-            max_pool2d(
-                input,
-                self.kernel_size,
-                self.stride,
-                [top, left],
-                self.dilation,
-                self.ceil_mode,
-            )
-        }
+        max_pool2d(
+            input,
+            MaxPoolOptions::new(self.kernel_size)
+                .with_stride(self.stride)
+                .with_padding_pairs([padding_height, padding_width])
+                .with_dilation(self.dilation)
+                .with_ceil_mode(self.ceil_mode),
+        )
     }
 }
 

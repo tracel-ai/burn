@@ -6,6 +6,7 @@ use burn::module::Module;
 use burn::tensor::Device;
 use burn::tensor::Tensor;
 use burn::tensor::activation::relu;
+use burn::tensor::ops::MaxPoolOptions;
 use burn_nn::PaddingConfig2d;
 use burn_nn::conv::{Conv2d, Conv2dConfig};
 
@@ -112,5 +113,5 @@ impl VggFeatureExtractor {
 
 /// 2x2 max pooling with stride 2.
 fn max_pool2d(x: Tensor<4>) -> Tensor<4> {
-    burn_core::tensor::module::max_pool2d(x, [2, 2], [2, 2], [0, 0], [1, 1], false)
+    burn_core::tensor::module::max_pool2d(x, MaxPoolOptions::new([2, 2]))
 }
