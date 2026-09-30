@@ -25,23 +25,47 @@ fn test_roll() {
         .to_data()
         .assert_eq(&input.clone().to_data(), false);
 
+    // Expected values match torch.roll(input, shifts=(1, -1), dims=(0, 1)).
     input
         .clone()
         .roll(&[1, -1], &[0, 1])
         .to_data()
-        .assert_eq(&TensorData::from([[5, 3, 4], [2, 0, 1]]), false);
+        .assert_eq(&TensorData::from([[4, 5, 3], [1, 2, 0]]), false);
 
     input
         .clone()
         .roll(&[-1, 1], &[1, 0])
         .to_data()
-        .assert_eq(&TensorData::from([[5, 3, 4], [2, 0, 1]]), false);
+        .assert_eq(&TensorData::from([[4, 5, 3], [1, 2, 0]]), false);
 
     input
         .clone()
         .roll(&[2 * 32 + 1, 3 * (-400) - 1], &[0, 1])
         .to_data()
-        .assert_eq(&TensorData::from([[5, 3, 4], [2, 0, 1]]), false);
+        .assert_eq(&TensorData::from([[4, 5, 3], [1, 2, 0]]), false);
+}
+
+/// torch.roll(x, shifts, dims) shifts elements towards higher indices for a
+/// positive shift, i.e. out[i] = x[(i - shift) % n]. Burn documents `roll`/`roll_dim`
+/// as equivalent to `torch.roll` (see burn-book/src/building-blocks/tensor.md), so it
+/// must match that direction rather than the opposite one.
+#[test]
+fn test_roll_matches_torch_direction() {
+    let input = TestTensorInt::<1>::from([0, 1, 2, 3]);
+
+    // torch.roll(torch.tensor([0, 1, 2, 3]), shifts=1) == tensor([3, 0, 1, 2])
+    input
+        .clone()
+        .roll(&[1], &[0])
+        .to_data()
+        .assert_eq(&TensorData::from([3, 0, 1, 2]), false);
+
+    // torch.roll(torch.tensor([0, 1, 2, 3]), shifts=1) == tensor([3, 0, 1, 2])
+    input
+        .clone()
+        .roll_dim(1, 0)
+        .to_data()
+        .assert_eq(&TensorData::from([3, 0, 1, 2]), false);
 }
 
 #[should_panic]
@@ -81,11 +105,12 @@ fn test_roll_dim() {
         .to_data()
         .assert_eq(&TensorData::from([[3, 4, 5], [0, 1, 2]]), false);
 
+    // Expected values match torch.roll(input, shifts=-1, dims=1).
     input
         .clone()
         .roll_dim(-1, 1)
         .to_data()
-        .assert_eq(&TensorData::from([[2, 0, 1], [5, 3, 4]]), false);
+        .assert_eq(&TensorData::from([[1, 2, 0], [4, 5, 3]]), false);
 }
 
 #[should_panic]
