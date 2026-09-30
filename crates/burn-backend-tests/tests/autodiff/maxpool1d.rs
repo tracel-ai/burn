@@ -2,6 +2,7 @@ use super::*;
 use burn_tensor::Distribution;
 use burn_tensor::Tolerance;
 use burn_tensor::module::{max_pool1d, max_pool1d_with_indices};
+use burn_tensor::ops::MaxPoolOptions;
 
 #[test]
 fn test_max_pool1d_simple() {
@@ -18,7 +19,13 @@ fn test_max_pool1d_simple() {
     .require_grad();
     let x_grad_expected = TestTensor::<3>::from_data([[[1., 1., 0., 0., 0., 1.]]], &device);
 
-    let output = max_pool1d(x.clone(), kernel_size, stride, padding, dilation, false);
+    let output = max_pool1d(
+        x.clone(),
+        MaxPoolOptions::new([kernel_size])
+            .with_stride([stride])
+            .with_padding([padding])
+            .with_dilation([dilation]),
+    );
     let grads = output.backward();
 
     // Asserts
@@ -53,7 +60,13 @@ fn test_max_pool1d_with_dilation() {
         &device,
     );
 
-    let output = max_pool1d(x.clone(), kernel_size, stride, padding, dilation, false);
+    let output = max_pool1d(
+        x.clone(),
+        MaxPoolOptions::new([kernel_size])
+            .with_stride([stride])
+            .with_padding([padding])
+            .with_dilation([dilation]),
+    );
     let grads = output.backward();
 
     // Asserts
@@ -88,7 +101,13 @@ fn test_max_pool1d_complex() {
         &device,
     );
 
-    let output = max_pool1d(x.clone(), kernel_size, stride, padding, dilation, false);
+    let output = max_pool1d(
+        x.clone(),
+        MaxPoolOptions::new([kernel_size])
+            .with_stride([stride])
+            .with_padding([padding])
+            .with_dilation([dilation]),
+    );
     let grads = output.backward();
 
     // Asserts
@@ -123,7 +142,13 @@ fn test_max_pool1d_complex_with_padding() {
         &device,
     );
 
-    let output = max_pool1d(x.clone(), kernel_size, stride, padding, dilation, false);
+    let output = max_pool1d(
+        x.clone(),
+        MaxPoolOptions::new([kernel_size])
+            .with_stride([stride])
+            .with_padding([padding])
+            .with_dilation([dilation]),
+    );
     let grads = output.backward();
 
     // Asserts
@@ -189,28 +214,18 @@ impl MaxPool1dWithIndicesTestCase {
         let device = AutodiffDevice::new();
         let data = TestTensor::<3>::random([2, 3, self.length], Distribution::Default, &device)
             .into_data();
+        let options = MaxPoolOptions::new([self.kernel_size])
+            .with_stride([self.stride])
+            .with_padding([self.padding])
+            .with_dilation([self.dilation])
+            .with_ceil_mode(self.ceil_mode);
 
         let grad = |with_indices: bool| {
             let x = TestTensor::<3>::from_data(data.clone(), &device).require_grad();
             let output = if with_indices {
-                max_pool1d_with_indices(
-                    x.clone(),
-                    self.kernel_size,
-                    self.stride,
-                    self.padding,
-                    self.dilation,
-                    self.ceil_mode,
-                )
-                .0
+                max_pool1d_with_indices(x.clone(), options.clone()).0
             } else {
-                max_pool1d(
-                    x.clone(),
-                    self.kernel_size,
-                    self.stride,
-                    self.padding,
-                    self.dilation,
-                    self.ceil_mode,
-                )
+                max_pool1d(x.clone(), options.clone())
             };
             let weights =
                 TestTensorInt::<1>::arange(1..output.shape().num_elements() as i64 + 1, &device)
