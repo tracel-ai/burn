@@ -62,8 +62,8 @@ impl Default for Channel {
 /// counterpart of the client building `OperationIr::Custom`. Custom ops are served the same way over
 /// either transport.
 ///
-/// It also serves a backend that implements `BackendIr` without being part of `DispatchDevice`:
-/// build it with that backend as `B`.
+/// `burn::server::start` hosts only `DispatchDevice` backends; serve any other `BackendIr` backend
+/// by naming it as `B`.
 ///
 /// ```rust,ignore
 /// RemoteServerBuilder::new(devices)
