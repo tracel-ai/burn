@@ -1,9 +1,6 @@
-use burn::server::{Channel, IrohChannel, RemoteSecret};
+use burn::remote::{EndpointId, IrohPeerBuilder};
+use burn::server::{Channel, IrohChannelBuilder, RemoteSecret};
 use burn::tensor::{Device, Distribution, Tensor};
-use iroh::{
-    Endpoint, EndpointId,
-    endpoint::{QuicTransportConfig, presets},
-};
 use tracing_subscriber::{EnvFilter, fmt};
 
 fn init_logging() {
@@ -28,7 +25,7 @@ pub async fn run_server(topic: &str) {
     tracing::info!("waiting for clients (press Ctrl-C to stop)");
     burn::server::start_async(
         Device::flex(),
-        Channel::Iroh(Box::new(IrohChannel::new(secret))),
+        Channel::Iroh(Box::new(IrohChannelBuilder::new(secret).build())),
     )
     .await;
     tracing::info!("server stopped");
@@ -41,16 +38,10 @@ pub async fn run_client(topic: &str) {
     println!("server id : {server_id}");
     println!("connecting...");
 
-    // https://github.com/n0-computer/iroh/issues/4555
-    let transport = QuicTransportConfig::builder()
-        .enable_segmentation_offload(false)
-        .build();
-    let endpoint = Endpoint::builder(presets::N0)
-        .transport_config(transport)
-        .bind()
+    let peer = IrohPeerBuilder::new(server_id).build();
+    let device = Device::remote_iroh_peer(&peer, 0)
         .await
         .expect("bind failed");
-    let device = Device::remote_iroh(&endpoint, server_id, 0);
 
     println!("connected\n");
     train(&device);

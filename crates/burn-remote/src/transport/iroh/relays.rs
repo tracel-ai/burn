@@ -1,5 +1,6 @@
 use core::str::FromStr;
 
+use burn_std::config::config;
 use iroh::{
     Endpoint, RelayMode, RelayUrl,
     endpoint::{Builder, QuicTransportConfig, presets},
@@ -33,8 +34,8 @@ impl FromStr for IrohRelays {
 }
 
 impl IrohRelays {
-    /// An endpoint builder with these relays, sending segmentation-offloaded batches only if asked.
-    pub(crate) fn endpoint_builder(&self, segmentation_offload: bool) -> Builder {
+    /// An endpoint builder with these relays.
+    pub(super) fn endpoint_builder(&self) -> Builder {
         let builder = match self {
             Self::Public => Endpoint::builder(presets::N0),
             Self::Private(url) => {
@@ -42,6 +43,7 @@ impl IrohRelays {
             }
             Self::Disabled => Endpoint::builder(presets::Minimal).relay_mode(RelayMode::Disabled),
         };
+        let segmentation_offload = config().remote().iroh_segmentation_offload;
         builder.transport_config(
             QuicTransportConfig::builder()
                 .enable_segmentation_offload(segmentation_offload)

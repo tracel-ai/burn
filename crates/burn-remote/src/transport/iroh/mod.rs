@@ -11,20 +11,18 @@ pub use secret::RemoteSecret;
 #[cfg(feature = "client")]
 mod peer;
 #[cfg(feature = "client")]
-pub use peer::IrohPeer;
+pub use peer::{IrohPeer, IrohPeerBuilder};
 
 #[cfg(feature = "server")]
 mod channel;
 #[cfg(feature = "server")]
-pub use channel::IrohChannel;
+pub use channel::{IrohChannel, IrohChannelBuilder};
 
 mod link;
 pub mod node;
 
 #[cfg(feature = "server")]
 pub mod protocol;
-#[cfg(all(feature = "server", not(target_family = "wasm")))]
-pub mod server;
 #[cfg(feature = "server")]
 mod transfer;
 #[cfg(feature = "server")]

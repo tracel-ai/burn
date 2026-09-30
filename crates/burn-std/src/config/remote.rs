@@ -23,6 +23,13 @@ pub struct RemoteConfig {
     /// batching. Larger batches fewer/bigger frames; smaller cuts latency for data-heavy streams.
     #[serde(default = "default_flush_bytes_threshold")]
     pub flush_bytes_threshold: usize,
+
+    /// Let Iroh endpoints send segmentation-offloaded (GSO) batches.
+    ///
+    /// Off by default: Iroh keeps sending them after the kernel refuses one, which stalls every
+    /// open connection ([iroh#4555](https://github.com/n0-computer/iroh/issues/4555)).
+    #[serde(default)]
+    pub iroh_segmentation_offload: bool,
 }
 
 impl Default for RemoteConfig {
@@ -31,6 +38,7 @@ impl Default for RemoteConfig {
             logger: LoggerConfig::default(),
             flush_threshold: default_flush_threshold(),
             flush_bytes_threshold: default_flush_bytes_threshold(),
+            iroh_segmentation_offload: false,
         }
     }
 }

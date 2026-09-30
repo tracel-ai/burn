@@ -255,35 +255,6 @@ impl RemoteDevice {
         }
     }
 
-    /// Dial device `device_index` of `peer` from an endpoint bound for it, and connect.
-    ///
-    /// # Errors
-    ///
-    /// The endpoint could not be bound.
-    ///
-    /// # Panics
-    ///
-    /// The server refused the session, or could not be reached.
-    #[cfg(all(feature = "iroh", not(target_family = "wasm")))]
-    pub async fn iroh_peer(
-        peer: &crate::IrohPeer,
-        device_index: usize,
-    ) -> Result<Self, iroh::endpoint::BindError> {
-        let endpoint = peer.bind().await?;
-        let device = Self::iroh_authorized(
-            &endpoint,
-            peer.addr(),
-            device_index,
-            peer.credential_bytes().to_vec(),
-        );
-        // The handshake blocks until the server answers, so it runs off the async workers.
-        let connecting = device.clone();
-        if let Err(err) = tokio::task::spawn_blocking(move || connecting.connect()).await {
-            std::panic::resume_unwind(err.into_panic());
-        }
-        Ok(device)
-    }
-
     /// Forces the client connection to be established immediately using the default protocol.
     /// This is a no-op if the connection is already up for this device.
     pub fn connect(&self) {

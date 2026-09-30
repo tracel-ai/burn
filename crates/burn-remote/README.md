@@ -39,12 +39,13 @@ tenant policy, and fleet membership remain application concerns.
 ## Compute peer
 
 ```rust,ignore
-use burn::server::{self, Channel, IrohChannel, RemoteSecret, TokenAuthorizer};
+use burn::server::{self, Channel, IrohChannelBuilder, RemoteSecret, TokenAuthorizer};
 use burn::tensor::Device;
 
 let secret = RemoteSecret::load_or_create("server.key")?;
-let channel = IrohChannel::new(secret)
-    .authorizer(TokenAuthorizer::new(token).expect("A non-empty token"));
+let channel = IrohChannelBuilder::new(secret)
+    .authorizer(TokenAuthorizer::new(token).expect("A non-empty token"))
+    .build();
 println!("compute peer: {}", channel.id());
 
 server::start_async(Device::cuda(0), Channel::Iroh(Box::new(channel))).await;

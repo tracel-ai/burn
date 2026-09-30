@@ -57,7 +57,7 @@ impl PeerAuthorizer for AllowAll {
 }
 
 /// Serves only the clients whose credential is this token, given with
-/// [`IrohPeer::credential`](crate::IrohPeer::credential).
+/// [`IrohPeerBuilder::credential`](crate::IrohPeerBuilder::credential).
 #[derive(Clone)]
 pub struct TokenAuthorizer {
     token: Arc<[u8]>,

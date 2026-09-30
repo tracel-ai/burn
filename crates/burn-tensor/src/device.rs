@@ -507,8 +507,7 @@ impl Device {
         index: impl Into<DeviceIndex>,
     ) -> Result<Self, crate::remote::BindError> {
         let index = index.into().resolve();
-        let device = burn_dispatch::backends::remote::RemoteDevice::iroh_peer(peer, index).await?;
-        Ok(Self::new(device))
+        Ok(Self::new(peer.connect(index).await?))
     }
 
     /// Browser counterpart of `remote_iroh_authorized`. Establishes the session asynchronously.

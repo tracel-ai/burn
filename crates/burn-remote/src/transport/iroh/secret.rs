@@ -24,8 +24,8 @@ impl RemoteSecret {
     }
 
     /// The identity stored in `path`, created there on first use so the server keeps its id
-    /// across restarts. Whoever can read the file can pose as the server, so it is created
-    /// readable by its owner only.
+    /// across restarts. Whoever can read the file can pose as the server: on Unix it is created
+    /// readable by its owner only, elsewhere it takes its directory's permissions.
     #[cfg(not(target_family = "wasm"))]
     pub fn load_or_create(path: impl AsRef<std::path::Path>) -> std::io::Result<Self> {
         use std::io::{Error, ErrorKind, Write};

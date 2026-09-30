@@ -40,9 +40,9 @@ impl Default for Channel {
         // Without WebSocket the default is Iroh on a fresh random identity; a host that wants a
         // dialable address sets its own secret with [`Channel::Iroh`].
         #[cfg(all(feature = "iroh", not(feature = "websocket")))]
-        return Channel::Iroh(Box::new(crate::IrohChannel::new(
-            crate::RemoteSecret::random(),
-        )));
+        return Channel::Iroh(Box::new(
+            crate::IrohChannelBuilder::new(crate::RemoteSecret::random()).build(),
+        ));
     }
 }
 
@@ -138,14 +138,7 @@ impl<B: BackendIr> RemoteServerBuilder<B> {
                 .await;
             }
             #[cfg(feature = "iroh")]
-            Channel::Iroh(channel) => {
-                crate::transport::iroh::server::start_iroh_async::<B>(
-                    *channel,
-                    self.devices,
-                    self.custom_ops,
-                )
-                .await;
-            }
+            Channel::Iroh(channel) => channel.serve(self.devices, self.custom_ops).await,
         }
     }
 

@@ -488,13 +488,14 @@ fn free_udp_port() -> u16 {
 
 fn serve_with_token(port: u16) -> burn_remote::EndpointId {
     use burn_remote::{
-        IrohChannel, IrohRelays, RemoteSecret,
+        IrohChannelBuilder, IrohRelays, RemoteSecret,
         server::{Channel, RemoteServerBuilder, TokenAuthorizer},
     };
-    let channel = IrohChannel::new(RemoteSecret::random())
+    let channel = IrohChannelBuilder::new(RemoteSecret::random())
         .relays(IrohRelays::Disabled)
         .port(port)
-        .authorizer(TokenAuthorizer::new("fleet-token").unwrap());
+        .authorizer(TokenAuthorizer::new("fleet-token").unwrap())
+        .build();
     let id = channel.id();
     tokio::spawn(
         RemoteServerBuilder::<Flex>::new(vec![Default::default()])
@@ -508,12 +509,13 @@ fn serve_with_token(port: u16) -> burn_remote::EndpointId {
 async fn a_peer_with_the_token_reaches_a_relay_free_server_by_address() {
     let port = free_udp_port();
     let id = serve_with_token(port);
-    let peer = burn_remote::IrohPeer::new(id)
+    let peer = burn_remote::IrohPeerBuilder::new(id)
         .relays(burn_remote::IrohRelays::Disabled)
         .address(([127, 0, 0, 1], port).into())
-        .credential("fleet-token");
+        .credential("fleet-token")
+        .build();
 
-    let device = Device::new(RemoteDevice::iroh_peer(&peer, 0).await.unwrap());
+    let device = Device::new(peer.connect(0).await.unwrap());
     let data = Tensor::<1>::from_floats([4.0], &device) * 2.0;
     assert_eq!(data.try_into_vec_as::<f32>().unwrap(), vec![8.0]);
 }
@@ -522,11 +524,12 @@ async fn a_peer_with_the_token_reaches_a_relay_free_server_by_address() {
 async fn a_peer_with_the_wrong_token_is_refused() {
     let port = free_udp_port();
     let id = serve_with_token(port);
-    let peer = burn_remote::IrohPeer::new(id)
+    let peer = burn_remote::IrohPeerBuilder::new(id)
         .relays(burn_remote::IrohRelays::Disabled)
         .address(([127, 0, 0, 1], port).into())
-        .credential("wrong-token");
+        .credential("wrong-token")
+        .build();
 
-    let connecting = tokio::spawn(async move { RemoteDevice::iroh_peer(&peer, 0).await });
+    let connecting = tokio::spawn(async move { peer.connect(0).await });
     assert!(connecting.await.is_err_and(|err| err.is_panic()));
 }

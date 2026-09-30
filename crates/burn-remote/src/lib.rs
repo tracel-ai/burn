@@ -29,12 +29,12 @@ pub(crate) mod metrics;
 
 #[cfg(feature = "iroh")]
 pub use iroh::{Endpoint, EndpointAddr, EndpointId, endpoint::BindError};
-#[cfg(all(feature = "iroh", feature = "server"))]
-pub use transport::iroh::IrohChannel;
-#[cfg(all(feature = "iroh", feature = "client"))]
-pub use transport::iroh::IrohPeer;
 #[cfg(feature = "iroh")]
 pub use transport::iroh::node::BURN_REMOTE_ALPN;
+#[cfg(all(feature = "iroh", feature = "server"))]
+pub use transport::iroh::{IrohChannel, IrohChannelBuilder};
+#[cfg(all(feature = "iroh", feature = "client"))]
+pub use transport::iroh::{IrohPeer, IrohPeerBuilder};
 #[cfg(feature = "iroh")]
 pub use transport::iroh::{IrohRelays, RemoteSecret};
 pub use transport::{PeerAddr, PeerId};
