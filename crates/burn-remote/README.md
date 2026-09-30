@@ -24,23 +24,9 @@ The peer's relays must match the server's. With relays disabled, `.with_address(
 address the server listens on.
 
 An application that already runs an Iroh endpoint, for its own identity, address lookup or other
-protocols, hands it to the peer with `.with_endpoint(endpoint)`, or dials with `Device::remote_iroh`
-directly. That endpoint keeps Iroh's settings, including segmentation offload, which
-[iroh#4555](https://github.com/n0-computer/iroh/issues/4555) makes worth turning off:
-
-```rust,ignore
-use burn::remote::Endpoint;
-use iroh::endpoint::{QuicTransportConfig, presets};
-
-let transport = QuicTransportConfig::builder()
-    .enable_segmentation_offload(false)
-    .build();
-let endpoint = Endpoint::builder(presets::N0)
-    .transport_config(transport)
-    .bind()
-    .await?;
-let peer = IrohPeerBuilder::new(server_id).with_endpoint(endpoint).build();
-```
+protocols, passes it with `.with_endpoint(endpoint)`, or dials with `Device::remote_iroh`. That
+endpoint keeps its own settings; the ones Burn binds send no segmentation-offloaded (GSO) batches
+because of [iroh#4555](https://github.com/n0-computer/iroh/issues/4555).
 
 ## Compute peer
 
@@ -91,5 +77,5 @@ Tensor movement between an Iroh peer and a legacy WebSocket peer is not supporte
 
 ## WebSocket compatibility
 
-The `websocket` feature preserves `Device::remote("ws://host:port", index)` and
+The `websocket` feature preserves `Device::remote_websocket("ws://host:port", index)` and
 `Channel::WebSocket`. It is intended for compatibility; new integrations should use Iroh.
