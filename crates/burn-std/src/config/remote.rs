@@ -24,7 +24,7 @@ pub struct RemoteConfig {
     #[serde(default = "default_flush_bytes_threshold")]
     pub flush_bytes_threshold: usize,
 
-    /// Let Iroh endpoints send segmentation-offloaded (GSO) batches.
+    /// Let the Iroh endpoints Burn binds send segmentation-offloaded (GSO) batches.
     ///
     /// Off by default: Iroh keeps sending them after the kernel refuses one, which stalls every
     /// open connection ([iroh#4555](https://github.com/n0-computer/iroh/issues/4555)).

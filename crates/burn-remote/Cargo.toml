@@ -28,8 +28,8 @@ tracing = [
 client = ["tokio/sync", "tokio/rt"]
 # Cache recurring op-groups on the server and invoke them by id. Wraps `RemoteBackend` in `Fusion`.
 fusion = ["client", "dep:burn-fusion", "burn-router/fusion"]
-server = ["tokio/sync", "dep:tracing-subscriber", "dep:subtle"]
-iroh = ["dep:iroh", "tokio/io-util"]
+server = ["tokio/sync", "dep:tracing-subscriber", "dep:blake3"]
+iroh = ["dep:iroh", "tokio/io-util", "dep:tempfile"]
 websocket = [
     "server",
     "dep:burn-communication",
@@ -61,7 +61,7 @@ serde = { workspace = true, features = ["derive"] }
 serde_bytes = { workspace = true }
 rmp-serde = { workspace = true }
 iroh = { workspace = true, optional = true }
-subtle = { version = "2.6", optional = true }
+blake3 = { workspace = true, optional = true }
 
 tokio-util = { workspace = true, optional = true }
 tracing-subscriber = { workspace = true, features = ["default", "fmt", "env-filter"], optional = true }
@@ -69,6 +69,7 @@ tracing-subscriber = { workspace = true, features = ["default", "fmt", "env-filt
 # Native server runtime: multi-thread, timers, signals. The wasm build uses the JS event loop/timers.
 [target.'cfg(not(target_family = "wasm"))'.dependencies]
 tokio = { workspace = true, features = ["rt-multi-thread", "time", "signal"] }
+tempfile = { workspace = true, optional = true }
 
 [target.'cfg(all(target_family = "wasm", target_os = "unknown"))'.dependencies]
 wasm-bindgen-futures = { workspace = true }

@@ -139,9 +139,10 @@ sent.
 
 **Transport Settings:**
 
-- `iroh_segmentation_offload`: Lets Iroh endpoints send segmentation-offloaded (GSO) batches
-  (default: `false`). Turn it on only where the network stack accepts them; see
-  [iroh#4555](https://github.com/n0-computer/iroh/issues/4555).
+- `iroh_segmentation_offload`: Lets the Iroh endpoints Burn binds, for an `IrohChannel` or an
+  `IrohPeer`, send segmentation-offloaded (GSO) batches (default: `false`). An endpoint the
+  application binds itself keeps its own setting. Turn it on only where the network stack accepts
+  them; see [iroh#4555](https://github.com/n0-computer/iroh/issues/4555).
 
 **Example:**
 

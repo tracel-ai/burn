@@ -1,99 +1,181 @@
-use std::net::SocketAddr;
+use core::fmt;
+use std::{net::SocketAddr, sync::Arc};
 
-use iroh::{EndpointAddr, EndpointId, TransportAddr, endpoint::BindError};
+use iroh::{Endpoint, EndpointAddr, endpoint::BindError};
+use tokio::sync::OnceCell;
 
-use super::relays::IrohRelays;
+use super::{node::RemoteNode, relays::IrohRelays};
 use crate::RemoteDevice;
 
-/// An Iroh compute server as a client dials it: its id, the relays it uses, the addresses to try
-/// directly, and the credential its authorizer checks. Built with [`IrohPeerBuilder`].
+/// An Iroh compute server as a client dials it: its id and any addresses to try directly, the
+/// relays it uses, and the credential its authorizer checks. Built with [`IrohPeerBuilder`].
+///
+/// A peer and its clones dial every device from one endpoint, so they share one connection to the
+/// server. Unless the builder was given one, that endpoint is bound by the first
+/// [`connect`](Self::connect) and runs on its runtime, which must outlive the peer.
 #[derive(Clone, Debug)]
 pub struct IrohPeer {
-    id: EndpointId,
+    addr: EndpointAddr,
     relays: IrohRelays,
-    addresses: Vec<SocketAddr>,
-    credential: Vec<u8>,
+    credential: Credential,
+    node: Arc<OnceCell<RemoteNode>>,
 }
 
 impl IrohPeer {
-    /// Device `device_index` of this server, dialed from an endpoint bound for it.
+    /// Device `device_index` of this server.
     ///
     /// # Errors
     ///
-    /// The endpoint could not be bound.
+    /// Relays are disabled and no address was given, the endpoint could not be bound, or the
+    /// runtime shut down first.
     ///
     /// # Panics
     ///
     /// The server refused the session, or could not be reached.
-    #[cfg(not(target_family = "wasm"))]
-    pub async fn connect(&self, device_index: usize) -> Result<RemoteDevice, BindError> {
-        let endpoint = self.relays.endpoint_builder().bind().await?;
-        let device = RemoteDevice::iroh_authorized(
-            &endpoint,
+    pub async fn connect(&self, device_index: usize) -> Result<RemoteDevice, ConnectError> {
+        // An application's endpoint may find the server through its own address lookup.
+        let has_endpoint = self.node.initialized();
+        if self.relays == IrohRelays::Disabled
+            && self.addr.ip_addrs().next().is_none()
+            && !has_endpoint
+        {
+            return Err(ConnectError::NoAddress);
+        }
+        let node = self
+            .node
+            .get_or_try_init(|| async {
+                let endpoint = self.relays.endpoint_builder().bind().await?;
+                Ok::<_, BindError>(RemoteNode::from_endpoint(endpoint))
+            })
+            .await
+            .map_err(|source| ConnectError::Bind { source })?;
+        let device = RemoteDevice::iroh_on_node(
+            node.clone(),
             self.addr(),
             device_index,
-            self.credential.clone(),
+            self.credential.0.clone(),
         );
+
         // The handshake blocks until the server answers, so it runs off the async workers.
         let connecting = device.clone();
-        if let Err(err) = tokio::task::spawn_blocking(move || connecting.connect()).await {
-            std::panic::resume_unwind(err.into_panic());
+        match tokio::task::spawn_blocking(move || connecting.connect()).await {
+            Ok(()) => Ok(device),
+            Err(err) => match err.try_into_panic() {
+                Ok(panic) => std::panic::resume_unwind(panic),
+                Err(_) => Err(ConnectError::Interrupted),
+            },
         }
-        Ok(device)
     }
 
     fn addr(&self) -> EndpointAddr {
-        let addr = EndpointAddr::new(self.id)
-            .with_addrs(self.addresses.iter().copied().map(TransportAddr::Ip));
         match &self.relays {
-            IrohRelays::Private(url) => addr.with_relay_url(url.clone()),
-            IrohRelays::Public | IrohRelays::Disabled => addr,
+            IrohRelays::Private { url } => self.addr.clone().with_relay_url(url.clone()),
+            IrohRelays::Public | IrohRelays::Disabled => self.addr.clone(),
         }
     }
 }
 
 /// Builds an [`IrohPeer`]. Unless set otherwise, it is reached through n0's public relays with no
-/// credential.
+/// credential, from an endpoint Burn binds.
 #[derive(Clone, Debug)]
 pub struct IrohPeerBuilder {
-    peer: IrohPeer,
+    addr: EndpointAddr,
+    relays: IrohRelays,
+    credential: Credential,
+    endpoint: Option<Endpoint>,
 }
 
 impl IrohPeerBuilder {
-    /// The server whose id is `id`.
-    pub fn new(id: EndpointId) -> Self {
+    /// The server at `server`: its id alone, or an [`EndpointAddr`] that also lists addresses.
+    pub fn new(server: impl Into<EndpointAddr>) -> Self {
         Self {
-            peer: IrohPeer {
-                id,
-                relays: IrohRelays::default(),
-                addresses: Vec::new(),
-                credential: Vec::new(),
-            },
+            addr: server.into(),
+            relays: IrohRelays::default(),
+            credential: Credential::default(),
+            endpoint: None,
         }
     }
 
     /// The relays the server uses.
     pub fn relays(mut self, relays: IrohRelays) -> Self {
-        self.peer.relays = relays;
+        self.relays = relays;
         self
     }
 
     /// An address to try directly, required when relays are disabled. Give every address a host
     /// name resolves to: the server may listen on only one of IPv4 and IPv6.
     pub fn address(mut self, address: SocketAddr) -> Self {
-        self.peer.addresses.push(address);
+        self.addr = self.addr.with_ip_addr(address);
         self
     }
 
-    /// What the server's authorizer checks, such as the token of a
-    /// [`TokenAuthorizer`](crate::server::TokenAuthorizer).
+    /// What the server's authorizer checks, such as the token of a server's `TokenAuthorizer`.
     pub fn credential(mut self, credential: impl Into<Vec<u8>>) -> Self {
-        self.peer.credential = credential.into();
+        self.credential = Credential(credential.into());
         self
     }
 
-    /// The peer.
+    /// Dial from `endpoint`, shared with the application's other Iroh protocols, instead of
+    /// binding one. Its own relay and segmentation offload settings then apply.
+    pub fn endpoint(mut self, endpoint: Endpoint) -> Self {
+        self.endpoint = Some(endpoint);
+        self
+    }
+
+    /// Finish, ready to [`connect`](IrohPeer::connect).
     pub fn build(self) -> IrohPeer {
-        self.peer
+        IrohPeer {
+            addr: self.addr,
+            relays: self.relays,
+            credential: self.credential,
+            node: Arc::new(OnceCell::new_with(
+                self.endpoint.map(RemoteNode::from_endpoint),
+            )),
+        }
+    }
+}
+
+/// A credential that stays out of `Debug` output, since it is often a shared secret.
+#[derive(Clone, Default)]
+struct Credential(Vec<u8>);
+
+impl fmt::Debug for Credential {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("..")
+    }
+}
+
+/// Why [`IrohPeer::connect`] returned no device.
+#[derive(Debug)]
+#[non_exhaustive]
+pub enum ConnectError {
+    /// Relays are disabled and no address was given, so an endpoint Burn binds cannot find the
+    /// server.
+    NoAddress,
+    /// The local endpoint could not be bound.
+    Bind {
+        /// Iroh's reason.
+        source: BindError,
+    },
+    /// The runtime shut down before the connection was attempted.
+    Interrupted,
+}
+
+impl fmt::Display for ConnectError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::NoAddress => f.write_str("relays are disabled and no address was given"),
+            Self::Bind { source } => write!(f, "cannot bind an Iroh endpoint: {source}"),
+            Self::Interrupted => f.write_str("the runtime shut down before connecting"),
+        }
+    }
+}
+
+impl std::error::Error for ConnectError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::Bind { source } => Some(source),
+            Self::NoAddress | Self::Interrupted => None,
+        }
     }
 }

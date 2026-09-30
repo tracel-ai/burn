@@ -13,9 +13,13 @@ pub enum Channel {
         /// Port to bind on.
         port: u16,
     },
-    /// Iroh peer-to-peer transport. Clients dial the channel's [`id`](crate::IrohChannel::id).
+    /// Iroh peer-to-peer transport.
     #[cfg(feature = "iroh")]
-    Iroh(Box<crate::IrohChannel>),
+    Iroh {
+        /// The server's identity, relays, port and authorizer. Clients dial its
+        /// [`id`](crate::server::IrohChannel::id).
+        channel: crate::server::IrohChannel,
+    },
 }
 
 /// Default port used when none is configured on the builder.
@@ -28,7 +32,7 @@ impl core::fmt::Debug for Channel {
             #[cfg(feature = "websocket")]
             Channel::WebSocket { port } => f.debug_struct("WebSocket").field("port", port).finish(),
             #[cfg(feature = "iroh")]
-            Channel::Iroh(channel) => f.debug_tuple("Iroh").field(channel).finish(),
+            Channel::Iroh { channel } => f.debug_struct("Iroh").field("channel", channel).finish(),
         }
     }
 }
@@ -40,9 +44,9 @@ impl Default for Channel {
         // Without WebSocket the default is Iroh on a fresh random identity; a host that wants a
         // dialable address sets its own secret with [`Channel::Iroh`].
         #[cfg(all(feature = "iroh", not(feature = "websocket")))]
-        return Channel::Iroh(Box::new(
-            crate::IrohChannelBuilder::new(crate::RemoteSecret::random()).build(),
-        ));
+        return Channel::Iroh {
+            channel: crate::server::IrohChannelBuilder::new(crate::RemoteSecret::random()).build(),
+        };
     }
 }
 
@@ -138,7 +142,7 @@ impl<B: BackendIr> RemoteServerBuilder<B> {
                 .await;
             }
             #[cfg(feature = "iroh")]
-            Channel::Iroh(channel) => channel.serve(self.devices, self.custom_ops).await,
+            Channel::Iroh { channel } => channel.serve(self.devices, self.custom_ops).await,
         }
     }
 

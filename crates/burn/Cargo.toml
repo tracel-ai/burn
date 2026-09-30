@@ -124,7 +124,7 @@ apple-amx = ["burn-core/apple-amx"]
 template = ["burn-core/template"]
 remote = ["burn-core/remote", "burn-linalg?/remote", "burn-signal?/remote"]
 remote-server = ["remote", "burn-core/remote-server", "burn-signal?/router"]
-remote-websocket = ["burn-core/remote-websocket", "burn-signal?/remote-websocket"]
+remote-websocket = ["remote", "burn-core/remote-websocket", "burn-signal?/remote-websocket"]
 
 cuda = ["burn-core/cuda", "burn-linalg?/cuda", "burn-signal?/cuda", "burn-vision?/cuda"]
 rocm = ["burn-core/rocm", "burn-linalg?/rocm", "burn-signal?/rocm", "burn-vision?/rocm"]

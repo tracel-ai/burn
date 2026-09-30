@@ -496,7 +496,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// The endpoint could not be bound.
+    /// See [`ConnectError`](crate::remote::ConnectError).
     ///
     /// # Panics
     ///
@@ -505,7 +505,7 @@ impl Device {
     pub async fn remote_iroh_peer(
         peer: &crate::remote::IrohPeer,
         index: impl Into<DeviceIndex>,
-    ) -> Result<Self, crate::remote::BindError> {
+    ) -> Result<Self, crate::remote::ConnectError> {
         let index = index.into().resolve();
         Ok(Self::new(peer.connect(index).await?))
     }

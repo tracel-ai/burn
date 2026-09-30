@@ -7,8 +7,8 @@
 //! Two serving modes:
 //!
 //! - Turnkey (start / start_async): no Iroh exposure. Pick an identity with RemoteSecret, configure
-//!   relays, port and authorizer with an IrohChannelBuilder, and pass the channel in a Channel::Iroh; clients dial
-//!   its public id.
+//!   relays, port and authorizer with an IrohChannelBuilder, and pass the channel in a
+//!   Channel::Iroh; clients dial its public id.
 //! - Composed (protocol): for applications that own their own Iroh router. Burn hands back only
 //!   its protocol handler to register alongside the application's own protocols.
 //!
@@ -24,7 +24,7 @@ pub use burn_dispatch::backends::remote::server::{
     RemoteProtocol, ServerLogging, TokenAuthorizer,
 };
 pub use burn_dispatch::backends::remote::telemetry;
-pub use burn_dispatch::backends::remote::{Endpoint, RemoteSecret};
+pub use burn_dispatch::backends::remote::{Endpoint, IrohRelays, RelayUrl, RemoteSecret};
 pub use burn_dispatch::devices::BURN_REMOTE_ALPN;
 
 use telemetry::TelemetryProbe;
@@ -62,14 +62,14 @@ impl<'a> RemoteProtocolBuilder<'a> {
 
     /// Attach a telemetry probe for per-session monitoring. Pair with
     /// [`telemetry::TelemetryProbe::channel`] to obtain a subscription a dashboard can drain.
-    pub fn with_telemetry(mut self, probe: TelemetryProbe) -> Self {
+    pub fn telemetry(mut self, probe: TelemetryProbe) -> Self {
         self.probe = Some(probe);
         self
     }
 
     /// Authorize or reject each incoming compute session. The policy receives the peer identity,
     /// the requested device index, and the opaque credential carried by the client's ticket.
-    pub fn with_authorizer(mut self, authorizer: impl PeerAuthorizer) -> Self {
+    pub fn authorizer(mut self, authorizer: impl PeerAuthorizer) -> Self {
         self.authorizer = Some(Arc::new(authorizer));
         self
     }

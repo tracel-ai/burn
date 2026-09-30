@@ -7,34 +7,40 @@ when NAT traversal cannot establish a direct path.
 
 ## Client
 
-Applications own the Iroh endpoint configuration. This keeps identity persistence, relay policy,
-address lookup, and fleet discovery outside Burn:
+Describe the server with an `IrohPeer`: its id, the relays it uses, and the credential its
+authorizer checks. Burn binds the endpoint and dials every device of the peer over one connection:
 
 ```rust,ignore
-use burn::{Device, Tensor};
-use burn::backend::remote::{Endpoint, RemoteNode, endpoint::presets};
+use burn::remote::IrohPeerBuilder;
+use burn::tensor::{Device, Tensor};
 
-let endpoint = Endpoint::builder(presets::N0)
-    // .secret_key(persistent_secret_key)
-    // .relay_mode(custom_relay_mode)
-    // .address_lookup(platform_lookup)
-    .bind()
-    .await?;
-let node = RemoteNode::from_endpoint(endpoint);
-
-// Supplied by your platform, invitation, or other discovery mechanism.
-let compute_peer = fleet.lookup("gpu-worker-7").await?;
-let device = Device::remote_iroh(&node, compute_peer, 0);
+let peer = IrohPeerBuilder::new(server_id).credential(token).build();
+let device = Device::remote_iroh_peer(&peer, 0).await?;
 
 let output = Tensor::<1>::from_floats([1.0, 2.0], &device) * 2.0;
 ```
 
-`RemoteNode` is process-level. Clone it rather than creating one per device: clones share one
-Iroh endpoint, peer connection pool, and multiplexed QUIC connections.
+The peer's relays must match the server's. With relays disabled, `.address(...)` gives each address
+the server listens on.
 
-Platforms can issue a `RemoteTicket` containing an `EndpointAddr` and opaque authorization bytes.
-Burn passes the credential to the compute peer's `PeerAuthorizer`; signature format, expiry,
-tenant policy, and fleet membership remain application concerns.
+An application that manages identity, address lookup or discovery itself passes its own Iroh
+endpoint to `Device::remote_iroh` instead. That endpoint keeps Iroh's settings, including
+segmentation offload, which [iroh#4555](https://github.com/n0-computer/iroh/issues/4555) makes
+worth turning off:
+
+```rust,ignore
+use burn::remote::Endpoint;
+use iroh::endpoint::{QuicTransportConfig, presets};
+
+let transport = QuicTransportConfig::builder()
+    .enable_segmentation_offload(false)
+    .build();
+let endpoint = Endpoint::builder(presets::N0)
+    .transport_config(transport)
+    .bind()
+    .await?;
+let device = Device::remote_iroh(&endpoint, compute_peer, 0);
+```
 
 ## Compute peer
 
@@ -48,25 +54,25 @@ let channel = IrohChannelBuilder::new(secret)
     .build();
 println!("compute peer: {}", channel.id());
 
-server::start_async(Device::cuda(0), Channel::Iroh(Box::new(channel))).await;
+server::start_async(Device::cuda(0), Channel::Iroh { channel }).await;
 ```
 
-The channel uses n0's public relays by default. `.relays(IrohRelays::Private(url))` goes through a
-relay you run instead, and `.relays(IrohRelays::Disabled).port(4433)` serves direct connections
-only, on a UDP port clients dial.
+The channel uses n0's public relays by default. `.relays(IrohRelays::Private { url })` goes through
+a relay you run instead, and `.relays(IrohRelays::Disabled).port(4433)` serves direct connections
+only, on a UDP port clients dial. `IrohRelays` and `RelayUrl` come from `burn::server`.
 
 For an endpoint shared with other Iroh protocols, register Burn's composable handler in the
 application router:
 
 ```rust,ignore
-use burn_remote::BURN_REMOTE_ALPN;
+use burn::server::{self, BURN_REMOTE_ALPN};
 use iroh::protocol::Router;
 
-let burn = node
-    .protocol::<MyBackend>(devices)
-    .with_authorizer(|request| platform.verify(request.peer, request.credential));
+let burn = server::protocol(Device::cuda(0), &endpoint)
+    .authorizer(|request| platform.verify(request.peer, request.credential))
+    .build();
 
-let router = Router::builder(node.endpoint().clone())
+let router = Router::builder(endpoint)
     .accept(BURN_REMOTE_ALPN, burn)
     .accept(MY_OTHER_ALPN, other_protocol)
     .spawn();

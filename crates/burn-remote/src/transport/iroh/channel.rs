@@ -1,3 +1,4 @@
+use core::fmt;
 use std::sync::Arc;
 
 use iroh::EndpointId;
@@ -25,73 +26,8 @@ impl IrohChannel {
     }
 }
 
-#[cfg(not(target_family = "wasm"))]
-mod serve {
-    use burn_backend::tensor::Device;
-    use burn_ir::BackendIr;
-    use burn_router::CustomOpRegistry;
-    use iroh::{endpoint::BindOpts, protocol::Router};
-
-    use super::IrohChannel;
-    use crate::{
-        server::spawn::os_shutdown_signal,
-        telemetry::TelemetryProbe,
-        transport::iroh::{node::BURN_REMOTE_ALPN, protocol::IrohRemoteProtocol},
-    };
-
-    impl IrohChannel {
-        /// Serve `devices` until the process receives its shutdown signal.
-        pub(crate) async fn serve<B: BackendIr>(
-            self,
-            devices: Vec<Device<B>>,
-            custom_ops: CustomOpRegistry<B>,
-        ) {
-            let mut builder = self
-                .relays
-                .endpoint_builder()
-                .secret_key(self.secret.secret_key())
-                .alpns(vec![BURN_REMOTE_ALPN.to_vec()]);
-            if let Some(port) = self.port {
-                // Optional like Iroh's own IPv6 bind, so a host without IPv6 still serves on IPv4.
-                let ipv6 = BindOpts::default().set_is_required(false);
-                builder = builder
-                    .clear_ip_transports()
-                    .bind_addr(format!("0.0.0.0:{port}"))
-                    .and_then(|builder| builder.bind_addr_with_opts(format!("[::]:{port}"), ipv6))
-                    .expect("A port makes valid bind addresses");
-            }
-            let endpoint = builder
-                .bind()
-                .await
-                .expect("Can bind the Burn Remote server endpoint");
-            log::info!("Burn Remote serving over Iroh as {}", self.id());
-
-            let probe = if crate::metrics::TelemetryLogger::enabled() {
-                TelemetryProbe::new(crate::telemetry::CHANNEL_CAPACITY)
-            } else {
-                TelemetryProbe::disabled()
-            };
-            let protocol = IrohRemoteProtocol::new(
-                endpoint.clone(),
-                devices,
-                self.authorizer,
-                probe,
-                custom_ops,
-            );
-            let router = Router::builder(endpoint)
-                .accept(BURN_REMOTE_ALPN, protocol)
-                .spawn();
-
-            os_shutdown_signal().await;
-            if let Err(err) = router.shutdown().await {
-                log::warn!("Burn Remote Iroh router shutdown failed: {err}");
-            }
-        }
-    }
-}
-
-impl core::fmt::Debug for IrohChannel {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl fmt::Debug for IrohChannel {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         // The public identity only, never the secret key material.
         f.debug_struct("IrohChannel")
             .field("id", &self.id())
@@ -127,8 +63,9 @@ impl IrohChannelBuilder {
         self
     }
 
-    /// Bind UDP `port` on every IPv4 and IPv6 interface, so clients can dial it directly. Needed
-    /// when relays are disabled, since nothing else tells clients where the server is.
+    /// Bind UDP `port` on IPv4, and on IPv6 unless the host has none or the port is taken there, so
+    /// clients can dial it directly. Needed when relays are disabled, since nothing else tells
+    /// clients where the server is.
     pub fn port(mut self, port: u16) -> Self {
         self.channel.port = Some(port);
         self
@@ -140,8 +77,80 @@ impl IrohChannelBuilder {
         self
     }
 
-    /// The channel.
+    /// Finish, ready to serve in a [`Channel::Iroh`](crate::server::Channel::Iroh).
     pub fn build(self) -> IrohChannel {
         self.channel
+    }
+}
+
+#[cfg(not(target_family = "wasm"))]
+mod serve {
+    use burn_backend::tensor::Device;
+    use burn_ir::BackendIr;
+    use burn_router::CustomOpRegistry;
+    use iroh::{endpoint::BindOpts, protocol::Router};
+
+    use super::IrohChannel;
+    use crate::{
+        server::spawn::os_shutdown_signal,
+        telemetry::TelemetryProbe,
+        transport::iroh::{IrohRelays, node::BURN_REMOTE_ALPN, protocol::IrohRemoteProtocol},
+    };
+
+    impl IrohChannel {
+        /// Serve `devices` until the process receives its shutdown signal.
+        pub(crate) async fn serve<B: BackendIr>(
+            self,
+            devices: Vec<Device<B>>,
+            custom_ops: CustomOpRegistry<B>,
+        ) {
+            let mut builder = self
+                .relays
+                .endpoint_builder()
+                .secret_key(self.secret.secret_key())
+                .alpns(vec![BURN_REMOTE_ALPN.to_vec()]);
+            if let Some(port) = self.port {
+                // Optional like Iroh's own IPv6 bind, so a host without IPv6 still serves on IPv4.
+                let ipv6 = BindOpts::default().set_is_required(false);
+                builder = builder
+                    .clear_ip_transports()
+                    .bind_addr(format!("0.0.0.0:{port}"))
+                    .and_then(|builder| builder.bind_addr_with_opts(format!("[::]:{port}"), ipv6))
+                    .expect("A port makes valid bind addresses");
+            }
+            let endpoint = builder
+                .bind()
+                .await
+                .expect("Can bind the Burn Remote server endpoint");
+            log::info!(
+                "Burn Remote serving over Iroh as {} on {:?}",
+                self.id(),
+                endpoint.bound_sockets()
+            );
+            if self.relays == IrohRelays::Disabled && self.port.is_none() {
+                log::warn!("Relays disabled without a port: clients can only dial the ports above");
+            }
+
+            let probe = if crate::metrics::TelemetryLogger::enabled() {
+                TelemetryProbe::new(crate::telemetry::CHANNEL_CAPACITY)
+            } else {
+                TelemetryProbe::disabled()
+            };
+            let protocol = IrohRemoteProtocol::new(
+                endpoint.clone(),
+                devices,
+                self.authorizer,
+                probe,
+                custom_ops,
+            );
+            let router = Router::builder(endpoint)
+                .accept(BURN_REMOTE_ALPN, protocol)
+                .spawn();
+
+            os_shutdown_signal().await;
+            if let Err(err) = router.shutdown().await {
+                log::warn!("Burn Remote Iroh router shutdown failed: {err}");
+            }
+        }
     }
 }

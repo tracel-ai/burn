@@ -25,7 +25,9 @@ pub async fn run_server(topic: &str) {
     tracing::info!("waiting for clients (press Ctrl-C to stop)");
     burn::server::start_async(
         Device::flex(),
-        Channel::Iroh(Box::new(IrohChannelBuilder::new(secret).build())),
+        Channel::Iroh {
+            channel: IrohChannelBuilder::new(secret).build(),
+        },
     )
     .await;
     tracing::info!("server stopped");
@@ -41,7 +43,7 @@ pub async fn run_client(topic: &str) {
     let peer = IrohPeerBuilder::new(server_id).build();
     let device = Device::remote_iroh_peer(&peer, 0)
         .await
-        .expect("bind failed");
+        .expect("The server can be dialed");
 
     println!("connected\n");
     train(&device);

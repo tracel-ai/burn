@@ -56,29 +56,28 @@ impl PeerAuthorizer for AllowAll {
     }
 }
 
-/// Serves only the clients whose credential is this token, given with
-/// [`IrohPeerBuilder::credential`](crate::IrohPeerBuilder::credential).
+/// Serves only the clients whose credential is this token, which a client sets with
+/// `IrohPeerBuilder::credential`.
 #[derive(Clone)]
 pub struct TokenAuthorizer {
-    token: Arc<[u8]>,
+    // A digest compares in constant time whatever the credential's length, so timing reveals
+    // neither the token nor its length.
+    digest: blake3::Hash,
 }
 
 impl TokenAuthorizer {
     /// `None` for an empty token, which every client that sends no credential would present.
-    pub fn new(token: impl Into<Vec<u8>>) -> Option<Self> {
-        let token: Vec<u8> = token.into();
+    pub fn new(token: impl AsRef<[u8]>) -> Option<Self> {
+        let token = token.as_ref();
         (!token.is_empty()).then(|| Self {
-            token: token.into(),
+            digest: blake3::hash(token),
         })
     }
 }
 
 impl PeerAuthorizer for TokenAuthorizer {
     fn authorize(&self, request: AuthorizationRequest<'_>) -> Result<(), String> {
-        use subtle::ConstantTimeEq;
-
-        // Constant time, so how long a guess takes reveals nothing about the token.
-        if bool::from(request.credential.ct_eq(&self.token)) {
+        if blake3::hash(request.credential) == self.digest {
             Ok(())
         } else {
             Err(format!("{} presented the wrong token", request.peer))
@@ -242,20 +241,12 @@ fn user_error(reason: String) -> AcceptError {
 }
 
 #[cfg(test)]
-mod token_tests {
+mod tests {
     use super::*;
-
-    fn request(credential: &[u8]) -> AuthorizationRequest<'_> {
-        AuthorizationRequest {
-            peer: iroh::SecretKey::generate().public(),
-            device_index: 0,
-            credential,
-        }
-    }
 
     #[test]
     fn an_empty_token_is_refused() {
-        assert!(TokenAuthorizer::new(Vec::new()).is_none());
+        assert!(TokenAuthorizer::new("").is_none());
     }
 
     #[test]
@@ -264,5 +255,13 @@ mod token_tests {
         assert!(authorizer.authorize(request(b"secret-token")).is_ok());
         assert!(authorizer.authorize(request(b"secret-toke")).is_err());
         assert!(authorizer.authorize(request(b"")).is_err());
+    }
+
+    fn request(credential: &[u8]) -> AuthorizationRequest<'_> {
+        AuthorizationRequest {
+            peer: iroh::SecretKey::generate().public(),
+            device_index: 0,
+            credential,
+        }
     }
 }

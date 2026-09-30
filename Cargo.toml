@@ -31,6 +31,7 @@ invalid_html_tags = "deny"
 [workspace.dependencies]
 atomic_float = "1"
 axum = "0.8.8"
+blake3 = "1.8"
 bytemuck = "1.25.0"
 bytes = { version = "1.11.1", default-features = false }
 ciborium = { version = "0.2", default-features = false }
