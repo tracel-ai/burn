@@ -19,8 +19,7 @@ pub struct AvgPool3dConfig {
     pub strides: [usize; 3],
     /// The padding configuration.
     ///
-    /// Supports symmetric and asymmetric padding. `Same` padding with even kernel sizes
-    /// will automatically use asymmetric padding to preserve input dimensions.
+    /// Explicit padding is symmetric per dimension. Same padding with even kernel sizes uses asymmetric padding internally.
     #[config(default = "PaddingConfig3d::Valid")]
     pub padding: PaddingConfig3d,
     /// If the padding is counted in the denominator when computing the average.
@@ -37,11 +36,7 @@ pub struct AvgPool3dConfig {
 ///
 /// # Remarks
 ///
-/// The zero-padding values will be included in the calculation
-/// of the average. This means that the zeros are counted as
-/// legitimate values, and they contribute to the denominator
-/// when calculating the average. This is equivalent to
-/// `torch.nn.AvgPool3d` with `count_include_pad=True`.
+/// By default (`count_include_pad = true`), zero-padding values are included in the calculation.
 #[derive(Module, Debug)]
 #[module(custom_display)]
 pub struct AvgPool3d {
@@ -251,7 +246,7 @@ mod tests {
 
     #[test]
     fn asymmetric_padding_excludes_pad_from_average() {
-        let device = Default::default();
+        let device = crate::test_device();
         let config = AvgPool3dConfig::new([2, 2, 2])
             .with_strides([1, 1, 1])
             .with_padding(PaddingConfig3d::Same)

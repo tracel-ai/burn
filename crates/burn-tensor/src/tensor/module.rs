@@ -412,17 +412,24 @@ pub fn max_pool3d(
     ceil_mode: bool,
 ) -> Tensor<5> {
     assert!(
-        kernel_size[0] > 0 && kernel_size[1] > 0 && kernel_size[2] > 0,
-        "kernel size must be > 0"
+        kernel_size.iter().all(|&k| k > 0),
+        "max_pool3d: kernel_size must be > 0, got {kernel_size:?}"
     );
     assert!(
-        stride[0] > 0 && stride[1] > 0 && stride[2] > 0,
-        "stride must be > 0"
+        stride.iter().all(|&s| s > 0),
+        "max_pool3d: stride must be > 0, got {stride:?}"
     );
     assert!(
-        dilation[0] > 0 && dilation[1] > 0 && dilation[2] > 0,
-        "dilation must be > 0"
+        dilation.iter().all(|&d| d > 0),
+        "max_pool3d: dilation must be > 0, got {dilation:?}"
     );
+    for i in 0..3 {
+        let effective_k = dilation[i] * (kernel_size[i] - 1) + 1;
+        assert!(
+            padding[i] <= effective_k / 2,
+            "max_pool3d: padding must be <= effective_kernel / 2, got padding={padding:?}, kernel_size={kernel_size:?}, dilation={dilation:?}"
+        );
+    }
     Tensor::new(BridgeTensor::float(Dispatch::max_pool3d(
         x.primitive.into_float(),
         kernel_size,
@@ -459,13 +466,21 @@ pub fn avg_pool3d(
     ceil_mode: bool,
 ) -> Tensor<5> {
     assert!(
-        kernel_size[0] > 0 && kernel_size[1] > 0 && kernel_size[2] > 0,
-        "kernel size must be > 0"
+        kernel_size.iter().all(|&k| k > 0),
+        "avg_pool3d: kernel_size must be > 0, got {kernel_size:?}"
     );
     assert!(
-        stride[0] > 0 && stride[1] > 0 && stride[2] > 0,
-        "stride must be > 0"
+        stride.iter().all(|&s| s > 0),
+        "avg_pool3d: stride must be > 0, got {stride:?}"
     );
+    let dilation = [1, 1, 1];
+    for i in 0..3 {
+        let effective_k = dilation[i] * (kernel_size[i] - 1) + 1;
+        assert!(
+            padding[i] <= effective_k / 2,
+            "avg_pool3d: padding must be <= effective_kernel / 2, got padding={padding:?}, kernel_size={kernel_size:?}, dilation={dilation:?}"
+        );
+    }
     Tensor::new(BridgeTensor::float(Dispatch::avg_pool3d(
         x.primitive.into_float(),
         kernel_size,
@@ -700,18 +715,25 @@ pub fn max_pool3d_with_indices(
     ceil_mode: bool,
 ) -> (Tensor<5>, Tensor<5, Int>) {
     assert!(
-        kernel_size[0] > 0 && kernel_size[1] > 0 && kernel_size[2] > 0,
-        "kernel size must be > 0"
+        kernel_size.iter().all(|&k| k > 0),
+        "max_pool3d_with_indices: kernel_size must be > 0, got {kernel_size:?}"
     );
     assert!(
-        stride[0] > 0 && stride[1] > 0 && stride[2] > 0,
-        "stride must be > 0"
+        stride.iter().all(|&s| s > 0),
+        "max_pool3d_with_indices: stride must be > 0, got {stride:?}"
     );
     assert!(
-        dilation[0] > 0 && dilation[1] > 0 && dilation[2] > 0,
-        "dilation must be > 0"
+        dilation.iter().all(|&d| d > 0),
+        "max_pool3d_with_indices: dilation must be > 0, got {dilation:?}"
     );
-    let indices_dtype = x.device().settings().int_dtype;
+    for i in 0..3 {
+        let effective_k = dilation[i] * (kernel_size[i] - 1) + 1;
+        assert!(
+            padding[i] <= effective_k / 2,
+            "max_pool3d_with_indices: padding must be <= effective_kernel / 2, got padding={padding:?}, kernel_size={kernel_size:?}, dilation={dilation:?}"
+        );
+    }
+    let indices_dtype = x.device().get_or_init_settings().int_dtype;
     let output = Dispatch::max_pool3d_with_indices(
         x.primitive.into_float(),
         kernel_size,
@@ -1020,13 +1042,21 @@ pub fn avg_pool3d_backward(
     ceil_mode: bool,
 ) -> Tensor<5> {
     assert!(
-        kernel_size[0] > 0 && kernel_size[1] > 0 && kernel_size[2] > 0,
-        "kernel size must be > 0"
+        kernel_size.iter().all(|&k| k > 0),
+        "avg_pool3d_backward: kernel_size must be > 0, got {kernel_size:?}"
     );
     assert!(
-        stride[0] > 0 && stride[1] > 0 && stride[2] > 0,
-        "stride must be > 0"
+        stride.iter().all(|&s| s > 0),
+        "avg_pool3d_backward: stride must be > 0, got {stride:?}"
     );
+    let dilation = [1, 1, 1];
+    for i in 0..3 {
+        let effective_k = dilation[i] * (kernel_size[i] - 1) + 1;
+        assert!(
+            padding[i] <= effective_k / 2,
+            "avg_pool3d_backward: padding must be <= effective_kernel / 2, got padding={padding:?}, kernel_size={kernel_size:?}, dilation={dilation:?}"
+        );
+    }
     Tensor::new(BridgeTensor::float(Dispatch::avg_pool3d_backward(
         x.primitive.into_float(),
         grad.primitive.into_float(),
@@ -1051,16 +1081,30 @@ pub fn max_pool3d_with_indices_backward(
     indices: Tensor<5, Int>,
 ) -> Tensor<5> {
     assert!(
-        kernel_size[0] > 0 && kernel_size[1] > 0 && kernel_size[2] > 0,
-        "kernel size must be > 0"
+        kernel_size.iter().all(|&k| k > 0),
+        "max_pool3d_with_indices_backward: kernel_size must be > 0, got {kernel_size:?}"
     );
     assert!(
-        stride[0] > 0 && stride[1] > 0 && stride[2] > 0,
-        "stride must be > 0"
+        stride.iter().all(|&s| s > 0),
+        "max_pool3d_with_indices_backward: stride must be > 0, got {stride:?}"
     );
     assert!(
-        dilation[0] > 0 && dilation[1] > 0 && dilation[2] > 0,
-        "dilation must be > 0"
+        dilation.iter().all(|&d| d > 0),
+        "max_pool3d_with_indices_backward: dilation must be > 0, got {dilation:?}"
+    );
+    for i in 0..3 {
+        let effective_k = dilation[i] * (kernel_size[i] - 1) + 1;
+        assert!(
+            padding[i] <= effective_k / 2,
+            "max_pool3d_with_indices_backward: padding must be <= effective_kernel / 2, got padding={padding:?}, kernel_size={kernel_size:?}, dilation={dilation:?}"
+        );
+    }
+    assert_eq!(
+        indices.dims(),
+        output_grad.dims(),
+        "max_pool3d_with_indices_backward: indices and output_grad must have the same dimensions, got {:?} and {:?}",
+        indices.dims(),
+        output_grad.dims()
     );
     Tensor::new(BridgeTensor::float(
         Dispatch::max_pool3d_with_indices_backward(

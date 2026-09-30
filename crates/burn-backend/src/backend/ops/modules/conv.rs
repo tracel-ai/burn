@@ -264,10 +264,13 @@ pub fn calculate_pool_output_size(
         // Only produces an extra window if the deficit is smaller than the stride
         1
     } else {
-        0
+        panic!(
+            "calculate_pool_output_size: padded input ({padded}) is smaller than effective kernel size ({effective_kernel})"
+        );
     };
 
-    if out > 0 && (out - 1) * stride >= size_in + padding {
+    // In ceil mode, drop the trailing window if it starts inside the right padding.
+    if ceil_mode && out > 0 && (out - 1) * stride >= size_in + padding {
         out -= 1;
     }
 
@@ -1714,18 +1717,29 @@ mod tests {
     }
 
     #[test]
-    fn test_calculate_pool_output_size_degenerate_input() {
-        // Degenerate case where size_in + 2 * padding < effective_kernel
-        // Without safe check, this would underflow usize.
-        // For in=1, k=3, s=1, p=0: deficit (3 - 1 = 2) >= stride (1), so output is 0 for both floor and ceil
-        let out_floor = calculate_pool_output_size(3, 1, 0, 1, 1, false);
-        assert_eq!(out_floor, 0);
+    fn test_calculate_pool_output_size_floor_no_discard_large_padding() {
+        // Floor mode does NOT discard when padding >= effective_kernel / 2
+        // in=4, k=2, s=1, p=2, ceil=false gives output length 7, matching main
+        let out_floor = calculate_pool_output_size(2, 1, 2, 1, 4, false);
+        assert_eq!(out_floor, 7);
+    }
 
-        let out_ceil = calculate_pool_output_size(3, 1, 0, 1, 1, true);
-        assert_eq!(out_ceil, 0);
-
+    #[test]
+    fn test_calculate_pool_output_size_ceil_mode_within_stride() {
         // When deficit (3 - 2 = 1) < stride (2), ceil mode produces 1
         let out_ceil_within_stride = calculate_pool_output_size(3, 2, 0, 1, 2, true);
         assert_eq!(out_ceil_within_stride, 1);
+    }
+
+    #[test]
+    #[should_panic(expected = "padded input (1) is smaller than effective kernel size (3)")]
+    fn test_calculate_pool_output_size_degenerate_input_floor_panics() {
+        calculate_pool_output_size(3, 1, 0, 1, 1, false);
+    }
+
+    #[test]
+    #[should_panic(expected = "padded input (1) is smaller than effective kernel size (3)")]
+    fn test_calculate_pool_output_size_degenerate_input_ceil_panics() {
+        calculate_pool_output_size(3, 1, 0, 1, 1, true);
     }
 }

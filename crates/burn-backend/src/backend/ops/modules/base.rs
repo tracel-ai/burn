@@ -806,27 +806,23 @@ pub trait ModuleOps<B: Backend> {
     ///
     /// x: [batch_size, channels, depth, height, width],
     fn avg_pool3d(
-        _x: FloatTensor<B>,
-        _kernel_size: [usize; 3],
-        _stride: [usize; 3],
-        _padding: [usize; 3],
-        _count_include_pad: bool,
-        _ceil_mode: bool,
-    ) -> FloatTensor<B> {
-        unimplemented!("avg_pool3d is not implemented for this backend");
-    }
+        x: FloatTensor<B>,
+        kernel_size: [usize; 3],
+        stride: [usize; 3],
+        padding: [usize; 3],
+        count_include_pad: bool,
+        ceil_mode: bool,
+    ) -> FloatTensor<B>;
     /// Backward pass for the [avg pooling 3d](ModuleOps::avg_pool3d) operation.
     fn avg_pool3d_backward(
-        _x: FloatTensor<B>,
-        _grad: FloatTensor<B>,
-        _kernel_size: [usize; 3],
-        _stride: [usize; 3],
-        _padding: [usize; 3],
-        _count_include_pad: bool,
-        _ceil_mode: bool,
-    ) -> FloatTensor<B> {
-        unimplemented!("avg_pool3d_backward is not implemented for this backend");
-    }
+        x: FloatTensor<B>,
+        grad: FloatTensor<B>,
+        kernel_size: [usize; 3],
+        stride: [usize; 3],
+        padding: [usize; 3],
+        count_include_pad: bool,
+        ceil_mode: bool,
+    ) -> FloatTensor<B>;
     /// Two dimensional adaptive avg pooling.
     ///
     /// # Shapes
@@ -966,15 +962,13 @@ pub trait ModuleOps<B: Backend> {
     ///
     /// x: [batch_size, channels, depth, height, width],
     fn max_pool3d(
-        _x: FloatTensor<B>,
-        _kernel_size: [usize; 3],
-        _stride: [usize; 3],
-        _padding: [usize; 3],
-        _dilation: [usize; 3],
-        _ceil_mode: bool,
-    ) -> FloatTensor<B> {
-        unimplemented!("max_pool3d is not implemented for this backend");
-    }
+        x: FloatTensor<B>,
+        kernel_size: [usize; 3],
+        stride: [usize; 3],
+        padding: [usize; 3],
+        dilation: [usize; 3],
+        ceil_mode: bool,
+    ) -> FloatTensor<B>;
 
     /// Three dimensional max pooling with indices.
     ///
@@ -982,30 +976,26 @@ pub trait ModuleOps<B: Backend> {
     ///
     /// x: [batch_size, channels, depth, height, width],
     fn max_pool3d_with_indices(
-        _x: FloatTensor<B>,
-        _kernel_size: [usize; 3],
-        _stride: [usize; 3],
-        _padding: [usize; 3],
-        _dilation: [usize; 3],
-        _ceil_mode: bool,
-        _indices_dtype: IntDType,
-    ) -> MaxPool3dWithIndices<B> {
-        unimplemented!("max_pool3d_with_indices is not implemented for this backend");
-    }
+        x: FloatTensor<B>,
+        kernel_size: [usize; 3],
+        stride: [usize; 3],
+        padding: [usize; 3],
+        dilation: [usize; 3],
+        ceil_mode: bool,
+        indices_dtype: IntDType,
+    ) -> MaxPool3dWithIndices<B>;
     /// Backward pass for the [max pooling 3d](ModuleOps::max_pool3d_with_indices) operation.
     #[allow(clippy::too_many_arguments)]
     fn max_pool3d_with_indices_backward(
-        _x: FloatTensor<B>,
-        _kernel_size: [usize; 3],
-        _stride: [usize; 3],
-        _padding: [usize; 3],
-        _dilation: [usize; 3],
-        _ceil_mode: bool,
-        _output_grad: FloatTensor<B>,
-        _indices: IntTensor<B>,
-    ) -> MaxPool3dBackward<B> {
-        unimplemented!("max_pool3d_with_indices_backward is not implemented for this backend");
-    }
+        x: FloatTensor<B>,
+        kernel_size: [usize; 3],
+        stride: [usize; 3],
+        padding: [usize; 3],
+        dilation: [usize; 3],
+        ceil_mode: bool,
+        output_grad: FloatTensor<B>,
+        indices: IntTensor<B>,
+    ) -> MaxPool3dBackward<B>;
 
     /// Down/up samples the input.
     ///

@@ -10,7 +10,8 @@ use burn_backend::{
     TensorMetadata,
     ops::{
         AttentionModuleOptions, ConvOptions, ConvTransposeOptions, DeformConv2dBackward,
-        DeformConvOptions, InterpolateOptions, MaxPool2dBackward, MaxPool2dWithIndices, ModuleOps,
+        DeformConvOptions, InterpolateOptions, MaxPool2dBackward, MaxPool2dWithIndices,
+        MaxPool3dBackward, MaxPool3dWithIndices, ModuleOps,
     },
 };
 use burn_std::IntDType;
@@ -305,6 +306,75 @@ impl ModuleOps<Self> for CubeBackend {
         grad: FloatTensor<Self>,
     ) -> FloatTensor<Self> {
         kernel::pool::adaptive_avg_pool3d_backward(x, grad)
+    }
+
+    fn avg_pool3d(
+        _x: FloatTensor<Self>,
+        _kernel_size: [usize; 3],
+        _stride: [usize; 3],
+        _padding: [usize; 3],
+        _count_include_pad: bool,
+        _ceil_mode: bool,
+    ) -> FloatTensor<Self> {
+        todo!(
+            "CubeCL backend does not yet support avg_pool3d. GPU kernels are pending in cubek-pool."
+        )
+    }
+
+    fn avg_pool3d_backward(
+        _x: FloatTensor<Self>,
+        _grad: FloatTensor<Self>,
+        _kernel_size: [usize; 3],
+        _stride: [usize; 3],
+        _padding: [usize; 3],
+        _count_include_pad: bool,
+        _ceil_mode: bool,
+    ) -> FloatTensor<Self> {
+        todo!(
+            "CubeCL backend does not yet support avg_pool3d_backward. GPU kernels are pending in cubek-pool."
+        )
+    }
+
+    fn max_pool3d(
+        _x: FloatTensor<Self>,
+        _kernel_size: [usize; 3],
+        _stride: [usize; 3],
+        _padding: [usize; 3],
+        _dilation: [usize; 3],
+        _ceil_mode: bool,
+    ) -> FloatTensor<Self> {
+        todo!(
+            "CubeCL backend does not yet support max_pool3d. GPU kernels are pending in cubek-pool."
+        )
+    }
+
+    fn max_pool3d_with_indices(
+        _x: FloatTensor<Self>,
+        _kernel_size: [usize; 3],
+        _stride: [usize; 3],
+        _padding: [usize; 3],
+        _dilation: [usize; 3],
+        _ceil_mode: bool,
+        _indices_dtype: IntDType,
+    ) -> MaxPool3dWithIndices<Self> {
+        todo!(
+            "CubeCL backend does not yet support max_pool3d_with_indices. GPU kernels are pending in cubek-pool."
+        )
+    }
+
+    fn max_pool3d_with_indices_backward(
+        _x: FloatTensor<Self>,
+        _kernel_size: [usize; 3],
+        _stride: [usize; 3],
+        _padding: [usize; 3],
+        _dilation: [usize; 3],
+        _ceil_mode: bool,
+        _output_grad: FloatTensor<Self>,
+        _indices: IntTensor<Self>,
+    ) -> MaxPool3dBackward<Self> {
+        todo!(
+            "CubeCL backend does not yet support max_pool3d_with_indices_backward. GPU kernels are pending in cubek-pool."
+        )
     }
 
     fn interpolate(

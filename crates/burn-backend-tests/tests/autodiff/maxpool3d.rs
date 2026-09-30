@@ -1,6 +1,6 @@
 use super::*;
 use burn_tensor::Tolerance;
-use burn_tensor::module::max_pool3d;
+use burn_tensor::module::{max_pool3d, max_pool3d_with_indices};
 
 #[test]
 fn test_max_pool3d_gradient_single_winner() {
@@ -12,6 +12,31 @@ fn test_max_pool3d_gradient_single_winner() {
     .require_grad();
 
     let output = max_pool3d(x.clone(), [2, 2, 2], [1, 1, 1], [0, 0, 0], [1, 1, 1], false);
+    let grads = output.backward();
+
+    let x_grad = x.grad(&grads).unwrap();
+    // Only the maximum element at (1, 1, 1) receives the gradient 1.0
+    let expected = TestTensor::<5>::from_data(
+        [[[[[0.0, 0.0], [0.0, 0.0]], [[0.0, 0.0], [0.0, 1.0]]]]],
+        &device,
+    );
+
+    expected
+        .to_data()
+        .assert_approx_eq::<FloatElem>(&x_grad.into_data(), Tolerance::default());
+}
+
+#[test]
+fn test_max_pool3d_with_indices_gradient() {
+    let device = AutodiffDevice::new();
+    let x = TestTensor::<5>::from_data(
+        [[[[[1.0, 2.0], [3.0, 4.0]], [[5.0, 6.0], [7.0, 10.0]]]]],
+        &device,
+    )
+    .require_grad();
+
+    let (output, _indices) =
+        max_pool3d_with_indices(x.clone(), [2, 2, 2], [1, 1, 1], [0, 0, 0], [1, 1, 1], false);
     let grads = output.backward();
 
     let x_grad = x.grad(&grads).unwrap();

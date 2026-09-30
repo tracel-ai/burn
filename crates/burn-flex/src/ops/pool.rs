@@ -156,10 +156,13 @@ fn pool_output_size(
         // Only produces an extra window if the deficit is smaller than the stride
         1
     } else {
-        0
+        panic!(
+            "pool_output_size: padded input ({padded}) is smaller than effective kernel size ({effective_kernel})"
+        );
     };
 
-    if out > 0 && (out - 1) * stride >= input + padding {
+    // In ceil mode, drop the trailing window if it starts inside the right padding.
+    if ceil_mode && out > 0 && (out - 1) * stride >= input + padding {
         out -= 1;
     }
     out
@@ -1806,10 +1809,8 @@ mod tests {
         // With dilation 2 and stride 3: input=5, kernel=2, padding=1 -> 2
         assert_eq!(pool_output_size(5, 2, 1, 3, 2, true), 2);
 
-        // Degenerate input: input + 2*padding < effective_kernel
-        // in=1, k=3, s=1, p=0: deficit (3 - 1 = 2) >= stride (1), so output is 0 for both floor and ceil
-        assert_eq!(pool_output_size(1, 3, 0, 1, 1, false), 0);
-        assert_eq!(pool_output_size(1, 3, 0, 1, 1, true), 0);
+        // Floor mode must NOT discard even with large padding (padded=8, k=2, s=1 -> 7)
+        assert_eq!(pool_output_size(4, 2, 2, 1, 1, false), 7);
 
         // When deficit (3 - 2 = 1) < stride (2), ceil mode produces 1
         assert_eq!(pool_output_size(2, 3, 0, 2, 1, true), 1);
@@ -1959,5 +1960,21 @@ mod tests {
     #[should_panic(expected = "stride must be > 0")]
     fn test_pool_output_size_zero_stride_panics() {
         pool_output_size(4, 2, 0, 0, 1, false);
+    }
+
+    #[test]
+    #[should_panic(
+        expected = "pool_output_size: padded input (1) is smaller than effective kernel size (3)"
+    )]
+    fn test_pool_output_size_degenerate_input_floor_panics() {
+        pool_output_size(1, 3, 0, 1, 1, false);
+    }
+
+    #[test]
+    #[should_panic(
+        expected = "pool_output_size: padded input (1) is smaller than effective kernel size (3)"
+    )]
+    fn test_pool_output_size_degenerate_input_ceil_panics() {
+        pool_output_size(1, 3, 0, 1, 1, true);
     }
 }

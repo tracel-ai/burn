@@ -19,8 +19,7 @@ pub struct MaxPool3dConfig {
     pub strides: [usize; 3],
     /// The padding configuration.
     ///
-    /// Supports symmetric and asymmetric padding. `Same` padding with even kernel sizes
-    /// will automatically use asymmetric padding to preserve input dimensions.
+    /// Explicit padding is symmetric per dimension. Same padding with even kernel sizes uses asymmetric padding internally.
     #[config(default = "PaddingConfig3d::Valid")]
     pub padding: PaddingConfig3d,
     /// The dilation.
