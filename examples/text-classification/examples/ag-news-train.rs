@@ -108,9 +108,9 @@ mod wgpu {
 mod remote {
     #[cfg(feature = "ddp")]
     use crate::ElemType;
+    use burn::remote::RemoteHost;
     #[cfg(feature = "ddp")]
     use burn::tensor::distributed::{DistributedConfig, ReduceOperation};
-    use burn::tensor::{Device, DeviceType};
     #[cfg(feature = "ddp")]
     use burn::tensor::{DeviceConfig, Element};
     #[cfg(feature = "ddp")]
@@ -126,14 +126,18 @@ mod remote {
     /// [`DeviceError::AlreadyInitialized`](burn::tensor::DeviceError::AlreadyInitialized).
     #[cfg(not(feature = "ddp"))]
     pub fn run() {
-        let devices = Device::enumerate(DeviceType::remote_websocket(ADDRESS));
+        let devices = RemoteHost::websocket(ADDRESS)
+            .devices()
+            .expect("The server can be dialed");
         crate::launch_single(devices.into_vec().pop().unwrap());
     }
 
     /// Same enumeration, but drive the devices with distributed data-parallel training.
     #[cfg(feature = "ddp")]
     pub fn run() {
-        let mut devices = Device::enumerate(DeviceType::remote_websocket(ADDRESS));
+        let mut devices = RemoteHost::websocket(ADDRESS)
+            .devices()
+            .expect("The server can be dialed");
         devices
             .configure(DeviceConfig::default().float_dtype(ElemType::dtype()))
             .unwrap();

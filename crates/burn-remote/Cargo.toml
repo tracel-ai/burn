@@ -7,8 +7,8 @@ keywords = ["deep-learning", "machine-learning", "data"]
 license.workspace = true
 name = "burn-remote"
 readme.workspace = true
-repository = "https://github.com/tracel-ai/burn/tree/main/crates/burn-router-remote"
-documentation = "https://docs.rs/burn-router-remote"
+repository = "https://github.com/tracel-ai/burn/tree/main/crates/burn-remote"
+documentation = "https://docs.rs/burn-remote"
 version.workspace = true
 
 [lints]

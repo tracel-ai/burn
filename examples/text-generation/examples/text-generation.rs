@@ -93,7 +93,7 @@ mod flex {
 
 #[cfg(feature = "remote")]
 mod remote {
-    use burn::tensor::{Device, DeviceType};
+    use burn::remote::RemoteHost;
 
     /// Address of the `burn-remote` server to train against.
     const ADDRESS: &str = "ws://localhost:3000";
@@ -104,7 +104,9 @@ mod remote {
     /// too — doing both locks the device's settings twice and returns
     /// [`DeviceError::AlreadyInitialized`](burn::tensor::DeviceError::AlreadyInitialized).
     pub fn run() {
-        let devices = Device::enumerate(DeviceType::remote_websocket(ADDRESS));
+        let devices = RemoteHost::websocket(ADDRESS)
+            .devices()
+            .expect("The server can be dialed");
         crate::launch(devices.into_vec().pop().unwrap());
     }
 }

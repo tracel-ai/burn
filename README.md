@@ -236,22 +236,25 @@ Remote (Beta): Backend decorator for remote backend execution, useful for distri
 </summary>
 <br />
 
-Remote execution has a client and a server. The server's `Device` selects the compute backend;
-clients use a remote `Device` with the same tensor API. Iroh is the preferred transport for new
-integrations; see the [server example](./examples/server) and
-[device guide](./burn-book/src/building-blocks/backend.md). For a WebSocket setup, enable
-`remote-server`, `remote-websocket`, and `cuda` on the server, and `remote-websocket` plus
-`autodiff` on the client:
+Remote execution has a client and a server. The server's devices select the compute backend;
+clients use a remote `Device` with the same tensor API. Iroh, the default transport, reaches a
+server across any network, authenticated and encrypted; see the [server example](./examples/server)
+and the [distributed computing guide](./burn-book/src/performance/distributed-computing.md). On a
+trusted network, WebSocket is the simplest setup: enable `remote-server`, `remote-websocket`, and
+`cuda` on the server, and `remote-websocket` plus `autodiff` on the client:
 
 ```rust
+use burn::remote::RemoteHost;
+use burn::server::{RemoteServer, ServeError, WebSocketTransport};
 use burn::tensor::{Device, Distribution, Tensor};
 
-fn main_server() {
-    burn::server::start(Device::cuda(0), burn::server::Channel::WebSocket { port: 3000 });
+fn main_server() -> Result<(), ServeError> {
+    RemoteServer::new([Device::cuda(0)]).serve(WebSocketTransport::new(3000))
 }
 
 fn main_client() -> Result<(), burn::remote::ConnectError> {
-    let device = Device::remote_websocket("ws://localhost:3000", 0)?.autodiff();
+    let host = RemoteHost::websocket("ws://localhost:3000");
+    let device = Device::remote_options(&host).init()?.autodiff();
     let tensor_gpu = Tensor::<2>::random([3, 3], Distribution::Default, &device);
     Ok(())
 }
