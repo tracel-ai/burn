@@ -129,4 +129,20 @@ mod tests {
         });
         assert!(matches!(error, ConnectError::Handshake { .. }), "{error:?}");
     }
+
+    #[test]
+    fn a_protocol_refusal_from_another_version_names_both_versions() {
+        let server_version = PROTOCOL_VERSION + 1;
+        let error = ConnectError::from(SessionRefusal::IncompatibleProtocol { server_version });
+        assert!(
+            matches!(
+                error,
+                ConnectError::IncompatibleProtocol {
+                    client_version: PROTOCOL_VERSION,
+                    server_version: refused,
+                } if refused == server_version
+            ),
+            "{error:?}"
+        );
+    }
 }
