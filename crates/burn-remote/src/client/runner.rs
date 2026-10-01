@@ -290,8 +290,8 @@ impl RemoteDevice {
 
     /// Initialize the client for this device using a custom protocol channel.
     ///
-    /// Only creates the lazy service; the socket and handshake open on first use. Call
-    /// [`connect`](Self::connect) when the connection and device settings are needed immediately.
+    /// Only creates the lazy service; the socket and handshake open on first use. Call `connect`,
+    /// or `connect_async` on wasm, when the connection and device settings are needed immediately.
     pub fn connect_with_channel<R: burn_router::RouterChannel<Device = Self>>(&self) {
         // `get_client` forces service initialization if the client doesn't exist yet;
         // `RemoteService::init` records the endpoint but defers the connect to first use.
