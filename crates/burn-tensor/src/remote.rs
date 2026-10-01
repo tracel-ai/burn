@@ -6,7 +6,9 @@
 //! ```
 //!
 //! On native, every session runs on Burn's own runtime, so `init_async` and `devices_async`
-//! can be awaited from any executor, and the blocking forms can be called from any thread.
+//! can be awaited from any executor, and the blocking forms can be called from any thread but
+//! one: the thread of a current-thread runtime that drives an application endpoint the host
+//! dials from, which they would starve.
 
 use core::future::Future;
 
@@ -45,7 +47,8 @@ impl RemoteHost {
         Self(self.0.with_credential(credential))
     }
 
-    /// Connect every device the server hosts, one session each, whether or not it is then used.
+    /// Connect every device the server hosts, whether or not it is then used: each is a session
+    /// holding a thread and its device on the server for as long as this process runs.
     /// `Device::enumerate(DeviceType::Remote(host))` lists the same devices, and panics where this
     /// returns an error.
     ///
@@ -120,8 +123,8 @@ impl RemoteOptions {
     /// a new device, and the old one's tensors are gone. Reads on the old device return errors,
     /// and its queries that cannot, such as `dtype_usage`, panic.
     ///
-    /// Every device keeps its id and its runner thread for the life of the process, and a process
-    /// can connect 65,536 devices, a new one each time a session ended.
+    /// Every device keeps its id and its runner thread for the life of the process. A process can
+    /// connect 65,536 devices, a new one each time a session ended, and panics on the next.
     #[cfg(not(target_family = "wasm"))]
     pub fn init(self) -> Result<Device, ConnectError> {
         Ok(Device::new(

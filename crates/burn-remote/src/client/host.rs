@@ -171,7 +171,8 @@ impl HostSpec {
         {
             return Err(ConnectError::InvalidConfiguration {
                 reason: "a blocking connect on a current-thread runtime cannot drive the \
-                         application endpoint that runtime runs; use `init_async`"
+                         application endpoint that runtime runs; use `init_async` or \
+                         `devices_async`"
                     .into(),
             });
         }

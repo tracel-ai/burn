@@ -1,4 +1,4 @@
-//! Legacy WebSocket tensor transfer, carried over the `burn_communication` data service.
+//! WebSocket tensor transfer, carried over the `burn_communication` data service.
 
 use std::sync::Arc;
 
@@ -60,7 +60,7 @@ impl<B: BackendIr> TensorTransfer<B> for WebSocketTransfer<B> {
     }
 
     async fn fail(&self, _capability: TransferCapability, _target: PeerId, reason: String) {
-        log::error!("Legacy WebSocket tensor transfer failed before exposure: {reason}");
+        log::error!("WebSocket tensor transfer failed before exposure: {reason}");
     }
 }
 

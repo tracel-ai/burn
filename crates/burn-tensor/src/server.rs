@@ -85,7 +85,7 @@ impl RemoteServer {
     }
 
     /// Serve on `transport`, blocking the calling thread until the process receives Ctrl+C or
-    /// `SIGTERM`.
+    /// `SIGTERM`. Returning cancels every session; Iroh connections are closed before it returns.
     ///
     /// Installs [`ServerLogging`] and the signal handlers. The server runs on Burn's own runtime,
     /// so this can be called from any thread, inside an async runtime or not.
@@ -99,7 +99,7 @@ impl RemoteServer {
     }
 
     /// Serve on `transport` until the returned future is dropped, which also ends the live
-    /// sessions.
+    /// sessions. An Iroh port is free again shortly after, once its connections have closed.
     ///
     /// Requires a Tokio runtime. Installs no logging and no signal handlers: those belong to the
     /// application.

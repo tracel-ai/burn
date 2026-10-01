@@ -870,8 +870,8 @@ impl Device {
     ///
     /// # Panics
     ///
-    /// When a remote server cannot be reached or refuses the client: `RemoteHost::devices`
-    /// returns that error instead.
+    /// Where `RemoteHost::devices` returns an error for a `DeviceType::Remote`, and on wasm for any
+    /// `DeviceType::Remote`, which a browser can only list with `RemoteHost::devices_async`.
     pub fn enumerate(filter: impl Into<DeviceFilter>) -> Devices {
         #[allow(unused)]
         let mut devices = Vec::new();

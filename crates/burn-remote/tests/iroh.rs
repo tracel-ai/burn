@@ -841,19 +841,47 @@ mod iroh_peer {
     }
 
     #[tokio::test(flavor = "multi_thread")]
-    async fn an_endpoint_that_carried_the_protocol_frees_its_port_once_dropped() {
-        let port = free_udp_port();
-        let key = SecretKey::generate();
-        let first = local_endpoint_at(key.clone(), port).await;
-        drop(
-            BackendServer::<Flex>::new(vec![Default::default()])
-                .into_protocol(&first)
-                .unwrap(),
-        );
-        first.close().await;
-        drop(first);
+    async fn a_stopped_server_frees_its_port_for_the_next_one() {
+        // The port frees once the stopped router has closed and its sessions have drained.
+        const REBIND_ATTEMPTS: u32 = 50;
+        const REBIND_SETTLE: Duration = Duration::from_millis(200);
 
-        local_endpoint_at(key, port).await;
+        let port = free_udp_port();
+        let identity = IrohIdentity::random();
+        let transport = || {
+            IrohTransport::new(identity.clone())
+                .with_relays(IrohRelays::Disabled)
+                .with_port(port)
+        };
+        let serve = || {
+            tokio::spawn(
+                BackendServer::<Flex>::new(vec![Default::default()]).serve_async(transport()),
+            )
+        };
+
+        let first = serve();
+        let host = direct_host(identity.id(), Ipv4Addr::LOCALHOST.into(), port, TOKEN);
+        Device::remote_options(&host).init_async().await.unwrap();
+        first.abort();
+        assert!(first.await.unwrap_err().is_cancelled());
+
+        for _ in 0..REBIND_ATTEMPTS {
+            let next = serve();
+            tokio::time::sleep(REBIND_SETTLE).await;
+            if !next.is_finished() {
+                next.abort();
+                return;
+            }
+            let refused = next.await.unwrap();
+            assert!(
+                matches!(
+                    refused,
+                    Err(ServeError::Bind { .. } | ServeError::InvalidEndpoint { .. })
+                ),
+                "{refused:?}"
+            );
+        }
+        panic!("the stopped server never freed its port");
     }
 
     /// A port free on IPv4, and on IPv6 where the host has it.

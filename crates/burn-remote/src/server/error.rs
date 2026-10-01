@@ -25,7 +25,7 @@ pub enum ServeError {
         /// The backend they were registered for.
         backend: &'static str,
     },
-    /// The application's Iroh endpoint cannot carry the protocol.
+    /// The Iroh endpoint cannot carry the protocol: another live endpoint has its id.
     InvalidEndpoint {
         /// Why.
         reason: String,
