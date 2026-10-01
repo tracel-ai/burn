@@ -23,13 +23,13 @@ readme = "README.md"
 version = "0.22.0-pre.4"
 
 [workspace.lints.clippy]
+# Temporary workaround for linting generated code:
+# https://github.com/rust-lang/rust-clippy/issues/17525
+redundant_field_names = "allow"
 
 [workspace.lints.rustdoc]
 broken_intra_doc_links = "deny"
 invalid_html_tags = "deny"
-# Temporary workaround for linting generated code:
-# https://github.com/rust-lang/rust-clippy/issues/17525
-redundant_field_names = "allow"
 
 [workspace.dependencies]
 atomic_float = "1"
