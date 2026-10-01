@@ -20,25 +20,45 @@ and `cuda` features make `Device::wgpu` and `Device::cuda` available.
 
 ## Selecting a Device
 
-`Device` provides constructors for the backends enabled in your build. Common choices include:
+`Device` provides constructors for the backends enabled in your build. Multiple backend features can
+be enabled together; the device chooses where operations execute.
 
-| Constructor                                | Target                                          |
-| ------------------------------------------ | ----------------------------------------------- |
-| `Device::wgpu(Default::default())`         | Best WGPU adapter available                     |
-| `Device::wgpu(DeviceKind::DiscreteGpu(0))` | First discrete GPU through WGPU                 |
-| `Device::vulkan(Default::default())`       | Best Vulkan adapter                             |
-| `Device::metal(Default::default())`        | Best Metal adapter                              |
-| `Device::webgpu(Default::default())`       | Browser WebGPU device                           |
-| `Device::cuda(0)`                          | CUDA GPU at index 0                             |
-| `Device::cuda(DeviceIndex::Default)`       | Backend-selected CUDA GPU                       |
-| `Device::rocm(0)`                          | ROCm/HIP GPU at index 0                         |
-| `Device::cpu()`                            | CubeCL CPU backend                              |
-| `Device::flex()`                           | Flex CPU backend                                |
-| `Device::ndarray()`                        | NdArray CPU backend (deprecated)                |
-| `Device::libtorch()`                       | LibTorch CPU backend (deprecated)               |
-| `Device::libtorch_cuda(0)`                 | LibTorch CUDA GPU at index 0 (deprecated)       |
-| `Device::libtorch_mps()`                   | LibTorch Metal Performance Shaders (deprecated) |
-| `Device::libtorch_vulkan()`                | LibTorch Vulkan device (deprecated)             |
+| Device constructor                   | Cargo feature | Execution                                                                               |
+| ------------------------------------ | ------------- | --------------------------------------------------------------------------------------- |
+| `Device::wgpu(Default::default())`   | `wgpu`        | Graphics API selected at runtime; WGSL, or native SPIR-V/MSL when enabled and supported |
+| `Device::vulkan(Default::default())` | `vulkan`      | Vulkan through WGPU; native SPIR-V when supported, with WGSL fallback                   |
+| `Device::metal(Default::default())`  | `metal`       | Metal through WGPU with native MSL; initialization panics if native MSL is unavailable  |
+| `Device::webgpu(Default::default())` | `webgpu`      | Browser WebGPU with WGSL                                                                |
+| `Device::cuda(0)`                    | `cuda`        | NVIDIA GPU through CubeCL's CUDA runtime                                                |
+| `Device::rocm(0)`                    | `rocm`        | AMD GPU through CubeCL's HIP runtime                                                    |
+| `Device::cpu()`                      | `cpu`         | CPU through CubeCL's CPU runtime                                                        |
+| `Device::flex()`                     | `flex`        | CPU through the pure-Rust Flex backend                                                  |
+| `Device::ndarray()`                  | `ndarray`     | CPU through NdArray (deprecated)                                                        |
+| `Device::libtorch()`                 | `tch`         | CPU through LibTorch (deprecated)                                                       |
+| `Device::libtorch_cuda(0)`           | `tch`         | CUDA GPU through LibTorch (deprecated)                                                  |
+| `Device::libtorch_mps()`             | `tch`         | Apple GPU through Metal Performance Shaders (deprecated)                                |
+| `Device::libtorch_vulkan()`          | `tch`         | Vulkan through LibTorch (deprecated)                                                    |
+
+The `vulkan`, `metal`, and `webgpu` features also enable `wgpu`. Enabling a feature makes that
+option available; it does not force `Device::wgpu` to use it. Automatic devices retain WGSL fallback
+even with native compiler features enabled. The explicit constructors pin the graphics API, so
+`Device::vulkan` cannot fall back to a different API even when it uses WGSL instead of SPIR-V.
+
+For example, one build can support both automatic selection and explicit Metal selection:
+
+```toml
+burn = { version = "0.22", features = ["vulkan", "metal"] }
+```
+
+```rust, ignore
+use burn::tensor::Device;
+
+let automatic = Device::wgpu(Default::default());
+let metal = Device::metal(Default::default());
+```
+
+The explicit Metal device requires an available Metal adapter with native MSL support. The automatic
+device selects an available graphics API and compiler for the platform.
 
 Indexed devices accept either an integer or `DeviceIndex`. WGPU-family constructors accept a
 `DeviceKind`, which can select a discrete, integrated, or virtual GPU, a CPU adapter, or the best

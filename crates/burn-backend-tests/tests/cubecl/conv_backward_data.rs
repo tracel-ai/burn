@@ -60,6 +60,16 @@ fn conv1d_dgrad_should_match_reference_backend() {
 }
 
 #[test]
+fn conv1d_dgrad_dense_im2col_should_match_reference_backend() {
+    assert_dgrad_matches_reference(
+        [2, 4, 17],
+        [6, 4, 5],
+        ConvOptions::new([2], [2], [1], 1),
+        module::conv1d,
+    );
+}
+
+#[test]
 fn conv1d_dgrad_strided_dilated_grouped_should_match_reference_backend() {
     assert_dgrad_matches_reference(
         [4, 8, 17],
@@ -85,6 +95,16 @@ fn conv2d_dgrad_should_match_reference_backend() {
         [4, 8, 9, 11],
         [6, 8, 3, 5],
         ConvOptions::new([1, 1], [1, 2], [1, 1], 1),
+        module::conv2d,
+    );
+}
+
+#[test]
+fn conv2d_dgrad_dense_im2col_should_match_reference_backend() {
+    assert_dgrad_matches_reference(
+        [2, 4, 9, 11],
+        [6, 4, 3, 5],
+        ConvOptions::new([2, 1], [1, 2], [1, 1], 1),
         module::conv2d,
     );
 }
@@ -127,6 +147,16 @@ fn conv3d_dgrad_should_match_reference_backend() {
         [2, 4, 5, 6, 7],
         [6, 2, 3, 2, 3],
         ConvOptions::new([2, 1, 1], [1, 2, 0], [1, 1, 2], 2),
+        module::conv3d,
+    );
+}
+
+#[test]
+fn conv3d_dgrad_dense_im2col_should_match_reference_backend() {
+    assert_dgrad_matches_reference(
+        [1, 4, 7, 8, 9],
+        [6, 4, 3, 3, 3],
+        ConvOptions::new([1, 2, 1], [1, 1, 1], [1, 1, 1], 1),
         module::conv3d,
     );
 }
