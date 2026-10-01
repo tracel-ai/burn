@@ -314,7 +314,7 @@ fn tensors_dropped_on_another_thread_still_feed_their_queued_reader() {
             let router = spawn_router::<Flex>(server.clone(), AllowAll, TelemetryProbe::disabled());
             (router, RemoteDevice::iroh(&client, server.addr(), 0))
         };
-        remote.connect();
+        remote.connect().unwrap();
         let device = Device::new(remote);
 
         let computed = Tensor::<1>::from_floats([1.0, 2.0, 3.0], &device) + 1.0;
