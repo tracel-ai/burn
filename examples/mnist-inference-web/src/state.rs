@@ -11,8 +11,10 @@ pub async fn build_and_load_model() -> Model {
     #[cfg(all(feature = "flex", not(feature = "wgpu")))]
     let device = Device::flex();
     #[cfg(feature = "wgpu")]
-    // Calls init_setup_async
-    let device = Device::wgpu_async(Default::default()).await;
+    let device = Device::wgpu_options()
+        .init_async()
+        .await
+        .expect("Unable to initialize WebGPU for inference");
 
     let model = Model::new(&device);
     let record = ModuleRecord::from_bytes(Bytes::from_bytes_vec(STATE_ENCODED.to_vec()))

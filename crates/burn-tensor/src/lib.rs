@@ -62,6 +62,10 @@ pub use burn_std::{
 mod device;
 pub use device::*;
 
+/// Configure a wgpu runtime or share an application's existing wgpu setup.
+#[cfg(feature = "wgpu")]
+pub mod wgpu;
+
 #[cfg(feature = "remote-server")]
 pub mod server;
 

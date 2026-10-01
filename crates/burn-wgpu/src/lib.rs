@@ -14,9 +14,12 @@ pub use burn_cubecl::{CubeBackend, tensor::CubeTensor};
 pub use cubecl::CubeDim;
 pub use cubecl::flex32;
 
+#[cfg(not(target_family = "wasm"))]
+pub use cubecl::wgpu::try_init_setup;
 pub use cubecl::wgpu::{
-    AutoCompiler, MemoryConfiguration, RuntimeOptions, WgpuDevice, WgpuResource, WgpuRuntime,
-    WgpuSetup, WgpuStorage, init_device, init_setup, init_setup_async,
+    AutoCompiler, MemoryConfiguration, RuntimeOptions, WgpuBackend, WgpuDevice, WgpuInitError,
+    WgpuResource, WgpuRuntime, WgpuSetup, WgpuStorage, init_device, init_setup, init_setup_async,
+    try_init_device, try_init_setup_async, wgpu,
 };
 // Vulkan and WebGpu would have conflicting type names
 pub mod graphics {
@@ -43,20 +46,19 @@ type WgpuInner = CubeBackend;
 /// and `Metal` aliases name the same backend; the compiler is a runtime choice, not a
 /// compile-time one.
 ///
-/// To configure the wgpu backend, eg. to select what graphics API to use or what memory strategy to use,
-/// you have to manually initialize the runtime. For example:
+/// Application code configures and initializes the runtime with `Device::wgpu_options`:
 ///
 /// ```rust, ignore
-/// fn custom_init() {
-///     let device = Default::default();
-///     burn::backend::wgpu::init_setup::<burn::backend::wgpu::graphics::Vulkan>(
-///         &device,
-///         Default::default(),
-///     );
-/// }
+/// use burn::tensor::{Device, wgpu::WgpuBackend};
+/// let device = Device::wgpu_options()
+///     .graphics_api(WgpuBackend::Vulkan)
+///     .tasks_max(32)
+///     .init()?;
 /// ```
-/// will mean the given device (in this case the default) will be initialized to use Vulkan as the graphics API.
-/// It's also possible to use an existing wgpu device, by using `init_device`.
+/// Use `init_async().await` for native async applications and browsers, or
+/// `.setup(existing_setup).init()` to share an application's existing device and queue.
+/// Initialize once, then clone the Burn device to share its runtime. The low-level
+/// [`try_init_setup_async`] and [`try_init_device`] APIs remain available for backend authors.
 ///
 /// # Notes
 ///

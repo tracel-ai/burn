@@ -130,6 +130,17 @@ pub mod backends {
 
 /// Backend devices.
 pub mod devices {
+    /// Wgpu initialization and interoperability types used by the device facade.
+    #[cfg(feature = "wgpu")]
+    pub mod wgpu {
+        #[cfg(not(target_family = "wasm"))]
+        pub use burn_cubecl::cubecl::wgpu::try_init_setup;
+        pub use burn_cubecl::cubecl::wgpu::{
+            AutoGraphicsApi, MemoryConfiguration, RuntimeOptions, WgpuBackend, WgpuDevice,
+            WgpuInitError, WgpuSetup, try_init_device, try_init_setup_async, wgpu,
+        };
+    }
+
     #[cfg(feature = "cpu")]
     pub use burn_cubecl::cubecl::cpu::CpuDevice;
     #[cfg(feature = "cuda")]
