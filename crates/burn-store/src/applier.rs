@@ -247,7 +247,14 @@ impl Applier {
             }
         }
 
-        let mut tensor = tensor?;
+        let Some(mut tensor) = tensor else {
+            // A filtered-out parameter is intentionally excluded even if the checkpoint
+            // has no corresponding tensor. Do not report it as missing during strict loading.
+            if !self.should_apply() {
+                self.skipped.insert(path);
+            }
+            return None;
+        };
         self.consumed_paths.insert(source_path);
         let source_id = tensor.param_id.map(ParamId::from);
 

@@ -40,14 +40,13 @@ pub struct PositionWiseFeedForwardConfig {
 ///
 /// # Notes
 ///
-/// The `activation` field is currently marked `#[module(skip)]` for backward
-/// compatibility with records saved before this field was introduced (when
-/// the activation was always `Gelu` and had no state). This means activation
-/// state is **not persisted** when saving or loading records.
+/// Tensor checkpoints saved when this module always used GELU remain compatible:
+/// GELU has no parameters, and the linear layer tensor paths are unchanged.
 ///
-/// For stateless activations (GELU, ReLU, etc.) this has no effect.
-/// **If you are using `SwiGLU`, its learnable parameters will not be saved or
-/// loaded correctly.**
+/// Older checkpoints using stateful activations omitted their parameters. To load
+/// such checkpoints, use a storage path filter that includes only `linear_inner`
+/// and `linear_outer`. The activation keeps its initialized parameters, while
+/// missing linear layer parameters are still reported by strict loading.
 #[derive(Module, Debug)]
 #[module(custom_display)]
 pub struct PositionWiseFeedForward {
@@ -58,7 +57,6 @@ pub struct PositionWiseFeedForward {
     /// Dropout layer.
     pub dropout: Dropout,
     /// Activation function.
-    #[module(skip)] // for backward compatibility with previous `gelu` field name
     pub activation: Activation,
 }
 
