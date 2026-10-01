@@ -296,6 +296,38 @@ fn blocking_reads_inside_a_tokio_task_outlast_its_budget() {
     });
 }
 
+#[test]
+fn tensors_dropped_on_another_thread_still_feed_their_queued_reader() {
+    within_hang_limit(|| {
+        let runtime = tokio::runtime::Runtime::new().unwrap();
+        let server = runtime.block_on(local_endpoint());
+        let client = runtime.block_on(local_endpoint());
+        let (router, remote) = {
+            let _guard = runtime.enter();
+            let router = spawn_router::<Flex>(server.clone(), AllowAll, TelemetryProbe::disabled());
+            (router, RemoteDevice::iroh(&client, server.addr(), 0))
+        };
+        remote.connect();
+        let device = Device::new(remote);
+
+        let computed = Tensor::<1>::from_floats([1.0, 2.0, 3.0], &device) + 1.0;
+        // A free before the producer runs is a no-op, so only `computed` can catch an early free.
+        device.sync().unwrap();
+        let pending = computed.clone() * 2.0;
+        let reader = pending.clone() + computed.clone();
+        thread::spawn(move || drop((computed, pending)))
+            .join()
+            .unwrap();
+
+        assert_eq!(
+            reader.try_into_vec_as::<f32>().unwrap(),
+            vec![6.0, 9.0, 12.0]
+        );
+
+        runtime.block_on(router.shutdown()).unwrap();
+    });
+}
+
 #[tokio::test(flavor = "multi_thread")]
 async fn passes_application_credentials_to_the_peer_authorizer() {
     let server = local_endpoint().await;
