@@ -47,7 +47,13 @@ fn a_device_the_server_does_not_host_is_an_error() {
     let result = Device::remote_websocket(&address, 1);
 
     assert!(
-        matches!(result, Err(ConnectError::NoSuchDevice { device_count: 1 })),
+        matches!(
+            result,
+            Err(ConnectError::NoSuchDevice {
+                device_count: 1,
+                ..
+            })
+        ),
         "{result:?}"
     );
     rt.shutdown_background();

@@ -162,9 +162,11 @@ pub enum SessionRefusal {
     /// told how many it hosts.
     NoSuchDevice { device_count: u32 },
     /// The server cannot read the client's handshake, as when the client speaks another version
-    /// of the Burn Remote protocol. Told before authorization, so it reveals whether the
-    /// client's version matches.
-    IncompatibleProtocol,
+    /// of the Burn Remote protocol. Told before authorization, so it reveals the server's
+    /// version, which a client could find by trying each version anyway.
+    ///
+    /// The only refusal a client on another version receives, so its encoding never changes.
+    IncompatibleProtocol { server_version: u16 },
 }
 
 #[allow(missing_docs)]
@@ -287,8 +289,7 @@ pub enum TaskResponseContent {
     /// measurement.
     ProfileEnd(Result<Option<Duration>, ExecutionError>),
     /// The server's answer to an `Init` it will not serve, in place of [`Init`](Self::Init),
-    /// before it closes the session. A client decodes it whatever protocol version it speaks, and
-    /// rmp-serde encodes variants by name: add refusal categories, never rename or remove one.
+    /// before it closes the session.
     InitRefused(SessionRefusal),
 }
 
@@ -297,10 +298,10 @@ mod tests {
     use super::*;
 
     #[test]
-    fn a_refusal_keeps_its_wire_encoding() {
+    fn an_incompatible_protocol_refusal_keeps_its_wire_encoding() {
         let refusal = TaskResponse {
-            content: TaskResponseContent::InitRefused(SessionRefusal::NoSuchDevice {
-                device_count: 2,
+            content: TaskResponseContent::InitRefused(SessionRefusal::IncompatibleProtocol {
+                server_version: 2,
             }),
             id: 0,
         };
@@ -309,8 +310,8 @@ mod tests {
         let expected = [
             &[0x92, 0x81, 0xab][..],
             b"InitRefused",
-            &[0x81, 0xac],
-            b"NoSuchDevice",
+            &[0x81, 0xb4],
+            b"IncompatibleProtocol",
             &[0x91, 0x02, 0x00],
         ]
         .concat();

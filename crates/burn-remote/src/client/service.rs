@@ -60,6 +60,8 @@ pub(crate) use registry::{endpoint_for, register_endpoint};
 /// task) happens on the [`Executor`] captured from the device's endpoint. The caller never
 /// sees a runtime handle.
 pub struct RemoteService {
+    /// The device's registry entry, which holds its latest dialing hints and runtime.
+    id: u32,
     executor: Executor,
     /// Where to connect on first use. The connection is established lazily (see
     /// [`ensure_connected`](Self::ensure_connected)) rather than in [`init`](Self::init),
@@ -118,6 +120,7 @@ impl DeviceService for RemoteService {
         // Instead we record the endpoint and open the sockets on the first real use, off the
         // lock and on the device-runner thread (see `ensure_connected`).
         Self {
+            id,
             executor,
             endpoint,
             device_index,
@@ -158,6 +161,17 @@ impl RemoteService {
         (id, endpoint, device_index)
     }
 
+    /// Building the device again with new dialing hints, or from another runtime, updates its
+    /// registry entry, which a session not yet open must dial with.
+    fn reload_endpoint(&mut self) {
+        if let Some((endpoint, _)) = endpoint_for(self.id) {
+            self.endpoint = endpoint;
+        }
+        if let Some(executor) = executor_for(self.id) {
+            self.executor = executor;
+        }
+    }
+
     /// Native synchronous wrapper over [`open_channels`](RemoteEndpoint::open_channels): blocks the runner
     /// thread until the streams are open.
     #[cfg(not(target_family = "wasm"))]
@@ -165,9 +179,7 @@ impl RemoteService {
         executor: &Executor,
         endpoint: &RemoteEndpoint,
     ) -> Result<(SubmitChannel, ResponseChannel), ConnectError> {
-        executor
-            .block_on(endpoint.open_channels())
-            .map_err(|reason| ConnectError::Unreachable { reason })
+        executor.block_on(endpoint.open_channels())
     }
 
     /// Send the session-init handshake on both streams and wait for the device settings the
@@ -204,7 +216,10 @@ impl RemoteService {
                 ..
             }) => {
                 if version != PROTOCOL_VERSION {
-                    return Err(ConnectError::IncompatibleProtocol);
+                    return Err(ConnectError::IncompatibleProtocol {
+                        client_version: PROTOCOL_VERSION,
+                        server_version: version,
+                    });
                 }
                 Ok((settings, device_count))
             }
@@ -304,11 +319,7 @@ pub(crate) struct WasmConnected {
 pub(crate) async fn wasm_connect(plan: WasmConnectPlan) -> Result<WasmConnected, ConnectError> {
     let executor = Executor::WasmLocal;
 
-    let (mut request, mut response) = plan
-        .endpoint
-        .open_channels()
-        .await
-        .map_err(|reason| ConnectError::Unreachable { reason })?;
+    let (mut request, mut response) = plan.endpoint.open_channels().await?;
     let (settings, device_count) = RemoteService::handshake_async(
         &mut request,
         &mut response,
@@ -693,7 +704,8 @@ impl RemoteService {
     }
 
     /// Open the session and run the init handshake, unless it is already open. A failed attempt
-    /// leaves nothing behind, so the next call tries again.
+    /// leaves nothing behind, so the next call tries again, with the device's latest dialing
+    /// hints and runtime.
     ///
     /// Runs on the device-runner thread, so the check needs no lock, and never from
     /// [`init`](Self::init), which holds cubecl's global device-registry lock.
@@ -715,6 +727,7 @@ impl RemoteService {
 
         #[cfg(not(target_family = "wasm"))]
         {
+            self.reload_endpoint();
             log::debug!(
                 "Connecting to {} (device {}) ...",
                 self.endpoint.peer_addr(),
@@ -751,6 +764,7 @@ impl RemoteService {
         if self.writer.is_some() {
             return None;
         }
+        self.reload_endpoint();
         Some(WasmConnectPlan {
             endpoint: self.endpoint.clone(),
             session_id: self.session_id,

@@ -272,10 +272,11 @@ impl RemoteDevice {
     /// # Errors
     ///
     /// See [`ConnectError`].
+    ///
+    /// # Panics
+    ///
+    /// On wasm, which cannot block: use `connect_async` there.
     pub fn connect(&self) -> Result<(), ConnectError> {
-        // `get_client` initializes the (lazy) service if needed; `connect` then opens the sockets
-        // and runs the handshake on the runner thread, so the settings/device-count cells are
-        // populated by the time we return.
         get_client::<RemoteChannel>(self).connect()
     }
 
@@ -329,6 +330,10 @@ impl RemoteDevice {
     /// # Errors
     ///
     /// See [`ConnectError`].
+    ///
+    /// # Panics
+    ///
+    /// On wasm, like [`connect`](Self::connect).
     #[cfg(feature = "websocket")]
     pub fn enumerate_websocket(address: &str) -> Result<Vec<Self>, ConnectError> {
         // Device 0 always exists (a server must host at least one device); connecting to it
@@ -349,6 +354,10 @@ impl RemoteDevice {
     /// # Errors
     ///
     /// See [`ConnectError`].
+    ///
+    /// # Panics
+    ///
+    /// On wasm, like [`connect`](Self::connect).
     #[cfg(feature = "iroh")]
     pub fn enumerate_iroh(
         endpoint: &iroh::Endpoint,

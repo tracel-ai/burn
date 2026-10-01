@@ -125,7 +125,9 @@ fn admit(
     device_count: u32,
 ) -> Result<SessionInit, Refused> {
     let init = parse_init_handshake(handshake).map_err(|reason| Refused {
-        refusal: SessionRefusal::IncompatibleProtocol,
+        refusal: SessionRefusal::IncompatibleProtocol {
+            server_version: PROTOCOL_VERSION,
+        },
         reason,
     })?;
     authorize(&init).map_err(|reason| Refused {
@@ -434,6 +436,11 @@ mod tests {
 
         assert!(result.is_err());
         assert!(service.tasks.lock().unwrap().is_none());
-        assert_eq!(sink.refusals(), [SessionRefusal::IncompatibleProtocol]);
+        assert_eq!(
+            sink.refusals(),
+            [SessionRefusal::IncompatibleProtocol {
+                server_version: PROTOCOL_VERSION
+            }]
+        );
     }
 }

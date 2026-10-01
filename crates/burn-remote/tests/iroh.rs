@@ -3,7 +3,7 @@
 use burn_flex::Flex;
 use burn_ir::BackendIr;
 use burn_remote::{
-    BURN_REMOTE_ALPN, RemoteDevice,
+    BURN_REMOTE_ALPN, ConnectError, RemoteDevice,
     server::{AllowAll, IrohRemoteProtocol},
     telemetry::{TelemetryEvent, TelemetryProbe},
 };
@@ -150,15 +150,20 @@ async fn a_dial_waits_for_an_iroh_address_published_late() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-#[should_panic(expected = "no address lookup is configured")]
-async fn a_dial_with_no_address_and_no_lookup_is_not_retried() {
+async fn a_device_dialed_with_no_address_and_no_lookup_connects_once_given_one() {
     let server = local_endpoint().await;
-    let _router = spawn_router::<Flex>(server.clone(), AllowAll, TelemetryProbe::disabled());
+    let router = spawn_router::<Flex>(server.clone(), AllowAll, TelemetryProbe::disabled());
     let client = local_endpoint().await;
 
-    RemoteDevice::iroh(&client, EndpointAddr::new(server.id()), 0)
-        .connect()
-        .unwrap();
+    let result = RemoteDevice::iroh(&client, EndpointAddr::new(server.id()), 0).connect();
+    assert!(matches!(result, Err(ConnectError::NoAddress)), "{result:?}");
+
+    let remote = RemoteDevice::iroh(&client, server.addr(), 0);
+    remote.connect().unwrap();
+    let output = Tensor::<1>::from_floats([1.0, 2.0], &Device::new(remote)) * 2.0;
+    assert_eq!(output.try_into_vec_as::<f32>().unwrap(), vec![2.0, 4.0]);
+
+    router.shutdown().await.unwrap();
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -483,7 +488,7 @@ mod loader_uploads {
 mod iroh_peer {
     use super::*;
     use burn_remote::{
-        ConnectError, EndpointId, IrohPeer, IrohPeerBuilder, IrohRelays, RemoteSecret,
+        EndpointId, IrohPeer, IrohPeerBuilder, IrohRelays, RemoteSecret,
         server::{
             AuthorizationRequest, Channel, IrohChannelBuilder, RemoteServerBuilder, TokenAuthorizer,
         },
@@ -572,7 +577,13 @@ mod iroh_peer {
 
         let result = peer.connect(1).await;
         assert!(
-            matches!(result, Err(ConnectError::NoSuchDevice { device_count: 1 })),
+            matches!(
+                result,
+                Err(ConnectError::NoSuchDevice {
+                    device_count: 1,
+                    ..
+                })
+            ),
             "{result:?}"
         );
     }

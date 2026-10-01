@@ -14,6 +14,9 @@ pub(crate) enum OpenError {
     /// The peer is not there yet: its server has not opened its port or published its address.
     /// Holds the reason, as a clause for a longer message.
     NotReachableYet(&'static str),
+    /// No address was given and the endpoint cannot look one up.
+    #[cfg(feature = "iroh")]
+    NoAddress,
     /// Anything waiting cannot fix.
     Failed(String),
 }
@@ -37,11 +40,7 @@ impl From<ConnectError> for OpenError {
                         ..
                     },
                 ..
-            } => Self::Failed(
-                "no address was given and no address lookup is configured: dial it with its \
-                 full address, or configure a lookup"
-                    .into(),
-            ),
+            } => Self::NoAddress,
             ConnectError::Connecting {
                 source:
                     ConnectingError::ConnectionError {
@@ -74,6 +73,10 @@ impl fmt::Display for OpenError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::NotReachableYet(reason) => write!(f, "not reachable yet ({reason})"),
+            #[cfg(feature = "iroh")]
+            Self::NoAddress => {
+                f.write_str("no address was given and the endpoint cannot look one up")
+            }
             Self::Failed(message) => f.write_str(message),
         }
     }
