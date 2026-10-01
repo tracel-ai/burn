@@ -120,6 +120,35 @@ impl PositionWiseFeedForward {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::activation::{PReluConfig, SwiGluConfig};
+
+    #[rstest::rstest]
+    #[case::prelu(ActivationConfig::PRelu(PReluConfig::new()), 1)]
+    #[case::swiglu(ActivationConfig::SwiGlu(SwiGluConfig::new(1, 1)), 2)]
+    fn stateful_activation_participates_in_module_lifecycle(
+        #[case] activation: ActivationConfig,
+        #[case] activation_params: usize,
+    ) {
+        let device = crate::test_device();
+        let model = PositionWiseFeedForwardConfig::new(1, 1)
+            .with_activation(activation)
+            .init(&device);
+        assert_eq!(model.num_params(), 4 + activation_params);
+        assert_eq!(
+            alloc::format!("{model}"),
+            alloc::format!(
+                "PositionWiseFeedForward {{d_model: 1, d_ff: 1, prob: 0.1, params: {}}}",
+                4 + activation_params
+            )
+        );
+
+        let model = model.train();
+        assert!(model.activation.devices().iter().all(|d| d.is_autodiff()));
+        let model = model.valid();
+        assert!(model.activation.devices().iter().all(|d| !d.is_autodiff()));
+        let model = model.train();
+        assert!(model.activation.devices().iter().all(|d| d.is_autodiff()));
+    }
 
     #[test]
     #[should_panic(expected = "assert_shape!(input, [.., d_model]): axis 2 expected 2, got 3")]
