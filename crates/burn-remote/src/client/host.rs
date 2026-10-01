@@ -14,11 +14,7 @@ use crate::transport::iroh::IrohHost;
 #[cfg(feature = "websocket")]
 use burn_communication::Address;
 
-/// A remote server as a client reaches it: where it is, over which transport, and the credential
-/// to present. Building one opens nothing.
-///
-/// The facade over it is `burn::remote::RemoteHost`, which turns the devices this connects into
-/// Burn devices.
+/// What `burn::remote::RemoteHost` wraps, which documents it.
 #[doc(hidden)]
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct HostSpec {
@@ -35,7 +31,6 @@ enum Target {
 }
 
 impl HostSpec {
-    /// The WebSocket server at `url`, such as `ws://gpu:3000`.
     #[cfg(feature = "websocket")]
     pub fn websocket(url: &str) -> Self {
         Self {
@@ -44,7 +39,6 @@ impl HostSpec {
         }
     }
 
-    /// The Iroh server `host` describes.
     #[cfg(feature = "iroh")]
     pub fn iroh(host: impl Into<IrohHost>) -> Self {
         Self {
@@ -53,17 +47,11 @@ impl HostSpec {
         }
     }
 
-    /// What the server's authorizer checks.
     pub fn with_credential(mut self, credential: impl Into<Credential>) -> Self {
         self.credential = credential.into();
         self
     }
 
-    /// Open a session to device `index` and wait for its handshake.
-    ///
-    /// # Errors
-    ///
-    /// See [`ConnectError`].
     #[cfg(not(target_family = "wasm"))]
     pub fn connect(&self, index: usize) -> Result<RemoteDevice, ConnectError> {
         self.refuse_blocking_on_current_thread()?;
@@ -71,12 +59,6 @@ impl HostSpec {
         runtime::wait(move || host.connect_blocking(index))
     }
 
-    /// Open a session to device `index`. Dropping the future does not cancel a connect that has
-    /// started: it finishes in the background.
-    ///
-    /// # Errors
-    ///
-    /// See [`ConnectError`].
     #[cfg(not(target_family = "wasm"))]
     pub fn connect_async(
         &self,
@@ -86,11 +68,6 @@ impl HostSpec {
         runtime::run(move || host.connect_blocking(index))
     }
 
-    /// Open a session to device `index`.
-    ///
-    /// # Errors
-    ///
-    /// See [`ConnectError`].
     #[cfg(target_family = "wasm")]
     pub fn connect_async(
         &self,
@@ -100,11 +77,6 @@ impl HostSpec {
         async move { host.connect_in_browser(index).await }
     }
 
-    /// Open a session to every device the server hosts.
-    ///
-    /// # Errors
-    ///
-    /// The first device that cannot be connected, refusals included, fails the whole list.
     #[cfg(not(target_family = "wasm"))]
     pub fn devices(&self) -> Result<Vec<RemoteDevice>, ConnectError> {
         self.refuse_blocking_on_current_thread()?;
@@ -112,11 +84,6 @@ impl HostSpec {
         runtime::wait(move || host.devices_blocking())
     }
 
-    /// Asynchronous [`devices`](Self::devices).
-    ///
-    /// # Errors
-    ///
-    /// The first device that cannot be connected, refusals included, fails the whole list.
     #[cfg(not(target_family = "wasm"))]
     pub fn devices_async(
         &self,
@@ -126,11 +93,6 @@ impl HostSpec {
         runtime::run(move || host.devices_blocking())
     }
 
-    /// Open a session to every device the server hosts.
-    ///
-    /// # Errors
-    ///
-    /// The first device that cannot be connected, refusals included, fails the whole list.
     #[cfg(target_family = "wasm")]
     pub fn devices_async(
         &self,

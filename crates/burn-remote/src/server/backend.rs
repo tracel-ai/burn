@@ -86,15 +86,8 @@ impl<B: BackendIr> BackendServer<B> {
         self
     }
 
-    /// Serve on `transport`, blocking the calling thread until the process receives Ctrl+C or
-    /// `SIGTERM`, then close every session before returning.
-    ///
-    /// Installs [`ServerLogging`] and the signal handlers. The server runs on Burn's own runtime,
-    /// so this can be called from any thread, inside an async runtime or not.
-    ///
-    /// # Errors
-    ///
-    /// See [`ServeError`].
+    /// Serve on `transport` until Ctrl+C or `SIGTERM`, blocking the calling thread from any
+    /// context. Installs [`ServerLogging`] and the signal handlers.
     #[cfg(not(target_family = "wasm"))]
     pub fn serve(&self, transport: impl Into<Transport>) -> Result<(), ServeError> {
         ServerLogging::install();
@@ -114,15 +107,8 @@ impl<B: BackendIr> BackendServer<B> {
         })
     }
 
-    /// Serve on `transport` until the returned future is dropped, which also ends the live
-    /// sessions.
-    ///
-    /// Requires a Tokio runtime. Installs no logging and no signal handlers: those belong to the
-    /// application.
-    ///
-    /// # Errors
-    ///
-    /// See [`ServeError`].
+    /// Serve on `transport` on the caller's Tokio runtime until the returned future is dropped,
+    /// which ends the live sessions.
     #[cfg(not(target_family = "wasm"))]
     pub fn serve_async<T: Into<Transport>>(
         &self,
@@ -151,13 +137,8 @@ impl<B: BackendIr> BackendServer<B> {
         }
     }
 
-    /// Burn Remote's handler for the application's own Iroh router on `endpoint`, to register
-    /// under [`BURN_REMOTE_ALPN`](crate::BURN_REMOTE_ALPN) beside its other protocols. Shutting
-    /// the router down ends the sessions.
-    ///
-    /// # Errors
-    ///
-    /// See [`ServeError`].
+    /// The handler to register under [`BURN_REMOTE_ALPN`](crate::BURN_REMOTE_ALPN) on the
+    /// application's own Iroh router on `endpoint`.
     #[cfg(feature = "iroh")]
     pub fn into_protocol(self, endpoint: &Endpoint) -> Result<RemoteProtocol, ServeError> {
         let node = RemoteNode::for_endpoint(endpoint)

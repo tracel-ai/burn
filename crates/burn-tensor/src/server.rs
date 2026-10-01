@@ -89,10 +89,6 @@ impl RemoteServer {
     ///
     /// Installs [`ServerLogging`] and the signal handlers. The server runs on Burn's own runtime,
     /// so this can be called from any thread, inside an async runtime or not.
-    ///
-    /// # Errors
-    ///
-    /// See [`ServeError`].
     #[cfg(not(target_family = "wasm"))]
     pub fn serve(&self, transport: impl Into<Transport>) -> Result<(), ServeError> {
         burn_dispatch::remote_server::serve(
@@ -107,10 +103,6 @@ impl RemoteServer {
     ///
     /// Requires a Tokio runtime. Installs no logging and no signal handlers: those belong to the
     /// application.
-    ///
-    /// # Errors
-    ///
-    /// See [`ServeError`].
     #[cfg(not(target_family = "wasm"))]
     pub fn serve_async<T: Into<Transport>>(
         &self,
@@ -126,10 +118,6 @@ impl RemoteServer {
     /// Burn Remote's handler for the application's own Iroh router on `endpoint`, to register
     /// under [`BURN_REMOTE_ALPN`] beside its other protocols. Shutting the router down ends the
     /// sessions.
-    ///
-    /// # Errors
-    ///
-    /// See [`ServeError`].
     pub fn into_protocol(self, endpoint: &Endpoint) -> Result<RemoteProtocol, ServeError> {
         let devices = self
             .devices

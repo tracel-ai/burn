@@ -45,19 +45,16 @@ impl Default for ServerSettings {
 }
 
 impl ServerSettings {
-    /// Open only the sessions `authorizer` accepts.
     pub fn with_authorizer(mut self, authorizer: impl PeerAuthorizer) -> Self {
         self.authorizer = Arc::new(authorizer);
         self
     }
 
-    /// Report every session's activity to `probe`.
     pub fn with_telemetry(mut self, probe: TelemetryProbe) -> Self {
         self.telemetry = Some(probe);
         self
     }
 
-    /// Run `handler` for the custom operation `id` on backend `B`.
     pub fn with_custom_op<B: BackendIr, F>(self, id: &str, handler: F) -> Self
     where
         F: Fn(&mut HandleContainer<B::Handle>, &CustomOpIr, &B::Device) + Send + Sync + 'static,
@@ -67,7 +64,6 @@ impl ServerSettings {
         self.with_custom_ops(registry)
     }
 
-    /// Replace backend `B`'s custom operations with `registry`.
     pub fn with_custom_ops<B: BackendIr>(mut self, registry: CustomOpRegistry<B>) -> Self {
         self.custom_ops.insert(
             TypeId::of::<B>(),

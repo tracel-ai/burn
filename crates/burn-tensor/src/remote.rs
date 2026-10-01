@@ -60,10 +60,6 @@ impl RemoteHost {
     }
 
     /// Asynchronous [`devices`](Self::devices).
-    ///
-    /// # Errors
-    ///
-    /// The first device that cannot be connected, a refusal included, fails the whole list.
     #[cfg(not(target_family = "wasm"))]
     pub fn devices_async(
         &self,
@@ -72,11 +68,8 @@ impl RemoteHost {
         async move { Ok(devices.await?.into_iter().map(Device::new).collect()) }
     }
 
-    /// Connect every device the server hosts, one session each.
-    ///
-    /// # Errors
-    ///
-    /// The first device that cannot be connected, a refusal included, fails the whole list.
+    /// Connect every device the server hosts, one session each. The first device that cannot be
+    /// connected fails the whole list.
     #[cfg(target_family = "wasm")]
     pub fn devices_async(
         &self,
@@ -129,10 +122,6 @@ impl RemoteOptions {
     ///
     /// Every device keeps its id and its runner thread for the life of the process, and a process
     /// can connect 65,536 devices, a new one each time a session ended.
-    ///
-    /// # Errors
-    ///
-    /// See [`ConnectError`].
     #[cfg(not(target_family = "wasm"))]
     pub fn init(self) -> Result<Device, ConnectError> {
         Ok(Device::new(
@@ -142,10 +131,6 @@ impl RemoteOptions {
 
     /// Open the device's session from any executor. Dropping the future does not cancel a connect
     /// that has started: it finishes in the background.
-    ///
-    /// # Errors
-    ///
-    /// See [`ConnectError`].
     #[cfg(not(target_family = "wasm"))]
     pub fn init_async(
         self,
@@ -155,10 +140,6 @@ impl RemoteOptions {
     }
 
     /// Open the device's session.
-    ///
-    /// # Errors
-    ///
-    /// See [`ConnectError`].
     #[cfg(target_family = "wasm")]
     pub fn init_async(
         self,
