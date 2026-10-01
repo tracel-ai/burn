@@ -568,8 +568,11 @@ impl Device {
         ))
     }
 
-    /// Metal-backed WGPU device, selected via [`DeviceKind`] — and so MSL, where the build
-    /// allows it. Pinned to Metal, as [`Device::vulkan`] is to Vulkan.
+    /// Metal-backed WGPU device, selected via [`DeviceKind`], requiring native MSL support.
+    ///
+    /// Pinned to Metal, as [`Device::vulkan`] is to Vulkan. Runtime initialization panics if
+    /// native MSL is unavailable on the selected device. Use [`Device::wgpu`] for automatic
+    /// compiler selection with WGSL fallback.
     #[cfg(feature = "metal")]
     pub fn metal(device_kind: DeviceKind) -> Self {
         Self::new(wgpu_device(

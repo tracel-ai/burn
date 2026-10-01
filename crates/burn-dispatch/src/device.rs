@@ -239,7 +239,12 @@ impl Default for DispatchDevice {
     /// wgpu, CPU, LibTorch, Flex, Remote, NdArray. `BURN_DEVICE` overrides this in
     /// std builds. Capture devices must be constructed explicitly.
     ///
-    /// Panics when no execution backend is enabled.
+    /// The `metal`, `vulkan`, and `webgpu` overrides require their matching Cargo features
+    /// and pin the graphics API. Explicit Metal selection requires native MSL support.
+    /// The `wgpu` override keeps automatic API and compiler selection with WGSL fallback.
+    ///
+    /// Panics when no execution backend is enabled, or when `BURN_DEVICE` names an unknown
+    /// backend or one whose Cargo feature is not enabled.
     #[allow(unreachable_code)]
     fn default() -> Self {
         // BURN_DEVICE selects one compiled backend or reports a configuration error.
@@ -249,8 +254,7 @@ impl Default for DispatchDevice {
             if let Ok(device_str) = std::env::var("BURN_DEVICE") {
                 match device_str.to_lowercase().as_str() {
                     // Every cubecl runtime is the one `Cube` backend; the name here
-                    // picks the runtime the device names, and the wgpu spellings all
-                    // reach wgpu, whose compiler is chosen for it at runtime.
+                    // picks the runtime and, for named wgpu APIs, pins the graphics API.
                     "cuda" => {
                         #[cfg(feature = "cuda")]
                         return Self::Cube(CubeDevice::Cuda(Default::default()));
@@ -265,16 +269,38 @@ impl Default for DispatchDevice {
                             "BURN_DEVICE=rocm requested, but the 'rocm' feature is not enabled."
                         );
                     }
-                    "metal" | "vulkan" | "webgpu" | "wgpu" => {
-                        #[cfg(any(
-                            feature = "metal",
-                            feature = "vulkan",
-                            feature = "webgpu",
-                            feature = "wgpu"
-                        ))]
+                    "metal" => {
+                        #[cfg(feature = "metal")]
+                        return Self::Cube(CubeDevice::Wgpu(
+                            WgpuDevice::default().on(WgpuBackend::Metal),
+                        ));
+                        panic!(
+                            "BURN_DEVICE=metal requested, but the 'metal' feature is not enabled."
+                        );
+                    }
+                    "vulkan" => {
+                        #[cfg(feature = "vulkan")]
+                        return Self::Cube(CubeDevice::Wgpu(
+                            WgpuDevice::default().on(WgpuBackend::Vulkan),
+                        ));
+                        panic!(
+                            "BURN_DEVICE=vulkan requested, but the 'vulkan' feature is not enabled."
+                        );
+                    }
+                    "webgpu" => {
+                        #[cfg(feature = "webgpu")]
+                        return Self::Cube(CubeDevice::Wgpu(
+                            WgpuDevice::default().on(WgpuBackend::WebGpu),
+                        ));
+                        panic!(
+                            "BURN_DEVICE=webgpu requested, but the 'webgpu' feature is not enabled."
+                        );
+                    }
+                    "wgpu" => {
+                        #[cfg(feature = "wgpu")]
                         return Self::Cube(CubeDevice::Wgpu(Default::default()));
                         panic!(
-                            "BURN_DEVICE={device_str} requested, but no wgpu feature is enabled."
+                            "BURN_DEVICE=wgpu requested, but the 'wgpu' feature is not enabled."
                         );
                     }
                     "cpu" => {
