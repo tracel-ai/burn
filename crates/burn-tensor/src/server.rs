@@ -1,116 +1,150 @@
-//! Remote-execution server entry points.
+//! Serving this machine's devices to remote clients.
 //!
-//! Hosts a Burn server that executes tensor operations on behalf of remote clients. The backend is
-//! selected by the Device passed in; the transport is selected by Channel. Iroh is the primary
-//! transport; WebSocket is retained for compatibility.
+//! ```rust,ignore
+//! let identity = IrohIdentity::load_or_create("server.key")?;
+//! let transport = IrohTransport::new(identity);
+//! println!("server id: {}", transport.id());
 //!
-//! Two serving modes:
+//! RemoteServer::new([Device::cuda(0)])
+//!     .with_authorizer(TokenAuthorizer::new(token)?)
+//!     .serve(transport)?;
+//! ```
 //!
-//! - Turnkey (start / start_async): no Iroh exposure. Pick an identity with RemoteSecret, configure
-//!   relays, port and authorizer with an IrohChannelBuilder, and pass the channel in a
-//!   Channel::Iroh; clients dial its public id.
-//! - Composed (protocol): for applications that own their own Iroh router. Burn hands back only
-//!   its protocol handler to register alongside the application's own protocols.
-//!
-//! User-defined backends that implement BackendIr but are not part of DispatchDevice use
-//! burn_remote::server::RemoteServerBuilder directly; that is also how custom operations
-//! (backend extensions) are hosted, over either transport.
+//! Iroh reaches a server across any network, authenticated and encrypted. WebSocket, with the
+//! `remote-websocket` feature, is the simplest setup on a trusted network. A backend outside
+//! Burn's own serves through `burn_remote::server::BackendServer`.
 
-use std::sync::Arc;
+#[cfg(not(target_family = "wasm"))]
+use core::future::Future;
+
+#[cfg(all(not(target_family = "wasm"), feature = "remote-websocket"))]
+pub use burn_dispatch::__remote::server::WebSocketTransport;
+#[cfg(not(target_family = "wasm"))]
+pub use burn_dispatch::__remote::server::{IrohTransport, Transport};
+pub use burn_dispatch::__remote::{
+    BURN_REMOTE_ALPN, Credential, Endpoint, IrohRelays, RelayUrl,
+    ir::{CustomOpIr, HandleContainer},
+    server::{
+        AllowAll, AuthorizationRequest, ClientId, CustomOpRegistry, EmptyToken, IrohIdentity,
+        PeerAuthorizer, RemoteProtocol, ServeError, ServerLogging, TokenAuthorizer,
+    },
+    telemetry,
+};
+use burn_dispatch::__remote::{ir::BackendIr, server::ServerSettings};
 
 use crate::Device;
-pub use burn_dispatch::__remote::BURN_REMOTE_ALPN;
-pub use burn_dispatch::__remote::server::{
-    AllowAll, AuthorizationRequest, IrohChannel, IrohChannelBuilder, PeerAuthorizer,
-    RemoteProtocol, ServerLogging, TokenAuthorizer,
-};
-pub use burn_dispatch::__remote::telemetry;
-pub use burn_dispatch::__remote::{Endpoint, IrohRelays, RelayUrl, RemoteSecret};
-
 use telemetry::TelemetryProbe;
 
-/// Transport used to serve remote clients. Re-exported from `burn-remote` (via `burn-dispatch`) so
-/// the whole stack shares one definition.
-pub use burn_dispatch::remote_server::Channel;
-
-/// Build Burn's protocol handler for `device`'s backend.
+/// A server running tensor operations on its devices for remote clients.
 ///
-/// Returns a builder to optionally attach telemetry and an authorizer before calling `build`.
-/// Register the result on an application-owned Iroh router under BURN_REMOTE_ALPN.
-pub fn protocol(device: Device, endpoint: &Endpoint) -> RemoteProtocolBuilder<'_> {
-    RemoteProtocolBuilder::new(device, endpoint)
+/// The devices pick the backend, and must all belong to one: every CubeCL runtime is one backend,
+/// so CUDA and wgpu devices can be served together, but not with Flex or NdArray ones. Autodiff is
+/// stripped, since the autodiff graph is the client's.
+#[derive(Clone)]
+pub struct RemoteServer {
+    devices: Vec<Device>,
+    settings: ServerSettings,
 }
 
-/// Configures optional telemetry and authorization for a RemoteProtocol handler.
-pub struct RemoteProtocolBuilder<'a> {
-    device: Device,
-    endpoint: &'a Endpoint,
-    probe: Option<TelemetryProbe>,
-    authorizer: Option<Arc<dyn PeerAuthorizer>>,
-}
-
-impl<'a> RemoteProtocolBuilder<'a> {
-    /// Create a new builder for `device`'s backend, to register on `endpoint`.
-    pub fn new(device: Device, endpoint: &'a Endpoint) -> Self {
+impl RemoteServer {
+    /// Host `devices`. A client picks one by its position in this list.
+    pub fn new(devices: impl IntoIterator<Item = Device>) -> Self {
         Self {
-            device,
-            endpoint,
-            probe: None,
-            authorizer: None,
+            devices: devices.into_iter().collect(),
+            settings: ServerSettings::default(),
         }
     }
 
-    /// Attach a telemetry probe for per-session monitoring. Pair with
-    /// [`telemetry::TelemetryProbe::channel`] to obtain a subscription a dashboard can drain.
-    pub fn with_telemetry(mut self, probe: TelemetryProbe) -> Self {
-        self.probe = Some(probe);
-        self
-    }
-
-    /// Authorize or reject each incoming compute session. The policy receives the peer identity,
-    /// the requested device index, and the opaque credential carried by the client's ticket.
+    /// Open only the sessions `authorizer` accepts. Every session is opened unless set.
     pub fn with_authorizer(mut self, authorizer: impl PeerAuthorizer) -> Self {
-        self.authorizer = Some(Arc::new(authorizer));
+        self.settings = self.settings.with_authorizer(authorizer);
         self
     }
 
-    /// Build the backend-erased protocol handler.
-    pub fn build(self) -> RemoteProtocol {
-        burn_dispatch::remote_server::remote_protocol(
-            self.device.into_dispatch(),
-            self.endpoint,
-            self.probe.unwrap_or_else(TelemetryProbe::disabled),
-            self.authorizer.unwrap_or_else(|| Arc::new(AllowAll)),
+    /// Report every session's activity to `probe`.
+    pub fn with_telemetry(mut self, probe: TelemetryProbe) -> Self {
+        self.settings = self.settings.with_telemetry(probe);
+        self
+    }
+
+    /// Run `handler` for the custom operation `id` on backend `B`, which must be the devices'
+    /// backend. Every CubeCL runtime is the backend `Cube`, so a handler for one branches on the
+    /// device's runtime.
+    pub fn with_custom_op<B: BackendIr, F>(mut self, id: &str, handler: F) -> Self
+    where
+        F: Fn(&mut HandleContainer<B::Handle>, &CustomOpIr, &B::Device) + Send + Sync + 'static,
+    {
+        self.settings = self.settings.with_custom_op::<B, F>(id, handler);
+        self
+    }
+
+    /// Replace backend `B`'s custom operations with `registry`.
+    pub fn with_custom_ops<B: BackendIr>(mut self, registry: CustomOpRegistry<B>) -> Self {
+        self.settings = self.settings.with_custom_ops(registry);
+        self
+    }
+
+    /// Serve on `transport`, blocking the calling thread until the process receives Ctrl+C or
+    /// `SIGTERM`.
+    ///
+    /// Installs [`ServerLogging`] and the signal handlers. The server runs on Burn's own runtime,
+    /// so this can be called from any thread, inside an async runtime or not.
+    ///
+    /// # Errors
+    ///
+    /// See [`ServeError`].
+    #[cfg(not(target_family = "wasm"))]
+    pub fn serve(&self, transport: impl Into<Transport>) -> Result<(), ServeError> {
+        burn_dispatch::remote_server::serve(
+            self.dispatch_devices(),
+            self.settings.clone(),
+            transport.into(),
         )
     }
-}
 
-impl<'a> From<RemoteProtocolBuilder<'a>> for RemoteProtocol {
-    fn from(builder: RemoteProtocolBuilder<'a>) -> Self {
-        builder.build()
+    /// Serve on `transport` until the returned future is dropped, which also ends the live
+    /// sessions.
+    ///
+    /// Requires a Tokio runtime. Installs no logging and no signal handlers: those belong to the
+    /// application.
+    ///
+    /// # Errors
+    ///
+    /// See [`ServeError`].
+    #[cfg(not(target_family = "wasm"))]
+    pub fn serve_async<T: Into<Transport>>(
+        &self,
+        transport: T,
+    ) -> impl Future<Output = Result<(), ServeError>> + Send + 'static + use<T> {
+        burn_dispatch::remote_server::serve_async(
+            self.dispatch_devices(),
+            self.settings.clone(),
+            transport.into(),
+        )
     }
-}
 
-/// Start a remote-execution server, blocking the current thread.
-///
-/// The backend is determined by `device`: e.g. `Device::cuda(0)` runs ops on
-/// CUDA, `Device::flex()` on the Flex CPU backend. Autodiff devices are
-/// transparently stripped; the autodiff graph is a client-side concern.
-///
-/// # Panics
-///
-/// Panics if `device` selects a backend that doesn't support remote execution
-/// (currently `LibTorch`, or a `Remote` device; hosting on a remote device
-/// makes no sense).
-#[cfg(not(target_family = "wasm"))]
-pub fn start(device: Device, channel: Channel) {
-    burn_dispatch::remote_server::start(device.into_dispatch(), channel)
-}
+    /// Burn Remote's handler for the application's own Iroh router on `endpoint`, to register
+    /// under [`BURN_REMOTE_ALPN`] beside its other protocols. Shutting the router down ends the
+    /// sessions.
+    ///
+    /// # Errors
+    ///
+    /// See [`ServeError`].
+    pub fn into_protocol(self, endpoint: &Endpoint) -> Result<RemoteProtocol, ServeError> {
+        let devices = self
+            .devices
+            .into_iter()
+            .map(Device::into_dispatch)
+            .collect();
+        burn_dispatch::remote_server::into_protocol(devices, self.settings, endpoint)
+    }
 
-/// Start a remote-execution server on the caller's async runtime.
-///
-/// See [`start`] for backend-selection rules.
-#[cfg(not(target_family = "wasm"))]
-pub async fn start_async(device: Device, channel: Channel) {
-    burn_dispatch::remote_server::start_async(device.into_dispatch(), channel).await
+    #[cfg(not(target_family = "wasm"))]
+    fn dispatch_devices(&self) -> Vec<burn_dispatch::DispatchDevice> {
+        self.devices
+            .iter()
+            .cloned()
+            .map(Device::into_dispatch)
+            .collect()
+    }
 }

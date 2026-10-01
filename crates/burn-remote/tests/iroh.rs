@@ -4,7 +4,7 @@ use burn_flex::Flex;
 use burn_ir::BackendIr;
 use burn_remote::{
     BURN_REMOTE_ALPN,
-    server::{AllowAll, IrohRemoteProtocol},
+    server::{AllowAll, AuthorizationRequest, BackendServer, PeerAuthorizer, ServeError},
     telemetry::{TelemetryEvent, TelemetryProbe},
 };
 use burn_tensor::{
@@ -12,7 +12,7 @@ use burn_tensor::{
     remote::{ConnectError, IrohHost, RemoteHost},
 };
 use iroh::{
-    Endpoint, EndpointAddr, RelayMode, address_lookup::MemoryLookup, endpoint::presets,
+    Endpoint, EndpointAddr, RelayMode, SecretKey, address_lookup::MemoryLookup, endpoint::presets,
     protocol::Router,
 };
 use std::{panic, sync::mpsc, thread, time::Duration};
@@ -22,7 +22,12 @@ use tokio::task::coop;
 const ADDRESS_LATE_BY: Duration = Duration::from_millis(700);
 
 async fn local_endpoint() -> Endpoint {
+    local_endpoint_with_key(SecretKey::generate()).await
+}
+
+async fn local_endpoint_with_key(key: SecretKey) -> Endpoint {
     Endpoint::builder(presets::Minimal)
+        .secret_key(key)
         .relay_mode(RelayMode::Disabled)
         .clear_ip_transports()
         .bind_addr("127.0.0.1:0")
@@ -39,16 +44,14 @@ fn host_dialed_from(client: &Endpoint, server: impl Into<EndpointAddr>) -> Remot
 
 fn spawn_router<B: BackendIr>(
     endpoint: Endpoint,
-    authorizer: impl burn_remote::server::PeerAuthorizer,
+    authorizer: impl PeerAuthorizer,
     probe: TelemetryProbe,
 ) -> Router {
-    let protocol = IrohRemoteProtocol::<B>::new(
-        endpoint.clone(),
-        vec![Default::default()],
-        std::sync::Arc::new(authorizer),
-        probe,
-        burn_remote::server::CustomOpRegistry::default(),
-    );
+    let protocol = BackendServer::<B>::new(vec![Default::default()])
+        .with_authorizer(authorizer)
+        .with_telemetry(probe)
+        .into_protocol(&endpoint)
+        .unwrap();
     Router::builder(endpoint)
         .accept(BURN_REMOTE_ALPN, protocol)
         .spawn()
@@ -382,8 +385,8 @@ async fn passes_application_credentials_to_the_peer_authorizer() {
     let client = local_endpoint().await;
     let router = spawn_router::<Flex>(
         server.clone(),
-        |request: burn_remote::server::AuthorizationRequest<'_>| {
-            (request.credential == b"fleet-ticket")
+        |request: AuthorizationRequest<'_>| {
+            (request.credential.as_bytes() == b"fleet-ticket")
                 .then_some(())
                 .ok_or_else(|| "invalid fleet ticket".to_string())
         },
@@ -393,6 +396,22 @@ async fn passes_application_credentials_to_the_peer_authorizer() {
     let device = Device::remote_options(&host).init_async().await.unwrap();
     let data = Tensor::<1>::from_floats([4.0], &device).to_data();
     assert_eq!(data.try_into_vec::<f32>().unwrap(), vec![4.0]);
+
+    router.shutdown().await.unwrap();
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_second_live_endpoint_with_a_serving_key_cannot_carry_the_protocol() {
+    let key = SecretKey::generate();
+    let serving = local_endpoint_with_key(key.clone()).await;
+    let router = spawn_router::<Flex>(serving, AllowAll, TelemetryProbe::disabled());
+    let twin = local_endpoint_with_key(key).await;
+
+    let protocol = BackendServer::<Flex>::new(vec![Default::default()]).into_protocol(&twin);
+    assert!(
+        matches!(protocol, Err(ServeError::InvalidEndpoint { .. })),
+        "{protocol:?}"
+    );
 
     router.shutdown().await.unwrap();
 }
@@ -558,10 +577,8 @@ mod loader_uploads {
 mod iroh_peer {
     use super::*;
     use burn_remote::{
-        EndpointId, IrohRelays, RemoteSecret,
-        server::{
-            AuthorizationRequest, Channel, IrohChannelBuilder, RemoteServerBuilder, TokenAuthorizer,
-        },
+        EndpointId, IrohRelays,
+        server::{IrohIdentity, IrohTransport, TokenAuthorizer},
     };
     use iroh_relay::server::{RelayConfig, Server, ServerConfig};
     use std::{
@@ -582,7 +599,7 @@ mod iroh_peer {
                 .parse()
                 .unwrap(),
         };
-        let id = serve(IrohChannelBuilder::new(RemoteSecret::random()).with_relays(relays.clone()));
+        let id = serve(IrohTransport::new(IrohIdentity::random()).with_relays(relays.clone()));
         let host = RemoteHost::iroh(IrohHost::new(id).with_relays(relays)).with_credential(TOKEN);
 
         Device::remote_options(&host).init_async().await.unwrap();
@@ -670,16 +687,16 @@ mod iroh_peer {
         let open = Arc::new(AtomicBool::new(false));
         let admits = open.clone();
         let id = start(
-            IrohChannelBuilder::new(RemoteSecret::random())
+            IrohTransport::new(IrohIdentity::random())
                 .with_relays(IrohRelays::Disabled)
-                .with_port(port)
-                .with_authorizer(move |_: AuthorizationRequest<'_>| {
-                    if admits.load(Ordering::Relaxed) {
-                        Ok(())
-                    } else {
-                        Err("not yet".to_string())
-                    }
-                }),
+                .with_port(port),
+            move |_: AuthorizationRequest<'_>| {
+                if admits.load(Ordering::Relaxed) {
+                    Ok(())
+                } else {
+                    Err("not yet".to_string())
+                }
+            },
         );
         let host = direct_host(id, Ipv4Addr::LOCALHOST.into(), port, TOKEN);
 
@@ -696,7 +713,7 @@ mod iroh_peer {
     async fn a_peer_whose_server_is_not_at_the_address_cannot_reach_it() {
         let port = free_udp_port();
         serve_with_token(port);
-        let elsewhere = RemoteSecret::random().id();
+        let elsewhere = IrohIdentity::random().id();
         let host = direct_host(elsewhere, Ipv4Addr::LOCALHOST.into(), port, TOKEN);
 
         let result = Device::remote_options(&host).init_async().await;
@@ -782,7 +799,7 @@ mod iroh_peer {
     #[tokio::test]
     async fn a_peer_without_relays_or_an_address_is_not_dialed() {
         let host = RemoteHost::iroh(
-            IrohHost::new(RemoteSecret::random().id()).with_relays(IrohRelays::Disabled),
+            IrohHost::new(IrohIdentity::random().id()).with_relays(IrohRelays::Disabled),
         );
 
         assert!(matches!(
@@ -808,24 +825,22 @@ mod iroh_peer {
 
     fn serve_with_token(port: u16) -> EndpointId {
         serve(
-            IrohChannelBuilder::new(RemoteSecret::random())
+            IrohTransport::new(IrohIdentity::random())
                 .with_relays(IrohRelays::Disabled)
                 .with_port(port),
         )
     }
 
-    fn serve(channel: IrohChannelBuilder) -> EndpointId {
-        start(channel.with_authorizer(TokenAuthorizer::new(TOKEN).unwrap()))
+    fn serve(transport: IrohTransport) -> EndpointId {
+        start(transport, TokenAuthorizer::new(TOKEN).unwrap())
     }
 
-    fn start(channel: IrohChannelBuilder) -> EndpointId {
-        let channel = channel.build();
-        let id = channel.id();
-        tokio::spawn(
-            RemoteServerBuilder::<Flex>::new(vec![Default::default()])
-                .channel(Channel::Iroh { channel })
-                .start_async(),
-        );
+    fn start(transport: IrohTransport, authorizer: impl PeerAuthorizer) -> EndpointId {
+        let id = transport.id();
+        let serving = BackendServer::<Flex>::new(vec![Default::default()])
+            .with_authorizer(authorizer)
+            .serve_async(transport);
+        tokio::spawn(async move { serving.await.unwrap() });
         id
     }
 

@@ -11,7 +11,10 @@ use iroh::RelayUrl;
     not(target_family = "wasm")
 ))]
 use iroh::endpoint::QuicTransportConfig;
-#[cfg(any(feature = "client", feature = "server"))]
+#[cfg(any(
+    feature = "client",
+    all(feature = "server", not(target_family = "wasm"))
+))]
 use iroh::{
     Endpoint, RelayMode,
     endpoint::{Builder, presets},
@@ -60,7 +63,10 @@ impl fmt::Display for IrohRelays {
 
 impl IrohRelays {
     /// An endpoint builder with these relays.
-    #[cfg(any(feature = "client", feature = "server"))]
+    #[cfg(any(
+        feature = "client",
+        all(feature = "server", not(target_family = "wasm"))
+    ))]
     pub(crate) fn endpoint_builder(&self) -> Builder {
         let builder = match self {
             Self::Public => Endpoint::builder(presets::N0),

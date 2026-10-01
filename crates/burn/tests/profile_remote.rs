@@ -22,6 +22,7 @@
 
 use burn::prelude::{Device, Tensor};
 use burn::remote::RemoteHost;
+use burn::server::{RemoteServer, WebSocketTransport};
 use burn::tensor::{ProfileDuration, ProfileOptions};
 use core::time::Duration;
 use std::sync::{Mutex, MutexGuard};
@@ -66,6 +67,16 @@ fn lazy_chain(device: &Device) -> Tensor<1> {
     x
 }
 
+/// Serve `Device::default()` over WebSocket on a port the OS picks, from a thread of its own.
+fn serve_default_device() -> RemoteHost {
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let host = RemoteHost::websocket(&format!("ws://{}", listener.local_addr().unwrap()));
+    std::thread::spawn(move || {
+        RemoteServer::new([Device::default()]).serve(WebSocketTransport::from_listener(listener))
+    });
+    host
+}
+
 /// A remote device's windows open on the server's backend, whose fusion
 /// holds the closure's last operations back just as a local one does; the
 /// flush has to travel with the close and drain that queue, not only the
@@ -78,13 +89,7 @@ fn lazy_chain(device: &Device) -> Tensor<1> {
 #[test]
 fn flush_reaches_the_server_queue() {
     let _guard = one_at_a_time();
-    let port = 3190;
-    std::thread::spawn(move || {
-        burn::server::start(Device::default(), burn::server::Channel::WebSocket { port })
-    });
-    std::thread::sleep(Duration::from_millis(500));
-
-    let host = RemoteHost::websocket(&format!("ws://localhost:{port}"));
+    let host = serve_default_device();
     let device = Device::remote_options(&host).init().unwrap();
 
     // Compiled on the server before the windows are compared.
@@ -133,13 +138,7 @@ fn flush_reaches_the_server_queue() {
 #[test]
 fn a_panicking_closure_abandons_the_server_window() {
     let _guard = one_at_a_time();
-    let port = 3191;
-    std::thread::spawn(move || {
-        burn::server::start(Device::default(), burn::server::Channel::WebSocket { port })
-    });
-    std::thread::sleep(Duration::from_millis(500));
-
-    let host = RemoteHost::websocket(&format!("ws://localhost:{port}"));
+    let host = serve_default_device();
     let device = Device::remote_options(&host).init().unwrap();
 
     let panicked = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {

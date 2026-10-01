@@ -395,7 +395,7 @@ impl RemoteTensorHandle {
             assert_eq!(
                 self.client.device.peer_addr().is_iroh(),
                 target_device.peer_addr().is_iroh(),
-                "Moving a tensor between Iroh and legacy WebSocket compute peers is not supported"
+                "Moving a tensor between an Iroh server and a WebSocket server is not supported"
             );
             self.change_backend_remote(target_device)
         }

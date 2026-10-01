@@ -7,6 +7,8 @@ use burn_router::get_client;
 use super::service::RemoteEndpoint;
 use super::{ConnectError, RemoteChannel, RemoteDevice, service};
 use crate::Credential;
+#[cfg(not(target_family = "wasm"))]
+use crate::runtime;
 #[cfg(feature = "iroh")]
 use crate::transport::iroh::IrohHost;
 #[cfg(feature = "websocket")]
@@ -66,7 +68,7 @@ impl HostSpec {
     pub fn connect(&self, index: usize) -> Result<RemoteDevice, ConnectError> {
         self.refuse_blocking_on_current_thread()?;
         let host = self.clone();
-        on_burn_runtime::wait(move || host.connect_blocking(index))
+        runtime::wait(move || host.connect_blocking(index))
     }
 
     /// Open a session to device `index`. Dropping the future does not cancel a connect that has
@@ -81,7 +83,7 @@ impl HostSpec {
         index: usize,
     ) -> impl Future<Output = Result<RemoteDevice, ConnectError>> + Send + 'static + use<> {
         let host = self.clone();
-        on_burn_runtime::run(move || host.connect_blocking(index))
+        runtime::run(move || host.connect_blocking(index))
     }
 
     /// Open a session to device `index`.
@@ -107,7 +109,7 @@ impl HostSpec {
     pub fn devices(&self) -> Result<Vec<RemoteDevice>, ConnectError> {
         self.refuse_blocking_on_current_thread()?;
         let host = self.clone();
-        on_burn_runtime::wait(move || host.devices_blocking())
+        runtime::wait(move || host.devices_blocking())
     }
 
     /// Asynchronous [`devices`](Self::devices).
@@ -121,7 +123,7 @@ impl HostSpec {
     ) -> impl Future<Output = Result<Vec<RemoteDevice>, ConnectError>> + Send + 'static + use<>
     {
         let host = self.clone();
-        on_burn_runtime::run(move || host.devices_blocking())
+        runtime::run(move || host.devices_blocking())
     }
 
     /// Open a session to every device the server hosts.
@@ -168,7 +170,7 @@ impl HostSpec {
     /// blocks the device's runner, and enough runners blocking every worker would stop all I/O.
     #[cfg(not(target_family = "wasm"))]
     fn connect_blocking(&self, index: usize) -> Result<RemoteDevice, ConnectError> {
-        let endpoint = super::runtime::blocking_runtime()
+        let endpoint = runtime::blocking_runtime()
             .handle()
             .block_on(self.endpoint())?;
         let device = RemoteDevice::register(endpoint, index);
@@ -217,43 +219,4 @@ impl HostSpec {
 
 fn host_device_count(device: &RemoteDevice) -> usize {
     service::device_count_for(device.id).expect("the handshake reports the device count") as usize
-}
-
-/// Work run on a blocking thread of Burn's runtime, and waited on from any thread or executor.
-#[cfg(not(target_family = "wasm"))]
-mod on_burn_runtime {
-    use std::panic::{AssertUnwindSafe, catch_unwind, resume_unwind};
-
-    use crate::client::runtime::blocking_runtime;
-
-    /// Block the calling thread until `work` finishes. A plain channel, so a caller on a runtime
-    /// thread blocks it rather than panicking.
-    pub(super) fn wait<T: Send + 'static>(work: impl FnOnce() -> T + Send + 'static) -> T {
-        let (sender, receiver) = std::sync::mpsc::channel();
-        blocking_runtime().spawn_blocking(move || {
-            let _ = sender.send(catch_unwind(AssertUnwindSafe(work)));
-        });
-        match receiver.recv() {
-            Ok(Ok(value)) => value,
-            Ok(Err(panic)) => resume_unwind(panic),
-            Err(_) => panic!("Burn Remote's runtime dropped a connect"),
-        }
-    }
-
-    /// Await `work` from any executor.
-    pub(super) fn run<T: Send + 'static>(
-        work: impl FnOnce() -> T + Send + 'static,
-    ) -> impl core::future::Future<Output = T> + Send + 'static {
-        let (sender, receiver) = tokio::sync::oneshot::channel();
-        blocking_runtime().spawn_blocking(move || {
-            let _ = sender.send(catch_unwind(AssertUnwindSafe(work)));
-        });
-        async move {
-            match receiver.await {
-                Ok(Ok(value)) => value,
-                Ok(Err(panic)) => resume_unwind(panic),
-                Err(_) => panic!("Burn Remote's runtime dropped a connect"),
-            }
-        }
-    }
 }

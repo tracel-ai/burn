@@ -5,13 +5,16 @@ use std::{
     sync::{Arc, LazyLock},
 };
 
+#[cfg(feature = "client")]
+use iroh::endpoint::BindError;
 use iroh::{
     Endpoint, EndpointAddr, EndpointId,
-    endpoint::{BindError, Connection, RecvStream, SendStream},
+    endpoint::{Connection, RecvStream, SendStream},
 };
 use tokio::sync::Mutex;
 use tokio::sync::OnceCell;
 
+#[cfg(feature = "client")]
 use super::relays::IrohRelays;
 use crate::{PeerAddr, PeerId, transport::OpenError};
 
@@ -21,6 +24,7 @@ static APP_NODES: LazyLock<std::sync::Mutex<HashMap<EndpointId, RemoteNode>>> =
     LazyLock::new(Default::default);
 
 /// The node Burn binds for each relay setting, shared by every host that dials with it.
+#[cfg(feature = "client")]
 static OWNED_NODES: LazyLock<std::sync::Mutex<HashMap<IrohRelays, Arc<OnceCell<RemoteNode>>>>> =
     LazyLock::new(Default::default);
 
@@ -104,6 +108,7 @@ impl RemoteNode {
     }
 
     /// The node Burn binds for `relays`, bound the first time any host needs it.
+    #[cfg(feature = "client")]
     pub(crate) async fn for_relays(relays: &IrohRelays) -> Result<Self, BindError> {
         let cell = OWNED_NODES
             .lock()

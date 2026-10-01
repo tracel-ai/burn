@@ -56,7 +56,8 @@ mod ops;
 /// Dispatch tensor module.
 pub mod tensor;
 
-/// Entry points for hosting a remote-execution server.
+/// The backend dispatch behind `burn::server::RemoteServer`. Not a user path.
+#[doc(hidden)]
 #[cfg(feature = "remote-server")]
 pub mod remote_server;
 

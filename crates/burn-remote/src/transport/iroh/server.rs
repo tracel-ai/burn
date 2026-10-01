@@ -1,0 +1,124 @@
+//! Serving over Iroh.
+
+use core::fmt;
+
+use burn_ir::BackendIr;
+use iroh::{Endpoint, EndpointId, endpoint::BindOpts, protocol::Router};
+
+use super::{
+    identity::IrohIdentity,
+    node::{BURN_REMOTE_ALPN, RemoteNode},
+    protocol::IrohRemoteProtocol,
+    relays::IrohRelays,
+};
+use crate::server::{ServeError, SessionSetup};
+
+/// How a server accepts clients over Iroh: the identity they dial, the relays they reach it
+/// through, and the UDP port it binds.
+#[derive(Clone)]
+pub struct IrohTransport {
+    // Boxed because a key is 224 bytes, which would bloat `Transport` for every transport.
+    identity: Box<IrohIdentity>,
+    relays: IrohRelays,
+    port: Option<u16>,
+}
+
+impl IrohTransport {
+    /// Serve as `identity`'s [`id`](Self::id). Reached through n0's public relays, on a port the
+    /// OS picks, unless set otherwise.
+    pub fn new(identity: IrohIdentity) -> Self {
+        Self {
+            identity: Box::new(identity),
+            relays: IrohRelays::default(),
+            port: None,
+        }
+    }
+
+    /// The relays clients reach the server through.
+    pub fn with_relays(mut self, relays: IrohRelays) -> Self {
+        self.relays = relays;
+        self
+    }
+
+    /// Bind UDP `port` on IPv4, and on IPv6 unless the host has none or the port is taken there,
+    /// so clients can dial it directly. Needed when relays are disabled, since nothing else tells
+    /// clients where the server is.
+    pub fn with_port(mut self, port: u16) -> Self {
+        self.port = Some(port);
+        self
+    }
+
+    /// The id clients dial.
+    pub fn id(&self) -> EndpointId {
+        self.identity.id()
+    }
+
+    async fn bind(&self) -> Result<Endpoint, ServeError> {
+        let mut builder = self
+            .relays
+            .endpoint_builder()
+            .secret_key(self.identity.secret_key())
+            .alpns(vec![BURN_REMOTE_ALPN.to_vec()]);
+        if let Some(port) = self.port {
+            // Optional like Iroh's own IPv6 bind, so a host without IPv6 still serves on IPv4.
+            let ipv6 = BindOpts::default().set_is_required(false);
+            builder = builder
+                .clear_ip_transports()
+                .bind_addr(format!("0.0.0.0:{port}"))
+                .and_then(|builder| builder.bind_addr_with_opts(format!("[::]:{port}"), ipv6))
+                .map_err(ServeError::bind)?;
+        }
+        builder.bind().await.map_err(ServeError::bind)
+    }
+
+    /// Serve until the returned future is dropped.
+    pub(crate) async fn serve<B: BackendIr>(
+        self,
+        setup: SessionSetup<B>,
+    ) -> Result<(), ServeError> {
+        let endpoint = self.bind().await?;
+        log::info!(
+            "Burn Remote serving over Iroh as {} on {:?}",
+            self.id(),
+            endpoint.bound_sockets()
+        );
+        if self.relays == IrohRelays::Disabled && self.port.is_none() {
+            log::warn!("Relays disabled without a port: clients can only dial the ports above");
+        }
+
+        let node = RemoteNode::for_endpoint(&endpoint)
+            .map_err(|reason| ServeError::InvalidEndpoint { reason })?;
+        let router = Router::builder(endpoint)
+            .accept(BURN_REMOTE_ALPN, IrohRemoteProtocol::new(node, setup))
+            .spawn();
+        let _router = ShutdownOnDrop(router);
+        core::future::pending().await
+    }
+}
+
+impl fmt::Debug for IrohTransport {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("IrohTransport")
+            .field("id", &self.id())
+            .field("relays", &self.relays)
+            .field("port", &self.port)
+            .finish_non_exhaustive()
+    }
+}
+
+/// Shuts a router down when the serving future is dropped. Dropping the router alone would stop
+/// accepting but leave its endpoint bound, holding the port.
+struct ShutdownOnDrop(Router);
+
+impl Drop for ShutdownOnDrop {
+    fn drop(&mut self) {
+        let router = self.0.clone();
+        if let Ok(runtime) = tokio::runtime::Handle::try_current() {
+            runtime.spawn(async move {
+                if let Err(err) = router.shutdown().await {
+                    log::warn!("Burn Remote Iroh router shutdown failed: {err}");
+                }
+            });
+        }
+    }
+}

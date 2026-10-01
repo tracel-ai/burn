@@ -1,97 +1,108 @@
-//! The turnkey WebSocket compute server.
+//! Serving over WebSocket.
 
 use std::sync::Arc;
-
-use burn_backend::tensor::Device;
-use burn_ir::BackendIr;
-use burn_router::CustomOpRegistry;
-use tokio_util::sync::CancellationToken;
 
 use burn_communication::{
     ProtocolServer,
     external_comm::{ExternalCommServer, ExternalCommService},
     websocket::{WebSocket, WsServer, WsServerChannel},
 };
+use burn_ir::BackendIr;
+use tokio::net::TcpListener;
 
 use super::transfer::WebSocketTransfer;
-use crate::server::{pump::drive_session, session::SessionManager, spawn::os_shutdown_signal};
+use crate::{
+    Credential,
+    server::{AuthorizationRequest, ClientId, ServeError, SessionSetup, pump::drive_session},
+};
 
-/// Serve a WebSocket compute node on the given port, until shutdown.
+/// How a server accepts clients over WebSocket: the port it listens on, on every interface.
 ///
-/// Driven through [`RemoteServerBuilder`](crate::server::RemoteServerBuilder) rather than called
-/// directly.
-#[cfg(not(target_family = "wasm"))]
-pub(crate) async fn start_websocket_async<B: BackendIr>(
-    devices: Vec<Device<B>>,
-    port: u16,
-    custom_ops: CustomOpRegistry<B>,
-) {
-    let server = compute_server(devices, port, custom_ops);
-    if let Err(err) = server.serve(os_shutdown_signal()).await {
-        log::error!("Burn Remote WebSocket server stopped: {err:?}");
-    }
+/// WebSocket is unencrypted: a token stops stray clients on a trusted network, not someone reading
+/// the traffic. Serve over Iroh to cross an untrusted one.
+#[derive(Debug)]
+pub struct WebSocketTransport {
+    listen: Listen,
 }
 
-/// Serve a WebSocket compute node on a listener the caller already bound, until shutdown.
-#[cfg(not(target_family = "wasm"))]
-pub(crate) async fn start_websocket_async_on<B: BackendIr>(
-    devices: Vec<Device<B>>,
-    listener: std::net::TcpListener,
-    custom_ops: CustomOpRegistry<B>,
-) {
-    let served = async {
-        let port = listener.local_addr()?.port();
-        listener.set_nonblocking(true)?;
-        let listener = tokio::net::TcpListener::from_std(listener)?;
-        compute_server(devices, port, custom_ops)
-            .serve_on(listener, os_shutdown_signal())
+#[derive(Debug)]
+enum Listen {
+    Port(u16),
+    Listener(std::net::TcpListener),
+}
+
+impl WebSocketTransport {
+    /// Listen on TCP `port`, on every IPv4 interface.
+    pub fn new(port: u16) -> Self {
+        Self {
+            listen: Listen::Port(port),
+        }
+    }
+
+    /// Serve on a listener the caller bound, such as one on port 0 whose port it reads back
+    /// before any client dials.
+    pub fn from_listener(listener: std::net::TcpListener) -> Self {
+        Self {
+            listen: Listen::Listener(listener),
+        }
+    }
+
+    async fn bind(self) -> std::io::Result<TcpListener> {
+        match self.listen {
+            Listen::Port(port) => TcpListener::bind(("0.0.0.0", port)).await,
+            Listen::Listener(listener) => {
+                listener.set_nonblocking(true)?;
+                TcpListener::from_std(listener)
+            }
+        }
+    }
+
+    /// Serve until the returned future is dropped.
+    pub(crate) async fn serve<B: BackendIr>(
+        self,
+        setup: SessionSetup<B>,
+    ) -> Result<(), ServeError> {
+        let listener = self.bind().await.map_err(ServeError::bind)?;
+        let shutdown = setup.shutdown.clone();
+        compute_server(setup)
+            .serve_on(listener, shutdown.cancelled_owned())
             .await
-    };
-    if let Err(err) = served.await {
-        log::error!("Burn Remote WebSocket server stopped: {err:?}");
+            .map_err(ServeError::bind)
     }
 }
 
-/// The compute node's routes.
-///
-/// The session protocol is a single full-duplex `/session` socket per session (split into a sink +
-/// source and driven by the shared [`drive_session`] pump); cross-server tensor transfers ride the
-/// same server via [`route_external_comm`](ExternalCommServer::route_external_comm).
-fn compute_server<B: BackendIr>(
-    devices: Vec<Device<B>>,
-    port: u16,
-    custom_ops: CustomOpRegistry<B>,
-) -> WsServer {
-    let cancel_token = CancellationToken::new();
-    let external = Arc::new(ExternalCommService::<B, WebSocket>::new(cancel_token));
+/// The compute node's routes: one full-duplex `/session` socket per session, driven by the shared
+/// [`drive_session`] pump, and the tensor transfers between servers.
+fn compute_server<B: BackendIr>(setup: SessionSetup<B>) -> WsServer {
+    let external = Arc::new(ExternalCommService::<B, WebSocket>::new(
+        setup.shutdown.clone(),
+    ));
     let transfer = Arc::new(WebSocketTransfer {
         inner: external.clone(),
     });
-    let probe = if crate::metrics::TelemetryLogger::enabled() {
-        crate::telemetry::TelemetryProbe::new(crate::telemetry::CHANNEL_CAPACITY)
-    } else {
-        crate::telemetry::TelemetryProbe::disabled()
-    };
-    let sessions = Arc::new(
-        SessionManager::new(devices, transfer)
-            .with_custom_ops(custom_ops)
-            .with_telemetry(probe),
-    );
+    let sessions = Arc::new(setup.manager(transfer));
+    let authorizer = setup.authorizer;
+    let shutdown = setup.shutdown;
 
-    WsServer::new(port)
-        .route("/session", {
+    // `serve_on` serves on the listener it is given; this port is never bound.
+    WsServer::new(0)
+        .route("/session", move |channel: WsServerChannel| {
             let sessions = sessions.clone();
-            move |channel: WsServerChannel| {
-                let sessions = sessions.clone();
-                async move {
-                    let (sink, source) = channel.split();
-                    // WebSocket has no authenticated peer identity, so the server presents none
-                    // (`peer_id: None`) and authorizes every session.
-                    if let Err(err) =
-                        drive_session(source, sink, sessions, None, |_init| Ok(())).await
-                    {
-                        log::warn!("WebSocket remote session failed: {err}");
-                    }
+            let authorizer = authorizer.clone();
+            let shutdown = shutdown.clone();
+            async move {
+                let client = ClientId::WebSocket(channel.peer_addr());
+                let (sink, source) = channel.split();
+                let served = drive_session(source, sink, sessions, None, &shutdown, |init| {
+                    authorizer.authorize(AuthorizationRequest {
+                        client,
+                        device_index: init.device_index,
+                        credential: &Credential::from(init.authorization.as_slice()),
+                    })
+                })
+                .await;
+                if let Err(err) = served {
+                    log::warn!("Rejected or failed WebSocket remote session: {err}");
                 }
             }
         })

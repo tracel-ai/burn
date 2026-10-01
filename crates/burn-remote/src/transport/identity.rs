@@ -85,6 +85,7 @@ impl PeerAddr {
     }
 
     /// Return true when this is an Iroh peer.
+    #[cfg(feature = "client")]
     pub fn is_iroh(&self) -> bool {
         match self {
             #[cfg(feature = "iroh")]

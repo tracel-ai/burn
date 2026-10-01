@@ -1,20 +1,7 @@
 //! The client session runtime.
 
-/// Burn's own Tokio runtime, which binds the Iroh endpoints Burn owns and runs every native session.
-///
-/// Sessions never run on the caller's runtime: a current-thread runtime blocked in a synchronous
-/// call could not drive them, and a runtime the caller shuts down would take them along.
 #[cfg(not(target_family = "wasm"))]
-pub(crate) fn blocking_runtime() -> &'static tokio::runtime::Runtime {
-    use std::sync::OnceLock;
-    static RUNTIME: OnceLock<tokio::runtime::Runtime> = OnceLock::new();
-    RUNTIME.get_or_init(|| {
-        tokio::runtime::Builder::new_multi_thread()
-            .enable_all()
-            .build()
-            .expect("Can build the Burn Remote blocking runtime")
-    })
-}
+use crate::runtime::blocking_runtime;
 
 /// Executor for a remote session's writer and response-demux tasks: [`blocking_runtime`] on
 /// native, and the JS event loop in the browser, where tasks are spawned with `spawn_local` and
