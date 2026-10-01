@@ -9164,6 +9164,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "remote-mnist"
+version = "0.22.0-pre.4"
+dependencies = [
+ "burn",
+ "clap",
+ "mnist",
+ "tokio",
+]
+
+[[package]]
 name = "renderdoc-sys"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
