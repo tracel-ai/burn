@@ -24,12 +24,6 @@ pub use burn_cpu::{self as cpu, Cpu};
 pub use burn_cuda::{self as cuda, Cuda};
 #[cfg(feature = "rocm")]
 pub use burn_rocm::{self as rocm, Rocm};
-#[cfg(feature = "metal")]
-pub use burn_wgpu::Metal;
-#[cfg(feature = "vulkan")]
-pub use burn_wgpu::Vulkan;
-#[cfg(feature = "webgpu")]
-pub use burn_wgpu::WebGpu;
 #[cfg(feature = "wgpu")]
 pub use burn_wgpu::{self as wgpu, Wgpu};
 
