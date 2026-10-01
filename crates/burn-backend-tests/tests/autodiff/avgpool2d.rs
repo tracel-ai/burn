@@ -1,5 +1,6 @@
 use super::*;
 use burn_tensor::module::avg_pool2d;
+use burn_tensor::ops::AvgPoolOptions;
 use burn_tensor::{Shape, TensorData, Tolerance};
 
 #[test]
@@ -47,11 +48,10 @@ fn test_avg_pool2d_ceil_mode_nonuniform_gradient() {
             let x = TestTensor::<4>::ones([1, 1, 1, width], &device).require_grad();
             let output = avg_pool2d(
                 x.clone(),
-                [1, kernel],
-                [1, kernel],
-                [0, padding],
-                count_include_pad,
-                true,
+                AvgPoolOptions::new([1, kernel])
+                    .with_padding([0, padding])
+                    .with_count_include_pad(count_include_pad)
+                    .with_ceil_mode(true),
             );
             let upstream =
                 TestTensor::from_data(TensorData::new(upstream, output.shape()), &device);
@@ -177,11 +177,10 @@ impl AvgPool2dTestCase {
         .require_grad();
         let output = avg_pool2d(
             x.clone(),
-            [self.kernel_size_1, self.kernel_size_2],
-            [self.stride_1, self.stride_2],
-            [self.padding_1, self.padding_2],
-            self.count_include_pad,
-            false,
+            AvgPoolOptions::new([self.kernel_size_1, self.kernel_size_2])
+                .with_stride([self.stride_1, self.stride_2])
+                .with_padding([self.padding_1, self.padding_2])
+                .with_count_include_pad(self.count_include_pad),
         );
         let grads = output.backward();
         let x_grad_actual = x.grad(&grads).unwrap();

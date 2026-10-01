@@ -7,7 +7,7 @@ use burn_core::{
     prelude::{Device, Int, Tensor},
     tensor::{
         module::{avg_pool2d, conv2d},
-        ops::{ConvOptions, PadMode},
+        ops::{AvgPoolOptions, ConvOptions, PadMode},
     },
 };
 
@@ -462,8 +462,8 @@ impl Metric for MsSsimMetric {
                 let c_s_mean_clamped = contrast_structure_spatial_mean.clamp_min(0.0);
                 ms_ssim_tensor = ms_ssim_tensor * c_s_mean_clamped.powf_scalar(*beta_j);
 
-                x = avg_pool2d(x, [2, 2], [2, 2], [0, 0], false, false);
-                y = avg_pool2d(y, [2, 2], [2, 2], [0, 0], false, false);
+                x = avg_pool2d(x, AvgPoolOptions::new([2, 2]).with_count_include_pad(false));
+                y = avg_pool2d(y, AvgPoolOptions::new([2, 2]).with_count_include_pad(false));
             }
         }
 

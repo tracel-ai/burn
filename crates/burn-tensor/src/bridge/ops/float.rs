@@ -118,6 +118,7 @@ impl BasicOps for Float {
     }
 
     fn slice_assign(tensor: BridgeTensor, slices: &[Slice], value: BridgeTensor) -> BridgeTensor {
+        // Slice assign is ambiguous for QFloat, so both operands are dequantized first.
         BridgeTensor::float(Dispatch::float_slice_assign(
             tensor.into_float(),
             slices,

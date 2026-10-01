@@ -23,6 +23,9 @@ readme = "README.md"
 version = "0.22.0-pre.4"
 
 [workspace.lints.clippy]
+# Temporary workaround for linting generated code:
+# https://github.com/rust-lang/rust-clippy/issues/17525
+redundant_field_names = "allow"
 
 [workspace.lints.rustdoc]
 broken_intra_doc_links = "deny"
@@ -31,6 +34,7 @@ invalid_html_tags = "deny"
 [workspace.dependencies]
 atomic_float = "1"
 axum = "0.8.8"
+blake3 = "1.8"
 bytemuck = "1.25.0"
 bytes = { version = "1.11.1", default-features = false }
 ciborium = { version = "0.2", default-features = false }
@@ -61,6 +65,7 @@ image = "0.25.9"
 indicatif = "0.18.0"
 insta = "1.45.0"
 iroh = "1.2.0"
+iroh-relay = "1.2.0"
 js-sys = "0.3.77"
 libm = "0.2.15"
 log = { default-features = false, version = "0.4.29" }
@@ -227,11 +232,11 @@ burn-wgpu = { path = "crates/burn-wgpu", version = "=0.22.0-pre.4", default-feat
 pytorch-reader = { path = "crates/pytorch-reader", version = "=0.22.0-pre.4" }
 
 ### For the main burn branch. ###
-cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "33b6dfbd63cc8fa08346a2c77b04f156b9192e62" }
-cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "33b6dfbd63cc8fa08346a2c77b04f156b9192e62" }
-cubecl-environment = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "33b6dfbd63cc8fa08346a2c77b04f156b9192e62" }
-cubecl-zspace = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "33b6dfbd63cc8fa08346a2c77b04f156b9192e62" }
-cubek = { git = "https://github.com/tracel-ai/cubek", default-features = false, rev = "41a4ab064382dbdf625fe0c64e5788dc9859d286" }
+cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "363145515410c414900f2310e0b9428ef35941e2" }
+cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "363145515410c414900f2310e0b9428ef35941e2" }
+cubecl-environment = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "363145515410c414900f2310e0b9428ef35941e2" }
+cubecl-zspace = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "363145515410c414900f2310e0b9428ef35941e2" }
+cubek = { git = "https://github.com/tracel-ai/cubek", default-features = false, rev = "645ead8d6efdce94fb70436f3bca3e8478ade597" }
 ### For local development. ###
 # cubecl = { path = "../cubecl/crates/cubecl", default-features = false }
 # cubecl-common = { path = "../cubecl/crates/cubecl-common", default-features = false }

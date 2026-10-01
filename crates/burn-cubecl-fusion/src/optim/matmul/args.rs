@@ -124,7 +124,6 @@ impl MatmulArgs for FusedMatmulArgs {
     ) -> View<'_, Lhs, BatchedCoords> {
         global_view(
             &state.inputs,
-            &state.locals,
             &state.batch_shape,
             comptime![state.a.clone()],
             comptime![state.config.clone()],
@@ -144,7 +143,6 @@ impl MatmulArgs for FusedMatmulArgs {
     ) -> View<'_, Rhs, BatchedCoords> {
         global_view(
             &state.inputs,
-            &state.locals,
             &state.batch_shape,
             comptime![state.b.clone()],
             comptime![state.config.clone()],
@@ -166,7 +164,6 @@ impl MatmulArgs for FusedMatmulArgs {
             Some(c) => {
                 let view = global_view(
                     &state.inputs,
-                    &state.locals,
                     &state.batch_shape,
                     c,
                     comptime![state.config.clone()],
@@ -240,7 +237,6 @@ impl MatmulArgs for FusedMatmulArgs {
 #[allow(clippy::missing_transmute_annotations)]
 fn global_view<E: CubePrimitive>(
     inputs: &GlobalArgs,
-    locals: &LocalArgs,
     batch_shape: &Sequence<FastDivmod<u32>>,
     #[comptime] arg: MatmulArg,
     #[comptime] config: FuseBlockConfig,
@@ -288,7 +284,7 @@ fn global_view<E: CubePrimitive>(
         layout_config,
         packing,
     );
-    let data_buf = GlobalInput::new(inputs, locals, data, comptime![config.clone()], None);
+    let data_buf = GlobalInput::new(inputs, data);
 
     match comptime![arg.clone()] {
         MatmulArg::Normal(_) => View::new::<GlobalInput, Coords1d>(data_buf, data_layout),
@@ -327,7 +323,7 @@ fn global_view<E: CubePrimitive>(
                     ))
                 }
             };
-            let scales_buf = GlobalInput::new(inputs, locals, scales, config, None);
+            let scales_buf = GlobalInput::new(inputs, scales);
 
             // Redefine because of `Numeric` bound, kinda hacky but I can't figure out a way to
             // assert `Vector<T: Numeric>::Scalar: Numeric`

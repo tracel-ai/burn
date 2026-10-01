@@ -12,6 +12,14 @@ use cubek::convolution::{
     launch_depthwise,
 };
 
+fn skip_large_filter(in_channels: usize, filter_shape: &[usize]) -> bool {
+    // These tilings distribute threads across channels and target small filters.
+    // Skip large filters with too few channels to fill a 32-thread subgroup.
+    // Reported 1-3 channel cases compile very slowly and lose to conv_direct;
+    // extending the exclusion to fewer than 32 channels is a heuristic.
+    in_channels < 32 && filter_shape.iter().product::<usize>() > 256
+}
+
 /// Perform a depthwise 2D convolution: one filter per channel, `groups == channels`, under the
 /// stated [`DepthwiseStrategy`].
 ///
@@ -45,6 +53,11 @@ pub fn conv_depthwise<const N: usize>(
 
     let out_channels = weight.meta.shape()[0];
     let weight_shape = &weight.meta.shape()[1..dim_c];
+
+    // Reject before allocating output or launching any of the depthwise tilings.
+    if skip_large_filter(input.meta.shape()[dim_c], weight_shape) {
+        return Err(ConvSetupError::Unknown);
+    }
 
     let mut out_shape = calculate_conv_output_sizes(
         weight_shape,
@@ -84,4 +97,85 @@ pub fn conv_depthwise<const N: usize>(
     launch_depthwise(&client, tensors, args, options.groups, dtype, strategy)?;
 
     Ok(out)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::skip_large_filter;
+
+    #[test]
+    fn skips_large_filters_with_few_channels() {
+        for channels in [1, 2, 3] {
+            for filter in [[17, 17], [33, 33], [65, 65], [9, 29]] {
+                assert!(skip_large_filter(channels, &filter));
+            }
+        }
+    }
+
+    #[test]
+    fn keeps_small_filters_and_the_position_limit() {
+        for channels in [1, 2, 3, 32, 144] {
+            for filter in [[3, 3], [5, 5], [7, 7], [16, 16], [8, 32]] {
+                assert!(!skip_large_filter(channels, &filter));
+            }
+        }
+    }
+
+    #[test]
+    fn keeps_large_filters_with_more_channels() {
+        for channels in [4, 32, 144] {
+            for filter in [[17, 17], [33, 33], [65, 65]] {
+                assert!(!skip_large_filter(channels, &filter));
+            }
+        }
+    }
+
+    #[cfg(feature = "autotune")]
+    #[test]
+    fn autotune_handles_large_depthwise_filters() {
+        use super::*;
+        use crate::{
+            CubeDevice,
+            kernel::conv::forward::tune::conv_autotune,
+            ops::{from_data, into_data_sync, permute_nchw_to_nhwc},
+        };
+        use burn_std::TensorData;
+
+        let device = CubeDevice::default();
+        for channels in [1, 3] {
+            for filter in [33, 65] {
+                let input = from_data(
+                    TensorData::new(vec![1.0f32; channels * 8 * 8], [1, channels, 8, 8]),
+                    &device,
+                );
+                let weight = from_data(
+                    TensorData::new(
+                        vec![1.0f32; channels * filter * filter],
+                        [channels, 1, filter, filter],
+                    ),
+                    &device,
+                );
+                let input = permute_nchw_to_nhwc(input);
+                let weight = permute_nchw_to_nhwc(weight);
+                let options = ConvOptions::new([1, 1], [filter / 2, filter / 2], [1, 1], channels);
+
+                assert!(
+                    conv_depthwise(
+                        input.clone(),
+                        weight.clone(),
+                        None,
+                        options.clone(),
+                        DepthwiseStrategy::Routine,
+                    )
+                    .is_err()
+                );
+
+                let output = conv_autotune(input, weight, None, options);
+                assert_eq!(output.meta.shape().dims::<4>(), [1, 8, 8, channels]);
+                // Every filter window covers the whole 8x8 input in its channel.
+                let data = into_data_sync(output);
+                assert!(data.as_slice::<f32>().unwrap().iter().all(|&v| v == 64.0));
+            }
+        }
+    }
 }

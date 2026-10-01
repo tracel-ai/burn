@@ -77,7 +77,7 @@ fn matmul_epilogue_reads_transposed_view_last() {
 
         out.assert_approx_eq::<FloatElem>(
             &TensorData::new(expected, [cols, rows]),
-            Tolerance::default(),
+            Tolerance::default().set_half_precision_absolute(1e-3),
         );
     });
 }

@@ -296,6 +296,38 @@ fn blocking_reads_inside_a_tokio_task_outlast_its_budget() {
     });
 }
 
+#[test]
+fn tensors_dropped_on_another_thread_still_feed_their_queued_reader() {
+    within_hang_limit(|| {
+        let runtime = tokio::runtime::Runtime::new().unwrap();
+        let server = runtime.block_on(local_endpoint());
+        let client = runtime.block_on(local_endpoint());
+        let (router, remote) = {
+            let _guard = runtime.enter();
+            let router = spawn_router::<Flex>(server.clone(), AllowAll, TelemetryProbe::disabled());
+            (router, RemoteDevice::iroh(&client, server.addr(), 0))
+        };
+        remote.connect();
+        let device = Device::new(remote);
+
+        let computed = Tensor::<1>::from_floats([1.0, 2.0, 3.0], &device) + 1.0;
+        // A free before the producer runs is a no-op, so only `computed` can catch an early free.
+        device.sync().unwrap();
+        let pending = computed.clone() * 2.0;
+        let reader = pending.clone() + computed.clone();
+        thread::spawn(move || drop((computed, pending)))
+            .join()
+            .unwrap();
+
+        assert_eq!(
+            reader.try_into_vec_as::<f32>().unwrap(),
+            vec![6.0, 9.0, 12.0]
+        );
+
+        runtime.block_on(router.shutdown()).unwrap();
+    });
+}
+
 #[tokio::test(flavor = "multi_thread")]
 async fn passes_application_credentials_to_the_peer_authorizer() {
     let server = local_endpoint().await;
@@ -475,5 +507,210 @@ mod loader_uploads {
             batch.images.into_data();
             batch.targets.into_data();
         });
+    }
+}
+
+mod iroh_peer {
+    use super::*;
+    use burn_remote::{
+        ConnectError, EndpointId, IrohPeer, IrohPeerBuilder, IrohRelays, RemoteSecret,
+        server::{Channel, IrohChannelBuilder, RemoteServerBuilder, TokenAuthorizer},
+    };
+    use iroh_relay::server::{RelayConfig, Server, ServerConfig};
+    use std::net::{Ipv4Addr, Ipv6Addr, SocketAddr, UdpSocket};
+
+    const TOKEN: &str = "fleet-token";
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_peer_reaches_a_server_through_a_private_relay() {
+        let relay = private_relay().await;
+        let relays = IrohRelays::Private {
+            url: format!("http://{}", relay.http_addr().unwrap())
+                .parse()
+                .unwrap(),
+        };
+        let id = serve(IrohChannelBuilder::new(RemoteSecret::random()).with_relays(relays.clone()));
+        let peer = IrohPeerBuilder::new(id)
+            .with_relays(relays)
+            .with_credential(TOKEN)
+            .build();
+
+        peer.connect(0).await.unwrap();
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_peer_with_the_token_reaches_a_relay_free_server_by_address() {
+        let port = free_udp_port();
+        let peer = direct_peer(
+            serve_with_token(port),
+            Ipv4Addr::LOCALHOST.into(),
+            port,
+            TOKEN,
+        );
+
+        let device = Device::new(peer.connect(0).await.unwrap());
+        let data = Tensor::<1>::from_floats([4.0], &device) * 2.0;
+        assert_eq!(data.try_into_vec_as::<f32>().unwrap(), vec![8.0]);
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_peer_connected_twice_yields_the_same_device() {
+        let port = free_udp_port();
+        let peer = direct_peer(
+            serve_with_token(port),
+            Ipv4Addr::LOCALHOST.into(),
+            port,
+            TOKEN,
+        );
+
+        let first = peer.connect(0).await.unwrap();
+        assert_eq!(peer.clone().connect(0).await.unwrap(), first);
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_peer_with_the_wrong_token_is_refused() {
+        let port = free_udp_port();
+        let id = serve_with_token(port);
+        let admitted = direct_peer(id, Ipv4Addr::LOCALHOST.into(), port, TOKEN);
+        admitted.connect(0).await.unwrap();
+
+        let refused = direct_peer(id, Ipv4Addr::LOCALHOST.into(), port, "wrong-token");
+        let panic = tokio::spawn(async move { refused.connect(0).await })
+            .await
+            .unwrap_err()
+            .into_panic();
+        let message = panic
+            .downcast_ref::<String>()
+            .map(String::as_str)
+            .or_else(|| panic.downcast_ref::<&str>().copied())
+            .unwrap();
+        assert!(
+            message.contains("disconnected during initialization"),
+            "{message}"
+        );
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn peers_built_from_clones_of_one_builder_bind_their_own_endpoints() {
+        let port = free_udp_port();
+        let builder = IrohPeerBuilder::new(serve_with_token(port))
+            .with_relays(IrohRelays::Disabled)
+            .with_address(SocketAddr::new(Ipv4Addr::LOCALHOST.into(), port))
+            .with_credential(TOKEN);
+
+        let first = builder.clone().build().connect(0).await.unwrap();
+        assert_ne!(builder.build().connect(0).await.unwrap(), first);
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_peer_dials_from_an_application_endpoint() {
+        let port = free_udp_port();
+        let server = serve_with_token(port);
+        let endpoint = local_endpoint().await;
+        let peer = IrohPeerBuilder::new(server)
+            .with_relays(IrohRelays::Disabled)
+            .with_address(SocketAddr::new(Ipv4Addr::LOCALHOST.into(), port))
+            .with_credential(TOKEN)
+            .with_endpoint(endpoint.clone())
+            .build();
+
+        let device = peer.connect(0).await.unwrap();
+        assert_eq!(peer.clone().connect(0).await.unwrap(), device);
+        assert!(endpoint.remote_info(server).await.is_some());
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_peer_reaches_a_server_over_ipv6() {
+        if UdpSocket::bind((Ipv6Addr::LOCALHOST, 0)).is_err() {
+            return;
+        }
+        let port = free_udp_port();
+        let peer = direct_peer(
+            serve_with_token(port),
+            Ipv6Addr::LOCALHOST.into(),
+            port,
+            TOKEN,
+        );
+
+        peer.connect(0).await.unwrap();
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_server_whose_ipv6_port_is_taken_still_serves_ipv4() {
+        let port = free_udp_port();
+        let Ok(_taken) = UdpSocket::bind((Ipv6Addr::LOCALHOST, port)) else {
+            return;
+        };
+        let peer = direct_peer(
+            serve_with_token(port),
+            Ipv4Addr::LOCALHOST.into(),
+            port,
+            TOKEN,
+        );
+
+        peer.connect(0).await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn a_peer_without_relays_or_an_address_is_not_dialed() {
+        let peer = IrohPeerBuilder::new(RemoteSecret::random().id())
+            .with_relays(IrohRelays::Disabled)
+            .build();
+
+        assert!(matches!(
+            peer.connect(0).await,
+            Err(ConnectError::NoAddress)
+        ));
+    }
+
+    /// A port free on IPv4, and on IPv6 where the host has it.
+    fn free_udp_port() -> u16 {
+        loop {
+            let port = UdpSocket::bind((Ipv4Addr::UNSPECIFIED, 0))
+                .unwrap()
+                .local_addr()
+                .unwrap()
+                .port();
+            let ipv6 = UdpSocket::bind((Ipv6Addr::UNSPECIFIED, port));
+            if ipv6.is_ok() || UdpSocket::bind((Ipv6Addr::UNSPECIFIED, 0)).is_err() {
+                return port;
+            }
+        }
+    }
+
+    fn serve_with_token(port: u16) -> EndpointId {
+        serve(
+            IrohChannelBuilder::new(RemoteSecret::random())
+                .with_relays(IrohRelays::Disabled)
+                .with_port(port),
+        )
+    }
+
+    fn serve(channel: IrohChannelBuilder) -> EndpointId {
+        let channel = channel
+            .with_authorizer(TokenAuthorizer::new(TOKEN).unwrap())
+            .build();
+        let id = channel.id();
+        tokio::spawn(
+            RemoteServerBuilder::<Flex>::new(vec![Default::default()])
+                .channel(Channel::Iroh { channel })
+                .start_async(),
+        );
+        id
+    }
+
+    /// A relay on a free local port, over plain HTTP so no certificate is needed.
+    async fn private_relay() -> Server {
+        let mut config = ServerConfig::default();
+        config.relay = Some(RelayConfig::new((Ipv4Addr::LOCALHOST, 0)));
+        Server::spawn(config).await.unwrap()
+    }
+
+    fn direct_peer(id: EndpointId, ip: std::net::IpAddr, port: u16, token: &str) -> IrohPeer {
+        IrohPeerBuilder::new(id)
+            .with_relays(IrohRelays::Disabled)
+            .with_address(SocketAddr::new(ip, port))
+            .with_credential(token)
+            .build()
     }
 }

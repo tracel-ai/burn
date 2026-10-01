@@ -49,6 +49,13 @@ where
 
     // Authorize before any session state is created.
     authorize(&init)?;
+    let device_count = service.device_count();
+    if init.device_index >= device_count {
+        return Err(format!(
+            "Session {} asked for device {}, but this server hosts {device_count} device(s)",
+            init.session_id, init.device_index
+        ));
+    }
 
     // Reply with the selected device's settings + this server's identity, so the client can fill in
     // `RemoteDevice::defaults`/`enumerate` without an extra round-trip.
@@ -57,7 +64,7 @@ where
         content: TaskResponseContent::Init(SessionInfo {
             version: PROTOCOL_VERSION,
             settings: service.device_settings(init.device_index),
-            device_count: service.device_count(),
+            device_count,
             peer_id: server_peer_id,
         }),
     };
@@ -92,7 +99,7 @@ where
         result = &mut writer_result => (Ok(()), Some(result)),
     };
 
-    // Teardown: drop our task sender and close the session so its worker drains and exits, which
+    // Drop our task sender and close the session so its worker drains and starts closing, which
     // closes the response queue and ends the writer; then await the writer so we don't tear the
     // runtime down mid-send.
     drop(task_sender);
@@ -230,8 +237,15 @@ mod tests {
         }
     }
 
-    fn handshake(session_id: SessionId) -> Bytes {
-        let init = vec![RemoteMessage::Init(SessionInit::new(session_id, 0, vec![]))];
+    /// The one device `FakeService` hosts.
+    const HOSTED_DEVICE: u32 = 0;
+
+    fn handshake(session_id: SessionId, device_index: u32) -> Bytes {
+        let init = vec![RemoteMessage::Init(SessionInit::new(
+            session_id,
+            device_index,
+            vec![],
+        ))];
         rmp_serde::to_vec(&init).unwrap().into()
     }
 
@@ -241,7 +255,7 @@ mod tests {
         let session_id = SessionId::new();
         let source = ScriptedSource(
             [
-                Ok(Some(handshake(session_id))),
+                Ok(Some(handshake(session_id, HOSTED_DEVICE))),
                 Err("connection reset".into()),
             ]
             .into(),
@@ -257,7 +271,7 @@ mod tests {
     async fn a_handshake_reply_that_fails_still_closes_its_session() {
         let service = Arc::new(FakeService::default());
         let session_id = SessionId::new();
-        let source = OpenSource(Some(handshake(session_id)));
+        let source = OpenSource(Some(handshake(session_id, HOSTED_DEVICE)));
 
         let result = tokio::time::timeout(
             std::time::Duration::from_secs(1),
@@ -277,11 +291,28 @@ mod tests {
             ..Default::default()
         });
         let session_id = SessionId::new();
-        let source = ScriptedSource([Ok(Some(handshake(session_id)))].into());
+        let source = ScriptedSource([Ok(Some(handshake(session_id, HOSTED_DEVICE)))].into());
 
         let result = drive_session(source, DiscardingSink, service.clone(), None, |_| Ok(())).await;
 
         assert!(result.is_err());
         assert!(service.closed.lock().unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn a_device_the_server_does_not_host_is_refused() {
+        let service = Arc::new(FakeService::default());
+        let unhosted_device = service.device_count();
+        let source =
+            ScriptedSource([Ok(Some(handshake(SessionId::new(), unhosted_device)))].into());
+
+        let result = drive_session(source, DiscardingSink, service.clone(), None, |_| Ok(())).await;
+
+        let err = result.expect_err("the session was bound to a device the server does not host");
+        assert!(
+            err.contains(&format!("device {unhosted_device}")),
+            "got: {err}"
+        );
+        assert!(service.tasks.lock().unwrap().is_none());
     }
 }
