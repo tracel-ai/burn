@@ -26,6 +26,8 @@ type Channel = RemoteChannel;
 /// [`register`](Self::register) it. With `fusion` enabled the op joins the cached op-graph (via the
 /// fusion client); without it the op streams through the router client. Either way the op reaches the
 /// server, and the returned tensors are the matching `FloatTensor<RemoteBackend>`.
+///
+/// The server needs a handler registered under the op's `id`, with `RemoteServerBuilder::custom_op`.
 pub struct CustomOpClient {
     #[cfg(not(feature = "fusion"))]
     inner: <Channel as burn_router::RouterChannel>::Client,

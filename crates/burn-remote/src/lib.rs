@@ -54,12 +54,6 @@ mod __client {
     /// let peer = IrohPeerBuilder::new(server_id).with_credential(token).build();
     /// let remote = peer.connect(0).await?;
     /// ```
-    ///
-    /// For backends that aren't part of `DispatchDevice` but implement
-    /// `BackendIr`, build a [`server::RemoteServerBuilder`] directly with the
-    /// concrete backend type parameter — that is also how custom operations
-    /// (backend extensions) are hosted, via
-    /// [`custom_op`](server::RemoteServerBuilder::custom_op).
     #[cfg(not(feature = "fusion"))]
     pub type RemoteBackend = BackendRouter<RemoteChannel>;
 
