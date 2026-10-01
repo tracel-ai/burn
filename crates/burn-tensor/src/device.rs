@@ -297,7 +297,9 @@ pub enum DeviceKind {
     ///
     /// # Notes
     ///
-    /// This can be initialized with `init_device` from the wgpu runtime.
+    /// This identifies an already registered runtime. To register an application's
+    /// setup, use `Device::wgpu_options().setup(setup).init()` and retain the
+    /// returned device. Clone that device to share it; do not invent an existing ID.
     Existing(u32),
 }
 
@@ -541,18 +543,16 @@ impl Device {
     /// The graphics API — and so the shader compiler — is the runtime's to settle, from the
     /// enabled features and what the machine offers. `Device::vulkan`, `Device::metal` and
     /// `Device::webgpu` pin one instead: the same adapter on two APIs is two devices.
+    ///
+    /// This constructor is lazy. Use [`Device::wgpu_options`] to initialize with runtime
+    /// options or share an existing wgpu setup. In a browser, initialize asynchronously
+    /// with [`init_async`](crate::wgpu::WgpuOptions::init_async) before creating tensors.
     #[cfg(feature = "wgpu")]
     pub fn wgpu(device_kind: DeviceKind) -> Self {
         Self::new(wgpu_device(
             device_kind,
             burn_dispatch::devices::WgpuBackend::Auto,
         ))
-    }
-
-    #[cfg(all(feature = "wgpu", target_family = "wasm"))]
-    /// Asynchronously creates a WGPU device, initializing the client.
-    pub async fn wgpu_async(device_kind: DeviceKind) -> Self {
-        Self::new(wgpu_init_async(device_kind).await)
     }
 
     /// Vulkan-backed WGPU device, selected via [`DeviceKind`] — and so `SPIR-V`, where the
@@ -1205,7 +1205,7 @@ fn push_cube(devices: &mut Vec<Device>, runtime: RuntimeId) {
 /// Shared by [`Device::wgpu`], which leaves the graphics API to the runtime, and
 /// [`Device::vulkan`], [`Device::metal`] and [`Device::webgpu`], which each pin theirs.
 #[cfg(feature = "wgpu")]
-fn wgpu_device(
+pub(crate) fn wgpu_device(
     device_kind: DeviceKind,
     backend: burn_dispatch::devices::WgpuBackend,
 ) -> burn_dispatch::devices::WgpuDevice {
@@ -1221,17 +1221,6 @@ fn wgpu_device(
     };
 
     WgpuDevice::new(kind).on(backend)
-}
-
-#[cfg(all(feature = "wgpu", target_family = "wasm"))]
-// TODO: this is only helpful for the default graphics api and runtime options.. we'd have to expose other methods but that leaks the types
-// so we might have to introduce some wrapper types.
-async fn wgpu_init_async(device_kind: DeviceKind) -> burn_dispatch::devices::WgpuDevice {
-    use burn_dispatch::devices::{AutoGraphicsApi, init_setup_async};
-
-    let device = wgpu_device(device_kind, burn_dispatch::devices::WgpuBackend::Auto);
-    init_setup_async::<AutoGraphicsApi>(&device, Default::default()).await;
-    device
 }
 
 /// Represents the devices that can be used.

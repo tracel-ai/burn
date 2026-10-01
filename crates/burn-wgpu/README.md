@@ -31,9 +31,20 @@ initializing model parameters and inputs. Tensor and model types have no backend
 
 ## Configuration
 
-Use `Device::configure` to set dtype defaults before creating tensors. Runtime initialization and
-memory configuration are exposed through `burn_wgpu::init_setup` and `RuntimeOptions`; see the
-[backend API](https://docs.rs/burn-wgpu/latest/burn_wgpu/type.Wgpu.html).
+Use `Device::wgpu_options()` to configure the runtime before creating tensors:
+
+```rust,ignore
+use burn::tensor::{Device, wgpu::WgpuBackend};
+
+let device = Device::wgpu_options()
+    .graphics_api(WgpuBackend::Vulkan)
+    .tasks_max(32)
+    .init()?;
+```
+
+Use `.init_async().await?` in browsers or async applications. Options also include
+`.memory_config(...)` and `.setup(...)` for existing wgpu handles.
+Use `Device::configure` for dtype defaults.
 
 ## Graphics API and shader compiler
 
@@ -45,10 +56,10 @@ device constructor to select the graphics API.
 
 ## Platform Support
 
-| Option    | CPU | GPU | Linux | MacOS | Windows | Android | iOS | WASM |
-| :-------- | :-: | :-: | :---: | :---: | :-----: | :-----: | :-: | :--: |
-| Metal     | No  | Yes |  No   |  Yes  |   No    |   No    | Yes |  No  |
-| Vulkan    | Yes | Yes |  Yes  |  Yes  |   Yes   |   Yes   | Yes |  No  |
-| OpenGL    | No  | Yes |  Yes  |  Yes  |   Yes   |   Yes   | Yes |  No  |
-| WebGpu    | No  | Yes |  No   |  No   |   No    |   No    | No  | Yes  |
-| Dx12      | No  | Yes |  No   |  No   |   Yes   |   No    | No  |  No  |
+| Option | CPU | GPU | Linux | MacOS | Windows | Android | iOS | WASM |
+| :----- | :-: | :-: | :---: | :---: | :-----: | :-----: | :-: | :--: |
+| Metal  | No  | Yes |  No   |  Yes  |   No    |   No    | Yes |  No  |
+| Vulkan | Yes | Yes |  Yes  |  Yes  |   Yes   |   Yes   | Yes |  No  |
+| OpenGL | No  | Yes |  Yes  |  Yes  |   Yes   |   Yes   | Yes |  No  |
+| WebGpu | No  | Yes |  No   |  No   |   No    |   No    | No  | Yes  |
+| Dx12   | No  | Yes |  No   |  No   |   Yes   |   No    | No  |  No  |
