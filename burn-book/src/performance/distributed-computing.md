@@ -147,6 +147,8 @@ serves on it with `RemoteServer::into_protocol`. Endpoints Burn binds send no se
 `iroh_segmentation_offload` under `[remote]` in `burn.toml` turns them on. An application's own
 endpoint keeps its own setting.
 
+`Device::enumerate(DeviceType::Remote(host))` connects every device the server hosts, beside any
+local device type; `host.devices()` does the same and returns an error where `enumerate` panics.
 `init_async().await` connects from async code, and is the only form in a browser, where a
 synchronous connection cannot be established.
 
@@ -159,7 +161,7 @@ strategy:
 
 ```rust, ignore
 pub fn run() {
-    let devices = RemoteHost::websocket(ADDRESS).devices()?;
+    let devices = Device::enumerate(DeviceType::Remote(RemoteHost::websocket(ADDRESS)));
 
     crate::launch(ExecutionStrategy::ddp(
         devices.into_vec(),

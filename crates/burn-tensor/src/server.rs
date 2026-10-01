@@ -22,7 +22,7 @@ pub use burn_dispatch::__remote::server::WebSocketTransport;
 #[cfg(not(target_family = "wasm"))]
 pub use burn_dispatch::__remote::server::{IrohTransport, Transport};
 pub use burn_dispatch::__remote::{
-    BURN_REMOTE_ALPN, Credential, Endpoint, IrohRelays, RelayUrl,
+    BURN_REMOTE_ALPN, Credential, Endpoint, InvalidRelays, IrohRelays, RelayUrl,
     ir::{CustomOpIr, HandleContainer},
     server::{
         AllowAll, AuthorizationRequest, ClientId, CustomOpRegistry, EmptyToken, IrohIdentity,

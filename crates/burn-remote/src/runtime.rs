@@ -38,18 +38,12 @@ pub(crate) fn wait<T: Send + 'static>(work: impl FnOnce() -> T + Send + 'static)
 
 /// Run `work` on a blocking thread of Burn's runtime, awaited from any executor.
 #[cfg(feature = "client")]
-pub(crate) fn run<T: Send + 'static>(
-    work: impl FnOnce() -> T + Send + 'static,
-) -> impl core::future::Future<Output = T> + Send + 'static {
-    let (sender, receiver) = tokio::sync::oneshot::channel();
-    blocking_runtime().spawn_blocking(move || {
-        let _ = sender.send(catch_unwind(AssertUnwindSafe(work)));
-    });
-    async move {
-        match receiver.await {
-            Ok(Ok(value)) => value,
-            Ok(Err(panic)) => resume_unwind(panic),
+pub(crate) async fn run<T: Send + 'static>(work: impl FnOnce() -> T + Send + 'static) -> T {
+    match blocking_runtime().spawn_blocking(work).await {
+        Ok(value) => value,
+        Err(err) => match err.try_into_panic() {
+            Ok(panic) => resume_unwind(panic),
             Err(_) => panic!("Burn Remote's runtime dropped its work"),
-        }
+        },
     }
 }

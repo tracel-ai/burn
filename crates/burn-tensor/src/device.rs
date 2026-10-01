@@ -857,16 +857,21 @@ impl Device {
 
     /// Retrieves all available [`Device`]s that match the given [`DeviceType`] filter.
     ///
-    /// Backends enumerate the hardware found on this machine. A remote server's devices are
-    /// listed by its host instead, with `RemoteHost::devices`, which can fail:
+    /// Backends enumerate the hardware found on this machine, and `DeviceType::Remote` every
+    /// device a remote server hosts:
     ///
     /// ```rust,ignore
     /// // Every CUDA device on this machine.
     /// let local = Device::enumerate(DeviceType::Cuda);
     ///
     /// // Filters combine with `|`.
-    /// let both = Device::enumerate(DeviceType::Cuda | DeviceType::Cpu);
+    /// let both = Device::enumerate(DeviceType::Cuda | DeviceType::Remote(host));
     /// ```
+    ///
+    /// # Panics
+    ///
+    /// When a remote server cannot be reached or refuses the client: `RemoteHost::devices`
+    /// returns that error instead.
     pub fn enumerate(filter: impl Into<DeviceFilter>) -> Devices {
         #[allow(unused)]
         let mut devices = Vec::new();
@@ -921,6 +926,11 @@ impl Device {
                 DeviceType::NdArray => DispatchDeviceId::NdArray,
                 #[cfg(feature = "tch")]
                 DeviceType::LibTorch => DispatchDeviceId::LibTorch,
+                #[cfg(feature = "remote")]
+                DeviceType::Remote(host) => {
+                    devices.extend(host.enumerate());
+                    continue;
+                }
             };
 
             #[allow(unreachable_code)] // need to have one backend enabled, so it is reachable
@@ -1101,10 +1111,11 @@ pub(crate) fn wgpu_device(
 /// Represents the devices that can be used.
 ///
 /// `DeviceType` is used to filter the available device types for [`Device::enumerate`]. Each
-/// variant selects a backend's hardware on this machine.
+/// variant selects a backend's hardware on this machine, except `Remote`, which selects a remote
+/// server's devices.
 ///
 /// Variants combine into a [`DeviceFilter`] with the `|` operator, so a single
-/// [`Device::enumerate`] call can span several backends.
+/// [`Device::enumerate`] call can span several backends and remote servers.
 #[allow(missing_docs)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DeviceType {
@@ -1128,6 +1139,11 @@ pub enum DeviceType {
     NdArray,
     #[cfg(feature = "tch")]
     LibTorch,
+    /// Every device the remote server `host` hosts, each connected in its own session when
+    /// enumerated. [`RemoteHost::devices`](crate::remote::RemoteHost::devices) does the same and
+    /// returns an error where `enumerate` panics.
+    #[cfg(feature = "remote")]
+    Remote(crate::remote::RemoteHost),
 }
 
 /// A set of [`DeviceType`]s passed to [`Device::enumerate`].

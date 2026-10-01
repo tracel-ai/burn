@@ -38,18 +38,41 @@ pub enum IrohRelays {
 }
 
 impl FromStr for IrohRelays {
-    type Err = String;
+    type Err = InvalidRelays;
 
     fn from_str(relays: &str) -> Result<Self, Self::Err> {
         match relays {
             "public" => Ok(Self::Public),
             "disabled" => Ok(Self::Disabled),
-            url => url.parse().map(|url| Self::Private { url }).map_err(|err| {
-                format!("relays are `public`, `disabled` or a relay URL, got `{url}`: {err}")
-            }),
+            url => url
+                .parse()
+                .map(|url| Self::Private { url })
+                .map_err(|err| InvalidRelays {
+                    input: url.to_string(),
+                    reason: err.to_string(),
+                }),
         }
     }
 }
+
+/// A relay setting that is neither `public`, `disabled` nor a relay URL.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct InvalidRelays {
+    input: String,
+    reason: String,
+}
+
+impl fmt::Display for InvalidRelays {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "relays are `public`, `disabled` or a relay URL, got `{}`: {}",
+            self.input, self.reason
+        )
+    }
+}
+
+impl core::error::Error for InvalidRelays {}
 
 impl fmt::Display for IrohRelays {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

@@ -12,8 +12,8 @@ use core::future::Future;
 
 use burn_dispatch::__remote::HostSpec;
 pub use burn_dispatch::__remote::{
-    ConnectError, Credential, CustomOpClient, Endpoint, EndpointAddr, EndpointId, IrohHost,
-    IrohRelays, RelayUrl,
+    ConnectError, Credential, CustomOpClient, Endpoint, EndpointAddr, EndpointId, InvalidRelays,
+    IrohHost, IrohRelays, RelayUrl,
 };
 
 use crate::{Device, DeviceIndex, Devices};
@@ -45,7 +45,9 @@ impl RemoteHost {
         Self(self.0.with_credential(credential))
     }
 
-    /// Connect every device the server hosts, one session each.
+    /// Connect every device the server hosts, one session each, whether or not it is then used.
+    /// `Device::enumerate(DeviceType::Remote(host))` lists the same devices, and panics where this
+    /// returns an error.
     ///
     /// # Errors
     ///
@@ -84,6 +86,24 @@ impl RemoteHost {
     }
 }
 
+impl RemoteHost {
+    /// The server's devices for [`Device::enumerate`], which cannot return an error.
+    #[cfg(not(target_family = "wasm"))]
+    pub(crate) fn enumerate(&self) -> Devices {
+        self.devices().unwrap_or_else(|err| {
+            panic!("Cannot list the devices of the remote server {self:?}: {err}")
+        })
+    }
+
+    #[cfg(target_family = "wasm")]
+    pub(crate) fn enumerate(&self) -> Devices {
+        panic!(
+            "Listing a remote server's devices blocks, which a browser cannot do: use \
+             `RemoteHost::devices_async`"
+        )
+    }
+}
+
 /// Which device of a [`RemoteHost`] to connect. Built by [`Device::remote_options`]; nothing
 /// connects until [`init`](Self::init) or [`init_async`](Self::init_async).
 #[must_use = "remote options do nothing until initialized"]
@@ -104,7 +124,11 @@ impl RemoteOptions {
     /// Open the device's session and wait for the server's answer.
     ///
     /// A device whose session ended, as when its server restarted, is not reopened: this connects
-    /// a new device, and the old one's tensors are gone.
+    /// a new device, and the old one's tensors are gone. Reads on the old device return errors,
+    /// and its queries that cannot, such as `dtype_usage`, panic.
+    ///
+    /// Every device keeps its id and its runner thread for the life of the process, and a process
+    /// can connect 65,536 devices, a new one each time a session ended.
     ///
     /// # Errors
     ///

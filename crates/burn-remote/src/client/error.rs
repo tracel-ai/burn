@@ -7,7 +7,6 @@ use crate::shared::{PROTOCOL_VERSION, SessionRefusal};
 /// [`Unreachable`](Self::Unreachable) and [`Handshake`](Self::Handshake) can pass on a later try;
 /// the others need a change to the client or the server.
 #[derive(Debug)]
-#[non_exhaustive]
 pub enum ConnectError {
     /// No address was given and the endpoint has no way to look one up: relays are disabled, or
     /// the endpoint was bound without an address lookup.
@@ -15,21 +14,18 @@ pub enum ConnectError {
     NoAddress,
     /// The Iroh endpoint Burn binds could not be bound.
     #[cfg(feature = "iroh")]
-    #[non_exhaustive]
     Bind {
         /// Iroh's reason.
         source: iroh::endpoint::BindError,
     },
     /// The host's settings cannot work together, such as an application endpoint combined with
     /// relays for an endpoint Burn binds.
-    #[non_exhaustive]
     InvalidConfiguration {
         /// Which settings conflict.
         reason: String,
     },
     /// No session could be opened with the server: it is not running, nothing answered at its
     /// addresses, or another endpoint answered there.
-    #[non_exhaustive]
     Unreachable {
         /// What failed.
         reason: String,
@@ -37,14 +33,12 @@ pub enum ConnectError {
     /// The server's authorizer rejected the credential. Its reason is in the server's log.
     Unauthorized,
     /// The server does not host the device index asked for.
-    #[non_exhaustive]
     NoSuchDevice {
         /// How many devices the server hosts.
         device_count: usize,
     },
     /// The server speaks another version of the Burn Remote protocol: build both with the same
     /// Burn release. The higher version is the newer release.
-    #[non_exhaustive]
     IncompatibleProtocol {
         /// The version this client speaks.
         client_version: u16,
@@ -53,7 +47,6 @@ pub enum ConnectError {
     },
     /// The server was reached, but the session handshake broke off or its reply made no sense. A
     /// server on an older Burn release refuses a session by closing it unanswered, which lands here.
-    #[non_exhaustive]
     Handshake {
         /// What went wrong.
         reason: String,

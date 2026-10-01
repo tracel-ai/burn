@@ -42,17 +42,17 @@ macro_rules! with_backend {
                 $body
             }
             #[cfg(feature = "tch")]
-            Some(DispatchDevice::LibTorch(_)) => Err(ServeError::unsupported_device(
-                "LibTorch cannot run remote sessions",
-            )),
+            Some(DispatchDevice::LibTorch(_)) => Err(ServeError::UnsupportedDevice {
+                reason: "LibTorch cannot run remote sessions".into(),
+            }),
             #[cfg(feature = "remote")]
-            Some(DispatchDevice::Remote(_)) => Err(ServeError::unsupported_device(
-                "a remote device cannot host a remote server",
-            )),
+            Some(DispatchDevice::Remote(_)) => Err(ServeError::UnsupportedDevice {
+                reason: "a remote device cannot host a remote server".into(),
+            }),
             #[cfg(feature = "capture")]
-            Some(DispatchDevice::Capture(_)) => Err(ServeError::unsupported_device(
-                "a capture device cannot host a remote server",
-            )),
+            Some(DispatchDevice::Capture(_)) => Err(ServeError::UnsupportedDevice {
+                reason: "a capture device cannot host a remote server".into(),
+            }),
             #[cfg(feature = "autodiff")]
             Some(DispatchDevice::Autodiff(_)) => {
                 unreachable!("Autodiff stripped by DispatchDevice::inner")

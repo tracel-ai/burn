@@ -57,7 +57,7 @@ impl WebSocketTransport {
         }
     }
 
-    /// Serve until the returned future is dropped.
+    /// Serve until `setup`'s shutdown is cancelled, or the returned future is dropped.
     pub(crate) async fn serve<B: BackendIr>(
         self,
         setup: SessionSetup<B>,

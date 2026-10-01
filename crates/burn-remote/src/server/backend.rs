@@ -87,7 +87,7 @@ impl<B: BackendIr> BackendServer<B> {
     }
 
     /// Serve on `transport`, blocking the calling thread until the process receives Ctrl+C or
-    /// `SIGTERM`.
+    /// `SIGTERM`, then close every session before returning.
     ///
     /// Installs [`ServerLogging`] and the signal handlers. The server runs on Burn's own runtime,
     /// so this can be called from any thread, inside an async runtime or not.
@@ -98,12 +98,17 @@ impl<B: BackendIr> BackendServer<B> {
     #[cfg(not(target_family = "wasm"))]
     pub fn serve(&self, transport: impl Into<Transport>) -> Result<(), ServeError> {
         ServerLogging::install();
-        let serving = self.serve_async(transport);
+        let shutdown = CancellationToken::new();
+        let serving = self.serve_until(transport.into(), shutdown.clone());
         runtime::wait(move || {
             runtime::blocking_runtime().handle().block_on(async move {
+                let mut serving = core::pin::pin!(serving);
                 tokio::select! {
-                    served = serving => served,
-                    stopped = os_shutdown_signal() => stopped,
+                    served = &mut serving => served,
+                    stopped = os_shutdown_signal() => {
+                        shutdown.cancel();
+                        serving.await.and(stopped)
+                    }
                 }
             })
         })
@@ -123,12 +128,23 @@ impl<B: BackendIr> BackendServer<B> {
         &self,
         transport: T,
     ) -> impl Future<Output = Result<(), ServeError>> + Send + 'static + use<B, T> {
-        let transport = transport.into();
+        let shutdown = CancellationToken::new();
+        let serving = self.serve_until(transport.into(), shutdown.clone());
+        async move {
+            let _ends_sessions = shutdown.drop_guard();
+            serving.await
+        }
+    }
+
+    #[cfg(not(target_family = "wasm"))]
+    fn serve_until(
+        &self,
+        transport: Transport,
+        shutdown: CancellationToken,
+    ) -> impl Future<Output = Result<(), ServeError>> + Send + 'static + use<B> {
         let devices = self.devices.clone();
         let settings = self.settings.clone();
         async move {
-            let shutdown = CancellationToken::new();
-            let _ends_sessions = shutdown.clone().drop_guard();
             transport
                 .serve(settings.sessions_of::<B>(devices, shutdown)?)
                 .await

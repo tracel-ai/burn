@@ -9,7 +9,7 @@ use burn_remote::{
 };
 use burn_tensor::{
     DType, Device, Int, Tensor, TensorData,
-    remote::{ConnectError, IrohHost, RemoteHost},
+    remote::{ConnectError, IrohHost, IrohRelays, RemoteHost},
 };
 use iroh::{
     Endpoint, EndpointAddr, RelayMode, SecretKey, address_lookup::MemoryLookup, endpoint::presets,
@@ -22,15 +22,16 @@ use tokio::task::coop;
 const ADDRESS_LATE_BY: Duration = Duration::from_millis(700);
 
 async fn local_endpoint() -> Endpoint {
-    local_endpoint_with_key(SecretKey::generate()).await
+    local_endpoint_at(SecretKey::generate(), 0).await
 }
 
-async fn local_endpoint_with_key(key: SecretKey) -> Endpoint {
+/// An endpoint on loopback `port`, 0 for one the OS picks.
+async fn local_endpoint_at(key: SecretKey, port: u16) -> Endpoint {
     Endpoint::builder(presets::Minimal)
         .secret_key(key)
         .relay_mode(RelayMode::Disabled)
         .clear_ip_transports()
-        .bind_addr("127.0.0.1:0")
+        .bind_addr(format!("127.0.0.1:{port}"))
         .unwrap()
         .bind()
         .await
@@ -184,37 +185,31 @@ async fn a_device_dialed_with_no_address_and_no_lookup_connects_once_given_one()
     router.shutdown().await.unwrap();
 }
 
-#[test]
-fn a_device_retried_after_its_first_runtime_shut_down_runs_on_the_new_one() {
-    within_hang_limit(|| {
-        let runtime = tokio::runtime::Runtime::new().unwrap();
-        let server = runtime.block_on(local_endpoint());
-        let client = runtime.block_on(local_endpoint());
-        let router = {
-            let _guard = runtime.enter();
-            spawn_router::<Flex>(server.clone(), AllowAll, TelemetryProbe::disabled())
-        };
+#[tokio::test(flavor = "multi_thread")]
+async fn an_iroh_host_with_both_an_endpoint_and_relays_is_refused() {
+    let host = RemoteHost::iroh(
+        IrohHost::new(SecretKey::generate().public())
+            .with_relays(IrohRelays::Disabled)
+            .with_endpoint(local_endpoint().await),
+    );
 
-        let first = tokio::runtime::Runtime::new().unwrap();
-        let result = {
-            let _guard = first.enter();
-            Device::remote_options(&host_dialed_from(&client, server.id())).init()
-        };
-        assert!(matches!(result, Err(ConnectError::NoAddress)), "{result:?}");
-        drop(first);
+    let result = Device::remote_options(&host).init_async().await;
+    assert!(
+        matches!(result, Err(ConnectError::InvalidConfiguration { .. })),
+        "{result:?}"
+    );
+}
 
-        let second = tokio::runtime::Runtime::new().unwrap();
-        let device = {
-            let _guard = second.enter();
-            Device::remote_options(&host_dialed_from(&client, server.addr()))
-                .init()
-                .unwrap()
-        };
-        let output = Tensor::<1>::from_floats([1.0, 2.0], &device) * 2.0;
-        assert_eq!(output.try_into_vec_as::<f32>().unwrap(), vec![2.0, 4.0]);
+#[tokio::test]
+async fn a_blocking_connect_cannot_starve_its_own_current_thread_runtime() {
+    let client = local_endpoint().await;
 
-        runtime.block_on(router.shutdown()).unwrap();
-    });
+    let result =
+        Device::remote_options(&host_dialed_from(&client, SecretKey::generate().public())).init();
+    assert!(
+        matches!(result, Err(ConnectError::InvalidConfiguration { .. })),
+        "{result:?}"
+    );
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -403,9 +398,9 @@ async fn passes_application_credentials_to_the_peer_authorizer() {
 #[tokio::test(flavor = "multi_thread")]
 async fn a_second_live_endpoint_with_a_serving_key_cannot_carry_the_protocol() {
     let key = SecretKey::generate();
-    let serving = local_endpoint_with_key(key.clone()).await;
+    let serving = local_endpoint_at(key.clone(), 0).await;
     let router = spawn_router::<Flex>(serving, AllowAll, TelemetryProbe::disabled());
-    let twin = local_endpoint_with_key(key).await;
+    let twin = local_endpoint_at(key, 0).await;
 
     let protocol = BackendServer::<Flex>::new(vec![Default::default()]).into_protocol(&twin);
     assert!(
@@ -806,6 +801,22 @@ mod iroh_peer {
             Device::remote_options(&host).init_async().await,
             Err(ConnectError::NoAddress)
         ));
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn an_endpoint_that_carried_the_protocol_frees_its_port_once_dropped() {
+        let port = free_udp_port();
+        let key = SecretKey::generate();
+        let first = local_endpoint_at(key.clone(), port).await;
+        drop(
+            BackendServer::<Flex>::new(vec![Default::default()])
+                .into_protocol(&first)
+                .unwrap(),
+        );
+        first.close().await;
+        drop(first);
+
+        local_endpoint_at(key, port).await;
     }
 
     /// A port free on IPv4, and on IPv6 where the host has it.

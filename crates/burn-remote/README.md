@@ -26,8 +26,9 @@ let output = Tensor::<1>::from_floats([1.0, 2.0], &device) * 2.0;
 ```
 
 - `init_async().await` connects from async code, and is the only form in a browser.
-- `.device_index(1)` picks another of the server's devices, and `host.devices()` connects all of
-  them.
+- `.device_index(1)` picks another of the server's devices.
+- `Device::enumerate(DeviceType::Remote(host))` connects all of them, beside any local device type;
+  `host.devices()` does the same and returns an error where `enumerate` panics.
 - `RemoteHost::websocket("ws://gpu:3000")` reaches a WebSocket server.
 
 An Iroh server's relays must match the client's:

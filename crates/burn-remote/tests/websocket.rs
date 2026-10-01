@@ -8,7 +8,7 @@ use burn_remote::{
         WebSocketTransport,
     },
 };
-use burn_tensor::{Device, Distribution, Tensor, remote::RemoteHost};
+use burn_tensor::{Device, DeviceType, Distribution, Tensor, remote::RemoteHost};
 
 const TOKEN: &str = "fleet-token";
 
@@ -326,7 +326,8 @@ fn test_enumerate_remote_devices() {
         ]),
     );
 
-    let devices = host.devices().unwrap().into_vec();
+    let devices = Device::enumerate(DeviceType::Remote(host.clone())).into_vec();
+    assert_eq!(host.devices().unwrap().into_vec(), devices);
 
     // The server reports its three devices, in index order.
     assert_eq!(devices.len(), 3);
@@ -428,6 +429,45 @@ fn dropping_the_serving_future_ends_its_live_sessions() {
         let read = (Tensor::<1>::from_floats([3.0], &device) * 2.0).try_into_data();
         assert!(read.is_err(), "a session outlived its server: {read:?}");
     });
+    rt.shutdown_background();
+}
+
+#[test]
+fn a_device_whose_server_restarted_is_replaced_by_a_new_one() {
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .enable_io()
+        .build()
+        .unwrap();
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let address = listener.local_addr().unwrap();
+    let host = host_of(&listener);
+    let first = rt.spawn(
+        BackendServer::<Flex>::new(vec![Default::default()])
+            .serve_async(WebSocketTransport::from_listener(listener)),
+    );
+
+    let old = Device::remote_options(&host).init().unwrap();
+    let doubled = Tensor::<1>::from_floats([1.0], &old) * 2.0;
+    assert_eq!(doubled.try_into_vec_as::<f32>().unwrap(), vec![2.0]);
+
+    first.abort();
+    assert!(rt.block_on(first).unwrap_err().is_cancelled());
+    let stale = old.clone();
+    with_deadlock_watchdog(HANG_LIMIT, move || {
+        let read = (Tensor::<1>::from_floats([1.0], &stale) * 2.0).try_into_data();
+        assert!(read.is_err(), "a session outlived its server: {read:?}");
+    });
+
+    let listener = std::net::TcpListener::bind(address).unwrap();
+    rt.spawn(
+        BackendServer::<Flex>::new(vec![Default::default()])
+            .serve_async(WebSocketTransport::from_listener(listener)),
+    );
+    let new = Device::remote_options(&host).init().unwrap();
+    assert_ne!(new, old);
+    let doubled = Tensor::<1>::from_floats([3.0], &new) * 2.0;
+    assert_eq!(doubled.try_into_vec_as::<f32>().unwrap(), vec![6.0]);
+
     rt.shutdown_background();
 }
 

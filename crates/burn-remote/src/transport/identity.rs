@@ -13,7 +13,7 @@ pub enum PeerId {
     /// An Iroh endpoint, authenticated by its public key.
     #[cfg(feature = "iroh")]
     Iroh(iroh::EndpointId),
-    /// A legacy WebSocket endpoint.
+    /// A WebSocket endpoint.
     #[cfg(feature = "websocket")]
     WebSocket(Address),
 }
@@ -68,7 +68,7 @@ pub enum PeerAddr {
     /// when the configured Iroh address lookup can resolve it.
     #[cfg(feature = "iroh")]
     Iroh(iroh::EndpointAddr),
-    /// A legacy WebSocket address.
+    /// A WebSocket address.
     #[cfg(feature = "websocket")]
     WebSocket(Address),
 }

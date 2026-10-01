@@ -2,7 +2,7 @@
 
 use std::{
     collections::HashMap,
-    sync::{Arc, LazyLock},
+    sync::{Arc, LazyLock, Weak},
 };
 
 #[cfg(feature = "client")]
@@ -19,8 +19,9 @@ use super::relays::IrohRelays;
 use crate::{PeerAddr, PeerId, transport::OpenError};
 
 /// The node of each application endpoint, by its id, so the devices and the server built on one
-/// endpoint answer each other's connections.
-static APP_NODES: LazyLock<std::sync::Mutex<HashMap<EndpointId, RemoteNode>>> =
+/// endpoint answer each other's connections. Weak, because a node holds its endpoint, and Iroh
+/// keeps an endpoint's sockets bound until its last clone drops.
+static APP_NODES: LazyLock<std::sync::Mutex<HashMap<EndpointId, Weak<RemoteNodeInner>>>> =
     LazyLock::new(Default::default);
 
 /// The node Burn binds for each relay setting, shared by every host that dials with it.
@@ -89,9 +90,10 @@ impl RemoteNode {
     /// endpoint's node is replaced.
     pub(crate) fn for_endpoint(endpoint: &Endpoint) -> Result<Self, String> {
         let mut nodes = APP_NODES.lock().unwrap();
-        if let Some(node) = nodes.get(&endpoint.id())
-            && !node.endpoint().is_closed()
+        if let Some(inner) = nodes.get(&endpoint.id()).and_then(Weak::upgrade)
+            && !inner.endpoint.is_closed()
         {
+            let node = Self { inner };
             #[cfg(not(target_family = "wasm"))]
             if node.endpoint().bound_sockets() != endpoint.bound_sockets() {
                 return Err(format!(
@@ -100,10 +102,11 @@ impl RemoteNode {
                     endpoint.id().fmt_short()
                 ));
             }
-            return Ok(node.clone());
+            return Ok(node);
         }
+        nodes.retain(|_, inner| inner.strong_count() > 0);
         let node = Self::from_endpoint(endpoint.clone());
-        nodes.insert(endpoint.id(), node.clone());
+        nodes.insert(endpoint.id(), Arc::downgrade(&node.inner));
         Ok(node)
     }
 

@@ -71,7 +71,7 @@ impl IrohTransport {
         builder.bind().await.map_err(ServeError::bind)
     }
 
-    /// Serve until the returned future is dropped.
+    /// Serve until `setup`'s shutdown is cancelled, or the returned future is dropped.
     pub(crate) async fn serve<B: BackendIr>(
         self,
         setup: SessionSetup<B>,
@@ -88,11 +88,15 @@ impl IrohTransport {
 
         let node = RemoteNode::for_endpoint(&endpoint)
             .map_err(|reason| ServeError::InvalidEndpoint { reason })?;
-        let router = Router::builder(endpoint)
-            .accept(BURN_REMOTE_ALPN, IrohRemoteProtocol::new(node, setup))
-            .spawn();
-        let _router = ShutdownOnDrop(router);
-        core::future::pending().await
+        let shutdown = setup.shutdown.clone();
+        let router = ShutdownOnDrop(Some(
+            Router::builder(endpoint)
+                .accept(BURN_REMOTE_ALPN, IrohRemoteProtocol::new(node, setup))
+                .spawn(),
+        ));
+        shutdown.cancelled().await;
+        router.shutdown().await;
+        Ok(())
     }
 }
 
@@ -106,19 +110,31 @@ impl fmt::Debug for IrohTransport {
     }
 }
 
-/// Shuts a router down when the serving future is dropped. Dropping the router alone would stop
-/// accepting but leave its endpoint bound, holding the port.
-struct ShutdownOnDrop(Router);
+/// Shuts a router down, closing its connections so clients learn at once that the server is gone.
+/// Dropped without [`shutdown`](Self::shutdown), as when the serving future is, it can only start
+/// the shutdown in the background.
+struct ShutdownOnDrop(Option<Router>);
+
+impl ShutdownOnDrop {
+    async fn shutdown(mut self) {
+        if let Some(router) = self.0.take() {
+            Self::close(router).await;
+        }
+    }
+
+    async fn close(router: Router) {
+        if let Err(err) = router.shutdown().await {
+            log::warn!("Burn Remote Iroh router shutdown failed: {err}");
+        }
+    }
+}
 
 impl Drop for ShutdownOnDrop {
     fn drop(&mut self) {
-        let router = self.0.clone();
-        if let Ok(runtime) = tokio::runtime::Handle::try_current() {
-            runtime.spawn(async move {
-                if let Err(err) = router.shutdown().await {
-                    log::warn!("Burn Remote Iroh router shutdown failed: {err}");
-                }
-            });
+        if let Some(router) = self.0.take()
+            && let Ok(runtime) = tokio::runtime::Handle::try_current()
+        {
+            runtime.spawn(Self::close(router));
         }
     }
 }

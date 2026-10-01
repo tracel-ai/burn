@@ -9,7 +9,6 @@ use super::{ServeError, SessionSetup};
 
 /// How a server accepts clients. Built from an [`IrohTransport`] or a [`WebSocketTransport`].
 #[derive(Debug)]
-#[non_exhaustive]
 pub enum Transport {
     /// Over Iroh: any network, authenticated and encrypted.
     #[cfg(feature = "iroh")]

@@ -32,6 +32,14 @@ pub(crate) struct IrohRemoteProtocol<B: BackendIr> {
     shutdown: CancellationToken,
 }
 
+/// A router dropped without `shutdown` drops its handlers, and the sessions they spawned would
+/// otherwise outlive it.
+impl<B: BackendIr> Drop for IrohRemoteProtocol<B> {
+    fn drop(&mut self) {
+        self.shutdown.cancel();
+    }
+}
+
 impl<B: BackendIr> fmt::Debug for IrohRemoteProtocol<B> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("IrohRemoteProtocol")

@@ -11,7 +11,6 @@ use crate::Credential;
 
 /// The client asking for a session, as its transport identifies it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-#[non_exhaustive]
 pub enum ClientId {
     /// The client's Iroh endpoint id, which the transport authenticates.
     #[cfg(feature = "iroh")]
@@ -35,7 +34,6 @@ impl fmt::Display for ClientId {
 
 /// A session a client asks to open, presented to the server's [`PeerAuthorizer`].
 #[derive(Debug)]
-#[non_exhaustive]
 pub struct AuthorizationRequest<'a> {
     /// Who is asking.
     pub client: ClientId,

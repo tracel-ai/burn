@@ -4,7 +4,7 @@
 //! client layers depend on lives under this module.
 
 mod relays;
-pub use relays::IrohRelays;
+pub use relays::{InvalidRelays, IrohRelays};
 
 #[cfg(feature = "client")]
 mod host;

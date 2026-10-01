@@ -4,10 +4,8 @@ type Source = Box<dyn std::error::Error + Send + Sync>;
 
 /// Why a server could not serve.
 #[derive(Debug)]
-#[non_exhaustive]
 pub enum ServeError {
     /// The transport could not bind its socket or endpoint, as when the port is taken.
-    #[non_exhaustive]
     Bind {
         /// The transport's reason.
         source: Source,
@@ -15,7 +13,6 @@ pub enum ServeError {
     /// The server was given no device to host.
     NoDevices,
     /// A device whose backend cannot run remote sessions, such as LibTorch or a remote device.
-    #[non_exhaustive]
     UnsupportedDevice {
         /// Which device, and why.
         reason: String,
@@ -24,19 +21,16 @@ pub enum ServeError {
     /// and wgpu devices can be served together, but not with Flex or NdArray ones.
     MixedBackends,
     /// Custom operations were registered for a backend other than the devices'.
-    #[non_exhaustive]
     CustomOpBackend {
         /// The backend they were registered for.
         backend: &'static str,
     },
     /// The application's Iroh endpoint cannot carry the protocol.
-    #[non_exhaustive]
     InvalidEndpoint {
         /// Why.
         reason: String,
     },
     /// The handlers that stop a blocking `serve` on Ctrl+C or `SIGTERM` could not be installed.
-    #[non_exhaustive]
     SignalHandler {
         /// The operating system's reason.
         source: std::io::Error,
@@ -48,13 +42,6 @@ impl ServeError {
     pub(crate) fn bind(source: impl Into<Source>) -> Self {
         Self::Bind {
             source: source.into(),
-        }
-    }
-
-    #[doc(hidden)]
-    pub fn unsupported_device(reason: impl Into<String>) -> Self {
-        Self::UnsupportedDevice {
-            reason: reason.into(),
         }
     }
 }
