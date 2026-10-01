@@ -34,7 +34,7 @@ const OPEN_RETRY_DELAYS: [Duration; 6] = [
 ];
 
 /// Everything needed to establish a session with a remote compute peer.
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub(crate) enum RemoteEndpoint {
     #[cfg(feature = "iroh")]
     Iroh {
@@ -47,6 +47,25 @@ pub(crate) enum RemoteEndpoint {
         address: Address,
         authorization: Arc<[u8]>,
     },
+}
+
+impl core::fmt::Debug for RemoteEndpoint {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        // Never the authorization, which is often a shared secret.
+        match self {
+            #[cfg(feature = "iroh")]
+            Self::Iroh { node, peer, .. } => f
+                .debug_struct("Iroh")
+                .field("node", node)
+                .field("peer", peer)
+                .finish_non_exhaustive(),
+            #[cfg(feature = "websocket")]
+            Self::WebSocket { address, .. } => f
+                .debug_struct("WebSocket")
+                .field("address", address)
+                .finish_non_exhaustive(),
+        }
+    }
 }
 
 impl RemoteEndpoint {

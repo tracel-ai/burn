@@ -2,6 +2,7 @@ use super::*;
 use burn_tensor::Distribution;
 use burn_tensor::Tolerance;
 use burn_tensor::module::{max_pool2d, max_pool2d_with_indices};
+use burn_tensor::ops::MaxPoolOptions;
 
 #[test]
 fn test_max_pool2d_simple_1() {
@@ -37,11 +38,10 @@ fn test_max_pool2d_simple_1() {
 
     let output = max_pool2d(
         x.clone(),
-        [kernel_size_1, kernel_size_2],
-        [stride_1, stride_2],
-        [padding_1, padding_2],
-        [dilation_1, dilation_2],
-        false,
+        MaxPoolOptions::new([kernel_size_1, kernel_size_2])
+            .with_stride([stride_1, stride_2])
+            .with_padding([padding_1, padding_2])
+            .with_dilation([dilation_1, dilation_2]),
     );
     let grads = output.backward();
 
@@ -86,11 +86,10 @@ fn test_max_pool2d_simple_2() {
 
     let output = max_pool2d(
         x.clone(),
-        [kernel_size_1, kernel_size_2],
-        [stride_1, stride_2],
-        [padding_1, padding_2],
-        [dilation_1, dilation_2],
-        false,
+        MaxPoolOptions::new([kernel_size_1, kernel_size_2])
+            .with_stride([stride_1, stride_2])
+            .with_padding([padding_1, padding_2])
+            .with_dilation([dilation_1, dilation_2]),
     );
     let grads = output.backward();
 
@@ -135,11 +134,10 @@ fn test_max_pool2d_with_dilation() {
 
     let output = max_pool2d(
         x.clone(),
-        [kernel_size_1, kernel_size_2],
-        [stride_1, stride_2],
-        [padding_1, padding_2],
-        [dilation_1, dilation_2],
-        false,
+        MaxPoolOptions::new([kernel_size_1, kernel_size_2])
+            .with_stride([stride_1, stride_2])
+            .with_padding([padding_1, padding_2])
+            .with_dilation([dilation_1, dilation_2]),
     );
     let grads = output.backward();
 
@@ -186,11 +184,10 @@ fn test_max_pool2d_complex() {
 
     let output = max_pool2d(
         x.clone(),
-        [kernel_size_1, kernel_size_2],
-        [stride_1, stride_2],
-        [padding_1, padding_2],
-        [dilation_1, dilation_2],
-        false,
+        MaxPoolOptions::new([kernel_size_1, kernel_size_2])
+            .with_stride([stride_1, stride_2])
+            .with_padding([padding_1, padding_2])
+            .with_dilation([dilation_1, dilation_2]),
     );
     let grads = output.backward();
 
@@ -256,11 +253,11 @@ fn test_max_pool2d_ceil_mode() {
 
     let output = max_pool2d(
         x.clone(),
-        [kernel_size_1, kernel_size_2],
-        [stride_1, stride_2],
-        [padding_1, padding_2],
-        [dilation_1, dilation_2],
-        true,
+        MaxPoolOptions::new([kernel_size_1, kernel_size_2])
+            .with_stride([stride_1, stride_2])
+            .with_padding([padding_1, padding_2])
+            .with_dilation([dilation_1, dilation_2])
+            .with_ceil_mode(true),
     );
     let grads = output.backward();
 
@@ -331,30 +328,18 @@ impl MaxPool2dWithIndicesTestCase {
         let device = AutodiffDevice::new();
         let shape = [2, 3, self.height, self.width];
         let data = TestTensor::<4>::random(shape, Distribution::Default, &device).into_data();
-        let [kernel_size, stride, padding, dilation] =
-            [self.kernel_size, self.stride, self.padding, self.dilation].map(|v| [v, v]);
+        let options = MaxPoolOptions::new([self.kernel_size; 2])
+            .with_stride([self.stride; 2])
+            .with_padding([self.padding; 2])
+            .with_dilation([self.dilation; 2])
+            .with_ceil_mode(self.ceil_mode);
 
         let grad = |with_indices: bool| {
             let x = TestTensor::<4>::from_data(data.clone(), &device).require_grad();
             let output = if with_indices {
-                max_pool2d_with_indices(
-                    x.clone(),
-                    kernel_size,
-                    stride,
-                    padding,
-                    dilation,
-                    self.ceil_mode,
-                )
-                .0
+                max_pool2d_with_indices(x.clone(), options.clone()).0
             } else {
-                max_pool2d(
-                    x.clone(),
-                    kernel_size,
-                    stride,
-                    padding,
-                    dilation,
-                    self.ceil_mode,
-                )
+                max_pool2d(x.clone(), options.clone())
             };
             let weights =
                 TestTensorInt::<1>::arange(1..output.shape().num_elements() as i64 + 1, &device)

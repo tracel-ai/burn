@@ -119,7 +119,8 @@ logger = { level = "basic", stderr = true }
 
 ### Remote Backend
 
-The `[remote]` section controls outgoing message batching and remote-backend logging.
+The `[remote]` section controls outgoing message batching, remote-backend logging and the Iroh
+transport.
 
 **Log Levels:**
 
@@ -135,6 +136,11 @@ The `[remote]` section controls outgoing message batching and remote-backend log
 
 Larger thresholds allow more batching; smaller thresholds reduce the delay before buffered work is
 sent.
+
+**Transport Settings:**
+
+- `iroh_segmentation_offload`: Lets the Iroh endpoints Burn binds send segmentation-offloaded
+  (GSO) batches (default: `false`, see [iroh#4555](https://github.com/n0-computer/iroh/issues/4555)).
 
 **Example:**
 

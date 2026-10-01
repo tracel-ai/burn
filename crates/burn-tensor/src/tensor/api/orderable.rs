@@ -962,6 +962,9 @@ where
 
     /// Clamp element wise between the given min and max values.
     ///
+    /// For floating-point tensors, if the result is zero and the input and bounds
+    /// include zeros of opposite signs, either sign of zero may be returned.
+    ///
     /// # Arguments
     ///
     /// * `min` - The minimum value.

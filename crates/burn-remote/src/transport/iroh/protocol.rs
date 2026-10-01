@@ -56,6 +56,41 @@ impl PeerAuthorizer for AllowAll {
     }
 }
 
+/// Serves only the clients whose credential is this token, which a client sets with
+/// `IrohPeerBuilder::with_credential`.
+#[derive(Clone)]
+pub struct TokenAuthorizer {
+    // A digest compares in constant time whatever the credential's length, so timing reveals
+    // neither the token nor its length.
+    digest: blake3::Hash,
+}
+
+impl TokenAuthorizer {
+    /// `None` for an empty token, which every client that sends no credential would present.
+    pub fn new(token: impl AsRef<[u8]>) -> Option<Self> {
+        let token = token.as_ref();
+        (!token.is_empty()).then(|| Self {
+            digest: blake3::hash(token),
+        })
+    }
+}
+
+impl PeerAuthorizer for TokenAuthorizer {
+    fn authorize(&self, request: AuthorizationRequest<'_>) -> Result<(), String> {
+        if blake3::hash(request.credential) == self.digest {
+            Ok(())
+        } else {
+            Err(format!("{} presented the wrong token", request.peer))
+        }
+    }
+}
+
+impl fmt::Debug for TokenAuthorizer {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("TokenAuthorizer").finish_non_exhaustive()
+    }
+}
+
 /// Iroh protocol handler for Burn Remote compute and tensor-transfer streams.
 ///
 /// Register this handler in an existing Iroh `Router` to compose Burn with other application
@@ -203,4 +238,30 @@ impl<B: BackendIr> ProtocolHandler for IrohRemoteProtocol<B> {
 
 fn user_error(reason: String) -> AcceptError {
     AcceptError::from_err(std::io::Error::other(reason))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn an_empty_token_is_refused() {
+        assert!(TokenAuthorizer::new("").is_none());
+    }
+
+    #[test]
+    fn only_the_token_is_let_in() {
+        let authorizer = TokenAuthorizer::new("secret-token").unwrap();
+        assert!(authorizer.authorize(request(b"secret-token")).is_ok());
+        assert!(authorizer.authorize(request(b"secret-toke")).is_err());
+        assert!(authorizer.authorize(request(b"")).is_err());
+    }
+
+    fn request(credential: &[u8]) -> AuthorizationRequest<'_> {
+        AuthorizationRequest {
+            peer: iroh::SecretKey::generate().public(),
+            device_index: 0,
+            credential,
+        }
+    }
 }
