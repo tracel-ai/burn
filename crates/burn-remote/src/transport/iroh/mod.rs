@@ -8,10 +8,10 @@ mod secret;
 pub use relays::IrohRelays;
 pub use secret::RemoteSecret;
 
-#[cfg(all(feature = "client", not(target_family = "wasm")))]
-mod peer;
-#[cfg(all(feature = "client", not(target_family = "wasm")))]
-pub use peer::{IrohPeer, IrohPeerBuilder};
+#[cfg(feature = "client")]
+mod host;
+#[cfg(feature = "client")]
+pub use host::IrohHost;
 
 #[cfg(feature = "server")]
 mod channel;

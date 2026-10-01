@@ -1,15 +1,28 @@
 //! Process-level Iroh endpoint used by Burn Remote clients and compute nodes.
 
-use std::{collections::HashMap, sync::Arc};
+use std::{
+    collections::HashMap,
+    sync::{Arc, LazyLock},
+};
 
 use iroh::{
     Endpoint, EndpointAddr, EndpointId,
-    endpoint::{Connection, RecvStream, SendStream},
+    endpoint::{BindError, Connection, RecvStream, SendStream},
 };
 use tokio::sync::Mutex;
 use tokio::sync::OnceCell;
 
+use super::relays::IrohRelays;
 use crate::{PeerAddr, PeerId, transport::OpenError};
+
+/// The node of each application endpoint, by its id, so the devices and the server built on one
+/// endpoint answer each other's connections.
+static APP_NODES: LazyLock<std::sync::Mutex<HashMap<EndpointId, RemoteNode>>> =
+    LazyLock::new(Default::default);
+
+/// The node Burn binds for each relay setting, shared by every host that dials with it.
+static OWNED_NODES: LazyLock<std::sync::Mutex<HashMap<IrohRelays, Arc<OnceCell<RemoteNode>>>>> =
+    LazyLock::new(Default::default);
 
 /// ALPN used by the version-one Burn Remote protocol.
 pub const BURN_REMOTE_ALPN: &[u8] = b"burn/remote/1";
@@ -55,14 +68,7 @@ impl core::fmt::Debug for RemoteNode {
 }
 
 impl RemoteNode {
-    /// Use an application-configured Iroh endpoint.
-    ///
-    /// Applications serving Burn Remote must include [`BURN_REMOTE_ALPN`] in the endpoint's
-    /// accepted ALPN list, or route that ALPN to Burn's protocol handler.
-    ///
-    /// On native client builds, the runtime that drives a device's session is captured when the
-    /// device is created (see [`RemoteNode::device`]), not here — so create devices from the
-    /// Tokio runtime that owns this endpoint.
+    /// A node of its own on `endpoint`, shared with nothing else in the process.
     pub fn from_endpoint(endpoint: Endpoint) -> Self {
         Self {
             inner: Arc::new(RemoteNodeInner {
@@ -70,6 +76,47 @@ impl RemoteNode {
                 connections: Mutex::new(HashMap::new()),
             }),
         }
+    }
+
+    /// The node shared by every user of `endpoint`.
+    ///
+    /// Iroh lets two live endpoints share one secret key, and a node keyed by that id would hand
+    /// the second the first one's connections, so a second live endpoint is refused. A closed
+    /// endpoint's node is replaced.
+    pub(crate) fn for_endpoint(endpoint: &Endpoint) -> Result<Self, String> {
+        let mut nodes = APP_NODES.lock().unwrap();
+        if let Some(node) = nodes.get(&endpoint.id())
+            && !node.endpoint().is_closed()
+        {
+            #[cfg(not(target_family = "wasm"))]
+            if node.endpoint().bound_sockets() != endpoint.bound_sockets() {
+                return Err(format!(
+                    "another live Iroh endpoint already has the id {}; bind one endpoint per \
+                     secret key",
+                    endpoint.id().fmt_short()
+                ));
+            }
+            return Ok(node.clone());
+        }
+        let node = Self::from_endpoint(endpoint.clone());
+        nodes.insert(endpoint.id(), node.clone());
+        Ok(node)
+    }
+
+    /// The node Burn binds for `relays`, bound the first time any host needs it.
+    pub(crate) async fn for_relays(relays: &IrohRelays) -> Result<Self, BindError> {
+        let cell = OWNED_NODES
+            .lock()
+            .unwrap()
+            .entry(relays.clone())
+            .or_default()
+            .clone();
+        cell.get_or_try_init(|| async {
+            let endpoint = relays.endpoint_builder().bind().await?;
+            Ok(Self::from_endpoint(endpoint))
+        })
+        .await
+        .cloned()
     }
 
     /// The cryptographic identity of this node.

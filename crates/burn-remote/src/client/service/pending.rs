@@ -81,6 +81,7 @@ impl PendingResponses {
 
 /// Delivers responses to the callbacks registered in [`PendingResponses`]. Held by the
 /// response-demux task, decoupled from the [`PendingResponses`] the runner thread owns.
+#[derive(Clone)]
 pub(crate) struct Responder {
     state: SharedState,
 }

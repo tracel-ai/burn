@@ -19,13 +19,13 @@
 use std::sync::Arc;
 
 use crate::Device;
-pub use burn_dispatch::backends::remote::server::{
+pub use burn_dispatch::__remote::BURN_REMOTE_ALPN;
+pub use burn_dispatch::__remote::server::{
     AllowAll, AuthorizationRequest, IrohChannel, IrohChannelBuilder, PeerAuthorizer,
     RemoteProtocol, ServerLogging, TokenAuthorizer,
 };
-pub use burn_dispatch::backends::remote::telemetry;
-pub use burn_dispatch::backends::remote::{Endpoint, IrohRelays, RelayUrl, RemoteSecret};
-pub use burn_dispatch::devices::BURN_REMOTE_ALPN;
+pub use burn_dispatch::__remote::telemetry;
+pub use burn_dispatch::__remote::{Endpoint, IrohRelays, RelayUrl, RemoteSecret};
 
 use telemetry::TelemetryProbe;
 

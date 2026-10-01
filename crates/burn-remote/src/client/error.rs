@@ -13,16 +13,20 @@ pub enum ConnectError {
     /// the endpoint was bound without an address lookup.
     #[cfg(feature = "iroh")]
     NoAddress,
-    /// The local Iroh endpoint could not be bound.
-    #[cfg(all(feature = "iroh", not(target_family = "wasm")))]
+    /// The Iroh endpoint Burn binds could not be bound.
+    #[cfg(feature = "iroh")]
     #[non_exhaustive]
     Bind {
         /// Iroh's reason.
         source: iroh::endpoint::BindError,
     },
-    /// The runtime shut down before the connection was attempted.
-    #[cfg(all(feature = "iroh", not(target_family = "wasm")))]
-    Interrupted,
+    /// The host's settings cannot work together, such as an application endpoint combined with
+    /// relays for an endpoint Burn binds.
+    #[non_exhaustive]
+    InvalidConfiguration {
+        /// Which settings conflict.
+        reason: String,
+    },
     /// No session could be opened with the server: it is not running, nothing answered at its
     /// addresses, or another endpoint answered there.
     #[non_exhaustive]
@@ -86,10 +90,9 @@ impl fmt::Display for ConnectError {
             Self::NoAddress => {
                 f.write_str("no address was given and the endpoint cannot look one up")
             }
-            #[cfg(all(feature = "iroh", not(target_family = "wasm")))]
+            #[cfg(feature = "iroh")]
             Self::Bind { source } => write!(f, "cannot bind an Iroh endpoint: {source}"),
-            #[cfg(all(feature = "iroh", not(target_family = "wasm")))]
-            Self::Interrupted => f.write_str("the runtime shut down before connecting"),
+            Self::InvalidConfiguration { reason } => write!(f, "invalid remote host: {reason}"),
             Self::Unreachable { reason } => write!(f, "the server cannot be reached: {reason}"),
             Self::Unauthorized => f.write_str("the server's authorizer rejected the credential"),
             Self::NoSuchDevice { device_count } => {
@@ -111,7 +114,7 @@ impl fmt::Display for ConnectError {
 impl std::error::Error for ConnectError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
-            #[cfg(all(feature = "iroh", not(target_family = "wasm")))]
+            #[cfg(feature = "iroh")]
             Self::Bind { source } => Some(source),
             _ => None,
         }

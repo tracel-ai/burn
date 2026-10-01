@@ -1,11 +1,9 @@
 //! The client session runtime.
 
-/// Process-global Tokio runtime for sessions opened outside an ambient runtime.
+/// Burn's own Tokio runtime, which binds the Iroh endpoints Burn owns and runs every native session.
 ///
-/// Fallback for synchronous callers (scripts, REPLs, notebooks) and the legacy WebSocket path. A
-/// native Iroh node also binds on this runtime so its endpoint and session tasks share one executor.
-/// When a device is built inside an existing runtime, that one is used instead and this fallback is
-/// never created.
+/// Sessions never run on the caller's runtime: a current-thread runtime blocked in a synchronous
+/// call could not drive them, and a runtime the caller shuts down would take them along.
 #[cfg(not(target_family = "wasm"))]
 pub(crate) fn blocking_runtime() -> &'static tokio::runtime::Runtime {
     use std::sync::OnceLock;
@@ -18,12 +16,9 @@ pub(crate) fn blocking_runtime() -> &'static tokio::runtime::Runtime {
     })
 }
 
-/// Executor for a remote session's writer and response-demux tasks.
-///
-/// Captured once at device construction and carried by the device registry, so the session reuses
-/// whatever runtime owns its transport. On native this wraps a Tokio runtime handle: the ambient
-/// runtime if one is active, otherwise the shared [`blocking_runtime`]. In the browser Iroh runs on
-/// the JS event loop; tasks are spawned with `spawn_local` and blocking calls are unavailable.
+/// Executor for a remote session's writer and response-demux tasks: [`blocking_runtime`] on
+/// native, and the JS event loop in the browser, where tasks are spawned with `spawn_local` and
+/// blocking calls are unavailable.
 #[derive(Clone, Debug)]
 pub(crate) enum Executor {
     #[cfg(not(target_family = "wasm"))]
@@ -40,20 +35,13 @@ pub(crate) struct SpawnHandle {
 }
 
 impl Executor {
-    /// Capture the executor for a new session at device-construction time.
-    ///
-    /// Native: the ambient Tokio runtime if one is active, otherwise the shared [`blocking_runtime`].
-    /// Browser: the JS event loop. The result is stored in the device registry.
     #[cfg(not(target_family = "wasm"))]
-    pub(crate) fn capture() -> Self {
-        match tokio::runtime::Handle::try_current() {
-            Ok(handle) => Self::Tokio(handle),
-            Err(_) => Self::Tokio(blocking_runtime().handle().clone()),
-        }
+    pub(crate) fn session() -> Self {
+        Self::Tokio(blocking_runtime().handle().clone())
     }
 
     #[cfg(target_family = "wasm")]
-    pub(crate) fn capture() -> Self {
+    pub(crate) fn session() -> Self {
         Self::WasmLocal
     }
 
@@ -65,8 +53,8 @@ impl Executor {
             Self::WasmLocal => {
                 core::mem::drop(future);
                 panic!(
-                    "Blocking remote calls are not supported on wasm. Establish the session with \
-                     `RemoteDevice::connect_async(...).await` and read tensors with \
+                    "Blocking remote calls are not supported on wasm. Connect with \
+                     `Device::remote_options(&host).init_async().await` and read tensors with \
                      `into_data_async().await`."
                 )
             }

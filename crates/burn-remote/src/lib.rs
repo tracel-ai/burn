@@ -1,12 +1,10 @@
-//! Peer-to-peer remote tensor execution for Burn.
+//! Remote tensor execution for Burn: a client sends tensor operations to a server that runs them
+//! on its devices.
 //!
-//! Iroh is the primary transport. A client describes a server with an `IrohPeer`, or dials it from
-//! an Iroh [`Endpoint`] the application owns; a server hosts compute on its own endpoint, or
-//! registers Burn's protocol on the application's. Compute sessions use bidirectional QUIC
-//! streams, while cross-peer tensor movement uses independent authenticated streams without
-//! routing payloads through the controlling client.
-//!
-//! The optional `websocket` feature retains the legacy address-and-port transport.
+//! Users reach it through `burn::remote` (clients) and `burn::server` (servers). Iroh is the
+//! default transport: any network, authenticated and encrypted. The `websocket` feature adds the
+//! simplest setup for a trusted network, unencrypted. Compute sessions and the tensor transfers
+//! between servers never route tensor data through the controlling client.
 
 #[cfg(feature = "client")]
 mod client;
@@ -20,6 +18,9 @@ pub mod telemetry;
 pub(crate) mod time;
 mod transport;
 
+mod credential;
+pub use credential::Credential;
+
 pub use burn_ir as ir;
 pub use burn_router::RouterClient;
 
@@ -30,13 +31,13 @@ pub(crate) mod metrics;
 
 #[cfg(feature = "iroh")]
 pub use iroh::{Endpoint, EndpointAddr, EndpointId, RelayUrl};
+#[cfg(all(feature = "iroh", feature = "client"))]
+pub use transport::iroh::IrohHost;
 #[cfg(feature = "iroh")]
 pub use transport::iroh::node::BURN_REMOTE_ALPN;
-#[cfg(all(feature = "iroh", feature = "client", not(target_family = "wasm")))]
-pub use transport::iroh::{IrohPeer, IrohPeerBuilder};
 #[cfg(feature = "iroh")]
 pub use transport::iroh::{IrohRelays, RemoteSecret};
-pub use transport::{PeerAddr, PeerId};
+pub(crate) use transport::{PeerAddr, PeerId};
 
 #[cfg(feature = "client")]
 mod __client {
@@ -46,13 +47,9 @@ mod __client {
 
     /// The remote backend allows you to run computation on a remote device.
     ///
-    /// Iroh is the primary transport. Describe a compute server with an `IrohPeer` and connect to
-    /// one of its devices, or dial it from an Iroh [`Endpoint`] the application owns with
-    /// [`RemoteDevice::iroh`] (or the `Device::remote_iroh` facade).
-    ///
     /// ```rust, ignore
-    /// let peer = IrohPeerBuilder::new(server_id).with_credential(token).build();
-    /// let remote = peer.connect(0).await?;
+    /// let host = RemoteHost::iroh(server_id).with_credential(token);
+    /// let device = Device::remote_options(&host).init()?;
     /// ```
     #[cfg(not(feature = "fusion"))]
     pub type RemoteBackend = BackendRouter<RemoteChannel>;
@@ -64,6 +61,8 @@ mod __client {
     #[cfg(feature = "fusion")]
     pub type RemoteBackend = burn_fusion::Fusion<BackendRouter<RemoteChannel>>;
 
+    #[doc(hidden)]
+    pub use client::HostSpec;
     pub use client::{ConnectError, CustomOpClient, RemoteChannel, RemoteDevice};
 }
 #[cfg(feature = "client")]

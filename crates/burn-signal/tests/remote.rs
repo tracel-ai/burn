@@ -1,7 +1,7 @@
 #![cfg(all(feature = "remote-tests", feature = "flex"))]
 use burn_core::{
     backend::Flex,
-    tensor::{Device, Tensor, TensorData, Tolerance},
+    tensor::{Device, Tensor, TensorData, Tolerance, remote::RemoteHost},
 };
 use burn_signal::{irfft, rfft};
 #[test]
@@ -22,7 +22,8 @@ pub fn test_fft_over_websocket() {
 
     std::thread::sleep(std::time::Duration::from_millis(500));
 
-    let device = Device::remote_websocket("ws://localhost:3160", 0).unwrap();
+    let host = RemoteHost::websocket("ws://localhost:3160");
+    let device = Device::remote_options(&host).init().unwrap();
     let signal = Tensor::<1>::from_floats([1.0, 1.0, 1.0, 1.0], &device);
     let (spectrum_re, spectrum_im) = rfft(signal, 0, None);
     let reconstructed = irfft(spectrum_re.clone(), spectrum_im.clone(), 0, None);

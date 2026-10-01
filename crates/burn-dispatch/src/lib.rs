@@ -110,8 +110,6 @@ pub mod backends {
     pub use burn_tch::LibTorch;
 
     #[cfg(feature = "remote")]
-    pub use burn_remote as remote;
-    #[cfg(feature = "remote")]
     pub use burn_remote::RemoteBackend as Remote;
 
     /// Public graph-capture API types.
@@ -168,7 +166,9 @@ pub mod devices {
 
     #[cfg(feature = "remote")]
     pub use burn_remote::RemoteDevice;
-
-    #[cfg(feature = "remote")]
-    pub use burn_remote::BURN_REMOTE_ALPN;
 }
+
+/// The remote backend's crate, for `burn::remote` and `burn::server` to build on. Not a user path.
+#[doc(hidden)]
+#[cfg(feature = "remote")]
+pub use burn_remote as __remote;

@@ -10,15 +10,17 @@ use iroh::RelayUrl;
     any(feature = "client", feature = "server"),
     not(target_family = "wasm")
 ))]
+use iroh::endpoint::QuicTransportConfig;
+#[cfg(any(feature = "client", feature = "server"))]
 use iroh::{
     Endpoint, RelayMode,
-    endpoint::{Builder, QuicTransportConfig, presets},
+    endpoint::{Builder, presets},
 };
 
 /// How an Iroh endpoint reaches peers it cannot dial directly. A server and its clients must agree.
 ///
 /// Written and parsed as `public`, `disabled`, or a private relay's URL.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
 pub enum IrohRelays {
     /// n0's public relays, with n0's address lookup, so a server is found by its id alone.
     #[default]
@@ -58,10 +60,7 @@ impl fmt::Display for IrohRelays {
 
 impl IrohRelays {
     /// An endpoint builder with these relays.
-    #[cfg(all(
-        any(feature = "client", feature = "server"),
-        not(target_family = "wasm")
-    ))]
+    #[cfg(any(feature = "client", feature = "server"))]
     pub(crate) fn endpoint_builder(&self) -> Builder {
         let builder = match self {
             Self::Public => Endpoint::builder(presets::N0),
@@ -71,12 +70,16 @@ impl IrohRelays {
             Self::Disabled => Endpoint::builder(presets::Minimal).relay_mode(RelayMode::Disabled),
         };
         // Drop with iroh#4555.
-        let segmentation_offload = config().remote().iroh_segmentation_offload;
-        builder.transport_config(
-            QuicTransportConfig::builder()
-                .enable_segmentation_offload(segmentation_offload)
-                .build(),
-        )
+        #[cfg(not(target_family = "wasm"))]
+        let builder = {
+            let segmentation_offload = config().remote().iroh_segmentation_offload;
+            builder.transport_config(
+                QuicTransportConfig::builder()
+                    .enable_segmentation_offload(segmentation_offload)
+                    .build(),
+            )
+        };
+        builder
     }
 }
 
