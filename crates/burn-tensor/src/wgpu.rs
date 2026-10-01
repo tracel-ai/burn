@@ -149,8 +149,15 @@ impl WgpuOptions {
 
     /// Initialize the device synchronously on native targets.
     ///
-    /// Returns acquisition, configuration, or registration errors. Use
-    /// [`Self::init_async`] when running in a browser or an async application.
+    /// Use [`Self::init_async`] when running in a browser or an async application.
+    ///
+    /// # Errors
+    ///
+    /// Returns acquisition, configuration, or registration errors.
+    ///
+    /// Returns an error if the runtime for the selected device kind and graphics
+    /// API has already been initialized, either explicitly or by a tensor operation.
+    /// Runtime options must be set before first use.
     #[cfg(not(target_family = "wasm"))]
     pub fn init(self) -> Result<Device, WgpuInitError> {
         self.init_with_setup().map(|(device, _)| device)
@@ -158,8 +165,13 @@ impl WgpuOptions {
 
     /// Initialize the device asynchronously on native or browser targets.
     ///
-    /// Returns an error if acquisition fails, configuration is invalid, or the
-    /// selector already has an initialized runtime when registration is attempted.
+    /// # Errors
+    ///
+    /// Returns acquisition, configuration, or registration errors.
+    ///
+    /// Returns an error if the runtime for the selected device kind and graphics
+    /// API has already been initialized, either explicitly or by a tensor operation.
+    /// Runtime options must be set before first use.
     pub async fn init_async(self) -> Result<Device, WgpuInitError> {
         self.init_with_setup_async().await.map(|(device, _)| device)
     }
@@ -168,6 +180,14 @@ impl WgpuOptions {
     ///
     /// Share these handles with another wgpu component. Do not register the
     /// returned setup again; clone the accompanying Burn device to reuse it.
+    ///
+    /// # Errors
+    ///
+    /// Returns acquisition, configuration, or registration errors.
+    ///
+    /// Returns an error if the runtime for the selected device kind and graphics
+    /// API has already been initialized, either explicitly or by a tensor operation.
+    /// Runtime options must be set before first use.
     #[cfg(not(target_family = "wasm"))]
     pub fn init_with_setup(self) -> Result<(Device, WgpuSetup), WgpuInitError> {
         let (device, options) = self.into_request()?;
@@ -179,6 +199,14 @@ impl WgpuOptions {
     ///
     /// Available on native and browser targets. The returned device is ready for
     /// tensor operations; the setup is ready to share with another wgpu component.
+    ///
+    /// # Errors
+    ///
+    /// Returns acquisition, configuration, or registration errors.
+    ///
+    /// Returns an error if the runtime for the selected device kind and graphics
+    /// API has already been initialized, either explicitly or by a tensor operation.
+    /// Runtime options must be set before first use.
     pub async fn init_with_setup_async(self) -> Result<(Device, WgpuSetup), WgpuInitError> {
         let (device, options) = self.into_request()?;
         let setup =
@@ -213,10 +241,13 @@ impl WgpuSetupOptions {
 
     /// Register the setup and return its initialized Burn device.
     ///
-    /// Returns an error for conflicting selection options, invalid runtime options,
-    /// incompatible capabilities, or a failure to register the runtime.
     /// Each call creates a new runtime identity; repeated handles are not detected.
     /// Failed initialization does not change an existing registration.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error for conflicting selection options, invalid runtime options,
+    /// incompatible capabilities, or a failure to register the runtime.
     pub fn init(self) -> Result<Device, WgpuInitError> {
         if self.selection_explicit {
             return Err(WgpuInitError::InvalidConfiguration {
