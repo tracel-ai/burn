@@ -853,3 +853,36 @@ impl Drop for RemoteService {
         writer.shutdown(&self.executor, Some(batch));
     }
 }
+
+#[cfg(all(test, feature = "server", feature = "websocket"))]
+mod tests {
+    use std::{sync::mpsc, time::Duration};
+
+    use burn_flex::Flex;
+    use burn_std::device::Device as _;
+
+    use super::*;
+    use crate::{RemoteDevice, server::BackendServer, tests::serve};
+
+    #[test]
+    fn a_connect_starts_the_telemetry_logger() {
+        let rt = tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+        let address = serve(&rt, BackendServer::<Flex>::new(vec![Default::default()]));
+        let mut service = RemoteService::init(RemoteDevice::websocket(&address, 0).to_id());
+        let (started, logger) = mpsc::channel();
+        service.logger = Some(Box::pin(async move {
+            let _ = started.send(());
+        }));
+
+        service.try_connect().unwrap();
+
+        logger
+            .recv_timeout(Duration::from_secs(10))
+            .expect("the connect never started the logger");
+        drop(service);
+        rt.shutdown_background();
+    }
+}

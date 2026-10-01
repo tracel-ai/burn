@@ -452,6 +452,25 @@ Collective operations are available through `burn::tensor::distributed`.
 Check runtime support before using collectives: CubeCL all-reduce currently requires CUDA, including
 on remote servers. See [Distributed Computing](./performance/distributed-computing.md).
 
+### Remote backend
+
+A remote device is a `Device`, connected through a `RemoteHost` that names its server. Connecting
+returns a `Result`, and a server returns a `ServeError` instead of panicking:
+
+| 0.21 API                                           | 0.22 API                                                                                |
+| -------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| `RemoteDevice::new("ws://host:3000")`              | `Device::remote_options(&RemoteHost::websocket("ws://host:3000")).init()?`              |
+| Listing a server's devices                         | `Device::enumerate(DeviceType::Remote(host))`, or `host.devices()?` to handle the error |
+| `burn::server::start_websocket::<B>(device, port)` | `RemoteServer::new([device]).serve(WebSocketTransport::new(port))?`                     |
+| `start_websocket_async::<B>(device, port).await`   | `RemoteServer::new([device]).serve_async(WebSocketTransport::new(port)).await?`         |
+
+Iroh, now the default transport, reaches a server by its id across any network:
+`RemoteHost::iroh(server_id)` on the client, and
+`IrohTransport::new(IrohIdentity::load_or_create(path)?)` on the server. A server hosts exactly the
+devices it is given, and a backend outside Burn's own serves through
+`burn_remote::server::BackendServer::<B>`. See
+[Distributed Computing](./performance/distributed-computing.md).
+
 ### Storage adapters and checkpointers
 
 Update custom `burn-store` integrations:

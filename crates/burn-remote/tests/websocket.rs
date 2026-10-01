@@ -133,6 +133,23 @@ fn a_websocket_authorizer_sees_the_client_by_its_address() {
 }
 
 #[test]
+fn a_server_that_never_starts_is_unreachable_once_the_retries_run_out() {
+    // Bound but never listening: every dial is refused, and no other socket can take the port.
+    let socket = tokio::net::TcpSocket::new_v4().unwrap();
+    socket.bind("127.0.0.1:0".parse().unwrap()).unwrap();
+    let host = RemoteHost::websocket(&format!("ws://{}", socket.local_addr().unwrap()));
+
+    with_deadlock_watchdog(std::time::Duration::from_secs(60), move || {
+        let result = Device::remote_options(&host).init();
+        assert!(
+            matches!(result, Err(ConnectError::Unreachable { .. })),
+            "{result:?}"
+        );
+    });
+    drop(socket);
+}
+
+#[test]
 fn a_dial_waits_for_a_websocket_server_that_starts_late() {
     // Past the first retries, well inside the retry window.
     const SERVER_LATE_BY: std::time::Duration = std::time::Duration::from_millis(700);

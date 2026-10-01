@@ -12,8 +12,10 @@ use burn_tensor::{
     remote::{ConnectError, IrohHost, IrohRelays, RemoteHost},
 };
 use iroh::{
-    Endpoint, EndpointAddr, RelayMode, SecretKey, address_lookup::MemoryLookup, endpoint::presets,
-    protocol::Router,
+    Endpoint, EndpointAddr, RelayMode, SecretKey,
+    address_lookup::MemoryLookup,
+    endpoint::{Connection, presets},
+    protocol::{AcceptError, ProtocolHandler, Router},
 };
 use std::{panic, sync::mpsc, thread, time::Duration};
 use tokio::task::coop;
@@ -181,6 +183,41 @@ async fn a_device_dialed_with_no_address_and_no_lookup_connects_once_given_one()
         .unwrap();
     let output = Tensor::<1>::from_floats([1.0, 2.0], &device) * 2.0;
     assert_eq!(output.try_into_vec_as::<f32>().unwrap(), vec![2.0, 4.0]);
+
+    router.shutdown().await.unwrap();
+}
+
+/// Accepts a session stream, then drops it without answering.
+#[derive(Debug, Clone)]
+struct HangsUpOnSessions;
+
+impl ProtocolHandler for HangsUpOnSessions {
+    async fn accept(&self, connection: Connection) -> Result<(), AcceptError> {
+        let session = connection
+            .accept_bi()
+            .await
+            .map_err(AcceptError::from_err)?;
+        drop(session);
+        connection.closed().await;
+        Ok(())
+    }
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_session_the_server_closes_unanswered_is_a_handshake_error() {
+    let server = local_endpoint().await;
+    let client = local_endpoint().await;
+    let router = Router::builder(server.clone())
+        .accept(BURN_REMOTE_ALPN, HangsUpOnSessions)
+        .spawn();
+
+    let result = Device::remote_options(&host_dialed_from(&client, server.addr()))
+        .init_async()
+        .await;
+    assert!(
+        matches!(result, Err(ConnectError::Handshake { .. })),
+        "{result:?}"
+    );
 
     router.shutdown().await.unwrap();
 }
