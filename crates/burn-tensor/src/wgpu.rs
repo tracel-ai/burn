@@ -98,6 +98,9 @@ impl WgpuOptions {
     ///
     /// An explicit API never falls back to another API. This selects the graphics
     /// API, not a shader compiler; the runtime chooses a supported compiler.
+    /// With the `metal` feature enabled, an explicit Metal selection requires native
+    /// MSL support. Initialization returns an error if it is unavailable; automatic
+    /// selection permits WGSL fallback.
     pub fn graphics_api(mut self, api: WgpuBackend) -> Self {
         self.api = api;
         self.selection_explicit = true;

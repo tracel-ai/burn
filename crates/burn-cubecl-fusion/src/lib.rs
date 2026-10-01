@@ -1,3 +1,6 @@
+// TODO: remove when fixed in cubecl
+#![allow(semicolon_in_expressions_from_non_local_macros)]
+
 #[macro_use]
 extern crate derive_new;
 

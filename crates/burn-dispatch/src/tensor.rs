@@ -254,6 +254,9 @@ pub struct DispatchTensor {
 ///
 /// Each variant corresponds to a specific backend implementation.
 #[derive(Clone, Debug)]
+// With autodiff and a lone Cube or Remote backend, the only other variant is Autodiff's 8-byte
+// box, so the lint fires. Boxing backend tensors would cost every tensor an allocation.
+#[allow(clippy::large_enum_variant)]
 pub enum DispatchTensorKind {
     #[cfg(not(backend_enabled))]
     #[doc(hidden)]

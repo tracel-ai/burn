@@ -2,6 +2,7 @@ use super::*;
 use burn_tensor::TensorData;
 use burn_tensor::Tolerance;
 use burn_tensor::module::{max_pool2d, max_pool2d_with_indices};
+use burn_tensor::ops::MaxPoolOptions;
 
 #[test]
 fn test_max_pool2d_simple() {
@@ -93,11 +94,10 @@ fn test_max_pool2d_simple() {
 
     let output = max_pool2d(
         x,
-        [kernel_size_1, kernel_size_2],
-        [stride_1, stride_2],
-        [padding_1, padding_2],
-        [dilation_1, dilation_2],
-        false,
+        MaxPoolOptions::new([kernel_size_1, kernel_size_2])
+            .with_stride([stride_1, stride_2])
+            .with_padding([padding_1, padding_2])
+            .with_dilation([dilation_1, dilation_2]),
     );
 
     y.to_data()
@@ -134,11 +134,10 @@ fn test_max_pool2d_different_padding_stride_kernel() {
 
     let output = max_pool2d(
         x,
-        [kernel_size_1, kernel_size_2],
-        [stride_1, stride_2],
-        [padding_1, padding_2],
-        [dilation_1, dilation_2],
-        false,
+        MaxPoolOptions::new([kernel_size_1, kernel_size_2])
+            .with_stride([stride_1, stride_2])
+            .with_padding([padding_1, padding_2])
+            .with_dilation([dilation_1, dilation_2]),
     );
 
     y.to_data()
@@ -176,11 +175,10 @@ fn test_max_pool2d_with_neg() {
 
     let output = max_pool2d(
         x,
-        [kernel_size_1, kernel_size_2],
-        [stride_1, stride_2],
-        [padding_1, padding_2],
-        [dilation_1, dilation_2],
-        false,
+        MaxPoolOptions::new([kernel_size_1, kernel_size_2])
+            .with_stride([stride_1, stride_2])
+            .with_padding([padding_1, padding_2])
+            .with_dilation([dilation_1, dilation_2]),
     );
 
     y.to_data()
@@ -215,11 +213,10 @@ fn test_max_pool2d_with_dilation() {
 
     let output = max_pool2d(
         x,
-        [kernel_size_1, kernel_size_2],
-        [stride_1, stride_2],
-        [padding_1, padding_2],
-        [dilation_1, dilation_2],
-        false,
+        MaxPoolOptions::new([kernel_size_1, kernel_size_2])
+            .with_stride([stride_1, stride_2])
+            .with_padding([padding_1, padding_2])
+            .with_dilation([dilation_1, dilation_2]),
     );
 
     y.to_data()
@@ -260,11 +257,10 @@ fn test_max_pool2d_with_indices() {
 
     let (output, output_indices) = max_pool2d_with_indices(
         x,
-        [kernel_size_1, kernel_size_2],
-        [stride_1, stride_2],
-        [padding_1, padding_2],
-        [dilation_1, dilation_2],
-        false,
+        MaxPoolOptions::new([kernel_size_1, kernel_size_2])
+            .with_stride([stride_1, stride_2])
+            .with_padding([padding_1, padding_2])
+            .with_dilation([dilation_1, dilation_2]),
     );
 
     y.to_data()
@@ -308,11 +304,10 @@ fn test_max_pool2d_complex() {
     ]]]);
     let (output, output_indices) = max_pool2d_with_indices(
         x,
-        [kernel_size_1, kernel_size_2],
-        [stride_1, stride_2],
-        [padding_1, padding_2],
-        [dilation_1, dilation_2],
-        false,
+        MaxPoolOptions::new([kernel_size_1, kernel_size_2])
+            .with_stride([stride_1, stride_2])
+            .with_padding([padding_1, padding_2])
+            .with_dilation([dilation_1, dilation_2]),
     );
 
     y.to_data()
@@ -361,11 +356,10 @@ fn test_max_pool2d_ceil_mode() {
 
     let output_floor = max_pool2d(
         x.clone(),
-        [kernel_size_1, kernel_size_2],
-        [stride_1, stride_2],
-        [padding_1, padding_2],
-        [dilation_1, dilation_2],
-        false,
+        MaxPoolOptions::new([kernel_size_1, kernel_size_2])
+            .with_stride([stride_1, stride_2])
+            .with_padding([padding_1, padding_2])
+            .with_dilation([dilation_1, dilation_2]),
     );
 
     y_floor
@@ -388,11 +382,11 @@ fn test_max_pool2d_ceil_mode() {
 
     let output_ceil = max_pool2d(
         x,
-        [kernel_size_1, kernel_size_2],
-        [stride_1, stride_2],
-        [padding_1, padding_2],
-        [dilation_1, dilation_2],
-        true,
+        MaxPoolOptions::new([kernel_size_1, kernel_size_2])
+            .with_stride([stride_1, stride_2])
+            .with_padding([padding_1, padding_2])
+            .with_dilation([dilation_1, dilation_2])
+            .with_ceil_mode(true),
     );
 
     y_ceil
@@ -445,11 +439,11 @@ fn test_max_pool2d_ceil_mode_with_indices() {
 
     let (output, output_indices) = max_pool2d_with_indices(
         x,
-        [kernel_size_1, kernel_size_2],
-        [stride_1, stride_2],
-        [padding_1, padding_2],
-        [dilation_1, dilation_2],
-        true,
+        MaxPoolOptions::new([kernel_size_1, kernel_size_2])
+            .with_stride([stride_1, stride_2])
+            .with_padding([padding_1, padding_2])
+            .with_dilation([dilation_1, dilation_2])
+            .with_ceil_mode(true),
     );
 
     expected_values
@@ -507,11 +501,11 @@ fn test_max_pool2d_ceil_mode_with_indices_and_padding() {
 
     let (output, output_indices) = max_pool2d_with_indices(
         x,
-        [kernel_size_1, kernel_size_2],
-        [stride_1, stride_2],
-        [padding_1, padding_2],
-        [dilation_1, dilation_2],
-        true,
+        MaxPoolOptions::new([kernel_size_1, kernel_size_2])
+            .with_stride([stride_1, stride_2])
+            .with_padding([padding_1, padding_2])
+            .with_dilation([dilation_1, dilation_2])
+            .with_ceil_mode(true),
     );
 
     expected_values
@@ -540,7 +534,7 @@ fn test_max_pool2d_with_indices_nan_propagation() {
         burn_tensor::DType::BF16,
     ] {
         let (output, indices) =
-            max_pool2d_with_indices(x.clone().cast(dtype), [2, 2], [2, 2], [0, 0], [1, 1], false);
+            max_pool2d_with_indices(x.clone().cast(dtype), MaxPoolOptions::new([2, 2]));
 
         let output = output.into_data().convert::<f32>();
         assert!(
@@ -567,16 +561,91 @@ fn test_max_pool2d_ceil_mode_drops_window_in_padding() {
         TestTensor::<4>::from([[[[0.0, 2.0, 4.0], [10.0, 12.0, 14.0], [20.0, 22.0, 24.0]]]]);
     let expected_indices = TensorData::from([[[[0i64, 2, 4], [10, 12, 14], [20, 22, 24]]]]);
 
-    let output = max_pool2d(x.clone(), [2, 2], [2, 2], [1, 1], [1, 1], true);
+    let output = max_pool2d(
+        x.clone(),
+        MaxPoolOptions::new([2, 2])
+            .with_padding([1, 1])
+            .with_ceil_mode(true),
+    );
     expected_values
         .to_data()
         .assert_approx_eq::<FloatElem>(&output.into_data(), Tolerance::default());
 
-    let (output, output_indices) = max_pool2d_with_indices(x, [2, 2], [2, 2], [1, 1], [1, 1], true);
+    let (output, output_indices) = max_pool2d_with_indices(
+        x,
+        MaxPoolOptions::new([2, 2])
+            .with_padding([1, 1])
+            .with_ceil_mode(true),
+    );
     expected_values
         .to_data()
         .assert_approx_eq::<FloatElem>(&output.into_data(), Tolerance::default());
     output_indices
         .into_data()
         .assert_eq(&expected_indices, false);
+}
+
+#[test]
+fn test_max_pool2d_asymmetric_padding_with_indices() {
+    // Padding top=1, bottom=0, left=0, right=1. Indices refer to the unpadded 2x3 input.
+    let x = TestTensor::from([[[[1.0, -2.0, 3.0], [-4.0, 5.0, -6.0]]]]);
+    let expected_values = TestTensor::<4>::from([[[[1.0, 3.0, 3.0], [5.0, 5.0, 3.0]]]]);
+    let expected_indices = TensorData::from([[[[0i64, 2, 2], [4, 4, 2]]]]);
+    let options = MaxPoolOptions::new([2, 2])
+        .with_stride([1, 1])
+        .with_padding_pairs([(1, 0), (0, 1)]);
+
+    let output = max_pool2d(x.clone(), options.clone());
+    expected_values
+        .to_data()
+        .assert_approx_eq::<FloatElem>(&output.into_data(), Tolerance::default());
+
+    let (output, output_indices) = max_pool2d_with_indices(x, options);
+    expected_values
+        .to_data()
+        .assert_approx_eq::<FloatElem>(&output.into_data(), Tolerance::default());
+    output_indices
+        .into_data()
+        .assert_eq(&expected_indices, false);
+}
+
+#[test]
+fn test_max_pool2d_asymmetric_padding_left_with_indices() {
+    // Padding top=0, bottom=1, left=1, right=0. Padded input:
+    // [-inf,    1,   -2]
+    // [-inf,   -4,    5]
+    // [-inf, -inf, -inf]
+    // Padded values are -inf, so the negative input -4 still wins its window.
+    let x = TestTensor::from([[[[1.0, -2.0], [-4.0, 5.0]]]]);
+    let options = MaxPoolOptions::new([2, 2])
+        .with_stride([1, 1])
+        .with_padding_pairs([(0, 1), (1, 0)]);
+
+    let (output, output_indices) = max_pool2d_with_indices(x, options);
+
+    TestTensor::<4>::from([[[[1.0, 5.0], [-4.0, 5.0]]]])
+        .to_data()
+        .assert_approx_eq::<FloatElem>(&output.into_data(), Tolerance::default());
+    output_indices
+        .into_data()
+        .assert_eq(&TensorData::from([[[[0i64, 3], [2, 3]]]]), false);
+}
+
+#[test]
+fn test_max_pool2d_asymmetric_padding_ceil_mode() {
+    // Height padding (1, 1) is symmetric, width padding (0, 1) is not. With ceil mode the
+    // height must still drop the window starting in its end padding, as the symmetric path does.
+    let x = TestTensor::from([[[[1.0, 2.0, 3.0], [4.0, 5.0, 6.0], [7.0, 8.0, 9.0]]]]);
+    let options = MaxPoolOptions::new([2, 2])
+        .with_padding_pairs([(1, 1), (0, 1)])
+        .with_ceil_mode(true);
+
+    let (output, output_indices) = max_pool2d_with_indices(x, options);
+
+    TestTensor::<4>::from([[[[2.0, 3.0], [8.0, 9.0]]]])
+        .to_data()
+        .assert_approx_eq::<FloatElem>(&output.into_data(), Tolerance::default());
+    output_indices
+        .into_data()
+        .assert_eq(&TensorData::from([[[[1i64, 2], [7, 8]]]]), false);
 }

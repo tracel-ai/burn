@@ -13,11 +13,12 @@ pub enum Channel {
         /// Port to bind on.
         port: u16,
     },
-    /// Iroh peer-to-peer transport. The server's address is `secret.id()`; clients dial that.
+    /// Iroh peer-to-peer transport.
     #[cfg(feature = "iroh")]
     Iroh {
-        /// The server's stable identity, its address knob (like a port for WebSocket).
-        secret: Box<crate::RemoteSecret>,
+        /// The server's identity, relays, port and authorizer. Clients dial its
+        /// [`id`](crate::server::IrohChannel::id).
+        channel: crate::server::IrohChannel,
     },
 }
 
@@ -30,9 +31,8 @@ impl core::fmt::Debug for Channel {
         match self {
             #[cfg(feature = "websocket")]
             Channel::WebSocket { port } => f.debug_struct("WebSocket").field("port", port).finish(),
-            // Show the public identity, never the secret key material.
             #[cfg(feature = "iroh")]
-            Channel::Iroh { secret } => f.debug_struct("Iroh").field("id", &secret.id()).finish(),
+            Channel::Iroh { channel } => f.debug_struct("Iroh").field("channel", channel).finish(),
         }
     }
 }
@@ -42,25 +42,28 @@ impl Default for Channel {
         #[cfg(feature = "websocket")]
         return Channel::WebSocket { port: DEFAULT_PORT };
         // Without WebSocket the default is Iroh on a fresh random identity; a host that wants a
-        // dialable address sets its own secret with [`Channel::Iroh`].
+        // stable address builds its own channel with an `IrohChannelBuilder`.
         #[cfg(all(feature = "iroh", not(feature = "websocket")))]
         return Channel::Iroh {
-            secret: Box::new(crate::RemoteSecret::random()),
+            channel: crate::server::IrohChannelBuilder::new(crate::RemoteSecret::random()).build(),
         };
     }
 }
 
 /// Builder for a remote-execution server.
 ///
-/// Configures the transport ([`channel`](Self::channel) / [`port`](Self::port)) and the custom
-/// operation handlers ([`custom_op`](Self::custom_op) / [`custom_ops`](Self::custom_ops)), then
-/// starts the server with [`start`](Self::start) (blocking) or [`start_async`](Self::start_async),
-/// or over WebSocket on a listener the caller bound with [`start_async_on`](Self::start_async_on).
+/// Configures the transport ([`channel`](Self::channel)) and the custom operation handlers
+/// ([`custom_op`](Self::custom_op) / [`custom_ops`](Self::custom_ops)), then starts the server
+/// with [`start`](Self::start) (blocking) or [`start_async`](Self::start_async). Over WebSocket,
+/// `port` picks the port and `start_async_on` serves on a listener the caller bound.
 ///
 /// The builder is generic over the concrete backend `B`: custom ops are typed by `B`, since their
 /// handlers call into `B`'s primitives. A backend extension hosts its ops here — the server-side
 /// counterpart of the client building `OperationIr::Custom`. Custom ops are served the same way over
 /// either transport.
+///
+/// `burn::server::start` hosts only `DispatchDevice` backends; serve any other `BackendIr` backend
+/// by naming it as `B`.
 ///
 /// ```rust,ignore
 /// RemoteServerBuilder::new(devices)
@@ -76,6 +79,8 @@ impl Default for Channel {
 ///     .start();
 /// ```
 pub struct RemoteServerBuilder<B: BackendIr> {
+    // Only the native server starts, so wasm never reads it.
+    #[cfg_attr(target_family = "wasm", allow(dead_code))]
     devices: Vec<Device<B>>,
     channel: Channel,
     custom_ops: CustomOpRegistry<B>,
@@ -142,14 +147,7 @@ impl<B: BackendIr> RemoteServerBuilder<B> {
                 .await;
             }
             #[cfg(feature = "iroh")]
-            Channel::Iroh { secret } => {
-                crate::transport::iroh::server::start_iroh_async::<B>(
-                    *secret,
-                    self.devices,
-                    self.custom_ops,
-                )
-                .await;
-            }
+            Channel::Iroh { channel } => channel.serve(self.devices, self.custom_ops).await,
         }
     }
 

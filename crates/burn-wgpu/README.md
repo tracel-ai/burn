@@ -3,7 +3,7 @@
 [Burn](https://github.com/tracel-ai/burn) WGPU backend
 
 [![Current Crates.io Version](https://img.shields.io/crates/v/burn-wgpu.svg)](https://crates.io/crates/burn-wgpu)
-[![license](https://shields.io/badge/license-MIT%2FApache--2.0-blue)](https://github.com/tracel-ai/burn-wgpu/blob/master/README.md)
+[![license](https://shields.io/badge/license-MIT%2FApache--2.0-blue)](https://github.com/tracel-ai/burn/blob/main/LICENSE-MIT)
 
 This crate provides a WGPU backend for [Burn](https://github.com/tracel-ai/burn) using the
 [wgpu](https://github.com/gfx-rs/wgpu).
@@ -43,15 +43,16 @@ let device = Device::wgpu_options()
 ```
 
 Use `.init_async().await?` in browsers or async applications. Options also include
-`.memory_config(...)` and `.setup(...)` for existing wgpu handles; see the
-[sharing example](../../examples/wgpu-sharing). Use `Device::configure` for dtype defaults.
+`.memory_config(...)` and `.setup(...)` for existing wgpu handles.
+Use `Device::configure` for dtype defaults.
 
 ## Graphics API and shader compiler
 
 Enable `vulkan`, `metal`, or `webgpu` and select the corresponding `Device` constructor to target
 that graphics API. `AutoCompiler` selects the shader compiler at runtime. There is no `spirv`
-feature or compiler type parameter on `Wgpu` in 0.22. The low-level `Wgpu`, `Vulkan`, `Metal`, and
-`WebGpu` aliases share a backend type; the device determines the runtime.
+feature or compiler type parameter on `Wgpu` in 0.22. Multiple backend features can be enabled
+together. The `Vulkan`, `Metal`, and `WebGpu` aliases are deprecated: use `Wgpu` with an explicit
+device constructor to select the graphics API.
 
 ## Platform Support
 

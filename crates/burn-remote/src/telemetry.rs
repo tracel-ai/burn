@@ -337,6 +337,10 @@ impl TelemetryEvent {
     }
 }
 
+#[cfg(any(
+    feature = "client",
+    all(feature = "server", not(target_family = "wasm"))
+))]
 pub(crate) const CHANNEL_CAPACITY: usize = 4096;
 
 /// Cloneable handle a worker emits into. Inert until a [`TelemetrySubscription`] is attached.

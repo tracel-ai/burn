@@ -1,4 +1,3 @@
-use core::f32;
 #[allow(unused_imports)]
 use num_traits::Float as _;
 

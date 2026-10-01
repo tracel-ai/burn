@@ -66,6 +66,8 @@ pub use device::*;
 #[cfg(feature = "wgpu")]
 pub mod wgpu;
 
+#[cfg(feature = "remote")]
+pub mod remote;
 #[cfg(feature = "remote-server")]
 pub mod server;
 

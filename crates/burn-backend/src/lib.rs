@@ -64,17 +64,27 @@ mod cube_device {
     use crate::backend::DeviceOps;
     use burn_std::{BoolStore, DType, DeviceSettings};
     use cubecl::{Device, RuntimeId};
+    use cubecl::{
+        features::TypeUsage,
+        ir::{ElemType, UIntKind},
+    };
 
     impl DeviceOps for Device {
         fn defaults(&self) -> DeviceSettings {
-            // wgsl has no 8-bit type to store a bool in, so under the portable
-            // compiler a bool costs a word. Compiling straight to Metal or
-            // SPIR-V, and on every other runtime, a byte will do.
+            // Cargo features make native compilers available, but automatic devices can still
+            // fall back to WGSL. Only use byte-sized bools when this device can store and convert
+            // them; WGSL needs a word. Other runtimes continue to use a byte.
             let bool_store = match self.runtime() {
-                RuntimeId::Wgpu
-                    if !cfg!(any(feature = "cubecl-metal", feature = "cubecl-vulkan")) =>
-                {
-                    BoolStore::U32
+                RuntimeId::Wgpu => {
+                    let usage = self
+                        .client()
+                        .properties()
+                        .type_usage(ElemType::UInt(UIntKind::U8));
+                    if usage.is_superset(TypeUsage::Buffer | TypeUsage::Conversion) {
+                        BoolStore::U8
+                    } else {
+                        BoolStore::U32
+                    }
                 }
                 _ => BoolStore::U8,
             };

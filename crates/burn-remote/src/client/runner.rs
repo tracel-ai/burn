@@ -2,8 +2,8 @@ use super::{RemoteChannel, RemoteClient, service};
 use crate::shared::{LocalTransferId, TaskResponseContent, TensorRemote, TransferCapability};
 use crate::{PeerAddr, PeerId};
 use burn_backend::{
-    DeviceId, DeviceOps, ExecutionError, ProfileDuration, ProfileOptions, ProfileToken, StreamId,
-    TensorData,
+    DeviceId, DeviceOps, ExecutionError, ProfileDuration, ProfileOptions, ProfileToken,
+    RouterDeviceType, StreamId, TensorData,
 };
 use burn_ir::TensorIr;
 use burn_router::{MultiBackendBridge, RouterClient, RouterTensor, get_client};
@@ -158,12 +158,11 @@ impl RemoteClient {
     /// Rewrite the device ids carried by an op so the server can resolve them.
     ///
     /// This runs for every op, but only ops that carry device ids (currently the collective ops)
-    /// are affected On the client, the participating devices are identified by their *remote*
-    /// device ids (`type_id = 0`, `index_id = ` the local-registry index that encodes
-    /// `address`+device index). The server can't reverse that registry hash, so we translate each
-    /// id to the plain server-local device index (kept in `index_id`, `type_id` left 0). The
-    /// server then maps each index to its own backend device id before executing — see
-    /// `RemoteServer::resolve_devices`.
+    /// are affected. On the client, the participating devices are identified by their *remote*
+    /// device ids, whose `index_id` is this process's registry index for `address` + device index.
+    /// The server cannot resolve that index, so we translate each id to the plain server-local
+    /// device index (in `index_id`, with `type_id` 0), which the server hands to its backend
+    /// unchanged.
     ///
     /// Only same-server collectives are supported for now: every participating device must live
     /// on the same address as the tensor's device. A cross-server group panics with a clear
@@ -242,6 +241,17 @@ impl RemoteDevice {
         authorization: Vec<u8>,
     ) -> Self {
         let node = crate::transport::iroh::node::RemoteNode::from_endpoint(endpoint.clone());
+        Self::iroh_on_node(node, peer, device_index, authorization)
+    }
+
+    /// Like [`iroh_authorized`](Self::iroh_authorized), sharing `node`'s connections.
+    #[cfg(feature = "iroh")]
+    pub(crate) fn iroh_on_node(
+        node: crate::transport::iroh::node::RemoteNode,
+        peer: iroh::EndpointAddr,
+        device_index: usize,
+        authorization: Vec<u8>,
+    ) -> Self {
         let endpoint = RemoteEndpoint::Iroh {
             node,
             peer,
@@ -363,9 +373,11 @@ impl Default for RemoteDevice {
 
 impl burn_std::device::Device for RemoteDevice {
     fn from_id(device_id: DeviceId) -> Self {
-        if device_id.type_id != 0 {
-            panic!("Invalid device id: {device_id} (expected type 0)");
-        }
+        assert_eq!(
+            device_id.type_id,
+            u16::from(RouterDeviceType::Remote),
+            "invalid remote device type"
+        );
         let (endpoint, device_index) = service::endpoint_for(device_id.index_id as u32)
             .unwrap_or_else(|| panic!("Invalid device id: {device_id}"));
         Self {
@@ -377,7 +389,7 @@ impl burn_std::device::Device for RemoteDevice {
 
     fn to_id(&self) -> DeviceId {
         DeviceId {
-            type_id: 0,
+            type_id: RouterDeviceType::Remote.into(),
             index_id: self.id as u16,
         }
     }

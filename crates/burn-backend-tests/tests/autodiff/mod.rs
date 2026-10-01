@@ -9,6 +9,7 @@ mod add;
 mod aggregation;
 #[cfg(feature = "distributed")]
 mod all_reduce;
+mod attention;
 mod avgpool1d;
 mod avgpool2d;
 mod backward;
