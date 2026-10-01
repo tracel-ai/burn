@@ -33,8 +33,8 @@ use super::{Param, Reparameterization};
 pub trait DynReparameterization: Debug + Send + Sync {
     /// Stable path component used for nested parameters.
     fn name(&self) -> &'static str;
-    /// Materialize a type-erased tensor.
-    fn materialize_dyn(&self, base: Box<dyn Any + Send>) -> Box<dyn Any + Send>;
+    /// Apply the reparameterization to a type-erased tensor.
+    fn apply_dyn(&self, base: Box<dyn Any + Send>) -> Box<dyn Any + Send>;
     /// Visit nested module state.
     fn visit_dyn(&self, visitor: &mut dyn DynModuleVisitor);
     /// Map nested module state.
@@ -46,6 +46,8 @@ pub trait DynReparameterization: Debug + Send + Sync {
     fn fork_dyn(self: Box<Self>, device: &Device) -> Box<dyn DynReparameterization>;
     /// Enable autodiff and restore configured training state in the nested module.
     fn train_dyn(self: Box<Self>) -> Box<dyn DynReparameterization>;
+    /// Disable autodiff and training flags while preserving nested module structure.
+    fn valid_dyn(&self) -> Box<dyn DynReparameterization>;
     /// Collect devices from nested module state.
     fn collect_devices_dyn(&self, devices: Vec<Device>) -> Vec<Device>;
     /// Access the concrete reparameterization for internal downcasting.
@@ -83,11 +85,11 @@ where
         R::NAME
     }
 
-    fn materialize_dyn(&self, base: Box<dyn Any + Send>) -> Box<dyn Any + Send> {
+    fn apply_dyn(&self, base: Box<dyn Any + Send>) -> Box<dyn Any + Send> {
         let base = *base
             .downcast::<Tensor<D>>()
             .expect("Reparameterization tensor should match its attached rank");
-        Box::new(self.inner.materialize(base))
+        Box::new(self.inner.apply(base))
     }
 
     fn visit_dyn(&self, visitor: &mut dyn DynModuleVisitor) {
@@ -113,6 +115,10 @@ where
 
     fn train_dyn(self: Box<Self>) -> Box<dyn DynReparameterization> {
         Box::new(Self::new(Module::train(self.inner)))
+    }
+
+    fn valid_dyn(&self) -> Box<dyn DynReparameterization> {
+        Box::new(Self::new(self.inner.valid()))
     }
 
     fn collect_devices_dyn(&self, devices: Vec<Device>) -> Vec<Device> {

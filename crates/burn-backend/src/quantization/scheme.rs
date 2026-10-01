@@ -3,7 +3,7 @@ pub use burn_std::{BlockLayout, QPARAM_ALIGN, params_shape};
 use burn_std::{FloatDType, QuantScheme, ScaleDtype, Shape, quantization::global_scale_dtype};
 
 use super::{Calibration, QuantizationParametersPrimitive};
-use crate::{Backend, TensorMetadata, get_device_settings};
+use crate::{Backend, TensorMetadata, get_or_init_device_settings};
 
 /// One value per block: `tensor` viewed as `[n0, b0, n1, b1, ...]`, every block axis folded by
 /// `reduce`, and the result shaped as the block scales are ([`params_shape`]).
@@ -77,7 +77,7 @@ pub fn compute_q_params<B: Backend>(
     min: B::FloatTensorPrimitive,
     max: B::FloatTensorPrimitive,
 ) -> QuantizationParametersPrimitive<B> {
-    let bool_dtype = get_device_settings::<B>(&min.device()).bool_dtype;
+    let bool_dtype = get_or_init_device_settings::<B>(&min.device()).bool_dtype;
     // Quantized range `[a, b]`
     let (a, b) = scheme.value.range();
 

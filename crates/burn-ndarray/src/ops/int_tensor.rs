@@ -23,10 +23,10 @@ use burn_backend::{DType, Shape, TensorData};
 
 impl IntTensorOps<Self> for NdArray {
     fn int_from_data(data: TensorData, _device: &NdArrayDevice) -> NdArrayTensor {
-        if data.dtype.is_int() || data.dtype.is_uint() {
+        if data.dtype().is_int() || data.dtype().is_uint() {
             NdArrayTensor::from_data(data)
         } else {
-            unimplemented!("Unsupported dtype for `int_from_data`: {:?}", data.dtype)
+            unimplemented!("Unsupported dtype for `int_from_data`: {:?}", data.dtype())
         }
     }
 

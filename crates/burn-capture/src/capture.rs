@@ -3,7 +3,7 @@
 use alloc::{boxed::Box, collections::BTreeMap, format, string::String, sync::Arc, vec::Vec};
 use burn_backend::{
     BoolStore, DType, DTypeUsage, DTypeUsageSet, DeviceId, DeviceOps, DeviceSettings,
-    ExecutionError, Shape, TensorData,
+    ExecutionError, RouterDeviceType, Shape, TensorData,
 };
 use burn_ir::{
     GraphBindings, GraphId, GraphIr, IrVisitorMut, OperationIr, TensorId, TensorIr, TensorStatus,
@@ -20,12 +20,6 @@ use burn_router::{
 
 static DEVICE_COUNTER: AtomicU64 = AtomicU64::new(0);
 static TENSOR_COUNTER: AtomicU64 = AtomicU64::new(0);
-
-/// Capture's backend-local device type identifier.
-///
-/// Dispatch reserves only the low eight bits for a backend's own type identifier, so this value
-/// must remain representable as a `u8` for `DispatchDevice` ID round trips.
-const CAPTURE_DEVICE_TYPE_ID: u16 = u8::MAX as u16;
 
 /// Backend type that records operations instead of executing them.
 pub type CaptureBackend = burn_router::BackendRouter<CaptureChannel>;
@@ -83,7 +77,8 @@ impl Default for CaptureDevice {
 impl Device for CaptureDevice {
     fn from_id(device_id: DeviceId) -> Self {
         assert_eq!(
-            device_id.type_id, CAPTURE_DEVICE_TYPE_ID,
+            device_id.type_id,
+            u16::from(RouterDeviceType::Capture),
             "invalid capture device type"
         );
         Self {
@@ -93,7 +88,7 @@ impl Device for CaptureDevice {
 
     fn to_id(&self) -> DeviceId {
         DeviceId {
-            type_id: CAPTURE_DEVICE_TYPE_ID,
+            type_id: RouterDeviceType::Capture.into(),
             index_id: self.id,
         }
     }
@@ -515,8 +510,8 @@ impl RouterClient for CaptureClient {
         let mut state = self.state().lock();
         state.assert_open();
         let id = TensorId::new(TENSOR_COUNTER.fetch_add(1, Ordering::Relaxed));
-        let shape = data.shape.clone();
-        let dtype = data.dtype;
+        let shape = data.shape().clone();
+        let dtype = data.dtype();
         state.values.insert(id, data);
         drop(state);
         RouterTensor::new(id, shape, dtype, self.clone())
@@ -856,7 +851,10 @@ mod tests {
         let device = CaptureDevice::default();
         let restored = CaptureDevice::from_id(device.to_id());
         assert_eq!(restored, device);
-        assert_eq!(restored.to_id().type_id, CAPTURE_DEVICE_TYPE_ID);
+        assert_eq!(
+            restored.to_id().type_id,
+            u16::from(RouterDeviceType::Capture)
+        );
     }
 
     #[test]

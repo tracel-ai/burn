@@ -23,7 +23,6 @@ mod tests {
         assert!(B::supports_dtype(&device, DType::F64));
         assert!(B::supports_dtype(&device, DType::F32));
         assert!(B::supports_dtype(&device, DType::F16));
-        assert!(B::supports_dtype(&device, DType::BF16));
         assert!(B::supports_dtype(&device, DType::I64));
         assert!(B::supports_dtype(&device, DType::I32));
         assert!(B::supports_dtype(&device, DType::I16));
@@ -37,5 +36,7 @@ mod tests {
         // Currently not registered in supported types
         assert!(!B::supports_dtype(&device, DType::Flex32));
         assert!(!B::supports_dtype(&device, DType::Bool(BoolStore::Native)));
+        // BF16 is dropped: the LLVM dialect has no bfloat type to compute with.
+        assert!(!B::supports_dtype(&device, DType::BF16));
     }
 }

@@ -211,6 +211,7 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining<LearnerEvent<T>, LearnerEv
             LearnerEvent::Start {
                 total_epochs,
                 starting_epoch,
+                label,
             } => {
                 self.total_epochs = total_epochs;
                 self.current_epoch = 1;
@@ -223,9 +224,10 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining<LearnerEvent<T>, LearnerEv
                     .iter()
                     .for_each(|definition| self.renderer.register_metric(definition.clone()));
                 if let Some(logger) = &mut self.progress_logger {
-                    logger.start(total_epochs, starting_epoch, None);
+                    logger.start(total_epochs, starting_epoch, None, label.as_deref());
                 }
-                self.renderer.start(total_epochs, starting_epoch, None);
+                self.renderer
+                    .start(total_epochs, starting_epoch, None, label.as_deref());
             }
             LearnerEvent::StartSplit {
                 epoch_number,

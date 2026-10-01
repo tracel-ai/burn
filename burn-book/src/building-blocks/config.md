@@ -1,5 +1,8 @@
 # Config
 
+For process-wide settings such as logging and fusion in `burn.toml`, see
+[Runtime Configuration](../advanced/runtime-configuration.md).
+
 When writing scientific code, you normally have a lot of values that are set, and Deep Learning is
 no exception. Python has the possibility to define default parameters for functions, which helps
 improve the developer experience. However, this has the downside of potentially breaking your code

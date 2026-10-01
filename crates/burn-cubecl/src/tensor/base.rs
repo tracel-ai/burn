@@ -257,7 +257,7 @@ impl CubeTensor {
     fn assert_rows(&self, op: &str) {
         assert!(
             !self.meta.is_tiled(),
-            "CubeTensor::{op}: a storage-tiled tensor is read only by the matmul it was packed \
+            "CubeTensor::{op}: a storage-tiled tensor is read only by the matmul it was tiled \
              for; un-tile it (kernel::untile) for anything else"
         );
     }

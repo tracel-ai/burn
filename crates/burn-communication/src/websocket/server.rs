@@ -1,6 +1,9 @@
 use std::net::SocketAddr;
 
-use crate::base::{CommunicationChannel, CommunicationError, Message, ProtocolServer};
+use crate::{
+    base::{CommunicationChannel, CommunicationError, Message, ProtocolServer},
+    websocket::base::{DeadPeerTimeout, MAX_MESSAGE_SIZE},
+};
 use axum::{
     Router,
     extract::{
@@ -8,6 +11,7 @@ use axum::{
         ws::{self, WebSocket},
     },
     routing::get,
+    serve::ListenerExt,
 };
 use futures::{
     SinkExt, StreamExt,
@@ -52,6 +56,8 @@ impl WsServer {
             Err(err) => log::info!("Server started (could not resolve bound address: {err})"),
         }
 
+        let listener = listener.tap_io(|tcp| tcp.set_dead_peer_timeout());
+
         axum::serve(
             listener,
             self.router
@@ -93,9 +99,12 @@ impl ProtocolServer for WsServer {
         };
 
         let method = get(|ws: WebSocketUpgrade, _: State<()>| async {
-            ws.on_upgrade(async move |socket| {
-                callback(WsServerChannel { inner: socket }).await;
-            })
+            // Left unset, axum reads with tungstenite's defaults: 16 MiB a frame, 64 MiB a message.
+            ws.max_message_size(MAX_MESSAGE_SIZE)
+                .max_frame_size(MAX_MESSAGE_SIZE)
+                .on_upgrade(async move |socket| {
+                    callback(WsServerChannel { inner: socket }).await;
+                })
         });
 
         self.router = self.router.route(&path, method);

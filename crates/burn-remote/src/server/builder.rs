@@ -13,11 +13,12 @@ pub enum Channel {
         /// Port to bind on.
         port: u16,
     },
-    /// Iroh peer-to-peer transport. The server's address is `secret.id()`; clients dial that.
+    /// Iroh peer-to-peer transport.
     #[cfg(feature = "iroh")]
     Iroh {
-        /// The server's stable identity, its address knob (like a port for WebSocket).
-        secret: Box<crate::RemoteSecret>,
+        /// The server's identity, relays, port and authorizer. Clients dial its
+        /// [`id`](crate::server::IrohChannel::id).
+        channel: crate::server::IrohChannel,
     },
 }
 
@@ -30,9 +31,8 @@ impl core::fmt::Debug for Channel {
         match self {
             #[cfg(feature = "websocket")]
             Channel::WebSocket { port } => f.debug_struct("WebSocket").field("port", port).finish(),
-            // Show the public identity, never the secret key material.
             #[cfg(feature = "iroh")]
-            Channel::Iroh { secret } => f.debug_struct("Iroh").field("id", &secret.id()).finish(),
+            Channel::Iroh { channel } => f.debug_struct("Iroh").field("channel", channel).finish(),
         }
     }
 }
@@ -42,10 +42,10 @@ impl Default for Channel {
         #[cfg(feature = "websocket")]
         return Channel::WebSocket { port: DEFAULT_PORT };
         // Without WebSocket the default is Iroh on a fresh random identity; a host that wants a
-        // dialable address sets its own secret with [`Channel::Iroh`].
+        // stable address builds its own channel with an `IrohChannelBuilder`.
         #[cfg(all(feature = "iroh", not(feature = "websocket")))]
         return Channel::Iroh {
-            secret: Box::new(crate::RemoteSecret::random()),
+            channel: crate::server::IrohChannelBuilder::new(crate::RemoteSecret::random()).build(),
         };
     }
 }
@@ -54,7 +54,8 @@ impl Default for Channel {
 ///
 /// Configures the transport ([`channel`](Self::channel) / [`port`](Self::port)) and the custom
 /// operation handlers ([`custom_op`](Self::custom_op) / [`custom_ops`](Self::custom_ops)), then
-/// starts the server with [`start`](Self::start) (blocking) or [`start_async`](Self::start_async).
+/// starts the server with [`start`](Self::start) (blocking) or [`start_async`](Self::start_async),
+/// or over WebSocket on a listener the caller bound with [`start_async_on`](Self::start_async_on).
 ///
 /// The builder is generic over the concrete backend `B`: custom ops are typed by `B`, since their
 /// handlers call into `B`'s primitives. A backend extension hosts its ops here — the server-side
@@ -128,10 +129,7 @@ impl<B: BackendIr> RemoteServerBuilder<B> {
     /// Start the server on the caller's async runtime, serving until shutdown.
     #[cfg(not(target_family = "wasm"))]
     pub async fn start_async(self) {
-        // The backend is hosted on an async runtime: tensor readbacks must materialize
-        // eagerly rather than deferring a blocking device→host copy onto an executor worker.
-        burn_std::set_runtime_kind(burn_std::RuntimeKind::Async);
-        crate::server::ServerLogging::install();
+        Self::configure_process();
 
         match self.channel {
             #[cfg(feature = "websocket")]
@@ -144,15 +142,31 @@ impl<B: BackendIr> RemoteServerBuilder<B> {
                 .await;
             }
             #[cfg(feature = "iroh")]
-            Channel::Iroh { secret } => {
-                crate::transport::iroh::server::start_iroh_async::<B>(
-                    *secret,
-                    self.devices,
-                    self.custom_ops,
-                )
-                .await;
-            }
+            Channel::Iroh { channel } => channel.serve(self.devices, self.custom_ops).await,
         }
+    }
+
+    /// Serve over WebSocket on a listener the caller bound, until shutdown.
+    ///
+    /// The caller picks the interface and knows the address, an OS-picked port included, before
+    /// any client dials. The builder's channel is ignored.
+    #[cfg(all(not(target_family = "wasm"), feature = "websocket"))]
+    pub async fn start_async_on(self, listener: std::net::TcpListener) {
+        Self::configure_process();
+        crate::transport::websocket::start_websocket_async_on::<B>(
+            self.devices,
+            listener,
+            self.custom_ops,
+        )
+        .await;
+    }
+
+    #[cfg(not(target_family = "wasm"))]
+    fn configure_process() {
+        // The backend is hosted on an async runtime: tensor readbacks must materialize
+        // eagerly rather than deferring a blocking device→host copy onto an executor worker.
+        burn_std::set_runtime_kind(burn_std::RuntimeKind::Async);
+        crate::server::ServerLogging::install();
     }
 
     /// Start the server, blocking the current thread until shutdown.

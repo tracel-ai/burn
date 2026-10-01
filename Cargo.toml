@@ -31,6 +31,7 @@ invalid_html_tags = "deny"
 [workspace.dependencies]
 atomic_float = "1"
 axum = "0.8.8"
+blake3 = "1.8"
 bytemuck = "1.25.0"
 bytes = { version = "1.11.1", default-features = false }
 ciborium = { version = "0.2", default-features = false }
@@ -60,7 +61,8 @@ hound = "3.5.1"
 image = "0.25.9"
 indicatif = "0.18.0"
 insta = "1.45.0"
-iroh = "1.0.0"
+iroh = "1.2.0"
+iroh-relay = "1.2.0"
 js-sys = "0.3.77"
 libm = "0.2.15"
 log = { default-features = false, version = "0.4.29" }
@@ -139,11 +141,6 @@ unicode-width = "0.2"
 # WGPU stuff
 text_placeholder = "0.5.1"
 
-bincode = { version = "2.0.1", features = [
-    "alloc",
-    "serde",
-], default-features = false }
-
 #
 # The following packages disable the "std" feature for no_std compatibility
 #
@@ -157,7 +154,7 @@ half = { version = "2.7.1", features = [
     "num-traits",
     "serde",
 ], default-features = false }
-macerator = { version = "0.3.4" }
+macerator = { version = "0.5.0" }
 matrixmultiply = { version = "0.3.10", default-features = false }
 ndarray = { version = "0.17.2", default-features = false }
 num-traits = { version = "0.2.19", default-features = false, features = [
@@ -172,6 +169,7 @@ serde = { version = "1.0.228", default-features = false, features = [
 ] } # alloc is for no_std, derive is needed
 serde_json = { version = "1.0.148", default-features = false }
 smallvec = { version = "1", features = ["const_generics", "const_new"] }
+socket2 = { version = "0.6.5", features = ["all"] }
 uuid = { version = "1.23.0", default-features = false }
 
 byteorder = { version = "1.5.0", default-features = false }
@@ -231,11 +229,11 @@ burn-wgpu = { path = "crates/burn-wgpu", version = "=0.22.0-pre.4", default-feat
 pytorch-reader = { path = "crates/pytorch-reader", version = "=0.22.0-pre.4" }
 
 ### For the main burn branch. ###
-cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "313f41b2e15ab576f3c1063fa9544e132d4c002b" }
-cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "313f41b2e15ab576f3c1063fa9544e132d4c002b" }
-cubecl-environment = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "313f41b2e15ab576f3c1063fa9544e132d4c002b" }
-cubecl-zspace = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "313f41b2e15ab576f3c1063fa9544e132d4c002b" }
-cubek = { git = "https://github.com/tracel-ai/cubek", default-features = false, rev = "63dc0a925ab4707db07cf93f6b7a7e626e8496bc" }
+cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "48301b5354d449c57bfcc2544967c1343efe73b7" }
+cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "48301b5354d449c57bfcc2544967c1343efe73b7" }
+cubecl-environment = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "48301b5354d449c57bfcc2544967c1343efe73b7" }
+cubecl-zspace = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "48301b5354d449c57bfcc2544967c1343efe73b7" }
+cubek = { git = "https://github.com/tracel-ai/cubek", default-features = false, rev = "e84f83d61d741415221743dba17f50c3e4722542" }
 ### For local development. ###
 # cubecl = { path = "../cubecl/crates/cubecl", default-features = false }
 # cubecl-common = { path = "../cubecl/crates/cubecl-common", default-features = false }

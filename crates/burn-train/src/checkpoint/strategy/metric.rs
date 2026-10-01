@@ -101,6 +101,7 @@ mod tests {
         processor.process_train(crate::LearnerEvent::Start {
             total_epochs: 0,
             starting_epoch: 0,
+            label: None,
         });
 
         // Two points for the first epoch. Mean 0.75

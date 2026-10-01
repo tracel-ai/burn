@@ -240,7 +240,8 @@ pub fn calculate_conv_output_sizes(
 /// * `dilation` - Dilation of the pooling kernel
 /// * `size_in` - Input size (height or width)
 /// * `ceil_mode` - If true, use ceiling instead of floor for output size calculation.
-///   This allows the last pooling window to go out-of-bounds if needed.
+///   This allows the last pooling window to go out-of-bounds if needed, as long as it
+///   starts inside the input or left padding (matches PyTorch and ONNX).
 pub fn calculate_pool_output_size(
     kernel_size: usize,
     stride: usize,
@@ -249,13 +250,23 @@ pub fn calculate_pool_output_size(
     size_in: usize,
     ceil_mode: bool,
 ) -> usize {
-    let numerator = size_in + 2 * padding - dilation * (kernel_size - 1) - 1;
+    let size_padded = size_in + 2 * padding;
+    let kernel_extent = dilation * (kernel_size - 1) + 1;
     if ceil_mode {
-        // Ceiling division: (a + b - 1) / b
-        numerator.div_ceil(stride) + 1
+        // Ceiling division: (a + b - 1) / b. Adding `stride - 1` before subtracting
+        // allows a kernel up to `stride - 1` larger than the padded input, where one
+        // window still fits (PyTorch rejects anything larger).
+        let size_out = (size_padded + stride - 1 - kernel_extent) / stride + 1;
+        // Drop the last window if it would start at or past the end of the input
+        // (in the trailing padding, or beyond the input without padding)
+        if (size_out - 1) * stride >= size_in + padding {
+            size_out - 1
+        } else {
+            size_out
+        }
     } else {
         // Floor division (default)
-        numerator / stride + 1
+        (size_padded - kernel_extent) / stride + 1
     }
 }
 
@@ -1558,6 +1569,31 @@ pub fn calculate_padding_out(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_calculate_pool_output_size_ceil_mode_drops_window_in_padding() {
+        // PyTorch gives 3: a 4th window would start at index 6 (padded coords),
+        // in the trailing padding.
+        assert_eq!(calculate_pool_output_size(2, 2, 1, 1, 5, true), 3);
+
+        // With dilation 2 and stride 3: a 3rd window would start at padded index 6.
+        assert_eq!(calculate_pool_output_size(2, 3, 1, 2, 5, true), 2);
+
+        // No padding, kernel 1, stride 3: a 3rd window would start at 6, past the input.
+        assert_eq!(calculate_pool_output_size(1, 3, 0, 1, 5, true), 2);
+
+        // The last window starts inside the input, so it is kept.
+        assert_eq!(calculate_pool_output_size(3, 2, 1, 1, 6, true), 4);
+        assert_eq!(calculate_pool_output_size(3, 2, 0, 1, 6, true), 3);
+    }
+
+    #[test]
+    fn test_calculate_pool_output_size_ceil_mode_kernel_larger_than_input() {
+        // PyTorch gives 1: the single window starts at padded index 0, in the input
+        // without padding and in the left padding with padding 1.
+        assert_eq!(calculate_pool_output_size(3, 2, 0, 1, 2, true), 1);
+        assert_eq!(calculate_pool_output_size(4, 2, 1, 1, 2, true), 1);
+    }
 
     #[test]
     fn test_calculate_output_size_1() {

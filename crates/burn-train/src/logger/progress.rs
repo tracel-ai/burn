@@ -29,7 +29,13 @@ pub trait TrainingProgressLogger: Send {
     /// Called once at the start of training, providing the total number of epochs and the starting epoch.
     ///
     /// The total number of items of the training can optionally be provided if it is known.
-    fn start(&mut self, total_epochs: usize, starting_epoch: usize, total_items: Option<usize>);
+    fn start(
+        &mut self,
+        total_epochs: usize,
+        starting_epoch: usize,
+        total_items: Option<usize>,
+        label: Option<&str>,
+    );
 
     /// Called at the end of each full epoch (after both train and valid splits complete).
     fn update_epoch(&mut self, epoch: usize);

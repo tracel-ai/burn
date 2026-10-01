@@ -22,7 +22,7 @@ use crate::{Flex, FlexQTensor, FlexTensor, Layout};
 /// The blocks over `shape`, which must be a whole number of blocks along every axis.
 fn block_layout(shape: &Shape, block: &BlockSize) -> BlockLayout {
     let blocks = BlockLayout::new(shape, block);
-    debug_assert!(
+    assert!(
         blocks.divides(),
         "tensor {shape:?} is not a whole number of {block:?} blocks"
     );
@@ -41,12 +41,12 @@ fn block_max_abs(values: &[f32], blocks: &BlockLayout) -> Vec<f32> {
 
 impl QTensorOps<Flex> for Flex {
     fn q_from_data(data: TensorData, _device: &Device<Flex>) -> QuantizedTensor<Flex> {
-        let scheme = match data.dtype {
+        let scheme = match data.dtype() {
             DType::QFloat(scheme) => scheme,
-            _ => panic!("Expected quantized dtype, got {:?}", data.dtype),
+            _ => panic!("Expected quantized dtype, got {:?}", data.dtype()),
         };
 
-        let shape = data.shape.clone();
+        let shape = data.shape().clone();
 
         let q_bytes = QuantizedBytes {
             shape: shape.clone(),

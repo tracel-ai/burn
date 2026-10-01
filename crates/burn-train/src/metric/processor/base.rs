@@ -14,6 +14,8 @@ pub enum LearnerEvent<T> {
         total_epochs: usize,
         /// The starting epoch.
         starting_epoch: usize,
+        /// An optional label for this training.
+        label: Option<String>,
     },
     /// Signal that an item have been processed.
     ProcessedItem(TrainingItem<T>),

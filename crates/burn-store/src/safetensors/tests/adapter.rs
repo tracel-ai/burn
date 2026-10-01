@@ -51,7 +51,7 @@ fn pytorch_to_burn_adapter_linear_transpose() {
     let weight1 = model.linear.weight.val().to_data();
     let weight2 = model2.linear.weight.val().to_data();
 
-    assert_eq!(weight1.shape, weight2.shape);
+    assert_eq!(weight1.shape(), weight2.shape());
     let data1 = weight1.try_to_vec::<f32>().unwrap();
     let data2 = weight2.try_to_vec::<f32>().unwrap();
 
@@ -143,7 +143,7 @@ fn no_adapter_preserves_original() {
     let weight1 = model.linear.weight.val().to_data();
     let weight2 = model2.linear.weight.val().to_data();
 
-    assert_eq!(weight1.shape, weight2.shape);
+    assert_eq!(weight1.shape(), weight2.shape());
     assert_eq!(
         weight1.try_to_vec::<f32>().unwrap(),
         weight2.try_to_vec::<f32>().unwrap()

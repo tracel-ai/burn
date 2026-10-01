@@ -90,7 +90,7 @@ impl<B: BackendIr> TensorInterpreter<B> {
         let dtype = tensor.dtype;
         if dtype.is_float() {
             HandleKind::Float(handles.get_float_tensor::<B>(tensor))
-        } else if dtype.is_int() {
+        } else if dtype.is_int() || dtype.is_uint() {
             HandleKind::Int(handles.get_int_tensor::<B>(tensor))
         } else if dtype.is_bool() {
             HandleKind::Bool(handles.get_bool_tensor::<B>(tensor))
@@ -161,12 +161,12 @@ impl<B: BackendIr> TensorInterpreter<B> {
     /// Register a tensor from its data and id.
     pub fn register_tensor_data_id(&mut self, id: TensorId, data: TensorData) {
         let ctx = &mut self.context;
-        let dtype = data.dtype;
+        let dtype = data.dtype();
 
         if dtype.is_float() {
             let tensor = B::float_from_data(data, &self.device);
             ctx.handles.register_float_tensor::<B>(&id, tensor)
-        } else if dtype.is_int() {
+        } else if dtype.is_int() || dtype.is_uint() {
             let tensor = B::int_from_data(data, &self.device);
             ctx.handles.register_int_tensor::<B>(&id, tensor)
         } else if dtype.is_bool() {
@@ -181,13 +181,13 @@ impl<B: BackendIr> TensorInterpreter<B> {
     pub fn register_tensor_data_desc(&mut self, data: TensorData) -> TensorIr {
         let ctx = &mut self.context;
         let id = ctx.create_empty_handle();
-        let shape = data.shape.clone();
-        let dtype = data.dtype;
+        let shape = data.shape().clone();
+        let dtype = data.dtype();
 
         if dtype.is_float() {
             let tensor = B::float_from_data(data, &self.device);
             ctx.handles.register_float_tensor::<B>(&id, tensor)
-        } else if dtype.is_int() {
+        } else if dtype.is_int() || dtype.is_uint() {
             let tensor = B::int_from_data(data, &self.device);
             ctx.handles.register_int_tensor::<B>(&id, tensor)
         } else if dtype.is_bool() {
@@ -2160,7 +2160,7 @@ impl<B: BackendIr> TensorInterpreter<B> {
         let tensor = if tensor.dtype.is_float() {
             let tensor = ctx.handles.get_float_tensor::<B>(&tensor);
             Output::<B>::Float(tensor)
-        } else if tensor.dtype.is_int() {
+        } else if tensor.dtype.is_int() || tensor.dtype.is_uint() {
             let tensor = ctx.handles.get_int_tensor::<B>(&tensor);
             Output::Int(tensor)
         } else if tensor.dtype.is_bool() {

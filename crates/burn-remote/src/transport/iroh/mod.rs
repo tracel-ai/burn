@@ -3,18 +3,26 @@
 //! Self-contained: everything `cfg(feature = "iroh")`-specific that the session, transfer, and
 //! client layers depend on lives under this module.
 
+mod relays;
 mod secret;
+pub use relays::IrohRelays;
 pub use secret::RemoteSecret;
+
+#[cfg(all(feature = "client", not(target_family = "wasm")))]
+mod peer;
+#[cfg(all(feature = "client", not(target_family = "wasm")))]
+pub use peer::{ConnectError, IrohPeer, IrohPeerBuilder};
+
+#[cfg(feature = "server")]
+mod channel;
+#[cfg(feature = "server")]
+pub use channel::{IrohChannel, IrohChannelBuilder};
 
 mod link;
 pub mod node;
 
 #[cfg(feature = "server")]
 pub mod protocol;
-#[cfg(all(feature = "server", not(target_family = "wasm")))]
-pub mod server;
-#[cfg(feature = "server")]
-mod time;
 #[cfg(feature = "server")]
 mod transfer;
 #[cfg(feature = "server")]

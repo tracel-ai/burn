@@ -1,11 +1,11 @@
 use super::*;
-use burn_tensor::{DType, Distribution};
+use burn_tensor::{DType, TensorData};
 
 #[test]
 fn test_full_precision() {
     let device = AutodiffDevice::new();
-    let x1 = TestTensor::<2>::random([32, 32], Distribution::Default, &device).require_grad();
-    let x2 = TestTensor::<2>::random([32, 32], Distribution::Default, &device).require_grad();
+    let x1 = TestTensor::<2>::from_data([[1.0, 2.0], [3.0, 4.0]], &device).require_grad();
+    let x2 = TestTensor::<2>::from_data([[2.0, 1.0], [1.0, 2.0]], &device).require_grad();
     let dtype = x1.dtype();
 
     let x3 = x1.clone().cast(DType::F32);
@@ -17,11 +17,19 @@ fn test_full_precision() {
 
     let grads = x7.backward();
 
-    let x1_grad = x1.grad(&grads);
-    let x2_grad = x2.grad(&grads);
+    // With M = x1 @ x2 and G = x1 / x2:
+    // dx1 = G @ x2^T + M / x2, dx2 = x1^T @ G - M * x1 / x2^2.
+    let x1_grad = x1.grad(&grads).unwrap();
+    let x2_grad = x2.grad(&grads).unwrap();
 
-    assert!(x1_grad.is_some());
-    assert!(x2_grad.is_some());
+    assert_eq!(x1_grad.dtype(), dtype);
+    assert_eq!(x2_grad.dtype(), dtype);
+    x1_grad
+        .into_data()
+        .assert_eq(&TensorData::from([[5.0, 9.5], [18.0, 12.5]]), false);
+    x2_grad
+        .into_data()
+        .assert_eq(&TensorData::from([[8.5, -2.0], [-17.0, 1.0]]), false);
 }
 
 #[test]

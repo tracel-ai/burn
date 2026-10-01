@@ -44,6 +44,10 @@ where
     fn train(self) -> Self {
         self.map(Module::train)
     }
+
+    fn materialize(self) -> Self {
+        self.map(Module::materialize)
+    }
 }
 
 impl<T: ModuleDisplay> ModuleDisplayDefault for Option<T> {
@@ -116,6 +120,10 @@ where
 
     fn train(self) -> Self {
         self.into_iter().map(Module::train).collect()
+    }
+
+    fn materialize(self) -> Self {
+        self.into_iter().map(Module::materialize).collect()
     }
 }
 
@@ -193,6 +201,10 @@ where
     fn train(self) -> Self {
         self.map(Module::train)
     }
+
+    fn materialize(self) -> Self {
+        self.map(Module::materialize)
+    }
 }
 
 impl<const N: usize, T: ModuleDisplay> ModuleDisplayDefault for [T; N] {
@@ -263,6 +275,10 @@ macro_rules! impl_module_tuple {
 
             fn train(self) -> Self {
                 ($(self.$i.train(),)*)
+            }
+
+            fn materialize(self) -> Self {
+                ($(self.$i.materialize(),)*)
             }
         }
 

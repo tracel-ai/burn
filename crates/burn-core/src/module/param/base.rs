@@ -214,7 +214,7 @@ pub(crate) mod sealed {
         /// # Notes
         /// This is part of the sealed trait to avoid [`DynReparameterization`] from showing up in the
         /// public `ParameterValue` trait.
-        fn materialize(self, reparameterization: &dyn DynReparameterization) -> Self {
+        fn apply_reparameterization(self, reparameterization: &dyn DynReparameterization) -> Self {
             let _ = reparameterization;
             self
         }
@@ -310,7 +310,7 @@ impl<T: ParameterValue> Param<T> {
     pub fn val(&self) -> T {
         let base = self.deref().clone();
         match &self.reparameterization {
-            Some(reparameterization) => base.materialize(reparameterization.as_ref()),
+            Some(reparameterization) => base.apply_reparameterization(reparameterization.as_ref()),
             None => base,
         }
     }

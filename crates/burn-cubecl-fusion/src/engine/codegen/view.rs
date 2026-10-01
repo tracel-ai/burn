@@ -2,10 +2,10 @@ use crate::engine::codegen::{DynElem, DynSize, io::set_polyfill_typed};
 
 use super::{
     io::{
-        Transform, global_buffer_len, global_vector_size, input_as_slice, read_input,
-        read_input_window, ref_buffer_len, ref_len,
+        global_buffer_len, global_vector_size, input_as_slice, read_input_window, ref_buffer_len,
+        ref_len,
     },
-    ir::{FuseArg, FuseBlockConfig, GlobalArgs, LayoutInfo, LocalArgs},
+    ir::{FuseArg, FuseBlockConfig, GlobalArgs, LocalArgs},
     kernel::fuse_on_write,
 };
 use cubecl::{
@@ -22,41 +22,21 @@ use cubecl::{
 #[derive(CubeType)]
 pub struct GlobalInput {
     inputs: GlobalArgs,
-    locals: LocalArgs,
     #[cube(comptime)]
     pos: usize,
-    #[cube(comptime)]
-    ty: ElemType,
-    #[cube(comptime)]
-    layout: LayoutInfo,
-    #[cube(comptime)]
-    config: FuseBlockConfig,
-    #[cube(comptime)]
-    transform: Option<Transform>,
 }
 
 #[cube]
 impl GlobalInput {
-    pub fn new(
-        inputs: &GlobalArgs,
-        locals: &LocalArgs,
-        #[comptime] arg: FuseArg,
-        #[comptime] config: FuseBlockConfig,
-        #[comptime] transform: Option<Transform>,
-    ) -> GlobalInput {
-        let (pos, ty, layout) = comptime![match arg {
-            FuseArg::Input(pos, prec, layout) => (pos, prec.into_storage_type(), layout),
+    pub fn new(inputs: &GlobalArgs, #[comptime] arg: FuseArg) -> GlobalInput {
+        let pos = comptime![match arg {
+            FuseArg::Input(pos, ..) => pos,
             _ => unreachable!("Must be concrete input"),
         }];
 
         GlobalInput {
             inputs: inputs.clone(),
-            locals: locals.clone(),
             pos,
-            ty,
-            layout,
-            config,
-            transform,
         }
     }
 }
@@ -103,17 +83,10 @@ impl<E: CubePrimitive> ViewOperationsExpand<E, Coords1d> for GlobalInputExpand {
         pos: NativeExpand<usize>,
     ) -> <E as CubeType>::ExpandType {
         set_polyfill_typed::expand::<E, DynElem, DynSize>(scope);
-        let value = read_input::expand::<E::Scalar, E::Size>(
-            scope,
-            &self.inputs,
-            &self.locals,
-            self.pos,
-            pos,
-            self.layout,
-            &self.config,
-            self.transform.clone(),
-        );
-        E::__expand_cast_from(scope, value)
+        // The view's layout already maps coordinates to physical buffer offsets.
+        // Applying the fusion reference layout here would remap the offset twice.
+        let slice = input_as_slice::expand::<E>(scope, &self.inputs, self.pos);
+        slice.__expand_read_unchecked_method(scope, pos)
     }
 
     #[allow(clippy::too_many_arguments)]

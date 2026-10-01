@@ -72,11 +72,12 @@ length differs from what was reserved. Quantized tensors are exempt from the fir
 packed values and inline scales are not a product of shape and dtype; that exception is why
 `Tensor::deferred` takes an explicit length rather than deriving one.
 
-`Writer::write_to_file_atomic` builds the container in a scratch file beside the destination and
-renames it into place only once it is complete. Because a deferred tensor's bytes are produced
-mid-write, provider failure is an ordinary outcome, and it must not truncate whatever was already at
-that path. `Writer::write_to_file` writes in place and is the cheaper choice for records, whose
-tensors are resident and cannot fail to materialize.
+`Writer::write_to_file` builds the container in a scratch file beside the destination and renames
+it into place only once it is complete, so a save that fails partway leaves whatever was already at
+that path untouched. That covers disk failure (a full disk, a quota, an I/O error) for every caller,
+and provider failure for deferred tensors, whose bytes are produced mid-write.
+`Writer::write_to_file_in_place` truncates and rewrites the destination instead: it skips the fsync
+and the transient second copy, but a failed save leaves a truncated file.
 
 ## The three record types
 

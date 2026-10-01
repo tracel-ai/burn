@@ -16,4 +16,7 @@ pub use logging::ServerLogging;
 #[cfg(feature = "iroh")]
 pub use crate::transport::iroh::protocol::{
     AllowAll, AuthorizationRequest, IrohRemoteProtocol, PeerAuthorizer, RemoteProtocol,
+    TokenAuthorizer,
 };
+#[cfg(feature = "iroh")]
+pub use crate::transport::iroh::{IrohChannel, IrohChannelBuilder};

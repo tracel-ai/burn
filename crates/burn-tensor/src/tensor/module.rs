@@ -5,9 +5,10 @@ use burn_std::{MatmulTransformAction, MatmulTransformAnalysis, MatmulTransformPo
 use crate::{
     Bool, DType, Int, Tensor, check,
     check::TensorCheck,
+    kind::Basic,
     ops::{
-        AttentionModuleOptions, BridgeTensor, ConvOptions, ConvTransposeOptions, DeformConvOptions,
-        InterpolateOptions, UnfoldOptions,
+        AttentionModuleOptions, AvgPoolOptions, BridgeTensor, ConvOptions, ConvTransposeOptions,
+        DeformConvOptions, InterpolateOptions, MaxPoolOptions, PadMode, UnfoldOptions,
     },
 };
 
@@ -354,131 +355,281 @@ pub fn fold4d(
 }
 
 /// Applies a [1D max pooling](burn_backend::ops::ModuleOps::max_pool1d).
-pub fn max_pool1d(
-    x: Tensor<3>,
-    kernel_size: usize,
-    stride: usize,
-    padding: usize,
-    dilation: usize,
-    ceil_mode: bool,
-) -> Tensor<3> {
-    Tensor::new(BridgeTensor::float(Dispatch::max_pool1d(
+///
+/// Supports symmetric and asymmetric padding through [`MaxPoolOptions`].
+pub fn max_pool1d(x: Tensor<3>, options: MaxPoolOptions<1>) -> Tensor<3> {
+    let dims = x.dims();
+    let (x, padding) = pad_max_pool_input(x, &options);
+    let output = Tensor::new(BridgeTensor::float(Dispatch::max_pool1d(
         x.primitive.into_float(),
-        kernel_size,
-        stride,
-        padding,
-        dilation,
-        ceil_mode,
-    )))
+        options.kernel_size[0],
+        options.stride[0],
+        padding[0],
+        options.dilation[0],
+        options.ceil_mode,
+    )));
+
+    drop_end_padding_windows(
+        output,
+        dims,
+        options.stride,
+        options.padding,
+        options.ceil_mode,
+    )
 }
 
 /// Applies a [2D max pooling](burn_backend::ops::ModuleOps::max_pool2d).
-pub fn max_pool2d(
-    x: Tensor<4>,
-    kernel_size: [usize; 2],
-    stride: [usize; 2],
-    padding: [usize; 2],
-    dilation: [usize; 2],
-    ceil_mode: bool,
-) -> Tensor<4> {
-    Tensor::new(BridgeTensor::float(Dispatch::max_pool2d(
+///
+/// Supports symmetric and asymmetric padding through [`MaxPoolOptions`].
+pub fn max_pool2d(x: Tensor<4>, options: MaxPoolOptions<2>) -> Tensor<4> {
+    let dims = x.dims();
+    let (x, padding) = pad_max_pool_input(x, &options);
+    let output = Tensor::new(BridgeTensor::float(Dispatch::max_pool2d(
         x.primitive.into_float(),
-        kernel_size,
-        stride,
+        options.kernel_size,
+        options.stride,
         padding,
-        dilation,
-        ceil_mode,
-    )))
+        options.dilation,
+        options.ceil_mode,
+    )));
+
+    drop_end_padding_windows(
+        output,
+        dims,
+        options.stride,
+        options.padding,
+        options.ceil_mode,
+    )
 }
 
 /// Applies a [2D avg pooling](burn_backend::ops::ModuleOps::avg_pool2d).
-pub fn avg_pool2d(
-    x: Tensor<4>,
-    kernel_size: [usize; 2],
-    stride: [usize; 2],
-    padding: [usize; 2],
-    count_include_pad: bool,
-    ceil_mode: bool,
-) -> Tensor<4> {
-    Tensor::new(BridgeTensor::float(Dispatch::avg_pool2d(
-        x.primitive.into_float(),
-        kernel_size,
-        stride,
-        padding,
-        count_include_pad,
-        ceil_mode,
-    )))
+///
+/// Supports symmetric and asymmetric padding through [`AvgPoolOptions`].
+pub fn avg_pool2d(x: Tensor<4>, options: AvgPoolOptions<2>) -> Tensor<4> {
+    avg_pool(x, &options, |x, padding, count_include_pad| {
+        Tensor::new(BridgeTensor::float(Dispatch::avg_pool2d(
+            x.primitive.into_float(),
+            options.kernel_size,
+            options.stride,
+            padding,
+            count_include_pad,
+            options.ceil_mode,
+        )))
+    })
 }
 
 /// Applies a [1D avg pooling](burn_backend::ops::ModuleOps::avg_pool1d).
-pub fn avg_pool1d(
-    x: Tensor<3>,
-    kernel_size: usize,
-    stride: usize,
-    padding: usize,
-    count_include_pad: bool,
-    ceil_mode: bool,
-) -> Tensor<3> {
-    Tensor::new(BridgeTensor::float(Dispatch::avg_pool1d(
-        x.primitive.into_float(),
-        kernel_size,
-        stride,
-        padding,
-        count_include_pad,
-        ceil_mode,
-    )))
+///
+/// Supports symmetric and asymmetric padding through [`AvgPoolOptions`].
+pub fn avg_pool1d(x: Tensor<3>, options: AvgPoolOptions<1>) -> Tensor<3> {
+    avg_pool(x, &options, |x, padding, count_include_pad| {
+        Tensor::new(BridgeTensor::float(Dispatch::avg_pool1d(
+            x.primitive.into_float(),
+            options.kernel_size[0],
+            options.stride[0],
+            padding[0],
+            count_include_pad,
+            options.ceil_mode,
+        )))
+    })
 }
 
-/// Applies a [1D max pooling](burn_backend::ops::ModuleOps::max_pool1d).
+/// Applies a [1D max pooling with indices](burn_backend::ops::ModuleOps::max_pool1d_with_indices).
+///
+/// Supports symmetric and asymmetric padding through [`MaxPoolOptions`].
+/// Returned indices always refer to positions in the unpadded input.
 pub fn max_pool1d_with_indices(
     x: Tensor<3>,
-    kernel_size: usize,
-    stride: usize,
-    padding: usize,
-    dilation: usize,
-    ceil_mode: bool,
+    options: MaxPoolOptions<1>,
 ) -> (Tensor<3>, Tensor<3, Int>) {
-    let indices_dtype = x.device().settings().int_dtype;
+    let dims = x.dims();
+    let [_, _, length] = dims;
+    let indices_dtype = x.device().get_or_init_settings().int_dtype;
+    let (x, padding) = pad_max_pool_input(x, &options);
     let output = Dispatch::max_pool1d_with_indices(
         x.primitive.into_float(),
-        kernel_size,
-        stride,
-        padding,
-        dilation,
-        ceil_mode,
+        options.kernel_size[0],
+        options.stride[0],
+        padding[0],
+        options.dilation[0],
+        options.ceil_mode,
         indices_dtype,
     );
+    let mut indices = Tensor::<3, Int>::new(BridgeTensor::int(output.indices));
 
+    if options.is_asymmetric() {
+        let (left, _) = options.padding[0];
+        indices = unpad_indices(indices, left, length);
+    }
+
+    let output = Tensor::new(BridgeTensor::float(output.output));
+    let MaxPoolOptions {
+        stride,
+        padding,
+        ceil_mode,
+        ..
+    } = options;
     (
-        Tensor::new(BridgeTensor::float(output.output)),
-        Tensor::new(BridgeTensor::int(output.indices)),
+        drop_end_padding_windows(output, dims, stride, padding, ceil_mode),
+        drop_end_padding_windows(indices, dims, stride, padding, ceil_mode),
     )
 }
 
 /// Applies a [2D max pooling with indices](burn_backend::ops::ModuleOps::max_pool2d_with_indices).
+///
+/// Supports symmetric and asymmetric padding through [`MaxPoolOptions`].
+/// Returned indices always refer to positions in the unpadded input.
 pub fn max_pool2d_with_indices(
     x: Tensor<4>,
-    kernel_size: [usize; 2],
-    stride: [usize; 2],
-    padding: [usize; 2],
-    dilation: [usize; 2],
-    ceil_mode: bool,
+    options: MaxPoolOptions<2>,
 ) -> (Tensor<4>, Tensor<4, Int>) {
-    let indices_dtype = x.device().settings().int_dtype;
+    let dims = x.dims();
+    let [_, _, height, width] = dims;
+    let indices_dtype = x.device().get_or_init_settings().int_dtype;
+    let (x, padding) = pad_max_pool_input(x, &options);
     let output = Dispatch::max_pool2d_with_indices(
         x.primitive.into_float(),
-        kernel_size,
-        stride,
+        options.kernel_size,
+        options.stride,
         padding,
-        dilation,
-        ceil_mode,
+        options.dilation,
+        options.ceil_mode,
         indices_dtype,
     );
+    let mut indices = Tensor::<4, Int>::new(BridgeTensor::int(output.indices));
 
+    if options.is_asymmetric() {
+        let [(top, _), (left, right)] = options.padding;
+        let width_padded = width + left + right;
+        let rows = unpad_indices(indices.clone().div_scalar(width_padded as i64), top, height);
+        let cols = unpad_indices(indices.remainder_scalar(width_padded as i64), left, width);
+        indices = rows.mul_scalar(width as i64).add(cols);
+    }
+
+    let output = Tensor::new(BridgeTensor::float(output.output));
+    let MaxPoolOptions {
+        stride,
+        padding,
+        ceil_mode,
+        ..
+    } = options;
     (
-        Tensor::new(BridgeTensor::float(output.output)),
-        Tensor::new(BridgeTensor::int(output.indices)),
+        drop_end_padding_windows(output, dims, stride, padding, ceil_mode),
+        drop_end_padding_windows(indices, dims, stride, padding, ceil_mode),
     )
+}
+
+/// When any dimension has asymmetric padding, materializes all padding with `-inf`
+/// so the backend pools without padding.
+///
+/// Returns the input unchanged along with the backend padding when it is symmetric.
+fn pad_max_pool_input<const D: usize, const N: usize>(
+    x: Tensor<D>,
+    options: &MaxPoolOptions<N>,
+) -> (Tensor<D>, [usize; N]) {
+    if options.is_asymmetric() {
+        (
+            x.pad(options.padding, PadMode::Constant(f32::NEG_INFINITY)),
+            [0; N],
+        )
+    } else {
+        (x, options.padding.map(|(begin, _)| begin))
+    }
+}
+
+/// Maps positions along one padded dimension back to the unpadded input.
+///
+/// A window made only of padding and `-inf` inputs may select a padded position,
+/// which is clamped to the nearest input position.
+fn unpad_indices<const D: usize>(
+    indices: Tensor<D, Int>,
+    begin: usize,
+    size: usize,
+) -> Tensor<D, Int> {
+    indices.sub_scalar(begin as i64).clamp(0, size as i64 - 1)
+}
+
+/// Average pooling with asymmetric padding support.
+///
+/// `pool` runs the backend operation with the given symmetric padding and
+/// `count_include_pad` flag.
+fn avg_pool<const D: usize, const N: usize>(
+    x: Tensor<D>,
+    options: &AvgPoolOptions<N>,
+    pool: impl Fn(Tensor<D>, [usize; N], bool) -> Tensor<D>,
+) -> Tensor<D> {
+    if !options.is_asymmetric() {
+        let padding = options.padding.map(|(begin, _)| begin);
+        return pool(x, padding, options.count_include_pad);
+    }
+
+    let dims = x.dims();
+    let valid = (!options.count_include_pad).then(|| {
+        // Only the spatial dimensions matter for the validity mask.
+        let mut shape = [1; D];
+        shape[D - N..].copy_from_slice(&dims[D - N..]);
+        Tensor::<D>::ones(shape, (&x.device(), x.dtype()))
+            .pad(options.padding, PadMode::Constant(0.0))
+    });
+    let output = pool(
+        x.pad(options.padding, PadMode::Constant(0.0)),
+        [0; N],
+        options.count_include_pad,
+    );
+
+    let output = match valid {
+        // Materialized padding is indistinguishable from input to the backend. Pooling a
+        // validity mask with the same settings recovers the fraction of real values in
+        // each window, including partial windows created by ceil mode.
+        Some(valid) => {
+            let valid = pool(valid, [0; N], false);
+            let empty = valid.clone().equal_elem(0.0);
+            output / valid.mask_fill(empty, 1.0)
+        }
+        None => output,
+    };
+
+    drop_end_padding_windows(
+        output,
+        dims,
+        options.stride,
+        options.padding,
+        options.ceil_mode,
+    )
+}
+
+/// In ceil mode, drops the last window of each spatial dimension when it starts in the
+/// end padding, matching PyTorch and ONNX.
+///
+/// Backends only drop such windows for padding they apply themselves, so one extra window
+/// survives once asymmetric padding has been materialized. For backend-applied padding
+/// the condition never holds and the output is returned unchanged.
+///
+/// One window is all there is to drop when the end padding is smaller than the kernel (the
+/// range PyTorch and ONNX Runtime accept): floor mode never starts a window in it, and ceil
+/// mode adds at most one. Larger end padding keeps floor-mode windows there, and only the
+/// extra ceil window is dropped, as in the PyTorch and ONNX output-size formulas.
+fn drop_end_padding_windows<const D: usize, const N: usize, K: Basic>(
+    output: Tensor<D, K>,
+    input_dims: [usize; D],
+    stride: [usize; N],
+    padding: [(usize, usize); N],
+    ceil_mode: bool,
+) -> Tensor<D, K> {
+    if !ceil_mode {
+        return output;
+    }
+
+    (0..N).fold(output, |output, i| {
+        let dim = D - N + i;
+        let size = output.dims()[dim];
+        let (begin, _) = padding[i];
+        if size > 1 && (size - 1) * stride[i] >= input_dims[dim] + begin {
+            output.narrow(dim, 0, size - 1)
+        } else {
+            output
+        }
+    })
 }
 
 /// Applies a [2D adaptive avg pooling](burn_backend::ops::ModuleOps::adaptive_avg_pool2d).
@@ -506,16 +657,51 @@ pub fn adaptive_avg_pool1d(x: Tensor<3>, output_size: usize) -> Tensor<3> {
 }
 
 /// Applies a [2D interpolation](burn_backend::ops::ModuleOps::interpolate).
-pub fn interpolate(
-    x: Tensor<4>,
-    output_size: [usize; 2],
-    options: InterpolateOptions,
-) -> Tensor<4> {
+///
+/// The output spatial size is taken from `options.output_size`, or computed as
+/// `floor(input_size * scale_factor)` from `options.scale_factor`.
+///
+/// # Panics
+///
+/// Panics unless exactly one of `output_size` or `scale_factor` is set, or if the
+/// scaled size exceeds `usize::MAX`.
+///
+/// # Example
+///
+/// ```rust,ignore
+/// // Resize to a fixed size.
+/// interpolate(x, InterpolateOptions::new(mode).with_output_size([224, 224]));
+/// // Upsample by 2x.
+/// interpolate(x, InterpolateOptions::new(mode).with_scale_factor([2.0, 2.0]));
+/// ```
+pub fn interpolate(x: Tensor<4>, options: InterpolateOptions) -> Tensor<4> {
+    let [_, _, h, w] = x.dims();
+    let output_size = interpolate_output_size([h, w], &options);
     Tensor::new(BridgeTensor::float(Dispatch::interpolate(
         x.primitive.into_float(),
         output_size,
         options,
     )))
+}
+
+fn interpolate_output_size(input_size: [usize; 2], options: &InterpolateOptions) -> [usize; 2] {
+    match (options.output_size, options.scale_factor) {
+        (Some(output_size), None) => output_size,
+        (None, Some(scale_factor)) => core::array::from_fn(|i| {
+            let size = input_size[i] as f64 * scale_factor[i] as f64;
+            assert!(
+                size <= usize::MAX as f64,
+                "Interpolate scale factor {} is too large for input size {}",
+                scale_factor[i],
+                input_size[i]
+            );
+            size as usize
+        }),
+        (Some(_), Some(_)) => {
+            panic!("Interpolate options must set only one of output_size or scale_factor")
+        }
+        (None, None) => panic!("Interpolate options must set output_size or scale_factor"),
+    }
 }
 
 /// Applies a linear transformation to the input tensor using the given weight and bias.
@@ -763,4 +949,60 @@ fn layer_norm_impl(
         beta.map(|b| b.into_float()),
         epsilon,
     ))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::ops::InterpolateMode;
+
+    fn options() -> InterpolateOptions {
+        InterpolateOptions::new(InterpolateMode::Nearest)
+    }
+
+    #[test]
+    fn interpolate_output_size_from_output_size() {
+        let size = interpolate_output_size([4, 4], &options().with_output_size([2, 3]));
+        assert_eq!(size, [2, 3]);
+    }
+
+    #[test]
+    fn interpolate_output_size_from_scale_factor_floors() {
+        let size = interpolate_output_size([4, 5], &options().with_scale_factor([2.0, 1.5]));
+        assert_eq!(size, [8, 7]);
+    }
+
+    #[test]
+    fn interpolate_options_last_sizing_builder_wins() {
+        let size = interpolate_output_size(
+            [4, 4],
+            &options()
+                .with_output_size([2, 2])
+                .with_scale_factor([2.0, 2.0]),
+        );
+        assert_eq!(size, [8, 8]);
+    }
+
+    #[test]
+    #[should_panic(expected = "must set output_size or scale_factor")]
+    fn interpolate_output_size_requires_size() {
+        interpolate_output_size([4, 4], &options());
+    }
+
+    #[test]
+    #[should_panic(expected = "only one of output_size or scale_factor")]
+    fn interpolate_output_size_rejects_both() {
+        let mut options = options().with_output_size([2, 2]);
+        options.scale_factor = Some([2.0, 2.0]);
+        interpolate_output_size([4, 4], &options);
+    }
+
+    #[test]
+    #[should_panic(expected = "too large")]
+    fn interpolate_output_size_rejects_overflow() {
+        interpolate_output_size(
+            [4, usize::MAX - 1],
+            &options().with_scale_factor([1.0, 2.0]),
+        );
+    }
 }

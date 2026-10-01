@@ -2,6 +2,29 @@ use super::*;
 use burn_tensor::TensorData;
 
 #[test]
+fn should_diff_repeat_non_uniform_grad() {
+    let data_1 = TensorData::from([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]);
+    let data_2 = TensorData::from([
+        [1.0, 2.0, 3.0, 4.0, 5.0, 6.0],
+        [7.0, 8.0, 9.0, 10.0, 11.0, 12.0],
+    ]);
+
+    let device = AutodiffDevice::new();
+    let tensor_1 = TestTensor::<2>::from_data(data_1, &device).require_grad();
+    let tensor_2 = TestTensor::<2>::from_data(data_2, &device);
+
+    let tensor_3 = tensor_1.clone().repeat_dim(1, 2).mul(tensor_2);
+    let grads = tensor_3.sum().backward();
+
+    let grad_1 = tensor_1.grad(&grads).unwrap();
+
+    grad_1.to_data().assert_eq(
+        &TensorData::from([[5.0, 7.0, 9.0], [17.0, 19.0, 21.0]]),
+        false,
+    );
+}
+
+#[test]
 fn should_diff_repeat() {
     let data_1 = TensorData::from([[1.0, 7.0], [-2.0, -3.0]]);
     let data_2 = TensorData::from([[4.0], [2.0]]);

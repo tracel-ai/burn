@@ -57,11 +57,11 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
     #[cfg_attr(feature = "tracing", tracing::instrument(
         level="trace",
         skip(data),
-        fields(?data.shape, ?data.dtype)
+        fields(shape = ?data.shape(), dtype = ?data.dtype())
     ))]
     fn float_from_data(data: TensorData, device: &Device<Self>) -> FloatTensor<Self> {
         let client = get_client::<B>(device);
-        let dtype = data.dtype;
+        let dtype = data.dtype();
         let tensor = B::float_from_data(data, device);
         let shape = burn_backend::TensorMetadata::shape(&tensor);
 

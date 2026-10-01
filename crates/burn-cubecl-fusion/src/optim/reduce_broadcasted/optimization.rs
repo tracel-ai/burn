@@ -186,9 +186,12 @@ impl ReduceBroadcastedOptimization {
             })
             .collect();
 
-        let empty_reduce_axis = self.info.fallbacks.iter().any(|fallback| match fallback {
+        // An empty reduce input means either the reduced axis is empty, which no fused kernel
+        // accepts, or the output is empty, which leaves the kernels nothing to launch over.
+        let empty_input = self.info.fallbacks.iter().any(|fallback| match fallback {
             ReduceBlockOptimInfo::Reduce(info) => {
-                context.tensors.get(&info.reduce.op.input.id).unwrap().shape[info.reduce.axis] == 0
+                let input = context.tensors.get(&info.reduce.op.input.id).unwrap();
+                input.shape.num_elements() == 0
             }
             ReduceBlockOptimInfo::Elemwise(_) => false,
         });
@@ -200,7 +203,7 @@ impl ReduceBroadcastedOptimization {
             broadcasted: self.info.broadcasted.clone(),
         };
 
-        if empty_reduce_axis {
+        if empty_input {
             arg.execute_empty_axis_fallback(context);
             return;
         }

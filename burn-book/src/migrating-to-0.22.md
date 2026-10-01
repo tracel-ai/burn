@@ -24,6 +24,10 @@ backend constructor you use; `burn` has no default execution backend.
 With `default-features = false`, enable `optim` explicitly if you use `burn::optim` or
 `burn::lr_scheduler`; `train` also enables it.
 
+Reinforcement learning is opt-in. Enable the `rl` feature on `burn` to use `burn::rl` and the RL
+learner in `burn::train`. If you depend on `burn-train` directly, `rl` is no longer one of its
+default features.
+
 ## Types and devices
 
 | Previous API                                        | 0.22 API                                                                          |
@@ -77,6 +81,11 @@ assert!(model.linear.weight.grad(&gradients).is_some());
 Configure device dtype defaults before creating tensors. Configuration is shared by the compute
 device and can only be initialized once. See [Backend and Device](./building-blocks/backend.md).
 
+`get_device_settings` no longer initializes or locks defaults. Use
+`burn_backend::get_or_init_device_settings` to preserve the 0.21 behavior, or `device.settings()` to
+query settings in application code. Tensor creation still locks defaults, even with an explicit
+dtype.
+
 Prefer explicit device constructors during migration. `Device::default()` chooses from compiled-in
 backends, not from available hardware. Enabling an additional backend through Cargo feature
 unification can therefore change the default. This also affects implicit device selection by
@@ -127,11 +136,11 @@ available. A `Module` bound does not establish that a value is currently trainin
 persist. `freeze()` also disables module-owned training flags, whereas `no_grad()` only changes
 parameter gradients.
 
-Keep the original training model when using `model.valid()` for validation. The snapshot folds
-adapters such as LoRA into parameter values and discards checkpointing strategies;
-`snapshot.train()` does not reconstruct those. Dropout additionally checks its input tensor's
-autodiff context, so create model inputs on the training device even when their gradients are not
-needed. See [Module](./building-blocks/module.md).
+Keep the original training model when using `model.valid()` for validation. The snapshot discards
+tensor checkpointing strategies, which `train()` does not restore.
+
+Dropout additionally checks its input tensor's autodiff context, so create model inputs on the
+training device even when their gradients are not needed. See [Module](./building-blocks/module.md).
 
 ## Migrating checkpoints
 
@@ -273,6 +282,22 @@ conversion, use `try_to_vec_as::<E>()` or `try_into_vec_as::<E>()` on `TensorDat
 Update error matches for the revised `DataError` variants and `Tensor::try_into_scalar`'s
 `TensorReadError`.
 
+`TensorData` fields are private, so its byte length always matches its shape and dtype (quantized
+data is not checked yet). Replace field access with the accessors:
+
+| Previous API                         | 0.22 API                                                  |
+| ------------------------------------ | --------------------------------------------------------- |
+| `data.shape`                         | `data.shape()` (returns `&Shape`)                         |
+| `data.dtype`                         | `data.dtype()`                                            |
+| `data.bytes` (borrowed)              | `data.bytes()` or `data.as_bytes()`                       |
+| `data.bytes` (moved)                 | `data.into_bytes()`, or `data.into_parts()` for all three |
+| `&mut data.bytes`                    | `TensorData::with_bytes_mut(..)` (length must not change) |
+| `TensorData { bytes, shape, dtype }` | `TensorData::try_from_bytes(bytes, shape, dtype)?`        |
+
+`TensorData::from_bytes` and `from_bytes_vec` now panic when the byte length does not match the
+shape and dtype. Use `try_from_bytes` or `try_from_bytes_vec` for untrusted input; they return
+`DataError::InvalidByteLength`, the same check deserialization applies.
+
 Other source changes:
 
 - **Dimensions:** negative indices are supported. Annotate untyped empty inputs, such as
@@ -280,6 +305,31 @@ Other source changes:
 - **Convolution:** `ConvOptions::padding` stores `(before, after)` pairs. Keep
   `ConvOptions::new(..)` for symmetric padding; replace deprecated `PaddedConvOptions` with
   `ConvOptions::new_with_padding(..)` for asymmetric padding.
+- **Interpolation:** `module::interpolate(x, output_size, options)` is now
+  `module::interpolate(x, options)`. Set the size with `options.with_output_size([h, w])`, or use
+  `options.with_scale_factor([sh, sw])` to scale the input size.
+- **Pooling:** the functional `max_pool1d`, `max_pool2d`, `avg_pool1d`, `avg_pool2d`, and their
+  `_with_indices` variants take `MaxPoolOptions` or `AvgPoolOptions` instead of positional
+  arguments. Only the kernel size is required; stride defaults to the kernel size, padding to 0,
+  dilation to 1, `ceil_mode` to false, and `count_include_pad` to true. 1D options use
+  single-element arrays. Use `with_padding_pairs(..)` for asymmetric padding:
+
+  ```rust,ignore
+  // Before
+  max_pool2d(x, [3, 3], [2, 2], [1, 1], [1, 1], false);
+  avg_pool1d(x, 3, 1, 1, false, false);
+
+  // After
+  max_pool2d(x, MaxPoolOptions::new([3, 3]).with_stride([2, 2]).with_padding([1, 1]));
+  avg_pool1d(
+      x,
+      AvgPoolOptions::new([3])
+          .with_stride([1])
+          .with_padding([1])
+          .with_count_include_pad(false),
+  );
+  ```
+
 - **Quantization:** replace `with_level(..)` and `with_param(..)` with `per_tensor(ScaleDtype)` or
   `per_block(block, ScaleDtype)`. See [Quantization](./performance/quantization.md).
 - **Softplus:** use `SoftplusConfig::new().with_beta(beta).with_threshold(threshold)` instead of
@@ -302,12 +352,13 @@ them if your project only uses the built-in modules, optimizers, metrics, and st
 
 ### Modules
 
-For handwritten module code:
+For handwritten implementations, consult the `Module` trait documentation for the required methods;
+`#[derive(Module)]` generates them automatically.
 
-- Implement `valid(&self)` and `train(self)`. `#[derive(Module)]` generates both.
-- Visit and map `Param<Flag>` fields so `freeze()` and `valid()` control layer training behavior.
-  `BatchNorm` and `Dropout` now include these flags; use their config builders instead of struct
-  literals.
+Other module API changes:
+
+- `BatchNorm` and `Dropout` now include `Param<Flag>` training controls; use their config builders
+  instead of struct literals.
 - Replace `ParamId::serialize()` / `deserialize()` with `Display` / `FromStr`.
 - Replace `Reinitializer` with `burn::nn::Initializer` for new parameters or a `ModuleMapper` for
   existing ones. Use `Param::map` to preserve IDs and configured trainability, and keep trainable

@@ -174,14 +174,14 @@ fn cube_fallback_statistics_are_not_padded() {
                     TestTensorBool::<2>::from_data(TensorData::new(data.clone(), shape), &device);
                 let (labels, stats) = img.connected_components_with_stats(connectivity, opts);
                 assert_eq!(labels.dims(), shape);
-                assert_eq!(labels.into_data().shape, shape.into());
+                assert_eq!(*labels.into_data().shape(), shape.into());
                 for stat in [stats.area, stats.left, stats.top, stats.right, stats.bottom] {
                     #[cfg(feature = "fusion")]
                     assert_eq!(stat.dims(), [data.len()]);
                     #[cfg(not(feature = "fusion"))]
                     {
                         assert_eq!(stat.dims(), [count]);
-                        assert_eq!(stat.into_data().shape, [count].into());
+                        assert_eq!(*stat.into_data().shape(), [count].into());
                     }
                     // Fusion reconstructs tensors with its declared shape. Full-array reads
                     // and consumers retain main's mismatch; compact data is checked unfused.

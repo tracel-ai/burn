@@ -7,62 +7,59 @@ when NAT traversal cannot establish a direct path.
 
 ## Client
 
-Applications own the Iroh endpoint configuration. This keeps identity persistence, relay policy,
-address lookup, and fleet discovery outside Burn:
+Describe the server with an `IrohPeer`: its id, the relays it uses, and the credential its
+authorizer checks. Burn binds the endpoint and dials every device of the peer over one connection:
 
 ```rust,ignore
-use burn::{Device, Tensor};
-use burn::backend::remote::{Endpoint, RemoteNode, endpoint::presets};
+use burn::remote::IrohPeerBuilder;
+use burn::tensor::{Device, Tensor};
 
-let endpoint = Endpoint::builder(presets::N0)
-    // .secret_key(persistent_secret_key)
-    // .relay_mode(custom_relay_mode)
-    // .address_lookup(platform_lookup)
-    .bind()
-    .await?;
-let node = RemoteNode::from_endpoint(endpoint);
-
-// Supplied by your platform, invitation, or other discovery mechanism.
-let compute_peer = fleet.lookup("gpu-worker-7").await?;
-let device = Device::remote_iroh(&node, compute_peer, 0);
+let peer = IrohPeerBuilder::new(server_id).with_credential(token).build();
+let device = Device::remote_iroh_peer(&peer, 0).await?;
 
 let output = Tensor::<1>::from_floats([1.0, 2.0], &device) * 2.0;
 ```
 
-`RemoteNode` is process-level. Clone it rather than creating one per device: clones share one
-Iroh endpoint, peer connection pool, and multiplexed QUIC connections.
+The peer's relays must match the server's. With relays disabled, `.with_address(...)` gives each
+address the server listens on.
 
-Platforms can issue a `RemoteTicket` containing an `EndpointAddr` and opaque authorization bytes.
-Burn passes the credential to the compute peer's `PeerAuthorizer`; signature format, expiry,
-tenant policy, and fleet membership remain application concerns.
+An application that already runs an Iroh endpoint, for its own identity, address lookup or other
+protocols, passes it with `.with_endpoint(endpoint)`, or dials with `Device::remote_iroh`. That
+endpoint keeps its own settings; the ones Burn binds send no segmentation-offloaded (GSO) batches
+because of [iroh#4555](https://github.com/n0-computer/iroh/issues/4555).
 
 ## Compute peer
 
 ```rust,ignore
-use burn::{Device, server::{self, Channel}};
-use burn::backend::remote::RemoteNode;
+use burn::server::{self, Channel, IrohChannelBuilder, RemoteSecret, TokenAuthorizer};
+use burn::tensor::Device;
 
-let node = RemoteNode::bind().await?;
-println!("compute peer: {}", node.endpoint().addr());
+let secret = RemoteSecret::load_or_create("server.key")?;
+let channel = IrohChannelBuilder::new(secret)
+    .with_authorizer(TokenAuthorizer::new(token).expect("A non-empty token"))
+    .build();
+println!("compute peer: {}", channel.id());
 
-server::start_async(
-    Device::cuda(0),
-    Channel::Iroh { node },
-).await;
+server::start_async(Device::cuda(0), Channel::Iroh { channel }).await;
 ```
+
+The channel uses n0's public relays by default. `.with_relays(IrohRelays::Private { url })` goes
+through a relay you run instead, and `.with_relays(IrohRelays::Disabled).with_port(4433)` serves
+direct connections only, on a UDP port clients dial. `IrohRelays` and `RelayUrl` come from
+`burn::server`.
 
 For an endpoint shared with other Iroh protocols, register Burn's composable handler in the
 application router:
 
 ```rust,ignore
-use burn_remote::BURN_REMOTE_ALPN;
+use burn::server::{self, BURN_REMOTE_ALPN};
 use iroh::protocol::Router;
 
-let burn = node
-    .protocol::<MyBackend>(devices)
-    .with_authorizer(|request| platform.verify(request.peer, request.credential));
+let burn = server::protocol(Device::cuda(0), &endpoint)
+    .with_authorizer(|request| platform.verify(request.peer, request.credential))
+    .build();
 
-let router = Router::builder(node.endpoint().clone())
+let router = Router::builder(endpoint)
     .accept(BURN_REMOTE_ALPN, burn)
     .accept(MY_OTHER_ALPN, other_protocol)
     .spawn();
@@ -80,5 +77,5 @@ Tensor movement between an Iroh peer and a legacy WebSocket peer is not supporte
 
 ## WebSocket compatibility
 
-The `websocket` feature preserves `Device::remote("ws://host:port", index)` and
+The `websocket` feature preserves `Device::remote_websocket("ws://host:port", index)` and
 `Channel::WebSocket`. It is intended for compatibility; new integrations should use Iroh.

@@ -143,6 +143,20 @@ impl ModuleCodegen for EnumModuleCodegen {
         }
     }
 
+    fn gen_materialize(&self) -> TokenStream {
+        let match_body = self.gen_variants_match_fn_param("self", "Self::", |variant| {
+            quote! {
+                Self::#variant(burn::module::Module::materialize(module))
+            }
+        });
+
+        quote! {
+            fn materialize(self) -> Self {
+                #match_body
+            }
+        }
+    }
+
     fn gen_clone(&self) -> TokenStream {
         let match_body = self.gen_variants_match_fn(|variant| {
             quote! {

@@ -666,12 +666,22 @@ mod no_backend_tests {
     }
 }
 
-#[cfg(all(test, feature = "capture"))]
+#[cfg(all(test, any(feature = "capture", feature = "remote-websocket")))]
 mod tests {
     use super::*;
     use burn_backend::Device;
 
     #[test]
+    #[cfg(feature = "remote-websocket")]
+    fn remote_device_id_round_trips_through_dispatch() {
+        let device = DispatchDevice::from(RemoteDevice::websocket("ws://127.0.0.1:1", 0));
+        let restored = DispatchDevice::from_id(device.to_id());
+
+        assert_eq!(restored, device);
+    }
+
+    #[test]
+    #[cfg(feature = "capture")]
     fn capture_device_id_round_trips_through_dispatch() {
         let device = DispatchDevice::capture();
         let restored = DispatchDevice::from_id(device.to_id());
