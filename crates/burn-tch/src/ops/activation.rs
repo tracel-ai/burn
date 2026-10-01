@@ -55,7 +55,37 @@ impl ActivationOps<Self> for LibTorch {
 
     fn prelu(tensor: TchTensor, alpha: TchTensor) -> TchTensor {
         let storage = tensor.storage.clone();
-        let tensor = tensor.tensor.prelu(&alpha.tensor);
+        // `activation::prelu` broadcasts `alpha` to the rank of the input (`[1, C, 1, ...]`)
+        // for the default composite implementation. `at::native::prelu` only accepts a
+        // scalar or a 1-D weight, and applies a size-`C` weight along dim 1, which is the
+        // same semantics that layout encodes.
+        let tensor = tensor.tensor.prelu(&alpha.tensor.reshape([-1]));
         TchTensor::from_existing(tensor, storage)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use burn_backend::{TensorData, Tolerance, ops::FloatTensorOps, read_sync};
+
+    type B = crate::LibTorch;
+
+    /// `activation::prelu` hands backends an `alpha` already broadcast to the rank of the
+    /// input, so `prelu` must accept more than the scalar or 1-D weight `tch` requires.
+    #[test]
+    fn prelu_accepts_a_broadcast_alpha() {
+        let device = Default::default();
+        // [N=1, C=2, H=1, W=2] with a per-channel alpha shaped the way `burn-tensor` ships it.
+        let x = B::float_from_data(
+            TensorData::new(vec![-2.0f32, 3.0, -4.0, 5.0], [1, 2, 1, 2]),
+            &device,
+        );
+        let alpha = B::float_from_data(TensorData::new(vec![0.1f32, 0.5], [1, 2, 1, 1]), &device);
+
+        let out = read_sync(B::float_into_data(<B as ActivationOps<B>>::prelu(x, alpha))).unwrap();
+
+        let expected = TensorData::new(vec![-0.2f32, 3.0, -2.0, 5.0], [1, 2, 1, 2]);
+        out.assert_approx_eq::<f32>(&expected, Tolerance::default());
     }
 }
