@@ -1,5 +1,5 @@
-//! The data gradient of a convolution, including the dense im2col path in
-//! `burn-cubecl`.
+//! The data gradient of a convolution, which routes through the transposed-convolution
+//! fallback in `burn-cubecl`.
 //!
 //! Only the input is tracked in each case, so the gradient that comes back is that path's
 //! output alone, with no weight gradient mixed in.
@@ -59,8 +59,6 @@ fn conv1d_dgrad_should_match_reference_backend() {
     );
 }
 
-/// Dense, non-pointwise 1D convolution. The autotuner evaluates the im2col
-/// data-gradient candidate for this shape in addition to the fallback.
 #[test]
 fn conv1d_dgrad_dense_im2col_should_match_reference_backend() {
     assert_dgrad_matches_reference(
@@ -101,8 +99,6 @@ fn conv2d_dgrad_should_match_reference_backend() {
     );
 }
 
-/// Dense, non-pointwise 2D convolution. The asymmetric stride also covers the
-/// column-to-input index mapping used by the im2col data-gradient path.
 #[test]
 fn conv2d_dgrad_dense_im2col_should_match_reference_backend() {
     assert_dgrad_matches_reference(
@@ -155,9 +151,6 @@ fn conv3d_dgrad_should_match_reference_backend() {
     );
 }
 
-/// Dense 3D convolution, which exercises the N-dimensional col2im kernel
-/// directly. The existing 3D case above is grouped and therefore declines the
-/// dense im2col candidate.
 #[test]
 fn conv3d_dgrad_dense_im2col_should_match_reference_backend() {
     assert_dgrad_matches_reference(
