@@ -1,5 +1,5 @@
-//! The data gradient of a convolution, which routes through the transposed-convolution
-//! fallback in `burn-cubecl`.
+//! The data gradient of a convolution, including the dense im2col path in
+//! `burn-cubecl`.
 //!
 //! Only the input is tracked in each case, so the gradient that comes back is that path's
 //! output alone, with no weight gradient mixed in.
@@ -59,6 +59,18 @@ fn conv1d_dgrad_should_match_reference_backend() {
     );
 }
 
+/// Dense, non-pointwise 1D convolution. The autotuner evaluates the im2col
+/// data-gradient candidate for this shape in addition to the fallback.
+#[test]
+fn conv1d_dgrad_dense_im2col_should_match_reference_backend() {
+    assert_dgrad_matches_reference(
+        [2, 4, 17],
+        [6, 4, 5],
+        ConvOptions::new([2], [2], [1], 1),
+        module::conv1d,
+    );
+}
+
 #[test]
 fn conv1d_dgrad_strided_dilated_grouped_should_match_reference_backend() {
     assert_dgrad_matches_reference(
@@ -85,6 +97,18 @@ fn conv2d_dgrad_should_match_reference_backend() {
         [4, 8, 9, 11],
         [6, 8, 3, 5],
         ConvOptions::new([1, 1], [1, 2], [1, 1], 1),
+        module::conv2d,
+    );
+}
+
+/// Dense, non-pointwise 2D convolution. The asymmetric stride also covers the
+/// column-to-input index mapping used by the im2col data-gradient path.
+#[test]
+fn conv2d_dgrad_dense_im2col_should_match_reference_backend() {
+    assert_dgrad_matches_reference(
+        [2, 4, 9, 11],
+        [6, 4, 3, 5],
+        ConvOptions::new([2, 1], [1, 2], [1, 1], 1),
         module::conv2d,
     );
 }
@@ -127,6 +151,19 @@ fn conv3d_dgrad_should_match_reference_backend() {
         [2, 4, 5, 6, 7],
         [6, 2, 3, 2, 3],
         ConvOptions::new([2, 1, 1], [1, 2, 0], [1, 1, 2], 2),
+        module::conv3d,
+    );
+}
+
+/// Dense 3D convolution, which exercises the N-dimensional col2im kernel
+/// directly. The existing 3D case above is grouped and therefore declines the
+/// dense im2col candidate.
+#[test]
+fn conv3d_dgrad_dense_im2col_should_match_reference_backend() {
+    assert_dgrad_matches_reference(
+        [1, 4, 7, 8, 9],
+        [6, 4, 3, 3, 3],
+        ConvOptions::new([1, 2, 1], [1, 1, 1], [1, 1, 1], 1),
         module::conv3d,
     );
 }
