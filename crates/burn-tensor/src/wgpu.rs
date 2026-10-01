@@ -1,7 +1,8 @@
 //! Initialize wgpu through [`Device::wgpu_options`].
 //!
-//! Native applications can call `WgpuOptions::init`. Async initialization
-//! works on native and browser targets:
+//! In browsers, call `Device::wgpu_options().init_async().await?` before creating
+//! models or tensors. Use the returned [`Device`] for subsequent operations.
+//! Native applications can use `.init()` instead.
 //!
 //! ```no_run
 //! # async fn example() -> Result<(), burn_tensor::wgpu::WgpuInitError> {
