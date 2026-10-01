@@ -166,6 +166,39 @@ async fn a_device_dialed_with_no_address_and_no_lookup_connects_once_given_one()
     router.shutdown().await.unwrap();
 }
 
+#[test]
+fn a_device_retried_after_its_first_runtime_shut_down_runs_on_the_new_one() {
+    within_hang_limit(|| {
+        let runtime = tokio::runtime::Runtime::new().unwrap();
+        let server = runtime.block_on(local_endpoint());
+        let client = runtime.block_on(local_endpoint());
+        let router = {
+            let _guard = runtime.enter();
+            spawn_router::<Flex>(server.clone(), AllowAll, TelemetryProbe::disabled())
+        };
+
+        let first = tokio::runtime::Runtime::new().unwrap();
+        let unaddressed = {
+            let _guard = first.enter();
+            RemoteDevice::iroh(&client, EndpointAddr::new(server.id()), 0)
+        };
+        let result = unaddressed.connect();
+        assert!(matches!(result, Err(ConnectError::NoAddress)), "{result:?}");
+        drop(first);
+
+        let second = tokio::runtime::Runtime::new().unwrap();
+        let remote = {
+            let _guard = second.enter();
+            RemoteDevice::iroh(&client, server.addr(), 0)
+        };
+        remote.connect().unwrap();
+        let output = Tensor::<1>::from_floats([1.0, 2.0], &Device::new(remote)) * 2.0;
+        assert_eq!(output.try_into_vec_as::<f32>().unwrap(), vec![2.0, 4.0]);
+
+        runtime.block_on(router.shutdown()).unwrap();
+    });
+}
+
 #[tokio::test(flavor = "multi_thread")]
 async fn transfers_tensor_directly_between_iroh_compute_peers() {
     let source_server = local_endpoint().await;

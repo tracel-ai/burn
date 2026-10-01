@@ -14,6 +14,7 @@ use burn_std::{DType, DeviceSettings, id::StreamId, profile::Instant};
 // Only the native `sync` path captures a backtrace; the wasm path returns without blocking.
 #[cfg(not(target_family = "wasm"))]
 use burn_std::backtrace::BackTrace;
+use core::{future::Future, pin::Pin};
 use std::collections::HashMap;
 use std::sync::{Arc, OnceLock};
 use tokio::{
@@ -34,9 +35,11 @@ use writer::SubmitWriter;
 
 use super::{ConnectError, runtime::Executor};
 pub(crate) use conn::{RemoteEndpoint, SubmitChannel};
+#[cfg(not(target_family = "wasm"))]
+pub(crate) use registry::device_count_for;
 use registry::{device_count_cell, executor_for, settings_cell};
-pub(crate) use registry::{device_count_for, has_settings, new_tensor_id, settings_for};
 pub(crate) use registry::{endpoint_for, register_endpoint};
+pub(crate) use registry::{has_settings, new_tensor_id, settings_for};
 
 /// All the state owned by the device-runner thread for a single remote device.
 ///
@@ -88,6 +91,9 @@ pub struct RemoteService {
     profile_streams: HashMap<u64, StreamId>,
     /// Emits this device's telemetry (the ops and graphs it sends).
     probe: TelemetryProbe,
+    /// Subscribed from the start, so the ops queued before the session opens are logged, but run
+    /// on the runtime the session opens on.
+    logger: Option<Pin<Box<dyn Future<Output = ()> + Send>>>,
     /// Shared cell populated from the init handshake (read by `RemoteDevice::defaults`).
     settings: Arc<OnceLock<DeviceSettings>>,
     /// Shared cell populated from the init handshake (read by `RemoteDevice::enumerate`).
@@ -109,9 +115,8 @@ impl DeviceService for RemoteService {
         } else {
             TelemetryProbe::disabled()
         };
-        if let Some(task) = logger_task(&probe, MetricSide::Client) {
-            executor.spawn(task);
-        }
+        let logger = logger_task(&probe, MetricSide::Client)
+            .map(|task| Box::pin(task) as Pin<Box<dyn Future<Output = ()> + Send>>);
 
         // Lazy connect: `init` must return promptly. cubecl holds a process-global
         // device-registry lock across this call (to make device-handle creation atomic), so
@@ -133,6 +138,7 @@ impl DeviceService for RemoteService {
             pending: PendingResponses::new(),
             profile_streams: HashMap::new(),
             probe,
+            logger,
             settings: settings_cell(id),
             device_count: device_count_cell(id),
             session_id,
@@ -163,12 +169,18 @@ impl RemoteService {
 
     /// Building the device again with new dialing hints, or from another runtime, updates its
     /// registry entry, which a session not yet open must dial with.
-    fn reload_endpoint(&mut self) {
+    fn refresh_from_registry(&mut self) {
         if let Some((endpoint, _)) = endpoint_for(self.id) {
             self.endpoint = endpoint;
         }
         if let Some(executor) = executor_for(self.id) {
             self.executor = executor;
+        }
+    }
+
+    fn start_logger(&mut self) {
+        if let Some(task) = self.logger.take() {
+            self.executor.spawn(task);
         }
     }
 
@@ -727,7 +739,7 @@ impl RemoteService {
 
         #[cfg(not(target_family = "wasm"))]
         {
-            self.reload_endpoint();
+            self.refresh_from_registry();
             log::debug!(
                 "Connecting to {} (device {}) ...",
                 self.endpoint.peer_addr(),
@@ -750,6 +762,7 @@ impl RemoteService {
 
             Self::spawn_response_demux(&self.executor, response, self.pending.responder());
             self.writer = Some(SubmitWriter::spawn(&self.executor, request));
+            self.start_logger();
             Ok(())
         }
     }
@@ -764,7 +777,7 @@ impl RemoteService {
         if self.writer.is_some() {
             return None;
         }
-        self.reload_endpoint();
+        self.refresh_from_registry();
         Some(WasmConnectPlan {
             endpoint: self.endpoint.clone(),
             session_id: self.session_id,
@@ -784,6 +797,7 @@ impl RemoteService {
         let _ = self.settings.set(connected.settings);
         let _ = self.device_count.set(connected.device_count);
         self.writer = Some(connected.writer);
+        self.start_logger();
     }
 
     /// Hand whatever's currently buffered to the writer task as one batch (the writer

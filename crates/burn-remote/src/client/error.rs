@@ -63,6 +63,14 @@ impl From<SessionRefusal> for ConnectError {
             SessionRefusal::NoSuchDevice { device_count } => Self::NoSuchDevice {
                 device_count: device_count as usize,
             },
+            // At the client's own version, the server could not read the handshake itself.
+            SessionRefusal::IncompatibleProtocol { server_version }
+                if server_version == PROTOCOL_VERSION =>
+            {
+                Self::Handshake {
+                    reason: "the server could not read this client's handshake".into(),
+                }
+            }
             SessionRefusal::IncompatibleProtocol { server_version } => Self::IncompatibleProtocol {
                 client_version: PROTOCOL_VERSION,
                 server_version,
@@ -107,5 +115,18 @@ impl std::error::Error for ConnectError {
             Self::Bind { source } => Some(source),
             _ => None,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_protocol_refusal_at_the_clients_own_version_is_a_handshake_error() {
+        let error = ConnectError::from(SessionRefusal::IncompatibleProtocol {
+            server_version: PROTOCOL_VERSION,
+        });
+        assert!(matches!(error, ConnectError::Handshake { .. }), "{error:?}");
     }
 }

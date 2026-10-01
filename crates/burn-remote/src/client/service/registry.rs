@@ -134,6 +134,7 @@ pub(crate) fn device_count_cell(id: u32) -> Arc<OnceLock<u32>> {
         .clone()
 }
 
+#[cfg(not(target_family = "wasm"))]
 pub(crate) fn device_count_for(id: u32) -> Option<u32> {
     registry()
         .lock()

@@ -27,6 +27,8 @@ struct StreamHeader {
     kind: StreamKind,
 }
 
+/// Changing it, or [`BURN_REMOTE_ALPN`], drops an older client before it can be told that its
+/// protocol version differs.
 const STREAM_VERSION: u16 = 1;
 const MAX_FRAME_SIZE: usize = 1024 * 1024 * 1024;
 

@@ -165,7 +165,8 @@ pub enum SessionRefusal {
     /// of the Burn Remote protocol. Told before authorization, so it reveals the server's
     /// version, which a client could find by trying each version anyway.
     ///
-    /// The only refusal a client on another version receives, so its encoding never changes.
+    /// The only refusal a client on another version receives, so its encoding never changes, nor
+    /// do the Iroh ALPN and stream header that carry it.
     IncompatibleProtocol { server_version: u16 },
 }
 

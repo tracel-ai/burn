@@ -272,10 +272,7 @@ impl RemoteDevice {
     /// # Errors
     ///
     /// See [`ConnectError`].
-    ///
-    /// # Panics
-    ///
-    /// On wasm, which cannot block: use `connect_async` there.
+    #[cfg(not(target_family = "wasm"))]
     pub fn connect(&self) -> Result<(), ConnectError> {
         get_client::<RemoteChannel>(self).connect()
     }
@@ -330,10 +327,6 @@ impl RemoteDevice {
     /// # Errors
     ///
     /// See [`ConnectError`].
-    ///
-    /// # Panics
-    ///
-    /// On wasm, like [`connect`](Self::connect).
     #[cfg(feature = "websocket")]
     pub fn enumerate_websocket(address: &str) -> Result<Vec<Self>, ConnectError> {
         // Device 0 always exists (a server must host at least one device); connecting to it
@@ -354,11 +347,7 @@ impl RemoteDevice {
     /// # Errors
     ///
     /// See [`ConnectError`].
-    ///
-    /// # Panics
-    ///
-    /// On wasm, like [`connect`](Self::connect).
-    #[cfg(feature = "iroh")]
+    #[cfg(all(feature = "iroh", not(target_family = "wasm")))]
     pub fn enumerate_iroh(
         endpoint: &iroh::Endpoint,
         peer: iroh::EndpointAddr,
@@ -430,7 +419,7 @@ impl DeviceOps for RemoteDevice {
         // triggered any op, so we need to establish the session here. `connect` is
         // idempotent — a no-op once the client has been initialized for this device.
         if !service::has_settings(self.id)
-            && let Err(err) = self.connect()
+            && let Err(err) = get_client::<RemoteChannel>(self).connect()
         {
             panic!(
                 "Failed to open a remote session at {}: {err}",
