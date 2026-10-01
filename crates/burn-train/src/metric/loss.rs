@@ -46,14 +46,7 @@ impl Metric for LossMetric {
         _metadata: &MetricMetadata,
     ) -> Result<SerializedEntry, TensorReadError> {
         let [batch_size] = loss.tensor.dims();
-        let loss = loss
-            .tensor
-            .clone()
-            .mean()
-            .try_into_data()?
-            .iter::<f64>()
-            .next()
-            .unwrap();
+        let loss = loss.tensor.clone().mean().try_into_scalar::<f64>()?;
 
         self.state.update(loss, batch_size);
         Ok(self
