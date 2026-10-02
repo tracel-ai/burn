@@ -452,6 +452,51 @@ fn dropping_the_serving_future_ends_its_live_sessions() {
     rt.shutdown_background();
 }
 
+#[test]
+fn a_device_whose_server_restarted_is_replaced_by_a_new_one() {
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .enable_io()
+        .build()
+        .unwrap();
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let address = listener.local_addr().unwrap();
+    let host = host_of(&listener);
+    let first = rt.spawn(
+        BackendServer::<Flex>::new(vec![Default::default()])
+            .serve_async(WebSocketTransport::from_listener(listener)),
+    );
+
+    let old = Device::remote_options(&host).init().unwrap();
+    let doubled = Tensor::<1>::from_floats([1.0], &old) * 2.0;
+    assert_eq!(doubled.try_into_vec_as::<f32>().unwrap(), vec![2.0]);
+
+    first.abort();
+    assert!(rt.block_on(first).unwrap_err().is_cancelled());
+
+    let listener = std::net::TcpListener::bind(address).unwrap();
+    rt.spawn(
+        BackendServer::<Flex>::new(vec![Default::default()])
+            .serve_async(WebSocketTransport::from_listener(listener)),
+    );
+    let new = Device::remote_options(&host).init().unwrap();
+    assert_ne!(new, old);
+    let doubled = Tensor::<1>::from_floats([3.0], &new) * 2.0;
+    assert_eq!(doubled.try_into_vec_as::<f32>().unwrap(), vec![6.0]);
+
+    let stale = old.clone();
+    with_deadlock_watchdog(HANG_LIMIT, move || {
+        let read = (Tensor::<1>::from_floats([1.0], &stale) * 2.0).try_into_data();
+        assert!(read.is_err(), "a session outlived its server: {read:?}");
+    });
+
+    let moved = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        Tensor::<1>::from_floats([1.0], &old).to_device(&new)
+    }));
+    assert!(moved.is_err(), "a tensor left a device whose session ended");
+
+    rt.shutdown_background();
+}
+
 fn loopback_transport() -> WebSocketTransport {
     WebSocketTransport::from_listener(std::net::TcpListener::bind("127.0.0.1:0").unwrap())
 }

@@ -35,9 +35,13 @@ use writer::SubmitWriter;
 
 use super::{ConnectError, runtime::Executor};
 pub(crate) use conn::{RemoteEndpoint, SubmitChannel};
-use registry::{device_count_cell, settings_cell};
-pub(crate) use registry::{device_count_for, register_endpoint, registered_device};
+use registry::{SessionState, device_count_cell, session_state, settings_cell};
+pub(crate) use registry::{device_count_for, register_endpoint, registered_device, session_ended};
 pub(crate) use registry::{has_settings, new_tensor_id, settings_for};
+
+/// How long a server has to answer the session handshake. Past it the server is taken to be
+/// stuck, rather than leaving the device's runner, and every later connect to it, waiting forever.
+const HANDSHAKE_DEADLINE: core::time::Duration = core::time::Duration::from_secs(60);
 
 /// All the state owned by the device-runner thread for a single remote device.
 ///
@@ -63,6 +67,8 @@ pub struct RemoteService {
     /// The device's registry entry, which holds its latest dialing hints.
     id: u32,
     executor: Executor,
+    /// Marked ended by the response demux or the writer when the session goes away.
+    session: Arc<SessionState>,
     /// Where to connect on first use. The connection is established lazily (see
     /// [`ensure_connected`](Self::ensure_connected)) rather than in [`init`](Self::init),
     /// because cubecl holds a process-global device-registry lock across `init` — opening the
@@ -127,6 +133,7 @@ impl DeviceService for RemoteService {
         Self {
             id,
             executor,
+            session: session_state(id),
             endpoint,
             device_index,
             writer: None,
@@ -202,10 +209,13 @@ impl RemoteService {
             .into();
 
         streams.submit.send(init_bytes).await.map_err(failed)?;
-        let msg = streams
-            .response
-            .recv()
+        let msg = crate::time::timeout(HANDSHAKE_DEADLINE, streams.response.recv())
             .await
+            .map_err(|()| {
+                failed(format!(
+                    "the server did not answer within {HANDSHAKE_DEADLINE:?}"
+                ))
+            })?
             .map_err(failed)?
             .ok_or_else(|| failed("the server closed the session before answering".into()))?;
         let reply: TaskResponse = rmp_serde::from_slice(&msg)
@@ -247,11 +257,12 @@ impl RemoteService {
 
     /// Spawn the response-demux task: route each [`TaskResponse`] to its pending callback by
     /// [`RequestId`] via the [`Responder`]. Lives on the service runtime; exits when the
-    /// response stream closes.
+    /// response stream closes, ending the session.
     fn spawn_response_demux(
         executor: &Executor,
         mut response: ResponseChannel,
         responder: Responder,
+        session: Arc<SessionState>,
     ) {
         // Detached: the task owns the response stream and runs until it closes.
         let _demux = executor.spawn(async move {
@@ -283,6 +294,7 @@ impl RemoteService {
             // The response stream is gone (clean close or error): the server will never answer
             // any in-flight or future request on this connection. Fail every waiting caller and
             // gate new ones so they error out instead of blocking forever on a dead server.
+            session.end();
             responder.disconnect();
         });
     }
@@ -295,6 +307,7 @@ pub(crate) struct WasmConnectPlan {
     session_id: SessionId,
     device_index: u32,
     responder: Responder,
+    session: Arc<SessionState>,
 }
 
 /// A session opened by [`wasm_connect`], ready to be installed back into the service.
@@ -324,8 +337,13 @@ pub(crate) async fn wasm_connect(plan: WasmConnectPlan) -> Result<WasmConnected,
     )
     .await?;
 
-    RemoteService::spawn_response_demux(&executor, streams.response, plan.responder);
-    let writer = SubmitWriter::spawn(&executor, streams.submit);
+    let writer = SubmitWriter::spawn(
+        &executor,
+        streams.submit,
+        plan.session.clone(),
+        plan.responder.clone(),
+    );
+    RemoteService::spawn_response_demux(&executor, streams.response, plan.responder, plan.session);
 
     Ok(WasmConnected {
         writer,
@@ -645,6 +663,25 @@ impl RemoteService {
         }
     }
 
+    /// Ask the server to answer on the session, if one is open and not known to have ended. A
+    /// server that went away without closing the session leaves it looking open until a request
+    /// goes unanswered; the session then ends, before the returned receiver resolves.
+    pub(crate) fn probe_session(
+        &mut self,
+    ) -> Option<Unconstrained<oneshot::Receiver<TaskResponseContent>>> {
+        let open = self.writer.is_some() && !self.session.has_ended();
+        // The cheapest request the server answers in turn, without waiting on its device.
+        open.then(|| self.submit_request(|id| Task::DTypeUsage(id, DType::F32)))
+    }
+
+    /// [`probe_session`](Self::probe_session), waiting for the answer or the session's end.
+    #[cfg(not(target_family = "wasm"))]
+    pub(crate) fn confirm_session(&mut self) {
+        if let Some(answer) = self.probe_session() {
+            let _ = self.executor.block_on(answer);
+        }
+    }
+
     /// Buffer a fire-and-forget compute task. Thin wrapper over [`submit`](Self::submit)
     /// that wraps the task in [`RemoteMessage::Task`].
     fn submit_task(&mut self, task: Task) {
@@ -741,8 +778,18 @@ impl RemoteService {
             let _ = self.settings.set(info.settings);
             let _ = self.device_count.set(info.device_count);
 
-            Self::spawn_response_demux(&self.executor, streams.response, self.pending.responder());
-            self.writer = Some(SubmitWriter::spawn(&self.executor, streams.submit));
+            self.writer = Some(SubmitWriter::spawn(
+                &self.executor,
+                streams.submit,
+                self.session.clone(),
+                self.pending.responder(),
+            ));
+            Self::spawn_response_demux(
+                &self.executor,
+                streams.response,
+                self.pending.responder(),
+                self.session.clone(),
+            );
             self.start_logger();
             Ok(())
         }
@@ -764,6 +811,7 @@ impl RemoteService {
             session_id: self.session_id,
             device_index: self.device_index,
             responder: self.pending.responder(),
+            session: self.session.clone(),
         })
     }
 
