@@ -68,41 +68,56 @@ impl<M: LearnerModel> SupervisedLearningStrategy<M> for SingleDeviceTrainingStra
         for training_progress in TrainingLoop::new(starting_epoch, training_components.num_epochs) {
             let epoch = training_progress.items_processed;
 
-            event_processor.process_train(LearnerEvent::StartSplit {
-                epoch_number: epoch,
-                total_items: train_total_items,
-            });
+            training_components
+                .interrupter
+                .fail_on_error(event_processor.process_train(LearnerEvent::StartSplit {
+                    epoch_number: epoch,
+                    total_items: train_total_items,
+                }));
             epoch_train.run(
                 &mut learner,
                 &training_progress,
                 &mut event_processor,
                 &training_components.interrupter,
             );
-            event_processor.process_train(LearnerEvent::EndSplit(epoch));
+            training_components
+                .interrupter
+                .fail_on_error(event_processor.process_train(LearnerEvent::EndSplit(epoch)));
 
             if training_components.interrupter.should_stop() {
-                let reason = training_components
-                    .interrupter
-                    .get_message()
-                    .unwrap_or(String::from("Reason unknown"));
-                log::info!("Training interrupted: {reason}");
+                if let Some(interruption) = training_components.interrupter.interruption() {
+                    let reason = interruption.reason.as_deref().unwrap_or("reason unknown");
+                    log::info!("Training interrupted: {reason}");
+                }
                 break;
             }
 
-            event_processor.process_valid(LearnerEvent::StartSplit {
-                epoch_number: epoch,
-                total_items: valid_total_items,
-            });
+            training_components
+                .interrupter
+                .fail_on_error(event_processor.process_valid(LearnerEvent::StartSplit {
+                    epoch_number: epoch,
+                    total_items: valid_total_items,
+                }));
             epoch_valid.run(
                 &learner,
                 &training_progress,
                 &mut event_processor,
                 &training_components.interrupter,
             );
-            event_processor.process_valid(LearnerEvent::EndSplit(epoch));
-            event_processor.process_train(LearnerEvent::EndEpoch(epoch));
+            training_components
+                .interrupter
+                .fail_on_error(event_processor.process_valid(LearnerEvent::EndSplit(epoch)));
+            training_components
+                .interrupter
+                .fail_on_error(event_processor.process_train(LearnerEvent::EndEpoch(epoch)));
             if checkpointer.is_some() || early_stopping.is_some() {
-                event_processor.flush();
+                training_components
+                    .interrupter
+                    .fail_on_error(event_processor.flush());
+            }
+
+            if training_components.interrupter.should_stop() {
+                break;
             }
 
             if let Some(checkpointer) = &mut checkpointer {

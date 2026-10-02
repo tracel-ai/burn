@@ -5,7 +5,7 @@ use super::{MetricMetadata, SerializedEntry};
 use crate::metric::{
     Metric, MetricAttributes, MetricName, Numeric, NumericAttributes, NumericEntry,
 };
-use burn_core::tensor::{Int, Tensor};
+use burn_core::tensor::{Int, Tensor, TensorReadError};
 
 /// The Top-K accuracy metric.
 ///
@@ -67,7 +67,11 @@ impl TopKAccuracyMetric {
 impl Metric for TopKAccuracyMetric {
     type Input = TopKAccuracyInput;
 
-    fn update(&mut self, input: &TopKAccuracyInput, _metadata: &MetricMetadata) -> SerializedEntry {
+    fn update(
+        &mut self,
+        input: &TopKAccuracyInput,
+        _metadata: &MetricMetadata,
+    ) -> Result<SerializedEntry, TensorReadError> {
         let [batch_size, n_classes] = input.outputs.dims();
         assert!(
             self.k <= n_classes,
@@ -89,7 +93,7 @@ impl Metric for TopKAccuracyMetric {
             Some(pad_token) => {
                 // we ignore the samples where the target is equal to the pad token
                 let mask = targets.clone().equal_scalar(pad_token as i64);
-                let num_pad = mask.clone().int().sum().into_scalar::<i64>() as usize;
+                let num_pad = mask.clone().int().sum().try_into_scalar::<i64>()? as usize;
                 (targets.clone().mask_fill(mask, -1_i64), num_pad)
             }
             None => (targets.clone(), 0),
@@ -102,17 +106,19 @@ impl Metric for TopKAccuracyMetric {
             .equal(outputs)
             .int()
             .sum()
-            .into_scalar::<f64>()
+            .try_into_scalar::<f64>()?
             / valid_count as f64;
 
         self.state.update(100.0 * accuracy, valid_count);
-        self.state
-            .compute_update(FormatOptions::new(self.name()).unit("%").precision(2))
+        Ok(self
+            .state
+            .compute_update(FormatOptions::new(self.name()).unit("%").precision(2)))
     }
 
-    fn compute(&mut self) -> SerializedEntry {
-        self.state
-            .compute_final(FormatOptions::new(self.name()).unit("%").precision(2))
+    fn compute(&mut self) -> Result<SerializedEntry, TensorReadError> {
+        Ok(self
+            .state
+            .compute_final(FormatOptions::new(self.name()).unit("%").precision(2)))
     }
     fn clear(&mut self) {
         self.state.reset()
@@ -214,7 +220,7 @@ mod tests {
             Tensor::from_data([2, 2, 1, 1], &device),
         );
 
-        let _entry = metric.update(&input, &MetricMetadata::fake());
+        let _entry = metric.update(&input, &MetricMetadata::fake()).unwrap();
         assert_eq!(50.0, metric.value().unwrap().current());
     }
 
@@ -238,7 +244,7 @@ mod tests {
             Tensor::from_data([2, 2, 1, 1, 3, 3, 3], &device),
         );
 
-        let _entry = metric.update(&input, &MetricMetadata::fake());
+        let _entry = metric.update(&input, &MetricMetadata::fake()).unwrap();
         assert_eq!(50.0, metric.value().unwrap().current());
     }
 
@@ -248,21 +254,25 @@ mod tests {
         let mut metric = TopKAccuracyMetric::new(1).with_pad_token(2);
 
         // One valid, correct sample and three padding samples.
-        metric.update(
-            &TopKAccuracyInput::new(
-                Tensor::from_data([[0.9, 0.1], [0.9, 0.1], [0.9, 0.1], [0.9, 0.1]], &device),
-                Tensor::from_data([0, 2, 2, 2], &device),
-            ),
-            &MetricMetadata::fake(),
-        );
+        metric
+            .update(
+                &TopKAccuracyInput::new(
+                    Tensor::from_data([[0.9, 0.1], [0.9, 0.1], [0.9, 0.1], [0.9, 0.1]], &device),
+                    Tensor::from_data([0, 2, 2, 2], &device),
+                ),
+                &MetricMetadata::fake(),
+            )
+            .unwrap();
         // Four valid, incorrect samples.
-        metric.update(
-            &TopKAccuracyInput::new(
-                Tensor::from_data([[0.9, 0.1]; 4], &device),
-                Tensor::from_data([1, 1, 1, 1], &device),
-            ),
-            &MetricMetadata::fake(),
-        );
+        metric
+            .update(
+                &TopKAccuracyInput::new(
+                    Tensor::from_data([[0.9, 0.1]; 4], &device),
+                    Tensor::from_data([1, 1, 1, 1], &device),
+                ),
+                &MetricMetadata::fake(),
+            )
+            .unwrap();
 
         // One correct prediction out of five valid samples.
         assert_eq!(20.0, metric.final_value().current());

@@ -3,7 +3,7 @@ use super::{MetricMetadata, SerializedEntry};
 use crate::metric::{
     Metric, MetricAttributes, MetricName, Numeric, NumericAttributes, NumericEntry,
 };
-use burn_core::tensor::{Int, Tensor};
+use burn_core::tensor::{Int, Tensor, TensorReadError};
 use std::sync::Arc;
 
 fn lcs_length(a: &[i32], b: &[i32]) -> usize {
@@ -70,13 +70,17 @@ impl RougeLScore {
 impl Metric for RougeLScore {
     type Input = RougeLInput;
 
-    fn update(&mut self, input: &RougeLInput, _metadata: &MetricMetadata) -> SerializedEntry {
+    fn update(
+        &mut self,
+        input: &RougeLInput,
+        _metadata: &MetricMetadata,
+    ) -> Result<SerializedEntry, TensorReadError> {
         let outputs = &input.outputs;
         let targets = &input.targets;
         let [batch_size, seq_len] = targets.dims();
 
-        let outputs_data = outputs.to_data().iter::<i32>().collect::<Vec<_>>();
-        let targets_data = targets.to_data().iter::<i32>().collect::<Vec<_>>();
+        let outputs_data = outputs.try_to_vec_as::<i32>()?;
+        let targets_data = targets.try_to_vec_as::<i32>()?;
 
         let pad_token = self.pad_token.map(|p| p as i32);
 
@@ -138,13 +142,15 @@ impl Metric for RougeLScore {
         let value = total_f1 / batch_size as f64;
 
         self.state.update(value, batch_size);
-        self.state
-            .compute_update(FormatOptions::new(self.name()).unit("%").precision(2))
+        Ok(self
+            .state
+            .compute_update(FormatOptions::new(self.name()).unit("%").precision(2)))
     }
 
-    fn compute(&mut self) -> SerializedEntry {
-        self.state
-            .compute_final(FormatOptions::new(self.name()).unit("%").precision(2))
+    fn compute(&mut self) -> Result<SerializedEntry, TensorReadError> {
+        Ok(self
+            .state
+            .compute_final(FormatOptions::new(self.name()).unit("%").precision(2)))
     }
 
     fn clear(&mut self) {
@@ -191,7 +197,9 @@ mod tests {
         let preds = Tensor::from_data([[1, 2, 3, 4, 5]], &device);
         let tgts = Tensor::from_data([[1, 2, 3, 4, 5]], &device);
 
-        metric.update(&RougeLInput::new(preds, tgts), &MetricMetadata::fake());
+        metric
+            .update(&RougeLInput::new(preds, tgts), &MetricMetadata::fake())
+            .unwrap();
         assert!((metric.value().unwrap().current() - 100.0).abs() < 1e-6);
     }
 
@@ -203,7 +211,9 @@ mod tests {
         let preds = Tensor::from_data([[1, 2, 3, 4, 5]], &device);
         let tgts = Tensor::from_data([[6, 7, 8, 9, 10]], &device);
 
-        metric.update(&RougeLInput::new(preds, tgts), &MetricMetadata::fake());
+        metric
+            .update(&RougeLInput::new(preds, tgts), &MetricMetadata::fake())
+            .unwrap();
         assert_eq!(0.0, metric.value().unwrap().current());
     }
 
@@ -215,7 +225,9 @@ mod tests {
         let preds = Tensor::from_data([[1, 3, 5, 7, 9]], &device);
         let tgts = Tensor::from_data([[1, 2, 3, 4, 5]], &device);
 
-        metric.update(&RougeLInput::new(preds, tgts), &MetricMetadata::fake());
+        metric
+            .update(&RougeLInput::new(preds, tgts), &MetricMetadata::fake())
+            .unwrap();
 
         let expected = 60.0;
         assert!((metric.value().unwrap().current() - expected).abs() < 1e-6);
@@ -230,7 +242,9 @@ mod tests {
         let preds = Tensor::from_data([[1, 2, 3, pad, pad]], &device);
         let tgts = Tensor::from_data([[1, 2, 3, 4, 5]], &device);
 
-        metric.update(&RougeLInput::new(preds, tgts), &MetricMetadata::fake());
+        metric
+            .update(&RougeLInput::new(preds, tgts), &MetricMetadata::fake())
+            .unwrap();
 
         let expected = 75.0;
         assert!((metric.value().unwrap().current() - expected).abs() < 1e-6);
@@ -245,7 +259,9 @@ mod tests {
         let preds = Tensor::from_data([[1, 2, 3, 4, 5, pad, pad]], &device);
         let tgts = Tensor::from_data([[1, 2, 3, 4, 5, pad, pad]], &device);
 
-        metric.update(&RougeLInput::new(preds, tgts), &MetricMetadata::fake());
+        metric
+            .update(&RougeLInput::new(preds, tgts), &MetricMetadata::fake())
+            .unwrap();
         assert!((metric.value().unwrap().current() - 100.0).abs() < 1e-6);
     }
 
@@ -257,7 +273,9 @@ mod tests {
         let preds = Tensor::from_data([[1, 2, 3, 4, 5], [6, 7, 8, 9, 10]], &device);
         let tgts = Tensor::from_data([[1, 2, 3, 4, 5], [11, 12, 13, 14, 15]], &device);
 
-        metric.update(&RougeLInput::new(preds, tgts), &MetricMetadata::fake());
+        metric
+            .update(&RougeLInput::new(preds, tgts), &MetricMetadata::fake())
+            .unwrap();
         assert!((metric.value().unwrap().current() - 50.0).abs() < 1e-6);
     }
 
@@ -266,20 +284,24 @@ mod tests {
         let device = Default::default();
         let mut metric = RougeLScore::new();
 
-        metric.update(
-            &RougeLInput::new(
-                Tensor::from_data([[1, 2]], &device),
-                Tensor::from_data([[1, 2]], &device),
-            ),
-            &MetricMetadata::fake(),
-        );
-        metric.update(
-            &RougeLInput::new(
-                Tensor::from_data([[3, 4], [5, 6], [7, 8]], &device),
-                Tensor::from_data([[3, 4], [9, 10], [11, 12]], &device),
-            ),
-            &MetricMetadata::fake(),
-        );
+        metric
+            .update(
+                &RougeLInput::new(
+                    Tensor::from_data([[1, 2]], &device),
+                    Tensor::from_data([[1, 2]], &device),
+                ),
+                &MetricMetadata::fake(),
+            )
+            .unwrap();
+        metric
+            .update(
+                &RougeLInput::new(
+                    Tensor::from_data([[3, 4], [5, 6], [7, 8]], &device),
+                    Tensor::from_data([[3, 4], [9, 10], [11, 12]], &device),
+                ),
+                &MetricMetadata::fake(),
+            )
+            .unwrap();
 
         // Two perfect matches and two non-matches across all four samples.
         assert!((metric.final_value().current() - 50.0).abs() < 1e-6);
@@ -293,7 +315,9 @@ mod tests {
         let preds = Tensor::<2, Int>::from_data(TensorData::from([[0i32; 0]; 1]), &device);
         let tgts = Tensor::<2, Int>::from_data(TensorData::from([[0i32; 0]; 1]), &device);
 
-        metric.update(&RougeLInput::new(preds, tgts), &MetricMetadata::fake());
+        metric
+            .update(&RougeLInput::new(preds, tgts), &MetricMetadata::fake())
+            .unwrap();
         assert!((metric.value().unwrap().current() - 100.0).abs() < 1e-6);
     }
 
@@ -305,7 +329,9 @@ mod tests {
         let preds = Tensor::from_data([[1, 2, 3, 4, 5]], &device);
         let tgts = Tensor::from_data([[1, 2, 3, 4, 5]], &device);
 
-        metric.update(&RougeLInput::new(preds, tgts), &MetricMetadata::fake());
+        metric
+            .update(&RougeLInput::new(preds, tgts), &MetricMetadata::fake())
+            .unwrap();
         assert!(metric.value().unwrap().current() > 0.0);
 
         metric.clear();

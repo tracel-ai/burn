@@ -4,6 +4,7 @@ use crate::metric::{
     state::{FormatOptions, NumericMetricState},
 };
 use burn_core::prelude::Tensor;
+use burn_core::tensor::TensorReadError;
 use std::f64::consts::LN_10;
 
 /// Input type for the [PsnrMetric].
@@ -152,7 +153,11 @@ impl Metric for PsnrMetric {
         self.name.clone()
     }
 
-    fn update(&mut self, item: &Self::Input, _metadata: &MetricMetadata) -> SerializedEntry {
+    fn update(
+        &mut self,
+        item: &Self::Input,
+        _metadata: &MetricMetadata,
+    ) -> Result<SerializedEntry, TensorReadError> {
         let dims = item.outputs.dims();
         let batch_size = dims[0];
         let outputs = item.outputs.clone();
@@ -177,16 +182,18 @@ impl Metric for PsnrMetric {
             .mul_scalar(max_squared)
             .log()
             .mul_scalar(10.0 / LN_10);
-        let avg_psnr = psnr_per_image.mean().into_scalar::<f64>();
+        let avg_psnr = psnr_per_image.mean().try_into_scalar::<f64>()?;
 
         self.state.update(avg_psnr, batch_size);
-        self.state
-            .compute_update(FormatOptions::new(self.name()).unit("dB").precision(2))
+        Ok(self
+            .state
+            .compute_update(FormatOptions::new(self.name()).unit("dB").precision(2)))
     }
 
-    fn compute(&mut self) -> SerializedEntry {
-        self.state
-            .compute_final(FormatOptions::new(self.name()).unit("dB").precision(2))
+    fn compute(&mut self) -> Result<SerializedEntry, TensorReadError> {
+        Ok(self
+            .state
+            .compute_final(FormatOptions::new(self.name()).unit("dB").precision(2)))
     }
 
     /// Clears the metric state.
@@ -237,7 +244,7 @@ mod tests {
         let config = PsnrMetricConfig::new(1.0);
         let mut metric = PsnrMetric::new(config);
         let input = PsnrInput::new(outputs, targets);
-        let _entry = metric.update(&input, &MetricMetadata::fake());
+        let _entry = metric.update(&input, &MetricMetadata::fake()).unwrap();
 
         // With epsilon = 1e-10 and max=1.0:
         // PSNR = 10 * log10(1.0 / 1e-10) = 100 dB
@@ -262,7 +269,7 @@ mod tests {
         let config = PsnrMetricConfig::new(1.0);
         let mut metric = PsnrMetric::new(config);
         let input = PsnrInput::new(outputs, targets);
-        let _entry = metric.update(&input, &MetricMetadata::fake());
+        let _entry = metric.update(&input, &MetricMetadata::fake()).unwrap();
 
         let psnr = metric.value().unwrap().current();
         assert!(
@@ -285,7 +292,7 @@ mod tests {
         let config = PsnrMetricConfig::new(1.0);
         let mut metric = PsnrMetric::new(config);
         let input = PsnrInput::new(outputs, targets);
-        let _entry = metric.update(&input, &MetricMetadata::fake());
+        let _entry = metric.update(&input, &MetricMetadata::fake()).unwrap();
 
         let psnr = metric.value().unwrap().current();
         let expected_psnr = 10.0 * (1.0_f64 / 0.075).log10();
@@ -313,7 +320,7 @@ mod tests {
         let config = PsnrMetricConfig::new(255.0);
         let mut metric = PsnrMetric::new(config);
         let input = PsnrInput::new(outputs, targets);
-        let _entry = metric.update(&input, &MetricMetadata::fake());
+        let _entry = metric.update(&input, &MetricMetadata::fake()).unwrap();
 
         let psnr = metric.value().unwrap().current();
         let expected_psnr = 10.0 * (255.0_f64 * 255.0 / 100.0).log10();
@@ -350,7 +357,7 @@ mod tests {
         let config = PsnrMetricConfig::new(1.0);
         let mut metric = PsnrMetric::new(config);
         let input = PsnrInput::new(outputs, targets);
-        let _entry = metric.update(&input, &MetricMetadata::fake());
+        let _entry = metric.update(&input, &MetricMetadata::fake()).unwrap();
 
         let psnr = metric.value().unwrap().current();
         let expected_psnr = 30.0;
@@ -380,7 +387,7 @@ mod tests {
         let config = PsnrMetricConfig::new(1.0);
         let mut metric = PsnrMetric::new(config);
         let input = PsnrInput::new(outputs, targets);
-        let _entry = metric.update(&input, &MetricMetadata::fake());
+        let _entry = metric.update(&input, &MetricMetadata::fake()).unwrap();
 
         let psnr = metric.value().unwrap().current();
         let expected_psnr = 20.0;
@@ -404,7 +411,7 @@ mod tests {
             Tensor::<4>::from_data(TensorData::from([[[[0.1_f32, 0.1], [0.1, 0.1]]]]), &device);
         let targets1 = Tensor::<4>::zeros([1, 1, 2, 2], &device);
         let input1 = PsnrInput::new(outputs1, targets1);
-        let _entry = metric.update(&input1, &MetricMetadata::fake());
+        let _entry = metric.update(&input1, &MetricMetadata::fake()).unwrap();
 
         let psnr1 = metric.value().unwrap().current();
         let expected_psnr1 = 20.0;
@@ -422,7 +429,7 @@ mod tests {
         );
         let targets2 = Tensor::<4>::zeros([1, 1, 2, 2], &device);
         let input2 = PsnrInput::new(outputs2, targets2);
-        let _entry = metric.update(&input2, &MetricMetadata::fake());
+        let _entry = metric.update(&input2, &MetricMetadata::fake()).unwrap();
 
         // Running average: (20 + 40) / 2 = 30 dB
         let running_avg_psnr = metric.running_value().unwrap().current();
@@ -446,7 +453,7 @@ mod tests {
             Tensor::<4>::from_data(TensorData::from([[[[0.1_f32, 0.1], [0.1, 0.1]]]]), &device);
         let targets = Tensor::<4>::zeros([1, 1, 2, 2], &device);
         let input = PsnrInput::new(outputs, targets);
-        let _entry = metric.update(&input, &MetricMetadata::fake());
+        let _entry = metric.update(&input, &MetricMetadata::fake()).unwrap();
 
         let psnr = metric.value().unwrap().current();
         let expected_psnr = 20.0;
@@ -482,7 +489,7 @@ mod tests {
             Tensor::<4>::from_data(TensorData::from([[[[0.5_f32, 0.5], [0.5, 0.5]]]]), &device);
         let targets = outputs.clone();
         let input = PsnrInput::new(outputs, targets);
-        let _entry = metric.update(&input, &MetricMetadata::fake());
+        let _entry = metric.update(&input, &MetricMetadata::fake()).unwrap();
 
         // With epsilon = 0.01, PSNR = 10 * log10(1.0 / 0.01) = 20 dB
         let psnr = metric.value().unwrap().current();
@@ -507,7 +514,7 @@ mod tests {
         let config = PsnrMetricConfig::new(1.0);
         let mut metric = PsnrMetric::new(config);
         let input = PsnrInput::new(outputs, targets);
-        let _entry = metric.update(&input, &MetricMetadata::fake());
+        let _entry = metric.update(&input, &MetricMetadata::fake()).unwrap();
 
         // Same MSE as positive errors (0.01), so PSNR = 20 dB
         let psnr = metric.value().unwrap().current();
@@ -533,7 +540,7 @@ mod tests {
         let config = PsnrMetricConfig::new(1.0);
         let mut metric = PsnrMetric::new(config);
         let input = PsnrInput::new(outputs, targets);
-        let _entry = metric.update(&input, &MetricMetadata::fake());
+        let _entry = metric.update(&input, &MetricMetadata::fake()).unwrap();
 
         let psnr = metric.value().unwrap().current();
         let expected_psnr = 20.0;
