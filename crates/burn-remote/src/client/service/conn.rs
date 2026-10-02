@@ -7,6 +7,7 @@
 
 use core::time::Duration;
 
+use super::OPEN_DEADLINE;
 use crate::{
     ConnectError, Credential, PeerAddr, PeerId,
     transport::{
@@ -147,7 +148,7 @@ impl RemoteEndpoint {
         };
 
         for delay in OPEN_RETRY_DELAYS {
-            match self.open_channels_once().await {
+            match self.open_channels_within_deadline().await {
                 Err(OpenError::NotReachableYet(reason)) => {
                     log::info!("Cannot reach {peer} yet ({reason}), trying again in {delay:?}");
                     crate::time::sleep(delay).await;
@@ -156,7 +157,19 @@ impl RemoteEndpoint {
             }
         }
         // The last attempt, with nothing left to wait for.
-        self.open_channels_once().await.map_err(give_up)
+        self.open_channels_within_deadline().await.map_err(give_up)
+    }
+
+    /// One attempt, given up at the deadline, as on a server that accepts connections and never
+    /// serves them.
+    async fn open_channels_within_deadline(&self) -> Result<SessionStreams, OpenError> {
+        crate::time::timeout(OPEN_DEADLINE, self.open_channels_once())
+            .await
+            .unwrap_or_else(|()| {
+                Err(OpenError::Failed(format!(
+                    "no connection opened within {OPEN_DEADLINE:?}"
+                )))
+            })
     }
 
     async fn open_channels_once(&self) -> Result<SessionStreams, OpenError> {

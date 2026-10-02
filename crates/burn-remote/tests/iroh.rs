@@ -813,7 +813,7 @@ mod iroh_peer {
     }
 
     #[tokio::test(flavor = "multi_thread")]
-    async fn a_stopped_server_frees_its_port_for_the_next_one() {
+    async fn a_server_restarted_on_its_port_replaces_the_device() {
         // The port frees once the stopped router has closed and its sessions have drained.
         const REBIND_ATTEMPTS: u32 = 50;
         const REBIND_SETTLE: Duration = Duration::from_millis(200);
@@ -832,24 +832,25 @@ mod iroh_peer {
         };
 
         let first = serve();
-        let host = |token| direct_host(identity.id(), Ipv4Addr::LOCALHOST.into(), port, token);
-        Device::remote_options(&host(TOKEN))
-            .init_async()
-            .await
-            .unwrap();
+        let host = direct_host(identity.id(), Ipv4Addr::LOCALHOST.into(), port, TOKEN);
+        let stopped = Device::remote_options(&host).init_async().await.unwrap();
         first.abort();
         assert!(first.await.unwrap_err().is_cancelled());
+        // A read fails only once the client has seen the session end, which a reconnect relies on.
+        let stale = stopped.clone();
+        tokio::task::block_in_place(|| {
+            within_hang_limit(move || {
+                let read = (Tensor::<1>::from_floats([1.0], &stale) * 2.0).try_into_data();
+                assert!(read.is_err(), "a session outlived its server: {read:?}");
+            })
+        });
 
         for _ in 0..REBIND_ATTEMPTS {
             let next = serve();
             tokio::time::sleep(REBIND_SETTLE).await;
             if !next.is_finished() {
-                // Another credential is another device, so this dials the new server rather than
-                // reusing the stopped one's.
-                Device::remote_options(&host("rebound"))
-                    .init_async()
-                    .await
-                    .unwrap();
+                let served = Device::remote_options(&host).init_async().await.unwrap();
+                assert_ne!(served, stopped);
                 next.abort();
                 return;
             }

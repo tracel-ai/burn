@@ -1,5 +1,6 @@
 //! Request/response correlation.
 
+use super::registry::SessionState;
 use crate::shared::{RequestId, TaskResponseContent};
 use std::{
     collections::HashMap,
@@ -35,16 +36,19 @@ type SharedState = Arc<Mutex<State>>;
 /// task needs the tokio runtime to touch it.
 pub(crate) struct PendingResponses {
     state: SharedState,
+    session: Arc<SessionState>,
     next_id: RequestId,
 }
 
 impl PendingResponses {
-    pub(crate) fn new() -> Self {
+    /// Correlate the replies of `session`, which a disconnect ends.
+    pub(crate) fn new(session: Arc<SessionState>) -> Self {
         Self {
             state: Arc::new(Mutex::new(State {
                 callbacks: HashMap::new(),
                 connected: true,
             })),
+            session,
             next_id: 0,
         }
     }
@@ -75,14 +79,17 @@ impl PendingResponses {
     pub(crate) fn responder(&self) -> Responder {
         Responder {
             state: self.state.clone(),
+            session: self.session.clone(),
         }
     }
 }
 
 /// Delivers responses to the callbacks registered in [`PendingResponses`]. Held by the
 /// response-demux task, decoupled from the [`PendingResponses`] the runner thread owns.
+#[derive(Clone)]
 pub(crate) struct Responder {
     state: SharedState,
+    session: Arc<SessionState>,
 }
 
 impl Responder {
@@ -100,14 +107,16 @@ impl Responder {
         }
     }
 
-    /// Mark the connection dropped and fail every pending caller.
+    /// End the session and fail every pending caller.
     ///
-    /// Called by the response-demux task when the response stream closes or errors (server down,
-    /// connection reset). Clearing the map drops every registered sender, so each waiting receiver
-    /// resolves to a `RecvError` that the callers (`sync`, `read_tensor`, `dtype_usage`) translate
-    /// into an error instead of blocking forever. Clearing `connected` makes any later request
-    /// fail fast in [`PendingResponses::register`] rather than registering a doomed callback.
+    /// Called when the response stream closes or a send fails (server down, connection reset).
+    /// Clearing the map drops every registered sender, so each waiting receiver resolves to a
+    /// `RecvError` that the callers (`sync`, `read_tensor`, `dtype_usage`) translate into an error
+    /// instead of blocking forever. Clearing `connected` makes any later request fail fast in
+    /// [`PendingResponses::register`] rather than registering a doomed callback.
     pub(crate) fn disconnect(&self) {
+        // Before any caller wakes, so one that connects again on the failure gets a new device.
+        self.session.end();
         let mut state = self.state.lock().unwrap();
         state.connected = false;
         state.callbacks.clear();
@@ -118,13 +127,17 @@ impl Responder {
 mod tests {
     use super::*;
 
+    fn pending_responses() -> PendingResponses {
+        PendingResponses::new(Arc::default())
+    }
+
     fn content() -> TaskResponseContent {
         TaskResponseContent::SyncBackend(Ok(()))
     }
 
     #[test]
     fn next_id_is_monotonic() {
-        let mut pending = PendingResponses::new();
+        let mut pending = pending_responses();
         assert_eq!(pending.next_id(), 0);
         assert_eq!(pending.next_id(), 1);
         assert_eq!(pending.next_id(), 2);
@@ -132,7 +145,7 @@ mod tests {
 
     #[test]
     fn register_then_complete_delivers_to_receiver() {
-        let mut pending = PendingResponses::new();
+        let mut pending = pending_responses();
         let id = pending.next_id();
         let mut rx = pending.register(id);
 
@@ -146,13 +159,13 @@ mod tests {
 
     #[test]
     fn complete_unknown_id_returns_false() {
-        let pending = PendingResponses::new();
+        let pending = pending_responses();
         assert!(!pending.responder().complete(42, content()));
     }
 
     #[test]
     fn complete_consumes_the_callback() {
-        let mut pending = PendingResponses::new();
+        let mut pending = pending_responses();
         let id = pending.next_id();
         let _rx = pending.register(id);
 
@@ -162,8 +175,9 @@ mod tests {
     }
 
     #[test]
-    fn disconnect_fails_every_pending_caller() {
-        let mut pending = PendingResponses::new();
+    fn disconnect_ends_the_session_and_fails_every_pending_caller() {
+        let session = Arc::new(SessionState::default());
+        let mut pending = PendingResponses::new(session.clone());
         let id0 = pending.next_id();
         let id1 = pending.next_id();
         let mut rx0 = pending.register(id0);
@@ -171,6 +185,7 @@ mod tests {
 
         // The response stream died with both requests still in flight.
         pending.responder().disconnect();
+        assert!(session.has_ended());
 
         // Both receivers resolve immediately with an error instead of hanging.
         assert!(matches!(
@@ -185,7 +200,7 @@ mod tests {
 
     #[test]
     fn register_after_disconnect_returns_a_closed_receiver() {
-        let mut pending = PendingResponses::new();
+        let mut pending = pending_responses();
         pending.responder().disconnect();
 
         // A request issued after the connection dropped must not park forever.

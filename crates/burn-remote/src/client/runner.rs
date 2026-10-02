@@ -184,6 +184,11 @@ impl RemoteClient {
                      but the collective includes a device on `{}`",
                     registered.endpoint.peer_id(),
                 );
+                assert!(
+                    !service::session_ended(id.index_id as u32),
+                    "Cannot all_reduce over a remote device whose session has ended; its tensors \
+                     are gone with it. Connect again with `Device::remote_options`."
+                );
                 id.type_id = 0;
                 id.index_id = registered.device_index as u16;
             }
@@ -209,8 +214,8 @@ pub struct RemoteDevice {
 }
 
 impl RemoteDevice {
-    /// The device registered for `endpoint` and `device_index`, the same one each time, which may
-    /// have its session open already.
+    /// The device registered for `endpoint` and `device_index`, which may have its session open
+    /// already. A device whose session ended is not reused: a new id replaces it, with no session.
     pub(crate) fn register(endpoint: RemoteEndpoint, device_index: usize) -> Self {
         let device_index = device_index as u32;
         let id = service::register_endpoint(endpoint.clone(), device_index);
@@ -265,6 +270,12 @@ impl RemoteDevice {
     /// The index of this device on its server.
     pub fn device_index(&self) -> usize {
         self.device_index as usize
+    }
+
+    /// Whether this device's session has ended, as when its server restarted. Its tensors are
+    /// gone with it; a new connect gives a new device.
+    pub(crate) fn session_ended(&self) -> bool {
+        service::session_ended(self.id)
     }
 }
 
@@ -378,6 +389,16 @@ impl RemoteTensorHandle {
     /// fall back to the cross-server path that streams the data server-to-server without the
     /// client ever seeing it.
     pub(crate) fn change_backend(self, target_device: &RemoteDevice) -> Self {
+        // A device and its replacement share a peer, so a move between them would take the
+        // same-server path and wait forever on the side that is gone. Only an end this client has
+        // already seen is caught.
+        for (side, device) in [("from", &self.client.device), ("to", target_device)] {
+            assert!(
+                !device.session_ended(),
+                "Cannot move a tensor {side} a remote device whose session has ended; its \
+                 tensors are gone with it. Connect again with `Device::remote_options`."
+            );
+        }
         if self.client.device.peer_id() == target_device.peer_id() {
             self.change_backend_local(target_device)
         } else {
