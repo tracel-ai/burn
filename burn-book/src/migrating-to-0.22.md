@@ -217,6 +217,37 @@ scheduler records, so it does not resume the full training checkpoint. Start wit
 scheduler state, or implement a separate conversion if preserving that state is required. See
 [Record](./building-blocks/record.md) for the 0.22 record APIs.
 
+## LSTM
+
+`Lstm::forget_gate` is now `Option<GateController>`: `Some(gate)` for an uncoupled LSTM and `None`
+when `input_forget` is true. This also applies to `BiLstm::forward.forget_gate` and
+`BiLstm::reverse.forget_gate`. Update direct access to use `as_ref()` or `as_mut()`, and wrap
+replacement gates in `Some(gate)`.
+
+Set `input_forget` through `LstmConfig::with_input_forget(...)` or
+`BiLstmConfig::with_input_forget(...)` **before** calling `.init()`, matching the setting used during
+training. Initialization now determines whether the separate forget gate is created; changing the
+field afterward does not add or remove its parameters.
+
+Older coupled checkpoints contain redundant forget-gate tensors. For a burnpack checkpoint, allow
+these unused tensors when loading, then save the module again to omit them:
+
+```rust,ignore
+use burn::{module::Module, nn::LstmConfig, store::ModuleRecord};
+
+// Match the original model's dimensions, bias, and other configuration settings.
+let lstm = LstmConfig::new(d_input, d_hidden, bias)
+    .with_input_forget(true)
+    .init(&device);
+let record = ModuleRecord::load("lstm.bpk")?.allow_unused(true);
+let lstm = lstm.try_load_record(record)?;
+lstm.save_file("lstm-migrated.bpk")?;
+```
+
+The same loading procedure applies to BiLSTM. Uncoupled checkpoints keep the same parameter paths
+and do not require `allow_unused(true)`. For older recorder formats, first follow
+[Migrating checkpoints](#migrating-checkpoints) to convert the file format.
+
 ## Datasets and dataloaders
 
 Dataset access is now fallible. Update custom datasets and training loops to handle these return
