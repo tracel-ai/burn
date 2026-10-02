@@ -9,6 +9,7 @@ throughout the training process. We currently offer a restricted range of metric
 | TopKAccuracy        | Calculate the top-k accuracy in percentage                                                  |
 | Precision           | Calculate precision in percentage                                                           |
 | Recall              | Calculate recall in percentage                                                              |
+| MatthewsCorrelationCoefficient | Calculate binary or single-label multiclass MCC in [-1, 1]                        |
 | FBetaScore          | Calculate F<sub>β </sub>score in percentage                                                 |
 | AUROC               | Calculate the area under curve of ROC in percentage                                         |
 | AUC-PR              | Calculate the area under the precision-recall curve (average precision) in percentage       |
@@ -48,7 +49,7 @@ adaptor code yourself.
 - `ClassificationOutput`:
     - Use case: Single-label classification
     - Fields: `loss: Tensor<1>`, `output: Tensor<2>`, `targets: Tensor<1, Int>`
-    - Adapted metrics: Accuracy, TopKAccuracy, Perplexity, Precision\*, Recall\*, FBetaScore\*, AUROC\*, AUC-PR\*, Loss
+    - Adapted metrics: Accuracy, TopKAccuracy, Perplexity, Precision\*, Recall\*, FBetaScore\*, MatthewsCorrelationCoefficient\*, AUROC\*, AUC-PR\*, Loss
 - `MultiLabelClassificationOutput`:
     - Use case: Multi-label classification
     - Fields: `loss: Tensor<1>`, `output: Tensor<2>`, `targets: Tensor<2, Int>`
@@ -64,6 +65,16 @@ adaptor code yourself.
 
 \* Precision, Recall, FBetaScore, AUROC, and AUC-PR all use `ConfusionStatsInput` as their input type so these 
 metrics are automatically (implicitly) adapted since `ConfusionStatsInput` is adapted.
+
+`MatthewsCorrelationCoefficientMetric` also uses `ConfusionStatsInput`. Use
+`MatthewsCorrelationCoefficientMetric::binary(0.5)` for one positive-class probability
+column, or `MatthewsCorrelationCoefficientMetric::multiclass()` for class scores with
+one-hot targets. MCC accumulates counts across batches and returns `0` when its
+denominator is zero. It does not support multi-label classification.
+Updates require non-empty, finite predictions and one-hot multiclass targets. The
+number of classes must stay fixed across batches until the metric is cleared.
+Multiclass score ties select the first class. Counts accumulate in double precision
+to preserve accuracy for imbalanced classes.
 
 If your metric isn't already adapted for the appropriate output struct, you can implement `Adaptor` yourself. 
 For example, here is how `ClassificationOutput` adapts to `AccuracyInput`:
