@@ -189,5 +189,9 @@ name = "softmax_ops"
 harness = false
 
 [[bench]]
+name = "topk_ops"
+harness = false
+
+[[bench]]
 name = "unary_ops"
 harness = false

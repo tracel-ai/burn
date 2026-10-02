@@ -1,5 +1,5 @@
 use alloc::{vec, vec::Vec};
-use burn_backend::element::{Element, ElementConversion};
+use burn_backend::element::{Element, ElementConversion, ElementOrdered};
 #[cfg(feature = "simd")]
 use burn_backend::{DType, quantization::QuantValue};
 use core::fmt::Debug;
@@ -1541,6 +1541,74 @@ where
         dim: usize,
     ) -> SharedArray<I> {
         arg(tensor, dim, CmpType::Min)
+    }
+
+    /// The `k` largest values along `dim` and their indices, ordered by
+    /// descending value (ties keep ascending index order).
+    ///
+    /// Partial selection instead of the trait default's full sort: one
+    /// `select_nth_unstable` per lane is O(n) plus an O(k log k) sort of the
+    /// kept prefix, and only the `k` pairs are touched twice. Ordering uses
+    /// `ElementOrdered::cmp` (`total_cmp` for floats, so NaN ranks above all
+    /// values), matching `sort`'s element order.
+    pub fn topk<I: IntNdArrayElement>(
+        tensor: SharedArray<E>,
+        dim: usize,
+        k: usize,
+    ) -> (SharedArray<E>, SharedArray<I>)
+    where
+        E: ElementOrdered,
+    {
+        let view = tensor.view();
+        let ndim = view.ndim();
+        let n = view.shape()[dim];
+        assert!(
+            k <= n,
+            "topk: k ({k}) cannot exceed the size of dim {dim} ({n})"
+        );
+
+        // Move `dim` last so `lanes` enumerates in row-major order of the
+        // outer dims and the flat output buffers assemble without a scatter.
+        let mut axes: Vec<usize> = (0..ndim).collect();
+        axes.remove(dim);
+        axes.push(dim);
+        let lanes_last = view.permuted_axes(IxDyn(&axes));
+
+        let lane_count = lanes_last.len() / n.max(1);
+        let mut values = Vec::with_capacity(lane_count * k);
+        let mut indices = Vec::with_capacity(lane_count * k);
+
+        // Descending value, then ascending index for a deterministic tie order.
+        let by_rank =
+            |&(ia, va): &(usize, E), &(ib, vb): &(usize, E)| vb.cmp(&va).then(ia.cmp(&ib));
+
+        for lane in lanes_last.lanes(Axis(ndim - 1)) {
+            let mut items: Vec<(usize, E)> = lane.iter().copied().enumerate().collect();
+            if 0 < k && k < n {
+                items.select_nth_unstable_by(k - 1, by_rank);
+                items.truncate(k);
+            }
+            items.sort_unstable_by(by_rank);
+            for (i, v) in items {
+                values.push(v);
+                indices.push((i as i64).elem());
+            }
+        }
+
+        let mut out_shape = lanes_last.shape().to_vec();
+        out_shape[ndim - 1] = k;
+        let values = ArrayD::from_shape_vec(IxDyn(&out_shape), values).unwrap();
+        let indices = ArrayD::from_shape_vec(IxDyn(&out_shape), indices).unwrap();
+
+        // Restore the original axis order.
+        let mut back = vec![0usize; ndim];
+        axes.iter()
+            .enumerate()
+            .for_each(|(pos, &ax)| back[ax] = pos);
+        (
+            values.permuted_axes(IxDyn(&back)).to_shared(),
+            indices.permuted_axes(IxDyn(&back)).to_shared(),
+        )
     }
 
     pub fn clamp_min(tensor: SharedArray<E>, min: E) -> SharedArray<E> {

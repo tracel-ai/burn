@@ -398,6 +398,30 @@ impl IntTensorOps<Self> for NdArray {
         })
     }
 
+    fn int_argtopk(tensor: NdArrayTensor, dim: usize, k: usize) -> NdArrayTensor {
+        // Partial selection per lane instead of the trait default's full sort.
+        execute_with_int_dtype!(tensor, E, |array: SharedArray<E>| {
+            NdArrayMathOps::<E>::topk::<E>(array, dim, k).1
+        })
+    }
+
+    fn int_topk(tensor: NdArrayTensor, dim: usize, k: usize) -> NdArrayTensor {
+        execute_with_int_dtype!(tensor, E, |array: SharedArray<E>| {
+            NdArrayMathOps::<E>::topk::<E>(array, dim, k).0
+        })
+    }
+
+    fn int_topk_with_indices(
+        tensor: NdArrayTensor,
+        dim: usize,
+        k: usize,
+    ) -> (NdArrayTensor, NdArrayTensor) {
+        execute_with_int_dtype!(tensor, E, |array: SharedArray<E>| {
+            let (values, indices) = NdArrayMathOps::<E>::topk::<E>(array, dim, k);
+            (values.into(), indices.into())
+        })
+    }
+
     fn int_clamp_min(tensor: NdArrayTensor, min: Scalar) -> NdArrayTensor {
         execute_with_int_dtype!(tensor, |array| NdArrayMathOps::clamp_min(array, min.elem()))
     }

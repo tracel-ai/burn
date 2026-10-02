@@ -547,6 +547,40 @@ impl FloatTensorOps<Self> for NdArray {
         })
     }
 
+    fn float_argtopk(
+        tensor: FloatTensor<Self>,
+        dim: usize,
+        k: usize,
+        out_dtype: IntDType,
+    ) -> NdArrayTensor {
+        // Partial selection per lane instead of the trait default's full sort.
+        execute_with_int_out_dtype!(out_dtype, I, {
+            execute_with_float_dtype!(tensor, FloatElem, |array: SharedArray<FloatElem>| {
+                NdArrayMathOps::<FloatElem>::topk::<I>(array, dim, k).1
+            })
+        })
+    }
+
+    fn float_topk(tensor: FloatTensor<Self>, dim: usize, k: usize) -> FloatTensor<Self> {
+        execute_with_float_dtype!(tensor, FloatElem, |array: SharedArray<FloatElem>| {
+            NdArrayMathOps::<FloatElem>::topk::<i64>(array, dim, k).0
+        })
+    }
+
+    fn float_topk_with_indices(
+        tensor: FloatTensor<Self>,
+        dim: usize,
+        k: usize,
+        out_dtype: IntDType,
+    ) -> (FloatTensor<Self>, NdArrayTensor) {
+        execute_with_int_out_dtype!(out_dtype, I, {
+            execute_with_float_dtype!(tensor, FloatElem, |array: SharedArray<FloatElem>| {
+                let (values, indices) = NdArrayMathOps::<FloatElem>::topk::<I>(array, dim, k);
+                (values.into(), indices.into())
+            })
+        })
+    }
+
     fn float_argmin(tensor: FloatTensor<Self>, dim: usize, out_dtype: IntDType) -> NdArrayTensor {
         // Use view() for zero-copy on borrowed storage
         execute_with_int_out_dtype!(out_dtype, I, {
