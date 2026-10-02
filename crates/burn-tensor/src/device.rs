@@ -1200,19 +1200,40 @@ fn push_cube(devices: &mut Vec<Device>, runtime: RuntimeId) {
     }
 }
 
-/// Append wgpu devices pinned to `backend`, skipping unavailable devices.
+/// Append every wgpu device on `backend`, skipping any already listed.
 #[cfg(any(feature = "metal", feature = "vulkan", feature = "webgpu"))]
 fn push_wgpu(devices: &mut Vec<Device>, backend: WgpuBackend) {
-    for device in Dispatch::enumerate_cube(RuntimeId::Wgpu) {
-        let DispatchDevice::Cube(cube) = device else {
-            continue;
-        };
-        let Ok(pinned) = cube.on(backend) else {
-            continue;
-        };
-        let device = Device::new(pinned);
-        if !devices.contains(&device) {
-            devices.push(device);
+    push_wgpu_with(
+        devices,
+        backend,
+        burn_dispatch::devices::CubeDevice::enumerate,
+    );
+}
+
+#[cfg(any(feature = "metal", feature = "vulkan", feature = "webgpu"))]
+fn push_wgpu_with(
+    devices: &mut Vec<Device>,
+    backend: WgpuBackend,
+    mut enumerate: impl FnMut(DeviceId) -> Vec<DeviceId>,
+) {
+    use burn_dispatch::devices::{CubeDevice, WgpuDevice, WgpuDeviceKind};
+
+    // Enumeration preserves the seed's kind and graphics API. Ask for each concrete
+    // kind on the requested API: Auto may expose different kinds or fewer adapters.
+    // DefaultDevice is an alias, and Existing devices cannot be discovered.
+    for kind in [
+        WgpuDeviceKind::DiscreteGpu(0),
+        WgpuDeviceKind::IntegratedGpu(0),
+        WgpuDeviceKind::VirtualGpu(0),
+        WgpuDeviceKind::Cpu,
+        WgpuDeviceKind::Other(0),
+    ] {
+        let seed = CubeDevice::Wgpu(WgpuDevice::new(kind).on(backend));
+        for id in enumerate(seed.to_id()) {
+            let device = Device::new(CubeDevice::from_id(id));
+            if !devices.contains(&device) {
+                devices.push(device);
+            }
         }
     }
 }
@@ -1685,19 +1706,85 @@ mod tests {
     }
 }
 
-#[cfg(all(test, feature = "vulkan", not(target_family = "wasm")))]
+#[cfg(all(test, any(feature = "metal", feature = "vulkan", feature = "webgpu")))]
 mod enumerate_wgpu_tests {
     use super::*;
-    use burn_dispatch::devices::CubeDevice;
+    use burn_dispatch::devices::{CubeDevice, WgpuDevice, WgpuDeviceKind};
+
+    fn cube_device(kind: WgpuDeviceKind, backend: WgpuBackend) -> CubeDevice {
+        CubeDevice::Wgpu(WgpuDevice::new(kind).on(backend))
+    }
 
     #[test]
-    fn enumerate_vulkan_pins_the_graphics_api() {
-        for device in Device::enumerate(DeviceType::Vulkan).iter() {
-            match device.as_dispatch() {
-                DispatchDevice::Cube(CubeDevice::Wgpu(wgpu)) => {
-                    assert_eq!(wgpu.backend, WgpuBackend::Vulkan);
+    fn enumerate_requested_api_independently_of_auto() {
+        for backend in [WgpuBackend::Metal, WgpuBackend::Vulkan, WgpuBackend::WebGpu] {
+            // An existing Auto device must not limit discovery on the requested API
+            // or be deduplicated with a device pinned to that API.
+            let auto = cube_device(WgpuDeviceKind::DiscreteGpu(0), WgpuBackend::Auto);
+            let expected = [
+                WgpuDeviceKind::DiscreteGpu(0),
+                WgpuDeviceKind::DiscreteGpu(1),
+                WgpuDeviceKind::IntegratedGpu(0),
+                WgpuDeviceKind::VirtualGpu(0),
+                WgpuDeviceKind::Cpu,
+                WgpuDeviceKind::Other(0),
+            ]
+            .map(|kind| cube_device(kind, backend));
+            let enumerate = |seed: DeviceId| {
+                let CubeDevice::Wgpu(seed_device) = CubeDevice::from_id(seed) else {
+                    panic!("expected a wgpu seed");
+                };
+                assert_eq!(seed_device.backend, backend);
+                expected
+                    .iter()
+                    .filter(|device| device.to_id().type_id == seed.type_id)
+                    .map(CubeDevice::to_id)
+                    .collect()
+            };
+
+            let mut devices = vec![Device::new(auto.clone())];
+            push_wgpu_with(&mut devices, backend, enumerate);
+            let expected_devices: Vec<_> = core::iter::once(&auto)
+                .chain(expected.iter())
+                .cloned()
+                .map(Device::new)
+                .collect();
+            assert_eq!(devices, expected_devices);
+
+            push_wgpu_with(&mut devices, backend, enumerate);
+            assert_eq!(
+                devices, expected_devices,
+                "repeated filters must not duplicate devices"
+            );
+        }
+    }
+
+    #[test]
+    fn enumerate_unavailable_api_is_empty() {
+        let mut devices = Vec::new();
+        push_wgpu_with(&mut devices, WgpuBackend::Vulkan, |_| Vec::new());
+        assert!(devices.is_empty());
+    }
+
+    #[cfg(not(target_family = "wasm"))]
+    #[test]
+    fn enumerate_pins_the_graphics_api() {
+        let cases = [
+            #[cfg(feature = "metal")]
+            (DeviceType::Metal, WgpuBackend::Metal),
+            #[cfg(feature = "vulkan")]
+            (DeviceType::Vulkan, WgpuBackend::Vulkan),
+            #[cfg(feature = "webgpu")]
+            (DeviceType::WebGpu, WgpuBackend::WebGpu),
+        ];
+        for (device_type, backend) in cases {
+            for device in Device::enumerate(device_type).iter() {
+                match device.as_dispatch() {
+                    DispatchDevice::Cube(CubeDevice::Wgpu(wgpu)) => {
+                        assert_eq!(wgpu.backend, backend);
+                    }
+                    other => panic!("expected a wgpu device, got {other:?}"),
                 }
-                other => panic!("expected a wgpu device, got {other:?}"),
             }
         }
     }
