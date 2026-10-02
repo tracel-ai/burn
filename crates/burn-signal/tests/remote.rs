@@ -22,7 +22,7 @@ pub fn test_fft_over_websocket() {
 
     std::thread::sleep(std::time::Duration::from_millis(500));
 
-    let device = Device::remote_websocket("ws://localhost:3160", 0);
+    let device = Device::remote_websocket("ws://localhost:3160", 0).unwrap();
     let signal = Tensor::<1>::from_floats([1.0, 1.0, 1.0, 1.0], &device);
     let (spectrum_re, spectrum_im) = rfft(signal, 0, None);
     let reconstructed = irfft(spectrum_re.clone(), spectrum_im.clone(), 0, None);

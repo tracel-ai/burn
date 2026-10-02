@@ -83,7 +83,7 @@ fn flush_reaches_the_server_queue() {
     });
     std::thread::sleep(Duration::from_millis(500));
 
-    let device = Device::remote_websocket(&format!("ws://localhost:{port}"), 0);
+    let device = Device::remote_websocket(&format!("ws://localhost:{port}"), 0).unwrap();
 
     // Compiled on the server before the windows are compared.
     let _ = lazy_chain(&device).sum().into_scalar::<f32>();
@@ -137,7 +137,7 @@ fn a_panicking_closure_abandons_the_server_window() {
     });
     std::thread::sleep(Duration::from_millis(500));
 
-    let device = Device::remote_websocket(&format!("ws://localhost:{port}"), 0);
+    let device = Device::remote_websocket(&format!("ws://localhost:{port}"), 0).unwrap();
 
     let panicked = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
         let _ = device.profile(|| {

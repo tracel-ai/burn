@@ -11,7 +11,7 @@ pub use secret::RemoteSecret;
 #[cfg(all(feature = "client", not(target_family = "wasm")))]
 mod peer;
 #[cfg(all(feature = "client", not(target_family = "wasm")))]
-pub use peer::{ConnectError, IrohPeer, IrohPeerBuilder};
+pub use peer::{IrohPeer, IrohPeerBuilder};
 
 #[cfg(feature = "server")]
 mod channel;

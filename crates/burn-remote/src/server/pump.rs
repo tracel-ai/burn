@@ -12,8 +12,8 @@ use crate::PeerId;
 use crate::server::service::{SessionChannels, SessionService, parse_init_handshake};
 use crate::server::spawn::spawn_detached;
 use crate::shared::{
-    PROTOCOL_VERSION, RemoteMessage, SessionId, SessionInfo, SessionInit, Task, TaskResponse,
-    TaskResponseContent,
+    PROTOCOL_VERSION, RemoteMessage, SessionId, SessionInfo, SessionInit, SessionRefusal, Task,
+    TaskResponse, TaskResponseContent,
 };
 use crate::transport::link::{FrameSink, FrameSource};
 use tokio::sync::mpsc;
@@ -25,8 +25,9 @@ use tokio::sync::mpsc;
 /// without one (websocket) pass an allow-all closure. `server_peer_id` is echoed to the client in
 /// the handshake response (the server's own identity, or `None` for websocket).
 ///
-/// Returns `Err` on a protocol violation or a failed read or write; the caller logs it. A clean
-/// client `Close` (or stream end) drains the remaining responses before returning `Ok(())`.
+/// Returns `Err` on a protocol violation, a refused session (after telling the client its
+/// category), or a failed read or write; the caller logs it. A clean client `Close` (or stream
+/// end) drains the remaining responses before returning `Ok(())`.
 pub(crate) async fn drive_session<Src, Snk, S, A>(
     mut source: Src,
     mut sink: Snk,
@@ -45,17 +46,14 @@ where
         .recv()
         .await?
         .ok_or_else(|| "Session stream closed before initialization".to_string())?;
-    let init = parse_init_handshake(&handshake)?;
-
-    // Authorize before any session state is created.
-    authorize(&init)?;
     let device_count = service.device_count();
-    if init.device_index >= device_count {
-        return Err(format!(
-            "Session {} asked for device {}, but this server hosts {device_count} device(s)",
-            init.session_id, init.device_index
-        ));
-    }
+    let init = match admit(&handshake, authorize, device_count) {
+        Ok(init) => init,
+        Err(Refused { refusal, reason }) => {
+            refuse(&mut sink, refusal).await;
+            return Err(reason);
+        }
+    };
 
     // Reply with the selected device's settings + this server's identity, so the client can fill in
     // `RemoteDevice::defaults`/`enumerate` without an extra round-trip.
@@ -110,6 +108,55 @@ where
     }
     .unwrap_or_else(|_| Err("Session response writer stopped before finishing".into()));
     read_result.and(write_result)
+}
+
+/// An `Init` the server will not serve: the category the client is told, and the reason the
+/// server logs.
+struct Refused {
+    refusal: SessionRefusal,
+    reason: String,
+}
+
+/// Check an `Init` before any session state exists: that it can be read, then the authorizer,
+/// then the device. An unauthorized client must not learn how many devices the server hosts.
+fn admit(
+    handshake: &[u8],
+    authorize: impl FnOnce(&SessionInit) -> Result<(), String>,
+    device_count: u32,
+) -> Result<SessionInit, Refused> {
+    let init = parse_init_handshake(handshake).map_err(|reason| Refused {
+        refusal: SessionRefusal::IncompatibleProtocol {
+            server_version: PROTOCOL_VERSION,
+        },
+        reason,
+    })?;
+    authorize(&init).map_err(|reason| Refused {
+        refusal: SessionRefusal::Unauthorized,
+        reason,
+    })?;
+    if init.device_index >= device_count {
+        return Err(Refused {
+            refusal: SessionRefusal::NoSuchDevice { device_count },
+            reason: format!(
+                "Session {} asked for device {}, but this server hosts {device_count} device(s)",
+                init.session_id, init.device_index
+            ),
+        });
+    }
+    Ok(init)
+}
+
+/// Answer a refused `Init` with its category, then close, so the client can report more than a
+/// closed stream. The session is refused whether or not the client hears it.
+async fn refuse(sink: &mut impl FrameSink, refusal: SessionRefusal) {
+    let reply = TaskResponse {
+        id: 0,
+        content: TaskResponseContent::InitRefused(refusal),
+    };
+    if let Ok(frame) = rmp_serde::to_vec(&reply) {
+        let _ = sink.send(frame.into()).await;
+    }
+    let _ = sink.close().await;
 }
 
 /// Forward each submitted task batch to the session worker in arrival order, until the client
@@ -225,6 +272,40 @@ mod tests {
         }
     }
 
+    /// Keeps every frame written to it.
+    #[derive(Clone, Default)]
+    struct RecordingSink(Arc<Mutex<Vec<Bytes>>>);
+
+    impl RecordingSink {
+        fn refusals(&self) -> Vec<SessionRefusal> {
+            self.0
+                .lock()
+                .unwrap()
+                .iter()
+                .map(|frame| {
+                    match rmp_serde::from_slice::<TaskResponse>(frame)
+                        .unwrap()
+                        .content
+                    {
+                        TaskResponseContent::InitRefused(refusal) => refusal,
+                        other => panic!("expected a refusal, got {other:?}"),
+                    }
+                })
+                .collect()
+        }
+    }
+
+    impl FrameSink for RecordingSink {
+        async fn send(&mut self, frame: Bytes) -> Result<(), String> {
+            self.0.lock().unwrap().push(frame);
+            Ok(())
+        }
+
+        async fn close(&mut self) -> Result<(), String> {
+            Ok(())
+        }
+    }
+
     struct FailingSink;
 
     impl FrameSink for FailingSink {
@@ -305,8 +386,9 @@ mod tests {
         let unhosted_device = service.device_count();
         let source =
             ScriptedSource([Ok(Some(handshake(SessionId::new(), unhosted_device)))].into());
+        let sink = RecordingSink::default();
 
-        let result = drive_session(source, DiscardingSink, service.clone(), None, |_| Ok(())).await;
+        let result = drive_session(source, sink.clone(), service.clone(), None, |_| Ok(())).await;
 
         let err = result.expect_err("the session was bound to a device the server does not host");
         assert!(
@@ -314,5 +396,51 @@ mod tests {
             "got: {err}"
         );
         assert!(service.tasks.lock().unwrap().is_none());
+        assert_eq!(
+            sink.refusals(),
+            [SessionRefusal::NoSuchDevice { device_count: 1 }]
+        );
+    }
+
+    #[tokio::test]
+    async fn an_unauthorized_session_is_told_only_that_it_was_refused() {
+        let service = Arc::new(FakeService::default());
+        let unhosted_device = service.device_count();
+        let source =
+            ScriptedSource([Ok(Some(handshake(SessionId::new(), unhosted_device)))].into());
+        let sink = RecordingSink::default();
+
+        let result = drive_session(source, sink.clone(), service.clone(), None, |_| {
+            Err("peer 7 is not on the allowlist".to_string())
+        })
+        .await;
+
+        assert_eq!(result, Err("peer 7 is not on the allowlist".to_string()));
+        assert!(service.tasks.lock().unwrap().is_none());
+        assert_eq!(sink.refusals(), [SessionRefusal::Unauthorized]);
+    }
+
+    #[tokio::test]
+    async fn a_client_on_another_protocol_version_is_refused_before_authorization() {
+        let service = Arc::new(FakeService::default());
+        let mut init = SessionInit::new(SessionId::new(), HOSTED_DEVICE, vec![]);
+        init.version = PROTOCOL_VERSION + 1;
+        let handshake = rmp_serde::to_vec(&vec![RemoteMessage::Init(init)]).unwrap();
+        let source = ScriptedSource([Ok(Some(handshake.into()))].into());
+        let sink = RecordingSink::default();
+
+        let result = drive_session(source, sink.clone(), service.clone(), None, |_| {
+            panic!("an incompatible client reached the authorizer")
+        })
+        .await;
+
+        assert!(result.is_err());
+        assert!(service.tasks.lock().unwrap().is_none());
+        assert_eq!(
+            sink.refusals(),
+            [SessionRefusal::IncompatibleProtocol {
+                server_version: PROTOCOL_VERSION
+            }]
+        );
     }
 }

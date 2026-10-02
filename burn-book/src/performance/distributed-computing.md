@@ -114,7 +114,7 @@ creation and operations use the normal API, but execution happens on a device ex
 server:
 
 ```rust, ignore
-let device = Device::remote_websocket("ws://localhost:3000", 0);
+let device = Device::remote_websocket("ws://localhost:3000", 0)?;
 let tensor = Tensor::<2>::ones([32, 128], &device);
 let output = model.to_device(&device).forward(tensor);
 ```

@@ -47,7 +47,9 @@ impl RemoteMnist {
             .bind()
             .await
             .map_err(|err| err.to_string())?;
-        let device = Device::remote_iroh_async(&endpoint, server_id(&topic), 0).await;
+        let device = Device::remote_iroh_async(&endpoint, server_id(&topic), 0)
+            .await
+            .map_err(|err| err.to_string())?;
 
         let record = ModuleRecord::from_bytes(Bytes::from_bytes_vec(STATE_ENCODED.to_vec()))
             .map_err(|err| format!("Failed to decode model weights: {err}"))?;
