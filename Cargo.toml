@@ -59,7 +59,7 @@ futures-util = "0.3"
 gemm = { version = "0.19", default-features = false }
 gix-tempfile = { version = "25.0.0", features = ["signals"] }
 globwalk = "0.9.1"
-hashbrown = "0.17"
+hashbrown = "0.16"
 hound = "3.5.1"
 image = "0.25.10"
 indicatif = "0.18.6"
@@ -180,8 +180,8 @@ libc = "0.2.189"
 nvml-wrapper = "0.13.0"
 sysinfo = "0.39.6"
 systemstat = "0.2.7"
-tch = "0.23.0"
-torch-sys = "0.23.0"                                        # matches what tch is using, required for lib detection
+tch = "0.22.0"
+torch-sys = "0.22.0"                                        # matches what tch is using, required for lib detection
 
 ahash = { version = "0.8.12", default-features = false }
 aligned-vec = { version = "0.6", default-features = false }

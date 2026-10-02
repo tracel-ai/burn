@@ -989,7 +989,7 @@ dependencies = [
  "burn-flex",
  "burn-std",
  "derive-new",
- "hashbrown 0.17.1",
+ "hashbrown 0.16.1",
  "num-traits",
  "parking_lot",
  "portable-atomic",
@@ -1005,7 +1005,7 @@ dependencies = [
  "cubecl",
  "derive-new",
  "enumset",
- "hashbrown 0.17.1",
+ "hashbrown 0.16.1",
  "num-traits",
  "oneshot",
  "rand 0.10.3",
@@ -1054,7 +1054,7 @@ dependencies = [
  "burn-ir",
  "burn-router",
  "burn-std",
- "hashbrown 0.17.1",
+ "hashbrown 0.16.1",
  "portable-atomic",
  "spin 0.12.3",
 ]
@@ -1101,7 +1101,7 @@ dependencies = [
  "burn-wgpu",
  "derive-new",
  "half",
- "hashbrown 0.17.1",
+ "hashbrown 0.16.1",
  "log",
  "num-traits",
  "rand 0.10.3",
@@ -1155,7 +1155,7 @@ dependencies = [
  "cubek",
  "derive-new",
  "half",
- "hashbrown 0.17.1",
+ "hashbrown 0.16.1",
  "serde",
  "spin 0.12.3",
 ]
@@ -1263,7 +1263,7 @@ dependencies = [
  "burn-ir",
  "burn-std",
  "derive-new",
- "hashbrown 0.17.1",
+ "hashbrown 0.16.1",
  "log",
  "serde",
  "spin 0.12.3",
@@ -1276,7 +1276,7 @@ version = "0.22.0-pre.4"
 dependencies = [
  "burn-backend",
  "burn-std",
- "hashbrown 0.17.1",
+ "hashbrown 0.16.1",
  "serde",
 ]
 
@@ -1346,7 +1346,7 @@ dependencies = [
  "burn-nn",
  "burn-pack",
  "derive-new",
- "hashbrown 0.17.1",
+ "hashbrown 0.16.1",
  "log",
  "num-traits",
  "serde",
@@ -1422,7 +1422,7 @@ dependencies = [
  "burn-fusion",
  "burn-ir",
  "burn-std",
- "hashbrown 0.17.1",
+ "hashbrown 0.16.1",
  "portable-atomic",
  "serde",
  "spin 0.12.3",
@@ -1461,7 +1461,7 @@ dependencies = [
  "data-encoding",
  "derive-new",
  "half",
- "hashbrown 0.17.1",
+ "hashbrown 0.16.1",
  "indicatif 0.18.6",
  "num-traits",
  "paste",
@@ -1490,7 +1490,7 @@ dependencies = [
  "ciborium",
  "divan",
  "half",
- "hashbrown 0.17.1",
+ "hashbrown 0.16.1",
  "memmap2",
  "pytorch-reader",
  "regex",
@@ -7663,7 +7663,7 @@ dependencies = [
  "combine",
  "downcast-rs",
  "dyn-clone",
- "hashbrown 0.17.1",
+ "hashbrown 0.16.1",
  "hi_sparse_bitset 0.10.0",
  "indexmap",
  "inventory",
@@ -10550,9 +10550,9 @@ dependencies = [
 
 [[package]]
 name = "tch"
-version = "0.23.0"
+version = "0.22.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3d1470a4780300b4a62a097ed50dff2fc7c9cf6576c1947560a1d69fab3b258b"
+checksum = "9e09b91610202dc4820c21eb474a42b386ef69f323b1c0902b5472ba7456ebb5"
 dependencies = [
  "half",
  "lazy_static",
@@ -11079,9 +11079,9 @@ checksum = "7d56353a2a665ad0f41a421187180aab746c8c325620617ad883a99a1cbe66d2"
 
 [[package]]
 name = "torch-sys"
-version = "0.23.0"
+version = "0.22.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a7767541e63ff99c36950f2a54cc277e41a1e5a24ab1646aae19ef7f7d3dedf7"
+checksum = "aef40c585e342df95b66a1fa7c923188623999c2b657227befb481dfb03a6a42"
 dependencies = [
  "anyhow",
  "cc",
