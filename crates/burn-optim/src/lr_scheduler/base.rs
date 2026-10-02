@@ -18,7 +18,7 @@ use burn::store::RecordError;
 use burn::tensor::{Bytes, Device};
 use burn_pack::{Reader, Scalar, Writer};
 
-use crate::LearningRate;
+use crate::HostLr;
 
 macro_rules! impl_from_for_scheduler {
     ($($variant:ident($config:ident)),* $(,)?) => {
@@ -36,7 +36,7 @@ macro_rules! impl_from_for_scheduler {
 pub trait LrScheduler: LrSchedulerClone + Send + Sync {
     /// Perform the scheduler step, potentially updating its state, and returning the effective
     /// learning rate.
-    fn step(&mut self) -> LearningRate;
+    fn step(&mut self) -> HostLr;
 
     /// Get the current state of the scheduler as a [record](LrSchedulerRecord).
     fn to_record(&self) -> LrSchedulerRecord;
@@ -75,7 +75,7 @@ pub struct DynLrScheduler {
 impl DynLrScheduler {
     /// Perform the scheduler step, potentially updating its state, and returning the effective
     /// learning rate.
-    pub fn step(&mut self) -> LearningRate {
+    pub fn step(&mut self) -> HostLr {
         self.scheduler.step()
     }
 
@@ -226,7 +226,7 @@ impl LrSchedulerRecord {
 #[derive(Config, Debug)]
 pub enum LrSchedulerConfig {
     /// A constant learning rate.
-    Constant(LearningRate),
+    Constant(HostLr),
     /// A [`LinearLrSchedulerConfig`]
     Linear(LinearLrSchedulerConfig),
     /// A [`CosineAnnealingLrSchedulerConfig`]
@@ -259,7 +259,7 @@ impl LrSchedulerConfig {
 }
 
 impl_from_for_scheduler!(
-    Constant(LearningRate),
+    Constant(HostLr),
     Linear(LinearLrSchedulerConfig),
     Cosine(CosineAnnealingLrSchedulerConfig),
     Exponential(ExponentialLrSchedulerConfig),
@@ -276,11 +276,11 @@ pub(super) mod test_utils {
     // A small tolerance for learning rate comparisons. Depending on how learning rates are
     // computed, floating-point arithmetic error might exceed f64::EPSILON, so a larger value is
     // used here.
-    const LOOSE_EPSILON: LearningRate = 1e-10;
+    const LOOSE_EPSILON: HostLr = 1e-10;
 
     pub fn check_lr_sequence<I, S>(mut scheduler: S, expected_lrs: I)
     where
-        I: IntoIterator<Item = LearningRate>,
+        I: IntoIterator<Item = HostLr>,
         S: LrScheduler,
     {
         expected_lrs

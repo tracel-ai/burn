@@ -12,8 +12,10 @@ mod adan;
 mod base;
 mod grad_accum;
 mod grads;
+mod isolated;
 mod lamb;
 mod lbfgs;
+mod learning_rate;
 mod lion;
 mod module;
 mod muon;
@@ -32,6 +34,7 @@ pub use grad_accum::*;
 pub use grads::*;
 pub use lamb::*;
 pub use lbfgs::*;
+pub use learning_rate::*;
 pub use lion::*;
 pub use module::*;
 pub use muon::*;
@@ -42,7 +45,7 @@ pub use state::*;
 #[cfg(test)]
 mod test_utils {
     use super::{GradientsParams, ModuleOptimizer};
-    use crate::LearningRate;
+    use crate::HostLr;
     use burn_core::tensor::{Tensor, Tolerance};
     use burn_nn::Linear;
 
@@ -50,7 +53,7 @@ mod test_utils {
     pub(super) fn assert_optimizer_resume(
         create_optimizer: impl Fn() -> ModuleOptimizer,
         mut model: Linear,
-        lr: LearningRate,
+        lr: HostLr,
     ) {
         let device = model.weight.val().device();
         let [input_size, _] = model.weight.val().dims();

@@ -1,6 +1,7 @@
 use burn_core as burn;
 
 use crate::RecordState;
+use crate::optim::isolated::isolated;
 
 use burn::config::Config;
 use burn::tensor::Device;
@@ -279,8 +280,8 @@ impl Muon {
     /// // Original: 0.01 * sqrt(1024/512) = 0.01 * 1.414 = 0.01414
     /// // MatchRmsAdamW: 0.01 * 0.2 * sqrt(1024) = 0.01 * 0.2 * 32 = 0.064
     /// ```
-    fn adjust_lr(&self, lr: LearningRate, shape: &[usize]) -> LearningRate {
-        lr * self.adjust_lr_fn.adjustment_ratio(shape)
+    fn adjust_lr(&self, lr: &LearningRate, shape: &[usize]) -> LearningRate {
+        lr.mul_scalar(self.adjust_lr_fn.adjustment_ratio(shape))
     }
 
     /// Perform Newton-Schulz orthogonalization on a gradient tensor.
@@ -402,22 +403,26 @@ impl Optimizer for Muon {
         let update = self.zeropower_via_newtonschulz(grad);
 
         // Step 3: Adjust learning rate based on parameter shape
-        let adjusted_lr = self.adjust_lr(lr, &tensor.shape());
+        let adjusted_lr = self.adjust_lr(&lr, &tensor.shape());
+
+        let device = tensor.device();
 
         // Step 4: Apply weight decay (using ORIGINAL lr, not adjusted)
         // Muon applies weight decay AFTER orthogonalization
-        let tensor = if let Some(penalty) = self.weight_decay_penalty {
-            let decay_factor = 1.0 - lr * penalty as f64;
-            tensor.mul_scalar(decay_factor)
-        } else {
-            tensor
+        let tensor = match self.weight_decay_penalty {
+            Some(penalty) => lr
+                .mul_scalar(penalty as f64)
+                .rsub_scalar(1.0)
+                .apply_isolated(tensor),
+            None => tensor,
         };
 
         // Step 5: Update parameter (using ADJUSTED lr)
-        let delta = update.mul_scalar(adjusted_lr);
+        let delta = adjusted_lr.apply(update);
+        let tensor = isolated(&device, || tensor - delta);
         let new_state = MuonState::new(new_momentum_state);
 
-        (tensor - delta, Some(new_state))
+        (tensor, Some(new_state))
     }
 
     fn to_device<const D: usize>(mut state: Self::State<D>, device: &Device) -> Self::State<D> {
@@ -494,7 +499,7 @@ mod tests {
         let tensor_1d = Tensor::<1>::zeros([512], &device);
         let grad_1d = Tensor::<1>::ones([512], &device);
 
-        let _ = optim.step(0.01, tensor_1d, grad_1d, None);
+        let _ = optim.step(0.01.into(), tensor_1d, grad_1d, None);
     }
 
     #[test]
@@ -674,7 +679,7 @@ mod tests {
         };
 
         // Should not panic or produce NaN
-        let (updated_tensor, state) = muon.step(0.01, tensor.clone(), zero_grad, None);
+        let (updated_tensor, state) = muon.step(0.01.into(), tensor.clone(), zero_grad, None);
 
         // Verify state was created
         assert!(state.is_some());
@@ -722,7 +727,7 @@ mod tests {
         let zero_grad2 = Tensor::<2>::zeros([4, 4], &device);
 
         let (updated_tensor_decay, _) =
-            muon_with_decay.step(0.01, tensor2.clone(), zero_grad2, None);
+            muon_with_decay.step(0.01.into(), tensor2.clone(), zero_grad2, None);
 
         // With zero gradient but with weight decay, tensor should be slightly reduced
         let updated_decay_data = updated_tensor_decay.into_data();

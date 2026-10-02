@@ -1,7 +1,7 @@
 use burn_core as burn;
 
 use super::{LrScheduler, LrSchedulerRecord, String};
-use crate::LearningRate;
+use crate::HostLr;
 use crate::RecordState;
 use crate::lr_scheduler::module_lr_scheduler::ModuleLrScheduler;
 use burn::config::Config;
@@ -20,10 +20,10 @@ use burn::config::Config;
 #[derive(Config, Debug)]
 pub struct CosineAnnealingLrSchedulerConfig {
     // The initial learning rate.
-    initial_lr: LearningRate,
+    initial_lr: HostLr,
     // The final learning rate.
     #[config(default = 0.0)]
-    min_lr: LearningRate,
+    min_lr: HostLr,
     // The number of iterations for the learning rate to reach `min_lr` along the cosine curve.
     num_iters: usize,
 }
@@ -78,14 +78,14 @@ impl CosineAnnealingLrSchedulerConfig {
 /// See [CosineAnnealingLrSchedulerConfig] for configuration options.
 #[derive(Clone, Copy, Debug)]
 pub struct CosineAnnealingLrScheduler {
-    min_lr: LearningRate,
-    max_lr: LearningRate,
+    min_lr: HostLr,
+    max_lr: HostLr,
     num_iters: usize,
     current_iter: usize,
 }
 
 impl LrScheduler for CosineAnnealingLrScheduler {
-    fn step(&mut self) -> LearningRate {
+    fn step(&mut self) -> HostLr {
         // Make current_iter overflow from usize::MAX to 0 to get the initial learning rate on the
         // first call. We could've used i64 with an initial value -1, but keeping it in usize saves
         // us from some type casting here.
@@ -185,8 +185,8 @@ mod tests {
 
     #[test]
     fn test_lr_change() {
-        const INITIAL_LR: LearningRate = 0.5;
-        const MIN_LR: LearningRate = 0.1;
+        const INITIAL_LR: HostLr = 0.5;
+        const MIN_LR: HostLr = 0.1;
 
         let scheduler = CosineAnnealingLrSchedulerConfig::new(INITIAL_LR, 2)
             .with_min_lr(MIN_LR)

@@ -1,6 +1,7 @@
 use burn_core as burn;
 
 use crate::RecordState;
+use crate::optim::isolated::isolated;
 use burn::config::Config;
 use burn::tensor::Device;
 use burn::tensor::{ElementConversion, Tensor};
@@ -61,9 +62,10 @@ impl Momentum {
         state: Option<MomentumState<D>>,
     ) -> (Tensor<D>, MomentumState<D>) {
         let velocity = if let Some(state) = state {
-            grad.clone()
-                .mul_scalar(1.0 - self.dampening)
-                .add(state.velocity.mul_scalar(self.momentum))
+            let device = grad.device();
+            let grad = grad.clone().mul_scalar(1.0 - self.dampening);
+            let velocity = isolated(&device, || state.velocity.mul_scalar(self.momentum));
+            isolated(&device, || velocity.add(grad))
         } else {
             grad.clone()
         };

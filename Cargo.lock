@@ -1006,10 +1006,13 @@ version = "0.22.0-pre.4"
 dependencies = [
  "burn-autodiff",
  "burn-backend",
+ "burn-core",
  "burn-cubecl-fusion",
  "burn-flex",
  "burn-fusion",
  "burn-ndarray",
+ "burn-nn",
+ "burn-optim",
  "burn-tensor",
  "ctor",
  "cubek",

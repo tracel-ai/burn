@@ -1,6 +1,7 @@
 use burn_core as burn;
 
 use crate::RecordState;
+use crate::optim::isolated::isolated;
 
 use burn::config::Config;
 use burn::tensor::Device;
@@ -59,11 +60,14 @@ impl Optimizer for AdaGrad {
             grad = weight_decay.transform(grad, tensor.clone());
         }
 
-        let (grad, state_lr_decay) = self.lr_decay.transform(grad, lr, state_lr_decay);
+        let (grad, state_lr_decay) = self.lr_decay.transform(grad, &lr, state_lr_decay);
 
         let state = AdaGradState::new(state_lr_decay);
 
-        (tensor - grad, Some(state))
+        let device = tensor.device();
+        let tensor = isolated(&device, || tensor - grad);
+
+        (tensor, Some(state))
     }
 
     fn to_device<const D: usize>(mut state: Self::State<D>, device: &Device) -> Self::State<D> {
@@ -120,22 +124,22 @@ impl LrDecay {
     pub fn transform<const D: usize>(
         &self,
         grad: Tensor<D>,
-        lr: LearningRate,
+        lr: &LearningRate,
         lr_decay_state: Option<LrDecayState<D>>,
     ) -> (Tensor<D>, LrDecayState<D>) {
         let state = if let Some(mut state) = lr_decay_state {
-            state.sum = state.sum.add(grad.clone().square());
+            let grad_squared = grad.clone().square();
+            let device = grad.device();
+            state.sum = isolated(&device, || state.sum.add(grad_squared));
             state.time += 1;
             state
         } else {
             LrDecayState::new(1, grad.clone().square())
         };
 
-        let new_lr = lr / (1. + (state.time as f64 - 1.) * self.lr_decay);
+        let new_lr = lr.div_scalar(1. + (state.time as f64 - 1.) * self.lr_decay);
 
-        let grad = grad
-            .div(state.sum.clone().sqrt().add_scalar(self.epsilon))
-            .mul_scalar(new_lr);
+        let grad = new_lr.apply(grad.div(state.sum.clone().sqrt().add_scalar(self.epsilon)));
 
         (grad, state)
     }
@@ -168,7 +172,9 @@ mod tests {
     use burn::tensor::{Tensor, TensorData};
     use burn_nn::{Linear, LinearConfig};
 
-    const LEARNING_RATE: LearningRate = 0.01;
+    use crate::HostLr;
+
+    const LEARNING_RATE: HostLr = 0.01;
 
     #[test]
     fn test_adagrad_optimizer_save_load_state() {

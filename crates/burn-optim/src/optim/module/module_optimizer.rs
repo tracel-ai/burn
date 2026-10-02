@@ -462,7 +462,10 @@ impl ModuleMapper for ModuleOptimizerMapper<'_> {
                 "Tensor and gradients are on the same device."
             );
 
-            let lr = self.lr_module.lr_from_param(id, Some(path.as_str()));
+            let lr = self
+                .lr_module
+                .lr_from_param(id, Some(path.as_str()))
+                .to_device(&device);
             let (tensor, state) = optim.step_dyn(
                 D,
                 lr,

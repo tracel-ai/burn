@@ -188,6 +188,10 @@ impl Backend for CubeBackend {
         client.graph_prepare().map_err(graph_err)
     }
 
+    fn graph_is_capturing(device: &Self::Device) -> bool {
+        device.client().is_capturing()
+    }
+
     fn graph_start_capture(device: &Self::Device) -> Result<(), ExecutionError> {
         let client = device.client();
         client.start_capture().map_err(graph_err)

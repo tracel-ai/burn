@@ -182,7 +182,7 @@ impl Optimizer for MySgd {
         grad: Tensor<D>,
         _state: Option<Self::State<D>>,
     ) -> (Tensor<D>, Option<Self::State<D>>) {
-        (tensor - grad.mul_scalar(lr), None)
+        (tensor - lr.apply(grad), None)
     }
 
     fn to_device<const D: usize>(state: Self::State<D>, _device: &Device) -> Self::State<D> {

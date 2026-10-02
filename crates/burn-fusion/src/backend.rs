@@ -207,6 +207,10 @@ impl<B: FusionBackend> Backend for Fusion<B> {
         client.sync(move || B::graph_prepare(&device))
     }
 
+    fn graph_is_capturing(device: &Self::Device) -> bool {
+        B::graph_is_capturing(device)
+    }
+
     fn graph_start_capture(device: &Self::Device) -> Result<(), ExecutionError> {
         let client = GlobalFusionClient::<B::FusionRuntime>::load(device);
         let device = device.clone();
