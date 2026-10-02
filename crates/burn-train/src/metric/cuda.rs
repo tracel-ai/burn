@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use super::MetricMetadata;
 use crate::metric::{Metric, MetricName, SerializedEntry};
+use burn_core::tensor::TensorReadError;
 use nvml_wrapper::Nvml;
 
 /// Track basic cuda infos.
@@ -33,11 +34,15 @@ impl Default for CudaMetric {
 impl Metric for CudaMetric {
     type Input = ();
 
-    fn update(&mut self, _item: &(), _metadata: &MetricMetadata) -> SerializedEntry {
+    fn update(
+        &mut self,
+        _item: &(),
+        _metadata: &MetricMetadata,
+    ) -> Result<SerializedEntry, TensorReadError> {
         self.compute()
     }
 
-    fn compute(&mut self) -> SerializedEntry {
+    fn compute(&mut self) -> Result<SerializedEntry, TensorReadError> {
         let not_available =
             || SerializedEntry::new("Unavailable".to_string(), "Unavailable".to_string());
 
@@ -98,10 +103,10 @@ impl Metric for CudaMetric {
             SerializedEntry::new(formatted, raw_running)
         };
 
-        match self.nvml.as_ref() {
+        Ok(match self.nvml.as_ref() {
             Some(nvml) => available(nvml),
             None => not_available(),
-        }
+        })
     }
 
     fn clear(&mut self) {}

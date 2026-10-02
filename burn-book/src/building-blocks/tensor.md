@@ -128,6 +128,9 @@ let tensor_5 = Tensor::<1>::from_data(data, &device);
 
 ```
 
+Reading a tensor's data is also where a failed computation surfaces. `into_data()` and `to_data()`
+panic in that case; use `try_into_data()` or `try_to_data()` to handle the `ExecutionError` instead.
+
 ## Ownership and Cloning
 
 Almost all Burn operations take ownership of the input tensors. Therefore, reusing a tensor multiple

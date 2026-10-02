@@ -1,7 +1,9 @@
 use alloc::string::String;
 use burn_std::{BoolStore, DeviceSettings, QuantConfig, QuantScheme, QuantStore};
 
-use burn_backend::{Backend, BackendTypes, DType, DTypeUsage, DTypeUsageSet, DeviceId, DeviceOps};
+use burn_backend::{
+    Backend, BackendTypes, DType, DTypeUsage, DTypeUsageSet, DeviceId, DeviceOps, ExecutionError,
+};
 use burn_ir::{BackendIr, HandleKind, TensorHandle};
 use burn_std::device::Device;
 use burn_std::rand::{SeedableRng, StdRng};
@@ -165,7 +167,9 @@ impl Backend for Flex {
         }
     }
 
-    fn flush(_device: &Self::Device) {}
+    fn flush(_device: &Self::Device) -> Result<(), ExecutionError> {
+        Ok(())
+    }
 }
 
 impl BackendIr for Flex {

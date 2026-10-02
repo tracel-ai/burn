@@ -10,6 +10,62 @@ use std::thread::spawn;
 /// Outputs and progress collected from workers for one step.
 type StepOutput<TO> = (Vec<MultiTrainOutput<TO>>, Progress);
 
+/// Error that happened on one device during a step of multi-device training.
+#[derive(Debug)]
+pub enum MultiDeviceStepError {
+    /// Error while loading data.
+    Dataset(DatasetError),
+    /// The training step panicked on one or more workers.
+    Workers(Vec<WorkerFailure>),
+}
+
+/// A training step that panicked on a worker.
+#[derive(Debug)]
+pub struct WorkerFailure {
+    /// The worker's device index.
+    pub device_id: usize,
+    /// The panic message.
+    pub message: String,
+}
+
+impl core::fmt::Display for WorkerFailure {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(
+            f,
+            "training worker on device {} failed: {}",
+            self.device_id, self.message
+        )
+    }
+}
+
+/// Every failure, on one line if there is only one.
+pub(crate) fn fmt_worker_failures(
+    failures: &[WorkerFailure],
+    f: &mut core::fmt::Formatter<'_>,
+) -> core::fmt::Result {
+    match failures {
+        [failure] => write!(f, "{failure}"),
+        failures => {
+            write!(f, "{} training workers failed:", failures.len())?;
+            for failure in failures {
+                write!(f, "\n  {failure}")?;
+            }
+            Ok(())
+        }
+    }
+}
+
+impl core::fmt::Display for MultiDeviceStepError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::Dataset(err) => write!(f, "dataset error during training step: {err}"),
+            Self::Workers(failures) => fmt_worker_failures(failures, f),
+        }
+    }
+}
+
+impl core::error::Error for MultiDeviceStepError {}
+
 /// Multi devices train step.
 pub struct MultiDevicesTrainStep<M: LearnerModel> {
     workers: Vec<Worker<M>>,
@@ -151,7 +207,7 @@ impl<M: LearnerModel> MultiDevicesTrainStep<M> {
         &self,
         dataloaders: &mut [Box<dyn DataLoaderIterator<TrainingModelInput<M>> + 'a>],
         model: &M,
-    ) -> Result<StepOutput<TrainingModelOutput<M>>, DatasetError> {
+    ) -> Result<StepOutput<TrainingModelOutput<M>>, MultiDeviceStepError> {
         let mut num_send = 0;
 
         let mut items_total = 0;
@@ -168,22 +224,55 @@ impl<M: LearnerModel> MultiDevicesTrainStep<M> {
                     items_total += progress.items_total;
                     items_processed += progress.items_processed;
                 }
-                Some(Err(err)) => return Err(err),
+                Some(Err(err)) => return Err(MultiDeviceStepError::Dataset(err)),
                 None => {}
             }
         }
 
         let mut outputs = Vec::with_capacity(num_send);
+        let mut failures = Vec::new();
 
+        // Every worker answers before this returns, even after one failed: an answer left in
+        // the channel would be taken for the next step's.
         for _ in 0..num_send {
             match self.receiver.recv().unwrap() {
                 WorkerMessage::Output(output) => outputs.push(output),
-                WorkerMessage::Error(device_id, msg) => {
-                    panic!("training worker on device {device_id} failed: {msg}");
+                WorkerMessage::Error(device_id, message) => {
+                    failures.push(WorkerFailure { device_id, message })
                 }
             }
         }
 
+        if !failures.is_empty() {
+            return Err(MultiDeviceStepError::Workers(failures));
+        }
         Ok((outputs, Progress::new(items_processed, items_total, unit)))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn failure(device_id: usize, message: &str) -> WorkerFailure {
+        WorkerFailure {
+            device_id,
+            message: message.to_string(),
+        }
+    }
+
+    #[test]
+    fn every_failed_worker_is_reported() {
+        let error = MultiDeviceStepError::Workers(vec![
+            failure(0, "out of memory"),
+            failure(2, "illegal address"),
+        ]);
+
+        assert_eq!(
+            error.to_string(),
+            "2 training workers failed:\n  \
+             training worker on device 0 failed: out of memory\n  \
+             training worker on device 2 failed: illegal address"
+        );
     }
 }

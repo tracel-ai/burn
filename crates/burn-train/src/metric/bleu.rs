@@ -3,7 +3,7 @@ use super::{MetricMetadata, SerializedEntry};
 use crate::metric::{
     Metric, MetricAttributes, MetricName, Numeric, NumericAttributes, NumericEntry,
 };
-use burn_core::tensor::{Int, Tensor};
+use burn_core::tensor::{Int, Tensor, TensorReadError};
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -215,13 +215,17 @@ fn corpus_bleu(
 impl Metric for BleuScore {
     type Input = BleuInput;
 
-    fn update(&mut self, input: &BleuInput, _metadata: &MetricMetadata) -> SerializedEntry {
+    fn update(
+        &mut self,
+        input: &BleuInput,
+        _metadata: &MetricMetadata,
+    ) -> Result<SerializedEntry, TensorReadError> {
         let outputs = &input.outputs;
         let targets = &input.targets;
         let [batch_size, seq_len] = targets.dims();
 
-        let outputs_data = outputs.to_data().iter::<i32>().collect::<Vec<_>>();
-        let targets_data = targets.to_data().iter::<i32>().collect::<Vec<_>>();
+        let outputs_data = outputs.try_to_vec_as::<i32>()?;
+        let targets_data = targets.try_to_vec_as::<i32>()?;
 
         let pad_token = self.pad_token.map(|p| p as i32);
 
@@ -289,13 +293,15 @@ impl Metric for BleuScore {
         // accumulation would require a custom metric state that tracks raw
         // n-gram counts across batches.
         self.state.update(value, batch_size);
-        self.state
-            .compute_update(FormatOptions::new(self.name()).unit("%").precision(2))
+        Ok(self
+            .state
+            .compute_update(FormatOptions::new(self.name()).unit("%").precision(2)))
     }
 
-    fn compute(&mut self) -> SerializedEntry {
-        self.state
-            .compute_final(FormatOptions::new(self.name()).unit("%").precision(2))
+    fn compute(&mut self) -> Result<SerializedEntry, TensorReadError> {
+        Ok(self
+            .state
+            .compute_final(FormatOptions::new(self.name()).unit("%").precision(2)))
     }
 
     fn clear(&mut self) {
@@ -342,7 +348,9 @@ mod tests {
         let preds = Tensor::from_data([[1, 2, 3, 4, 5]], &device);
         let tgts = Tensor::from_data([[1, 2, 3, 4, 5]], &device);
 
-        metric.update(&BleuInput::new(preds, tgts), &MetricMetadata::fake());
+        metric
+            .update(&BleuInput::new(preds, tgts), &MetricMetadata::fake())
+            .unwrap();
 
         assert!((metric.value().unwrap().current() - 100.0).abs() < 1e-6);
     }
@@ -356,7 +364,9 @@ mod tests {
         let preds = Tensor::from_data([[1, 2, 3, 4, 5]], &device);
         let tgts = Tensor::from_data([[6, 7, 8, 9, 10]], &device);
 
-        metric.update(&BleuInput::new(preds, tgts), &MetricMetadata::fake());
+        metric
+            .update(&BleuInput::new(preds, tgts), &MetricMetadata::fake())
+            .unwrap();
 
         assert_eq!(0.0, metric.value().unwrap().current());
     }
@@ -371,7 +381,9 @@ mod tests {
         let preds = Tensor::from_data([[1, 2, 3, 6, 7]], &device);
         let tgts = Tensor::from_data([[1, 2, 3, 4, 5]], &device);
 
-        metric.update(&BleuInput::new(preds, tgts), &MetricMetadata::fake());
+        metric
+            .update(&BleuInput::new(preds, tgts), &MetricMetadata::fake())
+            .unwrap();
 
         // BLEU-1 = 3/5 * 100 = 60.0
         assert!((metric.value().unwrap().current() - 60.0).abs() < 1e-6);
@@ -389,7 +401,9 @@ mod tests {
         let preds = Tensor::from_data([[1, 2, 3, pad, pad]], &device);
         let tgts = Tensor::from_data([[1, 2, 3, 4, 5]], &device);
 
-        metric.update(&BleuInput::new(preds, tgts), &MetricMetadata::fake());
+        metric
+            .update(&BleuInput::new(preds, tgts), &MetricMetadata::fake())
+            .unwrap();
 
         let expected = 100.0 * (1.0 - 5.0 / 3.0_f64).exp();
         assert!((metric.value().unwrap().current() - expected).abs() < 0.1);
@@ -406,7 +420,9 @@ mod tests {
         let preds = Tensor::from_data([[1, 2, 3, 4, 5, pad, pad]], &device);
         let tgts = Tensor::from_data([[1, 2, 3, 4, 5, pad, pad]], &device);
 
-        metric.update(&BleuInput::new(preds, tgts), &MetricMetadata::fake());
+        metric
+            .update(&BleuInput::new(preds, tgts), &MetricMetadata::fake())
+            .unwrap();
 
         assert!((metric.value().unwrap().current() - 100.0).abs() < 1e-6);
     }
@@ -425,7 +441,9 @@ mod tests {
         let preds = Tensor::from_data([[1, 2, 3, 4, 5], [6, 7, 8, 9, 10]], &device);
         let tgts = Tensor::from_data([[1, 2, 3, 4, 5], [11, 12, 13, 14, 15]], &device);
 
-        metric.update(&BleuInput::new(preds, tgts), &MetricMetadata::fake());
+        metric
+            .update(&BleuInput::new(preds, tgts), &MetricMetadata::fake())
+            .unwrap();
 
         assert!((metric.value().unwrap().current() - 50.0).abs() < 1e-6);
     }
@@ -439,7 +457,9 @@ mod tests {
         let preds = Tensor::from_data([[1, 2, 3, 4, 5]], &device);
         let tgts = Tensor::from_data([[1, 2, 3, 4, 5]], &device);
 
-        metric.update(&BleuInput::new(preds, tgts), &MetricMetadata::fake());
+        metric
+            .update(&BleuInput::new(preds, tgts), &MetricMetadata::fake())
+            .unwrap();
         assert!(metric.value().unwrap().current() > 0.0);
 
         metric.clear();
@@ -462,7 +482,9 @@ mod tests {
         let preds = Tensor::from_data([[1, 2, 3, 4]], &device);
         let tgts = Tensor::from_data([[1, 2, 5, 6]], &device);
 
-        metric.update(&BleuInput::new(preds, tgts), &MetricMetadata::fake());
+        metric
+            .update(&BleuInput::new(preds, tgts), &MetricMetadata::fake())
+            .unwrap();
 
         let expected = 100.0 * ((0.5_f64.ln() + (1.0 / 3.0_f64).ln()) / 2.0).exp();
         assert!((metric.value().unwrap().current() - expected).abs() < 0.1);
@@ -494,7 +516,9 @@ mod tests {
         let preds = Tensor::from_data([[1, 2, 3, pad, pad]], &device);
         let tgts = Tensor::from_data([[1, 2, 3, 4, 5]], &device);
 
-        metric.update(&BleuInput::new(preds, tgts), &MetricMetadata::fake());
+        metric
+            .update(&BleuInput::new(preds, tgts), &MetricMetadata::fake())
+            .unwrap();
         assert_eq!(0.0, metric.value().unwrap().current());
     }
 
@@ -511,13 +535,17 @@ mod tests {
 
         // Verify without smoothing this is 0.
         let mut metric_no_smooth = BleuScore::with_max_n(2);
-        metric_no_smooth.update(
-            &BleuInput::new(preds.clone(), tgts.clone()),
-            &MetricMetadata::fake(),
-        );
+        metric_no_smooth
+            .update(
+                &BleuInput::new(preds.clone(), tgts.clone()),
+                &MetricMetadata::fake(),
+            )
+            .unwrap();
         assert_eq!(0.0, metric_no_smooth.value().unwrap().current());
 
-        metric.update(&BleuInput::new(preds, tgts), &MetricMetadata::fake());
+        metric
+            .update(&BleuInput::new(preds, tgts), &MetricMetadata::fake())
+            .unwrap();
         assert!(
             metric.value().unwrap().current() > 0.0,
             "smoothing should produce non-zero score"
@@ -535,7 +563,9 @@ mod tests {
         let preds = Tensor::from_data([[1, 3, 5, 7, 9]], &device);
         let tgts = Tensor::from_data([[1, 2, 3, 4, 5]], &device);
 
-        metric.update(&BleuInput::new(preds, tgts), &MetricMetadata::fake());
+        metric
+            .update(&BleuInput::new(preds, tgts), &MetricMetadata::fake())
+            .unwrap();
         assert!(
             metric.value().unwrap().current() > 0.0,
             "epsilon smoothing should produce non-zero score"

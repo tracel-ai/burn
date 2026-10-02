@@ -3,6 +3,7 @@ use crate::metric::{
     SerializedEntry,
     state::{FormatOptions, NumericMetricState},
 };
+use burn_core::tensor::TensorReadError;
 use burn_core::{
     prelude::{Device, Int, Tensor},
     tensor::{
@@ -381,7 +382,11 @@ impl Metric for MsSsimMetric {
         self.name.clone()
     }
 
-    fn update(&mut self, item: &Self::Input, _metadata: &MetricMetadata) -> SerializedEntry {
+    fn update(
+        &mut self,
+        item: &Self::Input,
+        _metadata: &MetricMetadata,
+    ) -> Result<SerializedEntry, TensorReadError> {
         let dims = item.outputs.dims();
         let scales = self.config.betas.len();
 
@@ -468,16 +473,18 @@ impl Metric for MsSsimMetric {
         }
 
         let ms_ssim_per_image = ms_ssim_tensor.mean_dim(1);
-        let avg_ms_ssim = ms_ssim_per_image.mean().into_scalar::<f64>();
+        let avg_ms_ssim = ms_ssim_per_image.mean().try_into_scalar::<f64>()?;
 
         self.state.update(avg_ms_ssim, batch_size);
-        self.state
-            .compute_update(FormatOptions::new(self.name()).precision(4))
+        Ok(self
+            .state
+            .compute_update(FormatOptions::new(self.name()).precision(4)))
     }
 
-    fn compute(&mut self) -> SerializedEntry {
-        self.state
-            .compute_final(FormatOptions::new(self.name()).precision(4))
+    fn compute(&mut self) -> Result<SerializedEntry, TensorReadError> {
+        Ok(self
+            .state
+            .compute_final(FormatOptions::new(self.name()).precision(4)))
     }
 
     /// Clears the metric state.
@@ -537,7 +544,7 @@ mod tests {
 
         let mut metric = MsSsimMetric::new(test_config(), &device);
         let input = MsSsimInput::new(outputs, targets);
-        let _entry = metric.update(&input, &MetricMetadata::fake());
+        let _entry = metric.update(&input, &MetricMetadata::fake()).unwrap();
 
         let ms_ssim = metric.value().unwrap().current();
         assert!(
@@ -556,7 +563,7 @@ mod tests {
 
         let mut metric = MsSsimMetric::new(test_config(), &device);
         let input = MsSsimInput::new(outputs, targets);
-        let _entry = metric.update(&input, &MetricMetadata::fake());
+        let _entry = metric.update(&input, &MetricMetadata::fake()).unwrap();
 
         let ms_ssim = metric.value().unwrap().current();
         assert!(
@@ -575,7 +582,7 @@ mod tests {
 
         let mut metric = MsSsimMetric::new(test_config(), &device);
         let input = MsSsimInput::new(outputs, targets);
-        let _entry = metric.update(&input, &MetricMetadata::fake());
+        let _entry = metric.update(&input, &MetricMetadata::fake()).unwrap();
 
         let ms_ssim = metric.value().unwrap().current();
         assert!(
@@ -606,7 +613,7 @@ mod tests {
 
         let mut metric = MsSsimMetric::new(test_config(), &device);
         let input = MsSsimInput::new(outputs, targets);
-        let _entry = metric.update(&input, &MetricMetadata::fake());
+        let _entry = metric.update(&input, &MetricMetadata::fake()).unwrap();
 
         let ms_ssim = metric.value().unwrap().current();
         // Average of ~1.0 and ~0.292 should be around 0.64
@@ -631,7 +638,7 @@ mod tests {
 
         let mut metric = MsSsimMetric::new(config, &device);
         let input = MsSsimInput::new(outputs, targets);
-        let _entry = metric.update(&input, &MetricMetadata::fake());
+        let _entry = metric.update(&input, &MetricMetadata::fake()).unwrap();
 
         let ms_ssim = metric.value().unwrap().current();
         assert!(
@@ -649,7 +656,7 @@ mod tests {
         // First update: identical (1.0)
         let img1 = Tensor::<4>::full([1, 1, 64, 64], 0.5, &device);
         let input1 = MsSsimInput::new(img1.clone(), img1);
-        metric.update(&input1, &MetricMetadata::fake());
+        metric.update(&input1, &MetricMetadata::fake()).unwrap();
 
         assert!(
             metric.value().unwrap().current() > 0.99,
@@ -660,7 +667,7 @@ mod tests {
         let black = Tensor::<4>::zeros([1, 1, 64, 64], &device);
         let white = Tensor::<4>::ones([1, 1, 64, 64], &device);
         let input2 = MsSsimInput::new(black, white);
-        metric.update(&input2, &MetricMetadata::fake());
+        metric.update(&input2, &MetricMetadata::fake()).unwrap();
 
         let running = metric.running_value().unwrap().current();
         assert!(
@@ -689,7 +696,7 @@ mod tests {
         let input = MsSsimInput::new(outputs, targets);
 
         // This should not panic
-        let _ = metric.update(&input, &MetricMetadata::fake());
+        let _ = metric.update(&input, &MetricMetadata::fake()).unwrap();
 
         // Identical images should still yield ~1.0
         let ms_ssim = metric.value().unwrap().current();
@@ -715,12 +722,12 @@ mod tests {
 
         let mut metric1 = MsSsimMetric::new(config.clone(), &device);
         let input1 = MsSsimInput::new(img1.clone(), img2.clone());
-        let _entry = metric1.update(&input1, &MetricMetadata::fake());
+        let _entry = metric1.update(&input1, &MetricMetadata::fake()).unwrap();
         let ms_ssim1 = metric1.value().unwrap().current();
 
         let mut metric2 = MsSsimMetric::new(config, &device);
         let input2 = MsSsimInput::new(img2, img1);
-        let _entry = metric2.update(&input2, &MetricMetadata::fake());
+        let _entry = metric2.update(&input2, &MetricMetadata::fake()).unwrap();
         let ms_ssim2 = metric2.value().unwrap().current();
 
         assert!(
@@ -738,7 +745,7 @@ mod tests {
 
         let img = Tensor::<4>::full([1, 1, 64, 64], 0.5, &device);
         let input = MsSsimInput::new(img.clone(), img);
-        metric.update(&input, &MetricMetadata::fake());
+        metric.update(&input, &MetricMetadata::fake()).unwrap();
 
         assert!(metric.value().unwrap().current() > 0.99);
 
@@ -863,6 +870,6 @@ mod tests {
         let outputs = Tensor::<4>::zeros([1, 3, 32, 32], &device); // Too small (32 < 44)
         let targets = outputs.clone();
         let input = MsSsimInput::new(outputs, targets);
-        let _ = metric.update(&input, &MetricMetadata::fake());
+        let _ = metric.update(&input, &MetricMetadata::fake()).unwrap();
     }
 }

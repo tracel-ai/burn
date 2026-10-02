@@ -1,7 +1,7 @@
 use super::state::{FormatOptions, NumericMetricState};
 use super::{MetricMetadata, SerializedEntry};
 use crate::metric::{Metric, MetricAttributes, MetricName, Numeric, NumericEntry};
-use burn_core::tensor::{Int, Tensor};
+use burn_core::tensor::{Int, Tensor, TensorReadError};
 use std::sync::Arc;
 
 /// Computes the edit distance (Levenshtein distance) between two sequences of integers.
@@ -76,7 +76,11 @@ impl CharErrorRate {
 impl Metric for CharErrorRate {
     type Input = CerInput;
 
-    fn update(&mut self, input: &CerInput, _metadata: &MetricMetadata) -> SerializedEntry {
+    fn update(
+        &mut self,
+        input: &CerInput,
+        _metadata: &MetricMetadata,
+    ) -> Result<SerializedEntry, TensorReadError> {
         let outputs = &input.outputs;
         let targets = &input.targets;
         let [batch_size, seq_len] = targets.dims();
@@ -90,8 +94,8 @@ impl Metric for CharErrorRate {
             let target_lengths_tensor = target_mask.int().sum_dim(1);
 
             (
-                output_lengths_tensor.try_into_vec_as::<i32>().unwrap(),
-                target_lengths_tensor.try_into_vec_as::<i32>().unwrap(),
+                output_lengths_tensor.try_into_vec_as::<i32>()?,
+                target_lengths_tensor.try_into_vec_as::<i32>()?,
             )
         } else {
             // If there's no padding, all sequences have the full length.
@@ -101,8 +105,8 @@ impl Metric for CharErrorRate {
             )
         };
 
-        let outputs_data: Vec<i32> = outputs.try_to_vec_as().unwrap();
-        let targets_data: Vec<i32> = targets.try_to_vec_as().unwrap();
+        let outputs_data: Vec<i32> = outputs.try_to_vec_as()?;
+        let targets_data: Vec<i32> = targets.try_to_vec_as()?;
 
         let total_edit_distance: usize = (0..batch_size)
             .map(|i| {
@@ -128,13 +132,15 @@ impl Metric for CharErrorRate {
         };
 
         self.state.update(value, total_target_length);
-        self.state
-            .compute_update(FormatOptions::new(self.name()).unit("%").precision(2))
+        Ok(self
+            .state
+            .compute_update(FormatOptions::new(self.name()).unit("%").precision(2)))
     }
 
-    fn compute(&mut self) -> SerializedEntry {
-        self.state
-            .compute_final(FormatOptions::new(self.name()).unit("%").precision(2))
+    fn compute(&mut self) -> Result<SerializedEntry, TensorReadError> {
+        Ok(self
+            .state
+            .compute_final(FormatOptions::new(self.name()).unit("%").precision(2)))
     }
 
     fn clear(&mut self) {
@@ -182,7 +188,9 @@ mod tests {
         let preds = Tensor::from_data([[1, 2], [3, 4]], &device);
         let tgts = Tensor::from_data([[1, 2], [3, 4]], &device);
 
-        metric.update(&CerInput::new(preds, tgts), &MetricMetadata::fake());
+        metric
+            .update(&CerInput::new(preds, tgts), &MetricMetadata::fake())
+            .unwrap();
 
         assert_eq!(0.0, metric.value().unwrap().current());
     }
@@ -197,7 +205,9 @@ mod tests {
         let preds = Tensor::from_data([[1, 2], [3, 5]], &device);
         let tgts = Tensor::from_data([[1, 3], [3, 4]], &device);
 
-        metric.update(&CerInput::new(preds, tgts), &MetricMetadata::fake());
+        metric
+            .update(&CerInput::new(preds, tgts), &MetricMetadata::fake())
+            .unwrap();
 
         // 2 edits / 4 tokens = 50 %
         assert_eq!(50.0, metric.value().unwrap().current());
@@ -214,7 +224,9 @@ mod tests {
         let preds = Tensor::from_data([[1, 2, pad], [3, 5, pad]], &device);
         let tgts = Tensor::from_data([[1, 3, pad], [3, 4, pad]], &device);
 
-        metric.update(&CerInput::new(preds, tgts), &MetricMetadata::fake());
+        metric
+            .update(&CerInput::new(preds, tgts), &MetricMetadata::fake())
+            .unwrap();
         assert_eq!(50.0, metric.value().unwrap().current());
     }
 
@@ -227,10 +239,12 @@ mod tests {
         let preds = Tensor::from_data([[1, 2]], &device);
         let tgts = Tensor::from_data([[1, 3]], &device); // one error
 
-        metric.update(
-            &CerInput::new(preds.clone(), tgts.clone()),
-            &MetricMetadata::fake(),
-        );
+        metric
+            .update(
+                &CerInput::new(preds.clone(), tgts.clone()),
+                &MetricMetadata::fake(),
+            )
+            .unwrap();
         assert!(metric.value().unwrap().current() > 0.0);
 
         metric.clear();

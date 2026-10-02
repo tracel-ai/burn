@@ -2,6 +2,7 @@ use crate::{
     ItemLazy,
     metric::{Adaptor, CumulativeRewardInput, EpisodeLengthInput},
 };
+use burn_std::ExecutionError;
 
 /// Summary of an episode.
 pub struct EpisodeSummary {
@@ -12,8 +13,8 @@ pub struct EpisodeSummary {
 }
 
 impl ItemLazy for EpisodeSummary {
-    fn sync(self) -> Self {
-        self
+    fn sync(self) -> Result<Self, ExecutionError> {
+        Ok(self)
     }
 }
 

@@ -106,9 +106,7 @@ impl TransactionOps<Self> for CubeBackend {
         let mut data: Vec<Option<_>> = client
             .read_tensor_async(bindings)
             .await
-            .map_err(|err| ExecutionError::WithContext {
-                reason: format!("{err:?}"),
-            })?
+            .map_err(crate::backend::server_err)?
             .into_iter()
             .map(Some)
             .collect::<Vec<Option<_>>>();
