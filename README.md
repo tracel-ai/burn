@@ -147,6 +147,11 @@ Most backends support all operating systems, so we don't mention them in the tab
 | Wasm   | -            | ☑️   | -        |
 | no-std | -            | ☑️   | -        |
 
+The two native CPU backends are independent. [Cpu](./crates/burn-cpu) (`cpu` feature) is the CubeCL
+runtime for the CPU: it JIT-compiles the same kernels as the GPU backends through LLVM and supports
+fusion. [Flex](./crates/burn-flex) (`flex` feature) is a pure-Rust eager backend with no
+native dependencies that also runs on Wasm and `no_std`.
+
 > **Note:** The LibTorch backend is deprecated as of `0.22.0` and will be removed in a future
 > release. For GPU acceleration, use a [CubeCL](https://github.com/tracel-ai/cubecl) backend (CUDA,
 > ROCm, Metal, Vulkan, WebGPU). For CPU execution, use the CubeCL CPU backend or `burn-flex`.
