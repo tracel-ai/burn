@@ -132,7 +132,7 @@ pub fn det<const D: usize, const D1: usize, const D2: usize>(mut tensor: Tensor<
     // Compute determinant for general case
     // det(A) = det(P) * det(L) * det(U)
     // det(A) = det(P) * 1 * det(U)
-    let (lu, pivots) = compute_lu_decomposition::<D, D1>(tensor.clone());
+    let (lu, pivots) = compute_lu_decomposition(tensor.clone());
 
     // Compute the determinant of P
     let squeezed_pivots = pivots.squeeze_dim::<D1>(D - 1);
