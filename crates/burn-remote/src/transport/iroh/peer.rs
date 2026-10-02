@@ -5,7 +5,7 @@ use iroh::{Endpoint, EndpointAddr, endpoint::BindError};
 use tokio::sync::OnceCell;
 
 use super::{node::RemoteNode, relays::IrohRelays};
-use crate::RemoteDevice;
+use crate::{ConnectError, RemoteDevice};
 
 /// An Iroh compute server as a client dials it: its id and any addresses to try directly, the
 /// relays it uses, and the credential its authorizer checks. Built with [`IrohPeerBuilder`].
@@ -26,12 +26,7 @@ impl IrohPeer {
     ///
     /// # Errors
     ///
-    /// Relays are disabled and no address was given, the endpoint could not be bound, or the
-    /// runtime shut down first.
-    ///
-    /// # Panics
-    ///
-    /// The server refused the session, or could not be reached.
+    /// See [`ConnectError`].
     pub async fn connect(&self, device_index: usize) -> Result<RemoteDevice, ConnectError> {
         // An application's endpoint may find the server through its own address lookup.
         let has_endpoint = self.node.initialized();
@@ -59,7 +54,8 @@ impl IrohPeer {
         // The handshake blocks until the server answers, so it runs off the async workers.
         let connecting = device.clone();
         match tokio::task::spawn_blocking(move || connecting.connect()).await {
-            Ok(()) => Ok(device),
+            Ok(Ok(())) => Ok(device),
+            Ok(Err(err)) => Err(err),
             Err(err) => match err.try_into_panic() {
                 Ok(panic) => std::panic::resume_unwind(panic),
                 Err(_) => Err(ConnectError::Interrupted),
@@ -142,40 +138,5 @@ struct Credential(Vec<u8>);
 impl fmt::Debug for Credential {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str("..")
-    }
-}
-
-/// Why [`IrohPeer::connect`] returned no device.
-#[derive(Debug)]
-#[non_exhaustive]
-pub enum ConnectError {
-    /// Relays are disabled and no address was given, so an endpoint Burn binds cannot find the
-    /// server.
-    NoAddress,
-    /// The local endpoint could not be bound.
-    Bind {
-        /// Iroh's reason.
-        source: BindError,
-    },
-    /// The runtime shut down before the connection was attempted.
-    Interrupted,
-}
-
-impl fmt::Display for ConnectError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::NoAddress => f.write_str("relays are disabled and no address was given"),
-            Self::Bind { source } => write!(f, "cannot bind an Iroh endpoint: {source}"),
-            Self::Interrupted => f.write_str("the runtime shut down before connecting"),
-        }
-    }
-}
-
-impl std::error::Error for ConnectError {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        match self {
-            Self::Bind { source } => Some(source),
-            Self::NoAddress | Self::Interrupted => None,
-        }
     }
 }

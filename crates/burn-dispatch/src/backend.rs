@@ -1164,12 +1164,18 @@ impl Dispatch {
     /// [`RemoteDevice::enumerate_websocket`].
     ///
     /// Websocket-only: Iroh peers are addressed by endpoint identity, not a URL string.
+    ///
+    /// # Errors
+    ///
+    /// See [`ConnectError`](burn_remote::ConnectError).
     #[cfg(feature = "remote-websocket")]
-    pub fn enumerate_remote_websocket(address: &str) -> Vec<DispatchDevice> {
-        RemoteDevice::enumerate_websocket(address)
+    pub fn enumerate_remote_websocket(
+        address: &str,
+    ) -> Result<Vec<DispatchDevice>, burn_remote::ConnectError> {
+        Ok(RemoteDevice::enumerate_websocket(address)?
             .into_iter()
             .map(DispatchDevice::Remote)
-            .collect()
+            .collect())
     }
 }
 

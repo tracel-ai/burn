@@ -9,7 +9,7 @@ use core::time::Duration;
 use std::sync::Arc;
 
 use crate::{
-    PeerAddr, PeerId,
+    ConnectError, PeerAddr, PeerId,
     transport::{
         OpenError,
         link::{FrameSink, FrameSource},
@@ -123,18 +123,22 @@ impl RemoteEndpoint {
     ///
     /// Done up front so a missing server surfaces here rather than on the first op, and the demux /
     /// writer tasks can be spawned on already-open streams.
-    pub(crate) async fn open_channels(&self) -> Result<(SubmitChannel, ResponseChannel), String> {
+    pub(crate) async fn open_channels(
+        &self,
+    ) -> Result<(SubmitChannel, ResponseChannel), ConnectError> {
         let peer = self.peer_id().to_short_string();
         let give_up = |err: OpenError| match err {
             OpenError::NotReachableYet(reason) => {
                 let waited: Duration = OPEN_RETRY_DELAYS.iter().sum();
-                format!(
-                    "Cannot reach {peer} after trying for {waited:?} ({reason}). Is its server running?"
-                )
+                ConnectError::Unreachable {
+                    reason: format!(
+                        "nothing answered after trying for {waited:?} ({reason}); is the server running?"
+                    ),
+                }
             }
-            OpenError::Failed(message) => {
-                format!("Cannot open a remote session to {peer}: {message}")
-            }
+            #[cfg(feature = "iroh")]
+            OpenError::NoAddress => ConnectError::NoAddress,
+            OpenError::Failed(reason) => ConnectError::Unreachable { reason },
         };
 
         for delay in OPEN_RETRY_DELAYS {

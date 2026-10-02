@@ -1,4 +1,4 @@
-use super::{RemoteChannel, RemoteClient, service};
+use super::{ConnectError, RemoteChannel, RemoteClient, service};
 use crate::shared::{LocalTransferId, TaskResponseContent, TensorRemote, TransferCapability};
 use crate::{PeerAddr, PeerId};
 use burn_backend::{
@@ -268,24 +268,30 @@ impl RemoteDevice {
 
     /// Forces the client connection to be established immediately using the default protocol.
     /// This is a no-op if the connection is already up for this device.
-    pub fn connect(&self) {
-        // `get_client` initializes the (lazy) service if needed; `ensure_connected` then opens
-        // the sockets and runs the handshake on the runner thread, so the settings/device-count
-        // cells are populated by the time we return.
-        get_client::<RemoteChannel>(self).ensure_connected();
+    ///
+    /// # Errors
+    ///
+    /// See [`ConnectError`].
+    #[cfg(not(target_family = "wasm"))]
+    pub fn connect(&self) -> Result<(), ConnectError> {
+        get_client::<RemoteChannel>(self).connect()
     }
 
     /// Establish the session asynchronously. Browser entry point: wasm cannot block to connect,
     /// so call and await this once before using the device. No-op if already connected.
+    ///
+    /// # Errors
+    ///
+    /// See [`ConnectError`].
     #[cfg(target_family = "wasm")]
-    pub async fn connect_async(&self) {
-        get_client::<RemoteChannel>(self).connect_async().await;
+    pub async fn connect_async(&self) -> Result<(), ConnectError> {
+        get_client::<RemoteChannel>(self).connect_async().await
     }
 
     /// Initialize the client for this device using a custom protocol channel.
     ///
-    /// Only creates the lazy service; the socket and handshake open on first use. Call
-    /// [`connect`](Self::connect) when the connection and device settings are needed immediately.
+    /// Only creates the lazy service; the socket and handshake open on first use. Call `connect`,
+    /// or `connect_async` on wasm, when the connection and device settings are needed immediately.
     pub fn connect_with_channel<R: burn_router::RouterChannel<Device = Self>>(&self) {
         // `get_client` forces service initialization if the client doesn't exist yet;
         // `RemoteService::init` records the endpoint but defers the connect to first use.
@@ -317,31 +323,42 @@ impl RemoteDevice {
     /// Connects to index 0 to read the device count from the init handshake, then returns one
     /// RemoteDevice per index. Remaining indices connect lazily on first use, matching the
     /// behavior of [`Device::enumerate`](burn_backend::tensor::Device) for local backends.
+    ///
+    /// # Errors
+    ///
+    /// See [`ConnectError`].
     #[cfg(feature = "websocket")]
-    pub fn enumerate_websocket(address: &str) -> Vec<Self> {
+    pub fn enumerate_websocket(address: &str) -> Result<Vec<Self>, ConnectError> {
         // Device 0 always exists (a server must host at least one device); connecting to it
         // populates the device-count cell for its registry id.
         let device = Self::websocket(address, 0);
-        device.connect();
+        device.connect()?;
 
         let count = service::device_count_for(device.id)
             .expect("Device count populated by the init handshake during connect");
 
-        (0..count as usize)
+        Ok((0..count as usize)
             .map(|index| Self::websocket(address, index))
-            .collect()
+            .collect())
     }
 
     /// List every device hosted by an Iroh peer.
-    #[cfg(feature = "iroh")]
-    pub fn enumerate_iroh(endpoint: &iroh::Endpoint, peer: iroh::EndpointAddr) -> Vec<Self> {
+    ///
+    /// # Errors
+    ///
+    /// See [`ConnectError`].
+    #[cfg(all(feature = "iroh", not(target_family = "wasm")))]
+    pub fn enumerate_iroh(
+        endpoint: &iroh::Endpoint,
+        peer: iroh::EndpointAddr,
+    ) -> Result<Vec<Self>, ConnectError> {
         let device = Self::iroh(endpoint, peer.clone(), 0);
-        device.connect();
+        device.connect()?;
         let count = service::device_count_for(device.id)
             .expect("Device count populated by the init handshake during connect");
-        (0..count as usize)
+        Ok((0..count as usize)
             .map(|index| Self::iroh(endpoint, peer.clone(), index))
-            .collect()
+            .collect())
     }
 }
 
@@ -401,8 +418,13 @@ impl DeviceOps for RemoteDevice {
         // `Device::default()`-driven dispatch can hit `defaults` before the user has
         // triggered any op, so we need to establish the session here. `connect` is
         // idempotent — a no-op once the client has been initialized for this device.
-        if !service::has_settings(self.id) {
-            self.connect();
+        if !service::has_settings(self.id)
+            && let Err(err) = get_client::<RemoteChannel>(self).connect()
+        {
+            panic!(
+                "Failed to open a remote session at {}: {err}",
+                self.peer_addr()
+            );
         }
         service::settings_for(self.id)
     }

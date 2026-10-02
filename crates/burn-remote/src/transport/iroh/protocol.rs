@@ -34,7 +34,8 @@ pub struct AuthorizationRequest<'a> {
 
 /// Application authorization policy for incoming compute sessions.
 pub trait PeerAuthorizer: Send + Sync + 'static {
-    /// Return `Ok(())` to allow the session, or a user-facing rejection reason.
+    /// Return `Ok(())` to allow the session, or why not, for the server's log: the client is told
+    /// only that it was refused.
     fn authorize(&self, request: AuthorizationRequest<'_>) -> Result<(), String>;
 }
 

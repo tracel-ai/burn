@@ -101,15 +101,14 @@ async fn main() {
         Server::WebSocket { url } => {
             tokio::task::spawn_blocking(move || Device::remote_websocket(&url, 0))
                 .await
-                .expect("The WebSocket handshake completes")
+                .expect("The connect task does not panic")
         }
         Server::Iroh { id } => {
             let peer = cli.iroh.peer(id).unwrap_or_else(|err| err.exit());
-            Device::remote_iroh_peer(&peer, 0)
-                .await
-                .expect("The server can be dialed")
+            Device::remote_iroh_peer(&peer, 0).await
         }
-    };
+    }
+    .expect("The server can be dialed");
 
     // Training and inference block for as long as they run, so they stay off the async workers.
     tokio::task::spawn_blocking(move || match cli.mode {
