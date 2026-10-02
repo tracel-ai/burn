@@ -104,7 +104,9 @@ impl IrohHost {
                 .map_err(|reason| ConnectError::InvalidConfiguration { reason }),
             None => RemoteNode::for_relays(&self.relays())
                 .await
-                .map_err(|source| ConnectError::Bind { source }),
+                .map_err(|source| ConnectError::Bind {
+                    source: source.into(),
+                }),
         }
     }
 }

@@ -86,8 +86,9 @@ impl RemoteNode {
     /// The node shared by every user of `endpoint`.
     ///
     /// Iroh lets two live endpoints share one secret key, and a node keyed by that id would hand
-    /// the second the first one's connections, so a second live endpoint is refused. A closed
-    /// endpoint's node is replaced.
+    /// the second the first one's connections, so a second live endpoint is refused. A browser
+    /// endpoint has no bound sockets to tell the two apart by, so there the second shares the
+    /// first one's node. A closed endpoint's node is replaced.
     pub(crate) fn for_endpoint(endpoint: &Endpoint) -> Result<Self, String> {
         let mut nodes = APP_NODES.lock().unwrap();
         if let Some(inner) = nodes.get(&endpoint.id()).and_then(Weak::upgrade)
@@ -133,6 +134,7 @@ impl RemoteNode {
     }
 
     /// Access the underlying endpoint for relay, discovery, router, and observability setup.
+    #[cfg(not(target_family = "wasm"))]
     pub fn endpoint(&self) -> &Endpoint {
         &self.inner.endpoint
     }

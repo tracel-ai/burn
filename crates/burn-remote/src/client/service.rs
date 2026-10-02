@@ -663,6 +663,25 @@ impl RemoteService {
         }
     }
 
+    /// Ask the server to answer on the session, if one is open and not known to have ended. A
+    /// server that went away without closing the session leaves it looking open until a request
+    /// goes unanswered; the session then ends, before the returned receiver resolves.
+    pub(crate) fn probe_session(
+        &mut self,
+    ) -> Option<Unconstrained<oneshot::Receiver<TaskResponseContent>>> {
+        let open = self.writer.is_some() && !self.session.has_ended();
+        // The cheapest request the server answers in turn, without waiting on its device.
+        open.then(|| self.submit_request(|id| Task::DTypeUsage(id, DType::F32)))
+    }
+
+    /// [`probe_session`](Self::probe_session), waiting for the answer or the session's end.
+    #[cfg(not(target_family = "wasm"))]
+    pub(crate) fn confirm_session(&mut self) {
+        if let Some(answer) = self.probe_session() {
+            let _ = self.executor.block_on(answer);
+        }
+    }
+
     /// Buffer a fire-and-forget compute task. Thin wrapper over [`submit`](Self::submit)
     /// that wraps the task in [`RemoteMessage::Task`].
     fn submit_task(&mut self, task: Task) {

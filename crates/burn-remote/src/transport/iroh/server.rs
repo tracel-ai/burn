@@ -53,7 +53,23 @@ impl IrohTransport {
         self.identity.id()
     }
 
-    async fn bind(&self) -> Result<Endpoint, ServeError> {
+    /// Bind the endpoint, ready to serve on.
+    pub(crate) async fn bind(self) -> Result<IrohListener, ServeError> {
+        let endpoint = self.bind_endpoint().await?;
+        log::info!(
+            "Burn Remote serving over Iroh as {} on {:?}",
+            self.id(),
+            endpoint.bound_sockets()
+        );
+        if self.relays == IrohRelays::Disabled && self.port.is_none() {
+            log::warn!("Relays disabled without a port: clients can only dial the ports above");
+        }
+        let node = RemoteNode::for_endpoint(&endpoint)
+            .map_err(|reason| ServeError::InvalidEndpoint { reason })?;
+        Ok(IrohListener { node })
+    }
+
+    async fn bind_endpoint(&self) -> Result<Endpoint, ServeError> {
         let mut builder = self
             .relays
             .endpoint_builder()
@@ -70,34 +86,6 @@ impl IrohTransport {
         }
         builder.bind().await.map_err(ServeError::bind)
     }
-
-    /// Serve until `setup`'s shutdown is cancelled, or the returned future is dropped.
-    pub(crate) async fn serve<B: BackendIr>(
-        self,
-        setup: SessionSetup<B>,
-    ) -> Result<(), ServeError> {
-        let endpoint = self.bind().await?;
-        log::info!(
-            "Burn Remote serving over Iroh as {} on {:?}",
-            self.id(),
-            endpoint.bound_sockets()
-        );
-        if self.relays == IrohRelays::Disabled && self.port.is_none() {
-            log::warn!("Relays disabled without a port: clients can only dial the ports above");
-        }
-
-        let node = RemoteNode::for_endpoint(&endpoint)
-            .map_err(|reason| ServeError::InvalidEndpoint { reason })?;
-        let shutdown = setup.shutdown.clone();
-        let router = ShutdownOnDrop(Some(
-            Router::builder(endpoint)
-                .accept(BURN_REMOTE_ALPN, IrohRemoteProtocol::new(node, setup))
-                .spawn(),
-        ));
-        shutdown.cancelled().await;
-        router.shutdown().await;
-        Ok(())
-    }
 }
 
 impl fmt::Debug for IrohTransport {
@@ -107,6 +95,35 @@ impl fmt::Debug for IrohTransport {
             .field("relays", &self.relays)
             .field("port", &self.port)
             .finish_non_exhaustive()
+    }
+}
+
+/// A bound Iroh endpoint, which accepts clients once served.
+pub(crate) struct IrohListener {
+    node: RemoteNode,
+}
+
+impl IrohListener {
+    /// Serve until `setup`'s shutdown is cancelled, the endpoint closes, or the returned future is
+    /// dropped.
+    pub(crate) async fn serve<B: BackendIr>(
+        self,
+        setup: SessionSetup<B>,
+    ) -> Result<(), ServeError> {
+        let endpoint = self.node.endpoint().clone();
+        let closed = endpoint.closed();
+        let shutdown = setup.shutdown.clone();
+        let router = ShutdownOnDrop(Some(
+            Router::builder(endpoint)
+                .accept(BURN_REMOTE_ALPN, IrohRemoteProtocol::new(self.node, setup))
+                .spawn(),
+        ));
+        let served = tokio::select! {
+            () = shutdown.cancelled() => Ok(()),
+            () = closed => Err(ServeError::transport("the Iroh endpoint closed while serving")),
+        };
+        router.shutdown().await;
+        served
     }
 }
 

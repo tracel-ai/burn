@@ -19,6 +19,8 @@ pub use identity::IrohIdentity;
 #[cfg(all(feature = "server", not(target_family = "wasm")))]
 mod server;
 #[cfg(all(feature = "server", not(target_family = "wasm")))]
+pub(crate) use server::IrohListener;
+#[cfg(all(feature = "server", not(target_family = "wasm")))]
 pub use server::IrohTransport;
 
 mod link;

@@ -25,9 +25,17 @@ impl RemoteClient {
     /// Open the lazily-established connection now, populating the device's settings/device-count
     /// cells, or return why it could not be opened. Runs the connect on the service's runner
     /// thread, so it can't sit under cubecl's global lock.
+    ///
+    /// A session already open is confirmed with the server instead, and one whose server went
+    /// away is left ended, which [`RemoteDevice::session_ended`] then reports. The browser
+    /// confirms in `connect_async`, since it cannot block for the answer.
     pub(crate) fn connect(&self) -> Result<(), ConnectError> {
         self.handle
-            .submit_blocking(|s| s.try_connect())
+            .submit_blocking(|s| {
+                #[cfg(not(target_family = "wasm"))]
+                s.confirm_session();
+                s.try_connect()
+            })
             .expect("Service call failed")
     }
 
@@ -35,8 +43,8 @@ impl RemoteClient {
     ///
     /// The connect + handshake cannot block the single browser thread, so it runs off the device
     /// handle: the service hands back the connection parameters, the network round-trip happens
-    /// with `.await`, and the opened session is installed back into the service. A no-op once the
-    /// session is up.
+    /// with `.await`, and the opened session is installed back into the service. A session
+    /// already open is confirmed with the server instead, as [`connect`](Self::connect) does.
     #[cfg(target_family = "wasm")]
     pub(crate) async fn connect_async(&self) -> Result<(), ConnectError> {
         use crate::client::service::wasm_connect;
@@ -46,6 +54,13 @@ impl RemoteClient {
             .submit_blocking(|s| s.wasm_connect_plan())
             .expect("Service call failed")
         else {
+            let answer = self
+                .handle
+                .submit_blocking(|s| s.probe_session())
+                .expect("Service call failed");
+            if let Some(answer) = answer {
+                let _ = answer.await;
+            }
             return Ok(());
         };
 

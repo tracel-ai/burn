@@ -14,4 +14,6 @@ mod transfer;
 #[cfg(not(target_family = "wasm"))]
 mod server;
 #[cfg(not(target_family = "wasm"))]
+pub(crate) use server::WebSocketListener;
+#[cfg(not(target_family = "wasm"))]
 pub use server::WebSocketTransport;

@@ -44,28 +44,29 @@ pub fn start() {
     }
 }
 
-/// Every device of the default backend's runtime, or `Device::default()` alone when the backend
-/// lists one or cannot list its hardware.
+/// Every device of the type `Device::default()` is, or that device alone when its type lists one
+/// or cannot list its hardware.
 fn hosted_devices() -> Vec<Device> {
-    #[allow(unused_mut)]
-    let mut kinds: Vec<DeviceType> = Vec::new();
-    #[cfg(feature = "cuda")]
-    kinds.push(DeviceType::Cuda);
-    #[cfg(feature = "rocm")]
-    kinds.push(DeviceType::Rocm);
-    #[cfg(feature = "vulkan")]
-    kinds.push(DeviceType::Vulkan);
-    #[cfg(feature = "webgpu")]
-    kinds.push(DeviceType::WebGpu);
-    #[cfg(feature = "flex")]
-    kinds.push(DeviceType::Flex);
+    let kinds: Vec<DeviceType> = vec![
+        #[cfg(feature = "cuda")]
+        DeviceType::Cuda,
+        #[cfg(feature = "rocm")]
+        DeviceType::Rocm,
+        #[cfg(feature = "vulkan")]
+        DeviceType::Vulkan,
+        #[cfg(feature = "webgpu")]
+        DeviceType::WebGpu,
+        #[cfg(feature = "flex")]
+        DeviceType::Flex,
+    ];
 
+    let default = Device::default();
     kinds
         .into_iter()
-        .next()
         .map(|kind| Device::enumerate(kind).into_vec())
+        .find(|devices| devices.contains(&default))
         .filter(|devices| devices.len() > 1)
-        .unwrap_or_else(|| vec![Device::default()])
+        .unwrap_or_else(|| vec![default])
 }
 
 /// An Iroh transport from the environment:

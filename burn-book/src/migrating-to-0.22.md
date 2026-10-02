@@ -474,6 +474,27 @@ devices it is given, and a backend outside Burn's own serves through
 `burn_remote::server::BackendServer::<B>`. See
 [Distributed Computing](./performance/distributed-computing.md).
 
+Code written against a 0.22 pre-release moves the same way:
+
+| 0.22 pre-release API                                       | 0.22 API                                                                                |
+| ---------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| `Device::remote_websocket(url, index)?`                    | `Device::remote_options(&RemoteHost::websocket(url)).device_index(index).init()?`       |
+| `DeviceType::remote_websocket(url)`                        | `DeviceType::Remote(RemoteHost::websocket(url))`                                        |
+| `Device::remote_iroh(&endpoint, peer, index)?`             | `RemoteHost::iroh(IrohHost::new(peer).with_endpoint(endpoint))`, connected the same way |
+| `Device::remote_iroh_authorized(.., credential)?`          | `.with_credential(credential)` on the `RemoteHost`                                      |
+| `IrohPeerBuilder::new(id)`, `IrohPeer`                     | `RemoteHost::iroh(IrohHost::new(id))`                                                   |
+| `Device::remote_iroh_peer(&peer, index).await?`            | `Device::remote_options(&host).device_index(index).init_async().await?`                 |
+| `RemoteSecret`                                             | `IrohIdentity`                                                                          |
+| `burn::server::start(device, Channel::WebSocket { port })` | `RemoteServer::new([device]).serve(WebSocketTransport::new(port))?`                     |
+| `burn::server::start(device, Channel::Iroh { channel })`   | `RemoteServer::new([device]).serve(IrohTransport::new(identity))?`                      |
+| `burn::server::start_async(device, channel).await`         | `RemoteServer::new([device]).serve_async(transport).await?`                             |
+| `IrohChannelBuilder::with_authorizer(authorizer)`          | `RemoteServer::with_authorizer(authorizer)`, for either transport                       |
+| `burn::server::protocol(device, &endpoint).build()`        | `RemoteServer::new([device]).into_protocol(&endpoint)?`                                 |
+| `RemoteServerBuilder::<B>::new(devices).custom_op(..)`     | `BackendServer::<B>::new(devices).with_custom_op(..)`                                   |
+| `TokenAuthorizer::new(token)` returning an `Option`        | `TokenAuthorizer::new(token)?`, failing with `EmptyToken`                               |
+| `AuthorizationRequest::peer`                               | `AuthorizationRequest::client`, a `ClientId`                                            |
+| `burn::backend::remote`                                    | `burn::remote` and `burn::server`                                                       |
+
 ### Storage adapters and checkpointers
 
 Update custom `burn-store` integrations:

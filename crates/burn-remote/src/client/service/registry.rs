@@ -108,26 +108,20 @@ pub(crate) struct RegisteredDevice {
     pub(crate) device_index: u32,
 }
 
+fn find_entry<T>(id: u32, read: impl FnOnce(&EndpointEntry) -> T) -> Option<T> {
+    registry().lock().unwrap().by_index.get(&id).map(read)
+}
+
+/// Panics on an unregistered id once the lock is released, which keeps the registry usable.
 fn with_entry<T>(id: u32, read: impl FnOnce(&EndpointEntry) -> T) -> T {
-    let registry = registry().lock().unwrap();
-    read(
-        registry
-            .by_index
-            .get(&id)
-            .expect("Device id not registered"),
-    )
+    find_entry(id, read).unwrap_or_else(|| panic!("Device id {id} not registered"))
 }
 
 pub(crate) fn registered_device(id: u32) -> Option<RegisteredDevice> {
-    registry()
-        .lock()
-        .unwrap()
-        .by_index
-        .get(&id)
-        .map(|entry| RegisteredDevice {
-            endpoint: entry.endpoint.clone(),
-            device_index: entry.device_index,
-        })
+    find_entry(id, |entry| RegisteredDevice {
+        endpoint: entry.endpoint.clone(),
+        device_index: entry.device_index,
+    })
 }
 
 pub(crate) fn settings_for(id: u32) -> DeviceSettings {
@@ -137,7 +131,7 @@ pub(crate) fn settings_for(id: u32) -> DeviceSettings {
 }
 
 pub(crate) fn has_settings(id: u32) -> bool {
-    with_entry(id, |entry| entry.settings.get().is_some())
+    find_entry(id, |entry| entry.settings.get().is_some()) == Some(true)
 }
 
 pub(crate) fn settings_cell(id: u32) -> Arc<OnceLock<DeviceSettings>> {
@@ -149,7 +143,7 @@ pub(crate) fn device_count_cell(id: u32) -> Arc<OnceLock<u32>> {
 }
 
 pub(crate) fn device_count_for(id: u32) -> Option<u32> {
-    with_entry(id, |entry| entry.device_count.get().copied())
+    find_entry(id, |entry| entry.device_count.get().copied()).flatten()
 }
 
 pub(crate) fn session_state(id: u32) -> Arc<SessionState> {

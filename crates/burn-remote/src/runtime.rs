@@ -1,5 +1,6 @@
 //! Burn's own Tokio runtime, shared by native clients and servers.
 
+use core::fmt;
 use std::{
     panic::{AssertUnwindSafe, catch_unwind, resume_unwind},
     sync::OnceLock,
@@ -25,6 +26,14 @@ pub(crate) fn blocking_runtime() -> &'static Runtime {
 /// The runtime dropped the work before it ran to completion.
 #[derive(Debug)]
 pub(crate) struct Interrupted;
+
+impl fmt::Display for Interrupted {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("Burn Remote's runtime dropped the work before it finished")
+    }
+}
+
+impl std::error::Error for Interrupted {}
 
 /// Run `work` on a blocking thread of Burn's runtime and block the calling thread until it
 /// finishes. A plain channel, so a caller on a runtime thread blocks it rather than panicking.

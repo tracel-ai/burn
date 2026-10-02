@@ -87,15 +87,21 @@ impl<B: BackendIr> BackendServer<B> {
     }
 
     /// Serve on `transport` until Ctrl+C or `SIGTERM`, blocking the calling thread from any
-    /// context. Installs [`ServerLogging`] and the signal handlers.
+    /// context. Installs [`ServerLogging`], and the signal handlers once the transport has bound.
     #[cfg(not(target_family = "wasm"))]
     pub fn serve(&self, transport: impl Into<Transport>) -> Result<(), ServeError> {
-        ServerLogging::install();
         let shutdown = CancellationToken::new();
-        let serving = self.serve_until(transport.into(), shutdown.clone());
+        let setup = self
+            .settings
+            .sessions_of::<B>(self.devices.clone(), shutdown.clone())?;
+        let transport = transport.into();
+        ServerLogging::install();
         runtime::wait(move || {
             runtime::blocking_runtime().handle().block_on(async move {
-                let mut serving = core::pin::pin!(serving);
+                // Tokio keeps a signal handler for the life of the process, so one is only
+                // installed for a server that is about to serve.
+                let listener = transport.bind().await?;
+                let mut serving = core::pin::pin!(listener.serve(setup));
                 tokio::select! {
                     served = &mut serving => served,
                     stopped = os_shutdown_signal() => {
@@ -104,12 +110,7 @@ impl<B: BackendIr> BackendServer<B> {
                     }
                 }
             })
-        })
-        .unwrap_or_else(|_| {
-            Err(ServeError::transport(
-                "Burn Remote's runtime dropped the server",
-            ))
-        })
+        })?
     }
 
     /// Serve on `transport` on the caller's Tokio runtime until the returned future is dropped,
@@ -119,26 +120,14 @@ impl<B: BackendIr> BackendServer<B> {
         &self,
         transport: T,
     ) -> impl Future<Output = Result<(), ServeError>> + Send + 'static + use<B, T> {
-        let shutdown = CancellationToken::new();
-        let serving = self.serve_until(transport.into(), shutdown.clone());
-        async move {
-            let _ends_sessions = shutdown.drop_guard();
-            serving.await
-        }
-    }
-
-    #[cfg(not(target_family = "wasm"))]
-    fn serve_until(
-        &self,
-        transport: Transport,
-        shutdown: CancellationToken,
-    ) -> impl Future<Output = Result<(), ServeError>> + Send + 'static + use<B> {
         let devices = self.devices.clone();
         let settings = self.settings.clone();
+        let transport = transport.into();
         async move {
-            transport
-                .serve(settings.sessions_of::<B>(devices, shutdown)?)
-                .await
+            let shutdown = CancellationToken::new();
+            let _ends_sessions = shutdown.clone().drop_guard();
+            let setup = settings.sessions_of::<B>(devices, shutdown)?;
+            transport.bind().await?.serve(setup).await
         }
     }
 

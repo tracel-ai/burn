@@ -1,4 +1,4 @@
-use super::{RemoteChannel, RemoteClient, service};
+use super::{ConnectError, RemoteChannel, RemoteClient, service};
 use crate::shared::{LocalTransferId, TaskResponseContent, TensorRemote, TransferCapability};
 use crate::{PeerAddr, PeerId};
 use burn_backend::{
@@ -205,8 +205,8 @@ pub struct RemoteDevice {
 }
 
 impl RemoteDevice {
-    /// The device for `endpoint` and `device_index`, with no session opened yet. A device whose
-    /// session ended is not reused: this one gets a new id.
+    /// The device registered for `endpoint` and `device_index`, which may have its session open
+    /// already. A device whose session ended is not reused: a new id replaces it, with no session.
     pub(crate) fn register(endpoint: RemoteEndpoint, device_index: usize) -> Self {
         let device_index = device_index as u32;
         let id = service::register_endpoint(endpoint.clone(), device_index);
@@ -215,6 +215,29 @@ impl RemoteDevice {
             device_index,
             id,
         }
+    }
+
+    /// [`register`](Self::register), then open its session, or confirm the one already open.
+    /// A confirmation that finds the server gone leaves the device's session ended.
+    #[cfg(not(target_family = "wasm"))]
+    pub(crate) fn open(
+        endpoint: RemoteEndpoint,
+        device_index: usize,
+    ) -> Result<Self, ConnectError> {
+        let device = Self::register(endpoint, device_index);
+        get_client::<RemoteChannel>(&device).connect()?;
+        Ok(device)
+    }
+
+    /// The browser's [`open`](Self::open).
+    #[cfg(target_family = "wasm")]
+    pub(crate) async fn open_async(
+        endpoint: RemoteEndpoint,
+        device_index: usize,
+    ) -> Result<Self, ConnectError> {
+        let device = Self::register(endpoint, device_index);
+        get_client::<RemoteChannel>(&device).connect_async().await?;
+        Ok(device)
     }
 
     /// A WebSocket device with no session opened yet, which connects on first use.

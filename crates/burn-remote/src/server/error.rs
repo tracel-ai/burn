@@ -42,21 +42,25 @@ pub enum ServeError {
     },
 }
 
+#[cfg(not(target_family = "wasm"))]
 impl ServeError {
-    #[cfg(not(target_family = "wasm"))]
     pub(crate) fn bind(source: impl Into<Source>) -> Self {
         Self::Bind {
             source: source.into(),
         }
     }
-}
 
-impl ServeError {
-    #[cfg(not(target_family = "wasm"))]
     pub(crate) fn transport(source: impl Into<Source>) -> Self {
         Self::Transport {
             source: source.into(),
         }
+    }
+}
+
+#[cfg(not(target_family = "wasm"))]
+impl From<crate::runtime::Interrupted> for ServeError {
+    fn from(interrupted: crate::runtime::Interrupted) -> Self {
+        Self::transport(interrupted)
     }
 }
 

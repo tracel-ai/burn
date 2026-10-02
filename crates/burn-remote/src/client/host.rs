@@ -2,10 +2,8 @@
 
 use core::future::Future;
 
-use burn_router::get_client;
-
 use super::service::RemoteEndpoint;
-use super::{ConnectError, RemoteChannel, RemoteDevice, service};
+use super::{ConnectError, RemoteDevice, service};
 use crate::Credential;
 #[cfg(not(target_family = "wasm"))]
 use crate::runtime;
@@ -56,8 +54,7 @@ impl HostSpec {
     pub fn connect(&self, index: usize) -> Result<RemoteDevice, ConnectError> {
         self.refuse_blocking_on_current_thread()?;
         let host = self.clone();
-        runtime::wait(move || host.connect_blocking(index))
-            .map_err(|_| ConnectError::Interrupted)?
+        runtime::wait(move || host.connect_blocking(index))?
     }
 
     #[cfg(not(target_family = "wasm"))]
@@ -66,11 +63,7 @@ impl HostSpec {
         index: usize,
     ) -> impl Future<Output = Result<RemoteDevice, ConnectError>> + Send + 'static + use<> {
         let host = self.clone();
-        async move {
-            runtime::run(move || host.connect_blocking(index))
-                .await
-                .map_err(|_| ConnectError::Interrupted)?
-        }
+        async move { runtime::run(move || host.connect_blocking(index)).await? }
     }
 
     #[cfg(target_family = "wasm")]
@@ -86,7 +79,7 @@ impl HostSpec {
     pub fn devices(&self) -> Result<Vec<RemoteDevice>, ConnectError> {
         self.refuse_blocking_on_current_thread()?;
         let host = self.clone();
-        runtime::wait(move || host.devices_blocking()).map_err(|_| ConnectError::Interrupted)?
+        runtime::wait(move || host.devices_blocking())?
     }
 
     #[cfg(not(target_family = "wasm"))]
@@ -95,11 +88,7 @@ impl HostSpec {
     ) -> impl Future<Output = Result<Vec<RemoteDevice>, ConnectError>> + Send + 'static + use<>
     {
         let host = self.clone();
-        async move {
-            runtime::run(move || host.devices_blocking())
-                .await
-                .map_err(|_| ConnectError::Interrupted)?
-        }
+        async move { runtime::run(move || host.devices_blocking()).await? }
     }
 
     #[cfg(target_family = "wasm")]
@@ -109,11 +98,9 @@ impl HostSpec {
         let host = self.clone();
         async move {
             let first = host.connect_in_browser(0).await?;
-            let mut devices = vec![first];
-            for index in 1..host_device_count(&devices[0]) {
-                devices.push(host.connect_in_browser(index).await?);
-            }
-            Ok(devices)
+            let others = (1..host_device_count(&first)).map(|index| host.connect_in_browser(index));
+            let others = futures_util::future::try_join_all(others).await?;
+            Ok(core::iter::once(first).chain(others).collect())
         }
     }
 
@@ -137,34 +124,49 @@ impl HostSpec {
         }
     }
 
-    /// Runs on a blocking thread of Burn's runtime, never on one of its workers: the connect
-    /// blocks the device's runner, and enough runners blocking every worker would stop all I/O.
+    /// Never runs on a worker of Burn's runtime: the connect blocks the device's runner, and
+    /// enough runners blocking every worker would stop all I/O.
     #[cfg(not(target_family = "wasm"))]
     fn connect_blocking(&self, index: usize) -> Result<RemoteDevice, ConnectError> {
         let endpoint = runtime::blocking_runtime()
             .handle()
             .block_on(self.endpoint())?;
-        let device = RemoteDevice::register(endpoint, index);
-        get_client::<RemoteChannel>(&device).connect()?;
+        let device = RemoteDevice::open(endpoint.clone(), index)?;
+        if device.session_ended() {
+            // A new registration has no session to confirm, so it opens one.
+            return RemoteDevice::open(endpoint, index);
+        }
         Ok(device)
     }
 
+    /// Device 0 first, for the count, then the others at once.
     #[cfg(not(target_family = "wasm"))]
     fn devices_blocking(&self) -> Result<Vec<RemoteDevice>, ConnectError> {
         let first = self.connect_blocking(0)?;
-        let count = host_device_count(&first);
-        let mut devices = vec![first];
-        for index in 1..count {
-            devices.push(self.connect_blocking(index)?);
-        }
-        Ok(devices)
+        let others = std::thread::scope(|scope| {
+            let connects: Vec<_> = (1..host_device_count(&first))
+                .map(|index| scope.spawn(move || self.connect_blocking(index)))
+                .collect();
+            connects
+                .into_iter()
+                .map(|connect| {
+                    connect
+                        .join()
+                        .unwrap_or_else(|panic| std::panic::resume_unwind(panic))
+                })
+                .collect::<Result<Vec<_>, _>>()
+        })?;
+        Ok(core::iter::once(first).chain(others).collect())
     }
 
     #[cfg(target_family = "wasm")]
     async fn connect_in_browser(&self, index: usize) -> Result<RemoteDevice, ConnectError> {
         let endpoint = self.endpoint().await?;
-        let device = RemoteDevice::register(endpoint, index);
-        get_client::<RemoteChannel>(&device).connect_async().await?;
+        let device = RemoteDevice::open_async(endpoint.clone(), index).await?;
+        if device.session_ended() {
+            // A new registration has no session to confirm, so it opens one.
+            return RemoteDevice::open_async(endpoint, index).await;
+        }
         Ok(device)
     }
 

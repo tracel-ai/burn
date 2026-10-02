@@ -1,7 +1,6 @@
 //! Who a server serves.
 
 use core::fmt;
-#[cfg(feature = "websocket")]
 use std::net::SocketAddr;
 
 #[cfg(feature = "iroh")]
@@ -10,6 +9,9 @@ use iroh::EndpointId;
 use crate::Credential;
 
 /// The client asking for a session, as its transport identifies it.
+///
+/// `WebSocket` is there in every build, so a match on this keeps compiling when another crate in
+/// the build enables the WebSocket transport.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum ClientId {
     /// The client's Iroh endpoint id, which the transport authenticates.
@@ -17,7 +19,6 @@ pub enum ClientId {
     Iroh(EndpointId),
     /// The address the client connected from. Unauthenticated: anything on the network path can
     /// claim it.
-    #[cfg(feature = "websocket")]
     WebSocket(SocketAddr),
 }
 
@@ -26,7 +27,6 @@ impl fmt::Display for ClientId {
         match *self {
             #[cfg(feature = "iroh")]
             Self::Iroh(id) => write!(f, "Iroh client {id}"),
-            #[cfg(feature = "websocket")]
             Self::WebSocket(address) => write!(f, "WebSocket client {address}"),
         }
     }

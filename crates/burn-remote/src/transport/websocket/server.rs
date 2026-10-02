@@ -47,25 +47,30 @@ impl WebSocketTransport {
         }
     }
 
-    async fn bind(self) -> std::io::Result<TcpListener> {
-        match self.listen {
+    /// Bind the listening socket, ready to serve on.
+    pub(crate) async fn bind(self) -> Result<WebSocketListener, ServeError> {
+        let listener = match self.listen {
             Listen::Port(port) => TcpListener::bind(("0.0.0.0", port)).await,
-            Listen::Listener(listener) => {
-                listener.set_nonblocking(true)?;
-                TcpListener::from_std(listener)
-            }
-        }
+            Listen::Listener(listener) => listener
+                .set_nonblocking(true)
+                .and_then(|()| TcpListener::from_std(listener)),
+        };
+        listener.map(WebSocketListener).map_err(ServeError::bind)
     }
+}
 
+/// A bound WebSocket socket, which accepts clients once served.
+pub(crate) struct WebSocketListener(TcpListener);
+
+impl WebSocketListener {
     /// Serve until `setup`'s shutdown is cancelled, or the returned future is dropped.
     pub(crate) async fn serve<B: BackendIr>(
         self,
         setup: SessionSetup<B>,
     ) -> Result<(), ServeError> {
-        let listener = self.bind().await.map_err(ServeError::bind)?;
         let shutdown = setup.shutdown.clone();
         compute_server(setup)
-            .serve_on(listener, shutdown.cancelled_owned())
+            .serve_on(self.0, shutdown.cancelled_owned())
             .await
             .map_err(ServeError::transport)
     }

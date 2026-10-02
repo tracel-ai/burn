@@ -51,12 +51,13 @@ fn host_of(listener: &std::net::TcpListener) -> RemoteHost {
     RemoteHost::websocket(&format!("ws://{}", listener.local_addr().unwrap()))
 }
 
-fn serve_error(server: BackendServer<Flex>, transport: WebSocketTransport) -> ServeError {
+/// The error `serving` stops with, which it must do within the hang limit.
+fn serve_error(serving: impl Future<Output = Result<(), ServeError>>) -> ServeError {
     let rt = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
         .unwrap();
-    rt.block_on(async { tokio::time::timeout(HANG_LIMIT, server.serve_async(transport)).await })
+    rt.block_on(async { tokio::time::timeout(HANG_LIMIT, serving).await })
         .expect("the server is still serving")
         .unwrap_err()
 }
@@ -471,11 +472,6 @@ fn a_device_whose_server_restarted_is_replaced_by_a_new_one() {
 
     first.abort();
     assert!(rt.block_on(first).unwrap_err().is_cancelled());
-    let stale = old.clone();
-    with_deadlock_watchdog(HANG_LIMIT, move || {
-        let read = (Tensor::<1>::from_floats([1.0], &stale) * 2.0).try_into_data();
-        assert!(read.is_err(), "a session outlived its server: {read:?}");
-    });
 
     let listener = std::net::TcpListener::bind(address).unwrap();
     rt.spawn(
@@ -487,6 +483,12 @@ fn a_device_whose_server_restarted_is_replaced_by_a_new_one() {
     let doubled = Tensor::<1>::from_floats([3.0], &new) * 2.0;
     assert_eq!(doubled.try_into_vec_as::<f32>().unwrap(), vec![6.0]);
 
+    let stale = old.clone();
+    with_deadlock_watchdog(HANG_LIMIT, move || {
+        let read = (Tensor::<1>::from_floats([1.0], &stale) * 2.0).try_into_data();
+        assert!(read.is_err(), "a session outlived its server: {read:?}");
+    });
+
     let moved = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
         Tensor::<1>::from_floats([1.0], &old).to_device(&new)
     }));
@@ -495,26 +497,14 @@ fn a_device_whose_server_restarted_is_replaced_by_a_new_one() {
     rt.shutdown_background();
 }
 
-fn remote_server_error(server: RemoteServer) -> ServeError {
-    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
-    let rt = tokio::runtime::Builder::new_current_thread()
-        .enable_all()
-        .build()
-        .unwrap();
-    rt.block_on(async {
-        tokio::time::timeout(
-            HANG_LIMIT,
-            server.serve_async(WebSocketTransport::from_listener(listener)),
-        )
-        .await
-    })
-    .expect("the server is still serving")
-    .unwrap_err()
+fn loopback_transport() -> WebSocketTransport {
+    WebSocketTransport::from_listener(std::net::TcpListener::bind("127.0.0.1:0").unwrap())
 }
 
 #[test]
 fn a_remote_server_with_no_devices_refuses_to_serve() {
-    let error = remote_server_error(RemoteServer::new(Vec::<Device>::new()));
+    let error =
+        serve_error(RemoteServer::new(Vec::<Device>::new()).serve_async(loopback_transport()));
     assert!(matches!(error, ServeError::NoDevices), "{error:?}");
 }
 
@@ -527,7 +517,7 @@ fn a_remote_device_cannot_be_served() {
     let host = serve(&rt, BackendServer::<Flex>::new(vec![Default::default()]));
     let remote = Device::remote_options(&host).init().unwrap();
 
-    let error = remote_server_error(RemoteServer::new([remote]));
+    let error = serve_error(RemoteServer::new([remote]).serve_async(loopback_transport()));
     assert!(
         matches!(error, ServeError::UnsupportedDevice { .. }),
         "{error:?}"
@@ -591,20 +581,27 @@ fn serving_on_a_taken_port_is_a_bind_error() {
     let port = taken.local_addr().unwrap().port();
 
     let error = serve_error(
-        BackendServer::<Flex>::new(vec![Default::default()]),
-        WebSocketTransport::new(port),
+        BackendServer::<Flex>::new(vec![Default::default()])
+            .serve_async(WebSocketTransport::new(port)),
     );
     assert!(matches!(error, ServeError::Bind { .. }), "{error:?}");
 }
 
 #[test]
-fn a_server_with_no_devices_refuses_to_serve() {
-    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+fn a_blocking_serve_on_a_taken_port_returns_a_bind_error() {
+    let taken = std::net::TcpListener::bind("0.0.0.0:0").unwrap();
+    let port = taken.local_addr().unwrap().port();
 
-    let error = serve_error(
-        BackendServer::<Flex>::new(Vec::new()),
-        WebSocketTransport::from_listener(listener),
-    );
+    let error = RemoteServer::new([Device::flex()])
+        .serve(WebSocketTransport::new(port))
+        .unwrap_err();
+    assert!(matches!(error, ServeError::Bind { .. }), "{error:?}");
+}
+
+#[test]
+fn a_server_with_no_devices_refuses_to_serve() {
+    let error =
+        serve_error(BackendServer::<Flex>::new(Vec::new()).serve_async(loopback_transport()));
     assert!(matches!(error, ServeError::NoDevices), "{error:?}");
 }
 

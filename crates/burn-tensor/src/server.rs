@@ -87,8 +87,9 @@ impl RemoteServer {
     /// Serve on `transport`, blocking the calling thread until the process receives Ctrl+C or
     /// `SIGTERM`. Returning cancels every session; Iroh connections are closed before it returns.
     ///
-    /// Installs [`ServerLogging`] and the signal handlers. The server runs on Burn's own runtime,
-    /// so this can be called from any thread, inside an async runtime or not.
+    /// Installs [`ServerLogging`], and the signal handlers once the transport has bound, so a
+    /// server that cannot start leaves Ctrl+C as it was. The server runs on Burn's own runtime, so
+    /// this can be called from any thread, inside an async runtime or not.
     #[cfg(not(target_family = "wasm"))]
     pub fn serve(&self, transport: impl Into<Transport>) -> Result<(), ServeError> {
         burn_dispatch::remote_server::serve(

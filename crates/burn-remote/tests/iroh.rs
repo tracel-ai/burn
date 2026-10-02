@@ -861,7 +861,7 @@ mod iroh_peer {
 
         let first = serve();
         let host = direct_host(identity.id(), Ipv4Addr::LOCALHOST.into(), port, TOKEN);
-        Device::remote_options(&host).init_async().await.unwrap();
+        let stopped = Device::remote_options(&host).init_async().await.unwrap();
         first.abort();
         assert!(first.await.unwrap_err().is_cancelled());
 
@@ -869,6 +869,8 @@ mod iroh_peer {
             let next = serve();
             tokio::time::sleep(REBIND_SETTLE).await;
             if !next.is_finished() {
+                let served = Device::remote_options(&host).init_async().await.unwrap();
+                assert_ne!(served, stopped);
                 next.abort();
                 return;
             }
