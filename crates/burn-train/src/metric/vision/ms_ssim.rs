@@ -63,6 +63,9 @@ impl MsSsimInput {
 }
 
 /// Configuration for the [MsSsimMetric].
+///
+/// Parameters are validated by the configuration builders and again when constructing
+/// the metric, including configurations created or modified through public fields.
 #[derive(Debug, Clone)]
 pub struct MsSsimMetricConfig {
     /// A parameter of SSIM used to stabilize the luminance comparison.
@@ -91,6 +94,9 @@ pub struct MsSsimMetricConfig {
     pub channels: usize,
     /// The weights/betas for each scale in the MS-SSIM computation.
     /// The length of this vector determines the number of scales.
+    /// Must be nonempty with finite, nonnegative values and at least one positive value.
+    /// Individual zero weights are allowed and omit that scale's contribution.
+    /// The weights are used as provided, without normalization.
     /// Default is \[0.0448, 0.2856, 0.3001, 0.2363, 0.1333\] (5 scales).
     pub betas: Vec<f32>,
 }
@@ -106,7 +112,7 @@ impl MsSsimMetricConfig {
     /// - channels: 3
     ///
     /// # Panics
-    /// - If `pixel_range` is not positive.
+    /// - If `pixel_range` is not finite and positive.
     ///
     /// # Example
     /// ```rust,ignore
@@ -122,8 +128,7 @@ impl MsSsimMetricConfig {
     ///     .with_kernel_size(7);
     /// ```
     pub fn new(pixel_range: f32) -> Self {
-        assert!(pixel_range > 0.0, "pixel_range must be positive");
-        Self {
+        let config = Self {
             k1: 0.01,
             k2: 0.03,
             pixel_range,
@@ -131,7 +136,9 @@ impl MsSsimMetricConfig {
             sigma: 1.5,
             channels: 3,
             betas: vec![0.0448, 0.2856, 0.3001, 0.2363, 0.1333],
-        }
+        };
+        config.validate();
+        config
     }
 
     /// Sets custom values for the k1 and k2 parameters of MS-SSIM which are
@@ -142,12 +149,11 @@ impl MsSsimMetricConfig {
     /// - k2: 0.03
     ///
     /// # Panics
-    /// - If `k1` or `k2` is not positive.
+    /// - If `k1` or `k2` is not finite and positive.
     pub fn with_k1_k2(mut self, k1: f32, k2: f32) -> Self {
-        assert!(k1 > 0.0, "k1 must be positive");
-        assert!(k2 > 0.0, "k2 must be positive");
         self.k1 = k1;
         self.k2 = k2;
+        self.validate();
         self
     }
 
@@ -160,11 +166,8 @@ impl MsSsimMetricConfig {
     /// # Panics
     /// - If `kernel_size` is not a positive odd number.
     pub fn with_kernel_size(mut self, kernel_size: usize) -> Self {
-        assert!(
-            kernel_size > 0 && kernel_size % 2 == 1,
-            "kernel_size must be positive and an odd number"
-        );
         self.kernel_size = kernel_size;
+        self.validate();
         self
     }
 
@@ -174,10 +177,10 @@ impl MsSsimMetricConfig {
     /// - sigma: 1.5
     ///
     /// # Panics
-    /// - If `sigma` is not positive.
+    /// - If `sigma` is not finite and positive.
     pub fn with_sigma(mut self, sigma: f32) -> Self {
-        assert!(sigma > 0.0, "sigma must be a positive number");
         self.sigma = sigma;
+        self.validate();
         self
     }
 
@@ -192,8 +195,8 @@ impl MsSsimMetricConfig {
     /// # Panics
     /// - If `channels` is 0.
     pub fn with_channels(mut self, channels: usize) -> Self {
-        assert!(channels > 0, "channels must be a positive number");
         self.channels = channels;
+        self.validate();
         self
     }
 
@@ -201,24 +204,48 @@ impl MsSsimMetricConfig {
     /// determines the number of scales used in the MS-SSIM computation.
     /// If you want to make different parameter settings comparable, the betas
     /// vector should sum to 1 as per the original paper. However, note
-    /// that this is not a strict requirement.
+    /// that this is not a strict requirement and weights are not normalized.
+    /// Individual zero weights are allowed, but at least one weight must be positive.
     ///
     /// # Default value
     /// - betas: `[0.0448, 0.2856, 0.3001, 0.2363, 0.1333]` (5 scales)
     ///
     /// # Panics
     /// - If `betas` is empty.
-    /// - If not all values in `betas` are positive.
+    /// - If any value in `betas` is nonfinite or negative.
+    /// - If all values in `betas` are zero.
     pub fn with_betas(mut self, betas: Vec<f32>) -> Self {
-        assert!(!betas.is_empty(), "betas vector cannot be empty");
-
-        assert!(
-            betas.iter().all(|&b| b >= 0.0),
-            "All beta values must be non-negative"
-        );
-
         self.betas = betas;
+        self.validate();
         self
+    }
+
+    fn validate(&self) {
+        for (name, value) in [
+            ("pixel_range", self.pixel_range),
+            ("k1", self.k1),
+            ("k2", self.k2),
+            ("sigma", self.sigma),
+        ] {
+            assert!(
+                value.is_finite() && value > 0.0,
+                "{name} must be finite and positive"
+            );
+        }
+        assert!(
+            self.kernel_size > 0 && self.kernel_size % 2 == 1,
+            "kernel_size must be positive and an odd number"
+        );
+        assert!(self.channels > 0, "channels must be a positive number");
+        assert!(!self.betas.is_empty(), "betas vector cannot be empty");
+        assert!(
+            self.betas.iter().all(|&b| b.is_finite() && b >= 0.0),
+            "All beta values must be finite and non-negative"
+        );
+        assert!(
+            self.betas.iter().any(|&b| b > 0.0),
+            "At least one beta value must be positive"
+        );
     }
 }
 
@@ -289,12 +316,18 @@ impl MsSsimMetric {
     /// where pr is the pixel range, k is the kernel size, and σ is the
     /// standard deviation.
     ///
+    /// # Panics
+    /// - If `k1`, `k2`, `pixel_range`, or `sigma` is not finite and positive.
+    /// - If `kernel_size` is not a positive odd number or `channels` is zero.
+    /// - If `betas` is empty, contains nonfinite or negative values, or has no positive value.
+    ///
     /// # Example
     /// ```ignore
     /// let config = MsSsimMetricConfig::new(1.0).with_channels(1); // Grayscale
     /// let metric = MsSsimMetric::new(config, &device);
     /// ```
     pub fn new(config: MsSsimMetricConfig, device: &Device) -> Self {
+        config.validate();
         let kernel = Self::create_1d_gaussian_kernel(&config, device);
         let size = config.kernel_size;
 
@@ -513,6 +546,7 @@ mod tests {
     use super::*;
     use crate::metric::Numeric;
     use burn_core::tensor::Distribution;
+    use rstest::rstest;
 
     fn test_config() -> MsSsimMetricConfig {
         // Use small kernel and single channel for testing
@@ -786,28 +820,28 @@ mod tests {
         let _ = MsSsimInput::new(outputs, targets);
     }
 
-    #[test]
-    #[should_panic(expected = "k1 must be positive")]
-    fn test_ms_ssim_negative_k1() {
-        let _ = MsSsimMetricConfig::new(1.0).with_k1_k2(-0.01, 0.03);
+    #[rstest]
+    #[should_panic(expected = "k1 must be finite and positive")]
+    fn test_ms_ssim_invalid_k1(
+        #[values(0.0, -0.0, -1.0, f32::NAN, f32::INFINITY, f32::NEG_INFINITY)] k1: f32,
+    ) {
+        let _ = MsSsimMetricConfig::new(1.0).with_k1_k2(k1, 0.03);
     }
 
-    #[test]
-    #[should_panic(expected = "k2 must be positive")]
-    fn test_ms_ssim_negative_k2() {
-        let _ = MsSsimMetricConfig::new(1.0).with_k1_k2(0.01, -0.03);
+    #[rstest]
+    #[should_panic(expected = "k2 must be finite and positive")]
+    fn test_ms_ssim_invalid_k2(
+        #[values(0.0, -0.0, -1.0, f32::NAN, f32::INFINITY, f32::NEG_INFINITY)] k2: f32,
+    ) {
+        let _ = MsSsimMetricConfig::new(1.0).with_k1_k2(0.01, k2);
     }
 
-    #[test]
-    #[should_panic(expected = "pixel_range must be positive")]
-    fn test_ms_ssim_negative_data_range() {
-        let _ = MsSsimMetricConfig::new(-1.0);
-    }
-
-    #[test]
-    #[should_panic(expected = "pixel_range must be positive")]
-    fn test_ms_ssim_zero_data_range() {
-        let _ = MsSsimMetricConfig::new(0.0);
+    #[rstest]
+    #[should_panic(expected = "pixel_range must be finite and positive")]
+    fn test_ms_ssim_invalid_data_range(
+        #[values(0.0, -0.0, -1.0, f32::NAN, f32::INFINITY, f32::NEG_INFINITY)] pixel_range: f32,
+    ) {
+        let _ = MsSsimMetricConfig::new(pixel_range);
     }
 
     #[test]
@@ -822,16 +856,12 @@ mod tests {
         let _ = MsSsimMetricConfig::new(1.0).with_kernel_size(0);
     }
 
-    #[test]
-    #[should_panic(expected = "sigma must be a positive number")]
-    fn test_ms_ssim_negative_sigma() {
-        let _ = MsSsimMetricConfig::new(1.0).with_sigma(-1.5);
-    }
-
-    #[test]
-    #[should_panic(expected = "sigma must be a positive number")]
-    fn test_ms_ssim_zero_sigma() {
-        let _ = MsSsimMetricConfig::new(1.0).with_sigma(0.0);
+    #[rstest]
+    #[should_panic(expected = "sigma must be finite and positive")]
+    fn test_ms_ssim_invalid_sigma(
+        #[values(0.0, -0.0, -1.0, f32::NAN, f32::INFINITY, f32::NEG_INFINITY)] sigma: f32,
+    ) {
+        let _ = MsSsimMetricConfig::new(1.0).with_sigma(sigma);
     }
 
     #[test]
@@ -846,10 +876,85 @@ mod tests {
         let _ = MsSsimMetricConfig::new(1.0).with_betas(vec![]);
     }
 
+    #[rstest]
+    #[should_panic(expected = "All beta values must be finite and non-negative")]
+    fn test_ms_ssim_invalid_beta(
+        #[values(-0.1, f32::NAN, f32::INFINITY, f32::NEG_INFINITY)] beta: f32,
+    ) {
+        let _ = MsSsimMetricConfig::new(1.0).with_betas(vec![0.3, beta, 0.5]);
+    }
+
+    #[rstest]
+    #[case(vec![0.0])]
+    #[case(vec![0.0; 5])]
+    #[case(vec![0.0, -0.0])]
+    #[should_panic(expected = "At least one beta value must be positive")]
+    fn test_ms_ssim_all_zero_betas(#[case] betas: Vec<f32>) {
+        let _ = MsSsimMetricConfig::new(1.0).with_betas(betas);
+    }
+
+    #[rstest]
+    #[case(vec![0.0448, 0.2856, 0.3001, 0.2363, 0.1333])]
+    #[case(vec![1.0])]
+    #[case(vec![0.0, 1.0])]
+    #[case(vec![1.0, 0.0])]
+    #[case(vec![0.0, -0.0, 1.0])]
+    #[case(vec![2.0, 3.0])]
+    #[case(vec![f32::MIN_POSITIVE])]
+    #[case(vec![f32::from_bits(1)])]
+    fn test_ms_ssim_valid_betas_are_preserved(#[case] betas: Vec<f32>) {
+        let config = MsSsimMetricConfig::new(1.0).with_betas(betas.clone());
+        assert_eq!(config.betas, betas);
+    }
+
+    #[rstest]
+    #[should_panic(expected = "must be finite and positive")]
+    fn test_ms_ssim_constructor_rejects_invalid_scalar_fields(
+        #[values("k1", "k2", "pixel_range", "sigma")] field: &str,
+        #[values(0.0, -0.0, -1.0, f32::NAN, f32::INFINITY, f32::NEG_INFINITY)] value: f32,
+    ) {
+        let mut config = MsSsimMetricConfig::new(1.0);
+        match field {
+            "k1" => config.k1 = value,
+            "k2" => config.k2 = value,
+            "pixel_range" => config.pixel_range = value,
+            "sigma" => config.sigma = value,
+            _ => unreachable!(),
+        }
+        let _ = MsSsimMetric::new(config, &Default::default());
+    }
+
+    #[rstest]
+    #[case(MsSsimMetricConfig { kernel_size: 0, ..MsSsimMetricConfig::new(1.0) })]
+    #[case(MsSsimMetricConfig { kernel_size: 2, ..MsSsimMetricConfig::new(1.0) })]
+    #[case(MsSsimMetricConfig { channels: 0, ..MsSsimMetricConfig::new(1.0) })]
+    #[case(MsSsimMetricConfig { betas: vec![], ..MsSsimMetricConfig::new(1.0) })]
+    #[case(MsSsimMetricConfig { betas: vec![0.0; 5], ..MsSsimMetricConfig::new(1.0) })]
+    #[case(MsSsimMetricConfig { betas: vec![1.0, -0.1], ..MsSsimMetricConfig::new(1.0) })]
+    #[case(MsSsimMetricConfig { betas: vec![1.0, f32::NAN], ..MsSsimMetricConfig::new(1.0) })]
+    #[case(MsSsimMetricConfig { betas: vec![1.0, f32::INFINITY], ..MsSsimMetricConfig::new(1.0) })]
+    #[case(MsSsimMetricConfig { betas: vec![1.0, f32::NEG_INFINITY], ..MsSsimMetricConfig::new(1.0) })]
+    #[should_panic]
+    fn test_ms_ssim_constructor_rejects_invalid_config(#[case] config: MsSsimMetricConfig) {
+        let _ = MsSsimMetric::new(config, &Default::default());
+    }
+
     #[test]
-    #[should_panic(expected = "All beta values must be non-negative")]
-    fn test_ms_ssim_negative_betas() {
-        let _ = MsSsimMetricConfig::new(1.0).with_betas(vec![0.3, 0.3, -0.1, 0.5]);
+    fn test_ms_ssim_zero_beta_keeps_score_meaningful() {
+        let device = Default::default();
+        let config = test_config().with_betas(vec![0.0, 1.0]);
+        let mut metric = MsSsimMetric::new(config, &device);
+        let input = MsSsimInput::new(
+            Tensor::<4>::zeros([1, 1, 8, 8], &device),
+            Tensor::<4>::ones([1, 1, 8, 8], &device),
+        );
+        metric.update(&input, &MetricMetadata::fake());
+
+        // Only the coarsest scale contributes: black/white contrast is identical,
+        // while their luminance similarity is C1 / (1 + C1).
+        let expected = 0.01_f64.powi(2) / (1.0 + 0.01_f64.powi(2));
+        let score = metric.value().unwrap().current();
+        assert!((score - expected).abs() < 1e-6, "got {score}");
     }
 
     #[test]
