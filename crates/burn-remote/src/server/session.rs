@@ -263,12 +263,14 @@ mod tests {
 
     #[test]
     fn a_collective_names_the_hosted_devices_by_position() {
-        let hosted = HostedDeviceIds(Arc::from([device(3, 2), device(3, 3)]));
-        let mut op = all_reduce(vec![device(0, 0), device(0, 1)]);
+        for devices in [[device(3, 2), device(3, 3)], [device(3, 3), device(3, 2)]] {
+            let hosted = HostedDeviceIds(Arc::from(devices));
+            let mut op = all_reduce(vec![device(0, 0), device(0, 1)]);
 
-        hosted.resolve(&mut op).unwrap();
+            hosted.resolve(&mut op).unwrap();
 
-        assert_eq!(op, all_reduce(vec![device(3, 2), device(3, 3)]));
+            assert_eq!(op, all_reduce(devices.to_vec()));
+        }
     }
 
     #[test]

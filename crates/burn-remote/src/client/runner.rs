@@ -139,6 +139,10 @@ impl RouterClient for RemoteClient {
         bindings: burn_ir::GraphBindings,
     ) {
         let stream_id = StreamId::current();
+        let relative_graph = relative_graph
+            .into_iter()
+            .map(|op| self.resolve_devices(op))
+            .collect();
         self.handle.submit(move |s| {
             s.register_and_execute_graph(stream_id, graph_id, relative_graph, bindings)
         });

@@ -245,9 +245,13 @@ where
             Task::RegisterAndExecuteGraph {
                 stream_id,
                 graph_id,
-                relative_graph,
+                mut relative_graph,
                 bindings,
             } => {
+                // Cache backend ids once; a replay must not resolve them as hosted positions.
+                for op in &mut relative_graph {
+                    self.device_ids.resolve(op)?;
+                }
                 self.probe.emit(|| {
                     TelemetryEvent::graph_registered(
                         self.session_id,
