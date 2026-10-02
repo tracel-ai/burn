@@ -2,10 +2,10 @@ use crate::{IntoKind, LibTorch, TchTensor};
 use burn_backend::{
     IntDType, TensorMetadata,
     ops::{
-        AttentionModuleOptions, ConvOptions, ConvTransposeOptions, DeformConv2dBackward,
-        DeformConvOptions, InterpolateMode, InterpolateOptions, MaxPool1dWithIndices,
-        MaxPool2dBackward, MaxPool2dWithIndices, ModuleOps, attention::attention_fallback,
-        conv::pad_asymmetric_conv_input,
+        AttentionModuleOptions, CausalAlignment, ConvOptions, ConvTransposeOptions,
+        DeformConv2dBackward, DeformConvOptions, InterpolateMode, InterpolateOptions,
+        MaxPool1dWithIndices, MaxPool2dBackward, MaxPool2dWithIndices, ModuleOps,
+        attention::attention_fallback, conv::pad_asymmetric_conv_input,
     },
     tensor::{FloatTensor, IntTensor},
 };
@@ -493,7 +493,19 @@ impl ModuleOps<Self> for LibTorch {
         attn_bias: Option<TchTensor>,
         options: AttentionModuleOptions,
     ) -> TchTensor {
-        if attn_bias.is_some() {
+        let q_shape = query.tensor.size();
+        let k_shape = key.tensor.size();
+        let (q_heads, seq_q) = (q_shape[1], q_shape[2]);
+        let (kv_heads, seq_k) = (k_shape[1], k_shape[2]);
+
+        // torch's `is_causal` is top-left aligned, so it only matches bottom-right when
+        // the score matrix is square. torch has no softcap or additive-bias-after-mask.
+        let torch_causal_matches =
+            options.causal_alignment == CausalAlignment::TopLeft || seq_q == seq_k;
+        if attn_bias.is_some()
+            || options.softcap.is_some()
+            || (options.is_causal && !torch_causal_matches)
+        {
             return attention_fallback::<Self>(query, key, value, mask, attn_bias, options);
         }
 
@@ -501,11 +513,13 @@ impl ModuleOps<Self> for LibTorch {
             &query.tensor,
             &key.tensor,
             &value.tensor,
-            mask.map(|m| m.tensor),
+            // torch's bool mask marks positions to attend, burn's marks positions to hide.
+            mask.map(|m| m.tensor.logical_not()),
             0.,
             options.is_causal,
             options.scale,
-            false,
+            // torch maps query head `h` to K/V head `h / (q_heads / kv_heads)`, as burn does.
+            q_heads != kv_heads,
         ))
     }
 

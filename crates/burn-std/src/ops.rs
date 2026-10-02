@@ -618,7 +618,43 @@ pub struct AttentionModuleOptions {
     /// can only attend to key positions at or before it. This is more efficient than
     /// passing an explicit lower-triangular bool mask because backends can use optimized
     /// kernel paths (e.g. flash attention with causal mode).
+    ///
+    /// When `seq_q != seq_k`, [`causal_alignment`](Self::causal_alignment) decides which
+    /// query row lines up with which key column.
     pub is_causal: bool,
+
+    /// Where the causal diagonal is anchored when `seq_q != seq_k`. Ignored unless
+    /// `is_causal` is set. Both alignments agree when `seq_q == seq_k`.
+    pub causal_alignment: CausalAlignment,
+}
+
+/// Anchor of the causal diagonal for [`AttentionModuleOptions::is_causal`].
+///
+/// Query `i` may attend key `j` iff `j <= i + offset`, where `offset` is `0` for
+/// [`TopLeft`](Self::TopLeft) and `seq_k - seq_q` for [`BottomRight`](Self::BottomRight).
+#[derive(
+    Debug, Clone, Copy, Default, PartialEq, Eq, Hash, serde::Deserialize, serde::Serialize,
+)]
+pub enum CausalAlignment {
+    /// The last query row sees every key: `offset = seq_k - seq_q`. This is the
+    /// KV-cache convention (the queries are the newest `seq_q` positions), used by
+    /// FlashAttention 2.1+ and by ONNX `Attention` when a `past_key` is supplied.
+    #[default]
+    BottomRight,
+    /// The first query row sees the first key: `offset = 0` (`tril` on `[seq_q, seq_k]`).
+    /// This is PyTorch's `scaled_dot_product_attention(is_causal=True)` and ONNX
+    /// `Attention` without a KV cache.
+    TopLeft,
+}
+
+impl CausalAlignment {
+    /// The offset of the causal diagonal: query `i` may attend key `j` iff `j <= i + offset`.
+    pub fn offset(self, seq_q: usize, seq_k: usize) -> i64 {
+        match self {
+            CausalAlignment::BottomRight => seq_k as i64 - seq_q as i64,
+            CausalAlignment::TopLeft => 0,
+        }
+    }
 }
 
 /// Computation to be used to update the existing values in indexed assignment operations (scatter/select).

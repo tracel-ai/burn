@@ -1,4 +1,4 @@
-use burn_backend::ops::AttentionModuleOptions;
+use burn_backend::ops::{AttentionModuleOptions, CausalAlignment};
 use burn_backend::tensor::IndexingUpdateOp;
 use core::hash::Hash;
 use serde::{Deserialize, Serialize};
@@ -1993,6 +1993,7 @@ pub struct AttentionOptionsIr {
     pub scale: Option<ScalarIr>,
     pub softcap: Option<ScalarIr>,
     pub is_causal: bool,
+    pub causal_alignment: CausalAlignment,
 }
 
 impl From<AttentionOptionsIr> for AttentionModuleOptions {
@@ -2001,6 +2002,7 @@ impl From<AttentionOptionsIr> for AttentionModuleOptions {
             scale: ir.scale.map(|s| s.elem()),
             softcap: ir.softcap.map(|s| s.elem()),
             is_causal: ir.is_causal,
+            causal_alignment: ir.causal_alignment,
         }
     }
 }
@@ -2011,6 +2013,7 @@ impl From<AttentionModuleOptions> for AttentionOptionsIr {
             scale: ir.scale.map(ScalarIr::Float),
             softcap: ir.softcap.map(ScalarIr::Float),
             is_causal: ir.is_causal,
+            causal_alignment: ir.causal_alignment,
         }
     }
 }
