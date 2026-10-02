@@ -75,10 +75,10 @@ found at the [API reference](https://burn.dev/docs/burn/data/dataset/transform/i
 ```rust, ignore
 type DbPedia = SqliteDataset<DbPediaItem>;
 let dataset: DbPedia = HuggingfaceDatasetLoader::new("fancyzhx/dbpedia_14")
-        .dataset("train").
+        .dataset("train")
         .unwrap();
 
-let dataset = SamplerDataset<DbPedia, DbPediaItem>::new(dataset, 10000);
+let dataset = SamplerDataset::<DbPedia, DbPediaItem>::new(dataset, 10000);
 ```
 
 - **SelectionDataset**: This transform can be used to select a subset of items from a dataset by
