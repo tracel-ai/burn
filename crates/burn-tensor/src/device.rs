@@ -17,6 +17,8 @@ use burn_dispatch::DispatchDeviceId;
 use burn_dispatch::GradientCheckpointingStrategy;
 #[cfg(any(feature = "cpu", feature = "cuda", feature = "rocm", feature = "wgpu"))]
 use burn_dispatch::devices::RuntimeId;
+#[cfg(any(feature = "metal", feature = "vulkan", feature = "webgpu"))]
+use burn_dispatch::devices::WgpuBackend;
 use burn_dispatch::{Dispatch, DispatchDevice};
 use burn_std::{BoolDType, FloatDType, IntDType, TensorData};
 
@@ -993,9 +995,8 @@ impl Device {
             let type_id = match device_type {
                 // The cubecl runtimes are one dispatch backend, so `DispatchDeviceId::Cube`
                 // would list every runtime's devices at once. These name the runtime the
-                // caller asked for instead. `Metal`, `Vulkan` and `WebGpu` are wgpu with a
-                // particular shader compiler, which is a runtime choice rather than a
-                // separate runtime, so all three enumerate the wgpu devices.
+                // caller asked for instead. `Metal`, `Vulkan` and `WebGpu` pin wgpu to the
+                // requested graphics API; `Wgpu` leaves the API to auto-selection.
                 #[cfg(feature = "cpu")]
                 DeviceType::Cpu => {
                     push_cube(&mut devices, RuntimeId::Cpu);
@@ -1018,17 +1019,17 @@ impl Device {
                 }
                 #[cfg(feature = "metal")]
                 DeviceType::Metal => {
-                    push_cube(&mut devices, RuntimeId::Wgpu);
+                    push_wgpu(&mut devices, WgpuBackend::Metal);
                     continue;
                 }
                 #[cfg(feature = "vulkan")]
                 DeviceType::Vulkan => {
-                    push_cube(&mut devices, RuntimeId::Wgpu);
+                    push_wgpu(&mut devices, WgpuBackend::Vulkan);
                     continue;
                 }
                 #[cfg(feature = "webgpu")]
                 DeviceType::WebGpu => {
-                    push_cube(&mut devices, RuntimeId::Wgpu);
+                    push_wgpu(&mut devices, WgpuBackend::WebGpu);
                     continue;
                 }
                 #[cfg(feature = "flex")]
@@ -1187,13 +1188,29 @@ impl core::fmt::Display for ThroughputStat {
 
 /// Append every device of the cubecl `runtime` to `devices`, skipping any already listed.
 ///
-/// A filter can name the same runtime twice — `DeviceType::Vulkan | DeviceType::Wgpu` both mean
-/// wgpu now that the compiler is not part of the device — and a caller enumerating hardware
-/// should see each device once.
+/// A filter can name the same runtime twice (e.g. two `DeviceType::Cuda` entries),
+/// and a caller enumerating hardware should see each device once.
 #[cfg(any(feature = "cpu", feature = "cuda", feature = "rocm", feature = "wgpu"))]
 fn push_cube(devices: &mut Vec<Device>, runtime: RuntimeId) {
     for device in Dispatch::enumerate_cube(runtime) {
         let device = Device::new(device);
+        if !devices.contains(&device) {
+            devices.push(device);
+        }
+    }
+}
+
+/// Append wgpu devices pinned to `backend`, skipping unavailable devices.
+#[cfg(any(feature = "metal", feature = "vulkan", feature = "webgpu"))]
+fn push_wgpu(devices: &mut Vec<Device>, backend: WgpuBackend) {
+    for device in Dispatch::enumerate_cube(RuntimeId::Wgpu) {
+        let DispatchDevice::Cube(cube) = device else {
+            continue;
+        };
+        let Ok(pinned) = cube.on(backend) else {
+            continue;
+        };
+        let device = Device::new(pinned);
         if !devices.contains(&device) {
             devices.push(device);
         }
@@ -1663,6 +1680,24 @@ mod tests {
                     !gpu.physical.is_same_card(&other.physical),
                     "one card listed twice: {gpu:?} and {other:?}"
                 );
+            }
+        }
+    }
+}
+
+#[cfg(all(test, feature = "vulkan", not(target_family = "wasm")))]
+mod enumerate_wgpu_tests {
+    use super::*;
+    use burn_dispatch::devices::CubeDevice;
+
+    #[test]
+    fn enumerate_vulkan_pins_the_graphics_api() {
+        for device in Device::enumerate(DeviceType::Vulkan).iter() {
+            match device.as_dispatch() {
+                DispatchDevice::Cube(CubeDevice::Wgpu(wgpu)) => {
+                    assert_eq!(wgpu.backend, WgpuBackend::Vulkan);
+                }
+                other => panic!("expected a wgpu device, got {other:?}"),
             }
         }
     }
