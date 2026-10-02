@@ -16,7 +16,7 @@ serialized, reducing potential bugs when upgrading versions and improving reprod
 ```rust , ignore
 use burn::config::Config;
 
-#[derive(Config)]
+#[derive(Config, Debug)]
 pub struct MyModuleConfig {
     d_model: usize,
     d_ff: usize,

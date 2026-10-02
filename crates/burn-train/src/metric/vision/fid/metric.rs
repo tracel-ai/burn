@@ -252,7 +252,7 @@ mod tests {
         let (mu, sigma) = compute_statistics(features.clone());
         let fid = frechet_distance(mu.clone(), sigma.clone(), mu, sigma, 50);
 
-        assert!(fid.into_data().to_vec::<f32>().unwrap()[0].abs() < 0.1);
+        assert!(fid.into_data().try_to_vec::<f32>().unwrap()[0].abs() < 0.1);
     }
 
     #[test]
@@ -285,7 +285,7 @@ mod tests {
         let (mu2, sigma2) = compute_statistics(shifted);
         let fid_val = frechet_distance(mu1, sigma1, mu2, sigma2, 50)
             .into_data()
-            .to_vec::<f32>()
+            .try_to_vec::<f32>()
             .unwrap()[0];
 
         assert!((fid_val - 4.0).abs() < 0.5);
@@ -337,7 +337,7 @@ mod tests {
         let features = fid.extract_features(images);
 
         assert_eq!(features.dims(), [1, 2048]);
-        let feat_data = features.into_data().to_vec::<f32>().unwrap();
+        let feat_data = features.into_data().try_to_vec::<f32>().unwrap();
         assert!(feat_data.iter().all(|v| v.is_finite()));
         let norm: f32 = feat_data.iter().map(|v| v * v).sum();
         assert!(norm > 0.0);

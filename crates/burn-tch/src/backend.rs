@@ -180,5 +180,7 @@ impl Backend for LibTorch {
         }
     }
 
-    fn flush(_device: &Self::Device) {}
+    fn flush(_device: &Self::Device) -> Result<(), ExecutionError> {
+        Ok(())
+    }
 }

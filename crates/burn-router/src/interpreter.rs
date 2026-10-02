@@ -46,6 +46,9 @@ pub struct TensorInterpreter<B: BackendIr> {
     /// Handlers for [custom operations](OperationIr::Custom), keyed by id. Shared read-only across
     /// every session, so executing a custom op is a map lookup plus a call.
     custom_ops: CustomOpRegistry<B>,
+    /// A flush that failed where no error could be returned, reported by the next
+    /// [`sync`](Self::sync).
+    flush_error: burn_std::sync::Mutex<Option<ExecutionError>>,
 }
 
 impl<B: BackendIr> core::fmt::Debug for TensorInterpreter<B> {
@@ -70,6 +73,7 @@ impl<B: BackendIr> TensorInterpreter<B> {
             },
             device,
             custom_ops,
+            flush_error: burn_std::sync::Mutex::new(None),
         }
     }
 
@@ -2136,7 +2140,10 @@ impl<B: BackendIr> TensorInterpreter<B> {
                     // Safety: the collective tensor is resolved through the normal op stream
                     // (a `SyncCollective` op follows), so the handle is valid once that runs.
                     let output = unsafe { output.assume_resolved() };
-                    B::flush(&self.device);
+                    if let Err(err) = B::flush(&self.device) {
+                        // Registering an operation reports nothing: the next sync does.
+                        self.flush_error.lock().get_or_insert(err);
+                    }
                     handles.register_float_tensor::<B>(&desc.out.id, output);
                 }
                 burn_ir::DistributedOperationIr::SyncCollective => B::sync_collective(&self.device),
@@ -2185,7 +2192,15 @@ impl<B: BackendIr> TensorInterpreter<B> {
     }
 
     /// Block until all queued backend work has completed.
+    ///
+    /// # Errors
+    ///
+    /// Returns an [`ExecutionError`] when the queued work failed, or when a flush made while
+    /// registering operations failed since the last sync.
     pub fn sync(&self) -> Result<(), ExecutionError> {
+        if let Some(err) = self.flush_error.lock().take() {
+            return Err(err);
+        }
         B::sync(&self.device)
     }
 

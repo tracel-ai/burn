@@ -6,6 +6,7 @@ use super::{
     confusion_stats::{ConfusionStats, ConfusionStatsInput},
     state::FormatOptions,
 };
+use burn_core::tensor::TensorReadError;
 use std::{num::NonZeroUsize, sync::Arc};
 
 /// The [F-beta score](https://en.wikipedia.org/wiki/F-score) metric.
@@ -101,7 +102,11 @@ impl FBetaScoreMetric {
 impl Metric for FBetaScoreMetric {
     type Input = ConfusionStatsInput;
 
-    fn update(&mut self, input: &Self::Input, _metadata: &MetricMetadata) -> SerializedEntry {
+    fn update(
+        &mut self,
+        input: &Self::Input,
+        _metadata: &MetricMetadata,
+    ) -> Result<SerializedEntry, TensorReadError> {
         let [sample_size, _] = input.predictions.dims();
 
         let stats = ConfusionStats::new(input, &self.config);
@@ -124,9 +129,10 @@ impl Metric for FBetaScoreMetric {
         )
     }
 
-    fn compute(&mut self) -> SerializedEntry {
-        self.state
-            .compute_final(FormatOptions::new(self.name()).unit("%").precision(2))
+    fn compute(&mut self) -> Result<SerializedEntry, TensorReadError> {
+        Ok(self
+            .state
+            .compute_final(FormatOptions::new(self.name()).unit("%").precision(2)))
     }
 
     fn clear(&mut self) {
@@ -178,7 +184,7 @@ mod tests {
     fn test_binary_fscore(#[case] beta: f64, #[case] threshold: f64, #[case] expected: f64) {
         let input = dummy_classification_input(&ClassificationType::Binary).into();
         let mut metric = FBetaScoreMetric::binary(beta, threshold);
-        let _entry = metric.update(&input, &MetricMetadata::fake());
+        let _entry = metric.update(&input, &MetricMetadata::fake()).unwrap();
         TensorData::from([metric.value().unwrap().current()])
             .assert_approx_eq::<f32>(&TensorData::from([expected * 100.0]), Tolerance::default())
     }
@@ -200,7 +206,7 @@ mod tests {
     ) {
         let input = dummy_classification_input(&ClassificationType::Multiclass).into();
         let mut metric = FBetaScoreMetric::multiclass(beta, top_k, class_reduction);
-        let _entry = metric.update(&input, &MetricMetadata::fake());
+        let _entry = metric.update(&input, &MetricMetadata::fake()).unwrap();
         TensorData::from([metric.value().unwrap().current()])
             .assert_approx_eq::<f32>(&TensorData::from([expected * 100.0]), Tolerance::default())
     }
@@ -218,7 +224,7 @@ mod tests {
     ) {
         let input = dummy_classification_input(&ClassificationType::Multilabel).into();
         let mut metric = FBetaScoreMetric::multilabel(beta, threshold, class_reduction);
-        let _entry = metric.update(&input, &MetricMetadata::fake());
+        let _entry = metric.update(&input, &MetricMetadata::fake()).unwrap();
         TensorData::from([metric.value().unwrap().current()])
             .assert_approx_eq::<f32>(&TensorData::from([expected * 100.0]), Tolerance::default())
     }

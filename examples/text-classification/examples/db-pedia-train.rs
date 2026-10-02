@@ -1,3 +1,7 @@
+// Only the CUDA `launch_multi` path uses these at the top level; the remote module imports
+// them locally. Gating on both features avoids an unused-import warning for `remote,ddp`.
+#[cfg(all(feature = "ddp", feature = "cuda"))]
+use burn::tensor::distributed::{DistributedConfig, ReduceOperation};
 use burn::{
     nn::transformer::TransformerEncoderConfig,
     optim::{AdamConfig, decay::WeightDecayConfig},
@@ -123,9 +127,8 @@ mod remote {
 
     /// Train on a single one of the devices the remote server hosts.
     ///
-    /// `launch_single` configures the device it receives, so don't configure the enumerated
-    /// set here too: doing both locks the device's settings twice and returns
-    /// [`DeviceError::AlreadyInitialized`](burn::tensor::DeviceError::AlreadyInitialized).
+    /// `launch_single` configures the device it receives, so the enumerated set is not
+    /// configured here too.
     #[cfg(not(feature = "ddp"))]
     pub fn run() {
         let devices = Device::enumerate(DeviceType::Remote(RemoteHost::websocket(ADDRESS)));

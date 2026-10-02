@@ -126,7 +126,7 @@ impl<B: Backend, C: CheckpointStrategy> Backend for Autodiff<B, C> {
         B::device_count(type_id)
     }
 
-    fn flush(device: &Self::Device) {
+    fn flush(device: &Self::Device) -> Result<(), ExecutionError> {
         B::flush(device)
     }
 }
