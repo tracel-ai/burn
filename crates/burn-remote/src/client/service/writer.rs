@@ -1,8 +1,6 @@
 //! Outgoing-frame writer task.
 
-use std::sync::Arc;
-
-use super::{SessionState, pending::Responder};
+use super::pending::Responder;
 use crate::client::runtime::{Executor, SpawnHandle};
 use crate::client::service::SubmitChannel;
 use crate::shared::RemoteMessage;
@@ -46,7 +44,6 @@ impl SubmitWriter {
     pub(crate) fn spawn(
         runtime: &Executor,
         mut channel: SubmitChannel,
-        session: Arc<SessionState>,
         responder: Responder,
     ) -> Self {
         #[cfg(not(target_family = "wasm"))]
@@ -65,7 +62,6 @@ impl SubmitWriter {
                 };
                 if let Err(err) = channel.send(bytes).await {
                     log::warn!("Remote submit writer send failed: {err:?}; closing writer");
-                    session.end();
                     responder.disconnect();
                     return;
                 }

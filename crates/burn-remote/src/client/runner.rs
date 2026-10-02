@@ -184,6 +184,11 @@ impl RemoteClient {
                      but the collective includes a device on `{}`",
                     registered.endpoint.peer_id(),
                 );
+                assert!(
+                    !service::session_ended(id.index_id as u32),
+                    "Cannot all_reduce over a remote device whose session has ended; its tensors \
+                     are gone with it. Connect again with `Device::remote_options`."
+                );
                 id.type_id = 0;
                 id.index_id = registered.device_index as u16;
             }
@@ -384,9 +389,9 @@ impl RemoteTensorHandle {
     /// fall back to the cross-server path that streams the data server-to-server without the
     /// client ever seeing it.
     pub(crate) fn change_backend(self, target_device: &RemoteDevice) -> Self {
-        // Generations of one device share a peer, so a move between a dead session and a live
-        // one would take the same-server path and wait forever on the side that is gone. Only an
-        // end this client has already seen is caught.
+        // A device and its replacement share a peer, so a move between them would take the
+        // same-server path and wait forever on the side that is gone. Only an end this client has
+        // already seen is caught.
         for (side, device) in [("from", &self.client.device), ("to", target_device)] {
             assert!(
                 !device.session_ended(),

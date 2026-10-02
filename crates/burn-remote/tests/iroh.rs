@@ -813,7 +813,7 @@ mod iroh_peer {
     }
 
     #[tokio::test(flavor = "multi_thread")]
-    async fn a_stopped_server_frees_its_port_for_the_next_one() {
+    async fn a_server_restarted_on_its_port_replaces_the_device() {
         // The port frees once the stopped router has closed and its sessions have drained.
         const REBIND_ATTEMPTS: u32 = 50;
         const REBIND_SETTLE: Duration = Duration::from_millis(200);
@@ -838,12 +838,12 @@ mod iroh_peer {
         assert!(first.await.unwrap_err().is_cancelled());
         // A read fails only once the client has seen the session end, which a reconnect relies on.
         let stale = stopped.clone();
-        let read = tokio::task::spawn_blocking(move || {
-            (Tensor::<1>::from_floats([1.0], &stale) * 2.0).try_into_data()
-        })
-        .await
-        .unwrap();
-        assert!(read.is_err(), "a session outlived its server: {read:?}");
+        tokio::task::block_in_place(|| {
+            within_hang_limit(move || {
+                let read = (Tensor::<1>::from_floats([1.0], &stale) * 2.0).try_into_data();
+                assert!(read.is_err(), "a session outlived its server: {read:?}");
+            })
+        });
 
         for _ in 0..REBIND_ATTEMPTS {
             let next = serve();

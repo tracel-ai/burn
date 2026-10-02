@@ -121,10 +121,12 @@ impl RemoteOptions {
     /// returned with the session it already has.
     ///
     /// A device whose session ended, as when its server restarted, is not reopened: this connects
-    /// a new device, and the old one's tensors are gone. Reads on the old device return errors,
-    /// moving a tensor to or from it panics, and its queries that cannot fail, such as
-    /// `dtype_usage`, panic. A server that went away without closing the session is noticed once
-    /// the transport gives up on it, and until then this returns the old device.
+    /// a new device, and the old one's tensors are gone. Reads on the old device return errors, and
+    /// its queries that cannot fail, such as `dtype_usage`, panic. Drop every device of a server
+    /// once one fails: a move or a collective between an old device and a new one waits forever
+    /// unless this client has already seen the old session end. A server that went away without
+    /// closing the session is noticed once the transport gives up on it, and until then this
+    /// returns the old device.
     ///
     /// Every device keeps its id and its runner thread for the life of the process, so each
     /// replacement costs one more. A process can connect 65,536 devices, and panics on the next.
@@ -145,8 +147,8 @@ impl RemoteOptions {
         async move { Ok(Device::new(device.await?)) }
     }
 
-    /// Open the device's session. A device whose session ended is replaced by a new one, which
-    /// keeps its id for the life of the page.
+    /// Open the device's session. A device whose session ended is replaced by a new one, and each
+    /// replacement holds one more device id for the life of the page.
     #[cfg(target_family = "wasm")]
     pub fn init_async(
         self,

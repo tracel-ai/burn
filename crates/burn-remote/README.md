@@ -43,8 +43,9 @@ ones Burn binds send no segmentation-offloaded (GSO) batches because of
 [iroh#4555](https://github.com/n0-computer/iroh/issues/4555).
 
 A device whose session ended, as when its server restarted, is not reopened: connecting again gives
-a new device, and the old one's tensors are gone. Each new device keeps a thread for the life of the
-process. A server that went away without closing the session is noticed once the transport gives up
+a new device, and the old one's tensors are gone. Drop every device of a server once one fails: a
+move or a collective between an old device and a new one can wait forever. Each new device keeps a
+thread for the life of the process. A server that went away without closing the session is noticed once the transport gives up
 on it, and until then connecting returns the old device.
 
 ## Server
