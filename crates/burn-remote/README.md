@@ -40,9 +40,6 @@ protocols, dials from it with `IrohHost::with_endpoint`. That endpoint keeps its
 ones Burn binds send no segmentation-offloaded (GSO) batches because of
 [iroh#4555](https://github.com/n0-computer/iroh/issues/4555).
 
-A device whose session ended, as when its server restarted, is not reopened: connecting again gives
-a new device, and the old one's tensors are gone.
-
 ## Server
 
 ```rust,ignore

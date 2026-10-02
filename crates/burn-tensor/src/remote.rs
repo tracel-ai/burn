@@ -119,15 +119,10 @@ impl RemoteOptions {
     }
 
     /// Open the device's session and wait for the server's answer. A device connected before is
-    /// returned once the server answers on its open session.
-    ///
-    /// A device whose session ended, as when its server restarted, is not reopened: this connects
-    /// a new device, and the old one's tensors are gone. A server that went away without closing
-    /// the session is found out here, once the transport gives up on it. Reads on the old device
-    /// return errors, and its queries that cannot, such as `dtype_usage`, panic.
+    /// returned with the session it already has.
     ///
     /// Every device keeps its id and its runner thread for the life of the process. A process can
-    /// connect 65,536 devices, a new one each time a session ended, and panics on the next.
+    /// connect 65,536 devices, and panics on the next.
     #[cfg(not(target_family = "wasm"))]
     pub fn init(self) -> Result<Device, ConnectError> {
         Ok(Device::new(

@@ -1,4 +1,4 @@
-use super::{ConnectError, RemoteChannel, RemoteClient, service};
+use super::{RemoteChannel, RemoteClient, service};
 use crate::shared::{LocalTransferId, TaskResponseContent, TensorRemote, TransferCapability};
 use crate::{PeerAddr, PeerId};
 use burn_backend::{
@@ -205,8 +205,8 @@ pub struct RemoteDevice {
 }
 
 impl RemoteDevice {
-    /// The device registered for `endpoint` and `device_index`, which may have its session open
-    /// already. A device whose session ended is not reused: a new id replaces it, with no session.
+    /// The device registered for `endpoint` and `device_index`, the same one each time, which may
+    /// have its session open already.
     pub(crate) fn register(endpoint: RemoteEndpoint, device_index: usize) -> Self {
         let device_index = device_index as u32;
         let id = service::register_endpoint(endpoint.clone(), device_index);
@@ -215,29 +215,6 @@ impl RemoteDevice {
             device_index,
             id,
         }
-    }
-
-    /// [`register`](Self::register), then open its session, or confirm the one already open.
-    /// A confirmation that finds the server gone leaves the device's session ended.
-    #[cfg(not(target_family = "wasm"))]
-    pub(crate) fn open(
-        endpoint: RemoteEndpoint,
-        device_index: usize,
-    ) -> Result<Self, ConnectError> {
-        let device = Self::register(endpoint, device_index);
-        get_client::<RemoteChannel>(&device).connect()?;
-        Ok(device)
-    }
-
-    /// The browser's [`open`](Self::open).
-    #[cfg(target_family = "wasm")]
-    pub(crate) async fn open_async(
-        endpoint: RemoteEndpoint,
-        device_index: usize,
-    ) -> Result<Self, ConnectError> {
-        let device = Self::register(endpoint, device_index);
-        get_client::<RemoteChannel>(&device).connect_async().await?;
-        Ok(device)
     }
 
     /// A WebSocket device with no session opened yet, which connects on first use.
@@ -284,12 +261,6 @@ impl RemoteDevice {
     /// The index of this device on its server.
     pub fn device_index(&self) -> usize {
         self.device_index as usize
-    }
-
-    /// Whether this device's session has ended, as when its server restarted. Its tensors are
-    /// gone with it; a new connect gives a new device.
-    pub fn session_ended(&self) -> bool {
-        service::session_ended(self.id)
     }
 }
 
@@ -403,15 +374,6 @@ impl RemoteTensorHandle {
     /// fall back to the cross-server path that streams the data server-to-server without the
     /// client ever seeing it.
     pub(crate) fn change_backend(self, target_device: &RemoteDevice) -> Self {
-        // Generations of one device share a peer, so a move between a dead session and a live
-        // one would take the same-server path and wait forever on the side that is gone.
-        for (side, device) in [("from", &self.client.device), ("to", target_device)] {
-            assert!(
-                !device.session_ended(),
-                "Cannot move a tensor {side} a remote device whose session has ended; its \
-                 tensors are gone with it. Connect again with `Device::remote_options`."
-            );
-        }
         if self.client.device.peer_id() == target_device.peer_id() {
             self.change_backend_local(target_device)
         } else {
