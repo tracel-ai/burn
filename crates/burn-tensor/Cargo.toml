@@ -49,9 +49,9 @@ cpu = ["burn-dispatch/cpu", "cubecl-cpu", "cubecl"]
 autodiff = ["burn-dispatch/autodiff"]
 # Remote compute client over Iroh.
 remote = ["std", "burn-dispatch/remote"]
-# Host a remote compute server over Iroh. Wasm-compatible.
+# Host a remote compute server over Iroh. On wasm, it serves only on an application's endpoint.
 remote-server = ["remote", "burn-dispatch/remote-server"]
-# Add the legacy WebSocket transport.
+# Add the WebSocket transport, for clients and servers.
 remote-websocket = ["remote", "burn-dispatch/remote-websocket"]
 capture = ["burn-dispatch/capture"]
 

@@ -6,26 +6,29 @@ use crate::shared::{PROTOCOL_VERSION, SessionRefusal};
 ///
 /// [`Unreachable`](Self::Unreachable) and [`Handshake`](Self::Handshake) can pass on a later try;
 /// the others need a change to the client or the server.
+///
+/// Its variants are the same whichever transports are compiled in, so a match on it holds when
+/// another crate in the build enables one.
 #[derive(Debug)]
-#[non_exhaustive]
 pub enum ConnectError {
     /// No address was given and the endpoint has no way to look one up: relays are disabled, or
     /// the endpoint was bound without an address lookup.
-    #[cfg(feature = "iroh")]
     NoAddress,
-    /// The local Iroh endpoint could not be bound.
-    #[cfg(all(feature = "iroh", not(target_family = "wasm")))]
-    #[non_exhaustive]
+    /// The Iroh endpoint Burn binds could not be bound.
     Bind {
         /// Iroh's reason.
-        source: iroh::endpoint::BindError,
+        source: Box<dyn std::error::Error + Send + Sync>,
     },
-    /// The runtime shut down before the connection was attempted.
-    #[cfg(all(feature = "iroh", not(target_family = "wasm")))]
+    /// The runtime shut down before the connection was attempted. Never in a browser.
     Interrupted,
+    /// The host's settings cannot work together, such as an application endpoint combined with
+    /// relays for an endpoint Burn binds.
+    InvalidConfiguration {
+        /// Which settings conflict.
+        reason: String,
+    },
     /// No session could be opened with the server: it is not running, nothing answered at its
     /// addresses, or another endpoint answered there.
-    #[non_exhaustive]
     Unreachable {
         /// What failed.
         reason: String,
@@ -33,14 +36,12 @@ pub enum ConnectError {
     /// The server's authorizer rejected the credential. Its reason is in the server's log.
     Unauthorized,
     /// The server does not host the device index asked for.
-    #[non_exhaustive]
     NoSuchDevice {
         /// How many devices the server hosts.
         device_count: usize,
     },
     /// The server speaks another version of the Burn Remote protocol: build both with the same
     /// Burn release. The higher version is the newer release.
-    #[non_exhaustive]
     IncompatibleProtocol {
         /// The version this client speaks.
         client_version: u16,
@@ -49,7 +50,6 @@ pub enum ConnectError {
     },
     /// The server was reached, but the session handshake broke off or its reply made no sense. A
     /// server on an older Burn release refuses a session by closing it unanswered, which lands here.
-    #[non_exhaustive]
     Handshake {
         /// What went wrong.
         reason: String,
@@ -82,14 +82,12 @@ impl From<SessionRefusal> for ConnectError {
 impl fmt::Display for ConnectError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            #[cfg(feature = "iroh")]
             Self::NoAddress => {
                 f.write_str("no address was given and the endpoint cannot look one up")
             }
-            #[cfg(all(feature = "iroh", not(target_family = "wasm")))]
             Self::Bind { source } => write!(f, "cannot bind an Iroh endpoint: {source}"),
-            #[cfg(all(feature = "iroh", not(target_family = "wasm")))]
             Self::Interrupted => f.write_str("the runtime shut down before connecting"),
+            Self::InvalidConfiguration { reason } => write!(f, "invalid remote host: {reason}"),
             Self::Unreachable { reason } => write!(f, "the server cannot be reached: {reason}"),
             Self::Unauthorized => f.write_str("the server's authorizer rejected the credential"),
             Self::NoSuchDevice { device_count } => {
@@ -111,10 +109,16 @@ impl fmt::Display for ConnectError {
 impl std::error::Error for ConnectError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
-            #[cfg(all(feature = "iroh", not(target_family = "wasm")))]
-            Self::Bind { source } => Some(source),
+            Self::Bind { source } => Some(source.as_ref()),
             _ => None,
         }
+    }
+}
+
+#[cfg(not(target_family = "wasm"))]
+impl From<crate::runtime::Interrupted> for ConnectError {
+    fn from(_: crate::runtime::Interrupted) -> Self {
+        Self::Interrupted
     }
 }
 

@@ -1,8 +1,21 @@
 #![cfg(all(feature = "client", feature = "server", feature = "websocket"))]
 
 use burn_flex::Flex;
-use burn_remote::{ConnectError, server::RemoteServerBuilder};
-use burn_tensor::{Device, DeviceType, Distribution, Tensor};
+use burn_remote::{
+    ConnectError,
+    server::{
+        AuthorizationRequest, BackendServer, ClientId, ServeError, TokenAuthorizer,
+        WebSocketTransport,
+    },
+};
+use burn_tensor::{
+    Device, DeviceType, Distribution, Tensor, remote::RemoteHost, server::RemoteServer,
+};
+
+const TOKEN: &str = "fleet-token";
+
+/// Far beyond what a bounded step here takes when it works, so only a hang reaches it.
+const HANG_LIMIT: std::time::Duration = std::time::Duration::from_secs(10);
 
 /// Run `body` on a worker thread and fail the test if it does not finish within `timeout`.
 ///
@@ -23,14 +36,30 @@ fn with_deadlock_watchdog(timeout: std::time::Duration, body: impl FnOnce() + Se
     }
 }
 
-/// Serve `server` over WebSocket on a port the OS picks, returning the address to dial.
+/// Serve `server` over WebSocket on a port the OS picks, returning the host to dial.
 ///
 /// The listener is bound before this returns, so a client can connect at once.
-fn serve(rt: &tokio::runtime::Runtime, server: RemoteServerBuilder<Flex>) -> String {
+fn serve(rt: &tokio::runtime::Runtime, server: BackendServer<Flex>) -> RemoteHost {
     let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
-    let address = format!("ws://{}", listener.local_addr().unwrap());
-    rt.spawn(server.start_async_on(listener));
-    address
+    let host = host_of(&listener);
+    let serving = server.serve_async(WebSocketTransport::from_listener(listener));
+    rt.spawn(async move { serving.await.unwrap() });
+    host
+}
+
+fn host_of(listener: &std::net::TcpListener) -> RemoteHost {
+    RemoteHost::websocket(&format!("ws://{}", listener.local_addr().unwrap()))
+}
+
+/// The error `serving` stops with, which it must do within the hang limit.
+fn serve_error(serving: impl Future<Output = Result<(), ServeError>>) -> ServeError {
+    let rt = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .unwrap();
+    rt.block_on(async { tokio::time::timeout(HANG_LIMIT, serving).await })
+        .expect("the server is still serving")
+        .unwrap_err()
 }
 
 #[test]
@@ -39,12 +68,9 @@ fn a_device_the_server_does_not_host_is_an_error() {
         .enable_all()
         .build()
         .unwrap();
-    let address = serve(
-        &rt,
-        RemoteServerBuilder::<Flex>::new(vec![Default::default()]),
-    );
+    let host = serve(&rt, BackendServer::<Flex>::new(vec![Default::default()]));
 
-    let result = Device::remote_websocket(&address, 1);
+    let result = Device::remote_options(&host).device_index(1).init();
 
     assert!(
         matches!(
@@ -60,6 +86,73 @@ fn a_device_the_server_does_not_host_is_an_error() {
 }
 
 #[test]
+fn only_a_websocket_client_with_the_token_is_admitted() {
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()
+        .unwrap();
+    let host = serve(
+        &rt,
+        BackendServer::<Flex>::new(vec![Default::default()])
+            .with_authorizer(TokenAuthorizer::new(TOKEN).unwrap()),
+    );
+
+    let refused = Device::remote_options(&host.clone().with_credential("wrong-token")).init();
+    assert!(
+        matches!(refused, Err(ConnectError::Unauthorized)),
+        "{refused:?}"
+    );
+    Device::remote_options(&host.with_credential(TOKEN))
+        .init()
+        .unwrap();
+
+    rt.shutdown_background();
+}
+
+#[test]
+fn a_websocket_authorizer_sees_the_client_by_its_address() {
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()
+        .unwrap();
+    let (seen, clients) = std::sync::mpsc::channel();
+    let host = serve(
+        &rt,
+        BackendServer::<Flex>::new(vec![Default::default()]).with_authorizer(
+            move |request: AuthorizationRequest<'_>| {
+                seen.send(request.client).map_err(|err| err.to_string())
+            },
+        ),
+    );
+
+    Device::remote_options(&host).init().unwrap();
+
+    let client = clients.try_recv().unwrap();
+    assert!(
+        matches!(client, ClientId::WebSocket(address) if address.ip().is_loopback()),
+        "{client:?}"
+    );
+    rt.shutdown_background();
+}
+
+#[test]
+fn a_server_that_never_starts_is_unreachable_once_the_retries_run_out() {
+    // Bound but never listening: every dial is refused, and no other socket can take the port.
+    let socket = tokio::net::TcpSocket::new_v4().unwrap();
+    socket.bind("127.0.0.1:0".parse().unwrap()).unwrap();
+    let host = RemoteHost::websocket(&format!("ws://{}", socket.local_addr().unwrap()));
+
+    with_deadlock_watchdog(std::time::Duration::from_secs(60), move || {
+        let result = Device::remote_options(&host).init();
+        assert!(
+            matches!(result, Err(ConnectError::Unreachable { .. })),
+            "{result:?}"
+        );
+    });
+    drop(socket);
+}
+
+#[test]
 fn a_dial_waits_for_a_websocket_server_that_starts_late() {
     // Past the first retries, well inside the retry window.
     const SERVER_LATE_BY: std::time::Duration = std::time::Duration::from_millis(700);
@@ -68,7 +161,7 @@ fn a_dial_waits_for_a_websocket_server_that_starts_late() {
     // Bound but not listening: dials are refused, and no other socket can take the port.
     let socket = tokio::net::TcpSocket::new_v4().unwrap();
     socket.bind("127.0.0.1:0".parse().unwrap()).unwrap();
-    let address = format!("ws://{}", socket.local_addr().unwrap());
+    let host = RemoteHost::websocket(&format!("ws://{}", socket.local_addr().unwrap()));
     let rt = tokio::runtime::Builder::new_multi_thread()
         .enable_all()
         .build()
@@ -76,13 +169,14 @@ fn a_dial_waits_for_a_websocket_server_that_starts_late() {
     rt.spawn(async move {
         tokio::time::sleep(SERVER_LATE_BY).await;
         let listener = socket.listen(LISTEN_BACKLOG).unwrap().into_std().unwrap();
-        RemoteServerBuilder::<Flex>::new(vec![Default::default()])
-            .start_async_on(listener)
-            .await;
+        BackendServer::<Flex>::new(vec![Default::default()])
+            .serve_async(WebSocketTransport::from_listener(listener))
+            .await
+            .unwrap();
     });
 
     with_deadlock_watchdog(std::time::Duration::from_secs(30), move || {
-        let device = Device::remote_websocket(&address, 0).unwrap();
+        let device = Device::remote_options(&host).init().unwrap();
         let output = Tensor::<1>::from_floats([1.0, 2.0], &device) * 2.0;
         assert_eq!(output.try_into_vec_as::<f32>().unwrap(), vec![2.0, 4.0]);
     });
@@ -97,17 +191,11 @@ fn test_to_device_over_websocket() {
         .build()
         .unwrap();
 
-    let address_1 = serve(
-        &rt,
-        RemoteServerBuilder::<Flex>::new(vec![Default::default()]),
-    );
-    let address_2 = serve(
-        &rt,
-        RemoteServerBuilder::<Flex>::new(vec![Default::default()]),
-    );
+    let host_1 = serve(&rt, BackendServer::<Flex>::new(vec![Default::default()]));
+    let host_2 = serve(&rt, BackendServer::<Flex>::new(vec![Default::default()]));
 
-    let device_1 = Device::remote_websocket(&address_1, 0).unwrap();
-    let device_2 = Device::remote_websocket(&address_2, 0).unwrap();
+    let device_1 = Device::remote_options(&host_1).init().unwrap();
+    let device_2 = Device::remote_options(&host_2).init().unwrap();
 
     // Some random input on device 1.
     let input_shape = [1, 28, 28];
@@ -136,12 +224,9 @@ fn test_profile_over_websocket() {
         .build()
         .unwrap();
 
-    let address = serve(
-        &rt,
-        RemoteServerBuilder::<Flex>::new(vec![Default::default()]),
-    );
+    let host = serve(&rt, BackendServer::<Flex>::new(vec![Default::default()]));
 
-    let device = Device::remote_websocket(&address, 0).unwrap();
+    let device = Device::remote_options(&host).init().unwrap();
     let (sum, duration) = device
         .profile(|| {
             Tensor::<1>::ones([1024], &device)
@@ -169,13 +254,16 @@ fn test_multi_device_single_server() {
         .unwrap();
 
     // One server, two devices.
-    let address = serve(
+    let host = serve(
         &rt,
-        RemoteServerBuilder::<Flex>::new(vec![Default::default(), Default::default()]),
+        BackendServer::<Flex>::new(vec![Default::default(), Default::default()]),
     );
 
-    let device_0 = Device::remote_websocket(&address, 0).unwrap();
-    let device_1 = Device::remote_websocket(&address, 1).unwrap();
+    let device_0 = Device::remote_options(&host).init().unwrap();
+    let device_1 = Device::remote_options(&host)
+        .device_index(1)
+        .init()
+        .unwrap();
 
     // Distinct indices on the same address must be distinct devices.
     assert_ne!(device_0, device_1);
@@ -205,14 +293,17 @@ fn test_multi_device_concurrent_to_device_deadlock() {
         .build()
         .unwrap();
 
-    let address = serve(
+    let host = serve(
         &rt,
-        RemoteServerBuilder::<Flex>::new(vec![Default::default(), Default::default()]),
+        BackendServer::<Flex>::new(vec![Default::default(), Default::default()]),
     );
 
     with_deadlock_watchdog(std::time::Duration::from_secs(30), move || {
-        let device0 = Device::remote_websocket(&address, 0).unwrap();
-        let device1 = Device::remote_websocket(&address, 1).unwrap();
+        let device0 = Device::remote_options(&host).init().unwrap();
+        let device1 = Device::remote_options(&host)
+            .device_index(1)
+            .init()
+            .unwrap();
 
         let run = |home: Device, away: Device| {
             move || {
@@ -236,8 +327,8 @@ fn test_multi_device_concurrent_to_device_deadlock() {
     rt.shutdown_background();
 }
 
-/// `Device::enumerate(DeviceType::remote_websocket(addr))` lists every device the server hosts, by
-/// connecting once and reading the device count off the init handshake.
+/// `RemoteHost::devices` lists every device the server hosts, by connecting once and reading the
+/// device count off the init handshake.
 #[test]
 fn test_enumerate_remote_devices() {
     let rt = tokio::runtime::Builder::new_multi_thread()
@@ -246,22 +337,35 @@ fn test_enumerate_remote_devices() {
         .unwrap();
 
     // One server hosting three devices.
-    let address = serve(
+    let host = serve(
         &rt,
-        RemoteServerBuilder::<Flex>::new(vec![
+        BackendServer::<Flex>::new(vec![
             Default::default(),
             Default::default(),
             Default::default(),
         ]),
     );
 
-    let devices = Device::enumerate(DeviceType::remote_websocket(&address)).into_vec();
+    let devices = Device::enumerate(DeviceType::Remote(host.clone())).into_vec();
+    assert_eq!(host.devices().unwrap().into_vec(), devices);
 
     // The server reports its three devices, in index order.
     assert_eq!(devices.len(), 3);
-    assert_eq!(devices[0], Device::remote_websocket(&address, 0).unwrap());
-    assert_eq!(devices[1], Device::remote_websocket(&address, 1).unwrap());
-    assert_eq!(devices[2], Device::remote_websocket(&address, 2).unwrap());
+    assert_eq!(devices[0], Device::remote_options(&host).init().unwrap());
+    assert_eq!(
+        devices[1],
+        Device::remote_options(&host)
+            .device_index(1)
+            .init()
+            .unwrap()
+    );
+    assert_eq!(
+        devices[2],
+        Device::remote_options(&host)
+            .device_index(2)
+            .init()
+            .unwrap()
+    );
 
     // Distinct indices are distinct devices.
     assert_ne!(devices[0], devices[1]);
@@ -295,12 +399,9 @@ fn test_server_down_does_not_hang_client() {
         .build()
         .unwrap();
 
-    let address = serve(
-        &rt,
-        RemoteServerBuilder::<Flex>::new(vec![Default::default()]),
-    );
+    let host = serve(&rt, BackendServer::<Flex>::new(vec![Default::default()]));
 
-    let device = Device::remote_websocket(&address, 0).unwrap();
+    let device = Device::remote_options(&host).init().unwrap();
 
     // One successful round-trip so the sockets are actually up and the demux task is running.
     let input = Tensor::<2>::from_floats([[1.0, 2.0], [3.0, 4.0]], &device);
@@ -324,6 +425,141 @@ fn test_server_down_does_not_hang_client() {
     );
 }
 
+#[test]
+fn dropping_the_serving_future_ends_its_live_sessions() {
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .enable_io()
+        .build()
+        .unwrap();
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let host = host_of(&listener);
+    let server = rt.spawn(
+        BackendServer::<Flex>::new(vec![Default::default()])
+            .serve_async(WebSocketTransport::from_listener(listener)),
+    );
+
+    let device = Device::remote_options(&host).init().unwrap();
+    let doubled = Tensor::<1>::from_floats([1.0, 2.0], &device) * 2.0;
+    assert_eq!(doubled.try_into_vec_as::<f32>().unwrap(), vec![2.0, 4.0]);
+
+    server.abort();
+    assert!(rt.block_on(server).unwrap_err().is_cancelled());
+
+    with_deadlock_watchdog(HANG_LIMIT, move || {
+        let read = (Tensor::<1>::from_floats([3.0], &device) * 2.0).try_into_data();
+        assert!(read.is_err(), "a session outlived its server: {read:?}");
+    });
+    rt.shutdown_background();
+}
+
+fn loopback_transport() -> WebSocketTransport {
+    WebSocketTransport::from_listener(std::net::TcpListener::bind("127.0.0.1:0").unwrap())
+}
+
+#[test]
+fn a_remote_server_with_no_devices_refuses_to_serve() {
+    let error =
+        serve_error(RemoteServer::new(Vec::<Device>::new()).serve_async(loopback_transport()));
+    assert!(matches!(error, ServeError::NoDevices), "{error:?}");
+}
+
+#[test]
+fn a_remote_device_cannot_be_served() {
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()
+        .unwrap();
+    let host = serve(&rt, BackendServer::<Flex>::new(vec![Default::default()]));
+    let remote = Device::remote_options(&host).init().unwrap();
+
+    let error = serve_error(RemoteServer::new([remote]).serve_async(loopback_transport()));
+    assert!(
+        matches!(error, ServeError::UnsupportedDevice { .. }),
+        "{error:?}"
+    );
+    rt.shutdown_background();
+}
+
+#[test]
+fn a_remote_server_serves_its_devices() {
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let host = host_of(&listener);
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()
+        .unwrap();
+    rt.spawn(
+        RemoteServer::new([Device::flex()])
+            .serve_async(WebSocketTransport::from_listener(listener)),
+    );
+
+    let device = Device::remote_options(&host).init().unwrap();
+    let doubled = Tensor::<1>::from_floats([1.0, 2.0], &device) * 2.0;
+    assert_eq!(doubled.try_into_vec_as::<f32>().unwrap(), vec![2.0, 4.0]);
+    rt.shutdown_background();
+}
+
+/// Sends the process `SIGTERM`, which only the server under test is listening for.
+#[cfg(unix)]
+#[test]
+fn a_blocking_serve_returns_once_the_process_is_told_to_stop() {
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let host = host_of(&listener);
+    let (stopped, result) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        let served =
+            RemoteServer::new([Device::flex()]).serve(WebSocketTransport::from_listener(listener));
+        let _ = stopped.send(served);
+    });
+
+    // A session that opens means the server is up, and its signal handlers are installed.
+    let device = Device::remote_options(&host).init().unwrap();
+    let doubled = Tensor::<1>::from_floats([1.0], &device) * 2.0;
+    assert_eq!(doubled.try_into_vec_as::<f32>().unwrap(), vec![2.0]);
+
+    let status = std::process::Command::new("kill")
+        .args(["-TERM", &std::process::id().to_string()])
+        .status()
+        .unwrap();
+    assert!(status.success());
+
+    let served = result
+        .recv_timeout(HANG_LIMIT)
+        .expect("the server kept serving after SIGTERM");
+    assert!(served.is_ok(), "{served:?}");
+}
+
+#[test]
+fn serving_on_a_taken_port_is_a_bind_error() {
+    // The server binds every interface, and only that same address is refused on every OS.
+    let taken = std::net::TcpListener::bind("0.0.0.0:0").unwrap();
+    let port = taken.local_addr().unwrap().port();
+
+    let error = serve_error(
+        BackendServer::<Flex>::new(vec![Default::default()])
+            .serve_async(WebSocketTransport::new(port)),
+    );
+    assert!(matches!(error, ServeError::Bind { .. }), "{error:?}");
+}
+
+#[test]
+fn a_blocking_serve_on_a_taken_port_returns_a_bind_error() {
+    let taken = std::net::TcpListener::bind("0.0.0.0:0").unwrap();
+    let port = taken.local_addr().unwrap().port();
+
+    let error = RemoteServer::new([Device::flex()])
+        .serve(WebSocketTransport::new(port))
+        .unwrap_err();
+    assert!(matches!(error, ServeError::Bind { .. }), "{error:?}");
+}
+
+#[test]
+fn a_server_with_no_devices_refuses_to_serve() {
+    let error =
+        serve_error(BackendServer::<Flex>::new(Vec::new()).serve_async(loopback_transport()));
+    assert!(matches!(error, ServeError::NoDevices), "{error:?}");
+}
+
 /// The tensor crosses backends as `TensorData`: local to remote, an op there, then back.
 #[test]
 fn test_to_device_local_to_remote() {
@@ -332,13 +568,10 @@ fn test_to_device_local_to_remote() {
         .build()
         .unwrap();
 
-    let address = serve(
-        &rt,
-        RemoteServerBuilder::<Flex>::new(vec![Default::default()]),
-    );
+    let host = serve(&rt, BackendServer::<Flex>::new(vec![Default::default()]));
 
     let local = Device::flex();
-    let remote = Device::remote_websocket(&address, 0).unwrap();
+    let remote = Device::remote_options(&host).init().unwrap();
 
     // Create on local, move to remote.
     let input = Tensor::<2>::from_floats([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]], &local);

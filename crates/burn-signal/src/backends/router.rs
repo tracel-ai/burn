@@ -9,7 +9,7 @@ use crate::{SignalOps, custom};
 /// Register signal FFT handlers for a remote server or captured-graph interpreter.
 ///
 /// Enable the `router` feature on the server and call this before passing the registry
-/// to `TensorInterpreter::with_custom_ops` or `RemoteServerBuilder::custom_ops`.
+/// to `TensorInterpreter::with_custom_ops` or a remote server's `with_custom_ops`.
 /// The server backend must also have its corresponding `burn-signal` feature enabled.
 pub fn register_fft_ops<B: BackendIr + SignalOps>(registry: &mut CustomOpRegistry<B>) {
     registry.register(custom::RFFT, |handles, desc, _device| {

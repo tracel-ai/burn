@@ -1,8 +1,9 @@
 #![cfg(all(feature = "remote-tests", feature = "flex"))]
 use burn_core::{
     backend::Flex,
-    tensor::{Device, Tensor, TensorData, Tolerance},
+    tensor::{Device, Tensor, TensorData, Tolerance, remote::RemoteHost},
 };
+use burn_remote::server::{BackendServer, WebSocketTransport};
 use burn_signal::{irfft, rfft};
 #[test]
 pub fn test_fft_over_websocket() {
@@ -13,16 +14,15 @@ pub fn test_fft_over_websocket() {
 
     let mut registry = burn_router::CustomOpRegistry::<Flex>::new();
     burn_signal::register_fft_ops(&mut registry);
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let host = RemoteHost::websocket(&format!("ws://{}", listener.local_addr().unwrap()));
     rt.spawn(
-        burn_remote::server::RemoteServerBuilder::<Flex>::new(vec![Default::default()])
-            .port(3160)
-            .custom_ops(registry)
-            .start_async(),
+        BackendServer::<Flex>::new([Default::default()])
+            .with_custom_ops(registry)
+            .serve_async(WebSocketTransport::from_listener(listener)),
     );
 
-    std::thread::sleep(std::time::Duration::from_millis(500));
-
-    let device = Device::remote_websocket("ws://localhost:3160", 0).unwrap();
+    let device = Device::remote_options(&host).init().unwrap();
     let signal = Tensor::<1>::from_floats([1.0, 1.0, 1.0, 1.0], &device);
     let (spectrum_re, spectrum_im) = rfft(signal, 0, None);
     let reconstructed = irfft(spectrum_re.clone(), spectrum_im.clone(), 0, None);

@@ -7,7 +7,7 @@ use crate::{
 use axum::{
     Router,
     extract::{
-        State, WebSocketUpgrade,
+        ConnectInfo, State, WebSocketUpgrade,
         ws::{self, WebSocket},
     },
     routing::get,
@@ -25,6 +25,7 @@ pub struct WsServer {
 
 pub struct WsServerChannel {
     inner: WebSocket,
+    peer_addr: SocketAddr,
 }
 
 impl WsServer {
@@ -98,14 +99,22 @@ impl ProtocolServer for WsServer {
             format!("/{path}")
         };
 
-        let method = get(|ws: WebSocketUpgrade, _: State<()>| async {
-            // Left unset, axum reads with tungstenite's defaults: 16 MiB a frame, 64 MiB a message.
-            ws.max_message_size(MAX_MESSAGE_SIZE)
-                .max_frame_size(MAX_MESSAGE_SIZE)
-                .on_upgrade(async move |socket| {
-                    callback(WsServerChannel { inner: socket }).await;
-                })
-        });
+        let method = get(
+            |ws: WebSocketUpgrade,
+             ConnectInfo(peer_addr): ConnectInfo<SocketAddr>,
+             _: State<()>| async move {
+                // Left unset, axum reads with tungstenite's defaults: 16 MiB a frame, 64 MiB a message.
+                ws.max_message_size(MAX_MESSAGE_SIZE)
+                    .max_frame_size(MAX_MESSAGE_SIZE)
+                    .on_upgrade(async move |socket| {
+                        callback(WsServerChannel {
+                            inner: socket,
+                            peer_addr,
+                        })
+                        .await;
+                    })
+            },
+        );
 
         self.router = self.router.route(&path, method);
 
@@ -161,6 +170,11 @@ impl CommunicationChannel for WsServerChannel {
 }
 
 impl WsServerChannel {
+    /// The address the client connected from.
+    pub fn peer_addr(&self) -> SocketAddr {
+        self.peer_addr
+    }
+
     /// Split into independently-owned send and receive halves, so a writer task and a reader loop
     /// can run concurrently over one full-duplex socket.
     pub fn split(self) -> (WsServerSink, WsServerStream) {
