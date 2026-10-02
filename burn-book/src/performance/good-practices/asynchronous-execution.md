@@ -63,5 +63,5 @@ let device_training = ..;
 let axis_batch = 0;
 
 let items = Tensor::cat(items, axis_batch);
-let batch = Tensor::from_data(items.into_data(), device_training);
+let batch = Tensor::from_data(items.into_data(), &device_training);
 ```

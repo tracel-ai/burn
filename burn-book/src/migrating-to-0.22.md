@@ -394,6 +394,7 @@ Update numerical expectations for these cases:
 | NaN in `cummax` or `cummin`                   | Returns NaN from that position onward                                                 |
 | Reducing a zero-length axis                   | `sum`: 0; `prod`: 1; `any`: false; `all`: true; float `mean`: NaN; `max`/`min`: panic |
 | Empty axes in `max_abs_dims` or `*_norm_dims` | Applies the elementwise transformation without reducing                               |
+| Positive shift in `roll` or `roll_dim`        | Moves elements toward higher indices, matching `torch.roll`; 0.21 moved them lower    |
 
 ## Custom integrations
 
