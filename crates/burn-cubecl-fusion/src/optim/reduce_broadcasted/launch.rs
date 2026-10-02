@@ -3,10 +3,14 @@ use crate::{
         codegen::ir::{FuseArg, FuseBlockConfig, GlobalArgsLaunch, RefLayout},
         launch::runner::{TraceRunner, Vectorization},
     },
-    optim::reduce_broadcasted::unit::{
-        ElemwiseFuseBlockLaunch, ReduceFuseBlockLaunch, reduce_kernel_broadcasted,
+    optim::{
+        reduce::{ReduceInstruction, reduce_instruction2config},
+        reduce_broadcasted::unit::{
+            ElemwiseFuseBlockLaunch, ReduceFuseBlockLaunch, reduce_kernel_broadcasted,
+        },
     },
 };
+use burn_backend::cubecl::elem_type_to_dtype;
 use cubecl::{
     ir::{ElemType, FloatKind},
     prelude::*,
@@ -14,7 +18,6 @@ use cubecl::{
 };
 use cubek::reduce::{
     ReduceDtypes, VectorizationMode,
-    components::instructions::ReduceOperationConfig,
     launch::RoutineStrategy,
     output_vectorization_axis,
     routines::{
@@ -26,7 +29,7 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ReduceBroadcastedFuseBlock {
-    pub(crate) op: ReduceOperationConfig,
+    pub(crate) inst: ReduceInstruction,
     pub(crate) input: FuseArg,
     pub(crate) output: FuseArg,
 }
@@ -53,6 +56,7 @@ impl TraceRunner for FusedReduceBroadcastedLaunch<'_> {
     ) -> Result<(), Self::Error> {
         let routine = UnitRoutine;
         let first_config = &configs[0];
+        let first_block = self.blocks.first().unwrap();
 
         // An output-concrete reference indexes the output arguments; shape and
         // strides must both be resolved against that list.
@@ -82,8 +86,10 @@ impl TraceRunner for FusedReduceBroadcastedLaunch<'_> {
                         accumulation: ElemType::Float(FloatKind::F32),
                     },
                     address_type,
-                    // We assume at least one block.
-                    instruction: self.blocks.first().unwrap().op,
+                    instruction: reduce_instruction2config(
+                        &first_block.inst,
+                        elem_type_to_dtype(first_block.input.precision().into_elem()),
+                    ),
                 },
                 ReduceVectorSettings {
                     vectorization_mode: VectorizationMode::Parallel,
@@ -107,7 +113,10 @@ impl TraceRunner for FusedReduceBroadcastedLaunch<'_> {
 
         for block in self.blocks {
             let arg = ReduceFuseBlockLaunch::new(
-                block.op,
+                reduce_instruction2config(
+                    &block.inst,
+                    elem_type_to_dtype(block.input.precision().into_elem()),
+                ),
                 configs[index].clone(),
                 configs[index + 1].clone(),
                 block.input.clone(),

@@ -30,7 +30,7 @@ pub(crate) fn with_fused_reduce_bounds(
         let cost = ReduceCost {
             reduce_len,
             reduce_count: input.shape.num_elements() / reduce_len.max(1),
-            instruction: reduce_instruction2config(&reduce.inst),
+            instruction: reduce_instruction2config(&reduce.inst, reduce.op.input.dtype),
             dtypes: ReduceDtypes {
                 input: dtype_to_storage_type(reduce.op.input.dtype),
                 output: dtype_to_storage_type(reduce.op.out.dtype),

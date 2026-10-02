@@ -216,7 +216,9 @@ pub mod nn {
     pub use burn_nn::*;
 }
 
-pub use burn_std::config::{BurnConfig, config as runtime_config};
+pub use burn_std::config::{
+    BurnConfig, NanPolicy, NumericsConfig, RuntimeConfig, config as runtime_config,
+};
 
 #[cfg(all(test, feature = "capture"))]
 mod capture_tests {

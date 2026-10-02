@@ -387,7 +387,7 @@ impl TraceRunner for FusedReduceLaunch<'_> {
                 accumulation: self.reduce.acc.into_elem(),
             },
             address_type,
-            instruction: reduce_instruction2config(&self.reduce.inst),
+            instruction: reduce_instruction2config(&self.reduce.inst, self.reduce.op.input.dtype),
         };
 
         let (blueprint, settings) = match self.strategy.clone() {
@@ -457,12 +457,15 @@ fn launch_reduce_mixed_precision(
     dtype_output: DType,
     dtype_acc: DType,
 ) -> Result<(), LaunchError> {
-    let config = reduce_instruction2config(&instruction);
+    let config = reduce_instruction2config(&instruction, dtype_input);
     launch_reduce(kwargs, config, dtype_input, dtype_output, dtype_acc)
 }
 
-pub(crate) fn reduce_instruction2config(instruction: &ReduceInstruction) -> ReduceOperationConfig {
-    match instruction {
+pub(crate) fn reduce_instruction2config(
+    instruction: &ReduceInstruction,
+    dtype: DType,
+) -> ReduceOperationConfig {
+    let config = match instruction {
         ReduceInstruction::ArgMax => ReduceOperationConfig::ArgMax,
         ReduceInstruction::ArgMin => ReduceOperationConfig::ArgMin,
         ReduceInstruction::Prod => ReduceOperationConfig::Prod,
@@ -473,6 +476,11 @@ pub(crate) fn reduce_instruction2config(instruction: &ReduceInstruction) -> Redu
         ReduceInstruction::MaxAbs => ReduceOperationConfig::MaxAbs,
         ReduceInstruction::Any => ReduceOperationConfig::Any,
         ReduceInstruction::All => ReduceOperationConfig::All,
+    };
+    if dtype.is_float() {
+        config.with_nan_propagation(burn_std::config::nan_policy().propagates_nan())
+    } else {
+        config
     }
 }
 

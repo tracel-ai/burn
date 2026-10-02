@@ -3,6 +3,7 @@ use cubecl_environment::sync::{Arc, Mutex};
 
 use super::autodiff::AutodiffConfig;
 use super::fusion::FusionConfig;
+use super::numerics::{NanPolicy, NumericsConfig, publish_nan_policy};
 use super::remote::RemoteConfig;
 
 /// Static mutex holding the global Burn configuration, initialized as `None`.
@@ -11,6 +12,10 @@ static BURN_GLOBAL_CONFIG: Mutex<Option<Arc<BurnConfig>>> = Mutex::new(None);
 /// Represents the global configuration for Burn.
 #[derive(Default, Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct BurnConfig {
+    /// Configuration for numerical contracts.
+    #[serde(default)]
+    numerics: NumericsConfig,
+
     /// Configuration for operation fusion.
     #[serde(default)]
     fusion: FusionConfig,
@@ -25,6 +30,17 @@ pub struct BurnConfig {
 }
 
 impl BurnConfig {
+    /// Returns the numerical-contract configuration.
+    pub fn numerics(&self) -> &NumericsConfig {
+        &self.numerics
+    }
+
+    /// Selects the NaN policy for covered operations on CubeCL backends.
+    pub fn with_nan_policy(mut self, policy: NanPolicy) -> Self {
+        self.numerics.nan_policy = policy;
+        self
+    }
+
     /// Returns a reference to the operation-fusion configuration.
     pub fn fusion(&self) -> &FusionConfig {
         &self.fusion
@@ -42,6 +58,10 @@ impl BurnConfig {
 }
 
 impl RuntimeConfig for BurnConfig {
+    fn on_loaded(&self) {
+        publish_nan_policy(self.numerics.nan_policy);
+    }
+
     fn storage() -> &'static Mutex<Option<Arc<Self>>> {
         &BURN_GLOBAL_CONFIG
     }

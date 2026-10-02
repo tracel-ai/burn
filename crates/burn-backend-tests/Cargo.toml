@@ -100,6 +100,7 @@ syn = { workspace = true }
 
 
 [dev-dependencies]
+burn-std = { workspace = true }
 # Used to initialize device settings (test dtypes)
 ctor = "0.10.1"
 divan = "0.1"
@@ -107,6 +108,11 @@ divan = "0.1"
 [[test]]
 name = "autodiff_transfer"
 required-features = ["flex", "ndarray"]
+
+[[bench]]
+name = "numerics"
+harness = false
+required-features = ["cube"]
 
 [[bench]]
 name = "attention"

@@ -986,11 +986,14 @@ fn clamp<C: Numeric, N: Size>(
     let elem_type = elem_type_of::<C>();
     let result = if comptime!(elem_type.is_float()) {
         let define!(F) = elem_type;
-        Vector::cast_from(clamp_nan(
-            Vector::<F, N>::cast_from(input),
-            Vector::<F, N>::cast_from(min),
-            Vector::<F, N>::cast_from(max),
-        ))
+        let input = Vector::<F, N>::cast_from(input);
+        let lower = Vector::<F, N>::cast_from(min);
+        let upper = Vector::<F, N>::cast_from(max);
+        if comptime!(config.propagate_nan) {
+            Vector::cast_from(clamp_nan(input, lower, upper))
+        } else {
+            Vector::cast_from(cubecl::prelude::clamp(input, lower, upper))
+        }
     } else {
         cubecl::prelude::clamp(input, min, max)
     };

@@ -6,6 +6,18 @@ use super::{FloatElem, IntElem};
 
 #[ctor]
 fn init_device_settings() {
+    // Existing exceptional-value assertions exercise propagation. Run native
+    // policy coverage in a separate process with BURN_TEST_NAN_POLICY=native.
+    #[cfg(feature = "cube")]
+    {
+        use burn_std::config::{BurnConfig, NanPolicy, RuntimeConfig};
+        let policy = match std::env::var("BURN_TEST_NAN_POLICY").as_deref() {
+            Ok("native") => NanPolicy::Native,
+            Ok("propagate") | Err(_) => NanPolicy::Propagate,
+            Ok(value) => panic!("invalid BURN_TEST_NAN_POLICY: {value}"),
+        };
+        BurnConfig::set(BurnConfig::default().with_nan_policy(policy));
+    }
     let mut device = burn_tensor::Device::default();
     device
         .configure(

@@ -279,7 +279,7 @@ pub(crate) trait CumulativeOpFamily: Send + Sync + 'static {
 #[cube]
 pub(crate) trait CumulativeOp<C: Numeric>: 'static + Send + Sync {
     /// Execute a cumulative operation
-    fn execute(lhs: C, rhs: C) -> C;
+    fn execute(lhs: C, rhs: C, #[comptime] propagate_nan: bool) -> C;
 
     /// Get the initial value for the accumulator
     fn init_value(first_element: C) -> C;
@@ -302,9 +302,9 @@ fn numeric_is_nan<N: Numeric>(value: N) -> bool {
 }
 
 #[cube]
-fn cumulative_max<N: Numeric>(lhs: N, rhs: N) -> N {
+fn cumulative_max<N: Numeric>(lhs: N, rhs: N, #[comptime] propagate_nan: bool) -> N {
     let elem_type = elem_type_of::<N>();
-    if comptime!(elem_type.is_float()) {
+    if comptime!(elem_type.is_float() && propagate_nan) {
         if numeric_is_nan::<N>(lhs) {
             lhs
         } else if numeric_is_nan::<N>(rhs) {
@@ -318,9 +318,9 @@ fn cumulative_max<N: Numeric>(lhs: N, rhs: N) -> N {
 }
 
 #[cube]
-fn cumulative_min<N: Numeric>(lhs: N, rhs: N) -> N {
+fn cumulative_min<N: Numeric>(lhs: N, rhs: N, #[comptime] propagate_nan: bool) -> N {
     let elem_type = elem_type_of::<N>();
-    if comptime!(elem_type.is_float()) {
+    if comptime!(elem_type.is_float() && propagate_nan) {
         if numeric_is_nan::<N>(lhs) {
             lhs
         } else if numeric_is_nan::<N>(rhs) {
@@ -353,7 +353,7 @@ impl CumulativeOpFamily for MinOp {
 // Implement CumulativeOp for each operation type
 #[cube]
 impl<N: Numeric> CumulativeOp<N> for SumOp {
-    fn execute(lhs: N, rhs: N) -> N {
+    fn execute(lhs: N, rhs: N, #[comptime] _propagate_nan: bool) -> N {
         lhs + rhs
     }
 
@@ -364,7 +364,7 @@ impl<N: Numeric> CumulativeOp<N> for SumOp {
 
 #[cube]
 impl<N: Numeric> CumulativeOp<N> for ProdOp {
-    fn execute(lhs: N, rhs: N) -> N {
+    fn execute(lhs: N, rhs: N, #[comptime] _propagate_nan: bool) -> N {
         lhs * rhs
     }
 
@@ -375,8 +375,8 @@ impl<N: Numeric> CumulativeOp<N> for ProdOp {
 
 #[cube]
 impl<N: Numeric> CumulativeOp<N> for MaxOp {
-    fn execute(lhs: N, rhs: N) -> N {
-        cumulative_max::<N>(lhs, rhs)
+    fn execute(lhs: N, rhs: N, #[comptime] propagate_nan: bool) -> N {
+        cumulative_max::<N>(lhs, rhs, propagate_nan)
     }
 
     fn init_value(first_element: N) -> N {
@@ -386,8 +386,8 @@ impl<N: Numeric> CumulativeOp<N> for MaxOp {
 
 #[cube]
 impl<N: Numeric> CumulativeOp<N> for MinOp {
-    fn execute(lhs: N, rhs: N) -> N {
-        cumulative_min::<N>(lhs, rhs)
+    fn execute(lhs: N, rhs: N, #[comptime] propagate_nan: bool) -> N {
+        cumulative_min::<N>(lhs, rhs, propagate_nan)
     }
 
     fn init_value(first_element: N) -> N {
@@ -414,6 +414,7 @@ fn cumulative_kernel<C: Numeric, O: CumulativeOpFamily>(
     mut output: LinearViewMut<'_, C>,
     shape: Sequence<FastDivmod<usize>>,
     #[comptime] dim: usize,
+    #[comptime] propagate_nan: bool,
     #[define(C)] _dtype: ElemType,
 ) {
     if !output.is_in_bounds(ABSOLUTE_POS) {
@@ -449,7 +450,7 @@ fn cumulative_kernel<C: Numeric, O: CumulativeOpFamily>(
     // Accumulate values
     for i in 0..=dim_idx {
         let read_idx = offset + i * dim_stride;
-        result = O::CumulativeOp::<C>::execute(result, input[read_idx]);
+        result = O::CumulativeOp::<C>::execute(result, input[read_idx], propagate_nan);
     }
     output.write(ABSOLUTE_POS, result);
 }
@@ -497,6 +498,7 @@ fn cumulative_op<O: CumulativeOpFamily>(input: CubeTensor, dim: usize) -> CubeTe
             output.clone().into_linear_view(),
             shape,
             dim,
+            output.dtype.is_float() && burn_std::config::nan_policy().propagates_nan(),
             dtype_to_storage_type(output.dtype),
         );
     }
