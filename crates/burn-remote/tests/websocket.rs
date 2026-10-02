@@ -31,10 +31,13 @@ fn with_deadlock_watchdog<T: Send + 'static>(
         value
     });
     match rx.recv_timeout(timeout) {
-        Ok(()) => handle.join().expect("worker thread panicked"),
-        Err(_) => {
-            panic!("Deadlock: the remote multi-device workload did not finish within {timeout:?}")
+        Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
+            panic!("Deadlock: still blocked after {timeout:?}")
         }
+        // Disconnected: `body` panicked, and joining hands that panic on.
+        _ => handle
+            .join()
+            .unwrap_or_else(|panic| std::panic::resume_unwind(panic)),
     }
 }
 
@@ -47,6 +50,18 @@ fn serve(rt: &tokio::runtime::Runtime, server: BackendServer<Flex>) -> RemoteHos
     let serving = server.serve_async(WebSocketTransport::from_listener(listener));
     rt.spawn(async move { serving.await.unwrap() });
     host
+}
+
+/// Bind `address` again once a stopped server has freed it. Another test's socket on an
+/// OS-picked port can hold it for a moment.
+fn rebind(address: std::net::SocketAddr) -> std::net::TcpListener {
+    for _ in 0..50 {
+        match std::net::TcpListener::bind(address) {
+            Ok(listener) => return listener,
+            Err(_) => std::thread::sleep(std::time::Duration::from_millis(100)),
+        }
+    }
+    panic!("{address} stayed taken after its server stopped");
 }
 
 fn host_of(listener: &std::net::TcpListener) -> RemoteHost {
@@ -481,7 +496,7 @@ fn a_device_whose_server_restarted_is_replaced_by_a_new_one() {
         assert!(read.is_err(), "a session outlived its server: {read:?}");
     });
 
-    let listener = std::net::TcpListener::bind(address).unwrap();
+    let listener = rebind(address);
     rt.spawn(
         BackendServer::<Flex>::new(vec![Default::default()])
             .serve_async(WebSocketTransport::from_listener(listener)),

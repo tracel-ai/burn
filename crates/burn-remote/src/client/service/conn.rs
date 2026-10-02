@@ -7,7 +7,7 @@
 
 use core::time::Duration;
 
-use super::HANDSHAKE_DEADLINE;
+use super::OPEN_DEADLINE;
 use crate::{
     ConnectError, Credential, PeerAddr, PeerId,
     transport::{
@@ -163,11 +163,11 @@ impl RemoteEndpoint {
     /// One attempt, given up at the deadline, as on a server that accepts connections and never
     /// serves them.
     async fn open_channels_within_deadline(&self) -> Result<SessionStreams, OpenError> {
-        crate::time::timeout(HANDSHAKE_DEADLINE, self.open_channels_once())
+        crate::time::timeout(OPEN_DEADLINE, self.open_channels_once())
             .await
             .unwrap_or_else(|()| {
                 Err(OpenError::Failed(format!(
-                    "the server did not answer within {HANDSHAKE_DEADLINE:?}"
+                    "no connection opened within {OPEN_DEADLINE:?}"
                 )))
             })
     }
