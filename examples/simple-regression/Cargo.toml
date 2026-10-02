@@ -26,4 +26,4 @@ serde = { workspace = true, features = ["std", "derive"] }
 
 # Displaying results
 textplots = "0.8.7"
-rgb = "0.8.52"
+rgb = "0.8.53"

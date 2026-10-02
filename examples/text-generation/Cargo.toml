@@ -28,7 +28,7 @@ rocm = ["burn/rocm"]
 burn = { workspace = true, features = ["default", "train"] }
 
 # Tokenizer
-tokenizers = { version = "0.22.2", default-features = false, features = [
+tokenizers = { version = "0.23.2", default-features = false, features = [
   "onig",
   "http",
 ] }

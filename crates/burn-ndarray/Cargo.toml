@@ -75,7 +75,7 @@ rand = { workspace = true, default-features = false }
 
 # SIMD
 bytemuck = { workspace = true, optional = true }
-itertools = { version = "0.14", optional = true }
+itertools = { version = "0.15", optional = true }
 macerator = { workspace = true, optional = true }
 seq-macro = { version = "0.3", optional = true }
 

@@ -57,7 +57,7 @@ tokio = { workspace = true, optional = true, features = ["rt-multi-thread"] }
 
 [dev-dependencies]
 divan = "0.1"
-ctor = "0.10.1"
+ctor = "1.0.13"
 
 [package.metadata.docs.rs]
 features = ["default", "flex", "autodiff"]
