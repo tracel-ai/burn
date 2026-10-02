@@ -9,8 +9,10 @@ use burn_core::tensor::{Int, Tensor};
 
 /// The Top-K accuracy metric.
 ///
-/// For K=1, this is equivalent to the [accuracy metric](`super::acc::AccuracyMetric`).
-#[derive(Default, Clone)]
+/// For K=1 (the default), this is equivalent to the [accuracy metric](`super::acc::AccuracyMetric`).
+///
+/// Updating the metric panics if K exceeds the number of output classes.
+#[derive(Clone)]
 pub struct TopKAccuracyMetric {
     name: Arc<String>,
     k: usize,
@@ -29,13 +31,29 @@ pub struct TopKAccuracyInput {
     targets: Tensor<1, Int>,
 }
 
+impl Default for TopKAccuracyMetric {
+    fn default() -> Self {
+        Self::new(1)
+    }
+}
+
 impl TopKAccuracyMetric {
     /// Creates the metric.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `k` is zero.
     pub fn new(k: usize) -> Self {
+        assert!(
+            k > 0,
+            "TopKAccuracyMetric requires k to be greater than zero"
+        );
+
         Self {
             name: Arc::new(format!("Top-K Accuracy @ TopK({})", k)),
             k,
-            ..Default::default()
+            state: Default::default(),
+            pad_token: None,
         }
     }
 
@@ -50,7 +68,13 @@ impl Metric for TopKAccuracyMetric {
     type Input = TopKAccuracyInput;
 
     fn update(&mut self, input: &TopKAccuracyInput, _metadata: &MetricMetadata) -> SerializedEntry {
-        let [batch_size, _n_classes] = input.outputs.dims();
+        let [batch_size, n_classes] = input.outputs.dims();
+        assert!(
+            self.k <= n_classes,
+            "TopKAccuracyMetric requires k ({}) to be no greater than the number of classes ({})",
+            self.k,
+            n_classes
+        );
 
         let targets = input.targets.clone();
 
@@ -124,6 +148,54 @@ impl Numeric for TopKAccuracyMetric {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    #[should_panic(expected = "TopKAccuracyMetric requires k to be greater than zero")]
+    fn test_zero_k_is_rejected() {
+        TopKAccuracyMetric::new(0);
+    }
+
+    #[test]
+    #[should_panic(
+        expected = "TopKAccuracyMetric requires k (4) to be no greater than the number of classes (3)"
+    )]
+    fn test_k_greater_than_class_count_is_rejected() {
+        let device = Default::default();
+        let mut metric = TopKAccuracyMetric::new(4);
+        let input = TopKAccuracyInput::new(
+            Tensor::from_data([[0.1, 0.2, 0.7]], &device),
+            Tensor::from_data([2], &device),
+        );
+
+        metric.update(&input, &MetricMetadata::fake());
+    }
+
+    #[test]
+    fn test_k_equal_to_class_count() {
+        let device = Default::default();
+        let mut metric = TopKAccuracyMetric::new(3);
+        let input = TopKAccuracyInput::new(
+            Tensor::from_data([[0.1, 0.2, 0.7]; 3], &device),
+            Tensor::from_data([0, 1, 2], &device),
+        );
+
+        metric.update(&input, &MetricMetadata::fake());
+        assert_eq!(100.0, metric.value().unwrap().current());
+    }
+
+    #[test]
+    fn test_default_uses_top_one() {
+        let device = Default::default();
+        let mut metric = TopKAccuracyMetric::default();
+        let input = TopKAccuracyInput::new(
+            Tensor::from_data([[0.1, 0.2, 0.7]; 2], &device),
+            Tensor::from_data([2, 1], &device),
+        );
+
+        assert_eq!(metric.name(), TopKAccuracyMetric::new(1).name());
+        metric.update(&input, &MetricMetadata::fake());
+        assert_eq!(50.0, metric.value().unwrap().current());
+    }
 
     #[test]
     fn test_accuracy_without_padding() {
