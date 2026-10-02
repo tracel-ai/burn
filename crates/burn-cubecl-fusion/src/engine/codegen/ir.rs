@@ -683,6 +683,8 @@ pub struct FuseBlockConfig {
     ///
     /// It only matters at a width above one: a single-element vector never steps.
     pub vector_axis: usize,
+    /// Whether covered floating operations enforce NaN propagation.
+    pub propagate_nan: bool,
 }
 
 impl AsRefExpand for FuseBlockConfig {

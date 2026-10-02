@@ -169,6 +169,7 @@ impl<'a> LaunchPlanExecutor<'a> {
                 ops,
                 width: block_plan.width,
                 vector_axis,
+                propagate_nan: burn_std::config::nan_policy().propagates_nan(),
             };
             configs.push(config);
         }

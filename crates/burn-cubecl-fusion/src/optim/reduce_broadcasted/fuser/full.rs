@@ -4,7 +4,7 @@ use crate::{
         settings::{FuseSettings, RefLayoutSetting, VectorizationSetting},
     },
     optim::{
-        reduce::{FusedReduce, ReduceInstruction},
+        reduce::FusedReduce,
         reduce_broadcasted::{
             ReduceBroadcastedInfo,
             fuser::{
@@ -16,7 +16,6 @@ use crate::{
     },
 };
 use burn_fusion::OperationFuser;
-use cubek::reduce::components::instructions::ReduceOperationConfig;
 
 /// Responsible for fusing a single trace for all operations involved in this optimization.
 pub struct ReduceBroadcastedFullFuser {
@@ -82,21 +81,8 @@ impl ReduceBroadcastedFullFuser {
             match block {
                 ReduceBlockKind::Elemwise => {}
                 ReduceBlockKind::Reduce { reduce, .. } => {
-                    let config = match reduce.inst {
-                        ReduceInstruction::ArgMax => ReduceOperationConfig::ArgMax,
-                        ReduceInstruction::ArgMin => ReduceOperationConfig::ArgMin,
-                        ReduceInstruction::Prod => ReduceOperationConfig::Prod,
-                        ReduceInstruction::Mean => ReduceOperationConfig::Mean,
-                        ReduceInstruction::Sum => ReduceOperationConfig::Sum,
-                        ReduceInstruction::Max => ReduceOperationConfig::Max,
-                        ReduceInstruction::Min => ReduceOperationConfig::Min,
-                        ReduceInstruction::MaxAbs => ReduceOperationConfig::MaxAbs,
-                        ReduceInstruction::Any => ReduceOperationConfig::Any,
-                        ReduceInstruction::All => ReduceOperationConfig::All,
-                    };
-
                     let block = ReduceBroadcastedFuseBlock {
-                        op: config,
+                        inst: reduce.inst,
                         input: reduce.input.clone(),
                         output: reduce.output.clone(),
                     };

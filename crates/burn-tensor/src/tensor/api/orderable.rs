@@ -576,11 +576,17 @@ where
     /// contains multiple NaNs, the lowest coordinate along `dim` is returned. Non-NaN ties also
     /// return the lowest coordinate.
     ///
+    /// On CubeCL backends, NaN propagation requires
+    /// [`NanPolicy::Propagate`](burn_std::config::NanPolicy::Propagate). The default
+    /// [`NanPolicy::Native`](burn_std::config::NanPolicy::Native) permits backend-dependent NaN results.
+    ///
     /// # Example
     ///
     /// ```rust
     /// use burn_tensor::{Tensor, Shape};
     ///
+    /// # use burn_std::config::{BurnConfig, NanPolicy, RuntimeConfig};
+    /// # BurnConfig::set(BurnConfig::default().with_nan_policy(NanPolicy::Propagate));
     /// let device = Default::default();
     /// let tensor = Tensor::<3>::ones(Shape::new([2, 3, 3]), &device);
     /// let tensor = tensor.argmax(1);
@@ -624,11 +630,17 @@ where
     ///
     /// For floating-point tensors, the result is NaN if any element is NaN.
     ///
+    /// On CubeCL backends, NaN propagation requires
+    /// [`NanPolicy::Propagate`](burn_std::config::NanPolicy::Propagate). The default
+    /// [`NanPolicy::Native`](burn_std::config::NanPolicy::Native) permits backend-dependent NaN results.
+    ///
     /// # Example
     ///
     /// ```rust
     /// use burn_tensor::{Tensor, Shape};
     ///
+    /// # use burn_std::config::{BurnConfig, NanPolicy, RuntimeConfig};
+    /// # BurnConfig::set(BurnConfig::default().with_nan_policy(NanPolicy::Propagate));
     /// let device = Default::default();
     /// let tensor = Tensor::<2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
     /// let tensor = tensor.max();
@@ -650,6 +662,10 @@ where
     /// For floating-point tensors, a NaN in a reduced slice produces a NaN value. The returned
     /// index is the lowest coordinate containing NaN. Non-NaN ties also return the lowest
     /// coordinate.
+    ///
+    /// On CubeCL backends, NaN propagation requires
+    /// [`NanPolicy::Propagate`](burn_std::config::NanPolicy::Propagate). The default
+    /// [`NanPolicy::Native`](burn_std::config::NanPolicy::Native) permits backend-dependent NaN results.
     ///
     /// # Example
     ///
@@ -678,6 +694,10 @@ where
     /// Find the maximum absolute value.
     ///
     /// For floating-point tensors, the result is NaN if any element is NaN.
+    ///
+    /// On CubeCL backends, NaN propagation requires
+    /// [`NanPolicy::Propagate`](burn_std::config::NanPolicy::Propagate). The default
+    /// [`NanPolicy::Native`](burn_std::config::NanPolicy::Native) permits backend-dependent NaN results.
     ///
     /// # Example
     ///
@@ -736,6 +756,10 @@ where
     ///
     /// For floating-point tensors, a reduced slice produces NaN if it contains a NaN.
     ///
+    /// On CubeCL backends, NaN propagation requires
+    /// [`NanPolicy::Propagate`](burn_std::config::NanPolicy::Propagate). The default
+    /// [`NanPolicy::Native`](burn_std::config::NanPolicy::Native) permits backend-dependent NaN results.
+    ///
     /// # Example
     ///
     /// ```rust
@@ -766,6 +790,10 @@ where
     /// but the aggregated dimensions will have size 1.
     ///
     /// For floating-point tensors, a reduced region produces NaN if it contains a NaN.
+    ///
+    /// On CubeCL backends, NaN propagation requires
+    /// [`NanPolicy::Propagate`](burn_std::config::NanPolicy::Propagate). The default
+    /// [`NanPolicy::Native`](burn_std::config::NanPolicy::Native) permits backend-dependent NaN results.
     ///
     /// # Example
     ///
@@ -806,6 +834,10 @@ where
     /// contains multiple NaNs, the lowest coordinate along `dim` is returned. Non-NaN ties also
     /// return the lowest coordinate.
     ///
+    /// On CubeCL backends, NaN propagation requires
+    /// [`NanPolicy::Propagate`](burn_std::config::NanPolicy::Propagate). The default
+    /// [`NanPolicy::Native`](burn_std::config::NanPolicy::Native) permits backend-dependent NaN results.
+    ///
     /// # Example
     ///
     /// ```rust
@@ -825,6 +857,10 @@ where
     /// Find the minimum value.
     ///
     /// For floating-point tensors, the result is NaN if any element is NaN.
+    ///
+    /// On CubeCL backends, NaN propagation requires
+    /// [`NanPolicy::Propagate`](burn_std::config::NanPolicy::Propagate). The default
+    /// [`NanPolicy::Native`](burn_std::config::NanPolicy::Native) permits backend-dependent NaN results.
     ///
     /// # Example
     ///
@@ -854,6 +890,10 @@ where
     /// but the aggregated dimension will have size 1.
     ///
     /// For floating-point tensors, a reduced slice produces NaN if it contains a NaN.
+    ///
+    /// On CubeCL backends, NaN propagation requires
+    /// [`NanPolicy::Propagate`](burn_std::config::NanPolicy::Propagate). The default
+    /// [`NanPolicy::Native`](burn_std::config::NanPolicy::Native) permits backend-dependent NaN results.
     ///
     /// # Example
     ///
@@ -885,6 +925,10 @@ where
     ///
     /// For floating-point tensors, a reduced region produces NaN if it contains a NaN.
     ///
+    /// On CubeCL backends, NaN propagation requires
+    /// [`NanPolicy::Propagate`](burn_std::config::NanPolicy::Propagate). The default
+    /// [`NanPolicy::Native`](burn_std::config::NanPolicy::Native) permits backend-dependent NaN results.
+    ///
     /// # Example
     ///
     /// ```rust
@@ -907,6 +951,10 @@ where
     /// For floating-point tensors, a NaN in a reduced slice produces a NaN value. The returned
     /// index is the lowest coordinate containing NaN. Non-NaN ties also return the lowest
     /// coordinate.
+    ///
+    /// On CubeCL backends, NaN propagation requires
+    /// [`NanPolicy::Propagate`](burn_std::config::NanPolicy::Propagate). The default
+    /// [`NanPolicy::Native`](burn_std::config::NanPolicy::Native) permits backend-dependent NaN results.
     ///
     /// # Example
     ///
@@ -961,6 +1009,16 @@ where
     }
 
     /// Clamp element wise between the given min and max values.
+    ///
+    /// For non-NaN bounds, portable behavior requires `min <= max`. When `min > max`,
+    /// behavior is backend-dependent and may panic.
+    ///
+    /// For floating-point tensors, NaN tensor elements remain NaN, and a NaN in either
+    /// bound makes every output element NaN.
+    ///
+    /// On CubeCL backends, NaN propagation requires
+    /// [`NanPolicy::Propagate`](burn_std::config::NanPolicy::Propagate). The default
+    /// [`NanPolicy::Native`](burn_std::config::NanPolicy::Native) permits backend-dependent NaN results.
     ///
     /// For floating-point tensors, if the result is zero and the input and bounds
     /// include zeros of opposite signs, either sign of zero may be returned.
@@ -1068,6 +1126,10 @@ where
     /// For floating-point tensors, once a NaN is encountered in a scan, the output at that
     /// position and every later position in the scan is NaN.
     ///
+    /// On CubeCL backends, NaN propagation requires
+    /// [`NanPolicy::Propagate`](burn_std::config::NanPolicy::Propagate). The default
+    /// [`NanPolicy::Native`](burn_std::config::NanPolicy::Native) permits backend-dependent NaN results.
+    ///
     /// # Example
     ///
     /// ```rust
@@ -1096,6 +1158,10 @@ where
     ///
     /// For floating-point tensors, once a NaN is encountered in a scan, the output at that
     /// position and every later position in the scan is NaN.
+    ///
+    /// On CubeCL backends, NaN propagation requires
+    /// [`NanPolicy::Propagate`](burn_std::config::NanPolicy::Propagate). The default
+    /// [`NanPolicy::Native`](burn_std::config::NanPolicy::Native) permits backend-dependent NaN results.
     ///
     /// # Example
     ///
@@ -1129,6 +1195,10 @@ where
     ///
     /// For floating-point tensors, a reduced slice produces NaN if it contains a NaN.
     ///
+    /// On CubeCL backends, NaN propagation requires
+    /// [`NanPolicy::Propagate`](burn_std::config::NanPolicy::Propagate). The default
+    /// [`NanPolicy::Native`](burn_std::config::NanPolicy::Native) permits backend-dependent NaN results.
+    ///
     /// # Example
     ///
     /// ```rust
@@ -1158,6 +1228,10 @@ where
     /// but the aggregated dimensions will have size 1.
     ///
     /// For floating-point tensors, a reduced region produces NaN if it contains a NaN.
+    ///
+    /// On CubeCL backends, NaN propagation requires
+    /// [`NanPolicy::Propagate`](burn_std::config::NanPolicy::Propagate). The default
+    /// [`NanPolicy::Native`](burn_std::config::NanPolicy::Native) permits backend-dependent NaN results.
     ///
     /// # Example
     ///

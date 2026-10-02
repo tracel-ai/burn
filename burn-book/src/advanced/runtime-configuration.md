@@ -1,7 +1,7 @@
 # Runtime Configuration
 
-Burn provides runtime configuration for autotuning, profiling, logging, operation fusion, and
-remote-backend batching.
+Burn provides runtime configuration for numerical contracts, autotuning, profiling, logging,
+operation fusion, and remote-backend batching.
 
 ## Overview
 
@@ -36,6 +36,9 @@ logger = { level = "basic", stderr = true }
 [autodiff]
 logger = { level = "disabled" }
 
+[numerics]
+nan_policy = "native"
+
 [remote]
 flush_threshold = 4
 flush_bytes_threshold = 1048576
@@ -46,6 +49,7 @@ Each section configures a different aspect of Burn:
 - **cubecl**: Configures autotuning, profiling, compilation, and memory for CubeCL backends.
 - **fusion**: Controls operation fusion and its logging.
 - **autodiff**: Controls automatic differentiation logging.
+- **numerics**: Selects NaN contracts for covered floating-point operations.
 - **remote**: Configures remote-backend batching and logging.
 
 ## Configuration Options
@@ -117,6 +121,40 @@ The `[autodiff]` section controls logging for automatic differentiation.
 logger = { level = "basic", stderr = true }
 ```
 
+### Numerics
+
+`nan_policy` controls NaN handling on CubeCL backends (including fusion) for floating-point `max`,
+`min`, and `max_abs` reductions, indexed extrema, `cummax`/`cummin`, and two-sided `clamp`.
+
+```toml
+[numerics]
+nan_policy = "native" # Default; alternatively, "propagate".
+```
+
+- **`native`** permits backend-dependent NaN results to allow faster implementations. Results may
+  vary with kernel strategy, autotuning, or fusion.
+- **`propagate`** enforces NaN propagation. Indexed extrema select the lowest NaN index, scans
+  propagate NaNs through subsequent elements, and a NaN clamp bound makes every output NaN.
+
+Both policies preserve supported non-NaN behavior, infinity handling, lowest-index ties, and valid
+indices with matching values for nonempty indexed reductions. Other operations and backends retain
+their existing behavior. Flex does not yet use this setting and retains NaN propagation for these
+operations, so its default NaN behavior can differ from CubeCL.
+
+On CubeCL backends, the `native` default restores the absence of portable NaN guarantees in Burn
+0.21 and earlier. Select `propagate` to retain the stronger guarantees introduced in later versions.
+
+To select the policy in Rust:
+
+```rust,ignore
+use burn::{BurnConfig, NanPolicy, RuntimeConfig};
+
+BurnConfig::set(BurnConfig::default().with_nan_policy(NanPolicy::Propagate));
+```
+
+Set it before any Burn configuration read or operation initialization; configuration is immutable
+after its first read. Graphs use the replaying process's policy; remote operations use the server's.
+
 ### Remote Backend
 
 The `[remote]` section controls outgoing message batching, remote-backend logging and the Iroh
@@ -139,8 +177,8 @@ sent.
 
 **Transport Settings:**
 
-- `iroh_segmentation_offload`: Lets the Iroh endpoints Burn binds send segmentation-offloaded
-  (GSO) batches (default: `false`, see [iroh#4555](https://github.com/n0-computer/iroh/issues/4555)).
+- `iroh_segmentation_offload`: Lets the Iroh endpoints Burn binds send segmentation-offloaded (GSO)
+  batches (default: `false`, see [iroh#4555](https://github.com/n0-computer/iroh/issues/4555)).
 
 **Example:**
 

@@ -42,11 +42,16 @@ fn empty_reduce_identity(config: ReduceOperationConfig, dtype: DType) -> Option<
         // Only floats can carry `NaN`; an integer mean of nothing has no representable value.
         ReduceOperationConfig::Mean => dtype.is_float().then_some(f64::NAN),
         ReduceOperationConfig::Max
+        | ReduceOperationConfig::MaxNan
         | ReduceOperationConfig::Min
+        | ReduceOperationConfig::MinNan
         | ReduceOperationConfig::MaxAbs
+        | ReduceOperationConfig::MaxAbsNan
         | ReduceOperationConfig::TopK(_)
         | ReduceOperationConfig::ArgMax
+        | ReduceOperationConfig::ArgMaxNan
         | ReduceOperationConfig::ArgMin
+        | ReduceOperationConfig::ArgMinNan
         | ReduceOperationConfig::ArgTopK(_) => None,
     }
 }
@@ -395,11 +400,12 @@ pub fn reduce_dim(
     config: ReduceOperationConfig,
 ) -> Result<CubeTensor, cubek::reduce::ReduceError> {
     let input = crate::kernel::untile(input);
+    let config = policy_config(config, input.dtype);
     debug_assert!(
         !matches!(
             config,
-            ReduceOperationConfig::ArgMax
-                | ReduceOperationConfig::ArgMin
+            ReduceOperationConfig::ArgMax | ReduceOperationConfig::ArgMaxNan
+                | ReduceOperationConfig::ArgMin | ReduceOperationConfig::ArgMinNan
                 | ReduceOperationConfig::ArgTopK(_)
                 | ReduceOperationConfig::Any
                 | ReduceOperationConfig::All
@@ -485,21 +491,28 @@ pub fn reduce_dim_with_indices(
     strategy: KernelReduceStrategy,
     config: ReduceOperationConfig,
 ) -> Result<(CubeTensor, CubeTensor), ReduceError> {
+    let config = policy_config(config, input.dtype);
     let unsupported = |operation| ReduceError::IndicesUnsupported { operation };
 
     // Fold each `Arg*` onto its value counterpart: `precision` would otherwise demand an
     // output dtype, which here only ever applies to the indices.
     let config = match config {
         ReduceOperationConfig::ArgMax => ReduceOperationConfig::Max,
+        ReduceOperationConfig::ArgMaxNan => ReduceOperationConfig::MaxNan,
         ReduceOperationConfig::ArgMin => ReduceOperationConfig::Min,
+        ReduceOperationConfig::ArgMinNan => ReduceOperationConfig::MinNan,
         ReduceOperationConfig::ArgTopK(k) => ReduceOperationConfig::TopK(k),
         ReduceOperationConfig::Max
+        | ReduceOperationConfig::MaxNan
         | ReduceOperationConfig::Min
+        | ReduceOperationConfig::MinNan
         | ReduceOperationConfig::TopK(_) => config,
         ReduceOperationConfig::Sum => return Err(unsupported("Sum")),
         ReduceOperationConfig::Prod => return Err(unsupported("Prod")),
         ReduceOperationConfig::Mean => return Err(unsupported("Mean")),
-        ReduceOperationConfig::MaxAbs => return Err(unsupported("MaxAbs")),
+        ReduceOperationConfig::MaxAbs | ReduceOperationConfig::MaxAbsNan => {
+            return Err(unsupported("MaxAbs"));
+        }
         ReduceOperationConfig::Any => return Err(unsupported("Any")),
         ReduceOperationConfig::All => return Err(unsupported("All")),
     };
@@ -639,5 +652,15 @@ impl Default for KernelReduceStrategy {
 
         #[cfg(not(feature = "autotune"))]
         return Self::Unspecified;
+    }
+}
+
+/// Select the process policy only for floating extrema; integer kernels retain
+/// their existing configuration and all other operations pass through unchanged.
+fn policy_config(config: ReduceOperationConfig, dtype: DType) -> ReduceOperationConfig {
+    if dtype.is_float() {
+        config.with_nan_propagation(burn_std::config::nan_policy().propagates_nan())
+    } else {
+        config
     }
 }

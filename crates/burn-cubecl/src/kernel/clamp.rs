@@ -12,9 +12,11 @@ use crate::{
 struct Options {
     min_value: InputScalar,
     max_value: InputScalar,
+    #[cube(comptime)]
+    propagate_nan: bool,
 }
 
-/// Clamp a float tensor, keeping NaN inputs.
+/// Clamp a float tensor according to the process NaN policy.
 pub(crate) fn clamp_float(
     input: CubeTensor,
     min_value: InputScalar,
@@ -29,7 +31,11 @@ pub(crate) fn clamp_float(
         fn execute(input: Vector<F, N>, options: &Self::Options) -> Vector<F, N> {
             let min_value = Vector::new(options.min_value.get::<F>());
             let max_value = Vector::new(options.max_value.get::<F>());
-            clamp_nan(input, min_value, max_value)
+            if comptime!(options.propagate_nan) {
+                clamp_nan(input, min_value, max_value)
+            } else {
+                cubecl::prelude::clamp(input, min_value, max_value)
+            }
         }
     }
 
@@ -38,7 +44,13 @@ pub(crate) fn clamp_float(
         type Unary<F: Float, N: Size> = Self;
     }
 
-    launch_unary_float::<ClampOp, _>(input, |_| OptionsLaunch::new(min_value, max_value))
+    launch_unary_float::<ClampOp, _>(input, |_| {
+        OptionsLaunch::new(
+            min_value,
+            max_value,
+            burn_std::config::nan_policy().propagates_nan(),
+        )
+    })
 }
 
 /// Clamp an int tensor.
@@ -67,5 +79,5 @@ pub(crate) fn clamp_int(
         type Unary<T: Numeric, N: Size> = Self;
     }
 
-    launch_unary_numeric::<ClampOp, _>(input, |_| OptionsLaunch::new(min_value, max_value))
+    launch_unary_numeric::<ClampOp, _>(input, |_| OptionsLaunch::new(min_value, max_value, true))
 }
