@@ -157,9 +157,9 @@ impl RemoteClient {
     /// This runs for every op, but only ops that carry device ids (currently the collective ops)
     /// are affected. On the client, the participating devices are identified by their *remote*
     /// device ids, whose `index_id` is this process's registry index for `address` + device index.
-    /// The server cannot resolve that index, so we translate each id to the plain server-local
-    /// device index (in `index_id`, with `type_id` 0), which the server hands to its backend
-    /// unchanged.
+    /// The server cannot resolve that index, so we translate each id to the device's position on
+    /// the server (in `index_id`, with `type_id` 0), which the server resolves to the backend id
+    /// of the device it hosts there.
     ///
     /// Only same-server collectives are supported for now: every participating device must live
     /// on the same address as the tensor's device. A cross-server group panics with a clear

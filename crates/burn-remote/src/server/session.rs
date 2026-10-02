@@ -1,6 +1,7 @@
 use burn_backend::tensor::Device;
-use burn_ir::BackendIr;
+use burn_ir::{BackendIr, DeviceIdIr, DistributedOperationIr, OperationIr};
 use burn_router::{CustomOpRegistry, TensorInterpreter};
+use burn_std::device::Device as _;
 use std::{
     collections::HashMap,
     sync::{Arc, Once},
@@ -23,6 +24,33 @@ use crate::telemetry::{TelemetryEvent, TelemetryProbe};
 /// writer surfaces as a backpressure stall rather than memory growth.
 const RESPONSE_CHANNEL_CAPACITY: usize = 64;
 
+/// The backend id of each hosted device, by its position on this server, which is how a client
+/// names the devices of a collective.
+#[derive(Clone, Debug)]
+pub(crate) struct HostedDeviceIds(Arc<[DeviceIdIr]>);
+
+impl HostedDeviceIds {
+    pub(crate) fn of<B: BackendIr>(devices: &[Device<B>]) -> Self {
+        Self(devices.iter().map(|device| device.to_id().into()).collect())
+    }
+
+    /// Point an all-reduce's devices, named by position, at their backend ids.
+    pub(crate) fn resolve(&self, op: &mut OperationIr) -> Result<(), String> {
+        if let OperationIr::Distributed(DistributedOperationIr::AllReduce(desc)) = op {
+            for id in desc.device_ids.iter_mut() {
+                *id = *self.0.get(usize::from(id.index_id)).ok_or_else(|| {
+                    format!(
+                        "an all_reduce names device {} of this server, which hosts {}",
+                        id.index_id,
+                        self.0.len()
+                    )
+                })?;
+            }
+        }
+        Ok(())
+    }
+}
+
 /// Coordinates per-session state.
 ///
 /// Each [`Session`] owns a dedicated [`SessionHandler`] that holds the session's
@@ -44,6 +72,7 @@ where
     /// All devices this server hosts, indexed by the device index the client selects at
     /// session init. `devices[0]` is the default device (`DeviceIndex::Default`).
     devices: Vec<Device<B>>,
+    device_ids: HostedDeviceIds,
     pub(crate) transfer: Arc<T>,
     /// Rendezvous registry for same-host tensor transfers between this server's sessions.
     pub(crate) local_comm: Arc<LocalCommService<B>>,
@@ -72,6 +101,7 @@ where
             "A remote server must host at least one device"
         );
         Self {
+            device_ids: HostedDeviceIds::of::<B>(&devices),
             devices,
             transfer,
             local_comm: Arc::new(LocalCommService::new()),
@@ -142,6 +172,7 @@ where
             let task_sender = SessionHandler::spawn(
                 session_id,
                 runner,
+                self.device_ids.clone(),
                 sender,
                 self.transfer.clone(),
                 self.local_comm.clone(),
@@ -207,5 +238,43 @@ where
                 session: session_id,
             });
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use burn_backend::{DType, Shape, distributed::ReduceOperation};
+    use burn_ir::{AllReduceOpIr, TensorId, TensorIr};
+
+    fn device(type_id: u16, index_id: u16) -> DeviceIdIr {
+        DeviceIdIr { type_id, index_id }
+    }
+
+    fn all_reduce(device_ids: Vec<DeviceIdIr>) -> OperationIr {
+        let tensor = TensorIr::uninit(TensorId::new(0), Shape::new([2]), DType::F32);
+        OperationIr::Distributed(DistributedOperationIr::AllReduce(AllReduceOpIr {
+            out: tensor.clone(),
+            tensor,
+            op: ReduceOperation::Sum,
+            device_ids,
+        }))
+    }
+
+    #[test]
+    fn a_collective_names_the_hosted_devices_by_position() {
+        let hosted = HostedDeviceIds(Arc::from([device(3, 2), device(3, 3)]));
+        let mut op = all_reduce(vec![device(0, 0), device(0, 1)]);
+
+        hosted.resolve(&mut op).unwrap();
+
+        assert_eq!(op, all_reduce(vec![device(3, 2), device(3, 3)]));
+    }
+
+    #[test]
+    fn a_collective_naming_an_unhosted_position_is_refused() {
+        let hosted = HostedDeviceIds(Arc::from([device(3, 2)]));
+
+        assert!(hosted.resolve(&mut all_reduce(vec![device(0, 1)])).is_err());
     }
 }

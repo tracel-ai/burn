@@ -48,6 +48,7 @@ use tokio::runtime::Handle;
 use tokio::sync::mpsc;
 
 use crate::server::local_comm::LocalCommService;
+use crate::server::session::HostedDeviceIds;
 use crate::server::spawn::{ResponseTasks, spawn_detached};
 use crate::server::transfer::TensorTransfer;
 use crate::shared::{RequestId, SessionId, Task, TaskResponse, TaskResponseContent};
@@ -75,6 +76,7 @@ where
 {
     session_id: SessionId,
     runner: TensorInterpreter<B>,
+    device_ids: HostedDeviceIds,
     response_sender: mpsc::Sender<TaskResponse>,
     response_tasks: ResponseTasks,
     transfer: Arc<T>,
@@ -101,6 +103,7 @@ where
     pub(crate) fn spawn(
         session_id: SessionId,
         runner: TensorInterpreter<B>,
+        device_ids: HostedDeviceIds,
         response_sender: mpsc::Sender<TaskResponse>,
         transfer: Arc<T>,
         local_comm: Arc<LocalCommService<B>>,
@@ -109,6 +112,7 @@ where
         let handler = SessionHandler {
             session_id,
             runner,
+            device_ids,
             response_sender,
             response_tasks: ResponseTasks::default(),
             transfer,
@@ -231,7 +235,8 @@ where
     /// the future at construction time via `executes`.
     async fn process_task(&mut self, task: Task) -> Result<(), String> {
         match task {
-            Task::RegisterOperation(stream_id, op) => {
+            Task::RegisterOperation(stream_id, mut op) => {
+                self.device_ids.resolve(&mut op)?;
                 // An op received individually (not as part of a cached graph) is an unfused op.
                 self.emit_op(stream_id, &op);
                 stream_id.executes(|| self.runner.register_op(op));
@@ -562,6 +567,7 @@ mod tests {
         let tasks = SessionHandler::spawn(
             SessionId::new(),
             TensorInterpreter::new(Default::default()),
+            HostedDeviceIds::of::<Flex>(&[Default::default()]),
             response_sender,
             Arc::new(NoTransfer),
             local_comm.clone(),
@@ -612,6 +618,7 @@ mod tests {
         let mut handler = SessionHandler {
             session_id: SessionId::new(),
             runner: TensorInterpreter::new(Default::default()),
+            device_ids: HostedDeviceIds::of::<Flex>(&[Default::default()]),
             response_sender,
             response_tasks: ResponseTasks::default(),
             transfer: Arc::new(NoTransfer),
