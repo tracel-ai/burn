@@ -117,8 +117,8 @@ A `RemoteHost` names the server, and `Device::remote_options` connects one of it
 let host = RemoteHost::iroh(server_id).with_credential(token);
 let device = Device::remote_options(&host).init()?;
 
-let tensor = Tensor::<1>::from_floats([1.0, 2.0, 3.0], &device);
-let output = tensor.square().sum(); // Executed by the remote server.
+let tensor = Tensor::<2>::ones([32, 128], &device);
+let output = model.to_device(&device).forward(tensor); // Executed by the remote server.
 ```
 
 The server hosts its devices on a transport:
