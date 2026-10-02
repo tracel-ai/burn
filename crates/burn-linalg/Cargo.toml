@@ -50,4 +50,4 @@ features = ["default", "flex"]
 rustdoc-args = ["--cfg", "docsrs"]
 
 [dev-dependencies]
-ctor = "0.10.1"
+ctor = "1.0.13"

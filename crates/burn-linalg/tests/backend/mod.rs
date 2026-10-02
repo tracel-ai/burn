@@ -5,7 +5,7 @@ pub(crate) type IntElem = i32;
 pub(crate) type TestTensor<const D: usize> = Tensor<D>;
 pub(crate) type TestTensorInt<const D: usize> = Tensor<D, Int>;
 
-#[ctor::ctor]
+#[ctor::ctor(unsafe)]
 fn init_device_settings() {
     let mut device = burn_core::tensor::Device::default();
     device

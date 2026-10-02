@@ -14,7 +14,7 @@ use ctor::ctor;
 pub type FloatElem = f32;
 pub type IntElem = i32;
 
-#[ctor]
+#[ctor(unsafe)]
 fn init_device_settings() {
     let mut device = burn_core::tensor::Device::default();
     device
@@ -55,7 +55,7 @@ struct BenchFailure {
 
 static FAILURES: Mutex<Vec<BenchFailure>> = Mutex::new(Vec::new());
 
-#[ctor]
+#[ctor(unsafe)]
 fn install_panic_hook() {
     // Chain onto the existing hook rather than replacing it so truly unexpected panics (outside
     // `bench_synced`'s catch_unwind window) still print normally.
