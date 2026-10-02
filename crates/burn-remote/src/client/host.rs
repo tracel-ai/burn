@@ -2,8 +2,10 @@
 
 use core::future::Future;
 
+use burn_router::get_client;
+
 use super::service::RemoteEndpoint;
-use super::{ConnectError, RemoteDevice, service};
+use super::{ConnectError, RemoteChannel, RemoteDevice, service};
 use crate::Credential;
 #[cfg(not(target_family = "wasm"))]
 use crate::runtime;
@@ -126,12 +128,8 @@ impl HostSpec {
     /// enough runners blocking every worker would stop all I/O.
     #[cfg(not(target_family = "wasm"))]
     fn connect_blocking(&self, index: usize) -> Result<RemoteDevice, ConnectError> {
-        let endpoint = self.endpoint_blocking()?;
-        let device = RemoteDevice::open(endpoint.clone(), index)?;
-        if device.session_ended() {
-            // A new registration has no session to confirm, so it opens one.
-            return RemoteDevice::open(endpoint, index);
-        }
+        let device = RemoteDevice::register(self.endpoint_blocking()?, index);
+        get_client::<RemoteChannel>(&device).connect()?;
         Ok(device)
     }
 
@@ -156,11 +154,8 @@ impl HostSpec {
     #[cfg(target_family = "wasm")]
     async fn connect_in_browser(&self, index: usize) -> Result<RemoteDevice, ConnectError> {
         let endpoint = self.endpoint().await?;
-        let device = RemoteDevice::open_async(endpoint.clone(), index).await?;
-        if device.session_ended() {
-            // A new registration has no session to confirm, so it opens one.
-            return RemoteDevice::open_async(endpoint, index).await;
-        }
+        let device = RemoteDevice::register(endpoint, index);
+        get_client::<RemoteChannel>(&device).connect_async().await?;
         Ok(device)
     }
 }

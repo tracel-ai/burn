@@ -836,6 +836,14 @@ mod iroh_peer {
         let stopped = Device::remote_options(&host).init_async().await.unwrap();
         first.abort();
         assert!(first.await.unwrap_err().is_cancelled());
+        // A read fails only once the client has seen the session end, which a reconnect relies on.
+        let stale = stopped.clone();
+        let read = tokio::task::spawn_blocking(move || {
+            (Tensor::<1>::from_floats([1.0], &stale) * 2.0).try_into_data()
+        })
+        .await
+        .unwrap();
+        assert!(read.is_err(), "a session outlived its server: {read:?}");
 
         for _ in 0..REBIND_ATTEMPTS {
             let next = serve();

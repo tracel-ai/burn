@@ -49,7 +49,8 @@ impl RemoteHost {
     }
 
     /// Every device the server hosts. Device 0 connects, which reports the count; the others
-    /// connect on first use, as a local backend's listed devices initialize on first use.
+    /// connect on first use, as a local backend's listed devices initialize on first use. A device
+    /// whose session ended is listed as its replacement, as [`RemoteOptions::init`] describes.
     /// `Device::enumerate(DeviceType::Remote(host))` lists the same devices, and panics where this
     /// returns an error.
     ///
@@ -117,15 +118,16 @@ impl RemoteOptions {
     }
 
     /// Open the device's session and wait for the server's answer. A device connected before is
-    /// returned once the server answers on its open session.
+    /// returned with the session it already has.
     ///
     /// A device whose session ended, as when its server restarted, is not reopened: this connects
-    /// a new device, and the old one's tensors are gone. A server that went away without closing
-    /// the session is found out here, once the transport gives up on it. Reads on the old device
-    /// return errors, and its queries that cannot, such as `dtype_usage`, panic.
+    /// a new device, and the old one's tensors are gone. Reads on the old device return errors,
+    /// moving a tensor to or from it panics, and its queries that cannot fail, such as
+    /// `dtype_usage`, panic. A server that went away without closing the session is noticed once
+    /// the transport gives up on it, and until then this returns the old device.
     ///
-    /// Every device keeps its id and its runner thread for the life of the process. A process can
-    /// connect 65,536 devices, a new one each time a session ended, and panics on the next.
+    /// Every device keeps its id and its runner thread for the life of the process, so each
+    /// replacement costs one more. A process can connect 65,536 devices, and panics on the next.
     #[cfg(not(target_family = "wasm"))]
     pub fn init(self) -> Result<Device, ConnectError> {
         Ok(Device::new(
@@ -133,8 +135,8 @@ impl RemoteOptions {
         ))
     }
 
-    /// Open the device's session from any executor. Dropping the future does not cancel a connect
-    /// that has started: it finishes in the background.
+    /// Open the device's session from any executor, as [`init`](Self::init) does. Dropping the
+    /// future does not cancel a connect that has started: it finishes in the background.
     #[cfg(not(target_family = "wasm"))]
     pub fn init_async(
         self,
@@ -143,7 +145,8 @@ impl RemoteOptions {
         async move { Ok(Device::new(device.await?)) }
     }
 
-    /// Open the device's session.
+    /// Open the device's session. A device whose session ended is replaced by a new one, which
+    /// keeps its id for the life of the page.
     #[cfg(target_family = "wasm")]
     pub fn init_async(
         self,

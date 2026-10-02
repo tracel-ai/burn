@@ -40,7 +40,7 @@ impl SessionState {
 struct EndpointRegistry {
     next_index: u32,
     /// The device id currently serving each endpoint and device index.
-    current: HashMap<(EndpointKey, u32), u32>,
+    by_endpoint: HashMap<(EndpointKey, u32), u32>,
     by_index: HashMap<u32, EndpointEntry>,
 }
 
@@ -58,7 +58,7 @@ fn registry() -> &'static Mutex<EndpointRegistry> {
     REGISTRY.get_or_init(|| {
         Mutex::new(EndpointRegistry {
             next_index: 0,
-            current: HashMap::new(),
+            by_endpoint: HashMap::new(),
             by_index: HashMap::new(),
         })
     })
@@ -69,7 +69,7 @@ fn registry() -> &'static Mutex<EndpointRegistry> {
 pub(crate) fn register_endpoint(endpoint: RemoteEndpoint, device_index: u32) -> u32 {
     let key = (endpoint.key(), device_index);
     let mut registry = registry().lock().unwrap();
-    if let Some(id) = registry.current.get(&key).copied() {
+    if let Some(id) = registry.by_endpoint.get(&key).copied() {
         let entry = registry.by_index.get_mut(&id).unwrap();
         if !entry.session.has_ended() {
             entry.endpoint = endpoint;
@@ -88,7 +88,7 @@ pub(crate) fn register_endpoint(endpoint: RemoteEndpoint, device_index: u32) -> 
         );
     }
     registry.next_index += 1;
-    registry.current.insert(key, id);
+    registry.by_endpoint.insert(key, id);
     registry.by_index.insert(
         id,
         EndpointEntry {
