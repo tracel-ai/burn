@@ -81,9 +81,7 @@ impl RemoteHost {
         let devices = self.0.devices_async();
         async move { Ok(devices.await?.into_iter().map(Device::new).collect()) }
     }
-}
 
-impl RemoteHost {
     /// The server's devices for [`Device::enumerate`], which cannot return an error.
     #[cfg(not(target_family = "wasm"))]
     pub(crate) fn enumerate(&self) -> Devices {
