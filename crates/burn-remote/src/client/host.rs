@@ -159,8 +159,9 @@ impl HostSpec {
         Ok(device)
     }
 
-    /// An application endpoint runs its socket on the runtime that bound it. Blocking the only
-    /// thread of a current-thread runtime would starve it, and the connect would never finish.
+    /// An application endpoint runs its socket on the runtime that bound it, which Iroh does not
+    /// expose, so this only catches the visible case: a blocking connect inside a current-thread
+    /// runtime.
     #[cfg(not(target_family = "wasm"))]
     fn refuse_blocking_on_current_thread(&self) -> Result<(), ConnectError> {
         #[cfg(feature = "iroh")]

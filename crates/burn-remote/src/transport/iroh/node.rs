@@ -97,8 +97,8 @@ impl RemoteNode {
             #[cfg(not(target_family = "wasm"))]
             if node.endpoint().bound_sockets() != endpoint.bound_sockets() {
                 return Err(format!(
-                    "another live Iroh endpoint already has the id {}; bind one endpoint per \
-                     secret key",
+                    "another open Iroh endpoint has the id {}, as when a server on that identity \
+                     is still shutting down; bind one endpoint per secret key",
                     endpoint.id().fmt_short()
                 ));
             }

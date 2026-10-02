@@ -6,9 +6,10 @@
 //! ```
 //!
 //! On native, every session runs on Burn's own runtime, so `init_async` and `devices_async`
-//! can be awaited from any executor, and the blocking forms can be called from any thread but
-//! one: the thread of a current-thread runtime that drives an application endpoint the host
-//! dials from, which they would starve.
+//! can be awaited from any executor, and the blocking forms can be called from any thread. The
+//! exception is an application endpoint bound on a current-thread runtime: any blocking call on a
+//! device dialed from it, a read included, starves that runtime's thread, so bind such an
+//! endpoint on a multi-thread runtime.
 
 use core::future::Future;
 

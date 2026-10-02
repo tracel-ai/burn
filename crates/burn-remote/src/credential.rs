@@ -17,19 +17,6 @@ impl Credential {
     pub fn is_empty(&self) -> bool {
         self.0.is_empty()
     }
-
-    /// Whether the credential equals `expected`, in time that depends only on their lengths, so an
-    /// authorizer does not leak how much of a guess was right.
-    pub fn matches(&self, expected: &[u8]) -> bool {
-        if self.0.len() != expected.len() {
-            return false;
-        }
-        self.0
-            .iter()
-            .zip(expected)
-            .fold(0u8, |diff, (a, b)| diff | (a ^ b))
-            == 0
-    }
 }
 
 impl fmt::Debug for Credential {
@@ -71,14 +58,6 @@ impl From<&String> for Credential {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn a_credential_matches_only_its_own_bytes() {
-        let credential = Credential::from("secret");
-        assert!(credential.matches(b"secret"));
-        assert!(!credential.matches(b"secreT"));
-        assert!(!credential.matches(b"secret!"));
-    }
 
     #[test]
     fn a_credential_stays_out_of_debug_output() {

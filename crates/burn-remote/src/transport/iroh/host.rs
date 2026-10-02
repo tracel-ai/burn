@@ -47,6 +47,9 @@ impl IrohHost {
     /// Dial from `endpoint`, shared with the application's other Iroh protocols, instead of an
     /// endpoint Burn binds. Its own relay settings then apply, so this excludes
     /// [`with_relays`](Self::with_relays).
+    ///
+    /// Every blocking call on the device, a read included, waits on the runtime that bound
+    /// `endpoint`, so bind it on a multi-thread runtime rather than a current-thread one.
     pub fn with_endpoint(mut self, endpoint: Endpoint) -> Self {
         self.endpoint = Some(endpoint);
         self
