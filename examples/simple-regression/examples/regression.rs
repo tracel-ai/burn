@@ -43,15 +43,18 @@ mod tch_cpu {
     }
 }
 
-// #[cfg(feature = "remote")]
-// mod remote {
-//     use burn::backend::{RemoteBackend, remote::RemoteDevice};
+#[cfg(feature = "remote")]
+mod remote {
+    use burn::tensor::{Device, DeviceType};
 
-//     pub fn run() {
-//         let device = RemoteDevice::default();
-//         super::run::<RemoteBackend>(device);
-//     }
-// }
+    /// Address of the `burn-remote` server to train against.
+    const ADDRESS: &str = "ws://localhost:3000";
+
+    pub fn run() {
+        let devices = Device::enumerate(DeviceType::remote_websocket(ADDRESS));
+        super::run(devices.into_vec().pop().unwrap());
+    }
+}
 
 /// Train a regression model and predict results on a number of samples.
 pub fn run(device: Device) {

@@ -337,7 +337,7 @@ impl<M: DiscreteActionModel> Policy for DQN<M> {
         let probs = probs.split(1, 0);
         let mut rng = rng();
         for p in probs {
-            let dist = WeightedIndex::new(p.to_data().to_vec::<f32>().unwrap()).unwrap();
+            let dist = WeightedIndex::new(p.to_data().try_to_vec::<f32>().unwrap()).unwrap();
             let action = dist.sample(&mut rng);
             actions.push(Tensor::<1>::from_floats([action], &p.device()));
         }
@@ -388,17 +388,17 @@ fn frame(out: &mut Vec<u8>, bytes: &[u8]) {
 }
 
 /// Read a length-prefixed frame, returning the slice and advancing `offset`.
-fn unframe<'a>(data: &'a [u8], offset: &mut usize) -> Result<&'a [u8], CheckpointerError> {
+fn unframe<'a>(data: &'a [u8], offset: &mut usize) -> Result<&'a [u8], RecordError> {
     let header_end = *offset + 8;
     if data.len() < header_end {
-        return Err(CheckpointerError::Unknown(
+        return Err(RecordError::Io(
             "Corrupted checkpoint: missing length prefix.".to_string(),
         ));
     }
     let len = u64::from_le_bytes(data[*offset..header_end].try_into().unwrap()) as usize;
     let body_end = header_end + len;
     if data.len() < body_end {
-        return Err(CheckpointerError::Unknown(
+        return Err(RecordError::Io(
             "Corrupted checkpoint: truncated frame.".to_string(),
         ));
     }
@@ -406,39 +406,43 @@ fn unframe<'a>(data: &'a [u8], offset: &mut usize) -> Result<&'a [u8], Checkpoin
     Ok(&data[header_end..body_end])
 }
 
-fn record_err(err: RecordError) -> CheckpointerError {
-    CheckpointerError::Record(err)
-}
-
 impl Checkpoint for DqnLearningRecord {
     fn save(self, path: PathBuf) -> Result<(), CheckpointerError> {
-        let policy = self.policy_model.into_bytes().map_err(record_err)?;
-        let target = self.target_model.into_bytes().map_err(record_err)?;
-        let optimizer = self.optimizer.into_bytes().map_err(record_err)?;
+        let bytes = self
+            .checkpoint_into_bytes()
+            .map_err(CheckpointerError::Record)?;
+        std::fs::write(path, &*bytes).map_err(CheckpointerError::IOError)
+    }
+
+    fn load(path: PathBuf) -> Result<Self, CheckpointerError> {
+        let data = std::fs::read(path).map_err(CheckpointerError::IOError)?;
+        Self::checkpoint_from_bytes(Bytes::from_bytes_vec(data)).map_err(CheckpointerError::Record)
+    }
+
+    fn checkpoint_into_bytes(self) -> Result<Bytes, RecordError> {
+        let policy = self.policy_model.into_bytes()?;
+        let target = self.target_model.into_bytes()?;
+        let optimizer = self.optimizer.into_bytes()?;
 
         let mut out = Vec::new();
         frame(&mut out, &policy);
         frame(&mut out, &target);
         frame(&mut out, &optimizer);
 
-        std::fs::write(path, out).map_err(CheckpointerError::IOError)
+        Ok(Bytes::from_bytes_vec(out))
     }
 
-    fn load(path: PathBuf) -> Result<Self, CheckpointerError> {
-        let data = std::fs::read(path).map_err(CheckpointerError::IOError)?;
+    fn checkpoint_from_bytes(bytes: Bytes) -> Result<Self, RecordError> {
         let mut offset = 0;
 
-        let policy = unframe(&data, &mut offset)?;
-        let policy_model =
-            ModuleRecord::from_bytes(Bytes::from_bytes_vec(policy.to_vec())).map_err(record_err)?;
+        let policy = unframe(&bytes, &mut offset)?;
+        let policy_model = ModuleRecord::from_bytes(Bytes::from_bytes_vec(policy.to_vec()))?;
 
-        let target = unframe(&data, &mut offset)?;
-        let target_model =
-            ModuleRecord::from_bytes(Bytes::from_bytes_vec(target.to_vec())).map_err(record_err)?;
+        let target = unframe(&bytes, &mut offset)?;
+        let target_model = ModuleRecord::from_bytes(Bytes::from_bytes_vec(target.to_vec()))?;
 
-        let optimizer = unframe(&data, &mut offset)?;
-        let optimizer = OptimizerRecord::from_bytes(Bytes::from_bytes_vec(optimizer.to_vec()))
-            .map_err(record_err)?;
+        let optimizer = unframe(&bytes, &mut offset)?;
+        let optimizer = OptimizerRecord::from_bytes(Bytes::from_bytes_vec(optimizer.to_vec()))?;
 
         Ok(Self {
             policy_model,

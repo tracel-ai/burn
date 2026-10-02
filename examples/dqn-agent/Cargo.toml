@@ -10,8 +10,8 @@
 
 [package]
 name = "dqn-agent"
-edition.workspace = true
-version.workspace = true
+edition = "2024"
+version = "0.22.0-pre.4"
 publish = false
 
 [features]
