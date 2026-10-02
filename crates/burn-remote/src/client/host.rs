@@ -57,6 +57,7 @@ impl HostSpec {
         self.refuse_blocking_on_current_thread()?;
         let host = self.clone();
         runtime::wait(move || host.connect_blocking(index))
+            .map_err(|_| ConnectError::Interrupted)?
     }
 
     #[cfg(not(target_family = "wasm"))]
@@ -65,7 +66,11 @@ impl HostSpec {
         index: usize,
     ) -> impl Future<Output = Result<RemoteDevice, ConnectError>> + Send + 'static + use<> {
         let host = self.clone();
-        runtime::run(move || host.connect_blocking(index))
+        async move {
+            runtime::run(move || host.connect_blocking(index))
+                .await
+                .map_err(|_| ConnectError::Interrupted)?
+        }
     }
 
     #[cfg(target_family = "wasm")]
@@ -81,7 +86,7 @@ impl HostSpec {
     pub fn devices(&self) -> Result<Vec<RemoteDevice>, ConnectError> {
         self.refuse_blocking_on_current_thread()?;
         let host = self.clone();
-        runtime::wait(move || host.devices_blocking())
+        runtime::wait(move || host.devices_blocking()).map_err(|_| ConnectError::Interrupted)?
     }
 
     #[cfg(not(target_family = "wasm"))]
@@ -90,7 +95,11 @@ impl HostSpec {
     ) -> impl Future<Output = Result<Vec<RemoteDevice>, ConnectError>> + Send + 'static + use<>
     {
         let host = self.clone();
-        runtime::run(move || host.devices_blocking())
+        async move {
+            runtime::run(move || host.devices_blocking())
+                .await
+                .map_err(|_| ConnectError::Interrupted)?
+        }
     }
 
     #[cfg(target_family = "wasm")]

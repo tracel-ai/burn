@@ -18,6 +18,9 @@ pub enum ConnectError {
         /// Iroh's reason.
         source: iroh::endpoint::BindError,
     },
+    /// The runtime shut down before the connection was attempted.
+    #[cfg(not(target_family = "wasm"))]
+    Interrupted,
     /// The host's settings cannot work together, such as an application endpoint combined with
     /// relays for an endpoint Burn binds.
     InvalidConfiguration {
@@ -85,6 +88,8 @@ impl fmt::Display for ConnectError {
             }
             #[cfg(feature = "iroh")]
             Self::Bind { source } => write!(f, "cannot bind an Iroh endpoint: {source}"),
+            #[cfg(not(target_family = "wasm"))]
+            Self::Interrupted => f.write_str("the runtime shut down before connecting"),
             Self::InvalidConfiguration { reason } => write!(f, "invalid remote host: {reason}"),
             Self::Unreachable { reason } => write!(f, "the server cannot be reached: {reason}"),
             Self::Unauthorized => f.write_str("the server's authorizer rejected the credential"),

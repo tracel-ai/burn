@@ -67,7 +67,7 @@ impl WebSocketTransport {
         compute_server(setup)
             .serve_on(listener, shutdown.cancelled_owned())
             .await
-            .map_err(ServeError::bind)
+            .map_err(ServeError::transport)
     }
 }
 

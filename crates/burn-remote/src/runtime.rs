@@ -22,28 +22,36 @@ pub(crate) fn blocking_runtime() -> &'static Runtime {
     })
 }
 
+/// The runtime dropped the work before it ran to completion.
+#[derive(Debug)]
+pub(crate) struct Interrupted;
+
 /// Run `work` on a blocking thread of Burn's runtime and block the calling thread until it
 /// finishes. A plain channel, so a caller on a runtime thread blocks it rather than panicking.
-pub(crate) fn wait<T: Send + 'static>(work: impl FnOnce() -> T + Send + 'static) -> T {
+pub(crate) fn wait<T: Send + 'static>(
+    work: impl FnOnce() -> T + Send + 'static,
+) -> Result<T, Interrupted> {
     let (sender, receiver) = std::sync::mpsc::channel();
     blocking_runtime().spawn_blocking(move || {
         let _ = sender.send(catch_unwind(AssertUnwindSafe(work)));
     });
     match receiver.recv() {
-        Ok(Ok(value)) => value,
+        Ok(Ok(value)) => Ok(value),
         Ok(Err(panic)) => resume_unwind(panic),
-        Err(_) => panic!("Burn Remote's runtime dropped its work"),
+        Err(_) => Err(Interrupted),
     }
 }
 
 /// Run `work` on a blocking thread of Burn's runtime, awaited from any executor.
 #[cfg(feature = "client")]
-pub(crate) async fn run<T: Send + 'static>(work: impl FnOnce() -> T + Send + 'static) -> T {
+pub(crate) async fn run<T: Send + 'static>(
+    work: impl FnOnce() -> T + Send + 'static,
+) -> Result<T, Interrupted> {
     match blocking_runtime().spawn_blocking(work).await {
-        Ok(value) => value,
+        Ok(value) => Ok(value),
         Err(err) => match err.try_into_panic() {
             Ok(panic) => resume_unwind(panic),
-            Err(_) => panic!("Burn Remote's runtime dropped its work"),
+            Err(_) => Err(Interrupted),
         },
     }
 }

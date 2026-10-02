@@ -3,10 +3,11 @@ use burn::{
         IrohIdentity, IrohRelays, IrohTransport, RemoteServer, TokenAuthorizer, Transport,
         WebSocketTransport,
     },
-    tensor::Device,
+    tensor::{Device, DeviceType},
 };
 
-/// Host `Device::default()` for remote clients.
+/// Host the default backend's devices for remote clients, every one of them when the backend
+/// lists several, so a client can drive them with data-parallel training.
 ///
 /// `REMOTE_BACKEND_TRANSPORT` picks how: `websocket` by default, on port `REMOTE_BACKEND_PORT` or
 /// 3000, or `iroh`, configured as [`iroh_transport`] describes. `REMOTE_BACKEND_TOKEN` is the
@@ -33,7 +34,7 @@ pub fn start() {
         Ok(other) => panic!("REMOTE_BACKEND_TRANSPORT is websocket or iroh, got {other}"),
     };
 
-    let server = RemoteServer::new([Device::default()]);
+    let server = RemoteServer::new(hosted_devices());
     let server = match token {
         Some(token) => server.with_authorizer(token),
         None => server,
@@ -41,6 +42,30 @@ pub fn start() {
     if let Err(err) = server.serve(transport) {
         panic!("the server stopped: {err}");
     }
+}
+
+/// Every device of the default backend's runtime, or `Device::default()` alone when the backend
+/// lists one or cannot list its hardware.
+fn hosted_devices() -> Vec<Device> {
+    #[allow(unused_mut)]
+    let mut kinds: Vec<DeviceType> = Vec::new();
+    #[cfg(feature = "cuda")]
+    kinds.push(DeviceType::Cuda);
+    #[cfg(feature = "rocm")]
+    kinds.push(DeviceType::Rocm);
+    #[cfg(feature = "vulkan")]
+    kinds.push(DeviceType::Vulkan);
+    #[cfg(feature = "webgpu")]
+    kinds.push(DeviceType::WebGpu);
+    #[cfg(feature = "flex")]
+    kinds.push(DeviceType::Flex);
+
+    kinds
+        .into_iter()
+        .next()
+        .map(|kind| Device::enumerate(kind).into_vec())
+        .filter(|devices| devices.len() > 1)
+        .unwrap_or_else(|| vec![Device::default()])
 }
 
 /// An Iroh transport from the environment:

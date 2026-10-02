@@ -718,7 +718,7 @@ impl RemoteService {
 
     /// Open the session and run the init handshake, unless it is already open. A failed attempt
     /// leaves nothing behind, so the next call tries again, with the device's latest dialing
-    /// hints and runtime.
+    /// hints.
     ///
     /// Runs on the device-runner thread, so the check needs no lock, and never from
     /// [`init`](Self::init), which holds cubecl's global device-registry lock.

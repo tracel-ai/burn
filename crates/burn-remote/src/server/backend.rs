@@ -105,6 +105,11 @@ impl<B: BackendIr> BackendServer<B> {
                 }
             })
         })
+        .unwrap_or_else(|_| {
+            Err(ServeError::transport(
+                "Burn Remote's runtime dropped the server",
+            ))
+        })
     }
 
     /// Serve on `transport` on the caller's Tokio runtime until the returned future is dropped,

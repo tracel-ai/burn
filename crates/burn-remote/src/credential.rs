@@ -31,6 +31,12 @@ impl From<&[u8]> for Credential {
     }
 }
 
+impl<const N: usize> From<&[u8; N]> for Credential {
+    fn from(bytes: &[u8; N]) -> Self {
+        Self(bytes.as_slice().into())
+    }
+}
+
 impl From<Vec<u8>> for Credential {
     fn from(bytes: Vec<u8>) -> Self {
         Self(bytes.into())
@@ -58,6 +64,11 @@ impl From<&String> for Credential {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_byte_string_literal_is_a_credential() {
+        assert_eq!(Credential::from(b"secret").as_bytes(), b"secret");
+    }
 
     #[test]
     fn a_credential_stays_out_of_debug_output() {

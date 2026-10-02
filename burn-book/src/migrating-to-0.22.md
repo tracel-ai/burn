@@ -464,6 +464,9 @@ returns a `Result`, and a server returns a `ServeError` instead of panicking:
 | `burn::server::start_websocket::<B>(device, port)` | `RemoteServer::new([device]).serve(WebSocketTransport::new(port))?`                     |
 | `start_websocket_async::<B>(device, port).await`   | `RemoteServer::new([device]).serve_async(WebSocketTransport::new(port)).await?`         |
 
+`serve` installs the server's logging and handles Ctrl+C and `SIGTERM`. `serve_async` does neither:
+the application owns its subscriber and its signals, and dropping the future stops the server.
+
 Iroh, now the default transport, reaches a server by its id across any network:
 `RemoteHost::iroh(server_id)` on the client, and
 `IrohTransport::new(IrohIdentity::load_or_create(path)?)` on the server. A server hosts exactly the

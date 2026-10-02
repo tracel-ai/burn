@@ -78,12 +78,15 @@ pub(crate) fn register_endpoint(endpoint: RemoteEndpoint, device_index: u32) -> 
     }
 
     let id = registry.next_index;
-    // A `DeviceId` carries the registry id in 16 bits.
-    assert!(
-        id <= u32::from(u16::MAX),
-        "Burn Remote has registered {id} remote devices in this process, more than a device id \
-         can name"
-    );
+    // A `DeviceId` carries the registry id in 16 bits. The lock is released first: a panic with
+    // it held would poison the registry for every device already connected.
+    if id > u32::from(u16::MAX) {
+        drop(registry);
+        panic!(
+            "Burn Remote has registered {id} remote devices in this process, more than a device id \
+             can name"
+        );
+    }
     registry.next_index += 1;
     registry.current.insert(key, id);
     registry.by_index.insert(

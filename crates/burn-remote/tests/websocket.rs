@@ -8,7 +8,9 @@ use burn_remote::{
         WebSocketTransport,
     },
 };
-use burn_tensor::{Device, DeviceType, Distribution, Tensor, remote::RemoteHost};
+use burn_tensor::{
+    Device, DeviceType, Distribution, Tensor, remote::RemoteHost, server::RemoteServer,
+};
 
 const TOKEN: &str = "fleet-token";
 
@@ -485,7 +487,101 @@ fn a_device_whose_server_restarted_is_replaced_by_a_new_one() {
     let doubled = Tensor::<1>::from_floats([3.0], &new) * 2.0;
     assert_eq!(doubled.try_into_vec_as::<f32>().unwrap(), vec![6.0]);
 
+    let moved = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        Tensor::<1>::from_floats([1.0], &old).to_device(&new)
+    }));
+    assert!(moved.is_err(), "a tensor left a device whose session ended");
+
     rt.shutdown_background();
+}
+
+fn remote_server_error(server: RemoteServer) -> ServeError {
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let rt = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .unwrap();
+    rt.block_on(async {
+        tokio::time::timeout(
+            HANG_LIMIT,
+            server.serve_async(WebSocketTransport::from_listener(listener)),
+        )
+        .await
+    })
+    .expect("the server is still serving")
+    .unwrap_err()
+}
+
+#[test]
+fn a_remote_server_with_no_devices_refuses_to_serve() {
+    let error = remote_server_error(RemoteServer::new(Vec::<Device>::new()));
+    assert!(matches!(error, ServeError::NoDevices), "{error:?}");
+}
+
+#[test]
+fn a_remote_device_cannot_be_served() {
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()
+        .unwrap();
+    let host = serve(&rt, BackendServer::<Flex>::new(vec![Default::default()]));
+    let remote = Device::remote_options(&host).init().unwrap();
+
+    let error = remote_server_error(RemoteServer::new([remote]));
+    assert!(
+        matches!(error, ServeError::UnsupportedDevice { .. }),
+        "{error:?}"
+    );
+    rt.shutdown_background();
+}
+
+#[test]
+fn a_remote_server_serves_its_devices() {
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let host = host_of(&listener);
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()
+        .unwrap();
+    rt.spawn(
+        RemoteServer::new([Device::flex()])
+            .serve_async(WebSocketTransport::from_listener(listener)),
+    );
+
+    let device = Device::remote_options(&host).init().unwrap();
+    let doubled = Tensor::<1>::from_floats([1.0, 2.0], &device) * 2.0;
+    assert_eq!(doubled.try_into_vec_as::<f32>().unwrap(), vec![2.0, 4.0]);
+    rt.shutdown_background();
+}
+
+/// Sends the process `SIGTERM`, which only the server under test is listening for.
+#[cfg(unix)]
+#[test]
+fn a_blocking_serve_returns_once_the_process_is_told_to_stop() {
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let host = host_of(&listener);
+    let (stopped, result) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        let served =
+            RemoteServer::new([Device::flex()]).serve(WebSocketTransport::from_listener(listener));
+        let _ = stopped.send(served);
+    });
+
+    // A session that opens means the server is up, and its signal handlers are installed.
+    let device = Device::remote_options(&host).init().unwrap();
+    let doubled = Tensor::<1>::from_floats([1.0], &device) * 2.0;
+    assert_eq!(doubled.try_into_vec_as::<f32>().unwrap(), vec![2.0]);
+
+    let status = std::process::Command::new("kill")
+        .args(["-TERM", &std::process::id().to_string()])
+        .status()
+        .unwrap();
+    assert!(status.success());
+
+    let served = result
+        .recv_timeout(HANG_LIMIT)
+        .expect("the server kept serving after SIGTERM");
+    assert!(served.is_ok(), "{served:?}");
 }
 
 #[test]

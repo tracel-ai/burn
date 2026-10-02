@@ -10,6 +10,11 @@ pub enum ServeError {
         /// The transport's reason.
         source: Source,
     },
+    /// The transport failed while serving, after it had bound.
+    Transport {
+        /// The transport's reason.
+        source: Source,
+    },
     /// The server was given no device to host.
     NoDevices,
     /// A device whose backend cannot run remote sessions, such as LibTorch or a remote device.
@@ -46,10 +51,20 @@ impl ServeError {
     }
 }
 
+impl ServeError {
+    #[cfg(not(target_family = "wasm"))]
+    pub(crate) fn transport(source: impl Into<Source>) -> Self {
+        Self::Transport {
+            source: source.into(),
+        }
+    }
+}
+
 impl fmt::Display for ServeError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Bind { source } => write!(f, "cannot bind the server: {source}"),
+            Self::Transport { source } => write!(f, "the server's transport failed: {source}"),
             Self::NoDevices => f.write_str("a server needs at least one device"),
             Self::UnsupportedDevice { reason } => write!(f, "cannot serve this device: {reason}"),
             Self::MixedBackends => f.write_str("a server's devices must share one backend"),
@@ -70,7 +85,7 @@ impl fmt::Display for ServeError {
 impl std::error::Error for ServeError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
-            Self::Bind { source } => Some(source.as_ref()),
+            Self::Bind { source } | Self::Transport { source } => Some(source.as_ref()),
             Self::SignalHandler { source } => Some(source),
             _ => None,
         }
