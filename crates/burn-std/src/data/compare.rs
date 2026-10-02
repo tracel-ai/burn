@@ -27,8 +27,11 @@ use crate::{
 /// use different relative tolerances depending on the floating point precision.
 #[derive(Debug, Clone, Copy)]
 pub struct Tolerance<F> {
-    relative: F,
-    absolute: F,
+    /// The relative tolerance.
+    pub relative: F,
+
+    /// The absolute tolerance.
+    pub absolute: F,
 }
 
 impl<F: Float> Default for Tolerance<F> {
