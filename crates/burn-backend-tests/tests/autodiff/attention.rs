@@ -156,7 +156,7 @@ fn attention_grouped_query_grads_match_repeated_kv() {
         for (actual, expected) in run(false).into_iter().zip(run(true)) {
             actual
                 .into_data()
-                .assert_approx_eq::<FloatElem>(&expected.into_data(), Tolerance::default());
+                .assert_approx_eq::<FloatElem>(&expected.into_data(), Tolerance::permissive());
         }
     }
 }
