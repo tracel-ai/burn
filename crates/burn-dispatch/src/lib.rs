@@ -56,7 +56,8 @@ mod ops;
 /// Dispatch tensor module.
 pub mod tensor;
 
-/// Entry points for hosting a remote-execution server.
+/// The backend dispatch behind `burn::server::RemoteServer`. Not a user path.
+#[doc(hidden)]
 #[cfg(feature = "remote-server")]
 pub mod remote_server;
 
@@ -109,8 +110,6 @@ pub mod backends {
     #[cfg(feature = "tch")]
     pub use burn_tch::LibTorch;
 
-    #[cfg(feature = "remote")]
-    pub use burn_remote as remote;
     #[cfg(feature = "remote")]
     pub use burn_remote::RemoteBackend as Remote;
 
@@ -168,7 +167,9 @@ pub mod devices {
 
     #[cfg(feature = "remote")]
     pub use burn_remote::RemoteDevice;
-
-    #[cfg(feature = "remote")]
-    pub use burn_remote::BURN_REMOTE_ALPN;
 }
+
+/// The remote backend's crate, for `burn::remote` and `burn::server` to build on. Not a user path.
+#[doc(hidden)]
+#[cfg(feature = "remote")]
+pub use burn_remote as __remote;

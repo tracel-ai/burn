@@ -74,9 +74,10 @@ let default_cuda = Device::cuda(DeviceIndex::Default);
 let second_cuda = Device::cuda(1);
 ```
 
-Burn also supports remote devices when the corresponding remote feature is enabled. Constructors
-include `Device::remote_websocket` for WebSocket connections and `Device::remote_iroh` for
-peer-to-peer remote execution.
+Burn also supports remote devices, hosted by a Burn server in another process on this machine or
+another, with the `remote` feature.
+`Device::remote_options(&host).init()` connects one, where a `RemoteHost` names the server: see
+[Distributed Computing](../performance/distributed-computing.md).
 
 ## Using a Device
 

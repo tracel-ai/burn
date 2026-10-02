@@ -1,7 +1,7 @@
 use std::{net::ToSocketAddrs, str::FromStr};
 
 use burn::{
-    remote::{EndpointId, IrohPeer, IrohPeerBuilder, IrohRelays},
+    remote::{EndpointId, IrohHost, IrohRelays, RemoteHost},
     tensor::Device,
 };
 use clap::{
@@ -14,6 +14,9 @@ struct Cli {
     mode: Mode,
     /// The server's Iroh id, printed when it starts, or its `ws://` URL.
     server: Server,
+    /// The server's `REMOTE_BACKEND_TOKEN`, required by an Iroh server.
+    #[arg(long, env = "REMOTE_BACKEND_TOKEN", hide_env_values = true, value_parser = NonEmptyStringValueParser::new())]
+    token: Option<String>,
     #[command(flatten)]
     iroh: IrohArgs,
 }
@@ -51,9 +54,6 @@ impl FromStr for Server {
 /// Only for an Iroh server.
 #[derive(Args)]
 struct IrohArgs {
-    /// The server's `REMOTE_BACKEND_TOKEN`.
-    #[arg(long, env = "REMOTE_BACKEND_TOKEN", hide_env_values = true, value_parser = NonEmptyStringValueParser::new())]
-    token: Option<String>,
     /// The server's relays: `public`, `disabled`, or the URL of a relay you run.
     #[arg(long, default_value = "public")]
     relays: IrohRelays,
@@ -63,20 +63,15 @@ struct IrohArgs {
 }
 
 impl IrohArgs {
-    fn peer(self, id: EndpointId) -> Result<IrohPeer, clap::Error> {
-        let token = self
-            .token
-            .ok_or_else(|| usage_error("an Iroh server needs --token or REMOTE_BACKEND_TOKEN"))?;
-        let mut peer = IrohPeerBuilder::new(id)
-            .with_relays(self.relays.clone())
-            .with_credential(token);
+    fn host(self, id: EndpointId) -> Result<IrohHost, clap::Error> {
+        let mut host = IrohHost::new(id).with_relays(self.relays.clone());
         match (self.address, self.relays) {
             (Some(address), _) => {
                 let addresses = address
                     .to_socket_addrs()
                     .map_err(|err| usage_error(&format!("--address {address}: {err}")))?;
                 for address in addresses {
-                    peer = peer.with_address(address);
+                    host = host.with_address(address);
                 }
             }
             (None, IrohRelays::Disabled) => {
@@ -86,7 +81,25 @@ impl IrohArgs {
             }
             (None, _) => {}
         }
-        Ok(peer.build())
+        Ok(host)
+    }
+}
+
+impl Cli {
+    fn host(self) -> Result<RemoteHost, clap::Error> {
+        let host = match self.server {
+            Server::WebSocket { url } => RemoteHost::websocket(&url),
+            Server::Iroh { id } if self.token.is_some() => RemoteHost::iroh(self.iroh.host(id)?),
+            Server::Iroh { .. } => {
+                return Err(usage_error(
+                    "an Iroh server needs --token or REMOTE_BACKEND_TOKEN",
+                ));
+            }
+        };
+        Ok(match self.token {
+            Some(token) => host.with_credential(token),
+            None => host,
+        })
     }
 }
 
@@ -94,27 +107,16 @@ fn usage_error(message: &str) -> clap::Error {
     Cli::command().error(ErrorKind::ArgumentConflict, message)
 }
 
-#[tokio::main]
-async fn main() {
+fn main() {
     let cli = Cli::parse();
-    let device = match cli.server {
-        Server::WebSocket { url } => {
-            tokio::task::spawn_blocking(move || Device::remote_websocket(&url, 0))
-                .await
-                .expect("The connect task does not panic")
-        }
-        Server::Iroh { id } => {
-            let peer = cli.iroh.peer(id).unwrap_or_else(|err| err.exit());
-            Device::remote_iroh_peer(&peer, 0).await
-        }
-    }
-    .expect("The server can be dialed");
+    let mode = cli.mode;
+    let host = cli.host().unwrap_or_else(|err| err.exit());
+    let device = Device::remote_options(&host)
+        .init()
+        .expect("The server can be dialed");
 
-    // Training and inference block for as long as they run, so they stay off the async workers.
-    tokio::task::spawn_blocking(move || match cli.mode {
+    match mode {
         Mode::Train => mnist::training::run(device),
         Mode::Infer => remote_mnist::inference::infer(&device),
-    })
-    .await
-    .expect("The run completes");
+    }
 }

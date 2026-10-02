@@ -45,14 +45,15 @@ mod tch_cpu {
 
 #[cfg(feature = "remote")]
 mod remote {
-    use burn::tensor::{Device, DeviceType};
+    use burn::{remote::RemoteHost, tensor::Device};
 
-    /// Address of the `burn-remote` server to train against.
-    const ADDRESS: &str = "ws://localhost:3000";
-
+    /// Train on the `server` example's device, at its default address.
     pub fn run() {
-        let devices = Device::enumerate(DeviceType::remote_websocket(ADDRESS));
-        super::run(devices.into_vec().pop().unwrap());
+        let host = RemoteHost::websocket("ws://localhost:3000");
+        let device = Device::remote_options(&host)
+            .init()
+            .expect("The server can be dialed");
+        super::run(device);
     }
 }
 

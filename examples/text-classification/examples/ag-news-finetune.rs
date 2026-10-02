@@ -106,6 +106,7 @@ mod wgpu {
 #[cfg(feature = "remote")]
 mod remote {
     use crate::ElemType;
+    use burn::remote::RemoteHost;
     #[cfg(feature = "ddp")]
     use burn::tensor::distributed::{DistributedConfig, ReduceOperation};
     use burn::tensor::{Device, DeviceConfig, DeviceType, Element};
@@ -118,7 +119,7 @@ mod remote {
     /// List every device the remote server hosts and train across all of them.
     #[cfg(not(feature = "ddp"))]
     pub fn run() {
-        let mut devices = Device::enumerate(DeviceType::remote_websocket(ADDRESS));
+        let mut devices = Device::enumerate(DeviceType::Remote(RemoteHost::websocket(ADDRESS)));
         devices
             .configure(DeviceConfig::default().float_dtype(ElemType::dtype()))
             .unwrap();
@@ -129,7 +130,7 @@ mod remote {
     /// Same enumeration, but drive the devices with distributed data-parallel training.
     #[cfg(feature = "ddp")]
     pub fn run() {
-        let mut devices = Device::enumerate(DeviceType::remote_websocket(ADDRESS));
+        let mut devices = Device::enumerate(DeviceType::Remote(RemoteHost::websocket(ADDRESS)));
         devices
             .configure(DeviceConfig::default().float_dtype(ElemType::dtype()))
             .unwrap();

@@ -4,10 +4,10 @@ use tracing_subscriber::{
 
 /// The `tracing` subscriber a server installs when it owns the process.
 ///
-/// A turnkey server ([`start`](super::RemoteServerBuilder::start)) installs it, so running one is
-/// enough to see what its sessions and transfers do. A server composed into an application installs
-/// whatever subscriber that application wants: the process-wide one belongs to the program, not to a
-/// library it links.
+/// The blocking [`serve`](super::BackendServer::serve) installs it, so running a server is enough
+/// to see what its sessions and transfers do. `serve_async` and `into_protocol` leave the
+/// subscriber to the application: the process-wide one belongs to the program, not to a library it
+/// links.
 pub struct ServerLogging;
 
 impl ServerLogging {

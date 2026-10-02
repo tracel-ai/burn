@@ -17,22 +17,23 @@ use crate::shared::{
 };
 use crate::transport::link::{FrameSink, FrameSource};
 use tokio::sync::mpsc;
+use tokio_util::sync::CancellationToken;
 
 /// Drive one session to completion over a duplex link.
 ///
-/// `authorize` runs once, after the init handshake is parsed and before the session is bound — it
-/// is where a transport with an authenticated peer identity (iroh) enforces its policy; transports
-/// without one (websocket) pass an allow-all closure. `server_peer_id` is echoed to the client in
-/// the handshake response (the server's own identity, or `None` for websocket).
+/// `authorize` runs once, after the init handshake is parsed and before the session is bound.
+/// `server_peer_id` is echoed to the client in the handshake response (the server's own identity,
+/// or `None` for websocket).
 ///
 /// Returns `Err` on a protocol violation, a refused session (after telling the client its
-/// category), or a failed read or write; the caller logs it. A clean client `Close` (or stream
-/// end) drains the remaining responses before returning `Ok(())`.
+/// category), or a failed read or write; the caller logs it. A clean client `Close`, a stream end
+/// or a cancelled `shutdown` drains the remaining responses before returning `Ok(())`.
 pub(crate) async fn drive_session<Src, Snk, S, A>(
     mut source: Src,
     mut sink: Snk,
     service: Arc<S>,
     server_peer_id: Option<PeerId>,
+    shutdown: &CancellationToken,
     authorize: A,
 ) -> Result<(), String>
 where
@@ -42,10 +43,11 @@ where
     A: FnOnce(&SessionInit) -> Result<(), String>,
 {
     // The session stream opens with exactly one `Init` frame.
-    let handshake = source
-        .recv()
-        .await?
-        .ok_or_else(|| "Session stream closed before initialization".to_string())?;
+    let handshake = tokio::select! {
+        frame = source.recv() => frame?
+            .ok_or_else(|| "Session stream closed before initialization".to_string())?,
+        () = shutdown.cancelled() => return Ok(()),
+    };
     let device_count = service.device_count();
     let init = match admit(&handshake, authorize, device_count) {
         Ok(init) => init,
@@ -95,6 +97,7 @@ where
     let (read_result, completed_writer) = tokio::select! {
         result = forward_tasks(source, &task_sender, init.session_id) => (result, None),
         result = &mut writer_result => (Ok(()), Some(result)),
+        () = shutdown.cancelled() => (Ok(()), None),
     };
 
     // Drop our task sender and close the session so its worker drains and starts closing, which
@@ -342,7 +345,15 @@ mod tests {
             .into(),
         );
 
-        let result = drive_session(source, DiscardingSink, service.clone(), None, |_| Ok(())).await;
+        let result = drive_session(
+            source,
+            DiscardingSink,
+            service.clone(),
+            None,
+            &CancellationToken::new(),
+            |_| Ok(()),
+        )
+        .await;
 
         assert_eq!(result, Err("connection reset".to_string()));
         assert_eq!(*service.closed.lock().unwrap(), [session_id]);
@@ -356,12 +367,50 @@ mod tests {
 
         let result = tokio::time::timeout(
             std::time::Duration::from_secs(1),
-            drive_session(source, FailingSink, service.clone(), None, |_| Ok(())),
+            drive_session(
+                source,
+                FailingSink,
+                service.clone(),
+                None,
+                &CancellationToken::new(),
+                |_| Ok(()),
+            ),
         )
         .await
         .expect("a failed handshake reply must close the session even if input stays open");
 
         assert_eq!(result, Err("connection reset".to_string()));
+        assert_eq!(*service.closed.lock().unwrap(), [session_id]);
+    }
+
+    #[tokio::test]
+    async fn a_stopping_server_closes_its_live_sessions() {
+        let service = Arc::new(FakeService::default());
+        let session_id = SessionId::new();
+        let source = OpenSource(Some(handshake(session_id, HOSTED_DEVICE)));
+        let shutdown = CancellationToken::new();
+
+        let session = drive_session(
+            source,
+            DiscardingSink,
+            service.clone(),
+            None,
+            &shutdown,
+            |_| Ok(()),
+        );
+        let stop_once_bound = async {
+            while service.tasks.lock().unwrap().is_none() {
+                tokio::task::yield_now().await;
+            }
+            shutdown.cancel();
+        };
+        let (result, ()) = tokio::time::timeout(std::time::Duration::from_secs(1), async {
+            tokio::join!(session, stop_once_bound)
+        })
+        .await
+        .expect("a cancelled shutdown must end the session even if input stays open");
+
+        assert_eq!(result, Ok(()));
         assert_eq!(*service.closed.lock().unwrap(), [session_id]);
     }
 
@@ -374,7 +423,15 @@ mod tests {
         let session_id = SessionId::new();
         let source = ScriptedSource([Ok(Some(handshake(session_id, HOSTED_DEVICE)))].into());
 
-        let result = drive_session(source, DiscardingSink, service.clone(), None, |_| Ok(())).await;
+        let result = drive_session(
+            source,
+            DiscardingSink,
+            service.clone(),
+            None,
+            &CancellationToken::new(),
+            |_| Ok(()),
+        )
+        .await;
 
         assert!(result.is_err());
         assert!(service.closed.lock().unwrap().is_empty());
@@ -388,7 +445,15 @@ mod tests {
             ScriptedSource([Ok(Some(handshake(SessionId::new(), unhosted_device)))].into());
         let sink = RecordingSink::default();
 
-        let result = drive_session(source, sink.clone(), service.clone(), None, |_| Ok(())).await;
+        let result = drive_session(
+            source,
+            sink.clone(),
+            service.clone(),
+            None,
+            &CancellationToken::new(),
+            |_| Ok(()),
+        )
+        .await;
 
         let err = result.expect_err("the session was bound to a device the server does not host");
         assert!(
@@ -410,9 +475,14 @@ mod tests {
             ScriptedSource([Ok(Some(handshake(SessionId::new(), unhosted_device)))].into());
         let sink = RecordingSink::default();
 
-        let result = drive_session(source, sink.clone(), service.clone(), None, |_| {
-            Err("peer 7 is not on the allowlist".to_string())
-        })
+        let result = drive_session(
+            source,
+            sink.clone(),
+            service.clone(),
+            None,
+            &CancellationToken::new(),
+            |_| Err("peer 7 is not on the allowlist".to_string()),
+        )
         .await;
 
         assert_eq!(result, Err("peer 7 is not on the allowlist".to_string()));
@@ -429,9 +499,14 @@ mod tests {
         let source = ScriptedSource([Ok(Some(handshake.into()))].into());
         let sink = RecordingSink::default();
 
-        let result = drive_session(source, sink.clone(), service.clone(), None, |_| {
-            panic!("an incompatible client reached the authorizer")
-        })
+        let result = drive_session(
+            source,
+            sink.clone(),
+            service.clone(),
+            None,
+            &CancellationToken::new(),
+            |_| panic!("an incompatible client reached the authorizer"),
+        )
         .await;
 
         assert!(result.is_err());

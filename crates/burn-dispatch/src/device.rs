@@ -700,7 +700,7 @@ mod tests {
     #[test]
     #[cfg(feature = "remote-websocket")]
     fn remote_device_id_round_trips_through_dispatch() {
-        let device = DispatchDevice::from(RemoteDevice::websocket("ws://127.0.0.1:1", 0));
+        let device = DispatchDevice::from(RemoteDevice::default());
         let restored = DispatchDevice::from_id(device.to_id());
 
         assert_eq!(restored, device);

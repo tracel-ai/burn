@@ -51,8 +51,9 @@ same setting.
 
 ## WebSocket
 
-WebSocket has no token and no encryption: anyone who can reach the port can use the GPU and read
-the traffic. Use it only on a network you trust.
+WebSocket has no encryption: anyone who can read the traffic sees the tensors, and the token if
+there is one. Use it only on a network you trust. A token is optional here, and keeps stray clients
+on that network off the GPU: set `REMOTE_BACKEND_TOKEN` on both machines as for Iroh.
 
 On the GPU machine, listening on port 3000 unless `REMOTE_BACKEND_PORT` says otherwise:
 
