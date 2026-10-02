@@ -39,8 +39,9 @@ use registry::{SessionState, device_count_cell, session_state, settings_cell};
 pub(crate) use registry::{device_count_for, register_endpoint, registered_device, session_ended};
 pub(crate) use registry::{has_settings, new_tensor_id, settings_for};
 
-/// How long a server has to answer the session handshake. Past it the server is taken to be
-/// stuck, rather than leaving the device's runner, and every later connect to it, waiting forever.
+/// How long a server has to answer each step of opening a session: a connection attempt, then the
+/// handshake. Past it the server is taken to be stuck, rather than leaving the device's runner,
+/// and every later connect to it, waiting forever.
 const HANDSHAKE_DEADLINE: core::time::Duration = core::time::Duration::from_secs(60);
 
 /// All the state owned by the device-runner thread for a single remote device.
@@ -660,25 +661,6 @@ impl RemoteService {
             Ok(TaskResponseContent::DTypeUsage(set)) => set,
             Ok(other) => panic!("Invalid response for DTypeUsage: {other:?}"),
             Err(_) => panic!("Remote response channel closed before dtype_usage completed"),
-        }
-    }
-
-    /// Ask the server to answer on the session, if one is open and not known to have ended. A
-    /// server that went away without closing the session leaves it looking open until a request
-    /// goes unanswered; the session then ends, before the returned receiver resolves.
-    pub(crate) fn probe_session(
-        &mut self,
-    ) -> Option<Unconstrained<oneshot::Receiver<TaskResponseContent>>> {
-        let open = self.writer.is_some() && !self.session.has_ended();
-        // The cheapest request the server answers in turn, without waiting on its device.
-        open.then(|| self.submit_request(|id| Task::DTypeUsage(id, DType::F32)))
-    }
-
-    /// [`probe_session`](Self::probe_session), waiting for the answer or the session's end.
-    #[cfg(not(target_family = "wasm"))]
-    pub(crate) fn confirm_session(&mut self) {
-        if let Some(answer) = self.probe_session() {
-            let _ = self.executor.block_on(answer);
         }
     }
 

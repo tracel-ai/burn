@@ -20,16 +20,18 @@ const HANG_LIMIT: std::time::Duration = std::time::Duration::from_secs(10);
 /// Run `body` on a worker thread and fail the test if it does not finish within `timeout`.
 ///
 /// A hung worker cannot be killed, so the test thread panics and the process exit takes it away.
-fn with_deadlock_watchdog(timeout: std::time::Duration, body: impl FnOnce() + Send + 'static) {
+fn with_deadlock_watchdog<T: Send + 'static>(
+    timeout: std::time::Duration,
+    body: impl FnOnce() -> T + Send + 'static,
+) -> T {
     let (tx, rx) = std::sync::mpsc::channel();
     let handle = std::thread::spawn(move || {
-        body();
+        let value = body();
         let _ = tx.send(());
+        value
     });
     match rx.recv_timeout(timeout) {
-        Ok(()) => {
-            handle.join().expect("worker thread panicked");
-        }
+        Ok(()) => handle.join().expect("worker thread panicked"),
         Err(_) => {
             panic!("Deadlock: the remote multi-device workload did not finish within {timeout:?}")
         }
@@ -472,27 +474,35 @@ fn a_device_whose_server_restarted_is_replaced_by_a_new_one() {
 
     first.abort();
     assert!(rt.block_on(first).unwrap_err().is_cancelled());
-
-    let listener = std::net::TcpListener::bind(address).unwrap();
-    rt.spawn(
-        BackendServer::<Flex>::new(vec![Default::default()])
-            .serve_async(WebSocketTransport::from_listener(listener)),
-    );
-    let new = Device::remote_options(&host).init().unwrap();
-    assert_ne!(new, old);
-    let doubled = Tensor::<1>::from_floats([3.0], &new) * 2.0;
-    assert_eq!(doubled.try_into_vec_as::<f32>().unwrap(), vec![6.0]);
-
+    // A read fails only once the client has seen the session end, which a reconnect relies on.
     let stale = old.clone();
     with_deadlock_watchdog(HANG_LIMIT, move || {
         let read = (Tensor::<1>::from_floats([1.0], &stale) * 2.0).try_into_data();
         assert!(read.is_err(), "a session outlived its server: {read:?}");
     });
 
+    let listener = std::net::TcpListener::bind(address).unwrap();
+    rt.spawn(
+        BackendServer::<Flex>::new(vec![Default::default()])
+            .serve_async(WebSocketTransport::from_listener(listener)),
+    );
+    let new = with_deadlock_watchdog(HANG_LIMIT, move || {
+        Device::remote_options(&host).init().unwrap()
+    });
+    assert_ne!(new, old);
+    let doubled = Tensor::<1>::from_floats([3.0], &new) * 2.0;
+    assert_eq!(doubled.try_into_vec_as::<f32>().unwrap(), vec![6.0]);
+
     let moved = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
         Tensor::<1>::from_floats([1.0], &old).to_device(&new)
-    }));
-    assert!(moved.is_err(), "a tensor left a device whose session ended");
+    }))
+    .expect_err("a tensor left a device whose session ended");
+    let message = moved
+        .downcast_ref::<String>()
+        .map(String::as_str)
+        .or_else(|| moved.downcast_ref::<&str>().copied())
+        .unwrap_or_default();
+    assert!(message.contains("session has ended"), "{message}");
 
     rt.shutdown_background();
 }

@@ -1,4 +1,4 @@
-use super::{ConnectError, RemoteChannel, RemoteClient, service};
+use super::{RemoteChannel, RemoteClient, service};
 use crate::shared::{LocalTransferId, TaskResponseContent, TensorRemote, TransferCapability};
 use crate::{PeerAddr, PeerId};
 use burn_backend::{
@@ -221,29 +221,6 @@ impl RemoteDevice {
         }
     }
 
-    /// [`register`](Self::register), then open its session, or confirm the one already open.
-    /// A confirmation that finds the server gone leaves the device's session ended.
-    #[cfg(not(target_family = "wasm"))]
-    pub(crate) fn open(
-        endpoint: RemoteEndpoint,
-        device_index: usize,
-    ) -> Result<Self, ConnectError> {
-        let device = Self::register(endpoint, device_index);
-        get_client::<RemoteChannel>(&device).connect()?;
-        Ok(device)
-    }
-
-    /// The browser's [`open`](Self::open).
-    #[cfg(target_family = "wasm")]
-    pub(crate) async fn open_async(
-        endpoint: RemoteEndpoint,
-        device_index: usize,
-    ) -> Result<Self, ConnectError> {
-        let device = Self::register(endpoint, device_index);
-        get_client::<RemoteChannel>(&device).connect_async().await?;
-        Ok(device)
-    }
-
     /// A WebSocket device with no session opened yet, which connects on first use.
     #[cfg(feature = "websocket")]
     pub(crate) fn websocket(address: &str, device_index: usize) -> Self {
@@ -292,7 +269,7 @@ impl RemoteDevice {
 
     /// Whether this device's session has ended, as when its server restarted. Its tensors are
     /// gone with it; a new connect gives a new device.
-    pub fn session_ended(&self) -> bool {
+    pub(crate) fn session_ended(&self) -> bool {
         service::session_ended(self.id)
     }
 }
@@ -408,7 +385,8 @@ impl RemoteTensorHandle {
     /// client ever seeing it.
     pub(crate) fn change_backend(self, target_device: &RemoteDevice) -> Self {
         // Generations of one device share a peer, so a move between a dead session and a live
-        // one would take the same-server path and wait forever on the side that is gone.
+        // one would take the same-server path and wait forever on the side that is gone. Only an
+        // end this client has already seen is caught.
         for (side, device) in [("from", &self.client.device), ("to", target_device)] {
             assert!(
                 !device.session_ended(),
