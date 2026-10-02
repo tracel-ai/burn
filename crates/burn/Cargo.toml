@@ -104,7 +104,7 @@ optim = ["burn-optim", "autodiff"]
 
 # Backend
 ir = ["burn-core/ir"]
-autodiff = ["burn-core/autodiff", "burn-signal?/autodiff"]
+autodiff = ["burn-core/autodiff", "burn-linalg?/autodiff", "burn-signal?/autodiff"]
 fusion = ["ir", "burn-core/fusion", "burn-linalg?/fusion", "burn-signal?/fusion", "burn-vision?/fusion"]
 
 ## Backend features

@@ -30,6 +30,10 @@ macro_rules! check {
 }
 
 mod check;
+#[cfg(feature = "flex")]
+mod cholesky_cpu;
+#[cfg(feature = "cubecl-backend")]
+mod cholesky_gpu;
 mod functions;
 mod ops;
 mod svd_host;
