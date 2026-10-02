@@ -1,9 +1,6 @@
 //! Process-level Iroh endpoint used by Burn Remote clients and compute nodes.
 
-use std::{
-    collections::HashMap,
-    sync::{Arc, LazyLock, Weak},
-};
+use std::{collections::HashMap, sync::Arc};
 
 #[cfg(feature = "client")]
 use iroh::endpoint::BindError;
@@ -11,6 +8,8 @@ use iroh::{
     Endpoint, EndpointAddr, EndpointId,
     endpoint::{Connection, RecvStream, SendStream},
 };
+#[cfg(feature = "client")]
+use std::sync::{LazyLock, Weak};
 use tokio::sync::Mutex;
 use tokio::sync::OnceCell;
 
@@ -18,9 +17,10 @@ use tokio::sync::OnceCell;
 use super::relays::IrohRelays;
 use crate::{PeerAddr, PeerId, transport::OpenError};
 
-/// The node of each application endpoint, by its id, so the devices and the server built on one
-/// endpoint answer each other's connections. Weak, because a node holds its endpoint, and Iroh
-/// keeps an endpoint's sockets bound until its last clone drops.
+/// The node the devices dialed from each application endpoint share, by its id. A server keeps
+/// its own, since a peer accepts no streams on a connection it dialed. Weak, because Iroh keeps an
+/// endpoint's sockets bound until its last clone drops.
+#[cfg(feature = "client")]
 static APP_NODES: LazyLock<std::sync::Mutex<HashMap<EndpointId, Weak<RemoteNodeInner>>>> =
     LazyLock::new(Default::default);
 
@@ -83,12 +83,13 @@ impl RemoteNode {
         }
     }
 
-    /// The node shared by every user of `endpoint`.
+    /// The node shared by every device dialed from `endpoint`.
     ///
     /// Iroh lets two live endpoints share one secret key, and a node keyed by that id would hand
     /// the second the first one's connections, so a second live endpoint is refused. A browser
     /// endpoint has no bound sockets to tell the two apart by, so there the second shares the
     /// first one's node. A closed endpoint's node is replaced.
+    #[cfg(feature = "client")]
     pub(crate) fn for_endpoint(endpoint: &Endpoint) -> Result<Self, String> {
         let mut nodes = APP_NODES.lock().unwrap();
         if let Some(inner) = nodes.get(&endpoint.id()).and_then(Weak::upgrade)
@@ -98,8 +99,7 @@ impl RemoteNode {
             #[cfg(not(target_family = "wasm"))]
             if node.endpoint().bound_sockets() != endpoint.bound_sockets() {
                 return Err(format!(
-                    "another open Iroh endpoint has the id {}, as when a server on that identity \
-                     is still shutting down; bind one endpoint per secret key",
+                    "another open Iroh endpoint has the id {}; bind one endpoint per secret key",
                     endpoint.id().fmt_short()
                 ));
             }

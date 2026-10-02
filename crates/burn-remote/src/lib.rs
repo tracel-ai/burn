@@ -41,7 +41,7 @@ pub use transport::iroh::IrohHost;
 #[cfg(feature = "iroh")]
 pub use transport::iroh::node::BURN_REMOTE_ALPN;
 #[cfg(feature = "iroh")]
-pub use transport::iroh::{InvalidRelays, IrohRelays};
+pub use transport::iroh::{InvalidRelays, IrohIdentity, IrohRelays};
 pub(crate) use transport::{PeerAddr, PeerId};
 
 #[cfg(feature = "client")]

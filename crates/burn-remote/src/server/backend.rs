@@ -135,11 +135,10 @@ impl<B: BackendIr> BackendServer<B> {
     /// application's own Iroh router on `endpoint`.
     #[cfg(feature = "iroh")]
     pub fn into_protocol(self, endpoint: &Endpoint) -> Result<RemoteProtocol, ServeError> {
-        let node = RemoteNode::for_endpoint(endpoint)
-            .map_err(|reason| ServeError::InvalidEndpoint { reason })?;
         let setup = self
             .settings
             .sessions_of::<B>(self.devices, CancellationToken::new())?;
+        let node = RemoteNode::from_endpoint(endpoint.clone());
         Ok(RemoteProtocol::new(IrohRemoteProtocol::new(node, setup)))
     }
 }

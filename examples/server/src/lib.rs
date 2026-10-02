@@ -60,11 +60,23 @@ fn hosted_devices() -> Vec<Device> {
         DeviceType::Flex,
     ];
 
+    let wgpu_kinds: Vec<DeviceType> = vec![
+        #[cfg(feature = "vulkan")]
+        DeviceType::Vulkan,
+        #[cfg(feature = "webgpu")]
+        DeviceType::WebGpu,
+    ];
+    let listed = |kinds: Vec<DeviceType>| {
+        kinds
+            .into_iter()
+            .map(|kind| Device::enumerate(kind).into_vec())
+    };
+
     let default = Device::default();
-    kinds
-        .into_iter()
-        .map(|kind| Device::enumerate(kind).into_vec())
+    listed(kinds)
         .find(|devices| devices.contains(&default))
+        // The wgpu default names whichever adapter it lands on, so no list contains it.
+        .or_else(|| listed(wgpu_kinds).find(|devices| !devices.is_empty()))
         .filter(|devices| devices.len() > 1)
         .unwrap_or_else(|| vec![default])
 }

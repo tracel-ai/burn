@@ -64,9 +64,9 @@ impl IrohTransport {
         if self.relays == IrohRelays::Disabled && self.port.is_none() {
             log::warn!("Relays disabled without a port: clients can only dial the ports above");
         }
-        let node = RemoteNode::for_endpoint(&endpoint)
-            .map_err(|reason| ServeError::InvalidEndpoint { reason })?;
-        Ok(IrohListener { node })
+        Ok(IrohListener {
+            node: RemoteNode::from_endpoint(endpoint),
+        })
     }
 
     async fn bind_endpoint(&self) -> Result<Endpoint, ServeError> {

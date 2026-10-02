@@ -11,9 +11,7 @@ mod host;
 #[cfg(feature = "client")]
 pub use host::IrohHost;
 
-#[cfg(feature = "server")]
 mod identity;
-#[cfg(feature = "server")]
 pub use identity::IrohIdentity;
 
 #[cfg(all(feature = "server", not(target_family = "wasm")))]

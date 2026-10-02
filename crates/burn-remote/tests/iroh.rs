@@ -237,18 +237,6 @@ async fn an_iroh_host_with_both_an_endpoint_and_relays_is_refused() {
     );
 }
 
-#[tokio::test]
-async fn a_blocking_connect_cannot_starve_its_own_current_thread_runtime() {
-    let client = local_endpoint().await;
-
-    let result =
-        Device::remote_options(&host_dialed_from(&client, SecretKey::generate().public())).init();
-    assert!(
-        matches!(result, Err(ConnectError::InvalidConfiguration { .. })),
-        "{result:?}"
-    );
-}
-
 #[tokio::test(flavor = "multi_thread")]
 async fn transfers_tensor_directly_between_iroh_compute_peers() {
     let source_server = local_endpoint().await;
@@ -428,22 +416,6 @@ async fn passes_application_credentials_to_the_peer_authorizer() {
     let device = Device::remote_options(&host).init_async().await.unwrap();
     let data = Tensor::<1>::from_floats([4.0], &device).to_data();
     assert_eq!(data.try_into_vec::<f32>().unwrap(), vec![4.0]);
-
-    router.shutdown().await.unwrap();
-}
-
-#[tokio::test(flavor = "multi_thread")]
-async fn a_second_live_endpoint_with_a_serving_key_cannot_carry_the_protocol() {
-    let key = SecretKey::generate();
-    let serving = local_endpoint_at(key.clone(), 0).await;
-    let router = spawn_router::<Flex>(serving, AllowAll, TelemetryProbe::disabled());
-    let twin = local_endpoint_at(key, 0).await;
-
-    let protocol = BackendServer::<Flex>::new(vec![Default::default()]).into_protocol(&twin);
-    assert!(
-        matches!(protocol, Err(ServeError::InvalidEndpoint { .. })),
-        "{protocol:?}"
-    );
 
     router.shutdown().await.unwrap();
 }
@@ -883,10 +855,7 @@ mod iroh_peer {
             }
             let refused = next.await.unwrap();
             assert!(
-                matches!(
-                    refused,
-                    Err(ServeError::Bind { .. } | ServeError::InvalidEndpoint { .. })
-                ),
+                matches!(refused, Err(ServeError::Bind { .. })),
                 "{refused:?}"
             );
         }

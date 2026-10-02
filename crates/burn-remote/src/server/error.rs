@@ -30,11 +30,6 @@ pub enum ServeError {
         /// The backend they were registered for.
         backend: &'static str,
     },
-    /// The Iroh endpoint cannot carry the protocol: another live endpoint has its id.
-    InvalidEndpoint {
-        /// Why.
-        reason: String,
-    },
     /// The handlers that stop a blocking `serve` on Ctrl+C or `SIGTERM` could not be installed.
     SignalHandler {
         /// The operating system's reason.
@@ -76,9 +71,6 @@ impl fmt::Display for ServeError {
                 f,
                 "custom operations registered for {backend}, which the server's devices do not use"
             ),
-            Self::InvalidEndpoint { reason } => {
-                write!(f, "cannot serve on this endpoint: {reason}")
-            }
             Self::SignalHandler { source } => {
                 write!(f, "cannot install the shutdown signal handlers: {source}")
             }

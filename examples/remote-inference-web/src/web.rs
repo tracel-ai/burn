@@ -9,7 +9,7 @@ use alloc::vec::Vec;
 use wasm_bindgen::prelude::*;
 
 use burn::module::Module;
-use burn::remote::{EndpointId, RemoteHost};
+use burn::remote::{EndpointId, IrohIdentity, RemoteHost};
 use burn::store::ModuleRecord;
 use burn::tensor::{Bytes, Device, Tensor, activation::softmax};
 
@@ -27,7 +27,7 @@ pub fn start() {
 /// string (a demo convenience; see the native example for the security note).
 fn server_id(topic: &str) -> EndpointId {
     let hash = blake3::hash(format!("burn-p2p:{topic}").as_bytes());
-    iroh::SecretKey::from_bytes(hash.as_bytes()).public()
+    IrohIdentity::from_bytes(*hash.as_bytes()).id()
 }
 
 #[wasm_bindgen]

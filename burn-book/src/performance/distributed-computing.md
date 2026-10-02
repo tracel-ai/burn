@@ -147,8 +147,9 @@ serves on it with `RemoteServer::into_protocol`. Endpoints Burn binds send no se
 `iroh_segmentation_offload` under `[remote]` in `burn.toml` turns them on. An application's own
 endpoint keeps its own setting.
 
-`Device::enumerate(DeviceType::Remote(host))` connects every device the server hosts, beside any
-local device type; `host.devices()` does the same and returns an error where `enumerate` panics.
+`Device::enumerate(DeviceType::Remote(host))` lists every device the server hosts, beside any
+local device type, and each connects on first use; `host.devices()` does the same and returns an
+error where `enumerate` panics.
 `init_async().await` connects from async code, and is the only form in a browser, where a
 synchronous connection cannot be established.
 
@@ -156,7 +157,7 @@ synchronous connection cannot be established.
 
 Remote execution and DDP compose naturally. The
 [`text-classification` example](https://github.com/tracel-ai/burn/tree/main/examples/text-classification/examples/ag-news-train.rs)
-connects every device a remote WebSocket server hosts and passes them to the same DDP
+lists every device a remote WebSocket server hosts and passes them to the same DDP
 strategy:
 
 ```rust, ignore

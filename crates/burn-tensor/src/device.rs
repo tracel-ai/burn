@@ -1139,9 +1139,9 @@ pub enum DeviceType {
     NdArray,
     #[cfg(feature = "tch")]
     LibTorch,
-    /// Every device the remote server `host` hosts, each connected in its own session when
-    /// enumerated. [`RemoteHost::devices`](crate::remote::RemoteHost::devices) does the same and
-    /// returns an error where `enumerate` panics.
+    /// Every device the remote server `host` hosts, connected on first use like any listed device.
+    /// [`RemoteHost::devices`](crate::remote::RemoteHost::devices) does the same and returns an
+    /// error where `enumerate` panics.
     #[cfg(feature = "remote")]
     Remote(crate::remote::RemoteHost),
 }

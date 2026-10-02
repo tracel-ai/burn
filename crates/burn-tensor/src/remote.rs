@@ -16,7 +16,7 @@ use core::future::Future;
 use burn_dispatch::__remote::HostSpec;
 pub use burn_dispatch::__remote::{
     ConnectError, Credential, CustomOpClient, Endpoint, EndpointAddr, EndpointId, InvalidRelays,
-    IrohHost, IrohRelays, RelayUrl,
+    IrohHost, IrohIdentity, IrohRelays, RelayUrl,
 };
 
 use crate::{Device, DeviceIndex, Devices};
@@ -48,15 +48,15 @@ impl RemoteHost {
         Self(self.0.with_credential(credential))
     }
 
-    /// Connect every device the server hosts, whether or not it is then used: each is a session
-    /// holding a thread and its device on the server for as long as this process runs.
+    /// Every device the server hosts. Device 0 connects, which reports the count; the others
+    /// connect on first use, as a local backend's listed devices initialize on first use.
     /// `Device::enumerate(DeviceType::Remote(host))` lists the same devices, and panics where this
     /// returns an error.
     ///
     /// # Errors
     ///
-    /// The first device that cannot be connected, a refusal included, fails the whole list. A
-    /// client allowed only some of the server's devices connects each with
+    /// Device 0 cannot be connected. A device the authorizer refuses fails on first use instead,
+    /// so a client allowed only some of the server's devices connects each with
     /// [`RemoteOptions::device_index`].
     #[cfg(not(target_family = "wasm"))]
     pub fn devices(&self) -> Result<Devices, ConnectError> {
@@ -72,8 +72,8 @@ impl RemoteHost {
         async move { Ok(devices.await?.into_iter().map(Device::new).collect()) }
     }
 
-    /// Connect every device the server hosts, one session each. The first device that cannot be
-    /// connected fails the whole list.
+    /// Connect every device the server hosts, one session each, since a browser cannot connect a
+    /// device on first use. The first device that cannot be connected fails the whole list.
     #[cfg(target_family = "wasm")]
     pub fn devices_async(
         &self,
@@ -153,8 +153,8 @@ impl RemoteOptions {
 impl Device {
     /// Options for connecting a device on the remote server `host`.
     ///
-    /// There is no lazy remote device beside it, unlike `Device::wgpu`: a remote device fails on
-    /// the network, not on its settings, so connecting reports that up front.
+    /// Unlike `Device::wgpu`, `init` connects before returning: a remote device fails on the
+    /// network, not on its settings, so connecting reports that up front.
     pub fn remote_options(host: &RemoteHost) -> RemoteOptions {
         RemoteOptions {
             host: host.clone(),

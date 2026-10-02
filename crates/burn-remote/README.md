@@ -1,7 +1,8 @@
 # Burn Remote
 
-Burn Remote runs tensor operations on another machine's devices. A client sends the operations, the
-server runs them, and only what the client reads comes back.
+Burn Remote runs tensor operations on the devices a server hosts, in another process on this machine
+or another. A client sends the operations, the server runs them, and only what the client reads
+comes back.
 
 It has two transports:
 
@@ -27,8 +28,9 @@ let output = Tensor::<1>::from_floats([1.0, 2.0], &device) * 2.0;
 
 - `init_async().await` connects from async code, and is the only form in a browser.
 - `.device_index(1)` picks another of the server's devices.
-- `Device::enumerate(DeviceType::Remote(host))` connects all of them, beside any local device type;
-  `host.devices()` does the same and returns an error where `enumerate` panics.
+- `Device::enumerate(DeviceType::Remote(host))` lists all of them, beside any local device type, and
+  each connects on first use; `host.devices()` does the same and returns an error where `enumerate`
+  panics.
 - `RemoteHost::websocket("ws://gpu:3000")` reaches a WebSocket server.
 
 An Iroh server's relays must match the client's:
@@ -62,7 +64,7 @@ RemoteServer::new([Device::cuda(0)])
   serves direct connections only, on a UDP port clients dial.
 - `WebSocketTransport::new(3000)` serves over WebSocket. The authorizer applies to both transports;
   over WebSocket, a token stops stray clients on a trusted network, not someone reading the traffic.
-- `with_custom_op::<B>` hosts a backend extension's operations. A backend outside Burn's own serves
+- `with_custom_op::<B, _>` hosts a backend extension's operations. A backend outside Burn's own serves
   through `burn_remote::server::BackendServer<B>`.
 
 For an endpoint shared with other Iroh protocols, register Burn's handler in the application's

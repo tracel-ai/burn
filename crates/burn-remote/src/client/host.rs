@@ -54,7 +54,6 @@ impl HostSpec {
 
     #[cfg(not(target_family = "wasm"))]
     pub fn connect(&self, index: usize) -> Result<RemoteDevice, ConnectError> {
-        self.refuse_blocking_on_current_thread()?;
         let host = self.clone();
         runtime::wait(move || host.connect_blocking(index))?
     }
@@ -79,7 +78,6 @@ impl HostSpec {
 
     #[cfg(not(target_family = "wasm"))]
     pub fn devices(&self) -> Result<Vec<RemoteDevice>, ConnectError> {
-        self.refuse_blocking_on_current_thread()?;
         let host = self.clone();
         runtime::wait(move || host.devices_blocking())?
     }
@@ -130,32 +128,27 @@ impl HostSpec {
     /// enough runners blocking every worker would stop all I/O.
     #[cfg(not(target_family = "wasm"))]
     fn connect_blocking(&self, index: usize) -> Result<RemoteDevice, ConnectError> {
-        let endpoint = runtime::blocking_runtime()
-            .handle()
-            .block_on(self.endpoint())?;
-        let device = RemoteDevice::register(endpoint, index);
+        let device = RemoteDevice::register(self.endpoint_blocking()?, index);
         get_client::<RemoteChannel>(&device).connect()?;
         Ok(device)
     }
 
-    /// Device 0 first, for the count, then the others at once.
+    /// Device 0 connects for the count; the others connect on first use, as a local backend's
+    /// listed devices initialize on first use.
     #[cfg(not(target_family = "wasm"))]
     fn devices_blocking(&self) -> Result<Vec<RemoteDevice>, ConnectError> {
         let first = self.connect_blocking(0)?;
-        let others = std::thread::scope(|scope| {
-            let connects: Vec<_> = (1..host_device_count(&first))
-                .map(|index| scope.spawn(move || self.connect_blocking(index)))
-                .collect();
-            connects
-                .into_iter()
-                .map(|connect| {
-                    connect
-                        .join()
-                        .unwrap_or_else(|panic| std::panic::resume_unwind(panic))
-                })
-                .collect::<Result<Vec<_>, _>>()
-        })?;
+        let count = host_device_count(&first);
+        let endpoint = self.endpoint_blocking()?;
+        let others = (1..count).map(|index| RemoteDevice::register(endpoint.clone(), index));
         Ok(core::iter::once(first).chain(others).collect())
+    }
+
+    #[cfg(not(target_family = "wasm"))]
+    fn endpoint_blocking(&self) -> Result<RemoteEndpoint, ConnectError> {
+        runtime::blocking_runtime()
+            .handle()
+            .block_on(self.endpoint())
     }
 
     #[cfg(target_family = "wasm")]
@@ -164,27 +157,6 @@ impl HostSpec {
         let device = RemoteDevice::register(endpoint, index);
         get_client::<RemoteChannel>(&device).connect_async().await?;
         Ok(device)
-    }
-
-    /// An application endpoint runs its socket on the runtime that bound it, which Iroh does not
-    /// expose, so this only catches the visible case: a blocking connect inside a current-thread
-    /// runtime.
-    #[cfg(not(target_family = "wasm"))]
-    fn refuse_blocking_on_current_thread(&self) -> Result<(), ConnectError> {
-        #[cfg(feature = "iroh")]
-        if let Target::Iroh(host) = &self.target
-            && host.app_endpoint().is_some()
-            && let Ok(handle) = tokio::runtime::Handle::try_current()
-            && handle.runtime_flavor() == tokio::runtime::RuntimeFlavor::CurrentThread
-        {
-            return Err(ConnectError::InvalidConfiguration {
-                reason: "a blocking connect on a current-thread runtime cannot drive the \
-                         application endpoint that runtime runs; use `init_async` or \
-                         `devices_async`"
-                    .into(),
-            });
-        }
-        Ok(())
     }
 }
 
