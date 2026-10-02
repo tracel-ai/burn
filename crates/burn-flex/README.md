@@ -7,6 +7,11 @@ is thread-safe by design.
 > **[Detailed comparison with burn-ndarray](./COMPARISON.md)**: Full architecture, feature coverage,
 > operation-by-operation analysis, and migration path.
 
+burn-flex is independent of [burn-cpu](../burn-cpu), Burn's other CPU backend. burn-cpu runs CubeCL
+kernels JIT-compiled through MLIR/LLVM (with fusion and autotune), while burn-flex executes eagerly
+with its own pure-Rust kernels and needs no native toolchain. See the
+[burn-cpu README](../burn-cpu/README.md#burn-cpu-vs-burn-flex) for a side-by-side comparison.
+
 ### Features
 
 - **Zero-Copy Operations**: Many operations return strided views without copying data:

@@ -31,8 +31,8 @@ be enabled together; the device chooses where operations execute.
 | `Device::webgpu(Default::default())` | `webgpu`      | Browser WebGPU with WGSL                                                                |
 | `Device::cuda(0)`                    | `cuda`        | NVIDIA GPU through CubeCL's CUDA runtime                                                |
 | `Device::rocm(0)`                    | `rocm`        | AMD GPU through CubeCL's HIP runtime                                                    |
-| `Device::cpu()`                      | `cpu`         | CPU through CubeCL's CPU runtime                                                        |
-| `Device::flex()`                     | `flex`        | CPU through the pure-Rust Flex backend                                                  |
+| `Device::cpu()`                      | `cpu`         | CPU through CubeCL's CPU runtime (MLIR/LLVM JIT, supports fusion)                       |
+| `Device::flex()`                     | `flex`        | CPU through the pure-Rust Flex backend (eager, supports `no_std` and Wasm)              |
 | `Device::ndarray()`                  | `ndarray`     | CPU through NdArray (deprecated)                                                        |
 | `Device::libtorch()`                 | `tch`         | CPU through LibTorch (deprecated)                                                       |
 | `Device::libtorch_cuda(0)`           | `tch`         | CUDA GPU through LibTorch (deprecated)                                                  |
