@@ -65,7 +65,7 @@ impl CharErrorRate {
         }
     }
 
-    /// Sets the pad token.
+    /// Sets the pad token, which is ignored wherever it appears in predictions and targets.
     pub fn with_pad_token(mut self, index: usize) -> Self {
         self.pad_token = Some(index);
         self
@@ -81,45 +81,43 @@ impl Metric for CharErrorRate {
         let targets = &input.targets;
         let [batch_size, seq_len] = targets.dims();
 
-        let (output_lengths, target_lengths) = if let Some(pad) = self.pad_token {
-            // Create boolean masks for non-padding tokens.
-            let output_mask = outputs.clone().not_equal_scalar(pad as i64);
-            let target_mask = targets.clone().not_equal_scalar(pad as i64);
-
-            let output_lengths_tensor = output_mask.int().sum_dim(1);
-            let target_lengths_tensor = target_mask.int().sum_dim(1);
-
-            (
-                output_lengths_tensor.try_into_vec_as::<i32>().unwrap(),
-                target_lengths_tensor.try_into_vec_as::<i32>().unwrap(),
-            )
-        } else {
-            // If there's no padding, all sequences have the full length.
-            (
-                vec![seq_len as i32; batch_size],
-                vec![seq_len as i32; batch_size],
-            )
-        };
-
         let outputs_data: Vec<i32> = outputs.try_to_vec_as().unwrap();
         let targets_data: Vec<i32> = targets.try_to_vec_as().unwrap();
+        let pad_token = self.pad_token.map(|pad| pad as i64);
 
-        let total_edit_distance: usize = (0..batch_size)
-            .map(|i| {
-                let start = i * seq_len;
+        let mut total_edit_distance = 0;
+        let mut total_target_length = 0;
 
-                // Get pre-calculated lengths for the current sequence.
-                let output_len = output_lengths[i] as usize;
-                let target_len = target_lengths[i] as usize;
+        for i in 0..batch_size {
+            let start = i * seq_len;
+            let end = start + seq_len;
+            let output_seq = &outputs_data[start..end];
+            let target_seq = &targets_data[start..end];
 
-                let output_seq_slice = &outputs_data[start..(start + output_len)];
-                let target_seq_slice = &targets_data[start..(start + target_len)];
+            let (distance, target_len) = match pad_token {
+                Some(pad) => {
+                    let output_seq_no_pad = output_seq
+                        .iter()
+                        .copied()
+                        .filter(|&token| i64::from(token) != pad)
+                        .collect::<Vec<_>>();
+                    let target_seq_no_pad = target_seq
+                        .iter()
+                        .copied()
+                        .filter(|&token| i64::from(token) != pad)
+                        .collect::<Vec<_>>();
 
-                edit_distance(target_seq_slice, output_seq_slice)
-            })
-            .sum();
+                    (
+                        edit_distance(&target_seq_no_pad, &output_seq_no_pad),
+                        target_seq_no_pad.len(),
+                    )
+                }
+                None => (edit_distance(target_seq, output_seq), target_seq.len()),
+            };
 
-        let total_target_length = target_lengths.iter().map(|&x| x as usize).sum::<usize>();
+            total_edit_distance += distance;
+            total_target_length += target_len;
+        }
 
         let value = if total_target_length > 0 {
             100.0 * total_edit_distance as f64 / total_target_length as f64
@@ -216,6 +214,58 @@ mod tests {
 
         metric.update(&CerInput::new(preds, tgts), &MetricMetadata::fake());
         assert_eq!(50.0, metric.value().unwrap().current());
+    }
+
+    /// Both sequences contain [1, 2] after removing padding, so CER should be 0 %.
+    #[test]
+    fn test_cer_with_interspersed_padding() {
+        let device = Default::default();
+        let mut metric = CharErrorRate::new().with_pad_token(0);
+        let preds = Tensor::from_data([[1, 2, 0]], &device);
+        let tgts = Tensor::from_data([[1, 0, 2]], &device);
+
+        metric.update(&CerInput::new(preds, tgts), &MetricMetadata::fake());
+
+        assert_eq!(0.0, metric.value().unwrap().current());
+    }
+
+    /// Leading padding must also be ignored in predictions and targets.
+    #[test]
+    fn test_cer_with_leading_padding() {
+        let device = Default::default();
+        let mut metric = CharErrorRate::new().with_pad_token(0);
+        let preds = Tensor::from_data([[0, 1, 2], [3, 4, 0]], &device);
+        let tgts = Tensor::from_data([[1, 2, 0], [0, 3, 4]], &device);
+
+        metric.update(&CerInput::new(preds, tgts), &MetricMetadata::fake());
+
+        assert_eq!(0.0, metric.value().unwrap().current());
+    }
+
+    /// One deletion in four non-padding target tokens ⇒ 25 %.
+    #[test]
+    fn test_cer_with_mixed_padding_and_unequal_lengths() {
+        let device = Default::default();
+        let mut metric = CharErrorRate::new().with_pad_token(0);
+        let preds = Tensor::from_data([[0, 1, 0, 2], [3, 0, 0, 0]], &device);
+        let tgts = Tensor::from_data([[1, 0, 2, 0], [0, 3, 0, 4]], &device);
+
+        metric.update(&CerInput::new(preds, tgts), &MetricMetadata::fake());
+
+        assert_eq!(25.0, metric.value().unwrap().current());
+    }
+
+    /// An all-padding batch keeps the existing zero CER behavior.
+    #[test]
+    fn test_cer_with_only_padding() {
+        let device = Default::default();
+        let mut metric = CharErrorRate::new().with_pad_token(0);
+        let preds = Tensor::from_data([[0, 0]], &device);
+        let tgts = Tensor::from_data([[0, 0]], &device);
+
+        metric.update(&CerInput::new(preds, tgts), &MetricMetadata::fake());
+
+        assert_eq!(0.0, metric.value().unwrap().current());
     }
 
     /// `clear()` must reset the running statistics to zero.
