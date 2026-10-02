@@ -87,7 +87,8 @@ impl<B: BackendIr> BackendServer<B> {
     }
 
     /// Serve on `transport` until Ctrl+C or `SIGTERM`, blocking the calling thread from any
-    /// context. Installs [`ServerLogging`], and the signal handlers once the transport has bound.
+    /// context. Installs [`ServerLogging`] first, and the signal handlers only once the transport
+    /// has bound.
     #[cfg(not(target_family = "wasm"))]
     pub fn serve(&self, transport: impl Into<Transport>) -> Result<(), ServeError> {
         let shutdown = CancellationToken::new();
@@ -98,6 +99,7 @@ impl<B: BackendIr> BackendServer<B> {
         ServerLogging::install();
         runtime::wait(move || {
             runtime::blocking_runtime().handle().block_on(async move {
+                let _ends_sessions = shutdown.clone().drop_guard();
                 // Tokio keeps a signal handler for the life of the process, so one is only
                 // installed for a server that is about to serve.
                 let listener = transport.bind().await?;
