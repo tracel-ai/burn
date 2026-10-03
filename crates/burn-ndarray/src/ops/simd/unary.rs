@@ -240,6 +240,7 @@ mod tests {
     use ndarray::{ArrayD, IxDyn, ShapeBuilder};
 
     use super::*;
+    use crate::ops::simd::testutil::{arr, gapped, simd, vals};
 
     #[test]
     fn owned_unary_preserves_non_standard_layout() {
@@ -288,5 +289,26 @@ mod tests {
             .collect::<Vec<_>>();
 
         assert_eq!(output, expected);
+    }
+    #[test]
+    fn covers_abs_and_bitnot() {
+        let data = vals::<f32>(97);
+        let expected = arr(data.iter().map(|v| v.abs()).collect());
+        assert_eq!(
+            simd(try_unary_simd::<f32, f32, f32, f32, VecAbs>(arr(data))),
+            expected
+        );
+
+        let data: Vec<i32> = (0..97).map(|i: i32| i * 7).collect();
+        let expected = arr(data.iter().map(|v| !v).collect());
+        assert_eq!(
+            simd(try_unary_simd::<i32, i32, i32, i32, VecBitNot>(arr(data))),
+            expected
+        );
+    }
+
+    #[test]
+    fn rejects_non_contiguous() {
+        assert!(try_unary_simd::<f32, f32, f32, f32, VecAbs>(gapped(vals(96))).is_err());
     }
 }

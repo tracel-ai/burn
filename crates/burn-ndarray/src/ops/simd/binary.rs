@@ -297,3 +297,72 @@ fn unsafe_alias_slice_mut<'a, T>(slice: &mut [T]) -> &'a mut [T] {
     let len = slice.len();
     unsafe { slice::from_raw_parts_mut(ptr, len) }
 }
+
+#[cfg(test)]
+mod tests {
+    use core::fmt::Debug;
+
+    use super::*;
+    use crate::ops::simd::testutil::{arr, arr_at, f_order, pos, simd, vals, vals_b};
+
+    /// Assert `lhs OP rhs` equals `f` applied elementwise.
+    fn binop<T, Out, Op>(lhs: SharedArray<T>, rhs: SharedArray<T>, f: impl Fn(T, T) -> Out)
+    where
+        T: NdArrayElement + Scalar,
+        Out: NdArrayElement + Scalar + PartialEq + Debug,
+        Op: SimdBinop<T, Out>,
+    {
+        let expected = arr(lhs
+            .iter()
+            .copied()
+            .zip(rhs.iter().copied())
+            .map(|(a, b)| f(a, b))
+            .collect());
+        assert_eq!(
+            simd(try_binary_simd::<T, Out, T, Out, Op>(lhs, rhs)),
+            expected
+        );
+    }
+
+    #[test]
+    fn matches_scalar_for_each_op() {
+        binop::<f32, f32, VecDiv>(arr(vals(97)), arr(pos(97)), |a, b| a / b);
+        binop::<f32, f32, VecMin>(arr(vals(97)), arr(vals_b(97)), |a, b| a.min(b));
+        binop::<f32, f32, VecMax>(arr(vals(97)), arr(vals_b(97)), |a, b| a.max(b));
+        binop::<i32, i32, VecBitAnd>(arr(vals(97)), arr(vals_b(97)), |a, b| a & b);
+        binop::<i32, i32, VecBitOr>(arr(vals(97)), arr(vals_b(97)), |a, b| a | b);
+        binop::<i32, i32, VecBitXor>(arr(vals(97)), arr(vals_b(97)), |a, b| a ^ b);
+    }
+
+    #[test]
+    fn covers_operand_buffer_reuse() {
+        // Unique lhs: the output is written into the lhs buffer.
+        binop::<f32, f32, VecAdd>(arr(vals(97)), arr(vals_b(97)), |a, b| a + b);
+
+        // Shared lhs + unique rhs: the output is written into the rhs buffer.
+        let lhs = arr(vals(97));
+        let _shared = lhs.clone();
+        binop::<f32, f32, VecSub>(lhs, arr(vals_b(97)), |a, b| a - b);
+
+        // Both shared: a fresh output buffer is allocated.
+        let (lhs, rhs) = (arr(vals(97)), arr(vals_b(97)));
+        let _shared = (lhs.clone(), rhs.clone());
+        binop::<f32, f32, VecMul>(lhs, rhs, |a, b| a * b);
+    }
+
+    #[test]
+    fn rejects_mismatched_shapes() {
+        assert!(
+            try_binary_simd::<f32, f32, f32, f32, VecAdd>(arr(vals(97)), arr(vals(64))).is_err()
+        );
+    }
+
+    #[test]
+    fn rejects_non_standard_layout() {
+        let rhs = f_order([12, 8], vals(96));
+        assert!(!rhs.is_standard_layout());
+        assert!(
+            try_binary_simd::<f32, f32, f32, f32, VecAdd>(arr_at(&[12, 8], vals(96)), rhs).is_err()
+        );
+    }
+}

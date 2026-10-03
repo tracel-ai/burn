@@ -417,3 +417,55 @@ unsafe fn binary_scalar_slice_inplace<
         unsafe { vstore(elem as *mut _ as *mut Out, s0) };
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use core::fmt::Debug;
+
+    use super::*;
+    use crate::ops::simd::testutil::{arr, gapped, simd, vals};
+
+    /// Assert `input OP rhs` equals `f` applied elementwise.
+    fn scalar_op<T, Out, Op>(input: SharedArray<T>, rhs: Op::Rhs, f: impl Fn(T, Op::Rhs) -> Out)
+    where
+        T: NdArrayElement + Scalar,
+        Out: NdArrayElement + Scalar + PartialEq + Debug,
+        Op: ScalarSimdBinop<T, Out>,
+    {
+        let expected = arr(input.iter().copied().map(|v| f(v, rhs)).collect());
+        assert_eq!(
+            simd(try_binary_scalar_simd::<T, Out, T, Out, Op>(input, rhs)),
+            expected
+        );
+    }
+
+    #[test]
+    fn matches_scalar_for_each_op() {
+        scalar_op::<f32, f32, VecMul>(arr(vals(97)), 2.0, |v, r| v * r);
+        scalar_op::<f32, f32, VecDiv>(arr(vals(97)), 2.0, |v, r| v / r);
+        scalar_op::<f32, f32, VecMin>(arr(vals(97)), 3.0, |v, r| v.min(r));
+        scalar_op::<f32, f32, VecMax>(arr(vals(97)), 3.0, |v, r| v.max(r));
+        scalar_op::<f32, f32, VecClamp>(arr(vals(97)), (3.0, 7.0), |v, (lo, hi)| v.clamp(lo, hi));
+        scalar_op::<i32, i32, VecBitAnd>(arr(vals(97)), 0xF, |v, r| v & r);
+        scalar_op::<i32, i32, VecBitOr>(arr(vals(97)), 0xF, |v, r| v | r);
+        scalar_op::<i32, i32, VecBitXor>(arr(vals(97)), 0xF, |v, r| v ^ r);
+    }
+
+    #[test]
+    fn covers_buffer_reuse() {
+        // Unique input: the output is written into the input buffer.
+        scalar_op::<f32, f32, VecAdd>(arr(vals(97)), 1.0, |v, r| v + r);
+
+        // Shared input: a fresh output buffer is allocated.
+        let input = arr(vals::<f32>(97));
+        let _shared = input.clone();
+        scalar_op::<f32, f32, VecSub>(input, 1.0, |v, r| v - r);
+    }
+
+    #[test]
+    fn rejects_non_contiguous() {
+        assert!(
+            try_binary_scalar_simd::<f32, f32, f32, f32, VecAdd>(gapped(vals(96)), 1.0).is_err()
+        );
+    }
+}

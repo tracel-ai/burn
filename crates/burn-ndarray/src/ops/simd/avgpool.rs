@@ -441,3 +441,55 @@ mod nhwc {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::ops::avgpool::avg_pool2d;
+    use crate::ops::simd::lanes;
+    use crate::ops::simd::testutil::{nchw, nhwc, simd};
+
+    #[test]
+    fn matches_scalar_f32() {
+        // 9 * lanes + 1 channels covers the blocked, unblocked, and scalar
+        // remainder channel loops on any lane count.
+        let x = nhwc::<f32>(2, 9 * lanes::<f32>() + 1, 6, 5);
+        assert_eq!(
+            simd(try_avg_pool2d_simd::<f32>(
+                x.clone(),
+                [3, 2],
+                [2, 1],
+                [1, 0],
+                false
+            )),
+            avg_pool2d::<f32>(x, [3, 2], [2, 1], [1, 0], false, false)
+        );
+    }
+
+    #[test]
+    fn matches_scalar_f64_counting_pad() {
+        let x = nhwc::<f64>(1, 9 * lanes::<f64>() + 1, 5, 4);
+        assert_eq!(
+            simd(try_avg_pool2d_simd::<f64>(
+                x.clone(),
+                [2, 3],
+                [1, 2],
+                [1, 1],
+                true
+            )),
+            avg_pool2d::<f64>(x, [2, 3], [1, 2], [1, 1], true, false)
+        );
+    }
+
+    #[test]
+    fn rejects_standard_layout() {
+        let x = nchw::<f32>(1, 8, 4, 4);
+        assert!(try_avg_pool2d_simd::<f32>(x, [2, 2], [1, 1], [0, 0], false).is_err());
+    }
+
+    #[test]
+    fn rejects_unsupported_dtype() {
+        let x = nhwc::<i32>(1, 8, 4, 4);
+        assert!(try_avg_pool2d_simd::<i32>(x, [2, 2], [1, 1], [0, 0], false).is_err());
+    }
+}
