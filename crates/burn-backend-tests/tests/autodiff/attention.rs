@@ -67,6 +67,7 @@ fn attention_grads_match_composed_ops() {
                     scale,
                     softcap,
                     is_causal,
+                    ..Default::default()
                 };
                 let bias = masked.then(|| bias.clone());
                 attention(
@@ -102,6 +103,60 @@ fn attention_grads_match_composed_ops() {
 
         for (actual, expected) in run(false).into_iter().zip(run(true)) {
             actual.assert_approx_eq::<FloatElem>(&expected, Tolerance::permissive());
+        }
+    }
+}
+
+/// Grouped-query attention gradients match those of attention over K/V repeated per query
+/// head: each K/V head's gradient sums over the query heads sharing it.
+#[test]
+fn attention_grouped_query_grads_match_repeated_kv() {
+    let device = AutodiffDevice::new();
+    let (b, q_heads, kv_heads, sq, sk, e) = (2, 6, 2, 4, 7, 8);
+    let groups = q_heads / kv_heads;
+    let random = |shape: [usize; 4]| {
+        TestTensor::<4>::random(shape, Distribution::Default, &device).into_data()
+    };
+    let (q_data, k_data, v_data) = (
+        random([b, q_heads, sq, e]),
+        random([b, kv_heads, sk, e]),
+        random([b, kv_heads, sk, e]),
+    );
+
+    for is_causal in [false, true] {
+        let run = |repeated: bool| {
+            let q = TestTensor::<4>::from_data(q_data.clone(), &device).require_grad();
+            let k = TestTensor::<4>::from_data(k_data.clone(), &device).require_grad();
+            let v = TestTensor::<4>::from_data(v_data.clone(), &device).require_grad();
+            let repeat = |x: TestTensor<4>| {
+                x.unsqueeze_dim::<5>(2)
+                    .expand([b, kv_heads, groups, sk, e])
+                    .reshape([b, q_heads, sk, e])
+            };
+            let (k_in, v_in) = if repeated {
+                (repeat(k.clone()), repeat(v.clone()))
+            } else {
+                (k.clone(), v.clone())
+            };
+            let options = AttentionModuleOptions {
+                is_causal,
+                softcap: Some(5.0),
+                ..Default::default()
+            };
+            let output = attention(q.clone(), k_in, v_in, None, None, options);
+            let grads = (output.clone() * output.clone()).sum().backward();
+            [
+                output.inner(),
+                q.grad(&grads).unwrap(),
+                k.grad(&grads).unwrap(),
+                v.grad(&grads).unwrap(),
+            ]
+        };
+
+        for (actual, expected) in run(false).into_iter().zip(run(true)) {
+            actual
+                .into_data()
+                .assert_approx_eq::<FloatElem>(&expected.into_data(), Tolerance::permissive());
         }
     }
 }

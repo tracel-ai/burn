@@ -493,20 +493,56 @@ impl ModuleOps<Self> for LibTorch {
         attn_bias: Option<TchTensor>,
         options: AttentionModuleOptions,
     ) -> TchTensor {
-        if attn_bias.is_some() {
+        // torch has no softcap or additive-bias-after-mask.
+        if attn_bias.is_some() || options.softcap.is_some() {
             return attention_fallback::<Self>(query, key, value, mask, attn_bias, options);
         }
 
-        TchTensor::new(tch::Tensor::scaled_dot_product_attention(
+        let q_shape = query.tensor.size();
+        let k_shape = key.tensor.size();
+        let (q_heads, seq_q) = (q_shape[1], q_shape[2]);
+        let (kv_heads, seq_k) = (k_shape[1], k_shape[2]);
+        let offset = options
+            .causal_alignment
+            .offset(seq_q as usize, seq_k as usize);
+
+        // torch's `is_causal` is top-left aligned (offset 0) and rejects an explicit mask
+        // alongside it. Otherwise the causal mask is folded into the bool mask.
+        let torch_causal = options.is_causal && mask.is_none() && offset == 0;
+        let hide = mask.map(|mask| mask.tensor);
+        let hide = if options.is_causal && !torch_causal {
+            let causal =
+                tch::Tensor::ones([seq_q, seq_k], (tch::Kind::Bool, query.tensor.device()))
+                    .triu(offset + 1);
+            Some(match hide {
+                Some(hide) => hide.logical_or(&causal),
+                None => causal,
+            })
+        } else {
+            hide
+        };
+
+        // Rows with every key hidden must yield 0, which torch's fused kernels don't
+        // guarantee (they can return NaN).
+        let hidden_rows = hide.as_ref().map(|hide| hide.all_dim(-1, true));
+
+        let output = tch::Tensor::scaled_dot_product_attention(
             &query.tensor,
             &key.tensor,
             &value.tensor,
-            mask.map(|m| m.tensor),
+            // torch's bool mask marks positions to attend, burn's marks positions to hide.
+            hide.map(|hide| hide.logical_not()),
             0.,
-            options.is_causal,
+            torch_causal,
             options.scale,
-            false,
-        ))
+            // torch maps query head `h` to K/V head `h / (q_heads / kv_heads)`, as burn does.
+            q_heads != kv_heads,
+        );
+
+        TchTensor::new(match hidden_rows {
+            Some(hidden_rows) => output.masked_fill(&hidden_rows, 0.),
+            None => output,
+        })
     }
 
     fn layer_norm(

@@ -4,10 +4,11 @@ use crate::{
 };
 use burn_backend::tensor::{BoolTensor, FloatTensor, IntTensor};
 use burn_backend::{
-    TensorMetadata,
+    Shape, TensorMetadata,
     ops::{
-        AttentionModuleOptions, ConvOptions, ConvTransposeOptions, DeformConv2dBackward,
-        DeformConvOptions, InterpolateOptions, MaxPool2dBackward, MaxPool2dWithIndices, ModuleOps,
+        AttentionModuleOptions, BoolTensorOps, CausalAlignment, ConvOptions, ConvTransposeOptions,
+        DeformConv2dBackward, DeformConvOptions, FloatTensorOps, InterpolateOptions,
+        MaxPool2dBackward, MaxPool2dWithIndices, ModuleOps, attention::AttentionShapes,
     },
 };
 use burn_std::IntDType;
@@ -328,23 +329,75 @@ impl ModuleOps<Self> for CubeBackend {
         attn_bias: Option<FloatTensor<Self>>,
         options: AttentionModuleOptions,
     ) -> FloatTensor<Self> {
+        let shapes = AttentionShapes::new(&query.shape(), &key.shape(), &value.shape());
+        let AttentionShapes {
+            batch,
+            q_heads,
+            kv_heads,
+            seq_q,
+            seq_k,
+            head_dim,
+            val_dim,
+        } = shapes;
+        let groups = shapes.groups();
+
         // Fall back to naive attention for features the flash kernel doesn't support.
-        if attn_bias.is_some() || options.softcap.is_some() || options.scale.is_some() {
+        // Grouped K/V heads are handled below.
+        if kernel::attention::flash_unsupported_options(&options, attn_bias.is_some(), seq_q, seq_k)
+            .is_some()
+        {
             return burn_backend::ops::attention::attention_fallback::<Self>(
                 query, key, value, mask, attn_bias, options,
             );
         }
 
-        kernel::attention::attention(
+        let flash = |query, key, value, mask, options| {
+            kernel::attention::attention(query, key, value, mask, None, options, Default::default())
+                .expect("Kernel to never fail")
+        };
+
+        if groups == 1 {
+            return flash(query, key, value, mask, options);
+        }
+
+        // Grouped-query attention. A bottom-right causal mask hides nothing from a single
+        // query row (decode), so it can be dropped there.
+        let causal = options.is_causal
+            && !(seq_q == 1 && options.causal_alignment == CausalAlignment::BottomRight);
+
+        if !causal {
+            // Fold the query heads sharing a K/V head into the row dimension, so the
+            // kernel runs plain attention over `kv_heads` heads without repeating K/V.
+            let fold =
+                |rows: usize, cols: usize| Shape::new([batch, kv_heads, groups * rows, cols]);
+            let query = Self::float_reshape(query, fold(seq_q, head_dim));
+            let mask = mask.map(|mask| {
+                let mask = Self::bool_expand(mask, Shape::new([batch, q_heads, seq_q, seq_k]));
+                Self::bool_reshape(mask, fold(seq_q, seq_k))
+            });
+            let options = AttentionModuleOptions {
+                is_causal: false,
+                ..options
+            };
+            let out = flash(query, key, value, mask, options);
+            return Self::float_reshape(out, Shape::new([batch, q_heads, seq_q, val_dim]));
+        }
+
+        // Causal over several query rows: folded rows would break the kernel's row
+        // index. Until the kernel indexes K/V heads itself, repeat them.
+        let repeat = |tensor: FloatTensor<Self>, dim: usize| {
+            let tensor = Self::float_reshape(tensor, Shape::new([batch, kv_heads, 1, seq_k, dim]));
+            let tensor =
+                Self::float_expand(tensor, Shape::new([batch, kv_heads, groups, seq_k, dim]));
+            Self::float_reshape(tensor, Shape::new([batch, q_heads, seq_k, dim]))
+        };
+        flash(
             query,
-            key,
-            value,
+            repeat(key, head_dim),
+            repeat(value, val_dim),
             mask,
-            attn_bias,
             options,
-            Default::default(),
         )
-        .expect("Kernel to never fail")
     }
 
     fn has_ctc_loss_backward() -> bool {
