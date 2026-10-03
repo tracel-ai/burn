@@ -2142,3 +2142,69 @@ fn rejects_safetensors_whose_header_length_looks_like_a_pickle_opcode() {
         "unexpected error: {err}"
     );
 }
+
+#[test]
+fn from_bytes_reads_legacy() {
+    let bytes = std::fs::read(test_data_path("simple_legacy.pt")).unwrap();
+    let reader = PytorchReader::from_bytes(bytes, None).unwrap();
+    assert!(reader.get("bias").is_some());
+    let file_reader = PytorchReader::new(test_data_path("simple_legacy.pt")).unwrap();
+    assert_eq!(
+        reader.get("bias").unwrap().read().unwrap(),
+        file_reader.get("bias").unwrap().read().unwrap(),
+    );
+}
+
+#[test]
+fn from_bytes_reads_tar() {
+    let bytes = std::fs::read(test_data_path("tar_weight_bias.tar")).unwrap();
+    let reader = PytorchReader::from_bytes(bytes, None).unwrap();
+    let file_reader = PytorchReader::new(test_data_path("tar_weight_bias.tar")).unwrap();
+
+    let keys = reader.keys();
+    assert!(!keys.is_empty(), "expected at least one tensor");
+
+    for key in &keys {
+        assert_eq!(
+            reader.get(key).unwrap().read().unwrap(),
+            file_reader.get(key).unwrap().read().unwrap(),
+            "mismatch for tensor '{key}'",
+        );
+    }
+}
+
+#[test]
+fn from_bytes_reads_zip() {
+    let bytes = std::fs::read(test_data_path("checkpoint.pt")).unwrap();
+    let reader = PytorchReader::from_bytes(bytes, None).unwrap();
+    let file_reader = PytorchReader::new(test_data_path("checkpoint.pt")).unwrap();
+
+    let keys = reader.keys();
+    assert!(!keys.is_empty(), "expected at least one tensor");
+
+    for key in &keys {
+        assert_eq!(
+            reader.get(key).unwrap().read().unwrap(),
+            file_reader.get(key).unwrap().read().unwrap(),
+            "mismatch for tensor '{key}'",
+        );
+    }
+}
+
+#[test]
+fn from_bytes_reads_plain_pickle() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = write_pickle(&dir, "plain.pkl", TORCH_DEVICE_BESIDE_INT);
+    let reader = PytorchReader::from_bytes(TORCH_DEVICE_BESIDE_INT.to_vec(), None).unwrap();
+    let file_reader = PytorchReader::new(&path).unwrap();
+
+    // A plain pickle holds no tensor storages, so there is nothing to read back.
+    // The check is that format detection and the memory reader agree with the file path.
+    assert_eq!(reader.metadata().format_type, FileFormat::Pickle);
+    assert_eq!(
+        reader.metadata().format_type,
+        file_reader.metadata().format_type
+    );
+    assert!(reader.keys().is_empty());
+    assert!(file_reader.keys().is_empty());
+}
