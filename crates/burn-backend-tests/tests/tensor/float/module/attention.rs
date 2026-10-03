@@ -767,6 +767,76 @@ fn test_attention_causal_alignment() {
     }
 }
 
+/// A bool mask and causality combine on every backend's native path, for both
+/// alignments, and a query row they hide completely yields 0.
+#[test]
+fn test_attention_mask_with_causal_matches_fallback() {
+    let device = Default::default();
+    for (seq_q, seq_k) in [(4, 4), (3, 7), (7, 3)] {
+        let [batch, heads, head_dim] = [2, 2, 16];
+        let random = |shape: [usize; 4]| {
+            TestTensor::<4>::random(shape, Distribution::Uniform(-1., 1.), &device)
+        };
+        let query = random([batch, heads, seq_q, head_dim]);
+        let key = random([batch, heads, seq_k, head_dim]);
+        let value = random([batch, heads, seq_k, head_dim]);
+
+        // Hide every key from query row 1, and about a third of the others at random.
+        let hidden_row = TestTensorBool::<4>::from_data(
+            TensorData::new(
+                (0..seq_q * seq_k)
+                    .map(|idx| idx / seq_k == 1)
+                    .collect::<Vec<_>>(),
+                [1, 1, seq_q, seq_k],
+            ),
+            &device,
+        )
+        .expand([batch, heads, seq_q, seq_k]);
+        let mask = TestTensor::<4>::random(
+            [batch, heads, seq_q, seq_k],
+            Distribution::Uniform(0., 1.),
+            &device,
+        )
+        .greater_elem(0.7)
+        .bool_or(hidden_row);
+
+        for alignment in [CausalAlignment::TopLeft, CausalAlignment::BottomRight] {
+            let options = AttentionModuleOptions {
+                is_causal: true,
+                causal_alignment: alignment,
+                ..Default::default()
+            };
+
+            let output = attention(
+                query.clone(),
+                key.clone(),
+                value.clone(),
+                Some(mask.clone()),
+                None,
+                options,
+            );
+            let expected = attention_fallback(
+                query.clone(),
+                key.clone(),
+                value.clone(),
+                Some(mask.clone()),
+                None,
+                options,
+            );
+
+            let output = output.into_data();
+            assert!(
+                !output.iter::<f32>().any(|v| v.is_nan()),
+                "Fully-masked rows should produce 0, not NaN"
+            );
+            output.assert_approx_eq::<FloatElem>(
+                &expected.into_data(),
+                Tolerance::rel_abs(1e-2, 1e-3).set_half_precision_relative(1e-1),
+            );
+        }
+    }
+}
+
 /// Softcap applies to the scaled scores before the additive bias:
 /// `softmax(softcap(QKᵗ · scale) + bias)`, not `softmax(softcap(QKᵗ · scale + bias))`.
 #[test]

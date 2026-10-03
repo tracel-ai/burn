@@ -332,6 +332,10 @@ Other source changes:
 
 - **Quantization:** replace `with_level(..)` and `with_param(..)` with `per_tensor(ScaleDtype)` or
   `per_block(block, ScaleDtype)`. See [Quantization](./performance/quantization.md).
+- **Attention:** `AttentionModuleOptions` has a new `causal_alignment` field, so struct literals
+  that list every field no longer compile. Add `..Default::default()`, which keeps the previous
+  bottom-right alignment. Set `causal_alignment: CausalAlignment::TopLeft` to match PyTorch's
+  `is_causal=True` when `seq_q != seq_k`. Serialized options without the field still load.
 - **Softplus:** use `SoftplusConfig::new().with_beta(beta).with_threshold(threshold)` instead of
   struct literals to account for the new `threshold` field (default: 20).
 

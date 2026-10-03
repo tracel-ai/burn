@@ -1993,6 +1993,8 @@ pub struct AttentionOptionsIr {
     pub scale: Option<ScalarIr>,
     pub softcap: Option<ScalarIr>,
     pub is_causal: bool,
+    /// Missing in IR recorded before the field existed; that IR was bottom-right aligned.
+    #[serde(default)]
     pub causal_alignment: CausalAlignment,
 }
 

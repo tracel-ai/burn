@@ -341,15 +341,10 @@ impl ModuleOps<Self> for CubeBackend {
         } = shapes;
         let groups = shapes.groups();
 
-        // The flash kernel's causal mask is bottom-right aligned.
-        let flash_causal_matches =
-            options.causal_alignment == CausalAlignment::BottomRight || seq_q == seq_k;
-
         // Fall back to naive attention for features the flash kernel doesn't support.
-        if attn_bias.is_some()
-            || options.softcap.is_some()
-            || options.scale.is_some()
-            || (options.is_causal && !flash_causal_matches)
+        // Grouped K/V heads are handled below.
+        if kernel::attention::flash_unsupported_options(&options, attn_bias.is_some(), seq_q, seq_k)
+            .is_some()
         {
             return burn_backend::ops::attention::attention_fallback::<Self>(
                 query, key, value, mask, attn_bias, options,

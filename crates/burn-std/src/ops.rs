@@ -625,6 +625,10 @@ pub struct AttentionModuleOptions {
 
     /// Where the causal diagonal is anchored when `seq_q != seq_k`. Ignored unless
     /// `is_causal` is set. Both alignments agree when `seq_q == seq_k`.
+    ///
+    /// Options serialized before this field existed deserialize as
+    /// [`BottomRight`](CausalAlignment::BottomRight), the alignment burn used until then.
+    #[serde(default)]
     pub causal_alignment: CausalAlignment,
 }
 
