@@ -92,6 +92,38 @@ fn test_topk_with_indices_supports_k_dim_size() {
 }
 
 #[test]
+fn test_argtopk_1d() {
+    let tensor = TestTensor::<1>::from([1., 2., 3., 4., 5.]);
+
+    let indices = tensor.argtopk(3, /*dim*/ 0);
+
+    let expected = TensorData::from([4, 3, 2]);
+    indices.into_data().assert_eq(&expected, false);
+}
+
+#[test]
+fn test_argtopk() {
+    let tensor =
+        TestTensor::<3>::from([[[1., 4., 7.], [2., 5., 6.]], [[3., 0., 9.], [8., 2., 7.]]]);
+
+    let indices = tensor.argtopk(2, /*dim*/ 2);
+
+    let expected = TensorData::from([[[2, 1], [2, 1]], [[2, 0], [0, 2]]]);
+    indices.into_data().assert_eq(&expected, false);
+}
+
+#[test]
+fn test_argtopk_supports_negative_dim() {
+    let tensor =
+        TestTensor::<3>::from([[[1., 4., 7.], [2., 5., 6.]], [[3., 0., 9.], [8., 2., 7.]]]);
+
+    let indices = tensor.argtopk(2, -1);
+
+    let expected = TensorData::from([[[2, 1], [2, 1]], [[2, 0], [0, 2]]]);
+    indices.into_data().assert_eq(&expected, false);
+}
+
+#[test]
 #[should_panic]
 fn test_topk_should_panic_k_larger() {
     let tensor = TestTensor::<2>::from_data(
