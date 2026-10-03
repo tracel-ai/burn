@@ -226,6 +226,87 @@ pub fn cfft<const D: usize>(
     (xr - yi, xi + yr)
 }
 
+/// Computes the 1-dimensional inverse discrete Fourier Transform of
+/// complex-valued input.
+///
+/// This is the inverse of [`cfft`]: it accepts a full `N`-bin complex spectrum
+/// and returns the `N`-sample complex signal. With `n = None` the round trip is
+/// exact, so
+/// `ifft(cfft(re, im, dim, None).0, cfft(re, im, dim, None).1, dim, None) == (re, im)`.
+/// With `Some(n)` both transforms operate at length `n`, so along `dim` the
+/// input is truncated or zero-padded and the recovered signal has length `n`
+/// rather than necessarily the original length.
+/// Unlike [`irfft`], the spectrum is not assumed to be Hermitian and the output
+/// is complex.
+///
+/// Autodiff is supported when the `autodiff` feature is enabled.
+///
+#[cfg_attr(
+    doc,
+    doc = r#"
+The mathematical formulation for each element $n$ in the time domain is:
+
+$$x\[n\] = \frac{1}{N} \sum_{k=0}^{N-1} X\[k\] \left\[ \cos\left(\frac{2\pi kn}{N}\right) + i \sin\left(\frac{2\pi kn}{N}\right) \right\]$$
+
+where $N$ is the transform length along `dim`.
+"#
+)]
+#[cfg_attr(not(doc), doc = r"x\[n\] = (1/N) * Σ X\[k\] * exp(i*2πkn/N)")]
+///
+/// # Arguments
+///
+/// * `spectrum_re` - The real part of the complex spectrum.
+/// * `spectrum_im` - The imaginary part of the complex spectrum. Must have the
+///   same shape as `spectrum_re`.
+/// * `dim` - The dimension along which to take the inverse FFT.
+///   Negative dimensions are supported and count from the end.
+/// * `n` - Optional transform length. When `None`, the spectrum length along
+///   `dim` is used. When `Some(n)`, the spectrum is truncated or zero-padded to
+///   length `n` before the inverse transform, and the returned signal has `n`
+///   elements along `dim`.
+///
+/// # Returns
+///
+/// A tuple `(re, im)` representing the full complex time-domain signal, each
+/// with `n` elements along `dim`.
+///
+/// # Example
+///
+/// ```rust,no_run
+/// use burn_core::tensor::Tensor;
+///
+/// let device = Default::default();
+/// let re = Tensor::<1>::from_floats([1.0, 0.0, -1.0, 0.0], &device);
+/// let im = Tensor::<1>::from_floats([0.0, 1.0, 0.0, -1.0], &device);
+/// let (signal_re, signal_im) = burn_signal::ifft(re, im, 0, None);
+/// ```
+pub fn ifft<const D: usize>(
+    spectrum_re: Tensor<D>,
+    spectrum_im: Tensor<D>,
+    dim: impl AsIndex,
+    n: Option<usize>,
+) -> (Tensor<D>, Tensor<D>) {
+    assert!(
+        spectrum_re.shape() == spectrum_im.shape(),
+        "ifft: spectrum_re and spectrum_im must have the same shape, \
+         got {:?} and {:?}",
+        spectrum_re.shape(),
+        spectrum_im.shape(),
+    );
+
+    let dim = dim
+        .try_dim_index(D)
+        .unwrap_or_else(|error| panic!("IFFT: {error}"));
+    let fft_size = n.unwrap_or(spectrum_re.dims()[dim]);
+    assert!(fft_size >= 1, "ifft: n must be >= 1, got {fft_size}");
+
+    // IDFT(X) = conj(DFT(conj(X))) / N, so feed the conjugate spectrum to the
+    // existing forward transform and conjugate the result back.
+    let (re, im) = cfft(spectrum_re, spectrum_im.neg(), dim, n);
+    let scale = 1.0 / fft_size as f64;
+    (re.mul_scalar(scale), im.neg().mul_scalar(scale))
+}
+
 /// Extend a half-spectrum from [`rfft`] (`N/2 + 1` bins) to the full `N`-bin
 /// spectrum using Hermitian symmetry: `X[k] = conj(X[N-k])` for `k > N/2`.
 pub(super) fn hermitian_extend<const D: usize>(
