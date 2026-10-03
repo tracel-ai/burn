@@ -492,3 +492,79 @@ macro_rules! inner_with_register_blocking_size {
     };
 }
 pub(crate) use inner_with_register_blocking_size;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::ops::conv::conv2d as conv2d_reference;
+    use crate::ops::simd::lanes;
+    use crate::ops::simd::testutil::{arr, arr_at, nchw, simd, vals};
+
+    fn conv_f32(stride: [usize; 2], padding: [usize; 2], dilation: [usize; 2], groups: usize) {
+        let out_channels = 2 * lanes::<f32>() * groups;
+        let in_channels = 2 * groups;
+        let x = nchw::<f32>(2, in_channels, 7, 6);
+        let w = arr_at(
+            &[out_channels, in_channels / groups, 3, 3],
+            vals(out_channels * in_channels / groups * 9),
+        );
+        let bias = arr(vals(out_channels));
+        let options = ConvOptions::new(stride, padding, dilation, groups);
+
+        assert_eq!(
+            simd(try_conv2d_simd::<f32>(
+                x.clone(),
+                w.clone(),
+                Some(bias.clone()),
+                options.clone()
+            )),
+            conv2d_reference::<f32>(x, w, Some(bias), options)
+        );
+    }
+
+    /// One `(stride, padding, dilation, groups)` row per const-generic launch arm.
+    #[test]
+    fn matches_scalar_for_all_launch_modes() {
+        for (stride, padding, dilation, groups) in [
+            ([1, 1], [0, 0], [1, 1], 1), // plain
+            ([1, 1], [1, 1], [1, 1], 1), // padded
+            ([2, 2], [0, 0], [1, 1], 1), // strided
+            ([2, 1], [1, 0], [1, 1], 1), // padded + strided
+            ([1, 1], [0, 0], [1, 1], 2), // grouped
+            ([1, 1], [1, 1], [1, 1], 2), // grouped + padded
+            ([2, 2], [0, 0], [1, 1], 2), // grouped + strided
+            ([2, 2], [1, 1], [1, 1], 2), // grouped + padded + strided
+            ([1, 1], [0, 0], [2, 2], 1), // dilation counts as strided
+        ] {
+            conv_f32(stride, padding, dilation, groups);
+        }
+    }
+
+    #[test]
+    fn matches_scalar_i32() {
+        let out_channels = 2 * lanes::<i32>();
+        let x = nchw::<i32>(1, 2, 6, 6);
+        let w = arr_at(&[out_channels, 2, 3, 3], vals(out_channels * 18));
+        let options = ConvOptions::new([1, 1], [0, 0], [1, 1], 1);
+
+        assert_eq!(
+            simd(conv2d::<i32, _>(
+                x.clone(),
+                w.clone(),
+                None,
+                options.clone(),
+                PhantomData
+            )),
+            conv2d_reference::<i32>(x, w, None, options)
+        );
+    }
+
+    #[test]
+    fn rejects_non_lane_multiple_channels() {
+        let out_channels = 2 * lanes::<f32>() + 1;
+        let w = arr_at(&[out_channels, 1, 3, 3], vals(out_channels * 9));
+        let options = ConvOptions::new([1, 1], [0, 0], [1, 1], 1);
+
+        assert!(try_conv2d_simd::<f32>(nchw(1, 1, 5, 5), w, None, options).is_err());
+    }
+}

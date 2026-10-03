@@ -372,3 +372,82 @@ mod elemwise {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::ops::simd::testutil::{arr, f_order, gapped, simd, vals, vals_b};
+
+    /// Assert `lhs OP rhs` equals `f` applied elementwise.
+    fn cmp_op<T, Op>(lhs: SharedArray<T>, rhs: SharedArray<T>, f: impl Fn(T, T) -> bool)
+    where
+        T: NdArrayElement + Scalar,
+        Op: SimdCmpOp<T>,
+    {
+        let expected = arr(lhs
+            .iter()
+            .copied()
+            .zip(rhs.iter().copied())
+            .map(|(a, b)| f(a, b))
+            .collect());
+        assert_eq!(simd(try_cmp_simd::<T, T, Op>(lhs, rhs)), expected);
+    }
+
+    #[test]
+    fn matches_scalar_for_each_op() {
+        cmp_op::<f32, VecEquals>(arr(vals(97)), arr(vals_b(97)), |a, b| a == b);
+        cmp_op::<f32, VecGreater>(arr(vals(97)), arr(vals_b(97)), |a, b| a > b);
+        cmp_op::<f32, VecGreaterEq>(arr(vals(97)), arr(vals_b(97)), |a, b| a >= b);
+        cmp_op::<f32, VecLowerEq>(arr(vals(97)), arr(vals_b(97)), |a, b| a <= b);
+        cmp_op::<f32, VecLower>(arr(vals(97)), arr(vals_b(97)), |a, b| a < b);
+    }
+
+    #[test]
+    fn covers_operand_buffer_reuse() {
+        // u8 operands can alias the bool output buffer.
+        cmp_op::<u8, VecGreater>(arr(vals(97)), arr(vals_b(97)), |a, b| a > b);
+
+        let lhs = arr(vals::<u8>(97));
+        let _shared = lhs.clone();
+        cmp_op::<u8, VecLower>(lhs, arr(vals_b(97)), |a, b| a < b);
+
+        let (lhs, rhs) = (arr::<u8>(vals(97)), arr::<u8>(vals_b(97)));
+        let _shared = (lhs.clone(), rhs.clone());
+        cmp_op::<u8, VecEquals>(lhs, rhs, |a, b| a == b);
+    }
+
+    #[test]
+    fn cmp_scalar() {
+        // f32 can't alias the bool output, so this takes the owned path.
+        let input = arr(vals::<f32>(97));
+        let _shared = input.clone();
+        let expected = arr(input.iter().map(|v| *v > 0.0).collect::<Vec<_>>());
+        assert_eq!(
+            simd(try_cmp_scalar_simd::<f32, f32, VecGreater>(input, 0.0)),
+            expected
+        );
+
+        // u8 input reuses its buffer for the bool output.
+        let expected = arr(vals::<u8>(97).iter().map(|v| *v < 4).collect::<Vec<_>>());
+        assert_eq!(
+            simd(try_cmp_scalar_simd::<u8, u8, VecLower>(
+                arr(vals::<u8>(97)),
+                4
+            )),
+            expected
+        );
+    }
+
+    #[test]
+    fn rejects_non_standard_layout() {
+        let lhs = f_order([12, 8], vals(96));
+        let rhs = f_order([12, 8], vals_b(96));
+        assert!(!lhs.is_standard_layout());
+        assert!(try_cmp_simd::<f32, f32, VecEquals>(lhs, rhs).is_err());
+    }
+
+    #[test]
+    fn cmp_scalar_rejects_non_contiguous() {
+        assert!(try_cmp_scalar_simd::<f32, f32, VecGreater>(gapped(vals(96)), 0.0).is_err());
+    }
+}

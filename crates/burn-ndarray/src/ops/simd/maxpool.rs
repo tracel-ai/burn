@@ -393,3 +393,106 @@ mod nhwc {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use burn_backend::element::{ElementConversion, ElementLimits, ElementOrdered};
+
+    use super::*;
+    use crate::ops::maxpool::max_pool2d;
+    use crate::ops::simd::lanes;
+    use crate::ops::simd::testutil::{nchw, nhwc, simd};
+
+    /// Reference max pool over logical `[N, C, H, W]` order, for dtypes the
+    /// `FloatNdArrayElement`-bound scalar fallback can't take.
+    fn naive_max_pool2d<E>(
+        x: &SharedArray<E>,
+        k: [usize; 2],
+        s: [usize; 2],
+        p: [usize; 2],
+    ) -> SharedArray<E>
+    where
+        E: Element + ElementConversion + ElementLimits + ElementOrdered,
+    {
+        let [n, c, h, w]: [usize; 4] = x.shape().try_into().unwrap();
+        let [kh, kw] = k;
+        let [ph, pw] = p;
+        let [sh, sw] = s;
+        let (out_h, out_w) = ((h + 2 * ph - kh) / sh + 1, (w + 2 * pw - kw) / sw + 1);
+        let mut out = Array4::from_elem((n, c, out_h, out_w), E::MIN);
+
+        for b in 0..n {
+            for ch in 0..c {
+                for oh in 0..out_h {
+                    for ow in 0..out_w {
+                        for kh_i in 0..kh {
+                            for kw_i in 0..kw {
+                                let (ih, iw) = (oh * sh + kh_i, ow * sw + kw_i);
+                                if ih >= ph && iw >= pw && ih - ph < h && iw - pw < w {
+                                    let v = x[[b, ch, ih - ph, iw - pw]];
+                                    if v.cmp(&out[[b, ch, oh, ow]]).is_gt() {
+                                        out[[b, ch, oh, ow]] = v;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        out.into_dyn().into_shared()
+    }
+
+    #[test]
+    fn matches_scalar_f32() {
+        // 9 * lanes + 1 channels covers the blocked, unblocked, and scalar
+        // remainder channel loops on any lane count.
+        let x = nhwc::<f32>(2, 9 * lanes::<f32>() + 1, 6, 5);
+        assert_eq!(
+            simd(try_max_pool2d_simd::<f32>(
+                x.clone(),
+                [3, 2],
+                [2, 1],
+                [1, 0],
+                [1, 1]
+            )),
+            max_pool2d::<f32>(x, [3, 2], [2, 1], [1, 0], [1, 1], false)
+        );
+    }
+
+    #[test]
+    fn matches_naive_i32() {
+        let x = nhwc::<i32>(1, 9 * lanes::<i32>() + 1, 5, 4);
+        assert_eq!(
+            simd(try_max_pool2d_simd::<i32>(
+                x.clone(),
+                [2, 2],
+                [1, 1],
+                [1, 1],
+                [1, 1]
+            )),
+            naive_max_pool2d(&x, [2, 2], [1, 1], [1, 1])
+        );
+    }
+
+    #[test]
+    fn matches_naive_u8() {
+        let x = nhwc::<u8>(1, 9 * lanes::<u8>() + 1, 4, 4);
+        assert_eq!(
+            simd(try_max_pool2d_simd::<u8>(
+                x.clone(),
+                [2, 2],
+                [2, 2],
+                [0, 0],
+                [1, 1]
+            )),
+            naive_max_pool2d(&x, [2, 2], [2, 2], [0, 0])
+        );
+    }
+
+    #[test]
+    fn rejects_standard_layout() {
+        let x = nchw::<f32>(1, 8, 4, 4);
+        assert!(try_max_pool2d_simd::<f32>(x, [2, 2], [1, 1], [0, 0], [1, 1]).is_err());
+    }
+}
