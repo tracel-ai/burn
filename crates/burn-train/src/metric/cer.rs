@@ -41,6 +41,7 @@ pub struct CharErrorRate {
 }
 
 /// The [character error rate metric](CharErrorRate) input type.
+/// Predictions and targets must have the same batch size, but their sequence lengths may differ.
 #[derive(new)]
 pub struct CerInput {
     /// The predicted token sequences (as a 2-D tensor of token indices).
@@ -79,7 +80,12 @@ impl Metric for CharErrorRate {
     fn update(&mut self, input: &CerInput, _metadata: &MetricMetadata) -> SerializedEntry {
         let outputs = &input.outputs;
         let targets = &input.targets;
-        let [batch_size, seq_len] = targets.dims();
+        let [output_batch_size, output_seq_len] = outputs.dims();
+        let [batch_size, target_seq_len] = targets.dims();
+        assert_eq!(
+            output_batch_size, batch_size,
+            "CER predictions and targets must have the same batch size"
+        );
 
         let outputs_data: Vec<i32> = outputs.try_to_vec_as().unwrap();
         let targets_data: Vec<i32> = targets.try_to_vec_as().unwrap();
@@ -89,10 +95,10 @@ impl Metric for CharErrorRate {
         let mut total_target_length = 0;
 
         for i in 0..batch_size {
-            let start = i * seq_len;
-            let end = start + seq_len;
-            let output_seq = &outputs_data[start..end];
-            let target_seq = &targets_data[start..end];
+            let output_start = i * output_seq_len;
+            let target_start = i * target_seq_len;
+            let output_seq = &outputs_data[output_start..output_start + output_seq_len];
+            let target_seq = &targets_data[target_start..target_start + target_seq_len];
 
             let (distance, target_len) = match pad_token {
                 Some(pad) => {
@@ -169,6 +175,7 @@ impl Numeric for CharErrorRate {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rstest::rstest;
 
     /// Perfect match ⇒ CER = 0 %.
     #[test]
@@ -266,6 +273,58 @@ mod tests {
         metric.update(&CerInput::new(preds, tgts), &MetricMetadata::fake());
 
         assert_eq!(0.0, metric.value().unwrap().current());
+    }
+
+    /// Extra prediction tokens must count as insertions in every row.
+    #[rstest]
+    #[case(None, 100.0)]
+    #[case(Some(0), 50.0)]
+    fn test_cer_with_longer_predictions(#[case] pad_token: Option<usize>, #[case] expected: f64) {
+        let device = Default::default();
+        let mut metric = CharErrorRate::new();
+        if let Some(pad) = pad_token {
+            metric = metric.with_pad_token(pad);
+        }
+        let preds = Tensor::from_data([[1, 0, 2, 5], [3, 0, 4, 6]], &device);
+        let tgts = Tensor::from_data([[1, 2], [3, 4]], &device);
+
+        metric.update(&CerInput::new(preds, tgts), &MetricMetadata::fake());
+
+        assert_eq!(expected, metric.value().unwrap().current());
+    }
+
+    /// Shorter predictions must count as deletions without reading past a row.
+    #[rstest]
+    #[case(None, 50.0)]
+    #[case(Some(0), 100.0 * 2.0 / 6.0)]
+    fn test_cer_with_shorter_predictions(#[case] pad_token: Option<usize>, #[case] expected: f64) {
+        let device = Default::default();
+        let mut metric = CharErrorRate::new();
+        if let Some(pad) = pad_token {
+            metric = metric.with_pad_token(pad);
+        }
+        let preds = Tensor::from_data([[1, 2], [3, 4]], &device);
+        let tgts = Tensor::from_data([[1, 0, 2, 5], [3, 0, 4, 6]], &device);
+
+        metric.update(&CerInput::new(preds, tgts), &MetricMetadata::fake());
+
+        assert_eq!(expected, metric.value().unwrap().current());
+    }
+
+    #[rstest]
+    #[case::fewer_predictions(false)]
+    #[case::more_predictions(true)]
+    #[should_panic(expected = "CER predictions and targets must have the same batch size")]
+    fn test_cer_with_mismatched_batch_sizes(#[case] more_predictions: bool) {
+        let device = Default::default();
+        let mut metric = CharErrorRate::new();
+        let mut preds = Tensor::from_data([[1, 2]], &device);
+        let mut tgts = Tensor::from_data([[1, 2], [3, 4]], &device);
+        if more_predictions {
+            std::mem::swap(&mut preds, &mut tgts);
+        }
+
+        metric.update(&CerInput::new(preds, tgts), &MetricMetadata::fake());
     }
 
     /// `clear()` must reset the running statistics to zero.
