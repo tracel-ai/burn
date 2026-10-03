@@ -9,18 +9,16 @@ use burn_backend::{
 };
 use burn_ir::{
     BaseOperationIr, DequantizeOpIr, FlipOpIr, FloatOperationIr, GatherOpIr, HandleContainer,
-    InitOperationIr, MatmulOpIr, OperationIr, OperationOutput, PermuteOpIr,
-    QuantizationParametersIr, QuantizeOpIr, SelectOpIr, ShapeOpIr, SliceOpIr, SwapDimsOpIr,
+    MatmulOpIr, OperationIr, OperationOutput, PermuteOpIr, QuantizationParametersIr, QuantizeOpIr,
+    SelectOpIr, ShapeOpIr, SliceOpIr, SwapDimsOpIr,
 };
 
 use crate::{
-    Fusion, FusionBackend,
+    Fusion, FusionBackend, FusionTensor,
     client::GlobalFusionClient,
     get_client,
     stream::{StreamId, execution::Operation},
 };
-
-use super::NoOp;
 
 impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
     fn q_from_data(data: TensorData, device: &Device<Self>) -> QuantizedTensor<Self> {
@@ -30,15 +28,11 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
         let shape = burn_backend::TensorMetadata::shape(&tensor);
 
         let handle = B::quantized_tensor_handle(tensor);
-        let desc = InitOperationIr::create(shape, dtype, || client.register_tensor_handle(handle));
+        // Already on the device, so nothing is queued: an `Init` would only run as a no-op,
+        // while holding back a free from another thread and taking a block of the fusion search.
+        let id = client.register_tensor_handle(handle);
 
-        client
-            .register(
-                StreamId::current(),
-                OperationIr::Init(desc),
-                NoOp::<B>::new(),
-            )
-            .output()
+        FusionTensor::new(id, shape, dtype, client, StreamId::current())
     }
 
     fn quantize(
