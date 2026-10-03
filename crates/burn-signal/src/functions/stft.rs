@@ -44,11 +44,6 @@ impl StftOptions {
         let hop_length = self.hop_length;
         assert!(n_fft >= 1, "{op}: n_fft must be >= 1, got {n_fft}");
         assert!(
-            n_fft.is_power_of_two(),
-            "{op}: n_fft must be a power of two, got {n_fft}. True non-power-of-two \
-             DFT support is tracked as a follow-up (Bluestein's algorithm)."
-        );
-        assert!(
             hop_length >= 1,
             "{op}: hop_length must be >= 1, got {hop_length}"
         );
@@ -143,7 +138,7 @@ pub fn stft(signal: Tensor<2>, window: Option<Tensor<1>>, options: StftOptions) 
     // Flatten to [batch * n_frames, n_fft] for rfft
     let flat: Tensor<2> = windowed.reshape([batch * n_frames, n_fft]);
 
-    // rfft returns n_fft/2 + 1 bins along dim=1 (n_fft is pow2).
+    // rfft returns n_fft/2 + 1 bins along dim=1 for any n_fft (Bluestein for non-pow2).
     let (re, im) = rfft(flat, 1, Some(n_fft));
 
     let (re, im, n_freqs) = if onesided {

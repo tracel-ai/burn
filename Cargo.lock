@@ -1443,6 +1443,7 @@ dependencies = [
  "burn-tch",
  "ctor",
  "divan",
+ "libm",
  "tch",
  "tokio",
 ]
