@@ -250,24 +250,31 @@ pub fn calculate_pool_output_size(
     size_in: usize,
     ceil_mode: bool,
 ) -> usize {
-    let size_padded = size_in + 2 * padding;
-    let kernel_extent = dilation * (kernel_size - 1) + 1;
-    if ceil_mode {
-        // Ceiling division: (a + b - 1) / b. Adding `stride - 1` before subtracting
-        // allows a kernel up to `stride - 1` larger than the padded input, where one
-        // window still fits (PyTorch rejects anything larger).
-        let size_out = (size_padded + stride - 1 - kernel_extent) / stride + 1;
-        // Drop the last window if it would start at or past the end of the input
-        // (in the trailing padding, or beyond the input without padding)
-        if (size_out - 1) * stride >= size_in + padding {
-            size_out - 1
+    let effective_kernel = dilation * (kernel_size - 1) + 1;
+    let padded = size_in + 2 * padding;
+
+    let mut out = if padded >= effective_kernel {
+        let numerator = padded - effective_kernel;
+        if ceil_mode {
+            numerator.div_ceil(stride) + 1
         } else {
-            size_out
+            numerator / stride + 1
         }
+    } else if ceil_mode && (effective_kernel - padded) < stride {
+        // Only produces an extra window if the deficit is smaller than the stride
+        1
     } else {
-        // Floor division (default)
-        (size_padded - kernel_extent) / stride + 1
+        panic!(
+            "calculate_pool_output_size: padded input ({padded}) is smaller than effective kernel size ({effective_kernel})"
+        );
+    };
+
+    // In ceil mode, drop the trailing window if it starts inside the right padding.
+    if ceil_mode && out > 0 && (out - 1) * stride >= size_in + padding {
+        out -= 1;
     }
+
+    out
 }
 
 /// Calculate the expected output size when doing a transposed convolution operation.
@@ -1693,5 +1700,46 @@ mod tests {
         )
         .unwrap();
         assert_eq!(shape, Shape::new([12, 8, 13, 3]))
+    }
+
+    #[test]
+    fn test_calculate_pool_output_size_discard_branch() {
+        // In PyTorch: MaxPool1d(kernel_size=2, stride=2, padding=1, ceil_mode=True)(torch.randn(1, 1, 5)) -> size 3
+        // Window 0: [-1, 0]
+        // Window 1: [1, 2]
+        // Window 2: [3, 4]
+        // Window 3: start=6 >= in(5) + pad(1) -> discarded
+        let out = calculate_pool_output_size(2, 2, 1, 1, 5, true);
+        assert_eq!(out, 3);
+
+        let out_floor = calculate_pool_output_size(2, 2, 1, 1, 5, false);
+        assert_eq!(out_floor, 3);
+    }
+
+    #[test]
+    fn test_calculate_pool_output_size_floor_no_discard_large_padding() {
+        // Floor mode does NOT discard when padding >= effective_kernel / 2
+        // in=4, k=2, s=1, p=2, ceil=false gives output length 7, matching main
+        let out_floor = calculate_pool_output_size(2, 1, 2, 1, 4, false);
+        assert_eq!(out_floor, 7);
+    }
+
+    #[test]
+    fn test_calculate_pool_output_size_ceil_mode_within_stride() {
+        // When deficit (3 - 2 = 1) < stride (2), ceil mode produces 1
+        let out_ceil_within_stride = calculate_pool_output_size(3, 2, 0, 1, 2, true);
+        assert_eq!(out_ceil_within_stride, 1);
+    }
+
+    #[test]
+    #[should_panic(expected = "padded input (1) is smaller than effective kernel size (3)")]
+    fn test_calculate_pool_output_size_degenerate_input_floor_panics() {
+        calculate_pool_output_size(3, 1, 0, 1, 1, false);
+    }
+
+    #[test]
+    #[should_panic(expected = "padded input (1) is smaller than effective kernel size (3)")]
+    fn test_calculate_pool_output_size_degenerate_input_ceil_panics() {
+        calculate_pool_output_size(3, 1, 0, 1, 1, true);
     }
 }

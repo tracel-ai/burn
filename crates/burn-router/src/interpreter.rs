@@ -1763,6 +1763,34 @@ impl<B: BackendIr> TensorInterpreter<B> {
                     );
                     handles.register_float_tensor::<B>(&desc.out.id, output);
                 }
+                ModuleOperationIr::AvgPool3d(desc) => {
+                    let x = handles.get_float_tensor::<B>(&desc.x);
+
+                    let output = B::avg_pool3d(
+                        x,
+                        desc.kernel_size,
+                        desc.stride,
+                        desc.padding,
+                        desc.count_include_pad,
+                        desc.ceil_mode,
+                    );
+                    handles.register_float_tensor::<B>(&desc.out.id, output);
+                }
+                ModuleOperationIr::AvgPool3dBackward(desc) => {
+                    let x = handles.get_float_tensor::<B>(&desc.x);
+                    let grad = handles.get_float_tensor::<B>(&desc.grad);
+
+                    let output = B::avg_pool3d_backward(
+                        x,
+                        grad,
+                        desc.kernel_size,
+                        desc.stride,
+                        desc.padding,
+                        desc.count_include_pad,
+                        desc.ceil_mode,
+                    );
+                    handles.register_float_tensor::<B>(&desc.out.id, output);
+                }
                 ModuleOperationIr::AdaptiveAvgPool1d(desc) => {
                     let x = handles.get_float_tensor::<B>(&desc.x);
 
@@ -1881,6 +1909,51 @@ impl<B: BackendIr> TensorInterpreter<B> {
                     let indices = handles.get_int_tensor::<B>(&desc.indices);
 
                     let output = B::max_pool2d_with_indices_backward(
+                        x,
+                        desc.kernel_size,
+                        desc.stride,
+                        desc.padding,
+                        desc.dilation,
+                        desc.ceil_mode,
+                        output_grad,
+                        indices,
+                    );
+                    handles.register_float_tensor::<B>(&desc.out.id, output.x_grad);
+                }
+                ModuleOperationIr::MaxPool3d(desc) => {
+                    let x = handles.get_float_tensor::<B>(&desc.x);
+
+                    let output = B::max_pool3d(
+                        x,
+                        desc.kernel_size,
+                        desc.stride,
+                        desc.padding,
+                        desc.dilation,
+                        desc.ceil_mode,
+                    );
+                    handles.register_float_tensor::<B>(&desc.out.id, output);
+                }
+                ModuleOperationIr::MaxPool3dWithIndices(desc) => {
+                    let x = handles.get_float_tensor::<B>(&desc.x);
+
+                    let output = B::max_pool3d_with_indices(
+                        x,
+                        desc.kernel_size,
+                        desc.stride,
+                        desc.padding,
+                        desc.dilation,
+                        desc.ceil_mode,
+                        desc.out_indices.dtype.into(),
+                    );
+                    handles.register_float_tensor::<B>(&desc.out.id, output.output);
+                    handles.register_int_tensor::<B>(&desc.out_indices.id, output.indices);
+                }
+                ModuleOperationIr::MaxPool3dWithIndicesBackward(desc) => {
+                    let x = handles.get_float_tensor::<B>(&desc.x);
+                    let output_grad = handles.get_float_tensor::<B>(&desc.grad);
+                    let indices = handles.get_int_tensor::<B>(&desc.indices);
+
+                    let output = B::max_pool3d_with_indices_backward(
                         x,
                         desc.kernel_size,
                         desc.stride,

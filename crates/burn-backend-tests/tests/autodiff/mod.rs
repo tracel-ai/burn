@@ -12,6 +12,8 @@ mod all_reduce;
 mod attention;
 mod avgpool1d;
 mod avgpool2d;
+#[cfg(any(feature = "flex", feature = "ndarray"))]
+mod avgpool3d;
 mod backward;
 mod batch_norm;
 mod bridge;
@@ -59,6 +61,8 @@ mod matmul;
 mod maxmin;
 mod maxpool1d;
 mod maxpool2d;
+#[cfg(any(feature = "flex", feature = "ndarray"))]
+mod maxpool3d;
 mod memory_management;
 mod mul;
 mod multithread;

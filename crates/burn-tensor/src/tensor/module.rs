@@ -402,6 +402,44 @@ pub fn max_pool2d(x: Tensor<4>, options: MaxPoolOptions<2>) -> Tensor<4> {
     )
 }
 
+/// Applies a [3D max pooling](burn_backend::ops::ModuleOps::max_pool3d).
+pub fn max_pool3d(
+    x: Tensor<5>,
+    kernel_size: [usize; 3],
+    stride: [usize; 3],
+    padding: [usize; 3],
+    dilation: [usize; 3],
+    ceil_mode: bool,
+) -> Tensor<5> {
+    assert!(
+        kernel_size.iter().all(|&k| k > 0),
+        "max_pool3d: kernel_size must be > 0, got {kernel_size:?}"
+    );
+    assert!(
+        stride.iter().all(|&s| s > 0),
+        "max_pool3d: stride must be > 0, got {stride:?}"
+    );
+    assert!(
+        dilation.iter().all(|&d| d > 0),
+        "max_pool3d: dilation must be > 0, got {dilation:?}"
+    );
+    for i in 0..3 {
+        let effective_k = dilation[i] * (kernel_size[i] - 1) + 1;
+        assert!(
+            padding[i] <= effective_k / 2,
+            "max_pool3d: padding must be <= effective_kernel / 2, got padding={padding:?}, kernel_size={kernel_size:?}, dilation={dilation:?}"
+        );
+    }
+    Tensor::new(BridgeTensor::float(Dispatch::max_pool3d(
+        x.primitive.into_float(),
+        kernel_size,
+        stride,
+        padding,
+        dilation,
+        ceil_mode,
+    )))
+}
+
 /// Applies a [2D avg pooling](burn_backend::ops::ModuleOps::avg_pool2d).
 ///
 /// Supports symmetric and asymmetric padding through [`AvgPoolOptions`].
@@ -416,6 +454,41 @@ pub fn avg_pool2d(x: Tensor<4>, options: AvgPoolOptions<2>) -> Tensor<4> {
             options.ceil_mode,
         )))
     })
+}
+
+/// Applies a [3D avg pooling](burn_backend::ops::ModuleOps::avg_pool3d).
+pub fn avg_pool3d(
+    x: Tensor<5>,
+    kernel_size: [usize; 3],
+    stride: [usize; 3],
+    padding: [usize; 3],
+    count_include_pad: bool,
+    ceil_mode: bool,
+) -> Tensor<5> {
+    assert!(
+        kernel_size.iter().all(|&k| k > 0),
+        "avg_pool3d: kernel_size must be > 0, got {kernel_size:?}"
+    );
+    assert!(
+        stride.iter().all(|&s| s > 0),
+        "avg_pool3d: stride must be > 0, got {stride:?}"
+    );
+    let dilation = [1, 1, 1];
+    for i in 0..3 {
+        let effective_k = dilation[i] * (kernel_size[i] - 1) + 1;
+        assert!(
+            padding[i] <= effective_k / 2,
+            "avg_pool3d: padding must be <= effective_kernel / 2, got padding={padding:?}, kernel_size={kernel_size:?}, dilation={dilation:?}"
+        );
+    }
+    Tensor::new(BridgeTensor::float(Dispatch::avg_pool3d(
+        x.primitive.into_float(),
+        kernel_size,
+        stride,
+        padding,
+        count_include_pad,
+        ceil_mode,
+    )))
 }
 
 /// Applies a [1D avg pooling](burn_backend::ops::ModuleOps::avg_pool1d).
@@ -632,6 +705,50 @@ fn drop_end_padding_windows<const D: usize, const N: usize, K: Basic>(
     })
 }
 
+/// Applies a [3D max pooling with indices](burn_backend::ops::ModuleOps::max_pool3d_with_indices).
+pub fn max_pool3d_with_indices(
+    x: Tensor<5>,
+    kernel_size: [usize; 3],
+    stride: [usize; 3],
+    padding: [usize; 3],
+    dilation: [usize; 3],
+    ceil_mode: bool,
+) -> (Tensor<5>, Tensor<5, Int>) {
+    assert!(
+        kernel_size.iter().all(|&k| k > 0),
+        "max_pool3d_with_indices: kernel_size must be > 0, got {kernel_size:?}"
+    );
+    assert!(
+        stride.iter().all(|&s| s > 0),
+        "max_pool3d_with_indices: stride must be > 0, got {stride:?}"
+    );
+    assert!(
+        dilation.iter().all(|&d| d > 0),
+        "max_pool3d_with_indices: dilation must be > 0, got {dilation:?}"
+    );
+    for i in 0..3 {
+        let effective_k = dilation[i] * (kernel_size[i] - 1) + 1;
+        assert!(
+            padding[i] <= effective_k / 2,
+            "max_pool3d_with_indices: padding must be <= effective_kernel / 2, got padding={padding:?}, kernel_size={kernel_size:?}, dilation={dilation:?}"
+        );
+    }
+    let indices_dtype = x.device().get_or_init_settings().int_dtype;
+    let output = Dispatch::max_pool3d_with_indices(
+        x.primitive.into_float(),
+        kernel_size,
+        stride,
+        padding,
+        dilation,
+        ceil_mode,
+        indices_dtype,
+    );
+
+    (
+        Tensor::new(BridgeTensor::float(output.output)),
+        Tensor::new(BridgeTensor::int(output.indices)),
+    )
+}
 /// Applies a [2D adaptive avg pooling](burn_backend::ops::ModuleOps::adaptive_avg_pool2d).
 pub fn adaptive_avg_pool2d(x: Tensor<4>, output_size: [usize; 2]) -> Tensor<4> {
     Tensor::new(BridgeTensor::float(Dispatch::adaptive_avg_pool2d(
@@ -901,6 +1018,96 @@ pub fn max_pool2d_with_indices_backward(
 ) -> Tensor<4> {
     Tensor::new(BridgeTensor::float(
         Dispatch::max_pool2d_with_indices_backward(
+            x.primitive.into_float(),
+            kernel_size,
+            stride,
+            padding,
+            dilation,
+            ceil_mode,
+            output_grad.primitive.into_float(),
+            indices.primitive.into(),
+        )
+        .x_grad,
+    ))
+}
+
+/// Backward pass for the [avg pooling 3d](ModuleOps::avg_pool3d) operation.
+pub fn avg_pool3d_backward(
+    x: Tensor<5>,
+    grad: Tensor<5>,
+    kernel_size: [usize; 3],
+    stride: [usize; 3],
+    padding: [usize; 3],
+    count_include_pad: bool,
+    ceil_mode: bool,
+) -> Tensor<5> {
+    assert!(
+        kernel_size.iter().all(|&k| k > 0),
+        "avg_pool3d_backward: kernel_size must be > 0, got {kernel_size:?}"
+    );
+    assert!(
+        stride.iter().all(|&s| s > 0),
+        "avg_pool3d_backward: stride must be > 0, got {stride:?}"
+    );
+    let dilation = [1, 1, 1];
+    for i in 0..3 {
+        let effective_k = dilation[i] * (kernel_size[i] - 1) + 1;
+        assert!(
+            padding[i] <= effective_k / 2,
+            "avg_pool3d_backward: padding must be <= effective_kernel / 2, got padding={padding:?}, kernel_size={kernel_size:?}, dilation={dilation:?}"
+        );
+    }
+    Tensor::new(BridgeTensor::float(Dispatch::avg_pool3d_backward(
+        x.primitive.into_float(),
+        grad.primitive.into_float(),
+        kernel_size,
+        stride,
+        padding,
+        count_include_pad,
+        ceil_mode,
+    )))
+}
+
+/// Backward pass for the [max pooling 3d](ModuleOps::max_pool3d_with_indices) operation.
+#[allow(clippy::too_many_arguments)]
+pub fn max_pool3d_with_indices_backward(
+    x: Tensor<5>,
+    kernel_size: [usize; 3],
+    stride: [usize; 3],
+    padding: [usize; 3],
+    dilation: [usize; 3],
+    ceil_mode: bool,
+    output_grad: Tensor<5>,
+    indices: Tensor<5, Int>,
+) -> Tensor<5> {
+    assert!(
+        kernel_size.iter().all(|&k| k > 0),
+        "max_pool3d_with_indices_backward: kernel_size must be > 0, got {kernel_size:?}"
+    );
+    assert!(
+        stride.iter().all(|&s| s > 0),
+        "max_pool3d_with_indices_backward: stride must be > 0, got {stride:?}"
+    );
+    assert!(
+        dilation.iter().all(|&d| d > 0),
+        "max_pool3d_with_indices_backward: dilation must be > 0, got {dilation:?}"
+    );
+    for i in 0..3 {
+        let effective_k = dilation[i] * (kernel_size[i] - 1) + 1;
+        assert!(
+            padding[i] <= effective_k / 2,
+            "max_pool3d_with_indices_backward: padding must be <= effective_kernel / 2, got padding={padding:?}, kernel_size={kernel_size:?}, dilation={dilation:?}"
+        );
+    }
+    assert_eq!(
+        indices.dims(),
+        output_grad.dims(),
+        "max_pool3d_with_indices_backward: indices and output_grad must have the same dimensions, got {:?} and {:?}",
+        indices.dims(),
+        output_grad.dims()
+    );
+    Tensor::new(BridgeTensor::float(
+        Dispatch::max_pool3d_with_indices_backward(
             x.primitive.into_float(),
             kernel_size,
             stride,
