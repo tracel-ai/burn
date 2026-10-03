@@ -1570,7 +1570,6 @@ dependencies = [
  "burn-std",
  "burn-store",
  "bytemuck",
- "cubecl",
  "derive-new",
  "dirs 7.0.0",
  "image",

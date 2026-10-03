@@ -38,13 +38,12 @@ tracing = [
     "burn-cubecl?/tracing",
     "burn-fusion?/tracing",
     "burn-core/tracing",
-    "cubecl?/tracing",
 ]
 
 # The cubecl vision ops. Implied by every runtime feature below and not selectable on its own:
 # the backend no longer carries its runtime in its type, so `CubeBackend` — and the ops
 # implemented on it — exist only once a runtime is compiled in.
-cubecl-backend = ["cubecl", "burn-cubecl"]
+cubecl-backend = ["burn-cubecl"]
 fusion = ["burn-fusion", "burn-core/fusion"]
 
 cuda = ["cubecl-backend", "burn-core/cuda", "burn-cubecl/cuda"]
@@ -79,7 +78,6 @@ burn-store = { workspace = true, optional = true }
 dirs = { workspace = true, optional = true }
 
 bytemuck = { workspace = true }
-cubecl = { workspace = true, optional = true }
 derive-new = { workspace = true }
 image = { version = "0.25" }
 macerator = { workspace = true }
