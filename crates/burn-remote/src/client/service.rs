@@ -29,16 +29,14 @@ mod registry;
 mod writer;
 
 use batch::OutgoingBatch;
-use conn::ResponseChannel;
+use conn::{ResponseChannel, SessionStreams};
 use pending::{PendingResponses, Responder};
 use writer::SubmitWriter;
 
 use super::{ConnectError, runtime::Executor};
 pub(crate) use conn::{RemoteEndpoint, SubmitChannel};
-#[cfg(not(target_family = "wasm"))]
-pub(crate) use registry::device_count_for;
-use registry::{device_count_cell, executor_for, settings_cell};
-pub(crate) use registry::{endpoint_for, register_endpoint};
+use registry::{device_count_cell, settings_cell};
+pub(crate) use registry::{device_count_for, register_endpoint, registered_device};
 pub(crate) use registry::{has_settings, new_tensor_id, settings_for};
 
 /// All the state owned by the device-runner thread for a single remote device.
@@ -60,10 +58,9 @@ pub(crate) use registry::{has_settings, new_tensor_id, settings_for};
 /// caller awaiting each reply.
 ///
 /// All tokio work (connecting, the writer task, awaiting responses, the response-demux
-/// task) happens on the [`Executor`] captured from the device's endpoint. The caller never
-/// sees a runtime handle.
+/// task) happens on Burn's own [`Executor`]. The caller never sees a runtime handle.
 pub struct RemoteService {
-    /// The device's registry entry, which holds its latest dialing hints and runtime.
+    /// The device's registry entry, which holds its latest dialing hints.
     id: u32,
     executor: Executor,
     /// Where to connect on first use. The connection is established lazily (see
@@ -104,10 +101,13 @@ pub struct RemoteService {
 
 impl DeviceService for RemoteService {
     fn init(device_id: DeviceId) -> Self {
-        let (id, endpoint, device_index) = Self::resolve_endpoint(device_id);
-        // The executor was captured at device-construction time (in the runtime that owns the
-        // transport) and stored in the registry alongside the endpoint; the service just reuses it.
-        let executor = executor_for(id).expect("device registered with a captured executor");
+        let id = device_id.index_id as u32;
+        let registry::RegisteredDevice {
+            endpoint,
+            device_index,
+        } = registered_device(id)
+            .unwrap_or_else(|| panic!("No endpoint registered for device id {device_id}"));
+        let executor = Executor::session();
         let session_id = SessionId::new();
 
         let probe = if TelemetryLogger::enabled() {
@@ -158,23 +158,11 @@ impl DeviceService for RemoteService {
 /// Construction helpers for [`RemoteService::init`], one per step of bringing a connection
 /// up. Kept separate from the public submit-style API below.
 impl RemoteService {
-    /// Resolve a device id to its registry index, parsed network [`Address`], and the device
-    /// index to select on the server.
-    fn resolve_endpoint(device_id: DeviceId) -> (u32, RemoteEndpoint, u32) {
-        let id = device_id.index_id as u32;
-        let (endpoint, device_index) = endpoint_for(id)
-            .unwrap_or_else(|| panic!("No endpoint registered for device id {device_id}"));
-        (id, endpoint, device_index)
-    }
-
-    /// Building the device again with new dialing hints, or from another runtime, updates its
-    /// registry entry, which a session not yet open must dial with.
+    /// Building the device again with new dialing hints updates its registry entry, which a
+    /// session not yet open must dial with.
     fn refresh_from_registry(&mut self) {
-        if let Some((endpoint, _)) = endpoint_for(self.id) {
-            self.endpoint = endpoint;
-        }
-        if let Some(executor) = executor_for(self.id) {
-            self.executor = executor;
+        if let Some(registered) = registered_device(self.id) {
+            self.endpoint = registered.endpoint;
         }
     }
 
@@ -190,29 +178,32 @@ impl RemoteService {
     fn connect_streams(
         executor: &Executor,
         endpoint: &RemoteEndpoint,
-    ) -> Result<(SubmitChannel, ResponseChannel), ConnectError> {
+    ) -> Result<SessionStreams, ConnectError> {
         executor.block_on(endpoint.open_channels())
     }
 
-    /// Send the session-init handshake on both streams and wait for the device settings the
-    /// server replies with on the response stream. Both streams carry the same `Vec<RemoteMessage>`
+    /// Send the session-init handshake on both streams and wait for the server's answer, checked
+    /// to speak this client's protocol version. Both streams carry the same `Vec<RemoteMessage>`
     /// wire format; the handshake is just a single-element batch.
     async fn handshake_async(
-        request: &mut SubmitChannel,
-        response: &mut ResponseChannel,
+        streams: &mut SessionStreams,
         endpoint: &RemoteEndpoint,
         session_id: SessionId,
         device_index: u32,
-    ) -> Result<(DeviceSettings, u32), ConnectError> {
+    ) -> Result<SessionInfo, ConnectError> {
         let failed = |reason: String| ConnectError::Handshake { reason };
-        let init_bytes: bytes::Bytes = rmp_serde::to_vec(&vec![RemoteMessage::Init(
-            SessionInit::new(session_id, device_index, endpoint.authorization().to_vec()),
-        )])
-        .expect("Can serialize RemoteMessage::Init")
-        .into();
+        let init_bytes: bytes::Bytes =
+            rmp_serde::to_vec(&vec![RemoteMessage::Init(SessionInit::new(
+                session_id,
+                device_index,
+                endpoint.credential().as_bytes().to_vec(),
+            ))])
+            .expect("Can serialize RemoteMessage::Init")
+            .into();
 
-        request.send(init_bytes).await.map_err(failed)?;
-        let msg = response
+        streams.submit.send(init_bytes).await.map_err(failed)?;
+        let msg = streams
+            .response
             .recv()
             .await
             .map_err(failed)?
@@ -221,19 +212,14 @@ impl RemoteService {
             .map_err(|err| failed(format!("cannot decode the server's reply: {err}")))?;
 
         match reply.content {
-            TaskResponseContent::Init(SessionInfo {
-                version,
-                settings,
-                device_count,
-                ..
-            }) => {
-                if version != PROTOCOL_VERSION {
+            TaskResponseContent::Init(info) => {
+                if info.version != PROTOCOL_VERSION {
                     return Err(ConnectError::IncompatibleProtocol {
                         client_version: PROTOCOL_VERSION,
-                        server_version: version,
+                        server_version: info.version,
                     });
                 }
-                Ok((settings, device_count))
+                Ok(info)
             }
             TaskResponseContent::InitRefused(refusal) => Err(refusal.into()),
             other => Err(failed(format!(
@@ -246,15 +232,13 @@ impl RemoteService {
     #[cfg(not(target_family = "wasm"))]
     fn handshake(
         executor: &Executor,
-        request: &mut SubmitChannel,
-        response: &mut ResponseChannel,
+        streams: &mut SessionStreams,
         endpoint: &RemoteEndpoint,
         session_id: SessionId,
         device_index: u32,
-    ) -> Result<(DeviceSettings, u32), ConnectError> {
+    ) -> Result<SessionInfo, ConnectError> {
         executor.block_on(Self::handshake_async(
-            request,
-            response,
+            streams,
             endpoint,
             session_id,
             device_index,
@@ -331,23 +315,22 @@ pub(crate) struct WasmConnected {
 pub(crate) async fn wasm_connect(plan: WasmConnectPlan) -> Result<WasmConnected, ConnectError> {
     let executor = Executor::WasmLocal;
 
-    let (mut request, mut response) = plan.endpoint.open_channels().await?;
-    let (settings, device_count) = RemoteService::handshake_async(
-        &mut request,
-        &mut response,
+    let mut streams = plan.endpoint.open_channels().await?;
+    let info = RemoteService::handshake_async(
+        &mut streams,
         &plan.endpoint,
         plan.session_id,
         plan.device_index,
     )
     .await?;
 
-    RemoteService::spawn_response_demux(&executor, response, plan.responder);
-    let writer = SubmitWriter::spawn(&executor, request);
+    RemoteService::spawn_response_demux(&executor, streams.response, plan.responder);
+    let writer = SubmitWriter::spawn(&executor, streams.submit);
 
     Ok(WasmConnected {
         writer,
-        settings,
-        device_count,
+        settings: info.settings,
+        device_count: info.device_count,
     })
 }
 
@@ -717,14 +700,14 @@ impl RemoteService {
 
     /// Open the session and run the init handshake, unless it is already open. A failed attempt
     /// leaves nothing behind, so the next call tries again, with the device's latest dialing
-    /// hints and runtime.
+    /// hints.
     ///
     /// Runs on the device-runner thread, so the check needs no lock, and never from
     /// [`init`](Self::init), which holds cubecl's global device-registry lock.
     ///
     /// # Panics
     ///
-    /// On wasm, where only `RemoteDevice::connect_async` can open the session.
+    /// On wasm, where only an asynchronous connect can open the session.
     pub(crate) fn try_connect(&mut self) -> Result<(), ConnectError> {
         if self.writer.is_some() {
             return Ok(());
@@ -732,8 +715,8 @@ impl RemoteService {
 
         #[cfg(target_family = "wasm")]
         panic!(
-            "Remote session to {} is not connected. On wasm, establish it with \
-             `RemoteDevice::connect_async(...).await` before running tensor operations.",
+            "Remote session to {} is not connected. On wasm, connect with \
+             `Device::remote_options(&host).init_async().await` before running tensor operations.",
             self.endpoint.peer_addr()
         );
 
@@ -745,23 +728,21 @@ impl RemoteService {
                 self.endpoint.peer_addr(),
                 self.device_index
             );
-            let (mut request, mut response) =
-                Self::connect_streams(&self.executor, &self.endpoint)?;
-            let (settings, device_count) = Self::handshake(
+            let mut streams = Self::connect_streams(&self.executor, &self.endpoint)?;
+            let info = Self::handshake(
                 &self.executor,
-                &mut request,
-                &mut response,
+                &mut streams,
                 &self.endpoint,
                 self.session_id,
                 self.device_index,
             )?;
 
-            // Publish to the shared cells so `RemoteDevice::defaults`/`enumerate` can read them.
-            let _ = self.settings.set(settings);
-            let _ = self.device_count.set(device_count);
+            // Publish to the shared cells so `RemoteDevice::defaults` and listing can read them.
+            let _ = self.settings.set(info.settings);
+            let _ = self.device_count.set(info.device_count);
 
-            Self::spawn_response_demux(&self.executor, response, self.pending.responder());
-            self.writer = Some(SubmitWriter::spawn(&self.executor, request));
+            Self::spawn_response_demux(&self.executor, streams.response, self.pending.responder());
+            self.writer = Some(SubmitWriter::spawn(&self.executor, streams.submit));
             self.start_logger();
             Ok(())
         }
@@ -841,5 +822,38 @@ impl Drop for RemoteService {
             .as_mut()
             .expect("writer present (checked above)");
         writer.shutdown(&self.executor, Some(batch));
+    }
+}
+
+#[cfg(all(test, feature = "server", feature = "websocket"))]
+mod tests {
+    use std::{sync::mpsc, time::Duration};
+
+    use burn_flex::Flex;
+    use burn_std::device::Device as _;
+
+    use super::*;
+    use crate::{RemoteDevice, server::BackendServer, tests::serve};
+
+    #[test]
+    fn a_connect_starts_the_telemetry_logger() {
+        let rt = tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+        let address = serve(&rt, BackendServer::<Flex>::new(vec![Default::default()]));
+        let mut service = RemoteService::init(RemoteDevice::websocket(&address, 0).to_id());
+        let (started, logger) = mpsc::channel();
+        service.logger = Some(Box::pin(async move {
+            let _ = started.send(());
+        }));
+
+        service.try_connect().unwrap();
+
+        logger
+            .recv_timeout(Duration::from_secs(10))
+            .expect("the connect never started the logger");
+        drop(service);
+        rt.shutdown_background();
     }
 }

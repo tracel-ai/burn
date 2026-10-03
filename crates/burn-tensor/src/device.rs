@@ -27,13 +27,7 @@ pub use burn_dispatch::backends::capture::{
     CaptureError, CaptureScope, CapturedGraph, CompletedCaptureScope, TensorId,
 };
 
-#[cfg(any(
-    feature = "remote-websocket",
-    feature = "cpu",
-    feature = "cuda",
-    feature = "rocm",
-    feature = "wgpu"
-))]
+#[cfg(any(feature = "cpu", feature = "cuda", feature = "rocm", feature = "wgpu"))]
 use alloc::string::String;
 use alloc::vec;
 use alloc::vec::Vec;
@@ -225,7 +219,7 @@ impl DeviceIndex {
     /// [`DeviceIndex::Default`]. Backend factory methods are each gated by a
     /// Cargo feature, so this looks dead when none of them are enabled.
     #[allow(dead_code)]
-    fn resolve(self) -> usize {
+    pub(crate) fn resolve(self) -> usize {
         match self {
             DeviceIndex::Specified(i) => i,
             DeviceIndex::Default => 0,
@@ -426,130 +420,6 @@ impl Device {
     #[allow(deprecated)] // constructing the deprecated device is this constructor's job
     pub fn libtorch_vulkan() -> Self {
         Self::new(burn_dispatch::devices::LibTorchDevice::Vulkan)
-    }
-
-    /// Legacy WebSocket remote device. New integrations should prefer [`Device::remote_iroh`].
-    ///
-    /// Connects to a burn-remote WebSocket server at the given address. `index` selects which of
-    /// the server's devices to use; two devices with the same address but different indices target
-    /// distinct devices on the same host.
-    ///
-    /// # Errors
-    ///
-    /// See [`ConnectError`](crate::remote::ConnectError).
-    #[cfg(feature = "remote-websocket")]
-    pub fn remote_websocket(
-        address: &str,
-        index: impl Into<DeviceIndex>,
-    ) -> Result<Self, crate::remote::ConnectError> {
-        let index = index.into().resolve();
-        let device = burn_dispatch::devices::RemoteDevice::websocket(address, index);
-        device.connect()?; // required to get the device default settings
-        Ok(Self::new(device))
-    }
-
-    /// Iroh peer-to-peer remote device.
-    ///
-    /// `endpoint` is the application-owned Iroh endpoint to dial from; `peer` is the compute
-    /// server's identity (from [`RemoteSecret::id`](burn_dispatch::backends::remote::RemoteSecret::id)),
-    /// optionally carrying direct/relay dialing hints.
-    /// On wasm, use [`remote_iroh_async`](Self::remote_iroh_async) instead since sessions cannot
-    /// be opened synchronously.
-    ///
-    /// # Errors
-    ///
-    /// See [`ConnectError`](crate::remote::ConnectError).
-    #[cfg(all(feature = "remote", not(target_family = "wasm")))]
-    pub fn remote_iroh(
-        endpoint: &burn_dispatch::backends::remote::Endpoint,
-        peer: impl Into<burn_dispatch::backends::remote::EndpointAddr>,
-        index: impl Into<DeviceIndex>,
-    ) -> Result<Self, crate::remote::ConnectError> {
-        let index = index.into().resolve();
-        let device =
-            burn_dispatch::backends::remote::RemoteDevice::iroh(endpoint, peer.into(), index);
-        device.connect()?;
-        Ok(Self::new(device))
-    }
-
-    /// Browser counterpart of [`remote_iroh`](Self::remote_iroh). Wasm cannot block to connect,
-    /// so the session is established asynchronously before the device is returned.
-    ///
-    /// # Errors
-    ///
-    /// See [`ConnectError`](crate::remote::ConnectError).
-    #[cfg(all(feature = "remote", any(target_family = "wasm", doc)))]
-    pub async fn remote_iroh_async(
-        endpoint: &burn_dispatch::backends::remote::Endpoint,
-        peer: impl Into<burn_dispatch::backends::remote::EndpointAddr>,
-        index: impl Into<DeviceIndex>,
-    ) -> Result<Self, crate::remote::ConnectError> {
-        let index = index.into().resolve();
-        let device =
-            burn_dispatch::backends::remote::RemoteDevice::iroh(endpoint, peer.into(), index);
-        device.connect_async().await?;
-        Ok(Self::new(device))
-    }
-
-    /// Like `remote_iroh`, but carries an authorization credential the server's PeerAuthorizer
-    /// will check. Use against servers that require a credential; open servers take `remote_iroh`.
-    ///
-    /// # Errors
-    ///
-    /// See [`ConnectError`](crate::remote::ConnectError).
-    #[cfg(all(feature = "remote", not(target_family = "wasm")))]
-    pub fn remote_iroh_authorized(
-        endpoint: &burn_dispatch::backends::remote::Endpoint,
-        peer: impl Into<burn_dispatch::backends::remote::EndpointAddr>,
-        index: impl Into<DeviceIndex>,
-        credential: Vec<u8>,
-    ) -> Result<Self, crate::remote::ConnectError> {
-        let index = index.into().resolve();
-        let device = burn_dispatch::backends::remote::RemoteDevice::iroh_authorized(
-            endpoint,
-            peer.into(),
-            index,
-            credential,
-        );
-        device.connect()?;
-        Ok(Self::new(device))
-    }
-
-    /// A device on the Iroh server `peer` describes, dialed from the peer's endpoint.
-    ///
-    /// # Errors
-    ///
-    /// See [`ConnectError`](crate::remote::ConnectError).
-    #[cfg(all(feature = "remote", not(target_family = "wasm")))]
-    pub async fn remote_iroh_peer(
-        peer: &crate::remote::IrohPeer,
-        index: impl Into<DeviceIndex>,
-    ) -> Result<Self, crate::remote::ConnectError> {
-        let index = index.into().resolve();
-        Ok(Self::new(peer.connect(index).await?))
-    }
-
-    /// Browser counterpart of `remote_iroh_authorized`. Establishes the session asynchronously.
-    ///
-    /// # Errors
-    ///
-    /// See [`ConnectError`](crate::remote::ConnectError).
-    #[cfg(all(feature = "remote", any(target_family = "wasm", doc)))]
-    pub async fn remote_iroh_authorized_async(
-        endpoint: &burn_dispatch::backends::remote::Endpoint,
-        peer: impl Into<burn_dispatch::backends::remote::EndpointAddr>,
-        index: impl Into<DeviceIndex>,
-        credential: Vec<u8>,
-    ) -> Result<Self, crate::remote::ConnectError> {
-        let index = index.into().resolve();
-        let device = burn_dispatch::backends::remote::RemoteDevice::iroh_authorized(
-            endpoint,
-            peer.into(),
-            index,
-            credential,
-        );
-        device.connect_async().await?;
-        Ok(Self::new(device))
     }
 
     /// WGPU device, selected via [`DeviceKind`].
@@ -762,7 +632,12 @@ impl Device {
     /// Unlike [`sync`](Self::sync), this does not block on results — it only ensures buffered
     /// operations are dispatched instead of sitting idle. Eager backends, which execute each
     /// operation as it is registered, have nothing buffered and treat this as a no-op.
-    pub fn flush(&self) {
+    ///
+    /// # Errors
+    ///
+    /// Returns an [`ExecutionError`] when the buffered operations cannot be dispatched, e.g. on a
+    /// device that is poisoned.
+    pub fn flush(&self) -> Result<(), ExecutionError> {
         Dispatch::flush(self.as_dispatch())
     }
 
@@ -989,25 +864,21 @@ impl Device {
 
     /// Retrieves all available [`Device`]s that match the given [`DeviceType`] filter.
     ///
-    /// Local backends (CPU, CUDA, WGPU, …) enumerate the hardware found on the host. The
-    /// `Remote` (with `remote-websocket` enabled) variant instead lists every device hosted by the
-    /// `burn-remote` server at the given address — it connects to the server to learn how
-    /// many devices it exposes:
+    /// Backends enumerate the hardware found on this machine, and `DeviceType::Remote` every
+    /// device a remote server hosts:
     ///
     /// ```rust,ignore
     /// // Every CUDA device on this machine.
     /// let local = Device::enumerate(DeviceType::Cuda);
     ///
-    /// // Every device hosted by a remote server.
-    /// let remote = Device::enumerate(DeviceType::remote_websocket("ws://host:3000"));
-    ///
     /// // Filters combine with `|`.
-    /// let both = Device::enumerate(DeviceType::Cuda | DeviceType::remote_websocket("ws://host:3000"));
+    /// let both = Device::enumerate(DeviceType::Cuda | DeviceType::Remote(host));
     /// ```
     ///
     /// # Panics
     ///
-    /// A `Remote` server cannot be connected.
+    /// Where `RemoteHost::devices` returns an error for a `DeviceType::Remote`, and on wasm for any
+    /// `DeviceType::Remote`, which a browser can only list with `RemoteHost::devices_async`.
     pub fn enumerate(filter: impl Into<DeviceFilter>) -> Devices {
         #[allow(unused)]
         let mut devices = Vec::new();
@@ -1061,17 +932,9 @@ impl Device {
                 DeviceType::NdArray => DispatchDeviceId::NdArray,
                 #[cfg(feature = "tch")]
                 DeviceType::LibTorch => DispatchDeviceId::LibTorch,
-                // Remote devices are keyed by address, not a backend type id, so they take a
-                // dedicated enumeration path (connecting to the server for its device count).
-                #[cfg(feature = "remote-websocket")]
-                DeviceType::Remote(address) => {
-                    let remote =
-                        Dispatch::enumerate_remote_websocket(&address).unwrap_or_else(|err| {
-                            panic!(
-                                "Cannot list the devices of the remote server at {address}: {err}"
-                            )
-                        });
-                    devices.extend(remote.into_iter().map(Device::new));
+                #[cfg(feature = "remote")]
+                DeviceType::Remote(host) => {
+                    devices.extend(host.enumerate());
                     continue;
                 }
             };
@@ -1290,12 +1153,12 @@ pub(crate) fn wgpu_device(
 
 /// Represents the devices that can be used.
 ///
-/// `DeviceType` is used to filter the available device types for [`Device::enumerate`]. Most
-/// variants are fieldless and select a backend's local hardware; `Remote` (with `remote-websocket` enabled)
-/// carries the network address of a `burn-remote` server whose devices should be listed.
+/// `DeviceType` is used to filter the available device types for [`Device::enumerate`]. Each
+/// variant selects a backend's hardware on this machine, except `Remote`, which selects a remote
+/// server's devices.
 ///
 /// Variants combine into a [`DeviceFilter`] with the `|` operator, so a single
-/// [`Device::enumerate`] call can span several backends and remote hosts.
+/// [`Device::enumerate`] call can span several backends and remote servers.
 #[allow(missing_docs)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DeviceType {
@@ -1319,29 +1182,17 @@ pub enum DeviceType {
     NdArray,
     #[cfg(feature = "tch")]
     LibTorch,
-    /// Devices hosted by the `burn-remote` server at the given address
-    /// (e.g. `"ws://host:3000"`). Unlike the other variants this is resolved at runtime by
-    /// connecting to the server, which reports how many devices it exposes.
-    #[cfg(feature = "remote-websocket")]
-    Remote(String),
-}
-
-#[cfg(feature = "remote-websocket")]
-impl DeviceType {
-    /// Filter selecting every device hosted by the `burn-remote` server at `address`
-    /// (e.g. `"ws://host:3000"`).
-    ///
-    /// Convenience for [`DeviceType::Remote`] that accepts anything string-like.
-    pub fn remote_websocket(address: impl Into<String>) -> Self {
-        DeviceType::Remote(address.into())
-    }
+    /// Every device the remote server `host` hosts, connected on first use like any listed device.
+    /// [`RemoteHost::devices`](crate::remote::RemoteHost::devices) does the same and returns an
+    /// error where `enumerate` panics.
+    #[cfg(feature = "remote")]
+    Remote(crate::remote::RemoteHost),
 }
 
 /// A set of [`DeviceType`]s passed to [`Device::enumerate`].
 ///
 /// Built from a single [`DeviceType`], a `Vec<DeviceType>`, or by combining variants with the
-/// `|` operator (`DeviceType::Cuda | DeviceType::Cpu`). Because `DeviceType::Remote` carries
-/// an address, this is a plain list rather than a bitset.
+/// `|` operator (`DeviceType::Cuda | DeviceType::Cpu`).
 #[derive(Debug, Clone, Default)]
 pub struct DeviceFilter(Vec<DeviceType>);
 
@@ -1536,6 +1387,12 @@ impl Devices {
 }
 
 // Loop over `&Devices` or `Devices` seamlessly
+impl FromIterator<Device> for Devices {
+    fn from_iter<I: IntoIterator<Item = Device>>(devices: I) -> Self {
+        Self(devices.into_iter().collect())
+    }
+}
+
 impl IntoIterator for Devices {
     type Item = Device;
     type IntoIter = alloc::vec::IntoIter<Device>;

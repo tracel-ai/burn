@@ -82,7 +82,8 @@ impl<M: LearnerModel> DdpWorker<M> {
                     .process_train(LearnerEvent::StartSplit {
                         epoch_number: epoch,
                         total_items: self.components.train_total_items,
-                    });
+                    })
+                    .unwrap();
             }
 
             epoch_train.run(
@@ -97,7 +98,8 @@ impl<M: LearnerModel> DdpWorker<M> {
                 self.event_processor
                     .lock()
                     .unwrap()
-                    .process_train(LearnerEvent::EndSplit(epoch));
+                    .process_train(LearnerEvent::EndSplit(epoch))
+                    .unwrap();
             }
 
             // Workers using early stopping must all reach the epoch barrier below. Validation will
@@ -115,7 +117,8 @@ impl<M: LearnerModel> DdpWorker<M> {
                         .process_valid(LearnerEvent::StartSplit {
                             epoch_number: epoch,
                             total_items: self.components.valid_total_items,
-                        });
+                        })
+                        .unwrap();
                 }
                 let mut event_processor = self.event_processor.lock().unwrap();
                 runner.run(
@@ -124,8 +127,12 @@ impl<M: LearnerModel> DdpWorker<M> {
                     &mut event_processor,
                     &interrupter,
                 );
-                event_processor.process_valid(LearnerEvent::EndSplit(epoch));
-                event_processor.process_train(LearnerEvent::EndEpoch(epoch));
+                event_processor
+                    .process_valid(LearnerEvent::EndSplit(epoch))
+                    .unwrap();
+                event_processor
+                    .process_train(LearnerEvent::EndEpoch(epoch))
+                    .unwrap();
             }
 
             if self.components.early_stopping.is_some() {
@@ -136,7 +143,7 @@ impl<M: LearnerModel> DdpWorker<M> {
             }
 
             if self.checkpointer.is_some() || self.components.early_stopping.is_some() {
-                self.event_processor.lock().unwrap().flush();
+                self.event_processor.lock().unwrap().flush().unwrap();
             }
 
             if interrupter.should_stop() {

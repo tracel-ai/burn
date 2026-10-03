@@ -54,9 +54,9 @@ impl TransferCapability {
         Self(rand::random())
     }
 
-    /// Deterministic compatibility key for the legacy 64-bit WebSocket transfer service.
+    /// The 64-bit key the WebSocket transfer service rendezvouses on, taken from the capability.
     #[cfg(feature = "websocket")]
-    pub(crate) fn legacy_id(self) -> u64 {
+    pub(crate) fn websocket_id(self) -> u64 {
         u64::from_le_bytes(
             self.0[..8]
                 .try_into()

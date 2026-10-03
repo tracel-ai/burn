@@ -1,7 +1,7 @@
 use super::state::{FormatOptions, NumericMetricState};
 use super::{MetricMetadata, SerializedEntry};
 use crate::metric::{Metric, MetricAttributes, MetricName, Numeric, NumericEntry};
-use burn_core::tensor::{Int, Tensor};
+use burn_core::tensor::{Int, Tensor, TensorReadError};
 use std::sync::Arc;
 
 /// Computes the edit distance (Levenshtein distance) between two sequences of integers.
@@ -77,7 +77,11 @@ impl CharErrorRate {
 impl Metric for CharErrorRate {
     type Input = CerInput;
 
-    fn update(&mut self, input: &CerInput, _metadata: &MetricMetadata) -> SerializedEntry {
+    fn update(
+        &mut self,
+        input: &CerInput,
+        _metadata: &MetricMetadata,
+    ) -> Result<SerializedEntry, TensorReadError> {
         let outputs = &input.outputs;
         let targets = &input.targets;
         let [output_batch_size, output_seq_len] = outputs.dims();
@@ -87,8 +91,8 @@ impl Metric for CharErrorRate {
             "CER predictions and targets must have the same batch size"
         );
 
-        let outputs_data: Vec<i32> = outputs.try_to_vec_as().unwrap();
-        let targets_data: Vec<i32> = targets.try_to_vec_as().unwrap();
+        let outputs_data: Vec<i32> = outputs.try_to_vec_as()?;
+        let targets_data: Vec<i32> = targets.try_to_vec_as()?;
         let pad_token = self.pad_token.map(|pad| pad as i64);
 
         let mut total_edit_distance = 0;
@@ -132,13 +136,15 @@ impl Metric for CharErrorRate {
         };
 
         self.state.update(value, total_target_length);
-        self.state
-            .compute_update(FormatOptions::new(self.name()).unit("%").precision(2))
+        Ok(self
+            .state
+            .compute_update(FormatOptions::new(self.name()).unit("%").precision(2)))
     }
 
-    fn compute(&mut self) -> SerializedEntry {
-        self.state
-            .compute_final(FormatOptions::new(self.name()).unit("%").precision(2))
+    fn compute(&mut self) -> Result<SerializedEntry, TensorReadError> {
+        Ok(self
+            .state
+            .compute_final(FormatOptions::new(self.name()).unit("%").precision(2)))
     }
 
     fn clear(&mut self) {
@@ -187,7 +193,9 @@ mod tests {
         let preds = Tensor::from_data([[1, 2], [3, 4]], &device);
         let tgts = Tensor::from_data([[1, 2], [3, 4]], &device);
 
-        metric.update(&CerInput::new(preds, tgts), &MetricMetadata::fake());
+        metric
+            .update(&CerInput::new(preds, tgts), &MetricMetadata::fake())
+            .unwrap();
 
         assert_eq!(0.0, metric.value().unwrap().current());
     }
@@ -202,7 +210,9 @@ mod tests {
         let preds = Tensor::from_data([[1, 2], [3, 5]], &device);
         let tgts = Tensor::from_data([[1, 3], [3, 4]], &device);
 
-        metric.update(&CerInput::new(preds, tgts), &MetricMetadata::fake());
+        metric
+            .update(&CerInput::new(preds, tgts), &MetricMetadata::fake())
+            .unwrap();
 
         // 2 edits / 4 tokens = 50 %
         assert_eq!(50.0, metric.value().unwrap().current());
@@ -219,7 +229,9 @@ mod tests {
         let preds = Tensor::from_data([[1, 2, pad], [3, 5, pad]], &device);
         let tgts = Tensor::from_data([[1, 3, pad], [3, 4, pad]], &device);
 
-        metric.update(&CerInput::new(preds, tgts), &MetricMetadata::fake());
+        metric
+            .update(&CerInput::new(preds, tgts), &MetricMetadata::fake())
+            .unwrap();
         assert_eq!(50.0, metric.value().unwrap().current());
     }
 
@@ -231,7 +243,9 @@ mod tests {
         let preds = Tensor::from_data([[1, 2, 0]], &device);
         let tgts = Tensor::from_data([[1, 0, 2]], &device);
 
-        metric.update(&CerInput::new(preds, tgts), &MetricMetadata::fake());
+        metric
+            .update(&CerInput::new(preds, tgts), &MetricMetadata::fake())
+            .unwrap();
 
         assert_eq!(0.0, metric.value().unwrap().current());
     }
@@ -244,7 +258,9 @@ mod tests {
         let preds = Tensor::from_data([[0, 1, 2], [3, 4, 0]], &device);
         let tgts = Tensor::from_data([[1, 2, 0], [0, 3, 4]], &device);
 
-        metric.update(&CerInput::new(preds, tgts), &MetricMetadata::fake());
+        metric
+            .update(&CerInput::new(preds, tgts), &MetricMetadata::fake())
+            .unwrap();
 
         assert_eq!(0.0, metric.value().unwrap().current());
     }
@@ -257,7 +273,9 @@ mod tests {
         let preds = Tensor::from_data([[0, 1, 0, 2], [3, 0, 0, 0]], &device);
         let tgts = Tensor::from_data([[1, 0, 2, 0], [0, 3, 0, 4]], &device);
 
-        metric.update(&CerInput::new(preds, tgts), &MetricMetadata::fake());
+        metric
+            .update(&CerInput::new(preds, tgts), &MetricMetadata::fake())
+            .unwrap();
 
         assert_eq!(25.0, metric.value().unwrap().current());
     }
@@ -270,7 +288,9 @@ mod tests {
         let preds = Tensor::from_data([[0, 0]], &device);
         let tgts = Tensor::from_data([[0, 0]], &device);
 
-        metric.update(&CerInput::new(preds, tgts), &MetricMetadata::fake());
+        metric
+            .update(&CerInput::new(preds, tgts), &MetricMetadata::fake())
+            .unwrap();
 
         assert_eq!(0.0, metric.value().unwrap().current());
     }
@@ -288,7 +308,9 @@ mod tests {
         let preds = Tensor::from_data([[1, 0, 2, 5], [3, 0, 4, 6]], &device);
         let tgts = Tensor::from_data([[1, 2], [3, 4]], &device);
 
-        metric.update(&CerInput::new(preds, tgts), &MetricMetadata::fake());
+        metric
+            .update(&CerInput::new(preds, tgts), &MetricMetadata::fake())
+            .unwrap();
 
         assert_eq!(expected, metric.value().unwrap().current());
     }
@@ -306,7 +328,9 @@ mod tests {
         let preds = Tensor::from_data([[1, 2], [3, 4]], &device);
         let tgts = Tensor::from_data([[1, 0, 2, 5], [3, 0, 4, 6]], &device);
 
-        metric.update(&CerInput::new(preds, tgts), &MetricMetadata::fake());
+        metric
+            .update(&CerInput::new(preds, tgts), &MetricMetadata::fake())
+            .unwrap();
 
         assert_eq!(expected, metric.value().unwrap().current());
     }
@@ -324,7 +348,9 @@ mod tests {
             std::mem::swap(&mut preds, &mut tgts);
         }
 
-        metric.update(&CerInput::new(preds, tgts), &MetricMetadata::fake());
+        metric
+            .update(&CerInput::new(preds, tgts), &MetricMetadata::fake())
+            .unwrap();
     }
 
     /// `clear()` must reset the running statistics to zero.
@@ -336,10 +362,12 @@ mod tests {
         let preds = Tensor::from_data([[1, 2]], &device);
         let tgts = Tensor::from_data([[1, 3]], &device); // one error
 
-        metric.update(
-            &CerInput::new(preds.clone(), tgts.clone()),
-            &MetricMetadata::fake(),
-        );
+        metric
+            .update(
+                &CerInput::new(preds.clone(), tgts.clone()),
+                &MetricMetadata::fake(),
+            )
+            .unwrap();
         assert!(metric.value().unwrap().current() > 0.0);
 
         metric.clear();

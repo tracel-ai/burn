@@ -136,8 +136,6 @@ use crate::devices::FlexDevice;
 use crate::devices::LibTorchDevice;
 #[cfg(feature = "ndarray")]
 use crate::devices::NdArrayDevice;
-#[cfg(feature = "remote-websocket")]
-use crate::devices::RemoteDevice;
 use crate::{DispatchDevice, DispatchTensor, backends::*};
 
 /// The main execution backend in Burn.
@@ -312,7 +310,7 @@ impl Backend for Dispatch {
         dispatch_device!(device, |device| B::supports_dtype(device, dtype))
     }
 
-    fn flush(device: &Self::Device) {
+    fn flush(device: &Self::Device) -> Result<(), ExecutionError> {
         dispatch_device!(device, |device| B::flush(device))
     }
 }
@@ -1129,9 +1127,7 @@ impl Dispatch {
                 .map(|i| LibTorchDevice::Cuda(i).into())
                 .collect(),
             #[cfg(feature = "remote")]
-            // Remote devices are keyed by a network address, which the type-id-only
-            // `enumerate` can't carry. Use [`Dispatch::enumerate_remote_websocket`] to list the devices
-            // behind a given address.
+            // A remote device needs its server's address, which a type id cannot carry.
             DispatchDeviceId::Remote => Vec::new(),
             #[cfg(feature = "capture")]
             // Capture devices are created together with a lifecycle handle and therefore
@@ -1154,28 +1150,6 @@ impl Dispatch {
             .into_iter()
             .map(DispatchDevice::Cube)
             .collect()
-    }
-
-    /// List every device hosted by the remote server at `address`.
-    ///
-    /// Unlike [`enumerate`](Self::enumerate), remote devices are identified by a network
-    /// address rather than enumerable local hardware, so they need a dedicated entry point.
-    /// Connecting to the server (required to learn its device count) happens here; see
-    /// [`RemoteDevice::enumerate_websocket`].
-    ///
-    /// Websocket-only: Iroh peers are addressed by endpoint identity, not a URL string.
-    ///
-    /// # Errors
-    ///
-    /// See [`ConnectError`](burn_remote::ConnectError).
-    #[cfg(feature = "remote-websocket")]
-    pub fn enumerate_remote_websocket(
-        address: &str,
-    ) -> Result<Vec<DispatchDevice>, burn_remote::ConnectError> {
-        Ok(RemoteDevice::enumerate_websocket(address)?
-            .into_iter()
-            .map(DispatchDevice::Remote)
-            .collect())
     }
 }
 

@@ -6,7 +6,10 @@ use crate::{
 use burn_backend::{
     Device, DeviceHandle, DeviceId, DeviceService, DeviceServiceStage, ServerUtilitiesHandle,
 };
-use burn_std::{CommunicationId, device_handle::CallError};
+use burn_std::{
+    CommunicationId,
+    device_handle::{CallError, CallResultExt},
+};
 
 use burn_backend::{TensorData, backend::ExecutionError};
 use burn_ir::{OperationIr, TensorId, TensorIr};
@@ -160,14 +163,30 @@ where
     }
 
     /// Register all lazy computation.
+    ///
+    /// # Panics
+    ///
+    /// When the server could not run the task, re-raising its own panic so the
+    /// original cause is what the caller sees. [`try_sync`](Self::try_sync)
+    /// returns it instead.
     pub fn sync<Re: Send + 'static>(&self, sync_fn: impl FnOnce() -> Re + Send + 'static) -> Re {
+        self.try_sync(sync_fn).unwrap_or_resume()
+    }
+
+    /// Register all lazy computation.
+    ///
+    /// # Errors
+    ///
+    /// The server could not run the task: it panicked, or is gone.
+    pub fn try_sync<Re: Send + 'static>(
+        &self,
+        sync_fn: impl FnOnce() -> Re + Send + 'static,
+    ) -> Result<Re, CallError> {
         let id = StreamId::current();
-        self.server
-            .submit_blocking(move |server| {
-                server.drain_stream(id);
-                sync_fn()
-            })
-            .unwrap()
+        self.server.submit_blocking(move |server| {
+            server.drain_stream(id);
+            sync_fn()
+        })
     }
 
     /// Flush the operations queue.
@@ -205,9 +224,15 @@ where
     where
         B: FusionBackend<FusionRuntime = R>,
     {
-        self.server
-            .submit_blocking(move |server| server.float_data::<B>(tensor, stream))
-            .unwrap()
+        let read = self
+            .server
+            .submit_blocking(move |server| server.float_data::<B>(tensor, stream));
+        async move {
+            match read {
+                Ok(read) => read.await,
+                Err(err) => Err(crate::backend::server_error(err)),
+            }
+        }
     }
 
     /// Read the values contained by an int tensor.
@@ -219,9 +244,15 @@ where
     where
         B: FusionBackend<FusionRuntime = R>,
     {
-        self.server
-            .submit_blocking(move |server| server.int_data::<B>(tensor, stream))
-            .unwrap()
+        let read = self
+            .server
+            .submit_blocking(move |server| server.int_data::<B>(tensor, stream));
+        async move {
+            match read {
+                Ok(read) => read.await,
+                Err(err) => Err(crate::backend::server_error(err)),
+            }
+        }
     }
 
     /// Read the values contained by a bool tensor.
@@ -233,9 +264,15 @@ where
     where
         B: FusionBackend<FusionRuntime = R>,
     {
-        self.server
-            .submit_blocking(move |server| server.bool_data::<B>(tensor, stream))
-            .unwrap()
+        let read = self
+            .server
+            .submit_blocking(move |server| server.bool_data::<B>(tensor, stream));
+        async move {
+            match read {
+                Ok(read) => read.await,
+                Err(err) => Err(crate::backend::server_error(err)),
+            }
+        }
     }
 
     /// Read the values contained by a quantized tensor.
@@ -247,9 +284,15 @@ where
     where
         B: FusionBackend<FusionRuntime = R>,
     {
-        self.server
-            .submit_blocking(move |server| server.quantized_data::<B>(tensor, stream))
-            .unwrap()
+        let read = self
+            .server
+            .submit_blocking(move |server| server.quantized_data::<B>(tensor, stream));
+        async move {
+            match read {
+                Ok(read) => read.await,
+                Err(err) => Err(crate::backend::server_error(err)),
+            }
+        }
     }
 
     /// Change the client of the given float tensor.

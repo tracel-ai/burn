@@ -49,8 +49,9 @@ impl From<ConnectError> for OpenError {
                     },
                 ..
             } => Self::Failed(
-                "timed out: nothing answered at its addresses. Without a relay, its UDP port \
-                 must be reachable through any firewall"
+                "timed out: nothing answered, directly or through a relay. A direct path needs \
+                 the server's UDP port reachable through any firewall, and a relay needs both \
+                 sides able to reach it"
                     .into(),
             ),
             err => Self::Failed(err.to_string()),

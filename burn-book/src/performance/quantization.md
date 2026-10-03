@@ -51,10 +51,7 @@ tensors and can collect their statistics, such as the min and max value when usi
 let scheme = QuantScheme::default()
     .per_block([32], ScaleDtype::F16)
     .with_value(QuantValue::Q4F);
-let mut quantizer = Quantizer {
-    calibration: Calibration::MinMax,
-    scheme,
-};
+let mut quantizer = Quantizer::new(Calibration::MinMax, scheme);
 
 // Quantize the weights
 let model = model.quantize_weights(&mut quantizer);

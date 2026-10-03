@@ -4,7 +4,7 @@ use ctor::ctor;
 // Re-export
 use super::{FloatElem, IntElem};
 
-#[ctor]
+#[ctor(unsafe)]
 fn init_device_settings() {
     let mut device = burn_tensor::Device::default();
     device

@@ -45,7 +45,7 @@ impl<M: LearnerModel> DdpValidEpoch<M> {
             let item = match item {
                 Ok(item) => item,
                 Err(err) => {
-                    interrupter.stop(Some(&format!("dataset error during validation: {err}")));
+                    interrupter.fail(err);
                     break;
                 }
             };
@@ -55,7 +55,9 @@ impl<M: LearnerModel> DdpValidEpoch<M> {
             let item = InferenceStep::step(&model, item);
             let item = TrainingItem::new(item, progress, Some(iteration), None);
 
-            processor.process_valid(LearnerEvent::ProcessedItem(item));
+            processor
+                .process_valid(LearnerEvent::ProcessedItem(item))
+                .unwrap();
 
             if interrupter.should_stop() {
                 log::info!("Training interrupted.");
@@ -98,7 +100,7 @@ impl<M: LearnerModel> DdpTrainEpoch<M> {
             let item = match item {
                 Ok(item) => item,
                 Err(err) => {
-                    interrupter.stop(Some(&format!("dataset error during training: {err}")));
+                    interrupter.fail(err);
                     break;
                 }
             };
@@ -139,7 +141,9 @@ impl<M: LearnerModel> DdpTrainEpoch<M> {
 
             {
                 let mut processor = processor.lock().unwrap();
-                processor.process_train(LearnerEvent::ProcessedItem(item));
+                processor
+                    .process_train(LearnerEvent::ProcessedItem(item))
+                    .unwrap();
             }
 
             if interrupter.should_stop() {

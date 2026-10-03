@@ -7,7 +7,7 @@
 //! contained to this module.
 
 mod identity;
-pub use identity::{PeerAddr, PeerId};
+pub(crate) use identity::{PeerAddr, PeerId};
 
 pub(crate) mod link;
 

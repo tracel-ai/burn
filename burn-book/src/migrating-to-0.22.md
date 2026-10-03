@@ -45,6 +45,9 @@ default features.
 Device-level operations previously called through `B: Backend`, such as seeding and synchronization,
 are now methods on `Device`. See [Using a Device](./building-blocks/backend.md#using-a-device).
 
+`Device::flush()` returns `Result<(), ExecutionError>`: it fails when the buffered operations cannot
+be dispatched, e.g. on a poisoned device. Propagate the error with `?` or handle it.
+
 When upgrading a model, remove its backend parameter and the corresponding parameters on fields and
 methods. The rank and kind remain part of the tensor type:
 
@@ -286,10 +289,23 @@ Update your training configuration:
 | `renderer(renderer)`                             | `renderer(Box::new(renderer))`                                                                         |
 | `AurocMetric::new()`                             | `AurocMetric::binary()`, `AurocMetric::multiclass(reduction)`, or `AurocMetric::multilabel(reduction)` |
 | `AurocInput`                                     | `ClassificationOutput` or `MultiLabelClassificationOutput`                                             |
+| `evaluator.eval(..)` returning the renderer      | `EvaluationResult`; read its `renderer` field                                                          |
 
 Default checkpointers save the model, optimizer, and scheduler as burnpack files. AUROC's multiclass
 and multilabel constructors take a `ClassReduction`. See [Learner](./building-blocks/learner.md) for
 training configuration.
+
+Training and evaluation now stop instead of panicking when a metric cannot read its tensors, a
+dataloader fails, a checkpointer fails, or a multi-device worker panics. `LearningResult`,
+`RLResult`, and `EvaluationResult` report the reason for an early stopping:
+
+- `error`: the `TrainingError` that stopped it. `TrainingError::is_device_poisoned()` tells whether
+  the device is poisoned and, consequentially, if the process needs to be restarted.
+- `interrupted`: the `Interruption` requested through `Interrupter::stop`, if the run stopped
+  without an error.
+
+Check `error` after `launch` or `eval` to detect a failed run. If you destructure these results or
+build them with struct literals, add the two fields.
 
 Review configurations and numerical baselines affected by these behavior changes:
 
@@ -312,6 +328,9 @@ These methods return `Result<Vec<E>, DataError>` and require `E` to match the st
 conversion, use `try_to_vec_as::<E>()` or `try_into_vec_as::<E>()` on `TensorData` or `Tensor`.
 Update error matches for the revised `DataError` variants and `Tensor::try_into_scalar`'s
 `TensorReadError`.
+`ExecutionError` has a new `DevicePoisoned` variant for faults the device cannot recover from, such
+as an illegal memory access; add it to exhaustive matches. `ExecutionError::is_device_poisoned()`
+detects it.
 
 `TensorData` fields are private, so its byte length always matches its shape and dtype (quantized
 data is not checked yet). Replace field access with the accessors:
@@ -375,6 +394,7 @@ Update numerical expectations for these cases:
 | NaN in `cummax` or `cummin`                   | Returns NaN from that position onward                                                 |
 | Reducing a zero-length axis                   | `sum`: 0; `prod`: 1; `any`: false; `all`: true; float `mean`: NaN; `max`/`min`: panic |
 | Empty axes in `max_abs_dims` or `*_norm_dims` | Applies the elementwise transformation without reducing                               |
+| Positive shift in `roll` or `roll_dim`        | Moves elements toward higher indices, matching `torch.roll`; 0.21 moved them lower    |
 
 ## Custom integrations
 
@@ -421,6 +441,13 @@ Update the metric lifecycle:
 - Return `Option<NumericEntry>` from `Numeric::value()` and `running_value()`. Use `None` when the
   metric is only defined at the end of an epoch.
 - Return the computed epoch value from `final_value()`.
+- Return `Result<SerializedEntry, TensorReadError>` from `update` and `compute`. Read tensors with
+  `try_into_data()` or `try_into_scalar()` and propagate errors with `?`; wrap other return values
+  in `Ok(..)`. `ConfusionStatsState::compute_update` also returns a `Result`.
+
+Custom training outputs implement `ItemLazy::sync(self) -> Result<Self, ExecutionError>`: propagate
+`device.flush()?` and wrap the returned output in `Ok(..)`. When an output cannot be synced, the
+event processor reports it once, as a `EventProcessorFailure::Sync`, and no metric processes that event.
 
 See [Custom Metric](./building-blocks/metric.md#custom-metric) for an implementation example.
 
@@ -440,6 +467,18 @@ Update custom event matches:
 | `LearnerEvent::StartSplit` / `EndSplit` | Handle the new split lifecycle events                   |
 | `EvaluatorEvent::StartTest` / `EndTest` | Handle the new test lifecycle events                    |
 
+Event processor methods return `Result<(), EventProcessorError>`: `process_train`, `process_valid`,
+`flush`, and `process_test`. A `EventProcessorError` lists every failure: a metric that failed
+(`EventProcessorFailure::Metric`, with its name and split) or an event that could not be synced
+(`EventProcessorFailure::Sync`). `EventProcessorEvaluation` gains a `flush` method with a default implementation. Custom
+processors return `Ok(())` on success.
+
+In a custom `SupervisedLearningStrategy`, handle each processor result: pass it to
+`interrupter.fail_on_error(..)` to stop training cleanly, or call `unwrap()` to panic as before.
+Report dataset errors with `interrupter.fail(err)` rather than `interrupter.stop(..)`, so the run
+reports them as errors. `MultiDevicesTrainStep::step` returns `MultiDeviceStepError` instead of
+`DatasetError`.
+
 ### Distributed training
 
 Remove the `distributed` and `collective` feature flags and the `burn-collective` dependency.
@@ -451,6 +490,28 @@ Collective operations are available through `burn::tensor::distributed`.
 
 Check runtime support before using collectives: CubeCL all-reduce currently requires CUDA, including
 on remote servers. See [Distributed Computing](./performance/distributed-computing.md).
+
+### Remote backend
+
+A remote device is a `Device`, connected through a `RemoteHost` that names its server. Connecting
+returns a `Result`, and a server returns a `ServeError` instead of panicking:
+
+| 0.21 API                                           | 0.22 API                                                                                |
+| -------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| `RemoteDevice::new("ws://host:3000")`              | `Device::remote_options(&RemoteHost::websocket("ws://host:3000")).init()?`              |
+| Listing a server's devices                         | `Device::enumerate(DeviceType::Remote(host))`, or `host.devices()?` to handle the error |
+| `burn::server::start_websocket::<B>(device, port)` | `RemoteServer::new([device]).serve(WebSocketTransport::new(port))?`                     |
+| `start_websocket_async::<B>(device, port).await`   | `RemoteServer::new([device]).serve_async(WebSocketTransport::new(port)).await?`         |
+
+`serve` installs the server's logging and handles Ctrl+C and `SIGTERM`. `serve_async` does neither:
+the application owns its subscriber and its signals, and dropping the future stops the server.
+
+Iroh, now the default transport, reaches a server by its id across any network:
+`RemoteHost::iroh(server_id)` on the client, and
+`IrohTransport::new(IrohIdentity::load_or_create(path)?)` on the server. A server hosts exactly the
+devices it is given, and a backend outside Burn's own serves through
+`burn_remote::server::BackendServer::<B>`. See
+[Distributed Computing](./performance/distributed-computing.md).
 
 ### Storage adapters and checkpointers
 
