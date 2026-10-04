@@ -228,8 +228,9 @@ let model = Model::from_bytes(weight_bytes, &device);
 let model = Model::from_embedded(&device);
 
 // Load with the default device (LoadStrategy::File or Embedded). With File, this reads the
-// .bpk from the absolute OUT_DIR path captured at build time, which suits development but not
-// a binary you distribute.
+// .bpk from the path recorded at generation time: absolute inside OUT_DIR for a build script,
+// or the output directory exactly as given to onnx2burn (a relative path resolves against the
+// runtime working directory). Fine for development, not for a binary you distribute.
 let model = Model::default();
 ```
 
