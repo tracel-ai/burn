@@ -1,5 +1,9 @@
 # Burn Remote
 
+[![Current Crates.io Version](https://img.shields.io/crates/v/burn-remote.svg)](https://crates.io/crates/burn-remote)
+[![Documentation](https://docs.rs/burn-remote/badge.svg)](https://docs.rs/burn-remote)
+[![license](https://shields.io/badge/license-MIT%2FApache--2.0-blue)](https://github.com/tracel-ai/burn/blob/main/LICENSE-MIT)
+
 Burn Remote runs tensor operations on the devices a server hosts, in another process on this machine
 or another. A client sends the operations, the server runs them, and only what the client reads
 comes back.
@@ -96,3 +100,10 @@ the authorizer: the capability is what the client's session granted.
 
 Multiple devices hosted by the same server retain the in-process fast path. Tensor movement between
 an Iroh server and a WebSocket server is not supported.
+
+<!-- burn-crate-footer -->
+
+---
+
+Part of the [Burn](https://github.com/tracel-ai/burn) deep learning framework. See the
+[Burn Book](https://burn.dev/books/burn/) and the [API documentation](https://docs.rs/burn).

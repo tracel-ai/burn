@@ -1,6 +1,19 @@
 #![warn(missing_docs)]
 
-//! The derive crate of Burn.
+//! Derive and procedural macros for Burn.
+//!
+//! Use these through `burn`, which re-exports them; this crate is not meant to be a direct
+//! dependency.
+//!
+//! - `#[derive(Module)]` implements `Module` for a struct or enum of modules, parameters and
+//!   constants. `#[module(skip)]` excludes a field.
+//! - `#[derive(Config)]` makes a struct a serializable configuration with a generated `new`
+//!   constructor and `with_*` setters for optional fields and fields marked `#[config(default = ...)]`.
+//! - `#[derive(RecordState)]` decomposes an optimizer or scheduler state into named tensors and
+//!   scalars for the burnpack format.
+//!
+//! The function-like macros below implement `burn::tensor::assert_shape!`,
+//! `debug_assert_shape!` and `einsum!`, and are not part of the public API.
 
 #[macro_use]
 extern crate derive_new;

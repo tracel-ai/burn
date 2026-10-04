@@ -4,7 +4,7 @@ description = "Abstractions for network communication for Burn"
 edition.workspace = true
 license.workspace = true
 name = "burn-communication"
-readme.workspace = true
+readme = "README.md"
 repository = "https://github.com/tracel-ai/burn/tree/main/crates/burn-communication"
 version.workspace = true
 

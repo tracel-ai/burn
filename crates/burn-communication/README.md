@@ -1,15 +1,24 @@
 # Burn Communication
 
-Abstractions for network communication
+> Client/server networking used by [Burn](https://github.com/tracel-ai/burn)'s remote backend
 
-The Protocol trait defines how to communicate in a server/client style.
-The server can set up routes with callbacks upon connection.
+[![Current Crates.io Version](https://img.shields.io/crates/v/burn-communication.svg)](https://crates.io/crates/burn-communication)
+[![Documentation](https://docs.rs/burn-communication/badge.svg)](https://docs.rs/burn-communication)
+[![license](https://shields.io/badge/license-MIT%2FApache--2.0-blue)](https://github.com/tracel-ai/burn/blob/main/LICENSE-MIT)
 
-## WebSocket
+`Protocol` abstracts a transport with a `ProtocolServer` that routes connections to handlers and a
+`ProtocolClient` that opens `CommunicationChannel`s to an `Address`.
 
-Communication with WebSockets is implemented with the `websocket` feature.
+- `websocket` (feature `websocket`): a WebSocket implementation of `Protocol`.
+- `external_comm` (feature `data-service`): lets one server download a tensor directly from
+  another, without routing the data through the client.
 
-## Tensor Data Service
+This crate is an implementation detail of [burn-remote](https://github.com/tracel-ai/burn/tree/main/crates/burn-remote); applications do not use it
+directly.
 
-The tensor data service provides easy utilities to share tensors peer-to-peer.
-One peer can expose a tensor, and another can download it. Each peer is both a client and a server.
+<!-- burn-crate-footer -->
+
+---
+
+Part of the [Burn](https://github.com/tracel-ai/burn) deep learning framework. See the
+[Burn Book](https://burn.dev/books/burn/) and the [API documentation](https://docs.rs/burn).
