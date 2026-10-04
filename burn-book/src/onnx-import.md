@@ -37,50 +37,24 @@ environments.
 Burn's approach to ONNX import offers unique advantages:
 
 1. **Native Rust code generation**: Translates ONNX models into Rust source code for deep
-   integration with Burn's ecosystem.
-2. **Compile-time optimization**: Leverages the Rust compiler to optimize the generated code,
-   potentially improving performance.
+   integration with Burn's ecosystem. The generated code is readable and can be edited by hand.
+2. **Compile-time optimization**: Leverages the Rust compiler to optimize the generated code, and
+   simplifies the graph (constant folding, shape propagation, dead code elimination) before
+   generating it.
 3. **No runtime dependency**: Eliminates the need for an ONNX runtime, unlike many other solutions.
 4. **Trainability**: Allows imported models to be further trained or fine-tuned using Burn.
-5. **Portability**: Enables compilation for various targets, including WebAssembly and embedded
-   devices.
+5. **Portability**: Enables compilation for various targets, including WebAssembly and `no_std`
+   embedded devices.
 6. **Backend flexibility**: Works with any of Burn's supported backends.
 
 ## ONNX Compatibility
 
-Burn recommends ONNX models use **opset version 16 or higher** for best compatibility. While models
-with older opset versions may work, opset 16+ ensures access to all supported operators and their
-latest behavior. If you encounter issues with an older model, consider upgrading it using the ONNX
-version converter.
-
-### Upgrading ONNX Models
-
-There are two simple ways to upgrade your ONNX models to the recommended opset version:
-
-Option 1: Use the provided utility script:
-
-```
-uv run --script https://raw.githubusercontent.com/tracel-ai/burn-onnx/refs/heads/main/onnx_opset_upgrade.py
-```
-
-Option 2: Use a custom Python script:
-
-```python
-import onnx
-from onnx import version_converter, shape_inference
-
-# Load your ONNX model
-model = onnx.load('path/to/your/model.onnx')
-
-# Convert the model to opset version 16
-upgraded_model = version_converter.convert_version(model, 16)
-
-# Apply shape inference to the upgraded model
-inferred_model = shape_inference.infer_shapes(upgraded_model)
-
-# Save the converted model
-onnx.save(inferred_model, 'upgraded_model.onnx')
-```
+`burn-onnx` supports ONNX opset versions 1 through 24: every supported operator handles each opset it
+exists in, including attributes that later became inputs and defaults that changed between
+versions. Models can be imported as they are, without upgrading them first. The list of
+[supported ONNX operators](https://github.com/tracel-ai/burn-onnx/blob/main/SUPPORTED-ONNX-OPS.md)
+covers the standard operator set; operators outside it can be supplied as
+[custom operators](#custom-operators).
 
 ## Step-by-Step Guide
 
@@ -93,10 +67,14 @@ First, add the required dependencies to your `Cargo.toml`:
 ```toml
 [dependencies]
 burn = { version = "~0.22", features = ["flex"] }
+burn-store = "~0.22"
 
 [build-dependencies]
 burn-onnx = "~0.22"
 ```
+
+The generated code loads its weights through `burn-store`, so it must be a regular dependency of
+your crate. `burn` needs at least one backend feature; `flex` is the portable CPU backend.
 
 ### Step 2: Update `build.rs`
 
@@ -114,10 +92,12 @@ fn main() {
 ```
 
 This generates Rust code and a `.bpk` weights file from your ONNX model during the build process.
+Call `.input()` once per model to convert several models at once.
 
 ### Step 3: Modify `mod.rs`
 
-In your `src/model/mod.rs` file, include the generated code:
+In your `src/model/mod.rs` file, include the generated code. The generated file is named after the
+ONNX file:
 
 ```rust, ignore
 pub mod my_model {
@@ -136,8 +116,8 @@ use model::my_model::Model;
 fn main() {
     let device = Device::flex();
 
-    // Create model instance and load weights from target dir default device
-    let model: Model = Model::default();
+    // Create the model and load the weights written by the build script
+    let model = Model::from_file(concat!(env!("OUT_DIR"), "/model/my_model.bpk"), &device);
 
     // Create input tensor (replace with your actual input)
     let input = Tensor::<4>::zeros([1, 3, 224, 224], &device);
@@ -145,9 +125,29 @@ fn main() {
     // Perform inference
     let output = model.forward(input);
 
-    println!("Model output: {:?}", output);
+    println!("Model output: {output}");
 }
 ```
+
+The generated `Model` is an ordinary Burn `Module` with a typed `forward` method: inputs and outputs
+are `Tensor<D>` values (or plain scalars) in the order the ONNX graph declares them.
+
+## Inspecting the Generated Code
+
+The generated `.rs` file is regular Burn code, and reading it is the quickest way to understand or
+debug an import. In a build script setup it lives in Cargo's `OUT_DIR`, typically
+`target/debug/build/<your-crate>-<hash>/out/model/`.
+
+To generate it somewhere easier to browse, use the `onnx2burn` command line tool:
+
+```sh
+cargo install burn-onnx
+onnx2burn path/to/my_model.onnx ./generated
+```
+
+This writes `my_model.rs`, `my_model.bpk`, and `my_model.onnx.txt` (a dump of the parsed graph) to
+`./generated`. You can also check the generated code into your project this way and edit it, instead
+of regenerating it on every build.
 
 ## Advanced Configuration
 
@@ -159,16 +159,26 @@ use burn_onnx::{ModelGen, LoadStrategy};
 ModelGen::new()
     .input("path/to/model.onnx")
     .out_dir("model/")
-    .development(true)                       // Enable development mode for debugging
+    .development(true)                       // Also write a debug dump of the parsed graph
     .load_strategy(LoadStrategy::Embedded)   // Embed weights in the binary
     .run_from_script();
 ```
 
-- `input`: Path to the ONNX model file
-- `out_dir`: Output directory for generated code and weights
-- `development`: When enabled, generates additional debug files (`.onnx.txt`, `.graph.txt`)
+- `input`: Path to the ONNX model file. Call it again to convert several models.
+- `out_dir`: Output directory for generated code and weights, relative to `OUT_DIR`
+- `development`: When enabled, also writes `<model>.onnx.txt`, a dump of the parsed ONNX graph with
+  inferred types
 - `load_strategy`: Controls which weight-loading constructors are generated on the `Model` struct
   (see below)
+- `simplify`: Graph simplification before code generation (default: `true`)
+- `partition`: Splits graphs with more than 200 nodes into submodules so the generated code stays
+  quick to compile (default: `true`)
+- `register_custom_op` / `register_op_override`: Supply code for operators `burn-onnx` does not
+  support, or replace the code generated for one it does (see
+  [Custom Operators](#custom-operators))
+
+Use `run_from_script()` in a `build.rs` and `run_from_cli()` from a regular program, where
+`out_dir` is used as a plain path.
 
 Model weights are stored in Burnpack format (`.bpk`), which provides efficient serialization and
 loading.
@@ -177,12 +187,12 @@ loading.
 
 The `LoadStrategy` enum controls how the generated model loads its weights:
 
-| Strategy   | Generated constructors                          | `Default` impl | Use case                                  |
-|------------|------------------------------------------------|-----------------|-------------------------------------------|
-| `File`     | `from_file()`, `from_bytes()`                  | Yes             | Standard desktop/server (default)         |
-| `Embedded` | `from_embedded()`, `from_bytes()`              | Yes             | Single binary, small models               |
-| `Bytes`    | `from_bytes()`                                 | No              | WASM, embedded, custom loaders            |
-| `None`     | (none)                                         | No              | Manual weight management                  |
+| Strategy   | Generated constructors              | `Default` impl | Use case                          |
+| ---------- | ----------------------------------- | -------------- | --------------------------------- |
+| `File`     | `from_file()`, `from_bytes()`       | Yes            | Standard desktop/server (default) |
+| `Embedded` | `from_embedded()`, `from_bytes()`   | Yes            | Single binary, small models       |
+| `Bytes`    | `from_bytes()`                      | No             | WASM, embedded, custom loaders    |
+| `None`     | (none)                              | No             | Manual weight management          |
 
 The default strategy is `File`, which keeps weights in a separate `.bpk` file and generates a
 `from_file()` constructor.
@@ -208,15 +218,6 @@ let model = Model::from_bytes(weight_bytes, &device);
 You can load models in several ways, depending on the `LoadStrategy` used during code generation:
 
 ```rust, ignore
-// Load from the output directory with default device (recommended for most use cases)
-// This automatically loads weights from the .bpk file
-// Available with LoadStrategy::File or LoadStrategy::Embedded
-let model = Model::default();
-
-// Create a new model instance with a specific device
-// (initializes weights randomly; load weights via `load_from` afterward)
-let model = Model::new(&device);
-
 // Load from a specific .bpk file (LoadStrategy::File)
 let model = Model::from_file("path/to/weights.bpk", &device);
 
@@ -225,27 +226,101 @@ let model = Model::from_bytes(weight_bytes, &device);
 
 // Load from embedded weights (LoadStrategy::Embedded)
 let model = Model::from_embedded(&device);
+
+// Load with the default device (LoadStrategy::File or Embedded). With File, this reads the
+// .bpk from the absolute OUT_DIR path captured at build time, which suits development but not
+// a binary you distribute.
+let model = Model::default();
 ```
+
+`Model::new(&device)` also exists, but it only builds the module structure: layers get freshly
+initialized parameters and ONNX constants are zero. Use it only when you load the weights yourself
+afterward, for example with `load_from` and a `BurnpackStore`.
+
+## Custom Operators
+
+An ONNX model can contain operators `burn-onnx` does not support: operators from vendor domains
+such as `com.microsoft`, custom operators emitted by a framework's exporter, or standard operators
+not implemented yet. Instead of failing, the import lets you supply the code for them with hooks
+registered on `ModelGen`:
+
+```rust, ignore
+ModelGen::new()
+    .input("src/model/my_model.onnx")
+    .out_dir("model/")
+    .register_custom_op(FftReal)      // handles my_domain::FftReal
+    .register_op_override(MyMatMul)   // replaces the generated code for every MatMul
+    .run_from_script();
+```
+
+- A **`CustomOp`** provides type inference and code generation for one ONNX `(op_type, domain)`
+  pair. It can read the node's attributes and constant inputs, and typically emits a call into an
+  ordinary Rust function in your crate.
+- An **`OpOverride`** replaces the code generated for a built-in operator, for example to route it
+  to a fused, quantized, or hardware-specific kernel. Type inference still comes from the built-in
+  operator.
+
+Everything a hook needs is re-exported from `burn_onnx::ext`. To find out which operators a model is
+missing, build it with no hooks registered: the error lists every unsupported operator, its domain,
+and how many nodes use it.
+
+The [custom-op-hooks](https://github.com/tracel-ai/burn-onnx/tree/main/examples/custom-op-hooks)
+example shows both kinds of hook end to end.
+
+## Exporting Burn Models to ONNX
+
+`burn-onnx` can also go the other way. With the `export` feature enabled, `OnnxExporter` runs a
+module's forward pass once, records the tensor operations, and writes them out as an ONNX model with
+the weights embedded:
+
+```toml
+[dependencies]
+burn-onnx = { version = "~0.22", features = ["export"] }
+```
+
+```rust, ignore
+use burn_onnx::export::OnnxExporter;
+
+let sample = Tensor::<4>::zeros([1, 3, 224, 224], &device);
+OnnxExporter::new()
+    .export(&model, sample, MyModel::forward)?
+    .save("my_model.onnx")?;
+```
+
+`export` fixes every dimension to the sample input's shape. To keep an axis such as the batch size
+dynamic, use `export_dynamic` with a second sample input and an `InputSpec` per input marking the
+dynamic axes.
+
+Export is experimental. It targets opset 18 and covers the operations common in convolutional and
+fully connected networks; an operation it cannot lower yet is reported as
+`ExportError::UnsupportedOperation`. See the
+[`export` module documentation](https://docs.rs/burn-onnx/latest/burn_onnx/export/index.html) for
+details.
 
 ## Troubleshooting
 
 Common issues and solutions:
 
-1. **Unsupported ONNX operator**: Check the
-   [list of supported ONNX operators](https://github.com/tracel-ai/burn-onnx/blob/main/SUPPORTED-ONNX-OPS.md).
-   You may need to simplify your model or wait for support.
+1. **Unsupported ONNX operator**: The build error lists every operator the model uses that has no
+   implementation. Check the
+   [list of supported ONNX operators](https://github.com/tracel-ai/burn-onnx/blob/main/SUPPORTED-ONNX-OPS.md),
+   then implement the missing ones as [custom operators](#custom-operators) or open an issue.
 
-2. **Build errors**: Ensure your `burn-onnx` version matches your Burn version and verify the ONNX
-   file path in `build.rs`.
+2. **Build errors**: Make sure `burn`, `burn-store`, and `burn-onnx` share the same version, that
+   `burn-store` is listed under `[dependencies]`, and that the ONNX file path in `build.rs` is
+   correct. If the generated code itself fails to compile, please report it with the model.
 
-3. **Runtime errors**: Confirm that your input tensors match the expected shape and data type of
+3. **Wrong outputs**: Make sure the model was created with `from_file`, `from_bytes`,
+   `from_embedded`, or `default`, not `new`. Then compare against ONNX Runtime with the same input.
+
+4. **Runtime errors**: Confirm that your input tensors match the expected shape and data type of
    your model.
 
-4. **Performance issues**: Consider using a more performant backend or optimizing your model
-   architecture.
+5. **Performance issues**: Use a GPU backend for large models, and build in release mode.
 
-5. **Viewing generated files**: Find the generated Rust code and weights in the `OUT_DIR` directory
-   (usually `target/debug/build/<project>/out`).
+6. **Viewing generated files**: Find the generated Rust code and weights in the `OUT_DIR` directory
+   (usually `target/debug/build/<project>/out`), or generate them with `onnx2burn` as described in
+   [Inspecting the Generated Code](#inspecting-the-generated-code).
 
 ## Examples and Resources
 
@@ -257,7 +332,9 @@ For practical examples, check out the
 2. [Image Classification Web](https://github.com/tracel-ai/burn-onnx/tree/main/examples/image-classification-web) -
    SqueezeNet running in the browser via WebAssembly
 3. [Raspberry Pi Pico](https://github.com/tracel-ai/burn-onnx/tree/main/examples/raspberry-pi-pico) -
-   Embedded deployment example
+   `no_std` inference on a microcontroller with embedded weights
+4. [Custom Op Hooks](https://github.com/tracel-ai/burn-onnx/tree/main/examples/custom-op-hooks) -
+   Importing a model with custom operators and overriding a built-in one
 
 These demonstrate real-world usage of ONNX import in Burn projects.
 
