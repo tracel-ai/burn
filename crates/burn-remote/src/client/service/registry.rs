@@ -23,11 +23,11 @@ pub(crate) fn new_tensor_id() -> TensorId {
 /// An ended session is never reopened in place. Its tensors, fused graphs and settings belong to
 /// a server session that is gone, so the next connect registers a new device instead.
 #[derive(Default)]
-pub(crate) struct SessionState {
+pub(crate) struct SessionEnd {
     ended: AtomicBool,
 }
 
-impl SessionState {
+impl SessionEnd {
     pub(crate) fn end(&self) {
         self.ended.store(true, Ordering::Release);
     }
@@ -49,7 +49,7 @@ struct EndpointEntry {
     device_index: u32,
     settings: Arc<OnceLock<DeviceSettings>>,
     device_count: Arc<OnceLock<u32>>,
-    session: Arc<SessionState>,
+    session: Arc<SessionEnd>,
 }
 
 static REGISTRY: OnceLock<Mutex<EndpointRegistry>> = OnceLock::new();
@@ -96,7 +96,7 @@ pub(crate) fn register_endpoint(endpoint: RemoteEndpoint, device_index: u32) -> 
             device_index,
             settings: Arc::new(OnceLock::new()),
             device_count: Arc::new(OnceLock::new()),
-            session: Arc::new(SessionState::default()),
+            session: Arc::default(),
         },
     );
     id
@@ -146,10 +146,6 @@ pub(crate) fn device_count_for(id: u32) -> Option<u32> {
     find_entry(id, |entry| entry.device_count.get().copied()).flatten()
 }
 
-pub(crate) fn session_state(id: u32) -> Arc<SessionState> {
+pub(crate) fn session_end(id: u32) -> Arc<SessionEnd> {
     with_entry(id, |entry| entry.session.clone())
-}
-
-pub(crate) fn session_ended(id: u32) -> bool {
-    with_entry(id, |entry| entry.session.has_ended())
 }

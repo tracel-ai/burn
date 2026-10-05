@@ -1,4 +1,7 @@
-use super::{ConnectError, RemoteDevice, service::RemoteService};
+use super::{
+    ConnectError, RemoteDevice,
+    service::{self, RemoteService},
+};
 use burn_backend::{DeviceHandle, backend::Device};
 
 /// A thin handle to a `RemoteService` running on its own device-runner thread.
@@ -26,6 +29,10 @@ impl RemoteClient {
     /// cells, or return why it could not be opened. Runs the connect on the service's runner
     /// thread, so it can't sit under cubecl's global lock.
     pub(crate) fn connect(&self) -> Result<(), ConnectError> {
+        // An open session returns at once rather than waiting behind the runner's work.
+        if service::has_settings(self.device.id) {
+            return Ok(());
+        }
         self.handle
             .submit_blocking(|s| s.try_connect())
             .expect("Service call failed")
@@ -49,11 +56,15 @@ impl RemoteClient {
             return Ok(());
         };
 
-        let connected = wasm_connect(plan).await?;
+        let (connected, responses) = wasm_connect(plan).await?;
 
-        self.handle
+        let installed = self
+            .handle
             .submit_blocking(move |s| s.wasm_install(connected))
             .expect("Service call failed");
+        if let Some(responder) = installed {
+            responses.read(responder);
+        }
         Ok(())
     }
 }

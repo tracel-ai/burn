@@ -1,6 +1,5 @@
 //! Outgoing-frame writer task.
 
-use super::pending::Responder;
 use crate::client::runtime::{Executor, SpawnHandle};
 use crate::client::service::SubmitChannel;
 use crate::shared::RemoteMessage;
@@ -40,11 +39,11 @@ pub(crate) struct SubmitWriter {
 
 impl SubmitWriter {
     /// Spawn the writer task on `runtime`, taking ownership of the submit `channel`. A failed send
-    /// ends the session, so its readers fail instead of waiting for replies to frames never sent.
+    /// runs `end_session`, so readers fail instead of waiting for replies to frames never sent.
     pub(crate) fn spawn(
         runtime: &Executor,
         mut channel: SubmitChannel,
-        responder: Responder,
+        end_session: impl FnOnce() + Send + 'static,
     ) -> Self {
         #[cfg(not(target_family = "wasm"))]
         let (tx, mut rx) = mpsc::channel::<Vec<RemoteMessage>>(WRITE_QUEUE_CAP);
@@ -62,7 +61,7 @@ impl SubmitWriter {
                 };
                 if let Err(err) = channel.send(bytes).await {
                     log::warn!("Remote submit writer send failed: {err:?}; closing writer");
-                    responder.disconnect();
+                    end_session();
                     return;
                 }
             }
@@ -140,5 +139,48 @@ impl SubmitWriter {
         }
         #[cfg(target_family = "wasm")]
         let _ = runtime;
+    }
+}
+
+#[cfg(all(test, feature = "iroh", not(target_family = "wasm")))]
+mod tests {
+    use super::*;
+    use iroh::{Endpoint, RelayMode, endpoint::presets};
+
+    const ALPN: &[u8] = b"burn/writer-test";
+
+    async fn local_endpoint() -> Endpoint {
+        Endpoint::builder(presets::Minimal)
+            .relay_mode(RelayMode::Disabled)
+            .clear_ip_transports()
+            .bind_addr("127.0.0.1:0")
+            .unwrap()
+            .alpns(vec![ALPN.to_vec()])
+            .bind()
+            .await
+            .unwrap()
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_failed_send_ends_the_session() {
+        let (server, client) = (local_endpoint().await, local_endpoint().await);
+        let server_addr = server.addr();
+        let accepted = tokio::spawn(async move { server.accept().await.unwrap().await.unwrap() });
+        let connection = client.connect(server_addr, ALPN).await.unwrap();
+        let (submit, _response) = connection.open_bi().await.unwrap();
+        let _peer = accepted.await.unwrap();
+        connection.close(0u32.into(), b"");
+
+        let (ended, session_end) = tokio::sync::oneshot::channel();
+        let executor = Executor::Tokio(tokio::runtime::Handle::current());
+        let writer = SubmitWriter::spawn(&executor, SubmitChannel::Iroh(submit), move || {
+            let _ = ended.send(());
+        });
+        writer.send(&executor, Vec::new());
+
+        tokio::time::timeout(core::time::Duration::from_secs(10), session_end)
+            .await
+            .expect("the failed send ended the session")
+            .unwrap();
     }
 }

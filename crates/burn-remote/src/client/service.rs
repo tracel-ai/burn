@@ -35,14 +35,19 @@ use writer::SubmitWriter;
 
 use super::{ConnectError, runtime::Executor};
 pub(crate) use conn::{RemoteEndpoint, SubmitChannel};
-use registry::{device_count_cell, session_state, settings_cell};
-pub(crate) use registry::{device_count_for, register_endpoint, registered_device, session_ended};
+use registry::{SessionEnd, device_count_cell, settings_cell};
+pub(crate) use registry::{device_count_for, register_endpoint, registered_device, session_end};
 pub(crate) use registry::{has_settings, new_tensor_id, settings_for};
 
 /// How long each step of opening a session may take: a connection attempt, then the handshake.
 /// Past it the server is taken to be stuck, rather than leaving the device's runner, and every
 /// later connect to it, waiting forever.
+#[cfg(not(test))]
 const OPEN_DEADLINE: core::time::Duration = core::time::Duration::from_secs(60);
+
+/// Short enough for a test to wait one out.
+#[cfg(test)]
+const OPEN_DEADLINE: core::time::Duration = core::time::Duration::from_secs(5);
 
 /// All the state owned by the device-runner thread for a single remote device.
 ///
@@ -81,6 +86,9 @@ pub struct RemoteService {
     batch: OutgoingBatch,
     /// Request-id allocation + the callbacks awaiting response-producing tasks.
     pending: PendingResponses,
+    /// Once ended, nothing answers a batch, and a writer stalled on the dead connection would
+    /// block this runner on its full queue.
+    session: Arc<SessionEnd>,
     /// The client stream each open profiling window was opened on, by token id.
     ///
     /// The server orders a task against the other tasks of the stream the
@@ -129,6 +137,7 @@ impl DeviceService for RemoteService {
         // device's setup behind that lock — N devices would connect strictly one at a time.
         // Instead we record the endpoint and open the sockets on the first real use, off the
         // lock and on the device-runner thread (see `ensure_connected`).
+        let session = session_end(id);
         Self {
             id,
             executor,
@@ -140,7 +149,8 @@ impl DeviceService for RemoteService {
                 let remote = cfg.remote();
                 OutgoingBatch::new(remote.flush_threshold, remote.flush_bytes_threshold)
             },
-            pending: PendingResponses::new(session_state(id)),
+            pending: PendingResponses::new(session.clone()),
+            session,
             profile_streams: HashMap::new(),
             probe,
             logger,
@@ -291,7 +301,7 @@ impl RemoteService {
             // The response stream is gone (clean close or error): the server will never answer
             // any in-flight or future request on this connection. Fail every waiting caller and
             // gate new ones so they error out instead of blocking forever on a dead server.
-            responder.disconnect();
+            responder.end_session();
         });
     }
 }
@@ -313,14 +323,29 @@ pub(crate) struct WasmConnected {
     device_count: u32,
 }
 
+/// The response stream of a session opened by [`wasm_connect`], read only once the service has
+/// installed that session: a connect that lost the race would otherwise end the installed one
+/// when its own stream closes.
+#[cfg(target_family = "wasm")]
+pub(crate) struct WasmResponses(ResponseChannel);
+
+#[cfg(target_family = "wasm")]
+impl WasmResponses {
+    pub(crate) fn read(self, responder: Responder) {
+        RemoteService::spawn_response_demux(&Executor::WasmLocal, self.0, responder);
+    }
+}
+
 /// Open and hand-shake a session on the browser event loop.
 ///
 /// This is the async counterpart of [`RemoteService::try_connect`]: it runs the parts that
-/// would block (connecting the Iroh streams, the init round-trip) with `.await`, then spawns the
-/// response-demux and writer tasks with `spawn_local`. The returned [`WasmConnected`] is `Send`,
-/// so the caller can install it back into the service through the device handle.
+/// would block (connecting the Iroh streams, the init round-trip) with `.await`, and spawns the
+/// writer with `spawn_local`. The returned [`WasmConnected`] is `Send`, so the caller can install
+/// it back into the service through the device handle.
 #[cfg(target_family = "wasm")]
-pub(crate) async fn wasm_connect(plan: WasmConnectPlan) -> Result<WasmConnected, ConnectError> {
+pub(crate) async fn wasm_connect(
+    plan: WasmConnectPlan,
+) -> Result<(WasmConnected, WasmResponses), ConnectError> {
     let executor = Executor::WasmLocal;
 
     let mut streams = plan.endpoint.open_channels().await?;
@@ -332,14 +357,15 @@ pub(crate) async fn wasm_connect(plan: WasmConnectPlan) -> Result<WasmConnected,
     )
     .await?;
 
-    let writer = SubmitWriter::spawn(&executor, streams.submit, plan.responder.clone());
-    RemoteService::spawn_response_demux(&executor, streams.response, plan.responder);
+    let responder = plan.responder;
+    let writer = SubmitWriter::spawn(&executor, streams.submit, move || responder.end_session());
 
-    Ok(WasmConnected {
+    let connected = WasmConnected {
         writer,
         settings: info.settings,
         device_count: info.device_count,
-    })
+    };
+    Ok((connected, WasmResponses(streams.response)))
 }
 
 impl RemoteService {
@@ -749,10 +775,11 @@ impl RemoteService {
             let _ = self.settings.set(info.settings);
             let _ = self.device_count.set(info.device_count);
 
+            let responder = self.pending.responder();
             self.writer = Some(SubmitWriter::spawn(
                 &self.executor,
                 streams.submit,
-                self.pending.responder(),
+                move || responder.end_session(),
             ));
             Self::spawn_response_demux(&self.executor, streams.response, self.pending.responder());
             self.start_logger();
@@ -779,18 +806,19 @@ impl RemoteService {
         })
     }
 
-    /// Install a connection opened by [`wasm_connect`] and publish its handshake results.
+    /// Install a connection opened by [`wasm_connect`] and publish its handshake results, giving
+    /// back the responder its responses go to, or `None` when a concurrent connect installed one
+    /// first.
     #[cfg(target_family = "wasm")]
-    pub(crate) fn wasm_install(&mut self, connected: WasmConnected) {
+    pub(crate) fn wasm_install(&mut self, connected: WasmConnected) -> Option<Responder> {
         if self.writer.is_some() {
-            // A concurrent connect already installed a session; drop this one rather than
-            // leaking two writers for the same device.
-            return;
+            return None;
         }
         let _ = self.settings.set(connected.settings);
         let _ = self.device_count.set(connected.device_count);
         self.writer = Some(connected.writer);
         self.start_logger();
+        Some(self.pending.responder())
     }
 
     /// Hand whatever's currently buffered to the writer task as one batch (the writer
@@ -798,6 +826,10 @@ impl RemoteService {
     /// the connection first if it isn't already up.
     pub fn flush(&mut self) {
         if self.batch.is_empty() {
+            return;
+        }
+        if self.session.has_ended() {
+            self.batch.take();
             return;
         }
         self.ensure_connected();

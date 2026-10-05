@@ -11,10 +11,7 @@ pub(crate) async fn sleep(duration: Duration) {
 }
 
 /// `Err(())` if `duration` elapses before `future` completes.
-#[cfg(all(
-    not(target_family = "wasm"),
-    any(feature = "client", all(feature = "server", feature = "iroh"))
-))]
+#[cfg(not(target_family = "wasm"))]
 pub(crate) async fn timeout<F: core::future::Future>(
     duration: Duration,
     future: F,
@@ -22,10 +19,7 @@ pub(crate) async fn timeout<F: core::future::Future>(
     tokio::time::timeout(duration, future).await.map_err(|_| ())
 }
 
-#[cfg(all(
-    target_family = "wasm",
-    any(feature = "client", all(feature = "server", feature = "iroh"))
-))]
+#[cfg(target_family = "wasm")]
 pub(crate) async fn timeout<F: core::future::Future>(
     duration: Duration,
     future: F,

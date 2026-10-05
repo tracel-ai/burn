@@ -9,7 +9,13 @@ use burn_ir::TensorIr;
 use burn_router::{MultiBackendBridge, RouterClient, RouterTensor, get_client};
 use burn_std::DeviceSettings;
 use burn_std::{backtrace::BackTrace, future::DynFut};
-use std::sync::Mutex;
+use std::{
+    collections::HashMap,
+    sync::{
+        LazyLock, Mutex, RwLock,
+        atomic::{AtomicBool, Ordering},
+    },
+};
 
 use service::RemoteEndpoint;
 
@@ -139,6 +145,13 @@ impl RouterClient for RemoteClient {
         bindings: burn_ir::GraphBindings,
     ) {
         let stream_id = StreamId::current();
+        GRAPH_COLLECTIVES.record(
+            graph_id,
+            relative_graph
+                .iter()
+                .flat_map(Self::collective_devices)
+                .collect(),
+        );
         let relative_graph = relative_graph
             .into_iter()
             .map(|op| self.resolve_devices(op))
@@ -149,13 +162,76 @@ impl RouterClient for RemoteClient {
     }
 
     fn execute_graph(&self, graph_id: burn_ir::GraphId, bindings: burn_ir::GraphBindings) {
+        if GRAPH_COLLECTIVES.name_an_ended_session(graph_id) {
+            Self::panic_on_collective_over_ended_session();
+        }
         let stream_id = StreamId::current();
         self.handle
             .submit(move |s| s.execute_graph(stream_id, graph_id, bindings));
     }
 }
 
+/// The devices each registered graph's collectives name. A replay sends only the graph's
+/// bindings, so they are checked again on each one.
+#[derive(Default)]
+struct GraphCollectives {
+    /// Lets every replay skip the lock until some graph has a collective.
+    any: AtomicBool,
+    devices: RwLock<HashMap<burn_ir::GraphId, Vec<u32>>>,
+}
+
+static GRAPH_COLLECTIVES: LazyLock<GraphCollectives> = LazyLock::new(GraphCollectives::default);
+
+/// What a panic over a session that has ended tells its caller to do.
+const SESSION_ENDED_ADVICE: &str =
+    "its tensors are gone with it. Connect again with `Device::remote_options`.";
+
+impl GraphCollectives {
+    fn record(&self, graph: burn_ir::GraphId, devices: Vec<u32>) {
+        if devices.is_empty() {
+            return;
+        }
+        self.devices.write().unwrap().insert(graph, devices);
+        self.any.store(true, Ordering::Release);
+    }
+
+    /// Whether one of `graph`'s collectives names a device whose session has ended.
+    fn name_an_ended_session(&self, graph: burn_ir::GraphId) -> bool {
+        if !self.any.load(Ordering::Acquire) {
+            return false;
+        }
+        // Copied out, so the registry's lock is never taken under this one.
+        let devices = self.devices.read().unwrap().get(&graph).cloned();
+        devices.is_some_and(|devices| {
+            devices
+                .into_iter()
+                .any(|id| service::session_end(id).has_ended())
+        })
+    }
+}
+
 impl RemoteClient {
+    /// The registry ids of the devices `op`'s collective names, as the client registered them.
+    fn collective_devices(op: &burn_ir::OperationIr) -> impl Iterator<Item = u32> + '_ {
+        use burn_ir::{DistributedOperationIr, OperationIr};
+
+        let devices = match op {
+            OperationIr::Distributed(DistributedOperationIr::AllReduce(desc)) => {
+                desc.device_ids.as_slice()
+            }
+            _ => &[],
+        };
+        devices.iter().map(|id| id.index_id as u32)
+    }
+
+    /// The live participants of a collective over an ended session would wait at its barrier
+    /// forever.
+    fn panic_on_collective_over_ended_session() -> ! {
+        panic!(
+            "Cannot all_reduce over a remote device whose session has ended; {SESSION_ENDED_ADVICE}"
+        )
+    }
+
     /// Rewrite the device ids carried by an op so the server can resolve them.
     ///
     /// This runs for every op, but only ops that carry device ids (currently the collective ops)
@@ -184,11 +260,9 @@ impl RemoteClient {
                      but the collective includes a device on `{}`",
                     registered.endpoint.peer_id(),
                 );
-                assert!(
-                    !service::session_ended(id.index_id as u32),
-                    "Cannot all_reduce over a remote device whose session has ended; its tensors \
-                     are gone with it. Connect again with `Device::remote_options`."
-                );
+                if service::session_end(id.index_id as u32).has_ended() {
+                    Self::panic_on_collective_over_ended_session();
+                }
                 id.type_id = 0;
                 id.index_id = registered.device_index as u16;
             }
@@ -275,7 +349,7 @@ impl RemoteDevice {
     /// Whether this device's session has ended, as when its server restarted. Its tensors are
     /// gone with it; a new connect gives a new device.
     pub(crate) fn session_ended(&self) -> bool {
-        service::session_ended(self.id)
+        service::session_end(self.id).has_ended()
     }
 }
 
@@ -336,9 +410,7 @@ impl DeviceOps for RemoteDevice {
         // `Device::default()`-driven dispatch can hit `defaults` before the user has
         // triggered any op, so we need to establish the session here. `connect` is
         // idempotent — a no-op once the client has been initialized for this device.
-        if !service::has_settings(self.id)
-            && let Err(err) = get_client::<RemoteChannel>(self).connect()
-        {
+        if let Err(err) = get_client::<RemoteChannel>(self).connect() {
             panic!(
                 "Failed to open a remote session at {}: {err}",
                 self.peer_addr()
@@ -395,8 +467,8 @@ impl RemoteTensorHandle {
         for (side, device) in [("from", &self.client.device), ("to", target_device)] {
             assert!(
                 !device.session_ended(),
-                "Cannot move a tensor {side} a remote device whose session has ended; its \
-                 tensors are gone with it. Connect again with `Device::remote_options`."
+                "Cannot move a tensor {side} a remote device whose session has ended; \
+                 {SESSION_ENDED_ADVICE}"
             );
         }
         if self.client.device.peer_id() == target_device.peer_id() {
@@ -507,5 +579,31 @@ impl MultiBackendBridge for RemoteBridge {
         target_device: &Self::Device,
     ) -> Self::TensorHandle {
         tensor.change_backend(target_device)
+    }
+}
+
+#[cfg(all(test, feature = "websocket"))]
+mod tests {
+    use super::*;
+    use crate::Credential;
+
+    fn device(port: u16, device_index: u32) -> u32 {
+        let endpoint = RemoteEndpoint::WebSocket {
+            address: format!("ws://127.0.0.1:{port}").as_str().into(),
+            credential: Credential::default(),
+        };
+        service::register_endpoint(endpoint, device_index)
+    }
+
+    #[test]
+    fn a_graph_replay_finds_a_collective_device_whose_session_ended() {
+        let collectives = GraphCollectives::default();
+        let graph = burn_ir::GraphId(0);
+        let (first, second) = (device(1, 0), device(1, 1));
+        collectives.record(graph, vec![first, second]);
+        assert!(!collectives.name_an_ended_session(graph));
+
+        service::session_end(second).end();
+        assert!(collectives.name_an_ended_session(graph));
     }
 }
