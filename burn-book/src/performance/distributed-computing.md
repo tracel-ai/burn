@@ -140,8 +140,8 @@ impl LayerParallelism for Model {
         &self.embedding
     }
 
-    fn layer_hidden(&self, index: usize) -> Option<&Block> {
-        self.blocks.get(index)
+    fn layers_hidden(&self) -> impl Iterator<Item = &Block> {
+        self.blocks.iter()
     }
 
     fn layer_output(&self) -> &Head {

@@ -37,8 +37,8 @@ pub type HiddenLayerSignal<M> = <<M as LayerParallelism>::InputLayer as Distribu
 ///         &self.embedding
 ///     }
 ///
-///     fn layer_hidden(&self, index: usize) -> Option<&Block> {
-///         self.blocks.get(index)
+///     fn layers_hidden(&self) -> impl Iterator<Item = &Block> {
+///         self.blocks.iter()
 ///     }
 ///
 ///     fn layer_output(&self) -> &Head {
@@ -61,8 +61,8 @@ pub trait LayerParallelism: Module {
     /// The input layer.
     fn layer_input(&self) -> &Self::InputLayer;
 
-    /// The hidden layer at `index` in forward order, `None` past the last one.
-    fn layer_hidden(&self, index: usize) -> Option<&Self::HiddenLayer>;
+    /// The hidden layers in forward order, the same order on every call.
+    fn layers_hidden(&self) -> impl Iterator<Item = &Self::HiddenLayer>;
 
     /// The output layer.
     fn layer_output(&self) -> &Self::OutputLayer;
