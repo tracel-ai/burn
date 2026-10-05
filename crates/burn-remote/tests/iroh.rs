@@ -268,6 +268,79 @@ async fn transfers_tensor_directly_between_iroh_compute_peers() {
     target_router.shutdown().await.unwrap();
 }
 
+#[tokio::test(flavor = "multi_thread")]
+async fn a_tensor_moves_back_to_the_server_it_came_from() {
+    let first = local_endpoint().await;
+    let second = local_endpoint().await;
+    let client = local_endpoint().await;
+    let routers = [
+        spawn_router::<Flex>(first.clone(), AllowAll, TelemetryProbe::disabled()),
+        spawn_router::<Flex>(second.clone(), AllowAll, TelemetryProbe::disabled()),
+    ];
+    let on_first = Device::remote_options(&host_dialed_from(&client, first.addr()))
+        .init_async()
+        .await
+        .unwrap();
+    let on_second = Device::remote_options(&host_dialed_from(&client, second.addr()))
+        .init_async()
+        .await
+        .unwrap();
+
+    tokio::task::block_in_place(|| {
+        within_hang_limit(move || {
+            let tensor = Tensor::<1>::from_floats([3.0, 5.0, 7.0], &on_first).to_device(&on_second);
+            assert_eq!(
+                tensor.clone().try_into_vec_as::<f32>().unwrap(),
+                vec![3.0, 5.0, 7.0]
+            );
+            let tensor = tensor.to_device(&on_first);
+            assert_eq!(
+                tensor.try_into_vec_as::<f32>().unwrap(),
+                vec![3.0, 5.0, 7.0]
+            );
+        })
+    });
+
+    for router in routers {
+        router.shutdown().await.unwrap();
+    }
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_server_whose_endpoint_dialed_out_first_is_downloaded_from() {
+    let shared = local_endpoint().await;
+    let target = local_endpoint().await;
+    let client = local_endpoint().await;
+    let target_router = spawn_router::<Flex>(target.clone(), AllowAll, TelemetryProbe::disabled());
+    let _dialed_out = Device::remote_options(&host_dialed_from(&shared, target.addr()))
+        .init_async()
+        .await
+        .unwrap();
+    let shared_router = spawn_router::<Flex>(shared.clone(), AllowAll, TelemetryProbe::disabled());
+
+    let source = Device::remote_options(&host_dialed_from(&client, shared.addr()))
+        .init_async()
+        .await
+        .unwrap();
+    let destination = Device::remote_options(&host_dialed_from(&client, target.addr()))
+        .init_async()
+        .await
+        .unwrap();
+
+    tokio::task::block_in_place(|| {
+        within_hang_limit(move || {
+            let tensor = Tensor::<1>::from_floats([3.0, 5.0, 7.0], &source).to_device(&destination);
+            assert_eq!(
+                tensor.try_into_vec_as::<f32>().unwrap(),
+                vec![3.0, 5.0, 7.0]
+            );
+        })
+    });
+
+    shared_router.shutdown().await.unwrap();
+    target_router.shutdown().await.unwrap();
+}
+
 /// The synchronous client path used by scripts, REPLs and Rust notebooks: no `async`, no ambient
 /// runtime in the calling code.
 #[test]
