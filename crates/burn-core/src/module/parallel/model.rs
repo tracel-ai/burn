@@ -167,6 +167,13 @@ impl<M: LayerParallelism> Module for DistributedLayeredModel<M> {
             placement: self.placement,
         }
     }
+
+    fn materialize(self) -> Self {
+        Self {
+            model: self.model.materialize(),
+            placement: self.placement,
+        }
+    }
 }
 
 #[cfg(test)]
