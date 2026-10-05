@@ -167,9 +167,7 @@ fn host_device_count(device: &RemoteDevice) -> usize {
 #[cfg(all(test, feature = "websocket", not(target_family = "wasm")))]
 mod tests {
     use super::*;
-    #[cfg(feature = "server")]
     use crate::server::{AuthorizationRequest, BackendServer, WebSocketTransport};
-    #[cfg(feature = "server")]
     use std::sync::{Mutex, mpsc};
 
     #[test]
@@ -187,7 +185,6 @@ mod tests {
         assert_eq!(device(), before);
     }
 
-    #[cfg(feature = "server")]
     #[test]
     fn a_server_that_never_answers_the_handshake_fails_the_connect() {
         let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();

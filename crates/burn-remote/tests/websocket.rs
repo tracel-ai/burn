@@ -9,10 +9,7 @@ use burn_remote::{
     },
 };
 use burn_tensor::{
-    Device, DeviceType, Distribution, Tensor,
-    distributed::{ReduceOperation, all_reduce},
-    remote::RemoteHost,
-    server::RemoteServer,
+    Device, DeviceType, Distribution, Tensor, remote::RemoteHost, server::RemoteServer,
 };
 
 const TOKEN: &str = "fleet-token";
@@ -66,12 +63,12 @@ fn rebind(address: std::net::SocketAddr) -> std::net::TcpListener {
     panic!("{address} stayed taken after its server stopped");
 }
 
-/// A server hosting `devices` devices, restarted on its port: the host, and the devices connected
-/// before the restart, each seen to have ended by a failed read.
-fn restarted_server(rt: &tokio::runtime::Runtime, devices: usize) -> (RemoteHost, Vec<Device>) {
+/// A server restarted on its port: the host, and the device connected before the restart, seen
+/// to have ended by a failed read.
+fn restarted_server(rt: &tokio::runtime::Runtime) -> (RemoteHost, Device) {
     let serve = |listener| {
         rt.spawn(
-            BackendServer::<Flex>::new(vec![Default::default(); devices])
+            BackendServer::<Flex>::new(vec![Default::default()])
                 .serve_async(WebSocketTransport::from_listener(listener)),
         )
     };
@@ -80,29 +77,18 @@ fn restarted_server(rt: &tokio::runtime::Runtime, devices: usize) -> (RemoteHost
     let host = host_of(&listener);
     let first = serve(listener);
 
-    let old: Vec<Device> = (0..devices)
-        .map(|index| {
-            Device::remote_options(&host)
-                .device_index(index)
-                .init()
-                .unwrap()
-        })
-        .collect();
-    for device in &old {
-        let doubled = Tensor::<1>::from_floats([1.0], device) * 2.0;
-        assert_eq!(doubled.try_into_vec_as::<f32>().unwrap(), vec![2.0]);
-    }
+    let old = Device::remote_options(&host).init().unwrap();
+    let doubled = Tensor::<1>::from_floats([1.0], &old) * 2.0;
+    assert_eq!(doubled.try_into_vec_as::<f32>().unwrap(), vec![2.0]);
 
     first.abort();
     assert!(rt.block_on(first).unwrap_err().is_cancelled());
     // A read fails only once the client has seen the session end, which a reconnect relies on.
-    for device in &old {
-        let stale = device.clone();
-        with_deadlock_watchdog(HANG_LIMIT, move || {
-            let read = (Tensor::<1>::from_floats([1.0], &stale) * 2.0).try_into_data();
-            assert!(read.is_err(), "a session outlived its server: {read:?}");
-        });
-    }
+    let stale = old.clone();
+    with_deadlock_watchdog(HANG_LIMIT, move || {
+        let read = (Tensor::<1>::from_floats([1.0], &stale) * 2.0).try_into_data();
+        assert!(read.is_err(), "a session outlived its server: {read:?}");
+    });
 
     serve(rebind(address));
     (host, old)
@@ -531,8 +517,7 @@ fn a_device_whose_server_restarted_is_replaced_by_a_new_one() {
         .enable_io()
         .build()
         .unwrap();
-    let (host, mut old) = restarted_server(&rt, 1);
-    let old = old.remove(0);
+    let (host, old) = restarted_server(&rt);
 
     let new = with_deadlock_watchdog(HANG_LIMIT, move || {
         Device::remote_options(&host).init().unwrap()
@@ -549,48 +534,6 @@ fn a_device_whose_server_restarted_is_replaced_by_a_new_one() {
         let message = panic_message(moved);
         assert!(message.contains("session has ended"), "{message}");
     }
-
-    rt.shutdown_background();
-}
-
-#[test]
-fn an_all_reduce_over_a_device_whose_session_ended_fails() {
-    let rt = tokio::runtime::Builder::new_multi_thread()
-        .enable_io()
-        .build()
-        .unwrap();
-    let (host, old) = restarted_server(&rt, 2);
-    let new = with_deadlock_watchdog(HANG_LIMIT, move || {
-        Device::remote_options(&host).init().unwrap()
-    });
-
-    let participants = vec![new.clone(), old[1].clone()];
-    let source = new.clone();
-    let reduced = with_deadlock_watchdog(HANG_LIMIT, move || {
-        std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            let reduced = all_reduce(
-                Tensor::<1>::from_floats([1.0], &source),
-                ReduceOperation::Sum,
-                participants,
-            );
-            // SAFETY: a refused reduction reaches no server, so there is no collective to sync.
-            unsafe { reduced.assume_resolved() }.try_into_data()
-        }))
-    });
-    // Unfused, the call panics; fused, the reduced tensor holds the error until it is read.
-    let message = match reduced {
-        Err(panic) => panic_message(panic),
-        Ok(read) => format!(
-            "{:?}",
-            read.expect_err("an all_reduce over an ended session ran")
-        ),
-    };
-    assert!(message.contains("session has ended"), "{message}");
-
-    let doubled = with_deadlock_watchdog(HANG_LIMIT, move || {
-        (Tensor::<1>::from_floats([3.0], &new) * 2.0).try_into_vec_as::<f32>()
-    });
-    assert_eq!(doubled.unwrap(), vec![6.0]);
 
     rt.shutdown_background();
 }

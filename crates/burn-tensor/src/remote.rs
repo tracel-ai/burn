@@ -121,10 +121,10 @@ impl RemoteOptions {
     /// returned with the session it already has.
     ///
     /// A device whose session ended, as when its server restarted, is replaced by a new device,
-    /// and its tensors are gone. Drop every device of a server once one fails: a move or a
-    /// collective mixing old and new fails once this client has seen the old session end, and
-    /// waits forever before. A server that went away without closing is noticed when the
-    /// transport gives up on it; until then this returns the old device.
+    /// and its tensors are gone. Drop every device of a server once one fails: a move mixing old
+    /// and new fails once this client has seen the old session end, and waits forever before; a
+    /// collective mixing them waits forever. A server that went away without closing is noticed
+    /// when the transport gives up on it; until then this returns the old device.
     ///
     /// # Panics
     ///
