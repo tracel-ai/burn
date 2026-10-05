@@ -11,14 +11,16 @@ use crate::{ops::empty_qtensor, tensor::CubeTensor};
 ///
 /// # Panics
 ///
-/// A quantized storage-tiled tensor: nothing packs one.
+/// A quantized storage-tiled tensor: it is read only by the kernel it was tiled for, and
+/// nothing lays its packed values and their scales back as rows.
 pub fn untile(tensor: CubeTensor) -> CubeTensor {
     if !tensor.meta.is_tiled() {
         return tensor;
     }
     assert!(
         tensor.qparams.is_none(),
-        "untile: a quantized tensor is never storage-tiled"
+        "untile: a storage-tiled quantized tensor is read only by the kernel it was tiled for; \
+         nothing lays its packed values back as rows"
     );
     let (client, device, dtype) = (tensor.client.clone(), tensor.device.clone(), tensor.dtype);
     let output = cubek::matmul::tiled::storage::untile(
