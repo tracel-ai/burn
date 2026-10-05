@@ -2,9 +2,8 @@
 //!
 //! Two fixed CPU backends stand in for two cards, so a split is observable without one.
 //!
-//! Run with `cargo test -p burn-core --features flex,ndarray,autodiff --test layer_placement`.
-#![cfg(all(feature = "flex", feature = "ndarray"))]
-#![allow(deprecated)]
+//! Run with `cargo test -p burn-core --features flex,cpu,autodiff --test layer_placement`.
+#![cfg(all(feature = "flex", feature = "cpu"))]
 
 use burn_core as burn;
 use burn_core::module::{
@@ -16,29 +15,29 @@ use burn_tensor::{Device, Distribution, Tensor, Tolerance};
 const WIDTH: usize = 8;
 
 fn devices() -> (Device, Device) {
-    (Device::flex(), Device::ndarray())
+    (Device::flex(), Device::cpu())
 }
 
 #[test]
 #[should_panic(expected = "hidden layer 2 must be built on")]
 fn a_layer_built_off_its_placed_device_is_refused() {
-    let (flex, ndarray) = devices();
+    let (flex, cpu) = devices();
     let stack = Stack::new(&LayerPlacement::even(core::slice::from_ref(&flex), 4));
 
-    DistributedLayeredModel::new(stack, &LayerPlacement::even(&[flex, ndarray], 4));
+    DistributedLayeredModel::new(stack, &LayerPlacement::even(&[flex, cpu], 4));
 }
 
 #[test]
 fn a_model_split_across_two_devices_computes_what_one_device_does() {
-    let (flex, ndarray) = devices();
-    let placement = LayerPlacement::even(&[flex.clone(), ndarray.clone()], 4);
+    let (flex, cpu) = devices();
+    let placement = LayerPlacement::even(&[flex.clone(), cpu.clone()], 4);
     let stack = Stack::new(&placement);
     let input = Tensor::random([4, WIDTH], Distribution::Default, &flex);
     let expected = stack.clone().fork(&flex).plain_forward(input.clone());
 
     let output = DistributedLayeredModel::new(stack, &placement).forward(input);
 
-    assert_eq!(output.device(), ndarray);
+    assert_eq!(output.device(), cpu);
     output
         .to_device(&flex)
         .into_data()
@@ -48,9 +47,9 @@ fn a_model_split_across_two_devices_computes_what_one_device_does() {
 #[cfg(feature = "autodiff")]
 #[test]
 fn gradients_of_a_split_model_match_the_gradients_on_one_device() {
-    let (flex, ndarray) = devices();
-    let (flex, ndarray) = (flex.autodiff(), ndarray.autodiff());
-    let placement = LayerPlacement::even(&[flex.clone(), ndarray.clone()], 4);
+    let (flex, cpu) = devices();
+    let (flex, cpu) = (flex.autodiff(), cpu.autodiff());
+    let placement = LayerPlacement::even(&[flex.clone(), cpu.clone()], 4);
     let stack = Stack::new(&placement);
     let input = Tensor::random([4, WIDTH], Distribution::Default, &flex);
 
@@ -65,7 +64,7 @@ fn gradients_of_a_split_model_match_the_gradients_on_one_device() {
     let first = stack.hidden[0].linear.weight.grad(&grads).unwrap();
     let last = stack.hidden[3].linear.weight.grad(&grads).unwrap();
     assert_eq!(first.device(), flex.clone().inner());
-    assert_eq!(last.device(), ndarray.inner());
+    assert_eq!(last.device(), cpu.inner());
     first
         .to_device(&flex.clone().inner())
         .into_data()
