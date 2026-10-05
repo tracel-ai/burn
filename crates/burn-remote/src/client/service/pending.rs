@@ -8,9 +8,8 @@ use std::{
 };
 use tokio::sync::oneshot;
 
-/// The callbacks awaiting replies. Registering checks the session's end under this lock, so a
-/// callback cannot slip in after [`Responder::end_session`] has drained them and wait for a reply
-/// that will never come.
+/// The callbacks awaiting replies. Registering checks the session's end under this lock, so none
+/// slips in after [`Responder::end_session`] has drained them.
 type SharedCallbacks = Arc<Mutex<HashMap<RequestId, oneshot::Sender<TaskResponseContent>>>>;
 
 /// Correlates response-producing requests with the caller awaiting each one.
@@ -48,8 +47,7 @@ impl PendingResponses {
 
     /// Register a callback for `id`, returning the receiver the caller awaits for the reply.
     ///
-    /// Once the session has ended the sender is dropped at once, so the receiver resolves to a
-    /// `RecvError` rather than waiting on a server that will never answer.
+    /// Once the session has ended, the receiver resolves at once to a `RecvError`.
     pub(crate) fn register(&self, id: RequestId) -> oneshot::Receiver<TaskResponseContent> {
         let (tx, rx) = oneshot::channel();
         let mut callbacks = self.callbacks.lock().unwrap();

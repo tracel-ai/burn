@@ -160,8 +160,7 @@ impl RemoteEndpoint {
         self.open_channels_within_deadline().await.map_err(give_up)
     }
 
-    /// One attempt, given up at the deadline, as on a server that accepts connections and never
-    /// serves them.
+    /// One attempt, given up at the deadline on a server that accepts and never serves it.
     async fn open_channels_within_deadline(&self) -> Result<SessionStreams, OpenError> {
         crate::time::timeout(OPEN_DEADLINE, self.open_channels_once())
             .await

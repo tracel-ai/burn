@@ -210,7 +210,7 @@ pub struct RemoteDevice {
 
 impl RemoteDevice {
     /// The device registered for `endpoint` and `device_index`, which may have its session open
-    /// already. A device whose session ended is not reused: a new id replaces it, with no session.
+    /// already, or a new one once its session ended.
     pub(crate) fn register(endpoint: RemoteEndpoint, device_index: usize) -> Self {
         let device_index = device_index as u32;
         let id = service::register_endpoint(endpoint.clone(), device_index);
@@ -267,8 +267,7 @@ impl RemoteDevice {
         self.device_index as usize
     }
 
-    /// Whether this device's session has ended, as when its server restarted. Its tensors are
-    /// gone with it; a new connect gives a new device.
+    /// Whether this device's session has ended, as when its server restarted.
     pub(crate) fn session_ended(&self) -> bool {
         service::session_end(self.id).has_ended()
     }
@@ -384,9 +383,8 @@ impl RemoteTensorHandle {
     /// fall back to the cross-server path that streams the data server-to-server without the
     /// client ever seeing it.
     pub(crate) fn change_backend(self, target_device: &RemoteDevice) -> Self {
-        // An ended device's tensors are gone, and a move between it and its replacement, which
-        // share a peer, would wait forever on the same-server path. Only an end this client has
-        // already seen is caught.
+        // A device and its replacement share a peer, so a move between them would wait forever on
+        // the same-server path. Only an end this client has already seen is caught.
         for (side, device) in [("from", &self.client.device), ("to", target_device)] {
             assert!(
                 !device.session_ended(),

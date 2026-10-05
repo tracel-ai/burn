@@ -43,8 +43,7 @@ ones Burn binds send no segmentation-offloaded (GSO) batches because of
 [iroh#4555](https://github.com/n0-computer/iroh/issues/4555).
 
 A device whose session ended, as when its server restarted, is replaced by a new device on the next
-connect, and its tensors are gone with it. Drop every device of a server once one fails;
-`RemoteOptions::init` says why and what each replacement costs.
+connect, without its tensors. Drop every device of a server once one fails.
 
 ## Server
 

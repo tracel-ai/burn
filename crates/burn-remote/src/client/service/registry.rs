@@ -18,10 +18,8 @@ pub(crate) fn new_tensor_id() -> TensorId {
     TensorId::new(TENSOR_ID_COUNTER.fetch_add(1, Ordering::Relaxed))
 }
 
-/// Whether a device's session has ended: its response stream closed, or its writer failed.
-///
-/// An ended session is never reopened in place. Its tensors, fused graphs and settings belong to
-/// a server session that is gone, so the next connect registers a new device instead.
+/// Whether a device's session has ended: its response stream closed, or its writer failed. An
+/// ended session is never reopened; the next connect registers a new device.
 #[derive(Default)]
 pub(crate) struct SessionEnd {
     ended: AtomicBool,

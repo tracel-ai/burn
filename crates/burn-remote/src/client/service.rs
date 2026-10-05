@@ -39,9 +39,8 @@ use registry::{device_count_cell, settings_cell};
 pub(crate) use registry::{device_count_for, register_endpoint, registered_device, session_end};
 pub(crate) use registry::{has_settings, new_tensor_id, settings_for};
 
-/// How long each step of opening a session may take: a connection attempt, then the handshake.
-/// Past it the server is taken to be stuck, rather than leaving the device's runner, and every
-/// later connect to it, waiting forever.
+/// How long a connection attempt, then the handshake, may each take before the server is taken to
+/// be stuck.
 #[cfg(not(test))]
 const OPEN_DEADLINE: core::time::Duration = core::time::Duration::from_secs(60);
 
