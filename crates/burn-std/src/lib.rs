@@ -4,8 +4,24 @@
 
 //! # Burn Standard Library
 //!
-//! This library contains core types and utilities shared across Burn, including shapes, indexing,
-//! and data types.
+//! Core types and utilities shared across the Burn crates.
+//!
+//! - [`Shape`], slicing ([`s!`]) and indexing helpers.
+//! - [`DType`], the element traits and conversions, and [`TensorData`], the backend-independent
+//!   representation of tensor contents.
+//! - [`Distribution`] for random tensor initialization.
+//! - [`DeviceSettings`], per-device defaults such as dtypes.
+//! - Quantization schemes, [`Bytes`], identifiers and errors.
+//! - [`config`]: runtime configuration read from `burn.toml`.
+//! - `network`: file downloads with a progress bar (`network` feature).
+//!
+//! Applications use these through `burn::tensor`. The crate supports `no_std` with `alloc`.
+//!
+//! # Feature flags
+//!
+//! - `std` (default): standard library support.
+//! - `network`: file downloads.
+//! - `tracing`: instrument operations with the `tracing` crate.
 
 #[macro_use]
 extern crate derive_new;

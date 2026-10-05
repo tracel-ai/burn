@@ -11,9 +11,13 @@
 //! Currently implemented are:
 //! - `connected_components`
 //! - `connected_components_with_stats`
+//! - morphology (`dilate` / `erode`, with `create_structuring_element`)
 //! - `nms` (Non-Maximum Suppression)
 //! - `filter2d` (depthwise 2D correlation)
 //! - color conversion (`rgb2gray` / `gray2rgb` / `rgb2hsv` / `hsv2rgb`)
+//! - 2D affine transforms (`Transform2D`: rotation, scale, shear, translation)
+//!
+//! With the `loss` feature, `loss` adds a VGG19-based Gram matrix (style) loss.
 //!
 
 #![warn(missing_docs)]

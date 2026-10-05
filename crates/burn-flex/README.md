@@ -1,16 +1,20 @@
 # burn-flex
 
+[![Current Crates.io Version](https://img.shields.io/crates/v/burn-flex.svg)](https://crates.io/crates/burn-flex)
+[![Documentation](https://docs.rs/burn-flex/badge.svg)](https://docs.rs/burn-flex)
+[![license](https://shields.io/badge/license-MIT%2FApache--2.0-blue)](https://github.com/tracel-ai/burn/blob/main/LICENSE-MIT)
+
 A fast, memory-efficient CPU backend for Burn with multi-threading, SIMD, and optimized matrix
 multiplication. Runs on std, no_std, and WebAssembly. Supports f16/bf16, zero-copy data loading, and
 is thread-safe by design.
 
-> **[Detailed comparison with burn-ndarray](./COMPARISON.md)**: Full architecture, feature coverage,
+> **[Detailed comparison with burn-ndarray](https://github.com/tracel-ai/burn/blob/main/crates/burn-flex/COMPARISON.md)**: Full architecture, feature coverage,
 > operation-by-operation analysis, and migration path.
 
-burn-flex is independent of [burn-cpu](../burn-cpu), Burn's other CPU backend. burn-cpu JIT-compiles
+burn-flex is independent of [burn-cpu](https://github.com/tracel-ai/burn/tree/main/crates/burn-cpu), Burn's other CPU backend. burn-cpu JIT-compiles
 CubeCL kernels through LLVM, with fusion and autotuning, while burn-flex executes eagerly with its own
 pure-Rust kernels and requires no native libraries. See the
-[burn-cpu README](../burn-cpu/README.md#burn-cpu-vs-burn-flex) for a side-by-side comparison.
+[burn-cpu README](https://github.com/tracel-ai/burn/blob/main/crates/burn-cpu/README.md#burn-cpu-vs-burn-flex) for a side-by-side comparison.
 
 ### Features
 
@@ -71,13 +75,13 @@ top-level `burn` crate:
 
 ```toml
 # Direct
-burn-flex = { version = "0.21", features = ["apple-amx"] }
+burn-flex = { version = "0.22", features = ["apple-amx"] }
 
 # Via burn
-burn = { version = "0.21", features = ["flex", "apple-amx"] }
+burn = { version = "0.22", features = ["flex", "apple-amx"] }
 ```
 
-See [ARCHITECTURE.md#feature-flags](./ARCHITECTURE.md#feature-flags) for per-case benchmark impact.
+See [ARCHITECTURE.md#feature-flags](https://github.com/tracel-ai/burn/blob/main/crates/burn-flex/ARCHITECTURE.md#feature-flags) for per-case benchmark impact.
 
 ### Why replace burn-ndarray?
 
@@ -139,7 +143,7 @@ and separated storage layouts.
 > operations. The quantized speedups reflect the difference between simulated and native execution,
 > not equivalent algorithms running at different speeds.
 
-See [BENCHMARKS.md](./BENCHMARKS.md) for the full breakdown.
+See [BENCHMARKS.md](https://github.com/tracel-ai/burn/blob/main/crates/burn-flex/BENCHMARKS.md) for the full breakdown.
 
 ### Performance vs candle-core (Apple M3 Max, pure-Rust, no BLAS)
 
@@ -188,8 +192,15 @@ as fast or faster on every operation category.
 
 ### Documentation
 
-- [COMPARISON.md](./COMPARISON.md) - Comprehensive comparison with burn-ndarray
-- [ARCHITECTURE.md](./ARCHITECTURE.md) - Design decisions, memory strategy, and implementation
+- [COMPARISON.md](https://github.com/tracel-ai/burn/blob/main/crates/burn-flex/COMPARISON.md) - Comprehensive comparison with burn-ndarray
+- [ARCHITECTURE.md](https://github.com/tracel-ai/burn/blob/main/crates/burn-flex/ARCHITECTURE.md) - Design decisions, memory strategy, and implementation
   patterns
-- [BENCHMARKS.md](./BENCHMARKS.md) - Full benchmark results (Flex vs NdArray)
-- [ACKNOWLEDGMENTS.md](./ACKNOWLEDGMENTS.md) - Projects that influenced burn-flex
+- [BENCHMARKS.md](https://github.com/tracel-ai/burn/blob/main/crates/burn-flex/BENCHMARKS.md) - Full benchmark results (Flex vs NdArray)
+- [ACKNOWLEDGMENTS.md](https://github.com/tracel-ai/burn/blob/main/crates/burn-flex/ACKNOWLEDGMENTS.md) - Projects that influenced burn-flex
+
+<!-- burn-crate-footer -->
+
+---
+
+Part of the [Burn](https://github.com/tracel-ai/burn) deep learning framework. See the
+[Burn Book](https://burn.dev/books/burn/) and the [API documentation](https://docs.rs/burn).

@@ -461,7 +461,7 @@ impl Device {
 
     /// Metal-backed WGPU device, selected via [`DeviceKind`], requiring native MSL support.
     ///
-    /// Pinned to Metal, as [`Device::vulkan`] is to Vulkan. Runtime initialization panics if
+    /// Pinned to Metal, as `Device::vulkan` is to Vulkan. Runtime initialization panics if
     /// native MSL is unavailable on the selected device. Use [`Device::wgpu`] for automatic
     /// compiler selection with WGSL fallback.
     #[cfg(feature = "metal")]
@@ -473,7 +473,7 @@ impl Device {
     }
 
     /// WebGPU-backed device, selected via [`DeviceKind`] — the browser's own. Pinned to
-    /// WebGPU, as [`Device::vulkan`] is to Vulkan.
+    /// WebGPU, as `Device::vulkan` is to Vulkan.
     #[cfg(feature = "webgpu")]
     pub fn webgpu(device_kind: DeviceKind) -> Self {
         Self::new(wgpu_device(

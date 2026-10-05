@@ -3,6 +3,7 @@
 > [Burn](https://github.com/tracel-ai/burn) ndarray backend
 
 [![Current Crates.io Version](https://img.shields.io/crates/v/burn-ndarray.svg)](https://crates.io/crates/burn-ndarray)
+[![Documentation](https://docs.rs/burn-ndarray/badge.svg)](https://docs.rs/burn-ndarray)
 [![license](https://shields.io/badge/license-MIT%2FApache--2.0-blue)](https://github.com/tracel-ai/burn/blob/main/LICENSE-MIT)
 
 > **Deprecated:** This crate is deprecated as of `0.22.0` and will be removed in a future release.
@@ -13,7 +14,7 @@
 >   native quantization, and full support for `std`, `no_std`, and WebAssembly.
 > - **CubeCL backends** (CUDA, ROCm, Vulkan, Metal, WebGPU) for GPU acceleration.
 >
-> See [`burn-flex/COMPARISON.md`](../burn-flex/COMPARISON.md) for a migration path and
+> See [`burn-flex/COMPARISON.md`](https://github.com/tracel-ai/burn/blob/main/crates/burn-flex/COMPARISON.md) for a migration path and
 > operation-by-operation benchmarks.
 
 ## Feature Flags
@@ -39,3 +40,10 @@ initialized by `Backend::seed` method.
 | Accelerate | Yes | No  |  No   |  Yes  |   No    |   No    | Yes |  No  |
 | Netlib     | Yes | No  |  Yes  |  Yes  |   Yes   |   No    | No  |  No  |
 | Openblas   | Yes | No  |  Yes  |  Yes  |   Yes   |   Yes   | Yes |  No  |
+
+<!-- burn-crate-footer -->
+
+---
+
+Part of the [Burn](https://github.com/tracel-ai/burn) deep learning framework. See the
+[Burn Book](https://burn.dev/books/burn/) and the [API documentation](https://docs.rs/burn).
