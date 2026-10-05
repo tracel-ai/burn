@@ -56,6 +56,10 @@ versions. Models can be imported as they are, without upgrading them first. The 
 covers the standard operator set; operators outside it can be supplied as
 [custom operators](#custom-operators).
 
+Opset coverage does not mean every configuration of an operator is supported. Some operators still
+have their own limitations, with specific attribute values or input combinations explicitly
+unsupported, and a model that hits one fails to import even though its opset is in range.
+
 ## Step-by-Step Guide
 
 Follow these steps to import an ONNX model into your Burn project:
@@ -284,7 +288,7 @@ use burn_onnx::export::OnnxExporter;
 
 let sample = Tensor::<4>::zeros([1, 3, 224, 224], &device);
 OnnxExporter::new()
-    .export(&model, sample, MyModel::forward)?
+    .export(&model, sample, Model::forward)?
     .save("my_model.onnx")?;
 ```
 
