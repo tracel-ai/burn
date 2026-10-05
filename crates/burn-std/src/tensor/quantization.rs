@@ -373,31 +373,70 @@ pub fn global_scale_size(scheme: &QuantScheme) -> usize {
 /// over the flattened tensor. This mirrors the storage shape the allocation actually uses (see
 /// `CubeTensor::quantized_storage` in burn-cubecl); flattening first would under-count, e.g. a
 /// `[3, 3]` Q4 `PackedU32` tensor occupies `3 * ceil(3 / 8) = 3` words, not `ceil(9 / 8) = 2`.
-fn storage_elements(scheme: &QuantScheme, shape: &Shape) -> usize {
+fn storage_elements(scheme: &QuantScheme, shape: &Shape) -> Option<usize> {
     let num_quants = scheme.num_quants();
 
     match scheme.store {
-        QuantStore::PackedU32(packed_dim) | QuantStore::PackedNative(packed_dim)
-            if num_quants > 1 && !shape.is_empty() =>
-        {
-            let packed_dim = shape.num_dims() - packed_dim - 1;
+        // `TensorData::quantized` stores its host values as i8s, even for sub-byte schemes.
+        // Native storage therefore has one element per logical value; only packed stores use
+        // `num_quants` to reduce the stored element count.
+        QuantStore::Native => shape
+            .iter()
+            .try_fold(1usize, |elements, &dim| elements.checked_mul(dim)),
+        QuantStore::PackedU32(packed_dim) | QuantStore::PackedNative(packed_dim) => {
+            let packed_dim = shape.num_dims().checked_sub(packed_dim.checked_add(1)?)?;
             let mut storage = shape.clone();
-            storage[packed_dim] = storage[packed_dim].div_ceil(num_quants);
-            storage.num_elements()
+            if num_quants > 1 {
+                storage[packed_dim] = storage[packed_dim].div_ceil(num_quants);
+            }
+            storage
+                .iter()
+                .try_fold(1usize, |elements, &dim| elements.checked_mul(dim))
         }
-        _ => shape.num_elements().div_ceil(num_quants),
     }
 }
 
-/// Total bytes a tensor of `shape` occupies under `scheme`, laid out as [`QuantizedBytes::new`]
-/// writes it: values, then block scales, then (for a two-level scheme) the per-tensor scale.
+/// Tries to calculate the total bytes a tensor of `shape` occupies under `scheme`.
+///
+/// Returns `None` if the packed dimension is outside the shape or if any size calculation
+/// overflows. The layout is values, then block scales, then (for a two-level scheme) the
+/// per-tensor scale.
+pub fn try_quantized_data_len(scheme: &QuantScheme, shape: &Shape) -> Option<usize> {
+    let value_bytes_per_element = match scheme.store {
+        // Host `QuantizedBytes` stores one i8 for each value in the Native representation.
+        QuantStore::Native => core::mem::size_of::<i8>(),
+        _ => scheme.size_bits_stored().div_ceil(8),
+    };
+    let value_bytes = storage_elements(scheme, shape)?.checked_mul(value_bytes_per_element)?;
+
+    let num_params = if let Some(block) = scheme.block_size() {
+        let block_shape = block.to_dim_vec(shape.num_dims());
+        let mut num_params = 1usize;
+        for (&dim, block) in shape.iter().zip(block_shape) {
+            let block = block as usize;
+            if block == 0 {
+                return None;
+            }
+            num_params = num_params.checked_mul(dim.div_ceil(block))?;
+        }
+        num_params
+    } else {
+        1
+    };
+    let scale_bytes = num_params.checked_mul(scale_size(scheme.scale_dtype()))?;
+
+    value_bytes
+        .checked_add(scale_bytes)?
+        .checked_add(global_scale_size(scheme))
+}
+
+/// Total bytes a tensor of `shape` occupies under `scheme`.
+///
+/// Panics if the packed dimension is outside the shape or if the total size overflows. Use
+/// [`try_quantized_data_len`] when handling untrusted metadata.
 pub fn quantized_data_len(scheme: &QuantScheme, shape: &Shape) -> usize {
-    let value_bytes = storage_elements(scheme, shape) * scheme.size_bits_stored().div_ceil(8);
-
-    let num_params = params_shape(shape, scheme).num_elements();
-    let scale_bytes = num_params * scale_size(scheme.scale_dtype());
-
-    value_bytes + scale_bytes + global_scale_size(scheme)
+    try_quantized_data_len(scheme, shape)
+        .expect("quantized tensor layout has an invalid packed dimension or overflows usize")
 }
 
 /// Bytes per stored scale entry for the given scale dtype.
