@@ -47,7 +47,8 @@
 //!     }
 //! }
 //!
-//! // The first enabled backend; `Device::wgpu(..)`, `Device::cuda(0)`, ... pick one explicitly.
+//! // An enabled backend in priority order (GPUs before CPUs), unless `BURN_DEVICE` names one.
+//! // `Device::wgpu(..)`, `Device::cuda(0)`, ... pick one explicitly.
 //! let device = Device::default();
 //! let model = Mlp::new(&device);
 //! let logits = model.forward(Tensor::zeros([32, 784], &device));

@@ -49,6 +49,7 @@ doc = [
     "burn-optim?/doc",
     "rl",
     "signal",
+    "vision",
 ]
 std = [
     "burn-core/std",
