@@ -180,7 +180,10 @@ mod tests {
 
         for _ in 0..2 {
             let error = host.connect(0).unwrap_err();
-            assert!(error.to_string().contains("within"), "{error}");
+            assert!(
+                error.to_string().contains("no connection opened within"),
+                "{error}"
+            );
         }
         assert_eq!(device(), before);
     }

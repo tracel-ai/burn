@@ -120,11 +120,16 @@ impl RemoteOptions {
     /// Open the device's session and wait for the server's answer. A device connected before is
     /// returned with the session it already has.
     ///
-    /// A device whose session ended, as when its server restarted, is replaced by a new device,
-    /// and its tensors are gone. Drop every device of a server once one fails: a move mixing old
-    /// and new fails once this client has seen the old session end, and waits forever before; a
-    /// collective mixing them waits forever. A server that went away without closing is noticed
-    /// when the transport gives up on it; until then this returns the old device.
+    /// A device whose session ended, as when its server restarted, is replaced by a new device:
+    /// its tensors are gone, settings made with [`Device::configure`] start over, and the old
+    /// device holds its connection until it next sends. Drop every device of a server once one
+    /// fails. A move to or from a device whose end this client has seen panics, and one between a
+    /// device and its replacement waits forever before then; a collective mixing old and new
+    /// devices waits forever.
+    ///
+    /// Each device sees its own end: just after one device of a server fails, another can still be
+    /// returned as it was, and a server that went away without closing is noticed only when the
+    /// transport gives up on it.
     ///
     /// # Panics
     ///

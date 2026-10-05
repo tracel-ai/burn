@@ -384,8 +384,8 @@ impl RemoteTensorHandle {
     /// fall back to the cross-server path that streams the data server-to-server without the
     /// client ever seeing it.
     pub(crate) fn change_backend(self, target_device: &RemoteDevice) -> Self {
-        // A device and its replacement share a peer, so a move between them would take the
-        // same-server path and wait forever on the side that is gone. Only an end this client has
+        // An ended device's tensors are gone, and a move between it and its replacement, which
+        // share a peer, would wait forever on the same-server path. Only an end this client has
         // already seen is caught.
         for (side, device) in [("from", &self.client.device), ("to", target_device)] {
             assert!(
