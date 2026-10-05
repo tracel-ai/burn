@@ -115,8 +115,8 @@ impl LayerParallelism for Stack {
         &self.input
     }
 
-    fn layer_hidden(&self, index: usize) -> Option<&Tanh> {
-        self.hidden.get(index)
+    fn layers_hidden(&self) -> impl Iterator<Item = &Tanh> {
+        self.hidden.iter()
     }
 
     fn layer_output(&self) -> &Linear {

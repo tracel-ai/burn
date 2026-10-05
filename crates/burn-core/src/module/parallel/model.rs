@@ -50,11 +50,7 @@ impl<M: LayerParallelism> DistributedLayeredModel<M> {
             .model
             .layer_input()
             .forward(input.to_device(&placement.input));
-        for (index, device) in placement.hidden.iter().enumerate() {
-            let layer = self
-                .model
-                .layer_hidden(index)
-                .expect("`new` checked the placement against the hidden layers");
+        for (layer, device) in self.model.layers_hidden().zip(&placement.hidden) {
             signal = layer.forward(signal.to_device(device));
         }
         self.model
@@ -68,14 +64,12 @@ impl<M: LayerParallelism> DistributedLayeredModel<M> {
     }
 
     fn assert_placed(model: &M, placement: &LayerPlacement) {
-        let count = placement.hidden.len();
-        let covered = model.layer_hidden(count).is_none()
-            && count
-                .checked_sub(1)
-                .is_none_or(|last| model.layer_hidden(last).is_some());
+        let count = model.layers_hidden().count();
         assert!(
-            covered,
-            "the placement must give a device to every hidden layer"
+            count == placement.hidden.len(),
+            "the placement must give a device to every hidden layer: the model has {count}, the \
+             placement gives {}",
+            placement.hidden.len()
         );
 
         assert!(
@@ -83,10 +77,7 @@ impl<M: LayerParallelism> DistributedLayeredModel<M> {
             "the input layer must be built on {:?}",
             placement.input
         );
-        for (index, device) in placement.hidden.iter().enumerate() {
-            let layer = model
-                .layer_hidden(index)
-                .expect("the placement covers the hidden layers");
+        for (index, (layer, device)) in model.layers_hidden().zip(&placement.hidden).enumerate() {
             assert!(
                 Self::layer_is_on(layer, device),
                 "hidden layer {index} must be built on {device:?}"
@@ -278,8 +269,8 @@ mod tests {
             &self.input
         }
 
-        fn layer_hidden(&self, index: usize) -> Option<&Tanh> {
-            self.hidden.get(index)
+        fn layers_hidden(&self) -> impl Iterator<Item = &Tanh> {
+            self.hidden.iter()
         }
 
         fn layer_output(&self) -> &Head {

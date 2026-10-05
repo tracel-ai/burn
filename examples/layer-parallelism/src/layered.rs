@@ -75,8 +75,8 @@ impl LayerParallelism for LayeredModel {
         &self.embedding
     }
 
-    fn layer_hidden(&self, index: usize) -> Option<&Block> {
-        self.hiddens.get(index)
+    fn layers_hidden(&self) -> impl Iterator<Item = &Block> {
+        self.hiddens.iter()
     }
 
     fn layer_output(&self) -> &Head {
