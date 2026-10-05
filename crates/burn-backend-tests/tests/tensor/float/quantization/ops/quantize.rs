@@ -559,6 +559,10 @@ fn should_round_trip_packed_along_the_first_axis_through_bytes() {
         .with_store(QuantStore::PackedU32(0))
         .per_block([16], ScaleDtype::F16)
         .per_tensor(ScaleDtype::F32);
+    // A backend that stores quantized values unpacked has no packed axis to keep.
+    if !device.supports_dtype(DType::QFloat(scheme)) {
+        return;
+    }
 
     let quantized = input
         .clone()
