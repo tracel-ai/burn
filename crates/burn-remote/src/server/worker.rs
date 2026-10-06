@@ -365,8 +365,7 @@ where
                 target,
             } => {
                 log::trace!("Exposing tensor (transfer {capability:?})");
-                // Same shape as `ReadTensors`: the sync part of `read_tensor_async` runs in order
-                // to preserve stream ordering, but the readback + expose are detached so a
+                // The sync part of `read_tensor_async` runs in order to preserve stream ordering, but the readback + expose are detached so a
                 // cross-server hand-off doesn't stall this session's op registration on a
                 // GPU→host copy. A target that downloads before the expose lands simply blocks on
                 // the data service's `new_tensor_notify`, so there is no race.
@@ -421,7 +420,7 @@ where
                     session: self.session_id,
                     request: request_id,
                 });
-                let read = stream_id.executes(|| self.runner.read_tensors_async(tensors));
+                let read = stream_id.executes(|| self.runner.read_tensors_async(&tensors));
                 self.answer_when_ready(request_id, read, TaskResponseContent::ReadTensors);
                 Ok(())
             }
@@ -608,7 +607,7 @@ mod tests {
     #[tokio::test]
     async fn a_panic_aborts_the_responses_still_in_flight() {
         let (response_sender, mut responses) = mpsc::channel(1);
-        let mut handler = handler(response_sender);
+        let mut handler = SessionHandler::new(response_sender);
         let stalled = handler.response_sender.clone();
         handler.response_tasks.spawn(async move {
             let _held = stalled;
@@ -631,10 +630,11 @@ mod tests {
             panic!("the backend failed")
         }
         let (response_sender, mut responses) = mpsc::channel(1);
-        let mut handler = handler(response_sender);
+        let mut handler = SessionHandler::new(response_sender);
 
+        let request_id: RequestId = 7;
         handler.answer_when_ready(
-            7,
+            request_id,
             async { failing_read() },
             TaskResponseContent::ReadTensors,
         );
@@ -643,7 +643,7 @@ mod tests {
             .await
             .expect("a panicking read still answers")
             .unwrap();
-        assert_eq!(response.id, 7);
+        assert_eq!(response.id, request_id);
         match response.content {
             TaskResponseContent::ReadTensors(Err(error)) => {
                 assert!(error.to_string().contains("the backend failed"), "{error}")
@@ -652,17 +652,19 @@ mod tests {
         }
     }
 
-    fn handler(response_sender: mpsc::Sender<TaskResponse>) -> SessionHandler<Flex, NoTransfer> {
-        SessionHandler {
-            session_id: SessionId::new(),
-            runner: TensorInterpreter::new(Default::default()),
-            device_ids: HostedDeviceIds::of::<Flex>(&[Default::default()]),
-            response_sender,
-            response_tasks: ResponseTasks::default(),
-            transfer: Arc::new(NoTransfer),
-            local_comm: Arc::new(LocalCommService::<Flex>::new()),
-            graphs: Mutex::new(HashMap::new()),
-            probe: TelemetryProbe::disabled(),
+    impl SessionHandler<Flex, NoTransfer> {
+        fn new(response_sender: mpsc::Sender<TaskResponse>) -> Self {
+            Self {
+                session_id: SessionId::new(),
+                runner: TensorInterpreter::new(Default::default()),
+                device_ids: HostedDeviceIds::of::<Flex>(&[Default::default()]),
+                response_sender,
+                response_tasks: ResponseTasks::default(),
+                transfer: Arc::new(NoTransfer),
+                local_comm: Arc::new(LocalCommService::<Flex>::new()),
+                graphs: Mutex::new(HashMap::new()),
+                probe: TelemetryProbe::disabled(),
+            }
         }
     }
 }

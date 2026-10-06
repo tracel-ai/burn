@@ -28,19 +28,6 @@ impl RouterClient for RemoteClient {
         self.handle.submit(move |s| s.register_op(stream_id, op));
     }
 
-    fn read_tensor_async(&self, tensor: TensorIr) -> DynFut<Result<TensorData, ExecutionError>> {
-        let read = self.read_tensors_async(vec![tensor]);
-        Box::pin(async move {
-            let [data] = <[TensorData; 1]>::try_from(read.await?).unwrap_or_else(|data| {
-                panic!(
-                    "The server answered a read of one tensor with {} values",
-                    data.len()
-                )
-            });
-            Ok(data)
-        })
-    }
-
     fn read_tensors_async(
         &self,
         tensors: Vec<TensorIr>,

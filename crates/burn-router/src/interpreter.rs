@@ -2163,10 +2163,14 @@ impl<B: BackendIr> TensorInterpreter<B> {
     /// Read several tensors as one backend transaction, in the order given.
     pub fn read_tensors_async(
         &mut self,
-        tensors: Vec<TensorIr>,
+        tensors: &[TensorIr],
     ) -> DynFut<Result<Vec<TensorData>, ExecutionError>> {
+        // Some backends' transactions cannot run without a tensor to find their device from.
+        if tensors.is_empty() {
+            return Box::pin(async { Ok(Vec::new()) });
+        }
         let mut transaction = TransactionPrimitive::<B>::default();
-        for tensor in &tensors {
+        for tensor in tensors {
             self.take_for_read(tensor).register_in(&mut transaction);
         }
         Box::pin(transaction.execute_async())

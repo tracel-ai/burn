@@ -4,7 +4,6 @@ use burn_backend::{
     backend::ExecutionError,
     ops::{TransactionOps, TransactionPrimitive, TransactionPrimitiveData},
 };
-use burn_ir::TensorIr;
 use burn_std::future::DynFut;
 use core::future::Future;
 
@@ -52,7 +51,7 @@ struct DeviceRead {
 struct DeviceTensors<C: RouterClient> {
     client: C,
     device: C::Device,
-    tensors: Vec<TensorIr>,
+    tensors: Vec<RouterTensor<C>>,
     positions: Vec<usize>,
 }
 
@@ -74,7 +73,7 @@ impl TransactionReads {
                 }
             };
             devices[index].positions.push(position);
-            devices[index].tensors.push(tensor.into_ir());
+            devices[index].tensors.push(tensor);
         }
         Self(devices.into_iter().map(DeviceTensors::read).collect())
     }
@@ -103,8 +102,13 @@ impl TransactionReads {
 
 impl<C: RouterClient> DeviceTensors<C> {
     fn read(self) -> DeviceRead {
+        let tensors = self
+            .tensors
+            .into_iter()
+            .map(RouterTensor::into_ir)
+            .collect();
         DeviceRead {
-            read: self.client.read_tensors_async(self.tensors),
+            read: self.client.read_tensors_async(tensors),
             positions: self.positions,
         }
     }
