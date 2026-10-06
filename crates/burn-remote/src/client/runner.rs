@@ -7,8 +7,7 @@ use burn_backend::{
 };
 use burn_ir::TensorIr;
 use burn_router::{MultiBackendBridge, RouterClient, RouterTensor, get_client};
-use burn_std::DeviceSettings;
-use burn_std::{backtrace::BackTrace, future::DynFut};
+use burn_std::{DeviceSettings, future::DynFut};
 use std::sync::Mutex;
 
 use service::RemoteEndpoint;
@@ -29,26 +28,38 @@ impl RouterClient for RemoteClient {
         self.handle.submit(move |s| s.register_op(stream_id, op));
     }
 
-    fn read_tensor_async(
+    fn read_tensor_async(&self, tensor: TensorIr) -> DynFut<Result<TensorData, ExecutionError>> {
+        let read = self.read_tensors_async(vec![tensor]);
+        Box::pin(async move {
+            let [data] = <[TensorData; 1]>::try_from(read.await?).map_err(|data| {
+                ExecutionError::generic(format!(
+                    "The server answered a read of one tensor with {} values",
+                    data.len()
+                ))
+            })?;
+            Ok(data)
+        })
+    }
+
+    fn read_tensors_async(
         &self,
-        tensor: burn_ir::TensorIr,
-    ) -> DynFut<Result<TensorData, ExecutionError>> {
-        // Issue the request synchronously so ordering is preserved relative to subsequent
-        // submissions; the returned future just awaits the server's response.
+        tensors: Vec<TensorIr>,
+    ) -> DynFut<Result<Vec<TensorData>, ExecutionError>> {
         let stream_id = StreamId::current();
         let rx = self
             .handle
-            .submit_blocking(move |s| s.read_tensor(stream_id, tensor))
+            .submit_blocking(move |s| s.read_tensors(stream_id, tensors))
             .expect("Service call failed");
 
         Box::pin(async move {
             match rx.await {
-                Ok(TaskResponseContent::ReadTensor(res)) => res,
-                Ok(_) => panic!("Invalid response type for ReadTensor"),
-                Err(e) => Err(ExecutionError::Generic {
-                    reason: format!("Failed to read tensor: {e:?}"),
-                    backtrace: BackTrace::capture(),
-                }),
+                Ok(TaskResponseContent::ReadTensors(res)) => res,
+                Ok(_) => Err(ExecutionError::generic(
+                    "The server answered a read with another kind of reply",
+                )),
+                Err(e) => Err(ExecutionError::generic(format!(
+                    "Failed to read tensors: {e:?}"
+                ))),
             }
         })
     }
