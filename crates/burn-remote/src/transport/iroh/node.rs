@@ -17,9 +17,8 @@ use tokio::sync::OnceCell;
 use super::relays::IrohRelays;
 use crate::{PeerAddr, PeerId, transport::OpenError};
 
-/// The node the devices dialed from each application endpoint share, by its id. A server keeps
-/// its own, since a peer accepts no streams on a connection it dialed. Weak, because Iroh keeps an
-/// endpoint's sockets bound until its last clone drops.
+/// The node the devices dialed from each application endpoint share, by its id. Weak, because Iroh
+/// keeps an endpoint's sockets bound until its last clone drops.
 #[cfg(feature = "client")]
 static APP_NODES: LazyLock<std::sync::Mutex<HashMap<EndpointId, Weak<RemoteNodeInner>>>> =
     LazyLock::new(Default::default);
@@ -52,6 +51,7 @@ const MAX_FRAME_SIZE: usize = 1024 * 1024 * 1024;
 
 struct RemoteNodeInner {
     endpoint: Endpoint,
+    /// Only connections this node dialed: a peer answers no streams on a connection it dialed.
     connections: Mutex<HashMap<EndpointId, Arc<OnceCell<Connection>>>>,
 }
 
@@ -236,29 +236,6 @@ impl RemoteNode {
                 .await?;
             return Ok(connection.clone());
         }
-    }
-
-    #[cfg(feature = "server")]
-    pub(crate) async fn remember_connection(&self, connection: Connection) {
-        let remote = connection.remote_id();
-        let cell = {
-            let mut connections = self.inner.connections.lock().await;
-            match connections.get(&remote) {
-                Some(cell)
-                    if cell
-                        .get()
-                        .is_some_and(|existing| existing.close_reason().is_none()) =>
-                {
-                    return;
-                }
-                _ => {
-                    let cell = Arc::new(OnceCell::new());
-                    connections.insert(remote, cell.clone());
-                    cell
-                }
-            }
-        };
-        let _ = cell.set(connection);
     }
 }
 
