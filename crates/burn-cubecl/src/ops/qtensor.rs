@@ -8,7 +8,10 @@ use burn_backend::{
     },
     tensor::{Device, FloatTensor, QuantizedTensor},
 };
-use burn_std::{FloatDType, Metadata, quantization::global_scale_size};
+use burn_std::{
+    FloatDType, Metadata,
+    quantization::{QPARAM_ALIGN, global_scale_size},
+};
 use cubecl::server::{MemoryLayout, MemoryLayoutDescriptor, MemoryLayoutStrategy};
 use cubecl::{e2m1x2, quant::scheme::QuantStore};
 
@@ -84,9 +87,6 @@ fn new_quantized(
 
     let data_size = match scheme.store {
         QuantStore::PackedU32(_) => {
-            if !shape_last.is_multiple_of(num_quants) {
-                panic!("Can't store in u32")
-            }
             shape_value[rank - 1] = shape_last.div_ceil(num_quants);
             size_of::<u32>()
         }
@@ -215,39 +215,82 @@ fn new_quantized(
     )
 }
 
+/// Repack host-native Q4/Q2 values into the u32 layout used by CubeCL.
+fn pack_subbyte_values(values: &[i8], shape: &Shape, bits: usize) -> Vec<u8> {
+    let rank = shape.rank();
+    let row_len = shape[rank - 1];
+    if row_len == 0 {
+        return Vec::new();
+    }
+    let values_per_word = u32::BITS as usize / bits;
+    let words_per_row = row_len.div_ceil(values_per_word);
+    let rows = values.len() / row_len;
+    let mask = (1u32 << bits) - 1;
+    let mut packed = Vec::with_capacity(rows * words_per_row * size_of::<u32>());
+
+    for row in 0..rows {
+        for word_index in 0..words_per_row {
+            let mut word = 0u32;
+            for value_index in 0..values_per_word {
+                let column = word_index * values_per_word + value_index;
+                if column < row_len {
+                    let value = values[row * row_len + column] as u8 as u32;
+                    word |= (value & mask) << (value_index * bits);
+                }
+            }
+            packed.extend_from_slice(&word.to_ne_bytes());
+        }
+    }
+
+    packed
+}
+
+fn q_from_native_subbyte_data(
+    data: TensorData,
+    scheme: QuantScheme,
+    device: &CubeDevice,
+) -> CubeTensor {
+    let shape = data.shape().clone();
+    let num_values = shape.num_elements();
+    let raw = data.as_bytes();
+    let values = raw[..num_values]
+        .iter()
+        .map(|&value| value as i8)
+        .collect::<Vec<_>>();
+    let qparams_start = num_values.div_ceil(QPARAM_ALIGN) * QPARAM_ALIGN;
+    let packed_scheme = scheme.with_store(QuantStore::PackedU32(0));
+    let bits = scheme.value.size_bits();
+    let mut packed = pack_subbyte_values(&values, &shape, bits);
+    packed.extend_from_slice(&raw[qparams_start..]);
+
+    new_qtensor_optimized(Bytes::from_bytes_vec(packed), shape, packed_scheme, device)
+}
+
 impl QTensorOps<Self> for CubeBackend {
     fn q_from_data(data: TensorData, device: &Device<Self>) -> QuantizedTensor<Self> {
-        match data.dtype() {
-            DType::QFloat(scheme) => match scheme {
-                QuantScheme {
-                    mode: QuantMode::Symmetric,
-                    value:
-                        QuantValue::Q8F
-                        | QuantValue::Q8S
-                        | QuantValue::Q4F
-                        | QuantValue::Q4S
-                        | QuantValue::Q2F
-                        | QuantValue::Q2S
-                        | QuantValue::E4M3
-                        | QuantValue::E5M2
-                        | QuantValue::E2M1,
-                    ..
-                } => {
-                    // TensorData quantized representation is the same, with multiple quantized values
-                    // packed into u32 and quantization parameters appended to the bytes
-                    let (bytes, shape, _) = data.into_parts();
-                    new_qtensor_optimized(bytes, shape, scheme, device)
-                }
-                QuantScheme {
-                    mode: QuantMode::Lookup,
-                    ..
-                } => unimplemented!("lookup quantization does not travel as a QFloat tensor"),
-            },
+        let scheme = match data.dtype() {
+            DType::QFloat(scheme) => scheme,
             _ => panic!(
                 "Invalid dtype (expected DType::QFloat, got {:?})",
                 data.dtype()
             ),
+        };
+
+        if scheme.mode == QuantMode::Lookup {
+            unimplemented!("lookup quantization does not travel as a QFloat tensor");
         }
+
+        if scheme.store == QuantStore::Native
+            && matches!(
+                scheme.value,
+                QuantValue::Q4F | QuantValue::Q4S | QuantValue::Q2F | QuantValue::Q2S
+            )
+        {
+            return q_from_native_subbyte_data(data, scheme, device);
+        }
+
+        let (bytes, shape, _) = data.into_parts();
+        new_qtensor_optimized(bytes, shape, scheme, device)
     }
 
     // TODO: quantize_dynamic (we can compute min-max on the fly and scale, especially when not per-tensor)
@@ -357,5 +400,55 @@ impl QTensorOps<Self> for CubeBackend {
             }
             QuantPropagation::Inhibit => TensorPrimitive::Float(out),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{CubeBackend, CubeDevice, pack_subbyte_values};
+    use burn_backend::{
+        DType, Shape, TensorData,
+        ops::QTensorOps,
+        quantization::{QuantScheme, QuantStore, QuantValue, QuantizedBytes},
+    };
+
+    #[test]
+    fn pack_subbyte_values_pads_each_row_separately() {
+        let packed = pack_subbyte_values(&[1, -2, 3, -4, 5, -6], &Shape::new([2, 3]), 4);
+
+        assert_eq!(&packed[..4], &993u32.to_ne_bytes());
+        assert_eq!(&packed[4..], &2652u32.to_ne_bytes());
+    }
+
+    #[test]
+    fn native_q4_data_roundtrips_with_odd_rows() {
+        let device = CubeDevice::default();
+        let values = vec![1i8, -2, 3, -4, 5, -6];
+        let data = TensorData::quantized(
+            values.clone(),
+            [2, 3],
+            QuantScheme::default().with_value(QuantValue::Q4S),
+            &[1.0],
+            None,
+        );
+
+        assert!(
+            matches!(data.dtype(), DType::QFloat(scheme) if scheme.store == QuantStore::Native)
+        );
+        let tensor = CubeBackend::q_from_data(data, &device);
+        let restored = burn_std::future::block_on(CubeBackend::q_into_data(tensor)).unwrap();
+
+        let (bytes, shape, dtype) = restored.into_parts();
+        let DType::QFloat(scheme) = dtype else {
+            panic!("Cube q_into_data must return a quantized dtype");
+        };
+        let (restored, _) = QuantizedBytes {
+            bytes,
+            shape,
+            scheme,
+        }
+        .into_vec_i8();
+
+        assert_eq!(restored, values);
     }
 }

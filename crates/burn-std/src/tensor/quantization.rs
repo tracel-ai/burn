@@ -334,7 +334,7 @@ impl QuantizedBytes {
                     let qparams = self.bytes[split_at..].to_vec();
                     let values = bytemuck::cast_slice::<_, u32>(&self.bytes[..split_at]);
                     // Sub-byte values are unpacked as i8s for value equality tests
-                    let values = unpack_q_to_i8s(values, self.num_elements(), &self.scheme.value);
+                    let values = unpack_q_to_i8s(values, &self.shape, &self.scheme.value);
                     (values, qparams)
                 }
                 QuantValue::E4M3 | QuantValue::E5M2 | QuantValue::E2M1 => {
@@ -548,7 +548,7 @@ pub fn pack_i8s_to_u32s(values: Vec<i8>) -> Vec<u32> {
 /// Unpack integer values into a sequence of signed 8-bit integers.
 pub(crate) fn unpack_q_to_i8s<Q: PrimInt>(
     values: &[Q],
-    numel: usize,
+    shape: &Shape,
     value: &QuantValue,
 ) -> Vec<i8> {
     let size_store = size_of::<Q>() * 8;
@@ -556,24 +556,32 @@ pub(crate) fn unpack_q_to_i8s<Q: PrimInt>(
     let num_quants = size_store / size_quant;
     let mask = Q::from((1 << size_quant) - 1).unwrap();
     let sign_shift = 8 - size_quant; // sign extension for sub-byte values
-    values
-        .iter()
-        .enumerate()
-        .flat_map(|(i, &packed)| {
-            // A single u32 could contain less than four 8-bit values...
-            let n = core::cmp::min(num_quants, numel - i * num_quants);
-            // Extract each 8-bit segment from u32 and cast back to i8
-            // Same as doing this (when 4 values are fully packed):
-            //     let a = (packed & 0xFF) as i8;
-            //     let b = ((packed >> 8) & 0xFF) as i8;
-            //     let c = ((packed >> 16) & 0xFF) as i8;
-            //     let d = ((packed >> 24) & 0xFF) as i8;
-            (0..n).map(move |i| {
-                let raw = (packed >> (i * size_quant) & mask).to_u8().unwrap();
-                ((raw << sign_shift) as i8) >> sign_shift
-            })
-        })
-        .collect()
+    let last_dim = shape
+        .num_dims()
+        .checked_sub(1)
+        .expect("quantized tensor rank must be nonzero");
+    let row_len = shape[last_dim];
+    if row_len == 0 {
+        return Vec::new();
+    }
+    let rows = shape.num_elements() / row_len;
+    let packed_per_row = row_len.div_ceil(num_quants);
+    let mut unpacked = Vec::with_capacity(shape.num_elements());
+
+    for row in 0..rows {
+        for (word_index, &packed) in values[row * packed_per_row..(row + 1) * packed_per_row]
+            .iter()
+            .enumerate()
+        {
+            let count = core::cmp::min(num_quants, row_len - word_index * num_quants);
+            for index in 0..count {
+                let raw = (packed >> (index * size_quant) & mask).to_u8().unwrap();
+                unpacked.push(((raw << sign_shift) as i8) >> sign_shift);
+            }
+        }
+    }
+
+    unpacked
 }
 
 #[cfg(test)]
@@ -600,16 +608,23 @@ mod tests {
 
     #[test]
     fn should_unpack_u32s_to_i8s() {
-        let unpacked = unpack_q_to_i8s(&[2147287680u32], 4, &QuantValue::Q8S);
+        let unpacked = unpack_q_to_i8s(&[2147287680u32], &[4].into(), &QuantValue::Q8S);
 
         assert_eq!(unpacked, vec![-128, 2, -3, 127]);
     }
 
     #[test]
     fn should_unpack_u32s_to_i8s_padded() {
-        let unpacked = unpack_q_to_i8s(&[55u32], 1, &QuantValue::Q8S);
+        let unpacked = unpack_q_to_i8s(&[55u32], &[1].into(), &QuantValue::Q8S);
 
         assert_eq!(unpacked, vec![55]);
+    }
+
+    #[test]
+    fn should_unpack_padded_rows_independently() {
+        let unpacked = unpack_q_to_i8s(&[993u32, 2652u32], &[2, 3].into(), &QuantValue::Q4S);
+
+        assert_eq!(unpacked, vec![1, -2, 3, -4, 5, -6]);
     }
 
     #[test]
@@ -620,7 +635,7 @@ mod tests {
                 1145324612, 1145324612, 1431655748, 1431655765, 1717982549, 1717986918, 2003199590,
                 2004318071,
             ],
-            128,
+            &[128].into(),
             &QuantValue::Q4S,
         );
 
