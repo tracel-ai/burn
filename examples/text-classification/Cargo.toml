@@ -12,6 +12,7 @@ workspace = true
 [features]
 default = []
 f16 = []
+bf16 = []
 flex32 = []
 tch-cpu = ["burn/tch"]
 tch-gpu = ["burn/tch"]
