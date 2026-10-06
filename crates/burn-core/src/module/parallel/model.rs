@@ -50,32 +50,40 @@ impl<M: LayerParallelism> DistributedLayeredModel<M> {
 
     /// Run each layer on its device, moving what passes between them.
     pub fn forward(&self, input: LayerParallelismInput<M>) -> LayerParallelismOutput<M> {
-        self.forward_with(input, |layer, signal| layer.forward(signal))
+        let signal = self.forward_input(input);
+        let signal = self.forward_hidden_with(signal, |_, layer, signal| layer.forward(signal));
+        self.model.layer_output().forward(signal)
+    }
+
+    /// The input layer run on its device: what the hidden layers pass along.
+    pub fn forward_input(&self, input: LayerParallelismInput<M>) -> HiddenLayerSignal<M> {
+        self.model
+            .layer_input()
+            .forward(input.to_device(&self.placement.input))
+    }
+
+    /// `signal` run through the hidden layers in order, moved onto each one's device before
+    /// `forward` runs it with the layer's index, then onto the output layer's device: the middle
+    /// of the forward, for a caller whose hidden layers take more than the signal, such as caches
+    /// or a table kept per device, or whose output layer runs in more than one way.
+    pub fn forward_hidden_with(
+        &self,
+        signal: HiddenLayerSignal<M>,
+        mut forward: impl FnMut(usize, &M::HiddenLayer, HiddenLayerSignal<M>) -> HiddenLayerSignal<M>,
+    ) -> HiddenLayerSignal<M> {
+        self.model
+            .layers_hidden()
+            .zip(&self.placement.hidden)
+            .enumerate()
+            .fold(signal, |signal, (index, (layer, device))| {
+                forward(index, layer, signal.to_device(device))
+            })
+            .to_device(&self.placement.output)
     }
 
     /// The model on its own, no longer carrying where its layers run.
     pub fn into_inner(self) -> M {
         self.model
-    }
-
-    /// The forward, with `forward_hidden` running each hidden layer, in order, on the signal
-    /// already moved to its device.
-    fn forward_with(
-        &self,
-        input: LayerParallelismInput<M>,
-        mut forward_hidden: impl FnMut(&M::HiddenLayer, HiddenLayerSignal<M>) -> HiddenLayerSignal<M>,
-    ) -> LayerParallelismOutput<M> {
-        let placement = &self.placement;
-        let mut signal = self
-            .model
-            .layer_input()
-            .forward(input.to_device(&placement.input));
-        for (layer, device) in self.model.layers_hidden().zip(&placement.hidden) {
-            signal = forward_hidden(layer, signal.to_device(device));
-        }
-        self.model
-            .layer_output()
-            .forward(signal.to_device(&placement.output))
     }
 
     fn assert_placed(model: &M, placement: &LayerPlacement) {
@@ -149,13 +157,11 @@ where
             self.placement.hidden.len(),
             "the cache must hold one entry per hidden layer of this model"
         );
-        let mut caches = cache.hidden.iter_mut();
-        self.forward_with(input, |layer, signal| {
-            let cache = caches
-                .next()
-                .expect("one cache per hidden layer, checked above");
-            layer.forward_autoregressive_inference(signal, cache)
-        })
+        let signal = self.forward_input(input);
+        let signal = self.forward_hidden_with(signal, |index, layer, signal| {
+            layer.forward_autoregressive_inference(signal, &mut cache.hidden[index])
+        });
+        self.model.layer_output().forward(signal)
     }
 }
 
