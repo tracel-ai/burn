@@ -104,6 +104,17 @@ pub enum RemoteMessage {
     Close(SessionId),
 }
 
+#[cfg(feature = "client")]
+impl RemoteMessage {
+    /// Size of the tensor data the message carries, in bytes (0 for metadata-only messages).
+    pub fn data_len(&self) -> usize {
+        match self {
+            RemoteMessage::Task(Task::RegisterTensor(_, _, data)) => data.bytes().len(),
+            _ => 0,
+        }
+    }
+}
+
 /// Client-side session handshake.
 #[allow(missing_docs)]
 #[derive(Serialize, Deserialize, Clone)]

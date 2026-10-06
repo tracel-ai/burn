@@ -1,6 +1,6 @@
 //! Outgoing task buffering.
 
-use crate::shared::{RemoteMessage, Task};
+use crate::shared::RemoteMessage;
 
 /// Accumulates outgoing [`RemoteMessage`]s on the runner thread and decides when a batch is ready
 /// for the wire.
@@ -21,18 +21,10 @@ use crate::shared::{RemoteMessage, Task};
 pub(crate) struct OutgoingBatch {
     tasks: Vec<RemoteMessage>,
     threshold: usize,
-    /// Running sum of [`data_len`] over the buffered tasks; reset by [`take`](Self::take).
+    /// Running sum of [`RemoteMessage::data_len`] over the buffered tasks; reset by
+    /// [`take`](Self::take).
     bytes: usize,
     bytes_threshold: usize,
-}
-
-/// Size of the bulk tensor data a message carries, in bytes (0 for metadata-only messages). Drives
-/// the byte-based flush threshold.
-fn data_len(msg: &RemoteMessage) -> usize {
-    match msg {
-        RemoteMessage::Task(Task::RegisterTensor(_, _, data)) => data.bytes().len(),
-        _ => 0,
-    }
 }
 
 impl OutgoingBatch {
@@ -50,7 +42,7 @@ impl OutgoingBatch {
     /// Append a task. Returns `true` once the buffer has reached either flush threshold, i.e.
     /// the caller should [`take`](Self::take) and send.
     pub(crate) fn push(&mut self, task: RemoteMessage) -> bool {
-        self.bytes += data_len(&task);
+        self.bytes += task.data_len();
         self.tasks.push(task);
         self.tasks.len() >= self.threshold || self.bytes >= self.bytes_threshold
     }

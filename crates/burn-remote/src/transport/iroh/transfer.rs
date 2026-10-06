@@ -13,7 +13,7 @@ use tokio::sync::{Mutex, Notify};
 
 use super::node::{RemoteNode, StreamKind, recv_frame, send_frame};
 use crate::server::transfer::TensorTransfer;
-use crate::shared::TransferCapability;
+use crate::shared::{EncodeExact, TransferCapability};
 use crate::{PeerAddr, PeerId};
 
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
@@ -69,7 +69,7 @@ impl<B: BackendIr> IrohTransfer<B> {
                 .map(bytes::Bytes::from)
                 .map_err(|err| format!("Failed to encode tensor-transfer denial: {err}"))?,
         };
-        send_frame(&mut send, &response).await?;
+        send_frame(&mut send, response).await?;
         send.finish()
             .map_err(|err| format!("Failed to finish tensor-transfer stream: {err}"))?;
         Ok(())
@@ -150,7 +150,7 @@ impl<B: BackendIr> TensorTransfer<B> for IrohTransfer<B> {
             log::error!("An Iroh tensor transfer cannot target a non-Iroh peer");
             return;
         };
-        let bytes = match rmp_serde::to_vec(&TransferMessage::Tensor(data)) {
+        let bytes = match TransferMessage::Tensor(data).encode_exact() {
             Ok(bytes) => bytes::Bytes::from(bytes),
             Err(err) => {
                 log::error!("Failed to encode tensor transfer {capability:?}: {err}");
@@ -192,7 +192,7 @@ impl<B: BackendIr> TensorTransfer<B> for IrohTransfer<B> {
                 return None;
             }
         };
-        if let Err(err) = send_frame(&mut send, &request).await {
+        if let Err(err) = send_frame(&mut send, request.into()).await {
             log::error!("{err}");
             return None;
         }

@@ -2,6 +2,7 @@
 
 use std::{collections::HashMap, sync::Arc};
 
+use bytes::Bytes;
 #[cfg(feature = "client")]
 use iroh::endpoint::BindError;
 use iroh::{
@@ -168,7 +169,7 @@ impl RemoteNode {
             kind,
         })
         .map_err(|err| OpenError::Failed(format!("cannot encode the Iroh stream header: {err}")))?;
-        send_frame(&mut send, &header)
+        send_frame(&mut send, header.into())
             .await
             .map_err(OpenError::Failed)?;
         Ok((send, recv))
@@ -239,20 +240,18 @@ impl RemoteNode {
     }
 }
 
-pub(crate) async fn send_frame(send: &mut SendStream, bytes: &[u8]) -> Result<(), String> {
-    if bytes.len() > MAX_FRAME_SIZE {
+pub(crate) async fn send_frame(send: &mut SendStream, frame: Bytes) -> Result<(), String> {
+    if frame.len() > MAX_FRAME_SIZE {
         return Err(format!(
             "Burn Remote frame is too large: {} bytes (max {MAX_FRAME_SIZE})",
-            bytes.len()
+            frame.len()
         ));
     }
-    send.write_all(&(bytes.len() as u64).to_le_bytes())
+    let length = Bytes::copy_from_slice(&(frame.len() as u64).to_le_bytes());
+    // Chunks are handed to QUIC as they are; `write_all` would copy the frame into its buffer.
+    send.write_all_chunks(&mut [length, frame])
         .await
-        .map_err(|err| format!("Failed to write Iroh frame length: {err}"))?;
-    send.write_all(bytes)
-        .await
-        .map_err(|err| format!("Failed to write Iroh frame: {err}"))?;
-    Ok(())
+        .map_err(|err| format!("Failed to write Iroh frame: {err}"))
 }
 
 pub(crate) async fn recv_frame(recv: &mut RecvStream) -> Result<Option<Vec<u8>>, String> {

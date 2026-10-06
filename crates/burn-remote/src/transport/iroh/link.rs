@@ -11,7 +11,7 @@ use crate::transport::link::{FrameSink, FrameSource};
 
 impl FrameSink for SendStream {
     async fn send(&mut self, frame: Bytes) -> Result<(), String> {
-        send_frame(self, &frame).await
+        send_frame(self, frame).await
     }
 
     async fn close(&mut self) -> Result<(), String> {
