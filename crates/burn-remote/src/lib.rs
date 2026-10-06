@@ -77,7 +77,7 @@ pub use __client::*;
 #[cfg(all(test, feature = "client", feature = "server"))]
 mod tests {
     use crate::{
-        RemoteBackend, RemoteDevice,
+        RemoteBackend, RemoteChannel, RemoteDevice,
         server::{BackendServer, WebSocketTransport},
         shared::{
             Encode, PROTOCOL_VERSION, RemoteMessage, SessionId, SessionInit, SessionRefusal, Task,
@@ -88,11 +88,16 @@ mod tests {
             message::MessageSink,
         },
     };
-    use burn_backend::{Scalar, TensorData, ops::FloatTensorOps};
+    use burn_backend::{
+        Scalar, TensorData, TensorPrimitive, get_or_init_device_settings,
+        ops::{FloatTensorOps, IntTensorOps, QTensorOps, TransactionPrimitive},
+        quantization::QuantValue,
+    };
     use burn_communication::{
         Address, CommunicationChannel, Message, ProtocolClient, websocket::WsClient,
     };
     use burn_flex::Flex;
+    use burn_router::BackendRouter;
     use bytes::Bytes;
     use std::str::FromStr;
 
@@ -254,6 +259,55 @@ mod tests {
         assert_eq!(values, vec![6.0, 12.0, 18.0]);
 
         rt.block_on(router.shutdown()).unwrap();
+    }
+
+    // burn-tensor's `Transaction` cannot register a quantized tensor, so this drives the router.
+    #[test]
+    fn a_transaction_reads_float_and_quantized_tensors_in_the_order_registered() {
+        type Router = BackendRouter<RemoteChannel>;
+
+        let rt = tokio::runtime::Builder::new_multi_thread()
+            .enable_io()
+            .build()
+            .unwrap();
+        let address = serve(&rt, BackendServer::<Flex>::new(vec![Default::default()]));
+        let device = RemoteDevice::websocket(&address, 0);
+
+        let scheme = get_or_init_device_settings::<Router>(&device)
+            .quantization
+            .scheme
+            .with_value(QuantValue::Q8S);
+        let quantized =
+            |scale| TensorData::quantized(vec![-127i8, -71, 0, 35], [4], scheme, &[scale], None);
+        let first_data = quantized(0.014_173_228);
+        let third_data = quantized(0.5);
+
+        let mut transaction = TransactionPrimitive::<Router>::default();
+        transaction.register_float(TensorPrimitive::QFloat(Router::q_from_data(
+            first_data.clone(),
+            &device,
+        )));
+        transaction.register_float(TensorPrimitive::Float(Router::float_from_data(
+            TensorData::from([1.0f32, 2.0]),
+            &device,
+        )));
+        transaction.register_float(TensorPrimitive::QFloat(Router::q_from_data(
+            third_data.clone(),
+            &device,
+        )));
+        transaction.register_int(Router::int_from_data(TensorData::from([3i64, 4]), &device));
+        let [first, second, third, fourth]: [TensorData; 4] = rt
+            .block_on(transaction.execute_async())
+            .unwrap()
+            .try_into()
+            .unwrap();
+
+        first.assert_eq(&first_data, true);
+        second.assert_eq(&TensorData::from([1.0f32, 2.0]), false);
+        third.assert_eq(&third_data, true);
+        fourth.assert_eq(&TensorData::from([3i64, 4]), false);
+
+        rt.shutdown_background();
     }
 
     /// Run `body` on a worker thread and report whether it finished within `timeout`.

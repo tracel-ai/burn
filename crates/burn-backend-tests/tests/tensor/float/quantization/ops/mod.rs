@@ -11,14 +11,12 @@ mod quantize;
 //   the pack factor (4 int8s per u32), which most of these test shapes violate, so the
 //   quantized tensors can't even be constructed (`q_from_data` panics with "Can't store in u32").
 //
-// - router and tch are excluded too. We dropped their `unimplemented!()` overrides for
-//   `q_gather`/`q_select`/`q_slice`/`q_expand` so they fall back to the default
-//   `dequantize -> float op -> quantize` path, but that does NOT make them functional: their
-//   other quantized methods are largely unimplemented. The quantization primitives themselves
-//   (`q_from_data`, `quantize`, `dequantize`, ...) are still `unimplemented!()`/`todo!()`, so the
-//   fallback simply moves the panic into `dequantize`. Running `extended` against either would
-//   fail. (They also don't enable the `quantization` feature, so they aren't selected here in the
-//   first place.)
+// - tch is excluded too. Its quantization primitives (`q_from_data`, `quantize`, `dequantize`,
+//   ...) are `unimplemented!()`, so running `extended` against it would fail. (It also
+//   doesn't enable the `quantization` feature, so it isn't selected here in the first place.)
+//
+// - remote runs it only when `flex` is enabled too, and then passes only against a server whose
+//   backend stores quantized values natively, for the cube reason above.
 //
 // - autodiff is excluded for a different reason: its `QTensorOps` impl delegates every method to
 //   the inner backend, so `Autodiff<Flex>` quantizes fine. It simply never reaches this module,
