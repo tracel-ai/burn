@@ -2,7 +2,7 @@ use alloc::vec::Vec;
 use burn_backend::{
     TensorData,
     backend::ExecutionError,
-    ops::{QTensorOps, TransactionOps, TransactionPrimitive, TransactionPrimitiveData},
+    ops::{TransactionOps, TransactionPrimitive, TransactionPrimitiveData},
 };
 use burn_ir::TensorIr;
 use burn_std::future::DynFut;
@@ -16,25 +16,24 @@ impl<R: RouterChannel> TransactionOps<Self> for BackendRouter<R> {
     ) -> impl Future<Output = Result<TransactionPrimitiveData, ExecutionError>> + Send {
         let floats = transaction.read_floats.len();
         let ints = transaction.read_ints.len();
-        let reads = TransactionReads::new(
-            transaction
-                .read_floats
-                .into_iter()
-                .chain(transaction.read_ints)
-                .chain(transaction.read_bools),
-        );
-        let qfloats = transaction.read_qfloats;
+        let reads = transaction.read_qfloats.is_empty().then(|| {
+            TransactionReads::new(
+                transaction
+                    .read_floats
+                    .into_iter()
+                    .chain(transaction.read_ints)
+                    .chain(transaction.read_bools),
+            )
+        });
 
         async move {
-            let mut read_qfloats = Vec::new();
-            for tensor in qfloats {
-                read_qfloats.push(Self::q_into_data(tensor).await?);
-            }
-
+            let reads = reads.ok_or_else(|| {
+                ExecutionError::generic("A router transaction cannot read quantized tensors yet")
+            })?;
             let mut data = reads.wait().await?.into_iter();
             Ok(TransactionPrimitiveData {
                 read_floats: data.by_ref().take(floats).collect(),
-                read_qfloats,
+                read_qfloats: Vec::new(),
                 read_ints: data.by_ref().take(ints).collect(),
                 read_bools: data.collect(),
             })
