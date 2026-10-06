@@ -410,6 +410,9 @@ pub fn try_quantized_data_len(scheme: &QuantScheme, shape: &Shape) -> Option<usi
     let value_bytes = storage_elements(scheme, shape)?.checked_mul(value_bytes_per_element)?;
 
     let num_params = if let Some(block) = scheme.block_size() {
+        if block.as_slice().len() > shape.num_dims() {
+            return None;
+        }
         let block_shape = block.to_dim_vec(shape.num_dims());
         let mut num_params = 1usize;
         for (&dim, block) in shape.iter().zip(block_shape) {

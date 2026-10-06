@@ -1151,6 +1151,12 @@ mod tests {
             Err(DataError::InvalidByteLength { .. })
         ));
 
+        let oversized_block_rank = QuantScheme::default().per_block([2, 4], crate::ScaleDtype::F32);
+        assert!(matches!(
+            TensorData::try_from_bytes_vec(vec![0; 12], [4], DType::QFloat(oversized_block_rank)),
+            Err(DataError::InvalidByteLength { .. })
+        ));
+
         let packed = QuantScheme::default();
         assert!(TensorData::try_from_bytes_vec(vec![0; 12], [2, 3], DType::QFloat(packed)).is_ok());
         for len in [11, 13] {
