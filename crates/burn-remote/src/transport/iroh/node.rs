@@ -2,7 +2,6 @@
 
 use std::{collections::HashMap, sync::Arc};
 
-use bytes::Bytes;
 #[cfg(feature = "client")]
 use iroh::endpoint::BindError;
 use iroh::{
@@ -16,7 +15,12 @@ use tokio::sync::OnceCell;
 
 #[cfg(feature = "client")]
 use super::relays::IrohRelays;
-use crate::{PeerAddr, PeerId, transport::OpenError};
+#[cfg(feature = "server")]
+use crate::transport::link::{FrameSource, MAX_UNAUTHORIZED_FRAME_SIZE};
+use crate::{
+    PeerAddr, PeerId,
+    transport::{OpenError, link::FrameSink},
+};
 
 /// The node the devices dialed from each application endpoint share, by its id. Weak, because Iroh
 /// keeps an endpoint's sockets bound until its last clone drops.
@@ -48,7 +52,6 @@ struct StreamHeader {
 /// Changing it, or [`BURN_REMOTE_ALPN`], drops an older client before it can be told that its
 /// protocol version differs.
 const STREAM_VERSION: u16 = 1;
-const MAX_FRAME_SIZE: usize = 1024 * 1024 * 1024;
 
 struct RemoteNodeInner {
     endpoint: Endpoint,
@@ -169,7 +172,7 @@ impl RemoteNode {
             kind,
         })
         .map_err(|err| OpenError::Failed(format!("cannot encode the Iroh stream header: {err}")))?;
-        send_frame(&mut send, header.into())
+        FrameSink::send(&mut send, header.into())
             .await
             .map_err(OpenError::Failed)?;
         Ok((send, recv))
@@ -188,7 +191,7 @@ impl RemoteNode {
                 return Err(format!("Failed to accept Iroh stream: {err}"));
             }
         };
-        let Some(frame) = recv_frame(&mut recv).await? else {
+        let Some(frame) = FrameSource::recv(&mut recv, MAX_UNAUTHORIZED_FRAME_SIZE).await? else {
             return Ok(None);
         };
         let header: StreamHeader = rmp_serde::from_slice(&frame)
@@ -238,40 +241,6 @@ impl RemoteNode {
             return Ok(connection.clone());
         }
     }
-}
-
-pub(crate) async fn send_frame(send: &mut SendStream, frame: Bytes) -> Result<(), String> {
-    if frame.len() > MAX_FRAME_SIZE {
-        return Err(format!(
-            "Burn Remote frame is too large: {} bytes (max {MAX_FRAME_SIZE})",
-            frame.len()
-        ));
-    }
-    let length = Bytes::copy_from_slice(&(frame.len() as u64).to_le_bytes());
-    // Chunks are handed to QUIC as they are; `write_all` would copy the frame into its buffer.
-    send.write_all_chunks(&mut [length, frame])
-        .await
-        .map_err(|err| format!("Failed to write Iroh frame: {err}"))
-}
-
-pub(crate) async fn recv_frame(recv: &mut RecvStream) -> Result<Option<Vec<u8>>, String> {
-    let mut length = [0u8; 8];
-    match recv.read_exact(&mut length).await {
-        Ok(_) => {}
-        Err(iroh::endpoint::ReadExactError::FinishedEarly(0)) => return Ok(None),
-        Err(err) => return Err(format!("Failed to read Iroh frame length: {err}")),
-    }
-    let length = u64::from_le_bytes(length) as usize;
-    if length > MAX_FRAME_SIZE {
-        return Err(format!(
-            "Peer sent an oversized Burn Remote frame: {length} bytes (max {MAX_FRAME_SIZE})"
-        ));
-    }
-    let mut bytes = vec![0; length];
-    recv.read_exact(&mut bytes)
-        .await
-        .map_err(|err| format!("Failed to read Iroh frame: {err}"))?;
-    Ok(Some(bytes))
 }
 
 impl From<&RemoteNode> for PeerId {

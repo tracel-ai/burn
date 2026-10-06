@@ -12,10 +12,10 @@ use crate::{PeerAddr, PeerId};
 
 /// Current Burn Remote application-protocol version.
 ///
-/// Bumped whenever [`Task`] or [`TaskResponseContent`] changes shape, so a
-/// mismatched peer is refused at the handshake rather than failing to decode
-/// a batch mid-session.
-pub const PROTOCOL_VERSION: u16 = 3;
+/// Bumped whenever [`Task`] or [`TaskResponseContent`] changes shape, or how
+/// the messages after the handshake are framed, so a mismatched peer is refused
+/// at the handshake rather than failing to decode a batch mid-session.
+pub const PROTOCOL_VERSION: u16 = 4;
 
 /// Routing id for a task whose result is fetched back.
 ///
@@ -169,7 +169,7 @@ pub enum SessionRefusal {
     /// version, which a client could find by trying each version anyway.
     ///
     /// The only refusal a client on another version receives, so its encoding never changes, nor
-    /// do the Iroh ALPN and stream header that carry it.
+    /// do the Iroh ALPN, the stream header and the whole frame that carry it.
     IncompatibleProtocol { server_version: u16 },
 }
 

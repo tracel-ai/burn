@@ -5,6 +5,8 @@
 //! the sink (a detached writer) while forwarding submitted task batches from the source to the
 //! session worker. This is the single implementation both transports (iroh, websocket) drive — the
 //! per-transport modules only build the [`FrameSource`]/[`FrameSink`] halves and the authorizer.
+//!
+//! The handshake is one whole frame each way; every message after it is chunked.
 
 use std::sync::Arc;
 
@@ -15,7 +17,10 @@ use crate::shared::{
     Encode, PROTOCOL_VERSION, RemoteMessage, SessionId, SessionInfo, SessionInit, SessionRefusal,
     Task, TaskResponse, TaskResponseContent,
 };
-use crate::transport::link::{FrameSink, FrameSource};
+use crate::transport::{
+    link::{FrameSink, FrameSource, MAX_UNAUTHORIZED_FRAME_SIZE},
+    message::{MessageLimit, MessageSink, MessageSource},
+};
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 
@@ -23,7 +28,7 @@ use tokio_util::sync::CancellationToken;
 ///
 /// `authorize` runs once, after the init handshake is parsed and before the session is bound.
 /// `server_peer_id` is echoed to the client in the handshake response (the server's own identity,
-/// or `None` for websocket).
+/// or `None` for websocket). `message_limit` applies once the client is admitted.
 ///
 /// Returns `Err` on a protocol violation, a refused session (after telling the client its
 /// category), or a failed read or write; the caller logs it. A clean client `Close`, a stream end
@@ -34,6 +39,7 @@ pub(crate) async fn drive_session<Src, Snk, S, A>(
     service: Arc<S>,
     server_peer_id: Option<PeerId>,
     shutdown: &CancellationToken,
+    message_limit: MessageLimit,
     authorize: A,
 ) -> Result<(), String>
 where
@@ -44,7 +50,7 @@ where
 {
     // The session stream opens with exactly one `Init` frame.
     let handshake = tokio::select! {
-        frame = source.recv() => frame?
+        frame = source.recv(MAX_UNAUTHORIZED_FRAME_SIZE) => frame?
             .ok_or_else(|| "Session stream closed before initialization".to_string())?,
         () = shutdown.cancelled() => return Ok(()),
     };
@@ -81,7 +87,9 @@ where
     let (writer_done, mut writer_result) = tokio::sync::oneshot::channel();
     spawn_detached(async move {
         let result = async {
+            // Whole, like a refusal: a client reads its reply before knowing which one it is.
             sink.send(info.into()).await?;
+            let mut sink = MessageSink::new(sink);
             while let Some(response) = responses.recv().await {
                 let bytes = response
                     .encode()
@@ -97,7 +105,11 @@ where
     // Either half ending triggers teardown: a failed write need not close the incoming half.
     // Save a completed writer result so we don't poll the oneshot receiver twice.
     let (read_result, completed_writer) = tokio::select! {
-        result = forward_tasks(source, &task_sender, init.session_id) => (result, None),
+        result = forward_tasks(
+            MessageSource::new(source, message_limit),
+            &task_sender,
+            init.session_id,
+        ) => (result, None),
         result = &mut writer_result => (Ok(()), Some(result)),
         () = shutdown.cancelled() => (Ok(()), None),
     };
@@ -167,12 +179,12 @@ async fn refuse(sink: &mut impl FrameSink, refusal: SessionRefusal) {
 /// Forward each submitted task batch to the session worker in arrival order, until the client
 /// closes the session or its stream ends.
 async fn forward_tasks(
-    mut source: impl FrameSource,
+    mut source: MessageSource<impl FrameSource>,
     task_sender: &mpsc::Sender<Task>,
     session_id: SessionId,
 ) -> Result<(), String> {
-    while let Some(frame) = source.recv().await? {
-        let messages: Vec<RemoteMessage> = rmp_serde::from_slice(&frame)
+    while let Some(batch) = source.recv().await? {
+        let messages: Vec<RemoteMessage> = rmp_serde::from_slice(&batch)
             .map_err(|err| format!("Invalid remote task batch: {err}"))?;
         for message in messages {
             match message {
@@ -248,7 +260,7 @@ mod tests {
     struct ScriptedSource(VecDeque<Result<Option<Bytes>, String>>);
 
     impl FrameSource for ScriptedSource {
-        async fn recv(&mut self) -> Result<Option<Bytes>, String> {
+        async fn recv(&mut self, _max_len: usize) -> Result<Option<Bytes>, String> {
             self.0.pop_front().unwrap_or(Ok(None))
         }
     }
@@ -257,7 +269,7 @@ mod tests {
     struct OpenSource(Option<Bytes>);
 
     impl FrameSource for OpenSource {
-        async fn recv(&mut self) -> Result<Option<Bytes>, String> {
+        async fn recv(&mut self, _max_len: usize) -> Result<Option<Bytes>, String> {
             match self.0.take() {
                 Some(frame) => Ok(Some(frame)),
                 None => std::future::pending().await,
@@ -353,6 +365,7 @@ mod tests {
             service.clone(),
             None,
             &CancellationToken::new(),
+            MessageLimit::default(),
             |_| Ok(()),
         )
         .await;
@@ -375,6 +388,7 @@ mod tests {
                 service.clone(),
                 None,
                 &CancellationToken::new(),
+                MessageLimit::default(),
                 |_| Ok(()),
             ),
         )
@@ -398,6 +412,7 @@ mod tests {
             service.clone(),
             None,
             &shutdown,
+            MessageLimit::default(),
             |_| Ok(()),
         );
         let stop_once_bound = async {
@@ -431,6 +446,7 @@ mod tests {
             service.clone(),
             None,
             &CancellationToken::new(),
+            MessageLimit::default(),
             |_| Ok(()),
         )
         .await;
@@ -453,6 +469,7 @@ mod tests {
             service.clone(),
             None,
             &CancellationToken::new(),
+            MessageLimit::default(),
             |_| Ok(()),
         )
         .await;
@@ -483,6 +500,7 @@ mod tests {
             service.clone(),
             None,
             &CancellationToken::new(),
+            MessageLimit::default(),
             |_| Err("peer 7 is not on the allowlist".to_string()),
         )
         .await;
@@ -507,6 +525,7 @@ mod tests {
             service.clone(),
             None,
             &CancellationToken::new(),
+            MessageLimit::default(),
             |_| panic!("an incompatible client reached the authorizer"),
         )
         .await;

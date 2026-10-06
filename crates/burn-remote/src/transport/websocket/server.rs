@@ -3,7 +3,6 @@
 use std::sync::Arc;
 
 use burn_communication::{
-    ProtocolServer,
     external_comm::{ExternalCommServer, ExternalCommService},
     websocket::{WebSocket, WsServer, WsServerChannel},
 };
@@ -14,6 +13,7 @@ use super::transfer::WebSocketTransfer;
 use crate::{
     Credential,
     server::{AuthorizationRequest, ClientId, ServeError, SessionSetup, pump::drive_session},
+    transport::link::MAX_FRAME_SIZE,
 };
 
 /// How a server accepts clients over WebSocket: the port it listens on, on every interface.
@@ -87,29 +87,43 @@ fn compute_server<B: BackendIr>(setup: SessionSetup<B>) -> WsServer {
     });
     let sessions = Arc::new(setup.manager(transfer));
     let authorizer = setup.authorizer;
+    let message_limit = setup.message_limit;
     let shutdown = setup.shutdown;
 
     // `serve_on` serves on the listener it is given; this port is never bound.
     WsServer::new(0)
-        .route("/session", move |channel: WsServerChannel| {
-            let sessions = sessions.clone();
-            let authorizer = authorizer.clone();
-            let shutdown = shutdown.clone();
-            async move {
-                let client = ClientId::WebSocket(channel.peer_addr());
-                let (sink, source) = channel.split();
-                let served = drive_session(source, sink, sessions, None, &shutdown, |init| {
-                    authorizer.authorize(AuthorizationRequest {
-                        client,
-                        device_index: init.device_index,
-                        credential: &Credential::from(init.authorization.as_slice()),
-                    })
-                })
-                .await;
-                if let Err(err) = served {
-                    log::warn!("Rejected or failed WebSocket remote session: {err}");
+        // Axum fixes a socket's limit for its life, so an `Init` meets its own limit once read.
+        .route_with_max_message_size(
+            "/session",
+            MAX_FRAME_SIZE,
+            move |channel: WsServerChannel| {
+                let sessions = sessions.clone();
+                let authorizer = authorizer.clone();
+                let shutdown = shutdown.clone();
+                async move {
+                    let client = ClientId::WebSocket(channel.peer_addr());
+                    let (sink, source) = channel.split();
+                    let served = drive_session(
+                        source,
+                        sink,
+                        sessions,
+                        None,
+                        &shutdown,
+                        message_limit,
+                        |init| {
+                            authorizer.authorize(AuthorizationRequest {
+                                client,
+                                device_index: init.device_index,
+                                credential: &Credential::from(init.authorization.as_slice()),
+                            })
+                        },
+                    )
+                    .await;
+                    if let Err(err) = served {
+                        log::warn!("Rejected or failed WebSocket remote session: {err}");
+                    }
                 }
-            }
-        })
+            },
+        )
         .route_external_comm(external)
 }

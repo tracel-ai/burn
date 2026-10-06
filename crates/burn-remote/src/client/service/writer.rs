@@ -3,6 +3,7 @@
 use crate::client::runtime::{Executor, SpawnHandle};
 use crate::client::service::SubmitChannel;
 use crate::shared::{Encode, RemoteMessage};
+use crate::transport::message::MessageSink;
 use tokio::sync::mpsc;
 
 /// Bound on task batches queued for the writer task on native targets.
@@ -27,8 +28,8 @@ type BatchSender = mpsc::UnboundedSender<Vec<RemoteMessage>>;
 /// frames reach the wire in FIFO order without ever parking the runner thread on serialization or
 /// the network. Serializing here (rather than on the runner thread) lets encoding one frame —
 /// which for `RegisterTensor` carries full tensor payloads — overlap with the runner registering
-/// the next op. That single-task FIFO drain is also what guarantees a frame is fully flushed
-/// before the next begins — the socket sink itself offers no such queue.
+/// the next op. That single-task FIFO drain is also what guarantees a message's frames are all
+/// sent before the next message begins; the socket sink itself offers no such queue.
 pub(crate) struct SubmitWriter {
     /// `Option` so [`shutdown`](Self::shutdown) can drop the sender to signal the task to
     /// finish once it has drained.
@@ -38,13 +39,15 @@ pub(crate) struct SubmitWriter {
 }
 
 impl SubmitWriter {
-    /// Spawn the writer task on `runtime`, taking ownership of the submit `channel`.
-    pub(crate) fn spawn(runtime: &Executor, mut channel: SubmitChannel) -> Self {
+    /// Spawn the writer task on `runtime`, taking ownership of the submit `channel` once the
+    /// handshake is done.
+    pub(crate) fn spawn(runtime: &Executor, channel: SubmitChannel) -> Self {
         #[cfg(not(target_family = "wasm"))]
         let (tx, mut rx) = mpsc::channel::<Vec<RemoteMessage>>(WRITE_QUEUE_CAP);
         #[cfg(target_family = "wasm")]
         let (tx, mut rx) = mpsc::unbounded_channel::<Vec<RemoteMessage>>();
 
+        let mut channel = MessageSink::new(channel);
         let handle = runtime.spawn(async move {
             while let Some(batch) = rx.recv().await {
                 let bytes: bytes::Bytes = match batch.encode() {

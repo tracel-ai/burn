@@ -12,13 +12,16 @@ use crate::{
     transport::{
         OpenError,
         link::{FrameSink, FrameSource},
+        message::MessageLimit,
     },
 };
 
 #[cfg(feature = "iroh")]
 use crate::transport::iroh::node::RemoteNode;
 #[cfg(feature = "websocket")]
-use burn_communication::{Address, ProtocolClient, websocket::WsClient};
+use crate::transport::link::MAX_FRAME_SIZE;
+#[cfg(feature = "websocket")]
+use burn_communication::{Address, websocket::WsClient};
 
 /// How long to wait before each new attempt while the peer is not reachable yet. A server started
 /// moments earlier has not opened its port, or published its address, which on n0's lookup takes
@@ -48,11 +51,13 @@ pub(crate) enum RemoteEndpoint {
         credential: Credential,
         /// The application endpoint dialed from, or `None` for an endpoint Burn binds.
         app_endpoint: Option<iroh::EndpointId>,
+        message_limit: MessageLimit,
     },
     #[cfg(feature = "websocket")]
     WebSocket {
         address: Address,
         credential: Credential,
+        message_limit: MessageLimit,
     },
 }
 
@@ -98,6 +103,16 @@ impl RemoteEndpoint {
         }
     }
 
+    /// The largest message the server may send this client.
+    pub(crate) fn message_limit(&self) -> MessageLimit {
+        match self {
+            #[cfg(feature = "iroh")]
+            Self::Iroh { message_limit, .. } => *message_limit,
+            #[cfg(feature = "websocket")]
+            Self::WebSocket { message_limit, .. } => *message_limit,
+        }
+    }
+
     /// The stable registry key for this endpoint, without dialing hints. An endpoint Burn binds
     /// is left out, so one server reached under two relay settings is one device; an
     /// application endpoint stays in, so a second identity never inherits the first one's session.
@@ -118,6 +133,7 @@ impl RemoteEndpoint {
             Self::WebSocket {
                 address,
                 credential,
+                ..
             } => EndpointKey::WebSocket {
                 address: address.clone(),
                 credential: credential.clone(),
@@ -178,7 +194,12 @@ impl RemoteEndpoint {
             Self::WebSocket { address, .. } => {
                 // One full-duplex socket per session, split into its submit (sink) and response
                 // (source) halves, matching the Iroh single-stream model.
-                let channel = WsClient::connect(address.clone(), "session").await?;
+                let channel = WsClient::connect_with_max_message_size(
+                    address.clone(),
+                    "session",
+                    MAX_FRAME_SIZE,
+                )
+                .await?;
                 let (sink, source) = channel.split();
                 Ok(SessionStreams {
                     submit: SubmitChannel::WebSocket(Box::new(sink)),
@@ -213,8 +234,8 @@ pub(crate) enum SubmitChannel {
     WebSocket(Box<burn_communication::websocket::WsClientSink>),
 }
 
-impl SubmitChannel {
-    pub(crate) async fn send(&mut self, bytes: bytes::Bytes) -> Result<(), String> {
+impl FrameSink for SubmitChannel {
+    async fn send(&mut self, bytes: bytes::Bytes) -> Result<(), String> {
         match self {
             #[cfg(feature = "iroh")]
             Self::Iroh(stream) => FrameSink::send(stream, bytes).await,
@@ -223,7 +244,7 @@ impl SubmitChannel {
         }
     }
 
-    pub(crate) async fn close(&mut self) -> Result<(), String> {
+    async fn close(&mut self) -> Result<(), String> {
         match self {
             #[cfg(feature = "iroh")]
             Self::Iroh(stream) => FrameSink::close(stream).await,
@@ -241,13 +262,22 @@ pub(crate) enum ResponseChannel {
     WebSocket(Box<burn_communication::websocket::WsClientStream>),
 }
 
-impl ResponseChannel {
-    pub(crate) async fn recv(&mut self) -> Result<Option<bytes::Bytes>, String> {
+impl FrameSource for ResponseChannel {
+    async fn recv(&mut self, max_len: usize) -> Result<Option<bytes::Bytes>, String> {
         match self {
             #[cfg(feature = "iroh")]
-            Self::Iroh(stream) => FrameSource::recv(stream).await,
+            Self::Iroh(stream) => FrameSource::recv(stream, max_len).await,
             #[cfg(feature = "websocket")]
-            Self::WebSocket(stream) => FrameSource::recv(stream.as_mut()).await,
+            Self::WebSocket(stream) => FrameSource::recv(stream.as_mut(), max_len).await,
+        }
+    }
+
+    async fn recv_into(&mut self, buf: &mut [u8]) -> Result<usize, String> {
+        match self {
+            #[cfg(feature = "iroh")]
+            Self::Iroh(stream) => FrameSource::recv_into(stream, buf).await,
+            #[cfg(feature = "websocket")]
+            Self::WebSocket(stream) => FrameSource::recv_into(stream.as_mut(), buf).await,
         }
     }
 }

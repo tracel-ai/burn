@@ -12,10 +12,13 @@ use tokio_util::sync::CancellationToken;
 use super::{
     AllowAll, PeerAuthorizer, ServeError, session::SessionManager, transfer::TensorTransfer,
 };
-use crate::telemetry::{CHANNEL_CAPACITY, TelemetryProbe};
+use crate::{
+    telemetry::{CHANNEL_CAPACITY, TelemetryProbe},
+    transport::message::MessageLimit,
+};
 
-/// What a server applies to every session, whatever its transport: its authorizer, its telemetry
-/// and its custom operations.
+/// What a server applies to every session, whatever its transport: its authorizer, its telemetry,
+/// its custom operations and the largest message it reads.
 ///
 /// Custom operations are kept per backend and checked against the devices' backend when the
 /// server starts, so a server that learns its backend from its devices can hold them.
@@ -25,6 +28,7 @@ pub struct ServerSettings {
     authorizer: Arc<dyn PeerAuthorizer>,
     telemetry: Option<TelemetryProbe>,
     custom_ops: HashMap<TypeId, BackendOps>,
+    message_limit: MessageLimit,
 }
 
 /// One backend's custom operations: a `CustomOpRegistry` of the backend it names.
@@ -40,6 +44,7 @@ impl Default for ServerSettings {
             authorizer: Arc::new(AllowAll),
             telemetry: None,
             custom_ops: HashMap::new(),
+            message_limit: MessageLimit::default(),
         }
     }
 }
@@ -72,6 +77,11 @@ impl ServerSettings {
                 registry: Arc::new(registry),
             },
         );
+        self
+    }
+
+    pub fn with_max_message_size(mut self, bytes: usize) -> Self {
+        self.message_limit = MessageLimit::new(bytes);
         self
     }
 
@@ -116,6 +126,7 @@ impl ServerSettings {
                 }
             }),
             authorizer: self.authorizer.clone(),
+            message_limit: self.message_limit,
             shutdown,
         })
     }
@@ -127,6 +138,8 @@ pub(crate) struct SessionSetup<B: BackendIr> {
     custom_ops: CustomOpRegistry<B>,
     telemetry: TelemetryProbe,
     pub(crate) authorizer: Arc<dyn PeerAuthorizer>,
+    /// The largest message a client, or a server a tensor is downloaded from, may send.
+    pub(crate) message_limit: MessageLimit,
     /// Cancelled when the server stops, which ends its live sessions.
     pub(crate) shutdown: CancellationToken,
 }

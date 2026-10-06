@@ -84,6 +84,14 @@ impl RemoteServer {
         self
     }
 
+    /// End a session whose client sends a message over `bytes`, such as a larger tensor upload,
+    /// and refuse a tensor over it downloaded from another server. Unlimited unless set: until the
+    /// authorizer admits a client, the server reads one frame from it, refused past 64 KiB.
+    pub fn with_max_message_size(mut self, bytes: usize) -> Self {
+        self.settings = self.settings.with_max_message_size(bytes);
+        self
+    }
+
     /// Serve on `transport`, blocking the calling thread until the process receives Ctrl+C or
     /// `SIGTERM`. Returning cancels every session; Iroh connections are closed before it returns.
     ///

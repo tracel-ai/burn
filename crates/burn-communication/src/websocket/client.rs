@@ -21,12 +21,28 @@ impl ProtocolClient for WsClient {
     type Error = WsClientError;
 
     fn connect(address: Address, route: &str) -> DynFut<Result<WsClientChannel, WsClientError>> {
-        Box::pin(connect_ws(address, route.to_owned()))
+        Box::pin(connect_ws(address, route.to_owned(), MAX_MESSAGE_SIZE))
+    }
+}
+
+impl WsClient {
+    /// Open a channel like [`connect`](ProtocolClient::connect) that refuses a message over
+    /// `max_message_size` bytes before reading it.
+    pub async fn connect_with_max_message_size(
+        address: Address,
+        route: &str,
+        max_message_size: usize,
+    ) -> Result<WsClientChannel, WsClientError> {
+        connect_ws(address, route.to_owned(), max_message_size).await
     }
 }
 
 /// Open a new WebSocket connection to the address.
-async fn connect_ws(address: Address, route: String) -> Result<WsClientChannel, WsClientError> {
+async fn connect_ws(
+    address: Address,
+    route: String,
+    max_message_size: usize,
+) -> Result<WsClientChannel, WsClientError> {
     let address = parse_ws_address(address).map_err(WsClientError::Address)?;
     let url = format!("{address}/{route}");
     let (stream, _) = connect_async_with_config(
@@ -34,8 +50,8 @@ async fn connect_ws(address: Address, route: String) -> Result<WsClientChannel, 
         Some(
             WebSocketConfig::default()
                 .write_buffer_size(0)
-                .max_message_size(Some(MAX_MESSAGE_SIZE))
-                .max_frame_size(Some(MAX_MESSAGE_SIZE))
+                .max_message_size(Some(max_message_size))
+                .max_frame_size(Some(max_message_size))
                 .accept_unmasked_frames(true)
                 .read_buffer_size(64 * 1024), // 64 KiB (previous default)
         ),

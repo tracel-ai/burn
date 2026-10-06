@@ -9,11 +9,17 @@ use burn_remote::{
     },
 };
 use burn_tensor::{
-    Bool, Device, DeviceType, Distribution, Int, Tensor, Transaction, remote::RemoteHost,
-    server::RemoteServer,
+    Bool, Device, DeviceType, Distribution, Int, Tensor, TensorData, Transaction,
+    remote::RemoteHost, server::RemoteServer,
 };
 
 const TOKEN: &str = "fleet-token";
+
+/// A 4 MiB tensor, which a session carries in several frames.
+const MANY_FRAMES_LONG: usize = 1024 * 1024;
+
+/// Below [`MANY_FRAMES_LONG`]'s 4 MiB, above anything else these tests send.
+const MESSAGE_LIMIT: usize = 256 * 1024;
 
 /// Far beyond what a bounded step here takes when it works, so only a hang reaches it.
 const HANG_LIMIT: std::time::Duration = std::time::Duration::from_secs(10);
@@ -663,5 +669,64 @@ fn test_to_device_local_to_remote() {
     let numbers: Vec<f32> = back.into_data().try_into_vec().unwrap();
     assert_eq!(numbers, vec![2.0, 4.0, 6.0, 8.0, 10.0, 12.0]);
 
+    rt.shutdown_background();
+}
+
+#[test]
+fn a_tensor_many_frames_long_is_uploaded_and_read_back() {
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .enable_io()
+        .build()
+        .unwrap();
+    let host = serve(&rt, BackendServer::<Flex>::new(vec![Default::default()]));
+    let device = Device::remote_options(&host).init().unwrap();
+    let values: Vec<f32> = (0..MANY_FRAMES_LONG).map(|i| i as f32).collect();
+
+    let tensor = Tensor::<1>::from_data(TensorData::new(values.clone(), [values.len()]), &device);
+    let doubled = (tensor * 2.0).try_into_vec_as::<f32>().unwrap();
+
+    let expected: Vec<f32> = values.iter().map(|value| value * 2.0).collect();
+    assert_eq!(doubled, expected);
+    rt.shutdown_background();
+}
+
+#[test]
+fn an_upload_over_the_servers_message_limit_ends_its_session() {
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .enable_io()
+        .build()
+        .unwrap();
+    let host = serve(
+        &rt,
+        BackendServer::<Flex>::new(vec![Default::default()]).with_max_message_size(MESSAGE_LIMIT),
+    );
+    let device = Device::remote_options(&host).init().unwrap();
+    let doubled = Tensor::<1>::from_floats([1.0, 2.0], &device) * 2.0;
+    assert_eq!(doubled.try_into_vec_as::<f32>().unwrap(), vec![2.0, 4.0]);
+
+    with_deadlock_watchdog(HANG_LIMIT, move || {
+        let data = TensorData::new(vec![0f32; MANY_FRAMES_LONG], [MANY_FRAMES_LONG]);
+        let read = Tensor::<1>::from_data(data, &device).try_into_data();
+        assert!(read.is_err(), "a session outlived its oversized upload");
+    });
+    rt.shutdown_background();
+}
+
+#[test]
+fn a_read_over_the_clients_message_limit_ends_its_session() {
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .enable_io()
+        .build()
+        .unwrap();
+    let host = serve(&rt, BackendServer::<Flex>::new(vec![Default::default()]))
+        .with_max_message_size(MESSAGE_LIMIT);
+    let device = Device::remote_options(&host).init().unwrap();
+    let doubled = Tensor::<1>::from_floats([1.0, 2.0], &device) * 2.0;
+    assert_eq!(doubled.try_into_vec_as::<f32>().unwrap(), vec![2.0, 4.0]);
+
+    with_deadlock_watchdog(HANG_LIMIT, move || {
+        let read = Tensor::<1>::ones([MANY_FRAMES_LONG], &device).try_into_data();
+        assert!(read.is_err(), "a session outlived its oversized read");
+    });
     rt.shutdown_background();
 }

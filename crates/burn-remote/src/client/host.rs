@@ -6,11 +6,11 @@ use burn_router::get_client;
 
 use super::service::RemoteEndpoint;
 use super::{ConnectError, RemoteChannel, RemoteDevice, service};
-use crate::Credential;
 #[cfg(not(target_family = "wasm"))]
 use crate::runtime;
 #[cfg(feature = "iroh")]
 use crate::transport::iroh::IrohHost;
+use crate::{Credential, transport::message::MessageLimit};
 #[cfg(feature = "websocket")]
 use burn_communication::Address;
 
@@ -20,6 +20,7 @@ use burn_communication::Address;
 pub struct HostSpec {
     target: Target,
     credential: Credential,
+    message_limit: MessageLimit,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -36,6 +37,7 @@ impl HostSpec {
         Self {
             target: Target::WebSocket(Address::from(url)),
             credential: Credential::default(),
+            message_limit: MessageLimit::default(),
         }
     }
 
@@ -44,11 +46,17 @@ impl HostSpec {
         Self {
             target: Target::Iroh(host.into()),
             credential: Credential::default(),
+            message_limit: MessageLimit::default(),
         }
     }
 
     pub fn with_credential(mut self, credential: impl Into<Credential>) -> Self {
         self.credential = credential.into();
+        self
+    }
+
+    pub fn with_max_message_size(mut self, bytes: usize) -> Self {
+        self.message_limit = MessageLimit::new(bytes);
         self
     }
 
@@ -110,6 +118,7 @@ impl HostSpec {
             Target::WebSocket(address) => Ok(RemoteEndpoint::WebSocket {
                 address: address.clone(),
                 credential: self.credential.clone(),
+                message_limit: self.message_limit,
             }),
             #[cfg(feature = "iroh")]
             Target::Iroh(host) => {
@@ -119,6 +128,7 @@ impl HostSpec {
                     peer: host.dial_addr(),
                     credential: self.credential.clone(),
                     app_endpoint: host.app_endpoint(),
+                    message_limit: self.message_limit,
                 })
             }
         }

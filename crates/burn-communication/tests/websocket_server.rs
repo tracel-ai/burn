@@ -10,8 +10,8 @@
 
 use std::time::Duration;
 
-use burn_communication::websocket::{WsServer, WsServerChannel};
-use burn_communication::{CommunicationChannel, Message, ProtocolServer};
+use burn_communication::websocket::{WsClient, WsServer, WsServerChannel};
+use burn_communication::{Address, CommunicationChannel, Message, ProtocolServer};
 use futures_util::{SinkExt, StreamExt};
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::{mpsc, oneshot};
@@ -390,6 +390,73 @@ async fn a_message_over_sixty_four_mib_reaches_the_server() {
         .await
         .expect("the server never reported its read");
     assert_eq!(read, Some(Ok(Some(MESSAGE_LEN))));
+
+    server.shutdown().await;
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn a_route_refuses_a_message_over_its_limit() {
+    const LIMIT: usize = 1024;
+
+    let (report_tx, mut report_rx) = mpsc::unbounded_channel::<Recv>();
+    let server = TestServer::start(move |s| {
+        s.route_with_max_message_size(
+            "/limited",
+            LIMIT,
+            move |mut channel: WsServerChannel| async move {
+                loop {
+                    let received = classify(channel.recv().await);
+                    let _ = report_tx.send(received);
+                    if received != Recv::Message {
+                        return;
+                    }
+                }
+            },
+        )
+    })
+    .await;
+
+    let mut ws = connect(&server.url("limited")).await;
+    send_binary(&mut ws, &[0; LIMIT]).await;
+    send_binary(&mut ws, &[0; LIMIT + 1]).await;
+
+    let mut next_report = async || {
+        timeout(TIMEOUT, report_rx.recv())
+            .await
+            .expect("the handler never reported its read")
+            .expect("report channel closed")
+    };
+    assert_eq!(next_report().await, Recv::Message);
+    assert_eq!(next_report().await, Recv::Error);
+
+    server.shutdown().await;
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn a_client_refuses_a_message_over_its_limit() {
+    const LIMIT: usize = 1024;
+
+    let server = TestServer::start(|s| s.route("/echo", echo)).await;
+    let address = Address::from(format!("ws://127.0.0.1:{}", server.port).as_str());
+    let mut channel = timeout(
+        TIMEOUT,
+        WsClient::connect_with_max_message_size(address, "echo", LIMIT),
+    )
+    .await
+    .expect("connect timed out")
+    .expect("connect failed");
+
+    let mut echo_of = async |len: usize| {
+        channel
+            .send(Message::new(vec![0; len].into()))
+            .await
+            .expect("send failed");
+        timeout(TIMEOUT, channel.recv())
+            .await
+            .expect("recv timed out")
+    };
+    assert_eq!(classify(echo_of(LIMIT).await), Recv::Message);
+    assert_eq!(classify(echo_of(LIMIT + 1).await), Recv::Error);
 
     server.shutdown().await;
 }

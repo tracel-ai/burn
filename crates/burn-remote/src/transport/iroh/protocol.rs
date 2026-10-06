@@ -4,8 +4,7 @@ use std::{fmt, sync::Arc};
 
 use burn_ir::BackendIr;
 use iroh::{
-    EndpointId,
-    endpoint::{Connection, RecvStream, SendStream},
+    endpoint::Connection,
     protocol::{AcceptError, DynProtocolHandler, ProtocolHandler},
 };
 use tokio_util::sync::CancellationToken;
@@ -16,6 +15,7 @@ use crate::{
         AuthorizationRequest, ClientId, PeerAuthorizer, SessionSetup, pump::drive_session,
         session::SessionManager, spawn::spawn_detached,
     },
+    transport::message::MessageLimit,
 };
 
 use super::{
@@ -29,6 +29,7 @@ pub(crate) struct IrohRemoteProtocol<B: BackendIr> {
     sessions: Arc<SessionManager<B, IrohTransfer<B>>>,
     transfer: Arc<IrohTransfer<B>>,
     authorizer: Arc<dyn PeerAuthorizer>,
+    message_limit: MessageLimit,
     shutdown: CancellationToken,
 }
 
@@ -50,40 +51,15 @@ impl<B: BackendIr> fmt::Debug for IrohRemoteProtocol<B> {
 
 impl<B: BackendIr> IrohRemoteProtocol<B> {
     pub(crate) fn new(node: RemoteNode, setup: SessionSetup<B>) -> Self {
-        let transfer = Arc::new(IrohTransfer::new(node.clone()));
+        let transfer = Arc::new(IrohTransfer::new(node.clone(), setup.message_limit));
         Self {
             sessions: Arc::new(setup.manager(transfer.clone())),
             node,
             transfer,
             authorizer: setup.authorizer,
+            message_limit: setup.message_limit,
             shutdown: setup.shutdown,
         }
-    }
-
-    async fn handle_session(
-        sessions: Arc<SessionManager<B, IrohTransfer<B>>>,
-        authorizer: Arc<dyn PeerAuthorizer>,
-        shutdown: CancellationToken,
-        server_id: EndpointId,
-        client_id: EndpointId,
-        send: SendStream,
-        recv: RecvStream,
-    ) -> Result<(), String> {
-        drive_session(
-            recv,
-            send,
-            sessions,
-            Some(PeerId::Iroh(server_id)),
-            &shutdown,
-            |init| {
-                authorizer.authorize(AuthorizationRequest {
-                    client: ClientId::Iroh(client_id),
-                    device_index: init.device_index,
-                    credential: &Credential::from(init.authorization.as_slice()),
-                })
-            },
-        )
-        .await
     }
 }
 
@@ -125,14 +101,27 @@ impl<B: BackendIr> ProtocolHandler for IrohRemoteProtocol<B> {
                 StreamKind::Session => {
                     let sessions = self.sessions.clone();
                     let authorizer = self.authorizer.clone();
+                    let message_limit = self.message_limit;
                     let shutdown = self.shutdown.clone();
                     let server_id = self.node.id();
                     spawn_detached(async move {
-                        if let Err(err) = Self::handle_session(
-                            sessions, authorizer, shutdown, server_id, client_id, send, recv,
+                        let served = drive_session(
+                            recv,
+                            send,
+                            sessions,
+                            Some(PeerId::Iroh(server_id)),
+                            &shutdown,
+                            message_limit,
+                            |init| {
+                                authorizer.authorize(AuthorizationRequest {
+                                    client: ClientId::Iroh(client_id),
+                                    device_index: init.device_index,
+                                    credential: &Credential::from(init.authorization.as_slice()),
+                                })
+                            },
                         )
-                        .await
-                        {
+                        .await;
+                        if let Err(err) = served {
                             log::warn!("Rejected or failed Iroh remote session: {err}");
                         }
                     });

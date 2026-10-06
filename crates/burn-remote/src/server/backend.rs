@@ -86,6 +86,14 @@ impl<B: BackendIr> BackendServer<B> {
         self
     }
 
+    /// End a session whose client sends a message over `bytes`, such as a larger tensor upload,
+    /// and refuse a tensor over it downloaded from another server. Unlimited unless set: until the
+    /// authorizer admits a client, the server reads one frame from it, refused past 64 KiB.
+    pub fn with_max_message_size(mut self, bytes: usize) -> Self {
+        self.settings = self.settings.with_max_message_size(bytes);
+        self
+    }
+
     /// Serve on `transport` until Ctrl+C or `SIGTERM`, blocking the calling thread from any
     /// context. Installs [`ServerLogging`] first, and the signal handlers only once the transport
     /// has bound.

@@ -247,6 +247,7 @@ impl RemoteDevice {
             RemoteEndpoint::WebSocket {
                 address: burn_communication::Address::from(address),
                 credential: crate::Credential::default(),
+                message_limit: Default::default(),
             },
             device_index,
         )
@@ -266,6 +267,7 @@ impl RemoteDevice {
                 peer,
                 credential: crate::Credential::default(),
                 app_endpoint: Some(endpoint.id()),
+                message_limit: Default::default(),
             },
             device_index,
         )

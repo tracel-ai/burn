@@ -48,6 +48,12 @@ impl RemoteHost {
         Self(self.0.with_credential(credential))
     }
 
+    /// End a session whose server sends a message over `bytes`, such as the read of a larger
+    /// tensor. Unlimited unless set.
+    pub fn with_max_message_size(self, bytes: usize) -> Self {
+        Self(self.0.with_max_message_size(bytes))
+    }
+
     /// Every device the server hosts. Device 0 connects, which reports the count; the others
     /// connect on first use, as a local backend's listed devices initialize on first use.
     /// `Device::enumerate(DeviceType::Remote(host))` lists the same devices, and panics where this

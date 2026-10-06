@@ -4,6 +4,10 @@ use crate::shared::{
     SessionInit, Task, TaskResponse, TaskResponseContent, TensorRemote, TransferCapability,
 };
 use crate::telemetry::{CHANNEL_CAPACITY, TelemetryEvent, TelemetryProbe, serialized_len};
+use crate::transport::{
+    link::{FrameSink, FrameSource, MAX_FRAME_SIZE, MAX_UNAUTHORIZED_FRAME_SIZE},
+    message::{MessageLimit, MessageSource},
+};
 use burn_backend::{
     DTypeUsageSet, ExecutionError, ProfileDuration, ProfileOptions, ProfileTicks, ProfileToken,
     TensorData,
@@ -184,7 +188,8 @@ impl RemoteService {
 
     /// Send the session-init handshake on both streams and wait for the server's answer, checked
     /// to speak this client's protocol version. Both streams carry the same `Vec<RemoteMessage>`
-    /// wire format; the handshake is just a single-element batch.
+    /// wire format; the handshake is just a single-element batch, in one whole frame each way,
+    /// since a server on another version refuses that way.
     async fn handshake_async(
         streams: &mut SessionStreams,
         endpoint: &RemoteEndpoint,
@@ -200,11 +205,19 @@ impl RemoteService {
         .encode()
         .expect("Can serialize RemoteMessage::Init")
         .into();
+        if init_bytes.len() > MAX_UNAUTHORIZED_FRAME_SIZE {
+            return Err(failed(format!(
+                "the credential is too large: a server reads at most \
+                 {MAX_UNAUTHORIZED_FRAME_SIZE} bytes before admitting a client, and this \
+                 handshake takes {}",
+                init_bytes.len()
+            )));
+        }
 
         streams.submit.send(init_bytes).await.map_err(failed)?;
         let msg = streams
             .response
-            .recv()
+            .recv(MAX_FRAME_SIZE)
             .await
             .map_err(failed)?
             .ok_or_else(|| failed("the server closed the session before answering".into()))?;
@@ -250,9 +263,11 @@ impl RemoteService {
     /// response stream closes.
     fn spawn_response_demux(
         executor: &Executor,
-        mut response: ResponseChannel,
+        response: ResponseChannel,
+        message_limit: MessageLimit,
         responder: Responder,
     ) {
+        let mut response = MessageSource::new(response, message_limit);
         // Detached: the task owns the response stream and runs until it closes.
         let _demux = executor.spawn(async move {
             loop {
@@ -324,7 +339,12 @@ pub(crate) async fn wasm_connect(plan: WasmConnectPlan) -> Result<WasmConnected,
     )
     .await?;
 
-    RemoteService::spawn_response_demux(&executor, streams.response, plan.responder);
+    RemoteService::spawn_response_demux(
+        &executor,
+        streams.response,
+        plan.endpoint.message_limit(),
+        plan.responder,
+    );
     let writer = SubmitWriter::spawn(&executor, streams.submit);
 
     Ok(WasmConnected {
@@ -737,7 +757,12 @@ impl RemoteService {
             let _ = self.settings.set(info.settings);
             let _ = self.device_count.set(info.device_count);
 
-            Self::spawn_response_demux(&self.executor, streams.response, self.pending.responder());
+            Self::spawn_response_demux(
+                &self.executor,
+                streams.response,
+                self.endpoint.message_limit(),
+                self.pending.responder(),
+            );
             self.writer = Some(SubmitWriter::spawn(&self.executor, streams.submit));
             self.start_logger();
             Ok(())
