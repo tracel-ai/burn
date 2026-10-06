@@ -51,7 +51,7 @@ remote = ["std", "burn-dispatch/remote"]
 remote-server = ["remote", "burn-dispatch/remote-server"]
 # Add the WebSocket transport, for clients and servers.
 remote-websocket = ["remote", "burn-dispatch/remote-websocket"]
-capture = ["burn-dispatch/capture"]
+capture = ["burn-dispatch/capture", "dep:burn-capture"]
 
 # For backend extensions
 extension = []
@@ -73,6 +73,7 @@ burn-backend = { workspace = true }
 burn-dispatch = { workspace = true }
 burn-derive = { workspace = true }
 burn-einsum = { workspace = true }
+burn-capture = { workspace = true, optional = true }
 
 colored = { workspace = true, optional = true }
 derive-new = { workspace = true }

@@ -8,7 +8,7 @@ use burn_backend::{
 use burn_ir::{GraphBindings, GraphId, OperationIr, TensorId, TensorIr};
 use burn_std::future::DynFut;
 use core::{marker::PhantomData, ops::DerefMut};
-use hashbrown::HashMap;
+use hashbrown::{HashMap, HashSet};
 use spin::Mutex;
 
 /// Type alias for `<R as RouterChannel>::Client`.
@@ -140,6 +140,7 @@ pub trait RouterClient: Clone + Send + Sync + Sized {
 
 pub(crate) struct RouterClientLocator {
     clients: Mutex<Option<HashMap<Key, Box<dyn core::any::Any + Send>>>>,
+    scoped: Mutex<Option<HashSet<Key>>>,
 }
 
 /// Get the client currently associated with `device`.
@@ -204,6 +205,7 @@ impl RouterClientLocator {
     pub const fn new() -> Self {
         Self {
             clients: Mutex::new(None),
+            scoped: Mutex::new(None),
         }
     }
 
@@ -244,17 +246,24 @@ impl RouterClientLocator {
         client: Client<R>,
     ) -> Option<Key> {
         let key = (core::any::TypeId::of::<R>(), device.id());
-        let mut clients = self.clients.lock();
-        let clients = clients.get_or_insert_with(HashMap::new);
-        if clients.contains_key(&key) {
+        let mut scoped = self.scoped.lock();
+        let scoped_set = scoped.get_or_insert_with(HashSet::new);
+        if scoped_set.contains(&key) {
             return None;
         }
+        scoped_set.insert(key);
+        let mut clients = self.clients.lock();
+        let clients = clients.get_or_insert_with(HashMap::new);
         clients.insert(key, Box::new(client));
         Some(key)
     }
 
     /// Remove the client identified by a scoped registration guard.
     fn remove(&self, key: Key) {
+        let mut scoped = self.scoped.lock();
+        if let Some(scoped_set) = scoped.as_mut() {
+            scoped_set.remove(&key);
+        }
         let mut clients = self.clients.lock();
         if let Some(clients) = clients.as_mut() {
             clients.remove(&key);

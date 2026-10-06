@@ -24,7 +24,8 @@ use burn_std::{BoolDType, FloatDType, IntDType, TensorData};
 
 #[cfg(feature = "capture")]
 pub use burn_dispatch::backends::capture::{
-    CaptureError, CaptureScope, CapturedGraph, CompletedCaptureScope, TensorId,
+    CaptureError, CaptureScope, CaptureTensor, CapturedGraph, CompletedCaptureScope,
+    IntoCaptureOutputs, TensorId,
 };
 
 #[cfg(any(feature = "cpu", feature = "cuda", feature = "rocm", feature = "wgpu"))]

@@ -1,6 +1,6 @@
 //! Non-executing router channel used to capture Burn operation graphs.
 
-use alloc::{boxed::Box, collections::BTreeMap, format, string::String, sync::Arc, vec::Vec};
+use alloc::{boxed::Box, collections::BTreeMap, format, string::String, sync::Arc, vec, vec::Vec};
 use burn_backend::{
     BoolStore, DType, DTypeUsage, DTypeUsageSet, DeviceId, DeviceOps, DeviceSettings,
     ExecutionError, RouterDeviceType, Shape, TensorData,
@@ -15,7 +15,7 @@ use spin::Mutex;
 
 use burn_router::{
     Graph, MultiBackendBridge, RouterChannel, RouterClient, RouterClientRegistration, RouterTensor,
-    register_scoped_client,
+    get_client, register_scoped_client,
 };
 
 static DEVICE_COUNTER: AtomicU64 = AtomicU64::new(0);
@@ -48,18 +48,19 @@ impl CaptureDevice {
         &self,
         capture: impl FnOnce(CaptureScope) -> CompletedCaptureScope,
     ) -> Result<CapturedGraph, CaptureError> {
-        let session = Arc::new(CaptureSession::default());
-        let client = CaptureClient::new(*self, session.clone());
-        // Bind this reusable device to the new session client for exactly this scope. BackendRouter
-        // operations call `get_client`, which now finds this client instead of trying the channel's
-        // intentionally unsupported unscoped initialization path.
+        let client = get_client::<CaptureChannel>(self);
+        let session = client.session.clone();
         let registration = register_scoped_client::<CaptureChannel>(self, client.clone())
             .ok_or(CaptureError::AlreadyActive)?;
+        session.state.lock().active_scope = true;
         let guard = CaptureScopeGuard {
             client,
             _registration: registration,
         };
-        guard.complete(capture(CaptureScope { session }))
+        guard.complete(capture(CaptureScope {
+            session,
+            inputs: Vec::new(),
+        }))
     }
 }
 
@@ -124,9 +125,108 @@ pub struct CaptureScope {
     // The scope owns the authority to close its session. Keeping this private prevents callers
     // from manufacturing completion tokens detached from the active router registration.
     session: Arc<CaptureSession>,
+    inputs: Vec<TensorId>,
+}
+
+/// Trait for tensor representations whose unique graph identifier can be extracted.
+pub trait CaptureTensor {
+    /// Returns the unique identifier of the tensor within the capture session.
+    fn capture_id(&self) -> TensorId;
+}
+
+impl<T: CaptureTensor> CaptureTensor for &T {
+    fn capture_id(&self) -> TensorId {
+        (*self).capture_id()
+    }
+}
+
+impl<C: RouterClient> CaptureTensor for RouterTensor<C> {
+    fn capture_id(&self) -> TensorId {
+        self.id()
+    }
+}
+
+/// Trait to convert output tensor references into an ordered list of `TensorId`s.
+pub trait IntoCaptureOutputs {
+    /// Consumes the container and returns the sequence of output `TensorId`s.
+    fn into_capture_ids(self) -> Vec<TensorId>;
+}
+
+// Unit / empty output
+impl IntoCaptureOutputs for () {
+    fn into_capture_ids(self) -> Vec<TensorId> {
+        Vec::new()
+    }
+}
+
+// Slice of references: &[&y1, &y2] or &[&dyn CaptureTensor]
+impl<T: ?Sized + CaptureTensor> IntoCaptureOutputs for &[&T] {
+    fn into_capture_ids(self) -> Vec<TensorId> {
+        self.iter().map(|t| t.capture_id()).collect()
+    }
+}
+
+// Fixed-size array of references: [&y] or [&y1, &y2]
+impl<T: CaptureTensor, const N: usize> IntoCaptureOutputs for [&T; N] {
+    fn into_capture_ids(self) -> Vec<TensorId> {
+        self.iter().map(|t| t.capture_id()).collect()
+    }
+}
+
+// 2-Tuple of references: (&y1, &y2)
+impl<A: CaptureTensor, B: CaptureTensor> IntoCaptureOutputs for (&A, &B) {
+    fn into_capture_ids(self) -> Vec<TensorId> {
+        vec![self.0.capture_id(), self.1.capture_id()]
+    }
+}
+
+// 3-Tuple of references: (&y1, &y2, &y3)
+impl<A: CaptureTensor, B: CaptureTensor, C: CaptureTensor> IntoCaptureOutputs for (&A, &B, &C) {
+    fn into_capture_ids(self) -> Vec<TensorId> {
+        vec![
+            self.0.capture_id(),
+            self.1.capture_id(),
+            self.2.capture_id(),
+        ]
+    }
+}
+
+// 4-Tuple of references: (&y1, &y2, &y3, &y4)
+impl<A: CaptureTensor, B: CaptureTensor, C: CaptureTensor, D: CaptureTensor> IntoCaptureOutputs
+    for (&A, &B, &C, &D)
+{
+    fn into_capture_ids(self) -> Vec<TensorId> {
+        vec![
+            self.0.capture_id(),
+            self.1.capture_id(),
+            self.2.capture_id(),
+            self.3.capture_id(),
+        ]
+    }
 }
 
 impl CaptureScope {
+    /// Registers an external tensor as a runtime input to the captured graph and returns it.
+    ///
+    /// # Note
+    /// Runtime inputs must be instantiated outside the capture scope and transferred
+    /// to the capture device. Tensors initialized inside the scope are recorded as constants.
+    pub fn input<T: CaptureTensor>(&mut self, tensor: T) -> T {
+        let id = tensor.capture_id();
+        if !self.inputs.contains(&id) {
+            self.inputs.push(id);
+        }
+        tensor
+    }
+
+    /// Completes the capture scope using the inputs registered via [`CaptureScope::input`]
+    /// and the provided outputs.
+    pub fn complete_with<O: IntoCaptureOutputs>(mut self, outputs: O) -> CompletedCaptureScope {
+        let output_ids = outputs.into_capture_ids();
+        let inputs = core::mem::take(&mut self.inputs);
+        self.complete(inputs, output_ids)
+    }
+
     /// Complete the scope with ordered runtime input and graph output tensor IDs.
     ///
     /// Module parameters and other initialized constants should not be listed as runtime inputs;
@@ -339,9 +439,9 @@ impl RouterChannel for CaptureChannel {
         "capture".into()
     }
 
-    fn init_client(_device: &Self::Device) -> Self::Client {
-        // `get_client` reaches this only when no capture scope registered its client first.
-        panic!("capture tensor operations must run inside CaptureDevice::capture_scope")
+    fn init_client(device: &Self::Device) -> Self::Client {
+        let session = Arc::new(CaptureSession::default());
+        CaptureClient::new(*device, session)
     }
 
     fn get_tensor_handle(tensor: &TensorIr, client: &Self::Client) -> TensorData {
@@ -399,6 +499,7 @@ struct CaptureState {
     graphs: HashMap<GraphId, Graph>,
     aliases: HashMap<TensorId, TensorId>,
     closed: bool,
+    active_scope: bool,
 }
 
 impl Default for CaptureState {
@@ -409,6 +510,7 @@ impl Default for CaptureState {
             graphs: HashMap::new(),
             aliases: HashMap::new(),
             closed: false,
+            active_scope: false,
         }
     }
 }
@@ -444,6 +546,9 @@ impl CaptureState {
             return;
         }
         self.assert_open();
+        if !self.active_scope && !matches!(op, OperationIr::Init(_)) {
+            panic!("capture tensor operations must run inside CaptureDevice::capture_scope");
+        }
         op.visit_mut(&mut AliasVisitor {
             aliases: &self.aliases,
         });
@@ -697,6 +802,34 @@ mod tests {
     }
 
     #[test]
+    fn boundary_helpers_record_inputs_and_outputs() {
+        let device = CaptureDevice::default();
+        let captured = device
+            .capture_scope(|mut scope| {
+                let client = get_client::<CaptureChannel>(&device);
+                let x = client.register_tensor_data(TensorData::from([1.0f32, 2.0]));
+                let x = scope.input(x);
+                let x_id = x.id();
+
+                let output_id = client.create_empty_handle();
+                client.register_op(OperationIr::Custom(CustomOpIr::new(
+                    "custom_op",
+                    &[x.into_ir()],
+                    &[tensor(output_id.value(), [2])],
+                )));
+                let out = RouterTensor::new(output_id, Shape::new([2]), DType::F32, client);
+                let completed = scope.complete_with([&out]);
+                assert_eq!(completed.inputs, vec![x_id]);
+                assert_eq!(completed.outputs, vec![output_id]);
+                completed
+            })
+            .unwrap();
+
+        assert_eq!(captured.graph.inputs.len(), 1);
+        assert_eq!(captured.graph.outputs.len(), 1);
+    }
+
+    #[test]
     fn captures_operations_values_and_explicit_boundaries() {
         let device = CaptureDevice::default();
         let captured = device
@@ -851,7 +984,8 @@ mod tests {
     fn tensor_operations_require_an_active_scope() {
         let device = CaptureDevice::default();
         let panic = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            let _ = CaptureBackend::float_from_data(TensorData::from([1.0f32]), &device);
+            let tensor = CaptureBackend::float_from_data(TensorData::from([1.0f32]), &device);
+            let _ = CaptureBackend::float_neg(tensor);
         }));
 
         assert!(panic.is_err());
