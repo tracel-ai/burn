@@ -1,5 +1,6 @@
 use crate::{RouterChannel, RouterTensor};
-use alloc::{boxed::Box, vec, vec::Vec};
+use alloc::boxed::Box;
+use alloc::vec::Vec;
 use burn_backend::{
     DType, ProfileDuration, ProfileOptions, ProfileToken, TensorData,
     backend::{DeviceId, DeviceOps, ExecutionError},
@@ -37,18 +38,25 @@ pub trait RouterClient: Clone + Send + Sync + Sized {
 
         out
     }
+    /// Read the values contained by a tensor, issuing the read at the call.
+    fn read_tensor_async(&self, tensor: TensorIr) -> DynFut<Result<TensorData, ExecutionError>>;
     /// Read several tensors in the order given, issuing the read at the call.
+    ///
+    /// The default reads each one through [`read_tensor_async`](Self::read_tensor_async), so that
+    /// method must not be written in terms of this one.
     fn read_tensors_async(
         &self,
         tensors: Vec<TensorIr>,
-    ) -> DynFut<Result<Vec<TensorData>, ExecutionError>>;
-    /// Read the values contained by a tensor, issuing the read at the call.
-    fn read_tensor_async(&self, tensor: TensorIr) -> DynFut<Result<TensorData, ExecutionError>> {
-        let read = self.read_tensors_async(vec![tensor]);
+    ) -> DynFut<Result<Vec<TensorData>, ExecutionError>> {
+        let reads: Vec<_> = tensors
+            .into_iter()
+            .map(|tensor| self.read_tensor_async(tensor))
+            .collect();
         Box::pin(async move {
-            let [data] = <[TensorData; 1]>::try_from(read.await?).unwrap_or_else(|data| {
-                panic!("A read of one tensor answered {} values", data.len())
-            });
+            let mut data = Vec::with_capacity(reads.len());
+            for read in reads {
+                data.push(read.await?);
+            }
             Ok(data)
         })
     }

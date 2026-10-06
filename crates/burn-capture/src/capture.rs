@@ -487,22 +487,13 @@ impl RouterClient for CaptureClient {
         self.state().lock().register_op(op);
     }
 
-    fn read_tensors_async(
-        &self,
-        tensors: Vec<TensorIr>,
-    ) -> DynFut<Result<Vec<TensorData>, ExecutionError>> {
-        let state = self.state().lock();
-        let values = tensors
-            .iter()
-            .map(|tensor| {
-                state
-                    .value(tensor.id)
-                    .ok_or_else(|| ExecutionError::WithContext {
-                        reason: format!("captured tensor {} has no concrete value", tensor.id),
-                    })
+    fn read_tensor_async(&self, tensor: TensorIr) -> DynFut<Result<TensorData, ExecutionError>> {
+        let value = self.state().lock().value(tensor.id);
+        Box::pin(async move {
+            value.ok_or_else(|| ExecutionError::WithContext {
+                reason: format!("captured tensor {} has no concrete value", tensor.id),
             })
-            .collect();
-        Box::pin(async move { values })
+        })
     }
 
     fn sync(&self) -> Result<(), ExecutionError> {

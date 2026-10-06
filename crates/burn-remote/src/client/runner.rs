@@ -28,27 +28,24 @@ impl RouterClient for RemoteClient {
         self.handle.submit(move |s| s.register_op(stream_id, op));
     }
 
+    fn read_tensor_async(&self, tensor: TensorIr) -> DynFut<Result<TensorData, ExecutionError>> {
+        let read = self.read_tensors(vec![tensor]);
+        Box::pin(async move {
+            let [data] = <[TensorData; 1]>::try_from(read.await?).unwrap_or_else(|data| {
+                panic!(
+                    "The server answered a read of one tensor with {} values",
+                    data.len()
+                )
+            });
+            Ok(data)
+        })
+    }
+
     fn read_tensors_async(
         &self,
         tensors: Vec<TensorIr>,
     ) -> DynFut<Result<Vec<TensorData>, ExecutionError>> {
-        // Issue the request synchronously so ordering is preserved relative to subsequent
-        // submissions; the returned future just awaits the server's response.
-        let stream_id = StreamId::current();
-        let rx = self
-            .handle
-            .submit_blocking(move |s| s.read_tensors(stream_id, tensors))
-            .expect("Service call failed");
-
-        Box::pin(async move {
-            match rx.await {
-                Ok(TaskResponseContent::ReadTensors(res)) => res,
-                Ok(_) => panic!("Invalid response type for ReadTensors"),
-                Err(e) => Err(ExecutionError::generic(format!(
-                    "Failed to read tensors: {e:?}"
-                ))),
-            }
-        })
+        self.read_tensors(tensors)
     }
 
     fn register_tensor_data(&self, data: TensorData) -> RouterTensor<Self> {
@@ -154,6 +151,30 @@ impl RouterClient for RemoteClient {
 }
 
 impl RemoteClient {
+    /// Read several tensors in one request, issued at the call.
+    fn read_tensors(
+        &self,
+        tensors: Vec<TensorIr>,
+    ) -> DynFut<Result<Vec<TensorData>, ExecutionError>> {
+        // Issue the request synchronously so ordering is preserved relative to subsequent
+        // submissions; the returned future just awaits the server's response.
+        let stream_id = StreamId::current();
+        let rx = self
+            .handle
+            .submit_blocking(move |s| s.read_tensors(stream_id, tensors))
+            .expect("Service call failed");
+
+        Box::pin(async move {
+            match rx.await {
+                Ok(TaskResponseContent::ReadTensors(res)) => res,
+                Ok(_) => panic!("Invalid response type for ReadTensors"),
+                Err(e) => Err(ExecutionError::generic(format!(
+                    "Failed to read tensors: {e:?}"
+                ))),
+            }
+        })
+    }
+
     /// Rewrite the device ids carried by an op so the server can resolve them.
     ///
     /// This runs for every op, but only ops that carry device ids (currently the collective ops)
