@@ -1,4 +1,4 @@
-use alloc::{format, vec::Vec};
+use alloc::vec::Vec;
 use burn_backend::{
     TensorData,
     backend::ExecutionError,
@@ -86,13 +86,11 @@ impl TransactionReads {
             core::iter::repeat_with(|| None).take(len).collect();
         for device in self.0 {
             let values = device.read.await?;
-            if values.len() != device.positions.len() {
-                return Err(ExecutionError::generic(format!(
-                    "A device answered {} values for {} tensors",
-                    values.len(),
-                    device.positions.len()
-                )));
-            }
+            assert_eq!(
+                values.len(),
+                device.positions.len(),
+                "A device answered a different number of values than tensors read"
+            );
             for (position, value) in device.positions.into_iter().zip(values) {
                 data[position] = Some(value);
             }

@@ -31,12 +31,12 @@ impl RouterClient for RemoteClient {
     fn read_tensor_async(&self, tensor: TensorIr) -> DynFut<Result<TensorData, ExecutionError>> {
         let read = self.read_tensors_async(vec![tensor]);
         Box::pin(async move {
-            let [data] = <[TensorData; 1]>::try_from(read.await?).map_err(|data| {
-                ExecutionError::generic(format!(
+            let [data] = <[TensorData; 1]>::try_from(read.await?).unwrap_or_else(|data| {
+                panic!(
                     "The server answered a read of one tensor with {} values",
                     data.len()
-                ))
-            })?;
+                )
+            });
             Ok(data)
         })
     }
@@ -45,6 +45,8 @@ impl RouterClient for RemoteClient {
         &self,
         tensors: Vec<TensorIr>,
     ) -> DynFut<Result<Vec<TensorData>, ExecutionError>> {
+        // Issue the request synchronously so ordering is preserved relative to subsequent
+        // submissions; the returned future just awaits the server's response.
         let stream_id = StreamId::current();
         let rx = self
             .handle
@@ -54,9 +56,7 @@ impl RouterClient for RemoteClient {
         Box::pin(async move {
             match rx.await {
                 Ok(TaskResponseContent::ReadTensors(res)) => res,
-                Ok(_) => Err(ExecutionError::generic(
-                    "The server answered a read with another kind of reply",
-                )),
+                Ok(_) => panic!("Invalid response type for ReadTensors"),
                 Err(e) => Err(ExecutionError::generic(format!(
                     "Failed to read tensors: {e:?}"
                 ))),
