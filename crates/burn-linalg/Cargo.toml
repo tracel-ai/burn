@@ -16,7 +16,8 @@ workspace = true
 
 [features]
 default = ["burn-core/default", "fusion", "std"]
-std = ["burn-core/std", "burn-std/std", "burn-fusion?/std"]
+std = ["burn-core/std", "burn-std/std", "burn-fusion?/std", "gemm?/std"]
+autodiff = ["burn-core/autodiff"]
 tracing = ["burn-core/tracing", "burn-fusion?/tracing"]
 autotune = ["burn-core/autotune", "burn-cubecl?/autotune"]
 
@@ -30,7 +31,7 @@ vulkan = ["cubecl-backend", "burn-core/vulkan"]
 webgpu = ["cubecl-backend", "burn-core/webgpu"]
 metal = ["cubecl-backend", "burn-core/metal"]
 cpu = ["cubecl-backend", "burn-core/cpu"]
-flex = ["burn-core/flex"]
+flex = ["burn-core/flex", "dep:gemm"]
 ndarray = ["burn-core/ndarray"]
 tch = ["burn-core/tch"]
 remote = ["burn-core/remote", "router"]
@@ -44,6 +45,7 @@ burn-fusion = { workspace = true, optional = true, default-features = false }
 burn-router = { workspace = true, optional = true, default-features = false }
 burn-std = { workspace = true }
 num-traits = { workspace = true }
+gemm = { workspace = true, optional = true }
 
 [package.metadata.docs.rs]
 features = ["default", "flex"]

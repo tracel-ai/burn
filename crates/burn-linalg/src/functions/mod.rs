@@ -1,3 +1,4 @@
+mod cholesky;
 mod cosine_similarity;
 mod det;
 mod diag;
@@ -9,6 +10,7 @@ mod svd;
 mod trace;
 mod vector_norm;
 
+pub use cholesky::*;
 pub use cosine_similarity::*;
 pub use det::*;
 pub use diag::*;
