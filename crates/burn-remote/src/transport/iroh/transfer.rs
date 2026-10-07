@@ -23,14 +23,7 @@ enum TransferMessage {
     Denied(String),
 }
 
-impl Encode for TransferMessage {
-    fn data_len(&self) -> usize {
-        match self {
-            TransferMessage::Tensor(data) => data.bytes().len(),
-            _ => 0,
-        }
-    }
-}
+impl Encode for TransferMessage {}
 
 struct ExposedTensor {
     bytes: bytes::Bytes,

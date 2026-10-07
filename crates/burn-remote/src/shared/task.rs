@@ -105,22 +105,7 @@ pub enum RemoteMessage {
 }
 
 #[cfg(feature = "client")]
-impl RemoteMessage {
-    /// Size of the tensor data the message carries, in bytes (0 for metadata-only messages).
-    pub fn data_len(&self) -> usize {
-        match self {
-            RemoteMessage::Task(Task::RegisterTensor(_, _, data)) => data.bytes().len(),
-            _ => 0,
-        }
-    }
-}
-
-#[cfg(feature = "client")]
-impl super::Encode for Vec<RemoteMessage> {
-    fn data_len(&self) -> usize {
-        self.iter().map(RemoteMessage::data_len).sum()
-    }
-}
+impl super::Encode for Vec<RemoteMessage> {}
 
 /// Client-side session handshake.
 #[allow(missing_docs)]
@@ -295,16 +280,7 @@ pub struct TaskResponse {
 }
 
 #[cfg(feature = "server")]
-impl super::Encode for TaskResponse {
-    fn data_len(&self) -> usize {
-        match &self.content {
-            TaskResponseContent::ReadTensors(Ok(data)) => {
-                data.iter().map(|data| data.bytes().len()).sum()
-            }
-            _ => 0,
-        }
-    }
-}
+impl super::Encode for TaskResponse {}
 
 #[allow(missing_docs)]
 #[derive(Serialize, Deserialize, Debug)]
