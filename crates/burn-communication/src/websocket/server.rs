@@ -57,7 +57,13 @@ impl WsServer {
             Err(err) => log::info!("Server started (could not resolve bound address: {err})"),
         }
 
-        let listener = listener.tap_io(|tcp| tcp.set_dead_peer_timeout());
+        let listener = listener.tap_io(|tcp| {
+            tcp.set_dead_peer_timeout();
+            // Replies sent back to back would each wait for the client's delayed acknowledgement.
+            if let Err(err) = tcp.set_nodelay(true) {
+                log::warn!("Cannot disable Nagle's algorithm, so replies can stall: {err}");
+            }
+        });
 
         axum::serve(
             listener,

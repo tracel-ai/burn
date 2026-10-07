@@ -14,12 +14,12 @@ use crate::{PeerAddr, PeerId};
 ///
 /// Bumped whenever [`Task`] or [`TaskResponseContent`] changes shape, so a
 /// mismatched peer is refused at the handshake rather than failing to decode
-/// a batch mid-session. `2`: profiling windows.
-pub const PROTOCOL_VERSION: u16 = 2;
+/// a batch mid-session.
+pub const PROTOCOL_VERSION: u16 = 3;
 
 /// Routing id for a task whose result is fetched back.
 ///
-/// Only the result-producing tasks ([`Task::ReadTensor`], [`Task::SyncBackend`],
+/// Only the result-producing tasks ([`Task::ReadTensors`], [`Task::SyncBackend`],
 /// [`Task::DTypeUsage`], [`Task::ProfileStart`], [`Task::ProfileEnd`]) carry a `RequestId`;
 /// the server echoes it on its [`TaskResponse`] so
 /// the client demultiplexes results back to the right pending callback. Fire-and-forget tasks
@@ -267,7 +267,8 @@ pub enum Task {
         transfer_id: LocalTransferId,
         new_id: TensorId,
     },
-    ReadTensor(RequestId, StreamId, TensorIr),
+    /// Read several tensors as one backend transaction, answered in the same order.
+    ReadTensors(RequestId, StreamId, Vec<TensorIr>),
     SyncBackend(RequestId, StreamId),
     DTypeUsage(RequestId, DType),
     /// Open a profiling window on the server's backend where `stream_id` stands.
@@ -297,7 +298,9 @@ pub struct TaskResponse {
 impl super::WireMessage for TaskResponse {
     fn data_len(&self) -> usize {
         match &self.content {
-            TaskResponseContent::ReadTensor(Ok(data)) => data.bytes().len(),
+            TaskResponseContent::ReadTensors(Ok(data)) => {
+                data.iter().map(|data| data.bytes().len()).sum()
+            }
             _ => 0,
         }
     }
@@ -309,7 +312,7 @@ pub enum TaskResponseContent {
     /// Server responds with the selected device's settings plus the total number of devices
     /// it hosts (so the client can enumerate them, see [`RemoteDevice::enumerate`]).
     Init(SessionInfo),
-    ReadTensor(Result<TensorData, ExecutionError>),
+    ReadTensors(Result<Vec<TensorData>, ExecutionError>),
     SyncBackend(Result<(), ExecutionError>),
     DTypeUsage(DTypeUsageSet),
     /// `None` when the server's backend opens no windows.

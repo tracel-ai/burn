@@ -494,17 +494,13 @@ impl RemoteService {
         self.submit_task(Task::Seed(seed));
     }
 
-    /// Initiate a tensor read. The returned receiver resolves when the server response
-    /// arrives.
-    ///
-    /// The request id rides on the task itself; the server echoes it back so the
-    /// response-demux task can hand the response to the right pending callback.
-    pub fn read_tensor(
+    /// Read several tensors in one request.
+    pub fn read_tensors(
         &mut self,
         stream_id: StreamId,
-        tensor: TensorIr,
+        tensors: Vec<TensorIr>,
     ) -> Unconstrained<oneshot::Receiver<TaskResponseContent>> {
-        self.submit_request(|id| Task::ReadTensor(id, stream_id, tensor))
+        self.submit_request(|id| Task::ReadTensors(id, stream_id, tensors))
     }
 
     pub fn sync(&mut self, stream_id: StreamId) -> Result<(), ExecutionError> {
