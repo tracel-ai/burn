@@ -94,6 +94,36 @@ backends, not from available hardware. Enabling an additional backend through Ca
 unification can therefore change the default. This also affects implicit device selection by
 `Tensor::from(...)` and dataloaders without `set_device(...)`.
 
+## Module fields
+
+Without backend generics, the derive can no longer distinguish `Linear<B>` from configuration by the
+presence of `B`. Fields now default to modules, except recognized constants such as `usize`, `f32`,
+`bool` and `String`. Add `#[module(skip)]` to custom config/state fields that 0.21 automatically
+ignored:
+
+```rust,ignore
+use burn::{module::Module, nn::Linear};
+
+#[derive(Clone, Debug)]
+enum Pooling {
+    Mean,
+    Max,
+}
+
+#[derive(Module, Debug)]
+struct Model {
+    linear: Linear,
+    #[module(skip)]
+    pooling: Pooling,
+}
+```
+
+Missing `Module` / `ModuleDisplay` errors on config fields usually indicate a missing skip
+attribute. Skipped fields still need `Clone + Debug + Send`. Do not skip real submodules: their
+parameters would be excluded from training and checkpoints. See
+[field handling](./building-blocks/module.md#fields-and-generic-adapters) for generic adapters, skip
+semantics and detection limitations.
+
 ## Autodiff is runtime state
 
 Removing `B: AutodiffBackend` moves precondition checks to runtime. Enabling autodiff permits graph
@@ -228,9 +258,9 @@ when `input_forget` is true. This also applies to `BiLstm::forward.forget_gate` 
 replacement gates in `Some(gate)`.
 
 Set `input_forget` through `LstmConfig::with_input_forget(...)` or
-`BiLstmConfig::with_input_forget(...)` **before** calling `.init()`, matching the setting used during
-training. Initialization now determines whether the separate forget gate is created; changing the
-field afterward does not add or remove its parameters.
+`BiLstmConfig::with_input_forget(...)` **before** calling `.init()`, matching the setting used
+during training. Initialization now determines whether the separate forget gate is created; changing
+the field afterward does not add or remove its parameters.
 
 Older coupled checkpoints contain redundant forget-gate tensors. For a burnpack checkpoint, allow
 these unused tensors when loading, then save the module again to omit them:
@@ -327,10 +357,9 @@ Replace the deprecated `TensorData` vector methods and handle their errors:
 These methods return `Result<Vec<E>, DataError>` and require `E` to match the stored dtype. For
 conversion, use `try_to_vec_as::<E>()` or `try_into_vec_as::<E>()` on `TensorData` or `Tensor`.
 Update error matches for the revised `DataError` variants and `Tensor::try_into_scalar`'s
-`TensorReadError`.
-`ExecutionError` has a new `DevicePoisoned` variant for faults the device cannot recover from, such
-as an illegal memory access; add it to exhaustive matches. `ExecutionError::is_device_poisoned()`
-detects it.
+`TensorReadError`. `ExecutionError` has a new `DevicePoisoned` variant for faults the device cannot
+recover from, such as an illegal memory access; add it to exhaustive matches.
+`ExecutionError::is_device_poisoned()` detects it.
 
 `TensorData` fields are private, so its byte length always matches its shape and dtype (quantized
 data is not checked yet). Replace field access with the accessors:
@@ -403,8 +432,29 @@ them if your project only uses the built-in modules, optimizers, metrics, and st
 
 ### Modules
 
-For handwritten implementations, consult the `Module` trait documentation for the required methods;
-`#[derive(Module)]` generates them automatically.
+#### Manual module implementations
+
+For handwritten adapters and containers, keep `Clone + Debug + Send` and update these APIs:
+
+| 0.21                                                                                        | 0.22                                                                |
+| ------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| `Module<B>`, `Devices<B>`, `&B::Device`                                                     | `Module`, `Devices`, `&Device`                                      |
+| `ModuleVisitor<B>`, `ModuleMapper<B>`, `Tensor<B, D>`                                       | `ModuleVisitor`, `ModuleMapper`, `Tensor<D>`                        |
+| Separate `AutodiffModule` / `HasAutodiffModule` implementations and associated module types | `Module::valid(&self) -> Self` and `train(self) -> Self`            |
+| `from_inner(module)`                                                                        | `module.train()`                                                    |
+| Associated `Record` and required record methods                                             | Provided `into_record` / `load_record` methods using `ModuleRecord` |
+
+Delegate `collect_devices`, `to_device`, `fork`, `visit`, `map`, `valid`, `train` and `materialize`
+to every participating child, including recursive descendants. Keep `fork` distinct from
+`to_device`, and delegate state transitions to preserve child behavior. `materialize` folds
+reparameterizations into effective parameter values; ordinary lazy parameters remain lazy.
+
+In both `visit` and `map`, surround child traversal with matching `enter_module` / `exit_module`
+calls using stable field names or indices. These paths support checkpoints and parameter groups;
+include all parameter kinds, including `Param<Flag>` training controls.
+
+To nest your type inside a derived module, also implement `ModuleDisplayDefault` and
+`ModuleDisplay`. Your `forward` trait or method remains independent of `Module`.
 
 Other module API changes:
 
@@ -447,7 +497,8 @@ Update the metric lifecycle:
 
 Custom training outputs implement `ItemLazy::sync(self) -> Result<Self, ExecutionError>`: propagate
 `device.flush()?` and wrap the returned output in `Ok(..)`. When an output cannot be synced, the
-event processor reports it once, as a `EventProcessorFailure::Sync`, and no metric processes that event.
+event processor reports it once, as a `EventProcessorFailure::Sync`, and no metric processes that
+event.
 
 See [Custom Metric](./building-blocks/metric.md#custom-metric) for an implementation example.
 
@@ -470,8 +521,8 @@ Update custom event matches:
 Event processor methods return `Result<(), EventProcessorError>`: `process_train`, `process_valid`,
 `flush`, and `process_test`. A `EventProcessorError` lists every failure: a metric that failed
 (`EventProcessorFailure::Metric`, with its name and split) or an event that could not be synced
-(`EventProcessorFailure::Sync`). `EventProcessorEvaluation` gains a `flush` method with a default implementation. Custom
-processors return `Ok(())` on success.
+(`EventProcessorFailure::Sync`). `EventProcessorEvaluation` gains a `flush` method with a default
+implementation. Custom processors return `Ok(())` on success.
 
 In a custom `SupervisedLearningStrategy`, handle each processor result: pass it to
 `interrupter.fail_on_error(..)` to stop training cleanly, or call `unwrap()` to panic as before.
