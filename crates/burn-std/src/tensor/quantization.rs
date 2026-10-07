@@ -234,17 +234,18 @@ impl QuantizedBytes {
         // Re-interpret `Vec<E>` as `Vec<i8>` with `Vec::from_raw_parts`
         let i8s: Vec<i8> = bytemuck::allocation::cast_vec(value);
         let mut bytes = match scheme.store {
-            QuantStore::PackedU32(packed_dim) => {
-                Bytes::from_elems(pack_u32(&i8s, &shape, packed_dim, scheme.value.size_bits()))
-            }
+            QuantStore::PackedU32(packed_dim) => Bytes::from_elems(
+                PackedOrder::new(shape.as_slice(), packed_dim).pack(&i8s, scheme.value.size_bits()),
+            ),
             QuantStore::Native | QuantStore::PackedNative(_) => Bytes::from_elems(i8s),
         };
 
-        let scales = match scheme.block_size() {
-            None => &scales[..1],
-            Some(_) => scales,
+        let scales = match (scheme.block_size(), packed_scale_order(&shape, &scheme)) {
+            (None, _) => scales[..1].to_vec(),
+            (Some(_), Some(order)) => order.to_stored(scales),
+            (Some(_), None) => scales.to_vec(),
         };
-        let scale_bytes = encode_scales(scales, scheme.scale_dtype());
+        let scale_bytes = encode_scales(&scales, scheme.scale_dtype());
         bytes.extend_from_byte_slice_aligned(scale_bytes.as_slice(), QPARAM_ALIGN);
 
         // Last, so a reader can peel it off the end before the block scales it normalizes.
@@ -280,6 +281,7 @@ impl QuantizedBytes {
     /// Returns the int8 quantized values with the quantization parameters.
     pub fn into_vec_i8(self) -> (Vec<i8>, DecodedScales) {
         let scheme = self.scheme;
+        let scale_order = packed_scale_order(&self.shape, &scheme);
         let (values, (qparams, num_params)) = self.split_values_off();
 
         // Laid out as `[block scale, ...]` optionally followed by the per-tensor scale.
@@ -293,6 +295,10 @@ impl QuantizedBytes {
             .expect("quantized parameter buffer is shorter than the scheme's block scales");
 
         let block = decode_scales(&qparams[block_start..block_end], scheme.scale_dtype());
+        let block = match scale_order {
+            Some(order) => order.to_row_major(&block),
+            None => block,
+        };
         let global =
             global_scale_dtype(&scheme).map(|dtype| decode_scales(&qparams[block_end..], dtype)[0]);
 
@@ -307,7 +313,6 @@ impl QuantizedBytes {
         let num_params = params_shape(&self.shape, &self.scheme).num_elements();
         let scale_bytes =
             scale_size(self.scheme.scale_dtype()) * num_params + global_scale_size(&self.scheme);
-        let num_elements = self.num_elements();
         let (shape, scheme) = (self.shape, self.scheme);
 
         let mut stored = read_bytes_to_i8(self.bytes);
@@ -318,11 +323,7 @@ impl QuantizedBytes {
         let qparams = bytemuck::cast_vec(stored.split_off(split_at));
 
         let values = match scheme.store {
-            // Values and scales may be separated by alignment padding.
-            QuantStore::Native => {
-                stored.truncate(num_elements);
-                stored
-            }
+            QuantStore::Native => stored,
             QuantStore::PackedU32(packed_dim) => match scheme.value {
                 QuantValue::Q8F
                 | QuantValue::Q8S
@@ -336,7 +337,7 @@ impl QuantizedBytes {
                         .iter()
                         .map(|word| u32::from_ne_bytes(*word))
                         .collect();
-                    unpack_u32(&words, &shape, packed_dim, scheme.value.size_bits())
+                    PackedOrder::new(shape.as_slice(), packed_dim).unpack(&words, &scheme.value)
                 }
                 QuantValue::E4M3 | QuantValue::E5M2 | QuantValue::E2M1 => {
                     unimplemented!("Not yet supported")
@@ -381,6 +382,10 @@ fn storage_elements(scheme: &QuantScheme, shape: &Shape) -> usize {
         QuantStore::PackedU32(packed_dim) | QuantStore::PackedNative(packed_dim)
             if num_quants > 1 && !shape.is_empty() =>
         {
+            assert!(
+                packed_dim < shape.num_dims(),
+                "{scheme:?} packs along dim {packed_dim} from the innermost, which {shape:?} lacks"
+            );
             let packed_dim = shape.num_dims() - packed_dim - 1;
             let mut storage = shape.clone();
             storage[packed_dim] = storage[packed_dim].div_ceil(num_quants);
@@ -487,85 +492,121 @@ pub fn permuted_scheme(mut scheme: QuantScheme, rank: usize, axes: &[usize]) -> 
     scheme
 }
 
-/// Where each line along `axis` starts in a row-major tensor of `shape`, in the order a packed
-/// store keeps them: the tensor with `axis` swapped innermost, read row-major.
-fn packed_line_starts(shape: &[usize], axis: usize) -> impl Iterator<Item = usize> + '_ {
-    let rank = shape.len();
-    let mut strides = vec![1; rank];
-    for dim in (0..rank - 1).rev() {
-        strides[dim] = strides[dim + 1] * shape[dim + 1];
+/// A tensor of `dims` as cubecl stores it when packed along an axis: with that axis swapped
+/// innermost, read row-major. Its values and its block scales are both laid out this way.
+struct PackedOrder {
+    dims: Vec<usize>,
+    axis: usize,
+}
+
+impl PackedOrder {
+    /// The order a store packed along `packed_dim`, counted from the innermost axis, gives a
+    /// tensor of `dims`; a scalar is one line of one value.
+    fn new(dims: &[usize], packed_dim: usize) -> Self {
+        let dims = match dims {
+            [] => vec![1],
+            dims => dims.to_vec(),
+        };
+        assert!(
+            packed_dim < dims.len(),
+            "a store packed along dim {packed_dim} from the innermost needs more than {} dims",
+            dims.len()
+        );
+        let axis = dims.len() - packed_dim - 1;
+        Self { dims, axis }
     }
-    let outer: Vec<usize> = (0..rank - 1)
-        .map(|position| if position == axis { rank - 1 } else { position })
-        .collect();
-    let num_lines = outer.iter().map(|&dim| shape[dim]).product();
 
-    (0..num_lines).map(move |mut line| {
-        outer
-            .iter()
-            .rev()
-            .map(|&dim| {
-                let index = line % shape[dim];
-                line /= shape[dim];
-                index * strides[dim]
+    /// Each line along the packed axis, in stored order, as the row-major positions of its values.
+    fn lines(&self) -> impl Iterator<Item = impl Iterator<Item = usize>> + '_ {
+        let rank = self.dims.len();
+        let stride_of = |dim: usize| self.dims[dim + 1..].iter().product::<usize>();
+        let (len, stride) = (self.dims[self.axis], stride_of(self.axis));
+        let outer: Vec<usize> = (0..rank - 1)
+            .map(|position| {
+                if position == self.axis {
+                    rank - 1
+                } else {
+                    position
+                }
             })
-            .sum()
-    })
-}
+            .collect();
+        let num_lines = outer.iter().map(|&dim| self.dims[dim]).product();
 
-/// The stride and extent of the axis a store packs along, `packed_dim` counting from the
-/// innermost; a scalar packs as one line of one value.
-fn packed_axis(shape: &Shape, packed_dim: usize) -> (Vec<usize>, usize) {
-    let dims = match shape.as_slice() {
-        [] => vec![1],
-        dims => dims.to_vec(),
-    };
-    let axis = dims.len() - packed_dim - 1;
-    (dims, axis)
-}
-
-/// `values`, row-major over `shape`, packed into `u32` words of `bits`-wide values along the axis
-/// `packed_dim` counts from the innermost, each line padded to whole words.
-fn pack_u32(values: &[i8], shape: &Shape, packed_dim: usize, bits: usize) -> Vec<u32> {
-    let (dims, axis) = packed_axis(shape, packed_dim);
-    let (len, stride) = (dims[axis], dims[axis + 1..].iter().product::<usize>());
-    let per_word = u32::BITS as usize / bits;
-    let mask = (1u32 << bits) - 1;
-
-    packed_line_starts(&dims, axis)
-        .flat_map(|start| {
-            (0..len.div_ceil(per_word)).map(move |word| {
-                (0..per_word.min(len - word * per_word)).fold(0u32, |packed, k| {
-                    let value = values[start + (word * per_word + k) * stride];
-                    packed | (value as u32 & mask) << (k * bits)
+        (0..num_lines).map(move |mut line| {
+            let start: usize = outer
+                .iter()
+                .rev()
+                .map(|&dim| {
+                    let index = line % self.dims[dim];
+                    line /= self.dims[dim];
+                    index * stride_of(dim)
                 })
-            })
+                .sum();
+            (0..len).map(move |k| start + k * stride)
         })
-        .collect()
+    }
+
+    /// Row-major `values` as this order stores them.
+    fn to_stored<T: Copy>(&self, values: &[T]) -> Vec<T> {
+        self.lines()
+            .flatten()
+            .map(|position| values[position])
+            .collect()
+    }
+
+    /// Stored `values` back in row-major order.
+    fn to_row_major<T: Copy + Default>(&self, stored: &[T]) -> Vec<T> {
+        let mut values = vec![T::default(); stored.len()];
+        for (position, value) in self.lines().flatten().zip(stored) {
+            values[position] = *value;
+        }
+        values
+    }
+
+    /// Row-major `values` packed into `u32` words, `bits` each, every line padded to whole words.
+    fn pack(&self, values: &[i8], bits: usize) -> Vec<u32> {
+        let per_word = u32::BITS as usize / bits;
+        let mask = (1u32 << bits) - 1;
+        self.lines()
+            .flat_map(|line| {
+                let line: Vec<usize> = line.collect();
+                line.chunks(per_word)
+                    .map(|word| {
+                        word.iter()
+                            .enumerate()
+                            .fold(0u32, |packed, (k, &position)| {
+                                packed | (values[position] as u32 & mask) << (k * bits)
+                            })
+                    })
+                    .collect::<Vec<_>>()
+            })
+            .collect()
+    }
+
+    /// The row-major values [`pack`](Self::pack) packed.
+    fn unpack(&self, words: &[u32], value: &QuantValue) -> Vec<i8> {
+        let len = self.dims[self.axis];
+        let words_per_line = len.div_ceil(u32::BITS as usize / value.size_bits()).max(1);
+        let mut values = vec![0; self.dims.iter().product()];
+        for (line, words) in self.lines().zip(words.chunks(words_per_line)) {
+            for (position, unpacked) in line.zip(unpack_q_to_i8s(words, len, value)) {
+                values[position] = unpacked;
+            }
+        }
+        values
+    }
 }
 
-/// The values [`pack_u32`] packed, row-major over `shape`.
-fn unpack_u32(words: &[u32], shape: &Shape, packed_dim: usize, bits: usize) -> Vec<i8> {
-    let (dims, axis) = packed_axis(shape, packed_dim);
-    let (len, stride) = (dims[axis], dims[axis + 1..].iter().product::<usize>());
-    let words_per_line = len.div_ceil(u32::BITS as usize / bits);
-    let value = match bits {
-        8 => QuantValue::Q8S,
-        4 => QuantValue::Q4S,
-        2 => QuantValue::Q2S,
-        _ => unreachable!("integer quantized values are 8, 4 or 2 bits"),
-    };
-
-    let mut values = vec![0; shape.num_elements()];
-    if values.is_empty() {
-        return values;
+/// The order the block scales of a tensor of `shape` are stored in under `scheme`, when that is
+/// not row-major: blocks packed along an outer axis.
+fn packed_scale_order(shape: &Shape, scheme: &QuantScheme) -> Option<PackedOrder> {
+    match (scheme.block_size(), scheme.store) {
+        (Some(_), QuantStore::PackedU32(packed_dim)) if packed_dim != 0 => Some(PackedOrder::new(
+            params_shape(shape, scheme).as_slice(),
+            packed_dim,
+        )),
+        _ => None,
     }
-    for (start, line) in packed_line_starts(&dims, axis).zip(words.chunks(words_per_line)) {
-        for (k, unpacked) in unpack_q_to_i8s(line, len, &value).into_iter().enumerate() {
-            values[start + k * stride] = unpacked;
-        }
-    }
-    values
 }
 
 /// Pack signed 8-bit integer values into a sequence of unsigned 32-bit integers.
@@ -644,31 +685,55 @@ mod tests {
     use super::*;
     use alloc::vec;
 
-    /// Neither 3 nor 5 fills a word, so every packed line is padded.
+    /// No extent here fills a word, so every packed line is padded; at rank 3, swapping the packed
+    /// axis innermost and moving it there differ.
     #[test]
-    fn packed_values_round_trip_along_either_axis() {
-        let shape = Shape::new([3, 5]);
-        for value in [QuantValue::Q8S, QuantValue::Q4S, QuantValue::Q2S] {
-            let (min, max) = value.range();
-            let values: Vec<i8> = (0..15)
-                .map(|i| (min as i32 + i * 7 % (max - min + 1.0) as i32) as i8)
-                .collect();
-            for packed_dim in [0, 1] {
-                let scheme = QuantScheme::default()
-                    .with_value(value)
-                    .with_store(QuantStore::PackedU32(packed_dim));
+    fn packed_values_round_trip_along_any_axis() {
+        for shape in [Shape::new([3, 5]), Shape::new([2, 3, 5])] {
+            for value in [QuantValue::Q8S, QuantValue::Q4S, QuantValue::Q2S] {
+                let (min, max) = value.range();
+                let values: Vec<i8> = (0..shape.num_elements() as i32)
+                    .map(|i| (min as i32 + i * 7 % (max - min + 1.0) as i32) as i8)
+                    .collect();
+                for packed_dim in 0..shape.num_dims() {
+                    let scheme = QuantScheme::default()
+                        .with_value(value)
+                        .with_store(QuantStore::PackedU32(packed_dim));
 
-                let bytes =
-                    QuantizedBytes::new(values.clone(), shape.clone(), scheme, &[1.0], None);
+                    let bytes =
+                        QuantizedBytes::new(values.clone(), shape.clone(), scheme, &[1.0], None);
 
-                assert_eq!(bytes.bytes.len(), quantized_data_len(&scheme, &shape));
-                assert_eq!(
-                    bytes.into_vec_i8().0,
-                    values,
-                    "{value:?} along {packed_dim}"
-                );
+                    assert_eq!(bytes.bytes.len(), quantized_data_len(&scheme, &shape));
+                    assert_eq!(
+                        bytes.into_vec_i8().0,
+                        values,
+                        "{value:?} along {packed_dim} of {shape:?}"
+                    );
+                }
             }
         }
+    }
+
+    /// cubecl keeps the block scales of a tensor packed along an outer axis in the same swapped
+    /// order as its values.
+    #[test]
+    fn block_scales_follow_the_values_when_packed_along_an_outer_axis() {
+        let scheme = QuantScheme::default()
+            .with_value(QuantValue::Q8S)
+            .with_store(QuantStore::PackedU32(1))
+            .per_block([2, 4], ScaleDtype::F32);
+        let scales = [1.0f32, 2.0, 3.0, 4.0];
+
+        let bytes = QuantizedBytes::new(vec![0i8; 32], [4, 8], scheme, &scales, None);
+
+        let stored: Vec<f32> = bytes.bytes[bytes.bytes.len() - 16..]
+            .as_chunks::<4>()
+            .0
+            .iter()
+            .map(|scale| f32::from_ne_bytes(*scale))
+            .collect();
+        assert_eq!(stored, [1.0, 3.0, 2.0, 4.0]);
+        assert_eq!(bytes.into_vec_i8().1.block, scales);
     }
 
     /// cubecl stores a tensor packed along an outer axis as its transpose packed innermost.

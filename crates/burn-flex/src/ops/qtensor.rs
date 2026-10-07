@@ -377,12 +377,7 @@ fn block_safe_layout_op(
     op: impl FnOnce(FlexTensor) -> FlexTensor,
 ) -> FlexQTensor {
     match qtensor.scheme.block_size() {
-        None => FlexQTensor::new(
-            op(qtensor.tensor),
-            qtensor.scheme,
-            qtensor.scales,
-            qtensor.global,
-        ),
+        None => FlexQTensor::new(op(qtensor.tensor), scheme, qtensor.scales, qtensor.global),
         Some(_) => {
             let float_tensor = Flex::dequantize(qtensor, FloatDType::F32);
             let result = op(float_tensor);
@@ -430,7 +425,6 @@ mod tests {
             .unwrap()
     }
 
-    /// Int4 values packed along the innermost axis, under block scales.
     fn packed_q4() -> QuantScheme {
         QuantScheme::default()
             .with_value(QuantValue::Q4S)
@@ -457,6 +451,25 @@ mod tests {
         let reloaded = Flex::q_from_data(data.clone(), &Default::default());
         assert_eq!(reloaded.scheme, scheme);
         assert_eq!(data_of(reloaded).as_bytes(), data.as_bytes());
+    }
+
+    #[test]
+    fn swapping_a_per_tensor_packed_axis_moves_the_store_with_it() {
+        let scheme = QuantScheme::default()
+            .with_value(QuantValue::Q4S)
+            .with_store(QuantStore::PackedU32(0));
+        let quantized = Flex::quantize_dynamic(ramp([12, 8]), &scheme);
+
+        let swapped = Flex::q_swap_dims(quantized, 0, 1);
+        assert_eq!(swapped.scheme.store, QuantStore::PackedU32(1));
+
+        let direct = Flex::dequantize(swapped.clone(), FloatDType::F32);
+        let reloaded = Flex::q_from_data(data_of(swapped), &Default::default());
+        let reloaded = Flex::dequantize(reloaded, FloatDType::F32);
+        assert_eq!(
+            reloaded.to_contiguous().storage::<f32>(),
+            direct.to_contiguous().storage::<f32>()
+        );
     }
 
     #[test]
