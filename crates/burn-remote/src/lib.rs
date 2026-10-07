@@ -80,7 +80,7 @@ mod tests {
         RemoteBackend, RemoteDevice,
         server::{BackendServer, WebSocketTransport},
         shared::{
-            PROTOCOL_VERSION, RemoteMessage, SessionId, SessionInit, SessionRefusal, Task,
+            Encode, PROTOCOL_VERSION, RemoteMessage, SessionId, SessionInit, SessionRefusal, Task,
             TaskResponse, TaskResponseContent,
         },
         transport::{
@@ -297,16 +297,12 @@ mod tests {
                     .expect("raw session connect")
                     .split();
 
-                let batch = |msgs: Vec<RemoteMessage>| -> Bytes {
-                    rmp_serde::to_vec(&msgs).unwrap().into()
-                };
-
-                let init = SessionInit::new(session_id, 0, vec![]);
-                FrameSink::send(&mut submit, batch(vec![RemoteMessage::Init(init)]))
+                let init = vec![RemoteMessage::Init(SessionInit::new(session_id, 0, vec![]))];
+                FrameSink::send(&mut submit, init.encode().unwrap().into_bytes())
                     .await
                     .expect("send init");
                 MessageSink::new(submit)
-                    .send(batch(vec![RemoteMessage::Task(Task::Seed(0))]))
+                    .send(vec![RemoteMessage::Task(Task::Seed(0))].encode().unwrap())
                     .await
                     .expect("send task");
                 // The socket drops at the end of this block: the server sees the stream end

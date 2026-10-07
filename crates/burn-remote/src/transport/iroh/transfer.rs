@@ -16,7 +16,7 @@ use crate::server::transfer::TensorTransfer;
 use crate::shared::{Encode, Encoded, TransferCapability};
 use crate::transport::{
     link::{FrameSink, FrameSource, MAX_UNAUTHORIZED_FRAME_SIZE},
-    message::{MessageLimit, MessageSink, MessageSource},
+    message::{MessageSink, MessageSource},
 };
 use crate::{PeerAddr, PeerId};
 
@@ -39,17 +39,15 @@ struct ExposedTensor {
 /// Authenticated tensor transfer service carried on independent Iroh streams.
 pub(crate) struct IrohTransfer<B: BackendIr> {
     node: RemoteNode,
-    message_limit: MessageLimit,
     exposed: Arc<Mutex<HashMap<TransferCapability, ExposedTensor>>>,
     exposed_notify: Notify,
     _backend: core::marker::PhantomData<B>,
 }
 
 impl<B: BackendIr> IrohTransfer<B> {
-    pub(crate) fn new(node: RemoteNode, message_limit: MessageLimit) -> Self {
+    pub(crate) fn new(node: RemoteNode) -> Self {
         Self {
             node,
-            message_limit,
             exposed: Arc::new(Mutex::new(HashMap::new())),
             exposed_notify: Notify::new(),
             _backend: core::marker::PhantomData,
@@ -205,7 +203,7 @@ impl<B: BackendIr> TensorTransfer<B> for IrohTransfer<B> {
             return None;
         }
         let _ = send.finish();
-        let response = match MessageSource::new(recv, self.message_limit).recv().await {
+        let response = match MessageSource::new(recv).recv().await {
             Ok(Some(response)) => response,
             Ok(None) => {
                 log::error!("Tensor-transfer peer closed without a response");

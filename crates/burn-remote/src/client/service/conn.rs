@@ -12,7 +12,6 @@ use crate::{
     transport::{
         OpenError,
         link::{FrameSink, FrameSource},
-        message::MessageLimit,
     },
 };
 
@@ -51,13 +50,11 @@ pub(crate) enum RemoteEndpoint {
         credential: Credential,
         /// The application endpoint dialed from, or `None` for an endpoint Burn binds.
         app_endpoint: Option<iroh::EndpointId>,
-        message_limit: MessageLimit,
     },
     #[cfg(feature = "websocket")]
     WebSocket {
         address: Address,
         credential: Credential,
-        message_limit: MessageLimit,
     },
 }
 
@@ -100,16 +97,6 @@ impl RemoteEndpoint {
             Self::Iroh { credential, .. } => credential,
             #[cfg(feature = "websocket")]
             Self::WebSocket { credential, .. } => credential,
-        }
-    }
-
-    /// The largest message the server may send this client.
-    pub(crate) fn message_limit(&self) -> MessageLimit {
-        match self {
-            #[cfg(feature = "iroh")]
-            Self::Iroh { message_limit, .. } => *message_limit,
-            #[cfg(feature = "websocket")]
-            Self::WebSocket { message_limit, .. } => *message_limit,
         }
     }
 

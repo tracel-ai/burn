@@ -10,14 +10,6 @@ use bytes::{Buf, BufMut, Bytes, BytesMut};
 use super::link::{FrameSink, FrameSource, MAX_FRAME_SIZE};
 use crate::shared::Encoded;
 
-/// The most bytes a peer's message may hold, or no limit.
-///
-/// Checked against the length a message opens with, before its buffer is allocated.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
-pub struct MessageLimit {
-    max_bytes: Option<usize>,
-}
-
 /// Sends each message in as many frames as it takes.
 pub struct MessageSink<S> {
     frames: S,
@@ -26,25 +18,6 @@ pub struct MessageSink<S> {
 /// Receives the messages a [`MessageSink`] sends.
 pub struct MessageSource<S> {
     frames: S,
-    limit: MessageLimit,
-}
-
-impl MessageLimit {
-    /// Messages of at most `max_bytes` bytes.
-    pub fn new(max_bytes: usize) -> Self {
-        Self {
-            max_bytes: Some(max_bytes),
-        }
-    }
-
-    fn check(self, size: usize) -> Result<(), String> {
-        match self.max_bytes {
-            Some(max_bytes) if size > max_bytes => Err(format!(
-                "Peer sent a message of {size} bytes, over the limit of {max_bytes}"
-            )),
-            _ => Ok(()),
-        }
-    }
 }
 
 impl<S: FrameSink> MessageSink<S> {
@@ -74,8 +47,8 @@ impl<S: FrameSink> MessageSink<S> {
 }
 
 impl<S: FrameSource> MessageSource<S> {
-    pub fn new(frames: S, limit: MessageLimit) -> Self {
-        Self { frames, limit }
+    pub fn new(frames: S) -> Self {
+        Self { frames }
     }
 
     /// The next message, or `None` when the peer closes the stream between two messages.
@@ -84,10 +57,7 @@ impl<S: FrameSource> MessageSource<S> {
             return Ok(None);
         };
         match MessageHead::try_from(frame)? {
-            MessageHead::Whole(message) => {
-                self.limit.check(message.len())?;
-                Ok(Some(message))
-            }
+            MessageHead::Whole(message) => Ok(Some(message)),
             MessageHead::Sliced { len } => self.recv_sliced(len).await.map(Some),
         }
     }
@@ -95,7 +65,6 @@ impl<S: FrameSource> MessageSource<S> {
     async fn recv_sliced(&mut self, len: u64) -> Result<Bytes, String> {
         let len = usize::try_from(len)
             .map_err(|_| format!("Peer sent a message of {len} bytes, too large to address"))?;
-        self.limit.check(len)?;
         let mut message = vec![0; len];
         let mut filled = 0;
         while filled < len {
@@ -177,10 +146,7 @@ mod tests {
         let frames = frames_of([message.clone()]).await;
 
         assert_eq!(frames.len(), 1);
-        assert_eq!(
-            received(frames, MessageLimit::default()).await,
-            [message.into_bytes()]
-        );
+        assert_eq!(received(frames).await, [message.into_bytes()]);
     }
 
     /// Its frame is the segment it was encoded into: sending copies none of its bytes.
@@ -193,7 +159,7 @@ mod tests {
 
         assert_eq!(frames.len(), 2);
         assert_eq!(frames[1].as_ptr(), segment.as_ptr());
-        assert_eq!(received(frames, MessageLimit::default()).await, [segment]);
+        assert_eq!(received(frames).await, [segment]);
     }
 
     #[tokio::test]
@@ -203,10 +169,7 @@ mod tests {
         let frames = frames_of([message.clone()]).await;
 
         assert_eq!(frames.len(), 3);
-        assert_eq!(
-            received(frames, MessageLimit::default()).await,
-            [message.into_bytes()]
-        );
+        assert_eq!(received(frames).await, [message.into_bytes()]);
     }
 
     /// A small message after a large one, so a message that ran into the next would show.
@@ -219,7 +182,7 @@ mod tests {
 
         assert_eq!(frames.len(), 1 + 6 + 1);
         assert_eq!(
-            received(frames, MessageLimit::default()).await,
+            received(frames).await,
             [large.into_bytes(), small.into_bytes()]
         );
     }
@@ -228,26 +191,11 @@ mod tests {
     async fn a_peer_that_closes_in_the_middle_of_a_message_is_an_error() {
         let mut frames = frames_of([message_of(2 * MAX_FRAME_SIZE)]).await;
         frames.pop();
-        let mut source = MessageSource::new(ScriptedFrames(frames.into()), MessageLimit::default());
+        let mut source = MessageSource::new(ScriptedFrames(frames.into()));
 
         let result = source.recv().await;
 
         assert!(result.is_err(), "{result:?}");
-    }
-
-    /// A message is refused on the length it opens with, before any of its bytes are read.
-    #[tokio::test]
-    async fn a_message_over_the_limit_is_refused_before_it_is_read() {
-        let limit = 2 * MessageHead::MAX_WHOLE;
-        let at_limit = message_of(limit);
-        let over_limit = message_of(limit + 1);
-        let frames = frames_of([at_limit.clone(), over_limit]).await;
-        let mut source =
-            MessageSource::new(ScriptedFrames(frames.into()), MessageLimit::new(limit));
-
-        assert_eq!(source.recv().await, Ok(Some(at_limit.into_bytes())));
-        assert!(source.recv().await.is_err());
-        assert_eq!(source.frames.0.len(), 1);
     }
 
     fn message_of(len: usize) -> Encoded {
@@ -262,8 +210,8 @@ mod tests {
         sink.frames.0
     }
 
-    async fn received(frames: Vec<Bytes>, limit: MessageLimit) -> Vec<Bytes> {
-        let mut source = MessageSource::new(ScriptedFrames(frames.into()), limit);
+    async fn received(frames: Vec<Bytes>) -> Vec<Bytes> {
+        let mut source = MessageSource::new(ScriptedFrames(frames.into()));
         let mut messages = Vec::new();
         while let Some(message) = source.recv().await.unwrap() {
             messages.push(message);

@@ -6,7 +6,7 @@ use crate::shared::{
 use crate::telemetry::{CHANNEL_CAPACITY, TelemetryEvent, TelemetryProbe, serialized_len};
 use crate::transport::{
     link::{FrameSink, FrameSource, MAX_FRAME_SIZE, MAX_UNAUTHORIZED_FRAME_SIZE},
-    message::{MessageLimit, MessageSource},
+    message::MessageSource,
 };
 use burn_backend::{
     DTypeUsageSet, ExecutionError, ProfileDuration, ProfileOptions, ProfileTicks, ProfileToken,
@@ -261,13 +261,8 @@ impl RemoteService {
     /// Spawn the response-demux task: route each [`TaskResponse`] to its pending callback by
     /// [`RequestId`] via the [`Responder`]. Lives on the service runtime; exits when the
     /// response stream closes.
-    fn spawn_response_demux(
-        executor: &Executor,
-        response: ResponseChannel,
-        message_limit: MessageLimit,
-        responder: Responder,
-    ) {
-        let mut response = MessageSource::new(response, message_limit);
+    fn spawn_response_demux(executor: &Executor, response: ResponseChannel, responder: Responder) {
+        let mut response = MessageSource::new(response);
         // Detached: the task owns the response stream and runs until it closes.
         let _demux = executor.spawn(async move {
             loop {
@@ -339,12 +334,7 @@ pub(crate) async fn wasm_connect(plan: WasmConnectPlan) -> Result<WasmConnected,
     )
     .await?;
 
-    RemoteService::spawn_response_demux(
-        &executor,
-        streams.response,
-        plan.endpoint.message_limit(),
-        plan.responder,
-    );
+    RemoteService::spawn_response_demux(&executor, streams.response, plan.responder);
     let writer = SubmitWriter::spawn(&executor, streams.submit);
 
     Ok(WasmConnected {
@@ -757,12 +747,7 @@ impl RemoteService {
             let _ = self.settings.set(info.settings);
             let _ = self.device_count.set(info.device_count);
 
-            Self::spawn_response_demux(
-                &self.executor,
-                streams.response,
-                self.endpoint.message_limit(),
-                self.pending.responder(),
-            );
+            Self::spawn_response_demux(&self.executor, streams.response, self.pending.responder());
             self.writer = Some(SubmitWriter::spawn(&self.executor, streams.submit));
             self.start_logger();
             Ok(())

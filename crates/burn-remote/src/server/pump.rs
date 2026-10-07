@@ -19,7 +19,7 @@ use crate::shared::{
 };
 use crate::transport::{
     link::{FrameSink, FrameSource, MAX_UNAUTHORIZED_FRAME_SIZE},
-    message::{MessageLimit, MessageSink, MessageSource},
+    message::{MessageSink, MessageSource},
 };
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
@@ -28,7 +28,7 @@ use tokio_util::sync::CancellationToken;
 ///
 /// `authorize` runs once, after the init handshake is parsed and before the session is bound.
 /// `server_peer_id` is echoed to the client in the handshake response (the server's own identity,
-/// or `None` for websocket). `message_limit` applies once the client is admitted.
+/// or `None` for websocket).
 ///
 /// Returns `Err` on a protocol violation, a refused session (after telling the client its
 /// category), or a failed read or write; the caller logs it. A clean client `Close`, a stream end
@@ -39,7 +39,6 @@ pub(crate) async fn drive_session<Src, Snk, S, A>(
     service: Arc<S>,
     server_peer_id: Option<PeerId>,
     shutdown: &CancellationToken,
-    message_limit: MessageLimit,
     authorize: A,
 ) -> Result<(), String>
 where
@@ -106,7 +105,7 @@ where
     // Save a completed writer result so we don't poll the oneshot receiver twice.
     let (read_result, completed_writer) = tokio::select! {
         result = forward_tasks(
-            MessageSource::new(source, message_limit),
+            MessageSource::new(source),
             &task_sender,
             init.session_id,
         ) => (result, None),
@@ -365,7 +364,6 @@ mod tests {
             service.clone(),
             None,
             &CancellationToken::new(),
-            MessageLimit::default(),
             |_| Ok(()),
         )
         .await;
@@ -388,7 +386,6 @@ mod tests {
                 service.clone(),
                 None,
                 &CancellationToken::new(),
-                MessageLimit::default(),
                 |_| Ok(()),
             ),
         )
@@ -412,7 +409,6 @@ mod tests {
             service.clone(),
             None,
             &shutdown,
-            MessageLimit::default(),
             |_| Ok(()),
         );
         let stop_once_bound = async {
@@ -446,7 +442,6 @@ mod tests {
             service.clone(),
             None,
             &CancellationToken::new(),
-            MessageLimit::default(),
             |_| Ok(()),
         )
         .await;
@@ -469,7 +464,6 @@ mod tests {
             service.clone(),
             None,
             &CancellationToken::new(),
-            MessageLimit::default(),
             |_| Ok(()),
         )
         .await;
@@ -500,7 +494,6 @@ mod tests {
             service.clone(),
             None,
             &CancellationToken::new(),
-            MessageLimit::default(),
             |_| Err("peer 7 is not on the allowlist".to_string()),
         )
         .await;
@@ -525,7 +518,6 @@ mod tests {
             service.clone(),
             None,
             &CancellationToken::new(),
-            MessageLimit::default(),
             |_| panic!("an incompatible client reached the authorizer"),
         )
         .await;
