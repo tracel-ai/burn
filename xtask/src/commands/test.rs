@@ -150,7 +150,11 @@ pub(crate) fn handle_backend_tests(
         for (package, target, features) in [
             ("burn-backend-tests", "autodiff_transfer", "flex,cpu,std"),
             ("burn-core", "lazy_param_device", "flex,cpu,std"),
-            ("burn", "backend_extension_runtime", "flex,cpu,std,autodiff"),
+            (
+                "burn",
+                "backend_extension_runtime",
+                "flex,cpu,std,autodiff,extension",
+            ),
         ] {
             build_helpers::custom_crates_tests(
                 vec![package],
