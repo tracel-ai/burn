@@ -7,16 +7,10 @@
 use bytes::Bytes;
 use iroh::endpoint::{ReadExactError, RecvStream, SendStream};
 
-use crate::transport::link::{FrameSink, FrameSource, MAX_FRAME_SIZE};
+use crate::transport::link::{FrameSink, FrameSource};
 
 impl FrameSink for SendStream {
     async fn send(&mut self, frame: Bytes) -> Result<(), String> {
-        if frame.len() > MAX_FRAME_SIZE {
-            return Err(format!(
-                "Burn Remote frame is too large: {} bytes (max {MAX_FRAME_SIZE})",
-                frame.len()
-            ));
-        }
         let length = Bytes::copy_from_slice(&(frame.len() as u64).to_le_bytes());
         // Chunks are handed to QUIC as they are; `write_all` would copy the frame into its buffer.
         self.write_all_chunks(&mut [length, frame])

@@ -71,7 +71,7 @@ impl SegmentWriter {
 
     /// Room in the open segment for up to `wanted` more bytes, closing it first if it is full.
     fn make_room(&mut self, wanted: usize) -> Result<usize, TryReserveError> {
-        if self.open.len() == MAX_FRAME_SIZE {
+        if self.open.len() >= MAX_FRAME_SIZE {
             self.full.push(mem::take(&mut self.open).into());
             self.open.try_reserve_exact(MAX_FRAME_SIZE)?;
         }
