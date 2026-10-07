@@ -12,8 +12,6 @@ pub trait ConnectedComponents {
     /// connectivity - returns a tensor of the component label of each pixel.
     ///
     /// `img`- The boolean image tensor in the format [batches, height, width]
-    ///
-    /// On cubecl backends the image is read back to the host and labeled on the CPU.
     fn connected_components(self, connectivity: Connectivity) -> Tensor<2, Int>;
 
     /// Computes the connected components labeled image of boolean image with 4 or 8 way
@@ -21,8 +19,6 @@ pub trait ConnectedComponents {
     /// label of each pixel, along with stats collected for each component.
     ///
     /// `img`- The boolean image tensor in the format [batches, height, width]
-    ///
-    /// On cubecl backends the image is read back to the host and labeled on the CPU.
     fn connected_components_with_stats(
         self,
         connectivity: Connectivity,

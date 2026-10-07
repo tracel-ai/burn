@@ -11,22 +11,31 @@ use burn_core::backend::{
 };
 use burn_core::tensor::IntDType;
 
-/// Connected components run on the host: the image is read back and labeled by the CPU
-/// implementation, then uploaded again.
+use super::connected_components::hardware_accelerated;
+
 impl BoolVisionOps for CubeBackend {
     fn connected_components(
         img: BoolTensor<Self>,
         connectivity: Connectivity,
         out_dtype: IntDType,
     ) -> IntTensor<Self> {
-        let device = &img.device();
         if img.shape().num_elements() == 0 {
-            return Self::int_zeros(img.shape(), device, out_dtype);
+            return Self::int_zeros(img.shape(), &img.device(), out_dtype);
         }
-        Self::int_from_data(
-            cpu::connected_components::<Self>(img, connectivity, out_dtype),
-            device,
+        hardware_accelerated(
+            img.clone(),
+            ConnectedStatsOptions::none(),
+            connectivity,
+            out_dtype.into(),
         )
+        .map(|it| it.0)
+        .unwrap_or_else(|_| {
+            let device = &img.device();
+            Self::int_from_data(
+                cpu::connected_components::<Self>(img, connectivity, out_dtype),
+                device,
+            )
+        })
     }
 
     fn connected_components_with_stats(
@@ -50,9 +59,17 @@ impl BoolVisionOps for CubeBackend {
                 },
             );
         }
-        let (labels, stats) =
-            cpu::connected_components_with_stats::<Self>(img, connectivity, opts, out_dtype);
-        (Self::int_from_data(labels, device), stats)
+        hardware_accelerated(img.clone(), opts, connectivity, out_dtype.into()).unwrap_or_else(
+            |_| {
+                let (labels, stats) = cpu::connected_components_with_stats::<Self>(
+                    img,
+                    connectivity,
+                    opts,
+                    out_dtype,
+                );
+                (Self::int_from_data(labels, device), stats)
+            },
+        )
     }
 }
 
