@@ -1,4 +1,5 @@
 use std::{
+    collections::TryReserveError,
     io::{self, Write},
     mem,
 };
@@ -47,13 +48,13 @@ impl Encoded {
     }
 }
 
-/// Collects an encoding into segments: the first grows up to a frame, and each later one is
-/// allocated a full frame up front, so no byte past the first frame is copied to grow a buffer.
+/// Collects an encoding into segments of at most a frame: the first grows like any `Vec`, and each
+/// later one is allocated a full frame up front, so no byte past the first frame is copied to grow
+/// a buffer.
 #[derive(Default)]
 struct SegmentWriter {
     full: Vec<Bytes>,
     open: Vec<u8>,
-    len: usize,
 }
 
 impl SegmentWriter {
@@ -61,30 +62,22 @@ impl SegmentWriter {
         if !self.open.is_empty() {
             self.full.push(self.open.into());
         }
+        let len = self.full.iter().map(Bytes::len).sum();
         Encoded {
             segments: self.full,
-            len: self.len,
+            len,
         }
     }
 
-    /// Room in the open segment for some of `wanted` more bytes, closing it first if it is full.
-    fn make_room(&mut self, wanted: usize) -> io::Result<usize> {
+    /// Room in the open segment for up to `wanted` more bytes, closing it first if it is full.
+    fn make_room(&mut self, wanted: usize) -> Result<usize, TryReserveError> {
         if self.open.len() == MAX_FRAME_SIZE {
             self.full.push(mem::take(&mut self.open).into());
+            self.open.try_reserve_exact(MAX_FRAME_SIZE)?;
         }
-        let capacity = if self.full.is_empty() {
-            (self.open.len() + wanted)
-                .max(2 * self.open.capacity())
-                .min(MAX_FRAME_SIZE)
-        } else {
-            MAX_FRAME_SIZE
-        };
-        if capacity > self.open.capacity() {
-            self.open
-                .try_reserve_exact(capacity - self.open.len())
-                .map_err(|_| io::Error::from(io::ErrorKind::OutOfMemory))?;
-        }
-        Ok(self.open.capacity().min(MAX_FRAME_SIZE) - self.open.len())
+        let room = wanted.min(MAX_FRAME_SIZE - self.open.len());
+        self.open.try_reserve(room)?;
+        Ok(room)
     }
 }
 
@@ -93,10 +86,11 @@ impl Write for SegmentWriter {
         if buf.is_empty() {
             return Ok(0);
         }
-        let written = buf.len().min(self.make_room(buf.len())?);
-        self.open.extend_from_slice(&buf[..written]);
-        self.len += written;
-        Ok(written)
+        let room = self
+            .make_room(buf.len())
+            .map_err(|_| io::Error::from(io::ErrorKind::OutOfMemory))?;
+        self.open.extend_from_slice(&buf[..room]);
+        Ok(room)
     }
 
     fn flush(&mut self) -> io::Result<()> {
