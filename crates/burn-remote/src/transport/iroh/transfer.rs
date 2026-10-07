@@ -13,7 +13,7 @@ use tokio::sync::{Mutex, Notify};
 
 use super::node::{RemoteNode, StreamKind, recv_frame, send_frame};
 use crate::server::transfer::TensorTransfer;
-use crate::shared::{TransferCapability, WireMessage};
+use crate::shared::{ProtocolMessage, TransferCapability};
 use crate::{PeerAddr, PeerId};
 
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
@@ -23,7 +23,7 @@ enum TransferMessage {
     Denied(String),
 }
 
-impl WireMessage for TransferMessage {
+impl ProtocolMessage for TransferMessage {
     fn data_len(&self) -> usize {
         match self {
             TransferMessage::Tensor(data) => data.bytes().len(),

@@ -14,7 +14,7 @@ use burn_std::id::StreamId;
 use serde::{Deserialize, Serialize};
 use tokio::sync::broadcast;
 
-use crate::shared::{EncodedLen, RequestId, SessionId};
+use crate::shared::{RequestId, SessionId};
 
 /// A tensor as it appears in the dataflow graph: identity plus the shape and dtype it was
 /// produced with.
@@ -527,5 +527,7 @@ impl FusionSnapshot {
 }
 
 pub(crate) fn serialized_len<T: Serialize>(value: &T) -> usize {
-    value.encoded_len().unwrap_or(0)
+    rmp_serde::to_vec(value)
+        .map(|bytes| bytes.len())
+        .unwrap_or(0)
 }

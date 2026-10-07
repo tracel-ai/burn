@@ -2,7 +2,7 @@
 
 use crate::client::runtime::{Executor, SpawnHandle};
 use crate::client::service::SubmitChannel;
-use crate::shared::{RemoteMessage, WireMessage};
+use crate::shared::{ProtocolMessage, RemoteMessage};
 use tokio::sync::mpsc;
 
 /// Bound on task batches queued for the writer task on native targets.
