@@ -50,3 +50,59 @@ fn conv_transpose3d_should_match_reference_backend() {
         .into_data()
         .assert_approx_eq::<FloatElem>(&output_ref.into_data(), Tolerance::default());
 }
+
+// Every option away from its default at once, on a batch larger than one. The single-option tests
+// each leave the others at their defaults, and the index arithmetic of a gather is only exercised
+// whole when stride, padding, output padding, dilation and groups all move together.
+#[test]
+fn conv_transpose3d_every_option_should_match_reference_backend() {
+    let device = Device::default();
+    let ref_device = ReferenceDevice::new();
+
+    device.seed(0);
+
+    let [depth, height, width] = [5, 6, 7];
+    let groups = 2;
+    let in_channels = 4;
+    let out_channels = 6;
+    let batch_size = 3;
+    let [kernel_size_0, kernel_size_1, kernel_size_2] = [2, 3, 3];
+    // Output padding stays below the larger of stride and dilation on each axis, as the op requires.
+    let options = burn_tensor::ops::ConvTransposeOptions::new(
+        [2, 1, 3],
+        [1, 0, 1],
+        [1, 0, 2],
+        [2, 1, 1],
+        groups,
+    );
+
+    let input = TestTensor::<5>::random(
+        [batch_size, in_channels, depth, height, width],
+        Distribution::Default,
+        &device,
+    );
+    let weight = TestTensor::<5>::random(
+        [
+            in_channels,
+            out_channels / groups,
+            kernel_size_0,
+            kernel_size_1,
+            kernel_size_2,
+        ],
+        Distribution::Default,
+        &device,
+    );
+    let bias = TestTensor::<1>::random([out_channels], Distribution::Default, &device);
+
+    let input_ref = TestTensor::<5>::from_data(input.to_data(), &ref_device);
+    let weight_ref = TestTensor::<5>::from_data(weight.to_data(), &ref_device);
+    let bias_ref = TestTensor::<1>::from_data(bias.to_data(), &ref_device);
+
+    let output = module::conv_transpose3d(input, weight, Some(bias), options.clone());
+    let output_ref = module::conv_transpose3d(input_ref, weight_ref, Some(bias_ref), options);
+
+    assert_eq!(output.dims(), [batch_size, out_channels, 10, 8, 21]);
+    output
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&output_ref.into_data(), Tolerance::default());
+}
