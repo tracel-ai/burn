@@ -47,16 +47,6 @@ impl Encoded {
     }
 }
 
-/// Raw bytes as if they were a message's encoding, to test how messages are framed.
-#[cfg(test)]
-impl From<&[u8]> for Encoded {
-    fn from(bytes: &[u8]) -> Self {
-        let mut writer = SegmentWriter::default();
-        writer.write_all(bytes).unwrap();
-        writer.finish()
-    }
-}
-
 /// Collects an encoding into segments: the first grows up to a frame, and each later one is
 /// allocated a full frame up front, so no byte past the first frame is copied to grow a buffer.
 #[derive(Default)]
@@ -123,6 +113,15 @@ mod tests {
     struct Upload(TensorData);
 
     impl Encode for Upload {}
+
+    /// Raw bytes as if they were a message's encoding, to test how messages are framed.
+    impl From<&[u8]> for Encoded {
+        fn from(bytes: &[u8]) -> Self {
+            let mut writer = SegmentWriter::default();
+            writer.write_all(bytes).unwrap();
+            writer.finish()
+        }
+    }
 
     #[test]
     fn a_small_message_is_one_segment() {
