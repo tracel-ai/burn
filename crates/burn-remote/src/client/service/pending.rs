@@ -24,7 +24,7 @@ type SharedState = Arc<Mutex<State>>;
 
 /// Correlates response-producing requests with the caller awaiting each one.
 ///
-/// Each response-producing task ([`ReadTensor`](crate::shared::Task::ReadTensor),
+/// Each response-producing task ([`ReadTensors`](crate::shared::Task::ReadTensors),
 /// `SyncBackend`, `DTypeUsage`, `ProfileStart`, `ProfileEnd`) carries a [`RequestId`]; the
 /// server echoes it on the
 /// response. The runner thread [`register`](Self::register)s a [`oneshot`] callback before

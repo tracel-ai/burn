@@ -9,7 +9,8 @@ use burn_remote::{
     },
 };
 use burn_tensor::{
-    Device, DeviceType, Distribution, Tensor, remote::RemoteHost, server::RemoteServer,
+    Bool, Device, DeviceType, Distribution, Int, Tensor, Transaction, remote::RemoteHost,
+    server::RemoteServer,
 };
 
 const TOKEN: &str = "fleet-token";
@@ -211,6 +212,83 @@ fn test_to_device_over_websocket() {
     let input = input.to_device(&device_1);
     let numbers: Vec<f32> = input.into_data().try_into_vec().unwrap();
     assert_eq!(numbers, numbers_expected);
+
+    rt.shutdown_background();
+}
+
+#[test]
+fn a_transaction_returns_each_tensor_in_the_order_it_was_registered() {
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .enable_io()
+        .build()
+        .unwrap();
+    let host = serve(&rt, BackendServer::<Flex>::new(vec![Default::default()]));
+    let device = Device::remote_options(&host).init().unwrap();
+
+    let floats = Tensor::<1>::from_floats([1.0, 2.0], &device);
+    let [first, ints, bools, second] = Transaction::default()
+        .register(floats.clone())
+        .register(Tensor::<1, Int>::from_ints([3, 4], &device))
+        .register(Tensor::<1, Bool>::from_bool([true, false], &device))
+        .register(floats * 10.0)
+        .execute()
+        .try_into()
+        .unwrap();
+
+    assert_eq!(first.iter::<f32>().collect::<Vec<_>>(), [1.0, 2.0]);
+    assert_eq!(ints.iter::<i64>().collect::<Vec<_>>(), [3, 4]);
+    assert_eq!(bools.iter::<bool>().collect::<Vec<_>>(), [true, false]);
+    assert_eq!(second.iter::<f32>().collect::<Vec<_>>(), [10.0, 20.0]);
+
+    rt.shutdown_background();
+}
+
+#[test]
+fn a_transaction_reads_a_tensor_registered_twice() {
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .enable_io()
+        .build()
+        .unwrap();
+    let host = serve(&rt, BackendServer::<Flex>::new(vec![Default::default()]));
+    let device = Device::remote_options(&host).init().unwrap();
+
+    // The first read borrows the tensor and the second takes it, so their order matters.
+    let tensor = Tensor::<1>::from_floats([1.0, 2.0], &device);
+    let [first, second] = Transaction::default()
+        .register(tensor.clone())
+        .register(tensor)
+        .execute()
+        .try_into()
+        .unwrap();
+
+    assert_eq!(first.iter::<f32>().collect::<Vec<_>>(), [1.0, 2.0]);
+    assert_eq!(second.iter::<f32>().collect::<Vec<_>>(), [1.0, 2.0]);
+
+    rt.shutdown_background();
+}
+
+#[test]
+fn a_transaction_reads_tensors_from_two_servers_in_order() {
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .enable_io()
+        .build()
+        .unwrap();
+    let host_1 = serve(&rt, BackendServer::<Flex>::new(vec![Default::default()]));
+    let host_2 = serve(&rt, BackendServer::<Flex>::new(vec![Default::default()]));
+    let device_1 = Device::remote_options(&host_1).init().unwrap();
+    let device_2 = Device::remote_options(&host_2).init().unwrap();
+
+    let [first, second, third] = Transaction::default()
+        .register(Tensor::<1>::from_floats([1.0], &device_1))
+        .register(Tensor::<1>::from_floats([2.0], &device_2))
+        .register(Tensor::<1>::from_floats([3.0], &device_1))
+        .execute()
+        .try_into()
+        .unwrap();
+
+    assert_eq!(first.iter::<f32>().collect::<Vec<_>>(), [1.0]);
+    assert_eq!(second.iter::<f32>().collect::<Vec<_>>(), [2.0]);
+    assert_eq!(third.iter::<f32>().collect::<Vec<_>>(), [3.0]);
 
     rt.shutdown_background();
 }
