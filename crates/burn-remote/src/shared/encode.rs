@@ -7,8 +7,8 @@ use serde::Serialize;
 /// sizes the buffer instead.
 const SIZED_ENCODING_MIN: usize = 64 * 1024;
 
-/// A message of the remote protocol, as sent to a peer.
-pub trait ProtocolMessage: Serialize {
+/// A message's MessagePack encoding, as sent to a peer.
+pub trait Encode: Serialize {
     /// Size of the tensor data the message carries, in bytes, which decides whether `encode` sizes
     /// its buffer first.
     fn data_len(&self) -> usize;
@@ -61,7 +61,7 @@ mod tests {
     #[derive(Serialize)]
     struct Upload(TensorData);
 
-    impl ProtocolMessage for Upload {
+    impl Encode for Upload {
         fn data_len(&self) -> usize {
             self.0.bytes().len()
         }

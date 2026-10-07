@@ -1,8 +1,7 @@
 use crate::metrics::{MetricSide, TelemetryLogger, logger_task};
 use crate::shared::{
-    LocalTransferId, PROTOCOL_VERSION, ProtocolMessage, RemoteMessage, RequestId, SessionId,
-    SessionInfo, SessionInit, Task, TaskResponse, TaskResponseContent, TensorRemote,
-    TransferCapability,
+    Encode, LocalTransferId, PROTOCOL_VERSION, RemoteMessage, RequestId, SessionId, SessionInfo,
+    SessionInit, Task, TaskResponse, TaskResponseContent, TensorRemote, TransferCapability,
 };
 use crate::telemetry::{CHANNEL_CAPACITY, TelemetryEvent, TelemetryProbe, serialized_len};
 use burn_backend::{

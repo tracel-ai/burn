@@ -12,8 +12,8 @@ use crate::PeerId;
 use crate::server::service::{SessionChannels, SessionService, parse_init_handshake};
 use crate::server::spawn::spawn_detached;
 use crate::shared::{
-    PROTOCOL_VERSION, ProtocolMessage, RemoteMessage, SessionId, SessionInfo, SessionInit,
-    SessionRefusal, Task, TaskResponse, TaskResponseContent,
+    Encode, PROTOCOL_VERSION, RemoteMessage, SessionId, SessionInfo, SessionInit, SessionRefusal,
+    Task, TaskResponse, TaskResponseContent,
 };
 use crate::transport::link::{FrameSink, FrameSource};
 use tokio::sync::mpsc;

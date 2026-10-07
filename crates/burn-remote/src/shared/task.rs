@@ -116,7 +116,7 @@ impl RemoteMessage {
 }
 
 #[cfg(feature = "client")]
-impl super::ProtocolMessage for Vec<RemoteMessage> {
+impl super::Encode for Vec<RemoteMessage> {
     fn data_len(&self) -> usize {
         self.iter().map(RemoteMessage::data_len).sum()
     }
@@ -295,7 +295,7 @@ pub struct TaskResponse {
 }
 
 #[cfg(feature = "server")]
-impl super::ProtocolMessage for TaskResponse {
+impl super::Encode for TaskResponse {
     fn data_len(&self) -> usize {
         match &self.content {
             TaskResponseContent::ReadTensors(Ok(data)) => {
