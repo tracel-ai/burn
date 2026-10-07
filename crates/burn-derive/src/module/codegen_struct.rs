@@ -485,15 +485,18 @@ fn is_primitive_type(ty: &syn::Type) -> bool {
                 return true;
             }
 
-            // Generic types like Option<T>, Vec<T>, etc.
+            // Only known containers can inherit constant classification from their contents.
+            // A custom type such as Block<f32> may still contain trainable parameters.
             match &segment.arguments {
-                syn::PathArguments::AngleBracketed(args) => args.args.iter().all(|arg| {
-                    if let syn::GenericArgument::Type(inner_ty) = arg {
-                        is_primitive_type(inner_ty)
-                    } else {
-                        false
-                    }
-                }),
+                syn::PathArguments::AngleBracketed(args) if is_constant_container(&ident) => {
+                    args.args.iter().all(|arg| {
+                        if let syn::GenericArgument::Type(inner_ty) = arg {
+                            is_primitive_type(inner_ty)
+                        } else {
+                            false
+                        }
+                    })
+                }
                 _ => false,
             }
         }
@@ -520,6 +523,49 @@ fn is_primitive_type(ty: &syn::Type) -> bool {
     }
 }
 
+fn is_constant_container(ident: &str) -> bool {
+    matches!(
+        ident,
+        "Option"
+            | "Result"
+            | "Vec"
+            | "Box"
+            | "Arc"
+            | "Weak"
+            | "HashMap"
+            | "BTreeMap"
+            | "HashSet"
+            | "BTreeSet"
+            | "VecDeque"
+            | "LinkedList"
+            | "BinaryHeap"
+            | "PhantomData"
+            | "Cell"
+            | "RefCell"
+            | "Mutex"
+            | "RwLock"
+    )
+}
+
 fn is_param_type(ty: &syn::Type) -> bool {
     type_matches_ident(ty, &["Param"])
+}
+
+#[cfg(test)]
+mod tests {
+    use super::is_primitive_type;
+
+    #[test]
+    fn containers_must_not_hide_custom_modules() {
+        for ty in [
+            "Block<f32>",
+            "Option<Vec<Block<f32>>>",
+            "Box<Block<f32>>",
+            "Arc<Block<f32>>",
+            "HashMap<String, Block<f32>>",
+            "Result<usize, Block<f32>>",
+        ] {
+            assert!(!is_primitive_type(&syn::parse_str(ty).unwrap()), "{ty}");
+        }
+    }
 }

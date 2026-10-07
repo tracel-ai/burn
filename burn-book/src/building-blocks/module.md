@@ -39,7 +39,8 @@ For an adapter with a generic child `M` and configuration `C`, keep `M: Module +
 mark the `C` field with `#[module(skip)]`. Your own `Forward` trait can be an additional bound on
 `M`; the derive does not constrain forward methods.
 
-For structures requiring custom traversal, use a
+Custom generic types such as `Block<f32>` are treated as submodules; use `#[module(skip)]` if they
+hold configuration instead. For structures requiring custom traversal, use a
 [manual implementation](../migrating-to-0.22.md#manual-module-implementations).
 
 ## Forward Contract
