@@ -38,7 +38,7 @@ use telemetry::TelemetryProbe;
 /// A server running tensor operations on its devices for remote clients.
 ///
 /// The devices pick the backend, and must all belong to one: every CubeCL runtime is one backend,
-/// so CUDA and wgpu devices can be served together, but not with Flex or NdArray ones. Autodiff is
+/// so CUDA and wgpu devices can be served together, but not with Flex ones. Autodiff is
 /// stripped, since the autodiff graph is the client's.
 #[derive(Clone)]
 pub struct RemoteServer {

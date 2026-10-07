@@ -35,12 +35,6 @@ macro_rules! with_backend {
                 let $hosted = hosted!(devices, Flex)?;
                 $body
             }
-            #[cfg(feature = "ndarray")]
-            Some(DispatchDevice::NdArray(_)) => {
-                type $b = NdArray;
-                let $hosted = hosted!(devices, NdArray)?;
-                $body
-            }
             #[cfg(feature = "tch")]
             Some(DispatchDevice::LibTorch(_)) => Err(ServeError::UnsupportedDevice {
                 reason: "LibTorch cannot run remote sessions".into(),

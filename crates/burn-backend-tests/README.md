@@ -31,8 +31,6 @@ cargo test-remote
 
 # Flex
 cargo test-flex
-# NdArray
-cargo test-ndarray
 # LibTorch
 cargo test-tch
 ```
@@ -128,8 +126,6 @@ cargo bench-flex --features flex-simd
 cargo bench-flex --features flex-rayon
 # Flex+Simd+Rayon
 cargo bench-flex --features flex-simd,flex-rayon
-# NdArray
-cargo bench-ndarray
 # LibTorch
 cargo bench-tch
 ```
@@ -154,12 +150,12 @@ cargo bench-flex --bench matmul -- square
 
 ### Comparing backends
 
-Each run targets one backend. To compare (e.g. Flex vs NdArray), run twice and diff the output:
+Each run targets one backend. To compare (e.g. Flex vs CPU), run twice and diff the output:
 
 ```sh
 cargo bench-flex --bench matmul > flex.txt
-cargo bench-ndarray --bench matmul > ndarray.txt
-diff flex.txt ndarray.txt
+cargo bench --no-default-features --features cpu,std --bench matmul > cpu.txt
+diff flex.txt cpu.txt
 ```
 
 ### GPU sync

@@ -33,8 +33,8 @@ use burn_backend::cubecl::measure_peak_throughput;
 /// #[cfg(feature = "cuda")]
 /// let cuda_device = DispatchDevice::Cube(cubecl::Device::Cuda(Default::default()));
 ///
-/// #[cfg(feature = "ndarray")]
-/// let ndarray_device = DispatchDevice::NdArray(Default::default());
+/// #[cfg(feature = "flex")]
+/// let flex_device = DispatchDevice::Flex(Default::default());
 /// ```
 #[derive(Clone, Eq)]
 pub enum DispatchDevice {
@@ -49,10 +49,6 @@ pub enum DispatchDevice {
     /// The [Flex backend](crate::backends::Flex) device (CPU-only).
     #[cfg(feature = "flex")]
     Flex(FlexDevice),
-
-    /// The [NdArray backend](crate::backends::NdArray) device (CPU-only).
-    #[cfg(feature = "ndarray")]
-    NdArray(NdArrayDevice),
 
     /// The [LibTorch backend](crate::backends::LibTorch) device.
     #[cfg(feature = "tch")]
@@ -89,7 +85,7 @@ impl DispatchDevice {
     /// Measure peak throughput for this device against the given `keys`.
     ///
     /// Only cubecl-backed devices can measure throughput; other backends
-    /// (ndarray, libtorch, remote, ...) return an empty vector. An autodiff
+    /// (libtorch, remote, ...) return an empty vector. An autodiff
     /// device reports the peaks of the device it wraps. Each returned result
     /// corresponds positionally to the key at the same index, and carries a
     /// [`ThroughputError`] where the device has no peak for that key.
@@ -118,8 +114,6 @@ impl DispatchDevice {
             // Not cubecl-backed, so there are no kernels to measure.
             #[cfg(feature = "flex")]
             DispatchDevice::Flex(_) => Vec::new(),
-            #[cfg(feature = "ndarray")]
-            DispatchDevice::NdArray(_) => Vec::new(),
             #[cfg(feature = "tch")]
             DispatchDevice::LibTorch(_) => Vec::new(),
 
@@ -215,8 +209,6 @@ impl core::fmt::Debug for DispatchDevice {
             Self::Cube(device) => f.debug_tuple("Cube").field(device).finish(),
             #[cfg(feature = "flex")]
             Self::Flex(device) => f.debug_tuple("Flex").field(device).finish(),
-            #[cfg(feature = "ndarray")]
-            Self::NdArray(device) => f.debug_tuple("NdArray").field(device).finish(),
             #[cfg(feature = "tch")]
             Self::LibTorch(device) => f.debug_tuple("LibTorch").field(device).finish(),
             #[cfg(feature = "remote")]
@@ -236,7 +228,7 @@ impl core::fmt::Debug for DispatchDevice {
 
 impl Default for DispatchDevice {
     /// Select an enabled backend in this order: CUDA, Metal, ROCm, Vulkan, WebGPU,
-    /// wgpu, CPU, LibTorch, Flex, Remote, NdArray. `BURN_DEVICE` overrides this in
+    /// wgpu, CPU, LibTorch, Flex, Remote. `BURN_DEVICE` overrides this in
     /// std builds. Capture devices must be constructed explicitly.
     ///
     /// The `metal`, `vulkan`, and `webgpu` overrides require their matching Cargo features
@@ -327,13 +319,6 @@ impl Default for DispatchDevice {
                             "BURN_DEVICE=flex requested, but the 'flex' feature is not enabled."
                         );
                     }
-                    "ndarray" => {
-                        #[cfg(feature = "ndarray")]
-                        return Self::NdArray(NdArrayDevice::default());
-                        panic!(
-                            "BURN_DEVICE=ndarray requested, but the 'ndarray' feature is not enabled."
-                        );
-                    }
                     _ => panic!("Unknown BURN_DEVICE override: '{}'.", device_str),
                 }
             }
@@ -368,15 +353,11 @@ impl Default for DispatchDevice {
         #[cfg(feature = "tch")]
         return Self::LibTorch(LibTorchDevice::default());
 
-        // Preserve the preference for Flex over the deprecated NdArray backend.
         #[cfg(feature = "flex")]
         return Self::Flex(FlexDevice);
 
         #[cfg(feature = "remote")]
         return Self::Remote(RemoteDevice::default());
-
-        #[cfg(feature = "ndarray")]
-        return Self::NdArray(NdArrayDevice::default());
 
         panic!(
             "No execution backend is enabled. Enable a Burn backend feature such as `flex`, \
@@ -407,8 +388,6 @@ impl PartialEq for DispatchDevice {
             (Self::Cube(a), Self::Cube(b)) => a == b,
             #[cfg(feature = "flex")]
             (Self::Flex(a), Self::Flex(b)) => a == b,
-            #[cfg(feature = "ndarray")]
-            (Self::NdArray(a), Self::NdArray(b)) => a == b,
             #[cfg(feature = "tch")]
             (Self::LibTorch(a), Self::LibTorch(b)) => a == b,
             #[cfg(feature = "remote")]
@@ -468,8 +447,6 @@ impl DispatchDevice {
             Self::Cube(_) => DispatchDeviceId::Cube,
             #[cfg(feature = "flex")]
             Self::Flex(_) => DispatchDeviceId::Flex,
-            #[cfg(feature = "ndarray")]
-            Self::NdArray(_) => DispatchDeviceId::NdArray,
             #[cfg(feature = "tch")]
             Self::LibTorch(_) => DispatchDeviceId::LibTorch,
             #[cfg(feature = "remote")]
@@ -509,7 +486,7 @@ pub enum DispatchDeviceId {
     Cube = 0,
     Flex = 4,
     LibTorch = 5,
-    NdArray = 6,
+    // 6 was NdArray; keep the other backend IDs stable.
     Remote = 10,
     Capture = 11,
 }
@@ -531,8 +508,6 @@ impl TryFrom<u16> for DispatchDeviceId {
             4 => Ok(Self::Flex),
             #[cfg(feature = "tch")]
             5 => Ok(Self::LibTorch),
-            #[cfg(feature = "ndarray")]
-            6 => Ok(Self::NdArray),
             #[cfg(feature = "remote")]
             10 => Ok(Self::Remote),
             #[cfg(feature = "capture")]
@@ -551,8 +526,6 @@ impl DeviceOps for DispatchDevice {
             Self::Cube(device) => device.defaults(),
             #[cfg(feature = "flex")]
             Self::Flex(device) => device.defaults(),
-            #[cfg(feature = "ndarray")]
-            Self::NdArray(device) => device.defaults(),
             #[cfg(feature = "tch")]
             Self::LibTorch(device) => device.defaults(),
             #[cfg(feature = "remote")]
@@ -575,8 +548,6 @@ impl burn_backend::Device for DispatchDevice {
             DispatchDeviceId::Cube => Self::Cube(burn_backend::Device::from_id(device_id)),
             #[cfg(feature = "flex")]
             DispatchDeviceId::Flex => Self::Flex(FlexDevice::from_id(device_id)),
-            #[cfg(feature = "ndarray")]
-            DispatchDeviceId::NdArray => Self::NdArray(NdArrayDevice::from_id(device_id)),
             #[cfg(feature = "tch")]
             DispatchDeviceId::LibTorch => Self::LibTorch(LibTorchDevice::from_id(device_id)),
             #[cfg(feature = "remote")]
@@ -595,8 +566,6 @@ impl burn_backend::Device for DispatchDevice {
             Self::Cube(device) => device.to_id(),
             #[cfg(feature = "flex")]
             Self::Flex(device) => device.to_id(),
-            #[cfg(feature = "ndarray")]
-            Self::NdArray(device) => device.to_id(),
             #[cfg(feature = "tch")]
             Self::LibTorch(device) => device.to_id(),
             #[cfg(feature = "remote")]
@@ -659,13 +628,6 @@ impl From<WgpuDevice> for DispatchDevice {
 impl From<FlexDevice> for DispatchDevice {
     fn from(device: FlexDevice) -> Self {
         DispatchDevice::Flex(device)
-    }
-}
-
-#[cfg(feature = "ndarray")]
-impl From<NdArrayDevice> for DispatchDevice {
-    fn from(device: NdArrayDevice) -> Self {
-        DispatchDevice::NdArray(device)
     }
 }
 

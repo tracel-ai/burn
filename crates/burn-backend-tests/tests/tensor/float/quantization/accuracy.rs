@@ -4,7 +4,7 @@
 //! accuracy it buys for the memory it costs rather than on either number alone.
 //!
 //! Run the full sweep with:
-//! `cargo test -p burn-backend-tests --features ndarray --test tensor report_quantization_accuracy -- --ignored --nocapture`
+//! `cargo test -p burn-backend-tests --features flex --test tensor report_quantization_accuracy -- --ignored --nocapture`
 
 use super::*;
 use burn_tensor::{

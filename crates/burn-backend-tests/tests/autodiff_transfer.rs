@@ -4,17 +4,16 @@
 //! directions and checkpointing strategies. Unlike the shared autodiff suite, it
 //! does not select a single backend through `BURN_DEVICE`.
 //!
-//! Run with `cargo test -p burn-backend-tests --features flex,ndarray --test autodiff_transfer`.
+//! Run with `cargo test -p burn-backend-tests --features flex,cpu --test autodiff_transfer`.
 //! The Flex pass in `xtask test` and the default `cargo run-checks` invocation
 //! also run this target, separately from the single-backend suites.
-#![allow(deprecated)]
 
 use burn_tensor::{Device, GradientCheckpointingStrategy, Tensor, TensorData};
 
 fn devices() -> [(Device, Device); 2] {
     [
-        (Device::flex(), Device::ndarray()),
-        (Device::ndarray(), Device::flex()),
+        (Device::flex(), Device::cpu()),
+        (Device::cpu(), Device::flex()),
     ]
 }
 
@@ -122,7 +121,7 @@ fn round_trip_and_untracked_transferred_constants_support_checkpointing() {
 #[should_panic(expected = "Tensor::backward requires a tracked autodiff tensor")]
 fn backward_rejects_an_untracked_transfer() {
     let constant = Tensor::<1>::ones([2], &Device::flex().autodiff());
-    let moved = constant.to_device(&Device::ndarray());
+    let moved = constant.to_device(&Device::cpu());
     assert!(!moved.is_tracked());
     let _ = moved.backward();
 }

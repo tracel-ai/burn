@@ -90,7 +90,7 @@
 //!
 //! Autodiff and kernel fusion are decorators over these backends: `device.autodiff()` enables
 //! gradients for tensors created on a device, and the CubeCL backends fuse operations by default.
-//! NdArray (`ndarray`) and LibTorch (`tch`) are deprecated.
+//! LibTorch (`tch`) is deprecated.
 //!
 //! ## Quantization
 //!
@@ -131,12 +131,9 @@
 //!   - `cpu`: Makes available the CubeCL CPU backend
 //!   - `tch`: Makes available the LibTorch backend (deprecated - use a CubeCL backend instead)
 //!   - `flex`: Makes available the Flex backend (pure-Rust CPU, std/no_std/WASM)
-//!   - `ndarray`: Makes available the NdArray backend (deprecated - use `flex` instead)
 //! - Backend specifications
-//!   - `simd`: Enable SIMD kernels in the Flex and NdArray backends
-//!   - `rayon`: Enable multi-threaded execution in the Flex and NdArray backends
-//!   - `accelerate`, `blas-netlib`, `openblas`, `openblas-system`: BLAS providers for the NdArray
-//!     backend
+//!   - `simd`: Enable SIMD kernels in the Flex backend
+//!   - `rayon`: Enable multi-threaded execution in the Flex backend
 //!   - `autotune`: Enable running benchmarks to select the best kernel in backends that support it.
 //!   - `autotune-checks`: Check that every autotune candidate produces the same output (debugging).
 //!   - `x86-v4`: Enable AVX-512 matmul kernels in the Flex backend.
