@@ -12,8 +12,8 @@ use crate::PeerId;
 use crate::server::service::{SessionChannels, SessionService, parse_init_handshake};
 use crate::server::spawn::spawn_detached;
 use crate::shared::{
-    EncodeExact, PROTOCOL_VERSION, RemoteMessage, SessionId, SessionInfo, SessionInit,
-    SessionRefusal, Task, TaskResponse, TaskResponseContent,
+    PROTOCOL_VERSION, RemoteMessage, SessionId, SessionInfo, SessionInit, SessionRefusal, Task,
+    TaskResponse, TaskResponseContent, WireMessage,
 };
 use crate::transport::link::{FrameSink, FrameSource};
 use tokio::sync::mpsc;
@@ -83,7 +83,7 @@ where
             sink.send(info.into()).await?;
             while let Some(response) = responses.recv().await {
                 let bytes = response
-                    .encode_exact()
+                    .encode()
                     .map_err(|err| format!("Failed to encode task response: {err}"))?;
                 sink.send(bytes.into()).await?;
             }

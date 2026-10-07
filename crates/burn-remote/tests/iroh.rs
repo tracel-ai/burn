@@ -378,6 +378,37 @@ fn synchronous_client_round_trip() {
 }
 
 #[test]
+fn a_tensor_larger_than_the_stream_window_round_trips() {
+    within_hang_limit(|| {
+        let server_runtime = tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+        let server = server_runtime.block_on(local_endpoint());
+        let router = {
+            let _guard = server_runtime.enter();
+            spawn_router::<Flex>(server.clone(), AllowAll, TelemetryProbe::disabled())
+        };
+        let client_runtime = tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+        let client = client_runtime.block_on(local_endpoint());
+        let device = Device::remote_options(&host_dialed_from(&client, server.addr()))
+            .init()
+            .unwrap();
+
+        let len = 4 * 1024 * 1024;
+        let data = TensorData::new((0..len).map(|i| i as f32).collect::<Vec<_>>(), [len]);
+        Tensor::<1>::from_data(data.clone(), &device)
+            .into_data()
+            .assert_eq(&data, true);
+
+        server_runtime.block_on(router.shutdown()).unwrap();
+    });
+}
+
+#[test]
 fn unsigned_int_uploads_read_back_and_cast() {
     within_hang_limit(|| {
         let server_runtime = tokio::runtime::Builder::new_multi_thread()

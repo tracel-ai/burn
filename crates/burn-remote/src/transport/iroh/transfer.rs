@@ -13,7 +13,7 @@ use tokio::sync::{Mutex, Notify};
 
 use super::node::{RemoteNode, StreamKind, recv_frame, send_frame};
 use crate::server::transfer::TensorTransfer;
-use crate::shared::{EncodeExact, TransferCapability};
+use crate::shared::{TransferCapability, WireMessage};
 use crate::{PeerAddr, PeerId};
 
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
@@ -21,6 +21,15 @@ enum TransferMessage {
     Request(TransferCapability),
     Tensor(TensorData),
     Denied(String),
+}
+
+impl WireMessage for TransferMessage {
+    fn data_len(&self) -> usize {
+        match self {
+            TransferMessage::Tensor(data) => data.bytes().len(),
+            _ => 0,
+        }
+    }
 }
 
 struct ExposedTensor {
@@ -150,7 +159,7 @@ impl<B: BackendIr> TensorTransfer<B> for IrohTransfer<B> {
             log::error!("An Iroh tensor transfer cannot target a non-Iroh peer");
             return;
         };
-        let bytes = match TransferMessage::Tensor(data).encode_exact() {
+        let bytes = match TransferMessage::Tensor(data).encode() {
             Ok(bytes) => bytes::Bytes::from(bytes),
             Err(err) => {
                 log::error!("Failed to encode tensor transfer {capability:?}: {err}");

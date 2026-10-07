@@ -115,6 +115,13 @@ impl RemoteMessage {
     }
 }
 
+#[cfg(feature = "client")]
+impl super::WireMessage for Vec<RemoteMessage> {
+    fn data_len(&self) -> usize {
+        self.iter().map(RemoteMessage::data_len).sum()
+    }
+}
+
 /// Client-side session handshake.
 #[allow(missing_docs)]
 #[derive(Serialize, Deserialize, Clone)]
@@ -284,6 +291,16 @@ pub enum Task {
 pub struct TaskResponse {
     pub content: TaskResponseContent,
     pub id: RequestId,
+}
+
+#[cfg(feature = "server")]
+impl super::WireMessage for TaskResponse {
+    fn data_len(&self) -> usize {
+        match &self.content {
+            TaskResponseContent::ReadTensor(Ok(data)) => data.bytes().len(),
+            _ => 0,
+        }
+    }
 }
 
 #[allow(missing_docs)]
