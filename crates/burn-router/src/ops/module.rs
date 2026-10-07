@@ -37,6 +37,61 @@ impl<R: RouterChannel> ModuleOps<Self> for BackendRouter<R> {
             .output()
     }
 
+    fn ctc_loss(
+        log_probs: FloatTensor<Self>,
+        targets: IntTensor<Self>,
+        input_lengths: IntTensor<Self>,
+        target_lengths: IntTensor<Self>,
+        blank: usize,
+    ) -> FloatTensor<Self> {
+        let client = log_probs.client.clone();
+        let desc = CtcLossOpIr::create(
+            log_probs.into_ir(),
+            targets.into_ir(),
+            input_lengths.into_ir(),
+            target_lengths.into_ir(),
+            blank,
+            || client.create_empty_handle(),
+        );
+
+        client
+            .register(OperationIr::Module(ModuleOperationIr::CtcLoss(desc)))
+            .output()
+    }
+
+    fn has_ctc_loss_backward() -> bool {
+        // The gradient is one operation for the backend on the other side, which a router
+        // cannot name here: the interpreter answers it with that backend's own kernel, or
+        // with the default gradient when it has none.
+        true
+    }
+
+    fn ctc_loss_backward(
+        log_probs: FloatTensor<Self>,
+        targets: IntTensor<Self>,
+        input_lengths: IntTensor<Self>,
+        target_lengths: IntTensor<Self>,
+        grad_loss: FloatTensor<Self>,
+        blank: usize,
+    ) -> FloatTensor<Self> {
+        let client = log_probs.client.clone();
+        let desc = CtcLossBackwardOpIr::create(
+            log_probs.into_ir(),
+            targets.into_ir(),
+            input_lengths.into_ir(),
+            target_lengths.into_ir(),
+            grad_loss.into_ir(),
+            blank,
+            || client.create_empty_handle(),
+        );
+
+        client
+            .register(OperationIr::Module(ModuleOperationIr::CtcLossBackward(
+                desc,
+            )))
+            .output()
+    }
+
     fn embedding(weights: FloatTensor<Self>, indices: IntTensor<Self>) -> FloatTensor<Self> {
         let client = weights.client.clone();
         let desc = EmbeddingOpIr::create(weights.into_ir(), indices.into_ir(), || {

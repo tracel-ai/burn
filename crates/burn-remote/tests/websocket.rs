@@ -9,8 +9,8 @@ use burn_remote::{
     },
 };
 use burn_tensor::{
-    Bool, Device, DeviceType, Distribution, Int, Tensor, Transaction, remote::RemoteHost,
-    server::RemoteServer,
+    Bool, Device, DeviceType, Distribution, Int, Tensor, Transaction, activation::log_softmax,
+    remote::RemoteHost, server::RemoteServer,
 };
 
 const TOKEN: &str = "fleet-token";
@@ -271,6 +271,80 @@ fn test_to_device_over_websocket() {
     let input = input.to_device(&device_1);
     let numbers: Vec<f32> = input.into_data().try_into_vec().unwrap();
     assert_eq!(numbers, numbers_expected);
+
+    rt.shutdown_background();
+}
+
+#[test]
+fn ctc_loss_over_websocket_matches_its_closed_form() {
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .enable_io()
+        .build()
+        .unwrap();
+    let host = serve(&rt, BackendServer::<Flex>::new(vec![Default::default()]));
+    let device = Device::remote_options(&host).init().unwrap();
+
+    // Three frames, uniform over blank and one label. Six of the eight paths collapse to the
+    // single-label target, so the loss is -ln(6/8).
+    let log_probs = Tensor::<3>::full([3, 1, 2], 0.5f32.ln(), &device);
+    let loss = burn_tensor::module::ctc_loss(
+        log_probs,
+        Tensor::<2, Int>::from_ints([[1]], &device),
+        Tensor::<1, Int>::from_ints([3], &device),
+        Tensor::<1, Int>::from_ints([1], &device),
+        0,
+    );
+
+    let loss: Vec<f32> = loss.into_data().try_into_vec().unwrap();
+    assert!((loss[0] - (8.0f32 / 6.0).ln()).abs() < 1e-5, "{loss:?}");
+
+    rt.shutdown_background();
+}
+
+#[test]
+fn the_gradient_of_ctc_loss_over_websocket_matches_the_local_one() {
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .enable_io()
+        .build()
+        .unwrap();
+    // Flex has no CTC gradient of its own, so the server answers with the default one.
+    let host = serve(&rt, BackendServer::<Flex>::new(vec![Default::default()]));
+    let remote = Device::remote_options(&host).init().unwrap().autodiff();
+    let local = Device::flex().autodiff();
+
+    // Utterances of different lengths: one with a repeated label, one with a shorter target
+    // and one with an empty target, so padding in every direction is exercised.
+    let (steps, batch, classes) = (5, 3, 3);
+    let logits: Vec<f32> = (0..steps * batch * classes)
+        .map(|i| (i as f32 * 0.7).sin())
+        .collect();
+    let gradient = |device: &Device| -> Vec<f32> {
+        let logits = Tensor::<1>::from_floats(logits.as_slice(), device)
+            .reshape([steps, batch, classes])
+            .require_grad();
+        let loss = burn_tensor::module::ctc_loss(
+            log_softmax(logits.clone(), 2),
+            Tensor::<2, Int>::from_ints([[1, 1], [2, 0], [0, 0]], device),
+            Tensor::<1, Int>::from_ints([5, 3, 4], device),
+            Tensor::<1, Int>::from_ints([2, 1, 0], device),
+            0,
+        );
+        let gradients = loss.sum().backward();
+        let gradient = logits.grad(&gradients).unwrap();
+        gradient.into_data().try_into_vec().unwrap()
+    };
+
+    let (over_websocket, locally) = (gradient(&remote), gradient(&local));
+    assert!(
+        locally.iter().any(|value| value.abs() > 1e-3),
+        "{locally:?}"
+    );
+    for (remote, local) in over_websocket.iter().zip(&locally) {
+        assert!(
+            (remote - local).abs() < 1e-4,
+            "{over_websocket:?} != {locally:?}"
+        );
+    }
 
     rt.shutdown_background();
 }

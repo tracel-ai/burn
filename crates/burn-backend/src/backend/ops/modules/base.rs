@@ -1055,10 +1055,15 @@ pub trait ModuleOps<B: Backend> {
 
     /// Backward pass for [ctc_loss](ModuleOps::ctc_loss): gradient w.r.t. `log_probs`.
     ///
-    /// Only called when [has_ctc_loss_backward](ModuleOps::has_ctc_loss_backward)
+    /// Autodiff only calls it when [has_ctc_loss_backward](ModuleOps::has_ctc_loss_backward)
     /// returns `true`. Backends without a native implementation should leave
     /// both methods at their defaults; the gradient is computed automatically by
     /// autodiff against the decomposed [ctc::ctc_loss_default] forward.
+    ///
+    /// The default composes the gradient from tensor operations
+    /// ([ctc::ctc_loss_backward_default]). It serves callers that hold no autodiff
+    /// graph for this backend, such as the interpreter behind a router, whose
+    /// client asked for the gradient as one operation.
     ///
     /// # Arguments
     ///
@@ -1073,15 +1078,20 @@ pub trait ModuleOps<B: Backend> {
     ///
     /// Gradient w.r.t. `log_probs` of shape `[T, N, C]`
     fn ctc_loss_backward(
-        _log_probs: FloatTensor<B>,
-        _targets: IntTensor<B>,
-        _input_lengths: IntTensor<B>,
-        _target_lengths: IntTensor<B>,
-        _grad_loss: FloatTensor<B>,
-        _blank: usize,
+        log_probs: FloatTensor<B>,
+        targets: IntTensor<B>,
+        input_lengths: IntTensor<B>,
+        target_lengths: IntTensor<B>,
+        grad_loss: FloatTensor<B>,
+        blank: usize,
     ) -> FloatTensor<B> {
-        unreachable!(
-            "ctc_loss_backward called on a backend whose has_ctc_loss_backward() returns false"
+        ctc::ctc_loss_backward_default::<B>(
+            log_probs,
+            targets,
+            input_lengths,
+            target_lengths,
+            grad_loss,
+            blank,
         )
     }
 }
