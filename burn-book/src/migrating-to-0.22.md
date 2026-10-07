@@ -121,8 +121,8 @@ struct Model {
 Missing `Module` / `ModuleDisplay` errors on config fields usually indicate a missing skip
 attribute. Skipped fields still need `Clone + Debug + Send`. Do not skip real submodules: their
 parameters would be excluded from training and checkpoints. See
-[field handling](./building-blocks/module.md#fields-and-generic-adapters) for generic adapters, skip
-semantics and detection limitations.
+[field handling](./building-blocks/module.md#fields-and-generic-adapters) for generic adapters and
+skip semantics.
 
 ## Autodiff is runtime state
 
