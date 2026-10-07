@@ -1,6 +1,6 @@
 //! Messages carried in frames of at most [`MAX_FRAME_SIZE`] bytes.
 //!
-//! Past a session's handshake, a small message travels as one frame behind a tag byte. A larger
+//! Past the handshake, a small message travels as one frame behind a tag byte. A larger
 //! one opens with a frame giving its length, then follows as the segments it was encoded into, so
 //! it is never copied to be sent and is read into one buffer allocated for it. The handshake itself
 //! stays in bare frames: a peer on another protocol version reads its refusal from them.

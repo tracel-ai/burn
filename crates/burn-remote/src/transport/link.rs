@@ -2,9 +2,10 @@
 //!
 //! A session is a duplex link: the client submits a stream of
 //! [`RemoteMessage`](crate::shared::RemoteMessage)s and the server returns a stream of
-//! [`TaskResponse`](crate::shared::TaskResponse)s, each carried in frames. Every transport realizes this as one
-//! bidirectional stream, split into an outgoing [`FrameSink`] and an incoming [`FrameSource`] so
-//! the response-writer task can own the sink while the request-reader loop owns the source.
+//! [`TaskResponse`](crate::shared::TaskResponse)s, each carried in frames. Every transport
+//! realizes this as one bidirectional stream, split into an outgoing [`FrameSink`] and an incoming
+//! [`FrameSource`] so the response-writer task can own the sink while the request-reader loop owns
+//! the source.
 //!
 //! Frames are opaque `Bytes` here; encoding/decoding to the protocol types lives in the session
 //! pump (server) and client service, so the transport layer only moves bytes. Past the handshake,

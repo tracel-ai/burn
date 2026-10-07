@@ -113,6 +113,25 @@ fn only_a_websocket_client_with_the_token_is_admitted() {
     rt.shutdown_background();
 }
 
+/// A server reads at most 64 KiB from a client before admitting it, so a larger credential can
+/// never pass, and is refused before a session is opened for it.
+#[test]
+fn a_credential_too_large_for_the_handshake_is_refused_before_connecting() {
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()
+        .unwrap();
+    let host = serve(&rt, BackendServer::<Flex>::new(vec![Default::default()]));
+
+    let refused = Device::remote_options(&host.with_credential(vec![b'x'; 64 * 1024 + 1])).init();
+
+    assert!(
+        matches!(refused, Err(ConnectError::InvalidConfiguration { .. })),
+        "{refused:?}"
+    );
+    rt.shutdown_background();
+}
+
 #[test]
 fn a_websocket_authorizer_sees_the_client_by_its_address() {
     let rt = tokio::runtime::Builder::new_multi_thread()

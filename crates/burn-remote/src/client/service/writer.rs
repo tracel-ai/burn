@@ -43,8 +43,8 @@ pub(crate) struct SubmitWriter {
 }
 
 impl SubmitWriter {
-    /// Spawn the writer task on `runtime`, taking ownership of the submit `channel` once the
-    /// handshake is done.
+    /// Spawn the writer task on `runtime`, taking ownership of the submit `channel`, which must be
+    /// past the handshake.
     pub(crate) fn spawn(runtime: &Executor, channel: SubmitChannel) -> Self {
         #[cfg(not(target_family = "wasm"))]
         let (tx, mut rx) = mpsc::channel::<Vec<RemoteMessage>>(WRITE_QUEUE_CAP);
