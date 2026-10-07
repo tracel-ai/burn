@@ -10,7 +10,7 @@ use burn_backend::{
         },
         unfold::calculate_unfold_shape,
     },
-    quantization::{QuantScheme, QuantStore},
+    quantization::{QuantScheme, permuted_scheme},
     tensor::IndexingUpdateOp,
 };
 
@@ -19,24 +19,10 @@ use crate::{ScalarIr, TensorId, TensorIr};
 use super::operation::*;
 
 fn permute_quantized_dtype(dtype: DType, rank: usize, axes: &[usize]) -> DType {
-    let DType::QFloat(mut scheme) = dtype else {
-        return dtype;
-    };
-
-    scheme.permute_block_dims(rank, axes);
-
-    if let QuantStore::PackedU32(packed_dim) | QuantStore::PackedNative(packed_dim) =
-        &mut scheme.store
-    {
-        let packed_axis = rank - *packed_dim - 1;
-        let new_axis = axes
-            .iter()
-            .position(|axis| *axis == packed_axis)
-            .expect("Permute axes to contain the packed axis");
-        *packed_dim = rank - new_axis - 1;
+    match dtype {
+        DType::QFloat(scheme) => DType::QFloat(permuted_scheme(scheme, rank, axes)),
+        dtype => dtype,
     }
-
-    DType::QFloat(scheme)
 }
 
 fn swap_dims_quantized_dtype(dtype: DType, rank: usize, dim1: usize, dim2: usize) -> DType {

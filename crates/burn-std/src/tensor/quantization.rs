@@ -12,7 +12,7 @@ pub use cubecl_common::quant::scheme::{
 /// this alignment may need to be revisited in the future.
 pub const QPARAM_ALIGN: usize = core::mem::align_of::<f32>();
 
-use alloc::vec::Vec;
+use alloc::{vec, vec::Vec};
 use core::any::TypeId;
 use cubecl_common::e4m3;
 use cubecl_common::quant::scheme::{f32_to_ue8m0, ue8m0_to_f32};
@@ -233,7 +233,12 @@ impl QuantizedBytes {
 
         // Re-interpret `Vec<E>` as `Vec<i8>` with `Vec::from_raw_parts`
         let i8s: Vec<i8> = bytemuck::allocation::cast_vec(value);
-        let mut bytes = Bytes::from_elems(i8s);
+        let mut bytes = match scheme.store {
+            QuantStore::PackedU32(packed_dim) => {
+                Bytes::from_elems(pack_u32(&i8s, &shape, packed_dim, scheme.value.size_bits()))
+            }
+            QuantStore::Native | QuantStore::PackedNative(_) => Bytes::from_elems(i8s),
+        };
 
         let scales = match scheme.block_size() {
             None => &scales[..1],
@@ -294,18 +299,6 @@ impl QuantizedBytes {
         (values, DecodedScales { block, global })
     }
 
-    fn split_i8_values(self, scale_bytes: usize) -> (Vec<i8>, Vec<u8>) {
-        let mut values = read_bytes_to_i8(self.bytes);
-
-        let values_end = values
-            .len()
-            .checked_sub(scale_bytes)
-            .expect("quantized tensor data is shorter than its scheme's parameters");
-        let qparams = values.split_off(values_end);
-
-        (values, bytemuck::cast_vec(qparams))
-    }
-
     /// Splits the quantized values of the tensor from the quantization parameters.
     ///
     /// Returns the values in i8 and a newly allocated vector containing the
@@ -314,28 +307,36 @@ impl QuantizedBytes {
         let num_params = params_shape(&self.shape, &self.scheme).num_elements();
         let scale_bytes =
             scale_size(self.scheme.scale_dtype()) * num_params + global_scale_size(&self.scheme);
+        let num_elements = self.num_elements();
+        let (shape, scheme) = (self.shape, self.scheme);
 
-        if let QuantStore::PackedU32(packed_dim) = self.scheme.store {
-            assert_eq!(
-                packed_dim, 0,
-                "Packing must be on innermost dimension for splitting off values"
-            );
-        }
+        let mut stored = read_bytes_to_i8(self.bytes);
+        let split_at = stored
+            .len()
+            .checked_sub(scale_bytes)
+            .expect("quantized tensor data is shorter than its scheme's parameters");
+        let qparams = bytemuck::cast_vec(stored.split_off(split_at));
 
-        let (values, qparams) = match self.scheme.store {
-            QuantStore::Native => self.split_i8_values(scale_bytes),
-            QuantStore::PackedU32(_) => match self.scheme.value {
-                QuantValue::Q8F | QuantValue::Q8S => self.split_i8_values(scale_bytes),
-                QuantValue::Q4F | QuantValue::Q4S | QuantValue::Q2F | QuantValue::Q2S => {
-                    let split_at =
-                        self.bytes.len().checked_sub(scale_bytes).expect(
-                            "quantized tensor data is shorter than its scheme's parameters",
-                        );
-                    let qparams = self.bytes[split_at..].to_vec();
-                    let values = bytemuck::cast_slice::<_, u32>(&self.bytes[..split_at]);
-                    // Sub-byte values are unpacked as i8s for value equality tests
-                    let values = unpack_q_to_i8s(values, self.num_elements(), &self.scheme.value);
-                    (values, qparams)
+        let values = match scheme.store {
+            // Values and scales may be separated by alignment padding.
+            QuantStore::Native => {
+                stored.truncate(num_elements);
+                stored
+            }
+            QuantStore::PackedU32(packed_dim) => match scheme.value {
+                QuantValue::Q8F
+                | QuantValue::Q8S
+                | QuantValue::Q4F
+                | QuantValue::Q4S
+                | QuantValue::Q2F
+                | QuantValue::Q2S => {
+                    let words: Vec<u32> = bytemuck::cast_slice::<i8, u8>(&stored)
+                        .as_chunks::<4>()
+                        .0
+                        .iter()
+                        .map(|word| u32::from_ne_bytes(*word))
+                        .collect();
+                    unpack_u32(&words, &shape, packed_dim, scheme.value.size_bits())
                 }
                 QuantValue::E4M3 | QuantValue::E5M2 | QuantValue::E2M1 => {
                     unimplemented!("Not yet supported")
@@ -467,6 +468,106 @@ fn read_bytes_to_i8(bytes: Bytes) -> Vec<i8> {
     }
 }
 
+/// `scheme` once its tensor's axes are permuted by `axes`: the block dims and the packed axis
+/// move with the axes they belong to.
+pub fn permuted_scheme(mut scheme: QuantScheme, rank: usize, axes: &[usize]) -> QuantScheme {
+    scheme.permute_block_dims(rank, axes);
+
+    if let QuantStore::PackedU32(packed_dim) | QuantStore::PackedNative(packed_dim) =
+        &mut scheme.store
+    {
+        let packed_axis = rank - *packed_dim - 1;
+        let new_axis = axes
+            .iter()
+            .position(|axis| *axis == packed_axis)
+            .expect("Permute axes to contain the packed axis");
+        *packed_dim = rank - new_axis - 1;
+    }
+
+    scheme
+}
+
+/// Where each line along `axis` starts in a row-major tensor of `shape`, in the order a packed
+/// store keeps them: the tensor with `axis` swapped innermost, read row-major.
+fn packed_line_starts(shape: &[usize], axis: usize) -> impl Iterator<Item = usize> + '_ {
+    let rank = shape.len();
+    let mut strides = vec![1; rank];
+    for dim in (0..rank - 1).rev() {
+        strides[dim] = strides[dim + 1] * shape[dim + 1];
+    }
+    let outer: Vec<usize> = (0..rank - 1)
+        .map(|position| if position == axis { rank - 1 } else { position })
+        .collect();
+    let num_lines = outer.iter().map(|&dim| shape[dim]).product();
+
+    (0..num_lines).map(move |mut line| {
+        outer
+            .iter()
+            .rev()
+            .map(|&dim| {
+                let index = line % shape[dim];
+                line /= shape[dim];
+                index * strides[dim]
+            })
+            .sum()
+    })
+}
+
+/// The stride and extent of the axis a store packs along, `packed_dim` counting from the
+/// innermost; a scalar packs as one line of one value.
+fn packed_axis(shape: &Shape, packed_dim: usize) -> (Vec<usize>, usize) {
+    let dims = match shape.as_slice() {
+        [] => vec![1],
+        dims => dims.to_vec(),
+    };
+    let axis = dims.len() - packed_dim - 1;
+    (dims, axis)
+}
+
+/// `values`, row-major over `shape`, packed into `u32` words of `bits`-wide values along the axis
+/// `packed_dim` counts from the innermost, each line padded to whole words.
+fn pack_u32(values: &[i8], shape: &Shape, packed_dim: usize, bits: usize) -> Vec<u32> {
+    let (dims, axis) = packed_axis(shape, packed_dim);
+    let (len, stride) = (dims[axis], dims[axis + 1..].iter().product::<usize>());
+    let per_word = u32::BITS as usize / bits;
+    let mask = (1u32 << bits) - 1;
+
+    packed_line_starts(&dims, axis)
+        .flat_map(|start| {
+            (0..len.div_ceil(per_word)).map(move |word| {
+                (0..per_word.min(len - word * per_word)).fold(0u32, |packed, k| {
+                    let value = values[start + (word * per_word + k) * stride];
+                    packed | (value as u32 & mask) << (k * bits)
+                })
+            })
+        })
+        .collect()
+}
+
+/// The values [`pack_u32`] packed, row-major over `shape`.
+fn unpack_u32(words: &[u32], shape: &Shape, packed_dim: usize, bits: usize) -> Vec<i8> {
+    let (dims, axis) = packed_axis(shape, packed_dim);
+    let (len, stride) = (dims[axis], dims[axis + 1..].iter().product::<usize>());
+    let words_per_line = len.div_ceil(u32::BITS as usize / bits);
+    let value = match bits {
+        8 => QuantValue::Q8S,
+        4 => QuantValue::Q4S,
+        2 => QuantValue::Q2S,
+        _ => unreachable!("integer quantized values are 8, 4 or 2 bits"),
+    };
+
+    let mut values = vec![0; shape.num_elements()];
+    if values.is_empty() {
+        return values;
+    }
+    for (start, line) in packed_line_starts(&dims, axis).zip(words.chunks(words_per_line)) {
+        for (k, unpacked) in unpack_q_to_i8s(line, len, &value).into_iter().enumerate() {
+            values[start + k * stride] = unpacked;
+        }
+    }
+    values
+}
+
 /// Pack signed 8-bit integer values into a sequence of unsigned 32-bit integers.
 pub fn pack_i8s_to_u32s(values: Vec<i8>) -> Vec<u32> {
     // Shift and combine groups of four 8-bit values into a u32.
@@ -542,6 +643,69 @@ mod tests {
 
     use super::*;
     use alloc::vec;
+
+    /// Neither 3 nor 5 fills a word, so every packed line is padded.
+    #[test]
+    fn packed_values_round_trip_along_either_axis() {
+        let shape = Shape::new([3, 5]);
+        for value in [QuantValue::Q8S, QuantValue::Q4S, QuantValue::Q2S] {
+            let (min, max) = value.range();
+            let values: Vec<i8> = (0..15)
+                .map(|i| (min as i32 + i * 7 % (max - min + 1.0) as i32) as i8)
+                .collect();
+            for packed_dim in [0, 1] {
+                let scheme = QuantScheme::default()
+                    .with_value(value)
+                    .with_store(QuantStore::PackedU32(packed_dim));
+
+                let bytes =
+                    QuantizedBytes::new(values.clone(), shape.clone(), scheme, &[1.0], None);
+
+                assert_eq!(bytes.bytes.len(), quantized_data_len(&scheme, &shape));
+                assert_eq!(
+                    bytes.into_vec_i8().0,
+                    values,
+                    "{value:?} along {packed_dim}"
+                );
+            }
+        }
+    }
+
+    /// cubecl stores a tensor packed along an outer axis as its transpose packed innermost.
+    #[test]
+    fn packing_along_the_outer_axis_packs_the_transposed_rows() {
+        let rows: [[i8; 8]; 2] = [[0, 1, 2, 3, 4, 5, 6, 7], [-1; 8]];
+        let expected = [0x7654_3210u32, 0xFFFF_FFFF];
+        let q4 = QuantScheme::default().with_value(QuantValue::Q4S);
+
+        let inner = rows.concat();
+        let packed = QuantizedBytes::new(
+            inner,
+            [2, 8],
+            q4.with_store(QuantStore::PackedU32(0)),
+            &[1.0],
+            None,
+        );
+        let outer: Vec<i8> = (0..8).flat_map(|i| rows.map(|row| row[i])).collect();
+        let packed_outer = QuantizedBytes::new(
+            outer,
+            [8, 2],
+            q4.with_store(QuantStore::PackedU32(1)),
+            &[1.0],
+            None,
+        );
+
+        let words = |bytes: &QuantizedBytes| -> Vec<u32> {
+            bytes.bytes[..8]
+                .as_chunks::<4>()
+                .0
+                .iter()
+                .map(|word| u32::from_ne_bytes(*word))
+                .collect()
+        };
+        assert_eq!(words(&packed), expected);
+        assert_eq!(words(&packed_outer), expected);
+    }
 
     #[test]
     fn should_pack_i8s_to_u32() {

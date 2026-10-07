@@ -9,8 +9,8 @@ use burn_backend::{
     DType, ExecutionError, FloatDType, TensorData, TensorMetadata,
     ops::{IntTensorOps, QTensorOps},
     quantization::{
-        BlockLayout, BlockSize, QuantScheme, QuantStore, QuantizationParametersPrimitive,
-        QuantizedBytes, ScaleDtype, global_scale_dtype, scale_to_dtype,
+        BlockLayout, BlockSize, QuantScheme, QuantizationParametersPrimitive, QuantizedBytes,
+        ScaleDtype, global_scale_dtype, permuted_scheme, scale_to_dtype,
     },
     tensor::{Device, FloatTensor, IntTensor, QuantizedTensor},
 };
@@ -57,9 +57,6 @@ impl QTensorOps<Flex> for Flex {
         let (values, qparams) = q_bytes.into_vec_i8();
         let tensor_data = TensorData::new(values, shape);
         let tensor = FlexTensor::from_data(tensor_data);
-
-        // Use native storage since we've unpacked to i8
-        let scheme = scheme.with_store(QuantStore::Native);
 
         FlexQTensor::new(tensor, scheme, qparams.block, qparams.global)
     }
@@ -138,7 +135,7 @@ impl QTensorOps<Flex> for Flex {
         let layout = Layout::contiguous(shape);
         let qt = FlexTensor::new(bytes, layout, DType::I8);
 
-        FlexQTensor::new(qt, scheme.with_store(QuantStore::Native), scales, global)
+        FlexQTensor::new(qt, *scheme, scales, global)
     }
 
     fn quantize(
@@ -197,7 +194,7 @@ impl QTensorOps<Flex> for Flex {
         let layout = Layout::contiguous(shape);
         let qt = FlexTensor::new(bytes, layout, DType::I8);
 
-        FlexQTensor::new(qt, scheme.with_store(QuantStore::Native), scales, global)
+        FlexQTensor::new(qt, *scheme, scales, global)
     }
 
     fn dequantize(tensor: QuantizedTensor<Flex>, dtype: FloatDType) -> FloatTensor<Flex> {
@@ -275,14 +272,15 @@ impl QTensorOps<Flex> for Flex {
         dim1: usize,
         dim2: usize,
     ) -> QuantizedTensor<Flex> {
-        let mut scheme = tensor.scheme;
-        scheme.swap_block_dims(tensor.tensor.shape().num_dims(), dim1, dim2);
+        let rank = tensor.tensor.shape().num_dims();
+        let mut axes: Vec<usize> = (0..rank).collect();
+        axes.swap(dim1, dim2);
+        let scheme = permuted_scheme(tensor.scheme, rank, &axes);
         block_safe_layout_op(tensor, scheme, |t| t.transpose(dim1, dim2))
     }
 
     fn q_permute(tensor: QuantizedTensor<Flex>, axes: &[usize]) -> QuantizedTensor<Flex> {
-        let mut scheme = tensor.scheme;
-        scheme.permute_block_dims(tensor.tensor.shape().num_dims(), axes);
+        let scheme = permuted_scheme(tensor.scheme, tensor.tensor.shape().num_dims(), axes);
         block_safe_layout_op(tensor, scheme, |t| t.permute(axes))
     }
 
@@ -421,7 +419,61 @@ fn validated_scale(scale: f32, dtype: ScaleDtype) -> f32 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use burn_backend::{TensorMetadata, quantization::QuantValue};
+    use burn_backend::{
+        TensorMetadata,
+        quantization::{QuantStore, QuantValue},
+    };
+
+    fn data_of(tensor: QuantizedTensor<Flex>) -> TensorData {
+        burn_std::reader::try_read_sync(Flex::q_into_data(tensor))
+            .expect("flex reads synchronously")
+            .unwrap()
+    }
+
+    /// Int4 values packed along the innermost axis, under block scales.
+    fn packed_q4() -> QuantScheme {
+        QuantScheme::default()
+            .with_value(QuantValue::Q4S)
+            .with_store(QuantStore::PackedU32(0))
+            .per_block([8], ScaleDtype::F32)
+    }
+
+    fn ramp(shape: [usize; 2]) -> FlexTensor {
+        let values = (0..shape[0] * shape[1])
+            .map(|i| (i as f32 * 0.37).sin())
+            .collect::<Vec<_>>();
+        FlexTensor::from_data(TensorData::new(values, shape))
+    }
+
+    #[test]
+    fn a_packed_tensor_keeps_its_scheme_through_its_data() {
+        let scheme = packed_q4();
+        let quantized = Flex::quantize_dynamic(ramp([4, 16]), &scheme);
+        assert_eq!(quantized.scheme, scheme);
+
+        let data = data_of(quantized.clone());
+        assert_eq!(data.dtype(), DType::QFloat(scheme));
+
+        let reloaded = Flex::q_from_data(data.clone(), &Default::default());
+        assert_eq!(reloaded.scheme, scheme);
+        assert_eq!(data_of(reloaded).as_bytes(), data.as_bytes());
+    }
+
+    #[test]
+    fn swapping_the_packed_axis_moves_the_store_with_it() {
+        let quantized = Flex::quantize_dynamic(ramp([16, 8]), &packed_q4());
+
+        let swapped = Flex::q_swap_dims(quantized, 0, 1);
+        assert_eq!(swapped.scheme.store, QuantStore::PackedU32(1));
+
+        let direct = Flex::dequantize(swapped.clone(), FloatDType::F32);
+        let reloaded = Flex::q_from_data(data_of(swapped), &Default::default());
+        let reloaded = Flex::dequantize(reloaded, FloatDType::F32);
+        assert_eq!(
+            reloaded.to_contiguous().storage::<f32>(),
+            direct.to_contiguous().storage::<f32>()
+        );
+    }
 
     #[test]
     fn test_quantize_dequantize_roundtrip() {
