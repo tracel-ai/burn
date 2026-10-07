@@ -3,7 +3,7 @@
 use burn_core as burn;
 
 use super::{GradientsParams, ParameterContext};
-use crate::{LearningRate, OptimizerRecord, RecordTensor};
+use crate::{HostLr, OptimizerRecord, RecordTensor};
 use crate::{RecordState, StateSink, StateSource};
 use burn::config::Config;
 use burn::module::{Module, ModuleMapper, ModuleVisitor, Param};
@@ -595,7 +595,7 @@ impl LBFGS {
     }
 
     /// A single optimization step for any tensor that represents the parameters of a model.
-    pub fn step<M, F>(&mut self, lr: LearningRate, mut module: M, mut closure: F) -> (M, f64)
+    pub fn step<M, F>(&mut self, lr: HostLr, mut module: M, mut closure: F) -> (M, f64)
     where
         M: Module + Clone,
         F: FnMut(M) -> (f64, GradientsParams),

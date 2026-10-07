@@ -1,7 +1,7 @@
 use burn_core as burn;
 
 use super::{LrScheduler, LrSchedulerRecord, String};
-use crate::LearningRate;
+use crate::HostLr;
 use crate::RecordState;
 use crate::lr_scheduler::module_lr_scheduler::ModuleLrScheduler;
 use burn::config::Config;
@@ -14,7 +14,7 @@ use burn::config::Config;
 #[derive(Config, Debug)]
 pub struct ExponentialLrSchedulerConfig {
     // The initial learning rate.
-    initial_lr: LearningRate,
+    initial_lr: HostLr,
     // The constant that the learning rate is multiplied by on each iteration.
     gamma: f64,
 }
@@ -56,13 +56,13 @@ impl ExponentialLrSchedulerConfig {
 #[derive(Clone, Copy, Debug)]
 pub struct ExponentialLrScheduler {
     // The previous iteration's learning rate.
-    previous_lr: LearningRate,
+    previous_lr: HostLr,
     // The constant that the learning rate is multiplied by on each iteration.
     gamma: f64,
 }
 
 impl LrScheduler for ExponentialLrScheduler {
-    fn step(&mut self) -> LearningRate {
+    fn step(&mut self) -> HostLr {
         self.previous_lr *= self.gamma;
         self.previous_lr
     }
@@ -83,7 +83,7 @@ impl LrScheduler for ExponentialLrScheduler {
 /// The serializable state of an [exponential scheduler](ExponentialLrScheduler).
 #[derive(RecordState, Clone, Debug)]
 pub struct ExponentialLrSchedulerState {
-    // `f64` (not the `LearningRate` alias) so the derive recognizes it as a scalar leaf.
+    // `f64` (not the `HostLr` alias) so the derive recognizes it as a scalar leaf.
     previous_lr: f64,
 }
 

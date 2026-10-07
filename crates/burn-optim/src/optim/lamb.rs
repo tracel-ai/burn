@@ -1,5 +1,6 @@
 use burn_core as burn;
 
+use crate::optim::isolated::isolated;
 use crate::{LearningRate, RecordState, grad_clipping::GradientClippingConfig};
 use burn::{
     config::Config,
@@ -76,14 +77,13 @@ impl Optimizer for Lamb {
         let factor_2 = 1.0 - self.beta_2;
 
         let state = if let Some(mut state) = state {
-            state.moment_1 = state
-                .moment_1
-                .mul_scalar(self.beta_1)
-                .add(grad.clone().mul_scalar(factor_1));
-            state.moment_2 = state
-                .moment_2
-                .mul_scalar(self.beta_2)
-                .add(grad.square().mul_scalar(factor_2));
+            let device = grad.device();
+            let grad_term = grad.clone().mul_scalar(factor_1);
+            let moment = isolated(&device, || state.moment_1.mul_scalar(self.beta_1));
+            state.moment_1 = isolated(&device, || moment.add(grad_term));
+            let grad_term = grad.square().mul_scalar(factor_2);
+            let moment = isolated(&device, || state.moment_2.mul_scalar(self.beta_2));
+            state.moment_2 = isolated(&device, || moment.add(grad_term));
             state.time += 1;
             state
         } else {
@@ -131,7 +131,9 @@ impl Optimizer for Lamb {
             update
         };
 
-        let tensor = tensor - update.mul_scalar(lr);
+        let delta = lr.apply(update);
+        let device = tensor.device();
+        let tensor = isolated(&device, || tensor - delta);
         (tensor, Some(state))
     }
 
@@ -193,7 +195,7 @@ mod tests {
         let tensor = Tensor::<1>::from_floats([1.0, -2.0, 3.0], &device);
 
         let (tensor, state) = optimizer.step(
-            0.01,
+            0.01.into(),
             tensor,
             Tensor::from_floats([0.1, -0.2, 0.3], &device),
             None,
@@ -204,7 +206,7 @@ mod tests {
         );
 
         let (tensor, state) = optimizer.step(
-            0.01,
+            0.01.into(),
             tensor,
             Tensor::from_floats([-0.4, 0.5, -0.6], &device),
             state,
@@ -233,7 +235,7 @@ mod tests {
         let tensor = Tensor::<1>::zeros([2], &device);
         let grad = Tensor::<1>::zeros([2], &device);
 
-        let (tensor, _) = optimizer.step(0.01, tensor, grad, None);
+        let (tensor, _) = optimizer.step(0.01.into(), tensor, grad, None);
 
         tensor
             .to_data()
@@ -251,7 +253,7 @@ mod tests {
         let tensor = Tensor::<1>::from_floats([1.0, -2.0, 3.0], &device);
         let grad = Tensor::<1>::from_floats([0.1, -0.2, 0.3], &device);
 
-        let (tensor, _) = optimizer.step(0.01, tensor, grad, None);
+        let (tensor, _) = optimizer.step(0.01.into(), tensor, grad, None);
 
         tensor.to_data().assert_approx_eq::<f32>(
             &TensorData::from([0.9890001, -1.988, 2.987]),

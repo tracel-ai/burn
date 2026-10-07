@@ -19,7 +19,7 @@ fn vector_matches_scalar_reference_for_two_steps() {
 
     // References evaluated with scalar f64 arithmetic, including update RMS clipping.
     let (tensor, state) = optimizer.step(
-        0.2,
+        0.2.into(),
         tensor,
         Tensor::<1>::from_floats([0.2, -0.4, 0.7], &device),
         None,
@@ -30,7 +30,7 @@ fn vector_matches_scalar_reference_for_two_steps() {
     );
 
     let (tensor, state) = optimizer.step(
-        0.2,
+        0.2.into(),
         tensor,
         Tensor::<1>::from_floats([-0.1, 0.8, -0.5], &device),
         state,
@@ -61,7 +61,7 @@ fn matrix_matches_scalar_reference_for_two_steps() {
     let tensor = Tensor::<2>::from_floats([[1.0, -2.0, 3.0], [-4.0, 5.0, -6.0]], &device);
 
     let (tensor, state) = optimizer.step(
-        0.2,
+        0.2.into(),
         tensor,
         Tensor::<2>::from_floats([[0.2, -0.4, 0.6], [0.8, -1.0, 1.2]], &device),
         None,
@@ -75,7 +75,7 @@ fn matrix_matches_scalar_reference_for_two_steps() {
     );
 
     let (tensor, state) = optimizer.step(
-        0.2,
+        0.2.into(),
         tensor,
         Tensor::<2>::from_floats([[-0.5, 0.25, 1.0], [0.125, -0.75, 0.375]], &device),
         state,
@@ -119,7 +119,12 @@ fn higher_rank_factors_preserve_independent_batches() {
         &device,
     );
 
-    let (tensor, state) = optimizer.step(0.2, Tensor::<3>::zeros([2, 2, 3], &device), grad, None);
+    let (tensor, state) = optimizer.step(
+        0.2.into(),
+        Tensor::<3>::zeros([2, 2, 3], &device),
+        grad,
+        None,
+    );
 
     tensor.to_data().assert_approx_eq::<f32>(
         &TensorData::from([
@@ -155,15 +160,15 @@ fn relative_step_caps_supplied_learning_rate_and_decays_with_time() {
     let tensor = Tensor::<1>::from_floats([2.0, -2.0], &device);
     let grad = Tensor::<1>::ones([2], &device);
 
-    let (small_step, _) = optimizer.step(0.1, tensor.clone(), grad.clone(), None);
+    let (small_step, _) = optimizer.step(0.1.into(), tensor.clone(), grad.clone(), None);
     small_step
         .to_data()
         .assert_approx_eq::<f32>(&TensorData::from([1.9, -2.1]), Tolerance::absolute(1e-6));
-    let (tensor, state) = optimizer.step(2.0, tensor, grad.clone(), None);
+    let (tensor, state) = optimizer.step(2.0.into(), tensor, grad.clone(), None);
     tensor
         .to_data()
         .assert_eq(&TensorData::from([1.0f32, -3.0]), true);
-    let (tensor, _) = optimizer.step(2.0, tensor, grad, state);
+    let (tensor, _) = optimizer.step(2.0.into(), tensor, grad, state);
     tensor.to_data().assert_approx_eq::<f32>(
         &TensorData::from([0.292_893_23, -3.707_106_8]),
         Tolerance::absolute(1e-6),
@@ -178,7 +183,7 @@ fn absolute_step_uses_supplied_learning_rate_without_a_cap() {
         .with_scale_parameter(false)
         .build();
     let (tensor, _) = optimizer.step(
-        2.0,
+        2.0.into(),
         Tensor::<1>::from_floats([2.0, -2.0], &device),
         Tensor::<1>::ones([2], &device),
         None,
@@ -193,7 +198,7 @@ fn parameter_scale_uses_rms_with_an_epsilon_floor() {
     let device = Device::default();
     let optimizer = AdafactorConfig::new().with_epsilon_2(0.1).build();
     let (tensor, _) = optimizer.step(
-        0.01,
+        0.01.into(),
         Tensor::<1>::from_floats([3.0, 4.0], &device),
         Tensor::<1>::ones([2], &device),
         None,
@@ -204,7 +209,7 @@ fn parameter_scale_uses_rms_with_an_epsilon_floor() {
     );
 
     let (tensor, _) = optimizer.step(
-        0.2,
+        0.2.into(),
         Tensor::<1>::zeros([2], &device),
         Tensor::<1>::ones([2], &device),
         None,
@@ -222,7 +227,7 @@ fn update_clipping_limits_update_rms() {
         .with_scale_parameter(false)
         .build();
     let (tensor, _) = optimizer.step(
-        0.2,
+        0.2.into(),
         Tensor::<1>::from_floats([1.0, -2.0], &device),
         Tensor::<1>::from_floats([1.0, -1.0], &device),
         None,
@@ -237,7 +242,7 @@ fn weight_decay_uses_supplied_learning_rate_and_original_parameter() {
     let device = Device::default();
     let optimizer = AdafactorConfig::new().with_weight_decay(0.1).build();
     let (tensor, _) = optimizer.step(
-        2.0,
+        2.0.into(),
         Tensor::<1>::from_floats([3.0, 4.0], &device),
         Tensor::<1>::ones([2], &device),
         None,
@@ -254,23 +259,28 @@ fn zero_gradients_remain_finite_in_both_state_representations() {
     let device = Device::default();
     let optimizer = AdafactorConfig::new().build();
     let (vector, state) = optimizer.step(
-        0.1,
+        0.1.into(),
         Tensor::<1>::zeros([3], &device),
         Tensor::<1>::zeros([3], &device),
         None,
     );
-    let (vector, _) = optimizer.step(0.1, vector, Tensor::<1>::zeros([3], &device), state);
+    let (vector, _) = optimizer.step(0.1.into(), vector, Tensor::<1>::zeros([3], &device), state);
     vector
         .to_data()
         .assert_eq(&TensorData::from([0.0f32, 0.0, 0.0]), true);
 
     let (matrix, state) = optimizer.step(
-        0.1,
+        0.1.into(),
         Tensor::<2>::zeros([2, 3], &device),
         Tensor::<2>::zeros([2, 3], &device),
         None,
     );
-    let (matrix, _) = optimizer.step(0.1, matrix, Tensor::<2>::zeros([2, 3], &device), state);
+    let (matrix, _) = optimizer.step(
+        0.1.into(),
+        matrix,
+        Tensor::<2>::zeros([2, 3], &device),
+        state,
+    );
     matrix
         .to_data()
         .assert_eq(&TensorData::from([[0.0f32; 3]; 2]), true);
@@ -289,8 +299,8 @@ fn reduced_precision_parameters_keep_dtype_and_f32_state() {
         let original_dtype = tensor.dtype();
         // With default epsilon, computing the state in f16 would underflow to zero.
         let grad = Tensor::<2>::zeros([2, 2], &device).cast(dtype);
-        let (tensor, state) = optimizer.step(0.1, tensor, grad.clone(), None);
-        let (tensor, state) = optimizer.step(0.1, tensor, grad, state);
+        let (tensor, state) = optimizer.step(0.1.into(), tensor, grad.clone(), None);
+        let (tensor, state) = optimizer.step(0.1.into(), tensor, grad, state);
 
         assert_eq!(tensor.dtype(), original_dtype);
         tensor.to_data().assert_approx_eq::<f32>(

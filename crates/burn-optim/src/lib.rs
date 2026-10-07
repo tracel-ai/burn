@@ -40,8 +40,12 @@ pub mod grad_clipping;
 #[cfg(feature = "std")]
 pub mod lr_scheduler;
 
-/// Type alias for the learning rate.
+/// A learning rate computed on the host.
 ///
-/// LearningRate also implements [learning rate scheduler](crate::lr_scheduler::LrScheduler) so it
-/// can be used for constant learning rate.
-pub type LearningRate = f64; // We could potentially change the type.
+/// [Learning rate schedulers](crate::lr_scheduler::LrScheduler) work with host values: a schedule
+/// is plain arithmetic on the step count, with no reason to touch the device. It also implements
+/// [`LrScheduler`](crate::lr_scheduler::LrScheduler) itself, for a constant learning rate.
+///
+/// An optimizer step takes a [`LearningRate`], which a host value converts into; see its graph
+/// capture section for a schedule in a captured step.
+pub type HostLr = f64;

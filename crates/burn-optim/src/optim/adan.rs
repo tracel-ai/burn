@@ -1,6 +1,7 @@
 use burn_core as burn;
 
 use crate::RecordState;
+use crate::optim::isolated::isolated;
 use burn::config::Config;
 use burn::tensor::Device;
 use burn::tensor::Tensor;
@@ -72,22 +73,19 @@ impl Optimizer for Adan {
     ) -> (Tensor<D>, Option<Self::State<D>>) {
         let (raw_delta, momentum_state) = self.momentum.transform(grad, state.map(|s| s.momentum));
 
-        let decay_rate = lr * (self.weight_decay as f64);
-        let delta = raw_delta.mul_scalar(lr);
+        let decay_rate = lr.mul_scalar(self.weight_decay as f64);
+        let no_decay = decay_rate.host() == Some(0.0) || self.weight_decay == 0.0;
+        let delta = lr.apply(raw_delta);
 
-        let tensor_updated = if self.no_prox {
-            if decay_rate == 0.0 {
-                tensor - delta
-            } else {
-                tensor.mul_scalar(1.0 - decay_rate) - delta
-            }
+        let device = tensor.device();
+        let tensor_updated = if no_decay {
+            isolated(&device, || tensor - delta)
+        } else if self.no_prox {
+            let tensor = decay_rate.rsub_scalar(1.0).apply_isolated(tensor);
+            isolated(&device, || tensor - delta)
         } else {
-            let updated = tensor - delta;
-            if decay_rate == 0.0 {
-                updated
-            } else {
-                updated.div_scalar(1.0 + decay_rate)
-            }
+            let tensor = isolated(&device, || tensor - delta);
+            decay_rate.add_scalar(1.0).divide_isolated(tensor)
         };
 
         (tensor_updated, Some(AdanState::new(momentum_state)))
@@ -163,6 +161,7 @@ impl AdaptiveNesterovMomentum {
         state: Option<AdaptiveNesterovMomentumState<D>>,
     ) -> (Tensor<D>, AdaptiveNesterovMomentumState<D>) {
         let state = if let Some(mut state) = state {
+            let device = grad.device();
             let grad_diff = state.neg_pre_grad.clone().add(grad.clone());
             let grad_diff_sq = grad_diff
                 .clone()
@@ -170,18 +169,15 @@ impl AdaptiveNesterovMomentum {
                 .add(grad.clone())
                 .square();
 
-            state.exp_avg = state
-                .exp_avg
-                .mul_scalar(self.beta_1)
-                .add(grad.clone().mul_scalar(1.0 - self.beta_1));
-            state.exp_avg_diff = state
-                .exp_avg_diff
-                .mul_scalar(self.beta_2)
-                .add(grad_diff.mul_scalar(1.0 - self.beta_2));
-            state.exp_avg_sq = state
-                .exp_avg_sq
-                .mul_scalar(self.beta_3)
-                .add(grad_diff_sq.mul_scalar(1.0 - self.beta_3));
+            let grad_term = grad.clone().mul_scalar(1.0 - self.beta_1);
+            let exp_avg = isolated(&device, || state.exp_avg.mul_scalar(self.beta_1));
+            state.exp_avg = isolated(&device, || exp_avg.add(grad_term));
+            let diff_term = grad_diff.mul_scalar(1.0 - self.beta_2);
+            let exp_avg_diff = isolated(&device, || state.exp_avg_diff.mul_scalar(self.beta_2));
+            state.exp_avg_diff = isolated(&device, || exp_avg_diff.add(diff_term));
+            let diff_sq_term = grad_diff_sq.mul_scalar(1.0 - self.beta_3);
+            let exp_avg_sq = isolated(&device, || state.exp_avg_sq.mul_scalar(self.beta_3));
+            state.exp_avg_sq = isolated(&device, || exp_avg_sq.add(diff_sq_term));
             state.neg_pre_grad = grad.mul_scalar(-1.0);
             state.time += 1;
             state
@@ -235,6 +231,7 @@ impl<const D: usize> AdaptiveNesterovMomentumState<D> {
 mod tests {
     use super::*;
     use crate::GradientsParams;
+    use crate::HostLr;
     use crate::optim::test_utils::assert_optimizer_resume;
     use burn::module::Param;
     use burn::tensor::Tolerance;
@@ -243,7 +240,7 @@ mod tests {
 
     type FT = f32;
 
-    const LEARNING_RATE: LearningRate = 0.01;
+    const LEARNING_RATE: HostLr = 0.01;
 
     #[test]
     fn test_adan_optimizer_save_load_state() {

@@ -1,6 +1,7 @@
 use burn_core as burn;
 
 use crate::RecordState;
+use crate::optim::isolated::isolated;
 
 use burn::config::Config;
 use burn::tensor::Device;
@@ -79,9 +80,11 @@ impl Optimizer for Adam {
         let (grad, state_momentum) = self.momentum.transform(grad, state_momentum);
 
         let state = AdamState::new(state_momentum);
-        let delta = grad.mul_scalar(lr);
+        let delta = lr.apply(grad);
+        let device = tensor.device();
+        let tensor = isolated(&device, || tensor - delta);
 
-        (tensor - delta, Some(state))
+        (tensor, Some(state))
     }
 
     fn to_device<const D: usize>(mut state: Self::State<D>, device: &Device) -> Self::State<D> {
@@ -152,24 +155,22 @@ impl AdaptiveMomentum {
         momentum_state: Option<AdaptiveMomentumState<D>>,
     ) -> (Tensor<D>, AdaptiveMomentumState<D>) {
         let state = if let Some(mut state) = momentum_state {
-            let factor = 1.0 - self.beta_1;
-            state.moment_1 = state
-                .moment_1
-                .mul_scalar(self.beta_1)
-                .add(grad.clone().mul_scalar(factor));
+            let device = grad.device();
+            let grad_term = grad.clone().mul_scalar(1.0 - self.beta_1);
+            let moment = isolated(&device, || state.moment_1.mul_scalar(self.beta_1));
+            state.moment_1 = isolated(&device, || moment.add(grad_term));
 
-            let factor = 1.0 - self.beta_2;
-            state.moment_2 = state
-                .moment_2
-                .mul_scalar(self.beta_2)
-                .add(grad.square().mul_scalar(factor));
+            let grad_term = grad.square().mul_scalar(1.0 - self.beta_2);
+            let moment = isolated(&device, || state.moment_2.mul_scalar(self.beta_2));
+            state.moment_2 = isolated(&device, || moment.add(grad_term));
             if self.amsgrad {
                 let max_v = state
                     .max_moment_2
                     .take()
                     .unwrap_or_else(|| state.moment_2.clone());
 
-                let new_max = max_v.max_pair(state.moment_2.clone());
+                let moment_2 = state.moment_2.clone();
+                let new_max = isolated(&device, || max_v.max_pair(moment_2));
                 state.max_moment_2 = Some(new_max);
             }
 
@@ -236,11 +237,12 @@ mod tests {
 
     use super::*;
     use crate::GradientsParams;
+    use crate::HostLr;
     use burn::module::Param;
     use burn::tensor::{Tensor, TensorData};
     use burn_nn::{Linear, LinearConfig};
 
-    const LEARNING_RATE: LearningRate = 0.01;
+    const LEARNING_RATE: HostLr = 0.01;
 
     #[test]
     fn test_adam_optimizer_save_load_state() {

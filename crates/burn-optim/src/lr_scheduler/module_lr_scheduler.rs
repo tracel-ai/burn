@@ -1,17 +1,18 @@
 use burn_core::{self as burn, module::ParamId};
 
 use burn::config::Config;
+use burn::tensor::Tensor;
 use burn_core::module::ParamGroup;
 
 use crate::{
-    LearningRate,
+    HostLr, LearningRate,
     lr_scheduler::{DynLrScheduler, LrScheduler, LrSchedulerConfig, LrSchedulerRecord},
 };
 
 #[derive(Clone)]
 struct LrGroup {
     group: ParamGroup,
-    lr: f64,
+    lr: LearningRate,
 }
 
 /// Determines what learning rate to use for a given trainable parameter.
@@ -20,14 +21,33 @@ pub struct ModuleLearningRate {
     groups: Vec<LrGroup>,
 }
 
+/// The same learning rate for all parameters, on the host or the device (see [`LearningRate`]).
 impl From<LearningRate> for ModuleLearningRate {
-    fn from(value: LearningRate) -> Self {
+    fn from(lr: LearningRate) -> Self {
         Self {
             groups: vec![LrGroup {
                 group: ParamGroup::all(),
-                lr: value,
+                lr,
             }],
         }
+    }
+}
+
+impl From<HostLr> for ModuleLearningRate {
+    fn from(lr: HostLr) -> Self {
+        LearningRate::from(lr).into()
+    }
+}
+
+impl From<Tensor<1>> for ModuleLearningRate {
+    fn from(lr: Tensor<1>) -> Self {
+        LearningRate::from(lr).into()
+    }
+}
+
+impl From<Tensor<0>> for ModuleLearningRate {
+    fn from(lr: Tensor<0>) -> Self {
+        LearningRate::from(lr).into()
     }
 }
 
@@ -36,17 +56,23 @@ impl ModuleLearningRate {
     pub fn lr_from_param(&self, id: ParamId, path: Option<&str>) -> LearningRate {
         self.groups
             .iter()
-            .filter_map(|val| val.group.matches(&id, path).then_some(val.lr))
+            .filter_map(|val| val.group.matches(&id, path).then_some(val.lr.clone()))
             .next_back()
             .expect("Should match at least one parameter group.")
     }
 
     /// Get the base learning rate value which's group matches all parameters.
-    pub fn base(&self) -> LearningRate {
+    ///
+    /// # Panics
+    ///
+    /// If the base learning rate is a device tensor, which can't be read without a sync.
+    pub fn base(&self) -> HostLr {
         self.groups
             .first()
             .expect("Should have at least one learning rate.")
             .lr
+            .host()
+            .expect("The base learning rate should be a host value.")
     }
 }
 
@@ -137,7 +163,7 @@ impl ModuleLrScheduler {
 
                 LrGroup {
                     group: s.group.clone(),
-                    lr,
+                    lr: LearningRate::Host(lr),
                 }
             })
             .collect();
@@ -262,9 +288,12 @@ mod tests {
 
         let policy = scheduler.step();
         // id_group is in the explicit group = group LR
-        check_approx(policy.lr_from_param(id_group, None), 0.1);
+        check_approx(policy.lr_from_param(id_group, None).host().unwrap(), 0.1);
         // id_default is not in any group = default LR
-        check_approx(policy.lr_from_param(id_default, None), 0.001);
+        check_approx(
+            policy.lr_from_param(id_default, None).host().unwrap(),
+            0.001,
+        );
     }
 
     #[test]
@@ -278,11 +307,17 @@ mod tests {
         let id = ParamId::new();
 
         check_approx(
-            policy.lr_from_param(id, Some("model.backbone.layer.weight")),
+            policy
+                .lr_from_param(id, Some("model.backbone.layer.weight"))
+                .host()
+                .unwrap(),
             0.1,
         );
         check_approx(
-            policy.lr_from_param(id, Some("model.head.layer.weight")),
+            policy
+                .lr_from_param(id, Some("model.head.layer.weight"))
+                .host()
+                .unwrap(),
             0.001,
         );
     }
@@ -308,15 +343,18 @@ mod tests {
 
         // Each group returns its own initial LR
         let policy = scheduler.step();
-        check_approx(policy.lr_from_param(id_a, None), 0.1);
-        check_approx(policy.lr_from_param(id_b, None), 0.5);
-        check_approx(policy.lr_from_param(id_default, None), 0.001);
+        check_approx(policy.lr_from_param(id_a, None).host().unwrap(), 0.1);
+        check_approx(policy.lr_from_param(id_b, None).host().unwrap(), 0.5);
+        check_approx(
+            policy.lr_from_param(id_default, None).host().unwrap(),
+            0.001,
+        );
 
         // All three schedulers advanced; LRs are strictly between initial and final
         let policy = scheduler.step();
-        let lr_a = policy.lr_from_param(id_a, None);
-        let lr_b = policy.lr_from_param(id_b, None);
-        let lr_default = policy.lr_from_param(id_default, None);
+        let lr_a = policy.lr_from_param(id_a, None).host().unwrap();
+        let lr_b = policy.lr_from_param(id_b, None).host().unwrap();
+        let lr_default = policy.lr_from_param(id_default, None).host().unwrap();
         assert!(
             lr_a < 0.1 && lr_a > 0.01,
             "group-a LR should have decayed: {lr_a}"
@@ -357,8 +395,12 @@ mod tests {
         let mut restored = make().load_record(record);
 
         for _ in 0..4 {
-            let lr_restored = restored.step().lr_from_param(id_group, None);
-            let lr_truth = truth.step().lr_from_param(id_group, None);
+            let lr_restored = restored
+                .step()
+                .lr_from_param(id_group, None)
+                .host()
+                .unwrap();
+            let lr_truth = truth.step().lr_from_param(id_group, None).host().unwrap();
             check_approx(lr_restored, lr_truth);
         }
     }

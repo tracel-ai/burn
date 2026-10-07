@@ -23,7 +23,8 @@ pub trait Optimizer: Send + Sync + Clone + 'static {
     /// The optimizer step is performed for one tensor at a time with its gradient and state.
     ///
     /// Note that the state is passed as parameter, so implementations don't have to handle
-    /// the saving and loading of recorded states.
+    /// the saving and loading of recorded states. The learning rate may live on the host or the
+    /// device; [`LearningRate::apply`] scales an update by it either way.
     fn step<const D: usize>(
         &self,
         lr: LearningRate,

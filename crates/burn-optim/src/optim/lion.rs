@@ -1,5 +1,6 @@
 use burn_core as burn;
 
+use crate::optim::isolated::isolated;
 use crate::{LearningRate, RecordState, grad_clipping::GradientClippingConfig};
 use burn::config::Config;
 use burn::tensor::{Device, Tensor};
@@ -89,10 +90,10 @@ impl Optimizer for Lion {
                     .mul_scalar(self.beta_1)
                     .add(grad.clone().mul_scalar(1.0 - self.beta_1))
                     .sign();
-                let momentum = state
-                    .momentum
-                    .mul_scalar(self.beta_2)
-                    .add(grad.mul_scalar(1.0 - self.beta_2));
+                let grad_term = grad.mul_scalar(1.0 - self.beta_2);
+                let device = grad_term.device();
+                let momentum = isolated(&device, || state.momentum.mul_scalar(self.beta_2));
+                let momentum = isolated(&device, || momentum.add(grad_term));
 
                 (update, momentum)
             }
@@ -104,13 +105,16 @@ impl Optimizer for Lion {
             }
         };
 
-        let decay = 1.0 - lr * self.weight_decay as f64;
-        let tensor = if decay == 1.0 {
-            tensor
+        let decay = lr.mul_scalar(self.weight_decay as f64).rsub_scalar(1.0);
+        let delta = lr.apply(update);
+        let tensor = if decay.host() == Some(1.0) || self.weight_decay == 0.0 {
+            let device = tensor.device();
+            isolated(&device, || tensor - delta)
         } else {
-            tensor.mul_scalar(decay)
+            let device = tensor.device();
+            let tensor = decay.apply_isolated(tensor);
+            isolated(&device, || tensor - delta)
         };
-        let tensor = tensor - update.mul_scalar(lr);
 
         (tensor, Some(LionState::new(momentum)))
     }
@@ -124,6 +128,7 @@ impl Optimizer for Lion {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::HostLr;
     use crate::optim::test_utils::assert_optimizer_resume;
     use crate::{AdamWConfig, GradientsParams, ModuleOptimizer};
     use burn::module::Param;
@@ -142,7 +147,7 @@ mod tests {
         let tensor = Tensor::<1>::from_floats([1.0, -2.0, 3.0], &device);
         let grad = Tensor::<1>::from_floats([0.5, -0.25, 0.0], &device);
 
-        let (tensor, state) = optimizer.step(0.1, tensor, grad, None);
+        let (tensor, state) = optimizer.step(0.1.into(), tensor, grad, None);
         tensor.clone().into_data().assert_approx_eq::<f32>(
             &TensorData::from([0.89, -1.88, 2.97]),
             Tolerance::absolute(1e-6),
@@ -154,7 +159,7 @@ mod tests {
         );
 
         let grad = Tensor::<1>::from_floats([-0.1, 0.5, -2.0], &device);
-        let (tensor, state) = optimizer.step(0.1, tensor, grad, Some(state));
+        let (tensor, state) = optimizer.step(0.1.into(), tensor, grad, Some(state));
         tensor.into_data().assert_approx_eq::<f32>(
             &TensorData::from([0.9811, -1.9612, 3.0403]),
             Tolerance::absolute(1e-6),
@@ -246,7 +251,7 @@ mod tests {
     fn train_tiny_regression(
         mut model: Linear,
         mut optimizer: ModuleOptimizer,
-        peak_lr: LearningRate,
+        peak_lr: HostLr,
         device: &Device,
     ) -> (f32, f32) {
         let input =
