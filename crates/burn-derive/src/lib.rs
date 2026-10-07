@@ -31,10 +31,13 @@ pub(crate) mod shared;
 ///
 /// # Sub-modules
 ///
-/// By default, the macro automatically detects sub-modules and parameters as module types.
+/// Fields are treated as sub-modules unless their type is recognized as a constant or they
+/// are marked `#[module(skip)]`. Participating fields must implement `Module` and `ModuleDisplay`.
 ///
-/// Any field not recognized as a module type is assumed to be a non-module
-/// and is skipped by the module system (not persistent, not visited).
+/// Constants are detected syntactically, including `usize`, `f32`, `bool`, `String` and
+/// combinations such as `Option<usize>` and `Vec<f32>`. Unlike 0.21, unknown concrete types
+/// are not automatically skipped. Use `#[module(skip)]` for custom config/state fields that
+/// report missing `Module` / `ModuleDisplay` implementations. Do not skip trainable children.
 ///
 /// ## Generics
 ///
@@ -48,12 +51,14 @@ pub(crate) mod shared;
 ///
 /// Explicitly marks a field to be ignored by the module derive.
 ///
-/// Skipped fields are not parameters, not modules, and are not persistent.
+/// Skipped fields are excluded from parameter traversal, checkpointing, device movement and
+/// training/validation transitions. They are still cloned and included in debug display.
 /// This is equivalent to the deprecated `Ignored<T>` wrapper.
 ///
 /// ### Requirements
 ///
 /// The field must implement: `Debug + Clone + Send`.
+/// A `Param` field or a field using a generic explicitly bounded by `Module` cannot be skipped.
 ///
 /// # Example
 ///
@@ -65,6 +70,7 @@ pub(crate) mod shared;
 ///     /// A field configured at runtime.
 ///     dropout_prob: f64,
 ///     /// A field that is recomputed at runtime.
+///     #[module(skip)]
 ///     cached_mask: Option<Tensor<2>>,
 ///     /// A field that contains some debug state.
 ///     debug_state: String,

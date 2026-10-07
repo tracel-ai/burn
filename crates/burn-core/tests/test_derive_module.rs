@@ -136,6 +136,42 @@ pub fn test_device() -> Device {
     burn_tensor::Device::flex()
 }
 
+#[test]
+fn should_accept_primitive_constants() {
+    #[derive(Module, Debug, Default, PartialEq)]
+    struct Constants {
+        boolean: bool,
+        character: char,
+        unsigned8: u8,
+        unsigned16: u16,
+        unsigned32: u32,
+        unsigned64: u64,
+        unsigned128: u128,
+        unsigned_size: usize,
+        signed8: i8,
+        signed16: i16,
+        signed32: i32,
+        signed64: i64,
+        signed128: i128,
+        signed_size: isize,
+        float32: f32,
+        float64: f64,
+        text: String,
+        nested: Option<Vec<(char, u128, i128)>>,
+    }
+
+    let module = Constants {
+        character: 'c',
+        unsigned128: u128::MAX,
+        signed128: i128::MIN,
+        nested: Some(vec![('x', u128::MAX, i128::MIN)]),
+        ..Default::default()
+    };
+
+    assert_eq!(module.num_params(), 0);
+    assert_eq!(module.valid().train().materialize(), module);
+    assert!(module.to_string().contains('c'));
+}
 mod state {
     use super::*;
     use burn::store::RecordError;
