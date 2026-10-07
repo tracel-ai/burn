@@ -527,5 +527,5 @@ impl FusionSnapshot {
 }
 
 pub(crate) fn serialized_len<T: Serialize>(value: &T) -> usize {
-    EncodedLen::of(value).unwrap_or(0)
+    value.encoded_len().unwrap_or(0)
 }

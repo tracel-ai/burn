@@ -2,6 +2,7 @@ use crate::metrics::{MetricSide, TelemetryLogger, logger_task};
 use crate::shared::{
     LocalTransferId, PROTOCOL_VERSION, RemoteMessage, RequestId, SessionId, SessionInfo,
     SessionInit, Task, TaskResponse, TaskResponseContent, TensorRemote, TransferCapability,
+    WireMessage,
 };
 use crate::telemetry::{CHANNEL_CAPACITY, TelemetryEvent, TelemetryProbe, serialized_len};
 use burn_backend::{
@@ -192,14 +193,14 @@ impl RemoteService {
         device_index: u32,
     ) -> Result<SessionInfo, ConnectError> {
         let failed = |reason: String| ConnectError::Handshake { reason };
-        let init_bytes: bytes::Bytes =
-            rmp_serde::to_vec(&vec![RemoteMessage::Init(SessionInit::new(
-                session_id,
-                device_index,
-                endpoint.credential().as_bytes().to_vec(),
-            ))])
-            .expect("Can serialize RemoteMessage::Init")
-            .into();
+        let init_bytes: bytes::Bytes = vec![RemoteMessage::Init(SessionInit::new(
+            session_id,
+            device_index,
+            endpoint.credential().as_bytes().to_vec(),
+        ))]
+        .encode()
+        .expect("Can serialize RemoteMessage::Init")
+        .into();
 
         streams.submit.send(init_bytes).await.map_err(failed)?;
         let msg = streams

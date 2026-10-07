@@ -74,7 +74,8 @@ impl<B: BackendIr> IrohTransfer<B> {
 
         let response = match self.take(capability, remote).await {
             Ok(bytes) => bytes,
-            Err(reason) => rmp_serde::to_vec(&TransferMessage::Denied(reason))
+            Err(reason) => TransferMessage::Denied(reason)
+                .encode()
                 .map(bytes::Bytes::from)
                 .map_err(|err| format!("Failed to encode tensor-transfer denial: {err}"))?,
         };
@@ -194,7 +195,7 @@ impl<B: BackendIr> TensorTransfer<B> for IrohTransfer<B> {
                 return None;
             }
         };
-        let request = match rmp_serde::to_vec(&TransferMessage::Request(capability)) {
+        let request = match TransferMessage::Request(capability).encode() {
             Ok(request) => request,
             Err(err) => {
                 log::error!("Failed to encode tensor-transfer request: {err}");
@@ -238,7 +239,7 @@ impl<B: BackendIr> TensorTransfer<B> for IrohTransfer<B> {
         let Some(target) = target.into_iroh_id() else {
             return;
         };
-        let bytes = match rmp_serde::to_vec(&TransferMessage::Denied(reason)) {
+        let bytes = match TransferMessage::Denied(reason).encode() {
             Ok(bytes) => bytes.into(),
             Err(err) => {
                 log::error!("Failed to encode tensor-transfer failure: {err}");

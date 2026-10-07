@@ -68,7 +68,8 @@ where
             peer_id: server_peer_id,
         }),
     };
-    let info = rmp_serde::to_vec(&info)
+    let info = info
+        .encode()
         .map_err(|err| format!("Failed to encode session handshake response: {err}"))?;
 
     let SessionChannels {
@@ -157,7 +158,7 @@ async fn refuse(sink: &mut impl FrameSink, refusal: SessionRefusal) {
         id: 0,
         content: TaskResponseContent::InitRefused(refusal),
     };
-    if let Ok(frame) = rmp_serde::to_vec(&reply) {
+    if let Ok(frame) = reply.encode() {
         let _ = sink.send(frame.into()).await;
     }
     let _ = sink.close().await;

@@ -20,8 +20,8 @@ pub trait WireMessage: Serialize {
             return rmp_serde::to_vec(self);
         }
         let mut bytes = Vec::new();
-        if bytes.try_reserve_exact(EncodedLen::of(self)?).is_err() {
-            // `to_vec` reports the failed allocation as rmp does, an out-of-memory write.
+        if bytes.try_reserve_exact(self.encoded_len()?).is_err() {
+            // Only rmp can build its out-of-memory error, and `to_vec` returns it.
             return rmp_serde::to_vec(self);
         }
         rmp_serde::encode::write(&mut bytes, self)?;
@@ -30,18 +30,19 @@ pub trait WireMessage: Serialize {
 }
 
 /// The length of a value's MessagePack encoding, counted without keeping the bytes.
-pub struct EncodedLen(usize);
-
-impl EncodedLen {
-    /// Count the encoding of `value`.
-    pub fn of<T: Serialize + ?Sized>(value: &T) -> Result<usize, Error> {
-        let mut len = Self(0);
-        rmp_serde::encode::write(&mut len, value)?;
-        Ok(len.0)
+pub trait EncodedLen: Serialize {
+    fn encoded_len(&self) -> Result<usize, Error> {
+        let mut counter = ByteCounter(0);
+        rmp_serde::encode::write(&mut counter, self)?;
+        Ok(counter.0)
     }
 }
 
-impl Write for EncodedLen {
+impl<T: Serialize + ?Sized> EncodedLen for T {}
+
+struct ByteCounter(usize);
+
+impl Write for ByteCounter {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         self.0 += buf.len();
         Ok(buf.len())
@@ -81,7 +82,7 @@ mod tests {
         let upload = Upload(TensorData::new(vec![1.0f32; 16], [16]));
 
         assert_eq!(
-            EncodedLen::of(&upload).unwrap(),
+            upload.encoded_len().unwrap(),
             rmp_serde::to_vec(&upload).unwrap().len()
         );
     }
