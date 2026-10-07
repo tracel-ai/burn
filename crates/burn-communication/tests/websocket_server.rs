@@ -10,10 +10,8 @@
 
 use std::time::Duration;
 
-use burn_communication::{
-    Address, CommunicationChannel, Message, ProtocolServer,
-    websocket::{WsClient, WsServer, WsServerChannel},
-};
+use burn_communication::websocket::{WsServer, WsServerChannel};
+use burn_communication::{CommunicationChannel, Message, ProtocolServer};
 use futures_util::{SinkExt, StreamExt};
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::{mpsc, oneshot};
@@ -430,35 +428,6 @@ async fn a_route_refuses_a_message_over_its_limit() {
     };
     assert_eq!(next_report().await, Recv::Message);
     assert_eq!(next_report().await, Recv::Error);
-
-    server.shutdown().await;
-}
-
-#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
-async fn a_client_refuses_a_message_over_its_limit() {
-    const LIMIT: usize = 1024;
-
-    let server = TestServer::start(|s| s.route("/echo", echo)).await;
-    let address = Address::from(format!("ws://127.0.0.1:{}", server.port).as_str());
-    let mut channel = timeout(
-        TIMEOUT,
-        WsClient::connect_with_max_message_size(address, "echo", LIMIT),
-    )
-    .await
-    .expect("connect timed out")
-    .expect("connect failed");
-
-    let mut echo_of = async |len: usize| {
-        channel
-            .send(Message::new(vec![0; len].into()))
-            .await
-            .expect("send failed");
-        timeout(TIMEOUT, channel.recv())
-            .await
-            .expect("recv timed out")
-    };
-    assert_eq!(classify(echo_of(LIMIT).await), Recv::Message);
-    assert_eq!(classify(echo_of(LIMIT + 1).await), Recv::Error);
 
     server.shutdown().await;
 }

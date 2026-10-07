@@ -18,9 +18,7 @@ use crate::{
 #[cfg(feature = "iroh")]
 use crate::transport::iroh::node::RemoteNode;
 #[cfg(feature = "websocket")]
-use crate::transport::link::MAX_FRAME_SIZE;
-#[cfg(feature = "websocket")]
-use burn_communication::{Address, websocket::WsClient};
+use burn_communication::{Address, ProtocolClient, websocket::WsClient};
 
 /// How long to wait before each new attempt while the peer is not reachable yet. A server started
 /// moments earlier has not opened its port, or published its address, which on n0's lookup takes
@@ -180,12 +178,7 @@ impl RemoteEndpoint {
             Self::WebSocket { address, .. } => {
                 // One full-duplex socket per session, split into its submit (sink) and response
                 // (source) halves, matching the Iroh single-stream model.
-                let channel = WsClient::connect_with_max_message_size(
-                    address.clone(),
-                    "session",
-                    MAX_FRAME_SIZE,
-                )
-                .await?;
+                let channel = WsClient::connect(address.clone(), "session").await?;
                 let (sink, source) = channel.split();
                 Ok(SessionStreams {
                     submit: SubmitChannel::WebSocket(Box::new(sink)),
