@@ -50,14 +50,14 @@ impl SubmitWriter {
         let mut channel = MessageSink::new(channel);
         let handle = runtime.spawn(async move {
             while let Some(batch) = rx.recv().await {
-                let bytes: bytes::Bytes = match batch.encode() {
-                    Ok(b) => b.into(),
+                let message = match batch.encode() {
+                    Ok(message) => message,
                     Err(err) => {
                         log::error!("Failed to serialize outgoing task batch: {err:?}; dropping");
                         continue;
                     }
                 };
-                if let Err(err) = channel.send(bytes).await {
+                if let Err(err) = channel.send(message).await {
                     log::warn!("Remote submit writer send failed: {err:?}; closing writer");
                     return;
                 }

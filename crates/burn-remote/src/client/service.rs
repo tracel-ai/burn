@@ -204,7 +204,7 @@ impl RemoteService {
         ))]
         .encode()
         .expect("Can serialize RemoteMessage::Init")
-        .into();
+        .into_bytes();
         if init_bytes.len() > MAX_UNAUTHORIZED_FRAME_SIZE {
             return Err(failed(format!(
                 "the credential is too large: a server reads at most \

@@ -1,13 +1,14 @@
 //! Messages carried in frames of at most [`MAX_FRAME_SIZE`] bytes.
 //!
 //! Past a session's handshake, a small message travels as one frame behind a tag byte. A larger
-//! one opens with a frame giving its length, then follows as slices of its own bytes, so it is
-//! never copied to be sent and is read into one buffer allocated for it. The handshake itself
+//! one opens with a frame giving its length, then follows as the segments it was encoded into, so
+//! it is never copied to be sent and is read into one buffer allocated for it. The handshake itself
 //! stays in whole frames: a peer on another protocol version reads its refusal from them.
 
 use bytes::{Buf, BufMut, Bytes, BytesMut};
 
 use super::link::{FrameSink, FrameSource, MAX_FRAME_SIZE};
+use crate::shared::Encoded;
 
 /// The most bytes a peer's message may hold, or no limit.
 ///
@@ -51,17 +52,17 @@ impl<S: FrameSink> MessageSink<S> {
         Self { frames }
     }
 
-    pub async fn send(&mut self, message: Bytes) -> Result<(), String> {
+    pub async fn send(&mut self, message: Encoded) -> Result<(), String> {
         if message.len() <= MessageHead::MAX_WHOLE {
-            return self.frames.send(MessageHead::Whole(message).into()).await;
+            let whole = MessageHead::Whole(message.into_bytes());
+            return self.frames.send(whole.into()).await;
         }
         let head = MessageHead::Sliced {
             len: message.len() as u64,
         };
         self.frames.send(head.into()).await?;
-        for start in (0..message.len()).step_by(MAX_FRAME_SIZE) {
-            let end = message.len().min(start + MAX_FRAME_SIZE);
-            self.frames.send(message.slice(start..end)).await?;
+        for segment in message.into_segments() {
+            self.frames.send(segment).await?;
         }
         Ok(())
     }
@@ -176,19 +177,23 @@ mod tests {
         let frames = frames_of([message.clone()]).await;
 
         assert_eq!(frames.len(), 1);
-        assert_eq!(received(frames, MessageLimit::default()).await, [message]);
+        assert_eq!(
+            received(frames, MessageLimit::default()).await,
+            [message.into_bytes()]
+        );
     }
 
-    /// Its frame is a slice of the message itself: sending copies none of its bytes.
+    /// Its frame is the segment it was encoded into: sending copies none of its bytes.
     #[tokio::test]
     async fn a_message_of_one_frame_size_follows_its_head_uncopied() {
         let message = message_of(MAX_FRAME_SIZE);
+        let segment = message.clone().into_bytes();
 
-        let frames = frames_of([message.clone()]).await;
+        let frames = frames_of([message]).await;
 
         assert_eq!(frames.len(), 2);
-        assert_eq!(frames[1].as_ptr(), message.as_ptr());
-        assert_eq!(received(frames, MessageLimit::default()).await, [message]);
+        assert_eq!(frames[1].as_ptr(), segment.as_ptr());
+        assert_eq!(received(frames, MessageLimit::default()).await, [segment]);
     }
 
     #[tokio::test]
@@ -198,21 +203,24 @@ mod tests {
         let frames = frames_of([message.clone()]).await;
 
         assert_eq!(frames.len(), 3);
-        assert_eq!(received(frames, MessageLimit::default()).await, [message]);
+        assert_eq!(
+            received(frames, MessageLimit::default()).await,
+            [message.into_bytes()]
+        );
     }
 
     /// A small message after a large one, so a message that ran into the next would show.
     #[tokio::test]
     async fn messages_of_many_frames_arrive_whole_and_in_order() {
         let large = message_of(5 * MAX_FRAME_SIZE + 3);
-        let small = Bytes::from_static(b"after");
+        let small = Encoded::from(&b"after"[..]);
 
         let frames = frames_of([large.clone(), small.clone()]).await;
 
         assert_eq!(frames.len(), 1 + 6 + 1);
         assert_eq!(
             received(frames, MessageLimit::default()).await,
-            [large, small]
+            [large.into_bytes(), small.into_bytes()]
         );
     }
 
@@ -237,16 +245,16 @@ mod tests {
         let mut source =
             MessageSource::new(ScriptedFrames(frames.into()), MessageLimit::new(limit));
 
-        assert_eq!(source.recv().await, Ok(Some(at_limit)));
+        assert_eq!(source.recv().await, Ok(Some(at_limit.into_bytes())));
         assert!(source.recv().await.is_err());
         assert_eq!(source.frames.0.len(), 1);
     }
 
-    fn message_of(len: usize) -> Bytes {
-        (0..len).map(|i| i as u8).collect::<Vec<_>>().into()
+    fn message_of(len: usize) -> Encoded {
+        Encoded::from(&(0..len).map(|i| i as u8).collect::<Vec<_>>()[..])
     }
 
-    async fn frames_of(messages: impl IntoIterator<Item = Bytes>) -> Vec<Bytes> {
+    async fn frames_of(messages: impl IntoIterator<Item = Encoded>) -> Vec<Bytes> {
         let mut sink = MessageSink::new(RecordedFrames::default());
         for message in messages {
             sink.send(message).await.unwrap();

@@ -88,13 +88,13 @@ where
     spawn_detached(async move {
         let result = async {
             // Whole, like a refusal: a client reads its reply before knowing which one it is.
-            sink.send(info.into()).await?;
+            sink.send(info.into_bytes()).await?;
             let mut sink = MessageSink::new(sink);
             while let Some(response) = responses.recv().await {
-                let bytes = response
+                let message = response
                     .encode()
                     .map_err(|err| format!("Failed to encode task response: {err}"))?;
-                sink.send(bytes.into()).await?;
+                sink.send(message).await?;
             }
             sink.close().await
         }
@@ -171,7 +171,7 @@ async fn refuse(sink: &mut impl FrameSink, refusal: SessionRefusal) {
         content: TaskResponseContent::InitRefused(refusal),
     };
     if let Ok(frame) = reply.encode() {
-        let _ = sink.send(frame.into()).await;
+        let _ = sink.send(frame.into_bytes()).await;
     }
     let _ = sink.close().await;
 }
