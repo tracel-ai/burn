@@ -31,7 +31,7 @@ impl FrameSource for WsServerStream {
         let message = WsServerStream::recv(self)
             .await
             .map_err(|err| err.to_string())?;
-        ReadFrame(message).at_most(max_len)
+        ReceivedFrame(message).at_most(max_len)
     }
 }
 
@@ -54,14 +54,14 @@ impl FrameSource for WsClientStream {
         let message = WsClientStream::recv(self)
             .await
             .map_err(|err| err.to_string())?;
-        ReadFrame(message).at_most(max_len)
+        ReceivedFrame(message).at_most(max_len)
     }
 }
 
 /// A frame the socket has read whole, held to a reader's limit only once it has arrived.
-struct ReadFrame(Option<Message>);
+struct ReceivedFrame(Option<Message>);
 
-impl ReadFrame {
+impl ReceivedFrame {
     fn at_most(self, max_len: usize) -> Result<Option<Bytes>, String> {
         match self.0 {
             Some(message) if message.data.len() > max_len => Err(format!(

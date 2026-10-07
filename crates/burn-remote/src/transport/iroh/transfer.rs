@@ -12,13 +12,15 @@ use burn_ir::BackendIr;
 use tokio::sync::{Mutex, Notify};
 
 use super::node::{RemoteNode, StreamKind};
-use crate::server::transfer::TensorTransfer;
-use crate::shared::{Encode, Encoded, TransferCapability};
-use crate::transport::{
-    link::{FrameSink, FrameSource, MAX_UNAUTHORIZED_FRAME_SIZE},
-    message::{MessageSink, MessageSource},
+use crate::{
+    PeerAddr, PeerId,
+    server::transfer::TensorTransfer,
+    shared::{Encode, Encoded, TransferCapability},
+    transport::{
+        link::{FrameSink, FrameSource, MAX_UNAUTHORIZED_FRAME_SIZE},
+        message::{MessageSink, MessageSource},
+    },
 };
-use crate::{PeerAddr, PeerId};
 
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
 enum TransferMessage {

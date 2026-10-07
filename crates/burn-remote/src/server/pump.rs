@@ -6,7 +6,7 @@
 //! session worker. This is the single implementation both transports (iroh, websocket) drive — the
 //! per-transport modules only build the [`FrameSource`]/[`FrameSink`] halves and the authorizer.
 //!
-//! The handshake is one whole frame each way; every message after it is chunked.
+//! The handshake is one whole frame each way; every message after it is carried in frames.
 
 use std::sync::Arc;
 

@@ -30,7 +30,7 @@ impl<S: FrameSink> MessageSink<S> {
             let whole = MessageHead::Whole(message.into_bytes());
             return self.frames.send(whole.into()).await;
         }
-        let head = MessageHead::Sliced {
+        let head = MessageHead::Segmented {
             len: message.len() as u64,
         };
         self.frames.send(head.into()).await?;
@@ -58,11 +58,11 @@ impl<S: FrameSource> MessageSource<S> {
         };
         match MessageHead::try_from(frame)? {
             MessageHead::Whole(message) => Ok(Some(message)),
-            MessageHead::Sliced { len } => self.recv_sliced(len).await.map(Some),
+            MessageHead::Segmented { len } => self.recv_segmented(len).await.map(Some),
         }
     }
 
-    async fn recv_sliced(&mut self, len: u64) -> Result<Bytes, String> {
+    async fn recv_segmented(&mut self, len: u64) -> Result<Bytes, String> {
         let len = usize::try_from(len)
             .map_err(|_| format!("Peer sent a message of {len} bytes, too large to address"))?;
         let mut message = vec![0; len];
@@ -84,7 +84,7 @@ enum MessageHead {
     /// The whole message, behind its tag.
     Whole(Bytes),
     /// The length of a message whose bytes follow in frames of their own.
-    Sliced { len: u64 },
+    Segmented { len: u64 },
 }
 
 impl MessageHead {
@@ -92,7 +92,7 @@ impl MessageHead {
     const MAX_WHOLE: usize = 64 * 1024;
     const MAX_SIZE: usize = 1 + Self::MAX_WHOLE;
     const WHOLE: u8 = 0;
-    const SLICED: u8 = 1;
+    const SEGMENTED: u8 = 1;
 }
 
 impl TryFrom<Bytes> for MessageHead {
@@ -104,7 +104,7 @@ impl TryFrom<Bytes> for MessageHead {
         }
         match frame.get_u8() {
             Self::WHOLE => Ok(Self::Whole(frame)),
-            Self::SLICED if frame.len() == size_of::<u64>() => Ok(Self::Sliced {
+            Self::SEGMENTED if frame.len() == size_of::<u64>() => Ok(Self::Segmented {
                 len: frame.get_u64_le(),
             }),
             tag => Err(format!(
@@ -124,9 +124,9 @@ impl From<MessageHead> for Bytes {
                 frame.extend_from_slice(&message);
                 frame.freeze()
             }
-            MessageHead::Sliced { len } => {
+            MessageHead::Segmented { len } => {
                 let mut frame = BytesMut::with_capacity(1 + size_of::<u64>());
-                frame.put_u8(MessageHead::SLICED);
+                frame.put_u8(MessageHead::SEGMENTED);
                 frame.put_u64_le(len);
                 frame.freeze()
             }
@@ -146,6 +146,16 @@ mod tests {
         let frames = frames_of([message.clone()]).await;
 
         assert_eq!(frames.len(), 1);
+        assert_eq!(received(frames).await, [message.into_bytes()]);
+    }
+
+    #[tokio::test]
+    async fn a_message_one_byte_over_the_whole_size_follows_its_head() {
+        let message = message_of(MessageHead::MAX_WHOLE + 1);
+
+        let frames = frames_of([message.clone()]).await;
+
+        assert_eq!(frames.len(), 2);
         assert_eq!(received(frames).await, [message.into_bytes()]);
     }
 

@@ -1,5 +1,7 @@
-use std::io::{self, Write};
-use std::mem;
+use std::{
+    io::{self, Write},
+    mem,
+};
 
 use bytes::Bytes;
 use rmp_serde::encode::Error;
@@ -12,9 +14,9 @@ pub trait Encode: Serialize + Sized {
     /// The message's MessagePack bytes. Takes the message so its tensor data is freed before the
     /// bytes go out, not after.
     fn encode(self) -> Result<Encoded, Error> {
-        let mut segments = Segments::default();
-        rmp_serde::encode::write(&mut segments, &self)?;
-        Ok(segments.finish())
+        let mut writer = SegmentWriter::default();
+        rmp_serde::encode::write(&mut writer, &self)?;
+        Ok(writer.finish())
     }
 }
 
@@ -49,22 +51,22 @@ impl Encoded {
 #[cfg(test)]
 impl From<&[u8]> for Encoded {
     fn from(bytes: &[u8]) -> Self {
-        let mut segments = Segments::default();
-        segments.write_all(bytes).unwrap();
-        segments.finish()
+        let mut writer = SegmentWriter::default();
+        writer.write_all(bytes).unwrap();
+        writer.finish()
     }
 }
 
 /// Collects an encoding into segments: the first grows up to a frame, and each later one is
 /// allocated a whole frame up front, so no byte past the first frame is copied to grow a buffer.
 #[derive(Default)]
-struct Segments {
+struct SegmentWriter {
     full: Vec<Bytes>,
     open: Vec<u8>,
     len: usize,
 }
 
-impl Segments {
+impl SegmentWriter {
     fn finish(mut self) -> Encoded {
         if !self.open.is_empty() {
             self.full.push(self.open.into());
@@ -96,7 +98,7 @@ impl Segments {
     }
 }
 
-impl Write for Segments {
+impl Write for SegmentWriter {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         if buf.is_empty() {
             return Ok(0);

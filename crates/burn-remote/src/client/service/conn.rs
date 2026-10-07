@@ -120,7 +120,6 @@ impl RemoteEndpoint {
             Self::WebSocket {
                 address,
                 credential,
-                ..
             } => EndpointKey::WebSocket {
                 address: address.clone(),
                 credential: credential.clone(),
