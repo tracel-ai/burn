@@ -1,8 +1,8 @@
 //! The session-link abstraction.
 //!
-//! A session is a duplex, length-framed message channel: the client submits a stream of
+//! A session is a duplex link: the client submits a stream of
 //! [`RemoteMessage`](crate::shared::RemoteMessage)s and the server returns a stream of
-//! [`TaskResponse`](crate::shared::TaskResponse)s. Every transport realizes this as one
+//! [`TaskResponse`](crate::shared::TaskResponse)s, each carried in frames. Every transport realizes this as one
 //! bidirectional stream, split into an outgoing [`FrameSink`] and an incoming [`FrameSource`] so
 //! the response-writer task can own the sink while the request-reader loop owns the source.
 //!
@@ -33,10 +33,11 @@ impl<T: ?Sized> MaybeSend for T {}
 pub const MAX_FRAME_SIZE: usize = 1024 * 1024;
 
 /// The largest frame read from a peer before it is authorized: a stream's header, a session's
-/// `Init` or a tensor-transfer request, which bounds what a stranger can make a server hold.
+/// `Init` or a tensor-transfer request. It bounds what a stranger can make an Iroh server hold;
+/// WebSocket reads a frame up to [`MAX_FRAME_SIZE`] before refusing it.
 pub const MAX_UNAUTHORIZED_FRAME_SIZE: usize = 64 * 1024;
 
-/// The outgoing half of a session link: writes length-framed messages to the peer.
+/// The outgoing half of a session link: writes frames to the peer.
 pub(crate) trait FrameSink: MaybeSend + 'static {
     /// Send one already-encoded frame.
     fn send(&mut self, frame: Bytes) -> impl Future<Output = Result<(), String>> + MaybeSend;
@@ -45,7 +46,7 @@ pub(crate) trait FrameSink: MaybeSend + 'static {
     fn close(&mut self) -> impl Future<Output = Result<(), String>> + MaybeSend;
 }
 
-/// The incoming half of a session link: reads length-framed messages from the peer.
+/// The incoming half of a session link: reads frames from the peer.
 pub(crate) trait FrameSource: MaybeSend + 'static {
     /// Receive the next frame, refused past `max_len` bytes, or `None` when the peer closes the
     /// stream cleanly.

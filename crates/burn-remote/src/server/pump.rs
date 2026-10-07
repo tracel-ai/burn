@@ -6,20 +6,24 @@
 //! session worker. This is the single implementation both transports (iroh, websocket) drive — the
 //! per-transport modules only build the [`FrameSource`]/[`FrameSink`] halves and the authorizer.
 //!
-//! The handshake is one whole frame each way; every message after it is carried in frames.
+//! The handshake is one bare frame each way; every message after it is carried in frames.
 
 use std::sync::Arc;
 
-use crate::PeerId;
-use crate::server::service::{SessionChannels, SessionService, parse_init_handshake};
-use crate::server::spawn::spawn_detached;
-use crate::shared::{
-    Encode, PROTOCOL_VERSION, RemoteMessage, SessionId, SessionInfo, SessionInit, SessionRefusal,
-    Task, TaskResponse, TaskResponseContent,
-};
-use crate::transport::{
-    link::{FrameSink, FrameSource, MAX_UNAUTHORIZED_FRAME_SIZE},
-    message::{MessageSink, MessageSource},
+use crate::{
+    PeerId,
+    server::{
+        service::{SessionChannels, SessionService, parse_init_handshake},
+        spawn::spawn_detached,
+    },
+    shared::{
+        Encode, PROTOCOL_VERSION, RemoteMessage, SessionId, SessionInfo, SessionInit,
+        SessionRefusal, Task, TaskResponse, TaskResponseContent,
+    },
+    transport::{
+        link::{FrameSink, FrameSource, MAX_UNAUTHORIZED_FRAME_SIZE},
+        message::{MessageSink, MessageSource},
+    },
 };
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
@@ -86,7 +90,7 @@ where
     let (writer_done, mut writer_result) = tokio::sync::oneshot::channel();
     spawn_detached(async move {
         let result = async {
-            // Whole, like a refusal: a client reads its reply before knowing which one it is.
+            // Bare, like a refusal: a client reads its reply before knowing which one it is.
             sink.send(info.into_bytes()).await?;
             let mut sink = MessageSink::new(sink);
             while let Some(response) = responses.recv().await {

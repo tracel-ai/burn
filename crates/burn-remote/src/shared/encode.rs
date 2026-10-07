@@ -58,7 +58,7 @@ impl From<&[u8]> for Encoded {
 }
 
 /// Collects an encoding into segments: the first grows up to a frame, and each later one is
-/// allocated a whole frame up front, so no byte past the first frame is copied to grow a buffer.
+/// allocated a full frame up front, so no byte past the first frame is copied to grow a buffer.
 #[derive(Default)]
 struct SegmentWriter {
     full: Vec<Bytes>,

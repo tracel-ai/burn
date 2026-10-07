@@ -10,8 +10,10 @@
 
 use std::time::Duration;
 
-use burn_communication::websocket::{WsClient, WsServer, WsServerChannel};
-use burn_communication::{Address, CommunicationChannel, Message, ProtocolServer};
+use burn_communication::{
+    Address, CommunicationChannel, Message, ProtocolServer,
+    websocket::{WsClient, WsServer, WsServerChannel},
+};
 use futures_util::{SinkExt, StreamExt};
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::{mpsc, oneshot};

@@ -62,7 +62,7 @@ impl<B: BackendIr> IrohTransfer<B> {
         send: iroh::endpoint::SendStream,
         mut recv: iroh::endpoint::RecvStream,
     ) -> Result<(), String> {
-        // One whole frame, since it is read before the capability authorizes the peer.
+        // One bare frame, since it is read before the capability authorizes the peer.
         let request = FrameSource::recv(&mut recv, MAX_UNAUTHORIZED_FRAME_SIZE)
             .await?
             .ok_or_else(|| "Tensor-transfer stream closed before its request".to_string())?;

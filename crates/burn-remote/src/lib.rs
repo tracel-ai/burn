@@ -332,7 +332,7 @@ mod tests {
         rt.shutdown_timeout(std::time::Duration::from_millis(100));
     }
 
-    /// The handshake reply stays one whole frame, so a client on the previous protocol version
+    /// The handshake reply stays one bare frame, so a client on the previous protocol version
     /// reads which version the server speaks instead of failing to decode the reply.
     #[test]
     fn a_client_on_the_previous_protocol_version_is_told_the_servers_version() {

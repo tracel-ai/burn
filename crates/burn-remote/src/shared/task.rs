@@ -169,7 +169,7 @@ pub enum SessionRefusal {
     /// version, which a client could find by trying each version anyway.
     ///
     /// The only refusal a client on another version receives, so its encoding never changes, nor
-    /// do the Iroh ALPN, the stream header and the whole frame that carry it.
+    /// do the Iroh ALPN, the stream header and the bare frame that carry it.
     IncompatibleProtocol { server_version: u16 },
 }
 

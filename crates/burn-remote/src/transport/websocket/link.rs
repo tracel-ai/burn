@@ -28,10 +28,11 @@ impl FrameSink for WsServerSink {
 
 impl FrameSource for WsServerStream {
     async fn recv(&mut self, max_len: usize) -> Result<Option<Bytes>, String> {
-        let message = WsServerStream::recv(self)
+        WsServerStream::recv(self)
             .await
-            .map_err(|err| err.to_string())?;
-        ReceivedFrame(message).at_most(max_len)
+            .map_err(|err| err.to_string())?
+            .map(|message| ReceivedFrame(message).at_most(max_len))
+            .transpose()
     }
 }
 
@@ -51,24 +52,26 @@ impl FrameSink for WsClientSink {
 
 impl FrameSource for WsClientStream {
     async fn recv(&mut self, max_len: usize) -> Result<Option<Bytes>, String> {
-        let message = WsClientStream::recv(self)
+        WsClientStream::recv(self)
             .await
-            .map_err(|err| err.to_string())?;
-        ReceivedFrame(message).at_most(max_len)
+            .map_err(|err| err.to_string())?
+            .map(|message| ReceivedFrame(message).at_most(max_len))
+            .transpose()
     }
 }
 
-/// A frame the socket has read whole, held to a reader's limit only once it has arrived.
-struct ReceivedFrame(Option<Message>);
+/// A frame the socket has already read in full, held to a reader's limit only once it arrived.
+struct ReceivedFrame(Message);
 
 impl ReceivedFrame {
-    fn at_most(self, max_len: usize) -> Result<Option<Bytes>, String> {
-        match self.0 {
-            Some(message) if message.data.len() > max_len => Err(format!(
+    fn at_most(self, max_len: usize) -> Result<Bytes, String> {
+        let frame = self.0.data;
+        if frame.len() > max_len {
+            return Err(format!(
                 "Peer sent an oversized Burn Remote frame: {} bytes (max {max_len})",
-                message.data.len()
-            )),
-            message => Ok(message.map(|message| message.data)),
+                frame.len()
+            ));
         }
+        Ok(frame)
     }
 }
