@@ -28,8 +28,6 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
         let shape = burn_backend::TensorMetadata::shape(&tensor);
 
         let handle = B::quantized_tensor_handle(tensor);
-        // Already on the device, so nothing is queued: an `Init` would only run as a no-op,
-        // while holding back a free from another thread and taking a block of the fusion search.
         let id = client.register_tensor_handle(handle);
 
         FusionTensor::new(id, shape, dtype, client, StreamId::current())
