@@ -10,6 +10,7 @@ mod identity;
 pub(crate) use identity::{PeerAddr, PeerId};
 
 pub(crate) mod link;
+pub(crate) mod message;
 
 #[cfg(any(feature = "iroh", all(feature = "client", feature = "websocket")))]
 mod error;

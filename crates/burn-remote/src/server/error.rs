@@ -23,7 +23,7 @@ pub enum ServeError {
         reason: String,
     },
     /// The devices belong to more than one backend. Every CubeCL runtime is one backend, so CUDA
-    /// and wgpu devices can be served together, but not with Flex or NdArray ones.
+    /// and wgpu devices can be served together, but not with Flex ones.
     MixedBackends,
     /// Custom operations were registered for a backend other than the devices'.
     CustomOpBackend {

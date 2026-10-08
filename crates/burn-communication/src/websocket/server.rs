@@ -75,6 +75,47 @@ impl WsServer {
 
         Ok(())
     }
+
+    /// Route `path` like [`route`](ProtocolServer::route), refusing a message over
+    /// `max_message_size` bytes before reading it.
+    pub fn route_with_max_message_size<C, Fut>(
+        mut self,
+        path: &str,
+        max_message_size: usize,
+        callback: C,
+    ) -> Self
+    where
+        C: FnOnce(WsServerChannel) -> Fut + Clone + Send + Sync + 'static,
+        Fut: Future<Output = ()> + Send + 'static,
+    {
+        // Format path: should start with a /
+        let path = if path.starts_with("/") {
+            path.to_owned()
+        } else {
+            format!("/{path}")
+        };
+
+        let method = get(
+            move |ws: WebSocketUpgrade,
+                  ConnectInfo(peer_addr): ConnectInfo<SocketAddr>,
+                  _: State<()>| async move {
+                // Left unset, axum reads with tungstenite's defaults: 16 MiB a frame, 64 MiB a message.
+                ws.max_message_size(max_message_size)
+                    .max_frame_size(max_message_size)
+                    .on_upgrade(async move |socket| {
+                        callback(WsServerChannel {
+                            inner: socket,
+                            peer_addr,
+                        })
+                        .await;
+                    })
+            },
+        );
+
+        self.router = self.router.route(&path, method);
+
+        self
+    }
 }
 
 impl ProtocolServer for WsServer {
@@ -93,38 +134,12 @@ impl ProtocolServer for WsServer {
         self.serve_on(listener, shutdown).await
     }
 
-    fn route<C, Fut>(mut self, path: &str, callback: C) -> Self
+    fn route<C, Fut>(self, path: &str, callback: C) -> Self
     where
         C: FnOnce(WsServerChannel) -> Fut + Clone + Send + Sync + 'static,
         Fut: Future<Output = ()> + Send + 'static,
     {
-        // Format path: should start with a /
-        let path = if path.starts_with("/") {
-            path.to_owned()
-        } else {
-            format!("/{path}")
-        };
-
-        let method = get(
-            |ws: WebSocketUpgrade,
-             ConnectInfo(peer_addr): ConnectInfo<SocketAddr>,
-             _: State<()>| async move {
-                // Left unset, axum reads with tungstenite's defaults: 16 MiB a frame, 64 MiB a message.
-                ws.max_message_size(MAX_MESSAGE_SIZE)
-                    .max_frame_size(MAX_MESSAGE_SIZE)
-                    .on_upgrade(async move |socket| {
-                        callback(WsServerChannel {
-                            inner: socket,
-                            peer_addr,
-                        })
-                        .await;
-                    })
-            },
-        );
-
-        self.router = self.router.route(&path, method);
-
-        self
+        self.route_with_max_message_size(path, MAX_MESSAGE_SIZE, callback)
     }
 }
 

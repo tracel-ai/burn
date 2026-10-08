@@ -3159,11 +3159,6 @@ where
     /// one in the position of the original dimension, with size equal to the number of windows,
     /// and one appended to the right-most position, with size equal to `size`.
     ///
-    /// # Warning
-    ///
-    /// For the `ndarray` backend; this is not a view but a copy
-    /// with duplicated data.
-    ///
     /// # Arguments
     ///
     /// * `dim` - the dimension to unfold.

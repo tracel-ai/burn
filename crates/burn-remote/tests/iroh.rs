@@ -269,6 +269,43 @@ async fn transfers_tensor_directly_between_iroh_compute_peers() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
+async fn a_tensor_many_frames_long_crosses_sessions_and_servers() {
+    // 4 MiB, which a session and a transfer each carry in several frames.
+    upload_transfer_and_read_back(1024 * 1024).await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "moves a tensor over 1 GiB three times; needs several GiB of memory"]
+async fn a_tensor_over_a_gibibyte_crosses_sessions_and_servers() {
+    upload_transfer_and_read_back((1 << 28) + (1 << 20)).await;
+}
+
+/// A stream's first frame is read before anyone is authorized, so a length over the frame limit
+/// is refused as soon as it is claimed, before any of the frame is sent.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_stranger_claiming_a_huge_first_frame_is_refused_before_sending_it() {
+    const CLAIMED_LENGTH: u64 = 512 * 1024 * 1024;
+    let server = local_endpoint().await;
+    let stranger = local_endpoint().await;
+    let router = spawn_router::<Flex>(server.clone(), AllowAll, TelemetryProbe::disabled());
+
+    let connection = stranger
+        .connect(server.addr(), BURN_REMOTE_ALPN)
+        .await
+        .unwrap();
+    let (mut send, _recv) = connection.open_bi().await.unwrap();
+    send.write_all(&CLAIMED_LENGTH.to_le_bytes()).await.unwrap();
+
+    let closed = tokio::time::timeout(HANG_LIMIT, connection.closed()).await;
+    assert!(
+        closed.is_ok(),
+        "the server is waiting for a frame it should have refused on its length"
+    );
+
+    router.shutdown().await.unwrap();
+}
+
+#[tokio::test(flavor = "multi_thread")]
 async fn a_tensor_moves_back_to_the_server_it_came_from() {
     let first = local_endpoint().await;
     let second = local_endpoint().await;
@@ -341,6 +378,43 @@ async fn a_server_whose_endpoint_dialed_out_first_is_downloaded_from() {
     target_router.shutdown().await.unwrap();
 }
 
+/// Upload `len` floats to one server, move them to another, and read them back from there.
+async fn upload_transfer_and_read_back(len: usize) {
+    let source_server = local_endpoint().await;
+    let target_server = local_endpoint().await;
+    let client = local_endpoint().await;
+    let routers = [
+        spawn_router::<Flex>(source_server.clone(), AllowAll, TelemetryProbe::disabled()),
+        spawn_router::<Flex>(target_server.clone(), AllowAll, TelemetryProbe::disabled()),
+    ];
+    let source = Device::remote_options(&host_dialed_from(&client, source_server.addr()))
+        .init_async()
+        .await
+        .unwrap();
+    let target = Device::remote_options(&host_dialed_from(&client, target_server.addr()))
+        .init_async()
+        .await
+        .unwrap();
+
+    tokio::task::block_in_place(|| {
+        // Every integer below 2^24 is exact in an f32.
+        let values: Vec<f32> = (0..len).map(|i| (i % (1 << 24)) as f32).collect();
+        let tensor = Tensor::<1>::from_data(TensorData::new(values, [len]), &source);
+        let read = tensor.to_device(&target).try_into_vec_as::<f32>().unwrap();
+        assert_eq!(read.len(), len);
+        assert!(
+            read.iter()
+                .enumerate()
+                .all(|(i, value)| *value == (i % (1 << 24)) as f32),
+            "the tensor changed on its way"
+        );
+    });
+
+    for router in routers {
+        router.shutdown().await.unwrap();
+    }
+}
+
 /// The synchronous client path used by scripts, REPLs and Rust notebooks: no `async`, no ambient
 /// runtime in the calling code.
 #[test]
@@ -375,6 +449,37 @@ fn synchronous_client_round_trip() {
     );
 
     server_runtime.block_on(router.shutdown()).unwrap();
+}
+
+#[test]
+fn a_tensor_larger_than_the_stream_window_round_trips() {
+    within_hang_limit(|| {
+        let server_runtime = tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+        let server = server_runtime.block_on(local_endpoint());
+        let router = {
+            let _guard = server_runtime.enter();
+            spawn_router::<Flex>(server.clone(), AllowAll, TelemetryProbe::disabled())
+        };
+        let client_runtime = tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+        let client = client_runtime.block_on(local_endpoint());
+        let device = Device::remote_options(&host_dialed_from(&client, server.addr()))
+            .init()
+            .unwrap();
+
+        let len = 4 * 1024 * 1024;
+        let data = TensorData::new((0..len).map(|i| i as f32).collect::<Vec<_>>(), [len]);
+        Tensor::<1>::from_data(data.clone(), &device)
+            .into_data()
+            .assert_eq(&data, true);
+
+        server_runtime.block_on(router.shutdown()).unwrap();
+    });
 }
 
 #[test]

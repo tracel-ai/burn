@@ -4,7 +4,7 @@ categories = ["science", "no-std", "embedded", "wasm"]
 description = "Tensor tests for Burn backends"
 documentation = "https://docs.rs/burn-backend-tests"
 edition.workspace = true
-keywords = ["deep-learning", "machine-learning", "tensor", "pytorch", "ndarray"]
+keywords = ["deep-learning", "machine-learning", "tensor", "pytorch"]
 license.workspace = true
 name = "burn-backend-tests"
 readme = "README.md"
@@ -20,8 +20,6 @@ proc-macro = true
 [features]
 default = [
     "burn-tensor/default",
-    # Default
-    # "ndarray",
     "std",
 ]
 std = ["burn-tensor/std"]
@@ -32,7 +30,6 @@ rocm = ["burn-tensor/rocm", "quantization", "cube"]
 flex = ["burn-tensor/flex", "quantization"]
 flex-simd = ["flex", "burn-flex/simd"]
 flex-rayon = ["flex", "burn-flex/rayon"]
-ndarray = ["burn-tensor/ndarray", "quantization"]
 tch = ["burn-tensor/tch"]
 vulkan = ["wgpu", "burn-tensor/vulkan"]
 webgpu = ["wgpu", "burn-tensor/webgpu"]
@@ -56,8 +53,7 @@ fusion = [
 cube = [
     "cubek",
     "autotune",
-    "burn-tensor/ndarray",
-    "burn-ndarray",
+    "burn-tensor/flex",
     # Direct dependency so fusion tests can assert launch-level decisions (in-place aliasing).
     "burn-cubecl-fusion",
 ]
@@ -77,9 +73,6 @@ cubek = { workspace = true, features = ["random"], optional = true }
 
 # Explicitly enable test-only checks
 burn-autodiff = { workspace = true, features = ["export_tests"] }
-burn-ndarray = { workspace = true, optional = true, features = [
-    "export_tests",
-] }
 
 burn-cubecl-fusion = { workspace = true, optional = true }
 
@@ -106,7 +99,7 @@ divan = "0.1"
 
 [[test]]
 name = "autodiff_transfer"
-required-features = ["flex", "ndarray"]
+required-features = ["flex", "cpu"]
 
 [[bench]]
 name = "attention"

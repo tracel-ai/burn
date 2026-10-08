@@ -20,6 +20,10 @@ and `cuda` features make `Device::wgpu` and `Device::cuda` available.
 
 ## Selecting a Device
 
+The NdArray backend, deprecated in 0.22, has been removed from `main`. Replace the `ndarray`
+feature with `flex` and `Device::ndarray()` with `Device::flex()`. NdArray remains available
+in the 0.22 releases.
+
 `Device` provides constructors for the backends enabled in your build. Multiple backend features can
 be enabled together; the device chooses where operations execute.
 
@@ -33,7 +37,6 @@ be enabled together; the device chooses where operations execute.
 | `Device::rocm(0)`                    | `rocm`        | AMD GPU through CubeCL's HIP runtime                                                    |
 | `Device::cpu()`                      | `cpu`         | CPU through CubeCL's CPU runtime (LLVM JIT, supports fusion)                            |
 | `Device::flex()`                     | `flex`        | CPU through the pure-Rust Flex backend (eager, supports `no_std` and Wasm)              |
-| `Device::ndarray()`                  | `ndarray`     | CPU through NdArray (deprecated)                                                        |
 | `Device::libtorch()`                 | `tch`         | CPU through LibTorch (deprecated)                                                       |
 | `Device::libtorch_cuda(0)`           | `tch`         | CUDA GPU through LibTorch (deprecated)                                                  |
 | `Device::libtorch_mps()`             | `tch`         | Apple GPU through Metal Performance Shaders (deprecated)                                |
