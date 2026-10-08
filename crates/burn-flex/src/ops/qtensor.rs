@@ -18,7 +18,7 @@ use burn_backend::{
 use burn_std::{Bytes, Shape, Slice, bf16, f16};
 
 use super::float_storage_as_f32;
-use crate::{Flex, FlexQTensor, FlexTensor, Layout, qtensor::KeptByFlex};
+use crate::{Flex, FlexQTensor, FlexTensor, Layout};
 
 /// The blocks over `shape`, which must be a whole number of blocks along every axis.
 fn block_layout(shape: &Shape, block: &BlockSize) -> BlockLayout {
@@ -59,7 +59,7 @@ impl QTensorOps<Flex> for Flex {
         let tensor_data = TensorData::new(values, shape);
         let tensor = FlexTensor::from_data(tensor_data);
 
-        FlexQTensor::new(tensor, scheme.kept_by_flex(), qparams.block, qparams.global)
+        FlexQTensor::new(tensor, scheme, qparams.block, qparams.global)
     }
 
     fn quantize_dynamic(tensor: FloatTensor<Flex>, scheme: &QuantScheme) -> QuantizedTensor<Flex> {
@@ -120,7 +120,7 @@ impl QTensorOps<Flex> for Flex {
         let layout = Layout::contiguous(shape);
         let qt = FlexTensor::new(bytes, layout, DType::I8);
 
-        FlexQTensor::new(qt, scheme.kept_by_flex(), scales, global)
+        FlexQTensor::new(qt, *scheme, scales, global)
     }
 
     fn quantize(
@@ -169,7 +169,7 @@ impl QTensorOps<Flex> for Flex {
         let layout = Layout::contiguous(shape);
         let qt = FlexTensor::new(bytes, layout, DType::I8);
 
-        FlexQTensor::new(qt, scheme.kept_by_flex(), scales, global)
+        FlexQTensor::new(qt, *scheme, scales, global)
     }
 
     fn dequantize(tensor: QuantizedTensor<Flex>, dtype: FloatDType) -> FloatTensor<Flex> {
@@ -400,10 +400,7 @@ fn validated_scale(scale: f32, dtype: ScaleDtype) -> f32 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use burn_backend::{
-        TensorMetadata,
-        quantization::{QuantMode, QuantValue},
-    };
+    use burn_backend::{TensorMetadata, quantization::QuantValue};
 
     fn data_of(tensor: QuantizedTensor<Flex>) -> TensorData {
         burn_std::reader::try_read_sync(Flex::q_into_data(tensor))
@@ -532,15 +529,6 @@ mod tests {
                 "{scheme:?}"
             );
         }
-    }
-
-    #[test]
-    fn a_lookup_scheme_is_held_with_native_values() {
-        let scheme = QuantScheme::default().with_mode(QuantMode::Lookup);
-
-        let quantized = Flex::quantize_dynamic(ramp([4, 16]), &scheme);
-
-        assert_eq!(quantized.scheme, scheme.with_store(QuantStore::Native));
     }
 
     #[test]

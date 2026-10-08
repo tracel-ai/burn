@@ -1,5 +1,5 @@
 use alloc::string::String;
-use burn_std::{BoolStore, DeviceSettings, QuantConfig, QuantScheme, QuantStore};
+use burn_std::{BoolStore, DeviceSettings, QuantConfig, QuantMode, QuantScheme, QuantStore};
 
 use burn_backend::{
     Backend, BackendTypes, DType, DTypeUsage, DTypeUsageSet, DeviceId, DeviceOps, ExecutionError,
@@ -9,7 +9,7 @@ use burn_std::device::Device;
 use burn_std::rand::{SeedableRng, StdRng};
 use burn_std::sync::Mutex;
 
-use crate::qtensor::{FlexQTensor, KeptByFlex};
+use crate::qtensor::FlexQTensor;
 use crate::tensor::FlexTensor;
 
 /// Type alias for the RNG used by Flex.
@@ -158,9 +158,10 @@ impl Backend for Flex {
                 DTypeUsage::Storage | DTypeUsage::Arithmetic
             }
             DType::Bool(burn_std::BoolStore::U32) => DTypeUsageSet::empty(),
-            // Ops without a quantized kernel dequantize, so a scheme Flex keeps serves every op.
+            // Ops without a quantized kernel dequantize, so a symmetric scheme serves every op.
             DType::QFloat(scheme)
-                if scheme.is_kept_by_flex() && burn_std::quantization::quantizable(&scheme) =>
+                if scheme.mode == QuantMode::Symmetric
+                    && burn_std::quantization::quantizable(&scheme) =>
             {
                 DTypeUsage::general()
             }
@@ -227,7 +228,7 @@ impl BackendIr for Flex {
 #[cfg(test)]
 mod tests {
     use burn_backend::{Backend, DType};
-    use burn_std::{BoolStore, QuantMode, QuantValue};
+    use burn_std::{BoolStore, QuantValue};
 
     use super::*;
 

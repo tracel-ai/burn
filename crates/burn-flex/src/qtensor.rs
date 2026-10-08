@@ -1,10 +1,7 @@
 use alloc::vec::Vec;
 
 use burn_backend::{DType, TensorMetadata};
-use burn_std::{
-    QuantScheme, Shape,
-    quantization::{QuantMode, QuantStore, global_scale_dtype},
-};
+use burn_std::{QuantScheme, Shape, quantization::global_scale_dtype};
 
 use crate::{FlexDevice, tensor::FlexTensor};
 
@@ -91,30 +88,5 @@ impl TensorMetadata for FlexQTensor {
 
     fn can_mut(&self) -> bool {
         self.tensor.is_unique()
-    }
-}
-
-/// What Flex keeps of a quantization scheme it is asked to quantize under.
-pub trait KeptByFlex {
-    /// Whether Flex keeps this scheme as asked: any symmetric one, since Flex applies no lookup
-    /// table.
-    fn is_kept_by_flex(&self) -> bool;
-
-    /// The scheme Flex holds a tensor quantized under this one with: this one when
-    /// [kept](Self::is_kept_by_flex), else with its values stored natively.
-    fn kept_by_flex(self) -> Self;
-}
-
-impl KeptByFlex for QuantScheme {
-    fn is_kept_by_flex(&self) -> bool {
-        matches!(self.mode, QuantMode::Symmetric)
-    }
-
-    fn kept_by_flex(self) -> Self {
-        if self.is_kept_by_flex() {
-            self
-        } else {
-            self.with_store(QuantStore::Native)
-        }
     }
 }
