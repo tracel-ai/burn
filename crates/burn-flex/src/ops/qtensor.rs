@@ -216,16 +216,16 @@ impl QTensorOps<Flex> for Flex {
     }
 
     fn q_reshape(tensor: QuantizedTensor<Flex>, shape: Shape) -> QuantizedTensor<Flex> {
-        let scheme = tensor.scheme;
-        if let QuantStore::PackedU32(packed_dim) | QuantStore::PackedNative(packed_dim) =
-            scheme.store
-        {
-            // A scalar is one line, so its single axis is the packed one.
-            assert!(
-                packed_dim < shape.num_dims().max(1),
-                "{scheme:?} packs along dim {packed_dim} from the innermost, which {shape:?} lacks"
-            );
-        }
+        // Flex holds codes unpacked, so a reshape that drops the packed axis can pack innermost.
+        let rank = shape.num_dims().max(1);
+        let store = match tensor.scheme.store {
+            QuantStore::PackedU32(packed_dim) if packed_dim >= rank => QuantStore::PackedU32(0),
+            QuantStore::PackedNative(packed_dim) if packed_dim >= rank => {
+                QuantStore::PackedNative(0)
+            }
+            store => store,
+        };
+        let scheme = tensor.scheme.with_store(store);
         block_safe_layout_op(tensor, scheme, |t| t.reshape(shape))
     }
 
@@ -462,14 +462,60 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "packs along dim 1 from the innermost")]
-    fn reshaping_away_a_natively_packed_axis_is_refused() {
-        let scheme = QuantScheme::default()
-            .with_value(QuantValue::E2M1)
-            .with_store(QuantStore::PackedNative(0));
-        let swapped = Flex::q_swap_dims(Flex::quantize_dynamic(ramp([4, 8]), &scheme), 0, 1);
+    fn a_reshape_that_drops_the_packed_axis_packs_innermost() {
+        let q8 = QuantScheme::default().with_value(QuantValue::Q8S);
+        for (scheme, flattened) in [
+            (
+                q8.with_store(QuantStore::PackedU32(0)),
+                QuantStore::PackedU32(0),
+            ),
+            (
+                q8.with_value(QuantValue::E2M1)
+                    .with_store(QuantStore::PackedNative(0)),
+                QuantStore::PackedNative(0),
+            ),
+        ] {
+            let swapped = Flex::q_swap_dims(Flex::quantize_dynamic(ramp([4, 8]), &scheme), 0, 1);
+            let expected = Flex::dequantize(swapped.clone(), FloatDType::F32);
 
-        Flex::q_reshape(swapped, Shape::new([32]));
+            let reshaped = Flex::q_reshape(swapped, Shape::new([32]));
+
+            assert_eq!(reshaped.scheme.store, flattened);
+            let reloaded = Flex::q_from_data(data_of(reshaped), &Default::default());
+            assert_eq!(
+                Flex::dequantize(reloaded, FloatDType::F32).storage::<f32>(),
+                expected.to_contiguous().storage::<f32>(),
+                "{scheme:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn global_reductions_follow_a_swap_of_the_packed_axis() {
+        let scheme = QuantScheme::default()
+            .with_value(QuantValue::Q8S)
+            .with_store(QuantStore::PackedU32(0));
+        let swapped = Flex::q_swap_dims(Flex::quantize_dynamic(ramp([4, 8]), &scheme), 0, 1);
+        let values = Flex::dequantize(swapped.clone(), FloatDType::F32)
+            .to_contiguous()
+            .storage::<f32>()
+            .to_vec();
+        let reduced = |tensor: QuantizedTensor<Flex>| {
+            Flex::dequantize(tensor, FloatDType::F32).storage::<f32>()[0]
+        };
+
+        assert_eq!(
+            reduced(Flex::q_max(swapped.clone())),
+            values.iter().copied().fold(f32::MIN, f32::max)
+        );
+        assert_eq!(
+            reduced(Flex::q_min(swapped.clone())),
+            values.iter().copied().fold(f32::MAX, f32::min)
+        );
+        assert_eq!(
+            reduced(Flex::q_max_abs(swapped)).abs(),
+            values.iter().map(|value| value.abs()).fold(0.0, f32::max)
+        );
     }
 
     #[test]
