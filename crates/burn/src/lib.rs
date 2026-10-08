@@ -136,6 +136,9 @@
 //!   - `rayon`: Enable multi-threaded execution in the Flex backend
 //!   - `autotune`: Enable running benchmarks to select the best kernel in backends that support it.
 //!   - `autotune-checks`: Check that every autotune candidate produces the same output (debugging).
+//!   - `persistence`: Enable persistent CubeCL caches across process runs, including when default
+//!     features are disabled. Compiled-kernel caching also requires `compilation.cache = true`
+//!     in the CubeCL runtime configuration. Does not select a backend.
 //!   - `x86-v4`: Enable AVX-512 matmul kernels in the Flex backend.
 //!   - `apple-amx`: Enable the experimental Apple AMX matmul kernels in the Flex backend.
 //!   - `template`: Enable hand-written, non-JIT custom kernels in the CubeCL backends.
