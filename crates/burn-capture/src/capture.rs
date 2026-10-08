@@ -15,7 +15,7 @@ use spin::Mutex;
 
 use burn_router::{
     Graph, MultiBackendBridge, RouterChannel, RouterClient, RouterClientRegistration, RouterTensor,
-    get_client, register_scoped_client,
+    register_scoped_client,
 };
 
 static DEVICE_COUNTER: AtomicU64 = AtomicU64::new(0);
@@ -48,11 +48,13 @@ impl CaptureDevice {
         &self,
         capture: impl FnOnce(CaptureScope) -> CompletedCaptureScope,
     ) -> Result<CapturedGraph, CaptureError> {
-        let client = get_client::<CaptureChannel>(self);
-        let session = client.session.clone();
+        let session = Arc::new(CaptureSession::default());
+        let client = CaptureClient::new(*self, session.clone());
+        // Bind this reusable device to the new session client for exactly this scope. BackendRouter
+        // operations call `get_client`, which now finds this client instead of trying the channel's
+        // intentionally unsupported unscoped initialization path.
         let registration = register_scoped_client::<CaptureChannel>(self, client.clone())
             .ok_or(CaptureError::AlreadyActive)?;
-        session.state.lock().active_scope = true;
         let guard = CaptureScopeGuard {
             client,
             _registration: registration,
@@ -206,11 +208,7 @@ impl<A: CaptureTensor, B: CaptureTensor, C: CaptureTensor, D: CaptureTensor> Int
 }
 
 impl CaptureScope {
-    /// Registers an external tensor as a runtime input to the captured graph and returns it.
-    ///
-    /// # Note
-    /// Runtime inputs must be instantiated outside the capture scope and transferred
-    /// to the capture device. Tensors initialized inside the scope are recorded as constants.
+    /// Registers a tensor as a runtime input to the captured graph and returns it.
     pub fn input<T: CaptureTensor>(&mut self, tensor: T) -> T {
         let id = tensor.capture_id();
         if !self.inputs.contains(&id) {
@@ -439,9 +437,9 @@ impl RouterChannel for CaptureChannel {
         "capture".into()
     }
 
-    fn init_client(device: &Self::Device) -> Self::Client {
-        let session = Arc::new(CaptureSession::default());
-        CaptureClient::new(*device, session)
+    fn init_client(_device: &Self::Device) -> Self::Client {
+        // `get_client` reaches this only when no capture scope registered its client first.
+        panic!("capture tensor operations must run inside CaptureDevice::capture_scope")
     }
 
     fn get_tensor_handle(tensor: &TensorIr, client: &Self::Client) -> TensorData {
@@ -499,7 +497,6 @@ struct CaptureState {
     graphs: HashMap<GraphId, Graph>,
     aliases: HashMap<TensorId, TensorId>,
     closed: bool,
-    active_scope: bool,
 }
 
 impl Default for CaptureState {
@@ -510,7 +507,6 @@ impl Default for CaptureState {
             graphs: HashMap::new(),
             aliases: HashMap::new(),
             closed: false,
-            active_scope: false,
         }
     }
 }
@@ -546,9 +542,6 @@ impl CaptureState {
             return;
         }
         self.assert_open();
-        if !self.active_scope && !matches!(op, OperationIr::Init(_)) {
-            panic!("capture tensor operations must run inside CaptureDevice::capture_scope");
-        }
         op.visit_mut(&mut AliasVisitor {
             aliases: &self.aliases,
         });
@@ -984,8 +977,7 @@ mod tests {
     fn tensor_operations_require_an_active_scope() {
         let device = CaptureDevice::default();
         let panic = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            let tensor = CaptureBackend::float_from_data(TensorData::from([1.0f32]), &device);
-            let _ = CaptureBackend::float_neg(tensor);
+            let _ = CaptureBackend::float_from_data(TensorData::from([1.0f32]), &device);
         }));
 
         assert!(panic.is_err());

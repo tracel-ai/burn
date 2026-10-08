@@ -519,6 +519,7 @@ impl burn_backend::Device for DispatchDevice {
         let (dispatch_id, backend_type_id) = Self::decode_type_id(device_id.type_id);
         device_id.type_id = backend_type_id;
 
+        #[allow(unreachable_patterns)]
         match dispatch_id {
             #[cfg(cube_backend)]
             DispatchDeviceId::Cube => Self::Cube(burn_backend::Device::from_id(device_id)),

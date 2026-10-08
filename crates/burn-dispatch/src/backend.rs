@@ -244,6 +244,7 @@ impl Backend for Dispatch {
 
     fn device_count(type_id: u16) -> usize {
         let (dispatch_id, backend_type_id) = DispatchDevice::decode_type_id(type_id);
+        #[allow(unreachable_patterns)]
         match dispatch_id {
             #[cfg(cube_backend)]
             DispatchDeviceId::Cube => Cube::device_count(backend_type_id),
@@ -1047,6 +1048,7 @@ impl Dispatch {
     /// List all available devices of the specified [type id](DispatchDeviceId).
     pub fn enumerate(type_id: DispatchDeviceId) -> Vec<DispatchDevice> {
         // TODO: right now this assumes `type_id = 0`, but WgpuDevice has other types.
+        #[allow(unreachable_patterns)]
         match type_id {
             #[cfg(cube_backend)]
             DispatchDeviceId::Cube => CubeDevice::enumerate_all()
