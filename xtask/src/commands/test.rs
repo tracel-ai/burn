@@ -259,9 +259,7 @@ fn handle_macos_tests(release: bool) -> anyhow::Result<()> {
         release,
         "Metal with fusion",
     )?;
-    run_test_group(&packages, &features, release, "Metal without fusion")?;
-
-    Ok(())
+    run_test_group(&packages, &features, release, "Metal without fusion")
 }
 
 fn run_test_group(
