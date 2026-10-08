@@ -189,9 +189,9 @@ impl BlockLayout {
 /// Quantized data bytes representation.
 ///
 /// # Notes
-/// 1) The quantized values are packed into 32-bit unsigned integers. For example, int8
-///    quantized values pack 4 grouped values into a single `u32`. When unpacking these values,
-///    we make sure to retrieve only the meaningful values (and ignore the alignment padding).
+/// 1) The quantized values are laid out as the scheme's store says: a byte each for `Native`,
+///    or packed into little-endian words along the packed axis as cubecl stores them, each line
+///    padded to whole words.
 /// 2) Quantization parameters are appended to the tensor data.
 ///    As such, the last bytes always correspond to the scale parameter.
 ///    If the quantization scheme includes an offset (zero-point) parameter, it is next to last.
@@ -208,8 +208,8 @@ pub struct QuantizedBytes {
 impl QuantizedBytes {
     /// Creates a new quantized bytes representation.
     ///
-    /// `global` is the per-tensor scale, required by a two-level scheme and rejected by a
-    /// one-level one.
+    /// `value` holds one code per element and `scales` the block scales, both row-major; `global`
+    /// is the per-tensor scale, required by a two-level scheme and rejected by a one-level one.
     pub fn new<E: bytemuck::CheckedBitPattern + bytemuck::NoUninit>(
         value: Vec<E>,
         shape: impl Into<Shape>,
@@ -224,12 +224,10 @@ impl QuantizedBytes {
             "{} quantized values do not fill a tensor of shape {shape:?}",
             value.len()
         );
-        // Only used for 8-bit quantization data comparison in tests
         if TypeId::of::<E>() != TypeId::of::<i8>() {
             panic!("Invalid quantized type");
         }
 
-        // Re-interpret `Vec<E>` as `Vec<i8>` with `Vec::from_raw_parts`
         let i8s: Vec<i8> = bytemuck::allocation::cast_vec(value);
         let layout = ValueLayout::new(&scheme);
         let mut bytes = match layout {
@@ -280,7 +278,8 @@ impl QuantizedBytes {
         self.shape.num_elements()
     }
 
-    /// Returns the int8 quantized values with the quantization parameters.
+    /// The codes, one `i8` per element in row-major order, and the scales; a float code is its
+    /// bits.
     pub fn into_vec_i8(self) -> (Vec<i8>, DecodedScales) {
         let scheme = self.scheme;
         let scale_order = ValueLayout::new(&scheme).block_scale_order(&self.shape, &scheme);
@@ -366,9 +365,9 @@ pub fn global_scale_size(scheme: &QuantScheme) -> usize {
 ///
 /// A packed store divides only the packed dimension, rounding that extent up on its own and
 /// leaving the others intact, so a non-divisible extent pads once per line rather than once
-/// over the flattened tensor, as [`QuantizedBytes::new`] lays it out; flattening first would
-/// under-count, e.g. a
-/// `[3, 3]` Q4 `PackedU32` tensor occupies `3 * ceil(3 / 8) = 3` words, not `ceil(9 / 8) = 2`.
+/// over the flattened tensor, as [`QuantizedBytes::new`] lays it out. Flattening first would
+/// under-count: a `[3, 3]` Q4 `PackedU32` tensor occupies `3 * ceil(3 / 8) = 3` words, not
+/// `ceil(9 / 8) = 2`.
 fn storage_elements(scheme: &QuantScheme, shape: &Shape) -> usize {
     let num_quants = scheme.num_quants();
 
@@ -551,6 +550,18 @@ pub fn pack_i8s_to_u32s(values: Vec<i8>) -> Vec<u32> {
 mod tests {
     use super::*;
     use alloc::vec;
+
+    #[test]
+    fn permuting_moves_the_packed_axis_and_the_block_dims_with_their_axes() {
+        let scheme = QuantScheme::default()
+            .with_store(QuantStore::PackedU32(0))
+            .per_block([1, 2, 4], ScaleDtype::F32);
+
+        let permuted = scheme.permuted(&[2, 0, 1]);
+
+        assert_eq!(permuted.store, QuantStore::PackedU32(2));
+        assert_eq!(permuted.block_size(), Some(BlockSize::new([4, 1, 2])));
+    }
 
     #[test]
     fn should_pack_i8s_to_u32() {

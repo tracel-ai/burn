@@ -217,9 +217,12 @@ impl QTensorOps<Flex> for Flex {
 
     fn q_reshape(tensor: QuantizedTensor<Flex>, shape: Shape) -> QuantizedTensor<Flex> {
         let scheme = tensor.scheme;
-        if let QuantStore::PackedU32(packed_dim) = scheme.store {
+        if let QuantStore::PackedU32(packed_dim) | QuantStore::PackedNative(packed_dim) =
+            scheme.store
+        {
+            // A scalar is one line, so its single axis is the packed one.
             assert!(
-                packed_dim < shape.num_dims(),
+                packed_dim < shape.num_dims().max(1),
                 "{scheme:?} packs along dim {packed_dim} from the innermost, which {shape:?} lacks"
             );
         }
@@ -456,6 +459,17 @@ mod tests {
                 "{scheme:?}"
             );
         }
+    }
+
+    #[test]
+    #[should_panic(expected = "packs along dim 1 from the innermost")]
+    fn reshaping_away_a_natively_packed_axis_is_refused() {
+        let scheme = QuantScheme::default()
+            .with_value(QuantValue::E2M1)
+            .with_store(QuantStore::PackedNative(0));
+        let swapped = Flex::q_swap_dims(Flex::quantize_dynamic(ramp([4, 8]), &scheme), 0, 1);
+
+        Flex::q_reshape(swapped, Shape::new([32]));
     }
 
     #[test]

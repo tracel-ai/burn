@@ -126,7 +126,7 @@ Both backends support the same integer dtypes.
 | Dequantize     | `scale * x_q` (direct multiply, **135-232x faster**)            | Reparses `QuantizedBytes` on every call |
 | Scale storage  | `Vec<f32>` stored separately                                    | `QParams<f32>` in `NdArrayQTensor`      |
 | Q layout ops   | **Zero-copy** per-tensor (permute, flip, expand, slice)         | Copies entire tensor                    |
-| Q ordering ops | **Skip dequantization** (per-tensor argmax, argmin and gather)  | Dequantize to f32, then operate         |
+| Q ordering ops | **Skip dequantization** where codes order like values           | Dequantize to f32, then operate         |
 | QuantStore     | Native, PackedU32, PackedNative (packed at the data boundary)   | Native                                  |
 | QuantValue     | Q8, Q4, Q2 (F and S), E4M3, E5M2, E2M1                          | Q8F, Q8S (+ Q4/Q2 for export_tests)     |
 

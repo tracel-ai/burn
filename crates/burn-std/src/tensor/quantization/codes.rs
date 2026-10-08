@@ -6,8 +6,8 @@ use super::QuantValue;
 /// The codes a quantization value type stores, and the values they stand for.
 ///
 /// Slices rather than single values, so the type is matched once and the loop, generic over the
-/// scales, compiles in the caller's crate where it inlines and vectorizes. That takes a `scale_of`
-/// owning what it reads: a scale behind a reference is reloaded for every value.
+/// scales, compiles in the caller's crate where it inlines and vectorizes. A scale `scale_of` reads
+/// through a reference is reloaded for every value, so a per-tensor scale is best moved in.
 pub trait QuantCodes {
     /// The code of each value divided by its scale, `scale_of` giving the scale at an index:
     /// clamped to the type's range, then rounded to the nearest representable value, ties to even.
@@ -81,7 +81,7 @@ impl QuantCodes for QuantValue {
     }
 }
 
-/// Rounding half to even, which a GPU's `round` does and a CPU's does not.
+/// Rounding half to even, as GPU kernels round; Rust's `f32::round` breaks ties away from zero.
 struct HalfEven;
 
 impl HalfEven {
@@ -102,6 +102,7 @@ impl E2M1 {
     /// The magnitudes of the codes without their sign bit, in code order.
     const MAGNITUDES: [f32; 8] = [0.0, 0.5, 1.0, 1.5, 2.0, 3.0, 4.0, 6.0];
     const SIGN: u8 = 0x8;
+    const MAGNITUDE_BITS: u8 = 0x7;
 
     /// The code counts the midpoints between magnitudes that `value` clears; strict and non-strict
     /// comparisons alternate so each tie lands on the even code, and a NaN clears none.
@@ -125,7 +126,7 @@ impl E2M1 {
     }
 
     fn decode(code: u8) -> f32 {
-        let magnitude = Self::MAGNITUDES[usize::from(code & !Self::SIGN)];
+        let magnitude = Self::MAGNITUDES[usize::from(code & Self::MAGNITUDE_BITS)];
         if code & Self::SIGN != 0 {
             -magnitude
         } else {
@@ -167,6 +168,11 @@ mod tests {
                 "{value:?} {code:#x}"
             );
         }
+        assert_eq!(
+            decode(QuantValue::E2M1, 0xF1u8 as i8),
+            0.5,
+            "a byte's high nibble is not part of its E2M1 code"
+        );
         assert!(decode(QuantValue::E4M3, 0x7F).is_nan());
         assert!(decode(QuantValue::E5M2, 0x7D).is_nan());
     }
@@ -204,6 +210,21 @@ mod tests {
         assert_eq!(encode(QuantValue::Q8S, 1.4), 1);
         assert_eq!(encode(QuantValue::Q8S, 1e9), 127);
         assert_eq!(encode(QuantValue::Q8S, -1e9), -127);
+        for (tie, even) in [
+            (0.75, 1.0),
+            (1.25, 1.0),
+            (1.75, 2.0),
+            (2.5, 2.0),
+            (3.5, 4.0),
+            (5.0, 4.0),
+        ] {
+            assert_eq!(e2m1(tie), even, "{tie} rounds to the even code");
+        }
+        assert_eq!(
+            encode(QuantValue::E2M1, -0.0),
+            0x8,
+            "the sign of zero is kept"
+        );
         assert_eq!(e2m1(2.4), 2.0);
         assert_eq!(e2m1(100.0), 6.0);
         assert_eq!(e2m1(-100.0), -6.0);
