@@ -7,7 +7,7 @@ edition.workspace = true
 keywords = ["deep-learning", "machine-learning", "data"]
 license.workspace = true
 name = "burn-tch"
-readme.workspace = true
+readme = "README.md"
 repository = "https://github.com/tracel-ai/burn/tree/main/crates/burn-tch"
 version.workspace = true
 
@@ -31,7 +31,7 @@ tch = { workspace = true, features = ["download-libtorch"] }
 torch-sys = { workspace = true }                             # for build script lib dir detection
 
 [build-dependencies]
-cc = "1.2.61"
+cc = "1.5.1"
 
 [package.metadata.docs.rs]
 features = ["doc"]

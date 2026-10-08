@@ -28,7 +28,7 @@
 //! Remote servers and interpreters replaying captured graphs must enable `router`
 //! and install `register_fft_ops`
 //! in their custom-operation registry before execution. Pass that registry to
-//! `RemoteServerBuilder::custom_ops` or `TensorInterpreter::with_custom_ops`.
+//! a remote server's `with_custom_ops` or `TensorInterpreter::with_custom_ops`.
 //! Enable `remote` on the client and the concrete backend feature on the server.
 
 extern crate alloc;

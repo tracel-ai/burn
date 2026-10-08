@@ -12,7 +12,6 @@ workspace = true
 
 [dependencies]
 burn = { workspace = true, features = ["remote-server", "flex"] }
-tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
 blake3 = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true, features = ["env-filter", "fmt"] }

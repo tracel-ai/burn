@@ -12,6 +12,7 @@ workspace = true
 [features]
 default = []
 f16 = []
+bf16 = []
 flex32 = []
 tch-cpu = ["burn/tch"]
 tch-gpu = ["burn/tch"]
@@ -42,7 +43,7 @@ burn = { workspace = true, features = [
 log = { workspace = true }
 
 # Tokenizer
-tokenizers = { version = "0.22.2", default-features = false, features = [
+tokenizers = { version = "0.23.2", default-features = false, features = [
     "onig",
     "http",
 ] }

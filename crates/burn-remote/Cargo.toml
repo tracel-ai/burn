@@ -6,9 +6,9 @@ edition.workspace = true
 keywords = ["deep-learning", "machine-learning", "data"]
 license.workspace = true
 name = "burn-remote"
-readme.workspace = true
-repository = "https://github.com/tracel-ai/burn/tree/main/crates/burn-router-remote"
-documentation = "https://docs.rs/burn-router-remote"
+readme = "README.md"
+repository = "https://github.com/tracel-ai/burn/tree/main/crates/burn-remote"
+documentation = "https://docs.rs/burn-remote"
 version.workspace = true
 
 [lints]
@@ -28,14 +28,19 @@ tracing = [
 client = ["tokio/sync", "tokio/rt"]
 # Cache recurring op-groups on the server and invoke them by id. Wraps `RemoteBackend` in `Fusion`.
 fusion = ["client", "dep:burn-fusion", "burn-router/fusion"]
-server = ["tokio/sync", "dep:tracing-subscriber"]
-iroh = ["dep:iroh", "dep:blake3", "tokio/io-util", "dep:tempfile"]
+server = [
+    "tokio/sync",
+    "tokio/rt",
+    "dep:tracing-subscriber",
+    "dep:blake3",
+    "dep:tokio-util",
+]
+iroh = ["dep:iroh", "tokio/io-util", "dep:tempfile"]
 websocket = [
     "server",
     "dep:burn-communication",
     "burn-communication/websocket",
     "burn-communication/data-service",
-    "dep:tokio-util",
     "tokio/net",
 ]
 
@@ -73,13 +78,13 @@ tempfile = { workspace = true, optional = true }
 
 [target.'cfg(all(target_family = "wasm", target_os = "unknown"))'.dependencies]
 wasm-bindgen-futures = { workspace = true }
-gloo-timers = { version = "0.3", features = ["futures"] }
+gloo-timers = { version = "0.4", features = ["futures"] }
 futures-util = { workspace = true }
 
 [dev-dependencies]
 # Use path instead of workspace dep (which specifies a version, creating a circular publish dependency chain)
 burn-flex = { path = "../burn-flex", features = ["default"] }
-burn-tensor = { path = "../burn-tensor", features = ["default", "flex", "remote-websocket"] }
+burn-tensor = { path = "../burn-tensor", features = ["default", "flex", "remote-server", "remote-websocket"] }
 iroh-relay = { workspace = true, features = ["server"] }
 
 [package.metadata.docs.rs]

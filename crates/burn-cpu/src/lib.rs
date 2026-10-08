@@ -1,5 +1,24 @@
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
+//! The CubeCL CPU runtime for [Burn](https://github.com/tracel-ai/burn): the GPU backends' kernels,
+//! compiled for the CPU through LLVM.
+//!
+//! Applications enable Burn's `cpu` feature and create a device with `Device::cpu()`; they do not
+//! need this crate directly. [`Cpu`] is the backend type under the name of this runtime: every
+//! CubeCL runtime shares the same backend, and a tensor's device says which one it runs on. LLVM
+//! is bundled, so no system installation is needed.
+//!
+//! This is one of two independent CPU backends. `burn-flex` (feature `flex`) is a pure-Rust eager
+//! backend that also supports `no_std` and WebAssembly; this one brings kernel fusion, autotuning
+//! and custom CubeCL kernels to the CPU.
+//!
+//! # Feature flags
+//!
+//! - `std` (default): standard library support.
+//! - `fusion` (default): kernel fusion.
+//! - `autotune` (default): benchmark kernel variants at runtime and keep the fastest.
+//! - `tracing`: instrument operations with the `tracing` crate.
+
 extern crate alloc;
 
 pub use cubecl::cpu::CpuDevice;

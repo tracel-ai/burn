@@ -1,5 +1,5 @@
-use burn::remote::{EndpointId, IrohPeerBuilder};
-use burn::server::{Channel, IrohChannelBuilder, RemoteSecret};
+use burn::remote::{EndpointId, RemoteHost};
+use burn::server::{IrohIdentity, IrohTransport, RemoteServer};
 use burn::tensor::{Device, Distribution, Tensor};
 use tracing_subscriber::{EnvFilter, fmt};
 
@@ -11,38 +11,33 @@ fn init_logging() {
 
 /// Derive a stable server identity from a human-friendly topic, so both ends agree on the address
 /// without exchanging keys. The topic acts as a shared secret here (anyone who knows it can host as
-/// this identity), which suits a demo; a real deployment would use `RemoteSecret::random()` and
+/// this identity), which suits a demo; a real deployment would use `IrohIdentity::random()` and
 /// share its `id()`.
-fn topic_secret(topic: &str) -> RemoteSecret {
+fn topic_identity(topic: &str) -> IrohIdentity {
     let hash = blake3::hash(format!("burn-p2p:{topic}").as_bytes());
-    RemoteSecret::from_bytes(*hash.as_bytes())
+    IrohIdentity::from_bytes(*hash.as_bytes())
 }
 
-pub async fn run_server(topic: &str) {
+pub fn run_server(topic: &str) {
     init_logging();
-    let secret = topic_secret(topic);
-    tracing::info!(topic, server_id = %secret.id(), "server ready");
+    let transport = IrohTransport::new(topic_identity(topic));
+    tracing::info!(topic, server_id = %transport.id(), "server ready");
     tracing::info!("waiting for clients (press Ctrl-C to stop)");
-    burn::server::start_async(
-        Device::flex(),
-        Channel::Iroh {
-            channel: IrohChannelBuilder::new(secret).build(),
-        },
-    )
-    .await;
+    RemoteServer::new([Device::flex()])
+        .serve(transport)
+        .expect("The server can serve");
     tracing::info!("server stopped");
 }
 
-pub async fn run_client(topic: &str) {
-    let server_id: EndpointId = topic_secret(topic).id();
+pub fn run_client(topic: &str) {
+    let server_id: EndpointId = topic_identity(topic).id();
 
     println!("topic     : {topic}");
     println!("server id : {server_id}");
     println!("connecting...");
 
-    let peer = IrohPeerBuilder::new(server_id).build();
-    let device = Device::remote_iroh_peer(&peer, 0)
-        .await
+    let device = Device::remote_options(&RemoteHost::iroh(server_id))
+        .init()
         .expect("The server can be dialed");
 
     println!("connected\n");

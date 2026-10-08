@@ -7,7 +7,7 @@ edition.workspace = true
 keywords = ["deep-learning", "machine-learning", "tensor", "pytorch", "ndarray"]
 license.workspace = true
 name = "burn-tensor"
-readme.workspace = true
+readme = "README.md"
 repository = "https://github.com/tracel-ai/burn/tree/main/crates/burn-tensor"
 version.workspace = true
 
@@ -49,9 +49,9 @@ cpu = ["burn-dispatch/cpu", "cubecl-cpu", "cubecl"]
 autodiff = ["burn-dispatch/autodiff"]
 # Remote compute client over Iroh.
 remote = ["std", "burn-dispatch/remote"]
-# Host a remote compute server over Iroh. Wasm-compatible.
+# Host a remote compute server over Iroh. On wasm, it serves only on an application's endpoint.
 remote-server = ["remote", "burn-dispatch/remote-server"]
-# Add the legacy WebSocket transport.
+# Add the WebSocket transport, for clients and servers.
 remote-websocket = ["remote", "burn-dispatch/remote-websocket"]
 capture = ["burn-dispatch/capture"]
 

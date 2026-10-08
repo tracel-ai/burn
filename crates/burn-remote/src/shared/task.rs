@@ -14,12 +14,12 @@ use crate::{PeerAddr, PeerId};
 ///
 /// Bumped whenever [`Task`] or [`TaskResponseContent`] changes shape, so a
 /// mismatched peer is refused at the handshake rather than failing to decode
-/// a batch mid-session. `2`: profiling windows.
-pub const PROTOCOL_VERSION: u16 = 2;
+/// a batch mid-session.
+pub const PROTOCOL_VERSION: u16 = 3;
 
 /// Routing id for a task whose result is fetched back.
 ///
-/// Only the result-producing tasks ([`Task::ReadTensor`], [`Task::SyncBackend`],
+/// Only the result-producing tasks ([`Task::ReadTensors`], [`Task::SyncBackend`],
 /// [`Task::DTypeUsage`], [`Task::ProfileStart`], [`Task::ProfileEnd`]) carry a `RequestId`;
 /// the server echoes it on its [`TaskResponse`] so
 /// the client demultiplexes results back to the right pending callback. Fire-and-forget tasks
@@ -54,9 +54,9 @@ impl TransferCapability {
         Self(rand::random())
     }
 
-    /// Deterministic compatibility key for the legacy 64-bit WebSocket transfer service.
+    /// The 64-bit key the WebSocket transfer service rendezvouses on, taken from the capability.
     #[cfg(feature = "websocket")]
-    pub(crate) fn legacy_id(self) -> u64 {
+    pub(crate) fn websocket_id(self) -> u64 {
         u64::from_le_bytes(
             self.0[..8]
                 .try_into()
@@ -150,6 +150,26 @@ pub struct SessionInfo {
     pub peer_id: Option<PeerId>,
 }
 
+/// Why a server will not serve a session, as the client is told.
+///
+/// A category and never the authorizer's own words: the client is not yet authorized, and an
+/// authorizer writes its reasons for the server's log.
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SessionRefusal {
+    /// The server's authorizer rejected the client's credential.
+    Unauthorized,
+    /// The server does not host the device the client asked for. Only an authorized client is
+    /// told how many it hosts.
+    NoSuchDevice { device_count: u32 },
+    /// The server cannot read the client's handshake, as when the client speaks another version
+    /// of the Burn Remote protocol. Told before authorization, so it reveals the server's
+    /// version, which a client could find by trying each version anyway.
+    ///
+    /// The only refusal a client on another version receives, so its encoding never changes, nor
+    /// do the Iroh ALPN and stream header that carry it.
+    IncompatibleProtocol { server_version: u16 },
+}
+
 #[allow(missing_docs)]
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct TensorRemote {
@@ -229,7 +249,8 @@ pub enum Task {
         transfer_id: LocalTransferId,
         new_id: TensorId,
     },
-    ReadTensor(RequestId, StreamId, TensorIr),
+    /// Read several tensors as one backend transaction, answered in the same order.
+    ReadTensors(RequestId, StreamId, Vec<TensorIr>),
     SyncBackend(RequestId, StreamId),
     DTypeUsage(RequestId, DType),
     /// Open a profiling window on the server's backend where `stream_id` stands.
@@ -261,7 +282,7 @@ pub enum TaskResponseContent {
     /// Server responds with the selected device's settings plus the total number of devices
     /// it hosts (so the client can enumerate them, see [`RemoteDevice::enumerate`]).
     Init(SessionInfo),
-    ReadTensor(Result<TensorData, ExecutionError>),
+    ReadTensors(Result<Vec<TensorData>, ExecutionError>),
     SyncBackend(Result<(), ExecutionError>),
     DTypeUsage(DTypeUsageSet),
     /// `None` when the server's backend opens no windows.
@@ -269,4 +290,33 @@ pub enum TaskResponseContent {
     /// The window's duration on the server's clock; `None` when it carried no
     /// measurement.
     ProfileEnd(Result<Option<Duration>, ExecutionError>),
+    /// The server's answer to an `Init` it will not serve, in place of [`Init`](Self::Init),
+    /// before it closes the session.
+    InitRefused(SessionRefusal),
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn an_incompatible_protocol_refusal_keeps_its_wire_encoding() {
+        let refusal = TaskResponse {
+            content: TaskResponseContent::InitRefused(SessionRefusal::IncompatibleProtocol {
+                server_version: 2,
+            }),
+            id: 0,
+        };
+
+        // `[content, id]`, each variant a one-entry map keyed by its name.
+        let expected = [
+            &[0x92, 0x81, 0xab][..],
+            b"InitRefused",
+            &[0x81, 0xb4],
+            b"IncompatibleProtocol",
+            &[0x91, 0x02, 0x00],
+        ]
+        .concat();
+        assert_eq!(rmp_serde::to_vec(&refusal).unwrap(), expected);
+    }
 }

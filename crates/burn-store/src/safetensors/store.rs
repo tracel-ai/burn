@@ -731,8 +731,11 @@ impl ModuleStore for SafetensorsStore {
                 //
                 // The reserved handle is dropped because `serialize_to_file` opens the path
                 // itself; the exclusive create has already ruled out a pre-existing file or a
-                // symlink planted at the scratch name.
-                let (scratch, _reserved) = burn_pack::AtomicFile::create(&p.path).map_err(pack)?;
+                // symlink planted at the scratch name. It must be closed before the write:
+                // `serialize_to_file` renames its own tempfile onto the scratch path, which
+                // Windows refuses while a handle to it is still open.
+                let (scratch, reserved) = burn_pack::AtomicFile::create(&p.path).map_err(pack)?;
+                drop(reserved);
                 let scratch_path = scratch.path().to_path_buf();
 
                 // serialize_to_file streams directly to disk, calling the lazy closures

@@ -442,7 +442,7 @@ fn validate_impl(item: &ItemImpl) -> syn::Result<bool> {
         ));
     }
 
-    let Some((_, trait_path, _)) = &item.trait_ else {
+    let Some((trait_path, _)) = &item.trait_ else {
         return Ok(true);
     };
     let has_self = trait_path.segments.last().is_some_and(|segment| {

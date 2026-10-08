@@ -11,8 +11,21 @@ use crate::state::build_and_load_model;
 
 use burn::tensor::Tensor;
 
+// cubecl registers static constructors (via `inventory`). Without an explicit call from an
+// export, wasm-ld re-runs every constructor at the start of *each* exported function, which
+// dominates inference time. Running them once here turns that off.
+#[cfg(target_family = "wasm")]
+unsafe extern "C" {
+    fn __wasm_call_ctors();
+}
+
 #[cfg_attr(target_family = "wasm", wasm_bindgen(start))]
 pub fn start() {
+    #[cfg(target_family = "wasm")]
+    // SAFETY: called once, from the wasm-bindgen start function, before any other export.
+    unsafe {
+        __wasm_call_ctors();
+    }
     console_error_panic_hook::set_once();
 }
 

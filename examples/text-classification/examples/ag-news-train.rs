@@ -11,11 +11,13 @@ use burn::{
 
 use text_classification::{AgNewsDataset, training::ExperimentConfig};
 
-#[cfg(not(any(feature = "f16", feature = "flex32")))]
+#[cfg(not(any(feature = "f16", feature = "bf16", feature = "flex32")))]
 #[allow(unused)]
 type ElemType = f32;
 #[cfg(feature = "f16")]
 type ElemType = burn::tensor::f16;
+#[cfg(feature = "bf16")]
+type ElemType = burn::tensor::bf16;
 #[cfg(feature = "flex32")]
 type ElemType = burn::tensor::flex32;
 
@@ -63,6 +65,12 @@ pub fn launch(strategy: ExecutionStrategy) {
         AdamConfig::new().with_weight_decay(Some(WeightDecayConfig::new(5e-5))),
     );
 
+    // bf16 only has 8 bits of mantissa, so with the default schedule (peak lr ~3e-5) every Adam
+    // step is smaller than the weights' rounding step and is lost. Without f32 master weights,
+    // the updates have to be large enough to survive the rounding.
+    #[cfg(feature = "bf16")]
+    let config = config.with_lr_factor(0.4);
+
     text_classification::training::train::<AgNewsDataset>(
         strategy,
         AgNewsDataset::train(),
@@ -108,6 +116,7 @@ mod wgpu {
 mod remote {
     #[cfg(feature = "ddp")]
     use crate::ElemType;
+    use burn::remote::RemoteHost;
     #[cfg(feature = "ddp")]
     use burn::tensor::distributed::{DistributedConfig, ReduceOperation};
     use burn::tensor::{Device, DeviceType};
@@ -126,14 +135,14 @@ mod remote {
     /// [`DeviceError::AlreadyInitialized`](burn::tensor::DeviceError::AlreadyInitialized).
     #[cfg(not(feature = "ddp"))]
     pub fn run() {
-        let devices = Device::enumerate(DeviceType::remote_websocket(ADDRESS));
+        let devices = Device::enumerate(DeviceType::Remote(RemoteHost::websocket(ADDRESS)));
         crate::launch_single(devices.into_vec().pop().unwrap());
     }
 
     /// Same enumeration, but drive the devices with distributed data-parallel training.
     #[cfg(feature = "ddp")]
     pub fn run() {
-        let mut devices = Device::enumerate(DeviceType::remote_websocket(ADDRESS));
+        let mut devices = Device::enumerate(DeviceType::Remote(RemoteHost::websocket(ADDRESS)));
         devices
             .configure(DeviceConfig::default().float_dtype(ElemType::dtype()))
             .unwrap();

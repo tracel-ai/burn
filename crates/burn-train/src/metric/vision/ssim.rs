@@ -3,6 +3,7 @@ use crate::metric::{
     SerializedEntry,
     state::{FormatOptions, NumericMetricState},
 };
+use burn_core::tensor::TensorReadError;
 use burn_core::{
     prelude::{Device, Tensor},
     tensor::{module::conv2d, ops::ConvOptions},
@@ -292,7 +293,11 @@ impl Metric for SsimMetric {
         self.name.clone()
     }
 
-    fn update(&mut self, item: &Self::Input, _metadata: &MetricMetadata) -> SerializedEntry {
+    fn update(
+        &mut self,
+        item: &Self::Input,
+        _metadata: &MetricMetadata,
+    ) -> Result<SerializedEntry, TensorReadError> {
         let dims = item.outputs.dims();
         let batch_size = dims[0];
         let channels = dims[1];
@@ -348,16 +353,18 @@ impl Metric for SsimMetric {
 
         // Average SSIM across all dimensions to get a single scalar value
         let ssim_per_image = ssim_tensor.mean_dims(&[1, 2, 3]);
-        let avg_ssim = ssim_per_image.mean().into_scalar::<f64>();
+        let avg_ssim = ssim_per_image.mean().try_into_scalar::<f64>()?;
 
         self.state.update(avg_ssim, batch_size);
-        self.state
-            .compute_update(FormatOptions::new(self.name()).precision(4))
+        Ok(self
+            .state
+            .compute_update(FormatOptions::new(self.name()).precision(4)))
     }
 
-    fn compute(&mut self) -> SerializedEntry {
-        self.state
-            .compute_final(FormatOptions::new(self.name()).precision(4))
+    fn compute(&mut self) -> Result<SerializedEntry, TensorReadError> {
+        Ok(self
+            .state
+            .compute_final(FormatOptions::new(self.name()).precision(4)))
     }
 
     /// Clears the metric state.
@@ -418,7 +425,7 @@ mod tests {
 
         let mut metric = SsimMetric::new(test_config());
         let input = SsimInput::new(outputs, targets);
-        let _entry = metric.update(&input, &MetricMetadata::fake());
+        let _entry = metric.update(&input, &MetricMetadata::fake()).unwrap();
 
         let ssim = metric.value().unwrap().current();
         assert!(
@@ -439,7 +446,7 @@ mod tests {
 
         let mut metric = SsimMetric::new(test_config());
         let input = SsimInput::new(outputs, targets);
-        let _entry = metric.update(&input, &MetricMetadata::fake());
+        let _entry = metric.update(&input, &MetricMetadata::fake()).unwrap();
 
         let ssim = metric.value().unwrap().current();
         assert!(
@@ -458,7 +465,7 @@ mod tests {
 
         let mut metric = SsimMetric::new(test_config());
         let input = SsimInput::new(outputs, targets);
-        let _entry = metric.update(&input, &MetricMetadata::fake());
+        let _entry = metric.update(&input, &MetricMetadata::fake()).unwrap();
 
         let ssim = metric.value().unwrap().current();
         assert!(
@@ -511,7 +518,7 @@ mod tests {
 
         let mut metric = SsimMetric::new(test_config());
         let input = SsimInput::new(outputs, targets);
-        let _entry = metric.update(&input, &MetricMetadata::fake());
+        let _entry = metric.update(&input, &MetricMetadata::fake()).unwrap();
 
         let ssim = metric.value().unwrap().current();
         // Average of ~1.0 and ~0.0 should be around 0.5
@@ -553,7 +560,7 @@ mod tests {
 
         let mut metric = SsimMetric::new(test_config());
         let input = SsimInput::new(outputs, targets);
-        let _entry = metric.update(&input, &MetricMetadata::fake());
+        let _entry = metric.update(&input, &MetricMetadata::fake()).unwrap();
 
         let ssim = metric.value().unwrap().current();
         assert!(
@@ -591,12 +598,12 @@ mod tests {
 
         let mut metric1 = SsimMetric::new(config);
         let input1 = SsimInput::new(img1.clone(), img2.clone());
-        let _entry = metric1.update(&input1, &MetricMetadata::fake());
+        let _entry = metric1.update(&input1, &MetricMetadata::fake()).unwrap();
         let ssim1 = metric1.value().unwrap().current();
 
         let mut metric2 = SsimMetric::new(config);
         let input2 = SsimInput::new(img2, img1);
-        let _entry = metric2.update(&input2, &MetricMetadata::fake());
+        let _entry = metric2.update(&input2, &MetricMetadata::fake()).unwrap();
         let ssim2 = metric2.value().unwrap().current();
 
         assert!(
@@ -618,7 +625,7 @@ mod tests {
 
         let mut metric = SsimMetric::new(test_config());
         let input = SsimInput::new(outputs, targets);
-        let _entry = metric.update(&input, &MetricMetadata::fake());
+        let _entry = metric.update(&input, &MetricMetadata::fake()).unwrap();
 
         let ssim = metric.value().unwrap().current();
         assert!(
@@ -645,7 +652,7 @@ mod tests {
         );
         let targets1 = outputs1.clone();
         let input1 = SsimInput::new(outputs1, targets1);
-        let _entry = metric.update(&input1, &MetricMetadata::fake());
+        let _entry = metric.update(&input1, &MetricMetadata::fake()).unwrap();
 
         let ssim1 = metric.value().unwrap().current();
         assert!(
@@ -658,7 +665,7 @@ mod tests {
         let outputs2 = Tensor::<4>::zeros([1, 1, 4, 4], &device);
         let targets2 = Tensor::<4>::ones([1, 1, 4, 4], &device);
         let input2 = SsimInput::new(outputs2, targets2);
-        let _entry = metric.update(&input2, &MetricMetadata::fake());
+        let _entry = metric.update(&input2, &MetricMetadata::fake()).unwrap();
 
         // Running average should be around 0.5
         let running_avg = metric.running_value().unwrap().current();
@@ -685,7 +692,7 @@ mod tests {
         );
         let targets = outputs.clone();
         let input = SsimInput::new(outputs, targets);
-        let _entry = metric.update(&input, &MetricMetadata::fake());
+        let _entry = metric.update(&input, &MetricMetadata::fake()).unwrap();
 
         let ssim = metric.value().unwrap().current();
         assert!(
@@ -726,7 +733,7 @@ mod tests {
         let config = SsimMetricConfig::new(255.0).with_kernel_size(3);
         let mut metric = SsimMetric::new(config);
         let input = SsimInput::new(outputs, targets);
-        let _entry = metric.update(&input, &MetricMetadata::fake());
+        let _entry = metric.update(&input, &MetricMetadata::fake()).unwrap();
 
         let ssim = metric.value().unwrap().current();
         assert!(
@@ -746,7 +753,7 @@ mod tests {
 
         let mut metric = SsimMetric::new(test_config());
         let input = SsimInput::new(outputs, targets);
-        let _entry = metric.update(&input, &MetricMetadata::fake());
+        let _entry = metric.update(&input, &MetricMetadata::fake()).unwrap();
 
         let ssim = metric.value().unwrap().current();
         assert!(
@@ -768,7 +775,7 @@ mod tests {
         let config = SsimMetricConfig::new(1.0); // default kernel_size=11
         let mut metric = SsimMetric::new(config);
         let input = SsimInput::new(outputs, targets);
-        let _entry = metric.update(&input, &MetricMetadata::fake());
+        let _entry = metric.update(&input, &MetricMetadata::fake()).unwrap();
 
         let ssim = metric.value().unwrap().current();
         assert!(
@@ -814,7 +821,7 @@ mod tests {
         let config = SsimMetricConfig::new(1.0);
         let mut metric = SsimMetric::new(config);
         let input = SsimInput::new(outputs, targets);
-        let _entry = metric.update(&input, &MetricMetadata::fake());
+        let _entry = metric.update(&input, &MetricMetadata::fake()).unwrap();
     }
 
     #[test]

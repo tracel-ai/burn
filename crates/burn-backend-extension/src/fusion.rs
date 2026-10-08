@@ -307,7 +307,7 @@ fn expand_method(
         &mut publish,
     )?;
     let call = quote!(<B as #trait_name>::#name(#(#invoke),*));
-    let call = if sig.unsafety.is_some() {
+    let call = if matches!(sig.safety, syn::Safety::Unsafe(_)) {
         quote!(unsafe { #call })
     } else {
         call

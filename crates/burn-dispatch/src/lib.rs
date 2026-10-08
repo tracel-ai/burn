@@ -38,6 +38,8 @@
 //! | `Flex`     | `flex`     | Pure Rust CPU backend using `burn-flex` |
 //! | `NdArray`  | `ndarray`  | Pure Rust CPU backend using `ndarray` (deprecated - use `flex`) |
 //! | `LibTorch` | `tch`      | Libtorch backend via `tch` (deprecated - use a CubeCL backend) |
+//! | `Remote`   | `remote`   | Devices hosted by another process or machine, through `burn-remote` |
+//! | `Capture`  | `capture`  | Records operation graphs instead of executing them, through `burn-capture` |
 //! | `Autodiff` | `autodiff` | Autodiff-enabled backend (used in combination with any of the backends above) |
 //!
 //! **Note:** The features can be combined freely. The cubecl-backed ones all
@@ -56,7 +58,8 @@ mod ops;
 /// Dispatch tensor module.
 pub mod tensor;
 
-/// Entry points for hosting a remote-execution server.
+/// The backend dispatch behind `burn::server::RemoteServer`. Not a user path.
+#[doc(hidden)]
 #[cfg(feature = "remote-server")]
 pub mod remote_server;
 
@@ -109,8 +112,6 @@ pub mod backends {
     #[cfg(feature = "tch")]
     pub use burn_tch::LibTorch;
 
-    #[cfg(feature = "remote")]
-    pub use burn_remote as remote;
     #[cfg(feature = "remote")]
     pub use burn_remote::RemoteBackend as Remote;
 
@@ -168,7 +169,9 @@ pub mod devices {
 
     #[cfg(feature = "remote")]
     pub use burn_remote::RemoteDevice;
-
-    #[cfg(feature = "remote")]
-    pub use burn_remote::BURN_REMOTE_ALPN;
 }
+
+/// The remote backend's crate, for `burn::remote` and `burn::server` to build on. Not a user path.
+#[doc(hidden)]
+#[cfg(feature = "remote")]
+pub use burn_remote as __remote;

@@ -45,7 +45,7 @@ impl<M: LearnerModel> SingleDeviceValidEpoch<M> {
             let item = match item {
                 Ok(item) => item,
                 Err(err) => {
-                    interrupter.stop(Some(&format!("dataset error during validation: {err}")));
+                    interrupter.fail(err);
                     break;
                 }
             };
@@ -55,7 +55,7 @@ impl<M: LearnerModel> SingleDeviceValidEpoch<M> {
             let item = InferenceStep::step(&model, item);
             let item = TrainingItem::new(item, progress, Some(iteration), None);
 
-            processor.process_valid(LearnerEvent::ProcessedItem(item));
+            interrupter.fail_on_error(processor.process_valid(LearnerEvent::ProcessedItem(item)));
 
             if interrupter.should_stop() {
                 break;
@@ -97,7 +97,7 @@ impl<M: LearnerModel> SingleDeviceTrainEpoch<M> {
             let item = match item {
                 Ok(item) => item,
                 Err(err) => {
-                    interrupter.stop(Some(&format!("dataset error during training: {err}")));
+                    interrupter.fail(err);
                     break;
                 }
             };
@@ -133,7 +133,7 @@ impl<M: LearnerModel> SingleDeviceTrainEpoch<M> {
                 Some(learner.lr_current()),
             );
 
-            processor.process_train(LearnerEvent::ProcessedItem(item));
+            interrupter.fail_on_error(processor.process_train(LearnerEvent::ProcessedItem(item)));
 
             if interrupter.should_stop() {
                 break;

@@ -18,6 +18,10 @@ repository = "https://github.com/tracel-ai/burn"
 rust-version = "1.95"
 version.workspace = true
 
+[package.metadata.docs.rs]
+features = ["doc"]
+rustdoc-args = ["--cfg", "docsrs"]
+
 [lints]
 workspace = true
 
@@ -45,6 +49,7 @@ doc = [
     "burn-optim?/doc",
     "rl",
     "signal",
+    "vision",
 ]
 std = [
     "burn-core/std",

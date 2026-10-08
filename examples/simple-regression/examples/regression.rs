@@ -43,15 +43,19 @@ mod tch_cpu {
     }
 }
 
-// #[cfg(feature = "remote")]
-// mod remote {
-//     use burn::backend::{RemoteBackend, remote::RemoteDevice};
+#[cfg(feature = "remote")]
+mod remote {
+    use burn::{remote::RemoteHost, tensor::Device};
 
-//     pub fn run() {
-//         let device = RemoteDevice::default();
-//         super::run::<RemoteBackend>(device);
-//     }
-// }
+    /// Train on the `server` example's device, at its default address.
+    pub fn run() {
+        let host = RemoteHost::websocket("ws://localhost:3000");
+        let device = Device::remote_options(&host)
+            .init()
+            .expect("The server can be dialed");
+        super::run(device);
+    }
+}
 
 /// Train a regression model and predict results on a number of samples.
 pub fn run(device: Device) {

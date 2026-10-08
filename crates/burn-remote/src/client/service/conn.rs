@@ -6,10 +6,10 @@
 //! service and the registry are written against these and stay transport-agnostic.
 
 use core::time::Duration;
-use std::sync::Arc;
 
+use super::OPEN_DEADLINE;
 use crate::{
-    PeerAddr, PeerId,
+    ConnectError, Credential, PeerAddr, PeerId,
     transport::{
         OpenError,
         link::{FrameSink, FrameSource},
@@ -33,6 +33,12 @@ const OPEN_RETRY_DELAYS: [Duration; 6] = [
     Duration::from_secs(8),
 ];
 
+/// The two halves of an opened session.
+pub(crate) struct SessionStreams {
+    pub(crate) submit: SubmitChannel,
+    pub(crate) response: ResponseChannel,
+}
+
 /// Everything needed to establish a session with a remote compute peer.
 #[derive(Clone)]
 pub(crate) enum RemoteEndpoint {
@@ -40,18 +46,20 @@ pub(crate) enum RemoteEndpoint {
     Iroh {
         node: RemoteNode,
         peer: iroh::EndpointAddr,
-        authorization: Arc<[u8]>,
+        credential: Credential,
+        /// The application endpoint dialed from, or `None` for an endpoint Burn binds.
+        app_endpoint: Option<iroh::EndpointId>,
     },
     #[cfg(feature = "websocket")]
     WebSocket {
         address: Address,
-        authorization: Arc<[u8]>,
+        credential: Credential,
     },
 }
 
 impl core::fmt::Debug for RemoteEndpoint {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        // Never the authorization, which is often a shared secret.
+        // Never the credential, which is often a shared secret.
         match self {
             #[cfg(feature = "iroh")]
             Self::Iroh { node, peer, .. } => f
@@ -82,38 +90,38 @@ impl RemoteEndpoint {
         self.peer_addr().id()
     }
 
-    pub(crate) fn authorization(&self) -> &[u8] {
+    pub(crate) fn credential(&self) -> &Credential {
         match self {
             #[cfg(feature = "iroh")]
-            Self::Iroh { authorization, .. } => authorization,
+            Self::Iroh { credential, .. } => credential,
             #[cfg(feature = "websocket")]
-            Self::WebSocket { authorization, .. } => authorization,
+            Self::WebSocket { credential, .. } => credential,
         }
     }
 
-    /// The stable registry key for this endpoint (identity + authorization, no mutable dialing
-    /// hints), so the same compute peer reuses one device id across reconnects.
+    /// The stable registry key for this endpoint, without dialing hints. An endpoint Burn binds
+    /// is left out, so one server reached under two relay settings is one device; an
+    /// application endpoint stays in, so a second identity never inherits the first one's session.
     pub(crate) fn key(&self) -> EndpointKey {
         match self {
             #[cfg(feature = "iroh")]
             Self::Iroh {
-                node,
                 peer,
-                authorization,
+                credential,
+                app_endpoint,
                 ..
             } => EndpointKey::Iroh {
-                local: node.id(),
+                app_endpoint: *app_endpoint,
                 remote: peer.id,
-                authorization: authorization.clone(),
+                credential: credential.clone(),
             },
             #[cfg(feature = "websocket")]
             Self::WebSocket {
                 address,
-                authorization,
-                ..
+                credential,
             } => EndpointKey::WebSocket {
                 address: address.clone(),
-                authorization: authorization.clone(),
+                credential: credential.clone(),
             },
         }
     }
@@ -123,22 +131,24 @@ impl RemoteEndpoint {
     ///
     /// Done up front so a missing server surfaces here rather than on the first op, and the demux /
     /// writer tasks can be spawned on already-open streams.
-    pub(crate) async fn open_channels(&self) -> Result<(SubmitChannel, ResponseChannel), String> {
+    pub(crate) async fn open_channels(&self) -> Result<SessionStreams, ConnectError> {
         let peer = self.peer_id().to_short_string();
         let give_up = |err: OpenError| match err {
             OpenError::NotReachableYet(reason) => {
                 let waited: Duration = OPEN_RETRY_DELAYS.iter().sum();
-                format!(
-                    "Cannot reach {peer} after trying for {waited:?} ({reason}). Is its server running?"
-                )
+                ConnectError::Unreachable {
+                    reason: format!(
+                        "nothing answered after trying for {waited:?} ({reason}); is the server running?"
+                    ),
+                }
             }
-            OpenError::Failed(message) => {
-                format!("Cannot open a remote session to {peer}: {message}")
-            }
+            #[cfg(feature = "iroh")]
+            OpenError::NoAddress => ConnectError::NoAddress,
+            OpenError::Failed(reason) => ConnectError::Unreachable { reason },
         };
 
         for delay in OPEN_RETRY_DELAYS {
-            match self.open_channels_once().await {
+            match self.open_channels_within_deadline().await {
                 Err(OpenError::NotReachableYet(reason)) => {
                     log::info!("Cannot reach {peer} yet ({reason}), trying again in {delay:?}");
                     crate::time::sleep(delay).await;
@@ -147,10 +157,21 @@ impl RemoteEndpoint {
             }
         }
         // The last attempt, with nothing left to wait for.
-        self.open_channels_once().await.map_err(give_up)
+        self.open_channels_within_deadline().await.map_err(give_up)
     }
 
-    async fn open_channels_once(&self) -> Result<(SubmitChannel, ResponseChannel), OpenError> {
+    /// One attempt, given up at the deadline on a server that accepts and never serves it.
+    async fn open_channels_within_deadline(&self) -> Result<SessionStreams, OpenError> {
+        crate::time::timeout(OPEN_DEADLINE, self.open_channels_once())
+            .await
+            .unwrap_or_else(|()| {
+                Err(OpenError::Failed(format!(
+                    "no connection opened within {OPEN_DEADLINE:?}"
+                )))
+            })
+    }
+
+    async fn open_channels_once(&self) -> Result<SessionStreams, OpenError> {
         match self {
             #[cfg(feature = "iroh")]
             Self::Iroh { node, peer, .. } => {
@@ -160,7 +181,10 @@ impl RemoteEndpoint {
                         crate::transport::iroh::node::StreamKind::Session,
                     )
                     .await?;
-                Ok((SubmitChannel::Iroh(send), ResponseChannel::Iroh(recv)))
+                Ok(SessionStreams {
+                    submit: SubmitChannel::Iroh(send),
+                    response: ResponseChannel::Iroh(recv),
+                })
             }
             #[cfg(feature = "websocket")]
             Self::WebSocket { address, .. } => {
@@ -168,10 +192,10 @@ impl RemoteEndpoint {
                 // (source) halves, matching the Iroh single-stream model.
                 let channel = WsClient::connect(address.clone(), "session").await?;
                 let (sink, source) = channel.split();
-                Ok((
-                    SubmitChannel::WebSocket(Box::new(sink)),
-                    ResponseChannel::WebSocket(Box::new(source)),
-                ))
+                Ok(SessionStreams {
+                    submit: SubmitChannel::WebSocket(Box::new(sink)),
+                    response: ResponseChannel::WebSocket(Box::new(source)),
+                })
             }
         }
     }
@@ -182,14 +206,14 @@ impl RemoteEndpoint {
 pub(crate) enum EndpointKey {
     #[cfg(feature = "iroh")]
     Iroh {
-        local: iroh::EndpointId,
+        app_endpoint: Option<iroh::EndpointId>,
         remote: iroh::EndpointId,
-        authorization: Arc<[u8]>,
+        credential: Credential,
     },
     #[cfg(feature = "websocket")]
     WebSocket {
         address: Address,
-        authorization: Arc<[u8]>,
+        credential: Credential,
     },
 }
 

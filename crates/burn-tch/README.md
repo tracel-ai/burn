@@ -3,6 +3,7 @@
 [Burn](https://github.com/tracel-ai/burn) Torch backend
 
 [![Current Crates.io Version](https://img.shields.io/crates/v/burn-tch.svg)](https://crates.io/crates/burn-tch)
+[![Documentation](https://docs.rs/burn-tch/badge.svg)](https://docs.rs/burn-tch)
 [![license](https://shields.io/badge/license-MIT%2FApache--2.0-blue)](https://github.com/tracel-ai/burn/blob/main/LICENSE-MIT)
 
 > **Deprecated:** This crate is deprecated as of `0.22.0` and will be removed in a future release.
@@ -223,7 +224,7 @@ not work properly.
 
 ## Example Usage
 
-For a simple example, check out any of the test programs in [`src/bin/`](./src/bin/). Each program
+For a simple example, check out any of the test programs in [`src/bin/`](https://github.com/tracel-ai/burn/tree/main/crates/burn-tch/src/bin). Each program
 sets the device to use and performs a simple element-wise addition.
 
 For a more complete example using the `tch` backend, take a loot at the
@@ -254,3 +255,10 @@ EOF
 ```
 
 This will automatically include the old `LD_LIBRARY_PATH` value in the new one.
+
+<!-- burn-crate-footer -->
+
+---
+
+Part of the [Burn](https://github.com/tracel-ai/burn) deep learning framework. See the
+[Burn Book](https://burn.dev/books/burn/) and the [API documentation](https://docs.rs/burn).

@@ -231,6 +231,26 @@ fn incorrect_dtype_metadata_is_an_execution_error() {
 }
 
 #[test]
+#[cfg(debug_assertions)]
+fn a_transaction_of_a_failed_op_returns_its_error() {
+    let device = Device::default();
+    let x = Tensor::<1>::from_floats([1.], &device).into_dispatch();
+    let out = Dispatch::mixed(
+        &x,
+        x.clone(),
+        Tensor::<1, Int>::from_ints([1], &device).into_dispatch(),
+        Tensor::<1, Bool>::from_bool([true], &device).into_dispatch(),
+        0.,
+        true,
+    );
+    let error = burn::tensor::Transaction::default()
+        .register(Tensor::<1>::from_dispatch(out.float))
+        .try_execute()
+        .unwrap_err();
+    assert!(error.to_string().contains("metadata mismatch"), "{error}");
+}
+
+#[test]
 fn aliased_outputs_can_feed_independent_consumers() {
     let x = Tensor::<1>::from_floats([1., 2.], &Device::default());
     let (a, b) = Dispatch::aliases(x.into_dispatch());

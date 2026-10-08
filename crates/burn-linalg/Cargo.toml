@@ -7,7 +7,7 @@ edition.workspace = true
 keywords = ["deep-learning", "machine-learning", "tensor", "linear-algebra"]
 license.workspace = true
 name = "burn-linalg"
-readme.workspace = true
+readme = "README.md"
 repository = "https://github.com/tracel-ai/burn/tree/main/crates/burn-linalg"
 version.workspace = true
 
@@ -50,4 +50,4 @@ features = ["default", "flex"]
 rustdoc-args = ["--cfg", "docsrs"]
 
 [dev-dependencies]
-ctor = "0.10.1"
+ctor = "1.0.13"

@@ -8,7 +8,7 @@ on:
       - 'v*.*.*'
 
 env:
-  CAREFUL_VERSION: "0.4.9"
+  CAREFUL_VERSION: "0.4.10"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -34,7 +34,7 @@ jobs:
         env:
           CAREFUL_LINK: https://github.com/RalfJung/cargo-careful/releases/download
         run: |
-          curl -L "$CAREFUL_LINK/v$CAREFUL_VERSION/cargo-careful.x86_64-unknown-linux-musl" \
+          curl -fL "$CAREFUL_LINK/v$CAREFUL_VERSION/cargo-careful-x86_64-unknown-linux-musl" \
           --output $HOME/.cargo/bin/cargo-careful
           chmod +x $HOME/.cargo/bin/cargo-careful
       # --------------------------------------------------------------------------------

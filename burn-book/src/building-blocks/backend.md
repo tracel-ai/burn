@@ -31,8 +31,8 @@ be enabled together; the device chooses where operations execute.
 | `Device::webgpu(Default::default())` | `webgpu`      | Browser WebGPU with WGSL                                                                |
 | `Device::cuda(0)`                    | `cuda`        | NVIDIA GPU through CubeCL's CUDA runtime                                                |
 | `Device::rocm(0)`                    | `rocm`        | AMD GPU through CubeCL's HIP runtime                                                    |
-| `Device::cpu()`                      | `cpu`         | CPU through CubeCL's CPU runtime                                                        |
-| `Device::flex()`                     | `flex`        | CPU through the pure-Rust Flex backend                                                  |
+| `Device::cpu()`                      | `cpu`         | CPU through CubeCL's CPU runtime (LLVM JIT, supports fusion)                            |
+| `Device::flex()`                     | `flex`        | CPU through the pure-Rust Flex backend (eager, supports `no_std` and Wasm)              |
 | `Device::ndarray()`                  | `ndarray`     | CPU through NdArray (deprecated)                                                        |
 | `Device::libtorch()`                 | `tch`         | CPU through LibTorch (deprecated)                                                       |
 | `Device::libtorch_cuda(0)`           | `tch`         | CUDA GPU through LibTorch (deprecated)                                                  |
@@ -74,9 +74,10 @@ let default_cuda = Device::cuda(DeviceIndex::Default);
 let second_cuda = Device::cuda(1);
 ```
 
-Burn also supports remote devices when the corresponding remote feature is enabled. Constructors
-include `Device::remote_websocket` for WebSocket connections and `Device::remote_iroh` for
-peer-to-peer remote execution.
+Burn also supports remote devices, hosted by a Burn server in another process on this machine or
+another, with the `remote` feature.
+`Device::remote_options(&host).init()` connects one, where a `RemoteHost` names the server: see
+[Distributed Computing](../performance/distributed-computing.md).
 
 ## Using a Device
 
