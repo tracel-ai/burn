@@ -63,6 +63,7 @@ remote-websocket = ["remote", "burn-remote/websocket"]
 capture = ["burn-capture"]
 
 # Backend features
+persistence = ["burn-cubecl?/persistence"]
 autotune = ["burn-cubecl?/autotune"]
 autotune-checks = ["burn-cubecl?/autotune-checks"]
 fusion = [

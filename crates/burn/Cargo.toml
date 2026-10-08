@@ -113,6 +113,7 @@ autodiff = ["burn-core/autodiff", "burn-signal?/autodiff"]
 fusion = ["ir", "burn-core/fusion", "burn-linalg?/fusion", "burn-signal?/fusion", "burn-vision?/fusion"]
 
 ## Backend features
+persistence = ["burn-core/persistence", "cubecl?/persistence"]
 autotune = ["burn-core/autotune", "burn-signal?/autotune"]
 autotune-checks = ["burn-core/autotune-checks"]
 simd = ["burn-core/simd"]
