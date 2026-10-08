@@ -263,12 +263,12 @@ fn reshape_weight(weight: CubeTensor) -> CubeTensor {
 }
 
 /// Data gradient of a dense convolution: `[M, C_out] @ [C_out, taps * C_in]`,
-/// then a col2im reduction. Input, weight and output shapes use NHWC layout.
+/// then [`col2im`].
 ///
 /// The matmul yields the gradient of the im2col columns `[M, taps * C_in]`;
-/// col2im scatter-adds them onto the input gradient — each input pixel
+/// [`col2im`] scatter-adds them onto the input gradient — each input pixel
 /// receives the sum over every tap whose window read it. Declines `groups != 1`
-/// and pointwise unit stride (kept for `dgrad_im2col_1x1`'s unmaterialised
+/// and pointwise unit stride (kept for [`dgrad_im2col_1x1`]'s unmaterialised
 /// matmul); anchored key fields are never declined explicitly.
 pub fn dgrad_im2col<const N: usize>(
     out_grad: CubeTensor,

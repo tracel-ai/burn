@@ -58,8 +58,6 @@ cube = [
     "autotune",
     "burn-tensor/ndarray",
     "burn-ndarray",
-    "burn-cubecl",
-    "burn-dispatch",
     # Direct dependency so fusion tests can assert launch-level decisions (in-place aliasing).
     "burn-cubecl-fusion",
 ]
@@ -84,8 +82,6 @@ burn-ndarray = { workspace = true, optional = true, features = [
 ] }
 
 burn-cubecl-fusion = { workspace = true, optional = true }
-burn-cubecl = { workspace = true, optional = true }
-burn-dispatch = { workspace = true, optional = true }
 
 # Enabled alongside the `fusion` feature so spy-based tests can import the spy API.
 burn-fusion = { workspace = true, optional = true }
