@@ -1,5 +1,7 @@
 #![cfg(all(feature = "client", feature = "server", feature = "iroh"))]
 
+mod common;
+
 use burn_flex::Flex;
 use burn_ir::BackendIr;
 use burn_remote::{
@@ -9,9 +11,9 @@ use burn_remote::{
 };
 use burn_tensor::{
     DType, Device, Int, Tensor, TensorData,
-    quantization::{QuantStore, QuantValue, ScaleDtype},
     remote::{ConnectError, IrohHost, IrohRelays, RemoteHost},
 };
+use common::{assert_same_bytes, wire_floats, wire_schemes};
 use iroh::{
     Endpoint, EndpointAddr, RelayMode, SecretKey,
     address_lookup::MemoryLookup,
@@ -269,8 +271,6 @@ async fn transfers_tensor_directly_between_iroh_compute_peers() {
     target_router.shutdown().await.unwrap();
 }
 
-/// Packed values with block scales, and block scales under a per-tensor scale: the layouts whose
-/// scales a transfer between servers could truncate or misalign.
 #[tokio::test(flavor = "multi_thread")]
 async fn quantized_data_moves_between_iroh_servers_byte_for_byte() {
     let source_server = local_endpoint().await;
@@ -291,34 +291,16 @@ async fn quantized_data_moves_between_iroh_servers_byte_for_byte() {
         .await
         .unwrap();
 
-    let q8 = source
-        .settings()
-        .quantization
-        .scheme
-        .with_value(QuantValue::Q8S);
-    let schemes = [
-        q8.with_value(QuantValue::Q4S)
-            .with_store(QuantStore::PackedU32(0))
-            .per_block([32], ScaleDtype::F32),
-        q8.per_block([2, 16], ScaleDtype::UE4M3)
-            .per_tensor(ScaleDtype::F32),
-    ];
-    let values: Vec<f32> = (0..64 * 64)
-        .map(|i| ((i * 37 % 211) as f32 - 105.0) * (1 + i / 512) as f32 * 0.01)
-        .collect();
-    for scheme in schemes {
-        let expected =
-            Tensor::<2>::from_data(TensorData::new(values.clone(), [64, 64]), &Device::flex())
-                .quantize_dynamic(&scheme)
-                .into_data();
+    for scheme in wire_schemes(&source) {
+        let expected = Tensor::<2>::from_data(wire_floats(), &Device::flex())
+            .quantize_dynamic(&scheme)
+            .into_data();
 
         let moved = Tensor::<2>::from_data(expected.clone(), &source)
             .to_device(&target)
             .into_data();
 
-        assert_eq!(moved.dtype(), expected.dtype());
-        assert_eq!(moved.shape(), expected.shape());
-        assert_eq!(moved.as_bytes(), expected.as_bytes());
+        assert_same_bytes(&moved, &expected);
     }
 
     source_router.shutdown().await.unwrap();

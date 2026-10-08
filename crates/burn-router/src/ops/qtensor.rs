@@ -106,6 +106,7 @@ impl<R: RouterChannel> QTensorOps<Self> for BackendRouter<R> {
     }
 
     fn q_matmul(lhs: TensorPrimitive<Self>, rhs: TensorPrimitive<Self>) -> TensorPrimitive<Self> {
+        // rhs's scheme and lhs's float dtype win, as in the default `q_matmul` and fusion.
         let scheme = match (&lhs, &rhs) {
             (_, TensorPrimitive::QFloat(tensor)) | (TensorPrimitive::QFloat(tensor), _) => {
                 Some(tensor.scheme())

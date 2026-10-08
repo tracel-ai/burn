@@ -1,5 +1,7 @@
 #![cfg(all(feature = "client", feature = "server", feature = "websocket"))]
 
+mod common;
+
 use burn_flex::Flex;
 use burn_remote::{
     ConnectError,
@@ -10,10 +12,9 @@ use burn_remote::{
 };
 use burn_tensor::{
     Bool, DType, Device, DeviceType, Distribution, Int, Tensor, TensorData, Tolerance, Transaction,
-    quantization::{QuantScheme, QuantStore, QuantValue, ScaleDtype},
-    remote::RemoteHost,
-    server::RemoteServer,
+    quantization::ScaleDtype, remote::RemoteHost, server::RemoteServer,
 };
+use common::{assert_same_bytes, int8_scheme, wire_floats, wire_schemes};
 
 const TOKEN: &str = "fleet-token";
 
@@ -402,24 +403,6 @@ fn a_transaction_reads_tensors_from_two_servers_in_order() {
     rt.shutdown_background();
 }
 
-fn int8_scheme(device: &Device) -> QuantScheme {
-    device
-        .settings()
-        .quantization
-        .scheme
-        .with_value(QuantValue::Q8S)
-}
-
-fn quantized_data(device: &Device, scale: f32) -> TensorData {
-    TensorData::quantized(
-        vec![-127i8, -71, 0, 35],
-        [4],
-        int8_scheme(device),
-        &[scale],
-        None,
-    )
-}
-
 #[test]
 fn a_tensor_quantizes_and_dequantizes_on_the_server() {
     let rt = tokio::runtime::Builder::new_multi_thread()
@@ -435,7 +418,7 @@ fn a_tensor_quantizes_and_dequantizes_on_the_server() {
     let expected = TensorData::quantized(
         vec![50i8, 0, 40, -127],
         [4],
-        int8_scheme(&device).with_store(QuantStore::Native),
+        int8_scheme(&device),
         &[0.1],
         None,
     );
@@ -444,23 +427,6 @@ fn a_tensor_quantizes_and_dequantizes_on_the_server() {
         .dequantize()
         .into_data()
         .assert_approx_eq::<f32>(&floats.into_data(), Tolerance::absolute(1e-1));
-
-    rt.shutdown_background();
-}
-
-#[test]
-fn quantized_data_reads_back_as_it_was_uploaded() {
-    let rt = tokio::runtime::Builder::new_multi_thread()
-        .enable_io()
-        .build()
-        .unwrap();
-    let host = serve(&rt, BackendServer::<Flex>::new(vec![Default::default()]));
-    let device = Device::remote_options(&host).init().unwrap();
-
-    let data = quantized_data(&device, 0.014_173_228);
-    let tensor = Tensor::<1>::from_data(data.clone(), &device);
-
-    tensor.into_data().assert_eq(&data, true);
 
     rt.shutdown_background();
 }
@@ -516,26 +482,36 @@ fn quantized_operands_multiply_on_the_server() {
 }
 
 #[test]
-fn a_quantized_tensor_moves_between_servers() {
+fn a_float_and_a_quantized_operand_multiply_into_the_float_dtype() {
     let rt = tokio::runtime::Builder::new_multi_thread()
         .enable_io()
         .build()
         .unwrap();
-    let host_1 = serve(&rt, BackendServer::<Flex>::new(vec![Default::default()]));
-    let host_2 = serve(&rt, BackendServer::<Flex>::new(vec![Default::default()]));
-    let device_1 = Device::remote_options(&host_1).init().unwrap();
-    let device_2 = Device::remote_options(&host_2).init().unwrap();
+    let host = serve(&rt, BackendServer::<Flex>::new(vec![Default::default()]));
+    let device = Device::remote_options(&host).init().unwrap();
 
-    let data = quantized_data(&device_1, 0.014_173_228);
-    let moved = Tensor::<1>::from_data(data.clone(), &device_1).to_device(&device_2);
+    let floats = Tensor::<2>::from_floats([[1.0, 2.0], [3.0, 4.0]], &device);
+    let quantized = Tensor::<2>::from_floats([[2.0, 0.0], [1.0, 2.0]], &device)
+        .quantize_dynamic(&int8_scheme(&device));
 
-    moved.into_data().assert_eq(&data, true);
+    for (product, expected) in [
+        (
+            floats.clone().matmul(quantized.clone()),
+            [[4.0, 4.0], [10.0, 8.0]],
+        ),
+        (quantized.matmul(floats), [[2.0, 4.0], [7.0, 10.0]]),
+    ] {
+        assert_eq!(product.dtype(), DType::F32);
+        let data = product.into_data();
+        assert_eq!(data.dtype(), DType::F32);
+        data.assert_approx_eq::<f32>(&TensorData::from(expected), Tolerance::relative(2e-2));
+    }
 
     rt.shutdown_background();
 }
 
 #[test]
-fn a_quantized_tensor_moves_between_devices_of_one_server() {
+fn a_quantized_tensor_moves_between_devices_of_one_server_and_back() {
     let rt = tokio::runtime::Builder::new_multi_thread()
         .enable_io()
         .build()
@@ -549,44 +525,19 @@ fn a_quantized_tensor_moves_between_devices_of_one_server() {
         .device_index(1)
         .init()
         .unwrap();
+    let local = Device::flex();
 
-    let data = quantized_data(&device_0, 0.014_173_228);
-    let moved = Tensor::<1>::from_data(data.clone(), &device_0).to_device(&device_1);
+    for scheme in wire_schemes(&device_0) {
+        let expected = Tensor::<2>::from_data(wire_floats(), &local)
+            .quantize_dynamic(&scheme)
+            .into_data();
 
-    moved.into_data().assert_eq(&data, true);
+        let moved = Tensor::<2>::from_data(expected.clone(), &device_0).to_device(&device_1);
+        assert_same_bytes(&moved.clone().into_data(), &expected);
+        assert_same_bytes(&moved.to_device(&device_0).into_data(), &expected);
+    }
 
     rt.shutdown_background();
-}
-
-/// Every layout a quantized tensor crosses the wire in: one scale, block scales, values packed
-/// eight to a word, and block scales under a per-tensor scale.
-fn wire_schemes(device: &Device) -> [QuantScheme; 4] {
-    let q8 = int8_scheme(device);
-    [
-        q8,
-        q8.per_block([32], ScaleDtype::F32),
-        q8.with_value(QuantValue::Q4S)
-            .with_store(QuantStore::PackedU32(0))
-            .per_block([32], ScaleDtype::F32),
-        q8.per_block([2, 16], ScaleDtype::UE4M3)
-            .per_tensor(ScaleDtype::F32),
-    ]
-}
-
-/// Values whose magnitude changes along the tensor, so every block gets a scale of its own.
-fn wire_floats() -> TensorData {
-    let values: Vec<f32> = (0..64 * 64)
-        .map(|i| ((i * 37 % 211) as f32 - 105.0) * (1 + i / 512) as f32 * 0.01)
-        .collect();
-    TensorData::new(values, [64, 64])
-}
-
-/// Values, scales and scheme alike: the bytes a quantized tensor is sent as.
-#[track_caller]
-fn assert_same_bytes(actual: &TensorData, expected: &TensorData) {
-    assert_eq!(actual.dtype(), expected.dtype());
-    assert_eq!(actual.shape(), expected.shape());
-    assert_eq!(actual.as_bytes(), expected.as_bytes());
 }
 
 #[test]
@@ -640,6 +591,32 @@ fn quantized_data_moves_between_servers_byte_for_byte() {
 
         assert_same_bytes(&moved.into_data(), &expected);
     }
+
+    rt.shutdown_background();
+}
+
+#[test]
+fn a_block_quantized_transpose_reads_and_moves_as_it_does_locally() {
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .enable_io()
+        .build()
+        .unwrap();
+    let host_1 = serve(&rt, BackendServer::<Flex>::new(vec![Default::default()]));
+    let host_2 = serve(&rt, BackendServer::<Flex>::new(vec![Default::default()]));
+    let device_1 = Device::remote_options(&host_1).init().unwrap();
+    let device_2 = Device::remote_options(&host_2).init().unwrap();
+    let scheme = int8_scheme(&device_1).per_block([32], ScaleDtype::F32);
+
+    let expected = Tensor::<2>::from_data(wire_floats(), &Device::flex())
+        .quantize_dynamic(&scheme)
+        .transpose()
+        .into_data();
+    let transposed = Tensor::<2>::from_data(wire_floats(), &device_1)
+        .quantize_dynamic(&scheme)
+        .transpose();
+
+    assert_same_bytes(&transposed.clone().into_data(), &expected);
+    assert_same_bytes(&transposed.to_device(&device_2).into_data(), &expected);
 
     rt.shutdown_background();
 }

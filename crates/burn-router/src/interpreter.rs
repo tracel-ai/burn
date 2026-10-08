@@ -88,8 +88,7 @@ impl<B: BackendIr> TensorInterpreter<B> {
     ///
     /// Unlike [`get_tensor_handle`](Self::get_tensor_handle) (which returns the opaque
     /// `B::Handle`), this returns the concrete float/int/bool/quantized primitive so the caller
-    /// can hand it to `B::*_to_device`. Used by the same-host transfer path, which moves a tensor
-    /// between two interpreters living in the same server process without a host round-trip.
+    /// can hand it to `B::*_to_device`.
     pub fn get_tensor(&mut self, tensor: &TensorIr) -> HandleKind<B> {
         let handles = &mut self.context.handles;
         match tensor.dtype {
