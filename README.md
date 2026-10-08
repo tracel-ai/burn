@@ -65,8 +65,8 @@ plenty of room to help shape what comes next.
 | Tooling       | [burn-bench](https://github.com/tracel-ai/burn-bench) | Benchmark and compare backends, tracking performance over time                                                                                                    |
 
 Burn's [CubeCL](https://github.com/tracel-ai/cubecl) backends (CUDA, ROCm, Metal, Vulkan, WebGPU,
-CPU) compose with autodiff, fusion and remote-execution decorators, while external and simpler
-backends (LibTorch and pure-Rust CPU/`no_std`) compose with autodiff only. See
+CPU) compose with autodiff, fusion and remote-execution decorators, while the pure-Rust Flex
+CPU/`no_std` backend composes with autodiff only. See
 [Supported Backends](#supported-backends) below for the full matrix.
 
 Every project here is open-source and actively developed. Want to help build the Rust AI ecosystem?
@@ -129,31 +129,31 @@ Most backends support all operating systems, so we don't mention them in the tab
 
 **GPU Backends:**
 
-|         | CUDA | ROCm | Metal | Vulkan | WebGPU | LibTorch |
-| ------- | ---- | ---- | ----- | ------ | ------ | -------- |
-| Nvidia  | ☑️   | -    | -     | ☑️     | ☑️     | ☑️       |
-| AMD     | -    | ☑️   | -     | ☑️     | ☑️     | ☑️       |
-| Apple   | -    | -    | ☑️    | -      | ☑️     | ☑️       |
-| Intel   | -    | -    | -     | ☑️     | ☑️     | -        |
-| Qualcom | -    | -    | -     | ☑️     | ☑️     | -        |
-| Wasm    | -    | -    | -     | -      | ☑️     | -        |
+|         | CUDA | ROCm | Metal | Vulkan | WebGPU |
+| ------- | ---- | ---- | ----- | ------ | ------ |
+| Nvidia  | ☑️   | -    | -     | ☑️     | ☑️     |
+| AMD     | -    | ☑️   | -     | ☑️     | ☑️     |
+| Apple   | -    | -    | ☑️    | -      | ☑️     |
+| Intel   | -    | -    | -     | ☑️     | ☑️     |
+| Qualcom | -    | -    | -     | ☑️     | ☑️     |
+| Wasm    | -    | -    | -     | -      | ☑️     |
 
 **CPU Backends:**
 
-|        | Cpu (CubeCL) | Flex | LibTorch |
-| ------ | ------------ | ---- | -------- |
-| X86    | ☑️           | ☑️   | ☑️       |
-| Arm    | ☑️           | ☑️   | ☑️       |
-| Wasm   | -            | ☑️   | -        |
-| no-std | -            | ☑️   | -        |
+|        | Cpu (CubeCL) | Flex |
+| ------ | ------------ | ---- |
+| X86    | ☑️           | ☑️   |
+| Arm    | ☑️           | ☑️   |
+| Wasm   | -            | ☑️   |
+| no-std | -            | ☑️   |
 
 The two native CPU backends are independent. [Cpu](https://github.com/tracel-ai/burn/tree/main/crates/burn-cpu) (`cpu` feature) is the CubeCL
 runtime for the CPU: it JIT-compiles the same kernels as the GPU backends through LLVM and supports
 fusion. [Flex](https://github.com/tracel-ai/burn/tree/main/crates/burn-flex) (`flex` feature) is a pure-Rust eager backend with no
 native dependencies that also runs on Wasm and `no_std`.
 
-> **Note:** The LibTorch backend is deprecated as of `0.22.0` and will be removed in a future
-> release. For GPU acceleration, use a [CubeCL](https://github.com/tracel-ai/cubecl) backend (CUDA,
+> **Migration:** LibTorch was deprecated in `0.22.0` and has been removed from `main`.
+> For GPU acceleration, use a [CubeCL](https://github.com/tracel-ai/cubecl) backend (CUDA,
 > ROCm, Metal, Vulkan, WebGPU). For CPU execution, use the CubeCL CPU backend or `burn-flex`.
 
 <br />

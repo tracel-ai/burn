@@ -90,7 +90,6 @@
 //!
 //! Autodiff and kernel fusion are decorators over these backends: `device.autodiff()` enables
 //! gradients for tensors created on a device, and the CubeCL backends fuse operations by default.
-//! LibTorch (`tch`) is deprecated.
 //!
 //! ## Quantization
 //!
@@ -129,7 +128,6 @@
 //!   - `cuda`: Makes available the CUDA backend
 //!   - `rocm`: Makes available the ROCm backend
 //!   - `cpu`: Makes available the CubeCL CPU backend
-//!   - `tch`: Makes available the LibTorch backend (deprecated - use a CubeCL backend instead)
 //!   - `flex`: Makes available the Flex backend (pure-Rust CPU, std/no_std/WASM)
 //! - Backend specifications
 //!   - `simd`: Enable SIMD kernels in the Flex backend

@@ -183,7 +183,6 @@ impl Default for NmsOptions {
         feature = "rocm",
         feature = "cpu"
     )),
-    LibTorch: cfg(feature = "tch"),
 )]
 pub trait VisionBackend: Backend + BoolVisionOps + IntVisionOps + FloatVisionOps {}
 
@@ -201,7 +200,6 @@ pub trait VisionBackend: Backend + BoolVisionOps + IntVisionOps + FloatVisionOps
         feature = "rocm",
         feature = "cpu"
     )),
-    LibTorch: cfg(feature = "tch"),
 )]
 /// Vision ops on bool tensors
 pub trait BoolVisionOps: Backend {
@@ -283,7 +281,6 @@ pub trait BoolVisionOps: Backend {
         feature = "rocm",
         feature = "cpu"
     )),
-    LibTorch: cfg(feature = "tch"),
 )]
 /// Vision ops on int tensors
 pub trait IntVisionOps: Backend {
@@ -330,7 +327,6 @@ pub trait IntVisionOps: Backend {
         feature = "rocm",
         feature = "cpu"
     )),
-    LibTorch: cfg(feature = "tch"),
 )]
 /// Vision ops on float tensors
 pub trait FloatVisionOps: Backend {

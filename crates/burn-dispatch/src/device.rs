@@ -50,10 +50,6 @@ pub enum DispatchDevice {
     #[cfg(feature = "flex")]
     Flex(FlexDevice),
 
-    /// The [LibTorch backend](crate::backends::LibTorch) device.
-    #[cfg(feature = "tch")]
-    LibTorch(LibTorchDevice),
-
     /// The [remote backend](crate::backends::Remote) device, identified by a network address.
     #[cfg(feature = "remote")]
     Remote(RemoteDevice),
@@ -85,7 +81,7 @@ impl DispatchDevice {
     /// Measure peak throughput for this device against the given `keys`.
     ///
     /// Only cubecl-backed devices can measure throughput; other backends
-    /// (libtorch, remote, ...) return an empty vector. An autodiff
+    /// (remote, ...) return an empty vector. An autodiff
     /// device reports the peaks of the device it wraps. Each returned result
     /// corresponds positionally to the key at the same index, and carries a
     /// [`ThroughputError`] where the device has no peak for that key.
@@ -114,8 +110,6 @@ impl DispatchDevice {
             // Not cubecl-backed, so there are no kernels to measure.
             #[cfg(feature = "flex")]
             DispatchDevice::Flex(_) => Vec::new(),
-            #[cfg(feature = "tch")]
-            DispatchDevice::LibTorch(_) => Vec::new(),
 
             // The kernels run on the server, which this local API cannot reach.
             #[cfg(feature = "remote")]
@@ -209,8 +203,6 @@ impl core::fmt::Debug for DispatchDevice {
             Self::Cube(device) => f.debug_tuple("Cube").field(device).finish(),
             #[cfg(feature = "flex")]
             Self::Flex(device) => f.debug_tuple("Flex").field(device).finish(),
-            #[cfg(feature = "tch")]
-            Self::LibTorch(device) => f.debug_tuple("LibTorch").field(device).finish(),
             #[cfg(feature = "remote")]
             Self::Remote(device) => f.debug_tuple("Remote").field(device).finish(),
             #[cfg(feature = "capture")]
@@ -228,7 +220,7 @@ impl core::fmt::Debug for DispatchDevice {
 
 impl Default for DispatchDevice {
     /// Select an enabled backend in this order: CUDA, Metal, ROCm, Vulkan, WebGPU,
-    /// wgpu, CPU, LibTorch, Flex, Remote. `BURN_DEVICE` overrides this in
+    /// wgpu, CPU, Flex, Remote. `BURN_DEVICE` overrides this in
     /// std builds. Capture devices must be constructed explicitly.
     ///
     /// The `metal`, `vulkan`, and `webgpu` overrides require their matching Cargo features
@@ -300,11 +292,6 @@ impl Default for DispatchDevice {
                         return Self::Cube(CubeDevice::Cpu(Default::default()));
                         panic!("BURN_DEVICE=cpu requested, but the 'cpu' feature is not enabled.");
                     }
-                    "tch" => {
-                        #[cfg(feature = "tch")]
-                        return Self::LibTorch(LibTorchDevice::default());
-                        panic!("BURN_DEVICE=tch requested, but the 'tch' feature is not enabled.");
-                    }
                     "remote" => {
                         #[cfg(feature = "remote")]
                         return Self::Remote(RemoteDevice::default());
@@ -350,9 +337,6 @@ impl Default for DispatchDevice {
         #[cfg(feature = "cpu")]
         return Self::Cube(CubeDevice::Cpu(Default::default()));
 
-        #[cfg(feature = "tch")]
-        return Self::LibTorch(LibTorchDevice::default());
-
         #[cfg(feature = "flex")]
         return Self::Flex(FlexDevice);
 
@@ -388,8 +372,6 @@ impl PartialEq for DispatchDevice {
             (Self::Cube(a), Self::Cube(b)) => a == b,
             #[cfg(feature = "flex")]
             (Self::Flex(a), Self::Flex(b)) => a == b,
-            #[cfg(feature = "tch")]
-            (Self::LibTorch(a), Self::LibTorch(b)) => a == b,
             #[cfg(feature = "remote")]
             (Self::Remote(a), Self::Remote(b)) => a == b,
             #[cfg(feature = "capture")]
@@ -447,8 +429,6 @@ impl DispatchDevice {
             Self::Cube(_) => DispatchDeviceId::Cube,
             #[cfg(feature = "flex")]
             Self::Flex(_) => DispatchDeviceId::Flex,
-            #[cfg(feature = "tch")]
-            Self::LibTorch(_) => DispatchDeviceId::LibTorch,
             #[cfg(feature = "remote")]
             Self::Remote(_) => DispatchDeviceId::Remote,
             #[cfg(feature = "capture")]
@@ -485,7 +465,7 @@ pub enum DispatchDeviceId {
     /// Every cubecl runtime: which one is in the device's own id.
     Cube = 0,
     Flex = 4,
-    LibTorch = 5,
+    // 5 was LibTorch; keep the other backend IDs stable.
     // 6 was NdArray; keep the other backend IDs stable.
     Remote = 10,
     Capture = 11,
@@ -506,8 +486,6 @@ impl TryFrom<u16> for DispatchDeviceId {
             0 => Ok(Self::Cube),
             #[cfg(feature = "flex")]
             4 => Ok(Self::Flex),
-            #[cfg(feature = "tch")]
-            5 => Ok(Self::LibTorch),
             #[cfg(feature = "remote")]
             10 => Ok(Self::Remote),
             #[cfg(feature = "capture")]
@@ -526,8 +504,6 @@ impl DeviceOps for DispatchDevice {
             Self::Cube(device) => device.defaults(),
             #[cfg(feature = "flex")]
             Self::Flex(device) => device.defaults(),
-            #[cfg(feature = "tch")]
-            Self::LibTorch(device) => device.defaults(),
             #[cfg(feature = "remote")]
             Self::Remote(device) => device.defaults(),
             #[cfg(feature = "capture")]
@@ -548,8 +524,6 @@ impl burn_backend::Device for DispatchDevice {
             DispatchDeviceId::Cube => Self::Cube(burn_backend::Device::from_id(device_id)),
             #[cfg(feature = "flex")]
             DispatchDeviceId::Flex => Self::Flex(FlexDevice::from_id(device_id)),
-            #[cfg(feature = "tch")]
-            DispatchDeviceId::LibTorch => Self::LibTorch(LibTorchDevice::from_id(device_id)),
             #[cfg(feature = "remote")]
             DispatchDeviceId::Remote => Self::Remote(RemoteDevice::from_id(device_id)),
             #[cfg(feature = "capture")]
@@ -566,8 +540,6 @@ impl burn_backend::Device for DispatchDevice {
             Self::Cube(device) => device.to_id(),
             #[cfg(feature = "flex")]
             Self::Flex(device) => device.to_id(),
-            #[cfg(feature = "tch")]
-            Self::LibTorch(device) => device.to_id(),
             #[cfg(feature = "remote")]
             Self::Remote(device) => device.to_id(),
             #[cfg(feature = "capture")]
@@ -628,13 +600,6 @@ impl From<WgpuDevice> for DispatchDevice {
 impl From<FlexDevice> for DispatchDevice {
     fn from(device: FlexDevice) -> Self {
         DispatchDevice::Flex(device)
-    }
-}
-
-#[cfg(feature = "tch")]
-impl From<LibTorchDevice> for DispatchDevice {
-    fn from(device: LibTorchDevice) -> Self {
-        DispatchDevice::LibTorch(device)
     }
 }
 

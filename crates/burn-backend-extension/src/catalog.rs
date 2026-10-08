@@ -34,12 +34,6 @@ pub(crate) const BACKENDS: &[BackendSpec] = &[
         unidirectional_transfer: false,
     },
     BackendSpec {
-        name: "LibTorch",
-        cfg: "feature = \"tch\"",
-        distributed: false,
-        unidirectional_transfer: false,
-    },
-    BackendSpec {
         name: "Remote",
         cfg: "feature = \"remote\"",
         distributed: true,

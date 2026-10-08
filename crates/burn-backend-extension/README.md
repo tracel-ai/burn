@@ -12,7 +12,7 @@ backend, then expose a `Tensor<D>` wrapper through `Dispatch` and `Tensor::into_
 `Tensor::from_dispatch`.
 
 `Cube` selects CubeCL runtimes such as WGPU, CUDA, ROCm, and CPU; `Wgpu` and `Cuda` are not macro
-selectors. Other execution backend selectors include `Flex`, `LibTorch`, and `Remote`.
+selectors. Other execution backend selectors include `Flex` and `Remote`.
 Selectors can be gated with conditions such as `Cube: cfg(feature = "wgpu")`, evaluated in the
 extension crate. Add `Autodiff` to route to your `Autodiff<B, C>` implementation; it does not
 generate derivatives. A default body composing differentiable primitives can also supply that

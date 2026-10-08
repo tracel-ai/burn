@@ -35,8 +35,7 @@
 //! # Feature flags
 //!
 //! - `std` (default): standard library support. Without it the crate is `no_std` with `alloc`.
-//! - Backends: `cuda`, `rocm`, `wgpu`, `metal`, `vulkan`, `webgpu`, `cpu`, `flex`, and the
-//!   deprecated `tch`.
+//! - Backends: `cuda`, `rocm`, `wgpu`, `metal`, `vulkan`, `webgpu`, `cpu`, and `flex`.
 //! - `autodiff`, `fusion`: backend decorators.
 //! - `remote`, `remote-server`, `remote-websocket`: devices hosted by another machine.
 //! - `capture`: record operation graphs instead of executing them.
