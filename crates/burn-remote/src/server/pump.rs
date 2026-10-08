@@ -12,8 +12,8 @@ use crate::PeerId;
 use crate::server::service::{SessionChannels, SessionService, parse_init_handshake};
 use crate::server::spawn::spawn_detached;
 use crate::shared::{
-    PROTOCOL_VERSION, RemoteMessage, SessionId, SessionInfo, SessionInit, SessionRefusal, Task,
-    TaskResponse, TaskResponseContent,
+    Encode, PROTOCOL_VERSION, RemoteMessage, SessionId, SessionInfo, SessionInit, SessionRefusal,
+    Task, TaskResponse, TaskResponseContent,
 };
 use crate::transport::link::{FrameSink, FrameSource};
 use tokio::sync::mpsc;
@@ -68,7 +68,8 @@ where
             peer_id: server_peer_id,
         }),
     };
-    let info = rmp_serde::to_vec(&info)
+    let info = info
+        .encode()
         .map_err(|err| format!("Failed to encode session handshake response: {err}"))?;
 
     let SessionChannels {
@@ -82,7 +83,8 @@ where
         let result = async {
             sink.send(info.into()).await?;
             while let Some(response) = responses.recv().await {
-                let bytes = rmp_serde::to_vec(&response)
+                let bytes = response
+                    .encode()
                     .map_err(|err| format!("Failed to encode task response: {err}"))?;
                 sink.send(bytes.into()).await?;
             }
@@ -156,7 +158,7 @@ async fn refuse(sink: &mut impl FrameSink, refusal: SessionRefusal) {
         id: 0,
         content: TaskResponseContent::InitRefused(refusal),
     };
-    if let Ok(frame) = rmp_serde::to_vec(&reply) {
+    if let Ok(frame) = reply.encode() {
         let _ = sink.send(frame.into()).await;
     }
     let _ = sink.close().await;

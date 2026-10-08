@@ -104,6 +104,9 @@ pub enum RemoteMessage {
     Close(SessionId),
 }
 
+#[cfg(feature = "client")]
+impl super::Encode for Vec<RemoteMessage> {}
+
 /// Client-side session handshake.
 #[allow(missing_docs)]
 #[derive(Serialize, Deserialize, Clone)]
@@ -275,6 +278,9 @@ pub struct TaskResponse {
     pub content: TaskResponseContent,
     pub id: RequestId,
 }
+
+#[cfg(feature = "server")]
+impl super::Encode for TaskResponse {}
 
 #[allow(missing_docs)]
 #[derive(Serialize, Deserialize, Debug)]

@@ -13,7 +13,7 @@ use tokio::sync::{Mutex, Notify};
 
 use super::node::{RemoteNode, StreamKind, recv_frame, send_frame};
 use crate::server::transfer::TensorTransfer;
-use crate::shared::TransferCapability;
+use crate::shared::{Encode, TransferCapability};
 use crate::{PeerAddr, PeerId};
 
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
@@ -22,6 +22,8 @@ enum TransferMessage {
     Tensor(TensorData),
     Denied(String),
 }
+
+impl Encode for TransferMessage {}
 
 struct ExposedTensor {
     bytes: bytes::Bytes,
@@ -65,11 +67,12 @@ impl<B: BackendIr> IrohTransfer<B> {
 
         let response = match self.take(capability, remote).await {
             Ok(bytes) => bytes,
-            Err(reason) => rmp_serde::to_vec(&TransferMessage::Denied(reason))
+            Err(reason) => TransferMessage::Denied(reason)
+                .encode()
                 .map(bytes::Bytes::from)
                 .map_err(|err| format!("Failed to encode tensor-transfer denial: {err}"))?,
         };
-        send_frame(&mut send, &response).await?;
+        send_frame(&mut send, response).await?;
         send.finish()
             .map_err(|err| format!("Failed to finish tensor-transfer stream: {err}"))?;
         Ok(())
@@ -150,7 +153,7 @@ impl<B: BackendIr> TensorTransfer<B> for IrohTransfer<B> {
             log::error!("An Iroh tensor transfer cannot target a non-Iroh peer");
             return;
         };
-        let bytes = match rmp_serde::to_vec(&TransferMessage::Tensor(data)) {
+        let bytes = match TransferMessage::Tensor(data).encode() {
             Ok(bytes) => bytes::Bytes::from(bytes),
             Err(err) => {
                 log::error!("Failed to encode tensor transfer {capability:?}: {err}");
@@ -185,14 +188,14 @@ impl<B: BackendIr> TensorTransfer<B> for IrohTransfer<B> {
                 return None;
             }
         };
-        let request = match rmp_serde::to_vec(&TransferMessage::Request(capability)) {
+        let request = match TransferMessage::Request(capability).encode() {
             Ok(request) => request,
             Err(err) => {
                 log::error!("Failed to encode tensor-transfer request: {err}");
                 return None;
             }
         };
-        if let Err(err) = send_frame(&mut send, &request).await {
+        if let Err(err) = send_frame(&mut send, request.into()).await {
             log::error!("{err}");
             return None;
         }
@@ -229,7 +232,7 @@ impl<B: BackendIr> TensorTransfer<B> for IrohTransfer<B> {
         let Some(target) = target.into_iroh_id() else {
             return;
         };
-        let bytes = match rmp_serde::to_vec(&TransferMessage::Denied(reason)) {
+        let bytes = match TransferMessage::Denied(reason).encode() {
             Ok(bytes) => bytes.into(),
             Err(err) => {
                 log::error!("Failed to encode tensor-transfer failure: {err}");

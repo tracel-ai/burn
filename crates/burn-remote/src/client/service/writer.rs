@@ -2,7 +2,7 @@
 
 use crate::client::runtime::{Executor, SpawnHandle};
 use crate::client::service::SubmitChannel;
-use crate::shared::RemoteMessage;
+use crate::shared::{Encode, RemoteMessage};
 use tokio::sync::mpsc;
 
 /// Bound on task batches queued for the writer task on native targets.
@@ -52,7 +52,7 @@ impl SubmitWriter {
 
         let handle = runtime.spawn(async move {
             while let Some(batch) = rx.recv().await {
-                let bytes: bytes::Bytes = match rmp_serde::to_vec(&batch) {
+                let bytes: bytes::Bytes = match batch.encode() {
                     Ok(b) => b.into(),
                     Err(err) => {
                         log::error!("Failed to serialize outgoing task batch: {err:?}; dropping");
