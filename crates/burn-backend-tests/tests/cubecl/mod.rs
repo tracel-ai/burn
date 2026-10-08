@@ -1,5 +1,13 @@
 pub use super::*;
 
+fn cube_device() -> burn_cubecl::CubeDevice {
+    let device = burn_tensor::Device::default();
+    match device.as_dispatch() {
+        burn_dispatch::DispatchDevice::Cube(device) => device.clone(),
+        _ => panic!("CubeCL kernel tests require a CubeCL device"),
+    }
+}
+
 mod avg_pool2d;
 mod bernoulli;
 mod broadcast;

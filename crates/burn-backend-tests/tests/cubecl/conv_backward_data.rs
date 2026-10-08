@@ -1,10 +1,12 @@
-//! The data gradient of a convolution, which routes through the transposed-convolution
-//! fallback in `burn-cubecl`.
+//! Convolution data-gradient reference comparisons and col2im precision regressions.
 //!
-//! Only the input is tracked in each case, so the gradient that comes back is that path's
-//! output alone, with no weight gradient mixed in.
+//! Only the input is tracked in the reference comparisons, so no weight gradient is mixed in.
 
 use super::*;
+use burn_backend::{DType, TensorData, cubecl::dtype_to_storage_type, ops::FloatTensorOps};
+use burn_cubecl::{
+    CubeBackend, cubecl::ir::features::TypeUsage, kernel::conv::dgrad_im2col, ops::into_data_sync,
+};
 use burn_tensor::{Device, Distribution, Shape, Tolerance, module, ops::ConvOptions};
 
 /// `D` is the tensor rank and `N` its count of spatial dimensions, so `D == N + 2`.
@@ -159,4 +161,44 @@ fn conv3d_dgrad_dense_im2col_should_match_reference_backend() {
         ConvOptions::new([1, 2, 1], [1, 1, 1], [1, 1, 1], 1),
         module::conv3d,
     );
+}
+
+#[test]
+fn half_accumulation() {
+    let device = cube_device();
+    let client = device.client();
+    let options = ConvOptions::new([1], [1], [1], 1);
+
+    for dtype in [DType::F16, DType::BF16] {
+        let uses = client.properties().type_usage(dtype_to_storage_type(dtype));
+        let accumulation_uses = client
+            .properties()
+            .type_usage(dtype_to_storage_type(DType::F32));
+        if !uses.contains(TypeUsage::Buffer)
+            || !uses.contains(TypeUsage::Conversion)
+            || !accumulation_uses.contains(TypeUsage::Arithmetic)
+        {
+            eprintln!(
+                "Skipping {dtype:?} half accumulation: required dtype capabilities unavailable"
+            );
+            continue;
+        }
+
+        let large = if dtype == DType::F16 { 2048.0 } else { 256.0 };
+        let out_grad = CubeBackend::float_from_data(
+            TensorData::new(vec![1.0f32; 3], [1, 3, 1]).convert_dtype(dtype),
+            &device,
+        );
+        let weight = CubeBackend::float_from_data(
+            TensorData::new(vec![large, 1.0, -large], [1, 3, 1]).convert_dtype(dtype),
+            &device,
+        );
+        // One output channel makes each matmul result a single product, so only col2im
+        // reduces the cancellation sequence. NHWC columns repeat [large, 1, -large].
+        let output =
+            dgrad_im2col::<1>(out_grad, weight, Shape::new([1, 3, 1]), options.clone()).unwrap();
+        let expected =
+            TensorData::new(vec![large, 1.0, 1.0 - large], [1, 3, 1]).convert_dtype(dtype);
+        into_data_sync(output).assert_eq(&expected, true);
+    }
 }

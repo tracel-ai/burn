@@ -263,12 +263,12 @@ fn reshape_weight(weight: CubeTensor) -> CubeTensor {
 }
 
 /// Data gradient of a dense convolution: `[M, C_out] @ [C_out, taps * C_in]`,
-/// then [`col2im`].
+/// then a col2im reduction. Input, weight and output shapes use NHWC layout.
 ///
 /// The matmul yields the gradient of the im2col columns `[M, taps * C_in]`;
-/// [`col2im`] scatter-adds them onto the input gradient — each input pixel
+/// col2im scatter-adds them onto the input gradient — each input pixel
 /// receives the sum over every tap whose window read it. Declines `groups != 1`
-/// and pointwise unit stride (kept for [`dgrad_im2col_1x1`]'s unmaterialised
+/// and pointwise unit stride (kept for `dgrad_im2col_1x1`'s unmaterialised
 /// matmul); anchored key fields are never declined explicitly.
 pub fn dgrad_im2col<const N: usize>(
     out_grad: CubeTensor,
@@ -795,51 +795,6 @@ fn col2im_kernel<E: Numeric, A: Numeric>(
     }
 
     grad_in.write(ABSOLUTE_POS, E::cast_from(val));
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::{
-        CubeDevice,
-        ops::{from_data, into_data_sync},
-    };
-    use burn_backend::TensorData;
-    use cubecl::ir::features::TypeUsage;
-
-    #[test]
-    fn half_accumulation() {
-        let device = CubeDevice::default();
-        let client = device.client();
-        let options = ConvOptions::new([1], [1], [1], 1);
-
-        for dtype in [DType::F16, DType::BF16] {
-            let uses = client.properties().type_usage(dtype_to_storage_type(dtype));
-            let accumulation_uses = client
-                .properties()
-                .type_usage(dtype_to_storage_type(DType::F32));
-            if !uses.contains(TypeUsage::Buffer)
-                || !uses.contains(TypeUsage::Conversion)
-                || !accumulation_uses.contains(TypeUsage::Arithmetic)
-            {
-                continue;
-            }
-
-            let large = if dtype == DType::F16 { 2048.0 } else { 256.0 };
-            let columns = from_data(
-                TensorData::new(
-                    vec![large, 1.0, -large, large, 1.0, -large, large, 1.0, -large],
-                    [3, 3],
-                )
-                .convert_dtype(dtype),
-                &device,
-            );
-            let output = col2im::<1>(columns, &[3], &Shape::new([1, 3, 1]), &[3], &options);
-            let expected =
-                TensorData::new(vec![large, 1.0, 1.0 - large], [1, 3, 1]).convert_dtype(dtype);
-            into_data_sync(output).assert_eq(&expected, true);
-        }
-    }
 }
 
 /// The gradient with respect to a dense convolution's weight, as one matmul
