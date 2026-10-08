@@ -9,7 +9,7 @@ use burn_std::device::Device;
 use burn_std::rand::{SeedableRng, StdRng};
 use burn_std::sync::Mutex;
 
-use crate::qtensor::FlexQTensor;
+use crate::qtensor::{FlexQTensor, KeptByFlex};
 use crate::tensor::FlexTensor;
 
 /// Type alias for the RNG used by Flex.
@@ -158,8 +158,10 @@ impl Backend for Flex {
                 DTypeUsage::Storage | DTypeUsage::Arithmetic
             }
             DType::Bool(burn_std::BoolStore::U32) => DTypeUsageSet::empty(),
-            // Ops without a quantized kernel dequantize, so every quantized op is served.
-            DType::QFloat(scheme) if burn_std::quantization::quantizable(&scheme) => {
+            // Ops without a quantized kernel dequantize, so a scheme Flex keeps serves every op.
+            DType::QFloat(scheme)
+                if scheme.is_kept_by_flex() && burn_std::quantization::quantizable(&scheme) =>
+            {
                 DTypeUsage::general()
             }
             DType::QFloat(_) => DTypeUsageSet::empty(),
@@ -225,9 +227,29 @@ impl BackendIr for Flex {
 #[cfg(test)]
 mod tests {
     use burn_backend::{Backend, DType};
-    use burn_std::BoolStore;
+    use burn_std::{BoolStore, QuantValue};
 
     use super::*;
+
+    #[test]
+    fn supports_only_the_quantized_schemes_it_keeps() {
+        let device = FlexDevice;
+        let q8 = QuantScheme::default();
+        let q4 = q8
+            .with_value(QuantValue::Q4S)
+            .with_store(QuantStore::Native);
+
+        assert!(Flex::supports_dtype(&device, DType::QFloat(q8)));
+        assert!(Flex::supports_dtype(&device, DType::QFloat(q4)));
+        assert!(!Flex::supports_dtype(
+            &device,
+            DType::QFloat(q8.with_value(QuantValue::E2M1))
+        ));
+        assert!(!Flex::supports_dtype(
+            &device,
+            DType::QFloat(q8.with_store(QuantStore::PackedNative(0)))
+        ));
+    }
 
     #[test]
     fn supports_bool_native() {

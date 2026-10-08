@@ -10,7 +10,7 @@ use burn_backend::{
         },
         unfold::calculate_unfold_shape,
     },
-    quantization::{QuantScheme, permuted_scheme},
+    quantization::{PermuteQuantScheme, QuantScheme},
     tensor::IndexingUpdateOp,
 };
 
@@ -18,17 +18,18 @@ use crate::{ScalarIr, TensorId, TensorIr};
 
 use super::operation::*;
 
-fn permute_quantized_dtype(dtype: DType, rank: usize, axes: &[usize]) -> DType {
+fn permute_quantized_dtype(dtype: DType, axes: &[usize]) -> DType {
     match dtype {
-        DType::QFloat(scheme) => DType::QFloat(permuted_scheme(scheme, rank, axes)),
+        DType::QFloat(scheme) => DType::QFloat(scheme.permuted(axes)),
         dtype => dtype,
     }
 }
 
 fn swap_dims_quantized_dtype(dtype: DType, rank: usize, dim1: usize, dim2: usize) -> DType {
-    let mut axes = (0..rank).collect::<Vec<_>>();
-    axes.swap(dim1, dim2);
-    permute_quantized_dtype(dtype, rank, &axes)
+    match dtype {
+        DType::QFloat(scheme) => DType::QFloat(scheme.swapped(rank, dim1, dim2)),
+        dtype => dtype,
+    }
 }
 
 impl CreationOpIr {
@@ -311,7 +312,7 @@ impl_ir_create!(
 impl_ir_create!(
     PermuteOpIr { input: TensorIr, axes: Vec<usize> },
     shape = input.shape.clone().permuted(&axes).unwrap(),
-    dtype = permute_quantized_dtype(input.dtype, input.shape.rank(), &axes)
+    dtype = permute_quantized_dtype(input.dtype, &axes)
 );
 
 impl_ir_create!(
