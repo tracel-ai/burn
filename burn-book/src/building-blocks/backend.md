@@ -20,14 +20,6 @@ and `cuda` features make `Device::wgpu` and `Device::cuda` available.
 
 ## Selecting a Device
 
-The NdArray backend, deprecated in 0.22, has been removed from `main`. Replace the `ndarray` feature
-with `flex` and `Device::ndarray()` with `Device::flex()`. NdArray remains available in the 0.22
-releases.
-
-LibTorch was deprecated in 0.22 and has been removed from `main`. Replace `tch` with `cuda`, `rocm`,
-`metal`, `vulkan`, or `webgpu` for GPU execution, or `cpu` / `flex` for CPU execution. The LibTorch
-backend remains available in the 0.22 releases.
-
 `Device` provides constructors for the backends enabled in your build. Multiple backend features can
 be enabled together; the device chooses where operations execute.
 
@@ -80,6 +72,16 @@ let second_cuda = Device::cuda(1);
 Burn also supports remote devices, hosted by a Burn server in another process on this machine or
 another, with the `remote` feature. `Device::remote_options(&host).init()` connects one, where a
 `RemoteHost` names the server: see [Distributed Computing](../performance/distributed-computing.md).
+
+### Migrating from Removed Backends
+
+The NdArray backend, deprecated in 0.22, was removed after the 0.22 release. Replace the `ndarray`
+feature with `flex` and `Device::ndarray()` with `Device::flex()`. NdArray remains available in the
+0.22 releases.
+
+The LibTorch backend, deprecated in 0.22, was removed after the 0.22 release. Replace `tch` with
+`cuda`, `rocm`, `metal`, `vulkan`, or `webgpu` for GPU execution, or `cpu` / `flex` for CPU
+execution. The LibTorch backend remains available in the 0.22 releases.
 
 ## Using a Device
 

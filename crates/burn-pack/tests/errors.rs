@@ -4,7 +4,7 @@ mod common;
 
 use burn_pack::{
     Bytes, Error, FORMAT_VERSION, HEADER_SIZE, Header, MAGIC_NUMBER, MAX_METADATA_SIZE, Reader,
-    Writer,
+    ReaderLimits, Writer,
 };
 use common::f32_tensor;
 
@@ -111,4 +111,59 @@ fn rejects_data_truncated_into_alignment_padding() {
         Reader::from_bytes(Bytes::from_bytes_vec(bytes)),
         Err(Error::ValidationError(message)) if message.starts_with("File truncated:")
     ));
+}
+
+/// A pack holding one 16-byte tensor.
+fn small_pack() -> Bytes {
+    Writer::new(vec![f32_tensor("w", &[1.0, 2.0, 3.0, 4.0], &[4], None)])
+        .into_bytes()
+        .unwrap()
+}
+
+/// Whether `result` is the validation error naming `Reader::with_limits`.
+fn is_limit_error<T>(result: Result<T, Error>) -> bool {
+    matches!(result, Err(Error::ValidationError(message)) if message.contains("with_limits"))
+}
+
+#[test]
+fn tensor_size_limit_is_configurable() {
+    let reader = |max| {
+        Reader::from_bytes(small_pack())
+            .unwrap()
+            .with_limits(ReaderLimits::default().with_max_tensor_size(max))
+    };
+
+    assert!(is_limit_error(reader(15).tensor_data("w")));
+    assert!(is_limit_error(reader(15).into_tensors()));
+
+    assert_eq!(reader(16).tensor_data("w").unwrap().len(), 16);
+    assert_eq!(reader(16).into_tensors().unwrap().len(), 1);
+}
+
+#[test]
+fn file_size_limit_is_configurable() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("model.bpk");
+    std::fs::write(&path, &*small_pack()).unwrap();
+    let file_size = std::fs::metadata(&path).unwrap().len();
+    let reader = |max| {
+        Reader::from_file_exact(&path)
+            .unwrap()
+            .with_limits(ReaderLimits::default().with_max_file_size(max))
+    };
+
+    assert!(is_limit_error(reader(file_size - 1).tensor_data("w")));
+    assert!(is_limit_error(reader(file_size - 1).into_tensors()));
+
+    assert!(reader(file_size).tensor_data("w").is_ok());
+    assert!(reader(file_size).into_tensors().is_ok());
+}
+
+#[test]
+fn file_size_limit_does_not_apply_in_memory() {
+    let limits = ReaderLimits::default().with_max_file_size(0);
+    let reader = Reader::from_bytes(small_pack())
+        .unwrap()
+        .with_limits(limits);
+    assert!(reader.into_tensors().is_ok());
 }

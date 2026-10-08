@@ -86,6 +86,14 @@ capture = ["burn-tensor/capture"]
 ir = ["burn-ir"]
 
 # Backend features
+persistence = [
+    "burn-tensor/persistence",
+    "burn-cpu?/persistence",
+    "burn-cuda?/persistence",
+    "burn-rocm?/persistence",
+    "burn-wgpu?/persistence",
+    "burn-cubecl?/persistence",
+]
 autotune = [
     "burn-tensor/autotune",
     "burn-cpu?/autotune",
