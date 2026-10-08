@@ -3,7 +3,7 @@ use alloc::vec::Vec;
 use burn_backend::{DType, TensorMetadata};
 use burn_std::{
     QuantScheme, Shape,
-    quantization::{QuantMode, QuantStore, QuantValue, global_scale_dtype},
+    quantization::{QuantMode, QuantStore, global_scale_dtype},
 };
 
 use crate::{FlexDevice, tensor::FlexTensor};
@@ -96,8 +96,8 @@ impl TensorMetadata for FlexQTensor {
 
 /// What Flex keeps of a quantization scheme it is asked to quantize under.
 pub trait KeptByFlex {
-    /// Whether Flex keeps this scheme as asked: integer values quantized symmetrically, stored
-    /// natively or packed into `u32` words, the layouts its data is read from and written to.
+    /// Whether Flex keeps this scheme as asked: any symmetric one, since Flex applies no lookup
+    /// table.
     fn is_kept_by_flex(&self) -> bool;
 
     /// The scheme Flex holds a tensor quantized under this one with: this one when
@@ -107,19 +107,7 @@ pub trait KeptByFlex {
 
 impl KeptByFlex for QuantScheme {
     fn is_kept_by_flex(&self) -> bool {
-        matches!(
-            (self.mode, self.value, self.store),
-            (
-                QuantMode::Symmetric,
-                QuantValue::Q8F
-                    | QuantValue::Q8S
-                    | QuantValue::Q4F
-                    | QuantValue::Q4S
-                    | QuantValue::Q2F
-                    | QuantValue::Q2S,
-                QuantStore::Native | QuantStore::PackedU32(_),
-            )
-        )
+        matches!(self.mode, QuantMode::Symmetric)
     }
 
     fn kept_by_flex(self) -> Self {

@@ -126,9 +126,9 @@ Both backends support the same integer dtypes.
 | Dequantize     | `scale * x_q` (direct multiply, **135-232x faster**)            | Reparses `QuantizedBytes` on every call |
 | Scale storage  | `Vec<f32>` stored separately                                    | `QParams<f32>` in `NdArrayQTensor`      |
 | Q layout ops   | **Zero-copy** per-tensor (permute, flip, expand, slice)         | Copies entire tensor                    |
-| Q ordering ops | **Skip dequantization** (argmax, argmin; per-tensor gather)     | Dequantize to f32, then operate         |
-| QuantStore     | Native                                                          | Native                                  |
-| QuantValue     | Q8F, Q8S                                                        | Q8F, Q8S (+ Q4/Q2 for export_tests)     |
+| Q ordering ops | **Skip dequantization** (per-tensor argmax, argmin and gather)  | Dequantize to f32, then operate         |
+| QuantStore     | Native, PackedU32, PackedNative (packed at the data boundary)   | Native                                  |
+| QuantValue     | Q8, Q4, Q2 (F and S), E4M3, E5M2, E2M1                          | Q8F, Q8S (+ Q4/Q2 for export_tests)     |
 
 The fundamental difference is scale storage. Flex stores scales separately so dequantization is a
 simple `scale * x_q` multiply. NdArray stores everything in `QuantizedBytes` which must be parsed on
@@ -137,7 +137,8 @@ every access, making it the bottleneck for all quantized operations.
 The zero-copy layout paths and `q_gather` apply to per-tensor schemes; block-quantized tensors
 dequantize, move, and requantize so the blocks follow the move. `q_select` always materializes, but
 for per-tensor schemes it copies the `i8` payload directly instead of dequantizing. `q_argmax` and
-`q_argmin` reduce over the `i8` payload for every scheme, so they never dequantize.
+`q_argmin` reduce over the `i8` payload when its codes order like their values, under one scale
+with integer codes; float codes and per-block scales dequantize first.
 
 ---
 

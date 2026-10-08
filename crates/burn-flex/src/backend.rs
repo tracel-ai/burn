@@ -227,27 +227,32 @@ impl BackendIr for Flex {
 #[cfg(test)]
 mod tests {
     use burn_backend::{Backend, DType};
-    use burn_std::{BoolStore, QuantValue};
+    use burn_std::{BoolStore, QuantMode, QuantValue};
 
     use super::*;
 
     #[test]
-    fn supports_only_the_quantized_schemes_it_keeps() {
+    fn supports_every_symmetric_quantized_scheme() {
         let device = FlexDevice;
         let q8 = QuantScheme::default();
-        let q4 = q8
-            .with_value(QuantValue::Q4S)
-            .with_store(QuantStore::Native);
+        let e2m1 = q8.with_value(QuantValue::E2M1);
 
-        assert!(Flex::supports_dtype(&device, DType::QFloat(q8)));
-        assert!(Flex::supports_dtype(&device, DType::QFloat(q4)));
+        for scheme in [
+            q8,
+            q8.with_value(QuantValue::Q4S)
+                .with_store(QuantStore::Native),
+            q8.with_value(QuantValue::E4M3),
+            e2m1,
+            e2m1.with_store(QuantStore::PackedNative(0)),
+        ] {
+            assert!(
+                Flex::supports_dtype(&device, DType::QFloat(scheme)),
+                "{scheme:?}"
+            );
+        }
         assert!(!Flex::supports_dtype(
             &device,
-            DType::QFloat(q8.with_value(QuantValue::E2M1))
-        ));
-        assert!(!Flex::supports_dtype(
-            &device,
-            DType::QFloat(q8.with_store(QuantStore::PackedNative(0)))
+            DType::QFloat(q8.with_mode(QuantMode::Lookup))
         ));
     }
 

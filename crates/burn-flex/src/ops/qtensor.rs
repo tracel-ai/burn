@@ -9,7 +9,7 @@ use burn_backend::{
     DType, ExecutionError, FloatDType, TensorData, TensorMetadata,
     ops::{IntTensorOps, QTensorOps},
     quantization::{
-        BlockLayout, BlockSize, PermuteQuantScheme, QuantScheme, QuantStore,
+        BlockLayout, BlockSize, PermuteQuantScheme, QuantCodes, QuantScheme, QuantStore,
         QuantizationParametersPrimitive, QuantizedBytes, ScaleDtype, global_scale_dtype,
         scale_to_dtype,
     },
@@ -66,8 +66,8 @@ impl QTensorOps<Flex> for Flex {
         let shape = tensor.shape();
         let tensor = tensor.to_contiguous();
         let float_data = float_storage_as_f32(&tensor);
-        let (a, b) = scheme.value.range();
-        let range = b - a;
+        let (min, max) = scheme.value.range();
+        let range = max - min;
 
         let (quantized, scales, global) = match (scheme.block_size(), global_scale_dtype(scheme)) {
             (Some(block), Some(global_dtype)) => {
@@ -87,14 +87,9 @@ impl QTensorOps<Flex> for Flex {
                     .iter()
                     .map(|&raw| validated_scale(raw / global, scheme.scale_dtype()))
                     .collect();
-                let quantized = float_data
-                    .iter()
-                    .enumerate()
-                    .map(|(index, &x)| {
-                        let inv_scale = 1.0 / (global * scales[blocks.block_of(index)]);
-                        (x * inv_scale).round().clamp(a, b) as i8
-                    })
-                    .collect();
+                let quantized = scheme
+                    .value
+                    .encode_all(&float_data, |index| global * scales[blocks.block_of(index)]);
 
                 (quantized, scales, Some(global))
             }
@@ -103,13 +98,7 @@ impl QTensorOps<Flex> for Flex {
                     block_max_abs_scale(&float_data, range),
                     scheme.scale_dtype(),
                 );
-                let inv_scale = 1.0 / scale;
-
-                // Pass 2: quantize
-                let quantized = float_data
-                    .iter()
-                    .map(|&x| (x * inv_scale).round().clamp(a, b) as i8)
-                    .collect::<Vec<i8>>();
+                let quantized = scheme.value.encode_all(&float_data, move |_| scale);
 
                 (quantized, alloc::vec![scale], None)
             }
@@ -119,14 +108,9 @@ impl QTensorOps<Flex> for Flex {
                     .into_iter()
                     .map(|alpha| validated_scale(2.0 * alpha / range, scheme.scale_dtype()))
                     .collect();
-                let quantized = float_data
-                    .iter()
-                    .enumerate()
-                    .map(|(index, &x)| {
-                        let inv_scale = 1.0 / scales[blocks.block_of(index)];
-                        (x * inv_scale).round().clamp(a, b) as i8
-                    })
-                    .collect();
+                let quantized = scheme
+                    .value
+                    .encode_all(&float_data, |index| scales[blocks.block_of(index)]);
 
                 (quantized, scales, None)
             }
@@ -167,27 +151,17 @@ impl QTensorOps<Flex> for Flex {
             validated_scale(float_storage_as_f32(&global)[0], dtype)
         });
 
-        let (a, b) = scheme.value.range();
-
         let quantized = match scheme.block_size() {
             None => {
-                let inv_scale = 1.0 / scales[0];
-                float_data
-                    .iter()
-                    .map(|&x| (x * inv_scale).round().clamp(a, b) as i8)
-                    .collect::<Vec<i8>>()
+                let scale = scales[0];
+                scheme.value.encode_all(&float_data, move |_| scale)
             }
             Some(block_size) => {
                 let blocks = block_layout(&shape, &block_size);
                 let multiplier = global.unwrap_or(1.0);
-                float_data
-                    .iter()
-                    .enumerate()
-                    .map(|(index, &x)| {
-                        let inv_scale = 1.0 / (multiplier * scales[blocks.block_of(index)]);
-                        (x * inv_scale).round().clamp(a, b) as i8
-                    })
-                    .collect()
+                scheme.value.encode_all(&float_data, |index| {
+                    multiplier * scales[blocks.block_of(index)]
+                })
             }
         };
 
@@ -206,21 +180,14 @@ impl QTensorOps<Flex> for Flex {
         let dequantized = match tensor.scheme.block_size() {
             None => {
                 let scale = tensor.scales[0];
-                q_data
-                    .iter()
-                    .map(|&x_q| scale * x_q as f32)
-                    .collect::<Vec<f32>>()
+                tensor.scheme.value.decode_all(q_data, move |_| scale)
             }
             Some(block_size) => {
                 let blocks = BlockLayout::new(&shape, &block_size);
                 let multiplier = tensor.global.unwrap_or(1.0);
-                q_data
-                    .iter()
-                    .enumerate()
-                    .map(|(index, &x_q)| {
-                        multiplier * tensor.scales[blocks.block_of(index)] * x_q as f32
-                    })
-                    .collect::<Vec<f32>>()
+                tensor.scheme.value.decode_all(q_data, |index| {
+                    multiplier * tensor.scales[blocks.block_of(index)]
+                })
             }
         };
 
@@ -331,7 +298,11 @@ impl QTensorOps<Flex> for Flex {
         dim: usize,
         out_dtype: burn_std::IntDType,
     ) -> IntTensor<Flex> {
-        let result = crate::ops::reduce::argmax(tensor.tensor, dim);
+        let result = if codes_order_as_values(&tensor) {
+            crate::ops::reduce::argmax(tensor.tensor, dim)
+        } else {
+            crate::ops::reduce::argmax(Flex::dequantize(tensor, FloatDType::F32), dim)
+        };
         if result.dtype() != DType::from(out_dtype) {
             Flex::int_cast(result, out_dtype)
         } else {
@@ -344,7 +315,11 @@ impl QTensorOps<Flex> for Flex {
         dim: usize,
         out_dtype: burn_std::IntDType,
     ) -> IntTensor<Flex> {
-        let result = crate::ops::reduce::argmin(tensor.tensor, dim);
+        let result = if codes_order_as_values(&tensor) {
+            crate::ops::reduce::argmin(tensor.tensor, dim)
+        } else {
+            crate::ops::reduce::argmin(Flex::dequantize(tensor, FloatDType::F32), dim)
+        };
         if result.dtype() != DType::from(out_dtype) {
             Flex::int_cast(result, out_dtype)
         } else {
@@ -392,6 +367,11 @@ fn block_safe_layout_op(
     }
 }
 
+/// Whether comparing `tensor`'s codes compares its values: one positive scale over integer codes.
+fn codes_order_as_values(tensor: &FlexQTensor) -> bool {
+    tensor.scheme.block_size().is_none() && tensor.scheme.value.codes_are_integers()
+}
+
 /// Unrounded; callers round separately.
 fn block_max_abs_scale(block: &[f32], range: f32) -> f32 {
     let alpha = block.iter().fold(0.0f32, |alpha, &x| alpha.max(x.abs()));
@@ -420,7 +400,10 @@ fn validated_scale(scale: f32, dtype: ScaleDtype) -> f32 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use burn_backend::{TensorMetadata, quantization::QuantValue};
+    use burn_backend::{
+        TensorMetadata,
+        quantization::{QuantMode, QuantValue},
+    };
 
     fn data_of(tensor: QuantizedTensor<Flex>) -> TensorData {
         burn_std::reader::try_read_sync(Flex::q_into_data(tensor))
@@ -479,8 +462,81 @@ mod tests {
     }
 
     #[test]
-    fn a_scheme_flex_cannot_write_is_held_with_native_values() {
-        let scheme = QuantScheme::default().with_value(QuantValue::E2M1);
+    fn float_formats_reconstruct_values_on_their_grid() {
+        for (value, values) in [
+            (
+                QuantValue::E2M1,
+                [0.0, 0.5, -1.5, 6.0, -3.0, 2.0, 4.0, -6.0],
+            ),
+            (
+                QuantValue::E4M3,
+                [448.0, -2.5, 0.125, 1.0, -0.0, 3.5, -448.0, 64.0],
+            ),
+        ] {
+            let scheme = QuantScheme::default()
+                .with_value(value)
+                .with_store(QuantStore::Native);
+            let input = FlexTensor::from_data(TensorData::new(values.to_vec(), [8]));
+
+            let output = Flex::dequantize(Flex::quantize_dynamic(input, &scheme), FloatDType::F32);
+
+            assert_eq!(output.to_contiguous().storage::<f32>(), values, "{value:?}");
+        }
+    }
+
+    #[test]
+    fn argmax_over_float_codes_follows_the_values() {
+        let scheme = QuantScheme::default()
+            .with_value(QuantValue::E2M1)
+            .with_store(QuantStore::Native);
+        let input = FlexTensor::from_data(TensorData::new(vec![-6.0f32, -1.0, 0.5, -0.5], [1, 4]));
+        let quantized = Flex::quantize_dynamic(input, &scheme);
+
+        let argmax = Flex::q_argmax(quantized.clone(), 1, burn_std::IntDType::I64);
+        let argmin = Flex::q_argmin(quantized, 1, burn_std::IntDType::I64);
+
+        assert_eq!(argmax.to_contiguous().storage::<i64>(), [2]);
+        assert_eq!(argmin.to_contiguous().storage::<i64>(), [0]);
+    }
+
+    #[test]
+    fn float_schemes_keep_their_layout_through_their_data() {
+        let mxfp4 = QuantScheme::default()
+            .with_value(QuantValue::E2M1)
+            .per_block([32], ScaleDtype::UE8M0);
+        for scheme in [
+            QuantScheme::default().with_value(QuantValue::E4M3),
+            QuantScheme::default()
+                .with_value(QuantValue::E5M2)
+                .with_store(QuantStore::Native),
+            mxfp4,
+            mxfp4.with_store(QuantStore::PackedNative(0)),
+        ] {
+            let quantized = Flex::quantize_dynamic(ramp([4, 32]), &scheme);
+            let data = data_of(quantized.clone());
+            assert_eq!(data.dtype(), DType::QFloat(scheme));
+
+            let reloaded = Flex::q_from_data(data.clone(), &Default::default());
+            assert_eq!(
+                data_of(reloaded.clone()).as_bytes(),
+                data.as_bytes(),
+                "{scheme:?}"
+            );
+            assert_eq!(
+                Flex::dequantize(reloaded, FloatDType::F32)
+                    .to_contiguous()
+                    .storage::<f32>(),
+                Flex::dequantize(quantized, FloatDType::F32)
+                    .to_contiguous()
+                    .storage::<f32>(),
+                "{scheme:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_lookup_scheme_is_held_with_native_values() {
+        let scheme = QuantScheme::default().with_mode(QuantMode::Lookup);
 
         let quantized = Flex::quantize_dynamic(ramp([4, 16]), &scheme);
 

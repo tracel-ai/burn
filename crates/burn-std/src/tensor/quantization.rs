@@ -14,8 +14,8 @@ pub const QPARAM_ALIGN: usize = core::mem::align_of::<f32>();
 
 use alloc::{vec, vec::Vec};
 use core::any::TypeId;
-use cubecl_common::e4m3;
 use cubecl_common::quant::scheme::{f32_to_ue8m0, ue8m0_to_f32};
+use cubecl_common::{e4m3, e5m2};
 use serde::{Deserialize, Serialize};
 
 use crate::{DType, Metadata, Shape, bytes::Bytes};
@@ -235,9 +235,9 @@ impl QuantizedBytes {
         let layout = ValueLayout::new(&scheme);
         let mut bytes = match layout {
             ValueLayout::Bytes => Bytes::from_elems(i8s),
-            ValueLayout::Words { packed_dim } => Bytes::from_elems(
-                PackedOrder::new(shape.as_slice(), packed_dim).pack(&i8s, &scheme.value),
-            ),
+            ValueLayout::Packed { packed_dim, word } => {
+                Bytes::from_elems(PackedOrder::new(shape.as_slice(), packed_dim).pack(&i8s, &word))
+            }
         };
 
         let scales = match (
@@ -335,8 +335,10 @@ impl QuantizedBytes {
         );
         let values = match layout {
             ValueLayout::Bytes => stored,
-            ValueLayout::Words { packed_dim } => PackedOrder::new(shape.as_slice(), packed_dim)
-                .unpack(bytemuck::cast_slice(&stored), &scheme.value),
+            ValueLayout::Packed { packed_dim, word } => {
+                PackedOrder::new(shape.as_slice(), packed_dim)
+                    .unpack(bytemuck::cast_slice(&stored), &word)
+            }
         };
 
         (values, (qparams, num_params))
@@ -507,33 +509,157 @@ impl PermuteQuantScheme for QuantScheme {
     }
 }
 
-/// How [`QuantizedBytes`] lays out the values of a scheme, refusing what it cannot write or read.
+/// The codes a quantization value type stores, and the values they stand for.
+///
+/// Slices rather than single values, so the type is matched once and the loop, generic over the
+/// scales, compiles in the caller's crate where it inlines and vectorizes. That takes a `scale_of`
+/// owning what it reads: a scale behind a reference is reloaded for every value.
+pub trait QuantCodes {
+    /// The code of each value divided by its scale, `scale_of` giving the scale at an index:
+    /// clamped to the type's range, then rounded to the nearest representable value, ties to even.
+    fn encode_all(&self, values: &[f32], scale_of: impl Fn(usize) -> f32) -> Vec<i8>;
+
+    /// The value each code stands for, times the scale `scale_of` gives at its index.
+    fn decode_all(&self, codes: &[i8], scale_of: impl Fn(usize) -> f32) -> Vec<f32>;
+
+    /// Whether codes are the integers they stand for, so they compare as their values do; a float
+    /// code is sign and magnitude, where a larger code can stand for a more negative value.
+    fn codes_are_integers(&self) -> bool;
+}
+
+impl QuantCodes for QuantValue {
+    fn encode_all(&self, values: &[f32], scale_of: impl Fn(usize) -> f32) -> Vec<i8> {
+        let (min, max) = self.range();
+        let scaled = values
+            .iter()
+            .enumerate()
+            .map(move |(index, &value)| (value / scale_of(index)).clamp(min, max));
+        match self {
+            QuantValue::E4M3 => scaled
+                .map(|scaled| e4m3::from_f32(scaled).to_bits() as i8)
+                .collect(),
+            QuantValue::E5M2 => scaled
+                .map(|scaled| e5m2::from_f32(scaled).to_bits() as i8)
+                .collect(),
+            QuantValue::E2M1 => scaled.map(|scaled| E2M1::encode(scaled) as i8).collect(),
+            QuantValue::Q8F
+            | QuantValue::Q8S
+            | QuantValue::Q4F
+            | QuantValue::Q4S
+            | QuantValue::Q2F
+            | QuantValue::Q2S => scaled.map(|scaled| HalfEven::round(scaled) as i8).collect(),
+        }
+    }
+
+    fn decode_all(&self, codes: &[i8], scale_of: impl Fn(usize) -> f32) -> Vec<f32> {
+        let codes = codes.iter().enumerate();
+        match self {
+            QuantValue::E4M3 => codes
+                .map(move |(index, &code)| scale_of(index) * e4m3::from_bits(code as u8).to_f32())
+                .collect(),
+            QuantValue::E5M2 => codes
+                .map(move |(index, &code)| scale_of(index) * e5m2::from_bits(code as u8).to_f32())
+                .collect(),
+            QuantValue::E2M1 => codes
+                .map(move |(index, &code)| scale_of(index) * E2M1::decode(code as u8))
+                .collect(),
+            QuantValue::Q8F
+            | QuantValue::Q8S
+            | QuantValue::Q4F
+            | QuantValue::Q4S
+            | QuantValue::Q2F
+            | QuantValue::Q2S => codes
+                .map(move |(index, &code)| scale_of(index) * code as f32)
+                .collect(),
+        }
+    }
+
+    fn codes_are_integers(&self) -> bool {
+        match self {
+            QuantValue::E4M3 | QuantValue::E5M2 | QuantValue::E2M1 => false,
+            QuantValue::Q8F
+            | QuantValue::Q8S
+            | QuantValue::Q4F
+            | QuantValue::Q4S
+            | QuantValue::Q2F
+            | QuantValue::Q2S => true,
+        }
+    }
+}
+
+/// Rounding half to even, which a GPU's `round` does and a CPU's does not.
+struct HalfEven;
+
+impl HalfEven {
+    /// 1.5 * 2^23: a sum this large keeps no fraction bits, so adding it rounds to nearest even.
+    const SHIFT: f32 = 12_582_912.0;
+
+    /// Exact below 2^22 in magnitude, which every integer code range is, and plain arithmetic, so
+    /// it vectorizes where `round` is a library call.
+    fn round(value: f32) -> f32 {
+        value + Self::SHIFT - Self::SHIFT
+    }
+}
+
+/// E2M1 codes, encoded here because cubecl-common's E2M1 type needs std.
+struct E2M1;
+
+impl E2M1 {
+    /// The magnitudes of the codes without their sign bit, in code order.
+    const MAGNITUDES: [f32; 8] = [0.0, 0.5, 1.0, 1.5, 2.0, 3.0, 4.0, 6.0];
+    const SIGN: u8 = 0x8;
+
+    /// The code counts the midpoints between magnitudes that `value` clears; strict and non-strict
+    /// comparisons alternate so each tie lands on the even code, and a NaN clears none.
+    fn encode(value: f32) -> u8 {
+        let sign = if value.is_sign_negative() {
+            Self::SIGN
+        } else {
+            0
+        };
+        let magnitude = num_traits::Float::abs(value);
+        let cleared = [
+            magnitude > 0.25,
+            magnitude >= 0.75,
+            magnitude > 1.25,
+            magnitude >= 1.75,
+            magnitude > 2.5,
+            magnitude >= 3.5,
+            magnitude > 5.0,
+        ];
+        cleared.into_iter().filter(|&above| above).count() as u8 | sign
+    }
+
+    fn decode(code: u8) -> f32 {
+        let magnitude = Self::MAGNITUDES[usize::from(code & !Self::SIGN)];
+        if code & Self::SIGN != 0 {
+            -magnitude
+        } else {
+            magnitude
+        }
+    }
+}
+
+/// How [`QuantizedBytes`] lays out the values of a scheme.
 #[derive(Clone, Copy)]
 enum ValueLayout {
     /// One byte per value.
     Bytes,
-    /// Values packed into little-endian `u32` words along the axis `packed_dim` counts from the
-    /// innermost, as [`PackedOrder`] orders them.
-    Words { packed_dim: usize },
+    /// Values packed into words along the axis `packed_dim` counts from the innermost, as
+    /// [`PackedOrder`] orders them.
+    Packed { packed_dim: usize, word: Word },
 }
 
 impl ValueLayout {
     fn new(scheme: &QuantScheme) -> Self {
-        match (scheme.store, scheme.value) {
-            (QuantStore::Native, _) => Self::Bytes,
-            (
-                QuantStore::PackedU32(packed_dim),
-                QuantValue::Q8F
-                | QuantValue::Q8S
-                | QuantValue::E4M3
-                | QuantValue::E5M2
-                | QuantValue::Q4F
-                | QuantValue::Q4S
-                | QuantValue::Q2F
-                | QuantValue::Q2S,
-            ) => Self::Words { packed_dim },
-            // Read back, a 4-bit float code would be sign-extended as if it were an integer.
-            (store, value) => unimplemented!("{value:?} values under {store:?}"),
+        match scheme.store {
+            QuantStore::Native => Self::Bytes,
+            QuantStore::PackedU32(packed_dim) | QuantStore::PackedNative(packed_dim) => {
+                Self::Packed {
+                    packed_dim,
+                    word: Word::new(scheme),
+                }
+            }
         }
     }
 
@@ -541,10 +667,47 @@ impl ValueLayout {
     /// is not row-major: blocks of values packed along an outer axis.
     fn block_scale_order(&self, shape: &Shape, scheme: &QuantScheme) -> Option<PackedOrder> {
         match *self {
-            Self::Words { packed_dim } if packed_dim != 0 && scheme.block_size().is_some() => Some(
-                PackedOrder::new(params_shape(shape, scheme).as_slice(), packed_dim),
-            ),
+            Self::Packed { packed_dim, .. } if packed_dim != 0 && scheme.block_size().is_some() => {
+                Some(PackedOrder::new(
+                    params_shape(shape, scheme).as_slice(),
+                    packed_dim,
+                ))
+            }
             _ => None,
+        }
+    }
+}
+
+/// A little-endian word holding values side by side, value `k` at bit `k * bits`: a `u32` for
+/// `PackedU32`, the native type for `PackedNative`, such as a byte of two E2M1 codes.
+#[derive(Clone, Copy)]
+struct Word {
+    bytes: usize,
+    values: usize,
+    value: QuantValue,
+}
+
+impl Word {
+    fn new(scheme: &QuantScheme) -> Self {
+        Self {
+            bytes: scheme.size_bits_stored().div_ceil(u8::BITS as usize),
+            values: scheme.num_quants(),
+            value: scheme.value,
+        }
+    }
+
+    fn bits(&self) -> usize {
+        self.value.size_bits()
+    }
+
+    /// The code a field holds: an integer narrower than a byte is sign-extended, a float code
+    /// kept as its bits.
+    fn code(&self, field: u8) -> i8 {
+        if self.value.codes_are_integers() {
+            let shift = u8::BITS as usize - self.bits();
+            ((field << shift) as i8) >> shift
+        } else {
+            field as i8
         }
     }
 }
@@ -625,71 +788,69 @@ impl PackedOrder {
         self.dims[self.axis]
     }
 
-    /// The `u32` words a line of `value`s takes, its last one padded.
-    fn words_per_line(&self, value: &QuantValue) -> usize {
-        self.line_len()
-            .div_ceil(u32::BITS as usize / value.size_bits())
+    /// The words a line takes, its last one padded.
+    fn words_per_line(&self, word: &Word) -> usize {
+        self.line_len().div_ceil(word.values)
     }
 
     /// Whether packing copies each row as it is: a byte per value along the innermost axis, which
     /// little-endian words hold in order.
-    fn copies_rows(&self, value: &QuantValue) -> bool {
-        self.axis == self.dims.len() - 1
-            && value.size_bits() == u8::BITS as usize
-            && self.line_len() > 0
+    fn copies_rows(&self, word: &Word) -> bool {
+        self.axis == self.dims.len() - 1 && word.bits() == u8::BITS as usize && self.line_len() > 0
     }
 
-    /// Row-major `values` packed into little-endian `u32` words, every line padded to whole words.
-    fn pack(&self, values: &[i8], value: &QuantValue) -> Vec<u8> {
-        let words_per_line = self.words_per_line(value);
-        if self.copies_rows(value) {
-            let padding = words_per_line * size_of::<u32>() - self.line_len();
+    /// Row-major `values` packed into words, every line padded to whole words.
+    fn pack(&self, values: &[i8], word: &Word) -> Vec<u8> {
+        let words_per_line = self.words_per_line(word);
+        if self.copies_rows(word) {
+            let padding = words_per_line * word.bytes - self.line_len();
             return bytemuck::cast_slice::<i8, u8>(values)
                 .chunks(self.line_len())
                 .flat_map(|row| row.iter().copied().chain(core::iter::repeat_n(0, padding)))
                 .collect();
         }
-        let bits = value.size_bits();
-        let per_word = u32::BITS as usize / bits;
+        let bits = word.bits();
         let mask = (1u32 << bits) - 1;
         let mut words = Vec::new();
         for line in self.lines() {
             let start = words.len();
             words.resize(start + words_per_line, 0u32);
             for (k, position) in line.enumerate() {
-                words[start + k / per_word] |=
-                    (values[position] as u32 & mask) << (k % per_word * bits);
+                words[start + k / word.values] |=
+                    (values[position] as u32 & mask) << (k % word.values * bits);
             }
         }
-        words.into_iter().flat_map(u32::to_le_bytes).collect()
+        words
+            .into_iter()
+            .flat_map(|packed| packed.to_le_bytes().into_iter().take(word.bytes))
+            .collect()
     }
 
     /// The row-major values [`pack`](Self::pack) packed into `bytes`.
-    fn unpack(&self, bytes: &[u8], value: &QuantValue) -> Vec<i8> {
-        let (len, words_per_line) = (self.line_len(), self.words_per_line(value));
-        if self.copies_rows(value) {
+    fn unpack(&self, bytes: &[u8], word: &Word) -> Vec<i8> {
+        let (len, words_per_line) = (self.line_len(), self.words_per_line(word));
+        if self.copies_rows(word) {
             return bytes
-                .chunks(words_per_line * size_of::<u32>())
+                .chunks(words_per_line * word.bytes)
                 .flat_map(|row| bytemuck::cast_slice::<u8, i8>(&row[..len]).iter().copied())
                 .collect();
         }
         let words: Vec<u32> = bytes
-            .as_chunks::<{ size_of::<u32>() }>()
-            .0
-            .iter()
-            .map(|word| u32::from_le_bytes(*word))
+            .chunks(word.bytes)
+            .map(|packed| {
+                let mut le = [0u8; size_of::<u32>()];
+                le[..packed.len()].copy_from_slice(packed);
+                u32::from_le_bytes(le)
+            })
             .collect();
-        let bits = value.size_bits();
-        let per_word = u32::BITS as usize / bits;
+        let bits = word.bits();
         let mask = (1u32 << bits) - 1;
-        // Integer values are signed, so a sub-byte field is sign-extended to its `i8`.
-        let sign_shift = u8::BITS as usize - bits;
         let mut values = vec![0; self.dims.iter().product()];
         for (index, line) in self.lines().enumerate() {
             let line_words = &words[index * words_per_line..][..words_per_line];
             for (k, position) in line.enumerate() {
-                let field = (line_words[k / per_word] >> (k % per_word * bits) & mask) as u8;
-                values[position] = ((field << sign_shift) as i8) >> sign_shift;
+                let field = line_words[k / word.values] >> (k % word.values * bits) & mask;
+                values[position] = word.code(field as u8);
             }
         }
         values
@@ -749,6 +910,14 @@ mod tests {
             .iter()
             .map(|word| u32::from_le_bytes(*word))
             .collect()
+    }
+
+    fn encode(value: QuantValue, scaled: f32) -> i8 {
+        value.encode_all(&[scaled], |_| 1.0)[0]
+    }
+
+    fn decode(value: QuantValue, code: i8) -> f32 {
+        value.decode_all(&[code], |_| 1.0)[0]
     }
 
     /// No packed extent here is a whole number of words, so every line is padded.
@@ -884,11 +1053,112 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "E2M1 values under PackedU32")]
-    fn four_bit_float_values_are_not_packed_into_words() {
-        let scheme = QuantScheme::default().with_value(QuantValue::E2M1);
+    fn float_codes_decode_to_their_format_values() {
+        for (value, code, expected) in [
+            (QuantValue::E4M3, 0x7E, 448.0),
+            (QuantValue::E4M3, 0x38, 1.0),
+            (QuantValue::E4M3, 0x01, 1.0 / 512.0),
+            (QuantValue::E4M3, 0xC4, -3.0),
+            (QuantValue::E5M2, 0x7B, 57344.0),
+            (QuantValue::E5M2, 0x3C, 1.0),
+            (QuantValue::E5M2, 0x01, 1.0 / 65536.0),
+            (QuantValue::E5M2, 0x7C, f32::INFINITY),
+            (QuantValue::E2M1, 0x1, 0.5),
+            (QuantValue::E2M1, 0x7, 6.0),
+            (QuantValue::E2M1, 0xD, -3.0),
+        ] {
+            assert_eq!(
+                decode(value, code as u8 as i8),
+                expected,
+                "{value:?} {code:#x}"
+            );
+        }
+        assert!(decode(QuantValue::E4M3, 0x7F).is_nan());
+        assert!(decode(QuantValue::E5M2, 0x7D).is_nan());
+    }
 
-        QuantizedBytes::new(vec![0i8; 8], [8], scheme, &[1.0], None);
+    #[test]
+    fn every_finite_float_code_decodes_and_encodes_back() {
+        for (value, codes) in [
+            (QuantValue::E4M3, 0..=u8::MAX),
+            (QuantValue::E5M2, 0..=u8::MAX),
+            (QuantValue::E2M1, 0..=0x0F),
+        ] {
+            for code in codes {
+                let decoded = decode(value, code as i8);
+                if decoded.is_finite() {
+                    assert_eq!(encode(value, decoded) as u8, code, "{value:?} {decoded}");
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn codes_round_to_the_nearest_value_and_saturate() {
+        let e2m1 = |scaled: f32| decode(QuantValue::E2M1, encode(QuantValue::E2M1, scaled));
+
+        assert_eq!(e2m1(0.3), 0.5);
+        assert_eq!(e2m1(0.25), 0.0, "a tie rounds to the even code");
+        assert_eq!(
+            encode(QuantValue::Q4S, -6.5),
+            -6,
+            "a tie rounds to the even integer"
+        );
+        assert_eq!(encode(QuantValue::Q8S, 2.5), 2);
+        assert_eq!(encode(QuantValue::Q8S, 3.5), 4);
+        assert_eq!(encode(QuantValue::Q8S, -126.5), -126);
+        assert_eq!(encode(QuantValue::Q8S, 1.4), 1);
+        assert_eq!(encode(QuantValue::Q8S, 1e9), 127);
+        assert_eq!(encode(QuantValue::Q8S, -1e9), -127);
+        assert_eq!(e2m1(2.4), 2.0);
+        assert_eq!(e2m1(100.0), 6.0);
+        assert_eq!(e2m1(-100.0), -6.0);
+        assert_eq!(
+            decode(QuantValue::E4M3, encode(QuantValue::E4M3, 1e6)),
+            448.0
+        );
+    }
+
+    #[test]
+    fn float_codes_round_trip_along_any_axis_in_any_packed_store() {
+        for shape in [Shape::new([3, 5]), Shape::new([2, 3, 5])] {
+            for (value, codes) in [(QuantValue::E2M1, 16), (QuantValue::E4M3, 256)] {
+                let values: Vec<i8> = (0..shape.num_elements())
+                    .map(|i| (i * 7 % codes) as u8 as i8)
+                    .collect();
+                for packed_dim in 0..shape.num_dims() {
+                    for store in [
+                        QuantStore::PackedU32(packed_dim),
+                        QuantStore::PackedNative(packed_dim),
+                    ] {
+                        let scheme = QuantScheme::default().with_value(value).with_store(store);
+
+                        let bytes = QuantizedBytes::new(
+                            values.clone(),
+                            shape.clone(),
+                            scheme,
+                            &[1.0],
+                            None,
+                        );
+
+                        assert_eq!(bytes.bytes.len(), quantized_data_len(&scheme, &shape));
+                        assert_eq!(bytes.into_vec_i8().0, values, "{value:?} in {store:?}");
+                    }
+                }
+            }
+        }
+    }
+
+    /// cubecl's native E2M1 type holds two codes to a byte, the first in the low nibble.
+    #[test]
+    fn e2m1_packs_two_codes_to_a_byte_natively() {
+        let scheme = QuantScheme::default()
+            .with_value(QuantValue::E2M1)
+            .with_store(QuantStore::PackedNative(0));
+
+        let packed = QuantizedBytes::new(vec![0x1i8, 0xF, 0x6], [3], scheme, &[1.0], None);
+
+        assert_eq!(&packed.bytes[..2], [0xF1, 0x06]);
     }
 
     #[test]
