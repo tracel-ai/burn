@@ -9,7 +9,6 @@ use alloc::string::{String, ToString};
 use alloc::vec::Vec;
 use burn_std::{Bytes, Shape};
 
-#[cfg(feature = "std")]
 use super::base::MAX_FILE_SIZE;
 #[cfg(feature = "std")]
 use alloc::vec;
@@ -20,12 +19,67 @@ use std::io::Read;
 #[cfg(feature = "std")]
 use std::path::Path;
 
+/// The size limits a [`Reader`] enforces. Defaults are [`MAX_FILE_SIZE`] and [`MAX_TENSOR_SIZE`].
+/// A caller loading trusted files either one with [`Reader::with_limits`]:
+///
+/// ```no_run
+/// use burn_pack::{Reader, ReaderLimits};
+///
+/// let limits = ReaderLimits::default()
+///     .with_max_file_size(2 * 1024 * 1024 * 1024 * 1024) // 2 TB
+///     .with_max_tensor_size(64 * 1024 * 1024 * 1024); // 64 GB
+/// let tensors = Reader::from_file("huge.bpk")?.with_limits(limits).into_tensors()?;
+/// # Ok::<(), burn_pack::Error>(())
+/// ```
+///
+/// Both are checked when tensor data is accessed, not when the reader is created.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ReaderLimits {
+    max_file_size: u64,
+    max_tensor_size: usize,
+}
+
+impl Default for ReaderLimits {
+    fn default() -> Self {
+        Self {
+            max_file_size: MAX_FILE_SIZE,
+            max_tensor_size: MAX_TENSOR_SIZE,
+        }
+    }
+}
+
+impl ReaderLimits {
+    /// The largest file, in bytes, a file-backed reader accepts. In-memory readers are not
+    /// affected.
+    pub fn with_max_file_size(mut self, bytes: u64) -> Self {
+        self.max_file_size = bytes;
+        self
+    }
+
+    /// The largest single tensor, in bytes.
+    pub fn with_max_tensor_size(mut self, bytes: usize) -> Self {
+        self.max_tensor_size = bytes;
+        self
+    }
+
+    /// The largest file, in bytes, a file-backed reader accepts.
+    pub fn max_file_size(&self) -> u64 {
+        self.max_file_size
+    }
+
+    /// The largest single tensor, in bytes.
+    pub fn max_tensor_size(&self) -> usize {
+        self.max_tensor_size
+    }
+}
+
 /// Reader for loading burnpack containers.
 pub struct Reader {
     metadata: Metadata,
     source: Source,
     /// Absolute byte offset where the (256-byte aligned) tensor data section starts.
     data_offset: usize,
+    limits: ReaderLimits,
 }
 
 impl Reader {
@@ -86,11 +140,6 @@ impl Reader {
             .map_err(|e| Error::IoError(format!("cannot open '{}': {e}", path.display())))?;
 
         let file_size = file.metadata().map_err(io_err)?.len();
-        if file_size > MAX_FILE_SIZE {
-            return Err(Error::ValidationError(format!(
-                "File size {file_size} bytes exceeds maximum allowed size of {MAX_FILE_SIZE} bytes"
-            )));
-        }
 
         let mut header_bytes = [0u8; HEADER_SIZE];
         file.read_exact(&mut header_bytes).map_err(io_err)?;
@@ -122,7 +171,16 @@ impl Reader {
             metadata,
             source,
             data_offset,
+            limits: ReaderLimits::default(),
         })
+    }
+
+    /// Enforce `limits` instead of the defaults for as long as this reader exists.
+    ///
+    /// See [`ReaderLimits`].
+    pub fn with_limits(mut self, limits: ReaderLimits) -> Self {
+        self.limits = limits;
+        self
     }
 
     /// Consume the reader, returning all tensors in sorted (alphabetical) name order.
@@ -137,7 +195,10 @@ impl Reader {
             metadata,
             source,
             data_offset,
+            limits,
         } = self;
+        #[cfg(feature = "std")]
+        check_file_size(&source, &limits)?;
 
         // Make the source view-capable: a plain in-memory buffer has no zero-copy window until
         // it's shared behind an `Arc`, whereas a file-backed source already windows lazily (and
@@ -151,6 +212,7 @@ impl Reader {
         let mut tensors = Vec::with_capacity(metadata.tensors.len());
         for (name, descriptor) in &metadata.tensors {
             let (start, end) = tensor_range(data_offset, name, descriptor)?;
+            check_tensor_size(name, start, end, &limits)?;
             let bytes = source.view(start, end).map_err(|_| {
                 Error::ValidationError(format!(
                     "Tensor '{name}' data range {start}..{end} could not be viewed (source is {} bytes)",
@@ -191,7 +253,10 @@ impl Reader {
             .tensors
             .get(name)
             .ok_or_else(|| Error::TensorNotFound(name.to_string()))?;
+        #[cfg(feature = "std")]
+        check_file_size(&self.source, &self.limits)?;
         let (start, end) = tensor_range(self.data_offset, name, descriptor)?;
+        check_tensor_size(name, start, end, &self.limits)?;
 
         match &self.source {
             #[cfg(feature = "std")]
@@ -241,13 +306,43 @@ fn tensor_range(
             "Tensor '{name}' has corrupted offset data: end {end} < start {start}"
         )));
     }
-    if end - start > MAX_TENSOR_SIZE {
+    Ok((start, end))
+}
+
+/// Reject a tensor larger than the limits allow.
+fn check_tensor_size(
+    name: &str,
+    start: usize,
+    end: usize,
+    limits: &ReaderLimits,
+) -> Result<(), Error> {
+    let max_tensor_size = limits.max_tensor_size;
+    if end - start > max_tensor_size {
         return Err(Error::ValidationError(format!(
-            "Tensor '{name}' size {} exceeds maximum allowed size of {MAX_TENSOR_SIZE} bytes (potential DoS attack)",
+            "Tensor '{name}' size {} exceeds maximum allowed size of {max_tensor_size} bytes \
+             (potential DoS attack; raise it with `Reader::with_limits`)",
             end - start
         )));
     }
-    Ok((start, end))
+    Ok(())
+}
+
+/// Reject a file-backed source larger than the limits allow.
+#[cfg(feature = "std")]
+fn check_file_size(source: &Source, limits: &ReaderLimits) -> Result<(), Error> {
+    match source {
+        Source::File(bytes) => {
+            let (file_size, max_file_size) = (bytes.len() as u64, limits.max_file_size);
+            if file_size > max_file_size {
+                return Err(Error::ValidationError(format!(
+                    "File size {file_size} bytes exceeds maximum allowed size of \
+                     {max_file_size} bytes (raise it with `Reader::with_limits`)"
+                )));
+            }
+            Ok(())
+        }
+        Source::Memory(_) => Ok(()),
+    }
 }
 
 /// Parse and validate a header from a buffer that starts with it.
