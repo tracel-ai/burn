@@ -527,9 +527,8 @@ impl RouterClient for CaptureClient {
 
     fn dtype_usage(&self, dtype: DType) -> DTypeUsageSet {
         match dtype {
-            // Capture records these operations without executing dtype-specific kernels. The
-            // router's quantized operations are not implemented yet, so quantized tensors remain
-            // the only dtype family that capture cannot represent through the backend API.
+            // Capture records these operations without executing dtype-specific kernels.
+            // Quantized tensors stay unsupported until capturing their operations is tested.
             DType::QFloat(_) => DTypeUsageSet::empty(),
             _ => DTypeUsage::general(),
         }
