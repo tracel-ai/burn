@@ -104,7 +104,6 @@ pub(crate) fn check_backend_features() -> anyhow::Result<()> {
             &[
                 "burn-flex",
                 "burn-cubecl",
-                "burn-ndarray",
                 "burn-tch",
                 "burn-remote",
                 "burn-capture",

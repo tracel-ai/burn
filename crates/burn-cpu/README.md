@@ -28,8 +28,6 @@ Use `burn-cpu` when you want the CubeCL stack (fusion, custom CubeCL kernels sha
 backends) on the CPU. Use `burn-flex` for a lightweight, portable CPU backend that also runs on
 `no_std` and WebAssembly targets.
 
-`burn-ndarray` is the deprecated predecessor of `burn-flex`; it is not related to `burn-cpu`.
-
 ## Usage Example
 
 ```toml

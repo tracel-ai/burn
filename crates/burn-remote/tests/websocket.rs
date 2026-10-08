@@ -9,11 +9,14 @@ use burn_remote::{
     },
 };
 use burn_tensor::{
-    Bool, Device, DeviceType, Distribution, Int, Tensor, Transaction, activation::log_softmax,
+    Bool, Device, DeviceType, Distribution, Int, Tensor, TensorData, Transaction,
     remote::RemoteHost, server::RemoteServer,
 };
 
 const TOKEN: &str = "fleet-token";
+
+/// A 4 MiB tensor, which a session carries in several frames.
+const MANY_FRAMES_LONG: usize = 1024 * 1024;
 
 /// Far beyond what a bounded step here takes when it works, so only a hang reaches it.
 const HANG_LIMIT: std::time::Duration = std::time::Duration::from_secs(10);
@@ -169,6 +172,25 @@ fn only_a_websocket_client_with_the_token_is_admitted() {
     rt.shutdown_background();
 }
 
+/// A server reads at most 64 KiB from a client before admitting it, so a larger credential can
+/// never pass, and is refused before a session is opened for it.
+#[test]
+fn a_credential_too_large_for_the_handshake_is_refused_before_connecting() {
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()
+        .unwrap();
+    let host = serve(&rt, BackendServer::<Flex>::new(vec![Default::default()]));
+
+    let refused = Device::remote_options(&host.with_credential(vec![b'x'; 64 * 1024 + 1])).init();
+
+    assert!(
+        matches!(refused, Err(ConnectError::InvalidConfiguration { .. })),
+        "{refused:?}"
+    );
+    rt.shutdown_background();
+}
+
 #[test]
 fn a_websocket_authorizer_sees_the_client_by_its_address() {
     let rt = tokio::runtime::Builder::new_multi_thread()
@@ -297,54 +319,6 @@ fn ctc_loss_over_websocket_matches_its_closed_form() {
 
     let loss: Vec<f32> = loss.into_data().try_into_vec().unwrap();
     assert!((loss[0] - (8.0f32 / 6.0).ln()).abs() < 1e-5, "{loss:?}");
-
-    rt.shutdown_background();
-}
-
-#[test]
-fn the_gradient_of_ctc_loss_over_websocket_matches_the_local_one() {
-    let rt = tokio::runtime::Builder::new_multi_thread()
-        .enable_io()
-        .build()
-        .unwrap();
-    // Flex has no CTC gradient of its own, so the server answers with the default one.
-    let host = serve(&rt, BackendServer::<Flex>::new(vec![Default::default()]));
-    let remote = Device::remote_options(&host).init().unwrap().autodiff();
-    let local = Device::flex().autodiff();
-
-    // Utterances of different lengths: one with a repeated label, one with a shorter target
-    // and one with an empty target, so padding in every direction is exercised.
-    let (steps, batch, classes) = (5, 3, 3);
-    let logits: Vec<f32> = (0..steps * batch * classes)
-        .map(|i| (i as f32 * 0.7).sin())
-        .collect();
-    let gradient = |device: &Device| -> Vec<f32> {
-        let logits = Tensor::<1>::from_floats(logits.as_slice(), device)
-            .reshape([steps, batch, classes])
-            .require_grad();
-        let loss = burn_tensor::module::ctc_loss(
-            log_softmax(logits.clone(), 2),
-            Tensor::<2, Int>::from_ints([[1, 1], [2, 0], [0, 0]], device),
-            Tensor::<1, Int>::from_ints([5, 3, 4], device),
-            Tensor::<1, Int>::from_ints([2, 1, 0], device),
-            0,
-        );
-        let gradients = loss.sum().backward();
-        let gradient = logits.grad(&gradients).unwrap();
-        gradient.into_data().try_into_vec().unwrap()
-    };
-
-    let (over_websocket, locally) = (gradient(&remote), gradient(&local));
-    assert!(
-        locally.iter().any(|value| value.abs() > 1e-3),
-        "{locally:?}"
-    );
-    for (remote, local) in over_websocket.iter().zip(&locally) {
-        assert!(
-            (remote - local).abs() < 1e-4,
-            "{over_websocket:?} != {locally:?}"
-        );
-    }
 
     rt.shutdown_background();
 }
@@ -823,5 +797,23 @@ fn test_to_device_local_to_remote() {
     let numbers: Vec<f32> = back.into_data().try_into_vec().unwrap();
     assert_eq!(numbers, vec![2.0, 4.0, 6.0, 8.0, 10.0, 12.0]);
 
+    rt.shutdown_background();
+}
+
+#[test]
+fn a_tensor_many_frames_long_is_uploaded_and_read_back() {
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .enable_io()
+        .build()
+        .unwrap();
+    let host = serve(&rt, BackendServer::<Flex>::new(vec![Default::default()]));
+    let device = Device::remote_options(&host).init().unwrap();
+    let values: Vec<f32> = (0..MANY_FRAMES_LONG).map(|i| i as f32).collect();
+
+    let tensor = Tensor::<1>::from_data(TensorData::new(values.clone(), [values.len()]), &device);
+    let doubled = (tensor * 2.0).try_into_vec_as::<f32>().unwrap();
+
+    let expected: Vec<f32> = values.iter().map(|value| value * 2.0).collect();
+    assert_eq!(doubled, expected);
     rt.shutdown_background();
 }

@@ -379,7 +379,7 @@ fn test_max_abs_dim_nan_propagation() {
     assert_eq!(values[1], 4.0f32.elem::<FloatElem>());
 }
 
-#[cfg(any(feature = "flex", feature = "ndarray"))]
+#[cfg(feature = "flex")]
 #[test]
 fn test_whole_max_min_nan_f64_cpu_backends() {
     let tensor = TestTensor::<1>::from([1.0, f32::NAN, 2.0]).cast(burn_tensor::DType::F64);

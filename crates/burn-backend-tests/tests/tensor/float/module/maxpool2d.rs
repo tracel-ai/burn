@@ -517,7 +517,7 @@ fn test_max_pool2d_ceil_mode_with_indices_and_padding() {
 }
 
 // Like PyTorch, a NaN anywhere in the window is the result, and its index is the last NaN of
-// the window. The cube and ndarray backends still skip NaN unless it comes first.
+// the window. The cube backend still skips NaN unless it comes first.
 #[cfg(feature = "flex")]
 #[test]
 fn test_max_pool2d_with_indices_nan_propagation() {

@@ -16,15 +16,9 @@
         unreachable_code
     )
 )]
-// Wiring up the deprecated `NdArray` and `LibTorch` backends is this crate's job, and the backend
-// registry macros expand them into every dispatch impl, so the warnings land on `macros.rs` rather
-// than on any site we could annotate individually. `allow(deprecated)` is a lint level scoped to
-// this crate, and lint levels never propagate to dependents, so downstream code naming `NdArray` or
-// `LibTorch` (directly or via our re-export) still gets the warning. The `cfg_attr` keeps this
-// confined to the builds that enable them: neither `ndarray` nor `tch` is a default feature, so the
-// default build that CI lints with `--deny warnings` retains full deprecation signal for every
-// other dependency.
-#![cfg_attr(any(feature = "ndarray", feature = "tch"), allow(deprecated))]
+// Dispatch must name the deprecated LibTorch backend internally. This crate-local allowance
+// leaves deprecation warnings enabled for downstream users of the re-export.
+#![cfg_attr(feature = "tch", allow(deprecated))]
 
 //! Burn multi-backend dispatch.
 //!
@@ -36,7 +30,6 @@
 //! |------------|------------|-------------|
 //! | `Cube`     | `cpu`, `cuda`, `metal`, `rocm`, `vulkan`, `webgpu`, `wgpu` | Every cubecl runtime. One backend: the features decide which runtimes are compiled in, and a tensor's device says which one it runs on |
 //! | `Flex`     | `flex`     | Pure Rust CPU backend using `burn-flex` |
-//! | `NdArray`  | `ndarray`  | Pure Rust CPU backend using `ndarray` (deprecated - use `flex`) |
 //! | `LibTorch` | `tch`      | Libtorch backend via `tch` (deprecated - use a CubeCL backend) |
 //! | `Remote`   | `remote`   | Devices hosted by another process or machine, through `burn-remote` |
 //! | `Capture`  | `capture`  | Records operation graphs instead of executing them, through `burn-capture` |
@@ -103,10 +96,6 @@ pub mod backends {
     pub use burn_flex as flex;
     #[cfg(feature = "flex")]
     pub use burn_flex::Flex;
-    #[cfg(feature = "ndarray")]
-    pub use burn_ndarray as ndarray;
-    #[cfg(feature = "ndarray")]
-    pub use burn_ndarray::NdArray;
     #[cfg(feature = "tch")]
     pub use burn_tch as libtorch;
     #[cfg(feature = "tch")]
@@ -162,8 +151,6 @@ pub mod devices {
     pub use burn_cubecl::cubecl::RuntimeId;
     #[cfg(feature = "flex")]
     pub use burn_flex::FlexDevice;
-    #[cfg(feature = "ndarray")]
-    pub use burn_ndarray::NdArrayDevice;
     #[cfg(feature = "tch")]
     pub use burn_tch::LibTorchDevice;
 

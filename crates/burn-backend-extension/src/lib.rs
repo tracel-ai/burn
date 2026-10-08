@@ -74,7 +74,7 @@ pub fn backend_dispatch(attr: TokenStream, item: TokenStream) -> TokenStream {
 ///
 /// # Backend selection
 ///
-/// Execution backend selectors include `Cube`, `Flex`, `NdArray`, `LibTorch`, and `Remote`.
+/// Execution backend selectors include `Cube`, `Flex`, `LibTorch`, and `Remote`.
 /// `Cube` covers the CubeCL runtimes, including WGPU, CUDA, ROCm, and CPU; `Wgpu` and `Cuda`
 /// are not selectors. Gate a selector with, for example, `Cube: cfg(feature = "wgpu")`;
 /// this condition refers to the consuming crate's features. Enable Burn's `extension` feature

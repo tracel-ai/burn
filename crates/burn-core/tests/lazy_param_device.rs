@@ -2,17 +2,16 @@
 //!
 //! Two fixed CPU backends stand in for two cards, so the placement is observable without one.
 //!
-//! Run with `cargo test -p burn-core --features flex,ndarray --test lazy_param_device`.
-#![cfg(all(feature = "flex", feature = "ndarray"))]
-#![allow(deprecated)]
+//! Run with `cargo test -p burn-core --features flex,cpu --test lazy_param_device`.
+#![cfg(all(feature = "flex", feature = "cpu"))]
 
 use burn_core::module::{Module, Param, ParamId};
 use burn_tensor::{Device, Tensor};
 
 fn transfers() -> [(Device, Device); 2] {
     [
-        (Device::flex(), Device::ndarray()),
-        (Device::ndarray(), Device::flex()),
+        (Device::flex(), Device::cpu()),
+        (Device::cpu(), Device::flex()),
     ]
 }
 

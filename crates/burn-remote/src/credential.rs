@@ -3,7 +3,8 @@ use std::sync::Arc;
 
 /// What a client presents to a server's authorizer, such as the token a `TokenAuthorizer` checks.
 ///
-/// Its `Debug` output never shows the bytes, since a credential is often a shared secret.
+/// Its `Debug` output never shows the bytes, since a credential is often a shared secret. One
+/// close to 64 KiB is refused at connect: a server reads no more before admitting a client.
 #[derive(Clone, Default, PartialEq, Eq, Hash)]
 pub struct Credential(Arc<[u8]>);
 
