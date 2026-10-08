@@ -1,14 +1,14 @@
 use std::{
     collections::TryReserveError,
     io::{self, Write},
-    mem,
 };
 
 use bytes::Bytes;
 use rmp_serde::encode::Error;
 use serde::Serialize;
 
-use crate::transport::link::MAX_FRAME_SIZE;
+use super::buffer::{BUFFERS, PooledBuffer};
+use crate::transport::link::{MAX_FRAME_SIZE, MAX_WHOLE_MESSAGE_SIZE};
 
 /// A message's MessagePack encoding, as sent to a peer.
 pub trait Encode: Serialize + Sized {
@@ -21,8 +21,8 @@ pub trait Encode: Serialize + Sized {
     }
 }
 
-/// A message's bytes in segments of at most one frame, each its own allocation, so each frame can
-/// be freed once it is sent.
+/// A message's bytes in segments of at most one frame, each its own buffer, so each is released
+/// once it is sent.
 #[derive(Clone, Debug)]
 pub struct Encoded {
     segments: Vec<Bytes>,
@@ -48,36 +48,61 @@ impl Encoded {
     }
 }
 
-/// Collects an encoding into segments of at most a frame: the first grows like any `Vec`, and each
-/// later one is allocated a full frame up front, so no byte past the first frame is copied to grow
-/// a buffer.
+/// Collects an encoding into segments of at most a frame. A message sent whole grows in a plain
+/// `Vec`; a larger one is written into buffers from [`BUFFERS`], each filled to its capacity and
+/// never grown.
 #[derive(Default)]
 struct SegmentWriter {
+    small: Vec<u8>,
     full: Vec<Bytes>,
-    open: Vec<u8>,
+    open: Option<PooledBuffer>,
 }
 
 impl SegmentWriter {
-    fn finish(mut self) -> Encoded {
-        if !self.open.is_empty() {
-            self.full.push(self.open.into());
+    fn finish(self) -> Encoded {
+        let mut segments = self.full;
+        if !self.small.is_empty() {
+            segments.push(self.small.into());
         }
-        let len = self.full.iter().map(Bytes::len).sum();
-        Encoded {
-            segments: self.full,
-            len,
+        segments.extend(self.open.map(PooledBuffer::into_bytes));
+        let len = segments.iter().map(Bytes::len).sum();
+        Encoded { segments, len }
+    }
+
+    /// The open segment, after closing it if it is full and taking a buffer if none is open; the
+    /// first buffer taken starts with what was written while the message was small.
+    fn open_segment(&mut self, wanted: usize) -> Result<&mut PooledBuffer, TryReserveError> {
+        if let Some(full) = self
+            .open
+            .take_if(|segment| segment.len() == segment.capacity())
+        {
+            self.full.push(full.into_bytes());
+        }
+        let capacity = self.next_capacity(wanted);
+        match &mut self.open {
+            Some(segment) => Ok(segment),
+            open => {
+                let mut segment = BUFFERS.take(capacity)?;
+                segment.append(&mut self.small);
+                Ok(open.insert(segment))
+            }
         }
     }
 
-    /// Room in the open segment for up to `wanted` more bytes, closing it first if it is full.
-    fn make_room(&mut self, wanted: usize) -> Result<usize, TryReserveError> {
-        if self.open.len() >= MAX_FRAME_SIZE {
-            self.full.push(mem::take(&mut self.open).into());
-            self.open.try_reserve_exact(MAX_FRAME_SIZE)?;
+    /// The first segment is sized to the bytes in hand, so a message just past the whole size does
+    /// not pin a whole frame until it is acknowledged; every later one is a frame.
+    fn next_capacity(&self, wanted: usize) -> usize {
+        if self.full.is_empty() {
+            (self.small.len() + wanted).min(MAX_FRAME_SIZE)
+        } else {
+            MAX_FRAME_SIZE
         }
-        let room = wanted.min(MAX_FRAME_SIZE - self.open.len());
-        self.open.try_reserve(room)?;
-        Ok(room)
+    }
+
+    fn is_small_after(&self, more: usize) -> bool {
+        self.open.is_none()
+            && self.full.is_empty()
+            && self.small.len() + more <= MAX_WHOLE_MESSAGE_SIZE
     }
 }
 
@@ -86,10 +111,18 @@ impl Write for SegmentWriter {
         if buf.is_empty() {
             return Ok(0);
         }
-        let room = self
-            .make_room(buf.len())
+        if self.is_small_after(buf.len()) {
+            self.small
+                .try_reserve(buf.len())
+                .map_err(|_| io::Error::from(io::ErrorKind::OutOfMemory))?;
+            self.small.extend_from_slice(buf);
+            return Ok(buf.len());
+        }
+        let segment = self
+            .open_segment(buf.len())
             .map_err(|_| io::Error::from(io::ErrorKind::OutOfMemory))?;
-        self.open.extend_from_slice(&buf[..room]);
+        let room = buf.len().min(segment.capacity() - segment.len());
+        segment.extend_from_slice(&buf[..room]);
         Ok(room)
     }
 
