@@ -43,8 +43,17 @@ use writer::SubmitWriter;
 use super::{ConnectError, runtime::Executor};
 pub(crate) use conn::{RemoteEndpoint, SubmitChannel};
 use registry::{device_count_cell, settings_cell};
-pub(crate) use registry::{device_count_for, register_endpoint, registered_device};
+pub(crate) use registry::{device_count_for, register_endpoint, registered_device, session_end};
 pub(crate) use registry::{has_settings, new_tensor_id, settings_for};
+
+/// How long a connection attempt, then the handshake, may each take before the server is taken to
+/// be stuck.
+#[cfg(not(test))]
+const OPEN_DEADLINE: core::time::Duration = core::time::Duration::from_secs(60);
+
+/// Short enough for a test to wait one out.
+#[cfg(test)]
+const OPEN_DEADLINE: core::time::Duration = core::time::Duration::from_secs(5);
 
 /// All the state owned by the device-runner thread for a single remote device.
 ///
@@ -142,7 +151,7 @@ impl DeviceService for RemoteService {
                 let remote = cfg.remote();
                 OutgoingBatch::new(remote.flush_threshold, remote.flush_bytes_threshold)
             },
-            pending: PendingResponses::new(),
+            pending: PendingResponses::new(session_end(id)),
             profile_streams: HashMap::new(),
             probe,
             logger,
@@ -226,10 +235,13 @@ impl RemoteService {
     ) -> Result<SessionInfo, ConnectError> {
         let failed = |reason: String| ConnectError::Handshake { reason };
         streams.submit.send(init).await.map_err(failed)?;
-        let msg = streams
-            .response
-            .recv(MAX_FRAME_SIZE)
+        let msg = crate::time::timeout(OPEN_DEADLINE, streams.response.recv(MAX_FRAME_SIZE))
             .await
+            .map_err(|()| {
+                failed(format!(
+                    "the server did not answer within {OPEN_DEADLINE:?}"
+                ))
+            })?
             .map_err(failed)?
             .ok_or_else(|| failed("the server closed the session before answering".into()))?;
         let reply: TaskResponse = rmp_serde::from_slice(&msg)
@@ -264,7 +276,7 @@ impl RemoteService {
 
     /// Spawn the response-demux task: route each [`TaskResponse`] to its pending callback by
     /// [`RequestId`] via the [`Responder`]. Lives on the service runtime; exits when the
-    /// response stream closes.
+    /// response stream closes, ending the session.
     fn spawn_response_demux(executor: &Executor, response: ResponseChannel, responder: Responder) {
         let mut response = MessageSource::new(response);
         // Detached: the task owns the response stream and runs until it closes.
@@ -297,7 +309,7 @@ impl RemoteService {
             // The response stream is gone (clean close or error): the server will never answer
             // any in-flight or future request on this connection. Fail every waiting caller and
             // gate new ones so they error out instead of blocking forever on a dead server.
-            responder.disconnect();
+            responder.end_session();
         });
     }
 }
@@ -333,8 +345,9 @@ pub(crate) async fn wasm_connect(plan: WasmConnectPlan) -> Result<WasmConnected,
     let mut streams = plan.endpoint.open_channels().await?;
     let info = RemoteService::handshake_async(&mut streams, init).await?;
 
+    let responder = plan.responder.clone();
     RemoteService::spawn_response_demux(&executor, streams.response, plan.responder);
-    let writer = SubmitWriter::spawn(&executor, streams.submit);
+    let writer = SubmitWriter::spawn(&executor, streams.submit, move || responder.end_session());
 
     Ok(WasmConnected {
         writer,
@@ -742,7 +755,12 @@ impl RemoteService {
             let _ = self.device_count.set(info.device_count);
 
             Self::spawn_response_demux(&self.executor, streams.response, self.pending.responder());
-            self.writer = Some(SubmitWriter::spawn(&self.executor, streams.submit));
+            let responder = self.pending.responder();
+            self.writer = Some(SubmitWriter::spawn(
+                &self.executor,
+                streams.submit,
+                move || responder.end_session(),
+            ));
             self.start_logger();
             Ok(())
         }

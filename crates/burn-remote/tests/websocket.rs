@@ -24,19 +24,23 @@ const HANG_LIMIT: std::time::Duration = std::time::Duration::from_secs(10);
 /// Run `body` on a worker thread and fail the test if it does not finish within `timeout`.
 ///
 /// A hung worker cannot be killed, so the test thread panics and the process exit takes it away.
-fn with_deadlock_watchdog(timeout: std::time::Duration, body: impl FnOnce() + Send + 'static) {
+fn with_deadlock_watchdog<T: Send + 'static>(
+    timeout: std::time::Duration,
+    body: impl FnOnce() -> T + Send + 'static,
+) -> T {
     let (tx, rx) = std::sync::mpsc::channel();
     let handle = std::thread::spawn(move || {
-        body();
+        let value = body();
         let _ = tx.send(());
+        value
     });
     match rx.recv_timeout(timeout) {
-        Ok(()) => {
-            handle.join().expect("worker thread panicked");
+        Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
+            panic!("Deadlock: still blocked after {timeout:?}")
         }
-        Err(_) => {
-            panic!("Deadlock: the remote multi-device workload did not finish within {timeout:?}")
-        }
+        Ok(()) | Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => handle
+            .join()
+            .unwrap_or_else(|panic| std::panic::resume_unwind(panic)),
     }
 }
 
@@ -49,6 +53,61 @@ fn serve(rt: &tokio::runtime::Runtime, server: BackendServer<Flex>) -> RemoteHos
     let serving = server.serve_async(WebSocketTransport::from_listener(listener));
     rt.spawn(async move { serving.await.unwrap() });
     host
+}
+
+/// Bind `address` again once a stopped server has freed it. Another test's socket on an
+/// OS-picked port can hold it for a moment.
+fn rebind(address: std::net::SocketAddr) -> std::net::TcpListener {
+    for _ in 0..50 {
+        match std::net::TcpListener::bind(address) {
+            Ok(listener) => return listener,
+            Err(_) => std::thread::sleep(std::time::Duration::from_millis(100)),
+        }
+    }
+    panic!("{address} stayed taken after its server stopped");
+}
+
+/// A server restarted on its port: the host, and the device connected before the restart, seen
+/// to have ended by a failed read.
+fn restarted_server(rt: &tokio::runtime::Runtime) -> (RemoteHost, Device) {
+    let serve = |listener| {
+        rt.spawn(
+            BackendServer::<Flex>::new(vec![Default::default()])
+                .serve_async(WebSocketTransport::from_listener(listener)),
+        )
+    };
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let address = listener.local_addr().unwrap();
+    let host = host_of(&listener);
+    let first = serve(listener);
+
+    let old = Device::remote_options(&host).init().unwrap();
+    let doubled = Tensor::<1>::from_floats([1.0], &old) * 2.0;
+    assert_eq!(doubled.try_into_vec_as::<f32>().unwrap(), vec![2.0]);
+
+    first.abort();
+    assert!(rt.block_on(first).unwrap_err().is_cancelled());
+    // A read fails only once the client has seen the session end, which a reconnect relies on.
+    let stale = old.clone();
+    with_deadlock_watchdog(HANG_LIMIT, move || {
+        let read = (Tensor::<1>::from_floats([1.0], &stale) * 2.0).try_into_data();
+        assert!(read.is_err(), "a session outlived its server: {read:?}");
+    });
+
+    serve(rebind(address));
+    (host, old)
+}
+
+fn panic_message(panic: Box<dyn std::any::Any + Send>) -> String {
+    panic
+        .downcast_ref::<String>()
+        .cloned()
+        .or_else(|| {
+            panic
+                .downcast_ref::<&str>()
+                .map(|message| message.to_string())
+        })
+        .unwrap_or_default()
 }
 
 fn host_of(listener: &std::net::TcpListener) -> RemoteHost {
@@ -549,6 +608,33 @@ fn dropping_the_serving_future_ends_its_live_sessions() {
         let read = (Tensor::<1>::from_floats([3.0], &device) * 2.0).try_into_data();
         assert!(read.is_err(), "a session outlived its server: {read:?}");
     });
+    rt.shutdown_background();
+}
+
+#[test]
+fn a_device_whose_server_restarted_is_replaced_by_a_new_one() {
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .enable_io()
+        .build()
+        .unwrap();
+    let (host, old) = restarted_server(&rt);
+
+    let new = with_deadlock_watchdog(HANG_LIMIT, move || {
+        Device::remote_options(&host).init().unwrap()
+    });
+    assert_ne!(new, old);
+    let doubled = Tensor::<1>::from_floats([3.0], &new) * 2.0;
+    assert_eq!(doubled.try_into_vec_as::<f32>().unwrap(), vec![6.0]);
+
+    for (from, to) in [(&old, &new), (&new, &old)] {
+        let moved = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            Tensor::<1>::from_floats([1.0], from).to_device(to)
+        }))
+        .expect_err("a tensor moved across a device whose session ended");
+        let message = panic_message(moved);
+        assert!(message.contains("session has ended"), "{message}");
+    }
+
     rt.shutdown_background();
 }
 

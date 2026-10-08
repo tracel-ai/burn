@@ -662,7 +662,7 @@ mod loader_uploads {
     use burn_remote::telemetry::{DrainStatus, OpClass, TelemetryEvent};
     use burn_tensor::{Int, TensorData};
     use std::collections::HashSet;
-    use std::sync::mpsc;
+    use std::sync::{Arc, mpsc};
 
     const STEPS: usize = 8;
     const UPLOADS_PER_BATCH: usize = 2;
@@ -681,7 +681,8 @@ mod loader_uploads {
         }
     }
 
-    fn assert_server_drops_every_upload(consume: fn(Batch)) {
+    /// Runs `work` on a fusion remote device and returns every event its server emitted.
+    fn server_events(work: impl FnOnce(&Device)) -> Vec<Arc<TelemetryEvent>> {
         let runtime = tokio::runtime::Builder::new_multi_thread()
             .enable_all()
             .build()
@@ -697,20 +698,7 @@ mod loader_uploads {
             .init()
             .unwrap();
 
-        // The loader only uploads, so nothing else ever executes its stream.
-        let (batches, received) = mpsc::sync_channel(2);
-        let loader = {
-            let device = device.clone();
-            std::thread::spawn(move || {
-                for step in 0..STEPS {
-                    batches.send(Batch::new(step, &device)).unwrap();
-                }
-            })
-        };
-        for batch in received {
-            consume(batch);
-        }
-        loader.join().unwrap();
+        work(&device);
         device.sync().unwrap();
 
         let mut seen = Vec::new();
@@ -718,6 +706,28 @@ mod loader_uploads {
             events.drain_into(&mut seen),
             DrainStatus::Open { lagged: 0 }
         ));
+        runtime.block_on(router.shutdown()).unwrap();
+        seen
+    }
+
+    fn assert_server_drops_every_upload(consume: fn(Batch)) {
+        let seen = server_events(|device| {
+            // The loader only uploads, so nothing else ever executes its stream.
+            let (batches, received) = mpsc::sync_channel(2);
+            let loader = {
+                let device = device.clone();
+                std::thread::spawn(move || {
+                    for step in 0..STEPS {
+                        batches.send(Batch::new(step, &device)).unwrap();
+                    }
+                })
+            };
+            for batch in received {
+                consume(batch);
+            }
+            loader.join().unwrap();
+        });
+
         let mut uploads = HashSet::new();
         let mut dropped = HashSet::new();
         for event in &seen {
@@ -735,8 +745,27 @@ mod loader_uploads {
         }
         assert_eq!(uploads.len(), STEPS * UPLOADS_PER_BATCH);
         assert_eq!(uploads.intersection(&dropped).count(), uploads.len());
+    }
 
-        runtime.block_on(router.shutdown()).unwrap();
+    /// An upload is on the server as soon as it is created, so it must not end the graph the
+    /// computation around it is accumulating. More uploads than the fusion search has blocks
+    /// (`max_blocks`, 5 by default), since a queued upload would take a block of its own.
+    #[test]
+    fn do_not_split_the_graph_around_them() {
+        let seen = server_events(|device| {
+            let x = Tensor::<1>::from_floats([1.0, 2.0, 3.0], device);
+            let mut y = (x * 2.0).exp();
+            for _ in 0..8 {
+                y = y + Tensor::<1>::from_floats([1.0, 1.0, 1.0], device);
+            }
+            let _ = y.log().into_data();
+        });
+
+        let graphs = seen
+            .iter()
+            .filter(|event| matches!(event.as_ref(), TelemetryEvent::GraphExecuted { .. }))
+            .count();
+        assert_eq!(graphs, 1, "the uploads split the graph");
     }
 
     #[test]
@@ -991,7 +1020,7 @@ mod iroh_peer {
     }
 
     #[tokio::test(flavor = "multi_thread")]
-    async fn a_stopped_server_frees_its_port_for_the_next_one() {
+    async fn a_server_restarted_on_its_port_replaces_the_device() {
         // The port frees once the stopped router has closed and its sessions have drained.
         const REBIND_ATTEMPTS: u32 = 50;
         const REBIND_SETTLE: Duration = Duration::from_millis(200);
@@ -1010,24 +1039,25 @@ mod iroh_peer {
         };
 
         let first = serve();
-        let host = |token| direct_host(identity.id(), Ipv4Addr::LOCALHOST.into(), port, token);
-        Device::remote_options(&host(TOKEN))
-            .init_async()
-            .await
-            .unwrap();
+        let host = direct_host(identity.id(), Ipv4Addr::LOCALHOST.into(), port, TOKEN);
+        let stopped = Device::remote_options(&host).init_async().await.unwrap();
         first.abort();
         assert!(first.await.unwrap_err().is_cancelled());
+        // A read fails only once the client has seen the session end, which a reconnect relies on.
+        let stale = stopped.clone();
+        tokio::task::block_in_place(|| {
+            within_hang_limit(move || {
+                let read = (Tensor::<1>::from_floats([1.0], &stale) * 2.0).try_into_data();
+                assert!(read.is_err(), "a session outlived its server: {read:?}");
+            })
+        });
 
         for _ in 0..REBIND_ATTEMPTS {
             let next = serve();
             tokio::time::sleep(REBIND_SETTLE).await;
             if !next.is_finished() {
-                // Another credential is another device, so this dials the new server rather than
-                // reusing the stopped one's.
-                Device::remote_options(&host("rebound"))
-                    .init_async()
-                    .await
-                    .unwrap();
+                let served = Device::remote_options(&host).init_async().await.unwrap();
+                assert_ne!(served, stopped);
                 next.abort();
                 return;
             }
