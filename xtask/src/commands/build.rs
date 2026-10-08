@@ -108,11 +108,8 @@ pub(crate) fn handle_command(
         Context::Std => {
             if args.ci {
                 // Exclude crates that are not supported on CI
-                args.exclude.extend(vec![
-                    "burn-cuda".to_string(),
-                    "burn-rocm".to_string(),
-                    "burn-tch".to_string(),
-                ]);
+                args.exclude
+                    .extend(vec!["burn-cuda".to_string(), "burn-rocm".to_string()]);
                 if std::env::var("DISABLE_WGPU").is_ok() {
                     args.exclude.extend(vec!["burn-wgpu".to_string()]);
                 };

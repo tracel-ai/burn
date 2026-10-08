@@ -23,7 +23,6 @@ default = [
     "burn-autodiff?/default",
     "burn-cubecl?/default",
     "burn-flex?/default",
-    "burn-tch?/default",
 ]
 doc = ["default", "flex"]
 std = [
@@ -31,13 +30,11 @@ std = [
     "burn-autodiff?/std",
     "burn-cubecl?/std",
     "burn-flex?/std",
-    "burn-tch?/std",
 ]
 tracing = [
     "burn-autodiff?/tracing",
     "burn-cubecl?/tracing",
     "burn-flex?/tracing",
-    "burn-tch?/tracing",
 ]
 
 # Enables cubecl-facing APIs (e.g. throughput measurement) on cubecl-backed devices.
@@ -47,7 +44,6 @@ cubecl = ["dep:burn-cubecl", "burn-backend/cubecl"]
 cuda = ["cubecl", "burn-cubecl/cuda"]
 flex = ["dep:burn-flex"]
 rocm = ["cubecl", "burn-cubecl/hip"]
-tch = ["burn-tch"]
 vulkan = ["wgpu", "burn-cubecl/vulkan"]
 webgpu = ["wgpu", "burn-cubecl/webgpu"]
 metal = ["wgpu", "burn-cubecl/metal"]
@@ -90,7 +86,6 @@ burn-autodiff = { workspace = true, optional = true }
 # The one backend shared by every CubeCL runtime.
 burn-cubecl = { workspace = true, optional = true }
 burn-flex = { workspace = true, optional = true }
-burn-tch = { workspace = true, optional = true }
 
 burn-remote = { workspace = true, optional = true, features = ["client"] }
 burn-capture = { workspace = true, optional = true }

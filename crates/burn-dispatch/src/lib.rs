@@ -16,9 +16,6 @@
         unreachable_code
     )
 )]
-// Dispatch must name the deprecated LibTorch backend internally. This crate-local allowance
-// leaves deprecation warnings enabled for downstream users of the re-export.
-#![cfg_attr(feature = "tch", allow(deprecated))]
 
 //! Burn multi-backend dispatch.
 //!
@@ -30,7 +27,6 @@
 //! |------------|------------|-------------|
 //! | `Cube`     | `cpu`, `cuda`, `metal`, `rocm`, `vulkan`, `webgpu`, `wgpu` | Every cubecl runtime. One backend: the features decide which runtimes are compiled in, and a tensor's device says which one it runs on |
 //! | `Flex`     | `flex`     | Pure Rust CPU backend using `burn-flex` |
-//! | `LibTorch` | `tch`      | Libtorch backend via `tch` (deprecated - use a CubeCL backend) |
 //! | `Remote`   | `remote`   | Devices hosted by another process or machine, through `burn-remote` |
 //! | `Capture`  | `capture`  | Records operation graphs instead of executing them, through `burn-capture` |
 //! | `Autodiff` | `autodiff` | Autodiff-enabled backend (used in combination with any of the backends above) |
@@ -96,10 +92,6 @@ pub mod backends {
     pub use burn_flex as flex;
     #[cfg(feature = "flex")]
     pub use burn_flex::Flex;
-    #[cfg(feature = "tch")]
-    pub use burn_tch as libtorch;
-    #[cfg(feature = "tch")]
-    pub use burn_tch::LibTorch;
 
     #[cfg(feature = "remote")]
     pub use burn_remote::RemoteBackend as Remote;
@@ -151,8 +143,6 @@ pub mod devices {
     pub use burn_cubecl::cubecl::RuntimeId;
     #[cfg(feature = "flex")]
     pub use burn_flex::FlexDevice;
-    #[cfg(feature = "tch")]
-    pub use burn_tch::LibTorchDevice;
 
     #[cfg(feature = "remote")]
     pub use burn_remote::RemoteDevice;

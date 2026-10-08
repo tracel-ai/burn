@@ -17,7 +17,7 @@ pub enum ServeError {
     },
     /// The server was given no device to host.
     NoDevices,
-    /// A device whose backend cannot run remote sessions, such as LibTorch or a remote device.
+    /// A device whose backend cannot run remote sessions, such as a remote device.
     UnsupportedDevice {
         /// Which device, and why.
         reason: String,

@@ -168,8 +168,6 @@ libc = "0.2.189"
 nvml-wrapper = "0.13.0"
 sysinfo = "0.39.6"
 systemstat = "0.2.7"
-tch = "0.22.0"
-torch-sys = "0.22.0"                                        # matches what tch is using, required for lib detection
 
 ahash = { version = "0.8.12", default-features = false }
 aligned-vec = { version = "0.6", default-features = false }
@@ -210,7 +208,6 @@ burn-router = { path = "crates/burn-router", version = "0.22.0", default-feature
 burn-signal = { path = "crates/burn-signal", version = "0.22.0", default-features = false }
 burn-std = { path = "crates/burn-std", version = "0.22.0", default-features = false }
 burn-store = { path = "crates/burn-store", version = "0.22.0", default-features = false }
-burn-tch = { path = "crates/burn-tch", version = "0.22.0", default-features = false }
 burn-tensor = { path = "crates/burn-tensor", version = "0.22.0", default-features = false }
 burn-tensor-testgen = { path = "crates/burn-tensor-testgen", version = "0.22.0", default-features = false }
 burn-train = { path = "crates/burn-train", version = "0.22.0", default-features = false }

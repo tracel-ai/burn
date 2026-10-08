@@ -298,7 +298,6 @@ const EXCLUDE_CRATES: &[&str] = &[
     "burn-rocm",
     // "burn-router" uses "burn-wgpu" for the tests.
     "burn-router",
-    "burn-tch",
     "burn-wgpu",
     // Requires wgpu runtime
     "burn-cubecl-fusion",
@@ -588,16 +587,6 @@ pub(crate) fn handle_command(
                         None,
                         None,
                         "std dataset all features",
-                    )?;
-
-                    // burn-core
-                    set_burn_device("tch"); // test-tch
-                    build_helpers::custom_crates_tests(
-                        vec!["burn-core"],
-                        handle_test_args(&["--features", "tch"], args.release),
-                        None,
-                        None,
-                        "std with features: tch",
                     )?;
 
                     // Both suites use Flex; share their training and model dependencies.

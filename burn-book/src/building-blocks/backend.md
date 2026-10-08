@@ -20,9 +20,13 @@ and `cuda` features make `Device::wgpu` and `Device::cuda` available.
 
 ## Selecting a Device
 
-The NdArray backend, deprecated in 0.22, has been removed from `main`. Replace the `ndarray`
-feature with `flex` and `Device::ndarray()` with `Device::flex()`. NdArray remains available
-in the 0.22 releases.
+The NdArray backend, deprecated in 0.22, has been removed from `main`. Replace the `ndarray` feature
+with `flex` and `Device::ndarray()` with `Device::flex()`. NdArray remains available in the 0.22
+releases.
+
+LibTorch was deprecated in 0.22 and has been removed from `main`. Replace `tch` with `cuda`, `rocm`,
+`metal`, `vulkan`, or `webgpu` for GPU execution, or `cpu` / `flex` for CPU execution. The LibTorch
+backend remains available in the 0.22 releases.
 
 `Device` provides constructors for the backends enabled in your build. Multiple backend features can
 be enabled together; the device chooses where operations execute.
@@ -37,10 +41,6 @@ be enabled together; the device chooses where operations execute.
 | `Device::rocm(0)`                    | `rocm`        | AMD GPU through CubeCL's HIP runtime                                                    |
 | `Device::cpu()`                      | `cpu`         | CPU through CubeCL's CPU runtime (LLVM JIT, supports fusion)                            |
 | `Device::flex()`                     | `flex`        | CPU through the pure-Rust Flex backend (eager, supports `no_std` and Wasm)              |
-| `Device::libtorch()`                 | `tch`         | CPU through LibTorch (deprecated)                                                       |
-| `Device::libtorch_cuda(0)`           | `tch`         | CUDA GPU through LibTorch (deprecated)                                                  |
-| `Device::libtorch_mps()`             | `tch`         | Apple GPU through Metal Performance Shaders (deprecated)                                |
-| `Device::libtorch_vulkan()`          | `tch`         | Vulkan through LibTorch (deprecated)                                                    |
 
 The `vulkan`, `metal`, and `webgpu` features also enable `wgpu`. Enabling a feature makes that
 option available; it does not force `Device::wgpu` to use it. Automatic devices retain WGSL fallback
@@ -78,9 +78,8 @@ let second_cuda = Device::cuda(1);
 ```
 
 Burn also supports remote devices, hosted by a Burn server in another process on this machine or
-another, with the `remote` feature.
-`Device::remote_options(&host).init()` connects one, where a `RemoteHost` names the server: see
-[Distributed Computing](../performance/distributed-computing.md).
+another, with the `remote` feature. `Device::remote_options(&host).init()` connects one, where a
+`RemoteHost` names the server: see [Distributed Computing](../performance/distributed-computing.md).
 
 ## Using a Device
 

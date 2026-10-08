@@ -13,10 +13,6 @@ pub type TestDevice = burn_core::backend::CudaDevice;
 #[cfg(all(test, feature = "rocm", not(feature = "cuda")))]
 pub type TestDevice = burn_core::backend::RocmDevice;
 
-#[allow(unused, deprecated)]
-#[cfg(all(test, feature = "tch", not(any(feature = "cuda", feature = "rocm"))))]
-pub type TestDevice = burn_core::backend::LibTorchDevice;
-
 #[allow(unused)]
 #[cfg(all(
     test,
@@ -26,7 +22,7 @@ pub type TestDevice = burn_core::backend::LibTorchDevice;
         feature = "metal",
         feature = "webgpu"
     ),
-    not(any(feature = "cuda", feature = "rocm", feature = "tch"))
+    not(any(feature = "cuda", feature = "rocm"))
 ))]
 pub type TestDevice = burn_core::backend::WgpuDevice;
 
@@ -37,7 +33,6 @@ pub type TestDevice = burn_core::backend::WgpuDevice;
     not(any(
         feature = "cuda",
         feature = "rocm",
-        feature = "tch",
         feature = "wgpu",
         feature = "vulkan",
         feature = "metal",
@@ -53,7 +48,6 @@ pub type TestDevice = burn_core::backend::CpuDevice;
     not(any(
         feature = "cuda",
         feature = "rocm",
-        feature = "tch",
         feature = "wgpu",
         feature = "vulkan",
         feature = "metal",

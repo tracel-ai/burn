@@ -6,7 +6,6 @@ fn main() {
     let cuda = cfg!(feature = "cuda");
     let flex = cfg!(feature = "flex");
     let rocm = cfg!(feature = "rocm");
-    let tch = cfg!(feature = "tch");
     let cpu = cfg!(feature = "cpu");
     let metal = cfg!(feature = "metal");
     let vulkan = cfg!(feature = "vulkan");
@@ -17,7 +16,7 @@ fn main() {
     let capture = cfg!(feature = "capture");
 
     let cube = cuda || rocm || cpu || metal || vulkan || webgpu || wgpu;
-    let local = cube || flex || tch;
+    let local = cube || flex;
     let executing = local || remote;
 
     // Backend-free builds expose tensor/model APIs without installing an execution backend.

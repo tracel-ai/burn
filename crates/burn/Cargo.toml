@@ -130,7 +130,6 @@ remote-websocket = ["remote", "burn-core/remote-websocket", "burn-signal?/remote
 cuda = ["burn-core/cuda", "burn-linalg?/cuda", "burn-signal?/cuda", "burn-vision?/cuda"]
 rocm = ["burn-core/rocm", "burn-linalg?/rocm", "burn-signal?/rocm", "burn-vision?/rocm"]
 flex = ["burn-core/flex", "burn-linalg?/flex", "burn-signal?/flex", "burn-vision?/flex"]
-tch = ["burn-core/tch", "burn-linalg?/tch", "burn-signal?/tch", "burn-vision?/tch"]
 vulkan = ["wgpu", "burn-core/vulkan", "burn-linalg?/vulkan", "burn-signal?/vulkan", "burn-vision?/vulkan"]
 webgpu = ["wgpu", "burn-core/webgpu", "burn-linalg?/webgpu", "burn-signal?/webgpu", "burn-vision?/webgpu"]
 metal = ["wgpu", "burn-core/metal", "burn-linalg?/metal", "burn-signal?/metal", "burn-vision?/metal"]
