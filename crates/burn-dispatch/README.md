@@ -25,7 +25,6 @@ enable the matching dispatch features, and a `Device` constructor picks the back
 | `Flex`     | `flex`                                                     | [burn-flex](https://github.com/tracel-ai/burn/tree/main/crates/burn-flex), pure Rust CPU                      |
 | `Remote`   | `remote`                                                   | [burn-remote](https://github.com/tracel-ai/burn/tree/main/crates/burn-remote), devices on another server      |
 | `Capture`  | `capture`                                                  | [burn-capture](https://github.com/tracel-ai/burn/tree/main/crates/burn-capture), records instead of executing |
-| `NdArray`  | `ndarray`                                                  | [burn-ndarray](https://github.com/tracel-ai/burn/tree/main/crates/burn-ndarray), deprecated                   |
 | `LibTorch` | `tch`                                                      | [burn-tch](https://github.com/tracel-ai/burn/tree/main/crates/burn-tch), deprecated                           |
 
 `autodiff` wraps any of them in [burn-autodiff](https://github.com/tracel-ai/burn/tree/main/crates/burn-autodiff), and `fusion` turns on kernel

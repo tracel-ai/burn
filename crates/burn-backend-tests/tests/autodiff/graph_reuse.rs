@@ -236,8 +236,6 @@ fn backward_twice_on_the_same_output_is_rejected() {
     });
 }
 
-// NdArray conservatively reports can_mut() as false even for unique storage.
-#[cfg(not(feature = "ndarray"))]
 #[test]
 fn orphan_cleanup_releases_saved_buffers_with_a_reusable_leaf_still_alive() {
     let device = AutodiffDevice::new();
@@ -266,7 +264,6 @@ fn orphan_cleanup_releases_saved_buffers_with_a_reusable_leaf_still_alive() {
     assert!(leaf.grad(&grads).is_some());
 }
 
-#[cfg(not(feature = "ndarray"))]
 #[test]
 fn cleanup_preserves_live_saved_buffers_and_releases_them_after_backward() {
     let device = AutodiffDevice::new();

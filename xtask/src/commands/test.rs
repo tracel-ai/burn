@@ -54,8 +54,6 @@ pub(crate) enum TestBackend {
     Rocm,
     #[strum(to_string = "flex")]
     Flex,
-    #[strum(to_string = "ndarray")]
-    Ndarray,
 }
 
 fn set_burn_device(device: &str) {
@@ -80,18 +78,14 @@ pub(crate) fn handle_backend_tests(
 
     let linalg_backend = format!("burn-linalg/{backend_name}");
     let signal_backend = format!("burn-signal/{backend_name}");
-    let mut extension_packages = vec!["burn-linalg"];
+    let extension_packages = vec!["burn-linalg", "burn-signal"];
     let mut extension_features = vec![linalg_backend.as_str()];
     if !matches!(context, Context::NoStd) {
         extension_features.extend(["burn-linalg/std", "burn-linalg/autotune"]);
     }
-    // Signal has no NdArray implementation; keep its suite on supported backends.
-    if !matches!(backend, TestBackend::Ndarray) {
-        extension_packages.push("burn-signal");
-        extension_features.extend([signal_backend.as_str(), "burn-signal/autodiff"]);
-        if !matches!(context, Context::NoStd) {
-            extension_features.extend(["burn-signal/std", "burn-signal/autotune"]);
-        }
+    extension_features.extend([signal_backend.as_str(), "burn-signal/autodiff"]);
+    if !matches!(context, Context::NoStd) {
+        extension_features.extend(["burn-signal/std", "burn-signal/autotune"]);
     }
 
     // TODO: Re-enable collective (all-reduce) tests once NCCL is installed and loadable on
@@ -102,7 +96,7 @@ pub(crate) fn handle_backend_tests(
     //     test_args.extend(["--features", "distributed"]);
     // }
 
-    if !matches!(backend, TestBackend::Ndarray | TestBackend::Flex) {
+    if !matches!(backend, TestBackend::Flex) {
         // Fusion enabled tests first
         let mut fusion_args = test_args.clone();
         fusion_args.extend(["--features", "fusion"]);
@@ -125,8 +119,7 @@ pub(crate) fn handle_backend_tests(
         )?;
     }
 
-    let group_cpu_tests = matches!(backend, TestBackend::Ndarray | TestBackend::Flex)
-        && matches!(context, Context::Std);
+    let group_cpu_tests = matches!(backend, TestBackend::Flex) && matches!(context, Context::Std);
     if group_cpu_tests {
         // Keep each backend separate, and leave SIMD/threading defaults to the
         // standalone backend crate tests. The extension suites request autotuning.
@@ -151,27 +144,50 @@ pub(crate) fn handle_backend_tests(
         )?;
     }
 
-    if matches!(backend, TestBackend::Flex) {
-        // These targets each need a second backend. Keep them out of the main suite, where
-        // ndarray disables some Flex-specific tests.
-        let mut transfer_args = test_args.clone();
-        transfer_args.extend(["--features", "ndarray", "--test", "autodiff_transfer"]);
+    if matches!(backend, TestBackend::Flex) && matches!(context, Context::Std) {
+        // These targets need two concrete backends. Keep CPU runtime dependencies out of
+        // the portable/no-std suites and run the shared suites with only Flex selected.
+        for (package, target, features) in [
+            ("burn-backend-tests", "autodiff_transfer", "flex,cpu,std"),
+            ("burn-core", "lazy_param_device", "flex,cpu,std"),
+            (
+                "burn",
+                "backend_extension_runtime",
+                "flex,cpu,std,autodiff,extension",
+            ),
+        ] {
+            build_helpers::custom_crates_tests(
+                vec![package],
+                handle_test_args(
+                    &[
+                        "--no-default-features",
+                        "--features",
+                        features,
+                        "--test",
+                        target,
+                    ],
+                    args.release,
+                ),
+                None,
+                None,
+                target,
+            )?;
+        }
         build_helpers::custom_crates_tests(
-            vec!["burn-backend-tests"],
-            handle_test_args(&transfer_args, args.release),
+            vec!["burn-dispatch"],
+            handle_test_args(
+                &[
+                    "--no-default-features",
+                    "--features",
+                    "flex,cpu,std,autodiff",
+                    "--lib",
+                    "ops::transfer",
+                ],
+                args.release,
+            ),
             None,
             None,
-            "autodiff backend transfer tests",
-        )?;
-
-        let mut placement_args = test_args.clone();
-        placement_args.extend(["--features", "ndarray", "--test", "lazy_param_device"]);
-        build_helpers::custom_crates_tests(
-            vec!["burn-core"],
-            handle_test_args(&placement_args, args.release),
-            None,
-            None,
-            "lazy parameter placement tests",
+            "dispatch backend transfer tests",
         )?;
     }
 
@@ -245,15 +261,7 @@ fn handle_macos_tests(release: bool) -> anyhow::Result<()> {
     )?;
     run_test_group(&packages, &features, release, "Metal without fusion")?;
 
-    // Keep Accelerate separate so it cannot change the ndarray reference backend used
-    // by the Metal tests. It also doesn't need to compile the GPU dependencies.
-    build_helpers::custom_crates_tests(
-        vec!["burn-ndarray"],
-        handle_test_args(&["--features", "blas-accelerate"], release),
-        None,
-        None,
-        "std blas-accelerate",
-    )
+    Ok(())
 }
 
 fn run_test_group(
@@ -296,7 +304,6 @@ const EXCLUDE_CRATES: &[&str] = &[
     "burn-cubecl-fusion",
     // Backends are tested individually
     "burn-backend-tests",
-    "burn-ndarray",
     "burn-flex",
 ];
 
@@ -405,11 +412,7 @@ pub(crate) fn handle_command(
                     "no-std",
                 )
             })?;
-            handle_backend_tests(
-                args.clone().try_into().unwrap(),
-                TestBackend::Ndarray,
-                context,
-            )?;
+            handle_backend_tests(args.clone().try_into().unwrap(), TestBackend::Flex, context)?;
 
             Ok(())
         }
@@ -421,23 +424,8 @@ pub(crate) fn handle_command(
                     // Backend ops
                     handle_backend_tests(
                         args.clone().try_into().unwrap(),
-                        TestBackend::Ndarray,
-                        context.clone(),
-                    )?;
-
-                    handle_backend_tests(
-                        args.clone().try_into().unwrap(),
                         TestBackend::Flex,
                         context.clone(),
-                    )?;
-
-                    // Backend crates
-                    args.target = Target::AllPackages;
-                    args.only.push("burn-ndarray".to_string());
-                    base_commands::test::handle_command(
-                        args.clone().try_into().unwrap(),
-                        env.clone(),
-                        context,
                     )?;
 
                     // Native FFT kernels are opt-in, but keep their backend unit tests covered.

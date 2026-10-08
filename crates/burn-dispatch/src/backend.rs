@@ -6,7 +6,7 @@ use burn_backend::cubecl::{Device as CubeDevice, RuntimeId};
 
 // The cubecl runtimes — `cpu` among them — enumerate through `cube_devices` rather than a
 // `vec![]` literal, so only the backends that still list a fixed device need this.
-#[cfg(any(feature = "ndarray", feature = "flex"))]
+#[cfg(feature = "flex")]
 use alloc::vec;
 
 #[cfg(feature = "autodiff")]
@@ -33,10 +33,6 @@ pub enum DispatchGraph {
     /// A graph captured on the [Flex backend](Flex).
     #[cfg(feature = "flex")]
     Flex(BackendGraph<Flex>),
-
-    /// A graph captured on the [NdArray backend](NdArray).
-    #[cfg(feature = "ndarray")]
-    NdArray(BackendGraph<NdArray>),
 
     /// A graph captured on the [LibTorch backend](LibTorch).
     #[cfg(feature = "tch")]
@@ -134,8 +130,6 @@ use crate::DispatchTensorKind;
 use crate::devices::FlexDevice;
 #[cfg(feature = "tch")]
 use crate::devices::LibTorchDevice;
-#[cfg(feature = "ndarray")]
-use crate::devices::NdArrayDevice;
 use crate::{DispatchDevice, DispatchTensor, backends::*};
 
 /// The main execution backend in Burn.
@@ -261,8 +255,6 @@ impl Backend for Dispatch {
             DispatchDeviceId::Cube => Cube::device_count(backend_type_id),
             #[cfg(feature = "flex")]
             DispatchDeviceId::Flex => Flex::device_count(backend_type_id),
-            #[cfg(feature = "ndarray")]
-            DispatchDeviceId::NdArray => NdArray::device_count(backend_type_id),
             #[cfg(feature = "tch")]
             DispatchDeviceId::LibTorch => LibTorch::device_count(backend_type_id),
             #[cfg(feature = "remote")]
@@ -354,8 +346,6 @@ impl AutodiffBackend for Dispatch {
                 DispatchTensorKind::Cube(tensor) => tensor.autodiff().backward(),
                 #[cfg(feature = "flex")]
                 DispatchTensorKind::Flex(tensor) => tensor.autodiff().backward(),
-                #[cfg(feature = "ndarray")]
-                DispatchTensorKind::NdArray(tensor) => tensor.autodiff().backward(),
                 #[cfg(feature = "tch")]
                 DispatchTensorKind::LibTorch(tensor) => tensor.autodiff().backward(),
                 #[cfg(feature = "remote")]
@@ -388,11 +378,6 @@ impl AutodiffBackend for Dispatch {
                     .as_autodiff()
                     .grad(grads)
                     .map(|t| DispatchTensorKind::Flex(crate::BackendTensor::Float(t))),
-                #[cfg(feature = "ndarray")]
-                DispatchTensorKind::NdArray(tensor) => tensor
-                    .as_autodiff()
-                    .grad(grads)
-                    .map(|t| DispatchTensorKind::NdArray(crate::BackendTensor::Float(t))),
                 #[cfg(feature = "tch")]
                 DispatchTensorKind::LibTorch(tensor) => tensor
                     .as_autodiff()
@@ -435,11 +420,6 @@ impl AutodiffBackend for Dispatch {
                     .as_autodiff()
                     .grad_remove(grads)
                     .map(|t| DispatchTensorKind::Flex(crate::BackendTensor::Float(t))),
-                #[cfg(feature = "ndarray")]
-                DispatchTensorKind::NdArray(tensor) => tensor
-                    .as_autodiff()
-                    .grad_remove(grads)
-                    .map(|t| DispatchTensorKind::NdArray(crate::BackendTensor::Float(t))),
                 #[cfg(feature = "tch")]
                 DispatchTensorKind::LibTorch(tensor) => tensor
                     .as_autodiff()
@@ -488,10 +468,6 @@ impl AutodiffBackend for Dispatch {
                 (DispatchTensorKind::Flex(tensor), DispatchTensorKind::Flex(grad)) => {
                     tensor.as_autodiff().grad_replace(grads, grad.float())
                 }
-                #[cfg(feature = "ndarray")]
-                (DispatchTensorKind::NdArray(tensor), DispatchTensorKind::NdArray(grad)) => {
-                    tensor.as_autodiff().grad_replace(grads, grad.float())
-                }
                 #[cfg(feature = "remote")]
                 (DispatchTensorKind::Remote(tensor), DispatchTensorKind::Remote(grad)) => {
                     tensor.as_autodiff().grad_replace(grads, grad.float())
@@ -525,10 +501,6 @@ impl AutodiffBackend for Dispatch {
                 ),
                 #[cfg(feature = "flex")]
                 DispatchTensorKind::Flex(tensor) => DispatchTensorKind::Flex(
-                    crate::BackendTensor::Float(tensor.autodiff().into_primitive()),
-                ),
-                #[cfg(feature = "ndarray")]
-                DispatchTensorKind::NdArray(tensor) => DispatchTensorKind::NdArray(
                     crate::BackendTensor::Float(tensor.autodiff().into_primitive()),
                 ),
                 #[cfg(feature = "tch")]
@@ -589,12 +561,6 @@ impl AutodiffBackend for Dispatch {
             DispatchTensorKind::Flex(tensor) => {
                 DispatchTensorKind::Autodiff(Box::new(DispatchTensorKind::Flex(
                     crate::BackendTensor::Autodiff(Autodiff::<Flex>::from_inner(tensor.float())),
-                )))
-            }
-            #[cfg(feature = "ndarray")]
-            DispatchTensorKind::NdArray(tensor) => {
-                DispatchTensorKind::Autodiff(Box::new(DispatchTensorKind::NdArray(
-                    crate::BackendTensor::Autodiff(Autodiff::<NdArray>::from_inner(tensor.float())),
                 )))
             }
             #[cfg(feature = "tch")]
@@ -1120,8 +1086,6 @@ impl Dispatch {
                 .collect(),
             #[cfg(feature = "flex")]
             DispatchDeviceId::Flex => vec![FlexDevice.into()],
-            #[cfg(feature = "ndarray")]
-            DispatchDeviceId::NdArray => vec![NdArrayDevice::Cpu.into()],
             #[cfg(feature = "tch")]
             DispatchDeviceId::LibTorch => (0..LibTorch::device_count(0))
                 .map(|i| LibTorchDevice::Cuda(i).into())

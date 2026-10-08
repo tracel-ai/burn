@@ -36,9 +36,9 @@ fn test_relu_nan_propagation() {
     assert_eq!(values[1..], [0.0, 0.0, 2.0]);
 }
 
-#[cfg(feature = "ndarray")]
+#[cfg(feature = "flex")]
 #[test]
-fn test_relu_nan_propagation_through_simd() {
+fn test_relu_nan_propagation_large_input() {
     let mut data = vec![2.0; 64];
     data[0] = f32::NAN;
     let tensor = TestTensor::<1>::from_data(TensorData::new(data, [64]), &Default::default());
@@ -50,9 +50,9 @@ fn test_relu_nan_propagation_through_simd() {
     assert!(values[1..].iter().all(|value| *value == 2.0));
 }
 
-#[cfg(feature = "ndarray")]
+#[cfg(feature = "flex")]
 #[test]
-fn test_relu_nan_propagation_through_simd_f64() {
+fn test_relu_nan_propagation_large_input_f64() {
     let mut data = vec![2.0_f32; 64];
     data[0] = f32::NAN;
     let tensor = TestTensor::<1>::from_data(TensorData::new(data, [64]), &Default::default())
@@ -65,7 +65,7 @@ fn test_relu_nan_propagation_through_simd_f64() {
     assert!(values[1..].iter().all(|value| *value == 2.0));
 }
 
-#[cfg(any(feature = "flex", feature = "ndarray"))]
+#[cfg(feature = "flex")]
 #[test]
 fn test_relu_nan_propagation_f64() {
     let tensor = TestTensor::<1>::from([f32::NAN, -1.0, 0.0, 2.0]).cast(burn_tensor::DType::F64);

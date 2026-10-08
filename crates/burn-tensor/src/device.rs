@@ -54,7 +54,7 @@ use alloc::vec::Vec;
 /// Backend-free builds can expose tensor/model APIs, but cannot create an execution device.
 ///
 /// [`Device::default()`] selects the first enabled backend in this order:
-/// CUDA, Metal, ROCm, Vulkan, WebGPU, wgpu, CPU, LibTorch, Flex, Remote, NdArray.
+/// CUDA, Metal, ROCm, Vulkan, WebGPU, wgpu, CPU, LibTorch, Flex, Remote.
 /// Use an explicit factory method when the choice must be independent of Cargo feature unification.
 /// Without an execution backend, `Device::default()` panics with configuration guidance.
 ///
@@ -79,7 +79,7 @@ use alloc::vec::Vec;
 /// `Device::cpu`, `Device::cuda` / `Device::rocm` / `Device::libtorch_cuda`
 /// (take an integer index or a [`DeviceIndex`]), `Device::wgpu` /
 /// `Device::vulkan` / `Device::metal` / `Device::webgpu` (take a
-/// [`DeviceKind`]), `Device::flex`, `Device::ndarray`, `Device::libtorch`,
+/// [`DeviceKind`]), `Device::flex`, `Device::libtorch`,
 /// `Device::libtorch_mps`, `Device::libtorch_vulkan`, `Device::capture`.
 ///
 /// # Autodiff
@@ -365,17 +365,6 @@ impl Device {
         Self::new(burn_dispatch::devices::FlexDevice)
     }
 
-    /// Default NdArray (CPU) device.
-    #[cfg(feature = "ndarray")]
-    #[deprecated(
-        since = "0.22.0",
-        note = "burn-ndarray is deprecated and will be removed in a future release. Use `Device::flex()` for pure-Rust CPU execution instead."
-    )]
-    #[allow(deprecated)] // constructing the deprecated device is this constructor's job
-    pub fn ndarray() -> Self {
-        Self::new(burn_dispatch::devices::NdArrayDevice::default())
-    }
-
     /// LibTorch CPU device.
     #[cfg(feature = "tch")]
     #[deprecated(
@@ -659,7 +648,7 @@ impl Device {
     /// [`ProfileOptions::flush`], closes the window over all of it. A window
     /// that nothing ran in reads as no time.
     ///
-    /// A backend with no device clock (ndarray, LibTorch, a remote device
+    /// A backend with no device clock (LibTorch, a remote device
     /// whose server has none) measures wall-clock time between two syncs
     /// instead: that one waits, and an inner window's syncs are charged to
     /// the outer.
@@ -928,8 +917,6 @@ impl Device {
                 }
                 #[cfg(feature = "flex")]
                 DeviceType::Flex => DispatchDeviceId::Flex,
-                #[cfg(feature = "ndarray")]
-                DeviceType::NdArray => DispatchDeviceId::NdArray,
                 #[cfg(feature = "tch")]
                 DeviceType::LibTorch => DispatchDeviceId::LibTorch,
                 #[cfg(feature = "remote")]
@@ -1178,8 +1165,6 @@ pub enum DeviceType {
     WebGpu,
     #[cfg(feature = "flex")]
     Flex,
-    #[cfg(feature = "ndarray")]
-    NdArray,
     #[cfg(feature = "tch")]
     LibTorch,
     /// Every device the remote server `host` hosts, connected on first use like any listed device.

@@ -38,7 +38,7 @@ See the [tensor chapter](https://burn.dev/books/burn/building-blocks/tensor.html
 
 - `std` (default): standard library support. Without it the crate is `no_std` with `alloc`.
 - Backends: `cuda`, `rocm`, `wgpu`, `metal`, `vulkan`, `webgpu`, `cpu`, `flex`, and the deprecated
-  `ndarray` and `tch`.
+  `tch`.
 - `autodiff`, `fusion`: backend decorators.
 - `remote`, `remote-server`, `remote-websocket`: devices hosted by another machine.
 - `capture`: record operation graphs instead of executing them.

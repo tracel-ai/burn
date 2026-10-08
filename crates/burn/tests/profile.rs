@@ -322,7 +322,6 @@ mod cube {
     feature = "cuda",
     feature = "flex",
     feature = "metal",
-    feature = "ndarray",
     feature = "rocm",
     feature = "tch",
     feature = "vulkan",
