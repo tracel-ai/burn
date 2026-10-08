@@ -298,6 +298,32 @@ fn test_to_device_over_websocket() {
 }
 
 #[test]
+fn ctc_loss_over_websocket_matches_its_closed_form() {
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .enable_io()
+        .build()
+        .unwrap();
+    let host = serve(&rt, BackendServer::<Flex>::new(vec![Default::default()]));
+    let device = Device::remote_options(&host).init().unwrap();
+
+    // Three frames, uniform over blank and one label. Six of the eight paths collapse to the
+    // single-label target, so the loss is -ln(6/8).
+    let log_probs = Tensor::<3>::full([3, 1, 2], 0.5f32.ln(), &device);
+    let loss = burn_tensor::module::ctc_loss(
+        log_probs,
+        Tensor::<2, Int>::from_ints([[1]], &device),
+        Tensor::<1, Int>::from_ints([3], &device),
+        Tensor::<1, Int>::from_ints([1], &device),
+        0,
+    );
+
+    let loss: Vec<f32> = loss.into_data().try_into_vec().unwrap();
+    assert!((loss[0] - (8.0f32 / 6.0).ln()).abs() < 1e-5, "{loss:?}");
+
+    rt.shutdown_background();
+}
+
+#[test]
 fn a_transaction_returns_each_tensor_in_the_order_it_was_registered() {
     let rt = tokio::runtime::Builder::new_multi_thread()
         .enable_io()
