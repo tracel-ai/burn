@@ -9,11 +9,14 @@ use burn_remote::{
     },
 };
 use burn_tensor::{
-    Bool, Device, DeviceType, Distribution, Int, Tensor, Transaction, remote::RemoteHost,
-    server::RemoteServer,
+    Bool, Device, DeviceType, Distribution, Int, Tensor, TensorData, Transaction,
+    remote::RemoteHost, server::RemoteServer,
 };
 
 const TOKEN: &str = "fleet-token";
+
+/// A 4 MiB tensor, which a session carries in several frames.
+const MANY_FRAMES_LONG: usize = 1024 * 1024;
 
 /// Far beyond what a bounded step here takes when it works, so only a hang reaches it.
 const HANG_LIMIT: std::time::Duration = std::time::Duration::from_secs(10);
@@ -166,6 +169,25 @@ fn only_a_websocket_client_with_the_token_is_admitted() {
         .init()
         .unwrap();
 
+    rt.shutdown_background();
+}
+
+/// A server reads at most 64 KiB from a client before admitting it, so a larger credential can
+/// never pass, and is refused before a session is opened for it.
+#[test]
+fn a_credential_too_large_for_the_handshake_is_refused_before_connecting() {
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()
+        .unwrap();
+    let host = serve(&rt, BackendServer::<Flex>::new(vec![Default::default()]));
+
+    let refused = Device::remote_options(&host.with_credential(vec![b'x'; 64 * 1024 + 1])).init();
+
+    assert!(
+        matches!(refused, Err(ConnectError::InvalidConfiguration { .. })),
+        "{refused:?}"
+    );
     rt.shutdown_background();
 }
 
@@ -749,5 +771,23 @@ fn test_to_device_local_to_remote() {
     let numbers: Vec<f32> = back.into_data().try_into_vec().unwrap();
     assert_eq!(numbers, vec![2.0, 4.0, 6.0, 8.0, 10.0, 12.0]);
 
+    rt.shutdown_background();
+}
+
+#[test]
+fn a_tensor_many_frames_long_is_uploaded_and_read_back() {
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .enable_io()
+        .build()
+        .unwrap();
+    let host = serve(&rt, BackendServer::<Flex>::new(vec![Default::default()]));
+    let device = Device::remote_options(&host).init().unwrap();
+    let values: Vec<f32> = (0..MANY_FRAMES_LONG).map(|i| i as f32).collect();
+
+    let tensor = Tensor::<1>::from_data(TensorData::new(values.clone(), [values.len()]), &device);
+    let doubled = (tensor * 2.0).try_into_vec_as::<f32>().unwrap();
+
+    let expected: Vec<f32> = values.iter().map(|value| value * 2.0).collect();
+    assert_eq!(doubled, expected);
     rt.shutdown_background();
 }
