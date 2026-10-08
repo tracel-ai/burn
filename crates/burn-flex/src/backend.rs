@@ -74,10 +74,8 @@ impl core::fmt::Debug for FlexDevice {
 
 /// The Flex backend, a fast, portable CPU backend for Burn.
 ///
-/// The `E` and `I` type parameters exist purely to match the shape of other Burn
-/// backends (e.g. `NdArray<E, I, Q>`) so `Flex` slots into `burn-dispatch`'s
-/// generic dispatch macros. The body of `Flex` uses runtime `DType` dispatch, so
-/// both parameters are phantom and unused at runtime.
+/// The `E` and `I` type parameters are phantom. The body of `Flex` uses runtime
+/// `DType` dispatch, so both are unused at runtime.
 ///
 /// # Limitations of the phantom generics
 ///

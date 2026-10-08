@@ -76,7 +76,6 @@ remote-websocket = ["burn-tensor/remote-websocket"]
 cuda = ["burn-tensor/cuda", "dep:burn-cuda"]
 rocm = ["burn-tensor/rocm", "dep:burn-rocm"]
 flex = ["burn-tensor/flex"]
-tch = ["burn-tensor/tch"]
 vulkan = ["wgpu", "burn-tensor/vulkan", "burn-wgpu/vulkan"]
 webgpu = ["wgpu", "burn-tensor/webgpu", "burn-wgpu/webgpu"]
 wgpu = ["burn-tensor/wgpu", "dep:burn-wgpu"]
@@ -87,6 +86,14 @@ capture = ["burn-tensor/capture"]
 ir = ["burn-ir"]
 
 # Backend features
+persistence = [
+    "burn-tensor/persistence",
+    "burn-cpu?/persistence",
+    "burn-cuda?/persistence",
+    "burn-rocm?/persistence",
+    "burn-wgpu?/persistence",
+    "burn-cubecl?/persistence",
+]
 autotune = [
     "burn-tensor/autotune",
     "burn-cpu?/autotune",

@@ -35,10 +35,6 @@ macro_rules! with_backend {
                 let $hosted = hosted!(devices, Flex)?;
                 $body
             }
-            #[cfg(feature = "tch")]
-            Some(DispatchDevice::LibTorch(_)) => Err(ServeError::UnsupportedDevice {
-                reason: "LibTorch cannot run remote sessions".into(),
-            }),
             #[cfg(feature = "remote")]
             Some(DispatchDevice::Remote(_)) => Err(ServeError::UnsupportedDevice {
                 reason: "a remote device cannot host a remote server".into(),

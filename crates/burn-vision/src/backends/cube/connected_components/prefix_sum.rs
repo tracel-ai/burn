@@ -27,6 +27,7 @@ fn prefix_sum_kernel<I: Int, N: Size>(
     let mut reduce = Shared::new_slice(MAX_REDUCE_SIZE);
     let batch = CUBE_POS_Z as usize;
     let line_spt = PART_SIZE / CUBE_SIZE / scan_in.vector_size().comptime();
+    let numbers = scan_in.shape(1) / scan_in.vector_size().comptime();
     let nums_per_cube = CUBE_SIZE * line_spt;
     let v_last = scan_in.vector_size().comptime() - 1;
 
@@ -39,12 +40,7 @@ fn prefix_sum_kernel<I: Int, N: Size>(
 
     let plane_id = UNIT_POS_X / PLANE_DIM;
     let dev_offs = part_id * nums_per_cube;
-    let plane_offs = UNIT_POS_X as usize * line_spt;
-
-    // Exit if full plane is out of bounds
-    if dev_offs + plane_offs >= scan_in.shape(1) {
-        terminate!();
-    }
+    let plane_offs = plane_id as usize * PLANE_DIM as usize * line_spt;
 
     let zero = I::new(0);
 
@@ -53,9 +49,14 @@ fn prefix_sum_kernel<I: Int, N: Size>(
     let flag_mask = I::new(3);
 
     let red_offs = batch * reduction.stride(0);
-    let scan_offs = batch * scan_in.stride(0);
+    let scan_offs = batch * scan_in.stride(0) / scan_in.vector_size().comptime();
+    let out_offs = batch * scan_out.stride(0) / scan_out.vector_size().comptime();
 
     let mut t_scan = Array::new(line_spt);
+    // Out-of-bounds lanes still participate in subgroup operations and workgroup barriers.
+    for k in 0..line_spt {
+        t_scan[k] = Vector::new(zero);
+    }
     {
         let mut i = dev_offs + plane_offs + UNIT_POS_PLANE as usize;
 
@@ -76,7 +77,7 @@ fn prefix_sum_kernel<I: Int, N: Size>(
 
         if part_id == cube_count_x - 1 {
             for k in 0..line_spt {
-                if i < scan_in.shape(1) {
+                if i < numbers {
                     // Manually fuse not_equal and cast
                     let mut scan = Vector::<I, N>::cast_from(
                         scan_in[i + scan_offs].not_equal(&Vector::new(zero)),
@@ -122,7 +123,8 @@ fn prefix_sum_kernel<I: Int, N: Size>(
         while j <= aligned_size {
             let i_0 = ((UNIT_POS_X + offset_0) << offset_1) - offset_0;
             let pred_0 = i_0 < spine_size;
-            let t_0 = plane_inclusive_sum(select(pred_0, reduce[i_0 as usize], zero));
+            let value = if pred_0 { reduce[i_0 as usize] } else { zero };
+            let t_0 = plane_inclusive_sum(value);
             if pred_0 {
                 reduce[i_0 as usize] = t_0;
             }
@@ -133,11 +135,11 @@ fn prefix_sum_kernel<I: Int, N: Size>(
                 let i_1 = UNIT_POS_X + rshift;
                 if (i_1 & (j - 1)) >= rshift {
                     let pred_1 = i_1 < spine_size;
-                    let t_1 = select(
-                        pred_1,
-                        reduce[(((i_1 >> offset_1) << offset_1) - 1) as usize],
-                        zero,
-                    );
+                    let t_1 = if pred_1 {
+                        reduce[(((i_1 >> offset_1) << offset_1) - 1) as usize]
+                    } else {
+                        zero
+                    };
                     if pred_1 && ((i_1 + 1) & (rshift - 1)) != 0 {
                         reduce[i_1 as usize] += t_1;
                     }
@@ -199,15 +201,15 @@ fn prefix_sum_kernel<I: Int, N: Size>(
 
         if part_id < cube_count_x - 1 {
             for k in 0..line_spt {
-                scan_out[i + scan_offs] = t_scan[k] + prev;
+                scan_out[i + out_offs] = t_scan[k] + prev;
                 i += PLANE_DIM as usize;
             }
         }
 
         if part_id == cube_count_x - 1 {
             for k in 0..line_spt {
-                if i < scan_out.shape(1) {
-                    scan_out[i + scan_offs] = t_scan[k] + prev;
+                if i < numbers {
+                    scan_out[i + out_offs] = t_scan[k] + prev;
                 }
                 i += PLANE_DIM as usize;
             }
@@ -226,6 +228,8 @@ pub fn prefix_sum(input: CubeTensor, int_dtype: DType) -> CubeTensor {
     let device = input.device.clone();
     let num_elems = input.meta.num_elements();
     let numbers = *input.meta.shape().last().unwrap();
+    // Vector loads must not include uninitialized elements beyond the logical scan range.
+    let vector_size = if numbers.is_multiple_of(4) { 4 } else { 1 };
     let batches = num_elems / numbers;
 
     let input = reshape(input, Shape::new([batches, numbers]));
@@ -253,7 +257,7 @@ pub fn prefix_sum(input: CubeTensor, int_dtype: DType) -> CubeTensor {
             &out.client,
             cube_count,
             cube_dim,
-            4,
+            vector_size,
             input.into_tensor_arg(),
             out.clone().into_tensor_arg(),
             bump.into_tensor_arg(),

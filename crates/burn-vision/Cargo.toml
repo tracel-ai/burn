@@ -55,7 +55,6 @@ webgpu = ["cubecl-backend", "burn-core/webgpu", "burn-cubecl/webgpu"]
 metal = ["cubecl-backend", "burn-core/metal", "burn-cubecl/metal"]
 cpu = ["cubecl-backend", "burn-core/cpu", "burn-cubecl/cpu"]
 flex = ["burn-core/flex"]
-tch = ["burn-core/tch"]
 
 # TODO: move somewhere else
 loss = ["std", "dep:burn-nn", "burn-store/pytorch", "burn-std/network", "dirs"]

@@ -101,13 +101,7 @@ pub(crate) fn check_backend_features() -> anyhow::Result<()> {
     for (features, forbidden) in [
         (
             "signal,linalg,vision",
-            &[
-                "burn-flex",
-                "burn-cubecl",
-                "burn-tch",
-                "burn-remote",
-                "burn-capture",
-            ][..],
+            &["burn-flex", "burn-cubecl", "burn-remote", "burn-capture"][..],
         ),
         ("wgpu,signal,linalg,vision", &["burn-flex"][..]),
     ] {

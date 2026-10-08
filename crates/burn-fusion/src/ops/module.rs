@@ -1611,7 +1611,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         // CTC is treated as its own non-fuseable IR node, the same way
         // `attention` and `conv2d` are. The execute callback drains the input
         // handles and dispatches to `B::ctc_loss` on the inner backend, which
-        // either runs a native kernel (cubecl, libtorch) or the decomposed
+        // either runs a native kernel (cubecl) or the decomposed
         // default - either way it executes on raw inner-backend tensors,
         // never re-entering the fusion stream.
         make_ops!(CtcLossOps, CtcLossOpIr, |args: &CtcLossOpIr,

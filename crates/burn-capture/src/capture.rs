@@ -580,8 +580,8 @@ mod tests {
     use alloc::vec;
     #[cfg(feature = "std")]
     use burn_backend::Backend;
-    use burn_backend::ops::FloatTensorOps;
-    use burn_ir::{CustomOpIr, ScalarIr};
+    use burn_backend::ops::{FloatTensorOps, IntTensorOps, ModuleOps};
+    use burn_ir::{CustomOpIr, ModuleOperationIr, ScalarIr};
     use burn_router::get_client;
 
     fn tensor(id: u64, shape: impl Into<Shape>) -> TensorIr {
@@ -619,6 +619,79 @@ mod tests {
                 .iter()
                 .all(|operation| !matches!(operation, OperationIr::Drop(_))),
             "tensor lifetime operations must not be part of a computation graph"
+        );
+    }
+
+    #[test]
+    fn a_router_tells_autodiff_it_computes_the_ctc_gradient() {
+        // Autodiff asks this before it records `ctc_loss` as one node. Told `false`, it
+        // differentiates the decomposed loss instead and never reaches `ctc_loss_backward`.
+        assert!(CaptureBackend::has_ctc_loss_backward());
+    }
+
+    #[test]
+    fn ctc_loss_and_its_gradient_are_each_one_operation() {
+        // A router that leaves these to the `ModuleOps` defaults decomposes the loss into a
+        // stream of tensor operations per time step and cannot compute the gradient at all,
+        // even though the interpreter on the other side handles both as single operations.
+        let device = CaptureDevice::default();
+        let captured = device
+            .capture_scope(|scope| {
+                let frame = [[0.5f32.ln(), 0.5f32.ln()]];
+                let log_probs = CaptureBackend::float_from_data(
+                    TensorData::from([frame, frame, frame]),
+                    &device,
+                );
+                let targets = CaptureBackend::int_from_data(TensorData::from([[1i64]]), &device);
+                let input_lengths =
+                    CaptureBackend::int_from_data(TensorData::from([3i64]), &device);
+                let target_lengths =
+                    CaptureBackend::int_from_data(TensorData::from([1i64]), &device);
+                let grad_loss =
+                    CaptureBackend::float_from_data(TensorData::from([1.0f32]), &device);
+                let inputs = [
+                    log_probs.id(),
+                    targets.id(),
+                    input_lengths.id(),
+                    target_lengths.id(),
+                    grad_loss.id(),
+                ];
+
+                let loss = CaptureBackend::ctc_loss(
+                    log_probs.clone(),
+                    targets.clone(),
+                    input_lengths.clone(),
+                    target_lengths.clone(),
+                    0,
+                );
+                let gradient = CaptureBackend::ctc_loss_backward(
+                    log_probs,
+                    targets,
+                    input_lengths,
+                    target_lengths,
+                    grad_loss,
+                    0,
+                );
+
+                scope.complete(inputs, [loss.id(), gradient.id()])
+            })
+            .unwrap();
+
+        let computed: Vec<_> = captured
+            .graph
+            .operations
+            .iter()
+            .filter(|operation| !matches!(operation, OperationIr::Init(_)))
+            .collect();
+        assert!(
+            matches!(
+                computed.as_slice(),
+                [
+                    OperationIr::Module(ModuleOperationIr::CtcLoss(_)),
+                    OperationIr::Module(ModuleOperationIr::CtcLossBackward(_)),
+                ]
+            ),
+            "captured operations: {computed:?}"
         );
     }
 

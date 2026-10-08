@@ -34,7 +34,6 @@ std = [
 
 cuda = ["burn-core/cuda"]
 metal = ["wgpu", "burn-core/metal"]
-tch = ["burn-core/tch"]
 wgpu = ["burn-core/wgpu"]
 
 safetensors = ["dep:safetensors"]

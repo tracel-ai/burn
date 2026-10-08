@@ -90,7 +90,6 @@
 //!
 //! Autodiff and kernel fusion are decorators over these backends: `device.autodiff()` enables
 //! gradients for tensors created on a device, and the CubeCL backends fuse operations by default.
-//! LibTorch (`tch`) is deprecated.
 //!
 //! ## Quantization
 //!
@@ -129,13 +128,15 @@
 //!   - `cuda`: Makes available the CUDA backend
 //!   - `rocm`: Makes available the ROCm backend
 //!   - `cpu`: Makes available the CubeCL CPU backend
-//!   - `tch`: Makes available the LibTorch backend (deprecated - use a CubeCL backend instead)
 //!   - `flex`: Makes available the Flex backend (pure-Rust CPU, std/no_std/WASM)
 //! - Backend specifications
 //!   - `simd`: Enable SIMD kernels in the Flex backend
 //!   - `rayon`: Enable multi-threaded execution in the Flex backend
 //!   - `autotune`: Enable running benchmarks to select the best kernel in backends that support it.
 //!   - `autotune-checks`: Check that every autotune candidate produces the same output (debugging).
+//!   - `persistence`: Enable persistent CubeCL caches across process runs, including when default
+//!     features are disabled. Compiled-kernel caching also requires `compilation.cache = true`
+//!     in the CubeCL runtime configuration. Does not select a backend.
 //!   - `x86-v4`: Enable AVX-512 matmul kernels in the Flex backend.
 //!   - `apple-amx`: Enable the experimental Apple AMX matmul kernels in the Flex backend.
 //!   - `template`: Enable hand-written, non-JIT custom kernels in the CubeCL backends.

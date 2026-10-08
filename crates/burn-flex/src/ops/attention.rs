@@ -1115,7 +1115,7 @@ mod tests {
     }
 
     /// GQA/MQA (`kv_heads < q_heads`) must equal plain MHA with each K/V head
-    /// repeated `q_heads / kv_heads` times - ONNX Attention-23 / burn-ndarray
+    /// repeated `q_heads / kv_heads` times - ONNX Attention-23
     /// semantics. covers both the naive and flash inner loops (#4930).
     fn check_grouped_attention(q_heads: usize, kv_heads: usize) {
         let q_per_kv = q_heads / kv_heads;

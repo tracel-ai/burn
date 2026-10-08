@@ -34,10 +34,6 @@ pub enum DispatchGraph {
     #[cfg(feature = "flex")]
     Flex(BackendGraph<Flex>),
 
-    /// A graph captured on the [LibTorch backend](LibTorch).
-    #[cfg(feature = "tch")]
-    LibTorch(BackendGraph<LibTorch>),
-
     /// A graph captured on the [Remote backend](Remote).
     #[cfg(feature = "remote")]
     Remote(BackendGraph<Remote>),
@@ -128,8 +124,6 @@ use crate::DispatchDeviceId;
 use crate::DispatchTensorKind;
 #[cfg(feature = "flex")]
 use crate::devices::FlexDevice;
-#[cfg(feature = "tch")]
-use crate::devices::LibTorchDevice;
 use crate::{DispatchDevice, DispatchTensor, backends::*};
 
 /// The main execution backend in Burn.
@@ -255,8 +249,6 @@ impl Backend for Dispatch {
             DispatchDeviceId::Cube => Cube::device_count(backend_type_id),
             #[cfg(feature = "flex")]
             DispatchDeviceId::Flex => Flex::device_count(backend_type_id),
-            #[cfg(feature = "tch")]
-            DispatchDeviceId::LibTorch => LibTorch::device_count(backend_type_id),
             #[cfg(feature = "remote")]
             DispatchDeviceId::Remote => Remote::device_count(backend_type_id),
             #[cfg(feature = "capture")]
@@ -346,8 +338,6 @@ impl AutodiffBackend for Dispatch {
                 DispatchTensorKind::Cube(tensor) => tensor.autodiff().backward(),
                 #[cfg(feature = "flex")]
                 DispatchTensorKind::Flex(tensor) => tensor.autodiff().backward(),
-                #[cfg(feature = "tch")]
-                DispatchTensorKind::LibTorch(tensor) => tensor.autodiff().backward(),
                 #[cfg(feature = "remote")]
                 DispatchTensorKind::Remote(tensor) => tensor.autodiff().backward(),
                 #[cfg(feature = "capture")]
@@ -378,11 +368,6 @@ impl AutodiffBackend for Dispatch {
                     .as_autodiff()
                     .grad(grads)
                     .map(|t| DispatchTensorKind::Flex(crate::BackendTensor::Float(t))),
-                #[cfg(feature = "tch")]
-                DispatchTensorKind::LibTorch(tensor) => tensor
-                    .as_autodiff()
-                    .grad(grads)
-                    .map(|t| DispatchTensorKind::LibTorch(crate::BackendTensor::Float(t))),
                 #[cfg(feature = "remote")]
                 DispatchTensorKind::Remote(tensor) => tensor
                     .as_autodiff()
@@ -420,11 +405,6 @@ impl AutodiffBackend for Dispatch {
                     .as_autodiff()
                     .grad_remove(grads)
                     .map(|t| DispatchTensorKind::Flex(crate::BackendTensor::Float(t))),
-                #[cfg(feature = "tch")]
-                DispatchTensorKind::LibTorch(tensor) => tensor
-                    .as_autodiff()
-                    .grad_remove(grads)
-                    .map(|t| DispatchTensorKind::LibTorch(crate::BackendTensor::Float(t))),
                 #[cfg(feature = "remote")]
                 DispatchTensorKind::Remote(tensor) => tensor
                     .as_autodiff()
@@ -503,10 +483,6 @@ impl AutodiffBackend for Dispatch {
                 DispatchTensorKind::Flex(tensor) => DispatchTensorKind::Flex(
                     crate::BackendTensor::Float(tensor.autodiff().into_primitive()),
                 ),
-                #[cfg(feature = "tch")]
-                DispatchTensorKind::LibTorch(tensor) => DispatchTensorKind::LibTorch(
-                    crate::BackendTensor::Float(tensor.autodiff().into_primitive()),
-                ),
                 #[cfg(feature = "remote")]
                 DispatchTensorKind::Remote(tensor) => DispatchTensorKind::Remote(
                     crate::BackendTensor::Float(tensor.autodiff().into_primitive()),
@@ -563,12 +539,6 @@ impl AutodiffBackend for Dispatch {
                     crate::BackendTensor::Autodiff(Autodiff::<Flex>::from_inner(tensor.float())),
                 )))
             }
-            #[cfg(feature = "tch")]
-            DispatchTensorKind::LibTorch(tensor) => DispatchTensorKind::Autodiff(Box::new(
-                DispatchTensorKind::LibTorch(crate::BackendTensor::Autodiff(
-                    Autodiff::<LibTorch>::from_inner(tensor.float()),
-                )),
-            )),
             #[cfg(feature = "remote")]
             DispatchTensorKind::Remote(tensor) => {
                 DispatchTensorKind::Autodiff(Box::new(DispatchTensorKind::Remote(
@@ -1076,7 +1046,7 @@ impl AutodiffBackend for Dispatch {
 impl Dispatch {
     /// List all available devices of the specified [type id](DispatchDeviceId).
     pub fn enumerate(type_id: DispatchDeviceId) -> Vec<DispatchDevice> {
-        // TODO: right now this assumes `type_id = 0`, but WgpuDevice and LibTorchDevice have other types.
+        // TODO: right now this assumes `type_id = 0`, but WgpuDevice has other types.
         match type_id {
             #[cfg(cube_backend)]
             DispatchDeviceId::Cube => CubeDevice::enumerate_all()
@@ -1086,10 +1056,6 @@ impl Dispatch {
                 .collect(),
             #[cfg(feature = "flex")]
             DispatchDeviceId::Flex => vec![FlexDevice.into()],
-            #[cfg(feature = "tch")]
-            DispatchDeviceId::LibTorch => (0..LibTorch::device_count(0))
-                .map(|i| LibTorchDevice::Cuda(i).into())
-                .collect(),
             #[cfg(feature = "remote")]
             // A remote device needs its server's address, which a type id cannot carry.
             DispatchDeviceId::Remote => Vec::new(),

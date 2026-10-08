@@ -31,8 +31,6 @@ cargo test-remote
 
 # Flex
 cargo test-flex
-# LibTorch
-cargo test-tch
 ```
 
 By default, `cargo test` fail-fast across integration test binaries. When one integration test
@@ -126,8 +124,6 @@ cargo bench-flex --features flex-simd
 cargo bench-flex --features flex-rayon
 # Flex+Simd+Rayon
 cargo bench-flex --features flex-simd,flex-rayon
-# LibTorch
-cargo bench-tch
 ```
 
 Get a more compact output without memory allocations using:

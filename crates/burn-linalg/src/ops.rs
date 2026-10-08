@@ -14,7 +14,6 @@ use burn_std::reader::try_read_sync;
         feature = "rocm",
         feature = "cpu"
     )),
-    LibTorch: cfg(feature = "tch"),
     Remote: cfg(feature = "remote"),
     Capture: cfg(feature = "capture"),
 )]
@@ -53,8 +52,6 @@ macro_rules! impl_linalg_ops {
 impl_linalg_ops!(burn_core::backend::Flex);
 #[cfg(feature = "cubecl-backend")]
 impl LinalgOps for burn_cubecl::CubeBackend {}
-#[cfg(feature = "tch")]
-impl_linalg_ops!(burn_core::backend::LibTorch);
 #[cfg(feature = "router")]
 impl<C: burn_router::RouterChannel> LinalgOps for burn_router::BackendRouter<C> {}
 

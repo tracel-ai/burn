@@ -26,13 +26,6 @@ cargo run -p modern-lstm --example lstm-train --release --features cuda
 # Wgpu backend
 cargo run -p modern-lstm --example lstm-train --release --features wgpu
 
-# Tch GPU backend
-export TORCH_CUDA_VERSION=cu128 # Set the cuda version
-cargo run -p modern-lstm --example lstm-train --release --features tch-gpu
-
-# Tch CPU backend
-cargo run -p modern-lstm --example lstm-train --release --features tch-cpu
-
 # Flex backend (CPU)
 cargo run -p modern-lstm --example lstm-train --release --features flex
 ```

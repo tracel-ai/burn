@@ -11,12 +11,8 @@ mod quantize;
 //   the pack factor (4 int8s per u32), which most of these test shapes violate, so the
 //   quantized tensors can't even be constructed (`q_from_data` panics with "Can't store in u32").
 //
-// - tch is excluded too. Its quantization primitives (`q_from_data`, `quantize`, `dequantize`,
-//   ...) are `unimplemented!()`, so running `extended` against it would fail. (It also
-//   doesn't enable the `quantization` feature, so it isn't selected here in the first place.)
-//
-// - remote runs it only when `flex` is enabled too, and then passes only against a server whose
-//   backend stores quantized values natively, for the cube reason above.
+// - remote runs it only when `flex` is enabled too, and then passes only against a Flex server,
+//   for the cube reason above.
 //
 // - autodiff is excluded for a different reason: its `QTensorOps` impl delegates every method to
 //   the inner backend, so `Autodiff<Flex>` quantizes fine. It simply never reaches this module,

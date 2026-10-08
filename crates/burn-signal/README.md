@@ -6,8 +6,8 @@
 [![Documentation](https://docs.rs/burn-signal/badge.svg)](https://docs.rs/burn-signal)
 [![license](https://shields.io/badge/license-MIT%2FApache--2.0-blue)](https://github.com/tracel-ai/burn/blob/main/LICENSE-MIT)
 
-- FFTs: `rfft` and `irfft` are backend extensions with native kernels for Flex, the CubeCL
-  backends and LibTorch, and are differentiable with `autodiff`. `cfft`, the complex FFT, is built
+- FFTs: `rfft` and `irfft` are backend extensions with native kernels for Flex and the CubeCL
+  backends, and are differentiable with `autodiff`. `cfft`, the complex FFT, is built
   from `rfft`.
 - `stft` and `istft`.
 - Windows: `hann_window`, `hamming_window` and `blackman_window`.
