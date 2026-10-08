@@ -59,6 +59,7 @@ capture = ["burn-dispatch/capture"]
 extension = []
 
 # Backend features
+persistence = ["burn-dispatch/persistence"]
 autotune = ["burn-dispatch/autotune"]
 autotune-checks = ["burn-dispatch/autotune-checks"]
 fusion = ["burn-dispatch/fusion"]

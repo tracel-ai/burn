@@ -56,6 +56,8 @@ tracing = [
     "burn-cubecl-fusion?/tracing",
 ]
 
+# Compile persistent caches; runtime configuration controls which caches are used.
+persistence = ["cubecl/persistence"]
 autotune = ["burn-cubecl-fusion?/autotune"]
 autotune-checks = [
     "autotune",

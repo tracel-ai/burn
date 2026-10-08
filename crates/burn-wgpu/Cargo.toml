@@ -27,6 +27,7 @@ tracing = [
 ]
 
 fusion = ["burn-fusion", "burn-cubecl/fusion"]
+persistence = ["burn-cubecl/persistence"]
 autotune = ["burn-cubecl/autotune"]
 autotune-checks = ["burn-cubecl/autotune-checks"]
 

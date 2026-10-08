@@ -114,6 +114,7 @@ fusion = ["ir", "burn-core/fusion", "burn-linalg?/fusion", "burn-signal?/fusion"
 
 ## Backend features
 accelerate = ["burn-core/accelerate"]
+persistence = ["burn-core/persistence", "cubecl?/persistence"]
 autotune = ["burn-core/autotune", "burn-signal?/autotune"]
 autotune-checks = ["burn-core/autotune-checks"]
 blas-netlib = ["burn-core/blas-netlib"]

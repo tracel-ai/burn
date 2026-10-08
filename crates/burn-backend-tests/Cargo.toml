@@ -43,6 +43,7 @@ cpu = ["burn-tensor/cpu", "cube"]
 # At runtime, set `BURN_DEVICE=remote` (and optionally `BURN_REMOTE_ADDRESS=ws://host:port`).
 remote = ["burn-tensor/remote-websocket"]
 
+persistence = ["burn-tensor/persistence"]
 autotune = ["burn-tensor/autotune"]
 autotune-checks = ["burn-tensor/autotune-checks"]
 memory-checks = ["burn-fusion?/memory-checks"]
