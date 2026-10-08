@@ -65,13 +65,17 @@ impl<S: FrameSource> MessageSource<S> {
     async fn recv_segmented(&mut self, len: u64) -> Result<Bytes, String> {
         let len = usize::try_from(len)
             .map_err(|_| format!("Peer sent a message of {len} bytes, too large to address"))?;
-        let mut message = vec![0; len];
-        let mut filled = 0;
-        while filled < len {
-            let end = len.min(filled + MAX_FRAME_SIZE);
-            match self.frames.recv_into(&mut message[filled..end]).await? {
+        let mut message = Vec::new();
+        message.try_reserve_exact(len).map_err(|_| {
+            format!("Peer sent a message of {len} bytes, more than can be allocated")
+        })?;
+        while message.len() < len {
+            let filled = message.len();
+            // Zeroed a frame at a time, so the read overwrites it while it is still in cache.
+            message.resize(len.min(filled + MAX_FRAME_SIZE), 0);
+            match self.frames.recv_into(&mut message[filled..]).await? {
                 0 => return Err("Peer sent an empty frame in the middle of a message".into()),
-                read => filled += read,
+                read => message.truncate(filled + read),
             }
         }
         Ok(message.into())
@@ -202,6 +206,16 @@ mod tests {
         let mut frames = frames_of([message_of(2 * MAX_FRAME_SIZE)]).await;
         frames.pop();
         let mut source = MessageSource::new(ScriptedFrames(frames.into()));
+
+        let result = source.recv().await;
+
+        assert!(result.is_err(), "{result:?}");
+    }
+
+    #[tokio::test]
+    async fn a_message_longer_than_can_be_allocated_is_an_error() {
+        let head = MessageHead::Segmented { len: u64::MAX };
+        let mut source = MessageSource::new(ScriptedFrames([head.into()].into()));
 
         let result = source.recv().await;
 
