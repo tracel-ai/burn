@@ -360,6 +360,12 @@ fn analysis<I: Int, BT: CubePrimitive>(
     let y = ABSOLUTE_POS_Y;
     let x = ABSOLUTE_POS_X;
 
+    // Background has no bounds; foreground entries retain MAX for fetch_min.
+    if opts.bounds_enabled && x == 0 && y == 0 {
+        left[0].store(I::new(0));
+        top[0].store(I::new(0));
+    }
+
     let cols = labels.shape(1) as u32;
     let rows = labels.shape(0) as u32;
     let img_step = img.stride(0) as u32;
@@ -453,7 +459,8 @@ fn compact_stats<I: Int>(
     }
 
     let area = area[label as usize];
-    if area == I::new(0) {
+    // Preserve background statistics; only unused foreground labels are skipped.
+    if label != 0 && area == I::new(0) {
         terminate!();
     }
     let new_label = u32::cast_from(remap[label as usize]);

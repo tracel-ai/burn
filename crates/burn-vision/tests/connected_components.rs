@@ -237,6 +237,7 @@ mod accelerated {
             let data = stat.into_data();
             assert_eq!(data.shape().dims::<1>(), [129]);
             if let Some(expected) = expected {
+                assert_eq!(data.iter::<i32>().next(), Some(0));
                 assert_eq!(data.iter::<i32>().nth(label as usize), Some(expected));
             }
         }
@@ -344,21 +345,36 @@ mod accelerated {
         assert_eq!(areas, [1027]);
     }
 
-    #[test]
-    fn all_background_image_has_no_components() {
+    fn assert_all_background_statistics(opts: ConnectedStatsOptions) {
         if !fixed_planes() {
             return;
         }
         let (labels, stats) = CubeBackend::connected_components_with_stats(
             image(TensorData::new(vec![false; 5 * 33], [5, 33])),
             Connectivity::Four,
-            ConnectedStatsOptions::all(),
+            opts,
             DType::I32.into(),
         );
         assert_eq!(stats.area.meta.shape().dims::<1>(), [166]);
         into_data_sync(labels).assert_eq(&TensorData::new(vec![0i32; 165], [5, 33]), false);
         into_data_sync(stats.area).assert_eq(&TensorData::new(vec![0i32; 166], [166]), false);
+        for bound in [stats.left, stats.top, stats.right, stats.bottom] {
+            assert_eq!(into_data_sync(bound).iter::<i32>().next(), Some(0));
+        }
         into_data_sync(stats.max_label).assert_eq(&TensorData::from([0]), false);
+    }
+
+    #[test]
+    fn all_background_image_has_no_components_with_sparse_labels() {
+        assert_all_background_statistics(ConnectedStatsOptions {
+            compact_labels: false,
+            ..ConnectedStatsOptions::all()
+        });
+    }
+
+    #[test]
+    fn all_background_image_has_no_components_with_compact_labels() {
+        assert_all_background_statistics(ConnectedStatsOptions::all());
     }
 
     #[test]
