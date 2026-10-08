@@ -73,8 +73,10 @@ one-hot targets. MCC accumulates counts across batches and returns `0` when its
 denominator is zero. It does not support multi-label classification.
 Updates require non-empty, finite predictions and one-hot multiclass targets. The
 number of classes must stay fixed across batches until the metric is cleared.
-Multiclass score ties select the first class. Counts accumulate in double precision
-to preserve accuracy for imbalanced classes.
+The batch size and number of classes must each be at most `i32::MAX`.
+Multiclass score ties select the first class. Counts are reduced as int32 on the
+input device, then accumulated in double precision on CPU to preserve accuracy
+for imbalanced classes without requiring device support for 64-bit integers.
 
 If your metric isn't already adapted for the appropriate output struct, you can implement `Adaptor` yourself. 
 For example, here is how `ClassificationOutput` adapts to `AccuracyInput`:

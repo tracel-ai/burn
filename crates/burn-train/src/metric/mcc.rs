@@ -12,10 +12,11 @@ use super::{
 /// A zero denominator (constant predictions or targets) produces `0`.
 /// Epoch values are computed from accumulated counts, not averaged batch scores.
 /// Multiclass MCC uses the generalized correlation, without macro/micro averaging.
-/// Per-class integer counts are transferred to CPU for float64 accumulation and
+/// Per-class int32 counts are transferred to CPU for float64 accumulation and
 /// computation, preserving accuracy for imbalanced classes without requiring GPU float64.
 /// Updates require non-empty, finite predictions and a fixed number of classes
 /// until [`clear`](Metric::clear) is called. Multi-label targets are not supported.
+/// The batch size and number of classes must each fit in an int32.
 #[derive(Clone)]
 pub struct MatthewsCorrelationCoefficientMetric {
     name: MetricName,
@@ -88,6 +89,11 @@ impl Metric for MatthewsCorrelationCoefficientMetric {
             sample_size > 0 && classes > 0,
             "MCC requires non-empty input"
         );
+        // Bound both reduction axes so device-side int32 counts cannot overflow.
+        assert!(
+            i32::try_from(sample_size).is_ok() && i32::try_from(classes).is_ok(),
+            "MCC batch size and class count must not exceed i32::MAX"
+        );
         if let Some(previous) = self.classes {
             assert_eq!(
                 classes, previous,
@@ -122,7 +128,7 @@ impl Metric for MatthewsCorrelationCoefficientMetric {
                     input
                         .targets
                         .clone()
-                        .cast(IntDType::I64)
+                        .cast(IntDType::I32)
                         .sum_dim(1)
                         .equal_scalar(1)
                         .all()
@@ -139,7 +145,9 @@ impl Metric for MatthewsCorrelationCoefficientMetric {
             }
         };
         let count = |mask: Tensor<2, Bool>| {
-            mask.cast(IntDType::I64)
+            // Reduce in int32 for devices without int64 support, then accumulate
+            // on CPU in float64 so epoch totals are not limited to int32.
+            mask.cast(IntDType::I32)
                 .sum_dim(0)
                 .squeeze_dim(0)
                 .to_device(&Device::flex())
@@ -446,6 +454,25 @@ mod tests {
             Tensor::zeros([0, 1], &device),
         );
         MatthewsCorrelationCoefficientMetric::default().update(&input, &MetricMetadata::fake());
+    }
+
+    #[rstest]
+    #[case::batch([i32::MAX as usize + 1, 1], true)]
+    #[case::classes([1, i32::MAX as usize + 1], false)]
+    #[should_panic(expected = "MCC batch size and class count must not exceed i32::MAX")]
+    fn rejects_oversized_reductions(#[case] shape: [usize; 2], #[case] binary: bool) {
+        let device = Device::flex();
+        // Flex expands as a view, so these inputs only store one element each.
+        let input = ConfusionStatsInput {
+            predictions: Tensor::<2>::from_data([[1.0]], &device).expand(shape),
+            targets: Tensor::<2, Bool>::from_data([[true]], &device).expand(shape),
+        };
+        let mut metric = if binary {
+            MatthewsCorrelationCoefficientMetric::default()
+        } else {
+            MatthewsCorrelationCoefficientMetric::multiclass()
+        };
+        metric.update(&input, &MetricMetadata::fake());
     }
 
     #[test]
