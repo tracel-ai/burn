@@ -20,7 +20,7 @@ use std::io::Read;
 use std::path::Path;
 
 /// The size limits a [`Reader`] enforces. Defaults are [`MAX_FILE_SIZE`] and [`MAX_TENSOR_SIZE`].
-/// A caller loading trusted files either one with [`Reader::with_limits`]:
+/// A caller loading trusted files can set either one with [`Reader::with_limits`]:
 ///
 /// ```no_run
 /// use burn_pack::{Reader, ReaderLimits};
