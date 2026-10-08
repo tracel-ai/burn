@@ -16,7 +16,6 @@ use alloc::{vec, vec::Vec};
 use core::any::TypeId;
 use cubecl_common::e4m3;
 use cubecl_common::quant::scheme::{f32_to_ue8m0, ue8m0_to_f32};
-use num_traits::PrimInt;
 use serde::{Deserialize, Serialize};
 
 use crate::{DType, Metadata, Shape, bytes::Bytes};
@@ -233,16 +232,17 @@ impl QuantizedBytes {
 
         // Re-interpret `Vec<E>` as `Vec<i8>` with `Vec::from_raw_parts`
         let i8s: Vec<i8> = bytemuck::allocation::cast_vec(value);
-        let mut bytes = match ValueLayout::of(&scheme) {
+        let layout = ValueLayout::new(&scheme);
+        let mut bytes = match layout {
             ValueLayout::Bytes => Bytes::from_elems(i8s),
             ValueLayout::Words { packed_dim } => Bytes::from_elems(
-                PackedOrder::new(shape.as_slice(), packed_dim).pack(&i8s, scheme.value.size_bits()),
+                PackedOrder::new(shape.as_slice(), packed_dim).pack(&i8s, &scheme.value),
             ),
         };
 
         let scales = match (
             scheme.block_size(),
-            PackedOrder::of_block_scales(&shape, &scheme),
+            layout.block_scale_order(&shape, &scheme),
         ) {
             (None, _) => scales[..1].to_vec(),
             (Some(_), Some(order)) => order.to_stored(scales),
@@ -284,7 +284,7 @@ impl QuantizedBytes {
     /// Returns the int8 quantized values with the quantization parameters.
     pub fn into_vec_i8(self) -> (Vec<i8>, DecodedScales) {
         let scheme = self.scheme;
-        let scale_order = PackedOrder::of_block_scales(&self.shape, &scheme);
+        let scale_order = ValueLayout::new(&scheme).block_scale_order(&self.shape, &scheme);
         let (values, (qparams, num_params)) = self.split_values_off();
 
         // Laid out as `[block scale, ...]` optionally followed by the per-tensor scale.
@@ -325,13 +325,13 @@ impl QuantizedBytes {
             .expect("quantized tensor data is shorter than its scheme's parameters");
         let qparams = bytemuck::cast_vec(stored.split_off(split_at));
 
-        let layout = ValueLayout::of(&scheme);
+        let layout = ValueLayout::new(&scheme);
         let expected = value_bytes(&scheme, &shape);
         assert_eq!(
             stored.len(),
             expected,
-            "the values of a {shape:?} tensor under {scheme:?} take {expected} bytes, every packed \
-             line padded to whole words"
+            "the values of a {shape:?} tensor under {scheme:?} take {expected} bytes, not {}",
+            stored.len()
         );
         let values = match layout {
             ValueLayout::Bytes => stored,
@@ -365,8 +365,8 @@ pub fn global_scale_size(scheme: &QuantScheme) -> usize {
 ///
 /// A packed store divides only the packed dimension, rounding that extent up on its own and
 /// leaving the others intact, so a non-divisible extent pads once per line rather than once
-/// over the flattened tensor. This mirrors the storage shape the allocation actually uses (see
-/// `CubeTensor::quantized_storage` in burn-cubecl); flattening first would under-count, e.g. a
+/// over the flattened tensor, as [`QuantizedBytes::new`] lays it out; flattening first would
+/// under-count, e.g. a
 /// `[3, 3]` Q4 `PackedU32` tensor occupies `3 * ceil(3 / 8) = 3` words, not `ceil(9 / 8) = 2`.
 fn storage_elements(scheme: &QuantScheme, shape: &Shape) -> usize {
     let num_quants = scheme.num_quants();
@@ -508,28 +508,43 @@ impl PermuteQuantScheme for QuantScheme {
 }
 
 /// How [`QuantizedBytes`] lays out the values of a scheme, refusing what it cannot write or read.
+#[derive(Clone, Copy)]
 enum ValueLayout {
     /// One byte per value.
     Bytes,
-    /// Integer values packed into little-endian `u32` words along the axis `packed_dim` counts
-    /// from the innermost, as [`PackedOrder`] orders them.
+    /// Values packed into little-endian `u32` words along the axis `packed_dim` counts from the
+    /// innermost, as [`PackedOrder`] orders them.
     Words { packed_dim: usize },
 }
 
 impl ValueLayout {
-    fn of(scheme: &QuantScheme) -> Self {
+    fn new(scheme: &QuantScheme) -> Self {
         match (scheme.store, scheme.value) {
             (QuantStore::Native, _) => Self::Bytes,
             (
                 QuantStore::PackedU32(packed_dim),
                 QuantValue::Q8F
                 | QuantValue::Q8S
+                | QuantValue::E4M3
+                | QuantValue::E5M2
                 | QuantValue::Q4F
                 | QuantValue::Q4S
                 | QuantValue::Q2F
                 | QuantValue::Q2S,
             ) => Self::Words { packed_dim },
+            // Read back, a 4-bit float code would be sign-extended as if it were an integer.
             (store, value) => unimplemented!("{value:?} values under {store:?}"),
+        }
+    }
+
+    /// The order the block scales of a tensor of `shape` are stored in under `scheme`, when that
+    /// is not row-major: blocks of values packed along an outer axis.
+    fn block_scale_order(&self, shape: &Shape, scheme: &QuantScheme) -> Option<PackedOrder> {
+        match *self {
+            Self::Words { packed_dim } if packed_dim != 0 && scheme.block_size().is_some() => Some(
+                PackedOrder::new(params_shape(shape, scheme).as_slice(), packed_dim),
+            ),
+            _ => None,
         }
     }
 }
@@ -605,69 +620,56 @@ impl PackedOrder {
         values
     }
 
-    /// The order the block scales of a tensor of `shape` are stored in under `scheme`, when that
-    /// is not row-major: blocks of values packed along an outer axis.
-    fn of_block_scales(shape: &Shape, scheme: &QuantScheme) -> Option<Self> {
-        match (scheme.block_size(), ValueLayout::of(scheme)) {
-            (Some(_), ValueLayout::Words { packed_dim }) if packed_dim != 0 => Some(Self::new(
-                params_shape(shape, scheme).as_slice(),
-                packed_dim,
-            )),
-            _ => None,
-        }
-    }
-
     /// The values along the packed axis.
     fn line_len(&self) -> usize {
         self.dims[self.axis]
     }
 
-    /// Bytes a line of `bits`-wide values takes once padded to whole `u32` words.
-    fn line_bytes(&self, bits: usize) -> usize {
-        self.line_len().div_ceil(u32::BITS as usize / bits).max(1) * size_of::<u32>()
+    /// The `u32` words a line of `value`s takes, its last one padded.
+    fn words_per_line(&self, value: &QuantValue) -> usize {
+        self.line_len()
+            .div_ceil(u32::BITS as usize / value.size_bits())
     }
 
-    /// Whether packing `bits`-wide values copies each row as it is: a byte per value along the
-    /// innermost axis, which little-endian words hold in order.
-    fn copies_rows(&self, bits: usize) -> bool {
-        self.axis == self.dims.len() - 1 && bits == u8::BITS as usize && self.line_len() > 0
+    /// Whether packing copies each row as it is: a byte per value along the innermost axis, which
+    /// little-endian words hold in order.
+    fn copies_rows(&self, value: &QuantValue) -> bool {
+        self.axis == self.dims.len() - 1
+            && value.size_bits() == u8::BITS as usize
+            && self.line_len() > 0
     }
 
-    /// Row-major `values` packed `bits` each into little-endian `u32` words, every line padded to
-    /// whole words.
-    fn pack(&self, values: &[i8], bits: usize) -> Vec<u8> {
-        if self.copies_rows(bits) {
-            let padding = self.line_bytes(bits) - self.line_len();
+    /// Row-major `values` packed into little-endian `u32` words, every line padded to whole words.
+    fn pack(&self, values: &[i8], value: &QuantValue) -> Vec<u8> {
+        let words_per_line = self.words_per_line(value);
+        if self.copies_rows(value) {
+            let padding = words_per_line * size_of::<u32>() - self.line_len();
             return bytemuck::cast_slice::<i8, u8>(values)
                 .chunks(self.line_len())
                 .flat_map(|row| row.iter().copied().chain(core::iter::repeat_n(0, padding)))
                 .collect();
         }
+        let bits = value.size_bits();
         let per_word = u32::BITS as usize / bits;
         let mask = (1u32 << bits) - 1;
-        self.lines()
-            .flat_map(|line| {
-                let line: Vec<usize> = line.collect();
-                line.chunks(per_word)
-                    .map(|word| {
-                        word.iter()
-                            .enumerate()
-                            .fold(0u32, |packed, (k, &position)| {
-                                packed | (values[position] as u32 & mask) << (k * bits)
-                            })
-                    })
-                    .collect::<Vec<_>>()
-            })
-            .flat_map(u32::to_le_bytes)
-            .collect()
+        let mut words = Vec::new();
+        for line in self.lines() {
+            let start = words.len();
+            words.resize(start + words_per_line, 0u32);
+            for (k, position) in line.enumerate() {
+                words[start + k / per_word] |=
+                    (values[position] as u32 & mask) << (k % per_word * bits);
+            }
+        }
+        words.into_iter().flat_map(u32::to_le_bytes).collect()
     }
 
     /// The row-major values [`pack`](Self::pack) packed into `bytes`.
     fn unpack(&self, bytes: &[u8], value: &QuantValue) -> Vec<i8> {
-        let (len, line_bytes) = (self.line_len(), self.line_bytes(value.size_bits()));
-        if self.copies_rows(value.size_bits()) {
+        let (len, words_per_line) = (self.line_len(), self.words_per_line(value));
+        if self.copies_rows(value) {
             return bytes
-                .chunks(line_bytes)
+                .chunks(words_per_line * size_of::<u32>())
                 .flat_map(|row| bytemuck::cast_slice::<u8, i8>(&row[..len]).iter().copied())
                 .collect();
         }
@@ -677,11 +679,17 @@ impl PackedOrder {
             .iter()
             .map(|word| u32::from_le_bytes(*word))
             .collect();
+        let bits = value.size_bits();
+        let per_word = u32::BITS as usize / bits;
+        let mask = (1u32 << bits) - 1;
+        // Integer values are signed, so a sub-byte field is sign-extended to its `i8`.
+        let sign_shift = u8::BITS as usize - bits;
         let mut values = vec![0; self.dims.iter().product()];
-        let words_per_line = line_bytes / size_of::<u32>();
-        for (line, words) in self.lines().zip(words.chunks(words_per_line)) {
-            for (position, unpacked) in line.zip(unpack_q_to_i8s(words, len, value)) {
-                values[position] = unpacked;
+        for (index, line) in self.lines().enumerate() {
+            let line_words = &words[index * words_per_line..][..words_per_line];
+            for (k, position) in line.enumerate() {
+                let field = (line_words[k / per_word] >> (k % per_word * bits) & mask) as u8;
+                values[position] = ((field << sign_shift) as i8) >> sign_shift;
             }
         }
         values
@@ -725,37 +733,6 @@ pub fn pack_i8s_to_u32s(values: Vec<i8>) -> Vec<u32> {
 
         unsafe { Vec::from_raw_parts(ptr, len, capacity) }
     }
-}
-
-/// Unpack integer values into a sequence of signed 8-bit integers.
-pub(crate) fn unpack_q_to_i8s<Q: PrimInt>(
-    values: &[Q],
-    numel: usize,
-    value: &QuantValue,
-) -> Vec<i8> {
-    let size_store = size_of::<Q>() * 8;
-    let size_quant = value.size_bits();
-    let num_quants = size_store / size_quant;
-    let mask = Q::from((1 << size_quant) - 1).unwrap();
-    let sign_shift = 8 - size_quant; // sign extension for sub-byte values
-    values
-        .iter()
-        .enumerate()
-        .flat_map(|(i, &packed)| {
-            // A single u32 could contain less than four 8-bit values...
-            let n = core::cmp::min(num_quants, numel - i * num_quants);
-            // Extract each 8-bit segment from u32 and cast back to i8
-            // Same as doing this (when 4 values are fully packed):
-            //     let a = (packed & 0xFF) as i8;
-            //     let b = ((packed >> 8) & 0xFF) as i8;
-            //     let c = ((packed >> 16) & 0xFF) as i8;
-            //     let d = ((packed >> 24) & 0xFF) as i8;
-            (0..n).map(move |i| {
-                let raw = (packed >> (i * size_quant) & mask).to_u8().unwrap();
-                ((raw << sign_shift) as i8) >> sign_shift
-            })
-        })
-        .collect()
 }
 
 #[cfg(test)]
@@ -814,7 +791,7 @@ mod tests {
 
         let bytes = QuantizedBytes::new(vec![0i8; 32], [4, 8], scheme, &scales, None);
 
-        let stored: Vec<f32> = bytes.bytes[bytes.bytes.len() - 4 * size_of::<f32>()..]
+        let stored: Vec<f32> = bytes.bytes[bytes.bytes.len() - scales.len() * size_of::<f32>()..]
             .as_chunks::<{ size_of::<f32>() }>()
             .0
             .iter()
@@ -874,19 +851,23 @@ mod tests {
         );
     }
 
+    /// One-byte float codes are laid out as Q8 values are.
     #[test]
     fn packing_bytes_along_rows_pads_each_row() {
-        let scheme = QuantScheme::default()
-            .with_value(QuantValue::Q8S)
-            .with_store(QuantStore::PackedU32(0));
+        for value in [QuantValue::Q8S, QuantValue::E4M3] {
+            let scheme = QuantScheme::default()
+                .with_value(value)
+                .with_store(QuantStore::PackedU32(0));
 
-        let packed = QuantizedBytes::new((0..6i8).collect(), [2, 3], scheme, &[1.0], None);
+            let packed = QuantizedBytes::new((0..6i8).collect(), [2, 3], scheme, &[1.0], None);
 
-        assert_eq!(words(&packed, 2), [0x0002_0100, 0x0005_0403]);
+            assert_eq!(words(&packed, 2), [0x0002_0100, 0x0005_0403], "{value:?}");
+            assert_eq!(packed.into_vec_i8().0, (0..6i8).collect::<Vec<_>>());
+        }
     }
 
     #[test]
-    #[should_panic(expected = "every packed line padded to whole words")]
+    #[should_panic(expected = "take 12 bytes, not 9")]
     fn values_whose_lines_are_not_padded_are_refused() {
         let scheme = QuantScheme::default()
             .with_value(QuantValue::Q8S)
@@ -904,7 +885,7 @@ mod tests {
 
     #[test]
     #[should_panic(expected = "E2M1 values under PackedU32")]
-    fn float_values_are_not_packed_into_words() {
+    fn four_bit_float_values_are_not_packed_into_words() {
         let scheme = QuantScheme::default().with_value(QuantValue::E2M1);
 
         QuantizedBytes::new(vec![0i8; 8], [8], scheme, &[1.0], None);
@@ -924,44 +905,6 @@ mod tests {
 
         assert_eq!(packed, vec![2147287680, 55]);
         assert_eq!(packed, packed_padded);
-    }
-
-    #[test]
-    fn should_unpack_u32s_to_i8s() {
-        let unpacked = unpack_q_to_i8s(&[2147287680u32], 4, &QuantValue::Q8S);
-
-        assert_eq!(unpacked, vec![-128, 2, -3, 127]);
-    }
-
-    #[test]
-    fn should_unpack_u32s_to_i8s_padded() {
-        let unpacked = unpack_q_to_i8s(&[55u32], 1, &QuantValue::Q8S);
-
-        assert_eq!(unpacked, vec![55]);
-    }
-
-    #[test]
-    fn should_unpack_u32s_to_i8s_arange() {
-        let unpacked = unpack_q_to_i8s(
-            &[
-                0u32, 286331136, 286331153, 572657937, 572662306, 857874978, 858993459, 858993459,
-                1145324612, 1145324612, 1431655748, 1431655765, 1717982549, 1717986918, 2003199590,
-                2004318071,
-            ],
-            128,
-            &QuantValue::Q4S,
-        );
-
-        assert_eq!(
-            unpacked,
-            vec![
-                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-                2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3,
-                3, 3, 3, 3, 3, 3, 3, 3, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 5, 5,
-                5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6,
-                6, 6, 6, 6, 6, 6, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7
-            ]
-        );
     }
 
     #[test]

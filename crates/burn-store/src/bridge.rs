@@ -366,8 +366,8 @@ mod tests {
     }
 
     /// Packed quantized storage divides only the packed dimension, so a non-divisible extent
-    /// pads once per line rather than once over the flattened tensor, as the storage shape
-    /// `CubeTensor::quantized_storage` allocates does.
+    /// pads once per line rather than once over the flattened tensor, as `QuantizedBytes::new`
+    /// lays it out.
     #[test]
     fn data_len_packs_per_line_for_packed_stores() {
         // Q4 in u32 words: 8 values per storage element, packed along the last dimension.
