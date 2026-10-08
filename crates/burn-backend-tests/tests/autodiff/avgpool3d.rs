@@ -1,13 +1,21 @@
 use super::*;
 use burn_tensor::Tolerance;
 use burn_tensor::module::avg_pool3d;
+use burn_tensor::ops::AvgPoolOptions;
 
 #[test]
 fn test_avg_pool3d_simple_gradient() {
     let device = AutodiffDevice::new();
     let x = TestTensor::<5>::ones([1, 1, 2, 2, 2], &device).require_grad();
 
-    let output = avg_pool3d(x.clone(), [2, 2, 2], [1, 1, 1], [0, 0, 0], true, false);
+    let output = avg_pool3d(
+        x.clone(),
+        AvgPoolOptions::new([2, 2, 2])
+            .with_stride([1, 1, 1])
+            .with_padding([0, 0, 0])
+            .with_count_include_pad(true)
+            .with_ceil_mode(false),
+    );
     let grads = output.sum().backward();
 
     let x_grad = x.grad(&grads).unwrap();
@@ -32,7 +40,14 @@ fn test_avg_pool3d_count_exclude_pad_gradient() {
     // Pool with kernel [2, 2, 2], stride [2, 2, 2], padding [1, 1, 1], count_include_pad=false
     // Output is 2x2x2. Each output window covers exactly 1 unpadded element from x.
     // So divisor is 1, gradient from that window to that single element is 1.0.
-    let output = avg_pool3d(x.clone(), [2, 2, 2], [2, 2, 2], [1, 1, 1], false, false);
+    let output = avg_pool3d(
+        x.clone(),
+        AvgPoolOptions::new([2, 2, 2])
+            .with_stride([2, 2, 2])
+            .with_padding([1, 1, 1])
+            .with_count_include_pad(false)
+            .with_ceil_mode(false),
+    );
     let grads = output.sum().backward();
 
     let x_grad = x.grad(&grads).unwrap();

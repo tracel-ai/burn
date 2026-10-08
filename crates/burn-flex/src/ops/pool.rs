@@ -133,6 +133,14 @@ macro_rules! adaptive_avg_pool3d_backward_typed {
 // ============================================================================
 
 /// Calculate pooling output size for a single dimension.
+///
+/// * `input` - Input size for one spatial dimension
+///
+/// # Panics
+///
+/// Panics when the padded input is strictly smaller than the kernel and the ceil overhang
+/// condition is not met. Note that this changes 1D/2D behavior from returning 0 or 1 to an
+/// explicit panic.
 fn pool_output_size(
     input: usize,
     kernel: usize,
@@ -153,7 +161,7 @@ fn pool_output_size(
             numerator / stride + 1
         }
     } else if ceil_mode && (effective_kernel - padded) < stride {
-        // Only produces an extra window if the deficit is smaller than the stride
+        // Ceil mode still yields one window when the kernel overhangs the padded input by less than one stride.
         1
     } else {
         panic!(
@@ -161,8 +169,8 @@ fn pool_output_size(
         );
     };
 
-    // In ceil mode, drop the trailing window if it starts inside the right padding.
-    if ceil_mode && out > 0 && (out - 1) * stride >= input + padding {
+    // In ceil mode, drop the trailing window if it starts at or past the end of the input.
+    if ceil_mode && (out - 1) * stride >= input + padding {
         out -= 1;
     }
     out

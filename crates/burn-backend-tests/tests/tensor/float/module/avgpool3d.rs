@@ -2,6 +2,7 @@ use super::*;
 use burn_tensor::Shape;
 use burn_tensor::Tolerance;
 use burn_tensor::module::avg_pool3d;
+use burn_tensor::ops::AvgPoolOptions;
 
 #[test]
 fn test_avg_pool3d_simple() {
@@ -42,7 +43,14 @@ fn test_avg_pool3d_count_include_pad() {
 
     // Pool with kernel [2, 2, 2], stride [2, 2, 2], padding [1, 1, 1]
     // With count_include_pad=true, window size is 8. Only 1 element is 1.0 (at the corner), so 1/8 = 0.125
-    let output_include = avg_pool3d(x.clone(), [2, 2, 2], [2, 2, 2], [1, 1, 1], true, false);
+    let output_include = avg_pool3d(
+        x.clone(),
+        AvgPoolOptions::new([2, 2, 2])
+            .with_stride([2, 2, 2])
+            .with_padding([1, 1, 1])
+            .with_count_include_pad(true)
+            .with_ceil_mode(false),
+    );
     assert_eq!(output_include.dims(), [1, 1, 2, 2, 2]);
     let expected_include = TestTensor::<5>::from([[[
         [[0.125, 0.125], [0.125, 0.125]],
@@ -53,7 +61,14 @@ fn test_avg_pool3d_count_include_pad() {
         .assert_approx_eq::<FloatElem>(&output_include.into_data(), Tolerance::default());
 
     // With count_include_pad=false, only unpadded elements contribute: sum / 1 = 1.0
-    let output_exclude = avg_pool3d(x, [2, 2, 2], [2, 2, 2], [1, 1, 1], false, false);
+    let output_exclude = avg_pool3d(
+        x,
+        AvgPoolOptions::new([2, 2, 2])
+            .with_stride([2, 2, 2])
+            .with_padding([1, 1, 1])
+            .with_count_include_pad(false)
+            .with_ceil_mode(false),
+    );
     assert_eq!(output_exclude.dims(), [1, 1, 2, 2, 2]);
     let expected_exclude = TestTensor::<5>::ones([1, 1, 2, 2, 2], &Default::default());
     expected_exclude
@@ -68,12 +83,26 @@ fn test_avg_pool3d_ceil_mode() {
     // Ceil: ceil((5 - 2)/2) + 1 = 3
     let x = TestTensor::<5>::ones([1, 1, 5, 5, 5], &Default::default());
 
-    let out_floor = avg_pool3d(x.clone(), [2, 2, 2], [2, 2, 2], [0, 0, 0], true, false);
+    let out_floor = avg_pool3d(
+        x.clone(),
+        AvgPoolOptions::new([2, 2, 2])
+            .with_stride([2, 2, 2])
+            .with_padding([0, 0, 0])
+            .with_count_include_pad(true)
+            .with_ceil_mode(false),
+    );
     assert_eq!(out_floor.dims(), [1, 1, 2, 2, 2]);
 
     // Ceil mode with count_include_pad = true:
     // With no explicit padding (padding=0), all windows evaluate to 1.0.
-    let out_ceil_include = avg_pool3d(x.clone(), [2, 2, 2], [2, 2, 2], [0, 0, 0], true, true);
+    let out_ceil_include = avg_pool3d(
+        x.clone(),
+        AvgPoolOptions::new([2, 2, 2])
+            .with_stride([2, 2, 2])
+            .with_padding([0, 0, 0])
+            .with_count_include_pad(true)
+            .with_ceil_mode(true),
+    );
     assert_eq!(out_ceil_include.dims(), [1, 1, 3, 3, 3]);
     let expected_ceil = TestTensor::<5>::ones([1, 1, 3, 3, 3], &Default::default());
     expected_ceil
@@ -82,7 +111,14 @@ fn test_avg_pool3d_ceil_mode() {
 
     // Ceil mode with count_include_pad = false:
     // The partial trailing edge window value is verified to be exactly 1.0.
-    let out_ceil_exclude = avg_pool3d(x, [2, 2, 2], [2, 2, 2], [0, 0, 0], false, true);
+    let out_ceil_exclude = avg_pool3d(
+        x,
+        AvgPoolOptions::new([2, 2, 2])
+            .with_stride([2, 2, 2])
+            .with_padding([0, 0, 0])
+            .with_count_include_pad(false)
+            .with_ceil_mode(true),
+    );
     assert_eq!(out_ceil_exclude.dims(), [1, 1, 3, 3, 3]);
     expected_ceil
         .to_data()
@@ -95,8 +131,40 @@ fn test_avg_pool3d_discard_branch() {
     // Window 3 would start at 2 * 3 = 6 >= 5 + 1 = 6 -> discarded!
     // Output size is 3x3x3
     let x = TestTensor::<5>::ones([1, 1, 5, 5, 5], &Default::default());
-    let out = avg_pool3d(x, [2, 2, 2], [2, 2, 2], [1, 1, 1], true, true);
-    assert_eq!(out.dims(), [1, 1, 3, 3, 3]);
+
+    // count_include_pad = true: outer product of [0.5, 1.0, 1.0]
+    let out_include = avg_pool3d(
+        x.clone(),
+        AvgPoolOptions::new([2, 2, 2])
+            .with_stride([2, 2, 2])
+            .with_padding([1, 1, 1])
+            .with_count_include_pad(true)
+            .with_ceil_mode(true),
+    );
+    assert_eq!(out_include.dims(), [1, 1, 3, 3, 3]);
+    let expected_include = TestTensor::<5>::from([[[
+        [[0.125, 0.25, 0.25], [0.25, 0.5, 0.5], [0.25, 0.5, 0.5]],
+        [[0.25, 0.5, 0.5], [0.5, 1.0, 1.0], [0.5, 1.0, 1.0]],
+        [[0.25, 0.5, 0.5], [0.5, 1.0, 1.0], [0.5, 1.0, 1.0]],
+    ]]]);
+    expected_include
+        .to_data()
+        .assert_approx_eq::<FloatElem>(&out_include.into_data(), Tolerance::default());
+
+    // count_include_pad = false: all values 1.0
+    let out_exclude = avg_pool3d(
+        x,
+        AvgPoolOptions::new([2, 2, 2])
+            .with_stride([2, 2, 2])
+            .with_padding([1, 1, 1])
+            .with_count_include_pad(false)
+            .with_ceil_mode(true),
+    );
+    assert_eq!(out_exclude.dims(), [1, 1, 3, 3, 3]);
+    let expected_exclude = TestTensor::<5>::ones([1, 1, 3, 3, 3], &Default::default());
+    expected_exclude
+        .to_data()
+        .assert_approx_eq::<FloatElem>(&out_exclude.into_data(), Tolerance::default());
 }
 
 struct AvgPool3dTestCase {
@@ -128,11 +196,11 @@ impl AvgPool3dTestCase {
         );
         let output = avg_pool3d(
             x,
-            self.kernel_size,
-            self.stride,
-            self.padding,
-            self.count_include_pad,
-            self.ceil_mode,
+            AvgPoolOptions::new(self.kernel_size)
+                .with_stride(self.stride)
+                .with_padding(self.padding)
+                .with_count_include_pad(self.count_include_pad)
+                .with_ceil_mode(self.ceil_mode),
         );
 
         y.to_data().assert_approx_eq::<FloatElem>(

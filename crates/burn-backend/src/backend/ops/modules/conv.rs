@@ -238,10 +238,15 @@ pub fn calculate_conv_output_sizes(
 /// * `stride` - Stride of the pooling operation
 /// * `padding` - Padding applied to input
 /// * `dilation` - Dilation of the pooling kernel
-/// * `size_in` - Input size (height or width)
+/// * `size_in` - Input size for one spatial dimension
 /// * `ceil_mode` - If true, use ceiling instead of floor for output size calculation.
 ///   This allows the last pooling window to go out-of-bounds if needed, as long as it
 ///   starts inside the input or left padding (matches PyTorch and ONNX).
+///
+/// # Panics
+///
+/// Panics when the padded input is strictly smaller than the kernel and the ceil overhang
+/// condition is not met.
 pub fn calculate_pool_output_size(
     kernel_size: usize,
     stride: usize,
@@ -261,7 +266,7 @@ pub fn calculate_pool_output_size(
             numerator / stride + 1
         }
     } else if ceil_mode && (effective_kernel - padded) < stride {
-        // Only produces an extra window if the deficit is smaller than the stride
+        // Ceil mode still yields one window when the kernel overhangs the padded input by less than one stride.
         1
     } else {
         panic!(
@@ -269,8 +274,8 @@ pub fn calculate_pool_output_size(
         );
     };
 
-    // In ceil mode, drop the trailing window if it starts inside the right padding.
-    if ceil_mode && out > 0 && (out - 1) * stride >= size_in + padding {
+    // In ceil mode, drop the trailing window if it starts at or past the end of the input.
+    if ceil_mode && (out - 1) * stride >= size_in + padding {
         out -= 1;
     }
 
@@ -1718,8 +1723,7 @@ mod tests {
 
     #[test]
     fn test_calculate_pool_output_size_floor_no_discard_large_padding() {
-        // Floor mode does NOT discard when padding >= effective_kernel / 2
-        // in=4, k=2, s=1, p=2, ceil=false gives output length 7, matching main
+        // Floor mode never discards: in=4, k=2, s=1, p=2 -> (8 - 2) / 1 + 1 = 7.
         let out_floor = calculate_pool_output_size(2, 1, 2, 1, 4, false);
         assert_eq!(out_floor, 7);
     }

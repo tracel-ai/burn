@@ -1,6 +1,7 @@
 use super::*;
 use burn_tensor::Tolerance;
 use burn_tensor::module::{max_pool3d, max_pool3d_with_indices};
+use burn_tensor::ops::MaxPoolOptions;
 
 #[test]
 fn test_max_pool3d_simple() {
@@ -29,7 +30,14 @@ fn test_max_pool3d_simple() {
     let y_expected =
         TestTensor::<5>::from([[[[[13.0, 14.0], [16.0, 17.0]], [[22.0, 23.0], [25.0, 26.0]]]]]);
 
-    let output = max_pool3d(x, kernel_size, stride, padding, dilation, false);
+    let output = max_pool3d(
+        x,
+        MaxPoolOptions::new(kernel_size)
+            .with_stride(stride)
+            .with_padding(padding)
+            .with_dilation(dilation)
+            .with_ceil_mode(false),
+    );
 
     y_expected
         .to_data()
@@ -50,8 +58,14 @@ fn test_max_pool3d_with_indices() {
             .into_data(),
     );
 
-    let (output, indices) =
-        max_pool3d_with_indices(x, kernel_size, stride, padding, dilation, false);
+    let (output, indices) = max_pool3d_with_indices(
+        x,
+        MaxPoolOptions::new(kernel_size)
+            .with_stride(stride)
+            .with_padding(padding)
+            .with_dilation(dilation)
+            .with_ceil_mode(false),
+    );
 
     let y_expected =
         TestTensor::<5>::from([[[[[13.0, 14.0], [16.0, 17.0]], [[22.0, 23.0], [25.0, 26.0]]]]]);
@@ -73,10 +87,24 @@ fn test_max_pool3d_with_indices() {
 fn test_max_pool3d_ceil_mode() {
     let x = TestTensor::<5>::ones([1, 1, 5, 5, 5], &Default::default());
 
-    let out_floor = max_pool3d(x.clone(), [2, 2, 2], [2, 2, 2], [0, 0, 0], [1, 1, 1], false);
+    let out_floor = max_pool3d(
+        x.clone(),
+        MaxPoolOptions::new([2, 2, 2])
+            .with_stride([2, 2, 2])
+            .with_padding([0, 0, 0])
+            .with_dilation([1, 1, 1])
+            .with_ceil_mode(false),
+    );
     assert_eq!(out_floor.dims(), [1, 1, 2, 2, 2]);
 
-    let out_ceil = max_pool3d(x, [2, 2, 2], [2, 2, 2], [0, 0, 0], [1, 1, 1], true);
+    let out_ceil = max_pool3d(
+        x,
+        MaxPoolOptions::new([2, 2, 2])
+            .with_stride([2, 2, 2])
+            .with_padding([0, 0, 0])
+            .with_dilation([1, 1, 1])
+            .with_ceil_mode(true),
+    );
     assert_eq!(out_ceil.dims(), [1, 1, 3, 3, 3]);
 }
 
@@ -85,7 +113,14 @@ fn test_max_pool3d_discard_branch() {
     // 5x5x5 input, kernel 2, stride 2, padding 1, ceil_mode = true
     // Window 3 starting at index 6 >= 5 + 1 = 6 is discarded
     let x = TestTensor::<5>::ones([1, 1, 5, 5, 5], &Default::default());
-    let out = max_pool3d(x, [2, 2, 2], [2, 2, 2], [1, 1, 1], [1, 1, 1], true);
+    let out = max_pool3d(
+        x,
+        MaxPoolOptions::new([2, 2, 2])
+            .with_stride([2, 2, 2])
+            .with_padding([1, 1, 1])
+            .with_dilation([1, 1, 1])
+            .with_ceil_mode(true),
+    );
     assert_eq!(out.dims(), [1, 1, 3, 3, 3]);
 }
 
@@ -126,8 +161,14 @@ fn test_max_pool3d_non_arange_multichannel_with_indices() {
     ];
 
     let x = TestTensor::<5>::from(x_data);
-    let (output, indices) =
-        max_pool3d_with_indices(x.clone(), kernel_size, stride, padding, dilation, false);
+    let (output, indices) = max_pool3d_with_indices(
+        x.clone(),
+        MaxPoolOptions::new(kernel_size)
+            .with_stride(stride)
+            .with_padding(padding)
+            .with_dilation(dilation)
+            .with_ceil_mode(false),
+    );
 
     // Output values should match input values exactly
     output
@@ -183,8 +224,14 @@ fn test_max_pool3d_dilation() {
         &Default::default(),
     );
 
-    let (output, indices) =
-        max_pool3d_with_indices(x, kernel_size, stride, padding, dilation, false);
+    let (output, indices) = max_pool3d_with_indices(
+        x,
+        MaxPoolOptions::new(kernel_size)
+            .with_stride(stride)
+            .with_padding(padding)
+            .with_dilation(dilation)
+            .with_ceil_mode(false),
+    );
 
     assert_eq!(output.dims(), [1, 1, 1, 1, 1]);
     let expected_output = TestTensor::<5>::from([[[[[80.0]]]]]);
@@ -194,4 +241,120 @@ fn test_max_pool3d_dilation() {
 
     let expected_indices = TestTensorInt::<5>::from_data([[[[[26]]]]], &Default::default());
     assert_eq!(indices.into_data(), expected_indices.into_data());
+}
+
+#[test]
+fn test_max_pool3d_window_positions() {
+    let kernel_size = [3, 3, 3];
+    let stride = [1, 1, 1];
+    let padding = [0, 0, 0];
+
+    // Case 1: Max is at index 0 (start of window, coordinate (0, 0, 0))
+    let mut data_start = vec![1.0f32; 27];
+    data_start[0] = 50.0;
+    let x_start = TestTensor::<5>::from_data(
+        burn_tensor::TensorData::new(data_start, [1, 1, 3, 3, 3]),
+        &Default::default(),
+    );
+    let (out_start, idx_start) = max_pool3d_with_indices(
+        x_start,
+        MaxPoolOptions::new(kernel_size)
+            .with_stride(stride)
+            .with_padding(padding),
+    );
+    TestTensor::<5>::from([[[[[50.0]]]]])
+        .to_data()
+        .assert_approx_eq::<FloatElem>(&out_start.into_data(), Tolerance::default());
+    assert_eq!(
+        idx_start.into_data(),
+        TestTensorInt::<5>::from_data([[[[[0]]]]], &Default::default()).into_data()
+    );
+
+    // Case 2: Max is in the middle of window: coordinate (1, 1, 1) -> index 1 * 9 + 1 * 3 + 1 = 13
+    let mut data_mid = vec![1.0f32; 27];
+    data_mid[13] = 50.0;
+    let x_mid = TestTensor::<5>::from_data(
+        burn_tensor::TensorData::new(data_mid, [1, 1, 3, 3, 3]),
+        &Default::default(),
+    );
+    let (out_mid, idx_mid) = max_pool3d_with_indices(
+        x_mid,
+        MaxPoolOptions::new(kernel_size)
+            .with_stride(stride)
+            .with_padding(padding),
+    );
+    TestTensor::<5>::from([[[[[50.0]]]]])
+        .to_data()
+        .assert_approx_eq::<FloatElem>(&out_mid.into_data(), Tolerance::default());
+    assert_eq!(
+        idx_mid.into_data(),
+        TestTensorInt::<5>::from_data([[[[[13]]]]], &Default::default()).into_data()
+    );
+}
+
+#[test]
+fn test_max_pool3d_tie_breaking() {
+    // Duplicate maximum values: index 2 and index 5 both have value 42.0.
+    // Index 2 comes first, so strict '>' tie-breaking must return index 2, not 5.
+    let mut data = vec![10.0f32; 8];
+    data[2] = 42.0;
+    data[5] = 42.0;
+    let x = TestTensor::<5>::from_data(
+        burn_tensor::TensorData::new(data, [1, 1, 2, 2, 2]),
+        &Default::default(),
+    );
+    let (out, idx) = max_pool3d_with_indices(
+        x,
+        MaxPoolOptions::new([2, 2, 2])
+            .with_stride([1, 1, 1])
+            .with_padding([0, 0, 0]),
+    );
+    TestTensor::<5>::from([[[[[42.0]]]]])
+        .to_data()
+        .assert_approx_eq::<FloatElem>(&out.into_data(), Tolerance::default());
+    assert_eq!(
+        idx.into_data(),
+        TestTensorInt::<5>::from_data([[[[[2]]]]], &Default::default()).into_data()
+    );
+
+    // Duplicate maximum at index 0 and index 7 (both 99.0): must return index 0
+    let mut data2 = vec![10.0f32; 8];
+    data2[0] = 99.0;
+    data2[7] = 99.0;
+    let x2 = TestTensor::<5>::from_data(
+        burn_tensor::TensorData::new(data2, [1, 1, 2, 2, 2]),
+        &Default::default(),
+    );
+    let (out2, idx2) = max_pool3d_with_indices(
+        x2,
+        MaxPoolOptions::new([2, 2, 2])
+            .with_stride([1, 1, 1])
+            .with_padding([0, 0, 0]),
+    );
+    TestTensor::<5>::from([[[[[99.0]]]]])
+        .to_data()
+        .assert_approx_eq::<FloatElem>(&out2.into_data(), Tolerance::default());
+    assert_eq!(
+        idx2.into_data(),
+        TestTensorInt::<5>::from_data([[[[[0]]]]], &Default::default()).into_data()
+    );
+}
+
+#[test]
+fn test_max_pool3d_no_valid_tap() {
+    let x = TestTensor::<5>::from_data([[[[[1.0]], [[2.0]]]]], &Default::default());
+    let (output, indices) = max_pool3d_with_indices(
+        x,
+        MaxPoolOptions::new([2, 1, 1])
+            .with_stride([1, 1, 1])
+            .with_padding([1, 0, 0])
+            .with_dilation([3, 1, 1]),
+    );
+
+    let output_data = output.into_data();
+    let val: FloatElem = output_data.as_slice().unwrap()[0];
+    assert!(val.is_infinite() && val.is_sign_negative());
+
+    let indices_expected = TestTensorInt::<5>::from_data([[[[[-1]]]]], &Default::default());
+    assert_eq!(indices.into_data(), indices_expected.into_data());
 }

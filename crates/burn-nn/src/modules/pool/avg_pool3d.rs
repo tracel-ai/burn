@@ -5,9 +5,8 @@ use burn::config::Config;
 use burn::module::Module;
 use burn::module::{Content, DisplaySettings, ModuleDisplay};
 use burn::tensor::Tensor;
-use burn::tensor::ops::PadMode;
-
 use burn::tensor::module::avg_pool3d;
+use burn::tensor::ops::AvgPoolOptions;
 
 /// Configuration to create a [3D avg pooling](AvgPool3d) layer using the [init function](AvgPool3dConfig::init).
 #[derive(Config, Debug)]
@@ -19,7 +18,7 @@ pub struct AvgPool3dConfig {
     pub strides: [usize; 3],
     /// The padding configuration.
     ///
-    /// Explicit padding is symmetric per dimension. Same padding with even kernel sizes uses asymmetric padding internally.
+    /// `Same` padding may be asymmetric (even kernels, or stride > 1); the input is then pre-padded before pooling.
     #[config(default = "PaddingConfig3d::Valid")]
     pub padding: PaddingConfig3d,
     /// If the padding is counted in the denominator when computing the average.
@@ -45,6 +44,8 @@ pub struct AvgPool3d {
     /// Size of the kernel.
     pub kernel_size: [usize; 3],
     /// Padding configuration.
+    ///
+    /// `Same` padding may be asymmetric (even kernels, or stride > 1); the input is then pre-padded before pooling.
     #[module(skip)]
     pub padding: PaddingConfig3d,
     /// If the padding is counted in the denominator when computing the average.
@@ -95,9 +96,7 @@ impl AvgPool3d {
     /// - output: `[batch_size, channels, depth_out, height_out, width_out]`
     pub fn forward(&self, input: Tensor<5>) -> Tensor<5> {
         let [_batch_size, _channels_in, depth_in, height_in, width_in] = input.dims();
-
-        // Calculate padding as pairs - handles Same, Valid, and Explicit uniformly
-        let ((front, back), (top, bottom), (left, right)) =
+        let (padding_depth, padding_height, padding_width) =
             self.padding.calculate_padding_3d_pairs(
                 depth_in,
                 height_in,
@@ -106,63 +105,14 @@ impl AvgPool3d {
                 &self.stride,
             );
 
-        if front != back || top != bottom || left != right {
-            let valid = if self.count_include_pad {
-                None
-            } else {
-                let device = input.device();
-                Some(
-                    Tensor::<5>::ones(
-                        [1, 1, depth_in, height_in, width_in],
-                        (&device, input.dtype()),
-                    )
-                    .pad(
-                        [(front, back), (top, bottom), (left, right)],
-                        PadMode::Constant(0.0),
-                    ),
-                )
-            };
-            let padded = input.pad(
-                [(front, back), (top, bottom), (left, right)],
-                PadMode::Constant(0.0),
-            );
-            let output = avg_pool3d(
-                padded,
-                self.kernel_size,
-                self.stride,
-                [0, 0, 0],
-                self.count_include_pad,
-                self.ceil_mode,
-            );
-
-            if let Some(valid) = valid {
-                // Materialized padding is indistinguishable from input to the backend. Pooling a
-                // validity mask with the same settings recovers the fraction of real values in
-                // each window, including partial windows created by ceil mode.
-                let valid = avg_pool3d(
-                    valid,
-                    self.kernel_size,
-                    self.stride,
-                    [0, 0, 0],
-                    false,
-                    self.ceil_mode,
-                );
-                let empty = valid.clone().equal_elem(0.0);
-                output / valid.mask_fill(empty, 1.0)
-            } else {
-                output
-            }
-        } else {
-            // Symmetric padding
-            avg_pool3d(
-                input,
-                self.kernel_size,
-                self.stride,
-                [front, top, left],
-                self.count_include_pad,
-                self.ceil_mode,
-            )
-        }
+        avg_pool3d(
+            input,
+            AvgPoolOptions::new(self.kernel_size)
+                .with_stride(self.stride)
+                .with_padding_pairs([padding_depth, padding_height, padding_width])
+                .with_count_include_pad(self.count_include_pad)
+                .with_ceil_mode(self.ceil_mode),
+        )
     }
 }
 
@@ -260,5 +210,39 @@ mod tests {
         // and padding is excluded from the average, the result must be 1.0 everywhere.
         let expected = Tensor::<5>::ones([1, 1, 3, 3, 3], &device);
         output.to_data().assert_eq(&expected.to_data(), true);
+    }
+
+    #[test]
+    fn same_padding_even_kernel_arange_counts() {
+        let device = crate::test_device();
+        let input = Tensor::<1, burn::tensor::Int>::arange(0..8, &device)
+            .float()
+            .reshape([1, 1, 2, 2, 2]);
+
+        // count_include_pad = true
+        let pool_inc = AvgPool3dConfig::new([2, 2, 2])
+            .with_strides([1, 1, 1])
+            .with_padding(PaddingConfig3d::Same)
+            .with_count_include_pad(true)
+            .init();
+        let out_inc = pool_inc.forward(input.clone());
+        let expected_inc = Tensor::<5>::from_data(
+            [[[[[3.5, 2.0], [2.25, 1.25]], [[2.75, 1.5], [1.625, 0.875]]]]],
+            &device,
+        );
+        out_inc.to_data().assert_eq(&expected_inc.to_data(), true);
+
+        // count_include_pad = false
+        let pool_exc = AvgPool3dConfig::new([2, 2, 2])
+            .with_strides([1, 1, 1])
+            .with_padding(PaddingConfig3d::Same)
+            .with_count_include_pad(false)
+            .init();
+        let out_exc = pool_exc.forward(input);
+        let expected_exc = Tensor::<5>::from_data(
+            [[[[[3.5, 4.0], [4.5, 5.0]], [[5.5, 6.0], [6.5, 7.0]]]]],
+            &device,
+        );
+        out_exc.to_data().assert_eq(&expected_exc.to_data(), true);
     }
 }

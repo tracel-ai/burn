@@ -1,6 +1,7 @@
 use super::*;
 use burn_tensor::Tolerance;
 use burn_tensor::module::{max_pool3d, max_pool3d_with_indices};
+use burn_tensor::ops::MaxPoolOptions;
 
 #[test]
 fn test_max_pool3d_gradient_single_winner() {
@@ -11,7 +12,14 @@ fn test_max_pool3d_gradient_single_winner() {
     )
     .require_grad();
 
-    let output = max_pool3d(x.clone(), [2, 2, 2], [1, 1, 1], [0, 0, 0], [1, 1, 1], false);
+    let output = max_pool3d(
+        x.clone(),
+        MaxPoolOptions::new([2, 2, 2])
+            .with_stride([1, 1, 1])
+            .with_padding([0, 0, 0])
+            .with_dilation([1, 1, 1])
+            .with_ceil_mode(false),
+    );
     let grads = output.backward();
 
     let x_grad = x.grad(&grads).unwrap();
@@ -35,8 +43,14 @@ fn test_max_pool3d_with_indices_gradient() {
     )
     .require_grad();
 
-    let (output, _indices) =
-        max_pool3d_with_indices(x.clone(), [2, 2, 2], [1, 1, 1], [0, 0, 0], [1, 1, 1], false);
+    let (output, _indices) = max_pool3d_with_indices(
+        x.clone(),
+        MaxPoolOptions::new([2, 2, 2])
+            .with_stride([1, 1, 1])
+            .with_padding([0, 0, 0])
+            .with_dilation([1, 1, 1])
+            .with_ceil_mode(false),
+    );
     let grads = output.backward();
 
     let x_grad = x.grad(&grads).unwrap();
@@ -67,7 +81,14 @@ fn test_max_pool3d_gradient_overlapping_windows() {
     // The center element (1, 1, 1) is present in ALL 8 windows:
     // d in {0, 1}, h in {0, 1}, w in {0, 1}.
     // Since 100.0 > 0.0, it wins in all 8 windows!
-    let output = max_pool3d(x.clone(), [2, 2, 2], [1, 1, 1], [0, 0, 0], [1, 1, 1], false);
+    let output = max_pool3d(
+        x.clone(),
+        MaxPoolOptions::new([2, 2, 2])
+            .with_stride([1, 1, 1])
+            .with_padding([0, 0, 0])
+            .with_dilation([1, 1, 1])
+            .with_ceil_mode(false),
+    );
     let grads = output.sum().backward();
 
     let x_grad = x.grad(&grads).unwrap();
@@ -80,6 +101,45 @@ fn test_max_pool3d_gradient_overlapping_windows() {
     );
 
     expected
+        .to_data()
+        .assert_approx_eq::<FloatElem>(&x_grad.into_data(), Tolerance::default());
+}
+
+#[test]
+fn test_max_pool3d_gradient_multibatch_multichannel_scatter() {
+    let device = AutodiffDevice::new();
+    // batch_size > 1 (2), channels > 1 (2), spatial [2, 2, 2]
+    // Values are arbitrary non-zero numbers
+    let x = TestTensor::<5>::from_data(
+        TestTensorInt::arange(1..33, &device)
+            .reshape::<5, _>([2, 2, 2, 2, 2])
+            .into_data(),
+        &device,
+    )
+    .require_grad();
+
+    // Kernel 2, stride 2, padding 1: output spatial size is [2, 2, 2].
+    // Each window (od, oh, ow) covers exactly one valid input element at (od, oh, ow).
+    // Distinct weights for each output element ensure exact scatter verification.
+    let weights = TestTensor::<5>::from_data(
+        TestTensorInt::arange(101..133, &device)
+            .reshape::<5, _>([2, 2, 2, 2, 2])
+            .into_data(),
+        &device,
+    );
+
+    let output = max_pool3d(
+        x.clone(),
+        MaxPoolOptions::new([2, 2, 2])
+            .with_stride([2, 2, 2])
+            .with_padding([1, 1, 1]),
+    );
+
+    let loss = (output * weights.clone()).sum();
+    let grads = loss.backward();
+
+    let x_grad = x.grad(&grads).unwrap();
+    weights
         .to_data()
         .assert_approx_eq::<FloatElem>(&x_grad.into_data(), Tolerance::default());
 }

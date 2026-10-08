@@ -5,9 +5,8 @@ use burn::config::Config;
 use burn::module::Module;
 use burn::module::{Content, DisplaySettings, ModuleDisplay};
 use burn::tensor::Tensor;
-use burn::tensor::ops::PadMode;
-
 use burn::tensor::module::max_pool3d;
+use burn::tensor::ops::MaxPoolOptions;
 
 /// Configuration to create a [3D max pooling](MaxPool3d) layer using the [init function](MaxPool3dConfig::init).
 #[derive(Debug, Config)]
@@ -19,7 +18,7 @@ pub struct MaxPool3dConfig {
     pub strides: [usize; 3],
     /// The padding configuration.
     ///
-    /// Explicit padding is symmetric per dimension. Same padding with even kernel sizes uses asymmetric padding internally.
+    /// `Same` padding may be asymmetric (even kernels, or stride > 1); the input is then pre-padded before pooling.
     #[config(default = "PaddingConfig3d::Valid")]
     pub padding: PaddingConfig3d,
     /// The dilation.
@@ -41,6 +40,8 @@ pub struct MaxPool3d {
     /// The size of the kernel.
     pub kernel_size: [usize; 3],
     /// The padding configuration.
+    ///
+    /// `Same` padding may be asymmetric (even kernels, or stride > 1); the input is then pre-padded before pooling.
     #[module(skip)]
     pub padding: PaddingConfig3d,
     /// The dilation.
@@ -91,9 +92,7 @@ impl MaxPool3d {
     /// - output: `[batch_size, channels, depth_out, height_out, width_out]`
     pub fn forward(&self, input: Tensor<5>) -> Tensor<5> {
         let [_batch_size, _channels_in, depth_in, height_in, width_in] = input.dims();
-
-        // Calculate padding as pairs - handles Same, Valid, and Explicit uniformly
-        let ((front, back), (top, bottom), (left, right)) =
+        let (padding_depth, padding_height, padding_width) =
             self.padding.calculate_padding_3d_pairs(
                 depth_in,
                 height_in,
@@ -102,34 +101,14 @@ impl MaxPool3d {
                 &self.stride,
             );
 
-        // Handle asymmetric padding by applying explicit pad operation first
-        if front != back || top != bottom || left != right {
-            // Burn's pad accepts [(front, back), (top, bottom), (left, right)] for the last 3 dimensions
-            // Use -inf for max pooling so padded values don't affect the max
-            let padded = input.pad(
-                [(front, back), (top, bottom), (left, right)],
-                PadMode::Constant(f32::NEG_INFINITY),
-            );
-            // Use zero padding for the pool operation since we already padded
-            max_pool3d(
-                padded,
-                self.kernel_size,
-                self.stride,
-                [0, 0, 0],
-                self.dilation,
-                self.ceil_mode,
-            )
-        } else {
-            // Symmetric padding
-            max_pool3d(
-                input,
-                self.kernel_size,
-                self.stride,
-                [front, top, left],
-                self.dilation,
-                self.ceil_mode,
-            )
-        }
+        max_pool3d(
+            input,
+            MaxPoolOptions::new(self.kernel_size)
+                .with_stride(self.stride)
+                .with_padding_pairs([padding_depth, padding_height, padding_width])
+                .with_dilation(self.dilation)
+                .with_ceil_mode(self.ceil_mode),
+        )
     }
 }
 
@@ -211,5 +190,43 @@ mod tests {
         let output = pool.forward(input);
 
         assert_eq!(output.dims(), expected_dims);
+    }
+
+    #[test]
+    fn same_padding_all_negative_no_inf_leak() {
+        let device = crate::test_device();
+        let input = Tensor::<5>::from_data(
+            [[[
+                [[-10.0, -20.0], [-30.0, -40.0]],
+                [[-50.0, -60.0], [-70.0, -80.0]],
+            ]]],
+            &device,
+        );
+
+        let pool = MaxPool3dConfig::new([2, 2, 2])
+            .with_strides([1, 1, 1])
+            .with_padding(PaddingConfig3d::Same)
+            .init();
+
+        let output = pool.forward(input);
+        let expected = Tensor::<5>::from_data(
+            [[[
+                [[-10.0, -20.0], [-30.0, -40.0]],
+                [[-50.0, -60.0], [-70.0, -80.0]],
+            ]]],
+            &device,
+        );
+        output.to_data().assert_eq(&expected.to_data(), true);
+
+        // Verify that no output element is -inf or inf
+        let output_data = output.into_data();
+        let output_slice = output_data.as_slice::<f32>().unwrap();
+        for &val in output_slice {
+            assert!(
+                val.is_finite(),
+                "Output value {val} is not finite (leaked -inf)"
+            );
+            assert!(val < 0.0, "Output value {val} should be negative");
+        }
     }
 }
