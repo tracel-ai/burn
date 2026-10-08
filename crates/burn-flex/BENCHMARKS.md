@@ -1,6 +1,6 @@
 # Benchmarks: Flex vs NdArray
 
-> Historical comparison with `burn-ndarray`, deprecated in 0.22 and removed from `main`.
+> Historical comparison with `burn-ndarray`, deprecated in 0.22 and removed after the 0.22 release.
 > Its source remains available on [`release/0.22`](https://github.com/tracel-ai/burn/tree/release/0.22/crates/burn-ndarray).
 
 All benchmarks run on Apple M3 Max, comparing burn-flex against burn-ndarray. Default features

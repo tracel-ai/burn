@@ -20,7 +20,7 @@ and `cuda` features make `Device::wgpu` and `Device::cuda` available.
 
 ## Selecting a Device
 
-The NdArray backend, deprecated in 0.22, has been removed from `main`. Replace the `ndarray`
+The NdArray backend, deprecated in 0.22, was removed after the 0.22 release. Replace the `ndarray`
 feature with `flex` and `Device::ndarray()` with `Device::flex()`. NdArray remains available
 in the 0.22 releases.
 
