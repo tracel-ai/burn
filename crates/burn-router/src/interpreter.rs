@@ -19,6 +19,17 @@ use burn_ir::{
 use burn_std::{DeviceSettings, future::DynFut};
 use portable_atomic::{AtomicU64, Ordering};
 
+/// `$float` on a float tensor and `$quantized` on a quantized one, each with the tensor bound to
+/// `$tensor`, so an op that has a quantized kernel keeps its tensor quantized.
+macro_rules! float_or_quantized {
+    ($tensor:ident, $float:expr, $quantized:expr) => {
+        match $tensor {
+            TensorPrimitive::Float($tensor) => TensorPrimitive::Float($float),
+            TensorPrimitive::QFloat($tensor) => TensorPrimitive::QFloat($quantized),
+        }
+    };
+}
+
 /// An interpreter's context contains a [handle container](HandleContainer) to manage
 /// (i.e., fetch and update) existing tensors.
 pub struct InterpreterContext<B: BackendIr> {
@@ -219,65 +230,57 @@ impl<B: BackendIr> TensorInterpreter<B> {
         match &op {
             // For every op: get the input(s), execute the operation and register the output(s)
             OperationIr::BaseFloat(op) => match op {
-                BaseOperationIr::Reshape(desc) if matches!(desc.input.dtype, DType::QFloat(_)) => {
-                    let tensor = handles.get_quantized_tensor::<B>(&desc.input);
-
-                    let output = B::q_reshape(tensor, desc.out.shape.clone());
-                    handles.register_quantized_tensor::<B>(&desc.out.id, output);
-                }
                 BaseOperationIr::Reshape(desc) => {
-                    let tensor = handles.get_float_tensor::<B>(&desc.input);
+                    let tensor = handles.get_float_primitive::<B>(&desc.input);
+                    let shape = desc.out.shape.clone();
 
-                    let output = B::float_reshape(tensor, desc.out.shape.clone());
-                    handles.register_float_tensor::<B>(&desc.out.id, output);
-                }
-                BaseOperationIr::SwapDims(desc) if matches!(desc.input.dtype, DType::QFloat(_)) => {
-                    let tensor = handles.get_quantized_tensor::<B>(&desc.input);
-
-                    let output = B::q_swap_dims(tensor, desc.dim1, desc.dim2);
-                    handles.register_quantized_tensor::<B>(&desc.out.id, output);
+                    let output = float_or_quantized!(
+                        tensor,
+                        B::float_reshape(tensor, shape),
+                        B::q_reshape(tensor, shape)
+                    );
+                    handles.register_float_primitive::<B>(&desc.out.id, output);
                 }
                 BaseOperationIr::SwapDims(desc) => {
-                    let tensor = handles.get_float_tensor::<B>(&desc.input);
+                    let tensor = handles.get_float_primitive::<B>(&desc.input);
 
-                    let output = B::float_swap_dims(tensor, desc.dim1, desc.dim2);
-                    handles.register_float_tensor::<B>(&desc.out.id, output);
-                }
-                BaseOperationIr::Permute(desc) if matches!(desc.input.dtype, DType::QFloat(_)) => {
-                    let tensor = handles.get_quantized_tensor::<B>(&desc.input);
-
-                    let output = B::q_permute(tensor, &desc.axes);
-                    handles.register_quantized_tensor::<B>(&desc.out.id, output);
+                    let output = float_or_quantized!(
+                        tensor,
+                        B::float_swap_dims(tensor, desc.dim1, desc.dim2),
+                        B::q_swap_dims(tensor, desc.dim1, desc.dim2)
+                    );
+                    handles.register_float_primitive::<B>(&desc.out.id, output);
                 }
                 BaseOperationIr::Permute(desc) => {
-                    let tensor = handles.get_float_tensor::<B>(&desc.input);
+                    let tensor = handles.get_float_primitive::<B>(&desc.input);
 
-                    let output = B::float_permute(tensor, &desc.axes);
-                    handles.register_float_tensor::<B>(&desc.out.id, output);
-                }
-                BaseOperationIr::Flip(desc) if matches!(desc.input.dtype, DType::QFloat(_)) => {
-                    let tensor = handles.get_quantized_tensor::<B>(&desc.input);
-
-                    let output = B::q_flip(tensor, &desc.axes);
-                    handles.register_quantized_tensor::<B>(&desc.out.id, output);
+                    let output = float_or_quantized!(
+                        tensor,
+                        B::float_permute(tensor, &desc.axes),
+                        B::q_permute(tensor, &desc.axes)
+                    );
+                    handles.register_float_primitive::<B>(&desc.out.id, output);
                 }
                 BaseOperationIr::Flip(desc) => {
-                    let tensor = handles.get_float_tensor::<B>(&desc.input);
+                    let tensor = handles.get_float_primitive::<B>(&desc.input);
 
-                    let output = B::float_flip(tensor, &desc.axes);
-                    handles.register_float_tensor::<B>(&desc.out.id, output);
-                }
-                BaseOperationIr::Expand(desc) if matches!(desc.input.dtype, DType::QFloat(_)) => {
-                    let tensor = handles.get_quantized_tensor::<B>(&desc.input);
-
-                    let output = B::q_expand(tensor, desc.out.shape.clone());
-                    handles.register_quantized_tensor::<B>(&desc.out.id, output);
+                    let output = float_or_quantized!(
+                        tensor,
+                        B::float_flip(tensor, &desc.axes),
+                        B::q_flip(tensor, &desc.axes)
+                    );
+                    handles.register_float_primitive::<B>(&desc.out.id, output);
                 }
                 BaseOperationIr::Expand(desc) => {
-                    let tensor = handles.get_float_tensor::<B>(&desc.input);
+                    let tensor = handles.get_float_primitive::<B>(&desc.input);
+                    let shape = desc.out.shape.clone();
 
-                    let output = B::float_expand(tensor, desc.out.shape.clone());
-                    handles.register_float_tensor::<B>(&desc.out.id, output);
+                    let output = float_or_quantized!(
+                        tensor,
+                        B::float_expand(tensor, shape),
+                        B::q_expand(tensor, shape)
+                    );
+                    handles.register_float_primitive::<B>(&desc.out.id, output);
                 }
                 BaseOperationIr::Unfold(desc) => {
                     let tensor = handles.get_float_tensor::<B>(&desc.input);
@@ -285,17 +288,15 @@ impl<B: BackendIr> TensorInterpreter<B> {
                     let output = B::float_unfold(tensor, desc.dim, desc.size, desc.step);
                     handles.register_float_tensor::<B>(&desc.out.id, output);
                 }
-                BaseOperationIr::Slice(desc) if matches!(desc.tensor.dtype, DType::QFloat(_)) => {
-                    let tensor = handles.get_quantized_tensor::<B>(&desc.tensor);
-
-                    let output = B::q_slice(tensor, &desc.ranges);
-                    handles.register_quantized_tensor::<B>(&desc.out.id, output);
-                }
                 BaseOperationIr::Slice(desc) => {
-                    let tensor = handles.get_float_tensor::<B>(&desc.tensor);
+                    let tensor = handles.get_float_primitive::<B>(&desc.tensor);
 
-                    let output = B::float_slice(tensor, &desc.ranges);
-                    handles.register_float_tensor::<B>(&desc.out.id, output);
+                    let output = float_or_quantized!(
+                        tensor,
+                        B::float_slice(tensor, &desc.ranges),
+                        B::q_slice(tensor, &desc.ranges)
+                    );
+                    handles.register_float_primitive::<B>(&desc.out.id, output);
                 }
                 BaseOperationIr::SliceAssign(desc) => {
                     let tensor = handles.get_float_tensor::<B>(&desc.tensor);
@@ -304,19 +305,16 @@ impl<B: BackendIr> TensorInterpreter<B> {
                     let output = B::float_slice_assign(tensor, &desc.ranges, value);
                     handles.register_float_tensor::<B>(&desc.out.id, output);
                 }
-                BaseOperationIr::Gather(desc) if matches!(desc.tensor.dtype, DType::QFloat(_)) => {
-                    let tensor = handles.get_quantized_tensor::<B>(&desc.tensor);
-                    let indices = handles.get_int_tensor::<B>(&desc.indices);
-
-                    let output = B::q_gather(desc.dim, tensor, indices);
-                    handles.register_quantized_tensor::<B>(&desc.out.id, output);
-                }
                 BaseOperationIr::Gather(desc) => {
-                    let tensor = handles.get_float_tensor::<B>(&desc.tensor);
+                    let tensor = handles.get_float_primitive::<B>(&desc.tensor);
                     let indices = handles.get_int_tensor::<B>(&desc.indices);
 
-                    let output = B::float_gather(desc.dim, tensor, indices);
-                    handles.register_float_tensor::<B>(&desc.out.id, output);
+                    let output = float_or_quantized!(
+                        tensor,
+                        B::float_gather(desc.dim, tensor, indices),
+                        B::q_gather(desc.dim, tensor, indices)
+                    );
+                    handles.register_float_primitive::<B>(&desc.out.id, output);
                 }
                 BaseOperationIr::Scatter(desc) => {
                     let tensor = handles.get_float_tensor::<B>(&desc.tensor);
@@ -341,19 +339,16 @@ impl<B: BackendIr> TensorInterpreter<B> {
                     let output = B::float_gather_nd(data, indices);
                     handles.register_float_tensor::<B>(&desc.out.id, output);
                 }
-                BaseOperationIr::Select(desc) if matches!(desc.tensor.dtype, DType::QFloat(_)) => {
-                    let tensor = handles.get_quantized_tensor::<B>(&desc.tensor);
-                    let indices = handles.get_int_tensor::<B>(&desc.indices);
-
-                    let output = B::q_select(tensor, desc.dim, indices);
-                    handles.register_quantized_tensor::<B>(&desc.out.id, output);
-                }
                 BaseOperationIr::Select(desc) => {
-                    let tensor = handles.get_float_tensor::<B>(&desc.tensor);
+                    let tensor = handles.get_float_primitive::<B>(&desc.tensor);
                     let indices = handles.get_int_tensor::<B>(&desc.indices);
 
-                    let output = B::float_select(tensor, desc.dim, indices);
-                    handles.register_float_tensor::<B>(&desc.out.id, output);
+                    let output = float_or_quantized!(
+                        tensor,
+                        B::float_select(tensor, desc.dim, indices),
+                        B::q_select(tensor, desc.dim, indices)
+                    );
+                    handles.register_float_primitive::<B>(&desc.out.id, output);
                 }
                 BaseOperationIr::SelectAssign(desc) => {
                     let tensor = handles.get_float_tensor::<B>(&desc.tensor);
