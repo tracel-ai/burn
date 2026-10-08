@@ -328,6 +328,13 @@ impl QTensorOps<Self> for CubeBackend {
         if tensor.qparams.is_none() {
             return into_data(tensor).await;
         }
+        // Storage tiles are a layout for one machine's kernels, laid out at load; what is saved
+        // is the rows every machine reads.
+        assert!(
+            !tensor.meta.is_tiled(),
+            "q_into_data: a storage-tiled quantized tensor is not saved; save the weight it was \
+             tiled from"
+        );
 
         let (shape, dtype) = (tensor.shape(), tensor.dtype);
         // Written as stored, packed axis innermost — the bytes `q_from_data` reads back.

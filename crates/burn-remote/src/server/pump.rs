@@ -5,17 +5,26 @@
 //! the sink (a detached writer) while forwarding submitted task batches from the source to the
 //! session worker. This is the single implementation both transports (iroh, websocket) drive — the
 //! per-transport modules only build the [`FrameSource`]/[`FrameSink`] halves and the authorizer.
+//!
+//! The handshake is one bare frame each way; every message after it is carried in frames.
 
 use std::sync::Arc;
 
-use crate::PeerId;
-use crate::server::service::{SessionChannels, SessionService, parse_init_handshake};
-use crate::server::spawn::spawn_detached;
-use crate::shared::{
-    PROTOCOL_VERSION, RemoteMessage, SessionId, SessionInfo, SessionInit, SessionRefusal, Task,
-    TaskResponse, TaskResponseContent,
+use crate::{
+    PeerId,
+    server::{
+        service::{SessionChannels, SessionService, parse_init_handshake},
+        spawn::spawn_detached,
+    },
+    shared::{
+        Encode, PROTOCOL_VERSION, RemoteMessage, SessionId, SessionInfo, SessionInit,
+        SessionRefusal, Task, TaskResponse, TaskResponseContent,
+    },
+    transport::{
+        link::{FrameSink, FrameSource, MAX_UNAUTHORIZED_FRAME_SIZE},
+        message::{MessageSink, MessageSource},
+    },
 };
-use crate::transport::link::{FrameSink, FrameSource};
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 
@@ -44,7 +53,7 @@ where
 {
     // The session stream opens with exactly one `Init` frame.
     let handshake = tokio::select! {
-        frame = source.recv() => frame?
+        frame = source.recv(MAX_UNAUTHORIZED_FRAME_SIZE) => frame?
             .ok_or_else(|| "Session stream closed before initialization".to_string())?,
         () = shutdown.cancelled() => return Ok(()),
     };
@@ -68,7 +77,8 @@ where
             peer_id: server_peer_id,
         }),
     };
-    let info = rmp_serde::to_vec(&info)
+    let info = info
+        .encode()
         .map_err(|err| format!("Failed to encode session handshake response: {err}"))?;
 
     let SessionChannels {
@@ -80,11 +90,14 @@ where
     let (writer_done, mut writer_result) = tokio::sync::oneshot::channel();
     spawn_detached(async move {
         let result = async {
-            sink.send(info.into()).await?;
+            // Bare, like a refusal: a client reads its reply before knowing which one it is.
+            sink.send(info.into_bytes()).await?;
+            let mut sink = MessageSink::new(sink);
             while let Some(response) = responses.recv().await {
-                let bytes = rmp_serde::to_vec(&response)
+                let message = response
+                    .encode()
                     .map_err(|err| format!("Failed to encode task response: {err}"))?;
-                sink.send(bytes.into()).await?;
+                sink.send(message).await?;
             }
             sink.close().await
         }
@@ -95,7 +108,11 @@ where
     // Either half ending triggers teardown: a failed write need not close the incoming half.
     // Save a completed writer result so we don't poll the oneshot receiver twice.
     let (read_result, completed_writer) = tokio::select! {
-        result = forward_tasks(source, &task_sender, init.session_id) => (result, None),
+        result = forward_tasks(
+            MessageSource::new(source),
+            &task_sender,
+            init.session_id,
+        ) => (result, None),
         result = &mut writer_result => (Ok(()), Some(result)),
         () = shutdown.cancelled() => (Ok(()), None),
     };
@@ -156,8 +173,8 @@ async fn refuse(sink: &mut impl FrameSink, refusal: SessionRefusal) {
         id: 0,
         content: TaskResponseContent::InitRefused(refusal),
     };
-    if let Ok(frame) = rmp_serde::to_vec(&reply) {
-        let _ = sink.send(frame.into()).await;
+    if let Ok(frame) = reply.encode() {
+        let _ = sink.send(frame.into_bytes()).await;
     }
     let _ = sink.close().await;
 }
@@ -165,12 +182,12 @@ async fn refuse(sink: &mut impl FrameSink, refusal: SessionRefusal) {
 /// Forward each submitted task batch to the session worker in arrival order, until the client
 /// closes the session or its stream ends.
 async fn forward_tasks(
-    mut source: impl FrameSource,
+    mut source: MessageSource<impl FrameSource>,
     task_sender: &mpsc::Sender<Task>,
     session_id: SessionId,
 ) -> Result<(), String> {
-    while let Some(frame) = source.recv().await? {
-        let messages: Vec<RemoteMessage> = rmp_serde::from_slice(&frame)
+    while let Some(batch) = source.recv().await? {
+        let messages: Vec<RemoteMessage> = rmp_serde::from_slice(&batch)
             .map_err(|err| format!("Invalid remote task batch: {err}"))?;
         for message in messages {
             match message {
@@ -246,7 +263,7 @@ mod tests {
     struct ScriptedSource(VecDeque<Result<Option<Bytes>, String>>);
 
     impl FrameSource for ScriptedSource {
-        async fn recv(&mut self) -> Result<Option<Bytes>, String> {
+        async fn recv(&mut self, _max_len: usize) -> Result<Option<Bytes>, String> {
             self.0.pop_front().unwrap_or(Ok(None))
         }
     }
@@ -255,7 +272,7 @@ mod tests {
     struct OpenSource(Option<Bytes>);
 
     impl FrameSource for OpenSource {
-        async fn recv(&mut self) -> Result<Option<Bytes>, String> {
+        async fn recv(&mut self, _max_len: usize) -> Result<Option<Bytes>, String> {
             match self.0.take() {
                 Some(frame) => Ok(Some(frame)),
                 None => std::future::pending().await,

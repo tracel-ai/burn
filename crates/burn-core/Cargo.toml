@@ -4,7 +4,7 @@ categories = ["science", "no-std", "embedded", "wasm"]
 description = "Flexible and Comprehensive Deep Learning Framework in Rust"
 documentation = "https://docs.rs/burn-core"
 edition.workspace = true
-keywords = ["deep-learning", "machine-learning", "tensor", "pytorch", "ndarray"]
+keywords = ["deep-learning", "machine-learning", "tensor", "pytorch"]
 license.workspace = true
 name = "burn-core"
 readme = "README.md"
@@ -76,7 +76,6 @@ remote-websocket = ["burn-tensor/remote-websocket"]
 cuda = ["burn-tensor/cuda", "dep:burn-cuda"]
 rocm = ["burn-tensor/rocm", "dep:burn-rocm"]
 flex = ["burn-tensor/flex"]
-ndarray = ["burn-tensor/ndarray"]
 tch = ["burn-tensor/tch"]
 vulkan = ["wgpu", "burn-tensor/vulkan", "burn-wgpu/vulkan"]
 webgpu = ["wgpu", "burn-tensor/webgpu", "burn-wgpu/webgpu"]
@@ -114,10 +113,6 @@ simd = ["burn-tensor/simd"]
 rayon = ["burn-tensor/rayon"]
 x86-v4 = ["burn-tensor/x86-v4"]
 apple-amx = ["burn-tensor/apple-amx"]
-accelerate = ["burn-tensor/accelerate"]
-blas-netlib = ["burn-tensor/blas-netlib"]
-openblas = ["burn-tensor/openblas"]
-openblas-system = ["burn-tensor/openblas-system"]
 template = ["burn-tensor/template", "burn-wgpu?/template"]
 
 # Backend extensions

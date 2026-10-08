@@ -7,8 +7,7 @@ use burn_backend::{
 };
 use burn_ir::TensorIr;
 use burn_router::{MultiBackendBridge, RouterClient, RouterTensor, get_client};
-use burn_std::DeviceSettings;
-use burn_std::{backtrace::BackTrace, future::DynFut};
+use burn_std::{DeviceSettings, future::DynFut};
 use std::sync::Mutex;
 
 use service::RemoteEndpoint;
@@ -29,28 +28,24 @@ impl RouterClient for RemoteClient {
         self.handle.submit(move |s| s.register_op(stream_id, op));
     }
 
-    fn read_tensor_async(
-        &self,
-        tensor: burn_ir::TensorIr,
-    ) -> DynFut<Result<TensorData, ExecutionError>> {
-        // Issue the request synchronously so ordering is preserved relative to subsequent
-        // submissions; the returned future just awaits the server's response.
-        let stream_id = StreamId::current();
-        let rx = self
-            .handle
-            .submit_blocking(move |s| s.read_tensor(stream_id, tensor))
-            .expect("Service call failed");
-
+    fn read_tensor_async(&self, tensor: TensorIr) -> DynFut<Result<TensorData, ExecutionError>> {
+        let read = self.read_tensors(vec![tensor]);
         Box::pin(async move {
-            match rx.await {
-                Ok(TaskResponseContent::ReadTensor(res)) => res,
-                Ok(_) => panic!("Invalid response type for ReadTensor"),
-                Err(e) => Err(ExecutionError::Generic {
-                    reason: format!("Failed to read tensor: {e:?}"),
-                    backtrace: BackTrace::capture(),
-                }),
-            }
+            let [data] = <[TensorData; 1]>::try_from(read.await?).unwrap_or_else(|data| {
+                panic!(
+                    "The server answered a read of one tensor with {} values",
+                    data.len()
+                )
+            });
+            Ok(data)
         })
+    }
+
+    fn read_tensors_async(
+        &self,
+        tensors: Vec<TensorIr>,
+    ) -> DynFut<Result<Vec<TensorData>, ExecutionError>> {
+        self.read_tensors(tensors)
     }
 
     fn register_tensor_data(&self, data: TensorData) -> RouterTensor<Self> {
@@ -156,6 +151,30 @@ impl RouterClient for RemoteClient {
 }
 
 impl RemoteClient {
+    /// Read several tensors in one request, issued at the call.
+    fn read_tensors(
+        &self,
+        tensors: Vec<TensorIr>,
+    ) -> DynFut<Result<Vec<TensorData>, ExecutionError>> {
+        // Issue the request synchronously so ordering is preserved relative to subsequent
+        // submissions; the returned future just awaits the server's response.
+        let stream_id = StreamId::current();
+        let rx = self
+            .handle
+            .submit_blocking(move |s| s.read_tensors(stream_id, tensors))
+            .expect("Service call failed");
+
+        Box::pin(async move {
+            match rx.await {
+                Ok(TaskResponseContent::ReadTensors(res)) => res,
+                Ok(_) => panic!("Invalid response type for ReadTensors"),
+                Err(e) => Err(ExecutionError::generic(format!(
+                    "Failed to read tensors: {e:?}"
+                ))),
+            }
+        })
+    }
+
     /// Rewrite the device ids carried by an op so the server can resolve them.
     ///
     /// This runs for every op, but only ops that carry device ids (currently the collective ops)
@@ -209,8 +228,8 @@ pub struct RemoteDevice {
 }
 
 impl RemoteDevice {
-    /// The device registered for `endpoint` and `device_index`, the same one each time, which may
-    /// have its session open already.
+    /// The device registered for `endpoint` and `device_index`, which may have its session open
+    /// already, or a new one once its session ended.
     pub(crate) fn register(endpoint: RemoteEndpoint, device_index: usize) -> Self {
         let device_index = device_index as u32;
         let id = service::register_endpoint(endpoint.clone(), device_index);
@@ -265,6 +284,11 @@ impl RemoteDevice {
     /// The index of this device on its server.
     pub fn device_index(&self) -> usize {
         self.device_index as usize
+    }
+
+    /// Whether this device's session has ended, as when its server restarted.
+    pub(crate) fn session_ended(&self) -> bool {
+        service::session_end(self.id).has_ended()
     }
 }
 
@@ -378,6 +402,15 @@ impl RemoteTensorHandle {
     /// fall back to the cross-server path that streams the data server-to-server without the
     /// client ever seeing it.
     pub(crate) fn change_backend(self, target_device: &RemoteDevice) -> Self {
+        // A device and its replacement share a peer, so a move between them would wait forever on
+        // the same-server path. Only an end this client has already seen is caught.
+        for (side, device) in [("from", &self.client.device), ("to", target_device)] {
+            assert!(
+                !device.session_ended(),
+                "Cannot move a tensor {side} a remote device whose session has ended; its \
+                 tensors are gone with it. Connect again with `Device::remote_options`."
+            );
+        }
         if self.client.device.peer_id() == target_device.peer_id() {
             self.change_backend_local(target_device)
         } else {

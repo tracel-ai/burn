@@ -9,10 +9,14 @@ use burn_remote::{
     },
 };
 use burn_tensor::{
-    Device, DeviceType, Distribution, Tensor, remote::RemoteHost, server::RemoteServer,
+    Bool, Device, DeviceType, Distribution, Int, Tensor, TensorData, Transaction,
+    remote::RemoteHost, server::RemoteServer,
 };
 
 const TOKEN: &str = "fleet-token";
+
+/// A 4 MiB tensor, which a session carries in several frames.
+const MANY_FRAMES_LONG: usize = 1024 * 1024;
 
 /// Far beyond what a bounded step here takes when it works, so only a hang reaches it.
 const HANG_LIMIT: std::time::Duration = std::time::Duration::from_secs(10);
@@ -20,19 +24,23 @@ const HANG_LIMIT: std::time::Duration = std::time::Duration::from_secs(10);
 /// Run `body` on a worker thread and fail the test if it does not finish within `timeout`.
 ///
 /// A hung worker cannot be killed, so the test thread panics and the process exit takes it away.
-fn with_deadlock_watchdog(timeout: std::time::Duration, body: impl FnOnce() + Send + 'static) {
+fn with_deadlock_watchdog<T: Send + 'static>(
+    timeout: std::time::Duration,
+    body: impl FnOnce() -> T + Send + 'static,
+) -> T {
     let (tx, rx) = std::sync::mpsc::channel();
     let handle = std::thread::spawn(move || {
-        body();
+        let value = body();
         let _ = tx.send(());
+        value
     });
     match rx.recv_timeout(timeout) {
-        Ok(()) => {
-            handle.join().expect("worker thread panicked");
+        Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
+            panic!("Deadlock: still blocked after {timeout:?}")
         }
-        Err(_) => {
-            panic!("Deadlock: the remote multi-device workload did not finish within {timeout:?}")
-        }
+        Ok(()) | Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => handle
+            .join()
+            .unwrap_or_else(|panic| std::panic::resume_unwind(panic)),
     }
 }
 
@@ -45,6 +53,61 @@ fn serve(rt: &tokio::runtime::Runtime, server: BackendServer<Flex>) -> RemoteHos
     let serving = server.serve_async(WebSocketTransport::from_listener(listener));
     rt.spawn(async move { serving.await.unwrap() });
     host
+}
+
+/// Bind `address` again once a stopped server has freed it. Another test's socket on an
+/// OS-picked port can hold it for a moment.
+fn rebind(address: std::net::SocketAddr) -> std::net::TcpListener {
+    for _ in 0..50 {
+        match std::net::TcpListener::bind(address) {
+            Ok(listener) => return listener,
+            Err(_) => std::thread::sleep(std::time::Duration::from_millis(100)),
+        }
+    }
+    panic!("{address} stayed taken after its server stopped");
+}
+
+/// A server restarted on its port: the host, and the device connected before the restart, seen
+/// to have ended by a failed read.
+fn restarted_server(rt: &tokio::runtime::Runtime) -> (RemoteHost, Device) {
+    let serve = |listener| {
+        rt.spawn(
+            BackendServer::<Flex>::new(vec![Default::default()])
+                .serve_async(WebSocketTransport::from_listener(listener)),
+        )
+    };
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let address = listener.local_addr().unwrap();
+    let host = host_of(&listener);
+    let first = serve(listener);
+
+    let old = Device::remote_options(&host).init().unwrap();
+    let doubled = Tensor::<1>::from_floats([1.0], &old) * 2.0;
+    assert_eq!(doubled.try_into_vec_as::<f32>().unwrap(), vec![2.0]);
+
+    first.abort();
+    assert!(rt.block_on(first).unwrap_err().is_cancelled());
+    // A read fails only once the client has seen the session end, which a reconnect relies on.
+    let stale = old.clone();
+    with_deadlock_watchdog(HANG_LIMIT, move || {
+        let read = (Tensor::<1>::from_floats([1.0], &stale) * 2.0).try_into_data();
+        assert!(read.is_err(), "a session outlived its server: {read:?}");
+    });
+
+    serve(rebind(address));
+    (host, old)
+}
+
+fn panic_message(panic: Box<dyn std::any::Any + Send>) -> String {
+    panic
+        .downcast_ref::<String>()
+        .cloned()
+        .or_else(|| {
+            panic
+                .downcast_ref::<&str>()
+                .map(|message| message.to_string())
+        })
+        .unwrap_or_default()
 }
 
 fn host_of(listener: &std::net::TcpListener) -> RemoteHost {
@@ -106,6 +169,25 @@ fn only_a_websocket_client_with_the_token_is_admitted() {
         .init()
         .unwrap();
 
+    rt.shutdown_background();
+}
+
+/// A server reads at most 64 KiB from a client before admitting it, so a larger credential can
+/// never pass, and is refused before a session is opened for it.
+#[test]
+fn a_credential_too_large_for_the_handshake_is_refused_before_connecting() {
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()
+        .unwrap();
+    let host = serve(&rt, BackendServer::<Flex>::new(vec![Default::default()]));
+
+    let refused = Device::remote_options(&host.with_credential(vec![b'x'; 64 * 1024 + 1])).init();
+
+    assert!(
+        matches!(refused, Err(ConnectError::InvalidConfiguration { .. })),
+        "{refused:?}"
+    );
     rt.shutdown_background();
 }
 
@@ -211,6 +293,83 @@ fn test_to_device_over_websocket() {
     let input = input.to_device(&device_1);
     let numbers: Vec<f32> = input.into_data().try_into_vec().unwrap();
     assert_eq!(numbers, numbers_expected);
+
+    rt.shutdown_background();
+}
+
+#[test]
+fn a_transaction_returns_each_tensor_in_the_order_it_was_registered() {
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .enable_io()
+        .build()
+        .unwrap();
+    let host = serve(&rt, BackendServer::<Flex>::new(vec![Default::default()]));
+    let device = Device::remote_options(&host).init().unwrap();
+
+    let floats = Tensor::<1>::from_floats([1.0, 2.0], &device);
+    let [first, ints, bools, second] = Transaction::default()
+        .register(floats.clone())
+        .register(Tensor::<1, Int>::from_ints([3, 4], &device))
+        .register(Tensor::<1, Bool>::from_bool([true, false], &device))
+        .register(floats * 10.0)
+        .execute()
+        .try_into()
+        .unwrap();
+
+    assert_eq!(first.iter::<f32>().collect::<Vec<_>>(), [1.0, 2.0]);
+    assert_eq!(ints.iter::<i64>().collect::<Vec<_>>(), [3, 4]);
+    assert_eq!(bools.iter::<bool>().collect::<Vec<_>>(), [true, false]);
+    assert_eq!(second.iter::<f32>().collect::<Vec<_>>(), [10.0, 20.0]);
+
+    rt.shutdown_background();
+}
+
+#[test]
+fn a_transaction_reads_a_tensor_registered_twice() {
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .enable_io()
+        .build()
+        .unwrap();
+    let host = serve(&rt, BackendServer::<Flex>::new(vec![Default::default()]));
+    let device = Device::remote_options(&host).init().unwrap();
+
+    // The first read borrows the tensor and the second takes it, so their order matters.
+    let tensor = Tensor::<1>::from_floats([1.0, 2.0], &device);
+    let [first, second] = Transaction::default()
+        .register(tensor.clone())
+        .register(tensor)
+        .execute()
+        .try_into()
+        .unwrap();
+
+    assert_eq!(first.iter::<f32>().collect::<Vec<_>>(), [1.0, 2.0]);
+    assert_eq!(second.iter::<f32>().collect::<Vec<_>>(), [1.0, 2.0]);
+
+    rt.shutdown_background();
+}
+
+#[test]
+fn a_transaction_reads_tensors_from_two_servers_in_order() {
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .enable_io()
+        .build()
+        .unwrap();
+    let host_1 = serve(&rt, BackendServer::<Flex>::new(vec![Default::default()]));
+    let host_2 = serve(&rt, BackendServer::<Flex>::new(vec![Default::default()]));
+    let device_1 = Device::remote_options(&host_1).init().unwrap();
+    let device_2 = Device::remote_options(&host_2).init().unwrap();
+
+    let [first, second, third] = Transaction::default()
+        .register(Tensor::<1>::from_floats([1.0], &device_1))
+        .register(Tensor::<1>::from_floats([2.0], &device_2))
+        .register(Tensor::<1>::from_floats([3.0], &device_1))
+        .execute()
+        .try_into()
+        .unwrap();
+
+    assert_eq!(first.iter::<f32>().collect::<Vec<_>>(), [1.0]);
+    assert_eq!(second.iter::<f32>().collect::<Vec<_>>(), [2.0]);
+    assert_eq!(third.iter::<f32>().collect::<Vec<_>>(), [3.0]);
 
     rt.shutdown_background();
 }
@@ -452,6 +611,33 @@ fn dropping_the_serving_future_ends_its_live_sessions() {
     rt.shutdown_background();
 }
 
+#[test]
+fn a_device_whose_server_restarted_is_replaced_by_a_new_one() {
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .enable_io()
+        .build()
+        .unwrap();
+    let (host, old) = restarted_server(&rt);
+
+    let new = with_deadlock_watchdog(HANG_LIMIT, move || {
+        Device::remote_options(&host).init().unwrap()
+    });
+    assert_ne!(new, old);
+    let doubled = Tensor::<1>::from_floats([3.0], &new) * 2.0;
+    assert_eq!(doubled.try_into_vec_as::<f32>().unwrap(), vec![6.0]);
+
+    for (from, to) in [(&old, &new), (&new, &old)] {
+        let moved = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            Tensor::<1>::from_floats([1.0], from).to_device(to)
+        }))
+        .expect_err("a tensor moved across a device whose session ended");
+        let message = panic_message(moved);
+        assert!(message.contains("session has ended"), "{message}");
+    }
+
+    rt.shutdown_background();
+}
+
 fn loopback_transport() -> WebSocketTransport {
     WebSocketTransport::from_listener(std::net::TcpListener::bind("127.0.0.1:0").unwrap())
 }
@@ -585,5 +771,23 @@ fn test_to_device_local_to_remote() {
     let numbers: Vec<f32> = back.into_data().try_into_vec().unwrap();
     assert_eq!(numbers, vec![2.0, 4.0, 6.0, 8.0, 10.0, 12.0]);
 
+    rt.shutdown_background();
+}
+
+#[test]
+fn a_tensor_many_frames_long_is_uploaded_and_read_back() {
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .enable_io()
+        .build()
+        .unwrap();
+    let host = serve(&rt, BackendServer::<Flex>::new(vec![Default::default()]));
+    let device = Device::remote_options(&host).init().unwrap();
+    let values: Vec<f32> = (0..MANY_FRAMES_LONG).map(|i| i as f32).collect();
+
+    let tensor = Tensor::<1>::from_data(TensorData::new(values.clone(), [values.len()]), &device);
+    let doubled = (tensor * 2.0).try_into_vec_as::<f32>().unwrap();
+
+    let expected: Vec<f32> = values.iter().map(|value| value * 2.0).collect();
+    assert_eq!(doubled, expected);
     rt.shutdown_background();
 }

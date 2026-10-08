@@ -5,7 +5,7 @@ mod matmul;
 mod quantize;
 
 // The `extended` suite is only enabled for backends with native (non-packed) quantized
-// storage AND a complete set of quantized ops. Today that means ndarray and flex.
+// storage AND a complete set of quantized ops. Today that means Flex.
 //
 // - cube backends are excluded: PackedU32 storage requires the last dim to be a multiple of
 //   the pack factor (4 int8s per u32), which most of these test shapes violate, so the
@@ -21,7 +21,7 @@ mod quantize;
 //   first place.)
 //
 // - autodiff is excluded for a different reason: its `QTensorOps` impl delegates every method to
-//   the inner backend, so `Autodiff<NdArray>` quantizes fine. It simply never reaches this module,
+//   the inner backend, so `Autodiff<Flex>` quantizes fine. It simply never reaches this module,
 //   because the autodiff suite is a separate test target (`tests/autodiff.rs`) that does not
 //   include `tests/tensor/`.
 //
@@ -33,5 +33,5 @@ mod quantize;
 // (e.g. `1.0` -> ~0.97998, rel error 2.00e-2), whereas f32's finer scale representation keeps the
 // same value just inside it (~0.9802, rel error 1.98e-2). It is quantization noise, not a logic
 // error, so those cases use `rel_abs(2e-2, 3e-2)`.
-#[cfg(any(feature = "ndarray", feature = "flex"))]
+#[cfg(feature = "flex")]
 mod extended;

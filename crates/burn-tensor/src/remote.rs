@@ -49,7 +49,8 @@ impl RemoteHost {
     }
 
     /// Every device the server hosts. Device 0 connects, which reports the count; the others
-    /// connect on first use, as a local backend's listed devices initialize on first use.
+    /// connect on first use, as a local backend's listed devices initialize on first use. A device
+    /// whose session ended is listed as its replacement.
     /// `Device::enumerate(DeviceType::Remote(host))` lists the same devices, and panics where this
     /// returns an error.
     ///
@@ -119,8 +120,13 @@ impl RemoteOptions {
     /// Open the device's session and wait for the server's answer. A device connected before is
     /// returned with the session it already has.
     ///
-    /// Every device keeps its id and its runner thread for the life of the process. A process can
-    /// connect 65,536 devices, and panics on the next.
+    /// A device whose session ended, as when its server restarted, is replaced by a new device
+    /// without its tensors or settings. Drop every device of a server once one fails: a move or a
+    /// collective mixing old and new devices panics or waits forever.
+    ///
+    /// # Panics
+    ///
+    /// On the 65,537th device of the process, replacements included.
     #[cfg(not(target_family = "wasm"))]
     pub fn init(self) -> Result<Device, ConnectError> {
         Ok(Device::new(
@@ -128,8 +134,8 @@ impl RemoteOptions {
         ))
     }
 
-    /// Open the device's session from any executor. Dropping the future does not cancel a connect
-    /// that has started: it finishes in the background.
+    /// Open the device's session from any executor, as [`init`](Self::init) does. Dropping the
+    /// future does not cancel a connect that has started: it finishes in the background.
     #[cfg(not(target_family = "wasm"))]
     pub fn init_async(
         self,
@@ -138,7 +144,7 @@ impl RemoteOptions {
         async move { Ok(Device::new(device.await?)) }
     }
 
-    /// Open the device's session.
+    /// Open the device's session. A device whose session ended is replaced by a new one.
     #[cfg(target_family = "wasm")]
     pub fn init_async(
         self,

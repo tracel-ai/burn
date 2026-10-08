@@ -44,6 +44,15 @@ impl FlexTensor {
 
     /// Create a tensor from TensorData.
     pub fn from_data(data: TensorData) -> Self {
+        // Materialize lazy device readback before the source tensor can be mutated.
+        // Otherwise this CPU tensor could observe later updates to the device buffer.
+        // TODO: Remove this workaround once CubeCL lazy readback prevents in-place
+        // mutation of the source allocation until materialization or drop.
+        if data.bytes().property() == burn_std::AllocationProperty::Device {
+            data.bytes()
+                .read(burn_std::Reader::new())
+                .expect("Failed to read device data into Flex");
+        }
         let (bytes, shape, dtype) = data.into_parts();
         let layout = Layout::contiguous(shape);
         Self {

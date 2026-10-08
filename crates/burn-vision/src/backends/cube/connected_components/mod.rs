@@ -14,6 +14,7 @@ use burn_cubecl::{
     tensor::CubeTensor,
 };
 use cubecl::prelude::InputScalar;
+#[allow(unused_imports)]
 pub use hardware_accelerated::*;
 
 use crate::{ConnectedStatsOptions, ConnectedStatsPrimitive, dispatch_int_dtype};

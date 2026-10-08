@@ -60,7 +60,7 @@ compose existing differentiable operations, as above. To optimize the forward or
 override that body on the concrete backend or `Autodiff<B, C>` respectively. These are alternative
 implementations; do not add overlapping implementations of the same trait.
 
-Execution backend selectors include `Cube`, `Flex`, `NdArray`, `LibTorch`, and `Remote`, plus the
+Execution backend selectors include `Cube`, `Flex`, `LibTorch`, and `Remote`, plus the
 `Autodiff` routing option. `Cube` covers the CubeCL runtimes; `Wgpu` and `Cuda` are backend aliases,
 not accepted selectors. A selector may have a condition such as
 `Cube: cfg(feature = "wgpu")`. Conditions refer to features of the crate containing the macro;

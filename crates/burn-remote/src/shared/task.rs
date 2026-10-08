@@ -12,14 +12,14 @@ use crate::{PeerAddr, PeerId};
 
 /// Current Burn Remote application-protocol version.
 ///
-/// Bumped whenever [`Task`] or [`TaskResponseContent`] changes shape, so a
-/// mismatched peer is refused at the handshake rather than failing to decode
-/// a batch mid-session. `2`: profiling windows.
-pub const PROTOCOL_VERSION: u16 = 2;
+/// Bumped whenever [`Task`] or [`TaskResponseContent`] changes shape, or how
+/// the messages after the handshake are framed, so a mismatched peer is refused
+/// at the handshake rather than failing to decode a batch mid-session.
+pub const PROTOCOL_VERSION: u16 = 4;
 
 /// Routing id for a task whose result is fetched back.
 ///
-/// Only the result-producing tasks ([`Task::ReadTensor`], [`Task::SyncBackend`],
+/// Only the result-producing tasks ([`Task::ReadTensors`], [`Task::SyncBackend`],
 /// [`Task::DTypeUsage`], [`Task::ProfileStart`], [`Task::ProfileEnd`]) carry a `RequestId`;
 /// the server echoes it on its [`TaskResponse`] so
 /// the client demultiplexes results back to the right pending callback. Fire-and-forget tasks
@@ -104,6 +104,9 @@ pub enum RemoteMessage {
     Close(SessionId),
 }
 
+#[cfg(feature = "client")]
+impl super::Encode for Vec<RemoteMessage> {}
+
 /// Client-side session handshake.
 #[allow(missing_docs)]
 #[derive(Serialize, Deserialize, Clone)]
@@ -166,7 +169,7 @@ pub enum SessionRefusal {
     /// version, which a client could find by trying each version anyway.
     ///
     /// The only refusal a client on another version receives, so its encoding never changes, nor
-    /// do the Iroh ALPN and stream header that carry it.
+    /// do the Iroh ALPN, the stream header and the bare frame that carry it.
     IncompatibleProtocol { server_version: u16 },
 }
 
@@ -249,7 +252,8 @@ pub enum Task {
         transfer_id: LocalTransferId,
         new_id: TensorId,
     },
-    ReadTensor(RequestId, StreamId, TensorIr),
+    /// Read several tensors as one backend transaction, answered in the same order.
+    ReadTensors(RequestId, StreamId, Vec<TensorIr>),
     SyncBackend(RequestId, StreamId),
     DTypeUsage(RequestId, DType),
     /// Open a profiling window on the server's backend where `stream_id` stands.
@@ -275,13 +279,16 @@ pub struct TaskResponse {
     pub id: RequestId,
 }
 
+#[cfg(feature = "server")]
+impl super::Encode for TaskResponse {}
+
 #[allow(missing_docs)]
 #[derive(Serialize, Deserialize, Debug)]
 pub enum TaskResponseContent {
     /// Server responds with the selected device's settings plus the total number of devices
     /// it hosts (so the client can enumerate them, see [`RemoteDevice::enumerate`]).
     Init(SessionInfo),
-    ReadTensor(Result<TensorData, ExecutionError>),
+    ReadTensors(Result<Vec<TensorData>, ExecutionError>),
     SyncBackend(Result<(), ExecutionError>),
     DTypeUsage(DTypeUsageSet),
     /// `None` when the server's backend opens no windows.

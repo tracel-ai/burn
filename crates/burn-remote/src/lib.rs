@@ -79,11 +79,21 @@ mod tests {
     use crate::{
         RemoteBackend, RemoteDevice,
         server::{BackendServer, WebSocketTransport},
-        shared::{RemoteMessage, SessionId, Task},
+        shared::{
+            Encode, PROTOCOL_VERSION, RemoteMessage, SessionId, SessionInit, SessionRefusal, Task,
+            TaskResponse, TaskResponseContent,
+        },
+        transport::{
+            link::{FrameSink, MAX_UNAUTHORIZED_FRAME_SIZE},
+            message::MessageSink,
+        },
     };
     use burn_backend::{Scalar, TensorData, ops::FloatTensorOps};
-    use burn_communication::{CommunicationChannel, Message, ProtocolClient};
+    use burn_communication::{
+        Address, CommunicationChannel, Message, ProtocolClient, websocket::WsClient,
+    };
     use burn_flex::Flex;
+    use bytes::Bytes;
     use std::str::FromStr;
 
     /// Serve `server` over WebSocket on a port the OS picks, returning the address to dial.
@@ -264,8 +274,6 @@ mod tests {
     /// connection here because a `Device`'s client is process-cached and never dropped mid-test.
     #[test]
     fn test_client_disconnect_handled_cleanly_by_server() {
-        type Client = burn_communication::websocket::WsClient;
-
         let rt = tokio::runtime::Builder::new_multi_thread()
             .enable_io()
             .build()
@@ -280,30 +288,25 @@ mod tests {
                 .enable_all()
                 .build()
                 .unwrap();
-            let server = burn_communication::Address::from_str(&address).unwrap();
+            let server = Address::from_str(&address).unwrap();
             let session_id = SessionId::new();
 
             rtc.block_on(async {
-                let mut submit = Client::connect(server, "session")
+                let (mut submit, _responses) = WsClient::connect(server, "session")
                     .await
-                    .expect("raw session connect");
+                    .expect("raw session connect")
+                    .split();
 
-                let frame = |msgs: Vec<RemoteMessage>| -> Message {
-                    Message::new(rmp_serde::to_vec(&msgs).unwrap().into())
-                };
-
-                submit
-                    .send(frame(vec![RemoteMessage::Init(
-                        crate::shared::SessionInit::new(session_id, 0, vec![]),
-                    )]))
+                let init = vec![RemoteMessage::Init(SessionInit::new(session_id, 0, vec![]))];
+                FrameSink::send(&mut submit, init.encode().unwrap().into_bytes())
                     .await
                     .expect("send init");
-                submit
-                    .send(frame(vec![RemoteMessage::Task(Task::Seed(0))]))
+                MessageSink::new(submit)
+                    .send(vec![RemoteMessage::Task(Task::Seed(0))].encode().unwrap())
                     .await
                     .expect("send task");
-                // Drop `submit` here (end of block): the server sees the stream end without a
-                // `Close` and must run the cleanup path.
+                // The socket drops at the end of this block: the server sees the stream end
+                // without a `Close` and must run the cleanup path.
             });
         }
 
@@ -327,6 +330,72 @@ mod tests {
         );
 
         rt.shutdown_timeout(std::time::Duration::from_millis(100));
+    }
+
+    /// The handshake reply stays one bare frame, so a client on the previous protocol version
+    /// reads which version the server speaks instead of failing to decode the reply.
+    #[test]
+    fn a_client_on_the_previous_protocol_version_is_told_the_servers_version() {
+        let rt = tokio::runtime::Builder::new_multi_thread()
+            .enable_io()
+            .build()
+            .unwrap();
+        let address = serve(&rt, BackendServer::<Flex>::new(vec![Default::default()]));
+        let mut init = SessionInit::new(SessionId::new(), 0, vec![]);
+        init.version = PROTOCOL_VERSION - 1;
+
+        let reply = first_reply(
+            &address,
+            rmp_serde::to_vec(&vec![RemoteMessage::Init(init)]).unwrap(),
+        )
+        .expect("the server closed the session without a reply");
+
+        let reply: TaskResponse = rmp_serde::from_slice(&reply).unwrap();
+        assert!(
+            matches!(
+                reply.content,
+                TaskResponseContent::InitRefused(SessionRefusal::IncompatibleProtocol {
+                    server_version: PROTOCOL_VERSION
+                })
+            ),
+            "{reply:?}"
+        );
+        rt.shutdown_background();
+    }
+
+    /// The first frame is read before the authorizer runs, so one over the limit for frames from
+    /// a peer not yet authorized ends the session unanswered.
+    #[test]
+    fn a_first_frame_over_the_unauthorized_limit_is_dropped_unanswered() {
+        let rt = tokio::runtime::Builder::new_multi_thread()
+            .enable_io()
+            .build()
+            .unwrap();
+        let address = serve(&rt, BackendServer::<Flex>::new(vec![Default::default()]));
+
+        let reply = first_reply(&address, vec![0; MAX_UNAUTHORIZED_FRAME_SIZE + 1]);
+
+        assert_eq!(reply, None);
+        rt.shutdown_background();
+    }
+
+    /// The server's answer to `frame`, sent first on a raw session socket, or `None` when it
+    /// closes the socket instead.
+    fn first_reply(address: &str, frame: Vec<u8>) -> Option<Bytes> {
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+        rt.block_on(async {
+            let mut channel = WsClient::connect(Address::from_str(address).unwrap(), "session")
+                .await
+                .expect("raw session connect");
+            let _ = channel.send(Message::new(frame.into())).await;
+            let reply = tokio::time::timeout(std::time::Duration::from_secs(10), channel.recv())
+                .await
+                .expect("the server neither answered nor closed the session");
+            reply.ok().flatten().map(|message| message.data)
+        })
     }
 }
 

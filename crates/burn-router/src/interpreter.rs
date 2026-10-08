@@ -5,10 +5,11 @@ use crate::{
     reduce_float_dim_ops, reduce_float2int_dim_ops, reduce_int_dim_ops, scalar_float_cmp_ops,
     scalar_float_ops, scalar_int_cmp_ops, scalar_int_ops, unary_float_ops, unary_int_ops,
 };
-use alloc::boxed::Box;
+use alloc::{boxed::Box, vec::Vec};
 use burn_backend::{
     Backend, DType, DeviceOps, ExecutionError, ProfileDuration, ProfileOptions, ProfileToken,
-    Shape, TensorData, distributed::DistributedOps, tensor::IndexingUpdateOp,
+    Shape, TensorData, TensorPrimitive, distributed::DistributedOps, ops::TransactionPrimitive,
+    tensor::IndexingUpdateOp,
 };
 use burn_ir::{
     ActivationOperationIr, BackendIr, BaseOperationIr, BoolOperationIr, FloatOperationIr,
@@ -2156,33 +2157,37 @@ impl<B: BackendIr> TensorInterpreter<B> {
         &mut self,
         tensor: TensorIr,
     ) -> DynFut<Result<TensorData, ExecutionError>> {
-        let ctx = &mut self.context;
+        self.take_for_read(&tensor).into_data()
+    }
 
-        enum Output<B: Backend> {
-            Float(B::FloatTensorPrimitive),
-            Int(B::IntTensorPrimitive),
-            Bool(B::BoolTensorPrimitive),
+    /// Read several tensors as one backend transaction, in the order given.
+    pub fn read_tensors_async(
+        &mut self,
+        tensors: &[TensorIr],
+    ) -> DynFut<Result<Vec<TensorData>, ExecutionError>> {
+        // Some backends' transactions cannot run without a tensor to find their device from.
+        if tensors.is_empty() {
+            return Box::pin(async { Ok(Vec::new()) });
         }
+        let mut transaction = TransactionPrimitive::<B>::default();
+        for tensor in tensors {
+            self.take_for_read(tensor).register_in(&mut transaction);
+        }
+        Box::pin(transaction.execute_async())
+    }
 
-        let tensor = if tensor.dtype.is_float() {
-            let tensor = ctx.handles.get_float_tensor::<B>(&tensor);
-            Output::<B>::Float(tensor)
+    fn take_for_read(&mut self, tensor: &TensorIr) -> ReadPrimitive<B> {
+        let handles = &mut self.context.handles;
+        if tensor.dtype.is_float() {
+            ReadPrimitive::Float(handles.get_float_tensor::<B>(tensor))
         } else if tensor.dtype.is_int() || tensor.dtype.is_uint() {
-            let tensor = ctx.handles.get_int_tensor::<B>(&tensor);
-            Output::Int(tensor)
+            ReadPrimitive::Int(handles.get_int_tensor::<B>(tensor))
         } else if tensor.dtype.is_bool() {
-            let tensor = ctx.handles.get_bool_tensor::<B>(&tensor);
-            Output::Bool(tensor)
+            ReadPrimitive::Bool(handles.get_bool_tensor::<B>(tensor))
         } else if let DType::QFloat(_) = tensor.dtype {
             todo!()
         } else {
             unimplemented!()
-        };
-
-        match tensor {
-            Output::Float(val) => Box::pin(B::float_into_data(val)),
-            Output::Int(val) => Box::pin(B::int_into_data(val)),
-            Output::Bool(val) => Box::pin(B::bool_into_data(val)),
         }
     }
 
@@ -2232,5 +2237,30 @@ impl<B: BackendIr> TensorInterpreter<B> {
     /// measuring it.
     pub fn profile_abandon(&self, token: ProfileToken) {
         B::profile_abandon(&self.device, token)
+    }
+}
+
+/// A tensor taken from the handle container to be read.
+enum ReadPrimitive<B: Backend> {
+    Float(B::FloatTensorPrimitive),
+    Int(B::IntTensorPrimitive),
+    Bool(B::BoolTensorPrimitive),
+}
+
+impl<B: Backend> ReadPrimitive<B> {
+    fn into_data(self) -> DynFut<Result<TensorData, ExecutionError>> {
+        match self {
+            Self::Float(tensor) => Box::pin(B::float_into_data(tensor)),
+            Self::Int(tensor) => Box::pin(B::int_into_data(tensor)),
+            Self::Bool(tensor) => Box::pin(B::bool_into_data(tensor)),
+        }
+    }
+
+    fn register_in(self, transaction: &mut TransactionPrimitive<B>) {
+        match self {
+            Self::Float(tensor) => transaction.register_float(TensorPrimitive::Float(tensor)),
+            Self::Int(tensor) => transaction.register_int(tensor),
+            Self::Bool(tensor) => transaction.register_bool(tensor),
+        }
     }
 }

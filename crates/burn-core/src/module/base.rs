@@ -156,6 +156,9 @@ macro_rules! module {
 /// Training and validation use the same module type. This trait provides state transitions,
 /// not a guarantee that a value currently has autodiff enabled. Inspect individual parameter
 /// tensors with [`Tensor::is_autodiff`] and [`Tensor::is_require_grad`]; contexts can be mixed.
+#[diagnostic::on_unimplemented(
+    note = "If `{Self}` is used as configuration or runtime state in a `#[derive(Module)]` type, mark that field with `#[module(skip)]`."
+)]
 pub trait Module: Clone + Send + core::fmt::Debug {
     /// Return all the devices found in the underneath module tree added to the given vector
     /// without duplicates.
