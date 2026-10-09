@@ -1453,6 +1453,7 @@ dependencies = [
 name = "burn-tensor"
 version = "0.22.0"
 dependencies = [
+ "branches",
  "burn-backend",
  "burn-derive",
  "burn-dispatch",
