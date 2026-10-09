@@ -12,10 +12,11 @@ use crate::{PeerAddr, PeerId};
 
 /// Current Burn Remote application-protocol version.
 ///
-/// Bumped whenever [`Task`] or [`TaskResponseContent`] changes shape, or how
-/// the messages after the handshake are framed, so a mismatched peer is refused
-/// at the handshake rather than failing to decode a batch mid-session.
-pub const PROTOCOL_VERSION: u16 = 4;
+/// Bumped whenever [`Task`] or [`TaskResponseContent`] changes shape, how the
+/// messages after the handshake are framed, or which operations a server can
+/// run, so a mismatched peer is refused at the handshake rather than failing
+/// mid-session.
+pub const PROTOCOL_VERSION: u16 = 5;
 
 /// Routing id for a task whose result is fetched back.
 ///
