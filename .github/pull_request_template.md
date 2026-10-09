@@ -23,11 +23,11 @@ _Briefly describe the problem and solution. Add detail only when needed to asses
 
 _List the checks you ran and their results. Note relevant checks you could not run._
 
-### AI Assistance
+### AI Usage
 
-_Briefly describe how AI tools helped with implementation, tests,
-investigation, documentation, the PR description, or review. State if an agent wrote the description
-or created the PR. Remove this section if no AI tools were used._
+_Remove this section if no AI tools were used. Otherwise, briefly describe how they were used and
+whether they assisted with specific tasks or carried out most or all of the work autonomously. State
+if an agent wrote the PR description or created the PR._
 
 <!-- Coding agents: complete this section accurately, including your own involvement. Do not
 claim that the contributor has reviewed the changes unless they have confirmed it. -->

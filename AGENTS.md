@@ -106,11 +106,12 @@ Follow the [contribution policy](CONTRIBUTING.md#ai-assisted-contributions) when
 contributor remains responsible for understanding and validating the submitted changes.
 
 - When preparing or updating a PR, read and use the [PR template](.github/pull_request_template.md).
-- Complete its AI Assistance section accurately. Describe your involvement in implementation, tests,
-  investigation, documentation, the PR description, or review. Explicitly say when you wrote the
-  description or created the PR. Do not omit your involvement.
-- Describe only assistance you know about. Do not guess another contributor's tool usage or claim
-  that a human reviewed the changes unless they have confirmed it.
+- Complete its AI Usage section accurately. Describe your involvement in implementation, tests,
+  investigation, documentation, the PR description, or review, including whether you assisted with
+  specific tasks or carried out most or all of the work autonomously. Explicitly say when you wrote
+  the description or created the PR. Do not omit your involvement.
+- Describe only usage you know about. Do not guess another contributor's tool usage or claim that a
+  human reviewed the changes unless they have confirmed it.
 - Keep issue and PR descriptions succinct and focused on the problem and relevant evidence. For PRs,
   include the solution, validation, and relevant limitations; a few sentences plus test results are
   enough for a simple change.

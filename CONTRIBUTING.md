@@ -57,9 +57,10 @@ not your AI tool. This means:
 
 Do not use "AI generated" as a justification for low-quality code.
 
-Briefly disclose AI assistance in the [PR template](.github/pull_request_template.md), including
-whether an agent wrote the description or created the PR. Remove the section if no AI tools were
-used.
+Remove the AI Usage section of the [PR template](.github/pull_request_template.md) if no AI tools
+were used. Otherwise, briefly disclose their use, distinguishing assistance with specific tasks from
+most or all of the work being carried out autonomously. State if an agent wrote the description or
+created the PR.
 
 Keep issue and PR descriptions and comments succinct. Edit generated text for accuracy and brevity
 before submitting, and avoid large blocks of unedited AI prose.
