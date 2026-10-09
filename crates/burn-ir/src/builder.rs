@@ -10,7 +10,7 @@ use burn_backend::{
         },
         unfold::calculate_unfold_shape,
     },
-    quantization::{PermuteQuantScheme, QuantScheme},
+    quantization::{QuantScheme, QuantSchemeAxes},
     tensor::IndexingUpdateOp,
 };
 
@@ -28,6 +28,13 @@ fn permute_quantized_dtype(dtype: DType, axes: &[usize]) -> DType {
 fn swap_dims_quantized_dtype(dtype: DType, rank: usize, dim1: usize, dim2: usize) -> DType {
     match dtype {
         DType::QFloat(scheme) => DType::QFloat(scheme.swapped(rank, dim1, dim2)),
+        dtype => dtype,
+    }
+}
+
+fn reshape_quantized_dtype(dtype: DType, rank: usize) -> DType {
+    match dtype {
+        DType::QFloat(scheme) => DType::QFloat(scheme.reshaped(rank)),
         dtype => dtype,
     }
 }
@@ -95,7 +102,9 @@ impl ShapeOpIr {
             shape.num_elements(),
             "Reshape must preserve the number of elements"
         );
-        Self::create(input, shape, new_id)
+        let dtype = reshape_quantized_dtype(input.dtype, shape.num_dims());
+        let out = TensorIr::uninit(new_id(), shape, dtype);
+        Self { input, out }
     }
 
     fn create(input: TensorIr, shape: Shape, new_id: impl FnOnce() -> TensorId) -> Self {
@@ -1596,6 +1605,7 @@ impl MaxPool2dWithIndicesOpIr {
 #[cfg(test)]
 mod shape_tests {
     use super::*;
+    use burn_backend::quantization::QuantStore;
 
     #[test]
     fn reshape_preserves_concrete_shape() {
@@ -1613,6 +1623,17 @@ mod shape_tests {
             assert_eq!(desc.out.dtype, input.dtype);
             assert_eq!(desc.out.id, TensorId::new(2));
         }
+    }
+
+    #[test]
+    fn reshape_past_the_packed_axis_packs_innermost() {
+        let scheme = QuantScheme::default().with_store(QuantStore::PackedU32(1));
+        let input = TensorIr::uninit(TensorId::new(1), Shape::new([4, 8]), DType::QFloat(scheme));
+
+        let desc = ShapeOpIr::reshape(input, Shape::new([32]), || TensorId::new(2));
+
+        let packed_innermost = scheme.with_store(QuantStore::PackedU32(0));
+        assert_eq!(desc.out.dtype, DType::QFloat(packed_innermost));
     }
 
     #[test]

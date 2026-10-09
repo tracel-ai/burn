@@ -1,6 +1,6 @@
 use alloc::{vec, vec::Vec};
 
-use super::{QuantCodes, QuantScheme, QuantStore, QuantValue, params_shape};
+use super::{QuantScheme, QuantStore, QuantValue, QuantValueCodes, params_shape};
 use crate::Shape;
 
 /// How [`QuantizedBytes`](super::QuantizedBytes) lays out the values of a scheme.
@@ -10,7 +10,10 @@ pub enum ValueLayout {
     Bytes,
     /// Values packed into words along the axis `packed_dim` counts from the innermost, as
     /// [`PackedOrder`] orders them.
-    Packed { packed_dim: usize, word: Word },
+    Packed {
+        packed_dim: usize,
+        word: PackedWordLayout,
+    },
 }
 
 impl ValueLayout {
@@ -20,7 +23,7 @@ impl ValueLayout {
             QuantStore::PackedU32(packed_dim) | QuantStore::PackedNative(packed_dim) => {
                 Self::Packed {
                     packed_dim,
-                    word: Word::new(scheme),
+                    word: PackedWordLayout::new(scheme),
                 }
             }
         }
@@ -41,16 +44,16 @@ impl ValueLayout {
     }
 }
 
-/// A little-endian word holding values side by side, value `k` at bit `k * bits`: a `u32` for
+/// How values sit side by side in a little-endian word, value `k` at bit `k * bits`: a `u32` for
 /// `PackedU32`, the native type for `PackedNative`, such as a byte of two E2M1 codes.
 #[derive(Clone, Copy)]
-pub struct Word {
+pub struct PackedWordLayout {
     bytes: usize,
     values: usize,
     value: QuantValue,
 }
 
-impl Word {
+impl PackedWordLayout {
     fn new(scheme: &QuantScheme) -> Self {
         Self {
             bytes: scheme.size_bits_stored().div_ceil(u8::BITS as usize),
@@ -152,18 +155,18 @@ impl PackedOrder {
     }
 
     /// The words a line takes, its last one padded.
-    fn words_per_line(&self, word: &Word) -> usize {
+    fn words_per_line(&self, word: &PackedWordLayout) -> usize {
         self.line_len().div_ceil(word.values)
     }
 
     /// Whether packing copies each row as it is: a byte per value along the innermost axis, which
     /// little-endian words hold in order.
-    fn copies_rows(&self, word: &Word) -> bool {
+    fn copies_rows(&self, word: &PackedWordLayout) -> bool {
         self.axis == self.dims.len() - 1 && word.bits() == u8::BITS as usize && self.line_len() > 0
     }
 
     /// Row-major `values` packed into words, every line padded to whole words.
-    pub fn pack(&self, values: &[i8], word: &Word) -> Vec<u8> {
+    pub fn pack(&self, values: &[i8], word: &PackedWordLayout) -> Vec<u8> {
         let words_per_line = self.words_per_line(word);
         if self.copies_rows(word) {
             let padding = words_per_line * word.bytes - self.line_len();
@@ -190,7 +193,7 @@ impl PackedOrder {
     }
 
     /// The row-major values [`pack`](Self::pack) packed into `bytes`.
-    pub fn unpack(&self, bytes: &[u8], word: &Word) -> Vec<i8> {
+    pub fn unpack(&self, bytes: &[u8], word: &PackedWordLayout) -> Vec<i8> {
         let (len, words_per_line) = (self.line_len(), self.words_per_line(word));
         if self.copies_rows(word) {
             return bytes

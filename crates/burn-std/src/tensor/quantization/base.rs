@@ -471,15 +471,19 @@ fn read_bytes_to_i8(bytes: Bytes) -> Vec<i8> {
 
 /// A quantization scheme following its tensor's axes as they move: the block dims and the packed
 /// axis go with the axes they belong to.
-pub trait PermuteQuantScheme {
+pub trait QuantSchemeAxes {
     /// This scheme once its tensor's axes are permuted by `axes`.
     fn permuted(self, axes: &[usize]) -> Self;
 
     /// This scheme once its tensor of `rank` axes swaps `dim1` and `dim2`.
     fn swapped(self, rank: usize, dim1: usize, dim2: usize) -> Self;
+
+    /// This scheme once its tensor is reshaped to `rank` axes: a packed axis the reshape drops
+    /// becomes the innermost one.
+    fn reshaped(self, rank: usize) -> Self;
 }
 
-impl PermuteQuantScheme for QuantScheme {
+impl QuantSchemeAxes for QuantScheme {
     fn permuted(mut self, axes: &[usize]) -> Self {
         let rank = axes.len();
         self.permute_block_dims(rank, axes);
@@ -504,6 +508,19 @@ impl PermuteQuantScheme for QuantScheme {
         let mut axes: Vec<usize> = (0..rank).collect();
         axes.swap(dim1, dim2);
         self.permuted(&axes)
+    }
+
+    fn reshaped(self, rank: usize) -> Self {
+        let store = match self.store {
+            QuantStore::PackedU32(packed_dim) if packed_dim >= rank.max(1) => {
+                QuantStore::PackedU32(0)
+            }
+            QuantStore::PackedNative(packed_dim) if packed_dim >= rank.max(1) => {
+                QuantStore::PackedNative(0)
+            }
+            store => store,
+        };
+        self.with_store(store)
     }
 }
 

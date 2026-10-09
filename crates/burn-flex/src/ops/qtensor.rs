@@ -9,7 +9,7 @@ use burn_backend::{
     DType, ExecutionError, FloatDType, TensorData, TensorMetadata,
     ops::{IntTensorOps, QTensorOps},
     quantization::{
-        BlockLayout, BlockSize, PermuteQuantScheme, QuantCodes, QuantScheme, QuantStore,
+        BlockLayout, BlockSize, QuantScheme, QuantSchemeAxes, QuantValueCodes,
         QuantizationParametersPrimitive, QuantizedBytes, ScaleDtype, global_scale_dtype,
         scale_to_dtype,
     },
@@ -18,7 +18,7 @@ use burn_backend::{
 use burn_std::{Bytes, Shape, Slice, bf16, f16};
 
 use super::float_storage_as_f32;
-use crate::{Flex, FlexQTensor, FlexTensor, Layout};
+use crate::{Flex, FlexQTensor, FlexTensor, Layout, quant_codes::QuantCodes};
 
 /// The blocks over `shape`, which must be a whole number of blocks along every axis.
 fn block_layout(shape: &Shape, block: &BlockSize) -> BlockLayout {
@@ -216,16 +216,7 @@ impl QTensorOps<Flex> for Flex {
     }
 
     fn q_reshape(tensor: QuantizedTensor<Flex>, shape: Shape) -> QuantizedTensor<Flex> {
-        // Flex holds codes unpacked, so a reshape that drops the packed axis can pack innermost.
-        let rank = shape.num_dims().max(1);
-        let store = match tensor.scheme.store {
-            QuantStore::PackedU32(packed_dim) if packed_dim >= rank => QuantStore::PackedU32(0),
-            QuantStore::PackedNative(packed_dim) if packed_dim >= rank => {
-                QuantStore::PackedNative(0)
-            }
-            store => store,
-        };
-        let scheme = tensor.scheme.with_store(store);
+        let scheme = tensor.scheme.reshaped(shape.num_dims());
         block_safe_layout_op(tensor, scheme, |t| t.reshape(shape))
     }
 
@@ -403,7 +394,10 @@ fn validated_scale(scale: f32, dtype: ScaleDtype) -> f32 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use burn_backend::{TensorMetadata, quantization::QuantValue};
+    use burn_backend::{
+        TensorMetadata,
+        quantization::{QuantStore, QuantValue},
+    };
 
     fn data_of(tensor: QuantizedTensor<Flex>) -> TensorData {
         burn_std::reader::try_read_sync(Flex::q_into_data(tensor))

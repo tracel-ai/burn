@@ -1,6 +1,6 @@
 use super::*;
 use burn_tensor::{
-    DType, Device, Tolerance,
+    DType, Device, TensorData, Tolerance,
     quantization::{QuantScheme, QuantStore, QuantValue, ScaleDtype},
 };
 
@@ -63,10 +63,24 @@ fn bytes_packed_along_an_outer_axis_load_on_flex_unchanged() {
     }
 }
 
-// Not compared with the bytes the device writes: a device's division need not round correctly, so
-// its scales can differ from Flex's in the last bit.
+/// Every row reaches `value`'s largest magnitude times a power of two, so each scale is a power of
+/// two that any device's division yields exactly; the other values are ninths, never a rounding tie.
+fn exact_scale_input(value: QuantValue) -> TensorData {
+    let (_, max) = value.range();
+    let values: Vec<f32> = (0..32)
+        .flat_map(|row| {
+            let magnitude = max / (1 << (row % 4)) as f32;
+            (0..16).map(move |col| match col {
+                0 => -magnitude,
+                col => magnitude * (col as f32 - 8.0) / 9.0,
+            })
+        })
+        .collect();
+    TensorData::new(values, [32, 16])
+}
+
 #[test]
-fn bytes_flex_writes_read_on_a_device_as_on_flex() {
+fn flex_quantizes_to_the_bytes_a_device_writes() {
     let device = Device::default();
     let reference = ReferenceDevice::new();
     let packed = packed(&device);
@@ -84,16 +98,15 @@ fn bytes_flex_writes_read_on_a_device_as_on_flex() {
         if !device.supports_dtype(DType::QFloat(scheme)) {
             continue;
         }
-        let written = TestTensor::<2>::from_data(input(&device).into_data(), &reference)
+        let input = exact_scale_input(scheme.value);
+
+        let on_device = TestTensor::<2>::from_data(input.clone(), &device)
+            .quantize_dynamic(&scheme)
+            .into_data();
+        let on_flex = TestTensor::<2>::from_data(input, &reference)
             .quantize_dynamic(&scheme)
             .into_data();
 
-        let on_device = TestTensor::<2>::from_data(written.clone(), &device);
-        let on_flex = TestTensor::<2>::from_data(written, &reference);
-
-        on_device
-            .dequantize()
-            .into_data()
-            .assert_approx_eq::<FloatElem>(&on_flex.dequantize().into_data(), Tolerance::default());
+        assert_eq!(on_flex.as_bytes(), on_device.as_bytes(), "{scheme:?}");
     }
 }
