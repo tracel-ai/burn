@@ -334,7 +334,7 @@ impl QuantizedBytes {
                     let qparams = self.bytes[split_at..].to_vec();
                     let values = bytemuck::cast_slice::<_, u32>(&self.bytes[..split_at]);
                     // Sub-byte values are unpacked as i8s for value equality tests
-                    let values = unpack_q_to_i8s(values, self.num_elements(), &self.scheme.value);
+                    let values = unpack_q_to_i8s(values, &self.shape, &self.scheme.value);
                     (values, qparams)
                 }
                 QuantValue::E4M3 | QuantValue::E5M2 | QuantValue::E2M1 => {
@@ -373,31 +373,73 @@ pub fn global_scale_size(scheme: &QuantScheme) -> usize {
 /// over the flattened tensor. This mirrors the storage shape the allocation actually uses (see
 /// `CubeTensor::quantized_storage` in burn-cubecl); flattening first would under-count, e.g. a
 /// `[3, 3]` Q4 `PackedU32` tensor occupies `3 * ceil(3 / 8) = 3` words, not `ceil(9 / 8) = 2`.
-fn storage_elements(scheme: &QuantScheme, shape: &Shape) -> usize {
+fn storage_elements(scheme: &QuantScheme, shape: &Shape) -> Option<usize> {
     let num_quants = scheme.num_quants();
 
     match scheme.store {
-        QuantStore::PackedU32(packed_dim) | QuantStore::PackedNative(packed_dim)
-            if num_quants > 1 && !shape.is_empty() =>
-        {
-            let packed_dim = shape.num_dims() - packed_dim - 1;
+        // `TensorData::quantized` stores its host values as i8s, even for sub-byte schemes.
+        // Native storage therefore has one element per logical value; only packed stores use
+        // `num_quants` to reduce the stored element count.
+        QuantStore::Native => shape
+            .iter()
+            .try_fold(1usize, |elements, &dim| elements.checked_mul(dim)),
+        QuantStore::PackedU32(packed_dim) | QuantStore::PackedNative(packed_dim) => {
+            let packed_dim = shape.num_dims().checked_sub(packed_dim.checked_add(1)?)?;
             let mut storage = shape.clone();
-            storage[packed_dim] = storage[packed_dim].div_ceil(num_quants);
-            storage.num_elements()
+            if num_quants > 1 {
+                storage[packed_dim] = storage[packed_dim].div_ceil(num_quants);
+            }
+            storage
+                .iter()
+                .try_fold(1usize, |elements, &dim| elements.checked_mul(dim))
         }
-        _ => shape.num_elements().div_ceil(num_quants),
     }
 }
 
-/// Total bytes a tensor of `shape` occupies under `scheme`, laid out as [`QuantizedBytes::new`]
-/// writes it: values, then block scales, then (for a two-level scheme) the per-tensor scale.
+/// Tries to calculate the total bytes a tensor of `shape` occupies under `scheme`.
+///
+/// Returns `None` if the packed dimension is outside the shape or if any size calculation
+/// overflows. The layout is values, then block scales, then (for a two-level scheme) the
+/// per-tensor scale.
+pub fn try_quantized_data_len(scheme: &QuantScheme, shape: &Shape) -> Option<usize> {
+    let value_bytes_per_element = match scheme.store {
+        // Host `QuantizedBytes` stores one i8 for each value in the Native representation.
+        QuantStore::Native => core::mem::size_of::<i8>(),
+        _ => scheme.size_bits_stored().div_ceil(8),
+    };
+    let value_bytes = storage_elements(scheme, shape)?.checked_mul(value_bytes_per_element)?;
+
+    let num_params = if let Some(block) = scheme.block_size() {
+        if block.as_slice().len() > shape.num_dims() {
+            return None;
+        }
+        let block_shape = block.to_dim_vec(shape.num_dims());
+        let mut num_params = 1usize;
+        for (&dim, block) in shape.iter().zip(block_shape) {
+            let block = block as usize;
+            if block == 0 {
+                return None;
+            }
+            num_params = num_params.checked_mul(dim.div_ceil(block))?;
+        }
+        num_params
+    } else {
+        1
+    };
+    let scale_bytes = num_params.checked_mul(scale_size(scheme.scale_dtype()))?;
+
+    value_bytes
+        .checked_add(scale_bytes)?
+        .checked_add(global_scale_size(scheme))
+}
+
+/// Total bytes a tensor of `shape` occupies under `scheme`.
+///
+/// Panics if the packed dimension is outside the shape or if the total size overflows. Use
+/// [`try_quantized_data_len`] when handling untrusted metadata.
 pub fn quantized_data_len(scheme: &QuantScheme, shape: &Shape) -> usize {
-    let value_bytes = storage_elements(scheme, shape) * scheme.size_bits_stored().div_ceil(8);
-
-    let num_params = params_shape(shape, scheme).num_elements();
-    let scale_bytes = num_params * scale_size(scheme.scale_dtype());
-
-    value_bytes + scale_bytes + global_scale_size(scheme)
+    try_quantized_data_len(scheme, shape)
+        .expect("quantized tensor layout has an invalid packed dimension or overflows usize")
 }
 
 /// Bytes per stored scale entry for the given scale dtype.
@@ -509,7 +551,7 @@ pub fn pack_i8s_to_u32s(values: Vec<i8>) -> Vec<u32> {
 /// Unpack integer values into a sequence of signed 8-bit integers.
 pub(crate) fn unpack_q_to_i8s<Q: PrimInt>(
     values: &[Q],
-    numel: usize,
+    shape: &Shape,
     value: &QuantValue,
 ) -> Vec<i8> {
     let size_store = size_of::<Q>() * 8;
@@ -517,24 +559,32 @@ pub(crate) fn unpack_q_to_i8s<Q: PrimInt>(
     let num_quants = size_store / size_quant;
     let mask = Q::from((1 << size_quant) - 1).unwrap();
     let sign_shift = 8 - size_quant; // sign extension for sub-byte values
-    values
-        .iter()
-        .enumerate()
-        .flat_map(|(i, &packed)| {
-            // A single u32 could contain less than four 8-bit values...
-            let n = core::cmp::min(num_quants, numel - i * num_quants);
-            // Extract each 8-bit segment from u32 and cast back to i8
-            // Same as doing this (when 4 values are fully packed):
-            //     let a = (packed & 0xFF) as i8;
-            //     let b = ((packed >> 8) & 0xFF) as i8;
-            //     let c = ((packed >> 16) & 0xFF) as i8;
-            //     let d = ((packed >> 24) & 0xFF) as i8;
-            (0..n).map(move |i| {
-                let raw = (packed >> (i * size_quant) & mask).to_u8().unwrap();
-                ((raw << sign_shift) as i8) >> sign_shift
-            })
-        })
-        .collect()
+    let last_dim = shape
+        .num_dims()
+        .checked_sub(1)
+        .expect("quantized tensor rank must be nonzero");
+    let row_len = shape[last_dim];
+    if row_len == 0 {
+        return Vec::new();
+    }
+    let rows = shape.num_elements() / row_len;
+    let packed_per_row = row_len.div_ceil(num_quants);
+    let mut unpacked = Vec::with_capacity(shape.num_elements());
+
+    for row in 0..rows {
+        for (word_index, &packed) in values[row * packed_per_row..(row + 1) * packed_per_row]
+            .iter()
+            .enumerate()
+        {
+            let count = core::cmp::min(num_quants, row_len - word_index * num_quants);
+            for index in 0..count {
+                let raw = (packed >> (index * size_quant) & mask).to_u8().unwrap();
+                unpacked.push(((raw << sign_shift) as i8) >> sign_shift);
+            }
+        }
+    }
+
+    unpacked
 }
 
 #[cfg(test)]
@@ -561,16 +611,23 @@ mod tests {
 
     #[test]
     fn should_unpack_u32s_to_i8s() {
-        let unpacked = unpack_q_to_i8s(&[2147287680u32], 4, &QuantValue::Q8S);
+        let unpacked = unpack_q_to_i8s(&[2147287680u32], &[4].into(), &QuantValue::Q8S);
 
         assert_eq!(unpacked, vec![-128, 2, -3, 127]);
     }
 
     #[test]
     fn should_unpack_u32s_to_i8s_padded() {
-        let unpacked = unpack_q_to_i8s(&[55u32], 1, &QuantValue::Q8S);
+        let unpacked = unpack_q_to_i8s(&[55u32], &[1].into(), &QuantValue::Q8S);
 
         assert_eq!(unpacked, vec![55]);
+    }
+
+    #[test]
+    fn should_unpack_padded_rows_independently() {
+        let unpacked = unpack_q_to_i8s(&[993u32, 2652u32], &[2, 3].into(), &QuantValue::Q4S);
+
+        assert_eq!(unpacked, vec![1, -2, 3, -4, 5, -6]);
     }
 
     #[test]
@@ -581,7 +638,7 @@ mod tests {
                 1145324612, 1145324612, 1431655748, 1431655765, 1717982549, 1717986918, 2003199590,
                 2004318071,
             ],
-            128,
+            &[128].into(),
             &QuantValue::Q4S,
         );
 
