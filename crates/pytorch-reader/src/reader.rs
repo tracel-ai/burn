@@ -7,15 +7,16 @@ use crate::{DType, Tensor};
 use serde::de::DeserializeOwned;
 use std::collections::HashMap;
 use std::fs::File;
-use std::io::{BufReader, Cursor, Read, Seek, SeekFrom};
-use std::path::Path;
+use std::io;
+use std::io::{BufRead, BufReader, Cursor, Read, Seek, SeekFrom};
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use crate::pickle_reader::{
     Object, PersistentIds, PickleError, StorageRef, build_tensor, extract_tensors, key_string,
     non_negative, read_pickle, storage_type_to_dtype,
 };
-use crate::storage::{LegacySource, StorageSource, TarSource, ZipSource};
+use crate::storage::{Backing, LegacySource, StorageSource, TarSource, ZipSource};
 use byteorder::{LittleEndian, ReadBytesExt};
 use thiserror::Error;
 
@@ -157,7 +158,7 @@ impl PytorchReader {
     /// # Returns
     /// A `PytorchReader` with lazy-loaded tensors and metadata
     pub fn new<P: AsRef<Path>>(path: P) -> Result<Self> {
-        Self::open(path.as_ref(), None)
+        Self::open(&Container::File(path.as_ref().to_path_buf()), None)
     }
 
     /// Load a PyTorch checkpoint with a specific top-level key
@@ -178,11 +179,36 @@ impl PytorchReader {
     /// # }
     /// ```
     pub fn with_top_level_key<P: AsRef<Path>>(path: P, key: &str) -> Result<Self> {
-        Self::open(path.as_ref(), Some(key))
+        Self::open(&Container::File(path.as_ref().to_path_buf()), Some(key))
     }
 
-    fn open(path: &Path, top_level_key: Option<&str>) -> Result<Self> {
-        let Loaded { root, mut metadata } = load_file(path)?;
+    /// Load a PyTorch checkpoint from an in-memory buffer
+    ///
+    /// Reads every container [`PytorchReader::new`] does (ZIP, legacy, TAR and plain
+    /// pickle) without writing a temporary file first. The buffer is moved in, not copied:
+    /// a ZIP or legacy checkpoint is read lazily from it, and it stays alive until the
+    /// reader and every tensor taken from it are dropped.
+    ///
+    /// # Arguments
+    /// * `bytes` - The bytes of a PyTorch file (.pt or .pth)
+    /// * `top_level_key` - Top-level key to extract (e.g., "state_dict"), or `None` to
+    ///   use the whole file
+    ///
+    /// # Example
+    /// ```rust,no_run
+    /// # use pytorch_reader::PytorchReader;
+    /// # fn example() -> Result<(), Box<dyn std::error::Error>> {
+    /// let bytes = std::fs::read("checkpoint.pt")?;
+    /// let reader = PytorchReader::from_bytes(bytes, Some("state_dict"))?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn from_bytes(bytes: Vec<u8>, top_level_key: Option<&str>) -> Result<Self> {
+        Self::open(&Container::Memory(Arc::new(bytes)), top_level_key)
+    }
+
+    fn open(container: &Container, top_level_key: Option<&str>) -> Result<Self> {
+        let Loaded { root, mut metadata } = load_file(container)?;
         let tensors = extract_tensors_at(root, top_level_key)?;
         metadata.tensor_count = tensors.len();
         Ok(Self { tensors, metadata })
@@ -191,8 +217,9 @@ impl PytorchReader {
     /// Load from a reader
     ///
     /// This method is useful when loading from non-file sources like memory buffers.
-    /// The reader must hold a plain pickle: tensor data lives outside the pickle in every
-    /// PyTorch container, so a checkpoint with tensors must be loaded from a file.
+    /// This function does not read containers (ZIP, legacy, TAR) — it expects the reader to
+    /// hold a plain pickle. To load a checkpoint from an in-memory buffer, use
+    /// [`PytorchReader::from_bytes`] instead.
     ///
     /// # Arguments
     /// * `reader` - Any type implementing `Read`
@@ -259,7 +286,17 @@ impl PytorchReader {
         path: P,
         top_level_key: Option<&str>,
     ) -> Result<PickleValue> {
-        let Loaded { root, .. } = load_file(path.as_ref())?;
+        Self::read_pickle_data_from_container(
+            Container::File(path.as_ref().to_path_buf()),
+            top_level_key,
+        )
+    }
+
+    fn read_pickle_data_from_container(
+        container: Container,
+        top_level_key: Option<&str>,
+    ) -> Result<PickleValue> {
+        let Loaded { root, .. } = load_file(&container)?;
         let value = select_top_level(root, top_level_key)?;
         Ok(to_pickle_value(value))
     }
@@ -305,7 +342,10 @@ impl PytorchReader {
         D: DeserializeOwned,
         P: AsRef<Path>,
     {
-        let pickle_value = Self::read_pickle_data(path, top_level_key)?;
+        let pickle_value = Self::read_pickle_data_from_container(
+            Container::File(path.as_ref().to_path_buf()),
+            top_level_key,
+        )?;
         let nested_value = to_nested_value(pickle_value);
         let deserializer = Deserializer::<DefaultAdapter>::new(nested_value, false);
         Ok(D::deserialize(deserializer)?)
@@ -351,6 +391,43 @@ struct Loaded {
     metadata: PytorchMetadata,
 }
 
+#[derive(Clone)]
+pub(crate) enum Container {
+    File(PathBuf),
+    Memory(Arc<Vec<u8>>),
+}
+
+impl Container {
+    /// First `n` bytes, for format detection. no full read
+    fn header(&self, n: usize) -> Result<Vec<u8>> {
+        match self {
+            Container::File(path) => {
+                let mut header = Vec::new();
+                File::open(path)?.take(n as u64).read_to_end(&mut header)?;
+                Ok(header)
+            }
+            Container::Memory(buf) => Ok(buf[..buf.len().min(n)].to_vec()),
+        }
+    }
+
+    pub(crate) fn reader(&self) -> io::Result<Box<dyn ContainerRead>> {
+        match self {
+            Container::File(path) => Ok(Box::new(BufReader::new(File::open(path)?))),
+            Container::Memory(buf) => Ok(Box::new(Cursor::new(ArcBytes(Arc::clone(buf))))),
+        }
+    }
+}
+
+pub(crate) trait ContainerRead: Read + BufRead + Seek + Send {}
+impl<T: Read + BufRead + Seek + Send + ?Sized> ContainerRead for T {}
+
+pub(crate) struct ArcBytes(pub(crate) Arc<Vec<u8>>);
+impl AsRef<[u8]> for ArcBytes {
+    fn as_ref(&self) -> &[u8] {
+        &self.0
+    }
+}
+
 /// The magic number 0x1950a86a20f9469cfc6c opening a legacy file, as protocols 2 and up
 /// write it: little-endian bytes inside a `LONG1`.
 const LEGACY_MAGIC_BYTES: [u8; 10] = [0x6c, 0xfc, 0x9c, 0x46, 0xf9, 0x20, 0x6a, 0xa8, 0x50, 0x19];
@@ -377,11 +454,8 @@ fn starts_with_legacy_magic(header: &[u8]) -> bool {
 /// Offset of the `ustar` magic within a TAR header.
 const TAR_MAGIC_OFFSET: usize = 257;
 
-fn detect_format(path: &Path) -> Result<FileFormat> {
-    let mut header = Vec::new();
-    File::open(path)?
-        .take((TAR_MAGIC_OFFSET + 5) as u64)
-        .read_to_end(&mut header)?;
+fn detect_format(container: &Container) -> Result<FileFormat> {
+    let header = container.header(TAR_MAGIC_OFFSET + 5)?;
 
     if header.starts_with(b"PK\x03\x04") || header.starts_with(b"PK\x05\x06") {
         Ok(FileFormat::Zip)
@@ -417,17 +491,17 @@ fn starts_like_safetensors(header: &[u8]) -> bool {
     len <= SAFETENSORS_MAX_HEADER && header.get(8) == Some(&b'{')
 }
 
-fn load_file(path: &Path) -> Result<Loaded> {
-    match detect_format(path)? {
-        FileFormat::Zip => load_zip(path),
-        FileFormat::Tar => load_tar(path),
-        FileFormat::Legacy => load_legacy(path),
-        FileFormat::Pickle => load_plain_pickle(path),
+fn load_file(container: &Container) -> Result<Loaded> {
+    match detect_format(container)? {
+        FileFormat::Zip => load_zip(container),
+        FileFormat::Tar => load_tar(container),
+        FileFormat::Legacy => load_legacy(container),
+        FileFormat::Pickle => load_plain_pickle(container),
     }
 }
 
-fn load_zip(path: &Path) -> Result<Loaded> {
-    let source = ZipSource::open(path)?;
+fn load_zip(container: &Container) -> Result<Loaded> {
+    let source = ZipSource::open(container)?;
 
     match source.read_text("byteorder")?.as_deref() {
         None | Some("little") => {}
@@ -451,10 +525,20 @@ fn load_zip(path: &Path) -> Result<Loaded> {
     Ok(Loaded { root, metadata })
 }
 
-fn load_legacy(path: &Path) -> Result<Loaded> {
-    let mut reader = BufReader::new(File::open(path)?);
+fn load_legacy(container: &Container) -> Result<Loaded> {
+    let (mut reader, backing): (Box<dyn ContainerRead>, Backing) = match container {
+        Container::File(path) => {
+            let file = File::open(path)?;
+            let stream = file.try_clone()?;
+            (Box::new(BufReader::new(stream)), Backing::File(file))
+        }
+        Container::Memory(buf) => (
+            Box::new(Cursor::new(ArcBytes(Arc::clone(buf)))),
+            Backing::Memory(Arc::clone(buf)),
+        ),
+    };
 
-    let read_header = |reader: &mut BufReader<File>, what: &str| {
+    let read_header = |reader: &mut Box<dyn ContainerRead>, what: &str| {
         read_pickle(reader, &PersistentIds::Unavailable).map_err(|e| {
             PytorchError::InvalidFormat(format!("Failed to read {what} from legacy format: {e}"))
         })
@@ -477,9 +561,7 @@ fn load_legacy(path: &Path) -> Result<Loaded> {
     // headers stream through, so both come from the one open above and a replacement of
     // `path` cannot slip in between two opens. No storage is read until `finish` below, by
     // which point the stream is done with the cursor the duplicate shares.
-    let source = Arc::new(StorageSource::Legacy(LegacySource::new(
-        reader.get_ref().try_clone()?,
-    )));
+    let source = Arc::new(StorageSource::Legacy(LegacySource::new(backing)));
     let root = read_pickle(&mut reader, &PersistentIds::Storages(source.clone()))?;
 
     // The storage keys, in the order their bytes follow.
@@ -508,8 +590,8 @@ fn load_legacy(path: &Path) -> Result<Loaded> {
     Ok(Loaded { root, metadata })
 }
 
-fn load_plain_pickle(path: &Path) -> Result<Loaded> {
-    let mut reader = BufReader::new(File::open(path)?);
+fn load_plain_pickle(container: &Container) -> Result<Loaded> {
+    let mut reader = container.reader()?;
     let root = read_pickle(&mut reader, &PersistentIds::Unavailable)?;
     Ok(Loaded {
         root,
@@ -517,8 +599,8 @@ fn load_plain_pickle(path: &Path) -> Result<Loaded> {
     })
 }
 
-fn load_tar(path: &Path) -> Result<Loaded> {
-    let mut archive = tar::Archive::new(BufReader::new(File::open(path)?));
+fn load_tar(container: &Container) -> Result<Loaded> {
+    let mut archive = tar::Archive::new(container.reader()?);
     let mut entries: HashMap<String, Vec<u8>> = HashMap::new();
 
     for entry in archive.entries().map_err(PytorchError::Tar)? {
