@@ -507,3 +507,21 @@ macro_rules! transaction_op {
         backend_list!(transaction_op_arms, $tx, $first)
     };
 }
+
+/// `$devices` as `$variant`'s own devices: every rank of a device group runs one backend.
+#[cfg(feature = "group")]
+macro_rules! ranks {
+    ($devices:expr, $variant:ident) => {
+        $devices
+            .into_iter()
+            .map(|device| match device {
+                $crate::DispatchDevice::$variant(device) => device,
+                #[allow(unreachable_patterns)]
+                other => panic!(
+                    "A device group runs one backend, not {other:?} beside {}",
+                    stringify!($variant)
+                ),
+            })
+            .collect::<alloc::vec::Vec<_>>()
+    };
+}

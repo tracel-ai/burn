@@ -1,0 +1,27 @@
+[package]
+name = "burn-group"
+description = "Tensors placed over a group of devices, with the placement rule of each op"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+repository = "https://github.com/tracel-ai/burn/tree/main/crates/burn-group"
+
+[lints]
+workspace = true
+
+[features]
+# The device-group tests give their ranks the CUDA devices in turn, so shards cross devices.
+cuda = ["burn-tensor/cuda"]
+fusion = ["burn-tensor/fusion"]
+
+[dependencies]
+burn-backend = { workspace = true, features = ["std"] }
+burn-ir = { workspace = true, features = ["std"] }
+burn-router = { workspace = true, features = ["std"] }
+burn-std = { workspace = true, features = ["std"] }
+
+[dev-dependencies]
+burn-autodiff = { workspace = true, features = ["std"] }
+burn-flex = { workspace = true, features = ["default"] }
+# A path, not the workspace version: burn-tensor depends on this crate through burn-dispatch.
+burn-tensor = { path = "../burn-tensor", features = ["std", "flex", "autodiff", "group"] }

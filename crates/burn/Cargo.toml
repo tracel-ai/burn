@@ -140,6 +140,8 @@ cpu = ["burn-core/cpu", "burn-linalg?/cpu", "burn-signal?/cpu", "burn-vision?/cp
 # Backend extensions
 extension = ["burn-core/extension"]
 capture = ["burn-core/capture", "burn-linalg?/capture", "burn-signal?/capture"]
+# Tensors split over a group of devices, for tensor parallelism.
+group = ["burn-core/group"]
 
 [dependencies]
 

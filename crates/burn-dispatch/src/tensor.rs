@@ -275,6 +275,9 @@ pub enum DispatchTensorKind {
     /// A tensor recorded by the capture backend.
     #[cfg(feature = "capture")]
     Capture(BackendTensor<Capture>),
+    /// A tensor split over a [device group](Group).
+    #[cfg(feature = "group")]
+    Group(BackendTensor<Group>),
 
     /// The [autodiff enabled backend](Autodiff) tensor.
     #[cfg(feature = "autodiff")]
@@ -294,6 +297,8 @@ impl TensorMetadata for DispatchTensorKind {
             Self::Flex(tensor) => tensor.dtype(),
             #[cfg(feature = "remote")]
             Self::Remote(tensor) => tensor.dtype(),
+            #[cfg(feature = "group")]
+            Self::Group(tensor) => tensor.dtype(),
             #[cfg(feature = "capture")]
             Self::Capture(tensor) => tensor.dtype(),
             #[cfg(feature = "autodiff")]
@@ -311,6 +316,8 @@ impl TensorMetadata for DispatchTensorKind {
             Self::Flex(tensor) => tensor.shape(),
             #[cfg(feature = "remote")]
             Self::Remote(tensor) => tensor.shape(),
+            #[cfg(feature = "group")]
+            Self::Group(tensor) => tensor.shape(),
             #[cfg(feature = "capture")]
             Self::Capture(tensor) => tensor.shape(),
             #[cfg(feature = "autodiff")]
@@ -328,6 +335,8 @@ impl TensorMetadata for DispatchTensorKind {
             DispatchTensorKind::Flex(tensor) => DispatchDevice::Flex(tensor.device()),
             #[cfg(feature = "remote")]
             DispatchTensorKind::Remote(tensor) => DispatchDevice::Remote(tensor.device()),
+            #[cfg(feature = "group")]
+            DispatchTensorKind::Group(tensor) => DispatchDevice::Group(tensor.device()),
             #[cfg(feature = "capture")]
             DispatchTensorKind::Capture(tensor) => DispatchDevice::Capture(tensor.device()),
             #[cfg(feature = "autodiff")]
@@ -345,6 +354,8 @@ impl TensorMetadata for DispatchTensorKind {
             Self::Flex(tensor) => tensor.can_mut(),
             #[cfg(feature = "remote")]
             Self::Remote(tensor) => tensor.can_mut(),
+            #[cfg(feature = "group")]
+            Self::Group(tensor) => tensor.can_mut(),
             #[cfg(feature = "capture")]
             Self::Capture(tensor) => tensor.can_mut(),
             #[cfg(feature = "autodiff")]
@@ -412,6 +423,8 @@ impl DispatchTensorKind {
             DispatchTensorKind::Flex(_) => "Flex",
             #[cfg(feature = "remote")]
             DispatchTensorKind::Remote(_) => "Remote",
+            #[cfg(feature = "group")]
+            DispatchTensorKind::Group(_) => "Group",
             #[cfg(feature = "capture")]
             DispatchTensorKind::Capture(_) => "Capture",
             #[cfg(feature = "autodiff")]
@@ -571,4 +584,5 @@ macro_rules! impl_dispatch_conversion {
 impl_dispatch_conversion!(Cube, cube_backend);
 impl_dispatch_conversion!(Flex, feature = "flex");
 impl_dispatch_conversion!(Remote, feature = "remote");
+impl_dispatch_conversion!(Group, feature = "group");
 impl_dispatch_conversion!(Capture, feature = "capture");
