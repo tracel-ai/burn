@@ -189,6 +189,8 @@ async fn forward_tasks(
     while let Some(batch) = source.recv().await? {
         let messages: Vec<RemoteMessage> = rmp_serde::from_slice(&batch)
             .map_err(|err| format!("Invalid remote task batch: {err}"))?;
+        // Its buffer goes back to the pool before a full task queue can hold it.
+        drop(batch);
         for message in messages {
             match message {
                 RemoteMessage::Task(task) => task_sender
