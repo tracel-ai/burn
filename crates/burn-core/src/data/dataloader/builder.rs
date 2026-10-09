@@ -9,7 +9,8 @@ use std::sync::Arc;
 
 /// A builder for data loaders.
 pub struct DataLoaderBuilder<I, O> {
-    strategy: Option<Box<dyn BatchStrategy<I>>>,
+    batch_size: Option<usize>,
+    drop_last: bool,
     batcher: Arc<dyn Batcher<I, O>>,
     num_threads: Option<usize>,
     shuffle: Option<u64>,
@@ -36,7 +37,8 @@ where
     {
         Self {
             batcher: Arc::new(batcher),
-            strategy: None,
+            batch_size: None,
+            drop_last: false,
             num_threads: None,
             shuffle: None,
             device: None,
@@ -55,7 +57,24 @@ where
     ///
     /// The data loader builder.
     pub fn batch_size(mut self, batch_size: usize) -> Self {
-        self.strategy = Some(Box::new(FixBatchStrategy::new(batch_size)));
+        self.batch_size = Some(batch_size);
+        self
+    }
+
+    /// Sets whether to drop the last batch when it is smaller than the batch size.
+    ///
+    /// This happens when the number of items is not a multiple of the batch size. By default,
+    /// the last incomplete batch is kept.
+    ///
+    /// # Arguments
+    ///
+    /// * `drop_last` - Whether to drop the last incomplete batch.
+    ///
+    /// # Returns
+    ///
+    /// The data loader builder.
+    pub fn drop_last(mut self, drop_last: bool) -> Self {
+        self.drop_last = drop_last;
         self
     }
 
@@ -126,10 +145,9 @@ where
 
         let device = self.device.unwrap_or_default();
         let rng = self.shuffle.map(StdRng::seed_from_u64);
-        let strategy = match self.strategy {
-            Some(strategy) => strategy,
-            None => Box::new(FixBatchStrategy::new(1)),
-        };
+        let strategy: Box<dyn BatchStrategy<I>> = Box::new(
+            FixBatchStrategy::new(self.batch_size.unwrap_or(1)).with_drop_last(self.drop_last),
+        );
 
         if let Some(num_threads) = self.num_threads
             && num_threads > 0
@@ -172,6 +190,15 @@ mod tests {
         }
     }
 
+    #[derive(Clone)]
+    struct TestBatcherLen;
+
+    impl<I> Batcher<I, usize> for TestBatcherLen {
+        fn batch(&self, items: Vec<I>, _device: &Device) -> usize {
+            items.len()
+        }
+    }
+
     #[test]
     fn test_dataloader_no_workers() {
         let default_device = Device::default();
@@ -184,6 +211,48 @@ mod tests {
         for device in dataloader.iter().map(Result::unwrap) {
             assert_eq!(device, default_device)
         }
+    }
+
+    #[test]
+    fn test_dataloader_drop_last() {
+        for num_workers in [0, 1, 2] {
+            let dataloader = DataLoaderBuilder::new(TestBatcherLen)
+                .batch_size(4)
+                .drop_last(true)
+                .num_workers(num_workers)
+                .build(FakeDataset::<String>::new(10));
+
+            let lengths: Vec<usize> = dataloader.iter().map(Result::unwrap).collect();
+
+            assert_eq!(lengths.iter().sum::<usize>(), 8, "workers: {num_workers}");
+            assert!(
+                lengths.iter().all(|len| *len == 4),
+                "workers: {num_workers}"
+            );
+        }
+    }
+
+    #[test]
+    fn test_dataloader_keeps_last_batch_by_default() {
+        let dataloader = DataLoaderBuilder::new(TestBatcherLen)
+            .batch_size(4)
+            .build(FakeDataset::<String>::new(10));
+
+        let lengths: Vec<usize> = dataloader.iter().map(Result::unwrap).collect();
+
+        assert_eq!(lengths, vec![4, 4, 2]);
+    }
+
+    #[test]
+    fn test_dataloader_drop_last_is_independent_of_call_order() {
+        let dataloader = DataLoaderBuilder::new(TestBatcherLen)
+            .drop_last(true)
+            .batch_size(4)
+            .build(FakeDataset::<String>::new(10));
+
+        let lengths: Vec<usize> = dataloader.iter().map(Result::unwrap).collect();
+
+        assert_eq!(lengths, vec![4, 4]);
     }
 
     #[test]
