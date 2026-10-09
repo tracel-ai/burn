@@ -114,7 +114,7 @@ pub mod backends {
     pub use burn_group::GroupBackend as Group;
     /// Where a tensor's shards sit on a device group.
     #[cfg(feature = "group")]
-    pub use burn_group::Placement;
+    pub use burn_group::GroupPlacement;
 }
 
 // Re-export devices

@@ -1,4 +1,4 @@
-use crate::{OpPlacement, Placement};
+use crate::{GroupPlacement, OpPlacement};
 
 /// The dims an op reduces, or reads whole.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -23,15 +23,15 @@ impl Reduction {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ReduceRule {
     /// Each rank reduces its shard, and the output keeps the input's placement.
-    Local { placement: Placement },
+    Local { placement: GroupPlacement },
     /// The split dim is reduced: each rank's result is a summand.
     AcrossRanks { dim: usize },
 }
 
 impl ReduceRule {
-    pub fn new(input: Placement, reduction: Reduction) -> Self {
+    pub fn new(input: GroupPlacement, reduction: Reduction) -> Self {
         match input {
-            Placement::Sharded { dim } if reduction.contains(dim) => Self::AcrossRanks { dim },
+            GroupPlacement::Sharded { dim } if reduction.contains(dim) => Self::AcrossRanks { dim },
             placement => Self::Local { placement },
         }
     }
@@ -39,7 +39,7 @@ impl ReduceRule {
     pub fn placement(&self) -> OpPlacement<1> {
         let (input, output) = match *self {
             Self::Local { placement } => (placement, placement),
-            Self::AcrossRanks { dim } => (Placement::Sharded { dim }, Placement::Partial),
+            Self::AcrossRanks { dim } => (GroupPlacement::Sharded { dim }, GroupPlacement::Partial),
         };
         OpPlacement {
             inputs: [input],
@@ -51,7 +51,7 @@ impl ReduceRule {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use Placement::{Partial, Sharded};
+    use GroupPlacement::{Partial, Sharded};
 
     #[test]
     fn reducing_the_split_dim_leaves_a_summand_per_rank() {

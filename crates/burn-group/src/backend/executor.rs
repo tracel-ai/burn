@@ -17,12 +17,12 @@ use super::{
     plan::{Execution, OpPlan},
     shard::ShardList,
 };
-use crate::{Chunks, EmbeddingRule, Placement, Redistribution};
+use crate::{Chunks, EmbeddingRule, GroupPlacement, Redistribution};
 
 /// A device group's interpreter, whatever backend its ranks run: what its client asks of it.
 pub trait GroupInterpreter: Send {
     fn new_tensor_id(&mut self) -> TensorId;
-    fn placement(&self, id: &TensorId) -> Placement;
+    fn placement(&self, id: &TensorId) -> GroupPlacement;
     /// Every rank holds the whole value.
     fn register_tensor_data(&mut self, data: TensorData) -> TensorId;
     fn register_op(&mut self, op: OperationIr);
@@ -32,7 +32,7 @@ pub trait GroupInterpreter: Send {
     ///
     /// When no collective produces `placement`: a partial sum out of a whole tensor, or a split
     /// along a dim shorter than the group.
-    fn place(&mut self, tensor: TensorIr, placement: Placement) -> TensorId;
+    fn place(&mut self, tensor: TensorIr, placement: GroupPlacement) -> TensorId;
     fn read(&mut self, tensor: TensorIr) -> DynFut<Result<TensorData, ExecutionError>>;
     fn register_alias(&mut self, new_id: TensorId, src_id: TensorId);
     fn register_graph(
@@ -53,7 +53,7 @@ pub trait GroupInterpreter: Send {
 pub struct GroupExecutor<B: BackendIr> {
     ranks: Vec<TensorInterpreter<B>>,
     devices: Vec<B::Device>,
-    placements: HashMap<TensorId, Placement>,
+    placements: HashMap<TensorId, GroupPlacement>,
     graphs: HashMap<GraphId, Graph>,
     next_id: u64,
     flush_error: Option<ExecutionError>,
@@ -87,7 +87,7 @@ impl<B: BackendIr> GroupInterpreter for GroupExecutor<B> {
         TensorId::new(self.next_id)
     }
 
-    fn placement(&self, id: &TensorId) -> Placement {
+    fn placement(&self, id: &TensorId) -> GroupPlacement {
         self.placements[id]
     }
 
@@ -96,7 +96,7 @@ impl<B: BackendIr> GroupInterpreter for GroupExecutor<B> {
         for rank in &mut self.ranks {
             rank.register_tensor_data_id(id, data.clone());
         }
-        self.placements.insert(id, Placement::Replicated);
+        self.placements.insert(id, GroupPlacement::Replicated);
         id
     }
 
@@ -112,7 +112,7 @@ impl<B: BackendIr> GroupInterpreter for GroupExecutor<B> {
         }
     }
 
-    fn place(&mut self, tensor: TensorIr, placement: Placement) -> TensorId {
+    fn place(&mut self, tensor: TensorIr, placement: GroupPlacement) -> TensorId {
         let current = self.placements[&tensor.id];
         let redistribution =
             Redistribution::new(current, placement, &tensor.shape, self.ranks.len())
@@ -317,7 +317,7 @@ impl<B: BackendIr> GroupExecutor<B> {
             rhs: ScalarIr::new(count as f64, dtype),
             out,
         });
-        self.placements.insert(sum_out.id, Placement::Partial);
+        self.placements.insert(sum_out.id, GroupPlacement::Partial);
         for rank in 0..self.ranks.len() {
             self.run_on(rank, &OperationIr::NumericFloat(*dtype, sum.clone()));
             self.run_on(rank, &OperationIr::NumericFloat(*dtype, divide.clone()));
@@ -351,7 +351,7 @@ impl<B: BackendIr> GroupExecutor<B> {
                 bool_dtype: self.ranks[rank].device_settings().bool_dtype,
             };
             let weights = self.local_float(rank, &desc.weights, EmbeddingRule::VOCAB_ROWS);
-            let output_grad = self.local_float(rank, &desc.out_grad, Placement::Replicated);
+            let output_grad = self.local_float(rank, &desc.out_grad, GroupPlacement::Replicated);
             let indices = self.local_int(rank, &desc.indices);
             let grad = chunk.backward::<B>(weights, output_grad, indices);
             self.ranks[rank].register_tensor_to_device(desc.out.id, HandleKind::Float(grad));
@@ -362,7 +362,7 @@ impl<B: BackendIr> GroupExecutor<B> {
         &mut self,
         rank: usize,
         tensor: &TensorIr,
-        placement: Placement,
+        placement: GroupPlacement,
     ) -> FloatTensor<B> {
         let ranks = self.ranks.len();
         let local = TensorIr {
@@ -382,7 +382,7 @@ impl<B: BackendIr> GroupExecutor<B> {
         }
     }
 
-    fn take_shards(&mut self, tensor: &TensorIr, placement: Placement) -> ShardList<B> {
+    fn take_shards(&mut self, tensor: &TensorIr, placement: GroupPlacement) -> ShardList<B> {
         let ranks = self.ranks.len();
         let shards = self
             .ranks
@@ -401,7 +401,7 @@ impl<B: BackendIr> GroupExecutor<B> {
         ShardList::new(shards)
     }
 
-    fn register_shards(&mut self, id: TensorId, shards: ShardList<B>, placement: Placement) {
+    fn register_shards(&mut self, id: TensorId, shards: ShardList<B>, placement: GroupPlacement) {
         for (rank, handle) in self.ranks.iter_mut().zip(shards.into_handles()) {
             rank.register_tensor_to_device(id, handle);
         }
@@ -511,7 +511,7 @@ impl IrVisitorMut for Renames {
 struct RankShapes<'a> {
     rank: usize,
     ranks: usize,
-    placements: &'a HashMap<TensorId, Placement>,
+    placements: &'a HashMap<TensorId, GroupPlacement>,
 }
 
 impl IrVisitorMut for RankShapes<'_> {

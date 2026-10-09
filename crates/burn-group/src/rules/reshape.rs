@@ -1,13 +1,13 @@
 use burn_std::Shape;
 
-use crate::{OpPlacement, Placement};
+use crate::{GroupPlacement, OpPlacement};
 
 /// Whether a reshape keeps a split: only when each rank's chunk is still a contiguous chunk of
 /// one output dim.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ReshapeRule {
     /// The input is not split: each rank reshapes it whole.
-    Local { placement: Placement },
+    Local { placement: GroupPlacement },
     /// Every rank's chunk of `from_dim` holds the same elements as its chunk of `to_dim`.
     Sharded { from_dim: usize, to_dim: usize },
     /// The split dim is merged or broken up unevenly: the input is gathered first.
@@ -15,8 +15,8 @@ pub enum ReshapeRule {
 }
 
 impl ReshapeRule {
-    pub fn new(input: Placement, from: &Shape, to: &Shape, ranks: usize) -> Self {
-        let Placement::Sharded { dim } = input else {
+    pub fn new(input: GroupPlacement, from: &Shape, to: &Shape, ranks: usize) -> Self {
+        let GroupPlacement::Sharded { dim } = input else {
             return Self::Local { placement: input };
         };
         match Self::chunk_preserving_dim(from, to, dim, ranks) {
@@ -32,10 +32,10 @@ impl ReshapeRule {
         let (input, output) = match *self {
             Self::Local { placement } => (placement, placement),
             Self::Sharded { from_dim, to_dim } => (
-                Placement::Sharded { dim: from_dim },
-                Placement::Sharded { dim: to_dim },
+                GroupPlacement::Sharded { dim: from_dim },
+                GroupPlacement::Sharded { dim: to_dim },
             ),
-            Self::Gathered => (Placement::Replicated, Placement::Replicated),
+            Self::Gathered => (GroupPlacement::Replicated, GroupPlacement::Replicated),
         };
         OpPlacement {
             inputs: [input],
@@ -71,7 +71,7 @@ mod tests {
     #[test]
     fn heads_split_out_of_a_sharded_hidden_dim_stay_sharded() {
         let rule = ReshapeRule::new(
-            Placement::Sharded { dim: 2 },
+            GroupPlacement::Sharded { dim: 2 },
             &Shape::new([2, 5, 12]),
             &Shape::new([2, 5, 4, 3]),
             2,
@@ -88,7 +88,7 @@ mod tests {
     #[test]
     fn heads_merged_back_stay_sharded() {
         let rule = ReshapeRule::new(
-            Placement::Sharded { dim: 2 },
+            GroupPlacement::Sharded { dim: 2 },
             &Shape::new([2, 5, 4, 3]),
             &Shape::new([2, 5, 12]),
             2,
@@ -105,7 +105,7 @@ mod tests {
     #[test]
     fn heads_that_do_not_divide_over_the_ranks_are_gathered() {
         let rule = ReshapeRule::new(
-            Placement::Sharded { dim: 2 },
+            GroupPlacement::Sharded { dim: 2 },
             &Shape::new([2, 5, 12]),
             &Shape::new([2, 5, 3, 4]),
             2,
@@ -116,7 +116,7 @@ mod tests {
     #[test]
     fn flattening_a_column_split_is_gathered() {
         let rule = ReshapeRule::new(
-            Placement::Sharded { dim: 1 },
+            GroupPlacement::Sharded { dim: 1 },
             &Shape::new([4, 6]),
             &Shape::new([24]),
             2,
@@ -127,7 +127,7 @@ mod tests {
     #[test]
     fn unsqueezed_bias_keeps_its_split() {
         let rule = ReshapeRule::new(
-            Placement::Sharded { dim: 0 },
+            GroupPlacement::Sharded { dim: 0 },
             &Shape::new([5]),
             &Shape::new([1, 5]),
             3,

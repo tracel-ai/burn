@@ -1,8 +1,8 @@
 use burn_std::Shape;
 
 use crate::{
+    GroupPlacement::{self, Partial, Replicated, Sharded},
     MatmulRule, OpPlacement,
-    Placement::{self, Partial, Replicated, Sharded},
 };
 
 /// `x @ weight + bias`, with `weight` of shape `[d_in, d_out]`: the matmul of `x` with the
@@ -21,10 +21,15 @@ impl LinearRule {
     const OUT_FEATURES: usize = 1;
     const TRANSPOSE: [usize; 2] = [Self::OUT_FEATURES, Self::IN_FEATURES];
     /// A bias split with the output's features.
-    const BIAS_SPLIT: Placement = Sharded { dim: 0 };
+    const BIAS_SPLIT: GroupPlacement = Sharded { dim: 0 };
 
     /// The placements of `x` and of `weight`, with their shapes.
-    pub fn new(x: Placement, weight: Placement, x_shape: &Shape, weight_shape: &Shape) -> Self {
+    pub fn new(
+        x: GroupPlacement,
+        weight: GroupPlacement,
+        x_shape: &Shape,
+        weight_shape: &Shape,
+    ) -> Self {
         let num_dims = x_shape.num_dims();
         let matmul = MatmulRule::new(
             x,
@@ -63,8 +68,8 @@ impl LinearRule {
 
     /// The gradient of `x`: `output_grad @ weight^T`. Inputs: weight, output gradient.
     pub fn x_backward(
-        weight: Placement,
-        output_grad: Placement,
+        weight: GroupPlacement,
+        output_grad: GroupPlacement,
         weight_shape: &Shape,
         grad_shape: &Shape,
     ) -> OpPlacement<2> {
@@ -96,8 +101,8 @@ impl LinearRule {
     /// The gradient of the weight: `x^T @ output_grad`, summed over every batch dim, as one
     /// matmul whose contracted dim is the batch dims flattened. Inputs: x, output gradient.
     pub fn weight_backward(
-        x: Placement,
-        output_grad: Placement,
+        x: GroupPlacement,
+        output_grad: GroupPlacement,
         x_shape: &Shape,
         grad_shape: &Shape,
     ) -> OpPlacement<2> {
@@ -111,7 +116,7 @@ impl LinearRule {
             });
         // x^T is `[d_in, batch]` and the gradient `[batch, d_out]`, so each holds the batch in
         // the dim its features do not take.
-        let flattened = |placement: Placement, feature_dim: usize| match placement {
+        let flattened = |placement: GroupPlacement, feature_dim: usize| match placement {
             Sharded { dim } if dim == features => Sharded { dim: feature_dim },
             Sharded { dim } if Some(dim) == batch_dim => Sharded {
                 dim: Self::OUT_FEATURES - feature_dim,
@@ -130,7 +135,7 @@ impl LinearRule {
             inputs: [lhs, rhs],
             output,
         } = matmul.placement();
-        let unflattened = |placement: Placement, feature_dim: usize| match placement {
+        let unflattened = |placement: GroupPlacement, feature_dim: usize| match placement {
             Sharded { dim } if dim == feature_dim => Sharded { dim: features },
             Sharded { .. } => Sharded {
                 dim: batch_dim.expect("A split contraction comes from a split batch dim"),
@@ -147,7 +152,7 @@ impl LinearRule {
     }
 
     /// The gradient of the bias: the output gradient summed over every dim but the last.
-    pub fn bias_backward(output_grad: Placement, grad_shape: &Shape) -> OpPlacement<1> {
+    pub fn bias_backward(output_grad: GroupPlacement, grad_shape: &Shape) -> OpPlacement<1> {
         let features = grad_shape.num_dims() - 1;
         let output = match output_grad {
             Sharded { dim } if dim == features => Self::BIAS_SPLIT,

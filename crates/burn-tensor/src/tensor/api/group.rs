@@ -1,4 +1,4 @@
-use burn_dispatch::{Dispatch, DispatchDevice, backends::Placement};
+use burn_dispatch::{Dispatch, DispatchDevice, backends::GroupPlacement};
 
 use crate::{
     Device, Tensor,
@@ -18,7 +18,7 @@ impl<const D: usize, K: Basic> Tensor<D, K> {
     /// When the tensor is not on a [device group](Device::group), or no collective produces
     /// `placement`: a partial sum out of a whole tensor, or a split along a dim shorter than the
     /// group.
-    pub fn place(self, placement: Placement) -> Self {
+    pub fn place(self, placement: GroupPlacement) -> Self {
         let (kind, tensor) = self.primitive.into_parts();
         let placed = Dispatch::place(tensor, placement);
         Self::new(match kind {
@@ -30,7 +30,7 @@ impl<const D: usize, K: Basic> Tensor<D, K> {
     }
 
     /// Where the tensor's shards sit on its device group, or `None` when it is not on one.
-    pub fn placement(&self) -> Option<Placement> {
+    pub fn placement(&self) -> Option<GroupPlacement> {
         let (_, tensor) = self.primitive.as_parts();
         Dispatch::placement(tensor)
     }

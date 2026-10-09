@@ -1,6 +1,6 @@
 use burn_std::Shape;
 
-use crate::Placement::{self, Partial, Replicated, Sharded};
+use crate::GroupPlacement::{self, Partial, Replicated, Sharded};
 
 /// The collective that moves a tensor from one placement to another.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -27,7 +27,12 @@ pub enum Redistribution {
 impl Redistribution {
     /// `None` when nothing can produce the target: a partial sum out of a whole tensor, or a
     /// split along a dim shorter than the group, which would leave a rank empty.
-    pub fn new(from: Placement, to: Placement, shape: &Shape, ranks: usize) -> Option<Self> {
+    pub fn new(
+        from: GroupPlacement,
+        to: GroupPlacement,
+        shape: &Shape,
+        ranks: usize,
+    ) -> Option<Self> {
         if let Sharded { dim } = to
             && shape[dim] < ranks
         {

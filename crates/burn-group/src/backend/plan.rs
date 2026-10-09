@@ -10,16 +10,16 @@ use burn_ir::{
 };
 
 use crate::{
-    Chunks, EmbeddingBackwardRule, EmbeddingRule, LinearRule, Linearity, MatmulRule, OpPlacement,
-    Placement, ReduceRule, Reduction, ReshapeRule, WholeDimRule,
+    Chunks, EmbeddingBackwardRule, EmbeddingRule, GroupPlacement, LinearRule, Linearity,
+    MatmulRule, OpPlacement, ReduceRule, Reduction, ReshapeRule, WholeDimRule,
 };
 
 /// Where each tensor of one op must be for the op to run on every rank, where its outputs land,
 /// and what each rank runs.
 #[derive(Debug)]
 pub struct OpPlan {
-    inputs: HashMap<TensorId, Placement>,
-    outputs: HashMap<TensorId, Placement>,
+    inputs: HashMap<TensorId, GroupPlacement>,
+    outputs: HashMap<TensorId, GroupPlacement>,
     execution: Execution,
 }
 
@@ -48,17 +48,21 @@ pub enum Execution {
 impl OpPlan {
     /// An op without a rule, or whose inputs would need two placements at once, gathers every
     /// input and runs whole on every rank.
-    pub fn new(op: &OperationIr, placements: &HashMap<TensorId, Placement>, ranks: usize) -> Self {
+    pub fn new(
+        op: &OperationIr,
+        placements: &HashMap<TensorId, GroupPlacement>,
+        ranks: usize,
+    ) -> Self {
         Analysis { placements, ranks }
             .plan(op)
             .unwrap_or_else(|| Self::gathered(op))
     }
 
-    pub fn input(&self, id: &TensorId) -> Placement {
+    pub fn input(&self, id: &TensorId) -> GroupPlacement {
         self.inputs[id]
     }
 
-    pub fn outputs(&self) -> &HashMap<TensorId, Placement> {
+    pub fn outputs(&self) -> &HashMap<TensorId, GroupPlacement> {
         &self.outputs
     }
 
@@ -75,7 +79,7 @@ impl OpPlan {
         else {
             return;
         };
-        if let Placement::Sharded { dim } = self.input(&desc.tensor.id)
+        if let GroupPlacement::Sharded { dim } = self.input(&desc.tensor.id)
             && let Some(range) = desc.ranges.get_mut(dim)
         {
             *range = Slice::new(0, None, 1);
@@ -83,7 +87,7 @@ impl OpPlan {
     }
 
     fn gathered(op: &OperationIr) -> Self {
-        let replicated = |tensor: &TensorIr| (tensor.id, Placement::Replicated);
+        let replicated = |tensor: &TensorIr| (tensor.id, GroupPlacement::Replicated);
         Self {
             inputs: op.inputs().map(replicated).collect(),
             outputs: op.outputs().map(replicated).collect(),
@@ -93,7 +97,7 @@ impl OpPlan {
 }
 
 struct Analysis<'a> {
-    placements: &'a HashMap<TensorId, Placement>,
+    placements: &'a HashMap<TensorId, GroupPlacement>,
     ranks: usize,
 }
 
@@ -596,7 +600,7 @@ impl Analysis<'_> {
 
     fn flip(&self, desc: &FlipOpIr) -> Option<OpPlan> {
         let placement = self.placement(&desc.input);
-        if let Placement::Sharded { dim } = placement
+        if let GroupPlacement::Sharded { dim } = placement
             && desc.axes.contains(&dim)
         {
             return None;
@@ -617,7 +621,7 @@ impl Analysis<'_> {
     /// Slicing is linear, and a split dim taken whole is each rank's whole chunk.
     fn slice(&self, desc: &SliceOpIr) -> Option<OpPlan> {
         let placement = self.placement(&desc.tensor);
-        if let Placement::Sharded { dim } = placement {
+        if let GroupPlacement::Sharded { dim } = placement {
             let whole = desc.ranges.get(dim).is_none_or(|range| {
                 range.step == 1 && desc.out.shape[dim] == desc.tensor.shape[dim]
             });
@@ -629,16 +633,17 @@ impl Analysis<'_> {
     }
 
     fn cat(&self, desc: &CatOpIr) -> Option<OpPlan> {
-        let placements: Vec<Placement> = desc.tensors.iter().map(|t| self.placement(t)).collect();
+        let placements: Vec<GroupPlacement> =
+            desc.tensors.iter().map(|t| self.placement(t)).collect();
         let target = if placements
             .iter()
-            .all(|placement| *placement == Placement::Partial)
+            .all(|placement| *placement == GroupPlacement::Partial)
         {
-            Placement::Partial
+            GroupPlacement::Partial
         } else {
-            placements.iter().copied().find(
-                |placement| matches!(placement, Placement::Sharded { dim } if *dim != desc.dim),
-            )?
+            placements.iter().copied().find(|placement| {
+                matches!(placement, GroupPlacement::Sharded { dim } if *dim != desc.dim)
+            })?
         };
         desc.tensors
             .iter()
@@ -651,13 +656,13 @@ impl Analysis<'_> {
 
     fn created(&self, out: &TensorIr) -> Option<OpPlan> {
         Targets::default()
-            .output(out, Placement::Replicated)
+            .output(out, GroupPlacement::Replicated)
             .every_rank()
     }
 
     fn random(&self, out: &TensorIr) -> Option<OpPlan> {
         Targets::default()
-            .output(out, Placement::Replicated)
+            .output(out, GroupPlacement::Replicated)
             .build(Execution::FirstRankCopied)
     }
 
@@ -679,7 +684,7 @@ impl Analysis<'_> {
             .every_rank()
     }
 
-    fn placement(&self, tensor: &TensorIr) -> Placement {
+    fn placement(&self, tensor: &TensorIr) -> GroupPlacement {
         *self
             .placements
             .get(&tensor.id)
@@ -690,13 +695,13 @@ impl Analysis<'_> {
 /// The placements an op's tensors take, refusing an input asked to be in two places at once.
 #[derive(Default)]
 struct Targets {
-    inputs: HashMap<TensorId, Placement>,
-    outputs: HashMap<TensorId, Placement>,
+    inputs: HashMap<TensorId, GroupPlacement>,
+    outputs: HashMap<TensorId, GroupPlacement>,
     conflict: bool,
 }
 
 impl Targets {
-    fn of<const N: usize>(tensors: [&TensorIr; N], placements: [Placement; N]) -> Self {
+    fn of<const N: usize>(tensors: [&TensorIr; N], placements: [GroupPlacement; N]) -> Self {
         tensors
             .into_iter()
             .zip(placements)
@@ -705,13 +710,13 @@ impl Targets {
             })
     }
 
-    fn input(mut self, tensor: &TensorIr, placement: Placement) -> Self {
+    fn input(mut self, tensor: &TensorIr, placement: GroupPlacement) -> Self {
         let previous = self.inputs.insert(tensor.id, placement);
         self.conflict |= previous.is_some_and(|previous| previous != placement);
         self
     }
 
-    fn output(mut self, tensor: &TensorIr, placement: Placement) -> Self {
+    fn output(mut self, tensor: &TensorIr, placement: GroupPlacement) -> Self {
         self.outputs.insert(tensor.id, placement);
         self
     }

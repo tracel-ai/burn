@@ -4,7 +4,7 @@ use burn_std::Shape;
 
 /// How a tensor's shards, one per rank of its group, make up its value.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Placement {
+pub enum GroupPlacement {
     /// Every rank holds the whole value.
     Replicated,
     /// Balanced chunks in rank order: the first `len % ranks` ranks hold one more element.
@@ -13,11 +13,11 @@ pub enum Placement {
     Partial,
 }
 
-impl Placement {
+impl GroupPlacement {
     /// An input of length 1 along the sharded dim broadcasts, so it stays whole.
     pub fn aligned(self, shape: &Shape) -> Self {
         match self {
-            Placement::Sharded { dim } if shape[dim] == 1 => Placement::Replicated,
+            GroupPlacement::Sharded { dim } if shape[dim] == 1 => GroupPlacement::Replicated,
             placement => placement,
         }
     }
@@ -25,7 +25,7 @@ impl Placement {
     /// The shape of the shard `rank` holds of a tensor of global `shape`.
     pub fn local_shape(self, shape: &Shape, rank: usize, ranks: usize) -> Shape {
         let mut local = shape.clone();
-        if let Placement::Sharded { dim } = self {
+        if let GroupPlacement::Sharded { dim } = self {
             local[dim] = Chunks::new(shape[dim], ranks).range(rank).len();
         }
         local
@@ -34,7 +34,7 @@ impl Placement {
     /// The placement of a tensor's permutation by `axes`: the sharded dim follows its axis.
     pub fn permuted(self, axes: &[usize]) -> Self {
         match self {
-            Placement::Sharded { dim } => Placement::Sharded {
+            GroupPlacement::Sharded { dim } => GroupPlacement::Sharded {
                 dim: axes
                     .iter()
                     .position(|axis| *axis == dim)
@@ -48,7 +48,7 @@ impl Placement {
     /// trailing dims lined up as broadcasting does.
     pub fn with_num_dims(self, num_dims: usize, new_num_dims: usize) -> Self {
         match self {
-            Placement::Sharded { dim } => Placement::Sharded {
+            GroupPlacement::Sharded { dim } => GroupPlacement::Sharded {
                 dim: (dim + new_num_dims)
                     .checked_sub(num_dims)
                     .expect("The sharded dim exists in the new dims"),
@@ -61,8 +61,8 @@ impl Placement {
 /// Where an op's inputs must be for it to run on every rank at once, and where its output lands.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct OpPlacement<const N: usize> {
-    pub inputs: [Placement; N],
-    pub output: Placement,
+    pub inputs: [GroupPlacement; N],
+    pub output: GroupPlacement,
 }
 
 /// How a dim of `len` elements splits over `ranks`: the first `len % ranks` ranks hold one more.

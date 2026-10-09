@@ -1,6 +1,6 @@
 use crate::{
+    GroupPlacement::{self, Partial, Replicated, Sharded},
     OpPlacement,
-    Placement::{self, Partial, Replicated, Sharded},
 };
 
 /// Which part of an embedding lookup is split. The weights are `[vocab, hidden]` and the
@@ -26,17 +26,17 @@ impl EmbeddingRule {
     pub const VOCAB_DIM: usize = 0;
     pub const HIDDEN_DIM: usize = 1;
     pub const OUTPUT_HIDDEN_DIM: usize = 2;
-    pub const VOCAB_ROWS: Placement = Sharded {
+    pub const VOCAB_ROWS: GroupPlacement = Sharded {
         dim: Self::VOCAB_DIM,
     };
-    pub const HIDDEN_COLUMNS: Placement = Sharded {
+    pub const HIDDEN_COLUMNS: GroupPlacement = Sharded {
         dim: Self::HIDDEN_DIM,
     };
-    pub const OUTPUT_COLUMNS: Placement = Sharded {
+    pub const OUTPUT_COLUMNS: GroupPlacement = Sharded {
         dim: Self::OUTPUT_HIDDEN_DIM,
     };
 
-    pub fn new(weights: Placement, indices: Placement) -> Self {
+    pub fn new(weights: GroupPlacement, indices: GroupPlacement) -> Self {
         match (weights, indices) {
             (Replicated, Replicated) => Self::Unsplit,
             (Replicated, Sharded { dim }) => Self::Indices { dim },
@@ -79,7 +79,11 @@ pub enum EmbeddingBackwardRule {
 impl EmbeddingBackwardRule {
     /// A vocab split is kept even against a split output gradient: gathering the gradient of
     /// the tokens costs less than gathering the table.
-    pub fn new(weights: Placement, output_grad: Placement, indices: Placement) -> Self {
+    pub fn new(
+        weights: GroupPlacement,
+        output_grad: GroupPlacement,
+        indices: GroupPlacement,
+    ) -> Self {
         match (weights, output_grad, indices) {
             (EmbeddingRule::VOCAB_ROWS, _, _) => Self::Vocab,
             (_, EmbeddingRule::OUTPUT_COLUMNS, _) => Self::Columns,

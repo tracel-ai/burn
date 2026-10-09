@@ -1,6 +1,6 @@
 use burn_std::{DType, Shape};
 
-use crate::{OpPlacement, Placement};
+use crate::{GroupPlacement, OpPlacement};
 
 /// Which inputs of an elementwise op a partial sum can pass through: its output stays partial
 /// only where the op distributes over the sum.
@@ -38,35 +38,35 @@ impl Linearity {
     /// Where the inputs must be for the op to run on every rank, and where its output lands.
     pub fn placement<const N: usize>(
         self,
-        inputs: [Placement; N],
+        inputs: [GroupPlacement; N],
         shapes: [&Shape; N],
     ) -> OpPlacement<N> {
         if self.keeps_partial(&inputs) {
             return OpPlacement {
                 inputs,
-                output: Placement::Partial,
+                output: GroupPlacement::Partial,
             };
         }
 
         let output = inputs
             .into_iter()
-            .find(|placement| matches!(placement, Placement::Sharded { .. }))
-            .unwrap_or(Placement::Replicated);
+            .find(|placement| matches!(placement, GroupPlacement::Sharded { .. }))
+            .unwrap_or(GroupPlacement::Replicated);
         OpPlacement {
             inputs: shapes.map(|shape| output.aligned(shape)),
             output,
         }
     }
 
-    fn keeps_partial(self, inputs: &[Placement]) -> bool {
+    fn keeps_partial(self, inputs: &[GroupPlacement]) -> bool {
         let count = |placement| inputs.iter().filter(|input| **input == placement).count();
-        let others_replicated = count(Placement::Replicated) == inputs.len() - 1;
+        let others_replicated = count(GroupPlacement::Replicated) == inputs.len() - 1;
         match self {
             Linearity::Nonlinear => false,
-            Linearity::Linear => count(Placement::Partial) == inputs.len(),
-            Linearity::Multilinear => count(Placement::Partial) == 1 && others_replicated,
+            Linearity::Linear => count(GroupPlacement::Partial) == inputs.len(),
+            Linearity::Multilinear => count(GroupPlacement::Partial) == 1 && others_replicated,
             Linearity::LinearIn { input } => {
-                inputs[input] == Placement::Partial && others_replicated
+                inputs[input] == GroupPlacement::Partial && others_replicated
             }
         }
     }
@@ -75,7 +75,7 @@ impl Linearity {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use Placement::{Partial, Replicated, Sharded};
+    use GroupPlacement::{Partial, Replicated, Sharded};
 
     #[test]
     fn partial_plus_replicated_is_reduced_first() {

@@ -12,7 +12,7 @@ use burn_autodiff::{
 };
 #[cfg(feature = "autodiff")]
 use burn_backend::{Backend, tensor::FloatTensor};
-use burn_group::Placement;
+use burn_group::GroupPlacement;
 
 use crate::{BackendTensor, Dispatch, DispatchTensor, DispatchTensorKind, backends::Group};
 #[cfg(feature = "autodiff")]
@@ -28,7 +28,7 @@ impl Dispatch {
     ///
     /// When the tensor is not on a device group, or no collective produces `placement`: a
     /// partial sum out of a whole tensor, or a split along a dim shorter than the group.
-    pub fn place(tensor: DispatchTensor, placement: Placement) -> DispatchTensor {
+    pub fn place(tensor: DispatchTensor, placement: GroupPlacement) -> DispatchTensor {
         let DispatchTensor { kind, autodiff } = tensor;
         let kind = match kind {
             DispatchTensorKind::Group(tensor) => {
@@ -61,7 +61,7 @@ impl Dispatch {
     }
 
     /// Where the tensor's shards sit, or `None` when it is not on a device group.
-    pub fn placement(tensor: &DispatchTensor) -> Option<Placement> {
+    pub fn placement(tensor: &DispatchTensor) -> Option<GroupPlacement> {
         let primitive = match &tensor.kind {
             DispatchTensorKind::Group(
                 BackendTensor::Float(tensor)
@@ -88,7 +88,7 @@ struct Place;
 impl Place {
     fn record<C: CheckpointStrategy>(
         tensor: FloatTensor<Autodiff<Group>>,
-        placement: Placement,
+        placement: GroupPlacement,
     ) -> FloatTensor<Autodiff<Group>> {
         let node = tensor.node();
         let inner = tensor.into_primitive();
@@ -110,7 +110,7 @@ impl<B: Backend> Backward<B, 1> for Place {
 
 fn place_backend_tensor(
     tensor: BackendTensor<Group>,
-    placement: Placement,
+    placement: GroupPlacement,
 ) -> BackendTensor<Group> {
     match tensor {
         BackendTensor::Float(tensor) => {

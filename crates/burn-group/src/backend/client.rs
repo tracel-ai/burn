@@ -6,7 +6,7 @@ use burn_router::{RouterClient, RouterTensor};
 use burn_std::{future::DynFut, sync::Mutex};
 
 use super::{GroupDevice, executor::GroupInterpreter};
-use crate::Placement;
+use crate::GroupPlacement;
 
 /// The client of one device group: every tensor of the group goes through its interpreter.
 #[derive(Clone)]
@@ -29,14 +29,18 @@ impl GroupClient {
     ///
     /// When no collective produces `placement`: a partial sum out of a whole tensor, or a split
     /// along a dim shorter than the group.
-    pub fn place(&self, tensor: RouterTensor<Self>, placement: Placement) -> RouterTensor<Self> {
+    pub fn place(
+        &self,
+        tensor: RouterTensor<Self>,
+        placement: GroupPlacement,
+    ) -> RouterTensor<Self> {
         let (shape, dtype) = (tensor.shape(), tensor.dtype());
         let id = self.interpreter.lock().place(tensor.into_ir(), placement);
         RouterTensor::new(id, shape, dtype, self.clone())
     }
 
     /// Where the tensor's shards sit.
-    pub fn placement(&self, tensor: &RouterTensor<Self>) -> Placement {
+    pub fn placement(&self, tensor: &RouterTensor<Self>) -> GroupPlacement {
         self.interpreter.lock().placement(&tensor.id())
     }
 }

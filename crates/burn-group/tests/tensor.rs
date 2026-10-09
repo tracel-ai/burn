@@ -1,6 +1,6 @@
 use burn_tensor::{
-    Device, Distribution, Placement,
-    Placement::{Partial, Replicated, Sharded},
+    Device, Distribution, GroupPlacement,
+    GroupPlacement::{Partial, Replicated, Sharded},
     Tensor, TensorData, Tolerance, activation, module,
 };
 
@@ -141,7 +141,7 @@ struct Run {
 }
 
 struct Grad {
-    placement: Option<Placement>,
+    placement: Option<GroupPlacement>,
     data: TensorData,
 }
 
@@ -156,7 +156,7 @@ impl Grad {
 }
 
 impl Run {
-    fn grad_placements(&self) -> Vec<Option<Placement>> {
+    fn grad_placements(&self) -> Vec<Option<GroupPlacement>> {
         self.grads.iter().map(|grad| grad.placement).collect()
     }
 
@@ -172,7 +172,7 @@ impl Run {
 }
 
 /// Placements of x, w1, b1, w2 and b2.
-fn mlp(device: &Device, [px, pw1, pb1, pw2, pb2]: [Placement; 5]) -> Run {
+fn mlp(device: &Device, [px, pw1, pb1, pw2, pb2]: [GroupPlacement; 5]) -> Run {
     const BATCH: usize = 4;
     const D_IN: usize = 6;
     const HIDDEN: usize = 12;
@@ -201,7 +201,7 @@ fn mlp(device: &Device, [px, pw1, pb1, pw2, pb2]: [Placement; 5]) -> Run {
 }
 
 /// Placements of the query, key, value and output weights.
-fn attention(device: &Device, [pq, pk, pv, po]: [Placement; 4]) -> Run {
+fn attention(device: &Device, [pq, pk, pv, po]: [GroupPlacement; 4]) -> Run {
     const BATCH: usize = 2;
     const SEQ: usize = 5;
     const HEADS: usize = 4;
@@ -255,7 +255,7 @@ fn rank_devices() -> Vec<Device> {
 }
 
 /// A leaf on `device`, placed when the device is a group.
-fn leaf<const D: usize>(data: TensorData, device: &Device, placement: Placement) -> Tensor<D> {
+fn leaf<const D: usize>(data: TensorData, device: &Device, placement: GroupPlacement) -> Tensor<D> {
     let tensor = Tensor::from_data(data, device);
     match tensor.placement() {
         Some(_) => tensor.place(placement).require_grad(),

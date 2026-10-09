@@ -1,8 +1,8 @@
 use burn_std::Shape;
 
 use crate::{
+    GroupPlacement::{self, Partial, Replicated, Sharded},
     OpPlacement,
-    Placement::{self, Partial, Replicated, Sharded},
 };
 
 /// Which dim of a matmul is split, named after the dim of the product it splits.
@@ -20,8 +20,8 @@ pub enum MatmulRule {
     /// A batch dim is split; an operand that broadcasts along it stays whole.
     Batches {
         dim: usize,
-        lhs: Placement,
-        rhs: Placement,
+        lhs: GroupPlacement,
+        rhs: GroupPlacement,
     },
     /// A partial lhs times a replicated rhs is the sum of each summand's product.
     PartialLhs,
@@ -33,7 +33,12 @@ pub enum MatmulRule {
 
 impl MatmulRule {
     /// The placements of both operands, with their shapes.
-    pub fn new(lhs: Placement, rhs: Placement, lhs_shape: &Shape, rhs_shape: &Shape) -> Self {
+    pub fn new(
+        lhs: GroupPlacement,
+        rhs: GroupPlacement,
+        lhs_shape: &Shape,
+        rhs_shape: &Shape,
+    ) -> Self {
         let num_dims = lhs_shape.num_dims();
         let (rows, cols) = (num_dims - 2, num_dims - 1);
         match (lhs, rhs) {

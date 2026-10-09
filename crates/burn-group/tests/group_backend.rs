@@ -7,7 +7,7 @@ use burn_backend::{
 use burn_flex::{Flex, FlexDevice};
 use burn_group::{
     GroupBackend, GroupDevice,
-    Placement::{self, Partial, Replicated, Sharded},
+    GroupPlacement::{self, Partial, Replicated, Sharded},
 };
 use burn_ir::{
     BinaryOpIr, GraphBindings, GraphId, NumericOperationIr, OperationIr, TensorId, TensorIr,
@@ -82,7 +82,7 @@ fn megatron_mlp_matches_one_device() {
             Autodiff::<Group>::float_from_data(target, &device),
         );
 
-        let grad_placements: Vec<Placement> = actual.grads.iter().map(placement_of).collect();
+        let grad_placements: Vec<GroupPlacement> = actual.grads.iter().map(placement_of).collect();
         assert_eq!(
             grad_placements,
             [
@@ -118,7 +118,7 @@ fn megatron_attention_matches_one_device() {
         );
 
         if Attention::HEADS.is_multiple_of(ranks) {
-            let weight_placements: Vec<Placement> =
+            let weight_placements: Vec<GroupPlacement> =
                 actual.grads[1..].iter().map(placement_of).collect();
             assert_eq!(
                 weight_placements,
@@ -562,7 +562,11 @@ fn assert_binary_matches(
 
 /// A partial sum is built as a contraction, `data @ I` with both split, so each rank holds a
 /// different summand.
-fn placed(data: &TensorData, device: &GroupDevice, placement: Placement) -> FloatTensor<Group> {
+fn placed(
+    data: &TensorData,
+    device: &GroupDevice,
+    placement: GroupPlacement,
+) -> FloatTensor<Group> {
     let tensor = Group::float_from_data(data.clone(), device);
     if placement != Partial {
         return place(tensor, placement);
@@ -584,7 +588,7 @@ fn placed(data: &TensorData, device: &GroupDevice, placement: Placement) -> Floa
 }
 
 /// A partial sum needs a last dim to contract, at least as long as the group.
-fn placements(shape: &Shape, ranks: usize) -> Vec<Placement> {
+fn placements(shape: &Shape, ranks: usize) -> Vec<GroupPlacement> {
     let num_dims = shape.num_dims();
     let mut placements = vec![Replicated];
     if num_dims >= 2 && shape[num_dims - 1] >= ranks {
@@ -602,7 +606,7 @@ fn group(ranks: usize) -> GroupDevice {
     GroupDevice::new::<Flex>(&vec![FlexDevice; ranks])
 }
 
-fn place(tensor: FloatTensor<Group>, placement: Placement) -> FloatTensor<Group> {
+fn place(tensor: FloatTensor<Group>, placement: GroupPlacement) -> FloatTensor<Group> {
     tensor.client.clone().place(tensor, placement)
 }
 
@@ -616,13 +620,13 @@ fn leaf(data: TensorData) -> FloatTensor<Autodiff<Flex>> {
 fn placed_leaf(
     data: &TensorData,
     device: &GroupDevice,
-    placement: Placement,
+    placement: GroupPlacement,
 ) -> FloatTensor<Autodiff<Group>> {
     let placed = place(Group::float_from_data(data.clone(), device), placement);
     Autodiff::<Group>::float_set_require_grad(Autodiff::<Group>::from_inner(placed), true)
 }
 
-fn placement_of(tensor: &FloatTensor<Group>) -> Placement {
+fn placement_of(tensor: &FloatTensor<Group>) -> GroupPlacement {
     tensor.client.placement(tensor)
 }
 

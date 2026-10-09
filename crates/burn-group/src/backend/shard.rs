@@ -4,7 +4,7 @@ use burn_backend::{ExecutionError, Shape, Slice, TensorData};
 use burn_ir::{BackendIr, HandleKind};
 use burn_std::future::DynFut;
 
-use crate::{Chunks, Placement, Redistribution};
+use crate::{Chunks, GroupPlacement, Redistribution};
 
 /// The shard of one tensor on every rank, in rank order, as the backend holds them.
 pub struct ShardList<B: BackendIr> {
@@ -58,14 +58,14 @@ impl<B: BackendIr> ShardList<B> {
     /// The whole value on `device`, read without changing the shards of any other rank.
     pub fn into_data(
         self,
-        placement: Placement,
+        placement: GroupPlacement,
         device: &B::Device,
     ) -> DynFut<Result<TensorData, ExecutionError>> {
         let moved = self.shards.into_iter().map(|shard| shard.moved_to(device));
         let whole = match placement {
-            Placement::Replicated => moved.take(1).next().expect("A group has a rank"),
-            Placement::Sharded { dim } => Shard::concat(moved.collect(), dim),
-            Placement::Partial => Shard::sum(moved.collect()),
+            GroupPlacement::Replicated => moved.take(1).next().expect("A group has a rank"),
+            GroupPlacement::Sharded { dim } => Shard::concat(moved.collect(), dim),
+            GroupPlacement::Partial => Shard::sum(moved.collect()),
         };
         whole.into_data()
     }
