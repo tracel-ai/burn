@@ -2,24 +2,24 @@ use burn_std::Shape;
 
 use crate::{GroupPlacement, OpPlacement};
 
-/// Whether a reshape keeps a split: only when each rank's chunk is still a contiguous chunk of
+/// Whether a reshape keeps a split: only when each member's chunk is still a contiguous chunk of
 /// one output dim.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ReshapeRule {
-    /// The input is not split: each rank reshapes it whole.
+    /// The input is not split: each member reshapes it whole.
     Local { placement: GroupPlacement },
-    /// Every rank's chunk of `from_dim` holds the same elements as its chunk of `to_dim`.
+    /// Every member's chunk of `from_dim` holds the same elements as its chunk of `to_dim`.
     Sharded { from_dim: usize, to_dim: usize },
     /// The split dim is merged or broken up unevenly: the input is gathered first.
     Gathered,
 }
 
 impl ReshapeRule {
-    pub fn new(input: GroupPlacement, from: &Shape, to: &Shape, ranks: usize) -> Self {
+    pub fn new(input: GroupPlacement, from: &Shape, to: &Shape, members: usize) -> Self {
         let GroupPlacement::Sharded { dim } = input else {
             return Self::Local { placement: input };
         };
-        match Self::chunk_preserving_dim(from, to, dim, ranks) {
+        match Self::chunk_preserving_dim(from, to, dim, members) {
             Some(to_dim) => Self::Sharded {
                 from_dim: dim,
                 to_dim,
@@ -44,15 +44,15 @@ impl ReshapeRule {
     }
 
     /// The output dim starting where input dim `dim` starts in memory. Its chunks hold the same
-    /// elements when it has the same length, or when both lengths split evenly over the ranks.
-    fn chunk_preserving_dim(from: &Shape, to: &Shape, dim: usize, ranks: usize) -> Option<usize> {
+    /// elements when it has the same length, or when both lengths split evenly over the members.
+    fn chunk_preserving_dim(from: &Shape, to: &Shape, dim: usize, members: usize) -> Option<usize> {
         let before = from[..dim].iter().product::<usize>();
         let len = from[dim];
         let mut prefix = 1;
         for (candidate, &size) in to.iter().enumerate() {
             if prefix == before && size != 1 {
                 let same_chunks =
-                    size == len || (len.is_multiple_of(ranks) && size.is_multiple_of(ranks));
+                    size == len || (len.is_multiple_of(members) && size.is_multiple_of(members));
                 return same_chunks.then_some(candidate);
             }
             prefix *= size;
@@ -103,7 +103,7 @@ mod tests {
     }
 
     #[test]
-    fn heads_that_do_not_divide_over_the_ranks_are_gathered() {
+    fn heads_that_do_not_divide_over_the_members_are_gathered() {
         let rule = ReshapeRule::new(
             GroupPlacement::Sharded { dim: 2 },
             &Shape::new([2, 5, 12]),

@@ -2,12 +2,12 @@ use std::ops::Range;
 
 use burn_std::Shape;
 
-/// How a tensor's shards, one per rank of its group, make up its value.
+/// How a tensor's shards, one per member of its group, make up its value.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum GroupPlacement {
-    /// Every rank holds the whole value.
+    /// Every member holds the whole value.
     Replicated,
-    /// Balanced chunks in rank order: the first `len % ranks` ranks hold one more element.
+    /// Balanced chunks in member order: the first `len % members` members hold one more element.
     Sharded { dim: usize },
     /// The global value is the sum of the shards.
     Partial,
@@ -22,11 +22,11 @@ impl GroupPlacement {
         }
     }
 
-    /// The shape of the shard `rank` holds of a tensor of global `shape`.
-    pub fn local_shape(self, shape: &Shape, rank: usize, ranks: usize) -> Shape {
+    /// The shape of the shard `member` holds of a tensor of global `shape`.
+    pub fn local_shape(self, shape: &Shape, member: usize, members: usize) -> Shape {
         let mut local = shape.clone();
         if let GroupPlacement::Sharded { dim } = self {
-            local[dim] = Chunks::new(shape[dim], ranks).range(rank).len();
+            local[dim] = Chunks::new(shape[dim], members).range(member).len();
         }
         local
     }
@@ -58,32 +58,33 @@ impl GroupPlacement {
     }
 }
 
-/// Where an op's inputs must be for it to run on every rank at once, and where its output lands.
+/// Where an op's inputs must be for it to run on every member at once, and where its output lands.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct OpPlacement<const N: usize> {
     pub inputs: [GroupPlacement; N],
     pub output: GroupPlacement,
 }
 
-/// How a dim of `len` elements splits over `ranks`: the first `len % ranks` ranks hold one more.
+/// How a dim of `len` elements splits over `members`: the first `len % members` members hold
+/// one more.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Chunks {
     len: usize,
-    ranks: usize,
+    members: usize,
 }
 
 impl Chunks {
-    pub fn new(len: usize, ranks: usize) -> Self {
-        Self { len, ranks }
+    pub fn new(len: usize, members: usize) -> Self {
+        Self { len, members }
     }
 
-    pub fn range(&self, rank: usize) -> Range<usize> {
-        let (base, extra) = (self.len / self.ranks, self.len % self.ranks);
-        let start = rank * base + rank.min(extra);
-        start..start + base + usize::from(rank < extra)
+    pub fn range(&self, member: usize) -> Range<usize> {
+        let (base, extra) = (self.len / self.members, self.len % self.members);
+        let start = member * base + member.min(extra);
+        start..start + base + usize::from(member < extra)
     }
 
     pub fn ranges(self) -> impl Iterator<Item = Range<usize>> {
-        (0..self.ranks).map(move |rank| self.range(rank))
+        (0..self.members).map(move |member| self.range(member))
     }
 }

@@ -5,7 +5,7 @@ use burn_std::future::block_on;
 
 use super::{GroupClient, GroupDevice};
 
-/// A backend whose tensors are split over a [`GroupDevice`], each rank running the backend the
+/// A backend whose tensors are split over a [`GroupDevice`], each member running the backend the
 /// group was made with.
 pub type GroupBackend = BackendRouter<GroupChannel>;
 
@@ -19,7 +19,7 @@ impl RouterChannel for GroupChannel {
     type Client = GroupClient;
 
     fn name(device: &Self::Device) -> String {
-        format!("group of {}", device.ranks())
+        format!("group of {}", device.num_members())
     }
 
     fn init_client(device: &Self::Device) -> Self::Client {

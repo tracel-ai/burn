@@ -6,7 +6,7 @@ use burn_std::{device::Device, sync::Mutex};
 
 use super::executor::{GroupExecutor, GroupInterpreter};
 
-/// A group of devices that a tensor's shards are spread over, one device per rank.
+/// A group of devices, its members, that a tensor's shards are spread over.
 ///
 /// The members live in a process-wide registry behind the index, so the device fits in a
 /// [`DeviceId`] like any other.
@@ -16,7 +16,7 @@ pub struct GroupDevice {
 }
 
 impl GroupDevice {
-    /// A group whose ranks run `B` on `devices`. The same devices and backend are the same
+    /// A group whose members run `B` on `devices`. The same devices and backend are the same
     /// group.
     ///
     /// # Panics
@@ -27,17 +27,20 @@ impl GroupDevice {
             !devices.is_empty(),
             "A device group needs at least one device"
         );
-        let members = Members {
+        let group = Group {
             devices: devices.iter().map(DeviceOps::id).collect(),
             backend: TypeId::of::<B>(),
             settings: devices[0].defaults(),
             interpreter: GroupExecutor::<B>::boxed,
         };
         let mut groups = GROUPS.lock();
-        let index = match groups.iter().position(|group| group.is_like(&members)) {
+        let index = match groups
+            .iter()
+            .position(|registered| registered.is_like(&group))
+        {
             Some(index) => index,
             None => {
-                groups.push(members);
+                groups.push(group);
                 groups.len() - 1
             }
         };
@@ -47,17 +50,17 @@ impl GroupDevice {
     }
 
     /// The number of devices in the group.
-    pub fn ranks(&self) -> usize {
-        self.members().devices.len()
+    pub fn num_members(&self) -> usize {
+        self.group().devices.len()
     }
 
-    /// A new interpreter for the group's ranks, holding no tensors yet.
+    /// A new interpreter for the group's members, holding no tensors yet.
     pub fn interpreter(&self) -> Box<dyn GroupInterpreter> {
-        let members = self.members();
-        (members.interpreter)(&members.devices)
+        let group = self.group();
+        (group.interpreter)(&group.devices)
     }
 
-    fn members(&self) -> Members {
+    fn group(&self) -> Group {
         GROUPS
             .lock()
             .get(usize::from(self.index))
@@ -95,22 +98,22 @@ impl Device for GroupDevice {
 
 impl DeviceOps for GroupDevice {
     fn defaults(&self) -> DeviceSettings {
-        self.members().settings
+        self.group().settings
     }
 }
 
-static GROUPS: Mutex<Vec<Members>> = Mutex::new(Vec::new());
+static GROUPS: Mutex<Vec<Group>> = Mutex::new(Vec::new());
 
 #[derive(Clone, Debug)]
-struct Members {
+struct Group {
     devices: Vec<DeviceId>,
     backend: TypeId,
     settings: DeviceSettings,
     interpreter: fn(&[DeviceId]) -> Box<dyn GroupInterpreter>,
 }
 
-impl Members {
-    fn is_like(&self, other: &Members) -> bool {
+impl Group {
+    fn is_like(&self, other: &Group) -> bool {
         self.devices == other.devices && self.backend == other.backend
     }
 }

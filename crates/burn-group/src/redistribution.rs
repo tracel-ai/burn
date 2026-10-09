@@ -6,7 +6,7 @@ use crate::GroupPlacement::{self, Partial, Replicated, Sharded};
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Redistribution {
     Keep,
-    /// Each rank keeps its chunk of a replicated tensor.
+    /// Each member keeps its chunk of a replicated tensor.
     Slice {
         dim: usize,
     },
@@ -14,7 +14,7 @@ pub enum Redistribution {
         dim: usize,
     },
     AllReduce,
-    /// Sum the summands, each rank keeping its chunk.
+    /// Sum the summands, each member keeping its chunk.
     ReduceScatter {
         dim: usize,
     },
@@ -26,15 +26,15 @@ pub enum Redistribution {
 
 impl Redistribution {
     /// `None` when nothing can produce the target: a partial sum out of a whole tensor, or a
-    /// split along a dim shorter than the group, which would leave a rank empty.
+    /// split along a dim shorter than the group, which would leave a member empty.
     pub fn new(
         from: GroupPlacement,
         to: GroupPlacement,
         shape: &Shape,
-        ranks: usize,
+        members: usize,
     ) -> Option<Self> {
         if let Sharded { dim } = to
-            && shape[dim] < ranks
+            && shape[dim] < members
         {
             return None;
         }

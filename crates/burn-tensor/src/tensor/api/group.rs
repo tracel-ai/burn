@@ -37,12 +37,12 @@ impl<const D: usize, K: Basic> Tensor<D, K> {
 }
 
 impl Device {
-    /// A group of `devices` that each tensor is split over, one device per rank. A tensor made
-    /// on it is replicated on every rank until it is [placed](Tensor::place).
+    /// A group of `devices`, its members, that each tensor is split over. A tensor made on it is
+    /// replicated on every member until it is [placed](Tensor::place).
     ///
     /// # Panics
     ///
-    /// When `devices` is empty or mixes backends, or when its backend cannot run a rank: only
+    /// When `devices` is empty or mixes backends, or when its backend cannot run a member: only
     /// Cube and Flex devices can.
     pub fn group(devices: &[Device]) -> Self {
         let members = devices

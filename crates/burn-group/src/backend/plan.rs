@@ -14,8 +14,8 @@ use crate::{
     MatmulRule, OpPlacement, ReduceRule, Reduction, ReshapeRule, WholeDimRule,
 };
 
-/// Where each tensor of one op must be for the op to run on every rank, where its outputs land,
-/// and what each rank runs.
+/// Where each tensor of one op must be for the op to run on every member, where its outputs land,
+/// and what each member runs.
 #[derive(Debug)]
 pub struct OpPlan {
     inputs: HashMap<TensorId, GroupPlacement>,
@@ -23,23 +23,23 @@ pub struct OpPlan {
     execution: Execution,
 }
 
-/// What each rank runs, when it is not simply the op on its own shards.
+/// What each member runs, when it is not simply the op on its own shards.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Execution {
-    EveryRank,
-    /// Rank 0 runs the op and the others take a copy, so random values agree.
-    FirstRankCopied,
-    /// Only rank 0 adds the bias: the output is a partial sum, which must count it once.
-    BiasOnFirstRank,
-    /// A mean over the split dim: each rank sums its chunk and divides by the whole count.
+    EveryMember,
+    /// Member 0 runs the op and the others take a copy, so random values agree.
+    FirstMemberCopied,
+    /// Only member 0 adds the bias: the output is a partial sum, which must count it once.
+    BiasOnFirstMember,
+    /// A mean over the split dim: each member sums its chunk and divides by the whole count.
     SumThenDivide {
         count: usize,
     },
-    /// A lookup in weights split by vocab row, each rank zeroing the rows it does not hold.
+    /// A lookup in weights split by vocab row, each member zeroing the rows it does not hold.
     VocabLookup {
         chunks: Chunks,
     },
-    /// The gradient of weights split by vocab row, each rank keeping its own tokens' gradient.
+    /// The gradient of weights split by vocab row, each member keeping its own tokens' gradient.
     VocabBackward {
         chunks: Chunks,
     },
@@ -47,15 +47,18 @@ pub enum Execution {
 
 impl OpPlan {
     /// An op without a rule, or whose inputs would need two placements at once, gathers every
-    /// input and runs whole on every rank.
+    /// input and runs whole on every member.
     pub fn new(
         op: &OperationIr,
         placements: &HashMap<TensorId, GroupPlacement>,
-        ranks: usize,
+        members: usize,
     ) -> Self {
-        Analysis { placements, ranks }
-            .plan(op)
-            .unwrap_or_else(|| Self::gathered(op))
+        Analysis {
+            placements,
+            members,
+        }
+        .plan(op)
+        .unwrap_or_else(|| Self::gathered(op))
     }
 
     pub fn input(&self, id: &TensorId) -> GroupPlacement {
@@ -70,7 +73,7 @@ impl OpPlan {
         self.execution
     }
 
-    /// A slice that takes a split dim whole takes each rank's whole chunk, which the global
+    /// A slice that takes a split dim whole takes each member's whole chunk, which the global
     /// range would overrun.
     pub fn take_split_dims_whole(&self, op: &mut OperationIr) {
         let (OperationIr::BaseFloat(BaseOperationIr::Slice(desc))
@@ -91,14 +94,14 @@ impl OpPlan {
         Self {
             inputs: op.inputs().map(replicated).collect(),
             outputs: op.outputs().map(replicated).collect(),
-            execution: Execution::EveryRank,
+            execution: Execution::EveryMember,
         }
     }
 }
 
 struct Analysis<'a> {
     placements: &'a HashMap<TensorId, GroupPlacement>,
-    ranks: usize,
+    members: usize,
 }
 
 impl Analysis<'_> {
@@ -424,7 +427,7 @@ impl Analysis<'_> {
         self.elementwise(linearity, [&desc.lhs, &desc.rhs], &desc.out)
     }
 
-    /// Broadcasting lines up dims of the same index, so an input of another rank has no rule.
+    /// Broadcasting lines up dims of the same index, so an input of another member has no rule.
     fn elementwise<const N: usize>(
         &self,
         linearity: Linearity,
@@ -444,7 +447,7 @@ impl Analysis<'_> {
         );
         Targets::of(inputs, placement.inputs)
             .output(out, placement.output)
-            .every_rank()
+            .every_member()
     }
 
     fn matmul(&self, desc: &MatmulOpIr) -> Option<OpPlan> {
@@ -472,12 +475,12 @@ impl Analysis<'_> {
         let mut targets =
             Targets::of([&desc.x, &desc.weight], [x, weight]).output(&desc.out, output);
         let Some(bias_tensor) = &desc.bias else {
-            return targets.every_rank();
+            return targets.every_member();
         };
         targets = targets.input(bias_tensor, bias);
-        match rule.bias_on_one_rank() {
-            true => targets.build(Execution::BiasOnFirstRank),
-            false => targets.every_rank(),
+        match rule.bias_on_one_member() {
+            true => targets.build(Execution::BiasOnFirstMember),
+            false => targets.every_member(),
         }
     }
 
@@ -516,7 +519,7 @@ impl Analysis<'_> {
             EmbeddingRule::Vocab => targets.build(Execution::VocabLookup {
                 chunks: self.vocab_chunks(&desc.weights),
             }),
-            _ => targets.every_rank(),
+            _ => targets.every_member(),
         }
     }
 
@@ -536,12 +539,12 @@ impl Analysis<'_> {
             EmbeddingBackwardRule::Vocab => targets.build(Execution::VocabBackward {
                 chunks: self.vocab_chunks(&desc.weights),
             }),
-            _ => targets.every_rank(),
+            _ => targets.every_member(),
         }
     }
 
     fn vocab_chunks(&self, weights: &TensorIr) -> Chunks {
-        Chunks::new(weights.shape[EmbeddingRule::VOCAB_DIM], self.ranks)
+        Chunks::new(weights.shape[EmbeddingRule::VOCAB_DIM], self.members)
     }
 
     fn sum(&self, input: &TensorIr, out: &TensorIr, reduction: Reduction) -> Option<OpPlan> {
@@ -549,7 +552,7 @@ impl Analysis<'_> {
         self.ruled([input], out, placement)
     }
 
-    /// An integer mean rounds each summand, so only a float mean reduces across ranks.
+    /// An integer mean rounds each summand, so only a float mean reduces across members.
     fn mean(
         &self,
         dtype: DType,
@@ -564,8 +567,8 @@ impl Analysis<'_> {
         let placement = rule.placement();
         let targets = Targets::of([input], placement.inputs).output(out, placement.output);
         match rule {
-            ReduceRule::Local { .. } => targets.every_rank(),
-            ReduceRule::AcrossRanks { dim } => {
+            ReduceRule::Local { .. } => targets.every_member(),
+            ReduceRule::AcrossMembers { dim } => {
                 let count = match reduction {
                     Reduction::All => input.shape.num_elements(),
                     Reduction::Dim(_) => input.shape[dim],
@@ -585,7 +588,7 @@ impl Analysis<'_> {
             self.placement(&desc.input),
             &desc.input.shape,
             &desc.out.shape,
-            self.ranks,
+            self.members,
         )
         .placement();
         self.ruled([&desc.input], &desc.out, placement)
@@ -595,7 +598,7 @@ impl Analysis<'_> {
         let placement = self.placement(input);
         Targets::of([input], [placement])
             .output(out, placement.permuted(axes))
-            .every_rank()
+            .every_member()
     }
 
     fn flip(&self, desc: &FlipOpIr) -> Option<OpPlan> {
@@ -615,10 +618,10 @@ impl Analysis<'_> {
             placement.with_num_dims(desc.input.shape.num_dims(), desc.out.shape.num_dims());
         Targets::of([&desc.input], [placement])
             .output(&desc.out, output)
-            .every_rank()
+            .every_member()
     }
 
-    /// Slicing is linear, and a split dim taken whole is each rank's whole chunk.
+    /// Slicing is linear, and a split dim taken whole is each member's whole chunk.
     fn slice(&self, desc: &SliceOpIr) -> Option<OpPlan> {
         let placement = self.placement(&desc.tensor);
         if let GroupPlacement::Sharded { dim } = placement {
@@ -651,26 +654,26 @@ impl Analysis<'_> {
                 targets.input(tensor, target)
             })
             .output(&desc.out, target)
-            .every_rank()
+            .every_member()
     }
 
     fn created(&self, out: &TensorIr) -> Option<OpPlan> {
         Targets::default()
             .output(out, GroupPlacement::Replicated)
-            .every_rank()
+            .every_member()
     }
 
     fn random(&self, out: &TensorIr) -> Option<OpPlan> {
         Targets::default()
             .output(out, GroupPlacement::Replicated)
-            .build(Execution::FirstRankCopied)
+            .build(Execution::FirstMemberCopied)
     }
 
     fn kept(&self, input: &TensorIr, out: &TensorIr) -> Option<OpPlan> {
         let placement = self.placement(input);
         Targets::of([input], [placement])
             .output(out, placement)
-            .every_rank()
+            .every_member()
     }
 
     fn ruled<const N: usize>(
@@ -681,7 +684,7 @@ impl Analysis<'_> {
     ) -> Option<OpPlan> {
         Targets::of(inputs, placement.inputs)
             .output(out, placement.output)
-            .every_rank()
+            .every_member()
     }
 
     fn placement(&self, tensor: &TensorIr) -> GroupPlacement {
@@ -721,8 +724,8 @@ impl Targets {
         self
     }
 
-    fn every_rank(self) -> Option<OpPlan> {
-        self.build(Execution::EveryRank)
+    fn every_member(self) -> Option<OpPlan> {
+        self.build(Execution::EveryMember)
     }
 
     fn build(self, execution: Execution) -> Option<OpPlan> {

@@ -8,13 +8,13 @@ use crate::{
 /// Which dim of a matmul is split, named after the dim of the product it splits.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum MatmulRule {
-    /// Nothing is split: every rank computes the whole product.
+    /// Nothing is split: every member computes the whole product.
     Unsplit,
     /// The rhs columns are split, as in Megatron's column-parallel linear.
     Columns { dim: usize },
     /// The lhs rows are split.
     Rows { dim: usize },
-    /// The contracted dim is split, as in Megatron's row-parallel linear: each rank computes
+    /// The contracted dim is split, as in Megatron's row-parallel linear: each member computes
     /// a summand of the product.
     Contraction { lhs_dim: usize, rhs_dim: usize },
     /// A batch dim is split; an operand that broadcasts along it stays whole.

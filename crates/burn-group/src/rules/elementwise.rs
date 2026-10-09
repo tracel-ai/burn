@@ -35,7 +35,7 @@ impl Linearity {
         }
     }
 
-    /// Where the inputs must be for the op to run on every rank, and where its output lands.
+    /// Where the inputs must be for the op to run on every member, and where its output lands.
     pub fn placement<const N: usize>(
         self,
         inputs: [GroupPlacement; N],

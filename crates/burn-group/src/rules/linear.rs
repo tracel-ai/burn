@@ -60,9 +60,9 @@ impl LinearRule {
         }
     }
 
-    /// A partial output takes the bias on one rank only, or the sum would count it once per
-    /// rank.
-    pub fn bias_on_one_rank(&self) -> bool {
+    /// A partial output takes the bias on one member only, or the sum would count it once per
+    /// member.
+    pub fn bias_on_one_member(&self) -> bool {
         self.placement().output == Partial
     }
 
@@ -196,7 +196,7 @@ mod tests {
     }
 
     #[test]
-    fn row_parallel_linear_adds_its_bias_on_one_rank() {
+    fn row_parallel_linear_adds_its_bias_on_one_member() {
         let rule = LinearRule::new(
             Sharded { dim: 2 },
             Sharded { dim: 0 },
@@ -205,7 +205,7 @@ mod tests {
         );
 
         assert_eq!(rule.placement().output, Partial);
-        assert!(rule.bias_on_one_rank());
+        assert!(rule.bias_on_one_member());
     }
 
     #[test]

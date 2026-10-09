@@ -18,18 +18,18 @@ use burn_std::future::block_on;
 
 type Group = GroupBackend;
 
-const RANKS: [usize; 4] = [1, 2, 3, 4];
+const MEMBERS: [usize; 4] = [1, 2, 3, 4];
 
 macro_rules! check_unary {
-    ($ranks:expr, $input:expr, |$backend:ident, $a:ident| $body:expr) => {
-        check_unary!($ranks, $input, [] |$backend, $a| $body)
+    ($members:expr, $input:expr, |$backend:ident, $a:ident| $body:expr) => {
+        check_unary!($members, $input, [] |$backend, $a| $body)
     };
-    ($ranks:expr, $input:expr, [$($env:ident: $ty:ty),*] |$backend:ident, $a:ident| $body:expr) => {{
+    ($members:expr, $input:expr, [$($env:ident: $ty:ty),*] |$backend:ident, $a:ident| $body:expr) => {{
         fn op<$backend: Backend>($a: FloatTensor<$backend>, $($env: $ty),*) -> FloatTensor<$backend> {
             $body
         }
         assert_unary_matches(
-            $ranks,
+            $members,
             $input,
             |a| op::<Group>(a, $($env.clone()),*),
             |a| op::<Flex>(a, $($env.clone()),*),
@@ -38,10 +38,10 @@ macro_rules! check_unary {
 }
 
 macro_rules! check_binary {
-    ($ranks:expr, $lhs:expr, $rhs:expr, |$backend:ident, $a:ident, $b:ident| $body:expr) => {
-        check_binary!($ranks, $lhs, $rhs, [] |$backend, $a, $b| $body)
+    ($members:expr, $lhs:expr, $rhs:expr, |$backend:ident, $a:ident, $b:ident| $body:expr) => {
+        check_binary!($members, $lhs, $rhs, [] |$backend, $a, $b| $body)
     };
-    ($ranks:expr, $lhs:expr, $rhs:expr, [$($env:ident: $ty:ty),*] |$backend:ident, $a:ident, $b:ident| $body:expr) => {{
+    ($members:expr, $lhs:expr, $rhs:expr, [$($env:ident: $ty:ty),*] |$backend:ident, $a:ident, $b:ident| $body:expr) => {{
         fn op<$backend: Backend>(
             $a: FloatTensor<$backend>,
             $b: FloatTensor<$backend>,
@@ -50,7 +50,7 @@ macro_rules! check_binary {
             $body
         }
         assert_binary_matches(
-            $ranks,
+            $members,
             $lhs,
             $rhs,
             |a, b| op::<Group>(a, b, $($env.clone()),*),
@@ -61,8 +61,8 @@ macro_rules! check_binary {
 
 #[test]
 fn megatron_mlp_matches_one_device() {
-    for (ranks, hidden) in [(1, 12), (2, 12), (3, 12), (4, 12), (4, 10)] {
-        let device = group(ranks);
+    for (members, hidden) in [(1, 12), (2, 12), (3, 12), (4, 12), (4, 10)] {
+        let device = group(members);
         let (x, target) = (data([4, 6], 1), data([4, 5], 2));
         let (w1, b1) = (data([6, hidden], 3), data([hidden], 4));
         let (w2, b2) = (data([hidden, 5], 5), data([5], 6));
@@ -92,16 +92,16 @@ fn megatron_mlp_matches_one_device() {
                 Sharded { dim: 0 },
                 Replicated
             ],
-            "{ranks} ranks"
+            "{members} members"
         );
-        actual.assert_matches(expected, &format!("{ranks} ranks"));
+        actual.assert_matches(expected, &format!("{members} members"));
     }
 }
 
 #[test]
 fn megatron_attention_matches_one_device() {
-    for ranks in RANKS {
-        let device = group(ranks);
+    for members in MEMBERS {
+        let device = group(members);
         let x = data([2, 5, Attention::EMBED], 1);
         let weights = [2, 3, 4, 5].map(|seed| data([Attention::EMBED, Attention::EMBED], seed));
 
@@ -117,7 +117,7 @@ fn megatron_attention_matches_one_device() {
             ],
         );
 
-        if Attention::HEADS.is_multiple_of(ranks) {
+        if Attention::HEADS.is_multiple_of(members) {
             let weight_placements: Vec<GroupPlacement> =
                 actual.grads[1..].iter().map(placement_of).collect();
             assert_eq!(
@@ -128,10 +128,10 @@ fn megatron_attention_matches_one_device() {
                     Sharded { dim: 1 },
                     Sharded { dim: 0 }
                 ],
-                "{ranks} ranks"
+                "{members} members"
             );
         }
-        actual.assert_matches(expected, &format!("{ranks} ranks"));
+        actual.assert_matches(expected, &format!("{members} members"));
     }
 }
 
@@ -139,8 +139,8 @@ fn megatron_attention_matches_one_device() {
 fn embedding_matches_one_device_for_every_split() {
     let (weights, indices) = (data([7, 4], 1), TensorData::from([[0i64, 6, 3], [2, 2, 5]]));
     let scale = data([2, 3, 4], 2);
-    for ranks in [1, 2, 3] {
-        let device = group(ranks);
+    for members in [1, 2, 3] {
+        let device = group(members);
         for weights_placement in [Replicated, Sharded { dim: 0 }, Sharded { dim: 1 }] {
             for indices_placement in [Replicated, Sharded { dim: 1 }] {
                 let expected = embedding::<Autodiff<Flex>>(
@@ -158,7 +158,7 @@ fn embedding_matches_one_device_for_every_split() {
                     Autodiff::<Group>::float_from_data(scale.clone(), &device),
                 );
                 let case = format!(
-                    "{ranks} ranks, {weights_placement:?} weights, {indices_placement:?} indices"
+                    "{members} members, {weights_placement:?} weights, {indices_placement:?} indices"
                 );
                 actual.assert_matches(expected, &case);
             }
@@ -168,49 +168,49 @@ fn embedding_matches_one_device_for_every_split() {
 
 #[test]
 fn elementwise_ops_match_one_device_for_every_placement() {
-    for ranks in RANKS {
+    for members in MEMBERS {
         for rhs in [[4, 6], [1, 6], [4, 1]] {
             let (lhs, rhs) = (data([4, 6], 1), data(rhs, 2));
-            check_binary!(ranks, &lhs, &rhs, |B, a, b| B::float_add(a, b));
-            check_binary!(ranks, &lhs, &rhs, |B, a, b| B::float_sub(a, b));
-            check_binary!(ranks, &lhs, &rhs, |B, a, b| B::float_mul(a, b));
-            check_binary!(ranks, &lhs, &positive(rhs), |B, a, b| B::float_div(a, b));
+            check_binary!(members, &lhs, &rhs, |B, a, b| B::float_add(a, b));
+            check_binary!(members, &lhs, &rhs, |B, a, b| B::float_sub(a, b));
+            check_binary!(members, &lhs, &rhs, |B, a, b| B::float_mul(a, b));
+            check_binary!(members, &lhs, &positive(rhs), |B, a, b| B::float_div(a, b));
         }
         let input = data([4, 6], 3);
-        check_unary!(ranks, &input, |B, a| B::float_neg(a));
-        check_unary!(ranks, &input, |B, a| B::float_exp(a));
-        check_unary!(ranks, &input, |B, a| B::float_mul_scalar(
+        check_unary!(members, &input, |B, a| B::float_neg(a));
+        check_unary!(members, &input, |B, a| B::float_exp(a));
+        check_unary!(members, &input, |B, a| B::float_mul_scalar(
             a,
             Scalar::Float(3.0)
         ));
-        check_unary!(ranks, &input, |B, a| B::float_div_scalar(
+        check_unary!(members, &input, |B, a| B::float_div_scalar(
             a,
             Scalar::Float(3.0)
         ));
-        check_unary!(ranks, &input, |B, a| B::float_add_scalar(
+        check_unary!(members, &input, |B, a| B::float_add_scalar(
             a,
             Scalar::Float(3.0)
         ));
-        check_unary!(ranks, &input, |B, a| B::relu(a));
+        check_unary!(members, &input, |B, a| B::relu(a));
     }
 }
 
 #[test]
 fn matmuls_match_one_device_for_every_placement() {
-    for ranks in RANKS {
+    for members in MEMBERS {
         for (lhs, rhs) in [
             (vec![4, 6], vec![6, 5]),
             (vec![3, 4, 6], vec![3, 6, 5]),
             (vec![3, 4, 6], vec![1, 6, 5]),
         ] {
             let (lhs, rhs) = (data(lhs, 1), data(rhs, 2));
-            check_binary!(ranks, &lhs, &rhs, |B, a, b| B::float_matmul(a, b));
+            check_binary!(members, &lhs, &rhs, |B, a, b| B::float_matmul(a, b));
         }
         let (x, weight, bias) = (data([2, 4, 6], 1), data([6, 5], 2), data([5], 3));
-        check_binary!(ranks, &x, &weight, |B, x, weight| B::linear(
+        check_binary!(members, &x, &weight, |B, x, weight| B::linear(
             x, weight, None
         ));
-        check_binary!(ranks, &x, &weight, [bias: TensorData] |B, x, weight| {
+        check_binary!(members, &x, &weight, [bias: TensorData] |B, x, weight| {
             let device = x.device();
             B::linear(x, weight, Some(B::float_from_data(bias, &device)))
         });
@@ -219,22 +219,22 @@ fn matmuls_match_one_device_for_every_placement() {
 
 #[test]
 fn reductions_and_softmax_match_one_device_for_every_placement() {
-    for ranks in RANKS {
+    for members in MEMBERS {
         let input = data([4, 3, 5], 1);
         for dim in 0..3 {
-            check_unary!(ranks, &input, [dim: usize] |B, a| B::float_sum_dim(a, dim));
-            check_unary!(ranks, &input, [dim: usize] |B, a| B::float_mean_dim(a, dim));
-            check_unary!(ranks, &input, [dim: usize] |B, a| B::softmax(a, dim));
-            check_unary!(ranks, &input, [dim: usize] |B, a| B::float_max_dim(a, dim));
+            check_unary!(members, &input, [dim: usize] |B, a| B::float_sum_dim(a, dim));
+            check_unary!(members, &input, [dim: usize] |B, a| B::float_mean_dim(a, dim));
+            check_unary!(members, &input, [dim: usize] |B, a| B::softmax(a, dim));
+            check_unary!(members, &input, [dim: usize] |B, a| B::float_max_dim(a, dim));
         }
-        check_unary!(ranks, &input, |B, a| B::float_sum(a));
-        check_unary!(ranks, &input, |B, a| B::float_mean(a));
+        check_unary!(members, &input, |B, a| B::float_sum(a));
+        check_unary!(members, &input, |B, a| B::float_mean(a));
     }
 }
 
 #[test]
 fn layout_ops_match_one_device_for_every_placement() {
-    for ranks in RANKS {
+    for members in MEMBERS {
         let input = data([4, 6], 1);
         for shape in [
             vec![24],
@@ -244,26 +244,32 @@ fn layout_ops_match_one_device_for_every_placement() {
             vec![4, 1, 6],
         ] {
             let shape = Shape::from(shape);
-            check_unary!(ranks, &input, [shape: Shape] |B, a| B::float_reshape(a, shape));
+            check_unary!(members, &input, [shape: Shape] |B, a| B::float_reshape(a, shape));
         }
-        check_unary!(ranks, &input, |B, a| B::float_swap_dims(a, 0, 1));
-        check_unary!(ranks, &input, |B, a| B::float_expand(
+        check_unary!(members, &input, |B, a| B::float_swap_dims(a, 0, 1));
+        check_unary!(members, &input, |B, a| B::float_expand(
             a,
             Shape::new([3, 4, 6])
         ));
-        check_unary!(ranks, &input, |B, a| B::float_slice(
+        check_unary!(members, &input, |B, a| B::float_slice(
             a,
             &[Slice::new(1, Some(3), 1)]
         ));
-        check_unary!(ranks, &input, |B, a| {
+        check_unary!(members, &input, |B, a| {
             B::float_slice(a, &[Slice::new(0, None, 1), Slice::new(2, Some(5), 1)])
         });
         let other = data([4, 6], 2);
-        check_binary!(ranks, &input, &other, |B, a, b| B::float_cat(vec![a, b], 0));
-        check_binary!(ranks, &input, &other, |B, a, b| B::float_cat(vec![a, b], 1));
+        check_binary!(members, &input, &other, |B, a, b| B::float_cat(
+            vec![a, b],
+            0
+        ));
+        check_binary!(members, &input, &other, |B, a, b| B::float_cat(
+            vec![a, b],
+            1
+        ));
         let rank3 = data([2, 6, 4], 3);
-        check_unary!(ranks, &rank3, |B, a| B::float_permute(a, &[2, 0, 1]));
-        check_unary!(ranks, &rank3, |B, a| B::float_reshape(
+        check_unary!(members, &rank3, |B, a| B::float_permute(a, &[2, 0, 1]));
+        check_unary!(members, &rank3, |B, a| B::float_reshape(
             a,
             Shape::new([12, 4])
         ));
@@ -367,8 +373,8 @@ fn a_replayed_graph_runs_each_invocation_at_its_own_placements() {
         ([4, 6], Sharded { dim: 0 }, Sharded { dim: 1 }),
     ];
 
-    for ranks in [2, 3] {
-        let device = group(ranks);
+    for members in [2, 3] {
+        let device = group(members);
         for (invocation, (shape, a_placement, b_placement)) in invocations.into_iter().enumerate() {
             let (a, b) = (data(shape, 1), data(shape, 2));
             let lhs = placed(&a, &device, a_placement);
@@ -401,7 +407,7 @@ fn a_replayed_graph_runs_each_invocation_at_its_own_placements() {
                 DType::F32,
                 client,
             ));
-            let case = format!("{ranks} ranks, {a_placement:?} with {b_placement:?}");
+            let case = format!("{members} members, {a_placement:?} with {b_placement:?}");
             assert_close(actual, expected, &case);
         }
     }
@@ -519,25 +525,25 @@ impl<B: AutodiffBackend> Placed<B> {
 }
 
 fn assert_unary_matches(
-    ranks: usize,
+    members: usize,
     input: &TensorData,
     on_group: impl Fn(FloatTensor<Group>) -> FloatTensor<Group>,
     on_flex: impl Fn(FloatTensor<Flex>) -> FloatTensor<Flex>,
 ) {
     let expected = read::<Flex>(on_flex(Flex::float_from_data(input.clone(), &FlexDevice)));
-    let device = group(ranks);
-    for placement in placements(input.shape(), ranks) {
+    let device = group(members);
+    for placement in placements(input.shape(), members) {
         let actual = read::<Group>(on_group(placed(input, &device, placement)));
         assert_close(
             actual,
             expected.clone(),
-            &format!("{ranks} ranks, {placement:?}"),
+            &format!("{members} members, {placement:?}"),
         );
     }
 }
 
 fn assert_binary_matches(
-    ranks: usize,
+    members: usize,
     lhs: &TensorData,
     rhs: &TensorData,
     on_group: impl Fn(FloatTensor<Group>, FloatTensor<Group>) -> FloatTensor<Group>,
@@ -547,20 +553,20 @@ fn assert_binary_matches(
         Flex::float_from_data(lhs.clone(), &FlexDevice),
         Flex::float_from_data(rhs.clone(), &FlexDevice),
     ));
-    let device = group(ranks);
-    for lhs_placement in placements(lhs.shape(), ranks) {
-        for rhs_placement in placements(rhs.shape(), ranks) {
+    let device = group(members);
+    for lhs_placement in placements(lhs.shape(), members) {
+        for rhs_placement in placements(rhs.shape(), members) {
             let actual = read::<Group>(on_group(
                 placed(lhs, &device, lhs_placement),
                 placed(rhs, &device, rhs_placement),
             ));
-            let case = format!("{ranks} ranks, {lhs_placement:?} with {rhs_placement:?}");
+            let case = format!("{members} members, {lhs_placement:?} with {rhs_placement:?}");
             assert_close(actual, expected.clone(), &case);
         }
     }
 }
 
-/// A partial sum is built as a contraction, `data @ I` with both split, so each rank holds a
+/// A partial sum is built as a contraction, `data @ I` with both split, so each member holds a
 /// different summand.
 fn placed(
     data: &TensorData,
@@ -588,22 +594,22 @@ fn placed(
 }
 
 /// A partial sum needs a last dim to contract, at least as long as the group.
-fn placements(shape: &Shape, ranks: usize) -> Vec<GroupPlacement> {
+fn placements(shape: &Shape, members: usize) -> Vec<GroupPlacement> {
     let num_dims = shape.num_dims();
     let mut placements = vec![Replicated];
-    if num_dims >= 2 && shape[num_dims - 1] >= ranks {
+    if num_dims >= 2 && shape[num_dims - 1] >= members {
         placements.push(Partial);
     }
     placements.extend(
         (0..num_dims)
-            .filter(|dim| shape[*dim] >= ranks)
+            .filter(|dim| shape[*dim] >= members)
             .map(|dim| Sharded { dim }),
     );
     placements
 }
 
-fn group(ranks: usize) -> GroupDevice {
-    GroupDevice::new::<Flex>(&vec![FlexDevice; ranks])
+fn group(members: usize) -> GroupDevice {
+    GroupDevice::new::<Flex>(&vec![FlexDevice; members])
 }
 
 fn place(tensor: FloatTensor<Group>, placement: GroupPlacement) -> FloatTensor<Group> {

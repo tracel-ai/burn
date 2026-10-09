@@ -7,11 +7,11 @@ use crate::{
 /// output `[batch, seq, hidden]`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum EmbeddingRule {
-    /// Nothing is split: every rank looks up every row.
+    /// Nothing is split: every member looks up every row.
     Unsplit,
     /// The weights are split by hidden column, and so is the output.
     Columns,
-    /// The weights are split by vocab row: each rank looks up the rows it holds and zeros the
+    /// The weights are split by vocab row: each member looks up the rows it holds and zeros the
     /// rest, so the output is a partial sum.
     Vocab,
     /// The indices are split along `dim`, and so is the output.
@@ -63,14 +63,14 @@ impl EmbeddingRule {
 /// The gradient of the embedding weights, from the output's gradient and the indices.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum EmbeddingBackwardRule {
-    /// Nothing is split: every rank computes the whole gradient.
+    /// Nothing is split: every member computes the whole gradient.
     Unsplit,
-    /// The weights are split by vocab row: each rank sums the gradient of the tokens in its
+    /// The weights are split by vocab row: each member sums the gradient of the tokens in its
     /// chunk, so the gradient is split like the weights.
     Vocab,
     /// The output gradient is split by hidden column, and so is the weights' gradient.
     Columns,
-    /// The tokens are split along `dim`: each rank sums the gradient of its own tokens.
+    /// The tokens are split along `dim`: each member sums the gradient of its own tokens.
     Indices { dim: usize },
     /// A partial output gradient gives a partial weights gradient.
     PartialGrad,

@@ -10,7 +10,7 @@ repository = "https://github.com/tracel-ai/burn/tree/main/crates/burn-group"
 workspace = true
 
 [features]
-# The device-group tests give their ranks the CUDA devices in turn, so shards cross devices.
+# The device-group tests give their members the CUDA devices in turn, so shards cross devices.
 cuda = ["burn-tensor/cuda"]
 fusion = ["burn-tensor/fusion"]
 

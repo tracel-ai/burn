@@ -1,10 +1,10 @@
 use crate::{GroupPlacement, OpPlacement, Reduction};
 
 /// For an op that reads whole dims at once and is not linear, like softmax or max: it runs on
-/// every rank only when none of those dims is split.
+/// every member only when none of those dims is split.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum WholeDimRule {
-    /// Each rank runs the op on its shard, and the output keeps the input's placement.
+    /// Each member runs the op on its shard, and the output keeps the input's placement.
     Local { placement: GroupPlacement },
     /// A dim it reads is split, or the input is partial: the input is gathered first.
     Gathered,

@@ -6,10 +6,10 @@ use burn_tensor::{
 
 #[test]
 fn megatron_mlp_on_a_device_group_matches_one_device() {
-    for ranks in [1, 2, 3, 4] {
+    for members in [1, 2, 3, 4] {
         let reference = mlp(&Device::flex().autodiff(), [Replicated; 5]);
         let split = mlp(
-            &group(ranks).autodiff(),
+            &group(members).autodiff(),
             [
                 Replicated,
                 Sharded { dim: 1 },
@@ -28,7 +28,7 @@ fn megatron_mlp_on_a_device_group_matches_one_device() {
                 Some(Sharded { dim: 0 }),
                 Some(Replicated)
             ],
-            "{ranks} ranks"
+            "{members} members"
         );
         split.assert_matches(reference);
     }
@@ -36,10 +36,10 @@ fn megatron_mlp_on_a_device_group_matches_one_device() {
 
 #[test]
 fn megatron_attention_on_a_device_group_matches_one_device() {
-    for ranks in [1, 2, 4] {
+    for members in [1, 2, 4] {
         let reference = attention(&Device::flex().autodiff(), [Replicated; 4]);
         let split = attention(
-            &group(ranks).autodiff(),
+            &group(members).autodiff(),
             [
                 Sharded { dim: 1 },
                 Sharded { dim: 1 },
@@ -56,7 +56,7 @@ fn megatron_attention_on_a_device_group_matches_one_device() {
                 Some(Sharded { dim: 1 }),
                 Some(Sharded { dim: 0 })
             ],
-            "{ranks} ranks"
+            "{members} members"
         );
         split.assert_matches(reference);
     }
@@ -86,7 +86,7 @@ fn a_tensor_placed_mid_graph_passes_its_gradient_through() {
 }
 
 #[test]
-fn a_random_tensor_is_the_same_on_every_rank() {
+fn a_random_tensor_is_the_same_on_every_member() {
     let device = group(2);
     let random = Tensor::<2>::random([4, 6], Distribution::Default, &device);
     let shifted = random.clone() + Tensor::ones([4, 6], &device);
@@ -95,8 +95,8 @@ fn a_random_tensor_is_the_same_on_every_rank() {
         .to_device(&Device::flex())
         .add_scalar(1.0)
         .into_data();
-    let from_every_rank = shifted.place(Sharded { dim: 1 }).to_device(&Device::flex());
-    from_every_rank
+    let from_every_member = shifted.place(Sharded { dim: 1 }).to_device(&Device::flex());
+    from_every_member
         .into_data()
         .assert_approx_eq::<f32>(&expected, tolerance());
 }
@@ -116,13 +116,13 @@ fn a_vocab_split_embedding_keeps_its_gradient_split() {
         }
     };
     let reference = run(&Device::flex().autodiff(), Replicated);
-    for ranks in [2, 3] {
-        let split = run(&group(ranks).autodiff(), Sharded { dim: 0 });
+    for members in [2, 3] {
+        let split = run(&group(members).autodiff(), Sharded { dim: 0 });
 
         assert_eq!(
             split.grad_placements(),
             [Some(Sharded { dim: 0 })],
-            "{ranks} ranks"
+            "{members} members"
         );
         split.assert_matches(Run {
             output: reference.output.clone(),
@@ -239,18 +239,18 @@ fn attention(device: &Device, [pq, pk, pv, po]: [GroupPlacement; 4]) -> Run {
     }
 }
 
-fn group(ranks: usize) -> Device {
-    let devices: Vec<Device> = rank_devices().into_iter().cycle().take(ranks).collect();
+fn group(members: usize) -> Device {
+    let devices: Vec<Device> = member_devices().into_iter().cycle().take(members).collect();
     Device::group(&devices)
 }
 
 #[cfg(feature = "cuda")]
-fn rank_devices() -> Vec<Device> {
+fn member_devices() -> Vec<Device> {
     Device::enumerate(burn_tensor::DeviceType::Cuda).to_vec()
 }
 
 #[cfg(not(feature = "cuda"))]
-fn rank_devices() -> Vec<Device> {
+fn member_devices() -> Vec<Device> {
     vec![Device::flex()]
 }
 

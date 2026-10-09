@@ -6,7 +6,7 @@ use burn_std::future::DynFut;
 
 use crate::{Chunks, GroupPlacement, Redistribution};
 
-/// The shard of one tensor on every rank, in rank order, as the backend holds them.
+/// The shard of one tensor on every member, in member order, as the backend holds them.
 pub struct ShardList<B: BackendIr> {
     shards: Vec<Shard<B>>,
 }
@@ -18,7 +18,7 @@ impl<B: BackendIr> ShardList<B> {
         }
     }
 
-    /// `handle` copied onto each of `devices`, one rank each.
+    /// `handle` copied onto each of `devices`, one member each.
     pub fn replicated(handle: HandleKind<B>, devices: &[B::Device]) -> Self {
         let shard = Shard(handle);
         Self {
@@ -55,7 +55,7 @@ impl<B: BackendIr> ShardList<B> {
         }
     }
 
-    /// The whole value on `device`, read without changing the shards of any other rank.
+    /// The whole value on `device`, read without changing the shards of any other member.
     pub fn into_data(
         self,
         placement: GroupPlacement,
@@ -63,7 +63,7 @@ impl<B: BackendIr> ShardList<B> {
     ) -> DynFut<Result<TensorData, ExecutionError>> {
         let moved = self.shards.into_iter().map(|shard| shard.moved_to(device));
         let whole = match placement {
-            GroupPlacement::Replicated => moved.take(1).next().expect("A group has a rank"),
+            GroupPlacement::Replicated => moved.take(1).next().expect("A group has a member"),
             GroupPlacement::Sharded { dim } => Shard::concat(moved.collect(), dim),
             GroupPlacement::Partial => Shard::sum(moved.collect()),
         };
@@ -83,15 +83,19 @@ impl<B: BackendIr> ShardList<B> {
     }
 
     fn all_gather(self, dim: usize, devices: &[B::Device]) -> Self {
-        self.each_rank(devices, |shards| Shard::concat(shards, dim))
+        self.each_member(devices, |shards| Shard::concat(shards, dim))
     }
 
     fn all_reduce(self, devices: &[B::Device]) -> Self {
-        self.each_rank(devices, Shard::sum)
+        self.each_member(devices, Shard::sum)
     }
 
-    /// Every rank combines all the shards, moved onto its own device.
-    fn each_rank(self, devices: &[B::Device], combine: impl Fn(Vec<Shard<B>>) -> Shard<B>) -> Self {
+    /// Every member combines all the shards, moved onto its own device.
+    fn each_member(
+        self,
+        devices: &[B::Device],
+        combine: impl Fn(Vec<Shard<B>>) -> Shard<B>,
+    ) -> Self {
         let shards = devices
             .iter()
             .map(|device| {
@@ -139,7 +143,7 @@ impl<B: BackendIr> Shard<B> {
                 HandleKind::Bool(B::bool_cat(shards.map(Shard::into_bool).collect(), dim))
             }
             Some(HandleKind::Quantized(_)) => unsupported(),
-            None => panic!("A group has a rank"),
+            None => panic!("A group has a member"),
         })
     }
 
@@ -157,7 +161,7 @@ impl<B: BackendIr> Shard<B> {
                     _ => panic!("Only a float or int tensor can be a partial sum"),
                 })
             })
-            .expect("A group has a rank")
+            .expect("A group has a member")
     }
 
     fn moved_to(self, device: &B::Device) -> Self {

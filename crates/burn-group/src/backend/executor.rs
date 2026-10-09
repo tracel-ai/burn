@@ -19,11 +19,11 @@ use super::{
 };
 use crate::{Chunks, EmbeddingRule, GroupPlacement, Redistribution};
 
-/// A device group's interpreter, whatever backend its ranks run: what its client asks of it.
+/// A device group's interpreter, whatever backend its members run: what its client asks of it.
 pub trait GroupInterpreter: Send {
     fn new_tensor_id(&mut self) -> TensorId;
     fn placement(&self, id: &TensorId) -> GroupPlacement;
-    /// Every rank holds the whole value.
+    /// Every member holds the whole value.
     fn register_tensor_data(&mut self, data: TensorData) -> TensorId;
     fn register_op(&mut self, op: OperationIr);
     /// The same value at another placement, under a new id.
@@ -48,10 +48,10 @@ pub trait GroupInterpreter: Send {
     fn dtype_usage(&self, dtype: DType) -> DTypeUsageSet;
 }
 
-/// Runs every op of a device group on each rank's interpreter, with each tensor at the
+/// Runs every op of a device group on each member's interpreter, with each tensor at the
 /// placement its op's rule asks for.
 pub struct GroupExecutor<B: BackendIr> {
-    ranks: Vec<TensorInterpreter<B>>,
+    members: Vec<TensorInterpreter<B>>,
     devices: Vec<B::Device>,
     placements: HashMap<TensorId, GroupPlacement>,
     graphs: HashMap<GraphId, Graph>,
@@ -62,7 +62,7 @@ pub struct GroupExecutor<B: BackendIr> {
 impl<B: BackendIr> GroupExecutor<B> {
     pub fn new(devices: Vec<B::Device>) -> Self {
         Self {
-            ranks: devices
+            members: devices
                 .iter()
                 .map(|device| TensorInterpreter::new(device.clone()))
                 .collect(),
@@ -74,7 +74,7 @@ impl<B: BackendIr> GroupExecutor<B> {
         }
     }
 
-    /// The interpreter of a group whose ranks run `B` on `devices`.
+    /// The interpreter of a group whose members run `B` on `devices`.
     pub fn boxed(devices: &[DeviceId]) -> Box<dyn GroupInterpreter> {
         let devices = devices.iter().copied().map(B::Device::from_id).collect();
         Box::new(Self::new(devices))
@@ -93,8 +93,8 @@ impl<B: BackendIr> GroupInterpreter for GroupExecutor<B> {
 
     fn register_tensor_data(&mut self, data: TensorData) -> TensorId {
         let id = self.new_tensor_id();
-        for rank in &mut self.ranks {
-            rank.register_tensor_data_id(id, data.clone());
+        for member in &mut self.members {
+            member.register_tensor_data_id(id, data.clone());
         }
         self.placements.insert(id, GroupPlacement::Replicated);
         id
@@ -102,7 +102,7 @@ impl<B: BackendIr> GroupInterpreter for GroupExecutor<B> {
 
     fn register_op(&mut self, op: OperationIr) {
         match op {
-            // The data was registered on every rank with the tensor.
+            // The data was registered on every member with the tensor.
             OperationIr::Init(_) => {}
             OperationIr::Drop(tensor) => self.drop(tensor.id),
             OperationIr::Distributed(_) => {
@@ -115,7 +115,7 @@ impl<B: BackendIr> GroupInterpreter for GroupExecutor<B> {
     fn place(&mut self, tensor: TensorIr, placement: GroupPlacement) -> TensorId {
         let current = self.placements[&tensor.id];
         let redistribution =
-            Redistribution::new(current, placement, &tensor.shape, self.ranks.len())
+            Redistribution::new(current, placement, &tensor.shape, self.members.len())
                 .unwrap_or_else(|| panic!("Cannot place a {current:?} tensor {placement:?}"));
         let shards = self.take_shards(&tensor, current).redistribute(
             redistribution,
@@ -134,8 +134,8 @@ impl<B: BackendIr> GroupInterpreter for GroupExecutor<B> {
     }
 
     fn register_alias(&mut self, new_id: TensorId, src_id: TensorId) {
-        for rank in &mut self.ranks {
-            rank.register_alias(new_id, src_id);
+        for member in &mut self.members {
+            member.register_alias(new_id, src_id);
         }
         self.placements.insert(new_id, self.placements[&src_id]);
     }
@@ -161,7 +161,7 @@ impl<B: BackendIr> GroupInterpreter for GroupExecutor<B> {
         if let Some(error) = self.flush_error.take() {
             return Err(error);
         }
-        self.ranks.iter().try_for_each(TensorInterpreter::sync)
+        self.members.iter().try_for_each(TensorInterpreter::sync)
     }
 
     fn flush(&mut self) {
@@ -173,17 +173,17 @@ impl<B: BackendIr> GroupInterpreter for GroupExecutor<B> {
     }
 
     fn seed(&self, seed: u64) {
-        self.ranks.iter().for_each(|rank| rank.seed(seed));
+        self.members.iter().for_each(|member| member.seed(seed));
     }
 
     fn dtype_usage(&self, dtype: DType) -> DTypeUsageSet {
-        self.ranks[0].dtype_usage(dtype)
+        self.members[0].dtype_usage(dtype)
     }
 }
 
 impl<B: BackendIr> GroupExecutor<B> {
     fn run(&mut self, mut op: OperationIr) {
-        let plan = OpPlan::new(&op, &self.placements, self.ranks.len());
+        let plan = OpPlan::new(&op, &self.placements, self.members.len());
         plan.take_split_dims_whole(&mut op);
         let temporaries = self.redistribute_inputs(&mut op, &plan);
         for (id, placement) in plan.outputs() {
@@ -191,9 +191,11 @@ impl<B: BackendIr> GroupExecutor<B> {
         }
 
         match plan.execution() {
-            Execution::EveryRank => (0..self.ranks.len()).for_each(|rank| self.run_on(rank, &op)),
-            Execution::FirstRankCopied => self.run_copied_from_first_rank(&op),
-            Execution::BiasOnFirstRank => self.run_with_bias_on_first_rank(&op),
+            Execution::EveryMember => {
+                (0..self.members.len()).for_each(|member| self.run_on(member, &op))
+            }
+            Execution::FirstMemberCopied => self.run_copied_from_first_member(&op),
+            Execution::BiasOnFirstMember => self.run_with_bias_on_first_member(&op),
             Execution::SumThenDivide { count } => self.run_sum_then_divide(&op, count),
             Execution::VocabLookup { chunks } => self.run_vocab_lookup(&op, chunks),
             Execution::VocabBackward { chunks } => self.run_vocab_backward(&op, chunks),
@@ -231,7 +233,7 @@ impl<B: BackendIr> GroupExecutor<B> {
                 ..input.clone()
             };
             let redistribution =
-                Redistribution::new(current, target, &input.shape, self.ranks.len())
+                Redistribution::new(current, target, &input.shape, self.members.len())
                     .unwrap_or_else(|| panic!("A rule asked for {target:?} from {current:?}"));
             let shards = self.take_shards(&read, current).redistribute(
                 redistribution,
@@ -246,31 +248,31 @@ impl<B: BackendIr> GroupExecutor<B> {
         renames.ids.into_values().collect()
     }
 
-    fn run_on(&mut self, rank: usize, op: &OperationIr) {
+    fn run_on(&mut self, member: usize, op: &OperationIr) {
         let mut op = op.clone();
-        op.visit_mut(&mut RankShapes {
-            rank,
-            ranks: self.ranks.len(),
+        op.visit_mut(&mut MemberShapes {
+            member,
+            members: self.members.len(),
             placements: &self.placements,
         });
-        self.ranks[rank].register_op(op);
+        self.members[member].register_op(op);
     }
 
-    fn run_copied_from_first_rank(&mut self, op: &OperationIr) {
+    fn run_copied_from_first_member(&mut self, op: &OperationIr) {
         self.run_on(0, op);
         for output in op.outputs() {
             let read = TensorIr {
                 status: TensorStatus::ReadOnly,
                 ..output.clone()
             };
-            let copies = ShardList::replicated(self.ranks[0].get_tensor(&read), &self.devices);
-            for (rank, copy) in self.ranks.iter_mut().zip(copies.into_handles()) {
-                rank.register_tensor_to_device(output.id, copy);
+            let copies = ShardList::replicated(self.members[0].get_tensor(&read), &self.devices);
+            for (member, copy) in self.members.iter_mut().zip(copies.into_handles()) {
+                member.register_tensor_to_device(output.id, copy);
             }
         }
     }
 
-    fn run_with_bias_on_first_rank(&mut self, op: &OperationIr) {
+    fn run_with_bias_on_first_member(&mut self, op: &OperationIr) {
         let OperationIr::Module(ModuleOperationIr::Linear(desc)) = op else {
             unreachable!("Only a linear adds a bias")
         };
@@ -280,10 +282,10 @@ impl<B: BackendIr> GroupExecutor<B> {
             ..desc.clone()
         }));
         self.run_on(0, op);
-        for rank in 1..self.ranks.len() {
-            self.run_on(rank, &without_bias);
+        for member in 1..self.members.len() {
+            self.run_on(member, &without_bias);
             if bias.status == TensorStatus::ReadWrite {
-                self.ranks[rank].register_op(OperationIr::Drop(bias.clone()));
+                self.members[member].register_op(OperationIr::Drop(bias.clone()));
             }
         }
     }
@@ -318,9 +320,9 @@ impl<B: BackendIr> GroupExecutor<B> {
             out,
         });
         self.placements.insert(sum_out.id, GroupPlacement::Partial);
-        for rank in 0..self.ranks.len() {
-            self.run_on(rank, &OperationIr::NumericFloat(*dtype, sum.clone()));
-            self.run_on(rank, &OperationIr::NumericFloat(*dtype, divide.clone()));
+        for member in 0..self.members.len() {
+            self.run_on(member, &OperationIr::NumericFloat(*dtype, sum.clone()));
+            self.run_on(member, &OperationIr::NumericFloat(*dtype, divide.clone()));
         }
         self.placements.remove(&sum_out.id);
     }
@@ -329,15 +331,16 @@ impl<B: BackendIr> GroupExecutor<B> {
         let OperationIr::Module(ModuleOperationIr::Embedding(desc)) = op else {
             unreachable!("Only an embedding looks up the vocab")
         };
-        for rank in 0..self.ranks.len() {
+        for member in 0..self.members.len() {
             let chunk = VocabChunk {
-                range: chunks.range(rank),
-                bool_dtype: self.ranks[rank].device_settings().bool_dtype,
+                range: chunks.range(member),
+                bool_dtype: self.members[member].device_settings().bool_dtype,
             };
-            let weights = self.local_float(rank, &desc.weights, EmbeddingRule::VOCAB_ROWS);
-            let indices = self.local_int(rank, &desc.indices);
+            let weights = self.local_float(member, &desc.weights, EmbeddingRule::VOCAB_ROWS);
+            let indices = self.local_int(member, &desc.indices);
             let looked_up = chunk.lookup::<B>(weights, indices, desc.out.shape.clone());
-            self.ranks[rank].register_tensor_to_device(desc.out.id, HandleKind::Float(looked_up));
+            self.members[member]
+                .register_tensor_to_device(desc.out.id, HandleKind::Float(looked_up));
         }
     }
 
@@ -345,52 +348,52 @@ impl<B: BackendIr> GroupExecutor<B> {
         let OperationIr::Module(ModuleOperationIr::EmbeddingBackward(desc)) = op else {
             unreachable!("Only an embedding's backward scatters into the vocab")
         };
-        for rank in 0..self.ranks.len() {
+        for member in 0..self.members.len() {
             let chunk = VocabChunk {
-                range: chunks.range(rank),
-                bool_dtype: self.ranks[rank].device_settings().bool_dtype,
+                range: chunks.range(member),
+                bool_dtype: self.members[member].device_settings().bool_dtype,
             };
-            let weights = self.local_float(rank, &desc.weights, EmbeddingRule::VOCAB_ROWS);
-            let output_grad = self.local_float(rank, &desc.out_grad, GroupPlacement::Replicated);
-            let indices = self.local_int(rank, &desc.indices);
+            let weights = self.local_float(member, &desc.weights, EmbeddingRule::VOCAB_ROWS);
+            let output_grad = self.local_float(member, &desc.out_grad, GroupPlacement::Replicated);
+            let indices = self.local_int(member, &desc.indices);
             let grad = chunk.backward::<B>(weights, output_grad, indices);
-            self.ranks[rank].register_tensor_to_device(desc.out.id, HandleKind::Float(grad));
+            self.members[member].register_tensor_to_device(desc.out.id, HandleKind::Float(grad));
         }
     }
 
     fn local_float(
         &mut self,
-        rank: usize,
+        member: usize,
         tensor: &TensorIr,
         placement: GroupPlacement,
     ) -> FloatTensor<B> {
-        let ranks = self.ranks.len();
+        let members = self.members.len();
         let local = TensorIr {
-            shape: placement.local_shape(&tensor.shape, rank, ranks),
+            shape: placement.local_shape(&tensor.shape, member, members),
             ..tensor.clone()
         };
-        match self.ranks[rank].get_tensor(&local) {
+        match self.members[member].get_tensor(&local) {
             HandleKind::Float(tensor) => tensor,
             _ => unreachable!("{} is a float tensor", tensor.id),
         }
     }
 
-    fn local_int(&mut self, rank: usize, tensor: &TensorIr) -> IntTensor<B> {
-        match self.ranks[rank].get_tensor(tensor) {
+    fn local_int(&mut self, member: usize, tensor: &TensorIr) -> IntTensor<B> {
+        match self.members[member].get_tensor(tensor) {
             HandleKind::Int(tensor) => tensor,
             _ => unreachable!("{} is an int tensor", tensor.id),
         }
     }
 
     fn take_shards(&mut self, tensor: &TensorIr, placement: GroupPlacement) -> ShardList<B> {
-        let ranks = self.ranks.len();
+        let members = self.members.len();
         let shards = self
-            .ranks
+            .members
             .iter_mut()
             .enumerate()
-            .map(|(rank, interpreter)| {
+            .map(|(member, interpreter)| {
                 interpreter.get_tensor(&TensorIr {
-                    shape: placement.local_shape(&tensor.shape, rank, ranks),
+                    shape: placement.local_shape(&tensor.shape, member, members),
                     ..tensor.clone()
                 })
             })
@@ -402,16 +405,16 @@ impl<B: BackendIr> GroupExecutor<B> {
     }
 
     fn register_shards(&mut self, id: TensorId, shards: ShardList<B>, placement: GroupPlacement) {
-        for (rank, handle) in self.ranks.iter_mut().zip(shards.into_handles()) {
-            rank.register_tensor_to_device(id, handle);
+        for (member, handle) in self.members.iter_mut().zip(shards.into_handles()) {
+            member.register_tensor_to_device(id, handle);
         }
         self.placements.insert(id, placement);
     }
 
     fn drop(&mut self, id: TensorId) {
         if self.placements.remove(&id).is_some() {
-            for rank in &mut self.ranks {
-                rank.register_op(OperationIr::Drop(TensorIr {
+            for member in &mut self.members {
+                member.register_op(OperationIr::Drop(TensorIr {
                     id,
                     shape: Vec::<usize>::new().into(),
                     status: TensorStatus::ReadWrite,
@@ -422,7 +425,7 @@ impl<B: BackendIr> GroupExecutor<B> {
     }
 }
 
-/// The rows `range` of a vocab-split embedding, which one rank holds.
+/// The rows `range` of a vocab-split embedding, which one member holds.
 struct VocabChunk {
     range: Range<usize>,
     bool_dtype: BoolDType,
@@ -449,7 +452,7 @@ impl VocabChunk {
         Self::zero_foreign::<B>(looked_up, foreign, out_shape)
     }
 
-    /// Each rank sums the gradient of the tokens in its own chunk, so its weights' gradient is
+    /// Each member sums the gradient of the tokens in its own chunk, so its weights' gradient is
     /// its chunk of the whole.
     fn backward<B: BackendIr>(
         &self,
@@ -507,19 +510,19 @@ impl IrVisitorMut for Renames {
     }
 }
 
-/// Gives every tensor of an op the shape of the shard one rank holds.
-struct RankShapes<'a> {
-    rank: usize,
-    ranks: usize,
+/// Gives every tensor of an op the shape of the shard one member holds.
+struct MemberShapes<'a> {
+    member: usize,
+    members: usize,
     placements: &'a HashMap<TensorId, GroupPlacement>,
 }
 
-impl IrVisitorMut for RankShapes<'_> {
+impl IrVisitorMut for MemberShapes<'_> {
     fn visit_tensor_mut(&mut self, tensor: &mut TensorIr) {
         let placement = self
             .placements
             .get(&tensor.id)
             .unwrap_or_else(|| panic!("{} has no placement on its device group", tensor.id));
-        tensor.shape = placement.local_shape(&tensor.shape, self.rank, self.ranks);
+        tensor.shape = placement.local_shape(&tensor.shape, self.member, self.members);
     }
 }

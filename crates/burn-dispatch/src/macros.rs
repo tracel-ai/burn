@@ -508,9 +508,9 @@ macro_rules! transaction_op {
     };
 }
 
-/// `$devices` as `$variant`'s own devices: every rank of a device group runs one backend.
+/// `$devices` as `$variant`'s own devices: every member of a device group runs one backend.
 #[cfg(feature = "group")]
-macro_rules! ranks {
+macro_rules! members {
     ($devices:expr, $variant:ident) => {
         $devices
             .into_iter()

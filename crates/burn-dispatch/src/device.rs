@@ -406,24 +406,24 @@ impl DispatchDevice {
         Self::Capture(CaptureDevice::default())
     }
 
-    /// A group of `devices` that each tensor is split over, one device per rank.
+    /// A group of `devices`, its members, that each tensor is split over.
     ///
     /// # Panics
     ///
-    /// When `devices` is empty or mixes backends, or when its backend cannot run a rank: only
+    /// When `devices` is empty or mixes backends, or when its backend cannot run a member: only
     /// Cube and Flex devices can.
     #[cfg(feature = "group")]
     pub fn group(devices: Vec<DispatchDevice>) -> Self {
         Self::Group(match devices.first() {
             #[cfg(cube_backend)]
             Some(Self::Cube(_)) => {
-                GroupDevice::new::<crate::backends::Cube>(&ranks!(devices, Cube))
+                GroupDevice::new::<crate::backends::Cube>(&members!(devices, Cube))
             }
             #[cfg(feature = "flex")]
             Some(Self::Flex(_)) => {
-                GroupDevice::new::<crate::backends::Flex>(&ranks!(devices, Flex))
+                GroupDevice::new::<crate::backends::Flex>(&members!(devices, Flex))
             }
-            other => panic!("A device group's ranks run on Cube or Flex, not {other:?}"),
+            other => panic!("A device group's members run on Cube or Flex, not {other:?}"),
         })
     }
 
