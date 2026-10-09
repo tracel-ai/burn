@@ -42,8 +42,10 @@ impl Device {
     ///
     /// # Panics
     ///
-    /// When `devices` is empty or mixes backends, or when its backend cannot run a member: only
-    /// Cube and Flex devices can.
+    /// When `devices` is empty or mixes backends, or when they are not Cube or Flex devices. For
+    /// autodiff, group the plain devices and call `autodiff` on the group.
+    /// Remote devices are left out: tensor parallelism needs links as fast as one machine's GPU
+    /// interconnect.
     pub fn group(devices: &[Device]) -> Self {
         let members = devices
             .iter()
