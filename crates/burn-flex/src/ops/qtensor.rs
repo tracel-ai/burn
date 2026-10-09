@@ -9,9 +9,8 @@ use burn_backend::{
     DType, ExecutionError, FloatDType, TensorData, TensorMetadata,
     ops::{IntTensorOps, QTensorOps},
     quantization::{
-        BlockLayout, BlockSize, QuantScheme, QuantSchemeAxes, QuantValueCodes,
-        QuantizationParametersPrimitive, QuantizedBytes, ScaleDtype, global_scale_dtype,
-        scale_to_dtype,
+        BlockLayout, BlockSize, QuantScheme, QuantizationParametersPrimitive, QuantizedBytes,
+        ScaleDtype, global_scale_dtype, scale_to_dtype,
     },
     tensor::{Device, FloatTensor, IntTensor, QuantizedTensor},
 };
@@ -216,7 +215,8 @@ impl QTensorOps<Flex> for Flex {
     }
 
     fn q_reshape(tensor: QuantizedTensor<Flex>, shape: Shape) -> QuantizedTensor<Flex> {
-        let scheme = tensor.scheme.reshaped(shape.num_dims());
+        let mut scheme = tensor.scheme;
+        scheme.reshape_packing_dim(shape.num_dims());
         block_safe_layout_op(tensor, scheme, |t| t.reshape(shape))
     }
 
@@ -240,14 +240,14 @@ impl QTensorOps<Flex> for Flex {
         dim1: usize,
         dim2: usize,
     ) -> QuantizedTensor<Flex> {
-        let scheme = tensor
-            .scheme
-            .swapped(tensor.tensor.shape().num_dims(), dim1, dim2);
+        let mut scheme = tensor.scheme;
+        scheme.swap_dims(tensor.tensor.shape().num_dims(), dim1, dim2);
         block_safe_layout_op(tensor, scheme, |t| t.transpose(dim1, dim2))
     }
 
     fn q_permute(tensor: QuantizedTensor<Flex>, axes: &[usize]) -> QuantizedTensor<Flex> {
-        let scheme = tensor.scheme.permuted(axes);
+        let mut scheme = tensor.scheme;
+        scheme.permute_dims(axes);
         block_safe_layout_op(tensor, scheme, |t| t.permute(axes))
     }
 
@@ -363,7 +363,7 @@ fn block_safe_layout_op(
 
 /// Whether comparing `tensor`'s codes compares its values: one positive scale over integer codes.
 fn codes_order_as_values(tensor: &FlexQTensor) -> bool {
-    tensor.scheme.block_size().is_none() && tensor.scheme.value.codes_are_integers()
+    tensor.scheme.block_size().is_none() && !tensor.scheme.value.is_float()
 }
 
 /// Unrounded; callers round separately.
