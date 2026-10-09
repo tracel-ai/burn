@@ -2,7 +2,7 @@ use burn_std::Shape;
 
 use crate::{
     GroupPlacement::{self, Partial, Replicated, Sharded},
-    MatmulRule, OpPlacement,
+    MatmulRule, OpPlacement, PlacementShapes,
 };
 
 /// `x @ weight + bias`, with `weight` of shape `[d_in, d_out]`: the matmul of `x` with the

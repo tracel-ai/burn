@@ -18,9 +18,9 @@ impl<const D: usize, K: Basic> Tensor<D, K> {
     /// When the tensor is not on a [device group](Device::group), or no collective produces
     /// `placement`: a partial sum out of a whole tensor, or a split along a dim shorter than the
     /// group.
-    pub fn place(self, placement: GroupPlacement) -> Self {
+    pub fn place_in_group(self, placement: GroupPlacement) -> Self {
         let (kind, tensor) = self.primitive.into_parts();
-        let placed = Dispatch::place(tensor, placement);
+        let placed = Dispatch::place_in_group(tensor, placement);
         Self::new(match kind {
             BridgeKind::Float => BridgeTensor::float(placed),
             BridgeKind::Int => BridgeTensor::int(placed),
@@ -30,15 +30,15 @@ impl<const D: usize, K: Basic> Tensor<D, K> {
     }
 
     /// Where the tensor's shards sit on its device group, or `None` when it is not on one.
-    pub fn placement(&self) -> Option<GroupPlacement> {
+    pub fn group_placement(&self) -> Option<GroupPlacement> {
         let (_, tensor) = self.primitive.as_parts();
-        Dispatch::placement(tensor)
+        Dispatch::group_placement(tensor)
     }
 }
 
 impl Device {
     /// A group of `devices`, its members, that each tensor is split over. A tensor made on it is
-    /// replicated on every member until it is [placed](Tensor::place).
+    /// replicated on every member until it is [placed](Tensor::place_in_group).
     ///
     /// # Panics
     ///

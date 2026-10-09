@@ -13,26 +13,40 @@ pub enum GroupPlacement {
     Partial,
 }
 
-impl GroupPlacement {
+/// How a placement follows its tensor's shape: the shard each member holds, and the placement
+/// after a broadcast, a permute or a change in the number of dims.
+pub trait PlacementShapes {
     /// An input of length 1 along the sharded dim broadcasts, so it stays whole.
-    pub fn aligned(self, shape: &Shape) -> Self {
+    fn aligned(self, shape: &Shape) -> Self;
+
+    /// The shape of the shard `member` holds of a tensor of global `shape`.
+    fn local_shape(self, shape: &Shape, member: usize, members: usize) -> Shape;
+
+    /// The placement of a tensor's permutation by `axes`: the sharded dim follows its axis.
+    fn permuted(self, axes: &[usize]) -> Self;
+
+    /// The same placement on a tensor of `new_num_dims` dims instead of `num_dims`, with
+    /// trailing dims lined up as broadcasting does.
+    fn with_num_dims(self, num_dims: usize, new_num_dims: usize) -> Self;
+}
+
+impl PlacementShapes for GroupPlacement {
+    fn aligned(self, shape: &Shape) -> Self {
         match self {
             GroupPlacement::Sharded { dim } if shape[dim] == 1 => GroupPlacement::Replicated,
             placement => placement,
         }
     }
 
-    /// The shape of the shard `member` holds of a tensor of global `shape`.
-    pub fn local_shape(self, shape: &Shape, member: usize, members: usize) -> Shape {
+    fn local_shape(self, shape: &Shape, member: usize, members: usize) -> Shape {
         let mut local = shape.clone();
         if let GroupPlacement::Sharded { dim } = self {
-            local[dim] = Chunks::new(shape[dim], members).range(member).len();
+            local[dim] = DimSplit::new(shape[dim], members).range(member).len();
         }
         local
     }
 
-    /// The placement of a tensor's permutation by `axes`: the sharded dim follows its axis.
-    pub fn permuted(self, axes: &[usize]) -> Self {
+    fn permuted(self, axes: &[usize]) -> Self {
         match self {
             GroupPlacement::Sharded { dim } => GroupPlacement::Sharded {
                 dim: axes
@@ -44,9 +58,7 @@ impl GroupPlacement {
         }
     }
 
-    /// The same placement on a tensor of `new_num_dims` dims instead of `num_dims`, with
-    /// trailing dims lined up as broadcasting does.
-    pub fn with_num_dims(self, num_dims: usize, new_num_dims: usize) -> Self {
+    fn with_num_dims(self, num_dims: usize, new_num_dims: usize) -> Self {
         match self {
             GroupPlacement::Sharded { dim } => GroupPlacement::Sharded {
                 dim: (dim + new_num_dims)
@@ -68,12 +80,12 @@ pub struct OpPlacement<const N: usize> {
 /// How a dim of `len` elements splits over `members`: the first `len % members` members hold
 /// one more.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct Chunks {
+pub struct DimSplit {
     len: usize,
     members: usize,
 }
 
-impl Chunks {
+impl DimSplit {
     pub fn new(len: usize, members: usize) -> Self {
         Self { len, members }
     }

@@ -10,8 +10,8 @@ use burn_ir::{
 };
 
 use crate::{
-    Chunks, EmbeddingBackwardRule, EmbeddingRule, GroupPlacement, LinearRule, Linearity,
-    MatmulRule, OpPlacement, ReduceRule, Reduction, ReshapeRule, WholeDimRule,
+    DimSplit, EmbeddingBackwardRule, EmbeddingRule, GroupPlacement, LinearRule, Linearity,
+    MatmulRule, OpPlacement, PlacementShapes, ReduceRule, Reduction, ReshapeRule, WholeDimRule,
 };
 
 /// Where each tensor of one op must be for the op to run on every member, where its outputs land,
@@ -37,11 +37,11 @@ pub enum Execution {
     },
     /// A lookup in weights split by vocab row, each member zeroing the rows it does not hold.
     VocabLookup {
-        chunks: Chunks,
+        split: DimSplit,
     },
     /// The gradient of weights split by vocab row, each member keeping its own tokens' gradient.
     VocabBackward {
-        chunks: Chunks,
+        split: DimSplit,
     },
 }
 
@@ -517,7 +517,7 @@ impl Analysis<'_> {
             .output(&desc.out, placement.output);
         match rule {
             EmbeddingRule::Vocab => targets.build(Execution::VocabLookup {
-                chunks: self.vocab_chunks(&desc.weights),
+                split: self.vocab_split(&desc.weights),
             }),
             _ => targets.every_member(),
         }
@@ -537,14 +537,14 @@ impl Analysis<'_> {
         .output(&desc.out, placement.output);
         match rule {
             EmbeddingBackwardRule::Vocab => targets.build(Execution::VocabBackward {
-                chunks: self.vocab_chunks(&desc.weights),
+                split: self.vocab_split(&desc.weights),
             }),
             _ => targets.every_member(),
         }
     }
 
-    fn vocab_chunks(&self, weights: &TensorIr) -> Chunks {
-        Chunks::new(weights.shape[EmbeddingRule::VOCAB_DIM], self.members)
+    fn vocab_split(&self, weights: &TensorIr) -> DimSplit {
+        DimSplit::new(weights.shape[EmbeddingRule::VOCAB_DIM], self.members)
     }
 
     fn sum(&self, input: &TensorIr, out: &TensorIr, reduction: Reduction) -> Option<OpPlan> {

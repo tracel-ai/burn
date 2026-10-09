@@ -17,7 +17,7 @@ use super::{
     plan::{Execution, OpPlan},
     shard::ShardList,
 };
-use crate::{Chunks, EmbeddingRule, GroupPlacement, Redistribution};
+use crate::{DimSplit, EmbeddingRule, GroupPlacement, PlacementShapes, Redistribution};
 
 /// A device group's interpreter, whatever backend its members run: what its client asks of it.
 pub trait GroupInterpreter: Send {
@@ -197,8 +197,8 @@ impl<B: BackendIr> GroupExecutor<B> {
             Execution::FirstMemberCopied => self.run_copied_from_first_member(&op),
             Execution::BiasOnFirstMember => self.run_with_bias_on_first_member(&op),
             Execution::SumThenDivide { count } => self.run_sum_then_divide(&op, count),
-            Execution::VocabLookup { chunks } => self.run_vocab_lookup(&op, chunks),
-            Execution::VocabBackward { chunks } => self.run_vocab_backward(&op, chunks),
+            Execution::VocabLookup { split } => self.run_vocab_lookup(&op, split),
+            Execution::VocabBackward { split } => self.run_vocab_backward(&op, split),
         }
 
         for input in op.inputs() {
@@ -327,13 +327,13 @@ impl<B: BackendIr> GroupExecutor<B> {
         self.placements.remove(&sum_out.id);
     }
 
-    fn run_vocab_lookup(&mut self, op: &OperationIr, chunks: Chunks) {
+    fn run_vocab_lookup(&mut self, op: &OperationIr, split: DimSplit) {
         let OperationIr::Module(ModuleOperationIr::Embedding(desc)) = op else {
             unreachable!("Only an embedding looks up the vocab")
         };
         for member in 0..self.members.len() {
             let chunk = VocabChunk {
-                range: chunks.range(member),
+                range: split.range(member),
                 bool_dtype: self.members[member].device_settings().bool_dtype,
             };
             let weights = self.local_float(member, &desc.weights, EmbeddingRule::VOCAB_ROWS);
@@ -344,13 +344,13 @@ impl<B: BackendIr> GroupExecutor<B> {
         }
     }
 
-    fn run_vocab_backward(&mut self, op: &OperationIr, chunks: Chunks) {
+    fn run_vocab_backward(&mut self, op: &OperationIr, split: DimSplit) {
         let OperationIr::Module(ModuleOperationIr::EmbeddingBackward(desc)) = op else {
             unreachable!("Only an embedding's backward scatters into the vocab")
         };
         for member in 0..self.members.len() {
             let chunk = VocabChunk {
-                range: chunks.range(member),
+                range: split.range(member),
                 bool_dtype: self.members[member].device_settings().bool_dtype,
             };
             let weights = self.local_float(member, &desc.weights, EmbeddingRule::VOCAB_ROWS);

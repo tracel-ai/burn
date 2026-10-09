@@ -66,10 +66,12 @@ fn megatron_attention_on_a_device_group_matches_one_device() {
 fn a_tensor_moved_onto_a_group_is_replicated_and_moves_back_whole() {
     let data = values([4, 6], 1);
     let tensor = Tensor::<2>::from_data(data.clone(), &Device::flex()).to_device(&group(2));
-    assert_eq!(tensor.placement(), Some(Replicated));
+    assert_eq!(tensor.group_placement(), Some(Replicated));
 
-    let back = tensor.place(Sharded { dim: 1 }).to_device(&Device::flex());
-    assert_eq!(back.placement(), None);
+    let back = tensor
+        .place_in_group(Sharded { dim: 1 })
+        .to_device(&Device::flex());
+    assert_eq!(back.group_placement(), None);
     back.into_data().assert_approx_eq::<f32>(&data, tolerance());
 }
 
@@ -77,7 +79,7 @@ fn a_tensor_moved_onto_a_group_is_replicated_and_moves_back_whole() {
 fn a_tensor_placed_mid_graph_passes_its_gradient_through() {
     let device = group(2).autodiff();
     let x = Tensor::<1>::from_data(values([4], 1), &device).require_grad();
-    let y = x.clone().mul_scalar(2.0).place(Sharded { dim: 0 }) + x.clone();
+    let y = x.clone().mul_scalar(2.0).place_in_group(Sharded { dim: 0 }) + x.clone();
     let grads = y.sum().backward();
 
     let grad = x.grad(&grads).expect("x has a gradient");
@@ -95,7 +97,9 @@ fn a_random_tensor_is_the_same_on_every_member() {
         .to_device(&Device::flex())
         .add_scalar(1.0)
         .into_data();
-    let from_every_member = shifted.place(Sharded { dim: 1 }).to_device(&Device::flex());
+    let from_every_member = shifted
+        .place_in_group(Sharded { dim: 1 })
+        .to_device(&Device::flex());
     from_every_member
         .into_data()
         .assert_approx_eq::<f32>(&expected, tolerance());
@@ -149,7 +153,7 @@ impl Grad {
     fn new<const D: usize>(grad: Option<Tensor<D>>) -> Self {
         let grad = grad.expect("Every leaf has a gradient");
         Self {
-            placement: grad.placement(),
+            placement: grad.group_placement(),
             data: grad.into_data(),
         }
     }
@@ -257,8 +261,8 @@ fn member_devices() -> Vec<Device> {
 /// A leaf on `device`, placed when the device is a group.
 fn leaf<const D: usize>(data: TensorData, device: &Device, placement: GroupPlacement) -> Tensor<D> {
     let tensor = Tensor::from_data(data, device);
-    match tensor.placement() {
-        Some(_) => tensor.place(placement).require_grad(),
+    match tensor.group_placement() {
+        Some(_) => tensor.place_in_group(placement).require_grad(),
         None => tensor.require_grad(),
     }
 }

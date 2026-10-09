@@ -4,7 +4,7 @@ use burn_backend::{ExecutionError, Shape, Slice, TensorData};
 use burn_ir::{BackendIr, HandleKind};
 use burn_std::future::DynFut;
 
-use crate::{Chunks, GroupPlacement, Redistribution};
+use crate::{DimSplit, GroupPlacement, Redistribution};
 
 /// The shard of one tensor on every member, in member order, as the backend holds them.
 pub struct ShardList<B: BackendIr> {
@@ -71,12 +71,12 @@ impl<B: BackendIr> ShardList<B> {
     }
 
     fn slice(self, dim: usize, len: usize) -> Self {
-        let chunks = Chunks::new(len, self.shards.len());
+        let split = DimSplit::new(len, self.shards.len());
         Self {
             shards: self
                 .shards
                 .into_iter()
-                .zip(chunks.ranges())
+                .zip(split.ranges())
                 .map(|(shard, range)| shard.slice(dim, range))
                 .collect(),
         }

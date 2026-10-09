@@ -10,9 +10,9 @@ mod placement;
 mod redistribution;
 mod rules;
 
-pub use backend::{GroupBackend, GroupClient, GroupDevice};
+pub use backend::{GroupBackend, GroupDevice};
 pub use placement::GroupPlacement;
 
-use placement::{Chunks, OpPlacement};
+use placement::{DimSplit, OpPlacement, PlacementShapes};
 use redistribution::Redistribution;
 use rules::*;

@@ -2,7 +2,7 @@ use burn_std::Shape;
 
 use crate::{
     GroupPlacement::{self, Partial, Replicated, Sharded},
-    OpPlacement,
+    OpPlacement, PlacementShapes,
 };
 
 /// Which dim of a matmul is split, named after the dim of the product it splits.

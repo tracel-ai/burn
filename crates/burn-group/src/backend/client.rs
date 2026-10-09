@@ -5,7 +5,7 @@ use burn_ir::{GraphBindings, GraphId, OperationIr, TensorId, TensorIr};
 use burn_router::{RouterClient, RouterTensor};
 use burn_std::{future::DynFut, sync::Mutex};
 
-use super::{GroupDevice, executor::GroupInterpreter};
+use super::{GroupDevice, device::Group, executor::GroupInterpreter};
 use crate::GroupPlacement;
 
 /// The client of one device group: every tensor of the group goes through its interpreter.
@@ -19,7 +19,7 @@ impl GroupClient {
     pub fn new(device: GroupDevice) -> Self {
         Self {
             device,
-            interpreter: Arc::new(Mutex::new(device.interpreter())),
+            interpreter: Arc::new(Mutex::new(Group::of(&device).interpreter())),
         }
     }
 

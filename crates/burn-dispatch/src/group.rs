@@ -28,7 +28,7 @@ impl Dispatch {
     ///
     /// When the tensor is not on a device group, or no collective produces `placement`: a
     /// partial sum out of a whole tensor, or a split along a dim shorter than the group.
-    pub fn place(tensor: DispatchTensor, placement: GroupPlacement) -> DispatchTensor {
+    pub fn place_in_group(tensor: DispatchTensor, placement: GroupPlacement) -> DispatchTensor {
         let DispatchTensor { kind, autodiff } = tensor;
         let kind = match kind {
             DispatchTensorKind::Group(tensor) => {
@@ -61,7 +61,7 @@ impl Dispatch {
     }
 
     /// Where the tensor's shards sit, or `None` when it is not on a device group.
-    pub fn placement(tensor: &DispatchTensor) -> Option<GroupPlacement> {
+    pub fn group_placement(tensor: &DispatchTensor) -> Option<GroupPlacement> {
         let primitive = match &tensor.kind {
             DispatchTensorKind::Group(
                 BackendTensor::Float(tensor)

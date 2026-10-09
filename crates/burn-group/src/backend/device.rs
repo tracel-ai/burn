@@ -51,21 +51,7 @@ impl GroupDevice {
 
     /// The number of devices in the group.
     pub fn num_members(&self) -> usize {
-        self.group().devices.len()
-    }
-
-    /// A new interpreter for the group's members, holding no tensors yet.
-    pub fn interpreter(&self) -> Box<dyn GroupInterpreter> {
-        let group = self.group();
-        (group.interpreter)(&group.devices)
-    }
-
-    fn group(&self) -> Group {
-        GROUPS
-            .lock()
-            .get(usize::from(self.index))
-            .cloned()
-            .expect("A device group is made with GroupDevice::new before it is used")
+        Group::of(self).devices.len()
     }
 }
 
@@ -98,14 +84,15 @@ impl Device for GroupDevice {
 
 impl DeviceOps for GroupDevice {
     fn defaults(&self) -> DeviceSettings {
-        self.group().settings
+        Group::of(self).settings
     }
 }
 
 static GROUPS: Mutex<Vec<Group>> = Mutex::new(Vec::new());
 
+/// What a [`GroupDevice`] stands for: its devices, their backend and how to run them.
 #[derive(Clone, Debug)]
-struct Group {
+pub struct Group {
     devices: Vec<DeviceId>,
     backend: TypeId,
     settings: DeviceSettings,
@@ -113,6 +100,19 @@ struct Group {
 }
 
 impl Group {
+    pub fn of(device: &GroupDevice) -> Self {
+        GROUPS
+            .lock()
+            .get(usize::from(device.index))
+            .cloned()
+            .expect("A device group is made with GroupDevice::new before it is used")
+    }
+
+    /// A new interpreter for the group's members, holding no tensors yet.
+    pub fn interpreter(&self) -> Box<dyn GroupInterpreter> {
+        (self.interpreter)(&self.devices)
+    }
+
     fn is_like(&self, other: &Group) -> bool {
         self.devices == other.devices && self.backend == other.backend
     }

@@ -1,6 +1,6 @@
 use burn_std::{DType, Shape};
 
-use crate::{GroupPlacement, OpPlacement};
+use crate::{GroupPlacement, OpPlacement, PlacementShapes};
 
 /// Which inputs of an elementwise op a partial sum can pass through: its output stays partial
 /// only where the op distributes over the sum.
