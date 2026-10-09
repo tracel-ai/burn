@@ -68,10 +68,11 @@ pub fn aligned_data_section_start(metadata_size: usize) -> usize {
 /// Prevents memory exhaustion attacks via oversized metadata claims
 pub const MAX_METADATA_SIZE: u32 = 100 * 1024 * 1024;
 
-/// Maximum allowed tensor size per tensor
+/// Default maximum size of a single tensor
 /// Prevents memory exhaustion attacks via oversized tensor claims
 /// 32-bit platforms: 2 GB limit (to fit within usize range)
 /// 64-bit platforms: 10 GB limit
+/// Raise it per reader with [`Reader::with_limits`](crate::Reader::with_limits).
 #[cfg(target_pointer_width = "32")]
 pub const MAX_TENSOR_SIZE: usize = 2 * 1024 * 1024 * 1024;
 #[cfg(not(target_pointer_width = "32"))]
@@ -85,11 +86,11 @@ pub const MAX_TENSOR_COUNT: usize = 100_000;
 /// Prevents stack overflow attacks via deeply nested CBOR structures
 pub const MAX_CBOR_RECURSION_DEPTH: usize = 128;
 
-/// Maximum allowed file size (100 GB)
+/// Default maximum file size (500 GB)
 /// Prevents resource exhaustion from extremely large files
 /// This limit applies to file-based loading (mmap and buffered)
-#[cfg(feature = "std")]
-pub const MAX_FILE_SIZE: u64 = 100 * 1024 * 1024 * 1024;
+/// Raise it per reader with [`Reader::with_limits`](crate::Reader::with_limits).
+pub const MAX_FILE_SIZE: u64 = 500 * 1024 * 1024 * 1024;
 
 /// Byte range for magic number in header
 pub const fn magic_range() -> core::ops::Range<usize> {

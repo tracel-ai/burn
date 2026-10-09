@@ -13,7 +13,7 @@ pub enum PeerId {
     /// An Iroh endpoint, authenticated by its public key.
     #[cfg(feature = "iroh")]
     Iroh(iroh::EndpointId),
-    /// A legacy WebSocket endpoint.
+    /// A WebSocket endpoint.
     #[cfg(feature = "websocket")]
     WebSocket(Address),
 }
@@ -25,6 +25,20 @@ impl fmt::Display for PeerId {
             Self::Iroh(id) => write!(f, "iroh://{id}"),
             #[cfg(feature = "websocket")]
             Self::WebSocket(address) => address.fmt(f),
+        }
+    }
+}
+
+#[cfg(feature = "client")]
+impl PeerId {
+    /// The display form with an Iroh endpoint id cut short, as iroh's `fmt_short` does, for log
+    /// lines.
+    pub(crate) fn to_short_string(&self) -> String {
+        match self {
+            #[cfg(feature = "iroh")]
+            Self::Iroh(id) => format!("iroh://{}", id.fmt_short()),
+            #[cfg(feature = "websocket")]
+            Self::WebSocket(address) => address.to_string(),
         }
     }
 }
@@ -54,7 +68,7 @@ pub enum PeerAddr {
     /// when the configured Iroh address lookup can resolve it.
     #[cfg(feature = "iroh")]
     Iroh(iroh::EndpointAddr),
-    /// A legacy WebSocket address.
+    /// A WebSocket address.
     #[cfg(feature = "websocket")]
     WebSocket(Address),
 }
@@ -71,6 +85,7 @@ impl PeerAddr {
     }
 
     /// Return true when this is an Iroh peer.
+    #[cfg(feature = "client")]
     pub fn is_iroh(&self) -> bool {
         match self {
             #[cfg(feature = "iroh")]

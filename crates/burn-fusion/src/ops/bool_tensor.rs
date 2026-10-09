@@ -1,5 +1,5 @@
 use crate::{
-    Fusion, FusionBackend,
+    Fusion, FusionBackend, FusionTensor,
     client::GlobalFusionClient,
     get_client, reduce_ops,
     stream::{StreamId, execution::Operation},
@@ -11,14 +11,12 @@ use burn_backend::{
 };
 use burn_ir::{
     BaseOperationIr, BinaryOpIr, BoolOperationIr, CastOpIr, CatOpIr, CreationOpIr, FlipOpIr,
-    GatherOpIr, HandleContainer, InitOperationIr, MaskFillOpIr, MaskWhereOpIr, OperationIr,
-    OperationOutput, PermuteOpIr, ReduceDimOpIr, ReduceOpIr, RepeatDimOpIr, ScalarOpIr,
-    ScatterOpIr, SelectAssignOpIr, SelectOpIr, ShapeOpIr, SliceAssignOpIr, SliceOpIr, SwapDimsOpIr,
-    TensorIr, UnaryOpIr, UnfoldOpIr,
+    GatherOpIr, HandleContainer, MaskFillOpIr, MaskWhereOpIr, OperationIr, OperationOutput,
+    PermuteOpIr, ReduceDimOpIr, ReduceOpIr, RepeatDimOpIr, ScalarOpIr, ScatterOpIr,
+    SelectAssignOpIr, SelectOpIr, ShapeOpIr, SliceAssignOpIr, SliceOpIr, SwapDimsOpIr, TensorIr,
+    UnaryOpIr, UnfoldOpIr,
 };
 use std::marker::PhantomData;
-
-use super::NoOp;
 
 impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
     fn bool_empty(shape: Shape, device: &Device<Self>, dtype: BoolDType) -> BoolTensor<Self> {
@@ -132,20 +130,14 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
 
     fn bool_from_data(data: burn_backend::TensorData, device: &Device<Self>) -> BoolTensor<Self> {
         let client = get_client::<B>(device);
-        let dtype = data.dtype;
+        let dtype = data.dtype();
         let tensor = B::bool_from_data(data, device);
         let shape = burn_backend::TensorMetadata::shape(&tensor);
 
         let handle = B::bool_tensor_handle(tensor);
-        let desc = InitOperationIr::create(shape, dtype, || client.register_tensor_handle(handle));
+        let id = client.register_tensor_handle(handle);
 
-        client
-            .register(
-                StreamId::current(),
-                OperationIr::Init(desc),
-                NoOp::<B>::new(),
-            )
-            .output()
+        FusionTensor::new(id, shape, dtype, client, StreamId::current())
     }
 
     fn bool_into_int(tensor: BoolTensor<Self>, out_dtype: IntDType) -> IntTensor<Self> {

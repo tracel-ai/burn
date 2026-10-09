@@ -3,39 +3,84 @@
 use burn_flex::Flex;
 use burn_ir::BackendIr;
 use burn_remote::{
-    BURN_REMOTE_ALPN, RemoteDevice,
-    server::{AllowAll, IrohRemoteProtocol},
-    telemetry::TelemetryProbe,
+    BURN_REMOTE_ALPN,
+    server::{AllowAll, AuthorizationRequest, BackendServer, PeerAuthorizer, ServeError},
+    telemetry::{TelemetryEvent, TelemetryProbe},
 };
-use burn_tensor::{Device, Tensor};
-use iroh::{Endpoint, RelayMode, endpoint::presets, protocol::Router};
+use burn_tensor::{
+    DType, Device, Int, Tensor, TensorData,
+    remote::{ConnectError, IrohHost, IrohRelays, RemoteHost},
+};
+use iroh::{
+    Endpoint, EndpointAddr, RelayMode, SecretKey,
+    address_lookup::MemoryLookup,
+    endpoint::{Connection, presets},
+    protocol::{AcceptError, ProtocolHandler, Router},
+};
+use std::{panic, sync::mpsc, thread, time::Duration};
+use tokio::task::coop;
+
+/// Past the first retries, well inside the retry window.
+const ADDRESS_LATE_BY: Duration = Duration::from_millis(700);
 
 async fn local_endpoint() -> Endpoint {
+    local_endpoint_at(SecretKey::generate(), 0).await
+}
+
+/// An endpoint on loopback `port`, 0 for one the OS picks.
+async fn local_endpoint_at(key: SecretKey, port: u16) -> Endpoint {
     Endpoint::builder(presets::Minimal)
+        .secret_key(key)
         .relay_mode(RelayMode::Disabled)
         .clear_ip_transports()
-        .bind_addr("127.0.0.1:0")
+        .bind_addr(format!("127.0.0.1:{port}"))
         .unwrap()
         .bind()
         .await
         .unwrap()
 }
 
+/// `server`, dialed from the test's own `client` endpoint.
+fn host_dialed_from(client: &Endpoint, server: impl Into<EndpointAddr>) -> RemoteHost {
+    RemoteHost::iroh(IrohHost::new(server).with_endpoint(client.clone()))
+}
+
 fn spawn_router<B: BackendIr>(
     endpoint: Endpoint,
-    authorizer: impl burn_remote::server::PeerAuthorizer,
+    authorizer: impl PeerAuthorizer,
     probe: TelemetryProbe,
 ) -> Router {
-    let protocol = IrohRemoteProtocol::<B>::new(
-        endpoint.clone(),
-        vec![Default::default()],
-        std::sync::Arc::new(authorizer),
-        probe,
-        burn_remote::server::CustomOpRegistry::default(),
-    );
+    let protocol = BackendServer::<B>::new(vec![Default::default()])
+        .with_authorizer(authorizer)
+        .with_telemetry(probe)
+        .into_protocol(&endpoint)
+        .unwrap();
     Router::builder(endpoint)
         .accept(BURN_REMOTE_ALPN, protocol)
         .spawn()
+}
+
+/// Far beyond what a test here takes when it works, so only a hang reaches it.
+const HANG_LIMIT: Duration = Duration::from_secs(30);
+
+/// A blocking hang cannot be cancelled, so this fails after [`HANG_LIMIT`] and leaks the stuck
+/// thread.
+fn within_hang_limit(test: impl FnOnce() + Send + 'static) {
+    let (done, finished) = mpsc::channel();
+    let name = thread::current().name().unwrap_or("test").to_string();
+    let thread = thread::Builder::new()
+        .name(name)
+        .spawn(move || {
+            test();
+            let _ = done.send(());
+        })
+        .unwrap();
+    if let Err(mpsc::RecvTimeoutError::Timeout) = finished.recv_timeout(HANG_LIMIT) {
+        panic!("still blocked after {HANG_LIMIT:?}");
+    }
+    if let Err(payload) = thread.join() {
+        panic::resume_unwind(payload);
+    }
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -44,9 +89,10 @@ async fn executes_over_iroh_session_stream() {
     let client = local_endpoint().await;
     let router = spawn_router::<Flex>(server.clone(), AllowAll, TelemetryProbe::disabled());
 
-    let remote = RemoteDevice::iroh(&client, server.addr(), 0);
-    remote.connect();
-    let device = Device::new(remote);
+    let device = Device::remote_options(&host_dialed_from(&client, server.addr()))
+        .init_async()
+        .await
+        .unwrap();
 
     let output = Tensor::<1>::from_floats([1.0, 2.0, 3.0], &device) * 2.0;
     assert_eq!(
@@ -55,6 +101,140 @@ async fn executes_over_iroh_session_stream() {
     );
 
     router.shutdown().await.unwrap();
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_client_that_disconnects_without_closing_ends_its_session() {
+    let server = local_endpoint().await;
+    let client = local_endpoint().await;
+    let (probe, mut events) = TelemetryProbe::channel(4096);
+    let router = spawn_router::<Flex>(server.clone(), AllowAll, probe);
+
+    let device = Device::remote_options(&host_dialed_from(&client, server.addr()))
+        .init_async()
+        .await
+        .unwrap();
+    let output = Tensor::<1>::from_floats([1.0, 2.0, 3.0], &device) * 2.0;
+    output.try_into_vec_as::<f32>().unwrap();
+
+    client.close().await;
+    let session_closed = async {
+        while let Some(event) = events.recv().await {
+            if let TelemetryEvent::SessionClosed { .. } = event.as_ref() {
+                return true;
+            }
+        }
+        false
+    };
+    let closed = tokio::time::timeout(Duration::from_secs(10), session_closed).await;
+    assert!(
+        matches!(closed, Ok(true)),
+        "the server kept the session of a client that disconnected"
+    );
+
+    router.shutdown().await.unwrap();
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_dial_waits_for_an_iroh_address_published_late() {
+    let server = local_endpoint().await;
+    let router = spawn_router::<Flex>(server.clone(), AllowAll, TelemetryProbe::disabled());
+    let lookup = MemoryLookup::new();
+    let client = Endpoint::builder(presets::Minimal)
+        .relay_mode(RelayMode::Disabled)
+        .clear_ip_transports()
+        .bind_addr("127.0.0.1:0")
+        .unwrap()
+        .address_lookup(lookup.clone())
+        .bind()
+        .await
+        .unwrap();
+    let address = server.addr();
+    tokio::spawn(async move {
+        tokio::time::sleep(ADDRESS_LATE_BY).await;
+        lookup.add_endpoint_info(address);
+    });
+
+    let device = Device::remote_options(&host_dialed_from(&client, server.id()))
+        .init_async()
+        .await
+        .unwrap();
+
+    let output = Tensor::<1>::from_floats([1.0, 2.0], &device) * 2.0;
+    assert_eq!(output.try_into_vec_as::<f32>().unwrap(), vec![2.0, 4.0]);
+
+    router.shutdown().await.unwrap();
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_device_dialed_with_no_address_and_no_lookup_connects_once_given_one() {
+    let server = local_endpoint().await;
+    let router = spawn_router::<Flex>(server.clone(), AllowAll, TelemetryProbe::disabled());
+    let client = local_endpoint().await;
+
+    let result = Device::remote_options(&host_dialed_from(&client, server.id()))
+        .init_async()
+        .await;
+    assert!(matches!(result, Err(ConnectError::NoAddress)), "{result:?}");
+
+    let device = Device::remote_options(&host_dialed_from(&client, server.addr()))
+        .init_async()
+        .await
+        .unwrap();
+    let output = Tensor::<1>::from_floats([1.0, 2.0], &device) * 2.0;
+    assert_eq!(output.try_into_vec_as::<f32>().unwrap(), vec![2.0, 4.0]);
+
+    router.shutdown().await.unwrap();
+}
+
+/// Accepts a session stream, then drops it without answering.
+#[derive(Debug, Clone)]
+struct HangsUpOnSessions;
+
+impl ProtocolHandler for HangsUpOnSessions {
+    async fn accept(&self, connection: Connection) -> Result<(), AcceptError> {
+        let session = connection
+            .accept_bi()
+            .await
+            .map_err(AcceptError::from_err)?;
+        drop(session);
+        connection.closed().await;
+        Ok(())
+    }
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_session_the_server_closes_unanswered_is_a_handshake_error() {
+    let server = local_endpoint().await;
+    let client = local_endpoint().await;
+    let router = Router::builder(server.clone())
+        .accept(BURN_REMOTE_ALPN, HangsUpOnSessions)
+        .spawn();
+
+    let result = Device::remote_options(&host_dialed_from(&client, server.addr()))
+        .init_async()
+        .await;
+    assert!(
+        matches!(result, Err(ConnectError::Handshake { .. })),
+        "{result:?}"
+    );
+
+    router.shutdown().await.unwrap();
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn an_iroh_host_with_both_an_endpoint_and_relays_is_refused() {
+    let host = RemoteHost::iroh(
+        IrohHost::new(SecretKey::generate().public())
+            .with_relays(IrohRelays::Disabled)
+            .with_endpoint(local_endpoint().await),
+    );
+
+    let result = Device::remote_options(&host).init_async().await;
+    assert!(
+        matches!(result, Err(ConnectError::InvalidConfiguration { .. })),
+        "{result:?}"
+    );
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -68,12 +248,14 @@ async fn transfers_tensor_directly_between_iroh_compute_peers() {
     let target_router =
         spawn_router::<Flex>(target_server.clone(), AllowAll, TelemetryProbe::disabled());
 
-    let source_remote = RemoteDevice::iroh(&client, source_server.addr(), 0);
-    let target_remote = RemoteDevice::iroh(&client, target_server.addr(), 0);
-    source_remote.connect();
-    target_remote.connect();
-    let source = Device::new(source_remote);
-    let target = Device::new(target_remote);
+    let source = Device::remote_options(&host_dialed_from(&client, source_server.addr()))
+        .init_async()
+        .await
+        .unwrap();
+    let target = Device::remote_options(&host_dialed_from(&client, target_server.addr()))
+        .init_async()
+        .await
+        .unwrap();
 
     let tensor = Tensor::<1>::from_floats([3.0, 5.0, 7.0], &source);
     let transferred = tensor.to_device(&target);
@@ -86,10 +268,155 @@ async fn transfers_tensor_directly_between_iroh_compute_peers() {
     target_router.shutdown().await.unwrap();
 }
 
+#[tokio::test(flavor = "multi_thread")]
+async fn a_tensor_many_frames_long_crosses_sessions_and_servers() {
+    // 4 MiB, which a session and a transfer each carry in several frames.
+    upload_transfer_and_read_back(1024 * 1024).await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "moves a tensor over 1 GiB three times; needs several GiB of memory"]
+async fn a_tensor_over_a_gibibyte_crosses_sessions_and_servers() {
+    upload_transfer_and_read_back((1 << 28) + (1 << 20)).await;
+}
+
+/// A stream's first frame is read before anyone is authorized, so a length over the frame limit
+/// is refused as soon as it is claimed, before any of the frame is sent.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_stranger_claiming_a_huge_first_frame_is_refused_before_sending_it() {
+    const CLAIMED_LENGTH: u64 = 512 * 1024 * 1024;
+    let server = local_endpoint().await;
+    let stranger = local_endpoint().await;
+    let router = spawn_router::<Flex>(server.clone(), AllowAll, TelemetryProbe::disabled());
+
+    let connection = stranger
+        .connect(server.addr(), BURN_REMOTE_ALPN)
+        .await
+        .unwrap();
+    let (mut send, _recv) = connection.open_bi().await.unwrap();
+    send.write_all(&CLAIMED_LENGTH.to_le_bytes()).await.unwrap();
+
+    let closed = tokio::time::timeout(HANG_LIMIT, connection.closed()).await;
+    assert!(
+        closed.is_ok(),
+        "the server is waiting for a frame it should have refused on its length"
+    );
+
+    router.shutdown().await.unwrap();
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_tensor_moves_back_to_the_server_it_came_from() {
+    let first = local_endpoint().await;
+    let second = local_endpoint().await;
+    let client = local_endpoint().await;
+    let routers = [
+        spawn_router::<Flex>(first.clone(), AllowAll, TelemetryProbe::disabled()),
+        spawn_router::<Flex>(second.clone(), AllowAll, TelemetryProbe::disabled()),
+    ];
+    let on_first = Device::remote_options(&host_dialed_from(&client, first.addr()))
+        .init_async()
+        .await
+        .unwrap();
+    let on_second = Device::remote_options(&host_dialed_from(&client, second.addr()))
+        .init_async()
+        .await
+        .unwrap();
+
+    tokio::task::block_in_place(|| {
+        within_hang_limit(move || {
+            let tensor = Tensor::<1>::from_floats([3.0, 5.0, 7.0], &on_first).to_device(&on_second);
+            assert_eq!(
+                tensor.clone().try_into_vec_as::<f32>().unwrap(),
+                vec![3.0, 5.0, 7.0]
+            );
+            let tensor = tensor.to_device(&on_first);
+            assert_eq!(
+                tensor.try_into_vec_as::<f32>().unwrap(),
+                vec![3.0, 5.0, 7.0]
+            );
+        })
+    });
+
+    for router in routers {
+        router.shutdown().await.unwrap();
+    }
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_server_whose_endpoint_dialed_out_first_is_downloaded_from() {
+    let shared = local_endpoint().await;
+    let target = local_endpoint().await;
+    let client = local_endpoint().await;
+    let target_router = spawn_router::<Flex>(target.clone(), AllowAll, TelemetryProbe::disabled());
+    let _dialed_out = Device::remote_options(&host_dialed_from(&shared, target.addr()))
+        .init_async()
+        .await
+        .unwrap();
+    let shared_router = spawn_router::<Flex>(shared.clone(), AllowAll, TelemetryProbe::disabled());
+
+    let source = Device::remote_options(&host_dialed_from(&client, shared.addr()))
+        .init_async()
+        .await
+        .unwrap();
+    let destination = Device::remote_options(&host_dialed_from(&client, target.addr()))
+        .init_async()
+        .await
+        .unwrap();
+
+    tokio::task::block_in_place(|| {
+        within_hang_limit(move || {
+            let tensor = Tensor::<1>::from_floats([3.0, 5.0, 7.0], &source).to_device(&destination);
+            assert_eq!(
+                tensor.try_into_vec_as::<f32>().unwrap(),
+                vec![3.0, 5.0, 7.0]
+            );
+        })
+    });
+
+    shared_router.shutdown().await.unwrap();
+    target_router.shutdown().await.unwrap();
+}
+
+/// Upload `len` floats to one server, move them to another, and read them back from there.
+async fn upload_transfer_and_read_back(len: usize) {
+    let source_server = local_endpoint().await;
+    let target_server = local_endpoint().await;
+    let client = local_endpoint().await;
+    let routers = [
+        spawn_router::<Flex>(source_server.clone(), AllowAll, TelemetryProbe::disabled()),
+        spawn_router::<Flex>(target_server.clone(), AllowAll, TelemetryProbe::disabled()),
+    ];
+    let source = Device::remote_options(&host_dialed_from(&client, source_server.addr()))
+        .init_async()
+        .await
+        .unwrap();
+    let target = Device::remote_options(&host_dialed_from(&client, target_server.addr()))
+        .init_async()
+        .await
+        .unwrap();
+
+    tokio::task::block_in_place(|| {
+        // Every integer below 2^24 is exact in an f32.
+        let values: Vec<f32> = (0..len).map(|i| (i % (1 << 24)) as f32).collect();
+        let tensor = Tensor::<1>::from_data(TensorData::new(values, [len]), &source);
+        let read = tensor.to_device(&target).try_into_vec_as::<f32>().unwrap();
+        assert_eq!(read.len(), len);
+        assert!(
+            read.iter()
+                .enumerate()
+                .all(|(i, value)| *value == (i % (1 << 24)) as f32),
+            "the tensor changed on its way"
+        );
+    });
+
+    for router in routers {
+        router.shutdown().await.unwrap();
+    }
+}
+
 /// The synchronous client path used by scripts, REPLs and Rust notebooks: no `async`, no ambient
-/// runtime in the calling code. The device is created on the client's runtime (so the session
-/// reuses it, the way [`RemoteNode::bind_blocking`] does internally) and every operation is then
-/// driven synchronously off it.
+/// runtime in the calling code.
 #[test]
 fn synchronous_client_round_trip() {
     // Server on its own local runtime, kept alive for the duration of the test.
@@ -111,14 +438,9 @@ fn synchronous_client_round_trip() {
         .unwrap();
     let client_endpoint = client_runtime.block_on(local_endpoint());
 
-    // Create the device on the client's runtime so the session captures it; the round-trip below
-    // then runs from this non-runtime thread, exactly what a notebook cell does.
-    let remote = {
-        let _guard = client_runtime.enter();
-        RemoteDevice::iroh(&client_endpoint, server_addr, 0)
-    };
-    remote.connect();
-    let device = Device::new(remote);
+    let device = Device::remote_options(&host_dialed_from(&client_endpoint, server_addr))
+        .init()
+        .unwrap();
 
     let output = Tensor::<1>::from_floats([1.0, 2.0, 3.0], &device) * 2.0;
     assert_eq!(
@@ -129,22 +451,147 @@ fn synchronous_client_round_trip() {
     server_runtime.block_on(router.shutdown()).unwrap();
 }
 
+#[test]
+fn a_tensor_larger_than_the_stream_window_round_trips() {
+    within_hang_limit(|| {
+        let server_runtime = tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+        let server = server_runtime.block_on(local_endpoint());
+        let router = {
+            let _guard = server_runtime.enter();
+            spawn_router::<Flex>(server.clone(), AllowAll, TelemetryProbe::disabled())
+        };
+        let client_runtime = tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+        let client = client_runtime.block_on(local_endpoint());
+        let device = Device::remote_options(&host_dialed_from(&client, server.addr()))
+            .init()
+            .unwrap();
+
+        let len = 4 * 1024 * 1024;
+        let data = TensorData::new((0..len).map(|i| i as f32).collect::<Vec<_>>(), [len]);
+        Tensor::<1>::from_data(data.clone(), &device)
+            .into_data()
+            .assert_eq(&data, true);
+
+        server_runtime.block_on(router.shutdown()).unwrap();
+    });
+}
+
+#[test]
+fn unsigned_int_uploads_read_back_and_cast() {
+    within_hang_limit(|| {
+        let server_runtime = tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+        let server = server_runtime.block_on(local_endpoint());
+        let router = {
+            let _guard = server_runtime.enter();
+            spawn_router::<Flex>(server.clone(), AllowAll, TelemetryProbe::disabled())
+        };
+        let client_runtime = tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+        let client = client_runtime.block_on(local_endpoint());
+        let device = Device::remote_options(&host_dialed_from(&client, server.addr()))
+            .init()
+            .unwrap();
+
+        let pixels = TensorData::new(vec![0u8, 7, 128, 255], [2, 2]);
+        let pixels = Tensor::<2, Int>::from_data(pixels, (&device, DType::U8));
+        assert_eq!(
+            pixels.clone().try_into_vec_as::<u8>().unwrap(),
+            vec![0, 7, 128, 255]
+        );
+        assert_eq!(
+            pixels.float().try_into_vec_as::<f32>().unwrap(),
+            vec![0.0, 7.0, 128.0, 255.0]
+        );
+
+        server_runtime.block_on(router.shutdown()).unwrap();
+    });
+}
+
+#[test]
+fn blocking_reads_inside_a_tokio_task_outlast_its_budget() {
+    within_hang_limit(|| {
+        let runtime = tokio::runtime::Runtime::new().unwrap();
+        runtime.block_on(async {
+            let server = local_endpoint().await;
+            let client = local_endpoint().await;
+            let router = spawn_router::<Flex>(server.clone(), AllowAll, TelemetryProbe::disabled());
+
+            let device = Device::remote_options(&host_dialed_from(&client, server.addr()))
+                .init_async()
+                .await
+                .unwrap();
+            while coop::has_budget_remaining() {
+                coop::consume_budget().await;
+            }
+            let output = Tensor::<1>::from_floats([1.0, 2.0, 3.0], &device) * 2.0;
+            assert_eq!(
+                output.try_into_vec_as::<f32>().unwrap(),
+                vec![2.0, 4.0, 6.0]
+            );
+
+            router.shutdown().await.unwrap();
+        });
+    });
+}
+
+#[test]
+fn tensors_dropped_on_another_thread_still_feed_their_queued_reader() {
+    within_hang_limit(|| {
+        let runtime = tokio::runtime::Runtime::new().unwrap();
+        let server = runtime.block_on(local_endpoint());
+        let client = runtime.block_on(local_endpoint());
+        let router = {
+            let _guard = runtime.enter();
+            spawn_router::<Flex>(server.clone(), AllowAll, TelemetryProbe::disabled())
+        };
+        let device = Device::remote_options(&host_dialed_from(&client, server.addr()))
+            .init()
+            .unwrap();
+
+        let computed = Tensor::<1>::from_floats([1.0, 2.0, 3.0], &device) + 1.0;
+        // A free before the producer runs is a no-op, so only `computed` can catch an early free.
+        device.sync().unwrap();
+        let pending = computed.clone() * 2.0;
+        let reader = pending.clone() + computed.clone();
+        thread::spawn(move || drop((computed, pending)))
+            .join()
+            .unwrap();
+
+        assert_eq!(
+            reader.try_into_vec_as::<f32>().unwrap(),
+            vec![6.0, 9.0, 12.0]
+        );
+
+        runtime.block_on(router.shutdown()).unwrap();
+    });
+}
+
 #[tokio::test(flavor = "multi_thread")]
 async fn passes_application_credentials_to_the_peer_authorizer() {
     let server = local_endpoint().await;
     let client = local_endpoint().await;
     let router = spawn_router::<Flex>(
         server.clone(),
-        |request: burn_remote::server::AuthorizationRequest<'_>| {
-            (request.credential == b"fleet-ticket")
+        |request: AuthorizationRequest<'_>| {
+            (request.credential.as_bytes() == b"fleet-ticket")
                 .then_some(())
                 .ok_or_else(|| "invalid fleet ticket".to_string())
         },
         TelemetryProbe::disabled(),
     );
-    let remote = RemoteDevice::iroh_authorized(&client, server.addr(), 0, b"fleet-ticket".to_vec());
-    remote.connect();
-    let device = Device::new(remote);
+    let host = host_dialed_from(&client, server.addr()).with_credential(b"fleet-ticket".to_vec());
+    let device = Device::remote_options(&host).init_async().await.unwrap();
     let data = Tensor::<1>::from_floats([4.0], &device).to_data();
     assert_eq!(data.try_into_vec::<f32>().unwrap(), vec![4.0]);
 
@@ -155,16 +602,16 @@ async fn passes_application_credentials_to_the_peer_authorizer() {
 #[cfg(feature = "fusion")]
 async fn fused_compute_surfaces_as_graph_telemetry() {
     use burn_remote::telemetry::{TelemetryEvent, TelemetryProbe, TrafficAggregator};
-    use std::time::Duration;
 
     let server = local_endpoint().await;
     let client = local_endpoint().await;
 
     let (probe, mut events) = TelemetryProbe::channel(4096);
     let router = spawn_router::<Flex>(server.clone(), AllowAll, probe);
-    let remote = RemoteDevice::iroh(&client, server.addr(), 0);
-    remote.connect();
-    let device = Device::new(remote);
+    let device = Device::remote_options(&host_dialed_from(&client, server.addr()))
+        .init_async()
+        .await
+        .unwrap();
 
     // A multi-op float expression fuses into a cached graph; running it twice forces a replay, and
     // each read flushes the fusion stream so the server actually executes the graph.
@@ -207,4 +654,471 @@ async fn fused_compute_surfaces_as_graph_telemetry() {
     );
 
     router.shutdown().await.unwrap();
+}
+
+#[cfg(feature = "fusion")]
+mod loader_uploads {
+    use super::*;
+    use burn_remote::telemetry::{DrainStatus, OpClass, TelemetryEvent};
+    use burn_tensor::{Int, TensorData};
+    use std::collections::HashSet;
+    use std::sync::{Arc, mpsc};
+
+    const STEPS: usize = 8;
+    const UPLOADS_PER_BATCH: usize = 2;
+
+    struct Batch {
+        images: Tensor<2>,
+        targets: Tensor<1, Int>,
+    }
+
+    impl Batch {
+        fn new(step: usize, device: &Device) -> Self {
+            Self {
+                images: Tensor::from_data(TensorData::new(vec![step as f32; 12], [3, 4]), device),
+                targets: Tensor::from_data(TensorData::new(vec![step as i64; 3], [3]), device),
+            }
+        }
+    }
+
+    /// Runs `work` on a fusion remote device and returns every event its server emitted.
+    fn server_events(work: impl FnOnce(&Device)) -> Vec<Arc<TelemetryEvent>> {
+        let runtime = tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+        let server = runtime.block_on(local_endpoint());
+        let (probe, mut events) = TelemetryProbe::channel(4096);
+        let router = {
+            let _guard = runtime.enter();
+            spawn_router::<Flex>(server.clone(), AllowAll, probe)
+        };
+        let client = runtime.block_on(local_endpoint());
+        let device = Device::remote_options(&host_dialed_from(&client, server.addr()))
+            .init()
+            .unwrap();
+
+        work(&device);
+        device.sync().unwrap();
+
+        let mut seen = Vec::new();
+        assert!(matches!(
+            events.drain_into(&mut seen),
+            DrainStatus::Open { lagged: 0 }
+        ));
+        runtime.block_on(router.shutdown()).unwrap();
+        seen
+    }
+
+    fn assert_server_drops_every_upload(consume: fn(Batch)) {
+        let seen = server_events(|device| {
+            // The loader only uploads, so nothing else ever executes its stream.
+            let (batches, received) = mpsc::sync_channel(2);
+            let loader = {
+                let device = device.clone();
+                std::thread::spawn(move || {
+                    for step in 0..STEPS {
+                        batches.send(Batch::new(step, &device)).unwrap();
+                    }
+                })
+            };
+            for batch in received {
+                consume(batch);
+            }
+            loader.join().unwrap();
+        });
+
+        let mut uploads = HashSet::new();
+        let mut dropped = HashSet::new();
+        for event in &seen {
+            match event.as_ref() {
+                TelemetryEvent::Op {
+                    kind: OpClass::Init,
+                    outputs,
+                    ..
+                } => uploads.extend(outputs.iter().map(|output| output.id)),
+                TelemetryEvent::TensorDropped { tensor, .. } => {
+                    dropped.insert(*tensor);
+                }
+                _ => {}
+            }
+        }
+        assert_eq!(uploads.len(), STEPS * UPLOADS_PER_BATCH);
+        assert_eq!(uploads.intersection(&dropped).count(), uploads.len());
+    }
+
+    /// An upload is on the server as soon as it is created, so it must not end the graph the
+    /// computation around it is accumulating. More uploads than the fusion search has blocks
+    /// (`max_blocks`, 5 by default), since a queued upload would take a block of its own.
+    #[test]
+    fn do_not_split_the_graph_around_them() {
+        let seen = server_events(|device| {
+            let x = Tensor::<1>::from_floats([1.0, 2.0, 3.0], device);
+            let mut y = (x * 2.0).exp();
+            for _ in 0..8 {
+                y = y + Tensor::<1>::from_floats([1.0, 1.0, 1.0], device);
+            }
+            let _ = y.log().into_data();
+        });
+
+        let graphs = seen
+            .iter()
+            .filter(|event| matches!(event.as_ref(), TelemetryEvent::GraphExecuted { .. }))
+            .count();
+        assert_eq!(graphs, 1, "the uploads split the graph");
+    }
+
+    #[test]
+    fn are_freed_when_computed_on_another_thread() {
+        assert_server_drops_every_upload(|batch| {
+            let loss = batch.images.sum() + batch.targets.float().sum();
+            let _: f32 = loss.into_scalar();
+        });
+    }
+
+    #[test]
+    fn are_freed_when_read_on_another_thread() {
+        assert_server_drops_every_upload(|batch| {
+            batch.images.into_data();
+            batch.targets.into_data();
+        });
+    }
+}
+
+mod iroh_peer {
+    use super::*;
+    use burn_remote::{
+        EndpointId, IrohRelays,
+        server::{IrohIdentity, IrohTransport, TokenAuthorizer},
+    };
+    use iroh_relay::server::{RelayConfig, Server, ServerConfig};
+    use std::{
+        net::{Ipv4Addr, Ipv6Addr, SocketAddr, UdpSocket},
+        sync::{
+            Arc,
+            atomic::{AtomicBool, Ordering},
+        },
+    };
+
+    const TOKEN: &str = "fleet-token";
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_peer_reaches_a_server_through_a_private_relay() {
+        let relay = private_relay().await;
+        let relays = IrohRelays::Private {
+            url: format!("http://{}", relay.http_addr().unwrap())
+                .parse()
+                .unwrap(),
+        };
+        let id = serve(IrohTransport::new(IrohIdentity::random()).with_relays(relays.clone()));
+        let host = RemoteHost::iroh(IrohHost::new(id).with_relays(relays)).with_credential(TOKEN);
+
+        Device::remote_options(&host).init_async().await.unwrap();
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_peer_with_the_token_reaches_a_relay_free_server_by_address() {
+        let port = free_udp_port();
+        let host = direct_host(
+            serve_with_token(port),
+            Ipv4Addr::LOCALHOST.into(),
+            port,
+            TOKEN,
+        );
+
+        let device = Device::remote_options(&host).init_async().await.unwrap();
+        let data = Tensor::<1>::from_floats([4.0], &device) * 2.0;
+        assert_eq!(data.try_into_vec_as::<f32>().unwrap(), vec![8.0]);
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_peer_connected_twice_yields_the_same_device() {
+        let port = free_udp_port();
+        let host = direct_host(
+            serve_with_token(port),
+            Ipv4Addr::LOCALHOST.into(),
+            port,
+            TOKEN,
+        );
+
+        let first = Device::remote_options(&host).init_async().await.unwrap();
+        assert_eq!(
+            Device::remote_options(&host).init_async().await.unwrap(),
+            first
+        );
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_peer_with_the_wrong_token_is_refused() {
+        let port = free_udp_port();
+        let id = serve_with_token(port);
+        let admitted = direct_host(id, Ipv4Addr::LOCALHOST.into(), port, TOKEN);
+        Device::remote_options(&admitted)
+            .init_async()
+            .await
+            .unwrap();
+
+        let refused = direct_host(id, Ipv4Addr::LOCALHOST.into(), port, "wrong-token");
+        let result = Device::remote_options(&refused).init_async().await;
+        assert!(
+            matches!(result, Err(ConnectError::Unauthorized)),
+            "{result:?}"
+        );
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_peer_asking_for_a_device_the_server_lacks_is_told_how_many_it_hosts() {
+        let port = free_udp_port();
+        let host = direct_host(
+            serve_with_token(port),
+            Ipv4Addr::LOCALHOST.into(),
+            port,
+            TOKEN,
+        );
+
+        let result = Device::remote_options(&host)
+            .device_index(1)
+            .init_async()
+            .await;
+        assert!(
+            matches!(
+                result,
+                Err(ConnectError::NoSuchDevice {
+                    device_count: 1,
+                    ..
+                })
+            ),
+            "{result:?}"
+        );
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_peer_refused_once_connects_on_its_next_try() {
+        let port = free_udp_port();
+        let open = Arc::new(AtomicBool::new(false));
+        let admits = open.clone();
+        let id = start(
+            IrohTransport::new(IrohIdentity::random())
+                .with_relays(IrohRelays::Disabled)
+                .with_port(port),
+            move |_: AuthorizationRequest<'_>| {
+                if admits.load(Ordering::Relaxed) {
+                    Ok(())
+                } else {
+                    Err("not yet".to_string())
+                }
+            },
+        );
+        let host = direct_host(id, Ipv4Addr::LOCALHOST.into(), port, TOKEN);
+
+        let result = Device::remote_options(&host).init_async().await;
+        assert!(
+            matches!(result, Err(ConnectError::Unauthorized)),
+            "{result:?}"
+        );
+        open.store(true, Ordering::Relaxed);
+        Device::remote_options(&host).init_async().await.unwrap();
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_peer_whose_server_is_not_at_the_address_cannot_reach_it() {
+        let port = free_udp_port();
+        serve_with_token(port);
+        let elsewhere = IrohIdentity::random().id();
+        let host = direct_host(elsewhere, Ipv4Addr::LOCALHOST.into(), port, TOKEN);
+
+        let result = Device::remote_options(&host).init_async().await;
+        assert!(
+            matches!(&result, Err(ConnectError::Unreachable { .. })),
+            "{result:?}"
+        );
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_server_dialed_from_two_application_endpoints_is_two_devices() {
+        let port = free_udp_port();
+        let server = serve_with_token(port);
+        let dialed_from = |endpoint: Endpoint| {
+            RemoteHost::iroh(
+                IrohHost::new(server)
+                    .with_address(SocketAddr::new(Ipv4Addr::LOCALHOST.into(), port))
+                    .with_endpoint(endpoint),
+            )
+            .with_credential(TOKEN)
+        };
+
+        let first = dialed_from(local_endpoint().await);
+        let second = dialed_from(local_endpoint().await);
+        assert_ne!(
+            Device::remote_options(&first).init_async().await.unwrap(),
+            Device::remote_options(&second).init_async().await.unwrap()
+        );
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_peer_dials_from_an_application_endpoint() {
+        let port = free_udp_port();
+        let server = serve_with_token(port);
+        let endpoint = local_endpoint().await;
+        let host = RemoteHost::iroh(
+            IrohHost::new(server)
+                .with_address(SocketAddr::new(Ipv4Addr::LOCALHOST.into(), port))
+                .with_endpoint(endpoint.clone()),
+        )
+        .with_credential(TOKEN);
+
+        let device = Device::remote_options(&host).init_async().await.unwrap();
+        assert_eq!(
+            Device::remote_options(&host).init_async().await.unwrap(),
+            device
+        );
+        assert!(endpoint.remote_info(server).await.is_some());
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_peer_reaches_a_server_over_ipv6() {
+        if UdpSocket::bind((Ipv6Addr::LOCALHOST, 0)).is_err() {
+            return;
+        }
+        let port = free_udp_port();
+        let host = direct_host(
+            serve_with_token(port),
+            Ipv6Addr::LOCALHOST.into(),
+            port,
+            TOKEN,
+        );
+
+        Device::remote_options(&host).init_async().await.unwrap();
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_server_whose_ipv6_port_is_taken_still_serves_ipv4() {
+        let port = free_udp_port();
+        let Ok(_taken) = UdpSocket::bind((Ipv6Addr::LOCALHOST, port)) else {
+            return;
+        };
+        let host = direct_host(
+            serve_with_token(port),
+            Ipv4Addr::LOCALHOST.into(),
+            port,
+            TOKEN,
+        );
+
+        Device::remote_options(&host).init_async().await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn a_peer_without_relays_or_an_address_is_not_dialed() {
+        let host = RemoteHost::iroh(
+            IrohHost::new(IrohIdentity::random().id()).with_relays(IrohRelays::Disabled),
+        );
+
+        assert!(matches!(
+            Device::remote_options(&host).init_async().await,
+            Err(ConnectError::NoAddress)
+        ));
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_server_restarted_on_its_port_replaces_the_device() {
+        // The port frees once the stopped router has closed and its sessions have drained.
+        const REBIND_ATTEMPTS: u32 = 50;
+        const REBIND_SETTLE: Duration = Duration::from_millis(200);
+
+        let port = free_udp_port();
+        let identity = IrohIdentity::random();
+        let transport = || {
+            IrohTransport::new(identity.clone())
+                .with_relays(IrohRelays::Disabled)
+                .with_port(port)
+        };
+        let serve = || {
+            tokio::spawn(
+                BackendServer::<Flex>::new(vec![Default::default()]).serve_async(transport()),
+            )
+        };
+
+        let first = serve();
+        let host = direct_host(identity.id(), Ipv4Addr::LOCALHOST.into(), port, TOKEN);
+        let stopped = Device::remote_options(&host).init_async().await.unwrap();
+        first.abort();
+        assert!(first.await.unwrap_err().is_cancelled());
+        // A read fails only once the client has seen the session end, which a reconnect relies on.
+        let stale = stopped.clone();
+        tokio::task::block_in_place(|| {
+            within_hang_limit(move || {
+                let read = (Tensor::<1>::from_floats([1.0], &stale) * 2.0).try_into_data();
+                assert!(read.is_err(), "a session outlived its server: {read:?}");
+            })
+        });
+
+        for _ in 0..REBIND_ATTEMPTS {
+            let next = serve();
+            tokio::time::sleep(REBIND_SETTLE).await;
+            if !next.is_finished() {
+                let served = Device::remote_options(&host).init_async().await.unwrap();
+                assert_ne!(served, stopped);
+                next.abort();
+                return;
+            }
+            let refused = next.await.unwrap();
+            assert!(
+                matches!(refused, Err(ServeError::Bind { .. })),
+                "{refused:?}"
+            );
+        }
+        panic!("the stopped server never freed its port");
+    }
+
+    /// A port free on IPv4, and on IPv6 where the host has it.
+    fn free_udp_port() -> u16 {
+        loop {
+            let port = UdpSocket::bind((Ipv4Addr::UNSPECIFIED, 0))
+                .unwrap()
+                .local_addr()
+                .unwrap()
+                .port();
+            let ipv6 = UdpSocket::bind((Ipv6Addr::UNSPECIFIED, port));
+            if ipv6.is_ok() || UdpSocket::bind((Ipv6Addr::UNSPECIFIED, 0)).is_err() {
+                return port;
+            }
+        }
+    }
+
+    fn serve_with_token(port: u16) -> EndpointId {
+        serve(
+            IrohTransport::new(IrohIdentity::random())
+                .with_relays(IrohRelays::Disabled)
+                .with_port(port),
+        )
+    }
+
+    fn serve(transport: IrohTransport) -> EndpointId {
+        start(transport, TokenAuthorizer::new(TOKEN).unwrap())
+    }
+
+    fn start(transport: IrohTransport, authorizer: impl PeerAuthorizer) -> EndpointId {
+        let id = transport.id();
+        let serving = BackendServer::<Flex>::new(vec![Default::default()])
+            .with_authorizer(authorizer)
+            .serve_async(transport);
+        tokio::spawn(async move { serving.await.unwrap() });
+        id
+    }
+
+    /// A relay on a free local port, over plain HTTP so no certificate is needed.
+    async fn private_relay() -> Server {
+        let mut config = ServerConfig::default();
+        config.relay = Some(RelayConfig::new((Ipv4Addr::LOCALHOST, 0)));
+        Server::spawn(config).await.unwrap()
+    }
+
+    fn direct_host(id: EndpointId, ip: std::net::IpAddr, port: u16, token: &str) -> RemoteHost {
+        RemoteHost::iroh(
+            IrohHost::new(id)
+                .with_relays(IrohRelays::Disabled)
+                .with_address(SocketAddr::new(ip, port)),
+        )
+        .with_credential(token)
+    }
 }

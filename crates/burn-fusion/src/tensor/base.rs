@@ -265,7 +265,7 @@ impl<R: FusionRuntime> Drop for FusionTensor<R> {
             if StreamId::current() == stream {
                 client.register(stream, OperationIr::Drop(ir), DropOp { id });
             } else {
-                client.register_foreign_drop(stream, ir, DropOp { id });
+                client.foreign_drop(stream, ir);
             }
         };
 

@@ -209,7 +209,7 @@ mod tests {
         let dis = Tensor::<4>::random([4, 3, 64, 64], Distribution::Default, &device);
         let reference = Tensor::<4>::random([4, 3, 64, 64], Distribution::Default, &device);
         let score = metric.forward(dis, reference);
-        let values = score.into_data().to_vec::<f32>().unwrap();
+        let values = score.into_data().try_to_vec::<f32>().unwrap();
         assert_eq!(values.len(), 4);
         for v in values {
             assert!(v.is_finite(), "A-FINE produced non-finite value: {v}");
@@ -225,7 +225,7 @@ mod tests {
         let zeros = Tensor::<4>::zeros([1, 3, 64, 64], &device);
         let ones = Tensor::<4>::ones([1, 3, 64, 64], &device);
         let score = metric.forward(zeros, ones);
-        let value = score.into_data().to_vec::<f32>().unwrap()[0];
+        let value = score.into_data().try_to_vec::<f32>().unwrap()[0];
         assert!(value.is_finite(), "got non-finite value {value}");
     }
 
@@ -241,9 +241,13 @@ mod tests {
         let forward = metric
             .forward(a.clone(), b.clone())
             .into_data()
-            .to_vec::<f32>()
+            .try_to_vec::<f32>()
             .unwrap()[0];
-        let reverse = metric.forward(b, a).into_data().to_vec::<f32>().unwrap()[0];
+        let reverse = metric
+            .forward(b, a)
+            .into_data()
+            .try_to_vec::<f32>()
+            .unwrap()[0];
         assert!(
             (forward - reverse).abs() > 1e-6,
             "expected asymmetric output, got fwd={forward}, rev={reverse}"
@@ -304,7 +308,7 @@ mod tests {
         let value = metric
             .forward(dis, reference)
             .into_data()
-            .to_vec::<f32>()
+            .try_to_vec::<f32>()
             .unwrap()[0];
 
         // Tolerance: relative 5e-3 covers fp32 attention drift across
@@ -338,14 +342,14 @@ mod tests {
         let random_score = random_metric
             .forward(dis.clone(), reference.clone())
             .into_data()
-            .to_vec::<f32>()
+            .try_to_vec::<f32>()
             .unwrap()[0];
 
         let pretrained_metric = AfineConfig::new().init_pretrained(&device);
         let pretrained_score = pretrained_metric
             .forward(dis, reference)
             .into_data()
-            .to_vec::<f32>()
+            .try_to_vec::<f32>()
             .unwrap()[0];
 
         assert!(

@@ -11,10 +11,16 @@ use burn_backend::TensorData;
 use burn_ir::BackendIr;
 use tokio::sync::{Mutex, Notify};
 
-use super::node::{RemoteNode, StreamKind, recv_frame, send_frame};
-use crate::server::transfer::TensorTransfer;
-use crate::shared::TransferCapability;
-use crate::{PeerAddr, PeerId};
+use super::node::{RemoteNode, StreamKind};
+use crate::{
+    PeerAddr, PeerId,
+    server::transfer::TensorTransfer,
+    shared::{Encode, Encoded, TransferCapability},
+    transport::{
+        link::{FrameSink, FrameSource, MAX_UNAUTHORIZED_FRAME_SIZE},
+        message::{MessageSink, MessageSource},
+    },
+};
 
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
 enum TransferMessage {
@@ -23,8 +29,10 @@ enum TransferMessage {
     Denied(String),
 }
 
+impl Encode for TransferMessage {}
+
 struct ExposedTensor {
-    bytes: bytes::Bytes,
+    message: Encoded,
     target: iroh::EndpointId,
     downloads: u32,
     max_downloads: u32,
@@ -51,10 +59,11 @@ impl<B: BackendIr> IrohTransfer<B> {
     pub(crate) async fn handle_stream(
         &self,
         remote: iroh::EndpointId,
-        mut send: iroh::endpoint::SendStream,
+        send: iroh::endpoint::SendStream,
         mut recv: iroh::endpoint::RecvStream,
     ) -> Result<(), String> {
-        let request = recv_frame(&mut recv)
+        // One bare frame, since it is read before the capability authorizes the peer.
+        let request = FrameSource::recv(&mut recv, MAX_UNAUTHORIZED_FRAME_SIZE)
             .await?
             .ok_or_else(|| "Tensor-transfer stream closed before its request".to_string())?;
         let TransferMessage::Request(capability) = rmp_serde::from_slice(&request)
@@ -64,23 +73,22 @@ impl<B: BackendIr> IrohTransfer<B> {
         };
 
         let response = match self.take(capability, remote).await {
-            Ok(bytes) => bytes,
-            Err(reason) => rmp_serde::to_vec(&TransferMessage::Denied(reason))
-                .map(bytes::Bytes::from)
+            Ok(message) => message,
+            Err(reason) => TransferMessage::Denied(reason)
+                .encode()
                 .map_err(|err| format!("Failed to encode tensor-transfer denial: {err}"))?,
         };
-        send_frame(&mut send, &response).await?;
-        send.finish()
-            .map_err(|err| format!("Failed to finish tensor-transfer stream: {err}"))?;
-        Ok(())
+        let mut response_sink = MessageSink::new(send);
+        response_sink.send(response).await?;
+        response_sink.close().await
     }
 
     async fn take(
         &self,
         capability: TransferCapability,
         remote: iroh::EndpointId,
-    ) -> Result<bytes::Bytes, String> {
-        super::time::timeout(TRANSFER_WAIT_TIMEOUT, async {
+    ) -> Result<Encoded, String> {
+        crate::time::timeout(TRANSFER_WAIT_TIMEOUT, async {
             loop {
                 let notified = self.exposed_notify.notified();
                 tokio::pin!(notified);
@@ -95,11 +103,11 @@ impl<B: BackendIr> IrohTransfer<B> {
                             ));
                         }
                         tensor.downloads += 1;
-                        let bytes = tensor.bytes.clone();
+                        let message = tensor.message.clone();
                         if tensor.downloads < tensor.max_downloads {
                             exposed.insert(capability, tensor);
                         }
-                        return Ok(bytes);
+                        return Ok(message);
                     }
                 }
                 notified.as_mut().await;
@@ -111,7 +119,7 @@ impl<B: BackendIr> IrohTransfer<B> {
 
     async fn expose_response(
         &self,
-        bytes: bytes::Bytes,
+        message: Encoded,
         max_downloads: u32,
         capability: TransferCapability,
         target: iroh::EndpointId,
@@ -119,7 +127,7 @@ impl<B: BackendIr> IrohTransfer<B> {
         self.exposed.lock().await.insert(
             capability,
             ExposedTensor {
-                bytes,
+                message,
                 target,
                 downloads: 0,
                 max_downloads,
@@ -129,7 +137,7 @@ impl<B: BackendIr> IrohTransfer<B> {
 
         let exposed = self.exposed.clone();
         crate::server::spawn::spawn_detached(async move {
-            super::time::sleep(TRANSFER_CAPABILITY_TTL).await;
+            crate::time::sleep(TRANSFER_CAPABILITY_TTL).await;
             exposed.lock().await.remove(&capability);
         });
     }
@@ -150,14 +158,14 @@ impl<B: BackendIr> TensorTransfer<B> for IrohTransfer<B> {
             log::error!("An Iroh tensor transfer cannot target a non-Iroh peer");
             return;
         };
-        let bytes = match rmp_serde::to_vec(&TransferMessage::Tensor(data)) {
-            Ok(bytes) => bytes::Bytes::from(bytes),
+        let message = match TransferMessage::Tensor(data).encode() {
+            Ok(message) => message,
             Err(err) => {
                 log::error!("Failed to encode tensor transfer {capability:?}: {err}");
                 return;
             }
         };
-        self.expose_response(bytes, max_downloads, capability, target)
+        self.expose_response(message, max_downloads, capability, target)
             .await;
     }
 
@@ -174,30 +182,30 @@ impl<B: BackendIr> TensorTransfer<B> for IrohTransfer<B> {
                 return None;
             }
         }
-        let (mut send, mut recv) = match self
+        let (mut send, recv) = match self
             .node
             .open_stream(&remote, StreamKind::TensorTransfer)
             .await
         {
             Ok(streams) => streams,
             Err(err) => {
-                log::error!("{err}");
+                log::error!("Cannot open a tensor-transfer stream to {remote}: {err}");
                 return None;
             }
         };
-        let request = match rmp_serde::to_vec(&TransferMessage::Request(capability)) {
+        let request = match TransferMessage::Request(capability).encode() {
             Ok(request) => request,
             Err(err) => {
                 log::error!("Failed to encode tensor-transfer request: {err}");
                 return None;
             }
         };
-        if let Err(err) = send_frame(&mut send, &request).await {
+        if let Err(err) = FrameSink::send(&mut send, request.into_bytes()).await {
             log::error!("{err}");
             return None;
         }
         let _ = send.finish();
-        let response = match recv_frame(&mut recv).await {
+        let response = match MessageSource::new(recv).recv().await {
             Ok(Some(response)) => response,
             Ok(None) => {
                 log::error!("Tensor-transfer peer closed without a response");
@@ -229,13 +237,13 @@ impl<B: BackendIr> TensorTransfer<B> for IrohTransfer<B> {
         let Some(target) = target.into_iroh_id() else {
             return;
         };
-        let bytes = match rmp_serde::to_vec(&TransferMessage::Denied(reason)) {
-            Ok(bytes) => bytes.into(),
+        let message = match TransferMessage::Denied(reason).encode() {
+            Ok(message) => message,
             Err(err) => {
                 log::error!("Failed to encode tensor-transfer failure: {err}");
                 return;
             }
         };
-        self.expose_response(bytes, 1, capability, target).await;
+        self.expose_response(message, 1, capability, target).await;
     }
 }

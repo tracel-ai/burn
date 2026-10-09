@@ -1,9 +1,16 @@
-use crate::metrics::{MetricSide, TelemetryLogger, logger_task};
-use crate::shared::{
-    LocalTransferId, PROTOCOL_VERSION, RemoteMessage, RequestId, SessionId, SessionInfo,
-    SessionInit, Task, TaskResponse, TaskResponseContent, TensorRemote, TransferCapability,
+use crate::{
+    metrics::{MetricSide, TelemetryLogger, logger_task},
+    shared::{
+        Encode, LocalTransferId, PROTOCOL_VERSION, RemoteMessage, RequestId, SessionId,
+        SessionInfo, SessionInit, Task, TaskResponse, TaskResponseContent, TensorRemote,
+        TransferCapability,
+    },
+    telemetry::{CHANNEL_CAPACITY, TelemetryEvent, TelemetryProbe, serialized_len},
+    transport::{
+        link::{FrameSink, FrameSource, MAX_FRAME_SIZE, MAX_UNAUTHORIZED_FRAME_SIZE},
+        message::MessageSource,
+    },
 };
-use crate::telemetry::{CHANNEL_CAPACITY, TelemetryEvent, TelemetryProbe, serialized_len};
 use burn_backend::{
     DTypeUsageSet, ExecutionError, ProfileDuration, ProfileOptions, ProfileTicks, ProfileToken,
     TensorData,
@@ -14,9 +21,13 @@ use burn_std::{DType, DeviceSettings, id::StreamId, profile::Instant};
 // Only the native `sync` path captures a backtrace; the wasm path returns without blocking.
 #[cfg(not(target_family = "wasm"))]
 use burn_std::backtrace::BackTrace;
+use core::{future::Future, pin::Pin};
 use std::collections::HashMap;
 use std::sync::{Arc, OnceLock};
-use tokio::sync::oneshot;
+use tokio::{
+    sync::oneshot,
+    task::coop::{self, Unconstrained},
+};
 
 mod batch;
 mod conn;
@@ -25,15 +36,24 @@ mod registry;
 mod writer;
 
 use batch::OutgoingBatch;
-use conn::{ResponseChannel, open_channels};
+use conn::{ResponseChannel, SessionStreams};
 use pending::{PendingResponses, Responder};
 use writer::SubmitWriter;
 
-use super::runtime::Executor;
+use super::{ConnectError, runtime::Executor};
 pub(crate) use conn::{RemoteEndpoint, SubmitChannel};
-use registry::{device_count_cell, executor_for, settings_cell};
-pub(crate) use registry::{device_count_for, has_settings, new_tensor_id, settings_for};
-pub(crate) use registry::{endpoint_for, register_endpoint};
+use registry::{device_count_cell, settings_cell};
+pub(crate) use registry::{device_count_for, register_endpoint, registered_device, session_end};
+pub(crate) use registry::{has_settings, new_tensor_id, settings_for};
+
+/// How long a connection attempt, then the handshake, may each take before the server is taken to
+/// be stuck.
+#[cfg(not(test))]
+const OPEN_DEADLINE: core::time::Duration = core::time::Duration::from_secs(60);
+
+/// Short enough for a test to wait one out.
+#[cfg(test)]
+const OPEN_DEADLINE: core::time::Duration = core::time::Duration::from_secs(5);
 
 /// All the state owned by the device-runner thread for a single remote device.
 ///
@@ -54,9 +74,10 @@ pub(crate) use registry::{endpoint_for, register_endpoint};
 /// caller awaiting each reply.
 ///
 /// All tokio work (connecting, the writer task, awaiting responses, the response-demux
-/// task) happens on the [`Executor`] captured from the device's endpoint. The caller never
-/// sees a runtime handle.
+/// task) happens on Burn's own [`Executor`]. The caller never sees a runtime handle.
 pub struct RemoteService {
+    /// The device's registry entry, which holds its latest dialing hints.
+    id: u32,
     executor: Executor,
     /// Where to connect on first use. The connection is established lazily (see
     /// [`ensure_connected`](Self::ensure_connected)) rather than in [`init`](Self::init),
@@ -83,6 +104,9 @@ pub struct RemoteService {
     profile_streams: HashMap<u64, StreamId>,
     /// Emits this device's telemetry (the ops and graphs it sends).
     probe: TelemetryProbe,
+    /// Subscribed from the start, so the ops queued before the session opens are logged, but run
+    /// on the runtime the session opens on.
+    logger: Option<Pin<Box<dyn Future<Output = ()> + Send>>>,
     /// Shared cell populated from the init handshake (read by `RemoteDevice::defaults`).
     settings: Arc<OnceLock<DeviceSettings>>,
     /// Shared cell populated from the init handshake (read by `RemoteDevice::enumerate`).
@@ -93,10 +117,13 @@ pub struct RemoteService {
 
 impl DeviceService for RemoteService {
     fn init(device_id: DeviceId) -> Self {
-        let (id, endpoint, device_index) = Self::resolve_endpoint(device_id);
-        // The executor was captured at device-construction time (in the runtime that owns the
-        // transport) and stored in the registry alongside the endpoint; the service just reuses it.
-        let executor = executor_for(id).expect("device registered with a captured executor");
+        let id = device_id.index_id as u32;
+        let registry::RegisteredDevice {
+            endpoint,
+            device_index,
+        } = registered_device(id)
+            .unwrap_or_else(|| panic!("No endpoint registered for device id {device_id}"));
+        let executor = Executor::session();
         let session_id = SessionId::new();
 
         let probe = if TelemetryLogger::enabled() {
@@ -104,9 +131,8 @@ impl DeviceService for RemoteService {
         } else {
             TelemetryProbe::disabled()
         };
-        if let Some(task) = logger_task(&probe, MetricSide::Client) {
-            executor.spawn(task);
-        }
+        let logger = logger_task(&probe, MetricSide::Client)
+            .map(|task| Box::pin(task) as Pin<Box<dyn Future<Output = ()> + Send>>);
 
         // Lazy connect: `init` must return promptly. cubecl holds a process-global
         // device-registry lock across this call (to make device-handle creation atomic), so
@@ -115,6 +141,7 @@ impl DeviceService for RemoteService {
         // Instead we record the endpoint and open the sockets on the first real use, off the
         // lock and on the device-runner thread (see `ensure_connected`).
         Self {
+            id,
             executor,
             endpoint,
             device_index,
@@ -124,9 +151,10 @@ impl DeviceService for RemoteService {
                 let remote = cfg.remote();
                 OutgoingBatch::new(remote.flush_threshold, remote.flush_bytes_threshold)
             },
-            pending: PendingResponses::new(),
+            pending: PendingResponses::new(session_end(id)),
             profile_streams: HashMap::new(),
             probe,
+            logger,
             settings: settings_cell(id),
             device_count: device_count_cell(id),
             session_id,
@@ -146,107 +174,111 @@ impl DeviceService for RemoteService {
 /// Construction helpers for [`RemoteService::init`], one per step of bringing a connection
 /// up. Kept separate from the public submit-style API below.
 impl RemoteService {
-    /// Resolve a device id to its registry index, parsed network [`Address`], and the device
-    /// index to select on the server.
-    fn resolve_endpoint(device_id: DeviceId) -> (u32, RemoteEndpoint, u32) {
-        let id = device_id.index_id as u32;
-        let (endpoint, device_index) = endpoint_for(id)
-            .unwrap_or_else(|| panic!("No endpoint registered for device id {device_id}"));
-        (id, endpoint, device_index)
+    /// Building the device again with new dialing hints updates its registry entry, which a
+    /// session not yet open must dial with.
+    fn refresh_from_registry(&mut self) {
+        if let Some(registered) = registered_device(self.id) {
+            self.endpoint = registered.endpoint;
+        }
     }
 
-    /// Native synchronous wrapper over [`open_channels`](conn::open_channels): blocks the runner
+    fn start_logger(&mut self) {
+        if let Some(task) = self.logger.take() {
+            self.executor.spawn(task);
+        }
+    }
+
+    /// Native synchronous wrapper over [`open_channels`](RemoteEndpoint::open_channels): blocks the runner
     /// thread until the streams are open.
     #[cfg(not(target_family = "wasm"))]
     fn connect_streams(
         executor: &Executor,
         endpoint: &RemoteEndpoint,
-    ) -> (SubmitChannel, ResponseChannel) {
-        executor
-            .block_on(open_channels(endpoint))
-            .unwrap_or_else(|err: String| panic!("{err}"))
+    ) -> Result<SessionStreams, ConnectError> {
+        executor.block_on(endpoint.open_channels())
     }
 
-    /// Send the session-init handshake on both streams and wait for the device settings the
-    /// server replies with on the response stream. Both streams carry the same `Vec<RemoteMessage>`
-    /// wire format; the handshake is just a single-element batch.
-    async fn handshake_async(
-        request: &mut SubmitChannel,
-        response: &mut ResponseChannel,
+    /// The session-init handshake: a single-element `Vec<RemoteMessage>` batch, refused before any
+    /// stream opens if it is larger than a server reads from a client it has not admitted.
+    fn init_frame(
         endpoint: &RemoteEndpoint,
         session_id: SessionId,
         device_index: u32,
-    ) -> (DeviceSettings, u32) {
-        let init_bytes: bytes::Bytes = rmp_serde::to_vec(&vec![RemoteMessage::Init(
-            SessionInit::new(session_id, device_index, endpoint.authorization().to_vec()),
-        )])
+    ) -> Result<bytes::Bytes, ConnectError> {
+        let init = vec![RemoteMessage::Init(SessionInit::new(
+            session_id,
+            device_index,
+            endpoint.credential().as_bytes().to_vec(),
+        ))]
+        .encode()
         .expect("Can serialize RemoteMessage::Init")
-        .into();
-
-        let result: Result<(DeviceSettings, u32), String> = async {
-            request.send(init_bytes).await?;
-
-            let msg = response
-                .recv()
-                .await?
-                .expect("Server disconnected during initialization");
-            let reply: TaskResponse =
-                rmp_serde::from_slice(&msg).expect("Can deserialize init handshake payload");
-
-            match reply.content {
-                TaskResponseContent::Init(SessionInfo {
-                    version,
-                    settings,
-                    device_count,
-                    ..
-                }) => {
-                    if version != PROTOCOL_VERSION {
-                        panic!(
-                            "Server uses Burn Remote protocol version {version}, expected {PROTOCOL_VERSION}"
-                        );
-                    }
-                    Ok((settings, device_count))
-                }
-                other => panic!("Expected Init response, got {other:?}"),
-            }
+        .into_bytes();
+        if init.len() > MAX_UNAUTHORIZED_FRAME_SIZE {
+            return Err(ConnectError::InvalidConfiguration {
+                reason: format!(
+                    "the credential is too large: a server reads at most \
+                     {MAX_UNAUTHORIZED_FRAME_SIZE} bytes before admitting a client, and this \
+                     handshake takes {}",
+                    init.len()
+                ),
+            });
         }
-        .await;
+        Ok(init)
+    }
 
-        result.unwrap_or_else(|err| {
-            panic!(
-                "Failed to initialize remote session at {}: {err}",
-                endpoint.peer_addr()
-            )
-        })
+    /// Send the session-init handshake and wait for the server's answer, checked to speak this
+    /// client's protocol version. Both go in one bare frame, since a server on another version
+    /// refuses that way.
+    async fn handshake_async(
+        streams: &mut SessionStreams,
+        init: bytes::Bytes,
+    ) -> Result<SessionInfo, ConnectError> {
+        let failed = |reason: String| ConnectError::Handshake { reason };
+        streams.submit.send(init).await.map_err(failed)?;
+        let msg = crate::time::timeout(OPEN_DEADLINE, streams.response.recv(MAX_FRAME_SIZE))
+            .await
+            .map_err(|()| {
+                failed(format!(
+                    "the server did not answer within {OPEN_DEADLINE:?}"
+                ))
+            })?
+            .map_err(failed)?
+            .ok_or_else(|| failed("the server closed the session before answering".into()))?;
+        let reply: TaskResponse = rmp_serde::from_slice(&msg)
+            .map_err(|err| failed(format!("cannot decode the server's reply: {err}")))?;
+
+        match reply.content {
+            TaskResponseContent::Init(info) => {
+                if info.version != PROTOCOL_VERSION {
+                    return Err(ConnectError::IncompatibleProtocol {
+                        client_version: PROTOCOL_VERSION,
+                        server_version: info.version,
+                    });
+                }
+                Ok(info)
+            }
+            TaskResponseContent::InitRefused(refusal) => Err(refusal.into()),
+            other => Err(failed(format!(
+                "expected the handshake reply, got {other:?}"
+            ))),
+        }
     }
 
     /// Native synchronous wrapper over [`handshake_async`](Self::handshake_async).
     #[cfg(not(target_family = "wasm"))]
     fn handshake(
         executor: &Executor,
-        request: &mut SubmitChannel,
-        response: &mut ResponseChannel,
-        endpoint: &RemoteEndpoint,
-        session_id: SessionId,
-        device_index: u32,
-    ) -> (DeviceSettings, u32) {
-        executor.block_on(Self::handshake_async(
-            request,
-            response,
-            endpoint,
-            session_id,
-            device_index,
-        ))
+        streams: &mut SessionStreams,
+        init: bytes::Bytes,
+    ) -> Result<SessionInfo, ConnectError> {
+        executor.block_on(Self::handshake_async(streams, init))
     }
 
     /// Spawn the response-demux task: route each [`TaskResponse`] to its pending callback by
     /// [`RequestId`] via the [`Responder`]. Lives on the service runtime; exits when the
-    /// response stream closes.
-    fn spawn_response_demux(
-        executor: &Executor,
-        mut response: ResponseChannel,
-        responder: Responder,
-    ) {
+    /// response stream closes, ending the session.
+    fn spawn_response_demux(executor: &Executor, response: ResponseChannel, responder: Responder) {
+        let mut response = MessageSource::new(response);
         // Detached: the task owns the response stream and runs until it closes.
         let _demux = executor.spawn(async move {
             loop {
@@ -277,7 +309,7 @@ impl RemoteService {
             // The response stream is gone (clean close or error): the server will never answer
             // any in-flight or future request on this connection. Fail every waiting caller and
             // gate new ones so they error out instead of blocking forever on a dead server.
-            responder.disconnect();
+            responder.end_session();
         });
     }
 }
@@ -301,34 +333,27 @@ pub(crate) struct WasmConnected {
 
 /// Open and hand-shake a session on the browser event loop.
 ///
-/// This is the async counterpart of [`RemoteService::ensure_connected`]: it runs the parts that
+/// This is the async counterpart of [`RemoteService::try_connect`]: it runs the parts that
 /// would block (connecting the Iroh streams, the init round-trip) with `.await`, then spawns the
 /// response-demux and writer tasks with `spawn_local`. The returned [`WasmConnected`] is `Send`,
 /// so the caller can install it back into the service through the device handle.
 #[cfg(target_family = "wasm")]
-pub(crate) async fn wasm_connect(plan: WasmConnectPlan) -> WasmConnected {
+pub(crate) async fn wasm_connect(plan: WasmConnectPlan) -> Result<WasmConnected, ConnectError> {
     let executor = Executor::WasmLocal;
 
-    let (mut request, mut response) = open_channels(&plan.endpoint)
-        .await
-        .unwrap_or_else(|err| panic!("{err}"));
-    let (settings, device_count) = RemoteService::handshake_async(
-        &mut request,
-        &mut response,
-        &plan.endpoint,
-        plan.session_id,
-        plan.device_index,
-    )
-    .await;
+    let init = RemoteService::init_frame(&plan.endpoint, plan.session_id, plan.device_index)?;
+    let mut streams = plan.endpoint.open_channels().await?;
+    let info = RemoteService::handshake_async(&mut streams, init).await?;
 
-    RemoteService::spawn_response_demux(&executor, response, plan.responder);
-    let writer = SubmitWriter::spawn(&executor, request);
+    let responder = plan.responder.clone();
+    RemoteService::spawn_response_demux(&executor, streams.response, plan.responder);
+    let writer = SubmitWriter::spawn(&executor, streams.submit, move || responder.end_session());
 
-    WasmConnected {
+    Ok(WasmConnected {
         writer,
-        settings,
-        device_count,
-    }
+        settings: info.settings,
+        device_count: info.device_count,
+    })
 }
 
 impl RemoteService {
@@ -491,17 +516,13 @@ impl RemoteService {
         self.submit_task(Task::Seed(seed));
     }
 
-    /// Initiate a tensor read. The returned receiver resolves when the server response
-    /// arrives.
-    ///
-    /// The request id rides on the task itself; the server echoes it back so the
-    /// response-demux task can hand the response to the right pending callback.
-    pub fn read_tensor(
+    /// Read several tensors in one request.
+    pub fn read_tensors(
         &mut self,
         stream_id: StreamId,
-        tensor: TensorIr,
-    ) -> oneshot::Receiver<TaskResponseContent> {
-        self.submit_request(|id| Task::ReadTensor(id, stream_id, tensor))
+        tensors: Vec<TensorIr>,
+    ) -> Unconstrained<oneshot::Receiver<TaskResponseContent>> {
+        self.submit_request(|id| Task::ReadTensors(id, stream_id, tensors))
     }
 
     pub fn sync(&mut self, stream_id: StreamId) -> Result<(), ExecutionError> {
@@ -654,11 +675,12 @@ impl RemoteService {
     fn submit_request(
         &mut self,
         make_task: impl FnOnce(RequestId) -> Task,
-    ) -> oneshot::Receiver<TaskResponseContent> {
+    ) -> Unconstrained<oneshot::Receiver<TaskResponseContent>> {
         let request_id = self.pending.next_id();
         let rx = self.pending.register(request_id);
         self.submit_blocking(RemoteMessage::Task(make_task(request_id)));
-        rx
+        // A blocking wait inside a tokio task never yields, so its coop budget would never refill.
+        coop::unconstrained(rx)
     }
 
     /// Append a task to the outgoing buffer; flush only once it hits the threshold.
@@ -683,49 +705,65 @@ impl RemoteService {
         self.flush();
     }
 
-    /// Open the session socket and run the init handshake — exactly once.
-    ///
-    /// Called lazily from the device-runner thread: from [`flush`](Self::flush) on the first
-    /// task, or via [`RemoteClient::ensure_connected`](super::RemoteClient) on the settings
-    /// path. Never from [`init`](Self::init), so the blocking connect + handshake runs off
-    /// cubecl's global device-registry lock and devices connect in parallel. Always runs on
-    /// the single runner thread, so the idempotent check needs no locking.
+    /// [`try_connect`](Self::try_connect), panicking on failure: a connect on first use has no
+    /// caller to return an error to.
     pub fn ensure_connected(&mut self) {
-        if self.writer.is_some() {
-            return;
+        if let Err(err) = self.try_connect() {
+            panic!(
+                "Failed to open a remote session at {}: {err}",
+                self.endpoint.peer_addr()
+            );
         }
+    }
+
+    /// Open the session and run the init handshake, unless it is already open. A failed attempt
+    /// leaves nothing behind, so the next call tries again, with the device's latest dialing
+    /// hints.
+    ///
+    /// Runs on the device-runner thread, so the check needs no lock, and never from
+    /// [`init`](Self::init), which holds cubecl's global device-registry lock.
+    ///
+    /// # Panics
+    ///
+    /// On wasm, where only an asynchronous connect can open the session.
+    pub(crate) fn try_connect(&mut self) -> Result<(), ConnectError> {
+        if self.writer.is_some() {
+            return Ok(());
+        }
+
+        #[cfg(target_family = "wasm")]
+        panic!(
+            "Remote session to {} is not connected. On wasm, connect with \
+             `Device::remote_options(&host).init_async().await` before running tensor operations.",
+            self.endpoint.peer_addr()
+        );
 
         #[cfg(not(target_family = "wasm"))]
         {
+            self.refresh_from_registry();
             log::debug!(
                 "Connecting to {} (device {}) ...",
                 self.endpoint.peer_addr(),
                 self.device_index
             );
-            let (mut request, mut response) = Self::connect_streams(&self.executor, &self.endpoint);
-            let (settings, device_count) = Self::handshake(
+            let init = Self::init_frame(&self.endpoint, self.session_id, self.device_index)?;
+            let mut streams = Self::connect_streams(&self.executor, &self.endpoint)?;
+            let info = Self::handshake(&self.executor, &mut streams, init)?;
+
+            // Publish to the shared cells so `RemoteDevice::defaults` and listing can read them.
+            let _ = self.settings.set(info.settings);
+            let _ = self.device_count.set(info.device_count);
+
+            Self::spawn_response_demux(&self.executor, streams.response, self.pending.responder());
+            let responder = self.pending.responder();
+            self.writer = Some(SubmitWriter::spawn(
                 &self.executor,
-                &mut request,
-                &mut response,
-                &self.endpoint,
-                self.session_id,
-                self.device_index,
-            );
-
-            // Publish to the shared cells so `RemoteDevice::defaults`/`enumerate` can read them.
-            let _ = self.settings.set(settings);
-            let _ = self.device_count.set(device_count);
-
-            Self::spawn_response_demux(&self.executor, response, self.pending.responder());
-            self.writer = Some(SubmitWriter::spawn(&self.executor, request));
+                streams.submit,
+                move || responder.end_session(),
+            ));
+            self.start_logger();
+            Ok(())
         }
-
-        #[cfg(target_family = "wasm")]
-        panic!(
-            "Remote session to {} is not connected. On wasm, establish it with \
-             `RemoteDevice::connect_async(...).await` before running tensor operations.",
-            self.endpoint.peer_addr()
-        );
     }
 
     /// Capture everything needed to open the session asynchronously, or `None` if it is already
@@ -738,6 +776,7 @@ impl RemoteService {
         if self.writer.is_some() {
             return None;
         }
+        self.refresh_from_registry();
         Some(WasmConnectPlan {
             endpoint: self.endpoint.clone(),
             session_id: self.session_id,
@@ -757,6 +796,7 @@ impl RemoteService {
         let _ = self.settings.set(connected.settings);
         let _ = self.device_count.set(connected.device_count);
         self.writer = Some(connected.writer);
+        self.start_logger();
     }
 
     /// Hand whatever's currently buffered to the writer task as one batch (the writer
@@ -800,5 +840,38 @@ impl Drop for RemoteService {
             .as_mut()
             .expect("writer present (checked above)");
         writer.shutdown(&self.executor, Some(batch));
+    }
+}
+
+#[cfg(all(test, feature = "server", feature = "websocket"))]
+mod tests {
+    use std::{sync::mpsc, time::Duration};
+
+    use burn_flex::Flex;
+    use burn_std::device::Device as _;
+
+    use super::*;
+    use crate::{RemoteDevice, server::BackendServer, tests::serve};
+
+    #[test]
+    fn a_connect_starts_the_telemetry_logger() {
+        let rt = tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+        let address = serve(&rt, BackendServer::<Flex>::new(vec![Default::default()]));
+        let mut service = RemoteService::init(RemoteDevice::websocket(&address, 0).to_id());
+        let (started, logger) = mpsc::channel();
+        service.logger = Some(Box::pin(async move {
+            let _ = started.send(());
+        }));
+
+        service.try_connect().unwrap();
+
+        logger
+            .recv_timeout(Duration::from_secs(10))
+            .expect("the connect never started the logger");
+        drop(service);
+        rt.shutdown_background();
     }
 }

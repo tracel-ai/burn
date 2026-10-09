@@ -81,12 +81,10 @@
       </tr>
     </table>
 
-    <div></div>
+    <p id="inference-status" role="status"></p>
 
     <script type="module">
       import { $, cropScaleGetImageData, chartConfigBuilder } from "./index.js";
-
-      import { default as wasm, Mnist } from "./pkg/mnist_inference_web.js";
 
       const chart = chartConfigBuilder($("chart"));
 
@@ -105,7 +103,68 @@
       fabricCanvas.freeDrawingBrush.width = 25;
       fabricCanvas.backgroundColor = backgroundColor;
 
+      const worker = new Worker(new URL("./inference-worker.js", import.meta.url), { type: "module" });
+      const snapshot = document.createElement("canvas");
+      const snapshotContext = snapshot.getContext("2d", { willReadFrequently: true });
+      let ready = false;
+      let busy = false;
+      let dirty = false;
+      let isDrawing = false;
+      let generation = 0;
+      let frameId;
+
+      function scheduleInference() {
+        if (!ready || busy || !dirty || frameId !== undefined) return;
+        frameId = requestAnimationFrame(() => {
+          frameId = undefined;
+          // Include the active stroke without finalizing or changing Fabric's brush.
+          snapshot.width = mainCanvasEl.width;
+          snapshot.height = mainCanvasEl.height;
+          snapshotContext.drawImage(mainCanvasEl, 0, 0);
+          snapshotContext.drawImage(fabricCanvas.upperCanvasEl, 0, 0);
+          const input = cropScaleGetImageData(snapshotContext, cropContext, scaledContext);
+          dirty = false;
+          busy = true;
+          worker.postMessage({ input, generation }, [input.buffer]);
+        });
+      }
+
+      function failInference(error) {
+        ready = false;
+        cancelAnimationFrame(frameId);
+        frameId = undefined;
+        worker.terminate();
+        console.error("MNIST inference failed:", error);
+        $("inference-status").textContent = "Prediction failed. Reload the page to try again.";
+      }
+
+      worker.onmessage = ({ data }) => {
+        if (data.type === "error") {
+          failInference(data.message);
+          return;
+        }
+        if (data.type === "ready") {
+          ready = true;
+        } else if (data.type === "result") {
+          busy = false;
+          // A prediction started before Clear must not repopulate the chart.
+          if (data.generation === generation) {
+            chart.data.datasets[0].data = data.output;
+            chart.update();
+          }
+        }
+        // Capture the latest drawing only when the worker can accept it.
+        scheduleInference();
+      };
+      worker.onerror = failInference;
+      worker.onmessageerror = failInference;
+
       $("clear").onclick = function () {
+        generation += 1;
+        dirty = false;
+        isDrawing = false;
+        cancelAnimationFrame(frameId);
+        frameId = undefined;
         fabricCanvas.clear();
         fabricCanvas.backgroundColor = backgroundColor;
         fabricCanvas.renderAll();
@@ -113,43 +172,24 @@
         scaledContext.clearRect(0, 0, scaledCanvasEl.width, scaledCanvasEl.height);
 
         chart.data.datasets[0].data = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0];
-        chart.update();
+        chart.update("none");
       };
 
-      let timeoutId;
-      let isDrawing = false;
-      let isTimeOutSet = false;
-
-      wasm().then((module) => {
-        const mnist = new Mnist();
-
-        async function fireOffInference() {
-          clearTimeout(timeoutId);
-          timeoutId = setTimeout(async () => {
-            isTimeOutSet = true;
-            fabricCanvas.freeDrawingBrush._finalizeAndAddPath();
-            const data = cropScaleGetImageData(mainContext, cropContext, scaledContext);
-            const output = await mnist.inference(data);
-            chart.data.datasets[0].data = output;
-            chart.update();
-            isTimeOutSet = false;
-          }, 50);
-          isTimeOutSet = true;
+      fabricCanvas.on("mouse:down", () => {
+        isDrawing = true;
+      });
+      fabricCanvas.on("mouse:move", () => {
+        if (isDrawing) {
+          dirty = true;
+          scheduleInference();
         }
-
-        fabricCanvas.on("mouse:down", function (event) {
-          isDrawing = true;
-        });
-        fabricCanvas.on("mouse:up", async function (event) {
+      });
+      fabricCanvas.on("mouse:up", () => {
+        if (isDrawing) {
           isDrawing = false;
-          await fireOffInference();
-        });
-
-        fabricCanvas.on("mouse:move", async function (event) {
-          if (isDrawing && isTimeOutSet == false) {
-            await fireOffInference();
-          }
-        });
+          dirty = true;
+          scheduleInference();
+        }
       });
     </script>
   </body>

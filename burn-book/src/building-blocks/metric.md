@@ -141,16 +141,48 @@ pub trait Metric: Send + Sync + Clone {
     /// values of k), the name should be unique for each instance.
     fn name(&self) -> MetricName;
 
+    /// A short description of the metric.
+    fn description(&self) -> Option<String> {
+        None
+    }
+
+    /// Attributes of the metric.
+    ///
+    /// By default, metrics have no attributes.
+    fn attributes(&self) -> MetricAttributes {
+        MetricAttributes::None
+    }
+
     /// Update the metric state and returns the current metric entry.
-    fn update(&mut self, item: &Self::Input, metadata: &MetricMetadata) -> SerializedEntry;
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`TensorReadError`] when a tensor read fails. In that case, the metric state
+    /// could hold part or none of this update.
+    fn update(
+        &mut self,
+        item: &Self::Input,
+        metadata: &MetricMetadata,
+    ) -> Result<SerializedEntry, TensorReadError>;
 
     /// Compute the final metric value.
-    fn compute(&mut self) -> SerializedEntry;
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`TensorReadError`] when a tensor read fails.
+    fn compute(&mut self) -> Result<SerializedEntry, TensorReadError>;
 
     /// Clear the metric state.
     fn clear(&mut self);
 }
 ```
+
+In `update` and `compute`, read tensors with the fallible methods (`try_into_data`, `try_into_scalar`)
+and propagate the error with `?` to keep the event processor reporting errors to the learner. The
+processor still updates the other metrics, and reports every metric that failed, each with its
+name and split, as a `EventProcessorError`. When `update` fails, the metric state could hold part or none of that update.
+This includes tensors the metric keeps across batches, such as running totals: once one of them was computed from
+a failed input, reading it fails too, until `clear` resets the state at the end of the epoch.
 
 As an example, let's see how the loss metric is implemented.
 
@@ -188,25 +220,31 @@ impl LossMetric {
 impl Metric for LossMetric {
     type Input = LossInput;
 
-    fn update(&mut self, loss: &Self::Input, _metadata: &MetricMetadata) -> SerializedEntry {
+    fn update(
+        &mut self,
+        loss: &Self::Input,
+        _metadata: &MetricMetadata,
+    ) -> Result<SerializedEntry, TensorReadError> {
         let [batch_size] = loss.tensor.dims();
         let loss = loss
             .tensor
             .clone()
             .mean()
-            .into_data()
+            .try_into_data()?
             .iter::<f64>()
             .next()
             .unwrap();
 
         self.state.update(loss, batch_size);
-        self.state
-            .compute_update(FormatOptions::new(self.name()).precision(2))
+        Ok(self
+            .state
+            .compute_update(FormatOptions::new(self.name()).precision(2)))
     }
 
-    fn compute(&mut self) -> SerializedEntry {
-        self.state
-            .compute_final(FormatOptions::new(self.name()).precision(2))
+    fn compute(&mut self) -> Result<SerializedEntry, TensorReadError> {
+        Ok(self
+            .state
+            .compute_final(FormatOptions::new(self.name()).precision(2)))
     }
 
     fn clear(&mut self) {

@@ -118,6 +118,7 @@ impl BasicOps for Float {
     }
 
     fn slice_assign(tensor: BridgeTensor, slices: &[Slice], value: BridgeTensor) -> BridgeTensor {
+        // Slice assign is ambiguous for QFloat, so both operands are dequantized first.
         BridgeTensor::float(Dispatch::float_slice_assign(
             tensor.into_float(),
             slices,
@@ -273,7 +274,7 @@ impl BasicOps for Float {
     }
 
     fn from_data(data: TensorData, device: &Device, dtype: DType) -> BridgeTensor {
-        if matches!(data.dtype, DType::QFloat(_)) {
+        if matches!(data.dtype(), DType::QFloat(_)) {
             // When the source is QFloat, there is no conversion path possible.
             BridgeTensor::qfloat(Dispatch::q_from_data(data, device.as_dispatch()))
         } else if dtype.is_float() {

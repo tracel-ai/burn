@@ -25,7 +25,7 @@ pub fn connected_components<B: Backend>(
     out_dtype: IntDType,
 ) -> TensorData {
     let img = read_sync(B::bool_into_data(img)).expect("Should read data.");
-    dispatch_bool_dtype!(img.dtype.into(), |B| {
+    dispatch_bool_dtype!(img.dtype().into(), |B| {
         dispatch_int_dtype!(out_dtype, |I| run::<B, I, NoOp<_>>(
             img,
             connectivity,
@@ -43,7 +43,7 @@ pub fn connected_components_with_stats<B: Backend>(
 ) -> (TensorData, ConnectedStatsPrimitive<B>) {
     let device = &img.device();
     let img = read_sync(B::bool_into_data(img)).expect("Should read data.");
-    dispatch_bool_dtype!(img.dtype.into(), |BT| {
+    dispatch_bool_dtype!(img.dtype().into(), |BT| {
         dispatch_int_dtype!(out_dtype, |I| {
             let (labels, stats) =
                 run::<BT, I, ConnectedStatsOp<I>>(img, connectivity, ConnectedStatsOp::default);
@@ -58,7 +58,7 @@ fn run<B: Element, I: ElementOrdered, Stats: StatsOp<Label = I>>(
     connectivity: Connectivity,
     stats: impl Fn() -> Stats,
 ) -> (TensorData, Stats) {
-    let [height, width] = img.shape.dims();
+    let [height, width] = img.shape().dims();
     let img = img.try_into_vec::<B>().unwrap();
 
     let mut stats = stats();

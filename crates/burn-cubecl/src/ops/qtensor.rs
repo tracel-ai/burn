@@ -1,6 +1,6 @@
 use burn_backend::{
     Bytes, DType, ExecutionError, Shape, SplitPolicy, TensorData, TensorMetadata, TensorPrimitive,
-    get_device_settings,
+    get_or_init_device_settings,
     ops::QTensorOps,
     quantization::{
         QParamTensor, QuantMode, QuantPropagation, QuantScheme, QuantValue,
@@ -67,6 +67,34 @@ pub fn empty_qtensor(
     new_quantized(shape, scheme, device, None, kind)
 }
 
+/// The axis a packed `scheme` packs along on a tensor of `rank`, when it is not the innermost.
+///
+/// Such a tensor is stored with that axis swapped innermost, which is where packing puts its
+/// words, and presented with the two swapped back: its bytes are the stored tensor's, row-major,
+/// so a packed word never straddles two of the axes it does not pack.
+fn outer_packed_axis(scheme: &QuantScheme, rank: usize) -> Option<usize> {
+    match scheme.store {
+        QuantStore::PackedU32(packed) | QuantStore::PackedNative(packed) if packed != 0 => {
+            Some(rank - packed - 1)
+        }
+        _ => None,
+    }
+}
+
+/// `scheme` as it reads on the tensor with `axis` swapped innermost: packed along the
+/// innermost axis, its blocks swapped with it.
+fn packed_innermost(mut scheme: QuantScheme, rank: usize, axis: usize) -> QuantScheme {
+    scheme.store = match scheme.store {
+        QuantStore::PackedU32(_) => QuantStore::PackedU32(0),
+        QuantStore::PackedNative(_) => QuantStore::PackedNative(0),
+        QuantStore::Native => QuantStore::Native,
+    };
+    if scheme.block_size().is_some() {
+        scheme.swap_block_dims(rank, axis, rank - 1);
+    }
+    scheme
+}
+
 fn new_quantized(
     shape: impl Into<Shape>,
     scheme: QuantScheme,
@@ -74,8 +102,23 @@ fn new_quantized(
     data: Option<Bytes>,
     alloc_kind: MemoryLayoutStrategy,
 ) -> CubeTensor {
-    let client = device.client();
     let shape: Shape = shape.into();
+    if let Some(axis) = outer_packed_axis(&scheme, shape.rank()) {
+        let (rank, innermost) = (shape.rank(), shape.rank() - 1);
+        let stored_shape = shape
+            .swapped(axis, innermost)
+            .expect("the packed axis is one of the tensor's");
+        let stored = new_quantized(
+            stored_shape,
+            packed_innermost(scheme, rank, axis),
+            device,
+            data,
+            alloc_kind,
+        );
+        return swap_dims(stored, axis, innermost);
+    }
+
+    let client = device.client();
     let mut shape_value: Shape = shape.clone();
 
     let rank = shape.rank();
@@ -217,7 +260,7 @@ fn new_quantized(
 
 impl QTensorOps<Self> for CubeBackend {
     fn q_from_data(data: TensorData, device: &Device<Self>) -> QuantizedTensor<Self> {
-        match data.dtype {
+        match data.dtype() {
             DType::QFloat(scheme) => match scheme {
                 QuantScheme {
                     mode: QuantMode::Symmetric,
@@ -235,7 +278,8 @@ impl QTensorOps<Self> for CubeBackend {
                 } => {
                     // TensorData quantized representation is the same, with multiple quantized values
                     // packed into u32 and quantization parameters appended to the bytes
-                    new_qtensor_optimized(data.bytes, data.shape.clone(), scheme, device)
+                    let (bytes, shape, _) = data.into_parts();
+                    new_qtensor_optimized(bytes, shape, scheme, device)
                 }
                 QuantScheme {
                     mode: QuantMode::Lookup,
@@ -244,7 +288,7 @@ impl QTensorOps<Self> for CubeBackend {
             },
             _ => panic!(
                 "Invalid dtype (expected DType::QFloat, got {:?})",
-                data.dtype
+                data.dtype()
             ),
         }
     }
@@ -284,26 +328,34 @@ impl QTensorOps<Self> for CubeBackend {
         if tensor.qparams.is_none() {
             return into_data(tensor).await;
         }
+        // Storage tiles are a layout for one machine's kernels, laid out at load; what is saved
+        // is the rows every machine reads.
+        assert!(
+            !tensor.meta.is_tiled(),
+            "q_into_data: a storage-tiled quantized tensor is not saved; save the weight it was \
+             tiled from"
+        );
 
         let (shape, dtype) = (tensor.shape(), tensor.dtype);
+        // Written as stored, packed axis innermost — the bytes `q_from_data` reads back.
+        let tensor = match outer_packed_axis(&tensor.scheme(), shape.rank()) {
+            Some(axis) => swap_dims(tensor, axis, shape.rank() - 1),
+            None => tensor,
+        };
         let global = tensor.global();
         let (values, params) = tensor.quantized_handles().unwrap();
 
-        let mut data_values = into_data(values).await?;
+        let mut bytes = into_data(values).await?.into_bytes();
         let data_params = into_data(params).await?;
 
-        data_values.bytes.extend_from_byte_slice(&data_params.bytes);
+        bytes.extend_from_byte_slice(data_params.as_bytes());
 
         if let Some(global) = global {
             let data_global = into_data(global).await?;
-            data_values.bytes.extend_from_byte_slice(&data_global.bytes);
+            bytes.extend_from_byte_slice(data_global.as_bytes());
         }
 
-        Ok(TensorData {
-            bytes: data_values.bytes,
-            shape,
-            dtype,
-        })
+        Ok(TensorData::from_bytes(bytes, shape, dtype))
     }
 
     fn q_swap_dims(
@@ -324,12 +376,14 @@ impl QTensorOps<Self> for CubeBackend {
 
     fn q_matmul(lhs: TensorPrimitive<Self>, rhs: TensorPrimitive<Self>) -> TensorPrimitive<Self> {
         let (settings, scheme) = match (&lhs, &rhs) {
-            (TensorPrimitive::QFloat(lhs), _) => {
-                (get_device_settings::<Self>(&lhs.device), lhs.scheme())
-            }
-            (_, TensorPrimitive::QFloat(rhs)) => {
-                (get_device_settings::<Self>(&rhs.device), rhs.scheme())
-            }
+            (TensorPrimitive::QFloat(lhs), _) => (
+                get_or_init_device_settings::<Self>(&lhs.device),
+                lhs.scheme(),
+            ),
+            (_, TensorPrimitive::QFloat(rhs)) => (
+                get_or_init_device_settings::<Self>(&rhs.device),
+                rhs.scheme(),
+            ),
             _ => unreachable!(),
         };
 

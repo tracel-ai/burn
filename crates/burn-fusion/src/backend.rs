@@ -19,7 +19,7 @@ pub fn get_client<B: FusionBackend>(device: &Device<B>) -> Client<B::FusionRunti
 }
 
 /// The fusion server could not run a task at all: it panicked, or is gone.
-fn server_error(err: CallError) -> ExecutionError {
+pub(crate) fn server_error(err: CallError) -> ExecutionError {
     ExecutionError::with_context(format!("the fusion server failed to run a task: {err:?}"))
 }
 
@@ -56,7 +56,9 @@ impl<B: FusionBackend> Backend for Fusion<B> {
     fn sync(device: &Self::Device) -> Result<(), ExecutionError> {
         let client = GlobalFusionClient::<B::FusionRuntime>::load(device);
         let device = device.clone();
-        client.sync(move || B::sync(&device))
+        client
+            .try_sync(move || B::sync(&device))
+            .map_err(server_error)?
     }
 
     fn profile<O: Send + 'static>(
@@ -193,10 +195,12 @@ impl<B: FusionBackend> Backend for Fusion<B> {
         B::device_count(type_id)
     }
 
-    fn flush(device: &Self::Device) {
+    fn flush(device: &Self::Device) -> Result<(), ExecutionError> {
         let client = GlobalFusionClient::<B::FusionRuntime>::load(device);
         let device = device.clone();
-        client.sync(move || B::flush(&device))
+        client
+            .try_sync(move || B::flush(&device))
+            .map_err(server_error)?
     }
 
     fn graph_prepare(device: &Self::Device) -> Result<(), ExecutionError> {

@@ -53,15 +53,3 @@ fn should_diff_matmul_with_slice_stepped() {
         false,
     );
 }
-
-#[test]
-fn should_panic_on_slice_with_step() {
-    use burn_tensor::s;
-
-    let data = TensorData::from([[1.0, 2.0, 3.0, 4.0], [5.0, 6.0, 7.0, 8.0]]);
-    let device = AutodiffDevice::new();
-    let tensor = TestTensor::<2>::from_data(data, &device).require_grad();
-
-    // This should panic because step is 2
-    let _sliced = tensor.slice(s![.., 0..4; 2]);
-}

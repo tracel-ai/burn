@@ -186,6 +186,30 @@ impl ModuleCodegen for StructModuleCodegen {
         }
     }
 
+    fn gen_materialize(&self) -> TokenStream {
+        let (names, body) = self.gen_fields_fn_names(|name, field_type| {
+            if field_type.is_module || field_type.maybe_generic_module() {
+                quote! {
+                    let #name = burn::module::Module::materialize(#name);
+                }
+            } else {
+                quote! { let #name = #name; }
+            }
+        });
+
+        let destructure = quote! {
+            let Self { #(#names),* } = self;
+        };
+
+        quote! {
+            fn materialize(self) -> Self {
+                #destructure
+                #body
+                Self { #(#names),* }
+            }
+        }
+    }
+
     fn gen_clone(&self) -> TokenStream {
         let (names, body) = self.gen_fields_fn_names(|name, _field_type| {
             quote! {
@@ -426,15 +450,18 @@ fn is_primitive_ident(ident: &str) -> bool {
     matches!(
         ident,
         "bool"
+            | "char"
             | "u8"
             | "u16"
             | "u32"
             | "u64"
+            | "u128"
             | "usize"
             | "i8"
             | "i16"
             | "i32"
             | "i64"
+            | "i128"
             | "isize"
             | "f32"
             | "f64"
@@ -458,15 +485,18 @@ fn is_primitive_type(ty: &syn::Type) -> bool {
                 return true;
             }
 
-            // Generic types like Option<T>, Vec<T>, etc.
+            // Only known containers can inherit constant classification from their contents.
+            // A custom type such as Block<f32> may still contain trainable parameters.
             match &segment.arguments {
-                syn::PathArguments::AngleBracketed(args) => args.args.iter().all(|arg| {
-                    if let syn::GenericArgument::Type(inner_ty) = arg {
-                        is_primitive_type(inner_ty)
-                    } else {
-                        false
-                    }
-                }),
+                syn::PathArguments::AngleBracketed(args) if is_constant_container(&ident) => {
+                    args.args.iter().all(|arg| {
+                        if let syn::GenericArgument::Type(inner_ty) = arg {
+                            is_primitive_type(inner_ty)
+                        } else {
+                            false
+                        }
+                    })
+                }
                 _ => false,
             }
         }
@@ -493,6 +523,49 @@ fn is_primitive_type(ty: &syn::Type) -> bool {
     }
 }
 
+fn is_constant_container(ident: &str) -> bool {
+    matches!(
+        ident,
+        "Option"
+            | "Result"
+            | "Vec"
+            | "Box"
+            | "Arc"
+            | "Weak"
+            | "HashMap"
+            | "BTreeMap"
+            | "HashSet"
+            | "BTreeSet"
+            | "VecDeque"
+            | "LinkedList"
+            | "BinaryHeap"
+            | "PhantomData"
+            | "Cell"
+            | "RefCell"
+            | "Mutex"
+            | "RwLock"
+    )
+}
+
 fn is_param_type(ty: &syn::Type) -> bool {
     type_matches_ident(ty, &["Param"])
+}
+
+#[cfg(test)]
+mod tests {
+    use super::is_primitive_type;
+
+    #[test]
+    fn containers_must_not_hide_custom_modules() {
+        for ty in [
+            "Block<f32>",
+            "Option<Vec<Block<f32>>>",
+            "Box<Block<f32>>",
+            "Arc<Block<f32>>",
+            "HashMap<String, Block<f32>>",
+            "Result<usize, Block<f32>>",
+        ] {
+            assert!(!is_primitive_type(&syn::parse_str(ty).unwrap()), "{ty}");
+        }
+    }
 }

@@ -1,4 +1,4 @@
-use burn_core::tensor::{Bool, Device, FloatDType, Int, IntDType, Tensor};
+use burn_core::tensor::{Bool, Device, FloatDType, Int, IntDType, Tensor, TensorReadError};
 
 use super::{
     ClassReduction, ConfusionStatsInput, Metric, MetricAttributes, MetricMetadata, MetricName,
@@ -82,7 +82,11 @@ impl MatthewsCorrelationCoefficientMetric {
 impl Metric for MatthewsCorrelationCoefficientMetric {
     type Input = ConfusionStatsInput;
 
-    fn update(&mut self, input: &Self::Input, _metadata: &MetricMetadata) -> SerializedEntry {
+    fn update(
+        &mut self,
+        input: &Self::Input,
+        _metadata: &MetricMetadata,
+    ) -> Result<SerializedEntry, TensorReadError> {
         assert_eq!(input.predictions.dims(), input.targets.dims());
         let [sample_size, classes] = input.predictions.dims();
         assert!(
@@ -106,7 +110,7 @@ impl Metric for MatthewsCorrelationCoefficientMetric {
                 .clone()
                 .is_finite()
                 .all()
-                .into_scalar::<bool>(),
+                .try_into_scalar::<bool>()?,
             "MCC predictions must be finite"
         );
         let (predicted, targets) = match self.threshold {
@@ -132,7 +136,7 @@ impl Metric for MatthewsCorrelationCoefficientMetric {
                         .sum_dim(1)
                         .equal_scalar(1)
                         .all()
-                        .into_scalar::<bool>(),
+                        .try_into_scalar::<bool>()?,
                     "multiclass MCC requires one-hot targets"
                 );
                 let indices =
@@ -144,22 +148,26 @@ impl Metric for MatthewsCorrelationCoefficientMetric {
                 )
             }
         };
-        let count = |mask: Tensor<2, Bool>| {
+        let count = |mask: Tensor<2, Bool>| -> Result<Tensor<1>, TensorReadError> {
             // Reduce in int32 for devices without int64 support, then accumulate
             // on CPU in float64 so epoch totals are not limited to int32.
-            mask.cast(IntDType::I32)
+            let data = mask
+                .cast(IntDType::I32)
                 .sum_dim(0)
-                .squeeze_dim(0)
-                .to_device(&Device::flex())
-                .cast(FloatDType::F64)
+                .squeeze_dim::<1>(0)
+                .try_into_data()?;
+            Ok(
+                Tensor::<1, Int>::from_data(data, (&Device::flex(), IntDType::I32.into()))
+                    .cast(FloatDType::F64),
+            )
         };
         self.classes = Some(classes);
         self.state.update(
-            Some(count(predicted.clone().bool_and(targets.clone()))),
+            Some(count(predicted.clone().bool_and(targets.clone()))?),
             Some(count(
                 predicted.clone().bool_and(targets.clone().bool_not()),
-            )),
-            Some(count(predicted.bool_not().bool_and(targets))),
+            )?),
+            Some(count(predicted.bool_not().bool_and(targets))?),
             sample_size,
         );
         self.state.compute_update(
@@ -169,9 +177,10 @@ impl Metric for MatthewsCorrelationCoefficientMetric {
         )
     }
 
-    fn compute(&mut self) -> SerializedEntry {
-        self.state
-            .compute_final(FormatOptions::new(self.name()).precision(4))
+    fn compute(&mut self) -> Result<SerializedEntry, TensorReadError> {
+        Ok(self
+            .state
+            .compute_final(FormatOptions::new(self.name()).precision(4)))
     }
 
     fn clear(&mut self) {
@@ -233,9 +242,9 @@ mod tests {
     fn binary(#[case] predictions: [[f32; 1]; 4], #[case] expected: f64) {
         let input = binary_input(predictions, [[0], [1], [0], [1]]);
         let mut metric = MatthewsCorrelationCoefficientMetric::default();
-        metric.update(&input, &MetricMetadata::fake());
+        metric.update(&input, &MetricMetadata::fake()).unwrap();
         assert_close(metric.value().unwrap().current(), expected);
-        metric.compute();
+        metric.compute().unwrap();
         assert_close(metric.final_value().current(), expected);
     }
 
@@ -246,7 +255,7 @@ mod tests {
     fn binary_targets(#[case] targets: [[i32; 1]; 4], #[case] expected: f64) {
         let input = binary_input([[0.9], [0.1], [0.9], [0.9]], targets);
         let mut metric = MatthewsCorrelationCoefficientMetric::default();
-        metric.update(&input, &MetricMetadata::fake());
+        metric.update(&input, &MetricMetadata::fake()).unwrap();
         assert_close(metric.value().unwrap().current(), expected);
     }
 
@@ -254,7 +263,7 @@ mod tests {
     fn custom_threshold() {
         let input = binary_input([[0.6], [0.9], [0.6], [0.9]], [[0], [1], [0], [1]]);
         let mut metric = MatthewsCorrelationCoefficientMetric::binary(0.75);
-        metric.update(&input, &MetricMetadata::fake());
+        metric.update(&input, &MetricMetadata::fake()).unwrap();
         assert_close(metric.value().unwrap().current(), 1.0);
         assert_ne!(
             metric.name(),
@@ -276,26 +285,28 @@ mod tests {
                 .bool(),
         );
         let mut whole = MatthewsCorrelationCoefficientMetric::multiclass();
-        whole.update(&input, &MetricMetadata::fake());
+        whole.update(&input, &MetricMetadata::fake()).unwrap();
         assert_close(whole.value().unwrap().current(), 2.0 / 11.0);
 
         let mut split = MatthewsCorrelationCoefficientMetric::multiclass();
         for range in [0..2, 2..6] {
-            split.update(
-                &ConfusionStatsInput::new(
-                    input.predictions.clone().slice([range.clone()]),
-                    input.targets.clone().slice([range]),
-                ),
-                &MetricMetadata::fake(),
-            );
+            split
+                .update(
+                    &ConfusionStatsInput::new(
+                        input.predictions.clone().slice([range.clone()]),
+                        input.targets.clone().slice([range]),
+                    ),
+                    &MetricMetadata::fake(),
+                )
+                .unwrap();
         }
         assert_close(split.running_value().unwrap().current(), 2.0 / 11.0);
-        split.compute();
+        split.compute().unwrap();
         assert_close(split.final_value().current(), whole.final_value().current());
         split.clear();
         assert!(split.value().is_none());
         assert!(split.running_value().is_none());
-        split.update(&input, &MetricMetadata::fake());
+        split.update(&input, &MetricMetadata::fake()).unwrap();
         assert_close(split.final_value().current(), 2.0 / 11.0);
     }
 
@@ -305,11 +316,11 @@ mod tests {
         // Each constant-class batch has MCC=0, but together they are perfect.
         for value in [0, 1] {
             let input = binary_input([[value as f32]; 4], [[value]; 4]);
-            metric.update(&input, &MetricMetadata::fake());
+            metric.update(&input, &MetricMetadata::fake()).unwrap();
             assert_close(metric.value().unwrap().current(), 0.0);
         }
         assert_close(metric.running_value().unwrap().current(), 1.0);
-        let entry = metric.compute();
+        let entry = metric.compute().unwrap();
         assert!(matches!(
             NumericEntry::deserialize(&entry.serialized).unwrap(),
             NumericEntry::Final(value) if (value - 1.0).abs() < 1e-6
@@ -334,7 +345,7 @@ mod tests {
                 .bool(),
         );
         let mut metric = MatthewsCorrelationCoefficientMetric::multiclass();
-        metric.update(&input, &MetricMetadata::fake());
+        metric.update(&input, &MetricMetadata::fake()).unwrap();
         assert_close(metric.value().unwrap().current(), expected);
     }
 
@@ -393,7 +404,7 @@ mod tests {
             )
         };
         let input = ConfusionStatsInput::new(input.predictions.cast(dtype), input.targets);
-        metric.update(&input, &MetricMetadata::fake());
+        metric.update(&input, &MetricMetadata::fake()).unwrap();
         // sklearn.metrics.matthews_corrcoef([0]*9999+[1], [0]*9998+[1,1])
         assert_close(metric.final_value().current(), 0.7070714214274962);
     }
@@ -406,7 +417,7 @@ mod tests {
             Tensor::from_data([[1, 0, 0], [0, 1, 0], [0, 0, 1]], &device),
         );
         let mut metric = MatthewsCorrelationCoefficientMetric::multiclass();
-        metric.update(&input, &MetricMetadata::fake());
+        metric.update(&input, &MetricMetadata::fake()).unwrap();
         assert_close(metric.final_value().current(), 1.0);
     }
 
@@ -418,7 +429,7 @@ mod tests {
             Tensor::from_data([[true]], &device),
         );
         let mut metric = MatthewsCorrelationCoefficientMetric::multiclass();
-        metric.update(&input, &MetricMetadata::fake());
+        metric.update(&input, &MetricMetadata::fake()).unwrap();
         assert_close(metric.final_value().current(), 0.0);
     }
 
@@ -429,7 +440,9 @@ mod tests {
     #[should_panic(expected = "MCC predictions must be finite")]
     fn rejects_nonfinite_predictions(#[case] value: f32) {
         let input = binary_input([[value]; 4], [[0], [1], [0], [1]]);
-        MatthewsCorrelationCoefficientMetric::default().update(&input, &MetricMetadata::fake());
+        MatthewsCorrelationCoefficientMetric::default()
+            .update(&input, &MetricMetadata::fake())
+            .unwrap();
     }
 
     #[rstest]
@@ -442,7 +455,9 @@ mod tests {
             Tensor::from_data([[0.8, 0.2], [0.1, 0.9]], &device),
             Tensor::from_data(targets, &device),
         );
-        MatthewsCorrelationCoefficientMetric::multiclass().update(&input, &MetricMetadata::fake());
+        MatthewsCorrelationCoefficientMetric::multiclass()
+            .update(&input, &MetricMetadata::fake())
+            .unwrap();
     }
 
     #[test]
@@ -453,7 +468,9 @@ mod tests {
             Tensor::zeros([0, 1], &device),
             Tensor::zeros([0, 1], &device),
         );
-        MatthewsCorrelationCoefficientMetric::default().update(&input, &MetricMetadata::fake());
+        MatthewsCorrelationCoefficientMetric::default()
+            .update(&input, &MetricMetadata::fake())
+            .unwrap();
     }
 
     #[rstest]
@@ -472,7 +489,7 @@ mod tests {
         } else {
             MatthewsCorrelationCoefficientMetric::multiclass()
         };
-        metric.update(&input, &MetricMetadata::fake());
+        metric.update(&input, &MetricMetadata::fake()).unwrap();
     }
 
     #[test]
@@ -483,7 +500,7 @@ mod tests {
         for classes in [2, 3] {
             let labels = Tensor::<1, Int>::from_data([0, 1], &device).one_hot(classes);
             let input = ConfusionStatsInput::new(labels.clone().float(), labels.bool());
-            metric.update(&input, &MetricMetadata::fake());
+            metric.update(&input, &MetricMetadata::fake()).unwrap();
         }
     }
 }

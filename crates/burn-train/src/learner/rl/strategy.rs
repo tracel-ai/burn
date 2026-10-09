@@ -10,6 +10,8 @@ use crate::{
 
 /// Struct to minimise parameters passed to [RLStrategy::train].
 pub struct RLComponents<RLC: RLComponentsTypes> {
+    /// An optional label for this training.
+    pub label: Option<String>,
     /// The total number of environment steps.
     pub num_steps: usize,
     /// The step number from which to continue the training.
@@ -53,13 +55,15 @@ pub trait RLStrategy<RLC: RLComponentsTypes> {
     ) -> RLResult<RLC::Policy> {
         let starting_epoch = training_components.checkpoint.unwrap_or(0) + 1;
         let summary_config = training_components.summary.clone();
+        let interrupter = training_components.interrupter.clone();
 
         // Event processor start training
-        training_components
-            .event_processor
-            .process_train(RLEvent::Start {
+        interrupter.fail_on_error(training_components.event_processor.process_train(
+            RLEvent::Start {
                 total_items: training_components.num_steps,
-            });
+                label: training_components.label.clone(),
+            },
+        ));
 
         // Training loop
         let (policy, mut event_processor) = self.train_loop(
@@ -73,12 +77,20 @@ pub trait RLStrategy<RLC: RLComponentsTypes> {
 
         // Signal training end. For the TUI renderer, this handles the exit & return to main screen.
         // TODO: summary makes sense for RL?
-        event_processor.process_train(RLEvent::End(summary));
+        interrupter.fail_on_error(event_processor.process_train(RLEvent::End(summary)));
 
         // let model = model.valid();
+
+        // Finish processing remaining events.
+        interrupter.fail_on_error(event_processor.flush());
         let renderer = event_processor.renderer();
 
-        RLResult { policy, renderer }
+        RLResult {
+            policy,
+            renderer,
+            interrupted: interrupter.interruption(),
+            error: interrupter.error(),
+        }
     }
 
     /// Training loop for this strategy

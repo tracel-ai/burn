@@ -1,5 +1,8 @@
 # burn-flex vs burn-ndarray: Comprehensive Comparison
 
+> Historical comparison with `burn-ndarray`, deprecated in 0.22 and removed after the 0.22 release.
+> Its source remains available on [`release/0.22`](https://github.com/tracel-ai/burn/tree/release/0.22/crates/burn-ndarray).
+
 This document compares burn-flex (proposed replacement) against burn-ndarray (current CPU backend)
 to demonstrate full coverage and the architectural differences between the two.
 

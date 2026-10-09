@@ -985,11 +985,12 @@ fn clamp<C: Numeric, N: Size>(
 
     let elem_type = elem_type_of::<C>();
     let result = if comptime!(elem_type.is_float()) {
-        // clamp lowers to max(min(x, max), min), which returns the non-NaN operand and so mapped
-        // NaN to a bound. Comparisons against NaN are false, so it survives here, in the same
-        // order as the clamp_min/clamp_max trait default.
-        let clamped = select(input > max, max, input);
-        select(clamped < min, min, clamped)
+        let define!(F) = elem_type;
+        Vector::cast_from(clamp_nan(
+            Vector::<F, N>::cast_from(input),
+            Vector::<F, N>::cast_from(min),
+            Vector::<F, N>::cast_from(max),
+        ))
     } else {
         cubecl::prelude::clamp(input, min, max)
     };

@@ -958,7 +958,7 @@ fn reduce_dim_f32(tensor: &FlexTensor, dim: usize, op: ReduceOp) -> FlexTensor {
     {
         // Reduction dimension is contiguous, no outer batch (e.g., transposed 2D reducing dim=0)
         // Rows must also be packed in forward order; reversed or stepped rows
-        // use the stride-aware per-row branch below.
+        // use the stride-aware branch below.
         #[cfg(feature = "simd")]
         {
             let mut result = vec![0.0f32; inner_size];
@@ -994,22 +994,26 @@ fn reduce_dim_f32(tensor: &FlexTensor, dim: usize, op: ReduceOp) -> FlexTensor {
             debug_assert_eq!(outer_stride, (dim_size * inner_size) as isize);
         }
         let inner_stride: isize = if dim + 1 < ndims { strides[dim + 1] } else { 1 };
-
-        let mut result = Vec::with_capacity(out_size);
-        for outer in 0..outer_size {
-            for inner in 0..inner_size {
-                let base = (start_offset as isize
+        let starts = (0..outer_size).flat_map(move |outer| {
+            (0..inner_size).map(move |inner| {
+                (start_offset as isize
                     + outer as isize * outer_stride
-                    + inner as isize * inner_stride) as usize;
-                let slice = &data[base..base + dim_size];
-                #[cfg(feature = "simd")]
-                let acc = kernels::sum_f32(slice);
-                #[cfg(not(feature = "simd"))]
-                let acc = slice.iter().copied().sum();
-                result.push(acc);
-            }
+                    + inner as isize * inner_stride) as usize
+            })
+        });
+
+        #[cfg(feature = "simd")]
+        {
+            let mut result = vec![0.0f32; out_size];
+            kernels::sum_rows_at_f32(data, starts, dim_size, &mut result);
+            result
         }
-        result
+        #[cfg(not(feature = "simd"))]
+        {
+            starts
+                .map(|base| data[base..base + dim_size].iter().copied().sum())
+                .collect()
+        }
     } else if tensor.is_contiguous() {
         // Contiguous: use flat index arithmetic (safe for any ndims).
         // outer_size and inner_size are guaranteed positive by the out_size == 0
@@ -1146,8 +1150,8 @@ fn reduce_first_dim_f32(
 
 /// Reduce last dimension with SIMD.
 ///
-/// For contiguous Sum: batches all rows in a single kernel call using
-/// 4-accumulator SIMD to hide add latency.
+/// Sum batches all rows into a single SIMD kernel call, contiguous or strided.
+/// Prod uses a scalar loop.
 #[inline]
 fn reduce_last_dim_f32(
     data: &[f32],
@@ -1170,27 +1174,25 @@ fn reduce_last_dim_f32(
     }
 
     // Fallback: non-contiguous strides or Prod.
-    let mut result = Vec::with_capacity(rows);
-    for outer in 0..rows {
-        let row_start = (start_offset as isize + outer as isize * outer_stride) as usize;
-        let row = &data[row_start..row_start + dim_size];
+    let starts =
+        (0..rows).map(|outer| (start_offset as isize + outer as isize * outer_stride) as usize);
 
-        let val = match op {
-            ReduceOp::Sum => {
-                #[cfg(feature = "simd")]
-                {
-                    kernels::sum_f32(row)
-                }
-                #[cfg(not(feature = "simd"))]
-                {
-                    row.iter().copied().sum()
-                }
-            }
-            ReduceOp::Prod => row.iter().copied().product(),
-        };
-        result.push(val);
+    #[cfg(feature = "simd")]
+    if matches!(op, ReduceOp::Sum) {
+        let mut result = vec![0.0f32; rows];
+        kernels::sum_rows_at_f32(data, starts, dim_size, &mut result);
+        return result;
     }
-    result
+
+    starts
+        .map(|row_start| {
+            let row = &data[row_start..row_start + dim_size];
+            match op {
+                ReduceOp::Sum => row.iter().copied().sum(),
+                ReduceOp::Prod => row.iter().copied().product(),
+            }
+        })
+        .collect()
 }
 
 /// Generic dimension reduction implementation.
@@ -2463,7 +2465,7 @@ mod tests {
 
         let result = Flex::float_mean(tensor);
         let result_data = result.into_data();
-        let values: &[f16] = bytemuck::cast_slice(&result_data.bytes);
+        let values: &[f16] = bytemuck::cast_slice(result_data.as_bytes());
 
         assert_eq!(values.len(), 1);
         let mean = values[0].to_f32();
@@ -2484,7 +2486,7 @@ mod tests {
 
         assert_eq!(result.layout().shape().to_vec(), vec![0, 1]);
         let result_data = result.into_data();
-        let values: &[f16] = bytemuck::cast_slice(&result_data.bytes);
+        let values: &[f16] = bytemuck::cast_slice(result_data.as_bytes());
         assert!(values.is_empty());
     }
 
@@ -2499,7 +2501,7 @@ mod tests {
         let result = Flex::float_sum_dim(tensor, 1);
 
         assert_eq!(result.layout().shape().to_vec(), vec![0, 1]);
-        assert!(result.into_data().bytes.is_empty());
+        assert!(result.into_data().bytes().is_empty());
     }
 
     #[test]
@@ -2511,7 +2513,7 @@ mod tests {
         let result = Flex::float_sum_dim(tensor, 0);
 
         assert_eq!(result.layout().shape().to_vec(), vec![1, 0]);
-        assert!(result.into_data().bytes.is_empty());
+        assert!(result.into_data().bytes().is_empty());
     }
 
     #[test]
@@ -2523,7 +2525,7 @@ mod tests {
         let result = Flex::float_sum_dim(tensor, 1);
 
         assert_eq!(result.layout().shape().to_vec(), vec![0, 1]);
-        assert!(result.into_data().bytes.is_empty());
+        assert!(result.into_data().bytes().is_empty());
     }
 
     #[test]
@@ -2535,7 +2537,7 @@ mod tests {
         let result = Flex::int_sum_dim(tensor, 1);
 
         assert_eq!(result.layout().shape().to_vec(), vec![0, 1]);
-        assert!(result.into_data().bytes.is_empty());
+        assert!(result.into_data().bytes().is_empty());
     }
 
     #[test]
@@ -2547,7 +2549,7 @@ mod tests {
         let result = Flex::float_sum_dim(tensor, 1);
 
         assert_eq!(result.layout().shape().to_vec(), vec![0, 1]);
-        assert!(result.into_data().bytes.is_empty());
+        assert!(result.into_data().bytes().is_empty());
     }
 
     #[test]
@@ -2560,7 +2562,7 @@ mod tests {
         let result = Flex::int_mean_dim(tensor, 1);
 
         let result_data = result.into_data();
-        let values: Vec<i8> = bytemuck::cast_slice(&result_data.bytes).to_vec();
+        let values: Vec<i8> = bytemuck::cast_slice(result_data.as_bytes()).to_vec();
         // integer division: 100 / 200 = 0
         assert_eq!(values, vec![0]);
     }
@@ -2574,7 +2576,7 @@ mod tests {
         let result = Flex::int_mean_dim(tensor, 1);
 
         let result_data = result.into_data();
-        let values: Vec<i16> = bytemuck::cast_slice(&result_data.bytes).to_vec();
+        let values: Vec<i16> = bytemuck::cast_slice(result_data.as_bytes()).to_vec();
         assert_eq!(values, vec![0]);
     }
 
@@ -2586,7 +2588,7 @@ mod tests {
 
         assert_eq!(result.layout().shape().to_vec(), vec![1]);
         let result_data = result.into_data();
-        let values: Vec<i32> = bytemuck::cast_slice(&result_data.bytes).to_vec();
+        let values: Vec<i32> = bytemuck::cast_slice(result_data.as_bytes()).to_vec();
         assert_eq!(values, vec![15]);
     }
 
@@ -2598,7 +2600,7 @@ mod tests {
 
         assert_eq!(result.layout().shape().to_vec(), vec![2, 1]);
         let result_data = result.into_data();
-        let values: Vec<i32> = bytemuck::cast_slice(&result_data.bytes).to_vec();
+        let values: Vec<i32> = bytemuck::cast_slice(result_data.as_bytes()).to_vec();
         assert_eq!(values, vec![6, 15]);
     }
 
@@ -2611,9 +2613,9 @@ mod tests {
         assert_eq!(result.layout().shape().to_vec(), vec![1]);
         let result_data = result.into_data();
         #[cfg(target_pointer_width = "64")]
-        let values: Vec<i64> = bytemuck::cast_slice(&result_data.bytes).to_vec();
+        let values: Vec<i64> = bytemuck::cast_slice(result_data.as_bytes()).to_vec();
         #[cfg(target_pointer_width = "32")]
-        let values: Vec<i64> = bytemuck::cast_slice::<u8, i32>(&result_data.bytes)
+        let values: Vec<i64> = bytemuck::cast_slice::<u8, i32>(result_data.as_bytes())
             .iter()
             .map(|&v| v as i64)
             .collect();
@@ -2624,7 +2626,7 @@ mod tests {
     // `int_argmax`/`int_argmin` panicked on unsigned dtypes.
     fn arg_indices(result: FlexTensor) -> Vec<isize> {
         assert_eq!(result.layout().shape().to_vec(), vec![1]);
-        bytemuck::cast_slice(&result.into_data().bytes).to_vec()
+        bytemuck::cast_slice(result.into_data().as_bytes()).to_vec()
     }
 
     #[test]
@@ -2768,7 +2770,7 @@ mod tests {
         let tensor = FlexTensor::from_data(TensorData::new(vec![5u32, 10, 3, 8], [2, 2]));
         let (values, indices) = Flex::int_max_dim_with_indices(tensor, 1);
         let vals: Vec<u32> = values.into_data().try_into_vec().unwrap();
-        let idxs: Vec<isize> = bytemuck::cast_slice(&indices.into_data().bytes).to_vec();
+        let idxs: Vec<isize> = bytemuck::cast_slice(indices.into_data().as_bytes()).to_vec();
         assert_eq!(vals, vec![10, 8]);
         assert_eq!(idxs, vec![1, 1]);
     }
@@ -2784,7 +2786,7 @@ mod tests {
         let short =
             FlexTensor::from_data(TensorData::new(vec![f32::NAN, f32::NAN, f32::NAN], [1, 3]));
         let short_idxs: Vec<isize> =
-            bytemuck::cast_slice(&super::argmax(short, 1).into_data().bytes).to_vec();
+            bytemuck::cast_slice(super::argmax(short, 1).into_data().as_bytes()).to_vec();
 
         let mut long_data = alloc::vec![1.0f32; 600];
         long_data[0] = f32::NAN;
@@ -2792,7 +2794,7 @@ mod tests {
         long_data[300] = 5.0;
         let long = FlexTensor::from_data(TensorData::new(long_data, [1, 600]));
         let long_idxs: Vec<isize> =
-            bytemuck::cast_slice(&super::argmax(long, 1).into_data().bytes).to_vec();
+            bytemuck::cast_slice(super::argmax(long, 1).into_data().as_bytes()).to_vec();
 
         assert_eq!(short_idxs, vec![0], "scalar path");
         assert_eq!(long_idxs, vec![0], "SIMD path");

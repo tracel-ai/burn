@@ -1,11 +1,10 @@
-//! Peer-to-peer remote tensor execution for Burn.
+//! Remote tensor execution for Burn: a client sends tensor operations to a server that runs them
+//! on its devices.
 //!
-//! Iroh is the primary transport. Applications own an Iroh [`Endpoint`] and build remote devices
-//! from it; a server hosts compute on its own endpoint. Compute sessions use bidirectional QUIC
-//! streams, while cross-peer tensor movement uses independent authenticated streams without
-//! routing payloads through the controlling client.
-//!
-//! The optional `websocket` feature retains the legacy address-and-port transport.
+//! Users reach it through `burn::remote` (clients) and `burn::server` (servers). Iroh is the
+//! default transport: any network, authenticated and encrypted. The `websocket` feature adds the
+//! simplest setup for a trusted network, unencrypted. Compute sessions and the tensor transfers
+//! between servers never route tensor data through the controlling client.
 
 #[cfg(feature = "client")]
 mod client;
@@ -13,9 +12,19 @@ mod client;
 #[cfg(feature = "server")]
 pub mod server;
 
+#[cfg(all(
+    not(target_family = "wasm"),
+    any(feature = "client", feature = "server")
+))]
+mod runtime;
 pub(crate) mod shared;
 pub mod telemetry;
+#[cfg(any(feature = "client", all(feature = "server", feature = "iroh")))]
+pub(crate) mod time;
 mod transport;
+
+mod credential;
+pub use credential::Credential;
 
 pub use burn_ir as ir;
 pub use burn_router::RouterClient;
@@ -26,12 +35,14 @@ pub use burn_router::RouterClient;
 pub(crate) mod metrics;
 
 #[cfg(feature = "iroh")]
-pub use iroh::{Endpoint, EndpointAddr, EndpointId};
-#[cfg(feature = "iroh")]
-pub use transport::iroh::RemoteSecret;
+pub use iroh::{Endpoint, EndpointAddr, EndpointId, RelayUrl};
+#[cfg(all(feature = "iroh", feature = "client"))]
+pub use transport::iroh::IrohHost;
 #[cfg(feature = "iroh")]
 pub use transport::iroh::node::BURN_REMOTE_ALPN;
-pub use transport::{PeerAddr, PeerId};
+#[cfg(feature = "iroh")]
+pub use transport::iroh::{InvalidRelays, IrohIdentity, IrohRelays};
+pub(crate) use transport::{PeerAddr, PeerId};
 
 #[cfg(feature = "client")]
 mod __client {
@@ -41,20 +52,10 @@ mod __client {
 
     /// The remote backend allows you to run computation on a remote device.
     ///
-    /// Iroh is the primary transport. Applications own an Iroh [`Endpoint`], resolve a compute peer
-    /// through their own discovery/control plane, and construct devices from the endpoint and the
-    /// peer's address with [`RemoteDevice::iroh`] (or the `Device::remote_iroh` facade).
-    ///
     /// ```rust, ignore
-    /// let endpoint = Endpoint::builder(presets::N0).bind().await?;
-    /// let remote = RemoteDevice::iroh(&endpoint, compute_peer, 0);
+    /// let host = RemoteHost::iroh(server_id).with_credential(token);
+    /// let device = Device::remote_options(&host).init()?;
     /// ```
-    ///
-    /// For backends that aren't part of `DispatchDevice` but implement
-    /// `BackendIr`, build a [`server::RemoteServerBuilder`] directly with the
-    /// concrete backend type parameter — that is also how custom operations
-    /// (backend extensions) are hosted, via
-    /// [`custom_op`](server::RemoteServerBuilder::custom_op).
     #[cfg(not(feature = "fusion"))]
     pub type RemoteBackend = BackendRouter<RemoteChannel>;
 
@@ -65,115 +66,45 @@ mod __client {
     #[cfg(feature = "fusion")]
     pub type RemoteBackend = burn_fusion::Fusion<BackendRouter<RemoteChannel>>;
 
-    pub use client::{CustomOpClient, RemoteChannel, RemoteDevice};
+    #[doc(hidden)]
+    pub use client::HostSpec;
+    pub use client::{ConnectError, CustomOpClient, RemoteChannel, RemoteDevice};
 }
 #[cfg(feature = "client")]
 pub use __client::*;
 
+// No lib test may name burn_tensor: its burn-remote copy's device ids collide with this one's.
 #[cfg(all(test, feature = "client", feature = "server"))]
 mod tests {
+    use crate::{
+        RemoteBackend, RemoteDevice,
+        server::{BackendServer, WebSocketTransport},
+        shared::{
+            Encode, PROTOCOL_VERSION, RemoteMessage, SessionId, SessionInit, SessionRefusal, Task,
+            TaskResponse, TaskResponseContent,
+        },
+        transport::{
+            link::{FrameSink, MAX_UNAUTHORIZED_FRAME_SIZE},
+            message::MessageSink,
+        },
+    };
+    use burn_backend::{Scalar, TensorData, ops::FloatTensorOps};
+    use burn_communication::{
+        Address, CommunicationChannel, Message, ProtocolClient, websocket::WsClient,
+    };
     use burn_flex::Flex;
-    use burn_tensor::{Device, DeviceType, Distribution, Tensor};
+    use bytes::Bytes;
+    use std::str::FromStr;
 
-    /// Run `body` on a worker thread and fail the test if it doesn't finish within `timeout`.
+    /// Serve `server` over WebSocket on a port the OS picks, returning the address to dial.
     ///
-    /// A deadlock in the remote backend manifests as a hung worker, so without a watchdog the
-    /// test would block the whole suite forever. We can't forcibly kill the hung thread (it's
-    /// parked on a blocking recv deep in the backend), so on timeout we panic from the test
-    /// thread and let the process exit carry the stuck worker away.
-    fn with_deadlock_watchdog(timeout: std::time::Duration, body: impl FnOnce() + Send + 'static) {
-        let (tx, rx) = std::sync::mpsc::channel();
-        let handle = std::thread::spawn(move || {
-            body();
-            let _ = tx.send(());
-        });
-        match rx.recv_timeout(timeout) {
-            Ok(()) => {
-                handle.join().expect("worker thread panicked");
-            }
-            Err(_) => panic!(
-                "Deadlock: the remote multi-device workload did not finish within {timeout:?}"
-            ),
-        }
-    }
-
-    #[test]
-    pub fn test_to_device_over_websocket() {
-        let rt = tokio::runtime::Builder::new_multi_thread()
-            .enable_io()
-            .build()
-            .unwrap();
-
-        rt.spawn(
-            crate::server::RemoteServerBuilder::<Flex>::new(vec![Default::default()])
-                .port(3000)
-                .start_async(),
-        );
-        rt.spawn(
-            crate::server::RemoteServerBuilder::<Flex>::new(vec![Default::default()])
-                .port(3010)
-                .start_async(),
-        );
-
-        // Give the servers a moment to bind before clients try to connect.
-        std::thread::sleep(std::time::Duration::from_millis(500));
-
-        let device_1 = Device::remote_websocket("ws://localhost:3000", 0);
-        let device_2 = Device::remote_websocket("ws://localhost:3010", 0);
-
-        // Some random input on device 1.
-        let input_shape = [1, 28, 28];
-        let input = Tensor::<3>::random(input_shape, Distribution::Default, &device_1);
-        let numbers_expected: Vec<f32> = input.to_data().try_into_vec().unwrap();
-
-        // Move tensor to device 2.
-        let input = input.to_device(&device_2);
-        let numbers: Vec<f32> = input.to_data().try_into_vec().unwrap();
-        assert_eq!(numbers, numbers_expected);
-
-        // Move tensor back to device 1.
-        let input = input.to_device(&device_1);
-        let numbers: Vec<f32> = input.into_data().try_into_vec().unwrap();
-        assert_eq!(numbers, numbers_expected);
-
-        rt.shutdown_background();
-    }
-
-    /// A profiling window over the wire. The server here hosts a backend with
-    /// no device clock, so the window it is asked to open is answered with
-    /// none and the client measures between two syncs instead — the path a
-    /// remote device that opens no windows has to keep working on, with or
-    /// without fusion in front of the router.
-    #[test]
-    pub fn test_profile_over_websocket() {
-        let rt = tokio::runtime::Builder::new_multi_thread()
-            .enable_io()
-            .build()
-            .unwrap();
-
-        rt.spawn(
-            crate::server::RemoteServerBuilder::<Flex>::new(vec![Default::default()])
-                .port(3180)
-                .start_async(),
-        );
-
-        std::thread::sleep(std::time::Duration::from_millis(500));
-
-        let device = Device::remote_websocket("ws://localhost:3180", 0);
-        let (sum, duration) = device
-            .profile(|| {
-                Tensor::<1>::ones([1024], &device)
-                    .sum()
-                    .into_scalar::<f32>()
-            })
-            .expect("a window the server cannot open is measured between syncs");
-
-        assert_eq!(sum, 1024.0);
-        let ticks = burn_std::future::block_on(duration.resolve())
-            .expect("a system-time window always carries a measurement");
-        assert!(ticks.duration() > std::time::Duration::ZERO);
-
-        rt.shutdown_background();
+    /// The listener is bound before this returns, so a client can connect at once.
+    pub(crate) fn serve(rt: &tokio::runtime::Runtime, server: BackendServer<Flex>) -> String {
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = format!("ws://{}", listener.local_addr().unwrap());
+        let serving = server.serve_async(WebSocketTransport::from_listener(listener));
+        rt.spawn(async move { serving.await.unwrap() });
+        address
     }
 
     /// End-to-end backend extension over the wire: the client ships a custom op as
@@ -185,8 +116,7 @@ mod tests {
     #[test]
     #[cfg(not(feature = "fusion"))]
     pub fn test_custom_op_over_websocket() {
-        use crate::{RemoteBackend, RemoteDevice};
-        use burn_backend::{Scalar, TensorData, TensorMetadata, ops::FloatTensorOps};
+        use burn_backend::TensorMetadata;
         use burn_ir::{CustomOpIr, OperationIr, ScalarIr, TensorIr};
         use burn_router::RouterClient;
 
@@ -196,24 +126,22 @@ mod tests {
             .unwrap();
 
         // Host a "scale" custom op: multiply the input float tensor by a scalar argument.
-        rt.spawn(
-            crate::server::RemoteServerBuilder::<Flex>::new(vec![Default::default()])
-                .port(3200)
-                .custom_op("scale", |handles, ir, _device| {
+        let address = serve(
+            &rt,
+            BackendServer::<Flex>::new(vec![Default::default()]).with_custom_op(
+                "scale",
+                |handles, ir, _device| {
                     let input = handles.get_float_tensor::<Flex>(&ir.inputs[0]);
                     let factor: Scalar = ir.scalars[0].into();
                     let output = Flex::float_mul_scalar(input, factor);
                     handles.register_float_tensor::<Flex>(&ir.outputs[0].id, output);
-                })
-                .start_async(),
+                },
+            ),
         );
-
-        // Give the server a moment to bind before the client connects.
-        std::thread::sleep(std::time::Duration::from_millis(500));
 
         // Drive the remote backend directly (no autodiff/dispatch glue). A real backend extension
         // would wrap this in a hand-written `impl MyExt for RemoteBackend`.
-        let device = RemoteDevice::websocket("ws://localhost:3200", 0);
+        let device = RemoteDevice::websocket(&address, 0);
         let input = <RemoteBackend as FloatTensorOps<RemoteBackend>>::float_from_data(
             TensorData::from([2.0f32, 4.0, 6.0]),
             &device,
@@ -251,12 +179,8 @@ mod tests {
     #[test]
     #[cfg(not(feature = "fusion"))]
     pub fn test_custom_op_over_iroh() {
-        use crate::{
-            BURN_REMOTE_ALPN, RemoteBackend, RemoteDevice,
-            server::{AllowAll, CustomOpRegistry, IrohRemoteProtocol},
-            telemetry::TelemetryProbe,
-        };
-        use burn_backend::{Scalar, TensorData, TensorMetadata, ops::FloatTensorOps};
+        use crate::{BURN_REMOTE_ALPN, server::CustomOpRegistry};
+        use burn_backend::TensorMetadata;
         use burn_ir::{CustomOpIr, OperationIr, ScalarIr, TensorIr};
         use burn_router::RouterClient;
         use iroh::{Endpoint, RelayMode, endpoint::presets, protocol::Router};
@@ -289,13 +213,10 @@ mod tests {
             handles.register_float_tensor::<Flex>(&ir.outputs[0].id, output);
         });
 
-        let protocol = IrohRemoteProtocol::<Flex>::new(
-            server.clone(),
-            vec![Default::default()],
-            std::sync::Arc::new(AllowAll),
-            TelemetryProbe::disabled(),
-            custom_ops,
-        );
+        let protocol = BackendServer::<Flex>::new(vec![Default::default()])
+            .with_custom_ops(custom_ops)
+            .into_protocol(&server)
+            .unwrap();
 
         // spawn() must run in a runtime context so iroh can schedule its tasks.
         let router = {
@@ -335,216 +256,17 @@ mod tests {
         rt.block_on(router.shutdown()).unwrap();
     }
 
-    /// A single server hosting multiple devices: two indices on the same address resolve to
-    /// two distinct sessions (distinct interpreters/runner threads). Moving a tensor between
-    /// them exercises the multi-device path within one host.
-    #[test]
-    pub fn test_multi_device_single_server() {
-        let rt = tokio::runtime::Builder::new_multi_thread()
-            .enable_io()
-            .build()
-            .unwrap();
-
-        // One server, two devices.
-        rt.spawn(
-            crate::server::RemoteServerBuilder::<Flex>::new(vec![
-                Default::default(),
-                Default::default(),
-            ])
-            .port(3030)
-            .start_async(),
-        );
-
-        std::thread::sleep(std::time::Duration::from_millis(500));
-
-        let device_0 = Device::remote_websocket("ws://localhost:3030", 0);
-        let device_1 = Device::remote_websocket("ws://localhost:3030", 1);
-
-        // Distinct indices on the same address must be distinct devices.
-        assert_ne!(device_0, device_1);
-
-        let input_shape = [1, 28, 28];
-        let input = Tensor::<3>::random(input_shape, Distribution::Default, &device_0);
-        let numbers_expected: Vec<f32> = input.to_data().try_into_vec().unwrap();
-
-        // Move tensor to the second device on the same host and back.
-        let input = input.to_device(&device_1);
-        let numbers: Vec<f32> = input.to_data().try_into_vec().unwrap();
-        assert_eq!(numbers, numbers_expected);
-
-        let input = input.to_device(&device_0);
-        let numbers: Vec<f32> = input.into_data().try_into_vec().unwrap();
-        assert_eq!(numbers, numbers_expected);
-
-        rt.shutdown_background();
-    }
-
-    /// Concurrent multi-device regression (DDP-style): two user threads, each pinned to a device,
-    /// running simultaneously and each iteration moving a tensor to the *other* device and back.
-    ///
-    /// This used to deadlock because the client's transfer-id counter never persisted its
-    /// increment (`LocalTransferId` is `Copy`, so the increment landed on a throwaway local).
-    /// Every same-host transfer after the first reused the same id; sequentially that's harmless
-    /// (each expose is taken before the next), but two transfers in flight at once then collided
-    /// in the server's `local_comm` rendezvous and one `take` hung forever. Single-threaded
-    /// workloads never tripped it — `into_data` serializes each iteration — so the bug only shows
-    /// up under genuine concurrency.
-    #[test]
-    fn test_multi_device_concurrent_to_device_deadlock() {
-        let rt = tokio::runtime::Builder::new_multi_thread()
-            .enable_io()
-            .build()
-            .unwrap();
-
-        rt.spawn(
-            crate::server::RemoteServerBuilder::<Flex>::new(vec![
-                Default::default(),
-                Default::default(),
-            ])
-            .port(3060)
-            .start_async(),
-        );
-
-        std::thread::sleep(std::time::Duration::from_millis(500));
-
-        with_deadlock_watchdog(std::time::Duration::from_secs(30), || {
-            let device0 = Device::remote_websocket("ws://localhost:3060", 0);
-            let device1 = Device::remote_websocket("ws://localhost:3060", 1);
-
-            let run = |home: Device, away: Device| {
-                move || {
-                    for _ in 0..100 {
-                        let t = Tensor::<2>::random([8, 8], Distribution::Default, &home);
-                        // home -> away, op there, away -> home.
-                        let t = t.to_device(&away);
-                        let t = t * 2.0;
-                        let t = t.to_device(&home);
-                        let _ = t.sum().into_data();
-                    }
-                }
-            };
-
-            let h0 = std::thread::spawn(run(device0.clone(), device1.clone()));
-            let h1 = std::thread::spawn(run(device1, device0));
-            h0.join().unwrap();
-            h1.join().unwrap();
-        });
-
-        rt.shutdown_background();
-    }
-
-    /// `Device::enumerate(DeviceType::remote_websocket(addr))` lists every device the server hosts, by
-    /// connecting once and reading the device count off the init handshake.
-    #[test]
-    pub fn test_enumerate_remote_devices() {
-        let rt = tokio::runtime::Builder::new_multi_thread()
-            .enable_io()
-            .build()
-            .unwrap();
-
-        // One server hosting three devices.
-        rt.spawn(
-            crate::server::RemoteServerBuilder::<Flex>::new(vec![
-                Default::default(),
-                Default::default(),
-                Default::default(),
-            ])
-            .port(3040)
-            .start_async(),
-        );
-
-        std::thread::sleep(std::time::Duration::from_millis(500));
-
-        let devices =
-            Device::enumerate(DeviceType::remote_websocket("ws://localhost:3040")).into_vec();
-
-        // The server reports its three devices, in index order.
-        assert_eq!(devices.len(), 3);
-        assert_eq!(
-            devices[0],
-            Device::remote_websocket("ws://localhost:3040", 0)
-        );
-        assert_eq!(
-            devices[1],
-            Device::remote_websocket("ws://localhost:3040", 1)
-        );
-        assert_eq!(
-            devices[2],
-            Device::remote_websocket("ws://localhost:3040", 2)
-        );
-
-        // Distinct indices are distinct devices.
-        assert_ne!(devices[0], devices[1]);
-        assert_ne!(devices[1], devices[2]);
-
-        // The enumerated devices are usable: run an op on the last one.
-        let input = Tensor::<2>::from_floats([[1.0, 2.0], [3.0, 4.0]], &devices[2]);
-        let numbers: Vec<f32> = (input * 2.0).into_data().try_into_vec().unwrap();
-        assert_eq!(numbers, vec![2.0, 4.0, 6.0, 8.0]);
-
-        rt.shutdown_background();
-    }
-
-    /// Exercises the cross-backend transfer body: local tensor → remote (data round-trip
-    /// through `TensorData`), an op on the remote, then remote → local.
     /// Run `body` on a worker thread and report whether it finished within `timeout`.
     ///
-    /// Unlike [`with_deadlock_watchdog`], a panic inside `body` counts as "finished": these error
-    /// tests assert that a failure *surfaces* (as an `Err` or a panic) instead of hanging, so all
-    /// that matters is the thread came back. Returns `false` if it was still running at the
-    /// deadline — i.e. the call hung.
+    /// A panic inside `body` counts as finished: a failure that surfaces is what these tests want,
+    /// only a hang fails them.
     fn finishes_within(timeout: std::time::Duration, body: impl FnOnce() + Send + 'static) -> bool {
         let (tx, rx) = std::sync::mpsc::channel();
         std::thread::spawn(move || {
-            // Swallow panics: a disconnected read panicking on the error path is an acceptable
-            // "didn't hang" outcome and must not abort the whole test process.
             let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(body));
             let _ = tx.send(());
         });
         rx.recv_timeout(timeout).is_ok()
-    }
-
-    /// When the server goes down, a client call that awaits a response (here a tensor read) must
-    /// fail promptly instead of blocking forever. Before the fix the response-demux task just
-    /// exited on the closed stream, leaving every pending callback — and any later request —
-    /// parked on a oneshot that would never be completed.
-    #[test]
-    fn test_server_down_does_not_hang_client() {
-        let rt = tokio::runtime::Builder::new_multi_thread()
-            .enable_io()
-            .build()
-            .unwrap();
-
-        rt.spawn(
-            crate::server::RemoteServerBuilder::<Flex>::new(vec![Default::default()])
-                .port(3070)
-                .start_async(),
-        );
-
-        std::thread::sleep(std::time::Duration::from_millis(500));
-
-        let device = Device::remote_websocket("ws://localhost:3070", 0);
-
-        // One successful round-trip so the sockets are actually up and the demux task is running.
-        let input = Tensor::<2>::from_floats([[1.0, 2.0], [3.0, 4.0]], &device);
-        let warmup: Vec<f32> = (input * 2.0).into_data().try_into_vec().unwrap();
-        assert_eq!(warmup, vec![2.0, 4.0, 6.0, 8.0]);
-
-        // Kill the server: dropping its runtime closes the listener and both client sockets.
-        rt.shutdown_timeout(std::time::Duration::from_millis(100));
-        // Let the client's response-demux observe the closed stream and fail pending callers.
-        std::thread::sleep(std::time::Duration::from_millis(500));
-
-        // A read now has no server to answer it. It must error out (which `to_data` surfaces as a
-        // panic), not hang.
-        let finished = finishes_within(std::time::Duration::from_secs(10), move || {
-            let t = Tensor::<2>::from_floats([[5.0, 6.0], [7.0, 8.0]], &device);
-            let _ = (t * 2.0).to_data();
-        });
-        assert!(
-            finished,
-            "client hung waiting for a response after the server went down"
-        );
     }
 
     /// A client that disconnects abruptly mid-session (socket dropped, no `Close`) must not wedge
@@ -552,24 +274,12 @@ mod tests {
     /// connection here because a `Device`'s client is process-cached and never dropped mid-test.
     #[test]
     fn test_client_disconnect_handled_cleanly_by_server() {
-        use crate::shared::{RemoteMessage, SessionId, Task};
-        use burn_communication::{CommunicationChannel, Message, ProtocolClient};
-        use std::str::FromStr;
-
-        type Client = burn_communication::websocket::WsClient;
-
         let rt = tokio::runtime::Builder::new_multi_thread()
             .enable_io()
             .build()
             .unwrap();
 
-        rt.spawn(
-            crate::server::RemoteServerBuilder::<Flex>::new(vec![Default::default()])
-                .port(3090)
-                .start_async(),
-        );
-
-        std::thread::sleep(std::time::Duration::from_millis(500));
+        let address = serve(&rt, BackendServer::<Flex>::new(vec![Default::default()]));
 
         // Raw client: connect a submit stream, init a session and send one task so the server
         // spawns the session worker, then drop the socket without a `Close` to mimic a crash.
@@ -578,30 +288,25 @@ mod tests {
                 .enable_all()
                 .build()
                 .unwrap();
-            let address = burn_communication::Address::from_str("ws://localhost:3090").unwrap();
+            let server = Address::from_str(&address).unwrap();
             let session_id = SessionId::new();
 
             rtc.block_on(async {
-                let mut submit = Client::connect(address, "session")
+                let (mut submit, _responses) = WsClient::connect(server, "session")
                     .await
-                    .expect("raw session connect");
+                    .expect("raw session connect")
+                    .split();
 
-                let frame = |msgs: Vec<RemoteMessage>| -> Message {
-                    Message::new(rmp_serde::to_vec(&msgs).unwrap().into())
-                };
-
-                submit
-                    .send(frame(vec![RemoteMessage::Init(
-                        crate::shared::SessionInit::new(session_id, 0, vec![]),
-                    )]))
+                let init = vec![RemoteMessage::Init(SessionInit::new(session_id, 0, vec![]))];
+                FrameSink::send(&mut submit, init.encode().unwrap().into_bytes())
                     .await
                     .expect("send init");
-                submit
-                    .send(frame(vec![RemoteMessage::Task(Task::Seed(0))]))
+                MessageSink::new(submit)
+                    .send(vec![RemoteMessage::Task(Task::Seed(0))].encode().unwrap())
                     .await
                     .expect("send task");
-                // Drop `submit` here (end of block): the server sees the stream end without a
-                // `Close` and must run the cleanup path.
+                // The socket drops at the end of this block: the server sees the stream end
+                // without a `Close` and must run the cleanup path.
             });
         }
 
@@ -609,11 +314,15 @@ mod tests {
         std::thread::sleep(std::time::Duration::from_millis(500));
 
         // The server must have survived: a fresh, normal client on the same server still works.
-        let finished = finishes_within(std::time::Duration::from_secs(10), || {
-            let device = Device::remote_websocket("ws://localhost:3090", 0);
-            let input = Tensor::<2>::from_floats([[10.0, 20.0]], &device);
-            let numbers: Vec<f32> = (input * 3.0).into_data().try_into_vec().unwrap();
-            assert_eq!(numbers, vec![30.0, 60.0]);
+        let finished = finishes_within(std::time::Duration::from_secs(10), move || {
+            let device = RemoteDevice::websocket(&address, 0);
+            let input =
+                RemoteBackend::float_from_data(TensorData::from([[10.0f32, 20.0]]), &device);
+            let output = RemoteBackend::float_mul_scalar(input, Scalar::from(3.0f32));
+            let data = burn_std::reader::try_read_sync(RemoteBackend::float_into_data(output))
+                .expect("remote read should resolve synchronously")
+                .expect("read should succeed");
+            assert_eq!(data.try_to_vec::<f32>().unwrap(), vec![30.0, 60.0]);
         });
         assert!(
             finished,
@@ -623,43 +332,78 @@ mod tests {
         rt.shutdown_timeout(std::time::Duration::from_millis(100));
     }
 
+    /// The handshake reply stays one bare frame, so a client on the previous protocol version
+    /// reads which version the server speaks instead of failing to decode the reply.
     #[test]
-    pub fn test_to_device_local_to_remote() {
+    fn a_client_on_the_previous_protocol_version_is_told_the_servers_version() {
         let rt = tokio::runtime::Builder::new_multi_thread()
             .enable_io()
             .build()
             .unwrap();
+        let address = serve(&rt, BackendServer::<Flex>::new(vec![Default::default()]));
+        let mut init = SessionInit::new(SessionId::new(), 0, vec![]);
+        init.version = PROTOCOL_VERSION - 1;
 
-        rt.spawn(
-            crate::server::RemoteServerBuilder::<Flex>::new(vec![Default::default()])
-                .port(3020)
-                .start_async(),
+        let reply = first_reply(
+            &address,
+            rmp_serde::to_vec(&vec![RemoteMessage::Init(init)]).unwrap(),
+        )
+        .expect("the server closed the session without a reply");
+
+        let reply: TaskResponse = rmp_serde::from_slice(&reply).unwrap();
+        assert!(
+            matches!(
+                reply.content,
+                TaskResponseContent::InitRefused(SessionRefusal::IncompatibleProtocol {
+                    server_version: PROTOCOL_VERSION
+                })
+            ),
+            "{reply:?}"
         );
-
-        std::thread::sleep(std::time::Duration::from_millis(500));
-
-        let local = Device::default();
-        let remote = Device::remote_websocket("ws://localhost:3020", 0);
-
-        // Create on local, move to remote.
-        let input = Tensor::<2>::from_floats([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]], &local);
-        let on_remote = input.clone().to_device(&remote);
-
-        // Run an op while on the remote.
-        let doubled = on_remote * 2.0;
-
-        // Move back to local and verify.
-        let back = doubled.to_device(&local);
-        let numbers: Vec<f32> = back.into_data().try_into_vec().unwrap();
-        assert_eq!(numbers, vec![2.0, 4.0, 6.0, 8.0, 10.0, 12.0]);
-
         rt.shutdown_background();
+    }
+
+    /// The first frame is read before the authorizer runs, so one over the limit for frames from
+    /// a peer not yet authorized ends the session unanswered.
+    #[test]
+    fn a_first_frame_over_the_unauthorized_limit_is_dropped_unanswered() {
+        let rt = tokio::runtime::Builder::new_multi_thread()
+            .enable_io()
+            .build()
+            .unwrap();
+        let address = serve(&rt, BackendServer::<Flex>::new(vec![Default::default()]));
+
+        let reply = first_reply(&address, vec![0; MAX_UNAUTHORIZED_FRAME_SIZE + 1]);
+
+        assert_eq!(reply, None);
+        rt.shutdown_background();
+    }
+
+    /// The server's answer to `frame`, sent first on a raw session socket, or `None` when it
+    /// closes the socket instead.
+    fn first_reply(address: &str, frame: Vec<u8>) -> Option<Bytes> {
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+        rt.block_on(async {
+            let mut channel = WsClient::connect(Address::from_str(address).unwrap(), "session")
+                .await
+                .expect("raw session connect");
+            let _ = channel.send(Message::new(frame.into())).await;
+            let reply = tokio::time::timeout(std::time::Duration::from_secs(10), channel.recv())
+                .await
+                .expect("the server neither answered nor closed the session");
+            reply.ok().flatten().map(|message| message.data)
+        })
     }
 }
 
 #[cfg(all(test, feature = "fusion", feature = "server"))]
 mod fusion_tests {
-    use crate::{RemoteBackend, RemoteDevice, client::RemoteChannel};
+    use crate::{
+        RemoteBackend, RemoteDevice, client::RemoteChannel, server::BackendServer, tests::serve,
+    };
     use burn_backend::{Backend, Shape, TensorData};
     use burn_router::BackendRouter;
 
@@ -705,20 +449,17 @@ mod fusion_tests {
             .build()
             .unwrap();
 
-        rt.spawn(
-            crate::server::RemoteServerBuilder::<burn_flex::Flex>::new(vec![Default::default()])
-                .port(3100)
-                .start_async(),
+        let plain_address = serve(
+            &rt,
+            BackendServer::<burn_flex::Flex>::new(vec![Default::default()]),
         );
-        rt.spawn(
-            crate::server::RemoteServerBuilder::<burn_flex::Flex>::new(vec![Default::default()])
-                .port(3110)
-                .start_async(),
+        let fused_address = serve(
+            &rt,
+            BackendServer::<burn_flex::Flex>::new(vec![Default::default()]),
         );
-        std::thread::sleep(std::time::Duration::from_millis(500));
 
-        let plain_device = RemoteDevice::websocket("ws://localhost:3100", 0);
-        let fused_device = RemoteDevice::websocket("ws://localhost:3110", 0);
+        let plain_device = RemoteDevice::websocket(&plain_address, 0);
+        let fused_device = RemoteDevice::websocket(&fused_address, 0);
 
         let iters = 5;
         let expected = run::<PlainRemote>(&plain_device, iters);
@@ -757,21 +498,21 @@ mod fusion_tests {
             .build()
             .unwrap();
 
-        rt.spawn(
-            crate::server::RemoteServerBuilder::<Flex>::new(vec![Default::default()])
-                .port(3120)
-                .custom_op("make_floats", |handles, ir, device| {
-                    // Build a 1-D float tensor from the op's scalars — a pure source (no inputs).
+        let address = serve(
+            &rt,
+            BackendServer::<Flex>::new(vec![Default::default()]).with_custom_op(
+                "make_floats",
+                |handles, ir, device| {
+                    // Build a 1-D float tensor from the op's scalars: a pure source, with no inputs.
                     let values: Vec<f32> = ir.scalars.iter().map(|s| s.elem::<f32>()).collect();
                     let n = values.len();
                     let tensor = Flex::float_from_data(TensorData::new(values, [n]), device);
                     handles.register_float_tensor::<Flex>(&ir.outputs[0].id, tensor);
-                })
-                .start_async(),
+                },
+            ),
         );
-        std::thread::sleep(std::time::Duration::from_millis(500));
 
-        let device = RemoteDevice::websocket("ws://localhost:3120", 0);
+        let device = RemoteDevice::websocket(&address, 0);
 
         for i in 0..5 {
             let client = CustomOpClient::new(&device);
@@ -825,20 +566,20 @@ mod fusion_tests {
             .build()
             .unwrap();
 
-        rt.spawn(
-            crate::server::RemoteServerBuilder::<Flex>::new(vec![Default::default()])
-                .port(3140)
-                .custom_op("make_floats", |handles, ir, device| {
+        let address = serve(
+            &rt,
+            BackendServer::<Flex>::new(vec![Default::default()]).with_custom_op(
+                "make_floats",
+                |handles, ir, device| {
                     let values: Vec<f32> = ir.scalars.iter().map(|s| s.elem::<f32>()).collect();
                     let n = values.len();
                     let tensor = Flex::float_from_data(TensorData::new(values, [n]), device);
                     handles.register_float_tensor::<Flex>(&ir.outputs[0].id, tensor);
-                })
-                .start_async(),
+                },
+            ),
         );
-        std::thread::sleep(std::time::Duration::from_millis(500));
 
-        let device = RemoteDevice::websocket("ws://localhost:3140", 0);
+        let device = RemoteDevice::websocket(&address, 0);
 
         for i in 0..5 {
             let client = CustomOpClient::new(&device);
@@ -887,10 +628,11 @@ mod fusion_tests {
             .build()
             .unwrap();
 
-        rt.spawn(
-            crate::server::RemoteServerBuilder::<Flex>::new(vec![Default::default()])
-                .port(3130)
-                .custom_op("make3", |handles, ir, device| {
+        let address = serve(
+            &rt,
+            BackendServer::<Flex>::new(vec![Default::default()]).with_custom_op(
+                "make3",
+                |handles, ir, device| {
                     // 9 scalars → three [3] outputs (chunks of 3).
                     let values: Vec<f32> = ir.scalars.iter().map(|s| s.elem::<f32>()).collect();
                     for (i, out) in ir.outputs.iter().enumerate() {
@@ -898,12 +640,11 @@ mod fusion_tests {
                         let tensor = Flex::float_from_data(TensorData::new(chunk, [3]), device);
                         handles.register_float_tensor::<Flex>(&out.id, tensor);
                     }
-                })
-                .start_async(),
+                },
+            ),
         );
-        std::thread::sleep(std::time::Duration::from_millis(500));
 
-        let device = RemoteDevice::websocket("ws://localhost:3130", 0);
+        let device = RemoteDevice::websocket(&address, 0);
 
         for i in 0..5 {
             let client = CustomOpClient::new(&device);
@@ -971,20 +712,20 @@ mod fusion_tests {
             .build()
             .unwrap();
 
-        rt.spawn(
-            crate::server::RemoteServerBuilder::<Flex>::new(vec![Default::default()])
-                .port(3150)
-                .custom_op("make_floats", |handles, ir, device| {
+        let address = serve(
+            &rt,
+            BackendServer::<Flex>::new(vec![Default::default()]).with_custom_op(
+                "make_floats",
+                |handles, ir, device| {
                     let values: Vec<f32> = ir.scalars.iter().map(|s| s.elem::<f32>()).collect();
                     let n = values.len();
                     let tensor = Flex::float_from_data(TensorData::new(values, [n]), device);
                     handles.register_float_tensor::<Flex>(&ir.outputs[0].id, tensor);
-                })
-                .start_async(),
+                },
+            ),
         );
-        std::thread::sleep(std::time::Duration::from_millis(500));
 
-        let device = RemoteDevice::websocket("ws://localhost:3150", 0);
+        let device = RemoteDevice::websocket(&address, 0);
 
         type B = RemoteBackend;
         for i in 0..5 {

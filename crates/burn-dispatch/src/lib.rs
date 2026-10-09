@@ -16,15 +16,6 @@
         unreachable_code
     )
 )]
-// Wiring up the deprecated `NdArray` and `LibTorch` backends is this crate's job, and the backend
-// registry macros expand them into every dispatch impl, so the warnings land on `macros.rs` rather
-// than on any site we could annotate individually. `allow(deprecated)` is a lint level scoped to
-// this crate, and lint levels never propagate to dependents, so downstream code naming `NdArray` or
-// `LibTorch` (directly or via our re-export) still gets the warning. The `cfg_attr` keeps this
-// confined to the builds that enable them: neither `ndarray` nor `tch` is a default feature, so the
-// default build that CI lints with `--deny warnings` retains full deprecation signal for every
-// other dependency.
-#![cfg_attr(any(feature = "ndarray", feature = "tch"), allow(deprecated))]
 
 //! Burn multi-backend dispatch.
 //!
@@ -36,8 +27,8 @@
 //! |------------|------------|-------------|
 //! | `Cube`     | `cpu`, `cuda`, `metal`, `rocm`, `vulkan`, `webgpu`, `wgpu` | Every cubecl runtime. One backend: the features decide which runtimes are compiled in, and a tensor's device says which one it runs on |
 //! | `Flex`     | `flex`     | Pure Rust CPU backend using `burn-flex` |
-//! | `NdArray`  | `ndarray`  | Pure Rust CPU backend using `ndarray` (deprecated - use `flex`) |
-//! | `LibTorch` | `tch`      | Libtorch backend via `tch` (deprecated - use a CubeCL backend) |
+//! | `Remote`   | `remote`   | Devices hosted by another process or machine, through `burn-remote` |
+//! | `Capture`  | `capture`  | Records operation graphs instead of executing them, through `burn-capture` |
 //! | `Autodiff` | `autodiff` | Autodiff-enabled backend (used in combination with any of the backends above) |
 //!
 //! **Note:** The features can be combined freely. The cubecl-backed ones all
@@ -56,7 +47,8 @@ mod ops;
 /// Dispatch tensor module.
 pub mod tensor;
 
-/// Entry points for hosting a remote-execution server.
+/// The backend dispatch behind `burn::server::RemoteServer`. Not a user path.
+#[doc(hidden)]
 #[cfg(feature = "remote-server")]
 pub mod remote_server;
 
@@ -100,17 +92,7 @@ pub mod backends {
     pub use burn_flex as flex;
     #[cfg(feature = "flex")]
     pub use burn_flex::Flex;
-    #[cfg(feature = "ndarray")]
-    pub use burn_ndarray as ndarray;
-    #[cfg(feature = "ndarray")]
-    pub use burn_ndarray::NdArray;
-    #[cfg(feature = "tch")]
-    pub use burn_tch as libtorch;
-    #[cfg(feature = "tch")]
-    pub use burn_tch::LibTorch;
 
-    #[cfg(feature = "remote")]
-    pub use burn_remote as remote;
     #[cfg(feature = "remote")]
     pub use burn_remote::RemoteBackend as Remote;
 
@@ -130,6 +112,17 @@ pub mod backends {
 
 /// Backend devices.
 pub mod devices {
+    /// Wgpu initialization and interoperability types used by the device facade.
+    #[cfg(feature = "wgpu")]
+    pub mod wgpu {
+        #[cfg(not(target_family = "wasm"))]
+        pub use burn_cubecl::cubecl::wgpu::try_init_setup;
+        pub use burn_cubecl::cubecl::wgpu::{
+            AutoGraphicsApi, MemoryConfiguration, RuntimeOptions, WgpuBackend, WgpuDevice,
+            WgpuInitError, WgpuSetup, try_init_device, try_init_setup_async, wgpu,
+        };
+    }
+
     #[cfg(feature = "cpu")]
     pub use burn_cubecl::cubecl::cpu::CpuDevice;
     #[cfg(feature = "cuda")]
@@ -150,14 +143,12 @@ pub mod devices {
     pub use burn_cubecl::cubecl::RuntimeId;
     #[cfg(feature = "flex")]
     pub use burn_flex::FlexDevice;
-    #[cfg(feature = "ndarray")]
-    pub use burn_ndarray::NdArrayDevice;
-    #[cfg(feature = "tch")]
-    pub use burn_tch::LibTorchDevice;
 
     #[cfg(feature = "remote")]
     pub use burn_remote::RemoteDevice;
-
-    #[cfg(feature = "remote")]
-    pub use burn_remote::BURN_REMOTE_ALPN;
 }
+
+/// The remote backend's crate, for `burn::remote` and `burn::server` to build on. Not a user path.
+#[doc(hidden)]
+#[cfg(feature = "remote")]
+pub use burn_remote as __remote;

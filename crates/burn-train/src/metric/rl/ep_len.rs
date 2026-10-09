@@ -5,6 +5,7 @@ use super::super::{
     state::{FormatOptions, NumericMetricState},
 };
 use crate::metric::{Metric, MetricName, Numeric, SerializedEntry};
+use burn_core::tensor::TensorReadError;
 
 /// Metric for the length of the last completed episode.
 #[derive(Clone)]
@@ -38,15 +39,21 @@ pub struct EpisodeLengthInput {
 impl Metric for EpisodeLengthMetric {
     type Input = EpisodeLengthInput;
 
-    fn update(&mut self, item: &EpisodeLengthInput, _metadata: &MetricMetadata) -> SerializedEntry {
+    fn update(
+        &mut self,
+        item: &EpisodeLengthInput,
+        _metadata: &MetricMetadata,
+    ) -> Result<SerializedEntry, TensorReadError> {
         self.state.update(item.ep_len, 1);
-        self.state
-            .compute_update(FormatOptions::new(self.name()).precision(0))
+        Ok(self
+            .state
+            .compute_update(FormatOptions::new(self.name()).precision(0)))
     }
 
-    fn compute(&mut self) -> SerializedEntry {
-        self.state
-            .compute_final(FormatOptions::new(self.name()).precision(0))
+    fn compute(&mut self) -> Result<SerializedEntry, TensorReadError> {
+        Ok(self
+            .state
+            .compute_final(FormatOptions::new(self.name()).precision(0)))
     }
 
     fn clear(&mut self) {

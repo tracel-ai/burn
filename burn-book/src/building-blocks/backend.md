@@ -20,25 +20,40 @@ and `cuda` features make `Device::wgpu` and `Device::cuda` available.
 
 ## Selecting a Device
 
-`Device` provides constructors for the backends enabled in your build. Common choices include:
+`Device` provides constructors for the backends enabled in your build. Multiple backend features can
+be enabled together; the device chooses where operations execute.
 
-| Constructor                                | Target                                          |
-| ------------------------------------------ | ----------------------------------------------- |
-| `Device::wgpu(Default::default())`         | Best WGPU adapter available                     |
-| `Device::wgpu(DeviceKind::DiscreteGpu(0))` | First discrete GPU through WGPU                 |
-| `Device::vulkan(Default::default())`       | Best Vulkan adapter                             |
-| `Device::metal(Default::default())`        | Best Metal adapter                              |
-| `Device::webgpu(Default::default())`       | Browser WebGPU device                           |
-| `Device::cuda(0)`                          | CUDA GPU at index 0                             |
-| `Device::cuda(DeviceIndex::Default)`       | Backend-selected CUDA GPU                       |
-| `Device::rocm(0)`                          | ROCm/HIP GPU at index 0                         |
-| `Device::cpu()`                            | CubeCL CPU backend                              |
-| `Device::flex()`                           | Flex CPU backend                                |
-| `Device::ndarray()`                        | NdArray CPU backend (deprecated)                |
-| `Device::libtorch()`                       | LibTorch CPU backend (deprecated)               |
-| `Device::libtorch_cuda(0)`                 | LibTorch CUDA GPU at index 0 (deprecated)       |
-| `Device::libtorch_mps()`                   | LibTorch Metal Performance Shaders (deprecated) |
-| `Device::libtorch_vulkan()`                | LibTorch Vulkan device (deprecated)             |
+| Device constructor                   | Cargo feature | Execution                                                                               |
+| ------------------------------------ | ------------- | --------------------------------------------------------------------------------------- |
+| `Device::wgpu(Default::default())`   | `wgpu`        | Graphics API selected at runtime; WGSL, or native SPIR-V/MSL when enabled and supported |
+| `Device::vulkan(Default::default())` | `vulkan`      | Vulkan through WGPU; native SPIR-V when supported, with WGSL fallback                   |
+| `Device::metal(Default::default())`  | `metal`       | Metal through WGPU with native MSL; initialization panics if native MSL is unavailable  |
+| `Device::webgpu(Default::default())` | `webgpu`      | Browser WebGPU with WGSL                                                                |
+| `Device::cuda(0)`                    | `cuda`        | NVIDIA GPU through CubeCL's CUDA runtime                                                |
+| `Device::rocm(0)`                    | `rocm`        | AMD GPU through CubeCL's HIP runtime                                                    |
+| `Device::cpu()`                      | `cpu`         | CPU through CubeCL's CPU runtime (LLVM JIT, supports fusion)                            |
+| `Device::flex()`                     | `flex`        | CPU through the pure-Rust Flex backend (eager, supports `no_std` and Wasm)              |
+
+The `vulkan`, `metal`, and `webgpu` features also enable `wgpu`. Enabling a feature makes that
+option available; it does not force `Device::wgpu` to use it. Automatic devices retain WGSL fallback
+even with native compiler features enabled. The explicit constructors pin the graphics API, so
+`Device::vulkan` cannot fall back to a different API even when it uses WGSL instead of SPIR-V.
+
+For example, one build can support both automatic selection and explicit Metal selection:
+
+```toml
+burn = { version = "0.22", features = ["vulkan", "metal"] }
+```
+
+```rust, ignore
+use burn::tensor::Device;
+
+let automatic = Device::wgpu(Default::default());
+let metal = Device::metal(Default::default());
+```
+
+The explicit Metal device requires an available Metal adapter with native MSL support. The automatic
+device selects an available graphics API and compiler for the platform.
 
 Indexed devices accept either an integer or `DeviceIndex`. WGPU-family constructors accept a
 `DeviceKind`, which can select a discrete, integrated, or virtual GPU, a CPU adapter, or the best
@@ -54,9 +69,19 @@ let default_cuda = Device::cuda(DeviceIndex::Default);
 let second_cuda = Device::cuda(1);
 ```
 
-Burn also supports remote devices when the corresponding remote feature is enabled. Constructors
-include `Device::remote_websocket` for WebSocket connections and `Device::remote_iroh` for
-peer-to-peer remote execution.
+Burn also supports remote devices, hosted by a Burn server in another process on this machine or
+another, with the `remote` feature. `Device::remote_options(&host).init()` connects one, where a
+`RemoteHost` names the server: see [Distributed Computing](../performance/distributed-computing.md).
+
+### Migrating from Removed Backends
+
+The NdArray backend, deprecated in 0.22, was removed after the 0.22 release. Replace the `ndarray`
+feature with `flex` and `Device::ndarray()` with `Device::flex()`. NdArray remains available in the
+0.22 releases.
+
+The LibTorch backend, deprecated in 0.22, was removed after the 0.22 release. Replace `tch` with
+`cuda`, `rocm`, `metal`, `vulkan`, or `webgpu` for GPU execution, or `cpu` / `flex` for CPU
+execution. The LibTorch backend remains available in the 0.22 releases.
 
 ## Using a Device
 
@@ -141,8 +166,10 @@ let settings = device.settings();
 ```
 
 Configure defaults before the first tensor operation on that device. Device settings are initialized
-once; the first read of the settings, including by tensor creation or `settings()`, locks them to
-the backend's defaults, and a later `configure()` call returns `DeviceError::AlreadyInitialized`.
+once; tensor creation locks them to the backend's defaults, even with an explicit dtype, and a later
+`configure()` call returns `DeviceError::AlreadyInitialized`. Querying `settings()` does not lock
+defaults: before initialization, it returns a snapshot of the backend defaults, which subsequent
+configuration may change.
 
 These settings choose defaults, not a single precision for every tensor on the device. You can still
 specify a supported float or integer dtype at creation or cast an existing tensor:
@@ -177,8 +204,7 @@ application.
 
 A GPU can be reachable through more than one runtime: an NVIDIA card enumerates under
 `DeviceType::Cuda` and again under `DeviceType::Vulkan`. `Device::enumerate_physical` lists each
-card once, with every device that runs on it, and `Device::identity` says which card a device
-is on:
+card once, with every device that runs on it, and `Device::identity` says which card a device is on:
 
 ```rust, ignore
 for gpu in Device::enumerate_physical() {
@@ -187,10 +213,10 @@ for gpu in Device::enumerate_physical() {
 }
 ```
 
-A card is recognized by its PCI address, which CUDA, ROCm and Vulkan report, or by its Windows
-LUID. A card that reports neither, such as an Apple GPU, is listed as a card of its own. The LUID changes when the machine restarts, so anything stored to recognize a card later
-should use the PCI address. Both calls open the devices they report on, so enumerate once and keep
-the answer.
+A card is recognized by its PCI address, which CUDA, ROCm and Vulkan report, or by its Windows LUID.
+A card that reports neither, such as an Apple GPU, is listed as a card of its own. The LUID changes
+when the machine restarts, so anything stored to recognize a card later should use the PCI address.
+Both calls open the devices they report on, so enumerate once and keep the answer.
 
 ## Execution Stack
 
@@ -213,4 +239,4 @@ traits when implementing or extending a backend; see
 
 For the responsibilities of each layer, the reason for the opaque bridge, and an operation
 walkthrough, see the contributor book's
-[Tensor architecture chapter](https://burn.dev/contributor-book/project-architecture/tensor.html).
+[Tensor architecture chapter](https://burn.dev/books/contributor/project-architecture/tensor.html).

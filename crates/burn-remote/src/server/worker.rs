@@ -37,13 +37,19 @@ use std::sync::{Arc, Mutex};
 
 use burn_ir::{BackendIr, GraphBindings, GraphId};
 use burn_router::{Graph, TensorInterpreter};
-use burn_std::id::StreamId;
+use burn_std::{ExecutionError, id::StreamId};
+#[cfg(not(target_family = "wasm"))]
+use std::{
+    any::Any,
+    panic::{self, AssertUnwindSafe},
+};
 #[cfg(not(target_family = "wasm"))]
 use tokio::runtime::Handle;
 use tokio::sync::mpsc;
 
 use crate::server::local_comm::LocalCommService;
-use crate::server::spawn::spawn_detached;
+use crate::server::session::HostedDeviceIds;
+use crate::server::spawn::{CatchPanic, ResponseTasks, spawn_detached};
 use crate::server::transfer::TensorTransfer;
 use crate::shared::{RequestId, SessionId, Task, TaskResponse, TaskResponseContent};
 use crate::telemetry::{
@@ -62,8 +68,7 @@ const TASK_CHANNEL_CAPACITY: usize = 64;
 /// Everything constant for the lifetime of a session.
 ///
 /// Owned by the session's worker thread, which runs every task against this one interpreter and
-/// these comm services. Held behind an [`Arc`] only so detached readback tasks can be spawned with
-/// a clone of the result sender; the interpreter itself is single-owner here.
+/// these comm services.
 pub(crate) struct SessionHandler<B, T>
 where
     B: BackendIr,
@@ -71,7 +76,9 @@ where
 {
     session_id: SessionId,
     runner: TensorInterpreter<B>,
+    device_ids: HostedDeviceIds,
     response_sender: mpsc::Sender<TaskResponse>,
+    response_tasks: ResponseTasks,
     transfer: Arc<T>,
     local_comm: Arc<LocalCommService<B>>,
     /// Cache of client-registered reusable op-graphs, keyed by id (see
@@ -92,10 +99,11 @@ where
     T: TensorTransfer<B>,
 {
     /// Start the session worker; the worker runs until every clone of the returned sender is
-    /// dropped, then flushes and exits.
+    /// dropped, then flushes and exits. Off wasm, a task that panics ends it the same way.
     pub(crate) fn spawn(
         session_id: SessionId,
         runner: TensorInterpreter<B>,
+        device_ids: HostedDeviceIds,
         response_sender: mpsc::Sender<TaskResponse>,
         transfer: Arc<T>,
         local_comm: Arc<LocalCommService<B>>,
@@ -104,7 +112,9 @@ where
         let handler = SessionHandler {
             session_id,
             runner,
+            device_ids,
             response_sender,
+            response_tasks: ResponseTasks::default(),
             transfer,
             local_comm,
             graphs: Mutex::new(HashMap::new()),
@@ -117,23 +127,51 @@ where
 
     // Must be called from within the runtime that owns the endpoint: it captures `Handle::current`.
     #[cfg(not(target_family = "wasm"))]
-    fn drive(self, receiver: mpsc::Receiver<Task>) {
+    fn drive(mut self, receiver: mpsc::Receiver<Task>) {
         let handle = Handle::current();
         let session_id = self.session_id;
         std::thread::Builder::new()
             .name(format!("burn-remote-session-{session_id}"))
-            .spawn(move || handle.block_on(self.run(receiver)))
+            .spawn(move || {
+                // A panic can leave the interpreter half-applied, so the session is closed rather
+                // than given another task.
+                let processed = panic::catch_unwind(AssertUnwindSafe(|| {
+                    handle.block_on(self.process_tasks(receiver))
+                }));
+                if let Err(payload) = processed {
+                    self.abort_responses_after_panic(payload);
+                }
+                handle.block_on(self.close());
+            })
             .expect("Failed to spawn session worker thread");
     }
 
     #[cfg(target_family = "wasm")]
-    fn drive(self, receiver: mpsc::Receiver<Task>) {
-        spawn_detached(self.run(receiver));
+    fn drive(mut self, receiver: mpsc::Receiver<Task>) {
+        spawn_detached(async move {
+            self.process_tasks(receiver).await;
+            self.close().await;
+        });
     }
 
-    /// Drain the task channel, running each task to completion in arrival order, then tear the
-    /// session down in an order that releases its memory.
-    async fn run(mut self, mut receiver: mpsc::Receiver<Task>) {
+    /// Abort the responses still in flight, since one may never resolve and holds the response
+    /// queue open, and log why the task panicked.
+    #[cfg(not(target_family = "wasm"))]
+    fn abort_responses_after_panic(&mut self, payload: Box<dyn Any + Send>) {
+        self.response_tasks.abort_all();
+        let reason = payload
+            .downcast_ref::<&str>()
+            .copied()
+            .or_else(|| payload.downcast_ref::<String>().map(String::as_str))
+            .unwrap_or("no message");
+        log::error!(
+            "Session {} stopped because a task panicked: {reason}",
+            self.session_id
+        );
+    }
+
+    /// Run each task to completion in arrival order, until the task channel closes.
+    async fn process_tasks(&mut self, mut receiver: mpsc::Receiver<Task>) {
         let session_id = self.session_id;
 
         log::debug!("Session {session_id} worker started");
@@ -145,19 +183,25 @@ where
                 log::error!("Task on session {session_id} failed: {err}");
             }
         }
+    }
+
+    /// Tear the session down in an order that releases its memory.
+    async fn close(self) {
+        let session_id = self.session_id;
 
         // Reclaim any same-host transfers this session exposed that no target ever took, so a
         // half-finished transfer doesn't strand device memory in the shared registry.
         self.local_comm.purge_session(session_id).await;
 
-        // The task channel closed: every submit connection bound to this session has gone away
-        // (clean `Close` or disconnect).
         log::debug!("Session {session_id} worker draining and exiting");
 
-        // Destructure so we control drop order explicitly. The `..` fields (response sender, comm
-        // services) drop here: dropping the response sender closes the fetch writer's queue, ending
-        // its task.
-        let SessionHandler { runner, .. } = self;
+        // Released first, so the client sees its session end even if a sync below hangs.
+        let SessionHandler {
+            runner,
+            response_sender,
+            ..
+        } = self;
+        drop(response_sender);
         let device = runner.device();
 
         // Flush outstanding backend work before dropping the runner so the session's tensors aren't
@@ -191,7 +235,8 @@ where
     /// the future at construction time via `executes`.
     async fn process_task(&mut self, task: Task) -> Result<(), String> {
         match task {
-            Task::RegisterOperation(stream_id, op) => {
+            Task::RegisterOperation(stream_id, mut op) => {
+                self.device_ids.resolve(&mut op)?;
                 // An op received individually (not as part of a cached graph) is an unfused op.
                 self.emit_op(stream_id, &op);
                 stream_id.executes(|| self.runner.register_op(op));
@@ -200,9 +245,13 @@ where
             Task::RegisterAndExecuteGraph {
                 stream_id,
                 graph_id,
-                relative_graph,
+                mut relative_graph,
                 bindings,
             } => {
+                // Cache backend ids once; a replay must not resolve them as hosted positions.
+                for op in &mut relative_graph {
+                    self.device_ids.resolve(op)?;
+                }
                 self.probe.emit(|| {
                     TelemetryEvent::graph_registered(
                         self.session_id,
@@ -316,8 +365,7 @@ where
                 target,
             } => {
                 log::trace!("Exposing tensor (transfer {capability:?})");
-                // Same shape as `ReadTensor`: the sync part of `read_tensor_async` runs in order
-                // to preserve stream ordering, but the readback + expose are detached so a
+                // The sync part of `read_tensor_async` runs in order to preserve stream ordering, but the readback + expose are detached so a
                 // cross-server hand-off doesn't stall this session's op registration on a
                 // GPU→host copy. A target that downloads before the expose lands simply blocks on
                 // the data service's `new_tensor_notify`, so there is no race.
@@ -366,38 +414,14 @@ where
                 self.runner.seed(seed);
                 Ok(())
             }
-            Task::ReadTensor(request_id, stream_id, tensor) => {
-                // `read_tensor_async` is sync at construction — it locks the context and
-                // captures the tensor's position in the command stream — and returns a future
-                // for the actual host readback. Run the sync part in order (so ordering vs. later
-                // ops is preserved), then detach the readback await onto its own task. Awaiting it
-                // here would stall the worker on the GPU→host copy and stop us registering
-                // subsequent ops, draining the device queue into a bubble. The client demuxes
-                // responses by request id, so out-of-order completion is fine.
+            Task::ReadTensors(request_id, stream_id, tensors) => {
+                // The tensors are taken here, in stream order; only the host readback waits.
                 self.probe.emit(|| TelemetryEvent::Read {
                     session: self.session_id,
                     request: request_id,
                 });
-                let fut = stream_id.executes(|| self.runner.read_tensor_async(tensor));
-                let sender = self.response_sender.clone();
-                spawn_detached(async move {
-                    // Under an async runtime the backend reads eagerly (see `RuntimeKind::Async`),
-                    // so `data` is already host-resident here — the fetch handler only serializes
-                    // resident bytes and no blocking device→host copy runs on the shared runtime.
-                    let data = fut.await;
-                    if sender
-                        .send(TaskResponse {
-                            content: TaskResponseContent::ReadTensor(data),
-                            id: request_id,
-                        })
-                        .await
-                        .is_err()
-                    {
-                        log::warn!(
-                            "Response receiver dropped before read for request {request_id} could be sent"
-                        );
-                    }
-                });
+                let read = stream_id.executes(|| self.runner.read_tensors_async(&tensors));
+                self.answer_when_ready(request_id, read, TaskResponseContent::ReadTensors);
                 Ok(())
             }
             Task::SyncBackend(request_id, stream_id) => {
@@ -428,28 +452,41 @@ where
                 // above; the measurement is the device's to answer, so the
                 // wait for it is detached rather than stalling the worker.
                 let duration = stream_id.executes(|| self.runner.profile_end(token, options));
-                let sender = self.response_sender.clone();
-                spawn_detached(async move {
-                    let res = match duration {
+                let measured = async move {
+                    match duration {
                         Ok(duration) => Ok(duration.resolve().await.map(|ticks| ticks.duration())),
                         Err(err) => Err(err),
-                    };
-                    if sender
-                        .send(TaskResponse {
-                            content: TaskResponseContent::ProfileEnd(res),
-                            id: request_id,
-                        })
-                        .await
-                        .is_err()
-                    {
-                        log::warn!(
-                            "Response receiver dropped before the profile for request {request_id} could be sent"
-                        );
                     }
-                });
+                };
+                self.answer_when_ready(request_id, measured, TaskResponseContent::ProfileEnd);
                 Ok(())
             }
         }
+    }
+
+    /// Sends the answer once `ready` resolves, without holding up the ops after it. A panic is
+    /// answered as an error, so the client is never left waiting.
+    fn answer_when_ready<Value: Send + 'static>(
+        &mut self,
+        request_id: RequestId,
+        ready: impl Future<Output = Result<Value, ExecutionError>> + Send + 'static,
+        into_content: fn(Result<Value, ExecutionError>) -> TaskResponseContent,
+    ) {
+        let sender = self.response_sender.clone();
+        self.response_tasks.spawn(async move {
+            let answer = CatchPanic::new(ready).await.unwrap_or_else(|message| {
+                Err(ExecutionError::generic(format!(
+                    "The server panicked: {message}"
+                )))
+            });
+            let response = TaskResponse {
+                content: into_content(answer),
+                id: request_id,
+            };
+            if sender.send(response).await.is_err() {
+                log::warn!("Response receiver dropped before answering request {request_id}");
+            }
+        });
     }
 
     async fn send_response(
@@ -488,5 +525,146 @@ where
         self.probe.emit(|| {
             TelemetryEvent::graph_executed(self.session_id, graph, stream, serialized_len(bindings))
         });
+    }
+}
+
+#[cfg(all(test, not(target_family = "wasm")))]
+mod tests {
+    use super::*;
+    use crate::{
+        PeerAddr, PeerId,
+        shared::{LocalTransferId, TransferCapability},
+    };
+    use burn_backend::{DType, Shape, TensorData};
+    use burn_flex::Flex;
+    use burn_ir::{TensorId, TensorIr, TensorStatus};
+    use std::time::Duration;
+
+    struct NoTransfer;
+
+    impl<B: BackendIr> TensorTransfer<B> for NoTransfer {
+        async fn expose_data(&self, _: TensorData, _: u32, _: TransferCapability, _: PeerId) {}
+
+        async fn download_tensor(&self, _: PeerAddr, _: TransferCapability) -> Option<TensorData> {
+            None
+        }
+
+        async fn fail(&self, _: TransferCapability, _: PeerId, _: String) {}
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_panicking_task_still_tears_its_session_down() {
+        let local_comm = Arc::new(LocalCommService::<Flex>::new());
+        let (response_sender, mut responses) = mpsc::channel(1);
+        let tasks = SessionHandler::spawn(
+            SessionId::new(),
+            TensorInterpreter::new(Default::default()),
+            HostedDeviceIds::of::<Flex>(&[Default::default()]),
+            response_sender,
+            Arc::new(NoTransfer),
+            local_comm.clone(),
+            TelemetryProbe::disabled(),
+        );
+
+        let stream_id = StreamId::current();
+        let exposed = TensorIr {
+            id: TensorId::new(1),
+            shape: Shape::new([2]),
+            status: TensorStatus::ReadWrite,
+            dtype: DType::F32,
+        };
+        let never_written = TensorIr {
+            id: TensorId::new(2),
+            ..exposed.clone()
+        };
+        let data = TensorData::new(vec![1.0f32, 2.0], [2]);
+        let request_id: RequestId = 0;
+        for task in [
+            Task::RegisterTensor(stream_id, exposed.id, data),
+            Task::ExposeTensorLocal {
+                stream_id,
+                tensor: exposed,
+                transfer_id: LocalTransferId::from(0),
+            },
+            Task::ReadTensors(request_id, stream_id, vec![never_written]),
+        ] {
+            tasks.send(task).await.unwrap();
+        }
+
+        let closed = tokio::time::timeout(Duration::from_secs(10), responses.recv()).await;
+        assert!(
+            matches!(closed, Ok(None)),
+            "the session worker never let go"
+        );
+        assert!(
+            local_comm.is_empty().await,
+            "the exposed tensor outlived its session"
+        );
+        // Dropped only now, so the panic alone had to end the session.
+        drop(tasks);
+    }
+
+    #[tokio::test]
+    async fn a_panic_aborts_the_responses_still_in_flight() {
+        let (response_sender, mut responses) = mpsc::channel(1);
+        let mut handler = SessionHandler::new(response_sender);
+        let stalled = handler.response_sender.clone();
+        handler.response_tasks.spawn(async move {
+            let _held = stalled;
+            std::future::pending::<()>().await
+        });
+
+        handler.abort_responses_after_panic(Box::new("a task panicked"));
+        handler.close().await;
+
+        let closed = tokio::time::timeout(Duration::from_secs(10), responses.recv()).await;
+        assert!(
+            matches!(closed, Ok(None)),
+            "a stalled response kept the session open"
+        );
+    }
+
+    #[tokio::test]
+    async fn a_read_that_panics_is_answered_with_an_error() {
+        fn failing_read() -> Result<Vec<TensorData>, ExecutionError> {
+            panic!("the backend failed")
+        }
+        let (response_sender, mut responses) = mpsc::channel(1);
+        let mut handler = SessionHandler::new(response_sender);
+
+        let request_id: RequestId = 7;
+        handler.answer_when_ready(
+            request_id,
+            async { failing_read() },
+            TaskResponseContent::ReadTensors,
+        );
+
+        let response = tokio::time::timeout(Duration::from_secs(10), responses.recv())
+            .await
+            .expect("a panicking read still answers")
+            .unwrap();
+        assert_eq!(response.id, request_id);
+        match response.content {
+            TaskResponseContent::ReadTensors(Err(error)) => {
+                assert!(error.to_string().contains("the backend failed"), "{error}")
+            }
+            other => panic!("expected a read error, got {other:?}"),
+        }
+    }
+
+    impl SessionHandler<Flex, NoTransfer> {
+        fn new(response_sender: mpsc::Sender<TaskResponse>) -> Self {
+            Self {
+                session_id: SessionId::new(),
+                runner: TensorInterpreter::new(Default::default()),
+                device_ids: HostedDeviceIds::of::<Flex>(&[Default::default()]),
+                response_sender,
+                response_tasks: ResponseTasks::default(),
+                transfer: Arc::new(NoTransfer),
+                local_comm: Arc::new(LocalCommService::<Flex>::new()),
+                graphs: Mutex::new(HashMap::new()),
+                probe: TelemetryProbe::disabled(),
+            }
+        }
     }
 }

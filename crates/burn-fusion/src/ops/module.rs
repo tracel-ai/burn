@@ -6,7 +6,7 @@ use burn_backend::{
     ops::{
         ConvOptions, ConvTransposeOptions, DeformConv2dBackward, DeformConvOptions,
         InterpolateOptions, MaxPool1dBackward, MaxPool1dWithIndices, MaxPool2dBackward,
-        MaxPool2dWithIndices, ModuleOps,
+        MaxPool2dWithIndices, MaxPool3dBackward, MaxPool3dWithIndices, ModuleOps,
     },
     tensor::{FloatTensor, IntTensor},
 };
@@ -865,6 +865,54 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             .output()
     }
 
+    fn avg_pool3d(
+        x: FloatTensor<Self>,
+        kernel_size: [usize; 3],
+        stride: [usize; 3],
+        padding: [usize; 3],
+        count_include_pad: bool,
+        ceil_mode: bool,
+    ) -> FloatTensor<Self> {
+        make_ops!(
+            AvgPool3dOps,
+            AvgPool3dOpIr,
+            |args: &AvgPool3dOpIr, handles: &mut HandleContainer<B::Handle>| {
+                let x = handles.get_float_tensor::<B>(&args.x);
+                let output = B::avg_pool3d(
+                    x,
+                    args.kernel_size,
+                    args.stride,
+                    args.padding,
+                    args.count_include_pad,
+                    args.ceil_mode,
+                );
+
+                handles.register_float_tensor::<B>(&args.out.id, output);
+            }
+        );
+
+        let streams = StreamId::current();
+
+        let client = x.client.clone();
+        let desc = AvgPool3dOpIr::create(
+            x.into_ir(),
+            kernel_size,
+            stride,
+            padding,
+            count_include_pad,
+            ceil_mode,
+            || client.create_empty_handle(),
+        );
+
+        client
+            .register(
+                streams,
+                OperationIr::Module(ModuleOperationIr::AvgPool3d(desc.clone())),
+                AvgPool3dOps::<B>::new(desc),
+            )
+            .output()
+    }
+
     fn avg_pool1d_backward(
         x: FloatTensor<Self>,
         grad: FloatTensor<Self>,
@@ -969,6 +1017,58 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             .output()
     }
 
+    fn avg_pool3d_backward(
+        x: FloatTensor<Self>,
+        grad: FloatTensor<Self>,
+        kernel_size: [usize; 3],
+        stride: [usize; 3],
+        padding: [usize; 3],
+        count_include_pad: bool,
+        ceil_mode: bool,
+    ) -> FloatTensor<Self> {
+        make_ops!(
+            AvgPool3dBackwardOps,
+            AvgPool3dBackwardOpIr,
+            |args: &AvgPool3dBackwardOpIr, handles: &mut HandleContainer<B::Handle>| {
+                let x = handles.get_float_tensor::<B>(&args.x);
+                let grad = handles.get_float_tensor::<B>(&args.grad);
+                let output = B::avg_pool3d_backward(
+                    x,
+                    grad,
+                    args.kernel_size,
+                    args.stride,
+                    args.padding,
+                    args.count_include_pad,
+                    args.ceil_mode,
+                );
+
+                handles.register_float_tensor::<B>(&args.out.id, output);
+            }
+        );
+
+        let streams = StreamId::current();
+
+        let client = x.client.clone();
+        let desc = AvgPool3dBackwardOpIr::create(
+            x.into_ir(),
+            grad.into_ir(),
+            kernel_size,
+            stride,
+            padding,
+            count_include_pad,
+            ceil_mode,
+            || client.create_empty_handle(),
+        );
+
+        client
+            .register(
+                streams,
+                OperationIr::Module(ModuleOperationIr::AvgPool3dBackward(desc.clone())),
+                AvgPool3dBackwardOps::<B>::new(desc),
+            )
+            .output()
+    }
+
     fn max_pool1d(
         x: FloatTensor<Self>,
         kernel_size: usize,
@@ -1061,6 +1161,54 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
                 streams,
                 OperationIr::Module(ModuleOperationIr::MaxPool2d(desc.clone())),
                 MaxPool2dOps::<B>::new(desc),
+            )
+            .output()
+    }
+
+    fn max_pool3d(
+        x: FloatTensor<Self>,
+        kernel_size: [usize; 3],
+        stride: [usize; 3],
+        padding: [usize; 3],
+        dilation: [usize; 3],
+        ceil_mode: bool,
+    ) -> FloatTensor<Self> {
+        make_ops!(
+            MaxPool3dOps,
+            MaxPool3dOpIr,
+            |args: &MaxPool3dOpIr, handles: &mut HandleContainer<B::Handle>| {
+                let x = handles.get_float_tensor::<B>(&args.x);
+                let output = B::max_pool3d(
+                    x,
+                    args.kernel_size,
+                    args.stride,
+                    args.padding,
+                    args.dilation,
+                    args.ceil_mode,
+                );
+
+                handles.register_float_tensor::<B>(&args.out.id, output);
+            }
+        );
+
+        let streams = StreamId::current();
+
+        let client = x.client.clone();
+        let desc = MaxPool3dOpIr::create(
+            x.into_ir(),
+            kernel_size,
+            stride,
+            padding,
+            dilation,
+            ceil_mode,
+            || client.create_empty_handle(),
+        );
+
+        client
+            .register(
+                streams,
+                OperationIr::Module(ModuleOperationIr::MaxPool3d(desc.clone())),
+                MaxPool3dOps::<B>::new(desc),
             )
             .output()
     }
@@ -1171,6 +1319,60 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             .outputs();
 
         MaxPool2dWithIndices::new(out, out_indices)
+    }
+
+    fn max_pool3d_with_indices(
+        x: FloatTensor<Self>,
+        kernel_size: [usize; 3],
+        stride: [usize; 3],
+        padding: [usize; 3],
+        dilation: [usize; 3],
+        ceil_mode: bool,
+        indices_dtype: IntDType,
+    ) -> MaxPool3dWithIndices<Self> {
+        make_ops!(
+            MaxPool3dWithIndicesOps,
+            MaxPool3dWithIndicesOpIr,
+            |args: &MaxPool3dWithIndicesOpIr, handles: &mut HandleContainer<B::Handle>| {
+                let x = handles.get_float_tensor::<B>(&args.x);
+                let output = B::max_pool3d_with_indices(
+                    x,
+                    args.kernel_size,
+                    args.stride,
+                    args.padding,
+                    args.dilation,
+                    args.ceil_mode,
+                    args.out_indices.dtype.into(),
+                );
+
+                handles.register_float_tensor::<B>(&args.out.id, output.output);
+                handles.register_int_tensor::<B>(&args.out_indices.id, output.indices);
+            }
+        );
+
+        let streams = StreamId::current();
+
+        let client = x.client.clone();
+        let desc = MaxPool3dWithIndicesOpIr::create(
+            x.into_ir(),
+            kernel_size,
+            stride,
+            padding,
+            dilation,
+            ceil_mode,
+            indices_dtype.into(),
+            || client.create_empty_handle(),
+        );
+
+        let [out, out_indices] = client
+            .register(
+                streams,
+                OperationIr::Module(ModuleOperationIr::MaxPool3dWithIndices(desc.clone())),
+                MaxPool3dWithIndicesOps::<B>::new(desc),
+            )
+            .outputs();
+
+        MaxPool3dWithIndices::new(out, out_indices)
     }
 
     fn max_pool1d_with_indices_backward(
@@ -1291,6 +1493,66 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             .output();
 
         MaxPool2dBackward::new(out)
+    }
+
+    fn max_pool3d_with_indices_backward(
+        x: FloatTensor<Self>,
+        kernel_size: [usize; 3],
+        stride: [usize; 3],
+        padding: [usize; 3],
+        dilation: [usize; 3],
+        ceil_mode: bool,
+        output_grad: FloatTensor<Self>,
+        indices: IntTensor<Self>,
+    ) -> MaxPool3dBackward<Self> {
+        make_ops!(
+            MaxPool3dWithIndicesBackwardOps,
+            MaxPool3dWithIndicesBackwardOpIr,
+            |args: &MaxPool3dWithIndicesBackwardOpIr, handles: &mut HandleContainer<B::Handle>| {
+                let x = handles.get_float_tensor::<B>(&args.x);
+                let grad = handles.get_float_tensor::<B>(&args.grad);
+                let indices = handles.get_int_tensor::<B>(&args.indices);
+                let output = B::max_pool3d_with_indices_backward(
+                    x,
+                    args.kernel_size,
+                    args.stride,
+                    args.padding,
+                    args.dilation,
+                    args.ceil_mode,
+                    grad,
+                    indices,
+                );
+
+                handles.register_float_tensor::<B>(&args.out.id, output.x_grad);
+            }
+        );
+
+        let streams = StreamId::current();
+
+        let client = x.client.clone();
+        let desc = MaxPool3dWithIndicesBackwardOpIr::create(
+            x.into_ir(),
+            output_grad.into_ir(),
+            indices.into_ir(),
+            kernel_size,
+            stride,
+            padding,
+            dilation,
+            ceil_mode,
+            || client.create_empty_handle(),
+        );
+
+        let out = client
+            .register(
+                streams,
+                OperationIr::Module(ModuleOperationIr::MaxPool3dWithIndicesBackward(
+                    desc.clone(),
+                )),
+                MaxPool3dWithIndicesBackwardOps::<B>::new(desc),
+            )
+            .output();
+
+        MaxPool3dBackward::new(out)
     }
 
     fn adaptive_avg_pool1d(x: FloatTensor<Self>, output_size: usize) -> FloatTensor<Self> {
@@ -1611,7 +1873,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         // CTC is treated as its own non-fuseable IR node, the same way
         // `attention` and `conv2d` are. The execute callback drains the input
         // handles and dispatches to `B::ctc_loss` on the inner backend, which
-        // either runs a native kernel (cubecl, libtorch) or the decomposed
+        // either runs a native kernel (cubecl) or the decomposed
         // default - either way it executes on raw inner-backend tensors,
         // never re-entering the fusion stream.
         make_ops!(CtcLossOps, CtcLossOpIr, |args: &CtcLossOpIr,

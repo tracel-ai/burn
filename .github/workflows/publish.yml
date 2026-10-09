@@ -57,7 +57,6 @@ jobs:
       - publish-burn-router
       - publish-burn-autodiff
       - publish-burn-flex
-      - publish-burn-tch
       - publish-burn-remote
     uses: tracel-ai/github-actions/.github/workflows/publish-crate.yml@v11
     with:
@@ -268,28 +267,6 @@ jobs:
     secrets:
       CRATES_IO_API_TOKEN: ${{ secrets.CRATES_IO_API_TOKEN }}
 
-  publish-burn-tch:
-    needs:
-      - publish-burn-backend
-    uses: tracel-ai/github-actions/.github/workflows/publish-crate.yml@v11
-    with:
-      crate: burn-tch
-      dry-run-only: ${{ github.event_name == 'workflow_dispatch' && inputs.dry-run-only || false }}
-    secrets:
-      CRATES_IO_API_TOKEN: ${{ secrets.CRATES_IO_API_TOKEN }}
-
-  publish-burn-ndarray:
-    needs:
-      - publish-burn-ir
-      - publish-burn-backend
-      - publish-burn-std
-    uses: tracel-ai/github-actions/.github/workflows/publish-crate.yml@v11
-    with:
-      crate: burn-ndarray
-      dry-run-only: ${{ github.event_name == 'workflow_dispatch' && inputs.dry-run-only || false }}
-    secrets:
-      CRATES_IO_API_TOKEN: ${{ secrets.CRATES_IO_API_TOKEN }}
-
   publish-burn-flex:
     needs:
       - publish-burn-backend
@@ -437,8 +414,6 @@ jobs:
       - publish-burn-rocm
       - publish-burn-wgpu
       - publish-burn-flex
-      - publish-burn-ndarray
-      - publish-burn-tch
       - publish-burn-remote
       - publish-burn-capture
     uses: tracel-ai/github-actions/.github/workflows/publish-crate.yml@v11

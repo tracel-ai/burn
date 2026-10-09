@@ -178,7 +178,7 @@ fn read_only_input_is_not_written_inplace() {
     });
 }
 
-/// A consumed elemwise input feeding a fused reduce must alias the elemwise output.
+/// A consumed, contiguous elemwise input feeding a fused reduce must alias the elemwise output.
 ///
 /// The aliased output becomes the read block's reference layout, so the reduce runner
 /// resolves the reference against an aliased output argument: this covers the
@@ -191,8 +191,16 @@ fn reduce_fusion_elemwise_output_writes_inplace() {
         let device = Default::default();
 
         let make_input = || {
-            let tensor =
-                TestTensor::<2>::from_data([[1.0, 2.0, 3.0, 4.0], [5.0, 6.0, 7.0, 8.0]], &device);
+            // Eight elements keep each row aligned to CUDA's 16-byte minimum even
+            // for f16. Four f16 elements would produce padded rows, which are not
+            // dense and therefore cannot be aliased by the fused reduce.
+            let tensor = TestTensor::<2>::from_data(
+                [
+                    [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0],
+                    [9.0, 10.0, 11.0, 12.0, 13.0, 14.0, 15.0, 16.0],
+                ],
+                &device,
+            );
             // Materialize the init op before the fused chain, so the chain starts from
             // an existing buffer and the init doesn't show up in the inspected reports.
             let _ = tensor.clone().into_data();
@@ -225,11 +233,14 @@ fn reduce_fusion_elemwise_output_writes_inplace() {
         let after = inplace_alias_count();
 
         out.assert_approx_eq::<FloatElem>(
-            &TensorData::from([[4.0, 6.0, 8.0, 10.0], [12.0, 14.0, 16.0, 18.0]]),
+            &TensorData::from([
+                [4.0, 6.0, 8.0, 10.0, 12.0, 14.0, 16.0, 18.0],
+                [20.0, 22.0, 24.0, 26.0, 28.0, 30.0, 32.0, 34.0],
+            ]),
             Tolerance::default(),
         );
         res.assert_approx_eq::<FloatElem>(
-            &TensorData::from([[85.0], [181.0]]),
+            &TensorData::from([[265.0], [649.0]]),
             Tolerance::default(),
         );
         assert_all_fused(&inspector.drain(), "reduce with consumed elemwise input");

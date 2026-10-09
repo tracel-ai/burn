@@ -38,7 +38,7 @@ fn test_mm_independent_trees() {
 }
 
 #[test]
-#[should_panic]
+#[should_panic(expected = "graph tape has already been consumed")]
 fn test_mm_crossover_trees_root_unavailable() {
     let data = TensorData::from([[1.0, 2.0], [3.0, 4.0]]);
     let device = AutodiffDevice::new();
@@ -123,7 +123,7 @@ fn test_mm_three_crossover_trees_last_still_usable() {
 }
 
 #[test]
-#[should_panic]
+#[should_panic(expected = "graph tape has already been consumed")]
 fn test_mm_three_crossover_trees_middle_one_unavailable() {
     let data = TensorData::from([[1.0, 2.0], [3.0, 4.0]]);
     let device = AutodiffDevice::new();
@@ -234,7 +234,7 @@ fn test_mm_with_detach_after_cleanup() {
 }
 
 #[test]
-#[should_panic]
+#[should_panic(expected = "graph tape has already been consumed")]
 fn test_mm_deletables_propagate_well() {
     let data = TensorData::from([[1.0, 2.0], [3.0, 4.0]]);
     let device = AutodiffDevice::new();
@@ -282,8 +282,6 @@ fn test_mm_node_explored_once_can_still_be_tagged_as_useful_when_found_again_dee
 }
 
 #[test]
-#[cfg(not(feature = "ndarray"))]
-// NdArray conservatively reports false for can_mut(), even for unique buffers.
 fn test_mm_reclaims_abandoned_graph_buffers_after_unrelated_backward() {
     let device = AutodiffDevice::new();
     let lhs = TestTensor::<2>::from_data([[1.0, 2.0]], &device).require_grad();

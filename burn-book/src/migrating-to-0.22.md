@@ -24,6 +24,10 @@ backend constructor you use; `burn` has no default execution backend.
 With `default-features = false`, enable `optim` explicitly if you use `burn::optim` or
 `burn::lr_scheduler`; `train` also enables it.
 
+Reinforcement learning is opt-in. Enable the `rl` feature on `burn` to use `burn::rl` and the RL
+learner in `burn::train`. If you depend on `burn-train` directly, `rl` is no longer one of its
+default features.
+
 ## Types and devices
 
 | Previous API                                        | 0.22 API                                                                          |
@@ -40,6 +44,9 @@ With `default-features = false`, enable `optim` explicitly if you use `burn::opt
 
 Device-level operations previously called through `B: Backend`, such as seeding and synchronization,
 are now methods on `Device`. See [Using a Device](./building-blocks/backend.md#using-a-device).
+
+`Device::flush()` returns `Result<(), ExecutionError>`: it fails when the buffered operations cannot
+be dispatched, e.g. on a poisoned device. Propagate the error with `?` or handle it.
 
 When upgrading a model, remove its backend parameter and the corresponding parameters on fields and
 methods. The rank and kind remain part of the tensor type:
@@ -77,10 +84,45 @@ assert!(model.linear.weight.grad(&gradients).is_some());
 Configure device dtype defaults before creating tensors. Configuration is shared by the compute
 device and can only be initialized once. See [Backend and Device](./building-blocks/backend.md).
 
+`get_device_settings` no longer initializes or locks defaults. Use
+`burn_backend::get_or_init_device_settings` to preserve the 0.21 behavior, or `device.settings()` to
+query settings in application code. Tensor creation still locks defaults, even with an explicit
+dtype.
+
 Prefer explicit device constructors during migration. `Device::default()` chooses from compiled-in
 backends, not from available hardware. Enabling an additional backend through Cargo feature
 unification can therefore change the default. This also affects implicit device selection by
 `Tensor::from(...)` and dataloaders without `set_device(...)`.
+
+## Module fields
+
+Without backend generics, the derive can no longer distinguish `Linear<B>` from configuration by the
+presence of `B`. Fields now default to modules, except recognized constants such as `usize`, `f32`,
+`bool` and `String`. Add `#[module(skip)]` to custom config/state fields that 0.21 automatically
+ignored:
+
+```rust,ignore
+use burn::{module::Module, nn::Linear};
+
+#[derive(Clone, Debug)]
+enum Pooling {
+    Mean,
+    Max,
+}
+
+#[derive(Module, Debug)]
+struct Model {
+    linear: Linear,
+    #[module(skip)]
+    pooling: Pooling,
+}
+```
+
+Missing `Module` / `ModuleDisplay` errors on config fields usually indicate a missing skip
+attribute. Skipped fields still need `Clone + Debug + Send`. Do not skip real submodules: their
+parameters would be excluded from training and checkpoints. See
+[field handling](./building-blocks/module.md#fields-and-generic-adapters) for generic adapters and
+skip semantics.
 
 ## Autodiff is runtime state
 
@@ -127,11 +169,11 @@ available. A `Module` bound does not establish that a value is currently trainin
 persist. `freeze()` also disables module-owned training flags, whereas `no_grad()` only changes
 parameter gradients.
 
-Keep the original training model when using `model.valid()` for validation. The snapshot folds
-adapters such as LoRA into parameter values and discards checkpointing strategies;
-`snapshot.train()` does not reconstruct those. Dropout additionally checks its input tensor's
-autodiff context, so create model inputs on the training device even when their gradients are not
-needed. See [Module](./building-blocks/module.md).
+Keep the original training model when using `model.valid()` for validation. The snapshot discards
+tensor checkpointing strategies, which `train()` does not restore.
+
+Dropout additionally checks its input tensor's autodiff context, so create model inputs on the
+training device even when their gradients are not needed. See [Module](./building-blocks/module.md).
 
 ## Migrating checkpoints
 
@@ -208,6 +250,37 @@ scheduler records, so it does not resume the full training checkpoint. Start wit
 scheduler state, or implement a separate conversion if preserving that state is required. See
 [Record](./building-blocks/record.md) for the 0.22 record APIs.
 
+## LSTM
+
+`Lstm::forget_gate` is now `Option<GateController>`: `Some(gate)` for an uncoupled LSTM and `None`
+when `input_forget` is true. This also applies to `BiLstm::forward.forget_gate` and
+`BiLstm::reverse.forget_gate`. Update direct access to use `as_ref()` or `as_mut()`, and wrap
+replacement gates in `Some(gate)`.
+
+Set `input_forget` through `LstmConfig::with_input_forget(...)` or
+`BiLstmConfig::with_input_forget(...)` **before** calling `.init()`, matching the setting used
+during training. Initialization now determines whether the separate forget gate is created; changing
+the field afterward does not add or remove its parameters.
+
+Older coupled checkpoints contain redundant forget-gate tensors. For a burnpack checkpoint, allow
+these unused tensors when loading, then save the module again to omit them:
+
+```rust,ignore
+use burn::{module::Module, nn::LstmConfig, store::ModuleRecord};
+
+// Match the original model's dimensions, bias, and other configuration settings.
+let lstm = LstmConfig::new(d_input, d_hidden, bias)
+    .with_input_forget(true)
+    .init(&device);
+let record = ModuleRecord::load("lstm.bpk")?.allow_unused(true);
+let lstm = lstm.try_load_record(record)?;
+lstm.save_file("lstm-migrated.bpk")?;
+```
+
+The same loading procedure applies to BiLSTM. Uncoupled checkpoints keep the same parameter paths
+and do not require `allow_unused(true)`. For older recorder formats, first follow
+[Migrating checkpoints](#migrating-checkpoints) to convert the file format.
+
 ## Datasets and dataloaders
 
 Dataset access is now fallible. Update custom datasets and training loops to handle these return
@@ -246,10 +319,23 @@ Update your training configuration:
 | `renderer(renderer)`                             | `renderer(Box::new(renderer))`                                                                         |
 | `AurocMetric::new()`                             | `AurocMetric::binary()`, `AurocMetric::multiclass(reduction)`, or `AurocMetric::multilabel(reduction)` |
 | `AurocInput`                                     | `ClassificationOutput` or `MultiLabelClassificationOutput`                                             |
+| `evaluator.eval(..)` returning the renderer      | `EvaluationResult`; read its `renderer` field                                                          |
 
 Default checkpointers save the model, optimizer, and scheduler as burnpack files. AUROC's multiclass
 and multilabel constructors take a `ClassReduction`. See [Learner](./building-blocks/learner.md) for
 training configuration.
+
+Training and evaluation now stop instead of panicking when a metric cannot read its tensors, a
+dataloader fails, a checkpointer fails, or a multi-device worker panics. `LearningResult`,
+`RLResult`, and `EvaluationResult` report the reason for an early stopping:
+
+- `error`: the `TrainingError` that stopped it. `TrainingError::is_device_poisoned()` tells whether
+  the device is poisoned and, consequentially, if the process needs to be restarted.
+- `interrupted`: the `Interruption` requested through `Interrupter::stop`, if the run stopped
+  without an error.
+
+Check `error` after `launch` or `eval` to detect a failed run. If you destructure these results or
+build them with struct literals, add the two fields.
 
 Review configurations and numerical baselines affected by these behavior changes:
 
@@ -271,7 +357,25 @@ Replace the deprecated `TensorData` vector methods and handle their errors:
 These methods return `Result<Vec<E>, DataError>` and require `E` to match the stored dtype. For
 conversion, use `try_to_vec_as::<E>()` or `try_into_vec_as::<E>()` on `TensorData` or `Tensor`.
 Update error matches for the revised `DataError` variants and `Tensor::try_into_scalar`'s
-`TensorReadError`.
+`TensorReadError`. `ExecutionError` has a new `DevicePoisoned` variant for faults the device cannot
+recover from, such as an illegal memory access; add it to exhaustive matches.
+`ExecutionError::is_device_poisoned()` detects it.
+
+`TensorData` fields are private, so its byte length always matches its shape and dtype (quantized
+data is not checked yet). Replace field access with the accessors:
+
+| Previous API                         | 0.22 API                                                  |
+| ------------------------------------ | --------------------------------------------------------- |
+| `data.shape`                         | `data.shape()` (returns `&Shape`)                         |
+| `data.dtype`                         | `data.dtype()`                                            |
+| `data.bytes` (borrowed)              | `data.bytes()` or `data.as_bytes()`                       |
+| `data.bytes` (moved)                 | `data.into_bytes()`, or `data.into_parts()` for all three |
+| `&mut data.bytes`                    | `TensorData::with_bytes_mut(..)` (length must not change) |
+| `TensorData { bytes, shape, dtype }` | `TensorData::try_from_bytes(bytes, shape, dtype)?`        |
+
+`TensorData::from_bytes` and `from_bytes_vec` now panic when the byte length does not match the
+shape and dtype. Use `try_from_bytes` or `try_from_bytes_vec` for untrusted input; they return
+`DataError::InvalidByteLength`, the same check deserialization applies.
 
 Other source changes:
 
@@ -280,6 +384,31 @@ Other source changes:
 - **Convolution:** `ConvOptions::padding` stores `(before, after)` pairs. Keep
   `ConvOptions::new(..)` for symmetric padding; replace deprecated `PaddedConvOptions` with
   `ConvOptions::new_with_padding(..)` for asymmetric padding.
+- **Interpolation:** `module::interpolate(x, output_size, options)` is now
+  `module::interpolate(x, options)`. Set the size with `options.with_output_size([h, w])`, or use
+  `options.with_scale_factor([sh, sw])` to scale the input size.
+- **Pooling:** the functional `max_pool1d`, `max_pool2d`, `avg_pool1d`, `avg_pool2d`, and their
+  `_with_indices` variants take `MaxPoolOptions` or `AvgPoolOptions` instead of positional
+  arguments. Only the kernel size is required; stride defaults to the kernel size, padding to 0,
+  dilation to 1, `ceil_mode` to false, and `count_include_pad` to true. 1D options use
+  single-element arrays. Use `with_padding_pairs(..)` for asymmetric padding:
+
+  ```rust,ignore
+  // Before
+  max_pool2d(x, [3, 3], [2, 2], [1, 1], [1, 1], false);
+  avg_pool1d(x, 3, 1, 1, false, false);
+
+  // After
+  max_pool2d(x, MaxPoolOptions::new([3, 3]).with_stride([2, 2]).with_padding([1, 1]));
+  avg_pool1d(
+      x,
+      AvgPoolOptions::new([3])
+          .with_stride([1])
+          .with_padding([1])
+          .with_count_include_pad(false),
+  );
+  ```
+
 - **Quantization:** replace `with_level(..)` and `with_param(..)` with `per_tensor(ScaleDtype)` or
   `per_block(block, ScaleDtype)`. See [Quantization](./performance/quantization.md).
 - **Softplus:** use `SoftplusConfig::new().with_beta(beta).with_threshold(threshold)` instead of
@@ -294,6 +423,7 @@ Update numerical expectations for these cases:
 | NaN in `cummax` or `cummin`                   | Returns NaN from that position onward                                                 |
 | Reducing a zero-length axis                   | `sum`: 0; `prod`: 1; `any`: false; `all`: true; float `mean`: NaN; `max`/`min`: panic |
 | Empty axes in `max_abs_dims` or `*_norm_dims` | Applies the elementwise transformation without reducing                               |
+| Positive shift in `roll` or `roll_dim`        | Moves elements toward higher indices, matching `torch.roll`; 0.21 moved them lower    |
 
 ## Custom integrations
 
@@ -302,12 +432,34 @@ them if your project only uses the built-in modules, optimizers, metrics, and st
 
 ### Modules
 
-For handwritten module code:
+#### Manual module implementations
 
-- Implement `valid(&self)` and `train(self)`. `#[derive(Module)]` generates both.
-- Visit and map `Param<Flag>` fields so `freeze()` and `valid()` control layer training behavior.
-  `BatchNorm` and `Dropout` now include these flags; use their config builders instead of struct
-  literals.
+For handwritten adapters and containers, keep `Clone + Debug + Send` and update these APIs:
+
+| 0.21                                                                                        | 0.22                                                                |
+| ------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| `Module<B>`, `Devices<B>`, `&B::Device`                                                     | `Module`, `Devices`, `&Device`                                      |
+| `ModuleVisitor<B>`, `ModuleMapper<B>`, `Tensor<B, D>`                                       | `ModuleVisitor`, `ModuleMapper`, `Tensor<D>`                        |
+| Separate `AutodiffModule` / `HasAutodiffModule` implementations and associated module types | `Module::valid(&self) -> Self` and `train(self) -> Self`            |
+| `from_inner(module)`                                                                        | `module.train()`                                                    |
+| Associated `Record` and required record methods                                             | Provided `into_record` / `load_record` methods using `ModuleRecord` |
+
+Delegate `collect_devices`, `to_device`, `fork`, `visit`, `map`, `valid`, `train` and `materialize`
+to every participating child, including recursive descendants. Keep `fork` distinct from
+`to_device`, and delegate state transitions to preserve child behavior. `materialize` folds
+reparameterizations into effective parameter values; ordinary lazy parameters remain lazy.
+
+In both `visit` and `map`, surround child traversal with matching `enter_module` / `exit_module`
+calls using stable field names or indices. These paths support checkpoints and parameter groups;
+include all parameter kinds, including `Param<Flag>` training controls.
+
+To nest your type inside a derived module, also implement `ModuleDisplayDefault` and
+`ModuleDisplay`. Your `forward` trait or method remains independent of `Module`.
+
+Other module API changes:
+
+- `BatchNorm` and `Dropout` now include `Param<Flag>` training controls; use their config builders
+  instead of struct literals.
 - Replace `ParamId::serialize()` / `deserialize()` with `Display` / `FromStr`.
 - Replace `Reinitializer` with `burn::nn::Initializer` for new parameters or a `ModuleMapper` for
   existing ones. Use `Param::map` to preserve IDs and configured trainability, and keep trainable
@@ -339,6 +491,14 @@ Update the metric lifecycle:
 - Return `Option<NumericEntry>` from `Numeric::value()` and `running_value()`. Use `None` when the
   metric is only defined at the end of an epoch.
 - Return the computed epoch value from `final_value()`.
+- Return `Result<SerializedEntry, TensorReadError>` from `update` and `compute`. Read tensors with
+  `try_into_data()` or `try_into_scalar()` and propagate errors with `?`; wrap other return values
+  in `Ok(..)`. `ConfusionStatsState::compute_update` also returns a `Result`.
+
+Custom training outputs implement `ItemLazy::sync(self) -> Result<Self, ExecutionError>`: propagate
+`device.flush()?` and wrap the returned output in `Ok(..)`. When an output cannot be synced, the
+event processor reports it once, as a `EventProcessorFailure::Sync`, and no metric processes that
+event.
 
 See [Custom Metric](./building-blocks/metric.md#custom-metric) for an implementation example.
 
@@ -358,6 +518,18 @@ Update custom event matches:
 | `LearnerEvent::StartSplit` / `EndSplit` | Handle the new split lifecycle events                   |
 | `EvaluatorEvent::StartTest` / `EndTest` | Handle the new test lifecycle events                    |
 
+Event processor methods return `Result<(), EventProcessorError>`: `process_train`, `process_valid`,
+`flush`, and `process_test`. A `EventProcessorError` lists every failure: a metric that failed
+(`EventProcessorFailure::Metric`, with its name and split) or an event that could not be synced
+(`EventProcessorFailure::Sync`). `EventProcessorEvaluation` gains a `flush` method with a default
+implementation. Custom processors return `Ok(())` on success.
+
+In a custom `SupervisedLearningStrategy`, handle each processor result: pass it to
+`interrupter.fail_on_error(..)` to stop training cleanly, or call `unwrap()` to panic as before.
+Report dataset errors with `interrupter.fail(err)` rather than `interrupter.stop(..)`, so the run
+reports them as errors. `MultiDevicesTrainStep::step` returns `MultiDeviceStepError` instead of
+`DatasetError`.
+
 ### Distributed training
 
 Remove the `distributed` and `collective` feature flags and the `burn-collective` dependency.
@@ -369,6 +541,28 @@ Collective operations are available through `burn::tensor::distributed`.
 
 Check runtime support before using collectives: CubeCL all-reduce currently requires CUDA, including
 on remote servers. See [Distributed Computing](./performance/distributed-computing.md).
+
+### Remote backend
+
+A remote device is a `Device`, connected through a `RemoteHost` that names its server. Connecting
+returns a `Result`, and a server returns a `ServeError` instead of panicking:
+
+| 0.21 API                                           | 0.22 API                                                                                |
+| -------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| `RemoteDevice::new("ws://host:3000")`              | `Device::remote_options(&RemoteHost::websocket("ws://host:3000")).init()?`              |
+| Listing a server's devices                         | `Device::enumerate(DeviceType::Remote(host))`, or `host.devices()?` to handle the error |
+| `burn::server::start_websocket::<B>(device, port)` | `RemoteServer::new([device]).serve(WebSocketTransport::new(port))?`                     |
+| `start_websocket_async::<B>(device, port).await`   | `RemoteServer::new([device]).serve_async(WebSocketTransport::new(port)).await?`         |
+
+`serve` installs the server's logging and handles Ctrl+C and `SIGTERM`. `serve_async` does neither:
+the application owns its subscriber and its signals, and dropping the future stops the server.
+
+Iroh, now the default transport, reaches a server by its id across any network:
+`RemoteHost::iroh(server_id)` on the client, and
+`IrohTransport::new(IrohIdentity::load_or_create(path)?)` on the server. A server hosts exactly the
+devices it is given, and a backend outside Burn's own serves through
+`burn_remote::server::BackendServer::<B>`. See
+[Distributed Computing](./performance/distributed-computing.md).
 
 ### Storage adapters and checkpointers
 

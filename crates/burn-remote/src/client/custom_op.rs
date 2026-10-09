@@ -26,6 +26,20 @@ type Channel = RemoteChannel;
 /// [`register`](Self::register) it. With `fusion` enabled the op joins the cached op-graph (via the
 /// fusion client); without it the op streams through the router client. Either way the op reaches the
 /// server, and the returned tensors are the matching `FloatTensor<RemoteBackend>`.
+///
+/// The server needs a handler registered under the op's `id`, with the server's `with_custom_op`.
+///
+/// A Burn `Device` reaches its remote device through its dispatch variant, without autodiff:
+///
+/// ```rust,ignore
+/// use burn::{backend::DispatchDevice, remote::CustomOpClient};
+///
+/// let device = device.clone().inner();
+/// let DispatchDevice::Remote(remote) = device.as_dispatch() else {
+///     panic!("custom ops on the remote backend need a remote device");
+/// };
+/// let client = CustomOpClient::new(remote);
+/// ```
 pub struct CustomOpClient {
     #[cfg(not(feature = "fusion"))]
     inner: <Channel as burn_router::RouterChannel>::Client,

@@ -5,31 +5,36 @@ use cubecl::server::MemoryLayoutStrategy;
 
 use crate::{ops::empty_qtensor, tensor::CubeTensor};
 
-/// A storage-tiled tensor laid out in rows again, through cubek's unpack; a plain tensor as it
-/// is. A tensor is packed for one matmul and read there through its binding; every other kernel
+/// A storage-tiled tensor laid out in rows again, through cubek's untile; a plain tensor as it
+/// is. A tensor is tiled for one matmul and read there through its binding; every other kernel
 /// and every layout rewrite reads rows, so this is their head.
 ///
 /// # Panics
 ///
-/// A quantized storage-tiled tensor: nothing packs one.
+/// A quantized storage-tiled tensor: it is read only by the kernel it was tiled for, and
+/// nothing lays its packed values and their scales back as rows.
 pub fn untile(tensor: CubeTensor) -> CubeTensor {
     if !tensor.meta.is_tiled() {
         return tensor;
     }
     assert!(
         tensor.qparams.is_none(),
-        "untile: a quantized tensor is never storage-tiled"
+        "untile: a storage-tiled quantized tensor is read only by the kernel it was tiled for; \
+         nothing lays its packed values back as rows"
     );
     let (client, device, dtype) = (tensor.client.clone(), tensor.device.clone(), tensor.dtype);
-    let output =
-        cubek::matmul::tiled::pack::unpack(&client, tensor.binding(), dtype_to_storage_type(dtype))
-            .expect("a storage-tiled binding describes its own tiles");
+    let output = cubek::matmul::tiled::storage::untile(
+        &client,
+        tensor.binding(),
+        dtype_to_storage_type(dtype),
+    )
+    .expect("a storage-tiled binding describes its own tiles");
     CubeTensor::new(client, output.handle, *output.metadata, device, dtype)
 }
 
 /// Make a jit tensor contiguous.
 pub fn into_contiguous(tensor: CubeTensor) -> CubeTensor {
-    // A packed buffer has row-major strides over its physical dims, which is not rows.
+    // A tiled buffer's strides order its tiles, not a matrix's rows: contiguous says nothing.
     let tensor = untile(tensor);
     if tensor.is_contiguous() {
         return tensor;
@@ -159,8 +164,8 @@ fn into_contiguous_quantized(tensor: CubeTensor, strategy: MemoryLayoutStrategy)
     output
 }
 
-/// A tensor packed into storage tiles through cubek, and what burn does with one: the matmul it
-/// was packed for reads it through its binding, every layout rewrite lays it back in rows first,
+/// A tensor stored in storage tiles through cubek, and what burn does with one: the matmul it
+/// was tiled for reads it through its binding, every layout rewrite lays it back in rows first,
 /// and a row kernel refuses it.
 #[cfg(all(
     test,
@@ -177,7 +182,7 @@ mod storage_tiled {
             matmul::{MatmulStrategy, matmul},
             slice, untile,
         },
-        ops::{from_data, into_data_sync, reshape},
+        ops::{from_data, into_data_sync, permute, reshape, swap_dims},
         tensor::CubeTensor,
     };
 
@@ -191,13 +196,21 @@ mod storage_tiled {
         from_data(TensorData::new(data, shape.to_vec()), device)
     }
 
-    fn packed(tensor: &CubeTensor, tile: (usize, usize)) -> CubeTensor {
+    /// `tensor` stored in `(rows, cols)` tiles, a tile's rows one after another and the tiles
+    /// row-major.
+    fn tiled(tensor: &CubeTensor, (rows, cols): (usize, usize)) -> CubeTensor {
+        use cubek::matmul::tiled::storage::{Axis, StorageLevels, tile};
+        const ROW: Axis = Axis(0);
+        const COL: Axis = Axis(1);
         let client = tensor.client.clone();
-        let out = cubek::matmul::tiled::pack::pack(
+        let storage = StorageLevels::new(&[(COL, cols), (ROW, rows)]).grid(&[COL, ROW]);
+        let out = tile(
             &client,
             tensor.clone().binding(),
+            &[ROW, COL],
             dtype_to_storage_type(tensor.dtype),
-            tile,
+            None,
+            storage,
         )
         .expect("the tile divides the matrix");
         CubeTensor::new(
@@ -222,38 +235,38 @@ mod storage_tiled {
 
     /// The tile is one the matmul's plan can stage to; the selector honours it for this `m`.
     #[test]
-    fn a_packed_weight_computes_the_same_product() {
+    fn a_tiled_weight_computes_the_same_product() {
         let device = CubeDevice::default();
         let (m, k, n) = (64, 256, 512);
         let lhs = tensor(&[m, k], &device, 1);
         let rhs = tensor(&[k, n], &device, 2);
-        let weight = packed(&rhs, (32, 64));
+        let weight = tiled(&rhs, (32, 64));
         assert!(weight.meta.is_tiled());
 
         let plain = matmul(lhs.clone(), rhs, None, MatmulStrategy::Cube, DType::F32).unwrap();
-        let tiled = matmul(lhs, weight, None, MatmulStrategy::Cube, DType::F32).unwrap();
-        assert_eq!(tiled.meta.shape().as_slice(), &[m, n]);
-        assert_close(&values(tiled), &values(plain), "packed weight");
+        let from_tiles = matmul(lhs, weight, None, MatmulStrategy::Cube, DType::F32).unwrap();
+        assert_eq!(from_tiles.meta.shape().as_slice(), &[m, n]);
+        assert_close(&values(from_tiles), &values(plain), "tiled weight");
     }
 
     #[test]
     fn untile_lays_the_rows_back() {
         let device = CubeDevice::default();
         let rhs = tensor(&[2, 64, 96], &device, 3);
-        let weight = packed(&rhs, (16, 32));
+        let weight = tiled(&rhs, (16, 32));
         let back = untile(weight);
         assert!(!back.meta.is_tiled());
         assert_eq!(back.meta.shape().as_slice(), &[2, 64, 96]);
         assert_eq!(values(back), values(rhs));
     }
 
-    /// The layout rewrites read rows: on a packed tensor they lay it back first, and agree
+    /// The layout rewrites read rows: on a tiled tensor they lay it back first, and agree
     /// with the same rewrite of the plain one.
     #[test]
     fn layout_rewrites_untile_first() {
         let device = CubeDevice::default();
         let rhs = tensor(&[64, 96], &device, 4);
-        let weight = packed(&rhs, (16, 32));
+        let weight = tiled(&rhs, (16, 32));
 
         let reshaped = reshape(weight.clone(), Shape::new([32, 192]));
         assert!(!reshaped.meta.is_tiled());
@@ -267,6 +280,20 @@ mod storage_tiled {
         assert!(!sliced.meta.is_tiled());
         assert_eq!(values(sliced), values(slice(rhs.clone(), &ranges)));
 
+        let swapped = swap_dims(weight.clone(), 0, 1);
+        assert!(!swapped.meta.is_tiled());
+        assert_eq!(
+            values(into_contiguous(swapped)),
+            values(into_contiguous(swap_dims(rhs.clone(), 0, 1)))
+        );
+
+        let permuted = permute(weight.clone(), &[1, 0]);
+        assert!(!permuted.meta.is_tiled());
+        assert_eq!(
+            values(into_contiguous(permuted)),
+            values(into_contiguous(permute(rhs.clone(), &[1, 0])))
+        );
+
         let contiguous = into_contiguous(weight);
         assert!(!contiguous.meta.is_tiled());
         assert_eq!(values(contiguous), values(rhs));
@@ -274,10 +301,10 @@ mod storage_tiled {
 
     #[test]
     #[should_panic(expected = "storage-tiled")]
-    fn a_row_kernel_refuses_a_packed_tensor() {
+    fn a_row_kernel_refuses_a_tiled_tensor() {
         let device = CubeDevice::default();
         let rhs = tensor(&[64, 96], &device, 5);
-        let weight = packed(&rhs, (16, 32));
+        let weight = tiled(&rhs, (16, 32));
         let _ = weight.into_tensor_arg();
     }
 }

@@ -87,12 +87,12 @@ let tensor_1 = Tensor::<1>::from_floats(floats, &device);
 ### Initialization
 
 Burn Tensors are primarily initialized using the `from_data()` method which takes the `TensorData`
-struct as input. The `TensorData` struct has two public fields: `shape` and `dtype`. The `value`,
-now stored as bytes, is private but can be accessed via any of the following methods: `as_slice`,
-`as_mut_slice`, `try_to_vec`, `try_to_vec_as` and `iter`. To retrieve the data from a tensor, the
-method `.to_data()` should be employed when intending to reuse the tensor afterward. Alternatively,
-`.into_data()` is recommended for one-time use. Let's look at a couple of examples for initializing
-a tensor from different inputs.
+struct as input. The `TensorData` fields are private: `shape()` and `dtype()` return the shape and
+data type, and the values, stored as bytes, can be accessed via any of the following methods:
+`as_slice`, `as_mut_slice`, `try_to_vec`, `try_to_vec_as` and `iter`. To retrieve the data from a
+tensor, the method `.to_data()` should be employed when intending to reuse the tensor afterward.
+Alternatively, `.into_data()` is recommended for one-time use. Let's look at a couple of examples
+for initializing a tensor from different inputs.
 
 ```rust, ignore
 
@@ -127,6 +127,9 @@ let data  = TensorData::from([bmi.age as f32, bmi.height as f32, bmi.weight]);
 let tensor_5 = Tensor::<1>::from_data(data, &device);
 
 ```
+
+Reading a tensor's data is also where a failed computation surfaces. `into_data()` and `to_data()`
+panic in that case; use `try_into_data()` or `try_to_data()` to handle the `ExecutionError` instead.
 
 ## Ownership and Cloning
 
@@ -165,7 +168,7 @@ println!("{}", input.to_data());// Success: [0.0, 0.33333334, 0.6666667, 1.0]
 We don't need to be worried about memory overhead because with cloning, the tensor's buffer isn't
 copied, and only a reference to it is increased. This makes it possible to determine exactly how
 many times a tensor is used, which is very convenient for reusing tensor buffers or even fusing
-operations into a single kernel ([burn-fusion](https://burn.dev/docs/burn_fusion/index.htmls)). For
+operations into a single kernel ([burn-fusion](https://docs.rs/burn-fusion/latest/burn_fusion/)). For
 that reason, we don't provide explicit inplace operations. If a tensor is used only one time,
 inplace operations will always be used when available.
 

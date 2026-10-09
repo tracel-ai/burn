@@ -2,14 +2,36 @@
 
 use std::{collections::HashMap, sync::Arc};
 
+#[cfg(feature = "client")]
+use iroh::endpoint::BindError;
 use iroh::{
     Endpoint, EndpointAddr, EndpointId,
     endpoint::{Connection, RecvStream, SendStream},
 };
+#[cfg(feature = "client")]
+use std::sync::{LazyLock, Weak};
 use tokio::sync::Mutex;
 use tokio::sync::OnceCell;
 
-use crate::{PeerAddr, PeerId};
+#[cfg(feature = "client")]
+use super::relays::IrohRelays;
+#[cfg(feature = "server")]
+use crate::transport::link::{FrameSource, MAX_UNAUTHORIZED_FRAME_SIZE};
+use crate::{
+    PeerAddr, PeerId,
+    transport::{OpenError, link::FrameSink},
+};
+
+/// The node the devices dialed from each application endpoint share, by its id. Weak, because Iroh
+/// keeps an endpoint's sockets bound until its last clone drops.
+#[cfg(feature = "client")]
+static APP_NODES: LazyLock<std::sync::Mutex<HashMap<EndpointId, Weak<RemoteNodeInner>>>> =
+    LazyLock::new(Default::default);
+
+/// The node Burn binds for each relay setting, shared by every host that dials with it.
+#[cfg(feature = "client")]
+static OWNED_NODES: LazyLock<std::sync::Mutex<HashMap<IrohRelays, Arc<OnceCell<RemoteNode>>>>> =
+    LazyLock::new(Default::default);
 
 /// ALPN used by the version-one Burn Remote protocol.
 pub const BURN_REMOTE_ALPN: &[u8] = b"burn/remote/1";
@@ -27,11 +49,13 @@ struct StreamHeader {
     kind: StreamKind,
 }
 
+/// Changing it, or [`BURN_REMOTE_ALPN`], drops an older client before it can be told that its
+/// protocol version differs.
 const STREAM_VERSION: u16 = 1;
-const MAX_FRAME_SIZE: usize = 1024 * 1024 * 1024;
 
 struct RemoteNodeInner {
     endpoint: Endpoint,
+    /// Only connections this node dialed: a peer answers no streams on a connection it dialed.
     connections: Mutex<HashMap<EndpointId, Arc<OnceCell<Connection>>>>,
 }
 
@@ -53,14 +77,7 @@ impl core::fmt::Debug for RemoteNode {
 }
 
 impl RemoteNode {
-    /// Use an application-configured Iroh endpoint.
-    ///
-    /// Applications serving Burn Remote must include [`BURN_REMOTE_ALPN`] in the endpoint's
-    /// accepted ALPN list, or route that ALPN to Burn's protocol handler.
-    ///
-    /// On native client builds, the runtime that drives a device's session is captured when the
-    /// device is created (see [`RemoteNode::device`]), not here — so create devices from the
-    /// Tokio runtime that owns this endpoint.
+    /// A node of its own on `endpoint`, shared with nothing else in the process.
     pub fn from_endpoint(endpoint: Endpoint) -> Self {
         Self {
             inner: Arc::new(RemoteNodeInner {
@@ -70,12 +87,58 @@ impl RemoteNode {
         }
     }
 
+    /// The node shared by every device dialed from `endpoint`.
+    ///
+    /// Iroh lets two live endpoints share one secret key, and a node keyed by that id would hand
+    /// the second the first one's connections, so a second live endpoint is refused. A browser
+    /// endpoint has no bound sockets to tell the two apart by, so there the second shares the
+    /// first one's node. A closed endpoint's node is replaced.
+    #[cfg(feature = "client")]
+    pub(crate) fn for_endpoint(endpoint: &Endpoint) -> Result<Self, String> {
+        let mut nodes = APP_NODES.lock().unwrap();
+        if let Some(inner) = nodes.get(&endpoint.id()).and_then(Weak::upgrade)
+            && !inner.endpoint.is_closed()
+        {
+            let node = Self { inner };
+            #[cfg(not(target_family = "wasm"))]
+            if node.endpoint().bound_sockets() != endpoint.bound_sockets() {
+                return Err(format!(
+                    "another open Iroh endpoint has the id {}; bind one endpoint per secret key",
+                    endpoint.id().fmt_short()
+                ));
+            }
+            return Ok(node);
+        }
+        nodes.retain(|_, inner| inner.strong_count() > 0);
+        let node = Self::from_endpoint(endpoint.clone());
+        nodes.insert(endpoint.id(), Arc::downgrade(&node.inner));
+        Ok(node)
+    }
+
+    /// The node Burn binds for `relays`, bound the first time any host needs it.
+    #[cfg(feature = "client")]
+    pub(crate) async fn for_relays(relays: &IrohRelays) -> Result<Self, BindError> {
+        let cell = OWNED_NODES
+            .lock()
+            .unwrap()
+            .entry(relays.clone())
+            .or_default()
+            .clone();
+        cell.get_or_try_init(|| async {
+            let endpoint = relays.endpoint_builder().bind().await?;
+            Ok(Self::from_endpoint(endpoint))
+        })
+        .await
+        .cloned()
+    }
+
     /// The cryptographic identity of this node.
     pub fn id(&self) -> EndpointId {
         self.inner.endpoint.id()
     }
 
     /// Access the underlying endpoint for relay, discovery, router, and observability setup.
+    #[cfg(not(target_family = "wasm"))]
     pub fn endpoint(&self) -> &Endpoint {
         &self.inner.endpoint
     }
@@ -84,7 +147,7 @@ impl RemoteNode {
         &self,
         peer: &PeerAddr,
         kind: StreamKind,
-    ) -> Result<(SendStream, RecvStream), String> {
+    ) -> Result<(SendStream, RecvStream), OpenError> {
         // Only the Iroh variant remains when the websocket transport is compiled out.
         #[cfg_attr(
             not(feature = "websocket"),
@@ -94,20 +157,24 @@ impl RemoteNode {
             PeerAddr::Iroh(peer) => peer,
             #[cfg(feature = "websocket")]
             PeerAddr::WebSocket(_) => {
-                return Err("Iroh node cannot open a stream to a non-Iroh peer".into());
+                return Err(OpenError::Failed(
+                    "an Iroh node cannot open a stream to a non-Iroh peer".into(),
+                ));
             }
         };
         let connection = self.connection(peer.clone()).await?;
         let (mut send, recv) = connection
             .open_bi()
             .await
-            .map_err(|err| format!("Failed to open Iroh stream to {}: {err}", peer.id))?;
+            .map_err(|err| OpenError::Failed(format!("cannot open an Iroh stream: {err}")))?;
         let header = rmp_serde::to_vec(&StreamHeader {
             version: STREAM_VERSION,
             kind,
         })
-        .map_err(|err| format!("Failed to encode Iroh stream header: {err}"))?;
-        send_frame(&mut send, &header).await?;
+        .map_err(|err| OpenError::Failed(format!("cannot encode the Iroh stream header: {err}")))?;
+        FrameSink::send(&mut send, header.into())
+            .await
+            .map_err(OpenError::Failed)?;
         Ok((send, recv))
     }
 
@@ -124,7 +191,7 @@ impl RemoteNode {
                 return Err(format!("Failed to accept Iroh stream: {err}"));
             }
         };
-        let Some(frame) = recv_frame(&mut recv).await? else {
+        let Some(frame) = FrameSource::recv(&mut recv, MAX_UNAUTHORIZED_FRAME_SIZE).await? else {
             return Ok(None);
         };
         let header: StreamHeader = rmp_serde::from_slice(&frame)
@@ -138,7 +205,7 @@ impl RemoteNode {
         Ok(Some((header.kind, send, recv)))
     }
 
-    async fn connection(&self, peer: EndpointAddr) -> Result<Connection, String> {
+    async fn connection(&self, peer: EndpointAddr) -> Result<Connection, OpenError> {
         loop {
             let cell = {
                 let mut connections = self.inner.connections.lock().await;
@@ -168,76 +235,12 @@ impl RemoteNode {
                     endpoint
                         .connect(peer_for_connect.clone(), BURN_REMOTE_ALPN)
                         .await
-                        .map_err(|err| {
-                            format!(
-                                "Failed to connect to Iroh peer {}: {err}",
-                                peer_for_connect.id
-                            )
-                        })
+                        .map_err(OpenError::from)
                 })
                 .await?;
             return Ok(connection.clone());
         }
     }
-
-    #[cfg(feature = "server")]
-    pub(crate) async fn remember_connection(&self, connection: Connection) {
-        let remote = connection.remote_id();
-        let cell = {
-            let mut connections = self.inner.connections.lock().await;
-            match connections.get(&remote) {
-                Some(cell)
-                    if cell
-                        .get()
-                        .is_some_and(|existing| existing.close_reason().is_none()) =>
-                {
-                    return;
-                }
-                _ => {
-                    let cell = Arc::new(OnceCell::new());
-                    connections.insert(remote, cell.clone());
-                    cell
-                }
-            }
-        };
-        let _ = cell.set(connection);
-    }
-}
-
-pub(crate) async fn send_frame(send: &mut SendStream, bytes: &[u8]) -> Result<(), String> {
-    if bytes.len() > MAX_FRAME_SIZE {
-        return Err(format!(
-            "Burn Remote frame is too large: {} bytes (max {MAX_FRAME_SIZE})",
-            bytes.len()
-        ));
-    }
-    send.write_all(&(bytes.len() as u64).to_le_bytes())
-        .await
-        .map_err(|err| format!("Failed to write Iroh frame length: {err}"))?;
-    send.write_all(bytes)
-        .await
-        .map_err(|err| format!("Failed to write Iroh frame: {err}"))?;
-    Ok(())
-}
-
-pub(crate) async fn recv_frame(recv: &mut RecvStream) -> Result<Option<Vec<u8>>, String> {
-    let mut length = [0u8; 8];
-    match recv.read_exact(&mut length).await {
-        Ok(_) => {}
-        Err(iroh::endpoint::ReadExactError::FinishedEarly(0)) => return Ok(None),
-        Err(err) => return Err(format!("Failed to read Iroh frame length: {err}")),
-    }
-    let length = u64::from_le_bytes(length) as usize;
-    if length > MAX_FRAME_SIZE {
-        return Err(format!(
-            "Peer sent an oversized Burn Remote frame: {length} bytes (max {MAX_FRAME_SIZE})"
-        ));
-    }
-    let mut bytes = vec![0; length];
-    recv.read_exact(&mut bytes)
-        .await
-        .map_err(|err| format!("Failed to read Iroh frame: {err}"))?;
-    Ok(Some(bytes))
 }
 
 impl From<&RemoteNode> for PeerId {

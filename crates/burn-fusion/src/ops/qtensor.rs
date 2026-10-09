@@ -2,43 +2,35 @@ use std::marker::PhantomData;
 
 use burn_backend::{
     DType, ExecutionError, FloatDType, Shape, Slice, TensorData, TensorMetadata, TensorPrimitive,
-    get_device_settings,
+    get_or_init_device_settings,
     ops::QTensorOps,
     quantization::{QuantPropagation, QuantScheme, QuantizationParametersPrimitive},
     tensor::{Device, FloatTensor, IntTensor, QuantizedTensor},
 };
 use burn_ir::{
     BaseOperationIr, DequantizeOpIr, FlipOpIr, FloatOperationIr, GatherOpIr, HandleContainer,
-    InitOperationIr, MatmulOpIr, OperationIr, OperationOutput, PermuteOpIr,
-    QuantizationParametersIr, QuantizeOpIr, SelectOpIr, ShapeOpIr, SliceOpIr, SwapDimsOpIr,
+    MatmulOpIr, OperationIr, OperationOutput, PermuteOpIr, QuantizationParametersIr, QuantizeOpIr,
+    SelectOpIr, ShapeOpIr, SliceOpIr, SwapDimsOpIr,
 };
 
 use crate::{
-    Fusion, FusionBackend,
+    Fusion, FusionBackend, FusionTensor,
     client::GlobalFusionClient,
     get_client,
     stream::{StreamId, execution::Operation},
 };
 
-use super::NoOp;
-
 impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
     fn q_from_data(data: TensorData, device: &Device<Self>) -> QuantizedTensor<Self> {
         let client = get_client::<B>(device);
-        let dtype = data.dtype;
+        let dtype = data.dtype();
         let tensor = B::q_from_data(data, device);
         let shape = burn_backend::TensorMetadata::shape(&tensor);
 
         let handle = B::quantized_tensor_handle(tensor);
-        let desc = InitOperationIr::create(shape, dtype, || client.register_tensor_handle(handle));
+        let id = client.register_tensor_handle(handle);
 
-        client
-            .register(
-                StreamId::current(),
-                OperationIr::Init(desc),
-                NoOp::<B>::new(),
-            )
-            .output()
+        FusionTensor::new(id, shape, dtype, client, StreamId::current())
     }
 
     fn quantize(
@@ -516,7 +508,7 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
             TensorPrimitive::QFloat(lhs) => lhs.client.clone(),
         };
 
-        let settings = get_device_settings::<Self>(client.device());
+        let settings = get_or_init_device_settings::<Self>(client.device());
 
         if let TensorPrimitive::QFloat(lhs) = &lhs {
             propagation = settings.quantization.propagation;

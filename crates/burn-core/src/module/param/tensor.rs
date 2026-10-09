@@ -11,9 +11,9 @@ impl<const D: usize> super::sealed::Sealed for Tensor<D, Float> {
         Tensor::is_require_grad(self)
     }
 
-    fn materialize(self, reparameterization: &dyn DynReparameterization) -> Self {
+    fn apply_reparameterization(self, reparameterization: &dyn DynReparameterization) -> Self {
         *reparameterization
-            .materialize_dyn(Box::new(self))
+            .apply_dyn(Box::new(self))
             .downcast::<Tensor<D>>()
             .expect("Reparameterization should preserve tensor rank")
     }
@@ -235,19 +235,30 @@ impl<const D: usize> Module for Param<Tensor<D>> {
 
     fn valid(&self) -> Self {
         // Preserve whether the parameter was active, but reset the inner value's gradient state.
-        // `val()` folds any reparameterization into the base for inference.
-        //
-        // The param mapper crosses with it: it describes how the value relates to
-        // its *stored* form, which a change of backend does not alter. Dropping it
-        // makes `transform_for_save` the identity, so a record taken from a
-        // `valid()`ed module holds the in-memory shape rather than the checkpoint
-        // one — silently, for any layout that maps (a `Col` linear transposes).
+        // Convert the stored base and reparameterization separately so validation never
+        // evaluates the effective weight or replaces a packed base with a dense one.
         let is_active = self.is_active;
         let mut param = Param::from_mapped_value(
             self.id,
-            self.val().without_autodiff().set_require_grad(false),
+            self.base().without_autodiff().set_require_grad(false),
             self.param_mapper.clone(),
         );
+        param.is_active = is_active;
+        param.reparameterization = self.reparameterization_dyn().map(|state| state.valid_dyn());
+        param
+    }
+
+    fn materialize(self) -> Self {
+        if self.reparameterization.is_none() {
+            return self;
+        }
+
+        // The merged weight is a new leaf with the base's training state. Keeping the adapter
+        // graph here would retain factors that are no longer exposed to the optimizer.
+        let require_grad = self.base().is_require_grad();
+        let value = self.val().detach().set_require_grad(require_grad);
+        let is_active = self.is_active;
+        let mut param = Param::from_mapped_value(self.id, value, self.param_mapper);
         param.is_active = is_active;
         param
     }
@@ -286,6 +297,10 @@ impl<const D: usize> ModuleDisplayDefault for Param<Tensor<D>> {
 impl<const D: usize> ModuleDisplay for Param<Tensor<D>> {}
 
 impl<const D: usize> Module for Param<Tensor<D, Int>> {
+    fn materialize(self) -> Self {
+        self
+    }
+
     fn visit<V: ModuleVisitor>(&self, visitor: &mut V) {
         visitor.visit_int(self)
     }
@@ -342,6 +357,10 @@ impl<const D: usize> ModuleDisplayDefault for Param<Tensor<D, Int>> {
 impl<const D: usize> ModuleDisplay for Param<Tensor<D, Int>> {}
 
 impl<const D: usize> Module for Param<Tensor<D, Bool>> {
+    fn materialize(self) -> Self {
+        self
+    }
+
     fn visit<V: ModuleVisitor>(&self, visitor: &mut V) {
         visitor.visit_bool(self)
     }
@@ -408,6 +427,111 @@ mod tests {
         test_device,
     };
     use burn_tensor::Distribution;
+
+    #[test]
+    fn validation_does_not_apply_reparameterizations() {
+        #[derive(Debug, Module)]
+        struct NeverApply {}
+
+        impl Reparameterization for NeverApply {
+            const NAME: &'static str = "never_apply";
+
+            fn apply<const D: usize>(&self, _base: Tensor<D>) -> Tensor<D> {
+                panic!("validation must not evaluate effective weights")
+            }
+        }
+
+        let device = test_device().autodiff();
+        let param = Param::from_tensor(Tensor::<2>::ones([2, 3], &device))
+            .with_reparameterization(NeverApply {});
+        let validation = param.valid().valid();
+        assert!(!validation.base().is_autodiff());
+        assert!(validation.reparameterization::<NeverApply>().is_some());
+    }
+
+    #[test]
+    fn materialize_detaches_factors_and_preserves_base_state_and_layout_mapping() {
+        let device = test_device().autodiff();
+        let a = Param::from_tensor(Tensor::<2>::ones([2, 1], &device));
+        let b = Param::from_tensor(Tensor::<2>::ones([1, 3], &device));
+        let param = Param::from_tensor(Tensor::<2>::ones([2, 3], &device))
+            .load_mapper(Tensor::transpose)
+            .save_mapper(Tensor::transpose)
+            .with_reparameterization(LoraAdapter {
+                a: a.clone(),
+                b: b.clone(),
+                scale: 2.0,
+            });
+
+        let merged = param.clone().materialize();
+        assert!(merged.adapter().is_none());
+        assert!(param.adapter().is_some());
+        assert_eq!(merged.id, param.id);
+        assert!(merged.base().is_require_grad());
+        let value = merged.base().into_data();
+        value.assert_eq(&TensorData::from([[3.0f32; 3]; 2]), true);
+        let saved = merged.transform_for_save().base().into_data();
+        saved.assert_eq(&TensorData::from([[3.0f32; 2]; 3]), true);
+        let loaded = merged
+            .clone()
+            .transform_for_load(Tensor::ones([3, 2], &device), merged.id);
+        assert_eq!(loaded.base().dims(), [2, 3]);
+
+        let grads = merged.val().sum().backward();
+        assert!(merged.base().grad(&grads).is_some());
+        assert!(param.base().grad(&grads).is_none());
+        assert!(a.val().grad(&grads).is_none());
+        assert!(b.val().grad(&grads).is_none());
+
+        let validation_merged = param.valid().materialize();
+        assert!(!validation_merged.base().is_autodiff());
+        assert!(validation_merged.train().base().is_require_grad());
+        let frozen_merged = param.freeze().materialize();
+        assert!(!frozen_merged.base().is_require_grad());
+        assert!(!frozen_merged.valid().train().base().is_require_grad());
+    }
+
+    #[test]
+    fn qlora_validation_and_records_preserve_packed_base_until_materialization() {
+        use crate::module::{Lora, QLora, Quantizer};
+        use burn_tensor::quantization::{Calibration, QuantValue};
+
+        let device = test_device().autodiff();
+        let scheme = device
+            .settings()
+            .quantization
+            .scheme
+            .with_value(QuantValue::Q8S);
+        let param = Param::from_tensor(Tensor::<2>::ones([4, 4], &device)).apply_qlora(QLora::new(
+            Lora::new(2, 4.0),
+            Quantizer::new(Calibration::MinMax, scheme),
+        ));
+        let inference = param.valid();
+        assert_eq!(inference.base().dtype(), param.base().dtype());
+        let dtype = inference.base().dtype();
+        assert!(matches!(dtype, burn_tensor::DType::QFloat(_)));
+        assert!(inference.adapter().is_some());
+        let restored = inference.clone().train();
+        assert!(!restored.base().is_require_grad());
+        let adapter = restored.adapter().unwrap();
+        assert!(adapter.a.val().is_require_grad());
+        assert!(adapter.b.val().is_require_grad());
+
+        let expected = inference.val().into_data();
+        let loaded = param.load_record(inference.clone().into_record());
+        assert_eq!(loaded.base().dtype(), inference.base().dtype());
+        assert!(loaded.adapter().is_some());
+        loaded.val().into_data().assert_eq(&expected, true);
+
+        let merged = inference.materialize().materialize();
+        assert!(merged.adapter().is_none());
+        assert!(merged.base().dtype().is_float());
+        assert!(!merged.base().is_autodiff());
+        merged.val().into_data().assert_eq(&expected, true);
+        let dense = Param::from_tensor(Tensor::<2>::zeros([4, 4], &test_device()));
+        let loaded = dense.load_record(merged.into_record());
+        loaded.val().into_data().assert_eq(&expected, true);
+    }
 
     fn lazy_param_for_device_inspection<T: Parameter>(
         device: &Device,
@@ -701,7 +825,7 @@ mod tests {
     }
 
     #[test]
-    fn counting_a_lazy_param_leaves_it_uninitialized() {
+    fn counting_and_materializing_an_unadapted_lazy_param_leave_it_uninitialized() {
         let param: Param<Tensor<2>> = Param::uninitialized(
             ParamId::new(),
             |device, require_grad| Tensor::ones([2, 3], device).set_require_grad(require_grad),
@@ -711,6 +835,10 @@ mod tests {
         );
 
         assert_eq!(Module::num_params(&param), 6);
+        assert!(!param.is_initialized());
+        let id = param.id;
+        let param = param.materialize().materialize();
+        assert_eq!(param.id, id);
         assert!(!param.is_initialized());
     }
 

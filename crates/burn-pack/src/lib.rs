@@ -101,13 +101,16 @@
 //! - [`MAX_CBOR_RECURSION_DEPTH`] — deepest CBOR nesting (stack-overflow guard)
 //! - [`MAX_FILE_SIZE`] — largest file accepted by the file loaders (std only)
 //!
+//! [`MAX_FILE_SIZE`] and [`MAX_TENSOR_SIZE`] can be raised with [`Reader::with_limits`]
+//! on a trusted reader.
+//!
 //! It also validates that the file is large enough to contain every tensor it claims,
 //! returning [`Error::ValidationError`] otherwise.
 //!
 //! ## Feature Flags
 //!
 //! - `std`: Enables file I/O ([`Reader::from_file`], [`Reader::from_file_exact`],
-//!   [`Writer::write_to_file`], and [`Writer::write_to_file_atomic`]) (default)
+//!   [`Writer::write_to_file`], and [`Writer::write_to_file_in_place`]) (default)
 
 extern crate alloc;
 
@@ -120,14 +123,12 @@ mod writer;
 
 #[cfg(feature = "std")]
 pub use atomic::AtomicFile;
-#[cfg(feature = "std")]
-pub use base::MAX_FILE_SIZE;
 pub use base::{
     Error, FORMAT_VERSION, HEADER_SIZE, Header, MAGIC_NUMBER, MAX_CBOR_RECURSION_DEPTH,
-    MAX_METADATA_SIZE, MAX_TENSOR_COUNT, MAX_TENSOR_SIZE, Scalar, ScalarConversionError,
-    TENSOR_ALIGNMENT, aligned_data_section_start,
+    MAX_FILE_SIZE, MAX_METADATA_SIZE, MAX_TENSOR_COUNT, MAX_TENSOR_SIZE, Scalar,
+    ScalarConversionError, TENSOR_ALIGNMENT, aligned_data_section_start,
 };
-pub use reader::Reader;
+pub use reader::{Reader, ReaderLimits};
 pub use tensor::Tensor;
 pub use writer::Writer;
 

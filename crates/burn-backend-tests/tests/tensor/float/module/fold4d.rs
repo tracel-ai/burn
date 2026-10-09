@@ -60,6 +60,35 @@ fn test_fold4d_stride_no_padding() {
     ]]]));
 }
 
+#[test]
+fn test_fold4d_multiple_channels() {
+    let columns = TestTensor::<3>::from([[
+        [1., 2., 3., 4.],
+        [5., 6., 7., 8.],
+        [9., 10., 11., 12.],
+        [13., 14., 15., 16.],
+        [101., 102., 103., 104.],
+        [105., 106., 107., 108.],
+        [109., 110., 111., 112.],
+        [113., 114., 115., 116.],
+    ]]);
+
+    let output = fold4d(
+        columns,
+        [3, 3],
+        [2, 2],
+        UnfoldOptions::new([1, 1], [0, 0], [1, 1]),
+    );
+
+    let expected = TestTensor::<4>::from([[
+        [[1., 7., 6.], [12., 34., 22.], [11., 27., 16.]],
+        [[101., 207., 106.], [212., 434., 222.], [111., 227., 116.]],
+    ]]);
+    output
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&expected.into_data(), Tolerance::default());
+}
+
 struct Fold4dTestCase {
     batch_size: usize,
     channels: usize,

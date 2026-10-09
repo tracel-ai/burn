@@ -1,6 +1,5 @@
-use super::NoOp;
 use crate::{
-    Fusion, FusionBackend, binary_int_cmp_ops, binary_int_ops,
+    Fusion, FusionBackend, FusionTensor, binary_int_cmp_ops, binary_int_ops,
     client::GlobalFusionClient,
     get_client, reduce_ops, scalar_int_cmp_ops, scalar_int_ops,
     stream::{StreamId, execution::Operation},
@@ -95,20 +94,14 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
 
     fn int_from_data(data: TensorData, device: &Device<Self>) -> IntTensor<Self> {
         let client = get_client::<B>(device);
-        let dtype = data.dtype;
+        let dtype = data.dtype();
         let tensor = B::int_from_data(data, device);
         let shape = burn_backend::TensorMetadata::shape(&tensor);
 
         let handle = B::int_tensor_handle(tensor);
-        let desc = InitOperationIr::create(shape, dtype, || client.register_tensor_handle(handle));
+        let id = client.register_tensor_handle(handle);
 
-        client
-            .register(
-                StreamId::current(),
-                OperationIr::Init(desc),
-                NoOp::<B>::new(),
-            )
-            .output()
+        FusionTensor::new(id, shape, dtype, client, StreamId::current())
     }
 
     fn int_to_device(tensor: IntTensor<Self>, device_dst: &Device<Self>) -> IntTensor<Self> {

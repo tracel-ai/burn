@@ -24,7 +24,6 @@ use burn_std::{
     tensor::{ReshapeAction, contiguous_strides, is_contiguous, is_dense, reshape_action},
 };
 use cubecl::client::Client;
-use cubecl::zspace::Tiling;
 use std::collections::BTreeMap;
 
 /// Create or reuse handles for the outputs.
@@ -733,7 +732,7 @@ impl<'a> OutputPlanner<'a> {
             handle: client.empty(size),
             device: device.clone(),
             strides,
-            tiling: Tiling::UNTILED,
+            tiles: None,
             dtype,
             qparams: None,
         };
@@ -793,7 +792,7 @@ impl<'a> OutputPlanner<'a> {
                 // The strides are rewritten, which only a plain input allows; a tiled one
                 // never reaches a fused kernel (its inputs refuse it).
                 assert!(
-                    !original_handle.handle.tiling.is_tiled(),
+                    original_handle.handle.tiles.is_none(),
                     "fusion: a storage-tiled input cannot be restrided in place"
                 );
                 let handle = CubeFusionHandle {
@@ -801,7 +800,7 @@ impl<'a> OutputPlanner<'a> {
                     handle: original_handle.handle.handle.clone(),
                     device: device.clone(),
                     strides,
-                    tiling: Tiling::UNTILED,
+                    tiles: None,
                     dtype,
                     qparams: original_handle.handle.qparams.clone(),
                 };
@@ -863,6 +862,12 @@ impl<'a> OutputPlanner<'a> {
         // We modify the metadata instead.
         remove_concrete_write(block, output.tensor_relative.id, output.pos_original);
 
+        // The strides are swapped as logical dims, which only rows are; a tiled input never
+        // reaches a fused kernel (its inputs refuse it).
+        assert!(
+            original_handle.handle.tiles.is_none(),
+            "fusion: a storage-tiled input cannot have its dims swapped in place"
+        );
         let strides = original_handle.handle.strides.clone();
 
         let mut handle = CubeFusionHandle {
@@ -870,7 +875,7 @@ impl<'a> OutputPlanner<'a> {
             handle: original_handle.handle.handle.clone(),
             device: device.clone(),
             strides,
-            tiling: original_handle.handle.tiling,
+            tiles: None,
             dtype,
             qparams: original_handle.handle.qparams.clone(),
         };
@@ -1166,7 +1171,7 @@ mod tests {
                         device: device.clone(),
                         dtype: DType::F32,
                         strides: padded_strides.clone(),
-                        tiling: Tiling::UNTILED,
+                        tiles: None,
                         qparams: None,
                     },
                     vector_size: 1,

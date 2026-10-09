@@ -4,7 +4,8 @@ use crate::{Backend, TensorData, TensorMetadata};
 use alloc::vec;
 use burn_std::{DType, Shape};
 
-/// Constructs a special weight tensor used for unfolding.
+/// Constructs the one-hot weight tensor used for unfolding and folding with the specified number
+/// of convolution groups.
 ///
 /// # Notes
 ///
@@ -15,12 +16,15 @@ use burn_std::{DType, Shape};
 pub(crate) fn create_unfolding_weight<B: Backend>(
     in_channels: usize,
     kernel_size: [usize; 2],
+    groups: usize,
     device: &B::Device,
     dtype: DType,
 ) -> FloatTensor<B> {
+    assert!(groups > 0 && in_channels.is_multiple_of(groups));
+    let in_channels_per_group = in_channels / groups;
     let shape = Shape::new([
         in_channels * kernel_size[0] * kernel_size[1],
-        in_channels,
+        in_channels_per_group,
         kernel_size[0],
         kernel_size[1],
     ]);
@@ -40,8 +44,11 @@ pub(crate) fn create_unfolding_weight<B: Backend>(
         for i in 0..kernel_size[0] {
             for j in 0..kernel_size[1] {
                 let output_channel = k * kernel_size[0] * kernel_size[1] + i * kernel_size[1] + j;
-                let index =
-                    output_channel * strides[0] + k * strides[1] + i * strides[2] + j * strides[3];
+                let input_channel = k % in_channels_per_group;
+                let index = output_channel * strides[0]
+                    + input_channel * strides[1]
+                    + i * strides[2]
+                    + j * strides[3];
 
                 weight[index] = 1.;
             }
@@ -58,7 +65,7 @@ pub(crate) fn unfold4d_using_conv2d<B: Backend>(
     options: UnfoldOptions,
 ) -> FloatTensor<B> {
     let [_batch_size, in_channels, _in_height, _in_width] = x.shape().dims();
-    let weight = create_unfolding_weight::<B>(in_channels, kernel_size, &x.device(), x.dtype());
+    let weight = create_unfolding_weight::<B>(in_channels, kernel_size, 1, &x.device(), x.dtype());
     let unfolded = B::conv2d(
         x,
         weight,

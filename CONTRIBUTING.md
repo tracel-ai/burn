@@ -12,7 +12,7 @@ If you have an idea that isn't covered by an existing issue, open one first to d
 This helps align expectations and avoids wasted effort on both sides.
 
 For questions, discussions, or just to say hello, join us on
-[Discord](https://discord.gg/uPEBbYYDB6). The [Contributor Book](https://burn.dev/contributor-book/)
+[Discord](https://discord.gg/uPEBbYYDB6). The [Contributor Book](https://burn.dev/books/contributor/)
 covers architecture, environment setup, and guides for common tasks.
 
 ## Pull Requests
@@ -56,7 +56,7 @@ Do not use "AI generated" as a justification for low-quality code.
 1. **Check for an existing issue.** If there isn't one, open an issue first to discuss the approach.
    This is especially important for large changes or refactors.
 2. **Read the codebase.** Understand the architecture and conventions already in place. The
-   [Contributor Book](https://burn.dev/contributor-book/) covers architecture, environment setup,
+   [Contributor Book](https://burn.dev/books/contributor/) covers architecture, environment setup,
    and guides for common tasks.
 3. **Keep it focused.** One PR should address one concern. If you spot an unrelated issue while
    working, open a separate PR for it.

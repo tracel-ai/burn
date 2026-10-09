@@ -357,7 +357,9 @@ full tensor name), so anchor it to keep exactly one list; a nested list such as
 
 #### Zero-Copy Loading
 
-For embedded models or large files, use zero-copy loading to avoid memory copies:
+For embedded models, `from_static` slices tensor data straight out of the binary without copying.
+File loads are lazy: only the header is read up front, and each tensor is read from disk when it is
+accessed.
 
 ```rust, ignore
 // Embedded model (compile-time)
@@ -365,9 +367,8 @@ static MODEL_DATA: &[u8] = include_bytes!("model.bpk");
 let mut store = BurnpackStore::from_static(MODEL_DATA);
 model.load_from(&mut store)?;
 
-// Large file (memory-mapped)
-let mut store = BurnpackStore::from_file("large_model.bpk")
-    .zero_copy(true);
+// Large file (tensors read on access)
+let mut store = BurnpackStore::from_file("large_model.bpk");
 model.load_from(&mut store)?;
 ```
 
@@ -387,11 +388,11 @@ model.save_into(&mut store)?;
 This applies to file saves. `BurnpackStore::from_bytes` has to build the whole container in memory
 by definition, so prefer a file path for large models.
 
-File saves through `BurnpackStore` are also all-or-nothing: because parameters are read back
-mid-write, the container is written beside the destination and renamed into place once complete, so
-a save that fails, panics, or has its process killed leaves any existing file untouched rather than
+Burnpack file saves are also all-or-nothing: the container is written beside the destination and
+renamed into place once complete, so a save that fails (a parameter readback erroring mid-write, a
+full disk), panics, or has its process killed leaves any existing file untouched rather than
 replacing it with a truncated one. Surviving power loss is a stronger guarantee and holds on Unix
-only; see `Writer::write_to_file_atomic` for the details.
+only; see `Writer::write_to_file` for the details.
 
 #### Half-Precision Storage
 
@@ -485,7 +486,6 @@ model2.apply(snapshots, Some(filter), None, false);
 |               | `map_indices_contiguous(bool)`         | Remap non-contiguous indices         |
 |               | `map_indices_contiguous_except(regex)` | Keep indices under matching prefixes |
 |               | `metadata(key, value)`                 | Add custom metadata                  |
-|               | `zero_copy(bool)`                      | Enable zero-copy loading             |
 
 #### Direct Access Methods
 

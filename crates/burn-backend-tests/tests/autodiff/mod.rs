@@ -9,8 +9,10 @@ mod add;
 mod aggregation;
 #[cfg(feature = "distributed")]
 mod all_reduce;
+mod attention;
 mod avgpool1d;
 mod avgpool2d;
+mod avgpool3d;
 mod backward;
 mod batch_norm;
 mod bridge;
@@ -58,6 +60,7 @@ mod matmul;
 mod maxmin;
 mod maxpool1d;
 mod maxpool2d;
+mod maxpool3d;
 mod memory_management;
 mod mul;
 mod multithread;

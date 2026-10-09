@@ -1,6 +1,6 @@
 use crate::{
     base::{Address, CommunicationChannel, CommunicationError, Message, ProtocolClient},
-    websocket::base::parse_ws_address,
+    websocket::base::{DeadPeerTimeout, MAX_MESSAGE_SIZE, parse_ws_address},
 };
 use burn_std::future::DynFut;
 use futures::{
@@ -29,20 +29,20 @@ impl ProtocolClient for WsClient {
 async fn connect_ws(address: Address, route: String) -> Result<WsClientChannel, WsClientError> {
     let address = parse_ws_address(address).map_err(WsClientError::Address)?;
     let url = format!("{address}/{route}");
-    const MB: usize = 1024 * 1024;
     let (stream, _) = connect_async_with_config(
         url,
         Some(
             WebSocketConfig::default()
                 .write_buffer_size(0)
-                .max_message_size(None)
-                .max_frame_size(Some(MB * 512))
+                .max_message_size(Some(MAX_MESSAGE_SIZE))
+                .max_frame_size(Some(MAX_MESSAGE_SIZE))
                 .accept_unmasked_frames(true)
                 .read_buffer_size(64 * 1024), // 64 KiB (previous default)
         ),
         true,
     )
     .await?;
+    stream.get_ref().get_ref().set_dead_peer_timeout();
 
     Ok(WsClientChannel { inner: stream })
 }
@@ -194,6 +194,17 @@ impl core::fmt::Display for WsClientError {
 
 impl std::error::Error for WsClientError {}
 
+impl WsClientError {
+    /// Whether nothing was listening at the address, as when its server has not started yet.
+    pub fn is_connection_refused(&self) -> bool {
+        let err = match self {
+            Self::Io(err) | Self::Tungstenite(tungstenite::Error::Io(err)) => err,
+            _ => return false,
+        };
+        err.kind() == std::io::ErrorKind::ConnectionRefused
+    }
+}
+
 impl From<std::io::Error> for WsClientError {
     fn from(err: std::io::Error) -> Self {
         Self::Io(err)
@@ -203,5 +214,48 @@ impl From<std::io::Error> for WsClientError {
 impl From<tungstenite::Error> for WsClientError {
     fn from(err: tungstenite::Error) -> Self {
         Self::Tungstenite(err)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use socket2::SockRef;
+    use tokio::net::TcpListener;
+
+    use super::*;
+    use crate::{
+        base::ProtocolServer,
+        websocket::{WsServer, WsServerChannel},
+    };
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_connected_client_enables_keepalive() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let server =
+            WsServer::new(port).route("/probe", |mut channel: WsServerChannel| async move {
+                let _ = channel.recv().await;
+            });
+        tokio::spawn(server.serve_on(listener, std::future::pending()));
+
+        let address = Address::from(format!("ws://127.0.0.1:{port}").as_str());
+        let channel = WsClient::connect(address, "probe").await.unwrap();
+
+        let socket = SockRef::from(channel.inner.get_ref().get_ref());
+        assert!(socket.keepalive().unwrap());
+        // socket2 cannot read the first probe's delay back on Windows.
+        #[cfg(not(windows))]
+        assert_eq!(
+            socket.tcp_keepalive_time().unwrap(),
+            std::time::Duration::from_secs(10)
+        );
+        #[cfg(any(
+            target_os = "linux",
+            target_os = "android",
+            target_os = "macos",
+            target_os = "ios",
+            target_os = "windows",
+        ))]
+        assert_eq!(socket.tcp_keepalive_retries().unwrap(), 4);
     }
 }

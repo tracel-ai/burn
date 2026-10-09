@@ -1,13 +1,17 @@
 use std::net::SocketAddr;
 
-use crate::base::{CommunicationChannel, CommunicationError, Message, ProtocolServer};
+use crate::{
+    base::{CommunicationChannel, CommunicationError, Message, ProtocolServer},
+    websocket::base::{DeadPeerTimeout, MAX_MESSAGE_SIZE},
+};
 use axum::{
     Router,
     extract::{
-        State, WebSocketUpgrade,
+        ConnectInfo, State, WebSocketUpgrade,
         ws::{self, WebSocket},
     },
     routing::get,
+    serve::ListenerExt,
 };
 use futures::{
     SinkExt, StreamExt,
@@ -21,6 +25,7 @@ pub struct WsServer {
 
 pub struct WsServerChannel {
     inner: WebSocket,
+    peer_addr: SocketAddr,
 }
 
 impl WsServer {
@@ -52,6 +57,14 @@ impl WsServer {
             Err(err) => log::info!("Server started (could not resolve bound address: {err})"),
         }
 
+        let listener = listener.tap_io(|tcp| {
+            tcp.set_dead_peer_timeout();
+            // Replies sent back to back would each wait for the client's delayed acknowledgement.
+            if let Err(err) = tcp.set_nodelay(true) {
+                log::warn!("Cannot disable Nagle's algorithm, so replies can stall: {err}");
+            }
+        });
+
         axum::serve(
             listener,
             self.router
@@ -61,6 +74,47 @@ impl WsServer {
         .await?;
 
         Ok(())
+    }
+
+    /// Route `path` like [`route`](ProtocolServer::route), refusing a message over
+    /// `max_message_size` bytes before reading it.
+    pub fn route_with_max_message_size<C, Fut>(
+        mut self,
+        path: &str,
+        max_message_size: usize,
+        callback: C,
+    ) -> Self
+    where
+        C: FnOnce(WsServerChannel) -> Fut + Clone + Send + Sync + 'static,
+        Fut: Future<Output = ()> + Send + 'static,
+    {
+        // Format path: should start with a /
+        let path = if path.starts_with("/") {
+            path.to_owned()
+        } else {
+            format!("/{path}")
+        };
+
+        let method = get(
+            move |ws: WebSocketUpgrade,
+                  ConnectInfo(peer_addr): ConnectInfo<SocketAddr>,
+                  _: State<()>| async move {
+                // Left unset, axum reads with tungstenite's defaults: 16 MiB a frame, 64 MiB a message.
+                ws.max_message_size(max_message_size)
+                    .max_frame_size(max_message_size)
+                    .on_upgrade(async move |socket| {
+                        callback(WsServerChannel {
+                            inner: socket,
+                            peer_addr,
+                        })
+                        .await;
+                    })
+            },
+        );
+
+        self.router = self.router.route(&path, method);
+
+        self
     }
 }
 
@@ -80,27 +134,12 @@ impl ProtocolServer for WsServer {
         self.serve_on(listener, shutdown).await
     }
 
-    fn route<C, Fut>(mut self, path: &str, callback: C) -> Self
+    fn route<C, Fut>(self, path: &str, callback: C) -> Self
     where
         C: FnOnce(WsServerChannel) -> Fut + Clone + Send + Sync + 'static,
         Fut: Future<Output = ()> + Send + 'static,
     {
-        // Format path: should start with a /
-        let path = if path.starts_with("/") {
-            path.to_owned()
-        } else {
-            format!("/{path}")
-        };
-
-        let method = get(|ws: WebSocketUpgrade, _: State<()>| async {
-            ws.on_upgrade(async move |socket| {
-                callback(WsServerChannel { inner: socket }).await;
-            })
-        });
-
-        self.router = self.router.route(&path, method);
-
-        self
+        self.route_with_max_message_size(path, MAX_MESSAGE_SIZE, callback)
     }
 }
 
@@ -152,6 +191,11 @@ impl CommunicationChannel for WsServerChannel {
 }
 
 impl WsServerChannel {
+    /// The address the client connected from.
+    pub fn peer_addr(&self) -> SocketAddr {
+        self.peer_addr
+    }
+
     /// Split into independently-owned send and receive halves, so a writer task and a reader loop
     /// can run concurrently over one full-duplex socket.
     pub fn split(self) -> (WsServerSink, WsServerStream) {

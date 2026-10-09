@@ -5,16 +5,16 @@ use burn_tensor::quantization::{
     DecodedScales, QuantScheme, QuantStore, QuantValue, QuantizationParameters, QuantizedBytes,
     ScaleDtype,
 };
-use burn_tensor::{DType, Element, TensorData};
+use burn_tensor::{DType, Device, Element, TensorData};
 
 fn get_q_params(data: TensorData) -> DecodedScales {
-    let scheme = if let DType::QFloat(scheme) = data.dtype {
+    let scheme = if let DType::QFloat(scheme) = data.dtype() {
         scheme
     } else {
         unreachable!()
     };
     let q_bytes = QuantizedBytes {
-        shape: data.shape.clone(),
+        shape: data.shape().clone(),
         bytes: data.into_bytes(),
         scheme,
     };
@@ -536,4 +536,98 @@ fn should_quantize_symmetric_two_level_f16_block_scales() {
 
     round_tripped.assert_eq(&direct, true);
     direct.assert_approx_eq(&input.into_data(), Tolerance::<f32>::rel_abs(1e-2, 1e-2));
+}
+
+/// A weight quantized along its first axis — the transposed view of one quantized along its
+/// last, which is how a matmul's right-hand side wants its blocks to run — saves and loads
+/// bit-identical. Each packed word holds values of one column, and the bytes keep them together.
+#[test]
+fn should_round_trip_packed_along_the_first_axis_through_bytes() {
+    let device = Default::default();
+
+    let input: TestTensor<2> = TestTensorInt::arange(0..512, &device)
+        .float()
+        .div_scalar(512.)
+        .sub_scalar(0.5)
+        .reshape([32, 16]);
+
+    let scheme = device
+        .settings()
+        .quantization
+        .scheme
+        .with_value(QuantValue::Q4S)
+        .with_store(QuantStore::PackedU32(0))
+        .per_block([16], ScaleDtype::F16)
+        .per_tensor(ScaleDtype::F32);
+    // A backend that stores quantized values unpacked has no packed axis to keep.
+    if !device.supports_dtype(DType::QFloat(scheme)) {
+        return;
+    }
+
+    let quantized = input
+        .clone()
+        .swap_dims(0, 1)
+        .quantize_dynamic(&scheme)
+        .swap_dims(0, 1);
+    let DType::QFloat(packed) = quantized.dtype() else {
+        unreachable!()
+    };
+    assert_eq!(packed.store, QuantStore::PackedU32(1));
+
+    let direct = quantized.clone().dequantize().into_data();
+    let saved = quantized.into_data();
+    let reloaded = TestTensor::<2>::from_data(saved.clone(), &device);
+
+    assert_eq!(reloaded.dtype(), DType::QFloat(packed));
+    reloaded
+        .clone()
+        .dequantize()
+        .into_data()
+        .assert_eq(&direct, true);
+    assert_eq!(reloaded.into_data().as_bytes(), saved.as_bytes());
+    direct.assert_approx_eq(&input.into_data(), Tolerance::<f32>::rel_abs(1e-1, 1e-1));
+}
+
+fn per_block_32_scheme(device: &Device) -> QuantScheme {
+    device
+        .settings()
+        .quantization
+        .scheme
+        .with_value(QuantValue::Q8S)
+        .per_block([32], ScaleDtype::F32)
+}
+
+#[test]
+fn should_reshape_per_block_along_block_boundaries() {
+    let device = Default::default();
+    let tensor = TestTensorInt::arange(0..64, &device)
+        .float()
+        .div_scalar(64.);
+    let expected = tensor.clone().reshape([2, 32]).into_data();
+
+    let output = tensor
+        .quantize_dynamic(&per_block_32_scheme(&device))
+        .reshape([2, 32]);
+
+    output
+        .dequantize()
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&expected, Tolerance::rel_abs(2e-2, 1e-2));
+}
+
+// A single [32] block cannot tile [2, 16]: it would have to span both rows.
+#[test]
+#[should_panic]
+fn should_panic_when_reshape_splits_a_block_across_rows() {
+    let device = Default::default();
+    let tensor = TestTensorInt::arange(0..32, &device)
+        .float()
+        .div_scalar(32.);
+
+    // Read back so a lazy backend executes the reshape.
+    let _ = tensor
+        .quantize_dynamic(&per_block_32_scheme(&device))
+        .reshape([2, 16])
+        .dequantize()
+        .into_data();
 }

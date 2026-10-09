@@ -12,14 +12,11 @@ workspace = true
 [features]
 default = ["burn/default", "burn/tui"]
 flex = ["burn/flex"]
-tch-cpu = ["burn/tch"]
-tch-gpu = ["burn/tch"]
 wgpu = ["burn/wgpu"]
 metal = ["burn/metal"]
 cuda = ["burn/cuda"]
 vulkan = ["burn/vulkan"]
 rocm = ["burn/rocm"]
-remote = ["burn/remote-websocket"]
 
 [dependencies]
 burn = { workspace = true, features = [

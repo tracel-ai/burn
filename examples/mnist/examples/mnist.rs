@@ -6,15 +6,6 @@ fn select_device() -> Device {
     #[cfg(feature = "flex")]
     return Device::flex();
 
-    #[cfg(all(feature = "tch-gpu", not(target_os = "macos")))]
-    return Device::libtorch_cuda(burn::tensor::DeviceIndex::Default);
-
-    #[cfg(all(feature = "tch-gpu", target_os = "macos"))]
-    return Device::libtorch_mps();
-
-    #[cfg(feature = "tch-cpu")]
-    return Device::libtorch();
-
     #[cfg(feature = "vulkan")]
     return Device::vulkan(burn::tensor::DeviceKind::DefaultDevice);
     #[cfg(feature = "metal")]
@@ -27,9 +18,6 @@ fn select_device() -> Device {
 
     #[cfg(feature = "rocm")]
     return Device::rocm(burn::tensor::DeviceIndex::Default);
-
-    #[cfg(feature = "remote")]
-    return Device::remote_websocket("ws://localhost:3000", 0);
 
     unreachable!("At least one backend will be selected.")
 }

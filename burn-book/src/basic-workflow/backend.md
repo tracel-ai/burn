@@ -37,8 +37,9 @@ fn main() {
 }
 ```
 
-In this code snippet, we select a WGPU device, which is compatible with any operating system and
-uses the GPU. For other options, see the Burn README. The model itself remains backend-agnostic:
+In this code snippet, we select a WGPU device, which uses an available graphics API on the platform.
+For other options, see the [backend and device table](../building-blocks/backend.md#selecting-a-device).
+The model itself remains backend-agnostic:
 tensor operations are dispatched according to their device. The training function creates an
 autodiff-enabled device internally.
 
