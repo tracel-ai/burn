@@ -39,6 +39,41 @@ Runtime dispatch uses a fixed backend catalog defined in
 `#[backend_extension]` extends the operations available on supported backends; it does not provide a
 mechanism for registering additional backends.
 
+## Kernels and fusion
+
+`burn-cubecl` implements Burn's backend operations using local CubeCL kernels and reusable CubeK
+kernels. CubeK supplies kernels such as matrix multiplication and reductions, built with CubeCL.
+CubeCL provides the kernel language, compilation, and runtime infrastructure for executing them on
+supported devices. Burn kernels can also use CubeCL directly.
+
+With fusion enabled, `burn-fusion` queues operations and coordinates their grouping into
+optimizations. `burn-cubecl-fusion` supplies the CubeCL implementations of those optimizations:
+element-wise chains and combinations of matmul or reductions with element-wise work. Enabling fusion
+does not mean every operation will be fused; execution also needs unfused and fallback paths.
+
+For example, ordinary matmul passes through
+[`burn-cubecl`'s matmul implementation](https://github.com/tracel-ai/burn/blob/main/crates/burn-cubecl/src/kernel/matmul/base.rs),
+which prepares tensor bindings and dtypes and launches a CubeK matmul kernel. For a supported matmul
+followed by element-wise operations,
+[`burn-cubecl-fusion`'s matmul optimization](https://github.com/tracel-ai/burn/blob/main/crates/burn-cubecl-fusion/src/optim/matmul/optimization.rs)
+integrates the element-wise work into a CubeK matmul kernel through custom kernel arguments. This
+can avoid separate launches and intermediate memory traffic. Both paths execute through CubeCL.
+
+Use these responsibilities to locate a change:
+
+- **Burn operation integration:** `burn-cubecl` for tensor handling and kernel selection.
+- **Fusion:** `burn-fusion` for general scheduling and coordination; `burn-cubecl-fusion` for fused
+  kernel generation and CubeK integration.
+- **Reusable kernel algorithms:** CubeK, when the change belongs to a kernel shared across
+  consumers.
+- **Kernel compilation or runtime behavior:** CubeCL.
+
+Check existing implementations and the dependency versions used by this checkout before adding a
+kernel. Validate affected operations with fusion enabled and disabled, including fallback cases and
+relevant layouts and dtypes. Follow the
+[testing guide](../getting-started/testing.md#tensor-operations) for backend aliases and shared
+suites; report hardware coverage and any configurations not tested.
+
 ## Autodiff
 
 `burn_autodiff::Autodiff<B, C>` decorates a backend with first-order reverse-mode differentiation,

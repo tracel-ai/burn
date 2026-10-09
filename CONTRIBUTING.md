@@ -9,17 +9,23 @@ and find one that interests you. Issues labeled `good first issue` are a great s
 new contributors.
 
 If you have an idea that isn't covered by an existing issue, open one first to discuss the approach.
-This helps align expectations and avoids wasted effort on both sides.
+Keep the issue description succinct and focused on the problem and relevant evidence. This helps
+align expectations and avoids wasted effort on both sides.
 
 For questions, discussions, or just to say hello, join us on
-[Discord](https://discord.gg/uPEBbYYDB6). The [Contributor Book](https://burn.dev/books/contributor/)
-covers architecture, environment setup, and guides for common tasks.
+[Discord](https://discord.gg/uPEBbYYDB6). The
+[Contributor Book](https://burn.dev/books/contributor/) covers architecture, environment setup, and
+guides for common tasks.
+
+Coding agents should also read [AGENTS.md](AGENTS.md) for repository guidance and PR disclosure
+instructions.
 
 ## Pull Requests
 
-Every pull request should have a descriptive title, a description covering what you changed, why,
-how you tested it, and a link to the relevant issue (if applicable). Prefer small, focused PRs over
-large ones that bundle unrelated changes.
+Every pull request should have a descriptive title and a short description of the problem, solution,
+and validation, with a link to the relevant issue (if applicable). A few sentences plus test results
+are enough for a simple change. Add detail only when needed to assess its behavior or design; avoid
+repeating the diff. Prefer small, focused PRs over large ones that bundle unrelated changes.
 
 Draft pull requests are considered not yet ready for review.
 
@@ -39,7 +45,7 @@ own it intellectually and can stand behind it during review.
 
 ### AI-Assisted Contributions
 
-Using LLMs and AI tools to generate code that is part of a contribution is allowed.
+Using LLMs and AI tools to help with a contribution is allowed.
 
 That said, the [Change Ownership](#change-ownership) principle applies fully. You are the author,
 not your AI tool. This means:
@@ -50,6 +56,16 @@ not your AI tool. This means:
 - Be prepared to explain the rationale behind any change during review.
 
 Do not use "AI generated" as a justification for low-quality code.
+
+Briefly disclose AI assistance in the [PR template](.github/pull_request_template.md), including
+whether an agent wrote the description or created the PR. Remove the section if no AI tools were
+used.
+
+Keep issue and PR descriptions and comments succinct. Edit generated text for accuracy and brevity
+before submitting, and avoid large blocks of unedited AI prose.
+
+Keep AI disclosure in the PR description and omit AI coauthor or generated-by trailers from commit
+messages.
 
 ### Before You Open a PR
 
@@ -93,6 +109,8 @@ early than after the work is done.
 ### Review Process
 
 - Maintainers review PRs as time allows. Please be patient.
+- Maintainers evaluate the findings and remain responsible for final review and merge decisions.
+  Agent-generated reviews should be identified as such.
 - Be responsive to feedback. If changes are requested, address them or explain your reasoning.
 - Reviewers may ask clarifying questions about any part of your PR. This is a normal part of
   collaborative review and helps ensure shared understanding.
