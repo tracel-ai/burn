@@ -45,6 +45,7 @@ pub trait GroupInterpreter: Send {
     fn sync(&mut self) -> Result<(), ExecutionError>;
     fn flush(&mut self);
     fn seed(&self, seed: u64);
+    /// What every member can do with `dtype`, since each op runs on all of them.
     fn dtype_usage(&self, dtype: DType) -> DTypeUsageSet;
 }
 
@@ -177,7 +178,11 @@ impl<B: BackendIr> GroupInterpreter for GroupExecutor<B> {
     }
 
     fn dtype_usage(&self, dtype: DType) -> DTypeUsageSet {
-        self.members[0].dtype_usage(dtype)
+        self.members
+            .iter()
+            .fold(DTypeUsageSet::all(), |usage, member| {
+                usage & member.dtype_usage(dtype)
+            })
     }
 }
 
