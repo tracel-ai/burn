@@ -1,6 +1,6 @@
 use alloc::vec::Vec;
 use burn_backend::quantization::QuantValue;
-use burn_std::{e4m3, e5m2};
+use burn_std::{e2m1, e4m3, e5m2};
 
 /// The codes a quantization value type stores, and the values they stand for.
 ///
@@ -30,7 +30,9 @@ impl QuantCodes for QuantValue {
             QuantValue::E5M2 => scaled
                 .map(|scaled| e5m2::from_f32(scaled).to_bits() as i8)
                 .collect(),
-            QuantValue::E2M1 => scaled.map(|scaled| E2M1::encode(scaled) as i8).collect(),
+            QuantValue::E2M1 => scaled
+                .map(|scaled| e2m1::from_f32(scaled).to_bits() as i8)
+                .collect(),
             QuantValue::Q8F
             | QuantValue::Q8S
             | QuantValue::Q4F
@@ -50,7 +52,7 @@ impl QuantCodes for QuantValue {
                 .map(move |(index, &code)| scale_of(index) * e5m2::from_bits(code as u8).to_f32())
                 .collect(),
             QuantValue::E2M1 => codes
-                .map(move |(index, &code)| scale_of(index) * E2M1::decode(code as u8))
+                .map(move |(index, &code)| scale_of(index) * e2m1::from_bits(code as u8).to_f32())
                 .collect(),
             QuantValue::Q8F
             | QuantValue::Q8S
@@ -71,46 +73,6 @@ fn round_half_even(value: f32) -> f32 {
     // 1.5 * 2^23: a sum this large keeps no fraction bits, so adding it rounds to nearest even.
     const SHIFT: f32 = 12_582_912.0;
     value + SHIFT - SHIFT
-}
-
-/// E2M1 codes, encoded here because cubecl-common's E2M1 type needs std.
-struct E2M1;
-
-impl E2M1 {
-    /// The magnitudes of the codes without their sign bit, in code order.
-    const MAGNITUDES: [f32; 8] = [0.0, 0.5, 1.0, 1.5, 2.0, 3.0, 4.0, 6.0];
-    const SIGN: u8 = 0x8;
-    const MAGNITUDE_BITS: u8 = 0x7;
-
-    /// The code counts the midpoints between magnitudes that `value` clears; strict and non-strict
-    /// comparisons alternate so each tie lands on the even code, and a NaN clears none.
-    fn encode(value: f32) -> u8 {
-        let sign = if value.is_sign_negative() {
-            Self::SIGN
-        } else {
-            0
-        };
-        let magnitude = num_traits::Float::abs(value);
-        let cleared = [
-            magnitude > 0.25,
-            magnitude >= 0.75,
-            magnitude > 1.25,
-            magnitude >= 1.75,
-            magnitude > 2.5,
-            magnitude >= 3.5,
-            magnitude > 5.0,
-        ];
-        cleared.into_iter().filter(|&above| above).count() as u8 | sign
-    }
-
-    fn decode(code: u8) -> f32 {
-        let magnitude = Self::MAGNITUDES[usize::from(code & Self::MAGNITUDE_BITS)];
-        if code & Self::SIGN != 0 {
-            -magnitude
-        } else {
-            magnitude
-        }
-    }
 }
 
 #[cfg(test)]

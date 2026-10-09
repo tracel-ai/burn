@@ -1,6 +1,6 @@
 use alloc::{vec, vec::Vec};
 
-use super::{QuantScheme, QuantStore, QuantValue, QuantValueCodes, params_shape};
+use super::{QuantScheme, QuantStore, QuantValue, params_shape};
 use crate::Shape;
 
 /// How [`QuantizedBytes`](super::QuantizedBytes) lays out the values of a scheme.
@@ -69,7 +69,7 @@ impl PackedWordLayout {
     /// The code a field holds: an integer narrower than a byte is sign-extended, a float code
     /// kept as its bits.
     fn code(&self, field: u8) -> i8 {
-        if self.value.codes_are_integers() {
+        if !self.value.is_float() {
             let shift = u8::BITS as usize - self.bits();
             ((field << shift) as i8) >> shift
         } else {
