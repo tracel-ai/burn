@@ -19,8 +19,8 @@ pub struct MaxPool2dConfig {
     pub strides: [usize; 2],
     /// The padding configuration.
     ///
-    /// Supports symmetric and asymmetric padding. `Same` padding with even kernel sizes
-    /// will automatically use asymmetric padding to preserve input dimensions.
+    /// `Same` padding produces `ceil(input_size / stride)` outputs per spatial dimension.
+    /// Padding may be asymmetric, with the extra element added at the end.
     #[config(default = "PaddingConfig2d::Valid")]
     pub padding: PaddingConfig2d,
     /// The dilation.
@@ -120,14 +120,33 @@ mod tests {
     #[test]
     fn same_padding_with_dilation() {
         let device = Default::default();
-        let input = Tensor::<4>::full([1, 1, 5, 6], -1.0, &device);
+        let input = Tensor::<4>::from_data(
+            [[[
+                [-9., -1., -8., -2., -7., -3.],
+                [-6., -4., -5., -3., -9., -2.],
+                [-4., -8., -2., -7., -6., -1.],
+                [-8., -2., -7., -1., -3., -4.],
+                [-5., -7., -9., -6., -1., -8.],
+            ]]],
+            &device,
+        );
         let pool = MaxPool2dConfig::new([3, 2])
             .with_strides([1, 2])
             .with_dilation([2, 2])
             .with_padding(PaddingConfig2d::Same)
             .init();
 
-        let expected = Tensor::<4>::full([1, 1, 5, 3], -1.0, &device);
+        // Effective kernel [5, 3] requires padding (top, bottom) = (2, 2), (left, right) = (0, 1).
+        let expected = Tensor::<4>::from_data(
+            [[[
+                [-2., -2., -6.],
+                [-5., -3., -3.],
+                [-2., -1., -1.],
+                [-5., -3., -3.],
+                [-2., -1., -1.],
+            ]]],
+            &device,
+        );
         pool.forward(input)
             .to_data()
             .assert_eq(&expected.to_data(), true);

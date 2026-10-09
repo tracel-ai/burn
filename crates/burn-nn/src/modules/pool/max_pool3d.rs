@@ -18,7 +18,8 @@ pub struct MaxPool3dConfig {
     pub strides: [usize; 3],
     /// The padding configuration.
     ///
-    /// `Same` padding may be asymmetric (even kernels, or stride > 1); the input is then pre-padded before pooling.
+    /// `Same` padding produces `ceil(input_size / stride)` outputs per spatial dimension.
+    /// Padding may be asymmetric, with the extra element added at the end.
     #[config(default = "PaddingConfig3d::Valid")]
     pub padding: PaddingConfig3d,
     /// The dilation.
@@ -41,7 +42,8 @@ pub struct MaxPool3d {
     pub kernel_size: [usize; 3],
     /// The padding configuration.
     ///
-    /// `Same` padding may be asymmetric (even kernels, or stride > 1); the input is then pre-padded before pooling.
+    /// `Same` padding produces `ceil(input_size / stride)` outputs per spatial dimension.
+    /// Padding may be asymmetric, with the extra element added at the end.
     #[module(skip)]
     pub padding: PaddingConfig3d,
     /// The dilation.

@@ -19,8 +19,8 @@ pub struct MaxPool1dConfig {
     pub stride: usize,
     /// The padding configuration.
     ///
-    /// Supports symmetric and asymmetric padding. `Same` padding with even kernel sizes
-    /// will automatically use asymmetric padding to preserve input dimensions.
+    /// `Same` padding produces an output length of `ceil(input_length / stride)`.
+    /// Padding may be asymmetric, with the extra element added on the right.
     #[config(default = "PaddingConfig1d::Valid")]
     pub padding: PaddingConfig1d,
     /// The dilation.
