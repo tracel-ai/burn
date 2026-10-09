@@ -411,7 +411,7 @@ pub fn max_pool2d(x: Tensor<4>, options: MaxPoolOptions<2>) -> Tensor<4> {
 /// - If any dimension of `kernel_size` is 0.
 /// - If any dimension of `stride` is 0.
 /// - If any dimension of `dilation` is 0.
-/// - If any dimension of `padding` exceeds `kernel_size / 2`.
+/// - If any dimension of `padding` exceeds half the effective kernel size, `(kernel_size - 1) * dilation + 1`.
 pub fn max_pool3d(x: Tensor<5>, options: MaxPoolOptions<3>) -> Tensor<5> {
     let kernel_size = options.kernel_size;
     let stride = options.stride;
@@ -431,11 +431,13 @@ pub fn max_pool3d(x: Tensor<5>, options: MaxPoolOptions<3>) -> Tensor<5> {
     let dims = x.dims();
     let (x, padding) = pad_max_pool_input(x, &options);
     for i in 0..3 {
+        let effective_kernel = (kernel_size[i] - 1) * dilation[i] + 1;
         assert!(
-            padding[i] <= kernel_size[i] / 2,
-            "max_pool3d: padding must be <= kernel_size / 2, got padding={:?}, kernel_size={:?}",
+            padding[i] <= effective_kernel / 2,
+            "max_pool3d: padding must be <= effective kernel size / 2, got padding={:?}, kernel_size={:?}, dilation={:?}",
             padding,
-            kernel_size
+            kernel_size,
+            dilation
         );
     }
     let output = Tensor::new(BridgeTensor::float(Dispatch::max_pool3d(
@@ -730,7 +732,7 @@ fn drop_end_padding_windows<const D: usize, const N: usize, K: Basic>(
 /// - If any dimension of `kernel_size` is 0.
 /// - If any dimension of `stride` is 0.
 /// - If any dimension of `dilation` is 0.
-/// - If any dimension of `padding` exceeds `kernel_size / 2`.
+/// - If any dimension of `padding` exceeds half the effective kernel size, `(kernel_size - 1) * dilation + 1`.
 pub fn max_pool3d_with_indices(
     x: Tensor<5>,
     options: MaxPoolOptions<3>,
@@ -755,11 +757,13 @@ pub fn max_pool3d_with_indices(
     let indices_dtype = x.device().get_or_init_settings().int_dtype;
     let (x, padding) = pad_max_pool_input(x, &options);
     for i in 0..3 {
+        let effective_kernel = (kernel_size[i] - 1) * dilation[i] + 1;
         assert!(
-            padding[i] <= kernel_size[i] / 2,
-            "max_pool3d_with_indices: padding must be <= kernel_size / 2, got padding={:?}, kernel_size={:?}",
+            padding[i] <= effective_kernel / 2,
+            "max_pool3d_with_indices: padding must be <= effective kernel size / 2, got padding={:?}, kernel_size={:?}, dilation={:?}",
             padding,
-            kernel_size
+            kernel_size,
+            dilation
         );
     }
     let output = Dispatch::max_pool3d_with_indices(
@@ -1173,7 +1177,7 @@ pub fn avg_pool3d_backward(
 /// - If any dimension of `kernel_size` is 0.
 /// - If any dimension of `stride` is 0.
 /// - If any dimension of `dilation` is 0.
-/// - If any dimension of `padding` exceeds `kernel_size / 2`.
+/// - If any dimension of `padding` exceeds half the effective kernel size, `(kernel_size - 1) * dilation + 1`.
 /// - If `indices` and `output_grad` shapes do not match.
 #[allow(clippy::too_many_arguments)]
 pub fn max_pool3d_with_indices_backward(
@@ -1199,11 +1203,13 @@ pub fn max_pool3d_with_indices_backward(
         "max_pool3d_with_indices_backward: dilation must be > 0, got {dilation:?}"
     );
     for i in 0..3 {
+        let effective_kernel = (kernel_size[i] - 1) * dilation[i] + 1;
         assert!(
-            padding[i] <= kernel_size[i] / 2,
-            "max_pool3d_with_indices_backward: padding must be <= kernel_size / 2, got padding={:?}, kernel_size={:?}",
+            padding[i] <= effective_kernel / 2,
+            "max_pool3d_with_indices_backward: padding must be <= effective kernel size / 2, got padding={:?}, kernel_size={:?}, dilation={:?}",
             padding,
-            kernel_size
+            kernel_size,
+            dilation
         );
     }
     assert_eq!(
@@ -1363,10 +1369,12 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "max_pool3d: padding must be <= kernel_size / 2")]
-    fn test_max_pool3d_padding_greater_than_half_kernel_panics() {
+    #[should_panic(expected = "max_pool3d: padding must be <= effective kernel size / 2")]
+    fn test_max_pool3d_padding_greater_than_half_effective_kernel_panics() {
         let tensor = Tensor::<5>::zeros([1, 1, 4, 4, 4], &Default::default());
-        let options = MaxPoolOptions::new([2, 2, 2]).with_padding([2, 0, 0]);
+        let options = MaxPoolOptions::new([3, 1, 1])
+            .with_dilation([2, 1, 1])
+            .with_padding([3, 0, 0]);
         max_pool3d(tensor, options);
     }
 

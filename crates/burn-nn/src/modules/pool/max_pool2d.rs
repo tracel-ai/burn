@@ -19,8 +19,8 @@ pub struct MaxPool2dConfig {
     pub strides: [usize; 2],
     /// The padding configuration.
     ///
-    /// Supports symmetric and asymmetric padding. `Same` padding with even kernel sizes
-    /// will automatically use asymmetric padding to preserve input dimensions.
+    /// `Same` padding produces `ceil(input_size / stride)` outputs per spatial dimension.
+    /// Padding may be asymmetric, with the extra element added at the end.
     #[config(default = "PaddingConfig2d::Valid")]
     pub padding: PaddingConfig2d,
     /// The dilation.
@@ -91,21 +91,23 @@ impl MaxPool2d {
     /// - input: `[batch_size, channels, height_in, width_in]`
     /// - output: `[batch_size, channels, height_out, width_out]`
     pub fn forward(&self, input: Tensor<4>) -> Tensor<4> {
+        let options = MaxPoolOptions::new(self.kernel_size)
+            .with_stride(self.stride)
+            .with_dilation(self.dilation)
+            .with_ceil_mode(self.ceil_mode);
         let [_batch_size, _channels_in, height_in, width_in] = input.dims();
+        let effective_kernel =
+            core::array::from_fn(|i| (self.kernel_size[i] - 1) * self.dilation[i] + 1);
         let (padding_height, padding_width) = self.padding.calculate_padding_2d_pairs(
             height_in,
             width_in,
-            &self.kernel_size,
+            &effective_kernel,
             &self.stride,
         );
 
         max_pool2d(
             input,
-            MaxPoolOptions::new(self.kernel_size)
-                .with_stride(self.stride)
-                .with_padding_pairs([padding_height, padding_width])
-                .with_dilation(self.dilation)
-                .with_ceil_mode(self.ceil_mode),
+            options.with_padding_pairs([padding_height, padding_width]),
         )
     }
 }
@@ -114,6 +116,41 @@ impl MaxPool2d {
 mod tests {
     use super::*;
     use rstest::rstest;
+
+    #[test]
+    fn same_padding_with_dilation() {
+        let device = Default::default();
+        let input = Tensor::<4>::from_data(
+            [[[
+                [-9., -1., -8., -2., -7., -3.],
+                [-6., -4., -5., -3., -9., -2.],
+                [-4., -8., -2., -7., -6., -1.],
+                [-8., -2., -7., -1., -3., -4.],
+                [-5., -7., -9., -6., -1., -8.],
+            ]]],
+            &device,
+        );
+        let pool = MaxPool2dConfig::new([3, 2])
+            .with_strides([1, 2])
+            .with_dilation([2, 2])
+            .with_padding(PaddingConfig2d::Same)
+            .init();
+
+        // Effective kernel [5, 3] requires padding (top, bottom) = (2, 2), (left, right) = (0, 1).
+        let expected = Tensor::<4>::from_data(
+            [[[
+                [-2., -2., -6.],
+                [-5., -3., -3.],
+                [-2., -1., -1.],
+                [-5., -3., -3.],
+                [-2., -1., -1.],
+            ]]],
+            &device,
+        );
+        pool.forward(input)
+            .to_data()
+            .assert_eq(&expected.to_data(), true);
+    }
 
     #[test]
     fn same_with_even_kernel_uses_asymmetric_padding() {
