@@ -91,21 +91,23 @@ impl MaxPool2d {
     /// - input: `[batch_size, channels, height_in, width_in]`
     /// - output: `[batch_size, channels, height_out, width_out]`
     pub fn forward(&self, input: Tensor<4>) -> Tensor<4> {
+        let options = MaxPoolOptions::new(self.kernel_size)
+            .with_stride(self.stride)
+            .with_dilation(self.dilation)
+            .with_ceil_mode(self.ceil_mode);
         let [_batch_size, _channels_in, height_in, width_in] = input.dims();
+        let effective_kernel =
+            core::array::from_fn(|i| (self.kernel_size[i] - 1) * self.dilation[i] + 1);
         let (padding_height, padding_width) = self.padding.calculate_padding_2d_pairs(
             height_in,
             width_in,
-            &self.kernel_size,
+            &effective_kernel,
             &self.stride,
         );
 
         max_pool2d(
             input,
-            MaxPoolOptions::new(self.kernel_size)
-                .with_stride(self.stride)
-                .with_padding_pairs([padding_height, padding_width])
-                .with_dilation(self.dilation)
-                .with_ceil_mode(self.ceil_mode),
+            options.with_padding_pairs([padding_height, padding_width]),
         )
     }
 }
@@ -114,6 +116,22 @@ impl MaxPool2d {
 mod tests {
     use super::*;
     use rstest::rstest;
+
+    #[test]
+    fn same_padding_with_dilation() {
+        let device = Default::default();
+        let input = Tensor::<4>::full([1, 1, 5, 6], -1.0, &device);
+        let pool = MaxPool2dConfig::new([3, 2])
+            .with_strides([1, 2])
+            .with_dilation([2, 2])
+            .with_padding(PaddingConfig2d::Same)
+            .init();
+
+        let expected = Tensor::<4>::full([1, 1, 5, 3], -1.0, &device);
+        pool.forward(input)
+            .to_data()
+            .assert_eq(&expected.to_data(), true);
+    }
 
     #[test]
     fn same_with_even_kernel_uses_asymmetric_padding() {

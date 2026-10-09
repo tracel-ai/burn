@@ -91,23 +91,25 @@ impl MaxPool3d {
     /// - input: `[batch_size, channels, depth_in, height_in, width_in]`
     /// - output: `[batch_size, channels, depth_out, height_out, width_out]`
     pub fn forward(&self, input: Tensor<5>) -> Tensor<5> {
+        let options = MaxPoolOptions::new(self.kernel_size)
+            .with_stride(self.stride)
+            .with_dilation(self.dilation)
+            .with_ceil_mode(self.ceil_mode);
         let [_batch_size, _channels_in, depth_in, height_in, width_in] = input.dims();
+        let effective_kernel =
+            core::array::from_fn(|i| (self.kernel_size[i] - 1) * self.dilation[i] + 1);
         let (padding_depth, padding_height, padding_width) =
             self.padding.calculate_padding_3d_pairs(
                 depth_in,
                 height_in,
                 width_in,
-                &self.kernel_size,
+                &effective_kernel,
                 &self.stride,
             );
 
         max_pool3d(
             input,
-            MaxPoolOptions::new(self.kernel_size)
-                .with_stride(self.stride)
-                .with_padding_pairs([padding_depth, padding_height, padding_width])
-                .with_dilation(self.dilation)
-                .with_ceil_mode(self.ceil_mode),
+            options.with_padding_pairs([padding_depth, padding_height, padding_width]),
         )
     }
 }
@@ -116,6 +118,22 @@ impl MaxPool3d {
 mod tests {
     use super::*;
     use rstest::rstest;
+
+    #[test]
+    fn same_padding_with_dilation() {
+        let device = Default::default();
+        let input = Tensor::<5>::full([1, 1, 5, 5, 5], -1.0, &device);
+        let pool = MaxPool3dConfig::new([3, 3, 3])
+            .with_strides([1, 1, 1])
+            .with_dilation([2, 2, 2])
+            .with_padding(PaddingConfig3d::Same)
+            .init();
+
+        let expected = Tensor::<5>::full([1, 1, 5, 5, 5], -1.0, &device);
+        pool.forward(input)
+            .to_data()
+            .assert_eq(&expected.to_data(), true);
+    }
 
     #[test]
     fn same_with_even_kernel_uses_asymmetric_padding() {

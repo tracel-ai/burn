@@ -1,7 +1,41 @@
 use super::*;
 use burn_tensor::Tolerance;
-use burn_tensor::module::{max_pool3d, max_pool3d_with_indices};
+use burn_tensor::module::{max_pool3d, max_pool3d_with_indices, max_pool3d_with_indices_backward};
 use burn_tensor::ops::MaxPoolOptions;
+
+#[test]
+fn test_max_pool3d_padding_with_dilation() {
+    let device = Default::default();
+    let x = TestTensor::<5>::from_data([[[[[-5., -1., -4., -2., -3.]]]]], &device);
+    let options = MaxPoolOptions::new([1, 1, 3])
+        .with_stride([1; 3])
+        .with_dilation([1, 1, 2])
+        .with_padding([0, 0, 2]);
+    let expected = TestTensor::<5>::from_data([[[[[-4., -1., -3., -1., -3.]]]]], &device);
+
+    max_pool3d(x.clone(), options.clone())
+        .to_data()
+        .assert_eq(&expected.to_data(), true);
+    let (output, indices) = max_pool3d_with_indices(x.clone(), options.clone());
+    output.to_data().assert_eq(&expected.to_data(), true);
+    let expected_indices = TestTensorInt::<5>::from_data([[[[[2, 1, 4, 1, 4]]]]], &device);
+    indices
+        .to_data()
+        .assert_eq(&expected_indices.to_data(), true);
+
+    let grad = max_pool3d_with_indices_backward(
+        x,
+        options.kernel_size,
+        options.stride,
+        options.padding.map(|(begin, _)| begin),
+        options.dilation,
+        options.ceil_mode,
+        TestTensor::<5>::ones([1, 1, 1, 1, 5], &device),
+        indices,
+    );
+    let expected_grad = TestTensor::<5>::from_data([[[[[0., 2., 1., 0., 2.]]]]], &device);
+    grad.to_data().assert_eq(&expected_grad.to_data(), true);
+}
 
 #[test]
 fn test_max_pool3d_simple() {
