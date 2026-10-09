@@ -165,6 +165,8 @@ impl From<MessageHead> for Bytes {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::shared::Encode;
+    use serde::Serialize;
     use std::collections::VecDeque;
 
     #[tokio::test]
@@ -225,6 +227,18 @@ mod tests {
         );
     }
 
+    /// Encoded a field at a time, as task batches are, so its first segment fills before it ends.
+    #[tokio::test]
+    async fn a_message_encoded_in_small_pieces_arrives_whole() {
+        let values = Values((0..30_000).map(|i| u64::MAX - i).collect());
+        let expected = rmp_serde::to_vec(&values).unwrap();
+
+        let frames = frames_of([values.encode().unwrap()]).await;
+
+        assert_eq!(frames.len(), 2);
+        assert_eq!(received(frames).await, [expected]);
+    }
+
     #[tokio::test]
     async fn a_peer_that_closes_in_the_middle_of_a_message_is_an_error() {
         let mut frames = frames_of([message_of(2 * MAX_FRAME_SIZE)]).await;
@@ -257,6 +271,11 @@ mod tests {
 
         assert!(result.is_err(), "{result:?}");
     }
+
+    #[derive(Serialize)]
+    struct Values(Vec<u64>);
+
+    impl Encode for Values {}
 
     fn message_of(len: usize) -> Encoded {
         Encoded::from(&(0..len).map(|i| i as u8).collect::<Vec<_>>()[..])

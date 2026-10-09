@@ -49,8 +49,8 @@ impl Encoded {
 }
 
 /// Collects an encoding into segments of at most a frame. A message sent whole grows in a plain
-/// `Vec`; a larger one is written into buffers from [`BUFFERS`], each filled to its capacity and
-/// never grown.
+/// `Vec`; a larger one is written into buffers from [`BUFFERS`], the first grown until it holds a
+/// frame and every later one a frame filled to its capacity.
 #[derive(Default)]
 struct SegmentWriter {
     small: Vec<u8>,
@@ -69,14 +69,21 @@ impl SegmentWriter {
         Encoded { segments, len }
     }
 
-    /// The open segment, after closing it if it is full and taking a buffer if none is open; the
-    /// first buffer taken starts with what was written while the message was small.
+    /// The open segment, after growing or closing it if it is full and taking a buffer if none is
+    /// open; the first buffer taken starts with what was written while the message was small.
     fn open_segment(&mut self, wanted: usize) -> Result<&mut PooledBuffer, TryReserveError> {
         if let Some(full) = self
             .open
             .take_if(|segment| segment.len() == segment.capacity())
         {
-            self.full.push(full.into_bytes());
+            if self.full.is_empty() && full.len() < MAX_FRAME_SIZE {
+                // Grown rather than closed: a message that fits in a frame is read as one segment.
+                let mut grown = BUFFERS.take((full.len() + wanted).min(MAX_FRAME_SIZE))?;
+                grown.extend_from_slice(&full);
+                self.open = Some(grown);
+            } else {
+                self.full.push(full.into_bytes());
+            }
         }
         let capacity = self.next_capacity(wanted);
         match &mut self.open {
