@@ -26,6 +26,18 @@ fn should_suppress_non_maximum() {
 }
 
 #[test]
+fn should_keep_disjoint_boxes() {
+    let boxes = Tensor::<2>::from([[0, 0, 10, 10], [20, 20, 30, 30]]);
+    let scores = Tensor::<1>::from([0.1, 0.2]);
+    let options = NmsOptions::default();
+
+    let output = boxes.nms(scores, options);
+
+    let expected = TestTensorInt::<1>::from([1, 0]);
+    output.into_data().assert_eq(&expected.into_data(), true);
+}
+
+#[test]
 fn should_apply_score_threshold() {
     let boxes = Tensor::<2>::from([
         [0, 0, 100, 100],
