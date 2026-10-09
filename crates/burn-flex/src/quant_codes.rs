@@ -165,6 +165,11 @@ mod tests {
             0x8,
             "the sign of zero is kept"
         );
+        assert_eq!(
+            encode(QuantValue::E2M1, f32::NAN),
+            0x7,
+            "a NaN encodes as +6, as CUDA's conversion does"
+        );
         assert_eq!(e2m1(2.4), 2.0);
         assert_eq!(e2m1(100.0), 6.0);
         assert_eq!(e2m1(-100.0), -6.0);
