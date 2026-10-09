@@ -6,14 +6,14 @@ use super::{FloatElem, IntElem};
 
 #[ctor(unsafe)]
 fn init_device_settings() {
-    let _ = std::panic::catch_unwind(|| {
-        let mut device = burn_tensor::Device::default();
-        let _ = device.configure(
+    let mut device = burn_tensor::Device::default();
+    device
+        .configure(
             burn_tensor::DeviceConfig::default()
                 .float_dtype(<FloatElem as Element>::dtype())
                 .int_dtype(<IntElem as Element>::dtype()),
-        );
-    });
+        )
+        .unwrap();
 }
 
 /// Collection of types used across tests
