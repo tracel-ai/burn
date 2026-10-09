@@ -301,18 +301,25 @@ mod tests {
     /// width rounds down to zero bytes if divided rather than div_ceil'd). A 32x32 Q8 tensor
     /// passes either way, so it cannot stand in for these.
     ///
-    /// Both axes rely on the test backend storing quantized values natively, one `i8` per
-    /// value: `quantize_dynamic` rewrites the scheme's store to `QuantStore::Native` even
-    /// though `QuantScheme::default()` starts as `PackedU32`. A backend honoring `PackedU32`
-    /// would produce 4-byte-exact value counts and exercise neither axis.
+    /// The `Native` schemes hit both; the packed ones check that each line's padding is counted.
     #[test]
     fn data_len_matches_materialized_bytes_when_quantized() {
         let device = Device::default();
 
+        let native = QuantScheme::default().with_store(QuantStore::Native);
         let schemes = [
-            ("q8", QuantScheme::default()),
-            ("q4", QuantScheme::default().with_value(QuantValue::Q4S)),
-            ("q2", QuantScheme::default().with_value(QuantValue::Q2S)),
+            ("q8", native),
+            ("q4", native.with_value(QuantValue::Q4S)),
+            ("q2", native.with_value(QuantValue::Q2S)),
+            ("q8-packed", QuantScheme::default()),
+            (
+                "q4-packed",
+                QuantScheme::default().with_value(QuantValue::Q4S),
+            ),
+            (
+                "q2-packed",
+                QuantScheme::default().with_value(QuantValue::Q2S),
+            ),
         ];
         // Element counts that are and are not multiples of the 4-byte scale alignment.
         let shapes = [shape![32, 32], shape![3, 3], shape![5, 5], shape![2, 3]];
@@ -359,9 +366,8 @@ mod tests {
     }
 
     /// Packed quantized storage divides only the packed dimension, so a non-divisible extent
-    /// pads once per line rather than once over the flattened tensor. No current backend can
-    /// materialize such a tensor, so this pins the formula against the storage shape the
-    /// allocation would use (`CubeTensor::quantized_storage`) rather than against real bytes.
+    /// pads once per line rather than once over the flattened tensor, as `QuantizedBytes::new`
+    /// lays it out.
     #[test]
     fn data_len_packs_per_line_for_packed_stores() {
         // Q4 in u32 words: 8 values per storage element, packed along the last dimension.
