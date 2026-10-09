@@ -967,10 +967,17 @@ fn linear_impl(
 /// where scale defaults to 1/sqrt(head_dim) (configurable via `options.scale`).
 /// Optionally applies masking, additive bias, causal masking, and softcap.
 ///
+/// Scores are computed as `softcap(QKᵗ · scale)`, then masked (`mask` and causal) to
+/// `-inf`, then `attn_bias` is added, then softmax is taken; see
+/// [`ModuleOps::attention`](burn_backend::ops::ModuleOps::attention) for the full contract.
+///
 /// # Arguments
 /// - `query`: Query tensor of shape `[batch_size, num_heads, seq_len_q, head_dim]`
-/// - `key`: Key tensor of shape `[batch_size, num_heads, seq_len_k, head_dim]`
-/// - `value`: Value tensor of shape `[batch_size, num_heads, seq_len_k, val_dim]`
+/// - `key`: Key tensor of shape `[batch_size, num_kv_heads, seq_len_k, head_dim]`
+/// - `value`: Value tensor of shape `[batch_size, num_kv_heads, seq_len_k, val_dim]`
+///
+///   `num_heads` must be a multiple of `num_kv_heads` (grouped-query attention). Query
+///   head `h` attends with K/V head `h / (num_heads / num_kv_heads)`.
 /// - `mask`: Optional boolean mask of shape `[batch_size, num_heads, seq_len_q, seq_len_k]`,
 ///   where `true` indicates positions to mask (i.e. set to -inf before softmax).
 /// - `attn_bias`: Optional float tensor of shape `[batch_size, num_heads, seq_len_q, seq_len_k]`
@@ -992,6 +999,11 @@ pub fn attention(
     attn_bias: Option<Tensor<4>>,
     options: AttentionModuleOptions,
 ) -> Tensor<4> {
+    burn_backend::ops::attention::AttentionShapes::new(
+        &query.shape(),
+        &key.shape(),
+        &value.shape(),
+    );
     Tensor::new(BridgeTensor::float(Dispatch::attention(
         query.primitive.into_float(),
         key.primitive.into_float(),

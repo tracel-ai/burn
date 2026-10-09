@@ -4,9 +4,9 @@ use crate::tensor::{BoolTensor, FloatTensor, IntTensor};
 use crate::{Backend, Scalar, TensorMetadata};
 #[allow(deprecated)]
 pub use burn_std::ops::{
-    AttentionModuleOptions, AvgPoolOptions, ConvOptions, ConvTransposeOptions, DeformConvOptions,
-    GridSampleOptions, GridSamplePaddingMode, InterpolateMode, InterpolateOptions, MaxPoolOptions,
-    PadMode, PaddedConvOptions, UnfoldOptions,
+    AttentionModuleOptions, AvgPoolOptions, CausalAlignment, ConvOptions, ConvTransposeOptions,
+    DeformConvOptions, GridSampleOptions, GridSamplePaddingMode, InterpolateMode,
+    InterpolateOptions, MaxPoolOptions, PadMode, PaddedConvOptions, UnfoldOptions,
 };
 use burn_std::{IndexingUpdateOp, IntDType, Shape};
 
@@ -1020,15 +1020,30 @@ pub trait ModuleOps<B: Backend> {
     /// where scale defaults to 1/sqrt(head_dim). Optionally applies masking,
     /// additive bias, causal masking, and softcap to the attention scores.
     ///
+    /// The scores are computed in this order, which every backend must follow:
+    /// 1. `s = Q·Kᵗ · scale`
+    /// 2. `s = softcap · tanh(s / softcap)` if `options.softcap` is set
+    /// 3. `s = -inf` where `mask` is `true` or the causal mask hides the key
+    /// 4. `s = s + attn_bias`
+    /// 5. `p = softmax(s)` over keys; a row with every key hidden yields `p = 0`
+    /// 6. `out = p · V`
+    ///
+    /// Softcap comes before the masks so that hidden keys stay at `-inf`.
+    ///
     /// # Arguments
     /// - `query`: Query tensor of shape `[batch_size, num_heads, seq_len_q, head_dim]`
-    /// - `key`: Key tensor of shape `[batch_size, num_heads, seq_len_k, head_dim]`
-    /// - `value`: Value tensor of shape `[batch_size, num_heads, seq_len_k, val_dim]`
+    /// - `key`: Key tensor of shape `[batch_size, num_kv_heads, seq_len_k, head_dim]`
+    /// - `value`: Value tensor of shape `[batch_size, num_kv_heads, seq_len_k, val_dim]`
+    ///
+    ///   `num_heads` must be a multiple of `num_kv_heads` (grouped-query attention;
+    ///   `num_kv_heads == 1` is multi-query attention). Query head `h` attends with K/V
+    ///   head `h / (num_heads / num_kv_heads)`, the PyTorch and ONNX convention.
     /// - `mask`: Optional boolean mask of shape `[batch_size, num_heads, seq_len_q, seq_len_k]`,
     ///   where `true` indicates positions to mask (i.e. set to -inf before softmax).
     /// - `attn_bias`: Optional float tensor of shape `[batch_size, num_heads, seq_len_q, seq_len_k]`
     ///   added to the attention scores before softmax (e.g. ALiBi, relative position biases).
-    /// - `options`: Additional attention options (custom scale, softcap, causal masking).
+    /// - `options`: Additional attention options (custom scale, softcap, causal masking
+    ///   and its [alignment](crate::ops::CausalAlignment)).
     ///
     /// # Returns
     /// A tensor of shape `[batch_size, num_heads, seq_len_q, val_dim]`
