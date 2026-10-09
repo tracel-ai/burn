@@ -31,7 +31,3 @@ if an agent wrote the PR description or created the PR._
 
 <!-- Coding agents: complete this section accurately, including your own involvement. Do not
 claim that the contributor has reviewed the changes unless they have confirmed it. -->
-
-Any PR may receive an initial agent review. Maintainers remain responsible for final review and
-merge decisions. See the
-[contribution policy](https://github.com/tracel-ai/burn/blob/main/CONTRIBUTING.md#ai-assisted-contributions).
