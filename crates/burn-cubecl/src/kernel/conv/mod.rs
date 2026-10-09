@@ -9,6 +9,9 @@ mod direct;
 mod forward;
 mod im2col;
 
+#[cfg(test)]
+mod im2col_tests;
+
 mod tune_key;
 
 pub(crate) use backward_data::*;

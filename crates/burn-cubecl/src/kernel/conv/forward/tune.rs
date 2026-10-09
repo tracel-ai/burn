@@ -9,8 +9,8 @@ use cubek::convolution::{AcceleratedTileKind, DepthwiseStrategy, DepthwiseTiling
 use crate::{
     CubeAutotuneKey, CubeTuneId,
     kernel::conv::{
-        ConvAutotuneKey, conv_direct, conv_im2col_1x1, forward::depthwise::conv_depthwise,
-        forward::implicit_gemm::*,
+        ConvAutotuneKey, conv_direct, conv_im2col, conv_im2col_1x1,
+        forward::depthwise::conv_depthwise, forward::implicit_gemm::*,
     },
     tensor::CubeTensor,
 };
@@ -105,6 +105,10 @@ pub fn conv_autotune<const N: usize>(
             .with(Tunable::new(
                 "conv_im2col_1x1",
                 |(input, weight, bias, options)| conv_im2col_1x1::<N>(input, weight, bias, options),
+            ))
+            .with(Tunable::new(
+                "conv_im2col_dense",
+                |(input, weight, bias, options)| conv_im2col::<N>(input, weight, bias, options),
             ))
             .with(Tunable::new(
                 "simple_sync_cmma",
