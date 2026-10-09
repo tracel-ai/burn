@@ -6,7 +6,7 @@ use burn_backend::cubecl::{Device as CubeDevice, RuntimeId};
 
 // The cubecl runtimes — `cpu` among them — enumerate through `cube_devices` rather than a
 // `vec![]` literal, so only the backends that still list a fixed device need this.
-#[cfg(any(feature = "ndarray", feature = "flex"))]
+#[cfg(feature = "flex")]
 use alloc::vec;
 
 #[cfg(feature = "autodiff")]
@@ -33,14 +33,6 @@ pub enum DispatchGraph {
     /// A graph captured on the [Flex backend](Flex).
     #[cfg(feature = "flex")]
     Flex(BackendGraph<Flex>),
-
-    /// A graph captured on the [NdArray backend](NdArray).
-    #[cfg(feature = "ndarray")]
-    NdArray(BackendGraph<NdArray>),
-
-    /// A graph captured on the [LibTorch backend](LibTorch).
-    #[cfg(feature = "tch")]
-    LibTorch(BackendGraph<LibTorch>),
 
     /// A graph captured on the [Remote backend](Remote).
     #[cfg(feature = "remote")]
@@ -132,12 +124,6 @@ use crate::DispatchDeviceId;
 use crate::DispatchTensorKind;
 #[cfg(feature = "flex")]
 use crate::devices::FlexDevice;
-#[cfg(feature = "tch")]
-use crate::devices::LibTorchDevice;
-#[cfg(feature = "ndarray")]
-use crate::devices::NdArrayDevice;
-#[cfg(feature = "remote-websocket")]
-use crate::devices::RemoteDevice;
 use crate::{DispatchDevice, DispatchTensor, backends::*};
 
 /// The main execution backend in Burn.
@@ -258,15 +244,12 @@ impl Backend for Dispatch {
 
     fn device_count(type_id: u16) -> usize {
         let (dispatch_id, backend_type_id) = DispatchDevice::decode_type_id(type_id);
+        #[allow(unreachable_patterns)]
         match dispatch_id {
             #[cfg(cube_backend)]
             DispatchDeviceId::Cube => Cube::device_count(backend_type_id),
             #[cfg(feature = "flex")]
             DispatchDeviceId::Flex => Flex::device_count(backend_type_id),
-            #[cfg(feature = "ndarray")]
-            DispatchDeviceId::NdArray => NdArray::device_count(backend_type_id),
-            #[cfg(feature = "tch")]
-            DispatchDeviceId::LibTorch => LibTorch::device_count(backend_type_id),
             #[cfg(feature = "remote")]
             DispatchDeviceId::Remote => Remote::device_count(backend_type_id),
             #[cfg(feature = "capture")]
@@ -312,7 +295,7 @@ impl Backend for Dispatch {
         dispatch_device!(device, |device| B::supports_dtype(device, dtype))
     }
 
-    fn flush(device: &Self::Device) {
+    fn flush(device: &Self::Device) -> Result<(), ExecutionError> {
         dispatch_device!(device, |device| B::flush(device))
     }
 }
@@ -356,10 +339,6 @@ impl AutodiffBackend for Dispatch {
                 DispatchTensorKind::Cube(tensor) => tensor.autodiff().backward(),
                 #[cfg(feature = "flex")]
                 DispatchTensorKind::Flex(tensor) => tensor.autodiff().backward(),
-                #[cfg(feature = "ndarray")]
-                DispatchTensorKind::NdArray(tensor) => tensor.autodiff().backward(),
-                #[cfg(feature = "tch")]
-                DispatchTensorKind::LibTorch(tensor) => tensor.autodiff().backward(),
                 #[cfg(feature = "remote")]
                 DispatchTensorKind::Remote(tensor) => tensor.autodiff().backward(),
                 #[cfg(feature = "capture")]
@@ -390,16 +369,6 @@ impl AutodiffBackend for Dispatch {
                     .as_autodiff()
                     .grad(grads)
                     .map(|t| DispatchTensorKind::Flex(crate::BackendTensor::Float(t))),
-                #[cfg(feature = "ndarray")]
-                DispatchTensorKind::NdArray(tensor) => tensor
-                    .as_autodiff()
-                    .grad(grads)
-                    .map(|t| DispatchTensorKind::NdArray(crate::BackendTensor::Float(t))),
-                #[cfg(feature = "tch")]
-                DispatchTensorKind::LibTorch(tensor) => tensor
-                    .as_autodiff()
-                    .grad(grads)
-                    .map(|t| DispatchTensorKind::LibTorch(crate::BackendTensor::Float(t))),
                 #[cfg(feature = "remote")]
                 DispatchTensorKind::Remote(tensor) => tensor
                     .as_autodiff()
@@ -437,16 +406,6 @@ impl AutodiffBackend for Dispatch {
                     .as_autodiff()
                     .grad_remove(grads)
                     .map(|t| DispatchTensorKind::Flex(crate::BackendTensor::Float(t))),
-                #[cfg(feature = "ndarray")]
-                DispatchTensorKind::NdArray(tensor) => tensor
-                    .as_autodiff()
-                    .grad_remove(grads)
-                    .map(|t| DispatchTensorKind::NdArray(crate::BackendTensor::Float(t))),
-                #[cfg(feature = "tch")]
-                DispatchTensorKind::LibTorch(tensor) => tensor
-                    .as_autodiff()
-                    .grad_remove(grads)
-                    .map(|t| DispatchTensorKind::LibTorch(crate::BackendTensor::Float(t))),
                 #[cfg(feature = "remote")]
                 DispatchTensorKind::Remote(tensor) => tensor
                     .as_autodiff()
@@ -490,10 +449,6 @@ impl AutodiffBackend for Dispatch {
                 (DispatchTensorKind::Flex(tensor), DispatchTensorKind::Flex(grad)) => {
                     tensor.as_autodiff().grad_replace(grads, grad.float())
                 }
-                #[cfg(feature = "ndarray")]
-                (DispatchTensorKind::NdArray(tensor), DispatchTensorKind::NdArray(grad)) => {
-                    tensor.as_autodiff().grad_replace(grads, grad.float())
-                }
                 #[cfg(feature = "remote")]
                 (DispatchTensorKind::Remote(tensor), DispatchTensorKind::Remote(grad)) => {
                     tensor.as_autodiff().grad_replace(grads, grad.float())
@@ -527,14 +482,6 @@ impl AutodiffBackend for Dispatch {
                 ),
                 #[cfg(feature = "flex")]
                 DispatchTensorKind::Flex(tensor) => DispatchTensorKind::Flex(
-                    crate::BackendTensor::Float(tensor.autodiff().into_primitive()),
-                ),
-                #[cfg(feature = "ndarray")]
-                DispatchTensorKind::NdArray(tensor) => DispatchTensorKind::NdArray(
-                    crate::BackendTensor::Float(tensor.autodiff().into_primitive()),
-                ),
-                #[cfg(feature = "tch")]
-                DispatchTensorKind::LibTorch(tensor) => DispatchTensorKind::LibTorch(
                     crate::BackendTensor::Float(tensor.autodiff().into_primitive()),
                 ),
                 #[cfg(feature = "remote")]
@@ -593,18 +540,6 @@ impl AutodiffBackend for Dispatch {
                     crate::BackendTensor::Autodiff(Autodiff::<Flex>::from_inner(tensor.float())),
                 )))
             }
-            #[cfg(feature = "ndarray")]
-            DispatchTensorKind::NdArray(tensor) => {
-                DispatchTensorKind::Autodiff(Box::new(DispatchTensorKind::NdArray(
-                    crate::BackendTensor::Autodiff(Autodiff::<NdArray>::from_inner(tensor.float())),
-                )))
-            }
-            #[cfg(feature = "tch")]
-            DispatchTensorKind::LibTorch(tensor) => DispatchTensorKind::Autodiff(Box::new(
-                DispatchTensorKind::LibTorch(crate::BackendTensor::Autodiff(
-                    Autodiff::<LibTorch>::from_inner(tensor.float()),
-                )),
-            )),
             #[cfg(feature = "remote")]
             DispatchTensorKind::Remote(tensor) => {
                 DispatchTensorKind::Autodiff(Box::new(DispatchTensorKind::Remote(
@@ -1112,7 +1047,8 @@ impl AutodiffBackend for Dispatch {
 impl Dispatch {
     /// List all available devices of the specified [type id](DispatchDeviceId).
     pub fn enumerate(type_id: DispatchDeviceId) -> Vec<DispatchDevice> {
-        // TODO: right now this assumes `type_id = 0`, but WgpuDevice and LibTorchDevice have other types.
+        // TODO: right now this assumes `type_id = 0`, but WgpuDevice has other types.
+        #[allow(unreachable_patterns)]
         match type_id {
             #[cfg(cube_backend)]
             DispatchDeviceId::Cube => CubeDevice::enumerate_all()
@@ -1122,16 +1058,8 @@ impl Dispatch {
                 .collect(),
             #[cfg(feature = "flex")]
             DispatchDeviceId::Flex => vec![FlexDevice.into()],
-            #[cfg(feature = "ndarray")]
-            DispatchDeviceId::NdArray => vec![NdArrayDevice::Cpu.into()],
-            #[cfg(feature = "tch")]
-            DispatchDeviceId::LibTorch => (0..LibTorch::device_count(0))
-                .map(|i| LibTorchDevice::Cuda(i).into())
-                .collect(),
             #[cfg(feature = "remote")]
-            // Remote devices are keyed by a network address, which the type-id-only
-            // `enumerate` can't carry. Use [`Dispatch::enumerate_remote_websocket`] to list the devices
-            // behind a given address.
+            // A remote device needs its server's address, which a type id cannot carry.
             DispatchDeviceId::Remote => Vec::new(),
             #[cfg(feature = "capture")]
             // Capture devices are created together with a lifecycle handle and therefore
@@ -1153,22 +1081,6 @@ impl Dispatch {
         cube_devices(runtime)
             .into_iter()
             .map(DispatchDevice::Cube)
-            .collect()
-    }
-
-    /// List every device hosted by the remote server at `address`.
-    ///
-    /// Unlike [`enumerate`](Self::enumerate), remote devices are identified by a network
-    /// address rather than enumerable local hardware, so they need a dedicated entry point.
-    /// Connecting to the server (required to learn its device count) happens here; see
-    /// [`RemoteDevice::enumerate_websocket`].
-    ///
-    /// Websocket-only: Iroh peers are addressed by endpoint identity, not a URL string.
-    #[cfg(feature = "remote-websocket")]
-    pub fn enumerate_remote_websocket(address: &str) -> Vec<DispatchDevice> {
-        RemoteDevice::enumerate_websocket(address)
-            .into_iter()
-            .map(DispatchDevice::Remote)
             .collect()
     }
 }

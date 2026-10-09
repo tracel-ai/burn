@@ -12,12 +12,9 @@ mod cube {
         pub struct ReferenceDevice;
 
         impl ReferenceDevice {
-            // NdArray stays the reference implementation while it is deprecated: its
-            // `export_tests` feature widens the accepted quantization schemes (Q4/Q2) so it can
-            // serve as a value-equality reference, which no other CPU backend currently does.
-            #[allow(deprecated)]
+            // Flex keeps sub-byte reference values in native i8 storage.
             pub fn new() -> burn_tensor::Device {
-                burn_ndarray::NdArrayDevice::Cpu.into()
+                burn_tensor::Device::flex()
             }
         }
     }

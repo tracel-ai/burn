@@ -1,6 +1,7 @@
 use super::*;
-use burn_tensor::Tolerance;
-use burn_tensor::{Device, Distribution, module};
+use burn_tensor::{
+    DType, Device, Distribution, TensorData, Tolerance, module, ops::ConvTransposeOptions,
+};
 
 #[test]
 fn conv_transpose2d_should_match_reference_backend() {
@@ -75,4 +76,34 @@ fn conv_transpose2d_stride_beyond_kernel_extent_should_match_reference_backend()
     output
         .into_data()
         .assert_approx_eq::<FloatElem>(&output_ref.into_data(), Tolerance::default());
+}
+
+#[test]
+fn conv_transpose2d_half_precision_should_preserve_small_contributions() {
+    let device = Device::default();
+    for dtype in [DType::F16, DType::BF16] {
+        if !device.supports_dtype(dtype) {
+            continue;
+        }
+
+        let large = if dtype == DType::F16 { 2048.0 } else { 256.0 };
+        // The negative-first sum also preserves the unit contribution in the direct
+        // algorithm. The bias case catches rounding the overlap sum before adding bias.
+        for (values, bias_value) in [(vec![-large, 1.0, large], 0.0), (vec![large, 1.0], -large)] {
+            let len = values.len();
+            let bias = (bias_value != 0.0)
+                .then(|| TestTensor::<1>::from_data([bias_value], (&device, dtype)));
+            let options = ConvTransposeOptions::new([1; 2], [0, len - 1], [0; 2], [1; 2], 1);
+            let input = TestTensor::<4>::from_data(
+                TensorData::new(values.clone(), [1, 1, 1, len]),
+                (&device, dtype),
+            );
+            let weight = TestTensor::<4>::ones([1, 1, 1, len], (&device, dtype));
+            let output = module::conv_transpose2d(input, weight, bias, options);
+            let expected =
+                TensorData::new(vec![values.iter().sum::<f32>() + bias_value], [1, 1, 1, 1])
+                    .convert_dtype(dtype);
+            output.into_data().assert_eq(&expected, true);
+        }
+    }
 }

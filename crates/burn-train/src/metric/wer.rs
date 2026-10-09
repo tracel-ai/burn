@@ -4,7 +4,7 @@ use super::{MetricMetadata, SerializedEntry};
 use crate::metric::{
     Metric, MetricAttributes, MetricName, Numeric, NumericAttributes, NumericEntry,
 };
-use burn_core::tensor::{Int, Tensor};
+use burn_core::tensor::{Int, Tensor, TensorReadError};
 use std::sync::Arc;
 
 // The edit_distance function remains the same as it calculates the Levenshtein distance
@@ -53,19 +53,17 @@ impl WordErrorRate {
 impl Metric for WordErrorRate {
     type Input = WerInput;
 
-    fn update(&mut self, input: &WerInput, _metadata: &MetricMetadata) -> SerializedEntry {
+    fn update(
+        &mut self,
+        input: &WerInput,
+        _metadata: &MetricMetadata,
+    ) -> Result<SerializedEntry, TensorReadError> {
         let outputs = input.outputs.clone();
         let targets = input.targets.clone();
         let [batch_size, seq_len] = targets.dims();
 
-        let outputs_data = outputs
-            .to_data()
-            .try_into_vec_as::<i32>()
-            .expect("Failed to convert outputs to Vec");
-        let targets_data = targets
-            .to_data()
-            .try_into_vec_as::<i32>()
-            .expect("Failed to convert targets to Vec");
+        let outputs_data = outputs.try_into_vec_as::<i32>()?;
+        let targets_data = targets.try_into_vec_as::<i32>()?;
 
         let pad_token = self.pad_token.map(|p| p as i32);
 
@@ -115,13 +113,15 @@ impl Metric for WordErrorRate {
         };
 
         self.state.update(value, total_target_length);
-        self.state
-            .compute_update(FormatOptions::new(self.name()).unit("%").precision(2))
+        Ok(self
+            .state
+            .compute_update(FormatOptions::new(self.name()).unit("%").precision(2)))
     }
 
-    fn compute(&mut self) -> SerializedEntry {
-        self.state
-            .compute_final(FormatOptions::new(self.name()).unit("%").precision(2))
+    fn compute(&mut self) -> Result<SerializedEntry, TensorReadError> {
+        Ok(self
+            .state
+            .compute_final(FormatOptions::new(self.name()).unit("%").precision(2)))
     }
 
     fn name(&self) -> MetricName {
@@ -169,7 +169,9 @@ mod tests {
         let preds = Tensor::from_data([[1, 2], [3, 4]], &device);
         let tgts = Tensor::from_data([[1, 2], [3, 4]], &device);
 
-        metric.update(&WerInput::new(preds, tgts), &MetricMetadata::fake());
+        metric
+            .update(&WerInput::new(preds, tgts), &MetricMetadata::fake())
+            .unwrap();
 
         assert_eq!(0.0, metric.value().unwrap().current());
     }
@@ -186,7 +188,9 @@ mod tests {
         let preds = Tensor::from_data([[1, 2], [3, 5]], &device);
         let tgts = Tensor::from_data([[1, 3], [3, 4]], &device);
 
-        metric.update(&WerInput::new(preds, tgts), &MetricMetadata::fake());
+        metric
+            .update(&WerInput::new(preds, tgts), &MetricMetadata::fake())
+            .unwrap();
 
         // Total errors = 2, Total target words = 4. WER = (2/4) * 100 = 50 %
         assert_eq!(50.0, metric.value().unwrap().current());
@@ -205,7 +209,9 @@ mod tests {
         let preds = Tensor::from_data([[1, 2, pad], [3, 5, pad]], &device);
         let tgts = Tensor::from_data([[1, 3, pad], [3, 4, pad]], &device);
 
-        metric.update(&WerInput::new(preds, tgts), &MetricMetadata::fake());
+        metric
+            .update(&WerInput::new(preds, tgts), &MetricMetadata::fake())
+            .unwrap();
         assert_eq!(50.0, metric.value().unwrap().current());
     }
 
@@ -218,10 +224,12 @@ mod tests {
         let preds = Tensor::from_data([[1, 2]], &device);
         let tgts = Tensor::from_data([[1, 3]], &device); // one error
 
-        metric.update(
-            &WerInput::new(preds.clone(), tgts.clone()),
-            &MetricMetadata::fake(),
-        );
+        metric
+            .update(
+                &WerInput::new(preds.clone(), tgts.clone()),
+                &MetricMetadata::fake(),
+            )
+            .unwrap();
         assert!(metric.value().unwrap().current() > 0.0);
 
         metric.clear();

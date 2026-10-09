@@ -1,11 +1,11 @@
-//! The data gradient of a convolution, which routes through the transposed-convolution
-//! fallback in `burn-cubecl`.
+//! Convolution data-gradient reference comparisons and half-precision accuracy tests.
 //!
-//! Only the input is tracked in each case, so the gradient that comes back is that path's
-//! output alone, with no weight gradient mixed in.
+//! Only the input is tracked in the reference comparisons, so no weight gradient is mixed in.
 
 use super::*;
-use burn_tensor::{Device, Distribution, Shape, Tolerance, module, ops::ConvOptions};
+use burn_tensor::{
+    DType, Device, Distribution, Shape, TensorData, Tolerance, module, ops::ConvOptions,
+};
 
 /// `D` is the tensor rank and `N` its count of spatial dimensions, so `D == N + 2`.
 #[track_caller]
@@ -60,6 +60,16 @@ fn conv1d_dgrad_should_match_reference_backend() {
 }
 
 #[test]
+fn conv1d_dgrad_dense_im2col_should_match_reference_backend() {
+    assert_dgrad_matches_reference(
+        [2, 4, 17],
+        [6, 4, 5],
+        ConvOptions::new([2], [2], [1], 1),
+        module::conv1d,
+    );
+}
+
+#[test]
 fn conv1d_dgrad_strided_dilated_grouped_should_match_reference_backend() {
     assert_dgrad_matches_reference(
         [4, 8, 17],
@@ -85,6 +95,16 @@ fn conv2d_dgrad_should_match_reference_backend() {
         [4, 8, 9, 11],
         [6, 8, 3, 5],
         ConvOptions::new([1, 1], [1, 2], [1, 1], 1),
+        module::conv2d,
+    );
+}
+
+#[test]
+fn conv2d_dgrad_dense_im2col_should_match_reference_backend() {
+    assert_dgrad_matches_reference(
+        [2, 4, 9, 11],
+        [6, 4, 3, 5],
+        ConvOptions::new([2, 1], [1, 2], [1, 1], 1),
         module::conv2d,
     );
 }
@@ -129,4 +149,42 @@ fn conv3d_dgrad_should_match_reference_backend() {
         ConvOptions::new([2, 1, 1], [1, 2, 0], [1, 1, 2], 2),
         module::conv3d,
     );
+}
+
+#[test]
+fn conv3d_dgrad_dense_im2col_should_match_reference_backend() {
+    assert_dgrad_matches_reference(
+        [1, 4, 7, 8, 9],
+        [6, 4, 3, 3, 3],
+        ConvOptions::new([1, 2, 1], [1, 1, 1], [1, 1, 1], 1),
+        module::conv3d,
+    );
+}
+
+#[test]
+fn conv1d_dgrad_half_precision_should_preserve_small_contributions() {
+    let device = Device::default().autodiff();
+    let options = ConvOptions::new([1], [1], [1], 1);
+
+    for dtype in [DType::F16, DType::BF16] {
+        if !device.supports_dtype(dtype) {
+            continue;
+        }
+
+        let large = if dtype == DType::F16 { 2048.0 } else { 256.0 };
+        let input = TestTensor::<3>::zeros([1, 1, 3], (&device, dtype)).require_grad();
+        let weight = TestTensor::<3>::from_data(
+            TensorData::new(vec![large, 1.0, -large], [1, 1, 3]),
+            (&device, dtype),
+        );
+        // Summing the outputs supplies an upstream gradient of ones. Only the input
+        // is tracked, so this exercises the data gradient through the public API.
+        let grads = module::conv1d(input.clone(), weight, None, options.clone())
+            .sum()
+            .backward();
+        let output = input.grad(&grads).expect("the input was tracked");
+        let expected =
+            TensorData::new(vec![large, 1.0, 1.0 - large], [1, 1, 3]).convert_dtype(dtype);
+        output.into_data().assert_eq(&expected, true);
+    }
 }

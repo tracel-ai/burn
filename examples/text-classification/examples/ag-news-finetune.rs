@@ -71,29 +71,6 @@ pub fn launch(strategy: ExecutionStrategy) {
     );
 }
 
-#[cfg(feature = "tch-gpu")]
-mod tch_gpu {
-    use burn::tensor::{Device, DeviceIndex};
-
-    pub fn run() {
-        #[cfg(not(target_os = "macos"))]
-        let device = Device::libtorch_cuda(DeviceIndex::Default);
-        #[cfg(target_os = "macos")]
-        let device = Device::libtorch_mps();
-
-        crate::launch_single(device);
-    }
-}
-
-#[cfg(feature = "tch-cpu")]
-mod tch_cpu {
-    use burn::tensor::Device;
-
-    pub fn run() {
-        crate::launch_single(Device::libtorch());
-    }
-}
-
 #[cfg(any(feature = "wgpu", feature = "vulkan", feature = "metal"))]
 mod wgpu {
     use burn::tensor::{Device, DeviceKind};
@@ -106,6 +83,7 @@ mod wgpu {
 #[cfg(feature = "remote")]
 mod remote {
     use crate::ElemType;
+    use burn::remote::RemoteHost;
     #[cfg(feature = "ddp")]
     use burn::tensor::distributed::{DistributedConfig, ReduceOperation};
     use burn::tensor::{Device, DeviceConfig, DeviceType, Element};
@@ -118,7 +96,7 @@ mod remote {
     /// List every device the remote server hosts and train across all of them.
     #[cfg(not(feature = "ddp"))]
     pub fn run() {
-        let mut devices = Device::enumerate(DeviceType::remote_websocket(ADDRESS));
+        let mut devices = Device::enumerate(DeviceType::Remote(RemoteHost::websocket(ADDRESS)));
         devices
             .configure(DeviceConfig::default().float_dtype(ElemType::dtype()))
             .unwrap();
@@ -129,7 +107,7 @@ mod remote {
     /// Same enumeration, but drive the devices with distributed data-parallel training.
     #[cfg(feature = "ddp")]
     pub fn run() {
-        let mut devices = Device::enumerate(DeviceType::remote_websocket(ADDRESS));
+        let mut devices = Device::enumerate(DeviceType::Remote(RemoteHost::websocket(ADDRESS)));
         devices
             .configure(DeviceConfig::default().float_dtype(ElemType::dtype()))
             .unwrap();
@@ -169,10 +147,6 @@ mod flex {
 }
 
 fn main() {
-    #[cfg(feature = "tch-gpu")]
-    tch_gpu::run();
-    #[cfg(feature = "tch-cpu")]
-    tch_cpu::run();
     #[cfg(any(feature = "wgpu", feature = "vulkan", feature = "metal"))]
     wgpu::run();
     #[cfg(feature = "cuda")]

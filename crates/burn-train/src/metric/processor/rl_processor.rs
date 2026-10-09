@@ -1,9 +1,10 @@
 use std::sync::Arc;
 
 use crate::{
-    EpisodeSummary, EvaluationItem, EventProcessorTraining, ItemLazy, LearnerSummary, RLMetrics,
+    EpisodeSummary, EvaluationItem, EventProcessorError, EventProcessorTraining, ItemLazy,
+    LearnerSummary, RLMetrics,
     logger::TrainingProgressLogger,
-    metric::store::{Event, EventStoreClient, MetricsUpdate},
+    metric::store::{Event, EventStoreClient, MetricsUpdate, Split},
     renderer::{MetricState, MetricsRenderer},
 };
 
@@ -106,7 +107,8 @@ impl<TS: ItemLazy, ES: ItemLazy> RLEventProcessor<TS, ES> {
 impl<TS: ItemLazy, ES: ItemLazy> EventProcessorTraining<RLEvent<TS, ES>, AgentEvaluationEvent<ES>>
     for RLEventProcessor<TS, ES>
 {
-    fn process_train(&mut self, event: RLEvent<TS, ES>) {
+    fn process_train(&mut self, event: RLEvent<TS, ES>) -> Result<(), EventProcessorError> {
+        let mut failures = Vec::new();
         match event {
             RLEvent::Start { total_items, label } => {
                 let definitions = self.metrics.metric_definitions();
@@ -122,10 +124,14 @@ impl<TS: ItemLazy, ES: ItemLazy> EventProcessorTraining<RLEvent<TS, ES>, AgentEv
                     .start(0, 0, Some(total_items), label.as_deref());
             }
             RLEvent::TrainStep(item) => {
-                let item = item.sync();
+                let item = match item.sync() {
+                    Ok(item) => item,
+                    Err(error) => return Err(EventProcessorError::sync(Split::Train, error)),
+                };
                 let metadata = (&item).into();
 
-                let update = self.metrics.update_train_step(&item, &metadata);
+                let (update, failed) = self.metrics.update_train_step(&item, &metadata);
+                failures.extend(failed);
                 self.process_update_train(update);
 
                 if let Some(logger) = &mut self.training_progress_logger {
@@ -134,10 +140,14 @@ impl<TS: ItemLazy, ES: ItemLazy> EventProcessorTraining<RLEvent<TS, ES>, AgentEv
                 self.renderer.log_event_training("TrainStep".to_string());
             }
             RLEvent::EnvStep(item) => {
-                let item = item.sync();
+                let item = match item.sync() {
+                    Ok(item) => item,
+                    Err(error) => return Err(EventProcessorError::sync(Split::Train, error)),
+                };
                 let metadata = (&item).into();
 
-                let update = self.metrics.update_env_step(&item, &metadata);
+                let (update, failed) = self.metrics.update_env_step(&item, &metadata);
+                failures.extend(failed);
                 self.process_update_train(update);
 
                 if let Some(logger) = &mut self.training_progress_logger {
@@ -148,10 +158,14 @@ impl<TS: ItemLazy, ES: ItemLazy> EventProcessorTraining<RLEvent<TS, ES>, AgentEv
                 self.renderer.log_event_training("EnvStep".to_string());
             }
             RLEvent::EpisodeEnd(item) => {
-                let item = item.sync();
+                let item = match item.sync() {
+                    Ok(item) => item,
+                    Err(error) => return Err(EventProcessorError::sync(Split::Train, error)),
+                };
                 let metadata = (&item).into();
 
-                let update = self.metrics.update_episode_end(&item, &metadata);
+                let (update, failed) = self.metrics.update_episode_end(&item, &metadata);
+                failures.extend(failed);
                 self.process_update_train(update);
 
                 if let Some(logger) = &mut self.training_progress_logger {
@@ -167,9 +181,14 @@ impl<TS: ItemLazy, ES: ItemLazy> EventProcessorTraining<RLEvent<TS, ES>, AgentEv
                 self.renderer.on_train_end(learner_summary).ok();
             }
         }
+        EventProcessorError::from_errors(failures)
     }
 
-    fn process_valid(&mut self, event: AgentEvaluationEvent<ES>) {
+    fn process_valid(
+        &mut self,
+        event: AgentEvaluationEvent<ES>,
+    ) -> Result<(), EventProcessorError> {
+        let mut failures = Vec::new();
         match event {
             AgentEvaluationEvent::Start(num_episodes) => {
                 if let Some(logger) = &mut self.training_progress_logger {
@@ -178,10 +197,14 @@ impl<TS: ItemLazy, ES: ItemLazy> EventProcessorTraining<RLEvent<TS, ES>, AgentEv
                 self.renderer.start_split("valid", num_episodes);
             }
             AgentEvaluationEvent::EnvStep(item) => {
-                let item = item.sync();
+                let item = match item.sync() {
+                    Ok(item) => item,
+                    Err(error) => return Err(EventProcessorError::sync(Split::Valid, error)),
+                };
                 let metadata = (&item).into();
 
-                let update = self.metrics.update_env_step_valid(&item, &metadata);
+                let (update, failed) = self.metrics.update_env_step_valid(&item, &metadata);
+                failures.extend(failed);
                 self.process_update_valid(update);
 
                 if let Some(logger) = &mut self.training_progress_logger {
@@ -190,10 +213,14 @@ impl<TS: ItemLazy, ES: ItemLazy> EventProcessorTraining<RLEvent<TS, ES>, AgentEv
                 self.renderer.log_event_training("EnvStep".to_string());
             }
             AgentEvaluationEvent::EpisodeEnd(item) => {
-                let item = item.sync();
+                let item = match item.sync() {
+                    Ok(item) => item,
+                    Err(error) => return Err(EventProcessorError::sync(Split::Valid, error)),
+                };
                 let metadata = (&item).into();
 
-                let update = self.metrics.update_episode_end_valid(&item, &metadata);
+                let (update, failed) = self.metrics.update_episode_end_valid(&item, &metadata);
+                failures.extend(failed);
                 self.process_update_valid(update);
 
                 if let Some(logger) = &mut self.training_progress_logger {
@@ -210,6 +237,7 @@ impl<TS: ItemLazy, ES: ItemLazy> EventProcessorTraining<RLEvent<TS, ES>, AgentEv
                 self.renderer.end_split();
             }
         }
+        EventProcessorError::from_errors(failures)
     }
 
     fn renderer(self) -> Box<dyn MetricsRenderer> {

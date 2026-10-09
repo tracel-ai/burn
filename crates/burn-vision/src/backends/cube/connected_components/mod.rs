@@ -24,7 +24,7 @@ pub(crate) fn stats_from_opts(
     int_dtype: DType,
 ) -> ConnectedStatsPrimitive<CubeBackend> {
     let [height, width] = l.meta.shape().dims();
-    let shape = Shape::new([height * width]);
+    let shape = Shape::new([height * width + 1]);
     let zeros = || zeros_client(l.client.clone(), l.device.clone(), shape.clone(), int_dtype);
 
     let max = dispatch_int_dtype!(int_dtype.into(), |I| InputScalar::new(

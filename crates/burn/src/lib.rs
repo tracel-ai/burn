@@ -1,79 +1,102 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 #![warn(missing_docs)]
+#![cfg_attr(docsrs, feature(doc_cfg))]
 
 //! # Burn
 //!
-//! Burn is a new comprehensive dynamic Deep Learning Framework built using Rust
-//! with extreme flexibility, compute efficiency and portability as its primary goals.
+//! Burn is a deep learning framework written in Rust. It covers tensors, automatic
+//! differentiation, neural network modules, optimizers, training and model storage, and runs
+//! the same model code on GPUs (CUDA, ROCm, Metal, Vulkan, WebGPU), CPUs and WebAssembly.
 //!
-//! ## Performance
+//! ## Quick start
 //!
-//! Because we believe the goal of a deep learning framework is to convert computation
-//! into useful intelligence, we have made performance a core pillar of Burn.
-//! We strive to achieve top efficiency by leveraging multiple optimization techniques:
+//! Burn ships no execution backend by default. Enable one or more with Cargo features:
 //!
-//! - Automatic kernel fusion
-//! - Asynchronous execution
-//! - Thread-safe building blocks
-//! - Intelligent memory management
-//! - Automatic kernel selection
-//! - Hardware specific features
-//! - Custom Backend Extension
+//! ```toml
+//! [dependencies]
+//! burn = { version = "0.22", features = ["wgpu"] }
+//! ```
 //!
-//! ## Training & Inference
+//! Models are plain structs that derive [`Module`](module::Module). Tensors carry their rank in
+//! the type and their backend in their [`Device`](tensor::Device), so model code has no backend
+//! type parameter:
 //!
-//! The whole deep learning workflow is made easy with Burn, as you can monitor your training progress
-//! with an ergonomic dashboard, and run inference everywhere from embedded devices to large GPU clusters.
+//! ```rust,no_run
+//! use burn::nn::{Linear, LinearConfig, Relu};
+//! use burn::prelude::*;
 //!
-//! Burn was built from the ground up with training and inference in mind. It's also worth noting how Burn,
-//! in comparison to frameworks like PyTorch, simplifies the transition from training to deployment,
-//! eliminating the need for code changes.
+//! #[derive(Module, Debug)]
+//! struct Mlp {
+//!     hidden: Linear,
+//!     activation: Relu,
+//!     output: Linear,
+//! }
+//!
+//! impl Mlp {
+//!     fn new(device: &Device) -> Self {
+//!         Self {
+//!             hidden: LinearConfig::new(784, 128).init(device),
+//!             activation: Relu::new(),
+//!             output: LinearConfig::new(128, 10).init(device),
+//!         }
+//!     }
+//!
+//!     fn forward(&self, input: Tensor<2>) -> Tensor<2> {
+//!         let x = self.activation.forward(self.hidden.forward(input));
+//!         self.output.forward(x)
+//!     }
+//! }
+//!
+//! // An enabled backend in priority order (GPUs before CPUs), unless `BURN_DEVICE` names one.
+//! // `Device::wgpu(..)`, `Device::cuda(0)`, ... pick one explicitly.
+//! let device = Device::default();
+//! let model = Mlp::new(&device);
+//! let logits = model.forward(Tensor::zeros([32, 784], &device));
+//! ```
+//!
+//! The [Burn Book](https://burn.dev/books/burn/) walks through a full training workflow.
+//!
+//! ## Crate map
+//!
+//! - [`tensor`]: [`Tensor`], [`Device`](tensor::Device), dtypes and tensor
+//!   operations.
+//! - [`module`] and [`nn`]: the [`Module`](module::Module) trait and neural network layers.
+//! - [`config`]: serializable configuration structs with `#[derive(Config)]`.
+//! - [`optim`], [`lr_scheduler`], [`grad_clipping`]: optimizers and training utilities.
+//! - [`data`]: datasets, transformations and data loaders.
+//! - [`store`]: saving and loading weights in burnpack, SafeTensors and PyTorch formats.
+//! - `train`: the `Learner`, metrics and the training dashboard (`train` feature).
+//! - `vision`, `signal`, `linalg`: domain-specific tensor operations (features of the same
+//!   names).
+//! - `remote` and `server`: run tensors on devices hosted by another machine (`remote` and
+//!   `remote-server` features).
+//! - [`prelude`]: the types most programs import.
 //!
 //! ## Backends
 //!
-//! Burn strives to be as fast as possible on as many hardwares as possible, with robust implementations.
-//! We believe this flexibility is crucial for modern needs where you may train your models in the cloud,
-//! then deploy on customer hardwares, which vary from user to user.
+//! Every enabled backend is available at runtime through a `Device` constructor, and several can
+//! be used side by side:
 //!
-//! Burn's backend architecture lets you swap backends while keeping the same model code. You can
-//! enable multiple backends in the same application and choose the device for your tensors and
-//! modules at runtime through [`tensor::Device`]. This gives you the freedom to use different
-//! backends side by side and select the hardware best suited to each workload.
+//! | Backend                 | Feature  | Device                               |
+//! | ----------------------- | -------- | ------------------------------------ |
+//! | CUDA                    | `cuda`   | `Device::cuda(0)`                    |
+//! | ROCm                    | `rocm`   | `Device::rocm(0)`                    |
+//! | wgpu (any graphics API) | `wgpu`   | `Device::wgpu(Default::default())`   |
+//! | Metal                   | `metal`  | `Device::metal(Default::default())`  |
+//! | Vulkan                  | `vulkan` | `Device::vulkan(Default::default())` |
+//! | WebGPU                  | `webgpu` | `Device::webgpu(Default::default())` |
+//! | CubeCL CPU              | `cpu`    | `Device::cpu()`                      |
+//! | Flex (pure Rust CPU)    | `flex`   | `Device::flex()`                     |
 //!
-//! Autodifferentiation and automatic kernel fusion integrate with the same tensor and module APIs,
-//! so models benefit from these capabilities on supported backends without changing their implementation.
+//! Autodiff and kernel fusion are decorators over these backends: `device.autodiff()` enables
+//! gradients for tensors created on a device, and the CubeCL backends fuse operations by default.
 //!
-//! - WGPU (WebGPU): Cross-Platform GPU Backend
-//! - LibTorch: Backend using the LibTorch bindings (deprecated)
-//! - Flex: Pure-Rust CPU backend (std, no_std, WebAssembly)
-//! - Autodiff: Backend decorator that brings backpropagation to any backend
-//! - Fusion: Backend decorator that brings kernel fusion to backends that support it
+//! ## Quantization
 //!
-//! # Quantization
-//!
-//! Quantization techniques perform computations and store tensors in lower precision data types like
-//! 8-bit integer instead of floating point precision. There are multiple approaches to quantize a deep
-//! learning model categorized as post-training quantization (PTQ) and quantization aware training (QAT).
-//!
-//! In post-training quantization, the model is trained in floating point precision and later converted
-//! to the lower precision data type. There are two types of post-training quantization:
-//!
-//! 1. Static quantization: quantizes the weights and activations of the model. Quantizing the
-//!    activations statically requires data to be calibrated (i.e., recording the activation values to
-//!    compute the optimal quantization parameters with representative data).
-//! 2. Dynamic quantization: quantized the weights ahead of time (like static quantization) but the
-//!    activations are dynamically at runtime.
-//!
-//! Sometimes post-training quantization is not able to achieve acceptable task accuracy. In general,
-//! this is where quantization-aware training (QAT) can be used: during training, fake-quantization
-//! modules are inserted in the forward and backward passes to simulate quantization effects, allowing
-//! the model to learn representations that are more robust to reduced precision.
-//!
-//! Burn does not currently support QAT. Only post-training quantization (PTQ) is implemented at this
-//! time.
-//!
-//! Quantization support in Burn is currently in active development. It supports the following PTQ modes on some backends:
-//! - Per-tensor and per-block quantization to 8-bit, 4-bit and 2-bit representations
+//! Burn supports post-training quantization of weights and activations, per tensor or per
+//! block, to 8, 4 and 2-bit integers and to FP8 and FP4 formats on supported backends.
+//! Quantization-aware training is not supported yet. See the
+//! [quantization chapter](https://burn.dev/books/burn/performance/quantization.html).
 //!
 //! ## Feature Flags
 //!
@@ -98,28 +121,25 @@
 //!   - `sqlite-bundled`: Deprecated alias for `sqlite`
 //!   - `vision`: Enables vision datasets (MnistDataset) and the `burn-vision` ops module
 //! - Backends
-//!   - `wgpu`: Makes available the WGPU backend
-//!   - `webgpu`: Makes available the `wgpu` backend with the WebGPU Shading Language (WGSL) compiler
-//!   - `vulkan`: Makes available the `wgpu` backend with the alternative SPIR-V compiler
+//!   - `wgpu`: Makes available the WGPU backend, on whichever graphics API the platform provides
+//!   - `webgpu`: Adds `Device::webgpu`, pinned to WebGPU (implies `wgpu`)
+//!   - `vulkan`: Adds `Device::vulkan`, pinned to Vulkan (implies `wgpu`)
+//!   - `metal`: Adds `Device::metal`, pinned to Metal with native MSL (implies `wgpu`)
 //!   - `cuda`: Makes available the CUDA backend
-//!   - `metal`: Makes available the Metal backend
 //!   - `rocm`: Makes available the ROCm backend
 //!   - `cpu`: Makes available the CubeCL CPU backend
-//!   - `tch`: Makes available the LibTorch backend (deprecated - use a CubeCL backend instead)
 //!   - `flex`: Makes available the Flex backend (pure-Rust CPU, std/no_std/WASM)
-//!   - `ndarray`: Makes available the NdArray backend (deprecated - use `flex` instead)
 //! - Backend specifications
-//!   - `simd`: Enable SIMD codegen in the CPU backends
-//!   - `rayon`: Enable multi-threaded execution in the CPU backends
-//!   - `accelerate`: If supported, Accelerate will be used
-//!   - `blas-netlib`: If supported, Blas Netlib will be use
-//!   - `openblas`: If supported, Openblas will be use
-//!   - `openblas-system`: If supported, Openblas installed on the system will be use
+//!   - `simd`: Enable SIMD kernels in the Flex backend
+//!   - `rayon`: Enable multi-threaded execution in the Flex backend
 //!   - `autotune`: Enable running benchmarks to select the best kernel in backends that support it.
 //!   - `autotune-checks`: Check that every autotune candidate produces the same output (debugging).
+//!   - `persistence`: Enable persistent CubeCL caches across process runs, including when default
+//!     features are disabled. Compiled-kernel caching also requires `compilation.cache = true`
+//!     in the CubeCL runtime configuration. Does not select a backend.
 //!   - `x86-v4`: Enable AVX-512 matmul kernels in the Flex backend.
 //!   - `apple-amx`: Enable the experimental Apple AMX matmul kernels in the Flex backend.
-//!   - `template`: Enable template-based custom kernels in the WGPU backend.
+//!   - `template`: Enable hand-written, non-JIT custom kernels in the CubeCL backends.
 //!   - `fusion`: Enable operation fusion in backends that support it.
 //!   - `tracing`: Enable diagnostic tracing in the selected backends (disabled by default).
 //! - Backend decorators

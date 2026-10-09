@@ -35,6 +35,9 @@ pub struct TraceOperationFuser {
     scoring: Scoring,
     pub(crate) settings: FuseSettings,
     pub(crate) current_output_shape: Shape,
+    /// Whether an operation that indexes its inputs through the reference layout was fused
+    /// into the current block, which fixes the reference to that operation's output shape.
+    reference_fixed: bool,
     status: FuserStatus,
     pub(crate) num_ops: usize,
     pub(crate) num_views: usize,
@@ -169,6 +172,7 @@ impl OperationFuser<FuseTrace> for TraceOperationFuser {
         self.status = FuserStatus::Open;
         self.fuser = TryTraceFuser::new(self.max_bindings, self.settings);
         self.current_output_shape = Shape::new([]);
+        self.reference_fixed = false;
     }
 
     fn status(&self) -> FuserStatus {
@@ -200,6 +204,7 @@ impl TraceOperationFuser {
             num_views: 0,
             max_bindings,
             current_output_shape: Shape::new([]),
+            reference_fixed: false,
             status: FuserStatus::Open,
         }
     }
@@ -271,6 +276,7 @@ impl TraceOperationFuser {
         let block_pos = self.fuser.fuser.num_previous_blocks();
         let current_output_shape =
             core::mem::replace(&mut self.current_output_shape, Shape::new([]));
+        self.reference_fixed = false;
 
         self.fuser.fuser.next_block(current_output_shape, settings);
 
@@ -399,7 +405,7 @@ impl TraceOperationFuser {
                 })
             }
             BaseOperationIr::Select(desc) => {
-                if !self.output_is_compatible(&desc.out) {
+                if !self.output_is_reference(&desc.out) {
                     return false;
                 }
 
@@ -419,7 +425,7 @@ impl TraceOperationFuser {
                 })
             }
             BaseOperationIr::Cat(desc) => {
-                if !self.output_is_compatible(&desc.out) {
+                if !self.output_is_reference(&desc.out) {
                     return false;
                 }
 
@@ -771,6 +777,21 @@ impl TraceOperationFuser {
         })
     }
 
+    /// Whether `out` can be the reference of the current block, and fix it if so.
+    ///
+    /// An operation that computes the coordinates it reads from the reference layout, such as
+    /// `cat` and `select`, is only correct when its output is the reference: a smaller output
+    /// would be indexed as if it had the reference's shape. The reference then stays fixed, so
+    /// no later operation can make the output a broadcast of a wider one.
+    fn output_is_reference(&mut self, out: &TensorIr) -> bool {
+        if !self.output_is_compatible(out) || self.current_output_shape != out.shape {
+            return false;
+        }
+        self.reference_fixed = true;
+
+        true
+    }
+
     fn output_is_compatible(&mut self, out: &TensorIr) -> bool {
         if self.current_output_shape.is_empty() {
             self.current_output_shape.clone_from(&out.shape);
@@ -817,6 +838,12 @@ impl TraceOperationFuser {
         }
 
         if should_update {
+            // An indexed operation computes its coordinates from the reference layout, so the
+            // reference can't grow past its output.
+            if self.reference_fixed {
+                return false;
+            }
+
             // For now forced to have exact shape.
             if updated != out.shape {
                 return false;

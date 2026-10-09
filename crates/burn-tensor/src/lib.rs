@@ -2,11 +2,45 @@
 #![warn(missing_docs)]
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
-//! This library provides the core abstractions required to run tensor operations with Burn.
-//! [`Tensor<D, K>`](Tensor) is generic over rank and tensor kind; its [`Device`] selects the
-//! backend at runtime. Operations pass through an opaque bridge and runtime dispatch to backend
-//! primitives. With the `autodiff` feature, create tensors on `Device::autodiff()` devices and
-//! mark source leaves with [`Tensor::require_grad`] to record gradients.
+//! Burn's tensor API.
+//!
+//! [`Tensor<D, K>`](Tensor) is a tensor of rank `D` and kind `K` ([`Float`] by default, [`Int`]
+//! or [`Bool`]). Its [`Device`] decides which backend runs it, at runtime: the same `Tensor<2>`
+//! can live on CUDA, wgpu or the CPU, and code that uses tensors has no backend type parameter.
+//! Applications use this crate through `burn::tensor`.
+//!
+//! ```rust,no_run
+//! use burn_tensor::{Device, Tensor, s};
+//!
+//! let device = Device::default();
+//! let x = Tensor::<2>::from_floats([[1.0, 2.0], [3.0, 4.0]], &device);
+//! let y = x.clone().matmul(x.transpose()).exp();
+//! let first_row = y.slice(s![0..1, ..]);
+//! ```
+//!
+//! - [`Device`]: backend selection, configuration and enumeration. A backend's constructor
+//!   (`Device::cuda`, `Device::wgpu`, `Device::flex`, ...) exists when its feature is enabled.
+//! - [`TensorData`], [`DType`] and [`Shape`]: tensor contents and metadata, independent of any
+//!   backend.
+//! - [`activation`], [`loss`] and [`module`]: functional forms of activations, losses and neural
+//!   network operations such as convolution and pooling.
+//! - [`quantization`], [`grid`] and [`distributed`]: quantized tensors, grid sampling and
+//!   collective operations across devices.
+//! - `einsum!`, `assert_shape!` and [`s!`]: macros for Einstein summation, shape checks and
+//!   slicing.
+//!
+//! With the `autodiff` feature, create tensors on a `device.autodiff()` device and mark source
+//! leaves with [`Tensor::require_grad`] to record gradients.
+//!
+//! # Feature flags
+//!
+//! - `std` (default): standard library support. Without it the crate is `no_std` with `alloc`.
+//! - Backends: `cuda`, `rocm`, `wgpu`, `metal`, `vulkan`, `webgpu`, `cpu`, and `flex`.
+//! - `autodiff`, `fusion`: backend decorators.
+//! - `remote`, `remote-server`, `remote-websocket`: devices hosted by another machine.
+//! - `capture`: record operation graphs instead of executing them.
+//! - `extension`: access to backend primitives for backend extensions.
+//! - `tracing`: instrument operations with the `tracing` crate.
 //!
 //! # Note for contributors: `*_impl` helpers
 //!
@@ -54,7 +88,7 @@ pub use burn_derive::{__assert_shape, __debug_assert_shape, __einsum};
 #[cfg(feature = "autodiff")]
 pub use burn_dispatch::GradientCheckpointingStrategy;
 pub use burn_std::{
-    AllocationProperty, Bytes, bf16, f16,
+    AllocationProperty, Bytes, bf16, f16, flex32,
     reader::{read_sync, try_read_sync},
     stream::StreamId,
 };

@@ -12,7 +12,6 @@ workspace = true
 
 [features]
 default = ["burn/std", "burn/tui"]
-tch-gpu = ["burn/tch"]
 wgpu = ["burn/wgpu"]
 metal = ["burn/metal"]
 vulkan = ["burn/vulkan"]

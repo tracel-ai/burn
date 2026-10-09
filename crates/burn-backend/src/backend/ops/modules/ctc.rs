@@ -164,6 +164,152 @@ pub fn ctc_grad_from_alpha_beta_default<B: Backend>(
     B::float_mask_fill(grad, mask, 0.0.into())
 }
 
+/// Default CTC gradient w.r.t. `log_probs`, composed from tensor operations.
+///
+/// The beta recursion is the alpha recursion of the reversed problem: each
+/// sample's frames and labels are mirrored within their own lengths, the alpha
+/// recursion runs on the result, and its output is mirrored back. Backends with
+/// a kernel for the recursions override
+/// [ctc_loss_backward](crate::ops::ModuleOps::ctc_loss_backward) instead.
+///
+/// # Arguments
+///
+/// * `log_probs` - Log-probabilities of shape `[T, N, C]`
+/// * `targets` - Target label indices of shape `[N, S]`
+/// * `input_lengths` - Actual input sequence lengths per batch element `[N]`
+/// * `target_lengths` - Actual target lengths per batch element `[N]`
+/// * `grad_loss` - Upstream gradient w.r.t. the per-sample loss `[N]`
+/// * `blank` - Index of the blank label
+///
+/// # Returns
+///
+/// Gradient w.r.t. `log_probs` of shape `[T, N, C]`
+pub fn ctc_loss_backward_default<B: Backend>(
+    log_probs: FloatTensor<B>,
+    targets: IntTensor<B>,
+    input_lengths: IntTensor<B>,
+    target_lengths: IntTensor<B>,
+    grad_loss: FloatTensor<B>,
+    blank: usize,
+) -> FloatTensor<B> {
+    let [max_input_length, batch_size, num_classes] = log_probs.shape().dims::<3>();
+    let max_target_len = targets.shape().dims::<2>()[1];
+    let max_l_prime_len = 2 * max_target_len + 1;
+    let settings = get_or_init_device_settings::<B>(&log_probs.device());
+
+    let alpha = AlphaCtx::<B>::compute(
+        log_probs.clone(),
+        &targets,
+        input_lengths.clone(),
+        target_lengths.clone(),
+        blank,
+    );
+    let nll = extract_loss::<B>(&alpha, target_lengths.clone());
+
+    // frames[t, n]: the frame of sample n that step t of its reversed sequence reads.
+    let frames = B::int_swap_dims(
+        mirror_indices::<B>(input_lengths.clone(), max_input_length, settings.bool_dtype),
+        0,
+        1,
+    );
+    let frames = B::int_reshape(frames, Shape::new([max_input_length, batch_size, 1]));
+    let frames_over = |width: usize| {
+        B::int_expand(
+            frames.clone(),
+            Shape::new([max_input_length, batch_size, width]),
+        )
+    };
+
+    let reversed_log_probs = B::float_gather(0, log_probs.clone(), frames_over(num_classes));
+    let reversed_targets = if max_target_len == 0 {
+        targets.clone()
+    } else {
+        let labels =
+            mirror_indices::<B>(target_lengths.clone(), max_target_len, settings.bool_dtype);
+        B::int_gather(1, targets.clone(), labels)
+    };
+    let reversed_alpha = AlphaCtx::<B>::compute(
+        reversed_log_probs,
+        &reversed_targets,
+        input_lengths.clone(),
+        target_lengths.clone(),
+        blank,
+    );
+
+    // Mirror the result back, in time and over the `2 * target_length + 1` states.
+    let over_states = Shape::new([max_input_length, batch_size, max_l_prime_len]);
+    let state_counts = B::int_add_scalar(
+        B::int_mul_scalar(target_lengths.clone(), 2.into()),
+        1.into(),
+    );
+    let states = mirror_indices::<B>(state_counts, max_l_prime_len, settings.bool_dtype);
+    let states = B::int_expand(
+        B::int_reshape(states, Shape::new([1, batch_size, max_l_prime_len])),
+        over_states.clone(),
+    );
+    let log_beta = B::float_gather(
+        2,
+        B::float_gather(0, reversed_alpha.full, frames_over(max_l_prime_len)),
+        states,
+    );
+
+    // The recursion seeds state 1 even for an empty target, which the loss never reads but
+    // the gradient would count as an alignment: states past a sample's own are impossible.
+    let valid = create_s_mask::<B>(
+        &target_lengths,
+        batch_size,
+        max_l_prime_len,
+        &log_probs.device(),
+        target_lengths.dtype().into(),
+        settings.bool_dtype,
+    );
+    let invalid = B::bool_expand(
+        B::bool_reshape(
+            B::bool_not(valid),
+            Shape::new([1, batch_size, max_l_prime_len]),
+        ),
+        over_states,
+    );
+    let impossible =
+        |log_scores| B::float_mask_fill(log_scores, invalid.clone(), f32::NEG_INFINITY.into());
+
+    ctc_grad_from_alpha_beta_default::<B>(
+        log_probs,
+        targets,
+        input_lengths,
+        grad_loss,
+        impossible(alpha.full),
+        impossible(log_beta),
+        nll,
+        blank,
+    )
+}
+
+/// Indices that reverse the first `lengths[n]` of `size` positions in each row
+/// and leave the rest in place: `[N, size]` for `lengths` of shape `[N]`.
+fn mirror_indices<B: Backend>(
+    lengths: IntTensor<B>,
+    size: usize,
+    bool_dtype: burn_std::BoolDType,
+) -> IntTensor<B> {
+    let batch_size = lengths.shape().dims::<1>()[0];
+    let shape = Shape::new([batch_size, size]);
+    let positions = B::int_expand(
+        B::int_reshape(
+            B::int_arange(0..size as i64, &lengths.device(), lengths.dtype().into()),
+            Shape::new([1, size]),
+        ),
+        shape.clone(),
+    );
+    let lengths = B::int_expand(B::int_reshape(lengths, Shape::new([batch_size, 1])), shape);
+    let mirrored = B::int_sub(
+        B::int_sub_scalar(lengths.clone(), 1.into()),
+        positions.clone(),
+    );
+    let inside = B::int_lower(positions.clone(), lengths, bool_dtype);
+    B::int_mask_where(positions, inside, mirrored)
+}
+
 /// Cached state from the alpha recursion. Only `last` is consumed by
 /// `ctc_loss_default` (via `extract_loss`); the other fields hold intermediate
 /// products that backends with a native backward kernel could reuse if wired

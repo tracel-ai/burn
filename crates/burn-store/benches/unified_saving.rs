@@ -1,10 +1,7 @@
-// The LibTorch bench group exists to compare against the deprecated backend.
-#![cfg_attr(feature = "tch", allow(deprecated))]
-
 //! Unified benchmark comparing all saving methods:
-//! - BurnpackStore (new native format)
-//! - NamedMpkFileRecorder (old native format)
-//! - SafetensorsStore (new)
+//! - BurnpackStore (streaming burnpack writer)
+//! - ModuleRecord (the record API, writing the same burnpack format)
+//! - SafetensorsStore
 //!
 //! Before running this benchmark, ensure the directory exists:
 //! ```bash
@@ -69,9 +66,9 @@ fn main() {
             println!("🚀 Running unified saving benchmarks...");
             println!();
             println!("Comparing 3 saving methods:");
-            println!("  1. BurnpackStore (new native format)");
-            println!("  2. NamedMpkFileRecorder (old native format)");
-            println!("  3. SafetensorsStore (new)");
+            println!("  1. BurnpackStore (streaming burnpack writer)");
+            println!("  2. ModuleRecord (record API, same burnpack format)");
+            println!("  3. SafetensorsStore");
             println!();
             println!("Available backends:");
             println!("  - Flex (CPU)");
@@ -79,8 +76,6 @@ fn main() {
             println!("  - WGPU (GPU)");
             #[cfg(feature = "cuda")]
             println!("  - CUDA (NVIDIA GPU)");
-            #[cfg(feature = "tch")]
-            println!("  - LibTorch");
             #[cfg(feature = "metal")]
             println!("  - Metal (Apple GPU)");
             println!();
@@ -117,14 +112,14 @@ macro_rules! bench_backend {
             }
 
             #[divan::bench]
-            fn namedmpk_recorder(bencher: Bencher) {
+            fn module_record(bencher: Bencher) {
                 bencher.bench(|| {
                     let device = $device;
                     let model = LargeModel::new(&device);
-                    let output_path = get_output_dir().join("test_namedmpk.mpk");
+                    let output_path = get_output_dir().join("test_module_record.bpk");
                     model
                         .save_file(output_path.clone())
-                        .expect("Failed to save with NamedMpkFileRecorder");
+                        .expect("Failed to save with ModuleRecord");
                     // Clean up
                     let _ = fs::remove_file(output_path);
                 });
@@ -164,9 +159,6 @@ bench_backend!(
     cuda_backend,
     "CUDA Backend (NVIDIA GPU)"
 );
-
-#[cfg(feature = "tch")]
-bench_backend!(Device::libtorch(), tch_backend, "LibTorch Backend");
 
 #[cfg(feature = "metal")]
 bench_backend!(

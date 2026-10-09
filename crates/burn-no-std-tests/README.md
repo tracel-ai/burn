@@ -27,3 +27,10 @@ RUSTFLAGS="--cfg portable_atomic_unsafe_assume_single_core" cargo build --target
 cargo test
 
  ```
+
+<!-- burn-crate-footer -->
+
+---
+
+Part of the [Burn](https://github.com/tracel-ai/burn) deep learning framework. See the
+[Burn Book](https://burn.dev/books/burn/) and the [API documentation](https://docs.rs/burn).

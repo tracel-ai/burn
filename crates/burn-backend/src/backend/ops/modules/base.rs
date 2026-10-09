@@ -116,6 +116,23 @@ pub struct MaxPool2dWithIndices<B: Backend> {
     pub indices: IntTensor<B>,
 }
 
+/// Gradient computed during the backward pass for each tensor used by [max_pool3d](ModuleOps::max_pool3d).
+#[derive(new, Debug, Clone)]
+pub struct MaxPool3dBackward<B: Backend> {
+    /// Gradient.
+    pub x_grad: FloatTensor<B>,
+}
+
+/// Results from [max_pool3d](ModuleOps::max_pool3d_with_indices).
+#[derive(new, Debug, Clone)]
+pub struct MaxPool3dWithIndices<B: Backend> {
+    /// The output tensor.
+    pub output: FloatTensor<B>,
+
+    /// The indices tensor.
+    pub indices: IntTensor<B>,
+}
+
 /// Gradient computed during the backward pass for each tensor used by [interpolate](ModuleOps::interpolate).
 #[derive(new)]
 pub struct InterpolateBackward<B: Backend> {
@@ -783,6 +800,29 @@ pub trait ModuleOps<B: Backend> {
         count_include_pad: bool,
         ceil_mode: bool,
     ) -> FloatTensor<B>;
+    /// Three dimensional avg pooling.
+    ///
+    /// # Shapes
+    ///
+    /// x: [batch_size, channels, depth, height, width],
+    fn avg_pool3d(
+        x: FloatTensor<B>,
+        kernel_size: [usize; 3],
+        stride: [usize; 3],
+        padding: [usize; 3],
+        count_include_pad: bool,
+        ceil_mode: bool,
+    ) -> FloatTensor<B>;
+    /// Backward pass for the [avg pooling 3d](ModuleOps::avg_pool3d) operation.
+    fn avg_pool3d_backward(
+        x: FloatTensor<B>,
+        grad: FloatTensor<B>,
+        kernel_size: [usize; 3],
+        stride: [usize; 3],
+        padding: [usize; 3],
+        count_include_pad: bool,
+        ceil_mode: bool,
+    ) -> FloatTensor<B>;
     /// Two dimensional adaptive avg pooling.
     ///
     /// # Shapes
@@ -915,6 +955,47 @@ pub trait ModuleOps<B: Backend> {
         output_grad: FloatTensor<B>,
         indices: IntTensor<B>,
     ) -> MaxPool2dBackward<B>;
+
+    /// Three dimensional max pooling.
+    ///
+    /// # Shapes
+    ///
+    /// x: [batch_size, channels, depth, height, width],
+    fn max_pool3d(
+        x: FloatTensor<B>,
+        kernel_size: [usize; 3],
+        stride: [usize; 3],
+        padding: [usize; 3],
+        dilation: [usize; 3],
+        ceil_mode: bool,
+    ) -> FloatTensor<B>;
+
+    /// Three dimensional max pooling with indices.
+    ///
+    /// # Shapes
+    ///
+    /// x: [batch_size, channels, depth, height, width],
+    fn max_pool3d_with_indices(
+        x: FloatTensor<B>,
+        kernel_size: [usize; 3],
+        stride: [usize; 3],
+        padding: [usize; 3],
+        dilation: [usize; 3],
+        ceil_mode: bool,
+        indices_dtype: IntDType,
+    ) -> MaxPool3dWithIndices<B>;
+    /// Backward pass for the [max pooling 3d](ModuleOps::max_pool3d_with_indices) operation.
+    #[allow(clippy::too_many_arguments)]
+    fn max_pool3d_with_indices_backward(
+        x: FloatTensor<B>,
+        kernel_size: [usize; 3],
+        stride: [usize; 3],
+        padding: [usize; 3],
+        dilation: [usize; 3],
+        ceil_mode: bool,
+        output_grad: FloatTensor<B>,
+        indices: IntTensor<B>,
+    ) -> MaxPool3dBackward<B>;
 
     /// Down/up samples the input.
     ///
@@ -1070,10 +1151,15 @@ pub trait ModuleOps<B: Backend> {
 
     /// Backward pass for [ctc_loss](ModuleOps::ctc_loss): gradient w.r.t. `log_probs`.
     ///
-    /// Only called when [has_ctc_loss_backward](ModuleOps::has_ctc_loss_backward)
+    /// Autodiff only calls it when [has_ctc_loss_backward](ModuleOps::has_ctc_loss_backward)
     /// returns `true`. Backends without a native implementation should leave
     /// both methods at their defaults; the gradient is computed automatically by
     /// autodiff against the decomposed [ctc::ctc_loss_default] forward.
+    ///
+    /// The default composes the gradient from tensor operations
+    /// ([ctc::ctc_loss_backward_default]). It serves callers that hold no autodiff
+    /// graph for this backend, such as the interpreter behind a router, whose
+    /// client asked for the gradient as one operation.
     ///
     /// # Arguments
     ///
@@ -1088,15 +1174,20 @@ pub trait ModuleOps<B: Backend> {
     ///
     /// Gradient w.r.t. `log_probs` of shape `[T, N, C]`
     fn ctc_loss_backward(
-        _log_probs: FloatTensor<B>,
-        _targets: IntTensor<B>,
-        _input_lengths: IntTensor<B>,
-        _target_lengths: IntTensor<B>,
-        _grad_loss: FloatTensor<B>,
-        _blank: usize,
+        log_probs: FloatTensor<B>,
+        targets: IntTensor<B>,
+        input_lengths: IntTensor<B>,
+        target_lengths: IntTensor<B>,
+        grad_loss: FloatTensor<B>,
+        blank: usize,
     ) -> FloatTensor<B> {
-        unreachable!(
-            "ctc_loss_backward called on a backend whose has_ctc_loss_backward() returns false"
+        ctc::ctc_loss_backward_default::<B>(
+            log_probs,
+            targets,
+            input_lengths,
+            target_lengths,
+            grad_loss,
+            blank,
         )
     }
 }

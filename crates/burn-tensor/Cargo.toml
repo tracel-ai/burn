@@ -4,10 +4,10 @@ categories = ["science", "no-std", "embedded", "wasm"]
 description = "Tensor library with user-friendly APIs and automatic differentiation support"
 documentation = "https://docs.rs/burn-tensor"
 edition.workspace = true
-keywords = ["deep-learning", "machine-learning", "tensor", "pytorch", "ndarray"]
+keywords = ["deep-learning", "machine-learning", "tensor", "pytorch"]
 license.workspace = true
 name = "burn-tensor"
-readme.workspace = true
+readme = "README.md"
 repository = "https://github.com/tracel-ai/burn/tree/main/crates/burn-tensor"
 version.workspace = true
 
@@ -39,8 +39,6 @@ cubecl-cpu = ["burn-backend/cubecl-cpu"]
 cuda = ["burn-dispatch/cuda", "cubecl-cuda", "cubecl"]
 rocm = ["burn-dispatch/rocm", "cubecl-hip", "cubecl"]
 flex = ["burn-dispatch/flex"]
-ndarray = ["burn-dispatch/ndarray"]
-tch = ["burn-dispatch/tch"]
 wgpu = ["burn-dispatch/wgpu", "cubecl-wgpu", "cubecl"]
 vulkan = ["wgpu", "burn-dispatch/vulkan", "cubecl-vulkan"]
 webgpu = ["wgpu", "burn-dispatch/webgpu", "cubecl-webgpu"]
@@ -49,16 +47,17 @@ cpu = ["burn-dispatch/cpu", "cubecl-cpu", "cubecl"]
 autodiff = ["burn-dispatch/autodiff"]
 # Remote compute client over Iroh.
 remote = ["std", "burn-dispatch/remote"]
-# Host a remote compute server over Iroh. Wasm-compatible.
+# Host a remote compute server over Iroh. On wasm, it serves only on an application's endpoint.
 remote-server = ["remote", "burn-dispatch/remote-server"]
-# Add the legacy WebSocket transport.
+# Add the WebSocket transport, for clients and servers.
 remote-websocket = ["remote", "burn-dispatch/remote-websocket"]
-capture = ["burn-dispatch/capture"]
+capture = ["burn-dispatch/capture", "dep:burn-capture"]
 
 # For backend extensions
 extension = []
 
 # Backend features
+persistence = ["burn-dispatch/persistence"]
 autotune = ["burn-dispatch/autotune"]
 autotune-checks = ["burn-dispatch/autotune-checks"]
 fusion = ["burn-dispatch/fusion"]
@@ -66,10 +65,6 @@ simd = ["burn-dispatch/simd"]
 rayon = ["burn-dispatch/rayon"]
 x86-v4 = ["burn-dispatch/x86-v4"]
 apple-amx = ["burn-dispatch/apple-amx"]
-accelerate = ["burn-dispatch/accelerate"]
-blas-netlib = ["burn-dispatch/blas-netlib"]
-openblas = ["burn-dispatch/openblas"]
-openblas-system = ["burn-dispatch/openblas-system"]
 template = ["burn-dispatch/template"]
 
 [dependencies]
@@ -78,6 +73,7 @@ burn-backend = { workspace = true }
 burn-dispatch = { workspace = true }
 burn-derive = { workspace = true }
 burn-einsum = { workspace = true }
+burn-capture = { workspace = true, optional = true }
 
 colored = { workspace = true, optional = true }
 derive-new = { workspace = true }

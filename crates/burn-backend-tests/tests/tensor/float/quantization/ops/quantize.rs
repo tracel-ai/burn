@@ -538,6 +538,56 @@ fn should_quantize_symmetric_two_level_f16_block_scales() {
     direct.assert_approx_eq(&input.into_data(), Tolerance::<f32>::rel_abs(1e-2, 1e-2));
 }
 
+/// A weight quantized along its first axis — the transposed view of one quantized along its
+/// last, which is how a matmul's right-hand side wants its blocks to run — saves and loads
+/// bit-identical. Each packed word holds values of one column, and the bytes keep them together.
+#[test]
+fn should_round_trip_packed_along_the_first_axis_through_bytes() {
+    let device = Default::default();
+
+    let input: TestTensor<2> = TestTensorInt::arange(0..512, &device)
+        .float()
+        .div_scalar(512.)
+        .sub_scalar(0.5)
+        .reshape([32, 16]);
+
+    let scheme = device
+        .settings()
+        .quantization
+        .scheme
+        .with_value(QuantValue::Q4S)
+        .with_store(QuantStore::PackedU32(0))
+        .per_block([16], ScaleDtype::F16)
+        .per_tensor(ScaleDtype::F32);
+    // A backend that stores quantized values unpacked has no packed axis to keep.
+    if !device.supports_dtype(DType::QFloat(scheme)) {
+        return;
+    }
+
+    let quantized = input
+        .clone()
+        .swap_dims(0, 1)
+        .quantize_dynamic(&scheme)
+        .swap_dims(0, 1);
+    let DType::QFloat(packed) = quantized.dtype() else {
+        unreachable!()
+    };
+    assert_eq!(packed.store, QuantStore::PackedU32(1));
+
+    let direct = quantized.clone().dequantize().into_data();
+    let saved = quantized.into_data();
+    let reloaded = TestTensor::<2>::from_data(saved.clone(), &device);
+
+    assert_eq!(reloaded.dtype(), DType::QFloat(packed));
+    reloaded
+        .clone()
+        .dequantize()
+        .into_data()
+        .assert_eq(&direct, true);
+    assert_eq!(reloaded.into_data().as_bytes(), saved.as_bytes());
+    direct.assert_approx_eq(&input.into_data(), Tolerance::<f32>::rel_abs(1e-1, 1e-1));
+}
+
 fn per_block_32_scheme(device: &Device) -> QuantScheme {
     device
         .settings()

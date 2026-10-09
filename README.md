@@ -7,7 +7,7 @@
 [![Documentation](https://img.shields.io/badge/docs-latest-blue)](https://burn.dev/docs/burn)
 [![Test Status](https://github.com/tracel-ai/burn/actions/workflows/test.yml/badge.svg)](https://github.com/tracel-ai/burn/actions/workflows/test.yml)
 [![license](https://shields.io/badge/license-MIT%2FApache--2.0-blue)](#license)
-[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/tracel-ai/burn)
+[![Ask DeepWiki](https://img.shields.io/badge/Ask-DeepWiki-blue)](https://deepwiki.com/tracel-ai/burn)
 
 [<img src="https://www.runblaze.dev/ci-blaze-powered.png" width="125px"/>](https://www.runblaze.dev)
 
@@ -65,8 +65,8 @@ plenty of room to help shape what comes next.
 | Tooling       | [burn-bench](https://github.com/tracel-ai/burn-bench) | Benchmark and compare backends, tracking performance over time                                                                                                    |
 
 Burn's [CubeCL](https://github.com/tracel-ai/cubecl) backends (CUDA, ROCm, Metal, Vulkan, WebGPU,
-CPU) compose with autodiff, fusion and remote-execution decorators, while external and simpler
-backends (LibTorch and pure-Rust CPU/`no_std`) compose with autodiff only. See
+CPU) compose with autodiff, fusion and remote-execution decorators, while the pure-Rust Flex
+CPU/`no_std` backend composes with autodiff only. See
 [Supported Backends](#supported-backends) below for the full matrix.
 
 Every project here is open-source and actively developed. Want to help build the Rust AI ecosystem?
@@ -129,26 +129,31 @@ Most backends support all operating systems, so we don't mention them in the tab
 
 **GPU Backends:**
 
-|         | CUDA | ROCm | Metal | Vulkan | WebGPU | LibTorch |
-| ------- | ---- | ---- | ----- | ------ | ------ | -------- |
-| Nvidia  | ☑️   | -    | -     | ☑️     | ☑️     | ☑️       |
-| AMD     | -    | ☑️   | -     | ☑️     | ☑️     | ☑️       |
-| Apple   | -    | -    | ☑️    | -      | ☑️     | ☑️       |
-| Intel   | -    | -    | -     | ☑️     | ☑️     | -        |
-| Qualcom | -    | -    | -     | ☑️     | ☑️     | -        |
-| Wasm    | -    | -    | -     | -      | ☑️     | -        |
+|         | CUDA | ROCm | Metal | Vulkan | WebGPU |
+| ------- | ---- | ---- | ----- | ------ | ------ |
+| Nvidia  | ☑️   | -    | -     | ☑️     | ☑️     |
+| AMD     | -    | ☑️   | -     | ☑️     | ☑️     |
+| Apple   | -    | -    | ☑️    | -      | ☑️     |
+| Intel   | -    | -    | -     | ☑️     | ☑️     |
+| Qualcom | -    | -    | -     | ☑️     | ☑️     |
+| Wasm    | -    | -    | -     | -      | ☑️     |
 
 **CPU Backends:**
 
-|        | Cpu (CubeCL) | Flex | LibTorch |
-| ------ | ------------ | ---- | -------- |
-| X86    | ☑️           | ☑️   | ☑️       |
-| Arm    | ☑️           | ☑️   | ☑️       |
-| Wasm   | -            | ☑️   | -        |
-| no-std | -            | ☑️   | -        |
+|        | Cpu (CubeCL) | Flex |
+| ------ | ------------ | ---- |
+| X86    | ☑️           | ☑️   |
+| Arm    | ☑️           | ☑️   |
+| Wasm   | -            | ☑️   |
+| no-std | -            | ☑️   |
 
-> **Note:** The LibTorch backend is deprecated as of `0.22.0` and will be removed in a future
-> release. For GPU acceleration, use a [CubeCL](https://github.com/tracel-ai/cubecl) backend (CUDA,
+The two native CPU backends are independent. [Cpu](https://github.com/tracel-ai/burn/tree/main/crates/burn-cpu) (`cpu` feature) is the CubeCL
+runtime for the CPU: it JIT-compiles the same kernels as the GPU backends through LLVM and supports
+fusion. [Flex](https://github.com/tracel-ai/burn/tree/main/crates/burn-flex) (`flex` feature) is a pure-Rust eager backend with no
+native dependencies that also runs on Wasm and `no_std`.
+
+> **Migration:** LibTorch was deprecated in `0.22.0` and has been removed from `main`.
+> For GPU acceleration, use a [CubeCL](https://github.com/tracel-ai/cubecl) backend (CUDA,
 > ROCm, Metal, Vulkan, WebGPU). For CPU execution, use the CubeCL CPU backend or `burn-flex`.
 
 <br />
@@ -198,9 +203,9 @@ fn main() {
 `backward()` checks graph participation at runtime. Enable autodiff before the forward pass and call
 `require_grad()` on source leaves whose gradients you need. `is_autodiff()`, `is_tracked()`, and
 `is_require_grad()` inspect autodiff association, graph participation, and gradient retention
-respectively. See the [autodiff guide](./burn-book/src/building-blocks/autodiff.md).
+respectively. See the [autodiff guide](https://github.com/tracel-ai/burn/blob/main/burn-book/src/building-blocks/autodiff.md).
 
-See the [Autodiff Backend README](./crates/burn-autodiff/README.md) for more details.
+See the [Autodiff Backend README](https://github.com/tracel-ai/burn/blob/main/crates/burn-autodiff/README.md) for more details.
 
 </details>
 
@@ -226,7 +231,7 @@ pub type Cube = burn_fusion::Fusion<burn_cubecl::CubeBackend>;
 `Device::autodiff().gradient_checkpointing()` enables the balanced gradient-checkpointing strategy,
 which trades recomputation for reduced activation storage during training.
 
-See the [Fusion Backend README](./crates/burn-fusion/README.md) for more details.
+See the [Fusion Backend README](https://github.com/tracel-ai/burn/blob/main/crates/burn-fusion/README.md) for more details.
 
 </details>
 
@@ -236,23 +241,27 @@ Remote (Beta): Backend decorator for remote backend execution, useful for distri
 </summary>
 <br />
 
-Remote execution has a client and a server. The server's `Device` selects the compute backend;
-clients use a remote `Device` with the same tensor API. Iroh is the preferred transport for new
-integrations; see the [server example](./examples/server) and
-[device guide](./burn-book/src/building-blocks/backend.md). For a WebSocket setup, enable
-`remote-server`, `remote-websocket`, and `cuda` on the server, and `remote-websocket` plus
-`autodiff` on the client:
+Remote execution has a client and a server. The server's devices select the compute backend;
+clients use a remote `Device` with the same tensor API. Iroh, the default transport, reaches a
+server across any network, authenticated and encrypted; see the [server example](https://github.com/tracel-ai/burn/tree/main/examples/server)
+and the [distributed computing guide](https://github.com/tracel-ai/burn/blob/main/burn-book/src/performance/distributed-computing.md). On a
+trusted network, WebSocket is the simplest setup: enable `remote-server`, `remote-websocket`, and
+`cuda` on the server, and `remote-websocket` plus `autodiff` on the client:
 
 ```rust
+use burn::remote::RemoteHost;
+use burn::server::{RemoteServer, ServeError, WebSocketTransport};
 use burn::tensor::{Device, Distribution, Tensor};
 
-fn main_server() {
-    burn::server::start(Device::cuda(0), burn::server::Channel::WebSocket { port: 3000 });
+fn main_server() -> Result<(), ServeError> {
+    RemoteServer::new([Device::cuda(0)]).serve(WebSocketTransport::new(3000))
 }
 
-fn main_client() {
-    let device = Device::remote_websocket("ws://localhost:3000", 0).autodiff();
+fn main_client() -> Result<(), burn::remote::ConnectError> {
+    let host = RemoteHost::websocket("ws://localhost:3000");
+    let device = Device::remote_options(&host).init()?.autodiff();
     let tensor_gpu = Tensor::<2>::random([3, 3], Distribution::Default, &device);
+    Ok(())
 }
 ```
 
@@ -350,7 +359,7 @@ Several of our backends can run in WebAssembly environments: Flex for CPU execut
 GPU acceleration via WebGPU. This means that you can run inference directly within a browser. We
 provide several examples of this:
 
-- [MNIST](./examples/mnist-inference-web) where you can draw digits and a small convnet tries to
+- [MNIST](https://github.com/tracel-ai/burn/tree/main/examples/mnist-inference-web) where you can draw digits and a small convnet tries to
   find which one it is! 2️⃣ 7️⃣ 😰
 - [Image Classification](https://github.com/tracel-ai/burn-onnx/tree/main/examples/image-classification-web)
   where you can upload images and classify them! 🌄
@@ -440,42 +449,42 @@ impl PositionWiseFeedForward {
 }
 ```
 
-We have a somewhat large amount of [examples](./examples) in the repository that shows how to use
+We have a somewhat large amount of [examples](https://github.com/tracel-ai/burn/tree/main/examples) in the repository that shows how to use
 the framework in different scenarios.
 
 Following [the book](https://burn.dev/books/burn/):
 
-- [Basic Workflow](./examples/guide) : Creates a custom CNN `Module` to train on the MNIST dataset
+- [Basic Workflow](https://github.com/tracel-ai/burn/tree/main/examples/guide) : Creates a custom CNN `Module` to train on the MNIST dataset
   and use for inference.
-- [Custom Training Loop](./examples/custom-training-loop) : Implements a basic training loop instead
+- [Custom Training Loop](https://github.com/tracel-ai/burn/tree/main/examples/custom-training-loop) : Implements a basic training loop instead
   of using the `Learner`.
-- [Custom WGPU Kernel](./examples/custom-wgpu-kernel) : Learn how to create your own custom
+- [Custom WGPU Kernel](https://github.com/tracel-ai/burn/tree/main/examples/custom-wgpu-kernel) : Learn how to create your own custom
   operation with the WGPU backend.
 
 Additional examples:
 
-- [Custom CSV Dataset](./examples/custom-csv-dataset) : Implements a dataset to parse CSV data for a
+- [Custom CSV Dataset](https://github.com/tracel-ai/burn/tree/main/examples/custom-csv-dataset) : Implements a dataset to parse CSV data for a
   regression task.
-- [Regression](./examples/simple-regression) : Trains a simple MLP on the California Housing dataset
+- [Regression](https://github.com/tracel-ai/burn/tree/main/examples/simple-regression) : Trains a simple MLP on the California Housing dataset
   to predict the median house value for a district.
-- [Custom Image Dataset](./examples/custom-image-dataset) : Trains a simple CNN on custom image
+- [Custom Image Dataset](https://github.com/tracel-ai/burn/tree/main/examples/custom-image-dataset) : Trains a simple CNN on custom image
   dataset following a simple folder structure.
-- [Custom Renderer](./examples/custom-renderer) : Implements a custom renderer to display the
+- [Custom Renderer](https://github.com/tracel-ai/burn/tree/main/examples/custom-renderer) : Implements a custom renderer to display the
   [`Learner`](https://burn.dev/books/burn/building-blocks/learner.html) progress.
 - [Image Classification Web](https://github.com/tracel-ai/burn-onnx/tree/main/examples/image-classification-web) : Image classification web browser
   demo using Burn, WGPU and WebAssembly.
-- [MNIST Inference on Web](./examples/mnist-inference-web) : An interactive MNIST inference demo in
+- [MNIST Inference on Web](https://github.com/tracel-ai/burn/tree/main/examples/mnist-inference-web) : An interactive MNIST inference demo in
   the browser.
-- [MNIST Training](./examples/mnist) : Demonstrates how to train a custom `Module` (MLP) with the
+- [MNIST Training](https://github.com/tracel-ai/burn/tree/main/examples/mnist) : Demonstrates how to train a custom `Module` (MLP) with the
   `Learner` configured to log metrics and keep training checkpoints.
-- [PyTorch Import Inference](./examples/import-model-weights) : Imports a PyTorch model pre-trained
+- [PyTorch Import Inference](https://github.com/tracel-ai/burn/tree/main/examples/import-model-weights) : Imports a PyTorch model pre-trained
   on MNIST to perform inference on a sample image with Burn.
-- [Text Classification](./examples/text-classification) : Trains a text classification transformer
+- [Text Classification](https://github.com/tracel-ai/burn/tree/main/examples/text-classification) : Trains a text classification transformer
   model on the AG News or DbPedia dataset. The trained model can then be used to classify a text
   sample.
-- [Text Generation](./examples/text-generation) : Trains a text generation transformer model on the
+- [Text Generation](https://github.com/tracel-ai/burn/tree/main/examples/text-generation) : Trains a text generation transformer model on the
   DbPedia dataset.
-- [Wasserstein GAN MNIST](./examples/wgan) : Trains a WGAN model to generate new handwritten digits
+- [Wasserstein GAN MNIST](https://github.com/tracel-ai/burn/tree/main/examples/wgan) : Trains a WGAN model to generate new handwritten digits
   based on MNIST.
 
 For more practical insights, you can clone the repository and run any of them directly on your
@@ -542,7 +551,7 @@ Loading Model Records From Previous Versions ⚠️
 Burn 0.22 uses burnpack for native records and cannot directly read legacy `Recorder` formats such
 as `.mpk`, `.bin`, or JSON. Load the checkpoint in a compatible older Burn project, export the model
 weights through `burn-store`, and import them into your 0.22 model. See
-[Migrating checkpoints](burn-book/src/migrating-to-0.22.md#migrating-checkpoints) for an example and
+[Migrating checkpoints](https://github.com/tracel-ai/burn/blob/main/burn-book/src/migrating-to-0.22.md#migrating-checkpoints) for an example and
 the distinction between transferring weights and resuming training state.
 
 For records saved before `0.14.0`, an earlier migration step may also be needed: use Burn `0.14`,
@@ -568,8 +577,8 @@ any background. You can ask your questions and share what you built with the com
 
 ### Contributing
 
-Before contributing, please read the [Contributing Guidelines](./CONTRIBUTING.md) and our
-[Code of Conduct](./CODE-OF-CONDUCT.md). The [Contributor Book](https://burn.dev/books/contributor/)
+Before contributing, please read the [Contributing Guidelines](https://github.com/tracel-ai/burn/blob/main/CONTRIBUTING.md) and our
+[Code of Conduct](https://github.com/tracel-ai/burn/blob/main/CODE-OF-CONDUCT.md). The [Contributor Book](https://burn.dev/books/contributor/)
 covers architecture, environment setup, and guides for common tasks.
 
 ## Status
@@ -580,7 +589,7 @@ issues are likely to be easy to fix, there are no guarantees at this stage.
 ## License
 
 Burn is distributed under the terms of both the MIT license and the Apache License (Version 2.0).
-See [LICENSE-APACHE](./LICENSE-APACHE) and [LICENSE-MIT](./LICENSE-MIT) for details. Opening a pull
+See [LICENSE-APACHE](https://github.com/tracel-ai/burn/blob/main/LICENSE-APACHE) and [LICENSE-MIT](https://github.com/tracel-ai/burn/blob/main/LICENSE-MIT) for details. Opening a pull
 request is assumed to signal agreement with these licensing terms.
 
 </div>

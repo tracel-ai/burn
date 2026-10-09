@@ -3,8 +3,6 @@ use burn::tensor::Device;
 #[allow(unreachable_code)]
 fn select_device() -> Device {
     #[cfg(not(any(
-        feature = "tch-gpu",
-        feature = "tch-cpu",
         feature = "wgpu",
         feature = "metal",
         feature = "vulkan",
@@ -12,15 +10,6 @@ fn select_device() -> Device {
         feature = "cuda",
     )))]
     return Device::flex();
-
-    #[cfg(all(feature = "tch-gpu", not(target_os = "macos")))]
-    return Device::libtorch_cuda(burn::tensor::DeviceIndex::Default);
-
-    #[cfg(all(feature = "tch-gpu", target_os = "macos"))]
-    return Device::libtorch_mps();
-
-    #[cfg(feature = "tch-cpu")]
-    return Device::libtorch();
 
     #[cfg(any(feature = "wgpu", feature = "metal", feature = "vulkan"))]
     return Device::wgpu(burn::tensor::DeviceKind::DefaultDevice);

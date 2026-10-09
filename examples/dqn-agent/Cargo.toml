@@ -10,14 +10,12 @@
 
 [package]
 name = "dqn-agent"
-edition.workspace = true
-version.workspace = true
+edition = "2024"
+version = "0.22.0"
 publish = false
 
 [features]
 default = ["burn/default", "burn/tui"]
-tch-cpu = ["burn/tch"]
-tch-gpu = ["burn/tch"]
 wgpu = ["burn/wgpu"]
 metal = ["burn/metal"]
 cuda = ["burn/cuda"]
@@ -26,7 +24,7 @@ rocm = ["burn/rocm"]
 
 [dependencies]
 # Disable autotune default for now.
-burn = { path = "../../crates/burn", version = "=0.22.0-pre.4", default-features = false, features = [
+burn = { path = "../../crates/burn", version = "0.22.0", default-features = false, features = [
     "train",
     "metrics",
     "std",

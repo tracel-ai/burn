@@ -5,23 +5,16 @@ mod matmul;
 mod quantize;
 
 // The `extended` suite is only enabled for backends with native (non-packed) quantized
-// storage AND a complete set of quantized ops. Today that means ndarray and flex.
+// storage AND a complete set of quantized ops. Today that means Flex.
 //
 // - cube backends are excluded: PackedU32 storage requires the last dim to be a multiple of
 //   the pack factor (4 int8s per u32), which most of these test shapes violate, so the
 //   quantized tensors can't even be constructed (`q_from_data` panics with "Can't store in u32").
 //
-// - router and tch are excluded too. We dropped their `unimplemented!()` overrides for
-//   `q_gather`/`q_select`/`q_slice`/`q_expand` so they fall back to the default
-//   `dequantize -> float op -> quantize` path, but that does NOT make them functional: their
-//   other quantized methods are largely unimplemented. The quantization primitives themselves
-//   (`q_from_data`, `quantize`, `dequantize`, ...) are still `unimplemented!()`/`todo!()`, so the
-//   fallback simply moves the panic into `dequantize`. Running `extended` against either would
-//   fail. (They also don't enable the `quantization` feature, so they aren't selected here in the
-//   first place.)
+// - router is excluded: its quantization primitives are not implemented.
 //
 // - autodiff is excluded for a different reason: its `QTensorOps` impl delegates every method to
-//   the inner backend, so `Autodiff<NdArray>` quantizes fine. It simply never reaches this module,
+//   the inner backend, so `Autodiff<Flex>` quantizes fine. It simply never reaches this module,
 //   because the autodiff suite is a separate test target (`tests/autodiff.rs`) that does not
 //   include `tests/tensor/`.
 //
@@ -33,5 +26,5 @@ mod quantize;
 // (e.g. `1.0` -> ~0.97998, rel error 2.00e-2), whereas f32's finer scale representation keeps the
 // same value just inside it (~0.9802, rel error 1.98e-2). It is quantization noise, not a logic
 // error, so those cases use `rel_abs(2e-2, 3e-2)`.
-#[cfg(any(feature = "ndarray", feature = "flex"))]
+#[cfg(feature = "flex")]
 mod extended;

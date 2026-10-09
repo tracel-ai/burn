@@ -208,12 +208,9 @@ mod tests {
             .num_workers(1)
             .build(FakeDataset::<String>::new(11));
 
-        #[cfg(all(test, not(feature = "tch"), not(feature = "cuda")))]
+        #[cfg(all(test, not(feature = "cuda")))]
         // Only one device exists...
         let (device1, device2) = (Device::flex(), Device::flex());
-
-        #[cfg(all(test, feature = "tch"))]
-        let (device1, device2) = (Device::libtorch_cuda(0), Device::libtorch_cuda(1));
 
         #[cfg(all(test, feature = "cuda"))]
         let (device1, device2) = (Device::cuda(0), Device::cuda(1));

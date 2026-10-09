@@ -61,7 +61,7 @@ pub(crate) fn conv_data_backward_fallback<const N_DIM: usize>(
     }
 
     // Through `conv_transpose2d` so its autotune keeps both routes: the direct NHWC kernel
-    // (its direct candidate) and col2im. 3D has neither and flips to NCHW below.
+    // (its direct candidate) and col2im. 3D has no NHWC kernel and flips to NCHW below.
     match N_DIM {
         1 => {
             let out_grad = permute_nhwc_to_nchw(out_grad);
@@ -125,8 +125,8 @@ pub(crate) fn conv_data_backward_fallback<const N_DIM: usize>(
                     ],
                     options.groups,
                 ),
-            )
-            .unwrap();
+                Default::default(),
+            )?;
 
             Ok(permute_nchw_to_nhwc(in_grad))
         }

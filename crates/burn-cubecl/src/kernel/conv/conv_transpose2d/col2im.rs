@@ -11,7 +11,7 @@ use crate::{
 };
 use burn_backend::cubecl::dtype_to_storage_type;
 use burn_backend::{
-    Shape,
+    DType, Shape,
     ops::{ConvTransposeOptions, conv::calculate_conv_transpose_output_size},
 };
 use cubecl::{
@@ -185,6 +185,10 @@ fn col2im(
     options: ConvTransposeOptions<2>,
 ) -> Result<(), LaunchError> {
     let dtype = columns.dtype;
+    let accumulation_dtype = match dtype {
+        DType::F16 | DType::BF16 => DType::F32,
+        _ => dtype,
+    };
 
     let columns = into_contiguous_aligned(columns);
     let bias = bias.map(into_contiguous_aligned);
@@ -217,7 +221,10 @@ fn col2im(
                 options.stride[0],
                 options.stride[1],
             ),
-            dtype_to_storage_type(dtype),
+            [
+                dtype_to_storage_type(dtype),
+                dtype_to_storage_type(accumulation_dtype),
+            ],
         )
     };
 
@@ -241,13 +248,13 @@ struct Col2ImArgs {
 }
 
 #[cube(launch_unchecked, address_type = "dynamic")]
-fn col2im_kernel<E: Numeric>(
+fn col2im_kernel<E: Numeric, A: Numeric>(
     columns: &Tensor<E>,
     bias: ComptimeOption<&[E]>,
     mut image: LinearViewMut<'_, E>,
     image_shape: Sequence<FastDivmod<usize>>,
     args: &Col2ImArgs,
-    #[define(E)] _dtype: ElemType,
+    #[define(E, A)] _dtypes: [ElemType; 2],
 ) {
     if ABSOLUTE_POS >= image.shape() {
         terminate!();
@@ -264,7 +271,7 @@ fn col2im_kernel<E: Numeric>(
     let kernel_extent_w = (args.kernel_w - 1) * args.dilation_w + 1;
     let kernel_extent_h = (args.kernel_h - 1) * args.dilation_h + 1;
 
-    let mut val = E::zero();
+    let mut val = A::zero();
 
     let x_col_start = if im_x >= kernel_extent_w {
         (im_x - kernel_extent_w) / args.stride_w + 1
@@ -293,14 +300,16 @@ fn col2im_kernel<E: Numeric>(
                     ch_im * args.kernel_h * args.kernel_w + kernel_y * args.kernel_w + kernel_x;
                 let col_n = batch * args.out_h * args.out_w + col_y * args.out_w + col_x;
                 let col_pos = col_k * columns.stride(0) + col_n * columns.stride(1);
-                val += columns[col_pos];
+                val += A::cast_from(columns[col_pos]);
             }
         }
     }
 
     #[comptime]
     match bias {
-        ComptimeOption::Some(bias) => image.write(ABSOLUTE_POS, val + bias[ch_im]),
-        ComptimeOption::None => image.write(ABSOLUTE_POS, val),
+        ComptimeOption::Some(bias) => {
+            image.write(ABSOLUTE_POS, E::cast_from(val + A::cast_from(bias[ch_im])))
+        }
+        ComptimeOption::None => image.write(ABSOLUTE_POS, E::cast_from(val)),
     }
 }

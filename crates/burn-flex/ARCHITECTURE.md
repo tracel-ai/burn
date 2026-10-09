@@ -179,9 +179,9 @@ impl FlexTensor {
         Arc::strong_count(&self.data) == 1
     }
 
-    /// Get mutable access, cloning data if shared (COW)
-    pub fn make_data_mut(&mut self) -> &mut Bytes {
-        Arc::make_mut(&mut self.data)
+    /// Typed mutable view, cloning data if shared (COW)
+    pub fn storage_mut<E: Element + bytemuck::Pod>(&mut self) -> &mut [E] {
+        bytemuck::cast_slice_mut(Arc::make_mut(&mut self.data))
     }
 }
 ```
@@ -197,9 +197,9 @@ This enables the optimization pattern used throughout:
 
 ```rust
 fn add_inplace(mut lhs: FlexTensor, rhs: &FlexTensor) -> FlexTensor {
-    if lhs.is_unique() && lhs.is_contiguous_at_offset_zero() {
+    if lhs.is_unique() && matches!(lhs.layout().contiguous_offsets(), Some((0, _))) {
         // Mutate in place - no allocation needed
-        let storage = lhs.make_data_mut();
+        let storage: &mut [f32] = lhs.storage_mut();
         // ... perform addition ...
         lhs
     } else {

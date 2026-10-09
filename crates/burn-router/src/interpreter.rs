@@ -5,10 +5,11 @@ use crate::{
     reduce_float_dim_ops, reduce_float2int_dim_ops, reduce_int_dim_ops, scalar_float_cmp_ops,
     scalar_float_ops, scalar_int_cmp_ops, scalar_int_ops, unary_float_ops, unary_int_ops,
 };
-use alloc::boxed::Box;
+use alloc::{boxed::Box, vec::Vec};
 use burn_backend::{
     Backend, DType, DeviceOps, ExecutionError, ProfileDuration, ProfileOptions, ProfileToken,
-    Shape, TensorData, distributed::DistributedOps, tensor::IndexingUpdateOp,
+    Shape, TensorData, TensorPrimitive, distributed::DistributedOps, ops::TransactionPrimitive,
+    tensor::IndexingUpdateOp,
 };
 use burn_ir::{
     ActivationOperationIr, BackendIr, BaseOperationIr, BoolOperationIr, FloatOperationIr,
@@ -46,6 +47,9 @@ pub struct TensorInterpreter<B: BackendIr> {
     /// Handlers for [custom operations](OperationIr::Custom), keyed by id. Shared read-only across
     /// every session, so executing a custom op is a map lookup plus a call.
     custom_ops: CustomOpRegistry<B>,
+    /// A flush that failed where no error could be returned, reported by the next
+    /// [`sync`](Self::sync).
+    flush_error: burn_std::sync::Mutex<Option<ExecutionError>>,
 }
 
 impl<B: BackendIr> core::fmt::Debug for TensorInterpreter<B> {
@@ -70,6 +74,7 @@ impl<B: BackendIr> TensorInterpreter<B> {
             },
             device,
             custom_ops,
+            flush_error: burn_std::sync::Mutex::new(None),
         }
     }
 
@@ -1759,6 +1764,34 @@ impl<B: BackendIr> TensorInterpreter<B> {
                     );
                     handles.register_float_tensor::<B>(&desc.out.id, output);
                 }
+                ModuleOperationIr::AvgPool3d(desc) => {
+                    let x = handles.get_float_tensor::<B>(&desc.x);
+
+                    let output = B::avg_pool3d(
+                        x,
+                        desc.kernel_size,
+                        desc.stride,
+                        desc.padding,
+                        desc.count_include_pad,
+                        desc.ceil_mode,
+                    );
+                    handles.register_float_tensor::<B>(&desc.out.id, output);
+                }
+                ModuleOperationIr::AvgPool3dBackward(desc) => {
+                    let x = handles.get_float_tensor::<B>(&desc.x);
+                    let grad = handles.get_float_tensor::<B>(&desc.grad);
+
+                    let output = B::avg_pool3d_backward(
+                        x,
+                        grad,
+                        desc.kernel_size,
+                        desc.stride,
+                        desc.padding,
+                        desc.count_include_pad,
+                        desc.ceil_mode,
+                    );
+                    handles.register_float_tensor::<B>(&desc.out.id, output);
+                }
                 ModuleOperationIr::AdaptiveAvgPool1d(desc) => {
                     let x = handles.get_float_tensor::<B>(&desc.x);
 
@@ -1877,6 +1910,51 @@ impl<B: BackendIr> TensorInterpreter<B> {
                     let indices = handles.get_int_tensor::<B>(&desc.indices);
 
                     let output = B::max_pool2d_with_indices_backward(
+                        x,
+                        desc.kernel_size,
+                        desc.stride,
+                        desc.padding,
+                        desc.dilation,
+                        desc.ceil_mode,
+                        output_grad,
+                        indices,
+                    );
+                    handles.register_float_tensor::<B>(&desc.out.id, output.x_grad);
+                }
+                ModuleOperationIr::MaxPool3d(desc) => {
+                    let x = handles.get_float_tensor::<B>(&desc.x);
+
+                    let output = B::max_pool3d(
+                        x,
+                        desc.kernel_size,
+                        desc.stride,
+                        desc.padding,
+                        desc.dilation,
+                        desc.ceil_mode,
+                    );
+                    handles.register_float_tensor::<B>(&desc.out.id, output);
+                }
+                ModuleOperationIr::MaxPool3dWithIndices(desc) => {
+                    let x = handles.get_float_tensor::<B>(&desc.x);
+
+                    let output = B::max_pool3d_with_indices(
+                        x,
+                        desc.kernel_size,
+                        desc.stride,
+                        desc.padding,
+                        desc.dilation,
+                        desc.ceil_mode,
+                        desc.out_indices.dtype.into(),
+                    );
+                    handles.register_float_tensor::<B>(&desc.out.id, output.output);
+                    handles.register_int_tensor::<B>(&desc.out_indices.id, output.indices);
+                }
+                ModuleOperationIr::MaxPool3dWithIndicesBackward(desc) => {
+                    let x = handles.get_float_tensor::<B>(&desc.x);
+                    let output_grad = handles.get_float_tensor::<B>(&desc.grad);
+                    let indices = handles.get_int_tensor::<B>(&desc.indices);
+
+                    let output = B::max_pool3d_with_indices_backward(
                         x,
                         desc.kernel_size,
                         desc.stride,
@@ -2136,7 +2214,10 @@ impl<B: BackendIr> TensorInterpreter<B> {
                     // Safety: the collective tensor is resolved through the normal op stream
                     // (a `SyncCollective` op follows), so the handle is valid once that runs.
                     let output = unsafe { output.assume_resolved() };
-                    B::flush(&self.device);
+                    if let Err(err) = B::flush(&self.device) {
+                        // Registering an operation reports nothing: the next sync does.
+                        self.flush_error.lock().get_or_insert(err);
+                    }
                     handles.register_float_tensor::<B>(&desc.out.id, output);
                 }
                 burn_ir::DistributedOperationIr::SyncCollective => B::sync_collective(&self.device),
@@ -2149,33 +2230,37 @@ impl<B: BackendIr> TensorInterpreter<B> {
         &mut self,
         tensor: TensorIr,
     ) -> DynFut<Result<TensorData, ExecutionError>> {
-        let ctx = &mut self.context;
+        self.take_for_read(&tensor).into_data()
+    }
 
-        enum Output<B: Backend> {
-            Float(B::FloatTensorPrimitive),
-            Int(B::IntTensorPrimitive),
-            Bool(B::BoolTensorPrimitive),
+    /// Read several tensors as one backend transaction, in the order given.
+    pub fn read_tensors_async(
+        &mut self,
+        tensors: &[TensorIr],
+    ) -> DynFut<Result<Vec<TensorData>, ExecutionError>> {
+        // Some backends' transactions cannot run without a tensor to find their device from.
+        if tensors.is_empty() {
+            return Box::pin(async { Ok(Vec::new()) });
         }
+        let mut transaction = TransactionPrimitive::<B>::default();
+        for tensor in tensors {
+            self.take_for_read(tensor).register_in(&mut transaction);
+        }
+        Box::pin(transaction.execute_async())
+    }
 
-        let tensor = if tensor.dtype.is_float() {
-            let tensor = ctx.handles.get_float_tensor::<B>(&tensor);
-            Output::<B>::Float(tensor)
+    fn take_for_read(&mut self, tensor: &TensorIr) -> ReadPrimitive<B> {
+        let handles = &mut self.context.handles;
+        if tensor.dtype.is_float() {
+            ReadPrimitive::Float(handles.get_float_tensor::<B>(tensor))
         } else if tensor.dtype.is_int() || tensor.dtype.is_uint() {
-            let tensor = ctx.handles.get_int_tensor::<B>(&tensor);
-            Output::Int(tensor)
+            ReadPrimitive::Int(handles.get_int_tensor::<B>(tensor))
         } else if tensor.dtype.is_bool() {
-            let tensor = ctx.handles.get_bool_tensor::<B>(&tensor);
-            Output::Bool(tensor)
+            ReadPrimitive::Bool(handles.get_bool_tensor::<B>(tensor))
         } else if let DType::QFloat(_) = tensor.dtype {
             todo!()
         } else {
             unimplemented!()
-        };
-
-        match tensor {
-            Output::Float(val) => Box::pin(B::float_into_data(val)),
-            Output::Int(val) => Box::pin(B::int_into_data(val)),
-            Output::Bool(val) => Box::pin(B::bool_into_data(val)),
         }
     }
 
@@ -2185,7 +2270,15 @@ impl<B: BackendIr> TensorInterpreter<B> {
     }
 
     /// Block until all queued backend work has completed.
+    ///
+    /// # Errors
+    ///
+    /// Returns an [`ExecutionError`] when the queued work failed, or when a flush made while
+    /// registering operations failed since the last sync.
     pub fn sync(&self) -> Result<(), ExecutionError> {
+        if let Some(err) = self.flush_error.lock().take() {
+            return Err(err);
+        }
         B::sync(&self.device)
     }
 
@@ -2217,5 +2310,30 @@ impl<B: BackendIr> TensorInterpreter<B> {
     /// measuring it.
     pub fn profile_abandon(&self, token: ProfileToken) {
         B::profile_abandon(&self.device, token)
+    }
+}
+
+/// A tensor taken from the handle container to be read.
+enum ReadPrimitive<B: Backend> {
+    Float(B::FloatTensorPrimitive),
+    Int(B::IntTensorPrimitive),
+    Bool(B::BoolTensorPrimitive),
+}
+
+impl<B: Backend> ReadPrimitive<B> {
+    fn into_data(self) -> DynFut<Result<TensorData, ExecutionError>> {
+        match self {
+            Self::Float(tensor) => Box::pin(B::float_into_data(tensor)),
+            Self::Int(tensor) => Box::pin(B::int_into_data(tensor)),
+            Self::Bool(tensor) => Box::pin(B::bool_into_data(tensor)),
+        }
+    }
+
+    fn register_in(self, transaction: &mut TransactionPrimitive<B>) {
+        match self {
+            Self::Float(tensor) => transaction.register_float(TensorPrimitive::Float(tensor)),
+            Self::Int(tensor) => transaction.register_int(tensor),
+            Self::Bool(tensor) => transaction.register_bool(tensor),
+        }
     }
 }

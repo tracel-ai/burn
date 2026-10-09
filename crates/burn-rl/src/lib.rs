@@ -1,7 +1,14 @@
 #![warn(missing_docs)]
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
-//! A library for training reinforcement learning agents.
+//! Reinforcement learning building blocks for Burn.
+//!
+//! - [`Environment`]: a simulation an agent acts in, returning a [`StepResult`] per action.
+//! - [`Policy`]: maps observations to actions; [`PolicyLearner`] updates a policy from experience.
+//! - [`TransitionBuffer`]: a replay buffer of [`Transition`]s sampled in batches.
+//!
+//! Applications enable the `rl` feature of `burn` and use this crate as `burn::rl`. The training
+//! loop for agents lives in `burn-train` under its `rl` feature.
 
 /// Module for implementing an environment.
 pub mod environment;

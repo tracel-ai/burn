@@ -8,6 +8,11 @@ important to correctly handle those to optimize hardware utilization. Those oper
 `into_data`, `into_scalar`, and `sync`. Some tensor operations might call `into_data` underneath,
 triggering a synchronization, like `to_device` for some backends.
 
+Because operations run asynchronously, a computation that fails is only reported at one of these
+synchronization points, not by the operation that launched it. Use the fallible variants,
+`try_into_data`, `try_into_scalar`, and `Device::sync` (which returns a `Result`), to handle the
+error instead of panicking.
+
 There are several ways to minimize synchronization overhead, one of which is to batch sync
 operations into a single transaction. Burn provides a high-level composable API to build
 transactions, which will only trigger a single sync on the device.
@@ -58,5 +63,5 @@ let device_training = ..;
 let axis_batch = 0;
 
 let items = Tensor::cat(items, axis_batch);
-let batch = Tensor::from_data(items.into_data(), device_training);
+let batch = Tensor::from_data(items.into_data(), &device_training);
 ```

@@ -141,13 +141,22 @@ where
     /// uniquely owns the allocation, so an in-place op writes it directly
     /// instead of copying first (see `TensorMetadata::can_mut`).
     ///
-    /// Backends that track buffer ownership (cubecl, fusion, tch) answer
+    /// Backends that track buffer ownership (cubecl, fusion) answer
     /// precisely from the handle reference count; others conservatively return
     /// `false` — they may alias the buffer, so an in-place write can't be
     /// assumed safe. Useful to assert a hot-path op (e.g. a KV-cache
     /// `slice_assign`) stays in place rather than silently copying.
     pub fn can_mut(&self) -> bool {
         self.primitive.can_mut()
+    }
+
+    /// Returns the unique identifier of the tensor if allocated on `CaptureBackend`.
+    ///
+    /// # Panics
+    /// Panics if the tensor is not allocated on `CaptureBackend`.
+    #[cfg(feature = "capture")]
+    pub fn capture_id(&self) -> burn_capture::TensorId {
+        burn_capture::CaptureTensor::capture_id(self)
     }
 
     /// Create an empty tensor of the given shape.
@@ -3159,11 +3168,6 @@ where
     /// one in the position of the original dimension, with size equal to the number of windows,
     /// and one appended to the right-most position, with size equal to `size`.
     ///
-    /// # Warning
-    ///
-    /// For the `ndarray` backend; this is not a view but a copy
-    /// with duplicated data.
-    ///
     /// # Arguments
     ///
     /// * `dim` - the dimension to unfold.
@@ -3747,6 +3751,26 @@ fn try_into_data_sync_impl(
         This can happen on platforms that don't support blocking futures like WASM.
         If possible, try using into_data_async instead.",
     )
+}
+
+#[cfg(feature = "capture")]
+impl<const D: usize, K: Basic> burn_capture::CaptureTensor for Tensor<D, K> {
+    fn capture_id(&self) -> burn_capture::TensorId {
+        #[allow(unreachable_patterns)]
+        match &self.primitive.as_dispatch().kind {
+            burn_dispatch::DispatchTensorKind::Capture(backend_tensor) => match backend_tensor {
+                burn_dispatch::BackendTensor::Float(tensor) => tensor.id(),
+                burn_dispatch::BackendTensor::Int(tensor) => tensor.id(),
+                burn_dispatch::BackendTensor::Bool(tensor) => tensor.id(),
+                burn_dispatch::BackendTensor::Quantized(tensor) => tensor.id(),
+                #[cfg(feature = "autodiff")]
+                burn_dispatch::BackendTensor::Autodiff(_) => {
+                    panic!("Capture tensors do not support autodiff")
+                }
+            },
+            _ => panic!("Tensor is not allocated on CaptureBackend"),
+        }
+    }
 }
 
 #[cfg(test)]

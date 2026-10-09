@@ -1,12 +1,10 @@
-//! Peer-to-peer remote tensor execution for Burn.
+//! Remote tensor execution for Burn: a client sends tensor operations to a server that runs them
+//! on its devices.
 //!
-//! Iroh is the primary transport. A client describes a server with an `IrohPeer`, or dials it from
-//! an Iroh [`Endpoint`] the application owns; a server hosts compute on its own endpoint, or
-//! registers Burn's protocol on the application's. Compute sessions use bidirectional QUIC
-//! streams, while cross-peer tensor movement uses independent authenticated streams without
-//! routing payloads through the controlling client.
-//!
-//! The optional `websocket` feature retains the legacy address-and-port transport.
+//! Users reach it through `burn::remote` (clients) and `burn::server` (servers). Iroh is the
+//! default transport: any network, authenticated and encrypted. The `websocket` feature adds the
+//! simplest setup for a trusted network, unencrypted. Compute sessions and the tensor transfers
+//! between servers never route tensor data through the controlling client.
 
 #[cfg(feature = "client")]
 mod client;
@@ -14,11 +12,19 @@ mod client;
 #[cfg(feature = "server")]
 pub mod server;
 
+#[cfg(all(
+    not(target_family = "wasm"),
+    any(feature = "client", feature = "server")
+))]
+mod runtime;
 pub(crate) mod shared;
 pub mod telemetry;
 #[cfg(any(feature = "client", all(feature = "server", feature = "iroh")))]
 pub(crate) mod time;
 mod transport;
+
+mod credential;
+pub use credential::Credential;
 
 pub use burn_ir as ir;
 pub use burn_router::RouterClient;
@@ -30,13 +36,13 @@ pub(crate) mod metrics;
 
 #[cfg(feature = "iroh")]
 pub use iroh::{Endpoint, EndpointAddr, EndpointId, RelayUrl};
+#[cfg(all(feature = "iroh", feature = "client"))]
+pub use transport::iroh::IrohHost;
 #[cfg(feature = "iroh")]
 pub use transport::iroh::node::BURN_REMOTE_ALPN;
-#[cfg(all(feature = "iroh", feature = "client", not(target_family = "wasm")))]
-pub use transport::iroh::{ConnectError, IrohPeer, IrohPeerBuilder};
 #[cfg(feature = "iroh")]
-pub use transport::iroh::{IrohRelays, RemoteSecret};
-pub use transport::{PeerAddr, PeerId};
+pub use transport::iroh::{InvalidRelays, IrohIdentity, IrohRelays};
+pub(crate) use transport::{PeerAddr, PeerId};
 
 #[cfg(feature = "client")]
 mod __client {
@@ -46,13 +52,9 @@ mod __client {
 
     /// The remote backend allows you to run computation on a remote device.
     ///
-    /// Iroh is the primary transport. Describe a compute server with an `IrohPeer` and connect to
-    /// one of its devices, or dial it from an Iroh [`Endpoint`] the application owns with
-    /// [`RemoteDevice::iroh`] (or the `Device::remote_iroh` facade).
-    ///
     /// ```rust, ignore
-    /// let peer = IrohPeerBuilder::new(server_id).with_credential(token).build();
-    /// let remote = peer.connect(0).await?;
+    /// let host = RemoteHost::iroh(server_id).with_credential(token);
+    /// let device = Device::remote_options(&host).init()?;
     /// ```
     #[cfg(not(feature = "fusion"))]
     pub type RemoteBackend = BackendRouter<RemoteChannel>;
@@ -64,7 +66,9 @@ mod __client {
     #[cfg(feature = "fusion")]
     pub type RemoteBackend = burn_fusion::Fusion<BackendRouter<RemoteChannel>>;
 
-    pub use client::{CustomOpClient, RemoteChannel, RemoteDevice};
+    #[doc(hidden)]
+    pub use client::HostSpec;
+    pub use client::{ConnectError, CustomOpClient, RemoteChannel, RemoteDevice};
 }
 #[cfg(feature = "client")]
 pub use __client::*;
@@ -74,23 +78,32 @@ pub use __client::*;
 mod tests {
     use crate::{
         RemoteBackend, RemoteDevice,
-        shared::{RemoteMessage, SessionId, Task},
+        server::{BackendServer, WebSocketTransport},
+        shared::{
+            Encode, PROTOCOL_VERSION, RemoteMessage, SessionId, SessionInit, SessionRefusal, Task,
+            TaskResponse, TaskResponseContent,
+        },
+        transport::{
+            link::{FrameSink, MAX_UNAUTHORIZED_FRAME_SIZE},
+            message::MessageSink,
+        },
     };
     use burn_backend::{Scalar, TensorData, ops::FloatTensorOps};
-    use burn_communication::{CommunicationChannel, Message, ProtocolClient};
+    use burn_communication::{
+        Address, CommunicationChannel, Message, ProtocolClient, websocket::WsClient,
+    };
     use burn_flex::Flex;
+    use bytes::Bytes;
     use std::str::FromStr;
 
     /// Serve `server` over WebSocket on a port the OS picks, returning the address to dial.
     ///
     /// The listener is bound before this returns, so a client can connect at once.
-    pub(crate) fn serve(
-        rt: &tokio::runtime::Runtime,
-        server: crate::server::RemoteServerBuilder<Flex>,
-    ) -> String {
+    pub(crate) fn serve(rt: &tokio::runtime::Runtime, server: BackendServer<Flex>) -> String {
         let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
         let address = format!("ws://{}", listener.local_addr().unwrap());
-        rt.spawn(server.start_async_on(listener));
+        let serving = server.serve_async(WebSocketTransport::from_listener(listener));
+        rt.spawn(async move { serving.await.unwrap() });
         address
     }
 
@@ -113,17 +126,18 @@ mod tests {
             .unwrap();
 
         // Host a "scale" custom op: multiply the input float tensor by a scalar argument.
-        let address =
-            serve(
-                &rt,
-                crate::server::RemoteServerBuilder::<Flex>::new(vec![Default::default()])
-                    .custom_op("scale", |handles, ir, _device| {
-                        let input = handles.get_float_tensor::<Flex>(&ir.inputs[0]);
-                        let factor: Scalar = ir.scalars[0].into();
-                        let output = Flex::float_mul_scalar(input, factor);
-                        handles.register_float_tensor::<Flex>(&ir.outputs[0].id, output);
-                    }),
-            );
+        let address = serve(
+            &rt,
+            BackendServer::<Flex>::new(vec![Default::default()]).with_custom_op(
+                "scale",
+                |handles, ir, _device| {
+                    let input = handles.get_float_tensor::<Flex>(&ir.inputs[0]);
+                    let factor: Scalar = ir.scalars[0].into();
+                    let output = Flex::float_mul_scalar(input, factor);
+                    handles.register_float_tensor::<Flex>(&ir.outputs[0].id, output);
+                },
+            ),
+        );
 
         // Drive the remote backend directly (no autodiff/dispatch glue). A real backend extension
         // would wrap this in a hand-written `impl MyExt for RemoteBackend`.
@@ -165,11 +179,7 @@ mod tests {
     #[test]
     #[cfg(not(feature = "fusion"))]
     pub fn test_custom_op_over_iroh() {
-        use crate::{
-            BURN_REMOTE_ALPN,
-            server::{AllowAll, CustomOpRegistry, IrohRemoteProtocol},
-            telemetry::TelemetryProbe,
-        };
+        use crate::{BURN_REMOTE_ALPN, server::CustomOpRegistry};
         use burn_backend::TensorMetadata;
         use burn_ir::{CustomOpIr, OperationIr, ScalarIr, TensorIr};
         use burn_router::RouterClient;
@@ -203,13 +213,10 @@ mod tests {
             handles.register_float_tensor::<Flex>(&ir.outputs[0].id, output);
         });
 
-        let protocol = IrohRemoteProtocol::<Flex>::new(
-            server.clone(),
-            vec![Default::default()],
-            std::sync::Arc::new(AllowAll),
-            TelemetryProbe::disabled(),
-            custom_ops,
-        );
+        let protocol = BackendServer::<Flex>::new(vec![Default::default()])
+            .with_custom_ops(custom_ops)
+            .into_protocol(&server)
+            .unwrap();
 
         // spawn() must run in a runtime context so iroh can schedule its tasks.
         let router = {
@@ -267,17 +274,12 @@ mod tests {
     /// connection here because a `Device`'s client is process-cached and never dropped mid-test.
     #[test]
     fn test_client_disconnect_handled_cleanly_by_server() {
-        type Client = burn_communication::websocket::WsClient;
-
         let rt = tokio::runtime::Builder::new_multi_thread()
             .enable_io()
             .build()
             .unwrap();
 
-        let address = serve(
-            &rt,
-            crate::server::RemoteServerBuilder::<Flex>::new(vec![Default::default()]),
-        );
+        let address = serve(&rt, BackendServer::<Flex>::new(vec![Default::default()]));
 
         // Raw client: connect a submit stream, init a session and send one task so the server
         // spawns the session worker, then drop the socket without a `Close` to mimic a crash.
@@ -286,30 +288,25 @@ mod tests {
                 .enable_all()
                 .build()
                 .unwrap();
-            let server = burn_communication::Address::from_str(&address).unwrap();
+            let server = Address::from_str(&address).unwrap();
             let session_id = SessionId::new();
 
             rtc.block_on(async {
-                let mut submit = Client::connect(server, "session")
+                let (mut submit, _responses) = WsClient::connect(server, "session")
                     .await
-                    .expect("raw session connect");
+                    .expect("raw session connect")
+                    .split();
 
-                let frame = |msgs: Vec<RemoteMessage>| -> Message {
-                    Message::new(rmp_serde::to_vec(&msgs).unwrap().into())
-                };
-
-                submit
-                    .send(frame(vec![RemoteMessage::Init(
-                        crate::shared::SessionInit::new(session_id, 0, vec![]),
-                    )]))
+                let init = vec![RemoteMessage::Init(SessionInit::new(session_id, 0, vec![]))];
+                FrameSink::send(&mut submit, init.encode().unwrap().into_bytes())
                     .await
                     .expect("send init");
-                submit
-                    .send(frame(vec![RemoteMessage::Task(Task::Seed(0))]))
+                MessageSink::new(submit)
+                    .send(vec![RemoteMessage::Task(Task::Seed(0))].encode().unwrap())
                     .await
                     .expect("send task");
-                // Drop `submit` here (end of block): the server sees the stream end without a
-                // `Close` and must run the cleanup path.
+                // The socket drops at the end of this block: the server sees the stream end
+                // without a `Close` and must run the cleanup path.
             });
         }
 
@@ -334,11 +331,79 @@ mod tests {
 
         rt.shutdown_timeout(std::time::Duration::from_millis(100));
     }
+
+    /// The handshake reply stays one bare frame, so a client on the previous protocol version
+    /// reads which version the server speaks instead of failing to decode the reply.
+    #[test]
+    fn a_client_on_the_previous_protocol_version_is_told_the_servers_version() {
+        let rt = tokio::runtime::Builder::new_multi_thread()
+            .enable_io()
+            .build()
+            .unwrap();
+        let address = serve(&rt, BackendServer::<Flex>::new(vec![Default::default()]));
+        let mut init = SessionInit::new(SessionId::new(), 0, vec![]);
+        init.version = PROTOCOL_VERSION - 1;
+
+        let reply = first_reply(
+            &address,
+            rmp_serde::to_vec(&vec![RemoteMessage::Init(init)]).unwrap(),
+        )
+        .expect("the server closed the session without a reply");
+
+        let reply: TaskResponse = rmp_serde::from_slice(&reply).unwrap();
+        assert!(
+            matches!(
+                reply.content,
+                TaskResponseContent::InitRefused(SessionRefusal::IncompatibleProtocol {
+                    server_version: PROTOCOL_VERSION
+                })
+            ),
+            "{reply:?}"
+        );
+        rt.shutdown_background();
+    }
+
+    /// The first frame is read before the authorizer runs, so one over the limit for frames from
+    /// a peer not yet authorized ends the session unanswered.
+    #[test]
+    fn a_first_frame_over_the_unauthorized_limit_is_dropped_unanswered() {
+        let rt = tokio::runtime::Builder::new_multi_thread()
+            .enable_io()
+            .build()
+            .unwrap();
+        let address = serve(&rt, BackendServer::<Flex>::new(vec![Default::default()]));
+
+        let reply = first_reply(&address, vec![0; MAX_UNAUTHORIZED_FRAME_SIZE + 1]);
+
+        assert_eq!(reply, None);
+        rt.shutdown_background();
+    }
+
+    /// The server's answer to `frame`, sent first on a raw session socket, or `None` when it
+    /// closes the socket instead.
+    fn first_reply(address: &str, frame: Vec<u8>) -> Option<Bytes> {
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+        rt.block_on(async {
+            let mut channel = WsClient::connect(Address::from_str(address).unwrap(), "session")
+                .await
+                .expect("raw session connect");
+            let _ = channel.send(Message::new(frame.into())).await;
+            let reply = tokio::time::timeout(std::time::Duration::from_secs(10), channel.recv())
+                .await
+                .expect("the server neither answered nor closed the session");
+            reply.ok().flatten().map(|message| message.data)
+        })
+    }
 }
 
 #[cfg(all(test, feature = "fusion", feature = "server"))]
 mod fusion_tests {
-    use crate::{RemoteBackend, RemoteDevice, client::RemoteChannel, tests::serve};
+    use crate::{
+        RemoteBackend, RemoteDevice, client::RemoteChannel, server::BackendServer, tests::serve,
+    };
     use burn_backend::{Backend, Shape, TensorData};
     use burn_router::BackendRouter;
 
@@ -386,11 +451,11 @@ mod fusion_tests {
 
         let plain_address = serve(
             &rt,
-            crate::server::RemoteServerBuilder::<burn_flex::Flex>::new(vec![Default::default()]),
+            BackendServer::<burn_flex::Flex>::new(vec![Default::default()]),
         );
         let fused_address = serve(
             &rt,
-            crate::server::RemoteServerBuilder::<burn_flex::Flex>::new(vec![Default::default()]),
+            BackendServer::<burn_flex::Flex>::new(vec![Default::default()]),
         );
 
         let plain_device = RemoteDevice::websocket(&plain_address, 0);
@@ -433,18 +498,19 @@ mod fusion_tests {
             .build()
             .unwrap();
 
-        let address =
-            serve(
-                &rt,
-                crate::server::RemoteServerBuilder::<Flex>::new(vec![Default::default()])
-                    .custom_op("make_floats", |handles, ir, device| {
-                        // Build a 1-D float tensor from the op's scalars: a pure source, with no inputs.
-                        let values: Vec<f32> = ir.scalars.iter().map(|s| s.elem::<f32>()).collect();
-                        let n = values.len();
-                        let tensor = Flex::float_from_data(TensorData::new(values, [n]), device);
-                        handles.register_float_tensor::<Flex>(&ir.outputs[0].id, tensor);
-                    }),
-            );
+        let address = serve(
+            &rt,
+            BackendServer::<Flex>::new(vec![Default::default()]).with_custom_op(
+                "make_floats",
+                |handles, ir, device| {
+                    // Build a 1-D float tensor from the op's scalars: a pure source, with no inputs.
+                    let values: Vec<f32> = ir.scalars.iter().map(|s| s.elem::<f32>()).collect();
+                    let n = values.len();
+                    let tensor = Flex::float_from_data(TensorData::new(values, [n]), device);
+                    handles.register_float_tensor::<Flex>(&ir.outputs[0].id, tensor);
+                },
+            ),
+        );
 
         let device = RemoteDevice::websocket(&address, 0);
 
@@ -500,17 +566,18 @@ mod fusion_tests {
             .build()
             .unwrap();
 
-        let address =
-            serve(
-                &rt,
-                crate::server::RemoteServerBuilder::<Flex>::new(vec![Default::default()])
-                    .custom_op("make_floats", |handles, ir, device| {
-                        let values: Vec<f32> = ir.scalars.iter().map(|s| s.elem::<f32>()).collect();
-                        let n = values.len();
-                        let tensor = Flex::float_from_data(TensorData::new(values, [n]), device);
-                        handles.register_float_tensor::<Flex>(&ir.outputs[0].id, tensor);
-                    }),
-            );
+        let address = serve(
+            &rt,
+            BackendServer::<Flex>::new(vec![Default::default()]).with_custom_op(
+                "make_floats",
+                |handles, ir, device| {
+                    let values: Vec<f32> = ir.scalars.iter().map(|s| s.elem::<f32>()).collect();
+                    let n = values.len();
+                    let tensor = Flex::float_from_data(TensorData::new(values, [n]), device);
+                    handles.register_float_tensor::<Flex>(&ir.outputs[0].id, tensor);
+                },
+            ),
+        );
 
         let device = RemoteDevice::websocket(&address, 0);
 
@@ -561,20 +628,21 @@ mod fusion_tests {
             .build()
             .unwrap();
 
-        let address =
-            serve(
-                &rt,
-                crate::server::RemoteServerBuilder::<Flex>::new(vec![Default::default()])
-                    .custom_op("make3", |handles, ir, device| {
-                        // 9 scalars → three [3] outputs (chunks of 3).
-                        let values: Vec<f32> = ir.scalars.iter().map(|s| s.elem::<f32>()).collect();
-                        for (i, out) in ir.outputs.iter().enumerate() {
-                            let chunk = values[i * 3..(i + 1) * 3].to_vec();
-                            let tensor = Flex::float_from_data(TensorData::new(chunk, [3]), device);
-                            handles.register_float_tensor::<Flex>(&out.id, tensor);
-                        }
-                    }),
-            );
+        let address = serve(
+            &rt,
+            BackendServer::<Flex>::new(vec![Default::default()]).with_custom_op(
+                "make3",
+                |handles, ir, device| {
+                    // 9 scalars → three [3] outputs (chunks of 3).
+                    let values: Vec<f32> = ir.scalars.iter().map(|s| s.elem::<f32>()).collect();
+                    for (i, out) in ir.outputs.iter().enumerate() {
+                        let chunk = values[i * 3..(i + 1) * 3].to_vec();
+                        let tensor = Flex::float_from_data(TensorData::new(chunk, [3]), device);
+                        handles.register_float_tensor::<Flex>(&out.id, tensor);
+                    }
+                },
+            ),
+        );
 
         let device = RemoteDevice::websocket(&address, 0);
 
@@ -644,17 +712,18 @@ mod fusion_tests {
             .build()
             .unwrap();
 
-        let address =
-            serve(
-                &rt,
-                crate::server::RemoteServerBuilder::<Flex>::new(vec![Default::default()])
-                    .custom_op("make_floats", |handles, ir, device| {
-                        let values: Vec<f32> = ir.scalars.iter().map(|s| s.elem::<f32>()).collect();
-                        let n = values.len();
-                        let tensor = Flex::float_from_data(TensorData::new(values, [n]), device);
-                        handles.register_float_tensor::<Flex>(&ir.outputs[0].id, tensor);
-                    }),
-            );
+        let address = serve(
+            &rt,
+            BackendServer::<Flex>::new(vec![Default::default()]).with_custom_op(
+                "make_floats",
+                |handles, ir, device| {
+                    let values: Vec<f32> = ir.scalars.iter().map(|s| s.elem::<f32>()).collect();
+                    let n = values.len();
+                    let tensor = Flex::float_from_data(TensorData::new(values, [n]), device);
+                    handles.register_float_tensor::<Flex>(&ir.outputs[0].id, tensor);
+                },
+            ),
+        );
 
         let device = RemoteDevice::websocket(&address, 0);
 

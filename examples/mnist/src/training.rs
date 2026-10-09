@@ -133,7 +133,8 @@ pub fn run(device: Device) {
         .metrics((AccuracyMetric::new(), LossMetric::new()))
         .summary()
         .build(result.model.clone())
-        .eval_all(splits);
+        .eval_all(splits)
+        .renderer;
 
     result
         .model

@@ -59,7 +59,7 @@ fn one_hot_fill_with_positive_axis_and_indices() {
 }
 
 // I64 is not supported on every backend (e.g. WGSL has no i64)
-#[cfg(any(feature = "flex", feature = "ndarray"))]
+#[cfg(feature = "flex")]
 #[test]
 fn one_hot_fill_should_keep_dtype() {
     let tensor = TestTensorInt::<1>::from([0, 2]).cast(burn_tensor::DType::I64);
@@ -73,7 +73,7 @@ fn one_hot_fill_should_keep_dtype() {
 }
 
 // U32 is not supported on every backend
-#[cfg(any(feature = "flex", feature = "ndarray"))]
+#[cfg(feature = "flex")]
 #[test]
 fn one_hot_fill_unsigned_with_on_value_below_off_value() {
     // `on_value - off_value` would underflow in an unsigned dtype

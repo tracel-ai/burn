@@ -269,14 +269,6 @@ pub enum DispatchTensorKind {
     #[cfg(feature = "flex")]
     Flex(BackendTensor<Flex>),
 
-    /// The [NdArray backend](NdArray) tensor.
-    #[cfg(feature = "ndarray")]
-    NdArray(BackendTensor<NdArray>),
-
-    /// The [LibTorch backend](LibTorch) tensor.
-    #[cfg(feature = "tch")]
-    LibTorch(BackendTensor<LibTorch>),
-
     /// The [Remote backend](Remote) tensor (lives on a remote server).
     #[cfg(feature = "remote")]
     Remote(BackendTensor<Remote>),
@@ -300,10 +292,6 @@ impl TensorMetadata for DispatchTensorKind {
             Self::Cube(tensor) => tensor.dtype(),
             #[cfg(feature = "flex")]
             Self::Flex(tensor) => tensor.dtype(),
-            #[cfg(feature = "ndarray")]
-            Self::NdArray(tensor) => tensor.dtype(),
-            #[cfg(feature = "tch")]
-            Self::LibTorch(tensor) => tensor.dtype(),
             #[cfg(feature = "remote")]
             Self::Remote(tensor) => tensor.dtype(),
             #[cfg(feature = "capture")]
@@ -321,10 +309,6 @@ impl TensorMetadata for DispatchTensorKind {
             Self::Cube(tensor) => tensor.shape(),
             #[cfg(feature = "flex")]
             Self::Flex(tensor) => tensor.shape(),
-            #[cfg(feature = "ndarray")]
-            Self::NdArray(tensor) => tensor.shape(),
-            #[cfg(feature = "tch")]
-            Self::LibTorch(tensor) => tensor.shape(),
             #[cfg(feature = "remote")]
             Self::Remote(tensor) => tensor.shape(),
             #[cfg(feature = "capture")]
@@ -342,10 +326,6 @@ impl TensorMetadata for DispatchTensorKind {
             DispatchTensorKind::Cube(tensor) => DispatchDevice::Cube(tensor.device()),
             #[cfg(feature = "flex")]
             DispatchTensorKind::Flex(tensor) => DispatchDevice::Flex(tensor.device()),
-            #[cfg(feature = "ndarray")]
-            DispatchTensorKind::NdArray(tensor) => DispatchDevice::NdArray(tensor.device()),
-            #[cfg(feature = "tch")]
-            DispatchTensorKind::LibTorch(tensor) => DispatchDevice::LibTorch(tensor.device()),
             #[cfg(feature = "remote")]
             DispatchTensorKind::Remote(tensor) => DispatchDevice::Remote(tensor.device()),
             #[cfg(feature = "capture")]
@@ -363,10 +343,6 @@ impl TensorMetadata for DispatchTensorKind {
             Self::Cube(tensor) => tensor.can_mut(),
             #[cfg(feature = "flex")]
             Self::Flex(tensor) => tensor.can_mut(),
-            #[cfg(feature = "ndarray")]
-            Self::NdArray(tensor) => tensor.can_mut(),
-            #[cfg(feature = "tch")]
-            Self::LibTorch(tensor) => tensor.can_mut(),
             #[cfg(feature = "remote")]
             Self::Remote(tensor) => tensor.can_mut(),
             #[cfg(feature = "capture")]
@@ -434,10 +410,6 @@ impl DispatchTensorKind {
             DispatchTensorKind::Cube(_) => "Cube",
             #[cfg(feature = "flex")]
             DispatchTensorKind::Flex(_) => "Flex",
-            #[cfg(feature = "ndarray")]
-            DispatchTensorKind::NdArray(_) => "NdArray",
-            #[cfg(feature = "tch")]
-            DispatchTensorKind::LibTorch(_) => "LibTorch",
             #[cfg(feature = "remote")]
             DispatchTensorKind::Remote(_) => "Remote",
             #[cfg(feature = "capture")]
@@ -600,5 +572,3 @@ impl_dispatch_conversion!(Cube, cube_backend);
 impl_dispatch_conversion!(Flex, feature = "flex");
 impl_dispatch_conversion!(Remote, feature = "remote");
 impl_dispatch_conversion!(Capture, feature = "capture");
-impl_dispatch_conversion!(NdArray, feature = "ndarray");
-impl_dispatch_conversion!(LibTorch, feature = "tch");
