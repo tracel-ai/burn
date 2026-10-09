@@ -261,7 +261,10 @@ impl ZipSource {
         let rest = size - skipped;
         let len = rest.min(max_len as u64);
 
-        if cfg!(unix) && entry.compression() == CompressionMethod::Stored {
+        // A buffer is sliced on every target. A file needs a positional read that leaves
+        // the archive stream's cursor alone, which only Unix has (see `read_exact_at`).
+        let direct = matches!(self.backing, Backing::Memory(_)) || cfg!(unix);
+        if direct && entry.compression() == CompressionMethod::Stored {
             // Every entry `torch.save` writes is stored, so this is the path tensors take.
             if entry.compressed_size() != size {
                 return Err(invalid_data(format!(
