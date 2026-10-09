@@ -2144,54 +2144,6 @@ fn rejects_safetensors_whose_header_length_looks_like_a_pickle_opcode() {
 }
 
 #[test]
-fn from_bytes_reads_legacy() {
-    let bytes = std::fs::read(test_data_path("simple_legacy.pt")).unwrap();
-    let reader = PytorchReader::from_bytes(bytes, None).unwrap();
-    assert!(reader.get("bias").is_some());
-    let file_reader = PytorchReader::new(test_data_path("simple_legacy.pt")).unwrap();
-    assert_eq!(
-        reader.get("bias").unwrap().read().unwrap(),
-        file_reader.get("bias").unwrap().read().unwrap(),
-    );
-}
-
-#[test]
-fn from_bytes_reads_tar() {
-    let bytes = std::fs::read(test_data_path("tar_weight_bias.tar")).unwrap();
-    let reader = PytorchReader::from_bytes(bytes, None).unwrap();
-    let file_reader = PytorchReader::new(test_data_path("tar_weight_bias.tar")).unwrap();
-
-    let keys = reader.keys();
-    assert!(!keys.is_empty(), "expected at least one tensor");
-
-    for key in &keys {
-        assert_eq!(
-            reader.get(key).unwrap().read().unwrap(),
-            file_reader.get(key).unwrap().read().unwrap(),
-            "mismatch for tensor '{key}'",
-        );
-    }
-}
-
-#[test]
-fn from_bytes_reads_zip() {
-    let bytes = std::fs::read(test_data_path("checkpoint.pt")).unwrap();
-    let reader = PytorchReader::from_bytes(bytes, None).unwrap();
-    let file_reader = PytorchReader::new(test_data_path("checkpoint.pt")).unwrap();
-
-    let keys = reader.keys();
-    assert!(!keys.is_empty(), "expected at least one tensor");
-
-    for key in &keys {
-        assert_eq!(
-            reader.get(key).unwrap().read().unwrap(),
-            file_reader.get(key).unwrap().read().unwrap(),
-            "mismatch for tensor '{key}'",
-        );
-    }
-}
-
-#[test]
 fn from_bytes_reads_plain_pickle() {
     let dir = tempfile::tempdir().unwrap();
     let path = write_pickle(&dir, "plain.pkl", TORCH_DEVICE_BESIDE_INT);
@@ -2207,4 +2159,42 @@ fn from_bytes_reads_plain_pickle() {
     );
     assert!(reader.keys().is_empty());
     assert!(file_reader.keys().is_empty());
+}
+
+/// Load `name` through `from_bytes` and through the file path, and check both readers
+/// hold the same tensor names and the same data under each.
+fn assert_from_bytes_matches_file(name: &str) {
+    let bytes = std::fs::read(test_data_path(name)).unwrap();
+    let reader = PytorchReader::from_bytes(bytes, None).unwrap();
+    let file_reader = PytorchReader::new(test_data_path(name)).unwrap();
+
+    let mut keys = reader.keys();
+    let mut file_keys = file_reader.keys();
+    keys.sort();
+    file_keys.sort();
+    assert!(!file_keys.is_empty(), "expected at least one tensor");
+    assert_eq!(keys, file_keys, "tensor names differ");
+
+    for key in &file_keys {
+        assert_eq!(
+            reader.get(key).unwrap().read().unwrap(),
+            file_reader.get(key).unwrap().read().unwrap(),
+            "mismatch for tensor '{key}'",
+        );
+    }
+}
+
+#[test]
+fn from_bytes_reads_legacy() {
+    assert_from_bytes_matches_file("simple_legacy.pt");
+}
+
+#[test]
+fn from_bytes_reads_tar() {
+    assert_from_bytes_matches_file("tar_weight_bias.tar");
+}
+
+#[test]
+fn from_bytes_reads_zip() {
+    assert_from_bytes_matches_file("checkpoint.pt");
 }
