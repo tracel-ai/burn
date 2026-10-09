@@ -133,6 +133,14 @@ macro_rules! adaptive_avg_pool3d_backward_typed {
 // ============================================================================
 
 /// Calculate pooling output size for a single dimension.
+///
+/// * `input` - Input size for one spatial dimension
+///
+/// # Panics
+///
+/// Panics when the padded input is strictly smaller than the kernel and the ceil overhang
+/// condition is not met. Note that this changes 1D/2D behavior from returning 0 or 1 to an
+/// explicit panic.
 fn pool_output_size(
     input: usize,
     kernel: usize,
@@ -145,22 +153,27 @@ fn pool_output_size(
     assert!(stride > 0, "pool: stride must be > 0");
     let effective_kernel = dilation * (kernel - 1) + 1;
     let padded = input + 2 * padding;
-    if padded < effective_kernel {
-        return if ceil_mode { 1 } else { 0 };
-    }
-    let numerator = padded - effective_kernel;
-    if ceil_mode {
-        let out = numerator.div_ceil(stride) + 1;
-        // Drop the last window if it would start at or past the end of the input
-        // (in the trailing padding, or beyond the input without padding) (PyTorch/ONNX)
-        if (out - 1) * stride >= input + padding {
-            out - 1
+    let mut out = if padded >= effective_kernel {
+        let numerator = padded - effective_kernel;
+        if ceil_mode {
+            numerator.div_ceil(stride) + 1
         } else {
-            out
+            numerator / stride + 1
         }
+    } else if ceil_mode && (effective_kernel - padded) < stride {
+        // Ceil mode still yields one window when the kernel overhangs the padded input by less than one stride.
+        1
     } else {
-        numerator / stride + 1
+        panic!(
+            "pool_output_size: padded input ({padded}) is smaller than effective kernel size ({effective_kernel})"
+        );
+    };
+
+    // In ceil mode, drop the trailing window if it starts at or past the end of the input.
+    if ceil_mode && (out - 1) * stride >= input + padding {
+        out -= 1;
     }
+    out
 }
 
 // ============================================================================
@@ -1197,6 +1210,18 @@ max_pool3d_backward_typed!(max_pool3d_backward_f32, f32, DType::F32, 0.0f32);
 max_pool3d_backward_typed!(max_pool3d_backward_f64, f64, DType::F64, 0.0f64);
 max_pool3d_backward_typed!(max_pool3d_backward_f16, f16, DType::F16, f16::from_f32(0.0));
 
+/// Max pool 3D backward for bf16.
+pub fn max_pool3d_backward_bf16(
+    x: FlexTensor,
+    grad: FlexTensor,
+    indices: FlexTensor,
+) -> FlexTensor {
+    let x_f32 = convert_bf16_to_f32(&x);
+    let grad_f32 = convert_bf16_to_f32(&grad);
+    let result_f32 = max_pool3d_backward_f32(x_f32, grad_f32, indices);
+    convert_f32_to_bf16(&result_f32)
+}
+
 /// Generic max pool 3D backward implementation.
 fn max_pool3d_backward_impl<T, I>(
     x: FlexTensor,
@@ -1381,6 +1406,28 @@ avg_pool3d_backward_typed!(
     f16::from_f32(0.0),
     |val: f16, count| f16::from_f32(val.to_f32() / count as f32)
 );
+
+/// Avg pool 3D backward for bf16.
+pub fn avg_pool3d_backward_bf16(
+    x: FlexTensor,
+    grad: FlexTensor,
+    kernel_size: [usize; 3],
+    stride: [usize; 3],
+    padding: [usize; 3],
+    count_include_pad: bool,
+) -> FlexTensor {
+    let x_f32 = convert_bf16_to_f32(&x);
+    let grad_f32 = convert_bf16_to_f32(&grad);
+    let result_f32 = avg_pool3d_backward_f32(
+        x_f32,
+        grad_f32,
+        kernel_size,
+        stride,
+        padding,
+        count_include_pad,
+    );
+    convert_f32_to_bf16(&result_f32)
+}
 
 /// Generic avg pool 3D backward implementation.
 #[allow(clippy::too_many_arguments)]
@@ -1763,11 +1810,18 @@ mod tests {
         // output = (7 - 3) / 1 + 1 = 5
         assert_eq!(pool_output_size(7, 2, 0, 1, 2, false), 5);
 
-        // Ceil mode drops a last window that would start in the trailing padding:
-        // input=5, kernel=2, padding=1, stride=2 -> 3 (PyTorch), not 4
+        // Discard branch: input=5, kernel=2, padding=1, stride=2, ceil_mode=true
+        // window starting at 6 >= input(5) + padding(1) is discarded -> 3
         assert_eq!(pool_output_size(5, 2, 1, 2, 1, true), 3);
+        assert_eq!(pool_output_size(5, 2, 1, 2, 1, false), 3);
         // With dilation 2 and stride 3: input=5, kernel=2, padding=1 -> 2
         assert_eq!(pool_output_size(5, 2, 1, 3, 2, true), 2);
+
+        // Floor mode must NOT discard even with large padding (padded=8, k=2, s=1 -> 7)
+        assert_eq!(pool_output_size(4, 2, 2, 1, 1, false), 7);
+
+        // When deficit (3 - 2 = 1) < stride (2), ceil mode produces 1
+        assert_eq!(pool_output_size(2, 3, 0, 2, 1, true), 1);
     }
 
     #[test]
@@ -1914,5 +1968,21 @@ mod tests {
     #[should_panic(expected = "stride must be > 0")]
     fn test_pool_output_size_zero_stride_panics() {
         pool_output_size(4, 2, 0, 0, 1, false);
+    }
+
+    #[test]
+    #[should_panic(
+        expected = "pool_output_size: padded input (1) is smaller than effective kernel size (3)"
+    )]
+    fn test_pool_output_size_degenerate_input_floor_panics() {
+        pool_output_size(1, 3, 0, 1, 1, false);
+    }
+
+    #[test]
+    #[should_panic(
+        expected = "pool_output_size: padded input (1) is smaller than effective kernel size (3)"
+    )]
+    fn test_pool_output_size_degenerate_input_ceil_panics() {
+        pool_output_size(1, 3, 0, 1, 1, true);
     }
 }
