@@ -1,4 +1,4 @@
-use burn_dispatch::{Dispatch, DispatchDevice, backends::GroupPlacement};
+use burn_dispatch::{DispatchDevice, backends::GroupPlacement};
 
 use crate::{
     Device, Tensor,
@@ -20,7 +20,7 @@ impl<const D: usize, K: Basic> Tensor<D, K> {
     /// group.
     pub fn place_in_group(self, placement: GroupPlacement) -> Self {
         let (kind, tensor) = self.primitive.into_parts();
-        let placed = Dispatch::place_in_group(tensor, placement);
+        let placed = tensor.place_in_group(placement);
         Self::new(match kind {
             BridgeKind::Float => BridgeTensor::float(placed),
             BridgeKind::Int => BridgeTensor::int(placed),
@@ -32,7 +32,7 @@ impl<const D: usize, K: Basic> Tensor<D, K> {
     /// Where the tensor's shards sit on its device group, or `None` when it is not on one.
     pub fn group_placement(&self) -> Option<GroupPlacement> {
         let (_, tensor) = self.primitive.as_parts();
-        Dispatch::group_placement(tensor)
+        tensor.group_placement()
     }
 }
 

@@ -14,11 +14,11 @@ use burn_autodiff::{
 use burn_backend::{Backend, tensor::FloatTensor};
 use burn_group::GroupPlacement;
 
-use crate::{BackendTensor, Dispatch, DispatchTensor, DispatchTensorKind, backends::Group};
+use crate::{BackendTensor, DispatchTensor, DispatchTensorKind, backends::Group};
 #[cfg(feature = "autodiff")]
 use crate::{DispatchAutodiffContext, GradientCheckpointingStrategy, backends::Autodiff};
 
-impl Dispatch {
+impl DispatchTensor {
     /// The same value at another placement over its device group.
     ///
     /// A tracked autodiff tensor records the move: its gradient flows back through it unchanged,
@@ -28,11 +28,11 @@ impl Dispatch {
     ///
     /// When the tensor is not on a device group, or no collective produces `placement`: a
     /// partial sum out of a whole tensor, or a split along a dim shorter than the group.
-    pub fn place_in_group(tensor: DispatchTensor, placement: GroupPlacement) -> DispatchTensor {
-        let DispatchTensor { kind, autodiff } = tensor;
+    pub fn place_in_group(self, placement: GroupPlacement) -> Self {
+        let DispatchTensor { kind, autodiff } = self;
         let kind = match kind {
             DispatchTensorKind::Group(tensor) => {
-                DispatchTensorKind::Group(place_backend_tensor(tensor, placement))
+                DispatchTensorKind::Group(tensor.place_in_group(placement))
             }
             #[cfg(feature = "autodiff")]
             DispatchTensorKind::Autodiff(inner) => {
@@ -44,10 +44,10 @@ impl Dispatch {
                 };
                 let placed = match checkpointing {
                     GradientCheckpointingStrategy::Balanced => {
-                        Place::record::<BalancedCheckpointing>(tensor, placement)
+                        PlaceInGroup::record::<BalancedCheckpointing>(tensor, placement)
                     }
                     GradientCheckpointingStrategy::Disabled => {
-                        Place::record::<NoCheckpointing>(tensor, placement)
+                        PlaceInGroup::record::<NoCheckpointing>(tensor, placement)
                     }
                 };
                 DispatchTensorKind::Autodiff(Box::new(DispatchTensorKind::Group(
@@ -61,8 +61,8 @@ impl Dispatch {
     }
 
     /// Where the tensor's shards sit, or `None` when it is not on a device group.
-    pub fn group_placement(tensor: &DispatchTensor) -> Option<GroupPlacement> {
-        let primitive = match &tensor.kind {
+    pub fn group_placement(&self) -> Option<GroupPlacement> {
+        let primitive = match &self.kind {
             DispatchTensorKind::Group(
                 BackendTensor::Float(tensor)
                 | BackendTensor::Int(tensor)
@@ -79,13 +79,13 @@ impl Dispatch {
     }
 }
 
-/// The autodiff record of a move between placements.
+/// [`DispatchTensor::place_in_group`] on a tracked tensor, recorded so its gradient flows back.
 #[cfg(feature = "autodiff")]
 #[derive(Debug)]
-struct Place;
+struct PlaceInGroup;
 
 #[cfg(feature = "autodiff")]
-impl Place {
+impl PlaceInGroup {
     fn record<C: CheckpointStrategy>(
         tensor: FloatTensor<Autodiff<Group>>,
         placement: GroupPlacement,
@@ -93,14 +93,14 @@ impl Place {
         let node = tensor.node();
         let inner = tensor.into_primitive();
         let placed = inner.client.clone().place(inner, placement);
-        <Place as Backward<Group, 1>>::prepare::<C>(Place, [node])
+        <PlaceInGroup as Backward<Group, 1>>::prepare::<C>(PlaceInGroup, [node])
             .compute_bound()
             .stateless(placed)
     }
 }
 
 #[cfg(feature = "autodiff")]
-impl<B: Backend> Backward<B, 1> for Place {
+impl<B: Backend> Backward<B, 1> for PlaceInGroup {
     type State = ();
 
     fn backward(self, ops: Ops<(), 1>, grads: &mut Gradients, _: &mut Checkpointer) {
@@ -108,24 +108,25 @@ impl<B: Backend> Backward<B, 1> for Place {
     }
 }
 
-fn place_backend_tensor(
-    tensor: BackendTensor<Group>,
-    placement: GroupPlacement,
-) -> BackendTensor<Group> {
-    match tensor {
-        BackendTensor::Float(tensor) => {
-            BackendTensor::Float(tensor.client.clone().place(tensor, placement))
+impl BackendTensor<Group> {
+    fn place_in_group(self, placement: GroupPlacement) -> Self {
+        match self {
+            BackendTensor::Float(tensor) => {
+                BackendTensor::Float(tensor.client.clone().place(tensor, placement))
+            }
+            BackendTensor::Int(tensor) => {
+                BackendTensor::Int(tensor.client.clone().place(tensor, placement))
+            }
+            BackendTensor::Bool(tensor) => {
+                BackendTensor::Bool(tensor.client.clone().place(tensor, placement))
+            }
+            BackendTensor::Quantized(_) => {
+                panic!("A quantized tensor is not split over a device group")
+            }
+            #[cfg(feature = "autodiff")]
+            BackendTensor::Autodiff(_) => {
+                unreachable!("An autodiff tensor is wrapped in its own kind")
+            }
         }
-        BackendTensor::Int(tensor) => {
-            BackendTensor::Int(tensor.client.clone().place(tensor, placement))
-        }
-        BackendTensor::Bool(tensor) => {
-            BackendTensor::Bool(tensor.client.clone().place(tensor, placement))
-        }
-        BackendTensor::Quantized(_) => {
-            panic!("A quantized tensor is not split over a device group")
-        }
-        #[cfg(feature = "autodiff")]
-        BackendTensor::Autodiff(_) => unreachable!("An autodiff tensor is wrapped in its own kind"),
     }
 }
