@@ -11,7 +11,9 @@ use crate::{
     CubeAutotuneKey, CubeTuneId,
     kernel::conv::{
         ConvAutotuneKey,
-        backward_weight::{fallback::conv_weight_backward_fallback, implicit_gemm::*},
+        backward_weight::{
+            depthwise::wgrad_depthwise, fallback::conv_weight_backward_fallback, implicit_gemm::*,
+        },
         im2col::{wgrad_im2col, wgrad_im2col_1x1, wgrad_im2col_1x1_split},
     },
     tensor::CubeTensor,
@@ -36,6 +38,10 @@ pub fn wgrad_autotune<const N: usize>(
                 |(input, grad, shape, options)| {
                     conv_weight_backward_fallback::<N>(input, grad, shape, options)
                 },
+            ))
+            .with(Tunable::new(
+                "wgrad_depthwise_tiled",
+                |(input, grad, shape, options)| wgrad_depthwise::<N>(input, grad, shape, options),
             ))
             // The dense case, which the two pointwise candidates decline and
             // the fallback computes as a convolution by the gradient.
@@ -156,7 +162,7 @@ fn create_key<const N: usize>(
     };
     let rhs_shape_align = pow2_factor(in_channels).min(rhs_stride_align);
 
-    CubeAutotuneKey::Conv(ConvAutotuneKey::new(
+    let mut key = ConvAutotuneKey::new(
         kernel_size,
         stride.to_vec(),
         padding.to_vec(),
@@ -172,7 +178,13 @@ fn create_key<const N: usize>(
         lhs_stride_align,
         rhs_shape_align,
         rhs_stride_align,
-    ))
+    );
+    // Depthwise eligibility depends on groups == input channels. At the
+    // minimal tune level, anchoring can put C and 2*C in the same bucket,
+    // even though the latter is a grouped convolution with two inputs per
+    // group. A cached depthwise selection must not serve that problem.
+    key.in_channels = in_channels;
+    CubeAutotuneKey::Conv(key)
 }
 
 /// Maximum factor relevant for strides. Currently set to 2^10 because that's 128-byte swizzle's
