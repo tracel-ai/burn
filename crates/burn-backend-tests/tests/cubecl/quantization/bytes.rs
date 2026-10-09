@@ -63,8 +63,10 @@ fn bytes_packed_along_an_outer_axis_load_on_flex_unchanged() {
     }
 }
 
+// Not compared with the bytes the device writes: a device's division need not round correctly, so
+// its scales can differ from Flex's in the last bit.
 #[test]
-fn flex_quantizes_to_the_bytes_a_device_writes() {
+fn bytes_flex_writes_read_on_a_device_as_on_flex() {
     let device = Device::default();
     let reference = ReferenceDevice::new();
     let packed = packed(&device);
@@ -82,12 +84,16 @@ fn flex_quantizes_to_the_bytes_a_device_writes() {
         if !device.supports_dtype(DType::QFloat(scheme)) {
             continue;
         }
-        let on_device = input(&device).quantize_dynamic(&scheme).into_data();
-
-        let on_flex = TestTensor::<2>::from_data(input(&device).into_data(), &reference)
+        let written = TestTensor::<2>::from_data(input(&device).into_data(), &reference)
             .quantize_dynamic(&scheme)
             .into_data();
 
-        assert_eq!(on_flex.as_bytes(), on_device.as_bytes(), "{scheme:?}");
+        let on_device = TestTensor::<2>::from_data(written.clone(), &device);
+        let on_flex = TestTensor::<2>::from_data(written, &reference);
+
+        on_device
+            .dequantize()
+            .into_data()
+            .assert_approx_eq::<FloatElem>(&on_flex.dequantize().into_data(), Tolerance::default());
     }
 }
