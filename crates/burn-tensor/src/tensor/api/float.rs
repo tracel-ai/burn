@@ -106,13 +106,12 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     /// strategy as [`round`](Self::round), and `decimals == 0` is equivalent to
     /// [`round`](Self::round).
     ///
-    /// The scaling is fast but inexact, so rounding a value whose magnitude is
-    /// already near the largest representable value can overflow to infinity. This
-    /// mirrors the caveat documented for `torch.round`.
+    /// Scaling is inexact and can overflow in the tensor's dtype, producing infinity
+    /// or NaN, particularly for low-precision dtypes or large absolute decimal counts.
     ///
     /// # Panics
     ///
-    /// Panics if the `10^decimals` scale factor cannot be represented by an `f64`.
+    /// Panics if the scale factor `10^|decimals|` exceeds the finite range of `f64`.
     ///
     /// # Example
     /// ```rust
