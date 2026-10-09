@@ -713,6 +713,16 @@ fn test_attention_kv_heads_must_divide_query_heads() {
     let _ = attention(query, key, value, None, None, Default::default());
 }
 
+#[test]
+#[should_panic(expected = "head_dim must be non-zero")]
+fn test_attention_zero_head_dim() {
+    let device = Default::default();
+    let query = TestTensor::<4>::zeros([1, 2, 2, 0], &device);
+    let key = TestTensor::<4>::zeros([1, 2, 2, 0], &device);
+    let value = TestTensor::<4>::zeros([1, 2, 2, 8], &device);
+    let _ = attention(query, key, value, None, None, Default::default());
+}
+
 /// `CausalAlignment::TopLeft` hides key `j` from query `i` when `j > i`, whatever the
 /// sequence lengths; `BottomRight` when `j > i + seq_k - seq_q`.
 #[test]

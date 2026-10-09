@@ -53,6 +53,7 @@ impl AttentionShapes {
             "attention: batch mismatch (query {batch}, key {k_batch}, value {v_batch})"
         );
         assert_eq!(k_dim, head_dim, "attention: key head_dim mismatch");
+        assert!(head_dim > 0, "attention: head_dim must be non-zero");
         assert_eq!(
             v_heads, kv_heads,
             "attention: key and value head counts differ"
