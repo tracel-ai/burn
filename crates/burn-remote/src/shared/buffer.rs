@@ -24,9 +24,9 @@ impl BufferPool {
     /// message is not held for the life of the process.
     const MAX_KEPT: usize = 32 * 1024 * 1024;
 
-    /// The bytes the pool hands out before a buffer kept all along is stale, and may make way for
-    /// one returned to a full pool: about what a round trip of a message as large as the pool hands
-    /// out, so buffers every round trip reuses are taken again before they go stale.
+    /// The bytes of requests up to `MAX_KEPT` before a buffer kept all along is stale: about a
+    /// round trip of a message as large as the pool, so buffers every round trip reuses never go
+    /// stale. A larger request is not counted, since no kept buffer could serve it.
     const STALE_AFTER: u64 = 4 * Self::MAX_KEPT as u64;
 
     const fn new() -> Self {
