@@ -1200,6 +1200,7 @@ dependencies = [
  "burn-capture",
  "burn-cubecl",
  "burn-flex",
+ "burn-group",
  "burn-remote",
  "paste",
  "portable-atomic",
@@ -1242,6 +1243,19 @@ dependencies = [
  "serde",
  "spin 0.12.3",
  "tracing",
+]
+
+[[package]]
+name = "burn-group"
+version = "0.22.0"
+dependencies = [
+ "burn-autodiff",
+ "burn-backend",
+ "burn-flex",
+ "burn-ir",
+ "burn-router",
+ "burn-std",
+ "burn-tensor",
 ]
 
 [[package]]

@@ -196,6 +196,7 @@ burn-dispatch = { path = "crates/burn-dispatch", version = "0.22.0", default-fea
 burn-einsum = { path = "crates/burn-einsum", version = "0.22.0", default-features = false }
 burn-flex = { path = "crates/burn-flex", version = "0.22.0", default-features = false }
 burn-fusion = { path = "crates/burn-fusion", version = "0.22.0", default-features = false }
+burn-group = { path = "crates/burn-group", version = "0.22.0", default-features = false }
 burn-ir = { path = "crates/burn-ir", version = "0.22.0", default-features = false }
 burn-linalg = { path = "crates/burn-linalg", version = "0.22.0", default-features = false }
 burn-nn = { path = "crates/burn-nn", version = "0.22.0", default-features = false }

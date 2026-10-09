@@ -52,6 +52,8 @@ remote-server = ["remote", "burn-dispatch/remote-server"]
 # Add the WebSocket transport, for clients and servers.
 remote-websocket = ["remote", "burn-dispatch/remote-websocket"]
 capture = ["burn-dispatch/capture", "dep:burn-capture"]
+# Tensors split over a group of devices.
+group = ["burn-dispatch/group"]
 
 # For backend extensions
 extension = []

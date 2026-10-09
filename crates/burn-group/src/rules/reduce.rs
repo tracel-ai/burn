@@ -1,0 +1,73 @@
+use crate::{GroupPlacement, OpPlacement};
+
+/// The dims an op reduces, or reads whole.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Reduction {
+    /// Every dim, down to a single element.
+    All,
+    /// One dim, kept with length 1.
+    Dim(usize),
+}
+
+impl Reduction {
+    pub fn contains(self, dim: usize) -> bool {
+        match self {
+            Reduction::All => true,
+            Reduction::Dim(reduced) => reduced == dim,
+        }
+    }
+}
+
+/// For a float sum or mean: linear, so a partial input stays partial, and a reduction over the
+/// split dim leaves one summand per member.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ReduceRule {
+    /// Each member reduces its shard, and the output keeps the input's placement.
+    Local { placement: GroupPlacement },
+    /// The split dim is reduced: each member's result is a summand.
+    AcrossMembers { dim: usize },
+}
+
+impl ReduceRule {
+    pub fn new(input: GroupPlacement, reduction: Reduction) -> Self {
+        match input {
+            GroupPlacement::Sharded { dim } if reduction.contains(dim) => {
+                Self::AcrossMembers { dim }
+            }
+            placement => Self::Local { placement },
+        }
+    }
+
+    pub fn placement(&self) -> OpPlacement<1> {
+        let (input, output) = match *self {
+            Self::Local { placement } => (placement, placement),
+            Self::AcrossMembers { dim } => {
+                (GroupPlacement::Sharded { dim }, GroupPlacement::Partial)
+            }
+        };
+        OpPlacement {
+            inputs: [input],
+            output,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use GroupPlacement::{Partial, Sharded};
+
+    #[test]
+    fn reducing_the_split_dim_leaves_a_summand_per_member() {
+        let rule = ReduceRule::new(Sharded { dim: 1 }, Reduction::Dim(1));
+
+        assert_eq!(rule.placement().output, Partial);
+    }
+
+    #[test]
+    fn reducing_another_dim_keeps_the_split() {
+        let rule = ReduceRule::new(Sharded { dim: 1 }, Reduction::Dim(0));
+
+        assert_eq!(rule.placement().output, Sharded { dim: 1 });
+    }
+}

@@ -57,6 +57,8 @@ remote-server = ["remote", "burn-remote/server"]
 # Add the legacy WebSocket transport.
 remote-websocket = ["remote", "burn-remote/websocket"]
 capture = ["burn-capture"]
+# Tensors split over a group of devices.
+group = ["std", "burn-group"]
 
 # Backend features
 persistence = ["burn-cubecl?/persistence"]
@@ -90,6 +92,7 @@ burn-flex = { workspace = true, optional = true }
 
 burn-remote = { workspace = true, optional = true, features = ["client"] }
 burn-capture = { workspace = true, optional = true }
+burn-group = { workspace = true, optional = true }
 
 # Op macros with `.as_$inner_kind()`
 paste = { workspace = true }

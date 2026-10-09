@@ -9,6 +9,8 @@ mod einsum;
 mod float;
 mod fmod;
 mod graph;
+#[cfg(feature = "group")]
+mod group;
 mod int;
 mod numeric;
 mod options;

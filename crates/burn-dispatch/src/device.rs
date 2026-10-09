@@ -5,6 +5,8 @@ use crate::devices::*;
 
 #[cfg(feature = "capture")]
 use burn_capture::CaptureDevice;
+#[cfg(feature = "group")]
+use burn_group::GroupDevice;
 
 #[cfg(feature = "autodiff")]
 use alloc::boxed::Box;
@@ -57,6 +59,10 @@ pub enum DispatchDevice {
     /// A non-executing graph capture device.
     #[cfg(feature = "capture")]
     Capture(CaptureDevice),
+
+    /// A [group of devices](crate::backends::Group) that each tensor is split over.
+    #[cfg(feature = "group")]
+    Group(GroupDevice),
 
     /// The [autodiff enabled backend](crate::backends::Autodiff) device.
     #[cfg(feature = "autodiff")]
@@ -114,6 +120,9 @@ impl DispatchDevice {
             // The kernels run on the server, which this local API cannot reach.
             #[cfg(feature = "remote")]
             DispatchDevice::Remote(_) => Vec::new(),
+            // A group's peaks are its members', measured on them.
+            #[cfg(feature = "group")]
+            DispatchDevice::Group(_) => Vec::new(),
             #[cfg(feature = "capture")]
             DispatchDevice::Capture(_) => Vec::new(),
         }
@@ -205,6 +214,8 @@ impl core::fmt::Debug for DispatchDevice {
             Self::Flex(device) => f.debug_tuple("Flex").field(device).finish(),
             #[cfg(feature = "remote")]
             Self::Remote(device) => f.debug_tuple("Remote").field(device).finish(),
+            #[cfg(feature = "group")]
+            Self::Group(device) => f.debug_tuple("Group").field(device).finish(),
             #[cfg(feature = "capture")]
             Self::Capture(device) => f.debug_tuple("Capture").field(device).finish(),
             #[cfg(feature = "autodiff")]
@@ -374,6 +385,8 @@ impl PartialEq for DispatchDevice {
             (Self::Flex(a), Self::Flex(b)) => a == b,
             #[cfg(feature = "remote")]
             (Self::Remote(a), Self::Remote(b)) => a == b,
+            #[cfg(feature = "group")]
+            (Self::Group(a), Self::Group(b)) => a == b,
             #[cfg(feature = "capture")]
             (Self::Capture(a), Self::Capture(b)) => a == b,
             #[allow(unreachable_patterns)]
@@ -391,6 +404,38 @@ impl DispatchDevice {
     #[doc(hidden)]
     pub fn capture() -> Self {
         Self::Capture(CaptureDevice::default())
+    }
+
+    /// A group of `devices`, its members, that each tensor is split over.
+    ///
+    /// # Panics
+    ///
+    /// When `devices` is empty or mixes backends, or when they are not Cube or Flex devices. An
+    /// autodiff group is a group of plain devices made autodiff afterwards. Remote devices are left
+    /// out: tensor parallelism needs links as fast as one machine's GPU interconnect.
+    #[cfg(feature = "group")]
+    pub fn group(devices: Vec<DispatchDevice>) -> Self {
+        Self::Group(match devices.first() {
+            #[cfg(cube_backend)]
+            Some(Self::Cube(_)) => {
+                GroupDevice::new::<crate::backends::Cube>(&members!(devices, Cube))
+            }
+            #[cfg(feature = "flex")]
+            Some(Self::Flex(_)) => {
+                GroupDevice::new::<crate::backends::Flex>(&members!(devices, Flex))
+            }
+            #[cfg(feature = "autodiff")]
+            Some(Self::Autodiff(_)) => panic!(
+                "A device group is made from plain devices: group them, then call autodiff on \
+                 the group"
+            ),
+            #[cfg(feature = "remote")]
+            Some(Self::Remote(_)) => panic!(
+                "Remote devices cannot form a device group: tensor parallelism needs links as \
+                 fast as one machine's GPU interconnect"
+            ),
+            other => panic!("A device group's members run on Cube or Flex, not {other:?}"),
+        })
     }
 
     #[cfg(feature = "autodiff")]
@@ -431,6 +476,8 @@ impl DispatchDevice {
             Self::Flex(_) => DispatchDeviceId::Flex,
             #[cfg(feature = "remote")]
             Self::Remote(_) => DispatchDeviceId::Remote,
+            #[cfg(feature = "group")]
+            Self::Group(_) => DispatchDeviceId::Group,
             #[cfg(feature = "capture")]
             Self::Capture(_) => DispatchDeviceId::Capture,
             #[cfg(feature = "autodiff")]
@@ -469,6 +516,7 @@ pub enum DispatchDeviceId {
     // 6 was NdArray; keep the other backend IDs stable.
     Remote = 10,
     Capture = 11,
+    Group = 12,
 }
 
 impl From<DispatchDeviceId> for u16 {
@@ -488,6 +536,8 @@ impl TryFrom<u16> for DispatchDeviceId {
             4 => Ok(Self::Flex),
             #[cfg(feature = "remote")]
             10 => Ok(Self::Remote),
+            #[cfg(feature = "group")]
+            12 => Ok(Self::Group),
             #[cfg(feature = "capture")]
             11 => Ok(Self::Capture),
             _ => Err(()),
@@ -506,6 +556,8 @@ impl DeviceOps for DispatchDevice {
             Self::Flex(device) => device.defaults(),
             #[cfg(feature = "remote")]
             Self::Remote(device) => device.defaults(),
+            #[cfg(feature = "group")]
+            Self::Group(device) => device.defaults(),
             #[cfg(feature = "capture")]
             Self::Capture(device) => device.defaults(),
             #[cfg(feature = "autodiff")]
@@ -527,6 +579,8 @@ impl burn_backend::Device for DispatchDevice {
             DispatchDeviceId::Flex => Self::Flex(FlexDevice::from_id(device_id)),
             #[cfg(feature = "remote")]
             DispatchDeviceId::Remote => Self::Remote(RemoteDevice::from_id(device_id)),
+            #[cfg(feature = "group")]
+            DispatchDeviceId::Group => Self::Group(GroupDevice::from_id(device_id)),
             #[cfg(feature = "capture")]
             DispatchDeviceId::Capture => Self::Capture(CaptureDevice::from_id(device_id)),
             _ => unreachable!("No backend feature enabled."),
@@ -543,6 +597,8 @@ impl burn_backend::Device for DispatchDevice {
             Self::Flex(device) => device.to_id(),
             #[cfg(feature = "remote")]
             Self::Remote(device) => device.to_id(),
+            #[cfg(feature = "group")]
+            Self::Group(device) => device.to_id(),
             #[cfg(feature = "capture")]
             Self::Capture(device) => device.to_id(),
             #[cfg(feature = "autodiff")]
@@ -601,6 +657,13 @@ impl From<WgpuDevice> for DispatchDevice {
 impl From<FlexDevice> for DispatchDevice {
     fn from(device: FlexDevice) -> Self {
         DispatchDevice::Flex(device)
+    }
+}
+
+#[cfg(feature = "group")]
+impl From<GroupDevice> for DispatchDevice {
+    fn from(device: GroupDevice) -> Self {
+        DispatchDevice::Group(device)
     }
 }
 
