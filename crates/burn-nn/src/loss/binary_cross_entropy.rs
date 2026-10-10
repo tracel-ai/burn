@@ -91,6 +91,7 @@ impl BinaryCrossEntropyLoss {
     /// Targets must be binary labels (`0` or `1`), before applying label smoothing.
     /// When [logits](Self::logits) is `false`, inputs must be finite probabilities in `[0, 1]`.
     /// When it is `true`, inputs are logits and are not restricted to `[0, 1]`.
+    /// These value requirements are checked only when debug assertions are enabled.
     ///
     /// # Shapes
     ///
@@ -105,8 +106,8 @@ impl BinaryCrossEntropyLoss {
     /// # Panics
     ///
     /// - If input and target shapes do not match, or multi-label weights do not match the number of classes.
-    /// - If any target is not `0` or `1`.
-    /// - If `logits` is `false` and any input is non-finite or outside `[0, 1]`.
+    /// - With debug assertions enabled, if any target is not `0` or `1`.
+    /// - With debug assertions enabled, if `logits` is `false` and any input is non-finite or outside `[0, 1]`.
     pub fn forward<const D: usize>(&self, logits: Tensor<D>, targets: Tensor<D, Int>) -> Tensor<1> {
         self.assertions(&logits, &targets);
 
@@ -164,7 +165,8 @@ impl BinaryCrossEntropyLoss {
             );
         }
 
-        assert!(
+        // Value checks require synchronous device readback, so keep them debug-only.
+        debug_assert!(
             targets
                 .clone()
                 .greater_equal_scalar(0)
@@ -176,7 +178,7 @@ impl BinaryCrossEntropyLoss {
 
         if !self.logits {
             // Both comparisons must hold, which also rejects NaN and infinities.
-            assert!(
+            debug_assert!(
                 logits
                     .clone()
                     .greater_equal_scalar(0.0)
@@ -194,9 +196,11 @@ mod tests {
     use super::*;
     use burn::tensor::Tolerance;
     use burn::tensor::{TensorData, activation::sigmoid};
+    #[cfg(debug_assertions)]
     use rstest::rstest;
     type FT = f32;
 
+    #[cfg(debug_assertions)]
     #[rstest]
     #[case::below_zero(-0.1)]
     #[case::above_one(1.2)]
@@ -220,6 +224,7 @@ mod tests {
         }
     }
 
+    #[cfg(debug_assertions)]
     #[rstest]
     #[case::below_zero(-1)]
     #[case::above_one(2)]
