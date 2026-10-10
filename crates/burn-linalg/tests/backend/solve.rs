@@ -498,24 +498,141 @@ fn solve_accepts_subnormal_pivot_without_reciprocal_overflow() {
         .assert_approx_eq::<FloatElem>(&TensorData::from([1.0, 2.0]), Tolerance::default());
 }
 
-#[cfg(all(
-    feature = "autodiff",
-    any(feature = "ndarray", feature = "flex", feature = "cubecl-backend")
-))]
+#[cfg(feature = "autodiff")]
 #[test]
 fn solve_zero_rhs_columns_has_zero_gradients() {
+    let device = burn_core::tensor::Device::default();
+    let a = TestTensor::<2>::from_data([[0.0, 2.0], [1.0, 3.0]], &device);
+    assert_empty_solve_gradients(a.clone(), TestTensor::<2>::empty([2, 0], &device), [2, 0]);
+    assert_empty_solve_gradients(a, TestTensor::<3>::empty([3, 2, 0], &device), [3, 2, 0]);
+}
+
+#[cfg(feature = "autodiff")]
+#[test]
+fn solve_empty_system_has_zero_gradients() {
+    let device = burn_core::tensor::Device::default();
+    assert_empty_solve_gradients(
+        TestTensor::<2>::empty([0, 0], &device),
+        TestTensor::<1>::empty([0], &device),
+        [0],
+    );
+    assert_empty_solve_gradients(
+        TestTensor::<2>::empty([0, 0], &device),
+        TestTensor::<2>::empty([0, 0], &device),
+        [0, 0],
+    );
+    assert_empty_solve_gradients(
+        TestTensor::<3>::empty([2, 0, 0], &device),
+        TestTensor::<3>::empty([1, 0, 3], &device),
+        [2, 0, 3],
+    );
+}
+
+#[cfg(feature = "autodiff")]
+#[test]
+fn solve_empty_batches_have_zero_gradients() {
+    let device = burn_core::tensor::Device::default();
+    assert_empty_solve_gradients(
+        TestTensor::<4>::empty([0, 1, 2, 2], &device),
+        TestTensor::<4>::ones([1, 3, 2, 1], &device),
+        [0, 3, 2, 1],
+    );
+    // A has no systems to solve after broadcasting, so singularity is irrelevant.
+    assert_empty_solve_gradients(
+        TestTensor::<4>::zeros([1, 3, 2, 2], &device),
+        TestTensor::<3>::empty([0, 1, 2], &device),
+        [0, 3, 2],
+    );
+    assert_empty_solve_gradients(
+        TestTensor::<4>::empty([0, 1, 2, 2], &device),
+        TestTensor::<4>::empty([1, 0, 2, 1], &device),
+        [0, 0, 2, 1],
+    );
+}
+
+#[cfg(feature = "autodiff")]
+fn assert_empty_solve_gradients<const D: usize, const DB: usize, const DO: usize>(
+    a: TestTensor<D>,
+    b: TestTensor<DB>,
+    output_shape: [usize; DO],
+) {
+    let base_device = a.device();
+    let a_data = a.into_data();
+    let b_data = b.into_data();
+    for checkpoint in [false, true] {
+        let device = base_device.clone().autodiff();
+        let device = if checkpoint {
+            device.gradient_checkpointing()
+        } else {
+            device
+        };
+        for dtype in [DType::F32, DType::F16, DType::BF16, DType::F64] {
+            if !device.supports_dtype(dtype) {
+                continue;
+            }
+            for (track_a, track_b) in [(true, true), (true, false), (false, true)] {
+                let a = TestTensor::<D>::from_data(a_data.clone(), &device).cast(dtype);
+                let b = TestTensor::<DB>::from_data(b_data.clone(), &device).cast(dtype);
+                let a = if track_a { a.require_grad() } else { a };
+                let b = if track_b { b.require_grad() } else { b };
+                let output = solve::<D, DB, DO>(a.clone(), b.clone());
+                assert_eq!(output.dims(), output_shape);
+                assert_eq!(output.dtype(), dtype);
+                assert_eq!(output.device(), device);
+                let grads = output.sum().backward();
+                if track_a {
+                    let gradient = a.grad(&grads).expect("A must have a gradient");
+                    assert_eq!(gradient.dims(), a.dims());
+                    assert_eq!(gradient.dtype(), dtype);
+                    assert!(
+                        gradient
+                            .cast(DType::F32)
+                            .into_data()
+                            .try_to_vec::<f32>()
+                            .unwrap()
+                            .iter()
+                            .all(|&value| value == 0.0)
+                    );
+                } else {
+                    assert!(a.grad(&grads).is_none());
+                }
+                if track_b {
+                    let gradient = b.grad(&grads).expect("B must have a gradient");
+                    assert_eq!(gradient.dims(), b.dims());
+                    assert_eq!(gradient.dtype(), dtype);
+                    assert!(
+                        gradient
+                            .cast(DType::F32)
+                            .into_data()
+                            .try_to_vec::<f32>()
+                            .unwrap()
+                            .iter()
+                            .all(|&value| value == 0.0)
+                    );
+                } else {
+                    assert!(b.grad(&grads).is_none());
+                }
+            }
+        }
+    }
+}
+
+#[cfg(feature = "autodiff")]
+#[test]
+fn solve_empty_batch_gradients_accumulate_with_other_uses() {
     let device = burn_core::tensor::Device::default().autodiff();
-    let a = TestTensor::<2>::from_data([[0.0, 2.0], [1.0, 3.0]], &device).require_grad();
-    let b = TestTensor::<2>::empty([2, 0], &device).require_grad();
-    let grads = solve::<2, 2, 2>(a.clone(), b.clone()).sum().backward();
+    let a = TestTensor::<2>::eye(2, &device).require_grad();
+    let b = TestTensor::<3>::empty([0, 2, 1], &device).require_grad();
+    let loss = solve::<2, 3, 3>(a.clone(), b.clone()).sum() + a.clone().sum();
+    let grads = loss.backward();
     a.grad(&grads)
         .unwrap()
         .into_data()
         .assert_approx_eq::<FloatElem>(
-            &TensorData::from([[0.0, 0.0], [0.0, 0.0]]),
+            &TensorData::from([[1.0, 1.0], [1.0, 1.0]]),
             Tolerance::default(),
         );
-    assert_eq!(b.grad(&grads).unwrap().dims(), [2, 0]);
+    assert_eq!(b.grad(&grads).unwrap().dims(), b.dims());
 }
 
 #[test]

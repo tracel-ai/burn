@@ -1,7 +1,7 @@
 use super::lu::{compute_lu_decomposition, swap_tensor_rows};
 use crate::{Bool, DType, Tensor};
 use alloc::vec;
-use burn_std::{FloatDType, Slice};
+use burn_std::{FloatDType, Shape, Slice};
 
 /// Solves `A @ X = B` for a square, nonsingular matrix `A`.
 ///
@@ -108,7 +108,7 @@ fn solve_impl<const D: usize, const DB: usize, const DO: usize, const DW: usize>
     }
 
     if n == 0 || a_shape[..DW - 2].contains(&0) {
-        return Tensor::<DO>::empty(output_shape, (&a.device(), original_dtype));
+        return empty_solve_output(a, b, output_shape);
     }
 
     let needs_upcast = matches!(original_dtype, DType::F16 | DType::BF16);
@@ -135,6 +135,8 @@ fn solve_impl<const D: usize, const DB: usize, const DO: usize, const DW: usize>
 
     // Factorize before broadcasting A, so one matrix shared by many right-hand
     // sides is decomposed only once.
+    // Keep the input connection for an empty RHS without differentiating LU.
+    let empty_a = (b_shape[DW - 1] == 0).then(|| a.clone());
     let (lu, pivots) = compute_lu_decomposition(a.reshape(a_reshape));
 
     let diagonal = Tensor::<DW, Bool>::diag_mask(lu.shape(), 0, &lu.device()).bool_not();
@@ -145,8 +147,13 @@ fn solve_impl<const D: usize, const DB: usize, const DO: usize, const DW: usize>
     );
 
     // PyTorch also rejects singular A when B has zero columns.
-    if b_shape[DW - 1] == 0 {
-        return Tensor::<DO>::empty(output_shape, (&lu.device(), original_dtype));
+    if let Some(a) = empty_a {
+        let output = empty_solve_output(a, b, output_shape);
+        return if needs_upcast {
+            output.cast(original_dtype)
+        } else {
+            output
+        };
     }
     let lu = lu.expand(a_shape);
     let mut pivot_shape = a_shape;
@@ -193,4 +200,15 @@ fn solve_impl<const D: usize, const DB: usize, const DO: usize, const DW: usize>
     } else {
         output
     }
+}
+
+fn empty_solve_output<const D: usize, const DB: usize, const DO: usize>(
+    a: Tensor<D>,
+    b: Tensor<DB>,
+    output_shape: [usize; DO],
+) -> Tensor<DO> {
+    // Empty results still need graph connections to both inputs so backward
+    // produces zero gradients with their original, unbroadcast shapes.
+    let zero = a.sum().mul_scalar(0.0) + b.sum().mul_scalar(0.0);
+    zero.reshape([1; DO]).expand(Shape::from(output_shape))
 }
