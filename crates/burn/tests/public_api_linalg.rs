@@ -12,4 +12,5 @@ fn linalg_and_initializer_compatibility_paths_compile() {
     let _: burn_nn::Initializer = burn_nn::Initializer::Zeros;
 
     let _qr: fn(Tensor<2>, bool) -> (Tensor<2>, Tensor<2>) = burn::linalg::qr::<2>;
+    let _solve: fn(Tensor<2>, Tensor<1>) -> Tensor<1> = burn::linalg::solve::<2, 1, 1>;
 }

@@ -1258,12 +1258,14 @@ dependencies = [
 name = "burn-linalg"
 version = "0.22.0"
 dependencies = [
+ "burn-autodiff",
  "burn-core",
  "burn-cubecl",
  "burn-fusion",
  "burn-router",
  "burn-std",
  "ctor",
+ "gemm",
  "num-traits",
 ]
 
