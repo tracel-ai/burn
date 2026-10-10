@@ -12,8 +12,7 @@ pub const QPARAM_ALIGN: usize = core::mem::align_of::<f32>();
 
 use alloc::vec::Vec;
 use core::any::TypeId;
-use cubecl_common::e4m3;
-use cubecl_common::quant::scheme::{f32_to_ue8m0, ue8m0_to_f32};
+use cubecl_common::{e4m3, ue8m0};
 use serde::{Deserialize, Serialize};
 
 use super::packing::{PackedOrder, ValueLayout};
@@ -433,7 +432,10 @@ fn decode_scales(bytes: &[u8], dtype: ScaleDtype) -> Vec<f32> {
             .map(|c| crate::bf16::from_ne_bytes([c[0], c[1]]).to_f32())
             .collect(),
         ScaleDtype::UE4M3 => bytes.iter().map(|b| e4m3::from_bits(*b).to_f32()).collect(),
-        ScaleDtype::UE8M0 => bytes.iter().map(|b| ue8m0_to_f32(*b)).collect(),
+        ScaleDtype::UE8M0 => bytes
+            .iter()
+            .map(|b| ue8m0::from_bits(*b).to_f32())
+            .collect(),
     }
 }
 
@@ -453,9 +455,12 @@ fn encode_scales(scales: &[f32], dtype: ScaleDtype) -> Vec<u8> {
             .iter()
             .map(|s| e4m3::from_f32(*s).to_bits())
             .collect(),
-        // `f32_to_ue8m0` rounds up, which is the rule for a scale and matches `scale_to_dtype`;
+        // `ue8m0::from_f32` rounds up, which is the rule for a scale and matches `scale_to_dtype`;
         // a scale reaching here has already been rounded onto the grid anyway.
-        ScaleDtype::UE8M0 => scales.iter().map(|s| f32_to_ue8m0(*s)).collect(),
+        ScaleDtype::UE8M0 => scales
+            .iter()
+            .map(|s| ue8m0::from_f32(*s).to_bits())
+            .collect(),
     }
 }
 
@@ -466,61 +471,6 @@ fn read_bytes_to_i8(bytes: Bytes) -> Vec<i8> {
         //
         // `Vec<u8>` can be Re-interpreted as `Vec<i8>` since they share the same alignment.
         Err(bytes) => unsafe { core::mem::transmute::<Vec<u8>, Vec<i8>>(bytes.to_vec()) },
-    }
-}
-
-/// A quantization scheme following its tensor's axes as they move: the block dims and the packed
-/// axis go with the axes they belong to.
-pub trait QuantSchemeAxes {
-    /// This scheme once its tensor's axes are permuted by `axes`.
-    fn permuted(self, axes: &[usize]) -> Self;
-
-    /// This scheme once its tensor of `rank` axes swaps `dim1` and `dim2`.
-    fn swapped(self, rank: usize, dim1: usize, dim2: usize) -> Self;
-
-    /// This scheme once its tensor is reshaped to `rank` axes: a packed axis the reshape drops
-    /// becomes the innermost one.
-    fn reshaped(self, rank: usize) -> Self;
-}
-
-impl QuantSchemeAxes for QuantScheme {
-    fn permuted(mut self, axes: &[usize]) -> Self {
-        let rank = axes.len();
-        self.permute_block_dims(rank, axes);
-
-        if let QuantStore::PackedU32(packed_dim) | QuantStore::PackedNative(packed_dim) =
-            &mut self.store
-        {
-            let packed_axis = rank
-                .checked_sub(*packed_dim + 1)
-                .expect("the packed dim to be one of the permuted axes");
-            let new_axis = axes
-                .iter()
-                .position(|axis| *axis == packed_axis)
-                .expect("Permute axes to contain the packed axis");
-            *packed_dim = rank - new_axis - 1;
-        }
-
-        self
-    }
-
-    fn swapped(self, rank: usize, dim1: usize, dim2: usize) -> Self {
-        let mut axes: Vec<usize> = (0..rank).collect();
-        axes.swap(dim1, dim2);
-        self.permuted(&axes)
-    }
-
-    fn reshaped(self, rank: usize) -> Self {
-        let store = match self.store {
-            QuantStore::PackedU32(packed_dim) if packed_dim >= rank.max(1) => {
-                QuantStore::PackedU32(0)
-            }
-            QuantStore::PackedNative(packed_dim) if packed_dim >= rank.max(1) => {
-                QuantStore::PackedNative(0)
-            }
-            store => store,
-        };
-        self.with_store(store)
     }
 }
 
@@ -567,18 +517,6 @@ pub fn pack_i8s_to_u32s(values: Vec<i8>) -> Vec<u32> {
 mod tests {
     use super::*;
     use alloc::vec;
-
-    #[test]
-    fn permuting_moves_the_packed_axis_and_the_block_dims_with_their_axes() {
-        let scheme = QuantScheme::default()
-            .with_store(QuantStore::PackedU32(0))
-            .per_block([1, 2, 4], ScaleDtype::F32);
-
-        let permuted = scheme.permuted(&[2, 0, 1]);
-
-        assert_eq!(permuted.store, QuantStore::PackedU32(2));
-        assert_eq!(permuted.block_size(), Some(BlockSize::new([4, 1, 2])));
-    }
 
     #[test]
     fn should_pack_i8s_to_u32() {

@@ -10,7 +10,7 @@ use burn_backend::{
         },
         unfold::calculate_unfold_shape,
     },
-    quantization::{QuantScheme, QuantSchemeAxes},
+    quantization::QuantScheme,
     tensor::IndexingUpdateOp,
 };
 
@@ -20,21 +20,30 @@ use super::operation::*;
 
 fn permute_quantized_dtype(dtype: DType, axes: &[usize]) -> DType {
     match dtype {
-        DType::QFloat(scheme) => DType::QFloat(scheme.permuted(axes)),
+        DType::QFloat(mut scheme) => {
+            scheme.permute_dims(axes);
+            DType::QFloat(scheme)
+        }
         dtype => dtype,
     }
 }
 
 fn swap_dims_quantized_dtype(dtype: DType, rank: usize, dim1: usize, dim2: usize) -> DType {
     match dtype {
-        DType::QFloat(scheme) => DType::QFloat(scheme.swapped(rank, dim1, dim2)),
+        DType::QFloat(mut scheme) => {
+            scheme.swap_dims(rank, dim1, dim2);
+            DType::QFloat(scheme)
+        }
         dtype => dtype,
     }
 }
 
 fn reshape_quantized_dtype(dtype: DType, rank: usize) -> DType {
     match dtype {
-        DType::QFloat(scheme) => DType::QFloat(scheme.reshaped(rank)),
+        DType::QFloat(mut scheme) => {
+            scheme.reshape_packing_dim(rank);
+            DType::QFloat(scheme)
+        }
         dtype => dtype,
     }
 }
