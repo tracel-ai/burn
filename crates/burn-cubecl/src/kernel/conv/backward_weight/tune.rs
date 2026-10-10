@@ -5,7 +5,8 @@ use cubecl::{
     ir::ElemType,
     tune::{LocalTuner, Tunable, TunableSet, anchor, local_tuner},
 };
-use cubek::convolution::AcceleratedTileKind;
+use cubek::convolution::{AcceleratedTileKind, UnitStrategy, UnitTiling};
+use cubek::matmul::multi_level::routines::TileSizeSelection;
 
 use crate::{
     CubeAutotuneKey, CubeTuneId,
@@ -15,6 +16,7 @@ use crate::{
             depthwise::wgrad_depthwise, fallback::conv_weight_backward_fallback, implicit_gemm::*,
         },
         im2col::{wgrad_im2col, wgrad_im2col_1x1, wgrad_im2col_1x1_split},
+        unit::wgrad_unit,
     },
     tensor::CubeTensor,
 };
@@ -46,7 +48,7 @@ pub fn wgrad_autotune<const N: usize>(
             // The dense case, which the two pointwise candidates decline and
             // the fallback computes as a convolution by the gradient.
             .with(Tunable::new(
-                "wgrad_im2col",
+                "wgrad_im2col_gather",
                 |(input, grad, shape, options)| wgrad_im2col::<N>(input, grad, shape, options),
             ))
             // The same matmul with its contraction cut into pieces, which is
@@ -63,6 +65,72 @@ pub fn wgrad_autotune<const N: usize>(
             .with(Tunable::new(
                 "wgrad_im2col_1x1",
                 |(input, grad, shape, options)| wgrad_im2col_1x1::<N>(input, grad, shape, options),
+            ))
+            // The weight gradient's matmul has `M = C_out`, `N = taps * C_in`
+            // and `K = batch * output spatial` (split into intervals by
+            // `split_count`). A wide channel count makes `N` large and a large
+            // feature map makes each split's `K` long, so the wide/deep tilings
+            // matter here as much as narrow/balanced; `wgrad_unit_small` keeps
+            // the inferred minimum tiling, the default when nothing is tuned.
+            .with(Tunable::new(
+                "wgrad_unit_narrow",
+                |(input, grad, shape, options)| {
+                    wgrad_unit(
+                        input,
+                        grad,
+                        shape,
+                        options,
+                        UnitStrategy::Fixed(UnitTiling::NARROW),
+                    )
+                },
+            ))
+            .with(Tunable::new(
+                "wgrad_unit_balanced",
+                |(input, grad, shape, options)| {
+                    wgrad_unit(
+                        input,
+                        grad,
+                        shape,
+                        options,
+                        UnitStrategy::Fixed(UnitTiling::BALANCED),
+                    )
+                },
+            ))
+            .with(Tunable::new(
+                "wgrad_unit_wide",
+                |(input, grad, shape, options)| {
+                    wgrad_unit(
+                        input,
+                        grad,
+                        shape,
+                        options,
+                        UnitStrategy::Fixed(UnitTiling::WIDE),
+                    )
+                },
+            ))
+            .with(Tunable::new(
+                "wgrad_unit_deep",
+                |(input, grad, shape, options)| {
+                    wgrad_unit(
+                        input,
+                        grad,
+                        shape,
+                        options,
+                        UnitStrategy::Fixed(UnitTiling::DEEP),
+                    )
+                },
+            ))
+            .with(Tunable::new(
+                "wgrad_unit_small",
+                |(input, grad, shape, options)| {
+                    wgrad_unit(
+                        input,
+                        grad,
+                        shape,
+                        options,
+                        UnitStrategy::Inferred(TileSizeSelection::MinTileSize),
+                    )
+                },
             ))
             .with(Tunable::new(
                 "simple_sync_cmma",
