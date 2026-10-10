@@ -484,31 +484,71 @@ mod error_handling_tests {
     #[test]
     fn test_strict_validation() {
         let path = pytorch_test_path("linear", "linear.pt");
-
-        if !path.exists() {
-            println!(
-                "Skipping strict validation test - file not found: {:?}",
-                path
-            );
-            return;
-        }
-
         let device = Default::default();
         let mut model = SimpleLinearModel::new(&device);
 
-        // Apply very restrictive filter that matches nothing
+        // The checkpoint's fc2 has no bias, but the target model does.
         let mut store = PytorchStore::from_file(path)
-            .with_regex(r"^this_will_never_match$")
+            .with_full_path("fc2.bias")
             .validate(true)
             .allow_partial(false);
 
-        let result = store.apply_to(&mut model);
+        let error = store.apply_to(&mut model).unwrap_err();
+        match error {
+            crate::pytorch::PytorchStoreError::TensorNotFound(message) => {
+                assert!(message.contains("fc2.bias"));
+            }
+            other => panic!("Expected a missing-tensor error, got: {other}"),
+        }
+    }
 
-        // Should fail because no tensors match and allow_partial is false
-        assert!(
-            result.is_err(),
-            "Should fail when no tensors match with allow_partial=false"
-        );
+    #[test]
+    fn test_strict_loading_skips_excluded_missing_parameters() {
+        let path = pytorch_test_path("linear", "linear.pt");
+        let device = Default::default();
+        // Distinct initial values make unintended replacement of skipped tensors visible.
+        let mut model = SimpleLinearModel {
+            fc1: LinearConfig::new(2, 3)
+                .with_initializer(burn_nn::Initializer::Constant { value: 42.0 })
+                .init(&device),
+            fc2: LinearConfig::new(3, 4)
+                .with_initializer(burn_nn::Initializer::Constant { value: 42.0 })
+                .init(&device),
+        };
+        let fc1_weight = model.fc1.weight.val().into_data();
+        let fc1_bias = model.fc1.bias.as_ref().unwrap().val().into_data();
+        let fc2_weight = model.fc2.weight.val().into_data();
+        let fc2_bias = model.fc2.bias.as_ref().unwrap().val().into_data();
+
+        // Load fc1 while excluding fc2, including its absent bias.
+        let mut store = PytorchStore::from_file(path)
+            .with_regex(r"^fc1\.")
+            .validate(true)
+            .allow_partial(false);
+        let mut result = store.apply_to(&mut model).unwrap();
+
+        assert!(result.is_success());
+        assert!(result.missing.is_empty());
+        assert!(result.errors.is_empty());
+        result.applied.sort();
+        assert_eq!(result.applied, ["fc1.bias", "fc1.weight"]);
+        assert_eq!(result.skipped, ["fc2.bias", "fc2.weight"]);
+        assert_ne!(model.fc1.weight.val().into_data(), fc1_weight);
+        assert_ne!(model.fc1.bias.as_ref().unwrap().val().into_data(), fc1_bias);
+        model
+            .fc2
+            .weight
+            .val()
+            .into_data()
+            .assert_eq(&fc2_weight, true);
+        model
+            .fc2
+            .bias
+            .as_ref()
+            .unwrap()
+            .val()
+            .into_data()
+            .assert_eq(&fc2_bias, true);
     }
 }
 
