@@ -151,12 +151,11 @@ fn solve_rejects_incompatible_batches() {
     let _ = solve::<3, 2, 2>(a, b);
 }
 
-#[cfg(feature = "ndarray")]
+#[cfg(feature = "flex")]
 #[test]
 #[should_panic(expected = "dtypes must match")]
 fn solve_rejects_different_dtypes() {
-    #[allow(deprecated)]
-    let device = burn_core::tensor::Device::ndarray();
+    let device = burn_core::tensor::Device::flex();
     let a = TestTensor::<2>::eye(2, &device);
     let b = TestTensor::<1>::ones([2], &device).cast(DType::F64);
     let _ = solve::<2, 1, 1>(a, b);
@@ -481,15 +480,11 @@ fn solve_matrix_gradients_reduce_both_broadcast_inputs() {
     }
 }
 
-#[cfg(any(feature = "ndarray", feature = "flex"))]
+#[cfg(feature = "flex")]
 #[test]
 fn solve_accepts_subnormal_pivot_without_reciprocal_overflow() {
     // GPU execution may flush subnormals to zero, even when CPU features are enabled.
-    #[cfg(feature = "flex")]
     let device = burn_core::tensor::Device::flex();
-    #[cfg(all(feature = "ndarray", not(feature = "flex")))]
-    #[allow(deprecated)]
-    let device = burn_core::tensor::Device::ndarray();
     let tiny = f32::from_bits(1);
     let a = TestTensor::<2>::from_data([[tiny, 0.0], [tiny, 1.0]], &device);
     let b = TestTensor::<1>::from_data([tiny, 2.0], &device);

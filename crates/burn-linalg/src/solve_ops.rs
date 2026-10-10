@@ -1,11 +1,11 @@
 //! Backend solve dispatch and its analytic backward pass.
 use burn_core as burn;
-#[cfg(any(feature = "flex", feature = "ndarray", feature = "autodiff"))]
+#[cfg(any(feature = "flex", feature = "autodiff"))]
 use burn_core::backend::TensorMetadata;
-#[cfg(any(feature = "flex", feature = "ndarray"))]
+#[cfg(feature = "flex")]
 use burn_core::backend::ops::FloatTensorOps;
 use burn_core::backend::{Backend, DispatchDevice, backend_extension, tensor::FloatTensor};
-#[cfg(any(feature = "flex", feature = "ndarray"))]
+#[cfg(feature = "flex")]
 use burn_std::reader::try_read_sync;
 
 // Other backends retain the tensor implementation.
@@ -13,8 +13,6 @@ pub(crate) fn supports_device(device: &DispatchDevice) -> bool {
     match device {
         #[cfg(feature = "flex")]
         DispatchDevice::Flex(_) => true,
-        #[cfg(feature = "ndarray")]
-        DispatchDevice::NdArray(_) => true,
         #[cfg(any(
             feature = "wgpu",
             feature = "webgpu",
@@ -43,7 +41,6 @@ pub(crate) fn supports_device(device: &DispatchDevice) -> bool {
         feature = "rocm",
         feature = "cpu"
     )),
-    NdArray: cfg(feature = "ndarray"),
     Autodiff: cfg(feature = "autodiff"),
 )]
 pub(crate) trait SolveOps: Backend {
@@ -51,7 +48,7 @@ pub(crate) trait SolveOps: Backend {
     fn solve(a: FloatTensor<Self>, b: FloatTensor<Self>) -> FloatTensor<Self>;
 }
 
-#[cfg(any(feature = "flex", feature = "ndarray"))]
+#[cfg(feature = "flex")]
 macro_rules! impl_solve_host {
     ($backend:ty) => {
         impl SolveOps for $backend {
@@ -72,8 +69,6 @@ macro_rules! impl_solve_host {
 
 #[cfg(feature = "flex")]
 impl_solve_host!(burn_core::backend::Flex);
-#[cfg(feature = "ndarray")]
-impl_solve_host!(burn_core::backend::NdArray);
 
 #[cfg(feature = "cubecl-backend")]
 impl SolveOps for burn_cubecl::CubeBackend {
@@ -140,7 +135,9 @@ where
             .outputs();
         // Resolve the handle to execute the operation and surface singularity
         // errors before returning, without reading the solution back to the host.
-        let _ = client.resolve_tensor_float::<B>(output.clone());
+        client
+            .resolve_tensor_float::<B>(output.clone())
+            .unwrap_or_else(|err| panic!("linalg::solve: {err}"));
         output
     }
 }
