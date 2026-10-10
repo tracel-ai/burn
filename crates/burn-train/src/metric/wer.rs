@@ -20,6 +20,7 @@ pub struct WordErrorRate {
 }
 
 /// The [word error rate metric](WordErrorRate) input type.
+/// Predictions and targets must have the same batch size, but their sequence lengths may differ.
 #[derive(new)]
 pub struct WerInput {
     /// The predicted token sequences (as a 2-D tensor of token indices).
@@ -43,7 +44,7 @@ impl WordErrorRate {
         }
     }
 
-    /// Sets the pad token.
+    /// Sets the pad token, which is ignored wherever it appears in predictions and targets.
     pub fn with_pad_token(mut self, index: usize) -> Self {
         self.pad_token = Some(index);
         self
@@ -60,22 +61,27 @@ impl Metric for WordErrorRate {
     ) -> Result<SerializedEntry, TensorReadError> {
         let outputs = input.outputs.clone();
         let targets = input.targets.clone();
-        let [batch_size, seq_len] = targets.dims();
+        let [output_batch_size, output_seq_len] = outputs.dims();
+        let [batch_size, target_seq_len] = targets.dims();
+        assert_eq!(
+            output_batch_size, batch_size,
+            "WER predictions and targets must have the same batch size"
+        );
 
         let outputs_data = outputs.try_into_vec_as::<i32>()?;
         let targets_data = targets.try_into_vec_as::<i32>()?;
 
-        let pad_token = self.pad_token.map(|p| p as i32);
+        let pad_token = self.pad_token.map(|pad| pad as i64);
 
         let mut total_edit_distance = 0.0;
         let mut total_target_length = 0usize;
 
         // Process each sequence in the batch
         for i in 0..batch_size {
-            let start = i * seq_len;
-            let end = (i + 1) * seq_len;
-            let output_seq = &outputs_data[start..end];
-            let target_seq = &targets_data[start..end];
+            let output_start = i * output_seq_len;
+            let target_start = i * target_seq_len;
+            let output_seq = &outputs_data[output_start..output_start + output_seq_len];
+            let target_seq = &targets_data[target_start..target_start + target_seq_len];
 
             // Handle padding and map elements to i32.
             // These sequences now represent "words" (token IDs).
@@ -83,13 +89,13 @@ impl Metric for WordErrorRate {
                 Some(pad) => {
                     let output_seq_no_pad = output_seq
                         .iter()
-                        .take_while(|&&x| x != pad)
+                        .filter(|&token| i64::from(*token) != pad)
                         .copied()
                         .collect::<Vec<_>>();
 
                     let target_seq_no_pad = target_seq
                         .iter()
-                        .take_while(|&&x| x != pad)
+                        .filter(|&token| i64::from(*token) != pad)
                         .copied()
                         .collect::<Vec<_>>();
 
@@ -176,6 +182,38 @@ mod tests {
         assert_eq!(0.0, metric.value().unwrap().current());
     }
 
+    /// Insertions and deletions count as word errors => 50 %.
+    #[test]
+    fn test_wer_with_insertions_and_deletions() {
+        let device = Default::default();
+        let pad = 9_i64;
+        let mut metric = WordErrorRate::new().with_pad_token(pad as usize);
+
+        let preds = Tensor::from_data([[1, 2, 3], [1, pad, pad]], &device);
+        let tgts = Tensor::from_data([[1, 2], [1, 2]], &device);
+
+        metric
+            .update(&WerInput::new(preds, tgts), &MetricMetadata::fake())
+            .unwrap();
+
+        assert_eq!(50.0, metric.value().unwrap().current());
+    }
+
+    /// Predictions and targets with different batch sizes are invalid.
+    #[test]
+    #[should_panic(expected = "WER predictions and targets must have the same batch size")]
+    fn test_wer_with_different_batch_sizes() {
+        let device = Default::default();
+        let mut metric = WordErrorRate::new();
+
+        let preds = Tensor::from_data([[1, 2]], &device);
+        let tgts = Tensor::from_data([[1], [2]], &device);
+
+        metric
+            .update(&WerInput::new(preds, tgts), &MetricMetadata::fake())
+            .unwrap();
+    }
+
     /// Two word edits in four target words => 50 %.
     #[test]
     fn test_wer_without_padding_two_errors() {
@@ -213,6 +251,22 @@ mod tests {
             .update(&WerInput::new(preds, tgts), &MetricMetadata::fake())
             .unwrap();
         assert_eq!(50.0, metric.value().unwrap().current());
+    }
+
+    /// Padding is ignored wherever it appears, even if padded lengths differ.
+    #[test]
+    fn test_wer_with_padding_anywhere_and_different_lengths() {
+        let device = Default::default();
+        let pad = 9_i64;
+        let mut metric = WordErrorRate::new().with_pad_token(pad as usize);
+
+        let preds = Tensor::from_data([[1, pad, 2, pad]], &device);
+        let tgts = Tensor::from_data([[1, 2, pad]], &device);
+
+        metric
+            .update(&WerInput::new(preds, tgts), &MetricMetadata::fake())
+            .unwrap();
+        assert_eq!(0.0, metric.value().unwrap().current());
     }
 
     /// `clear()` must reset the running statistics to NaN.
