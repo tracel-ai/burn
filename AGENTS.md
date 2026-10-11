@@ -35,13 +35,21 @@ execution modes.
 For tensor operations, trace the public API through the bridge and dispatch layers to the backend
 implementation. Consider the applicable autodiff, IR, fusion, and router paths as well. The
 [operation guide](contributor-book/src/guides/adding-a-new-operation-to-burn.md) explains where each
-part belongs and which tests it needs.
+part belongs and which tests it needs. Decorator backends (autodiff, fusion, router, dispatch) fall
+back to default decompositions and capability flags unless they override them, so an operation that
+is not forwarded through them silently loses its dedicated implementation.
 
 - Keep changes focused. Separate mechanical moves and renames from behavior changes so the diff can
   be reviewed independently.
 - Preserve feature isolation and `no_std` support where the affected crates provide it.
 - For backend changes, account for supported layouts, dtypes, and hardware capabilities. State
   unsupported cases explicitly rather than assuming the development machine represents every device.
+- Validate user input at the `burn-tensor` API boundary with `check!(TensorCheck::...)`, naming the
+  operation and the offending values. Make new backend trait methods required rather than adding
+  `unimplemented!()` defaults.
+- Derive dtypes and epsilons from the input (`FloatDType::finfo`) instead of hardcoding `f32` or
+  `i64`; some devices lack 64-bit integers. Handle quantized inputs and zero-sized dimensions.
+- Avoid host synchronization (`into_data`, `into_scalar`) in forward passes, losses, and metrics.
 - Update documentation and examples in the same change when behavior or APIs change.
 
 ### Backends and Kernels
@@ -86,6 +94,10 @@ Start with checks and tests for the affected crates and backend. Follow the
 [testing guide](contributor-book/src/getting-started/testing.md) for shared tensor and autodiff
 suites, backend aliases, and fusion configurations. Include regression coverage for bug fixes.
 
+Tests should assert values, not only shapes, using inputs that distinguish a correct implementation
+from a plausible wrong one. Put behavior shared across backends in `burn-backend-tests`. Check that
+dependency updates do not change unrelated entries in `Cargo.lock`.
+
 The repository validation commands, run from the repository root, are:
 
 ```sh
@@ -125,4 +137,6 @@ contributor remains responsible for understanding and validating the submitted c
   final review and merge decisions.
 
 Keep this file aligned with the code and contribution policy. Put detailed procedures in the
-contributor documentation and link to them here.
+contributor documentation and link to them here. Copilot code review reads this file together with
+[.github/copilot-instructions.md](.github/copilot-instructions.md) and the path-specific files in
+`.github/instructions/`.
