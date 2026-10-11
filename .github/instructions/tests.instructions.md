@@ -23,4 +23,5 @@ Follow the [testing guide](../../contributor-book/src/getting-started/testing.md
 - Comparisons across backends need tolerances suited to the dtype and device. Byte-for-byte checks
   need inputs whose results are exactly representable.
 - Gate backend-specific tests with backend features instead of enabling a backend unconditionally.
-  Tests under `fusion/` already only run for CubeCL backends.
+  The `fusion/` suite also runs on Flex, so tests that assert CubeCL fusion decisions need
+  `#[cfg(feature = "cube")]`, as in `fusion/mod.rs`.

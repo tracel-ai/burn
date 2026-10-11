@@ -17,8 +17,9 @@ An operation reaches a backend through several layers, and each one must handle 
   the shape and semantics match, and represent scalars with `ScalarIr`.
 - A fusion change that turns a decomposed operation into an opaque one stops neighboring operations
   from fusing with it. Note the trade-off, or teach `burn-cubecl-fusion` the new operation.
-- Autodiff should checkpoint only the tensors whose gradients are tracked, and must not assume both
-  operands require gradients.
+- Autodiff should checkpoint only the state that a tracked operand's backward needs, and must not
+  assume both operands require gradients. For `mul`, the LHS gradient needs the RHS, so the RHS is
+  checkpointed only when the LHS is tracked.
 - Kernels should take the element type from the tensor dtype instead of hardcoding `f32`, and keep
   accumulation precision separate from storage precision. They should handle strided, permuted,
   broadcast, and zero-sized layouts, or reject them explicitly.
