@@ -1412,6 +1412,10 @@ impl<B: BackendIr> TensorInterpreter<B> {
                 FloatOperationIr::ArcTanh(desc) => unary_float_ops!(handles, desc, B::float_atanh),
                 FloatOperationIr::ArcTan2(desc) => binary_float_ops!(handles, desc, B::float_atan2),
                 FloatOperationIr::Hypot(desc) => binary_float_ops!(handles, desc, B::float_hypot),
+                FloatOperationIr::Fmod(desc) => binary_float_ops!(handles, desc, B::float_fmod),
+                FloatOperationIr::FmodScalar(desc) => {
+                    scalar_float_ops!(handles, desc, B::float_fmod_scalar)
+                }
                 FloatOperationIr::Round(desc) => {
                     unary_float_ops!(handles, desc, B::float_round)
                 }

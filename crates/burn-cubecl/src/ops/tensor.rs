@@ -145,6 +145,15 @@ impl FloatTensorOps<Self> for CubeBackend {
         numeric::remainder_scalar(lhs, InputScalar::new(rhs, dtype_to_storage_type(dtype)))
     }
 
+    fn float_fmod(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> FloatTensor<Self> {
+        crate::kernel::fmod(lhs, rhs)
+    }
+
+    fn float_fmod_scalar(lhs: FloatTensor<Self>, rhs: Scalar) -> FloatTensor<Self> {
+        let dtype = lhs.dtype;
+        crate::kernel::fmod_scalar(lhs, InputScalar::new(rhs, dtype_to_storage_type(dtype)))
+    }
+
     fn float_matmul(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> FloatTensor<Self> {
         let dtype = lhs.dtype;
         matmul(lhs, rhs, None, MatmulStrategy::default(), dtype).unwrap()

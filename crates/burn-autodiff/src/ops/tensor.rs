@@ -616,6 +616,97 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
             .stateless(B::float_remainder_scalar(lhs.primitive, rhs))
     }
 
+    fn float_fmod(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> FloatTensor<Self> {
+        #[derive(Debug)]
+        struct Fmod;
+
+        retro_binary!(RetroFmod, B::float_fmod);
+
+        impl<B: Backend> Backward<B, 2> for Fmod {
+            type State = (Option<NodeId>, Option<NodeId>, BinaryOpsBroadcast);
+
+            fn backward(
+                self,
+                ops: Ops<Self::State, 2>,
+                grads: &mut Gradients,
+                checkpointer: &mut Checkpointer,
+            ) {
+                let (lhs, rhs, broadcast) = ops.state;
+                let lhs = lhs.map(|lhs| checkpointer.retrieve_node_output(lhs));
+                let rhs = rhs.map(|rhs| checkpointer.retrieve_node_output(rhs));
+
+                binary::<B, _, _>(
+                    ops.parents,
+                    ops.node,
+                    grads,
+                    |grad| {
+                        // fmod(x, y) = x - trunc(x / y) * y
+                        // partial(x - trunc(x / y) * y, x) = 1
+                        broadcast.backward_lhs::<B>(grad)
+                    },
+                    |grad| {
+                        // partial(x - trunc(x / y) * y, y) = - trunc(x / y)
+                        let rhs = rhs.unwrap();
+                        let lhs = lhs.unwrap();
+                        let value = B::float_neg(B::float_trunc(B::float_div(lhs, rhs)));
+                        let grad = B::float_mul(grad, value);
+                        broadcast.backward_rhs::<B>(grad)
+                    },
+                );
+            }
+        }
+
+        let rhs_tracked = rhs.is_tracked();
+        let broadcast = BinaryOpsBroadcast::new::<B>(&lhs.primitive, &rhs.primitive);
+
+        match Fmod
+            .prepare::<C>([lhs.node(), rhs.node()])
+            .memory_bound()
+            .retro_forward(RetroFmod::<B>::new(lhs.node.id, rhs.node.id))
+            .parents([&lhs, &rhs])
+            .stateful()
+        {
+            OpsKind::Tracked(mut prep) => {
+                // Only the divisor's gradient needs the inputs.
+                let lhs_state = rhs_tracked.then(|| prep.checkpoint(&lhs));
+                let rhs_state = rhs_tracked.then(|| prep.checkpoint(&rhs));
+
+                prep.finish(
+                    (lhs_state, rhs_state, broadcast),
+                    B::float_fmod(lhs.primitive, rhs.primitive),
+                )
+            }
+            OpsKind::UnTracked(prep) => prep.finish(B::float_fmod(lhs.primitive, rhs.primitive)),
+        }
+    }
+
+    fn float_fmod_scalar(lhs: FloatTensor<Self>, rhs: Scalar) -> FloatTensor<Self> {
+        #[derive(Debug)]
+        struct FmodScalar;
+
+        retro_unary_scalar!(RetroFmodScalar, B::float_fmod_scalar);
+
+        impl<B: Backend> Backward<B, 1> for FmodScalar {
+            type State = ();
+
+            fn backward(
+                self,
+                ops: Ops<Self::State, 1>,
+                grads: &mut Gradients,
+                _checkpointer: &mut Checkpointer,
+            ) {
+                unary::<B, _>(ops.parents, ops.node, grads, |grad| grad);
+            }
+        }
+
+        FmodScalar
+            .prepare::<C>([lhs.node()])
+            .memory_bound()
+            .retro_forward(RetroFmodScalar::<B>::new(lhs.node.id, rhs))
+            .parents([&lhs])
+            .stateless(B::float_fmod_scalar(lhs.primitive, rhs))
+    }
+
     fn float_matmul(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> FloatTensor<Self> {
         #[derive(Debug)]
         struct Matmul;

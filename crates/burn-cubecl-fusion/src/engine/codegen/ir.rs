@@ -163,6 +163,7 @@ pub enum FuseOp {
     Greater(BinaryFuseArgs),
     LowerEqual(BinaryFuseArgs),
     Rem(BinaryFuseArgs),
+    Fmod(BinaryFuseArgs),
     GreaterEqual(BinaryFuseArgs),
     BitwiseAnd(BinaryFuseArgs),
     BitwiseOr(BinaryFuseArgs),
@@ -231,6 +232,9 @@ impl Display for FuseOp {
             FuseOp::Greater(args) => write!(f, "{} = {} > {}", args.out, args.lhs, args.rhs),
             FuseOp::LowerEqual(args) => write!(f, "{} = {} <= {}", args.out, args.lhs, args.rhs),
             FuseOp::Rem(args) => write!(f, "{} = {} % {}", args.out, args.lhs, args.rhs),
+            FuseOp::Fmod(args) => {
+                write!(f, "{} = fmod({}, {})", args.out, args.lhs, args.rhs)
+            }
             FuseOp::GreaterEqual(args) => write!(f, "{} = {} >= {}", args.out, args.lhs, args.rhs),
             FuseOp::BitwiseAnd(args) => write!(f, "{} = {} & {}", args.out, args.lhs, args.rhs),
             FuseOp::BitwiseOr(args) => write!(f, "{} = {} | {}", args.out, args.lhs, args.rhs),
@@ -351,6 +355,7 @@ impl FuseOp {
             FuseOp::Cat { output, .. } => output.precision().into_elem(),
             FuseOp::Dequantize { output, .. } => output.precision().into_elem(),
             FuseOp::Rem(op) => op.out.precision().into_elem(),
+            FuseOp::Fmod(op) => op.out.precision().into_elem(),
             FuseOp::Clamp { out, .. } => out.precision().into_elem(),
         }
     }
@@ -726,6 +731,7 @@ impl FuseOp {
             | FuseOp::Greater(binary_fuse_args)
             | FuseOp::LowerEqual(binary_fuse_args)
             | FuseOp::Rem(binary_fuse_args)
+            | FuseOp::Fmod(binary_fuse_args)
             | FuseOp::GreaterEqual(binary_fuse_args)
             | FuseOp::BitwiseAnd(binary_fuse_args)
             | FuseOp::BitwiseOr(binary_fuse_args)

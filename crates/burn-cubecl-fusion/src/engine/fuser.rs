@@ -516,6 +516,12 @@ impl TraceOperationFuser {
             FloatOperationIr::PowfScalar(desc) => self.fuse_scalar_ops(desc, |lhs, rhs, out| {
                 FuseOp::Powf(BinaryFuseArgs { lhs, rhs, out })
             }),
+            FloatOperationIr::Fmod(desc) => self.fuse_binary_ops(desc, |lhs, rhs, out| {
+                FuseOp::Fmod(BinaryFuseArgs { lhs, rhs, out })
+            }),
+            FloatOperationIr::FmodScalar(desc) => self.fuse_scalar_ops(desc, |lhs, rhs, out| {
+                FuseOp::Fmod(BinaryFuseArgs { lhs, rhs, out })
+            }),
             FloatOperationIr::Tanh(desc) => self.fuse_unary_ops(desc, |input, out| {
                 FuseOp::Tanh(UnaryFuseArgs { input, out })
             }),

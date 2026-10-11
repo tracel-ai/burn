@@ -346,6 +346,7 @@ fn fuse(
                 config,
             ),
             FuseOp::Rem(op) => rem::<E, N>(inputs, outputs, locals, pos, op, config),
+            FuseOp::Fmod(op) => fmod::<E, N>(inputs, outputs, locals, pos, op, config),
             FuseOp::Clamp {
                 input,
                 min,
@@ -1152,6 +1153,17 @@ comparison_op!(lower_equal, Vector::<C, N>::less_equal);
 
 binary_func!(powf, Vector::<C, N>::powf, Float);
 binary_func!(rem, Vector::<C, N>::mod_floor, Float);
+binary_func!(fmod, fmod_vector::<C, N>, Float);
+
+/// `fmod(x, ±inf)` is `x` for a finite `x` and NaN for an infinite one. Targets disagree on `%`
+/// there: WGSL and Vulkan allow `x - y * trunc(x / y)`, which is NaN for a finite `x`, and NVPTX
+/// returns `x` even when `x` is infinite. So that case is handled explicitly.
+#[cube]
+fn fmod_vector<F: Float, N: Size>(lhs: Vector<F, N>, rhs: Vector<F, N>) -> Vector<F, N> {
+    let nan = Vector::new(F::new(f32::NAN));
+    let inf_divisor = select_many(Vector::is_inf(lhs), nan, lhs);
+    select_many(Vector::is_inf(rhs), inf_divisor, lhs % rhs)
+}
 
 unary_func!(exp, Vector::<C, N>::exp, Float);
 unary_func!(log, Vector::<C, N>::ln, Float);
