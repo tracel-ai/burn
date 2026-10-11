@@ -426,7 +426,7 @@ pub enum BaseOperationIr {
     ///
     /// Float => [select assign](burn_backend::ops::FloatTensorOps::float_select_assign).
     /// Int => [select assign](burn_backend::ops::IntTensorOps::int_select_assign).
-    /// Bool => [select assign](burn_backend::ops::BoolTensorOps::bool_select_or).
+    /// Bool => [select assign](burn_backend::ops::BoolTensorOps::bool_select_assign).
     SelectAssign(SelectAssignOpIr),
     /// Operation corresponding to:
     ///
@@ -450,7 +450,7 @@ pub enum BaseOperationIr {
     ///
     /// Float => [scatter](burn_backend::ops::FloatTensorOps::float_scatter).
     /// Int => [scatter](burn_backend::ops::IntTensorOps::int_scatter).
-    /// Bool => [scatter](burn_backend::ops::BoolTensorOps::bool_scatter_or).
+    /// Bool => [scatter](burn_backend::ops::BoolTensorOps::bool_scatter).
     Scatter(ScatterOpIr),
     /// Multi-dimensional scatter operation.
     ScatterNd(ScatterNdOpIr),

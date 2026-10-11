@@ -9,7 +9,7 @@ use alloc::{boxed::Box, vec::Vec};
 use burn_backend::{
     Backend, DType, DeviceOps, ExecutionError, FloatDType, ProfileDuration, ProfileOptions,
     ProfileToken, Shape, TensorData, TensorMetadata, TensorPrimitive, distributed::DistributedOps,
-    ops::TransactionPrimitive, tensor::IndexingUpdateOp,
+    ops::TransactionPrimitive,
 };
 use burn_ir::{
     ActivationOperationIr, BackendIr, BaseOperationIr, BoolOperationIr, FloatOperationIr,
@@ -681,12 +681,7 @@ impl<B: BackendIr> TensorInterpreter<B> {
                     let indices = handles.get_int_tensor::<B>(&desc.indices);
                     let value = handles.get_bool_tensor::<B>(&desc.value);
 
-                    let output = match desc.update {
-                        IndexingUpdateOp::Add => {
-                            B::bool_scatter_or(desc.dim, tensor, indices, value)
-                        }
-                        _ => unimplemented!(),
-                    };
+                    let output = B::bool_scatter(desc.dim, tensor, indices, value, desc.update);
                     handles.register_bool_tensor::<B>(&desc.out.id, output);
                 }
                 BaseOperationIr::ScatterNd(_) => {
@@ -707,12 +702,8 @@ impl<B: BackendIr> TensorInterpreter<B> {
                     let indices = handles.get_int_tensor::<B>(&desc.indices);
                     let value = handles.get_bool_tensor::<B>(&desc.value);
 
-                    let output = match desc.update {
-                        IndexingUpdateOp::Add => {
-                            B::bool_select_or(tensor, desc.dim, indices, value)
-                        }
-                        _ => unimplemented!(),
-                    };
+                    let output =
+                        B::bool_select_assign(tensor, desc.dim, indices, value, desc.update);
                     handles.register_bool_tensor::<B>(&desc.out.id, output);
                 }
                 BaseOperationIr::MaskWhere(desc) => {
