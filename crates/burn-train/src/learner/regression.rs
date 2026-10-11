@@ -1,9 +1,9 @@
 use crate::metric::processor::ItemLazy;
-use crate::metric::{Adaptor, LossInput};
+use crate::metric::{Adaptor, LossInput, MAEInput, MSEInput, RegressionInput};
 use burn_core::tensor::Tensor;
 use burn_std::ExecutionError;
 
-/// Regression output adapted for the loss metric.
+/// Regression output adapted for loss, MAE, MSE, and R² metrics.
 #[derive(new)]
 pub struct RegressionOutput {
     /// The loss.
@@ -19,6 +19,24 @@ pub struct RegressionOutput {
 impl Adaptor<LossInput> for RegressionOutput {
     fn adapt(&self) -> LossInput {
         LossInput::new(self.loss.clone())
+    }
+}
+
+impl Adaptor<MAEInput> for RegressionOutput {
+    fn adapt(&self) -> MAEInput {
+        MAEInput::new(self.output.clone(), self.targets.clone())
+    }
+}
+
+impl Adaptor<MSEInput> for RegressionOutput {
+    fn adapt(&self) -> MSEInput {
+        MSEInput::new(self.output.clone(), self.targets.clone())
+    }
+}
+
+impl Adaptor<RegressionInput> for RegressionOutput {
+    fn adapt(&self) -> RegressionInput {
+        RegressionInput::new(self.output.clone(), self.targets.clone())
     }
 }
 
