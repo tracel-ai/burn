@@ -111,6 +111,19 @@ impl BoolTensorOps<Self> for Dispatch {
         B::bool_scatter(dim, tensor, indices, value, update)
     }
 
+    fn bool_scatter_nd(
+        data: BoolTensor<Self>,
+        indices: IntTensor<Self>,
+        values: BoolTensor<Self>,
+        reduction: IndexingUpdateOp,
+    ) -> BoolTensor<Self> {
+        B::bool_scatter_nd(data, indices, values, reduction)
+    }
+
+    fn bool_gather_nd(data: BoolTensor<Self>, indices: IntTensor<Self>) -> BoolTensor<Self> {
+        B::bool_gather_nd(data, indices)
+    }
+
     fn bool_equal(lhs: BoolTensor<Self>, rhs: BoolTensor<Self>) -> BoolTensor<Self> {
         B::bool_equal(lhs, rhs)
     }

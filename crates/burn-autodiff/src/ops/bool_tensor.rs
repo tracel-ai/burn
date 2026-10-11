@@ -155,6 +155,19 @@ impl<B: Backend, C: CheckpointStrategy> BoolTensorOps<Self> for Autodiff<B, C> {
         B::bool_scatter(dim, tensor, indices, value, update)
     }
 
+    fn bool_scatter_nd(
+        data: BoolTensor<Self>,
+        indices: IntTensor<Self>,
+        values: BoolTensor<Self>,
+        reduction: IndexingUpdateOp,
+    ) -> BoolTensor<Self> {
+        B::bool_scatter_nd(data, indices, values, reduction)
+    }
+
+    fn bool_gather_nd(data: BoolTensor<Self>, indices: IntTensor<Self>) -> BoolTensor<Self> {
+        B::bool_gather_nd(data, indices)
+    }
+
     fn bool_equal_elem(lhs: BoolTensor<Self>, rhs: Scalar) -> BoolTensor<Self> {
         B::bool_equal_elem(lhs, rhs)
     }

@@ -1475,6 +1475,31 @@ pub fn scatter_bool(
     FlexTensor::from_arc(result.data_arc(), result.layout().clone(), dtype)
 }
 
+/// Multi-dimensional scatter for bool tensors using the given update operation.
+pub fn scatter_nd_bool(
+    data: FlexTensor,
+    indices: FlexTensor,
+    values: FlexTensor,
+    update: IndexingUpdateOp,
+) -> FlexTensor {
+    // On 0/1 storage, max is logical or and min is logical and; `+` would store 2 for true + true.
+    let update = match update {
+        IndexingUpdateOp::Add => IndexingUpdateOp::Max,
+        IndexingUpdateOp::Mul => IndexingUpdateOp::Min,
+        update => update,
+    };
+    let dtype = data.dtype();
+    let result = scatter_nd::<u8>(data, indices, values, update);
+    FlexTensor::from_arc(result.data_arc(), result.layout().clone(), dtype)
+}
+
+/// Multi-dimensional gather for bool tensors.
+pub fn gather_nd_bool(data: FlexTensor, indices: FlexTensor) -> FlexTensor {
+    let dtype = data.dtype();
+    let result = gather_nd::<u8>(data, indices);
+    FlexTensor::from_arc(result.data_arc(), result.layout().clone(), dtype)
+}
+
 // Tests kept here probe flex-specific behavior: non-I64 index dtype
 // acceptance through the internal `read_indices` path and the uninit-
 // buffer + rayon-chunked `select` kernel. Plain gather/scatter/select
