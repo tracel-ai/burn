@@ -1010,6 +1010,7 @@ dependencies = [
  "burn-cubecl-fusion",
  "burn-flex",
  "burn-fusion",
+ "burn-ir",
  "burn-tensor",
  "ctor",
  "cubek",

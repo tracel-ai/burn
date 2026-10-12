@@ -94,6 +94,8 @@ syn = { workspace = true }
 
 
 [dev-dependencies]
+burn-ir = { workspace = true }
+
 # Used to initialize device settings (test dtypes)
 ctor = "1.0.13"
 divan = "0.1"
