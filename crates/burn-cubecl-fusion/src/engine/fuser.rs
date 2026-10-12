@@ -911,14 +911,14 @@ impl TryTraceFuser {
             return false;
         }
 
-        // Always allow the first operation to be added.
+        // Optimization to avoid cloning the fuser when adding the first operation
         if !self.added_ops {
             self.added_ops = true;
 
             if add_ops(&mut self.fuser).is_none() {
                 return false;
             }
-            return true;
+            return self.fuser.estimate_bindings() <= self.max_bindings;
         }
 
         let mut cloned = self.fuser.clone();
