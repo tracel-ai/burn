@@ -613,6 +613,16 @@ impl TensorCheck {
             );
         }
 
+        if shape_tensor[2..].contains(&0) {
+            check = check.register(
+                ops,
+                TensorError::new(format!(
+                    "The sampled tensor's spatial dimensions must not be empty, but got {:?}.",
+                    &shape_tensor[2..]
+                )),
+            );
+        }
+
         check
     }
 

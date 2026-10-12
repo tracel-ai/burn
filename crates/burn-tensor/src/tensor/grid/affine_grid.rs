@@ -1,10 +1,11 @@
+use crate::DType;
 use crate::Device;
 use crate::ElementConversion;
 use crate::s;
 use crate::tensor::{Int, Tensor};
 use alloc::vec;
 
-/// Generate a tensor with homogeonous coordinates of each element's
+/// Generate a tensor with homogeneous coordinates of each element's
 /// transformed location
 ///
 ///
@@ -26,12 +27,13 @@ pub fn affine_grid_2d(transform: Tensor<3>, dims: [usize; 4]) -> Tensor<4> {
     let [batch_size, _c, height, width] = dims;
 
     let device = &transform.device();
+    let dtype = transform.dtype();
 
     // Normalized (-1.0..1.0) coordinates along each axis, laid out to broadcast over [H, W]
-    let x = normalized_axis(width, device)
+    let x = normalized_axis(width, device, dtype)
         .reshape([1, width])
         .expand([height, width]);
-    let y = normalized_axis(height, device)
+    let y = normalized_axis(height, device, dtype)
         .reshape([height, 1])
         .expand([height, width]);
 
@@ -54,7 +56,7 @@ pub fn affine_grid_2d(transform: Tensor<3>, dims: [usize; 4]) -> Tensor<4> {
     Tensor::stack(vec![grid_x, grid_y], 3)
 }
 
-/// Generate a tensor with homogeonous coordinates of each element's
+/// Generate a tensor with homogeneous coordinates of each element's
 /// transformed location, in three dimensions
 ///
 ///
@@ -78,15 +80,16 @@ pub fn affine_grid_3d(transform: Tensor<3>, dims: [usize; 5]) -> Tensor<5> {
     let [batch_size, _c, depth, height, width] = dims;
 
     let device = &transform.device();
+    let dtype = transform.dtype();
 
     // Normalized (-1.0..1.0) coordinates along each axis, laid out to broadcast over [D, H, W]
-    let x = normalized_axis(width, device)
+    let x = normalized_axis(width, device, dtype)
         .reshape([1, 1, width])
         .expand([depth, height, width]);
-    let y = normalized_axis(height, device)
+    let y = normalized_axis(height, device, dtype)
         .reshape([1, height, 1])
         .expand([depth, height, width]);
-    let z = normalized_axis(depth, device)
+    let z = normalized_axis(depth, device, dtype)
         .reshape([depth, 1, 1])
         .expand([depth, height, width]);
 
@@ -130,17 +133,18 @@ pub fn affine_grid_3d(transform: Tensor<3>, dims: [usize; 5]) -> Tensor<5> {
 }
 
 /// The `size` evenly spaced coordinates from -1.0 to 1.0 inclusive, i.e. the centers of the
-/// pixels along one axis with `align_corners = true`.
+/// pixels along one axis with `align_corners = true`, in the transform's `dtype`.
 ///
 /// A single pixel has no span to divide, so its center is 0 rather than the `0 / 0` the
 /// general formula would produce.
-fn normalized_axis(size: usize, device: &Device) -> Tensor<1> {
+fn normalized_axis(size: usize, device: &Device, dtype: DType) -> Tensor<1> {
     if size <= 1 {
-        return Tensor::zeros([size], device);
+        return Tensor::zeros([size], (device, dtype));
     }
 
     Tensor::<1, Int>::arange(0..size as i64, device)
         .float()
+        .cast(dtype)
         .div_scalar(((size - 1) as f32 / 2.0).elem::<f32>())
         .sub_scalar((1_f32).elem::<f32>())
 }

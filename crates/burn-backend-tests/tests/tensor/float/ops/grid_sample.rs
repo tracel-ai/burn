@@ -222,3 +222,14 @@ fn should_grid_sample_2d_reject_batch_mismatch() {
 
     let _ = tensor.grid_sample_2d(grid, GridSampleOptions::default());
 }
+
+/// Every input spatial axis must hold at least one pixel, as in PyTorch.
+#[test]
+#[should_panic(expected = "=== Tensor Operation Error ===")]
+fn should_grid_sample_2d_reject_empty_spatial_axis() {
+    let device = Default::default();
+    let tensor = TestTensor::<4>::zeros([1, 1, 0, 2], &device);
+    let grid = TestTensor::<4>::zeros([1, 2, 2, 2], &device);
+
+    let _ = tensor.grid_sample_2d(grid, GridSampleOptions::default());
+}

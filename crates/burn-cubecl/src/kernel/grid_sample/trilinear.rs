@@ -61,6 +61,11 @@ fn grid_sample_trilinear_kernel<F: Float>(
     let gy = grid[grid_offset + grid_stride_c]; // y coordinate in [-1, 1], indexes H_in
     let gz = grid[grid_offset + grid_stride_c + grid_stride_c]; // z coordinate in [-1, 1], indexes D_in
 
+    // PyTorch reads a NaN grid value as -1. The cast only names the scalar's own bool type.
+    let gx = select(bool::cast_from(gx.is_nan()), F::new(-1.0_f32), gx);
+    let gy = select(bool::cast_from(gy.is_nan()), F::new(-1.0_f32), gy);
+    let gz = select(bool::cast_from(gz.is_nan()), F::new(-1.0_f32), gz);
+
     // Convert normalized coordinates to voxel coordinates
     let (px, py, pz) = if align_corners {
         let px = (gx + F::new(1.0_f32)) * F::cast_from((w_in - 1) as f32) / F::new(2.0_f32);

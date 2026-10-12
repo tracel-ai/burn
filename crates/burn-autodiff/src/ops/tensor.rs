@@ -22,7 +22,7 @@ use crate::{
 use burn_backend::{
     Backend, ExecutionError, TensorData, TensorMetadata, get_or_init_device_settings,
     ops::{
-        FloatTensorOps, GridSampleOptions,
+        FloatTensorOps, GridSampleOptions, InterpolateMode,
         grid_sample::{float_grid_sample_3d_grid_backward, float_grid_sample_3d_x_backward},
     },
     tensor::{BoolTensor, Device, FloatTensor, IntTensor},
@@ -4845,8 +4845,8 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         struct GridSample3d;
 
         impl<B: Backend> Backward<B, 2> for GridSample3d {
-            /// The checkpointed sampled tensor (only needed for the grid gradient), the
-            /// checkpointed grid (needed by both), the sampled tensor's shape and the options.
+            /// The checkpointed sampled tensor (only needed for the trilinear grid gradient),
+            /// the checkpointed grid (needed by both), the sampled tensor's shape and the options.
             type State = (Option<NodeId>, NodeId, Shape, GridSampleOptions);
 
             fn backward(
@@ -4877,7 +4877,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
                     },
                     |grad| {
                         float_grid_sample_3d_grid_backward::<B>(
-                            tensor.unwrap(),
+                            tensor,
                             grid_4grid.unwrap(),
                             grad,
                             options_4grid,
@@ -4887,9 +4887,10 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
             }
         }
 
-        // The input gradient needs only the grid; the grid gradient needs the sampled tensor too,
-        // so that one is checkpointed only when the grid is actually tracked.
-        let grid_tracked = grid.is_tracked();
+        // The input gradient needs only the grid. The trilinear grid gradient needs the sampled
+        // tensor too, so that one is checkpointed only when the grid is actually tracked and the
+        // mode is not nearest, whose grid gradient is zero regardless of the volume.
+        let tensor_needed = grid.is_tracked() && !matches!(options.mode, InterpolateMode::Nearest);
         let tensor_shape = tensor.primitive.shape();
 
         match GridSample3d
@@ -4898,7 +4899,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
             .stateful()
         {
             OpsKind::Tracked(mut prep) => {
-                let tensor_state = grid_tracked.then(|| prep.checkpoint(&tensor));
+                let tensor_state = tensor_needed.then(|| prep.checkpoint(&tensor));
                 let grid_state = prep.checkpoint(&grid);
                 let output =
                     B::float_grid_sample_3d(tensor.primitive, grid.primitive, options.clone());

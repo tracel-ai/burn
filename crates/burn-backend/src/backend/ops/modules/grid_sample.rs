@@ -532,7 +532,9 @@ pub fn float_grid_sample_3d_x_backward<B: Backend>(
 ///
 /// # Arguments
 ///
-/// * `tensor` - The same sampled tensor the forward was given, (N, C, D_in, H_in, W_in)
+/// * `tensor` - The same sampled tensor the forward was given, (N, C, D_in, H_in, W_in). Only
+///   trilinear sampling reads it; nearest sampling is piecewise constant in the grid, so its
+///   callers may pass `None` instead of keeping the volume alive
 /// * `grid` - The same sampling grid the forward was given, (N, D_out, H_out, W_out, 3)
 /// * `grad_output` - Gradient of the loss w.r.t. the output, (N, C, D_out, H_out, W_out)
 /// * `options` - The same options the forward was given
@@ -572,14 +574,14 @@ pub fn float_grid_sample_3d_x_backward<B: Backend>(
 /// not — the corners are two distinct voxels — so [`pad_coordinate_grad`] applies PyTorch's
 /// clip rule there and zeroes the gradient, the same rule `Border` uses.
 pub fn float_grid_sample_3d_grid_backward<B: Backend>(
-    tensor: FloatTensor<B>,
+    tensor: Option<FloatTensor<B>>,
     grid: FloatTensor<B>,
     grad_output: FloatTensor<B>,
     options: GridSampleOptions,
 ) -> FloatTensor<B> {
     match options.mode {
         InterpolateMode::Bilinear => grid_sample_3d_trilinear_grid_backward::<B>(
-            tensor,
+            tensor.expect("the trilinear grid gradient needs the sampled tensor"),
             grid,
             grad_output,
             options.padding_mode,
@@ -984,6 +986,7 @@ fn grid_sample_3d_raw_coords<B: Backend>(
     let w_out = grid.shape()[3];
 
     let coord_shape = Shape::new([n, 1, d_out, h_out, w_out]);
+    let bool_dtype = get_or_init_device_settings::<B>(&grid.device()).bool_dtype;
     let axis_slice = |axis: isize| {
         vec![
             Slice::new(0, Some(n as isize), 1),
@@ -1001,6 +1004,13 @@ fn grid_sample_3d_raw_coords<B: Backend>(
         // Separate x, y and z coordinates from grid; shape: (N, D_out, H_out, W_out, 1)
         let coord = B::float_slice(grid.clone(), &axis_slice(axis as isize));
         let coord = B::float_reshape(coord, coord_shape.clone());
+
+        // PyTorch reads a NaN grid value as -1.
+        let coord = B::float_mask_fill(
+            coord.clone(),
+            B::float_is_nan(coord, bool_dtype),
+            (-1f32).into(),
+        );
 
         // Convert normalized grid coordinates [-1, 1] to pixel coordinates.
         let coord = B::float_add_scalar(coord, 1f32.into());

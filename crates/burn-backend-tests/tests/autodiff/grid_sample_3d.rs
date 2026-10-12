@@ -464,3 +464,22 @@ fn test_grid_sample_3d_grid_only_tracked() {
         .into_data()
         .assert_approx_eq::<FloatElem>(&expected, tolerance());
 }
+
+/// Nearest mode with only the grid tracked: the zero grid gradient needs no checkpointed volume.
+#[test]
+fn test_grid_sample_3d_nearest_grid_only_tracked() {
+    let grid = grid().require_grad();
+    let options = make_options(
+        InterpolateMode::Nearest,
+        GridSamplePaddingMode::Border,
+        true,
+    );
+
+    let output = volume().grid_sample_3d(grid.clone(), options);
+    let grads = output.mul(weights()).sum().backward();
+
+    grid.grad(&grads)
+        .unwrap()
+        .into_data()
+        .assert_eq(&TensorData::zeros::<FloatElem, _>([1, 1, 2, 2, 3]), false);
+}

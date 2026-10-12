@@ -1,4 +1,5 @@
 use super::*;
+use burn_tensor::DType;
 use burn_tensor::grid::{affine_grid_2d, affine_grid_3d};
 
 fn create_identity_transform(batch_size: usize) -> TestTensor<3> {
@@ -253,5 +254,29 @@ fn test_affine_grid_3d_singleton_axis() {
         [[-1., 1., 0.], [0., 1., 0.], [1., 1., 0.]],
     ]]]);
 
+    output.into_data().assert_eq(&expected.into_data(), false);
+}
+
+/// The grid takes the transform's dtype, not the device default, so a wider transform does not
+/// meet narrower coordinate axes in the affine product. Only flex guarantees f64 everywhere.
+#[cfg(feature = "flex")]
+#[test]
+fn test_affine_grid_keeps_transform_dtype() {
+    let transform_2d = create_identity_transform(1).cast(DType::F64);
+    let output = affine_grid_2d(transform_2d, [1, 1, 2, 2]);
+    assert_eq!(output.dtype(), DType::F64);
+    let expected = TestTensor::<4>::from([[
+        [[-1f32, -1f32], [1f32, -1f32]],
+        [[-1f32, 1f32], [1f32, 1f32]],
+    ]]);
+    output.into_data().assert_eq(&expected.into_data(), false);
+
+    let transform_3d = create_identity_transform_3d(1).cast(DType::F64);
+    let output = affine_grid_3d(transform_3d, [1, 1, 1, 2, 2]);
+    assert_eq!(output.dtype(), DType::F64);
+    let expected = TestTensor::<5>::from([[[
+        [[-1f32, -1., 0.], [1., -1., 0.]],
+        [[-1., 1., 0.], [1., 1., 0.]],
+    ]]]);
     output.into_data().assert_eq(&expected.into_data(), false);
 }

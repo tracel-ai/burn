@@ -314,9 +314,11 @@ where
             for y in 0..h_out {
                 for x in 0..w_out {
                     let g_idx = b * g_stride_n + z * g_stride_d + y * g_stride_h + x * 3;
-                    let sample_x = to_f64(grid_data[g_idx]);
-                    let sample_y = to_f64(grid_data[g_idx + 1]);
-                    let sample_z = to_f64(grid_data[g_idx + 2]);
+                    // PyTorch reads a NaN grid value as -1.
+                    let nan_to_low = |g: f64| if g.is_nan() { -1.0 } else { g };
+                    let sample_x = nan_to_low(to_f64(grid_data[g_idx]));
+                    let sample_y = nan_to_low(to_f64(grid_data[g_idx + 1]));
+                    let sample_z = nan_to_low(to_f64(grid_data[g_idx + 2]));
 
                     // Convert normalized grid coordinates [-1, 1] to voxel coordinates. Each axis
                     // is scaled by its own input extent: x by W_in, y by H_in and z by D_in.
@@ -410,7 +412,7 @@ where
 /// Apply the padding mode to a 3-D sampling position.
 ///
 /// Returns `None` when the sample is defined to be zero regardless of the position, which is how
-/// inf/nan coordinates are handled outside of border padding.
+/// infinite coordinates are handled outside of border padding.
 fn apply_padding_3d(
     [x, y, z]: [f64; 3],
     [width, height, depth]: [usize; 3],

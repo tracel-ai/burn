@@ -499,3 +499,44 @@ fn should_grid_sample_3d_reference_match_native() {
         }
     }
 }
+
+/// Every input spatial axis must hold at least one voxel, as in PyTorch.
+#[test]
+#[should_panic(expected = "=== Tensor Operation Error ===")]
+fn should_grid_sample_3d_reject_empty_spatial_axis() {
+    let device = Default::default();
+    let tensor = TestTensor::<5>::zeros([1, 1, 0, 2, 2], &device);
+    let grid = TestTensor::<5>::zeros([1, 1, 2, 2, 3], &device);
+
+    let _ = tensor.grid_sample_3d(grid, GridSampleOptions::default());
+}
+
+/// A NaN grid component reads as -1, as in PyTorch, and leaves the other components intact.
+#[test]
+fn should_grid_sample_3d_read_nan_coordinate_as_minus_one() {
+    let device = Default::default();
+    let with_nan = TestTensor::<5>::from_data(
+        [[[
+            [[f32::NAN, 0.25, -0.5], [0.0, f32::NAN, 0.5]],
+            [[0.3, 0.2, f32::NAN], [f32::NAN, f32::NAN, f32::NAN]],
+        ]]],
+        &device,
+    );
+    let with_low = TestTensor::<5>::from_data(
+        [[[
+            [[-1.0, 0.25, -0.5], [0.0, -1.0, 0.5]],
+            [[0.3, 0.2, -1.0], [-1.0, -1.0, -1.0]],
+        ]]],
+        &device,
+    );
+
+    for options in all_options() {
+        let expected = volume()
+            .grid_sample_3d(with_low.clone(), options.clone())
+            .to_data();
+        volume()
+            .grid_sample_3d(with_nan.clone(), options)
+            .to_data()
+            .assert_approx_eq::<FloatElem>(&expected, tolerance());
+    }
+}
