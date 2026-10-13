@@ -30,7 +30,7 @@ std = [
     "burn-fusion?/std",
     "burn-cubecl-fusion?/std",
 ]
-doc = ["default", "wgpu", "fft"]
+doc = ["default", "wgpu", "fft", "dep:branches"]
 # Native FFT kernels, enabled by burn-signal.
 fft = ["cubek/fft"]
 
@@ -72,6 +72,7 @@ template = []
 
 
 [dependencies]
+branches = { workspace = true, optional = true }
 burn-cubecl-fusion = { workspace = true, optional = true }
 burn-fusion = { workspace = true, optional = true }
 burn-ir = { workspace = true }

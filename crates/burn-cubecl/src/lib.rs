@@ -23,7 +23,7 @@
 //! - `fusion`: kernel fusion through `burn-fusion`.
 //! - `autotune`: benchmark kernel variants at runtime and keep the fastest.
 //! - `fft`: FFT kernels.
-//! - `template`: launch hand-written, non-JIT kernels (see [`template`]).
+//! - `template`: launch hand-written, non-JIT kernels.
 //! - `tracing`: instrument operations with the `tracing` crate.
 
 #[macro_use]

@@ -18,7 +18,7 @@ workspace = true
 # `sqlite` is opt-in: it pulls the Turso engine and its dependency tree, which a dataset pipeline
 # built on CSV or in-memory sources has no use for.
 default = []
-doc = ["default", "sqlite"]
+doc = ["default", "sqlite", "dep:branches"]
 tracing = [
     "burn-std?/tracing",
 ]
@@ -43,6 +43,7 @@ nlp = ["dep:globwalk", "dep:encoding_rs"]
 dataframe = ["dep:polars-core", "dep:planus"]
 
 [dependencies]
+branches = { workspace = true, optional = true }
 burn-std = { workspace = true, optional = true, features = [
     "default",
     "network",

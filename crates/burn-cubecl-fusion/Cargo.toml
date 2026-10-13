@@ -19,7 +19,7 @@ default = ["autotune", "std", "cubecl/default", "burn-fusion/default"]
 
 autotune = []
 autotune-checks = ["cubecl/autotune-checks", "half"]
-doc = ["default"]
+doc = ["default", "dep:branches"]
 test-util = []
 std = ["cubecl/std", "burn-backend/std", "burn-fusion/std"]
 tracing = [
@@ -30,6 +30,7 @@ tracing = [
 ]
 
 [dependencies]
+branches = { workspace = true, optional = true }
 burn-fusion = { workspace = true }
 burn-ir = { workspace = true }
 burn-std = { workspace = true, features = ["default"] }
