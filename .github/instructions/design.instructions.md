@@ -21,9 +21,10 @@ the crate that owns the concept. Maintainers decide.
   crate-private helpers, plain functions over traits with a single implementation, and methods on
   the type that owns the state. Avoid blanket extension traits on standard types.
 - Root causes. A workaround for a bug in another layer, such as fusion, a backend, or CubeCL, should
-  be a fix in that layer or a linked issue rather than a local special case. A fallback that hides
-  an unsupported case, such as a silent round trip through the host, is worse than an explicit
-  unsupported error.
+  be a fix in that layer or a linked issue rather than a local special case. A fallback such as a
+  round trip through the host should be deliberate and documented on the public API with its cost,
+  as `burn_linalg::svd` does. An undocumented fallback that hides an unsupported case can be worse
+  than an explicit unsupported error.
 - Scope. Changes unrelated to the PR's stated goal should be split out: dependency bumps, test
   device or feature changes, edits to other crates, and drive-by refactors. Large features and new
   public concepts should have an agreed design in an issue first.
