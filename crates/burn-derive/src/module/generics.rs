@@ -72,11 +72,20 @@ fn contains_self(ty: &Type, name: &syn::Ident) -> bool {
     }
     impl<'ast> Visit<'ast> for Finder<'_> {
         fn visit_type_path(&mut self, ty: &'ast syn::TypePath) {
-            if ty
-                .path
-                .segments
-                .last()
-                .is_some_and(|s| s.ident == "Self" || s.ident == *self.name)
+            // A projection is not the enclosing type, even when its name or
+            // qualified self type matches (e.g. <Node<T> as Trait>::Child).
+            if ty.qself.is_some() {
+                return;
+            }
+            // Only bare Self or Node<T> identify recursion syntactically.
+            // T::Node and other::Node<T> must retain their field bounds.
+            if ty.path.leading_colon.is_none()
+                && ty.path.segments.len() == 1
+                && ty
+                    .path
+                    .segments
+                    .first()
+                    .is_some_and(|s| s.ident == "Self" || s.ident == *self.name)
             {
                 self.found = true;
             }
@@ -86,4 +95,34 @@ fn contains_self(ty: &Type, name: &syn::Ident) -> bool {
     let mut finder = Finder { name, found: false };
     finder.visit_type(ty);
     finder.found
+}
+
+#[cfg(test)]
+mod tests {
+    use super::contains_self;
+    use syn::parse_quote;
+
+    #[test]
+    fn projection_from_enclosing_type_is_not_recursive() {
+        assert!(!contains_self(
+            &parse_quote!(<Node<T> as HasNode>::Child),
+            &parse_quote!(Node)
+        ));
+    }
+
+    #[test]
+    fn qualified_type_with_enclosing_name_is_not_recursive() {
+        assert!(!contains_self(
+            &parse_quote!(other::Node<T>),
+            &parse_quote!(Node)
+        ));
+    }
+
+    #[test]
+    fn absolute_type_with_enclosing_name_is_not_recursive() {
+        assert!(!contains_self(
+            &parse_quote!(::Node<T>),
+            &parse_quote!(Node)
+        ));
+    }
 }

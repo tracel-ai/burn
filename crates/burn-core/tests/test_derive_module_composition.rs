@@ -65,7 +65,8 @@ impl HasLayer for Layers {
 }
 
 #[derive(Module, Debug)]
-struct Associated<T: HasLayer>
+// Sharing the associated type's name must not make this field recursive.
+struct Layer<T: HasLayer>
 where
     T::Layer: core::fmt::Debug,
 {
@@ -126,7 +127,7 @@ fn module_bounds_apply_to_fields_instead_of_all_type_arguments() {
         },
     };
     assert_eq!(module.num_params(), 2);
-    let associated = Associated::<Layers> {
+    let associated = Layer::<Layers> {
         inner: scale(&device),
     };
     assert_eq!(associated.num_params(), 2);
