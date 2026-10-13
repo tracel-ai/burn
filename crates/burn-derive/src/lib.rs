@@ -41,9 +41,13 @@ pub(crate) mod shared;
 ///
 /// ## Generics
 ///
-/// Generic type parameters (e.g., `field: M`) are assumed to be sub-modules by default.
-/// If a generic field represents some other runtime state or configuration, you can use
-/// the `#[module(skip)]` attribute to provide a hint.
+/// Bounds are inferred on each field's type: `Wrapper<T>` must implement `Module` and
+/// `ModuleDisplay`, but `T` need not implement them. Existing bounds, including custom
+/// forward traits, are preserved. Use `#[module(skip)]` for generic config/state fields;
+/// the same type parameter can also appear in a participating field.
+///
+/// Named and tuple structs support recursive children such as `Vec<Self>` and
+/// `Option<Box<Self>>`. Enums support variants containing a single unnamed field.
 ///
 /// # Field Attributes
 ///
@@ -58,7 +62,7 @@ pub(crate) mod shared;
 /// ### Requirements
 ///
 /// The field must implement: `Debug + Clone + Send`.
-/// A `Param` field or a field using a generic explicitly bounded by `Module` cannot be skipped.
+/// A `Param` field cannot be skipped.
 ///
 /// # Example
 ///

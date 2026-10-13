@@ -2,10 +2,79 @@ use crate::module::{
     Content, Module, ModuleDisplay, ModuleDisplayDefault, ModuleMapper, ModuleVisitor,
 };
 
-use alloc::{format, string::ToString, vec::Vec};
+use alloc::{
+    boxed::Box,
+    format,
+    string::{String, ToString},
+    vec::Vec,
+};
 
 use burn_tensor::Device;
 use core::fmt::Debug;
+
+// Box is transparent to module paths, like Option: owning a child on the heap
+// must not change the child's checkpoint keys or parameter-group paths.
+impl<T: Module> Module for Box<T> {
+    fn num_params(&self) -> usize {
+        (**self).num_params()
+    }
+
+    fn visit<V: ModuleVisitor>(&self, visitor: &mut V) {
+        (**self).visit(visitor)
+    }
+
+    fn map<M: ModuleMapper>(self, mapper: &mut M) -> Self {
+        Box::new((*self).map(mapper))
+    }
+
+    fn collect_devices(&self, devices: Vec<Device>) -> Vec<Device> {
+        (**self).collect_devices(devices)
+    }
+
+    fn to_device(self, device: &Device) -> Self {
+        Box::new((*self).to_device(device))
+    }
+
+    fn fork(self, device: &Device) -> Self {
+        Box::new((*self).fork(device))
+    }
+
+    fn valid(&self) -> Self {
+        Box::new((**self).valid())
+    }
+
+    fn train(self) -> Self {
+        Box::new((*self).train())
+    }
+
+    fn materialize(self) -> Self {
+        Box::new((*self).materialize())
+    }
+}
+
+impl<T: ModuleDisplay + ?Sized> ModuleDisplayDefault for Box<T> {
+    fn content(&self, content: Content) -> Option<Content> {
+        (**self).content(content)
+    }
+
+    fn num_params(&self) -> usize {
+        (**self).num_params()
+    }
+}
+
+impl<T: ModuleDisplay + ?Sized> ModuleDisplay for Box<T> {
+    fn format(&self, settings: crate::module::DisplaySettings) -> String {
+        (**self).format(settings)
+    }
+
+    fn custom_settings(&self) -> Option<crate::module::DisplaySettings> {
+        (**self).custom_settings()
+    }
+
+    fn custom_content(&self, content: Content) -> Option<Content> {
+        (**self).custom_content(content)
+    }
+}
 
 impl<T> Module for Option<T>
 where
