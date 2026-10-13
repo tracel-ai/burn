@@ -230,9 +230,8 @@ pub fn cfft<const D: usize>(
 /// complex-valued input.
 ///
 /// This is the inverse of [`cfft`]: it accepts a full `N`-bin complex spectrum
-/// and returns the `N`-sample complex signal. With `n = None` the round trip is
-/// exact, so
-/// `ifft(cfft(re, im, dim, None).0, cfft(re, im, dim, None).1, dim, None) == (re, im)`.
+/// and returns the `N`-sample complex signal. With `n = None`, applying [`cfft`]
+/// followed by `ifft` recovers the input within floating-point tolerance.
 /// With `Some(n)` both transforms operate at length `n`, so along `dim` the
 /// input is truncated or zero-padded and the recovered signal has length `n`
 /// rather than necessarily the original length.
@@ -261,9 +260,11 @@ where $N$ is the transform length along `dim`.
 /// * `dim` - The dimension along which to take the inverse FFT.
 ///   Negative dimensions are supported and count from the end.
 /// * `n` - Optional transform length. When `None`, the spectrum length along
-///   `dim` is used. When `Some(n)`, the spectrum is truncated or zero-padded to
-///   length `n` before the inverse transform, and the returned signal has `n`
-///   elements along `dim`.
+///   `dim` must be a positive power of two and is used as the transform length.
+///   When `Some(n)`, `n` must also be a positive power of two; the spectrum is
+///   truncated or zero-padded to length `n` before the inverse transform, and
+///   the returned signal has `n` elements along `dim`. Unsupported lengths
+///   are rejected with a panic.
 ///
 /// # Returns
 ///
