@@ -25,10 +25,11 @@ impl FloatTensorOps<Self> for CubeBackend {
         fields(shape = ?data.shape(), dtype = ?data.dtype())
     ))]
     fn float_from_data(data: TensorData, device: &Device<Self>) -> FloatTensor<Self> {
-        match data.dtype() {
-            DType::F64 | DType::F32 | DType::F16 | DType::BF16 => super::from_data(data, device),
-            _ => unimplemented!("Unsupported dtype for `float_from_data`"),
+        let dtype = data.dtype();
+        if !dtype.is_float() {
+            unimplemented!("Unsupported dtype for `float_from_data`: {dtype:?}");
         }
+        super::from_data(data, device)
     }
 
     fn float_random(
