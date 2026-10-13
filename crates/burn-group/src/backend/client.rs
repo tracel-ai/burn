@@ -98,22 +98,15 @@ impl RouterClient for GroupClient {
         self.interpreter.lock().dtype_usage(dtype)
     }
 
-    fn register_and_execute_graph(
-        &self,
-        graph_id: GraphId,
-        relative_graph: Vec<OperationIr>,
-        bindings: GraphBindings,
-    ) {
-        self.interpreter
-            .lock()
-            .register_graph(graph_id, relative_graph, bindings);
+    fn register_and_execute_graph(&self, _: GraphId, _: Vec<OperationIr>, _: GraphBindings) {
+        unreachable!("Only router fusion replays graphs, and a device group runs without it")
     }
 
-    fn execute_graph(&self, graph_id: GraphId, bindings: GraphBindings) {
-        self.interpreter.lock().execute_graph(graph_id, bindings);
+    fn execute_graph(&self, _: GraphId, _: GraphBindings) {
+        unreachable!("Only router fusion replays graphs, and a device group runs without it")
     }
 
-    fn register_alias(&self, new_id: TensorId, src_id: TensorId) {
-        self.interpreter.lock().register_alias(new_id, src_id);
+    fn register_alias(&self, _: TensorId, _: TensorId) {
+        unreachable!("Only router fusion aliases handles, and a device group runs without it")
     }
 }

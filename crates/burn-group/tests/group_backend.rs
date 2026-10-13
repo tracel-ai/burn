@@ -1,6 +1,6 @@
 use burn_backend::{
-    Backend, DType, Scalar, Shape, TensorData, TensorMetadata,
-    ops::{ActivationOps, FloatTensorOps, IntTensorOps},
+    Backend, Scalar, Shape, TensorData, TensorMetadata,
+    ops::{ActivationOps, FloatTensorOps},
     tensor::FloatTensor,
 };
 use burn_flex::{Flex, FlexDevice};
@@ -8,11 +8,6 @@ use burn_group::{
     GroupBackend, GroupDevice,
     GroupPlacement::{self, Partial, Replicated, Sharded},
 };
-use burn_ir::{
-    BinaryOpIr, GraphBindings, GraphId, NumericOperationIr, OperationIr, TensorId, TensorIr,
-    TensorStatus,
-};
-use burn_router::{RouterClient, RouterTensor};
 use burn_std::future::block_on;
 
 type Group = GroupBackend;
@@ -79,6 +74,7 @@ fn elementwise_ops_match_one_device_for_every_placement() {
             Scalar::Float(3.0)
         ));
         check_unary!(members, &input, |B, a| B::relu(a));
+        check_unary!(members, &input, |B, a| B::gelu(a));
     }
 }
 
@@ -138,19 +134,6 @@ fn split_tensors_stay_split_where_megatron_keeps_them() {
 }
 
 #[test]
-fn integer_division_of_a_partial_sum_matches_one_device() {
-    let device = group(2);
-    let split = place(
-        Group::int_from_data(TensorData::from([1i64, 1]), &device),
-        Sharded { dim: 0 },
-    );
-    let quotient = Group::int_div_scalar(Group::int_sum(split), Scalar::Int(2));
-
-    let quotient = block_on(Group::int_into_data(quotient)).expect("The tensor can be read");
-    assert_eq!(quotient, TensorData::from([1i64]));
-}
-
-#[test]
 #[should_panic(expected = "No collective places")]
 fn a_dim_shorter_than_the_group_is_not_split() {
     let device = group(3);
@@ -158,100 +141,6 @@ fn a_dim_shorter_than_the_group_is_not_split() {
         Group::float_from_data(data([2, 6], 1), &device),
         Sharded { dim: 0 },
     );
-}
-
-#[test]
-fn a_replayed_graph_runs_each_invocation_at_its_own_placements() {
-    // (a + b) * b, the sum an intermediate the replay names itself.
-    let relative = |id, status| TensorIr {
-        id: TensorId::new(id),
-        shape: Shape::new([0, 1]),
-        status,
-        dtype: DType::F32,
-    };
-    let (a, b) = (
-        relative(0, TensorStatus::ReadOnly),
-        relative(1, TensorStatus::ReadOnly),
-    );
-    let graph = vec![
-        OperationIr::NumericFloat(
-            DType::F32,
-            NumericOperationIr::Add(BinaryOpIr {
-                lhs: a,
-                rhs: b.clone(),
-                out: relative(2, TensorStatus::NotInit),
-            }),
-        ),
-        OperationIr::NumericFloat(
-            DType::F32,
-            NumericOperationIr::Mul(BinaryOpIr {
-                lhs: relative(2, TensorStatus::ReadWrite),
-                rhs: b,
-                out: relative(3, TensorStatus::NotInit),
-            }),
-        ),
-    ];
-    let invocations = [
-        ([4, 6], Sharded { dim: 1 }, Replicated),
-        ([3, 5], Partial, Sharded { dim: 1 }),
-        ([4, 6], Sharded { dim: 0 }, Sharded { dim: 1 }),
-    ];
-
-    for members in [2, 3] {
-        let device = group(members);
-        for (invocation, (shape, a_placement, b_placement)) in invocations.into_iter().enumerate() {
-            let (a, b) = (data(shape, 1), data(shape, 2));
-            let lhs = placed(&a, &device, a_placement);
-            let rhs = placed(&b, &device, b_placement);
-            let client = lhs.client.clone();
-            let out = client.create_empty_handle();
-            let bindings = GraphBindings {
-                tensors: vec![
-                    (TensorId::new(0), lhs.id()),
-                    (TensorId::new(1), rhs.id()),
-                    (TensorId::new(3), out),
-                ],
-                shapes: shape.to_vec(),
-                scalars: vec![],
-                ranges: vec![],
-            };
-            match invocation {
-                0 => client.register_and_execute_graph(GraphId(0), graph.clone(), bindings),
-                _ => client.execute_graph(GraphId(0), bindings),
-            }
-
-            let flex = |data: TensorData| Flex::float_from_data(data, &FlexDevice);
-            let expected = read::<Flex>(Flex::float_mul(
-                Flex::float_add(flex(a), flex(b.clone())),
-                flex(b),
-            ));
-            let actual = read::<Group>(RouterTensor::new(
-                out,
-                Shape::new(shape),
-                DType::F32,
-                client,
-            ));
-            let case = format!("{members} members, {a_placement:?} with {b_placement:?}");
-            assert_close(actual, expected, &case);
-        }
-    }
-}
-
-#[test]
-fn an_alias_keeps_its_source_value_and_placement_once_the_source_is_dropped() {
-    let source_data = data([4, 6], 1);
-    let source = place(
-        Group::float_from_data(source_data.clone(), &group(2)),
-        Sharded { dim: 1 },
-    );
-    let client = source.client.clone();
-    let alias = client.create_empty_handle();
-    client.register_alias(alias, source.id());
-    let alias = RouterTensor::new(alias, source.shape(), source.dtype(), client);
-    drop(source);
-
-    assert_eq!(placement_of(&alias), Sharded { dim: 1 });
-    assert_close(read::<Group>(alias), source_data, "alias");
 }
 
 #[test]

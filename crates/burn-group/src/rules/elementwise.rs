@@ -1,4 +1,4 @@
-use burn_std::{DType, Shape};
+use burn_std::Shape;
 
 use crate::{GroupPlacement, OpPlacement, PlacementShapes};
 
@@ -19,14 +19,6 @@ pub enum Linearity {
 }
 
 impl Linearity {
-    /// Integer division rounds each summand, so only a float quotient stays partial.
-    pub fn div(dtype: DType) -> Self {
-        match dtype.is_float() {
-            true => Linearity::LinearIn { input: 0 },
-            false => Linearity::Nonlinear,
-        }
-    }
-
     /// Where the inputs must be for the op to run on every member, and where its output lands.
     pub fn placement<const N: usize>(
         self,
@@ -103,14 +95,5 @@ mod tests {
             Linearity::Linear.placement([Partial, Sharded { dim: 1 }], [&shape, &shape]);
 
         assert_eq!(placement.inputs, [Sharded { dim: 1 }, Sharded { dim: 1 }]);
-    }
-
-    #[test]
-    fn an_integer_quotient_of_a_partial_sum_is_reduced_first() {
-        let shape = Shape::new([4]);
-        let placement =
-            Linearity::div(DType::I32).placement([Partial, Replicated], [&shape, &shape]);
-
-        assert_eq!(placement.output, Replicated);
     }
 }

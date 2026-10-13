@@ -13,6 +13,6 @@ mod rules;
 pub use backend::{GroupBackend, GroupDevice};
 pub use placement::GroupPlacement;
 
-use placement::{DimSplit, OpPlacement, PlacementShapes};
+use placement::{DimSplit, Member, OpPlacement, PlacementShapes};
 use redistribution::Redistribution;
 use rules::*;

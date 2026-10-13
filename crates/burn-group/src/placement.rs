@@ -21,14 +21,20 @@ pub trait PlacementShapes {
     fn aligned(self, shape: &Shape) -> Self;
 
     /// The shape of the shard `member` holds of a tensor of global `shape`.
-    fn local_shape(self, shape: &Shape, member: usize, members: usize) -> Shape;
+    fn local_shape(self, shape: &Shape, member: Member) -> Shape;
 
     /// The shard `member` holds of `tensor`, as its own interpreter knows it.
-    fn local_tensor(self, tensor: &TensorIr, member: usize, members: usize) -> TensorIr;
+    fn local_tensor(self, tensor: &TensorIr, member: Member) -> TensorIr;
 
-    /// The same placement on a tensor of `new_num_dims` dims instead of `num_dims`, with
-    /// trailing dims lined up as broadcasting does.
-    fn with_num_dims(self, num_dims: usize, new_num_dims: usize) -> Self;
+    /// The same placement once `count` leading dims are added, as broadcasting adds them.
+    fn with_leading_dims(self, count: usize) -> Self;
+
+    /// The same placement once the `count` leading dims are removed.
+    ///
+    /// # Panics
+    ///
+    /// When the sharded dim is one of them.
+    fn without_leading_dims(self, count: usize) -> Self;
 }
 
 impl PlacementShapes for GroupPlacement {
@@ -39,27 +45,38 @@ impl PlacementShapes for GroupPlacement {
         }
     }
 
-    fn local_shape(self, shape: &Shape, member: usize, members: usize) -> Shape {
+    fn local_shape(self, shape: &Shape, member: Member) -> Shape {
         let mut local = shape.clone();
         if let GroupPlacement::Sharded { dim } = self {
-            local[dim] = DimSplit::new(shape[dim], members).range(member).len();
+            let split = DimSplit {
+                len: shape[dim],
+                members: member.members,
+            };
+            local[dim] = split.range(member.index).len();
         }
         local
     }
 
-    fn local_tensor(self, tensor: &TensorIr, member: usize, members: usize) -> TensorIr {
+    fn local_tensor(self, tensor: &TensorIr, member: Member) -> TensorIr {
         TensorIr {
-            shape: self.local_shape(&tensor.shape, member, members),
+            shape: self.local_shape(&tensor.shape, member),
             ..tensor.clone()
         }
     }
 
-    fn with_num_dims(self, num_dims: usize, new_num_dims: usize) -> Self {
+    fn with_leading_dims(self, count: usize) -> Self {
+        match self {
+            GroupPlacement::Sharded { dim } => GroupPlacement::Sharded { dim: dim + count },
+            placement => placement,
+        }
+    }
+
+    fn without_leading_dims(self, count: usize) -> Self {
         match self {
             GroupPlacement::Sharded { dim } => GroupPlacement::Sharded {
-                dim: (dim + new_num_dims)
-                    .checked_sub(num_dims)
-                    .expect("The sharded dim exists in the new dims"),
+                dim: dim
+                    .checked_sub(count)
+                    .expect("The sharded dim is not a leading dim"),
             },
             placement => placement,
         }
@@ -73,19 +90,22 @@ pub struct OpPlacement<const N: usize> {
     pub output: GroupPlacement,
 }
 
+/// One member of a group, by its place among all `members`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Member {
+    pub index: usize,
+    pub members: usize,
+}
+
 /// How a dim of `len` elements splits over `members`: the first `len % members` members hold
 /// one more.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct DimSplit {
-    len: usize,
-    members: usize,
+    pub len: usize,
+    pub members: usize,
 }
 
 impl DimSplit {
-    pub fn new(len: usize, members: usize) -> Self {
-        Self { len, members }
-    }
-
     pub fn range(&self, member: usize) -> Range<usize> {
         let (base, extra) = (self.len / self.members, self.len % self.members);
         let start = member * base + member.min(extra);

@@ -2,7 +2,7 @@ mod channel;
 mod client;
 mod device;
 mod interpreter;
-mod placements;
+mod placement_map;
 mod plan;
 mod shard;
 

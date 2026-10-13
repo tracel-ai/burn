@@ -2,26 +2,23 @@ use std::collections::HashMap;
 
 use burn_backend::{DType, DTypeUsageSet, ExecutionError, TensorData};
 use burn_ir::{
-    BackendIr, GraphBindings, GraphId, IrVisitorMut, LinearOpIr, ModuleOperationIr, OperationIr,
-    TensorId, TensorIr, TensorStatus,
+    BackendIr, IrVisitorMut, LinearOpIr, ModuleOperationIr, OperationIr, TensorId, TensorIr,
+    TensorStatus,
 };
-use burn_router::{Graph, TensorInterpreter};
+use burn_router::TensorInterpreter;
 use burn_std::future::DynFut;
 
 use super::{
-    placements::TensorPlacements,
+    placement_map::PlacementMap,
     plan::{Execution, OpPlan},
     shard::ShardList,
 };
-use crate::{GroupPlacement, PlacementShapes, Redistribution};
+use crate::{GroupPlacement, Member, PlacementShapes, Redistribution};
 
 /// A device group's [`GroupInterpreter`] as a trait object, so the [`GroupClient`] of every group
 /// has one type whatever backend the members run.
 ///
-/// An interpreter is burn-router's name for what executes the IR a
-/// [`RouterClient`](burn_router::RouterClient) sends, as [`TensorInterpreter`] does for one
-/// device. The group's client forwards each of its calls here, and the interpreter carries it out
-/// on every member at once.
+/// It interprets the group's IR in burn-router's sense, as [`TensorInterpreter`] does one device's.
 ///
 /// [`GroupClient`]: super::GroupClient
 pub trait DynGroupInterpreter: Send {
@@ -53,21 +50,6 @@ pub trait DynGroupInterpreter: Send {
     /// The whole value of `tensor`, its shards gathered onto the first member and read there.
     fn read(&mut self, tensor: TensorIr) -> DynFut<Result<TensorData, ExecutionError>>;
 
-    /// Makes `new_id` a second handle on the shards of `src_id`, at the same placement.
-    fn register_alias(&mut self, new_id: TensorId, src_id: TensorId);
-
-    /// Keeps `relative_graph` under `graph_id` for replay, and runs it once with `bindings`.
-    fn register_graph(
-        &mut self,
-        graph_id: GraphId,
-        relative_graph: Vec<OperationIr>,
-        bindings: GraphBindings,
-    );
-
-    /// Replays the graph kept under `graph_id` with `bindings`, each op planned at the placements
-    /// its bound tensors have now.
-    fn execute_graph(&mut self, graph_id: GraphId, bindings: GraphBindings);
-
     /// Waits for every member's work to finish, returning first any error a flush kept.
     fn sync(&mut self) -> Result<(), ExecutionError>;
 
@@ -84,14 +66,10 @@ pub trait DynGroupInterpreter: Send {
 
 /// The interpreter of a group whose members run `B`: one [`TensorInterpreter`] per member, and
 /// where each tensor's shards sit.
-///
-/// Each op is planned from its inputs' placements, its inputs are moved where the plan asks, and
-/// every member's interpreter then runs the op on its own shards.
 pub struct GroupInterpreter<B: BackendIr> {
     interpreters: Vec<TensorInterpreter<B>>,
     devices: Vec<B::Device>,
-    placements: TensorPlacements,
-    graphs: HashMap<GraphId, Graph>,
+    placements: PlacementMap,
     next_id: u64,
     flush_error: Option<ExecutionError>,
 }
@@ -104,8 +82,7 @@ impl<B: BackendIr> GroupInterpreter<B> {
                 .map(|device| TensorInterpreter::new(device.clone()))
                 .collect(),
             devices,
-            placements: TensorPlacements::default(),
-            graphs: HashMap::new(),
+            placements: PlacementMap::default(),
             next_id: 0,
             flush_error: None,
         }
@@ -168,30 +145,6 @@ impl<B: BackendIr> DynGroupInterpreter for GroupInterpreter<B> {
         let placement = self.placements.get(&tensor.id);
         self.take_shards(&tensor, placement)
             .into_data(placement, &self.devices[0])
-    }
-
-    fn register_alias(&mut self, new_id: TensorId, src_id: TensorId) {
-        for interpreter in &mut self.interpreters {
-            interpreter.register_alias(new_id, src_id);
-        }
-        self.placements.insert(new_id, self.placements.get(&src_id));
-    }
-
-    fn register_graph(
-        &mut self,
-        graph_id: GraphId,
-        relative_graph: Vec<OperationIr>,
-        bindings: GraphBindings,
-    ) {
-        let graph = Graph::new(relative_graph);
-        let operations = graph.bind(bindings).operations;
-        self.graphs.insert(graph_id, graph);
-        operations.into_iter().for_each(|op| self.register_op(op));
-    }
-
-    fn execute_graph(&mut self, graph_id: GraphId, bindings: GraphBindings) {
-        let operations = self.graphs[&graph_id].bind(bindings).operations;
-        operations.into_iter().for_each(|op| self.register_op(op));
     }
 
     fn sync(&mut self) -> Result<(), ExecutionError> {
@@ -290,8 +243,10 @@ impl<B: BackendIr> GroupInterpreter<B> {
     fn run_on(&mut self, member: usize, op: &OperationIr) {
         let mut op = op.clone();
         op.visit_mut(&mut MemberShapes {
-            member,
-            members: self.interpreters.len(),
+            member: Member {
+                index: member,
+                members: self.interpreters.len(),
+            },
             placements: &self.placements,
         });
         self.interpreters[member].register_op(op);
@@ -336,8 +291,8 @@ impl<B: BackendIr> GroupInterpreter<B> {
             .interpreters
             .iter_mut()
             .enumerate()
-            .map(|(member, interpreter)| {
-                interpreter.get_tensor(&placement.local_tensor(tensor, member, members))
+            .map(|(index, interpreter)| {
+                interpreter.get_tensor(&placement.local_tensor(tensor, Member { index, members }))
             })
             .collect();
         if tensor.status == TensorStatus::ReadWrite {
@@ -386,9 +341,8 @@ impl IrVisitorMut for Renames {
 
 /// Gives every tensor of an op the shape of the shard one member holds.
 struct MemberShapes<'a> {
-    member: usize,
-    members: usize,
-    placements: &'a TensorPlacements,
+    member: Member,
+    placements: &'a PlacementMap,
 }
 
 impl IrVisitorMut for MemberShapes<'_> {
@@ -396,6 +350,6 @@ impl IrVisitorMut for MemberShapes<'_> {
         *tensor = self
             .placements
             .get(&tensor.id)
-            .local_tensor(tensor, self.member, self.members);
+            .local_tensor(tensor, self.member);
     }
 }

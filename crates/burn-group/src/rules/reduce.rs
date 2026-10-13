@@ -1,6 +1,6 @@
 use crate::{GroupPlacement, OpPlacement};
 
-/// The dims an op reduces, or reads whole.
+/// The dims a sum reduces.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Reduction {
     /// Every dim, down to a single element.
@@ -18,8 +18,8 @@ impl Reduction {
     }
 }
 
-/// For a float sum or mean: linear, so a partial input stays partial, and a reduction over the
-/// split dim leaves one summand per member.
+/// A sum is linear: a partial input stays partial, and reducing the split dim leaves one summand
+/// per member.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ReduceRule {
     /// Each member reduces its shard, and the output keeps the input's placement.

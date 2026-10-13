@@ -71,7 +71,10 @@ impl<B: BackendIr> ShardList<B> {
     }
 
     fn slice(self, dim: usize, len: usize) -> Self {
-        let split = DimSplit::new(len, self.shards.len());
+        let split = DimSplit {
+            len,
+            members: self.shards.len(),
+        };
         Self {
             shards: self
                 .shards
@@ -90,7 +93,6 @@ impl<B: BackendIr> ShardList<B> {
         self.each_member(devices, Shard::sum)
     }
 
-    /// Every member combines all the shards, moved onto its own device.
     fn each_member(
         self,
         devices: &[B::Device],

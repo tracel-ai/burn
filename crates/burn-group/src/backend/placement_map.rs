@@ -6,11 +6,11 @@ use crate::GroupPlacement;
 
 /// Where each tensor of a device group sits.
 #[derive(Debug, Default)]
-pub struct TensorPlacements {
+pub struct PlacementMap {
     placements: HashMap<TensorId, GroupPlacement>,
 }
 
-impl TensorPlacements {
+impl PlacementMap {
     /// # Panics
     ///
     /// When the tensor is not on the group.

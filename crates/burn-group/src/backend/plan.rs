@@ -1,13 +1,11 @@
 use std::collections::HashMap;
 
-use burn_backend::DType;
 use burn_ir::{
-    ActivationOperationIr, BaseOperationIr, BinaryOpIr, FloatOperationIr, IntOperationIr,
-    LinearOpIr, MatmulOpIr, ModuleOperationIr, NumericOperationIr, OperationIr, ScalarOpIr,
-    TensorId, TensorIr, UnaryOpIr,
+    ActivationOperationIr, BinaryOpIr, FloatOperationIr, LinearOpIr, MatmulOpIr, ModuleOperationIr,
+    NumericOperationIr, OperationIr, ScalarOpIr, TensorId, TensorIr, UnaryOpIr,
 };
 
-use super::placements::TensorPlacements;
+use super::placement_map::PlacementMap;
 use crate::{
     GroupPlacement, LinearRule, Linearity, MatmulRule, OpPlacement, ReduceRule, Reduction,
 };
@@ -34,7 +32,7 @@ pub enum Execution {
 impl OpPlan {
     /// An op without a rule, or whose inputs would need two placements at once, gathers every
     /// input and runs whole on every member.
-    pub fn new(op: &OperationIr, placements: &TensorPlacements) -> Self {
+    pub fn new(op: &OperationIr, placements: &PlacementMap) -> Self {
         Analysis { placements }
             .plan(op)
             .unwrap_or_else(|| Self::gathered(op))
@@ -63,50 +61,41 @@ impl OpPlan {
 }
 
 struct Analysis<'a> {
-    placements: &'a TensorPlacements,
+    placements: &'a PlacementMap,
 }
 
 impl Analysis<'_> {
     fn plan(&self, op: &OperationIr) -> Option<OpPlan> {
         match op {
-            OperationIr::NumericFloat(dtype, op) | OperationIr::NumericInt(dtype, op) => {
-                self.numeric(*dtype, op)
-            }
-            OperationIr::Float(_, FloatOperationIr::Matmul(desc))
-            | OperationIr::Int(IntOperationIr::Matmul(desc)) => self.matmul(desc),
+            OperationIr::NumericFloat(_, op) => self.numeric(op),
+            OperationIr::Float(_, FloatOperationIr::Matmul(desc)) => self.matmul(desc),
             OperationIr::Float(_, FloatOperationIr::Random(desc)) => self.random(&desc.out),
+            OperationIr::NumericInt(_, NumericOperationIr::IntRandom(desc)) => {
+                self.random(&desc.out)
+            }
             OperationIr::Module(ModuleOperationIr::Linear(desc)) => self.linear(desc),
             OperationIr::Activation(
                 ActivationOperationIr::Relu(desc) | ActivationOperationIr::Gelu(desc),
             ) => self.unary(Linearity::Nonlinear, desc),
-            OperationIr::BaseFloat(op) | OperationIr::BaseInt(op) | OperationIr::BaseBool(op) => {
-                match op {
-                    BaseOperationIr::Empty(desc)
-                    | BaseOperationIr::Ones(desc)
-                    | BaseOperationIr::Zeros(desc) => self.created(&desc.out),
-                    _ => None,
-                }
-            }
             _ => None,
         }
     }
 
-    fn numeric(&self, dtype: DType, op: &NumericOperationIr) -> Option<OpPlan> {
+    fn numeric(&self, op: &NumericOperationIr) -> Option<OpPlan> {
         match op {
             NumericOperationIr::Add(desc) | NumericOperationIr::Sub(desc) => {
                 self.binary(Linearity::Linear, desc)
             }
             NumericOperationIr::Mul(desc) => self.binary(Linearity::Multilinear, desc),
-            NumericOperationIr::Div(desc) => self.binary(Linearity::div(dtype), desc),
-            NumericOperationIr::MulScalar(desc) => self.scalar(Linearity::Linear, desc),
-            NumericOperationIr::DivScalar(desc) => self.scalar(Linearity::div(dtype), desc),
+            NumericOperationIr::Div(desc) => self.binary(Linearity::LinearIn { input: 0 }, desc),
+            NumericOperationIr::MulScalar(desc) | NumericOperationIr::DivScalar(desc) => {
+                self.scalar(Linearity::Linear, desc)
+            }
             NumericOperationIr::Neg(desc) => self.unary(Linearity::Linear, desc),
             NumericOperationIr::Sum(desc) => self.sum(&desc.input, &desc.out, Reduction::All),
             NumericOperationIr::SumDim(desc) => {
                 self.sum(&desc.input, &desc.out, Reduction::Dim(desc.axis))
             }
-            NumericOperationIr::Full(desc) => self.created(&desc.out),
-            NumericOperationIr::IntRandom(desc) => self.random(&desc.out),
             _ => None,
         }
     }
@@ -151,8 +140,7 @@ impl Analysis<'_> {
         let placement = MatmulRule::new(
             self.placement(&desc.lhs),
             self.placement(&desc.rhs),
-            &desc.lhs.shape,
-            &desc.rhs.shape,
+            desc.lhs.shape.num_dims(),
         )
         .placement();
         self.ruled([&desc.lhs, &desc.rhs], &desc.out, placement)
@@ -162,8 +150,7 @@ impl Analysis<'_> {
         let rule = LinearRule::new(
             self.placement(&desc.x),
             self.placement(&desc.weight),
-            &desc.x.shape,
-            &desc.weight.shape,
+            desc.x.shape.num_dims(),
         );
         let OpPlacement {
             inputs: [x, weight, bias],
@@ -184,12 +171,6 @@ impl Analysis<'_> {
     fn sum(&self, input: &TensorIr, out: &TensorIr, reduction: Reduction) -> Option<OpPlan> {
         let placement = ReduceRule::new(self.placement(input), reduction).placement();
         self.ruled([input], out, placement)
-    }
-
-    fn created(&self, out: &TensorIr) -> Option<OpPlan> {
-        Targets::default()
-            .output(out, GroupPlacement::Replicated)
-            .every_member()
     }
 
     fn random(&self, out: &TensorIr) -> Option<OpPlan> {

@@ -107,7 +107,6 @@ fn groups_of_the_same_devices_are_apart() {
         .assert_approx_eq::<f32>(&data, tolerance());
 }
 
-/// The hidden activation and the output of a two-layer MLP.
 struct Mlp {
     hidden: Tensor<2>,
     output: Tensor<2>,
@@ -130,7 +129,6 @@ fn group(members: usize) -> Device {
     Device::group(&vec![Device::flex(); members])
 }
 
-/// A tensor on `device`, placed when the device is a group.
 fn placed<const D: usize>(
     data: TensorData,
     device: &Device,
