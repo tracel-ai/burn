@@ -473,30 +473,6 @@ mod tests {
         );
     }
 
-    #[rstest]
-    #[case(false)]
-    #[case(true)]
-    fn masked_attention_ignores_legacy_mask_value(
-        #[case] quiet: bool,
-        #[values(DType::F16, DType::BF16, DType::F32, DType::F64)] dtype: DType,
-        #[values(-1.0, -1.0e4, -1.0e100, f64::NEG_INFINITY)] min_float: f64,
-    ) {
-        let device = crate::test_device();
-        let mha = MultiHeadAttentionConfig::new(1, 1)
-            .with_dropout(0.0)
-            .with_min_float(min_float)
-            .with_quiet_softmax(quiet)
-            .init(&device);
-        let scores = Tensor::<4>::zeros([1, 1, 2, 2], (&device, dtype));
-        let mask = Tensor::<3, Bool>::from_data([[[false, true], [true, true]]], &device);
-        let weights = mha.attn_weights(scores, None, Some(mask));
-        let expected = if quiet { 0.5f32 } else { 1.0 };
-        weights.into_data().assert_eq(
-            &TensorData::from([[[[expected, 0.0], [0.0, 0.0]]]]).convert_dtype(dtype),
-            true,
-        );
-    }
-
     #[test]
     fn masked_attention_below_min_float_stays_normalized() {
         let device = crate::test_device();

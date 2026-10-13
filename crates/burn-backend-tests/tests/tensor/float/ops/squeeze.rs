@@ -79,12 +79,10 @@ fn should_squeeze_dims_with_negative_indices() {
 
 /// Test to make sure the function panics if a non-singleton dimension is squeezed
 #[test]
-#[should_panic]
-fn should_squeeze_dims_work_if_non_singleton() {
+#[should_panic(expected = "because its size is not 1")]
+fn should_squeeze_dims_panic_if_non_singleton() {
     let tensor = TestTensor::<3>::ones(Shape::new([2, 3, 4]), &Default::default());
-    let squeezed_tensor: TestTensor<3> = tensor.squeeze_dims(&[1]);
-    let expected_shape = Shape::new([2, 3, 4]);
-    assert_eq!(squeezed_tensor.shape(), expected_shape);
+    let _squeezed_tensor: TestTensor<2> = tensor.squeeze_dims(&[1]);
 }
 
 #[test]

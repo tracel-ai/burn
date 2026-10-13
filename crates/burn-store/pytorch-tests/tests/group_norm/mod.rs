@@ -75,16 +75,4 @@ mod tests {
 
         group_norm(model, 1e-3);
     }
-
-    #[test]
-    fn group_norm_half() {
-        let device = Default::default();
-        let mut model = Net::init(&device);
-        let mut store = PytorchStore::from_file("tests/group_norm/group_norm.pt");
-        model
-            .load_from(&mut store)
-            .expect("Should decode state successfully");
-
-        group_norm(model, 1e-3);
-    }
 }
