@@ -1,9 +1,9 @@
 //! Tensors split over a group of devices, the way tensor parallelism splits a model's layers.
 //!
 //! Each tensor has a [`GroupPlacement`]: replicated on every member, split along one dim, or a
-//! partial sum. Each op family has a rule that says where its inputs must be for the op to run on
-//! every member at once, and where its output lands. [`GroupBackend`] runs any backend's ops this
-//! way, one interpreter per member.
+//! partial sum. An op with a rule runs on every member's shards at once, the rule saying where its
+//! inputs must be and where its output lands; any other op gathers its inputs and runs whole on
+//! every member. [`GroupBackend`] runs any backend's ops this way, one interpreter per member.
 
 mod backend;
 mod placement;

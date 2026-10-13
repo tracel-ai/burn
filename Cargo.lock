@@ -1249,11 +1249,9 @@ dependencies = [
 name = "burn-group"
 version = "0.22.0"
 dependencies = [
- "burn-autodiff",
  "burn-backend",
  "burn-flex",
  "burn-ir",
- "burn-linalg",
  "burn-router",
  "burn-std",
  "burn-tensor",

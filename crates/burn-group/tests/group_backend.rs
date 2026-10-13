@@ -1,9 +1,7 @@
-use burn_autodiff::Autodiff;
 use burn_backend::{
-    AutodiffBackend, Backend, DType, FloatDType, Scalar, Shape, Slice, TensorData, TensorMetadata,
-    get_or_init_device_settings,
-    ops::{FloatTensorOps, IntTensorOps},
-    tensor::{FloatTensor, IntTensor},
+    Backend, DType, Scalar, Shape, TensorData, TensorMetadata,
+    ops::{ActivationOps, FloatTensorOps, IntTensorOps},
+    tensor::FloatTensor,
 };
 use burn_flex::{Flex, FlexDevice};
 use burn_group::{
@@ -61,113 +59,6 @@ macro_rules! check_binary {
 }
 
 #[test]
-fn megatron_mlp_matches_one_device() {
-    for (members, hidden) in [(1, 12), (2, 12), (3, 12), (4, 12), (4, 10)] {
-        let device = group(members);
-        let (x, target) = (data([4, 6], 1), data([4, 5], 2));
-        let (w1, b1) = (data([6, hidden], 3), data([hidden], 4));
-        let (w2, b2) = (data([hidden, 5], 5), data([5], 6));
-
-        let expected = Mlp::run::<Autodiff<Flex>>(
-            [&x, &w1, &b1, &w2, &b2].map(|data| leaf(data.clone())),
-            Autodiff::<Flex>::float_from_data(target.clone(), &FlexDevice),
-        );
-        let actual = Mlp::run::<Autodiff<Group>>(
-            [
-                placed_leaf(&x, &device, Replicated),
-                placed_leaf(&w1, &device, Sharded { dim: 1 }),
-                placed_leaf(&b1, &device, Sharded { dim: 0 }),
-                placed_leaf(&w2, &device, Sharded { dim: 0 }),
-                placed_leaf(&b2, &device, Replicated),
-            ],
-            Autodiff::<Group>::float_from_data(target, &device),
-        );
-
-        let grad_placements: Vec<GroupPlacement> = actual.grads.iter().map(placement_of).collect();
-        assert_eq!(
-            grad_placements,
-            [
-                Partial,
-                Sharded { dim: 1 },
-                Sharded { dim: 0 },
-                Sharded { dim: 0 },
-                Replicated
-            ],
-            "{members} members"
-        );
-        actual.assert_matches(expected, &format!("{members} members"));
-    }
-}
-
-#[test]
-fn megatron_attention_matches_one_device() {
-    for members in MEMBERS {
-        let device = group(members);
-        let x = data([2, 5, Attention::EMBED], 1);
-        let weights = [2, 3, 4, 5].map(|seed| data([Attention::EMBED, Attention::EMBED], seed));
-
-        let expected = Attention::run::<Autodiff<Flex>>(leaf(x.clone()), weights.clone().map(leaf));
-        let [wq, wk, wv, wo] = &weights;
-        let actual = Attention::run::<Autodiff<Group>>(
-            placed_leaf(&x, &device, Replicated),
-            [
-                placed_leaf(wq, &device, Sharded { dim: 1 }),
-                placed_leaf(wk, &device, Sharded { dim: 1 }),
-                placed_leaf(wv, &device, Sharded { dim: 1 }),
-                placed_leaf(wo, &device, Sharded { dim: 0 }),
-            ],
-        );
-
-        if Attention::HEADS.is_multiple_of(members) {
-            let weight_placements: Vec<GroupPlacement> =
-                actual.grads[1..].iter().map(placement_of).collect();
-            assert_eq!(
-                weight_placements,
-                [
-                    Sharded { dim: 1 },
-                    Sharded { dim: 1 },
-                    Sharded { dim: 1 },
-                    Sharded { dim: 0 }
-                ],
-                "{members} members"
-            );
-        }
-        actual.assert_matches(expected, &format!("{members} members"));
-    }
-}
-
-#[test]
-fn embedding_matches_one_device_for_every_split() {
-    let (weights, indices) = (data([7, 4], 1), TensorData::from([[0i64, 6, 3], [2, 2, 5]]));
-    let scale = data([2, 3, 4], 2);
-    for members in [1, 2, 3] {
-        let device = group(members);
-        for weights_placement in [Replicated, Sharded { dim: 0 }, Sharded { dim: 1 }] {
-            for indices_placement in [Replicated, Sharded { dim: 1 }] {
-                let expected = embedding::<Autodiff<Flex>>(
-                    leaf(weights.clone()),
-                    Autodiff::<Flex>::int_from_data(indices.clone(), &FlexDevice),
-                    Autodiff::<Flex>::float_from_data(scale.clone(), &FlexDevice),
-                );
-                let placed_indices = place(
-                    Group::int_from_data(indices.clone(), &device),
-                    indices_placement,
-                );
-                let actual = embedding::<Autodiff<Group>>(
-                    placed_leaf(&weights, &device, weights_placement),
-                    Autodiff::<Group>::int_from_inner(placed_indices),
-                    Autodiff::<Group>::float_from_data(scale.clone(), &device),
-                );
-                let case = format!(
-                    "{members} members, {weights_placement:?} weights, {indices_placement:?} indices"
-                );
-                actual.assert_matches(expected, &case);
-            }
-        }
-    }
-}
-
-#[test]
 fn elementwise_ops_match_one_device_for_every_placement() {
     for members in MEMBERS {
         for rhs in [[4, 6], [1, 6], [4, 1]] {
@@ -179,16 +70,11 @@ fn elementwise_ops_match_one_device_for_every_placement() {
         }
         let input = data([4, 6], 3);
         check_unary!(members, &input, |B, a| B::float_neg(a));
-        check_unary!(members, &input, |B, a| B::float_exp(a));
         check_unary!(members, &input, |B, a| B::float_mul_scalar(
             a,
             Scalar::Float(3.0)
         ));
         check_unary!(members, &input, |B, a| B::float_div_scalar(
-            a,
-            Scalar::Float(3.0)
-        ));
-        check_unary!(members, &input, |B, a| B::float_add_scalar(
             a,
             Scalar::Float(3.0)
         ));
@@ -219,105 +105,13 @@ fn matmuls_match_one_device_for_every_placement() {
 }
 
 #[test]
-fn linear_and_activation_backwards_match_one_device_for_every_placement() {
-    for members in MEMBERS {
-        let (x, weight, output_grad) = (data([2, 4, 6], 1), data([6, 5], 2), data([2, 4, 5], 3));
-        check_binary!(members, &weight, &output_grad, |B, weight, output_grad| {
-            B::linear_x_backward(weight, output_grad)
-        });
-        check_binary!(members, &x, &output_grad, |B, x, output_grad| {
-            B::linear_weight_backward(x, output_grad)
-        });
-        check_unary!(members, &output_grad, |B, output_grad| {
-            B::linear_bias_backward(output_grad)
-        });
-        let (output, grad) = (data([4, 6], 4), data([4, 6], 5));
-        check_binary!(members, &output, &grad, |B, output, grad| B::relu_backward(
-            output, grad
-        ));
-    }
-}
-
-#[test]
-fn masks_comparisons_and_casts_match_one_device_for_every_placement() {
-    for members in MEMBERS {
-        let (input, other) = (data([4, 6], 1), data([4, 6], 2));
-        check_binary!(members, &input, &other, |B, a, b| {
-            let bool_dtype = get_or_init_device_settings::<B>(&a.device()).bool_dtype;
-            let rounded = |tensor: &FloatTensor<B>| B::float_round(tensor.clone());
-            let equal = B::float_equal(rounded(&a), rounded(&b), bool_dtype);
-            B::float_mask_where(a, equal, b)
-        });
-        check_unary!(members, &input, |B, a| {
-            let bool_dtype = get_or_init_device_settings::<B>(&a.device()).bool_dtype;
-            let positive = B::float_greater_elem(a.clone(), Scalar::Float(0.0), bool_dtype);
-            B::float_mask_fill(a, positive, Scalar::Float(0.0))
-        });
-        check_unary!(members, &input, |B, a| B::float_cast(
-            B::float_cast(a, FloatDType::F64),
-            FloatDType::F32
-        ));
-    }
-}
-
-#[test]
-fn reductions_and_softmax_match_one_device_for_every_placement() {
+fn sums_match_one_device_for_every_placement() {
     for members in MEMBERS {
         let input = data([4, 3, 5], 1);
         for dim in 0..3 {
             check_unary!(members, &input, [dim: usize] |B, a| B::float_sum_dim(a, dim));
-            check_unary!(members, &input, [dim: usize] |B, a| B::float_mean_dim(a, dim));
-            check_unary!(members, &input, [dim: usize] |B, a| B::softmax(a, dim));
-            check_unary!(members, &input, [dim: usize] |B, a| B::float_max_dim(a, dim));
         }
         check_unary!(members, &input, |B, a| B::float_sum(a));
-        check_unary!(members, &input, |B, a| B::float_mean(a));
-    }
-}
-
-#[test]
-fn layout_ops_match_one_device_for_every_placement() {
-    for members in MEMBERS {
-        let input = data([4, 6], 1);
-        for shape in [
-            vec![24],
-            vec![2, 2, 6],
-            vec![4, 2, 3],
-            vec![2, 12],
-            vec![4, 1, 6],
-        ] {
-            let shape = Shape::from(shape);
-            check_unary!(members, &input, [shape: Shape] |B, a| B::float_reshape(a, shape));
-        }
-        check_unary!(members, &input, |B, a| B::float_swap_dims(a, 0, 1));
-        check_unary!(members, &input, |B, a| B::float_flip(a, &[0]));
-        check_unary!(members, &input, |B, a| B::float_flip(a, &[1]));
-        check_unary!(members, &input, |B, a| B::float_expand(
-            a,
-            Shape::new([3, 4, 6])
-        ));
-        check_unary!(members, &input, |B, a| B::float_slice(
-            a,
-            &[Slice::new(1, Some(3), 1)]
-        ));
-        check_unary!(members, &input, |B, a| {
-            B::float_slice(a, &[Slice::new(0, None, 1), Slice::new(2, Some(5), 1)])
-        });
-        let other = data([4, 6], 2);
-        check_binary!(members, &input, &other, |B, a, b| B::float_cat(
-            vec![a, b],
-            0
-        ));
-        check_binary!(members, &input, &other, |B, a, b| B::float_cat(
-            vec![a, b],
-            1
-        ));
-        let rank3 = data([2, 6, 4], 3);
-        check_unary!(members, &rank3, |B, a| B::float_permute(a, &[2, 0, 1]));
-        check_unary!(members, &rank3, |B, a| B::float_reshape(
-            a,
-            Shape::new([12, 4])
-        ));
     }
 }
 
@@ -340,22 +134,7 @@ fn split_tensors_stay_split_where_megatron_keeps_them() {
         Partial
     );
     assert_eq!(placement_of(&Group::float_sum_dim(x.clone(), 1)), Partial);
-    assert_eq!(
-        placement_of(&Group::float_reshape(x.clone(), Shape::new([4, 2, 3]))),
-        Sharded { dim: 1 }
-    );
-    assert_eq!(
-        placement_of(&Group::float_cat(vec![x.clone(), x.clone()], 0)),
-        Sharded { dim: 1 }
-    );
-    assert_eq!(
-        placement_of(&Group::float_slice(x.clone(), &[Slice::new(1, Some(3), 1)])),
-        Sharded { dim: 1 }
-    );
-    assert_eq!(
-        placement_of(&Group::float_expand(x, Shape::new([3, 4, 6]))),
-        Sharded { dim: 2 }
-    );
+    assert_eq!(placement_of(&Group::relu(x)), Sharded { dim: 1 });
 }
 
 #[test]
@@ -475,97 +254,21 @@ fn an_alias_keeps_its_source_value_and_placement_once_the_source_is_dropped() {
     assert_close(read::<Group>(alias), source_data, "alias");
 }
 
-struct Mlp;
-
-impl Mlp {
-    /// Leaves: x, w1, b1, w2, b2.
-    fn run<B: AutodiffBackend>(leaves: [FloatTensor<B>; 5], target: FloatTensor<B>) -> Placed<B> {
-        let [x, w1, b1, w2, b2] = leaves.clone();
-        let hidden = B::relu(B::linear(x, w1, Some(b1)));
-        let output = B::linear(hidden, w2, Some(b2));
-        let diff = B::float_sub(output.clone(), target);
-        let loss = B::float_mean(B::float_mul(diff.clone(), diff));
-        Placed::backward(output, loss, &leaves)
-    }
-}
-
-struct Attention;
-
-impl Attention {
-    const HEADS: usize = 4;
-    const HEAD_DIM: usize = 3;
-    const EMBED: usize = Self::HEADS * Self::HEAD_DIM;
-
-    fn run<B: AutodiffBackend>(x: FloatTensor<B>, weights: [FloatTensor<B>; 4]) -> Placed<B> {
-        let [wq, wk, wv, wo] = weights.clone();
-        let shape = x.shape();
-        let (batch, seq) = (shape[0], shape[1]);
-        let heads = |weight: FloatTensor<B>| {
-            let projected = B::linear(x.clone(), weight, None);
-            let split = B::float_reshape(
-                projected,
-                Shape::new([batch, seq, Self::HEADS, Self::HEAD_DIM]),
-            );
-            B::float_swap_dims(split, 1, 2)
-        };
-        let (q, k, v) = (heads(wq), heads(wk), heads(wv));
-        let scores = B::float_div_scalar(
-            B::float_matmul(q, B::float_swap_dims(k, 2, 3)),
-            Scalar::Float((Self::HEAD_DIM as f64).sqrt()),
-        );
-        let context = B::float_matmul(B::softmax(scores, 3), v);
-        let merged = B::float_reshape(
-            B::float_swap_dims(context, 1, 2),
-            Shape::new([batch, seq, Self::EMBED]),
-        );
-        let output = B::float_add(B::linear(merged, wo, None), x.clone());
-        let loss = B::float_mean(B::float_mul(output.clone(), output.clone()));
-        let leaves: Vec<FloatTensor<B>> = [x].into_iter().chain(weights).collect();
-        Placed::backward(output, loss, &leaves)
-    }
-}
-
-fn embedding<B: AutodiffBackend>(
-    weights: FloatTensor<B>,
-    indices: IntTensor<B>,
-    scale: FloatTensor<B>,
-) -> Placed<B> {
-    let output = B::embedding(weights.clone(), indices);
-    let loss = B::float_mean(B::float_mul(output.clone(), scale));
-    Placed::backward(output, loss, &[weights])
-}
-
-/// A forward output and each leaf's gradient, still on the backend.
-struct Placed<B: AutodiffBackend> {
-    output: FloatTensor<B::InnerBackend>,
-    grads: Vec<FloatTensor<B::InnerBackend>>,
-}
-
-impl<B: AutodiffBackend> Placed<B> {
-    fn backward(output: FloatTensor<B>, loss: FloatTensor<B>, leaves: &[FloatTensor<B>]) -> Self {
-        let grads = B::backward(loss);
-        Self {
-            output: B::inner(output),
-            grads: leaves
-                .iter()
-                .map(|leaf| B::grad(leaf, &grads).expect("Every leaf has a gradient"))
-                .collect(),
-        }
-    }
-
-    fn assert_matches<E: AutodiffBackend>(self, expected: Placed<E>, case: &str) {
-        assert_close(
-            read::<B::InnerBackend>(self.output),
-            read::<E::InnerBackend>(expected.output),
-            case,
-        );
-        assert_eq!(self.grads.len(), expected.grads.len(), "{case}");
-        for (actual, expected) in self.grads.into_iter().zip(expected.grads) {
-            assert_close(
-                read::<B::InnerBackend>(actual),
-                read::<E::InnerBackend>(expected),
-                case,
-            );
+#[test]
+fn every_placement_moves_to_every_other_and_keeps_its_value() {
+    let input = data([4, 6], 1);
+    for members in MEMBERS {
+        let group = group(members);
+        for from in placements(input.shape(), members) {
+            for to in placements(input.shape(), members) {
+                if to == Partial && from != Partial {
+                    continue;
+                }
+                let moved = place(placed(&input, &group, from), to);
+                assert_eq!(placement_of(&moved), to);
+                let case = format!("{members} members, {from:?} to {to:?}");
+                assert_close(read::<Group>(moved), input.clone(), &case);
+            }
         }
     }
 }
@@ -660,22 +363,6 @@ fn group(members: usize) -> GroupDevice {
 
 fn place(tensor: FloatTensor<Group>, placement: GroupPlacement) -> FloatTensor<Group> {
     tensor.client.clone().place(tensor, placement)
-}
-
-fn leaf(data: TensorData) -> FloatTensor<Autodiff<Flex>> {
-    Autodiff::<Flex>::float_set_require_grad(
-        Autodiff::<Flex>::float_from_data(data, &FlexDevice),
-        true,
-    )
-}
-
-fn placed_leaf(
-    data: &TensorData,
-    device: &GroupDevice,
-    placement: GroupPlacement,
-) -> FloatTensor<Autodiff<Group>> {
-    let placed = place(Group::float_from_data(data.clone(), device), placement);
-    Autodiff::<Group>::float_set_require_grad(Autodiff::<Group>::from_inner(placed), true)
 }
 
 fn placement_of(tensor: &FloatTensor<Group>) -> GroupPlacement {

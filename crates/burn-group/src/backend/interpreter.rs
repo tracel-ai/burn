@@ -1,13 +1,9 @@
-use std::{collections::HashMap, ops::Range};
+use std::collections::HashMap;
 
-use burn_backend::{
-    BoolDType, DType, DTypeUsageSet, ExecutionError, Scalar, Shape, TensorData, TensorMetadata,
-    tensor::{BoolTensor, FloatTensor, IntTensor},
-};
+use burn_backend::{DType, DTypeUsageSet, ExecutionError, TensorData};
 use burn_ir::{
-    BackendIr, GraphBindings, GraphId, HandleKind, IrVisitorMut, LinearOpIr, ModuleOperationIr,
-    NumericOperationIr, OperationIr, ReduceDimOpIr, ReduceOpIr, ScalarIr, ScalarOpIr, TensorId,
-    TensorIr, TensorStatus,
+    BackendIr, GraphBindings, GraphId, IrVisitorMut, LinearOpIr, ModuleOperationIr, OperationIr,
+    TensorId, TensorIr, TensorStatus,
 };
 use burn_router::{Graph, TensorInterpreter};
 use burn_std::future::DynFut;
@@ -17,7 +13,7 @@ use super::{
     plan::{Execution, OpPlan},
     shard::ShardList,
 };
-use crate::{DimSplit, EmbeddingRule, GroupPlacement, PlacementShapes, Redistribution};
+use crate::{GroupPlacement, PlacementShapes, Redistribution};
 
 /// A device group's [`GroupInterpreter`] as a trait object, so the [`GroupClient`] of every group
 /// has one type whatever backend the members run.
@@ -232,8 +228,7 @@ impl<B: BackendIr> DynGroupInterpreter for GroupInterpreter<B> {
 
 impl<B: BackendIr> GroupInterpreter<B> {
     fn run(&mut self, mut op: OperationIr) {
-        let plan = OpPlan::new(&op, &self.placements, self.interpreters.len());
-        plan.take_split_dims_whole(&mut op);
+        let plan = OpPlan::new(&op, &self.placements);
         let temporaries = self.redistribute_inputs(&mut op, &plan);
         for (id, placement) in plan.outputs() {
             self.placements.insert(*id, *placement);
@@ -245,9 +240,6 @@ impl<B: BackendIr> GroupInterpreter<B> {
             }
             Execution::FirstMemberCopied => self.run_copied_from_first_member(&op),
             Execution::BiasOnFirstMember => self.run_with_bias_on_first_member(&op),
-            Execution::SumThenDivide { count } => self.run_sum_then_divide(&op, count),
-            Execution::VocabLookup { split } => self.run_vocab_lookup(&op, split),
-            Execution::VocabBackward { split } => self.run_vocab_backward(&op, split),
         }
 
         for input in op.inputs() {
@@ -338,97 +330,6 @@ impl<B: BackendIr> GroupInterpreter<B> {
         }
     }
 
-    fn run_sum_then_divide(&mut self, op: &OperationIr, count: usize) {
-        let OperationIr::NumericFloat(dtype, mean) = op else {
-            unreachable!("Only a float mean divides")
-        };
-        let out = op.outputs().next().expect("A mean has an output").clone();
-        let sum_out = TensorIr {
-            id: self.new_tensor_id(),
-            ..out.clone()
-        };
-        let sum = match mean {
-            NumericOperationIr::Mean(desc) => NumericOperationIr::Sum(ReduceOpIr {
-                out: sum_out.clone(),
-                ..desc.clone()
-            }),
-            NumericOperationIr::MeanDim(desc) => NumericOperationIr::SumDim(ReduceDimOpIr {
-                out: sum_out.clone(),
-                ..desc.clone()
-            }),
-            _ => unreachable!("Only a mean divides"),
-        };
-        let divide = NumericOperationIr::DivScalar(ScalarOpIr {
-            lhs: TensorIr {
-                status: TensorStatus::ReadWrite,
-                ..sum_out.clone()
-            },
-            rhs: ScalarIr::new(count as f64, dtype),
-            out,
-        });
-        self.placements.insert(sum_out.id, GroupPlacement::Partial);
-        for member in 0..self.interpreters.len() {
-            self.run_on(member, &OperationIr::NumericFloat(*dtype, sum.clone()));
-            self.run_on(member, &OperationIr::NumericFloat(*dtype, divide.clone()));
-        }
-        self.placements.remove(&sum_out.id);
-    }
-
-    fn run_vocab_lookup(&mut self, op: &OperationIr, split: DimSplit) {
-        let OperationIr::Module(ModuleOperationIr::Embedding(desc)) = op else {
-            unreachable!("Only an embedding looks up the vocab")
-        };
-        for member in 0..self.interpreters.len() {
-            let chunk = VocabChunk {
-                range: split.range(member),
-                bool_dtype: self.interpreters[member].device_settings().bool_dtype,
-            };
-            let weights = self.local_float(member, &desc.weights, EmbeddingRule::VOCAB_ROWS);
-            let indices = self.local_int(member, &desc.indices);
-            let looked_up = chunk.lookup::<B>(weights, indices, desc.out.shape.clone());
-            self.interpreters[member]
-                .register_tensor_to_device(desc.out.id, HandleKind::Float(looked_up));
-        }
-    }
-
-    fn run_vocab_backward(&mut self, op: &OperationIr, split: DimSplit) {
-        let OperationIr::Module(ModuleOperationIr::EmbeddingBackward(desc)) = op else {
-            unreachable!("Only an embedding's backward scatters into the vocab")
-        };
-        for member in 0..self.interpreters.len() {
-            let chunk = VocabChunk {
-                range: split.range(member),
-                bool_dtype: self.interpreters[member].device_settings().bool_dtype,
-            };
-            let weights = self.local_float(member, &desc.weights, EmbeddingRule::VOCAB_ROWS);
-            let output_grad = self.local_float(member, &desc.out_grad, GroupPlacement::Replicated);
-            let indices = self.local_int(member, &desc.indices);
-            let grad = chunk.backward::<B>(weights, output_grad, indices);
-            self.interpreters[member]
-                .register_tensor_to_device(desc.out.id, HandleKind::Float(grad));
-        }
-    }
-
-    fn local_float(
-        &mut self,
-        member: usize,
-        tensor: &TensorIr,
-        placement: GroupPlacement,
-    ) -> FloatTensor<B> {
-        let local = placement.local_tensor(tensor, member, self.interpreters.len());
-        match self.interpreters[member].get_tensor(&local) {
-            HandleKind::Float(tensor) => tensor,
-            _ => unreachable!("{} is a float tensor", tensor.id),
-        }
-    }
-
-    fn local_int(&mut self, member: usize, tensor: &TensorIr) -> IntTensor<B> {
-        match self.interpreters[member].get_tensor(tensor) {
-            HandleKind::Int(tensor) => tensor,
-            _ => unreachable!("{} is an int tensor", tensor.id),
-        }
-    }
-
     fn take_shards(&mut self, tensor: &TensorIr, placement: GroupPlacement) -> ShardList<B> {
         let members = self.interpreters.len();
         let shards = self
@@ -463,74 +364,6 @@ impl<B: BackendIr> GroupInterpreter<B> {
                 }));
             }
         }
-    }
-}
-
-/// The rows `range` of a vocab-split embedding, which one member holds.
-struct VocabChunk {
-    range: Range<usize>,
-    bool_dtype: BoolDType,
-}
-
-/// Indices into one vocab chunk, with every token the chunk does not hold pointed at its first
-/// row and flagged foreign.
-struct ChunkIndices<B: BackendIr> {
-    local: IntTensor<B>,
-    foreign: BoolTensor<B>,
-}
-
-impl VocabChunk {
-    /// Foreign rows are zeroed with a fill, not a multiply by a mask: a multiply turns an
-    /// infinite weight into NaN.
-    fn lookup<B: BackendIr>(
-        &self,
-        weights: FloatTensor<B>,
-        indices: IntTensor<B>,
-        out_shape: Shape,
-    ) -> FloatTensor<B> {
-        let ChunkIndices { local, foreign } = self.indices::<B>(indices);
-        let looked_up = B::embedding(weights, local);
-        Self::zero_foreign::<B>(looked_up, foreign, out_shape)
-    }
-
-    /// Each member sums the gradient of the tokens in its own chunk, so its weights' gradient is
-    /// its chunk of the whole.
-    fn backward<B: BackendIr>(
-        &self,
-        weights: FloatTensor<B>,
-        output_grad: FloatTensor<B>,
-        indices: IntTensor<B>,
-    ) -> FloatTensor<B> {
-        let ChunkIndices { local, foreign } = self.indices::<B>(indices);
-        let grad_shape = output_grad.shape();
-        let own_grad = Self::zero_foreign::<B>(output_grad, foreign, grad_shape);
-        B::embedding_backward(weights, own_grad, local)
-    }
-
-    fn indices<B: BackendIr>(&self, indices: IntTensor<B>) -> ChunkIndices<B> {
-        let (start, end) = (self.range.start as i64, self.range.end as i64);
-        let foreign = B::bool_or(
-            B::int_lower_elem(indices.clone(), Scalar::Int(start), self.bool_dtype),
-            B::int_greater_equal_elem(indices.clone(), Scalar::Int(end), self.bool_dtype),
-        );
-        let local = B::int_mask_fill(
-            B::int_sub_scalar(indices, Scalar::Int(start)),
-            foreign.clone(),
-            Scalar::Int(0),
-        );
-        ChunkIndices { local, foreign }
-    }
-
-    /// Zeroes the hidden row of every foreign token in a `[batch, seq, hidden]` tensor.
-    fn zero_foreign<B: BackendIr>(
-        tensor: FloatTensor<B>,
-        foreign: BoolTensor<B>,
-        shape: Shape,
-    ) -> FloatTensor<B> {
-        let mut unsqueezed = foreign.shape();
-        unsqueezed.push(1);
-        let mask = B::bool_expand(B::bool_reshape(foreign, unsqueezed), shape);
-        B::float_mask_fill(tensor, mask, Scalar::Float(0.0))
     }
 }
 

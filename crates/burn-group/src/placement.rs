@@ -15,7 +15,7 @@ pub enum GroupPlacement {
 }
 
 /// How a placement follows its tensor's shape: the shard each member holds, and the placement
-/// after a broadcast, a permute or a change in the number of dims.
+/// after a broadcast or a change in the number of dims.
 pub trait PlacementShapes {
     /// An input of length 1 along the sharded dim broadcasts, so it stays whole.
     fn aligned(self, shape: &Shape) -> Self;
@@ -25,9 +25,6 @@ pub trait PlacementShapes {
 
     /// The shard `member` holds of `tensor`, as its own interpreter knows it.
     fn local_tensor(self, tensor: &TensorIr, member: usize, members: usize) -> TensorIr;
-
-    /// The placement of a tensor's permutation by `axes`: the sharded dim follows its axis.
-    fn permuted(self, axes: &[usize]) -> Self;
 
     /// The same placement on a tensor of `new_num_dims` dims instead of `num_dims`, with
     /// trailing dims lined up as broadcasting does.
@@ -54,18 +51,6 @@ impl PlacementShapes for GroupPlacement {
         TensorIr {
             shape: self.local_shape(&tensor.shape, member, members),
             ..tensor.clone()
-        }
-    }
-
-    fn permuted(self, axes: &[usize]) -> Self {
-        match self {
-            GroupPlacement::Sharded { dim } => GroupPlacement::Sharded {
-                dim: axes
-                    .iter()
-                    .position(|axis| *axis == dim)
-                    .expect("Axes must be a permutation"),
-            },
-            placement => placement,
         }
     }
 

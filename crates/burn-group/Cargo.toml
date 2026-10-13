@@ -9,12 +9,6 @@ repository = "https://github.com/tracel-ai/burn/tree/main/crates/burn-group"
 [lints]
 workspace = true
 
-[features]
-# Test-only: the device-group tests give their members the CUDA devices in turn, so shards cross
-# devices.
-test-cuda = ["burn-tensor/cuda"]
-test-fusion = ["burn-tensor/fusion"]
-
 [dependencies]
 burn-backend = { workspace = true, features = ["std"] }
 burn-ir = { workspace = true, features = ["std"] }
@@ -22,8 +16,6 @@ burn-router = { workspace = true, features = ["std"] }
 burn-std = { workspace = true, features = ["std"] }
 
 [dev-dependencies]
-burn-autodiff = { workspace = true, features = ["std"] }
 burn-flex = { workspace = true, features = ["default"] }
-# Paths, not the workspace versions: both depend on this crate through burn-dispatch.
-burn-linalg = { path = "../burn-linalg", default-features = false, features = ["std", "flex", "group"] }
+# A path, not the workspace version: burn-tensor depends on this crate through burn-dispatch.
 burn-tensor = { path = "../burn-tensor", features = ["std", "flex", "autodiff", "group"] }

@@ -12,7 +12,7 @@ pub enum Linearity {
     /// Linear in each input with the others fixed: one partial input among replicated ones
     /// keeps the output partial, like mul.
     Multilinear,
-    /// Linear in one input with the others replicated: a dividend, or a gradient flowing back.
+    /// Linear in one input with the others replicated, like a dividend.
     LinearIn {
         input: usize,
     },

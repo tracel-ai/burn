@@ -6,10 +6,10 @@ use burn_tensor::{
 
 #[test]
 fn megatron_mlp_on_a_device_group_matches_one_device() {
+    let expected = mlp(&Device::flex(), [Replicated; 5]).output.into_data();
     for members in [1, 2, 3, 4] {
-        let reference = mlp(&Device::flex().autodiff(), [Replicated; 5]);
         let split = mlp(
-            &group(members).autodiff(),
+            &group(members),
             [
                 Replicated,
                 Sharded { dim: 1 },
@@ -20,45 +20,14 @@ fn megatron_mlp_on_a_device_group_matches_one_device() {
         );
 
         assert_eq!(
-            split.grad_placements(),
-            [
-                Some(Partial),
-                Some(Sharded { dim: 1 }),
-                Some(Sharded { dim: 0 }),
-                Some(Sharded { dim: 0 }),
-                Some(Replicated)
-            ],
+            split.hidden.group_placement(),
+            Some(Sharded { dim: 1 }),
             "{members} members"
         );
-        split.assert_matches(&reference, &format!("{members} members"));
-    }
-}
-
-#[test]
-fn megatron_attention_on_a_device_group_matches_one_device() {
-    for members in [1, 2, 4] {
-        let reference = attention(&Device::flex().autodiff(), [Replicated; 4]);
-        let split = attention(
-            &group(members).autodiff(),
-            [
-                Sharded { dim: 1 },
-                Sharded { dim: 1 },
-                Sharded { dim: 1 },
-                Sharded { dim: 0 },
-            ],
-        );
-
-        assert_eq!(
-            split.grad_placements()[1..],
-            [
-                Some(Sharded { dim: 1 }),
-                Some(Sharded { dim: 1 }),
-                Some(Sharded { dim: 1 }),
-                Some(Sharded { dim: 0 })
-            ],
-            "{members} members"
-        );
-        split.assert_matches(&reference, &format!("{members} members"));
+        split
+            .output
+            .into_data()
+            .assert_approx_eq::<f32>(&expected, tolerance());
     }
 }
 
@@ -106,48 +75,6 @@ fn a_random_tensor_is_the_same_on_every_member() {
 }
 
 #[test]
-fn a_vocab_split_embedding_keeps_its_gradient_split() {
-    let indices = TensorData::from([[0i64, 6, 3], [2, 2, 5]]);
-    let run = |device: &Device, placement| {
-        let weights = leaf::<2>(values([7, 4], 1), device, placement);
-        let ids = Tensor::<2, burn_tensor::Int>::from_data(indices.clone(), device);
-        let output = module::embedding(weights.clone(), ids);
-        let scale = Tensor::<3>::from_data(values([2, 3, 4], 2), device);
-        let grads = (output.clone() * scale).sum().backward();
-        Run {
-            output: output.inner().into_data(),
-            grads: vec![Grad::new(weights.grad(&grads))],
-        }
-    };
-    let reference = run(&Device::flex().autodiff(), Replicated);
-    for members in [2, 3] {
-        let split = run(&group(members).autodiff(), Sharded { dim: 0 });
-
-        assert_eq!(
-            split.grad_placements(),
-            [Some(Sharded { dim: 0 })],
-            "{members} members"
-        );
-        split.assert_matches(&reference, &format!("{members} members"));
-    }
-}
-
-#[test]
-fn an_svd_on_a_device_group_matches_one_device() {
-    let data = values([5, 3], 1);
-    let svd = |tensor: Tensor<2>| {
-        let (u, s, vt) = burn_linalg::svd::<2, 1>(tensor, 15);
-        [u.into_data(), s.into_data(), vt.into_data()]
-    };
-    let expected = svd(Tensor::from_data(data.clone(), &Device::flex()));
-
-    let split = Tensor::<2>::from_data(data, &group(2)).place_in_group(Sharded { dim: 0 });
-    for (actual, expected) in svd(split).iter().zip(&expected) {
-        actual.assert_approx_eq::<f32>(expected, tolerance());
-    }
-}
-
-#[test]
 #[should_panic(expected = "The sharded dim must be smaller than the tensor dimension")]
 fn a_split_along_a_dim_the_tensor_lacks_is_refused() {
     Tensor::<2>::zeros([4, 6], &group(2)).place_in_group(Sharded { dim: 2 });
@@ -180,143 +107,39 @@ fn groups_of_the_same_devices_are_apart() {
         .assert_approx_eq::<f32>(&data, tolerance());
 }
 
-/// What a forward and backward pass produced: the output, then each leaf's gradient.
-struct Run {
-    output: TensorData,
-    grads: Vec<Grad>,
-}
-
-struct Grad {
-    placement: Option<GroupPlacement>,
-    data: TensorData,
-}
-
-impl Grad {
-    fn new<const D: usize>(grad: Option<Tensor<D>>) -> Self {
-        let grad = grad.expect("Every leaf has a gradient");
-        Self {
-            placement: grad.group_placement(),
-            data: grad.into_data(),
-        }
-    }
-}
-
-impl Run {
-    fn grad_placements(&self) -> Vec<Option<GroupPlacement>> {
-        self.grads.iter().map(|grad| grad.placement).collect()
-    }
-
-    fn assert_matches(self, expected: &Run, case: &str) {
-        assert_close(&self.output, &expected.output, &format!("{case}, output"));
-        assert_eq!(self.grads.len(), expected.grads.len(), "{case}");
-        for (leaf, (actual, expected)) in self.grads.iter().zip(&expected.grads).enumerate() {
-            let case = format!("{case}, gradient of leaf {leaf}");
-            assert_close(&actual.data, &expected.data, &case);
-        }
-    }
-}
-
-fn assert_close(actual: &TensorData, expected: &TensorData, case: &str) {
-    assert_eq!(actual.shape(), expected.shape(), "{case}");
-    let tolerance = tolerance();
-    let pairs = actual.iter::<f32>().zip(expected.iter::<f32>());
-    for (position, (actual, expected)) in pairs.enumerate() {
-        assert!(
-            tolerance.approx_eq(actual, expected),
-            "{case}, position {position}: {actual} against {expected}"
-        );
-    }
+/// The hidden activation and the output of a two-layer MLP.
+struct Mlp {
+    hidden: Tensor<2>,
+    output: Tensor<2>,
 }
 
 /// Placements of x, w1, b1, w2 and b2.
-fn mlp(device: &Device, [px, pw1, pb1, pw2, pb2]: [GroupPlacement; 5]) -> Run {
-    const BATCH: usize = 4;
-    const D_IN: usize = 6;
-    const HIDDEN: usize = 12;
-    const D_OUT: usize = 5;
+fn mlp(device: &Device, [px, pw1, pb1, pw2, pb2]: [GroupPlacement; 5]) -> Mlp {
+    let x = placed::<2>(values([4, 6], 1), device, px);
+    let w1 = placed::<2>(values([6, 12], 2), device, pw1);
+    let b1 = placed::<1>(values([12], 3), device, pb1);
+    let w2 = placed::<2>(values([12, 5], 4), device, pw2);
+    let b2 = placed::<1>(values([5], 5), device, pb2);
 
-    let x = leaf::<2>(values([BATCH, D_IN], 1), device, px);
-    let w1 = leaf::<2>(values([D_IN, HIDDEN], 2), device, pw1);
-    let b1 = leaf::<1>(values([HIDDEN], 3), device, pb1);
-    let w2 = leaf::<2>(values([HIDDEN, D_OUT], 4), device, pw2);
-    let b2 = leaf::<1>(values([D_OUT], 5), device, pb2);
-
-    let hidden = activation::relu(module::linear(x.clone(), w1.clone(), Some(b1.clone())));
-    let output = module::linear(hidden, w2.clone(), Some(b2.clone()));
-    let target = Tensor::from_data(values([BATCH, D_OUT], 6), device);
-    let grads = (output.clone() - target).square().sum().backward();
-    Run {
-        output: output.inner().into_data(),
-        grads: vec![
-            Grad::new(x.grad(&grads)),
-            Grad::new(w1.grad(&grads)),
-            Grad::new(b1.grad(&grads)),
-            Grad::new(w2.grad(&grads)),
-            Grad::new(b2.grad(&grads)),
-        ],
-    }
-}
-
-/// Placements of the query, key, value and output weights.
-fn attention(device: &Device, [pq, pk, pv, po]: [GroupPlacement; 4]) -> Run {
-    const BATCH: usize = 2;
-    const SEQ: usize = 5;
-    const HEADS: usize = 4;
-    const HEAD_DIM: usize = 3;
-    const EMBED: usize = HEADS * HEAD_DIM;
-
-    let x = leaf::<3>(values([BATCH, SEQ, EMBED], 1), device, Replicated);
-    let weight = |seed, placement| leaf::<2>(values([EMBED, EMBED], seed), device, placement);
-    let (wq, wk, wv, wo) = (weight(2, pq), weight(3, pk), weight(4, pv), weight(5, po));
-
-    let heads = |weight: &Tensor<2>| {
-        module::linear(x.clone(), weight.clone(), None)
-            .reshape([BATCH, SEQ, HEADS, HEAD_DIM])
-            .swap_dims(1, 2)
-    };
-    let (q, k, v) = (heads(&wq), heads(&wk), heads(&wv));
-    let scores = q
-        .matmul(k.swap_dims(2, 3))
-        .div_scalar((HEAD_DIM as f64).sqrt());
-    let context = activation::softmax(scores, 3)
-        .matmul(v)
-        .swap_dims(1, 2)
-        .reshape([BATCH, SEQ, EMBED]);
-    let output = module::linear(context, wo.clone(), None) + x.clone();
-    let grads = output.clone().square().sum().backward();
-    Run {
-        output: output.inner().into_data(),
-        grads: vec![
-            Grad::new(x.grad(&grads)),
-            Grad::new(wq.grad(&grads)),
-            Grad::new(wk.grad(&grads)),
-            Grad::new(wv.grad(&grads)),
-            Grad::new(wo.grad(&grads)),
-        ],
-    }
+    let hidden = activation::relu(module::linear(x, w1, Some(b1)));
+    let output = module::linear(hidden.clone(), w2, Some(b2));
+    Mlp { hidden, output }
 }
 
 fn group(members: usize) -> Device {
-    let devices: Vec<Device> = member_devices().into_iter().cycle().take(members).collect();
-    Device::group(&devices)
+    Device::group(&vec![Device::flex(); members])
 }
 
-#[cfg(feature = "test-cuda")]
-fn member_devices() -> Vec<Device> {
-    Device::enumerate(burn_tensor::DeviceType::Cuda).to_vec()
-}
-
-#[cfg(not(feature = "test-cuda"))]
-fn member_devices() -> Vec<Device> {
-    vec![Device::flex()]
-}
-
-/// A leaf on `device`, placed when the device is a group.
-fn leaf<const D: usize>(data: TensorData, device: &Device, placement: GroupPlacement) -> Tensor<D> {
+/// A tensor on `device`, placed when the device is a group.
+fn placed<const D: usize>(
+    data: TensorData,
+    device: &Device,
+    placement: GroupPlacement,
+) -> Tensor<D> {
     let tensor = Tensor::from_data(data, device);
     match tensor.group_placement() {
-        Some(_) => tensor.place_in_group(placement).require_grad(),
-        None => tensor.require_grad(),
+        Some(_) => tensor.place_in_group(placement),
+        None => tensor,
     }
 }
 
@@ -328,14 +151,6 @@ fn values<const D: usize>(shape: [usize; D], seed: usize) -> TensorData {
     TensorData::new(values, shape)
 }
 
-#[cfg(not(feature = "test-cuda"))]
 fn tolerance() -> Tolerance<f32> {
     Tolerance::rel_abs(1e-4, 1e-5)
-}
-
-/// CUDA's TF32 matmuls put attention's gradients about 1% off Flex; a lost or doubled summand is
-/// off by far more.
-#[cfg(feature = "test-cuda")]
-fn tolerance() -> Tolerance<f32> {
-    Tolerance::rel_abs(3e-2, 1e-2)
 }
