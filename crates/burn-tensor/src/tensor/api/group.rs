@@ -47,6 +47,9 @@ impl Device {
     /// other group, even one of the same devices. A tensor made on it is replicated on every
     /// member until it is [sharded](Tensor::with_sharding).
     ///
+    /// Make a group once and reuse it, as any device: each call registers a new group for the
+    /// rest of the process.
+    ///
     /// # Panics
     ///
     /// When `devices` is empty or mixes backends or runtimes, or when they are not Cube or Flex

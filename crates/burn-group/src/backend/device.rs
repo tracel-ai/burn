@@ -21,6 +21,9 @@ impl GroupDevice {
     /// A new group whose members run `B` on `devices`, apart from every other group, even one of
     /// the same devices.
     ///
+    /// Make a group once and reuse it, as any device: each call registers a new group for the
+    /// rest of the process.
+    ///
     /// # Panics
     ///
     /// When `devices` is empty.
@@ -35,10 +38,9 @@ impl GroupDevice {
         };
         let interpreter = GroupInterpreter::<B>::new(devices.to_vec());
         let client = GroupClient::new(device, Box::new(interpreter), devices[0].defaults());
-        let registration = register_scoped_client::<GroupChannel>(&device, client)
-            .expect("A new group's device has no client yet");
-        // The client stays registered for the process, as every other device's does.
-        core::mem::forget(registration);
+        register_scoped_client::<GroupChannel>(&device, client)
+            .expect("A new group's device has no client yet")
+            .keep();
         device
     }
 }

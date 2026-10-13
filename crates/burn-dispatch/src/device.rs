@@ -409,6 +409,9 @@ impl DispatchDevice {
     /// A new group of `devices`, its members, that each tensor is split over, apart from every
     /// other group.
     ///
+    /// Make a group once and reuse it, as any device: each call registers a new group for the
+    /// rest of the process.
+    ///
     /// # Panics
     ///
     /// When `devices` is empty or mixes backends or runtimes, or when they are not Cube or Flex
