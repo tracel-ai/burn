@@ -40,14 +40,13 @@ pub struct PositionWiseFeedForwardConfig {
 ///
 /// # Notes
 ///
-/// The `activation` field is currently marked `#[module(skip)]` for backward
-/// compatibility with records saved before this field was introduced (when
-/// the activation was always `Gelu` and had no state). This means activation
-/// state is **not persisted** when saving or loading records.
+/// Tensor checkpoints saved when this module always used GELU remain compatible:
+/// GELU has no parameters, and the linear layer tensor paths are unchanged.
 ///
-/// For stateless activations (GELU, ReLU, etc.) this has no effect.
-/// **If you are using `SwiGLU`, its learnable parameters will not be saved or
-/// loaded correctly.**
+/// Older checkpoints using stateful activations omitted their parameters. To load
+/// such checkpoints, use a storage path filter that includes only `linear_inner`
+/// and `linear_outer`. The activation keeps its initialized parameters, while
+/// missing linear layer parameters are still reported by strict loading.
 #[derive(Module, Debug)]
 #[module(custom_display)]
 pub struct PositionWiseFeedForward {
@@ -58,7 +57,6 @@ pub struct PositionWiseFeedForward {
     /// Dropout layer.
     pub dropout: Dropout,
     /// Activation function.
-    #[module(skip)] // for backward compatibility with previous `gelu` field name
     pub activation: Activation,
 }
 
@@ -122,6 +120,35 @@ impl PositionWiseFeedForward {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::activation::{PReluConfig, SwiGluConfig};
+
+    #[rstest::rstest]
+    #[case::prelu(ActivationConfig::PRelu(PReluConfig::new()), 1)]
+    #[case::swiglu(ActivationConfig::SwiGlu(SwiGluConfig::new(1, 1)), 2)]
+    fn stateful_activation_participates_in_module_lifecycle(
+        #[case] activation: ActivationConfig,
+        #[case] activation_params: usize,
+    ) {
+        let device = crate::test_device();
+        let model = PositionWiseFeedForwardConfig::new(1, 1)
+            .with_activation(activation)
+            .init(&device);
+        assert_eq!(model.num_params(), 4 + activation_params);
+        assert_eq!(
+            alloc::format!("{model}"),
+            alloc::format!(
+                "PositionWiseFeedForward {{d_model: 1, d_ff: 1, prob: 0.1, params: {}}}",
+                4 + activation_params
+            )
+        );
+
+        let model = model.train();
+        assert!(model.activation.devices().iter().all(|d| d.is_autodiff()));
+        let model = model.valid();
+        assert!(model.activation.devices().iter().all(|d| !d.is_autodiff()));
+        let model = model.train();
+        assert!(model.activation.devices().iter().all(|d| d.is_autodiff()));
+    }
 
     #[test]
     #[should_panic(expected = "assert_shape!(input, [.., d_model]): axis 2 expected 2, got 3")]
