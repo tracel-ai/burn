@@ -1226,8 +1226,17 @@ impl FloatTensorOps<Flex> for Flex {
             2 => Self::float_mul(lhs.clone(), lhs),
             -1 => Self::float_recip(lhs),
             -2 => Self::float_recip(Self::float_mul(lhs.clone(), lhs)),
-            _ => Self::float_powf_scalar_impl(lhs, rhs),
+            _ => Self::float_powi_scalar_impl(lhs, rhs),
         }
+    }
+
+    fn float_powi_scalar_impl(lhs: FloatTensor<Flex>, rhs: Scalar) -> FloatTensor<Flex> {
+        let exponent = rhs.to_f64().unwrap();
+        if f64::from(exponent as i32) != exponent {
+            return Self::float_powf_scalar_impl(lhs, rhs);
+        }
+        let exponent = exponent as i32;
+        unary::unary_op(lhs, |x| x.powi(exponent), |x| x.powi(exponent))
     }
 
     fn float_powf_scalar(tensor: FloatTensor<Flex>, value: Scalar) -> FloatTensor<Flex> {

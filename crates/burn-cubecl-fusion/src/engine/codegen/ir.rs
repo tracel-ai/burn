@@ -205,6 +205,8 @@ pub enum FuseOp {
         output: FuseArg,
         scheme: QuantSchemeFuse,
     },
+    /// Floating-point power with an i32 exponent.
+    Powi(BinaryFuseArgs),
 }
 
 impl Display for FuseOp {
@@ -215,6 +217,7 @@ impl Display for FuseOp {
             FuseOp::Mul(args) => write!(f, "{} = {} * {}", args.out, args.lhs, args.rhs),
             FuseOp::Div(args) => write!(f, "{} = {} / {}", args.out, args.lhs, args.rhs),
             FuseOp::Powf(args) => write!(f, "{} = powf({}, {})", args.out, args.lhs, args.rhs),
+            FuseOp::Powi(args) => write!(f, "{} = powi({}, {})", args.out, args.lhs, args.rhs),
             FuseOp::Abs(args) => write!(f, "{} = abs({})", args.out, args.input),
             FuseOp::Exp(args) => write!(f, "{} = exp({})", args.out, args.input),
             FuseOp::Log(args) => write!(f, "{} = log({})", args.out, args.input),
@@ -323,6 +326,7 @@ impl FuseOp {
             FuseOp::Mul(op) => op.lhs.precision().into_elem(),
             FuseOp::Div(op) => op.lhs.precision().into_elem(),
             FuseOp::Powf(op) => op.lhs.precision().into_elem(),
+            FuseOp::Powi(op) => op.lhs.precision().into_elem(),
             FuseOp::Abs(op) => op.out.precision().into_elem(),
             FuseOp::Exp(op) => op.out.precision().into_elem(),
             FuseOp::Log(op) => op.out.precision().into_elem(),
@@ -721,6 +725,7 @@ impl FuseOp {
             | FuseOp::Mul(binary_fuse_args)
             | FuseOp::Div(binary_fuse_args)
             | FuseOp::Powf(binary_fuse_args)
+            | FuseOp::Powi(binary_fuse_args)
             | FuseOp::Equal(binary_fuse_args)
             | FuseOp::Lower(binary_fuse_args)
             | FuseOp::Greater(binary_fuse_args)
