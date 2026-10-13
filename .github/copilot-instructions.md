@@ -40,11 +40,11 @@ Look closely for:
   all-ones or symmetric data, `arange` inputs where indices equal values, and configurations where
   two modes produce the same result.
 - Redundant or low-value tests are a finding too: cases that catch the same failure, assertions
-  that mirror the implementation, and edge cases unrelated to the change.
+  that mirror the implementation, and edge cases unrelated to the change. Tests that guard a public
+  API, a file format, or parity with a reference are not redundant.
 - A bug fix needs a regression test that fails without the fix. New validation needs a
   `#[should_panic(expected = ...)]` test.
-- Behavior shared across backends belongs in `burn-backend-tests`, gated by backend features rather
-  than enabling a backend unconditionally.
+- Behavior shared across backends belongs in `burn-backend-tests`, gated by backend features.
 
 ## Avoid
 
@@ -58,6 +58,6 @@ Look closely for:
   tensor is cheap because it shares the underlying buffer.
 - Replacing `unwrap()` in examples and tests, or style preferences already handled by rustfmt and
   clippy.
-- Repeating the same finding on every occurrence. Report it once and list the other locations.
+- Repeating a finding on every occurrence. Report it once and list the other locations.
 
-Keep each comment short: the problem, a failing case, and a suggested fix when it is clear.
+Keep comments short: the problem, a failing case, and a fix when it is clear.

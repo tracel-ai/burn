@@ -100,9 +100,10 @@ plausible failure, using inputs that distinguish a correct implementation from a
 one. Numerical operations need value checks; changes to shapes, metadata, or input validation should
 test that behavior directly. Avoid redundant cases, assertions that mirror the implementation, and
 unrelated edge cases. Extend existing tests or shared suites (`burn-backend-tests` for behavior
-shared across backends) instead of duplicating coverage across layers. Prefer a small,
-discriminating set over exhaustive combinations unless those combinations exercise different
-behavior.
+shared across backends) instead of duplicating coverage across layers; test each contract once, at
+the layer that owns it. Do not widen visibility or add production code only so tests can reach it.
+Prefer a small, discriminating set over exhaustive combinations unless those combinations exercise
+different behavior.
 
 Check that dependency updates do not change unrelated entries in `Cargo.lock`.
 
