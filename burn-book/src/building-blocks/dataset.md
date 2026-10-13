@@ -73,12 +73,31 @@ found at the [API reference](https://burn.dev/docs/burn/data/dataset/transform/i
   is now controlled by the sampling size. Sample usage:
 
 ```rust, ignore
-type DbPedia = SqliteDataset<DbPediaItem>;
-let dataset: DbPedia = HuggingfaceDatasetLoader::new("fancyzhx/dbpedia_14")
-        .dataset("train").
-        .unwrap();
+// `SamplerDataset` and `ShuffledDataset` accept only the default `DatasetError`,
+// so map the `SqliteDatasetError` first.
+struct DbPedia(SqliteDataset<DbPediaItem>);
 
-let dataset = SamplerDataset<DbPedia, DbPediaItem>::new(dataset, 10000);
+impl Dataset<DbPediaItem> for DbPedia {
+    fn get(&self, index: usize) -> Result<DbPediaItem, DatasetError> {
+        self.0.get(index).map_err(DatasetError::new)
+    }
+
+    fn get_many(&self, indexes: Vec<usize>) -> Result<Vec<DbPediaItem>, DatasetError> {
+        self.0.get_many(indexes).map_err(DatasetError::new)
+    }
+
+    fn len(&self) -> usize {
+        self.0.len()
+    }
+}
+
+let dataset = DbPedia(
+    HuggingfaceDatasetLoader::new("fancyzhx/dbpedia_14")
+        .dataset("train")
+        .unwrap(),
+);
+
+let dataset = SamplerDataset::<DbPedia, DbPediaItem>::new(dataset, 10000);
 ```
 
 - **SelectionDataset**: This transform can be used to select a subset of items from a dataset by

@@ -191,7 +191,7 @@ mod tests {
 
         let extremes = Tensor::<2>::from_floats([[-1000.0], [0.0], [1000.0]], &device);
         let out = calibrator.forward(extremes);
-        let values = out.into_data().to_vec::<f32>().unwrap();
+        let values = out.into_data().try_to_vec::<f32>().unwrap();
 
         for v in &values {
             assert!(*v >= -2.0 && *v <= 2.0, "out-of-range value: {v}");
@@ -231,7 +231,7 @@ mod tests {
 
         let scores = Tensor::<2>::from_floats([[-1000.0], [-1.971], [1000.0]], &device);
         let out = scale_finalscore(scores);
-        let values = out.into_data().to_vec::<f32>().unwrap();
+        let values = out.into_data().try_to_vec::<f32>().unwrap();
 
         assert!(values[0] >= 0.0 && values[0] <= 100.0);
         assert!(values[2] >= 0.0 && values[2] <= 100.0);

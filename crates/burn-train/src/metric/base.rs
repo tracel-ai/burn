@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use burn_core::data::dataloader::Progress;
+use burn_core::tensor::TensorReadError;
 use burn_optim::lr_scheduler::module_lr_scheduler::ModuleLearningRate;
 
 /// Metric metadata that can be used when computing metrics.
@@ -105,10 +106,23 @@ pub trait Metric: Send + Sync + Clone {
     }
 
     /// Update the metric state and returns the current metric entry.
-    fn update(&mut self, item: &Self::Input, metadata: &MetricMetadata) -> SerializedEntry;
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`TensorReadError`] when a tensor read fails. In that case, the metric state
+    /// could hold part or none of this update.
+    fn update(
+        &mut self,
+        item: &Self::Input,
+        metadata: &MetricMetadata,
+    ) -> Result<SerializedEntry, TensorReadError>;
 
     /// Compute the final metric value.
-    fn compute(&mut self) -> SerializedEntry;
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`TensorReadError`] when a tensor read fails.
+    fn compute(&mut self) -> Result<SerializedEntry, TensorReadError>;
 
     /// Clear the metric state.
     fn clear(&mut self);

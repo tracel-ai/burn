@@ -14,7 +14,7 @@ use ctor::ctor;
 pub type FloatElem = f32;
 pub type IntElem = i32;
 
-#[ctor]
+#[ctor(unsafe)]
 fn init_device_settings() {
     let mut device = burn_tensor::Device::default();
     device
@@ -30,7 +30,7 @@ fn init_device_settings() {
 ///
 /// GPU backends (cuda, wgpu, rocm, metal, vulkan) dispatch ops asynchronously; without a sync
 /// barrier inside the timed region a bench would measure dispatch latency, not execution time.
-/// On CPU backends (flex, ndarray) this is a no-op via the `Backend::sync` default.
+/// On CPU backends (flex) this is a no-op via the `Backend::sync` default.
 #[inline]
 pub fn sync() {
     burn_tensor::Device::default().sync().unwrap();
@@ -38,7 +38,7 @@ pub fn sync() {
 
 // --- Panic-tolerant bench execution -----------------------------------------
 //
-// Some ops are not implemented on every backend (quantization on tch, deformable conv on metal,
+// Some ops are not implemented on every backend (deformable conv on metal,
 // etc.). Without handling, the first panic in a bench binary aborts the whole run. We pre-flight
 // each bench under `catch_unwind`; on panic we record the failure, skip the bench loop, and let
 // subsequent benches in the same binary continue. `report_failures` at the end of `main()`
@@ -55,7 +55,7 @@ struct BenchFailure {
 
 static FAILURES: Mutex<Vec<BenchFailure>> = Mutex::new(Vec::new());
 
-#[ctor]
+#[ctor(unsafe)]
 fn install_panic_hook() {
     // Chain onto the existing hook rather than replacing it so truly unexpected panics (outside
     // `bench_synced`'s catch_unwind window) still print normally.

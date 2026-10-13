@@ -110,52 +110,59 @@ through Burn's non-DDP multi-device training path.
 ## Remote Devices
 
 A remote device implements the same `Device` interface as a local CUDA, WGPU, or CPU device. Tensor
-creation and operations use the normal API, but execution happens on a device exposed by a Burn
-server:
+creation and operations use the normal API, but execution happens on a device a Burn server hosts.
+A `RemoteHost` names the server, and `Device::remote_options` connects one of its devices:
 
 ```rust, ignore
-let device = Device::remote_websocket("ws://localhost:3000", 0);
+let host = RemoteHost::iroh(server_id).with_credential(token);
+let device = Device::remote_options(&host).init()?;
+
 let tensor = Tensor::<2>::ones([32, 128], &device);
-let output = model.to_device(&device).forward(tensor);
+let output = model.to_device(&device).forward(tensor); // Executed by the remote server.
 ```
 
-WebSocket remote devices are retained for existing deployments. New native integrations should
-prefer the Iroh transport, which identifies a server by its peer identity instead of requiring a
-fixed WebSocket address. The server exposes a local device with an `IrohChannel`: its
-`RemoteSecret`, its relays, and who it serves. Clients describe the server with an `IrohPeer` and
-receive the same unified `Device`:
+The server hosts its devices on a transport:
 
 ```rust, ignore
-let peer = IrohPeerBuilder::new(server_id).with_credential(token).build();
-let device = Device::remote_iroh_peer(&peer, 0).await?;
+let transport = IrohTransport::new(IrohIdentity::load_or_create("server.key")?);
+println!("server id: {}", transport.id());
 
-let tensor = Tensor::<1>::from_floats([1.0, 2.0, 3.0], &device);
-let output = tensor.square().sum(); // Executed by the remote server.
+RemoteServer::new([Device::cuda(0)])
+    .with_authorizer(TokenAuthorizer::new(token)?)
+    .serve(transport)?;
 ```
 
-A system should generate a random `RemoteSecret` and distribute its public identity through a
-trusted channel. An `IrohChannel` serves every peer unless its builder is given an authorizer, such
-as a `TokenAuthorizer` checking the credential its clients set.
+Iroh, the default transport, identifies a server by its id rather than a fixed address, and works
+across any network, authenticated and encrypted. A system should generate a random `IrohIdentity`
+and distribute its id through a trusted channel. A server opens every session unless given an
+authorizer, such as a `TokenAuthorizer` checking the credential its clients set.
 
-An application that already runs an Iroh endpoint passes it with `IrohPeerBuilder::with_endpoint`,
-or dials with `Device::remote_iroh`. Endpoints Burn binds send no segmentation-offloaded (GSO)
-batches because of [iroh#4555](https://github.com/n0-computer/iroh/issues/4555);
+WebSocket is the simplest setup on a trusted network: `WebSocketTransport::new(3000)` on the server
+and `RemoteHost::websocket("ws://gpu:3000")` on the client. It is unencrypted, so a token stops stray
+clients but not someone reading the traffic.
+
+An application that already runs an Iroh endpoint dials from it with `IrohHost::with_endpoint`, and
+serves on it with `RemoteServer::into_protocol`. Endpoints Burn binds send no segmentation-offloaded
+(GSO) batches because of [iroh#4555](https://github.com/n0-computer/iroh/issues/4555);
 `iroh_segmentation_offload` under `[remote]` in `burn.toml` turns them on. An application's own
 endpoint keeps its own setting.
 
-Async constructors are available for browser targets, where a synchronous connection cannot be
-established.
+`Device::enumerate(DeviceType::Remote(host))` lists every device the server hosts, beside any
+local device type, and each connects on first use; `host.devices()` does the same and returns an
+error where `enumerate` panics.
+`init_async().await` connects from async code, and is the only form in a browser, where a
+synchronous connection cannot be established.
 
 ### DDP on Remote Devices
 
 Remote execution and DDP compose naturally. The
 [`text-classification` example](https://github.com/tracel-ai/burn/tree/main/examples/text-classification/examples/ag-news-train.rs)
-enumerates every device hosted by a remote WebSocket server and passes them to the same DDP
+lists every device a remote WebSocket server hosts and passes them to the same DDP
 strategy:
 
 ```rust, ignore
 pub fn run() {
-    let devices = Device::enumerate(DeviceType::remote_websocket(ADDRESS));
+    let devices = Device::enumerate(DeviceType::Remote(RemoteHost::websocket(ADDRESS)));
 
     crate::launch(ExecutionStrategy::ddp(
         devices.into_vec(),

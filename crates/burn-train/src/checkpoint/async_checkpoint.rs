@@ -3,20 +3,17 @@ use crate::Interrupter;
 use std::sync::mpsc;
 
 enum Message<R> {
-    Restore(
-        usize,
-        mpsc::SyncSender<Result<R, CheckpointerError>>,
-        Option<Interrupter>,
-    ),
-    Save(usize, R, Option<Interrupter>),
-    Delete(usize, Option<Interrupter>),
+    Restore(usize, mpsc::SyncSender<Result<R, CheckpointerError>>),
+    Save(usize, R),
+    Delete(usize),
+    Interrupter(Interrupter),
     End,
 }
 
-#[derive(new)]
 struct CheckpointerThread<C, R> {
     checkpointer: C,
     receiver: mpsc::Receiver<Message<R>>,
+    interrupter: Option<Interrupter>,
 }
 
 impl<C, R> CheckpointerThread<C, R>
@@ -24,43 +21,51 @@ where
     C: Checkpointer<R>,
     R: Checkpoint,
 {
-    fn run(self) {
-        for item in self.receiver.iter() {
-            match item {
-                Message::Restore(epoch, callback, interrupter) => {
-                    let record = self.checkpointer.restore(epoch);
-                    callback.send(record).unwrap_or_else(|err| {
-                        interrupter.map_or_else(
-                            || {
-                                panic!(
-                                    "Error when sending response through callback channel: {err}"
-                                )
-                            },
-                            |int| int.stop(Some(&err.to_string())),
-                        )
-                    });
-                }
-                Message::Save(epoch, state, interrupter) => {
-                    self.checkpointer.save(epoch, state).unwrap_or_else(|err| {
-                        interrupter.map_or_else(
-                            || panic!("Error when saving the state: {err}"),
-                            |int| int.stop(Some(&err.to_string())),
-                        )
-                    });
-                }
-                Message::Delete(epoch, interrupter) => {
-                    self.checkpointer.delete(epoch).unwrap_or_else(|err| {
-                        interrupter.map_or_else(
-                            || panic!("Error when deleting the state: {err}"),
-                            |int| int.stop(Some(&err.to_string())),
-                        )
-                    });
-                }
+    fn new(checkpointer: C, receiver: mpsc::Receiver<Message<R>>) -> Self {
+        Self {
+            checkpointer,
+            receiver,
+            interrupter: None,
+        }
+    }
 
+    fn run(mut self) {
+        while let Ok(item) = self.receiver.recv() {
+            match item {
+                Message::Restore(epoch, callback) => {
+                    let record = self.checkpointer.restore(epoch);
+                    if let Err(err) = callback.send(record) {
+                        self.fail(
+                            "Error when sending response through callback channel",
+                            CheckpointerError::Unknown(err.to_string()),
+                        );
+                    }
+                }
+                Message::Save(epoch, state) => {
+                    if let Err(err) = self.checkpointer.save(epoch, state) {
+                        self.fail("Error when saving the state", err);
+                    }
+                }
+                Message::Delete(epoch) => {
+                    if let Err(err) = self.checkpointer.delete(epoch) {
+                        self.fail("Error when deleting the state", err);
+                    }
+                }
+                Message::Interrupter(interrupter) => {
+                    self.interrupter = Some(interrupter);
+                }
                 Message::End => {
                     return;
                 }
             };
+        }
+    }
+
+    /// Interrupt training with `err`, or panic when there is no interrupter to report it to.
+    fn fail(&self, context: &str, err: CheckpointerError) {
+        match &self.interrupter {
+            Some(interrupter) => interrupter.fail(err),
+            None => panic!("{context}: {err}"),
         }
     }
 }
@@ -69,7 +74,6 @@ where
 pub struct AsyncCheckpointer<R> {
     sender: mpsc::SyncSender<Message<R>>,
     handler: Option<std::thread::JoinHandle<()>>,
-    interrupter: Option<Interrupter>,
 }
 
 impl<R> AsyncCheckpointer<R>
@@ -94,16 +98,14 @@ where
         let thread = CheckpointerThread::new(checkpointer, receiver);
         let handler = Some(std::thread::spawn(move || thread.run()));
 
-        Self {
-            sender,
-            handler,
-            interrupter: None,
-        }
+        Self { sender, handler }
     }
 
     /// Assign a handle used to interrupt training in case of checkpointing error.
-    pub fn with_interrupter(mut self, interrupter: Interrupter) -> Self {
-        self.interrupter = Some(interrupter);
+    pub fn with_interrupter(self, interrupter: Interrupter) -> Self {
+        self.sender
+            .send(Message::Interrupter(interrupter))
+            .expect("Can send message to checkpointer thread.");
         self
     }
 }
@@ -114,7 +116,7 @@ where
 {
     fn save(&self, epoch: usize, record: R) -> Result<(), CheckpointerError> {
         self.sender
-            .send(Message::Save(epoch, record, self.interrupter.clone()))
+            .send(Message::Save(epoch, record))
             .expect("Can send message to checkpointer thread.");
 
         Ok(())
@@ -123,7 +125,7 @@ where
     fn restore(&self, epoch: usize) -> Result<R, CheckpointerError> {
         let (sender, receiver) = mpsc::sync_channel(1);
         self.sender
-            .send(Message::Restore(epoch, sender, self.interrupter.clone()))
+            .send(Message::Restore(epoch, sender))
             .map_err(|e| CheckpointerError::Unknown(e.to_string()))?;
 
         if let Ok(record) = receiver.recv() {
@@ -135,7 +137,7 @@ where
 
     fn delete(&self, epoch: usize) -> Result<(), CheckpointerError> {
         self.sender
-            .send(Message::Delete(epoch, self.interrupter.clone()))
+            .send(Message::Delete(epoch))
             .map_err(|e| CheckpointerError::Unknown(e.to_string()))?;
 
         Ok(())

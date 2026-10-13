@@ -34,6 +34,10 @@ pub struct ExperimentConfig {
     pub batch_size: usize,
     #[config(default = 5)]
     pub num_epochs: usize,
+    /// Noam scheduler factor. The peak learning rate is roughly
+    /// `factor / sqrt(d_model * warmup_steps)`.
+    #[config(default = 1e-2)]
+    pub lr_factor: f64,
 }
 
 pub(crate) fn create_artifact_dir(artifact_dir: &str) {
@@ -80,7 +84,7 @@ pub fn train<D: TextClassificationDataset + 'static>(
     let optim = config.optimizer.init();
 
     // Initialize learning rate scheduler
-    let lr_scheduler = NoamLrSchedulerConfig::new(1e-2)
+    let lr_scheduler = NoamLrSchedulerConfig::new(config.lr_factor)
         .with_warmup_steps(1000)
         .with_model_size(config.transformer.d_model)
         .init()

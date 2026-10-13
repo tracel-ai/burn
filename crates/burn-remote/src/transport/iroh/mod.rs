@@ -4,25 +4,28 @@
 //! client layers depend on lives under this module.
 
 mod relays;
-mod secret;
-pub use relays::IrohRelays;
-pub use secret::RemoteSecret;
+pub use relays::{InvalidRelays, IrohRelays};
 
-#[cfg(all(feature = "client", not(target_family = "wasm")))]
-mod peer;
-#[cfg(all(feature = "client", not(target_family = "wasm")))]
-pub use peer::{ConnectError, IrohPeer, IrohPeerBuilder};
+#[cfg(feature = "client")]
+mod host;
+#[cfg(feature = "client")]
+pub use host::IrohHost;
 
-#[cfg(feature = "server")]
-mod channel;
-#[cfg(feature = "server")]
-pub use channel::{IrohChannel, IrohChannelBuilder};
+mod identity;
+pub use identity::IrohIdentity;
+
+#[cfg(all(feature = "server", not(target_family = "wasm")))]
+mod server;
+#[cfg(all(feature = "server", not(target_family = "wasm")))]
+pub(crate) use server::IrohListener;
+#[cfg(all(feature = "server", not(target_family = "wasm")))]
+pub use server::IrohTransport;
 
 mod link;
-pub mod node;
+pub(crate) mod node;
 
 #[cfg(feature = "server")]
-pub mod protocol;
+pub(crate) mod protocol;
 #[cfg(feature = "server")]
 mod transfer;
 #[cfg(feature = "server")]

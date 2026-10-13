@@ -328,7 +328,12 @@ pub trait Backend:
     }
 
     /// Flush any pending operation of the backend.
-    fn flush(_device: &Self::Device);
+    ///
+    /// # Errors
+    ///
+    /// Returns an [`ExecutionError`] when the pending operations cannot be dispatched, e.g. on
+    /// a device that is poisoned.
+    fn flush(_device: &Self::Device) -> Result<(), ExecutionError>;
 
     /// Marks the given data as being used as a staging buffer for transfer between CPU and
     /// accelerators like GPUs.

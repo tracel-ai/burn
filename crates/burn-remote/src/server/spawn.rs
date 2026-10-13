@@ -1,4 +1,9 @@
-use core::future::Future;
+use core::{
+    future::Future,
+    panic::AssertUnwindSafe,
+    pin::Pin,
+    task::{Context, Poll},
+};
 
 #[cfg(not(target_family = "wasm"))]
 pub(crate) fn spawn_detached<F>(future: F)
@@ -51,33 +56,53 @@ impl ResponseTasks {
     }
 }
 
+/// A future that resolves to its panic's message instead of unwinding past its caller.
+pub(crate) struct CatchPanic<T>(Pin<Box<dyn Future<Output = T> + Send>>);
+
+impl<T> CatchPanic<T> {
+    pub(crate) fn new(future: impl Future<Output = T> + Send + 'static) -> Self {
+        Self(Box::pin(future))
+    }
+}
+
+impl<T> Future for CatchPanic<T> {
+    type Output = Result<T, String>;
+
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        match std::panic::catch_unwind(AssertUnwindSafe(|| self.0.as_mut().poll(cx))) {
+            Ok(poll) => poll.map(Ok),
+            Err(payload) => {
+                let message = payload
+                    .downcast_ref::<&str>()
+                    .copied()
+                    .or_else(|| payload.downcast_ref::<String>().map(String::as_str))
+                    .unwrap_or("no message");
+                Poll::Ready(Err(message.to_string()))
+            }
+        }
+    }
+}
+
 /// Resolve when the process is asked to stop (Ctrl+C, or `SIGTERM` on Unix).
-///
-/// The single shutdown trigger shared by the turnkey WebSocket and Iroh server entry points.
-#[cfg(all(
-    not(target_family = "wasm"),
-    any(feature = "websocket", feature = "iroh")
-))]
-pub(crate) async fn os_shutdown_signal() {
-    let ctrl_c = async {
-        tokio::signal::ctrl_c()
-            .await
-            .expect("failed to install Ctrl+C handler");
-    };
+#[cfg(not(target_family = "wasm"))]
+pub(crate) async fn os_shutdown_signal() -> Result<(), super::ServeError> {
+    let handler_failed = |source| super::ServeError::SignalHandler { source };
 
     #[cfg(unix)]
-    let terminate = async {
-        tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
-            .expect("failed to install signal handler")
-            .recv()
-            .await;
+    let terminate = {
+        let mut terminate =
+            tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
+                .map_err(handler_failed)?;
+        async move {
+            terminate.recv().await;
+        }
     };
     #[cfg(not(unix))]
     let terminate = std::future::pending::<()>();
 
     tokio::select! {
-        _ = ctrl_c => {},
-        _ = terminate => {},
+        result = tokio::signal::ctrl_c() => result.map_err(handler_failed),
+        () = terminate => Ok(()),
     }
 }
 

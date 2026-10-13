@@ -1,13 +1,17 @@
 use crate::{
     CubeBackend,
-    kernel::{self, conv::ConvTranspose2dStrategy},
+    kernel::{
+        self,
+        conv::{ConvTranspose2dStrategy, ConvTranspose3dStrategy},
+    },
 };
 use burn_backend::tensor::{BoolTensor, FloatTensor, IntTensor};
 use burn_backend::{
     TensorMetadata,
     ops::{
         AttentionModuleOptions, ConvOptions, ConvTransposeOptions, DeformConv2dBackward,
-        DeformConvOptions, InterpolateOptions, MaxPool2dBackward, MaxPool2dWithIndices, ModuleOps,
+        DeformConvOptions, InterpolateOptions, MaxPool2dBackward, MaxPool2dWithIndices,
+        MaxPool3dBackward, MaxPool3dWithIndices, ModuleOps,
     },
 };
 use burn_std::IntDType;
@@ -185,7 +189,8 @@ impl ModuleOps<Self> for CubeBackend {
         bias: Option<FloatTensor<Self>>,
         options: ConvTransposeOptions<3>,
     ) -> FloatTensor<Self> {
-        kernel::conv::conv_transpose3d(x, weight, bias, options).expect("Kernel to never fail")
+        kernel::conv::conv_transpose3d(x, weight, bias, options, ConvTranspose3dStrategy::default())
+            .unwrap()
     }
 
     fn avg_pool2d(
@@ -301,6 +306,108 @@ impl ModuleOps<Self> for CubeBackend {
         grad: FloatTensor<Self>,
     ) -> FloatTensor<Self> {
         kernel::pool::adaptive_avg_pool3d_backward(x, grad)
+    }
+
+    fn avg_pool3d(
+        x: FloatTensor<Self>,
+        kernel_size: [usize; 3],
+        stride: [usize; 3],
+        padding: [usize; 3],
+        count_include_pad: bool,
+        ceil_mode: bool,
+    ) -> FloatTensor<Self> {
+        kernel::pool::avg_pool3d(
+            x,
+            kernel_size,
+            stride,
+            padding,
+            count_include_pad,
+            ceil_mode,
+        )
+    }
+
+    fn avg_pool3d_backward(
+        x: FloatTensor<Self>,
+        grad: FloatTensor<Self>,
+        kernel_size: [usize; 3],
+        stride: [usize; 3],
+        padding: [usize; 3],
+        count_include_pad: bool,
+        ceil_mode: bool,
+    ) -> FloatTensor<Self> {
+        kernel::pool::avg_pool3d_backward(
+            x,
+            grad,
+            kernel_size,
+            stride,
+            padding,
+            count_include_pad,
+            ceil_mode,
+        )
+    }
+
+    fn max_pool3d(
+        x: FloatTensor<Self>,
+        kernel_size: [usize; 3],
+        stride: [usize; 3],
+        padding: [usize; 3],
+        dilation: [usize; 3],
+        ceil_mode: bool,
+    ) -> FloatTensor<Self> {
+        let (output, _indices) = kernel::pool::max_pool3d_with_indices(
+            x,
+            kernel_size,
+            stride,
+            padding,
+            dilation,
+            ceil_mode,
+            burn_backend::DType::I32,
+        );
+        output
+    }
+
+    fn max_pool3d_with_indices(
+        x: FloatTensor<Self>,
+        kernel_size: [usize; 3],
+        stride: [usize; 3],
+        padding: [usize; 3],
+        dilation: [usize; 3],
+        ceil_mode: bool,
+        indices_dtype: IntDType,
+    ) -> MaxPool3dWithIndices<Self> {
+        let (output, indices) = kernel::pool::max_pool3d_with_indices(
+            x,
+            kernel_size,
+            stride,
+            padding,
+            dilation,
+            ceil_mode,
+            indices_dtype.into(),
+        );
+
+        MaxPool3dWithIndices::new(output, indices)
+    }
+
+    fn max_pool3d_with_indices_backward(
+        x: FloatTensor<Self>,
+        kernel_size: [usize; 3],
+        stride: [usize; 3],
+        padding: [usize; 3],
+        dilation: [usize; 3],
+        ceil_mode: bool,
+        output_grad: FloatTensor<Self>,
+        indices: IntTensor<Self>,
+    ) -> MaxPool3dBackward<Self> {
+        MaxPool3dBackward::new(kernel::pool::max_pool3d_with_indices_backward(
+            x,
+            output_grad,
+            indices,
+            kernel_size,
+            stride,
+            padding,
+            dilation,
+            ceil_mode,
+        ))
     }
 
     fn interpolate(

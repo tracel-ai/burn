@@ -1,6 +1,5 @@
-use super::NoOp;
 use crate::{
-    Fusion, FusionBackend, binary_float_cmp_ops, binary_float_ops,
+    Fusion, FusionBackend, FusionTensor, binary_float_cmp_ops, binary_float_ops,
     client::GlobalFusionClient,
     get_client, reduce_ops, scalar_float_cmp_ops, scalar_float_ops,
     stream::{StreamId, execution::Operation},
@@ -66,15 +65,9 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         let shape = burn_backend::TensorMetadata::shape(&tensor);
 
         let handle = B::float_tensor_handle(tensor);
-        let desc = InitOperationIr::create(shape, dtype, || client.register_tensor_handle(handle));
+        let id = client.register_tensor_handle(handle);
 
-        client
-            .register(
-                StreamId::current(),
-                OperationIr::Init(desc),
-                NoOp::<B>::new(),
-            )
-            .output()
+        FusionTensor::new(id, shape, dtype, client, StreamId::current())
     }
 
     fn float_random(

@@ -1,13 +1,8 @@
-// The LibTorch bench group exists to compare against the deprecated backend.
-#![cfg_attr(feature = "tch", allow(deprecated))]
-
 //! Unified benchmark comparing all loading methods:
-//! - BurnpackStore (new native format)
-//! - NamedMpkFileRecorder (old native format)
-//! - SafetensorsStore (new)
-//! - SafetensorsFileRecorder (old)
-//! - PytorchStore (new)
-//! - PyTorchFileRecorder (old)
+//! - BurnpackStore (lazy burnpack loading)
+//! - ModuleRecord (the record API, reading the same burnpack format)
+//! - SafetensorsStore
+//! - PytorchStore
 //!
 //! Before running this benchmark, generate the model files:
 //! ```bash
@@ -25,8 +20,6 @@ use burn_core as burn;
 use burn_core::module::Module;
 use burn_core::prelude::*;
 use burn_core::store::ModuleRecord;
-// use burn_import::pytorch::{LoadArgs, PyTorchFileRecorder};
-// use burn_import::safetensors::SafetensorsFileRecorder;
 use burn_nn as nn;
 use burn_store::{
     BurnpackStore, ModuleSnapshot, PyTorchToBurnAdapter, PytorchStore, SafetensorsStore,
@@ -61,8 +54,8 @@ fn get_model_dir() -> PathBuf {
     std::env::temp_dir().join("simple_bench_models")
 }
 
-/// Generate Burnpack and NamedMpk files from existing SafeTensors file
-fn generate_burn_formats(st_path: &Path, bp_path: &Path, mpk_path: &Path) {
+/// Generate the Burnpack and ModuleRecord files from the existing SafeTensors file
+fn generate_burn_formats(st_path: &Path, bp_path: &Path, record_path: &Path) {
     let device = Device::flex();
 
     // Load the model from SafeTensors
@@ -81,12 +74,12 @@ fn generate_burn_formats(st_path: &Path, bp_path: &Path, mpk_path: &Path) {
             .expect("Failed to save as Burnpack");
     }
 
-    // Save as NamedMpk
-    if !mpk_path.exists() {
-        println!("  Creating NamedMpk file...");
+    // Save through the record API
+    if !record_path.exists() {
+        println!("  Creating ModuleRecord file...");
         model
-            .save_file(mpk_path)
-            .expect("Failed to save as NamedMpk");
+            .save_file(record_path)
+            .expect("Failed to save with ModuleRecord");
     }
 }
 
@@ -95,7 +88,7 @@ fn get_model_paths() -> (PathBuf, PathBuf, PathBuf, PathBuf) {
     let dir = get_model_dir();
     (
         dir.join("large_model.bpk"),
-        dir.join("large_model.mpk"),
+        dir.join("large_model_record.bpk"),
         dir.join("large_model.safetensors"),
         dir.join("large_model.pt"),
     )
@@ -105,7 +98,7 @@ fn get_model_paths() -> (PathBuf, PathBuf, PathBuf, PathBuf) {
 fn check_model_files() -> Result<(), String> {
     let (_, _, st_path, pt_path) = get_model_paths();
 
-    // For now, only check safetensors and pytorch files (will generate burnpack/mpk later)
+    // Only the safetensors and pytorch files are required; the burnpack files are generated
     if !st_path.exists() || !pt_path.exists() {
         return Err(format!(
             "\n❌ Model files not found!\n\
@@ -130,18 +123,18 @@ fn main() {
     // Check if model files exist before running benchmarks
     match check_model_files() {
         Ok(()) => {
-            let (bp_path, mpk_path, st_path, pt_path) = get_model_paths();
+            let (bp_path, record_path, st_path, pt_path) = get_model_paths();
 
-            // First, generate Burnpack and MPK files if they don't exist
-            if !bp_path.exists() || !mpk_path.exists() {
-                println!("⏳ Generating Burnpack and NamedMpk files from SafeTensors...");
-                generate_burn_formats(&st_path, &bp_path, &mpk_path);
+            // First, generate the burnpack files if they don't exist
+            if !bp_path.exists() || !record_path.exists() {
+                println!("⏳ Generating Burnpack and ModuleRecord files from SafeTensors...");
+                generate_burn_formats(&st_path, &bp_path, &record_path);
             }
 
             let bp_size = fs::metadata(&bp_path)
                 .ok()
                 .map(|m| m.len() as f64 / 1_048_576.0);
-            let mpk_size = fs::metadata(&mpk_path)
+            let record_size = fs::metadata(&record_path)
                 .ok()
                 .map(|m| m.len() as f64 / 1_048_576.0);
             let st_size = fs::metadata(&st_path).unwrap().len() as f64 / 1_048_576.0;
@@ -151,21 +144,19 @@ fn main() {
             if let Some(size) = bp_size {
                 println!("  Burnpack: {} ({:.1} MB)", bp_path.display(), size);
             }
-            if let Some(size) = mpk_size {
-                println!("  NamedMpk: {} ({:.1} MB)", mpk_path.display(), size);
+            if let Some(size) = record_size {
+                println!("  ModuleRecord: {} ({:.1} MB)", record_path.display(), size);
             }
             println!("  SafeTensors: {} ({:.1} MB)", st_path.display(), st_size);
             println!("  PyTorch: {} ({:.1} MB)", pt_path.display(), pt_size);
             println!();
             println!("🚀 Running unified loading benchmarks...");
             println!();
-            println!("Comparing 6 loading methods:");
-            println!("  1. BurnpackStore (new native format - lazy loading)");
-            println!("  2. NamedMpkFileRecorder (old native format - loads all to memory)");
-            println!("  3. SafetensorsStore (new)");
-            println!("  4. SafetensorsFileRecorder (old)");
-            println!("  5. PytorchStore (new)");
-            println!("  6. PyTorchFileRecorder (old)");
+            println!("Comparing 4 loading methods:");
+            println!("  1. BurnpackStore (lazy burnpack loading)");
+            println!("  2. ModuleRecord (record API, same burnpack format)");
+            println!("  3. SafetensorsStore");
+            println!("  4. PytorchStore");
             println!();
             println!("Available backends:");
             println!("  - Flex (CPU)");
@@ -173,8 +164,6 @@ fn main() {
             println!("  - WGPU (GPU)");
             #[cfg(feature = "cuda")]
             println!("  - CUDA (NVIDIA GPU)");
-            #[cfg(feature = "tch")]
-            println!("  - LibTorch");
             #[cfg(feature = "metal")]
             println!("  - Metal (Apple GPU)");
             println!();
@@ -211,16 +200,17 @@ macro_rules! bench_backend {
             }
 
             #[divan::bench]
-            fn namedmpk_recorder(bencher: Bencher) {
-                let (_, mpk_path, _, _) = get_model_paths();
-                let file_size = fs::metadata(&mpk_path).unwrap().len();
+            fn module_record(bencher: Bencher) {
+                let (_, record_path, _, _) = get_model_paths();
+                let file_size = fs::metadata(&record_path).unwrap().len();
 
                 bencher
                     .counter(divan::counter::BytesCount::new(file_size))
                     .bench(|| {
                         let device = $device;
                         let model = LargeModel::new(&device);
-                        model.load_record(ModuleRecord::load(&mpk_path).expect("Failed to load"));
+                        model
+                            .load_record(ModuleRecord::load(&record_path).expect("Failed to load"));
                     });
             }
 
@@ -240,23 +230,6 @@ macro_rules! bench_backend {
                     });
             }
 
-            // #[divan::bench]
-            // fn safetensors_recorder(bencher: Bencher) {
-            //     let (_, _, st_path, _) = get_model_paths();
-            //     let file_size = fs::metadata(&st_path).unwrap().len();
-
-            //     bencher
-            //         .counter(divan::counter::BytesCount::new(file_size))
-            //         .bench(|| {
-            //             let device: Device = $device.into();
-            //             let recorder = SafetensorsFileRecorder::<FullPrecisionSettings>::default();
-            //             let record = recorder
-            //                 .load(st_path.clone().into(), &device)
-            //                 .expect("Failed to load");
-            //             let _model = LargeModel::new(&device).load_record(record);
-            //         });
-            // }
-
             #[divan::bench]
             fn pytorch_store(bencher: Bencher) {
                 let (_, _, _, pt_path) = get_model_paths();
@@ -273,23 +246,6 @@ macro_rules! bench_backend {
                         model.load_from(&mut store).expect("Failed to load");
                     });
             }
-
-            // #[divan::bench]
-            // fn pytorch_recorder(bencher: Bencher) {
-            //     let (_, _, _, pt_path) = get_model_paths();
-            //     let file_size = fs::metadata(&pt_path).unwrap().len();
-
-            //     bencher
-            //         .counter(divan::counter::BytesCount::new(file_size))
-            //         .bench(|| {
-            //             let device: Device = $device.into();
-            //             let recorder = PyTorchFileRecorder::<FullPrecisionSettings>::default();
-            //             let load_args =
-            //                 LoadArgs::new(pt_path.clone()).with_top_level_key("model_state_dict");
-            //             let record = recorder.load(load_args, &device).expect("Failed to load");
-            //             let _model = LargeModel::new(&device).load_record(record);
-            //         });
-            // }
         }
     };
 }
@@ -310,9 +266,6 @@ bench_backend!(
     cuda_backend,
     "CUDA Backend (NVIDIA GPU)"
 );
-
-#[cfg(feature = "tch")]
-bench_backend!(Device::libtorch(), tch_backend, "LibTorch Backend");
 
 #[cfg(feature = "metal")]
 bench_backend!(

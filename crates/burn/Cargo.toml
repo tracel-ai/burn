@@ -18,6 +18,10 @@ repository = "https://github.com/tracel-ai/burn"
 rust-version = "1.95"
 version.workspace = true
 
+[package.metadata.docs.rs]
+features = ["doc"]
+rustdoc-args = ["--cfg", "docsrs"]
+
 [lints]
 workspace = true
 
@@ -45,6 +49,7 @@ doc = [
     "burn-optim?/doc",
     "rl",
     "signal",
+    "vision",
 ]
 std = [
     "burn-core/std",
@@ -108,12 +113,9 @@ autodiff = ["burn-core/autodiff", "burn-signal?/autodiff"]
 fusion = ["ir", "burn-core/fusion", "burn-linalg?/fusion", "burn-signal?/fusion", "burn-vision?/fusion"]
 
 ## Backend features
-accelerate = ["burn-core/accelerate"]
+persistence = ["burn-core/persistence", "cubecl?/persistence"]
 autotune = ["burn-core/autotune", "burn-signal?/autotune"]
 autotune-checks = ["burn-core/autotune-checks"]
-blas-netlib = ["burn-core/blas-netlib"]
-openblas = ["burn-core/openblas"]
-openblas-system = ["burn-core/openblas-system"]
 simd = ["burn-core/simd"]
 rayon = ["burn-core/rayon"]
 
@@ -129,8 +131,6 @@ remote-websocket = ["remote", "burn-core/remote-websocket", "burn-signal?/remote
 cuda = ["burn-core/cuda", "burn-linalg?/cuda", "burn-signal?/cuda", "burn-vision?/cuda"]
 rocm = ["burn-core/rocm", "burn-linalg?/rocm", "burn-signal?/rocm", "burn-vision?/rocm"]
 flex = ["burn-core/flex", "burn-linalg?/flex", "burn-signal?/flex", "burn-vision?/flex"]
-ndarray = ["burn-core/ndarray", "burn-linalg?/ndarray"]
-tch = ["burn-core/tch", "burn-linalg?/tch", "burn-signal?/tch", "burn-vision?/tch"]
 vulkan = ["wgpu", "burn-core/vulkan", "burn-linalg?/vulkan", "burn-signal?/vulkan", "burn-vision?/vulkan"]
 webgpu = ["wgpu", "burn-core/webgpu", "burn-linalg?/webgpu", "burn-signal?/webgpu", "burn-vision?/webgpu"]
 metal = ["wgpu", "burn-core/metal", "burn-linalg?/metal", "burn-signal?/metal", "burn-vision?/metal"]

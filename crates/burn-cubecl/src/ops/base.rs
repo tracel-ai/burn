@@ -49,9 +49,7 @@ pub(crate) async fn into_data(tensor: CubeTensor) -> Result<TensorData, Executio
         burn_std::RuntimeKind::Async => tensor.client.read_one_tensor_async(binding).await,
         _ => tensor.client.read_lazy_async(binding).await,
     };
-    let bytes = read.map_err(|err| ExecutionError::WithContext {
-        reason: format!("{err}"),
-    })?;
+    let bytes = read.map_err(crate::backend::server_err)?;
 
     Ok(TensorData::from_bytes(
         bytes,

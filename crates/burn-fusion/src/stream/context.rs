@@ -460,6 +460,27 @@ impl RelativeOps for ModuleOperationIr {
                     out: desc.out.to_relative(converter),
                 })
             }
+            ModuleOperationIr::AvgPool3d(desc) => ModuleOperationIr::AvgPool3d(AvgPool3dOpIr {
+                x: desc.x.to_relative(converter),
+                kernel_size: desc.kernel_size,
+                stride: desc.stride,
+                padding: desc.padding,
+                count_include_pad: desc.count_include_pad,
+                ceil_mode: desc.ceil_mode,
+                out: desc.out.to_relative(converter),
+            }),
+            ModuleOperationIr::AvgPool3dBackward(desc) => {
+                ModuleOperationIr::AvgPool3dBackward(AvgPool3dBackwardOpIr {
+                    x: desc.x.to_relative(converter),
+                    grad: desc.grad.to_relative(converter),
+                    kernel_size: desc.kernel_size,
+                    stride: desc.stride,
+                    padding: desc.padding,
+                    count_include_pad: desc.count_include_pad,
+                    ceil_mode: desc.ceil_mode,
+                    out: desc.out.to_relative(converter),
+                })
+            }
             ModuleOperationIr::AdaptiveAvgPool1d(desc) => {
                 ModuleOperationIr::AdaptiveAvgPool1d(AdaptiveAvgPool1dOpIr {
                     x: desc.x.to_relative(converter),
@@ -559,6 +580,40 @@ impl RelativeOps for ModuleOperationIr {
             }
             ModuleOperationIr::MaxPool2dWithIndicesBackward(desc) => {
                 ModuleOperationIr::MaxPool2dWithIndicesBackward(MaxPool2dWithIndicesBackwardOpIr {
+                    x: desc.x.to_relative(converter),
+                    grad: desc.grad.to_relative(converter),
+                    indices: desc.indices.to_relative(converter),
+                    kernel_size: desc.kernel_size,
+                    stride: desc.stride,
+                    padding: desc.padding,
+                    dilation: desc.dilation,
+                    ceil_mode: desc.ceil_mode,
+                    out: desc.out.to_relative(converter),
+                })
+            }
+            ModuleOperationIr::MaxPool3d(desc) => ModuleOperationIr::MaxPool3d(MaxPool3dOpIr {
+                x: desc.x.to_relative(converter),
+                kernel_size: desc.kernel_size,
+                stride: desc.stride,
+                padding: desc.padding,
+                dilation: desc.dilation,
+                ceil_mode: desc.ceil_mode,
+                out: desc.out.to_relative(converter),
+            }),
+            ModuleOperationIr::MaxPool3dWithIndices(desc) => {
+                ModuleOperationIr::MaxPool3dWithIndices(MaxPool3dWithIndicesOpIr {
+                    x: desc.x.to_relative(converter),
+                    kernel_size: desc.kernel_size,
+                    stride: desc.stride,
+                    padding: desc.padding,
+                    dilation: desc.dilation,
+                    ceil_mode: desc.ceil_mode,
+                    out: desc.out.to_relative(converter),
+                    out_indices: desc.out_indices.to_relative(converter),
+                })
+            }
+            ModuleOperationIr::MaxPool3dWithIndicesBackward(desc) => {
+                ModuleOperationIr::MaxPool3dWithIndicesBackward(MaxPool3dWithIndicesBackwardOpIr {
                     x: desc.x.to_relative(converter),
                     grad: desc.grad.to_relative(converter),
                     indices: desc.indices.to_relative(converter),

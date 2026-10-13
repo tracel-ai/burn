@@ -4,10 +4,10 @@ categories = ["science", "no-std", "embedded", "wasm"]
 description = "Core backend interfaces and data structures for executing tensor operations in Burn."
 documentation = "https://docs.rs/burn-backend"
 edition.workspace = true
-keywords = ["deep-learning", "machine-learning", "tensor", "pytorch", "ndarray"]
+keywords = ["deep-learning", "machine-learning", "tensor", "pytorch"]
 license.workspace = true
 name = "burn-backend"
-readme.workspace = true
+readme = "README.md"
 repository = "https://github.com/tracel-ai/burn/tree/main/crates/burn-backend"
 version.workspace = true
 

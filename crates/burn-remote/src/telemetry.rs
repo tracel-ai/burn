@@ -337,6 +337,7 @@ impl TelemetryEvent {
     }
 }
 
+#[cfg(any(feature = "client", feature = "server"))]
 pub(crate) const CHANNEL_CAPACITY: usize = 4096;
 
 /// Cloneable handle a worker emits into. Inert until a [`TelemetrySubscription`] is attached.

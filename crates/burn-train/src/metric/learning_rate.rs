@@ -5,6 +5,7 @@ use super::{
     state::{FormatOptions, NumericMetricState},
 };
 use crate::metric::{Metric, MetricName, Numeric, SerializedEntry};
+use burn_core::tensor::TensorReadError;
 
 /// Track the learning rate across iterations.
 #[derive(Clone)]
@@ -32,18 +33,24 @@ impl Default for LearningRateMetric {
 impl Metric for LearningRateMetric {
     type Input = ();
 
-    fn update(&mut self, _item: &(), metadata: &MetricMetadata) -> SerializedEntry {
+    fn update(
+        &mut self,
+        _item: &(),
+        metadata: &MetricMetadata,
+    ) -> Result<SerializedEntry, TensorReadError> {
         // TODO: We only log the default learning rate. Yet another motivation to introduce metric groups.
         let lr = metadata.lr.as_ref().map(|val| val.base()).unwrap_or(0.0);
 
         self.state.update(lr, 1);
-        self.state
-            .compute_update(FormatOptions::new(self.name()).precision(2))
+        Ok(self
+            .state
+            .compute_update(FormatOptions::new(self.name()).precision(2)))
     }
 
-    fn compute(&mut self) -> SerializedEntry {
-        self.state
-            .compute_final(FormatOptions::new(self.name()).precision(2))
+    fn compute(&mut self) -> Result<SerializedEntry, TensorReadError> {
+        Ok(self
+            .state
+            .compute_final(FormatOptions::new(self.name()).precision(2)))
     }
 
     fn clear(&mut self) {

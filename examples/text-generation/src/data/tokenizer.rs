@@ -24,11 +24,13 @@ pub struct Gpt2Tokenizer {
 impl Default for Gpt2Tokenizer {
     fn default() -> Self {
         let mut tokenizer = tokenizers::Tokenizer::from_pretrained("gpt2", None).unwrap();
-        tokenizer.add_special_tokens(&[
-            tokenizers::AddedToken::from("[START]", true),
-            tokenizers::AddedToken::from("[END]", true),
-            tokenizers::AddedToken::from("[PAD]", true),
-        ]);
+        tokenizer
+            .add_special_tokens([
+                tokenizers::AddedToken::from("[START]", true),
+                tokenizers::AddedToken::from("[END]", true),
+                tokenizers::AddedToken::from("[PAD]", true),
+            ])
+            .unwrap();
 
         Self { tokenizer }
     }

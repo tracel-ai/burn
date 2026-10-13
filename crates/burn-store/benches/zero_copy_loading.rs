@@ -1,6 +1,3 @@
-// The LibTorch bench group exists to compare against the deprecated backend.
-#![cfg_attr(feature = "tch", allow(deprecated))]
-
 //! Benchmark comparing different loading modes for BurnpackStore.
 //!
 //! This benchmark measures the performance difference between:
@@ -159,8 +156,6 @@ fn main() {
     println!("  - WGPU (GPU)");
     #[cfg(feature = "cuda")]
     println!("  - CUDA (NVIDIA GPU)");
-    #[cfg(feature = "tch")]
-    println!("  - LibTorch");
     #[cfg(feature = "metal")]
     println!("  - Metal (Apple GPU)");
     println!();
@@ -475,9 +470,6 @@ bench_backend!(
     cuda_backend,
     "CUDA Backend (NVIDIA GPU)"
 );
-
-#[cfg(feature = "tch")]
-bench_backend!(LibTorchDevice::default(), tch_backend, "LibTorch Backend");
 
 #[cfg(feature = "metal")]
 bench_backend!(

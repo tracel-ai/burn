@@ -521,7 +521,7 @@ mod tests {
         let lpips = LpipsConfig::new().init(&device);
         let distance = lpips.forward(image1, image2, Reduction::Mean);
 
-        let distance_value = distance.into_data().to_vec::<f32>().unwrap()[0];
+        let distance_value = distance.into_data().try_to_vec::<f32>().unwrap()[0];
         assert!(
             distance_value.abs() > 1e-6,
             "LPIPS should be != 0 for different images"
@@ -606,7 +606,7 @@ mod tests {
         let lpips = LpipsConfig::new().with_net(LpipsNet::Alex).init(&device);
         let distance = lpips.forward(image1, image2, Reduction::Mean);
 
-        let distance_value = distance.into_data().to_vec::<f32>().unwrap()[0];
+        let distance_value = distance.into_data().try_to_vec::<f32>().unwrap()[0];
         // Note: With random weights, non-negativity is not guaranteed.
         // We only check that different images produce a non-zero distance.
         assert!(
@@ -645,7 +645,7 @@ mod tests {
         let lpips = LpipsConfig::new().with_net(LpipsNet::Squeeze).init(&device);
         let distance = lpips.forward(image1, image2, Reduction::Mean);
 
-        let distance_value = distance.into_data().to_vec::<f32>().unwrap()[0];
+        let distance_value = distance.into_data().try_to_vec::<f32>().unwrap()[0];
         // Note: With random weights, non-negativity is not guaranteed.
         // We only check that different images produce a non-zero distance.
         assert!(
@@ -706,7 +706,7 @@ mod tests {
         // Test with identical images - should be 0
         let image = Tensor::<4>::ones([1, 3, 64, 64], &device);
         let distance = lpips.forward(image.clone(), image, Reduction::Mean);
-        let distance_value = distance.into_data().to_vec::<f32>().unwrap()[0];
+        let distance_value = distance.into_data().try_to_vec::<f32>().unwrap()[0];
         assert!(
             distance_value.abs() < 1e-5,
             "Pretrained LPIPS (VGG) should be ~0 for identical images, got {}",
@@ -717,7 +717,7 @@ mod tests {
         let image1 = Tensor::<4>::zeros([1, 3, 64, 64], &device);
         let image2 = Tensor::<4>::ones([1, 3, 64, 64], &device);
         let distance = lpips.forward(image1, image2, Reduction::Mean);
-        let distance_value = distance.into_data().to_vec::<f32>().unwrap()[0];
+        let distance_value = distance.into_data().try_to_vec::<f32>().unwrap()[0];
         assert!(
             distance_value > 0.0,
             "Pretrained LPIPS (VGG) should be > 0 for different images, got {}",
@@ -738,7 +738,7 @@ mod tests {
         // Test with identical images
         let image = Tensor::<4>::ones([1, 3, 64, 64], &device);
         let distance = lpips.forward(image.clone(), image, Reduction::Mean);
-        let distance_value = distance.into_data().to_vec::<f32>().unwrap()[0];
+        let distance_value = distance.into_data().try_to_vec::<f32>().unwrap()[0];
         assert!(
             distance_value.abs() < 1e-5,
             "Pretrained LPIPS (Alex) should be ~0 for identical images, got {}",
@@ -749,7 +749,7 @@ mod tests {
         let image1 = Tensor::<4>::zeros([1, 3, 64, 64], &device);
         let image2 = Tensor::<4>::ones([1, 3, 64, 64], &device);
         let distance = lpips.forward(image1, image2, Reduction::Mean);
-        let distance_value = distance.into_data().to_vec::<f32>().unwrap()[0];
+        let distance_value = distance.into_data().try_to_vec::<f32>().unwrap()[0];
         assert!(
             distance_value > 0.0,
             "Pretrained LPIPS (Alex) should be > 0 for different images"
@@ -769,7 +769,7 @@ mod tests {
         // Test with identical images
         let image = Tensor::<4>::ones([1, 3, 64, 64], &device);
         let distance = lpips.forward(image.clone(), image, Reduction::Mean);
-        let distance_value = distance.into_data().to_vec::<f32>().unwrap()[0];
+        let distance_value = distance.into_data().try_to_vec::<f32>().unwrap()[0];
         assert!(
             distance_value.abs() < 1e-5,
             "Pretrained LPIPS (Squeeze) should be ~0 for identical images, got {}",
@@ -780,7 +780,7 @@ mod tests {
         let image1 = Tensor::<4>::zeros([1, 3, 64, 64], &device);
         let image2 = Tensor::<4>::ones([1, 3, 64, 64], &device);
         let distance = lpips.forward(image1, image2, Reduction::Mean);
-        let distance_value = distance.into_data().to_vec::<f32>().unwrap()[0];
+        let distance_value = distance.into_data().try_to_vec::<f32>().unwrap()[0];
         assert!(
             distance_value > 0.0,
             "Pretrained LPIPS (Squeeze) should be > 0 for different images, got {}",

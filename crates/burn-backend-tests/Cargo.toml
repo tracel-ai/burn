@@ -4,10 +4,10 @@ categories = ["science", "no-std", "embedded", "wasm"]
 description = "Tensor tests for Burn backends"
 documentation = "https://docs.rs/burn-backend-tests"
 edition.workspace = true
-keywords = ["deep-learning", "machine-learning", "tensor", "pytorch", "ndarray"]
+keywords = ["deep-learning", "machine-learning", "tensor", "pytorch"]
 license.workspace = true
 name = "burn-backend-tests"
-readme.workspace = true
+readme = "README.md"
 repository = "https://github.com/tracel-ai/burn/tree/main/crates/burn-backend-tests"
 version.workspace = true
 
@@ -20,8 +20,6 @@ proc-macro = true
 [features]
 default = [
     "burn-tensor/default",
-    # Default
-    # "ndarray",
     "std",
 ]
 std = ["burn-tensor/std"]
@@ -32,8 +30,6 @@ rocm = ["burn-tensor/rocm", "quantization", "cube"]
 flex = ["burn-tensor/flex", "quantization"]
 flex-simd = ["flex", "burn-flex/simd"]
 flex-rayon = ["flex", "burn-flex/rayon"]
-ndarray = ["burn-tensor/ndarray", "quantization"]
-tch = ["burn-tensor/tch"]
 vulkan = ["wgpu", "burn-tensor/vulkan"]
 webgpu = ["wgpu", "burn-tensor/webgpu"]
 metal = ["wgpu", "burn-tensor/metal"]
@@ -41,8 +37,9 @@ wgpu = ["burn-tensor/wgpu", "quantization", "cube"]
 cpu = ["burn-tensor/cpu", "cube"]
 # Runs the test suite against a remote `burn-remote` server.
 # At runtime, set `BURN_DEVICE=remote` (and optionally `BURN_REMOTE_ADDRESS=ws://host:port`).
-remote = ["burn-tensor/remote"]
+remote = ["burn-tensor/remote-websocket"]
 
+persistence = ["burn-tensor/persistence"]
 autotune = ["burn-tensor/autotune"]
 autotune-checks = ["burn-tensor/autotune-checks"]
 memory-checks = ["burn-fusion?/memory-checks"]
@@ -56,20 +53,20 @@ fusion = [
 cube = [
     "cubek",
     "autotune",
-    "burn-tensor/ndarray",
-    "burn-ndarray",
+    "burn-tensor/flex",
     # Direct dependency so fusion tests can assert launch-level decisions (in-place aliasing).
     "burn-cubecl-fusion",
 ]
 
 # Test configs
 quantization = []
+capture = ["burn-tensor/capture"]
 # Enables the collective (all-reduce) tests, which require a CUDA backend built with NCCL.
 # Kept separate from `cuda` so the rest of the suite can run on CUDA without NCCL.
 distributed = ["cuda"]
 
 [dependencies]
-burn-tensor = { workspace = true, features = ["autodiff"] }
+burn-tensor = { workspace = true, features = ["autodiff", "capture"] }
 burn-backend = { workspace = true }
 
 # For random tests
@@ -77,9 +74,6 @@ cubek = { workspace = true, features = ["random"], optional = true }
 
 # Explicitly enable test-only checks
 burn-autodiff = { workspace = true, features = ["export_tests"] }
-burn-ndarray = { workspace = true, optional = true, features = [
-    "export_tests",
-] }
 
 burn-cubecl-fusion = { workspace = true, optional = true }
 
@@ -101,12 +95,12 @@ syn = { workspace = true }
 
 [dev-dependencies]
 # Used to initialize device settings (test dtypes)
-ctor = "0.10.1"
+ctor = "1.0.13"
 divan = "0.1"
 
 [[test]]
 name = "autodiff_transfer"
-required-features = ["flex", "ndarray"]
+required-features = ["flex", "cpu"]
 
 [[bench]]
 name = "attention"

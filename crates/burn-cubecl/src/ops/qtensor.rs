@@ -67,6 +67,20 @@ pub fn empty_qtensor(
     new_quantized(shape, scheme, device, None, kind)
 }
 
+/// The axis a packed `scheme` packs along on a tensor of `rank`, when it is not the innermost.
+///
+/// Such a tensor is stored with that axis swapped innermost, which is where packing puts its
+/// words, and presented with the two swapped back: its bytes are the stored tensor's, row-major,
+/// so a packed word never straddles two of the axes it does not pack.
+fn outer_packed_axis(scheme: &QuantScheme, rank: usize) -> Option<usize> {
+    match scheme.store {
+        QuantStore::PackedU32(packed) | QuantStore::PackedNative(packed) if packed != 0 => {
+            Some(rank - packed - 1)
+        }
+        _ => None,
+    }
+}
+
 fn new_quantized(
     shape: impl Into<Shape>,
     scheme: QuantScheme,
@@ -74,8 +88,19 @@ fn new_quantized(
     data: Option<Bytes>,
     alloc_kind: MemoryLayoutStrategy,
 ) -> CubeTensor {
-    let client = device.client();
     let shape: Shape = shape.into();
+    if let Some(axis) = outer_packed_axis(&scheme, shape.rank()) {
+        let (rank, innermost) = (shape.rank(), shape.rank() - 1);
+        let stored_shape = shape
+            .swapped(axis, innermost)
+            .expect("the packed axis is one of the tensor's");
+        let mut stored_scheme = scheme;
+        stored_scheme.swap_dims(rank, axis, innermost);
+        let stored = new_quantized(stored_shape, stored_scheme, device, data, alloc_kind);
+        return swap_dims(stored, axis, innermost);
+    }
+
+    let client = device.client();
     let mut shape_value: Shape = shape.clone();
 
     let rank = shape.rank();
@@ -285,8 +310,20 @@ impl QTensorOps<Self> for CubeBackend {
         if tensor.qparams.is_none() {
             return into_data(tensor).await;
         }
+        // Storage tiles are a layout for one machine's kernels, laid out at load; what is saved
+        // is the rows every machine reads.
+        assert!(
+            !tensor.meta.is_tiled(),
+            "q_into_data: a storage-tiled quantized tensor is not saved; save the weight it was \
+             tiled from"
+        );
 
         let (shape, dtype) = (tensor.shape(), tensor.dtype);
+        // Written as stored, packed axis innermost — the bytes `q_from_data` reads back.
+        let tensor = match outer_packed_axis(&tensor.scheme(), shape.rank()) {
+            Some(axis) => swap_dims(tensor, axis, shape.rank() - 1),
+            None => tensor,
+        };
         let global = tensor.global();
         let (values, params) = tensor.quantized_handles().unwrap();
 

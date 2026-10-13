@@ -89,7 +89,7 @@ pub trait TensorMetadata: Clone + Send + Sync + core::fmt::Debug {
     /// uniquely owns it, so an in-place op (`slice_assign`, an inplace kernel)
     /// writes the existing allocation instead of copying it first.
     ///
-    /// Backends that track buffer ownership (cubecl, fusion, tch) answer
+    /// Backends that track buffer ownership (cubecl, fusion) answer
     /// precisely; a backend that can't must return a conservative `false` —
     /// the buffer may be aliased, so an in-place write can't be assumed safe.
     fn can_mut(&self) -> bool;

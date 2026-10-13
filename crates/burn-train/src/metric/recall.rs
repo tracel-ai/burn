@@ -6,6 +6,7 @@ use super::{
     confusion_stats::{ConfusionStats, ConfusionStatsInput},
     state::FormatOptions,
 };
+use burn_core::tensor::TensorReadError;
 use std::{num::NonZeroUsize, sync::Arc};
 
 /// The Recall Metric
@@ -84,7 +85,11 @@ impl RecallMetric {
 impl Metric for RecallMetric {
     type Input = ConfusionStatsInput;
 
-    fn update(&mut self, input: &Self::Input, _metadata: &MetricMetadata) -> SerializedEntry {
+    fn update(
+        &mut self,
+        input: &Self::Input,
+        _metadata: &MetricMetadata,
+    ) -> Result<SerializedEntry, TensorReadError> {
         let [sample_size, _] = input.predictions.dims();
 
         let stats = ConfusionStats::new(input, &self.config);
@@ -107,9 +112,10 @@ impl Metric for RecallMetric {
         )
     }
 
-    fn compute(&mut self) -> SerializedEntry {
-        self.state
-            .compute_final(FormatOptions::new(self.name()).unit("%").precision(2))
+    fn compute(&mut self) -> Result<SerializedEntry, TensorReadError> {
+        Ok(self
+            .state
+            .compute_final(FormatOptions::new(self.name()).unit("%").precision(2)))
     }
 
     fn clear(&mut self) {
@@ -162,7 +168,7 @@ mod tests {
     fn test_binary_recall(#[case] threshold: f64, #[case] expected: f64) {
         let input = dummy_classification_input(&ClassificationType::Binary).into();
         let mut metric = RecallMetric::binary(threshold);
-        let _entry = metric.update(&input, &MetricMetadata::fake());
+        let _entry = metric.update(&input, &MetricMetadata::fake()).unwrap();
         TensorData::from([metric.value().unwrap().current()])
             .assert_approx_eq::<f64>(&TensorData::from([expected * 100.0]), Tolerance::default())
     }
@@ -179,7 +185,7 @@ mod tests {
     ) {
         let input = dummy_classification_input(&ClassificationType::Multiclass).into();
         let mut metric = RecallMetric::multiclass(top_k, class_reduction);
-        let _entry = metric.update(&input, &MetricMetadata::fake());
+        let _entry = metric.update(&input, &MetricMetadata::fake()).unwrap();
         TensorData::from([metric.value().unwrap().current()])
             .assert_approx_eq::<f64>(&TensorData::from([expected * 100.0]), Tolerance::default())
     }
@@ -194,7 +200,7 @@ mod tests {
     ) {
         let input = dummy_classification_input(&ClassificationType::Multilabel).into();
         let mut metric = RecallMetric::multilabel(threshold, class_reduction);
-        let _entry = metric.update(&input, &MetricMetadata::fake());
+        let _entry = metric.update(&input, &MetricMetadata::fake()).unwrap();
         TensorData::from([metric.value().unwrap().current()])
             .assert_approx_eq::<f64>(&TensorData::from([expected * 100.0]), Tolerance::default())
     }
@@ -235,17 +241,21 @@ mod tests {
             predictions: Tensor::from([[0.9], [0.1], [0.1]]),
             targets: Tensor::from([[1], [1], [0]]),
         };
-        let _ = metric.update(&input_batch1, &MetricMetadata::fake());
+        let _ = metric
+            .update(&input_batch1, &MetricMetadata::fake())
+            .unwrap();
 
         // Batch 2
         let input_batch2 = ConfusionStatsInput {
             predictions: Tensor::from([[0.9], [0.1], [0.1], [0.1], [0.1], [0.1]]),
             targets: Tensor::from([[1], [1], [1], [1], [1], [0]]),
         };
-        let _ = metric.update(&input_batch2, &MetricMetadata::fake());
+        let _ = metric
+            .update(&input_batch2, &MetricMetadata::fake())
+            .unwrap();
 
         // Compute final aggregated metric
-        let _final_entry = metric.compute();
+        let _final_entry = metric.compute().unwrap();
         let global_recall = metric.final_value().current();
 
         let expected_global_recall = (2.0 / 7.0) * 100.0;

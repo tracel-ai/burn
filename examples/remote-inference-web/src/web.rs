@@ -8,11 +8,10 @@ use alloc::vec::Vec;
 
 use wasm_bindgen::prelude::*;
 
-use burn::backend::remote::{EndpointId, RemoteSecret};
 use burn::module::Module;
+use burn::remote::{EndpointId, IrohIdentity, RemoteHost};
 use burn::store::ModuleRecord;
 use burn::tensor::{Bytes, Device, Tensor, activation::softmax};
-use iroh::{Endpoint, endpoint::presets};
 
 use crate::model::Model;
 
@@ -28,7 +27,7 @@ pub fn start() {
 /// string (a demo convenience; see the native example for the security note).
 fn server_id(topic: &str) -> EndpointId {
     let hash = blake3::hash(format!("burn-p2p:{topic}").as_bytes());
-    RemoteSecret::from_bytes(*hash.as_bytes()).id()
+    IrohIdentity::from_bytes(*hash.as_bytes()).id()
 }
 
 #[wasm_bindgen]
@@ -43,11 +42,10 @@ impl RemoteMnist {
     pub async fn connect(topic: String) -> Result<RemoteMnist, String> {
         console_error_panic_hook::set_once();
 
-        let endpoint = Endpoint::builder(presets::N0)
-            .bind()
+        let device = Device::remote_options(&RemoteHost::iroh(server_id(&topic)))
+            .init_async()
             .await
             .map_err(|err| err.to_string())?;
-        let device = Device::remote_iroh_async(&endpoint, server_id(&topic), 0).await;
 
         let record = ModuleRecord::from_bytes(Bytes::from_bytes_vec(STATE_ENCODED.to_vec()))
             .map_err(|err| format!("Failed to decode model weights: {err}"))?;

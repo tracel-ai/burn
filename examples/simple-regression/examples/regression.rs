@@ -12,20 +12,6 @@ mod flex {
     }
 }
 
-#[cfg(feature = "tch-gpu")]
-mod tch_gpu {
-    use burn::tensor::{Device, DeviceIndex};
-
-    pub fn run() {
-        #[cfg(not(target_os = "macos"))]
-        let device = Device::libtorch_cuda(DeviceIndex::Default);
-        #[cfg(target_os = "macos")]
-        let device = Device::libtorch_mps();
-
-        super::run(device);
-    }
-}
-
 #[cfg(feature = "wgpu")]
 mod wgpu {
     use burn::tensor::{Device, DeviceKind};
@@ -35,23 +21,19 @@ mod wgpu {
     }
 }
 
-#[cfg(feature = "tch-cpu")]
-mod tch_cpu {
-    use burn::tensor::Device;
+#[cfg(feature = "remote")]
+mod remote {
+    use burn::{remote::RemoteHost, tensor::Device};
+
+    /// Train on the `server` example's device, at its default address.
     pub fn run() {
-        super::run(Device::libtorch());
+        let host = RemoteHost::websocket("ws://localhost:3000");
+        let device = Device::remote_options(&host)
+            .init()
+            .expect("The server can be dialed");
+        super::run(device);
     }
 }
-
-// #[cfg(feature = "remote")]
-// mod remote {
-//     use burn::backend::{RemoteBackend, remote::RemoteDevice};
-
-//     pub fn run() {
-//         let device = RemoteDevice::default();
-//         super::run::<RemoteBackend>(device);
-//     }
-// }
 
 /// Train a regression model and predict results on a number of samples.
 pub fn run(device: Device) {
@@ -62,10 +44,6 @@ pub fn run(device: Device) {
 fn main() {
     #[cfg(feature = "flex")]
     flex::run();
-    #[cfg(feature = "tch-gpu")]
-    tch_gpu::run();
-    #[cfg(feature = "tch-cpu")]
-    tch_cpu::run();
     #[cfg(feature = "wgpu")]
     wgpu::run();
     #[cfg(feature = "remote")]

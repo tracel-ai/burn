@@ -734,10 +734,6 @@ pub(crate) trait BasicOps: TensorKind {
     /// The number of windows is `0` when `shape[dim] < size`, and otherwise
     /// `(shape[dim] - size) / step + 1`.
     ///
-    /// # Warning
-    ///
-    /// For the `ndarray` backend; this is not a view but a full copy.
-    ///
     /// # Arguments
     ///
     /// * `tensor` - The input tensor to unfold; of shape ``[pre=..., dim shape, post=...]``

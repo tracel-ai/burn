@@ -26,26 +26,21 @@ topic --blake3--> secret key --> peer endpoint identity
    (peer binds the secret key; the browser derives its public half)
 ```
 
-The client then binds its own Iroh endpoint, opens an authenticated QUIC session to the peer
-(through a relay when a direct path is not available), and ships operations as they are submitted.
+Burn then binds an Iroh endpoint in the browser, opens an authenticated QUIC session to the peer
+through a relay, and ships operations as they are submitted.
 
 ## Running it
 
 ### 1. Start a compute peer (native)
 
-CPU backend:
+The `p2p-remote-training` server derives its identity from the topic the same way, and computes on
+the CPU:
 
 ```sh
-cargo run -p remote-compute-peer -- burn-web
+cargo run -p p2p-remote-training --example p2p-remote-training --release -- server burn-web
 ```
 
-GPU backend (wgpu):
-
-```sh
-cargo run -p remote-compute-peer --features wgpu -- burn-web
-```
-
-The argument (`burn-web`) is the topic; it must match what you type in the browser.
+The last argument (`burn-web`) is the topic; it must match what you type in the browser.
 
 ### 2. Build the web client
 
@@ -70,5 +65,5 @@ probabilities are computed on the peer and streamed back.
 - `model.bpk` is the trained MNIST model from the [`mnist`](../mnist) example, identical to the one
   used by `mnist-inference-web`.
 - Connecting through public relays requires outbound network access from both the browser and the
-  peer. For a fully local setup, configure both endpoints with a self-hosted relay or direct
-  addressing through the Iroh `Endpoint` builder.
+  peer. A browser reaches Iroh peers only through a relay, so a fully local setup runs its own
+  relay and gives both sides `IrohRelays::Private`.

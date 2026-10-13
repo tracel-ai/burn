@@ -29,7 +29,8 @@ use burn::{
 };
 use burn::{optim::AdamWConfig, train::SupervisedTraining};
 
-static ARTIFACT_DIR: &str = "/tmp/burn-example-mnist";
+/// Where [`run`] writes its checkpoints and the trained model.
+pub static ARTIFACT_DIR: &str = "/tmp/burn-example-mnist";
 
 #[derive(Config, Debug)]
 pub struct MnistTrainingConfig {
@@ -132,7 +133,8 @@ pub fn run(device: Device) {
         .metrics((AccuracyMetric::new(), LossMetric::new()))
         .summary()
         .build(result.model.clone())
-        .eval_all(splits);
+        .eval_all(splits)
+        .renderer;
 
     result
         .model

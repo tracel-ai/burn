@@ -92,7 +92,7 @@ impl<M: LearnerModel> MultiDeviceTrainEpoch<M> {
             let (items, progress) = match step.step(iterators.as_mut_slice(), &learner.model()) {
                 Ok(result) => result,
                 Err(err) => {
-                    interrupter.stop(Some(&format!("dataset error during training step: {err}")));
+                    interrupter.fail(err);
                     break;
                 }
             };
@@ -125,7 +125,9 @@ impl<M: LearnerModel> MultiDeviceTrainEpoch<M> {
                     Some(learner.lr_current()),
                 );
 
-                event_processor.process_train(LearnerEvent::ProcessedItem(item));
+                interrupter.fail_on_error(
+                    event_processor.process_train(LearnerEvent::ProcessedItem(item)),
+                );
             }
 
             if interrupter.should_stop() {
@@ -167,7 +169,7 @@ impl<M: LearnerModel> MultiDeviceTrainEpoch<M> {
             let (items, progress) = match step.step(iterators.as_mut_slice(), &learner.model()) {
                 Ok(result) => result,
                 Err(err) => {
-                    interrupter.stop(Some(&format!("dataset error during training step: {err}")));
+                    interrupter.fail(err);
                     break;
                 }
             };
@@ -204,7 +206,9 @@ impl<M: LearnerModel> MultiDeviceTrainEpoch<M> {
                     Some(learner.lr_current()),
                 );
 
-                event_processor.process_train(LearnerEvent::ProcessedItem(item));
+                interrupter.fail_on_error(
+                    event_processor.process_train(LearnerEvent::ProcessedItem(item)),
+                );
             }
 
             if interrupter.should_stop() {

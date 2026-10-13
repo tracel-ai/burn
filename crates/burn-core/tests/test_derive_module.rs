@@ -136,6 +136,125 @@ pub fn test_device() -> Device {
     burn_tensor::Device::flex()
 }
 
+#[test]
+fn should_accept_primitive_constants() {
+    #[derive(Module, Debug, Default, PartialEq)]
+    struct Constants {
+        boolean: bool,
+        character: char,
+        unsigned8: u8,
+        unsigned16: u16,
+        unsigned32: u32,
+        unsigned64: u64,
+        unsigned128: u128,
+        unsigned_size: usize,
+        signed8: i8,
+        signed16: i16,
+        signed32: i32,
+        signed64: i64,
+        signed128: i128,
+        signed_size: isize,
+        float32: f32,
+        float64: f64,
+        text: String,
+        nested: Option<Vec<(char, u128, i128)>>,
+    }
+
+    let module = Constants {
+        character: 'c',
+        unsigned128: u128::MAX,
+        signed128: i128::MIN,
+        nested: Some(vec![('x', u128::MAX, i128::MIN)]),
+        ..Default::default()
+    };
+
+    assert_eq!(module.num_params(), 0);
+    assert_eq!(module.valid().train().materialize(), module);
+    assert!(module.to_string().contains('c'));
+}
+
+#[test]
+fn should_accept_standard_containers_of_constants() {
+    use std::{
+        cell::{Cell, RefCell},
+        collections::{BTreeMap, BTreeSet, BinaryHeap, HashMap, HashSet, LinkedList, VecDeque},
+        marker::PhantomData,
+        sync::{Arc, Mutex, RwLock, Weak},
+    };
+
+    #[derive(Module, Debug, Default)]
+    struct Constants {
+        boxed: Box<char>,
+        shared: Arc<usize>,
+        weak: Weak<usize>,
+        result: Option<Result<u32, String>>,
+        map: HashMap<String, f32>,
+        sorted_map: BTreeMap<String, f32>,
+        set: HashSet<usize>,
+        sorted_set: BTreeSet<usize>,
+        queue: VecDeque<usize>,
+        list: LinkedList<usize>,
+        heap: BinaryHeap<usize>,
+        marker: PhantomData<f32>,
+        cell: Cell<usize>,
+        borrowed: RefCell<Vec<u32>>,
+        locked: Arc<Mutex<u32>>,
+        read_locked: Arc<RwLock<u32>>,
+    }
+
+    let module = Constants {
+        boxed: Box::new('c'),
+        result: Some(Ok(42)),
+        map: HashMap::from([("scale".into(), 0.5)]),
+        locked: Arc::new(Mutex::new(7)),
+        ..Default::default()
+    };
+    let cloned = module.valid().train().materialize();
+    assert_eq!(cloned.num_params(), 0);
+    assert_eq!(cloned.boxed, module.boxed);
+    assert_eq!(cloned.result, module.result);
+    assert_eq!(cloned.map, module.map);
+    assert!(Arc::ptr_eq(&cloned.locked, &module.locked));
+}
+
+#[test]
+fn should_visit_generic_modules_with_primitive_arguments() {
+    #[derive(Module, Debug)]
+    struct Block<T> {
+        weight: Param<Tensor<1>>,
+        #[module(skip)]
+        marker: core::marker::PhantomData<T>,
+    }
+
+    #[derive(Module, Debug)]
+    struct Model {
+        block: Block<f32>,
+        nested: Option<Vec<Block<f32>>>,
+    }
+
+    #[derive(Default)]
+    struct Counter(usize);
+    impl burn::module::ModuleVisitor for Counter {
+        fn visit_float<const D: usize>(&mut self, _: &Param<Tensor<D>>) {
+            self.0 += 1;
+        }
+    }
+
+    let block = Block {
+        weight: Param::from_tensor(Tensor::ones([2], &test_device())),
+        marker: core::marker::PhantomData,
+    };
+    let model = Model {
+        block: block.clone(),
+        nested: Some(vec![block]),
+    };
+
+    let mut counter = Counter::default();
+    model.visit(&mut counter);
+    assert_eq!(counter.0, 2);
+    assert_eq!(model.num_params(), 4);
+}
+
 mod state {
     use super::*;
     use burn::store::RecordError;

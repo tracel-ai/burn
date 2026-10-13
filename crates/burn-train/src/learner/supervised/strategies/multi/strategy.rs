@@ -40,6 +40,7 @@ impl<M: LearnerModel> SupervisedLearningStrategy<M> for MultiDeviceLearningStrat
         let mut event_processor = training_components.event_processor;
         let mut checkpointer = training_components.checkpointer;
         let mut early_stopping = training_components.early_stopping;
+        let interrupter = training_components.interrupter.clone();
 
         let epoch_train = MultiDeviceTrainEpoch::<M>::new(
             dataloader_train.clone(),
@@ -51,26 +52,25 @@ impl<M: LearnerModel> SupervisedLearningStrategy<M> for MultiDeviceLearningStrat
         for training_progress in TrainingLoop::new(starting_epoch, training_components.num_epochs) {
             let epoch = training_progress.items_processed;
 
-            event_processor.process_train(LearnerEvent::StartSplit {
+            interrupter.fail_on_error(event_processor.process_train(LearnerEvent::StartSplit {
                 epoch_number: epoch,
                 total_items: train_total_items,
-            });
+            }));
             epoch_train.run(
                 &mut learner,
                 &training_progress,
                 &mut event_processor,
-                &training_components.interrupter,
+                &interrupter,
                 self.devices.to_vec(),
                 self.optim,
             );
-            event_processor.process_train(LearnerEvent::EndSplit(epoch));
+            interrupter.fail_on_error(event_processor.process_train(LearnerEvent::EndSplit(epoch)));
 
-            if training_components.interrupter.should_stop() {
-                let reason = training_components
-                    .interrupter
-                    .get_message()
-                    .unwrap_or(String::from("Reason unknown"));
-                log::info!("Training interrupted: {reason}");
+            if interrupter.should_stop() {
+                if let Some(interruption) = interrupter.interruption() {
+                    let reason = interruption.reason.as_deref().unwrap_or("reason unknown");
+                    log::info!("Training interrupted: {reason}");
+                }
                 break;
             }
 
@@ -80,20 +80,24 @@ impl<M: LearnerModel> SupervisedLearningStrategy<M> for MultiDeviceLearningStrat
                 learner.fork(main_device);
             }
 
-            event_processor.process_valid(LearnerEvent::StartSplit {
+            interrupter.fail_on_error(event_processor.process_valid(LearnerEvent::StartSplit {
                 epoch_number: epoch,
                 total_items: valid_total_items,
-            });
+            }));
             epoch_valid.run(
                 &learner,
                 &training_progress,
                 &mut event_processor,
-                &training_components.interrupter,
+                &interrupter,
             );
-            event_processor.process_valid(LearnerEvent::EndSplit(epoch));
-            event_processor.process_train(LearnerEvent::EndEpoch(epoch));
+            interrupter.fail_on_error(event_processor.process_valid(LearnerEvent::EndSplit(epoch)));
+            interrupter.fail_on_error(event_processor.process_train(LearnerEvent::EndEpoch(epoch)));
             if checkpointer.is_some() || early_stopping.is_some() {
-                event_processor.flush();
+                interrupter.fail_on_error(event_processor.flush());
+            }
+
+            if interrupter.should_stop() {
+                break;
             }
 
             if let Some(checkpointer) = &mut checkpointer {

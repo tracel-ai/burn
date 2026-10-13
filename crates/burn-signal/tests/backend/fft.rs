@@ -942,7 +942,7 @@ fn ifft_rejects_mismatched_shapes() {
     let _ = ifft(re, im, 0, None);
 }
 
-// CubeCL currently rejects length-one FFTs; Flex and LibTorch support them.
+// CubeCL currently rejects length-one FFTs; Flex supports them.
 fn assert_length_one_behavior(run: impl FnOnce() + std::panic::UnwindSafe) {
     #[cfg(feature = "cubecl-backend")]
     if matches!(

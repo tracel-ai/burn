@@ -32,7 +32,7 @@ impl DiabetesDataframeDataset {
                 .map(|(name, schema_type, _)| Field::new((*name).into(), schema_type.clone())),
         );
 
-        let mut df = LazyCsvReader::new(PlPath::new(path.to_str().unwrap()))
+        let mut df = LazyCsvReader::new(PlRefPath::new(path.to_str().unwrap()))
             .with_has_header(true)
             .with_separator(b'\t')
             .with_schema(Some(Arc::new(schema)))

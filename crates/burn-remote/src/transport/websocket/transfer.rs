@@ -1,4 +1,4 @@
-//! Legacy WebSocket tensor transfer, carried over the `burn_communication` data service.
+//! WebSocket tensor transfer, carried over the `burn_communication` data service.
 
 use std::sync::Arc;
 
@@ -35,7 +35,7 @@ impl<B: BackendIr> TensorTransfer<B> for WebSocketTransfer<B> {
         _target: PeerId,
     ) {
         self.inner
-            .expose_data(data, max_downloads, capability_to_legacy_id(capability))
+            .expose_data(data, max_downloads, capability_to_websocket_id(capability))
             .await;
     }
 
@@ -55,20 +55,19 @@ impl<B: BackendIr> TensorTransfer<B> for WebSocketTransfer<B> {
             }
         };
         self.inner
-            .download_tensor(address, capability_to_legacy_id(capability))
+            .download_tensor(address, capability_to_websocket_id(capability))
             .await
     }
 
     async fn fail(&self, _capability: TransferCapability, _target: PeerId, reason: String) {
-        log::error!("Legacy WebSocket tensor transfer failed before exposure: {reason}");
+        log::error!("WebSocket tensor transfer failed before exposure: {reason}");
     }
 }
 
-fn capability_to_legacy_id(
+fn capability_to_websocket_id(
     capability: TransferCapability,
 ) -> burn_communication::external_comm::TensorTransferId {
-    // WebSocket is a compatibility transport without authenticated peer identity. Preserve its old
-    // transfer service while deriving a collision-resistant-enough rendezvous key from the
-    // capability. Iroh uses the complete capability and enforces the destination identity.
-    capability.legacy_id().into()
+    // The data service keys transfers by 64 bits, and WebSocket has no authenticated peer identity
+    // to bind a capability to. Iroh uses the complete capability and the destination's identity.
+    capability.websocket_id().into()
 }
