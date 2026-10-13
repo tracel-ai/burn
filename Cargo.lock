@@ -1127,6 +1127,7 @@ dependencies = [
 name = "burn-cubecl"
 version = "0.22.0"
 dependencies = [
+ "branches",
  "burn-backend",
  "burn-cubecl-fusion",
  "burn-fusion",
@@ -1146,6 +1147,7 @@ dependencies = [
 name = "burn-cubecl-fusion"
 version = "0.22.0"
 dependencies = [
+ "branches",
  "burn-backend",
  "burn-fusion",
  "burn-ir",
@@ -1174,6 +1176,7 @@ dependencies = [
 name = "burn-dataset"
 version = "0.22.0"
 dependencies = [
+ "branches",
  "burn-std",
  "csv",
  "derive-new",
@@ -1515,6 +1518,7 @@ dependencies = [
 name = "burn-tensor"
 version = "0.22.0"
 dependencies = [
+ "branches",
  "burn-backend",
  "burn-derive",
  "burn-dispatch",
