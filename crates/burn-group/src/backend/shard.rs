@@ -58,7 +58,7 @@ impl<B: BackendIr> ShardList<B> {
         let whole = match sharding {
             Sharding::Replicated => moved.next().expect("A group has a member"),
             Sharding::Split { dim } => Shard::concat(moved.collect(), dim),
-            Sharding::Partial => Shard::sum(moved.collect()),
+            Sharding::PartialSum => Shard::sum(moved.collect()),
         };
         whole.into_data()
     }
@@ -66,7 +66,7 @@ impl<B: BackendIr> ShardList<B> {
     fn slice(self, dim: usize, len: usize) -> Self {
         let split = DimSplit {
             len,
-            members: self.shards.len(),
+            num_members: self.shards.len(),
         };
         Self {
             shards: self
@@ -79,14 +79,14 @@ impl<B: BackendIr> ShardList<B> {
     }
 
     fn all_gather(self, dim: usize, devices: &[B::Device]) -> Self {
-        self.each_member(devices, |shards| Shard::concat(shards, dim))
+        self.combine_on_every_member(devices, |shards| Shard::concat(shards, dim))
     }
 
     fn all_reduce(self, devices: &[B::Device]) -> Self {
-        self.each_member(devices, Shard::sum)
+        self.combine_on_every_member(devices, Shard::sum)
     }
 
-    fn each_member(
+    fn combine_on_every_member(
         self,
         devices: &[B::Device],
         combine: impl Fn(Vec<Shard<B>>) -> Shard<B>,
@@ -121,7 +121,7 @@ impl<B: BackendIr> Shard<B> {
             HandleKind::Float(tensor) => HandleKind::Float(B::float_slice(tensor, &slices)),
             HandleKind::Int(tensor) => HandleKind::Int(B::int_slice(tensor, &slices)),
             HandleKind::Bool(tensor) => HandleKind::Bool(B::bool_slice(tensor, &slices)),
-            HandleKind::Quantized(_) => unsupported(),
+            HandleKind::Quantized(_) => quantized_unsupported(),
         })
     }
 
@@ -137,7 +137,7 @@ impl<B: BackendIr> Shard<B> {
             Some(HandleKind::Bool(_)) => {
                 HandleKind::Bool(B::bool_cat(shards.map(Shard::into_bool).collect(), dim))
             }
-            Some(HandleKind::Quantized(_)) => unsupported(),
+            Some(HandleKind::Quantized(_)) => quantized_unsupported(),
             None => panic!("A group has a member"),
         })
     }
@@ -164,7 +164,7 @@ impl<B: BackendIr> Shard<B> {
             HandleKind::Float(tensor) => HandleKind::Float(B::float_to_device(tensor, device)),
             HandleKind::Int(tensor) => HandleKind::Int(B::int_to_device(tensor, device)),
             HandleKind::Bool(tensor) => HandleKind::Bool(B::bool_to_device(tensor, device)),
-            HandleKind::Quantized(_) => unsupported(),
+            HandleKind::Quantized(_) => quantized_unsupported(),
         })
     }
 
@@ -173,7 +173,7 @@ impl<B: BackendIr> Shard<B> {
             HandleKind::Float(tensor) => Box::pin(B::float_into_data(tensor)),
             HandleKind::Int(tensor) => Box::pin(B::int_into_data(tensor)),
             HandleKind::Bool(tensor) => Box::pin(B::bool_into_data(tensor)),
-            HandleKind::Quantized(_) => unsupported(),
+            HandleKind::Quantized(_) => quantized_unsupported(),
         }
     }
 
@@ -199,6 +199,6 @@ impl<B: BackendIr> Shard<B> {
     }
 }
 
-fn unsupported() -> ! {
+fn quantized_unsupported() -> ! {
     unimplemented!("Quantized tensors are not split over a device group")
 }

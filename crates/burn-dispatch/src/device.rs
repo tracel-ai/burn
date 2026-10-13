@@ -421,7 +421,7 @@ impl DispatchDevice {
             #[cfg(cube_backend)]
             Some(Self::Cube(first)) => {
                 let runtime = first.runtime();
-                let members = members!(devices, Cube);
+                let members = group_members!(devices, Cube);
                 if let Some(other) = members.iter().find(|member| member.runtime() != runtime) {
                     panic!("A device group runs one runtime, not {other:?} beside {runtime:?}")
                 }
@@ -429,7 +429,7 @@ impl DispatchDevice {
             }
             #[cfg(feature = "flex")]
             Some(Self::Flex(_)) => {
-                GroupDevice::new::<crate::backends::Flex>(&members!(devices, Flex))
+                GroupDevice::new::<crate::backends::Flex>(&group_members!(devices, Flex))
             }
             #[cfg(feature = "autodiff")]
             Some(Self::Autodiff(_)) => panic!(

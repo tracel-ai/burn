@@ -1,15 +1,15 @@
 use burn_tensor::{
     Device, Distribution, Sharding,
-    Sharding::{Partial, Replicated, Split},
+    Sharding::{PartialSum, Replicated, Split},
     Tensor, TensorData, Tolerance, activation, module,
 };
 
 #[test]
 fn megatron_mlp_on_a_device_group_matches_one_device() {
     let expected = mlp(&Device::flex(), [Replicated; 5]).output.into_data();
-    for members in [1, 2, 3, 4] {
+    for num_members in 1..=4 {
         let split = mlp(
-            &group(members),
+            &group(num_members),
             [
                 Replicated,
                 Split { dim: 1 },
@@ -22,7 +22,7 @@ fn megatron_mlp_on_a_device_group_matches_one_device() {
         assert_eq!(
             split.hidden.sharding(),
             Some(Split { dim: 1 }),
-            "{members} members"
+            "{num_members} members"
         );
         split
             .output
@@ -45,7 +45,7 @@ fn a_tensor_moved_onto_a_group_is_replicated_and_moves_back_whole() {
 }
 
 #[test]
-fn a_tensor_placed_mid_graph_passes_its_gradient_through() {
+fn a_tensor_resharded_mid_graph_passes_its_gradient_through() {
     let device = group(2).autodiff();
     let x = Tensor::<1>::from_data(values([4], 1), &device).require_grad();
     let y = x.clone().mul_scalar(2.0).with_sharding(Split { dim: 0 }) + x.clone();
@@ -81,9 +81,9 @@ fn a_split_along_a_dim_the_tensor_lacks_is_refused() {
 }
 
 #[test]
-#[should_panic(expected = "Only a partial sum can keep a partial sharding")]
-fn a_whole_tensor_is_not_placed_as_a_partial_sum() {
-    Tensor::<2>::zeros([4, 6], &group(2)).with_sharding(Partial);
+#[should_panic(expected = "Only a partial sum can be sharded as a partial sum")]
+fn a_whole_tensor_is_not_sharded_as_a_partial_sum() {
+    Tensor::<2>::zeros([4, 6], &group(2)).with_sharding(PartialSum);
 }
 
 #[test]
@@ -125,8 +125,8 @@ fn mlp(device: &Device, [sx, sw1, sb1, sw2, sb2]: [Sharding; 5]) -> Mlp {
     Mlp { hidden, output }
 }
 
-fn group(members: usize) -> Device {
-    Device::group(&vec![Device::flex(); members])
+fn group(num_members: usize) -> Device {
+    Device::group(&vec![Device::flex(); num_members])
 }
 
 fn sharded<const D: usize>(data: TensorData, device: &Device, sharding: Sharding) -> Tensor<D> {

@@ -1,17 +1,18 @@
 use crate::{
-    MatmulRule, OpSharding, ShardShapes,
-    Sharding::{self, Partial, Replicated, Split},
+    MatmulRule, OpSharding,
+    Sharding::{self, PartialSum, Replicated, Split},
+    ShardingOps,
 };
 
 /// `x @ weight + bias`, with `weight` of shape `[d_in, d_out]`: the matmul of `x` with the
 /// weight broadcast to the dims of `x`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct LinearRule {
+pub struct LinearLayerRule {
     matmul: MatmulRule,
     num_dims: usize,
 }
 
-impl LinearRule {
+impl LinearLayerRule {
     const WEIGHT_DIMS: usize = 2;
     /// A bias split with the output's features.
     const BIAS_SPLIT: Sharding = Split { dim: 0 };
@@ -46,7 +47,7 @@ impl LinearRule {
     /// A partial output takes the bias on one member only, or the sum would count it once per
     /// member.
     pub fn bias_on_one_member(&self) -> bool {
-        self.sharding().output == Partial
+        self.sharding().output == PartialSum
     }
 }
 
@@ -56,7 +57,7 @@ mod tests {
 
     #[test]
     fn column_parallel_linear_splits_its_output_and_bias() {
-        let rule = LinearRule::new(Replicated, Split { dim: 1 }, 3);
+        let rule = LinearLayerRule::new(Replicated, Split { dim: 1 }, 3);
 
         assert_eq!(
             rule.sharding(),
@@ -69,9 +70,9 @@ mod tests {
 
     #[test]
     fn row_parallel_linear_adds_its_bias_on_one_member() {
-        let rule = LinearRule::new(Split { dim: 2 }, Split { dim: 0 }, 3);
+        let rule = LinearLayerRule::new(Split { dim: 2 }, Split { dim: 0 }, 3);
 
-        assert_eq!(rule.sharding().output, Partial);
+        assert_eq!(rule.sharding().output, PartialSum);
         assert!(rule.bias_on_one_member());
     }
 }

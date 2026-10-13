@@ -1331,10 +1331,10 @@ impl TensorCheck {
             );
         }
 
-        if sharding == Sharding::Partial && current != Sharding::Partial {
+        if sharding == Sharding::PartialSum && current != Sharding::PartialSum {
             check = check.register(
                 "With Sharding",
-                TensorError::new("Only a partial sum can keep a partial sharding.")
+                TensorError::new("Only a partial sum can be sharded as a partial sum.")
                     .details(format!("The tensor is {current:?}.")),
             );
         }

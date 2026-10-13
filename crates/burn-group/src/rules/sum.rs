@@ -2,18 +2,18 @@ use crate::{OpSharding, Sharding};
 
 /// The dims a sum reduces.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Reduction {
+pub enum SummedDims {
     /// Every dim, down to a single element.
     All,
     /// One dim, kept with length 1.
     Dim(usize),
 }
 
-impl Reduction {
+impl SummedDims {
     pub fn contains(self, dim: usize) -> bool {
         match self {
-            Reduction::All => true,
-            Reduction::Dim(reduced) => reduced == dim,
+            SummedDims::All => true,
+            SummedDims::Dim(summed) => summed == dim,
         }
     }
 }
@@ -21,17 +21,17 @@ impl Reduction {
 /// A sum is linear: a partial input stays partial, and reducing the split dim leaves one summand
 /// per member.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum ReduceRule {
+pub enum SumRule {
     /// Each member reduces its shard, and the output keeps the input's sharding.
     Local { sharding: Sharding },
     /// The split dim is reduced: each member's result is a summand.
     AcrossMembers { dim: usize },
 }
 
-impl ReduceRule {
-    pub fn new(input: Sharding, reduction: Reduction) -> Self {
+impl SumRule {
+    pub fn new(input: Sharding, summed_dims: SummedDims) -> Self {
         match input {
-            Sharding::Split { dim } if reduction.contains(dim) => Self::AcrossMembers { dim },
+            Sharding::Split { dim } if summed_dims.contains(dim) => Self::AcrossMembers { dim },
             sharding => Self::Local { sharding },
         }
     }
@@ -39,7 +39,7 @@ impl ReduceRule {
     pub fn sharding(&self) -> OpSharding<1> {
         let (input, output) = match *self {
             Self::Local { sharding } => (sharding, sharding),
-            Self::AcrossMembers { dim } => (Sharding::Split { dim }, Sharding::Partial),
+            Self::AcrossMembers { dim } => (Sharding::Split { dim }, Sharding::PartialSum),
         };
         OpSharding {
             inputs: [input],
@@ -51,18 +51,18 @@ impl ReduceRule {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use Sharding::{Partial, Split};
+    use Sharding::{PartialSum, Split};
 
     #[test]
     fn reducing_the_split_dim_leaves_a_summand_per_member() {
-        let rule = ReduceRule::new(Split { dim: 1 }, Reduction::Dim(1));
+        let rule = SumRule::new(Split { dim: 1 }, SummedDims::Dim(1));
 
-        assert_eq!(rule.sharding().output, Partial);
+        assert_eq!(rule.sharding().output, PartialSum);
     }
 
     #[test]
     fn reducing_another_dim_keeps_the_split() {
-        let rule = ReduceRule::new(Split { dim: 1 }, Reduction::Dim(0));
+        let rule = SumRule::new(Split { dim: 1 }, SummedDims::Dim(0));
 
         assert_eq!(rule.sharding().output, Split { dim: 1 });
     }

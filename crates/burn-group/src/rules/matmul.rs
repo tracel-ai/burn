@@ -1,6 +1,6 @@
 use crate::{
     OpSharding,
-    Sharding::{self, Partial, Replicated, Split},
+    Sharding::{self, PartialSum, Replicated, Split},
 };
 
 /// Which dim of a matmul is split, named after the dim of the product it splits.
@@ -32,8 +32,8 @@ impl MatmulRule {
             (Split { dim }, Replicated) if dim == cols => contraction,
             (Replicated, Split { dim }) if dim == rows => contraction,
             // A partial operand is reduced to whatever the other one's split needs.
-            (Partial, rhs) => Self::new(Replicated, rhs, num_dims),
-            (lhs, Partial) => Self::new(lhs, Replicated, num_dims),
+            (PartialSum, rhs) => Self::new(Replicated, rhs, num_dims),
+            (lhs, PartialSum) => Self::new(lhs, Replicated, num_dims),
             _ => Self::Gathered,
         }
     }
@@ -43,7 +43,7 @@ impl MatmulRule {
             Self::Unsplit | Self::Gathered => ([Replicated, Replicated], Replicated),
             Self::Columns { dim } => ([Replicated, Split { dim }], Split { dim }),
             Self::Contraction { lhs_dim, rhs_dim } => {
-                ([Split { dim: lhs_dim }, Split { dim: rhs_dim }], Partial)
+                ([Split { dim: lhs_dim }, Split { dim: rhs_dim }], PartialSum)
             }
         };
         OpSharding { inputs, output }
@@ -64,14 +64,14 @@ mod tests {
             down.sharding(),
             OpSharding {
                 inputs: [Split { dim: 1 }, Split { dim: 0 }],
-                output: Partial,
+                output: PartialSum,
             }
         );
     }
 
     #[test]
     fn partial_operand_is_reduce_scattered_into_a_contraction() {
-        let rule = MatmulRule::new(Partial, Split { dim: 0 }, 2);
+        let rule = MatmulRule::new(PartialSum, Split { dim: 0 }, 2);
 
         assert_eq!(
             rule,

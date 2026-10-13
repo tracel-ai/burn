@@ -15,4 +15,4 @@ pub use sharding::Sharding;
 
 use resharding::Resharding;
 use rules::*;
-use sharding::{DimSplit, Member, OpSharding, ShardShapes};
+use sharding::{DimSplit, GroupMember, OpSharding, ShardingOps};

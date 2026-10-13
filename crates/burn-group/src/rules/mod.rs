@@ -1,9 +1,9 @@
 mod elementwise;
-mod linear;
+mod linear_layer;
 mod matmul;
-mod reduce;
+mod sum;
 
 pub use elementwise::Linearity;
-pub use linear::LinearRule;
+pub use linear_layer::LinearLayerRule;
 pub use matmul::MatmulRule;
-pub use reduce::{ReduceRule, Reduction};
+pub use sum::{SumRule, SummedDims};

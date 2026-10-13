@@ -6,14 +6,14 @@ use burn_ir::{
 };
 
 use super::sharding_map::ShardingMap;
-use crate::{LinearRule, Linearity, MatmulRule, OpSharding, ReduceRule, Reduction, Sharding};
+use crate::{LinearLayerRule, Linearity, MatmulRule, OpSharding, Sharding, SumRule, SummedDims};
 
 /// Where each tensor of one op must be for the op to run on every member, where its outputs land,
 /// and what each member runs.
 #[derive(Debug)]
 pub struct OpPlan {
-    inputs: HashMap<TensorId, Sharding>,
-    outputs: HashMap<TensorId, Sharding>,
+    input_shardings: HashMap<TensorId, Sharding>,
+    output_shardings: HashMap<TensorId, Sharding>,
     execution: Execution,
 }
 
@@ -36,12 +36,12 @@ impl OpPlan {
             .unwrap_or_else(|| Self::gathered(op))
     }
 
-    pub fn input(&self, id: &TensorId) -> Sharding {
-        self.inputs[id]
+    pub fn input_sharding(&self, id: &TensorId) -> Sharding {
+        self.input_shardings[id]
     }
 
-    pub fn outputs(&self) -> &HashMap<TensorId, Sharding> {
-        &self.outputs
+    pub fn output_shardings(&self) -> &HashMap<TensorId, Sharding> {
+        &self.output_shardings
     }
 
     pub fn execution(&self) -> Execution {
@@ -51,8 +51,8 @@ impl OpPlan {
     fn gathered(op: &OperationIr) -> Self {
         let replicated = |tensor: &TensorIr| (tensor.id, Sharding::Replicated);
         Self {
-            inputs: op.inputs().map(replicated).collect(),
-            outputs: op.outputs().map(replicated).collect(),
+            input_shardings: op.inputs().map(replicated).collect(),
+            output_shardings: op.outputs().map(replicated).collect(),
             execution: Execution::EveryMember,
         }
     }
@@ -90,9 +90,9 @@ impl Analysis<'_> {
                 self.scalar(Linearity::Linear, desc)
             }
             NumericOperationIr::Neg(desc) => self.unary(Linearity::Linear, desc),
-            NumericOperationIr::Sum(desc) => self.sum(&desc.input, &desc.out, Reduction::All),
+            NumericOperationIr::Sum(desc) => self.sum(&desc.input, &desc.out, SummedDims::All),
             NumericOperationIr::SumDim(desc) => {
-                self.sum(&desc.input, &desc.out, Reduction::Dim(desc.axis))
+                self.sum(&desc.input, &desc.out, SummedDims::Dim(desc.axis))
             }
             _ => None,
         }
@@ -129,7 +129,7 @@ impl Analysis<'_> {
             inputs.map(|input| self.sharding(input)),
             inputs.map(|input| &input.shape),
         );
-        Targets::of(inputs, sharding.inputs)
+        TargetShardings::of(inputs, sharding.inputs)
             .output(out, sharding.output)
             .every_member()
     }
@@ -145,7 +145,7 @@ impl Analysis<'_> {
     }
 
     fn linear(&self, desc: &LinearOpIr) -> Option<OpPlan> {
-        let rule = LinearRule::new(
+        let rule = LinearLayerRule::new(
             self.sharding(&desc.x),
             self.sharding(&desc.weight),
             desc.x.shape.num_dims(),
@@ -155,7 +155,7 @@ impl Analysis<'_> {
             output,
         } = rule.sharding();
         let mut targets =
-            Targets::of([&desc.x, &desc.weight], [x, weight]).output(&desc.out, output);
+            TargetShardings::of([&desc.x, &desc.weight], [x, weight]).output(&desc.out, output);
         let Some(bias_tensor) = &desc.bias else {
             return targets.every_member();
         };
@@ -166,13 +166,13 @@ impl Analysis<'_> {
         }
     }
 
-    fn sum(&self, input: &TensorIr, out: &TensorIr, reduction: Reduction) -> Option<OpPlan> {
-        let sharding = ReduceRule::new(self.sharding(input), reduction).sharding();
+    fn sum(&self, input: &TensorIr, out: &TensorIr, summed_dims: SummedDims) -> Option<OpPlan> {
+        let sharding = SumRule::new(self.sharding(input), summed_dims).sharding();
         self.ruled([input], out, sharding)
     }
 
     fn random(&self, out: &TensorIr) -> Option<OpPlan> {
-        Targets::default()
+        TargetShardings::default()
             .output(out, Sharding::Replicated)
             .build(Execution::FirstMemberCopied)
     }
@@ -183,7 +183,7 @@ impl Analysis<'_> {
         out: &TensorIr,
         sharding: OpSharding<N>,
     ) -> Option<OpPlan> {
-        Targets::of(inputs, sharding.inputs)
+        TargetShardings::of(inputs, sharding.inputs)
             .output(out, sharding.output)
             .every_member()
     }
@@ -195,13 +195,13 @@ impl Analysis<'_> {
 
 /// The shardings an op's tensors take, refusing an input asked for two at once.
 #[derive(Default)]
-struct Targets {
+struct TargetShardings {
     inputs: HashMap<TensorId, Sharding>,
     outputs: HashMap<TensorId, Sharding>,
     conflict: bool,
 }
 
-impl Targets {
+impl TargetShardings {
     fn of<const N: usize>(tensors: [&TensorIr; N], shardings: [Sharding; N]) -> Self {
         tensors
             .into_iter()
@@ -228,8 +228,8 @@ impl Targets {
 
     fn build(self, execution: Execution) -> Option<OpPlan> {
         (!self.conflict).then_some(OpPlan {
-            inputs: self.inputs,
-            outputs: self.outputs,
+            input_shardings: self.inputs,
+            output_shardings: self.outputs,
             execution,
         })
     }

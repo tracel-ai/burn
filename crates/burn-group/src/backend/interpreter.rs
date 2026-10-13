@@ -13,7 +13,7 @@ use super::{
     shard::ShardList,
     sharding_map::ShardingMap,
 };
-use crate::{Member, Resharding, ShardShapes, Sharding};
+use crate::{GroupMember, Resharding, Sharding, ShardingOps};
 
 /// A device group's [`GroupInterpreter`] as a trait object, so the [`GroupClient`] of every group
 /// has one type whatever backend the members run.
@@ -112,7 +112,7 @@ impl<B: BackendIr> DynGroupInterpreter for GroupInterpreter<B> {
         match op {
             // The data was registered on every member with the tensor.
             OperationIr::Init(_) => {}
-            OperationIr::Drop(tensor) => self.drop(tensor.id),
+            OperationIr::Drop(tensor) => self.drop_tensor(tensor.id),
             OperationIr::Distributed(_) => {
                 panic!("A device group runs its own collectives and takes none from outside")
             }
@@ -122,12 +122,12 @@ impl<B: BackendIr> DynGroupInterpreter for GroupInterpreter<B> {
 
     fn reshard(&mut self, tensor: TensorIr, sharding: Sharding) -> TensorId {
         let current = self.shardings.get(&tensor.id);
-        let members = self.interpreters.len();
-        let resharding =
-            Resharding::new(current, sharding, &tensor.shape, members).unwrap_or_else(|| {
+        let num_members = self.interpreters.len();
+        let resharding = Resharding::new(current, sharding, &tensor.shape, num_members)
+            .unwrap_or_else(|| {
                 panic!(
                     "No resharding takes a {current:?} tensor of shape {:?} to {sharding:?} over \
-                     {members} members",
+                     {num_members} members",
                     tensor.shape
                 )
             });
@@ -181,7 +181,7 @@ impl<B: BackendIr> GroupInterpreter<B> {
     fn run(&mut self, mut op: OperationIr) {
         let plan = OpPlan::new(&op, &self.shardings);
         let temporaries = self.reshard_inputs(&mut op, &plan);
-        for (id, sharding) in plan.outputs() {
+        for (id, sharding) in plan.output_shardings() {
             self.shardings.insert(*id, *sharding);
         }
 
@@ -198,17 +198,18 @@ impl<B: BackendIr> GroupInterpreter<B> {
                 self.shardings.remove(&input.id);
             }
         }
-        temporaries.into_iter().for_each(|id| self.drop(id));
+        temporaries.into_iter().for_each(|id| self.drop_tensor(id));
     }
 
     fn reshard_inputs(&mut self, op: &mut OperationIr, plan: &OpPlan) -> Vec<TensorId> {
         let inputs: Vec<TensorIr> = op.inputs().cloned().collect();
-        let mut renames = Renames::default();
+        let mut resharded = ReshardedInputs::default();
         for input in &inputs {
-            if renames.ids.contains_key(&input.id) {
+            if resharded.temporaries.contains_key(&input.id) {
                 continue;
             }
-            let (current, target) = (self.shardings.get(&input.id), plan.input(&input.id));
+            let current = self.shardings.get(&input.id);
+            let target = plan.input_sharding(&input.id);
             if current == target {
                 continue;
             }
@@ -230,18 +231,18 @@ impl<B: BackendIr> GroupInterpreter<B> {
                     .reshard(resharding, &input.shape, &self.devices);
             let temporary = self.new_tensor_id();
             self.register_shards(temporary, shards, target);
-            renames.ids.insert(input.id, temporary);
+            resharded.temporaries.insert(input.id, temporary);
         }
-        op.visit_mut(&mut renames);
-        renames.ids.into_values().collect()
+        op.visit_mut(&mut resharded);
+        resharded.temporaries.into_values().collect()
     }
 
     fn run_on(&mut self, member: usize, op: &OperationIr) {
         let mut op = op.clone();
         op.visit_mut(&mut MemberShapes {
-            member: Member {
+            member: GroupMember {
                 index: member,
-                members: self.interpreters.len(),
+                num_members: self.interpreters.len(),
             },
             shardings: &self.shardings,
         });
@@ -282,13 +283,14 @@ impl<B: BackendIr> GroupInterpreter<B> {
     }
 
     fn take_shards(&mut self, tensor: &TensorIr, sharding: Sharding) -> ShardList<B> {
-        let members = self.interpreters.len();
+        let num_members = self.interpreters.len();
         let shards = self
             .interpreters
             .iter_mut()
             .enumerate()
             .map(|(index, interpreter)| {
-                interpreter.get_tensor(&sharding.local_tensor(tensor, Member { index, members }))
+                interpreter
+                    .get_tensor(&sharding.local_tensor(tensor, GroupMember { index, num_members }))
             })
             .collect();
         if tensor.status == TensorStatus::ReadWrite {
@@ -304,7 +306,7 @@ impl<B: BackendIr> GroupInterpreter<B> {
         self.shardings.insert(id, sharding);
     }
 
-    fn drop(&mut self, id: TensorId) {
+    fn drop_tensor(&mut self, id: TensorId) {
         if self.shardings.remove(&id).is_some() {
             for interpreter in &mut self.interpreters {
                 interpreter.register_op(OperationIr::Drop(TensorIr {
@@ -320,14 +322,14 @@ impl<B: BackendIr> GroupInterpreter<B> {
 
 /// Points an op's inputs at their resharded temporaries, which outlive it.
 #[derive(Default)]
-struct Renames {
-    ids: HashMap<TensorId, TensorId>,
+struct ReshardedInputs {
+    temporaries: HashMap<TensorId, TensorId>,
 }
 
-impl IrVisitorMut for Renames {
+impl IrVisitorMut for ReshardedInputs {
     fn visit_tensor_mut(&mut self, tensor: &mut TensorIr) {
         if tensor.status != TensorStatus::NotInit
-            && let Some(id) = self.ids.get(&tensor.id)
+            && let Some(id) = self.temporaries.get(&tensor.id)
         {
             tensor.id = *id;
             tensor.status = TensorStatus::ReadOnly;
@@ -337,7 +339,7 @@ impl IrVisitorMut for Renames {
 
 /// Gives every tensor of an op the shape of the shard one member holds.
 struct MemberShapes<'a> {
-    member: Member,
+    member: GroupMember,
     shardings: &'a ShardingMap,
 }
 
