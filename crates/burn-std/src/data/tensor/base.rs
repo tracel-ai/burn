@@ -824,6 +824,34 @@ mod tests {
     }
 
     #[test]
+    fn should_preserve_flex32_dtype_when_casting_from_f32() {
+        let data = TensorData::from([-1.5f32, 0.0, 2.25]);
+        let expected = TensorData::from([-1.5, 0.0, 2.25].map(flex32::from_f32));
+
+        let actual = data.clone().try_cast(DType::Flex32).unwrap();
+        assert_eq!(actual, expected);
+        assert_eq!(data.try_cast_as::<flex32>().unwrap(), expected);
+        assert_eq!(
+            actual.try_cast(DType::F32).unwrap(),
+            TensorData::from([-1.5f32, 0.0, 2.25])
+        );
+    }
+
+    #[test]
+    fn should_preserve_flex32_dtype_when_casting_from_f64() {
+        let data = TensorData::from([-1.5f64, 0.0, 2.25]);
+        let expected = TensorData::from([-1.5, 0.0, 2.25].map(flex32::from_f32));
+
+        let actual = data.clone().try_cast(DType::Flex32).unwrap();
+        assert_eq!(actual, expected);
+        assert_eq!(data.try_cast_as::<flex32>().unwrap(), expected);
+        assert_eq!(
+            actual.try_cast(DType::F32).unwrap(),
+            TensorData::from([-1.5f32, 0.0, 2.25])
+        );
+    }
+
+    #[test]
     fn should_convert_negative_values_to_bool_store() {
         for store in [BoolStore::U8, BoolStore::U32, BoolStore::Native] {
             let data = TensorData::from([-1i32, 0, 1, -12]).convert_dtype(DType::Bool(store));
