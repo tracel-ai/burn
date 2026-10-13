@@ -105,15 +105,13 @@ impl BasicOps for Bool {
         values: BridgeTensor,
         update: IndexingUpdateOp,
     ) -> BridgeTensor {
-        match update {
-            IndexingUpdateOp::Add => BridgeTensor::bool(Dispatch::bool_select_or(
-                tensor.into(),
-                dim,
-                indices.into(),
-                values.into(),
-            )),
-            _ => unimplemented!(),
-        }
+        BridgeTensor::bool(Dispatch::bool_select_assign(
+            tensor.into(),
+            dim,
+            indices.into(),
+            values.into(),
+            update,
+        ))
     }
 
     fn mask_where(tensor: BridgeTensor, mask: BridgeTensor, source: BridgeTensor) -> BridgeTensor {
@@ -143,15 +141,13 @@ impl BasicOps for Bool {
         values: BridgeTensor,
         update: IndexingUpdateOp,
     ) -> BridgeTensor {
-        match update {
-            IndexingUpdateOp::Add => BridgeTensor::bool(Dispatch::bool_scatter_or(
-                dim,
-                tensor.into(),
-                indices.into(),
-                values.into(),
-            )),
-            _ => unimplemented!(),
-        }
+        BridgeTensor::bool(Dispatch::bool_scatter(
+            dim,
+            tensor.into(),
+            indices.into(),
+            values.into(),
+            update,
+        ))
     }
 
     fn scatter_nd(

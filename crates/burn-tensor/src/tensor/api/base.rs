@@ -1702,12 +1702,12 @@ where
     /// from the value tensor to the original tensor using the requested update operation.
     ///
     /// # Note
-    /// - `IndexingUpdateOp::Add` accumulates values at the selected positions (`+=`). For
-    ///   booleans, `Add` is logical or.
+    /// - `IndexingUpdateOp::Add` accumulates values at the selected positions (`+=`).
     /// - `IndexingUpdateOp::Assign` replaces values at the selected positions (`=`), when
     ///   supported by the backend.
     /// - `IndexingUpdateOp::Mul` multiplies values at the selected positions (`*=`), when
     ///   supported by the backend.
+    /// - For booleans, `Add` and `Max` are logical or, and `Mul` and `Min` are logical and.
     ///
     /// When `indices` contains duplicate entries, behavior varies by operation:
     /// - For `Add`, accumulation is supported, though results may be non-deterministic on GPU
@@ -1954,6 +1954,8 @@ where
     ///
     /// The index tensor should have the same shape as the original tensor except for the specified
     /// dimension. The value and index tensors should have the same shape.
+    ///
+    /// For booleans, `Add` and `Max` are logical or, and `Mul` and `Min` are logical and.
     ///
     /// When `indices` contains duplicate entries, behavior varies by operation:
     /// - For `Add`, accumulation is supported, though results may be non-deterministic on GPU
