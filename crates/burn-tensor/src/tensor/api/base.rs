@@ -2015,6 +2015,8 @@ where
     ///
     /// # Note
     ///
+    /// For booleans, `Add` and `Max` are logical or, and `Mul` and `Min` are logical and.
+    ///
     /// When `indices` contains duplicate entries, behavior varies by operation:
     /// - For `Add`, accumulation is supported, though results may be non-deterministic on GPU
     ///   backends.
