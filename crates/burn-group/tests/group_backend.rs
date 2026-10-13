@@ -1,5 +1,5 @@
 use burn_backend::{
-    Backend, Scalar, Shape, TensorData, TensorMetadata,
+    Backend, Scalar, Shape, TensorData,
     ops::{ActivationOps, FloatTensorOps},
     tensor::FloatTensor,
 };
@@ -89,14 +89,6 @@ fn matmuls_match_one_device_for_every_sharding() {
             let (lhs, rhs) = (data(lhs, 1), data(rhs, 2));
             check_binary!(num_members, &lhs, &rhs, |B, a, b| B::float_matmul(a, b));
         }
-        let (x, weight, bias) = (data([2, 4, 6], 1), data([6, 5], 2), data([5], 3));
-        check_binary!(num_members, &x, &weight, |B, x, weight| B::linear(
-            x, weight, None
-        ));
-        check_binary!(num_members, &x, &weight, [bias: TensorData] |B, x, weight| {
-            let device = x.device();
-            B::linear(x, weight, Some(B::float_from_data(bias, &device)))
-        });
     }
 }
 

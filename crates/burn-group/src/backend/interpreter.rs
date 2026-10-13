@@ -1,10 +1,7 @@
 use std::collections::HashMap;
 
 use burn_backend::{DType, DTypeUsageSet, ExecutionError, TensorData};
-use burn_ir::{
-    BackendIr, IrVisitorMut, LinearOpIr, ModuleOperationIr, OperationIr, TensorId, TensorIr,
-    TensorStatus,
-};
+use burn_ir::{BackendIr, IrVisitorMut, OperationIr, TensorId, TensorIr, TensorStatus};
 use burn_router::TensorInterpreter;
 use burn_std::future::DynFut;
 
@@ -189,7 +186,6 @@ impl<B: BackendIr> GroupInterpreter<B> {
                 (0..self.interpreters.len()).for_each(|member| self.run_on(member, &op))
             }
             Execution::FirstMemberCopied => self.run_copied_from_first_member(&op),
-            Execution::BiasOnFirstMember => self.run_with_bias_on_first_member(&op),
         }
 
         for input in op.inputs() {
@@ -259,24 +255,6 @@ impl<B: BackendIr> GroupInterpreter<B> {
                 ShardList::replicated(self.interpreters[0].get_tensor(&read), &self.devices);
             for (interpreter, copy) in self.interpreters.iter_mut().zip(copies.into_handles()) {
                 interpreter.register_tensor_to_device(output.id, copy);
-            }
-        }
-    }
-
-    fn run_with_bias_on_first_member(&mut self, op: &OperationIr) {
-        let OperationIr::Module(ModuleOperationIr::Linear(desc)) = op else {
-            unreachable!("Only a linear adds a bias")
-        };
-        let bias = desc.bias.clone().expect("A linear with a bias");
-        let without_bias = OperationIr::Module(ModuleOperationIr::Linear(LinearOpIr {
-            bias: None,
-            ..desc.clone()
-        }));
-        self.run_on(0, op);
-        for member in 1..self.interpreters.len() {
-            self.run_on(member, &without_bias);
-            if bias.status == TensorStatus::ReadWrite {
-                self.interpreters[member].register_op(OperationIr::Drop(bias.clone()));
             }
         }
     }

@@ -1,13 +1,11 @@
 use std::collections::HashMap;
 
 use burn_ir::{
-    ActivationOperationIr, BinaryOpIr, FloatOperationIr, LinearOpIr, MatmulOpIr, ModuleOperationIr,
-    NumericOperationIr, OperationIr, ScalarOpIr, TensorId, TensorIr, UnaryOpIr,
+    ActivationOperationIr, BinaryOpIr, FloatOperationIr, MatmulOpIr, NumericOperationIr,
+    OperationIr, ScalarOpIr, TensorId, TensorIr, UnaryOpIr,
 };
 
-use crate::{
-    ElementwiseRule, MatmulBiasRule, MatmulRule, OpSharding, ReducedDims, Sharding, SumRule,
-};
+use crate::{ElementwiseRule, MatmulRule, OpSharding, ReducedDims, Sharding, SumRule};
 
 /// Where each tensor of one op must be for the op to run on every member, where its outputs land,
 /// and what each member runs.
@@ -24,8 +22,6 @@ pub enum Execution {
     EveryMember,
     /// Member 0 runs the op and the others take a copy, so random values agree.
     FirstMemberCopied,
-    /// Only member 0 adds the bias: the output is a partial sum, which must count it once.
-    BiasOnFirstMember,
 }
 
 impl OpPlan {
@@ -95,7 +91,6 @@ impl Analysis<'_> {
             OperationIr::NumericInt(_, NumericOperationIr::IntRandom(desc)) => {
                 self.random(&desc.out)
             }
-            OperationIr::Module(ModuleOperationIr::Linear(desc)) => self.linear(desc),
             OperationIr::Activation(
                 ActivationOperationIr::Relu(desc) | ActivationOperationIr::Gelu(desc),
             ) => self.unary(ElementwiseRule::Nonlinear, desc),
@@ -170,41 +165,6 @@ impl Analysis<'_> {
             &desc.out,
             sharding,
             Execution::EveryMember,
-        )
-    }
-
-    fn linear(&self, desc: &LinearOpIr) -> Option<OpPlan> {
-        let rule = MatmulBiasRule::new(
-            self.sharding(&desc.x),
-            self.sharding(&desc.weight),
-            desc.x.shape.num_dims(),
-        );
-        let sharding = rule.sharding();
-        let Some(bias) = &desc.bias else {
-            let OpSharding {
-                inputs: [x, weight, _],
-                output,
-            } = sharding;
-            let without_bias = OpSharding {
-                inputs: [x, weight],
-                output,
-            };
-            return OpPlan::ruled(
-                [&desc.x, &desc.weight],
-                &desc.out,
-                without_bias,
-                Execution::EveryMember,
-            );
-        };
-        let execution = match rule.bias_on_one_member() {
-            true => Execution::BiasOnFirstMember,
-            false => Execution::EveryMember,
-        };
-        OpPlan::ruled(
-            [&desc.x, &desc.weight, bias],
-            &desc.out,
-            sharding,
-            execution,
         )
     }
 
