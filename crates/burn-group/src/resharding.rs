@@ -5,23 +5,20 @@ use crate::Sharding::{self, PartialSum, Replicated, Split};
 /// How the shards of a group's tensor move between members, from one sharding to another.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Resharding {
+    /// The tensor already has the target sharding, so nothing moves.
     Keep,
-    /// Each member keeps its chunk of a replicated tensor.
-    Slice {
-        dim: usize,
-    },
-    AllGather {
-        dim: usize,
-    },
+    /// Replicated to split: each member keeps its own chunk along `dim`, with nothing sent.
+    Slice { dim: usize },
+    /// Split to replicated: every member receives every other member's chunk along `dim`.
+    AllGather { dim: usize },
+    /// Partial sum to replicated: every member ends with the sum of every member's shard.
     AllReduce,
-    /// Sum the summands, each member keeping its chunk.
-    ReduceScatter {
-        dim: usize,
-    },
-    AllToAll {
-        from_dim: usize,
-        to_dim: usize,
-    },
+    /// Partial sum to split: the shards are summed, each member keeping only its chunk along
+    /// `dim` of the total.
+    ReduceScatter { dim: usize },
+    /// Split along `from_dim` to split along `to_dim`: each member sends every other member the
+    /// part of its chunk that the other holds once split along `to_dim`.
+    AllToAll { from_dim: usize, to_dim: usize },
 }
 
 impl Resharding {

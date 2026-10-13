@@ -1,11 +1,12 @@
 use burn_std::Shape;
 
-use crate::{OpSharding, Sharding, ShardingOps};
+use crate::{OpSharding, Sharding};
 
 /// Which inputs of an elementwise op a partial sum can pass through: its output stays partial
 /// only where the op distributes over the sum.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Linearity {
+pub enum ElementwiseRule {
+    /// Linear in no input, like relu: a partial input is summed first.
     Nonlinear,
     /// Linear in every input at once: the output stays partial when every input is, like add.
     Linear,
@@ -13,12 +14,10 @@ pub enum Linearity {
     /// keeps the output partial, like mul.
     Multilinear,
     /// Linear in one input with the others replicated, like a dividend.
-    LinearIn {
-        input: usize,
-    },
+    LinearIn { input: usize },
 }
 
-impl Linearity {
+impl ElementwiseRule {
     /// Where the inputs must be for the op to run on every member, and where its output lands.
     pub fn sharding<const N: usize>(
         self,
@@ -37,8 +36,16 @@ impl Linearity {
             .find(|sharding| matches!(sharding, Sharding::Split { .. }))
             .unwrap_or(Sharding::Replicated);
         OpSharding {
-            inputs: shapes.map(|shape| output.for_input(shape)),
+            inputs: shapes.map(|shape| Self::input_sharding(output, shape)),
             output,
+        }
+    }
+
+    /// An input of length 1 along the split dim broadcasts, so it stays whole.
+    fn input_sharding(output: Sharding, shape: &Shape) -> Sharding {
+        match output {
+            Sharding::Split { dim } if shape[dim] == 1 => Sharding::Replicated,
+            sharding => sharding,
         }
     }
 
@@ -46,10 +53,10 @@ impl Linearity {
         let count = |sharding| inputs.iter().filter(|input| **input == sharding).count();
         let others_replicated = count(Sharding::Replicated) == inputs.len() - 1;
         match self {
-            Linearity::Nonlinear => false,
-            Linearity::Linear => count(Sharding::PartialSum) == inputs.len(),
-            Linearity::Multilinear => count(Sharding::PartialSum) == 1 && others_replicated,
-            Linearity::LinearIn { input } => {
+            ElementwiseRule::Nonlinear => false,
+            ElementwiseRule::Linear => count(Sharding::PartialSum) == inputs.len(),
+            ElementwiseRule::Multilinear => count(Sharding::PartialSum) == 1 && others_replicated,
+            ElementwiseRule::LinearIn { input } => {
                 inputs[input] == Sharding::PartialSum && others_replicated
             }
         }
@@ -64,7 +71,7 @@ mod tests {
     #[test]
     fn partial_plus_replicated_is_reduced_first() {
         let shape = Shape::new([4, 6]);
-        let sharding = Linearity::Linear.sharding([PartialSum, Replicated], [&shape, &shape]);
+        let sharding = ElementwiseRule::Linear.sharding([PartialSum, Replicated], [&shape, &shape]);
 
         assert_eq!(sharding.output, Replicated);
         assert_eq!(sharding.inputs, [Replicated, Replicated]);
@@ -73,14 +80,15 @@ mod tests {
     #[test]
     fn partial_times_replicated_stays_partial() {
         let shape = Shape::new([4, 6]);
-        let sharding = Linearity::Multilinear.sharding([Replicated, PartialSum], [&shape, &shape]);
+        let sharding =
+            ElementwiseRule::Multilinear.sharding([Replicated, PartialSum], [&shape, &shape]);
 
         assert_eq!(sharding.output, PartialSum);
     }
 
     #[test]
     fn bias_broadcast_along_the_split_dim_stays_whole() {
-        let sharding = Linearity::Linear.sharding(
+        let sharding = ElementwiseRule::Linear.sharding(
             [Split { dim: 0 }, Replicated],
             [&Shape::new([4, 6]), &Shape::new([1, 6])],
         );
@@ -91,7 +99,8 @@ mod tests {
     #[test]
     fn partial_meeting_a_split_input_is_reduce_scattered() {
         let shape = Shape::new([4, 6]);
-        let sharding = Linearity::Linear.sharding([PartialSum, Split { dim: 1 }], [&shape, &shape]);
+        let sharding =
+            ElementwiseRule::Linear.sharding([PartialSum, Split { dim: 1 }], [&shape, &shape]);
 
         assert_eq!(sharding.inputs, [Split { dim: 1 }, Split { dim: 1 }]);
     }

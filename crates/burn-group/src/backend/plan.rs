@@ -5,8 +5,9 @@ use burn_ir::{
     NumericOperationIr, OperationIr, ScalarOpIr, TensorId, TensorIr, UnaryOpIr,
 };
 
-use super::sharding_map::ShardingMap;
-use crate::{LinearLayerRule, Linearity, MatmulRule, OpSharding, Sharding, SumRule, SummedDims};
+use crate::{
+    ElementwiseRule, MatmulBiasRule, MatmulRule, OpSharding, ReducedDims, Sharding, SumRule,
+};
 
 /// Where each tensor of one op must be for the op to run on every member, where its outputs land,
 /// and what each member runs.
@@ -30,7 +31,7 @@ pub enum Execution {
 impl OpPlan {
     /// An op without a rule, or whose inputs would need two shardings at once, gathers every
     /// input and runs whole on every member.
-    pub fn new(op: &OperationIr, shardings: &ShardingMap) -> Self {
+    pub fn new(op: &OperationIr, shardings: &HashMap<TensorId, Sharding>) -> Self {
         Analysis { shardings }
             .plan(op)
             .unwrap_or_else(|| Self::gathered(op))
@@ -48,6 +49,29 @@ impl OpPlan {
         self.execution
     }
 
+    /// `None` when one tensor, read as two inputs, is asked for two shardings.
+    fn ruled<const N: usize>(
+        inputs: [&TensorIr; N],
+        out: &TensorIr,
+        sharding: OpSharding<N>,
+        execution: Execution,
+    ) -> Option<Self> {
+        let mut input_shardings = HashMap::new();
+        for (tensor, target) in inputs.into_iter().zip(sharding.inputs) {
+            if input_shardings
+                .insert(tensor.id, target)
+                .is_some_and(|previous| previous != target)
+            {
+                return None;
+            }
+        }
+        Some(Self {
+            input_shardings,
+            output_shardings: HashMap::from([(out.id, sharding.output)]),
+            execution,
+        })
+    }
+
     fn gathered(op: &OperationIr) -> Self {
         let replicated = |tensor: &TensorIr| (tensor.id, Sharding::Replicated);
         Self {
@@ -59,7 +83,7 @@ impl OpPlan {
 }
 
 struct Analysis<'a> {
-    shardings: &'a ShardingMap,
+    shardings: &'a HashMap<TensorId, Sharding>,
 }
 
 impl Analysis<'_> {
@@ -74,7 +98,7 @@ impl Analysis<'_> {
             OperationIr::Module(ModuleOperationIr::Linear(desc)) => self.linear(desc),
             OperationIr::Activation(
                 ActivationOperationIr::Relu(desc) | ActivationOperationIr::Gelu(desc),
-            ) => self.unary(Linearity::Nonlinear, desc),
+            ) => self.unary(ElementwiseRule::Nonlinear, desc),
             _ => None,
         }
     }
@@ -82,39 +106,41 @@ impl Analysis<'_> {
     fn numeric(&self, op: &NumericOperationIr) -> Option<OpPlan> {
         match op {
             NumericOperationIr::Add(desc) | NumericOperationIr::Sub(desc) => {
-                self.binary(Linearity::Linear, desc)
+                self.binary(ElementwiseRule::Linear, desc)
             }
-            NumericOperationIr::Mul(desc) => self.binary(Linearity::Multilinear, desc),
-            NumericOperationIr::Div(desc) => self.binary(Linearity::LinearIn { input: 0 }, desc),
+            NumericOperationIr::Mul(desc) => self.binary(ElementwiseRule::Multilinear, desc),
+            NumericOperationIr::Div(desc) => {
+                self.binary(ElementwiseRule::LinearIn { input: 0 }, desc)
+            }
             NumericOperationIr::MulScalar(desc) | NumericOperationIr::DivScalar(desc) => {
-                self.scalar(Linearity::Linear, desc)
+                self.scalar(ElementwiseRule::Linear, desc)
             }
-            NumericOperationIr::Neg(desc) => self.unary(Linearity::Linear, desc),
-            NumericOperationIr::Sum(desc) => self.sum(&desc.input, &desc.out, SummedDims::All),
+            NumericOperationIr::Neg(desc) => self.unary(ElementwiseRule::Linear, desc),
+            NumericOperationIr::Sum(desc) => self.sum(&desc.input, &desc.out, ReducedDims::All),
             NumericOperationIr::SumDim(desc) => {
-                self.sum(&desc.input, &desc.out, SummedDims::Dim(desc.axis))
+                self.sum(&desc.input, &desc.out, ReducedDims::Dim(desc.axis))
             }
             _ => None,
         }
     }
 
-    fn unary(&self, linearity: Linearity, desc: &UnaryOpIr) -> Option<OpPlan> {
-        self.elementwise(linearity, [&desc.input], &desc.out)
+    fn unary(&self, rule: ElementwiseRule, desc: &UnaryOpIr) -> Option<OpPlan> {
+        self.elementwise(rule, [&desc.input], &desc.out)
     }
 
-    fn scalar(&self, linearity: Linearity, desc: &ScalarOpIr) -> Option<OpPlan> {
-        self.elementwise(linearity, [&desc.lhs], &desc.out)
+    fn scalar(&self, rule: ElementwiseRule, desc: &ScalarOpIr) -> Option<OpPlan> {
+        self.elementwise(rule, [&desc.lhs], &desc.out)
     }
 
-    fn binary(&self, linearity: Linearity, desc: &BinaryOpIr) -> Option<OpPlan> {
-        self.elementwise(linearity, [&desc.lhs, &desc.rhs], &desc.out)
+    fn binary(&self, rule: ElementwiseRule, desc: &BinaryOpIr) -> Option<OpPlan> {
+        self.elementwise(rule, [&desc.lhs, &desc.rhs], &desc.out)
     }
 
     /// Broadcasting lines up dims of the same index, so an input with another number of dims has
     /// no rule.
     fn elementwise<const N: usize>(
         &self,
-        linearity: Linearity,
+        rule: ElementwiseRule,
         inputs: [&TensorIr; N],
         out: &TensorIr,
     ) -> Option<OpPlan> {
@@ -125,13 +151,11 @@ impl Analysis<'_> {
         {
             return None;
         }
-        let sharding = linearity.sharding(
+        let sharding = rule.sharding(
             inputs.map(|input| self.sharding(input)),
             inputs.map(|input| &input.shape),
         );
-        TargetShardings::of(inputs, sharding.inputs)
-            .output(out, sharding.output)
-            .every_member()
+        OpPlan::ruled(inputs, out, sharding, Execution::EveryMember)
     }
 
     fn matmul(&self, desc: &MatmulOpIr) -> Option<OpPlan> {
@@ -141,96 +165,63 @@ impl Analysis<'_> {
             desc.lhs.shape.num_dims(),
         )
         .sharding();
-        self.ruled([&desc.lhs, &desc.rhs], &desc.out, sharding)
+        OpPlan::ruled(
+            [&desc.lhs, &desc.rhs],
+            &desc.out,
+            sharding,
+            Execution::EveryMember,
+        )
     }
 
     fn linear(&self, desc: &LinearOpIr) -> Option<OpPlan> {
-        let rule = LinearLayerRule::new(
+        let rule = MatmulBiasRule::new(
             self.sharding(&desc.x),
             self.sharding(&desc.weight),
             desc.x.shape.num_dims(),
         );
-        let OpSharding {
-            inputs: [x, weight, bias],
-            output,
-        } = rule.sharding();
-        let mut targets =
-            TargetShardings::of([&desc.x, &desc.weight], [x, weight]).output(&desc.out, output);
-        let Some(bias_tensor) = &desc.bias else {
-            return targets.every_member();
+        let sharding = rule.sharding();
+        let Some(bias) = &desc.bias else {
+            let OpSharding {
+                inputs: [x, weight, _],
+                output,
+            } = sharding;
+            let without_bias = OpSharding {
+                inputs: [x, weight],
+                output,
+            };
+            return OpPlan::ruled(
+                [&desc.x, &desc.weight],
+                &desc.out,
+                without_bias,
+                Execution::EveryMember,
+            );
         };
-        targets = targets.input(bias_tensor, bias);
-        match rule.bias_on_one_member() {
-            true => targets.build(Execution::BiasOnFirstMember),
-            false => targets.every_member(),
-        }
+        let execution = match rule.bias_on_one_member() {
+            true => Execution::BiasOnFirstMember,
+            false => Execution::EveryMember,
+        };
+        OpPlan::ruled(
+            [&desc.x, &desc.weight, bias],
+            &desc.out,
+            sharding,
+            execution,
+        )
     }
 
-    fn sum(&self, input: &TensorIr, out: &TensorIr, summed_dims: SummedDims) -> Option<OpPlan> {
-        let sharding = SumRule::new(self.sharding(input), summed_dims).sharding();
-        self.ruled([input], out, sharding)
+    fn sum(&self, input: &TensorIr, out: &TensorIr, reduced_dims: ReducedDims) -> Option<OpPlan> {
+        let sharding = SumRule::new(self.sharding(input), reduced_dims).sharding();
+        OpPlan::ruled([input], out, sharding, Execution::EveryMember)
     }
 
     fn random(&self, out: &TensorIr) -> Option<OpPlan> {
-        TargetShardings::default()
-            .output(out, Sharding::Replicated)
-            .build(Execution::FirstMemberCopied)
-    }
-
-    fn ruled<const N: usize>(
-        &self,
-        inputs: [&TensorIr; N],
-        out: &TensorIr,
-        sharding: OpSharding<N>,
-    ) -> Option<OpPlan> {
-        TargetShardings::of(inputs, sharding.inputs)
-            .output(out, sharding.output)
-            .every_member()
+        let sharding = OpSharding {
+            inputs: [],
+            output: Sharding::Replicated,
+        };
+        OpPlan::ruled([], out, sharding, Execution::FirstMemberCopied)
     }
 
     fn sharding(&self, tensor: &TensorIr) -> Sharding {
-        self.shardings.get(&tensor.id)
-    }
-}
-
-/// The shardings an op's tensors take, refusing an input asked for two at once.
-#[derive(Default)]
-struct TargetShardings {
-    inputs: HashMap<TensorId, Sharding>,
-    outputs: HashMap<TensorId, Sharding>,
-    conflict: bool,
-}
-
-impl TargetShardings {
-    fn of<const N: usize>(tensors: [&TensorIr; N], shardings: [Sharding; N]) -> Self {
-        tensors
-            .into_iter()
-            .zip(shardings)
-            .fold(Self::default(), |targets, (tensor, sharding)| {
-                targets.input(tensor, sharding)
-            })
-    }
-
-    fn input(mut self, tensor: &TensorIr, sharding: Sharding) -> Self {
-        let previous = self.inputs.insert(tensor.id, sharding);
-        self.conflict |= previous.is_some_and(|previous| previous != sharding);
-        self
-    }
-
-    fn output(mut self, tensor: &TensorIr, sharding: Sharding) -> Self {
-        self.outputs.insert(tensor.id, sharding);
-        self
-    }
-
-    fn every_member(self) -> Option<OpPlan> {
-        self.build(Execution::EveryMember)
-    }
-
-    fn build(self, execution: Execution) -> Option<OpPlan> {
-        (!self.conflict).then_some(OpPlan {
-            input_shardings: self.inputs,
-            output_shardings: self.outputs,
-            execution,
-        })
+        self.shardings[&tensor.id]
     }
 }

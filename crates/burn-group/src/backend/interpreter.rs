@@ -11,9 +11,8 @@ use burn_std::future::DynFut;
 use super::{
     plan::{Execution, OpPlan},
     shard::ShardList,
-    sharding_map::ShardingMap,
 };
-use crate::{GroupMember, Resharding, Sharding, ShardingOps};
+use crate::{GroupMember, Resharding, Sharding};
 
 /// A device group's [`GroupInterpreter`] as a trait object, so the [`GroupClient`] of every group
 /// has one type whatever backend the members run.
@@ -69,7 +68,7 @@ pub trait DynGroupInterpreter: Send {
 pub struct GroupInterpreter<B: BackendIr> {
     interpreters: Vec<TensorInterpreter<B>>,
     devices: Vec<B::Device>,
-    shardings: ShardingMap,
+    shardings: HashMap<TensorId, Sharding>,
     next_id: u64,
     flush_error: Option<ExecutionError>,
 }
@@ -82,7 +81,7 @@ impl<B: BackendIr> GroupInterpreter<B> {
                 .map(|device| TensorInterpreter::new(device.clone()))
                 .collect(),
             devices,
-            shardings: ShardingMap::default(),
+            shardings: HashMap::new(),
             next_id: 0,
             flush_error: None,
         }
@@ -96,7 +95,7 @@ impl<B: BackendIr> DynGroupInterpreter for GroupInterpreter<B> {
     }
 
     fn sharding(&self, id: &TensorId) -> Sharding {
-        self.shardings.get(id)
+        self.shardings[id]
     }
 
     fn register_tensor_data(&mut self, data: TensorData) -> TensorId {
@@ -121,7 +120,7 @@ impl<B: BackendIr> DynGroupInterpreter for GroupInterpreter<B> {
     }
 
     fn reshard(&mut self, tensor: TensorIr, sharding: Sharding) -> TensorId {
-        let current = self.shardings.get(&tensor.id);
+        let current = self.shardings[&tensor.id];
         let num_members = self.interpreters.len();
         let resharding = Resharding::new(current, sharding, &tensor.shape, num_members)
             .unwrap_or_else(|| {
@@ -140,7 +139,7 @@ impl<B: BackendIr> DynGroupInterpreter for GroupInterpreter<B> {
     }
 
     fn read(&mut self, tensor: TensorIr) -> DynFut<Result<TensorData, ExecutionError>> {
-        let sharding = self.shardings.get(&tensor.id);
+        let sharding = self.shardings[&tensor.id];
         self.take_shards(&tensor, sharding)
             .into_data(sharding, &self.devices[0])
     }
@@ -208,7 +207,7 @@ impl<B: BackendIr> GroupInterpreter<B> {
             if resharded.temporaries.contains_key(&input.id) {
                 continue;
             }
-            let current = self.shardings.get(&input.id);
+            let current = self.shardings[&input.id];
             let target = plan.input_sharding(&input.id);
             if current == target {
                 continue;
@@ -289,8 +288,8 @@ impl<B: BackendIr> GroupInterpreter<B> {
             .iter_mut()
             .enumerate()
             .map(|(index, interpreter)| {
-                interpreter
-                    .get_tensor(&sharding.local_tensor(tensor, GroupMember { index, num_members }))
+                let member = GroupMember { index, num_members };
+                interpreter.get_tensor(&member.local_tensor(tensor, sharding))
             })
             .collect();
         if tensor.status == TensorStatus::ReadWrite {
@@ -340,14 +339,11 @@ impl IrVisitorMut for ReshardedInputs {
 /// Gives every tensor of an op the shape of the shard one member holds.
 struct MemberShapes<'a> {
     member: GroupMember,
-    shardings: &'a ShardingMap,
+    shardings: &'a HashMap<TensorId, Sharding>,
 }
 
 impl IrVisitorMut for MemberShapes<'_> {
     fn visit_tensor_mut(&mut self, tensor: &mut TensorIr) {
-        *tensor = self
-            .shardings
-            .get(&tensor.id)
-            .local_tensor(tensor, self.member);
+        *tensor = self.member.local_tensor(tensor, self.shardings[&tensor.id]);
     }
 }
