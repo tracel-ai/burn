@@ -5,21 +5,21 @@ use burn_ir::{GraphBindings, GraphId, OperationIr, TensorId, TensorIr};
 use burn_router::{RouterClient, RouterTensor};
 use burn_std::{future::DynFut, sync::Mutex};
 
-use super::{GroupDevice, device::Group, executor::GroupInterpreter};
+use super::{GroupDevice, device::RegisteredGroup, interpreter::DynGroupInterpreter};
 use crate::GroupPlacement;
 
 /// The client of one device group: every tensor of the group goes through its interpreter.
 #[derive(Clone)]
 pub struct GroupClient {
     device: GroupDevice,
-    interpreter: Arc<Mutex<Box<dyn GroupInterpreter>>>,
+    interpreter: Arc<Mutex<Box<dyn DynGroupInterpreter>>>,
 }
 
 impl GroupClient {
     pub fn new(device: GroupDevice) -> Self {
         Self {
             device,
-            interpreter: Arc::new(Mutex::new(Group::of(&device).interpreter())),
+            interpreter: Arc::new(Mutex::new(RegisteredGroup::new(&device).interpreter())),
         }
     }
 
@@ -27,8 +27,8 @@ impl GroupClient {
     ///
     /// # Panics
     ///
-    /// When no collective produces `placement`: a partial sum out of a whole tensor, or a split
-    /// along a dim shorter than the group.
+    /// When no collective produces `placement`: a partial sum out of a tensor that is not one, or a
+    /// split along a dim the tensor lacks or one shorter than the group.
     pub fn place(
         &self,
         tensor: RouterTensor<Self>,

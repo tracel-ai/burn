@@ -9,6 +9,7 @@ use burn_ir::{
     TensorIr, UnaryOpIr,
 };
 
+use super::placements::TensorPlacements;
 use crate::{
     DimSplit, EmbeddingBackwardRule, EmbeddingRule, GroupPlacement, LinearRule, Linearity,
     MatmulRule, OpPlacement, PlacementShapes, ReduceRule, Reduction, ReshapeRule, WholeDimRule,
@@ -48,11 +49,7 @@ pub enum Execution {
 impl OpPlan {
     /// An op without a rule, or whose inputs would need two placements at once, gathers every
     /// input and runs whole on every member.
-    pub fn new(
-        op: &OperationIr,
-        placements: &HashMap<TensorId, GroupPlacement>,
-        members: usize,
-    ) -> Self {
+    pub fn new(op: &OperationIr, placements: &TensorPlacements, members: usize) -> Self {
         Analysis {
             placements,
             members,
@@ -100,7 +97,7 @@ impl OpPlan {
 }
 
 struct Analysis<'a> {
-    placements: &'a HashMap<TensorId, GroupPlacement>,
+    placements: &'a TensorPlacements,
     members: usize,
 }
 
@@ -190,7 +187,7 @@ impl Analysis<'_> {
             | NumericOperationIr::Lower(desc)
             | NumericOperationIr::LowerEqual(desc) => self.binary(Linearity::Nonlinear, desc),
             NumericOperationIr::MulScalar(desc) => self.scalar(Linearity::Linear, desc),
-            NumericOperationIr::DivScalar(desc) => self.scalar(Linearity::div_scalar(dtype), desc),
+            NumericOperationIr::DivScalar(desc) => self.scalar(Linearity::div(dtype), desc),
             NumericOperationIr::AddScalar(desc)
             | NumericOperationIr::SubScalar(desc)
             | NumericOperationIr::RemScalar(desc)
@@ -337,7 +334,6 @@ impl Analysis<'_> {
             ModuleOperationIr::LinearBiasBackward(desc) => self.linear_bias_backward(desc),
             ModuleOperationIr::Embedding(desc) => self.embedding(desc),
             ModuleOperationIr::EmbeddingBackward(desc) => self.embedding_backward(desc),
-            // No rule yet: these gather their inputs and run replicated.
             ModuleOperationIr::BatchNorm(_)
             | ModuleOperationIr::Conv1d(_)
             | ModuleOperationIr::Conv1dXBackward(_)
@@ -427,7 +423,8 @@ impl Analysis<'_> {
         self.elementwise(linearity, [&desc.lhs, &desc.rhs], &desc.out)
     }
 
-    /// Broadcasting lines up dims of the same index, so an input of another member has no rule.
+    /// Broadcasting lines up dims of the same index, so an input with another number of dims has
+    /// no rule.
     fn elementwise<const N: usize>(
         &self,
         linearity: Linearity,
@@ -688,10 +685,7 @@ impl Analysis<'_> {
     }
 
     fn placement(&self, tensor: &TensorIr) -> GroupPlacement {
-        *self
-            .placements
-            .get(&tensor.id)
-            .unwrap_or_else(|| panic!("{} has no placement on its device group", tensor.id))
+        self.placements.get(&tensor.id)
     }
 }
 

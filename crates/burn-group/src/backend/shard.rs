@@ -61,9 +61,9 @@ impl<B: BackendIr> ShardList<B> {
         placement: GroupPlacement,
         device: &B::Device,
     ) -> DynFut<Result<TensorData, ExecutionError>> {
-        let moved = self.shards.into_iter().map(|shard| shard.moved_to(device));
+        let mut moved = self.shards.into_iter().map(|shard| shard.moved_to(device));
         let whole = match placement {
-            GroupPlacement::Replicated => moved.take(1).next().expect("A group has a member"),
+            GroupPlacement::Replicated => moved.next().expect("A group has a member"),
             GroupPlacement::Sharded { dim } => Shard::concat(moved.collect(), dim),
             GroupPlacement::Partial => Shard::sum(moved.collect()),
         };

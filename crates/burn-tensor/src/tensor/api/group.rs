@@ -1,7 +1,8 @@
 use burn_dispatch::{DispatchDevice, backends::GroupPlacement};
 
 use crate::{
-    Device, Tensor,
+    Device, Tensor, check,
+    check::TensorCheck,
     kind::Basic,
     ops::{BridgeKind, BridgeTensor},
 };
@@ -15,17 +16,25 @@ impl<const D: usize, K: Basic> Tensor<D, K> {
     ///
     /// # Panics
     ///
-    /// When the tensor is not on a [device group](Device::group), or no collective produces
-    /// `placement`: a partial sum out of a whole tensor, or a split along a dim shorter than the
-    /// group.
+    /// When the tensor is quantized or not on a [device group](Device::group), when `placement`
+    /// is a partial sum and the tensor is not one, or when it splits a dim the tensor lacks or one
+    /// shorter than the group.
     pub fn place_in_group(self, placement: GroupPlacement) -> Self {
+        check!(TensorCheck::quantized_unsupported(
+            "Place In Group",
+            self.dtype()
+        ));
+        check!(TensorCheck::place_in_group::<D>(
+            self.group_placement(),
+            placement
+        ));
         let (kind, tensor) = self.primitive.into_parts();
         let placed = tensor.place_in_group(placement);
         Self::new(match kind {
             BridgeKind::Float => BridgeTensor::float(placed),
             BridgeKind::Int => BridgeTensor::int(placed),
             BridgeKind::Bool => BridgeTensor::bool(placed),
-            BridgeKind::QFloat => panic!("A quantized tensor is not split over a device group"),
+            BridgeKind::QFloat => unreachable!("A quantized tensor is refused above"),
         })
     }
 
@@ -42,9 +51,9 @@ impl Device {
     ///
     /// # Panics
     ///
-    /// When `devices` is empty or mixes backends, or when they are not Cube or Flex devices. For
-    /// autodiff, group the plain devices and call `autodiff` on the group.
-    /// Remote devices are left out: tensor parallelism needs links as fast as one machine's GPU
+    /// When `devices` is empty or mixes backends or runtimes, or when they are not Cube or Flex
+    /// devices. For autodiff, group the plain devices and call `autodiff` on the group. Remote
+    /// devices are left out: tensor parallelism needs links as fast as one machine's GPU
     /// interconnect.
     pub fn group(devices: &[Device]) -> Self {
         let members = devices

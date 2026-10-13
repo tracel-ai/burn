@@ -4,6 +4,8 @@ use alloc::format;
 use alloc::string::{String, ToString};
 use alloc::vec;
 use alloc::vec::Vec;
+#[cfg(feature = "group")]
+use burn_dispatch::backends::GroupPlacement;
 
 /// The struct should always be used with the [check](crate::check) macro.
 ///
@@ -1301,6 +1303,42 @@ impl TensorCheck {
                 .details(format!("got: {channels}, expected: {expected}")),
             );
         }
+        check
+    }
+
+    /// Checks a placement against the tensor's dims and its `current` placement, `None` off a
+    /// device group.
+    #[cfg(feature = "group")]
+    pub(crate) fn place_in_group<const D: usize>(
+        current: Option<GroupPlacement>,
+        placement: GroupPlacement,
+    ) -> Self {
+        let mut check = Self::Ok;
+        let Some(current) = current else {
+            return check.register(
+                "Place In Group",
+                TensorError::new("The tensor is not on a device group."),
+            );
+        };
+
+        if let GroupPlacement::Sharded { dim } = placement
+            && dim >= D
+        {
+            check = check.register(
+                "Place In Group",
+                TensorError::new("The sharded dim must be smaller than the tensor dimension.")
+                    .details(format!("Got dim {dim} for a tensor of {D} dimensions.")),
+            );
+        }
+
+        if placement == GroupPlacement::Partial && current != GroupPlacement::Partial {
+            check = check.register(
+                "Place In Group",
+                TensorError::new("Only a partial sum can be placed as a partial sum.")
+                    .details(format!("The tensor is {current:?}.")),
+            );
+        }
+
         check
     }
 

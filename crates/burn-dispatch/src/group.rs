@@ -26,13 +26,14 @@ impl DispatchTensor {
     ///
     /// # Panics
     ///
-    /// When the tensor is not on a device group, or no collective produces `placement`: a
-    /// partial sum out of a whole tensor, or a split along a dim shorter than the group.
+    /// When the tensor is quantized or not on a device group, or no collective produces
+    /// `placement`: a partial sum out of a tensor that is not one, or a split along a dim the
+    /// tensor lacks or one shorter than the group.
     pub fn place_in_group(self, placement: GroupPlacement) -> Self {
         let DispatchTensor { kind, autodiff } = self;
         let kind = match kind {
             DispatchTensorKind::Group(tensor) => {
-                DispatchTensorKind::Group(tensor.place_in_group(placement))
+                DispatchTensorKind::Group(place(tensor, placement))
             }
             #[cfg(feature = "autodiff")]
             DispatchTensorKind::Autodiff(inner) => {
@@ -108,25 +109,23 @@ impl<B: Backend> Backward<B, 1> for PlaceInGroup {
     }
 }
 
-impl BackendTensor<Group> {
-    fn place_in_group(self, placement: GroupPlacement) -> Self {
-        match self {
-            BackendTensor::Float(tensor) => {
-                BackendTensor::Float(tensor.client.clone().place(tensor, placement))
-            }
-            BackendTensor::Int(tensor) => {
-                BackendTensor::Int(tensor.client.clone().place(tensor, placement))
-            }
-            BackendTensor::Bool(tensor) => {
-                BackendTensor::Bool(tensor.client.clone().place(tensor, placement))
-            }
-            BackendTensor::Quantized(_) => {
-                panic!("A quantized tensor is not split over a device group")
-            }
-            #[cfg(feature = "autodiff")]
-            BackendTensor::Autodiff(_) => {
-                unreachable!("An autodiff tensor is wrapped in its own kind")
-            }
+fn place(tensor: BackendTensor<Group>, placement: GroupPlacement) -> BackendTensor<Group> {
+    match tensor {
+        BackendTensor::Float(tensor) => {
+            BackendTensor::Float(tensor.client.clone().place(tensor, placement))
+        }
+        BackendTensor::Int(tensor) => {
+            BackendTensor::Int(tensor.client.clone().place(tensor, placement))
+        }
+        BackendTensor::Bool(tensor) => {
+            BackendTensor::Bool(tensor.client.clone().place(tensor, placement))
+        }
+        BackendTensor::Quantized(_) => {
+            panic!("A quantized tensor is not split over a device group")
+        }
+        #[cfg(feature = "autodiff")]
+        BackendTensor::Autodiff(_) => {
+            unreachable!("An autodiff tensor is wrapped in its own kind")
         }
     }
 }

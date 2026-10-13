@@ -1,7 +1,8 @@
 mod channel;
 mod client;
 mod device;
-mod executor;
+mod interpreter;
+mod placements;
 mod plan;
 mod shard;
 

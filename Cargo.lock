@@ -1253,6 +1253,7 @@ dependencies = [
  "burn-backend",
  "burn-flex",
  "burn-ir",
+ "burn-linalg",
  "burn-router",
  "burn-std",
  "burn-tensor",

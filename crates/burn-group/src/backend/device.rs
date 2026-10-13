@@ -4,7 +4,7 @@ use burn_backend::{DeviceId, DeviceOps, DeviceSettings, RouterDeviceType};
 use burn_ir::BackendIr;
 use burn_std::{device::Device, sync::Mutex};
 
-use super::executor::{GroupExecutor, GroupInterpreter};
+use super::interpreter::{DynGroupInterpreter, GroupInterpreter};
 
 /// A group of devices, its members, that a tensor's shards are spread over.
 ///
@@ -27,11 +27,11 @@ impl GroupDevice {
             !devices.is_empty(),
             "A device group needs at least one device"
         );
-        let group = Group {
+        let group = RegisteredGroup {
             devices: devices.iter().map(DeviceOps::id).collect(),
             backend: TypeId::of::<B>(),
             settings: devices[0].defaults(),
-            interpreter: GroupExecutor::<B>::boxed,
+            interpreter: GroupInterpreter::<B>::boxed,
         };
         let mut groups = GROUPS.lock();
         let index = match groups
@@ -51,7 +51,7 @@ impl GroupDevice {
 
     /// The number of devices in the group.
     pub fn num_members(&self) -> usize {
-        Group::of(self).devices.len()
+        RegisteredGroup::read(self, |group| group.devices.len())
     }
 }
 
@@ -84,36 +84,40 @@ impl Device for GroupDevice {
 
 impl DeviceOps for GroupDevice {
     fn defaults(&self) -> DeviceSettings {
-        Group::of(self).settings
+        RegisteredGroup::read(self, |group| group.settings)
     }
 }
 
-static GROUPS: Mutex<Vec<Group>> = Mutex::new(Vec::new());
+static GROUPS: Mutex<Vec<RegisteredGroup>> = Mutex::new(Vec::new());
 
 /// What a [`GroupDevice`] stands for: its devices, their backend and how to run them.
 #[derive(Clone, Debug)]
-pub struct Group {
+pub struct RegisteredGroup {
     devices: Vec<DeviceId>,
     backend: TypeId,
     settings: DeviceSettings,
-    interpreter: fn(&[DeviceId]) -> Box<dyn GroupInterpreter>,
+    interpreter: fn(&[DeviceId]) -> Box<dyn DynGroupInterpreter>,
 }
 
-impl Group {
-    pub fn of(device: &GroupDevice) -> Self {
-        GROUPS
-            .lock()
-            .get(usize::from(device.index))
-            .cloned()
-            .expect("A device group is made with GroupDevice::new before it is used")
+impl RegisteredGroup {
+    pub fn new(device: &GroupDevice) -> Self {
+        Self::read(device, Clone::clone)
     }
 
     /// A new interpreter for the group's members, holding no tensors yet.
-    pub fn interpreter(&self) -> Box<dyn GroupInterpreter> {
+    pub fn interpreter(&self) -> Box<dyn DynGroupInterpreter> {
         (self.interpreter)(&self.devices)
     }
 
-    fn is_like(&self, other: &Group) -> bool {
+    fn read<R>(device: &GroupDevice, read: impl FnOnce(&Self) -> R) -> R {
+        let groups = GROUPS.lock();
+        let group = groups
+            .get(usize::from(device.index))
+            .expect("A device group is made with GroupDevice::new before it is used");
+        read(group)
+    }
+
+    fn is_like(&self, other: &Self) -> bool {
         self.devices == other.devices && self.backend == other.backend
     }
 }

@@ -30,7 +30,7 @@ fn megatron_mlp_on_a_device_group_matches_one_device() {
             ],
             "{members} members"
         );
-        split.assert_matches(reference);
+        split.assert_matches(&reference, &format!("{members} members"));
     }
 }
 
@@ -58,7 +58,7 @@ fn megatron_attention_on_a_device_group_matches_one_device() {
             ],
             "{members} members"
         );
-        split.assert_matches(reference);
+        split.assert_matches(&reference, &format!("{members} members"));
     }
 }
 
@@ -113,7 +113,7 @@ fn a_vocab_split_embedding_keeps_its_gradient_split() {
         let ids = Tensor::<2, burn_tensor::Int>::from_data(indices.clone(), device);
         let output = module::embedding(weights.clone(), ids);
         let scale = Tensor::<3>::from_data(values([2, 3, 4], 2), device);
-        let grads = (output.clone() * scale).mean().backward();
+        let grads = (output.clone() * scale).sum().backward();
         Run {
             output: output.inner().into_data(),
             grads: vec![Grad::new(weights.grad(&grads))],
@@ -128,14 +128,41 @@ fn a_vocab_split_embedding_keeps_its_gradient_split() {
             [Some(Sharded { dim: 0 })],
             "{members} members"
         );
-        split.assert_matches(Run {
-            output: reference.output.clone(),
-            grads: vec![Grad {
-                placement: None,
-                data: reference.grads[0].data.clone(),
-            }],
-        });
+        split.assert_matches(&reference, &format!("{members} members"));
     }
+}
+
+#[test]
+fn an_svd_on_a_device_group_matches_one_device() {
+    let data = values([5, 3], 1);
+    let svd = |tensor: Tensor<2>| {
+        let (u, s, vt) = burn_linalg::svd::<2, 1>(tensor, 15);
+        [u.into_data(), s.into_data(), vt.into_data()]
+    };
+    let expected = svd(Tensor::from_data(data.clone(), &Device::flex()));
+
+    let split = Tensor::<2>::from_data(data, &group(2)).place_in_group(Sharded { dim: 0 });
+    for (actual, expected) in svd(split).iter().zip(&expected) {
+        actual.assert_approx_eq::<f32>(expected, tolerance());
+    }
+}
+
+#[test]
+#[should_panic(expected = "The sharded dim must be smaller than the tensor dimension")]
+fn a_split_along_a_dim_the_tensor_lacks_is_refused() {
+    Tensor::<2>::zeros([4, 6], &group(2)).place_in_group(Sharded { dim: 2 });
+}
+
+#[test]
+#[should_panic(expected = "Only a partial sum can be placed as a partial sum")]
+fn a_whole_tensor_is_not_placed_as_a_partial_sum() {
+    Tensor::<2>::zeros([4, 6], &group(2)).place_in_group(Partial);
+}
+
+#[test]
+#[should_panic(expected = "A device group needs at least one device")]
+fn an_empty_group_is_refused() {
+    Device::group(&[]);
 }
 
 /// What a forward and backward pass produced: the output, then each leaf's gradient.
@@ -164,14 +191,25 @@ impl Run {
         self.grads.iter().map(|grad| grad.placement).collect()
     }
 
-    fn assert_matches(self, expected: Run) {
-        self.output
-            .assert_approx_eq::<f32>(&expected.output, tolerance());
-        for (actual, expected) in self.grads.into_iter().zip(expected.grads) {
-            actual
-                .data
-                .assert_approx_eq::<f32>(&expected.data, tolerance());
+    fn assert_matches(self, expected: &Run, case: &str) {
+        assert_close(&self.output, &expected.output, &format!("{case}, output"));
+        assert_eq!(self.grads.len(), expected.grads.len(), "{case}");
+        for (leaf, (actual, expected)) in self.grads.iter().zip(&expected.grads).enumerate() {
+            let case = format!("{case}, gradient of leaf {leaf}");
+            assert_close(&actual.data, &expected.data, &case);
         }
+    }
+}
+
+fn assert_close(actual: &TensorData, expected: &TensorData, case: &str) {
+    assert_eq!(actual.shape(), expected.shape(), "{case}");
+    let tolerance = tolerance();
+    let pairs = actual.iter::<f32>().zip(expected.iter::<f32>());
+    for (position, (actual, expected)) in pairs.enumerate() {
+        assert!(
+            tolerance.approx_eq(actual, expected),
+            "{case}, position {position}: {actual} against {expected}"
+        );
     }
 }
 
@@ -191,7 +229,7 @@ fn mlp(device: &Device, [px, pw1, pb1, pw2, pb2]: [GroupPlacement; 5]) -> Run {
     let hidden = activation::relu(module::linear(x.clone(), w1.clone(), Some(b1.clone())));
     let output = module::linear(hidden, w2.clone(), Some(b2.clone()));
     let target = Tensor::from_data(values([BATCH, D_OUT], 6), device);
-    let grads = (output.clone() - target).square().mean().backward();
+    let grads = (output.clone() - target).square().sum().backward();
     Run {
         output: output.inner().into_data(),
         grads: vec![
@@ -230,7 +268,7 @@ fn attention(device: &Device, [pq, pk, pv, po]: [GroupPlacement; 4]) -> Run {
         .swap_dims(1, 2)
         .reshape([BATCH, SEQ, EMBED]);
     let output = module::linear(context, wo.clone(), None) + x.clone();
-    let grads = output.clone().square().mean().backward();
+    let grads = output.clone().square().sum().backward();
     Run {
         output: output.inner().into_data(),
         grads: vec![
@@ -248,12 +286,12 @@ fn group(members: usize) -> Device {
     Device::group(&devices)
 }
 
-#[cfg(feature = "cuda")]
+#[cfg(feature = "test-cuda")]
 fn member_devices() -> Vec<Device> {
     Device::enumerate(burn_tensor::DeviceType::Cuda).to_vec()
 }
 
-#[cfg(not(feature = "cuda"))]
+#[cfg(not(feature = "test-cuda"))]
 fn member_devices() -> Vec<Device> {
     vec![Device::flex()]
 }
@@ -275,13 +313,14 @@ fn values<const D: usize>(shape: [usize; D], seed: usize) -> TensorData {
     TensorData::new(values, shape)
 }
 
-#[cfg(not(feature = "cuda"))]
+#[cfg(not(feature = "test-cuda"))]
 fn tolerance() -> Tolerance<f32> {
     Tolerance::rel_abs(1e-4, 1e-5)
 }
 
-/// CUDA rounds an f32 matmul's operands through TF32 for some shapes, and a split changes them.
-#[cfg(feature = "cuda")]
+/// CUDA's TF32 matmuls put attention's gradients about 1% off Flex; a lost or doubled summand is
+/// off by far more.
+#[cfg(feature = "test-cuda")]
 fn tolerance() -> Tolerance<f32> {
-    Tolerance::permissive()
+    Tolerance::rel_abs(3e-2, 1e-2)
 }

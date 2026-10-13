@@ -33,6 +33,7 @@ cpu = ["cubecl-backend", "burn-core/cpu"]
 flex = ["burn-core/flex"]
 remote = ["burn-core/remote", "router"]
 capture = ["burn-core/capture", "router"]
+group = ["burn-core/group", "router"]
 router = ["burn-router"]
 
 [dependencies]

@@ -1,5 +1,6 @@
 use std::ops::Range;
 
+use burn_ir::TensorIr;
 use burn_std::Shape;
 
 /// How a tensor's shards, one per member of its group, make up its value.
@@ -21,6 +22,9 @@ pub trait PlacementShapes {
 
     /// The shape of the shard `member` holds of a tensor of global `shape`.
     fn local_shape(self, shape: &Shape, member: usize, members: usize) -> Shape;
+
+    /// The shard `member` holds of `tensor`, as its own interpreter knows it.
+    fn local_tensor(self, tensor: &TensorIr, member: usize, members: usize) -> TensorIr;
 
     /// The placement of a tensor's permutation by `axes`: the sharded dim follows its axis.
     fn permuted(self, axes: &[usize]) -> Self;
@@ -44,6 +48,13 @@ impl PlacementShapes for GroupPlacement {
             local[dim] = DimSplit::new(shape[dim], members).range(member).len();
         }
         local
+    }
+
+    fn local_tensor(self, tensor: &TensorIr, member: usize, members: usize) -> TensorIr {
+        TensorIr {
+            shape: self.local_shape(&tensor.shape, member, members),
+            ..tensor.clone()
+        }
     }
 
     fn permuted(self, axes: &[usize]) -> Self {

@@ -1,6 +1,7 @@
 use burn_autodiff::Autodiff;
 use burn_backend::{
-    AutodiffBackend, Backend, DType, Scalar, Shape, Slice, TensorData, TensorMetadata,
+    AutodiffBackend, Backend, DType, FloatDType, Scalar, Shape, Slice, TensorData, TensorMetadata,
+    get_or_init_device_settings,
     ops::{FloatTensorOps, IntTensorOps},
     tensor::{FloatTensor, IntTensor},
 };
@@ -218,6 +219,48 @@ fn matmuls_match_one_device_for_every_placement() {
 }
 
 #[test]
+fn linear_and_activation_backwards_match_one_device_for_every_placement() {
+    for members in MEMBERS {
+        let (x, weight, output_grad) = (data([2, 4, 6], 1), data([6, 5], 2), data([2, 4, 5], 3));
+        check_binary!(members, &weight, &output_grad, |B, weight, output_grad| {
+            B::linear_x_backward(weight, output_grad)
+        });
+        check_binary!(members, &x, &output_grad, |B, x, output_grad| {
+            B::linear_weight_backward(x, output_grad)
+        });
+        check_unary!(members, &output_grad, |B, output_grad| {
+            B::linear_bias_backward(output_grad)
+        });
+        let (output, grad) = (data([4, 6], 4), data([4, 6], 5));
+        check_binary!(members, &output, &grad, |B, output, grad| B::relu_backward(
+            output, grad
+        ));
+    }
+}
+
+#[test]
+fn masks_comparisons_and_casts_match_one_device_for_every_placement() {
+    for members in MEMBERS {
+        let (input, other) = (data([4, 6], 1), data([4, 6], 2));
+        check_binary!(members, &input, &other, |B, a, b| {
+            let bool_dtype = get_or_init_device_settings::<B>(&a.device()).bool_dtype;
+            let rounded = |tensor: &FloatTensor<B>| B::float_round(tensor.clone());
+            let equal = B::float_equal(rounded(&a), rounded(&b), bool_dtype);
+            B::float_mask_where(a, equal, b)
+        });
+        check_unary!(members, &input, |B, a| {
+            let bool_dtype = get_or_init_device_settings::<B>(&a.device()).bool_dtype;
+            let positive = B::float_greater_elem(a.clone(), Scalar::Float(0.0), bool_dtype);
+            B::float_mask_fill(a, positive, Scalar::Float(0.0))
+        });
+        check_unary!(members, &input, |B, a| B::float_cast(
+            B::float_cast(a, FloatDType::F64),
+            FloatDType::F32
+        ));
+    }
+}
+
+#[test]
 fn reductions_and_softmax_match_one_device_for_every_placement() {
     for members in MEMBERS {
         let input = data([4, 3, 5], 1);
@@ -247,6 +290,8 @@ fn layout_ops_match_one_device_for_every_placement() {
             check_unary!(members, &input, [shape: Shape] |B, a| B::float_reshape(a, shape));
         }
         check_unary!(members, &input, |B, a| B::float_swap_dims(a, 0, 1));
+        check_unary!(members, &input, |B, a| B::float_flip(a, &[0]));
+        check_unary!(members, &input, |B, a| B::float_flip(a, &[1]));
         check_unary!(members, &input, |B, a| B::float_expand(
             a,
             Shape::new([3, 4, 6])
@@ -327,7 +372,7 @@ fn integer_division_of_a_partial_sum_matches_one_device() {
 }
 
 #[test]
-#[should_panic(expected = "Cannot place")]
+#[should_panic(expected = "No collective places")]
 fn a_dim_shorter_than_the_group_is_not_split() {
     let device = group(3);
     place(
@@ -514,6 +559,7 @@ impl<B: AutodiffBackend> Placed<B> {
             read::<E::InnerBackend>(expected.output),
             case,
         );
+        assert_eq!(self.grads.len(), expected.grads.len(), "{case}");
         for (actual, expected) in self.grads.into_iter().zip(expected.grads) {
             assert_close(
                 read::<B::InnerBackend>(actual),

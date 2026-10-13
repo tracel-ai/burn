@@ -25,8 +25,9 @@ pub enum Redistribution {
 }
 
 impl Redistribution {
-    /// `None` when nothing can produce the target: a partial sum out of a whole tensor, or a
-    /// split along a dim shorter than the group, which would leave a member empty.
+    /// `None` when nothing can produce the target: a partial sum out of a tensor that is not one,
+    /// or a split along a dim the tensor lacks or one shorter than the group, which would leave a
+    /// member empty.
     pub fn new(
         from: GroupPlacement,
         to: GroupPlacement,
@@ -34,7 +35,7 @@ impl Redistribution {
         members: usize,
     ) -> Option<Self> {
         if let Sharded { dim } = to
-            && shape[dim] < members
+            && (dim >= shape.num_dims() || shape[dim] < members)
         {
             return None;
         }
@@ -51,5 +52,32 @@ impl Redistribution {
             (Replicated | Sharded { .. }, Partial) => return None,
         };
         Some(redistribution)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_split_along_a_dim_the_tensor_lacks_has_no_collective() {
+        let redistribution =
+            Redistribution::new(Replicated, Sharded { dim: 2 }, &Shape::new([4, 6]), 2);
+
+        assert_eq!(redistribution, None);
+    }
+
+    #[test]
+    fn only_a_partial_sum_stays_partial() {
+        let shape = Shape::new([4, 6]);
+
+        assert_eq!(
+            Redistribution::new(Sharded { dim: 0 }, Partial, &shape, 2),
+            None
+        );
+        assert_eq!(
+            Redistribution::new(Partial, Partial, &shape, 2),
+            Some(Redistribution::Keep)
+        );
     }
 }

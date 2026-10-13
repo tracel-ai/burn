@@ -27,14 +27,6 @@ impl Linearity {
         }
     }
 
-    /// Integer division rounds each summand, so only a float quotient stays partial.
-    pub fn div_scalar(dtype: DType) -> Self {
-        match dtype.is_float() {
-            true => Linearity::Linear,
-            false => Linearity::Nonlinear,
-        }
-    }
-
     /// Where the inputs must be for the op to run on every member, and where its output lands.
     pub fn placement<const N: usize>(
         self,

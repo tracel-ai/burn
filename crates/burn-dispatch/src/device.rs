@@ -410,15 +410,21 @@ impl DispatchDevice {
     ///
     /// # Panics
     ///
-    /// When `devices` is empty or mixes backends, or when they are not Cube or Flex devices. An
-    /// autodiff group is a group of plain devices made autodiff afterwards. Remote devices are left
-    /// out: tensor parallelism needs links as fast as one machine's GPU interconnect.
+    /// When `devices` is empty or mixes backends or runtimes, or when they are not Cube or Flex
+    /// devices. An autodiff group is a group of plain devices made autodiff afterwards. Remote
+    /// devices are left out: tensor parallelism needs links as fast as one machine's GPU
+    /// interconnect.
     #[cfg(feature = "group")]
     pub fn group(devices: Vec<DispatchDevice>) -> Self {
         Self::Group(match devices.first() {
             #[cfg(cube_backend)]
-            Some(Self::Cube(_)) => {
-                GroupDevice::new::<crate::backends::Cube>(&members!(devices, Cube))
+            Some(Self::Cube(first)) => {
+                let runtime = first.runtime();
+                let members = members!(devices, Cube);
+                if let Some(other) = members.iter().find(|member| member.runtime() != runtime) {
+                    panic!("A device group runs one runtime, not {other:?} beside {runtime:?}")
+                }
+                GroupDevice::new::<crate::backends::Cube>(&members)
             }
             #[cfg(feature = "flex")]
             Some(Self::Flex(_)) => {
@@ -434,7 +440,8 @@ impl DispatchDevice {
                 "Remote devices cannot form a device group: tensor parallelism needs links as \
                  fast as one machine's GPU interconnect"
             ),
-            other => panic!("A device group's members run on Cube or Flex, not {other:?}"),
+            Some(other) => panic!("A device group's members run on Cube or Flex, not {other:?}"),
+            None => panic!("A device group needs at least one device"),
         })
     }
 

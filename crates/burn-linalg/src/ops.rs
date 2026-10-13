@@ -16,6 +16,7 @@ use burn_std::reader::try_read_sync;
     )),
     Remote: cfg(feature = "remote"),
     Capture: cfg(feature = "capture"),
+    Group: cfg(feature = "group"),
 )]
 pub trait LinalgOps: Backend {
     /// Computes a reduced singular value decomposition.
