@@ -596,6 +596,34 @@ impl FloatTensorOps<Self> for CubeBackend {
         unary_basic::launch::<_>(tensor, |_| BasicFloatUnaryKind::Log1p)
     }
 
+    fn float_powi_scalar_impl(lhs: FloatTensor<Self>, rhs: Scalar) -> FloatTensor<Self> {
+        let exponent = rhs.elem::<f64>();
+        // CubeCL's powi takes i32; preserve the fallback rather than narrowing the exponent.
+        if f64::from(exponent as i32) != exponent {
+            return Self::float_powf_scalar_impl(lhs, rhs);
+        }
+
+        struct Powi;
+
+        #[cube]
+        impl<F: Float, N: Size> FloatUnaryOp<F, N> for Powi {
+            type Options = InputScalar;
+
+            fn execute(input: Vector<F, N>, options: &Self::Options) -> Vector<F, N> {
+                Vector::powi(input, Vector::new(options.get::<i32>()))
+            }
+        }
+
+        impl FloatUnaryOpFamily for Powi {
+            type Options = InputScalar;
+            type Unary<F: Float, N: Size> = Self;
+        }
+
+        launch_unary_float::<Powi, _>(lhs, |_| {
+            InputScalar::new(exponent as i32, dtype_to_storage_type(DType::I32))
+        })
+    }
+
     fn float_powf_scalar_impl(lhs: FloatTensor<Self>, rhs: Scalar) -> FloatTensor<Self> {
         struct Powf;
 

@@ -272,6 +272,7 @@ fn fuse(
             FuseOp::Sub(op) => sub::<E, N>(inputs, outputs, locals, pos, op, config),
             FuseOp::Mul(op) => mul::<E, N>(inputs, outputs, locals, pos, op, config),
             FuseOp::Powf(op) => powf::<E, N>(inputs, outputs, locals, pos, op, config),
+            FuseOp::Powi(op) => powi::<E, N>(inputs, outputs, locals, pos, op, config),
             FuseOp::Erf(op) => erf::<E, N>(inputs, outputs, locals, pos, op, config),
             FuseOp::Sqrt(op) => sqrt::<E, N>(inputs, outputs, locals, pos, op, config),
             FuseOp::Abs(op) => abs::<E, N>(inputs, outputs, locals, pos, op, config),
@@ -1151,6 +1152,22 @@ comparison_op!(lower, Vector::<C, N>::less_than);
 comparison_op!(lower_equal, Vector::<C, N>::less_equal);
 
 binary_func!(powf, Vector::<C, N>::powf, Float);
+
+#[cube]
+fn powi<C: Float, N: Size>(
+    inputs: &GlobalArgs,
+    outputs: &mut GlobalArgs,
+    locals: &mut LocalArgs,
+    write_pos: usize,
+    #[comptime] op: BinaryFuseArgs,
+    #[comptime] config: &FuseBlockConfig,
+) {
+    let lhs = read::<C, N>(inputs, &*outputs, &*locals, write_pos, op.lhs, config);
+    let rhs = read::<i32, N>(inputs, &*outputs, &*locals, write_pos, op.rhs, config);
+    let result = lhs.powi(rhs);
+    write::<C, N>(inputs, outputs, locals, write_pos, result, op.out, config);
+}
+
 binary_func!(rem, Vector::<C, N>::mod_floor, Float);
 
 unary_func!(exp, Vector::<C, N>::exp, Float);
