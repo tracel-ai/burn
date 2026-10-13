@@ -394,9 +394,11 @@ impl TensorCheck {
         num_classes: usize,
     ) -> Self {
         let mut check = Self::Ok;
+        // `one_hot_fill` keeps an off_value row for out-of-range indices; `one_hot` rejects them
         if index_tensor
             .clone()
             .greater_equal_scalar(num_classes as i32)
+            .bool_or(index_tensor.clone().lower_scalar(-(num_classes as i32)))
             .any()
             .into_scalar::<i64>()
             .to_bool()
@@ -404,7 +406,7 @@ impl TensorCheck {
             check = check.register(
                 "One Hot",
                 TensorError::new(format!(
-                    "Can't create a one hot tensor from ({index_tensor:?}) containing indexes greater or equal to the number of classes ({num_classes})",
+                    "Can't create a one hot tensor from ({index_tensor:?}) containing indexes outside [-{num_classes}, {num_classes})",
                 )),
             );
         } else if num_classes <= 1 {

@@ -270,6 +270,12 @@ where
 
     /// Create a one hot tensor.
     ///
+    /// # Panics
+    ///
+    /// If an index is outside `[-num_classes, num_classes)`, if `num_classes` is less than 2, or if
+    /// the tensor is quantized. Use [`one_hot_fill`](Tensor::one_hot_fill) to get an `off_value` row
+    /// for out-of-range indices instead.
+    ///
     /// # Example
     ///
     /// ```rust
@@ -302,6 +308,10 @@ where
     /// # Returns
     ///
     /// A tensor with one additional dimension for the one-hot encoding, where active positions are filled with `on_value` and others with `off_value`.
+    ///
+    /// Indices outside `[-num_classes, num_classes)` produce a row filled with `off_value`, as in
+    /// ONNX `OneHot`. With `num_classes == 0`, every index is out of range and the one-hot
+    /// dimension is empty. Use [`one_hot`](Tensor::one_hot) to reject out-of-range indices instead.
     ///
     /// # Panics
     ///
@@ -340,19 +350,34 @@ where
         let indices: Tensor<D, Int> = Tensor::from_data(self.to_data().convert::<i64>(), &device);
         // Insert the new dimension for the one-hot representation
         shape.insert(axis, num_classes);
-        // Adjust indices to valid range and handle invalid indices
-        let adjusted_indices = indices
-            .clone()
-            .mask_fill(self.clone().lower_scalar(0), num_classes as i64) // Handle negative indices
-            .add(indices.clone().mask_fill(self.clone().greater_scalar(0), 0)); // Handle positive indices
-
-        // Unsqueeze the indices tensor along the specified axis
-        let indices_unsqueezed: Tensor<D2, Int> = adjusted_indices.unsqueeze_dim(axis);
 
         // Initialize the output tensor with the off_value
         let output = Tensor::full(shape.clone(), off_value, (&device, dtype));
 
-        let on_values = Tensor::full(indices_unsqueezed.shape(), on_value, (&device, dtype));
+        // Every index is out of range: the one-hot dimension is empty and there is nothing to scatter
+        if num_classes == 0 {
+            return output;
+        }
+
+        // Indices outside [-num_classes, num_classes) keep an off_value row
+        let out_of_range = indices
+            .clone()
+            .lower_scalar(-(num_classes as i64))
+            .bool_or(indices.clone().greater_equal_scalar(num_classes as i64));
+
+        // Adjust indices to valid range and handle invalid indices
+        let adjusted_indices = indices
+            .clone()
+            .mask_fill(self.clone().lower_scalar(0), num_classes as i64) // Handle negative indices
+            .add(indices.clone().mask_fill(self.clone().greater_scalar(0), 0)) // Handle positive indices
+            .mask_fill(out_of_range.clone(), 0); // Point out-of-range indices at a valid class
+
+        // Unsqueeze the indices tensor along the specified axis
+        let indices_unsqueezed: Tensor<D2, Int> = adjusted_indices.unsqueeze_dim(axis);
+
+        // Out-of-range positions scatter off_value, so their row stays unchanged
+        let on_values = Tensor::full(indices_unsqueezed.shape(), on_value, (&device, dtype))
+            .mask_fill(out_of_range.unsqueeze_dim(axis), off_value);
 
         // Scatter on_value at the appropriate indices to create the one-hot representation
         output.scatter(

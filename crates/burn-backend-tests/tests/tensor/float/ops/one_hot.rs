@@ -101,3 +101,16 @@ fn one_hot_fill_should_keep_dtype() {
         .into_data()
         .assert_eq(&TensorData::from([[5.0, 1.0, 1.0], [1.0, 1.0, 5.0]]), false);
 }
+
+#[test]
+fn one_hot_fill_out_of_range_float_indices_give_off_value_rows() {
+    let tensor = TestTensor::<2>::from([[0.0, 3.0], [-5.0, 1.0]]);
+
+    let one_hot_tensor: TestTensor<3> = tensor.one_hot_fill(3, 5.0, 0.0, -1);
+
+    let expected = TensorData::from([
+        [[5.0, 0.0, 0.0], [0.0, 0.0, 0.0]],
+        [[0.0, 0.0, 0.0], [0.0, 5.0, 0.0]],
+    ]);
+    one_hot_tensor.into_data().assert_eq(&expected, false);
+}
