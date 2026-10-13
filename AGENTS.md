@@ -36,8 +36,9 @@ For tensor operations, trace the public API through the bridge and dispatch laye
 implementation. Consider the applicable autodiff, IR, fusion, and router paths as well. The
 [operation guide](contributor-book/src/guides/adding-a-new-operation-to-burn.md) explains where each
 part belongs and which tests it needs. Decorator backends (autodiff, fusion, router, dispatch) fall
-back to default decompositions and capability flags unless they override them, so an operation that
-is not forwarded through them silently loses its dedicated implementation.
+back to default decompositions and capability flags unless they override them. Check whether an
+inherited default loses required behavior or intended acceleration; some defaults are intentional,
+such as fusion keeping `linear` decomposed to preserve downstream fusion.
 
 - Keep changes focused. Separate mechanical moves and renames from behavior changes so the diff can
   be reviewed independently.
@@ -94,9 +95,16 @@ Start with checks and tests for the affected crates and backend. Follow the
 [testing guide](contributor-book/src/getting-started/testing.md) for shared tensor and autodiff
 suites, backend aliases, and fusion configurations. Include regression coverage for bug fixes.
 
-Tests should assert values, not only shapes, using inputs that distinguish a correct implementation
-from a plausible wrong one. Put behavior shared across backends in `burn-backend-tests`. Check that
-dependency updates do not change unrelated entries in `Cargo.lock`.
+Keep tests focused on behavior introduced or changed by the PR. Each case should catch a distinct
+plausible failure, using inputs that distinguish a correct implementation from a plausible wrong
+one. Numerical operations need value checks; changes to shapes, metadata, or input validation should
+test that behavior directly. Avoid redundant cases, assertions that mirror the implementation, and
+unrelated edge cases. Extend existing tests or shared suites (`burn-backend-tests` for behavior
+shared across backends) instead of duplicating coverage across layers. Prefer a small,
+discriminating set over exhaustive combinations unless those combinations exercise different
+behavior.
+
+Check that dependency updates do not change unrelated entries in `Cargo.lock`.
 
 The repository validation commands, run from the repository root, are:
 

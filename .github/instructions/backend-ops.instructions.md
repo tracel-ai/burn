@@ -4,15 +4,16 @@ applyTo: "crates/burn-backend/**,crates/burn-autodiff/**,crates/burn-fusion/**,c
 
 # Backend Operations
 
-An operation reaches a backend through several layers, and each one must handle it. See the
+An operation reaches a backend through several layers, and each one should be checked. See the
 [operation guide](../../contributor-book/src/guides/adding-a-new-operation-to-burn.md).
 
 - Backend trait methods should be required, not `unimplemented!()` defaults. A default panics for
   every backend that relies on it, and under fusion the panic surfaces at the next flush rather than
   at the call.
-- Decorator backends (autodiff, fusion, router, dispatch) must override new operations and
-  capability flags. Without an override they inherit the default decomposition, so a dedicated
-  kernel or backward pass is silently skipped.
+- When a decorator backend (autodiff, fusion, router, dispatch) inherits a default, check whether
+  the default loses required behavior or intended acceleration, such as a dedicated kernel, a
+  backward pass, or a capability flag like `has_ctc_loss_backward`. Some defaults are intentional:
+  fusion keeps `linear` decomposed so its matmul and add can fuse with neighboring operations.
 - New operations in `burn-ir` should reuse existing IR types and the `impl_ir_create!` macro where
   the shape and semantics match, and represent scalars with `ScalarIr`.
 - A fusion change that turns a decomposed operation into an opaque one stops neighboring operations

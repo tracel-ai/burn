@@ -1,7 +1,6 @@
 # Copilot Code Review
 
-Read [AGENTS.md](../AGENTS.md) for the repository layout, architecture, and conventions. These notes
-cover how to review a pull request in this repository.
+See [AGENTS.md](../AGENTS.md) for layout, architecture, and conventions. These notes cover review.
 
 ## Priorities
 
@@ -11,9 +10,11 @@ Skip a finding you cannot back with the code in this checkout.
 
 Look closely for:
 
-- A new or changed backend operation that is not forwarded through every layer. Autodiff, fusion,
-  router, dispatch, and IR fall back to default decompositions or capability flags (for example
-  `has_ctc_loss_backward`) unless they override them, so the change silently does not take effect.
+- A backend operation whose dedicated implementation is lost in a decorator layer. Autodiff,
+  fusion, router, and dispatch inherit default decompositions and capability flags (for example
+  `has_ctc_loss_backward`) unless they override them. Some defaults are intentional, such as fusion
+  keeping operations decomposed so they fuse with neighbors; flag a default only when it loses
+  required behavior or intended acceleration.
 - `unimplemented!()` or `todo!()` defaults on trait methods, or panics reachable from public APIs on
   normal inputs, such as quantized (`QFloat`) tensors, zero-sized dimensions, or unsupported dtypes.
 - Hardcoded `f32` or `i64` where the dtype should come from the input. Epsilons should come from the
@@ -34,9 +35,12 @@ Look closely for:
 
 ## Tests
 
-- Tests should check values, not only shapes. Inputs should be able to tell a correct implementation
-  from a plausible wrong one: avoid all-ones or symmetric data, `arange` inputs where indices equal
-  values, and configurations where two modes produce the same result.
+- Tests should assert the behavior under test: numerical operations need value checks, not only
+  shapes. Inputs should be able to tell a correct implementation from a plausible wrong one: avoid
+  all-ones or symmetric data, `arange` inputs where indices equal values, and configurations where
+  two modes produce the same result.
+- Redundant or low-value tests are a finding too: cases that catch the same failure, assertions
+  that mirror the implementation, and edge cases unrelated to the change.
 - A bug fix needs a regression test that fails without the fix. New validation needs a
   `#[should_panic(expected = ...)]` test.
 - Behavior shared across backends belongs in `burn-backend-tests`, gated by backend features rather
@@ -50,8 +54,8 @@ Look closely for:
 - Asking a focused PR to fix pre-existing issues or refactor surrounding code. If a pre-existing
   issue is serious, mention it once as out of scope.
 - Speculative failures that need malformed internal data or invariants the code already guarantees.
-- Performance suggestions without a clear hot path or a cost the change introduces. `clone()` on
-  tensors and `to_contiguous()` on contiguous tensors are cheap.
+- Performance suggestions without a clear hot path or a cost the change introduces. Cloning a
+  tensor is cheap because it shares the underlying buffer.
 - Replacing `unwrap()` in examples and tests, or style preferences already handled by rustfmt and
   clippy.
 - Repeating the same finding on every occurrence. Report it once and list the other locations.
