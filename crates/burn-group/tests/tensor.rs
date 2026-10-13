@@ -165,6 +165,21 @@ fn an_empty_group_is_refused() {
     Device::group(&[]);
 }
 
+#[test]
+fn groups_of_the_same_devices_are_apart() {
+    let (first, second) = (group(2), group(2));
+    assert_ne!(first, second);
+
+    let data = values([4], 1);
+    let tensor = Tensor::<1>::from_data(data.clone(), &first).place_in_group(Sharded { dim: 0 });
+    let moved = tensor.clone().to_device(&second);
+    assert_eq!(tensor.group_placement(), Some(Sharded { dim: 0 }));
+    assert_eq!(moved.group_placement(), Some(Replicated));
+    moved
+        .into_data()
+        .assert_approx_eq::<f32>(&data, tolerance());
+}
+
 /// What a forward and backward pass produced: the output, then each leaf's gradient.
 struct Run {
     output: TensorData,

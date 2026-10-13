@@ -406,7 +406,8 @@ impl DispatchDevice {
         Self::Capture(CaptureDevice::default())
     }
 
-    /// A group of `devices`, its members, that each tensor is split over.
+    /// A new group of `devices`, its members, that each tensor is split over, apart from every
+    /// other group.
     ///
     /// # Panics
     ///

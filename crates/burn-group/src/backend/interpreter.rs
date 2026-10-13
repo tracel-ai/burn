@@ -1,8 +1,7 @@
 use std::{collections::HashMap, ops::Range};
 
 use burn_backend::{
-    BoolDType, DType, DTypeUsageSet, DeviceId, ExecutionError, Scalar, Shape, TensorData,
-    TensorMetadata,
+    BoolDType, DType, DTypeUsageSet, ExecutionError, Scalar, Shape, TensorData, TensorMetadata,
     tensor::{BoolTensor, FloatTensor, IntTensor},
 };
 use burn_ir::{
@@ -11,7 +10,7 @@ use burn_ir::{
     TensorIr, TensorStatus,
 };
 use burn_router::{Graph, TensorInterpreter};
-use burn_std::{device::Device, future::DynFut};
+use burn_std::future::DynFut;
 
 use super::{
     placements::TensorPlacements,
@@ -20,13 +19,33 @@ use super::{
 };
 use crate::{DimSplit, EmbeddingRule, GroupPlacement, PlacementShapes, Redistribution};
 
-/// A device group's interpreter, whatever backend its members run: what its client asks of it.
+/// A device group's [`GroupInterpreter`] as a trait object, so the [`GroupClient`] of every group
+/// has one type whatever backend the members run.
+///
+/// An interpreter is burn-router's name for what executes the IR a
+/// [`RouterClient`](burn_router::RouterClient) sends, as [`TensorInterpreter`] does for one
+/// device. The group's client forwards each of its calls here, and the interpreter carries it out
+/// on every member at once.
+///
+/// [`GroupClient`]: super::GroupClient
 pub trait DynGroupInterpreter: Send {
+    /// A fresh id for a tensor the client is about to create.
     fn new_tensor_id(&mut self) -> TensorId;
+
+    /// Where the shards of the tensor `id` sit.
+    ///
+    /// # Panics
+    ///
+    /// When the tensor is not on the group.
     fn placement(&self, id: &TensorId) -> GroupPlacement;
-    /// Every member holds the whole value.
+
+    /// A new tensor holding `data`, replicated: every member holds the whole value.
     fn register_tensor_data(&mut self, data: TensorData) -> TensorId;
+
+    /// Runs `op` on every member's shards, after moving each input to the placement the op's
+    /// rule asks for.
     fn register_op(&mut self, op: OperationIr);
+
     /// The same value at another placement, under a new id.
     ///
     /// # Panics
@@ -34,24 +53,44 @@ pub trait DynGroupInterpreter: Send {
     /// When no collective produces `placement`: a partial sum out of a tensor that is not one, or a
     /// split along a dim the tensor lacks or one shorter than the group.
     fn place(&mut self, tensor: TensorIr, placement: GroupPlacement) -> TensorId;
+
+    /// The whole value of `tensor`, its shards gathered onto the first member and read there.
     fn read(&mut self, tensor: TensorIr) -> DynFut<Result<TensorData, ExecutionError>>;
+
+    /// Makes `new_id` a second handle on the shards of `src_id`, at the same placement.
     fn register_alias(&mut self, new_id: TensorId, src_id: TensorId);
+
+    /// Keeps `relative_graph` under `graph_id` for replay, and runs it once with `bindings`.
     fn register_graph(
         &mut self,
         graph_id: GraphId,
         relative_graph: Vec<OperationIr>,
         bindings: GraphBindings,
     );
+
+    /// Replays the graph kept under `graph_id` with `bindings`, each op planned at the placements
+    /// its bound tensors have now.
     fn execute_graph(&mut self, graph_id: GraphId, bindings: GraphBindings);
+
+    /// Waits for every member's work to finish, returning first any error a flush kept.
     fn sync(&mut self) -> Result<(), ExecutionError>;
+
+    /// Submits every member's queued work without waiting, keeping the first error for
+    /// [`sync`](Self::sync).
     fn flush(&mut self);
+
+    /// Seeds every member's backend.
     fn seed(&self, seed: u64);
+
     /// What every member can do with `dtype`, since each op runs on all of them.
     fn dtype_usage(&self, dtype: DType) -> DTypeUsageSet;
 }
 
-/// Runs every op of a device group on each member's interpreter, with each tensor at the
-/// placement its op's rule asks for.
+/// The interpreter of a group whose members run `B`: one [`TensorInterpreter`] per member, and
+/// where each tensor's shards sit.
+///
+/// Each op is planned from its inputs' placements, its inputs are moved where the plan asks, and
+/// every member's interpreter then runs the op on its own shards.
 pub struct GroupInterpreter<B: BackendIr> {
     interpreters: Vec<TensorInterpreter<B>>,
     devices: Vec<B::Device>,
@@ -74,12 +113,6 @@ impl<B: BackendIr> GroupInterpreter<B> {
             next_id: 0,
             flush_error: None,
         }
-    }
-
-    /// The interpreter of a group whose members run `B` on `devices`.
-    pub fn boxed(devices: &[DeviceId]) -> Box<dyn DynGroupInterpreter> {
-        let devices = devices.iter().copied().map(B::Device::from_id).collect();
-        Box::new(Self::new(devices))
     }
 }
 

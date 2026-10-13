@@ -46,8 +46,9 @@ impl<const D: usize, K: Basic> Tensor<D, K> {
 }
 
 impl Device {
-    /// A group of `devices`, its members, that each tensor is split over. A tensor made on it is
-    /// replicated on every member until it is [placed](Tensor::place_in_group).
+    /// A new group of `devices`, its members, that each tensor is split over, apart from every
+    /// other group, even one of the same devices. A tensor made on it is replicated on every
+    /// member until it is [placed](Tensor::place_in_group).
     ///
     /// # Panics
     ///

@@ -18,12 +18,13 @@ impl RouterChannel for GroupChannel {
     type Bridge = GroupBridge;
     type Client = GroupClient;
 
-    fn name(device: &Self::Device) -> String {
-        format!("group of {}", device.num_members())
+    fn name(_device: &Self::Device) -> String {
+        "device group".into()
     }
 
+    /// Every group registers its client when made, so a device without one names no group.
     fn init_client(device: &Self::Device) -> Self::Client {
-        GroupClient::new(*device)
+        panic!("{device:?} names no device group: make one with Device::group or GroupDevice::new")
     }
 
     fn get_tensor_handle(tensor: &TensorIr, client: &Self::Client) -> TensorData {

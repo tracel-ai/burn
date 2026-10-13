@@ -1,11 +1,13 @@
 use std::sync::Arc;
 
-use burn_backend::{DType, DTypeUsageSet, ExecutionError, TensorData, TensorMetadata};
+use burn_backend::{
+    DType, DTypeUsageSet, DeviceSettings, ExecutionError, TensorData, TensorMetadata,
+};
 use burn_ir::{GraphBindings, GraphId, OperationIr, TensorId, TensorIr};
 use burn_router::{RouterClient, RouterTensor};
 use burn_std::{future::DynFut, sync::Mutex};
 
-use super::{GroupDevice, device::RegisteredGroup, interpreter::DynGroupInterpreter};
+use super::{GroupDevice, interpreter::DynGroupInterpreter};
 use crate::GroupPlacement;
 
 /// The client of one device group: every tensor of the group goes through its interpreter.
@@ -13,14 +15,24 @@ use crate::GroupPlacement;
 pub struct GroupClient {
     device: GroupDevice,
     interpreter: Arc<Mutex<Box<dyn DynGroupInterpreter>>>,
+    settings: DeviceSettings,
 }
 
 impl GroupClient {
-    pub fn new(device: GroupDevice) -> Self {
+    pub fn new(
+        device: GroupDevice,
+        interpreter: Box<dyn DynGroupInterpreter>,
+        settings: DeviceSettings,
+    ) -> Self {
         Self {
             device,
-            interpreter: Arc::new(Mutex::new(RegisteredGroup::new(&device).interpreter())),
+            interpreter: Arc::new(Mutex::new(interpreter)),
+            settings,
         }
+    }
+
+    pub fn settings(&self) -> DeviceSettings {
+        self.settings
     }
 
     /// The same value at another placement.

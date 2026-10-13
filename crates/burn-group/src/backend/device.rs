@@ -1,23 +1,25 @@
-use std::any::TypeId;
+use std::sync::atomic::{AtomicU32, Ordering};
 
 use burn_backend::{DeviceId, DeviceOps, DeviceSettings, RouterDeviceType};
 use burn_ir::BackendIr;
-use burn_std::{device::Device, sync::Mutex};
+use burn_router::{get_client, register_scoped_client};
+use burn_std::device::Device;
 
-use super::interpreter::{DynGroupInterpreter, GroupInterpreter};
+use super::{GroupClient, channel::GroupChannel, interpreter::GroupInterpreter};
 
 /// A group of devices, its members, that a tensor's shards are spread over.
 ///
-/// The members live in a process-wide registry behind the index, so the device fits in a
-/// [`DeviceId`] like any other.
+/// Like any device, a group lasts as long as the process.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct GroupDevice {
     index: u16,
 }
 
+static NEXT_INDEX: AtomicU32 = AtomicU32::new(0);
+
 impl GroupDevice {
-    /// A group whose members run `B` on `devices`. The same devices and backend are the same
-    /// group.
+    /// A new group whose members run `B` on `devices`, apart from every other group, even one of
+    /// the same devices.
     ///
     /// # Panics
     ///
@@ -27,31 +29,17 @@ impl GroupDevice {
             !devices.is_empty(),
             "A device group needs at least one device"
         );
-        let group = RegisteredGroup {
-            devices: devices.iter().map(DeviceOps::id).collect(),
-            backend: TypeId::of::<B>(),
-            settings: devices[0].defaults(),
-            interpreter: GroupInterpreter::<B>::boxed,
+        let index = NEXT_INDEX.fetch_add(1, Ordering::Relaxed);
+        let device = Self {
+            index: u16::try_from(index).expect("Fewer than 65536 device groups in one process"),
         };
-        let mut groups = GROUPS.lock();
-        let index = match groups
-            .iter()
-            .position(|registered| registered.is_like(&group))
-        {
-            Some(index) => index,
-            None => {
-                groups.push(group);
-                groups.len() - 1
-            }
-        };
-        Self {
-            index: u16::try_from(index).expect("Fewer than 65536 device groups"),
-        }
-    }
-
-    /// The number of devices in the group.
-    pub fn num_members(&self) -> usize {
-        RegisteredGroup::read(self, |group| group.devices.len())
+        let interpreter = GroupInterpreter::<B>::new(devices.to_vec());
+        let client = GroupClient::new(device, Box::new(interpreter), devices[0].defaults());
+        let registration = register_scoped_client::<GroupChannel>(&device, client)
+            .expect("A new group's device has no client yet");
+        // The client stays registered for the process, as every other device's does.
+        core::mem::forget(registration);
+        device
     }
 }
 
@@ -84,40 +72,6 @@ impl Device for GroupDevice {
 
 impl DeviceOps for GroupDevice {
     fn defaults(&self) -> DeviceSettings {
-        RegisteredGroup::read(self, |group| group.settings)
-    }
-}
-
-static GROUPS: Mutex<Vec<RegisteredGroup>> = Mutex::new(Vec::new());
-
-/// What a [`GroupDevice`] stands for: its devices, their backend and how to run them.
-#[derive(Clone, Debug)]
-pub struct RegisteredGroup {
-    devices: Vec<DeviceId>,
-    backend: TypeId,
-    settings: DeviceSettings,
-    interpreter: fn(&[DeviceId]) -> Box<dyn DynGroupInterpreter>,
-}
-
-impl RegisteredGroup {
-    pub fn new(device: &GroupDevice) -> Self {
-        Self::read(device, Clone::clone)
-    }
-
-    /// A new interpreter for the group's members, holding no tensors yet.
-    pub fn interpreter(&self) -> Box<dyn DynGroupInterpreter> {
-        (self.interpreter)(&self.devices)
-    }
-
-    fn read<R>(device: &GroupDevice, read: impl FnOnce(&Self) -> R) -> R {
-        let groups = GROUPS.lock();
-        let group = groups
-            .get(usize::from(device.index))
-            .expect("A device group is made with GroupDevice::new before it is used");
-        read(group)
-    }
-
-    fn is_like(&self, other: &Self) -> bool {
-        self.devices == other.devices && self.backend == other.backend
+        get_client::<GroupChannel>(self).settings()
     }
 }
