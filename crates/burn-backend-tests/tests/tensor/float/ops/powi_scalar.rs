@@ -2,6 +2,26 @@ use super::*;
 use burn_tensor::{TensorData, Tolerance};
 
 #[test]
+fn powi_scalar_cube_matches_multiplication() {
+    let device = Default::default();
+    let input = [
+        0.1f32,
+        -0.1,
+        1.1,
+        -1.1,
+        10.1,
+        -10.1,
+        6_378_137.0,
+        -6_378_137.0,
+    ];
+    let expected = TensorData::from(input.map(|x| x * x * x));
+    // Pin f32 to compare each multiplication's rounding without f16 intermediates.
+    let tensor = TestTensor::<1>::from_data(input, (&device, burn_tensor::DType::F32));
+
+    tensor.powi_scalar(3).into_data().assert_eq(&expected, true);
+}
+
+#[test]
 fn powi_scalar_negative_exponent() {
     TestTensor::<1>::from([-2.0, -1.0, 0.5, 2.0])
         .powi_scalar(-3)
