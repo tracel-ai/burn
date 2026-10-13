@@ -1,6 +1,6 @@
 use burn_std::Shape;
 
-use crate::{GroupPlacement, OpPlacement, PlacementShapes};
+use crate::{OpSharding, ShardShapes, Sharding};
 
 /// Which inputs of an elementwise op a partial sum can pass through: its output stays partial
 /// only where the op distributes over the sum.
@@ -20,37 +20,37 @@ pub enum Linearity {
 
 impl Linearity {
     /// Where the inputs must be for the op to run on every member, and where its output lands.
-    pub fn placement<const N: usize>(
+    pub fn sharding<const N: usize>(
         self,
-        inputs: [GroupPlacement; N],
+        inputs: [Sharding; N],
         shapes: [&Shape; N],
-    ) -> OpPlacement<N> {
+    ) -> OpSharding<N> {
         if self.keeps_partial(&inputs) {
-            return OpPlacement {
+            return OpSharding {
                 inputs,
-                output: GroupPlacement::Partial,
+                output: Sharding::Partial,
             };
         }
 
         let output = inputs
             .into_iter()
-            .find(|placement| matches!(placement, GroupPlacement::Sharded { .. }))
-            .unwrap_or(GroupPlacement::Replicated);
-        OpPlacement {
+            .find(|sharding| matches!(sharding, Sharding::Split { .. }))
+            .unwrap_or(Sharding::Replicated);
+        OpSharding {
             inputs: shapes.map(|shape| output.aligned(shape)),
             output,
         }
     }
 
-    fn keeps_partial(self, inputs: &[GroupPlacement]) -> bool {
-        let count = |placement| inputs.iter().filter(|input| **input == placement).count();
-        let others_replicated = count(GroupPlacement::Replicated) == inputs.len() - 1;
+    fn keeps_partial(self, inputs: &[Sharding]) -> bool {
+        let count = |sharding| inputs.iter().filter(|input| **input == sharding).count();
+        let others_replicated = count(Sharding::Replicated) == inputs.len() - 1;
         match self {
             Linearity::Nonlinear => false,
-            Linearity::Linear => count(GroupPlacement::Partial) == inputs.len(),
-            Linearity::Multilinear => count(GroupPlacement::Partial) == 1 && others_replicated,
+            Linearity::Linear => count(Sharding::Partial) == inputs.len(),
+            Linearity::Multilinear => count(Sharding::Partial) == 1 && others_replicated,
             Linearity::LinearIn { input } => {
-                inputs[input] == GroupPlacement::Partial && others_replicated
+                inputs[input] == Sharding::Partial && others_replicated
             }
         }
     }
@@ -59,41 +59,40 @@ impl Linearity {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use GroupPlacement::{Partial, Replicated, Sharded};
+    use Sharding::{Partial, Replicated, Split};
 
     #[test]
     fn partial_plus_replicated_is_reduced_first() {
         let shape = Shape::new([4, 6]);
-        let placement = Linearity::Linear.placement([Partial, Replicated], [&shape, &shape]);
+        let sharding = Linearity::Linear.sharding([Partial, Replicated], [&shape, &shape]);
 
-        assert_eq!(placement.output, Replicated);
-        assert_eq!(placement.inputs, [Replicated, Replicated]);
+        assert_eq!(sharding.output, Replicated);
+        assert_eq!(sharding.inputs, [Replicated, Replicated]);
     }
 
     #[test]
     fn partial_times_replicated_stays_partial() {
         let shape = Shape::new([4, 6]);
-        let placement = Linearity::Multilinear.placement([Replicated, Partial], [&shape, &shape]);
+        let sharding = Linearity::Multilinear.sharding([Replicated, Partial], [&shape, &shape]);
 
-        assert_eq!(placement.output, Partial);
+        assert_eq!(sharding.output, Partial);
     }
 
     #[test]
     fn bias_broadcast_along_the_split_dim_stays_whole() {
-        let placement = Linearity::Linear.placement(
-            [Sharded { dim: 0 }, Replicated],
+        let sharding = Linearity::Linear.sharding(
+            [Split { dim: 0 }, Replicated],
             [&Shape::new([4, 6]), &Shape::new([1, 6])],
         );
 
-        assert_eq!(placement.inputs, [Sharded { dim: 0 }, Replicated]);
+        assert_eq!(sharding.inputs, [Split { dim: 0 }, Replicated]);
     }
 
     #[test]
     fn partial_meeting_a_split_input_is_reduce_scattered() {
         let shape = Shape::new([4, 6]);
-        let placement =
-            Linearity::Linear.placement([Partial, Sharded { dim: 1 }], [&shape, &shape]);
+        let sharding = Linearity::Linear.sharding([Partial, Split { dim: 1 }], [&shape, &shape]);
 
-        assert_eq!(placement.inputs, [Sharded { dim: 1 }, Sharded { dim: 1 }]);
+        assert_eq!(sharding.inputs, [Split { dim: 1 }, Split { dim: 1 }]);
     }
 }

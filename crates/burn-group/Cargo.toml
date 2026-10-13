@@ -1,6 +1,6 @@
 [package]
 name = "burn-group"
-description = "Tensors placed over a group of devices, with the placement rule of each op"
+description = "Tensors split over a group of devices, with the sharding rule of each op"
 edition.workspace = true
 license.workspace = true
 version.workspace = true

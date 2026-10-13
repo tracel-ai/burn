@@ -5,7 +5,7 @@ use alloc::string::{String, ToString};
 use alloc::vec;
 use alloc::vec::Vec;
 #[cfg(feature = "group")]
-use burn_dispatch::backends::GroupPlacement;
+use burn_dispatch::backends::Sharding;
 
 /// The struct should always be used with the [check](crate::check) macro.
 ///
@@ -1306,35 +1306,35 @@ impl TensorCheck {
         check
     }
 
-    /// Checks a placement against the tensor's dims and its `current` placement, `None` off a
+    /// Checks a sharding against the tensor's dims and its `current` sharding, `None` off a
     /// device group.
     #[cfg(feature = "group")]
-    pub(crate) fn place_in_group<const D: usize>(
-        current: Option<GroupPlacement>,
-        placement: GroupPlacement,
+    pub(crate) fn with_sharding<const D: usize>(
+        current: Option<Sharding>,
+        sharding: Sharding,
     ) -> Self {
         let mut check = Self::Ok;
         let Some(current) = current else {
             return check.register(
-                "Place In Group",
+                "With Sharding",
                 TensorError::new("The tensor is not on a device group."),
             );
         };
 
-        if let GroupPlacement::Sharded { dim } = placement
+        if let Sharding::Split { dim } = sharding
             && dim >= D
         {
             check = check.register(
-                "Place In Group",
-                TensorError::new("The sharded dim must be smaller than the tensor dimension.")
+                "With Sharding",
+                TensorError::new("The split dim must be smaller than the tensor dimension.")
                     .details(format!("Got dim {dim} for a tensor of {D} dimensions.")),
             );
         }
 
-        if placement == GroupPlacement::Partial && current != GroupPlacement::Partial {
+        if sharding == Sharding::Partial && current != Sharding::Partial {
             check = check.register(
-                "Place In Group",
-                TensorError::new("Only a partial sum can be placed as a partial sum.")
+                "With Sharding",
+                TensorError::new("Only a partial sum can keep a partial sharding.")
                     .details(format!("The tensor is {current:?}.")),
             );
         }

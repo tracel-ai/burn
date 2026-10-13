@@ -12,28 +12,28 @@ use burn_autodiff::{
 };
 #[cfg(feature = "autodiff")]
 use burn_backend::{Backend, tensor::FloatTensor};
-use burn_group::GroupPlacement;
+use burn_group::Sharding;
 
 use crate::{BackendTensor, DispatchTensor, DispatchTensorKind, backends::Group};
 #[cfg(feature = "autodiff")]
 use crate::{DispatchAutodiffContext, GradientCheckpointingStrategy, backends::Autodiff};
 
 impl DispatchTensor {
-    /// The same value at another placement over its device group.
+    /// The same value with another sharding over its device group.
     ///
     /// A tracked autodiff tensor records the move: its gradient flows back through it unchanged,
-    /// since a gradient may sit at any placement.
+    /// since a gradient may have any sharding.
     ///
     /// # Panics
     ///
-    /// When the tensor is quantized or not on a device group, or no collective produces
-    /// `placement`: a partial sum out of a tensor that is not one, or a split along a dim the
+    /// When the tensor is quantized or not on a device group, or no resharding produces
+    /// `sharding`: a partial sum out of a tensor that is not one, or a split along a dim the
     /// tensor lacks or one shorter than the group.
-    pub fn place_in_group(self, placement: GroupPlacement) -> Self {
+    pub fn with_sharding(self, sharding: Sharding) -> Self {
         let DispatchTensor { kind, autodiff } = self;
         let kind = match kind {
             DispatchTensorKind::Group(tensor) => {
-                DispatchTensorKind::Group(place(tensor, placement))
+                DispatchTensorKind::Group(reshard(tensor, sharding))
             }
             #[cfg(feature = "autodiff")]
             DispatchTensorKind::Autodiff(inner) => {
@@ -41,28 +41,28 @@ impl DispatchTensor {
                     unreachable!("An autodiff tensor has an enabled autodiff context")
                 };
                 let DispatchTensorKind::Group(BackendTensor::Autodiff(tensor)) = *inner else {
-                    panic!("Only a tensor on a device group has a placement")
+                    panic!("Only a tensor on a device group has a sharding")
                 };
-                let placed = match checkpointing {
+                let resharded = match checkpointing {
                     GradientCheckpointingStrategy::Balanced => {
-                        PlaceInGroup::record::<BalancedCheckpointing>(tensor, placement)
+                        WithSharding::record::<BalancedCheckpointing>(tensor, sharding)
                     }
                     GradientCheckpointingStrategy::Disabled => {
-                        PlaceInGroup::record::<NoCheckpointing>(tensor, placement)
+                        WithSharding::record::<NoCheckpointing>(tensor, sharding)
                     }
                 };
                 DispatchTensorKind::Autodiff(Box::new(DispatchTensorKind::Group(
-                    BackendTensor::Autodiff(placed),
+                    BackendTensor::Autodiff(resharded),
                 )))
             }
             #[allow(unreachable_patterns)]
-            _ => panic!("Only a tensor on a device group has a placement"),
+            _ => panic!("Only a tensor on a device group has a sharding"),
         };
         DispatchTensor { kind, autodiff }
     }
 
     /// Where the tensor's shards sit, or `None` when it is not on a device group.
-    pub fn group_placement(&self) -> Option<GroupPlacement> {
+    pub fn sharding(&self) -> Option<Sharding> {
         let primitive = match &self.kind {
             DispatchTensorKind::Group(
                 BackendTensor::Float(tensor)
@@ -76,32 +76,32 @@ impl DispatchTensor {
             },
             _ => return None,
         };
-        Some(primitive.client.placement(primitive))
+        Some(primitive.client.sharding(primitive))
     }
 }
 
-/// [`DispatchTensor::place_in_group`] on a tracked tensor, recorded so its gradient flows back.
+/// [`DispatchTensor::with_sharding`] on a tracked tensor, recorded so its gradient flows back.
 #[cfg(feature = "autodiff")]
 #[derive(Debug)]
-struct PlaceInGroup;
+struct WithSharding;
 
 #[cfg(feature = "autodiff")]
-impl PlaceInGroup {
+impl WithSharding {
     fn record<C: CheckpointStrategy>(
         tensor: FloatTensor<Autodiff<Group>>,
-        placement: GroupPlacement,
+        sharding: Sharding,
     ) -> FloatTensor<Autodiff<Group>> {
         let node = tensor.node();
         let inner = tensor.into_primitive();
-        let placed = inner.client.clone().place(inner, placement);
-        <PlaceInGroup as Backward<Group, 1>>::prepare::<C>(PlaceInGroup, [node])
+        let resharded = inner.client.clone().reshard(inner, sharding);
+        <WithSharding as Backward<Group, 1>>::prepare::<C>(WithSharding, [node])
             .compute_bound()
-            .stateless(placed)
+            .stateless(resharded)
     }
 }
 
 #[cfg(feature = "autodiff")]
-impl<B: Backend> Backward<B, 1> for PlaceInGroup {
+impl<B: Backend> Backward<B, 1> for WithSharding {
     type State = ();
 
     fn backward(self, ops: Ops<(), 1>, grads: &mut Gradients, _: &mut Checkpointer) {
@@ -109,16 +109,16 @@ impl<B: Backend> Backward<B, 1> for PlaceInGroup {
     }
 }
 
-fn place(tensor: BackendTensor<Group>, placement: GroupPlacement) -> BackendTensor<Group> {
+fn reshard(tensor: BackendTensor<Group>, sharding: Sharding) -> BackendTensor<Group> {
     match tensor {
         BackendTensor::Float(tensor) => {
-            BackendTensor::Float(tensor.client.clone().place(tensor, placement))
+            BackendTensor::Float(tensor.client.clone().reshard(tensor, sharding))
         }
         BackendTensor::Int(tensor) => {
-            BackendTensor::Int(tensor.client.clone().place(tensor, placement))
+            BackendTensor::Int(tensor.client.clone().reshard(tensor, sharding))
         }
         BackendTensor::Bool(tensor) => {
-            BackendTensor::Bool(tensor.client.clone().place(tensor, placement))
+            BackendTensor::Bool(tensor.client.clone().reshard(tensor, sharding))
         }
         BackendTensor::Quantized(_) => {
             panic!("A quantized tensor is not split over a device group")

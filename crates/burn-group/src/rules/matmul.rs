@@ -1,6 +1,6 @@
 use crate::{
-    GroupPlacement::{self, Partial, Replicated, Sharded},
-    OpPlacement,
+    OpSharding,
+    Sharding::{self, Partial, Replicated, Split},
 };
 
 /// Which dim of a matmul is split, named after the dim of the product it splits.
@@ -18,8 +18,8 @@ pub enum MatmulRule {
 }
 
 impl MatmulRule {
-    /// The placements of both operands, of `num_dims` dims each.
-    pub fn new(lhs: GroupPlacement, rhs: GroupPlacement, num_dims: usize) -> Self {
+    /// The shardings of both operands, of `num_dims` dims each.
+    pub fn new(lhs: Sharding, rhs: Sharding, num_dims: usize) -> Self {
         let (rows, cols) = (num_dims - 2, num_dims - 1);
         let contraction = Self::Contraction {
             lhs_dim: cols,
@@ -27,10 +27,10 @@ impl MatmulRule {
         };
         match (lhs, rhs) {
             (Replicated, Replicated) => Self::Unsplit,
-            (Replicated, Sharded { dim }) if dim == cols => Self::Columns { dim },
-            (Sharded { dim: l }, Sharded { dim: r }) if l == cols && r == rows => contraction,
-            (Sharded { dim }, Replicated) if dim == cols => contraction,
-            (Replicated, Sharded { dim }) if dim == rows => contraction,
+            (Replicated, Split { dim }) if dim == cols => Self::Columns { dim },
+            (Split { dim: l }, Split { dim: r }) if l == cols && r == rows => contraction,
+            (Split { dim }, Replicated) if dim == cols => contraction,
+            (Replicated, Split { dim }) if dim == rows => contraction,
             // A partial operand is reduced to whatever the other one's split needs.
             (Partial, rhs) => Self::new(Replicated, rhs, num_dims),
             (lhs, Partial) => Self::new(lhs, Replicated, num_dims),
@@ -38,16 +38,15 @@ impl MatmulRule {
         }
     }
 
-    pub fn placement(&self) -> OpPlacement<2> {
+    pub fn sharding(&self) -> OpSharding<2> {
         let (inputs, output) = match *self {
             Self::Unsplit | Self::Gathered => ([Replicated, Replicated], Replicated),
-            Self::Columns { dim } => ([Replicated, Sharded { dim }], Sharded { dim }),
-            Self::Contraction { lhs_dim, rhs_dim } => (
-                [Sharded { dim: lhs_dim }, Sharded { dim: rhs_dim }],
-                Partial,
-            ),
+            Self::Columns { dim } => ([Replicated, Split { dim }], Split { dim }),
+            Self::Contraction { lhs_dim, rhs_dim } => {
+                ([Split { dim: lhs_dim }, Split { dim: rhs_dim }], Partial)
+            }
         };
-        OpPlacement { inputs, output }
+        OpSharding { inputs, output }
     }
 }
 
@@ -57,14 +56,14 @@ mod tests {
 
     #[test]
     fn megatron_mlp_runs_without_a_collective_between_its_matmuls() {
-        let up = MatmulRule::new(Replicated, Sharded { dim: 1 }, 2);
-        let down = MatmulRule::new(Sharded { dim: 1 }, Sharded { dim: 0 }, 2);
+        let up = MatmulRule::new(Replicated, Split { dim: 1 }, 2);
+        let down = MatmulRule::new(Split { dim: 1 }, Split { dim: 0 }, 2);
 
         assert_eq!(up, MatmulRule::Columns { dim: 1 });
         assert_eq!(
-            down.placement(),
-            OpPlacement {
-                inputs: [Sharded { dim: 1 }, Sharded { dim: 0 }],
+            down.sharding(),
+            OpSharding {
+                inputs: [Split { dim: 1 }, Split { dim: 0 }],
                 output: Partial,
             }
         );
@@ -72,7 +71,7 @@ mod tests {
 
     #[test]
     fn partial_operand_is_reduce_scattered_into_a_contraction() {
-        let rule = MatmulRule::new(Partial, Sharded { dim: 0 }, 2);
+        let rule = MatmulRule::new(Partial, Split { dim: 0 }, 2);
 
         assert_eq!(
             rule,
@@ -81,12 +80,12 @@ mod tests {
                 rhs_dim: 0
             }
         );
-        assert_eq!(rule.placement().inputs[0], Sharded { dim: 1 });
+        assert_eq!(rule.sharding().inputs[0], Split { dim: 1 });
     }
 
     #[test]
     fn rows_against_columns_falls_back_to_gathering() {
-        let rule = MatmulRule::new(Sharded { dim: 0 }, Sharded { dim: 1 }, 2);
+        let rule = MatmulRule::new(Split { dim: 0 }, Split { dim: 1 }, 2);
 
         assert_eq!(rule, MatmulRule::Gathered);
     }

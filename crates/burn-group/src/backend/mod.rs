@@ -2,9 +2,9 @@ mod channel;
 mod client;
 mod device;
 mod interpreter;
-mod placement_map;
 mod plan;
 mod shard;
+mod sharding_map;
 
 pub use channel::GroupBackend;
 pub use client::GroupClient;

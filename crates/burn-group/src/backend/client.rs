@@ -8,7 +8,7 @@ use burn_router::{RouterClient, RouterTensor};
 use burn_std::{future::DynFut, sync::Mutex};
 
 use super::{GroupDevice, interpreter::DynGroupInterpreter};
-use crate::GroupPlacement;
+use crate::Sharding;
 
 /// The client of one device group: every tensor of the group goes through its interpreter.
 #[derive(Clone)]
@@ -35,25 +35,21 @@ impl GroupClient {
         self.settings
     }
 
-    /// The same value at another placement.
+    /// The same value with another sharding.
     ///
     /// # Panics
     ///
-    /// When no collective produces `placement`: a partial sum out of a tensor that is not one, or a
+    /// When no resharding produces `sharding`: a partial sum out of a tensor that is not one, or a
     /// split along a dim the tensor lacks or one shorter than the group.
-    pub fn place(
-        &self,
-        tensor: RouterTensor<Self>,
-        placement: GroupPlacement,
-    ) -> RouterTensor<Self> {
+    pub fn reshard(&self, tensor: RouterTensor<Self>, sharding: Sharding) -> RouterTensor<Self> {
         let (shape, dtype) = (tensor.shape(), tensor.dtype());
-        let id = self.interpreter.lock().place(tensor.into_ir(), placement);
+        let id = self.interpreter.lock().reshard(tensor.into_ir(), sharding);
         RouterTensor::new(id, shape, dtype, self.clone())
     }
 
     /// Where the tensor's shards sit.
-    pub fn placement(&self, tensor: &RouterTensor<Self>) -> GroupPlacement {
-        self.interpreter.lock().placement(&tensor.id())
+    pub fn sharding(&self, tensor: &RouterTensor<Self>) -> Sharding {
+        self.interpreter.lock().sharding(&tensor.id())
     }
 }
 

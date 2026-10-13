@@ -4,7 +4,7 @@ use burn_backend::{ExecutionError, Shape, Slice, TensorData};
 use burn_ir::{BackendIr, HandleKind};
 use burn_std::future::DynFut;
 
-use crate::{DimSplit, GroupPlacement, Redistribution};
+use crate::{DimSplit, Resharding, Sharding};
 
 /// The shard of one tensor on every member, in member order, as the backend holds them.
 pub struct ShardList<B: BackendIr> {
@@ -35,21 +35,14 @@ impl<B: BackendIr> ShardList<B> {
 
     /// Collectives emulated by moving shards with `to_device`: correct on any backend, fast on
     /// none.
-    pub fn redistribute(
-        self,
-        redistribution: Redistribution,
-        shape: &Shape,
-        devices: &[B::Device],
-    ) -> Self {
-        match redistribution {
-            Redistribution::Keep => self,
-            Redistribution::Slice { dim } => self.slice(dim, shape[dim]),
-            Redistribution::AllGather { dim } => self.all_gather(dim, devices),
-            Redistribution::AllReduce => self.all_reduce(devices),
-            Redistribution::ReduceScatter { dim } => {
-                self.all_reduce(devices).slice(dim, shape[dim])
-            }
-            Redistribution::AllToAll { from_dim, to_dim } => self
+    pub fn reshard(self, resharding: Resharding, shape: &Shape, devices: &[B::Device]) -> Self {
+        match resharding {
+            Resharding::Keep => self,
+            Resharding::Slice { dim } => self.slice(dim, shape[dim]),
+            Resharding::AllGather { dim } => self.all_gather(dim, devices),
+            Resharding::AllReduce => self.all_reduce(devices),
+            Resharding::ReduceScatter { dim } => self.all_reduce(devices).slice(dim, shape[dim]),
+            Resharding::AllToAll { from_dim, to_dim } => self
                 .all_gather(from_dim, devices)
                 .slice(to_dim, shape[to_dim]),
         }
@@ -58,14 +51,14 @@ impl<B: BackendIr> ShardList<B> {
     /// The whole value on `device`, read without changing the shards of any other member.
     pub fn into_data(
         self,
-        placement: GroupPlacement,
+        sharding: Sharding,
         device: &B::Device,
     ) -> DynFut<Result<TensorData, ExecutionError>> {
         let mut moved = self.shards.into_iter().map(|shard| shard.moved_to(device));
-        let whole = match placement {
-            GroupPlacement::Replicated => moved.next().expect("A group has a member"),
-            GroupPlacement::Sharded { dim } => Shard::concat(moved.collect(), dim),
-            GroupPlacement::Partial => Shard::sum(moved.collect()),
+        let whole = match sharding {
+            Sharding::Replicated => moved.next().expect("A group has a member"),
+            Sharding::Split { dim } => Shard::concat(moved.collect(), dim),
+            Sharding::Partial => Shard::sum(moved.collect()),
         };
         whole.into_data()
     }

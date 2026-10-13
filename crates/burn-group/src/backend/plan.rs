@@ -5,17 +5,15 @@ use burn_ir::{
     NumericOperationIr, OperationIr, ScalarOpIr, TensorId, TensorIr, UnaryOpIr,
 };
 
-use super::placement_map::PlacementMap;
-use crate::{
-    GroupPlacement, LinearRule, Linearity, MatmulRule, OpPlacement, ReduceRule, Reduction,
-};
+use super::sharding_map::ShardingMap;
+use crate::{LinearRule, Linearity, MatmulRule, OpSharding, ReduceRule, Reduction, Sharding};
 
 /// Where each tensor of one op must be for the op to run on every member, where its outputs land,
 /// and what each member runs.
 #[derive(Debug)]
 pub struct OpPlan {
-    inputs: HashMap<TensorId, GroupPlacement>,
-    outputs: HashMap<TensorId, GroupPlacement>,
+    inputs: HashMap<TensorId, Sharding>,
+    outputs: HashMap<TensorId, Sharding>,
     execution: Execution,
 }
 
@@ -30,19 +28,19 @@ pub enum Execution {
 }
 
 impl OpPlan {
-    /// An op without a rule, or whose inputs would need two placements at once, gathers every
+    /// An op without a rule, or whose inputs would need two shardings at once, gathers every
     /// input and runs whole on every member.
-    pub fn new(op: &OperationIr, placements: &PlacementMap) -> Self {
-        Analysis { placements }
+    pub fn new(op: &OperationIr, shardings: &ShardingMap) -> Self {
+        Analysis { shardings }
             .plan(op)
             .unwrap_or_else(|| Self::gathered(op))
     }
 
-    pub fn input(&self, id: &TensorId) -> GroupPlacement {
+    pub fn input(&self, id: &TensorId) -> Sharding {
         self.inputs[id]
     }
 
-    pub fn outputs(&self) -> &HashMap<TensorId, GroupPlacement> {
+    pub fn outputs(&self) -> &HashMap<TensorId, Sharding> {
         &self.outputs
     }
 
@@ -51,7 +49,7 @@ impl OpPlan {
     }
 
     fn gathered(op: &OperationIr) -> Self {
-        let replicated = |tensor: &TensorIr| (tensor.id, GroupPlacement::Replicated);
+        let replicated = |tensor: &TensorIr| (tensor.id, Sharding::Replicated);
         Self {
             inputs: op.inputs().map(replicated).collect(),
             outputs: op.outputs().map(replicated).collect(),
@@ -61,7 +59,7 @@ impl OpPlan {
 }
 
 struct Analysis<'a> {
-    placements: &'a PlacementMap,
+    shardings: &'a ShardingMap,
 }
 
 impl Analysis<'_> {
@@ -127,35 +125,35 @@ impl Analysis<'_> {
         {
             return None;
         }
-        let placement = linearity.placement(
-            inputs.map(|input| self.placement(input)),
+        let sharding = linearity.sharding(
+            inputs.map(|input| self.sharding(input)),
             inputs.map(|input| &input.shape),
         );
-        Targets::of(inputs, placement.inputs)
-            .output(out, placement.output)
+        Targets::of(inputs, sharding.inputs)
+            .output(out, sharding.output)
             .every_member()
     }
 
     fn matmul(&self, desc: &MatmulOpIr) -> Option<OpPlan> {
-        let placement = MatmulRule::new(
-            self.placement(&desc.lhs),
-            self.placement(&desc.rhs),
+        let sharding = MatmulRule::new(
+            self.sharding(&desc.lhs),
+            self.sharding(&desc.rhs),
             desc.lhs.shape.num_dims(),
         )
-        .placement();
-        self.ruled([&desc.lhs, &desc.rhs], &desc.out, placement)
+        .sharding();
+        self.ruled([&desc.lhs, &desc.rhs], &desc.out, sharding)
     }
 
     fn linear(&self, desc: &LinearOpIr) -> Option<OpPlan> {
         let rule = LinearRule::new(
-            self.placement(&desc.x),
-            self.placement(&desc.weight),
+            self.sharding(&desc.x),
+            self.sharding(&desc.weight),
             desc.x.shape.num_dims(),
         );
-        let OpPlacement {
+        let OpSharding {
             inputs: [x, weight, bias],
             output,
-        } = rule.placement();
+        } = rule.sharding();
         let mut targets =
             Targets::of([&desc.x, &desc.weight], [x, weight]).output(&desc.out, output);
         let Some(bias_tensor) = &desc.bias else {
@@ -169,13 +167,13 @@ impl Analysis<'_> {
     }
 
     fn sum(&self, input: &TensorIr, out: &TensorIr, reduction: Reduction) -> Option<OpPlan> {
-        let placement = ReduceRule::new(self.placement(input), reduction).placement();
-        self.ruled([input], out, placement)
+        let sharding = ReduceRule::new(self.sharding(input), reduction).sharding();
+        self.ruled([input], out, sharding)
     }
 
     fn random(&self, out: &TensorIr) -> Option<OpPlan> {
         Targets::default()
-            .output(out, GroupPlacement::Replicated)
+            .output(out, Sharding::Replicated)
             .build(Execution::FirstMemberCopied)
     }
 
@@ -183,44 +181,44 @@ impl Analysis<'_> {
         &self,
         inputs: [&TensorIr; N],
         out: &TensorIr,
-        placement: OpPlacement<N>,
+        sharding: OpSharding<N>,
     ) -> Option<OpPlan> {
-        Targets::of(inputs, placement.inputs)
-            .output(out, placement.output)
+        Targets::of(inputs, sharding.inputs)
+            .output(out, sharding.output)
             .every_member()
     }
 
-    fn placement(&self, tensor: &TensorIr) -> GroupPlacement {
-        self.placements.get(&tensor.id)
+    fn sharding(&self, tensor: &TensorIr) -> Sharding {
+        self.shardings.get(&tensor.id)
     }
 }
 
-/// The placements an op's tensors take, refusing an input asked to be in two places at once.
+/// The shardings an op's tensors take, refusing an input asked for two at once.
 #[derive(Default)]
 struct Targets {
-    inputs: HashMap<TensorId, GroupPlacement>,
-    outputs: HashMap<TensorId, GroupPlacement>,
+    inputs: HashMap<TensorId, Sharding>,
+    outputs: HashMap<TensorId, Sharding>,
     conflict: bool,
 }
 
 impl Targets {
-    fn of<const N: usize>(tensors: [&TensorIr; N], placements: [GroupPlacement; N]) -> Self {
+    fn of<const N: usize>(tensors: [&TensorIr; N], shardings: [Sharding; N]) -> Self {
         tensors
             .into_iter()
-            .zip(placements)
-            .fold(Self::default(), |targets, (tensor, placement)| {
-                targets.input(tensor, placement)
+            .zip(shardings)
+            .fold(Self::default(), |targets, (tensor, sharding)| {
+                targets.input(tensor, sharding)
             })
     }
 
-    fn input(mut self, tensor: &TensorIr, placement: GroupPlacement) -> Self {
-        let previous = self.inputs.insert(tensor.id, placement);
-        self.conflict |= previous.is_some_and(|previous| previous != placement);
+    fn input(mut self, tensor: &TensorIr, sharding: Sharding) -> Self {
+        let previous = self.inputs.insert(tensor.id, sharding);
+        self.conflict |= previous.is_some_and(|previous| previous != sharding);
         self
     }
 
-    fn output(mut self, tensor: &TensorIr, placement: GroupPlacement) -> Self {
-        self.outputs.insert(tensor.id, placement);
+    fn output(mut self, tensor: &TensorIr, sharding: Sharding) -> Self {
+        self.outputs.insert(tensor.id, sharding);
         self
     }
 

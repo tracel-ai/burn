@@ -6,7 +6,7 @@ use burn_backend::{
 use burn_flex::{Flex, FlexDevice};
 use burn_group::{
     GroupBackend, GroupDevice,
-    GroupPlacement::{self, Partial, Replicated, Sharded},
+    Sharding::{self, Partial, Replicated, Split},
 };
 use burn_std::future::block_on;
 
@@ -54,7 +54,7 @@ macro_rules! check_binary {
 }
 
 #[test]
-fn elementwise_ops_match_one_device_for_every_placement() {
+fn elementwise_ops_match_one_device_for_every_sharding() {
     for members in MEMBERS {
         for rhs in [[4, 6], [1, 6], [4, 1]] {
             let (lhs, rhs) = (data([4, 6], 1), data(rhs, 2));
@@ -79,7 +79,7 @@ fn elementwise_ops_match_one_device_for_every_placement() {
 }
 
 #[test]
-fn matmuls_match_one_device_for_every_placement() {
+fn matmuls_match_one_device_for_every_sharding() {
     for members in MEMBERS {
         for (lhs, rhs) in [
             (vec![4, 6], vec![6, 5]),
@@ -101,7 +101,7 @@ fn matmuls_match_one_device_for_every_placement() {
 }
 
 #[test]
-fn sums_match_one_device_for_every_placement() {
+fn sums_match_one_device_for_every_sharding() {
     for members in MEMBERS {
         let input = data([4, 3, 5], 1);
         for dim in 0..3 {
@@ -114,47 +114,47 @@ fn sums_match_one_device_for_every_placement() {
 #[test]
 fn split_tensors_stay_split_where_megatron_keeps_them() {
     let device = group(2);
-    let x = place(
+    let x = reshard(
         Group::float_from_data(data([4, 6], 1), &device),
-        Sharded { dim: 1 },
+        Split { dim: 1 },
     );
-    let w = place(
+    let w = reshard(
         Group::float_from_data(data([6, 6], 2), &device),
-        Sharded { dim: 0 },
+        Split { dim: 0 },
     );
     let summand = Group::float_matmul(x.clone(), w);
 
-    assert_eq!(placement_of(&summand), Partial);
+    assert_eq!(sharding_of(&summand), Partial);
     assert_eq!(
-        placement_of(&Group::float_add(summand.clone(), summand)),
+        sharding_of(&Group::float_add(summand.clone(), summand)),
         Partial
     );
-    assert_eq!(placement_of(&Group::float_sum_dim(x.clone(), 1)), Partial);
-    assert_eq!(placement_of(&Group::relu(x)), Sharded { dim: 1 });
+    assert_eq!(sharding_of(&Group::float_sum_dim(x.clone(), 1)), Partial);
+    assert_eq!(sharding_of(&Group::relu(x)), Split { dim: 1 });
 }
 
 #[test]
-#[should_panic(expected = "No collective places")]
+#[should_panic(expected = "No resharding takes")]
 fn a_dim_shorter_than_the_group_is_not_split() {
     let device = group(3);
-    place(
+    reshard(
         Group::float_from_data(data([2, 6], 1), &device),
-        Sharded { dim: 0 },
+        Split { dim: 0 },
     );
 }
 
 #[test]
-fn every_placement_moves_to_every_other_and_keeps_its_value() {
+fn every_sharding_moves_to_every_other_and_keeps_its_value() {
     let input = data([4, 6], 1);
     for members in MEMBERS {
         let group = group(members);
-        for from in placements(input.shape(), members) {
-            for to in placements(input.shape(), members) {
+        for from in shardings(input.shape(), members) {
+            for to in shardings(input.shape(), members) {
                 if to == Partial && from != Partial {
                     continue;
                 }
-                let moved = place(placed(&input, &group, from), to);
-                assert_eq!(placement_of(&moved), to);
+                let moved = reshard(sharded(&input, &group, from), to);
+                assert_eq!(sharding_of(&moved), to);
                 let case = format!("{members} members, {from:?} to {to:?}");
                 assert_close(read::<Group>(moved), input.clone(), &case);
             }
@@ -170,12 +170,12 @@ fn assert_unary_matches(
 ) {
     let expected = read::<Flex>(on_flex(Flex::float_from_data(input.clone(), &FlexDevice)));
     let device = group(members);
-    for placement in placements(input.shape(), members) {
-        let actual = read::<Group>(on_group(placed(input, &device, placement)));
+    for sharding in shardings(input.shape(), members) {
+        let actual = read::<Group>(on_group(sharded(input, &device, sharding)));
         assert_close(
             actual,
             expected.clone(),
-            &format!("{members} members, {placement:?}"),
+            &format!("{members} members, {sharding:?}"),
         );
     }
 }
@@ -192,13 +192,13 @@ fn assert_binary_matches(
         Flex::float_from_data(rhs.clone(), &FlexDevice),
     ));
     let device = group(members);
-    for lhs_placement in placements(lhs.shape(), members) {
-        for rhs_placement in placements(rhs.shape(), members) {
+    for lhs_sharding in shardings(lhs.shape(), members) {
+        for rhs_sharding in shardings(rhs.shape(), members) {
             let actual = read::<Group>(on_group(
-                placed(lhs, &device, lhs_placement),
-                placed(rhs, &device, rhs_placement),
+                sharded(lhs, &device, lhs_sharding),
+                sharded(rhs, &device, rhs_sharding),
             ));
-            let case = format!("{members} members, {lhs_placement:?} with {rhs_placement:?}");
+            let case = format!("{members} members, {lhs_sharding:?} with {rhs_sharding:?}");
             assert_close(actual, expected.clone(), &case);
         }
     }
@@ -206,14 +206,10 @@ fn assert_binary_matches(
 
 /// A partial sum is built as a contraction, `data @ I` with both split, so each member holds a
 /// different summand.
-fn placed(
-    data: &TensorData,
-    device: &GroupDevice,
-    placement: GroupPlacement,
-) -> FloatTensor<Group> {
+fn sharded(data: &TensorData, device: &GroupDevice, sharding: Sharding) -> FloatTensor<Group> {
     let tensor = Group::float_from_data(data.clone(), device);
-    if placement != Partial {
-        return place(tensor, placement);
+    if sharding != Partial {
+        return reshard(tensor, sharding);
     }
     let num_dims = data.shape().num_dims();
     let len = data.shape()[num_dims - 1];
@@ -224,38 +220,38 @@ fn placed(
         .collect();
     let eye = Group::float_from_data(TensorData::new(eye, eye_shape), device);
     let partial = Group::float_matmul(
-        place(tensor, Sharded { dim: num_dims - 1 }),
-        place(eye, Sharded { dim: num_dims - 2 }),
+        reshard(tensor, Split { dim: num_dims - 1 }),
+        reshard(eye, Split { dim: num_dims - 2 }),
     );
-    assert_eq!(placement_of(&partial), Partial);
+    assert_eq!(sharding_of(&partial), Partial);
     partial
 }
 
 /// A partial sum needs a last dim to contract, at least as long as the group.
-fn placements(shape: &Shape, members: usize) -> Vec<GroupPlacement> {
+fn shardings(shape: &Shape, members: usize) -> Vec<Sharding> {
     let num_dims = shape.num_dims();
-    let mut placements = vec![Replicated];
+    let mut shardings = vec![Replicated];
     if num_dims >= 2 && shape[num_dims - 1] >= members {
-        placements.push(Partial);
+        shardings.push(Partial);
     }
-    placements.extend(
+    shardings.extend(
         (0..num_dims)
             .filter(|dim| shape[*dim] >= members)
-            .map(|dim| Sharded { dim }),
+            .map(|dim| Split { dim }),
     );
-    placements
+    shardings
 }
 
 fn group(members: usize) -> GroupDevice {
     GroupDevice::new::<Flex>(&vec![FlexDevice; members])
 }
 
-fn place(tensor: FloatTensor<Group>, placement: GroupPlacement) -> FloatTensor<Group> {
-    tensor.client.clone().place(tensor, placement)
+fn reshard(tensor: FloatTensor<Group>, sharding: Sharding) -> FloatTensor<Group> {
+    tensor.client.clone().reshard(tensor, sharding)
 }
 
-fn placement_of(tensor: &FloatTensor<Group>) -> GroupPlacement {
-    tensor.client.placement(tensor)
+fn sharding_of(tensor: &FloatTensor<Group>) -> Sharding {
+    tensor.client.sharding(tensor)
 }
 
 fn data<S: Into<Shape>>(shape: S, seed: usize) -> TensorData {

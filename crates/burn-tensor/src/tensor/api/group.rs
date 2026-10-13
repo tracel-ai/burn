@@ -1,4 +1,4 @@
-use burn_dispatch::{DispatchDevice, backends::GroupPlacement};
+use burn_dispatch::{DispatchDevice, backends::Sharding};
 
 use crate::{
     Device, Tensor, check,
@@ -8,47 +8,44 @@ use crate::{
 };
 
 impl<const D: usize, K: Basic> Tensor<D, K> {
-    /// The same value, with its shards at `placement` over its device group.
+    /// The same value, split over its device group as `sharding` says.
     ///
-    /// A tracked tensor records the move, and its gradient flows back through it unchanged. To
-    /// place a parameter, place it before requiring its gradient, as with
+    /// A tracked tensor records the change, and its gradient flows back through it unchanged. To
+    /// shard a parameter, shard it before requiring its gradient, as with
     /// [`to_device`](Tensor::to_device).
     ///
     /// # Panics
     ///
-    /// When the tensor is quantized or not on a [device group](Device::group), when `placement`
+    /// When the tensor is quantized or not on a [device group](Device::group), when `sharding`
     /// is a partial sum and the tensor is not one, or when it splits a dim the tensor lacks or one
     /// shorter than the group.
-    pub fn place_in_group(self, placement: GroupPlacement) -> Self {
+    pub fn with_sharding(self, sharding: Sharding) -> Self {
         check!(TensorCheck::quantized_unsupported(
-            "Place In Group",
+            "With Sharding",
             self.dtype()
         ));
-        check!(TensorCheck::place_in_group::<D>(
-            self.group_placement(),
-            placement
-        ));
+        check!(TensorCheck::with_sharding::<D>(self.sharding(), sharding));
         let (kind, tensor) = self.primitive.into_parts();
-        let placed = tensor.place_in_group(placement);
+        let resharded = tensor.with_sharding(sharding);
         Self::new(match kind {
-            BridgeKind::Float => BridgeTensor::float(placed),
-            BridgeKind::Int => BridgeTensor::int(placed),
-            BridgeKind::Bool => BridgeTensor::bool(placed),
+            BridgeKind::Float => BridgeTensor::float(resharded),
+            BridgeKind::Int => BridgeTensor::int(resharded),
+            BridgeKind::Bool => BridgeTensor::bool(resharded),
             BridgeKind::QFloat => unreachable!("A quantized tensor is refused above"),
         })
     }
 
-    /// Where the tensor's shards sit on its device group, or `None` when it is not on one.
-    pub fn group_placement(&self) -> Option<GroupPlacement> {
+    /// How the tensor is split over its device group, or `None` when it is not on one.
+    pub fn sharding(&self) -> Option<Sharding> {
         let (_, tensor) = self.primitive.as_parts();
-        tensor.group_placement()
+        tensor.sharding()
     }
 }
 
 impl Device {
     /// A new group of `devices`, its members, that each tensor is split over, apart from every
     /// other group, even one of the same devices. A tensor made on it is replicated on every
-    /// member until it is [placed](Tensor::place_in_group).
+    /// member until it is [sharded](Tensor::with_sharding).
     ///
     /// # Panics
     ///

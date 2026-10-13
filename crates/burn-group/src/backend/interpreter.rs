@@ -9,11 +9,11 @@ use burn_router::TensorInterpreter;
 use burn_std::future::DynFut;
 
 use super::{
-    placement_map::PlacementMap,
     plan::{Execution, OpPlan},
     shard::ShardList,
+    sharding_map::ShardingMap,
 };
-use crate::{GroupPlacement, Member, PlacementShapes, Redistribution};
+use crate::{Member, Resharding, ShardShapes, Sharding};
 
 /// A device group's [`GroupInterpreter`] as a trait object, so the [`GroupClient`] of every group
 /// has one type whatever backend the members run.
@@ -30,22 +30,22 @@ pub trait DynGroupInterpreter: Send {
     /// # Panics
     ///
     /// When the tensor is not on the group.
-    fn placement(&self, id: &TensorId) -> GroupPlacement;
+    fn sharding(&self, id: &TensorId) -> Sharding;
 
     /// A new tensor holding `data`, replicated: every member holds the whole value.
     fn register_tensor_data(&mut self, data: TensorData) -> TensorId;
 
-    /// Runs `op` on every member's shards, after moving each input to the placement the op's
+    /// Runs `op` on every member's shards, after resharding each input as the op's
     /// rule asks for.
     fn register_op(&mut self, op: OperationIr);
 
-    /// The same value at another placement, under a new id.
+    /// The same value with another sharding, under a new id.
     ///
     /// # Panics
     ///
-    /// When no collective produces `placement`: a partial sum out of a tensor that is not one, or a
+    /// When no resharding produces `sharding`: a partial sum out of a tensor that is not one, or a
     /// split along a dim the tensor lacks or one shorter than the group.
-    fn place(&mut self, tensor: TensorIr, placement: GroupPlacement) -> TensorId;
+    fn reshard(&mut self, tensor: TensorIr, sharding: Sharding) -> TensorId;
 
     /// The whole value of `tensor`, its shards gathered onto the first member and read there.
     fn read(&mut self, tensor: TensorIr) -> DynFut<Result<TensorData, ExecutionError>>;
@@ -69,7 +69,7 @@ pub trait DynGroupInterpreter: Send {
 pub struct GroupInterpreter<B: BackendIr> {
     interpreters: Vec<TensorInterpreter<B>>,
     devices: Vec<B::Device>,
-    placements: PlacementMap,
+    shardings: ShardingMap,
     next_id: u64,
     flush_error: Option<ExecutionError>,
 }
@@ -82,7 +82,7 @@ impl<B: BackendIr> GroupInterpreter<B> {
                 .map(|device| TensorInterpreter::new(device.clone()))
                 .collect(),
             devices,
-            placements: PlacementMap::default(),
+            shardings: ShardingMap::default(),
             next_id: 0,
             flush_error: None,
         }
@@ -95,8 +95,8 @@ impl<B: BackendIr> DynGroupInterpreter for GroupInterpreter<B> {
         TensorId::new(self.next_id)
     }
 
-    fn placement(&self, id: &TensorId) -> GroupPlacement {
-        self.placements.get(id)
+    fn sharding(&self, id: &TensorId) -> Sharding {
+        self.shardings.get(id)
     }
 
     fn register_tensor_data(&mut self, data: TensorData) -> TensorId {
@@ -104,7 +104,7 @@ impl<B: BackendIr> DynGroupInterpreter for GroupInterpreter<B> {
         for interpreter in &mut self.interpreters {
             interpreter.register_tensor_data_id(id, data.clone());
         }
-        self.placements.insert(id, GroupPlacement::Replicated);
+        self.shardings.insert(id, Sharding::Replicated);
         id
     }
 
@@ -120,31 +120,29 @@ impl<B: BackendIr> DynGroupInterpreter for GroupInterpreter<B> {
         }
     }
 
-    fn place(&mut self, tensor: TensorIr, placement: GroupPlacement) -> TensorId {
-        let current = self.placements.get(&tensor.id);
+    fn reshard(&mut self, tensor: TensorIr, sharding: Sharding) -> TensorId {
+        let current = self.shardings.get(&tensor.id);
         let members = self.interpreters.len();
-        let redistribution = Redistribution::new(current, placement, &tensor.shape, members)
-            .unwrap_or_else(|| {
+        let resharding =
+            Resharding::new(current, sharding, &tensor.shape, members).unwrap_or_else(|| {
                 panic!(
-                    "No collective places a {current:?} tensor of shape {:?} at {placement:?} over \
+                    "No resharding takes a {current:?} tensor of shape {:?} to {sharding:?} over \
                      {members} members",
                     tensor.shape
                 )
             });
-        let shards = self.take_shards(&tensor, current).redistribute(
-            redistribution,
-            &tensor.shape,
-            &self.devices,
-        );
+        let shards =
+            self.take_shards(&tensor, current)
+                .reshard(resharding, &tensor.shape, &self.devices);
         let id = self.new_tensor_id();
-        self.register_shards(id, shards, placement);
+        self.register_shards(id, shards, sharding);
         id
     }
 
     fn read(&mut self, tensor: TensorIr) -> DynFut<Result<TensorData, ExecutionError>> {
-        let placement = self.placements.get(&tensor.id);
-        self.take_shards(&tensor, placement)
-            .into_data(placement, &self.devices[0])
+        let sharding = self.shardings.get(&tensor.id);
+        self.take_shards(&tensor, sharding)
+            .into_data(sharding, &self.devices[0])
     }
 
     fn sync(&mut self) -> Result<(), ExecutionError> {
@@ -181,10 +179,10 @@ impl<B: BackendIr> DynGroupInterpreter for GroupInterpreter<B> {
 
 impl<B: BackendIr> GroupInterpreter<B> {
     fn run(&mut self, mut op: OperationIr) {
-        let plan = OpPlan::new(&op, &self.placements);
-        let temporaries = self.redistribute_inputs(&mut op, &plan);
-        for (id, placement) in plan.outputs() {
-            self.placements.insert(*id, *placement);
+        let plan = OpPlan::new(&op, &self.shardings);
+        let temporaries = self.reshard_inputs(&mut op, &plan);
+        for (id, sharding) in plan.outputs() {
+            self.shardings.insert(*id, *sharding);
         }
 
         match plan.execution() {
@@ -197,20 +195,20 @@ impl<B: BackendIr> GroupInterpreter<B> {
 
         for input in op.inputs() {
             if input.status == TensorStatus::ReadWrite {
-                self.placements.remove(&input.id);
+                self.shardings.remove(&input.id);
             }
         }
         temporaries.into_iter().for_each(|id| self.drop(id));
     }
 
-    fn redistribute_inputs(&mut self, op: &mut OperationIr, plan: &OpPlan) -> Vec<TensorId> {
+    fn reshard_inputs(&mut self, op: &mut OperationIr, plan: &OpPlan) -> Vec<TensorId> {
         let inputs: Vec<TensorIr> = op.inputs().cloned().collect();
         let mut renames = Renames::default();
         for input in &inputs {
             if renames.ids.contains_key(&input.id) {
                 continue;
             }
-            let (current, target) = (self.placements.get(&input.id), plan.input(&input.id));
+            let (current, target) = (self.shardings.get(&input.id), plan.input(&input.id));
             if current == target {
                 continue;
             }
@@ -224,14 +222,12 @@ impl<B: BackendIr> GroupInterpreter<B> {
                 },
                 ..input.clone()
             };
-            let redistribution =
-                Redistribution::new(current, target, &input.shape, self.interpreters.len())
+            let resharding =
+                Resharding::new(current, target, &input.shape, self.interpreters.len())
                     .unwrap_or_else(|| panic!("A rule asked for {target:?} from {current:?}"));
-            let shards = self.take_shards(&read, current).redistribute(
-                redistribution,
-                &input.shape,
-                &self.devices,
-            );
+            let shards =
+                self.take_shards(&read, current)
+                    .reshard(resharding, &input.shape, &self.devices);
             let temporary = self.new_tensor_id();
             self.register_shards(temporary, shards, target);
             renames.ids.insert(input.id, temporary);
@@ -247,7 +243,7 @@ impl<B: BackendIr> GroupInterpreter<B> {
                 index: member,
                 members: self.interpreters.len(),
             },
-            placements: &self.placements,
+            shardings: &self.shardings,
         });
         self.interpreters[member].register_op(op);
     }
@@ -285,31 +281,31 @@ impl<B: BackendIr> GroupInterpreter<B> {
         }
     }
 
-    fn take_shards(&mut self, tensor: &TensorIr, placement: GroupPlacement) -> ShardList<B> {
+    fn take_shards(&mut self, tensor: &TensorIr, sharding: Sharding) -> ShardList<B> {
         let members = self.interpreters.len();
         let shards = self
             .interpreters
             .iter_mut()
             .enumerate()
             .map(|(index, interpreter)| {
-                interpreter.get_tensor(&placement.local_tensor(tensor, Member { index, members }))
+                interpreter.get_tensor(&sharding.local_tensor(tensor, Member { index, members }))
             })
             .collect();
         if tensor.status == TensorStatus::ReadWrite {
-            self.placements.remove(&tensor.id);
+            self.shardings.remove(&tensor.id);
         }
         ShardList::new(shards)
     }
 
-    fn register_shards(&mut self, id: TensorId, shards: ShardList<B>, placement: GroupPlacement) {
+    fn register_shards(&mut self, id: TensorId, shards: ShardList<B>, sharding: Sharding) {
         for (interpreter, handle) in self.interpreters.iter_mut().zip(shards.into_handles()) {
             interpreter.register_tensor_to_device(id, handle);
         }
-        self.placements.insert(id, placement);
+        self.shardings.insert(id, sharding);
     }
 
     fn drop(&mut self, id: TensorId) {
-        if self.placements.remove(&id).is_some() {
+        if self.shardings.remove(&id).is_some() {
             for interpreter in &mut self.interpreters {
                 interpreter.register_op(OperationIr::Drop(TensorIr {
                     id,
@@ -322,7 +318,7 @@ impl<B: BackendIr> GroupInterpreter<B> {
     }
 }
 
-/// Points an op's inputs at their redistributed temporaries, which outlive it.
+/// Points an op's inputs at their resharded temporaries, which outlive it.
 #[derive(Default)]
 struct Renames {
     ids: HashMap<TensorId, TensorId>,
@@ -342,13 +338,13 @@ impl IrVisitorMut for Renames {
 /// Gives every tensor of an op the shape of the shard one member holds.
 struct MemberShapes<'a> {
     member: Member,
-    placements: &'a PlacementMap,
+    shardings: &'a ShardingMap,
 }
 
 impl IrVisitorMut for MemberShapes<'_> {
     fn visit_tensor_mut(&mut self, tensor: &mut TensorIr) {
         *tensor = self
-            .placements
+            .shardings
             .get(&tensor.id)
             .local_tensor(tensor, self.member);
     }
