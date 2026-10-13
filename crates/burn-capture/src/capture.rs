@@ -679,7 +679,7 @@ mod tests {
     #[cfg(feature = "std")]
     use burn_backend::Backend;
     use burn_backend::ops::{FloatTensorOps, IntTensorOps, ModuleOps};
-    use burn_ir::{CustomOpIr, ModuleOperationIr, ScalarIr};
+    use burn_ir::{CustomOpIr, FloatOperationIr, ModuleOperationIr, ScalarIr};
     use burn_router::get_client;
 
     fn tensor(id: u64, shape: impl Into<Shape>) -> TensorIr {
@@ -787,6 +787,41 @@ mod tests {
                 [
                     OperationIr::Module(ModuleOperationIr::CtcLoss(_)),
                     OperationIr::Module(ModuleOperationIr::CtcLossBackward(_)),
+                ]
+            ),
+            "captured operations: {computed:?}"
+        );
+    }
+
+    #[test]
+    fn fmod_is_one_operation() {
+        let device = CaptureDevice::default();
+        let captured = device
+            .capture_scope(|scope| {
+                let lhs =
+                    CaptureBackend::float_from_data(TensorData::from([5.3f32, -5.3]), &device);
+                let rhs = CaptureBackend::float_from_data(TensorData::from([2.0f32, 2.0]), &device);
+                let inputs = [lhs.id(), rhs.id()];
+
+                let tensor = CaptureBackend::float_fmod(lhs.clone(), rhs);
+                let scalar = CaptureBackend::float_fmod_scalar(lhs, 2.0f32.into());
+
+                scope.complete(inputs, [tensor.id(), scalar.id()])
+            })
+            .unwrap();
+
+        let computed: Vec<_> = captured
+            .graph
+            .operations
+            .iter()
+            .filter(|operation| !matches!(operation, OperationIr::Init(_)))
+            .collect();
+        assert!(
+            matches!(
+                computed.as_slice(),
+                [
+                    OperationIr::Float(_, FloatOperationIr::Fmod(_)),
+                    OperationIr::Float(_, FloatOperationIr::FmodScalar(_)),
                 ]
             ),
             "captured operations: {computed:?}"

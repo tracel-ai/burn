@@ -341,21 +341,7 @@ pub trait FloatTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The element-wise floating-point remainder.
-    fn float_fmod(lhs: FloatTensor<B>, rhs: FloatTensor<B>) -> FloatTensor<B> {
-        // fmod(x, y) = x - y * trunc(x / y)
-        let bool_dtype = get_or_init_device_settings::<B>(&lhs.device()).bool_dtype;
-        let truncated = B::float_trunc(B::float_div(lhs.clone(), rhs.clone()));
-        let product = B::float_mul(rhs.clone(), truncated.clone());
-
-        // fmod(x, ±inf) = x for a finite x, but the product is then inf * 0 = NaN.
-        let zero_times_inf = B::bool_and(
-            B::float_equal_elem(truncated, 0f32.into(), bool_dtype),
-            B::float_is_inf(rhs, bool_dtype),
-        );
-        let product = B::float_mask_fill(product, zero_times_inf, 0f32.into());
-
-        B::float_sub(lhs, product)
-    }
+    fn float_fmod(lhs: FloatTensor<B>, rhs: FloatTensor<B>) -> FloatTensor<B>;
 
     /// Computes the floating-point remainder of dividing `lhs` by a scalar element-wise.
     ///
@@ -369,18 +355,7 @@ pub trait FloatTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The element-wise floating-point remainder.
-    fn float_fmod_scalar(lhs: FloatTensor<B>, rhs: Scalar) -> FloatTensor<B> {
-        if rhs.elem::<f64>().is_infinite() {
-            // fmod(x, ±inf) is x for a finite x and NaN for an infinite one.
-            let bool_dtype = get_or_init_device_settings::<B>(&lhs.device()).bool_dtype;
-            let is_inf = B::float_is_inf(lhs.clone(), bool_dtype);
-            return B::float_mask_fill(lhs, is_inf, f64::NAN.into());
-        }
-
-        // fmod(x, s) = x - s * trunc(x / s)
-        let truncated = B::float_trunc(B::float_div_scalar(lhs.clone(), rhs));
-        B::float_sub(lhs, B::float_mul_scalar(truncated, rhs))
-    }
+    fn float_fmod_scalar(lhs: FloatTensor<B>, rhs: Scalar) -> FloatTensor<B>;
 
     /// Multiplies two tensors together using matrix multiplication.
     ///
