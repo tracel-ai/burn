@@ -2,7 +2,7 @@ use alloc::vec::Vec;
 use burn_backend::{
     BoolDType, ExecutionError, FloatDType, IntDType, Scalar, Shape, Slice, TensorData,
     ops::BoolTensorOps,
-    tensor::{BoolTensor, FloatTensor, IntTensor},
+    tensor::{BoolTensor, FloatTensor, IndexingUpdateOp, IntTensor},
 };
 use burn_backend_extension::backend_dispatch;
 
@@ -101,13 +101,14 @@ impl BoolTensorOps<Self> for Dispatch {
         B::bool_gather(dim, tensor, indices)
     }
 
-    fn bool_scatter_or(
+    fn bool_scatter(
         dim: usize,
         tensor: BoolTensor<Self>,
         indices: IntTensor<Self>,
         value: BoolTensor<Self>,
+        update: IndexingUpdateOp,
     ) -> BoolTensor<Self> {
-        B::bool_scatter_or(dim, tensor, indices, value)
+        B::bool_scatter(dim, tensor, indices, value, update)
     }
 
     fn bool_equal(lhs: BoolTensor<Self>, rhs: BoolTensor<Self>) -> BoolTensor<Self> {
@@ -163,13 +164,14 @@ impl BoolTensorOps<Self> for Dispatch {
         B::bool_select(tensor, dim, indices)
     }
 
-    fn bool_select_or(
+    fn bool_select_assign(
         tensor: BoolTensor<Self>,
         dim: usize,
         indices: IntTensor<Self>,
         value: BoolTensor<Self>,
+        update: IndexingUpdateOp,
     ) -> BoolTensor<Self> {
-        B::bool_select_or(tensor, dim, indices, value)
+        B::bool_select_assign(tensor, dim, indices, value, update)
     }
 
     fn bool_repeat_dim(tensor: BoolTensor<Self>, dim: usize, times: usize) -> BoolTensor<Self> {

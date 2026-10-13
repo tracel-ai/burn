@@ -973,11 +973,12 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
             .output()
     }
 
-    fn bool_scatter_or(
+    fn bool_scatter(
         dim: usize,
         tensor: BoolTensor<Self>,
         indices: IntTensor<Self>,
         value: BoolTensor<Self>,
+        update: IndexingUpdateOp,
     ) -> BoolTensor<Self> {
         #[derive(new, Debug)]
         struct ScatterOps<B: FusionBackend> {
@@ -994,7 +995,8 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
                 let indices = handles.get_int_tensor::<B>(&self.desc.indices);
                 let value = handles.get_bool_tensor::<B>(&self.desc.value);
 
-                let output = B::bool_scatter_or(self.desc.dim, tensor, indices, value);
+                let output =
+                    B::bool_scatter(self.desc.dim, tensor, indices, value, self.desc.update);
 
                 handles.register_bool_tensor::<B>(&self.desc.out.id, output);
 
@@ -1010,7 +1012,7 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
             dim,
             indices.into_ir(),
             value.into_ir(),
-            IndexingUpdateOp::Add,
+            update,
             || client.create_empty_handle(),
         );
 
@@ -1103,11 +1105,12 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
             .output()
     }
 
-    fn bool_select_or(
+    fn bool_select_assign(
         tensor: BoolTensor<Self>,
         dim: usize,
         indices: IntTensor<Self>,
         value: BoolTensor<Self>,
+        update: IndexingUpdateOp,
     ) -> BoolTensor<Self> {
         #[derive(new, Debug)]
         struct SelectAssignOps<B: FusionBackend> {
@@ -1124,7 +1127,8 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
                 let indices = handles.get_int_tensor::<B>(&self.desc.indices);
                 let value = handles.get_bool_tensor::<B>(&self.desc.value);
 
-                let output = B::bool_select_or(tensor, self.desc.dim, indices, value);
+                let output =
+                    B::bool_select_assign(tensor, self.desc.dim, indices, value, self.desc.update);
 
                 handles.register_bool_tensor::<B>(&self.desc.out.id, output);
 
@@ -1140,7 +1144,7 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
             dim,
             indices.into_ir(),
             value.into_ir(),
-            IndexingUpdateOp::Add,
+            update,
             || client.create_empty_handle(),
         );
 

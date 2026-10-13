@@ -4,7 +4,7 @@ use alloc::vec::Vec;
 use burn_backend::{
     Backend, ExecutionError, Scalar, TensorData,
     ops::BoolTensorOps,
-    tensor::{BoolTensor, Device, FloatTensor, IntTensor},
+    tensor::{BoolTensor, Device, FloatTensor, IndexingUpdateOp, IntTensor},
 };
 use burn_std::{BoolDType, FloatDType, IntDType, Shape};
 
@@ -145,13 +145,14 @@ impl<B: Backend, C: CheckpointStrategy> BoolTensorOps<Self> for Autodiff<B, C> {
         B::bool_gather(dim, tensor, indices)
     }
 
-    fn bool_scatter_or(
+    fn bool_scatter(
         dim: usize,
         tensor: BoolTensor<Self>,
         indices: IntTensor<Self>,
         value: BoolTensor<Self>,
+        update: IndexingUpdateOp,
     ) -> BoolTensor<Self> {
-        B::bool_scatter_or(dim, tensor, indices, value)
+        B::bool_scatter(dim, tensor, indices, value, update)
     }
 
     fn bool_equal_elem(lhs: BoolTensor<Self>, rhs: Scalar) -> BoolTensor<Self> {
@@ -166,12 +167,13 @@ impl<B: Backend, C: CheckpointStrategy> BoolTensorOps<Self> for Autodiff<B, C> {
         B::bool_select(tensor, dim, indices)
     }
 
-    fn bool_select_or(
+    fn bool_select_assign(
         tensor: BoolTensor<Self>,
         dim: usize,
         indices: IntTensor<Self>,
         value: BoolTensor<Self>,
+        update: IndexingUpdateOp,
     ) -> BoolTensor<Self> {
-        B::bool_select_or(tensor, dim, indices, value)
+        B::bool_select_assign(tensor, dim, indices, value, update)
     }
 }
