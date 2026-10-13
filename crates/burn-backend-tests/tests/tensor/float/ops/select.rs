@@ -247,7 +247,7 @@ fn should_select_3d_dim1_vec() {
 }
 
 #[test]
-#[should_panic]
+#[should_panic(expected = "out of bounds")]
 fn should_select_panic_invalid_dimension() {
     let device = Default::default();
     let tensor = TestTensor::<2>::from_data([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]], &device);
@@ -294,7 +294,7 @@ fn should_select_add_with_negative_dim_2d() {
 }
 
 #[test]
-#[should_panic]
+#[should_panic(expected = "out of bounds")]
 fn should_panic_select_negative_dim_out_of_bounds() {
     let device = Default::default();
     let tensor = TestTensor::<2>::from_data([[1.0, 2.0], [3.0, 4.0]], &device);
@@ -305,7 +305,7 @@ fn should_panic_select_negative_dim_out_of_bounds() {
 }
 
 #[test]
-#[should_panic]
+#[should_panic(expected = "out of bounds")]
 fn should_panic_select_add_negative_dim_out_of_bounds() {
     let device = Default::default();
     let tensor = TestTensor::<2>::from_data([[1.0, 2.0], [3.0, 4.0]], &device);

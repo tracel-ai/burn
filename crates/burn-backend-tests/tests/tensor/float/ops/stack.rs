@@ -42,7 +42,7 @@ fn should_support_stack_ops_3d() {
 }
 
 #[test]
-#[should_panic]
+#[should_panic(expected = "Can't stack tensors with different shapes")]
 fn should_panic_when_dimensions_are_not_the_same() {
     let device = Default::default();
     let tensor_1 = TestTensor::<2>::from_data([[1.0, 2.0, 3.0], [1.0, 2.0, 3.0]], &device);
@@ -52,7 +52,7 @@ fn should_panic_when_dimensions_are_not_the_same() {
 }
 
 #[test]
-#[should_panic]
+#[should_panic(expected = "Can't stack an empty list")]
 fn should_panic_when_list_of_vectors_is_empty() {
     let tensors: Vec<TestTensor<2>> = vec![];
     let _output = Tensor::stack::<3>(tensors, 0);

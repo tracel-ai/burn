@@ -74,7 +74,7 @@ fn should_not_corrupt_after_slice() {
 }
 
 #[test]
-#[should_panic]
+#[should_panic(expected = "Repeated -1 in reshape")]
 fn multiple_neg_ones() {
     let data = TensorData::from([0.0, 1.0, 2.0]);
     let tensor = TestTensor::<1>::from_data(data, &Default::default());
@@ -82,7 +82,7 @@ fn multiple_neg_ones() {
 }
 
 #[test]
-#[should_panic]
+#[should_panic(expected = "cannot contain negative dimensions")]
 fn neg_value() {
     let data = TensorData::from([0.0, 1.0, 2.0]);
     let tensor = TestTensor::<1>::from_data(data, &Default::default());

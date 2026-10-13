@@ -68,7 +68,7 @@ fn test_roll_matches_torch_direction() {
         .assert_eq(&TensorData::from([3, 0, 1, 2]), false);
 }
 
-#[should_panic]
+#[should_panic(expected = "out of bounds")]
 #[test]
 fn test_roll_dim_too_big() {
     let input = TestTensorInt::<2>::from([[0, 1, 2], [3, 4, 5]]);
@@ -77,7 +77,7 @@ fn test_roll_dim_too_big() {
     let _d = input.roll(&[1], &[2]);
 }
 
-#[should_panic]
+#[should_panic(expected = "out of bounds")]
 #[test]
 fn test_roll_dim_too_small() {
     let input = TestTensorInt::<2>::from([[0, 1, 2], [3, 4, 5]]);
@@ -86,7 +86,7 @@ fn test_roll_dim_too_small() {
     let _d = input.roll(&[1], &[-3]);
 }
 
-#[should_panic]
+#[should_panic(expected = "Dimensions and shifts must align")]
 #[test]
 fn test_roll_shift_size_mismatch() {
     let input = TestTensorInt::<2>::from([[0, 1, 2], [3, 4, 5]]);
@@ -113,7 +113,7 @@ fn test_roll_dim() {
         .assert_eq(&TensorData::from([[1, 2, 0], [4, 5, 3]]), false);
 }
 
-#[should_panic]
+#[should_panic(expected = "out of bounds")]
 #[test]
 fn test_roll_dim_dim_too_big() {
     let input = TestTensorInt::<2>::from([[0, 1, 2], [3, 4, 5]]);
@@ -122,7 +122,7 @@ fn test_roll_dim_dim_too_big() {
     let _d = input.roll_dim(1, 2);
 }
 
-#[should_panic]
+#[should_panic(expected = "out of bounds")]
 #[test]
 fn test_roll_dim_dim_too_small() {
     let input = TestTensorInt::<2>::from([[0, 1, 2], [3, 4, 5]]);

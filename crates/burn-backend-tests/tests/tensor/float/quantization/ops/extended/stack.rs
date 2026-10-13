@@ -51,7 +51,7 @@ fn should_support_stack_ops_3d() {
 }
 
 #[test]
-#[should_panic]
+#[should_panic(expected = "Can't stack tensors with different shapes")]
 fn should_panic_when_dimensions_are_not_the_same() {
     let tensor_1 = QTensor::<2>::int8([[1.0, 2.0, 3.0]]);
     let tensor_2 = QTensor::<2>::int8([[4.0, 5.0]]);

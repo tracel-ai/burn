@@ -22,7 +22,7 @@ fn float_should_support_one_hot_index() {
 }
 
 #[test]
-#[should_panic]
+#[should_panic(expected = "greater or equal to the number of classes (5)")]
 fn float_one_hot_should_panic_when_index_exceeds_number_of_classes() {
     let tensor = TestTensor::<1>::from([5.0]);
     let _result: TestTensor<2> = tensor.one_hot(5);
@@ -72,7 +72,7 @@ fn one_hot_fill_with_negative_indices() {
     one_hot_tensor.into_data().assert_eq(&expected, false);
 }
 
-#[should_panic]
+#[should_panic(expected = "out of bounds")]
 #[test]
 fn one_hot_fill_should_panic_when_axis_out_range_of_rank() {
     let tensor = TestTensor::<2>::from([[0.0, 2.0], [1.0, -1.0]]);
@@ -80,7 +80,7 @@ fn one_hot_fill_should_panic_when_axis_out_range_of_rank() {
     let _one_hot_tensor: TestTensor<3> = tensor.one_hot_fill(2, 5.0, 0.0, 3);
 }
 
-#[should_panic]
+#[should_panic(expected = "out of bounds")]
 #[test]
 fn one_hot_fill_should_panic_when_negative_axis_out_range_of_rank() {
     let tensor = TestTensor::<2>::from([[0.0, 2.0], [1.0, -1.0]]);
