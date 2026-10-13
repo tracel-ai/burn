@@ -394,7 +394,12 @@ impl TensorCheck {
         num_classes: usize,
     ) -> Self {
         let mut check = Self::Ok;
-        if index_tensor
+        if num_classes <= 1 {
+            check = check.register(
+                "One Hot",
+                TensorError::new("Can't create a one hot tensor with less than 2 classes"),
+            )
+        } else if index_tensor
             .clone()
             .greater_equal_scalar(num_classes as i32)
             .any()
@@ -407,11 +412,6 @@ impl TensorCheck {
                     "Can't create a one hot tensor from ({index_tensor:?}) containing indexes greater or equal to the number of classes ({num_classes})",
                 )),
             );
-        } else if num_classes <= 1 {
-            check = check.register(
-                "One Hot",
-                TensorError::new("Can't create a one hot tensor with less than 2 classes"),
-            )
         }
         check
     }

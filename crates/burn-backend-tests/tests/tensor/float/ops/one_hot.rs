@@ -29,7 +29,7 @@ fn float_one_hot_should_panic_when_index_exceeds_number_of_classes() {
 }
 
 #[test]
-#[should_panic]
+#[should_panic(expected = "less than 2 classes")]
 fn float_one_hot_should_panic_when_number_of_classes_is_zero() {
     let tensor = TestTensor::<1>::from([0.0]);
     let _result: TestTensor<2> = tensor.one_hot(0);
