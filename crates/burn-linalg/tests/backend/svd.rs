@@ -7,6 +7,39 @@ fn tolerance() -> Tolerance<FloatElem> {
     Tolerance::rel_abs(5e-4, 1e-5).set_half_precision_absolute(5e-2)
 }
 
+// Factor checks need full precision independently of device matmul rounding.
+fn host_matmul<const D: usize>(lhs: TestTensor<D>, rhs: TestTensor<D>) -> TensorData {
+    let mut shape = lhs.dims();
+    let rhs_shape = rhs.dims();
+    let (m, k, n) = (shape[D - 2], shape[D - 1], rhs_shape[D - 1]);
+    assert_eq!(rhs_shape[D - 2], k);
+    assert_eq!(&shape[..D - 2], &rhs_shape[..D - 2]);
+    let batches: usize = shape[..D - 2].iter().product();
+    shape[D - 1] = n;
+    let lhs = lhs
+        .into_data()
+        .convert::<f64>()
+        .try_into_vec::<f64>()
+        .unwrap();
+    let rhs = rhs
+        .into_data()
+        .convert::<f64>()
+        .try_into_vec::<f64>()
+        .unwrap();
+    let mut out = vec![0.0f64; batches * m * n];
+    for batch in 0..batches {
+        for row in 0..m {
+            for col in 0..n {
+                for inner in 0..k {
+                    out[(batch * m + row) * n + col] +=
+                        lhs[(batch * m + row) * k + inner] * rhs[(batch * k + inner) * n + col];
+                }
+            }
+        }
+    }
+    TensorData::new(out, shape)
+}
+
 /// Singular values read back as plain scalars (ordering and sign checks).
 fn singular_values(s: TestTensor<1>) -> Vec<f32> {
     s.into_data().convert::<f32>().try_to_vec::<f32>().unwrap()
@@ -20,13 +53,8 @@ fn assert_reconstruction<const D: usize, const D1: usize>(
     vt: &TestTensor<D>,
 ) {
     // Scale the columns of U by S ([.., k] becomes [.., 1, k]) and multiply.
-    let recon = u
-        .clone()
-        .mul(s.clone().unsqueeze_dim(D - 2))
-        .matmul(vt.clone());
-    recon
-        .into_data()
-        .assert_approx_eq::<FloatElem>(&a.clone().into_data(), tolerance());
+    let recon = host_matmul(u.clone().mul(s.clone().unsqueeze_dim(D - 2)), vt.clone());
+    recon.assert_approx_eq::<FloatElem>(&a.clone().into_data(), tolerance());
 }
 
 // ---------------------------------------------------------------------
@@ -140,13 +168,11 @@ fn test_svd_orthonormal_rectangular() {
     let device = Default::default();
     let tensor = TestTensor::<2>::random([6, 4], Distribution::Normal(0.0, 1.0), &device);
     let (u, _s, vt) = svd::<2, 1>(tensor, 15);
-    let utu = u.clone().transpose().matmul(u);
-    utu.into_data()
-        .assert_approx_eq::<FloatElem>(&TestTensor::<2>::eye(4, &device).into_data(), tolerance());
+    let utu = host_matmul(u.clone().transpose(), u);
+    utu.assert_approx_eq::<FloatElem>(&TestTensor::<2>::eye(4, &device).into_data(), tolerance());
     let vt_t = vt.clone().transpose();
-    let vvt = vt.matmul(vt_t);
-    vvt.into_data()
-        .assert_approx_eq::<FloatElem>(&TestTensor::<2>::eye(4, &device).into_data(), tolerance());
+    let vvt = host_matmul(vt, vt_t);
+    vvt.assert_approx_eq::<FloatElem>(&TestTensor::<2>::eye(4, &device).into_data(), tolerance());
 }
 
 #[test]
@@ -157,13 +183,11 @@ fn test_svd_zero_matrix_factors_orthonormal() {
     let tensor = TestTensor::<2>::zeros([4, 4], &device);
     let (u, s, vt) = svd::<2, 1>(tensor.clone(), 15);
     assert_reconstruction::<2, 1>(&tensor, &u, &s, &vt);
-    let utu = u.clone().transpose().matmul(u);
-    utu.into_data()
-        .assert_approx_eq::<FloatElem>(&TestTensor::<2>::eye(4, &device).into_data(), tolerance());
+    let utu = host_matmul(u.clone().transpose(), u);
+    utu.assert_approx_eq::<FloatElem>(&TestTensor::<2>::eye(4, &device).into_data(), tolerance());
     let vt_t = vt.clone().transpose();
-    let vvt = vt.matmul(vt_t);
-    vvt.into_data()
-        .assert_approx_eq::<FloatElem>(&TestTensor::<2>::eye(4, &device).into_data(), tolerance());
+    let vvt = host_matmul(vt, vt_t);
+    vvt.assert_approx_eq::<FloatElem>(&TestTensor::<2>::eye(4, &device).into_data(), tolerance());
     let zeros = TestTensor::<1>::from_data([0.0, 0.0, 0.0, 0.0], &device);
     s.into_data()
         .assert_approx_eq::<FloatElem>(&zeros.into_data(), tolerance());

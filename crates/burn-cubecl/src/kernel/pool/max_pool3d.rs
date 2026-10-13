@@ -116,12 +116,17 @@ fn max_pool3d_forward_kernel<F: Float, I: Int>(
         + od * output.stride(2)
         + oh * output.stride(3)
         + ow * output.stride(4);
+    let indices_idx = batch * indices.stride(0)
+        + channel * indices.stride(1)
+        + od * indices.stride(2)
+        + oh * indices.stride(3)
+        + ow * indices.stride(4);
 
     output[out_idx] = max_val;
     if first_valid {
-        indices[out_idx] = I::cast_from(-1i32);
+        indices[indices_idx] = I::cast_from(-1i32);
     } else {
-        indices[out_idx] = I::cast_from(max_idx);
+        indices[indices_idx] = I::cast_from(max_idx);
     }
 }
 

@@ -11,8 +11,9 @@ use burn_tensor::{TensorData, Tolerance};
 
 /// Row-major `[rows, cols]` data, `rows * cols` distinct values.
 fn data(rows: usize, cols: usize, offset: f32) -> Vec<f32> {
+    // The layout regression needs distinct values that TF32 can represent exactly.
     (0..rows * cols)
-        .map(|i| (i as f32 * 0.37 + offset).sin())
+        .map(|i| ((i * 37) % (rows * cols)) as f32 / 128.0 - 0.5 + offset)
         .collect()
 }
 
