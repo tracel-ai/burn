@@ -390,12 +390,12 @@ impl TensorCheck {
     }
 
     pub(crate) fn one_hot_tensor<const D: usize, K: Ordered>(
-        index_tensor: Tensor<D, K>,
+        index_tensor: &Tensor<D, K>,
         num_classes: usize,
+        classes: &[Option<usize>],
     ) -> Self {
         let mut check = Self::Ok;
         // `one_hot_fill` keeps an off_value row for out-of-range indices; `one_hot` rejects them
-        let classes = super::orderable::one_hot_classes(&index_tensor.to_data(), num_classes);
         if classes.iter().any(Option::is_none) {
             check = check.register(
                 "One Hot",

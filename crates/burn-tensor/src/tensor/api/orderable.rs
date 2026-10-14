@@ -292,8 +292,10 @@ where
     /// ```
     pub fn one_hot<const D2: usize>(self, num_classes: usize) -> Tensor<D2, K> {
         check!(TensorCheck::quantized_unsupported("One Hot", self.dtype()));
-        check!(TensorCheck::one_hot_tensor(self.clone(), num_classes));
-        self.one_hot_fill(num_classes, 1.0, 0.0, -1)
+        let classes = one_hot_classes(&self.to_data(), num_classes);
+        check!(TensorCheck::one_hot_tensor(&self, num_classes, &classes));
+        check!(TensorCheck::one_hot_tensor_rank::<D, D2>());
+        self.one_hot_from_classes(num_classes, 1.0, 0.0, D, &classes)
     }
 
     /// Create a one-hot encoded tensor with configurable `num_classes`, `on_value`, `off_value`, and `axis` including high-ranked tensors.
@@ -343,6 +345,22 @@ where
         check!(TensorCheck::quantized_unsupported("One Hot", self.dtype()));
         let axis = unwrap_dim_index(axis.try_dim_index(D + 1), "One Hot");
 
+        let classes = if num_classes == 0 {
+            Vec::new()
+        } else {
+            one_hot_classes(&self.to_data(), num_classes)
+        };
+        self.one_hot_from_classes(num_classes, on_value, off_value, axis, &classes)
+    }
+
+    fn one_hot_from_classes<const D2: usize>(
+        self,
+        num_classes: usize,
+        on_value: f32,
+        off_value: f32,
+        axis: usize,
+        classes: &[Option<usize>],
+    ) -> Tensor<D2, K> {
         // Initialize shape from the current tensor dimensions and prepare for modification
         let index_shape = self.shape();
         let mut shape = index_shape.clone();
@@ -361,7 +379,6 @@ where
         }
 
         // Out-of-range positions get class 0 and scatter off_value there, so their row is unchanged
-        let classes = one_hot_classes(&self.to_data(), num_classes);
         let out_of_range: Vec<bool> = classes.iter().map(Option::is_none).collect();
         let class_indices: Vec<i64> = classes.iter().map(|c| c.unwrap_or(0) as i64).collect();
         let adjusted_indices: Tensor<D, Int> =
@@ -1203,7 +1220,7 @@ where
 /// Indices are converted to integers first, truncating fractional values toward zero as ONNX
 /// `OneHot` does; values that can't be converted (NaN, infinities, beyond `i64`) are out of range.
 /// The class bounds are then checked on the integers, so they never depend on the index dtype.
-pub(crate) fn one_hot_classes(indices: &TensorData, num_classes: usize) -> Vec<Option<usize>> {
+fn one_hot_classes(indices: &TensorData, num_classes: usize) -> Vec<Option<usize>> {
     // Every float in [-2^63, 2^63) converts to an i64
     const I64_RANGE: f64 = 9_223_372_036_854_775_808.0;
 
