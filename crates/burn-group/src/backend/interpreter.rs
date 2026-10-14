@@ -93,25 +93,28 @@ impl<B: BackendIr> GroupInterpreter<B> {
     pub fn default_settings(&self) -> DeviceSettings {
         let defaults: Vec<DeviceSettings> = self.devices.iter().map(DeviceOps::defaults).collect();
         DeviceSettings::new(
-            self.first_supported_everywhere(defaults.iter().map(|it| it.float_dtype).collect()),
-            self.first_supported_everywhere(defaults.iter().map(|it| it.int_dtype).collect()),
-            self.first_supported_everywhere(defaults.iter().map(|it| it.bool_dtype).collect()),
+            self.first_supported_everywhere(defaults.iter().map(|it| it.float_dtype)),
+            self.first_supported_everywhere(defaults.iter().map(|it| it.int_dtype)),
+            self.first_supported_everywhere(defaults.iter().map(|it| it.bool_dtype)),
             // Every device of one backend shares its quantization config.
             defaults[0].quantization,
         )
     }
 
-    fn first_supported_everywhere<T: Copy + Debug + Into<DType>>(&self, candidates: Vec<T>) -> T {
+    fn first_supported_everywhere<T: Copy + Debug + Into<DType>>(
+        &self,
+        candidates: impl Iterator<Item = T> + Clone,
+    ) -> T {
         candidates
-            .iter()
-            .copied()
-            .find(|dtype| {
-                let dtype = (*dtype).into();
+            .clone()
+            .find(|&dtype| {
+                let dtype = dtype.into();
                 self.devices
                     .iter()
                     .all(|device| B::supports_dtype(device, dtype))
             })
             .unwrap_or_else(|| {
+                let candidates: Vec<T> = candidates.collect();
                 panic!("None of the members' defaults {candidates:?} runs on every member")
             })
     }
