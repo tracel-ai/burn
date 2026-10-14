@@ -1,5 +1,5 @@
 use crate::bridge::{BasicOps, Ordered};
-use crate::{DType, Shape, Slice, Tensor, cast::ToElement};
+use crate::{DType, Shape, Slice, Tensor};
 use alloc::format;
 use alloc::string::{String, ToString};
 use alloc::vec;
@@ -395,15 +395,8 @@ impl TensorCheck {
     ) -> Self {
         let mut check = Self::Ok;
         // `one_hot_fill` keeps an off_value row for out-of-range indices; `one_hot` rejects them
-        let mut out_of_range = index_tensor
-            .clone()
-            .greater_equal_scalar(num_classes as i32);
-        // Unsigned values can't be negative (and can't hold the negative bound)
-        if !index_tensor.dtype().is_uint() {
-            out_of_range =
-                out_of_range.bool_or(index_tensor.clone().lower_scalar(-(num_classes as i32)));
-        }
-        if out_of_range.any().into_scalar::<i64>().to_bool() {
+        let classes = super::orderable::one_hot_classes(&index_tensor.to_data(), num_classes);
+        if classes.iter().any(Option::is_none) {
             check = check.register(
                 "One Hot",
                 TensorError::new(format!(

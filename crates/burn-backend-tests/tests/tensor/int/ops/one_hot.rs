@@ -163,3 +163,31 @@ fn one_hot_fill_unsigned_index_above_i64_max_gives_off_value_row() {
         .into_data()
         .assert_eq(&TensorData::from([[1u64, 5, 1], [1, 1, 1]]), false);
 }
+
+// I8 is not supported on every backend
+#[cfg(feature = "flex")]
+#[test]
+fn one_hot_fill_class_bounds_do_not_depend_on_index_dtype() {
+    // 128 classes don't fit in i8: the bounds must still accept 127 and -128.
+    let tensor = TestTensorInt::<1>::from([127, -128]).cast(burn_tensor::DType::I8);
+
+    let one_hot_tensor: TestTensorInt<2> = tensor.one_hot_fill(128, 1.0, 0.0, -1);
+
+    let mut expected = vec![0i8; 2 * 128];
+    expected[127] = 1;
+    expected[128] = 1;
+    one_hot_tensor
+        .into_data()
+        .assert_eq(&TensorData::new(expected, [2, 128]), false);
+}
+
+// I8 is not supported on every backend
+#[cfg(feature = "flex")]
+#[test]
+fn int_one_hot_accepts_class_count_above_index_dtype_max() {
+    let tensor = TestTensorInt::<1>::from([127]).cast(burn_tensor::DType::I8);
+
+    let one_hot_tensor: TestTensorInt<2> = tensor.one_hot(128);
+
+    assert_eq!(one_hot_tensor.dims(), [1, 128]);
+}
