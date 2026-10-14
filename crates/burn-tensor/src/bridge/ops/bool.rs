@@ -151,16 +151,21 @@ impl BasicOps for Bool {
     }
 
     fn scatter_nd(
-        _data: BridgeTensor,
-        _indices: BridgeTensor,
-        _values: BridgeTensor,
-        _reduction: IndexingUpdateOp,
+        data: BridgeTensor,
+        indices: BridgeTensor,
+        values: BridgeTensor,
+        reduction: IndexingUpdateOp,
     ) -> BridgeTensor {
-        panic!("scatter_nd is not supported for bool tensors")
+        BridgeTensor::bool(Dispatch::bool_scatter_nd(
+            data.into(),
+            indices.into(),
+            values.into(),
+            reduction,
+        ))
     }
 
-    fn gather_nd(_data: BridgeTensor, _indices: BridgeTensor) -> BridgeTensor {
-        panic!("gather_nd is not supported for bool tensors")
+    fn gather_nd(data: BridgeTensor, indices: BridgeTensor) -> BridgeTensor {
+        BridgeTensor::bool(Dispatch::bool_gather_nd(data.into(), indices.into()))
     }
 
     fn device(tensor: &BridgeTensor) -> Device {

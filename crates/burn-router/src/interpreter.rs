@@ -684,11 +684,20 @@ impl<B: BackendIr> TensorInterpreter<B> {
                     let output = B::bool_scatter(desc.dim, tensor, indices, value, desc.update);
                     handles.register_bool_tensor::<B>(&desc.out.id, output);
                 }
-                BaseOperationIr::ScatterNd(_) => {
-                    unreachable!("scatter_nd not supported for bool tensors")
+                BaseOperationIr::ScatterNd(desc) => {
+                    let data = handles.get_bool_tensor::<B>(&desc.data);
+                    let indices = handles.get_int_tensor::<B>(&desc.indices);
+                    let values = handles.get_bool_tensor::<B>(&desc.values);
+
+                    let output = B::bool_scatter_nd(data, indices, values, desc.reduction);
+                    handles.register_bool_tensor::<B>(&desc.out.id, output);
                 }
-                BaseOperationIr::GatherNd(_) => {
-                    unreachable!("gather_nd not supported for bool tensors")
+                BaseOperationIr::GatherNd(desc) => {
+                    let data = handles.get_bool_tensor::<B>(&desc.data);
+                    let indices = handles.get_int_tensor::<B>(&desc.indices);
+
+                    let output = B::bool_gather_nd(data, indices);
+                    handles.register_bool_tensor::<B>(&desc.out.id, output);
                 }
                 BaseOperationIr::Select(desc) => {
                     let tensor = handles.get_bool_tensor::<B>(&desc.tensor);

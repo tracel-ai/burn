@@ -252,6 +252,20 @@ pub trait BoolTensorOps<B: Backend> {
         update: IndexingUpdateOp,
     ) -> BoolTensor<B>;
 
+    /// Multi-dimensional scatter for bool tensors.
+    ///
+    /// `Assign` overwrites, `Add` and `Max` combine with logical or, and `Mul` and `Min`
+    /// combine with logical and.
+    fn bool_scatter_nd(
+        data: BoolTensor<B>,
+        indices: IntTensor<B>,
+        values: BoolTensor<B>,
+        reduction: IndexingUpdateOp,
+    ) -> BoolTensor<B>;
+
+    /// Multi-dimensional gather for bool tensors.
+    fn bool_gather_nd(data: BoolTensor<B>, indices: IntTensor<B>) -> BoolTensor<B>;
+
     /// Select tensor elements along the given dimension corresponding to the given indices.
     ///
     /// # Arguments
