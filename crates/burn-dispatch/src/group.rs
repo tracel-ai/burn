@@ -33,7 +33,7 @@ impl DispatchTensor {
         let DispatchTensor { kind, autodiff } = self;
         let kind = match kind {
             DispatchTensorKind::Group(tensor) => {
-                DispatchTensorKind::Group(reshard(tensor, sharding))
+                DispatchTensorKind::Group(tensor.reshard(sharding))
             }
             #[cfg(feature = "autodiff")]
             DispatchTensorKind::Autodiff(inner) => {
@@ -109,23 +109,25 @@ impl<B: Backend> Backward<B, 1> for WithSharding {
     }
 }
 
-fn reshard(tensor: BackendTensor<Group>, sharding: Sharding) -> BackendTensor<Group> {
-    match tensor {
-        BackendTensor::Float(tensor) => {
-            BackendTensor::Float(tensor.client.clone().reshard(tensor, sharding))
-        }
-        BackendTensor::Int(tensor) => {
-            BackendTensor::Int(tensor.client.clone().reshard(tensor, sharding))
-        }
-        BackendTensor::Bool(tensor) => {
-            BackendTensor::Bool(tensor.client.clone().reshard(tensor, sharding))
-        }
-        BackendTensor::Quantized(_) => {
-            panic!("A quantized tensor is not split over a device group")
-        }
-        #[cfg(feature = "autodiff")]
-        BackendTensor::Autodiff(_) => {
-            unreachable!("An autodiff tensor is wrapped in its own kind")
+impl BackendTensor<Group> {
+    fn reshard(self, sharding: Sharding) -> Self {
+        match self {
+            BackendTensor::Float(tensor) => {
+                BackendTensor::Float(tensor.client.clone().reshard(tensor, sharding))
+            }
+            BackendTensor::Int(tensor) => {
+                BackendTensor::Int(tensor.client.clone().reshard(tensor, sharding))
+            }
+            BackendTensor::Bool(tensor) => {
+                BackendTensor::Bool(tensor.client.clone().reshard(tensor, sharding))
+            }
+            BackendTensor::Quantized(_) => {
+                panic!("A quantized tensor is not split over a device group")
+            }
+            #[cfg(feature = "autodiff")]
+            BackendTensor::Autodiff(_) => {
+                unreachable!("An autodiff tensor is wrapped in its own kind")
+            }
         }
     }
 }

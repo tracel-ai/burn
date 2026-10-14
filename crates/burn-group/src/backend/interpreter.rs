@@ -1,6 +1,6 @@
 use std::{collections::HashMap, fmt::Debug};
 
-use burn_backend::{DType, DTypeUsageSet, DeviceOps, DeviceSettings, ExecutionError, TensorData};
+use burn_backend::{DType, DTypeUsageSet, DeviceSettings, ExecutionError, TensorData};
 use burn_ir::{BackendIr, IrVisitorMut, OperationIr, TensorId, TensorIr, TensorStatus};
 use burn_router::TensorInterpreter;
 use burn_std::future::DynFut;
@@ -84,20 +84,19 @@ impl<B: BackendIr> GroupInterpreter<B> {
         }
     }
 
-    /// Each default dtype is the first member's own that every member supports, so a tensor
-    /// made on the group runs on all of them.
+    /// Each default dtype is the first of the members' `settings` that every member supports, so
+    /// a tensor made on the group runs on all of them.
     ///
     /// # Panics
     ///
     /// When no member's default for one of the dtypes runs on every member.
-    pub fn default_settings(&self) -> DeviceSettings {
-        let defaults: Vec<DeviceSettings> = self.devices.iter().map(DeviceOps::defaults).collect();
+    pub fn default_settings(&self, settings: &[DeviceSettings]) -> DeviceSettings {
         DeviceSettings::new(
-            self.first_supported_everywhere(defaults.iter().map(|it| it.float_dtype)),
-            self.first_supported_everywhere(defaults.iter().map(|it| it.int_dtype)),
-            self.first_supported_everywhere(defaults.iter().map(|it| it.bool_dtype)),
+            self.first_supported_everywhere(settings.iter().map(|it| it.float_dtype)),
+            self.first_supported_everywhere(settings.iter().map(|it| it.int_dtype)),
+            self.first_supported_everywhere(settings.iter().map(|it| it.bool_dtype)),
             // Every device of one backend shares its quantization config.
-            defaults[0].quantization,
+            settings[0].quantization,
         )
     }
 
@@ -155,13 +154,7 @@ impl<B: BackendIr> DynGroupInterpreter for GroupInterpreter<B> {
         let current = self.shardings[&tensor.id];
         let num_members = self.interpreters.len();
         let resharding = Resharding::new(current, sharding, &tensor.shape, num_members)
-            .unwrap_or_else(|| {
-                panic!(
-                    "No resharding takes a {current:?} tensor of shape {:?} to {sharding:?} over \
-                     {num_members} members",
-                    tensor.shape
-                )
-            });
+            .unwrap_or_else(|error| panic!("{error}"));
         let shards =
             self.take_shards(&tensor, current)
                 .reshard(resharding, &tensor.shape, &self.devices);
@@ -210,7 +203,7 @@ impl<B: BackendIr> DynGroupInterpreter for GroupInterpreter<B> {
 
 impl<B: BackendIr> GroupInterpreter<B> {
     fn run(&mut self, mut op: OperationIr) {
-        let plan = OpPlan::new(&op, &self.shardings);
+        let plan = OpPlan::new(&op, &self.shardings, self.interpreters.len());
         let temporaries = self.reshard_inputs(&mut op, &plan);
         for (id, sharding) in plan.output_shardings() {
             self.shardings.insert(*id, *sharding);
@@ -255,7 +248,9 @@ impl<B: BackendIr> GroupInterpreter<B> {
             };
             let resharding =
                 Resharding::new(current, target, &input.shape, self.interpreters.len())
-                    .unwrap_or_else(|| panic!("A rule asked for {target:?} from {current:?}"));
+                    .unwrap_or_else(|error| {
+                        panic!("A rule asked for {target:?} from {current:?}: {error}")
+                    });
             let shards =
                 self.take_shards(&read, current)
                     .reshard(resharding, &input.shape, &self.devices);

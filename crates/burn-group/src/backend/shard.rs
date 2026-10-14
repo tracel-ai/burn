@@ -1,6 +1,6 @@
 use std::ops::Range;
 
-use burn_backend::{ExecutionError, Shape, Slice, TensorData};
+use burn_backend::{ExecutionError, Shape, Slice, TensorData, TensorMetadata};
 use burn_ir::{BackendIr, HandleKind};
 use burn_std::future::DynFut;
 
@@ -38,13 +38,13 @@ impl<B: BackendIr> ShardList<B> {
     pub fn reshard(self, resharding: Resharding, shape: &Shape, devices: &[B::Device]) -> Self {
         match resharding {
             Resharding::Keep => self,
-            Resharding::Slice { dim } => self.slice(dim, shape[dim]),
+            Resharding::Slice { dim } => self.slice(dim, shape),
             Resharding::AllGather { dim } => self.all_gather(dim, devices),
             Resharding::AllReduce => self.all_reduce(devices),
-            Resharding::ReduceScatter { dim } => self.all_reduce(devices).slice(dim, shape[dim]),
-            Resharding::AllToAll { from_dim, to_dim } => self
-                .all_gather(from_dim, devices)
-                .slice(to_dim, shape[to_dim]),
+            Resharding::ReduceScatter { dim } => self.all_reduce(devices).slice(dim, shape),
+            Resharding::AllToAll { from_dim, to_dim } => {
+                self.all_gather(from_dim, devices).slice(to_dim, shape)
+            }
         }
     }
 
@@ -63,9 +63,9 @@ impl<B: BackendIr> ShardList<B> {
         whole.into_data()
     }
 
-    fn slice(self, dim: usize, len: usize) -> Self {
+    fn slice(self, dim: usize, shape: &Shape) -> Self {
         let split = DimSplit {
-            len,
+            len: shape[dim],
             num_members: self.shards.len(),
         };
         Self {
@@ -121,8 +121,35 @@ impl<B: BackendIr> Shard<B> {
             HandleKind::Float(tensor) => HandleKind::Float(B::float_slice(tensor, &slices)),
             HandleKind::Int(tensor) => HandleKind::Int(B::int_slice(tensor, &slices)),
             HandleKind::Bool(tensor) => HandleKind::Bool(B::bool_slice(tensor, &slices)),
-            HandleKind::Quantized(_) => quantized_unsupported(),
+            HandleKind::Quantized(_) => Self::quantized_unsupported(),
         })
+        .owned()
+    }
+
+    /// A slice can be a view that keeps the whole buffer alive, so a shard copies into its own.
+    fn owned(self) -> Self {
+        Self(match self.0 {
+            HandleKind::Float(view) => {
+                let whole = Self::whole(&view.shape());
+                let owned = B::float_empty(view.shape(), &view.device(), view.dtype().into());
+                HandleKind::Float(B::float_slice_assign(owned, &whole, view))
+            }
+            HandleKind::Int(view) => {
+                let whole = Self::whole(&view.shape());
+                let owned = B::int_empty(view.shape(), &view.device(), view.dtype().into());
+                HandleKind::Int(B::int_slice_assign(owned, &whole, view))
+            }
+            HandleKind::Bool(view) => {
+                let whole = Self::whole(&view.shape());
+                let owned = B::bool_empty(view.shape(), &view.device(), view.dtype().into());
+                HandleKind::Bool(B::bool_slice_assign(owned, &whole, view))
+            }
+            HandleKind::Quantized(_) => Self::quantized_unsupported(),
+        })
+    }
+
+    fn whole(shape: &Shape) -> Vec<Slice> {
+        vec![Slice::full(); shape.num_dims()]
     }
 
     fn concat(shards: Vec<Self>, dim: usize) -> Self {
@@ -137,7 +164,7 @@ impl<B: BackendIr> Shard<B> {
             Some(HandleKind::Bool(_)) => {
                 HandleKind::Bool(B::bool_cat(shards.map(Shard::into_bool).collect(), dim))
             }
-            Some(HandleKind::Quantized(_)) => quantized_unsupported(),
+            Some(HandleKind::Quantized(_)) => Self::quantized_unsupported(),
             None => panic!("A group has a member"),
         })
     }
@@ -164,7 +191,7 @@ impl<B: BackendIr> Shard<B> {
             HandleKind::Float(tensor) => HandleKind::Float(B::float_to_device(tensor, device)),
             HandleKind::Int(tensor) => HandleKind::Int(B::int_to_device(tensor, device)),
             HandleKind::Bool(tensor) => HandleKind::Bool(B::bool_to_device(tensor, device)),
-            HandleKind::Quantized(_) => quantized_unsupported(),
+            HandleKind::Quantized(_) => Self::quantized_unsupported(),
         })
     }
 
@@ -173,7 +200,7 @@ impl<B: BackendIr> Shard<B> {
             HandleKind::Float(tensor) => Box::pin(B::float_into_data(tensor)),
             HandleKind::Int(tensor) => Box::pin(B::int_into_data(tensor)),
             HandleKind::Bool(tensor) => Box::pin(B::bool_into_data(tensor)),
-            HandleKind::Quantized(_) => quantized_unsupported(),
+            HandleKind::Quantized(_) => Self::quantized_unsupported(),
         }
     }
 
@@ -197,8 +224,37 @@ impl<B: BackendIr> Shard<B> {
             _ => panic!("ShardList of one tensor share a kind"),
         }
     }
+
+    fn quantized_unsupported() -> ! {
+        unimplemented!("Quantized tensors are not split over a device group")
+    }
 }
 
-fn quantized_unsupported() -> ! {
-    unimplemented!("Quantized tensors are not split over a device group")
+#[cfg(test)]
+mod tests {
+    use burn_backend::ops::FloatTensorOps;
+    use burn_flex::{Flex, FlexDevice};
+
+    use super::*;
+
+    #[test]
+    fn a_split_shard_owns_only_its_own_elements() {
+        let devices = [FlexDevice, FlexDevice];
+        let shape = Shape::new([4, 6]);
+        let whole =
+            Flex::float_from_data(TensorData::new(vec![0f32; 24], shape.clone()), &FlexDevice);
+
+        let shards = ShardList::<Flex>::replicated(HandleKind::Float(whole), &devices).reshard(
+            Resharding::Slice { dim: 0 },
+            &shape,
+            &devices,
+        );
+
+        for handle in shards.into_handles() {
+            let HandleKind::Float(shard) = handle else {
+                unreachable!("A float tensor's shards are float")
+            };
+            assert_eq!(shard.data_arc().len(), 2 * 6 * size_of::<f32>());
+        }
+    }
 }

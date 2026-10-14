@@ -50,14 +50,15 @@ impl Device {
     /// Make a group once and reuse it, as any device: each call registers a new group for the
     /// rest of the process.
     ///
-    /// Each of its default dtypes is the first member's own that every member supports.
+    /// Each of its default dtypes is the first member's [configured](Device::settings) one that
+    /// every member supports.
     ///
     /// # Panics
     ///
-    /// When `devices` is empty or mixes backends or runtimes, or when they are not Cube or Flex
-    /// devices. For autodiff, group the plain devices and call `autodiff` on the group. Remote
-    /// devices are left out: tensor parallelism needs links as fast as one machine's GPU
-    /// interconnect.
+    /// When `devices` is empty or mixes backends or runtimes, when they are not Cube or Flex
+    /// devices, or when no member's default for a dtype runs on every member. For autodiff, group
+    /// the plain devices and call `autodiff` on the group. Remote devices are left out: tensor
+    /// parallelism needs links as fast as one machine's GPU interconnect.
     pub fn group(devices: &[Device]) -> Self {
         let members = devices
             .iter()

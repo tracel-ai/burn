@@ -14,5 +14,5 @@ pub use backend::{GroupBackend, GroupDevice};
 pub use sharding::Sharding;
 
 use resharding::Resharding;
-use rules::*;
+use rules::{ElementwiseRule, MatmulRule, ReducedDims, ReshapeRule, SumRule};
 use sharding::{DimSplit, GroupMember, OpSharding};

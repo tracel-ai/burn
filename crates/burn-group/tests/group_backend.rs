@@ -126,7 +126,7 @@ fn split_tensors_stay_split_where_megatron_keeps_them() {
 }
 
 #[test]
-#[should_panic(expected = "No resharding takes")]
+#[should_panic(expected = "is shorter than the group")]
 fn a_dim_shorter_than_the_group_is_not_split() {
     let device = group(3);
     reshard(

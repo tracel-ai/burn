@@ -6,29 +6,12 @@ use burn_tensor::{
 
 #[test]
 fn megatron_mlp_on_a_device_group_matches_one_device() {
-    let expected = mlp(&Device::flex(), [Replicated; 5]).output.into_data();
-    for num_members in 1..=4 {
-        let split = mlp(
-            &group(num_members),
-            [
-                Replicated,
-                Split { dim: 1 },
-                Split { dim: 0 },
-                Split { dim: 0 },
-                Replicated,
-            ],
-        );
+    check_megatron_mlp([4, 6]);
+}
 
-        assert_eq!(
-            split.hidden.sharding(),
-            Some(Split { dim: 1 }),
-            "{num_members} members"
-        );
-        split
-            .output
-            .into_data()
-            .assert_approx_eq::<f32>(&expected, tolerance());
-    }
+#[test]
+fn batched_megatron_mlp_keeps_its_hidden_split_through_the_reshapes_of_linear() {
+    check_megatron_mlp([2, 4, 6]);
 }
 
 #[test]
@@ -107,14 +90,47 @@ fn groups_of_the_same_devices_are_apart() {
         .assert_approx_eq::<f32>(&data, tolerance());
 }
 
-struct Mlp {
-    hidden: Tensor<2>,
-    output: Tensor<2>,
+fn check_megatron_mlp<const D: usize>(x_shape: [usize; D]) {
+    let expected = mlp(&Device::flex(), x_shape, [Replicated; 5])
+        .output
+        .into_data();
+    for num_members in 1..=4 {
+        let split = mlp(
+            &group(num_members),
+            x_shape,
+            [
+                Replicated,
+                Split { dim: 1 },
+                Split { dim: 0 },
+                Split { dim: 0 },
+                Replicated,
+            ],
+        );
+
+        assert_eq!(
+            split.hidden.sharding(),
+            Some(Split { dim: D - 1 }),
+            "{num_members} members"
+        );
+        split
+            .output
+            .into_data()
+            .assert_approx_eq::<f32>(&expected, tolerance());
+    }
+}
+
+struct Mlp<const D: usize> {
+    hidden: Tensor<D>,
+    output: Tensor<D>,
 }
 
 /// Shardings of x, w1, b1, w2 and b2.
-fn mlp(device: &Device, [sx, sw1, sb1, sw2, sb2]: [Sharding; 5]) -> Mlp {
-    let x = sharded::<2>(values([4, 6], 1), device, sx);
+fn mlp<const D: usize>(
+    device: &Device,
+    x_shape: [usize; D],
+    [sx, sw1, sb1, sw2, sb2]: [Sharding; 5],
+) -> Mlp<D> {
+    let x = sharded::<D>(values(x_shape, 1), device, sx);
     let w1 = sharded::<2>(values([6, 12], 2), device, sw1);
     let b1 = sharded::<1>(values([12], 3), device, sb1);
     let w2 = sharded::<2>(values([12, 5], 4), device, sw2);

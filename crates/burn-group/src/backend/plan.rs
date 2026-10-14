@@ -1,11 +1,11 @@
 use std::collections::HashMap;
 
 use burn_ir::{
-    ActivationOperationIr, BinaryOpIr, FloatOperationIr, MatmulOpIr, NumericOperationIr,
-    OperationIr, ScalarOpIr, TensorId, TensorIr, UnaryOpIr,
+    ActivationOperationIr, BaseOperationIr, BinaryOpIr, FloatOperationIr, MatmulOpIr,
+    NumericOperationIr, OperationIr, ScalarOpIr, ShapeOpIr, TensorId, TensorIr, UnaryOpIr,
 };
 
-use crate::{ElementwiseRule, MatmulRule, OpSharding, ReducedDims, Sharding, SumRule};
+use crate::{ElementwiseRule, MatmulRule, OpSharding, ReducedDims, ReshapeRule, Sharding, SumRule};
 
 /// Where each tensor of one op must be for the op to run on every member, where its outputs land,
 /// and what each member runs.
@@ -16,9 +16,10 @@ pub struct OpPlan {
     execution: Execution,
 }
 
-/// What each member runs, when it is not simply the op on its own shards.
+/// What each member runs for one op.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Execution {
+    /// Each member runs the op on its own shards.
     EveryMember,
     /// Member 0 runs the op and the others take a copy, so random values agree.
     FirstMemberCopied,
@@ -27,10 +28,17 @@ pub enum Execution {
 impl OpPlan {
     /// An op without a rule, or whose inputs would need two shardings at once, gathers every
     /// input and runs whole on every member.
-    pub fn new(op: &OperationIr, shardings: &HashMap<TensorId, Sharding>) -> Self {
-        Analysis { shardings }
-            .plan(op)
-            .unwrap_or_else(|| Self::gathered(op))
+    pub fn new(
+        op: &OperationIr,
+        shardings: &HashMap<TensorId, Sharding>,
+        num_members: usize,
+    ) -> Self {
+        GroupShardings {
+            shardings,
+            num_members,
+        }
+        .plan(op)
+        .unwrap_or_else(|| Self::gathered(op))
     }
 
     pub fn input_sharding(&self, id: &TensorId) -> Sharding {
@@ -78,13 +86,18 @@ impl OpPlan {
     }
 }
 
-struct Analysis<'a> {
+/// The shardings of a group's tensors, which pick the rule each op runs by.
+struct GroupShardings<'a> {
     shardings: &'a HashMap<TensorId, Sharding>,
+    num_members: usize,
 }
 
-impl Analysis<'_> {
+impl GroupShardings<'_> {
     fn plan(&self, op: &OperationIr) -> Option<OpPlan> {
         match op {
+            OperationIr::BaseFloat(BaseOperationIr::Reshape(desc))
+            | OperationIr::BaseInt(BaseOperationIr::Reshape(desc))
+            | OperationIr::BaseBool(BaseOperationIr::Reshape(desc)) => self.reshape(desc),
             OperationIr::NumericFloat(_, op) => self.numeric(op),
             OperationIr::Float(_, FloatOperationIr::Matmul(desc)) => self.matmul(desc),
             OperationIr::Float(_, FloatOperationIr::Random(desc)) => self.random(&desc.out),
@@ -171,6 +184,17 @@ impl Analysis<'_> {
     fn sum(&self, input: &TensorIr, out: &TensorIr, reduced_dims: ReducedDims) -> Option<OpPlan> {
         let sharding = SumRule::new(self.sharding(input), reduced_dims).sharding();
         OpPlan::ruled([input], out, sharding, Execution::EveryMember)
+    }
+
+    fn reshape(&self, desc: &ShapeOpIr) -> Option<OpPlan> {
+        let sharding = ReshapeRule::new(
+            self.sharding(&desc.input),
+            &desc.input.shape,
+            &desc.out.shape,
+            self.num_members,
+        )
+        .sharding();
+        OpPlan::ruled([&desc.input], &desc.out, sharding, Execution::EveryMember)
     }
 
     fn random(&self, out: &TensorIr) -> Option<OpPlan> {

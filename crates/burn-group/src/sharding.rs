@@ -7,8 +7,8 @@ use burn_ir::TensorIr;
 pub enum Sharding {
     /// Every member holds the whole value.
     Replicated,
-    /// Balanced chunks in member order: when the dim does not divide evenly, the first members hold
-    /// one more element.
+    /// Balanced chunks in member order: when the dim does not divide evenly, the first members each
+    /// hold one more index along `dim`.
     Split { dim: usize },
     /// The global value is the sum of the shards.
     PartialSum,

@@ -412,14 +412,21 @@ impl DispatchDevice {
     /// Make a group once and reuse it, as any device: each call registers a new group for the
     /// rest of the process.
     ///
+    /// Each of its default dtypes is the first member's configured one that every member
+    /// supports.
+    ///
     /// # Panics
     ///
-    /// When `devices` is empty or mixes backends or runtimes, or when they are not Cube or Flex
-    /// devices. An autodiff group is a group of plain devices made autodiff afterwards. Remote
-    /// devices are left out: tensor parallelism needs links as fast as one machine's GPU
-    /// interconnect.
+    /// When `devices` is empty or mixes backends or runtimes, when they are not Cube or Flex
+    /// devices, or when no member's default for a dtype runs on every member. An autodiff group is
+    /// a group of plain devices made autodiff afterwards. Remote devices are left out: tensor
+    /// parallelism needs links as fast as one machine's GPU interconnect.
     #[cfg(feature = "group")]
-    pub fn group(devices: Vec<DispatchDevice>) -> Self {
+    pub fn group(devices: alloc::vec::Vec<DispatchDevice>) -> Self {
+        let settings: alloc::vec::Vec<DeviceSettings> = devices
+            .iter()
+            .map(burn_backend::get_device_settings::<crate::backend::Dispatch>)
+            .collect();
         Self::Group(match devices.first() {
             #[cfg(cube_backend)]
             Some(Self::Cube(first)) => {
@@ -428,11 +435,12 @@ impl DispatchDevice {
                 if let Some(other) = members.iter().find(|member| member.runtime() != runtime) {
                     panic!("A device group runs one runtime, not {other:?} beside {runtime:?}")
                 }
-                GroupDevice::new::<crate::backends::Cube>(&members)
+                GroupDevice::with_member_settings::<crate::backends::Cube>(&members, &settings)
             }
             #[cfg(feature = "flex")]
             Some(Self::Flex(_)) => {
-                GroupDevice::new::<crate::backends::Flex>(&group_members!(devices, Flex))
+                let members = group_members!(devices, Flex);
+                GroupDevice::with_member_settings::<crate::backends::Flex>(&members, &settings)
             }
             #[cfg(feature = "autodiff")]
             Some(Self::Autodiff(_)) => panic!(
