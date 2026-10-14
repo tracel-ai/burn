@@ -12,7 +12,7 @@ use crate::element::{Element, ElementConversion};
 use crate::tensor::DType;
 use crate::{
     AccessError, BoolStore, Bytes, ExecutionError, QuantMode, QuantScheme, QuantValue,
-    QuantizedBytes, Reader, Shape, Writer, bf16, f16,
+    QuantizedBytes, Reader, Shape, Writer, bf16, f16, flex32,
 };
 
 use serde::{Deserialize, Serialize};
@@ -464,7 +464,8 @@ impl TensorData {
         let fill_value = fill_value.into();
         match dtype {
             DType::F64 => Self::full::<f64, _>(shape, fill_value.elem()),
-            DType::F32 | DType::Flex32 => Self::full::<f32, _>(shape, fill_value.elem()),
+            DType::F32 => Self::full::<f32, _>(shape, fill_value.elem()),
+            DType::Flex32 => Self::full::<flex32, _>(shape, fill_value.elem()),
             DType::F16 => Self::full::<f16, _>(shape, fill_value.elem()),
             DType::BF16 => Self::full::<bf16, _>(shape, fill_value.elem()),
             DType::I64 => Self::full::<i64, _>(shape, fill_value.elem()),
@@ -849,6 +850,15 @@ mod tests {
             actual.try_cast(DType::F32).unwrap(),
             TensorData::from([-1.5f32, 0.0, 2.25])
         );
+    }
+
+    #[test]
+    fn should_preserve_flex32_dtype_when_constructing_full_data() {
+        let actual = TensorData::full_dtype([2, 2], 1.5f32, DType::Flex32);
+        let expected = TensorData::full::<flex32, _>([2, 2], 1.5f32.elem());
+
+        assert_eq!(actual, expected);
+        assert_eq!(actual.dtype(), DType::Flex32);
     }
 
     #[test]
