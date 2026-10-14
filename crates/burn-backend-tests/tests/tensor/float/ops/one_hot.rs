@@ -114,3 +114,19 @@ fn one_hot_fill_out_of_range_float_indices_give_off_value_rows() {
     ]);
     one_hot_tensor.into_data().assert_eq(&expected, false);
 }
+
+#[test]
+fn one_hot_fill_non_finite_and_huge_float_indices_give_off_value_rows() {
+    let tensor = TestTensor::<1>::from([1.0, f32::INFINITY, f32::NEG_INFINITY, 1e30, f32::NAN]);
+
+    let one_hot_tensor: TestTensor<2> = tensor.one_hot_fill(3, 5.0, 0.0, -1);
+
+    let expected = TensorData::from([
+        [0.0, 5.0, 0.0],
+        [0.0, 0.0, 0.0],
+        [0.0, 0.0, 0.0],
+        [0.0, 0.0, 0.0],
+        [0.0, 0.0, 0.0],
+    ]);
+    one_hot_tensor.into_data().assert_eq(&expected, false);
+}

@@ -133,3 +133,33 @@ fn int_one_hot_should_panic_when_index_below_minus_number_of_classes() {
     let tensor = TestTensorInt::<1>::from([-6]);
     let _result: TestTensorInt<2> = tensor.one_hot(5);
 }
+
+// U32 is not supported on every backend
+#[cfg(feature = "flex")]
+#[test]
+fn int_one_hot_unsigned_indices() {
+    let tensor = TestTensorInt::<1>::from([0, 2]).cast(burn_tensor::DType::U32);
+
+    let one_hot_tensor: TestTensorInt<2> = tensor.one_hot(3);
+
+    one_hot_tensor
+        .into_data()
+        .assert_eq(&TensorData::from([[1u32, 0, 0], [0, 0, 1]]), false);
+}
+
+// U64 is not supported on every backend
+#[cfg(feature = "flex")]
+#[test]
+fn one_hot_fill_unsigned_index_above_i64_max_gives_off_value_row() {
+    let device = Default::default();
+    let tensor = TestTensorInt::<1>::from_data(
+        TensorData::from([1u64, u64::MAX]),
+        (&device, burn_tensor::DType::U64),
+    );
+
+    let one_hot_tensor: TestTensorInt<2> = tensor.one_hot_fill(3, 5.0, 1.0, -1);
+
+    one_hot_tensor
+        .into_data()
+        .assert_eq(&TensorData::from([[1u64, 5, 1], [1, 1, 1]]), false);
+}

@@ -346,8 +346,6 @@ where
         let device = self.device();
         let dtype = self.dtype();
 
-        // Convert the input tensor to integer indices
-        let indices: Tensor<D, Int> = Tensor::from_data(self.to_data().convert::<i64>(), &device);
         // Insert the new dimension for the one-hot representation
         shape.insert(axis, num_classes);
 
@@ -359,18 +357,28 @@ where
             return output;
         }
 
-        // Indices outside [-num_classes, num_classes) keep an off_value row
-        let out_of_range = indices
+        // Indices outside [-num_classes, num_classes) keep an off_value row. The mask is computed on
+        // the original values, before the i64 conversion, which can't represent huge or non-finite
+        // floats or u64 values above i64::MAX. NaN never equals itself, so it counts as out of range.
+        let mut out_of_range = self
             .clone()
-            .lower_scalar(-(num_classes as i64))
-            .bool_or(indices.clone().greater_equal_scalar(num_classes as i64));
+            .greater_equal_scalar(num_classes as i64)
+            .bool_or(self.clone().not_equal(self.clone()));
+        // Unsigned values can't be negative (and can't hold the negative bound)
+        if !dtype.is_uint() {
+            out_of_range = out_of_range.bool_or(self.clone().lower_scalar(-(num_classes as i64)));
+        }
+        let in_range = self.mask_fill(out_of_range.clone(), 0);
 
-        // Adjust indices to valid range and handle invalid indices
+        // Convert the in-range values to integer indices
+        let indices: Tensor<D, Int> =
+            Tensor::from_data(in_range.to_data().convert::<i64>(), &device);
+
+        // Adjust negative indices to the valid range; out-of-range ones are already 0
         let adjusted_indices = indices
             .clone()
-            .mask_fill(self.clone().lower_scalar(0), num_classes as i64) // Handle negative indices
-            .add(indices.clone().mask_fill(self.clone().greater_scalar(0), 0)) // Handle positive indices
-            .mask_fill(out_of_range.clone(), 0); // Point out-of-range indices at a valid class
+            .mask_fill(in_range.clone().lower_scalar(0), num_classes as i64) // Handle negative indices
+            .add(indices.mask_fill(in_range.greater_scalar(0), 0)); // Handle positive indices
 
         // Unsqueeze the indices tensor along the specified axis
         let indices_unsqueezed: Tensor<D2, Int> = adjusted_indices.unsqueeze_dim(axis);

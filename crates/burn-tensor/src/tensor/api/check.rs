@@ -395,14 +395,15 @@ impl TensorCheck {
     ) -> Self {
         let mut check = Self::Ok;
         // `one_hot_fill` keeps an off_value row for out-of-range indices; `one_hot` rejects them
-        if index_tensor
+        let mut out_of_range = index_tensor
             .clone()
-            .greater_equal_scalar(num_classes as i32)
-            .bool_or(index_tensor.clone().lower_scalar(-(num_classes as i32)))
-            .any()
-            .into_scalar::<i64>()
-            .to_bool()
-        {
+            .greater_equal_scalar(num_classes as i32);
+        // Unsigned values can't be negative (and can't hold the negative bound)
+        if !index_tensor.dtype().is_uint() {
+            out_of_range =
+                out_of_range.bool_or(index_tensor.clone().lower_scalar(-(num_classes as i32)));
+        }
+        if out_of_range.any().into_scalar::<i64>().to_bool() {
             check = check.register(
                 "One Hot",
                 TensorError::new(format!(
