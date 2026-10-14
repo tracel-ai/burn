@@ -57,7 +57,7 @@ remote-server = ["remote", "burn-remote/server"]
 # Add the legacy WebSocket transport.
 remote-websocket = ["remote", "burn-remote/websocket"]
 capture = ["burn-capture"]
-# Tensors split over a group of devices.
+# Experimental: tensors split over a group of devices.
 group = ["std", "burn-group"]
 
 # Backend features

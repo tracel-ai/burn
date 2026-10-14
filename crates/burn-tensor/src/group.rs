@@ -1,5 +1,8 @@
 //! Splitting each tensor over a group of devices, for tensor parallelism.
 //!
+//! Experimental: the API may change, and so far only the forward pass of a Megatron-style MLP
+//! keeps its tensors split.
+//!
 //! ```rust,ignore
 //! let device = Device::group_options(&[Device::cuda(0), Device::cuda(1)]).init()?;
 //! ```

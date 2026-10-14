@@ -5,6 +5,8 @@ edition.workspace = true
 license.workspace = true
 version.workspace = true
 repository = "https://github.com/tracel-ai/burn/tree/main/crates/burn-group"
+documentation = "https://docs.rs/burn-group"
+readme = "README.md"
 
 [lints]
 workspace = true
