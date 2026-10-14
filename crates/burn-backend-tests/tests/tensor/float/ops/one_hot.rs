@@ -101,3 +101,49 @@ fn one_hot_fill_should_keep_dtype() {
         .into_data()
         .assert_eq(&TensorData::from([[5.0, 1.0, 1.0], [1.0, 1.0, 5.0]]), false);
 }
+
+#[test]
+fn one_hot_fill_out_of_range_float_indices_give_off_value_rows() {
+    let tensor = TestTensor::<2>::from([[0.0, 3.0], [-5.0, 1.0]]);
+
+    let one_hot_tensor: TestTensor<3> = tensor.one_hot_fill(3, 5.0, 0.0, -1);
+
+    let expected = TensorData::from([
+        [[5.0, 0.0, 0.0], [0.0, 0.0, 0.0]],
+        [[0.0, 0.0, 0.0], [0.0, 5.0, 0.0]],
+    ]);
+    one_hot_tensor.into_data().assert_eq(&expected, false);
+}
+
+#[test]
+fn one_hot_fill_non_finite_and_huge_float_indices_give_off_value_rows() {
+    let tensor = TestTensor::<1>::from([1.0, f32::INFINITY, f32::NEG_INFINITY, 1e30, f32::NAN]);
+
+    let one_hot_tensor: TestTensor<2> = tensor.one_hot_fill(3, 5.0, 0.0, -1);
+
+    let expected = TensorData::from([
+        [0.0, 5.0, 0.0],
+        [0.0, 0.0, 0.0],
+        [0.0, 0.0, 0.0],
+        [0.0, 0.0, 0.0],
+        [0.0, 0.0, 0.0],
+    ]);
+    one_hot_tensor.into_data().assert_eq(&expected, false);
+}
+
+#[test]
+fn one_hot_fill_truncates_fractional_indices_before_range_check() {
+    // Like ONNX's int64 cast: -3.5 -> -3 (class 0), 2.9 -> 2, -0.5 -> 0, 3.2 -> 3 (out of range).
+    let tensor = TestTensor::<1>::from([-3.5, 2.9, -0.5, 3.2, -4.0]);
+
+    let one_hot_tensor: TestTensor<2> = tensor.one_hot_fill(3, 5.0, 0.0, -1);
+
+    let expected = TensorData::from([
+        [5.0, 0.0, 0.0],
+        [0.0, 0.0, 5.0],
+        [5.0, 0.0, 0.0],
+        [0.0, 0.0, 0.0],
+        [0.0, 0.0, 0.0],
+    ]);
+    one_hot_tensor.into_data().assert_eq(&expected, false);
+}
