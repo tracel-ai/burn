@@ -21,15 +21,16 @@ impl<const D: usize, K: Basic> Tensor<D, K> {
             .unwrap_or_else(|error| panic!("{error}"))
     }
 
-    /// The same value, split over its device group as `sharding` says, or why it cannot be.
+    /// The same value, split over its device group as `sharding` says, or why it cannot be. A
+    /// refusal leaves this tensor as it was.
     ///
     /// # Errors
     ///
     /// When the tensor is quantized or not on a [device group](crate::group), when `sharding` is
     /// a partial sum and the tensor is not one, or when it splits a dim the tensor lacks or one
     /// shorter than the group.
-    pub fn try_with_sharding(self, sharding: Sharding) -> Result<Self, ShardingError> {
-        let (kind, tensor) = self.primitive.into_parts();
+    pub fn try_with_sharding(&self, sharding: Sharding) -> Result<Self, ShardingError> {
+        let (kind, tensor) = self.primitive.clone().into_parts();
         let resharded = tensor.try_with_sharding(sharding)?;
         Ok(Self::new(match kind {
             BridgeKind::Float => BridgeTensor::float(resharded),

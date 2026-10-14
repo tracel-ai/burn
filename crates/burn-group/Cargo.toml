@@ -9,6 +9,12 @@ repository = "https://github.com/tracel-ai/burn/tree/main/crates/burn-group"
 [lints]
 workspace = true
 
+[features]
+# Test-only: the `Tensor` tests put their members on the CUDA devices in turn, so shards cross
+# devices.
+test-cuda = ["burn-tensor/cuda"]
+test-fusion = ["burn-tensor/fusion"]
+
 [dependencies]
 burn-backend = { workspace = true, features = ["std"] }
 burn-ir = { workspace = true, features = ["std"] }

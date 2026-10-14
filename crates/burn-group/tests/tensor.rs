@@ -1,9 +1,10 @@
 use burn_tensor::{
-    Device, Distribution, Sharding,
+    Bool, Device, Distribution, Int, Sharding,
     Sharding::{PartialSum, Replicated, Split},
     ShardingError, Tensor, TensorData, Tolerance, activation,
     group::GroupError,
     module,
+    quantization::QuantScheme,
 };
 
 #[test]
@@ -28,6 +29,81 @@ fn silu_keeps_a_split() {
     split
         .into_data()
         .assert_approx_eq::<f32>(&expected, tolerance());
+}
+
+#[test]
+fn heads_split_out_of_a_split_hidden_dim_stay_split() {
+    let data = values([2, 3, 12], 1);
+    let expected = Tensor::<3>::from_data(data.clone(), &Device::flex())
+        .reshape([2, 3, 4, 3])
+        .into_data();
+    for num_members in [2, 4] {
+        let heads =
+            sharded::<3>(data.clone(), &group(num_members), Split { dim: 2 }).reshape([2, 3, 4, 3]);
+
+        assert_eq!(
+            heads.sharding(),
+            Some(Split { dim: 2 }),
+            "{num_members} members"
+        );
+        heads
+            .into_data()
+            .assert_approx_eq::<f32>(&expected, tolerance());
+    }
+}
+
+#[test]
+fn int_and_bool_tensors_split_and_move_back_whole() {
+    let ints = TensorData::from([[1i64, 2, 3, 4], [5, 6, 7, 8]]);
+    let bools = TensorData::from([[true, false, true, true], [false, false, true, false]]);
+
+    let split_ints =
+        Tensor::<2, Int>::from_data(ints.clone(), &group(2)).with_sharding(Split { dim: 1 });
+    let split_bools =
+        Tensor::<2, Bool>::from_data(bools.clone(), &group(2)).with_sharding(Split { dim: 0 });
+
+    assert_eq!(split_ints.sharding(), Some(Split { dim: 1 }));
+    assert_eq!(split_bools.sharding(), Some(Split { dim: 0 }));
+    split_ints.into_data().assert_eq(&ints, false);
+    split_bools.into_data().assert_eq(&bools, false);
+}
+
+#[test]
+fn a_quantized_tensor_on_a_group_reads_back_but_does_not_split() {
+    // CUDA packs four quantized values per u32, so the last dim is a multiple of four.
+    let data = values([4, 8], 1);
+    let scheme = QuantScheme::default();
+    let expected = Tensor::<2>::from_data(data.clone(), &Device::flex())
+        .quantize_dynamic(&scheme)
+        .dequantize()
+        .into_data();
+    let quantized = Tensor::<2>::from_data(data, &group(2)).quantize_dynamic(&scheme);
+
+    assert!(matches!(
+        quantized.try_with_sharding(Split { dim: 0 }),
+        Err(ShardingError::Quantized)
+    ));
+    Tensor::<2>::from_data(quantized.into_data(), &Device::flex())
+        .dequantize()
+        .into_data()
+        .assert_approx_eq::<f32>(&expected, tolerance());
+}
+
+#[test]
+fn a_refused_sharding_leaves_the_tensor_as_it_was() {
+    let data = values([2, 6], 1);
+    let tensor = Tensor::<2>::from_data(data.clone(), &group(3));
+
+    let refused = tensor.try_with_sharding(Split { dim: 0 });
+
+    assert!(matches!(
+        refused,
+        Err(ShardingError::DimShorterThanGroup { dim: 0, .. })
+    ));
+    assert_eq!(tensor.sharding(), Some(Replicated));
+    tensor
+        .into_data()
+        .assert_approx_eq::<f32>(&data, tolerance());
 }
 
 #[test]
@@ -163,9 +239,24 @@ fn mlp<const D: usize>(
 }
 
 fn group(num_members: usize) -> Device {
-    Device::group_options(&vec![Device::flex(); num_members])
+    let members: Vec<Device> = member_devices()
+        .into_iter()
+        .cycle()
+        .take(num_members)
+        .collect();
+    Device::group_options(&members)
         .init()
-        .expect("Flex devices form a group")
+        .expect("The test's devices form a group")
+}
+
+#[cfg(feature = "test-cuda")]
+fn member_devices() -> Vec<Device> {
+    Device::enumerate(burn_tensor::DeviceType::Cuda).into_vec()
+}
+
+#[cfg(not(feature = "test-cuda"))]
+fn member_devices() -> Vec<Device> {
+    vec![Device::flex()]
 }
 
 fn sharded<const D: usize>(data: TensorData, device: &Device, sharding: Sharding) -> Tensor<D> {
@@ -184,6 +275,14 @@ fn values<const D: usize>(shape: [usize; D], seed: usize) -> TensorData {
     TensorData::new(values, shape)
 }
 
+#[cfg(not(feature = "test-cuda"))]
 fn tolerance() -> Tolerance<f32> {
     Tolerance::rel_abs(1e-4, 1e-5)
+}
+
+/// CUDA rounds f32 matmuls through TF32 on cards that have it, about 1% off Flex; a lost or
+/// doubled summand is off by far more.
+#[cfg(feature = "test-cuda")]
+fn tolerance() -> Tolerance<f32> {
+    Tolerance::rel_abs(3e-2, 1e-2)
 }

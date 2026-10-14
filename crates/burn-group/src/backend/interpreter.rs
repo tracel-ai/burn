@@ -82,7 +82,6 @@ impl<B: BackendIr> GroupInterpreter<B> {
 
     /// Each default dtype is the first of the members' `settings` that every member supports, so
     /// a tensor made on the group runs on all of them.
-    ///
     pub fn default_settings(
         &self,
         settings: &[DeviceSettings],

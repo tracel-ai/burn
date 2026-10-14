@@ -191,7 +191,7 @@ impl<B: BackendIr> Shard<B> {
             HandleKind::Float(tensor) => HandleKind::Float(B::float_to_device(tensor, device)),
             HandleKind::Int(tensor) => HandleKind::Int(B::int_to_device(tensor, device)),
             HandleKind::Bool(tensor) => HandleKind::Bool(B::bool_to_device(tensor, device)),
-            HandleKind::Quantized(_) => Self::quantized_unsupported(),
+            HandleKind::Quantized(tensor) => HandleKind::Quantized(B::q_to_device(tensor, device)),
         })
     }
 
@@ -200,11 +200,7 @@ impl<B: BackendIr> Shard<B> {
             HandleKind::Float(tensor) => Box::pin(B::float_into_data(tensor)),
             HandleKind::Int(tensor) => Box::pin(B::int_into_data(tensor)),
             HandleKind::Bool(tensor) => Box::pin(B::bool_into_data(tensor)),
-            HandleKind::Quantized(_) => Box::pin(async {
-                Err(ExecutionError::WithContext {
-                    reason: ShardingError::Quantized.to_string(),
-                })
-            }),
+            HandleKind::Quantized(tensor) => Box::pin(B::q_into_data(tensor)),
         }
     }
 
