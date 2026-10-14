@@ -474,64 +474,117 @@ fn rfft_with_n_smaller_than_signal() {
 }
 
 #[test]
-fn rfft_arbitrary_n_impulse() {
-    // n=5 is not a power of two, so rfft goes through Bluestein's algorithm.
-    let signal = TestTensor::<1>::from([1.0, 0.0, 0.0, 0.0, 0.0]);
+fn rfft_arbitrary_n_batched_dim0_matches_naive() {
+    // Non-power-of-two transform along dim 0 of a batched input. The chirp
+    // constants are reshaped to `[len, 1, .., 1]`, so a wrong axis only shows
+    // up for batched inputs like this one.
+    let columns = [
+        [1.0f32, 0.0, -1.0, 0.0, 0.5],
+        [0.0f32, 1.0, 0.0, -1.0, -0.5],
+    ];
+    let signal = TestTensor::<2>::from([
+        [columns[0][0], columns[1][0]],
+        [columns[0][1], columns[1][1]],
+        [columns[0][2], columns[1][2]],
+        [columns[0][3], columns[1][3]],
+        [columns[0][4], columns[1][4]],
+    ]);
+    let n = 5;
     let (re, im) = rfft(signal, 0, None);
+    assert_eq!(re.dims(), [n / 2 + 1, 2]);
+    assert_eq!(im.dims(), [n / 2 + 1, 2]);
 
-    assert_eq!(re.dims(), [3]);
-    let expected_re = TensorData::from([1.0, 1.0, 1.0]);
-    let expected_im = TensorData::from([0.0, 0.0, 0.0]);
-
-    re.into_data()
-        .assert_approx_eq::<FloatElem>(&expected_re, Tolerance::absolute(1e-3));
-    im.into_data()
-        .assert_approx_eq::<FloatElem>(&expected_im, Tolerance::absolute(1e-3));
-}
-
-#[test]
-fn rfft_arbitrary_n_constant() {
-    // A constant signal of length 7 has all of its energy in the DC bin.
-    let signal = TestTensor::<1>::from([2.0; 7]);
-    let (re, im) = rfft(signal, 0, None);
-
-    assert_eq!(re.dims(), [4]);
-    let re_v = re.into_data().try_into_vec::<FloatElem>().unwrap();
-    let im_v = im.into_data().try_into_vec::<FloatElem>().unwrap();
-    assert!((re_v[0] - 14.0).abs() < 1e-3, "DC should be 14.0");
-    for k in 1..4 {
-        assert!(re_v[k].abs() < 1e-3, "re[{k}] = {}", re_v[k]);
-        assert!(im_v[k].abs() < 1e-3, "im[{k}] = {}", im_v[k]);
+    for (col, values) in columns.iter().enumerate() {
+        let (expected_re, expected_im) = naive_rfft(values, n);
+        let actual_re = re
+            .clone()
+            .narrow(1, col, 1)
+            .into_data()
+            .try_into_vec::<FloatElem>()
+            .unwrap();
+        let actual_im = im
+            .clone()
+            .narrow(1, col, 1)
+            .into_data()
+            .try_into_vec::<FloatElem>()
+            .unwrap();
+        for k in 0..(n / 2 + 1) {
+            assert!(
+                (actual_re[k] as f64 - expected_re[k]).abs() < 1e-3,
+                "col={col} k={k} real: got {}, want {}",
+                actual_re[k],
+                expected_re[k],
+            );
+            assert!(
+                (actual_im[k] as f64 - expected_im[k]).abs() < 1e-3,
+                "col={col} k={k} imag: got {}, want {}",
+                actual_im[k],
+                expected_im[k],
+            );
+        }
     }
 }
 
 #[test]
-fn rfft_irfft_roundtrip_arbitrary_n() {
-    let signal = TestTensor::<1>::from([1.0, 2.0, 3.0, 4.0, 5.0]);
-    let (re, im) = rfft(signal.clone(), 0, None);
-    let reconstructed = irfft(re, im, 0, Some(5));
+fn rfft_arbitrary_n_negative_dim_matches_positive_dim() {
+    let signal = TestTensor::<2>::from([[1.0, 0.0, -1.0, 0.0, 0.5], [0.0, 1.0, 0.0, -1.0, -0.5]]);
 
-    reconstructed
+    let (expected_re, expected_im) = rfft(signal.clone(), 1, None);
+    let (actual_re, actual_im) = rfft(signal, -1, None);
+
+    actual_re
         .into_data()
-        .assert_approx_eq::<FloatElem>(&signal.into_data(), Tolerance::absolute(1e-2));
+        .assert_approx_eq::<FloatElem>(&expected_re.into_data(), Tolerance::absolute(1e-4));
+    actual_im
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&expected_im.into_data(), Tolerance::absolute(1e-4));
 }
 
 /// Direct O(n^2) real DFT used as an independent reference for the Bluestein
 /// path. This is the same definition used by `numpy.fft.rfft` and
 /// `torch.fft.rfft`, so agreeing with it is what the issue asks for.
-fn naive_rfft(values: &[f32], n: usize) -> (Vec<f32>, Vec<f32>) {
+///
+/// Computed in `f64` with the phase reduced modulo `n`, so the reference stays
+/// exact for larger sizes instead of drifting with an f32 angle.
+fn naive_rfft(values: &[f32], n: usize) -> (Vec<f64>, Vec<f64>) {
     let bins = n / 2 + 1;
-    let mut re = vec![0.0f32; bins];
-    let mut im = vec![0.0f32; bins];
+    let mut re = vec![0.0f64; bins];
+    let mut im = vec![0.0f64; bins];
     for (k, (re_k, im_k)) in re.iter_mut().zip(im.iter_mut()).enumerate() {
         for t in 0..n {
-            let x = values.get(t).copied().unwrap_or(0.0);
-            let angle = -2.0 * core::f32::consts::PI * (k * t) as f32 / n as f32;
-            *re_k += x * angle.cos();
-            *im_k += x * angle.sin();
+            let x = values.get(t).copied().unwrap_or(0.0) as f64;
+            let angle = -2.0 * core::f64::consts::PI * ((k * t) % n) as f64 / n as f64;
+            let (sin, cos) = angle.sin_cos();
+            *re_k += x * cos;
+            *im_k += x * sin;
         }
     }
     (re, im)
+}
+
+fn assert_rfft_matches_naive(values: &[f32], n: usize, tol: f64) {
+    let signal = TestTensor::<1>::from(values);
+    let (re, im) = rfft(signal, 0, Some(n));
+    assert_eq!(re.dims(), [n / 2 + 1]);
+    assert_eq!(im.dims(), [n / 2 + 1]);
+
+    let (expected_re, expected_im) = naive_rfft(values, n);
+    let re_v = re.into_data().try_into_vec::<FloatElem>().unwrap();
+    let im_v = im.into_data().try_into_vec::<FloatElem>().unwrap();
+    for k in 0..(n / 2 + 1) {
+        assert!(
+            (re_v[k] as f64 - expected_re[k]).abs() < tol,
+            "n={n} k={k} real: got {}, want {}",
+            re_v[k],
+            expected_re[k],
+        );
+        assert!(
+            (im_v[k] as f64 - expected_im[k]).abs() < tol,
+            "n={n} k={k} imag: got {}, want {}",
+            im_v[k],
+            expected_im[k],
+        );
+    }
 }
 
 #[test]
@@ -542,31 +595,23 @@ fn rfft_arbitrary_n_matches_naive_dft() {
         0.31f32, -0.72, 1.24, 0.53, -0.11, 0.97, -0.44, 0.26, 0.68, -0.83, 0.15, 0.39, -0.58,
     ];
     for &n in &[3usize, 5, 6, 7, 9, 10, 11, 13] {
-        let input = values[..n].to_vec();
-        let signal = TestTensor::<1>::from(input.as_slice());
-        let (re, im) = rfft(signal, 0, Some(n));
-        let (expected_re, expected_im) = naive_rfft(&input, n);
-
-        assert_eq!(re.dims(), [n / 2 + 1]);
-        assert_eq!(im.dims(), [n / 2 + 1]);
-
-        let re_v = re.into_data().try_into_vec::<FloatElem>().unwrap();
-        let im_v = im.into_data().try_into_vec::<FloatElem>().unwrap();
-        for k in 0..(n / 2 + 1) {
-            assert!(
-                (re_v[k] - expected_re[k]).abs() < 1e-3,
-                "n={n} k={k} real: got {}, want {}",
-                re_v[k],
-                expected_re[k],
-            );
-            assert!(
-                (im_v[k] - expected_im[k]).abs() < 1e-3,
-                "n={n} k={k} imag: got {}, want {}",
-                im_v[k],
-                expected_im[k],
-            );
-        }
+        assert_rfft_matches_naive(&values[..n], n, 1e-3);
     }
+}
+
+#[test]
+fn rfft_arbitrary_n_large_matches_naive_dft() {
+    // A larger size exercises a long Bluestein convolution; the tolerance is
+    // relative to the largest bin magnitude.
+    let n = 1000usize;
+    let values: Vec<f32> = (0..n).map(|i| (i as f32 * 0.01).sin()).collect();
+    let (expected_re, expected_im) = naive_rfft(&values, n);
+    let max = expected_re
+        .iter()
+        .chain(expected_im.iter())
+        .fold(0.0f64, |m, &v| m.max(v.abs()))
+        .max(1.0);
+    assert_rfft_matches_naive(&values, n, 1e-3 * max);
 }
 
 #[test]
@@ -580,6 +625,80 @@ fn rfft_irfft_roundtrip_multiple_arbitrary_n() {
         reconstructed
             .into_data()
             .assert_approx_eq::<FloatElem>(&signal.into_data(), Tolerance::absolute(1e-3));
+    }
+}
+
+/// Direct O(n^2) inverse real DFT matching `numpy.fft.irfft` / `torch.fft.irfft`
+/// semantics: the provided half-spectrum is truncated or zero-padded to
+/// `n / 2 + 1` bins, mirrored with Hermitian symmetry, then inverted.
+fn naive_irfft(re_in: &[f32], im_in: &[f32], n: usize) -> Vec<f64> {
+    let half = n / 2 + 1;
+    let mut full_re = vec![0.0f64; n];
+    let mut full_im = vec![0.0f64; n];
+    for k in 0..half {
+        let (r, i) = if k < re_in.len() {
+            (re_in[k] as f64, im_in[k] as f64)
+        } else {
+            (0.0, 0.0)
+        };
+        full_re[k] = r;
+        full_im[k] = i;
+        if k > 0 && k < n - k {
+            full_re[n - k] = r;
+            full_im[n - k] = -i;
+        }
+    }
+
+    let mut out = vec![0.0f64; n];
+    for (t, out_t) in out.iter_mut().enumerate() {
+        let mut acc = 0.0f64;
+        for k in 0..n {
+            let angle = 2.0 * core::f64::consts::PI * ((k * t) % n) as f64 / n as f64;
+            let (sin, cos) = angle.sin_cos();
+            acc += full_re[k] * cos - full_im[k] * sin;
+        }
+        *out_t = acc / n as f64;
+    }
+    out
+}
+
+fn assert_irfft_matches_naive(re_in: &[f32], im_in: &[f32], n: Option<usize>, tol: f64) {
+    let out_len = n.unwrap_or((re_in.len() - 1) * 2);
+    let re = TestTensor::<1>::from(re_in);
+    let im = TestTensor::<1>::from(im_in);
+    let signal = irfft(re, im, 0, n);
+    assert_eq!(signal.dims(), [out_len]);
+
+    let expected = naive_irfft(re_in, im_in, out_len);
+    let actual = signal.into_data().try_into_vec::<FloatElem>().unwrap();
+    for t in 0..out_len {
+        assert!(
+            (actual[t] as f64 - expected[t]).abs() < tol,
+            "n={out_len} t={t}: got {}, want {}",
+            actual[t],
+            expected[t],
+        );
+    }
+}
+
+#[test]
+fn irfft_none_resolves_to_non_power_of_two() {
+    // 4 bins with `n = None` reconstruct a length `2 * (4 - 1) = 6` signal,
+    // which is not a power of two and therefore uses Bluestein.
+    let re = [0.0f32, 1.0, 0.5, -0.25];
+    let im = [0.0f32, -1.0, 0.5, 0.25];
+    assert_irfft_matches_naive(&re, &im, None, 1e-3);
+}
+
+#[test]
+fn irfft_arbitrary_n_bin_count_truncate_and_pad() {
+    let re = [0.0f32, 1.0, 0.5, -0.25, 0.75];
+    let im = [0.0f32, -1.0, 0.5, 0.25, -0.5];
+    // n=5: fewer output bins than provided -> truncate.
+    // n=9: output bins match the provided count.
+    // n=13: more output bins than provided -> zero-pad.
+    for &n in &[5usize, 9, 13] {
+        assert_irfft_matches_naive(&re, &im, Some(n), 1e-3);
     }
 }
 
@@ -1046,6 +1165,55 @@ fn ifft_rejects_mismatched_shapes() {
     let _ = ifft(re, im, 0, None);
 }
 
+/// Direct O(n^2) complex DFT, used as an independent reference for `cfft` at
+/// non-power-of-two sizes.
+fn naive_cfft(re_in: &[f32], im_in: &[f32], n: usize) -> (Vec<f64>, Vec<f64>) {
+    let mut re = vec![0.0f64; n];
+    let mut im = vec![0.0f64; n];
+    for (k, (re_k, im_k)) in re.iter_mut().zip(im.iter_mut()).enumerate() {
+        for t in 0..n {
+            let xr = re_in.get(t).copied().unwrap_or(0.0) as f64;
+            let xi = im_in.get(t).copied().unwrap_or(0.0) as f64;
+            let angle = -2.0 * core::f64::consts::PI * ((k * t) % n) as f64 / n as f64;
+            let (sin, cos) = angle.sin_cos();
+            *re_k += xr * cos - xi * sin;
+            *im_k += xr * sin + xi * cos;
+        }
+    }
+    (re, im)
+}
+
+#[test]
+fn cfft_arbitrary_n_matches_naive_dft() {
+    let re_in = [0.31f32, -0.72, 1.24, 0.53, -0.11, 0.97, -0.44];
+    let im_in = [-0.2f32, 0.5, 0.1, -0.3, 0.8, -0.6, 0.4];
+    for &n in &[3usize, 5, 6, 7] {
+        let re = TestTensor::<1>::from(&re_in[..n]);
+        let im = TestTensor::<1>::from(&im_in[..n]);
+        let (out_re, out_im) = cfft(re, im, 0, Some(n));
+        assert_eq!(out_re.dims(), [n]);
+        assert_eq!(out_im.dims(), [n]);
+
+        let (expected_re, expected_im) = naive_cfft(&re_in[..n], &im_in[..n], n);
+        let actual_re = out_re.into_data().try_into_vec::<FloatElem>().unwrap();
+        let actual_im = out_im.into_data().try_into_vec::<FloatElem>().unwrap();
+        for k in 0..n {
+            assert!(
+                (actual_re[k] as f64 - expected_re[k]).abs() < 1e-3,
+                "n={n} k={k} real: got {}, want {}",
+                actual_re[k],
+                expected_re[k],
+            );
+            assert!(
+                (actual_im[k] as f64 - expected_im[k]).abs() < 1e-3,
+                "n={n} k={k} imag: got {}, want {}",
+                actual_im[k],
+                expected_im[k],
+            );
+        }
+    }
+}
+
 // CubeCL currently rejects length-one FFTs; Flex supports them.
 fn assert_length_one_behavior(run: impl FnOnce() + std::panic::UnwindSafe) {
     #[cfg(feature = "cubecl-backend")]
@@ -1057,4 +1225,32 @@ fn assert_length_one_behavior(run: impl FnOnce() + std::panic::UnwindSafe) {
         return;
     }
     run();
+}
+
+// Quantization is implemented by the Flex and CubeCL backends, but not by tch.
+#[cfg(any(feature = "flex", feature = "cubecl-backend"))]
+#[test]
+fn rfft_quantized_non_power_of_two_matches_dequantized() {
+    use burn_core::tensor::quantization::{QuantStore, QuantValue};
+
+    let device = burn_core::tensor::Device::default();
+    let scheme = device
+        .settings()
+        .quantization
+        .scheme
+        .with_value(QuantValue::Q8S)
+        .with_store(QuantStore::Native);
+
+    let signal = TestTensor::<1>::from([0.5, -1.0, 2.0, -0.25, 0.75, 1.5]);
+    let quantized = signal.clone().quantize_dynamic(&scheme);
+    let dequantized = quantized.clone().dequantize();
+
+    // n=5 is not a power of two, so this used to panic inside `zeros_like`.
+    let (re_q, im_q) = rfft(quantized, 0, Some(5));
+    let (re_d, im_d) = rfft(dequantized, 0, Some(5));
+
+    re_q.into_data()
+        .assert_approx_eq::<FloatElem>(&re_d.into_data(), Tolerance::absolute(1e-4));
+    im_q.into_data()
+        .assert_approx_eq::<FloatElem>(&im_d.into_data(), Tolerance::absolute(1e-4));
 }
