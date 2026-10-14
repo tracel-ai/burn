@@ -1,15 +1,16 @@
-use std::{collections::HashMap, fmt::Debug};
+use std::collections::HashMap;
 
 use burn_backend::{DType, DTypeUsageSet, DeviceSettings, ExecutionError, TensorData};
 use burn_ir::{BackendIr, IrVisitorMut, OperationIr, TensorId, TensorIr, TensorStatus};
 use burn_router::TensorInterpreter;
 use burn_std::future::DynFut;
 
+use super::GroupError;
 use super::{
     plan::{Execution, OpPlan},
     shard::ShardList,
 };
-use crate::{GroupMember, Resharding, Sharding};
+use crate::{GroupMember, Resharding, Sharding, ShardingError};
 
 /// A device group's [`GroupInterpreter`] as a trait object, so the [`GroupClient`] of every group
 /// has one type whatever backend the members run.
@@ -35,13 +36,8 @@ pub trait DynGroupInterpreter: Send {
     /// rule asks for.
     fn register_op(&mut self, op: OperationIr);
 
-    /// The same value with another sharding, under a new id.
-    ///
-    /// # Panics
-    ///
-    /// When no resharding produces `sharding`: a partial sum out of a tensor that is not one, or a
-    /// split along a dim the tensor lacks or one shorter than the group.
-    fn reshard(&mut self, tensor: TensorIr, sharding: Sharding) -> TensorId;
+    /// The same value with another sharding, under a new id, or why no resharding produces it.
+    fn reshard(&mut self, tensor: TensorIr, sharding: Sharding) -> Result<TensorId, ShardingError>;
 
     /// The whole value of `tensor`, its shards gathered onto the first member and read there.
     fn read(&mut self, tensor: TensorIr) -> DynFut<Result<TensorData, ExecutionError>>;
@@ -87,23 +83,23 @@ impl<B: BackendIr> GroupInterpreter<B> {
     /// Each default dtype is the first of the members' `settings` that every member supports, so
     /// a tensor made on the group runs on all of them.
     ///
-    /// # Panics
-    ///
-    /// When no member's default for one of the dtypes runs on every member.
-    pub fn default_settings(&self, settings: &[DeviceSettings]) -> DeviceSettings {
-        DeviceSettings::new(
-            self.first_supported_everywhere(settings.iter().map(|it| it.float_dtype)),
-            self.first_supported_everywhere(settings.iter().map(|it| it.int_dtype)),
-            self.first_supported_everywhere(settings.iter().map(|it| it.bool_dtype)),
+    pub fn default_settings(
+        &self,
+        settings: &[DeviceSettings],
+    ) -> Result<DeviceSettings, GroupError> {
+        Ok(DeviceSettings::new(
+            self.first_supported_everywhere(settings.iter().map(|it| it.float_dtype))?,
+            self.first_supported_everywhere(settings.iter().map(|it| it.int_dtype))?,
+            self.first_supported_everywhere(settings.iter().map(|it| it.bool_dtype))?,
             // Every device of one backend shares its quantization config.
             settings[0].quantization,
-        )
+        ))
     }
 
-    fn first_supported_everywhere<T: Copy + Debug + Into<DType>>(
+    fn first_supported_everywhere<T: Copy + Into<DType>>(
         &self,
         candidates: impl Iterator<Item = T> + Clone,
-    ) -> T {
+    ) -> Result<T, GroupError> {
         candidates
             .clone()
             .find(|&dtype| {
@@ -112,9 +108,8 @@ impl<B: BackendIr> GroupInterpreter<B> {
                     .iter()
                     .all(|device| B::supports_dtype(device, dtype))
             })
-            .unwrap_or_else(|| {
-                let candidates: Vec<T> = candidates.collect();
-                panic!("None of the members' defaults {candidates:?} runs on every member")
+            .ok_or_else(|| GroupError::NoSharedDefault {
+                candidates: candidates.map(Into::into).collect(),
             })
     }
 }
@@ -150,17 +145,25 @@ impl<B: BackendIr> DynGroupInterpreter for GroupInterpreter<B> {
         }
     }
 
-    fn reshard(&mut self, tensor: TensorIr, sharding: Sharding) -> TensorId {
+    fn reshard(&mut self, tensor: TensorIr, sharding: Sharding) -> Result<TensorId, ShardingError> {
         let current = self.shardings[&tensor.id];
         let num_members = self.interpreters.len();
-        let resharding = Resharding::new(current, sharding, &tensor.shape, num_members)
-            .unwrap_or_else(|error| panic!("{error}"));
+        let resharding = match Resharding::new(current, sharding, &tensor.shape, num_members) {
+            Ok(resharding) => resharding,
+            Err(error) => {
+                // The caller gave the tensor up, so a refusal must not leave it on the members.
+                if tensor.status == TensorStatus::ReadWrite {
+                    self.drop_tensor(tensor.id);
+                }
+                return Err(error);
+            }
+        };
         let shards =
             self.take_shards(&tensor, current)
                 .reshard(resharding, &tensor.shape, &self.devices);
         let id = self.new_tensor_id();
         self.register_shards(id, shards, sharding);
-        id
+        Ok(id)
     }
 
     fn read(&mut self, tensor: TensorIr) -> DynFut<Result<TensorData, ExecutionError>> {

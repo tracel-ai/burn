@@ -508,20 +508,17 @@ macro_rules! transaction_op {
     };
 }
 
-/// `$devices` as `$variant`'s own devices: every member of a device group runs one backend.
+/// `$devices` as `$variant`'s own devices, or [`GroupError::MixedBackends`](burn_group::GroupError).
 #[cfg(feature = "group")]
 macro_rules! group_members {
     ($devices:expr, $variant:ident) => {
         $devices
             .into_iter()
             .map(|device| match device {
-                $crate::DispatchDevice::$variant(device) => device,
+                $crate::DispatchDevice::$variant(device) => Ok(device),
                 #[allow(unreachable_patterns)]
-                other => panic!(
-                    "A device group runs one backend, not {other:?} beside {}",
-                    stringify!($variant)
-                ),
+                _ => Err(burn_group::GroupError::MixedBackends),
             })
-            .collect::<alloc::vec::Vec<_>>()
+            .collect::<Result<alloc::vec::Vec<_>, burn_group::GroupError>>()
     };
 }

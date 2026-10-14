@@ -7,6 +7,7 @@ use burn_flex::{Flex, FlexDevice};
 use burn_group::{
     GroupBackend, GroupDevice,
     Sharding::{self, PartialSum, Replicated, Split},
+    ShardingError,
 };
 use burn_std::future::block_on;
 
@@ -127,13 +128,19 @@ fn split_tensors_stay_split_where_megatron_keeps_them() {
 }
 
 #[test]
-#[should_panic(expected = "is shorter than the group")]
 fn a_dim_shorter_than_the_group_is_not_split() {
-    let device = group(3);
-    reshard(
-        Group::float_from_data(data([2, 6], 1), &device),
-        Split { dim: 0 },
-    );
+    let tensor = Group::float_from_data(data([2, 6], 1), &group(3));
+
+    let refused = tensor.client.clone().reshard(tensor, Split { dim: 0 });
+
+    assert!(matches!(
+        refused,
+        Err(ShardingError::DimShorterThanGroup {
+            dim: 0,
+            num_members: 3,
+            ..
+        })
+    ));
 }
 
 #[test]
@@ -236,11 +243,15 @@ fn shardings(shape: &Shape, num_members: usize) -> Vec<Sharding> {
 }
 
 fn group(num_members: usize) -> GroupDevice {
-    GroupDevice::new::<Flex>(&vec![FlexDevice; num_members])
+    GroupDevice::new::<Flex>(&vec![FlexDevice; num_members]).expect("Flex devices form a group")
 }
 
 fn reshard(tensor: FloatTensor<Group>, sharding: Sharding) -> FloatTensor<Group> {
-    tensor.client.clone().reshard(tensor, sharding)
+    tensor
+        .client
+        .clone()
+        .reshard(tensor, sharding)
+        .expect("The test asks for a sharding the tensor can take")
 }
 
 fn sharding_of(tensor: &FloatTensor<Group>) -> Sharding {

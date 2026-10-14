@@ -1,6 +1,7 @@
-use std::ops::Range;
+use std::{fmt, ops::Range};
 
 use burn_ir::TensorIr;
+use burn_std::Shape;
 
 /// How a tensor's shards, one per member of its group, make up its value.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -13,6 +14,65 @@ pub enum Sharding {
     /// The global value is the sum of the shards.
     PartialSum,
 }
+
+/// Why a tensor cannot take a sharding.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum ShardingError {
+    /// Only a tensor on a device group has a sharding.
+    NotOnGroup,
+    /// Quantized tensors are not split over a device group.
+    Quantized,
+    /// The split dim is not one of the tensor's.
+    MissingDim {
+        /// The dim asked for.
+        dim: usize,
+        /// The tensor's shape.
+        shape: Shape,
+    },
+    /// Fewer indices than members along the split dim would leave a member empty.
+    DimShorterThanGroup {
+        /// The dim asked for.
+        dim: usize,
+        /// The tensor's shape.
+        shape: Shape,
+        /// The group's number of members.
+        num_members: usize,
+    },
+    /// A partial sum is an op's output, never a split of a whole value.
+    PartialSumFromWhole {
+        /// The tensor's sharding.
+        from: Sharding,
+    },
+}
+
+impl fmt::Display for ShardingError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::NotOnGroup => write!(f, "Only a tensor on a device group has a sharding"),
+            Self::Quantized => write!(f, "Quantized tensors are not split over a device group"),
+            Self::MissingDim { dim, shape } => {
+                write!(f, "A tensor of shape {shape:?} has no dim {dim} to split")
+            }
+            Self::DimShorterThanGroup {
+                dim,
+                shape,
+                num_members,
+            } => write!(
+                f,
+                "Dim {dim} of a tensor of shape {shape:?} is shorter than the group's \
+                 {num_members} members, so a split would leave a member empty"
+            ),
+            Self::PartialSumFromWhole { from } => {
+                write!(
+                    f,
+                    "A {from:?} tensor is not a partial sum and cannot become one"
+                )
+            }
+        }
+    }
+}
+
+impl std::error::Error for ShardingError {}
 
 /// Where an op's inputs must be for it to run on every member at once, and where its output lands.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

@@ -4,7 +4,7 @@ use burn_backend::{ExecutionError, Shape, Slice, TensorData, TensorMetadata};
 use burn_ir::{BackendIr, HandleKind};
 use burn_std::future::DynFut;
 
-use crate::{DimSplit, Resharding, Sharding};
+use crate::{DimSplit, Resharding, Sharding, ShardingError};
 
 /// The shard of one tensor on every member, in member order, as the backend holds them.
 pub struct ShardList<B: BackendIr> {
@@ -200,7 +200,11 @@ impl<B: BackendIr> Shard<B> {
             HandleKind::Float(tensor) => Box::pin(B::float_into_data(tensor)),
             HandleKind::Int(tensor) => Box::pin(B::int_into_data(tensor)),
             HandleKind::Bool(tensor) => Box::pin(B::bool_into_data(tensor)),
-            HandleKind::Quantized(_) => Self::quantized_unsupported(),
+            HandleKind::Quantized(_) => Box::pin(async {
+                Err(ExecutionError::WithContext {
+                    reason: ShardingError::Quantized.to_string(),
+                })
+            }),
         }
     }
 
@@ -226,7 +230,7 @@ impl<B: BackendIr> Shard<B> {
     }
 
     fn quantized_unsupported() -> ! {
-        unimplemented!("Quantized tensors are not split over a device group")
+        unimplemented!("{}", ShardingError::Quantized)
     }
 }
 

@@ -10,8 +10,8 @@ mod resharding;
 mod rules;
 mod sharding;
 
-pub use backend::{GroupBackend, GroupDevice};
-pub use sharding::Sharding;
+pub use backend::{GroupBackend, GroupDevice, GroupError};
+pub use sharding::{Sharding, ShardingError};
 
 use resharding::Resharding;
 use rules::{ElementwiseRule, MatmulRule, ReducedDims, ReshapeRule, SumRule};

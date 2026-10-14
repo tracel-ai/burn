@@ -6,7 +6,7 @@ use crate::devices::*;
 #[cfg(feature = "capture")]
 use burn_capture::CaptureDevice;
 #[cfg(feature = "group")]
-use burn_group::GroupDevice;
+use burn_group::{GroupDevice, GroupError};
 
 #[cfg(feature = "autodiff")]
 use alloc::boxed::Box;
@@ -415,46 +415,46 @@ impl DispatchDevice {
     /// Each of its default dtypes is the first member's configured one that every member
     /// supports.
     ///
-    /// # Panics
+    /// # Errors
     ///
     /// When `devices` is empty or mixes backends or runtimes, when they are not Cube or Flex
     /// devices, or when no member's default for a dtype runs on every member. An autodiff group is
-    /// a group of plain devices made autodiff afterwards. Remote devices are left out: tensor
-    /// parallelism needs links as fast as one machine's GPU interconnect.
+    /// a group of plain devices made autodiff afterwards.
+    ///
+    /// # Panics
+    ///
+    /// When the process already has 65,536 groups.
     #[cfg(feature = "group")]
-    pub fn group(devices: alloc::vec::Vec<DispatchDevice>) -> Self {
+    pub fn group(devices: alloc::vec::Vec<DispatchDevice>) -> Result<Self, GroupError> {
         let settings: alloc::vec::Vec<DeviceSettings> = devices
             .iter()
             .map(burn_backend::get_device_settings::<crate::backend::Dispatch>)
             .collect();
-        Self::Group(match devices.first() {
+        let group = match devices.first() {
             #[cfg(cube_backend)]
             Some(Self::Cube(first)) => {
                 let runtime = first.runtime();
-                let members = group_members!(devices, Cube);
-                if let Some(other) = members.iter().find(|member| member.runtime() != runtime) {
-                    panic!("A device group runs one runtime, not {other:?} beside {runtime:?}")
+                let members = group_members!(devices, Cube)?;
+                if members.iter().any(|member| member.runtime() != runtime) {
+                    return Err(GroupError::MixedRuntimes);
                 }
                 GroupDevice::with_member_settings::<crate::backends::Cube>(&members, &settings)
             }
             #[cfg(feature = "flex")]
             Some(Self::Flex(_)) => {
-                let members = group_members!(devices, Flex);
+                let members = group_members!(devices, Flex)?;
                 GroupDevice::with_member_settings::<crate::backends::Flex>(&members, &settings)
             }
             #[cfg(feature = "autodiff")]
-            Some(Self::Autodiff(_)) => panic!(
-                "A device group is made from plain devices: group them, then call autodiff on \
-                 the group"
-            ),
+            Some(Self::Autodiff(_)) => Err(GroupError::AutodiffMember),
             #[cfg(feature = "remote")]
-            Some(Self::Remote(_)) => panic!(
-                "Remote devices cannot form a device group: tensor parallelism needs links as \
-                 fast as one machine's GPU interconnect"
-            ),
-            Some(other) => panic!("A device group's members run on Cube or Flex, not {other:?}"),
-            None => panic!("A device group needs at least one device"),
-        })
+            Some(Self::Remote(_)) => Err(GroupError::RemoteMember),
+            Some(other) => Err(GroupError::UnsupportedBackend {
+                device: alloc::format!("{other:?}"),
+            }),
+            None => Err(GroupError::NoDevices),
+        }?;
+        Ok(Self::Group(group))
     }
 
     #[cfg(feature = "autodiff")]

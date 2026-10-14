@@ -1,8 +1,9 @@
-use core::fmt;
-
 use burn_std::Shape;
 
-use crate::Sharding::{self, PartialSum, Replicated, Split};
+use crate::{
+    Sharding::{self, PartialSum, Replicated, Split},
+    ShardingError,
+};
 
 /// How the shards of a group's tensor move between members, from one sharding to another.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -23,37 +24,22 @@ pub enum Resharding {
     AllToAll { from_dim: usize, to_dim: usize },
 }
 
-/// Why no resharding produces a target sharding.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum ReshardingError {
-    /// The split dim is not one of the tensor's.
-    MissingDim { dim: usize, shape: Shape },
-    /// Fewer indices than members along the split dim would leave a member empty.
-    DimShorterThanGroup {
-        dim: usize,
-        shape: Shape,
-        num_members: usize,
-    },
-    /// A partial sum is an op's output, never a split of a whole value.
-    PartialSumFromWhole { from: Sharding },
-}
-
 impl Resharding {
     pub fn new(
         from: Sharding,
         to: Sharding,
         shape: &Shape,
         num_members: usize,
-    ) -> Result<Self, ReshardingError> {
+    ) -> Result<Self, ShardingError> {
         if let Split { dim } = to {
             if dim >= shape.num_dims() {
-                return Err(ReshardingError::MissingDim {
+                return Err(ShardingError::MissingDim {
                     dim,
                     shape: shape.clone(),
                 });
             }
             if shape[dim] < num_members {
-                return Err(ReshardingError::DimShorterThanGroup {
+                return Err(ShardingError::DimShorterThanGroup {
                     dim,
                     shape: shape.clone(),
                     num_members,
@@ -69,34 +55,9 @@ impl Resharding {
             (PartialSum, Replicated) => Self::AllReduce,
             (PartialSum, Split { dim }) => Self::ReduceScatter { dim },
             (Replicated | Split { .. }, PartialSum) => {
-                return Err(ReshardingError::PartialSumFromWhole { from });
+                return Err(ShardingError::PartialSumFromWhole { from });
             }
         })
-    }
-}
-
-impl fmt::Display for ReshardingError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::MissingDim { dim, shape } => {
-                write!(f, "A tensor of shape {shape:?} has no dim {dim} to split")
-            }
-            Self::DimShorterThanGroup {
-                dim,
-                shape,
-                num_members,
-            } => write!(
-                f,
-                "Dim {dim} of a tensor of shape {shape:?} is shorter than the group's \
-                 {num_members} members, so a split would leave a member empty"
-            ),
-            Self::PartialSumFromWhole { from } => {
-                write!(
-                    f,
-                    "A {from:?} tensor is not a partial sum and cannot become one"
-                )
-            }
-        }
     }
 }
 
@@ -110,7 +71,7 @@ mod tests {
 
         assert!(matches!(
             resharding,
-            Err(ReshardingError::MissingDim { dim: 2, .. })
+            Err(ShardingError::MissingDim { dim: 2, .. })
         ));
     }
 
@@ -120,7 +81,7 @@ mod tests {
 
         assert!(matches!(
             resharding,
-            Err(ReshardingError::DimShorterThanGroup { dim: 0, .. })
+            Err(ShardingError::DimShorterThanGroup { dim: 0, .. })
         ));
     }
 
@@ -130,7 +91,7 @@ mod tests {
 
         assert_eq!(
             Resharding::new(Split { dim: 0 }, PartialSum, &shape, 2),
-            Err(ReshardingError::PartialSumFromWhole {
+            Err(ShardingError::PartialSumFromWhole {
                 from: Split { dim: 0 }
             })
         );

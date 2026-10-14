@@ -1,7 +1,9 @@
 use burn_tensor::{
     Device, Distribution, Sharding,
     Sharding::{PartialSum, Replicated, Split},
-    Tensor, TensorData, Tolerance, activation, module,
+    ShardingError, Tensor, TensorData, Tolerance, activation,
+    group::GroupError,
+    module,
 };
 
 #[test]
@@ -72,21 +74,26 @@ fn a_random_tensor_is_the_same_on_every_member() {
 }
 
 #[test]
-#[should_panic(expected = "The split dim must be smaller than the tensor dimension")]
 fn a_split_along_a_dim_the_tensor_lacks_is_refused() {
-    Tensor::<2>::zeros([4, 6], &group(2)).with_sharding(Split { dim: 2 });
+    let refused = Tensor::<2>::zeros([4, 6], &group(2)).try_with_sharding(Split { dim: 2 });
+
+    assert!(matches!(
+        refused,
+        Err(ShardingError::MissingDim { dim: 2, .. })
+    ));
 }
 
 #[test]
-#[should_panic(expected = "Only a partial sum can be sharded as a partial sum")]
+#[should_panic(expected = "is not a partial sum and cannot become one")]
 fn a_whole_tensor_is_not_sharded_as_a_partial_sum() {
     Tensor::<2>::zeros([4, 6], &group(2)).with_sharding(PartialSum);
 }
 
 #[test]
-#[should_panic(expected = "A device group needs at least one device")]
 fn an_empty_group_is_refused() {
-    Device::group(&[]);
+    let refused = Device::group_options(&[]).init();
+
+    assert!(matches!(refused, Err(GroupError::NoDevices)));
 }
 
 #[test]
@@ -156,7 +163,9 @@ fn mlp<const D: usize>(
 }
 
 fn group(num_members: usize) -> Device {
-    Device::group(&vec![Device::flex(); num_members])
+    Device::group_options(&vec![Device::flex(); num_members])
+        .init()
+        .expect("Flex devices form a group")
 }
 
 fn sharded<const D: usize>(data: TensorData, device: &Device, sharding: Sharding) -> Tensor<D> {

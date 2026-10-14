@@ -112,9 +112,8 @@ pub mod backends {
 
     #[cfg(feature = "group")]
     pub use burn_group::GroupBackend as Group;
-    /// How a tensor is split over a device group's members.
     #[cfg(feature = "group")]
-    pub use burn_group::Sharding;
+    pub use burn_group::{GroupError, Sharding, ShardingError};
 }
 
 // Re-export devices

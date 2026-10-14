@@ -24,7 +24,10 @@ impl RouterChannel for GroupChannel {
 
     /// Every group registers its client when made, so a device without one names no group.
     fn init_client(device: &Self::Device) -> Self::Client {
-        panic!("{device:?} names no device group: make one with Device::group or GroupDevice::new")
+        panic!(
+            "{device:?} names no device group: make one with Device::group_options or \
+             GroupDevice::new"
+        )
     }
 
     fn get_tensor_handle(tensor: &TensorIr, client: &Self::Client) -> TensorData {

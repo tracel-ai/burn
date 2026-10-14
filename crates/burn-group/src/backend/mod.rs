@@ -7,4 +7,4 @@ mod shard;
 
 pub use channel::GroupBackend;
 pub use client::GroupClient;
-pub use device::GroupDevice;
+pub use device::{GroupDevice, GroupError};

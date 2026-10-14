@@ -4,8 +4,6 @@ use alloc::format;
 use alloc::string::{String, ToString};
 use alloc::vec;
 use alloc::vec::Vec;
-#[cfg(feature = "group")]
-use burn_dispatch::backends::Sharding;
 
 /// The struct should always be used with the [check](crate::check) macro.
 ///
@@ -1303,42 +1301,6 @@ impl TensorCheck {
                 .details(format!("got: {channels}, expected: {expected}")),
             );
         }
-        check
-    }
-
-    /// Checks a sharding against the tensor's dims and its `current` sharding, `None` off a
-    /// device group.
-    #[cfg(feature = "group")]
-    pub(crate) fn with_sharding<const D: usize>(
-        current: Option<Sharding>,
-        sharding: Sharding,
-    ) -> Self {
-        let mut check = Self::Ok;
-        let Some(current) = current else {
-            return check.register(
-                "With Sharding",
-                TensorError::new("The tensor is not on a device group."),
-            );
-        };
-
-        if let Sharding::Split { dim } = sharding
-            && dim >= D
-        {
-            check = check.register(
-                "With Sharding",
-                TensorError::new("The split dim must be smaller than the tensor dimension.")
-                    .details(format!("Got dim {dim} for a tensor of {D} dimensions.")),
-            );
-        }
-
-        if sharding == Sharding::PartialSum && current != Sharding::PartialSum {
-            check = check.register(
-                "With Sharding",
-                TensorError::new("Only a partial sum can be sharded as a partial sum.")
-                    .details(format!("The tensor is {current:?}.")),
-            );
-        }
-
         check
     }
 
