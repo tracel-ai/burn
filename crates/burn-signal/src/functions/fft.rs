@@ -58,8 +58,14 @@ pub fn rfft<const D: usize>(
     let dim = dim
         .try_dim_index(D)
         .unwrap_or_else(|error| panic!("RFFT: {error}"));
+    // Dequantize once up front: the Bluestein path builds intermediates with
+    // `zeros_like`, which is unsupported for quantized tensors.
+    let signal = signal.dequantize();
     let fft_size = n.unwrap_or(signal.dims()[dim]);
-    assert!(fft_size >= 1, "rfft: n must be >= 1, got {fft_size}");
+    assert!(
+        fft_size >= 1,
+        "rfft: FFT length must be >= 1, got {fft_size}"
+    );
 
     if !fft_size.is_power_of_two() {
         let zeros = Tensor::zeros_like(&signal);
@@ -68,7 +74,7 @@ pub fn rfft<const D: usize>(
         return (re.narrow(dim, 0, half), im.narrow(dim, 0, half));
     }
 
-    let (re, im) = <Dispatch as SignalOps>::rfft(signal.dequantize().into_dispatch(), dim, n);
+    let (re, im) = <Dispatch as SignalOps>::rfft(signal.into_dispatch(), dim, n);
     (Tensor::from_dispatch(re), Tensor::from_dispatch(im))
 }
 
@@ -132,6 +138,10 @@ pub fn irfft<const D: usize>(
         spectrum_re.shape(),
         spectrum_im.shape(),
     );
+    // Dequantize up front so the Bluestein path (which only supports float
+    // tensors) also works for quantized spectra.
+    let spectrum_re = spectrum_re.dequantize();
+    let spectrum_im = spectrum_im.dequantize();
 
     if let Some(n) = n {
         assert!(n >= 1, "irfft: n must be >= 1, got {n}");
@@ -156,8 +166,8 @@ pub fn irfft<const D: usize>(
     }
 
     Tensor::from_dispatch(<Dispatch as SignalOps>::irfft(
-        spectrum_re.dequantize().into_dispatch(),
-        spectrum_im.dequantize().into_dispatch(),
+        spectrum_re.into_dispatch(),
+        spectrum_im.into_dispatch(),
         dim,
         n,
     ))
@@ -369,8 +379,23 @@ pub fn cfft<const D: usize>(
         .try_dim_index(D)
         .unwrap_or_else(|error| panic!("CFFT: {error}"));
     let fft_size = n.unwrap_or(signal_re.dims()[dim]);
+    assert!(
+        fft_size >= 1,
+        "cfft: FFT length must be >= 1, got {fft_size}"
+    );
 
-    // rfft handles arbitrary n (power-of-two via the backend, otherwise Bluestein)
+    // Bluestein already evaluates the full complex spectrum, so return it
+    // directly instead of running two `rfft`s plus two Hermitian extensions.
+    if !fft_size.is_power_of_two() {
+        return bluestein_dft(
+            signal_re.dequantize(),
+            signal_im.dequantize(),
+            dim,
+            fft_size,
+        );
+    }
+
+    // Power-of-two sizes go through the backend radix-2 `rfft`.
     let (xr, xi) = rfft(signal_re, dim, n);
     let (yr, yi) = rfft(signal_im, dim, n);
 
