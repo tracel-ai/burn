@@ -443,11 +443,9 @@ where $N$ is the transform length along `dim`.
 /// * `dim` - The dimension along which to take the inverse FFT.
 ///   Negative dimensions are supported and count from the end.
 /// * `n` - Optional transform length. When `None`, the spectrum length along
-///   `dim` must be a positive power of two and is used as the transform length.
-///   When `Some(n)`, `n` must also be a positive power of two; the spectrum is
-///   truncated or zero-padded to length `n` before the inverse transform, and
-///   the returned signal has `n` elements along `dim`. Unsupported lengths
-///   are rejected with a panic.
+///   `dim` is used. When `Some(n)`, the spectrum is truncated or zero-padded to
+///   length `n` before the inverse transform, and the returned signal has `n`
+///   elements along `dim`. Arbitrary `n` is supported (see [`cfft`]).
 ///
 /// # Returns
 ///

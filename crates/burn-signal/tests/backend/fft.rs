@@ -1141,6 +1141,23 @@ fn ifft_with_n_truncation_resizes_round_trip() {
 }
 
 #[test]
+fn ifft_arbitrary_n_round_trip() {
+    // `ifft` composes `cfft`, which now handles non-power-of-two sizes.
+    let re = TestTensor::<1>::from([1.0, -0.5, 0.25, 2.0, -1.5]);
+    let im = TestTensor::<1>::from([0.5, 0.0, -1.0, 0.75, 0.25]);
+
+    let (spec_re, spec_im) = cfft(re.clone(), im.clone(), 0, Some(5));
+    let (out_re, out_im) = ifft(spec_re, spec_im, 0, Some(5));
+
+    out_re
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&re.into_data(), Tolerance::absolute(1e-3));
+    out_im
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&im.into_data(), Tolerance::absolute(1e-3));
+}
+
+#[test]
 fn ifft_length_1() {
     assert_length_one_behavior(|| {
         // N=1: the inverse of a single complex value is itself.
