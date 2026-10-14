@@ -76,6 +76,29 @@ fn conv2d_depthwise_end_padding_should_match_reference_backend() {
 }
 
 #[test]
+fn conv2d_depthwise_weight_backward_batch_one_should_match_reference_backend() {
+    let device = Default::default();
+    let ref_device = ReferenceDevice::new();
+
+    let input = TestTensor::<4>::random([1, 64, 16, 16], Distribution::Default, &device);
+    let weight = TestTensor::<4>::random([64, 1, 3, 3], Distribution::Default, &device);
+    let output_grad = TestTensor::<4>::random([1, 64, 16, 16], Distribution::Default, &device);
+    let options = ConvOptions::new([1, 1], [1, 1], [1, 1], 64);
+
+    let input_ref = TestTensor::<4>::from_data(input.to_data(), &ref_device);
+    let weight_ref = TestTensor::<4>::from_data(weight.to_data(), &ref_device);
+    let output_grad_ref = TestTensor::<4>::from_data(output_grad.to_data(), &ref_device);
+
+    let weight_grad = module::conv2d_weight_backward(input, weight, output_grad, options.clone());
+    let weight_grad_ref =
+        module::conv2d_weight_backward(input_ref, weight_ref, output_grad_ref, options);
+
+    weight_grad
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&weight_grad_ref.into_data(), Tolerance::default());
+}
+
+#[test]
 fn conv2d_asymmetric_weight_backward_should_match_reference_backend() {
     let device = Default::default();
     let ref_device = ReferenceDevice::new();

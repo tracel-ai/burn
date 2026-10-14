@@ -3,7 +3,10 @@ use burn_std::{Shape, Slice};
 use cubek::convolution::components::ConvSetupError;
 
 use crate::{
-    kernel::{conv::base::conv_forward_nhwc, slice, slice_assign},
+    kernel::{
+        conv::base::{ConvStrategy, conv_forward_nhwc},
+        slice, slice_assign,
+    },
     ops::{numeric::empty_device_dtype, permute, reshape, swap_dims},
     tensor::CubeTensor,
 };
@@ -78,12 +81,18 @@ fn conv_weight_grad_depthwise<const N_DIM: usize>(
     // Stride and dilation trade places, because the gradient is the kernel: the
     // step between the kernel's taps is the convolution's stride, and the step
     // between the image's is its dilation.
+    // Avoid the inner depthwise autotuner, which hangs on unit-batch backward.
+    let strategy = if batch_size == 1 {
+        ConvStrategy::Direct
+    } else {
+        ConvStrategy::default()
+    };
     let weight_grad = conv_forward_nhwc(
         image,
         filter,
         None,
         ConvOptions::new_with_padding(options.dilation, options.padding, options.stride, channels),
-        Default::default(),
+        strategy,
     )?;
 
     // `[1, ..kernel, C_out]` -> `[C_out, ..kernel, 1]`, the weight's own NHWC
