@@ -75,6 +75,7 @@ fn elementwise_ops_match_one_device_for_every_sharding() {
         ));
         check_unary!(num_members, &input, |B, a| B::relu(a));
         check_unary!(num_members, &input, |B, a| B::gelu(a));
+        check_unary!(num_members, &input, |B, a| B::sigmoid(a));
     }
 }
 

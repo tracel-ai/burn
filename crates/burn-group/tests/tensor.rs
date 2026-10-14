@@ -15,6 +15,20 @@ fn batched_megatron_mlp_keeps_its_hidden_split_through_the_reshapes_of_linear() 
 }
 
 #[test]
+fn silu_keeps_a_split() {
+    let data = values([4, 6], 1);
+    let expected =
+        activation::silu(Tensor::<2>::from_data(data.clone(), &Device::flex())).into_data();
+
+    let split = activation::silu(sharded::<2>(data, &group(2), Split { dim: 1 }));
+
+    assert_eq!(split.sharding(), Some(Split { dim: 1 }));
+    split
+        .into_data()
+        .assert_approx_eq::<f32>(&expected, tolerance());
+}
+
+#[test]
 fn a_tensor_moved_onto_a_group_is_replicated_and_moves_back_whole() {
     let data = values([4, 6], 1);
     let tensor = Tensor::<2>::from_data(data.clone(), &Device::flex()).to_device(&group(2));

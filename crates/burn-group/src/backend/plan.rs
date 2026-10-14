@@ -105,7 +105,9 @@ impl GroupShardings<'_> {
                 self.random(&desc.out)
             }
             OperationIr::Activation(
-                ActivationOperationIr::Relu(desc) | ActivationOperationIr::Gelu(desc),
+                ActivationOperationIr::Relu(desc)
+                | ActivationOperationIr::Gelu(desc)
+                | ActivationOperationIr::Sigmoid(desc),
             ) => self.unary(ElementwiseRule::Nonlinear, desc),
             _ => None,
         }
