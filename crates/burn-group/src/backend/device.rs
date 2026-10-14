@@ -24,9 +24,11 @@ impl GroupDevice {
     /// Make a group once and reuse it, as any device: each call registers a new group for the
     /// rest of the process.
     ///
+    /// Each of its default dtypes is the first member's own that every member supports.
+    ///
     /// # Panics
     ///
-    /// When `devices` is empty.
+    /// When `devices` is empty, or when no member's default for a dtype runs on every member.
     pub fn new<B: BackendIr>(devices: &[B::Device]) -> Self {
         assert!(
             !devices.is_empty(),
@@ -37,7 +39,8 @@ impl GroupDevice {
             index: u16::try_from(index).expect("Fewer than 65536 device groups in one process"),
         };
         let interpreter = GroupInterpreter::<B>::new(devices.to_vec());
-        let client = GroupClient::new(device, Box::new(interpreter), devices[0].defaults());
+        let settings = interpreter.default_settings();
+        let client = GroupClient::new(device, Box::new(interpreter), settings);
         register_scoped_client::<GroupChannel>(&device, client)
             .expect("A new group's device has no client yet")
             .keep();

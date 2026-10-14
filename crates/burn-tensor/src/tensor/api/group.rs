@@ -50,6 +50,8 @@ impl Device {
     /// Make a group once and reuse it, as any device: each call registers a new group for the
     /// rest of the process.
     ///
+    /// Each of its default dtypes is the first member's own that every member supports.
+    ///
     /// # Panics
     ///
     /// When `devices` is empty or mixes backends or runtimes, or when they are not Cube or Flex

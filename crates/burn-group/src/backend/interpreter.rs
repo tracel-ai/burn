@@ -1,6 +1,6 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, fmt::Debug};
 
-use burn_backend::{DType, DTypeUsageSet, ExecutionError, TensorData};
+use burn_backend::{DType, DTypeUsageSet, DeviceOps, DeviceSettings, ExecutionError, TensorData};
 use burn_ir::{BackendIr, IrVisitorMut, OperationIr, TensorId, TensorIr, TensorStatus};
 use burn_router::TensorInterpreter;
 use burn_std::future::DynFut;
@@ -82,6 +82,38 @@ impl<B: BackendIr> GroupInterpreter<B> {
             next_id: 0,
             flush_error: None,
         }
+    }
+
+    /// Each default dtype is the first member's own that every member supports, so a tensor
+    /// made on the group runs on all of them.
+    ///
+    /// # Panics
+    ///
+    /// When no member's default for one of the dtypes runs on every member.
+    pub fn default_settings(&self) -> DeviceSettings {
+        let defaults: Vec<DeviceSettings> = self.devices.iter().map(DeviceOps::defaults).collect();
+        DeviceSettings::new(
+            self.first_supported_everywhere(defaults.iter().map(|it| it.float_dtype).collect()),
+            self.first_supported_everywhere(defaults.iter().map(|it| it.int_dtype).collect()),
+            self.first_supported_everywhere(defaults.iter().map(|it| it.bool_dtype).collect()),
+            // Every device of one backend shares its quantization config.
+            defaults[0].quantization,
+        )
+    }
+
+    fn first_supported_everywhere<T: Copy + Debug + Into<DType>>(&self, candidates: Vec<T>) -> T {
+        candidates
+            .iter()
+            .copied()
+            .find(|dtype| {
+                let dtype = (*dtype).into();
+                self.devices
+                    .iter()
+                    .all(|device| B::supports_dtype(device, dtype))
+            })
+            .unwrap_or_else(|| {
+                panic!("None of the members' defaults {candidates:?} runs on every member")
+            })
     }
 }
 
