@@ -1394,6 +1394,7 @@ dependencies = [
  "burn-std",
  "ctor",
  "divan",
+ "libm",
  "tokio",
 ]
 
