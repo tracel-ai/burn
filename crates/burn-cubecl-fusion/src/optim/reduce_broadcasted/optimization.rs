@@ -15,7 +15,6 @@ use crate::{
             tune::fused_broadcasted_reduce_autotune,
         },
     },
-    tune::TunedTrace,
 };
 use burn_fusion::stream::Context;
 use cubecl::prelude::*;
@@ -69,12 +68,6 @@ pub(crate) struct ReduceBroadcastedOptimizationTuneArg {
     pub(crate) broadcasted: Arc<ReduceBroadcastedInfo>,
     pub(crate) client: Client,
     pub(crate) device: cubecl::Device,
-}
-
-impl TunedTrace for ReduceBroadcastedOptimizationTuneArg {
-    fn trace(&self) -> &FuseTrace {
-        &self.broadcasted.trace
-    }
 }
 
 pub(crate) enum ReduceBlockOptimArg {

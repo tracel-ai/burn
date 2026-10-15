@@ -17,7 +17,6 @@ use crate::{
         trace::{FuseTrace, TraceError, TuneOutput},
     },
     optim::{FusedOperation, elemwise::ElemwiseRunner, reduce::args::FusedReduceArgs},
-    tune::TunedTrace,
 };
 use burn_backend::cubecl::{dtype_to_storage_type, elem_type_to_dtype};
 use burn_fusion::stream::Context;
@@ -108,12 +107,6 @@ impl Clone for ReduceOptimizationTuneArg {
             info: self.info.clone(),
             fallback: self.fallback.clone(),
         }
-    }
-}
-
-impl TunedTrace for ReduceOptimizationTuneArg {
-    fn trace(&self) -> &FuseTrace {
-        &self.info.trace
     }
 }
 

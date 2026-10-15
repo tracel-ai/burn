@@ -16,7 +16,6 @@ use crate::{
         elemwise::ElemwiseRunner,
         matmul::args::{FusedMatmulArgs, MatmulArg},
     },
-    tune::TunedTrace,
 };
 use burn_fusion::stream::Context;
 use burn_ir::BinaryOpIr;
@@ -65,12 +64,6 @@ pub struct MatmulOptimization {
 pub struct MatmulOptimizationTuneArg {
     pub(crate) info: Arc<MatmulOptimizationInfo>,
     pub(crate) fallback: Box<dyn FallbackOperation>,
-}
-
-impl TunedTrace for MatmulOptimizationTuneArg {
-    fn trace(&self) -> &FuseTrace {
-        &self.info.trace
-    }
 }
 
 pub(crate) struct MatmulOptimizationInfo {
