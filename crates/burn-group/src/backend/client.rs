@@ -14,14 +14,14 @@ use crate::{Sharding, ShardingError};
 #[derive(Clone)]
 pub struct GroupClient {
     device: GroupDevice,
-    interpreter: Arc<Mutex<Box<dyn DynGroupInterpreter>>>,
+    interpreter: Arc<Mutex<dyn DynGroupInterpreter>>,
     settings: DeviceSettings,
 }
 
 impl GroupClient {
     pub fn new(
         device: GroupDevice,
-        interpreter: Box<dyn DynGroupInterpreter>,
+        interpreter: impl DynGroupInterpreter + 'static,
         settings: DeviceSettings,
     ) -> Self {
         Self {

@@ -94,7 +94,7 @@ impl GroupDevice {
         let device = Self {
             index: u16::try_from(index).expect("Fewer than 65536 device groups in one process"),
         };
-        let client = GroupClient::new(device, Box::new(interpreter), group_settings);
+        let client = GroupClient::new(device, interpreter, group_settings);
         register_scoped_client::<GroupChannel>(&device, client)
             .expect("A new group's device has no client yet")
             .keep();
