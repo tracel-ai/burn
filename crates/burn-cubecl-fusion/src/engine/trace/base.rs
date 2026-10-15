@@ -68,6 +68,24 @@ impl FuseTrace {
         inputs + outputs_and_read_backs
     }
 
+    /// The relative ids of the inputs a gather or a select reads as indices.
+    pub fn index_inputs(&self) -> impl Iterator<Item = TensorId> + '_ {
+        self.blocks
+            .iter()
+            .flat_map(|block| &block.ops)
+            .filter_map(|op| match op {
+                FuseOp::Gather {
+                    indices: FuseArg::Input(pos, ..),
+                    ..
+                }
+                | FuseOp::Select {
+                    indices: FuseArg::Input(pos, ..),
+                    ..
+                } => self.resources.inputs.get_id(*pos),
+                _ => None,
+            })
+    }
+
     /// Elements read at least from each input of an indexing op, by its position in the inputs.
     ///
     /// Such an input is read by indexing ops alone. A concatenation reads each of its inputs
