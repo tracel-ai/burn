@@ -516,6 +516,12 @@ impl TraceOperationFuser {
             FloatOperationIr::PowfScalar(desc) => self.fuse_scalar_ops(desc, |lhs, rhs, out| {
                 FuseOp::Powf(BinaryFuseArgs { lhs, rhs, out })
             }),
+            FloatOperationIr::Fmod(desc) => self.fuse_binary_ops(desc, |lhs, rhs, out| {
+                FuseOp::Fmod(BinaryFuseArgs { lhs, rhs, out })
+            }),
+            FloatOperationIr::FmodScalar(desc) => self.fuse_scalar_ops(desc, |lhs, rhs, out| {
+                FuseOp::Fmod(BinaryFuseArgs { lhs, rhs, out })
+            }),
             FloatOperationIr::Tanh(desc) => self.fuse_unary_ops(desc, |input, out| {
                 FuseOp::Tanh(UnaryFuseArgs { input, out })
             }),
@@ -616,6 +622,20 @@ impl TraceOperationFuser {
 
     fn fuse_numeric(&mut self, op: &NumericOperationIr) -> bool {
         match op {
+            NumericOperationIr::PowiScalar(desc) if desc.lhs.dtype.is_float() => {
+                if !self.output_is_compatible(&desc.out) {
+                    return false;
+                }
+
+                self.fuser.fuse(|build| {
+                    let lhs = build.input(&desc.lhs)?;
+                    // The exponent must not be rounded to the base's float dtype.
+                    let rhs = build.scalar(&desc.rhs, DType::I32);
+                    let out = build.output(&desc.out)?;
+                    build.fuse_operation(FuseOp::Powi(BinaryFuseArgs { lhs, rhs, out }));
+                    Some(())
+                })
+            }
             NumericOperationIr::Add(desc) => self.fuse_binary_ops(desc, |lhs, rhs, out| {
                 FuseOp::Add(BinaryFuseArgs { lhs, rhs, out })
             }),

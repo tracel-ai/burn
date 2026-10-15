@@ -102,9 +102,9 @@ fn finalize_nll<F: Float>(
         mn = last_blank;
     }
     if mx < unreachable_threshold {
-        (F::new(1000.0_f32) * F::cast_from(target_len as u32)).exp()
+        (F::new(1000.0) * F::cast_from(target_len as u32)).exp()
     } else {
-        F::new(0.0_f32) - (mx + (one + (mn - mx).exp()).ln())
+        F::new(0.0) - (mx + (one + (mn - mx).exp()).ln())
     }
 }
 
@@ -114,9 +114,9 @@ fn finalize_nll<F: Float>(
 #[cube]
 fn empty_input_nll<F: Float>(target_len: usize) -> F {
     if target_len == 0 {
-        F::new(0.0_f32)
+        F::new(0.0)
     } else {
-        (F::new(1000.0_f32) * F::cast_from(target_len as u32)).exp()
+        (F::new(1000.0) * F::cast_from(target_len as u32)).exp()
     }
 }
 
@@ -187,9 +187,9 @@ fn ctc_loss_kernel<F: Float, I: Numeric>(
     // (log(2) per step when both log_sum_exp inputs sit at the sentinel),
     // which is why the recurrence compares against a threshold instead of
     // checking `== neg_inf`. See `log_sum_exp2` for the long-sequence caveat.
-    let neg_inf = F::new(-6.0e4_f32);
-    let unreachable_threshold = F::new(-1.0e4_f32);
-    let one = F::new(1.0_f32);
+    let neg_inf = F::new(-6.0e4);
+    let unreachable_threshold = F::new(-1.0e4);
+    let one = F::new(1.0);
 
     // Initialize alpha at t = 0 for s < l_prime_len; positions beyond that
     // are never read by the recurrence (s < l_prime_len in every read) so
@@ -415,9 +415,9 @@ fn ctc_alpha_beta_kernel<F: Float, I: Numeric>(
     // Sentinel for unreachable states. See ctc_loss_kernel for the full
     // rationale: f16's 65504 magnitude cap forces the -6e4 floor, WGSL
     // rejects f32(-inf) literals, and the threshold catches sentinel drift.
-    let neg_inf = F::new(-6.0e4_f32);
-    let unreachable_threshold = F::new(-1.0e4_f32);
-    let one = F::new(1.0_f32);
+    let neg_inf = F::new(-6.0e4);
+    let unreachable_threshold = F::new(-1.0e4);
+    let one = F::new(1.0);
 
     // Alpha phase (forward).
     //

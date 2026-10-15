@@ -58,7 +58,7 @@ fn avg_pool3d_forward_kernel<F: Float>(
     let kernel_h = args.kernel_h;
     let kernel_w = args.kernel_w;
 
-    let mut sum = F::new(0.0_f32);
+    let mut sum = F::new(0.0);
     let mut count = 0usize;
 
     let in_base = batch * input.stride(0) + channel * input.stride(1);
@@ -125,7 +125,7 @@ fn avg_pool3d_forward_kernel<F: Float>(
     if divisor > 0 {
         output[out_idx] = sum / F::cast_from(divisor);
     } else {
-        output[out_idx] = F::new(0.0_f32);
+        output[out_idx] = F::new(0.0);
     }
 }
 
@@ -193,7 +193,7 @@ fn avg_pool3d_backward_kernel<F: Float>(
     let grad_stride_h = grad.stride(3);
     let grad_stride_w = grad.stride(4);
 
-    let mut sum = F::new(0.0_f32);
+    let mut sum = F::new(0.0);
 
     for od in od_min..od_max {
         let d_start = od * stride_d;

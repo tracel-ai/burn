@@ -81,20 +81,6 @@ fn outer_packed_axis(scheme: &QuantScheme, rank: usize) -> Option<usize> {
     }
 }
 
-/// `scheme` as it reads on the tensor with `axis` swapped innermost: packed along the
-/// innermost axis, its blocks swapped with it.
-fn packed_innermost(mut scheme: QuantScheme, rank: usize, axis: usize) -> QuantScheme {
-    scheme.store = match scheme.store {
-        QuantStore::PackedU32(_) => QuantStore::PackedU32(0),
-        QuantStore::PackedNative(_) => QuantStore::PackedNative(0),
-        QuantStore::Native => QuantStore::Native,
-    };
-    if scheme.block_size().is_some() {
-        scheme.swap_block_dims(rank, axis, rank - 1);
-    }
-    scheme
-}
-
 fn new_quantized(
     shape: impl Into<Shape>,
     scheme: QuantScheme,
@@ -108,13 +94,9 @@ fn new_quantized(
         let stored_shape = shape
             .swapped(axis, innermost)
             .expect("the packed axis is one of the tensor's");
-        let stored = new_quantized(
-            stored_shape,
-            packed_innermost(scheme, rank, axis),
-            device,
-            data,
-            alloc_kind,
-        );
+        let mut stored_scheme = scheme;
+        stored_scheme.swap_dims(rank, axis, innermost);
+        let stored = new_quantized(stored_shape, stored_scheme, device, data, alloc_kind);
         return swap_dims(stored, axis, innermost);
     }
 

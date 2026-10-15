@@ -3,6 +3,7 @@
 use alloc::borrow::Cow;
 use alloc::vec;
 use alloc::vec::Vec;
+use burn_backend::tensor::IndexingUpdateOp;
 use burn_backend::{DType, Element};
 use burn_std::{Bytes, Shape};
 use bytemuck::Pod;
@@ -1221,10 +1222,8 @@ pub fn scatter_nd<
     data: FlexTensor,
     indices: FlexTensor,
     values: FlexTensor,
-    reduction: burn_backend::tensor::IndexingUpdateOp,
+    reduction: IndexingUpdateOp,
 ) -> FlexTensor {
-    use burn_backend::tensor::IndexingUpdateOp;
-
     let data = data.to_contiguous();
     let indices = indices.to_contiguous();
     let values = values.to_contiguous();
@@ -1418,18 +1417,35 @@ pub fn select_add_i64(
 
 // Bool-specific operations
 
-/// Select OR for bool tensors: ORs values into tensor at positions specified by 1D indices.
-pub fn select_or(
+/// Combines a bool update into the target, using the bool interpretation of `update`.
+///
+/// Bool values are stored as `0`/`1` bytes, so `Add`/`Max` reduce to OR and `Mul`/`Min`
+/// reduce to AND.
+fn bool_update(update: IndexingUpdateOp) -> fn(&mut u8, u8) {
+    match update {
+        IndexingUpdateOp::Assign => |target, value| *target = value,
+        IndexingUpdateOp::Add | IndexingUpdateOp::Max => |target, value| *target |= value,
+        IndexingUpdateOp::Mul | IndexingUpdateOp::Min => |target, value| *target &= value,
+    }
+}
+
+/// Select assign for bool tensors using the given update operation.
+pub fn select_assign_bool(
     tensor: FlexTensor,
     dim: usize,
     indices: FlexTensor,
     value: FlexTensor,
+    update: IndexingUpdateOp,
 ) -> FlexTensor {
     let dtype = tensor.dtype();
-    let result =
-        select_update::<u8, _>(tensor, dim, indices, value, "select_or", |target, value| {
-            *target |= value
-        });
+    let result = select_update::<u8, _>(
+        tensor,
+        dim,
+        indices,
+        value,
+        "select_assign_bool",
+        bool_update(update),
+    );
     // The shared update kernel tags its output as u8; retain the input's bool dtype.
     FlexTensor::from_arc(result.data_arc(), result.layout().clone(), dtype)
 }
@@ -1438,102 +1454,50 @@ pub fn gather_bool(tensor: FlexTensor, dim: usize, indices: FlexTensor) -> FlexT
     gather::<u8>(tensor, dim, indices)
 }
 
-/// Scatter OR for bool tensors: ORs values into tensor at indexed positions.
-pub fn scatter_or(
+/// Scatter for bool tensors using the given update operation.
+pub fn scatter_bool(
     tensor: FlexTensor,
     dim: usize,
     indices: FlexTensor,
     value: FlexTensor,
+    update: IndexingUpdateOp,
 ) -> FlexTensor {
-    // Preserve the input tensor's bool dtype for the output.
-    let out_dtype = burn_std::BoolDType::from(tensor.dtype());
-    let tensor = tensor.to_contiguous();
-    let indices = indices.to_contiguous();
-    let value = value.to_contiguous();
-
-    let tensor_shape = tensor.layout().shape().clone();
-    let indices_shape = indices.layout().shape();
-    let value_shape = value.layout().shape();
-    let ndims = tensor_shape.num_dims();
-
-    assert!(
-        dim < ndims,
-        "dim {} out of bounds for {} dimensions",
+    let dtype = tensor.dtype();
+    let result = scatter_update::<u8, _>(
+        tensor,
         dim,
-        ndims
+        indices,
+        value,
+        "scatter_bool",
+        bool_update(update),
     );
-    assert_eq!(
-        indices_shape,
-        value_shape,
-        "scatter_or: indices shape {:?} must match value shape {:?}",
-        indices_shape.to_vec(),
-        value_shape.to_vec()
-    );
+    // The shared update kernel tags its output as u8; retain the input's bool dtype.
+    FlexTensor::from_arc(result.data_arc(), result.layout().clone(), dtype)
+}
 
-    for i in 0..ndims {
-        if i != dim {
-            assert_eq!(
-                tensor_shape[i], indices_shape[i],
-                "scatter_or: shape mismatch at dim {}: tensor {} vs indices {}",
-                i, tensor_shape[i], indices_shape[i]
-            );
-        }
-    }
+/// Multi-dimensional scatter for bool tensors using the given update operation.
+pub fn scatter_nd_bool(
+    data: FlexTensor,
+    indices: FlexTensor,
+    values: FlexTensor,
+    update: IndexingUpdateOp,
+) -> FlexTensor {
+    // On 0/1 storage, max is logical or and min is logical and; `+` would store 2 for true + true.
+    let update = match update {
+        IndexingUpdateOp::Add => IndexingUpdateOp::Max,
+        IndexingUpdateOp::Mul => IndexingUpdateOp::Min,
+        update => update,
+    };
+    let dtype = data.dtype();
+    let result = scatter_nd::<u8>(data, indices, values, update);
+    FlexTensor::from_arc(result.data_arc(), result.layout().clone(), dtype)
+}
 
-    let tensor_data: &[u8] = tensor.storage();
-    let indices_data = read_indices(&indices);
-    let value_data: &[u8] = value.storage();
-
-    let mut result: Vec<u8> = tensor_data.to_vec();
-
-    let tensor_strides = compute_strides(&tensor_shape);
-    let indices_strides = compute_strides(indices_shape);
-
-    let num_elements = indices_shape.num_elements();
-
-    let scatter_or_dim_size = tensor_shape[dim];
-
-    // Use 2D specialized path
-    if ndims == 2 {
-        let tensor_cols = tensor_shape[1];
-        let indices_rows = indices_shape[0];
-        let indices_cols = indices_shape[1];
-
-        if dim == 0 {
-            for i in 0..indices_rows {
-                for j in 0..indices_cols {
-                    let idx = i * indices_cols + j;
-                    let dst_row = checked_index(indices_data[idx], scatter_or_dim_size);
-                    result[dst_row * tensor_cols + j] |= value_data[idx];
-                }
-            }
-        } else {
-            for i in 0..indices_rows {
-                for j in 0..indices_cols {
-                    let idx = i * indices_cols + j;
-                    let dst_col = checked_index(indices_data[idx], scatter_or_dim_size);
-                    result[i * tensor_cols + dst_col] |= value_data[idx];
-                }
-            }
-        }
-    } else {
-        let dim_stride = tensor_strides[dim];
-        for idx in 0..num_elements {
-            let index_val = checked_index(indices_data[idx], scatter_or_dim_size);
-            let dst_idx = compute_gather_index(
-                idx,
-                index_val,
-                dim,
-                dim_stride,
-                &indices_strides,
-                &tensor_strides,
-                ndims,
-            );
-            result[dst_idx] |= value_data[idx];
-        }
-    }
-
-    crate::ops::comparison::make_bool_tensor(result, tensor_shape, out_dtype)
+/// Multi-dimensional gather for bool tensors.
+pub fn gather_nd_bool(data: FlexTensor, indices: FlexTensor) -> FlexTensor {
+    let dtype = data.dtype();
+    let result = gather_nd::<u8>(data, indices);
+    FlexTensor::from_arc(result.data_arc(), result.layout().clone(), dtype)
 }
 
 // Tests kept here probe flex-specific behavior: non-I64 index dtype
@@ -1547,7 +1511,6 @@ pub fn scatter_or(
 mod tests {
     use super::*;
     use burn_backend::TensorData;
-    use burn_backend::tensor::IndexingUpdateOp;
 
     #[test]
     fn test_gather_with_i32_indices() {

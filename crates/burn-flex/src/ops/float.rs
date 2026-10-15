@@ -27,6 +27,25 @@ fn remainder_float<T: Float>(a: T, b: T) -> T {
     }
 }
 
+fn powi_float<T: Float>(base: T, exponent: i32) -> T {
+    // Keep the exponent integer: native powi can lower to powf on some targets.
+    let magnitude = exponent.unsigned_abs() as usize;
+    if exponent < 0 {
+        // Computing base^magnitude first can overflow even when its reciprocal is
+        // representable (e.g. 2^-149 in f32). Invert the half power instead.
+        // Taking 1/base first would amplify its rounding error for large exponents.
+        let reciprocal = num_traits::pow(base, magnitude / 2).recip();
+        let result = reciprocal * reciprocal;
+        if magnitude & 1 == 1 {
+            result / base
+        } else {
+            result
+        }
+    } else {
+        num_traits::pow(base, magnitude)
+    }
+}
+
 impl FloatTensorOps<Flex> for Flex {
     fn float_from_data(data: TensorData, _device: &Device<Flex>) -> FloatTensor<Flex> {
         FlexTensor::from_data(data)
@@ -179,6 +198,15 @@ impl FloatTensorOps<Flex> for Flex {
     fn float_remainder_scalar(lhs: FloatTensor<Flex>, rhs: Scalar) -> FloatTensor<Flex> {
         // Python/PyTorch-style remainder: result has same sign as divisor
         scalar_op(lhs, rhs.to_f64().unwrap(), remainder_float, remainder_float)
+    }
+
+    fn float_fmod(lhs: FloatTensor<Flex>, rhs: FloatTensor<Flex>) -> FloatTensor<Flex> {
+        // Rust's `%` on floats is C's fmod: result has same sign as dividend
+        binary_op(lhs, rhs, |a, b| a % b, |a, b| a % b, None)
+    }
+
+    fn float_fmod_scalar(lhs: FloatTensor<Flex>, rhs: Scalar) -> FloatTensor<Flex> {
+        scalar_op(lhs, rhs.to_f64().unwrap(), |a, b| a % b, |a, b| a % b)
     }
 
     fn float_matmul(lhs: FloatTensor<Flex>, rhs: FloatTensor<Flex>) -> FloatTensor<Flex> {
@@ -1226,8 +1254,21 @@ impl FloatTensorOps<Flex> for Flex {
             2 => Self::float_mul(lhs.clone(), lhs),
             -1 => Self::float_recip(lhs),
             -2 => Self::float_recip(Self::float_mul(lhs.clone(), lhs)),
-            _ => Self::float_powf_scalar_impl(lhs, rhs),
+            _ => Self::float_powi_scalar_impl(lhs, rhs),
         }
+    }
+
+    fn float_powi_scalar_impl(lhs: FloatTensor<Flex>, rhs: Scalar) -> FloatTensor<Flex> {
+        let exponent = rhs.to_f64().unwrap();
+        if f64::from(exponent as i32) != exponent {
+            return Self::float_powf_scalar_impl(lhs, rhs);
+        }
+        let exponent = exponent as i32;
+        unary::unary_op(
+            lhs,
+            |x| powi_float(x, exponent),
+            |x| powi_float(x, exponent),
+        )
     }
 
     fn float_powf_scalar(tensor: FloatTensor<Flex>, value: Scalar) -> FloatTensor<Flex> {
@@ -1285,6 +1326,26 @@ mod tests {
     use burn_backend::TensorData;
 
     use crate::Flex;
+
+    #[test]
+    fn powi_scalar_preserves_f32_subnormal() {
+        use burn_backend::ops::FloatTensorOps;
+
+        let tensor = crate::FlexTensor::from_data(TensorData::from([2.0f32]));
+        Flex::float_powi_scalar(tensor, (-149).into())
+            .into_data()
+            .assert_eq(&TensorData::from([f32::from_bits(1)]), true);
+    }
+
+    #[test]
+    fn powi_scalar_preserves_f64_subnormal() {
+        use burn_backend::ops::FloatTensorOps;
+
+        let tensor = crate::FlexTensor::from_data(TensorData::from([2.0f64]));
+        Flex::float_powi_scalar(tensor, (-1074).into())
+            .into_data()
+            .assert_eq(&TensorData::from([f64::from_bits(1)]), true);
+    }
 
     #[test]
     fn test_float_into_int_i32() {

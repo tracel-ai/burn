@@ -566,6 +566,43 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
             .output()
     }
 
+    fn float_fmod(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> FloatTensor<Self> {
+        binary_float_ops!(FmodOps, B::float_fmod);
+
+        let streams = StreamId::current();
+
+        let client = lhs.client.clone();
+        let desc = BinaryOpIr::create(lhs.into_ir(), rhs.into_ir(), || {
+            client.create_empty_handle()
+        });
+
+        client
+            .register(
+                streams,
+                OperationIr::Float(desc.out.dtype, FloatOperationIr::Fmod(desc.clone())),
+                FmodOps::<B>::new(desc),
+            )
+            .output()
+    }
+
+    fn float_fmod_scalar(lhs: FloatTensor<Self>, rhs: Scalar) -> FloatTensor<Self> {
+        scalar_float_ops!(FmodOps, B::float_fmod_scalar);
+
+        let streams = StreamId::current();
+
+        let client = lhs.client.clone();
+        let rhs = rhs.into();
+        let desc = ScalarOpIr::create(lhs.into_ir(), rhs, || client.create_empty_handle());
+
+        client
+            .register(
+                streams,
+                OperationIr::Float(desc.out.dtype, FloatOperationIr::FmodScalar(desc.clone())),
+                FmodOps::<B>::new(desc),
+            )
+            .output()
+    }
+
     fn float_matmul(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> FloatTensor<Self> {
         binary_float_ops!(MatmulOps, B::float_matmul);
 
@@ -1827,6 +1864,32 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
                 streams,
                 OperationIr::Float(desc.out.dtype, FloatOperationIr::Log1p(desc.clone())),
                 Log1pOps::<B>::new(desc),
+            )
+            .output()
+    }
+
+    fn float_powi_scalar_impl(lhs: FloatTensor<Self>, rhs: Scalar) -> FloatTensor<Self> {
+        let exponent = rhs.elem::<f64>();
+        // Only record the integer kernel's supported range; other values keep the powf path.
+        if f64::from(exponent as i32) != exponent {
+            return Self::float_powf_scalar_impl(lhs, rhs);
+        }
+
+        scalar_float_ops!(PowiOps, B::float_powi_scalar_impl);
+
+        let client = lhs.client.clone();
+        let desc = ScalarOpIr::create(lhs.into_ir(), ScalarIr::Int(exponent as i64), || {
+            client.create_empty_handle()
+        });
+
+        client
+            .register(
+                StreamId::current(),
+                OperationIr::NumericFloat(
+                    desc.out.dtype,
+                    NumericOperationIr::PowiScalar(desc.clone()),
+                ),
+                PowiOps::<B>::new(desc),
             )
             .output()
     }

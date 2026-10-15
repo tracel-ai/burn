@@ -316,7 +316,7 @@ impl<E: CubePrimitive> ViewOperationsMutExpand<E, Coords1d> for FusedOutputExpan
         _scope: &Scope,
         _shared_memory: &SliceExpand<E>,
         _pos: NativeExpand<usize>,
-    ) {
+    ) -> PendingExpand<()> {
         panic!("Not a tensor map")
     }
 }

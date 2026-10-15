@@ -24,3 +24,44 @@ fn select_then_wider_elementwise_reads_the_selected_index() {
         );
     });
 }
+
+#[test]
+fn singleton_select_is_independent_of_unrelated_wide_operations() {
+    let stream = test_stream();
+    stream.executes(|| {
+        let device = burn_tensor::Device::default().autodiff();
+
+        for large_first in [false, true] {
+            let input = TestTensor::<1>::from_data(
+                TensorData::new((0..32).map(|index| index as f32).collect(), [32]),
+                &device,
+            )
+            .require_grad();
+            let mut index_storage = vec![19; 65_536];
+            index_storage[0] = 7;
+            let indices =
+                TestTensorInt::<1>::from_data(TensorData::new(index_storage, [65_536]), &device)
+                    .slice([0..1]);
+            let scalar = TestTensor::<1>::from_data([100.0], &device);
+            let large =
+                TestTensor::<1>::from_data(TensorData::new(vec![-1.0; 65_536], [65_536]), &device)
+                    .require_grad();
+            let expression = || large.clone().mul_scalar(2.0).add_scalar(1.0).square();
+
+            let pending = if large_first {
+                Some(expression())
+            } else {
+                None
+            };
+            let selected = scalar.sub(input.select(0, indices));
+            let unrelated = pending.unwrap_or_else(expression);
+            let _ = unrelated.into_data();
+
+            assert_eq!(
+                selected.into_scalar::<f32>(),
+                93.0,
+                "large_first={large_first}"
+            );
+        }
+    });
+}

@@ -1,11 +1,7 @@
-use super::display;
-use crate::{
-    module::generics::{GenericKind, ModuleGenerics},
-    shared::generics::GenericsHelper,
-};
+use super::{codegen_struct::ModuleFieldType, display, generics::module_generics};
 use proc_macro2::TokenStream;
 use quote::quote;
-use syn::{Attribute, Generics, parse_quote};
+use syn::Attribute;
 
 /// Basic trait to be implemented for Module generation.
 pub(crate) trait ModuleCodegen {
@@ -22,7 +18,7 @@ pub(crate) trait ModuleCodegen {
 
     fn gen_display(&self) -> TokenStream;
 
-    fn module_generics(&self) -> &ModuleGenerics;
+    fn fields(&self) -> Vec<(&syn::Field, &ModuleFieldType)>;
 }
 
 pub(crate) fn generate_module_standard<Codegen: ModuleCodegen>(
@@ -31,7 +27,7 @@ pub(crate) fn generate_module_standard<Codegen: ModuleCodegen>(
 ) -> TokenStream {
     let name = &ast.ident;
 
-    let generics = GenericsParser::from_ast(&ast.generics, codegen.module_generics());
+    let generics = module_generics(ast, codegen.fields());
 
     let display_fn = display::display_fn(ast);
     let attributes_fn = codegen.gen_display();
@@ -46,8 +42,7 @@ pub(crate) fn generate_module_standard<Codegen: ModuleCodegen>(
     let materialize_fn = codegen.gen_materialize();
     let clone_fn = codegen.gen_clone();
 
-    let (generics_module, generics_ty_module, generics_where_module) =
-        generics.module.split_for_impl();
+    let (generics_module, generics_ty_module, generics_where_module) = generics.split_for_impl();
 
     let mut codegen = quote! {
 
@@ -95,17 +90,18 @@ pub(crate) fn generate_module_standard<Codegen: ModuleCodegen>(
     codegen
 }
 
-// When there is inner param or module, the type is considered stateless.
+// Without any participating fields, the type is stateless.
 pub(crate) fn generate_module_stateless<Codegen: ModuleCodegen>(
     ast: &syn::DeriveInput,
-    codegen: Codegen, // Pass the codegen here
+    codegen: Codegen,
 ) -> TokenStream {
     let name = &ast.ident;
-    let (generics, generics_ty, generics_where) = ast.generics.split_for_impl();
+    let bounded_generics = module_generics(ast, codegen.fields());
+    let (generics, generics_ty, generics_where) = bounded_generics.split_for_impl();
 
     let display_fn = display::display_fn(ast);
-    let attributes_fn = codegen.gen_display(); // Use codegen for attributes too
-    let clone_fn = codegen.gen_clone(); // The automatic clone logic
+    let attributes_fn = codegen.gen_display();
+    let clone_fn = codegen.gen_clone();
 
     let mut codegen = quote! {
         impl #generics burn::module::Module for #name #generics_ty #generics_where {
@@ -134,50 +130,6 @@ pub(crate) fn generate_module_stateless<Codegen: ModuleCodegen>(
     }
 
     codegen
-}
-
-struct GenericsParser {
-    module: Generics,
-}
-
-impl GenericsParser {
-    fn from_ast(generics: &Generics, module_generics: &ModuleGenerics) -> Self {
-        let mut module = GenericsHelper::new(generics.clone());
-
-        module.types().into_iter().for_each(|ident| {
-            // By default, require module bound
-            let mut requires_module_bound = true;
-            let mut generic_kind = None;
-            if !module_generics.is_empty() {
-                generic_kind = module_generics.get_generic_kind(&ident);
-                let has_module_bound = matches!(generic_kind, Some(GenericKind::Module));
-                let is_unbounded = matches!(generic_kind, Some(GenericKind::Plain));
-
-                requires_module_bound = has_module_bound || is_unbounded;
-            }
-
-            if requires_module_bound {
-                module.add_predicate(parse_quote! {
-                    #ident: burn::module::Module
-                });
-
-                module.add_predicate(parse_quote! {
-                    #ident: burn::module::ModuleDisplay
-                });
-            } else {
-                // Add required bounds to impl
-                if let Some(GenericKind::Skip) = generic_kind {
-                    module.add_predicate(parse_quote! {
-                        #ident: Clone + core::fmt::Debug + Send
-                    });
-                }
-            }
-        });
-
-        Self {
-            module: module.generics,
-        }
-    }
 }
 
 fn has_custom_display(attrs: &[Attribute]) -> bool {
