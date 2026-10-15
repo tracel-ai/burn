@@ -557,19 +557,6 @@ mod tests {
         trace.traffic(&tensors.collect())
     }
 
-    /// A gather or a select names its indices as index inputs, never the table it reads.
-    #[test]
-    fn index_inputs_are_the_indices_alone() {
-        let fuses: [fn(&mut TraceFuser, &TensorIr) -> Vec<TensorIr>; 2] = [select, gather];
-        for fuse in fuses {
-            let table = tensor(0, &[16, COLS], DType::F32);
-            let mut fuser = TraceFuser::new(FuseSettings::default());
-            fuse(&mut fuser, &table);
-            let trace = fuser.finish(Shape::new([4, COLS]));
-            assert_eq!(trace.index_inputs().collect::<Vec<_>>(), [TensorId::new(1)]);
-        }
-    }
-
     /// Selects 4 rows of the table.
     fn select(fuser: &mut TraceFuser, table: &TensorIr) -> Vec<TensorIr> {
         select_rows(fuser, table, 4)
@@ -648,5 +635,18 @@ mod tests {
         let expected = rows * COLS * F32 + 4 * I32 + 4 * COLS * F32 + 2 * rows * COLS * F32;
 
         assert_eq!(traffic(rows, select_and_cat), expected);
+    }
+
+    /// A gather or a select names its indices as index inputs, never the table it reads.
+    #[test]
+    fn index_inputs_are_the_indices_alone() {
+        let fuses: [fn(&mut TraceFuser, &TensorIr) -> Vec<TensorIr>; 2] = [select, gather];
+        for fuse in fuses {
+            let table = tensor(0, &[16, COLS], DType::F32);
+            let mut fuser = TraceFuser::new(FuseSettings::default());
+            fuse(&mut fuser, &table);
+            let trace = fuser.finish(Shape::new([4, COLS]));
+            assert_eq!(trace.index_inputs().collect::<Vec<_>>(), [TensorId::new(1)]);
+        }
     }
 }
