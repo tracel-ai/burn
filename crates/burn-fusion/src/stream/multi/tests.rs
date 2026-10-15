@@ -7,16 +7,23 @@
 
 use super::*;
 use crate::{
-    FuserProperties, FuserStatus, NumOperations, OperationFuser, OperationRan, Optimization,
-    UnfusedOp,
+    Client, FuserProperties, FuserStatus, FusionTensor, NumOperations, OperationFuser,
+    OperationRan, Optimization, UnfusedOp,
     server::FusionServer,
     stream::{Context, Operation, OrderedExecution},
 };
 use burn_backend::{
     DType, DeviceId, DeviceOps, DeviceService, DeviceSettings, ExecutionError, Shape,
 };
-use burn_ir::{FloatOperationIr, TensorError, TensorIr, TensorStatus, UnaryOpIr};
+use burn_ir::{
+    BinaryOpIr, FloatOperationIr, NumericOperationIr, TensorError, TensorIr, TensorStatus,
+    UnaryOpIr,
+};
 use burn_std::{BoolDType, FloatDType, IntDType, device::Device};
+use std::sync::{
+    Arc,
+    atomic::{AtomicBool, Ordering},
+};
 
 #[derive(Debug)]
 struct TestRuntime;
@@ -865,6 +872,106 @@ fn foreign_drop_of_unreferenced_tensor_frees_immediately() {
         .get(&setup.id)
         .is_some_and(|stream| stream.queue.variables.contains_key(&t0));
     assert!(!stale, "the stale variables entry is cleaned up");
+}
+
+/// Records whether its input was there when it ran.
+#[derive(Debug)]
+struct SeeInputOp {
+    input: TensorId,
+    seen: Arc<AtomicBool>,
+}
+
+impl Operation<TestRuntime> for SeeInputOp {
+    fn execute(&self, handles: &mut HandleContainer<TestHandle>) -> Result<(), ExecutionError> {
+        self.seen
+            .store(handles.has_handle(&self.input), Ordering::Relaxed);
+
+        Ok(())
+    }
+}
+
+/// Whether an operation reading a tensor through one clone still finds it when it runs, the other
+/// clone dropped by `drop_elsewhere` between the operation taking its input and its submission.
+fn read_after_a_clone_is_dropped(
+    drop_elsewhere: impl FnOnce(FusionTensor<TestRuntime>) + Send + 'static,
+) -> bool {
+    let client = Client::<TestRuntime>::new(TestDevice::default());
+    let stream = StreamId::current();
+    let id = client.register_tensor_handle(TestHandle);
+    let tensor = FusionTensor::new(id, Shape::new([32, 32]), DType::F32, client.clone(), stream);
+    let elsewhere = tensor.clone();
+
+    let input = tensor.into_ir();
+    std::thread::spawn(move || drop_elsewhere(elsewhere))
+        .join()
+        .expect("the clone was dropped");
+
+    let seen = Arc::new(AtomicBool::new(false));
+    let out = client.create_empty_handle();
+    let outputs = client.register(
+        stream,
+        OperationIr::Float(
+            DType::F32,
+            FloatOperationIr::Exp(UnaryOpIr {
+                input,
+                out: tensor_ir(out, TensorStatus::NotInit),
+            }),
+        ),
+        SeeInputOp {
+            input: id,
+            seen: seen.clone(),
+        },
+    );
+    client.sync(|| ());
+    drop(outputs);
+
+    seen.load(Ordering::Relaxed)
+}
+
+#[test]
+fn a_clone_dropped_on_another_thread_leaves_the_tensor_to_its_pending_read() {
+    assert!(read_after_a_clone_is_dropped(drop));
+}
+
+/// Dropped under the tensor's own stream, the clone queues a drop rather than freeing outright.
+#[test]
+fn a_clone_dropped_on_its_stream_from_another_thread_leaves_the_tensor_to_its_pending_read() {
+    let stream = StreamId::current();
+    assert!(read_after_a_clone_is_dropped(move |clone| {
+        stream.executes(|| drop(clone))
+    }));
+}
+
+/// Holding an operation's first read of a tensor changes nothing it decides: read through two
+/// clones, the tensor is still consumed at the second.
+#[test]
+fn an_operation_reading_a_tensor_twice_consumes_it_at_its_last_clone() {
+    let client = Client::<TestRuntime>::new(TestDevice::default());
+    let stream = StreamId::current();
+    let id = client.register_tensor_handle(TestHandle);
+    let tensor = FusionTensor::new(id, Shape::new([32, 32]), DType::F32, client.clone(), stream);
+
+    let lhs = tensor.clone().into_ir();
+    let rhs = tensor.into_ir();
+    assert_eq!(
+        [lhs.status, rhs.status],
+        [TensorStatus::ReadOnly, TensorStatus::ReadWrite]
+    );
+
+    let out = client.create_empty_handle();
+    client.register(
+        stream,
+        OperationIr::NumericFloat(
+            DType::F32,
+            NumericOperationIr::Add(BinaryOpIr {
+                lhs,
+                rhs,
+                out: tensor_ir(out, TensorStatus::NotInit),
+            }),
+        ),
+        ProduceOp { out },
+    );
+    client.sync(|| ());
 }
 
 /// The error a failure leaves is what a read of the tensor reports. The

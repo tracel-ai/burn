@@ -65,6 +65,10 @@ use hashbrown::{HashMap, HashSet};
 /// buffer is freed only after the last side drops. No cross-stream coordination
 /// is needed.
 ///
+/// An operation's read-only inputs keep their clones until the operation is
+/// submitted ([`held`](crate::tensor::held)), so a drop that frees a tensor is
+/// never ordered ahead of an operation reading it.
+///
 /// # Bounding `shared_sources`
 ///
 /// Naively the set would grow forever, since `tag_shared_view` only ever inserts.
