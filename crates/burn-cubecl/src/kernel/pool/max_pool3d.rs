@@ -65,7 +65,7 @@ fn max_pool3d_forward_kernel<F: Float, I: Int>(
     let dilation_h = args.dilation_h;
     let dilation_w = args.dilation_w;
 
-    let mut max_val = F::new(f32::NEG_INFINITY);
+    let mut max_val = F::new(f64::NEG_INFINITY);
     let mut max_idx = 0usize;
     let mut first_valid = true;
 
@@ -205,7 +205,7 @@ fn max_pool3d_backward_kernel<F: Float, I: Int>(
 
     let my_idx = I::cast_from(id * (in_h_len * in_w_len) + ih * in_w_len + iw);
 
-    let mut sum = F::new(0.0_f32);
+    let mut sum = F::new(0.0);
     let grad_base = batch * grad.stride(0) + channel * grad.stride(1);
     let idx_base = batch * indices.stride(0) + channel * indices.stride(1);
 
