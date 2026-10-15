@@ -4,6 +4,7 @@ use crate::tensor::CubeTensor;
 use burn_backend::ops::{GridSampleOptions, GridSamplePaddingMode, InterpolateMode};
 
 use super::bilinear::grid_sample_bilinear_launch;
+use super::trilinear::grid_sample_trilinear_launch;
 
 /// Grid sample operation supporting bilinear interpolation
 pub fn grid_sample(input: CubeTensor, grid: CubeTensor, options: GridSampleOptions) -> CubeTensor {
@@ -11,6 +12,22 @@ pub fn grid_sample(input: CubeTensor, grid: CubeTensor, options: GridSampleOptio
         InterpolateMode::Bilinear => grid_sample_bilinear_launch(input, grid, options),
         _ => panic!(
             "Unsupported grid_sample interpolation mode: {:?}",
+            options.mode
+        ),
+    }
+}
+
+/// Grid sample operation supporting trilinear interpolation
+pub fn grid_sample_3d(
+    input: CubeTensor,
+    grid: CubeTensor,
+    options: GridSampleOptions,
+) -> CubeTensor {
+    match options.mode {
+        // `InterpolateMode` is shared across ranks, so `Bilinear` means trilinear here.
+        InterpolateMode::Bilinear => grid_sample_trilinear_launch(input, grid, options),
+        _ => panic!(
+            "Unsupported grid_sample_3d interpolation mode: {:?}",
             options.mode
         ),
     }
@@ -113,6 +130,56 @@ pub(crate) fn fetch_with_reflection<F: Float>(
     let y_reflected = reflect_coord_bounded(y, h);
     let idx = base + y_reflected * stride_h + x_reflected * stride_w;
     input[idx]
+}
+
+/// Fetch value based on padding mode, from a three-dimensional input.
+///
+/// The 2-D [`fetch_value`] and its per-mode helpers stay separate rather than being generalized:
+/// `#[cube]` functions cannot be generic over rank, and threading an unused depth stride through
+/// the bilinear kernel would cost an index computation per corner fetch.
+#[cube]
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn fetch_value_3d<F: Float>(
+    input: &Tensor<F>,
+    base: usize,
+    stride_d: usize,
+    stride_h: usize,
+    stride_w: usize,
+    z: i32,
+    y: i32,
+    x: i32,
+    d: i32,
+    h: i32,
+    w: i32,
+    #[comptime] padding_mode: PaddingMode,
+) -> F {
+    match padding_mode {
+        // Return 0 for out-of-bounds
+        PaddingMode::Zeros => {
+            let in_bounds = x >= 0 && x < w && y >= 0 && y < h && z >= 0 && z < d;
+            let idx = base
+                + clamp(z, 0, d - 1) as usize * stride_d
+                + clamp(y, 0, h - 1) as usize * stride_h
+                + clamp(x, 0, w - 1) as usize * stride_w;
+            select(in_bounds, input[idx], F::new(0.0_f32))
+        }
+        // Clamp to edge
+        PaddingMode::Border => {
+            let idx = base
+                + clamp(z, 0, d - 1) as usize * stride_d
+                + clamp(y, 0, h - 1) as usize * stride_h
+                + clamp(x, 0, w - 1) as usize * stride_w;
+            input[idx]
+        }
+        // Float reflection was applied to the center, so indices are at most 1 step out of bounds
+        PaddingMode::Reflection => {
+            let idx = base
+                + reflect_coord_bounded(z, d) * stride_d
+                + reflect_coord_bounded(y, h) * stride_h
+                + reflect_coord_bounded(x, w) * stride_w;
+            input[idx]
+        }
+    }
 }
 
 /// Reflect an integer index that may be out of bounds.
