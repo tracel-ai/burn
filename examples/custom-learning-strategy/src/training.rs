@@ -1,7 +1,8 @@
 use crate::model::ModelConfig;
 use burn::train::{
-    EventProcessorTraining, Learner, LearnerModel, SupervisedLearningStrategy, SupervisedTraining,
-    SupervisedTrainingEventProcessor, TrainLoader, TrainingComponents, ValidLoader,
+    EventProcessorTraining, Learner, LearnerModel, SplitOutcome, SupervisedLearningStrategy,
+    SupervisedTraining, SupervisedTrainingEventProcessor, TrainLoader, TrainingComponents,
+    ValidLoader,
 };
 use burn::{
     data::{
@@ -134,9 +135,7 @@ impl<M: LearnerModel> SupervisedLearningStrategy<M> for MyCustomLearningStrategy
         starting_epoch: usize,
     ) -> (M, SupervisedTrainingEventProcessor<M>) {
         let dataloader_train = dataloader_train.to_device(&self.device);
-        let train_total_items = dataloader_train.num_items();
         let dataloader_valid = dataloader_valid.to_device(&self.device.clone().inner());
-        let valid_total_items = dataloader_valid.num_items();
         learner.fork(&self.device);
         let mut event_processor = training_components.event_processor;
         let mut checkpointer = training_components.checkpointer;
@@ -148,16 +147,17 @@ impl<M: LearnerModel> SupervisedLearningStrategy<M> for MyCustomLearningStrategy
             log::info!("Executing training step for epoch {}", epoch,);
 
             // Single device / dataloader
-            event_processor
-                .process_train(LearnerEvent::StartSplit {
-                    epoch_number: epoch,
-                    total_items: train_total_items,
-                })
-                .unwrap();
             let mut iterator = dataloader_train.iter();
+            interrupter.fail_on_error(event_processor.process_train(LearnerEvent::StartSplit {
+                epoch_number: epoch,
+                progress: iterator.progress(),
+            }));
             let mut iteration = 0;
 
-            while let Some(item) = iterator.next() {
+            while !interrupter.should_stop() {
+                let Some(item) = iterator.next() else {
+                    break;
+                };
                 let item = match item {
                     Ok(item) => item,
                     Err(err) => {
@@ -180,9 +180,9 @@ impl<M: LearnerModel> SupervisedLearningStrategy<M> for MyCustomLearningStrategy
                     Some(learner.lr_current()),
                 );
 
-                event_processor
-                    .process_train(LearnerEvent::ProcessedItem(item))
-                    .unwrap();
+                interrupter.fail_on_error(
+                    event_processor.process_train(LearnerEvent::ProcessedItem(item)),
+                );
 
                 if interrupter.should_stop() {
                     if let Some(interruption) = interrupter.interruption() {
@@ -192,22 +192,35 @@ impl<M: LearnerModel> SupervisedLearningStrategy<M> for MyCustomLearningStrategy
                     break;
                 }
             }
-            event_processor
-                .process_train(LearnerEvent::EndSplit(epoch))
-                .unwrap();
+            interrupter.fail_on_error(event_processor.flush());
+            let outcome = interrupter.outcome();
+            let mut progress = iterator.progress();
+            if outcome == SplitOutcome::Completed {
+                progress.resolve_total();
+            }
+            interrupter.fail_on_error(event_processor.process_train(LearnerEvent::EndSplit {
+                epoch,
+                progress,
+                outcome,
+            }));
+            interrupter.fail_on_error(event_processor.flush());
+            if interrupter.should_stop() {
+                break;
+            }
 
             let model_valid = learner.model().valid();
 
-            event_processor
-                .process_valid(LearnerEvent::StartSplit {
-                    epoch_number: epoch,
-                    total_items: valid_total_items,
-                })
-                .unwrap();
             let mut iterator = dataloader_valid.iter();
+            interrupter.fail_on_error(event_processor.process_valid(LearnerEvent::StartSplit {
+                epoch_number: epoch,
+                progress: iterator.progress(),
+            }));
             let mut iteration = 0;
 
-            while let Some(item) = iterator.next() {
+            while !interrupter.should_stop() {
+                let Some(item) = iterator.next() else {
+                    break;
+                };
                 let item = match item {
                     Ok(item) => item,
                     Err(err) => {
@@ -221,16 +234,26 @@ impl<M: LearnerModel> SupervisedLearningStrategy<M> for MyCustomLearningStrategy
                 let item = InferenceStep::step(&model_valid, item);
                 let item = TrainingItem::new(item, progress, Some(iteration), None);
 
-                event_processor
-                    .process_valid(LearnerEvent::ProcessedItem(item))
-                    .unwrap();
+                interrupter.fail_on_error(
+                    event_processor.process_valid(LearnerEvent::ProcessedItem(item)),
+                );
             }
-            event_processor
-                .process_valid(LearnerEvent::EndSplit(epoch))
-                .unwrap();
-            event_processor
-                .process_train(LearnerEvent::EndEpoch(epoch))
-                .unwrap();
+            interrupter.fail_on_error(event_processor.flush());
+            let outcome = interrupter.outcome();
+            let mut progress = iterator.progress();
+            if outcome == SplitOutcome::Completed {
+                progress.resolve_total();
+            }
+            interrupter.fail_on_error(event_processor.process_valid(LearnerEvent::EndSplit {
+                epoch,
+                progress,
+                outcome,
+            }));
+            interrupter.fail_on_error(event_processor.flush());
+            if interrupter.should_stop() {
+                break;
+            }
+            interrupter.fail_on_error(event_processor.process_train(LearnerEvent::EndEpoch(epoch)));
 
             if let Some(checkpointer) = &mut checkpointer {
                 checkpointer.checkpoint(&learner, epoch, &training_components.event_store);

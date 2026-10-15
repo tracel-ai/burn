@@ -29,7 +29,7 @@ pub(crate) mod test_utils {
         Adaptor, LossInput,
         processor::{EventProcessorTraining, LearnerEvent, MinimalEventProcessor, TrainingItem},
     };
-    use burn_core::tensor::Tensor;
+    use burn_core::{data::dataloader::Progress, tensor::Tensor};
 
     use super::ItemLazy;
 
@@ -50,11 +50,8 @@ pub(crate) mod test_utils {
         value: f64,
         epoch: usize,
     ) {
-        let dummy_progress = burn_core::data::dataloader::Progress {
-            items_processed: epoch,
-            items_total: 3,
-            unit: Some("items".to_string()),
-        };
+        let dummy_progress =
+            burn_core::data::dataloader::Progress::new(epoch, 3, Some("items".to_string()));
         let dummy_iteration = Some(1);
 
         processor
@@ -75,23 +72,31 @@ pub(crate) mod test_utils {
         processor
             .process_train(LearnerEvent::StartSplit {
                 epoch_number: epoch,
-                total_items: num_items,
+                progress: Progress::new(0, num_items, Some("items".to_string())),
             })
             .unwrap();
         processor
             .process_valid(LearnerEvent::StartSplit {
                 epoch_number: epoch,
-                total_items: num_items,
+                progress: Progress::new(0, num_items, Some("items".to_string())),
             })
             .unwrap();
     }
 
     pub(crate) fn end_epoch(processor: &mut MinimalEventProcessor<f64, f64>, epoch: usize) {
         processor
-            .process_train(LearnerEvent::EndSplit(epoch))
+            .process_train(LearnerEvent::EndSplit {
+                epoch,
+                progress: Progress::new(1, 1, Some("items".to_string())),
+                outcome: super::SplitOutcome::Completed,
+            })
             .unwrap();
         processor
-            .process_valid(LearnerEvent::EndSplit(epoch))
+            .process_valid(LearnerEvent::EndSplit {
+                epoch,
+                progress: Progress::new(1, 1, Some("items".to_string())),
+                outcome: super::SplitOutcome::Completed,
+            })
             .unwrap();
     }
 }

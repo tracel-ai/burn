@@ -102,11 +102,8 @@ where
         );
 
         let mut valid_next = self.config.eval_interval + starting_epoch - 1;
-        let mut progress = Progress {
-            items_processed: starting_epoch,
-            items_total: num_steps_total,
-            unit: Some("steps".to_string()),
-        };
+        let mut progress =
+            Progress::new(starting_epoch, num_steps_total, Some("steps".to_string()));
 
         let mut intermediary_update: Option<<RLC::Policy as Policy>::PolicyState> = None;
         while progress.items_processed < num_steps_total {
@@ -164,7 +161,7 @@ where
                     ));
 
                 env_runner_valid.update_policy(learner_agent.policy().state());
-                env_runner_valid.run_episodes(
+                let trajectories = env_runner_valid.run_episodes(
                     self.config.eval_episodes,
                     &mut event_processor,
                     &training_components.interrupter,
@@ -184,7 +181,19 @@ where
 
                 training_components
                     .interrupter
-                    .fail_on_error(event_processor.process_valid(crate::AgentEvaluationEvent::End));
+                    .fail_on_error(event_processor.flush());
+                training_components
+                    .interrupter
+                    .fail_on_error(event_processor.process_valid(
+                        crate::AgentEvaluationEvent::End {
+                            progress: Progress::new(
+                                trajectories.len(),
+                                self.config.eval_episodes,
+                                Some("episodes".to_string()),
+                            ),
+                            outcome: training_components.interrupter.outcome(),
+                        },
+                    ));
             }
         }
 

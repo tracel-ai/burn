@@ -12,23 +12,23 @@ use burn_core::data::dataloader::split::split_dataloader;
 use burn_core::tensor::Device;
 use burn_core::tensor::distributed::DistributedContext;
 
+use super::processor::WorkerEventProcessor;
+
+pub(crate) type DdpEventProcessor<M> = WorkerEventProcessor<SupervisedTrainingEventProcessor<M>>;
+
 #[derive(Clone)]
 pub(crate) struct WorkerComponents {
-    /// The total number of epochs
+    /// The total number of epochs.
     pub num_epochs: usize,
     /// Enables gradients accumulation.
     pub grad_accumulation: Option<usize>,
-    /// An [Interupter](Interrupter) that allows aborting the training/evaluation process early.
+    /// An [Interrupter] that allows aborting the training/evaluation process early.
     pub interrupter: Interrupter,
     /// Cloneable reference to an early stopping strategy.
     pub early_stopping: Option<EarlyStoppingStrategyRef>,
-    /// A reference to an [EventStoreClient](EventStoreClient).
+    /// A reference to an [EventStoreClient].
     pub event_store: Arc<EventStoreClient>,
-    /// The total number of items in the training dataset.
-    pub train_total_items: usize,
-    /// The total number of items in the validation dataset.
-    pub valid_total_items: usize,
-    /// Synchronizes all workers before early stopping reads metrics from the event store.
+    /// All workers finish training before validation, and validation before the next epoch.
     pub epoch_barrier: Arc<Barrier>,
 }
 
@@ -73,8 +73,6 @@ impl<M: LearnerModel> SupervisedLearningStrategy<M> for DdpTrainingStrategy {
     ) -> (M, SupervisedTrainingEventProcessor<M>) {
         // The reference model is always on the first device provided.
         let main_device = self.devices.first().unwrap();
-        let train_total_items = dataloader_train.num_items();
-        let valid_total_items = dataloader_valid.num_items();
         // One worker per device, so we use a fixed device strategy
         // for each (worker) data loader. This matches the expected device on the worker, so we
         // don't have to move the data between devices.
@@ -83,7 +81,12 @@ impl<M: LearnerModel> SupervisedLearningStrategy<M> for DdpTrainingStrategy {
 
         let main_device = self.devices[0].clone();
         let peer_count = self.devices.len();
-        let event_processor = Arc::new(Mutex::new(training_components.event_processor));
+        let totals = dataloaders_train.iter().map(|d| d.output_items()).collect();
+        let event_processor = Arc::new(Mutex::new(WorkerEventProcessor::new(
+            training_components.event_processor,
+            totals,
+            training_components.interrupter.clone(),
+        )));
 
         let interrupter = training_components.interrupter;
         let worker_components = WorkerComponents {
@@ -92,8 +95,6 @@ impl<M: LearnerModel> SupervisedLearningStrategy<M> for DdpTrainingStrategy {
             interrupter: interrupter.clone(),
             early_stopping: training_components.early_stopping,
             event_store: training_components.event_store,
-            train_total_items,
-            valid_total_items,
             epoch_barrier: Arc::new(Barrier::new(peer_count)),
         };
 
@@ -108,13 +109,13 @@ impl<M: LearnerModel> SupervisedLearningStrategy<M> for DdpTrainingStrategy {
             dataloaders_train.remove(0),
             Some(dataloader_valid),
             starting_epoch,
-            peer_count,
+            0,
             true,
         );
 
         // Spawn other workers for the other devices, starting with peer id 1
         let mut secondary_workers = vec![];
-        for device in &self.devices[1..] {
+        for (index, device) in self.devices[1..].iter().enumerate() {
             let handle = DdpWorker::<M>::start(
                 device.clone(),
                 learner.clone(),
@@ -124,7 +125,7 @@ impl<M: LearnerModel> SupervisedLearningStrategy<M> for DdpTrainingStrategy {
                 dataloaders_train.remove(0),
                 None,
                 starting_epoch,
-                peer_count,
+                index + 1,
                 false,
             );
 
@@ -181,6 +182,6 @@ impl<M: LearnerModel> SupervisedLearningStrategy<M> for DdpTrainingStrategy {
         let Ok(event_processor) = event_processor.into_inner() else {
             panic!("Event processor lock poisoned");
         };
-        (model, event_processor)
+        (model, event_processor.into_inner())
     }
 }

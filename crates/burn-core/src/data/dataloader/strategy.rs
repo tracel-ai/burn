@@ -1,5 +1,12 @@
+use super::TotalCount;
+
 /// A strategy to batch items.
 pub trait BatchStrategy<I>: Send + Sync {
+    /// Returns the expected output count for the given input size.
+    fn output_items(&self, _input_items: usize) -> TotalCount {
+        TotalCount::Unknown
+    }
+
     /// Adds an item to the strategy.
     ///
     /// # Arguments
@@ -50,6 +57,7 @@ impl<I> FixBatchStrategy<I> {
     ///
     /// The strategy.
     pub fn new(batch_size: usize) -> Self {
+        assert!(batch_size > 0, "Batch size must be greater than zero.");
         FixBatchStrategy {
             items: Vec::with_capacity(batch_size),
             batch_size,
@@ -58,6 +66,10 @@ impl<I> FixBatchStrategy<I> {
 }
 
 impl<I: Send + Sync + 'static> BatchStrategy<I> for FixBatchStrategy<I> {
+    fn output_items(&self, input_items: usize) -> TotalCount {
+        TotalCount::Exact(input_items)
+    }
+
     fn add(&mut self, item: I) {
         self.items.push(item);
     }

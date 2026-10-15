@@ -1,11 +1,7 @@
 use crate::ddp::epoch::{DdpTrainEpoch, DdpValidEpoch};
-use crate::ddp::strategy::WorkerComponents;
-use crate::metric::processor::{EventProcessorTraining, LearnerEvent};
+use crate::ddp::strategy::{DdpEventProcessor, WorkerComponents};
 use crate::single::TrainingLoop;
-use crate::{
-    Learner, LearnerModel, LearningCheckpointer, SupervisedTrainingEventProcessor, TrainLoader,
-    ValidLoader,
-};
+use crate::{Learner, LearnerModel, LearningCheckpointer, TrainLoader, ValidLoader};
 use burn_core::tensor::Device;
 use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
@@ -15,13 +11,13 @@ use std::thread::JoinHandle;
 pub(crate) struct DdpWorker<M: LearnerModel> {
     device: Device,
     learner: Learner<M>,
-    event_processor: Arc<Mutex<SupervisedTrainingEventProcessor<M>>>,
+    event_processor: Arc<Mutex<DdpEventProcessor<M>>>,
     components: WorkerComponents,
     checkpointer: Option<LearningCheckpointer<M>>,
     dataloader_train: TrainLoader<M>,
     dataloader_valid: Option<ValidLoader<M>>,
     starting_epoch: usize,
-    peer_count: usize,
+    worker_id: usize,
     is_main: bool,
 }
 
@@ -31,13 +27,13 @@ impl<M: LearnerModel> DdpWorker<M> {
     pub fn start(
         device: Device,
         learner: Learner<M>,
-        event_processor: Arc<Mutex<SupervisedTrainingEventProcessor<M>>>,
+        event_processor: Arc<Mutex<DdpEventProcessor<M>>>,
         components: WorkerComponents,
         checkpointer: Option<LearningCheckpointer<M>>,
         dataloader_train: TrainLoader<M>,
         dataloader_valid: Option<ValidLoader<M>>,
         starting_epoch: usize,
-        peer_count: usize,
+        worker_id: usize,
         is_main: bool,
     ) -> JoinHandle<M> {
         let worker = Self {
@@ -49,7 +45,7 @@ impl<M: LearnerModel> DdpWorker<M> {
             dataloader_train,
             dataloader_valid,
             starting_epoch,
-            peer_count,
+            worker_id,
             is_main,
         };
 
@@ -76,87 +72,51 @@ impl<M: LearnerModel> DdpWorker<M> {
             let epoch = training_progress.items_processed;
 
             if self.is_main {
-                self.event_processor
-                    .lock()
-                    .unwrap()
-                    .process_train(LearnerEvent::StartSplit {
-                        epoch_number: epoch,
-                        total_items: self.components.train_total_items,
-                    })
-                    .unwrap();
+                self.event_processor.lock().unwrap().start_epoch(epoch);
             }
+
+            self.components.epoch_barrier.wait();
 
             epoch_train.run(
                 &mut self.learner,
                 &training_progress,
                 self.event_processor.clone(),
                 &interrupter,
-                self.peer_count,
+                self.worker_id,
+                &self.components.epoch_barrier,
             );
-
+            self.components.epoch_barrier.wait();
             if self.is_main {
-                self.event_processor
-                    .lock()
-                    .unwrap()
-                    .process_train(LearnerEvent::EndSplit(epoch))
-                    .unwrap();
+                self.event_processor.lock().unwrap().finish_train(epoch);
             }
-
-            // Workers using early stopping must all reach the epoch barrier below. Validation will
-            // observe the interruption and return promptly on the main worker.
-            if interrupter.should_stop() && self.components.early_stopping.is_none() {
-                break;
-            }
-
-            // Validation
-            if let Some(runner) = &epoch_valid {
-                {
-                    self.event_processor
-                        .lock()
-                        .unwrap()
-                        .process_valid(LearnerEvent::StartSplit {
-                            epoch_number: epoch,
-                            total_items: self.components.valid_total_items,
-                        })
-                        .unwrap();
-                }
-                let mut event_processor = self.event_processor.lock().unwrap();
+            // Only the main worker validates; all peers wait at the epoch barrier below.
+            if let Some(runner) = &epoch_valid
+                && !interrupter.should_stop()
+            {
                 runner.run(
                     &self.learner.model(),
                     &training_progress,
-                    &mut event_processor,
+                    &self.event_processor,
                     &interrupter,
                 );
-                event_processor
-                    .process_valid(LearnerEvent::EndSplit(epoch))
-                    .unwrap();
-                event_processor
-                    .process_train(LearnerEvent::EndEpoch(epoch))
-                    .unwrap();
             }
 
-            if self.components.early_stopping.is_some() {
-                // Only the main worker runs validation, so every worker waits for its validation
-                // and epoch end events to be queued before draining the event processor. This way
-                // early stopping never reads a missing or stale metric value.
-                self.components.epoch_barrier.wait();
+            if self.is_main {
+                self.event_processor.lock().unwrap().end_epoch(epoch);
+                let mut stop = interrupter.should_stop();
+                if !stop {
+                    if let Some(checkpointer) = &mut self.checkpointer {
+                        checkpointer.checkpoint(&self.learner, epoch, &self.components.event_store);
+                    }
+                    if let Some(early_stopping) = &mut self.components.early_stopping {
+                        stop = early_stopping.should_stop(epoch, &self.components.event_store);
+                    }
+                }
+                self.event_processor.lock().unwrap().stop_after_epoch = stop;
             }
-
-            if self.checkpointer.is_some() || self.components.early_stopping.is_some() {
-                self.event_processor.lock().unwrap().flush().unwrap();
-            }
-
-            if interrupter.should_stop() {
-                break;
-            }
-
-            if let Some(checkpointer) = &mut self.checkpointer {
-                checkpointer.checkpoint(&self.learner, epoch, &self.components.event_store);
-            }
-
-            if let Some(early_stopping) = &mut self.components.early_stopping
-                && early_stopping.should_stop(epoch, &self.components.event_store)
-            {
+            self.components.epoch_barrier.wait();
+            // Every worker makes the same epoch decision, even if a stop request races the barrier.
+            if self.event_processor.lock().unwrap().stop_after_epoch {
                 break;
             }
         }

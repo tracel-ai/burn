@@ -131,7 +131,7 @@ impl StatusView {
                     "{: <width$} :",
                     capitalize(g.unit.as_deref().unwrap_or(""))
                 )),
-                value(format!("{}/{}", g.items_processed, g.items_total)),
+                value(g.to_string()),
             ]);
             let s = &p.split;
             lines.push(vec![
@@ -139,7 +139,7 @@ impl StatusView {
                     "{: <width$} :",
                     capitalize(s.unit.as_deref().unwrap_or(""))
                 )),
-                value(format!("{}/{}", s.items_processed, s.items_total)),
+                value(s.to_string()),
             ]);
         }
 

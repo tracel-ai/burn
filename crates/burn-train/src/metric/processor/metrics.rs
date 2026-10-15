@@ -486,11 +486,7 @@ mod tests {
 
     fn metadata() -> MetricMetadata {
         MetricMetadata {
-            progress: burn_core::data::dataloader::Progress {
-                items_processed: 1,
-                items_total: 1,
-                unit: None,
-            },
+            progress: burn_core::data::dataloader::Progress::new(1, 1, None),
             iteration: None,
             lr: None,
         }

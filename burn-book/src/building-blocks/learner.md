@@ -59,14 +59,37 @@ Enable it with `SupervisedTraining::grads_accumulation(n)`, where `n` must be gr
 a single device, Burn computes gradients for each batch and sums them over `n` batches before
 updating the model parameters.
 
-Burn applies any remaining accumulated gradients at the end of each epoch. Learning-rate
-schedulers advance once per optimizer update, so warmup and decay durations should use that unit.
+Burn applies any remaining accumulated gradients when the training dataloader is exhausted.
+An interruption or error observed before that update discards the pending window. Progress counters
+never trigger optimizer updates: a loader can buffer batches, drop items, or have an unknown total.
+Learning-rate schedulers advance once per optimizer update, so warmup and decay durations should
+use that unit.
 
 Accumulated gradients are summed without normalization. Account for this when choosing loss
 scaling and learning rates.
 
 Custom training strategies and loops are responsible for their own accumulation and scheduler
 timing.
+
+## Progress in Custom Loaders and Training Loops
+
+`Progress` describes measurements, not completion. Stop iterating when the loader returns `None`;
+use `SplitOutcome` to report completion, interruption, or failure separately. `DataLoader::num_items()`
+counts source items for slicing. `output_items()` describes the expected number of constituent items
+emitted, which may differ when a custom batching strategy filters or buffers input.
+
+When migrating custom implementations:
+
+- Replace `Progress::items_total` with `total: TotalCount::Exact(n)`, `Estimated(n)`, or `Unknown`.
+  `Progress::new(processed, n, unit)` still accepts an exact `usize` count.
+- Replace `is_completed()` checks with iterator exhaustion or the execution owner's outcome.
+- Progress logger callbacks receive `&Progress`; terminal callbacks also receive `SplitOutcome`.
+- Emit `LearnerEvent::EndSplit { epoch, progress, outcome }` once per split after any final
+  optimizer update. Evaluation uses `EvaluatorEvent::EndTest { progress, outcome }`.
+
+DDP workers finish training before the main worker validates, and all workers wait for validation,
+checkpointing, and the early-stopping decision before entering the next epoch. Reports are processed
+as they arrive within each split; future epochs are not buffered.
 
 ## Parameter Groups
 

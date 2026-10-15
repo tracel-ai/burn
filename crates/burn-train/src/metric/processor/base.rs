@@ -9,6 +9,31 @@ use crate::{
     renderer::{EvaluationName, MetricsRenderer},
 };
 
+/// The outcome of a training, validation, or evaluation split.
+///
+/// The execution owner reports this after iteration and any final optimizer update.
+/// Event processors can upgrade the outcome to `Failed` if final metric computation fails.
+/// Error details remain available through the training/evaluation result.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SplitOutcome {
+    /// All work finished normally.
+    Completed,
+    /// Execution stopped on request before finishing.
+    Interrupted,
+    /// Execution stopped because of an error.
+    Failed,
+}
+
+impl core::fmt::Display for SplitOutcome {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str(match self {
+            Self::Completed => "Complete",
+            Self::Interrupted => "Interrupted",
+            Self::Failed => "Failed",
+        })
+    }
+}
+
 /// Event happening during the training/validation process.
 pub enum LearnerEvent<T> {
     /// Signal the start of the process (e.g., training start).
@@ -26,11 +51,18 @@ pub enum LearnerEvent<T> {
     StartSplit {
         /// The epoch number.
         epoch_number: usize,
-        /// The total number of items to be processed during this split.
-        total_items: usize,
+        /// The initial progress of the split.
+        progress: Progress,
     },
-    /// Signal the end of a split, carrying the current epoch number.
-    EndSplit(usize),
+    /// Signal the end of a split, including unsuccessful endings.
+    EndSplit {
+        /// The epoch number.
+        epoch: usize,
+        /// The final progress measurements.
+        progress: Progress,
+        /// Why execution ended.
+        outcome: SplitOutcome,
+    },
     /// Signal the end of a full epoch.
     EndEpoch(usize),
     /// Signal the end of the process (e.g., training end).
@@ -44,12 +76,17 @@ pub enum EvaluatorEvent<T> {
         /// The total number of items to evaluate.
         total_tests: usize,
     },
-    /// Signal the start of a test split, carrying the split name and total number of items.
-    StartTest(EvaluationName, usize),
+    /// Signal the start of a test split, carrying the split name and initial progress.
+    StartTest(EvaluationName, Progress),
     /// Signal that an item have been processed.
     ProcessedItem(EvaluationName, EvaluationItem<T>),
     /// Signal the end of a single test split.
-    EndTest,
+    EndTest {
+        /// The final progress measurements.
+        progress: Progress,
+        /// Why execution ended.
+        outcome: SplitOutcome,
+    },
     /// Signal the end of the process (e.g., evaluation end).
     End(Option<LearnerSummary>),
 }

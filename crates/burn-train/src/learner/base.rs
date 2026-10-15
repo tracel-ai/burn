@@ -238,6 +238,19 @@ pub struct Interrupter {
 }
 
 impl Interrupter {
+    /// Reports the outcome after a training or evaluation loop has ended.
+    ///
+    /// Call only after execution has ended: an unset interrupter indicates successful
+    /// completion, not whether there is any work left. Errors take precedence over stop requests.
+    pub fn outcome(&self) -> crate::SplitOutcome {
+        if self.error().is_some() {
+            crate::SplitOutcome::Failed
+        } else if self.should_stop() {
+            crate::SplitOutcome::Interrupted
+        } else {
+            crate::SplitOutcome::Completed
+        }
+    }
     /// Create a new instance.
     pub fn new() -> Self {
         Self::default()

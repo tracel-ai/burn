@@ -9,7 +9,7 @@ use burn_core::tensor::{Device, TensorReadError};
 use burn_std::ExecutionError;
 use burn_train::{
     EvaluatorBuilder, EventProcessorFailure, Interrupter, Interruption, LearningResult,
-    SupervisedTraining, TrainingError,
+    SplitOutcome, SupervisedTraining, TrainingError,
     logger::InMemoryMetricLogger,
     metric::{Metric, MetricMetadata, MetricName, SerializedEntry, store::Split},
     train::WorkerFailure,
@@ -110,9 +110,11 @@ fn a_completed_training_reports_neither() {
 fn a_stop_request_and_an_error_are_kept_apart() {
     let interrupter = Interrupter::new();
     assert!(!interrupter.should_stop());
+    assert_eq!(interrupter.outcome(), SplitOutcome::Completed);
 
     interrupter.stop(Some("the user asked"));
     assert!(interrupter.should_stop());
+    assert_eq!(interrupter.outcome(), SplitOutcome::Interrupted);
     assert_eq!(
         interrupter.interruption(),
         Some(Interruption {
@@ -150,6 +152,7 @@ fn a_stop_request_and_an_error_are_kept_apart() {
     failed.stop(Some("the user asked too"));
     assert_eq!(failed.interruption(), None);
     assert!(failed.error().is_some());
+    assert_eq!(failed.outcome(), SplitOutcome::Failed);
 }
 
 #[test]
