@@ -12,6 +12,8 @@ use alloc::string::{String, ToString};
 use alloc::vec::Vec;
 use burn_core::tensor::{BoolStore, DType, Shape};
 use burn_pack::{Error as PackError, Tensor as PackTensor};
+
+use crate::StoreTensor;
 use core::fmt;
 use core::ops::Deref;
 use hashbrown::HashMap;
@@ -575,7 +577,7 @@ pub struct FileStore {
     from_adapter: Box<dyn ModuleAdapter>,
     to_adapter: Box<dyn ModuleAdapter>,
     /// Cached tensors (parsed once, reused)
-    tensors_cache: Option<BTreeMap<String, PackTensor>>,
+    tensors_cache: Option<BTreeMap<String, StoreTensor>>,
 }
 
 /// Memory-based store.
@@ -597,7 +599,7 @@ pub struct MemoryStore {
     from_adapter: Box<dyn ModuleAdapter>,
     to_adapter: Box<dyn ModuleAdapter>,
     /// Cached tensors (parsed once, reused)
-    tensors_cache: Option<BTreeMap<String, PackTensor>>,
+    tensors_cache: Option<BTreeMap<String, StoreTensor>>,
 }
 
 impl Default for MemoryStore {
@@ -685,7 +687,11 @@ impl ModuleStore for SafetensorsStore {
             Self::File(p) => p.to_adapter.clone(),
             Self::Memory(p) => p.to_adapter.clone(),
         };
-        let mut tensors = module.collect(None, Some(to_adapter), self.get_skip_enum_variants());
+        let mut tensors: Vec<StoreTensor> = module
+            .collect(None, Some(to_adapter), self.get_skip_enum_variants())
+            .into_iter()
+            .map(StoreTensor::from)
+            .collect();
 
         // Apply filtering
         tensors = apply_filter(tensors, self.get_filter());
@@ -768,7 +774,7 @@ impl ModuleStore for SafetensorsStore {
 
     fn apply_to<M: ModuleSnapshot>(&mut self, module: &mut M) -> Result<ApplyResult, Self::Error> {
         // Get tensors from cache
-        let tensors: Vec<PackTensor> = self.get_all_tensors()?.values().cloned().collect();
+        let tensors: Vec<StoreTensor> = self.get_all_tensors()?.values().cloned().collect();
 
         // Get the adapter
         let adapter: Box<dyn ModuleAdapter> = match self {
@@ -814,7 +820,7 @@ impl ModuleStore for SafetensorsStore {
         Ok(result)
     }
 
-    fn get_tensor(&mut self, name: &str) -> Result<Option<&PackTensor>, Self::Error> {
+    fn get_tensor(&mut self, name: &str) -> Result<Option<&StoreTensor>, Self::Error> {
         // Ensure cache is populated
         self.ensure_tensors_cache()?;
         let cache = match self {
@@ -825,7 +831,7 @@ impl ModuleStore for SafetensorsStore {
         Ok(cache.get(name))
     }
 
-    fn get_all_tensors(&mut self) -> Result<&BTreeMap<String, PackTensor>, Self::Error> {
+    fn get_all_tensors(&mut self) -> Result<&BTreeMap<String, StoreTensor>, Self::Error> {
         // Ensure cache is populated
         self.ensure_tensors_cache()?;
         let cache = match self {
@@ -931,7 +937,7 @@ impl SafetensorsStore {
 
         // Load tensors
         #[allow(unused_mut)]
-        let mut tensors = match self {
+        let mut tensors: Vec<StoreTensor> = match self {
             #[cfg(feature = "std")]
             Self::File(p) => lazy_tensors_from_file(&p.path)?,
             Self::Memory(p) => {
@@ -941,7 +947,10 @@ impl SafetensorsStore {
                     .ok_or_else(|| SafetensorsStoreError::Other("No data loaded".to_string()))?;
                 lazy_tensors(data_arc)?
             }
-        };
+        }
+        .into_iter()
+        .map(StoreTensor::from)
+        .collect();
 
         // Apply remapping (but NOT filtering - that's done at apply time)
         #[cfg(feature = "std")]
@@ -962,8 +971,10 @@ impl SafetensorsStore {
         }
 
         // Build cache as BTreeMap
-        let cache: BTreeMap<String, PackTensor> =
-            tensors.into_iter().map(|t| (t.name.clone(), t)).collect();
+        let cache: BTreeMap<String, StoreTensor> = tensors
+            .into_iter()
+            .map(|t| (t.name().to_string(), t))
+            .collect();
 
         // Store cache
         match self {
@@ -1006,19 +1017,19 @@ fn caught<T>(f: impl FnOnce() -> T) -> Result<T, SafetensorsStoreError> {
 }
 
 /// Apply filter to tensors.
-fn apply_filter(mut tensors: Vec<PackTensor>, filter: &PathFilter) -> Vec<PackTensor> {
+fn apply_filter(mut tensors: Vec<StoreTensor>, filter: &PathFilter) -> Vec<StoreTensor> {
     if filter.is_empty() {
         return tensors;
     }
 
-    tensors.retain(|tensor| filter.matches(&tensor.name));
+    tensors.retain(|tensor| filter.matches(tensor.name()));
 
     tensors
 }
 
 /// Apply remapping to tensors.
 #[cfg(feature = "std")]
-fn apply_remapping(tensors: Vec<PackTensor>, remapper: &KeyRemapper) -> Vec<PackTensor> {
+fn apply_remapping(tensors: Vec<StoreTensor>, remapper: &KeyRemapper) -> Vec<StoreTensor> {
     if remapper.is_empty() {
         return tensors;
     }
@@ -1029,11 +1040,12 @@ fn apply_remapping(tensors: Vec<PackTensor>, remapper: &KeyRemapper) -> Vec<Pack
 
 /// Wrap tensors as safetensors views, still without materializing any data.
 fn to_safetensors_views(
-    tensors: Vec<PackTensor>,
+    tensors: Vec<StoreTensor>,
 ) -> Result<Vec<(String, PackTensorView)>, SafetensorsStoreError> {
     tensors
         .into_iter()
         .map(|tensor| {
+            let tensor = tensor.into_pack();
             // `View::dtype` has no error channel, so a dtype the format cannot represent has
             // to be refused here. Letting it through would write a header claiming F32 over
             // bytes that are nothing of the sort, and the file would only be found broken on

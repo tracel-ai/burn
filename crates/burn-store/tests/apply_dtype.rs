@@ -35,8 +35,8 @@ fn int_model(device: &Device) -> IntModel {
     }
 }
 
-fn source(data: TensorData, name: &str) -> burn_pack::Tensor {
-    burn_store::bridge::from_data(data, name.to_string(), None)
+fn source(data: TensorData, name: &str) -> burn_store::StoreTensor {
+    burn_store::bridge::from_data(data, name.to_string(), None).into()
 }
 
 /// PyTorch writes integer buffers as int64, and the loaded parameter keeps that width rather

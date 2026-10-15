@@ -758,10 +758,10 @@ mod direct_access_tests {
 
         let snapshot = snapshot.unwrap();
         // Linear weight should be 2D
-        assert_eq!(snapshot.shape.len(), 2, "Weight should be 2D tensor");
+        assert_eq!(snapshot.shape().len(), 2, "Weight should be 2D tensor");
 
         // Verify we can load data
-        let data = crate::bridge::to_data(snapshot).unwrap();
+        let data = snapshot.to_data().unwrap();
         assert!(!data.bytes().is_empty(), "Data should not be empty");
     }
 

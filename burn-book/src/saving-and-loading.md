@@ -442,10 +442,10 @@ let names = store.keys()?;
 
 // Get specific tensor
 if let Some(tensor) = store.get_tensor("encoder.layer0.weight")? {
-    println!("Shape: {:?}, DType: {:?}", tensor.shape, tensor.dtype);
+    println!("Shape: {:?}, DType: {:?}", tensor.shape(), tensor.dtype());
 
-    // Reading the data is a free function, not a method on the tensor
-    let data = burn_store::bridge::to_data(tensor)?;
+    // Reads the tensor's data from the file
+    let data = tensor.to_data()?;
 }
 ```
 
@@ -458,12 +458,12 @@ use burn_store::{ModuleSnapshot, PathFilter};
 
 // Transfer all weights
 let snapshots = model1.collect(None, None, false);
-model2.apply(snapshots, None, None, false);
+model2.apply(snapshots.into_iter().map(Into::into).collect(), None, None, false);
 
 // Transfer only encoder weights
 let filter = PathFilter::new().with_regex(r"^encoder\..*");
 let snapshots = model1.collect(Some(filter.clone()), None, false);
-model2.apply(snapshots, Some(filter), None, false);
+model2.apply(snapshots.into_iter().map(Into::into).collect(), Some(filter), None, false);
 ```
 
 ### API Reference
