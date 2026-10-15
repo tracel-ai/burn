@@ -1177,7 +1177,7 @@ binary_func!(fmod, fmod_vector::<C, N>, Float);
 /// returns `x` even when `x` is infinite. So that case is handled explicitly.
 #[cube]
 fn fmod_vector<F: Float, N: Size>(lhs: Vector<F, N>, rhs: Vector<F, N>) -> Vector<F, N> {
-    let nan = Vector::new(F::new(f32::NAN));
+    let nan = Vector::new(F::new(f64::NAN));
     let inf_divisor = select_many(Vector::is_inf(lhs), nan, lhs);
     select_many(Vector::is_inf(rhs), inf_divisor, lhs % rhs)
 }
