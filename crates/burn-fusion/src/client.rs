@@ -2,7 +2,7 @@ use crate::{
     FusionBackend, FusionDevice, FusionHandle, FusionRuntime, FusionServer, FusionTensor,
     FusionUtilities, UnfusedOp,
     stream::{StreamId, execution::Operation},
-    tensor::held,
+    tensor::held::HeldInputs,
 };
 use burn_backend::{
     Device, DeviceHandle, DeviceId, DeviceService, DeviceServiceStage, ServerUtilitiesHandle,
@@ -142,15 +142,14 @@ where
         }
 
         if submits_an_operation {
-            held::release();
+            HeldInputs::release();
         }
 
         outputs
     }
 
-    /// Free a tensor without queuing a drop on its home `stream`: one dropped on another thread, or
-    /// an operation's read-only input released after its other clones were dropped. Same-stream
-    /// drops must keep using [`Self::register`].
+    /// Free a tensor outside its home `stream`'s queue, once no pending operation references it. A
+    /// drop on the home stream's own thread queues through [`Self::register`] instead.
     pub(crate) fn foreign_drop(&self, stream: StreamId, ir: TensorIr) {
         self.server
             .submit(move |server| server.foreign_drop(stream, ir));
@@ -236,7 +235,7 @@ where
         let read = self
             .server
             .submit_blocking(move |server| server.float_data::<B>(tensor, stream));
-        held::release();
+        HeldInputs::release();
         async move {
             match read {
                 Ok(read) => read.await,
@@ -257,7 +256,7 @@ where
         let read = self
             .server
             .submit_blocking(move |server| server.int_data::<B>(tensor, stream));
-        held::release();
+        HeldInputs::release();
         async move {
             match read {
                 Ok(read) => read.await,
@@ -278,7 +277,7 @@ where
         let read = self
             .server
             .submit_blocking(move |server| server.bool_data::<B>(tensor, stream));
-        held::release();
+        HeldInputs::release();
         async move {
             match read {
                 Ok(read) => read.await,
@@ -299,7 +298,7 @@ where
         let read = self
             .server
             .submit_blocking(move |server| server.quantized_data::<B>(tensor, stream));
-        held::release();
+        HeldInputs::release();
         async move {
             match read {
                 Ok(read) => read.await,
@@ -325,10 +324,9 @@ where
 
         let float_tensor = client_src
             .server
-            .submit_blocking(move |server_src| server_src.read_float::<B>(tensor, stream))
-            .unwrap();
-        held::release();
-        match float_tensor {
+            .submit_blocking(move |server_src| server_src.read_float::<B>(tensor, stream));
+        HeldInputs::release();
+        match float_tensor.unwrap() {
             Ok(float_tensor) => {
                 let float_tensor = B::float_to_device(float_tensor, client_dst.device());
                 client_dst.server.submit(move |server_dst| {
@@ -370,10 +368,9 @@ where
 
         let int_tensor = client_src
             .server
-            .submit_blocking(move |server_src| server_src.read_int::<B>(tensor, stream))
-            .unwrap();
-        held::release();
-        match int_tensor {
+            .submit_blocking(move |server_src| server_src.read_int::<B>(tensor, stream));
+        HeldInputs::release();
+        match int_tensor.unwrap() {
             Ok(int_tensor) => {
                 let int_tensor = B::int_to_device(int_tensor, client_dst.device());
                 client_dst.server.submit(move |server_dst| {
@@ -415,10 +412,9 @@ where
 
         let bool_tensor = client_src
             .server
-            .submit_blocking(move |server_src| server_src.read_bool::<B>(tensor, stream))
-            .unwrap();
-        held::release();
-        match bool_tensor {
+            .submit_blocking(move |server_src| server_src.read_bool::<B>(tensor, stream));
+        HeldInputs::release();
+        match bool_tensor.unwrap() {
             Ok(bool_tensor) => {
                 let bool_tensor = B::bool_to_device(bool_tensor, client_dst.device());
                 client_dst.server.submit(move |server_dst| {
@@ -460,10 +456,9 @@ where
 
         let q_tensor = client_src
             .server
-            .submit_blocking(move |server_src| server_src.read_quantized::<B>(tensor, stream))
-            .unwrap();
-        held::release();
-        match q_tensor {
+            .submit_blocking(move |server_src| server_src.read_quantized::<B>(tensor, stream));
+        HeldInputs::release();
+        match q_tensor.unwrap() {
             Ok(q_tensor) => {
                 let q_tensor = B::q_to_device(q_tensor, client_dst.device());
                 client_dst.server.submit(move |server_dst| {
@@ -504,7 +499,7 @@ where
         let resolved = self
             .server
             .submit_blocking(move |server| server.resolve_server_float::<B>(tensor, stream));
-        held::release();
+        HeldInputs::release();
         resolved.unwrap_or_else(|err| Err(crate::backend::server_error(err)))
     }
 
@@ -524,7 +519,7 @@ where
         let resolved = self
             .server
             .submit_blocking(move |server| server.resolve_server_int::<B>(tensor, stream));
-        held::release();
+        HeldInputs::release();
         resolved.unwrap_or_else(|err| Err(crate::backend::server_error(err)))
     }
 
@@ -544,7 +539,7 @@ where
         let resolved = self
             .server
             .submit_blocking(move |server| server.resolve_server_bool::<B>(tensor, stream));
-        held::release();
+        HeldInputs::release();
         resolved.unwrap_or_else(|err| Err(crate::backend::server_error(err)))
     }
 

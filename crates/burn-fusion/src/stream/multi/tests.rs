@@ -890,11 +890,12 @@ impl Operation<TestRuntime> for SeeInputOp {
     }
 }
 
-/// Whether an operation reading a tensor through one clone still finds it when it runs, the other
-/// clone dropped by `drop_elsewhere` between the operation taking its input and its submission.
-fn read_after_a_clone_is_dropped(
+/// An operation reading a tensor through one clone still finds it when it runs, the other clone
+/// dropped by `drop_elsewhere` between the operation taking its input and its submission, and the
+/// tensor is freed once the operation has read it.
+fn assert_a_read_outlives_a_clone_dropped_elsewhere(
     drop_elsewhere: impl FnOnce(FusionTensor<TestRuntime>) + Send + 'static,
-) -> bool {
+) {
     let client = Client::<TestRuntime>::new(TestDevice::default());
     let stream = StreamId::current();
     let id = client.register_tensor_handle(TestHandle);
@@ -924,22 +925,36 @@ fn read_after_a_clone_is_dropped(
     );
     client.sync(|| ());
     drop(outputs);
+    assert!(seen.load(Ordering::Relaxed), "the read found its input");
 
-    seen.load(Ordering::Relaxed)
+    let found_after = Arc::new(AtomicBool::new(true));
+    let out = client.create_empty_handle();
+    let outputs = client.register(
+        stream,
+        exp_op(id, out),
+        SeeInputOp {
+            input: id,
+            seen: found_after.clone(),
+        },
+    );
+    client.sync(|| ());
+    drop(outputs);
+    assert!(
+        !found_after.load(Ordering::Relaxed),
+        "the last clone's release freed the tensor"
+    );
 }
 
 #[test]
 fn a_clone_dropped_on_another_thread_leaves_the_tensor_to_its_pending_read() {
-    assert!(read_after_a_clone_is_dropped(drop));
+    assert_a_read_outlives_a_clone_dropped_elsewhere(drop);
 }
 
 /// Dropped under the tensor's own stream, the clone queues a drop rather than freeing outright.
 #[test]
 fn a_clone_dropped_on_its_stream_from_another_thread_leaves_the_tensor_to_its_pending_read() {
     let stream = StreamId::current();
-    assert!(read_after_a_clone_is_dropped(move |clone| {
-        stream.executes(|| drop(clone))
-    }));
+    assert_a_read_outlives_a_clone_dropped_elsewhere(move |clone| stream.executes(|| drop(clone)));
 }
 
 /// Holding an operation's first read of a tensor changes nothing it decides: read through two

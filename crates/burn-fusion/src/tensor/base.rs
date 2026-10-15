@@ -1,6 +1,6 @@
 use super::{
     deferred,
-    held::{self, HeldInput},
+    held::{HeldInput, HeldInputs},
 };
 use crate::{
     Client, FusionBackend, FusionRuntime,
@@ -84,9 +84,9 @@ impl<R: FusionRuntime> TensorMetadata for FusionTensor<R> {
     }
 
     fn can_mut(&self) -> bool {
-        // Same rule as `status` at drain time: a handle shared on its stream
-        // (count > 1) is read-only, a unique one is read-write and the fused
-        // kernel may write its buffer in place.
+        // Same rule as `into_ir`: a tensor another clone shares is read-only, a
+        // unique one is read-write and the fused kernel may write its buffer in
+        // place.
         matches!(self.status(self.holders()), TensorStatus::ReadWrite)
     }
 }
@@ -128,7 +128,7 @@ impl<R: FusionRuntime> FusionTensor<R> {
     fn holders(&self) -> u32 {
         match self.count().load(Ordering::Acquire) {
             count @ (0 | 1) => count,
-            count => count - held::holds(self.id),
+            count => count - HeldInputs::count(self.id),
         }
     }
 
@@ -143,6 +143,9 @@ impl<R: FusionRuntime> FusionTensor<R> {
     }
 
     /// Intermediate representation to be used when using an initialized tensor used as input.
+    ///
+    /// The operation it goes into must be submitted through the client on this thread, without
+    /// yielding in between: until then this thread holds a read-only input's reference for it.
     pub fn into_ir(mut self) -> TensorIr {
         let current = StreamId::current();
         if self.stream != current {
@@ -161,7 +164,7 @@ impl<R: FusionRuntime> FusionTensor<R> {
             .take()
             .expect("a tensor holds its reference until it is consumed");
         if let TensorStatus::ReadOnly = status {
-            held::hold(HeldInput::of(&self, count));
+            HeldInputs::hold(HeldInput::new(&self, count));
         }
 
         TensorIr {
