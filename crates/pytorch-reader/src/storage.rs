@@ -138,6 +138,8 @@ impl ZipSource {
 
         let root = archive
             .file_names()
+            .collect::<zip::result::ZipResult<Vec<_>>>()?
+            .iter()
             .filter_map(|name| name.strip_suffix("data.pkl"))
             .filter(|root| root.is_empty() || root.ends_with('/'))
             .min_by_key(|root| root.len())
@@ -163,6 +165,8 @@ impl ZipSource {
         let mut archive = lock_ignoring_poison(&self.archive);
         let indices: Vec<usize> = archive
             .file_names()
+            .collect::<zip::result::ZipResult<Vec<_>>>()?
+            .iter()
             .filter(|name| name.starts_with(&data_prefix) && !name.ends_with('/'))
             .filter_map(|name| archive.index_for_name(name))
             .collect();

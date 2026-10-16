@@ -1524,11 +1524,12 @@ fn test_tensor_read_errors_are_not_zeros() {
             let mut entry = source.by_index(i).unwrap();
             let mut bytes = Vec::new();
             std::io::Read::read_to_end(&mut entry, &mut bytes).unwrap();
-            if entry.name().ends_with("/data/0") {
+            let name = entry.name().unwrap();
+            if name.ends_with("/data/0") {
                 bytes.truncate(8);
             }
             target
-                .start_file(entry.name(), zip::write::SimpleFileOptions::default())
+                .start_file(name, zip::write::SimpleFileOptions::default())
                 .unwrap();
             std::io::Write::write_all(&mut target, &bytes).unwrap();
         }
@@ -1606,10 +1607,8 @@ fn rezip(
         let mut entry = source.by_index(i).unwrap();
         let mut bytes = Vec::new();
         std::io::Read::read_to_end(&mut entry, &mut bytes).unwrap();
-        let name = entry
-            .name()
-            .split_once('/')
-            .map_or(entry.name(), |(_, rest)| rest);
+        let name = entry.name().unwrap();
+        let name = name.split_once('/').map_or(name.as_ref(), |(_, rest)| rest);
         edit(name, &mut bytes);
         writer
             .start_file(
