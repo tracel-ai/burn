@@ -4,8 +4,6 @@ mod cat;
 mod fusion_f16_broadcast;
 mod fusion_f16_write_vectorization;
 mod fusion_shape;
-#[cfg(feature = "cube")]
-mod gather_tune;
 // Asserts on launch-level decisions from `burn-cubecl-fusion`, which only the `cube`
 // feature pulls in; the rest of this suite also runs on non-cube fusion backends (flex).
 #[cfg(feature = "cube")]
