@@ -16,12 +16,21 @@ workspace = true
 
 [features]
 default = ["std", "burn-tensor/default"]
-doc = ["default"]
+doc = ["default", "cubecl"]
 std = ["burn-tensor/std"]
+# The collector, which reads a cubecl runtime's launches and, where the device fuses, the fusion
+# server's blocks. The fusion observer is always part of it: whether a pass is fused is the
+# device's call, and a collector that could not see blocks would place fused kernels wrongly.
+cubecl = ["std", "dep:cubecl", "dep:cubecl-common", "dep:burn-fusion", "dep:burn-ir"]
 
 [dependencies]
 burn-instrument-macros = { workspace = true }
 burn-tensor = { workspace = true }
+
+burn-fusion = { workspace = true, optional = true, features = ["std"] }
+burn-ir = { workspace = true, optional = true, features = ["std"] }
+cubecl = { workspace = true, optional = true, features = ["std"] }
+cubecl-common = { workspace = true, optional = true, features = ["std"] }
 
 [dev-dependencies]
 burn-tensor = { workspace = true, features = ["flex"] }

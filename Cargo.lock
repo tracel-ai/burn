@@ -1252,8 +1252,12 @@ dependencies = [
 name = "burn-instrument"
 version = "0.22.0"
 dependencies = [
+ "burn-fusion",
  "burn-instrument-macros",
+ "burn-ir",
  "burn-tensor",
+ "cubecl",
+ "cubecl-common",
 ]
 
 [[package]]
