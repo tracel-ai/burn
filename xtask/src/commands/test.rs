@@ -189,6 +189,23 @@ pub(crate) fn handle_backend_tests(
             None,
             "dispatch backend transfer tests",
         )?;
+
+        let mut layer_args = test_args.clone();
+        layer_args.extend([
+            "--features",
+            "cpu",
+            "--features",
+            "autodiff",
+            "--test",
+            "layer_placement",
+        ]);
+        build_helpers::custom_crates_tests(
+            vec!["burn-core"],
+            handle_test_args(&layer_args, args.release),
+            None,
+            None,
+            "layer placement tests",
+        )?;
     }
 
     if !group_cpu_tests {
