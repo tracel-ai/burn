@@ -137,6 +137,15 @@ fn should_unsqueeze_dim_last() {
     assert_eq!(unsqueezed_tensor.shape(), expected_shape);
 }
 
+/// Regression test for unsqueezing a tensor with a zero-length dimension.
+#[test]
+fn should_unsqueeze_dim_zero_length() {
+    let tensor = TestTensor::<1>::zeros([0], &Default::default());
+    let unsqueezed_tensor: TestTensor<2> = tensor.unsqueeze_dim(0);
+    assert_eq!(unsqueezed_tensor.shape(), Shape::new([1, 0]));
+    assert_eq!(unsqueezed_tensor.into_data().num_elements(), 0);
+}
+
 /// Test if the function panics when the unsqueezed dimension is out of bounds.
 #[test]
 #[should_panic(expected = "=== Tensor Operation Error ===")]

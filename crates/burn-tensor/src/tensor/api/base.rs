@@ -406,6 +406,9 @@ where
     /// to infer the remaining dimensions, e.g. `[0, -1]` will reshape the tensor
     /// with [1, 3, 4] dimensions to [1, 12].
     ///
+    /// These placeholders only apply to the array form. A [`Shape`] is used as given, so a `0`
+    /// in a `Shape` is a zero-length dimension.
+    ///
     /// # Arguments
     /// - `shape`: The new shape of the tensor.
     ///
@@ -3418,7 +3421,10 @@ impl<const D2: usize, I: AsIndex> ReshapeArgs<D2> for [I; D2] {
 
 impl<const D2: usize> ReshapeArgs<D2> for Shape {
     fn into_shape<const D: usize>(self, source: Shape) -> Shape {
-        unwrap_shape_reshape(source.reshape(self))
+        // A `Shape` holds concrete dimensions, so a `0` is a zero-length dimension rather than
+        // the "keep this dimension" placeholder of the array form.
+        check!(TensorCheck::reshape(&source, &self));
+        self
     }
 }
 
