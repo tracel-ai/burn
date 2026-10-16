@@ -68,10 +68,10 @@ pub use collector::*;
 pub use label::*;
 
 #[cfg(feature = "cubecl")]
-pub use breakdown::Breakdown;
+pub use breakdown::{Breakdown, Kernel, Node, Unplaced, Variant};
 #[cfg(feature = "cubecl")]
 pub use row_path::RowPath;
 #[cfg(feature = "cubecl")]
-pub use tree::{Kernel, Node, SharedCollector, Unplaced, Variant};
+pub use tree::SharedCollector;
 
 pub use burn_instrument_macros::compute;

@@ -4,8 +4,8 @@
 
 use std::time::Duration;
 
+use crate::Bounds;
 use crate::row_path::RowPath;
-use crate::tree::{Kernel, Node, Unplaced};
 
 /// One collected pass, broken down by component.
 ///
@@ -158,4 +158,201 @@ impl Breakdown {
         }
         out
     }
+}
+
+/// One kernel a component launched: what it is called, how many times it ran,
+/// and what the device spent on it.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Kernel {
+    /// The name the kernel gives itself, in full — shortened for display only,
+    /// so two kernels that abbreviate alike are still counted apart.
+    pub name: String,
+    /// Launches, across every entry of the component.
+    pub launches: usize,
+    /// Device time across those launches.
+    pub total: Duration,
+    /// The components below the row it is recorded on whose work it carried
+    /// out, in first-seen order, each by its path from that row — or from the
+    /// root, for a kernel outside every component.
+    ///
+    /// A fused kernel is recorded on the closest common parent of the
+    /// components whose work it did, and that row's own work is its by
+    /// placement, so a kernel on a parent naming one child did the child's
+    /// work and the parent's. Empty for a kernel that did one component's work
+    /// on that component's row.
+    pub fuses: Vec<RowPath>,
+    /// Whether, besides the rows [`fuses`](Self::fuses) names, it carried out
+    /// work the row it is recorded on registered itself — a residual add fused
+    /// with its child's. That work is priced by no row below, so the kernel
+    /// stands at what it took even where every row it names is priced.
+    pub fuses_own: bool,
+}
+
+/// Which execution served some of a row's entries, and how many.
+///
+/// A row is merged on its **label**, which is its identity; the variant says
+/// which of several executions ran under it. So `attention core ×9` staying one
+/// row while eight entries took the tile kernel and one took tensor ops is the
+/// intended reading — the alternative, a row per execution, would be two rows
+/// whose times a reader has to add back together to get the component's.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Variant {
+    /// What the execution calls itself.
+    pub name: String,
+    /// Entries it served, across the whole pass.
+    pub entries: usize,
+}
+
+/// One component's row: what it declared, and what it took.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Node {
+    /// What the component is called — its label, or its type.
+    pub label: String,
+    /// Which executions served its entries, in first-seen order. Empty for a
+    /// component that declares no variant, which is most of them.
+    pub variants: Vec<Variant>,
+    /// The call sites this row was entered from, in first-seen order.
+    ///
+    /// One for almost every row. More than one is a **merge**: two entries
+    /// written in different places landed on one label, and the row now holds
+    /// the sum of both. That is what a reader wants for a stack of layers and is also
+    /// how a row comes to hold two different jobs, so the merge stands and a
+    /// report names the sites, which is what points at a split when there is
+    /// one to make.
+    ///
+    /// A site is a *function*: one entered many times is one site, so this sees
+    /// two entry points and not two roles.
+    pub sites: Vec<&'static str>,
+    /// The sum of what every entry declared it should cost at best, or `None`
+    /// when the component declares none.
+    ///
+    /// Summed rather than checked for agreement because a component is legally
+    /// entered at several shapes in one pass: chunked prefill runs a full chunk
+    /// and a padded tail, and both are real work the row has to account for.
+    pub bounds: Option<Bounds>,
+    /// Traffic observed beyond [`bounds`](Self::bounds) under this component,
+    /// such as the experts a sparse layer's routes read past one row's. `None`
+    /// where nothing under it observed any, or where it declares no floor.
+    pub observed: Option<Bounds>,
+    /// How many times the pass entered it.
+    pub entries: usize,
+    /// The components it entered, in first-seen order.
+    pub children: Vec<Node>,
+    /// The kernels launched while this component was the innermost one open,
+    /// in first-seen order.
+    ///
+    /// A component with children of its own can still launch kernels directly
+    /// — the reshapes and residual adds between them — and those are exactly
+    /// the work no child accounts for.
+    pub kernels: Vec<Kernel>,
+    /// How long the device sat idle, in the collected pass, before the kernels
+    /// this component launched directly — waiting on the host to issue them.
+    ///
+    /// Idle time is charged to the kernel that ended it: that launch is what
+    /// the device was waiting for. It is the collected pass's, whose host pays
+    /// a round trip per launch to time it, so as an absolute it describes the
+    /// instrumentation; as a share of every gap it says which components the
+    /// device waited on, which is what a clean pass's host time is split by.
+    pub waited: Duration,
+}
+
+impl Node {
+    /// Every row below this one, depth-first, each with its path from here —
+    /// the form a kernel on this row names it by in [`Kernel::fuses`].
+    ///
+    /// Not [`walk`](Self::walk), which yields a depth and not a path: two rows
+    /// at one depth under different parents can share a label, and telling those
+    /// apart is the whole reason a kernel records a path.
+    pub fn descendants(&self) -> Vec<(RowPath, &Node)> {
+        let mut out = Vec::new();
+        self.descend(&RowPath::default(), &mut out);
+        out
+    }
+
+    /// The rows below this one, which sits at `at`, onto `out`. See
+    /// [`descendants`](Self::descendants).
+    fn descend<'a>(&'a self, at: &RowPath, out: &mut Vec<(RowPath, &'a Node)>) {
+        for child in &self.children {
+            let path = at.child(&child.label);
+            out.push((path.clone(), child));
+            child.descend(&path, out);
+        }
+    }
+
+    /// How long the device waited on the host before every kernel under this
+    /// component, its children's included. See [`waited`](Self::waited).
+    pub fn waited_total(&self) -> Duration {
+        self.waited
+            + self
+                .children
+                .iter()
+                .map(|child| child.waited_total())
+                .sum::<Duration>()
+    }
+
+    /// Device time in the kernels this component launched directly.
+    pub fn kernel_time(&self) -> Duration {
+        self.kernels.iter().map(|kernel| kernel.total).sum()
+    }
+
+    /// Device time in every kernel under this component, its children's
+    /// included.
+    ///
+    /// **This is the only time a component has.** Nothing drains at its
+    /// boundaries, so a clock around its host call would measure how fast the
+    /// host registered ops, not what the device spent. The kernels are what the
+    /// device actually ran, and their sum across a pass comes out within a few
+    /// percent of the clean pass's wall time, which is the cross-check that says
+    /// so.
+    ///
+    /// Zero for a component whose work all fused with another's: the kernel
+    /// that did both is on their closest common parent, and counted there.
+    pub fn device_time(&self) -> Duration {
+        self.kernel_time()
+            + self
+                .children
+                .iter()
+                .map(|child| child.device_time())
+                .sum::<Duration>()
+    }
+
+    /// The sum of this component's children's bounds, which is what it would
+    /// cost with no fusion between them.
+    ///
+    /// A composite's own bounds assume perfect fusion *within itself* and so
+    /// sits strictly below this. The gap is the intermediate traffic a perfect
+    /// fuser would delete — the rung of the ladder that no faster kernel can
+    /// recover.
+    pub fn parts_bounds(&self) -> Option<Bounds> {
+        let parts: Vec<Bounds> = self
+            .children
+            .iter()
+            .filter_map(|child| child.bounds)
+            .collect();
+        (!parts.is_empty()).then(|| parts.into_iter().sum())
+    }
+
+    /// Every node under and including this one, depth-first, with its depth.
+    pub fn walk(&self) -> Vec<(usize, &Node)> {
+        fn descend<'a>(node: &'a Node, depth: usize, out: &mut Vec<(usize, &'a Node)>) {
+            out.push((depth, node));
+            for child in &node.children {
+                descend(child, depth + 1, out);
+            }
+        }
+        let mut out = Vec::new();
+        descend(self, 0, &mut out);
+        out
+    }
+}
+
+/// Kernel time that could not be credited to a row — a timing that reached the
+/// collector under a different attribution from the launch it measured, or a
+/// window that came back with no measurement in it.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct Unplaced {
+    /// How many timings had nowhere to go.
+    pub timings: usize,
+    /// What they came to.
+    pub total: Duration,
 }
