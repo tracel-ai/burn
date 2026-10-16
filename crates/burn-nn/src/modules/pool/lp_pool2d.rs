@@ -1,5 +1,6 @@
 use burn_core as burn;
 
+use super::output_size;
 use burn::config::Config;
 use burn::module::Module;
 use burn::module::{Content, DisplaySettings, ModuleDisplay};
@@ -14,7 +15,7 @@ pub struct LpPool2dConfig {
     /// The strides. Defaults to the kernel size.
     #[config(default = "kernel_size")]
     pub strides: [usize; 2],
-    /// The exponent used by the power average.
+    /// The exponent used by the Lp norm.
     #[config(default = "2.0")]
     pub p: f64,
     /// If true, use ceiling instead of floor for output size calculation.
@@ -30,7 +31,7 @@ pub struct LpPool2d {
     pub kernel_size: [usize; 2],
     /// The vertical and horizontal steps between pooling windows.
     pub stride: [usize; 2],
-    /// The exponent used by the power average.
+    /// The exponent used by the Lp norm.
     pub p: f64,
     /// Whether to round output sizes up and include partial final windows.
     pub ceil_mode: bool,
@@ -97,54 +98,19 @@ impl LpPool2d {
             (0, padded_height.saturating_sub(height)),
             (0, padded_width.saturating_sub(width)),
         ];
-        let counts = input.ones_like();
-        let (padded, counts) = if padded_height > height || padded_width > width {
-            (
-                input.pad(pad, PadMode::Constant(0.0)),
-                counts.pad(pad, PadMode::Constant(0.0)),
-            )
+        let padded = if padded_height > height || padded_width > width {
+            input.pad(pad, PadMode::Constant(0.0))
         } else {
-            (input, counts)
+            input
         };
 
-        let counts = counts
-            .unfold::<5, _>(2, self.kernel_size[0], self.stride[0])
-            .unfold::<6, _>(3, self.kernel_size[1], self.stride[1])
-            .sum_dims_squeeze::<4, _>(&[4, 5]);
-
         padded
-            .unfold::<5, _>(2, self.kernel_size[0], self.stride[0])
-            .unfold::<6, _>(3, self.kernel_size[1], self.stride[1])
             .abs()
             .powf_scalar(self.p)
+            .unfold::<5, _>(2, self.kernel_size[0], self.stride[0])
+            .unfold::<6, _>(3, self.kernel_size[1], self.stride[1])
             .sum_dims_squeeze::<4, _>(&[4, 5])
-            .div(counts)
             .powf_scalar(1.0 / self.p)
-    }
-}
-
-fn output_size(input: usize, kernel: usize, stride: usize, ceil_mode: bool) -> usize {
-    assert!(
-        input > 0,
-        "Lp pooling does not support empty input dimensions"
-    );
-    if ceil_mode {
-        if input <= kernel {
-            1
-        } else {
-            let output = (input - kernel).div_ceil(stride) + 1;
-            if output > 1 && (output - 1) * stride >= input {
-                output - 1
-            } else {
-                output
-            }
-        }
-    } else {
-        assert!(
-            input >= kernel,
-            "kernel size must not exceed input dimensions"
-        );
-        (input - kernel) / stride + 1
     }
 }
 
@@ -154,14 +120,14 @@ mod tests {
     use burn::tensor::{Device, TensorData, Tolerance};
 
     #[test]
-    fn computes_l2_power_averages() {
+    fn computes_l2_norms() {
         let device = Default::default();
         let input = Tensor::<4>::from_data([[[[3.0f32, -4.0], [0.0, 12.0]]]], &device);
         let output = LpPool2dConfig::new([2, 2]).init().forward(input);
 
         output
             .into_data()
-            .assert_approx_eq::<f32>(&TensorData::from([[[[6.5]]]]), Tolerance::default());
+            .assert_approx_eq::<f32>(&TensorData::from([[[[13.0]]]]), Tolerance::default());
     }
 
     #[test]
@@ -176,10 +142,7 @@ mod tests {
             .unwrap()
             .into_data()
             .assert_approx_eq::<f32>(
-                &TensorData::from([[[[
-                    3.0 / (2.0 * 12.5f32.sqrt()),
-                    4.0 / (2.0 * 12.5f32.sqrt()),
-                ]]]]),
+                &TensorData::from([[[[3.0 / 5.0, 4.0 / 5.0]]]]),
                 Tolerance::default(),
             );
     }
@@ -198,7 +161,7 @@ mod tests {
             .forward(input);
 
         output.into_data().assert_approx_eq::<f32>(
-            &TensorData::from([[[[2.5, 12.0 / 2.0f32.sqrt()], [17.0 / 2.0f32.sqrt(), 0.0]]]]),
+            &TensorData::from([[[[5.0, 12.0], [17.0, 0.0]]]]),
             Tolerance::default(),
         );
     }
@@ -219,6 +182,6 @@ mod tests {
         assert_eq!(output.dims(), [1, 1, 1, 1]);
         output
             .into_data()
-            .assert_approx_eq::<f32>(&TensorData::from([[[[2.5]]]]), Tolerance::default());
+            .assert_approx_eq::<f32>(&TensorData::from([[[[5.0]]]]), Tolerance::default());
     }
 }
