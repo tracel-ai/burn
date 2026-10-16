@@ -13,27 +13,23 @@ use std::sync::{
 
 use crate::{Client, FusionRuntime, FusionTensor, stream::StreamId};
 
-/// Held inputs past which the clones held of one tensor are counted per id rather than found by a
-/// scan: an operation reading many shared tensors, a concatenation, would scan once per input.
-const SCANNED: usize = 16;
-
 thread_local! {
-    static HELD: RefCell<Held> = const {
-        RefCell::new(Held {
-            inputs: Vec::new(),
-            counts: None,
-        })
-    };
+    static HELD: RefCell<HashMap<TensorId, HeldInput>> = RefCell::new(HashMap::new());
 }
 
 /// Hold `input` on this thread until its next submission of an operation.
 pub fn hold(input: HeldInput) {
-    HELD.with(|held| held.borrow_mut().push(input));
+    HELD.with(|held| {
+        held.borrow_mut()
+            .entry(input.id)
+            .and_modify(|held| held.references += 1)
+            .or_insert(input);
+    });
 }
 
 /// How many clones of `id` this thread holds.
 pub fn count(id: TensorId) -> u32 {
-    HELD.with(|held| held.borrow().count(id))
+    HELD.with(|held| held.borrow().get(&id).map_or(0, |input| input.references))
 }
 
 /// Release every input this thread holds, once the operation reading them is submitted.
@@ -41,65 +37,23 @@ pub fn count(id: TensorId) -> u32 {
 /// Submissions take their places in one order, so a drop that sees a released reference is ordered
 /// after the operation.
 pub fn release() {
-    // One at a time, so no borrow is held while a release reaches the client.
-    while let Some(input) = HELD.with(|held| held.borrow_mut().pop()) {
+    // Taken out, so no borrow is held while a release reaches the client.
+    let inputs = HELD.with(|held| core::mem::take(&mut *held.borrow_mut()));
+    for input in inputs.into_values() {
         input.release();
     }
 }
 
-/// The inputs a thread holds for the operation it is building.
-struct Held {
-    inputs: Vec<HeldInput>,
-    /// The clones held of each tensor, once there are more than [`SCANNED`] inputs.
-    counts: Option<HashMap<TensorId, u32>>,
-}
-
-impl Held {
-    fn push(&mut self, input: HeldInput) {
-        match &mut self.counts {
-            Some(counts) => *counts.entry(input.id).or_default() += 1,
-            None if self.inputs.len() == SCANNED => {
-                let mut counts = HashMap::new();
-                for held in self.inputs.iter().chain([&input]) {
-                    *counts.entry(held.id).or_default() += 1;
-                }
-                self.counts = Some(counts);
-            }
-            None => {}
-        }
-        self.inputs.push(input);
-    }
-
-    fn count(&self, id: TensorId) -> u32 {
-        match &self.counts {
-            Some(counts) => counts.get(&id).copied().unwrap_or(0),
-            None => self.inputs.iter().filter(|input| input.id == id).count() as u32,
-        }
-    }
-
-    fn pop(&mut self) -> Option<HeldInput> {
-        let input = self.inputs.pop()?;
-        if self.inputs.is_empty() {
-            self.counts = None;
-        } else if let Some(count) = self
-            .counts
-            .as_mut()
-            .and_then(|counts| counts.get_mut(&input.id))
-        {
-            *count -= 1;
-        }
-        Some(input)
-    }
-}
-
-/// One clone of an operation's read-only input, holding its reference to the tensor.
+/// The clones of an operation's read-only input that the operation holds, with their references
+/// to the tensor.
 pub struct HeldInput {
     id: TensorId,
     dtype: DType,
     stream: StreamId,
     device: DeviceId,
     count: Arc<AtomicU32>,
-    /// Frees the tensor on its device without queuing anything, for a clone released last.
+    references: u32,
+    /// Frees the tensor on its device without queuing anything, for clones released last.
     free: fn(Self),
 }
 
@@ -112,13 +66,14 @@ impl HeldInput {
             stream: tensor.stream,
             device: tensor.client.device().to_id(),
             count,
+            references: 1,
             free: Self::free_on::<R>,
         }
     }
 
     fn release(self) {
-        // `AcqRel`: the drop that sees this reference gone must see the submission before it.
-        if self.count.fetch_sub(1, Ordering::AcqRel) == 1 {
+        // `AcqRel`: the drop that sees these references gone must see the submission before it.
+        if self.count.fetch_sub(self.references, Ordering::AcqRel) == self.references {
             (self.free)(self);
         }
     }
@@ -140,29 +95,19 @@ mod tests {
     use super::*;
 
     #[test]
-    fn counts_past_the_scanned_inputs_agree_with_a_scan() {
-        let mut held = Held {
-            inputs: Vec::new(),
-            counts: None,
-        };
-        let agrees = |held: &Held| {
-            (0..6).map(TensorId::new).all(|id| {
-                held.count(id) == held.inputs.iter().filter(|input| input.id == id).count() as u32
-            })
-        };
+    fn clones_of_one_tensor_are_released_together() {
+        let id = TensorId::new(0);
+        let clones = Arc::new(AtomicU32::new(3));
+        hold(input(id, &clones));
+        hold(input(id, &clones));
+        assert_eq!(count(id), 2);
 
-        for n in 0..SCANNED as u64 * 2 {
-            held.push(input(TensorId::new(n % 5)));
-            assert!(agrees(&held), "after {} holds", n + 1);
-        }
-        while held.pop().is_some() {
-            assert!(agrees(&held), "with {} held", held.inputs.len());
-        }
-        assert!(held.counts.is_none());
+        release();
+        assert_eq!(clones.load(Ordering::Acquire), 1);
+        assert_eq!(count(id), 0);
     }
 
-    /// An input that is never its tensor's last reference, so dropping it frees nothing.
-    fn input(id: TensorId) -> HeldInput {
+    fn input(id: TensorId, clones: &Arc<AtomicU32>) -> HeldInput {
         HeldInput {
             id,
             dtype: DType::F32,
@@ -171,8 +116,9 @@ mod tests {
                 type_id: 0,
                 index_id: 0,
             },
-            count: Arc::new(AtomicU32::new(2)),
-            free: |_| unreachable!("a test input is never the last reference"),
+            count: clones.clone(),
+            references: 1,
+            free: |_| unreachable!("the test keeps a clone of its own"),
         }
     }
 }
