@@ -1,0 +1,30 @@
+[package]
+authors = ["nathanielsimard <nathaniel.simard.42@gmail.com>"]
+categories = ["science", "development-tools::profiling"]
+description = "Measure where a Burn model's device time goes, component by component"
+documentation = "https://docs.rs/burn-instrument"
+edition.workspace = true
+keywords = ["deep-learning", "machine-learning", "profiling"]
+license.workspace = true
+name = "burn-instrument"
+readme.workspace = true
+repository = "https://github.com/tracel-ai/burn/tree/main/crates/burn-instrument"
+version.workspace = true
+
+[lints]
+workspace = true
+
+[features]
+default = ["std", "burn-tensor/default"]
+doc = ["default"]
+std = ["burn-tensor/std"]
+
+[dependencies]
+burn-tensor = { workspace = true }
+
+[dev-dependencies]
+burn-tensor = { workspace = true, features = ["flex"] }
+
+[package.metadata.docs.rs]
+features = ["doc"]
+rustdoc-args = ["--cfg", "docsrs"]
