@@ -181,8 +181,8 @@ fn gen_routing_tensor_arm(case: &DeriveCase, float_only: bool) -> TokenStream {
     quote!(#pattern => #expression,)
 }
 
-/// Generate one arm that merges the contexts of every tensor in the active variant.
-fn gen_autodiff_context_arm(case: &DeriveCase) -> TokenStream {
+/// Generate one arm that merges contexts and detects autodiff floats in one traversal.
+fn gen_autodiff_routing_arm(case: &DeriveCase) -> TokenStream {
     let needed: Vec<_> = case
         .fields
         .iter()
@@ -190,27 +190,39 @@ fn gen_autodiff_context_arm(case: &DeriveCase) -> TokenStream {
         .filter(|(_, field)| field.is_ext || field.tensor_kind.is_some())
         .map(|(index, _)| index)
         .collect();
-    let merges = needed.iter().map(|&index| {
+    let updates = needed.iter().map(|&index| {
         let field = &case.fields[index];
         let bind = &field.bind;
         if field.is_ext {
             let dispatch_ty = ir::with_backend(&field.ty, quote!(burn::backend::Dispatch));
             quote! {
-                let __context = __context.merge(
-                    <#dispatch_ty as burn::backend::ExtensionType<burn::backend::Dispatch>>::autodiff_context(#bind)
-                );
+                let (__field_context, __field_has_autodiff_float) =
+                    <#dispatch_ty as burn::backend::ExtensionType<burn::backend::Dispatch>>::autodiff_routing(#bind);
+                __has_autodiff_float |= __field_has_autodiff_float;
+                __context = __context.merge(__field_context);
             }
         } else {
-            quote!(let __context = __context.merge(#bind.autodiff);)
+            let float = (field.tensor_kind == Some(TensorKind::Float)).then(|| quote! {
+                __has_autodiff_float |= matches!(
+                    __field_context,
+                    burn::backend::DispatchAutodiffContext::Enabled(_)
+                );
+            });
+            quote! {
+                let __field_context = #bind.autodiff;
+                #float
+                __context = __context.merge(__field_context);
+            }
         }
     });
     let pattern = gen_case_pattern(case, |index| needed.contains(&index));
 
     quote! {
         #pattern => {
-            let __context = burn::backend::DispatchAutodiffContext::Disabled;
-            #(#merges)*
-            __context
+            let mut __context = burn::backend::DispatchAutodiffContext::Disabled;
+            let mut __has_autodiff_float = false;
+            #(#updates)*
+            (__context, __has_autodiff_float)
         },
     }
 }
@@ -271,7 +283,7 @@ pub(crate) fn expand(input: TokenStream) -> syn::Result<TokenStream> {
 
     let routing_tensor_arms = cases.iter().map(|case| gen_routing_tensor_arm(case, false));
     let float_routing_tensor_arms = cases.iter().map(|case| gen_routing_tensor_arm(case, true));
-    let autodiff_context_arms = cases.iter().map(gen_autodiff_context_arm);
+    let autodiff_routing_arms = cases.iter().map(gen_autodiff_routing_arm);
 
     Ok(quote! {
         #fusion
@@ -306,10 +318,16 @@ pub(crate) fn expand(input: TokenStream) -> syn::Result<TokenStream> {
                 match target { #(#float_routing_tensor_arms)* }
             }
 
+            fn autodiff_routing(
+                target: &Self::Target,
+            ) -> (burn::backend::DispatchAutodiffContext, bool) {
+                match target { #(#autodiff_routing_arms)* }
+            }
+
             fn autodiff_context(
                 target: &Self::Target,
             ) -> burn::backend::DispatchAutodiffContext {
-                match target { #(#autodiff_context_arms)* }
+                Self::autodiff_routing(target).0
             }
         }
     })

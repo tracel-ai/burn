@@ -139,16 +139,17 @@ fn expand_from_input(operation: &Operation, source: &OperationInput) -> TokenStr
         quote!(*__inner)
     };
     let paths = routing::RoutingPaths::dispatch();
-    let autodiff_context = routing::operation_autodiff_context(operation, &paths);
+    let (autodiff_routing, can_have_float) = routing::operation_autodiff_routing(operation, &paths);
     expand_backend_match(
         operation,
         Some(source),
         quote! {
             let __burn_selected_context = #name.autodiff;
-            #autodiff_context
+            #autodiff_routing
         },
         source_kind,
         inner_kind,
+        can_have_float,
     )
 }
 
@@ -159,16 +160,17 @@ fn expand_from_candidates(operation: &Operation) -> TokenStream {
         &paths,
         "dispatched operation received no tensor input to select a backend from",
     );
-    let autodiff_context = routing::operation_autodiff_context(operation, &paths);
+    let (autodiff_routing, can_have_float) = routing::operation_autodiff_routing(operation, &paths);
     expand_backend_match(
         operation,
         None,
         quote! {
             #routing_tensor_init
-            #autodiff_context
+            #autodiff_routing
         },
         quote!(&__routing_tensor.kind),
         quote!(__inner.as_ref()),
+        can_have_float,
     )
 }
 
@@ -178,8 +180,13 @@ fn expand_backend_match(
     selection: TokenStream,
     source_kind: TokenStream,
     inner_kind: TokenStream,
+    can_have_float: bool,
 ) -> TokenStream {
-    let float_inputs = float_input_presence(operation, source);
+    let autodiff_float_inputs = if can_have_float {
+        routing::AutodiffFloatInputPresence::Runtime(quote!(__has_autodiff_float_input))
+    } else {
+        routing::AutodiffFloatInputPresence::Never
+    };
     let backends = dispatch_backends();
     let source_is_non_float = source.is_some_and(|source| {
         matches!(
@@ -204,7 +211,7 @@ fn expand_backend_match(
         selected.as_ref(),
         autodiff_match,
         |_, backend, autodiff| {
-            backend_route_body(backend, operation, &float_inputs, autodiff, source)
+            backend_route_body(backend, operation, &autodiff_float_inputs, autodiff, source)
         },
     );
     let direct_arms = arms.concrete;
@@ -230,43 +237,6 @@ fn expand_backend_match(
     }
 }
 
-fn float_input_presence(
-    operation: &Operation,
-    source: Option<&OperationInput>,
-) -> routing::FloatInputPresence {
-    if operation.inputs.iter().any(|input| {
-        matches!(
-            input.kind,
-            InputKind::Tensor {
-                kind: TensorKind::Float,
-                ..
-            } | InputKind::QuantizationParameters
-        )
-    }) {
-        return routing::FloatInputPresence::Always;
-    }
-
-    let conditional: Vec<_> = operation
-        .inputs
-        .iter()
-        .filter_map(|input| {
-            let name = &input.name;
-            match input.kind {
-                InputKind::OptionTensor(TensorKind::Float) => Some(quote!(#name.is_some())),
-                InputKind::VecTensor(TensorKind::Float) => Some(quote!(!#name.is_empty())),
-                _ => None,
-            }
-        })
-        .collect();
-    if conditional.is_empty() {
-        routing::FloatInputPresence::Never
-    } else if source.is_none() {
-        routing::FloatInputPresence::Runtime(quote!(__routing_tensor_is_float))
-    } else {
-        routing::FloatInputPresence::Runtime(quote!(false #(|| #conditional)*))
-    }
-}
-
 fn dispatch_backends() -> Vec<Backend> {
     BACKENDS
         .iter()
@@ -284,7 +254,7 @@ fn dispatch_backends() -> Vec<Backend> {
 fn backend_route_body(
     backend: &Backend,
     operation: &Operation,
-    float_inputs: &routing::FloatInputPresence,
+    autodiff_float_inputs: &routing::AutodiffFloatInputPresence,
     routing_tensor_is_autodiff: bool,
     source: Option<&OperationInput>,
 ) -> TokenStream {
@@ -294,7 +264,7 @@ fn backend_route_body(
     routing::dispatch_backend_routes(
         operation,
         ident,
-        float_inputs,
+        autodiff_float_inputs,
         routing_tensor_is_autodiff,
         source,
         &autodiff_attr,
