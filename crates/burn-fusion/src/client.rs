@@ -12,7 +12,7 @@ use burn_std::{
 };
 
 use burn_backend::{TensorData, backend::ExecutionError};
-use burn_ir::{OperationIr, TensorId, TensorIr};
+use burn_ir::{OperationIr, TensorError, TensorId, TensorIr};
 use burn_std::sync::RwLock;
 use hashbrown::HashSet;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -203,6 +203,16 @@ where
     /// Get the current device used by all operations handled by this client.
     pub fn device(&self) -> &FusionDevice<R> {
         &self.device
+    }
+
+    /// A tensor id on this client whose reads fail with `error`.
+    pub fn register_error(&self, error: TensorError) -> TensorId {
+        let id = self.create_empty_handle();
+
+        self.server
+            .submit(move |server| server.handles.set_error(id, error));
+
+        id
     }
 
     /// Create a tensor with the given handle and returns its corresponding [tensor id](TensorId).

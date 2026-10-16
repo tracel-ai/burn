@@ -5,6 +5,7 @@ use burn_backend::{
         CollectiveTensor, DistributedConfig, DistributedOps, DistributedParams, ReduceOperation,
         TensorRef,
     },
+    ops::CollectiveOps,
     tensor::FloatTensor,
 };
 
@@ -15,6 +16,10 @@ use crate::{
     checkpoint::strategy::CheckpointStrategy,
     ops::{Backward, Ops, OpsKind, unary},
 };
+
+// Composed from tracked transfers, slices and additions, so gradients flow through every
+// collective.
+impl<B: Backend, C: CheckpointStrategy> CollectiveOps<Self> for Autodiff<B, C> {}
 
 impl<B: Backend, C: CheckpointStrategy> DistributedOps<Self> for Autodiff<B, C> {
     fn start_communication_server(devices: &[B::Device], config: DistributedConfig) {

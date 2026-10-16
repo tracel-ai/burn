@@ -66,8 +66,9 @@ capture = ["burn-tensor/capture"]
 distributed = ["cuda"]
 
 [dependencies]
-burn-tensor = { workspace = true, features = ["autodiff", "capture"] }
+burn-tensor = { workspace = true, features = ["autodiff", "capture", "extension"] }
 burn-backend = { workspace = true }
+burn-dispatch = { workspace = true }
 
 # For random tests
 cubek = { workspace = true, features = ["random"], optional = true }
