@@ -12,6 +12,7 @@ use alloc::format;
 use alloc::string::String;
 use alloc::string::ToString;
 use alloc::vec;
+use alloc::vec::Vec;
 
 use burn_pack::Tensor as PackTensor;
 
@@ -580,33 +581,64 @@ fn transpose_2d_tensor(tensor: PackTensor) -> PackTensor {
 
 /// Transpose tensor data (assumes 2D shape is already validated)
 fn transpose_tensor_data(data: TensorData) -> TensorData {
-    let shape = data.shape();
-    let rows = shape[0];
-    let cols = shape[1];
-    let transposed_shape = vec![cols, rows];
+    let (bytes, shape, dtype) = data.into_parts();
+    let (rows, cols) = (shape[0], shape[1]);
 
-    // Get the raw bytes and element size
-    let bytes = data.as_bytes();
-    let element_size = data.dtype().size();
+    // Moving whole elements as fixed-size arrays turns each copy into a register move rather
+    // than a `memcpy` of a run-time length. Valid for fixed-width dtypes, which is why
+    // quantized data is turned away before it gets here.
+    let transposed = match dtype.size() {
+        1 => transpose_elements::<1>(&bytes, rows, cols),
+        2 => transpose_elements::<2>(&bytes, rows, cols),
+        4 => transpose_elements::<4>(&bytes, rows, cols),
+        8 => transpose_elements::<8>(&bytes, rows, cols),
+        size => unreachable!("no fixed-width dtype is {size} bytes wide"),
+    };
 
-    // Create a new buffer for transposed data
-    let mut transposed_bytes = vec![0u8; bytes.len()];
+    TensorData::from_bytes_vec(transposed, vec![cols, rows], dtype)
+}
 
-    // Transpose at the byte level - valid for fixed-width dtypes, which is why quantized
-    // data is turned away before it gets here
-    for i in 0..rows {
-        for j in 0..cols {
-            let src_idx = (i * cols + j) * element_size;
-            let dst_idx = (j * rows + i) * element_size;
+/// Transpose a row-major `[rows, cols]` matrix of `N`-byte elements into a row-major
+/// `[cols, rows]` one.
+///
+/// Copies `TILE` x `TILE` tiles, so the source and output rows a tile touches stay in cache
+/// while it is copied, instead of striding across the whole output for every element.
+///
+/// `transpose` in `crates/pytorch-reader/src/pickle_reader.rs` is the same copy; keep them in
+/// sync.
+fn transpose_elements<const N: usize>(bytes: &[u8], rows: usize, cols: usize) -> Vec<u8> {
+    const TILE: usize = 32;
 
-            // Copy the bytes for this element
-            transposed_bytes[dst_idx..dst_idx + element_size]
-                .copy_from_slice(&bytes[src_idx..src_idx + element_size]);
-        }
+    if rows == 0 || cols == 0 {
+        return Vec::new();
     }
-
-    // Create new TensorData from transposed bytes
-    TensorData::from_bytes_vec(transposed_bytes, transposed_shape, data.dtype())
+    let (src, _) = bytes.as_chunks::<N>();
+    debug_assert_eq!(
+        src.len(),
+        rows * cols,
+        "source is not a [{rows}, {cols}] matrix"
+    );
+    let mut out = vec![[0; N]; rows * cols];
+    // A band of output rows is a band of source columns; fill it one tile of source rows at a
+    // time. Each tile is bounded by the dimension it spans before multiplying, so its length
+    // never exceeds `rows * cols`, which the allocation above shows fits.
+    out.chunks_mut(TILE.min(cols) * rows)
+        .zip((0..cols).step_by(TILE))
+        .for_each(|(band, col_start)| {
+            src.chunks(TILE.min(rows) * cols)
+                .zip((0..rows).step_by(TILE))
+                .for_each(|(block, row_start)| {
+                    band.chunks_exact_mut(rows)
+                        .zip(col_start..)
+                        .for_each(|(out_row, col)| {
+                            out_row[row_start..]
+                                .iter_mut()
+                                .zip(block.chunks_exact(cols))
+                                .for_each(|(dst, src_row)| *dst = src_row[col]);
+                        });
+                });
+        });
+    out.into_flattened()
 }
 
 #[cfg(test)]
@@ -774,6 +806,49 @@ mod tests {
         assert_eq!(*transposed.shape(), shape![2, 2]);
         let values = transposed.try_to_vec::<f64>().unwrap();
         assert_eq!(values, vec![1.0, 3.0, 2.0, 4.0]);
+    }
+
+    /// Shapes larger than the transpose's tile and not a multiple of it, for every element
+    /// width, against `out[j][i] = in[i][j]`; and empty shapes, which have no tiles at all.
+    #[test]
+    fn transpose_matches_the_definition_across_tiles() {
+        fn check<T>(rows: usize, cols: usize)
+        where
+            T: burn_core::tensor::Element + TryFrom<usize> + PartialEq + core::fmt::Debug,
+            T::Error: core::fmt::Debug,
+        {
+            let value = |i: usize, j: usize| T::try_from((i * cols + j) % 251).unwrap();
+            let values: Vec<T> = (0..rows)
+                .flat_map(|i| (0..cols).map(move |j| value(i, j)))
+                .collect();
+            let expected: Vec<T> = (0..cols)
+                .flat_map(|j| (0..rows).map(move |i| value(i, j)))
+                .collect();
+
+            let transposed = transpose_tensor_data(TensorData::new(values, [rows, cols]));
+            assert_eq!(*transposed.shape(), shape![cols, rows]);
+            assert_eq!(
+                transposed.try_to_vec::<T>().unwrap(),
+                expected,
+                "{} {rows}x{cols}",
+                core::any::type_name::<T>()
+            );
+        }
+
+        for (rows, cols) in [
+            (37, 70),
+            (70, 37),
+            (32, 64),
+            (1, 45),
+            (45, 1),
+            (0, 3),
+            (3, 0),
+        ] {
+            check::<u8>(rows, cols);
+            check::<u16>(rows, cols);
+            check::<u32>(rows, cols);
+            check::<u64>(rows, cols);
+        }
     }
 
     /// A transposed tensor must actually carry transposed bytes, not just a swapped shape.
