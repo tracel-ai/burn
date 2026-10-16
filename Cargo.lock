@@ -1069,6 +1069,7 @@ dependencies = [
  "burn-derive",
  "burn-dispatch",
  "burn-fusion",
+ "burn-instrument",
  "burn-ir",
  "burn-pack",
  "burn-rocm",
@@ -1251,7 +1252,17 @@ dependencies = [
 name = "burn-instrument"
 version = "0.22.0"
 dependencies = [
+ "burn-instrument-macros",
  "burn-tensor",
+]
+
+[[package]]
+name = "burn-instrument-macros"
+version = "0.22.0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 3.0.6",
 ]
 
 [[package]]
