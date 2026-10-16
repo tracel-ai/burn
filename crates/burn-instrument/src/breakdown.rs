@@ -2,7 +2,10 @@
 //! kernels each launched, and what the collection itself can say about how
 //! far those numbers are to be trusted.
 
+use std::io::{Read, Write};
 use std::time::Duration;
+
+use serde::{Deserialize, Serialize};
 
 use crate::Bounds;
 use crate::row_path::RowPath;
@@ -12,7 +15,7 @@ use crate::row_path::RowPath;
 /// What [`SharedCollector::collect`](crate::SharedCollector::collect) returns:
 /// data only, so a breakdown collected from a run and one written out in a
 /// test are the same kind of value.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Breakdown {
     /// The components the collected pass entered.
     pub tree: Vec<Node>,
@@ -25,6 +28,7 @@ pub struct Breakdown {
     /// How long the device waited on the host before the untagged kernels
     /// and the end of the pass's — the idle time no row is charged with. See
     /// [`Node::waited`].
+    #[serde(with = "nanoseconds")]
     pub waited_outside: Duration,
     /// Whether any launch was timed on the host rather than the device.
     ///
@@ -162,7 +166,7 @@ impl Breakdown {
 
 /// One kernel a component launched: what it is called, how many times it ran,
 /// and what the device spent on it.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Kernel {
     /// The name the kernel gives itself, in full — shortened for display only,
     /// so two kernels that abbreviate alike are still counted apart.
@@ -170,6 +174,7 @@ pub struct Kernel {
     /// Launches, across every entry of the component.
     pub launches: usize,
     /// Device time across those launches.
+    #[serde(with = "nanoseconds")]
     pub total: Duration,
     /// The components below the row it is recorded on whose work it carried
     /// out, in first-seen order, each by its path from that row — or from the
@@ -195,7 +200,7 @@ pub struct Kernel {
 /// row while eight entries took the tile kernel and one took tensor ops is the
 /// intended reading — the alternative, a row per execution, would be two rows
 /// whose times a reader has to add back together to get the component's.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Variant {
     /// What the execution calls itself.
     pub name: String,
@@ -204,7 +209,7 @@ pub struct Variant {
 }
 
 /// One component's row: what it declared, and what it took.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Node {
     /// What the component is called — its label, or its type.
     pub label: String,
@@ -222,7 +227,7 @@ pub struct Node {
     ///
     /// A site is a *function*: one entered many times is one site, so this sees
     /// two entry points and not two roles.
-    pub sites: Vec<&'static str>,
+    pub sites: Vec<String>,
     /// The sum of what every entry declared it should cost at best, or `None`
     /// when the component declares none.
     ///
@@ -253,6 +258,7 @@ pub struct Node {
     /// a round trip per launch to time it, so as an absolute it describes the
     /// instrumentation; as a share of every gap it says which components the
     /// device waited on, which is what a clean pass's host time is split by.
+    #[serde(with = "nanoseconds")]
     pub waited: Duration,
 }
 
@@ -349,10 +355,255 @@ impl Node {
 /// Kernel time that could not be credited to a row — a timing that reached the
 /// collector under a different attribution from the launch it measured, or a
 /// window that came back with no measurement in it.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Unplaced {
     /// How many timings had nowhere to go.
     pub timings: usize,
     /// What they came to.
+    #[serde(with = "nanoseconds")]
     pub total: Duration,
+}
+
+/// What a breakdown file says it is, so a reader can refuse anything else before decoding it.
+const FORMAT: &str = "burn-instrument breakdown";
+
+/// The version of the breakdown file format this build writes and reads.
+///
+/// Every change to what a breakdown serializes as (a field added, removed, renamed or
+/// re-encoded) is a new version, so a saved pass is read back as it was collected or not at all.
+pub const BREAKDOWN_FILE_VERSION: u32 = 1;
+
+/// A breakdown as it is written to a file.
+#[derive(Serialize)]
+struct FileOut<'a> {
+    format: &'static str,
+    version: u32,
+    breakdown: &'a Breakdown,
+}
+
+/// What a breakdown file declares before its breakdown is decoded.
+#[derive(Deserialize)]
+struct FileHeader {
+    format: String,
+    version: u32,
+}
+
+/// A breakdown file's contents, once its header has been accepted.
+#[derive(Deserialize)]
+struct FileIn {
+    breakdown: Breakdown,
+}
+
+/// Why a breakdown could not be written or read back.
+#[derive(Debug, thiserror::Error)]
+pub enum BreakdownFileError {
+    /// The file could not be written or read.
+    #[error("breakdown file: {0}")]
+    Io(#[from] std::io::Error),
+    /// The file is not JSON, or does not hold what its header says.
+    #[error("breakdown file is malformed: {0}")]
+    Malformed(#[from] serde_json::Error),
+    /// The file is not a breakdown.
+    #[error("not a breakdown file: its format is `{found}`")]
+    NotABreakdown {
+        /// The format the file declares.
+        found: String,
+    },
+    /// The file is a breakdown in a version this build does not read.
+    #[error(
+        "breakdown file version {found} is not supported; this build reads version {supported}"
+    )]
+    UnsupportedVersion {
+        /// The version the file declares.
+        found: u32,
+        /// The version this build reads, [`BREAKDOWN_FILE_VERSION`].
+        supported: u32,
+    },
+}
+
+impl Breakdown {
+    /// Write this breakdown as JSON, under a header naming the format and its
+    /// [`BREAKDOWN_FILE_VERSION`], so a pass collected on one machine can be read on another.
+    pub fn write(&self, writer: impl Write) -> Result<(), BreakdownFileError> {
+        let file = FileOut {
+            format: FORMAT,
+            version: BREAKDOWN_FILE_VERSION,
+            breakdown: self,
+        };
+        serde_json::to_writer_pretty(writer, &file)?;
+        Ok(())
+    }
+
+    /// Read back a breakdown [`write`](Self::write) wrote, refusing a file of another format or
+    /// version before decoding its contents.
+    pub fn read(mut reader: impl Read) -> Result<Self, BreakdownFileError> {
+        let mut text = String::new();
+        reader.read_to_string(&mut text)?;
+        let header: FileHeader = serde_json::from_str(&text)?;
+        if header.format != FORMAT {
+            return Err(BreakdownFileError::NotABreakdown {
+                found: header.format,
+            });
+        }
+        if header.version != BREAKDOWN_FILE_VERSION {
+            return Err(BreakdownFileError::UnsupportedVersion {
+                found: header.version,
+                supported: BREAKDOWN_FILE_VERSION,
+            });
+        }
+        let file: FileIn = serde_json::from_str(&text)?;
+        Ok(file.breakdown)
+    }
+}
+
+/// A [`Duration`] as a whole number of nanoseconds, which any reader of the file can use.
+mod nanoseconds {
+    use std::time::Duration;
+
+    use serde::{Deserialize, Deserializer, Serializer};
+
+    pub fn serialize<S: Serializer>(duration: &Duration, serializer: S) -> Result<S::Ok, S::Error> {
+        // Saturating: a pass would have to run for 584 years to overflow.
+        let nanoseconds = u64::try_from(duration.as_nanos()).unwrap_or(u64::MAX);
+        serializer.serialize_u64(nanoseconds)
+    }
+
+    pub fn deserialize<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Duration, D::Error> {
+        u64::deserialize(deserializer).map(Duration::from_nanos)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A breakdown with one of everything the file carries.
+    fn breakdown() -> Breakdown {
+        Breakdown {
+            tree: vec![Node {
+                label: "attention".to_string(),
+                variants: vec![Variant {
+                    name: "flash".to_string(),
+                    entries: 2,
+                }],
+                sites: vec!["model::attention::forward".to_string()],
+                bounds: Some(Bounds {
+                    read: 64,
+                    write: 16,
+                    flops: 128,
+                }),
+                observed: None,
+                entries: 2,
+                children: Vec::new(),
+                kernels: vec![Kernel {
+                    name: "matmul".to_string(),
+                    launches: 2,
+                    total: Duration::from_nanos(1_500),
+                    fuses: vec![RowPath::new(["query"])],
+                    fuses_own: true,
+                }],
+                waited: Duration::from_nanos(20),
+            }],
+            untagged: Vec::new(),
+            end_of_pass: Vec::new(),
+            waited_outside: Duration::from_nanos(7),
+            host_timed: false,
+            timed_alone: false,
+            unplaced: Unplaced::default(),
+            unfused: false,
+        }
+    }
+
+    fn written(breakdown: &Breakdown) -> String {
+        let mut bytes = Vec::new();
+        breakdown.write(&mut bytes).expect("written");
+        String::from_utf8(bytes).expect("JSON is UTF-8")
+    }
+
+    #[test]
+    fn a_written_breakdown_reads_back_unchanged() {
+        let breakdown = breakdown();
+        let read = Breakdown::read(written(&breakdown).as_bytes()).expect("read back");
+        assert_eq!(read, breakdown);
+    }
+
+    /// The format version 1 is, field for field. A change that fails this test is a new
+    /// [`BREAKDOWN_FILE_VERSION`], not an edit to the expected text.
+    #[test]
+    fn version_one_is_pinned() {
+        let expected = r#"{
+  "format": "burn-instrument breakdown",
+  "version": 1,
+  "breakdown": {
+    "tree": [
+      {
+        "label": "attention",
+        "variants": [
+          {
+            "name": "flash",
+            "entries": 2
+          }
+        ],
+        "sites": [
+          "model::attention::forward"
+        ],
+        "bounds": {
+          "read": 64,
+          "write": 16,
+          "flops": 128
+        },
+        "observed": null,
+        "entries": 2,
+        "children": [],
+        "kernels": [
+          {
+            "name": "matmul",
+            "launches": 2,
+            "total": 1500,
+            "fuses": [
+              [
+                "query"
+              ]
+            ],
+            "fuses_own": true
+          }
+        ],
+        "waited": 20
+      }
+    ],
+    "untagged": [],
+    "end_of_pass": [],
+    "waited_outside": 7,
+    "host_timed": false,
+    "timed_alone": false,
+    "unplaced": {
+      "timings": 0,
+      "total": 0
+    },
+    "unfused": false
+  }
+}"#;
+        assert_eq!(written(&breakdown()), expected);
+    }
+
+    #[test]
+    fn another_version_is_refused_before_its_contents_are_decoded() {
+        let file = r#"{"format": "burn-instrument breakdown", "version": 2, "breakdown": "?"}"#;
+        assert!(matches!(
+            Breakdown::read(file.as_bytes()),
+            Err(BreakdownFileError::UnsupportedVersion {
+                found: 2,
+                supported: 1
+            })
+        ));
+    }
+
+    #[test]
+    fn another_format_is_refused() {
+        let file = r#"{"format": "something else", "version": 1}"#;
+        assert!(matches!(
+            Breakdown::read(file.as_bytes()),
+            Err(BreakdownFileError::NotABreakdown { found }) if found == "something else"
+        ));
+    }
 }

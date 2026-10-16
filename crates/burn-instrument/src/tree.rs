@@ -450,7 +450,7 @@ impl State {
         Node {
             label: entry.label.clone(),
             variants: entry.variants.clone(),
-            sites: entry.sites.clone(),
+            sites: entry.sites.iter().map(|site| site.to_string()).collect(),
             bounds: entry.bounds,
             observed: entry.observed,
             entries: entry.entries,

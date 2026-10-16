@@ -2,6 +2,8 @@
 
 use std::fmt::{self, Display};
 
+use serde::{Deserialize, Serialize};
+
 /// The labels from one row down to another, outermost first:
 /// `attention › query`.
 ///
@@ -10,7 +12,8 @@ use std::fmt::{self, Display};
 /// only among its siblings. A kernel names the rows whose work it carried by
 /// their path from the row it is recorded on, and a comparison keys a row of
 /// one run against the other by its path from the root.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(transparent)]
 pub struct RowPath(Vec<String>);
 
 impl RowPath {

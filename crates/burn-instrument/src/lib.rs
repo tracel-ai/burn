@@ -34,11 +34,16 @@
 //! let breakdown = SharedCollector::new(&device).collect(|| {
 //!     model.forward(input);
 //! });
+//! breakdown.write(std::fs::File::create("forward.json")?)?;
 //! ```
+//!
+//! A [`Breakdown`] is data, and [`Breakdown::write`] saves it as a versioned JSON file
+//! ([`BREAKDOWN_FILE_VERSION`]) that [`Breakdown::read`] reads back on any machine, with or
+//! without a runtime.
 //!
 //! # Feature flags
 //!
-//! - `std` (default): installing a collector.
+//! - `std` (default): installing a collector, and reading and writing breakdowns.
 //! - `cubecl`: the collector, which reads a cubecl runtime's kernel launches and fusion blocks.
 
 extern crate alloc;
@@ -47,13 +52,13 @@ mod bounds;
 mod collector;
 mod label;
 
-#[cfg(feature = "cubecl")]
+#[cfg(feature = "std")]
 mod breakdown;
 #[cfg(feature = "cubecl")]
 mod cursor;
 #[cfg(feature = "cubecl")]
 mod observer;
-#[cfg(feature = "cubecl")]
+#[cfg(feature = "std")]
 mod row_path;
 #[cfg(feature = "cubecl")]
 mod tree;
@@ -67,9 +72,11 @@ pub use bounds::*;
 pub use collector::*;
 pub use label::*;
 
-#[cfg(feature = "cubecl")]
-pub use breakdown::{Breakdown, Kernel, Node, Unplaced, Variant};
-#[cfg(feature = "cubecl")]
+#[cfg(feature = "std")]
+pub use breakdown::{
+    BREAKDOWN_FILE_VERSION, Breakdown, BreakdownFileError, Kernel, Node, Unplaced, Variant,
+};
+#[cfg(feature = "std")]
 pub use row_path::RowPath;
 #[cfg(feature = "cubecl")]
 pub use tree::SharedCollector;

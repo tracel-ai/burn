@@ -20,6 +20,7 @@ use burn_tensor::{DType, Tensor};
 /// depends on values the host does not have: a floor no achievable kernel can meet is worse than
 /// none.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct Bounds {
     /// Bytes read from global memory, at the widths the tensors are stored in (see
     /// [`tensor_bytes`]).
