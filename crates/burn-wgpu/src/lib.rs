@@ -1,5 +1,29 @@
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
+//! The [wgpu](https://github.com/gfx-rs/wgpu) runtime for [Burn](https://github.com/tracel-ai/burn)'s
+//! CubeCL backend: Vulkan, Metal, DirectX 12, OpenGL and WebGPU through one API.
+//!
+//! Applications enable Burn's `wgpu` feature and create a device with `Device::wgpu(..)`, which
+//! picks a graphics API for the platform, or configure it first with `Device::wgpu_options()`.
+//! The `vulkan`, `metal` and `webgpu` features add devices pinned to that API. Applications do not
+//! need this crate directly.
+//!
+//! This crate also re-exports the wgpu runtime types ([`WgpuDevice`], [`WgpuSetup`],
+//! [`MemoryConfiguration`], ...) for sharing an existing wgpu device with Burn, and, with the
+//! `template` feature, the API for launching hand-written WGSL kernels.
+//!
+//! # Feature flags
+//!
+//! - `std` (default): standard library support.
+//! - `fusion` (default): kernel fusion.
+//! - `autotune` (default): benchmark kernel variants at runtime and keep the fastest.
+//! - `vulkan`, `metal`, `webgpu`: devices pinned to that graphics API, using its native shader
+//!   compiler where available.
+//! - `template`: launch hand-written kernels.
+//! - `exclusive-memory-only`: never share a memory page between allocations (always the case on
+//!   wasm).
+//! - `tracing`: instrument operations with the `tracing` crate.
+
 extern crate alloc;
 
 #[cfg(feature = "template")]

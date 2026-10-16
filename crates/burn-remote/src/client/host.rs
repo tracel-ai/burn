@@ -163,3 +163,51 @@ impl HostSpec {
 fn host_device_count(device: &RemoteDevice) -> usize {
     service::device_count_for(device.id).expect("the handshake reports the device count") as usize
 }
+
+#[cfg(all(test, feature = "websocket", not(target_family = "wasm")))]
+mod tests {
+    use super::*;
+    use crate::server::{AuthorizationRequest, BackendServer, WebSocketTransport};
+    use std::sync::{Mutex, mpsc};
+
+    #[test]
+    fn a_server_that_never_answers_fails_each_connect_and_keeps_the_device() {
+        // Its backlog completes each connection, and nothing ever answers on it.
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let host = HostSpec::websocket(&format!("ws://{}", listener.local_addr().unwrap()));
+        let device = || RemoteDevice::register(host.endpoint_blocking().unwrap(), 0);
+        let before = device();
+
+        for _ in 0..2 {
+            let error = host.connect(0).unwrap_err();
+            assert!(
+                error.to_string().contains("no connection opened within"),
+                "{error}"
+            );
+        }
+        assert_eq!(device(), before);
+    }
+
+    #[test]
+    fn a_server_that_never_answers_the_handshake_fails_the_connect() {
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let host = HostSpec::websocket(&format!("ws://{}", listener.local_addr().unwrap()));
+        // The server answers a session only once its authorizer returns, and this one never does.
+        let (_held, never) = mpsc::channel::<()>();
+        let never = Mutex::new(never);
+        let server = BackendServer::<burn_flex::Flex>::new(vec![Default::default()])
+            .with_authorizer(move |_: AuthorizationRequest<'_>| {
+                let _ = never.lock().unwrap().recv();
+                Ok(())
+            });
+        let runtime = tokio::runtime::Runtime::new().unwrap();
+        runtime.spawn(server.serve_async(WebSocketTransport::from_listener(listener)));
+
+        let error = host.connect(0).unwrap_err();
+        assert!(
+            error.to_string().contains("did not answer within"),
+            "{error}"
+        );
+        runtime.shutdown_background();
+    }
+}

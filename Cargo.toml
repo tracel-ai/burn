@@ -19,7 +19,7 @@ exclude = [
 edition = "2024"
 license = "MIT OR Apache-2.0"
 readme = "README.md"
-version = "0.22.0-pre.4"
+version = "0.22.0"
 
 [workspace.lints.clippy]
 # Temporary workaround for linting generated code:
@@ -31,7 +31,6 @@ broken_intra_doc_links = "deny"
 invalid_html_tags = "deny"
 
 [workspace.dependencies]
-atomic_float = "1"
 axum = "0.8.9"
 blake3 = "1.8"
 bytemuck = "1.25.2"
@@ -40,7 +39,6 @@ ciborium = { version = "0.2", default-features = false }
 clap = { version = "4.6.7", features = ["derive"] }
 colored = "3.1.1"
 console_error_panic_hook = "0.1.7"
-const-random = "0.1"
 crc32fast = "1.5.2"
 csv = "1.4.0"
 dashmap = "6.2.1"
@@ -117,16 +115,13 @@ tracing-appender = "0.2.5"
 tracing-core = { version = "0.1.36", default-features = false }
 tracing-opentelemetry = "0.34.0"
 tracing-subscriber = "0.3.23"
-# `default-features = false` matters: the default `mimalloc` feature installs a
-# `#[global_allocator]`, which a library must not impose on its dependents.
-# Pinned while turso is a prerelease: an unpinned `0.8.0-pre.8` would also accept later `pre`
-# builds and the eventual `0.8.x`, and `turso::Error` is reachable from the public
-# `SqliteDatasetError`. The pin only covers this facade crate; turso's own `turso_core` and
-# `turso_sdk_kit` deps use caret ranges, so keep this on the same `pre` as they resolve to.
-turso = { version = "=0.8.0-pre.8", default-features = false }
+turso = { version = "0.8.2", default-features = false }
+# Turso's branches 0.4 dependency uses a removed intrinsic on nightly without std.
+# Enable std for dataset SQLite builds and affected documentation builds.
+branches = { version = "0.4.6", default-features = false, features = ["std"] }
 wasm-bindgen = "0.2"
 wasm-bindgen-futures = "0.4"
-zip = { version = "8.6.0", default-features = false, features = ["deflate-flate2-zlib-rs"] }
+zip = { version = "9.0.4", default-features = false, features = ["deflate-flate2-zlib-rs"] }
 
 # Persist related
 memmap2 = { version = "0.9" }
@@ -149,7 +144,6 @@ text_placeholder = "0.5.1"
 cfg-if = "1.0.5"
 derive-new = { version = "0.7.0", default-features = false }
 
-blas-src = { version = "0.14.0", default-features = false }
 bon = "3.10.1"
 half = { version = "2.7.1", features = [
     "alloc",
@@ -157,12 +151,10 @@ half = { version = "2.7.1", features = [
     "serde",
 ], default-features = false }
 macerator = { version = "0.5.1" }
-matrixmultiply = { version = "0.3.11", default-features = false }
 ndarray = { version = "0.17.2", default-features = false }
 num-traits = { version = "0.2.19", default-features = false, features = [
     "libm",
 ] } # libm is for no_std
-openblas-src = "0.10.16"
 rand = { version = "0.10.3", default-features = false, features = ["std_rng"] }
 rand_distr = { version = "0.6.0", default-features = false }
 serde = { version = "1.0.229", default-features = false, features = [
@@ -179,8 +171,6 @@ libc = "0.2.189"
 nvml-wrapper = "0.13.0"
 sysinfo = "0.39.6"
 systemstat = "0.2.7"
-tch = "0.22.0"
-torch-sys = "0.22.0"                                        # matches what tch is using, required for lib detection
 
 ahash = { version = "0.8.12", default-features = false }
 aligned-vec = { version = "0.6", default-features = false }
@@ -192,50 +182,48 @@ realfft = "3"
 ### Internal burn crates ###
 # Declared here so each consumer Cargo.toml can use `workspace = true` instead of
 # repeating the path and version.
-burn = { path = "crates/burn", version = "=0.22.0-pre.4", default-features = false }
-burn-autodiff = { path = "crates/burn-autodiff", version = "=0.22.0-pre.4", default-features = false }
-burn-backend = { path = "crates/burn-backend", version = "=0.22.0-pre.4", default-features = false }
-burn-backend-extension = { path = "crates/burn-backend-extension", version = "=0.22.0-pre.4", default-features = false }
-burn-capture = { path = "crates/burn-capture", version = "=0.22.0-pre.4", default-features = false }
-burn-communication = { path = "crates/burn-communication", version = "=0.22.0-pre.4", default-features = false }
-burn-core = { path = "crates/burn-core", version = "=0.22.0-pre.4", default-features = false }
-burn-cpu = { path = "crates/burn-cpu", version = "=0.22.0-pre.4", default-features = false }
-burn-cubecl = { path = "crates/burn-cubecl", version = "=0.22.0-pre.4", default-features = false }
-burn-cubecl-fusion = { path = "crates/burn-cubecl-fusion", version = "=0.22.0-pre.4", default-features = false }
-burn-cuda = { path = "crates/burn-cuda", version = "=0.22.0-pre.4", default-features = false }
-burn-dataset = { path = "crates/burn-dataset", version = "=0.22.0-pre.4", default-features = false }
-burn-derive = { path = "crates/burn-derive", version = "=0.22.0-pre.4", default-features = false }
-burn-dispatch = { path = "crates/burn-dispatch", version = "=0.22.0-pre.4", default-features = false }
-burn-einsum = { path = "crates/burn-einsum", version = "=0.22.0-pre.4", default-features = false }
-burn-flex = { path = "crates/burn-flex", version = "=0.22.0-pre.4", default-features = false }
-burn-fusion = { path = "crates/burn-fusion", version = "=0.22.0-pre.4", default-features = false }
-burn-ir = { path = "crates/burn-ir", version = "=0.22.0-pre.4", default-features = false }
-burn-linalg = { path = "crates/burn-linalg", version = "=0.22.0-pre.4", default-features = false }
-burn-ndarray = { path = "crates/burn-ndarray", version = "=0.22.0-pre.4", default-features = false }
-burn-nn = { path = "crates/burn-nn", version = "=0.22.0-pre.4", default-features = false }
-burn-optim = { path = "crates/burn-optim", version = "=0.22.0-pre.4", default-features = false }
-burn-pack = { path = "crates/burn-pack", version = "=0.22.0-pre.4", default-features = false }
-burn-remote = { path = "crates/burn-remote", version = "=0.22.0-pre.4", default-features = false }
-burn-rl = { path = "crates/burn-rl", version = "=0.22.0-pre.4", default-features = false }
-burn-rocm = { path = "crates/burn-rocm", version = "=0.22.0-pre.4", default-features = false }
-burn-router = { path = "crates/burn-router", version = "=0.22.0-pre.4", default-features = false }
-burn-signal = { path = "crates/burn-signal", version = "=0.22.0-pre.4", default-features = false }
-burn-std = { path = "crates/burn-std", version = "=0.22.0-pre.4", default-features = false }
-burn-store = { path = "crates/burn-store", version = "=0.22.0-pre.4", default-features = false }
-burn-tch = { path = "crates/burn-tch", version = "=0.22.0-pre.4", default-features = false }
-burn-tensor = { path = "crates/burn-tensor", version = "=0.22.0-pre.4", default-features = false }
-burn-tensor-testgen = { path = "crates/burn-tensor-testgen", version = "=0.22.0-pre.4", default-features = false }
-burn-train = { path = "crates/burn-train", version = "=0.22.0-pre.4", default-features = false }
-burn-vision = { path = "crates/burn-vision", version = "=0.22.0-pre.4", default-features = false }
-burn-wgpu = { path = "crates/burn-wgpu", version = "=0.22.0-pre.4", default-features = false }
-pytorch-reader = { path = "crates/pytorch-reader", version = "=0.22.0-pre.4" }
+burn = { path = "crates/burn", version = "0.22.0", default-features = false }
+burn-autodiff = { path = "crates/burn-autodiff", version = "0.22.0", default-features = false }
+burn-backend = { path = "crates/burn-backend", version = "0.22.0", default-features = false }
+burn-backend-extension = { path = "crates/burn-backend-extension", version = "0.22.0", default-features = false }
+burn-capture = { path = "crates/burn-capture", version = "0.22.0", default-features = false }
+burn-communication = { path = "crates/burn-communication", version = "0.22.0", default-features = false }
+burn-core = { path = "crates/burn-core", version = "0.22.0", default-features = false }
+burn-cpu = { path = "crates/burn-cpu", version = "0.22.0", default-features = false }
+burn-cubecl = { path = "crates/burn-cubecl", version = "0.22.0", default-features = false }
+burn-cubecl-fusion = { path = "crates/burn-cubecl-fusion", version = "0.22.0", default-features = false }
+burn-cuda = { path = "crates/burn-cuda", version = "0.22.0", default-features = false }
+burn-dataset = { path = "crates/burn-dataset", version = "0.22.0", default-features = false }
+burn-derive = { path = "crates/burn-derive", version = "0.22.0", default-features = false }
+burn-dispatch = { path = "crates/burn-dispatch", version = "0.22.0", default-features = false }
+burn-einsum = { path = "crates/burn-einsum", version = "0.22.0", default-features = false }
+burn-flex = { path = "crates/burn-flex", version = "0.22.0", default-features = false }
+burn-fusion = { path = "crates/burn-fusion", version = "0.22.0", default-features = false }
+burn-ir = { path = "crates/burn-ir", version = "0.22.0", default-features = false }
+burn-linalg = { path = "crates/burn-linalg", version = "0.22.0", default-features = false }
+burn-nn = { path = "crates/burn-nn", version = "0.22.0", default-features = false }
+burn-optim = { path = "crates/burn-optim", version = "0.22.0", default-features = false }
+burn-pack = { path = "crates/burn-pack", version = "0.22.0", default-features = false }
+burn-remote = { path = "crates/burn-remote", version = "0.22.0", default-features = false }
+burn-rl = { path = "crates/burn-rl", version = "0.22.0", default-features = false }
+burn-rocm = { path = "crates/burn-rocm", version = "0.22.0", default-features = false }
+burn-router = { path = "crates/burn-router", version = "0.22.0", default-features = false }
+burn-signal = { path = "crates/burn-signal", version = "0.22.0", default-features = false }
+burn-std = { path = "crates/burn-std", version = "0.22.0", default-features = false }
+burn-store = { path = "crates/burn-store", version = "0.22.0", default-features = false }
+burn-tensor = { path = "crates/burn-tensor", version = "0.22.0", default-features = false }
+burn-tensor-testgen = { path = "crates/burn-tensor-testgen", version = "0.22.0", default-features = false }
+burn-train = { path = "crates/burn-train", version = "0.22.0", default-features = false }
+burn-vision = { path = "crates/burn-vision", version = "0.22.0", default-features = false }
+burn-wgpu = { path = "crates/burn-wgpu", version = "0.22.0", default-features = false }
+pytorch-reader = { path = "crates/pytorch-reader", version = "0.22.0" }
 
 ### For the main burn branch. ###
-cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "5e521ef4ee786b1b8bcb1f487cdbd093c1d5d670" }
-cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "5e521ef4ee786b1b8bcb1f487cdbd093c1d5d670" }
-cubecl-environment = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "5e521ef4ee786b1b8bcb1f487cdbd093c1d5d670" }
-cubecl-zspace = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "5e521ef4ee786b1b8bcb1f487cdbd093c1d5d670" }
-cubek = { git = "https://github.com/tracel-ai/cubek", default-features = false, rev = "a8207f822e07eaaed1480965c55c5b8864339e1b" }
+cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "72726b1444af46baab5f2f4a250d791cb002b2e6" }
+cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "72726b1444af46baab5f2f4a250d791cb002b2e6" }
+cubecl-environment = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "72726b1444af46baab5f2f4a250d791cb002b2e6" }
+cubecl-zspace = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "72726b1444af46baab5f2f4a250d791cb002b2e6" }
+cubek = { git = "https://github.com/tracel-ai/cubek", default-features = false, rev = "056648c6e03f47fd71c15397ee08c5de93d74264" }
 ### For local development. ###
 # cubecl = { path = "../cubecl/crates/cubecl", default-features = false }
 # cubecl-common = { path = "../cubecl/crates/cubecl-common", default-features = false }
@@ -243,11 +231,11 @@ cubek = { git = "https://github.com/tracel-ai/cubek", default-features = false, 
 # cubecl-zspace = { path = "../cubecl/crates/cubecl-zspace", default-features = false }
 # cubek = { path = "../cubek/crates/cubek", default-features = false }
 ### For the release. ###
-# cubecl = { version = "=0.11.0-pre.4", default-features = false }
-# cubecl-common = { version = "=0.11.0-pre.4", default-features = false }
-# cubecl-environment = { version = "=0.11.0-pre.4", default-features = false }
-# cubecl-zspace = { version = "=0.11.0-pre.4", default-features = false }
-# cubek = { version = "=0.3.0-pre.4", default-features = false }
+# cubecl = { version = "0.11.0", default-features = false }
+# cubecl-common = { version = "0.11.0", default-features = false }
+# cubecl-environment = { version = "0.11.0", default-features = false }
+# cubecl-zspace = { version = "0.11.0", default-features = false }
+# cubek = { version = "0.3.0", default-features = false }
 
 [profile.dev]
 debug = 1 # Speed up compilation time and not necessary.

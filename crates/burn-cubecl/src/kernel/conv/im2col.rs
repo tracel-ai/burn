@@ -678,6 +678,10 @@ fn col2im<const N: usize>(
     let channels = input_shape[N + 1]; // NHWC: [batch, ..spatial, C]
     let taps = kernel_shape.iter().product::<usize>();
     let dtype = columns.dtype;
+    let accumulation_dtype = match dtype {
+        DType::F16 | DType::BF16 => DType::F32,
+        _ => dtype,
+    };
     let client = columns.client.clone();
 
     let columns = into_contiguous_aligned(columns);
@@ -722,7 +726,10 @@ fn col2im<const N: usize>(
             out_spatial,
             taps,
             channels,
-            dtype_to_storage_type(dtype),
+            [
+                dtype_to_storage_type(dtype),
+                dtype_to_storage_type(accumulation_dtype),
+            ],
         );
     }
 
@@ -730,7 +737,7 @@ fn col2im<const N: usize>(
 }
 
 #[cube(launch_unchecked, address_type = "dynamic")]
-fn col2im_kernel<E: Numeric>(
+fn col2im_kernel<E: Numeric, A: Numeric>(
     columns: &Tensor<E>,
     mut grad_in: LinearViewMut<'_, E>,
     grad_in_shape: Sequence<FastDivmod<usize>>,
@@ -741,7 +748,7 @@ fn col2im_kernel<E: Numeric>(
     out_spatial: Sequence<usize>,
     taps: usize,
     channels: usize,
-    #[define(E)] _dtype: ElemType,
+    #[define(E, A)] _dtypes: [ElemType; 2],
 ) {
     if !grad_in.is_in_bounds(ABSOLUTE_POS) {
         terminate!();
@@ -751,7 +758,7 @@ fn col2im_kernel<E: Numeric>(
     let (_, pos) = decompose_linear(ABSOLUTE_POS, &grad_in_shape);
     let n = pos[0];
     let cin = pos[spatial + 1];
-    let mut val = E::zero();
+    let mut val = A::zero();
 
     for tap in 0..taps {
         // Row-major over `[batch, ..out_spatial]`, matching `reshape_input`.
@@ -781,11 +788,13 @@ fn col2im_kernel<E: Numeric>(
         if hit {
             // Through the strides: a pitched allocator pads each matmul output
             // row, so a row is not always `taps * channels` elements long.
-            val += columns[m * columns.stride(0) + (tap * channels + cin) * columns.stride(1)];
+            val += A::cast_from(
+                columns[m * columns.stride(0) + (tap * channels + cin) * columns.stride(1)],
+            );
         }
     }
 
-    grad_in.write(ABSOLUTE_POS, val);
+    grad_in.write(ABSOLUTE_POS, E::cast_from(val));
 }
 
 /// The gradient with respect to a dense convolution's weight, as one matmul

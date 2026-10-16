@@ -19,8 +19,8 @@ use burn_backend::distributed::DistributedParams;
 
 /// Keeps an input node available while a dependent operation is being prepared.
 ///
-/// Obtain this guard with [`AutodiffTensor::node`] before consuming the input,
-/// or move both the primitive and guard out with [`AutodiffTensor::into_parts`].
+/// Obtain this guard with `node()` on the autodiff float tensor primitive before consuming the
+/// input, or move both the primitive and guard out with `into_parts()`.
 /// Custom operations must retain it until their child step has been registered.
 /// Do not store guards in backward steps or checkpoint state: those internal
 /// references would prevent abandoned graphs from being reclaimed.

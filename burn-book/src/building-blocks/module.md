@@ -27,7 +27,25 @@ impl PositionWiseFeedForward {
 }
 ```
 
-Note that all fields declared in the struct must also implement the `Module` trait.
+## Fields and generic adapters
+
+Fields must implement `Module` and `ModuleDisplay`, unless they are recognized constants (such as
+`usize`, `f32`, `bool` or `String`) or marked `#[module(skip)]`. Use the attribute for custom
+configuration and runtime state, including generic fields. Skipped fields still need
+`Clone + Debug + Send`; they are cloned but excluded from traversal, checkpoints, device movement
+and training/validation transitions.
+
+Bounds are inferred from field types, so a child `Wrapper<T>` needs `Module + ModuleDisplay`
+without requiring `T` to implement those traits. For a generic child `M` and configuration `C`,
+mark the `C` field with `#[module(skip)]`. Your own `Forward` bounds are preserved; the derive
+does not constrain forward methods.
+
+Named and tuple structs can contain recursive children such as `Vec<Self>` or `Option<Box<Self>>`.
+These children participate in traversal, checkpoints and state transitions like any other submodule.
+
+Custom generic types such as `Block<f32>` are treated as submodules; use `#[module(skip)]` if they
+hold configuration instead. For structures requiring custom traversal, use a
+[manual implementation](../migrating-to-0.22.md#manual-module-implementations).
 
 ## Forward Contract
 

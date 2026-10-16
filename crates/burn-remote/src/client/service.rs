@@ -1,9 +1,16 @@
-use crate::metrics::{MetricSide, TelemetryLogger, logger_task};
-use crate::shared::{
-    LocalTransferId, PROTOCOL_VERSION, RemoteMessage, RequestId, SessionId, SessionInfo,
-    SessionInit, Task, TaskResponse, TaskResponseContent, TensorRemote, TransferCapability,
+use crate::{
+    metrics::{MetricSide, TelemetryLogger, logger_task},
+    shared::{
+        Encode, LocalTransferId, PROTOCOL_VERSION, RemoteMessage, RequestId, SessionId,
+        SessionInfo, SessionInit, Task, TaskResponse, TaskResponseContent, TensorRemote,
+        TransferCapability,
+    },
+    telemetry::{CHANNEL_CAPACITY, TelemetryEvent, TelemetryProbe, serialized_len},
+    transport::{
+        link::{FrameSink, FrameSource, MAX_FRAME_SIZE, MAX_UNAUTHORIZED_FRAME_SIZE},
+        message::MessageSource,
+    },
 };
-use crate::telemetry::{CHANNEL_CAPACITY, TelemetryEvent, TelemetryProbe, serialized_len};
 use burn_backend::{
     DTypeUsageSet, ExecutionError, ProfileDuration, ProfileOptions, ProfileTicks, ProfileToken,
     TensorData,
@@ -36,8 +43,17 @@ use writer::SubmitWriter;
 use super::{ConnectError, runtime::Executor};
 pub(crate) use conn::{RemoteEndpoint, SubmitChannel};
 use registry::{device_count_cell, settings_cell};
-pub(crate) use registry::{device_count_for, register_endpoint, registered_device};
+pub(crate) use registry::{device_count_for, register_endpoint, registered_device, session_end};
 pub(crate) use registry::{has_settings, new_tensor_id, settings_for};
+
+/// How long a connection attempt, then the handshake, may each take before the server is taken to
+/// be stuck.
+#[cfg(not(test))]
+const OPEN_DEADLINE: core::time::Duration = core::time::Duration::from_secs(60);
+
+/// Short enough for a test to wait one out.
+#[cfg(test)]
+const OPEN_DEADLINE: core::time::Duration = core::time::Duration::from_secs(5);
 
 /// All the state owned by the device-runner thread for a single remote device.
 ///
@@ -135,7 +151,7 @@ impl DeviceService for RemoteService {
                 let remote = cfg.remote();
                 OutgoingBatch::new(remote.flush_threshold, remote.flush_bytes_threshold)
             },
-            pending: PendingResponses::new(),
+            pending: PendingResponses::new(session_end(id)),
             profile_streams: HashMap::new(),
             probe,
             logger,
@@ -182,30 +198,50 @@ impl RemoteService {
         executor.block_on(endpoint.open_channels())
     }
 
-    /// Send the session-init handshake on both streams and wait for the server's answer, checked
-    /// to speak this client's protocol version. Both streams carry the same `Vec<RemoteMessage>`
-    /// wire format; the handshake is just a single-element batch.
-    async fn handshake_async(
-        streams: &mut SessionStreams,
+    /// The session-init handshake: a single-element `Vec<RemoteMessage>` batch, refused before any
+    /// stream opens if it is larger than a server reads from a client it has not admitted.
+    fn init_frame(
         endpoint: &RemoteEndpoint,
         session_id: SessionId,
         device_index: u32,
+    ) -> Result<bytes::Bytes, ConnectError> {
+        let init = vec![RemoteMessage::Init(SessionInit::new(
+            session_id,
+            device_index,
+            endpoint.credential().as_bytes().to_vec(),
+        ))]
+        .encode()
+        .expect("Can serialize RemoteMessage::Init")
+        .into_bytes();
+        if init.len() > MAX_UNAUTHORIZED_FRAME_SIZE {
+            return Err(ConnectError::InvalidConfiguration {
+                reason: format!(
+                    "the credential is too large: a server reads at most \
+                     {MAX_UNAUTHORIZED_FRAME_SIZE} bytes before admitting a client, and this \
+                     handshake takes {}",
+                    init.len()
+                ),
+            });
+        }
+        Ok(init)
+    }
+
+    /// Send the session-init handshake and wait for the server's answer, checked to speak this
+    /// client's protocol version. Both go in one bare frame, since a server on another version
+    /// refuses that way.
+    async fn handshake_async(
+        streams: &mut SessionStreams,
+        init: bytes::Bytes,
     ) -> Result<SessionInfo, ConnectError> {
         let failed = |reason: String| ConnectError::Handshake { reason };
-        let init_bytes: bytes::Bytes =
-            rmp_serde::to_vec(&vec![RemoteMessage::Init(SessionInit::new(
-                session_id,
-                device_index,
-                endpoint.credential().as_bytes().to_vec(),
-            ))])
-            .expect("Can serialize RemoteMessage::Init")
-            .into();
-
-        streams.submit.send(init_bytes).await.map_err(failed)?;
-        let msg = streams
-            .response
-            .recv()
+        streams.submit.send(init).await.map_err(failed)?;
+        let msg = crate::time::timeout(OPEN_DEADLINE, streams.response.recv(MAX_FRAME_SIZE))
             .await
+            .map_err(|()| {
+                failed(format!(
+                    "the server did not answer within {OPEN_DEADLINE:?}"
+                ))
+            })?
             .map_err(failed)?
             .ok_or_else(|| failed("the server closed the session before answering".into()))?;
         let reply: TaskResponse = rmp_serde::from_slice(&msg)
@@ -233,26 +269,16 @@ impl RemoteService {
     fn handshake(
         executor: &Executor,
         streams: &mut SessionStreams,
-        endpoint: &RemoteEndpoint,
-        session_id: SessionId,
-        device_index: u32,
+        init: bytes::Bytes,
     ) -> Result<SessionInfo, ConnectError> {
-        executor.block_on(Self::handshake_async(
-            streams,
-            endpoint,
-            session_id,
-            device_index,
-        ))
+        executor.block_on(Self::handshake_async(streams, init))
     }
 
     /// Spawn the response-demux task: route each [`TaskResponse`] to its pending callback by
     /// [`RequestId`] via the [`Responder`]. Lives on the service runtime; exits when the
-    /// response stream closes.
-    fn spawn_response_demux(
-        executor: &Executor,
-        mut response: ResponseChannel,
-        responder: Responder,
-    ) {
+    /// response stream closes, ending the session.
+    fn spawn_response_demux(executor: &Executor, response: ResponseChannel, responder: Responder) {
+        let mut response = MessageSource::new(response);
         // Detached: the task owns the response stream and runs until it closes.
         let _demux = executor.spawn(async move {
             loop {
@@ -283,7 +309,7 @@ impl RemoteService {
             // The response stream is gone (clean close or error): the server will never answer
             // any in-flight or future request on this connection. Fail every waiting caller and
             // gate new ones so they error out instead of blocking forever on a dead server.
-            responder.disconnect();
+            responder.end_session();
         });
     }
 }
@@ -315,17 +341,13 @@ pub(crate) struct WasmConnected {
 pub(crate) async fn wasm_connect(plan: WasmConnectPlan) -> Result<WasmConnected, ConnectError> {
     let executor = Executor::WasmLocal;
 
+    let init = RemoteService::init_frame(&plan.endpoint, plan.session_id, plan.device_index)?;
     let mut streams = plan.endpoint.open_channels().await?;
-    let info = RemoteService::handshake_async(
-        &mut streams,
-        &plan.endpoint,
-        plan.session_id,
-        plan.device_index,
-    )
-    .await?;
+    let info = RemoteService::handshake_async(&mut streams, init).await?;
 
+    let responder = plan.responder.clone();
     RemoteService::spawn_response_demux(&executor, streams.response, plan.responder);
-    let writer = SubmitWriter::spawn(&executor, streams.submit);
+    let writer = SubmitWriter::spawn(&executor, streams.submit, move || responder.end_session());
 
     Ok(WasmConnected {
         writer,
@@ -494,17 +516,13 @@ impl RemoteService {
         self.submit_task(Task::Seed(seed));
     }
 
-    /// Initiate a tensor read. The returned receiver resolves when the server response
-    /// arrives.
-    ///
-    /// The request id rides on the task itself; the server echoes it back so the
-    /// response-demux task can hand the response to the right pending callback.
-    pub fn read_tensor(
+    /// Read several tensors in one request.
+    pub fn read_tensors(
         &mut self,
         stream_id: StreamId,
-        tensor: TensorIr,
+        tensors: Vec<TensorIr>,
     ) -> Unconstrained<oneshot::Receiver<TaskResponseContent>> {
-        self.submit_request(|id| Task::ReadTensor(id, stream_id, tensor))
+        self.submit_request(|id| Task::ReadTensors(id, stream_id, tensors))
     }
 
     pub fn sync(&mut self, stream_id: StreamId) -> Result<(), ExecutionError> {
@@ -728,21 +746,21 @@ impl RemoteService {
                 self.endpoint.peer_addr(),
                 self.device_index
             );
+            let init = Self::init_frame(&self.endpoint, self.session_id, self.device_index)?;
             let mut streams = Self::connect_streams(&self.executor, &self.endpoint)?;
-            let info = Self::handshake(
-                &self.executor,
-                &mut streams,
-                &self.endpoint,
-                self.session_id,
-                self.device_index,
-            )?;
+            let info = Self::handshake(&self.executor, &mut streams, init)?;
 
             // Publish to the shared cells so `RemoteDevice::defaults` and listing can read them.
             let _ = self.settings.set(info.settings);
             let _ = self.device_count.set(info.device_count);
 
             Self::spawn_response_demux(&self.executor, streams.response, self.pending.responder());
-            self.writer = Some(SubmitWriter::spawn(&self.executor, streams.submit));
+            let responder = self.pending.responder();
+            self.writer = Some(SubmitWriter::spawn(
+                &self.executor,
+                streams.submit,
+                move || responder.end_session(),
+            ));
             self.start_logger();
             Ok(())
         }

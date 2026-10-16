@@ -92,7 +92,7 @@ fn test_chunk_multi_dimension() {
 }
 
 #[test]
-#[should_panic]
+#[should_panic(expected = "out of bounds")]
 fn test_invalid_dim() {
     let _tensors = QTensor::<1>::int8([0.0, 1.0, 2.0, 3.0, 4.0, 5.0]).chunk(6, 1);
 }

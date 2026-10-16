@@ -696,7 +696,6 @@ fn lanczos3_axis_taps(
 /// Uses skip-and-renormalize boundary handling: out-of-bounds samples are
 /// excluded and weights are renormalized. This avoids edge ringing artifacts
 /// from replicated boundary pixels (unlike bicubic which clamps to edge).
-/// Matches the ndarray reference implementation.
 fn interpolate_lanczos3_impl<T>(
     x: FlexTensor,
     output_size: [usize; 2],

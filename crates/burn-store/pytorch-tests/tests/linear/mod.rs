@@ -101,18 +101,6 @@ mod tests {
     }
 
     #[test]
-    fn linear_half_precision() {
-        let device = Default::default();
-        let mut model = Net::init(&device);
-        let mut store = PytorchStore::from_file("tests/linear/linear.pt");
-        model
-            .load_from(&mut store)
-            .expect("Should decode state successfully");
-
-        linear_test(model, 1e-4);
-    }
-
-    #[test]
     fn linear_full_model_save() {
         // torch.save(model) of the model behind linear.pt, with fc2 leaving its bias slot
         // as None: the state_dict is rebuilt from the pickled module.

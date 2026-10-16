@@ -32,6 +32,7 @@ compile_error!(
 mod backend;
 mod layout;
 mod qtensor;
+mod quant_codes;
 mod strided_index;
 mod tensor;
 mod zip;

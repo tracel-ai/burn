@@ -3,6 +3,7 @@
 [Burn](https://github.com/tracel-ai/burn) WGPU backend
 
 [![Current Crates.io Version](https://img.shields.io/crates/v/burn-wgpu.svg)](https://crates.io/crates/burn-wgpu)
+[![Documentation](https://docs.rs/burn-wgpu/badge.svg)](https://docs.rs/burn-wgpu)
 [![license](https://shields.io/badge/license-MIT%2FApache--2.0-blue)](https://github.com/tracel-ai/burn/blob/main/LICENSE-MIT)
 
 This crate provides a WGPU backend for [Burn](https://github.com/tracel-ai/burn) using the
@@ -63,3 +64,10 @@ device constructor to select the graphics API.
 | OpenGL | No  | Yes |  Yes  |  Yes  |   Yes   |   Yes   | Yes |  No  |
 | WebGpu | No  | Yes |  No   |  No   |   No    |   No    | No  | Yes  |
 | Dx12   | No  | Yes |  No   |  No   |   Yes   |   No    | No  |  No  |
+
+<!-- burn-crate-footer -->
+
+---
+
+Part of the [Burn](https://github.com/tracel-ai/burn) deep learning framework. See the
+[Burn Book](https://burn.dev/books/burn/) and the [API documentation](https://docs.rs/burn).

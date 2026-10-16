@@ -3,6 +3,7 @@
 > [Burn](https://github.com/tracel-ai/burn) backend extension generation
 
 [![Current Crates.io Version](https://img.shields.io/crates/v/burn-backend-extension.svg)](https://crates.io/crates/burn-backend-extension)
+[![Documentation](https://docs.rs/burn-backend-extension/badge.svg)](https://docs.rs/burn-backend-extension)
 [![license](https://shields.io/badge/license-MIT%2FApache--2.0-blue)](https://github.com/tracel-ai/burn/blob/main/LICENSE-MIT)
 
 `#[backend_extension]` generates runtime dispatch for custom backend operations. Enable Burn's
@@ -11,12 +12,12 @@ backend, then expose a `Tensor<D>` wrapper through `Dispatch` and `Tensor::into_
 `Tensor::from_dispatch`.
 
 `Cube` selects CubeCL runtimes such as WGPU, CUDA, ROCm, and CPU; `Wgpu` and `Cuda` are not macro
-selectors. Other execution backend selectors include `Flex`, `NdArray`, `LibTorch`, and `Remote`.
+selectors. Other execution backend selectors include `Flex` and `Remote`.
 Selectors can be gated with conditions such as `Cube: cfg(feature = "wgpu")`, evaluated in the
 extension crate. Add `Autodiff` to route to your `Autodiff<B, C>` implementation; it does not
 generate derivatives. A default body composing differentiable primitives can also supply that
 implementation. See the
-[book introduction](../../burn-book/src/advanced/backend-extension/README.md) for a small Flex
+[book introduction](https://github.com/tracel-ai/burn/blob/main/burn-book/src/advanced/backend-extension/README.md) for a small Flex
 example.
 
 Add `Fusion` to generate a lazy implementation that computes output metadata now and calls the
@@ -48,9 +49,9 @@ output shape, call a helper shared with the backend implementation, such as
 **For structured outputs, metadata supplies the actual non-tensor return values.** They must match
 direct backend execution; the backend's later values are discarded without comparison.
 
-See the [macro documentation in `src/lib.rs`](src/lib.rs) for the complete metadata contract,
+See the [macro documentation in `src/lib.rs`](https://github.com/tracel-ai/burn/blob/main/crates/burn-backend-extension/src/lib.rs) for the complete metadata contract,
 supported signatures, validation, and scalar encodings. The
-[custom CubeCL kernel tutorial](../../burn-book/src/advanced/backend-extension/custom-cubecl-kernel.md)
+[custom CubeCL kernel tutorial](https://github.com/tracel-ai/burn/blob/main/burn-book/src/advanced/backend-extension/custom-cubecl-kernel.md)
 shows how to add a kernel and a handwritten backward pass. Fusion generation does not generate
 gradients or automatically merge custom kernels with neighboring operations.
 
@@ -64,3 +65,10 @@ including debug-only validation checks:
 BURN_DEVICE=cpu cargo test -p burn-core --no-default-features --features std,extension-tests,cpu \
   --test backend_extension_fusion --test backend_extension_scalars
 ```
+
+<!-- burn-crate-footer -->
+
+---
+
+Part of the [Burn](https://github.com/tracel-ai/burn) deep learning framework. See the
+[Burn Book](https://burn.dev/books/burn/) and the [API documentation](https://docs.rs/burn).

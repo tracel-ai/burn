@@ -24,7 +24,8 @@ use burn_std::{BoolDType, FloatDType, IntDType, TensorData};
 
 #[cfg(feature = "capture")]
 pub use burn_dispatch::backends::capture::{
-    CaptureError, CaptureScope, CapturedGraph, CompletedCaptureScope, TensorId,
+    CaptureError, CaptureScope, CaptureTensor, CapturedGraph, CompletedCaptureScope,
+    IntoCaptureOutputs, TensorId,
 };
 
 #[cfg(any(feature = "cpu", feature = "cuda", feature = "rocm", feature = "wgpu"))]
@@ -54,7 +55,7 @@ use alloc::vec::Vec;
 /// Backend-free builds can expose tensor/model APIs, but cannot create an execution device.
 ///
 /// [`Device::default()`] selects the first enabled backend in this order:
-/// CUDA, Metal, ROCm, Vulkan, WebGPU, wgpu, CPU, LibTorch, Flex, Remote, NdArray.
+/// CUDA, Metal, ROCm, Vulkan, WebGPU, wgpu, CPU, Flex, Remote.
 /// Use an explicit factory method when the choice must be independent of Cargo feature unification.
 /// Without an execution backend, `Device::default()` panics with configuration guidance.
 ///
@@ -76,11 +77,10 @@ use alloc::vec::Vec;
 /// ```
 ///
 /// Available factory methods (each gated by its matching Cargo feature):
-/// `Device::cpu`, `Device::cuda` / `Device::rocm` / `Device::libtorch_cuda`
+/// `Device::cpu`, `Device::cuda` / `Device::rocm`
 /// (take an integer index or a [`DeviceIndex`]), `Device::wgpu` /
 /// `Device::vulkan` / `Device::metal` / `Device::webgpu` (take a
-/// [`DeviceKind`]), `Device::flex`, `Device::ndarray`, `Device::libtorch`,
-/// `Device::libtorch_mps`, `Device::libtorch_vulkan`, `Device::capture`.
+/// [`DeviceKind`]), `Device::flex`, `Device::capture`.
 ///
 /// # Autodiff
 ///
@@ -191,9 +191,8 @@ impl<D: Into<DispatchDevice>> From<D> for Device {
 /// Selector for the hardware index of a backend whose devices are simply
 /// indexed (e.g. CUDA, ROCm).
 ///
-/// Backend factory methods that take an index (`Device::cuda`, `Device::rocm`,
-/// `Device::libtorch_cuda`) accept `impl Into<DeviceIndex>`, so the common
-/// shorthand is to pass a plain integer literal:
+/// Backend factory methods that take an index (`Device::cuda`, `Device::rocm`)
+/// accept `impl Into<DeviceIndex>`, so the common shorthand is to pass a plain integer literal:
 ///
 /// ```rust,ignore
 /// Device::cuda(0);                    // hardware index 0
@@ -365,63 +364,6 @@ impl Device {
         Self::new(burn_dispatch::devices::FlexDevice)
     }
 
-    /// Default NdArray (CPU) device.
-    #[cfg(feature = "ndarray")]
-    #[deprecated(
-        since = "0.22.0",
-        note = "burn-ndarray is deprecated and will be removed in a future release. Use `Device::flex()` for pure-Rust CPU execution instead."
-    )]
-    #[allow(deprecated)] // constructing the deprecated device is this constructor's job
-    pub fn ndarray() -> Self {
-        Self::new(burn_dispatch::devices::NdArrayDevice::default())
-    }
-
-    /// LibTorch CPU device.
-    #[cfg(feature = "tch")]
-    #[deprecated(
-        since = "0.22.0",
-        note = "burn-tch is deprecated and will be removed in a future release. Use a CubeCL backend (`Device::cuda`, `Device::rocm`, `Device::metal`, `Device::vulkan`, `Device::cpu`) or `Device::flex()` instead."
-    )]
-    #[allow(deprecated)] // constructing the deprecated device is this constructor's job
-    pub fn libtorch() -> Self {
-        Self::new(burn_dispatch::devices::LibTorchDevice::Cpu)
-    }
-
-    /// LibTorch CUDA device at the given hardware index.
-    #[cfg(feature = "tch")]
-    #[deprecated(
-        since = "0.22.0",
-        note = "burn-tch is deprecated and will be removed in a future release. Use a CubeCL backend (`Device::cuda`, `Device::rocm`, `Device::metal`, `Device::vulkan`, `Device::cpu`) or `Device::flex()` instead."
-    )]
-    #[allow(deprecated)] // constructing the deprecated device is this constructor's job
-    pub fn libtorch_cuda(index: impl Into<DeviceIndex>) -> Self {
-        Self::new(burn_dispatch::devices::LibTorchDevice::Cuda(
-            index.into().resolve(),
-        ))
-    }
-
-    /// LibTorch Metal Performance Shaders (MPS) device.
-    #[cfg(feature = "tch")]
-    #[deprecated(
-        since = "0.22.0",
-        note = "burn-tch is deprecated and will be removed in a future release. Use a CubeCL backend (`Device::cuda`, `Device::rocm`, `Device::metal`, `Device::vulkan`, `Device::cpu`) or `Device::flex()` instead."
-    )]
-    #[allow(deprecated)] // constructing the deprecated device is this constructor's job
-    pub fn libtorch_mps() -> Self {
-        Self::new(burn_dispatch::devices::LibTorchDevice::Mps)
-    }
-
-    /// LibTorch Vulkan device.
-    #[cfg(feature = "tch")]
-    #[deprecated(
-        since = "0.22.0",
-        note = "burn-tch is deprecated and will be removed in a future release. Use a CubeCL backend (`Device::cuda`, `Device::rocm`, `Device::metal`, `Device::vulkan`, `Device::cpu`) or `Device::flex()` instead."
-    )]
-    #[allow(deprecated)] // constructing the deprecated device is this constructor's job
-    pub fn libtorch_vulkan() -> Self {
-        Self::new(burn_dispatch::devices::LibTorchDevice::Vulkan)
-    }
-
     /// WGPU device, selected via [`DeviceKind`].
     ///
     /// [`AutoCompiler`](burn_dispatch::devices::AutoCompiler) dispatches to the most
@@ -461,7 +403,7 @@ impl Device {
 
     /// Metal-backed WGPU device, selected via [`DeviceKind`], requiring native MSL support.
     ///
-    /// Pinned to Metal, as [`Device::vulkan`] is to Vulkan. Runtime initialization panics if
+    /// Pinned to Metal, as `Device::vulkan` is to Vulkan. Runtime initialization panics if
     /// native MSL is unavailable on the selected device. Use [`Device::wgpu`] for automatic
     /// compiler selection with WGSL fallback.
     #[cfg(feature = "metal")]
@@ -473,7 +415,7 @@ impl Device {
     }
 
     /// WebGPU-backed device, selected via [`DeviceKind`] — the browser's own. Pinned to
-    /// WebGPU, as [`Device::vulkan`] is to Vulkan.
+    /// WebGPU, as `Device::vulkan` is to Vulkan.
     #[cfg(feature = "webgpu")]
     pub fn webgpu(device_kind: DeviceKind) -> Self {
         Self::new(wgpu_device(
@@ -659,7 +601,7 @@ impl Device {
     /// [`ProfileOptions::flush`], closes the window over all of it. A window
     /// that nothing ran in reads as no time.
     ///
-    /// A backend with no device clock (ndarray, LibTorch, a remote device
+    /// A backend with no device clock (such as a remote device
     /// whose server has none) measures wall-clock time between two syncs
     /// instead: that one waits, and an inner window's syncs are charged to
     /// the outer.
@@ -928,10 +870,6 @@ impl Device {
                 }
                 #[cfg(feature = "flex")]
                 DeviceType::Flex => DispatchDeviceId::Flex,
-                #[cfg(feature = "ndarray")]
-                DeviceType::NdArray => DispatchDeviceId::NdArray,
-                #[cfg(feature = "tch")]
-                DeviceType::LibTorch => DispatchDeviceId::LibTorch,
                 #[cfg(feature = "remote")]
                 DeviceType::Remote(host) => {
                     devices.extend(host.enumerate());
@@ -1178,10 +1116,6 @@ pub enum DeviceType {
     WebGpu,
     #[cfg(feature = "flex")]
     Flex,
-    #[cfg(feature = "ndarray")]
-    NdArray,
-    #[cfg(feature = "tch")]
-    LibTorch,
     /// Every device the remote server `host` hosts, connected on first use like any listed device.
     /// [`RemoteHost::devices`](crate::remote::RemoteHost::devices) does the same and returns an
     /// error where `enumerate` panics.

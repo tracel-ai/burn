@@ -12,34 +12,12 @@ mod flex {
     }
 }
 
-#[cfg(feature = "tch-gpu")]
-mod tch_gpu {
-    use burn::tensor::{Device, DeviceIndex};
-
-    pub fn run() {
-        #[cfg(not(target_os = "macos"))]
-        let device = Device::libtorch_cuda(DeviceIndex::Default);
-        #[cfg(target_os = "macos")]
-        let device = Device::libtorch_mps();
-
-        super::run(device);
-    }
-}
-
 #[cfg(feature = "wgpu")]
 mod wgpu {
     use burn::tensor::{Device, DeviceKind};
 
     pub fn run() {
         super::run(Device::wgpu(DeviceKind::DefaultDevice));
-    }
-}
-
-#[cfg(feature = "tch-cpu")]
-mod tch_cpu {
-    use burn::tensor::Device;
-    pub fn run() {
-        super::run(Device::libtorch());
     }
 }
 
@@ -66,10 +44,6 @@ pub fn run(device: Device) {
 fn main() {
     #[cfg(feature = "flex")]
     flex::run();
-    #[cfg(feature = "tch-gpu")]
-    tch_gpu::run();
-    #[cfg(feature = "tch-cpu")]
-    tch_cpu::run();
     #[cfg(feature = "wgpu")]
     wgpu::run();
     #[cfg(feature = "remote")]

@@ -270,24 +270,36 @@ where
         }
     }
 
-    pub fn resolve_server_float<B>(&mut self, tensor: &TensorIr) -> B::FloatTensorPrimitive
+    pub fn resolve_server_float<B>(
+        &mut self,
+        tensor: TensorIr,
+        id: StreamId,
+    ) -> Result<B::FloatTensorPrimitive, ExecutionError>
     where
         B: FusionBackend<FusionRuntime = R>,
     {
-        self.handles.get_float_tensor::<B>(tensor)
+        self.read_float::<B>(tensor, id).map_err(execution_error)
     }
 
-    pub fn resolve_server_int<B>(&mut self, tensor: &TensorIr) -> B::IntTensorPrimitive
+    pub fn resolve_server_int<B>(
+        &mut self,
+        tensor: TensorIr,
+        id: StreamId,
+    ) -> Result<B::IntTensorPrimitive, ExecutionError>
     where
         B: FusionBackend<FusionRuntime = R>,
     {
-        self.handles.get_int_tensor::<B>(tensor)
+        self.read_int::<B>(tensor, id).map_err(execution_error)
     }
 
-    pub fn resolve_server_bool<B>(&mut self, tensor: &TensorIr) -> B::BoolTensorPrimitive
+    pub fn resolve_server_bool<B>(
+        &mut self,
+        tensor: TensorIr,
+        id: StreamId,
+    ) -> Result<B::BoolTensorPrimitive, ExecutionError>
     where
         B: FusionBackend<FusionRuntime = R>,
     {
-        self.handles.get_bool_tensor::<B>(tensor)
+        self.read_bool::<B>(tensor, id).map_err(execution_error)
     }
 }

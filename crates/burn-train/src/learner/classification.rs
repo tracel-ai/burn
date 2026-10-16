@@ -15,6 +15,7 @@ use burn_std::ExecutionError;
 /// - Precision (via ConfusionStatsInput)
 /// - Recall (via ConfusionStatsInput)
 /// - FBetaScore (via ConfusionStatsInput)
+/// - MatthewsCorrelationCoefficient (via ConfusionStatsInput, single-label only)
 /// - Loss.
 #[derive(new)]
 pub struct ClassificationOutput {
@@ -30,8 +31,8 @@ pub struct ClassificationOutput {
 
 impl ItemLazy for ClassificationOutput {
     fn sync(self) -> Result<Self, ExecutionError> {
-        // No readback: the metrics compute on the device the tensors live on
-        // and read back only their final scalars. Flushing dispatches the
+        // No readback here: metrics reduce on the tensors' device and read back
+        // final scalars or compact per-class statistics. Flushing dispatches the
         // producing stream's buffered work so the metric thread doesn't wait
         // on an idle queue; all tensors in a training item come off the
         // autodiff backend entirely, so the metric thread neither retains the

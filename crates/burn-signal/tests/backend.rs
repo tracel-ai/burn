@@ -7,7 +7,6 @@
     feature = "cuda",
     feature = "rocm",
     feature = "cpu",
-    feature = "tch",
     feature = "remote",
     feature = "capture"
 ))]

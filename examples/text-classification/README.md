@@ -21,43 +21,6 @@ It also provides an example of finetuning using [LoRA](https://arxiv.org/pdf/210
 
 # Usage
 
-## Torch GPU backend
-
-```bash
-git clone https://github.com/tracel-ai/burn.git
-cd burn
-
-# Use the --release flag to really speed up training.
-# Use the f16 feature if your CUDA device supports FP16 (half precision) operations. May not work well on every device.
-
-export TORCH_CUDA_VERSION=cu128  # Set the cuda version (CUDA users)
-
-# AG News
-cargo run -p text-classification --example ag-news-train --release --features tch-gpu   # Train on the ag news dataset
-cargo run -p text-classification --example ag-news-infer --release --features tch-gpu   # Run inference on the ag news dataset
-
-# DbPedia
-cargo run -p text-classification --example db-pedia-train --release --features tch-gpu  # Train on the db pedia dataset
-cargo run -p text-classification --example db-pedia-infer --release --features tch-gpu  # Run inference db pedia dataset
-```
-
-## Torch CPU backend
-
-```bash
-git clone https://github.com/tracel-ai/burn.git
-cd burn
-
-# Use the --release flag to really speed up training.
-
-# AG News
-cargo run -p text-classification --example ag-news-train --release --features tch-cpu   # Train on the ag news dataset
-cargo run -p text-classification --example ag-news-infer --release --features tch-cpu   # Run inference on the ag news dataset
-
-# DbPedia
-cargo run -p text-classification --example db-pedia-train --release --features tch-cpu  # Train on the db pedia dataset
-cargo run -p text-classification --example db-pedia-infer --release --features tch-cpu  # Run inference db pedia dataset
-```
-
 ## Flex backend
 
 ```bash

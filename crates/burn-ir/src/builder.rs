@@ -10,7 +10,7 @@ use burn_backend::{
         },
         unfold::calculate_unfold_shape,
     },
-    quantization::{QuantScheme, QuantStore},
+    quantization::QuantScheme,
     tensor::IndexingUpdateOp,
 };
 
@@ -18,31 +18,34 @@ use crate::{ScalarIr, TensorId, TensorIr};
 
 use super::operation::*;
 
-fn permute_quantized_dtype(dtype: DType, rank: usize, axes: &[usize]) -> DType {
-    let DType::QFloat(mut scheme) = dtype else {
-        return dtype;
-    };
-
-    scheme.permute_block_dims(rank, axes);
-
-    if let QuantStore::PackedU32(packed_dim) | QuantStore::PackedNative(packed_dim) =
-        &mut scheme.store
-    {
-        let packed_axis = rank - *packed_dim - 1;
-        let new_axis = axes
-            .iter()
-            .position(|axis| *axis == packed_axis)
-            .expect("Permute axes to contain the packed axis");
-        *packed_dim = rank - new_axis - 1;
+fn permute_quantized_dtype(dtype: DType, axes: &[usize]) -> DType {
+    match dtype {
+        DType::QFloat(mut scheme) => {
+            scheme.permute_dims(axes);
+            DType::QFloat(scheme)
+        }
+        dtype => dtype,
     }
-
-    DType::QFloat(scheme)
 }
 
 fn swap_dims_quantized_dtype(dtype: DType, rank: usize, dim1: usize, dim2: usize) -> DType {
-    let mut axes = (0..rank).collect::<Vec<_>>();
-    axes.swap(dim1, dim2);
-    permute_quantized_dtype(dtype, rank, &axes)
+    match dtype {
+        DType::QFloat(mut scheme) => {
+            scheme.swap_dims(rank, dim1, dim2);
+            DType::QFloat(scheme)
+        }
+        dtype => dtype,
+    }
+}
+
+fn reshape_quantized_dtype(dtype: DType, rank: usize) -> DType {
+    match dtype {
+        DType::QFloat(mut scheme) => {
+            scheme.reshape_packing_dim(rank);
+            DType::QFloat(scheme)
+        }
+        dtype => dtype,
+    }
 }
 
 impl CreationOpIr {
@@ -108,7 +111,9 @@ impl ShapeOpIr {
             shape.num_elements(),
             "Reshape must preserve the number of elements"
         );
-        Self::create(input, shape, new_id)
+        let dtype = reshape_quantized_dtype(input.dtype, shape.num_dims());
+        let out = TensorIr::uninit(new_id(), shape, dtype);
+        Self { input, out }
     }
 
     fn create(input: TensorIr, shape: Shape, new_id: impl FnOnce() -> TensorId) -> Self {
@@ -325,7 +330,7 @@ impl_ir_create!(
 impl_ir_create!(
     PermuteOpIr { input: TensorIr, axes: Vec<usize> },
     shape = input.shape.clone().permuted(&axes).unwrap(),
-    dtype = permute_quantized_dtype(input.dtype, input.shape.rank(), &axes)
+    dtype = permute_quantized_dtype(input.dtype, &axes)
 );
 
 impl_ir_create!(
@@ -778,6 +783,41 @@ impl_ir_create!(
 );
 
 impl_ir_create!(
+    AvgPool3dOpIr {
+        x: TensorIr,
+        kernel_size: [usize; 3],
+        stride: [usize; 3],
+        padding: [usize; 3],
+        count_include_pad: bool,
+        ceil_mode: bool
+    },
+    shape = calculate_pool_output_shape(
+        &x.shape,
+        &kernel_size,
+        &stride,
+        &padding,
+        &[1, 1, 1],
+        ceil_mode
+    )
+    .unwrap(),
+    dtype = x.dtype
+);
+
+impl_ir_create!(
+    AvgPool3dBackwardOpIr {
+        x: TensorIr,
+        grad: TensorIr,
+        kernel_size: [usize; 3],
+        stride: [usize; 3],
+        padding: [usize; 3],
+        count_include_pad: bool,
+        ceil_mode: bool
+    },
+    shape = x.shape.clone(),
+    dtype = x.dtype
+);
+
+impl_ir_create!(
     MaxPool1dOpIr {
         x: TensorIr,
         kernel_size: usize,
@@ -843,6 +883,42 @@ impl_ir_create!(
         stride: [usize; 2],
         padding: [usize; 2],
         dilation: [usize; 2],
+        ceil_mode: bool
+    },
+    shape = x.shape.clone(),
+    dtype = x.dtype
+);
+
+impl_ir_create!(
+    MaxPool3dOpIr {
+        x: TensorIr,
+        kernel_size: [usize; 3],
+        stride: [usize; 3],
+        padding: [usize; 3],
+        dilation: [usize; 3],
+        ceil_mode: bool
+    },
+    shape = calculate_pool_output_shape(
+        &x.shape,
+        &kernel_size,
+        &stride,
+        &padding,
+        &dilation,
+        ceil_mode
+    )
+    .unwrap(),
+    dtype = x.dtype
+);
+
+impl_ir_create!(
+    MaxPool3dWithIndicesBackwardOpIr {
+        x: TensorIr,
+        grad: TensorIr,
+        indices: TensorIr,
+        kernel_size: [usize; 3],
+        stride: [usize; 3],
+        padding: [usize; 3],
+        dilation: [usize; 3],
         ceil_mode: bool
     },
     shape = x.shape.clone(),
@@ -1606,9 +1682,47 @@ impl MaxPool2dWithIndicesOpIr {
     }
 }
 
+impl MaxPool3dWithIndicesOpIr {
+    #[allow(clippy::too_many_arguments)]
+    pub fn create(
+        x: TensorIr,
+        kernel_size: [usize; 3],
+        stride: [usize; 3],
+        padding: [usize; 3],
+        dilation: [usize; 3],
+        ceil_mode: bool,
+        dtype_indices: DType,
+        mut new_id: impl FnMut() -> TensorId,
+    ) -> Self {
+        let shape = calculate_pool_output_shape(
+            &x.shape,
+            &kernel_size,
+            &stride,
+            &padding,
+            &dilation,
+            ceil_mode,
+        )
+        .unwrap();
+        let out = TensorIr::uninit(new_id(), shape.clone(), x.dtype);
+        let out_indices = TensorIr::uninit(new_id(), shape, dtype_indices);
+
+        MaxPool3dWithIndicesOpIr {
+            x,
+            kernel_size,
+            stride,
+            padding,
+            dilation,
+            ceil_mode,
+            out,
+            out_indices,
+        }
+    }
+}
+
 #[cfg(test)]
 mod shape_tests {
     use super::*;
+    use burn_backend::quantization::QuantStore;
 
     #[test]
     fn reshape_preserves_concrete_shape() {
@@ -1626,6 +1740,17 @@ mod shape_tests {
             assert_eq!(desc.out.dtype, input.dtype);
             assert_eq!(desc.out.id, TensorId::new(2));
         }
+    }
+
+    #[test]
+    fn reshape_past_the_packed_axis_packs_innermost() {
+        let scheme = QuantScheme::default().with_store(QuantStore::PackedU32(1));
+        let input = TensorIr::uninit(TensorId::new(1), Shape::new([4, 8]), DType::QFloat(scheme));
+
+        let desc = ShapeOpIr::reshape(input, Shape::new([32]), || TensorId::new(2));
+
+        let packed_innermost = scheme.with_store(QuantStore::PackedU32(0));
+        assert_eq!(desc.out.dtype, DType::QFloat(packed_innermost));
     }
 
     #[test]

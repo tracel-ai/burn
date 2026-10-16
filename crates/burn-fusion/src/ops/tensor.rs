@@ -1,6 +1,5 @@
-use super::NoOp;
 use crate::{
-    Fusion, FusionBackend, binary_float_cmp_ops, binary_float_ops,
+    Fusion, FusionBackend, FusionTensor, binary_float_cmp_ops, binary_float_ops,
     client::GlobalFusionClient,
     get_client, reduce_ops, scalar_float_cmp_ops, scalar_float_ops,
     stream::{StreamId, execution::Operation},
@@ -66,15 +65,9 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         let shape = burn_backend::TensorMetadata::shape(&tensor);
 
         let handle = B::float_tensor_handle(tensor);
-        let desc = InitOperationIr::create(shape, dtype, || client.register_tensor_handle(handle));
+        let id = client.register_tensor_handle(handle);
 
-        client
-            .register(
-                StreamId::current(),
-                OperationIr::Init(desc),
-                NoOp::<B>::new(),
-            )
-            .output()
+        FusionTensor::new(id, shape, dtype, client, StreamId::current())
     }
 
     fn float_random(
@@ -569,6 +562,43 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
                     NumericOperationIr::RemScalar(desc.clone()),
                 ),
                 ModOps::<B>::new(desc),
+            )
+            .output()
+    }
+
+    fn float_fmod(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> FloatTensor<Self> {
+        binary_float_ops!(FmodOps, B::float_fmod);
+
+        let streams = StreamId::current();
+
+        let client = lhs.client.clone();
+        let desc = BinaryOpIr::create(lhs.into_ir(), rhs.into_ir(), || {
+            client.create_empty_handle()
+        });
+
+        client
+            .register(
+                streams,
+                OperationIr::Float(desc.out.dtype, FloatOperationIr::Fmod(desc.clone())),
+                FmodOps::<B>::new(desc),
+            )
+            .output()
+    }
+
+    fn float_fmod_scalar(lhs: FloatTensor<Self>, rhs: Scalar) -> FloatTensor<Self> {
+        scalar_float_ops!(FmodOps, B::float_fmod_scalar);
+
+        let streams = StreamId::current();
+
+        let client = lhs.client.clone();
+        let rhs = rhs.into();
+        let desc = ScalarOpIr::create(lhs.into_ir(), rhs, || client.create_empty_handle());
+
+        client
+            .register(
+                streams,
+                OperationIr::Float(desc.out.dtype, FloatOperationIr::FmodScalar(desc.clone())),
+                FmodOps::<B>::new(desc),
             )
             .output()
     }
@@ -1834,6 +1864,32 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
                 streams,
                 OperationIr::Float(desc.out.dtype, FloatOperationIr::Log1p(desc.clone())),
                 Log1pOps::<B>::new(desc),
+            )
+            .output()
+    }
+
+    fn float_powi_scalar_impl(lhs: FloatTensor<Self>, rhs: Scalar) -> FloatTensor<Self> {
+        let exponent = rhs.elem::<f64>();
+        // Only record the integer kernel's supported range; other values keep the powf path.
+        if f64::from(exponent as i32) != exponent {
+            return Self::float_powf_scalar_impl(lhs, rhs);
+        }
+
+        scalar_float_ops!(PowiOps, B::float_powi_scalar_impl);
+
+        let client = lhs.client.clone();
+        let desc = ScalarOpIr::create(lhs.into_ir(), ScalarIr::Int(exponent as i64), || {
+            client.create_empty_handle()
+        });
+
+        client
+            .register(
+                StreamId::current(),
+                OperationIr::NumericFloat(
+                    desc.out.dtype,
+                    NumericOperationIr::PowiScalar(desc.clone()),
+                ),
+                PowiOps::<B>::new(desc),
             )
             .output()
     }

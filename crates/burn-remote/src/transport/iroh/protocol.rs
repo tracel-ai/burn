@@ -113,7 +113,6 @@ impl From<RemoteProtocol> for Box<dyn DynProtocolHandler> {
 impl<B: BackendIr> ProtocolHandler for IrohRemoteProtocol<B> {
     async fn accept(&self, connection: Connection) -> Result<(), AcceptError> {
         let client_id = connection.remote_id();
-        self.node.remember_connection(connection.clone()).await;
         loop {
             let Some((kind, send, recv)) = RemoteNode::accept_stream(&connection)
                 .await

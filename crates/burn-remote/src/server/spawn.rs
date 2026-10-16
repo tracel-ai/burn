@@ -1,4 +1,9 @@
-use core::future::Future;
+use core::{
+    future::Future,
+    panic::AssertUnwindSafe,
+    pin::Pin,
+    task::{Context, Poll},
+};
 
 #[cfg(not(target_family = "wasm"))]
 pub(crate) fn spawn_detached<F>(future: F)
@@ -47,6 +52,33 @@ impl ResponseTasks {
     pub(crate) fn abort_all(&mut self) {
         for task in self.running.drain(..) {
             task.abort();
+        }
+    }
+}
+
+/// A future that resolves to its panic's message instead of unwinding past its caller.
+pub(crate) struct CatchPanic<T>(Pin<Box<dyn Future<Output = T> + Send>>);
+
+impl<T> CatchPanic<T> {
+    pub(crate) fn new(future: impl Future<Output = T> + Send + 'static) -> Self {
+        Self(Box::pin(future))
+    }
+}
+
+impl<T> Future for CatchPanic<T> {
+    type Output = Result<T, String>;
+
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        match std::panic::catch_unwind(AssertUnwindSafe(|| self.0.as_mut().poll(cx))) {
+            Ok(poll) => poll.map(Ok),
+            Err(payload) => {
+                let message = payload
+                    .downcast_ref::<&str>()
+                    .copied()
+                    .or_else(|| payload.downcast_ref::<String>().map(String::as_str))
+                    .unwrap_or("no message");
+                Poll::Ready(Err(message.to_string()))
+            }
         }
     }
 }
