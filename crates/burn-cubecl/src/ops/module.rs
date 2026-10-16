@@ -10,11 +10,11 @@ use burn_backend::{
     TensorMetadata,
     ops::{
         AttentionModuleOptions, ConvOptions, ConvTransposeOptions, DeformConv2dBackward,
-        DeformConvOptions, InterpolateOptions, MaxPool2dBackward, MaxPool2dWithIndices,
-        MaxPool3dBackward, MaxPool3dWithIndices, ModuleOps,
+        DeformConvOptions, FloatTensorOps, InterpolateOptions, MaxPool2dBackward,
+        MaxPool2dWithIndices, MaxPool3dBackward, MaxPool3dWithIndices, ModuleOps,
     },
 };
-use burn_std::IntDType;
+use burn_std::{FloatDType, IntDType};
 
 impl ModuleOps<Self> for CubeBackend {
     fn conv1d(
@@ -465,7 +465,14 @@ impl ModuleOps<Self> for CubeBackend {
         target_lengths: IntTensor<Self>,
         blank: usize,
     ) -> FloatTensor<Self> {
-        kernel::ctc::ctc_loss(log_probs, targets, input_lengths, target_lengths, blank)
+        let dtype = log_probs.dtype.into();
+        let log_probs = match dtype {
+            FloatDType::F16 | FloatDType::BF16 => Self::float_cast(log_probs, FloatDType::F32),
+            _ => log_probs,
+        };
+        let loss = kernel::ctc::ctc_loss(log_probs, targets, input_lengths, target_lengths, blank);
+
+        Self::float_cast(loss, dtype)
     }
 
     fn ctc_loss_backward(
@@ -476,6 +483,12 @@ impl ModuleOps<Self> for CubeBackend {
         grad_loss: FloatTensor<Self>,
         blank: usize,
     ) -> FloatTensor<Self> {
+        let dtype = log_probs.dtype.into();
+        let log_probs = match dtype {
+            FloatDType::F16 | FloatDType::BF16 => Self::float_cast(log_probs, FloatDType::F32),
+            _ => log_probs,
+        };
+        let grad_loss = Self::float_cast(grad_loss, log_probs.dtype.into());
         let (log_alpha_full, log_beta_full, nll) = kernel::ctc::ctc_alpha_beta(
             log_probs.clone(),
             targets.clone(),
@@ -483,7 +496,7 @@ impl ModuleOps<Self> for CubeBackend {
             target_lengths,
             blank,
         );
-        burn_backend::ops::ctc::ctc_grad_from_alpha_beta_default::<Self>(
+        let grad = burn_backend::ops::ctc::ctc_grad_from_alpha_beta_default::<Self>(
             log_probs,
             targets,
             input_lengths,
@@ -492,6 +505,8 @@ impl ModuleOps<Self> for CubeBackend {
             log_beta_full,
             nll,
             blank,
-        )
+        );
+
+        Self::float_cast(grad, dtype)
     }
 }
