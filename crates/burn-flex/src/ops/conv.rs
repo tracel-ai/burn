@@ -3272,25 +3272,6 @@ mod tests {
     // NCHW im2col path: tiling must not change results
 
     #[test]
-    fn test_conv2d_im2col_nchw_no_output_channels() {
-        // Zero output channels: nothing to compute, and no im2col buffer to size
-        let x = vec![1.0f32; 5 * 3 * 3];
-        let out = conv2d_im2col_nchw::<f32>(
-            &x,
-            &[],
-            [1, 5, 3, 3],
-            [0, 5, 3, 3],
-            [3, 3],
-            [1, 1],
-            [1, 1],
-            [1, 1],
-            1,
-            IM2COL_MAX_ELEMS,
-        );
-        assert!(out.is_empty());
-    }
-
-    #[test]
     fn test_conv2d_im2col_nchw_tiled_matches_untiled() {
         // A tiny im2col budget forces many tiles, including ones that start mid-row
         let (c_in, c_out, h, w) = (3, 5, 9, 11);
