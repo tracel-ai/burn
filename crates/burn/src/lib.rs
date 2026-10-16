@@ -153,6 +153,8 @@
 //!   - `std`: Activates the standard library (deactivate for no_std)
 //!   - `linalg`: Enables linear algebra operations
 //!   - `capture`: Makes the non-executing graph capture backend available.
+//!   - `group`: Makes the experimental `Device::group_options` available, which splits each tensor
+//!     over several devices for tensor parallelism.
 //!   - `ir`: Makes Burn's operation intermediate representation available.
 //!   - `cubecl`: Re-exports CubeCL as `burn::cubecl` for writing custom kernels.
 //!   - `signal`: Enables signal processing operations from `burn-signal`.
@@ -217,6 +219,8 @@ pub mod rl {
     pub use burn_rl::*;
 }
 
+#[cfg(feature = "group")]
+pub use burn_core::tensor::group;
 #[cfg(feature = "remote")]
 pub use burn_core::tensor::remote;
 #[cfg(feature = "remote-server")]

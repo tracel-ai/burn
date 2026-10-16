@@ -40,6 +40,12 @@ pub(crate) const BACKENDS: &[BackendSpec] = &[
         unidirectional_transfer: false,
     },
     BackendSpec {
+        name: "Group",
+        cfg: "feature = \"group\"",
+        distributed: false,
+        unidirectional_transfer: false,
+    },
+    BackendSpec {
         name: "Capture",
         cfg: "feature = \"capture\"",
         distributed: false,

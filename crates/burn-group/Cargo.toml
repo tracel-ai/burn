@@ -1,0 +1,29 @@
+[package]
+name = "burn-group"
+description = "Tensors split over a group of devices, with the sharding rule of each op"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+repository = "https://github.com/tracel-ai/burn/tree/main/crates/burn-group"
+documentation = "https://docs.rs/burn-group"
+readme = "README.md"
+
+[lints]
+workspace = true
+
+[features]
+# Test-only: the `Tensor` tests put their members on the CUDA devices in turn, so shards cross
+# devices.
+test-cuda = ["burn-tensor/cuda"]
+test-fusion = ["burn-tensor/fusion"]
+
+[dependencies]
+burn-backend = { workspace = true, features = ["std"] }
+burn-ir = { workspace = true, features = ["std"] }
+burn-router = { workspace = true, features = ["std"] }
+burn-std = { workspace = true, features = ["std"] }
+
+[dev-dependencies]
+burn-flex = { workspace = true, features = ["default"] }
+# A path, not the workspace version: burn-tensor depends on this crate through burn-dispatch.
+burn-tensor = { path = "../burn-tensor", features = ["std", "flex", "autodiff", "group"] }

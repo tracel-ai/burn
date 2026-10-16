@@ -507,3 +507,18 @@ macro_rules! transaction_op {
         backend_list!(transaction_op_arms, $tx, $first)
     };
 }
+
+/// `$devices` as `$variant`'s own devices, or [`GroupError::MixedBackends`](burn_group::GroupError).
+#[cfg(feature = "group")]
+macro_rules! group_members {
+    ($devices:expr, $variant:ident) => {
+        $devices
+            .into_iter()
+            .map(|device| match device {
+                $crate::DispatchDevice::$variant(device) => Ok(device),
+                #[allow(unreachable_patterns)]
+                _ => Err(burn_group::GroupError::MixedBackends),
+            })
+            .collect::<Result<alloc::vec::Vec<_>, burn_group::GroupError>>()
+    };
+}
