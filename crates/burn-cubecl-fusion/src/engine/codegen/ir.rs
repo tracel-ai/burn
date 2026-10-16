@@ -675,6 +675,7 @@ pub struct FuseBlockConfig {
     pub rank: usize,
     pub ref_layout: RefLayout,
     pub ops: Vec<FuseOp>,
+    /// Scalars computed per fused chunk, independent of each argument's access width.
     pub width: VectorSize,
     /// The axis a vector of [width](Self::width) elements runs along.
     ///

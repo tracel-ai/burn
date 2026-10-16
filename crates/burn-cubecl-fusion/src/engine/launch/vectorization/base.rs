@@ -230,12 +230,12 @@ fn vectorization_input(
     }
 
     // Reflect changes from https://github.com/tracel-ai/cubecl/pull/1312
-    // Calculate the smallest non-zero stride among other dimensions
+    // Calculate the smallest non-zero stride among other non-singleton dimensions
     let mut next_stride = handle
         .strides
         .iter()
         .enumerate()
-        .filter_map(|(i, &s)| (i != axis && s != 0).then_some(s))
+        .filter_map(|(i, &s)| (i != axis && s != 0 && desc.shape[i] > 1).then_some(s))
         .min()
         .unwrap_or(0);
 
