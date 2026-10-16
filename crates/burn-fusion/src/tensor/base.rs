@@ -1,6 +1,6 @@
 use super::{
     deferred,
-    held::{HeldInput, HeldInputs},
+    held::{self, HeldInput},
 };
 use crate::{
     Client, FusionBackend, FusionRuntime,
@@ -128,7 +128,7 @@ impl<R: FusionRuntime> FusionTensor<R> {
     fn holders(&self) -> u32 {
         match self.count().load(Ordering::Acquire) {
             count @ (0 | 1) => count,
-            count => count - HeldInputs::count(self.id),
+            count => count - held::count(self.id),
         }
     }
 
@@ -164,7 +164,7 @@ impl<R: FusionRuntime> FusionTensor<R> {
             .take()
             .expect("a tensor holds its reference until it is consumed");
         if let TensorStatus::ReadOnly = status {
-            HeldInputs::hold(HeldInput::new(&self, count));
+            held::hold(HeldInput::new(&self, count));
         }
 
         TensorIr {
