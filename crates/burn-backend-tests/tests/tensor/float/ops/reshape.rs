@@ -1,5 +1,5 @@
 use super::*;
-use burn_tensor::TensorData;
+use burn_tensor::{Shape, TensorData};
 
 #[test]
 fn should_support_rank() {
@@ -59,6 +59,24 @@ fn should_support_dim_infererence() {
     // Keeping the first dimension the same (using 0)
     let reshaped = tensor.clone().reshape([0, 3]);
     assert_eq!(reshaped.shape(), [4, 3].into());
+}
+
+#[test]
+fn should_reshape_to_shape_with_zero_length_dim() {
+    let tensor = TestTensor::<2>::zeros([0, 2], &Default::default());
+
+    // A `0` in a `Shape` is a zero-length dimension, not "keep the source dimension".
+    let reshaped: TestTensor<2> = tensor.reshape(Shape::new([2, 0]));
+
+    assert_eq!(reshaped.shape(), Shape::new([2, 0]));
+    assert_eq!(reshaped.into_data().num_elements(), 0);
+}
+
+#[test]
+#[should_panic(expected = "=== Tensor Operation Error ===")]
+fn should_panic_reshape_to_shape_with_different_num_elements() {
+    let tensor = TestTensor::<1>::zeros([3], &Default::default());
+    let _reshaped: TestTensor<2> = tensor.reshape(Shape::new([2, 2]));
 }
 
 #[test]
