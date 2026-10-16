@@ -244,6 +244,21 @@ impl TensorCheck {
         check
     }
 
+    pub(crate) fn reshape(source: &Shape, target: &Shape) -> Self {
+        let mut check = Self::Ok;
+
+        if source.num_elements() != target.num_elements() {
+            check = check.register(
+                "Reshape",
+                TensorError::new(format!(
+                    "The given shape doesn't have the same number of elements as the current shape. Current shape: {source}, target shape: {target}."
+                )),
+            );
+        }
+
+        check
+    }
+
     pub(crate) fn squeeze<const D2: usize>(dim: usize, tensor_dims: &[usize]) -> Self {
         let mut check = Self::Ok;
         // This should actually be to check that the dimension to squeeze
