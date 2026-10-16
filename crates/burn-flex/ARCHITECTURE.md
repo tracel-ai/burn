@@ -526,6 +526,9 @@ bf16 requires conversion because gemm doesn't have native bf16 support.
 
 - **Rayon parallelism**: Batches and groups are parallelized via rayon
 - **Tiled im2col**: Column buffer is tiled for better cache locality
+- **NCHW im2col for 2D**: 2D convolutions build im2col straight from the NCHW input, with rows
+  ordered `(C_in, K_h, K_w)` like the OIHW kernel, so neither the kernel nor the input is
+  re-laid out per call and the GEMM writes directly into the output
 
 **Remaining Optimization Opportunities**
 
