@@ -231,9 +231,8 @@ impl TensorData {
     ///
     /// # Errors
     ///
-    /// Returns [`DataError::InvalidByteLength`] if the byte length doesn't match the number of
-    /// elements described by the shape times the dtype size. Quantized dtypes aren't checked,
-    /// since their packed layout isn't derived from the shape alone.
+    /// Returns [`DataError::InvalidByteLength`] if the byte length doesn't match the storage
+    /// layout described by the shape and dtype, including quantized schemes.
     ///
     /// The element values themselves aren't validated here (e.g. a `bool` byte other than 0 or
     /// 1); the checked accessors ([`TensorData::as_slice`], [`TensorData::try_to_vec`],
@@ -248,9 +247,14 @@ impl TensorData {
         // appended scales), so only the other dtypes have a shape-derived byte length. The
         // product is checked as well: a shape that overflows `usize` would otherwise wrap into
         // a small element count that matches the payload.
-        let expected = checked_numel(&shape).and_then(|numel| numel.checked_mul(dtype.size()));
+        let expected = match dtype {
+            DType::QFloat(scheme) => {
+                crate::tensor::quantization::try_quantized_data_len(&scheme, &shape)
+            }
+            _ => checked_numel(&shape).and_then(|numel| numel.checked_mul(dtype.size())),
+        };
 
-        if !matches!(dtype, DType::QFloat(_)) && expected != Some(bytes.len()) {
+        if expected != Some(bytes.len()) {
             return Err(DataError::InvalidByteLength {
                 shape,
                 dtype,
@@ -1202,6 +1206,50 @@ mod tests {
         let serialized = serde_json::to_string(&data).unwrap();
         let deserialized: TensorData = serde_json::from_str(&serialized).unwrap();
         assert_eq!(deserialized, data);
+    }
+
+    #[test]
+    fn try_from_bytes_rejects_invalid_quantized_lengths_and_schemes() {
+        let scheme = QuantScheme::default();
+        let valid = TensorData::quantized(vec![0i8; 3], [3], scheme, &[1.0], None);
+        let (bytes, shape, dtype) = valid.into_parts();
+        assert!(TensorData::try_from_bytes(bytes.clone(), shape.clone(), dtype).is_ok());
+
+        for len in [bytes.len() - 1, bytes.len() + 1] {
+            assert!(matches!(
+                TensorData::try_from_bytes_vec(vec![0; len], shape.clone(), dtype),
+                Err(DataError::InvalidByteLength { .. })
+            ));
+        }
+
+        let invalid_packed_dim = scheme.with_store(QuantStore::PackedU32(1));
+        assert!(matches!(
+            TensorData::try_from_bytes_vec(vec![0; 4], [1], DType::QFloat(invalid_packed_dim)),
+            Err(DataError::InvalidByteLength { .. })
+        ));
+
+        let zero_block = scheme.per_block([0], crate::ScaleDtype::F32);
+        assert!(matches!(
+            TensorData::try_from_bytes_vec(vec![0; 4], [1], DType::QFloat(zero_block)),
+            Err(DataError::InvalidByteLength { .. })
+        ));
+
+        assert!(matches!(
+            TensorData::try_from_bytes_vec(vec![], [usize::MAX, 2], DType::QFloat(scheme)),
+            Err(DataError::InvalidByteLength { .. })
+        ));
+    }
+
+    #[test]
+    fn deserialization_rejects_invalid_quantized_length() {
+        let invalid = TensorData::from_bytes_unchecked(
+            Bytes::from_bytes_vec(vec![0; 3]),
+            [4],
+            DType::QFloat(QuantScheme::default().with_store(QuantStore::Native)),
+        );
+        let serialized = serde_json::to_string(&invalid).unwrap();
+
+        assert!(serde_json::from_str::<TensorData>(&serialized).is_err());
     }
 
     #[test]
