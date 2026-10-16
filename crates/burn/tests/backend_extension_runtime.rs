@@ -246,6 +246,7 @@ mod extension_context_contract {
     use core::sync::atomic::{AtomicBool, Ordering};
 
     static IMPLEMENTATION_CALLED: AtomicBool = AtomicBool::new(false);
+    static ROUTED_THROUGH_AUTODIFF: AtomicBool = AtomicBool::new(false);
 
     #[derive(ExtensionType)]
     struct IntPair<B: burn::backend::Backend> {
@@ -267,10 +268,18 @@ mod extension_context_contract {
         choice: IntChoice<B>,
     }
 
+    #[derive(ExtensionType)]
+    struct MixedRouteInputs<B: burn::backend::Backend> {
+        first: FloatTensor<B>,
+        second: FloatTensor<B>,
+        indices: IntTensor<B>,
+    }
+
     #[backend_extension(Autodiff, Flex)]
     trait ContextBackend: burn::backend::Backend {
         fn select(#[extension_type] inputs: NestedInputs<Self>) -> IntTensor<Self>;
         fn select_conflict(#[extension_type] inputs: NestedInputs<Self>) -> IntTensor<Self>;
+        fn mixed_route(#[extension_type] inputs: MixedRouteInputs<Self>) -> FloatTensor<Self>;
     }
 
     impl ContextBackend for Flex {
@@ -282,6 +291,11 @@ mod extension_context_contract {
             IMPLEMENTATION_CALLED.store(true, Ordering::SeqCst);
             inputs.pair.left
         }
+
+        fn mixed_route(inputs: MixedRouteInputs<Self>) -> FloatTensor<Self> {
+            ROUTED_THROUGH_AUTODIFF.store(false, Ordering::SeqCst);
+            inputs.first
+        }
     }
 
     impl<C: CheckpointStrategy> ContextBackend for Autodiff<Flex, C> {
@@ -292,6 +306,11 @@ mod extension_context_contract {
         fn select_conflict(inputs: NestedInputs<Self>) -> IntTensor<Self> {
             IMPLEMENTATION_CALLED.store(true, Ordering::SeqCst);
             inputs.pair.left
+        }
+
+        fn mixed_route(inputs: MixedRouteInputs<Self>) -> FloatTensor<Self> {
+            ROUTED_THROUGH_AUTODIFF.store(true, Ordering::SeqCst);
+            inputs.first
         }
     }
 
@@ -336,6 +355,40 @@ mod extension_context_contract {
         assert_eq!(
             output.device().gradient_checkpointing_strategy(),
             Some(GradientCheckpointingStrategy::Balanced)
+        );
+    }
+
+    #[test]
+    fn only_an_autodiff_float_selects_the_extension_autodiff_route() {
+        let autodiff_device = Device::flex().autodiff().gradient_checkpointing();
+        let plain_device = Device::flex();
+
+        let output = <Dispatch as ContextBackend>::mixed_route(MixedRouteInputs {
+            first: Tensor::<1>::from_floats([1.0], &plain_device).into_dispatch(),
+            second: Tensor::<1>::from_floats([2.0], &plain_device).into_dispatch(),
+            indices: Tensor::<1, Int>::from_ints([0], &autodiff_device).into_dispatch(),
+        });
+        let output = Tensor::<1>::from_dispatch(output);
+
+        assert!(!ROUTED_THROUGH_AUTODIFF.load(Ordering::SeqCst));
+        assert_eq!(
+            output.device().gradient_checkpointing_strategy(),
+            autodiff_device.gradient_checkpointing_strategy()
+        );
+
+        let output = <Dispatch as ContextBackend>::mixed_route(MixedRouteInputs {
+            // The first float is deliberately plain so the derived predicate must inspect every
+            // float field rather than only the preferred routing tensor.
+            first: Tensor::<1>::from_floats([1.0], &plain_device).into_dispatch(),
+            second: Tensor::<1>::from_floats([2.0], &autodiff_device).into_dispatch(),
+            indices: Tensor::<1, Int>::from_ints([0], &autodiff_device).into_dispatch(),
+        });
+        let output = Tensor::<1>::from_dispatch(output);
+
+        assert!(ROUTED_THROUGH_AUTODIFF.load(Ordering::SeqCst));
+        assert_eq!(
+            output.device().gradient_checkpointing_strategy(),
+            autodiff_device.gradient_checkpointing_strategy()
         );
     }
 

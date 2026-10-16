@@ -35,9 +35,10 @@ pub use burn_wgpu::{self as wgpu, Wgpu};
 /// into a [`DispatchTensor`]; when it takes one as an input, [`map_from_dispatch`](Self::map_from_dispatch)
 /// reconstructs the concrete value and [`routing_tensor`](Self::routing_tensor) /
 /// [`routing_float_tensor`](Self::routing_float_tensor) locate a tensor for dispatch routing and
-/// backend selection. [`autodiff_context`](Self::autodiff_context) merges the contexts of all tensor
-/// fields participating in one operation. Nested `#[extension_type]` fields are traversed
-/// recursively.
+/// backend selection. [`autodiff_context`](Self::autodiff_context) merges the contexts of all
+/// tensor fields participating in one operation, while
+/// [`autodiff_routing`](Self::autodiff_routing) also determines whether execution needs the autodiff
+/// backend. Nested `#[extension_type]` fields are traversed recursively.
 ///
 /// Implementations are generated automatically using `#[derive(ExtensionType)]`.
 pub trait ExtensionType<B: Backend> {
@@ -89,11 +90,26 @@ pub trait ExtensionType<B: Backend> {
     /// Like [`routing_tensor`](Self::routing_tensor) but returns only a *float* tensor, or `None` if
     /// there is none.
     ///
-    /// The dispatch glue prefers a float routing tensor because active float presence decides
-    /// whether the operation needs an autodiff backend. The glue falls back to
-    /// [`routing_tensor`](Self::routing_tensor) only when no float tensor exists anywhere in the
-    /// inputs.
+    /// The dispatch glue prefers a float routing tensor when selecting the concrete backend. It
+    /// falls back to [`routing_tensor`](Self::routing_tensor) only when no float tensor exists
+    /// anywhere in the inputs.
     fn routing_float_tensor(target: &Self::Target) -> Option<&DispatchTensor>;
+
+    /// Return the merged autodiff context and whether a float tensor has autodiff enabled.
+    ///
+    /// Enabled integer and boolean tensors contribute to the output context but don't require
+    /// execution through the autodiff backend. The default is sufficient for single-float
+    /// implementations; implementations containing multiple or nested tensor fields must inspect
+    /// all of them. The derive handles this automatically and computes both values in one traversal.
+    #[doc(hidden)]
+    fn autodiff_routing(target: &Self::Target) -> (DispatchAutodiffContext, bool) {
+        (
+            Self::autodiff_context(target),
+            Self::routing_float_tensor(target).is_some_and(|tensor| {
+                matches!(tensor.autodiff, DispatchAutodiffContext::Enabled(_))
+            }),
+        )
+    }
 
     /// Merge the autodiff contexts of every tensor held by the dispatch form.
     ///
