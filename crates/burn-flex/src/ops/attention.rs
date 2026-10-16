@@ -309,7 +309,7 @@ where
     .unwrap();
     let softcap: Option<T> = options.softcap.map(|s| T::from(s).unwrap());
     let causal_offset = if options.is_causal {
-        Some(seq_kv as isize - seq_q as isize)
+        Some(options.causal_alignment.offset(seq_q, seq_kv) as isize)
     } else {
         None
     };
@@ -805,7 +805,7 @@ where
     .unwrap();
     let softcap: Option<T> = options.softcap.map(|s| T::from(s).unwrap());
     let causal_offset = if options.is_causal {
-        Some(seq_kv as isize - seq_q as isize)
+        Some(options.causal_alignment.offset(seq_q, seq_kv) as isize)
     } else {
         None
     };
@@ -1595,6 +1595,7 @@ mod tests {
             scale: Some(0.05),
             softcap: Some(30.0),
             is_causal: true,
+            ..Default::default()
         };
 
         run_both(1, 1, 4, 4, 8, 8, false, false, default, "basic_4x4");

@@ -4,7 +4,7 @@ use crate::{CubeBackend, ops::numeric::empty_device_dtype, tensor::CubeTensor};
 use burn_backend::cubecl::dtype_to_storage_type;
 use burn_backend::{
     DType, Shape,
-    ops::{AttentionModuleOptions, attention::attention_fallback},
+    ops::{AttentionModuleOptions, CausalAlignment, attention::attention_fallback},
 };
 use cubek::attention::forward::{
     definition::{
@@ -54,6 +54,13 @@ pub fn attention(
     options: AttentionModuleOptions,
     strategy: AttentionStrategy,
 ) -> Result<CubeTensor, AttentionSetupError> {
+    // Decided before autotune, so every candidate computes the same result.
+    if flash_unsupported(&query, &key, &value, attn_bias.as_ref(), &options).is_some() {
+        return Ok(attention_fallback::<CubeBackend>(
+            query, key, value, mask, attn_bias, options,
+        ));
+    }
+
     // Resolve the flash launch strategy; the non-flash arms answer directly.
     let flash = match strategy {
         AttentionStrategy::FlashBlackboxAccelerated(strategy) => {
@@ -113,6 +120,12 @@ pub fn flash_attention(
     options: AttentionModuleOptions,
     strategy: launch::Strategy,
 ) -> Result<CubeTensor, AttentionSetupError> {
+    if let Some(reason) = flash_unsupported(&query, &key, &value, _attn_bias.as_ref(), &options) {
+        return Err(AttentionSetupError::InvalidConfig(Box::new(format!(
+            "flash attention does not support {reason}"
+        ))));
+    }
+
     let client = query.client.clone();
     let out = init_attention_output(&query, &value);
 
@@ -142,6 +155,51 @@ pub fn flash_attention(
     )?;
 
     Ok(out)
+}
+
+/// What the flash kernels can't compute in these options, if anything. They take no
+/// scale, softcap or additive bias, and anchor the causal diagonal bottom-right.
+pub(crate) fn flash_unsupported_options(
+    options: &AttentionModuleOptions,
+    has_bias: bool,
+    seq_q: usize,
+    seq_k: usize,
+) -> Option<&'static str> {
+    if has_bias {
+        Some("an additive bias")
+    } else if options.scale.is_some() {
+        Some("a custom scale")
+    } else if options.softcap.is_some() {
+        Some("softcap")
+    } else if options.is_causal
+        && options.causal_alignment != CausalAlignment::BottomRight
+        && seq_q != seq_k
+    {
+        Some("a causal mask that is not bottom-right aligned")
+    } else {
+        None
+    }
+}
+
+/// What the flash kernels can't compute in this call, if anything. On top of
+/// [`flash_unsupported_options`], they read K/V with the query's head index.
+fn flash_unsupported(
+    query: &CubeTensor,
+    key: &CubeTensor,
+    value: &CubeTensor,
+    attn_bias: Option<&CubeTensor>,
+    options: &AttentionModuleOptions,
+) -> Option<&'static str> {
+    let q_heads = query.meta.shape[1];
+    if key.meta.shape[1] != q_heads || value.meta.shape[1] != q_heads {
+        return Some("fewer key/value heads than query heads");
+    }
+    flash_unsupported_options(
+        options,
+        attn_bias.is_some(),
+        query.meta.shape[2],
+        key.meta.shape[2],
+    )
 }
 
 pub(crate) fn init_attention_output(query: &CubeTensor, value: &CubeTensor) -> CubeTensor {
