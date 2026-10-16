@@ -10,10 +10,9 @@ use hashbrown::{HashMap, HashSet};
 use burn_core::module::{ModuleMapper, Param, ParamId};
 use burn_core::tensor::{Bool, DType, Device, Int, Shape, Tensor};
 
-use burn_pack::Tensor as PackTensor;
+use crate::StoreTensor;
 
 use crate::apply_result::{ApplyError, ApplyResult};
-use crate::bridge;
 use crate::{ModuleAdapter, ModuleContext, PathFilter};
 
 /// The kind of parameter a loaded tensor is going into.
@@ -74,7 +73,7 @@ impl TargetDType {
 /// with proper adapter support using container type information
 pub struct Applier {
     /// Map of tensor paths to the tensors to load there
-    tensors: HashMap<String, PackTensor>,
+    tensors: HashMap<String, StoreTensor>,
     /// Current path in the module hierarchy
     path_stack: Vec<String>,
     /// Current container type stack in the module hierarchy
@@ -109,14 +108,14 @@ impl Applier {
     /// * `adapter` - Optional adapter to transform tensors based on container types
     /// * `skip_enum_variants` - Skip enum variant names when matching paths
     pub fn new(
-        tensors: Vec<PackTensor>,
+        tensors: Vec<StoreTensor>,
         filter: Option<PathFilter>,
         adapter: Option<Box<dyn ModuleAdapter>>,
         skip_enum_variants: bool,
     ) -> Self {
-        let tensors: HashMap<String, PackTensor> = tensors
+        let tensors: HashMap<String, StoreTensor> = tensors
             .into_iter()
-            .map(|tensor| (tensor.name.clone(), tensor))
+            .map(|tensor| (tensor.name().to_string(), tensor))
             .collect();
 
         Self {
@@ -256,7 +255,7 @@ impl Applier {
             return None;
         };
         self.consumed_paths.insert(source_path);
-        let source_id = tensor.param_id.map(ParamId::from);
+        let source_id = tensor.param_id().map(ParamId::from);
 
         // Apply adapter transformation using the module context live on this traversal (for
         // data transformation like transpose). The adapter is given the module's own path
@@ -264,7 +263,7 @@ impl Applier {
         // alternative name is on its way into *this* parameter, and a rename keyed on the
         // source name would undo the match that just succeeded.
         if let Some(ref adapter) = self.adapter {
-            tensor.name = path.clone();
+            tensor.set_name(path.clone());
             tensor = adapter.adapt(tensor, self.context());
         }
 
@@ -282,7 +281,7 @@ impl Applier {
         // Checked before the load rather than after, since the kind is already in the
         // descriptor: a rejected tensor is then never read, which for a file-backed source
         // would be the whole thing off disk.
-        let dtype = tensor.dtype;
+        let dtype = tensor.dtype();
         if !target_dtype.accepts(dtype) {
             self.errors.push(ApplyError::DTypeMismatch {
                 path: path.clone(),
@@ -294,7 +293,7 @@ impl Applier {
 
         // Load tensor data. The tensor is not needed afterwards, so take its bytes rather
         // than copying them out.
-        let data = match bridge::into_data(tensor) {
+        let data = match tensor.into_data() {
             Ok(data) => data,
             Err(e) => {
                 self.errors.push(ApplyError::LoadError {
@@ -407,8 +406,8 @@ mod tests {
     use burn_core::tensor::{DType, Tensor, TensorData, shape};
 
     /// A resident tensor named `name`, standing in for one read from a store.
-    fn tensor(name: &str, data: TensorData, id: Option<ParamId>) -> PackTensor {
-        bridge::from_data(data, name.to_string(), id.map(|id| id.val()))
+    fn tensor(name: &str, data: TensorData, id: Option<ParamId>) -> StoreTensor {
+        crate::bridge::from_data(data, name.to_string(), id.map(|id| id.val())).into()
     }
 
     #[test]
@@ -481,7 +480,7 @@ mod tests {
 
         // Create a tensor with F64 data
         let f64_tensor = tensor("weight", f64_data.clone(), Some(ParamId::new()));
-        assert_eq!(f64_tensor.dtype, DType::F64, "should preserve F64 dtype");
+        assert_eq!(f64_tensor.dtype(), DType::F64, "should preserve F64 dtype");
 
         // Create applier with the F64 tensor
         let mut applier = Applier::new(vec![f64_tensor], None, None, false);
@@ -526,7 +525,7 @@ mod tests {
 
         // Create a tensor with F32 data
         let f32_tensor = tensor("weight", f32_data.clone(), Some(ParamId::new()));
-        assert_eq!(f32_tensor.dtype, DType::F32);
+        assert_eq!(f32_tensor.dtype(), DType::F32);
 
         // Create applier with the F32 tensor
         let mut applier = Applier::new(vec![f32_tensor], None, None, false);
@@ -574,13 +573,15 @@ mod tests {
 
         // Verify it preserves F16 dtype
         assert_eq!(
-            f16_tensor.dtype,
+            f16_tensor.dtype(),
             DType::F16,
             "the tensor should preserve F16 dtype"
         );
 
         // Verify the data can be retrieved with correct dtype
-        let retrieved_data = bridge::to_data(&f16_tensor).expect("Should be able to retrieve data");
+        let retrieved_data = f16_tensor
+            .to_data()
+            .expect("Should be able to retrieve data");
         assert_eq!(
             retrieved_data.dtype(),
             DType::F16,
@@ -627,14 +628,15 @@ mod tests {
 
         // Verify it preserves BF16 dtype
         assert_eq!(
-            bf16_tensor.dtype,
+            bf16_tensor.dtype(),
             DType::BF16,
             "the tensor should preserve BF16 dtype"
         );
 
         // Verify the data can be retrieved with correct dtype
-        let retrieved_data =
-            bridge::to_data(&bf16_tensor).expect("Should be able to retrieve data");
+        let retrieved_data = bf16_tensor
+            .to_data()
+            .expect("Should be able to retrieve data");
         assert_eq!(
             retrieved_data.dtype(),
             DType::BF16,
@@ -779,11 +781,12 @@ mod tests {
     #[test]
     fn a_failing_tensor_is_reported_and_leaves_the_param_untouched() {
         let device = Default::default();
-        let failing = bridge::deferred("weight".to_string(), DType::F32, shape![2], None, || {
-            Err(burn_pack::Error::IoError("device read failed".to_string()))
-        });
+        let failing =
+            crate::bridge::deferred("weight".to_string(), DType::F32, shape![2], None, || {
+                Err(burn_pack::Error::IoError("device read failed".to_string()))
+            });
 
-        let mut applier = Applier::new(vec![failing], None, None, false);
+        let mut applier = Applier::new(vec![failing.into()], None, None, false);
         applier.enter_module("weight", "Struct:Linear");
         let loaded = applier.map_float(Param::initialized(
             ParamId::from(7u64),

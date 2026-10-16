@@ -40,6 +40,9 @@ impl DType {
     }
 }
 
+/// Handle that reads a tensor's bytes.
+type Read = Arc<dyn Fn() -> io::Result<Vec<u8>> + Send + Sync>;
+
 /// A tensor in a checkpoint, with its bytes not yet read.
 ///
 /// Opening a checkpoint parses its metadata only. [`read`](Self::read) is what produces the
@@ -57,7 +60,9 @@ pub struct Tensor {
     pub name: String,
     dtype: DType,
     shape: Vec<usize>,
-    read: Arc<dyn Fn() -> io::Result<Vec<u8>> + Send + Sync>,
+    read: Read,
+    /// Reads the transpose of a 2-D tensor the checkpoint stores transposed.
+    transposed: Option<Read>,
 }
 
 impl Tensor {
@@ -72,7 +77,17 @@ impl Tensor {
             dtype,
             shape,
             read: Arc::new(read),
+            transposed: None,
         }
+    }
+
+    /// Attach a handle that reads the tensor's transpose as a straight copy.
+    pub(crate) fn with_transposed(
+        mut self,
+        read: impl Fn() -> io::Result<Vec<u8>> + Send + Sync + 'static,
+    ) -> Self {
+        self.transposed = Some(Arc::new(read));
+        self
     }
 
     /// Element type.
@@ -118,6 +133,28 @@ impl Tensor {
         (self.read)().map_err(|err| named(&self.name, err))
     }
 
+    /// The transpose of a 2-D tensor the checkpoint stores transposed.
+    ///
+    /// A `.t()` view, which is how `nn.Linear` weights are often saved, is stored as the
+    /// row-major bytes of its transpose. [`read`](Self::read) has to gather those into the
+    /// view's own order, while the tensor returned here, with the reversed shape, reads them
+    /// as a straight copy. A consumer that wants the transpose anyway can skip both passes.
+    ///
+    /// `None` for every other tensor, including one whose transpose would itself need
+    /// gathering. The returned tensor has the same name and reads and fails as
+    /// [`read`](Self::read) does; its own `transposed` is `None`.
+    #[must_use]
+    pub fn transposed(&self) -> Option<Tensor> {
+        let read = self.transposed.clone()?;
+        Some(Self {
+            name: self.name.clone(),
+            dtype: self.dtype,
+            shape: self.shape.iter().rev().copied().collect(),
+            read,
+            transposed: None,
+        })
+    }
+
     /// Split the tensor into its metadata and its read handle.
     ///
     /// For a caller that keeps the metadata elsewhere and wants only the handle, without a
@@ -136,6 +173,7 @@ impl Tensor {
             dtype,
             shape,
             read,
+            ..
         } = self;
         let context = name.clone();
 

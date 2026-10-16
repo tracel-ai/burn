@@ -69,6 +69,7 @@
 //! - [`PathFilter`]: Flexible filtering system for selective tensor loading/saving
 //! - [`KeyRemapper`]: Advanced tensor name remapping with regex patterns
 //! - [`ModuleAdapter`]: Framework adapters for cross-framework compatibility
+//! - [`StoreTensor`]: A tensor on its way from a store to a module, kept as its source handed it over
 //! - [`bridge`]: Conversions between burn-core tensors and the [`burn_pack::Tensor`] entries the stores move around
 //!
 //! ## Feature Flags
@@ -86,6 +87,7 @@ mod applier;
 mod apply_result;
 mod collector;
 mod filter;
+mod tensor;
 mod traits;
 
 pub mod bridge;
@@ -98,6 +100,7 @@ pub use applier::Applier;
 pub use apply_result::{ApplyError, ApplyResult};
 pub use collector::Collector;
 pub use filter::PathFilter;
+pub use tensor::StoreTensor;
 pub use traits::{ModuleSnapshot, ModuleStore};
 
 #[cfg(feature = "std")]
@@ -112,8 +115,8 @@ pub use pytorch::{PytorchStore, PytorchStoreError};
 
 /// The PyTorch checkpoint reader crate, re-exported.
 ///
-/// [`PytorchStore`] is built on it, and [`bridge::from_pytorch`] turns one of its tensors
-/// into the [`burn_pack::Tensor`] the rest of burn-store works with. The crate itself reads
+/// [`PytorchStore`] is built on it, wrapping each of its tensors in a [`StoreTensor`], and
+/// [`bridge::from_pytorch`] turns one into a [`burn_pack::Tensor`]. The crate itself reads
 /// a checkpoint without going through burn-pack at all, and exposes the serde deserializer
 /// behind [`load_config`](pytorch::PytorchReader::load_config) as
 /// [`pytorch_reader::nested`].
@@ -130,8 +133,8 @@ pub use burnpack::BurnpackStore;
 
 /// The burnpack format crate, re-exported.
 ///
-/// [`burn_pack::Tensor`] is burn-store's tensor-transport type: what
-/// [`ModuleSnapshot::collect`] returns and what [`ModuleSnapshot::apply`] takes. A crate
+/// [`burn_pack::Tensor`] is what [`ModuleSnapshot::collect`] returns, and what
+/// [`ModuleSnapshot::apply`] takes once converted into a [`StoreTensor`]. A crate
 /// holding some can drive a [`burn_pack::Writer`] itself instead of going through
 /// [`BurnpackStore`], which is what you want when the tensors did not come from a
 /// [`Module`](burn_core::module::Module) (weights read out of an ONNX file during codegen,
