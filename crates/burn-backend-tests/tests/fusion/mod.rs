@@ -21,6 +21,8 @@ mod padded_layout;
 mod reduce_broadcasted;
 mod reduce_logical;
 mod select;
+#[cfg(feature = "cube")]
+mod unfold;
 
 use burn_tensor::StreamId;
 
