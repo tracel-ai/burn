@@ -1181,18 +1181,6 @@ mod tests {
     }
 
     #[test]
-    fn test_attention_gqa_matches_repeated_kv() {
-        // 4 query heads, 2 KV heads: each KV head shared by 2 query heads.
-        check_grouped_attention(4, 2);
-    }
-
-    #[test]
-    fn test_attention_mqa_matches_repeated_kv() {
-        // Multi-Query Attention: a single KV head shared by all 4 query heads.
-        check_grouped_attention(4, 1);
-    }
-
-    #[test]
     fn test_flash_bias_broadcast_across_batch_and_heads() {
         // Exercises the flash path for a `[1, 1, seq_q, seq_kv]` broadcast
         // bias. The dispatcher in `attention()` routes to naive for

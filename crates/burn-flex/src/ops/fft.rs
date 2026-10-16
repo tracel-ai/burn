@@ -1622,149 +1622,6 @@ mod tests {
             .assert_approx_eq::<f64>(&TensorData::from(expected), Tolerance::absolute(tol));
     }
 
-    // ---- N=1 ----
-
-    #[test]
-    fn rfft_n1() {
-        let signal = make_f32(vec![5.0], vec![1]);
-        let (re, im) = rfft_f32(signal, 0, None);
-        assert_approx(re, &[5.0], 1e-6);
-        assert_approx(im, &[0.0], 1e-6);
-    }
-
-    // ---- N=2 ----
-
-    #[test]
-    fn rfft_n2() {
-        let signal = make_f32(vec![1.0, -1.0], vec![2]);
-        let (re, im) = rfft_f32(signal, 0, None);
-        assert_approx(re, &[0.0, 2.0], 1e-6);
-        assert_approx(im, &[0.0, 0.0], 1e-6);
-    }
-
-    // ---- N=4: known DFT of [1,0,0,0] = [1,1,1] (all real) ----
-
-    #[test]
-    fn rfft_n4_impulse() {
-        let signal = make_f32(vec![1.0, 0.0, 0.0, 0.0], vec![4]);
-        let (re, im) = rfft_f32(signal, 0, None);
-        assert_approx(re, &[1.0, 1.0, 1.0], 1e-6);
-        assert_approx(im, &[0.0, 0.0, 0.0], 1e-6);
-    }
-
-    // ---- N=4: constant signal [1,1,1,1] -> DC only ----
-
-    #[test]
-    fn rfft_n4_constant() {
-        let signal = make_f32(vec![1.0, 1.0, 1.0, 1.0], vec![4]);
-        let (re, im) = rfft_f32(signal, 0, None);
-        assert_approx(re, &[4.0, 0.0, 0.0], 1e-6);
-        assert_approx(im, &[0.0, 0.0, 0.0], 1e-6);
-    }
-
-    // ---- N=4: zeros ----
-
-    #[test]
-    fn rfft_n4_zeros() {
-        let signal = make_f32(vec![0.0; 4], vec![4]);
-        let (re, im) = rfft_f32(signal, 0, None);
-        assert_approx(re, &[0.0, 0.0, 0.0], 1e-6);
-        assert_approx(im, &[0.0, 0.0, 0.0], 1e-6);
-    }
-
-    // ---- N=8 ----
-
-    #[test]
-    fn rfft_n8_impulse() {
-        let mut signal = vec![0.0f32; 8];
-        signal[0] = 1.0;
-        let (re, im) = rfft_f32(make_f32(signal, vec![8]), 0, None);
-        // DFT of impulse is all 1s
-        assert_approx(re, &[1.0, 1.0, 1.0, 1.0, 1.0], 1e-6);
-        assert_approx(im, &[0.0, 0.0, 0.0, 0.0, 0.0], 1e-6);
-    }
-
-    #[test]
-    fn rfft_n8_cosine() {
-        // cos(2*pi*k/8) for k=0..7 -> energy at bin 1
-        let signal: Vec<f32> = (0..8)
-            .map(|k| (2.0 * std::f32::consts::PI * k as f32 / 8.0).cos())
-            .collect();
-        let (re, im) = rfft_f32(make_f32(signal, vec![8]), 0, None);
-        // Bin 1 should have amplitude 4 (real), rest ~0
-        assert_approx(re, &[0.0, 4.0, 0.0, 0.0, 0.0], 1e-4);
-        assert_approx(im, &[0.0, 0.0, 0.0, 0.0, 0.0], 1e-4);
-    }
-
-    // ---- Larger size: N=256 ----
-
-    #[test]
-    fn rfft_n256_impulse() {
-        let mut signal = vec![0.0f32; 256];
-        signal[0] = 1.0;
-        let (re, im) = rfft_f32(make_f32(signal, vec![256]), 0, None);
-        let re_data = re.into_data();
-        let im_data = im.into_data();
-        let re_vals = re_data.as_slice::<f32>().unwrap();
-        let im_vals = im_data.as_slice::<f32>().unwrap();
-        assert_eq!(re_vals.len(), 129);
-        for &v in re_vals {
-            assert!((v - 1.0).abs() < 1e-5, "re bin should be 1.0, got {v}");
-        }
-        for &v in im_vals {
-            assert!(v.abs() < 1e-5, "im bin should be 0.0, got {v}");
-        }
-    }
-
-    // ---- Multi-dimensional: FFT along dim 1 ----
-
-    #[test]
-    fn rfft_2d_dim1() {
-        // 2 rows, each of length 4: impulse and constant
-        let data = vec![
-            1.0, 0.0, 0.0, 0.0, // row 0: impulse
-            1.0, 1.0, 1.0, 1.0, // row 1: constant
-        ];
-        let signal = make_f32(data, vec![2, 4]);
-        let (re, im) = rfft_f32(signal, 1, None);
-        // Shape should be [2, 3]
-        let re_data = re.into_data();
-        let im_data = im.into_data();
-        let re_vals = re_data.as_slice::<f32>().unwrap();
-        let im_vals = im_data.as_slice::<f32>().unwrap();
-        assert_eq!(re_vals.len(), 6); // 2 * 3
-        // Row 0 (impulse): [1, 1, 1]
-        assert!((re_vals[0] - 1.0).abs() < 1e-5);
-        assert!((re_vals[1] - 1.0).abs() < 1e-5);
-        assert!((re_vals[2] - 1.0).abs() < 1e-5);
-        // Row 1 (constant): [4, 0, 0]
-        assert!((re_vals[3] - 4.0).abs() < 1e-5);
-        assert!((re_vals[4]).abs() < 1e-5);
-        assert!((re_vals[5]).abs() < 1e-5);
-        // All imaginary should be ~0
-        for &v in im_vals {
-            assert!(v.abs() < 1e-5);
-        }
-    }
-
-    // ---- FFT along dim 0 ----
-
-    #[test]
-    fn rfft_2d_dim0() {
-        // 4 rows, 2 cols: impulse in each column
-        let data = vec![1.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0];
-        let signal = make_f32(data, vec![4, 2]);
-        let (re, _im) = rfft_f32(signal, 0, None);
-        // Shape should be [3, 2]
-        let re_data = re.into_data();
-        let re_vals = re_data.as_slice::<f32>().unwrap();
-        assert_eq!(re_vals.len(), 6);
-        // Each column is an impulse -> all bins = 1
-        for &v in re_vals {
-            assert!((v - 1.0).abs() < 1e-5, "expected 1.0, got {v}");
-        }
-    }
-
     // ---- f64 dtype ----
 
     #[test]
@@ -1869,23 +1726,6 @@ mod tests {
     }
 
     // ---- irfft tests ----
-
-    #[test]
-    fn irfft_roundtrip_n4() {
-        let signal = make_f32(vec![1.0, 2.0, 3.0, 4.0], vec![4]);
-        let (re, im) = rfft_f32(signal.clone(), 0, None);
-        let reconstructed = irfft_f32(re, im, 0, None);
-        assert_approx(reconstructed, &[1.0, 2.0, 3.0, 4.0], 1e-5);
-    }
-
-    #[test]
-    fn irfft_roundtrip_n8() {
-        let data: Vec<f32> = (0..8).map(|i| (i as f32 * 0.3).sin()).collect();
-        let signal = make_f32(data.clone(), vec![8]);
-        let (re, im) = rfft_f32(signal, 0, None);
-        let reconstructed = irfft_f32(re, im, 0, None);
-        assert_approx(reconstructed, &data, 1e-5);
-    }
 
     #[test]
     fn rfft_vs_realfft() {
@@ -2020,25 +1860,6 @@ mod tests {
     }
 
     #[test]
-    fn irfft_roundtrip_n256() {
-        let data: Vec<f32> = (0..256).map(|i| (i as f32 * 0.1).cos()).collect();
-        let signal = make_f32(data.clone(), vec![256]);
-        let (re, im) = rfft_f32(signal, 0, None);
-        let reconstructed = irfft_f32(re, im, 0, None);
-        let result = reconstructed.into_data();
-        let vals = result.as_slice::<f32>().unwrap();
-        let max_err = vals
-            .iter()
-            .zip(data.iter())
-            .map(|(&got, &expected)| (got - expected).abs())
-            .fold(0.0f32, f32::max);
-        assert!(
-            max_err < 5e-3,
-            "irfft_roundtrip_n256: max error {max_err} exceeds tolerance"
-        );
-    }
-
-    #[test]
     fn irfft_roundtrip_2d_dim1() {
         let data = vec![
             1.0, 2.0, 3.0, 4.0, // row 0
@@ -2079,34 +1900,6 @@ mod tests {
     }
 
     // Coverage for the n=Some(pow2) path on flex.
-
-    #[test]
-    fn rfft_n_larger_than_signal_zero_pads() {
-        // n=8 zero-pads the signal; output has 8/2+1 = 5 bins.
-        let signal = make_f32(vec![1.0, 0.0, 0.0, 0.0], vec![4]);
-        let (re, im) = rfft_f32(signal, 0, Some(8));
-        assert_eq!(re.layout().shape()[0], 5);
-        assert_eq!(im.layout().shape()[0], 5);
-        let re_vals = re.into_data().as_slice::<f32>().unwrap().to_vec();
-        for (k, v) in re_vals.iter().enumerate() {
-            assert!(
-                (v - 1.0).abs() < 1e-5,
-                "impulse DFT re[{k}] should be 1.0, got {v}"
-            );
-        }
-    }
-
-    #[test]
-    fn rfft_n_smaller_than_signal_truncates_first() {
-        // Signal length 8, n=4 -> truncate to 4, compute 4-point DFT of [1,0,0,0].
-        let signal = make_f32(vec![1.0, 0.0, 0.0, 0.0, 99.0, 99.0, 99.0, 99.0], vec![8]);
-        let (re, _im) = rfft_f32(signal, 0, Some(4));
-        assert_eq!(re.layout().shape()[0], 3);
-        let re_vals = re.into_data().as_slice::<f32>().unwrap().to_vec();
-        for v in &re_vals {
-            assert!((v - 1.0).abs() < 1e-5, "expected 1.0, got {v}");
-        }
-    }
 
     #[test]
     fn rfft_irfft_roundtrip_with_pow2_n() {

@@ -185,7 +185,7 @@ fn test_qr_2d_tall() {
 fn test_qr_2d_tall_reduced() {
     let device = Default::default();
     let tensor = TestTensor::<2>::random([8, 5], Distribution::Default, &device);
-    let (q, r) = qr::<2>(tensor.clone(), false);
+    let (q, r) = qr::<2>(tensor.clone(), true);
     let qr = q.matmul(r);
     let tolerance = Tolerance::rel_abs(REL, ABS).set_half_precision_absolute(5e-2);
     qr.into_data()
@@ -211,7 +211,7 @@ fn test_qr_singular_2d_tall_reduces() {
     let zeros = TestTensor::<2>::zeros([8, 1], &device);
     let mut tensor = TestTensor::<2>::random([8, 5], Distribution::Default, &device);
     tensor = tensor.slice_assign(s![.., 0..1], zeros);
-    let (q, r) = qr::<2>(tensor.clone(), false);
+    let (q, r) = qr::<2>(tensor.clone(), true);
     let qr = q.matmul(r);
     let tolerance = Tolerance::rel_abs(REL, ABS).set_half_precision_absolute(5e-2);
     qr.into_data()

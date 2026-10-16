@@ -1408,7 +1408,6 @@ dependencies = [
  "cubecl-common",
  "cubecl-environment",
  "cubecl-zspace",
- "dashmap",
  "data-encoding",
  "derive-new",
  "half",
