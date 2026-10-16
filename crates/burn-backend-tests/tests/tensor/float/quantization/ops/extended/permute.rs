@@ -42,7 +42,7 @@ fn permute_float() {
 }
 
 #[test]
-#[should_panic]
+#[should_panic(expected = "The axes must be unique")]
 fn edge_repeated_axes() {
     let tensor = QTensor::<1>::int8([
         0., 1., 2., 3., 4., 5., 6., 7., 8., 9., 10., 11., 12., 13., 14., 15.,
@@ -54,7 +54,7 @@ fn edge_repeated_axes() {
 }
 
 #[test]
-#[should_panic]
+#[should_panic(expected = "out of bounds")]
 fn edge_out_of_bound_axis() {
     let tensor = QTensor::<1>::int8([
         0., 1., 2., 3., 4., 5., 6., 7., 8., 9., 10., 11., 12., 13., 14., 15.,

@@ -111,7 +111,7 @@ fn test_mask_select_narrowed_tensor() {
 }
 
 #[test]
-#[should_panic]
+#[should_panic(expected = "The mask must have the same shape as the tensor")]
 fn test_mask_select_shape_mismatch() {
     // The mask must have the same shape as the tensor: the flat indices of a differently-shaped
     // mask would not correspond to the tensor's positions.

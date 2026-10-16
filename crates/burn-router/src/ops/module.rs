@@ -3,7 +3,7 @@ use alloc::boxed::Box;
 use burn_backend::ops::{
     AttentionModuleOptions, ConvOptions, ConvTransposeOptions, DeformConv2dBackward,
     DeformConvOptions, InterpolateOptions, MaxPool1dBackward, MaxPool1dWithIndices,
-    MaxPool2dBackward, MaxPool2dWithIndices, ModuleOps,
+    MaxPool2dBackward, MaxPool2dWithIndices, MaxPool3dBackward, MaxPool3dWithIndices, ModuleOps,
 };
 use burn_backend::tensor::{BoolTensor, FloatTensor, IntTensor};
 use burn_ir::*;
@@ -34,6 +34,61 @@ impl<R: RouterChannel> ModuleOps<Self> for BackendRouter<R> {
         );
         client
             .register(OperationIr::Module(ModuleOperationIr::BatchNorm(desc)))
+            .output()
+    }
+
+    fn ctc_loss(
+        log_probs: FloatTensor<Self>,
+        targets: IntTensor<Self>,
+        input_lengths: IntTensor<Self>,
+        target_lengths: IntTensor<Self>,
+        blank: usize,
+    ) -> FloatTensor<Self> {
+        let client = log_probs.client.clone();
+        let desc = CtcLossOpIr::create(
+            log_probs.into_ir(),
+            targets.into_ir(),
+            input_lengths.into_ir(),
+            target_lengths.into_ir(),
+            blank,
+            || client.create_empty_handle(),
+        );
+
+        client
+            .register(OperationIr::Module(ModuleOperationIr::CtcLoss(desc)))
+            .output()
+    }
+
+    fn has_ctc_loss_backward() -> bool {
+        // The gradient is one operation for the backend on the other side, which a router
+        // cannot name here: the interpreter answers it with that backend's own kernel, or
+        // with the default gradient when it has none.
+        true
+    }
+
+    fn ctc_loss_backward(
+        log_probs: FloatTensor<Self>,
+        targets: IntTensor<Self>,
+        input_lengths: IntTensor<Self>,
+        target_lengths: IntTensor<Self>,
+        grad_loss: FloatTensor<Self>,
+        blank: usize,
+    ) -> FloatTensor<Self> {
+        let client = log_probs.client.clone();
+        let desc = CtcLossBackwardOpIr::create(
+            log_probs.into_ir(),
+            targets.into_ir(),
+            input_lengths.into_ir(),
+            target_lengths.into_ir(),
+            grad_loss.into_ir(),
+            blank,
+            || client.create_empty_handle(),
+        );
+
+        client
+            .register(OperationIr::Module(ModuleOperationIr::CtcLossBackward(
+                desc,
+            )))
             .output()
     }
 
@@ -656,6 +711,30 @@ impl<R: RouterChannel> ModuleOps<Self> for BackendRouter<R> {
             .output()
     }
 
+    fn avg_pool3d(
+        x: FloatTensor<Self>,
+        kernel_size: [usize; 3],
+        stride: [usize; 3],
+        padding: [usize; 3],
+        count_include_pad: bool,
+        ceil_mode: bool,
+    ) -> FloatTensor<Self> {
+        let client = x.client.clone();
+        let desc = AvgPool3dOpIr::create(
+            x.into_ir(),
+            kernel_size,
+            stride,
+            padding,
+            count_include_pad,
+            ceil_mode,
+            || client.create_empty_handle(),
+        );
+
+        client
+            .register(OperationIr::Module(ModuleOperationIr::AvgPool3d(desc)))
+            .output()
+    }
+
     fn avg_pool1d_backward(
         x: FloatTensor<Self>,
         grad: FloatTensor<Self>,
@@ -712,6 +791,34 @@ impl<R: RouterChannel> ModuleOps<Self> for BackendRouter<R> {
             .output()
     }
 
+    fn avg_pool3d_backward(
+        x: FloatTensor<Self>,
+        grad: FloatTensor<Self>,
+        kernel_size: [usize; 3],
+        stride: [usize; 3],
+        padding: [usize; 3],
+        count_include_pad: bool,
+        ceil_mode: bool,
+    ) -> FloatTensor<Self> {
+        let client = x.client.clone();
+        let desc = AvgPool3dBackwardOpIr::create(
+            x.into_ir(),
+            grad.into_ir(),
+            kernel_size,
+            stride,
+            padding,
+            count_include_pad,
+            ceil_mode,
+            || client.create_empty_handle(),
+        );
+
+        client
+            .register(OperationIr::Module(ModuleOperationIr::AvgPool3dBackward(
+                desc,
+            )))
+            .output()
+    }
+
     fn max_pool1d(
         x: FloatTensor<Self>,
         kernel_size: usize,
@@ -757,6 +864,30 @@ impl<R: RouterChannel> ModuleOps<Self> for BackendRouter<R> {
 
         client
             .register(OperationIr::Module(ModuleOperationIr::MaxPool2d(desc)))
+            .output()
+    }
+
+    fn max_pool3d(
+        x: FloatTensor<Self>,
+        kernel_size: [usize; 3],
+        stride: [usize; 3],
+        padding: [usize; 3],
+        dilation: [usize; 3],
+        ceil_mode: bool,
+    ) -> FloatTensor<Self> {
+        let client = x.client.clone();
+        let desc = MaxPool3dOpIr::create(
+            x.into_ir(),
+            kernel_size,
+            stride,
+            padding,
+            dilation,
+            ceil_mode,
+            || client.create_empty_handle(),
+        );
+
+        client
+            .register(OperationIr::Module(ModuleOperationIr::MaxPool3d(desc)))
             .output()
     }
 
@@ -818,6 +949,36 @@ impl<R: RouterChannel> ModuleOps<Self> for BackendRouter<R> {
             .outputs();
 
         MaxPool2dWithIndices::new(out, out_indices)
+    }
+
+    fn max_pool3d_with_indices(
+        x: FloatTensor<Self>,
+        kernel_size: [usize; 3],
+        stride: [usize; 3],
+        padding: [usize; 3],
+        dilation: [usize; 3],
+        ceil_mode: bool,
+        indices_dtype: IntDType,
+    ) -> MaxPool3dWithIndices<Self> {
+        let client = x.client.clone();
+        let desc = MaxPool3dWithIndicesOpIr::create(
+            x.into_ir(),
+            kernel_size,
+            stride,
+            padding,
+            dilation,
+            ceil_mode,
+            indices_dtype.into(),
+            || client.create_empty_handle(),
+        );
+
+        let [out, out_indices] = client
+            .register(OperationIr::Module(
+                ModuleOperationIr::MaxPool3dWithIndices(desc),
+            ))
+            .outputs();
+
+        MaxPool3dWithIndices::new(out, out_indices)
     }
 
     fn max_pool1d_with_indices_backward(
@@ -884,6 +1045,39 @@ impl<R: RouterChannel> ModuleOps<Self> for BackendRouter<R> {
             .output();
 
         MaxPool2dBackward::new(out)
+    }
+
+    fn max_pool3d_with_indices_backward(
+        x: FloatTensor<Self>,
+        kernel_size: [usize; 3],
+        stride: [usize; 3],
+        padding: [usize; 3],
+        dilation: [usize; 3],
+        ceil_mode: bool,
+        output_grad: FloatTensor<Self>,
+        indices: IntTensor<Self>,
+    ) -> MaxPool3dBackward<Self> {
+        let client = x.client.clone();
+
+        let desc = MaxPool3dWithIndicesBackwardOpIr::create(
+            x.into_ir(),
+            output_grad.into_ir(),
+            indices.into_ir(),
+            kernel_size,
+            stride,
+            padding,
+            dilation,
+            ceil_mode,
+            || client.create_empty_handle(),
+        );
+
+        let out = client
+            .register(OperationIr::Module(
+                ModuleOperationIr::MaxPool3dWithIndicesBackward(desc),
+            ))
+            .output();
+
+        MaxPool3dBackward::new(out)
     }
 
     fn adaptive_avg_pool1d(x: FloatTensor<Self>, output_size: usize) -> FloatTensor<Self> {

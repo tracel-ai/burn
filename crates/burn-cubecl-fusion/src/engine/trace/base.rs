@@ -68,6 +68,24 @@ impl FuseTrace {
         inputs + outputs_and_read_backs
     }
 
+    /// The relative ids of the inputs a gather or a select of this trace reads as indices.
+    pub fn index_inputs(&self) -> impl Iterator<Item = TensorId> + '_ {
+        self.blocks
+            .iter()
+            .flat_map(|block| &block.ops)
+            .filter_map(|op| match op {
+                FuseOp::Gather {
+                    indices: FuseArg::Input(pos, ..),
+                    ..
+                }
+                | FuseOp::Select {
+                    indices: FuseArg::Input(pos, ..),
+                    ..
+                } => self.resources.inputs.get_id(*pos),
+                _ => None,
+            })
+    }
+
     /// Elements read at least from each input of an indexing op, by its position in the inputs.
     ///
     /// Such an input is read by indexing ops alone. A concatenation reads each of its inputs
@@ -617,5 +635,18 @@ mod tests {
         let expected = rows * COLS * F32 + 4 * I32 + 4 * COLS * F32 + 2 * rows * COLS * F32;
 
         assert_eq!(traffic(rows, select_and_cat), expected);
+    }
+
+    /// A gather or a select names its indices as index inputs, never the table it reads.
+    #[test]
+    fn index_inputs_are_the_indices_alone() {
+        let fuses: [fn(&mut TraceFuser, &TensorIr) -> Vec<TensorIr>; 2] = [select, gather];
+        for fuse in fuses {
+            let table = tensor(0, &[16, COLS], DType::F32);
+            let mut fuser = TraceFuser::new(FuseSettings::default());
+            fuse(&mut fuser, &table);
+            let trace = fuser.finish(Shape::new([4, COLS]));
+            assert_eq!(trace.index_inputs().collect::<Vec<_>>(), [TensorId::new(1)]);
+        }
     }
 }

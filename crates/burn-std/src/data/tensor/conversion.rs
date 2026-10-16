@@ -8,6 +8,7 @@ use crate::element::{Element, ElementConversion};
 use crate::tensor::DType;
 use crate::{
     BoolStore, QuantMode, QuantScheme, QuantValue, QuantizedBytes, Reader, Writer, bf16, f16,
+    flex32,
 };
 
 use super::{DataError, TensorData};
@@ -317,7 +318,8 @@ impl TensorData {
         // Convert target dtype to generic parameter.
         match dtype {
             DType::F64 => self.try_convert_inplace::<Current, f64>(),
-            DType::F32 | DType::Flex32 => self.try_convert_inplace::<Current, f32>(),
+            DType::F32 => self.try_convert_inplace::<Current, f32>(),
+            DType::Flex32 => self.try_convert_inplace::<Current, flex32>(),
             DType::F16 => self.try_convert_inplace::<Current, f16>(),
             DType::BF16 => self.try_convert_inplace::<Current, bf16>(),
             DType::I64 => self.try_convert_inplace::<Current, i64>(),
@@ -417,7 +419,8 @@ impl TensorData {
         // Convert target dtype to generic parameter.
         match dtype {
             DType::F64 => self.try_convert_clone::<Current, f64>(),
-            DType::F32 | DType::Flex32 => self.try_convert_clone::<Current, f32>(),
+            DType::F32 => self.try_convert_clone::<Current, f32>(),
+            DType::Flex32 => self.try_convert_clone::<Current, flex32>(),
             DType::F16 => self.try_convert_clone::<Current, f16>(),
             DType::BF16 => self.try_convert_clone::<Current, bf16>(),
             DType::I64 => self.try_convert_clone::<Current, i64>(),

@@ -21,10 +21,10 @@ pub enum ConnectError {
     },
     /// The runtime shut down before the connection was attempted. Never in a browser.
     Interrupted,
-    /// The host's settings cannot work together, such as an application endpoint combined with
-    /// relays for an endpoint Burn binds.
+    /// The host's settings cannot work, such as a credential too large for the handshake, or an
+    /// application endpoint combined with relays for an endpoint Burn binds.
     InvalidConfiguration {
-        /// Which settings conflict.
+        /// What is wrong with them.
         reason: String,
     },
     /// No session could be opened with the server: it is not running, nothing answered at its

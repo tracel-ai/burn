@@ -1,8 +1,10 @@
-use burn_backend::ExecutionError;
+use burn_backend::{
+    DType, ExecutionError, TensorPrimitive, quantization::QuantizationParametersPrimitive,
+};
 use burn_std::sync::Arc;
 use hashbrown::HashMap;
 
-use crate::{BackendIr, TensorHandle, TensorId, TensorIr, TensorStatus};
+use crate::{BackendIr, QuantizationParametersIr, TensorHandle, TensorId, TensorIr, TensorStatus};
 
 /// Keep all [tensor handles](BackendIr::Handle) in one place and ensure that all resources
 /// are used optimally.
@@ -415,6 +417,45 @@ impl<H: Clone> HandleContainer<H> {
     {
         let handle = B::quantized_tensor_handle(tensor);
         self.put(*id, Handle::Existing(handle));
+    }
+
+    /// The float or quantized primitive behind `tensor`, by its dtype.
+    pub fn get_float_primitive<B>(&mut self, tensor: &TensorIr) -> TensorPrimitive<B>
+    where
+        B: BackendIr<Handle = H>,
+    {
+        match tensor.dtype {
+            DType::QFloat(_) => TensorPrimitive::QFloat(self.get_quantized_tensor::<B>(tensor)),
+            _ => TensorPrimitive::Float(self.get_float_tensor::<B>(tensor)),
+        }
+    }
+
+    /// Register a float or quantized primitive with the corresponding [tensor id](TensorId).
+    pub fn register_float_primitive<B>(&mut self, id: &TensorId, tensor: TensorPrimitive<B>)
+    where
+        B: BackendIr<Handle = H>,
+    {
+        match tensor {
+            TensorPrimitive::Float(tensor) => self.register_float_tensor::<B>(id, tensor),
+            TensorPrimitive::QFloat(tensor) => self.register_quantized_tensor::<B>(id, tensor),
+        }
+    }
+
+    /// The scales a quantize operation reads, as backend primitives.
+    pub fn get_quantization_parameters<B>(
+        &mut self,
+        qparams: &QuantizationParametersIr,
+    ) -> QuantizationParametersPrimitive<B>
+    where
+        B: BackendIr<Handle = H>,
+    {
+        QuantizationParametersPrimitive {
+            scales: self.get_float_tensor::<B>(&qparams.scales),
+            global: qparams
+                .global
+                .as_ref()
+                .map(|global| self.get_float_tensor::<B>(global)),
+        }
     }
 
     /// Register a new [int tensor](burn_backend::backend::BackendTypes::IntTensorPrimitive) with the corresponding [tensor id](TensorId).

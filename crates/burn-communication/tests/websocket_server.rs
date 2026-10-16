@@ -393,3 +393,41 @@ async fn a_message_over_sixty_four_mib_reaches_the_server() {
 
     server.shutdown().await;
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn a_route_refuses_a_message_over_its_limit() {
+    const LIMIT: usize = 1024;
+
+    let (report_tx, mut report_rx) = mpsc::unbounded_channel::<Recv>();
+    let server = TestServer::start(move |s| {
+        s.route_with_max_message_size(
+            "/limited",
+            LIMIT,
+            move |mut channel: WsServerChannel| async move {
+                loop {
+                    let received = classify(channel.recv().await);
+                    let _ = report_tx.send(received);
+                    if received != Recv::Message {
+                        return;
+                    }
+                }
+            },
+        )
+    })
+    .await;
+
+    let mut ws = connect(&server.url("limited")).await;
+    send_binary(&mut ws, &[0; LIMIT]).await;
+    send_binary(&mut ws, &[0; LIMIT + 1]).await;
+
+    let mut next_report = async || {
+        timeout(TIMEOUT, report_rx.recv())
+            .await
+            .expect("the handler never reported its read")
+            .expect("report channel closed")
+    };
+    assert_eq!(next_report().await, Recv::Message);
+    assert_eq!(next_report().await, Recv::Error);
+
+    server.shutdown().await;
+}

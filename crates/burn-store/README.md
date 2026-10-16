@@ -4,11 +4,12 @@
 
 [![Current Crates.io Version](https://img.shields.io/crates/v/burn-store.svg)](https://crates.io/crates/burn-store)
 [![Documentation](https://docs.rs/burn-store/badge.svg)](https://docs.rs/burn-store)
+[![license](https://shields.io/badge/license-MIT%2FApache--2.0-blue)](https://github.com/tracel-ai/burn/blob/main/LICENSE-MIT)
 
 A comprehensive storage library for Burn that enables efficient model serialization, cross-framework
 interoperability, and advanced tensor management.
 
-> **Migrating from burn-import?** See the [Migration Guide](MIGRATION.md) for help moving from
+> **Migrating from burn-import?** See the [Migration Guide](https://github.com/tracel-ai/burn/blob/main/crates/burn-store/MIGRATION.md) for help moving from
 > `PyTorchFileRecorder`/`SafetensorsFileRecorder` to the new Store API.
 
 ## Features
@@ -70,7 +71,7 @@ For comprehensive documentation including:
 - Advanced features (filtering, remapping, partial loading, zero-copy)
 - API reference and troubleshooting
 
-See the **[Burn Book - Saving and Loading](../../burn-book/src/saving-and-loading.md)** chapter.
+See the **[Burn Book - Saving and Loading](https://github.com/tracel-ai/burn/blob/main/burn-book/src/saving-and-loading.md)** chapter.
 
 ## Running Benchmarks
 
@@ -91,3 +92,10 @@ cargo bench --bench unified_loading --features metal
 ## License
 
 This project is dual-licensed under MIT and Apache-2.0.
+
+<!-- burn-crate-footer -->
+
+---
+
+Part of the [Burn](https://github.com/tracel-ai/burn) deep learning framework. See the
+[Burn Book](https://burn.dev/books/burn/) and the [API documentation](https://docs.rs/burn).

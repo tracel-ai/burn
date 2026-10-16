@@ -2,7 +2,23 @@
 #![warn(missing_docs)]
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
-//! Burn multi-backend router.
+//! Records tensor operations as IR and forwards them to wherever they execute.
+//!
+//! [`BackendRouter`] is a backend whose operations are not run in place: each one is
+//! described as `burn_ir::OperationIr` and sent through a [`RouterChannel`] to a client. On
+//! the receiving side, a [`TensorInterpreter`] replays the operations on a real backend.
+//!
+//! This is the layer under Burn's remote execution (`burn-remote` sends the operations over
+//! the network) and graph capture (`burn-capture` records them without executing). Custom
+//! operations from backend extensions travel through a [`CustomOpRegistry`].
+//!
+//! Applications do not use this crate directly.
+//!
+//! # Feature flags
+//!
+//! - `std` (default): standard library support. Without it the crate is `no_std` with `alloc`.
+//! - `fusion`: fuse routed operations before they are sent.
+//! - `tracing`: instrument operations with the `tracing` crate.
 
 mod backend;
 mod bridge;

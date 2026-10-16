@@ -153,7 +153,7 @@ fn suppress_overlapping<'a, S: Simd>(
 
     let mut i = 0;
 
-    let mut mask_buf = core::mem::MaybeUninit::<[bool; 16]>::uninit();
+    let mut mask_buf = [false; 16];
     // Process lanes boxes at a time with SIMD
     while i + lanes <= n_boxes {
         // Skip if all boxes in this chunk are already suppressed
@@ -195,9 +195,8 @@ fn suppress_overlapping<'a, S: Simd>(
             let suppress_mask = iou.gt(thresh_v);
 
             // Extract mask to bool array and apply to suppressed
-            // SAFETY: mask_store_as_bool writes exactly `lanes` bools, we only read 0..lanes
-            unsafe { f32::mask_store_as_bool::<S>(mask_buf.as_mut_ptr().cast(), suppress_mask) };
-            let mask_buf = unsafe { mask_buf.assume_init() };
+            // SAFETY: mask_store_as_bool writes exactly `lanes` bools.
+            unsafe { f32::mask_store_as_bool::<S>(mask_buf.as_mut_ptr(), suppress_mask) };
 
             for k in 0..lanes {
                 if mask_buf[k] {

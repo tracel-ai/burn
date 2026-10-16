@@ -1,19 +1,14 @@
-//! Runtime (executing) tests for enum/struct backend extension inputs, using the CPU `NdArray`
+//! Runtime (executing) tests for enum/struct backend extension inputs, using the CPU `Flex`
 //! backend through `Dispatch`.
 //!
 //! The `backend_extension_remote` tests are compile-only (stubbed impls, function-pointer coercions).
 //! These actually run the generated dispatch glue end to end: the runtime backend-selection walk,
 //! the tensor-less enum variant panic, and enum-variant-dependent unwrapping.
-#![cfg(feature = "ndarray")]
-// `multi_backend_autodiff` needs two concrete backends compiled in at once to prove the dispatch
-// walk inspects the backend inside `DispatchTensorKind::Autodiff` rather than letting the first
-// generated arm capture everything. Enable both `ndarray` and `flex` to cover that pair;
-// `Cpu` + Flex would work without a GPU or libtorch too, so this should move to that
-// pair before burn-ndarray is removed.
-#![allow(deprecated)]
+#![cfg(feature = "flex")]
+// Enable `cpu` as well to exercise dispatch across Flex and CubeCL in `multi_backend_autodiff`.
 
 use burn::backend::{
-    Dispatch, ExtensionType, FloatDType, NdArray, backend_extension,
+    Dispatch, ExtensionType, Flex, FloatDType, backend_extension,
     ops::IntTensorOps,
     tensor::{FloatTensor, IntTensor},
 };
@@ -25,7 +20,7 @@ pub enum Operand<B: burn::backend::Backend> {
     Empty,
 }
 
-#[backend_extension(NdArray)]
+#[backend_extension(Flex)]
 pub trait RtBackend: burn::backend::Backend {
     /// Returns the active variant's tensor. Exercises enum-variant-dependent unwrapping.
     fn pick(#[extension_type] op: Operand<Self>) -> FloatTensor<Self>;
@@ -33,7 +28,7 @@ pub trait RtBackend: burn::backend::Backend {
     fn mix_pick(x: FloatTensor<Self>, #[extension_type] op: Operand<Self>) -> FloatTensor<Self>;
 }
 
-impl RtBackend for NdArray {
+impl RtBackend for Flex {
     fn pick(op: Operand<Self>) -> FloatTensor<Self> {
         match op {
             Operand::Dense(x) => x,
@@ -49,7 +44,7 @@ impl RtBackend for NdArray {
 }
 
 fn device() -> Device {
-    Device::ndarray()
+    Device::flex()
 }
 
 #[test]
@@ -81,7 +76,7 @@ fn mixed_input_selects_backend_from_bare_tensor_when_enum_is_tensorless() {
 #[should_panic(expected = "no tensor input to select a backend from")]
 fn all_tensorless_input_panics() {
     // The only input is a tensor-less enum variant, so the backend is unresolvable: the walk's
-    // `.expect(...)` fires. `pick`'s `NdArray` impl is never reached.
+    // `.expect(...)` fires. `pick`'s `Flex` impl is never reached.
     let _ = <Dispatch as RtBackend>::pick(Operand::Empty);
 }
 
@@ -91,12 +86,12 @@ mod associated_integer_output {
     use burn::backend::Autodiff;
     use burn::backend::autodiff::checkpoint::strategy::CheckpointStrategy;
 
-    #[backend_extension(Autodiff, NdArray)]
+    #[backend_extension(Autodiff, Flex)]
     trait AssociatedBackend: burn::backend::Backend {
         fn int_to_float(x: IntTensor<Self>) -> FloatTensor<Self>;
     }
 
-    impl AssociatedBackend for NdArray {
+    impl AssociatedBackend for Flex {
         fn int_to_float(x: IntTensor<Self>) -> FloatTensor<Self> {
             Self::int_into_float(x, FloatDType::F32)
         }
@@ -104,7 +99,7 @@ mod associated_integer_output {
 
     // Required for the statically generated float-input route, even though this operation has no
     // float input and therefore executes the concrete implementation at runtime.
-    impl<C: CheckpointStrategy> AssociatedBackend for Autodiff<NdArray, C> {
+    impl<C: CheckpointStrategy> AssociatedBackend for Autodiff<Flex, C> {
         fn int_to_float(x: IntTensor<Self>) -> FloatTensor<Self> {
             Self::int_into_float(x, FloatDType::F32)
         }
@@ -112,7 +107,7 @@ mod associated_integer_output {
 
     #[test]
     fn associated_integer_to_float_lifts_the_concrete_result() {
-        let device = Device::ndarray().autodiff();
+        let device = Device::flex().autodiff();
         let input = Tensor::<1, Int>::from_data([1, 2, 3], &device);
         let output = <Dispatch as AssociatedBackend>::int_to_float(input.into_dispatch());
         let output = Tensor::<1>::from_dispatch(output);
@@ -126,21 +121,21 @@ mod associated_integer_output {
 // Regression test for autodiff dispatch with more than one concrete backend. Float dispatch tensors
 // store the concrete backend inside `DispatchTensorKind::Autodiff`, so routing must inspect that
 // inner kind instead of allowing the first generated autodiff arm to capture every backend.
-#[cfg(all(feature = "autodiff", feature = "flex"))]
+#[cfg(all(feature = "autodiff", feature = "cpu"))]
 mod multi_backend_autodiff {
     use super::*;
     use burn::backend::autodiff::checkpoint::strategy::CheckpointStrategy;
-    use burn::backend::{Autodiff, Backend, Flex};
+    use burn::backend::{Autodiff, Backend, Cube};
 
-    #[backend_extension(NdArray, Flex, Autodiff)]
+    #[backend_extension(Flex, Cube, Autodiff)]
     pub trait DoubleBackend: Backend {
         fn double(x: FloatTensor<Self>) -> FloatTensor<Self> {
             Self::float_add(x.clone(), x)
         }
     }
 
-    impl DoubleBackend for NdArray {}
     impl DoubleBackend for Flex {}
+    impl DoubleBackend for Cube {}
     impl<B: Backend + DoubleBackend, C: CheckpointStrategy> DoubleBackend for Autodiff<B, C> {}
 
     fn assert_double(device: Device) {
@@ -153,8 +148,8 @@ mod multi_backend_autodiff {
 
     #[test]
     fn autodiff_float_input_dispatches_to_each_concrete_backend() {
-        assert_double(Device::ndarray().autodiff());
         assert_double(Device::flex().autodiff());
+        assert_double(Device::cpu().autodiff());
     }
 }
 
@@ -171,13 +166,13 @@ mod checkpoint_strategy_routing {
 
     static EXECUTED_STRATEGY: AtomicU8 = AtomicU8::new(0);
 
-    #[backend_extension(Autodiff, NdArray)]
+    #[backend_extension(Autodiff, Flex)]
     trait StrategyBackend: Backend {
         fn identity(x: FloatTensor<Self>) -> FloatTensor<Self>;
         fn add(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> FloatTensor<Self>;
     }
 
-    impl StrategyBackend for NdArray {
+    impl StrategyBackend for Flex {
         fn identity(x: FloatTensor<Self>) -> FloatTensor<Self> {
             x
         }
@@ -187,7 +182,7 @@ mod checkpoint_strategy_routing {
         }
     }
 
-    impl<C: CheckpointStrategy> StrategyBackend for Autodiff<NdArray, C> {
+    impl<C: CheckpointStrategy> StrategyBackend for Autodiff<Flex, C> {
         fn identity(x: FloatTensor<Self>) -> FloatTensor<Self> {
             let selected = if TypeId::of::<C>() == TypeId::of::<BalancedCheckpointing>() {
                 2
@@ -209,7 +204,7 @@ mod checkpoint_strategy_routing {
             (GradientCheckpointingStrategy::Disabled, 1),
             (GradientCheckpointingStrategy::Balanced, 2),
         ] {
-            let device = Device::ndarray().autodiff();
+            let device = Device::flex().autodiff();
             let input = Tensor::<1>::from_floats([1.0], &device)
                 .with_gradient_checkpointing_strategy(strategy);
             let output = <Dispatch as StrategyBackend>::identity(input.into_dispatch());
@@ -226,9 +221,9 @@ mod checkpoint_strategy_routing {
     #[test]
     fn uniform_autodiff_floats_preserve_their_strategy() {
         let strategy = GradientCheckpointingStrategy::Balanced;
-        let lhs = Tensor::<1>::from_floats([1.0], &Device::ndarray().autodiff())
+        let lhs = Tensor::<1>::from_floats([1.0], &Device::flex().autodiff())
             .with_gradient_checkpointing_strategy(strategy);
-        let rhs = Tensor::<1>::from_floats([2.0], &Device::ndarray().autodiff())
+        let rhs = Tensor::<1>::from_floats([2.0], &Device::flex().autodiff())
             .with_gradient_checkpointing_strategy(strategy);
 
         let output = <Dispatch as StrategyBackend>::add(lhs.into_dispatch(), rhs.into_dispatch());
@@ -272,13 +267,13 @@ mod extension_context_contract {
         choice: IntChoice<B>,
     }
 
-    #[backend_extension(Autodiff, NdArray)]
+    #[backend_extension(Autodiff, Flex)]
     trait ContextBackend: burn::backend::Backend {
         fn select(#[extension_type] inputs: NestedInputs<Self>) -> IntTensor<Self>;
         fn select_conflict(#[extension_type] inputs: NestedInputs<Self>) -> IntTensor<Self>;
     }
 
-    impl ContextBackend for NdArray {
+    impl ContextBackend for Flex {
         fn select(inputs: NestedInputs<Self>) -> IntTensor<Self> {
             inputs.pair.left
         }
@@ -289,7 +284,7 @@ mod extension_context_contract {
         }
     }
 
-    impl<C: CheckpointStrategy> ContextBackend for Autodiff<NdArray, C> {
+    impl<C: CheckpointStrategy> ContextBackend for Autodiff<Flex, C> {
         fn select(inputs: NestedInputs<Self>) -> IntTensor<Self> {
             inputs.pair.left
         }
@@ -301,12 +296,12 @@ mod extension_context_contract {
     }
 
     fn int(strategy: GradientCheckpointingStrategy) -> Tensor<1, Int> {
-        Tensor::from_data([1], &Device::ndarray().autodiff())
+        Tensor::from_data([1], &Device::flex().autodiff())
             .with_gradient_checkpointing_strategy(strategy)
     }
 
     fn inner_int() -> Tensor<1, Int> {
-        Tensor::from_data([1], &Device::ndarray())
+        Tensor::from_data([1], &Device::flex())
     }
 
     #[test]
@@ -349,7 +344,7 @@ mod extension_context_contract {
         IMPLEMENTATION_CALLED.store(false, Ordering::SeqCst);
         // `IntPair` declares an integer field, but dispatch primitives share one runtime type, so a
         // malformed downstream value can place an autodiff float representation in that field.
-        let malformed = Tensor::<1>::from_data([1.0], &Device::ndarray().autodiff())
+        let malformed = Tensor::<1>::from_data([1.0], &Device::flex().autodiff())
             .with_gradient_checkpointing_strategy(GradientCheckpointingStrategy::Balanced)
             .into_dispatch();
 
@@ -386,7 +381,7 @@ mod extension_context_contract {
 }
 
 // End-to-end autodiff: a differentiable op over a struct input, with a hand-written `Backward`, run
-// on `NdArray` through `Dispatch`. Verifies gradients actually flow back into the struct's fields
+// on `Flex` through `Dispatch`. Verifies gradients actually flow back into the struct's fields
 // (not just that the dispatch glue type-checks).
 #[cfg(feature = "autodiff")]
 mod autodiff_gradients {
@@ -407,21 +402,21 @@ mod autodiff_gradients {
         pub y: FloatTensor<B>,
     }
 
-    #[backend_extension(Autodiff, NdArray)]
+    #[backend_extension(Autodiff, Flex)]
     pub trait GradBackend: burn::backend::Backend {
         /// Elementwise `x * y`, differentiable in both fields.
         fn mul_pair(#[extension_type] p: FloatPair<Self>) -> FloatTensor<Self>;
     }
 
     // Concrete forward.
-    impl GradBackend for NdArray {
+    impl GradBackend for Flex {
         fn mul_pair(p: FloatPair<Self>) -> FloatTensor<Self> {
-            NdArray::float_mul(p.x, p.y)
+            Flex::float_mul(p.x, p.y)
         }
     }
 
     // Autodiff: register the backward step over the struct's two tracked float fields.
-    impl<C: CheckpointStrategy> GradBackend for Autodiff<NdArray, C> {
+    impl<C: CheckpointStrategy> GradBackend for Autodiff<Flex, C> {
         fn mul_pair(p: FloatPair<Self>) -> FloatTensor<Self> {
             #[derive(Debug)]
             struct MulPairBackward;
@@ -457,20 +452,19 @@ mod autodiff_gradients {
                 OpsKind::Tracked(prep) => {
                     let x = p.x.primitive().clone();
                     let y = p.y.primitive().clone();
-                    let output = NdArray::float_mul(x.clone(), y.clone());
+                    let output = Flex::float_mul(x.clone(), y.clone());
                     prep.finish((x, y), output)
                 }
-                OpsKind::UnTracked(prep) => prep.finish(NdArray::float_mul(
-                    p.x.into_primitive(),
-                    p.y.into_primitive(),
-                )),
+                OpsKind::UnTracked(prep) => {
+                    prep.finish(Flex::float_mul(p.x.into_primitive(), p.y.into_primitive()))
+                }
             }
         }
     }
 
     #[test]
     fn autodiff_struct_input_propagates_gradients() {
-        let device = Device::ndarray().autodiff();
+        let device = Device::flex().autodiff();
         let x = Tensor::<1>::from_floats([2.0, 3.0], &device).require_grad();
         let y = Tensor::<1>::from_floats([4.0, 5.0], &device).require_grad();
 

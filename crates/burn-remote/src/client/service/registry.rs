@@ -6,7 +6,7 @@ use std::{
     collections::HashMap,
     sync::{
         Arc, Mutex, OnceLock,
-        atomic::{AtomicU64, Ordering},
+        atomic::{AtomicBool, AtomicU64, Ordering},
     },
 };
 
@@ -18,8 +18,26 @@ pub(crate) fn new_tensor_id() -> TensorId {
     TensorId::new(TENSOR_ID_COUNTER.fetch_add(1, Ordering::Relaxed))
 }
 
+/// Whether a device's session has ended: its response stream closed, or its writer failed. An
+/// ended session is never reopened; the next connect registers a new device.
+#[derive(Default)]
+pub(crate) struct SessionEnd {
+    ended: AtomicBool,
+}
+
+impl SessionEnd {
+    pub(crate) fn end(&self) {
+        self.ended.store(true, Ordering::Release);
+    }
+
+    pub(crate) fn has_ended(&self) -> bool {
+        self.ended.load(Ordering::Acquire)
+    }
+}
+
 struct EndpointRegistry {
     next_index: u32,
+    /// The device id currently serving each endpoint and device index.
     by_endpoint: HashMap<(EndpointKey, u32), u32>,
     by_index: HashMap<u32, EndpointEntry>,
 }
@@ -29,6 +47,7 @@ struct EndpointEntry {
     device_index: u32,
     settings: Arc<OnceLock<DeviceSettings>>,
     device_count: Arc<OnceLock<u32>>,
+    session: Arc<SessionEnd>,
 }
 
 static REGISTRY: OnceLock<Mutex<EndpointRegistry>> = OnceLock::new();
@@ -43,13 +62,17 @@ fn registry() -> &'static Mutex<EndpointRegistry> {
     })
 }
 
+/// The device id for `endpoint` and `device_index`: the current one, with its dialing hints
+/// refreshed, or a new one when there is none or its session has ended.
 pub(crate) fn register_endpoint(endpoint: RemoteEndpoint, device_index: u32) -> u32 {
     let key = (endpoint.key(), device_index);
     let mut registry = registry().lock().unwrap();
     if let Some(id) = registry.by_endpoint.get(&key).copied() {
-        // Refresh mutable dialing hints while preserving the stable device id and settings cells.
-        registry.by_index.get_mut(&id).unwrap().endpoint = endpoint;
-        return id;
+        let entry = registry.by_index.get_mut(&id).unwrap();
+        if !entry.session.has_ended() {
+            entry.endpoint = endpoint;
+            return id;
+        }
     }
 
     let id = registry.next_index;
@@ -71,6 +94,7 @@ pub(crate) fn register_endpoint(endpoint: RemoteEndpoint, device_index: u32) -> 
             device_index,
             settings: Arc::new(OnceLock::new()),
             device_count: Arc::new(OnceLock::new()),
+            session: Arc::default(),
         },
     );
     id
@@ -118,4 +142,8 @@ pub(crate) fn device_count_cell(id: u32) -> Arc<OnceLock<u32>> {
 
 pub(crate) fn device_count_for(id: u32) -> Option<u32> {
     find_entry(id, |entry| entry.device_count.get().copied()).flatten()
+}
+
+pub(crate) fn session_end(id: u32) -> Arc<SessionEnd> {
+    with_entry(id, |entry| entry.session.clone())
 }

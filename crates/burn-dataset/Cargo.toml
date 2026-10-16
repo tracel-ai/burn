@@ -7,7 +7,7 @@ edition.workspace = true
 keywords = ["deep-learning", "machine-learning", "data"]
 license.workspace = true
 name = "burn-dataset"
-readme.workspace = true
+readme = "README.md"
 repository = "https://github.com/tracel-ai/burn/tree/main/crates/burn-dataset"
 version.workspace = true
 
@@ -29,6 +29,7 @@ fake = ["dep:fake"]
 network = ["dep:burn-std"]
 sqlite = [
     "dep:turso",
+    "dep:branches",
     "dep:futures-lite",
     "dep:r2d2",
     "dep:image",
@@ -43,6 +44,7 @@ nlp = ["dep:globwalk", "dep:encoding_rs"]
 dataframe = ["dep:polars-core", "dep:planus"]
 
 [dependencies]
+branches = { workspace = true, optional = true }
 burn-std = { workspace = true, optional = true, features = [
     "default",
     "network",

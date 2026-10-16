@@ -2,12 +2,7 @@ use burn::optim::{SgdConfig, momentum::MomentumConfig};
 use custom_image_dataset::training::TrainingConfig;
 
 // Import only when backend features are enabled
-#[cfg(any(
-    feature = "tch-gpu",
-    feature = "wgpu",
-    feature = "metal",
-    feature = "vulkan"
-))]
+#[cfg(any(feature = "wgpu", feature = "metal", feature = "vulkan"))]
 use custom_image_dataset::training::train;
 
 /// Creates a training configuration with SGD optimizer and momentum.
@@ -22,18 +17,6 @@ fn create_config() -> TrainingConfig {
 fn main() {
     #[allow(unused_variables)]
     let config = create_config();
-
-    #[cfg(feature = "tch-gpu")]
-    {
-        use burn::tensor::{Device, DeviceIndex};
-
-        #[cfg(not(target_os = "macos"))]
-        let device = Device::libtorch_cuda(DeviceIndex::Default);
-        #[cfg(target_os = "macos")]
-        let device = Device::libtorch_mps();
-
-        train(config, device);
-    }
 
     #[cfg(any(feature = "wgpu", feature = "metal", feature = "vulkan"))]
     {

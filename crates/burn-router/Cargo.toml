@@ -9,7 +9,7 @@ edition.workspace = true
 keywords = ["deep-learning", "machine-learning", "data"]
 license.workspace = true
 name = "burn-router"
-readme.workspace = true
+readme = "README.md"
 repository = "https://github.com/tracel-ai/burn/tree/main/crates/burn-router"
 documentation = "https://docs.rs/burn-router"
 version.workspace = true
@@ -23,7 +23,7 @@ std = ["burn-backend/std", "burn-std/std", "burn-ir/std"]
 # Client-side operation fusion / caching for router backends (e.g. the remote backend). Requires
 # std (the fusion engine uses threads).
 fusion = ["std", "dep:burn-fusion", "dep:serde"]
-doc = ["default"]
+doc = ["default", "fusion"]
 tracing = ["burn-backend/tracing", "burn-ir/tracing", "burn-std/tracing"]
 
 [dependencies]

@@ -2,7 +2,29 @@
 #![warn(missing_docs)]
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
-//! The core crate of Burn.
+//! The core of Burn: modules, configuration, records and data loading, on top of the tensor API.
+//!
+//! Applications should depend on [`burn`](https://docs.rs/burn), which re-exports everything here
+//! together with neural network layers, optimizers and training. This crate is the dependency for
+//! libraries that only need the core abstractions.
+//!
+//! - [`tensor`]: Burn's tensor API, re-exported from `burn-tensor`.
+//! - [`module`]: the [`Module`](module::Module) trait, implemented with `#[derive(Module)]`, and
+//!   [`Param`](module::Param) for trainable tensors.
+//! - [`config`]: serializable configuration structs with `#[derive(Config)]`.
+//! - [`store`]: module records and the burnpack format.
+//! - [`data`]: datasets, batchers and data loaders (`std` only).
+//! - [`prelude`]: the types most programs import.
+//!
+//! # Feature flags
+//!
+//! Backend features (`wgpu`, `cuda`, `flex`, ...) and the `autodiff`, `fusion`, `remote` and
+//! `capture` features match those of `burn`. Others:
+//!
+//! - `std` (default): standard library support. Without it the crate is `no_std` with `alloc`.
+//! - `dataset`: the dataset library in [`data`]; `vision`, `audio` and `sqlite` add sources.
+//! - `network`: file downloads with a progress bar.
+//! - `tracing`: instrument operations with the `tracing` crate.
 
 // `derive_new` provides the `#[derive(new)]` macro used across the crate; the lint mistakenly
 // reports the `#[macro_use]` as unused.

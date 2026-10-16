@@ -32,29 +32,6 @@ pub fn launch(mut device: Device) {
     );
 }
 
-#[cfg(feature = "tch-gpu")]
-mod tch_gpu {
-    use burn::tensor::{Device, DeviceIndex};
-
-    pub fn run() {
-        #[cfg(not(target_os = "macos"))]
-        let device = Device::libtorch_cuda(DeviceIndex::Default);
-        #[cfg(target_os = "macos")]
-        let device = Device::libtorch_mps();
-
-        crate::launch(device);
-    }
-}
-
-#[cfg(feature = "tch-cpu")]
-mod tch_cpu {
-    use burn::tensor::Device;
-
-    pub fn run() {
-        crate::launch(Device::libtorch());
-    }
-}
-
 #[cfg(any(feature = "wgpu", feature = "vulkan", feature = "metal"))]
 mod wgpu {
     use burn::tensor::{Device, DeviceKind};
@@ -111,10 +88,6 @@ mod remote {
 }
 
 fn main() {
-    #[cfg(feature = "tch-gpu")]
-    tch_gpu::run();
-    #[cfg(feature = "tch-cpu")]
-    tch_cpu::run();
     #[cfg(any(feature = "wgpu", feature = "vulkan", feature = "metal"))]
     wgpu::run();
     #[cfg(feature = "cuda")]

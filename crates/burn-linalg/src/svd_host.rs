@@ -4,7 +4,7 @@
 //! This is the reference implementation backing the default
 //! [`LinalgOps::svd`](crate::LinalgOps::svd):
 //! pure scalar math over tensor data, deterministic and identical on every
-//! backend. Backends may override the trait method with a native SVD (tch)
+//! backend. Backends may override the trait method with a native SVD
 //! or a fused GPU kernel (cubecl); this module stays the correctness
 //! reference and the no-kernel fallback.
 use alloc::format;

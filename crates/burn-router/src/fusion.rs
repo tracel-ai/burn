@@ -2,11 +2,11 @@
 //!
 //! Wrapping a router backend as [`Fusion`](burn_fusion::Fusion) turns recurring groups of tensor
 //! operations into reusable, client-cached graphs. A single greedy [`RouterFuser`] accumulates
-//! every operation up to the next upload and is drained at a sync point, so one graph covers each
-//! connected block between syncs and uploads. On execution the group is registered once on the
-//! backend (via the [`RouterClient`]) and thereafter invoked by id with only the changing
-//! bindings. For the remote backend this means a recurring computation (e.g. a model block)
-//! crosses the network once instead of every step.
+//! every operation and is drained at a sync point, so one graph covers each connected block
+//! between syncs. On execution the group is registered once on the backend (via the
+//! [`RouterClient`]) and thereafter invoked by id with only the changing bindings. For the remote
+//! backend this means a recurring computation (e.g. a model block) crosses the network once
+//! instead of every step.
 //!
 //! `burn-fusion` names its hook `Optimization`; here that hook *is* a cached graph execution
 //! ([`RouterGraphExecution`]), to distinguish it from a compute backend's kernel fusion.
@@ -162,20 +162,15 @@ impl<R: RouterChannel> FusionRuntime for RouterFusionRuntime<R> {
     }
 }
 
-/// A greedy operation fuser that records every operation up to the next upload.
+/// A greedy operation fuser that records every operation.
 ///
 /// While [`status`](OperationFuser::status) reports [`FuserStatus::Open`], the fusion engine keeps
 /// deferring in lazy mode and drains the queue at a sync point (a read, `sync`, or `flush`). At
 /// that point [`finish`](OperationFuser::finish) yields a single [`RouterGraphExecution`] covering
 /// the whole accumulated (connected) block.
-///
-/// It closes on an [`Init`](OperationIr::Init) without taking it: the data already went out when
-/// the tensor was created, and a queued `Init` holds back a drop from another thread until this
-/// stream executes, which on a thread that only uploads never happens.
 pub struct RouterFuser<R: RouterChannel> {
     device: R::Device,
     ops: Vec<OperationIr>,
-    closed_on_init: bool,
     savings: ReplaySavings,
     score: u64,
     score_max: u64,
@@ -194,7 +189,6 @@ impl<R: RouterChannel> RouterFuser<R> {
         Self {
             device,
             ops: Vec::new(),
-            closed_on_init: false,
             savings: ReplaySavings::default(),
             score: 0,
             score_max: 0,
@@ -230,7 +224,6 @@ impl<R: RouterChannel> Clone for RouterFuser<R> {
         Self {
             device: self.device.clone(),
             ops: self.ops.clone(),
-            closed_on_init: self.closed_on_init,
             savings: self.savings.clone(),
             score: self.score,
             score_max: self.score_max,
@@ -243,14 +236,6 @@ impl<R: RouterChannel> Clone for RouterFuser<R> {
 
 impl<R: RouterChannel> OperationFuser<RouterGraphExecution<R>> for RouterFuser<R> {
     fn fuse(&mut self, operation: &OperationIr) {
-        // `Block::optimize` drains as many ops as the fuser took, so they must be a prefix.
-        if self.closed_on_init {
-            return;
-        }
-        if let OperationIr::Init(_) = operation {
-            self.closed_on_init = true;
-            return;
-        }
         self.savings.add(operation);
         self.ops.push(operation.clone());
 
@@ -271,13 +256,12 @@ impl<R: RouterChannel> OperationFuser<RouterGraphExecution<R>> for RouterFuser<R
 
     fn reset(&mut self) {
         self.ops.clear();
-        self.closed_on_init = false;
         self.savings = ReplaySavings::default();
     }
 
     fn status(&self) -> FuserStatus {
         let over_max = self.max_graph_size.is_some_and(|max| self.len() > max);
-        if self.closed_on_init || self.num_since_max_unchanged >= self.growth_patience || over_max {
+        if self.num_since_max_unchanged >= self.growth_patience || over_max {
             FuserStatus::Closed
         } else {
             FuserStatus::Open

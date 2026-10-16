@@ -64,6 +64,30 @@ At each directory level, CubeCL checks `cubecl.toml` and `CubeCL.toml` before th
 in `burn.toml` or `Burn.toml`, then searches parent directories. It uses the first valid
 configuration; separate files and embedded sections are not merged.
 
+#### Persistent caches
+
+The `persistence` Cargo feature enables persistent caches for selected CubeCL backends. It forwards
+to `cubecl/persistence`:
+
+```toml
+[dependencies]
+burn = { version = "0.22", default-features = false, features = ["std", "cuda", "persistence"] }
+```
+
+Runtime configuration controls which caches are used. Persistent autotune results are enabled by
+default when persistence is available. Compiled-kernel caching is opt-in:
+
+```toml
+# burn.toml
+[cubecl.compilation]
+cache = true
+```
+
+To rerun autotuning in each process while retaining compiled kernels, also set
+`disable_cache = true` under `[cubecl.autotune]`. In-memory caches remain active. Persistent
+compiled-kernel caching requires a supported native target; runtime settings cannot enable a cache
+whose persistence support was compiled out.
+
 ### Fusion
 
 The `[fusion]` section controls how Burn combines operations and logs fusion activity.
@@ -139,8 +163,8 @@ sent.
 
 **Transport Settings:**
 
-- `iroh_segmentation_offload`: Lets the Iroh endpoints Burn binds send segmentation-offloaded
-  (GSO) batches (default: `false`, see [iroh#4555](https://github.com/n0-computer/iroh/issues/4555)).
+- `iroh_segmentation_offload`: Lets the Iroh endpoints Burn binds send segmentation-offloaded (GSO)
+  batches (default: `false`, see [iroh#4555](https://github.com/n0-computer/iroh/issues/4555)).
 
 **Example:**
 

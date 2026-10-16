@@ -114,8 +114,33 @@ pub enum PaddingConfig3d {
 }
 
 impl PaddingConfig3d {
+    /// Calculate padding as ((front, back), (top, bottom), (left, right)) pairs for 3D operations.
+    /// For `Same` padding, this computes the actual asymmetric padding if needed.
+    pub(crate) fn calculate_padding_3d_pairs(
+        &self,
+        depth: usize,
+        height: usize,
+        width: usize,
+        kernel_size: &[usize; 3],
+        stride: &[usize; 3],
+    ) -> ((usize, usize), (usize, usize), (usize, usize)) {
+        match self {
+            Self::Valid => ((0, 0), (0, 0), (0, 0)),
+            Self::Same => {
+                let (front, back) = calculate_same_padding(kernel_size[0], stride[0], depth);
+                let (top, bottom) = calculate_same_padding(kernel_size[1], stride[1], height);
+                let (left, right) = calculate_same_padding(kernel_size[2], stride[2], width);
+                ((front, back), (top, bottom), (left, right))
+            }
+            Self::Explicit(depth, height, width) => {
+                ((*depth, *depth), (*height, *height), (*width, *width))
+            }
+        }
+    }
+
     /// Calculate symmetric padding for 3D operations.
     /// Returns padding values [depth, height, width] (same for both sides).
+    /// Panics if asymmetric padding is detected.
     pub(crate) fn calculate_padding_3d(
         &self,
         depth: usize,
@@ -124,22 +149,15 @@ impl PaddingConfig3d {
         kernel_size: &[usize; 3],
         stride: &[usize; 3],
     ) -> [usize; 3] {
-        match self {
-            Self::Valid => [0, 0, 0],
-            Self::Same => {
-                let (front, back) = calculate_same_padding(kernel_size[0], stride[0], depth);
-                let (top, bottom) = calculate_same_padding(kernel_size[1], stride[1], height);
-                let (left, right) = calculate_same_padding(kernel_size[2], stride[2], width);
-                if front != back || top != bottom || left != right {
-                    panic!(
-                        "Asymmetric 3D 'Same' padding is not supported. \
-                        Use odd kernel sizes for symmetric padding."
-                    )
-                }
-                [front, top, left]
-            }
-            Self::Explicit(depth, height, width) => [*depth, *height, *width],
+        let ((front, back), (top, bottom), (left, right)) =
+            self.calculate_padding_3d_pairs(depth, height, width, kernel_size, stride);
+        if front != back || top != bottom || left != right {
+            panic!(
+                "Asymmetric 3D 'Same' padding is not supported. \
+                Use odd kernel sizes for symmetric padding."
+            );
         }
+        [front, top, left]
     }
 }
 
@@ -242,6 +260,25 @@ mod tests {
         assert_eq!(
             padding.calculate_padding_3d(10, 10, 10, &[3, 3, 3], &[1, 1, 1]),
             [1, 1, 1]
+        );
+    }
+
+    #[test]
+    fn test_padding_config_3d_calculate_pairs_same_asymmetric() {
+        let padding = PaddingConfig3d::Same;
+        // kernel=2, stride=1, size=10: size_out=10, needed = 9*1+2 = 11, total=1, pad_start=0, pad_end=1
+        assert_eq!(
+            padding.calculate_padding_3d_pairs(10, 10, 10, &[2, 2, 2], &[1, 1, 1]),
+            ((0, 1), (0, 1), (0, 1))
+        );
+    }
+
+    #[test]
+    fn test_padding_config_3d_calculate_pairs_explicit() {
+        let padding = PaddingConfig3d::Explicit(1, 2, 3);
+        assert_eq!(
+            padding.calculate_padding_3d_pairs(10, 10, 10, &[3, 3, 3], &[1, 1, 1]),
+            ((1, 1), (2, 2), (3, 3))
         );
     }
 }

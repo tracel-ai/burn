@@ -18,6 +18,7 @@ mod nhwc_relayout;
 mod padded_layout;
 mod reduce_broadcasted;
 mod reduce_logical;
+mod select;
 
 use burn_tensor::StreamId;
 

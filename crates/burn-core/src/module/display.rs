@@ -31,6 +31,9 @@ pub trait ModuleDisplayDefault {
 /// In order to implement custom display settings for a module,
 /// 1. Add #[module(custom_display)] attribute to the module struct after #[derive(Module)]
 /// 2. Implement ModuleDisplay trait for the module
+#[diagnostic::on_unimplemented(
+    note = "If `{Self}` is used as configuration or runtime state in a `#[derive(Module)]` type, mark that field with `#[module(skip)]`."
+)]
 pub trait ModuleDisplay: ModuleDisplayDefault {
     /// Formats the module with provided display settings.
     ///

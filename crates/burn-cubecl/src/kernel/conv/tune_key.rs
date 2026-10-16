@@ -49,6 +49,31 @@ pub struct ConvTranspose2dAutotuneKey {
     pub dtype: DType,
 }
 
+#[derive(Hash, Eq, PartialEq, Debug, Clone, Serialize, Deserialize, AutotuneKey)]
+/// Autotune key representative of 3D transposed convolution versions
+pub struct ConvTranspose3dAutotuneKey {
+    pub kernel_size: [usize; 3],
+    pub stride: [usize; 3],
+    pub padding: [usize; 3],
+    pub padding_out: [usize; 3],
+    pub dilation: [usize; 3],
+    pub groups: usize,
+    #[autotune(anchor)]
+    pub in_channels: usize,
+    #[autotune(anchor)]
+    pub out_channels: usize,
+    #[autotune(anchor)]
+    pub depth: usize,
+    #[autotune(anchor)]
+    pub height: usize,
+    #[autotune(anchor)]
+    pub width: usize,
+    #[autotune(anchor)]
+    pub batch_size: usize,
+    pub has_bias: bool,
+    pub dtype: DType,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

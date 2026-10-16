@@ -104,7 +104,7 @@ fn clamp_max_nan_propagation() {
 }
 
 // A NaN bound makes every element NaN, not just one: x > NaN and x < NaN are both false, so
-// each element falls through to the bound. Flex only, ndarray returns the input unchanged.
+// each element falls through to the bound. Flex only.
 #[cfg(feature = "flex")]
 #[test]
 fn clamp_min_nan_bound_propagation() {
@@ -211,9 +211,9 @@ fn clamp_nan_propagation_vectorized() {
     assert!(values[3].is_nan());
 }
 
-#[cfg(feature = "ndarray")]
+#[cfg(feature = "flex")]
 #[test]
-fn clamp_nan_propagation_through_simd() {
+fn clamp_nan_propagation_large_input() {
     let mut data = vec![2.0; 64];
     data[0] = f32::NAN;
     let tensor = TestTensor::<1>::from_data(TensorData::new(data, [64]), &Default::default());
@@ -231,9 +231,9 @@ fn clamp_nan_propagation_through_simd() {
     }
 }
 
-#[cfg(feature = "ndarray")]
+#[cfg(feature = "flex")]
 #[test]
-fn clamp_nan_propagation_through_simd_f64() {
+fn clamp_nan_propagation_large_input_f64() {
     let mut data = vec![2.0_f32; 64];
     data[0] = f32::NAN;
     let tensor = TestTensor::<1>::from_data(TensorData::new(data, [64]), &Default::default())
@@ -252,7 +252,7 @@ fn clamp_nan_propagation_through_simd_f64() {
     }
 }
 
-#[cfg(any(feature = "flex", feature = "ndarray"))]
+#[cfg(feature = "flex")]
 #[test]
 fn clamp_min_max_nan_propagation_f64() {
     let tensor = TestTensor::<1>::from([f32::NAN, -1.0, 2.0]).cast(burn_tensor::DType::F64);

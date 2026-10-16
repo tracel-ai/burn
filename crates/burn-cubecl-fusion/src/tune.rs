@@ -1,6 +1,8 @@
 use crate::CubeFusionHandle;
+use crate::engine::trace::FuseTrace;
 use burn_fusion::stream::Context;
 use burn_ir::{HandleContainer, TensorId, TensorIr};
+use cubecl::execution::ProcessMode;
 use cubecl::tune::{InputGenerator, TuneInputs};
 use hashbrown::HashMap;
 use std::marker::PhantomData;
@@ -17,6 +19,11 @@ impl<O: Send + Sync + 'static> TuneInputs for FusionTuneInputs<O> {
     type At<'a> = TuneInput<'a, O>;
 }
 
+/// An optimization argument whose candidates run a [`FuseTrace`].
+pub(crate) trait TunedTrace {
+    fn trace(&self) -> &FuseTrace;
+}
+
 /// [`InputGenerator`] for [`TuneInput`]: produces a benchmark-only [`TuneState::Fork`]
 /// (i.e. with `new_handles = None`). Benchmarks discard their outputs, so the returned
 /// input skips the handle-tracking machinery that a wasm-fallback fork carries.
@@ -25,7 +32,7 @@ pub(crate) struct FusionInputGen;
 impl<K, O> InputGenerator<K, FusionTuneInputs<O>> for FusionInputGen
 where
     K: 'static,
-    O: Send + Sync + 'static,
+    O: TunedTrace + Send + Sync + 'static,
 {
     fn generate<'a>(
         &self,
@@ -108,11 +115,31 @@ impl<'a, O> TuneInput<'a, O> {
 
     /// Fork the context into a non-tracking `Fork` for a benchmark trial. See
     /// [`FusionInputGen`].
-    fn for_benchmark(&self) -> Self {
+    fn for_benchmark(&self) -> Self
+    where
+        O: TunedTrace,
+    {
+        let mut context = self.context().fork();
+        // The launches that wrote the call's inputs were discarded, so the indices a gather or a
+        // select reads hold whatever their memory held. Zeros are in range for any indexed dim.
+        if ProcessMode::current() == ProcessMode::CompileAndAutotune {
+            for relative in self.optimization.trace().index_inputs() {
+                let id = context.tensors[&relative].id;
+                let Some(handle) = context.handles.get_handle_ref(&id) else {
+                    continue;
+                };
+                let zeros = vec![0u8; handle.handle.size() as usize];
+                let handle = CubeFusionHandle {
+                    handle: handle.client.create_from_slice(&zeros),
+                    ..handle.clone()
+                };
+                context.handles.register_handle(id, handle);
+            }
+        }
         Self {
             optimization: self.optimization.clone(),
             state: TuneState::Fork {
-                context: Box::new(self.context().fork()),
+                context: Box::new(context),
                 new_handles: None,
             },
         }

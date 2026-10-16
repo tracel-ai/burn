@@ -4,10 +4,10 @@ categories = ["science", "no-std", "embedded", "wasm"]
 description = "Flexible and Comprehensive Deep Learning Framework in Rust"
 documentation = "https://docs.rs/burn-core"
 edition.workspace = true
-keywords = ["deep-learning", "machine-learning", "tensor", "pytorch", "ndarray"]
+keywords = ["deep-learning", "machine-learning", "tensor", "pytorch"]
 license.workspace = true
 name = "burn-core"
-readme.workspace = true
+readme = "README.md"
 repository = "https://github.com/tracel-ai/burn/tree/main/crates/burn-core"
 version.workspace = true
 
@@ -76,8 +76,6 @@ remote-websocket = ["burn-tensor/remote-websocket"]
 cuda = ["burn-tensor/cuda", "dep:burn-cuda"]
 rocm = ["burn-tensor/rocm", "dep:burn-rocm"]
 flex = ["burn-tensor/flex"]
-ndarray = ["burn-tensor/ndarray"]
-tch = ["burn-tensor/tch"]
 vulkan = ["wgpu", "burn-tensor/vulkan", "burn-wgpu/vulkan"]
 webgpu = ["wgpu", "burn-tensor/webgpu", "burn-wgpu/webgpu"]
 wgpu = ["burn-tensor/wgpu", "dep:burn-wgpu"]
@@ -88,6 +86,14 @@ capture = ["burn-tensor/capture"]
 ir = ["burn-ir"]
 
 # Backend features
+persistence = [
+    "burn-tensor/persistence",
+    "burn-cpu?/persistence",
+    "burn-cuda?/persistence",
+    "burn-rocm?/persistence",
+    "burn-wgpu?/persistence",
+    "burn-cubecl?/persistence",
+]
 autotune = [
     "burn-tensor/autotune",
     "burn-cpu?/autotune",
@@ -114,10 +120,6 @@ simd = ["burn-tensor/simd"]
 rayon = ["burn-tensor/rayon"]
 x86-v4 = ["burn-tensor/x86-v4"]
 apple-amx = ["burn-tensor/apple-amx"]
-accelerate = ["burn-tensor/accelerate"]
-blas-netlib = ["burn-tensor/blas-netlib"]
-openblas = ["burn-tensor/openblas"]
-openblas-system = ["burn-tensor/openblas-system"]
 template = ["burn-tensor/template", "burn-wgpu?/template"]
 
 # Backend extensions

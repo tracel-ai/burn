@@ -1520,15 +1520,6 @@ mod tests {
     }
 
     #[test]
-    fn test_int_shift_large_amount() {
-        // Shift by >= bit width panics without wrapping; should not crash
-        let a = FlexTensor::from_data(TensorData::new(vec![1i64], [1]));
-        let b = FlexTensor::from_data(TensorData::new(vec![64i64], [1]));
-        let _left = Flex::bitwise_left_shift(a.clone(), b.clone());
-        let _right = Flex::bitwise_right_shift(a, b);
-    }
-
-    #[test]
     fn test_int_shift_masks_to_operand_width() {
         // wrapping_shl/wrapping_shr mask the shift amount to the operand's own
         // bit width, so shifting by BITS + 1 behaves like shifting by 1.

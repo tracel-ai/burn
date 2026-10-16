@@ -5,11 +5,19 @@ use burn_backend::cubecl::dtype_to_storage_type;
 use burn_backend::{DType, TensorMetadata};
 
 /// Convert the tensor back to a higher precision data type.
+///
+/// # Panics
+///
+/// A storage-tiled tensor: the kernel reads its values as rows.
 pub fn dequantize(tensor: CubeTensor, dtype: DType) -> CubeTensor {
     let scheme = match tensor.dtype {
         DType::QFloat(scheme) => scheme,
         _ => return tensor,
     };
+    assert!(
+        !tensor.meta.is_tiled(),
+        "dequantize: a storage-tiled quantized tensor is read only by the kernel it was tiled for"
+    );
     let (tensor, inverse_axes) = match scheme.store {
         cubecl::quant::scheme::QuantStore::PackedU32(dim)
         | cubecl::quant::scheme::QuantStore::PackedNative(dim)

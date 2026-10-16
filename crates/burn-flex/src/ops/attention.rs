@@ -1115,7 +1115,7 @@ mod tests {
     }
 
     /// GQA/MQA (`kv_heads < q_heads`) must equal plain MHA with each K/V head
-    /// repeated `q_heads / kv_heads` times - ONNX Attention-23 / burn-ndarray
+    /// repeated `q_heads / kv_heads` times - ONNX Attention-23
     /// semantics. covers both the naive and flash inner loops (#4930).
     fn check_grouped_attention(q_heads: usize, kv_heads: usize) {
         let q_per_kv = q_heads / kv_heads;
@@ -1178,18 +1178,6 @@ mod tests {
                 &alloc::format!("{label} gqa(q={q_heads},kv={kv_heads}) vs repeated-kv"),
             );
         }
-    }
-
-    #[test]
-    fn test_attention_gqa_matches_repeated_kv() {
-        // 4 query heads, 2 KV heads: each KV head shared by 2 query heads.
-        check_grouped_attention(4, 2);
-    }
-
-    #[test]
-    fn test_attention_mqa_matches_repeated_kv() {
-        // Multi-Query Attention: a single KV head shared by all 4 query heads.
-        check_grouped_attention(4, 1);
     }
 
     #[test]
