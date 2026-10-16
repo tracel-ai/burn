@@ -1,5 +1,5 @@
 use crate::bridge::{BasicOps, Ordered};
-use crate::{DType, Shape, Slice, Tensor, cast::ToElement};
+use crate::{DType, Shape, Slice, Tensor};
 use alloc::format;
 use alloc::string::{String, ToString};
 use alloc::vec;
@@ -390,8 +390,9 @@ impl TensorCheck {
     }
 
     pub(crate) fn one_hot_tensor<const D: usize, K: Ordered>(
-        index_tensor: Tensor<D, K>,
+        index_tensor: &Tensor<D, K>,
         num_classes: usize,
+        classes: &[Option<usize>],
     ) -> Self {
         let mut check = Self::Ok;
         if num_classes <= 1 {
@@ -399,17 +400,12 @@ impl TensorCheck {
                 "One Hot",
                 TensorError::new("Can't create a one hot tensor with less than 2 classes"),
             )
-        } else if index_tensor
-            .clone()
-            .greater_equal_scalar(num_classes as i32)
-            .any()
-            .into_scalar::<i64>()
-            .to_bool()
-        {
+        } else if classes.iter().any(Option::is_none) {
+            // `one_hot_fill` keeps an off_value row for out-of-range indices; `one_hot` rejects them
             check = check.register(
                 "One Hot",
                 TensorError::new(format!(
-                    "Can't create a one hot tensor from ({index_tensor:?}) containing indexes greater or equal to the number of classes ({num_classes})",
+                    "Can't create a one hot tensor from ({index_tensor:?}) containing indexes outside [-{num_classes}, {num_classes})",
                 )),
             );
         }

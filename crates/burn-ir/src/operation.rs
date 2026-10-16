@@ -214,6 +214,10 @@ pub enum FloatOperationIr {
     Powf(BinaryOpIr),
     /// Operation corresponding to [hypot](burn_backend::ops::FloatTensorOps::float_hypot).
     Hypot(BinaryOpIr),
+    /// Operation corresponding to [fmod](burn_backend::ops::FloatTensorOps::float_fmod).
+    Fmod(BinaryOpIr),
+    /// Operation corresponding to [fmod scalar](burn_backend::ops::FloatTensorOps::float_fmod_scalar).
+    FmodScalar(ScalarOpIr),
 }
 
 /// Operation intermediate representation specific to module.
@@ -3302,6 +3306,8 @@ impl FloatOperationIr {
             FloatOperationIr::ArcTan2(repr) => Box::new([&repr.lhs, &repr.rhs].into_iter()),
             FloatOperationIr::Powf(repr) => Box::new([&repr.lhs, &repr.rhs].into_iter()),
             FloatOperationIr::Hypot(repr) => Box::new([&repr.lhs, &repr.rhs].into_iter()),
+            FloatOperationIr::Fmod(repr) => Box::new([&repr.lhs, &repr.rhs].into_iter()),
+            FloatOperationIr::FmodScalar(repr) => Box::new([&repr.lhs].into_iter()),
         }
     }
     fn outputs(&self) -> Box<dyn Iterator<Item = &TensorIr> + '_> {
@@ -3341,6 +3347,8 @@ impl FloatOperationIr {
             FloatOperationIr::ArcTan2(repr) => Box::new([&repr.out].into_iter()),
             FloatOperationIr::Powf(repr) => Box::new([&repr.out].into_iter()),
             FloatOperationIr::Hypot(repr) => Box::new([&repr.out].into_iter()),
+            FloatOperationIr::Fmod(repr) => Box::new([&repr.out].into_iter()),
+            FloatOperationIr::FmodScalar(repr) => Box::new([&repr.out].into_iter()),
         }
     }
 
@@ -3442,6 +3450,13 @@ impl FloatOperationIr {
             FloatOperationIr::Hypot(repr) => {
                 repr.lhs.mark_read_only(nodes, &mut output);
                 repr.rhs.mark_read_only(nodes, &mut output);
+            }
+            FloatOperationIr::Fmod(repr) => {
+                repr.lhs.mark_read_only(nodes, &mut output);
+                repr.rhs.mark_read_only(nodes, &mut output);
+            }
+            FloatOperationIr::FmodScalar(repr) => {
+                repr.lhs.mark_read_only(nodes, &mut output);
             }
         };
 
@@ -3599,6 +3614,16 @@ impl FloatOperationIr {
                 v.visit_tensor_mut(&mut repr.lhs);
                 v.visit_tensor_mut(&mut repr.rhs);
                 v.visit_tensor_mut(&mut repr.out);
+            }
+            FloatOperationIr::Fmod(repr) => {
+                v.visit_tensor_mut(&mut repr.lhs);
+                v.visit_tensor_mut(&mut repr.rhs);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            FloatOperationIr::FmodScalar(repr) => {
+                v.visit_tensor_mut(&mut repr.lhs);
+                v.visit_tensor_mut(&mut repr.out);
+                v.visit_scalar_mut(&mut repr.rhs);
             }
         }
     }

@@ -255,6 +255,25 @@ impl BoolTensorOps<Self> for CubeBackend {
         }
     }
 
+    fn bool_scatter_nd(
+        data: BoolTensor<Self>,
+        indices: IntTensor<Self>,
+        values: BoolTensor<Self>,
+        reduction: IndexingUpdateOp,
+    ) -> BoolTensor<Self> {
+        // Bools are stored as 0/1, so max is logical or and min is logical and.
+        let reduction = match reduction {
+            IndexingUpdateOp::Add => IndexingUpdateOp::Max,
+            IndexingUpdateOp::Mul => IndexingUpdateOp::Min,
+            reduction => reduction,
+        };
+        kernel::scatter_nd(data, indices, values, reduction)
+    }
+
+    fn bool_gather_nd(data: BoolTensor<Self>, indices: IntTensor<Self>) -> BoolTensor<Self> {
+        kernel::gather_nd(data, indices)
+    }
+
     fn bool_equal_elem(lhs: BoolTensor<Self>, rhs: Scalar) -> BoolTensor<Self> {
         let dtype = lhs.dtype;
         kernel::equal_elem(

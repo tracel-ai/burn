@@ -12,7 +12,7 @@ use crate::element::{Element, ElementConversion};
 use crate::tensor::DType;
 use crate::{
     AccessError, BoolStore, Bytes, ExecutionError, QuantMode, QuantScheme, QuantValue,
-    QuantizedBytes, Reader, Shape, Writer, bf16, f16,
+    QuantizedBytes, Reader, Shape, Writer, bf16, f16, flex32,
 };
 
 use serde::{Deserialize, Serialize};
@@ -417,30 +417,68 @@ impl TensorData {
         TensorData::new(data, shape)
     }
 
+    /// Populates the data with random values of the requested dtype.
+    ///
+    /// Boolean values are sampled as `bool` and encoded using the requested storage type.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `dtype` is [`DType::QFloat`] or the distribution is invalid for the element type.
+    pub fn random_dtype<R: Rng, S: Into<Shape>>(
+        shape: S,
+        distribution: Distribution,
+        rng: &mut R,
+        dtype: DType,
+    ) -> Self {
+        match dtype {
+            DType::F64 => Self::random::<f64, _, _>(shape, distribution, rng),
+            DType::F32 => Self::random::<f32, _, _>(shape, distribution, rng),
+            DType::Flex32 => Self::random::<flex32, _, _>(shape, distribution, rng),
+            DType::F16 => Self::random::<f16, _, _>(shape, distribution, rng),
+            DType::BF16 => Self::random::<bf16, _, _>(shape, distribution, rng),
+            DType::I64 => Self::random::<i64, _, _>(shape, distribution, rng),
+            DType::I32 => Self::random::<i32, _, _>(shape, distribution, rng),
+            DType::I16 => Self::random::<i16, _, _>(shape, distribution, rng),
+            DType::I8 => Self::random::<i8, _, _>(shape, distribution, rng),
+            DType::U64 => Self::random::<u64, _, _>(shape, distribution, rng),
+            DType::U32 => Self::random::<u32, _, _>(shape, distribution, rng),
+            DType::U16 => Self::random::<u16, _, _>(shape, distribution, rng),
+            DType::U8 => Self::random::<u8, _, _>(shape, distribution, rng),
+            DType::Bool(_) => {
+                Self::random::<bool, _, _>(shape, distribution, rng).convert_dtype(dtype)
+            }
+            DType::QFloat(_) => {
+                panic!("Cannot create random tensor data with quantized dtype {dtype:?}")
+            }
+        }
+    }
+
     /// Populates the data with zeros.
     pub fn zeros<E: Element, S: Into<Shape>>(shape: S) -> TensorData {
-        let shape = shape.into();
-        let num_elements = numel(&shape);
-        let mut data = Vec::<E>::with_capacity(num_elements);
+        Self::full(shape, 0.elem::<E>())
+    }
 
-        for _ in 0..num_elements {
-            data.push(0.elem());
-        }
-
-        TensorData::new(data, shape)
+    /// Populates the data with zeros of the requested dtype.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `dtype` is [`DType::QFloat`].
+    pub fn zeros_dtype<S: Into<Shape>>(shape: S, dtype: DType) -> Self {
+        Self::full_dtype(shape, 0, dtype)
     }
 
     /// Populates the data with ones.
     pub fn ones<E: Element, S: Into<Shape>>(shape: S) -> TensorData {
-        let shape = shape.into();
-        let num_elements = numel(&shape);
-        let mut data = Vec::<E>::with_capacity(num_elements);
+        Self::full(shape, 1.elem::<E>())
+    }
 
-        for _ in 0..num_elements {
-            data.push(1.elem());
-        }
-
-        TensorData::new(data, shape)
+    /// Populates the data with ones of the requested dtype.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `dtype` is [`DType::QFloat`].
+    pub fn ones_dtype<S: Into<Shape>>(shape: S, dtype: DType) -> Self {
+        Self::full_dtype(shape, 1, dtype)
     }
 
     /// Populates the data with the given value
@@ -455,7 +493,11 @@ impl TensorData {
         TensorData::new(data, shape)
     }
 
-    /// Populates the data with the given value
+    /// Populates the data with the given value of the requested dtype.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `dtype` is [`DType::QFloat`].
     pub fn full_dtype<E: Into<Scalar>, S: Into<Shape>>(
         shape: S,
         fill_value: E,
@@ -464,7 +506,8 @@ impl TensorData {
         let fill_value = fill_value.into();
         match dtype {
             DType::F64 => Self::full::<f64, _>(shape, fill_value.elem()),
-            DType::F32 | DType::Flex32 => Self::full::<f32, _>(shape, fill_value.elem()),
+            DType::F32 => Self::full::<f32, _>(shape, fill_value.elem()),
+            DType::Flex32 => Self::full::<flex32, _>(shape, fill_value.elem()),
             DType::F16 => Self::full::<f16, _>(shape, fill_value.elem()),
             DType::BF16 => Self::full::<bf16, _>(shape, fill_value.elem()),
             DType::I64 => Self::full::<i64, _>(shape, fill_value.elem()),
@@ -482,7 +525,9 @@ impl TensorData {
             DType::Bool(BoolStore::U32) => {
                 Self::full::<u32, _>(shape, fill_value.elem()).into_bool_u32()
             }
-            DType::QFloat(_) => unreachable!(),
+            DType::QFloat(_) => {
+                panic!("Cannot create full tensor data with quantized dtype {dtype:?}")
+            }
         }
     }
 
@@ -731,6 +776,23 @@ mod tests {
     use core::mem::{MaybeUninit, align_of, size_of};
 
     #[test]
+    #[should_panic(expected = "Cannot create full tensor data with quantized dtype")]
+    fn full_dtype_rejects_quantized() {
+        TensorData::full_dtype([2, 3], 0, DType::QFloat(Default::default()));
+    }
+
+    #[test]
+    #[should_panic(expected = "Cannot create random tensor data with quantized dtype")]
+    fn random_dtype_rejects_quantized() {
+        TensorData::random_dtype(
+            [2, 3],
+            Distribution::Default,
+            &mut StdRng::seed_from_u64(42),
+            DType::QFloat(Default::default()),
+        );
+    }
+
+    #[test]
     fn should_have_rank() {
         let shape = [3, 5, 6];
         let data = TensorData::random::<f32, _, _>(
@@ -852,6 +914,15 @@ mod tests {
     }
 
     #[test]
+    fn should_preserve_flex32_dtype_when_constructing_full_data() {
+        let actual = TensorData::full_dtype([2, 2], 1.5f32, DType::Flex32);
+        let expected = TensorData::full::<flex32, _>([2, 2], 1.5f32.elem());
+
+        assert_eq!(actual, expected);
+        assert_eq!(actual.dtype(), DType::Flex32);
+    }
+
+    #[test]
     fn should_convert_negative_values_to_bool_store() {
         for store in [BoolStore::U8, BoolStore::U32, BoolStore::Native] {
             let data = TensorData::from([-1i32, 0, 1, -12]).convert_dtype(DType::Bool(store));
@@ -866,12 +937,36 @@ mod tests {
         }
     }
 
+    fn check_dtype_constructors<E: Element + PartialEq, S: Element>(dtype: DType) {
+        let distribution = Distribution::Uniform(0.0, 8.0);
+        let random =
+            TensorData::random_dtype([2, 3], distribution, &mut StdRng::seed_from_u64(42), dtype);
+        let expected =
+            TensorData::random::<S, _, _>([2, 3], distribution, &mut StdRng::seed_from_u64(42));
+        for (data, values) in [
+            (
+                TensorData::zeros_dtype([2, 3], dtype),
+                vec![0.elem::<E>(); 6],
+            ),
+            (
+                TensorData::ones_dtype([2, 3], dtype),
+                vec![1.elem::<E>(); 6],
+            ),
+            (random, expected.iter::<E>().collect()),
+        ] {
+            assert_eq!(data.dtype(), dtype);
+            assert_eq!(data.shape(), &Shape::new([2, 3]));
+            assert_eq!(data.try_into_vec::<E>().unwrap(), values);
+        }
+    }
+
     macro_rules! test_dtypes {
     ($test_name:ident, $($dtype:ty),*) => {
         $(
             paste::paste! {
                 #[test]
                 fn [<$test_name _ $dtype:snake>]() {
+                    check_dtype_constructors::<$dtype, $dtype>(<$dtype>::dtype());
                     let full_dtype = TensorData::full_dtype([2, 16], 4, <$dtype>::dtype());
                     let full = TensorData::full::<$dtype, _>([2, 16], 4.elem());
                     assert_eq!(full_dtype, full);
@@ -895,8 +990,19 @@ mod tests {
         f16,
         bf16,
         f32,
-        f64
+        f64,
+        flex32
     );
+
+    #[test]
+    fn should_create_with_dtype_bool_u8() {
+        check_dtype_constructors::<u8, bool>(DType::Bool(BoolStore::U8));
+    }
+
+    #[test]
+    fn should_create_with_dtype_bool_u32() {
+        check_dtype_constructors::<u32, bool>(DType::Bool(BoolStore::U32));
+    }
 
     #[test]
     fn should_serialize_deserialize_tensor_data() {

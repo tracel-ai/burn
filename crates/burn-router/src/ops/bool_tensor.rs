@@ -8,10 +8,10 @@ use burn_backend::tensor::{BoolTensor, Device, FloatTensor, IndexingUpdateOp, In
 use burn_backend::{Scalar, Shape, Slice, TensorData};
 use burn_ir::{
     BaseOperationIr, BinaryOpIr, BoolOperationIr, CastOpIr, CatOpIr, CreationOpIr, FlipOpIr,
-    GatherOpIr, InitOperationIr, MaskFillOpIr, MaskWhereOpIr, OperationIr, OperationOutput,
-    PermuteOpIr, ReduceDimOpIr, ReduceOpIr, RepeatDimOpIr, ScalarOpIr, ScatterOpIr,
-    SelectAssignOpIr, SelectOpIr, ShapeOpIr, SliceAssignOpIr, SliceOpIr, SwapDimsOpIr, UnaryOpIr,
-    UnfoldOpIr,
+    GatherNdOpIr, GatherOpIr, InitOperationIr, MaskFillOpIr, MaskWhereOpIr, OperationIr,
+    OperationOutput, PermuteOpIr, ReduceDimOpIr, ReduceOpIr, RepeatDimOpIr, ScalarOpIr,
+    ScatterNdOpIr, ScatterOpIr, SelectAssignOpIr, SelectOpIr, ShapeOpIr, SliceAssignOpIr,
+    SliceOpIr, SwapDimsOpIr, UnaryOpIr, UnfoldOpIr,
 };
 
 impl<R: RouterChannel> BoolTensorOps<Self> for BackendRouter<R> {
@@ -380,6 +380,37 @@ impl<R: RouterChannel> BoolTensorOps<Self> for BackendRouter<R> {
 
         client
             .register(OperationIr::BaseBool(BaseOperationIr::Scatter(desc)))
+            .output()
+    }
+
+    fn bool_scatter_nd(
+        data: BoolTensor<Self>,
+        indices: IntTensor<Self>,
+        values: BoolTensor<Self>,
+        reduction: IndexingUpdateOp,
+    ) -> BoolTensor<Self> {
+        let client = data.client.clone();
+        let desc = ScatterNdOpIr::create(
+            data.into_ir(),
+            indices.into_ir(),
+            values.into_ir(),
+            reduction,
+            || client.create_empty_handle(),
+        );
+
+        client
+            .register(OperationIr::BaseBool(BaseOperationIr::ScatterNd(desc)))
+            .output()
+    }
+
+    fn bool_gather_nd(data: BoolTensor<Self>, indices: IntTensor<Self>) -> BoolTensor<Self> {
+        let client = data.client.clone();
+        let desc = GatherNdOpIr::create(data.into_ir(), indices.into_ir(), || {
+            client.create_empty_handle()
+        });
+
+        client
+            .register(OperationIr::BaseBool(BaseOperationIr::GatherNd(desc)))
             .output()
     }
 

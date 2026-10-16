@@ -1,24 +1,17 @@
-use std::collections::HashSet;
-
-use crate::module::generics::{
-    GenericKind, ModuleGenerics, parse_module_generics, parse_ty_generics,
-};
-
 use super::codegen::ModuleCodegen;
 use proc_macro2::{Ident, TokenStream};
-use quote::{ToTokens, quote};
-use syn::Field;
+use quote::{ToTokens, format_ident, quote};
+use syn::{Field, Member};
 
 pub(crate) struct StructModuleCodegen {
     pub name: Ident,
     pub fields: Vec<ModuleField>,
-    pub generics: ModuleGenerics,
 }
 
 impl ModuleCodegen for StructModuleCodegen {
     fn gen_num_params(&self) -> TokenStream {
         let body = self.gen_fields_fn(|name, field_type| {
-            if field_type.is_parameter_module() || field_type.maybe_generic_module() {
+            if field_type.is_module {
                 quote! {
                     num_params += burn::module::Module::num_params(&self.#name);
                 }
@@ -40,8 +33,8 @@ impl ModuleCodegen for StructModuleCodegen {
         let struct_name = self.name.to_string();
         let container_type = format!("Struct:{}", struct_name);
         let body = self.gen_fields_fn(|name, field_type| {
-            if field_type.is_parameter_module() || field_type.maybe_generic_module() {
-                let name_str = name.to_string();
+            if field_type.is_module {
+                let name_str = name.to_token_stream().to_string();
                 quote! {
                     visitor.enter_module(#name_str, #container_type);
                     burn::module::Module::visit(&self.#name, visitor);
@@ -61,7 +54,7 @@ impl ModuleCodegen for StructModuleCodegen {
 
     fn gen_collect_devices(&self) -> TokenStream {
         let body = self.gen_fields_fn(|name, field_type| {
-            if field_type.is_module || field_type.maybe_generic_module() {
+            if field_type.is_module {
                 quote! {
                     let devices = burn::module::Module::collect_devices(&self.#name, devices);
                 }
@@ -82,13 +75,13 @@ impl ModuleCodegen for StructModuleCodegen {
     }
 
     fn gen_to_device(&self) -> TokenStream {
-        let (names, body) = self.gen_fields_fn_names(|name, field_type| {
-            if field_type.is_module || field_type.maybe_generic_module() {
+        let (names, body) = self.gen_fields_fn_names(|local, name, field_type| {
+            if field_type.is_module {
                 quote! {
-                    let #name = burn::module::Module::to_device(self.#name, device);
+                    let #local = burn::module::Module::to_device(self.#name, device);
                 }
             } else {
-                quote! { let #name = self.#name; }
+                quote! { let #local = self.#name; }
             }
         });
 
@@ -101,13 +94,13 @@ impl ModuleCodegen for StructModuleCodegen {
     }
 
     fn gen_fork(&self) -> TokenStream {
-        let (names, body) = self.gen_fields_fn_names(|name, field_type| {
-            if field_type.is_module || field_type.maybe_generic_module() {
+        let (names, body) = self.gen_fields_fn_names(|local, name, field_type| {
+            if field_type.is_module {
                 quote! {
-                    let #name = burn::module::Module::fork(self.#name, device);
+                    let #local = burn::module::Module::fork(self.#name, device);
                 }
             } else {
-                quote! { let #name = self.#name; }
+                quote! { let #local = self.#name; }
             }
         });
 
@@ -122,16 +115,16 @@ impl ModuleCodegen for StructModuleCodegen {
     fn gen_map(&self) -> TokenStream {
         let struct_name = self.name.to_string();
         let container_type = format!("Struct:{}", struct_name);
-        let (names, body) = self.gen_fields_fn_names(|name, field_type| {
-            if field_type.is_parameter_module() || field_type.maybe_generic_module() {
-                let name_str = name.to_string();
+        let (names, body) = self.gen_fields_fn_names(|local, name, field_type| {
+            if field_type.is_module {
+                let name_str = name.to_token_stream().to_string();
                 quote! {
                     mapper.enter_module(#name_str, #container_type);
-                    let #name = burn::module::Module::map(self.#name, mapper);
+                    let #local = burn::module::Module::map(self.#name, mapper);
                     mapper.exit_module(#name_str, #container_type);
                 }
             } else {
-                quote! { let #name = self.#name; }
+                quote! { let #local = self.#name; }
             }
         });
 
@@ -144,13 +137,13 @@ impl ModuleCodegen for StructModuleCodegen {
     }
 
     fn gen_valid(&self) -> TokenStream {
-        let (names, body) = self.gen_fields_fn_names(|name, field_type| {
-            if field_type.is_module || field_type.maybe_generic_module() {
+        let (names, body) = self.gen_fields_fn_names(|local, name, field_type| {
+            if field_type.is_module {
                 quote! {
-                    let #name = burn::module::Module::valid(&self.#name);
+                    let #local = burn::module::Module::valid(&self.#name);
                 }
             } else {
-                quote! { let #name = self.#name.clone(); }
+                quote! { let #local = self.#name.clone(); }
             }
         });
 
@@ -163,23 +156,18 @@ impl ModuleCodegen for StructModuleCodegen {
     }
 
     fn gen_train(&self) -> TokenStream {
-        let (names, body) = self.gen_fields_fn_names(|name, field_type| {
-            if field_type.is_module || field_type.maybe_generic_module() {
+        let (names, body) = self.gen_fields_fn_names(|local, name, field_type| {
+            if field_type.is_module {
                 quote! {
-                    let #name = burn::module::Module::train(#name);
+                    let #local = burn::module::Module::train(self.#name);
                 }
             } else {
-                quote! { let #name = #name; }
+                quote! { let #local = self.#name; }
             }
         });
 
-        let destructure = quote! {
-            let Self { #(#names),* } = self;
-        };
-
         quote! {
             fn train(self) -> Self {
-                #destructure
                 #body
                 Self { #(#names),* }
             }
@@ -187,23 +175,18 @@ impl ModuleCodegen for StructModuleCodegen {
     }
 
     fn gen_materialize(&self) -> TokenStream {
-        let (names, body) = self.gen_fields_fn_names(|name, field_type| {
-            if field_type.is_module || field_type.maybe_generic_module() {
+        let (names, body) = self.gen_fields_fn_names(|local, name, field_type| {
+            if field_type.is_module {
                 quote! {
-                    let #name = burn::module::Module::materialize(#name);
+                    let #local = burn::module::Module::materialize(self.#name);
                 }
             } else {
-                quote! { let #name = #name; }
+                quote! { let #local = self.#name; }
             }
         });
 
-        let destructure = quote! {
-            let Self { #(#names),* } = self;
-        };
-
         quote! {
             fn materialize(self) -> Self {
-                #destructure
                 #body
                 Self { #(#names),* }
             }
@@ -211,9 +194,9 @@ impl ModuleCodegen for StructModuleCodegen {
     }
 
     fn gen_clone(&self) -> TokenStream {
-        let (names, body) = self.gen_fields_fn_names(|name, _field_type| {
+        let (names, body) = self.gen_fields_fn_names(|local, name, _field_type| {
             quote! {
-                let #name = self.#name.clone();
+                let #local = self.#name.clone();
             }
         });
 
@@ -225,16 +208,18 @@ impl ModuleCodegen for StructModuleCodegen {
         }
     }
 
-    fn module_generics(&self) -> &ModuleGenerics {
-        &self.generics
+    fn fields(&self) -> Vec<(&Field, &ModuleFieldType)> {
+        self.fields
+            .iter()
+            .map(|field| (&field.field, &field.field_type))
+            .collect()
     }
 
     fn gen_display(&self) -> TokenStream {
-        // let struct_name = self.name.to_string();
         let struct_ident = &self.name;
         let field_prints = self.fields.iter().map(|field| {
-            let field_name = field.ident();
-            if field.field_type.is_module || field.field_type.maybe_generic_module() {
+            let field_name = &field.member;
+            if field.field_type.is_module {
                 // Standard module type, use underlying `ModuleDisplay` impl
                 quote! { .add(stringify!(#field_name), &self.#field_name) }
             } else {
@@ -257,26 +242,24 @@ impl ModuleCodegen for StructModuleCodegen {
 
 impl StructModuleCodegen {
     pub fn from_ast(ast: &syn::DeriveInput) -> syn::Result<Self> {
-        let mut generics = parse_module_generics(&ast.generics);
         Ok(Self {
             name: ast.ident.clone(),
-            fields: parse_module_fields(ast, &mut generics)?,
-            generics,
+            fields: parse_module_fields(ast)?,
         })
     }
 
-    fn gen_fields_fn_names<F>(&self, func: F) -> (Vec<Ident>, TokenStream)
+    fn gen_fields_fn_names<F>(&self, func: F) -> (Vec<TokenStream>, TokenStream)
     where
-        F: Fn(Ident, &ModuleFieldType) -> TokenStream,
+        F: Fn(Ident, Member, &ModuleFieldType) -> TokenStream,
     {
         let mut body = quote! {};
         let mut names = Vec::new();
 
-        for field in self.fields.iter() {
-            let name = field.ident();
-
-            names.push(name.clone());
-            body.extend(func(name, &field.field_type));
+        for (index, field) in self.fields.iter().enumerate() {
+            let member = &field.member;
+            let local = format_ident!("__burn_field_{index}");
+            names.push(quote! { #member: #local });
+            body.extend(func(local, member.clone(), &field.field_type));
         }
 
         (names, body)
@@ -284,20 +267,16 @@ impl StructModuleCodegen {
 
     fn gen_fields_fn<F>(&self, func: F) -> TokenStream
     where
-        F: Fn(Ident, &ModuleFieldType) -> TokenStream,
+        F: Fn(Member, &ModuleFieldType) -> TokenStream,
     {
         let mut body = quote! {};
-
-        for field in self.fields.iter() {
-            body.extend(func(field.ident(), &field.field_type));
+        for field in &self.fields {
+            body.extend(func(field.member.clone(), &field.field_type));
         }
-
         body
     }
 
     pub fn has_module_fields(&self) -> bool {
-        // let has_module_fields = self.fields.iter().any(|f| f.field_type.is_module);
-        // eprintln!("[HAS MODULE FIELDS] {}: {has_module_fields:?}", self.name);
         self.fields.iter().any(|f| f.field_type.is_module)
     }
 }
@@ -305,13 +284,8 @@ impl StructModuleCodegen {
 #[derive(new, Debug)]
 pub struct ModuleField {
     pub field: Field,
+    pub member: Member,
     pub field_type: ModuleFieldType,
-}
-
-impl ModuleField {
-    pub fn ident(&self) -> Ident {
-        self.field.ident.clone().unwrap()
-    }
 }
 
 #[derive(Debug)]
@@ -323,116 +297,48 @@ pub enum ModuleFieldAttribute {
 pub struct ModuleFieldType {
     pub is_module: bool,
     pub attr: Option<ModuleFieldAttribute>,
-    pub generic_idents: HashSet<Ident>,
 }
 
-impl ModuleFieldType {
-    /// Returns true if the field is a module with parameters
-    /// (i.e., a real module that is neither skipped nor constant).
-    pub fn is_parameter_module(&self) -> bool {
-        self.is_module && self.attr.is_none()
-    }
-
-    /// Returns true for generic fields that are assumed to be modules.
-    pub fn maybe_generic_module(&self) -> bool {
-        // We assumed it might be a module generic if the field is not marked
-        // by any attributes (skip or constant)
-        !self.generic_idents.is_empty() && self.attr.is_none()
-    }
-}
-
-pub(crate) fn parse_module_fields(
-    ast: &syn::DeriveInput,
-    generics: &mut ModuleGenerics,
-) -> syn::Result<Vec<ModuleField>> {
-    let mut fields = Vec::new();
-    let mut module_generics = HashSet::new();
-    let mut skip_generics = HashSet::new();
-
-    match &ast.data {
-        syn::Data::Struct(struct_data) => {
-            for field in struct_data.fields.iter() {
-                let field_type = parse_module_field_type(field, generics)?;
-                if field_type.is_module {
-                    module_generics.extend(field_type.generic_idents.iter().cloned());
-                } else if matches!(field_type.attr, Some(ModuleFieldAttribute::Skip)) {
-                    skip_generics.extend(field_type.generic_idents.iter().cloned());
-                }
-                fields.push(ModuleField::new(field.clone(), field_type));
-            }
-        }
-        syn::Data::Enum(_) => panic!("Only struct can be derived"),
-        syn::Data::Union(_) => panic!("Only struct can be derived"),
+pub(crate) fn parse_module_fields(ast: &syn::DeriveInput) -> syn::Result<Vec<ModuleField>> {
+    let syn::Data::Struct(data) = &ast.data else {
+        return Err(syn::Error::new_spanned(ast, "Only structs are supported"));
     };
-
-    for ident in module_generics.intersection(&skip_generics) {
-        if let Some(param) = ast.generics.params.iter().find_map(|p| match p {
-            syn::GenericParam::Type(tp) if tp.ident == *ident => Some(tp),
-            _ => None,
-        }) {
-            return Err(syn::Error::new(
-                param.ident.span(),
-                format!(
-                    "Generic type `{ident}` should not be used on both a module field and a skipped field. \
-                     Consider removing `#[module(skip)]` or using a different type for one of the fields.",
-                ),
-            ));
-        }
-    }
-
-    Ok(fields)
+    data.fields
+        .iter()
+        .enumerate()
+        .map(|(index, field)| {
+            let member = match &field.ident {
+                Some(ident) => Member::Named(ident.clone()),
+                None => Member::Unnamed(index.into()),
+            };
+            Ok(ModuleField::new(
+                field.clone(),
+                member,
+                parse_module_field_type(field)?,
+            ))
+        })
+        .collect()
 }
 
-pub(crate) fn parse_module_field_type(
-    field: &Field,
-    generics: &mut ModuleGenerics,
-) -> syn::Result<ModuleFieldType> {
+pub(crate) fn parse_module_field_type(field: &Field) -> syn::Result<ModuleFieldType> {
     let mut field_type = ModuleFieldType::default();
-
-    // Check for generics
-    let mut has_module_bound = false;
-    let field_generics = parse_ty_generics(&field.ty, generics)
-        .into_iter()
-        .inspect(|ident| {
-            has_module_bound |= generics.is_bounded_module(ident);
-        })
-        .collect::<HashSet<_>>();
-
-    // Infer if a field is a module
-    let is_primitive = is_primitive_type(&field.ty);
-    let is_param = is_param_type(&field.ty);
-
     for attr in &field.attrs {
         if attr.path().is_ident("module") {
             attr.parse_nested_meta(|meta| {
                 if meta.path.is_ident("skip") {
-                    // Mark field attribute and generic
-                    field_type.attr = Some(ModuleFieldAttribute::Skip);
-                    for ty in &field_generics {
-                        generics.update(ty, GenericKind::Skip);
+                    if is_param_type(&field.ty) {
+                        return Err(meta.error("Fields of type 'Param' should not be marked as 'skip'. Use a 'Tensor' instead."));
                     }
+                    field_type.attr = Some(ModuleFieldAttribute::Skip);
                     Ok(())
                 } else {
                     let path = meta.path.to_token_stream().to_string();
-                    Err(meta.error(format!("Unsupported module attribute: {}", path)))
-                }?;
-
-                if is_param && field_type.attr.is_some() {
-                    Err(meta.error("Fields of type 'Param' should not be marked as 'skip'. Use a 'Tensor' instead."))
-                } else if has_module_bound && field_type.attr.is_some() {
-                    Err(meta.error("Fields with module generics should not be marked as 'skip'."))
-                }
-                else {
-                    Ok(())
+                    Err(meta.error(format!("Unsupported module attribute: {path}")))
                 }
             })?;
         }
     }
-
-    field_type.is_module =
-        !(is_primitive || matches!(field_type.attr, Some(ModuleFieldAttribute::Skip)));
-    field_type.generic_idents = field_generics;
-
+    field_type.is_module = !is_primitive_type(&field.ty) && field_type.attr.is_none();
     Ok(field_type)
 }
 
@@ -553,7 +459,35 @@ fn is_param_type(ty: &syn::Type) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::is_primitive_type;
+    use super::{is_primitive_type, parse_module_fields};
+
+    #[test]
+    fn skipped_parameters_remain_an_error() {
+        let ast = syn::parse_quote! {
+            struct Model {
+                #[module(skip)]
+                weight: Param<Tensor<2>>,
+            }
+        };
+        let error = parse_module_fields(&ast).unwrap_err();
+        assert!(
+            error
+                .to_string()
+                .contains("Fields of type 'Param' should not be marked as 'skip'")
+        );
+    }
+
+    #[test]
+    fn unsupported_field_attributes_remain_an_error() {
+        let ast = syn::parse_quote! {
+            struct Model {
+                #[module(unknown)]
+                state: Config,
+            }
+        };
+        let error = parse_module_fields(&ast).unwrap_err();
+        assert_eq!(error.to_string(), "Unsupported module attribute: unknown");
+    }
 
     #[test]
     fn containers_must_not_hide_custom_modules() {

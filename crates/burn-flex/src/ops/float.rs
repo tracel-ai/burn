@@ -200,6 +200,15 @@ impl FloatTensorOps<Flex> for Flex {
         scalar_op(lhs, rhs.to_f64().unwrap(), remainder_float, remainder_float)
     }
 
+    fn float_fmod(lhs: FloatTensor<Flex>, rhs: FloatTensor<Flex>) -> FloatTensor<Flex> {
+        // Rust's `%` on floats is C's fmod: result has same sign as dividend
+        binary_op(lhs, rhs, |a, b| a % b, |a, b| a % b, None)
+    }
+
+    fn float_fmod_scalar(lhs: FloatTensor<Flex>, rhs: Scalar) -> FloatTensor<Flex> {
+        scalar_op(lhs, rhs.to_f64().unwrap(), |a, b| a % b, |a, b| a % b)
+    }
+
     fn float_matmul(lhs: FloatTensor<Flex>, rhs: FloatTensor<Flex>) -> FloatTensor<Flex> {
         matmul::matmul(lhs, rhs)
     }
