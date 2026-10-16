@@ -23,6 +23,11 @@ std = ["burn-tensor/std"]
 # device's call, and a collector that could not see blocks would place fused kernels wrongly.
 cubecl = ["std", "dep:cubecl", "dep:cubecl-common", "dep:burn-fusion", "dep:burn-ir"]
 
+# The collector's integration tests, which need kernels to place. Enable a cubecl runtime
+# separately (e.g. `burn-tensor/wgpu`) and select it with BURN_DEVICE. The runtime fuses by
+# default; build without `default` for the unfused half.
+collector-tests = ["cubecl"]
+
 [dependencies]
 burn-instrument-macros = { workspace = true }
 burn-tensor = { workspace = true }
