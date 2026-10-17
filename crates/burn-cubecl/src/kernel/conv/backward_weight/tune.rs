@@ -11,7 +11,10 @@ use crate::{
     CubeAutotuneKey, CubeTuneId,
     kernel::conv::{
         ConvAutotuneKey,
-        backward_weight::{fallback::conv_weight_backward_fallback, implicit_gemm::*},
+        backward_weight::{
+            fallback::conv_weight_backward_fallback, implicit_gemm::*,
+            split_implicit::wgrad_split_implicit,
+        },
         im2col::{wgrad_im2col, wgrad_im2col_1x1, wgrad_im2col_1x1_split},
     },
     tensor::CubeTensor,
@@ -42,6 +45,12 @@ pub fn wgrad_autotune<const N: usize>(
             .with(Tunable::new(
                 "wgrad_im2col",
                 |(input, grad, shape, options)| wgrad_im2col::<N>(input, grad, shape, options),
+            ))
+            .with(Tunable::new(
+                "wgrad_split_implicit",
+                |(input, grad, shape, options)| {
+                    wgrad_split_implicit::<N>(input, grad, shape, options)
+                },
             ))
             // The same matmul with its contraction cut into pieces, which is
             // what a weight gradient's shape asks for — see `split_count`.
