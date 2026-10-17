@@ -1267,6 +1267,7 @@ dependencies = [
  "burn-router",
  "burn-std",
  "ctor",
+ "gemm",
  "num-traits",
 ]
 
