@@ -9,7 +9,12 @@ mod direct;
 mod forward;
 mod im2col;
 
+#[cfg(test)]
+mod im2col_tests;
+
 mod tune_key;
+#[cfg(any(feature = "autotune", test))]
+mod unit;
 
 pub(crate) use backward_data::*;
 pub(crate) use conv_transpose2d::*;

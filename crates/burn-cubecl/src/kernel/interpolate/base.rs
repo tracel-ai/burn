@@ -95,7 +95,7 @@ pub fn execute_interpolate(
 
 /// Backward interpolate operation
 ///
-/// Note: only nearest mode is supported
+/// Supports nearest and bilinear modes.
 pub fn interpolate_backward(
     input: CubeTensor,
     out_grad: CubeTensor,

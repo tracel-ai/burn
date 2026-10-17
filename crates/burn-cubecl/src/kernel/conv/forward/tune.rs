@@ -4,13 +4,15 @@ use cubecl::{
     ir::ElemType,
     tune::{LocalTuner, Tunable, TunableSet, anchor, local_tuner},
 };
-use cubek::convolution::{AcceleratedTileKind, DepthwiseStrategy, DepthwiseTiling};
+use cubek::convolution::{
+    AcceleratedTileKind, DepthwiseStrategy, DepthwiseTiling, UnitStrategy, UnitTiling,
+};
 
 use crate::{
     CubeAutotuneKey, CubeTuneId,
     kernel::conv::{
-        ConvAutotuneKey, conv_direct, conv_im2col_1x1, forward::depthwise::conv_depthwise,
-        forward::implicit_gemm::*,
+        ConvAutotuneKey, conv_direct, conv_im2col, conv_im2col_1x1,
+        forward::depthwise::conv_depthwise, forward::implicit_gemm::*, unit::conv_unit,
     },
     tensor::CubeTensor,
 };
@@ -105,6 +107,77 @@ pub fn conv_autotune<const N: usize>(
             .with(Tunable::new(
                 "conv_im2col_1x1",
                 |(input, weight, bias, options)| conv_im2col_1x1::<N>(input, weight, bias, options),
+            ))
+            .with(Tunable::new(
+                "conv_im2col_gather",
+                |(input, weight, bias, options)| conv_im2col::<N>(input, weight, bias, options),
+            ))
+            // One forced register tiling per matmul regime a dense forward lands
+            // in: few output channels (narrow N), a moderate or wide output
+            // (balanced/wide N), a long `C_in * taps` reduction on a short map
+            // (deep K), and many output rows from a large spatial map (tall M).
+            // Each declines on devices with no F32 unit path and otherwise lets
+            // a tuned run match the shape instead of only the two dense shapes
+            // the tilings were first measured on.
+            .with(Tunable::new(
+                "conv_unit_narrow",
+                |(input, weight, bias, options)| {
+                    conv_unit(
+                        input,
+                        weight,
+                        bias,
+                        options,
+                        UnitStrategy::Fixed(UnitTiling::NARROW),
+                    )
+                },
+            ))
+            .with(Tunable::new(
+                "conv_unit_balanced",
+                |(input, weight, bias, options)| {
+                    conv_unit(
+                        input,
+                        weight,
+                        bias,
+                        options,
+                        UnitStrategy::Fixed(UnitTiling::BALANCED),
+                    )
+                },
+            ))
+            .with(Tunable::new(
+                "conv_unit_wide",
+                |(input, weight, bias, options)| {
+                    conv_unit(
+                        input,
+                        weight,
+                        bias,
+                        options,
+                        UnitStrategy::Fixed(UnitTiling::WIDE),
+                    )
+                },
+            ))
+            .with(Tunable::new(
+                "conv_unit_deep",
+                |(input, weight, bias, options)| {
+                    conv_unit(
+                        input,
+                        weight,
+                        bias,
+                        options,
+                        UnitStrategy::Fixed(UnitTiling::DEEP),
+                    )
+                },
+            ))
+            .with(Tunable::new(
+                "conv_unit_tall",
+                |(input, weight, bias, options)| {
+                    conv_unit(
+                        input,
+                        weight,
+                        bias,
+                        options,
+                        UnitStrategy::Fixed(UnitTiling::TALL),
+                    )
+                },
             ))
             .with(Tunable::new(
                 "simple_sync_cmma",

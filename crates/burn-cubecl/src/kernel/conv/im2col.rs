@@ -118,6 +118,67 @@ pub fn conv_im2col_1x1<const N: usize>(
     Ok(out)
 }
 
+/// Explicit lowering for small dense F32 filters, including devices without
+/// a compatible accelerated convolution tile. Keep the temporary bounded:
+/// the convolution used by weight-gradient fallback can have a huge filter.
+pub fn conv_im2col<const N: usize>(
+    input: CubeTensor,
+    weight: CubeTensor,
+    bias: Option<CubeTensor>,
+    options: ConvOptions<N>,
+) -> Result<CubeTensor, ConvSetupError> {
+    if options.groups != 1 {
+        return Err(ConvSetupError::Groups(options.groups));
+    }
+    let rank = input.meta.num_dims();
+    let dim_c = rank - 1;
+    let kernel_shape = weight.meta.shape()[1..dim_c].to_vec();
+    let taps = kernel_shape.iter().product::<usize>();
+    // These declines depend only on exact fields of the autotune key.
+    if input.dtype != DType::F32 || taps <= 1 || taps > 49 {
+        return Err(ConvSetupError::Unknown);
+    }
+    let out_shape = calculate_conv_output_sizes(
+        &kernel_shape,
+        &options.stride,
+        &options.padding,
+        &options.dilation,
+        &input.meta.shape()[1..dim_c],
+    );
+    let mut split_m = vec![input.meta.shape()[0]];
+    split_m.extend_from_slice(&out_shape);
+    let rows = split_m.iter().product::<usize>();
+    let cols = taps * input.meta.shape()[dim_c];
+
+    // Spatial sizes are bucketed in the tune key. A cached selection must
+    // still work when a larger shape crosses this workspace limit, so run
+    // direct convolution instead of declining on that cache hit.
+    const MAX_WORKSPACE_BYTES: usize = 128 * 1024 * 1024;
+    if rows
+        .checked_mul(cols)
+        .and_then(|elements| elements.checked_mul(input.dtype.size()))
+        .is_none_or(|bytes| bytes > MAX_WORKSPACE_BYTES)
+    {
+        return super::conv_direct(input, weight, bias, options);
+    }
+
+    let out_channels = weight.meta.shape()[0];
+    let dtype = input.dtype;
+    // Materialize a channel-contiguous input once, rather than gather a
+    // channel-first view independently for every kernel tap.
+    let input = into_contiguous_aligned(input);
+    let columns = im2col_matrix::<N>(input, &out_shape, &kernel_shape, &options);
+    let weight = swap_dims(reshape(weight, Shape::new([out_channels, cols])), 0, 1);
+    let out = matmul(columns, weight, None, MatmulStrategy::default(), dtype)?;
+    let mut out = split_dim(out, 0, &split_m);
+    if let Some(bias) = bias {
+        let mut bias_shape = vec![1; rank];
+        bias_shape[dim_c] = out_channels;
+        out = launch_binop::<AddOp>(out, reshape(bias, bias_shape.into()));
+    }
+    Ok(out)
+}
+
 /// Reshapes NHWC input to [(N, H, W), C]
 fn reshape_input(input: CubeTensor) -> CubeTensor {
     let input = crate::kernel::untile(input);
@@ -507,6 +568,73 @@ struct TapBlock {
     columns: Vec<Slice>,
 }
 
+/// Merge only the batch/spatial axes, retaining the column matrix's row pitch.
+/// A pitched allocation is not strictly contiguous, but its leading axes can
+/// still form one regularly strided row axis.
+fn flatten_columns(mut columns: CubeTensor) -> CubeTensor {
+    let rank = columns.meta.num_dims();
+    let dim_c = rank - 1;
+    let shape = columns.meta.shape();
+    let strides = columns.meta.strides();
+    let rows = shape[..dim_c].iter().product::<usize>();
+    let width = shape[dim_c];
+    if (0..dim_c - 1).all(|i| strides[i] == strides[i + 1] * shape[i + 1]) {
+        let matrix_strides = [strides[dim_c - 1], strides[dim_c]];
+        *columns.meta = Metadata::new([rows, width], matrix_strides);
+        columns
+    } else {
+        reshape(columns, Shape::new([rows, width]))
+    }
+}
+
+/// Prefer direct lowering into a matrix, and keep the slice implementation for
+/// unsupported types and runtimes. Either path preserves an existing row pitch.
+fn im2col_matrix<const N: usize>(
+    input: CubeTensor,
+    out_shape: &[usize],
+    kernel_shape: &[usize],
+    options: &ConvOptions<N>,
+) -> CubeTensor {
+    let input = if input.dtype == DType::F32
+        && (1..=3).contains(&N)
+        && input.client.properties().hardware.num_cpu_cores.is_none()
+    {
+        // In particular, weight gradients can receive an NCHW view. Convert it
+        // once rather than gather that layout independently for every tap.
+        let input = into_contiguous_aligned(input);
+        let rows = input.meta.shape()[0] * out_shape.iter().product::<usize>();
+        let width = input.meta.shape()[N + 1] * kernel_shape.iter().product::<usize>();
+        let columns = empty_device_dtype(
+            input.client.clone(),
+            input.device.clone(),
+            Shape::new([rows, width]),
+            input.dtype,
+        );
+        let launched = cubek::convolution::launch_im2col::<N>(
+            &input.client,
+            cubek::convolution::Im2colTensors {
+                input: input.clone().binding(),
+                columns: columns.clone().binding(),
+            },
+            core::array::from_fn(|axis| out_shape[axis]),
+            core::array::from_fn(|axis| kernel_shape[axis]),
+            cubek::convolution::ConvolutionArgs {
+                stride: options.stride,
+                padding: options.padding_begin(),
+                dilation: options.dilation,
+            },
+            dtype_to_storage_type(input.dtype),
+        );
+        if launched.is_ok() {
+            return columns;
+        }
+        input
+    } else {
+        input
+    };
+    flatten_columns(im2col::<N>(input, out_shape, kernel_shape, options))
+}
+
 /// The windows [`im2col`] gathers. [`col2im_kernel`] re-derives the same
 /// geometry from the tap formula rather than reading [`TapBlock`]s.
 ///
@@ -845,10 +973,7 @@ pub fn wgrad_im2col<const N: usize>(
     let cols = kernel_shape.iter().product::<usize>() * in_channels;
     let rows = out_grad.meta.shape()[..dim_c].iter().product::<usize>();
 
-    let columns = im2col::<N>(input, &out_shape, &kernel_shape, &options);
-    // `[batch, ..out spatial, cols]` -> `[m, cols]`. Free: only leading
-    // dimensions merge, and they are dense in that order.
-    let columns = reshape(columns, Shape::new([rows, cols]));
+    let columns = im2col_matrix::<N>(input, &out_shape, &kernel_shape, &options);
 
     let out_grad = reshape_input(out_grad); // [m, c_out]
     let dtype = out_grad.dtype;
