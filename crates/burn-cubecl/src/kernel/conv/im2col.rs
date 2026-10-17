@@ -567,6 +567,7 @@ fn im2col<const N: usize>(
             input.clone().into_tensor_arg(),
             columns.clone().into_linear_view(),
             shape_divmod(&columns),
+            channels,
             kernel,
             stride,
             padding,
@@ -584,7 +585,8 @@ fn im2col_kernel<E: Numeric>(
     input: &Tensor<E>,
     mut columns: LinearViewMut<'_, E>,
     columns_shape: Sequence<FastDivmod<usize>>,
-    kernel: Sequence<usize>,
+    channels: FastDivmod<usize>,
+    kernel: Sequence<FastDivmod<usize>>,
     stride: Sequence<usize>,
     padding: Sequence<usize>,
     dilation: Sequence<usize>,
@@ -596,16 +598,14 @@ fn im2col_kernel<E: Numeric>(
 
     let spatial = comptime![kernel.len()];
     let (_, position) = decompose_linear(ABSOLUTE_POS, &columns_shape);
-    let channels = input.shape(spatial + 1);
-    let channel = position[spatial + 1] % channels;
-    let mut tap = position[spatial + 1] / channels;
+    let (mut tap, channel) = channels.div_mod(position[spatial + 1]);
     let mut offset = position[0] * input.stride(0) + channel * input.stride(spatial + 1);
     let mut valid = true;
     #[unroll]
     for i in 0..spatial {
         let axis = spatial - 1 - i;
-        let kernel_position = tap % kernel[axis];
-        tap /= kernel[axis];
+        let (next_tap, kernel_position) = kernel[axis].div_mod(tap);
+        tap = next_tap;
         let source = position[axis + 1] * stride[axis] + kernel_position * dilation[axis];
         valid = valid && source >= padding[axis];
         let source = source - padding[axis];
