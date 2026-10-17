@@ -40,6 +40,44 @@ impl<T: Float, N: Size> BinaryOpFloat<T, N> for ArcTan2Op {
     }
 }
 
+pub(crate) struct GeluBackwardOp;
+
+impl BinaryOpFloatFamily for GeluBackwardOp {
+    type BinaryOp<C: Float, N: Size> = Self;
+}
+
+#[cube]
+impl<T: Float, N: Size> BinaryOpFloat<T, N> for GeluBackwardOp {
+    fn execute(lhs: Vector<T, N>, rhs: Vector<T, N>) -> Vector<T, N> {
+        let x = Vector::<f32, N>::cast_from(lhs);
+        let dy = Vector::<f32, N>::cast_from(rhs);
+        let half = Vector::<f32, N>::new(0.5_f32);
+        let neg_half = Vector::<f32, N>::new(-0.5_f32);
+        let one = Vector::<f32, N>::new(1.0_f32);
+        let inv_sqrt2 = Vector::<f32, N>::new(0.7071067811865475_f32);
+        let inv_sqrt2pi = Vector::<f32, N>::new(0.3989422804014327_f32);
+        let cdf = half * (one + Vector::erf(x * inv_sqrt2));
+        let pdf = inv_sqrt2pi * Vector::exp(neg_half * x * x);
+        Vector::<T, N>::cast_from(dy * (cdf + x * pdf))
+    }
+}
+
+pub(crate) struct SigmoidBackwardOp;
+
+impl BinaryOpFloatFamily for SigmoidBackwardOp {
+    type BinaryOp<C: Float, N: Size> = Self;
+}
+
+#[cube]
+impl<T: Float, N: Size> BinaryOpFloat<T, N> for SigmoidBackwardOp {
+    fn execute(lhs: Vector<T, N>, rhs: Vector<T, N>) -> Vector<T, N> {
+        let s = Vector::<f32, N>::cast_from(lhs);
+        let dy = Vector::<f32, N>::cast_from(rhs);
+        let one = Vector::<f32, N>::new(1.0_f32);
+        Vector::<T, N>::cast_from(dy * s * (one - s))
+    }
+}
+
 #[cube]
 impl<T: Float, N: Size> BinaryOpFloat<T, N> for FmodOp {
     fn execute(lhs: Vector<T, N>, rhs: Vector<T, N>) -> Vector<T, N> {

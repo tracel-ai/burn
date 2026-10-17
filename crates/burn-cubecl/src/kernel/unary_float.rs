@@ -143,6 +143,8 @@ pub(crate) mod unary_basic {
         Trunc,
         Erf,
         Recip,
+        Gelu,
+        Sigmoid,
     }
 
     #[derive(CubeLaunch, CubeType)]
@@ -192,6 +194,21 @@ pub(crate) mod unary_basic {
                 BasicFloatUnaryKind::ArcSinh => Vector::asinh(input),
                 BasicFloatUnaryKind::ArcTan => Vector::atan(input),
                 BasicFloatUnaryKind::ArcTanh => Vector::atanh(input),
+                BasicFloatUnaryKind::Gelu => {
+                    let x = Vector::<f32, N>::cast_from(input);
+                    let half = Vector::<f32, N>::new(0.5_f32);
+                    let one = Vector::<f32, N>::new(1.0_f32);
+                    let inv_sqrt2 = Vector::<f32, N>::new(0.7071067811865475_f32);
+                    let y = half * x * (one + Vector::erf(x * inv_sqrt2));
+                    Vector::<F, N>::cast_from(y)
+                }
+                BasicFloatUnaryKind::Sigmoid => {
+                    let x = Vector::<f32, N>::cast_from(input);
+                    let zero = Vector::<f32, N>::new(0.0_f32);
+                    let one = Vector::<f32, N>::new(1.0_f32);
+                    let y = one / (one + Vector::exp(zero - x));
+                    Vector::<F, N>::cast_from(y)
+                }
             }
         }
     }
