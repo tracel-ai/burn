@@ -77,6 +77,12 @@ pub fn matmul(
         action.apply(&mut out_launch.meta);
     }
 
+    if super::native::gemm_backend() == super::native::GemmBackend::Native
+        && super::native::try_launch_native_gemm(lhs.clone(), rhs.clone(), &out_launch).is_some()
+    {
+        return Ok(out);
+    }
+
     match strategy {
         MatmulStrategy::Cube => {
             launch_matmul(&Strategy::default(), lhs, rhs, out_launch)?;
