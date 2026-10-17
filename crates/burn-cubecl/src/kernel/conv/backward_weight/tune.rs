@@ -49,7 +49,13 @@ pub fn wgrad_autotune<const N: usize>(
             .with(Tunable::new(
                 "wgrad_split_implicit",
                 |(input, grad, shape, options)| {
-                    wgrad_split_implicit::<N>(input, grad, shape, options)
+                    wgrad_split_implicit::<N, false>(input, grad, shape, options)
+                },
+            ))
+            .with(Tunable::new(
+                "wgrad_split_implicit_spatial_last",
+                |(input, grad, shape, options)| {
+                    wgrad_split_implicit::<N, true>(input, grad, shape, options)
                 },
             ))
             // The same matmul with its contraction cut into pieces, which is

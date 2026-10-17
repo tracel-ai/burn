@@ -107,6 +107,12 @@ struct SplitContraction {
     contraction: u32,
     #[cube(comptime)]
     offset_columns: bool,
+    #[cube(comptime)]
+    spatial_last: bool,
+    #[cube(comptime)]
+    taps: u32,
+    #[cube(comptime)]
+    channels: u32,
 }
 
 #[cube]
@@ -120,6 +126,11 @@ impl Layout for SplitContraction {
         if self.offset_columns.comptime() {
             (0, row, col + offset)
         } else {
+            let col = if self.spatial_last.comptime() {
+                (col % self.taps) * self.channels + col / self.taps
+            } else {
+                col
+            };
             (0, row + offset, col)
         }
     }
@@ -140,7 +151,8 @@ impl Layout for SplitContraction {
 /// Computes weights `[out_channels, ...kernel, in_channels]` from NHWC input and gradients.
 /// Independent contraction slices produce partial weights, then reduce the added split axis.
 /// Preserves the gradient dtype and device. Input and gradient ranks are `N + 2`.
-pub(crate) fn wgrad_split_implicit<const N: usize>(
+/// `SPATIAL_LAST` stores partial weights as `[split, out_channels, in_channels, ...kernel]`.
+pub(crate) fn wgrad_split_implicit<const N: usize, const SPATIAL_LAST: bool>(
     input: CubeTensor,
     out_grad: CubeTensor,
     weight_shape: Shape,
@@ -155,6 +167,9 @@ pub(crate) fn wgrad_split_implicit<const N: usize>(
     check_coordinates(&input, &weight_shape, &options)?;
     let dim_c = N + 1;
     let channels = input.meta.shape()[dim_c];
+    if channels == 0 {
+        return Err(ConvSetupError::Unknown);
+    }
     let out_channels = out_grad.meta.shape()[dim_c];
     let rows = out_grad.meta.shape()[..dim_c].iter().product::<usize>();
     let columns = weight_shape[1..].iter().product::<usize>();
@@ -234,14 +249,35 @@ pub(crate) fn wgrad_split_implicit<const N: usize>(
         out_grad.meta.strides(),
         out_grad.meta.shape(),
         MatrixLayout::RowMajor,
-    )
-    .filter_rhs_with_tensor(
-        input.meta.strides(),
-        input.meta.shape(),
-        MatrixLayout::RowMajor,
-    )
-    .filter_out_with_tensor(partial.meta.strides(), partial.meta.shape())
-    .pick_max()?;
+    );
+    let vectors = if const { SPATIAL_LAST } {
+        // A vector stays within one filter row. Each source row must also start
+        // at a vector-aligned pixel, including convolution stride and padding.
+        vectors.filter_rhs(|size| {
+            *size == 1
+                || (input.meta.strides()[N] == 1
+                    && input.meta.shape()[N].is_multiple_of(*size)
+                    && options.dilation[N - 1] == 1
+                    && weight_shape[N].is_multiple_of(*size)
+                    && options.stride[N - 1].is_multiple_of(*size)
+                    && options.padding[N - 1].0.is_multiple_of(*size)
+                    && input
+                        .meta
+                        .strides()
+                        .iter()
+                        .enumerate()
+                        .all(|(axis, stride)| axis == N || stride.is_multiple_of(*size)))
+        })
+    } else {
+        vectors.filter_rhs_with_tensor(
+            input.meta.strides(),
+            input.meta.shape(),
+            MatrixLayout::RowMajor,
+        )
+    };
+    let vectors = vectors
+        .filter_out_with_tensor(partial.meta.strides(), partial.meta.shape())
+        .pick_max()?;
     let settings =
         <SimpleAlgorithm<SyncFullStridedLoading, SyncFullStridedLoading> as BatchMatmulRoutine<
             (),
@@ -274,6 +310,9 @@ pub(crate) fn wgrad_split_implicit<const N: usize>(
             problem.k as u32,
             problem.k as u32,
             true,
+            false,
+            1,
+            1,
         ),
     );
     let rhs_layout = ChainLaunch::new(
@@ -290,7 +329,15 @@ pub(crate) fn wgrad_split_implicit<const N: usize>(
     );
     let rhs_layout = ChainLaunch::new(
         rhs_layout,
-        SplitContractionLaunch::new(problem.k as u32, columns as u32, problem.k as u32, false),
+        SplitContractionLaunch::new(
+            problem.k as u32,
+            columns as u32,
+            problem.k as u32,
+            false,
+            SPATIAL_LAST,
+            (columns / channels) as u32,
+            channels as u32,
+        ),
     );
     let inputs = TensorInputsLaunch::new(
         VirtualLayoutLaunch::new::<NoopLayout>(NoopLayoutLaunch::new()),
@@ -322,8 +369,19 @@ pub(crate) fn wgrad_split_implicit<const N: usize>(
         SimpleAlgorithm<SyncFullStridedLoading, SyncFullStridedLoading>,
     >(&client, inputs, output, (), launch)?;
 
+    // Spatial-last columns store [out_channels, in_channels, ...kernel].
+    // Restore the documented channel-last shape through metadata after reduction.
+    let finish = |gradient| {
+        if const { SPATIAL_LAST } {
+            let mut shape = vec![out_channels, channels];
+            shape.extend_from_slice(&weight_shape[1..N + 1]);
+            crate::ops::permute_nchw_to_nhwc(reshape(gradient, shape.into()))
+        } else {
+            reshape(gradient, weight_shape.clone())
+        }
+    };
     if splits == 1 {
-        return Ok(reshape(partial, weight_shape));
+        return Ok(finish(partial));
     }
 
     let gradient = reduce_dim(
@@ -334,7 +392,7 @@ pub(crate) fn wgrad_split_implicit<const N: usize>(
         ReduceOperationConfig::Sum,
     )
     .map_err(|error| ConvSetupError::InvalidConfig(Box::new(error)))?;
-    Ok(reshape(gradient, weight_shape))
+    Ok(finish(gradient))
 }
 
 #[cfg(all(test, feature = "cuda"))]
@@ -422,14 +480,24 @@ mod tests {
             TensorData::new(grad, grad_shape).convert_dtype(dtype),
             &device,
         );
-        let output =
-            wgrad_split_implicit(input, grad, [8, 3, 3, channels].into(), options).unwrap();
-        assert_eq!(output.dtype, dtype);
-        let actual = crate::ops::into_data_sync(output)
-            .convert::<f32>()
-            .try_to_vec::<f32>()
-            .unwrap();
-        assert_eq!(actual, expected);
+        let outputs = [
+            wgrad_split_implicit::<2, false>(
+                input.clone(),
+                grad.clone(),
+                [8, 3, 3, channels].into(),
+                options.clone(),
+            ),
+            wgrad_split_implicit::<2, true>(input, grad, [8, 3, 3, channels].into(), options),
+        ];
+        for output in outputs {
+            let output = output.unwrap();
+            assert_eq!(output.dtype, dtype);
+            let actual = crate::ops::into_data_sync(output)
+                .convert::<f32>()
+                .try_to_vec::<f32>()
+                .unwrap();
+            assert_eq!(actual, expected);
+        }
     }
 
     #[test]
@@ -485,7 +553,7 @@ mod tests {
         let grad = crate::ops::from_data(TensorData::new(vec![1.0_f32; 8], [1, 1, 1, 8]), &device);
         let options = ConvOptions::new([1; 2], [0; 2], [1usize << 31; 2], 1);
         assert!(matches!(
-            wgrad_split_implicit(input, grad, [8, 3, 3, 4].into(), options),
+            wgrad_split_implicit::<2, false>(input, grad, [8, 3, 3, 4].into(), options),
             Err(ConvSetupError::InvalidConfig(_))
         ));
     }
@@ -522,20 +590,92 @@ mod tests {
             options.clone(),
         )
         .unwrap();
-        let actual = wgrad_split_implicit(input, grad, weight_shape, options).unwrap();
-        assert_eq!(
-            crate::ops::into_data_sync(actual)
-                .try_to_vec::<f32>()
-                .unwrap(),
-            crate::ops::into_data_sync(expected)
-                .try_to_vec::<f32>()
-                .unwrap()
-        );
+        let outputs = [
+            wgrad_split_implicit::<N, false>(
+                input.clone(),
+                grad.clone(),
+                weight_shape.clone(),
+                options.clone(),
+            ),
+            wgrad_split_implicit::<N, true>(input, grad, weight_shape, options),
+        ];
+        let expected = crate::ops::into_data_sync(expected)
+            .try_to_vec::<f32>()
+            .unwrap();
+        for actual in outputs {
+            assert_eq!(
+                crate::ops::into_data_sync(actual.unwrap())
+                    .try_to_vec::<f32>()
+                    .unwrap(),
+                expected
+            );
+        }
     }
 
     #[test]
     fn split_implicit_supports_one_and_three_spatial_axes() {
         assert_spatial_axes::<1>(&[16, 129, 4], &[3]);
         assert_spatial_axes::<3>(&[16, 5, 7, 9, 4], &[3, 3, 3]);
+    }
+
+    /// Checks NHWC views of NCHW storage with aligned and unaligned filter-row starts.
+    #[test]
+    fn spatial_last_weight_gradient_handles_vector_alignment() {
+        let device = CubeDevice::cuda(0).unwrap();
+        let shape = [32usize, 4, 16, 20];
+        let values: Vec<f32> = (0..shape.iter().product())
+            .map(|i| ((i % 11) as i32 - 5) as f32 / 8.0)
+            .collect();
+        let input = crate::ops::permute_nchw_to_nhwc(crate::ops::from_data(
+            TensorData::new(values, shape),
+            &device,
+        ));
+
+        for width in [20, 19] {
+            let mut input = input.clone();
+            *input.meta = burn_std::Metadata::new([32, 16, width, 4], input.meta.strides().clone());
+            for options in [
+                ConvOptions::new([2, 4], [0, 0], [1; 2], 1),
+                ConvOptions::new([2, 4], [1, 4], [1; 2], 1),
+                ConvOptions::new([2, 4], [1, 1], [1; 2], 1),
+                ConvOptions::new([2, 3], [0, 0], [1; 2], 1),
+                ConvOptions::new([2, 4], [0, 0], [2; 2], 1),
+            ] {
+                let spatial = calculate_conv_output_sizes(
+                    &[4, 8],
+                    &options.stride,
+                    &options.padding,
+                    &options.dilation,
+                    &[16, width],
+                );
+                let grad_shape = [32, spatial[0], spatial[1], 8];
+                let values: Vec<f32> = (0..grad_shape.iter().product())
+                    .map(|i| ((i % 7) as i32 - 3) as f32 / 4.0)
+                    .collect();
+                let grad = crate::ops::from_data(TensorData::new(values, grad_shape), &device);
+                let expected = crate::kernel::conv::im2col::wgrad_im2col(
+                    input.clone(),
+                    grad.clone(),
+                    [8, 4, 8, 4].into(),
+                    options.clone(),
+                )
+                .unwrap();
+                let actual = wgrad_split_implicit::<2, true>(
+                    input.clone(),
+                    grad,
+                    [8, 4, 8, 4].into(),
+                    options,
+                )
+                .unwrap();
+                assert_eq!(
+                    crate::ops::into_data_sync(actual)
+                        .try_to_vec::<f32>()
+                        .unwrap(),
+                    crate::ops::into_data_sync(expected)
+                        .try_to_vec::<f32>()
+                        .unwrap(),
+                );
+            }
+        }
     }
 }
