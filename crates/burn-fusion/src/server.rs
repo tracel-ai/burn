@@ -22,6 +22,9 @@ use hashbrown::HashSet;
 fn execution_error(error: TensorError) -> ExecutionError {
     match error.depth() {
         0 => error.cause().clone(),
+        _ if error.cause().is_device_poisoned() => {
+            ExecutionError::device_poisoned(format!("{error}"))
+        }
         _ => ExecutionError::with_context(format!("{error}")),
     }
 }
@@ -55,28 +58,13 @@ where
             .register(stream, repr, operation, &mut self.handles)
     }
 
-    /// Register a `Drop` that originates from a thread other than the tensor's home stream.
+    /// Free a tensor dropped on a thread other than its home stream.
     ///
     /// A foreign drop must neither enqueue into the pending segment (the block DAG could reorder
     /// the free ahead of a pending read) nor cut it by draining (see
-    /// [`ReadPlan`](crate::stream::ReadPlan)). A materialized tensor bypasses the queue entirely;
-    /// otherwise only the queue can order the drop after its producer, so fall back to
-    /// drain-then-enqueue.
-    pub fn register_foreign_drop(
-        &mut self,
-        stream: StreamId,
-        ir: TensorIr,
-        operation: UnfusedOp<R>,
-    ) {
-        if self
-            .streams
-            .foreign_drop(stream, ir.clone(), &mut self.handles)
-        {
-            return;
-        }
-        self.streams.drain(&mut self.handles, stream);
-        self.streams
-            .register(stream, OperationIr::Drop(ir), operation, &mut self.handles);
+    /// [`ReadPlan`](crate::stream::ReadPlan)), so it never touches the queue.
+    pub fn foreign_drop(&mut self, stream: StreamId, ir: TensorIr) {
+        self.streams.foreign_drop(stream, ir, &mut self.handles);
     }
 
     pub fn tag_shared_view(&mut self, src_stream: StreamId, src: TensorId, dst: TensorId) {
@@ -282,24 +270,36 @@ where
         }
     }
 
-    pub fn resolve_server_float<B>(&mut self, tensor: &TensorIr) -> B::FloatTensorPrimitive
+    pub fn resolve_server_float<B>(
+        &mut self,
+        tensor: TensorIr,
+        id: StreamId,
+    ) -> Result<B::FloatTensorPrimitive, ExecutionError>
     where
         B: FusionBackend<FusionRuntime = R>,
     {
-        self.handles.get_float_tensor::<B>(tensor)
+        self.read_float::<B>(tensor, id).map_err(execution_error)
     }
 
-    pub fn resolve_server_int<B>(&mut self, tensor: &TensorIr) -> B::IntTensorPrimitive
+    pub fn resolve_server_int<B>(
+        &mut self,
+        tensor: TensorIr,
+        id: StreamId,
+    ) -> Result<B::IntTensorPrimitive, ExecutionError>
     where
         B: FusionBackend<FusionRuntime = R>,
     {
-        self.handles.get_int_tensor::<B>(tensor)
+        self.read_int::<B>(tensor, id).map_err(execution_error)
     }
 
-    pub fn resolve_server_bool<B>(&mut self, tensor: &TensorIr) -> B::BoolTensorPrimitive
+    pub fn resolve_server_bool<B>(
+        &mut self,
+        tensor: TensorIr,
+        id: StreamId,
+    ) -> Result<B::BoolTensorPrimitive, ExecutionError>
     where
         B: FusionBackend<FusionRuntime = R>,
     {
-        self.handles.get_bool_tensor::<B>(tensor)
+        self.read_bool::<B>(tensor, id).map_err(execution_error)
     }
 }

@@ -571,6 +571,37 @@ fn test_sum_dim_flipped_axis1() {
 }
 
 #[test]
+fn test_sum_dim_last_column_sliced() {
+    // Rows of the view are contiguous but not packed: each is 70 wide with a
+    // row stride of 80, starting at a nonzero offset.
+    let tensor = TestTensorInt::arange(0..400, &Default::default())
+        .float()
+        .reshape([5, 80]);
+    let output = tensor.slice([1..5, 3..73]).sum_dim(1);
+
+    // Row r sums 80 * r + c for c in 3..73.
+    output.into_data().assert_eq(
+        &TensorData::from([[8225.0], [13825.0], [19425.0], [25025.0]]),
+        false,
+    );
+}
+
+#[test]
+fn test_sum_dim_middle_swapped_batched() {
+    // [2, 3, 4] swapped to [2, 4, 3] (strides [12, 1, 4]): the reduced dim has
+    // stride 1 with both outer and inner batches, so output order matters.
+    let tensor = TestTensorInt::arange(0..24, &Default::default())
+        .float()
+        .reshape([2, 3, 4]);
+    let output = tensor.swap_dims(1, 2).sum_dim(1);
+
+    output.into_data().assert_eq(
+        &TensorData::from([[[6.0, 22.0, 38.0]], [[54.0, 70.0, 86.0]]]),
+        false,
+    );
+}
+
+#[test]
 fn test_mean_dim_flipped() {
     // Flip axis 0, mean axis 1: row means appear in reversed row order.
     let tensor = TestTensor::<2>::from([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]);

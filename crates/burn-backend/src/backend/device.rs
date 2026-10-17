@@ -42,6 +42,14 @@ static REGISTRY: LazyLock<RwLock<HashMap<RegistryKey, Arc<OnceLock<DeviceSetting
 struct DeviceSettingsRegistry;
 
 impl DeviceSettingsRegistry {
+    /// Returns initialized settings without committing defaults or populating the cache.
+    fn get<D: DeviceOps>(device: &D) -> Option<DeviceSettings> {
+        REGISTRY
+            .read()
+            .get(&Self::key(device))
+            .and_then(|settings| settings.get().copied())
+    }
+
     /// Returns the settings for the given device, inserting the default if absent.
     fn get_or_insert<D: DeviceOps>(
         device: &D,
@@ -124,9 +132,18 @@ thread_local! {
         core::cell::RefCell::new(HashMap::new());
 }
 
-/// Get the [`device`'s settings](DeviceSettings).
-pub fn get_device_settings<B: Backend>(device: &B::Device) -> DeviceSettings {
+/// Get the [`device`'s settings](DeviceSettings), initializing them to defaults if unset.
+pub fn get_or_init_device_settings<B: Backend>(device: &B::Device) -> DeviceSettings {
     DeviceSettingsRegistry::get_or_insert(device, || device.defaults())
+}
+
+/// Returns the configured settings, or backend defaults without initializing them.
+///
+/// Before initialization, this is a snapshot: subsequent configuration may change the settings.
+/// Use [`get_or_init_device_settings`] when the returned settings must remain fixed for subsequent
+/// operations.
+pub fn get_device_settings<B: Backend>(device: &B::Device) -> DeviceSettings {
+    DeviceSettingsRegistry::get(device).unwrap_or_else(|| device.defaults())
 }
 
 fn check_dtype_support<B: Backend>(
@@ -295,6 +312,22 @@ mod tests {
         assert_eq!(s1, s2);
         assert_eq!(s1, settings);
         assert_eq!(s2, settings);
+    }
+
+    #[test]
+    #[serial]
+    fn querying_settings_leaves_initialization_open() {
+        clear_registry();
+
+        let device = TestDeviceA::new(2);
+        assert_eq!(DeviceSettingsRegistry::get(&device), None);
+
+        let settings =
+            DeviceSettings::with_dtypes(FloatDType::F16, IntDType::I64, BoolDType::Native);
+        initialize_unchecked(&device, settings).unwrap();
+
+        assert_eq!(DeviceSettingsRegistry::get(&device), Some(settings));
+        assert_eq!(get_test_device_settings(&device), settings);
     }
 
     #[test]

@@ -1,5 +1,6 @@
 use super::*;
 use burn_tensor::Tolerance;
+use burn_tensor::ops::MaxPoolOptions;
 use burn_tensor::{Distribution, module};
 
 #[test]
@@ -14,8 +15,20 @@ pub fn max_pool2d_should_match_reference_backends() {
     let padding = [1, 1];
     let dilation = [1, 1];
 
-    let pooled = module::max_pool2d(tensor, kernel_size, stride, padding, dilation, false);
-    let pooled_ref = module::max_pool2d(tensor_ref, kernel_size, stride, padding, dilation, false);
+    let pooled = module::max_pool2d(
+        tensor,
+        MaxPoolOptions::new(kernel_size)
+            .with_stride(stride)
+            .with_padding(padding)
+            .with_dilation(dilation),
+    );
+    let pooled_ref = module::max_pool2d(
+        tensor_ref,
+        MaxPoolOptions::new(kernel_size)
+            .with_stride(stride)
+            .with_padding(padding)
+            .with_dilation(dilation),
+    );
 
     pooled
         .into_data()
@@ -34,10 +47,20 @@ pub fn max_pool2d_with_indices_should_match_reference_backend() {
     let padding = [1, 1];
     let dilation = [1, 1];
 
-    let (pooled, indices) =
-        module::max_pool2d_with_indices(tensor, kernel_size, stride, padding, dilation, false);
-    let (pooled_ref, indices_ref) =
-        module::max_pool2d_with_indices(tensor_ref, kernel_size, stride, padding, dilation, false);
+    let (pooled, indices) = module::max_pool2d_with_indices(
+        tensor,
+        MaxPoolOptions::new(kernel_size)
+            .with_stride(stride)
+            .with_padding(padding)
+            .with_dilation(dilation),
+    );
+    let (pooled_ref, indices_ref) = module::max_pool2d_with_indices(
+        tensor_ref,
+        MaxPoolOptions::new(kernel_size)
+            .with_stride(stride)
+            .with_padding(padding)
+            .with_dilation(dilation),
+    );
 
     pooled
         .into_data()

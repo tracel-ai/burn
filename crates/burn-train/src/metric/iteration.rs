@@ -7,6 +7,7 @@ use super::state::NumericMetricState;
 use crate::metric::MetricName;
 use crate::metric::Numeric;
 use crate::metric::{Metric, MetricAttributes, NumericAttributes, NumericEntry};
+use burn_core::tensor::TensorReadError;
 
 /// The loss metric.
 #[derive(Clone)]
@@ -36,7 +37,11 @@ impl IterationSpeedMetric {
 impl Metric for IterationSpeedMetric {
     type Input = ();
 
-    fn update(&mut self, _: &Self::Input, metadata: &MetricMetadata) -> SerializedEntry {
+    fn update(
+        &mut self,
+        _: &Self::Input,
+        metadata: &MetricMetadata,
+    ) -> Result<SerializedEntry, TensorReadError> {
         let raw = match self.instant {
             Some(val) => {
                 // If iteration is not logged, compute the speed over the number of items processed.
@@ -53,19 +58,19 @@ impl Metric for IterationSpeedMetric {
         };
 
         self.state.update(raw, 1);
-        self.state.compute_update(
+        Ok(self.state.compute_update(
             FormatOptions::new(self.name())
                 .unit("iter/sec")
                 .precision(2),
-        )
+        ))
     }
 
-    fn compute(&mut self) -> SerializedEntry {
-        self.state.compute_final(
+    fn compute(&mut self) -> Result<SerializedEntry, TensorReadError> {
+        Ok(self.state.compute_final(
             FormatOptions::new(self.name())
                 .unit("iter/sec")
                 .precision(2),
-        )
+        ))
     }
 
     fn clear(&mut self) {

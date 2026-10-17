@@ -1,12 +1,12 @@
 use super::tune::ReduceDimAutotuneKey;
-use burn_backend::cubecl::dtype_to_storage_type;
+use burn_backend::cubecl::{autotune::with_roofline_bounds, dtype_to_storage_type};
 use cubecl::{std::throughput::roofline_bounds, tune::TunableSet};
 use cubek::reduce::{
     ReduceDtypes, ReduceWithIndicesDtypes, components::instructions::ReduceOperationConfig,
     routines::ReduceCost,
 };
 
-use crate::{CubeAutotuneKey, kernel::autotune_bounds, tensor::CubeTensor};
+use crate::{CubeAutotuneKey, tensor::CubeTensor};
 
 type Inputs = (
     CubeTensor,
@@ -29,7 +29,7 @@ type InputsWithIndices = (
 pub(super) fn with_reduce_bounds<Out: 'static>(
     set: TunableSet<ReduceDimAutotuneKey, Inputs, Out>,
 ) -> TunableSet<ReduceDimAutotuneKey, Inputs, Out> {
-    autotune_bounds::with_bounds(
+    with_roofline_bounds(
         set,
         |_key, (input, _output, axis, instruction, dtypes): &Inputs, thresholds| {
             let cost = ReduceCost {
@@ -48,7 +48,7 @@ pub(super) fn with_reduce_bounds<Out: 'static>(
 pub(super) fn with_reduce_with_indices_bounds<Out: 'static>(
     set: TunableSet<ReduceDimAutotuneKey, InputsWithIndices, Out>,
 ) -> TunableSet<ReduceDimAutotuneKey, InputsWithIndices, Out> {
-    autotune_bounds::with_bounds(
+    with_roofline_bounds(
         set,
         |_key, (input, _values, _indices, axis, config, dtypes): &InputsWithIndices, thresholds| {
             let cost = ReduceCost {
@@ -71,7 +71,7 @@ pub(super) fn with_reduce_with_indices_bounds<Out: 'static>(
 pub(super) fn with_sum_bounds<Out: 'static>(
     set: TunableSet<CubeAutotuneKey, CubeTensor, Out>,
 ) -> TunableSet<CubeAutotuneKey, CubeTensor, Out> {
-    autotune_bounds::with_bounds(
+    with_roofline_bounds(
         set,
         |_key: &CubeAutotuneKey, input: &CubeTensor, thresholds| {
             let elem = dtype_to_storage_type(input.dtype);

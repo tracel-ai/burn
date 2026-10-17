@@ -53,6 +53,7 @@ jobs:
     runs-on:
       [
         "@id:burn-cuda-job-${{github.run_id}}-${{github.run_attempt}}",
+        "@max-lifetime-secs:5400",
         "@pr_number:${{ inputs.pr_number }}",
         "@organization:tracel-ai",
         "@repository:burn",
@@ -87,11 +88,12 @@ jobs:
 
   linux-std-vulkan-tests:
     needs: [prepare-checks]
-    timeout-minutes: 60
+    timeout-minutes: 80
     # '@id:' label must be unique within this worklow
     runs-on:
       [
         "@id:burn-vulkan-job-${{github.run_id}}-${{github.run_attempt}}",
+        "@max-lifetime-secs:5400",
         "@pr_number:${{ inputs.pr_number }}",
         "@organization:tracel-ai",
         "@repository:burn",
@@ -125,11 +127,12 @@ jobs:
 
   linux-std-wgpu-tests:
     needs: [prepare-checks]
-    timeout-minutes: 60
+    timeout-minutes: 80
     # '@id:' label must be unique within this worklow
     runs-on:
       [
         "@id:burn-wgpu-job-${{github.run_id}}-${{github.run_attempt}}",
+        "@max-lifetime-secs:5400",
         "@pr_number:${{ inputs.pr_number }}",
         "@organization:tracel-ai",
         "@repository:burn",

@@ -21,15 +21,19 @@ const MIB: u64 = 1024 * 1024;
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum MetricSide {
     /// The client: bytes it would have sent vs. bytes it actually sent.
+    #[cfg(feature = "client")]
     Client,
     /// The server: bytes it would have received vs. bytes it actually received.
+    #[cfg(feature = "server")]
     Server,
 }
 
 impl fmt::Display for MetricSide {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            #[cfg(feature = "client")]
             MetricSide::Client => f.write_str("client"),
+            #[cfg(feature = "server")]
             MetricSide::Server => f.write_str("server"),
         }
     }

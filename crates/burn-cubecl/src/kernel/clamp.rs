@@ -27,14 +27,9 @@ pub(crate) fn clamp_float(
         type Options = Options;
 
         fn execute(input: Vector<F, N>, options: &Self::Options) -> Vector<F, N> {
-            // clamp lowers to max(min(x, max), min), which returns the non-NaN operand and so
-            // mapped NaN to a bound. Comparisons against NaN are false, so it survives here, in
-            // the same order as the clamp_min/clamp_max trait default.
             let min_value = Vector::new(options.min_value.get::<F>());
             let max_value = Vector::new(options.max_value.get::<F>());
-
-            let clamped = select(input > max_value, max_value, input);
-            select(clamped < min_value, min_value, clamped)
+            clamp_nan(input, min_value, max_value)
         }
     }
 

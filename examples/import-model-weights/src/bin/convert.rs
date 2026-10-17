@@ -64,6 +64,13 @@ pub fn main() {
 
     println!("Saving model to '{}.bpk'...", output_file_path.display());
 
+    std::fs::create_dir_all(output_directory).unwrap_or_else(|e| {
+        panic!(
+            "Failed to create output directory '{}': {e}",
+            output_directory.display()
+        )
+    });
+
     // Save the model using BurnpackStore
     let mut store = BurnpackStore::from_file(&output_file_path).overwrite(true);
     model.save_into(&mut store).unwrap_or_else(|e| {

@@ -9,6 +9,7 @@ throughout the training process. We currently offer a restricted range of metric
 | TopKAccuracy        | Calculate the top-k accuracy in percentage                                                  |
 | Precision           | Calculate precision in percentage                                                           |
 | Recall              | Calculate recall in percentage                                                              |
+| MatthewsCorrelationCoefficient | Calculate binary or single-label multiclass MCC in [-1, 1]                        |
 | FBetaScore          | Calculate F<sub>β </sub>score in percentage                                                 |
 | AUROC               | Calculate the area under curve of ROC in percentage                                         |
 | AUC-PR              | Calculate the area under the precision-recall curve (average precision) in percentage       |
@@ -48,7 +49,7 @@ adaptor code yourself.
 - `ClassificationOutput`:
     - Use case: Single-label classification
     - Fields: `loss: Tensor<1>`, `output: Tensor<2>`, `targets: Tensor<1, Int>`
-    - Adapted metrics: Accuracy, TopKAccuracy, Perplexity, Precision\*, Recall\*, FBetaScore\*, AUROC\*, AUC-PR\*, Loss
+    - Adapted metrics: Accuracy, TopKAccuracy, Perplexity, Precision\*, Recall\*, FBetaScore\*, MatthewsCorrelationCoefficient\*, AUROC\*, AUC-PR\*, Loss
 - `MultiLabelClassificationOutput`:
     - Use case: Multi-label classification
     - Fields: `loss: Tensor<1>`, `output: Tensor<2>`, `targets: Tensor<2, Int>`
@@ -64,6 +65,18 @@ adaptor code yourself.
 
 \* Precision, Recall, FBetaScore, AUROC, and AUC-PR all use `ConfusionStatsInput` as their input type so these 
 metrics are automatically (implicitly) adapted since `ConfusionStatsInput` is adapted.
+
+`MatthewsCorrelationCoefficientMetric` also uses `ConfusionStatsInput`. Use
+`MatthewsCorrelationCoefficientMetric::binary(0.5)` for one positive-class probability
+column, or `MatthewsCorrelationCoefficientMetric::multiclass()` for class scores with
+one-hot targets. MCC accumulates counts across batches and returns `0` when its
+denominator is zero. It does not support multi-label classification.
+Updates require non-empty, finite predictions and one-hot multiclass targets. The
+number of classes must stay fixed across batches until the metric is cleared.
+The batch size and number of classes must each be at most `i32::MAX`.
+Multiclass score ties select the first class. Counts are reduced as int32 on the
+input device, then accumulated in double precision on CPU to preserve accuracy
+for imbalanced classes without requiring device support for 64-bit integers.
 
 If your metric isn't already adapted for the appropriate output struct, you can implement `Adaptor` yourself. 
 For example, here is how `ClassificationOutput` adapts to `AccuracyInput`:
@@ -128,16 +141,48 @@ pub trait Metric: Send + Sync + Clone {
     /// values of k), the name should be unique for each instance.
     fn name(&self) -> MetricName;
 
+    /// A short description of the metric.
+    fn description(&self) -> Option<String> {
+        None
+    }
+
+    /// Attributes of the metric.
+    ///
+    /// By default, metrics have no attributes.
+    fn attributes(&self) -> MetricAttributes {
+        MetricAttributes::None
+    }
+
     /// Update the metric state and returns the current metric entry.
-    fn update(&mut self, item: &Self::Input, metadata: &MetricMetadata) -> SerializedEntry;
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`TensorReadError`] when a tensor read fails. In that case, the metric state
+    /// could hold part or none of this update.
+    fn update(
+        &mut self,
+        item: &Self::Input,
+        metadata: &MetricMetadata,
+    ) -> Result<SerializedEntry, TensorReadError>;
 
     /// Compute the final metric value.
-    fn compute(&mut self) -> SerializedEntry;
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`TensorReadError`] when a tensor read fails.
+    fn compute(&mut self) -> Result<SerializedEntry, TensorReadError>;
 
     /// Clear the metric state.
     fn clear(&mut self);
 }
 ```
+
+In `update` and `compute`, read tensors with the fallible methods (`try_into_data`, `try_into_scalar`)
+and propagate the error with `?` to keep the event processor reporting errors to the learner. The
+processor still updates the other metrics, and reports every metric that failed, each with its
+name and split, as a `EventProcessorError`. When `update` fails, the metric state could hold part or none of that update.
+This includes tensors the metric keeps across batches, such as running totals: once one of them was computed from
+a failed input, reading it fails too, until `clear` resets the state at the end of the epoch.
 
 As an example, let's see how the loss metric is implemented.
 
@@ -175,25 +220,31 @@ impl LossMetric {
 impl Metric for LossMetric {
     type Input = LossInput;
 
-    fn update(&mut self, loss: &Self::Input, _metadata: &MetricMetadata) -> SerializedEntry {
+    fn update(
+        &mut self,
+        loss: &Self::Input,
+        _metadata: &MetricMetadata,
+    ) -> Result<SerializedEntry, TensorReadError> {
         let [batch_size] = loss.tensor.dims();
         let loss = loss
             .tensor
             .clone()
             .mean()
-            .into_data()
+            .try_into_data()?
             .iter::<f64>()
             .next()
             .unwrap();
 
         self.state.update(loss, batch_size);
-        self.state
-            .compute_update(FormatOptions::new(self.name()).precision(2))
+        Ok(self
+            .state
+            .compute_update(FormatOptions::new(self.name()).precision(2)))
     }
 
-    fn compute(&mut self) -> SerializedEntry {
-        self.state
-            .compute_final(FormatOptions::new(self.name()).precision(2))
+    fn compute(&mut self) -> Result<SerializedEntry, TensorReadError> {
+        Ok(self
+            .state
+            .compute_final(FormatOptions::new(self.name()).precision(2)))
     }
 
     fn clear(&mut self) {

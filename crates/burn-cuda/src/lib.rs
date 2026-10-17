@@ -1,5 +1,22 @@
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
+//! The CUDA runtime for [Burn](https://github.com/tracel-ai/burn)'s CubeCL backend, for NVIDIA
+//! GPUs.
+//!
+//! Applications enable Burn's `cuda` feature and create a device with `Device::cuda(index)`;
+//! they do not need this crate directly. [`Cuda`] is the backend type under the name of this
+//! runtime: every CubeCL runtime shares the same backend, and a tensor's device says which one it
+//! runs on.
+//!
+//! The CUDA driver is loaded at runtime, so building does not require the CUDA toolkit.
+//!
+//! # Feature flags
+//!
+//! - `std` (default): standard library support.
+//! - `fusion` (default): kernel fusion.
+//! - `autotune` (default): benchmark kernel variants at runtime and keep the fastest.
+//! - `tracing`: instrument operations with the `tracing` crate.
+
 extern crate alloc;
 
 pub use cubecl::cuda::CudaDevice;

@@ -1,5 +1,6 @@
 use super::*;
 use burn_tensor::Tolerance;
+use burn_tensor::ops::AvgPoolOptions;
 use burn_tensor::{Device, Distribution, module};
 
 #[test]
@@ -16,19 +17,17 @@ fn avg_pool2d_should_match_reference_backend() {
 
     let pooled = module::avg_pool2d(
         tensor,
-        kernel_size,
-        stride,
-        padding,
-        count_include_pad,
-        false,
+        AvgPoolOptions::new(kernel_size)
+            .with_stride(stride)
+            .with_padding(padding)
+            .with_count_include_pad(count_include_pad),
     );
     let pooled_ref = module::avg_pool2d(
         tensor_ref,
-        kernel_size,
-        stride,
-        padding,
-        count_include_pad,
-        false,
+        AvgPoolOptions::new(kernel_size)
+            .with_stride(stride)
+            .with_padding(padding)
+            .with_count_include_pad(count_include_pad),
     );
 
     pooled
@@ -53,11 +52,10 @@ fn avg_pool2d_backward_should_match_reference_backend() {
 
     let shape_out = module::avg_pool2d(
         tensor.clone(),
-        kernel_size,
-        stride,
-        padding,
-        count_include_pad,
-        false,
+        AvgPoolOptions::new(kernel_size)
+            .with_stride(stride)
+            .with_padding(padding)
+            .with_count_include_pad(count_include_pad),
     )
     .shape();
     let grad_output = TestTensor::<4>::random(shape_out, Distribution::Default, &device);

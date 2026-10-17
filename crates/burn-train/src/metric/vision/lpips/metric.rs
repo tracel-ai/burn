@@ -14,6 +14,7 @@ use burn::tensor::Device;
 use burn::tensor::Tensor;
 use burn_nn::conv::{Conv2d, Conv2dConfig};
 use burn_nn::loss::Reduction;
+use burn_store::pytorch::PytorchStoreError;
 
 use super::alexnet::AlexFeatureExtractor;
 use super::squeezenet::SqueezeFeatureExtractor;
@@ -85,9 +86,47 @@ impl LpipsConfig {
     ///     .with_net(LpipsNet::Vgg)
     ///     .init_pretrained(&device);
     /// ```
+    ///
+    /// # Panics
+    ///
+    /// Panics on cache setup, download or checkpoint-loading failures.
+    /// Use [`Self::try_init_pretrained`] to handle checkpoint-loading errors.
     pub fn init_pretrained(&self, device: &Device) -> Lpips {
-        let lpips = self.init(device);
-        super::weights::load_pretrained_weights(lpips, self.net)
+        self.try_init_pretrained(device)
+            .expect("Failed to initialize pretrained LPIPS")
+    }
+
+    /// Initialize LPIPS with pretrained backbone and linear-head weights.
+    ///
+    /// Both stages use strict loading and must succeed before a model is returned.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`PytorchStoreError`] if reading or parsing a checkpoint fails,
+    /// a tensor fails validation, or a required parameter is missing.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the cache directory cannot be determined or created, or if
+    /// downloading or writing a checkpoint to the cache fails.
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// use burn_core::tensor::Device;
+    /// use burn_store::pytorch::PytorchStoreError;
+    /// use burn_train::metric::vision::{LpipsConfig, LpipsNet};
+    ///
+    /// # fn main() -> Result<(), PytorchStoreError> {
+    /// let device = Device::flex();
+    /// let lpips = LpipsConfig::new()
+    ///     .with_net(LpipsNet::Alex)
+    ///     .try_init_pretrained(&device)?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn try_init_pretrained(&self, device: &Device) -> Result<Lpips, PytorchStoreError> {
+        super::weights::try_load_pretrained_weights(self.init(device), self.net)
     }
 
     /// Initialize a new [Lpips](Lpips) module with random weights.
@@ -521,7 +560,7 @@ mod tests {
         let lpips = LpipsConfig::new().init(&device);
         let distance = lpips.forward(image1, image2, Reduction::Mean);
 
-        let distance_value = distance.into_data().to_vec::<f32>().unwrap()[0];
+        let distance_value = distance.into_data().try_to_vec::<f32>().unwrap()[0];
         assert!(
             distance_value.abs() > 1e-6,
             "LPIPS should be != 0 for different images"
@@ -606,7 +645,7 @@ mod tests {
         let lpips = LpipsConfig::new().with_net(LpipsNet::Alex).init(&device);
         let distance = lpips.forward(image1, image2, Reduction::Mean);
 
-        let distance_value = distance.into_data().to_vec::<f32>().unwrap()[0];
+        let distance_value = distance.into_data().try_to_vec::<f32>().unwrap()[0];
         // Note: With random weights, non-negativity is not guaranteed.
         // We only check that different images produce a non-zero distance.
         assert!(
@@ -645,7 +684,7 @@ mod tests {
         let lpips = LpipsConfig::new().with_net(LpipsNet::Squeeze).init(&device);
         let distance = lpips.forward(image1, image2, Reduction::Mean);
 
-        let distance_value = distance.into_data().to_vec::<f32>().unwrap()[0];
+        let distance_value = distance.into_data().try_to_vec::<f32>().unwrap()[0];
         // Note: With random weights, non-negativity is not guaranteed.
         // We only check that different images produce a non-zero distance.
         assert!(
@@ -706,7 +745,7 @@ mod tests {
         // Test with identical images - should be 0
         let image = Tensor::<4>::ones([1, 3, 64, 64], &device);
         let distance = lpips.forward(image.clone(), image, Reduction::Mean);
-        let distance_value = distance.into_data().to_vec::<f32>().unwrap()[0];
+        let distance_value = distance.into_data().try_to_vec::<f32>().unwrap()[0];
         assert!(
             distance_value.abs() < 1e-5,
             "Pretrained LPIPS (VGG) should be ~0 for identical images, got {}",
@@ -717,7 +756,7 @@ mod tests {
         let image1 = Tensor::<4>::zeros([1, 3, 64, 64], &device);
         let image2 = Tensor::<4>::ones([1, 3, 64, 64], &device);
         let distance = lpips.forward(image1, image2, Reduction::Mean);
-        let distance_value = distance.into_data().to_vec::<f32>().unwrap()[0];
+        let distance_value = distance.into_data().try_to_vec::<f32>().unwrap()[0];
         assert!(
             distance_value > 0.0,
             "Pretrained LPIPS (VGG) should be > 0 for different images, got {}",
@@ -738,7 +777,7 @@ mod tests {
         // Test with identical images
         let image = Tensor::<4>::ones([1, 3, 64, 64], &device);
         let distance = lpips.forward(image.clone(), image, Reduction::Mean);
-        let distance_value = distance.into_data().to_vec::<f32>().unwrap()[0];
+        let distance_value = distance.into_data().try_to_vec::<f32>().unwrap()[0];
         assert!(
             distance_value.abs() < 1e-5,
             "Pretrained LPIPS (Alex) should be ~0 for identical images, got {}",
@@ -749,7 +788,7 @@ mod tests {
         let image1 = Tensor::<4>::zeros([1, 3, 64, 64], &device);
         let image2 = Tensor::<4>::ones([1, 3, 64, 64], &device);
         let distance = lpips.forward(image1, image2, Reduction::Mean);
-        let distance_value = distance.into_data().to_vec::<f32>().unwrap()[0];
+        let distance_value = distance.into_data().try_to_vec::<f32>().unwrap()[0];
         assert!(
             distance_value > 0.0,
             "Pretrained LPIPS (Alex) should be > 0 for different images"
@@ -769,7 +808,7 @@ mod tests {
         // Test with identical images
         let image = Tensor::<4>::ones([1, 3, 64, 64], &device);
         let distance = lpips.forward(image.clone(), image, Reduction::Mean);
-        let distance_value = distance.into_data().to_vec::<f32>().unwrap()[0];
+        let distance_value = distance.into_data().try_to_vec::<f32>().unwrap()[0];
         assert!(
             distance_value.abs() < 1e-5,
             "Pretrained LPIPS (Squeeze) should be ~0 for identical images, got {}",
@@ -780,7 +819,7 @@ mod tests {
         let image1 = Tensor::<4>::zeros([1, 3, 64, 64], &device);
         let image2 = Tensor::<4>::ones([1, 3, 64, 64], &device);
         let distance = lpips.forward(image1, image2, Reduction::Mean);
-        let distance_value = distance.into_data().to_vec::<f32>().unwrap()[0];
+        let distance_value = distance.into_data().try_to_vec::<f32>().unwrap()[0];
         assert!(
             distance_value > 0.0,
             "Pretrained LPIPS (Squeeze) should be > 0 for different images, got {}",

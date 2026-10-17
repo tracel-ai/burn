@@ -18,12 +18,13 @@ use super::InterpolateMode;
 #[derive(Config, Debug)]
 pub struct Interpolate2dConfig {
     /// Output size of the interpolated tensor.
-    /// If specified, this takes precedence over `scale_factor`.
+    /// Exactly one of `output_size` or `scale_factor` must be set.
     #[config(default = "None")]
     pub output_size: Option<[usize; 2]>,
 
     /// Scale factor for resizing the input tensor.
-    /// This is used when `output_size` is not specified.
+    /// The output size is `floor(input_size * scale_factor)`.
+    /// Exactly one of `output_size` or `scale_factor` must be set.
     #[config(default = "None")]
     pub scale_factor: Option<[f32; 2]>,
 
@@ -91,6 +92,10 @@ impl Interpolate2d {
     /// Resized tensor with shape [N, C, H', W'], where H' and W' are determined by
     /// the output_size or scale_factor specified in the module configuration
     ///
+    /// # Panics
+    ///
+    /// Panics unless exactly one of `output_size` or `scale_factor` is set.
+    ///
     /// # Example
     ///
     /// ```ignore
@@ -102,61 +107,11 @@ impl Interpolate2d {
     /// assert_eq!(output.dims(), [1, 3, 128, 128]);
     /// ```
     pub fn forward(&self, input: Tensor<4>) -> Tensor<4> {
-        let output_size = calculate_output_size(input.dims(), self.output_size, self.scale_factor);
-        interpolate(
-            input,
-            output_size,
-            InterpolateOptions::new(self.mode.clone().into())
-                .with_align_corners(self.align_corners),
-        )
-    }
-}
-
-/// Calculates the output size for tensor interpolation.
-///
-/// # Arguments
-///
-/// * `input_dims` - The dimensions of the input tensor [N, C, H, W].
-/// * `output_size` - Optional desired output size [H', W'].
-/// * `scale_factor` - Optional scale factor for height and width [scale_h, scale_w].
-///
-/// # Returns
-///
-/// A tuple [H', W'] representing the calculated output size.
-///
-/// # Panics
-///
-/// Panics if neither `output_size` nor `scale_factor` is provided,
-/// or if the scale factor results in dimensions exceeding usize::MAX.
-fn calculate_output_size(
-    input_dims: [usize; 4],
-    output_size: Option<[usize; 2]>,
-    scale_factor: Option<[f32; 2]>,
-) -> [usize; 2] {
-    match (output_size, scale_factor) {
-        (Some(output_size), None) => {
-            // Use provided
-            output_size
-        }
-        (None, Some(scale_factor)) => {
-            // Calculate output size based on scale factor
-            let [_, _, h, w] = input_dims;
-
-            let new_dim_h = (h as f64) * (scale_factor[0] as f64);
-
-            if new_dim_h > usize::MAX as f64 {
-                panic!("Scale factor for height is too large");
-            }
-
-            let new_dim_w = (w as f64) * (scale_factor[1] as f64);
-
-            if new_dim_w > usize::MAX as f64 {
-                panic!("Scale factor for width is too large");
-            }
-
-            [new_dim_h as usize, new_dim_w as usize]
-        }
-        _ => panic!("Either output_size or scale_factor must be provided"),
+        let mut options = InterpolateOptions::new(self.mode.clone().into())
+            .with_align_corners(self.align_corners);
+        options.output_size = self.output_size;
+        options.scale_factor = self.scale_factor;
+        interpolate(input, options)
     }
 }
 
@@ -182,41 +137,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_calculate_output_size() {
-        let input_dims = [1, 1, 4, 4];
-
-        let output_size = calculate_output_size(input_dims, Some([2, 2]), None);
-        assert_eq!(output_size, [2, 2]);
-
-        let output_size = calculate_output_size(input_dims, None, Some([2.0, 2.0]));
-        assert_eq!(output_size, [8, 8]);
-
-        let output_size = calculate_output_size([1, 1, 4, 4], None, Some([0.5, 0.5]));
-        assert_eq!(output_size, [2, 2]);
-
-        let output_size = calculate_output_size([1, 1, 4, 4], None, Some([2.0, 1.5]));
-        assert_eq!(output_size, [8, 6]);
-    }
-
-    #[test]
-    #[should_panic(expected = "Either output_size or scale_factor must be provided")]
-    fn test_missing_params() {
-        calculate_output_size([1, 1, 4, 4], None, None);
-    }
-
-    #[test]
-    #[should_panic(expected = "Scale factor for height is too large")]
-    fn test_infinite_height() {
-        calculate_output_size([1, 1, usize::MAX - 1, 4], None, Some([2.0, 1.0]));
-    }
-
-    #[test]
-    #[should_panic(expected = "Scale factor for width is too large")]
-    fn test_infinite_width() {
-        calculate_output_size([1, 1, 4, usize::MAX - 1], None, Some([1.0, 2.0]));
-    }
-
-    #[test]
     fn test_module() {
         let input = Tensor::<4>::random(
             [2, 3, 4, 4],
@@ -230,11 +150,16 @@ mod tests {
         let output = interpolate.forward(input.clone());
         assert_eq!(output.dims(), [2, 3, 8, 8]);
 
-        // Test with scale_factor
-        let config = Interpolate2dConfig::new().with_scale_factor(Some([0.5, 0.5]));
+        // Test with scale_factor on a non-square input to catch swapped axes
+        let non_square = Tensor::<4>::random(
+            [2, 3, 4, 6],
+            Distribution::Uniform(0.0, 1.0),
+            &Default::default(),
+        );
+        let config = Interpolate2dConfig::new().with_scale_factor(Some([0.5, 2.0]));
         let interpolate = config.init();
-        let output = interpolate.forward(input.clone());
-        assert_eq!(output.dims(), [2, 3, 2, 2]);
+        let output = interpolate.forward(non_square);
+        assert_eq!(output.dims(), [2, 3, 2, 12]);
 
         // Test with different interpolation mode
         let config = Interpolate2dConfig::new()

@@ -27,7 +27,25 @@ impl PositionWiseFeedForward {
 }
 ```
 
-Note that all fields declared in the struct must also implement the `Module` trait.
+## Fields and generic adapters
+
+Fields must implement `Module` and `ModuleDisplay`, unless they are recognized constants (such as
+`usize`, `f32`, `bool` or `String`) or marked `#[module(skip)]`. Use the attribute for custom
+configuration and runtime state, including generic fields. Skipped fields still need
+`Clone + Debug + Send`; they are cloned but excluded from traversal, checkpoints, device movement
+and training/validation transitions.
+
+Bounds are inferred from field types, so a child `Wrapper<T>` needs `Module + ModuleDisplay`
+without requiring `T` to implement those traits. For a generic child `M` and configuration `C`,
+mark the `C` field with `#[module(skip)]`. Your own `Forward` bounds are preserved; the derive
+does not constrain forward methods.
+
+Named and tuple structs can contain recursive children such as `Vec<Self>` or `Option<Box<Self>>`.
+These children participate in traversal, checkpoints and state transitions like any other submodule.
+
+Custom generic types such as `Block<f32>` are treated as submodules; use `#[module(skip)]` if they
+hold configuration instead. For structures requiring custom traversal, use a
+[manual implementation](../migrating-to-0.22.md#manual-module-implementations).
 
 ## Forward Contract
 
@@ -579,14 +597,15 @@ Interpolation modules resize tensors using one of the available `InterpolateMode
 | `Cubic`   | Cubic interpolation (bicubic for 2D)               |
 | `Lanczos` | Lanczos3 resampling (6-tap sinc-based filter, a=3) |
 
-Configuration is done via `Interpolate1dConfig` / `Interpolate2dConfig` with these options:
+Configuration is done via `Interpolate1dConfig` / `Interpolate2dConfig` with these options. Exactly
+one of `output_size` or `scale_factor` must be set; `forward` panics otherwise.
 
-| Option          | Type                                   | Default   | Description                                             |
-| --------------- | -------------------------------------- | --------- | ------------------------------------------------------- |
-| `output_size`   | `Option<usize>` / `Option<[usize; 2]>` | `None`    | Target output size (takes precedence over scale_factor) |
-| `scale_factor`  | `Option<f32>` / `Option<[f32; 2]>`     | `None`    | Scale factor for resizing                               |
-| `mode`          | `InterpolateMode`                      | `Nearest` | Interpolation algorithm                                 |
-| `align_corners` | `bool`                                 | `true`    | Align input/output corner pixels                        |
+| Option          | Type                                   | Default   | Description                                    |
+| --------------- | -------------------------------------- | --------- | ---------------------------------------------- |
+| `output_size`   | `Option<usize>` / `Option<[usize; 2]>` | `None`    | Target output size; set this or `scale_factor` |
+| `scale_factor`  | `Option<f32>` / `Option<[f32; 2]>`     | `None`    | Output is `floor(input * scale_factor)`        |
+| `mode`          | `InterpolateMode`                      | `Nearest` | Interpolation algorithm                        |
+| `align_corners` | `bool`                                 | `true`    | Align input/output corner pixels               |
 
 ### RNNs
 

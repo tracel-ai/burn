@@ -1,7 +1,9 @@
 use alloc::string::String;
-use burn_std::{BoolStore, DeviceSettings, QuantConfig, QuantScheme, QuantStore};
+use burn_std::{BoolStore, DeviceSettings, QuantConfig, QuantMode, QuantScheme, QuantStore};
 
-use burn_backend::{Backend, BackendTypes, DType, DTypeUsage, DTypeUsageSet, DeviceId, DeviceOps};
+use burn_backend::{
+    Backend, BackendTypes, DType, DTypeUsage, DTypeUsageSet, DeviceId, DeviceOps, ExecutionError,
+};
 use burn_ir::{BackendIr, HandleKind, TensorHandle};
 use burn_std::device::Device;
 use burn_std::rand::{SeedableRng, StdRng};
@@ -72,10 +74,8 @@ impl core::fmt::Debug for FlexDevice {
 
 /// The Flex backend, a fast, portable CPU backend for Burn.
 ///
-/// The `E` and `I` type parameters exist purely to match the shape of other Burn
-/// backends (e.g. `NdArray<E, I, Q>`) so `Flex` slots into `burn-dispatch`'s
-/// generic dispatch macros. The body of `Flex` uses runtime `DType` dispatch, so
-/// both parameters are phantom and unused at runtime.
+/// The `E` and `I` type parameters are phantom. The body of `Flex` uses runtime
+/// `DType` dispatch, so both are unused at runtime.
 ///
 /// # Limitations of the phantom generics
 ///
@@ -156,16 +156,21 @@ impl Backend for Flex {
                 DTypeUsage::Storage | DTypeUsage::Arithmetic
             }
             DType::Bool(burn_std::BoolStore::U32) => DTypeUsageSet::empty(),
-            // Quantized types: storage only for now
-            DType::QFloat(scheme) if burn_std::quantization::quantizable(&scheme) => {
-                DTypeUsage::Storage.into()
+            // Ops without a quantized kernel dequantize, so a symmetric scheme serves every op.
+            DType::QFloat(scheme)
+                if scheme.mode == QuantMode::Symmetric
+                    && burn_std::quantization::quantizable(&scheme) =>
+            {
+                DTypeUsage::general()
             }
             DType::QFloat(_) => DTypeUsageSet::empty(),
             _ => DTypeUsageSet::empty(),
         }
     }
 
-    fn flush(_device: &Self::Device) {}
+    fn flush(_device: &Self::Device) -> Result<(), ExecutionError> {
+        Ok(())
+    }
 }
 
 impl BackendIr for Flex {
@@ -221,9 +226,34 @@ impl BackendIr for Flex {
 #[cfg(test)]
 mod tests {
     use burn_backend::{Backend, DType};
-    use burn_std::BoolStore;
+    use burn_std::{BoolStore, QuantValue};
 
     use super::*;
+
+    #[test]
+    fn supports_every_symmetric_quantized_scheme() {
+        let device = FlexDevice;
+        let q8 = QuantScheme::default();
+        let e2m1 = q8.with_value(QuantValue::E2M1);
+
+        for scheme in [
+            q8,
+            q8.with_value(QuantValue::Q4S)
+                .with_store(QuantStore::Native),
+            q8.with_value(QuantValue::E4M3),
+            e2m1,
+            e2m1.with_store(QuantStore::PackedNative(0)),
+        ] {
+            assert!(
+                Flex::supports_dtype(&device, DType::QFloat(scheme)),
+                "{scheme:?}"
+            );
+        }
+        assert!(!Flex::supports_dtype(
+            &device,
+            DType::QFloat(q8.with_mode(QuantMode::Lookup))
+        ));
+    }
 
     #[test]
     fn supports_bool_native() {

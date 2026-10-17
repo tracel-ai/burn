@@ -2,19 +2,20 @@
 
 use std::{fmt, sync::Arc};
 
-use burn_backend::tensor::Device;
 use burn_ir::BackendIr;
-use burn_router::CustomOpRegistry;
 use iroh::{
-    Endpoint, EndpointId,
+    EndpointId,
     endpoint::{Connection, RecvStream, SendStream},
     protocol::{AcceptError, DynProtocolHandler, ProtocolHandler},
 };
+use tokio_util::sync::CancellationToken;
 
 use crate::{
-    PeerId,
-    server::{pump::drive_session, session::SessionManager, spawn::spawn_detached},
-    telemetry::TelemetryProbe,
+    Credential, PeerId,
+    server::{
+        AuthorizationRequest, ClientId, PeerAuthorizer, SessionSetup, pump::drive_session,
+        session::SessionManager, spawn::spawn_detached,
+    },
 };
 
 use super::{
@@ -22,49 +23,21 @@ use super::{
     node::{RemoteNode, StreamKind},
 };
 
-/// Information presented to a compute node before a remote session is accepted.
-pub struct AuthorizationRequest<'a> {
-    /// Authenticated Iroh identity of the connecting peer.
-    pub peer: EndpointId,
-    /// Compute-device index requested by the peer.
-    pub device_index: u32,
-    /// Opaque credential supplied by the application when creating the remote device.
-    pub credential: &'a [u8],
-}
-
-/// Application authorization policy for incoming compute sessions.
-pub trait PeerAuthorizer: Send + Sync + 'static {
-    /// Return `Ok(())` to allow the session, or a user-facing rejection reason.
-    fn authorize(&self, request: AuthorizationRequest<'_>) -> Result<(), String>;
-}
-
-impl<F> PeerAuthorizer for F
-where
-    F: Fn(AuthorizationRequest<'_>) -> Result<(), String> + Send + Sync + 'static,
-{
-    fn authorize(&self, request: AuthorizationRequest<'_>) -> Result<(), String> {
-        self(request)
-    }
-}
-
-#[derive(Debug, Default)]
-pub struct AllowAll;
-
-impl PeerAuthorizer for AllowAll {
-    fn authorize(&self, _request: AuthorizationRequest<'_>) -> Result<(), String> {
-        Ok(())
-    }
-}
-
-/// Iroh protocol handler for Burn Remote compute and tensor-transfer streams.
-///
-/// Register this handler in an existing Iroh `Router` to compose Burn with other application
-/// protocols on the same endpoint.
-pub struct IrohRemoteProtocol<B: BackendIr> {
+/// Serves Burn Remote's compute and tensor-transfer streams on an Iroh endpoint.
+pub(crate) struct IrohRemoteProtocol<B: BackendIr> {
     node: RemoteNode,
     sessions: Arc<SessionManager<B, IrohTransfer<B>>>,
     transfer: Arc<IrohTransfer<B>>,
     authorizer: Arc<dyn PeerAuthorizer>,
+    shutdown: CancellationToken,
+}
+
+/// A router dropped without `shutdown` drops its handlers, and the sessions they spawned would
+/// otherwise outlive it.
+impl<B: BackendIr> Drop for IrohRemoteProtocol<B> {
+    fn drop(&mut self) {
+        self.shutdown.cancel();
+    }
 }
 
 impl<B: BackendIr> fmt::Debug for IrohRemoteProtocol<B> {
@@ -76,44 +49,23 @@ impl<B: BackendIr> fmt::Debug for IrohRemoteProtocol<B> {
 }
 
 impl<B: BackendIr> IrohRemoteProtocol<B> {
-    /// Create a handler hosting `devices` on `node`.
-    ///
-    /// Anything hosting this runs on an async runtime, so it says so: a session's tensor read then
-    /// materializes eagerly instead of parking a blocking device to host copy on an executor worker.
-    /// Logging stays the application's, see [`ServerLogging`](crate::server::ServerLogging).
-    pub fn new(
-        endpoint: Endpoint,
-        devices: Vec<Device<B>>,
-        authorizer: Arc<dyn PeerAuthorizer>,
-        probe: TelemetryProbe,
-        custom_ops: CustomOpRegistry<B>,
-    ) -> Self {
-        burn_std::set_runtime_kind(burn_std::RuntimeKind::Async);
-        let node = RemoteNode::from_endpoint(endpoint);
+    pub(crate) fn new(node: RemoteNode, setup: SessionSetup<B>) -> Self {
         let transfer = Arc::new(IrohTransfer::new(node.clone()));
-
-        let sessions = Arc::new(
-            SessionManager::new(devices.to_vec(), transfer.clone())
-                .with_telemetry(probe.clone())
-                .with_custom_ops(custom_ops.clone()),
-        );
         Self {
+            sessions: Arc::new(setup.manager(transfer.clone())),
             node,
-            sessions,
             transfer,
-            authorizer,
+            authorizer: setup.authorizer,
+            shutdown: setup.shutdown,
         }
     }
 
-    /// Drive an accepted session stream through the shared [`drive_session`] pump.
-    ///
-    /// The Iroh-specific parts are just the authenticated peer identity (`remote_id`, checked by the
-    /// application's [`PeerAuthorizer`]) and this server's own id, echoed to the client.
     async fn handle_session(
         sessions: Arc<SessionManager<B, IrohTransfer<B>>>,
         authorizer: Arc<dyn PeerAuthorizer>,
+        shutdown: CancellationToken,
         server_id: EndpointId,
-        remote_id: EndpointId,
+        client_id: EndpointId,
         send: SendStream,
         recv: RecvStream,
     ) -> Result<(), String> {
@@ -122,11 +74,12 @@ impl<B: BackendIr> IrohRemoteProtocol<B> {
             send,
             sessions,
             Some(PeerId::Iroh(server_id)),
+            &shutdown,
             |init| {
                 authorizer.authorize(AuthorizationRequest {
-                    peer: remote_id,
+                    client: ClientId::Iroh(client_id),
                     device_index: init.device_index,
-                    credential: &init.authorization,
+                    credential: &Credential::from(init.authorization.as_slice()),
                 })
             },
         )
@@ -134,17 +87,13 @@ impl<B: BackendIr> IrohRemoteProtocol<B> {
     }
 }
 
-/// A backend-erased Burn Remote protocol handler.
-///
-/// The dispatch layer resolves a `Device` to a concrete backend and builds an
-/// [`IrohRemoteProtocol`]; this wraps it as a single non-generic type, so an application can
-/// register Burn on its own Iroh `Router` without naming a backend. Hand it directly to
-/// `RouterBuilder::accept` under [`BURN_REMOTE_ALPN`](super::node::BURN_REMOTE_ALPN).
+/// Burn Remote's handler for an application's own Iroh router, from `into_protocol`. Register it
+/// under [`BURN_REMOTE_ALPN`](crate::BURN_REMOTE_ALPN); shutting the router down ends its
+/// sessions.
 pub struct RemoteProtocol(Box<dyn DynProtocolHandler>);
 
 impl RemoteProtocol {
-    /// Erase a concrete protocol handler behind this non-generic type.
-    pub fn new(handler: impl ProtocolHandler) -> Self {
+    pub(crate) fn new(handler: impl ProtocolHandler) -> Self {
         Self(handler.into())
     }
 }
@@ -163,8 +112,7 @@ impl From<RemoteProtocol> for Box<dyn DynProtocolHandler> {
 
 impl<B: BackendIr> ProtocolHandler for IrohRemoteProtocol<B> {
     async fn accept(&self, connection: Connection) -> Result<(), AcceptError> {
-        let remote_id = connection.remote_id();
-        self.node.remember_connection(connection.clone()).await;
+        let client_id = connection.remote_id();
         loop {
             let Some((kind, send, recv)) = RemoteNode::accept_stream(&connection)
                 .await
@@ -177,10 +125,11 @@ impl<B: BackendIr> ProtocolHandler for IrohRemoteProtocol<B> {
                 StreamKind::Session => {
                     let sessions = self.sessions.clone();
                     let authorizer = self.authorizer.clone();
+                    let shutdown = self.shutdown.clone();
                     let server_id = self.node.id();
                     spawn_detached(async move {
                         if let Err(err) = Self::handle_session(
-                            sessions, authorizer, server_id, remote_id, send, recv,
+                            sessions, authorizer, shutdown, server_id, client_id, send, recv,
                         )
                         .await
                         {
@@ -191,13 +140,17 @@ impl<B: BackendIr> ProtocolHandler for IrohRemoteProtocol<B> {
                 StreamKind::TensorTransfer => {
                     let transfer = self.transfer.clone();
                     spawn_detached(async move {
-                        if let Err(err) = transfer.handle_stream(remote_id, send, recv).await {
+                        if let Err(err) = transfer.handle_stream(client_id, send, recv).await {
                             log::warn!("Iroh tensor-transfer stream failed: {err}");
                         }
                     });
                 }
             }
         }
+    }
+
+    async fn shutdown(&self) {
+        self.shutdown.cancel();
     }
 }
 

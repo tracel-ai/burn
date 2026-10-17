@@ -38,8 +38,28 @@ pub trait RouterClient: Clone + Send + Sync + Sized {
 
         out
     }
-    /// Read the values contained by a tensor.
+    /// Read the values contained by a tensor, issuing the read at the call.
     fn read_tensor_async(&self, tensor: TensorIr) -> DynFut<Result<TensorData, ExecutionError>>;
+    /// Read several tensors in the order given, issuing the read at the call.
+    ///
+    /// The default reads each one through [`read_tensor_async`](Self::read_tensor_async), so that
+    /// method must not be written in terms of this one.
+    fn read_tensors_async(
+        &self,
+        tensors: Vec<TensorIr>,
+    ) -> DynFut<Result<Vec<TensorData>, ExecutionError>> {
+        let reads: Vec<_> = tensors
+            .into_iter()
+            .map(|tensor| self.read_tensor_async(tensor))
+            .collect();
+        Box::pin(async move {
+            let mut data = Vec::with_capacity(reads.len());
+            for read in reads {
+                data.push(read.await?);
+            }
+            Ok(data)
+        })
+    }
     /// Sync the interpreter, ensure that all computations are finished.
     fn sync(&self) -> Result<(), ExecutionError>;
     /// Eagerly submit the operations registered so far without waiting for them to complete.
@@ -111,7 +131,7 @@ pub trait RouterClient: Clone + Send + Sync + Sized {
     /// Register `new_id` as an alias of `src_id` — a second handle over the same backing buffer.
     ///
     /// Used by the fusion layer's cross-stream sharing (see
-    /// [`FusionRuntime::alias_handle`](burn_fusion::FusionRuntime::alias_handle)): when a tensor is
+    /// `burn_fusion::FusionRuntime::alias_handle`): when a tensor is
     /// shared to another stream, that stream's view needs its own id so that consuming it (a
     /// `ReadWrite` last-use) frees only this alias, leaving the original handle valid. The server
     /// clones the source handle (an `Arc`-style refcount on the device buffer) under `new_id`.

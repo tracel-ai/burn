@@ -16,13 +16,6 @@ cargo run -p wgan --example wgan-mnist --release --features cuda
 # Wgpu backend
 cargo run -p wgan --example wgan-mnist --release --features wgpu
 
-# Tch GPU backend
-export TORCH_CUDA_VERSION=cu128 # Set the cuda version
-cargo run -p wgan --example wgan-mnist --release --features tch-gpu
-
-# Tch CPU backend
-cargo run -p wgan --example wgan-mnist --release --features tch-cpu
-
 # Flex backend (CPU)
 cargo run -p wgan --example wgan-mnist --release --features flex                   # f32
 ```

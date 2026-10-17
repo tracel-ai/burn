@@ -52,9 +52,10 @@ use hashbrown::{HashMap, HashSet};
 ///
 /// # Freeing
 ///
-/// Each `FusionTensor::drop` enqueues an `OperationIr::Drop(ir)` on **its own**
-/// `stream` field (the home stream of that particular alias), not the calling
-/// thread's stream. So:
+/// Each `FusionTensor::drop` frees its id on **its own** `stream` field (the
+/// home stream of that particular alias), not the calling thread's stream: on
+/// the home thread it enqueues an `OperationIr::Drop(ir)`, from any other it goes
+/// through `foreign_drop`, which never touches the queue. So:
 ///
 /// - The original tensor's drop targets `src_stream` and removes `handles[src]`.
 /// - The alias tensor's drop targets the stream that minted it and removes
@@ -67,13 +68,9 @@ use hashbrown::{HashMap, HashSet};
 /// # Bounding `shared_sources`
 ///
 /// Naively the set would grow forever, since `tag_shared_view` only ever inserts.
-/// Cleanup happens in `register`: as soon as we see an
-/// `OperationIr::Drop(ir)` come through, we remove `ir.id` from
-/// `shared_sources` immediately — without waiting for the queued `Drop`
-/// to actually execute. This is safe because a `Drop` op is registered only
-/// after the last live `FusionTensor` with that id has been dropped, so no
-/// future `tag_shared_view` can possibly receive that id as a `src`. Removing
-/// the entry therefore cannot trigger a redundant drain on any subsequent call.
+/// Cleanup happens when the last live `FusionTensor` with an id drops, without
+/// waiting for the free to actually run. No future `tag_shared_view` can then
+/// receive that id as a `src`, so removing the entry cannot trigger a redundant drain.
 ///
 /// # The SSA-like invariant
 ///
@@ -103,8 +100,7 @@ pub struct MultiStream<R: FusionRuntime> {
     /// Tensor ids that have been the source of a cross-stream share *and*
     /// required a drain when first shared. Used by `tag_shared_view` to
     /// skip the drain on subsequent shares of the same source. Bounded by
-    /// pruning in `register` when a `Drop` op for the id is enqueued —
-    /// see the struct-level docs for the full strategy.
+    /// pruning when the id's last tensor drops; see the struct-level docs.
     shared_sources: HashSet<TensorId>,
     streams: HashMap<StreamId, Stream<R>>,
     optimizations: ExecutionPlanStore<R::Optimization>,
@@ -133,11 +129,7 @@ impl<R: FusionRuntime> MultiStream<R> {
         operation: UnfusedOp<R>,
         handles: &mut HandleContainer<R::FusionHandle>,
     ) {
-        // Bound `shared_sources` (see struct-level docs). When the last `FusionTensor`
-        // for an id is dropped, a `Drop` op is registered here. At that point no live
-        // `FusionTensor` holds this id, so no future `tag_shared_view` can use it as
-        // a source — it is safe to drop the entry immediately, without waiting for
-        // the queued `Drop` op to actually execute.
+        // No live `FusionTensor` holds a dropped id, so no future share can use it as a source.
         if let OperationIr::Drop(ir) = &repr {
             self.shared_sources.remove(&ir.id);
         }
@@ -168,7 +160,7 @@ impl<R: FusionRuntime> MultiStream<R> {
     ///   chained-share case where `src` is itself a previously-aliased view).
     /// - Then alias the backing handle under `dst`. `register_handle` clones the
     ///   cubecl handle (`Arc`-style), so both ids share refcount on the buffer
-    ///   until each side's own `Drop` op runs.
+    ///   until each side is freed.
     pub fn tag_shared_view(
         &mut self,
         src_stream: StreamId,
@@ -338,19 +330,15 @@ impl<R: FusionRuntime> MultiStream<R> {
         }
     }
 
-    /// A cross-thread `Drop` of a materialized tensor: free it without
-    /// touching the queue — immediately, or at the next execution boundary
-    /// while pending ops still reference it. Returns `false` when the handle
-    /// does not exist yet; the caller must fall back to the queue.
+    /// A cross-thread `Drop`: free the tensor without touching the queue,
+    /// immediately, or at the first execution boundary after the last pending
+    /// op that references it, its producer included.
     pub(crate) fn foreign_drop(
         &mut self,
         id: StreamId,
         ir: burn_ir::TensorIr,
         handles: &mut HandleContainer<R::FusionHandle>,
-    ) -> bool {
-        if handles.get_handle_ref(&ir.id).is_none() {
-            return false;
-        }
+    ) {
         // Mirrors `register`'s bookkeeping for `Drop` ops.
         self.shared_sources.remove(&ir.id);
         match self.streams.get_mut(&id) {
@@ -366,7 +354,6 @@ impl<R: FusionRuntime> MultiStream<R> {
             }
             None => handles.free(&ir),
         }
-        true
     }
 }
 

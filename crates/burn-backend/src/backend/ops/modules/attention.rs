@@ -1,11 +1,10 @@
-use core::f32;
 #[allow(unused_imports)]
 use num_traits::Float as _;
 
 use burn_std::Shape;
 
 use crate::{
-    Backend, TensorMetadata, get_device_settings,
+    Backend, TensorMetadata, get_or_init_device_settings,
     ops::AttentionModuleOptions,
     tensor::{BoolTensor, FloatTensor},
 };
@@ -91,7 +90,7 @@ fn build_causal_mask<B: Backend>(attention_scores: &FloatTensor<B>) -> BoolTenso
     let device = attention_scores.device();
     let scores_shape = attention_scores.shape().dims::<4>();
     let [batch_size, num_heads, seq_q, seq_k] = scores_shape;
-    let settings = get_device_settings::<B>(&device);
+    let settings = get_or_init_device_settings::<B>(&device);
 
     // row indices [seq_q, 1] and col indices [1, seq_k]
     // Offset col indices so that the causal boundary aligns at the bottom-right corner,

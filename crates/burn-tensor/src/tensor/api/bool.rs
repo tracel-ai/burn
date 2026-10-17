@@ -280,7 +280,7 @@ impl<const D: usize> Tensor<D, Bool> {
     /// A tensor containing the indices of all non-zero elements of the given tensor. Each row in the
     /// result contains the indices of a non-zero element.
     pub async fn argwhere_async(self) -> Tensor<2, Int> {
-        let out_dtype = self.device().settings().int_dtype;
+        let out_dtype = self.device().get_or_init_settings().int_dtype;
         let inner = Dispatch::bool_argwhere(self.primitive.into(), out_dtype).await;
         Tensor::new(BridgeTensor::int(inner))
     }
@@ -456,12 +456,12 @@ impl<const D: usize> core::ops::BitXor for Tensor<D, Bool> {
 // =========================================================================
 
 fn bool_to_int_impl(p: BridgeTensor, device: Device) -> BridgeTensor {
-    let out_dtype = device.settings().int_dtype;
+    let out_dtype = device.get_or_init_settings().int_dtype;
     BridgeTensor::int(Dispatch::bool_into_int(p.into(), out_dtype))
 }
 
 fn bool_to_float_impl(p: BridgeTensor, device: Device) -> BridgeTensor {
-    let out_dtype = device.settings().float_dtype;
+    let out_dtype = device.get_or_init_settings().float_dtype;
     BridgeTensor::float(Dispatch::bool_into_float(p.into(), out_dtype))
 }
 

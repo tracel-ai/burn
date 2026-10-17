@@ -63,14 +63,14 @@ fn should_not_corrupt_after_slice() {
 }
 
 #[test]
-#[should_panic]
+#[should_panic(expected = "Repeated -1 in reshape")]
 fn multiple_neg_ones() {
     let tensor = QTensor::<1>::int8([0.0, 1.0, 2.0]);
     let _ = tensor.reshape([-1, -1]);
 }
 
 #[test]
-#[should_panic]
+#[should_panic(expected = "cannot contain negative dimensions")]
 fn neg_value() {
     let tensor = QTensor::<1>::int8([0.0, 1.0, 2.0]);
     let _ = tensor.reshape([-2, -1]);

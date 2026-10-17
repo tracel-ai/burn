@@ -12,7 +12,7 @@ use burn_backend::ops::GridSampleOptions;
 use burn_backend::tensor::{BoolTensor, Device, FloatTensor, IntTensor};
 use burn_backend::{DType, ElementConversion, FloatDType, Slice};
 use burn_backend::{Distribution, Shape, TensorData, ops::FloatTensorOps};
-use burn_backend::{ExecutionError, Scalar, get_device_settings};
+use burn_backend::{ExecutionError, Scalar, get_or_init_device_settings};
 use burn_std::{BoolDType, IntDType};
 use cubecl::prelude::*;
 use cubek::reduce::components::instructions::ReduceOperationConfig;
@@ -25,10 +25,11 @@ impl FloatTensorOps<Self> for CubeBackend {
         fields(shape = ?data.shape(), dtype = ?data.dtype())
     ))]
     fn float_from_data(data: TensorData, device: &Device<Self>) -> FloatTensor<Self> {
-        match data.dtype() {
-            DType::F64 | DType::F32 | DType::F16 | DType::BF16 => super::from_data(data, device),
-            _ => unimplemented!("Unsupported dtype for `float_from_data`"),
+        let dtype = data.dtype();
+        if !dtype.is_float() {
+            unimplemented!("Unsupported dtype for `float_from_data`: {dtype:?}");
         }
+        super::from_data(data, device)
     }
 
     fn float_random(
@@ -143,6 +144,15 @@ impl FloatTensorOps<Self> for CubeBackend {
     fn float_remainder_scalar(lhs: FloatTensor<Self>, rhs: Scalar) -> FloatTensor<Self> {
         let dtype = lhs.dtype;
         numeric::remainder_scalar(lhs, InputScalar::new(rhs, dtype_to_storage_type(dtype)))
+    }
+
+    fn float_fmod(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> FloatTensor<Self> {
+        crate::kernel::fmod(lhs, rhs)
+    }
+
+    fn float_fmod_scalar(lhs: FloatTensor<Self>, rhs: Scalar) -> FloatTensor<Self> {
+        let dtype = lhs.dtype;
+        crate::kernel::fmod_scalar(lhs, InputScalar::new(rhs, dtype_to_storage_type(dtype)))
     }
 
     fn float_matmul(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> FloatTensor<Self> {
@@ -595,6 +605,34 @@ impl FloatTensorOps<Self> for CubeBackend {
         unary_basic::launch::<_>(tensor, |_| BasicFloatUnaryKind::Log1p)
     }
 
+    fn float_powi_scalar_impl(lhs: FloatTensor<Self>, rhs: Scalar) -> FloatTensor<Self> {
+        let exponent = rhs.elem::<f64>();
+        // CubeCL's powi takes i32; preserve the fallback rather than narrowing the exponent.
+        if f64::from(exponent as i32) != exponent {
+            return Self::float_powf_scalar_impl(lhs, rhs);
+        }
+
+        struct Powi;
+
+        #[cube]
+        impl<F: Float, N: Size> FloatUnaryOp<F, N> for Powi {
+            type Options = InputScalar;
+
+            fn execute(input: Vector<F, N>, options: &Self::Options) -> Vector<F, N> {
+                Vector::powi(input, Vector::new(options.get::<i32>()))
+            }
+        }
+
+        impl FloatUnaryOpFamily for Powi {
+            type Options = InputScalar;
+            type Unary<F: Float, N: Size> = Self;
+        }
+
+        launch_unary_float::<Powi, _>(lhs, |_| {
+            InputScalar::new(exponent as i32, dtype_to_storage_type(DType::I32))
+        })
+    }
+
     fn float_powf_scalar_impl(lhs: FloatTensor<Self>, rhs: Scalar) -> FloatTensor<Self> {
         struct Powf;
 
@@ -833,7 +871,7 @@ impl FloatTensorOps<Self> for CubeBackend {
     }
 
     fn float_flip(tensor: FloatTensor<Self>, axes: &[usize]) -> FloatTensor<Self> {
-        let bool_dtype = get_device_settings::<Self>(&tensor.device).bool_dtype;
+        let bool_dtype = get_or_init_device_settings::<Self>(&tensor.device).bool_dtype;
         kernel::flip(tensor, axes, bool_dtype.into())
     }
 

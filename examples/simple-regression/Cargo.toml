@@ -12,10 +12,8 @@ workspace = true
 [features]
 default = ["burn/dataset", "burn/sqlite"]
 flex = ["burn/flex"]
-tch-cpu = ["burn/tch"]
-tch-gpu = ["burn/tch"]
 wgpu = ["burn/wgpu"]
-remote = ["burn/remote"]
+remote = ["burn/remote-websocket"]
 
 [dependencies]
 burn = { workspace = true, features = ["default", "train"] }
@@ -26,4 +24,4 @@ serde = { workspace = true, features = ["std", "derive"] }
 
 # Displaying results
 textplots = "0.8.7"
-rgb = "0.8.52"
+rgb = "0.8.53"

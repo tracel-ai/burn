@@ -581,9 +581,21 @@ mod tests {
     #[test]
     fn test_rotary_encoding_shift_multiple() {
         let device = Default::default();
+        let input =
+            Tensor::<3>::from_floats([[[1.0, 2.0, 3.0, 4.0], [5.0, 6.0, 7.0, 8.0]]], &device);
+        let expected_output = RotaryEncodingConfig::new(10, 4)
+            .init(&device)
+            .apply(input.clone(), 5);
+
+        // The second shift keeps part of a window that no longer starts at 0.
         let mut rotary_encoding = RotaryEncodingConfig::new(4, 4).init(&device);
         rotary_encoding.shift(2);
         rotary_encoding.shift(5);
+
+        rotary_encoding
+            .apply(input, 0)
+            .into_data()
+            .assert_approx_eq::<FT>(&expected_output.into_data(), Tolerance::default());
     }
 
     #[test]

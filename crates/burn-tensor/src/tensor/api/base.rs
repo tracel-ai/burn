@@ -141,13 +141,22 @@ where
     /// uniquely owns the allocation, so an in-place op writes it directly
     /// instead of copying first (see `TensorMetadata::can_mut`).
     ///
-    /// Backends that track buffer ownership (cubecl, fusion, tch) answer
+    /// Backends that track buffer ownership (cubecl, fusion) answer
     /// precisely from the handle reference count; others conservatively return
     /// `false` — they may alias the buffer, so an in-place write can't be
     /// assumed safe. Useful to assert a hot-path op (e.g. a KV-cache
     /// `slice_assign`) stays in place rather than silently copying.
     pub fn can_mut(&self) -> bool {
         self.primitive.can_mut()
+    }
+
+    /// Returns the unique identifier of the tensor if allocated on `CaptureBackend`.
+    ///
+    /// # Panics
+    /// Panics if the tensor is not allocated on `CaptureBackend`.
+    #[cfg(feature = "capture")]
+    pub fn capture_id(&self) -> burn_capture::TensorId {
+        burn_capture::CaptureTensor::capture_id(self)
     }
 
     /// Create an empty tensor of the given shape.
@@ -1125,10 +1134,11 @@ where
             );
         }
 
+        let split = self.shape()[dim] - shift;
         Tensor::cat(
             vec![
-                self.clone().slice_dim(dim, shift..),
-                self.slice_dim(dim, ..shift),
+                self.clone().slice_dim(dim, split..),
+                self.slice_dim(dim, ..split),
             ],
             dim,
         )
@@ -1692,12 +1702,12 @@ where
     /// from the value tensor to the original tensor using the requested update operation.
     ///
     /// # Note
-    /// - `IndexingUpdateOp::Add` accumulates values at the selected positions (`+=`). For
-    ///   booleans, `Add` is logical or.
+    /// - `IndexingUpdateOp::Add` accumulates values at the selected positions (`+=`).
     /// - `IndexingUpdateOp::Assign` replaces values at the selected positions (`=`), when
     ///   supported by the backend.
     /// - `IndexingUpdateOp::Mul` multiplies values at the selected positions (`*=`), when
     ///   supported by the backend.
+    /// - For booleans, `Add` and `Max` are logical or, and `Mul` and `Min` are logical and.
     ///
     /// When `indices` contains duplicate entries, behavior varies by operation:
     /// - For `Add`, accumulation is supported, though results may be non-deterministic on GPU
@@ -1945,6 +1955,8 @@ where
     /// The index tensor should have the same shape as the original tensor except for the specified
     /// dimension. The value and index tensors should have the same shape.
     ///
+    /// For booleans, `Add` and `Max` are logical or, and `Mul` and `Min` are logical and.
+    ///
     /// When `indices` contains duplicate entries, behavior varies by operation:
     /// - For `Add`, accumulation is supported, though results may be non-deterministic on GPU
     ///   backends.
@@ -2002,6 +2014,8 @@ where
     /// * `update` - The operation used to update the existing values at the indexed positions (e.g., add).
     ///
     /// # Note
+    ///
+    /// For booleans, `Add` and `Max` are logical or, and `Mul` and `Min` are logical and.
     ///
     /// When `indices` contains duplicate entries, behavior varies by operation:
     /// - For `Add`, accumulation is supported, though results may be non-deterministic on GPU
@@ -3158,11 +3172,6 @@ where
     /// one in the position of the original dimension, with size equal to the number of windows,
     /// and one appended to the right-most position, with size equal to `size`.
     ///
-    /// # Warning
-    ///
-    /// For the `ndarray` backend; this is not a view but a copy
-    /// with duplicated data.
-    ///
     /// # Arguments
     ///
     /// * `dim` - the dimension to unfold.
@@ -3297,7 +3306,8 @@ impl DataIterFmt {
                 burn_std::BoolStore::U8 => fmt_elem(self.next_elem::<u8>().to_bool()),
                 burn_std::BoolStore::U32 => fmt_elem(self.next_elem::<u32>().to_bool()),
             },
-            DType::QFloat(_) => todo!(), // unreachable but we should fix that
+            // Never panic: quantized tensors are displayed as metadata only.
+            DType::QFloat(_) => String::from("<quantized>"),
         }
     }
 
@@ -3690,29 +3700,35 @@ fn display_fmt_impl(
 ) -> core::fmt::Result {
     writeln!(f, "Tensor {{")?;
     {
-        let mut po = { PRINT_OPTS.read().clone() };
-        if let Some(precision) = f.precision() {
-            po.precision = Some(precision);
+        // Quantized tensors show metadata only (like candle): values are codes with scales,
+        // so use `dequantize()` for values or `to_data()` for the stored codes.
+        if primitive.is_qfloat() {
+            writeln!(f, "  data:  <quantized, use .dequantize() to view values>,")?;
+        } else {
+            let mut po = { PRINT_OPTS.read().clone() };
+            if let Some(precision) = f.precision() {
+                po.precision = Some(precision);
+            }
+            let shape = primitive.shape();
+            let dims: Vec<usize> = shape.iter().copied().collect();
+            let mut acc = String::new();
+            let mut multi_index = vec![0; dims.len()];
+            let num_elements: usize = dims.iter().product();
+            let summarize = num_elements > po.threshold;
+            display_fmt_recursive(
+                primitive,
+                kind,
+                &mut acc,
+                0,
+                &mut multi_index,
+                &po,
+                summarize,
+                &dims,
+            );
+            writeln!(f, "  data:")?;
+            write!(f, "{acc}")?;
+            writeln!(f, ",")?;
         }
-        let shape = primitive.shape();
-        let dims: Vec<usize> = shape.iter().copied().collect();
-        let mut acc = String::new();
-        let mut multi_index = vec![0; dims.len()];
-        let num_elements: usize = dims.iter().product();
-        let summarize = num_elements > po.threshold;
-        display_fmt_recursive(
-            primitive,
-            kind,
-            &mut acc,
-            0,
-            &mut multi_index,
-            &po,
-            summarize,
-            &dims,
-        );
-        writeln!(f, "  data:")?;
-        write!(f, "{acc}")?;
-        writeln!(f, ",")?;
     }
     writeln!(f, "  shape:  {},", primitive.shape())?;
     let device = match kind {
@@ -3724,6 +3740,9 @@ fn display_fmt_impl(
     writeln!(f, "  kind:  {:?},", kind_name)?;
     let dtype = primitive.dtype();
     writeln!(f, "  dtype:  {:?},", dtype.name())?;
+    if let DType::QFloat(scheme) = dtype {
+        writeln!(f, "  scheme:  {scheme:?},")?;
+    }
     write!(f, "}}")
 }
 
@@ -3738,12 +3757,33 @@ fn try_into_data_sync_impl(
     )
 }
 
+#[cfg(feature = "capture")]
+impl<const D: usize, K: Basic> burn_capture::CaptureTensor for Tensor<D, K> {
+    fn capture_id(&self) -> burn_capture::TensorId {
+        #[allow(unreachable_patterns)]
+        match &self.primitive.as_dispatch().kind {
+            burn_dispatch::DispatchTensorKind::Capture(backend_tensor) => match backend_tensor {
+                burn_dispatch::BackendTensor::Float(tensor) => tensor.id(),
+                burn_dispatch::BackendTensor::Int(tensor) => tensor.id(),
+                burn_dispatch::BackendTensor::Bool(tensor) => tensor.id(),
+                burn_dispatch::BackendTensor::Quantized(tensor) => tensor.id(),
+                #[cfg(feature = "autodiff")]
+                burn_dispatch::BackendTensor::Autodiff(_) => {
+                    panic!("Capture tensors do not support autodiff")
+                }
+            },
+            _ => panic!("Tensor is not allocated on CaptureBackend"),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use burn_std::SliceOps;
 
     use crate::Slice;
+    use crate::quantization::QuantScheme;
 
     use crate::s;
 
@@ -3892,5 +3932,24 @@ mod tests {
         let slices = shape.into_slices(slice);
         assert_eq!(slices[0].to_range(3), 1..2);
         assert_eq!(slices[1].to_range(4), 0..4);
+    }
+
+    #[test]
+    fn data_iter_fmt_formats_quantized_as_placeholder() {
+        let data = TensorData::quantized(
+            vec![-127i8, 0, 64, 127],
+            [4],
+            QuantScheme::default(),
+            &[0.1],
+            None,
+        );
+        assert_eq!(
+            DataIterFmt {
+                data,
+                precision: None
+            }
+            .next(),
+            "<quantized>"
+        );
     }
 }

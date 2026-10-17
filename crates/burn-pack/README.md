@@ -4,6 +4,7 @@
 
 [![Current Crates.io Version](https://img.shields.io/crates/v/burn-pack.svg)](https://crates.io/crates/burn-pack)
 [![Documentation](https://docs.rs/burn-pack/badge.svg)](https://docs.rs/burn-pack)
+[![license](https://shields.io/badge/license-MIT%2FApache--2.0-blue)](https://github.com/tracel-ai/burn/blob/main/LICENSE-MIT)
 
 `burn-pack` reads and writes the burnpack container format. It is tensor-library-agnostic and
 dependency-light: it depends only on [`burn-std`](https://crates.io/crates/burn-std) (for `DType`
@@ -30,12 +31,13 @@ assert_eq!(reader.into_tensors().unwrap()[0].shape.to_vec(), vec![2, 2]);
 ```
 
 Use `Writer::write_to_file` / `Reader::from_file` for disk I/O (the default `std` feature; disable
-it for no-std targets). `write_to_file` replaces the destination in place, so a save that fails
-partway leaves it truncated. `write_to_file_atomic` instead builds the container beside the
-destination and renames it into place once complete, so the old file survives a failed save; that
-is what deferred tensors want, since their bytes are produced mid-write. `Writer::overwrite(false)`
-makes both refuse an existing destination, checked when the file is created or published rather
-than beforehand. See the API docs for how far each guarantee reaches.
+it for no-std targets). `write_to_file` builds the container beside the destination and renames it
+into place once complete, so the old file survives a save that fails partway, whether from a full
+disk or a deferred tensor whose provider errors mid-write. `write_to_file_in_place` truncates and
+rewrites the destination instead: no fsync and no transient second copy, but a failed save leaves
+it truncated. `Writer::overwrite(false)` makes both refuse an existing destination, checked when
+the file is created or published rather than beforehand. See the API docs for how far each
+guarantee reaches.
 
 ## Writing models larger than memory
 
@@ -63,3 +65,10 @@ See the [docs](https://docs.rs/burn-pack) for the format layout and the full API
 ## License
 
 This project is dual-licensed under MIT and Apache-2.0.
+
+<!-- burn-crate-footer -->
+
+---
+
+Part of the [Burn](https://github.com/tracel-ai/burn) deep learning framework. See the
+[Burn Book](https://burn.dev/books/burn/) and the [API documentation](https://docs.rs/burn).

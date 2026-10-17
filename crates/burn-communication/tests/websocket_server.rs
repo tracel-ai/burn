@@ -365,3 +365,69 @@ async fn normal_close_ends_recv_cleanly() {
 
     server.shutdown().await;
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn a_message_over_sixty_four_mib_reaches_the_server() {
+    const MESSAGE_LEN: usize = 65 * 1024 * 1024;
+
+    let (length_sender, mut lengths) = mpsc::channel(1);
+    let server = TestServer::start(move |s| {
+        s.route("/upload", move |mut channel: WsServerChannel| async move {
+            let length = channel
+                .recv()
+                .await
+                .map(|message| message.map(|message| message.data.len()))
+                .map_err(|err| err.to_string());
+            let _ = length_sender.send(length).await;
+        })
+    })
+    .await;
+
+    let mut ws = connect(&server.url("upload")).await;
+    send_binary(&mut ws, &vec![0u8; MESSAGE_LEN]).await;
+
+    let read = timeout(TIMEOUT, lengths.recv())
+        .await
+        .expect("the server never reported its read");
+    assert_eq!(read, Some(Ok(Some(MESSAGE_LEN))));
+
+    server.shutdown().await;
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn a_route_refuses_a_message_over_its_limit() {
+    const LIMIT: usize = 1024;
+
+    let (report_tx, mut report_rx) = mpsc::unbounded_channel::<Recv>();
+    let server = TestServer::start(move |s| {
+        s.route_with_max_message_size(
+            "/limited",
+            LIMIT,
+            move |mut channel: WsServerChannel| async move {
+                loop {
+                    let received = classify(channel.recv().await);
+                    let _ = report_tx.send(received);
+                    if received != Recv::Message {
+                        return;
+                    }
+                }
+            },
+        )
+    })
+    .await;
+
+    let mut ws = connect(&server.url("limited")).await;
+    send_binary(&mut ws, &[0; LIMIT]).await;
+    send_binary(&mut ws, &[0; LIMIT + 1]).await;
+
+    let mut next_report = async || {
+        timeout(TIMEOUT, report_rx.recv())
+            .await
+            .expect("the handler never reported its read")
+            .expect("report channel closed")
+    };
+    assert_eq!(next_report().await, Recv::Message);
+    assert_eq!(next_report().await, Recv::Error);
+
+    server.shutdown().await;
+}

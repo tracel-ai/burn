@@ -11,6 +11,7 @@ workspace = true
 
 [dependencies]
 log = { workspace = true }
+regex = { workspace = true }
 strum = { workspace = true }
 cargo_metadata = "0.23.1"
 

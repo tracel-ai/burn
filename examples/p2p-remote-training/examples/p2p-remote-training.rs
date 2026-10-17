@@ -1,16 +1,15 @@
 use p2p_remote_training::{run_client, run_server};
 
-#[tokio::main]
-async fn main() {
+fn main() {
     let args: Vec<String> = std::env::args().collect();
     match args.get(1).map(String::as_str) {
         Some("server") => {
             let topic = args.get(2).map(String::as_str).unwrap_or("burn-default");
-            run_server(topic).await;
+            run_server(topic);
         }
         Some("client") => {
             let topic = args.get(2).map(String::as_str).unwrap_or("burn-default");
-            run_client(topic).await;
+            run_client(topic);
         }
         _ => {
             eprintln!("usage:");

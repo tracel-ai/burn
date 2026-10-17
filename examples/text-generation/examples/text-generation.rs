@@ -32,29 +32,6 @@ pub fn launch(mut device: Device) {
     );
 }
 
-#[cfg(feature = "tch-gpu")]
-mod tch_gpu {
-    use burn::tensor::{Device, DeviceIndex};
-
-    pub fn run() {
-        #[cfg(not(target_os = "macos"))]
-        let device = Device::libtorch_cuda(DeviceIndex::Default);
-        #[cfg(target_os = "macos")]
-        let device = Device::libtorch_mps();
-
-        crate::launch(device);
-    }
-}
-
-#[cfg(feature = "tch-cpu")]
-mod tch_cpu {
-    use burn::tensor::Device;
-
-    pub fn run() {
-        crate::launch(Device::libtorch());
-    }
-}
-
 #[cfg(any(feature = "wgpu", feature = "vulkan", feature = "metal"))]
 mod wgpu {
     use burn::tensor::{Device, DeviceKind};
@@ -93,6 +70,7 @@ mod flex {
 
 #[cfg(feature = "remote")]
 mod remote {
+    use burn::remote::RemoteHost;
     use burn::tensor::{Device, DeviceType};
 
     /// Address of the `burn-remote` server to train against.
@@ -104,16 +82,12 @@ mod remote {
     /// too — doing both locks the device's settings twice and returns
     /// [`DeviceError::AlreadyInitialized`](burn::tensor::DeviceError::AlreadyInitialized).
     pub fn run() {
-        let devices = Device::enumerate(DeviceType::remote_websocket(ADDRESS));
+        let devices = Device::enumerate(DeviceType::Remote(RemoteHost::websocket(ADDRESS)));
         crate::launch(devices.into_vec().pop().unwrap());
     }
 }
 
 fn main() {
-    #[cfg(feature = "tch-gpu")]
-    tch_gpu::run();
-    #[cfg(feature = "tch-cpu")]
-    tch_cpu::run();
     #[cfg(any(feature = "wgpu", feature = "vulkan", feature = "metal"))]
     wgpu::run();
     #[cfg(feature = "cuda")]

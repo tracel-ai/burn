@@ -1,11 +1,11 @@
-use burn_backend::cubecl::dtype_to_storage_type;
+use burn_backend::cubecl::{autotune::with_roofline_bounds, dtype_to_storage_type};
 use cubecl::{std::throughput::roofline_bounds, tune::TunableSet};
 use cubek::attention::forward::{
     definition::{AttentionCost, AttentionDims, AttentionGlobalTypes},
     launch::AttentionAutotuneKey,
 };
 
-use crate::{kernel::autotune_bounds, tensor::CubeTensor};
+use crate::tensor::CubeTensor;
 
 type Inputs = (
     CubeTensor,
@@ -22,7 +22,7 @@ type AttentionTunables<Out> = TunableSet<AttentionAutotuneKey, Inputs, Out>;
 pub(super) fn with_attention_bounds<Out: 'static>(
     set: AttentionTunables<Out>,
 ) -> AttentionTunables<Out> {
-    autotune_bounds::with_bounds(set, |_key, inputs: &Inputs, thresholds| {
+    with_roofline_bounds(set, |_key, inputs: &Inputs, thresholds| {
         let client = &inputs.0.client;
         let cost = cost(inputs);
 

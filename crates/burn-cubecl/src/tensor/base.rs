@@ -1,10 +1,9 @@
 use crate::CubeDevice;
 use crate::kernel::{NumericUnaryOp, NumericUnaryOpFamily, launch_unary_numeric};
-use burn_backend::cubecl::{dtype_to_elem_type, dtype_to_storage_type};
+use burn_backend::cubecl::dtype_to_storage_type;
 use burn_backend::quantization::QuantScheme;
 use burn_backend::{DType, Shape, TensorMetadata};
 use burn_std::{Metadata, strides, tensor::is_contiguous};
-use cubecl::ir::{ElemType, UIntKind};
 use cubecl::server::Handle;
 use cubecl::std::tensor::TensorHandle;
 use cubecl::{client::Client, std::tensor::layout::linear::LinearViewLaunch};
@@ -175,11 +174,7 @@ impl CubeTensor {
                 (handle, Some(qparams))
             }
             None => {
-                let handle = self.client.to_client(
-                    self.handle.clone(),
-                    &client,
-                    dtype_to_elem_type(self.dtype),
-                );
+                let handle = self.client.to_client(self.handle.clone(), &client);
                 (handle, None)
             }
         };
@@ -211,9 +206,7 @@ impl CubeTensor {
         whole.offset_start = None;
         whole.offset_end = None;
 
-        let mut moved = self
-            .client
-            .to_client(whole, client, ElemType::UInt(UIntKind::U8));
+        let mut moved = self.client.to_client(whole, client);
         let grown = moved.size() - self.handle.size();
 
         moved.offset_start = self.handle.offset_start;
@@ -257,7 +250,7 @@ impl CubeTensor {
     fn assert_rows(&self, op: &str) {
         assert!(
             !self.meta.is_tiled(),
-            "CubeTensor::{op}: a storage-tiled tensor is read only by the matmul it was packed \
+            "CubeTensor::{op}: a storage-tiled tensor is read only by the matmul it was tiled \
              for; un-tile it (kernel::untile) for anything else"
         );
     }

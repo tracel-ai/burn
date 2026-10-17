@@ -5,7 +5,7 @@ use burn::config::Config;
 use burn::module::Module;
 use burn::module::{Content, DisplaySettings, ModuleDisplay};
 use burn::tensor::Tensor;
-use burn::tensor::ops::PadMode;
+use burn::tensor::ops::AvgPoolOptions;
 
 use burn::tensor::module::avg_pool2d;
 
@@ -100,68 +100,21 @@ impl AvgPool2d {
     /// - output: `[batch_size, channels, height_out, width_out]`
     pub fn forward(&self, input: Tensor<4>) -> Tensor<4> {
         let [_batch_size, _channels_in, height_in, width_in] = input.dims();
-
-        // Calculate padding as pairs - handles Same, Valid, and Explicit uniformly
-        let ((top, bottom), (left, right)) = self.padding.calculate_padding_2d_pairs(
+        let (padding_height, padding_width) = self.padding.calculate_padding_2d_pairs(
             height_in,
             width_in,
             &self.kernel_size,
             &self.stride,
         );
 
-        // TODO: Move asymmetric padding to functional level via PoolOptions
-        // See: https://github.com/tracel-ai/burn/issues/4362
-        // Handle asymmetric padding by applying explicit pad operation first
-        if top != bottom || left != right {
-            let valid = if self.count_include_pad {
-                None
-            } else {
-                let device = input.device();
-                Some(
-                    Tensor::<4>::ones([1, 1, height_in, width_in], (&device, input.dtype()))
-                        .pad((left, right, top, bottom), PadMode::Constant(0.0)),
-                )
-            };
-            // Burn's pad takes (left, right, top, bottom) for the last two dimensions
-            let padded = input.pad((left, right, top, bottom), PadMode::Constant(0.0));
-            // Use zero padding for the pool operation since we already padded
-            let output = avg_pool2d(
-                padded,
-                self.kernel_size,
-                self.stride,
-                [0, 0],
-                self.count_include_pad,
-                self.ceil_mode,
-            );
-
-            if let Some(valid) = valid {
-                // Materialized padding is indistinguishable from input to the backend. Pooling a
-                // validity mask with the same settings recovers the fraction of real values in
-                // each window, including partial windows created by ceil mode.
-                let valid = avg_pool2d(
-                    valid,
-                    self.kernel_size,
-                    self.stride,
-                    [0, 0],
-                    false,
-                    self.ceil_mode,
-                );
-                let empty = valid.clone().equal_elem(0.0);
-                output / valid.mask_fill(empty, 1.0)
-            } else {
-                output
-            }
-        } else {
-            // Symmetric padding
-            avg_pool2d(
-                input,
-                self.kernel_size,
-                self.stride,
-                [top, left],
-                self.count_include_pad,
-                self.ceil_mode,
-            )
-        }
+        avg_pool2d(
+            input,
+            AvgPoolOptions::new(self.kernel_size)
+                .with_stride(self.stride)
+                .with_padding_pairs([padding_height, padding_width])
+                .with_count_include_pad(self.count_include_pad)
+                .with_ceil_mode(self.ceil_mode),
+        )
     }
 }
 

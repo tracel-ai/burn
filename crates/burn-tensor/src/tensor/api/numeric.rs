@@ -168,9 +168,16 @@ where
         Self::new(K::div_scalar(self.primitive, other))
     }
 
-    /// Applies element wise the remainder operation with a scalar.
+    /// Applies the remainder operation element-wise with another tensor.
     ///
-    /// `y = x2 % x1`
+    /// For integer tensors, this is floor modulo: a nonzero result has the same
+    /// sign as the divisor and a magnitude less than the divisor's magnitude.
+    ///
+    /// # Integer portability
+    ///
+    /// Portable behavior requires a nonzero divisor and excludes signed `MIN % -1`,
+    /// where `MIN` is the minimum value of the operand dtype. For these excluded
+    /// inputs, no particular result or error behavior is guaranteed across backends.
     pub fn remainder(self, other: Self) -> Self {
         check!(TensorCheck::binary_ops_ew("Remainder", &self, &other));
         Self::new(K::remainder(self.primitive, other.primitive))
@@ -179,6 +186,15 @@ where
     /// Applies element wise the remainder operation with a scalar.
     ///
     /// `y = x % s`
+    ///
+    /// For integer tensors, this is floor modulo: a nonzero result has the same
+    /// sign as the divisor and a magnitude less than the divisor's magnitude.
+    ///
+    /// # Integer portability
+    ///
+    /// Portable behavior requires a nonzero divisor and excludes signed `MIN % -1`,
+    /// where `MIN` is the minimum value of the operand dtype. For these excluded
+    /// inputs, no particular result or error behavior is guaranteed across backends.
     ///
     /// # Arguments
     ///

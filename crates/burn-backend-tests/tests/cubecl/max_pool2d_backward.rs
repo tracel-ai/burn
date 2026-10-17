@@ -1,5 +1,6 @@
 use super::*;
 use burn_tensor::Tolerance;
+use burn_tensor::ops::MaxPoolOptions;
 use burn_tensor::{Distribution, module};
 
 #[test]
@@ -19,19 +20,17 @@ pub fn max_pool2d_with_indices_backward_should_match_reference_backend() {
 
     let (_, indices) = module::max_pool2d_with_indices(
         tensor.clone(),
-        kernel_size,
-        stride,
-        padding,
-        dilation,
-        false,
+        MaxPoolOptions::new(kernel_size)
+            .with_stride(stride)
+            .with_padding(padding)
+            .with_dilation(dilation),
     );
     let (_, indices_ref) = module::max_pool2d_with_indices(
         tensor_ref.clone(),
-        kernel_size,
-        stride,
-        padding,
-        dilation,
-        false,
+        MaxPoolOptions::new(kernel_size)
+            .with_stride(stride)
+            .with_padding(padding)
+            .with_dilation(dilation),
     );
     let grad = module::max_pool2d_with_indices_backward(
         tensor,

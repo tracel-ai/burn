@@ -3,8 +3,8 @@ use crate::checkpoint::{
 };
 use crate::metric::store::EventStoreClient;
 use crate::{
-    CloneEarlyStoppingStrategy, LearnerModel, TrainOutput, TrainStep, TrainingModelInput,
-    TrainingModelOutput,
+    CloneEarlyStoppingStrategy, LearnerModel, TrainOutput, TrainStep, TrainingError,
+    TrainingModelInput, TrainingModelOutput,
 };
 use burn_core::store::ModuleRecord;
 use burn_core::tensor::Device;
@@ -219,11 +219,22 @@ impl<M: LearnerModel> LearningCheckpointer<M> {
 /// Cloneable reference to an early stopping strategy
 pub(crate) type EarlyStoppingStrategyRef = Box<dyn CloneEarlyStoppingStrategy>;
 
+/// A stop made through [`Interrupter::stop`], without an error.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Interruption {
+    /// The reason given to [`Interrupter::stop`], if any.
+    pub reason: Option<String>,
+}
+
 #[derive(Clone, Default)]
 /// A handle that allows aborting the training/evaluation process early.
+///
+/// The process stops either on request, through [`stop`](Self::stop), or because of an error,
+/// recorded with [`fail`](Self::fail). An error takes precedence.
 pub struct Interrupter {
     state: Arc<AtomicBool>,
     message: Arc<Mutex<Option<String>>>,
+    error: Arc<Mutex<Option<Arc<TrainingError>>>>,
 }
 
 impl Interrupter {
@@ -243,14 +254,49 @@ impl Interrupter {
         });
     }
 
-    /// Reset the interrupter.
-    pub fn reset(&self) {
-        self.state.store(false, Ordering::Relaxed);
+    /// Stop the process and keep `error` as the cause.
+    ///
+    /// The first call to this function logs the error and keeps it as the cause of the
+    /// interruption. Subsequent calls only log the errors as they are most likely consequences
+    /// of the first one.
+    pub fn fail(&self, error: impl Into<TrainingError>) {
+        let error = error.into();
+        log::error!("Stopped by an error: {error}");
+        let mut slot = self.error.lock().unwrap();
+        if slot.is_none() {
+            *slot = Some(Arc::new(error));
+        }
+        self.state.store(true, Ordering::Relaxed);
     }
 
-    /// True if .stop() has been called.
+    /// [`fail`](Self::fail) with `result`'s error if there is one.
+    pub fn fail_on_error<E: Into<TrainingError>>(&self, result: Result<(), E>) {
+        if let Err(error) = result {
+            self.fail(error);
+        }
+    }
+
+    /// Reset the interrupter, forgetting any stop and error.
+    pub fn reset(&self) {
+        self.state.store(false, Ordering::Relaxed);
+        self.error.lock().unwrap().take();
+    }
+
+    /// True if the process should stop: [`stop`](Self::stop) or [`fail`](Self::fail) was called.
     pub fn should_stop(&self) -> bool {
         self.state.load(Ordering::Relaxed)
+    }
+
+    /// The stop, if the process was stopped without an error.
+    pub fn interruption(&self) -> Option<Interruption> {
+        (self.should_stop() && self.error().is_none()).then(|| Interruption {
+            reason: self.get_message(),
+        })
+    }
+
+    /// The error the process stopped on, if [`fail`](Self::fail) was called.
+    pub fn error(&self) -> Option<Arc<TrainingError>> {
+        self.error.lock().unwrap().clone()
     }
 
     /// Get the message associated with the interrupt.

@@ -13,7 +13,6 @@ use burn_core::backend::{Backend, backend_extension, tensor::FloatTensor};
         feature = "rocm",
         feature = "cpu"
     )),
-    LibTorch: cfg(feature = "tch"),
     Remote: cfg(feature = "remote"),
     Capture: cfg(feature = "capture"),
     Autodiff: cfg(feature = "autodiff"),
@@ -21,6 +20,10 @@ use burn_core::backend::{Backend, backend_extension, tensor::FloatTensor};
 pub trait SignalOps: Backend {
     /// Real FFT along `dim`, truncating or padding to `n` when supplied.
     /// Returns the real and imaginary components of the one-sided spectrum.
+    ///
+    /// `n` is expected to be a power of two. The public [`rfft`](crate::rfft)
+    /// function routes non-power-of-two sizes through Bluestein's algorithm
+    /// before reaching the backend, so implementations do not need to handle them.
     #[allow(unused_variables)]
     fn rfft(
         signal: FloatTensor<Self>,
@@ -29,6 +32,8 @@ pub trait SignalOps: Backend {
     ) -> (FloatTensor<Self>, FloatTensor<Self>);
 
     /// Inverse real FFT along `dim`, with optional output length `n`.
+    ///
+    /// As with [`rfft`](Self::rfft), `n` is expected to be a power of two.
     #[allow(unused_variables)]
     fn irfft(
         real: FloatTensor<Self>,

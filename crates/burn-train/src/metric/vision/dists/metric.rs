@@ -379,7 +379,7 @@ mod tests {
         let dists = DistsConfig::new().init(&device);
         let distance = dists.forward(image1, image2, Reduction::Mean);
 
-        let distance_value = distance.into_data().to_vec::<f32>().unwrap()[0];
+        let distance_value = distance.into_data().try_to_vec::<f32>().unwrap()[0];
         assert!(
             distance_value.abs() > 1e-6,
             "DISTS should be != 0 for different images"
@@ -459,7 +459,7 @@ mod tests {
             &device,
         );
         let distance = dists.forward(image.clone(), image, Reduction::Mean);
-        let distance_value = distance.into_data().to_vec::<f32>().unwrap()[0];
+        let distance_value = distance.into_data().try_to_vec::<f32>().unwrap()[0];
         assert!(
             distance_value.abs() < 1e-5,
             "Pretrained DISTS should be ~0 for identical images, got {}",
@@ -478,7 +478,7 @@ mod tests {
             &device,
         );
         let distance = dists.forward(image1, image2, Reduction::Mean);
-        let distance_value = distance.into_data().to_vec::<f32>().unwrap()[0];
+        let distance_value = distance.into_data().try_to_vec::<f32>().unwrap()[0];
         assert!(
             distance_value > 0.0,
             "Pretrained DISTS should be > 0 for different images"

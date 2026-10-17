@@ -2,7 +2,28 @@
 #![warn(missing_docs)]
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
-//! This library provides the core types that define how Burn tensor data is represented, stored, and interpreted.
+//! The contract between Burn's tensor API and the backends that execute it.
+//!
+//! Application code does not use this crate directly: it works with `burn::tensor::Tensor`
+//! and `Device`, and dispatch picks a backend at runtime. This crate is for code below that
+//! boundary, such as backend implementations, backend decorators and backend extensions.
+//!
+//! - [`BackendTypes`] names a backend's tensor primitives and device type.
+//! - [`Backend`] and the operation traits in [`ops`] define every tensor operation a backend
+//!   must implement. [`AutodiffBackend`] adds gradient support on top.
+//! - [`DeviceOps`] describes a backend device and its default dtypes.
+//! - [`TensorData`], [`DType`], [`Shape`] and the element traits describe tensor data
+//!   independently of any backend.
+//!
+//! Backend operations report device failures as [`ExecutionError`] instead of panicking.
+//!
+//! # Feature flags
+//!
+//! - `std` (default): standard library support. Without it the crate is `no_std` with `alloc`.
+//! - `cubecl`: conversions between Burn and CubeCL types.
+//! - `cubecl-device` and the `cubecl-<runtime>` features: implement [`DeviceOps`] for
+//!   `cubecl::Device`.
+//! - `tracing`: instrument operations with the `tracing` crate.
 
 #[macro_use]
 extern crate derive_new;
@@ -64,17 +85,27 @@ mod cube_device {
     use crate::backend::DeviceOps;
     use burn_std::{BoolStore, DType, DeviceSettings};
     use cubecl::{Device, RuntimeId};
+    use cubecl::{
+        features::TypeUsage,
+        ir::{ElemType, UIntKind},
+    };
 
     impl DeviceOps for Device {
         fn defaults(&self) -> DeviceSettings {
-            // wgsl has no 8-bit type to store a bool in, so under the portable
-            // compiler a bool costs a word. Compiling straight to Metal or
-            // SPIR-V, and on every other runtime, a byte will do.
+            // Cargo features make native compilers available, but automatic devices can still
+            // fall back to WGSL. Only use byte-sized bools when this device can store and convert
+            // them; WGSL needs a word. Other runtimes continue to use a byte.
             let bool_store = match self.runtime() {
-                RuntimeId::Wgpu
-                    if !cfg!(any(feature = "cubecl-metal", feature = "cubecl-vulkan")) =>
-                {
-                    BoolStore::U32
+                RuntimeId::Wgpu => {
+                    let usage = self
+                        .client()
+                        .properties()
+                        .type_usage(ElemType::UInt(UIntKind::U8));
+                    if usage.is_superset(TypeUsage::Buffer | TypeUsage::Conversion) {
+                        BoolStore::U8
+                    } else {
+                        BoolStore::U32
+                    }
                 }
                 _ => BoolStore::U8,
             };

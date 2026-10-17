@@ -73,7 +73,7 @@ fn broadcast_single() {
 }
 
 #[test]
-#[should_panic]
+#[should_panic(expected = "can't be broadcasted to the target shape")]
 fn should_fail_expand_incompatible_shapes() {
     let tensor = TestTensor::<1>::from_data([1.0, 2.0, 3.0], &Default::default());
     let _expanded_tensor = tensor.expand([2, 2]);

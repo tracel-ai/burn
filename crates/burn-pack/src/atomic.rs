@@ -1,6 +1,6 @@
 //! Writing a file without ever leaving a partial one at its destination.
 //!
-//! [`Writer::write_to_file_atomic`](crate::Writer::write_to_file_atomic) is built on this, and
+//! [`Writer::write_to_file`](crate::Writer::write_to_file) is built on this, and
 //! it is public because burn-pack is not the only crate that writes a model file whose bytes
 //! are produced during the write. A save whose tensors materialize on demand can fail partway
 //! through for reasons that have nothing to do with the disk, and must not destroy the

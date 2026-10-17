@@ -1040,10 +1040,34 @@ mod tests {
         for (name, shape, module) in [
             ("fc.weight", shape![2, 3], module_names::LINEAR),
             ("emb.weight", shape![100, 64], module_names::EMBEDDING),
+            ("conv.weight", shape![3, 3, 3], module_names::CONV1D),
             ("conv.weight", shape![3, 3, 3, 3], module_names::CONV2D),
+            ("conv.weight", shape![3, 3, 3, 3, 3], module_names::CONV3D),
+            (
+                "convt.weight",
+                shape![3, 3, 3],
+                module_names::CONV_TRANSPOSE1D,
+            ),
+            (
+                "convt.weight",
+                shape![3, 3, 3, 3],
+                module_names::CONV_TRANSPOSE2D,
+            ),
+            (
+                "convt.weight",
+                shape![3, 3, 3, 3, 3],
+                module_names::CONV_TRANSPOSE3D,
+            ),
+            (
+                "dconv.weight",
+                shape![3, 3, 3, 3],
+                module_names::DEFORM_CONV2D,
+            ),
             ("norm.gamma", shape![10], module_names::LAYER_NORM),
             ("gn.gamma", shape![10], module_names::GROUP_NORM),
+            ("inorm.gamma", shape![10], module_names::INSTANCE_NORM),
             ("rms.weight", shape![10], module_names::RMS_NORM),
+            ("prelu.alpha", shape![10], module_names::PRELU),
         ] {
             assert_eq!(
                 adapt_in(&adapter, name, shape, module).dtype,
@@ -1119,14 +1143,6 @@ mod tests {
         let containers = containers(module_names::LINEAR);
         let adapted = adapter.adapt(qfloat, ModuleContext::new(&containers));
         assert_eq!(adapted.dtype, qfloat_dtype);
-    }
-
-    #[test]
-    fn test_half_precision_default_module_count() {
-        let adapter = HalfPrecisionAdapter::new();
-        // 14 modules: Linear, Embedding, Conv1d-3d, ConvTranspose1d-3d,
-        // DeformConv2d, LayerNorm, GroupNorm, InstanceNorm, RmsNorm, PRelu
-        assert_eq!(adapter.modules.len(), 14);
     }
 
     #[test]

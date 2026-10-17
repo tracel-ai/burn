@@ -1,7 +1,7 @@
 use super::state::FormatOptions;
 use super::{MetricMetadata, NumericEntry, SerializedEntry, format_float};
 use crate::metric::{Metric, MetricAttributes, MetricName, Numeric, NumericAttributes};
-use burn_core::tensor::{Int, Tensor};
+use burn_core::tensor::{Int, Tensor, TensorReadError};
 
 /// Custom state for perplexity metric that correctly accumulates negative log-likelihood.
 ///
@@ -199,7 +199,11 @@ impl PerplexityMetric {
 impl Metric for PerplexityMetric {
     type Input = PerplexityInput;
 
-    fn update(&mut self, input: &PerplexityInput, _metadata: &MetricMetadata) -> SerializedEntry {
+    fn update(
+        &mut self,
+        input: &PerplexityInput,
+        _metadata: &MetricMetadata,
+    ) -> Result<SerializedEntry, TensorReadError> {
         let targets = input.targets.clone();
         let outputs = input.outputs.clone();
 
@@ -222,14 +226,14 @@ impl Metric for PerplexityMetric {
                 let masked_log_probs = target_log_probs.mask_fill(mask.clone().bool_not(), 0.0);
 
                 // Sum the log probabilities and count effective tokens
-                let sum_log_prob = masked_log_probs.sum().into_scalar::<f64>();
-                let effective_tokens = mask.int().sum().into_scalar::<i64>() as usize;
+                let sum_log_prob = masked_log_probs.sum().try_into_scalar::<f64>()?;
+                let effective_tokens = mask.int().sum().try_into_scalar::<i64>()? as usize;
 
                 (sum_log_prob, effective_tokens)
             }
             None => {
                 // No padding, use all tokens
-                let sum_log_prob = target_log_probs.sum().into_scalar::<f64>();
+                let sum_log_prob = target_log_probs.sum().try_into_scalar::<f64>()?;
                 (sum_log_prob, total_tokens)
             }
         };
@@ -237,13 +241,15 @@ impl Metric for PerplexityMetric {
         // Pass the sum_log_prob and effective_tokens to the state
         // The state will handle the correct accumulation and perplexity calculation
         self.state.update(sum_log_prob, effective_tokens);
-        self.state
-            .compute_update(FormatOptions::new(self.name()).precision(2))
+        Ok(self
+            .state
+            .compute_update(FormatOptions::new(self.name()).precision(2)))
     }
 
-    fn compute(&mut self) -> SerializedEntry {
-        self.state
-            .compute_final(FormatOptions::new(self.name()).precision(2))
+    fn compute(&mut self) -> Result<SerializedEntry, TensorReadError> {
+        Ok(self
+            .state
+            .compute_final(FormatOptions::new(self.name()).precision(2)))
     }
 
     fn clear(&mut self) {
@@ -299,7 +305,7 @@ mod tests {
             Tensor::from_data([0, 1, 2], &device),
         );
 
-        let _entry = metric.update(&input, &MetricMetadata::fake());
+        let _entry = metric.update(&input, &MetricMetadata::fake()).unwrap();
         let perplexity = metric.value().unwrap().current();
 
         // Perfect predictions should result in very low perplexity (close to 1.0)
@@ -328,7 +334,7 @@ mod tests {
             Tensor::from_data([0, 1, 2], &device),
         );
 
-        let _entry = metric.update(&input, &MetricMetadata::fake());
+        let _entry = metric.update(&input, &MetricMetadata::fake()).unwrap();
         let perplexity = metric.value().unwrap().current();
 
         // Uniform distribution over 3 classes should have perplexity ≈ 3.0
@@ -357,7 +363,7 @@ mod tests {
             Tensor::from_data([0, 1, 3, 3], &device), // 3 is pad token
         );
 
-        let _entry = metric.update(&input, &MetricMetadata::fake());
+        let _entry = metric.update(&input, &MetricMetadata::fake()).unwrap();
         let perplexity = metric.value().unwrap().current();
 
         // Should only consider the first two predictions, both of which are confident
@@ -386,7 +392,7 @@ mod tests {
             Tensor::from_data([0, 1, 0], &device),
         );
 
-        let _entry = metric.update(&input, &MetricMetadata::fake());
+        let _entry = metric.update(&input, &MetricMetadata::fake()).unwrap();
         let perplexity = metric.value().unwrap().current();
 
         // Wrong predictions should result in high perplexity
@@ -426,8 +432,8 @@ mod tests {
         );
 
         // Update with both batches
-        let _entry1 = metric.update(&input1, &MetricMetadata::fake());
-        let _entry2 = metric.update(&input2, &MetricMetadata::fake());
+        let _entry1 = metric.update(&input1, &MetricMetadata::fake()).unwrap();
+        let _entry2 = metric.update(&input2, &MetricMetadata::fake()).unwrap();
 
         let aggregated_perplexity = metric.value().unwrap().current();
 
@@ -448,7 +454,9 @@ mod tests {
             Tensor::from_data([0, 1, 2], &device),
         );
 
-        let _single_entry = single_batch_metric.update(&single_input, &MetricMetadata::fake());
+        let _single_entry = single_batch_metric
+            .update(&single_input, &MetricMetadata::fake())
+            .unwrap();
         let single_batch_perplexity = single_batch_metric.value().unwrap().current();
 
         // Multi-batch and single-batch should give the same result
@@ -471,7 +479,9 @@ mod tests {
             Tensor::from_data([[5.0, 0.0, 0.0]], &device),
             Tensor::from_data([0], &device),
         );
-        let _ = metric.update(&input_batch1, &MetricMetadata::fake());
+        let _ = metric
+            .update(&input_batch1, &MetricMetadata::fake())
+            .unwrap();
 
         let batch1_current = metric.value().unwrap().current();
         let batch1_running = metric.running_value().unwrap().current();
@@ -492,14 +502,16 @@ mod tests {
             ),
             Tensor::from_data([0, 1, 2, 0, 1], &device),
         );
-        let _ = metric.update(&input_batch2, &MetricMetadata::fake());
+        let _ = metric
+            .update(&input_batch2, &MetricMetadata::fake())
+            .unwrap();
 
         // Batch 2 current batch perplexity should be ≈ 3.0
         let batch2_current = metric.value().unwrap().current();
         assert!((batch2_current - 3.0).abs() < 0.1);
 
         // Compute final epoch entry
-        let _serialized_compute = metric.compute();
+        let _serialized_compute = metric.compute().unwrap();
         let final_ppl = metric.final_value().current();
 
         // Total NLL = 0.013416 + 5.493061 = 5.506477

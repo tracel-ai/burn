@@ -6,12 +6,14 @@ use super::{
     confusion_stats::{ConfusionStats, ConfusionStatsInput},
     state::FormatOptions,
 };
+use burn_core::tensor::TensorReadError;
 use std::{num::NonZeroUsize, sync::Arc};
 
 /// The [F-beta score](https://en.wikipedia.org/wiki/F-score) metric.
 ///
 /// The `beta` parameter represents the ratio of recall importance to precision importance.
 /// `beta > 1` gives more weight to recall, while `beta < 1` favors precision.
+/// It must be finite and strictly positive. The default is `beta = 1` (F1 score).
 #[derive(Clone)]
 pub struct FBetaScoreMetric {
     name: MetricName,
@@ -22,13 +24,18 @@ pub struct FBetaScoreMetric {
 
 impl Default for FBetaScoreMetric {
     fn default() -> Self {
-        Self::new(Default::default(), Default::default())
+        Self::new(Default::default(), 1.0)
     }
 }
 
 impl FBetaScoreMetric {
     #[allow(dead_code)]
     fn new(config: ClassificationMetricConfig, beta: f64) -> Self {
+        assert!(
+            beta.is_finite() && beta > 0.0,
+            "beta must be finite and strictly positive"
+        );
+
         let name = Arc::new(format!(
             "FBetaScore ({}) @ {:?} [{:?}]",
             beta, config.decision_rule, config.class_reduction
@@ -45,8 +52,12 @@ impl FBetaScoreMetric {
     ///
     /// # Arguments
     ///
-    /// * `beta` - Positive real factor to weight recall's importance.
+    /// * `beta` - Finite, strictly positive factor to weight recall's importance.
     /// * `threshold` - The threshold to transform a probability into a binary prediction.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `beta` is not finite or is less than or equal to zero.
     #[allow(dead_code)]
     pub fn binary(beta: f64, threshold: f64) -> Self {
         Self::new(
@@ -63,9 +74,13 @@ impl FBetaScoreMetric {
     ///
     /// # Arguments
     ///
-    /// * `beta` - Positive real factor to weight recall's importance.
+    /// * `beta` - Finite, strictly positive factor to weight recall's importance.
     /// * `top_k` - The number of highest predictions considered to find the correct label (typically `1`).
     /// * `class_reduction` - [Class reduction](ClassReduction) type.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `beta` is not finite or is less than or equal to zero, or if `top_k` is zero.
     #[allow(dead_code)]
     pub fn multiclass(beta: f64, top_k: usize, class_reduction: ClassReduction) -> Self {
         Self::new(
@@ -83,9 +98,13 @@ impl FBetaScoreMetric {
     ///
     /// # Arguments
     ///
-    /// * `beta` - Positive real factor to weight recall's importance.
+    /// * `beta` - Finite, strictly positive factor to weight recall's importance.
     /// * `threshold` - The threshold to transform a probability into a binary prediction.
     /// * `class_reduction` - [Class reduction](ClassReduction) type.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `beta` is not finite or is less than or equal to zero.
     #[allow(dead_code)]
     pub fn multilabel(beta: f64, threshold: f64, class_reduction: ClassReduction) -> Self {
         Self::new(
@@ -101,7 +120,11 @@ impl FBetaScoreMetric {
 impl Metric for FBetaScoreMetric {
     type Input = ConfusionStatsInput;
 
-    fn update(&mut self, input: &Self::Input, _metadata: &MetricMetadata) -> SerializedEntry {
+    fn update(
+        &mut self,
+        input: &Self::Input,
+        _metadata: &MetricMetadata,
+    ) -> Result<SerializedEntry, TensorReadError> {
         let [sample_size, _] = input.predictions.dims();
 
         let stats = ConfusionStats::new(input, &self.config);
@@ -124,9 +147,10 @@ impl Metric for FBetaScoreMetric {
         )
     }
 
-    fn compute(&mut self) -> SerializedEntry {
-        self.state
-            .compute_final(FormatOptions::new(self.name()).unit("%").precision(2))
+    fn compute(&mut self) -> Result<SerializedEntry, TensorReadError> {
+        Ok(self
+            .state
+            .compute_final(FormatOptions::new(self.name()).unit("%").precision(2)))
     }
 
     fn clear(&mut self) {
@@ -172,18 +196,90 @@ mod tests {
     use burn_core::tensor::Tolerance;
     use rstest::rstest;
 
+    fn metric_for(classification_type: ClassificationType, beta: f64) -> FBetaScoreMetric {
+        match classification_type {
+            ClassificationType::Binary => FBetaScoreMetric::binary(beta, THRESHOLD),
+            ClassificationType::Multiclass => FBetaScoreMetric::multiclass(beta, 1, Macro),
+            ClassificationType::Multilabel => FBetaScoreMetric::multilabel(beta, THRESHOLD, Macro),
+        }
+    }
+
     #[rstest]
+    #[case::zero(0.0)]
+    #[case::negative_zero(-0.0)]
+    #[case::negative(-1.0)]
+    #[case::negative_subnormal(-f64::from_bits(1))]
+    #[case::nan(f64::NAN)]
+    #[case::infinity(f64::INFINITY)]
+    #[case::negative_infinity(f64::NEG_INFINITY)]
+    #[should_panic(expected = "beta must be finite and strictly positive")]
+    fn test_invalid_beta(
+        #[case] beta: f64,
+        #[values(
+            ClassificationType::Binary,
+            ClassificationType::Multiclass,
+            ClassificationType::Multilabel
+        )]
+        classification_type: ClassificationType,
+    ) {
+        metric_for(classification_type, beta);
+    }
+
+    #[rstest]
+    #[case::positive_subnormal(f64::from_bits(1))]
+    #[case::min_positive(f64::MIN_POSITIVE)]
+    #[case::below_one(0.5)]
+    #[case::one(1.0)]
+    #[case::above_one(2.0)]
+    #[case::max(f64::MAX)]
+    fn test_valid_beta(
+        #[case] beta: f64,
+        #[values(
+            ClassificationType::Binary,
+            ClassificationType::Multiclass,
+            ClassificationType::Multilabel
+        )]
+        classification_type: ClassificationType,
+    ) {
+        assert_eq!(metric_for(classification_type, beta).beta, beta);
+    }
+
+    #[test]
+    fn test_default_f1_score() {
+        use crate::metric::ConfusionStatsInput;
+        use burn_core::Tensor;
+
+        let mut metric = FBetaScoreMetric::default();
+        assert_eq!(metric.beta, 1.0);
+        assert_eq!(
+            metric.name(),
+            FBetaScoreMetric::binary(1.0, THRESHOLD).name()
+        );
+
+        // TP = 1, FP = 1, FN = 2: precision is 50%, while F1 is 40%.
+        let input = ConfusionStatsInput {
+            predictions: Tensor::from([[0.9], [0.8], [0.1], [0.2]]),
+            targets: Tensor::from([[1], [0], [1], [1]]),
+        };
+        metric.update(&input, &MetricMetadata::fake()).unwrap();
+        TensorData::from([metric.value().unwrap().current()])
+            .assert_approx_eq::<f32>(&TensorData::from([40.0]), Tolerance::default());
+    }
+
+    #[rstest]
+    #[case::binary_b_half(0.5, THRESHOLD, 0.5)]
     #[case::binary_b1(1.0, THRESHOLD, 0.5)]
     #[case::binary_b2(2.0, THRESHOLD, 0.5)]
     fn test_binary_fscore(#[case] beta: f64, #[case] threshold: f64, #[case] expected: f64) {
         let input = dummy_classification_input(&ClassificationType::Binary).into();
         let mut metric = FBetaScoreMetric::binary(beta, threshold);
-        let _entry = metric.update(&input, &MetricMetadata::fake());
+        let _entry = metric.update(&input, &MetricMetadata::fake()).unwrap();
         TensorData::from([metric.value().unwrap().current()])
             .assert_approx_eq::<f32>(&TensorData::from([expected * 100.0]), Tolerance::default())
     }
 
     #[rstest]
+    #[case::multiclass_b_half_micro_k2(0.5, Micro, 2, 5.0/(5.0 + 0.25 + 6.0))]
     #[case::multiclass_b1_micro_k1(1.0, Micro, 1, 3.0/5.0)]
     #[case::multiclass_b1_micro_k2(1.0, Micro, 2, 2.0/(5.0/4.0 + 10.0/4.0))]
     #[case::multiclass_b1_macro_k1(1.0, Macro, 1, (0.5 + 2.0/(1.0 + 2.0) + 2.0/(2.0 + 1.0))/3.0)]
@@ -200,12 +296,13 @@ mod tests {
     ) {
         let input = dummy_classification_input(&ClassificationType::Multiclass).into();
         let mut metric = FBetaScoreMetric::multiclass(beta, top_k, class_reduction);
-        let _entry = metric.update(&input, &MetricMetadata::fake());
+        let _entry = metric.update(&input, &MetricMetadata::fake()).unwrap();
         TensorData::from([metric.value().unwrap().current()])
             .assert_approx_eq::<f32>(&TensorData::from([expected * 100.0]), Tolerance::default())
     }
 
     #[rstest]
+    #[case::multilabel_b_half_micro(0.5, Micro, THRESHOLD, 6.25/(6.25 + 1.0 + 3.0))]
     #[case::multilabel_micro(1.0, Micro, THRESHOLD, 2.0/(9.0/5.0 + 8.0/5.0))]
     #[case::multilabel_macro(1.0, Macro, THRESHOLD, (2.0/(2.0 + 3.0/2.0) + 2.0/(1.0 + 3.0/2.0) + 2.0/(3.0+2.0))/3.0)]
     #[case::multilabel_micro(2.0, Micro, THRESHOLD, 5.0/(4.0*9.0/5.0 + 8.0/5.0))]
@@ -218,7 +315,7 @@ mod tests {
     ) {
         let input = dummy_classification_input(&ClassificationType::Multilabel).into();
         let mut metric = FBetaScoreMetric::multilabel(beta, threshold, class_reduction);
-        let _entry = metric.update(&input, &MetricMetadata::fake());
+        let _entry = metric.update(&input, &MetricMetadata::fake()).unwrap();
         TensorData::from([metric.value().unwrap().current()])
             .assert_approx_eq::<f32>(&TensorData::from([expected * 100.0]), Tolerance::default())
     }

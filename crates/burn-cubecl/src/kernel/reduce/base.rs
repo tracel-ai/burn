@@ -426,6 +426,11 @@ pub fn reduce_dim(
     if axis_length == 0 {
         return reduce_empty_axis(output, axis_length, config);
     }
+    // A zero-length axis other than `dim` leaves no output to compute, and cubek cannot size a
+    // launch over zero output units. A `k` too large for the axis still goes to cubek to be rejected.
+    if output.meta.num_elements() == 0 && axis_length >= accumulator_len {
+        return Ok(output);
+    }
 
     let result = match strategy {
         KernelReduceStrategy::Unspecified => cubek::reduce::reduce(
@@ -530,6 +535,10 @@ pub fn reduce_dim_with_indices(
             axis_length: 0,
             k: out_len,
         });
+    }
+    // Same as in `reduce_dim`: an empty output has nothing to compute.
+    if values.meta.num_elements() == 0 && input.meta.shape[dim] >= out_len {
+        return Ok((values, indices));
     }
 
     let client = input.client.clone();

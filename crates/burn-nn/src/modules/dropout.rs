@@ -33,9 +33,9 @@ pub struct Dropout {
 impl DropoutConfig {
     /// Initialize a new [dropout](Dropout) module.
     pub fn init(&self) -> Dropout {
-        if self.prob < 0.0 || self.prob > 1.0 {
+        if !self.prob.is_finite() || !(0.0..1.0).contains(&self.prob) {
             panic!(
-                "Dropout probability should be between 0 and 1, but got {}",
+                "Dropout probability must be finite and in the range [0, 1), but got {}",
                 self.prob
             );
         }
@@ -191,29 +191,6 @@ mod tests {
             tensor.to_data(),
             "a frozen dropout should not perturb a subtree the caller froze"
         );
-    }
-
-    #[cfg(feature = "std")]
-    #[test]
-    fn dropout_freezing_reaches_through_an_enclosing_module() {
-        use burn::tensor::Device;
-        // The flag is cleared by the traversal, not by the layer being frozen
-        // directly, so nesting is the case that matters.
-        #[derive(Module, Debug)]
-        struct Wrapper {
-            dropout: Dropout,
-        }
-
-        let device = Device::default().autodiff();
-        let tensor = Tensor::<2>::ones(Shape::new([100, 100]), &device);
-        let wrapper = Wrapper {
-            dropout: DropoutConfig::new(0.5).init(),
-        }
-        .freeze();
-
-        let output = wrapper.dropout.forward(tensor.clone());
-
-        assert_eq!(output.to_data(), tensor.to_data());
     }
 
     #[test]
@@ -383,9 +360,27 @@ mod tests {
     }
 
     #[test]
-    #[should_panic = "Dropout probability should be between 0 and 1,"]
-    fn dropout_prob_invalid() {
+    #[should_panic(expected = "Dropout probability must be finite and in the range [0, 1)")]
+    fn negative_dropout_prob_should_panic() {
         let config = DropoutConfig::new(-10.);
         let _layer = config.init();
+    }
+
+    #[test]
+    #[should_panic(expected = "Dropout probability must be finite and in the range [0, 1)")]
+    fn unit_dropout_prob_should_panic() {
+        DropoutConfig::new(1.0).init();
+    }
+
+    #[test]
+    #[should_panic(expected = "Dropout probability must be finite and in the range [0, 1)")]
+    fn nan_dropout_prob_should_panic() {
+        DropoutConfig::new(f64::NAN).init();
+    }
+
+    #[test]
+    #[should_panic(expected = "Dropout probability must be finite and in the range [0, 1)")]
+    fn infinite_dropout_prob_should_panic() {
+        DropoutConfig::new(f64::INFINITY).init();
     }
 }

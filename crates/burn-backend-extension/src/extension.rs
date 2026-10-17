@@ -244,7 +244,7 @@ fn lower_extension(attr: Backends, item: &ItemTrait) -> syn::Result<Extension> {
                 invocation: Invocation::Trait {
                     trait_name: item.ident.clone(),
                     await_call: f.sig.asyncness.is_some() || returns_future,
-                    unsafe_call: f.sig.unsafety.is_some(),
+                    unsafe_call: matches!(f.sig.safety, syn::Safety::Unsafe(_)),
                     generic_args,
                 },
             },

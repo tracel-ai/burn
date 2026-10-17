@@ -128,6 +128,9 @@ let tensor_5 = Tensor::<1>::from_data(data, &device);
 
 ```
 
+Reading a tensor's data is also where a failed computation surfaces. `into_data()` and `to_data()`
+panic in that case; use `try_into_data()` or `try_to_data()` to handle the `ExecutionError` instead.
+
 ## Ownership and Cloning
 
 Almost all Burn operations take ownership of the input tensors. Therefore, reusing a tensor multiple
@@ -165,7 +168,7 @@ println!("{}", input.to_data());// Success: [0.0, 0.33333334, 0.6666667, 1.0]
 We don't need to be worried about memory overhead because with cloning, the tensor's buffer isn't
 copied, and only a reference to it is increased. This makes it possible to determine exactly how
 many times a tensor is used, which is very convenient for reusing tensor buffers or even fusing
-operations into a single kernel ([burn-fusion](https://burn.dev/docs/burn_fusion/index.htmls)). For
+operations into a single kernel ([burn-fusion](https://docs.rs/burn-fusion/latest/burn_fusion/)). For
 that reason, we don't provide explicit inplace operations. If a tensor is used only one time,
 inplace operations will always be used when available.
 
@@ -391,6 +394,7 @@ Those operations are only available for `Float` tensors.
 | `tensor.random_like(distribution)`           | `torch.rand_like()` only uniform           |
 | `tensor.recip()` or `1.0 / tensor`           | `tensor.reciprocal()` or `1.0 / tensor`    |
 | `tensor.round()`                             | `tensor.round()`                           |
+| `tensor.round_to(decimals)`                  | `torch.round(tensor, decimals=decimals)`   |
 | `tensor.sin()`                               | `tensor.sin()`                             |
 | `tensor.sinh()`                              | `tensor.sinh()`                            |
 | `tensor.square()`                            | `tensor.square()`                          |
@@ -598,16 +602,16 @@ compose tensor operations. Enable `autodiff` to differentiate through FFTs. Remo
 captured-graph interpreters must register `burn_signal::register_fft_ops` in their custom-operation
 registry (with the `router` feature enabled).
 
-FFT length `n` (and `n_fft` in STFT) must currently be a power of two: when `n` is `Some(size)`, the
-input is truncated or zero-padded to `size` and the output has `size / 2 + 1` frequency bins.
-Non-power-of-two sizes panic at the public API boundary; general arbitrary-size DFT support
-(Bluestein's algorithm) is a tracked follow-up.
+FFT length `n` (and `n_fft` in STFT) can be any size: when `n` is `Some(size)`, the input is
+truncated or zero-padded to `size` and the output has `size / 2 + 1` frequency bins. Power-of-two
+sizes use the backend's radix-2 FFT, while other sizes fall back to Bluestein's chirp-z algorithm.
 
 | Burn API                                              | PyTorch Equivalent                                                                |
 | ----------------------------------------------------- | --------------------------------------------------------------------------------- |
 | `signal::rfft(tensor, dim, n)`                        | `torch.fft.rfft(tensor, n, dim)`                                                  |
 | `signal::irfft(re, im, dim, n)`                       | `torch.fft.irfft(complex, n, dim)`                                                |
 | `signal::cfft(re, im, dim, n)`                        | `torch.fft.fft(complex, n, dim)`                                                 |
+| `signal::ifft(re, im, dim, n)`                        | `torch.fft.ifft(complex, n, dim)`                                                |
 | `signal::stft(signal, window, options)`               | `torch.stft(signal, n_fft, hop_length, win_length, window, center)`               |
 | `signal::istft(stft_matrix, window, length, options)` | `torch.istft(stft_matrix, n_fft, hop_length, win_length, window, center, length)` |
 | `signal::blackman_window(size, periodic, options)`    | `torch.blackman_window(size, periodic)`                                           |
@@ -617,7 +621,7 @@ Non-power-of-two sizes panic at the public API boundary; general arbitrary-size 
 `stft` and `istft` share a `StftOptions` struct with fields `n_fft`, `hop_length`, `win_length`,
 `center`, and `onesided`. Use `StftOptions::new(n_fft)` for PyTorch-style defaults
 (`hop_length = n_fft / 4`, `win_length = None`, `center = true`, `onesided = true`). The option set
-is validated on entry to both `stft` and `istft`; `n_fft` must be a power of two and
+is validated on entry to both `stft` and `istft`; `n_fft` can be any size and
 `hop_length <= effective_win_length` (the COLA prerequisite for invertibility).
 
 ## Displaying Tensor Details

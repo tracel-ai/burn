@@ -121,6 +121,19 @@ individual scheduler configurations' `build()` methods are internal APIs.
 For group-specific optimizers, matching precedence, gradient clipping, and optimizer state, see
 [Optimizer](./optimizer.md#parameter-groups).
 
+## Errors and interruptions
+
+Training can stop early on an error or a user-triggered interruption. The `LearningResult` returned by
+`launch` reports the reason:
+
+- `error` holds the `TrainingError` that stopped training.
+- `interrupted` holds the `Interruption` when training was stopped by a user, without an error.
+
+Both are `None` when training ran to completion or early stopping ended it. The epoch during which
+training stopped is not checkpointed.
+
+Evaluation reports the same fields in the `EvaluationResult` returned by `eval` and `eval_all`.
+
 ## Artifacts
 
 When creating a `SupervisedTraining` instance, all the collected data will be saved under the

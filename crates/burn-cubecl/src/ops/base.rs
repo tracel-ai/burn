@@ -49,9 +49,7 @@ pub(crate) async fn into_data(tensor: CubeTensor) -> Result<TensorData, Executio
         burn_std::RuntimeKind::Async => tensor.client.read_one_tensor_async(binding).await,
         _ => tensor.client.read_lazy_async(binding).await,
     };
-    let bytes = read.map_err(|err| ExecutionError::WithContext {
-        reason: format!("{err}"),
-    })?;
+    let bytes = read.map_err(crate::backend::server_err)?;
 
     Ok(TensorData::from_bytes(
         bytes,
@@ -416,7 +414,13 @@ pub fn q_reshape(tensor: CubeTensor, shape: Shape) -> CubeTensor {
             if scales.meta.shape().num_elements() > 1 {
                 unimplemented!("Reshape would split a block across multiple rows.");
             }
-            // Exception: allow if there is exactly 1 block total (essentially per-tensor quantization)
+            // A lone block is still fine as a single row (e.g. an unsqueeze), but spread over
+            // several rows the per-row block index points past the one scale.
+            if shape.num_elements() > shape_last {
+                unimplemented!(
+                    "Cannot reshape block-quantized tensor to {shape:?}: not a whole number of {block_size:?} blocks"
+                );
+            }
             scales.meta.shape().clone()
         }
         Some(_) => {

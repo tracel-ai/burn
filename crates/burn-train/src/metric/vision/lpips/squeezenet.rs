@@ -6,6 +6,7 @@ use burn::module::Module;
 use burn::tensor::Device;
 use burn::tensor::Tensor;
 use burn::tensor::activation::relu;
+use burn::tensor::ops::MaxPoolOptions;
 use burn_nn::PaddingConfig2d;
 use burn_nn::conv::{Conv2d, Conv2dConfig};
 
@@ -153,5 +154,10 @@ impl SqueezeFeatureExtractor {
 
 /// 3x3 max pooling with stride 2, ceil mode (for SqueezeNet).
 fn max_pool2d_squeeze(x: Tensor<4>) -> Tensor<4> {
-    burn_core::tensor::module::max_pool2d(x, [3, 3], [2, 2], [0, 0], [1, 1], true)
+    burn_core::tensor::module::max_pool2d(
+        x,
+        MaxPoolOptions::new([3, 3])
+            .with_stride([2, 2])
+            .with_ceil_mode(true),
+    )
 }

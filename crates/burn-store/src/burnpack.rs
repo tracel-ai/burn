@@ -407,7 +407,7 @@ impl ModuleStore for BurnpackStore {
                 writer
                     .auto_extension(false)
                     .overwrite(self.overwrite)
-                    .write_to_file_atomic(&final_path)?;
+                    .write_to_file(&final_path)?;
             }
             StoreMode::Bytes(_) => {
                 // Generate and store the bytes

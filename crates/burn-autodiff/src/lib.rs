@@ -4,10 +4,36 @@
 
 //! # Burn Autodiff
 //!
-//! This autodiff library is a part of the Burn project. It is a standalone crate
-//! that can be used to perform automatic differentiation on tensors. It is
-//! designed to be used with the Burn Tensor crate, but it can be used with any
-//! tensor library that implements the `Backend` trait.
+//! Reverse-mode automatic differentiation as a backend decorator.
+//!
+//! [`Autodiff`] wraps any backend `B` and records the operations needed to compute gradients.
+//! Only first-order derivatives are supported.
+//!
+//! Most applications do not name this type. Enable the `autodiff` feature of `burn` (also
+//! enabled by `train`) and turn autodiff on for a device:
+//!
+//! ```rust,ignore
+//! let device = Device::wgpu(Default::default()).autodiff();
+//! let x = Tensor::<2>::ones([2, 2], &device).require_grad();
+//! let grads = (x.clone() * 3.0).sum().backward();
+//! let x_grad = x.grad(&grads).unwrap();
+//! ```
+//!
+//! Dispatch then routes operations on that device through [`Autodiff`]. Use this crate
+//! directly when implementing a backend extension that needs custom backward passes.
+//!
+//! # Gradient checkpointing
+//!
+//! The second type parameter selects a [`CheckpointStrategy`](checkpoint::strategy::CheckpointStrategy).
+//! [`NoCheckpointing`](checkpoint::strategy::NoCheckpointing) keeps every activation needed by
+//! the backward pass. [`BalancedCheckpointing`](checkpoint::strategy::BalancedCheckpointing)
+//! recomputes cheap operations instead of storing their outputs, trading compute for memory.
+//! At the `Device` level, `device.autodiff().gradient_checkpointing()` selects it.
+//!
+//! # Feature flags
+//!
+//! - `std` (default): standard library support. Without it the crate is `no_std` with `alloc`.
+//! - `tracing`: instrument operations with the `tracing` crate.
 
 #[macro_use]
 extern crate derive_new;

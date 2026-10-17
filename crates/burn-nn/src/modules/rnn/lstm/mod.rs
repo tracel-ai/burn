@@ -8,6 +8,8 @@
 //! - [A Simple Neural Network and Deep Learning Algorithm for Prediction of Stock Prices](https://www.researchgate.net/publication/221444045_A_Simple_Neural_Network_and_Deep_Learning_Algorithm_for_Prediction_of_Stock_Prices)
 //! - [Understanding LSTM Networks](https://colah.github.io/posts/2015-08-Understanding-LSTMs/)
 mod bilstm_module;
+#[cfg(test)]
+mod checkpoint_tests;
 mod lstm_module;
 mod lstm_state;
 

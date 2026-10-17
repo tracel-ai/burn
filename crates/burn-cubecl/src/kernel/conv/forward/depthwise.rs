@@ -12,6 +12,14 @@ use cubek::convolution::{
     launch_depthwise,
 };
 
+fn skip_large_filter(in_channels: usize, filter_shape: &[usize]) -> bool {
+    // These tilings distribute threads across channels and target small filters.
+    // Skip large filters with too few channels to fill a 32-thread subgroup.
+    // Reported 1-3 channel cases compile very slowly and lose to conv_direct;
+    // extending the exclusion to fewer than 32 channels is a heuristic.
+    in_channels < 32 && filter_shape.iter().product::<usize>() > 256
+}
+
 /// Perform a depthwise 2D convolution: one filter per channel, `groups == channels`, under the
 /// stated [`DepthwiseStrategy`].
 ///
@@ -45,6 +53,11 @@ pub fn conv_depthwise<const N: usize>(
 
     let out_channels = weight.meta.shape()[0];
     let weight_shape = &weight.meta.shape()[1..dim_c];
+
+    // Reject before allocating output or launching any of the depthwise tilings.
+    if skip_large_filter(input.meta.shape()[dim_c], weight_shape) {
+        return Err(ConvSetupError::Unknown);
+    }
 
     let mut out_shape = calculate_conv_output_sizes(
         weight_shape,

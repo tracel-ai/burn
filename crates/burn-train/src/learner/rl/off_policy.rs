@@ -111,11 +111,10 @@ where
         let mut intermediary_update: Option<<RLC::Policy as Policy>::PolicyState> = None;
         while progress.items_processed < num_steps_total {
             if training_components.interrupter.should_stop() {
-                let reason = training_components
-                    .interrupter
-                    .get_message()
-                    .unwrap_or(String::from("Reason unknown"));
-                log::info!("Training interrupted: {reason}");
+                if let Some(interruption) = training_components.interrupter.interruption() {
+                    let reason = interruption.reason.as_deref().unwrap_or("reason unknown");
+                    log::info!("Training interrupted: {reason}");
+                }
                 break;
             }
 
@@ -149,18 +148,20 @@ where
                     let train_item = learner_agent.train(batch);
                     intermediary_update = Some(learner_agent.policy().state());
 
-                    event_processor.process_train(RLEvent::TrainStep(EvaluationItem::new(
-                        train_item.item,
-                        progress.clone(),
-                        None,
-                    )));
+                    training_components
+                        .interrupter
+                        .fail_on_error(event_processor.process_train(RLEvent::TrainStep(
+                            EvaluationItem::new(train_item.item, progress.clone(), None),
+                        )));
                 }
             }
 
             if valid_next > previous_steps && valid_next <= progress.items_processed {
-                event_processor.process_valid(crate::AgentEvaluationEvent::Start(
-                    self.config.eval_episodes,
-                ));
+                training_components
+                    .interrupter
+                    .fail_on_error(event_processor.process_valid(
+                        crate::AgentEvaluationEvent::Start(self.config.eval_episodes),
+                    ));
 
                 env_runner_valid.update_policy(learner_agent.policy().state());
                 env_runner_valid.run_episodes(
@@ -181,7 +182,9 @@ where
 
                 valid_next += self.config.eval_interval;
 
-                event_processor.process_valid(crate::AgentEvaluationEvent::End);
+                training_components
+                    .interrupter
+                    .fail_on_error(event_processor.process_valid(crate::AgentEvaluationEvent::End));
             }
         }
 

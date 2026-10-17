@@ -1,6 +1,6 @@
 use crate::{
     base::{Address, CommunicationChannel, CommunicationError, Message, ProtocolClient},
-    websocket::base::{DeadPeerTimeout, parse_ws_address},
+    websocket::base::{DeadPeerTimeout, MAX_MESSAGE_SIZE, parse_ws_address},
 };
 use burn_std::future::DynFut;
 use futures::{
@@ -29,14 +29,13 @@ impl ProtocolClient for WsClient {
 async fn connect_ws(address: Address, route: String) -> Result<WsClientChannel, WsClientError> {
     let address = parse_ws_address(address).map_err(WsClientError::Address)?;
     let url = format!("{address}/{route}");
-    const MB: usize = 1024 * 1024;
     let (stream, _) = connect_async_with_config(
         url,
         Some(
             WebSocketConfig::default()
                 .write_buffer_size(0)
-                .max_message_size(None)
-                .max_frame_size(Some(MB * 512))
+                .max_message_size(Some(MAX_MESSAGE_SIZE))
+                .max_frame_size(Some(MAX_MESSAGE_SIZE))
                 .accept_unmasked_frames(true)
                 .read_buffer_size(64 * 1024), // 64 KiB (previous default)
         ),

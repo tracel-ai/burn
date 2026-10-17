@@ -4,7 +4,6 @@ use burn::config::Config;
 use burn::module::Module;
 use burn::tensor::{Bool, Device, Int, Tensor, assert_shape, s};
 use burn_core as burn;
-use core::f32;
 
 /// Configuration for [RNNTLoss](RNNTLoss).
 #[derive(Config, Debug)]
