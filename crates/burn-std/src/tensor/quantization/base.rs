@@ -475,42 +475,15 @@ fn read_bytes_to_i8(bytes: Bytes) -> Vec<i8> {
 }
 
 /// Pack signed 8-bit integer values into a sequence of unsigned 32-bit integers.
+///
+/// Values fill each word from the least significant byte, regardless of target endianness.
+/// The last word is padded with zeros if there are fewer than four values.
 pub fn pack_i8s_to_u32s(values: Vec<i8>) -> Vec<u32> {
-    // Shift and combine groups of four 8-bit values into a u32.
-    // Same as doing this:
-    //     let result = (d_u8 & 0xFF) << 24 | (c_u8 & 0xFF) << 16 | (b_u8 & 0xFF) << 8 | (a_u8 & 0xFF);
-    #[cfg(target_endian = "big")]
-    {
-        values
-            .chunks(4)
-            .map(|x| {
-                x.iter()
-                    .enumerate()
-                    .fold(0u32, |acc, (i, x)| acc | (*x as u32 & 0xFF) << (i * 8))
-            })
-            .collect()
+    let mut packed = bytemuck::allocation::pod_collect_to_vec::<i8, u32>(&values);
+    for word in &mut packed {
+        *word = u32::from_le(*word);
     }
-
-    // The order of bytes in little endian matches the above description, we just need to
-    // handle padding when the number of values is not a factor of 4
-    #[cfg(target_endian = "little")]
-    {
-        let mut values = values;
-        let remainder = values.len() % 4;
-        if remainder != 0 {
-            // Pad with zeros
-            values.extend(core::iter::repeat_n(0, 4 - remainder));
-        }
-
-        let len = values.len() / 4;
-        let capacity = values.capacity() / 4;
-
-        // Pre-forget the old vec and re-interpret as u32
-        let mut values = core::mem::ManuallyDrop::new(values);
-        let ptr = values.as_mut_ptr() as *mut u32;
-
-        unsafe { Vec::from_raw_parts(ptr, len, capacity) }
-    }
+    packed
 }
 
 #[cfg(test)]
@@ -532,6 +505,23 @@ mod tests {
 
         assert_eq!(packed, vec![2147287680, 55]);
         assert_eq!(packed, packed_padded);
+    }
+
+    #[test]
+    fn should_pack_i8s_to_u32_empty() {
+        let packed = pack_i8s_to_u32s(Vec::new());
+
+        assert_eq!(packed, Vec::<u32>::new());
+    }
+
+    #[test]
+    fn should_pack_i8s_to_u32_with_spare_capacity() {
+        // The byte capacity deliberately does not hold a whole number of u32 values.
+        let mut values = Vec::with_capacity(9);
+        values.extend([-128, 2, -3, 127, 55, -1, -128, -2]);
+        let packed = pack_i8s_to_u32s(values);
+
+        assert_eq!(packed, vec![2147287680, 0xfe80_ff37]);
     }
 
     #[test]
