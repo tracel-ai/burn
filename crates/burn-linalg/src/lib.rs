@@ -30,6 +30,12 @@ macro_rules! check {
 mod check;
 mod functions;
 mod ops;
+#[cfg(feature = "cubecl-backend")]
+mod solve_cubecl;
+#[cfg(feature = "flex")]
+mod solve_host;
+#[cfg(any(feature = "flex", feature = "cubecl-backend"))]
+mod solve_ops;
 mod svd_host;
 
 // Keep the moved implementations focused on their algorithms. These private

@@ -7,6 +7,7 @@
 [![license](https://shields.io/badge/license-MIT%2FApache--2.0-blue)](https://github.com/tracel-ai/burn/blob/main/LICENSE-MIT)
 
 - Decompositions: `lu`, `qr` and `svd`.
+- Linear systems: `solve` for square, nonsingular matrices with vector or matrix right-hand sides.
 - `det`, `trace`, `diag`, `outer`, `matvec` and `cosine_similarity`.
 - Vector and matrix norms: L0, L1, L2, Lp, max and min absolute value, and `vector_normalize`.
 

@@ -16,7 +16,8 @@ workspace = true
 
 [features]
 default = ["burn-core/default", "fusion", "std"]
-std = ["burn-core/std", "burn-std/std", "burn-fusion?/std"]
+std = ["burn-core/std", "burn-std/std", "burn-fusion?/std", "gemm?/std"]
+autodiff = ["burn-core/autodiff", "dep:burn-autodiff"]
 tracing = ["burn-core/tracing", "burn-fusion?/tracing"]
 autotune = ["burn-core/autotune", "burn-cubecl?/autotune"]
 
@@ -30,17 +31,19 @@ vulkan = ["cubecl-backend", "burn-core/vulkan"]
 webgpu = ["cubecl-backend", "burn-core/webgpu"]
 metal = ["cubecl-backend", "burn-core/metal"]
 cpu = ["cubecl-backend", "burn-core/cpu"]
-flex = ["burn-core/flex"]
+flex = ["burn-core/flex", "dep:gemm"]
 remote = ["burn-core/remote", "router"]
 capture = ["burn-core/capture", "router"]
 router = ["burn-router"]
 
 [dependencies]
+burn-autodiff = { workspace = true, optional = true }
 burn-core = { workspace = true, features = ["extension"] }
 burn-cubecl = { workspace = true, optional = true, default-features = false }
 burn-fusion = { workspace = true, optional = true, default-features = false }
 burn-router = { workspace = true, optional = true, default-features = false }
 burn-std = { workspace = true }
+gemm = { workspace = true, optional = true }
 num-traits = { workspace = true }
 
 [package.metadata.docs.rs]
