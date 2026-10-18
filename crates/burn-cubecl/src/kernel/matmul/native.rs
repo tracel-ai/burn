@@ -36,9 +36,9 @@ pub(crate) enum GemmTranspose {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[repr(u8)]
 pub enum GemmBackend {
-    /// Stream-bound hardware vendor library (`cuBLAS` on CUDA).
+    /// Default CubeK/autotuned matmul strategy (or stream-bound vendor GEMM when enabled).
     CuBlas = 1,
-    /// Native CubeCL/CUDA Tensor-Core WMMA + Warp-GEMV kernel suite.
+    /// Native CubeCL Tensor-Core WMMA, SIMT, and Warp-GEMV kernel suite.
     Native = 2,
 }
 
@@ -59,8 +59,16 @@ pub fn gemm_backend() -> GemmBackend {
                 Ok(val) if val.trim().eq_ignore_ascii_case("native") => GemmBackend::Native,
                 _ => GemmBackend::CuBlas,
             };
-            GEMM_BACKEND.store(initial as u8, Ordering::Relaxed);
-            initial
+            match GEMM_BACKEND.compare_exchange(
+                0,
+                initial as u8,
+                Ordering::Relaxed,
+                Ordering::Relaxed,
+            ) {
+                Ok(_) => initial,
+                Err(2) => GemmBackend::Native,
+                Err(_) => GemmBackend::CuBlas,
+            }
         }
     }
 }
@@ -70,7 +78,7 @@ pub fn set_gemm_backend(backend: GemmBackend) {
     GEMM_BACKEND.store(backend as u8, Ordering::Relaxed);
 }
 
-/// Returns process-wide `(cublas_calls, native_calls)` launch counts.
+/// Returns process-wide `(default_or_cublas_calls, native_calls)` launch counts.
 pub fn gemm_calls() -> (u64, u64) {
     (
         CUBLAS_GEMM_CALLS.load(Ordering::Relaxed),
@@ -78,13 +86,12 @@ pub fn gemm_calls() -> (u64, u64) {
     )
 }
 
-/// Resets process-wide `(cublas_calls, native_calls)` counters to zero.
+/// Resets process-wide `(default_or_cublas_calls, native_calls)` counters to zero.
 pub fn reset_gemm_calls() {
     CUBLAS_GEMM_CALLS.store(0, Ordering::Relaxed);
     NATIVE_GEMM_CALLS.store(0, Ordering::Relaxed);
 }
 
-#[allow(dead_code)]
 pub(crate) fn record_cublas_call() {
     CUBLAS_GEMM_CALLS.fetch_add(1, Ordering::Relaxed);
 }
@@ -1021,7 +1028,13 @@ pub(crate) fn try_launch_native_gemm(
     {
         return None;
     }
-    if m_row == 0 || n_row == 0 || k_row == 0 {
+    if out.meta.num_elements() == 0 {
+        return Some(());
+    }
+    if k_row == 0 {
+        let zero = InputScalar::new(0u32, burn_backend::cubecl::dtype_to_storage_type(out.dtype));
+        crate::ops::numeric::fill_device_dtype(out.clone(), zero);
+        record_native_call();
         return Some(());
     }
 
@@ -1159,9 +1172,7 @@ pub(crate) fn launch_native_gemm(
     }
 
     let client = &out.client;
-    if client.properties().hardware.plane_size_max != 32 {
-        return None;
-    }
+    let has_plane_32 = client.properties().hardware.plane_size_max == 32;
 
     let f32_ty = ElemType::Float(FloatKind::F32);
     let dtypes = [elem_ty, f32_ty];
@@ -1174,8 +1185,8 @@ pub(crate) fn launch_native_gemm(
     let t_rhs = matches!(trans_rhs, GemmTranspose::Transpose);
     let total_batches = b0 * b1;
 
-    // 1. Small-M Decode / Small-Batch Path (M <= 16)
-    if m_row <= 16 {
+    // 1. Small-M Decode / Small-Batch Path (M <= 16, requires 32-lane warp plane_sum)
+    if m_row <= 16 && has_plane_32 {
         let m_cap = if m_row == 1 {
             1usize
         } else if m_row <= 4 {
@@ -1267,8 +1278,9 @@ pub(crate) fn launch_native_gemm(
         return Some(());
     }
 
-    // 2. Large-M Prefill & Training Path (M > 16)
-    let has_wmma_16 = matches!(out.dtype, DType::BF16 | DType::F16)
+    // 2. Large-M Prefill & Training Path (M > 16, or fallback when plane_size_max != 32)
+    let has_wmma_16 = has_plane_32
+        && matches!(out.dtype, DType::BF16 | DType::F16)
         && client
             .properties()
             .features

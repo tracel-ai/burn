@@ -1007,6 +1007,7 @@ version = "0.22.0"
 dependencies = [
  "burn-autodiff",
  "burn-backend",
+ "burn-cubecl",
  "burn-cubecl-fusion",
  "burn-flex",
  "burn-fusion",

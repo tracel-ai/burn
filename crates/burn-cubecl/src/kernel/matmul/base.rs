@@ -77,11 +77,27 @@ pub fn matmul(
         action.apply(&mut out_launch.meta);
     }
 
+    if out_launch.meta.num_elements() > 0 && lhs.meta.shape().last().copied() == Some(0) {
+        let zero = cubecl::prelude::InputScalar::new(
+            0u32,
+            burn_backend::cubecl::dtype_to_storage_type(out_launch.dtype),
+        );
+        crate::ops::numeric::fill_device_dtype(out_launch, zero);
+        if super::native::gemm_backend() == super::native::GemmBackend::Native {
+            super::native::record_native_call();
+        } else {
+            super::native::record_cublas_call();
+        }
+        return Ok(out);
+    }
+
     if super::native::gemm_backend() == super::native::GemmBackend::Native
         && super::native::try_launch_native_gemm(lhs.clone(), rhs.clone(), &out_launch).is_some()
     {
         return Ok(out);
     }
+
+    super::native::record_cublas_call();
 
     match strategy {
         MatmulStrategy::Cube => {
