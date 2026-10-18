@@ -15,7 +15,7 @@ use crate::bridge;
 /// straight copy instead of gathering it into the view's order and transposing it back.
 ///
 /// Every source reads out as a [`burn_pack::Tensor`] in the end, via
-/// [`into_pack`](Self::into_pack), and converts into one with [`From`]. Only the name changes
+/// [`into_pack`](Self::into_pack). Only the name changes
 /// in place; a transform of the dtype, shape or data goes through
 /// [`bridge::map_data`], which builds a new tensor and so drops whatever the old source offered.
 #[derive(Clone, Debug)]
