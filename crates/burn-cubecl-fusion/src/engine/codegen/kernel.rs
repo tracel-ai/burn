@@ -842,6 +842,7 @@ fn concat<C: Scalar, N: Size>(
                     );
                     result.insert(i, input.extract(0usize));
                 }
+                break;
             }
 
             offset_dim_start = offset_dim_end;
@@ -885,6 +886,7 @@ fn concat<C: Scalar, N: Size>(
                         None,
                     );
                     result.insert(i, input.extract(0usize));
+                    break;
                 }
 
                 offset_dim_start = offset_dim_end;
