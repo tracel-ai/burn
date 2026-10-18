@@ -41,15 +41,12 @@ pub(crate) async fn into_data(tensor: CubeTensor) -> Result<TensorData, Executio
     let shape = tensor.meta.shape().clone();
     let strides = tensor.meta.strides().clone();
     let binding = CopyDescriptor::new(tensor.handle.binding(), shape, strides, elem_size);
-    // Under an async runtime (e.g. a remote server), a lazy read defers the device→host
-    // copy to first access, where a blocking read would run on — and starve — an executor
-    // worker. Read eagerly there so the copy happens inside this awaited future. On a
-    // sync/threaded runtime the lazy read keeps the streaming optimization.
-    let read = match burn_std::runtime_kind() {
-        burn_std::RuntimeKind::Async => tensor.client.read_one_tensor_async(binding).await,
-        _ => tensor.client.read_lazy_async(binding).await,
-    };
-    let bytes = read.map_err(crate::backend::server_err)?;
+    // Read now so later in-place mutations through clones cannot change the returned data.
+    let bytes = tensor
+        .client
+        .read_one_tensor_async(binding)
+        .await
+        .map_err(crate::backend::server_err)?;
 
     Ok(TensorData::from_bytes(
         bytes,
@@ -62,6 +59,28 @@ pub(crate) async fn into_data(tensor: CubeTensor) -> Result<TensorData, Executio
 #[allow(unused, reason = "useful for debugging kernels")]
 pub fn into_data_sync(tensor: CubeTensor) -> TensorData {
     burn_std::future::block_on(into_data(tensor)).unwrap()
+}
+
+#[cfg(all(test, feature = "wgpu"))]
+mod into_data_tests {
+    use super::*;
+
+    #[test]
+    fn into_data_keeps_values_when_a_clone_is_mutated() {
+        let device = CubeDevice::Wgpu(Default::default());
+        let original = TensorData::from([1.0f32, 2.0]);
+        let tensor = from_data(original.clone(), &device);
+        let memory_id = tensor.handle.memory.descriptor().id;
+
+        let data = into_data_sync(tensor.clone());
+        let updated = crate::ops::numeric::add_scalar(
+            tensor,
+            cubecl::prelude::InputScalar::new(1.0f32, dtype_to_storage_type(DType::F32)),
+        );
+
+        assert_eq!(updated.handle.memory.descriptor().id, memory_id);
+        data.assert_eq(&original, true);
+    }
 }
 
 #[cfg_attr(
