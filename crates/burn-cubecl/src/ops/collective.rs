@@ -2,8 +2,8 @@ use burn_backend::{
     DeviceOps,
     cubecl::{dtype_to_elem_type, reduce_operation_to_cubecl},
     distributed::ReduceOperation,
-    ops::{BoolTensors, CollectiveOps, FloatTensors, IntTensors, TransferCollectives},
-    tensor::{BoolTensor, FloatTensor, IntTensor},
+    ops::{CollectiveOps, TransferCollectives},
+    tensor::{Bool, BoolTensor, Float, FloatTensor, Int, IntTensor},
 };
 use core::cmp::Ordering;
 use cubecl::{
@@ -27,7 +27,7 @@ impl CollectiveOps<Self> for CubeBackend {
         let reduced = match Route::all_reduce(order.sorted(tensors)) {
             Route::Group(group) => group.all_reduce(op),
             Route::Transfers(tensors) => {
-                TransferCollectives::<Self, FloatTensors>::all_reduce(tensors, op)
+                TransferCollectives::<Self, Float>::all_reduce(tensors, op)
             }
         };
         order.restored(reduced)
@@ -37,7 +37,7 @@ impl CollectiveOps<Self> for CubeBackend {
         match Route::all_gather(tensors) {
             Route::Group(group) => group.all_gather(dim),
             Route::Transfers(tensors) => {
-                TransferCollectives::<Self, FloatTensors>::all_gather(tensors, dim)
+                TransferCollectives::<Self, Float>::all_gather(tensors, dim)
             }
         }
     }
@@ -50,7 +50,7 @@ impl CollectiveOps<Self> for CubeBackend {
         match Route::reduce_scatter(tensors, dim) {
             Route::Group(group) => group.reduce_scatter(dim, op),
             Route::Transfers(tensors) => {
-                TransferCollectives::<Self, FloatTensors>::reduce_scatter(tensors, dim, op)
+                TransferCollectives::<Self, Float>::reduce_scatter(tensors, dim, op)
             }
         }
     }
@@ -62,9 +62,9 @@ impl CollectiveOps<Self> for CubeBackend {
     ) -> Vec<FloatTensor<Self>> {
         match Route::all_to_all(tensors, split_dim, concat_dim) {
             Route::Group(group) => group.all_to_all(split_dim),
-            Route::Transfers(tensors) => TransferCollectives::<Self, FloatTensors>::all_to_all(
-                tensors, split_dim, concat_dim,
-            ),
+            Route::Transfers(tensors) => {
+                TransferCollectives::<Self, Float>::all_to_all(tensors, split_dim, concat_dim)
+            }
         }
     }
 
@@ -72,9 +72,7 @@ impl CollectiveOps<Self> for CubeBackend {
         let order = DeviceOrder::new(&tensors);
         let reduced = match Route::all_reduce(order.sorted(tensors)) {
             Route::Group(group) => group.all_reduce(op),
-            Route::Transfers(tensors) => {
-                TransferCollectives::<Self, IntTensors>::all_reduce(tensors, op)
-            }
+            Route::Transfers(tensors) => TransferCollectives::<Self, Int>::all_reduce(tensors, op),
         };
         order.restored(reduced)
     }
@@ -82,9 +80,7 @@ impl CollectiveOps<Self> for CubeBackend {
     fn int_all_gather(tensors: Vec<IntTensor<Self>>, dim: usize) -> Vec<IntTensor<Self>> {
         match Route::all_gather(tensors) {
             Route::Group(group) => group.all_gather(dim),
-            Route::Transfers(tensors) => {
-                TransferCollectives::<Self, IntTensors>::all_gather(tensors, dim)
-            }
+            Route::Transfers(tensors) => TransferCollectives::<Self, Int>::all_gather(tensors, dim),
         }
     }
 
@@ -96,7 +92,7 @@ impl CollectiveOps<Self> for CubeBackend {
         match Route::reduce_scatter(tensors, dim) {
             Route::Group(group) => group.reduce_scatter(dim, op),
             Route::Transfers(tensors) => {
-                TransferCollectives::<Self, IntTensors>::reduce_scatter(tensors, dim, op)
+                TransferCollectives::<Self, Int>::reduce_scatter(tensors, dim, op)
             }
         }
     }
@@ -109,7 +105,7 @@ impl CollectiveOps<Self> for CubeBackend {
         match Route::all_to_all(tensors, split_dim, concat_dim) {
             Route::Group(group) => group.all_to_all(split_dim),
             Route::Transfers(tensors) => {
-                TransferCollectives::<Self, IntTensors>::all_to_all(tensors, split_dim, concat_dim)
+                TransferCollectives::<Self, Int>::all_to_all(tensors, split_dim, concat_dim)
             }
         }
     }
@@ -118,7 +114,7 @@ impl CollectiveOps<Self> for CubeBackend {
         match Route::all_gather(tensors) {
             Route::Group(group) => group.all_gather(dim),
             Route::Transfers(tensors) => {
-                TransferCollectives::<Self, BoolTensors>::all_gather(tensors, dim)
+                TransferCollectives::<Self, Bool>::all_gather(tensors, dim)
             }
         }
     }
@@ -131,7 +127,7 @@ impl CollectiveOps<Self> for CubeBackend {
         match Route::all_to_all(tensors, split_dim, concat_dim) {
             Route::Group(group) => group.all_to_all(split_dim),
             Route::Transfers(tensors) => {
-                TransferCollectives::<Self, BoolTensors>::all_to_all(tensors, split_dim, concat_dim)
+                TransferCollectives::<Self, Bool>::all_to_all(tensors, split_dim, concat_dim)
             }
         }
     }

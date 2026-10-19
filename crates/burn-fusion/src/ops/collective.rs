@@ -1,10 +1,8 @@
 use burn_backend::{
     DType, Shape, TensorMetadata,
     distributed::ReduceOperation,
-    ops::{
-        BoolTensors, CollectiveOps, FloatTensors, IntTensors, TransferCollectives, TransferKind,
-    },
-    tensor::{BoolTensor, FloatTensor, IntTensor},
+    ops::{CollectiveOps, TransferCollectives, TransferKind},
+    tensor::{Bool, BoolTensor, Float, FloatTensor, Int, IntTensor},
 };
 use burn_ir::TensorError;
 use core::marker::PhantomData;
@@ -18,18 +16,18 @@ impl<B: FusionBackend> CollectiveOps<Self> for Fusion<B> {
         tensors: Vec<FloatTensor<Self>>,
         op: ReduceOperation,
     ) -> Vec<FloatTensor<Self>> {
-        InnerCollectives::<B, FloatTensors>::run(
+        InnerCollectives::<B, Float>::run(
             tensors,
             |inner| B::float_all_reduce(inner, op),
-            |tensors| TransferCollectives::<Self, FloatTensors>::all_reduce(tensors, op),
+            |tensors| TransferCollectives::<Self, Float>::all_reduce(tensors, op),
         )
     }
 
     fn float_all_gather(tensors: Vec<FloatTensor<Self>>, dim: usize) -> Vec<FloatTensor<Self>> {
-        InnerCollectives::<B, FloatTensors>::run(
+        InnerCollectives::<B, Float>::run(
             tensors,
             |inner| B::float_all_gather(inner, dim),
-            |tensors| TransferCollectives::<Self, FloatTensors>::all_gather(tensors, dim),
+            |tensors| TransferCollectives::<Self, Float>::all_gather(tensors, dim),
         )
     }
 
@@ -38,10 +36,10 @@ impl<B: FusionBackend> CollectiveOps<Self> for Fusion<B> {
         dim: usize,
         op: ReduceOperation,
     ) -> Vec<FloatTensor<Self>> {
-        InnerCollectives::<B, FloatTensors>::run(
+        InnerCollectives::<B, Float>::run(
             tensors,
             |inner| B::float_reduce_scatter(inner, dim, op),
-            |tensors| TransferCollectives::<Self, FloatTensors>::reduce_scatter(tensors, dim, op),
+            |tensors| TransferCollectives::<Self, Float>::reduce_scatter(tensors, dim, op),
         )
     }
 
@@ -50,30 +48,28 @@ impl<B: FusionBackend> CollectiveOps<Self> for Fusion<B> {
         split_dim: usize,
         concat_dim: usize,
     ) -> Vec<FloatTensor<Self>> {
-        InnerCollectives::<B, FloatTensors>::run(
+        InnerCollectives::<B, Float>::run(
             tensors,
             |inner| B::float_all_to_all(inner, split_dim, concat_dim),
             |tensors| {
-                TransferCollectives::<Self, FloatTensors>::all_to_all(
-                    tensors, split_dim, concat_dim,
-                )
+                TransferCollectives::<Self, Float>::all_to_all(tensors, split_dim, concat_dim)
             },
         )
     }
 
     fn int_all_reduce(tensors: Vec<IntTensor<Self>>, op: ReduceOperation) -> Vec<IntTensor<Self>> {
-        InnerCollectives::<B, IntTensors>::run(
+        InnerCollectives::<B, Int>::run(
             tensors,
             |inner| B::int_all_reduce(inner, op),
-            |tensors| TransferCollectives::<Self, IntTensors>::all_reduce(tensors, op),
+            |tensors| TransferCollectives::<Self, Int>::all_reduce(tensors, op),
         )
     }
 
     fn int_all_gather(tensors: Vec<IntTensor<Self>>, dim: usize) -> Vec<IntTensor<Self>> {
-        InnerCollectives::<B, IntTensors>::run(
+        InnerCollectives::<B, Int>::run(
             tensors,
             |inner| B::int_all_gather(inner, dim),
-            |tensors| TransferCollectives::<Self, IntTensors>::all_gather(tensors, dim),
+            |tensors| TransferCollectives::<Self, Int>::all_gather(tensors, dim),
         )
     }
 
@@ -82,10 +78,10 @@ impl<B: FusionBackend> CollectiveOps<Self> for Fusion<B> {
         dim: usize,
         op: ReduceOperation,
     ) -> Vec<IntTensor<Self>> {
-        InnerCollectives::<B, IntTensors>::run(
+        InnerCollectives::<B, Int>::run(
             tensors,
             |inner| B::int_reduce_scatter(inner, dim, op),
-            |tensors| TransferCollectives::<Self, IntTensors>::reduce_scatter(tensors, dim, op),
+            |tensors| TransferCollectives::<Self, Int>::reduce_scatter(tensors, dim, op),
         )
     }
 
@@ -94,20 +90,18 @@ impl<B: FusionBackend> CollectiveOps<Self> for Fusion<B> {
         split_dim: usize,
         concat_dim: usize,
     ) -> Vec<IntTensor<Self>> {
-        InnerCollectives::<B, IntTensors>::run(
+        InnerCollectives::<B, Int>::run(
             tensors,
             |inner| B::int_all_to_all(inner, split_dim, concat_dim),
-            |tensors| {
-                TransferCollectives::<Self, IntTensors>::all_to_all(tensors, split_dim, concat_dim)
-            },
+            |tensors| TransferCollectives::<Self, Int>::all_to_all(tensors, split_dim, concat_dim),
         )
     }
 
     fn bool_all_gather(tensors: Vec<BoolTensor<Self>>, dim: usize) -> Vec<BoolTensor<Self>> {
-        InnerCollectives::<B, BoolTensors>::run(
+        InnerCollectives::<B, Bool>::run(
             tensors,
             |inner| B::bool_all_gather(inner, dim),
-            |tensors| TransferCollectives::<Self, BoolTensors>::all_gather(tensors, dim),
+            |tensors| TransferCollectives::<Self, Bool>::all_gather(tensors, dim),
         )
     }
 
@@ -116,12 +110,10 @@ impl<B: FusionBackend> CollectiveOps<Self> for Fusion<B> {
         split_dim: usize,
         concat_dim: usize,
     ) -> Vec<BoolTensor<Self>> {
-        InnerCollectives::<B, BoolTensors>::run(
+        InnerCollectives::<B, Bool>::run(
             tensors,
             |inner| B::bool_all_to_all(inner, split_dim, concat_dim),
-            |tensors| {
-                TransferCollectives::<Self, BoolTensors>::all_to_all(tensors, split_dim, concat_dim)
-            },
+            |tensors| TransferCollectives::<Self, Bool>::all_to_all(tensors, split_dim, concat_dim),
         )
     }
 }
@@ -139,7 +131,7 @@ struct InnerCollectives<B, K> {
     _kind: PhantomData<(B, K)>,
 }
 
-impl<B: FusionBackend> ResolveKind<B> for FloatTensors {
+impl<B: FusionBackend> ResolveKind<B> for Float {
     fn resolve(tensor: FusionTensor<B::FusionRuntime>) -> Result<FloatTensor<B>, TensorError> {
         tensor.client.clone().resolve_carrying_float::<B>(tensor)
     }
@@ -149,7 +141,7 @@ impl<B: FusionBackend> ResolveKind<B> for FloatTensors {
     }
 }
 
-impl<B: FusionBackend> ResolveKind<B> for IntTensors {
+impl<B: FusionBackend> ResolveKind<B> for Int {
     fn resolve(tensor: FusionTensor<B::FusionRuntime>) -> Result<IntTensor<B>, TensorError> {
         tensor.client.clone().resolve_carrying_int::<B>(tensor)
     }
@@ -159,7 +151,7 @@ impl<B: FusionBackend> ResolveKind<B> for IntTensors {
     }
 }
 
-impl<B: FusionBackend> ResolveKind<B> for BoolTensors {
+impl<B: FusionBackend> ResolveKind<B> for Bool {
     fn resolve(tensor: FusionTensor<B::FusionRuntime>) -> Result<BoolTensor<B>, TensorError> {
         tensor.client.clone().resolve_carrying_bool::<B>(tensor)
     }

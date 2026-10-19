@@ -62,6 +62,7 @@ pub mod indexing {
 pub use indexing::*;
 
 mod alias;
+mod kind;
 pub use alias::*;
 
 /// Quantization data representation.

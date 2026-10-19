@@ -3,17 +3,7 @@ use burn_backend::{TensorMetadata, TensorPrimitive, get_or_init_device_settings}
 use burn_dispatch::{Dispatch, DispatchTensor};
 use burn_std::DeviceSettings;
 
-/// A type-level representation of the kind of a float tensor
-#[derive(Clone, Debug)]
-pub struct Float;
-
-/// A type-level representation of the kind of a int tensor.
-#[derive(Clone, Debug)]
-pub struct Int;
-
-/// A type-level representation of the kind of a bool tensor.
-#[derive(Clone, Debug)]
-pub struct Bool;
+pub use burn_backend::tensor::{Bool, Float, Int};
 
 mod sealed {
     pub trait Sealed {}
