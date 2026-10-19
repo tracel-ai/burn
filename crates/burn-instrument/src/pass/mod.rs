@@ -1,5 +1,6 @@
+mod base;
 mod cursor;
 mod observer;
 mod tree;
 
-pub use tree::SharedCollector;
+pub use base::PassCollector;

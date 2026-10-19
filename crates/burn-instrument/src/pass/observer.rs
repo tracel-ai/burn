@@ -35,18 +35,17 @@
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
+use burn_fusion::observer::{BlockOperations, FusionObservation, FusionObserver};
 use cubecl::logging::{
     Duration, LaunchObservation, LaunchObserver, ProfileDuration, TimingMethod, TimingRequest,
 };
 
-use super::tree::SharedCollector;
+use super::tree::TreeCollector;
 
-/// Hands every launch, and what it took, to one collector.
-struct ToCollector(SharedCollector);
-
-impl LaunchObserver for ToCollector {
+/// Every launch, and what it took, goes to the collector.
+impl LaunchObserver for TreeCollector {
     fn launched(&self, kernel: &'static str) {
-        self.0.record_kernel(kernel);
+        self.record_kernel(kernel);
     }
 
     /// Timed, and handed over unread — a breakdown whose kernel rows carried
@@ -59,53 +58,39 @@ impl LaunchObserver for ToCollector {
 
     /// Kept. The collector reads them all once the pass is over.
     fn profiled(&self, kernel: &'static str, profile: ProfileDuration) {
-        self.0.keep(kernel, profile);
+        self.keep(kernel, profile);
     }
 
     /// Only while the runtime's profiling logger reads measurements too, which
     /// reads each at its launch and hands the observer the duration.
     fn timed(&self, kernel: &'static str, duration: Duration, method: TimingMethod) {
-        self.0.record_duration(kernel, duration, method);
+        self.record_duration(kernel, duration, method);
     }
 }
 
-/// Hands every registration and every block the fusion server runs to one
-/// collector.
-struct FusionToCollector(SharedCollector);
-
-impl FusionToCollector {
-    /// What an operation is known by: its first output, fresh for every
-    /// operation the server registers. `None` for a `Drop` — see the module
-    /// docs — and for the few operations that write no tensor.
-    fn key(operation: &burn_ir::OperationIr) -> Option<u64> {
-        match operation {
-            burn_ir::OperationIr::Drop(_) => None,
-            operation => operation.outputs().next().map(|output| output.id.value()),
-        }
-    }
-}
-
-impl burn_fusion::observer::FusionObserver for FusionToCollector {
+/// Every registration and every block the fusion server runs goes to the
+/// collector, each operation known by [`operation_key`].
+impl FusionObserver for TreeCollector {
     fn registered(&self, operation: &burn_ir::OperationIr) {
-        if let Some(key) = Self::key(operation) {
-            self.0.registered(key);
+        if let Some(key) = operation_key(operation) {
+            self.registered(key);
         }
     }
 
-    fn block_starts(&self, operations: burn_fusion::observer::BlockOperations<'_>) {
-        self.0.block_starts(operations.iter().filter_map(Self::key));
+    fn block_starts(&self, operations: BlockOperations<'_>) {
+        self.block_starts(operations.iter().filter_map(operation_key));
     }
 
     fn block_ran(&self) {
-        self.0.block_ran();
+        self.block_ran();
     }
 }
 
 /// What watching a pass installed: the runtime's launch observer and the
 /// fusion server's. Both come out when it drops.
-pub struct Watching {
+pub(crate) struct Watching {
     _launches: LaunchObservation,
-    _fusion: burn_fusion::observer::FusionObservation,
+    _fusion: FusionObservation,
     /// Last, since fields drop in order: the claim is given up only once both
     /// observers above have been put back, so the next pass to claim it
     /// cannot have its own removed by this one's.
@@ -139,28 +124,37 @@ impl Drop for Claim {
     }
 }
 
-/// Hand every launch, and every operation and block the
-/// fusion server runs, to `collector` for as long as the returned guard
-/// lives.
-///
-/// The guards are the runtimes' own: each holds one process-wide slot,
-/// replaces whatever was installed there for its lifetime, and puts it back on
-/// drop.
-///
-/// # Panics
-///
-/// If another pass is being watched: the slots are process-wide, so a second
-/// collection would record the first's kernels and the first would lose its
-/// own.
-pub fn watch_launches(collector: &SharedCollector) -> Watching {
-    // Before the observers, so a second pass is refused before it replaces
-    // the first's.
-    let claim = Claim::take();
-    Watching {
-        _launches: LaunchObservation::new(Arc::new(ToCollector(collector.handle()))),
-        _fusion: burn_fusion::observer::FusionObservation::new(Arc::new(FusionToCollector(
-            collector.handle(),
-        ))),
-        _claim: claim,
+impl Watching {
+    /// Hand every launch, and every operation and block the fusion server
+    /// runs, to `collector` for as long as the returned guard lives.
+    ///
+    /// The guards are the runtimes' own: each holds one process-wide slot,
+    /// replaces whatever was installed there for its lifetime, and puts it
+    /// back on drop.
+    ///
+    /// # Panics
+    ///
+    /// If another pass is being watched: the slots are process-wide, so a
+    /// second collection would record the first's kernels and the first would
+    /// lose its own.
+    pub(crate) fn new(collector: &Arc<TreeCollector>) -> Self {
+        // Before the observers, so a second pass is refused before it
+        // replaces the first's.
+        let claim = Claim::take();
+        Self {
+            _launches: LaunchObservation::new(collector.clone()),
+            _fusion: FusionObservation::new(collector.clone()),
+            _claim: claim,
+        }
+    }
+}
+
+/// What an operation is known by: its first output, fresh for every operation
+/// the server registers. `None` for a `Drop` — see the module docs — and for
+/// the few operations that write no tensor.
+fn operation_key(operation: &burn_ir::OperationIr) -> Option<u64> {
+    match operation {
+        burn_ir::OperationIr::Drop(_) => None,
+        operation => operation.outputs().next().map(|output| output.id.value()),
     }
 }

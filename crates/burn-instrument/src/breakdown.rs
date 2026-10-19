@@ -12,7 +12,7 @@ use crate::row_path::RowPath;
 
 /// One collected pass, broken down by component.
 ///
-/// What [`SharedCollector::collect`](crate::SharedCollector::collect) returns:
+/// What [`PassCollector::collect`](crate::PassCollector::collect) returns:
 /// data only, so a breakdown collected from a run and one written out in a
 /// test are the same kind of value.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -25,7 +25,7 @@ pub struct Breakdown {
     pub untagged: Vec<Kernel>,
     /// Kernels the sync ending the pass ran: fused work the last components
     /// left queued, which no op after them was there to seal. See
-    /// [`SharedCollector::collect`](crate::SharedCollector::collect).
+    /// [`PassCollector::collect`](crate::PassCollector::collect).
     pub end_of_pass: Vec<Kernel>,
     /// How long the device waited on the host before the untagged kernels
     /// and the end of the pass's — the idle time no row is charged with. See

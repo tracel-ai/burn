@@ -19,8 +19,8 @@ use std::time::Duration;
 use burn_tensor::Device;
 use cubecl::profile::{ProfileDuration, ProfileTicks, TimingMethod};
 
-use crate::breakdown::{Breakdown, Kernel, Node, Unplaced, Variant};
 use super::cursor::{Attribution, LaunchCursor};
+use crate::breakdown::{Breakdown, Kernel, Node, Unplaced, Variant};
 use crate::row_path::RowPath;
 use crate::{Bounds, Collector, Declaration, ObservedBounds};
 
@@ -44,7 +44,7 @@ use crate::{Bounds, Collector, Declaration, ObservedBounds};
 /// parent, named for them. Every kernel is on the one row that holds all it
 /// did; outside a block, a launch falls back to the component whose operation
 /// sealed the segment.
-pub struct TreeCollector {
+pub(crate) struct TreeCollector {
     device: Device,
     /// Before the pass, so every measurement's window can be placed after it
     /// on one clock and the gaps between them read off.
@@ -158,7 +158,7 @@ impl TreeCollector {
     /// thread-local, so a worker still pointing into a previous collector's
     /// arena would record this one's first kernels at an index that means
     /// something else here.
-    pub fn new(device: &Device) -> Self {
+    pub(crate) fn new(device: &Device) -> Self {
         let cursor = LaunchCursor::new(device);
         cursor.point_at(Attribution::Untagged);
         Self {
@@ -189,7 +189,7 @@ impl TreeCollector {
     /// # Panics
     ///
     /// If the device stops answering.
-    pub fn finish(&self) {
+    pub(crate) fn finish(&self) {
         self.cursor.point_at(Attribution::EndOfPass);
         self.device
             .sync()
@@ -237,7 +237,7 @@ impl TreeCollector {
     /// # Panics
     ///
     /// If the work producing an observed value failed.
-    pub fn price_observed(&self) {
+    pub(crate) fn price_observed(&self) {
         let pending = std::mem::take(&mut self.locked().pending);
         // Priced outside the lock: each reads its values back.
         let priced: Vec<(usize, Bounds)> = pending
@@ -257,7 +257,7 @@ impl TreeCollector {
     ///
     /// If a component is still open — a tree read mid-pass is missing the
     /// kernels its open components have yet to launch.
-    pub fn breakdown(&self) -> Breakdown {
+    pub(crate) fn breakdown(&self) -> Breakdown {
         let state = self.locked();
         assert!(
             state.open.is_empty(),
@@ -486,7 +486,7 @@ impl TreeCollector {
     /// By name and count rather than one row per launch: a 28-layer stack
     /// issues the same kernel 28 times, and 28 identical rows say less than
     /// one row saying 28.
-    fn record_kernel(&self, name: &str) {
+    pub(crate) fn record_kernel(&self, name: &str) {
         let attribution = LaunchCursor::current();
         let span = LaunchCursor::span();
         let mut state = self.locked();
@@ -528,7 +528,7 @@ impl TreeCollector {
     /// id: it came from whichever component the server's thread is pointed at
     /// — the one that registered it, since the cursor moves in the same queue
     /// the operations do.
-    fn registered(&self, operation: u64) {
+    pub(crate) fn registered(&self, operation: u64) {
         let attribution = LaunchCursor::current();
         self.locked().registered.insert(operation, attribution);
     }
@@ -549,7 +549,7 @@ impl TreeCollector {
     /// them too, and so is one whose components sit under different roots and
     /// share no row; one whose operations were never seen registering —
     /// queued before the pass — keeps the sealing order's answer.
-    fn block_starts(&self, keys: impl Iterator<Item = u64>) {
+    pub(crate) fn block_starts(&self, keys: impl Iterator<Item = u64>) {
         let state = self.locked();
         let mut components: Vec<usize> = Vec::new();
         let mut outside = false;
@@ -594,7 +594,7 @@ impl TreeCollector {
     }
 
     /// The block that last started has run.
-    fn block_ran(&self) {
+    pub(crate) fn block_ran(&self) {
         LaunchCursor::leave_block();
     }
 
@@ -603,7 +603,7 @@ impl TreeCollector {
     /// The runtime hands it over on the thread that issued the launch, inside
     /// the same call, so the calling thread's attribution is still the
     /// launch's. It is read back in [`finish`](Self::finish).
-    fn keep(&self, kernel: &'static str, profile: ProfileDuration) {
+    pub(crate) fn keep(&self, kernel: &'static str, profile: ProfileDuration) {
         let attribution = LaunchCursor::current();
         let mut state = self.locked();
         state.host_timed |= !matches!(profile.timing_method(), TimingMethod::Device);
@@ -620,7 +620,7 @@ impl TreeCollector {
     /// The runtime reads measurements this way while its profiling logger
     /// reads them too, and a kernel read as it launched ran alone — so the
     /// pass is marked [`timed_alone`](Self::timed_alone).
-    fn record_duration(&self, kernel: &str, duration: Duration, method: TimingMethod) {
+    pub(crate) fn record_duration(&self, kernel: &str, duration: Duration, method: TimingMethod) {
         let attribution = LaunchCursor::current();
         let mut state = self.locked();
         state.host_timed |= !matches!(method, TimingMethod::Device);
@@ -684,107 +684,6 @@ impl Collector for TreeCollector {
         if let Some(&row) = state.open.last() {
             state.pending.push(Pending { row, bounds });
         }
-    }
-}
-
-/// A handle on a collector that is also installed, so a run can read the tree
-/// after the pass rather than handing ownership into the thread-local slot and
-/// having no way back to it.
-pub struct SharedCollector(std::sync::Arc<TreeCollector>);
-
-impl SharedCollector {
-    /// A collector for `device`, and a handle on it.
-    pub fn new(device: &Device) -> Self {
-        Self(std::sync::Arc::new(TreeCollector::new(device)))
-    }
-
-    /// Another handle on the same collector — what gets installed.
-    pub(crate) fn handle(&self) -> Self {
-        Self(std::sync::Arc::clone(&self.0))
-    }
-
-    /// Run `pass` collected, and end it: every component it enters arrives
-    /// from this thread and every kernel the runtime issues for it from
-    /// whichever thread issued it, until the pass's last queued segment has
-    /// run and its measurements are read back.
-    ///
-    /// Collected, the pass runs the graph it runs in production — nothing is
-    /// drained at a boundary — so call it on work already synced: an operation
-    /// queued before it would be watched too.
-    ///
-    /// Taken by value: a collector holds one pass, and its breakdown is read
-    /// once that pass has ended.
-    ///
-    /// # Panics
-    ///
-    /// If another pass is being collected in the process (the runtimes'
-    /// observer slots are process-wide), if the device stops answering at the
-    /// end of the pass, or if the work producing an observed value failed.
-    pub fn collect(self, pass: impl FnOnce()) -> Breakdown {
-        // Two installations of one collector: the components arrive on this
-        // thread and the kernels on the runtime's worker, so the tree is
-        // written from both. Each kernel lands under the attribution of the
-        // thread that issued it — see `LaunchCursor`.
-        let watching = super::observer::watch_launches(&self);
-        let collecting = crate::collect(Box::new(self.handle()));
-        pass();
-        core::mem::drop(collecting);
-        // While the kernels are still being watched: the pass's last fused
-        // segment is still queued, and it runs at the next sync. Every
-        // measurement the pass kept is read back there too.
-        self.0.finish();
-        core::mem::drop(watching);
-        // Unwatched, since reading the values back launches kernels too.
-        self.0.price_observed();
-        self.0.breakdown()
-    }
-}
-
-impl Collector for SharedCollector {
-    fn enter(&self, declared: Declaration<'_>) {
-        self.0.enter(declared);
-    }
-    fn exit(&self) {
-        self.0.exit();
-    }
-    fn observe(&self, bounds: ObservedBounds) {
-        self.0.observe(bounds);
-    }
-}
-
-/// What the launch observer hands over. See [`super::observer`].
-impl SharedCollector {
-    /// A kernel was issued. See [`TreeCollector::record_kernel`].
-    pub(crate) fn record_kernel(&self, kernel: &str) {
-        self.0.record_kernel(kernel);
-    }
-
-    /// A launch's measurement, unread. See [`TreeCollector::keep`].
-    pub(crate) fn keep(&self, kernel: &'static str, profile: ProfileDuration) {
-        self.0.keep(kernel, profile);
-    }
-
-    /// The fusion server registered an operation. See
-    /// [`TreeCollector::registered`].
-    pub(crate) fn registered(&self, operation: u64) {
-        self.0.registered(operation);
-    }
-
-    /// A fused or unfused block is about to run. See
-    /// [`TreeCollector::block_starts`].
-    pub(crate) fn block_starts(&self, operations: impl Iterator<Item = u64>) {
-        self.0.block_starts(operations);
-    }
-
-    /// The block that last started has run. See [`TreeCollector::block_ran`].
-    pub(crate) fn block_ran(&self) {
-        self.0.block_ran();
-    }
-
-    /// A launch's duration, read as it launched. See
-    /// [`TreeCollector::record_duration`].
-    pub(crate) fn record_duration(&self, kernel: &str, duration: Duration, method: TimingMethod) {
-        self.0.record_duration(kernel, duration, method);
     }
 }
 

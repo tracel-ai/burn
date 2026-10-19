@@ -22,7 +22,7 @@
 //!
 //! # Collecting a pass
 //!
-//! With the `cubecl` feature, [`SharedCollector`] installs itself as the collector and as the
+//! With the `cubecl` feature, [`PassCollector`] installs itself as the collector and as the
 //! cubecl runtime's launch observer, runs a pass, and returns its [`Breakdown`]: the component
 //! tree, each component's kernels, and what the device spent on them. Nothing is drained at a
 //! component boundary, so the collected pass runs the kernels a clean pass runs. Each launch is
@@ -31,7 +31,7 @@
 //! component containing all of them and names the ones it fused.
 //!
 //! ```rust,ignore
-//! let breakdown = SharedCollector::new(&device).collect(|| {
+//! let breakdown = PassCollector::new(&device).collect(|| {
 //!     model.forward(input);
 //! });
 //! breakdown.write(std::fs::File::create("forward.json")?)?;
@@ -54,10 +54,10 @@ mod label;
 
 #[cfg(feature = "std")]
 mod breakdown;
-#[cfg(feature = "std")]
-mod row_path;
 #[cfg(feature = "cubecl")]
 mod pass;
+#[cfg(feature = "std")]
+mod row_path;
 
 #[cfg(all(test, feature = "std"))]
 mod recording;
@@ -72,9 +72,9 @@ pub use label::*;
 pub use breakdown::{
     BREAKDOWN_FILE_VERSION, Breakdown, BreakdownFileError, Kernel, Node, Unplaced, Variant,
 };
+#[cfg(feature = "cubecl")]
+pub use pass::PassCollector;
 #[cfg(feature = "std")]
 pub use row_path::RowPath;
-#[cfg(feature = "cubecl")]
-pub use pass::SharedCollector;
 
 pub use burn_instrument_macros::compute;

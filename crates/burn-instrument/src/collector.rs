@@ -23,6 +23,21 @@ pub trait Collector {
     fn observe(&self, _observed: ObservedBounds) {}
 }
 
+/// A collector shared with whoever reads it once the pass is over, installed as the collector
+/// itself.
+#[cfg(feature = "std")]
+impl<C: Collector + ?Sized> Collector for std::sync::Arc<C> {
+    fn enter(&self, declared: Declaration<'_>) {
+        (**self).enter(declared);
+    }
+    fn exit(&self) {
+        (**self).exit();
+    }
+    fn observe(&self, observed: ObservedBounds) {
+        (**self).observe(observed);
+    }
+}
+
 /// Traffic a component moves beyond its declared floor that depends on values the pass
 /// computes, such as which experts a sparse layer's routes select.
 ///

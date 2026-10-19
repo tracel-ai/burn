@@ -2,7 +2,7 @@
 //! that readback launches is not the pass's work. Run it on a cubecl device (`BURN_DEVICE`).
 #![cfg(feature = "collector-tests")]
 
-use burn_instrument::{Bounds, ObservedBounds, SharedCollector, armed, compute};
+use burn_instrument::{Bounds, ObservedBounds, PassCollector, armed, compute};
 use burn_tensor::{Device, Distribution, Int, Tensor};
 
 /// What `#[compute]` expands to, as a crate depending on `burn` sees it.
@@ -44,7 +44,7 @@ fn reading_observed_values_back_launches_nothing_the_pass_records() {
     core::mem::drop(warmed);
 
     let mut output = None;
-    let breakdown = SharedCollector::new(&device).collect(|| output = Some(Router.forward(input)));
+    let breakdown = PassCollector::new(&device).collect(|| output = Some(Router.forward(input)));
     core::mem::drop(output);
 
     let names: Vec<&str> = breakdown
