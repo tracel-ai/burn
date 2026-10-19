@@ -284,3 +284,57 @@ fn repeated_consuming_updates_alias_with_cached_plan() {
         );
     });
 }
+
+/// An in-place output keeps its input's vector size, which can be narrower than the fused
+/// block's width: the kernel must still stop at the output's last element.
+///
+/// A single-channel NHWC tensor permuted to NCHW has a stride-one extent-one axis, so it is
+/// launched with vector size one, while the contiguous `rhs` vectorizes the block. The
+/// element count leaves the last cube partially idle; an idle unit that passes the bound
+/// writes into the slice allocated after the output, so `canary` must keep its values.
+#[test]
+fn inplace_output_narrower_than_width_stays_in_bounds() {
+    let stream = test_stream();
+    stream.executes(|| {
+        let device: burn_tensor::Device = Default::default();
+        let nhwc = [4, 52, 52, 1];
+
+        let materialize = |tensor: TestTensor<4>| {
+            let _ = tensor.clone().into_data();
+            device.sync().unwrap();
+            tensor
+        };
+        let nchw = |nhwc: TestTensor<4>| nhwc.permute([0, 3, 1, 2]);
+        let run = |lhs: TestTensor<4>, rhs: TestTensor<4>| (lhs.mul_scalar(2.0) + rhs).into_data();
+
+        // Warmup with the same graph: autotune trials run on forked contexts that never alias.
+        let _ = run(
+            materialize(nchw(TestTensor::full(nhwc, 1.0, &device))),
+            materialize(TestTensor::full([4, 1, 52, 52], 2.0, &device)),
+        );
+        device.sync().unwrap();
+
+        let lhs = materialize(nchw(TestTensor::full(nhwc, 1.0, &device)));
+        let canary = materialize(TestTensor::full(nhwc, 7.0, &device));
+        let rhs = materialize(TestTensor::full([4, 1, 52, 52], 2.0, &device));
+
+        let inspector = FusionInspector::install(stream);
+        let before = inplace_alias_count();
+        let out = run(lhs, rhs);
+        device.sync().unwrap();
+        let after = inplace_alias_count();
+
+        out.assert_approx_eq::<FloatElem>(
+            &TensorData::full([4, 1, 52, 52], 4.0),
+            Tolerance::default(),
+        );
+        assert_all_fused(&inspector.drain(), "permuted in-place elemwise");
+        assert!(
+            after > before,
+            "the output should alias the consumed `lhs` buffer"
+        );
+        canary
+            .into_data()
+            .assert_approx_eq::<FloatElem>(&TensorData::full(nhwc, 7.0), Tolerance::default());
+    });
+}
