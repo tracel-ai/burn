@@ -2,10 +2,11 @@
 //! execution it declares, the floor it prices, that children nest under whoever called them, and
 //! that the body computes what it did before.
 
-// A parameter a declaration reads and the body does not must not warn. Denied rather than
-// asserted, because the absence of a warning is not something a test can read: `Mixer::rotate`
-// is the case, and un-exempting it in the macro fails this module's compilation.
-#![deny(unused_variables)]
+// A parameter a declaration reads and the body does not must not warn, and nor must a `mut`
+// parameter the body mutates. Denied rather than asserted, because the absence of a warning is
+// not something a test can read: `Mixer::rotate` and `Mixer::accumulate` are the cases, and an
+// expansion that warns on either fails this module's compilation.
+#![deny(unused_variables, unused_mut)]
 
 use crate::recording::{entered, recording};
 use crate::{Bounds, compute};
@@ -89,6 +90,25 @@ impl Mixer {
     fn rotate(&self, x: u32, turn: Turn) -> u32 {
         x * self.scale
     }
+
+    /// A parameter the body mutates, declared `mut` as the author wrote it.
+    #[compute(label = "accumulate")]
+    fn accumulate(&self, mut x: u32) -> u32 {
+        x += self.scale;
+        x
+    }
+}
+
+/// A component whose forward is a trait's.
+trait Step {
+    fn step(&self, x: u32) -> u32;
+}
+
+impl Step for Mixer {
+    #[compute(label = "step")]
+    fn step(&self, x: u32) -> u32 {
+        x + self.scale
+    }
 }
 
 /// A composite, to show the tree is a consequence of composition.
@@ -111,6 +131,24 @@ fn a_forward_with_no_label_is_a_row_named_for_its_type() {
 
     assert_eq!(computed, 21, "the body computes what it did before");
     assert_eq!(recorder.events(), ["+mixer:-:28", "-"]);
+}
+
+#[test]
+fn a_mut_parameter_is_the_bodys_to_mutate() {
+    let recorder = entered(|| {
+        assert_eq!(Mixer { scale: 3 }.accumulate(7), 10);
+    });
+
+    assert_eq!(recorder.events(), ["+accumulate:-:-", "-"]);
+}
+
+#[test]
+fn a_trait_method_can_be_a_component() {
+    let recorder = entered(|| {
+        assert_eq!(Mixer { scale: 3 }.step(7), 10);
+    });
+
+    assert_eq!(recorder.events(), ["+step:-:-", "-"]);
 }
 
 #[test]

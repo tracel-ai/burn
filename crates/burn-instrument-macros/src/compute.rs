@@ -1,10 +1,13 @@
 //! What `#[compute]` generates.
 //!
-//! The body moves into a hidden twin and the original name becomes a wrapper that opens a tag
-//! around it, so the author still writes `forward` and every caller still calls `forward`.
+//! The method opens a tag before its body runs, and the tag closes when the method returns, so
+//! the author still writes `forward` and every caller still calls `forward`. The body stays where
+//! it was written rather than moving into another item, so the method keeps its signature as
+//! written (`mut` parameters, `impl Trait` returns, lifetimes), and a trait method can be
+//! annotated as well as an inherent one.
 
 use proc_macro2::TokenStream;
-use quote::{format_ident, quote};
+use quote::quote;
 use syn::spanned::Spanned;
 use syn::{Expr, FnArg, ItemFn, Pat, Token};
 
@@ -51,8 +54,8 @@ impl syn::parse::Parse for Args {
     }
 }
 
-/// Rewrite `function` into a wrapper plus the hidden twin holding its body.
-pub fn expand(args: TokenStream, function: ItemFn) -> syn::Result<TokenStream> {
+/// Open a tag around `function`'s body.
+pub fn expand(args: TokenStream, mut function: ItemFn) -> syn::Result<TokenStream> {
     let args: Args = syn::parse2(args)?;
 
     let receiver = function.sig.inputs.first().and_then(|arg| match arg {
@@ -66,30 +69,6 @@ pub fn expand(args: TokenStream, function: ItemFn) -> syn::Result<TokenStream> {
              reach the component's own bounds",
         ));
     }
-
-    // The parameters past `self`: forwarded to the body by name, and handed to a bounds
-    // function by reference.
-    let parameters = parameters(&function)?;
-    let forwarded: Vec<&syn::Ident> = parameters.iter().map(|it| &it.name).collect();
-    let priced: Vec<TokenStream> = parameters.iter().map(Parameter::priced).collect();
-
-    let name = function.sig.ident.clone();
-    let inner = format_ident!("__computed_{}", name);
-
-    let mut body = function.clone();
-    body.sig.ident = inner.clone();
-    body.vis = syn::Visibility::Inherited;
-    body.attrs.push(syn::parse_quote!(#[doc(hidden)]));
-    // A parameter only the declaration reads, such as the argument a label is taken from, is
-    // used by the wrapper and not by the twin, which would warn. Binding it to `_` in the twin
-    // silences that one parameter, where `allow(unused_variables)` would silence every unused
-    // parameter of the body.
-    let mut prelude: Vec<syn::Stmt> = declared(&args, &parameters)
-        .into_iter()
-        .map(|name| syn::parse_quote!(let _ = &#name;))
-        .collect();
-    prelude.append(&mut body.block.stmts);
-    body.block.stmts = prelude;
 
     let label = match &args.label {
         Some(label) => quote!(#label),
@@ -105,70 +84,38 @@ pub fn expand(args: TokenStream, function: ItemFn) -> syn::Result<TokenStream> {
     let bounds = match &args.bounds {
         None => quote!(None),
         // A bare path is called with every parameter by reference.
-        Some(Expr::Path(path)) => quote!(::core::convert::Into::into(#path(self #(, #priced)*))),
+        Some(Expr::Path(path)) => {
+            let priced = parameters(&function)?;
+            let priced = priced.iter().map(Parameter::priced);
+            quote!(::core::convert::Into::into(#path(self #(, #priced)*)))
+        }
         // Anything else is the call the author wrote, evaluated with every parameter in scope.
         Some(bounds) => quote!(::core::convert::Into::into(#bounds)),
     };
 
-    let entry = name.to_string();
+    let entry = function.sig.ident.to_string();
     let site = quote!(::core::concat!(::core::module_path!(), "::", #entry));
 
-    let mut wrapper = function;
-    wrapper.block = syn::parse_quote!({
-        match burn::instrument::armed() {
-            None => self.#inner(#(#forwarded),*),
-            Some(run) => {
-                let _tag = run.enter(burn::instrument::Declaration {
-                    label: #label,
-                    variant: #variant,
-                    site: #site,
-                    bounds: #bounds,
-                });
-                self.#inner(#(#forwarded),*)
-            }
-        }
+    let body = &function.block;
+    // Bound first, so the tag outlives every local of the body and closes on every return. The
+    // declaration is evaluated before the body runs, so a parameter it reads has not been moved.
+    function.block = syn::parse_quote!({
+        let __burn_instrument_tag = match burn::instrument::armed() {
+            None => None,
+            Some(run) => Some(run.enter(burn::instrument::Declaration {
+                label: #label,
+                variant: #variant,
+                site: #site,
+                bounds: #bounds,
+            })),
+        };
+        #body
     });
 
-    Ok(quote! {
-        #wrapper
-        #body
-    })
+    Ok(quote!(#function))
 }
 
-/// The parameters the declaration reads for itself.
-///
-/// `label`, `variant`, and `bounds` only as an expression: the bare-path form is handed every
-/// parameter, so counting it would exempt all of them. Matched on the name as a token, which
-/// over-matches a parameter shadowed inside the declaration (one warning not raised) and never
-/// under-matches (a warning nobody could silence without renaming a parameter).
-fn declared<'a>(args: &Args, parameters: &'a [Parameter]) -> Vec<&'a syn::Ident> {
-    fn names(tokens: TokenStream, into: &mut Vec<String>) {
-        for tree in tokens {
-            match tree {
-                proc_macro2::TokenTree::Ident(ident) => into.push(ident.to_string()),
-                proc_macro2::TokenTree::Group(group) => names(group.stream(), into),
-                _ => {}
-            }
-        }
-    }
-
-    let priced = match &args.bounds {
-        Some(Expr::Path(_)) | None => None,
-        Some(bounds) => Some(bounds),
-    };
-    let mut read = Vec::new();
-    for declaration in args.label.iter().chain(&args.variant).chain(priced) {
-        names(quote!(#declaration), &mut read);
-    }
-    parameters
-        .iter()
-        .map(|parameter| &parameter.name)
-        .filter(|name| read.iter().any(|read| *read == name.to_string()))
-        .collect()
-}
-
-/// One parameter past `self`: the name the wrapper forwards it by, and how a bounds function
-/// receives it.
+/// One parameter past `self`: the name a bare-path `bounds` is handed it by, and how.
 struct Parameter {
     name: syn::Ident,
     /// Declared `&mut`, so a bounds function is handed a `&mut` too: a cache may answer how long
@@ -188,8 +135,8 @@ impl Parameter {
     }
 }
 
-/// The parameters past `self`, each a plain binding: the wrapper forwards them by name, so a
-/// pattern parameter (`(a, b): (u32, u32)`) is rejected here rather than producing an error
+/// The parameters past `self`, each a plain binding: a bare-path `bounds` is handed them by name,
+/// so a pattern parameter (`(a, b): (u32, u32)`) is rejected here rather than producing an error
 /// inside generated code.
 fn parameters(function: &ItemFn) -> syn::Result<Vec<Parameter>> {
     function
@@ -204,8 +151,8 @@ fn parameters(function: &ItemFn) -> syn::Result<Vec<Parameter>> {
             let Pat::Ident(ident) = typed.pat.as_ref() else {
                 return Err(syn::Error::new(
                     typed.pat.span(),
-                    "`compute` forwards parameters by name, so each one needs a plain binding; \
-                     destructure inside the body instead",
+                    "a bare-path `bounds` is handed every parameter by name, so each one needs a \
+                     plain binding; destructure inside the body instead",
                 ));
             };
             Ok(Parameter {
