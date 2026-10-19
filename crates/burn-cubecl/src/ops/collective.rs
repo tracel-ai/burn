@@ -1,3 +1,7 @@
+//! A member is one of the tensors a collective is given, as
+//! [`CollectiveOps`](burn_backend::ops::CollectiveOps) defines it: member `i` is position `i` of
+//! the input, on its own device, and receives position `i` of the output.
+
 use burn_backend::{
     cubecl::{dtype_to_elem_type, reduce_operation_to_cubecl},
     distributed::ReduceOperation,
@@ -22,16 +26,20 @@ impl CollectiveOps<Self> for CubeBackend {
         tensors: Vec<FloatTensor<Self>>,
         op: ReduceOperation,
     ) -> Vec<FloatTensor<Self>> {
-        match Plan::all_reduce(tensors) {
-            Plan::Native(group) => group.all_reduce(op),
-            Plan::Emulated(tensors) => EmulatedCollectives::<Self, Float>::all_reduce(tensors, op),
+        match CollectivePlan::all_reduce(tensors) {
+            CollectivePlan::Native(group) => group.all_reduce(op),
+            CollectivePlan::Emulated(tensors) => {
+                EmulatedCollectives::<Self, Float>::all_reduce(tensors, op)
+            }
         }
     }
 
     fn float_all_gather(tensors: Vec<FloatTensor<Self>>, dim: usize) -> Vec<FloatTensor<Self>> {
-        match Plan::all_gather(tensors) {
-            Plan::Native(group) => group.all_gather(dim),
-            Plan::Emulated(tensors) => EmulatedCollectives::<Self, Float>::all_gather(tensors, dim),
+        match CollectivePlan::all_gather(tensors) {
+            CollectivePlan::Native(group) => group.all_gather(dim),
+            CollectivePlan::Emulated(tensors) => {
+                EmulatedCollectives::<Self, Float>::all_gather(tensors, dim)
+            }
         }
     }
 
@@ -40,9 +48,9 @@ impl CollectiveOps<Self> for CubeBackend {
         dim: usize,
         op: ReduceOperation,
     ) -> Vec<FloatTensor<Self>> {
-        match Plan::reduce_scatter(tensors, dim) {
-            Plan::Native(group) => group.reduce_scatter(dim, op),
-            Plan::Emulated(tensors) => {
+        match CollectivePlan::reduce_scatter(tensors, dim) {
+            CollectivePlan::Native(group) => group.reduce_scatter(dim, op),
+            CollectivePlan::Emulated(tensors) => {
                 EmulatedCollectives::<Self, Float>::reduce_scatter(tensors, dim, op)
             }
         }
@@ -53,25 +61,29 @@ impl CollectiveOps<Self> for CubeBackend {
         split_dim: usize,
         concat_dim: usize,
     ) -> Vec<FloatTensor<Self>> {
-        match Plan::all_to_all(tensors, split_dim, concat_dim) {
-            Plan::Native(group) => group.all_to_all(split_dim),
-            Plan::Emulated(tensors) => {
+        match CollectivePlan::all_to_all(tensors, split_dim, concat_dim) {
+            CollectivePlan::Native(group) => group.all_to_all(split_dim),
+            CollectivePlan::Emulated(tensors) => {
                 EmulatedCollectives::<Self, Float>::all_to_all(tensors, split_dim, concat_dim)
             }
         }
     }
 
     fn int_all_reduce(tensors: Vec<IntTensor<Self>>, op: ReduceOperation) -> Vec<IntTensor<Self>> {
-        match Plan::all_reduce(tensors) {
-            Plan::Native(group) => group.all_reduce(op),
-            Plan::Emulated(tensors) => EmulatedCollectives::<Self, Int>::all_reduce(tensors, op),
+        match CollectivePlan::all_reduce(tensors) {
+            CollectivePlan::Native(group) => group.all_reduce(op),
+            CollectivePlan::Emulated(tensors) => {
+                EmulatedCollectives::<Self, Int>::all_reduce(tensors, op)
+            }
         }
     }
 
     fn int_all_gather(tensors: Vec<IntTensor<Self>>, dim: usize) -> Vec<IntTensor<Self>> {
-        match Plan::all_gather(tensors) {
-            Plan::Native(group) => group.all_gather(dim),
-            Plan::Emulated(tensors) => EmulatedCollectives::<Self, Int>::all_gather(tensors, dim),
+        match CollectivePlan::all_gather(tensors) {
+            CollectivePlan::Native(group) => group.all_gather(dim),
+            CollectivePlan::Emulated(tensors) => {
+                EmulatedCollectives::<Self, Int>::all_gather(tensors, dim)
+            }
         }
     }
 
@@ -80,9 +92,9 @@ impl CollectiveOps<Self> for CubeBackend {
         dim: usize,
         op: ReduceOperation,
     ) -> Vec<IntTensor<Self>> {
-        match Plan::reduce_scatter(tensors, dim) {
-            Plan::Native(group) => group.reduce_scatter(dim, op),
-            Plan::Emulated(tensors) => {
+        match CollectivePlan::reduce_scatter(tensors, dim) {
+            CollectivePlan::Native(group) => group.reduce_scatter(dim, op),
+            CollectivePlan::Emulated(tensors) => {
                 EmulatedCollectives::<Self, Int>::reduce_scatter(tensors, dim, op)
             }
         }
@@ -93,18 +105,20 @@ impl CollectiveOps<Self> for CubeBackend {
         split_dim: usize,
         concat_dim: usize,
     ) -> Vec<IntTensor<Self>> {
-        match Plan::all_to_all(tensors, split_dim, concat_dim) {
-            Plan::Native(group) => group.all_to_all(split_dim),
-            Plan::Emulated(tensors) => {
+        match CollectivePlan::all_to_all(tensors, split_dim, concat_dim) {
+            CollectivePlan::Native(group) => group.all_to_all(split_dim),
+            CollectivePlan::Emulated(tensors) => {
                 EmulatedCollectives::<Self, Int>::all_to_all(tensors, split_dim, concat_dim)
             }
         }
     }
 
     fn bool_all_gather(tensors: Vec<BoolTensor<Self>>, dim: usize) -> Vec<BoolTensor<Self>> {
-        match Plan::all_gather(tensors) {
-            Plan::Native(group) => group.all_gather(dim),
-            Plan::Emulated(tensors) => EmulatedCollectives::<Self, Bool>::all_gather(tensors, dim),
+        match CollectivePlan::all_gather(tensors) {
+            CollectivePlan::Native(group) => group.all_gather(dim),
+            CollectivePlan::Emulated(tensors) => {
+                EmulatedCollectives::<Self, Bool>::all_gather(tensors, dim)
+            }
         }
     }
 
@@ -113,9 +127,9 @@ impl CollectiveOps<Self> for CubeBackend {
         split_dim: usize,
         concat_dim: usize,
     ) -> Vec<BoolTensor<Self>> {
-        match Plan::all_to_all(tensors, split_dim, concat_dim) {
-            Plan::Native(group) => group.all_to_all(split_dim),
-            Plan::Emulated(tensors) => {
+        match CollectivePlan::all_to_all(tensors, split_dim, concat_dim) {
+            CollectivePlan::Native(group) => group.all_to_all(split_dim),
+            CollectivePlan::Emulated(tensors) => {
                 EmulatedCollectives::<Self, Bool>::all_to_all(tensors, split_dim, concat_dim)
             }
         }
@@ -123,7 +137,7 @@ impl CollectiveOps<Self> for CubeBackend {
 }
 
 /// How a collective over the members runs.
-enum Plan {
+enum CollectivePlan {
     /// Natively, by cubecl over a group of the members' devices: NCCL on CUDA.
     Native(NativeGroup),
     /// Emulated with transfers between devices, slices, concatenations and additions.
@@ -143,7 +157,7 @@ struct LeadingDim {
     dim: usize,
 }
 
-impl Plan {
+impl CollectivePlan {
     fn all_reduce(tensors: Vec<CubeTensor>) -> Self {
         Self::native_if(tensors, NativeGroup::reduces)
     }
@@ -364,32 +378,32 @@ mod tests {
                 })
                 .collect()
         };
-        let native = |plan: Plan| matches!(plan, Plan::Native(_));
+        let native = |plan: CollectivePlan| matches!(plan, CollectivePlan::Native(_));
 
         let even = || members([0, 1], [2, 2], DType::F32);
-        assert!(native(Plan::all_reduce(even())));
-        assert!(native(Plan::all_gather(even())));
-        assert!(native(Plan::reduce_scatter(even(), 0)));
-        assert!(native(Plan::all_to_all(even(), 1, 1)));
-        assert!(!native(Plan::all_to_all(even(), 0, 1)));
+        assert!(native(CollectivePlan::all_reduce(even())));
+        assert!(native(CollectivePlan::all_gather(even())));
+        assert!(native(CollectivePlan::reduce_scatter(even(), 0)));
+        assert!(native(CollectivePlan::all_to_all(even(), 1, 1)));
+        assert!(!native(CollectivePlan::all_to_all(even(), 0, 1)));
 
         let uneven = || members([0, 1], [3, 3], DType::F32);
-        assert!(native(Plan::all_gather(uneven())));
-        assert!(!native(Plan::reduce_scatter(uneven(), 0)));
-        assert!(!native(Plan::all_to_all(uneven(), 0, 0)));
+        assert!(native(CollectivePlan::all_gather(uneven())));
+        assert!(!native(CollectivePlan::reduce_scatter(uneven(), 0)));
+        assert!(!native(CollectivePlan::all_to_all(uneven(), 0, 0)));
 
         let unreduced = || members([0, 1], [2, 2], DType::I16);
-        assert!(native(Plan::all_gather(unreduced())));
-        assert!(!native(Plan::all_reduce(unreduced())));
+        assert!(native(CollectivePlan::all_gather(unreduced())));
+        assert!(!native(CollectivePlan::all_reduce(unreduced())));
 
         let descending = members([1, 0], [2, 2], DType::F32);
-        assert!(!native(Plan::all_reduce(descending)));
-        assert!(!native(Plan::all_gather(members(
+        assert!(!native(CollectivePlan::all_reduce(descending)));
+        assert!(!native(CollectivePlan::all_gather(members(
             [0, 0],
             [2, 2],
             DType::F32
         ))));
-        assert!(!native(Plan::all_gather(members(
+        assert!(!native(CollectivePlan::all_gather(members(
             [0, 1],
             [2, 3],
             DType::F32

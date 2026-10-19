@@ -141,8 +141,9 @@ pub struct EmulatedCollectives<B, K> {
     _kind: PhantomData<(B, K)>,
 }
 
-/// A dimension's length split over a group's members.
-struct Chunks {
+/// Dimension `dim`, of length `len`, cut into one chunk per member, a member being one of the
+/// tensors a collective is given: as even as possible, with the first members holding one more.
+struct DimSplit {
     dim: usize,
     len: usize,
     members: usize,
@@ -262,12 +263,12 @@ impl<B: Backend, K: CollectiveKind<B>> EmulatedCollectives<B, K> {
     where
         K: ReduceKind<B>,
     {
-        let chunks = Chunks::new(&tensors, dim);
+        let split = DimSplit::new(&tensors, dim);
         Self::devices(&tensors)
             .iter()
             .enumerate()
             .map(|(member, device)| {
-                Self::reduced(Self::member_chunks(&tensors, &chunks, member, device), op)
+                Self::reduced(Self::member_chunks(&tensors, &split, member, device), op)
             })
             .collect()
     }
@@ -278,13 +279,13 @@ impl<B: Backend, K: CollectiveKind<B>> EmulatedCollectives<B, K> {
         split_dim: usize,
         concat_dim: usize,
     ) -> Vec<K::Tensor> {
-        let chunks = Chunks::new(&tensors, split_dim);
+        let split = DimSplit::new(&tensors, split_dim);
         Self::devices(&tensors)
             .iter()
             .enumerate()
             .map(|(member, device)| {
                 K::cat(
-                    Self::member_chunks(&tensors, &chunks, member, device),
+                    Self::member_chunks(&tensors, &split, member, device),
                     concat_dim,
                 )
             })
@@ -313,11 +314,11 @@ impl<B: Backend, K: CollectiveKind<B>> EmulatedCollectives<B, K> {
     /// `member`'s chunk of every member's tensor, moved to `device`.
     fn member_chunks(
         tensors: &[K::Tensor],
-        chunks: &Chunks,
+        split: &DimSplit,
         member: usize,
         device: &Device<B>,
     ) -> Vec<K::Tensor> {
-        let slices = chunks.slices(member);
+        let slices = split.slices(member);
         tensors
             .iter()
             .map(|tensor| K::to_device(K::slice(tensor.clone(), &slices), device))
@@ -335,20 +336,20 @@ impl<B: Backend, K: CollectiveKind<B>> EmulatedCollectives<B, K> {
     }
 }
 
-impl Chunks {
+impl DimSplit {
     fn new<T: TensorMetadata>(tensors: &[T], dim: usize) -> Self {
-        let chunks = Self {
+        let split = Self {
             dim,
             len: tensors.first().map_or(0, |tensor| tensor.shape()[dim]),
             members: tensors.len(),
         };
         assert!(
-            chunks.len >= chunks.members,
+            split.len >= split.members,
             "dimension {dim} holds {} elements, fewer than the {} members it splits over",
-            chunks.len,
-            chunks.members,
+            split.len,
+            split.members,
         );
-        chunks
+        split
     }
 
     fn range(&self, member: usize) -> Range<usize> {
@@ -375,13 +376,13 @@ mod tests {
     use super::*;
 
     #[test]
-    fn chunks_give_the_first_members_one_more() {
-        let chunks = Chunks {
+    fn a_split_gives_the_first_members_one_more() {
+        let split = DimSplit {
             dim: 0,
             len: 7,
             members: 3,
         };
-        let ranges: Vec<_> = (0..3).map(|member| chunks.range(member)).collect();
+        let ranges: Vec<_> = (0..3).map(|member| split.range(member)).collect();
 
         assert_eq!(ranges, [0..3, 3..5, 5..7]);
     }

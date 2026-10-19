@@ -1,3 +1,7 @@
+//! A member is one of the tensors a collective is given, as
+//! [`CollectiveOps`](burn_backend::ops::CollectiveOps) defines it: member `i` is position `i` of
+//! the input, on its own device, and receives position `i` of the output.
+
 use burn_backend::{
     DType, Shape, TensorMetadata,
     distributed::ReduceOperation,
