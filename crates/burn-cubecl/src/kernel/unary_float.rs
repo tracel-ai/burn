@@ -195,32 +195,31 @@ pub(crate) mod unary_basic {
                 BasicFloatUnaryKind::ArcTan => Vector::atan(input),
                 BasicFloatUnaryKind::ArcTanh => Vector::atanh(input),
                 BasicFloatUnaryKind::Gelu => {
-                    if comptime!(core::mem::size_of::<F>() > 4) {
-                        let half = Vector::<F, N>::new(F::new(0.5_f64));
-                        let one = Vector::<F, N>::new(F::new(1.0_f64));
-                        let inv_sqrt2 = Vector::<F, N>::new(F::new(0.7071067811865475_f64));
-                        half * input * (one + Vector::erf(input * inv_sqrt2))
-                    } else {
-                        let x = Vector::<f32, N>::cast_from(input);
-                        let half = Vector::<f32, N>::new(0.5_f32);
-                        let one = Vector::<f32, N>::new(1.0_f32);
-                        let inv_sqrt2 = Vector::<f32, N>::new(0.7071067811865475_f32);
-                        let y = half * x * (one + Vector::erf(x * inv_sqrt2));
-                        Vector::<F, N>::cast_from(y)
-                    }
+                    let dtype = elem_type_of::<F>().comptime();
+                    let define!(C) = comptime!(match dtype {
+                        ElemType::Float(cubecl::ir::FloatKind::F64) => dtype,
+                        _ => ElemType::Float(cubecl::ir::FloatKind::F32),
+                    });
+
+                    let x = Vector::<C, N>::cast_from(input);
+                    let half = Vector::<C, N>::new(<C as Float>::new(0.5));
+                    let one = Vector::<C, N>::new(<C as Float>::new(1.0));
+                    let inv_sqrt2 =
+                        Vector::<C, N>::new(<C as Float>::new(core::f64::consts::FRAC_1_SQRT_2));
+                    let y = half * x * (one + Vector::erf(x * inv_sqrt2));
+                    Vector::<F, N>::cast_from(y)
                 }
                 BasicFloatUnaryKind::Sigmoid => {
-                    if comptime!(core::mem::size_of::<F>() > 4) {
-                        let zero = Vector::<F, N>::new(F::new(0.0_f64));
-                        let one = Vector::<F, N>::new(F::new(1.0_f64));
-                        one / (one + Vector::exp(zero - input))
-                    } else {
-                        let x = Vector::<f32, N>::cast_from(input);
-                        let zero = Vector::<f32, N>::new(0.0_f32);
-                        let one = Vector::<f32, N>::new(1.0_f32);
-                        let y = one / (one + Vector::exp(zero - x));
-                        Vector::<F, N>::cast_from(y)
-                    }
+                    let dtype = elem_type_of::<F>().comptime();
+                    let define!(C) = comptime!(match dtype {
+                        ElemType::Float(cubecl::ir::FloatKind::F64) => dtype,
+                        _ => ElemType::Float(cubecl::ir::FloatKind::F32),
+                    });
+
+                    let x = Vector::<C, N>::cast_from(input);
+                    let one = Vector::<C, N>::new(<C as Float>::new(1.0));
+                    let y = one / (one + Vector::exp(-x));
+                    Vector::<F, N>::cast_from(y)
                 }
             }
         }

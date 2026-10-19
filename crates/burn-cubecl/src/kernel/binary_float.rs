@@ -8,6 +8,7 @@ use crate::{
 use burn_backend::cubecl::dtype_to_storage_type;
 use cubecl::{
     calculate_cube_count_elemwise,
+    ir::FloatKind,
     prelude::*,
     std::tensor::layout::linear::{LinearView, LinearViewMut},
 };
@@ -49,27 +50,23 @@ impl BinaryOpFloatFamily for GeluBackwardOp {
 #[cube]
 impl<T: Float, N: Size> BinaryOpFloat<T, N> for GeluBackwardOp {
     fn execute(lhs: Vector<T, N>, rhs: Vector<T, N>) -> Vector<T, N> {
-        if comptime!(core::mem::size_of::<T>() > 4) {
-            let half = Vector::<T, N>::new(T::new(0.5_f64));
-            let neg_half = Vector::<T, N>::new(T::new(-0.5_f64));
-            let one = Vector::<T, N>::new(T::new(1.0_f64));
-            let inv_sqrt2 = Vector::<T, N>::new(T::new(0.7071067811865475_f64));
-            let inv_sqrt2pi = Vector::<T, N>::new(T::new(0.3989422804014327_f64));
-            let cdf = half * (one + Vector::erf(lhs * inv_sqrt2));
-            let pdf = inv_sqrt2pi * Vector::exp(neg_half * lhs * lhs);
-            rhs * (cdf + lhs * pdf)
-        } else {
-            let x = Vector::<f32, N>::cast_from(lhs);
-            let dy = Vector::<f32, N>::cast_from(rhs);
-            let half = Vector::<f32, N>::new(0.5_f32);
-            let neg_half = Vector::<f32, N>::new(-0.5_f32);
-            let one = Vector::<f32, N>::new(1.0_f32);
-            let inv_sqrt2 = Vector::<f32, N>::new(0.7071067811865475_f32);
-            let inv_sqrt2pi = Vector::<f32, N>::new(0.3989422804014327_f32);
-            let cdf = half * (one + Vector::erf(x * inv_sqrt2));
-            let pdf = inv_sqrt2pi * Vector::exp(neg_half * x * x);
-            Vector::<T, N>::cast_from(dy * (cdf + x * pdf))
-        }
+        let dtype = elem_type_of::<T>().comptime();
+        let define!(C) = comptime!(match dtype {
+            ElemType::Float(FloatKind::F64) => dtype,
+            _ => ElemType::Float(FloatKind::F32),
+        });
+
+        let x = Vector::<C, N>::cast_from(lhs);
+        let dy = Vector::<C, N>::cast_from(rhs);
+        let half = Vector::<C, N>::new(<C as Float>::new(0.5));
+        let one = Vector::<C, N>::new(<C as Float>::new(1.0));
+        let inv_sqrt2 = Vector::<C, N>::new(<C as Float>::new(core::f64::consts::FRAC_1_SQRT_2));
+        let inv_sqrt2pi = Vector::<C, N>::new(<C as Float>::new(0.3989422804014327));
+
+        let cdf = half * (one + Vector::erf(x * inv_sqrt2));
+        let pdf = inv_sqrt2pi * Vector::exp(-half * x * x);
+
+        Vector::<T, N>::cast_from(dy * (cdf + x * pdf))
     }
 }
 
@@ -82,15 +79,17 @@ impl BinaryOpFloatFamily for SigmoidBackwardOp {
 #[cube]
 impl<T: Float, N: Size> BinaryOpFloat<T, N> for SigmoidBackwardOp {
     fn execute(lhs: Vector<T, N>, rhs: Vector<T, N>) -> Vector<T, N> {
-        if comptime!(core::mem::size_of::<T>() > 4) {
-            let one = Vector::<T, N>::new(T::new(1.0_f64));
-            rhs * (lhs * (one - lhs))
-        } else {
-            let s = Vector::<f32, N>::cast_from(lhs);
-            let dy = Vector::<f32, N>::cast_from(rhs);
-            let one = Vector::<f32, N>::new(1.0_f32);
-            Vector::<T, N>::cast_from(dy * s * (one - s))
-        }
+        let dtype = elem_type_of::<T>().comptime();
+        let define!(C) = comptime!(match dtype {
+            ElemType::Float(FloatKind::F64) => dtype,
+            _ => ElemType::Float(FloatKind::F32),
+        });
+
+        let s = Vector::<C, N>::cast_from(lhs);
+        let dy = Vector::<C, N>::cast_from(rhs);
+        let one = Vector::<C, N>::new(<C as Float>::new(1.0));
+
+        Vector::<T, N>::cast_from(dy * s * (one - s))
     }
 }
 
