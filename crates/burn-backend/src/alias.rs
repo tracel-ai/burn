@@ -6,8 +6,6 @@ pub mod tensor {
 
     pub use burn_std::ops::IndexingUpdateOp;
 
-    pub use crate::kind::{Bool, Float, Int};
-
     /// Device type used by the backend.
     pub type Device<B> = <B as BackendTypes>::Device;
 

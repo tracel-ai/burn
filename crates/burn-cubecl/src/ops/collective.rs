@@ -6,7 +6,7 @@ use burn_backend::{
     cubecl::{dtype_to_elem_type, reduce_operation_to_cubecl},
     distributed::ReduceOperation,
     ops::{CollectiveOps, EmulatedCollectives},
-    tensor::{Bool, BoolTensor, Float, FloatTensor, Int, IntTensor},
+    tensor::{BoolTensor, FloatTensor, IntTensor},
 };
 use core::cmp::Ordering;
 use cubecl::{
@@ -29,7 +29,7 @@ impl CollectiveOps<Self> for CubeBackend {
         match CollectivePlan::all_reduce(tensors) {
             CollectivePlan::Native(group) => group.all_reduce(op),
             CollectivePlan::Emulated(tensors) => {
-                EmulatedCollectives::<Self, Float>::all_reduce(tensors, op)
+                EmulatedCollectives::<Self>::float_all_reduce(tensors, op)
             }
         }
     }
@@ -38,7 +38,7 @@ impl CollectiveOps<Self> for CubeBackend {
         match CollectivePlan::all_gather(tensors) {
             CollectivePlan::Native(group) => group.all_gather(dim),
             CollectivePlan::Emulated(tensors) => {
-                EmulatedCollectives::<Self, Float>::all_gather(tensors, dim)
+                EmulatedCollectives::<Self>::float_all_gather(tensors, dim)
             }
         }
     }
@@ -51,7 +51,7 @@ impl CollectiveOps<Self> for CubeBackend {
         match CollectivePlan::reduce_scatter(tensors, dim) {
             CollectivePlan::Native(group) => group.reduce_scatter(dim, op),
             CollectivePlan::Emulated(tensors) => {
-                EmulatedCollectives::<Self, Float>::reduce_scatter(tensors, dim, op)
+                EmulatedCollectives::<Self>::float_reduce_scatter(tensors, dim, op)
             }
         }
     }
@@ -64,7 +64,7 @@ impl CollectiveOps<Self> for CubeBackend {
         match CollectivePlan::all_to_all(tensors, split_dim, concat_dim) {
             CollectivePlan::Native(group) => group.all_to_all(split_dim),
             CollectivePlan::Emulated(tensors) => {
-                EmulatedCollectives::<Self, Float>::all_to_all(tensors, split_dim, concat_dim)
+                EmulatedCollectives::<Self>::float_all_to_all(tensors, split_dim, concat_dim)
             }
         }
     }
@@ -73,7 +73,7 @@ impl CollectiveOps<Self> for CubeBackend {
         match CollectivePlan::all_reduce(tensors) {
             CollectivePlan::Native(group) => group.all_reduce(op),
             CollectivePlan::Emulated(tensors) => {
-                EmulatedCollectives::<Self, Int>::all_reduce(tensors, op)
+                EmulatedCollectives::<Self>::int_all_reduce(tensors, op)
             }
         }
     }
@@ -82,7 +82,7 @@ impl CollectiveOps<Self> for CubeBackend {
         match CollectivePlan::all_gather(tensors) {
             CollectivePlan::Native(group) => group.all_gather(dim),
             CollectivePlan::Emulated(tensors) => {
-                EmulatedCollectives::<Self, Int>::all_gather(tensors, dim)
+                EmulatedCollectives::<Self>::int_all_gather(tensors, dim)
             }
         }
     }
@@ -95,7 +95,7 @@ impl CollectiveOps<Self> for CubeBackend {
         match CollectivePlan::reduce_scatter(tensors, dim) {
             CollectivePlan::Native(group) => group.reduce_scatter(dim, op),
             CollectivePlan::Emulated(tensors) => {
-                EmulatedCollectives::<Self, Int>::reduce_scatter(tensors, dim, op)
+                EmulatedCollectives::<Self>::int_reduce_scatter(tensors, dim, op)
             }
         }
     }
@@ -108,7 +108,7 @@ impl CollectiveOps<Self> for CubeBackend {
         match CollectivePlan::all_to_all(tensors, split_dim, concat_dim) {
             CollectivePlan::Native(group) => group.all_to_all(split_dim),
             CollectivePlan::Emulated(tensors) => {
-                EmulatedCollectives::<Self, Int>::all_to_all(tensors, split_dim, concat_dim)
+                EmulatedCollectives::<Self>::int_all_to_all(tensors, split_dim, concat_dim)
             }
         }
     }
@@ -117,7 +117,7 @@ impl CollectiveOps<Self> for CubeBackend {
         match CollectivePlan::all_gather(tensors) {
             CollectivePlan::Native(group) => group.all_gather(dim),
             CollectivePlan::Emulated(tensors) => {
-                EmulatedCollectives::<Self, Bool>::all_gather(tensors, dim)
+                EmulatedCollectives::<Self>::bool_all_gather(tensors, dim)
             }
         }
     }
@@ -130,7 +130,7 @@ impl CollectiveOps<Self> for CubeBackend {
         match CollectivePlan::all_to_all(tensors, split_dim, concat_dim) {
             CollectivePlan::Native(group) => group.all_to_all(split_dim),
             CollectivePlan::Emulated(tensors) => {
-                EmulatedCollectives::<Self, Bool>::all_to_all(tensors, split_dim, concat_dim)
+                EmulatedCollectives::<Self>::bool_all_to_all(tensors, split_dim, concat_dim)
             }
         }
     }
