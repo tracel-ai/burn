@@ -33,15 +33,8 @@ impl Watching {
     /// replaces whatever was installed there for its lifetime, and puts it
     /// back on drop.
     ///
-    /// # Panics
-    ///
-    /// If another pass is being watched: the slots are process-wide, so a
-    /// second collection would record the first's kernels and the first would
-    /// lose its own.
-    pub(crate) fn new(recorder: &Arc<PassRecorder>) -> Self {
-        // Before the observers, so a second pass is refused before it
-        // replaces the first's.
-        let claim = Claim::take();
+    /// `claim` is held until both observers have been put back.
+    pub(crate) fn new(recorder: &Arc<PassRecorder>, claim: Claim) -> Self {
         Self {
             _launches: LaunchObservation::new(recorder.clone()),
             _fusion: FusionObservation::new(recorder.clone()),
@@ -53,14 +46,16 @@ impl Watching {
 /// Whether a pass is being watched anywhere in the process.
 static WATCHING: AtomicBool = AtomicBool::new(false);
 
-/// This process's one watched pass. Given up on drop.
-struct Claim;
+/// This process's one collected pass. Given up on drop.
+pub(crate) struct Claim;
 
 impl Claim {
     /// # Panics
     ///
-    /// If another pass holds it.
-    fn take() -> Self {
+    /// If another pass holds it: the observer slots are process-wide, so a
+    /// second collection would record the first's kernels and the first would
+    /// lose its own.
+    pub(crate) fn take() -> Self {
         let already = WATCHING.swap(true, Ordering::AcqRel);
         assert!(
             !already,
