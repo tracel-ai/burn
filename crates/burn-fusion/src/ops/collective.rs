@@ -1,6 +1,5 @@
 use burn_backend::{
     DType, Shape, TensorMetadata,
-    backend::ExecutionError,
     distributed::ReduceOperation,
     ops::{CollectiveOps, ComposedCollectives, ComposedReductions},
     tensor::{BoolTensor, Device, FloatTensor, IntTensor},
@@ -125,14 +124,14 @@ impl<B: FusionBackend> CollectiveOps<Self> for Fusion<B> {
 /// How one tensor kind passes between Fusion's tensors and its inner backend's, so a collective
 /// runs on the inner backend, whose transport fusion would otherwise hide behind transfers.
 struct InnerKind<B: FusionBackend, T> {
-    resolve: fn(FusionTensor<B::FusionRuntime>) -> Result<T, ExecutionError>,
+    resolve: fn(FusionTensor<B::FusionRuntime>) -> Result<T, TensorError>,
     handle: fn(T) -> B::Handle,
 }
 
 impl<B: FusionBackend> InnerKind<B, FloatTensor<B>> {
     fn float() -> Self {
         Self {
-            resolve: |tensor| tensor.client.clone().resolve_tensor_float::<B>(tensor),
+            resolve: |tensor| tensor.client.clone().resolve_carrying_float::<B>(tensor),
             handle: B::float_tensor_handle,
         }
     }
@@ -141,7 +140,7 @@ impl<B: FusionBackend> InnerKind<B, FloatTensor<B>> {
 impl<B: FusionBackend> InnerKind<B, IntTensor<B>> {
     fn int() -> Self {
         Self {
-            resolve: |tensor| tensor.client.clone().resolve_tensor_int::<B>(tensor),
+            resolve: |tensor| tensor.client.clone().resolve_carrying_int::<B>(tensor),
             handle: B::int_tensor_handle,
         }
     }
@@ -150,7 +149,7 @@ impl<B: FusionBackend> InnerKind<B, IntTensor<B>> {
 impl<B: FusionBackend> InnerKind<B, BoolTensor<B>> {
     fn bool() -> Self {
         Self {
-            resolve: |tensor| tensor.client.clone().resolve_tensor_bool::<B>(tensor),
+            resolve: |tensor| tensor.client.clone().resolve_carrying_bool::<B>(tensor),
             handle: B::bool_tensor_handle,
         }
     }
@@ -214,8 +213,8 @@ struct MemberMetadata<R: FusionRuntime> {
 }
 
 impl<R: FusionRuntime> MemberMetadata<R> {
-    fn carrying(self, error: ExecutionError) -> FusionTensor<R> {
-        let id = self.client.register_error(TensorError::new(error));
+    fn carrying(self, error: TensorError) -> FusionTensor<R> {
+        let id = self.client.register_error(error.propagated());
         FusionTensor::new(id, self.shape, self.dtype, self.client, StreamId::current())
     }
 }

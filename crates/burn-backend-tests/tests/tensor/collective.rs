@@ -1,6 +1,6 @@
 use burn_backend::{distributed::ReduceOperation, ops::CollectiveOps};
 use burn_dispatch::{Dispatch, DispatchDevice, DispatchTensor};
-use burn_tensor::{Device, TensorData, Tolerance, kind::Basic};
+use burn_tensor::{DType, Device, TensorData, Tolerance, kind::Basic};
 use core::ops::Range;
 
 use super::*;
@@ -38,6 +38,12 @@ mod composed {
     #[test]
     fn should_leave_members_held_elsewhere() {
         group().all_reduce_of_held_members();
+    }
+
+    #[cfg(any(feature = "flex", feature = "cuda"))]
+    #[test]
+    fn should_average_f16_past_the_range_of_its_sum() {
+        group().f16_mean_past_the_range_of_its_sum();
     }
 
     #[test]
@@ -187,6 +193,13 @@ mod nccl {
 
     #[test]
     #[serial]
+    fn should_average_f16_past_the_range_of_its_sum() {
+        let Some(group) = group() else { return };
+        group.f16_mean_past_the_range_of_its_sum();
+    }
+
+    #[test]
+    #[serial]
     fn should_move_strided_members() {
         let Some(mut group) = group() else { return };
         group.strided = true;
@@ -201,8 +214,8 @@ mod nccl {
         group.along_the_middle_dim();
     }
 
-    /// Even chunks, so every collective but broadcast, and an all-to-all across two dimensions,
-    /// runs over NCCL.
+    /// Even chunks, so every collective runs over NCCL except broadcast and an all-to-all across
+    /// two dimensions, which compose.
     fn group() -> Option<Group> {
         let devices = Device::enumerate(DeviceType::Cuda).into_vec();
         let members = devices.len();
@@ -215,8 +228,8 @@ mod nccl {
     }
 }
 
-/// Member `r` holds `rows` by `cols` values counting up from `r * rows * cols`, laid out
-/// column-major when `strided`.
+/// Member `r` holds `rows` by `cols` values counting up from an offset that grows with `r * r`,
+/// so sums are negative and no mean divides evenly; laid out column-major when `strided`.
 struct Group {
     devices: Vec<Device>,
     rows: usize,
@@ -252,6 +265,25 @@ impl Group {
         self.assert_int(outputs, |_| sum.int());
         let outputs = Dispatch::int_all_reduce(self.int(), ReduceOperation::Mean);
         self.assert_int(outputs, |_| sum.divided(members).int());
+    }
+
+    /// Every member holds 40000, whose sum overflows f16 though the mean does not.
+    fn f16_mean_past_the_range_of_its_sum(&self) {
+        let members = self.devices.iter().map(|device| {
+            TestTensor::<1>::from_data([40000.0, 40000.0], device)
+                .cast(DType::F16)
+                .into_dispatch()
+        });
+
+        let outputs = Dispatch::float_all_reduce(members.collect(), ReduceOperation::Mean);
+        for output in outputs {
+            let output = TestTensor::<1>::from_dispatch(output);
+            assert_eq!(output.dtype(), DType::F16);
+            output.into_data().convert::<f32>().assert_approx_eq::<f32>(
+                &TensorData::from([40000.0, 40000.0]),
+                Tolerance::default(),
+            );
+        }
     }
 
     /// Members still held elsewhere, which an all-reduce in place would overwrite.
@@ -348,7 +380,8 @@ impl Group {
     }
 
     fn values(&self, member: usize) -> Grid {
-        let first = (member * self.rows * self.cols) as i32;
+        let len = self.rows * self.cols;
+        let first = (member * len + member * member) as i32 - (len * self.devices.len()) as i32;
         let rows = (0..self.rows)
             .map(|row| {
                 let start = first + (row * self.cols) as i32;

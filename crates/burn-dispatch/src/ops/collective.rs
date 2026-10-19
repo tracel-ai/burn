@@ -119,9 +119,10 @@ impl Dispatch {
         let backend = |tensor: &DispatchTensor| {
             DispatchDevice::decode_type_id(tensor.device().id().type_id).0
         };
-        tensors
-            .windows(2)
-            .all(|pair| backend(&pair[0]) == backend(&pair[1]))
+        !tensors.is_empty()
+            && tensors
+                .windows(2)
+                .all(|pair| backend(&pair[0]) == backend(&pair[1]))
     }
 
     fn float_all_reduce_dispatch(

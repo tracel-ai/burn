@@ -553,6 +553,64 @@ where
         resolved.unwrap_or_else(|err| Err(crate::backend::server_error(err)))
     }
 
+    /// Resolve the given float tensor as a read does, keeping the failure claiming it as it is
+    /// carried, so it propagates from its root.
+    pub fn resolve_carrying_float<B>(
+        &self,
+        tensor: FusionTensor<R>,
+    ) -> Result<B::FloatTensorPrimitive, TensorError>
+    where
+        B: FusionBackend<FusionRuntime = R>,
+    {
+        self.resolve_carrying(tensor, |server, tensor, stream| {
+            server.read_float::<B>(tensor, stream)
+        })
+    }
+
+    /// Resolve the given int tensor as a read does, keeping the failure claiming it as it is carried.
+    pub fn resolve_carrying_int<B>(
+        &self,
+        tensor: FusionTensor<R>,
+    ) -> Result<B::IntTensorPrimitive, TensorError>
+    where
+        B: FusionBackend<FusionRuntime = R>,
+    {
+        self.resolve_carrying(tensor, |server, tensor, stream| {
+            server.read_int::<B>(tensor, stream)
+        })
+    }
+
+    /// Resolve the given bool tensor as a read does, keeping the failure claiming it as it is carried.
+    pub fn resolve_carrying_bool<B>(
+        &self,
+        tensor: FusionTensor<R>,
+    ) -> Result<B::BoolTensorPrimitive, TensorError>
+    where
+        B: FusionBackend<FusionRuntime = R>,
+    {
+        self.resolve_carrying(tensor, |server, tensor, stream| {
+            server.read_bool::<B>(tensor, stream)
+        })
+    }
+
+    fn resolve_carrying<T: Send + 'static>(
+        &self,
+        tensor: FusionTensor<R>,
+        read: impl FnOnce(&mut FusionServer<R>, TensorIr, StreamId) -> Result<T, TensorError>
+        + Send
+        + 'static,
+    ) -> Result<T, TensorError> {
+        // `into_ir()` runs on this thread: on the server thread, a cross-stream tensor's
+        // `shared_view` would `submit_blocking` again and panic on the re-entrancy.
+        let stream = tensor.stream;
+        let tensor = tensor.into_ir();
+        let read = self
+            .server
+            .submit_blocking(move |server| read(server, tensor, stream));
+        held::release();
+        read.unwrap_or_else(|err| Err(TensorError::new(crate::backend::server_error(err))))
+    }
+
     /// Synchronize the collective operations.
     pub fn sync_collective<B>(&self, device: &B::Device)
     where

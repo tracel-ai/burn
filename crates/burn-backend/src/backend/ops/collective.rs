@@ -121,6 +121,15 @@ pub struct ComposedReductions<B: Backend, T> {
     collectives: ComposedCollectives<B, T>,
     add: fn(T, T) -> T,
     div_scalar: fn(T, Scalar) -> T,
+    mean: MeanDivides,
+}
+
+/// What a mean divides by the member count.
+enum MeanDivides {
+    /// Each part, as NCCL averages floats, so a sum past the type's range still averages.
+    EachPart,
+    /// The sum, so an integer mean truncates once.
+    Sum,
 }
 
 /// A dimension's length split over a group's members.
@@ -227,6 +236,7 @@ impl<B: Backend> ComposedReductions<B, FloatTensor<B>> {
             collectives: ComposedCollectives::float(),
             add: B::float_add,
             div_scalar: B::float_div_scalar,
+            mean: MeanDivides::EachPart,
         }
     }
 }
@@ -238,6 +248,7 @@ impl<B: Backend> ComposedReductions<B, IntTensor<B>> {
             collectives: ComposedCollectives::int(),
             add: B::int_add,
             div_scalar: B::int_div_scalar,
+            mean: MeanDivides::Sum,
         }
     }
 }
@@ -274,14 +285,25 @@ impl<B: Backend, T: TensorMetadata<Device = Device<B>>> ComposedReductions<B, T>
 
     fn reduced(&self, parts: Vec<T>, op: ReduceOperation) -> T {
         let members = parts.len();
-        let sum = parts
+        match (op, &self.mean) {
+            (ReduceOperation::Sum, _) => self.sum(parts),
+            (ReduceOperation::Mean, MeanDivides::EachPart) => self.sum(
+                parts
+                    .into_iter()
+                    .map(|part| (self.div_scalar)(part, members.into()))
+                    .collect(),
+            ),
+            (ReduceOperation::Mean, MeanDivides::Sum) => {
+                (self.div_scalar)(self.sum(parts), members.into())
+            }
+        }
+    }
+
+    fn sum(&self, parts: Vec<T>) -> T {
+        parts
             .into_iter()
             .reduce(self.add)
-            .expect("a group has a member");
-        match op {
-            ReduceOperation::Sum => sum,
-            ReduceOperation::Mean => (self.div_scalar)(sum, members.into()),
-        }
+            .expect("a group has a member")
     }
 }
 

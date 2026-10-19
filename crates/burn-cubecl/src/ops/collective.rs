@@ -159,9 +159,10 @@ impl Members {
             return composed(self.tensors);
         };
         let members = self.tensors.len();
-        let parts = Front::new(dim).buffers(self.tensors, |len| len * members);
+        let front = Front::new(dim);
+        let parts = front.buffers(self.tensors, |len| len * members);
         group.all_gather(parts.buffers);
-        Front::new(dim).restored(parts.outputs)
+        front.restored(parts.outputs)
     }
 
     fn reduce_scatter(
@@ -175,9 +176,10 @@ impl Members {
             return composed(self.tensors);
         };
         let elem = dtype_to_elem_type(self.tensors[0].dtype);
-        let parts = Front::new(dim).buffers(self.tensors, |len| len / members);
+        let front = Front::new(dim);
+        let parts = front.buffers(self.tensors, |len| len / members);
         group.reduce_scatter(parts.buffers, elem, reduce_operation_to_cubecl(op));
-        Front::new(dim).restored(parts.outputs)
+        front.restored(parts.outputs)
     }
 
     fn all_to_all(
@@ -191,9 +193,10 @@ impl Members {
         let Some(group) = self.group.filter(|_| runs) else {
             return composed(self.tensors);
         };
-        let parts = Front::new(split_dim).buffers(self.tensors, |len| len);
+        let front = Front::new(split_dim);
+        let parts = front.buffers(self.tensors, |len| len);
         group.all_to_all(parts.buffers);
-        Front::new(split_dim).restored(parts.outputs)
+        front.restored(parts.outputs)
     }
 
     /// The group when its devices reduce the members' type.
@@ -355,26 +358,35 @@ mod tests {
     use burn_backend::DType;
     use cubecl::cuda::CudaDevice;
 
-    /// NCCL runs only over distinct devices in ascending order holding one shape; anything else
-    /// must compose, and a group that silently stopped forming would pass every value test.
+    /// NCCL runs only where a group forms, reduces the type and splits evenly; anything else must
+    /// compose, and a choice that silently stopped holding would pass every value test.
     #[test]
     #[ignore = "needs two CUDA devices and NCCL"]
-    fn a_group_forms_over_ascending_distinct_devices_of_one_shape() {
+    fn nccl_runs_only_where_the_members_allow_it() {
         let devices = [0, 1].map(|index| CubeDevice::Cuda(CudaDevice { index }));
-        let tensor = |member: usize, rows: usize| {
+        let tensor = |member: usize, rows: usize, dtype: DType| {
             let device = devices[member].clone();
-            empty_device_contiguous_dtype(
-                device.client(),
-                device,
-                Shape::new([rows, 2]),
-                DType::F32,
+            empty_device_contiguous_dtype(device.client(), device, Shape::new([rows, 2]), dtype)
+        };
+        let members = |order: [usize; 2], rows: [usize; 2], dtype: DType| {
+            let tensors = order.iter().zip(rows);
+            Members::new(
+                tensors
+                    .map(|(member, rows)| tensor(*member, rows, dtype))
+                    .collect(),
             )
         };
-        let forms = |tensors: Vec<CubeTensor>| Members::new(tensors).group.is_some();
 
-        assert!(forms(vec![tensor(0, 2), tensor(1, 2)]));
-        assert!(!forms(vec![tensor(1, 2), tensor(0, 2)]));
-        assert!(!forms(vec![tensor(0, 2), tensor(0, 2)]));
-        assert!(!forms(vec![tensor(0, 2), tensor(1, 3)]));
+        let even = members([0, 1], [2, 2], DType::F32);
+        assert!(even.group.is_some() && even.reducing().is_some());
+        assert!(even.splits_evenly(0) && even.splits_evenly(1));
+        assert!(!members([0, 1], [3, 3], DType::F32).splits_evenly(0));
+
+        let unreduced = members([0, 1], [2, 2], DType::I16);
+        assert!(unreduced.group.is_some() && unreduced.reducing().is_none());
+
+        assert!(members([1, 0], [2, 2], DType::F32).group.is_none());
+        assert!(members([0, 0], [2, 2], DType::F32).group.is_none());
+        assert!(members([0, 1], [2, 3], DType::F32).group.is_none());
     }
 }
