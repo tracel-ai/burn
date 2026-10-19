@@ -1015,11 +1015,8 @@ dependencies = [
  "cubek",
  "divan",
  "num-traits",
- "proc-macro2",
- "quote",
  "rand 0.10.3",
  "serial_test",
- "syn 3.0.6",
 ]
 
 [[package]]

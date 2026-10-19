@@ -14,9 +14,6 @@ version.workspace = true
 [lints]
 workspace = true
 
-[lib]
-proc-macro = true
-
 [features]
 default = [
     "burn-tensor/default",
@@ -86,12 +83,6 @@ burn-flex = { workspace = true, optional = true }
 num-traits = { workspace = true }
 serial_test = { workspace = true }
 rand.workspace = true
-
-# might-panic macro
-proc-macro2 = { workspace = true }
-quote = { workspace = true }
-syn = { workspace = true }
-
 
 [dev-dependencies]
 # Used to initialize device settings (test dtypes)
