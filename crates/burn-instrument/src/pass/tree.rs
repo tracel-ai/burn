@@ -20,7 +20,7 @@ use burn_tensor::Device;
 use cubecl::profile::{ProfileDuration, ProfileTicks, TimingMethod};
 
 use crate::breakdown::{Breakdown, Kernel, Node, Unplaced, Variant};
-use crate::cursor::{Attribution, LaunchCursor};
+use super::cursor::{Attribution, LaunchCursor};
 use crate::row_path::RowPath;
 use crate::{Bounds, Collector, Declaration, ObservedBounds};
 
@@ -725,7 +725,7 @@ impl SharedCollector {
         // thread and the kernels on the runtime's worker, so the tree is
         // written from both. Each kernel lands under the attribution of the
         // thread that issued it — see `LaunchCursor`.
-        let watching = crate::observer::watch_launches(&self);
+        let watching = super::observer::watch_launches(&self);
         let collecting = crate::collect(Box::new(self.handle()));
         pass();
         core::mem::drop(collecting);
@@ -752,7 +752,7 @@ impl Collector for SharedCollector {
     }
 }
 
-/// What the launch observer hands over. See [`crate::observer`].
+/// What the launch observer hands over. See [`super::observer`].
 impl SharedCollector {
     /// A kernel was issued. See [`TreeCollector::record_kernel`].
     pub(crate) fn record_kernel(&self, kernel: &str) {

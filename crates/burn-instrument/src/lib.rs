@@ -54,14 +54,10 @@ mod label;
 
 #[cfg(feature = "std")]
 mod breakdown;
-#[cfg(feature = "cubecl")]
-mod cursor;
-#[cfg(feature = "cubecl")]
-mod observer;
 #[cfg(feature = "std")]
 mod row_path;
 #[cfg(feature = "cubecl")]
-mod tree;
+mod pass;
 
 #[cfg(all(test, feature = "std"))]
 mod recording;
@@ -79,6 +75,6 @@ pub use breakdown::{
 #[cfg(feature = "std")]
 pub use row_path::RowPath;
 #[cfg(feature = "cubecl")]
-pub use tree::SharedCollector;
+pub use pass::SharedCollector;
 
 pub use burn_instrument_macros::compute;

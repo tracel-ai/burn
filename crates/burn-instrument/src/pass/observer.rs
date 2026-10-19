@@ -5,7 +5,7 @@
 //! and hands each launch straight to it, which records it under that thread's
 //! own attribution — moved in step with the ops the thread runs, and inside a
 //! fusion block set to the components whose work the block carries out, with
-//! nothing drained to make it so → [`LaunchCursor`](crate::cursor::LaunchCursor).
+//! nothing drained to make it so → [`LaunchCursor`](super::cursor::LaunchCursor).
 //!
 //! The runtime's slot is process-wide, and it has to be: a launch does not
 //! arrive on the thread that entered the components — burn's fusion processes a
@@ -27,7 +27,7 @@
 //! operation it registers, and every block of them it runs. The collector maps
 //! each operation to the component that registered it and, while a block
 //! runs, records its launches under the closest component containing all of
-//! them — see [`TreeCollector::block_starts`](crate::tree::TreeCollector::block_starts). A
+//! them — see [`TreeCollector::block_starts`](super::tree::TreeCollector::block_starts). A
 //! `Drop` is left out: it is registered by whoever let the tensor go, which
 //! says nothing about the work, and fused into a block it would widen it to a
 //! parent that did none of it.
@@ -39,7 +39,7 @@ use cubecl::logging::{
     Duration, LaunchObservation, LaunchObserver, ProfileDuration, TimingMethod, TimingRequest,
 };
 
-use crate::tree::SharedCollector;
+use super::tree::SharedCollector;
 
 /// Hands every launch, and what it took, to one collector.
 struct ToCollector(SharedCollector);
