@@ -40,18 +40,11 @@ impl PassCollector {
         // thread and the kernels and fusion blocks on whichever thread runs
         // them, so the tree is written from both. Each kernel lands under the
         // attribution of the thread that issued it — see `LaunchCursor`.
-        let collector = Arc::new(self.0);
-        let watching = Watching::new(&collector);
-        let observation = ComponentObservation::new(Box::new(Arc::clone(&collector)));
+        let recorder = Arc::new(self.0);
+        let watching = Watching::new(&recorder);
+        let observation = ComponentObservation::new(Box::new(Arc::clone(&recorder)));
         pass();
         drop(observation);
-        // While the kernels are still being watched: the pass's last fused
-        // segment is still queued, and it runs at the next sync. Every
-        // measurement the pass kept is read back there too.
-        collector.finish();
-        drop(watching);
-        // Unwatched, since reading the values back launches kernels too.
-        collector.price_observed();
-        collector.breakdown()
+        recorder.finish(watching)
     }
 }

@@ -22,9 +22,8 @@
 //! The recorder watches the fusion server too: every operation it registers,
 //! and every block of them it runs. It maps each operation to the component
 //! that registered it and, while a block runs, records its launches where
-//! [`BlockOrigin`] places them. A `Drop` is left out: it is registered by
-//! whoever let the tensor go, which says nothing about the work, and fused
-//! into a block it would widen it to a parent that did none of it.
+//! [`BlockOrigin`] places them. Which operations count is
+//! [`OperationId::new`]'s to say.
 
 use std::sync::{Mutex, MutexGuard};
 use std::time::{Duration, Instant};
@@ -37,8 +36,9 @@ use cubecl::profile::{ProfileDuration, TimingMethod};
 
 use super::component_tree::{ComponentTree, RowId};
 use super::cursor::{Attribution, LaunchCursor};
-use super::origins::{BlockOrigin, OperationOrigins};
+use super::origins::{BlockOrigin, OperationId, OperationOrigins};
 use super::timing::{Kept, Measured, Timeline, Timings};
+use super::watching::Watching;
 use crate::breakdown::Breakdown;
 use crate::{Bounds, ComponentObserver, Declaration, ObservedBounds};
 
@@ -111,8 +111,27 @@ impl PassRecorder {
         }
     }
 
-    /// End the pass: run the fused work still queued, under a row of its own,
-    /// stop attributing, and read back every measurement the pass kept.
+    /// End the pass and say what it left behind.
+    ///
+    /// In this order, which is what makes the breakdown the pass's alone: the
+    /// work still queued runs while the launches are watched, so it is
+    /// counted; the observers come out, with `watching`; and only then are
+    /// observed values read back, since reading them launches kernels of its
+    /// own that no row did.
+    ///
+    /// # Panics
+    ///
+    /// If the device stops answering, if the work producing an observed value
+    /// failed, or if a component is still open.
+    pub(crate) fn finish(&self, watching: Watching) -> Breakdown {
+        self.run_end_of_pass();
+        drop(watching);
+        self.price_observed();
+        self.breakdown()
+    }
+
+    /// Run the fused work still queued, under a row of its own, stop
+    /// attributing, and read back every measurement the pass kept.
     ///
     /// A fused segment runs when an op seals it, and the pass's last one has
     /// no op after it — the output is returned unread — so its kernels would
@@ -131,7 +150,7 @@ impl PassRecorder {
     /// # Panics
     ///
     /// If the device stops answering.
-    pub(crate) fn finish(&self) {
+    fn run_end_of_pass(&self) {
         self.cursor.point_at(Attribution::EndOfPass);
         self.device
             .sync()
@@ -158,7 +177,7 @@ impl PassRecorder {
     /// # Panics
     ///
     /// If the work producing an observed value failed.
-    pub(crate) fn price_observed(&self) {
+    fn price_observed(&self) {
         let unpriced = std::mem::take(&mut self.locked().unpriced);
         // Priced outside the lock: each reads its values back.
         let priced: Vec<(RowId, Bounds)> = unpriced
@@ -171,14 +190,13 @@ impl PassRecorder {
         }
     }
 
-    /// What the pass left behind, once [`finish`](Self::finish) has read it
-    /// all back.
+    /// What the pass left behind.
     ///
     /// # Panics
     ///
     /// If a component is still open — a tree read mid-pass is missing the
     /// kernels its open components have yet to launch.
-    pub(crate) fn breakdown(&self) -> Breakdown {
+    fn breakdown(&self) -> Breakdown {
         let state = self.locked();
         state
             .tree
@@ -262,9 +280,9 @@ impl FusionObserver for PassRecorder {
     /// the one that registered it, since the cursor moves in the same queue
     /// the operations do.
     fn registered(&self, operation: &OperationIr) {
-        if let Some(key) = operation_key(operation) {
+        if let Some(operation) = OperationId::new(operation) {
             let origin = LaunchCursor::current();
-            self.locked().origins.record(key, origin);
+            self.locked().origins.record(operation, origin);
         }
     }
 
@@ -274,10 +292,13 @@ impl FusionObserver for PassRecorder {
     fn block_starts(&self, operations: BlockOperations<'_>) {
         let placement = {
             let state = self.locked();
-            BlockOrigin::new(&state.origins, operations.iter().filter_map(operation_key))
-                .placement(&state.tree)
+            BlockOrigin::new(
+                &state.origins,
+                operations.iter().filter_map(OperationId::new),
+            )
+            .placement(&state.tree)
         };
-        LaunchCursor::enter_block(placement.unwrap_or_else(LaunchCursor::placement));
+        LaunchCursor::enter_block(placement);
     }
 
     fn block_ran(&self) {
@@ -313,16 +334,6 @@ impl State {
             // shrink.
             self.timings.unplace(duration);
         }
-    }
-}
-
-/// What an operation is known by: its first output, fresh for every operation
-/// the server registers. `None` for a `Drop` — see the module docs — and for
-/// the few operations that write no tensor.
-fn operation_key(operation: &OperationIr) -> Option<u64> {
-    match operation {
-        OperationIr::Drop(_) => None,
-        operation => operation.outputs().next().map(|output| output.id.value()),
     }
 }
 
@@ -398,7 +409,7 @@ mod tests {
             "nothing is read back while the pass runs"
         );
 
-        recorder.finish();
+        recorder.run_end_of_pass();
         let breakdown = recorder.breakdown();
         assert_eq!(breakdown.tree[0].own_time(), Duration::from_micros(13));
         assert_eq!(breakdown.tree[1].own_time(), Duration::from_micros(5));
@@ -465,7 +476,7 @@ mod tests {
     #[test]
     fn finishing_stops_attributing() {
         let recorder = recorder();
-        recorder.finish();
+        recorder.run_end_of_pass();
         assert_eq!(LaunchCursor::current(), Attribution::Untagged);
     }
 

@@ -11,16 +11,41 @@
 
 use std::collections::HashMap;
 
+use burn_ir::OperationIr;
+
 use super::component_tree::{ComponentTree, RowId};
 use super::cursor::{Attribution, Placement};
 
-/// The component each operation came from, by its first output's id.
+/// An operation the fusion server registered, known by its first output: fresh
+/// for every operation the server registers.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub(crate) struct OperationId(u64);
+
+impl OperationId {
+    /// The id of `operation`, or `None` for a `Drop` and for the few
+    /// operations that write no tensor.
+    ///
+    /// A `Drop` is left out: it is registered by whoever let the tensor go,
+    /// which says nothing about the work, and fused into a block it would widen
+    /// it to a parent that did none of it.
+    pub(crate) fn new(operation: &OperationIr) -> Option<Self> {
+        match operation {
+            OperationIr::Drop(_) => None,
+            operation => operation
+                .outputs()
+                .next()
+                .map(|output| Self(output.id.value())),
+        }
+    }
+}
+
+/// The component each operation came from.
 #[derive(Default)]
-pub(crate) struct OperationOrigins(HashMap<u64, Attribution>);
+pub(crate) struct OperationOrigins(HashMap<OperationId, Attribution>);
 
 impl OperationOrigins {
     /// `operation` was registered under `origin`.
-    pub(crate) fn record(&mut self, operation: u64, origin: Attribution) {
+    pub(crate) fn record(&mut self, operation: OperationId, origin: Attribution) {
         self.0.insert(operation, origin);
     }
 
@@ -46,7 +71,10 @@ pub(crate) enum BlockOrigin {
 
 impl BlockOrigin {
     /// What the block running `operations` carries out.
-    pub(crate) fn new(origins: &OperationOrigins, operations: impl Iterator<Item = u64>) -> Self {
+    pub(crate) fn new(
+        origins: &OperationOrigins,
+        operations: impl Iterator<Item = OperationId>,
+    ) -> Self {
         let mut components: Vec<RowId> = Vec::new();
         let mut outside = false;
         let mut seen = false;
@@ -131,7 +159,7 @@ mod tests {
         let origins = origins([(1, norm), (2, query)]);
 
         assert_eq!(
-            BlockOrigin::new(&origins, [1, 2].into_iter()).placement(&components),
+            BlockOrigin::new(&origins, [1, 2].map(OperationId).into_iter()).placement(&components),
             Some(Placement {
                 attribution: block,
                 span: vec![row(norm), row(query)],
@@ -151,7 +179,7 @@ mod tests {
         let origins = origins([(7, norm)]);
 
         assert_eq!(
-            BlockOrigin::new(&origins, [7].into_iter()).placement(&components),
+            BlockOrigin::new(&origins, [7].map(OperationId).into_iter()).placement(&components),
             Some(Placement::at(norm)),
             "one component's work, so it names none"
         );
@@ -166,7 +194,7 @@ mod tests {
         let origins = origins([(1, Attribution::Untagged), (2, inner)]);
 
         assert_eq!(
-            BlockOrigin::new(&origins, [1, 2].into_iter()).placement(&components),
+            BlockOrigin::new(&origins, [1, 2].map(OperationId).into_iter()).placement(&components),
             Some(Placement {
                 attribution: Attribution::Untagged,
                 span: vec![row(inner)],
@@ -187,7 +215,7 @@ mod tests {
         let origins = origins([(1, forward), (2, backward)]);
 
         assert_eq!(
-            BlockOrigin::new(&origins, [1, 2].into_iter()).placement(&components),
+            BlockOrigin::new(&origins, [1, 2].map(OperationId).into_iter()).placement(&components),
             Some(Placement {
                 attribution: Attribution::Untagged,
                 span: vec![row(forward), row(backward)],
@@ -203,7 +231,7 @@ mod tests {
         let origins = OperationOrigins::default();
 
         assert_eq!(
-            BlockOrigin::new(&origins, [3].into_iter()),
+            BlockOrigin::new(&origins, [3].map(OperationId).into_iter()),
             BlockOrigin::Unseen
         );
         assert_eq!(
@@ -216,7 +244,7 @@ mod tests {
     fn origins<const N: usize>(registered: [(u64, Attribution); N]) -> OperationOrigins {
         let mut origins = OperationOrigins::default();
         for (operation, origin) in registered {
-            origins.record(operation, origin);
+            origins.record(OperationId(operation), origin);
         }
         origins
     }

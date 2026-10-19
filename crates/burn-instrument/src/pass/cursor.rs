@@ -143,24 +143,22 @@ impl LaunchCursor {
         PLACEMENT.with(|placement| placement.borrow().attribution)
     }
 
-    /// Where a launch issued on the calling thread lands.
-    pub(crate) fn placement() -> Placement {
-        Self::with_placement(Placement::clone)
-    }
-
-    /// Read where a launch issued on the calling thread lands, without the
-    /// copy [`placement`](Self::placement) makes: every launch reads it.
+    /// Read where a launch issued on the calling thread lands. Lent rather
+    /// than copied: every launch reads it.
     pub(crate) fn with_placement<R>(read: impl FnOnce(&Placement) -> R) -> R {
         PLACEMENT.with(|placement| read(&placement.borrow()))
     }
 
     /// For as long as a block runs on the calling thread, land its launches
-    /// at `placement`.
+    /// at `placement`, or, for `None`, where they land now.
     ///
     /// The calling thread's alone: a block runs on the thread that entered
     /// it, and nothing else in the process launches its kernels.
-    pub(crate) fn enter_block(placement: Placement) {
-        let replaced = PLACEMENT.with(|current| current.replace(placement));
+    pub(crate) fn enter_block(placement: Option<Placement>) {
+        let replaced = PLACEMENT.with(|current| match placement {
+            Some(placement) => current.replace(placement),
+            None => current.borrow().clone(),
+        });
         OUTER.with(|outer| outer.borrow_mut().push(replaced));
     }
 
@@ -270,18 +268,18 @@ mod tests {
             attribution: fused,
             span: vec![row(first), row(second)],
         };
-        LaunchCursor::enter_block(fused.clone());
-        assert_eq!(LaunchCursor::placement(), fused);
+        LaunchCursor::enter_block(Some(fused.clone()));
+        assert_eq!(placement(), fused);
 
         let fallback = Placement::at(fallback);
-        LaunchCursor::enter_block(fallback.clone());
-        assert_eq!(LaunchCursor::placement(), fallback);
+        LaunchCursor::enter_block(Some(fallback.clone()));
+        assert_eq!(placement(), fallback);
         LaunchCursor::leave_block();
 
-        assert_eq!(LaunchCursor::placement(), fused);
+        assert_eq!(placement(), fused);
         LaunchCursor::leave_block();
 
-        assert_eq!(LaunchCursor::placement(), Placement::at(outer));
+        assert_eq!(placement(), Placement::at(outer));
     }
 
     /// Without a worker the calling thread is the only one launching, and its
@@ -317,5 +315,9 @@ mod tests {
             Attribution::Component(row) => row,
             Attribution::Untagged | Attribution::EndOfPass => unreachable!("a row"),
         }
+    }
+
+    fn placement() -> Placement {
+        LaunchCursor::with_placement(Placement::clone)
     }
 }
