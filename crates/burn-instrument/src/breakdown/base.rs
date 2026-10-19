@@ -114,7 +114,8 @@ impl Breakdown {
     ///
     /// Asked of the kernels rather than inferred from a zero: a component that
     /// registered no device work — views and reshapes — also has no kernel, and
-    /// its zero is its time.
+    /// its zero is its time; and a row whose own kernels lost their timings
+    /// also reads zero, though it ran them.
     pub fn fused_elsewhere(&self) -> Vec<&Row> {
         fn visit<'a>(
             breakdown: &'a Breakdown,
@@ -151,7 +152,8 @@ impl Breakdown {
                 .iter()
                 .chain(&breakdown.end_of_pass)
                 .any(|kernel| kernel.fuses.contains(&path));
-            if node.total_time().is_zero() && (named_above || named_outside) {
+            let ran_nothing = node.walk().iter().all(|(_, row)| row.kernels.is_empty());
+            if ran_nothing && (named_above || named_outside) {
                 out.push(node);
             }
             ancestors.push(node);
@@ -445,5 +447,56 @@ mod tests {
         assert_eq!(parts.bytes(), 140);
         let own = node.bounds.unwrap();
         assert!(own.moves_within(parts) && own.bytes() < parts.bytes());
+    }
+
+    /// A row is fused elsewhere only when it ran no kernel of its own: one
+    /// whose kernels lost their timings reads zero too, and setting its floor
+    /// aside would hide the work it did.
+    #[test]
+    fn a_row_fused_elsewhere_ran_no_kernel_of_its_own() {
+        let kernel = |name: &str, total: u64, fuses: &[&str]| Kernel {
+            name: name.to_string(),
+            launches: 1,
+            total: Duration::from_nanos(total),
+            fuses: fuses.iter().map(|label| RowPath::new([*label])).collect(),
+            fuses_own: false,
+        };
+        let leaf = |label: &str, kernels: Vec<Kernel>| Row {
+            label: label.to_string(),
+            variants: Vec::new(),
+            sites: Vec::new(),
+            bounds: None,
+            observed: None,
+            entries: 1,
+            children: Vec::new(),
+            kernels,
+            own_wait: Duration::ZERO,
+        };
+        let block = Row {
+            children: vec![
+                leaf("norm", Vec::new()),
+                // Ran a kernel of its own whose timing was lost.
+                leaf("query", vec![kernel("Matmul", 0, &[])]),
+            ],
+            kernels: vec![kernel("ElemwiseMatmul", 10, &["norm", "query"])],
+            ..leaf("block", Vec::new())
+        };
+        let breakdown = Breakdown {
+            tree: vec![block],
+            untagged: Vec::new(),
+            end_of_pass: Vec::new(),
+            outside_wait: Duration::ZERO,
+            host_timed: false,
+            timed_alone: false,
+            unplaced: Unplaced::default(),
+            unfused: false,
+        };
+
+        let fused: Vec<&str> = breakdown
+            .fused_elsewhere()
+            .iter()
+            .map(|row| row.label.as_str())
+            .collect();
+        assert_eq!(fused, ["norm"]);
     }
 }
