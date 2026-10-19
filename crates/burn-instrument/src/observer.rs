@@ -212,11 +212,15 @@ mod tests {
     use super::*;
     use crate::observed::installed;
 
+    /// A thread no observer was installed on is not observed, so annotated methods take the one-read
+    /// path.
     #[test]
     fn nothing_is_observed_until_an_observer_is_installed() {
         assert!(observing().is_none());
     }
 
+    /// A tag closes when its guard drops, so children close before their parent and an early return
+    /// cannot leave one open.
     #[test]
     fn a_tag_closes_when_its_guard_drops() {
         let (seen, _observation) = installed();
@@ -248,6 +252,8 @@ mod tests {
         );
     }
 
+    /// Observed traffic reaches the observer between the entry and exit of the component that
+    /// observed it, which is how the observer knows whose it is.
     #[test]
     fn observed_traffic_reaches_the_observer_under_the_open_component() {
         let (seen, _observation) = installed();
@@ -270,6 +276,8 @@ mod tests {
         assert_eq!(seen.events(), ["+experts:-:-", "?9", "-"]);
     }
 
+    /// Dropping the observation stops observing the thread, so a pass that panicked cannot leave it
+    /// observed by an observer nobody holds.
     #[test]
     fn dropping_the_guard_stops_observing() {
         {
@@ -282,6 +290,8 @@ mod tests {
         );
     }
 
+    /// An observation inside another hands the thread back to the outer one when it ends, so the
+    /// outer observer still sees the tags it opened close.
     #[test]
     fn a_nested_observation_hands_the_thread_back_to_the_outer_one() {
         let declared = |label| Declaration {
@@ -316,6 +326,8 @@ mod tests {
         );
     }
 
+    /// An observation belongs to its thread: one starting or ending elsewhere neither observes this
+    /// thread nor stops its own observation.
     #[test]
     fn an_observation_on_another_thread_neither_starts_nor_stops_this_one() {
         let (mine, _observation) = installed();

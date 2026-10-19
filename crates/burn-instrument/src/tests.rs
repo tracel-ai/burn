@@ -123,6 +123,8 @@ impl MixerStack {
     }
 }
 
+/// An annotated forward with no arguments is a row named for its type, priced by its bounds
+/// function, and computes what its body computes.
 #[test]
 fn a_forward_with_no_label_is_a_row_named_for_its_type() {
     let (seen, observation) = installed();
@@ -133,6 +135,8 @@ fn a_forward_with_no_label_is_a_row_named_for_its_type() {
     assert_eq!(seen.events(), ["+mixer:-:28", "-"]);
 }
 
+/// A `mut` parameter stays the body's to mutate, with nothing left for the expansion to warn
+/// about.
 #[test]
 fn a_mut_parameter_is_the_bodys_to_mutate() {
     let seen = entered(|| {
@@ -142,6 +146,7 @@ fn a_mut_parameter_is_the_bodys_to_mutate() {
     assert_eq!(seen.events(), ["+accumulate:-:-", "-"]);
 }
 
+/// A component's forward can be a trait method, the shape most models' layers take.
 #[test]
 fn a_trait_method_can_be_a_component() {
     let seen = entered(|| {
@@ -151,6 +156,7 @@ fn a_trait_method_can_be_a_component() {
     assert_eq!(seen.events(), ["+step:-:-", "-"]);
 }
 
+/// A label and a variant written in the attribute are what the entry declares.
 #[test]
 fn a_label_and_a_variant_are_what_the_row_declares() {
     let seen = entered(|| {
@@ -171,6 +177,8 @@ fn a_floor_can_be_the_call_that_computes_it() {
     assert_eq!(seen.events(), ["+mix:-:56", "-"]);
 }
 
+/// A label can come from an argument the body never reads, so a caller can name the role
+/// without the body warning about it.
 #[test]
 fn a_row_can_be_named_by_an_argument_the_body_ignores() {
     let mixer = Mixer { scale: 3 };
@@ -212,6 +220,8 @@ fn a_row_fed_from_two_places_records_both_sites() {
     assert_eq!(entries, ["taps", "taps_at"]);
 }
 
+/// A site is recorded once however many times it is entered: what a reader acts on is which
+/// places fed a row.
 #[test]
 fn a_site_entered_repeatedly_is_recorded_once() {
     let mixer = Mixer { scale: 3 };
@@ -225,6 +235,8 @@ fn a_site_entered_repeatedly_is_recorded_once() {
     assert_eq!(seen.sites("conv taps").len(), 1, "of one site");
 }
 
+/// Nesting follows composition: a forward that calls its child's forward is its parent, with
+/// nothing declaring the tree.
 #[test]
 fn a_child_nests_under_whoever_called_it() {
     let stack = MixerStack {
@@ -237,6 +249,8 @@ fn a_child_nests_under_whoever_called_it() {
     assert_eq!(seen.events(), ["+mixer stack:-:-", "+mixer:-:28", "-", "-"]);
 }
 
+/// With no observer installed, an annotated forward records nothing and computes what its body
+/// computes: the annotation costs a production pass nothing it would notice.
 #[test]
 fn an_unobserved_forward_records_nothing_and_computes_the_same() {
     let seen = entered(|| {});

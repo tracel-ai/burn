@@ -134,6 +134,8 @@ mod tests {
         assert!(parts.moves_within(parts), "the relation is not strict");
     }
 
+    /// Bounds sum per direction, which is what lets a composite's parts be compared with it read
+    /// for read and write for write.
     #[test]
     fn bounds_add_per_direction() {
         let parts = [

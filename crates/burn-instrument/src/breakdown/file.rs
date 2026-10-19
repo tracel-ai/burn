@@ -103,6 +103,8 @@ mod tests {
     use crate::breakdown::{Kernel, Row, Unplaced, Variant};
     use crate::{Bounds, RowPath};
 
+    /// A breakdown written and read back is the breakdown that was written, so one collected on a
+    /// device can be read on a machine without it.
     #[test]
     fn a_written_breakdown_reads_back_unchanged() {
         let breakdown = breakdown();
@@ -169,6 +171,8 @@ mod tests {
         assert_eq!(written(&breakdown()), expected);
     }
 
+    /// A file of another version is refused by its header, before contents this build may not know
+    /// how to decode.
     #[test]
     fn another_version_is_refused_before_its_contents_are_decoded() {
         let file = r#"{"format": "burn-instrument breakdown", "version": 2, "breakdown": "?"}"#;
@@ -181,6 +185,7 @@ mod tests {
         ));
     }
 
+    /// A file that is not a breakdown is refused by its header rather than misread as one.
     #[test]
     fn another_format_is_refused() {
         let file = r#"{"format": "something else", "version": 1}"#;

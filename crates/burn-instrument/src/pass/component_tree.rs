@@ -412,6 +412,8 @@ impl KernelCounter {
 mod tests {
     use super::*;
 
+    /// Three layers are one row entered three times, not three rows: a 36-layer stack would
+    /// otherwise print 36 identical subtrees.
     #[test]
     fn a_repeated_component_is_one_row_entered_many_times() {
         let mut components = ComponentTree::default();
@@ -422,14 +424,14 @@ mod tests {
             components.exit();
         }
 
-        // Three layers are one row entered three times, not three rows: a
-        // 36-layer stack would otherwise print 36 identical subtrees.
         assert_eq!(
             labels(&finished(&components).tree),
             ["blockx3", "  attentionx3"]
         );
     }
 
+    /// Merging is keyed on the label, so a row that routed two ways is still one row, with a
+    /// histogram saying how the entries split, in the order the executions were first seen.
     #[test]
     fn one_row_records_every_execution_that_served_it() {
         let mut components = ComponentTree::default();
@@ -442,9 +444,6 @@ mod tests {
         }
 
         let tree = finished(&components).tree;
-        // Merging is keyed on the label, so a row that routed two ways is still
-        // one row — with a histogram saying how the entries split, in the order
-        // the executions were first seen.
         assert_eq!(labels(&tree), ["attention corex4"]);
         assert_eq!(
             tree[0]
@@ -456,17 +455,18 @@ mod tests {
         );
     }
 
+    /// Most rows have no execution to choose between, and an empty histogram is what lets a table
+    /// print nothing rather than a placeholder.
     #[test]
     fn a_row_that_declares_no_variant_carries_none() {
         let mut components = ComponentTree::default();
         components.enter(declared("out proj"));
         components.exit();
 
-        // Most rows have no execution to choose between, and an empty histogram
-        // is what lets the table print nothing rather than a placeholder.
         assert!(finished(&components).tree[0].variants.is_empty());
     }
 
+    /// A breakdown reads in the order the pass ran, not alphabetically.
     #[test]
     fn siblings_keep_first_seen_order() {
         let mut components = ComponentTree::default();
@@ -490,6 +490,8 @@ mod tests {
         );
     }
 
+    /// A pass may enter several components at top level — an embedding, a stack, a head — and each
+    /// is a root.
     #[test]
     fn a_pass_may_enter_several_components_at_top_level() {
         let mut components = ComponentTree::default();
@@ -531,6 +533,8 @@ mod tests {
 
     /// One site entered many times is one site: what a reader acts on is
     /// *which* places fed a row, and a count would repeat the entry count.
+    /// A site is recorded once however many times it is entered: what a reader acts on is which
+    /// places fed a row.
     #[test]
     fn a_site_entered_repeatedly_is_recorded_once() {
         let mut components = ComponentTree::default();
@@ -544,6 +548,8 @@ mod tests {
         assert_eq!(tree[0].sites, ["test::forward"]);
     }
 
+    /// A component is legally entered at several shapes in one pass, so its row accounts for all of
+    /// them rather than asserting they agreed.
     #[test]
     fn bounds_sum_across_entries() {
         let mut components = ComponentTree::default();
@@ -558,8 +564,6 @@ mod tests {
             });
             components.exit();
         }
-        // A component is legally entered at several shapes in one pass, so the
-        // row accounts for all of them rather than asserting they agreed.
         assert_eq!(
             finished(&components).tree[0].bounds,
             Some(Bounds {
@@ -570,6 +574,7 @@ mod tests {
         );
     }
 
+    /// A component that declares no floor has none, rather than a zero no kernel can meet.
     #[test]
     fn a_component_without_bounds_reports_none() {
         let mut components = ComponentTree::default();
@@ -582,6 +587,8 @@ mod tests {
         );
     }
 
+    /// Reading the tree with a component still open is a bug, not a partial result: the open
+    /// component has kernels yet to launch.
     #[test]
     fn a_tree_read_mid_pass_is_a_bug_not_a_partial_result() {
         let mut components = ComponentTree::default();

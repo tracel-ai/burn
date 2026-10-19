@@ -66,6 +66,8 @@ fn words(name: &str) -> String {
 mod tests {
     use super::*;
 
+    /// A row is named for its type, not its path or its backend: `Linear<Cuda>` and
+    /// `Linear<Wgpu>` are one component, and a module path would make every label unreadable.
     #[test]
     fn a_type_label_is_the_name_without_its_path_or_generics() {
         struct Attention;
@@ -75,6 +77,7 @@ mod tests {
         assert_eq!(type_label::<Linear<u32>>(), "Linear");
     }
 
+    /// An unnamed component reads as a role in a table, the way a hand-written label would.
     #[test]
     fn a_role_label_is_the_type_name_as_words() {
         struct Attention;
@@ -88,6 +91,7 @@ mod tests {
         assert_eq!(role_label::<GatedDeltaNet>(), "gated delta net");
     }
 
+    /// An acronym stays one word: `KVCache` split at every capital would read `k v cache`.
     #[test]
     fn a_run_of_capitals_is_one_word() {
         assert_eq!(words("KVCache"), "kv cache");

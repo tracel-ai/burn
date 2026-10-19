@@ -391,6 +391,8 @@ mod nanoseconds {
 mod tests {
     use super::*;
 
+    /// A composite's parts move more than the whole, and must: the difference is the intermediate a
+    /// perfect fuser never lands, which is the rung of the ladder only fusion recovers.
     #[test]
     fn a_composites_parts_are_summed_for_the_fusion_rung() {
         let node = Row {
@@ -439,8 +441,6 @@ mod tests {
             kernels: Vec::new(),
             own_wait: Duration::ZERO,
         };
-        // The parts move more than the whole, and must: the difference is the
-        // intermediate a perfect fuser never lands.
         let parts = node.parts_bounds().expect("both children declared one");
         assert_eq!(parts.bytes(), 140);
         let own = node.bounds.unwrap();
