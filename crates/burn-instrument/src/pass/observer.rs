@@ -1,9 +1,9 @@
-//! Forwarding the compute runtime's kernel launches into the component tree.
+//! The collector as the runtimes' observer: every kernel launch, and every
+//! operation and block the fusion server runs.
 //!
 //! The runtime calls a [`LaunchObserver`] synchronously, on the thread that
-//! issued the launch, before it is submitted. The observer holds the collector
-//! and hands each launch straight to it, which records it under that thread's
-//! own attribution — moved in step with the ops the thread runs, and inside a
+//! issued the launch, before it is submitted. The collector is the observer,
+//! and records each launch under that thread's own attribution — moved in step with the ops the thread runs, and inside a
 //! fusion block set to the components whose work the block carries out, with
 //! nothing drained to make it so → [`LaunchCursor`](super::cursor::LaunchCursor).
 //!
@@ -23,8 +23,8 @@
 //!
 //! # The fusion server says whose work a block is
 //!
-//! A second observer watches the fusion server: every
-//! operation it registers, and every block of them it runs. The collector maps
+//! The collector watches the fusion server too: every operation it registers,
+//! and every block of them it runs. It maps
 //! each operation to the component that registered it and, while a block
 //! runs, records its launches under the closest component containing all of
 //! them — see [`TreeCollector::block_starts`](super::tree::TreeCollector::block_starts). A
