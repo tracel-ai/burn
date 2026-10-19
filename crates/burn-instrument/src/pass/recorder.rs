@@ -28,7 +28,9 @@
 use std::sync::{Mutex, MutexGuard};
 use std::time::{Duration, Instant};
 
+#[cfg(feature = "fusion")]
 use burn_fusion::observer::{BlockOperations, FusionObserver};
+#[cfg(feature = "fusion")]
 use burn_ir::OperationIr;
 use burn_tensor::Device;
 use cubecl::logging::{LaunchObserver, TimingRequest};
@@ -36,6 +38,7 @@ use cubecl::profile::{ProfileDuration, TimingMethod};
 
 use super::component_tree::{ComponentId, ComponentTree};
 use super::cursor::{Attribution, LaunchCursor};
+#[cfg(feature = "fusion")]
 use super::origins::{BlockOrigin, OperationId, OperationOrigins};
 use super::timing::{Kept, Measured, Timeline, Timings};
 use super::watching::Watching;
@@ -82,6 +85,7 @@ struct State {
     tree: ComponentTree,
     timings: Timings,
     /// What a block's operations are mapped back through.
+    #[cfg(feature = "fusion")]
     origins: OperationOrigins,
     /// Observed traffic not yet priced. See [`PassRecorder::price_observed`].
     unpriced: Vec<Unpriced>,
@@ -163,6 +167,7 @@ impl PassRecorder {
         let kept = self.locked().timings.take_kept();
         let measured: Vec<Measured> = kept.into_iter().map(Kept::resolve).collect();
         let mut state = self.locked();
+        #[cfg(feature = "fusion")]
         state.origins.clear();
         state.settle(measured, self.epoch);
     }
@@ -275,6 +280,7 @@ impl LaunchObserver for PassRecorder {
     }
 }
 
+#[cfg(feature = "fusion")]
 impl FusionObserver for PassRecorder {
     /// Recorded under whichever component the server's thread is pointed at —
     /// the one that registered it, since the cursor moves in the same queue

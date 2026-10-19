@@ -24,7 +24,16 @@ impl PassCollector {
     /// If another collector exists in the process. Refused here, before the
     /// device is synced or its fusion worker pointed anywhere: either would
     /// disturb the pass the other is collecting.
+    ///
+    /// If `device` fuses and this crate was built without its `fusion`
+    /// feature: the collector could not see the blocks, and would place every
+    /// fused kernel on whichever component sealed it.
     pub fn new(device: &Device) -> Self {
+        #[cfg(not(feature = "fusion"))]
+        assert!(
+            device.as_dispatch().fusion_worker().is_none(),
+            "the device fuses, so collecting it needs burn-instrument's `fusion` feature"
+        );
         let claim = Claim::take();
         Self {
             recorder: PassRecorder::new(device),

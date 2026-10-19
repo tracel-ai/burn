@@ -90,6 +90,7 @@ thread_local! {
         const { RefCell::new(Placement::at(Attribution::Untagged)) };
     /// What each block this thread is inside replaced, innermost last, so
     /// leaving one restores exactly what entering it overrode.
+    #[cfg(feature = "fusion")]
     static OUTER: RefCell<Vec<Placement>> = const { RefCell::new(Vec::new()) };
 }
 
@@ -154,6 +155,7 @@ impl LaunchCursor {
     ///
     /// The calling thread's alone: a block runs on the thread that entered
     /// it, and nothing else in the process launches its kernels.
+    #[cfg(feature = "fusion")]
     pub fn enter_block(placement: Option<Placement>) {
         let replaced = PLACEMENT.with(|current| match placement {
             Some(placement) => current.replace(placement),
@@ -164,6 +166,7 @@ impl LaunchCursor {
 
     /// The block the calling thread last entered has run: put back what it
     /// replaced.
+    #[cfg(feature = "fusion")]
     pub fn leave_block() {
         if let Some(replaced) = OUTER.with(|outer| outer.borrow_mut().pop()) {
             PLACEMENT.with(|current| *current.borrow_mut() = replaced);
@@ -258,6 +261,7 @@ mod tests {
     /// A block overrides the thread's attribution for as long as it runs and
     /// gives back exactly what it found — nested blocks included, since a
     /// fused kernel can run an unfused fallback inside itself.
+    #[cfg(feature = "fusion")]
     #[test]
     fn a_block_overrides_the_thread_until_it_has_run() {
         let cursor = LaunchCursor { worker: None };
@@ -310,6 +314,7 @@ mod tests {
         })
     }
 
+    #[cfg(feature = "fusion")]
     fn component(attribution: Attribution) -> ComponentId {
         match attribution {
             Attribution::Component(component) => component,
@@ -319,6 +324,7 @@ mod tests {
         }
     }
 
+    #[cfg(feature = "fusion")]
     fn placement() -> Placement {
         LaunchCursor::with_placement(Placement::clone)
     }

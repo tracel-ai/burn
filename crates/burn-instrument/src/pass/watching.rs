@@ -9,6 +9,7 @@
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
+#[cfg(feature = "fusion")]
 use burn_fusion::observer::FusionObservation;
 use cubecl::logging::LaunchObservation;
 
@@ -18,6 +19,7 @@ use super::recorder::PassRecorder;
 /// fusion server's. Both come out when it drops.
 pub struct Watching {
     _launches: LaunchObservation,
+    #[cfg(feature = "fusion")]
     _fusion: FusionObservation,
     /// Last, since fields drop in order: the claim is given up only once both
     /// observers above have been put back, so the next pass to claim it
@@ -37,6 +39,7 @@ impl Watching {
     pub fn new(recorder: &Arc<PassRecorder>, claim: Claim) -> Self {
         Self {
             _launches: LaunchObservation::new(recorder.clone()),
+            #[cfg(feature = "fusion")]
             _fusion: FusionObservation::new(recorder.clone()),
             _claim: claim,
         }

@@ -93,12 +93,7 @@ impl ComponentTree {
 
     /// Add `duration` to the component that counted `kernel`'s launch under
     /// `attribution`, or `false` when no launch of it was counted there.
-    pub fn credit(
-        &mut self,
-        attribution: Attribution,
-        kernel: &str,
-        duration: Duration,
-    ) -> bool {
+    pub fn credit(&mut self, attribution: Attribution, kernel: &str, duration: Duration) -> bool {
         self.kernels(attribution).credit(kernel, duration)
     }
 
@@ -113,6 +108,7 @@ impl ComponentTree {
     /// The closest component every one of `components` sits under, itself included
     /// — where a kernel that carried out all of their work belongs. `None` for
     /// components under different roots, which share no component.
+    #[cfg(feature = "fusion")]
     pub fn common_parent(&self, components: &[ComponentId]) -> Option<ComponentId> {
         let (first, rest) = components.split_first()?;
         let mut common: Vec<ComponentId> = self.ancestors(*first).collect();

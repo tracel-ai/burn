@@ -112,6 +112,7 @@ autotune-checks = [
 fusion = [
     "dep:burn-fusion",
     "burn-tensor/fusion",
+    "burn-instrument/fusion",
     "burn-cpu?/fusion",
     "burn-cuda?/fusion",
     "burn-rocm?/fusion",

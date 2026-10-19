@@ -15,8 +15,8 @@ version.workspace = true
 workspace = true
 
 [features]
-default = ["std", "burn-tensor/default"]
-doc = ["default", "cubecl"]
+default = ["std", "fusion", "burn-tensor/default"]
+doc = ["default", "cubecl", "fusion"]
 std = [
     "burn-tensor/std",
     "dep:serde",
@@ -24,15 +24,20 @@ std = [
     "dep:thiserror",
     "serde/std",
     "serde_json/std",
+    "burn-fusion?/std",
+    "burn-ir?/std",
 ]
-# The collector, which reads a cubecl runtime's launches and, where the device fuses, the fusion
-# server's blocks. The fusion observer is always part of it: whether a pass is fused is the
-# device's call, and a collector that could not see blocks would place fused kernels wrongly.
-cubecl = ["std", "dep:cubecl", "dep:cubecl-common", "dep:burn-fusion", "dep:burn-ir"]
+# The collector, which reads a cubecl runtime's launches.
+cubecl = ["std", "dep:cubecl", "dep:cubecl-common"]
+# The collector also reads the fusion server's blocks, so it can collect a device that fuses.
+# Enabled with `burn-core/fusion`, so a build that cannot fuse does not compile the fusion server
+# for it; a collector built without it refuses a device that fuses rather than place its kernels
+# wrongly.
+fusion = ["dep:burn-fusion", "dep:burn-ir", "burn-tensor/fusion"]
 
 # The collector's integration tests, which need kernels to place. Enable a cubecl runtime
-# separately (e.g. `burn-tensor/wgpu`) and select it with BURN_DEVICE. The runtime fuses by
-# default; build without `default` for the unfused half.
+# separately (e.g. `burn-tensor/wgpu`) and select it with BURN_DEVICE; add `fusion` for the fused
+# half.
 collector-tests = ["cubecl"]
 
 [dependencies]
@@ -43,8 +48,8 @@ serde = { workspace = true, optional = true }
 serde_json = { workspace = true, optional = true }
 thiserror = { workspace = true, optional = true }
 
-burn-fusion = { workspace = true, optional = true, features = ["std"] }
-burn-ir = { workspace = true, optional = true, features = ["std"] }
+burn-fusion = { workspace = true, optional = true }
+burn-ir = { workspace = true, optional = true }
 cubecl = { workspace = true, optional = true, features = ["std"] }
 cubecl-common = { workspace = true, optional = true, features = ["std"] }
 

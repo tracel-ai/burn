@@ -71,10 +71,7 @@ pub enum BlockOrigin {
 
 impl BlockOrigin {
     /// What the block running `operations` carries out.
-    pub fn new(
-        origins: &OperationOrigins,
-        operations: impl Iterator<Item = OperationId>,
-    ) -> Self {
+    pub fn new(origins: &OperationOrigins, operations: impl Iterator<Item = OperationId>) -> Self {
         let mut components: Vec<ComponentId> = Vec::new();
         let mut outside = false;
         let mut seen = false;
