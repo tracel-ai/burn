@@ -1,8 +1,7 @@
 use burn_backend::{
-    DeviceOps,
     cubecl::{dtype_to_elem_type, reduce_operation_to_cubecl},
     distributed::ReduceOperation,
-    ops::{CollectiveOps, TransferCollectives},
+    ops::{CollectiveOps, EmulatedCollectives},
     tensor::{Bool, BoolTensor, Float, FloatTensor, Int, IntTensor},
 };
 use core::cmp::Ordering;
@@ -23,22 +22,16 @@ impl CollectiveOps<Self> for CubeBackend {
         tensors: Vec<FloatTensor<Self>>,
         op: ReduceOperation,
     ) -> Vec<FloatTensor<Self>> {
-        let order = DeviceOrder::new(&tensors);
-        let reduced = match Route::all_reduce(order.sorted(tensors)) {
-            Route::Group(group) => group.all_reduce(op),
-            Route::Transfers(tensors) => {
-                TransferCollectives::<Self, Float>::all_reduce(tensors, op)
-            }
-        };
-        order.restored(reduced)
+        match Plan::all_reduce(tensors) {
+            Plan::Native(group) => group.all_reduce(op),
+            Plan::Emulated(tensors) => EmulatedCollectives::<Self, Float>::all_reduce(tensors, op),
+        }
     }
 
     fn float_all_gather(tensors: Vec<FloatTensor<Self>>, dim: usize) -> Vec<FloatTensor<Self>> {
-        match Route::all_gather(tensors) {
-            Route::Group(group) => group.all_gather(dim),
-            Route::Transfers(tensors) => {
-                TransferCollectives::<Self, Float>::all_gather(tensors, dim)
-            }
+        match Plan::all_gather(tensors) {
+            Plan::Native(group) => group.all_gather(dim),
+            Plan::Emulated(tensors) => EmulatedCollectives::<Self, Float>::all_gather(tensors, dim),
         }
     }
 
@@ -47,10 +40,10 @@ impl CollectiveOps<Self> for CubeBackend {
         dim: usize,
         op: ReduceOperation,
     ) -> Vec<FloatTensor<Self>> {
-        match Route::reduce_scatter(tensors, dim) {
-            Route::Group(group) => group.reduce_scatter(dim, op),
-            Route::Transfers(tensors) => {
-                TransferCollectives::<Self, Float>::reduce_scatter(tensors, dim, op)
+        match Plan::reduce_scatter(tensors, dim) {
+            Plan::Native(group) => group.reduce_scatter(dim, op),
+            Plan::Emulated(tensors) => {
+                EmulatedCollectives::<Self, Float>::reduce_scatter(tensors, dim, op)
             }
         }
     }
@@ -60,27 +53,25 @@ impl CollectiveOps<Self> for CubeBackend {
         split_dim: usize,
         concat_dim: usize,
     ) -> Vec<FloatTensor<Self>> {
-        match Route::all_to_all(tensors, split_dim, concat_dim) {
-            Route::Group(group) => group.all_to_all(split_dim),
-            Route::Transfers(tensors) => {
-                TransferCollectives::<Self, Float>::all_to_all(tensors, split_dim, concat_dim)
+        match Plan::all_to_all(tensors, split_dim, concat_dim) {
+            Plan::Native(group) => group.all_to_all(split_dim),
+            Plan::Emulated(tensors) => {
+                EmulatedCollectives::<Self, Float>::all_to_all(tensors, split_dim, concat_dim)
             }
         }
     }
 
     fn int_all_reduce(tensors: Vec<IntTensor<Self>>, op: ReduceOperation) -> Vec<IntTensor<Self>> {
-        let order = DeviceOrder::new(&tensors);
-        let reduced = match Route::all_reduce(order.sorted(tensors)) {
-            Route::Group(group) => group.all_reduce(op),
-            Route::Transfers(tensors) => TransferCollectives::<Self, Int>::all_reduce(tensors, op),
-        };
-        order.restored(reduced)
+        match Plan::all_reduce(tensors) {
+            Plan::Native(group) => group.all_reduce(op),
+            Plan::Emulated(tensors) => EmulatedCollectives::<Self, Int>::all_reduce(tensors, op),
+        }
     }
 
     fn int_all_gather(tensors: Vec<IntTensor<Self>>, dim: usize) -> Vec<IntTensor<Self>> {
-        match Route::all_gather(tensors) {
-            Route::Group(group) => group.all_gather(dim),
-            Route::Transfers(tensors) => TransferCollectives::<Self, Int>::all_gather(tensors, dim),
+        match Plan::all_gather(tensors) {
+            Plan::Native(group) => group.all_gather(dim),
+            Plan::Emulated(tensors) => EmulatedCollectives::<Self, Int>::all_gather(tensors, dim),
         }
     }
 
@@ -89,10 +80,10 @@ impl CollectiveOps<Self> for CubeBackend {
         dim: usize,
         op: ReduceOperation,
     ) -> Vec<IntTensor<Self>> {
-        match Route::reduce_scatter(tensors, dim) {
-            Route::Group(group) => group.reduce_scatter(dim, op),
-            Route::Transfers(tensors) => {
-                TransferCollectives::<Self, Int>::reduce_scatter(tensors, dim, op)
+        match Plan::reduce_scatter(tensors, dim) {
+            Plan::Native(group) => group.reduce_scatter(dim, op),
+            Plan::Emulated(tensors) => {
+                EmulatedCollectives::<Self, Int>::reduce_scatter(tensors, dim, op)
             }
         }
     }
@@ -102,20 +93,18 @@ impl CollectiveOps<Self> for CubeBackend {
         split_dim: usize,
         concat_dim: usize,
     ) -> Vec<IntTensor<Self>> {
-        match Route::all_to_all(tensors, split_dim, concat_dim) {
-            Route::Group(group) => group.all_to_all(split_dim),
-            Route::Transfers(tensors) => {
-                TransferCollectives::<Self, Int>::all_to_all(tensors, split_dim, concat_dim)
+        match Plan::all_to_all(tensors, split_dim, concat_dim) {
+            Plan::Native(group) => group.all_to_all(split_dim),
+            Plan::Emulated(tensors) => {
+                EmulatedCollectives::<Self, Int>::all_to_all(tensors, split_dim, concat_dim)
             }
         }
     }
 
     fn bool_all_gather(tensors: Vec<BoolTensor<Self>>, dim: usize) -> Vec<BoolTensor<Self>> {
-        match Route::all_gather(tensors) {
-            Route::Group(group) => group.all_gather(dim),
-            Route::Transfers(tensors) => {
-                TransferCollectives::<Self, Bool>::all_gather(tensors, dim)
-            }
+        match Plan::all_gather(tensors) {
+            Plan::Native(group) => group.all_gather(dim),
+            Plan::Emulated(tensors) => EmulatedCollectives::<Self, Bool>::all_gather(tensors, dim),
         }
     }
 
@@ -124,34 +113,28 @@ impl CollectiveOps<Self> for CubeBackend {
         split_dim: usize,
         concat_dim: usize,
     ) -> Vec<BoolTensor<Self>> {
-        match Route::all_to_all(tensors, split_dim, concat_dim) {
-            Route::Group(group) => group.all_to_all(split_dim),
-            Route::Transfers(tensors) => {
-                TransferCollectives::<Self, Bool>::all_to_all(tensors, split_dim, concat_dim)
+        match Plan::all_to_all(tensors, split_dim, concat_dim) {
+            Plan::Native(group) => group.all_to_all(split_dim),
+            Plan::Emulated(tensors) => {
+                EmulatedCollectives::<Self, Bool>::all_to_all(tensors, split_dim, concat_dim)
             }
         }
     }
 }
 
-/// Where a collective over the members runs.
-enum Route {
-    /// Over cubecl's group of the members' devices: NCCL on CUDA.
-    Group(DeviceGroup),
-    /// Built from transfers between devices, slices, concatenations and additions.
-    Transfers(Vec<CubeTensor>),
+/// How a collective over the members runs.
+enum Plan {
+    /// Natively, by cubecl over a group of the members' devices: NCCL on CUDA.
+    Native(NativeGroup),
+    /// Emulated with transfers between devices, slices, concatenations and additions.
+    Emulated(Vec<CubeTensor>),
 }
 
-/// The members' tensors, alike in shape and type, on distinct devices of one runtime with a
-/// transport, in ascending order: what cubecl runs a collective over.
-struct DeviceGroup {
+/// The members' tensors with the cubecl group that runs a collective over them natively: alike
+/// tensors on distinct devices of one runtime with a native collective, in ascending order.
+struct NativeGroup {
     tensors: Vec<CubeTensor>,
     clients: ClientGroup,
-}
-
-/// The order that sorts members by device, as cubecl's groups require, and back. Only an
-/// all-reduce takes it, since only its result is the same in any member order.
-struct DeviceOrder {
-    members: Vec<usize>,
 }
 
 /// A collective's dimension moved first: cubecl cuts and joins whole buffers, which is cutting and
@@ -160,48 +143,47 @@ struct LeadingDim {
     dim: usize,
 }
 
-impl Route {
+impl Plan {
     fn all_reduce(tensors: Vec<CubeTensor>) -> Self {
-        Self::group_if(tensors, DeviceGroup::reduces)
+        Self::native_if(tensors, NativeGroup::reduces)
     }
 
     fn all_gather(tensors: Vec<CubeTensor>) -> Self {
-        Self::group_if(tensors, |_| true)
+        Self::native_if(tensors, |_| true)
     }
 
     fn reduce_scatter(tensors: Vec<CubeTensor>, dim: usize) -> Self {
-        Self::group_if(tensors, |group| group.reduces() && group.splits_evenly(dim))
+        Self::native_if(tensors, |group| group.reduces() && group.splits_evenly(dim))
     }
 
     fn all_to_all(tensors: Vec<CubeTensor>, split_dim: usize, concat_dim: usize) -> Self {
-        // cubecl splits and concatenates along one dimension, so two different ones compose.
-        Self::group_if(tensors, |group| {
+        // cubecl splits and concatenates along one dimension, so two different ones are emulated.
+        Self::native_if(tensors, |group| {
             split_dim == concat_dim && group.splits_evenly(split_dim)
         })
     }
 
-    /// The group, when the members form one and it `runs` the collective.
-    fn group_if(tensors: Vec<CubeTensor>, runs: impl FnOnce(&DeviceGroup) -> bool) -> Self {
-        let Some(clients) = DeviceGroup::clients(&tensors) else {
-            return Self::Transfers(tensors);
-        };
-        let group = DeviceGroup { tensors, clients };
-        match runs(&group) {
-            true => Self::Group(group),
-            false => Self::Transfers(group.tensors),
+    /// Native when the members form a group that `supports` the collective, emulated otherwise.
+    fn native_if(tensors: Vec<CubeTensor>, supports: impl FnOnce(&NativeGroup) -> bool) -> Self {
+        match NativeGroup::new(tensors) {
+            Ok(group) if supports(&group) => Self::Native(group),
+            Ok(group) => Self::Emulated(group.tensors),
+            Err(tensors) => Self::Emulated(tensors),
         }
     }
 }
 
-impl DeviceGroup {
-    /// cubecl's group of the members' devices, when the members hold alike tensors on devices
-    /// it groups.
-    fn clients(tensors: &[CubeTensor]) -> Option<ClientGroup> {
+impl NativeGroup {
+    /// The group over the members' devices, or the tensors back when cubecl cannot group them.
+    fn new(tensors: Vec<CubeTensor>) -> Result<Self, Vec<CubeTensor>> {
         let alike = tensors.windows(2).all(|pair| {
             pair[0].meta.shape() == pair[1].meta.shape() && pair[0].dtype == pair[1].dtype
         });
         let clients = tensors.iter().map(|tensor| tensor.client.clone()).collect();
-        alike.then(|| ClientGroup::new(clients).ok()).flatten()
+        match alike.then(|| ClientGroup::new(clients).ok()).flatten() {
+            Some(clients) => Ok(Self { tensors, clients }),
+            None => Err(tensors),
+        }
     }
 
     fn reduces(&self) -> bool {
@@ -320,33 +302,6 @@ impl DeviceGroup {
     }
 }
 
-impl DeviceOrder {
-    fn new(tensors: &[CubeTensor]) -> Self {
-        let mut members: Vec<usize> = (0..tensors.len()).collect();
-        members.sort_by_key(|member| tensors[*member].device.id());
-        Self { members }
-    }
-
-    fn sorted(&self, tensors: Vec<CubeTensor>) -> Vec<CubeTensor> {
-        let mut tensors: Vec<Option<CubeTensor>> = tensors.into_iter().map(Some).collect();
-        self.members
-            .iter()
-            .map(|member| tensors[*member].take().expect("each member once"))
-            .collect()
-    }
-
-    fn restored(&self, sorted: Vec<CubeTensor>) -> Vec<CubeTensor> {
-        let mut restored: Vec<Option<CubeTensor>> = (0..sorted.len()).map(|_| None).collect();
-        for (member, tensor) in self.members.iter().zip(sorted) {
-            restored[*member] = Some(tensor);
-        }
-        restored
-            .into_iter()
-            .map(|tensor| tensor.expect("each member once"))
-            .collect()
-    }
-}
-
 impl LeadingDim {
     fn new(dim: usize) -> Self {
         Self { dim }
@@ -391,11 +346,12 @@ mod tests {
     use burn_std::Shape;
     use cubecl::cuda::CudaDevice;
 
-    /// NCCL runs only where a group forms, reduces the type and splits evenly; anything else must
-    /// compose, and a route that silently stopped holding would pass every value test.
+    /// A collective runs natively only where a group forms, reduces the type and splits evenly;
+    /// anything else must be emulated, and a plan that silently stopped holding would pass every
+    /// value test.
     #[test]
     #[ignore = "needs two CUDA devices and NCCL"]
-    fn each_collective_routes_over_nccl_only_where_the_members_allow_it() {
+    fn each_collective_runs_natively_only_where_the_members_allow_it() {
         let devices = [0, 1].map(|index| CubeDevice::Cuda(CudaDevice { index }));
         let members = |order: [usize; 2], rows: [usize; 2], dtype: DType| -> Vec<CubeTensor> {
             order
@@ -408,35 +364,32 @@ mod tests {
                 })
                 .collect()
         };
-        let grouped = |route: Route| matches!(route, Route::Group(_));
+        let native = |plan: Plan| matches!(plan, Plan::Native(_));
 
         let even = || members([0, 1], [2, 2], DType::F32);
-        assert!(grouped(Route::all_reduce(even())));
-        assert!(grouped(Route::all_gather(even())));
-        assert!(grouped(Route::reduce_scatter(even(), 0)));
-        assert!(grouped(Route::all_to_all(even(), 1, 1)));
-        assert!(!grouped(Route::all_to_all(even(), 0, 1)));
+        assert!(native(Plan::all_reduce(even())));
+        assert!(native(Plan::all_gather(even())));
+        assert!(native(Plan::reduce_scatter(even(), 0)));
+        assert!(native(Plan::all_to_all(even(), 1, 1)));
+        assert!(!native(Plan::all_to_all(even(), 0, 1)));
 
         let uneven = || members([0, 1], [3, 3], DType::F32);
-        assert!(grouped(Route::all_gather(uneven())));
-        assert!(!grouped(Route::reduce_scatter(uneven(), 0)));
-        assert!(!grouped(Route::all_to_all(uneven(), 0, 0)));
+        assert!(native(Plan::all_gather(uneven())));
+        assert!(!native(Plan::reduce_scatter(uneven(), 0)));
+        assert!(!native(Plan::all_to_all(uneven(), 0, 0)));
 
         let unreduced = || members([0, 1], [2, 2], DType::I16);
-        assert!(grouped(Route::all_gather(unreduced())));
-        assert!(!grouped(Route::all_reduce(unreduced())));
+        assert!(native(Plan::all_gather(unreduced())));
+        assert!(!native(Plan::all_reduce(unreduced())));
 
-        assert!(!grouped(Route::all_gather(members(
-            [1, 0],
-            [2, 2],
-            DType::F32
-        ))));
-        assert!(!grouped(Route::all_gather(members(
+        let descending = members([1, 0], [2, 2], DType::F32);
+        assert!(!native(Plan::all_reduce(descending)));
+        assert!(!native(Plan::all_gather(members(
             [0, 0],
             [2, 2],
             DType::F32
         ))));
-        assert!(!grouped(Route::all_gather(members(
+        assert!(!native(Plan::all_gather(members(
             [0, 1],
             [2, 3],
             DType::F32

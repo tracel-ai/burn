@@ -5,9 +5,9 @@ use core::ops::Range;
 
 use super::*;
 
-/// One device repeated, which every backend composes from transfers, slices and concatenations.
+/// One device repeated, which every backend emulates with transfers, slices and concatenations.
 /// Four rows over three members split unevenly.
-mod composed {
+mod emulated {
     use super::*;
 
     #[test]
@@ -96,7 +96,7 @@ mod composed {
     /// bool moved from Flex to a cubecl device fails in `bool_from_data` before any collective.
     #[cfg(feature = "cube")]
     #[test]
-    fn should_compose_members_on_two_backends() {
+    fn should_emulate_members_on_two_backends() {
         let group = Group {
             devices: vec![Device::default(), Device::flex(), Device::default()],
             ..group()
@@ -159,7 +159,7 @@ mod nccl {
 
     #[test]
     #[serial]
-    fn should_compose_uneven_chunks() {
+    fn should_emulate_uneven_chunks() {
         let Some(mut group) = group() else { return };
         group.rows += 1;
         group.cols += 1;
@@ -221,7 +221,7 @@ mod nccl {
     }
 
     /// Even chunks, so every collective runs over NCCL except broadcast and an all-to-all across
-    /// two dimensions, which compose.
+    /// two dimensions, which are emulated.
     fn group() -> Option<Group> {
         let devices = Device::enumerate(DeviceType::Cuda).into_vec();
         let members = devices.len();

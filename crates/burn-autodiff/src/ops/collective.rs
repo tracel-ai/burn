@@ -8,8 +8,8 @@ use burn_backend::{
 
 use crate::{Autodiff, checkpoint::strategy::CheckpointStrategy};
 
-// Float collectives compose from tracked ops so gradients flow through them; ints and bools carry
-// no gradient, so they run on the inner backend and keep its transport.
+// Float collectives are emulated with tracked ops so gradients flow through them; ints and bools
+// carry no gradient, so they run on the inner backend and keep its native collectives.
 impl<B: Backend, C: CheckpointStrategy> CollectiveOps<Self> for Autodiff<B, C> {
     fn int_all_reduce(tensors: Vec<IntTensor<Self>>, op: ReduceOperation) -> Vec<IntTensor<Self>> {
         B::int_all_reduce(tensors, op)
