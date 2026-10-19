@@ -9,7 +9,7 @@
 //! The same merge puts two *different* jobs under one heading when two entry
 //! points share a label, and the sum reads exactly like one entry point run
 //! twice. So `#[compute]` passes the site — `module_path!()` plus the function —
-//! beside the label, and [`Node::sites`] keeps the distinct ones so a report
+//! beside the label, and [`Row::sites`] keeps the distinct ones so a report
 //! can name a row fed from more than one. A site is a function, not a role: one
 //! function entered at two shapes is one site, and a role its caller knows is
 //! named by an argument instead.
@@ -18,7 +18,7 @@ use std::time::Duration;
 
 use super::cursor::{Attribution, Placement};
 use super::timing::TimingQuality;
-use crate::breakdown::{Breakdown, Kernel, Node, Variant};
+use crate::breakdown::{Breakdown, Kernel, Row, Variant};
 use crate::row_path::RowPath;
 use crate::{Bounds, Declaration};
 
@@ -43,8 +43,8 @@ pub(crate) struct ComponentTree {
     /// last component closed.
     end_of_pass: KernelCounter,
     /// How long the device waited before kernels no component launched — the
-    /// untagged ones and the end of the pass. See [`Node::waited`].
-    waited_outside: Duration,
+    /// untagged ones and the end of the pass. See [`Row::own_wait`].
+    outside_wait: Duration,
 }
 
 /// One row of a [`ComponentTree`], valid in that tree only: minted by
@@ -102,11 +102,11 @@ impl ComponentTree {
         self.kernels(attribution).credit(kernel, duration)
     }
 
-    /// Charge `idle` to the row whose kernel ended it. See [`Node::waited`].
+    /// Charge `idle` to the row whose kernel ended it. See [`Row::own_wait`].
     pub(crate) fn charge_idle(&mut self, attribution: Attribution, idle: Duration) {
         match attribution {
-            Attribution::Component(row) => self.row_mut(row).waited += idle,
-            Attribution::Untagged | Attribution::EndOfPass => self.waited_outside += idle,
+            Attribution::Component(row) => self.row_mut(row).own_wait += idle,
+            Attribution::Untagged | Attribution::EndOfPass => self.outside_wait += idle,
         }
     }
 
@@ -154,10 +154,10 @@ impl ComponentTree {
             "a component is still open: read the tree after the pass, not during it"
         );
         Breakdown {
-            tree: self.roots.iter().map(|root| self.node(*root)).collect(),
+            tree: self.roots.iter().map(|root| self.finished(*root)).collect(),
             untagged: self.kernels_named(&self.untagged, Attribution::Untagged),
             end_of_pass: self.kernels_named(&self.end_of_pass, Attribution::EndOfPass),
-            waited_outside: self.waited_outside,
+            outside_wait: self.outside_wait,
             host_timed: timings.host_timed,
             timed_alone: timings.timed_alone,
             unplaced: timings.unplaced,
@@ -242,19 +242,23 @@ impl ComponentTree {
         counter.kernels(|row| self.path_under(row, under))
     }
 
-    /// The finished node at `row`, and everything under it.
-    fn node(&self, id: RowId) -> Node {
+    /// The finished row at `id`, and everything under it.
+    fn finished(&self, id: RowId) -> Row {
         let row = self.row(id);
-        Node {
+        Row {
             label: row.label.clone(),
             variants: row.variants.clone(),
             sites: row.sites.iter().map(|site| site.to_string()).collect(),
             bounds: row.bounds,
             observed: row.observed,
             entries: row.entries,
-            children: row.children.iter().map(|child| self.node(*child)).collect(),
+            children: row
+                .children
+                .iter()
+                .map(|child| self.finished(*child))
+                .collect(),
             kernels: self.kernels_named(&row.kernels, Attribution::Component(id)),
-            waited: row.waited,
+            own_wait: row.own_wait,
         }
     }
 }
@@ -269,13 +273,13 @@ struct RowRecord {
     /// Distinct call sites that entered this label, in first-seen order.
     sites: Vec<&'static str>,
     bounds: Option<Bounds>,
-    /// See [`Node::observed`].
+    /// See [`Row::observed`].
     observed: Option<Bounds>,
     entries: usize,
     children: Vec<RowId>,
     kernels: KernelCounter,
-    /// See [`Node::waited`].
-    waited: Duration,
+    /// See [`Row::own_wait`].
+    own_wait: Duration,
 }
 
 impl RowRecord {
@@ -292,7 +296,7 @@ impl RowRecord {
             entries: 0,
             children: Vec::new(),
             kernels: KernelCounter::default(),
-            waited: Duration::ZERO,
+            own_wait: Duration::ZERO,
         }
     }
 
@@ -317,7 +321,7 @@ impl RowRecord {
                 }),
             }
         }
-        // Summed across entries — see `Node::bounds`. A component that declared
+        // Summed across entries — see `Row::bounds`. A component that declared
         // them on its first entry and not on a later one keeps the sum of what
         // was declared rather than losing the row's roofline entirely.
         if let Some(bounds) = declared.bounds {
@@ -826,7 +830,7 @@ mod tests {
         fuses.iter().map(ToString::to_string).collect()
     }
 
-    fn labels(nodes: &[Node]) -> Vec<String> {
+    fn labels(nodes: &[Row]) -> Vec<String> {
         nodes
             .iter()
             .flat_map(|node| node.walk())

@@ -30,7 +30,7 @@ pub(crate) struct Timings {
     /// on, and the runtime hands it over on the thread that issued the launch,
     /// inside the same call — so it finds the row its launch was counted on.
     /// Anything else has nowhere to go, nor does a window that comes back with
-    /// no measurement in it, and [`Breakdown::device`](crate::Breakdown::device)
+    /// no measurement in it, and [`Breakdown::total_time`](crate::Breakdown::total_time)
     /// is the denominator of every share, so a silent drop would move every
     /// number read off it. Counted and reported, like a host timing.
     unplaced: Unplaced,

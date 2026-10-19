@@ -18,7 +18,7 @@ use crate::row_path::RowPath;
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Breakdown {
     /// The components the collected pass entered.
-    pub tree: Vec<Node>,
+    pub tree: Vec<Row>,
     /// Kernels the pass launched under no component at all, and fused kernels
     /// that carried out work from outside every component or across two roots,
     /// named for the components they did carry out (see [`Kernel::fuses`]).
@@ -29,9 +29,10 @@ pub struct Breakdown {
     pub end_of_pass: Vec<Kernel>,
     /// How long the device waited on the host before the untagged kernels
     /// and the end of the pass's — the idle time no row is charged with. See
-    /// [`Node::waited`].
-    #[serde(with = "nanoseconds")]
-    pub waited_outside: Duration,
+    /// [`Row::own_wait`].
+    // Stored as `waited_outside`, the key version 1 files carry.
+    #[serde(rename = "waited_outside", with = "nanoseconds")]
+    pub outside_wait: Duration,
     /// Whether any launch was timed on the host rather than the device.
     ///
     /// wgpu budgets its timestamp query sets and falls back to a host timer
@@ -55,7 +56,7 @@ pub struct Breakdown {
     /// Each measurement is kept beside the row that counted its launch and read
     /// back once the pass has run, so this is zero unless a runtime hands one
     /// over somewhere else. Reported rather than assumed, because
-    /// [`device`](Self::device) is the denominator of every apportioned
+    /// [`device`](Self::total_time) is the denominator of every apportioned
     /// millisecond in a report.
     pub unplaced: Unplaced,
     /// Whether the collected pass ran without fusion — no fusion linked, or a
@@ -77,7 +78,7 @@ impl Breakdown {
     pub fn kernels(&self) -> impl Iterator<Item = &Kernel> {
         self.tree
             .iter()
-            .flat_map(Node::walk)
+            .flat_map(Row::walk)
             .flat_map(|(_, node)| &node.kernels)
             .chain(&self.untagged)
             .chain(&self.end_of_pass)
@@ -96,15 +97,15 @@ impl Breakdown {
     }
 
     /// What the device spent on this pass: every kernel, summed.
-    pub fn device(&self) -> Duration {
+    pub fn total_time(&self) -> Duration {
         self.kernels().map(|kernel| kernel.total).sum()
     }
 
     /// How long the device waited on the host across the collected pass,
-    /// between every pair of kernels: what [`Node::waited`] is apportioned
+    /// between every pair of kernels: what [`Row::own_wait`] is apportioned
     /// by.
-    pub fn waited(&self) -> Duration {
-        self.tree.iter().map(Node::waited_total).sum::<Duration>() + self.waited_outside
+    pub fn total_wait(&self) -> Duration {
+        self.tree.iter().map(Row::total_wait).sum::<Duration>() + self.outside_wait
     }
 
     /// The rows whose work all ran in a fused kernel recorded elsewhere: no
@@ -115,12 +116,12 @@ impl Breakdown {
     /// Asked of the kernels rather than inferred from a zero: a component that
     /// registered no device work — views and reshapes — also has no kernel, and
     /// its zero is its time.
-    pub fn fused_elsewhere(&self) -> Vec<&Node> {
+    pub fn fused_elsewhere(&self) -> Vec<&Row> {
         fn visit<'a>(
             breakdown: &'a Breakdown,
-            node: &'a Node,
-            ancestors: &mut Vec<&'a Node>,
-            out: &mut Vec<&'a Node>,
+            node: &'a Row,
+            ancestors: &mut Vec<&'a Row>,
+            out: &mut Vec<&'a Row>,
         ) {
             let named_above = ancestors.iter().enumerate().any(|(at, ancestor)| {
                 // What this ancestor's kernels call `node`: the components between
@@ -151,7 +152,7 @@ impl Breakdown {
                 .iter()
                 .chain(&breakdown.end_of_pass)
                 .any(|kernel| kernel.fuses.contains(&path));
-            if node.device_time().is_zero() && (named_above || named_outside) {
+            if node.total_time().is_zero() && (named_above || named_outside) {
                 out.push(node);
             }
             ancestors.push(node);
@@ -214,7 +215,7 @@ pub struct Variant {
 
 /// One component's row: what it declared, and what it took.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Node {
+pub struct Row {
     /// What the component is called — its label, or its type.
     pub label: String,
     /// Which executions served its entries, in first-seen order. Empty for a
@@ -246,7 +247,7 @@ pub struct Node {
     /// How many times the pass entered it.
     pub entries: usize,
     /// The components it entered, in first-seen order.
-    pub children: Vec<Node>,
+    pub children: Vec<Row>,
     /// The kernels recorded on this row, in first-seen order: its own work, and
     /// fused kernels that carried out several of its descendants' work, which
     /// land on their closest common parent (see [`Kernel::fuses`]).
@@ -263,18 +264,19 @@ pub struct Node {
     /// records every launch, so as an absolute it includes the instrumentation;
     /// as a share of every gap it says which components the device waited on,
     /// which is what a clean pass's host time is split by.
-    #[serde(with = "nanoseconds")]
-    pub waited: Duration,
+    // Stored as `waited`, the key version 1 files carry.
+    #[serde(rename = "waited", with = "nanoseconds")]
+    pub own_wait: Duration,
 }
 
-impl Node {
+impl Row {
     /// Every row below this one, depth-first, each with its path from here —
     /// the form a kernel on this row names it by in [`Kernel::fuses`].
     ///
     /// Not [`walk`](Self::walk), which yields a depth and not a path: two rows
     /// at one depth under different parents can share a label, and telling those
     /// apart is the whole reason a kernel records a path.
-    pub fn descendants(&self) -> Vec<(RowPath, &Node)> {
+    pub fn descendants(&self) -> Vec<(RowPath, &Row)> {
         let mut out = Vec::new();
         self.descend(&RowPath::default(), &mut out);
         out
@@ -282,7 +284,7 @@ impl Node {
 
     /// The rows below this one, which sits at `at`, onto `out`. See
     /// [`descendants`](Self::descendants).
-    fn descend<'a>(&'a self, at: &RowPath, out: &mut Vec<(RowPath, &'a Node)>) {
+    fn descend<'a>(&'a self, at: &RowPath, out: &mut Vec<(RowPath, &'a Row)>) {
         for child in &self.children {
             let path = at.child(&child.label);
             out.push((path.clone(), child));
@@ -291,18 +293,18 @@ impl Node {
     }
 
     /// How long the device waited on the host before every kernel under this
-    /// component, its children's included. See [`waited`](Self::waited).
-    pub fn waited_total(&self) -> Duration {
-        self.waited
+    /// component, its children's included. See [`own_wait`](Self::own_wait).
+    pub fn total_wait(&self) -> Duration {
+        self.own_wait
             + self
                 .children
                 .iter()
-                .map(|child| child.waited_total())
+                .map(|child| child.total_wait())
                 .sum::<Duration>()
     }
 
     /// Device time in the kernels this component launched directly.
-    pub fn kernel_time(&self) -> Duration {
+    pub fn own_time(&self) -> Duration {
         self.kernels.iter().map(|kernel| kernel.total).sum()
     }
 
@@ -318,12 +320,12 @@ impl Node {
     ///
     /// Zero for a component whose work all fused with another's: the kernel
     /// that did both is on their closest common parent, and counted there.
-    pub fn device_time(&self) -> Duration {
-        self.kernel_time()
+    pub fn total_time(&self) -> Duration {
+        self.own_time()
             + self
                 .children
                 .iter()
-                .map(|child| child.device_time())
+                .map(|child| child.total_time())
                 .sum::<Duration>()
     }
 
@@ -343,9 +345,9 @@ impl Node {
         (!parts.is_empty()).then(|| parts.into_iter().sum())
     }
 
-    /// Every node under and including this one, depth-first, with its depth.
-    pub fn walk(&self) -> Vec<(usize, &Node)> {
-        fn descend<'a>(node: &'a Node, depth: usize, out: &mut Vec<(usize, &'a Node)>) {
+    /// Every row under and including this one, depth-first, with its depth.
+    pub fn walk(&self) -> Vec<(usize, &Row)> {
+        fn descend<'a>(node: &'a Row, depth: usize, out: &mut Vec<(usize, &'a Row)>) {
             out.push((depth, node));
             for child in &node.children {
                 descend(child, depth + 1, out);
@@ -485,7 +487,7 @@ mod tests {
     /// A breakdown with one of everything the file carries.
     fn breakdown() -> Breakdown {
         Breakdown {
-            tree: vec![Node {
+            tree: vec![Row {
                 label: "attention".to_string(),
                 variants: vec![Variant {
                     name: "flash".to_string(),
@@ -507,11 +509,11 @@ mod tests {
                     fuses: vec![RowPath::new(["query"])],
                     fuses_own: true,
                 }],
-                waited: Duration::from_nanos(20),
+                own_wait: Duration::from_nanos(20),
             }],
             untagged: Vec::new(),
             end_of_pass: Vec::new(),
-            waited_outside: Duration::from_nanos(7),
+            outside_wait: Duration::from_nanos(7),
             host_timed: false,
             timed_alone: false,
             unplaced: Unplaced::default(),
@@ -527,7 +529,7 @@ mod tests {
 
     #[test]
     fn a_composites_parts_are_summed_for_the_fusion_rung() {
-        let node = Node {
+        let node = Row {
             variants: Vec::new(),
             sites: Vec::new(),
             label: "feed-forward".into(),
@@ -539,7 +541,7 @@ mod tests {
             observed: None,
             entries: 1,
             children: vec![
-                Node {
+                Row {
                     variants: Vec::new(),
                     sites: Vec::new(),
                     label: "gate/up".into(),
@@ -552,9 +554,9 @@ mod tests {
                     entries: 1,
                     children: Vec::new(),
                     kernels: Vec::new(),
-                    waited: Duration::ZERO,
+                    own_wait: Duration::ZERO,
                 },
-                Node {
+                Row {
                     variants: Vec::new(),
                     sites: Vec::new(),
                     label: "down".into(),
@@ -567,11 +569,11 @@ mod tests {
                     entries: 1,
                     children: Vec::new(),
                     kernels: Vec::new(),
-                    waited: Duration::ZERO,
+                    own_wait: Duration::ZERO,
                 },
             ],
             kernels: Vec::new(),
-            waited: Duration::ZERO,
+            own_wait: Duration::ZERO,
         };
         // The parts move more than the whole, and must: the difference is the
         // intermediate a perfect fuser never lands.

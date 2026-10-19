@@ -18,7 +18,7 @@
 use std::fmt;
 use std::sync::Mutex;
 
-use burn_instrument::{Breakdown, Kernel, Node, PassCollector, RowPath, Unplaced, compute};
+use burn_instrument::{Breakdown, Kernel, PassCollector, Row, RowPath, Unplaced, compute};
 use burn_tensor::activation::{gelu, sigmoid};
 use burn_tensor::{Device, Distribution, Tensor};
 use cubecl::config::{TypeNameFormatLevel, type_name_format};
@@ -234,7 +234,7 @@ impl CaseBreakdown {
     }
 
     /// The row at `path`, from the roots.
-    fn row(&self, path: &[&str]) -> &Node {
+    fn row(&self, path: &[&str]) -> &Row {
         let (first, rest) = path.split_first().expect("a path names a row");
         let mut node = find(&self.breakdown.tree, first);
         for label in rest {
@@ -338,7 +338,7 @@ impl CaseBreakdown {
                 "{boundary:?}: the case's work did not run as one kernel\n{self}"
             );
         }
-        let (kernels, fuses, named): (&[Kernel], _, Vec<&Node>) = match expected.fused {
+        let (kernels, fuses, named): (&[Kernel], _, Vec<&Row>) = match expected.fused {
             Placement::Row { at, fuses } => {
                 let named = fuses.iter().map(|path| self.row(&[at, path].concat()));
                 (&self.row(at).kernels, fuses, named.collect())
@@ -405,7 +405,7 @@ impl fmt::Display for CaseBreakdown {
     }
 }
 
-fn find<'a>(nodes: &'a [Node], label: &str) -> &'a Node {
+fn find<'a>(nodes: &'a [Row], label: &str) -> &'a Row {
     nodes
         .iter()
         .find(|node| node.label == label)
@@ -417,7 +417,7 @@ fn printed(paths: &[RowPath]) -> Vec<String> {
     paths.iter().map(ToString::to_string).collect()
 }
 
-fn labels(nodes: &[Node]) -> Vec<&str> {
+fn labels(nodes: &[Row]) -> Vec<&str> {
     nodes.iter().map(|node| node.label.as_str()).collect()
 }
 

@@ -117,7 +117,7 @@ impl PassRecorder {
     /// A fused segment runs when an op seals it, and the pass's last one has
     /// no op after it — the output is returned unread — so its kernels would
     /// otherwise launch at whatever sync came next, after the recorder had
-    /// been taken down, and [`Breakdown::device`] would quietly shrink by them. They
+    /// been taken down, and [`Breakdown::total_time`] would quietly shrink by them. They
     /// are the work of the last components, but no row can say which, so they
     /// are named for when they ran.
     ///
@@ -309,7 +309,7 @@ impl State {
     fn credit(&mut self, attribution: Attribution, kernel: &str, duration: Duration) {
         if !self.tree.credit(attribution, kernel, duration) {
             // No launch of it was counted there, so there is no honest row
-            // for it. Say how much rather than let `Breakdown::device` quietly
+            // for it. Say how much rather than let `Breakdown::total_time` quietly
             // shrink.
             self.timings.unplace(duration);
         }
@@ -329,7 +329,7 @@ fn operation_key(operation: &OperationIr) -> Option<u64> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::breakdown::{Node, Unplaced};
+    use crate::breakdown::{Row, Unplaced};
 
     /// A launch on the thread driving the model lands under the component that
     /// thread has open, and under none once it has closed — the unfused case,
@@ -349,7 +349,7 @@ mod tests {
         let names = |kernels: &[crate::Kernel]| -> Vec<String> {
             kernels.iter().map(|kernel| kernel.name.clone()).collect()
         };
-        let block: &Node = &breakdown.tree[0];
+        let block: &Row = &breakdown.tree[0];
         assert_eq!(names(&block.children[0].kernels), ["Matmul"]);
         assert_eq!(
             names(&block.kernels),
@@ -393,15 +393,15 @@ mod tests {
             recorder.exit();
         }
         assert_eq!(
-            recorder.breakdown().tree[0].kernel_time(),
+            recorder.breakdown().tree[0].own_time(),
             Duration::ZERO,
             "nothing is read back while the pass runs"
         );
 
         recorder.finish();
         let breakdown = recorder.breakdown();
-        assert_eq!(breakdown.tree[0].kernel_time(), Duration::from_micros(13));
-        assert_eq!(breakdown.tree[1].kernel_time(), Duration::from_micros(5));
+        assert_eq!(breakdown.tree[0].own_time(), Duration::from_micros(13));
+        assert_eq!(breakdown.tree[1].own_time(), Duration::from_micros(5));
         assert_eq!(breakdown.unplaced, Unplaced::default());
         assert!(!breakdown.timed_alone, "every kernel ran in a full queue");
     }
@@ -422,7 +422,7 @@ mod tests {
         recorder.exit();
 
         let breakdown = recorder.breakdown();
-        assert_eq!(breakdown.tree[0].kernel_time(), Duration::from_micros(13));
+        assert_eq!(breakdown.tree[0].own_time(), Duration::from_micros(13));
         assert!(breakdown.timed_alone);
     }
 

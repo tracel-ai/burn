@@ -70,7 +70,7 @@ pub use observer::*;
 
 #[cfg(feature = "std")]
 pub use breakdown::{
-    BREAKDOWN_FILE_VERSION, Breakdown, BreakdownFileError, Kernel, Node, Unplaced, Variant,
+    BREAKDOWN_FILE_VERSION, Breakdown, BreakdownFileError, Kernel, Row, Unplaced, Variant,
 };
 #[cfg(feature = "cubecl")]
 pub use pass::PassCollector;
