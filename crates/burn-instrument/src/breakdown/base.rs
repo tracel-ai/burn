@@ -11,9 +11,15 @@ use crate::component_path::ComponentPath;
 
 /// One collected pass, broken down by component.
 ///
-/// What [`PassCollector::collect`](crate::PassCollector::collect) returns:
-/// data only, so a breakdown collected from a pass and one written out in a
-/// test are the same kind of value.
+/// What [`PassCollector::collect`] returns: data only, so a breakdown
+/// collected from a pass and one written out in a test are the same kind of
+/// value.
+///
+#[cfg_attr(
+    feature = "cubecl",
+    doc = "[`PassCollector::collect`]: crate::PassCollector::collect"
+)]
+#[cfg_attr(not(feature = "cubecl"), doc = concat!("[`PassCollector::collect`]: ", concat!("https://docs.rs/burn-instrument/", env!("CARGO_PKG_VERSION"), "/burn_instrument/struct.PassCollector.html#method.collect")))]
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Breakdown {
     /// The components the collected pass entered.
@@ -24,7 +30,13 @@ pub struct Breakdown {
     pub untagged: Vec<Kernel>,
     /// Kernels the sync ending the pass ran: fused work the last components
     /// left queued, which no op after them was there to seal. See
-    /// [`PassCollector::collect`](crate::PassCollector::collect).
+    /// [`PassCollector::collect`].
+    ///
+    #[cfg_attr(
+        feature = "cubecl",
+        doc = "[`PassCollector::collect`]: crate::PassCollector::collect"
+    )]
+    #[cfg_attr(not(feature = "cubecl"), doc = concat!("[`PassCollector::collect`]: ", concat!("https://docs.rs/burn-instrument/", env!("CARGO_PKG_VERSION"), "/burn_instrument/struct.PassCollector.html#method.collect")))]
     pub end_of_pass: Vec<Kernel>,
     /// How long the device waited on the host before the untagged kernels
     /// and the end of the pass's — the idle time no component is charged with. See

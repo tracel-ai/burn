@@ -201,7 +201,7 @@ impl Observing {
 
 /// An open component tag. Closes on drop.
 ///
-/// Neither `Send` nor `Sync`, like [`ComponentObservation`]: it closes the component on the
+/// Neither `Send` nor `Sync`, like the guard that installs an observer: it closes the component on the
 /// observer of the thread that drops it, which has to be the thread that opened it.
 #[must_use = "a tag closes as soon as it is dropped, so it has to outlive the body"]
 pub struct Tag {
