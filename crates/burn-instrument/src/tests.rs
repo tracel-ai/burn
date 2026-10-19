@@ -1,4 +1,4 @@
-//! What `#[compute]` generates, on components small enough to read in full: the row's name, the
+//! What `#[compute]` generates, on components small enough to read in full: the component's name, the
 //! execution it declares, the floor it prices, that children nest under whoever called them, and
 //! that the body computes what it did before.
 
@@ -56,7 +56,7 @@ impl Mixer {
         }
     }
 
-    /// No label: the row is named for the type.
+    /// No label: the component is named for the type.
     #[compute(bounds = Self::bounds)]
     fn forward(&self, x: u32) -> u32 {
         x * self.scale
@@ -74,7 +74,7 @@ impl Mixer {
         x * self.scale
     }
 
-    /// The same job reached another way, under the same label: two entries, one row.
+    /// The same job reached another way, under the same label: two entries, one component.
     #[compute(label = "conv taps")]
     fn taps_at(&self, x: u32) -> u32 {
         x + 2
@@ -84,7 +84,7 @@ impl Mixer {
         "packed"
     }
 
-    /// A row named by an argument, because the caller knows the role. The body never reads
+    /// A component named by an argument, because the caller knows the role. The body never reads
     /// `turn`.
     #[compute(label = turn.label())]
     fn rotate(&self, x: u32, turn: Turn) -> u32 {
@@ -155,10 +155,10 @@ impl MixerStack {
     }
 }
 
-/// An annotated forward with no arguments is a row named for its type, priced by its bounds
+/// An annotated forward with no arguments is a component named for its type, priced by its bounds
 /// function, and computes what its body computes.
 #[test]
-fn a_forward_with_no_label_is_a_row_named_for_its_type() {
+fn a_forward_with_no_label_is_a_component_named_for_its_type() {
     let (seen, observation) = installed();
     let computed = Mixer { scale: 3 }.forward(7);
     drop(observation);
@@ -223,7 +223,7 @@ fn a_trait_method_can_be_a_component() {
 
 /// A label and a variant written in the attribute are what the entry declares.
 #[test]
-fn a_label_and_a_variant_are_what_the_row_declares() {
+fn a_label_and_a_variant_are_what_the_component_declares() {
     let seen = entered(|| {
         Mixer { scale: 3 }.taps(7);
     });
@@ -245,7 +245,7 @@ fn a_floor_can_be_the_call_that_computes_it() {
 /// A label can come from an argument the body never reads, so a caller can name the role
 /// without the body warning about it.
 #[test]
-fn a_row_can_be_named_by_an_argument_the_body_ignores() {
+fn a_component_can_be_named_by_an_argument_the_body_ignores() {
     let mixer = Mixer { scale: 3 };
     let seen = entered(|| {
         assert_eq!(mixer.rotate(7, Turn::Left), 21);
@@ -255,14 +255,14 @@ fn a_row_can_be_named_by_an_argument_the_body_ignores() {
     assert_eq!(
         seen.events(),
         ["+turn left:-:-", "-", "+turn right:-:-", "-"],
-        "the label is the argument's, so one component is two rows"
+        "the label is the argument's, so one function is two components"
     );
 }
 
-/// Two entries written in different places under one label are one row, and the row remembers
+/// Two entries written in different places under one label are one component, and the component remembers
 /// both sites, in the order they first ran.
 #[test]
-fn a_row_fed_from_two_places_records_both_sites() {
+fn a_component_fed_from_two_places_records_both_sites() {
     let mixer = Mixer { scale: 3 };
     let seen = entered(|| {
         mixer.taps(7);
@@ -270,7 +270,7 @@ fn a_row_fed_from_two_places_records_both_sites() {
     });
 
     assert_eq!(
-        seen.rows(),
+        seen.lines(),
         ["conv taps (unpriced)", "conv taps (unpriced)"]
     );
     let sites = seen.sites("conv taps");
@@ -286,7 +286,7 @@ fn a_row_fed_from_two_places_records_both_sites() {
 }
 
 /// A site is recorded once however many times it is entered: what a reader acts on is which
-/// places fed a row.
+/// places fed a component.
 #[test]
 fn a_site_entered_repeatedly_is_recorded_once() {
     let mixer = Mixer { scale: 3 };
@@ -296,7 +296,7 @@ fn a_site_entered_repeatedly_is_recorded_once() {
         mixer.taps(3);
     });
 
-    assert_eq!(seen.rows().len(), 3, "three entries");
+    assert_eq!(seen.lines().len(), 3, "three entries");
     assert_eq!(seen.sites("conv taps").len(), 1, "of one site");
 }
 

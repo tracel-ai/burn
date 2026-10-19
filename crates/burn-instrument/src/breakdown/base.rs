@@ -27,7 +27,7 @@ pub struct Breakdown {
     /// [`PassCollector::collect`](crate::PassCollector::collect).
     pub end_of_pass: Vec<Kernel>,
     /// How long the device waited on the host before the untagged kernels
-    /// and the end of the pass's — the idle time no row is charged with. See
+    /// and the end of the pass's — the idle time no component is charged with. See
     /// [`Component::own_wait`].
     // Stored as `waited_outside`, the key version 1 files carry.
     #[serde(rename = "waited_outside", with = "nanoseconds")]
@@ -43,16 +43,16 @@ pub struct Breakdown {
     /// host timer — so the kernels ran one at a time and their sum is not a
     /// pipelined pass's device time.
     ///
-    /// Decides how the rows are read: in place, a row's milliseconds are its
+    /// Decides how the components are read: in place, a component's milliseconds are its
     /// kernels' own and the clean pass splits into device and host; alone, the
     /// device times are only good as proportions and are apportioned onto the
     /// clean pass instead.
     pub timed_alone: bool,
-    /// Kernel time that reached the recorder under a different row from the
-    /// launch it measured, or a measurement that came back empty, so no row
+    /// Kernel time that reached the recorder under a different component from the
+    /// launch it measured, or a measurement that came back empty, so no component
     /// could account for it.
     ///
-    /// Each measurement is kept beside the row that counted its launch and read
+    /// Each measurement is kept beside the component that counted its launch and read
     /// back once the pass has run, so this is zero unless a runtime hands one
     /// over somewhere else. Reported rather than assumed, because
     /// [`device`](Self::total_time) is the denominator of every apportioned
@@ -78,7 +78,7 @@ impl Breakdown {
         self.tree
             .iter()
             .flat_map(Component::walk)
-            .flat_map(|(_, node)| &node.kernels)
+            .flat_map(|(_, component)| &component.kernels)
             .chain(&self.untagged)
             .chain(&self.end_of_pass)
     }
@@ -86,10 +86,10 @@ impl Breakdown {
     /// The kernels that launched and measured no time at all.
     ///
     /// A launch the device ran took some time, so a zero is a timing the
-    /// collection lost rather than a fast kernel — and every row it sits under,
+    /// collection lost rather than a fast kernel — and every component it sits under,
     /// every share and the device total are short by it. Distinct from
-    /// [`unplaced`](Self::unplaced), which is time that arrived with no row to
-    /// go to: this is a row whose time never arrived.
+    /// [`unplaced`](Self::unplaced), which is time that arrived with no component to
+    /// go to: this is a component whose time never arrived.
     pub fn untimed(&self) -> impl Iterator<Item = &Kernel> {
         self.kernels()
             .filter(|kernel| kernel.launches > 0 && kernel.total.is_zero())
@@ -111,57 +111,60 @@ impl Breakdown {
             + self.outside_wait
     }
 
-    /// The rows whose work all ran in a fused kernel recorded elsewhere: no
-    /// kernel under them, and named by a kernel on a row above them or outside
-    /// every component. Such a row ran nothing, so its floor is the kernel's
-    /// that carried its work, and a report sets the row's own aside.
+    /// The components whose work all ran in a fused kernel recorded elsewhere: no
+    /// kernel under them, and named by a kernel on a component above them or outside
+    /// every component. Such a component ran nothing, so its floor is the kernel's
+    /// that carried its work, and a report sets the component's own aside.
     ///
     /// Asked of the kernels rather than inferred from a zero: a component that
     /// registered no device work — views and reshapes — also has no kernel, and
-    /// its zero is its time; and a row whose own kernels lost their timings
+    /// its zero is its time; and a component whose own kernels lost their timings
     /// also reads zero, though it ran them.
     pub fn fused_elsewhere(&self) -> Vec<&Component> {
         fn visit<'a>(
             breakdown: &'a Breakdown,
-            node: &'a Component,
+            component: &'a Component,
             ancestors: &mut Vec<&'a Component>,
             out: &mut Vec<&'a Component>,
         ) {
             let named_above = ancestors.iter().enumerate().any(|(at, ancestor)| {
-                // What this ancestor's kernels call `node`: the components between
-                // the two, then `node`. A bare label would also match a same-named
-                // row under another branch of the same ancestor, and a mixed
+                // What this ancestor's kernels call `component`: the components between
+                // the two, then `component`. A bare label would also match a same-named
+                // component under another branch of the same ancestor, and a mixed
                 // stack's dense and sparse `down` are both `down`.
                 let path = ComponentPath::new(
                     ancestors[at + 1..]
                         .iter()
-                        .chain([&node])
-                        .map(|row| row.label.as_str()),
+                        .chain([&component])
+                        .map(|component| component.label.as_str()),
                 );
                 ancestor
                     .kernels
                     .iter()
                     .any(|kernel| kernel.fuses.contains(&path))
             });
-            // Outside every component, a kernel names a row by its path from the
+            // Outside every component, a kernel names a component by its path from the
             // root.
             let path = ComponentPath::new(
                 ancestors
                     .iter()
-                    .chain([&node])
-                    .map(|row| row.label.as_str()),
+                    .chain([&component])
+                    .map(|component| component.label.as_str()),
             );
             let named_outside = breakdown
                 .untagged
                 .iter()
                 .chain(&breakdown.end_of_pass)
                 .any(|kernel| kernel.fuses.contains(&path));
-            let ran_nothing = node.walk().iter().all(|(_, row)| row.kernels.is_empty());
+            let ran_nothing = component
+                .walk()
+                .iter()
+                .all(|(_, component)| component.kernels.is_empty());
             if ran_nothing && (named_above || named_outside) {
-                out.push(node);
+                out.push(component);
             }
-            ancestors.push(node);
-            for child in &node.children {
+            ancestors.push(component);
+            for child in &component.children {
                 visit(breakdown, child, ancestors, out);
             }
             ancestors.pop();
@@ -186,29 +189,29 @@ pub struct Kernel {
     /// Device time across those launches.
     #[serde(with = "nanoseconds")]
     pub total: Duration,
-    /// The components below the row it is recorded on whose work it carried
-    /// out, in first-seen order, each by its path from that row — or from the
+    /// The components below the component it is recorded on whose work it carried
+    /// out, in first-seen order, each by its path from that component — or from the
     /// root, for a kernel outside every component.
     ///
     /// A fused kernel is recorded on the closest common parent of the
-    /// components whose work it did, and that row's own work is its by
+    /// components whose work it did, and that component's own work is its by
     /// placement, so a kernel on a parent naming one child did the child's
     /// work and the parent's. Empty for a kernel that did one component's work
-    /// on that component's row.
+    /// on that component.
     pub fuses: Vec<ComponentPath>,
-    /// Whether, besides the rows [`fuses`](Self::fuses) names, it carried out
-    /// work the row it is recorded on registered itself — a residual add fused
-    /// with its child's. That work is priced by no row below, so the kernel
-    /// stands at what it took even where every row it names is priced.
+    /// Whether, besides the components [`fuses`](Self::fuses) names, it carried out
+    /// work the component it is recorded on registered itself — a residual add fused
+    /// with its child's. That work is priced by no component below, so the kernel
+    /// stands at what it took even where every component it names is priced.
     pub fuses_own: bool,
 }
 
-/// Which execution served some of a row's entries, and how many.
+/// Which execution served some of a component's entries, and how many.
 ///
-/// A row is merged on its **label**, which is its identity; the variant says
+/// A component is merged on its **label**, which is its identity; the variant says
 /// which of several executions ran under it. So `attention core ×9` staying one
-/// row while eight entries took the tile kernel and one took tensor ops is the
-/// intended reading — the alternative, a row per execution, would be two rows
+/// component while eight entries took the tile kernel and one took tensor ops is the
+/// intended reading — the alternative, a component per execution, would be two components
 /// whose times a reader has to add back together to get the component's.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Variant {
@@ -218,7 +221,7 @@ pub struct Variant {
     pub entries: usize,
 }
 
-/// One component's row: what it declared, and what it took.
+/// One component as the pass measured it: what it declared, and what it took.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Component {
     /// What the component is called — its label, or its type.
@@ -226,12 +229,12 @@ pub struct Component {
     /// Which executions served its entries, in first-seen order. Empty for a
     /// component that declares no variant, which is most of them.
     pub variants: Vec<Variant>,
-    /// The call sites this row was entered from, in first-seen order.
+    /// The call sites this component was entered from, in first-seen order.
     ///
-    /// One for almost every row. More than one is a **merge**: two entries
-    /// written in different places landed on one label, and the row now holds
+    /// One for almost every component. More than one is a **merge**: two entries
+    /// written in different places landed on one label, and the component now holds
     /// the sum of both. That is what a reader wants for a stack of layers and is also
-    /// how a row comes to hold two different jobs, so the merge stands and a
+    /// how a component comes to hold two different jobs, so the merge stands and a
     /// report names the sites, which is what points at a split when there is
     /// one to make.
     ///
@@ -243,17 +246,17 @@ pub struct Component {
     ///
     /// Summed rather than checked for agreement because a component is legally
     /// entered at several shapes in one pass: chunked prefill runs a full chunk
-    /// and a padded tail, and both are real work the row has to account for.
+    /// and a padded tail, and both are real work the component has to account for.
     pub bounds: Option<Bounds>,
     /// Traffic observed beyond [`bounds`](Self::bounds) under this component,
-    /// such as the experts a sparse layer's routes read past one row's. `None`
+    /// such as the experts a sparse layer's routes read past one component's. `None`
     /// where nothing under it observed any, or where it declares no floor.
     pub observed: Option<Bounds>,
     /// How many times the pass entered it.
     pub entries: usize,
     /// The components it entered, in first-seen order.
     pub children: Vec<Component>,
-    /// The kernels recorded on this row, in first-seen order: its own work, and
+    /// The kernels recorded on this component, in first-seen order: its own work, and
     /// fused kernels that carried out several of its descendants' work, which
     /// land on their closest common parent (see [`Kernel::fuses`]).
     ///
@@ -275,10 +278,10 @@ pub struct Component {
 }
 
 impl Component {
-    /// Every row below this one, depth-first, each with its path from here —
-    /// the form a kernel on this row names it by in [`Kernel::fuses`].
+    /// Every component below this one, depth-first, each with its path from here —
+    /// the form a kernel on this component names it by in [`Kernel::fuses`].
     ///
-    /// Not [`walk`](Self::walk), which yields a depth and not a path: two rows
+    /// Not [`walk`](Self::walk), which yields a depth and not a path: two components
     /// at one depth under different parents can share a label, and telling those
     /// apart is the whole reason a kernel records a path.
     pub fn descendants(&self) -> Vec<(ComponentPath, &Component)> {
@@ -287,7 +290,7 @@ impl Component {
         out
     }
 
-    /// The rows below this one, which sits at `at`, onto `out`. See
+    /// The components below this one, which sits at `at`, onto `out`. See
     /// [`descendants`](Self::descendants).
     fn descend<'a>(&'a self, at: &ComponentPath, out: &mut Vec<(ComponentPath, &'a Component)>) {
         for child in &self.children {
@@ -350,11 +353,15 @@ impl Component {
         (!parts.is_empty()).then(|| parts.into_iter().sum())
     }
 
-    /// Every row under and including this one, depth-first, with its depth.
+    /// Every component under and including this one, depth-first, with its depth.
     pub fn walk(&self) -> Vec<(usize, &Component)> {
-        fn descend<'a>(node: &'a Component, depth: usize, out: &mut Vec<(usize, &'a Component)>) {
-            out.push((depth, node));
-            for child in &node.children {
+        fn descend<'a>(
+            component: &'a Component,
+            depth: usize,
+            out: &mut Vec<(usize, &'a Component)>,
+        ) {
+            out.push((depth, component));
+            for child in &component.children {
                 descend(child, depth + 1, out);
             }
         }
@@ -364,7 +371,7 @@ impl Component {
     }
 }
 
-/// Kernel time that could not be credited to a row — a timing that reached the
+/// Kernel time that could not be credited to a component — a timing that reached the
 /// recorder under a different attribution from the launch it measured, or a
 /// window that came back with no measurement in it.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -401,7 +408,7 @@ mod tests {
     /// perfect fuser never lands, which is the rung of the ladder only fusion recovers.
     #[test]
     fn a_composites_parts_are_summed_for_the_fusion_rung() {
-        let node = Component {
+        let component = Component {
             variants: Vec::new(),
             sites: Vec::new(),
             label: "feed-forward".into(),
@@ -447,17 +454,19 @@ mod tests {
             kernels: Vec::new(),
             own_wait: Duration::ZERO,
         };
-        let parts = node.parts_bounds().expect("both children declared one");
+        let parts = component
+            .parts_bounds()
+            .expect("both children declared one");
         assert_eq!(parts.bytes(), 140);
-        let own = node.bounds.unwrap();
+        let own = component.bounds.unwrap();
         assert!(own.moves_within(parts) && own.bytes() < parts.bytes());
     }
 
-    /// A row is fused elsewhere only when it ran no kernel of its own: one
+    /// A component is fused elsewhere only when it ran no kernel of its own: one
     /// whose kernels lost their timings reads zero too, and setting its floor
     /// aside would hide the work it did.
     #[test]
-    fn a_row_fused_elsewhere_ran_no_kernel_of_its_own() {
+    fn a_component_fused_elsewhere_ran_no_kernel_of_its_own() {
         let kernel = |name: &str, total: u64, fuses: &[&str]| Kernel {
             name: name.to_string(),
             launches: 1,
@@ -502,7 +511,7 @@ mod tests {
         let fused: Vec<&str> = breakdown
             .fused_elsewhere()
             .iter()
-            .map(|row| row.label.as_str())
+            .map(|component| component.label.as_str())
             .collect();
         assert_eq!(fused, ["norm"]);
     }

@@ -11,7 +11,7 @@ use crate::breakdown::Unplaced;
 /// The measurements a pass kept, and how far they are to be trusted.
 #[derive(Default)]
 pub(crate) struct Timings {
-    /// Measurements handed over unread, each beside the row its launch was
+    /// Measurements handed over unread, each beside the component its launch was
     /// counted on.
     kept: Vec<Kept>,
     /// Whether any launch was timed on the host rather than the device.
@@ -23,12 +23,12 @@ pub(crate) struct Timings {
     /// Whether any launch's measurement was read back as it launched, which
     /// runs the kernels one at a time. See [`Breakdown::timed_alone`](crate::Breakdown::timed_alone).
     timed_alone: bool,
-    /// Kernel time that could not be credited to a row, and how many timings
+    /// Kernel time that could not be credited to a component, and how many timings
     /// that was.
     ///
     /// A measurement is filed under the attribution of the thread it arrives
     /// on, and the runtime hands it over on the thread that issued the launch,
-    /// inside the same call — so it finds the row its launch was counted on.
+    /// inside the same call — so it finds the component its launch was counted on.
     /// Anything else has nowhere to go, nor does a window that comes back with
     /// no measurement in it, and [`Breakdown::total_time`](crate::Breakdown::total_time)
     /// is the denominator of every share, so a silent drop would move every
@@ -37,7 +37,7 @@ pub(crate) struct Timings {
 }
 
 impl Timings {
-    /// Keep a launch's measurement unread, beside the row that counted it.
+    /// Keep a launch's measurement unread, beside the component that counted it.
     pub(crate) fn keep(
         &mut self,
         attribution: Attribution,
@@ -64,7 +64,7 @@ impl Timings {
         std::mem::take(&mut self.kept)
     }
 
-    /// A timing of `duration` that no row could account for.
+    /// A timing of `duration` that no component could account for.
     pub(crate) fn unplace(&mut self, duration: Duration) {
         self.unplaced.timings += 1;
         self.unplaced.total += duration;
@@ -84,7 +84,7 @@ impl Timings {
 /// What a breakdown says about how far its timings are to be trusted. See the
 /// fields of [`Breakdown`](crate::Breakdown) of the same names. The default is
 /// a pass whose every timing was taken on the device, in a full queue, and
-/// found its row.
+/// found its component.
 #[derive(Clone, Copy, Default)]
 pub(crate) struct TimingQuality {
     pub(crate) host_timed: bool,
@@ -92,7 +92,7 @@ pub(crate) struct TimingQuality {
     pub(crate) unplaced: Unplaced,
 }
 
-/// A launch's measurement, not yet read back, and the row it belongs to.
+/// A launch's measurement, not yet read back, and the component it belongs to.
 pub(crate) struct Kept {
     attribution: Attribution,
     kernel: &'static str,
@@ -141,7 +141,7 @@ impl Timeline {
         }
     }
 
-    /// Place the window `ticks` measured for a kernel on the row under
+    /// Place the window `ticks` measured for a kernel on the component under
     /// `attribution`.
     pub(crate) fn push(&mut self, attribution: Attribution, ticks: &ProfileTicks) {
         self.windows.push(Window {
@@ -151,7 +151,7 @@ impl Timeline {
         });
     }
 
-    /// Every stretch the device sat idle, each beside the row whose kernel
+    /// Every stretch the device sat idle, each beside the component whose kernel
     /// ended it: that launch is what the device was waiting for.
     ///
     /// In start order rather than launch order: the fusion worker and the
@@ -184,17 +184,17 @@ mod tests {
         let epoch = Instant::now();
         let mut timeline = Timeline::new(epoch);
         let mut tree = super::super::component_tree::ComponentTree::default();
-        let mut row = |label| {
-            let row = tree.enter(crate::Declaration {
+        let mut component = |label| {
+            let component = tree.enter(crate::Declaration {
                 label,
                 variant: None,
                 site: "test::forward",
                 bounds: None,
             });
             tree.exit();
-            row
+            component
         };
-        let (norm, matmul) = (row("norm"), row("matmul"));
+        let (norm, matmul) = (component("norm"), component("matmul"));
         let window = |start: u64, end: u64| {
             let micros = Duration::from_micros;
             ProfileTicks::from_start_end(epoch + micros(start), epoch + micros(end))

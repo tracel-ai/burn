@@ -66,7 +66,7 @@ fn words(name: &str) -> String {
 mod tests {
     use super::*;
 
-    /// A row is named for its type, not its path or its backend: `Linear<Cuda>` and
+    /// A component is named for its type, not its path or its backend: `Linear<Cuda>` and
     /// `Linear<Wgpu>` are one component, and a module path would make every label unreadable.
     #[test]
     fn a_type_label_is_the_name_without_its_path_or_generics() {

@@ -17,7 +17,7 @@ const SIDE: usize = 64;
 struct Router;
 
 impl Router {
-    /// Declares a floor, so the observed traffic has a row to land on.
+    /// Declares a floor, so the observed traffic has a component to land on.
     #[compute(bounds = Bounds::default())]
     fn forward(&self, x: Tensor<2>) -> Tensor<2> {
         if let Some(observing) = observing() {

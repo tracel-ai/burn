@@ -3,7 +3,7 @@
 //!
 //! These components are made of plain burn operations so the fuser can
 //! cross every kind of boundary a tree has — siblings, a parent and its child,
-//! cousins, repeated entries of one row, a reduction, a matmul's epilogue, and
+//! cousins, repeated entries of one component, a reduction, a matmul's epilogue, and
 //! work from outside every component — and each [`Boundary`] states where its
 //! kernels land with fusion and without.
 //!
@@ -53,8 +53,8 @@ enum Boundary {
     /// Two components two levels apart, whose closest common parent is not
     /// the parent of either.
     Cousins,
-    /// The tail of one entry of a row fused with the head of the next entry
-    /// of the same row.
+    /// The tail of one entry of a component fused with the head of the next entry
+    /// of the same component.
     RepeatedEntries,
     /// An elementwise component fused into the reduction after it, as a
     /// log-sum-exp. The exponent has no other reader, so the fuser can read it
@@ -70,7 +70,7 @@ enum Boundary {
 
 /// Where a case's work lands.
 struct Expected {
-    /// Unfused, every one of these rows launches kernels of its own.
+    /// Unfused, every one of these components launches kernels of its own.
     launching: &'static [&'static [&'static str]],
     /// Fused, where the kernel carrying the case's work lands.
     fused: Placement,
@@ -78,7 +78,7 @@ struct Expected {
 
 /// Where a fused kernel lands, and the components it names.
 enum Placement {
-    /// On the row at this path, naming these paths from it. Naming none, the
+    /// On the component at this path, naming these paths from it. Naming none, the
     /// whole case is one launch there: no name says the fuser ran, so the
     /// count does.
     Component {
@@ -144,8 +144,8 @@ impl Boundary {
                     fuses: &[&["left", "leaf"], &["right", "leaf"]],
                 },
             },
-            // Every entry is one row, so a kernel spanning entries did that
-            // row's work alone: it lands on the row, not the stack, and names
+            // Every entry is one component, so a kernel spanning entries did that
+            // component's work alone: it lands on the component, not the stack, and names
             // nothing.
             Boundary::RepeatedEntries => Expected {
                 launching: &[&["stack", "layer"]],
@@ -235,29 +235,29 @@ impl CaseBreakdown {
         }
     }
 
-    /// The row at `path`, from the roots.
-    fn row(&self, path: &[&str]) -> &Component {
-        let (first, rest) = path.split_first().expect("a path names a row");
-        let mut node = find(&self.breakdown.tree, first);
+    /// The component at `path`, from the roots.
+    fn component(&self, path: &[&str]) -> &Component {
+        let (first, rest) = path.split_first().expect("a path names a component");
+        let mut component = find(&self.breakdown.tree, first);
         for label in rest {
-            node = find(&node.children, label);
+            component = find(&component.children, label);
         }
-        node
+        component
     }
 
     fn launches(&self) -> usize {
         self.breakdown.kernels().map(|kernel| kernel.launches).sum()
     }
 
-    /// What holds whichever build ran: every timing found its row, no block
+    /// What holds whichever build ran: every timing found its component, no block
     /// was left to the sync ending the pass, and every name a fused kernel
-    /// records is a row below the one it is on.
+    /// records is a component below the one it is on.
     fn assert_placed(&self) {
         let boundary = self.boundary;
         assert_eq!(
             self.breakdown.unplaced,
             Unplaced::default(),
-            "{boundary:?}: a timing found no row"
+            "{boundary:?}: a timing found no component"
         );
         assert!(
             self.breakdown.end_of_pass.is_empty(),
@@ -268,26 +268,26 @@ impl CaseBreakdown {
             "{boundary:?}: the pass launched nothing"
         );
         for root in &self.breakdown.tree {
-            for (_, node) in root.walk() {
-                let below: Vec<ComponentPath> = node
+            for (_, component) in root.walk() {
+                let below: Vec<ComponentPath> = component
                     .descendants()
                     .into_iter()
                     .map(|(path, _)| path)
                     .collect();
-                for kernel in &node.kernels {
+                for kernel in &component.kernels {
                     for path in &kernel.fuses {
                         assert!(
                             below.contains(path),
-                            "{boundary:?}: `{}` names `{path}`, which is no row below it",
-                            node.label
+                            "{boundary:?}: `{}` names `{path}`, which is no component below it",
+                            component.label
                         );
                     }
                 }
             }
         }
-        // Outside every component, a kernel names a row by its path from the
+        // Outside every component, a kernel names a component by its path from the
         // root.
-        let rows: Vec<ComponentPath> = self
+        let components: Vec<ComponentPath> = self
             .breakdown
             .tree
             .iter()
@@ -301,8 +301,8 @@ impl CaseBreakdown {
         for kernel in &self.breakdown.untagged {
             for path in &kernel.fuses {
                 assert!(
-                    rows.contains(path),
-                    "{boundary:?}: an untagged kernel names `{path}`, which is no row\n{self}"
+                    components.contains(path),
+                    "{boundary:?}: an untagged kernel names `{path}`, which is no component\n{self}"
                 );
             }
         }
@@ -314,7 +314,7 @@ impl CaseBreakdown {
         let boundary = self.boundary;
         for path in expected.launching {
             assert!(
-                !self.row(path).kernels.is_empty(),
+                !self.component(path).kernels.is_empty(),
                 "{boundary:?}: {path:?} launched nothing of its own unfused\n{self}"
             );
         }
@@ -327,7 +327,7 @@ impl CaseBreakdown {
     }
 
     /// Fused, a kernel lands where [`Placement`] says naming what it says,
-    /// and every row it names has no kernel of its own left — which is what
+    /// and every component it names has no kernel of its own left — which is what
     /// says the fuser crossed the boundary, however many kernels its tuning
     /// chose to launch for the work. A placement naming nothing is the whole
     /// case in one launch.
@@ -342,11 +342,13 @@ impl CaseBreakdown {
         }
         let (kernels, fuses, named): (&[Kernel], _, Vec<&Component>) = match expected.fused {
             Placement::Component { at, fuses } => {
-                let named = fuses.iter().map(|path| self.row(&[at, path].concat()));
-                (&self.row(at).kernels, fuses, named.collect())
+                let named = fuses
+                    .iter()
+                    .map(|path| self.component(&[at, path].concat()));
+                (&self.component(at).kernels, fuses, named.collect())
             }
             Placement::Untagged { fuses } => {
-                let named = fuses.iter().map(|path| self.row(path));
+                let named = fuses.iter().map(|path| self.component(path));
                 (&self.breakdown.untagged, fuses, named.collect())
             }
         };
@@ -363,17 +365,17 @@ impl CaseBreakdown {
             "{boundary:?}: no kernel naming {:?} where it belongs\n{self}",
             printed(&wanted)
         );
-        for row in named {
+        for component in named {
             assert!(
-                row.kernels.is_empty(),
+                component.kernels.is_empty(),
                 "{boundary:?}: `{}` kept kernels of its own though its work was fused\n{self}",
-                row.label,
+                component.label,
             );
         }
     }
 }
 
-/// Every row and the kernels it holds, one per line, so a failure shows where
+/// Every component and the kernels it holds, one per line, so a failure shows where
 /// the work went.
 impl fmt::Display for CaseBreakdown {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -387,10 +389,10 @@ impl fmt::Display for CaseBreakdown {
             )
         };
         for root in &self.breakdown.tree {
-            for (depth, node) in root.walk() {
+            for (depth, component) in root.walk() {
                 let indent = "  ".repeat(depth);
-                writeln!(f, "{indent}{} ×{}", node.label, node.entries)?;
-                for launched in &node.kernels {
+                writeln!(f, "{indent}{} ×{}", component.label, component.entries)?;
+                for launched in &component.kernels {
                     kernel(f, &format!("{indent}  "), launched)?;
                 }
             }
@@ -407,11 +409,11 @@ impl fmt::Display for CaseBreakdown {
     }
 }
 
-fn find<'a>(nodes: &'a [Component], label: &str) -> &'a Component {
-    nodes
+fn find<'a>(components: &'a [Component], label: &str) -> &'a Component {
+    components
         .iter()
-        .find(|node| node.label == label)
-        .unwrap_or_else(|| panic!("no row `{label}` among {:?}", labels(nodes)))
+        .find(|component| component.label == label)
+        .unwrap_or_else(|| panic!("no component `{label}` among {:?}", labels(components)))
 }
 
 /// Paths as a table prints them, for a failure message.
@@ -419,8 +421,11 @@ fn printed(paths: &[ComponentPath]) -> Vec<String> {
     paths.iter().map(ToString::to_string).collect()
 }
 
-fn labels(nodes: &[Component]) -> Vec<&str> {
-    nodes.iter().map(|node| node.label.as_str()).collect()
+fn labels(components: &[Component]) -> Vec<&str> {
+    components
+        .iter()
+        .map(|component| component.label.as_str())
+        .collect()
 }
 
 #[test]
@@ -444,7 +449,7 @@ fn across_cousins() {
 }
 
 #[test]
-fn across_repeated_entries_of_one_row() {
+fn across_repeated_entries_of_one_component() {
     CaseBreakdown::new(Boundary::RepeatedEntries).check();
 }
 
@@ -464,7 +469,7 @@ fn from_outside_every_component() {
 }
 
 // The components. Each does only what its case needs the fuser to see, and
-// each is named for the role its row reads as.
+// each is named for the role its component reads as.
 
 struct Chain;
 
@@ -582,7 +587,7 @@ struct Stack {
 }
 
 impl Stack {
-    /// Entries of the one `layer` row a pass makes.
+    /// Entries of the one `layer` component a pass makes.
     const DEPTH: usize = 4;
 
     #[compute]

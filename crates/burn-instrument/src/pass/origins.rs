@@ -5,7 +5,7 @@
 //! it was. A block runs when some later operation seals its segment, and it can
 //! carry out work several components registered — so a norm fused into the
 //! projection after it is neither the norm's kernel nor the projection's, and
-//! their common parent is the one row it belongs to whole. An operation that
+//! their common parent is the one component it belongs to whole. An operation that
 //! ran unfused is a block of one, and goes back to the component that
 //! registered it however late it ran.
 
@@ -80,10 +80,10 @@ impl BlockOrigin {
         let mut seen = false;
         for operation in operations {
             match origins.0.get(&operation) {
-                Some(Attribution::Component(row)) => {
+                Some(Attribution::Component(component)) => {
                     seen = true;
-                    if !components.contains(row) {
-                        components.push(*row);
+                    if !components.contains(component) {
+                        components.push(*component);
                     }
                 }
                 Some(Attribution::Untagged | Attribution::EndOfPass) => {
@@ -113,17 +113,17 @@ impl BlockOrigin {
                 span,
             }),
             BlockOrigin::Within(components) => Some(Placement {
-                attribution: Self::closest_row(&components, tree),
+                attribution: Self::closest_component(&components, tree),
                 span: Self::named(components),
             }),
         }
     }
 
-    /// The closest row holding all of `components`' work. Components under
+    /// The closest component holding all of `components`' work. Components under
     /// different roots — a forward and a backward fused across the step that
-    /// joins them — share no row, so the kernel is recorded outside every one
+    /// joins them — share no component, so the kernel is recorded outside every one
     /// of them.
-    fn closest_row(components: &[ComponentId], tree: &ComponentTree) -> Attribution {
+    fn closest_component(components: &[ComponentId], tree: &ComponentTree) -> Attribution {
         match tree.common_parent(components) {
             Some(common) => Attribution::Component(common),
             None => Attribution::Untagged,
@@ -131,7 +131,7 @@ impl BlockOrigin {
     }
 
     /// The components a kernel is named for: none for one component's work,
-    /// which is that row's by placement.
+    /// which is that component's by placement.
     fn named(components: Vec<ComponentId>) -> Vec<ComponentId> {
         match components.len() {
             1 => Vec::new(),
@@ -146,7 +146,7 @@ mod tests {
     use crate::Declaration;
 
     /// A block that carried out several components' work lands on their
-    /// closest common parent, named for them — the one row that holds all of
+    /// closest common parent, named for them — the one component that holds all of
     /// it, however late the block ran.
     #[test]
     fn a_fused_block_lands_on_the_closest_parent_of_its_components() {
@@ -162,7 +162,7 @@ mod tests {
             BlockOrigin::new(&origins, [1, 2].map(OperationId).into_iter()).placement(&components),
             Some(Placement {
                 attribution: block,
-                span: vec![row(norm), row(query)],
+                span: vec![component(norm), component(query)],
             })
         );
     }
@@ -197,12 +197,12 @@ mod tests {
             BlockOrigin::new(&origins, [1, 2].map(OperationId).into_iter()).placement(&components),
             Some(Placement {
                 attribution: Attribution::Untagged,
-                span: vec![row(inner)],
+                span: vec![component(inner)],
             })
         );
     }
 
-    /// Components under different roots share no row — a forward and a
+    /// Components under different roots share no component — a forward and a
     /// backward, fused across the step that joins them — so a kernel that did
     /// both is recorded outside every component, named for them. It runs on
     /// the fusion worker, where a panic would take the device down with it.
@@ -218,7 +218,7 @@ mod tests {
             BlockOrigin::new(&origins, [1, 2].map(OperationId).into_iter()).placement(&components),
             Some(Placement {
                 attribution: Attribution::Untagged,
-                span: vec![row(forward), row(backward)],
+                span: vec![component(forward), component(backward)],
             })
         );
     }
@@ -249,11 +249,11 @@ mod tests {
         origins
     }
 
-    fn row(entered: Attribution) -> ComponentId {
+    fn component(entered: Attribution) -> ComponentId {
         match entered {
-            Attribution::Component(row) => row,
+            Attribution::Component(component) => component,
             Attribution::Untagged | Attribution::EndOfPass => {
-                unreachable!("entering a component lands on its row")
+                unreachable!("entering a component lands on it")
             }
         }
     }

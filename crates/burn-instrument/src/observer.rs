@@ -74,22 +74,22 @@ impl ObservedBounds {
 /// both strings, and a call that swapped them would compile.
 #[derive(Clone, Copy, Debug)]
 pub struct Declaration<'a> {
-    /// What the component is called, which is the row this entry lands on.
+    /// What the component is called.
     ///
-    /// Rows merge on this alone among siblings, so a stack of identical layers is one row
+    /// Components merge on this alone among siblings, so a stack of identical layers is one component
     /// entered once per layer rather than a subtree per layer.
     pub label: &'a str,
     /// Which of several executions served this entry, where that is chosen at call time.
     ///
-    /// Not part of the row's identity: a component that routed two ways is one row with a
-    /// histogram of variants.
+    /// Not part of the component's identity: a component that routed two ways is still one
+    /// component, with a histogram of variants.
     pub variant: Option<&'a str>,
     /// Where this entry is written: the module and the function, as
     /// `my_model::attention::forward`.
     ///
-    /// Not part of the row's identity either. Two entry points merged under one label is what a
-    /// reader wants for a stack, and also how a row comes to hold two different jobs, so a
-    /// report can name a row's sites without undoing the merge. Two types in one module with a
+    /// Not part of the component's identity either. Two entry points merged under one label is what a
+    /// reader wants for a stack, and also how a component comes to hold two different jobs, so a
+    /// report can name a component's sites without undoing the merge. Two types in one module with a
     /// method of the same name share a site.
     pub site: &'static str,
     /// The floor for running this entry alone, where the component declares one. `None` is a

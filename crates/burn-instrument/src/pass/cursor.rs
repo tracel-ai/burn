@@ -1,4 +1,4 @@
-//! Which row a kernel launch is recorded under, on whichever thread issues it.
+//! Which component a kernel launch is recorded under, on whichever thread issues it.
 //!
 //! A launch belongs to the component that was open when its work was
 //! registered — a point in the op stream, not a point in time. The two part as
@@ -44,7 +44,7 @@ use super::component_tree::ComponentId;
 use cubecl_common::device::{DeviceId, DeviceService, DeviceServiceStage, ServerUtilitiesHandle};
 use cubecl_common::device_handle::DeviceHandle;
 
-/// The row a launch is recorded under.
+/// The component a launch is recorded under.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Attribution {
     /// No component is open, so a launch here is untagged.
@@ -56,7 +56,7 @@ pub(crate) enum Attribution {
     EndOfPass,
 }
 
-/// Where a launch lands: the row it is recorded on, and the components whose
+/// Where a launch lands: the component it is recorded on, and the components whose
 /// work it carries out where that is more than one.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct Placement {
@@ -235,7 +235,7 @@ mod tests {
             worker: Some(DeviceHandle::new(device)),
         };
         let ops = DeviceHandle::<Ops>::new(device);
-        let [block] = rows();
+        let [block] = components();
         let op = || ops.submit(|ops: &mut Ops| ops.0.push(LaunchCursor::current()));
 
         op();
@@ -261,12 +261,12 @@ mod tests {
     #[test]
     fn a_block_overrides_the_thread_until_it_has_run() {
         let cursor = LaunchCursor { worker: None };
-        let [outer, fused, first, second, fallback] = rows();
+        let [outer, fused, first, second, fallback] = components();
         cursor.point_at(outer);
 
         let fused = Placement {
             attribution: fused,
-            span: vec![row(first), row(second)],
+            span: vec![component(first), component(second)],
         };
         LaunchCursor::enter_block(Some(fused.clone()));
         assert_eq!(placement(), fused);
@@ -287,33 +287,35 @@ mod tests {
     #[test]
     fn without_a_worker_the_calling_thread_moves_at_once() {
         let cursor = LaunchCursor { worker: None };
-        let [norm] = rows();
+        let [norm] = components();
         cursor.point_at(norm);
         assert_eq!(LaunchCursor::current(), norm);
         cursor.point_at(Attribution::Untagged);
         assert_eq!(LaunchCursor::current(), Attribution::Untagged);
     }
 
-    /// `N` distinct rows, each where entering it lands a launch.
-    fn rows<const N: usize>() -> [Attribution; N] {
+    /// `N` distinct components, each where entering it lands a launch.
+    fn components<const N: usize>() -> [Attribution; N] {
         let mut tree = super::super::component_tree::ComponentTree::default();
         let labels = ["a", "b", "c", "d", "e", "f"];
         std::array::from_fn(|at| {
-            let row = tree.enter(crate::Declaration {
+            let component = tree.enter(crate::Declaration {
                 label: labels[at],
                 variant: None,
                 site: "test::forward",
                 bounds: None,
             });
             tree.exit();
-            row
+            component
         })
     }
 
-    fn row(attribution: Attribution) -> ComponentId {
+    fn component(attribution: Attribution) -> ComponentId {
         match attribution {
-            Attribution::Component(row) => row,
-            Attribution::Untagged | Attribution::EndOfPass => unreachable!("a row"),
+            Attribution::Component(component) => component,
+            Attribution::Untagged | Attribution::EndOfPass => {
+                unreachable!("entering a component lands on it")
+            }
         }
     }
 

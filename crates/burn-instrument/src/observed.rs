@@ -15,7 +15,7 @@ struct Entry {
 }
 
 /// What a pass did at the seam, in order. Exits are kept as well as entries, because "children
-/// close before their parent" is a property of the sequence and not of the rows it produced.
+/// close before their parent" is a property of the sequence and not of the components it produced.
 enum Event {
     Enter(Entry),
     Exit,
@@ -55,9 +55,9 @@ impl ComponentObserver for &'static Entered {
 }
 
 impl Entered {
-    /// The tree as indented rows, each marked `(unpriced)` where the component declared no
+    /// The tree, one indented line per component, each marked `(unpriced)` where the component declared no
     /// floor.
-    pub(crate) fn rows(&self) -> Vec<String> {
+    pub(crate) fn lines(&self) -> Vec<String> {
         self.with_entries(|entries| {
             entries
                 .map(|entry| {

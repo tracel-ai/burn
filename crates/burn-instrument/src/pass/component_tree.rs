@@ -4,13 +4,13 @@
 //! Nesting is a consequence of composition — a component's forward calls its
 //! children's forwards — so nothing here maintains a list of what sits inside
 //! what. Entering the same component twice at one path merges: a 36-layer stack
-//! is one row entered 36 times, not 36 rows.
+//! is one component entered 36 times, not 36 components.
 //!
 //! The same merge puts two *different* jobs under one heading when two entry
 //! points share a label, and the sum reads exactly like one entry point run
 //! twice. So `#[compute]` passes the site — `module_path!()` plus the function —
 //! beside the label, and [`Component::sites`] keeps the distinct ones so a report
-//! can name a row fed from more than one. A site is a function, not a role: one
+//! can name a component fed from more than one. A site is a function, not a role: one
 //! function entered at two shapes is one site, and a role its caller knows is
 //! named by an argument instead.
 
@@ -22,15 +22,15 @@ use crate::breakdown::{Breakdown, Component, Kernel, Variant};
 use crate::component_path::ComponentPath;
 use crate::{Bounds, Declaration};
 
-/// The components a pass entered, as rows built while it runs, beside the rows
-/// for kernels no component holds.
+/// The components a pass entered, built while it runs, beside the kernels no
+/// component holds.
 ///
 /// A flat arena, because a tree with a cursor into it cannot be expressed with
-/// ordinary borrows: a row is its [`ComponentId`], which is what
+/// ordinary borrows: a component is known by its [`ComponentId`], which is what
 /// [`Attribution::Component`] carries.
 #[derive(Default)]
 pub(crate) struct ComponentTree {
-    rows: Vec<ComponentRecord>,
+    components: Vec<ComponentRecord>,
     /// The components entered and not yet left, outermost first.
     open: Vec<ComponentId>,
     /// The roots, in first-seen order — a pass may enter more than one
@@ -47,7 +47,7 @@ pub(crate) struct ComponentTree {
     outside_wait: Duration,
 }
 
-/// One row of a [`ComponentTree`], valid in that tree only: minted by
+/// One component of a [`ComponentTree`], valid in that tree only: minted by
 /// [`ComponentTree::enter`].
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct ComponentId(usize);
@@ -56,20 +56,20 @@ impl ComponentTree {
     /// Enter the component `declared` names under the innermost open one, and
     /// say where its launches land.
     ///
-    /// Entering a label already seen at this path merges into its row, so a
-    /// repeated component is one row entered many times.
+    /// Entering a label already seen at this path merges into its component, so a
+    /// repeated component is one entered many times.
     pub(crate) fn enter(&mut self, declared: Declaration<'_>) -> Attribution {
-        let row = self.resolve(declared.label);
-        self.row_mut(row).enter(declared);
-        self.open.push(row);
-        Attribution::Component(row)
+        let component = self.resolve(declared.label);
+        self.component_mut(component).enter(declared);
+        self.open.push(component);
+        Attribution::Component(component)
     }
 
     /// Leave the innermost open component, and say where launches land now.
     pub(crate) fn exit(&mut self) -> Attribution {
         self.open.pop();
         match self.innermost() {
-            Some(row) => Attribution::Component(row),
+            Some(component) => Attribution::Component(component),
             None => Attribution::Untagged,
         }
     }
@@ -79,19 +79,19 @@ impl ComponentTree {
         self.open.last().copied()
     }
 
-    /// Count one launch of `kernel` on the row `placement` puts it on, carrying
-    /// out the work of the rows it spans.
+    /// Count one launch of `kernel` on the component `placement` puts it on, carrying
+    /// out the work of the components it spans.
     ///
-    /// By name and count rather than one row per launch: a 28-layer stack
-    /// issues the same kernel 28 times, and 28 identical rows say less than one
-    /// row saying 28. Called for every launch, so it allocates only for a
-    /// kernel or a spanned row the row has not counted before; the rows it
+    /// By name and count rather than one component per launch: a 28-layer stack
+    /// issues the same kernel 28 times, and 28 identical components say less than one
+    /// component saying 28. Called for every launch, so it allocates only for a
+    /// kernel or a spanned component the component has not counted before; the components it
     /// spans are named once, in [`breakdown`](Self::breakdown).
     pub(crate) fn count_launch(&mut self, placement: &Placement, kernel: &str) {
         self.kernels(placement.attribution).count(kernel, placement);
     }
 
-    /// Add `duration` to the row that counted `kernel`'s launch under
+    /// Add `duration` to the component that counted `kernel`'s launch under
     /// `attribution`, or `false` when no launch of it was counted there.
     pub(crate) fn credit(
         &mut self,
@@ -102,46 +102,46 @@ impl ComponentTree {
         self.kernels(attribution).credit(kernel, duration)
     }
 
-    /// Charge `idle` to the row whose kernel ended it. See [`Component::own_wait`].
+    /// Charge `idle` to the component whose kernel ended it. See [`Component::own_wait`].
     pub(crate) fn charge_idle(&mut self, attribution: Attribution, idle: Duration) {
         match attribution {
-            Attribution::Component(row) => self.row_mut(row).own_wait += idle,
+            Attribution::Component(component) => self.component_mut(component).own_wait += idle,
             Attribution::Untagged | Attribution::EndOfPass => self.outside_wait += idle,
         }
     }
 
-    /// The closest component every one of `rows` sits under, itself included
+    /// The closest component every one of `components` sits under, itself included
     /// — where a kernel that carried out all of their work belongs. `None` for
-    /// rows under different roots, which share no row.
-    pub(crate) fn common_parent(&self, rows: &[ComponentId]) -> Option<ComponentId> {
-        let (first, rest) = rows.split_first()?;
+    /// components under different roots, which share no component.
+    pub(crate) fn common_parent(&self, components: &[ComponentId]) -> Option<ComponentId> {
+        let (first, rest) = components.split_first()?;
         let mut common: Vec<ComponentId> = self.ancestors(*first).collect();
-        for row in rest {
-            let theirs: Vec<ComponentId> = self.ancestors(*row).collect();
+        for component in rest {
+            let theirs: Vec<ComponentId> = self.ancestors(*component).collect();
             common.retain(|ancestor| theirs.contains(ancestor));
         }
-        // Each list runs from the row up to its root, so the first ancestor
+        // Each list runs from the component up to its root, so the first ancestor
         // they share is the closest.
         common.first().copied()
     }
 
-    /// Add `extra` to `row` and every parent that declares a floor. A row
+    /// Add `extra` to `component` and every parent that declares a floor. A component
     /// with no floor is timed but not scored, and stays that way; no traffic
-    /// leaves every row as it was, so a batch of one marks nothing.
-    pub(crate) fn add_observed(&mut self, row: ComponentId, extra: Bounds) {
+    /// leaves every component as it was, so a batch of one marks nothing.
+    pub(crate) fn add_observed(&mut self, component: ComponentId, extra: Bounds) {
         if extra == Bounds::default() {
             return;
         }
-        let scored: Vec<ComponentId> = self.ancestors(row).collect();
-        for row in scored {
-            let row = self.row_mut(row);
-            if row.bounds.is_some() {
-                row.observed = Some(row.observed.unwrap_or_default() + extra);
+        let scored: Vec<ComponentId> = self.ancestors(component).collect();
+        for component in scored {
+            let component = self.component_mut(component);
+            if component.bounds.is_some() {
+                component.observed = Some(component.observed.unwrap_or_default() + extra);
             }
         }
     }
 
-    /// The breakdown these rows make, with what the collection says about its
+    /// The breakdown these components make, with what the collection says about its
     /// timings.
     ///
     /// # Panics
@@ -165,105 +165,111 @@ impl ComponentTree {
         }
     }
 
-    /// The row `label` names under the innermost open component, created on
+    /// The component `label` names under the innermost open component, created on
     /// first sight.
     fn resolve(&mut self, label: &str) -> ComponentId {
         let parent = self.innermost();
         let siblings = match parent {
-            Some(parent) => &self.row(parent).children,
+            Some(parent) => &self.component(parent).children,
             None => &self.roots,
         };
         if let Some(found) = siblings
             .iter()
             .copied()
-            .find(|row| self.row(*row).label == label)
+            .find(|component| self.component(*component).label == label)
         {
             return found;
         }
-        let row = ComponentId(self.rows.len());
-        self.rows.push(ComponentRecord::new(label, parent));
+        let component = ComponentId(self.components.len());
+        self.components.push(ComponentRecord::new(label, parent));
         match parent {
-            Some(parent) => self.row_mut(parent).children.push(row),
-            None => self.roots.push(row),
+            Some(parent) => self.component_mut(parent).children.push(component),
+            None => self.roots.push(component),
         }
-        row
+        component
     }
 
-    fn row(&self, row: ComponentId) -> &ComponentRecord {
-        &self.rows[row.0]
+    fn component(&self, component: ComponentId) -> &ComponentRecord {
+        &self.components[component.0]
     }
 
-    fn row_mut(&mut self, row: ComponentId) -> &mut ComponentRecord {
-        &mut self.rows[row.0]
+    fn component_mut(&mut self, component: ComponentId) -> &mut ComponentRecord {
+        &mut self.components[component.0]
     }
 
     /// The kernels a launch under `attribution` is counted among.
     fn kernels(&mut self, attribution: Attribution) -> &mut KernelCounter {
         match attribution {
             Attribution::Untagged => &mut self.untagged,
-            Attribution::Component(row) => &mut self.row_mut(row).kernels,
+            Attribution::Component(component) => &mut self.component_mut(component).kernels,
             Attribution::EndOfPass => &mut self.end_of_pass,
         }
     }
 
-    /// `row` and every row above it, innermost first.
-    fn ancestors(&self, row: ComponentId) -> impl Iterator<Item = ComponentId> + '_ {
-        std::iter::successors(Some(row), |row| self.row(*row).parent)
+    /// `component` and every component above it, innermost first.
+    fn ancestors(&self, component: ComponentId) -> impl Iterator<Item = ComponentId> + '_ {
+        std::iter::successors(Some(component), |component| {
+            self.component(*component).parent
+        })
     }
 
-    /// `row` named the way a reader of the row a kernel sits on would say it:
-    /// the components between the two, then `row` itself.
+    /// `component` named the way a reader of the component a kernel sits on would say it:
+    /// the components between the two, then `component` itself.
     ///
     /// A path rather than a bare label, because a label is unique only among
     /// siblings. One `transformer block` in a mixed stack holds a dense
     /// `feed forward › down` and a `sparse feed forward › down`, and a kernel
-    /// that named `down` could be either — which marks the wrong row as fused
+    /// that named `down` could be either — which marks the wrong component as fused
     /// and prices the ladder off whichever one was found first.
     ///
     /// Relative, since the kernel is already recorded on `under`. A kernel
     /// under no component at all is named from the root.
-    fn path_under(&self, row: ComponentId, under: Attribution) -> ComponentPath {
+    fn path_under(&self, component: ComponentId, under: Attribution) -> ComponentPath {
         let stop = match under {
             Attribution::Component(under) => Some(under),
             Attribution::Untagged | Attribution::EndOfPass => None,
         };
         let mut labels: Vec<&str> = self
-            .ancestors(row)
+            .ancestors(component)
             .take_while(|ancestor| Some(*ancestor) != stop)
-            .map(|ancestor| self.row(ancestor).label.as_str())
+            .map(|ancestor| self.component(ancestor).label.as_str())
             .collect();
         labels.reverse();
         ComponentPath::new(labels)
     }
 
-    /// The kernels `counter` counted on the row at `under`, each naming the
-    /// rows it spans by their path from there.
+    /// The kernels `counter` counted on the component at `under`, each naming the
+    /// components it spans by their path from there.
     fn kernels_named(&self, counter: &KernelCounter, under: Attribution) -> Vec<Kernel> {
-        counter.kernels(|row| self.path_under(row, under))
+        counter.kernels(|component| self.path_under(component, under))
     }
 
-    /// The finished row at `id`, and everything under it.
+    /// The finished component at `id`, and everything under it.
     fn finished(&self, id: ComponentId) -> Component {
-        let row = self.row(id);
+        let component = self.component(id);
         Component {
-            label: row.label.clone(),
-            variants: row.variants.clone(),
-            sites: row.sites.iter().map(|site| site.to_string()).collect(),
-            bounds: row.bounds,
-            observed: row.observed,
-            entries: row.entries,
-            children: row
+            label: component.label.clone(),
+            variants: component.variants.clone(),
+            sites: component
+                .sites
+                .iter()
+                .map(|site| site.to_string())
+                .collect(),
+            bounds: component.bounds,
+            observed: component.observed,
+            entries: component.entries,
+            children: component
                 .children
                 .iter()
                 .map(|child| self.finished(*child))
                 .collect(),
-            kernels: self.kernels_named(&row.kernels, Attribution::Component(id)),
-            own_wait: row.own_wait,
+            kernels: self.kernels_named(&component.kernels, Attribution::Component(id)),
+            own_wait: component.own_wait,
         }
     }
 }
 
-/// One row while it is being built.
+/// One component while it is being built.
 struct ComponentRecord {
     label: String,
     /// The component it was entered under, or `None` for a root.
@@ -300,16 +306,16 @@ impl ComponentRecord {
         }
     }
 
-    /// Merge one more entry of this row.
+    /// Merge one more entry of this component.
     fn enter(&mut self, declared: Declaration<'_>) {
         self.entries += 1;
         // The set, not the count: what a reader acts on is *which* places fed
-        // this row, and a site that fed 36 of 36 entries says the same thing as
+        // this component, and a site that fed 36 of 36 entries says the same thing as
         // one that fed 1.
         if !self.sites.contains(&declared.site) {
             self.sites.push(declared.site);
         }
-        // Counted per entry, not per row: a component entered 36 times that
+        // Counted per entry, not per component: a component entered 36 times that
         // routed differently on two of them is the case the histogram exists
         // for, and a set would lose exactly that.
         if let Some(variant) = declared.variant {
@@ -323,24 +329,24 @@ impl ComponentRecord {
         }
         // Summed across entries — see `Component::bounds`. A component that declared
         // them on its first entry and not on a later one keeps the sum of what
-        // was declared rather than losing the row's roofline entirely.
+        // was declared rather than losing the component's roofline entirely.
         if let Some(bounds) = declared.bounds {
             self.bounds = Some(self.bounds.unwrap_or_default() + bounds);
         }
     }
 }
 
-/// The kernels one row counted, by name, in first-seen order.
+/// The kernels one component counted, by name, in first-seen order.
 #[derive(Default)]
 struct KernelCounter(Vec<CountedKernel>);
 
-/// One kernel a row counted, the rows it spans kept as ids until the
+/// One kernel a component counted, the components it spans kept as ids until the
 /// breakdown names them.
 struct CountedKernel {
     name: String,
     launches: usize,
     total: Duration,
-    /// The rows below the counting row whose work it carried out, in
+    /// The components below the counting component whose work it carried out, in
     /// first-seen order. See [`Kernel::fuses`].
     fuses: Vec<ComponentId>,
     /// See [`Kernel::fuses_own`].
@@ -348,7 +354,7 @@ struct CountedKernel {
 }
 
 impl KernelCounter {
-    /// Count one launch of `name` at `placement`, the row it is counted on.
+    /// Count one launch of `name` at `placement`, the component it is counted on.
     fn count(&mut self, name: &str, placement: &Placement) {
         let kernel = match self.0.iter().position(|kernel| kernel.name == name) {
             Some(found) => &mut self.0[found],
@@ -365,14 +371,14 @@ impl KernelCounter {
         };
         kernel.launches += 1;
         // The union across launches: one fused kernel serves a norm and a
-        // projection in every layer, and the row names both once. The row it
-        // lands on is not among what it names: `fuses` names rows below it,
-        // and the row's own work is the row's by placement.
-        for row in &placement.span {
-            if placement.attribution == Attribution::Component(*row) {
+        // projection in every layer, and the component names both once. The component it
+        // lands on is not among what it names: `fuses` names components below it,
+        // and the component's own work is the component's by placement.
+        for component in &placement.span {
+            if placement.attribution == Attribution::Component(*component) {
                 kernel.fuses_own = true;
-            } else if !kernel.fuses.contains(row) {
-                kernel.fuses.push(*row);
+            } else if !kernel.fuses.contains(component) {
+                kernel.fuses.push(*component);
             }
         }
     }
@@ -380,9 +386,9 @@ impl KernelCounter {
     /// Add `duration` to `name`, or `false` when no launch of it was counted
     /// here.
     ///
-    /// By row, not by name across the tree: every projection of a block can
+    /// By component, not by name across the tree: every projection of a block can
     /// launch the same kernel, and a search by name alone would credit the
-    /// first row it finds with every other row's time.
+    /// first component it finds with every other component's time.
     fn credit(&mut self, name: &str, duration: Duration) -> bool {
         match self.0.iter_mut().find(|counted| counted.name == name) {
             Some(counted) => {
@@ -393,7 +399,7 @@ impl KernelCounter {
         }
     }
 
-    /// The kernels counted, each spanned row named by `path`.
+    /// The kernels counted, each spanned component named by `path`.
     fn kernels(&self, path: impl Fn(ComponentId) -> ComponentPath) -> Vec<Kernel> {
         self.0
             .iter()
@@ -401,7 +407,11 @@ impl KernelCounter {
                 name: kernel.name.clone(),
                 launches: kernel.launches,
                 total: kernel.total,
-                fuses: kernel.fuses.iter().map(|row| path(*row)).collect(),
+                fuses: kernel
+                    .fuses
+                    .iter()
+                    .map(|component| path(*component))
+                    .collect(),
                 fuses_own: kernel.fuses_own,
             })
             .collect()
@@ -412,10 +422,10 @@ impl KernelCounter {
 mod tests {
     use super::*;
 
-    /// Three layers are one row entered three times, not three rows: a 36-layer stack would
+    /// Three layers are one component entered three times, not three components: a 36-layer stack would
     /// otherwise print 36 identical subtrees.
     #[test]
-    fn a_repeated_component_is_one_row_entered_many_times() {
+    fn a_repeated_component_is_one_component_entered_many_times() {
         let mut components = ComponentTree::default();
         for _ in 0..3 {
             components.enter(declared("block"));
@@ -430,10 +440,10 @@ mod tests {
         );
     }
 
-    /// Merging is keyed on the label, so a row that routed two ways is still one row, with a
+    /// Merging is keyed on the label, so a component that routed two ways is still one component, with a
     /// histogram saying how the entries split, in the order the executions were first seen.
     #[test]
-    fn one_row_records_every_execution_that_served_it() {
+    fn one_component_records_every_execution_that_served_it() {
         let mut components = ComponentTree::default();
         for variant in ["tile", "tile", "tensor-ops", "tile"] {
             components.enter(Declaration {
@@ -455,10 +465,10 @@ mod tests {
         );
     }
 
-    /// Most rows have no execution to choose between, and an empty histogram is what lets a table
+    /// Most components have no execution to choose between, and an empty histogram is what lets a table
     /// print nothing rather than a placeholder.
     #[test]
-    fn a_row_that_declares_no_variant_carries_none() {
+    fn a_component_that_declares_no_variant_carries_none() {
         let mut components = ComponentTree::default();
         components.enter(declared("out proj"));
         components.exit();
@@ -505,14 +515,14 @@ mod tests {
         );
     }
 
-    /// Two entries written in different places under one label are one row,
-    /// and the row says it was fed from both.
+    /// Two entries written in different places under one label are one component,
+    /// and the component says it was fed from both.
     ///
-    /// The merge is what makes a stack readable and is also how a row comes to
+    /// The merge is what makes a stack readable and is also how a component comes to
     /// hold two different jobs, so the tree is unchanged and the sites are
     /// recorded for a report to name.
     #[test]
-    fn a_row_fed_from_two_sites_records_both() {
+    fn a_component_fed_from_two_sites_records_both() {
         let mut components = ComponentTree::default();
         for site in ["my_model::rope::apply", "my_model::rope::apply_at"] {
             components.enter(Declaration {
@@ -523,7 +533,11 @@ mod tests {
         }
 
         let tree = finished(&components).tree;
-        assert_eq!(labels(&tree), ["ropex2"], "one label, so still one row");
+        assert_eq!(
+            labels(&tree),
+            ["ropex2"],
+            "one label, so still one component"
+        );
         assert_eq!(
             tree[0].sites,
             ["my_model::rope::apply", "my_model::rope::apply_at"],
@@ -532,9 +546,9 @@ mod tests {
     }
 
     /// One site entered many times is one site: what a reader acts on is
-    /// *which* places fed a row, and a count would repeat the entry count.
+    /// *which* places fed a component, and a count would repeat the entry count.
     /// A site is recorded once however many times it is entered: what a reader acts on is which
-    /// places fed a row.
+    /// places fed a component.
     #[test]
     fn a_site_entered_repeatedly_is_recorded_once() {
         let mut components = ComponentTree::default();
@@ -548,7 +562,7 @@ mod tests {
         assert_eq!(tree[0].sites, ["test::forward"]);
     }
 
-    /// A component is legally entered at several shapes in one pass, so its row accounts for all of
+    /// A component is legally entered at several shapes in one pass, so its component accounts for all of
     /// them rather than asserting they agreed.
     #[test]
     fn bounds_sum_across_entries() {
@@ -597,14 +611,14 @@ mod tests {
             std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| finished(&components).tree));
         assert!(
             read.is_err(),
-            "an open component has kernels yet to launch, so its row is not finished"
+            "an open component has kernels yet to launch, so its component is not finished"
         );
     }
 
-    /// Observed traffic lands beside the declared floor of its row and of every
+    /// Observed traffic lands beside the declared floor of its component and of every
     /// parent that declares one.
     #[test]
-    fn observed_traffic_reaches_its_row_and_every_row_around_it() {
+    fn observed_traffic_reaches_its_component_and_every_component_around_it() {
         let mut components = ComponentTree::default();
         let floor = Bounds {
             read: 10,
@@ -616,7 +630,7 @@ mod tests {
             bounds: Some(floor),
             ..declared("block")
         });
-        let experts = row(components.enter(Declaration {
+        let experts = component(components.enter(Declaration {
             bounds: Some(floor),
             ..declared("experts")
         }));
@@ -654,11 +668,11 @@ mod tests {
         assert_eq!(
             (model.bounds, model.observed),
             (None, None),
-            "a row that declares no floor stays unscored"
+            "a component that declares no floor stays unscored"
         );
     }
 
-    /// Two rows under one parent can share a label, and a fused kernel names
+    /// Two components under one parent can share a label, and a fused kernel names
     /// which of them it carried out.
     ///
     /// The shape a mixed stack has: one `transformer block` holding a dense
@@ -667,15 +681,15 @@ mod tests {
     /// one marks the dense one as fused as well, and the ladder prices its
     /// work against whichever floor it met first.
     #[test]
-    fn a_fused_kernel_names_which_of_two_same_named_rows_it_carried() {
+    fn a_fused_kernel_names_which_of_two_same_named_components_it_carried() {
         let mut components = ComponentTree::default();
         let block = components.enter(declared("block"));
         components.enter(declared("feed forward"));
-        let dense = row(components.enter(declared("down")));
+        let dense = component(components.enter(declared("down")));
         components.exit();
         components.exit();
         components.enter(declared("sparse feed forward"));
-        let sparse = row(components.enter(declared("down")));
+        let sparse = component(components.enter(declared("down")));
         components.exit();
         components.exit();
         components.exit();
@@ -692,22 +706,22 @@ mod tests {
         assert_eq!(
             named(&tree[0].kernels[0].fuses),
             ["feed forward › down", "sparse feed forward › down"],
-            "two rows, named apart — by label alone both are `down`, and the \
+            "two components, named apart — by label alone both are `down`, and the \
              union would record one entry for work done in two places"
         );
     }
 
-    /// A kernel on a parent names the rows it carried out by their path from
+    /// A kernel on a parent names the components it carried out by their path from
     /// that parent, so a second `query` under another child of the block is a
-    /// different row.
+    /// different component.
     #[test]
-    fn a_fused_kernel_names_rows_by_their_path_from_its_own() {
+    fn a_fused_kernel_names_components_by_their_path_from_its_own() {
         let mut components = ComponentTree::default();
         let block = components.enter(declared("block"));
-        let norm = row(components.enter(declared("attn norm")));
+        let norm = component(components.enter(declared("attn norm")));
         components.exit();
         components.enter(declared("attention"));
-        let query = row(components.enter(declared("query")));
+        let query = component(components.enter(declared("query")));
         components.exit();
         components.exit();
         components.exit();
@@ -737,21 +751,21 @@ mod tests {
     }
 
     /// A kernel carrying a parent's own work and its child's names only the
-    /// child: `fuses` names rows below the one it is on, so the parent naming
+    /// child: `fuses` names components below the one it is on, so the parent naming
     /// itself would be an empty path. That it carried the parent's work too is
     /// `fuses_own`, which no name says.
     #[test]
     fn a_parent_fused_with_its_child_names_only_the_child() {
         let mut components = ComponentTree::default();
         let residual = components.enter(declared("residual"));
-        let gate = row(components.enter(declared("gate")));
+        let gate = component(components.enter(declared("gate")));
         components.exit();
         components.exit();
 
         components.count_launch(
             &Placement {
                 attribution: residual,
-                span: vec![gate, row(residual)],
+                span: vec![gate, component(residual)],
             },
             "ElemwiseFuse",
         );
@@ -762,17 +776,17 @@ mod tests {
         assert!(tree[0].children[0].kernels.is_empty());
     }
 
-    /// Outside every component, a kernel names the rows it carried out by
-    /// their path from the root: their rows have no kernel of their own, and
+    /// Outside every component, a kernel names the components it carried out by
+    /// their path from the root: their components have no kernel of their own, and
     /// this is where their time went.
     #[test]
-    fn a_kernel_outside_every_component_names_rows_from_the_root() {
+    fn a_kernel_outside_every_component_names_components_from_the_root() {
         let mut components = ComponentTree::default();
         components.enter(declared("transformer"));
-        let attention = row(components.enter(declared("attention")));
+        let attention = component(components.enter(declared("attention")));
         components.exit();
         components.exit();
-        let backward = row(components.enter(declared("backward")));
+        let backward = component(components.enter(declared("backward")));
         components.exit();
 
         components.count_launch(
@@ -791,10 +805,10 @@ mod tests {
     }
 
     /// The sync ending the pass runs fused work the last components left
-    /// queued, and its kernels have a row of their own rather than being
+    /// queued, and its kernels have a component of their own rather than being
     /// taken for work no annotation covers.
     #[test]
-    fn the_end_of_the_pass_is_a_row_of_its_own() {
+    fn the_end_of_the_pass_is_a_component_of_its_own() {
         let mut components = ComponentTree::default();
         components.enter(declared("lm head"));
         components.exit();
@@ -810,19 +824,19 @@ mod tests {
         components.breakdown(TimingQuality::default(), Fusion::Fused)
     }
 
-    /// The row a component was entered on.
-    fn row(entered: Attribution) -> ComponentId {
+    /// The id of the component `entered` lands on.
+    fn component(entered: Attribution) -> ComponentId {
         match entered {
-            Attribution::Component(row) => row,
+            Attribution::Component(component) => component,
             Attribution::Untagged | Attribution::EndOfPass => {
-                unreachable!("entering a component lands on its row")
+                unreachable!("entering a component lands on it")
             }
         }
     }
 
     /// A declaration naming only what a test is about. Everything a test does
     /// not state is what an ordinary component declares: no variant, no floor,
-    /// and one site — so a row is a merge here only where a test says so.
+    /// and one site — so a component is a merge here only where a test says so.
     fn declared(label: &str) -> Declaration<'_> {
         Declaration {
             label,
@@ -837,11 +851,18 @@ mod tests {
         fuses.iter().map(ToString::to_string).collect()
     }
 
-    fn labels(nodes: &[Component]) -> Vec<String> {
-        nodes
+    fn labels(components: &[Component]) -> Vec<String> {
+        components
             .iter()
-            .flat_map(|node| node.walk())
-            .map(|(depth, node)| format!("{}{}x{}", "  ".repeat(depth), node.label, node.entries))
+            .flat_map(|component| component.walk())
+            .map(|(depth, component)| {
+                format!(
+                    "{}{}x{}",
+                    "  ".repeat(depth),
+                    component.label,
+                    component.entries
+                )
+            })
             .collect()
     }
 }

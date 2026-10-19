@@ -1,16 +1,16 @@
-//! Where a row sits in a breakdown, named by the labels leading to it.
+//! Where a component sits in a breakdown, named by the labels leading to it.
 
 use std::fmt::{self, Display};
 
 use serde::{Deserialize, Serialize};
 
-/// The labels from one row down to another, outermost first:
+/// The labels from one component down to another, outermost first:
 /// `attention › query`.
 ///
-/// What tells two rows apart when a label alone does not: a mixed stack's
-/// dense and sparse `down` are both `down`, and a row is merged on its label
-/// only among its siblings. A kernel names the rows whose work it carried by
-/// their path from the row it is recorded on, and a comparison keys a row of
+/// What tells two components apart when a label alone does not: a mixed stack's
+/// dense and sparse `down` are both `down`, and a component is merged on its label
+/// only among its siblings. A kernel names the components whose work it carried by
+/// their path from the component it is recorded on, and a comparison keys a component of
 /// one run against the other by its path from the root.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(transparent)]
@@ -25,7 +25,7 @@ impl ComponentPath {
         Self(labels.into_iter().map(Into::into).collect())
     }
 
-    /// The path to the row `label` names, one level below this one.
+    /// The path to the component `label` names, one level below this one.
     pub fn child(&self, label: &str) -> Self {
         let mut labels = self.0.clone();
         labels.push(label.to_string());
