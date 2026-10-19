@@ -1,9 +1,9 @@
-//! The test double for the [`Collector`] seam: one recording of a pass, read as the exact
+//! The test double for the [`ComponentObserver`] seam: one observation of a pass, read as the exact
 //! sequence of entries and exits.
 
 use std::sync::Mutex;
 
-use crate::{Bounds, Collecting, Collector, Declaration, ObservedBounds, collect};
+use crate::{Bounds, ComponentObservation, ComponentObserver, Declaration, ObservedBounds};
 
 /// One entry, as it was declared.
 struct Entry {
@@ -23,14 +23,14 @@ enum Event {
     Observed(Bounds),
 }
 
-/// A recording of one pass.
+/// What one pass entered.
 #[derive(Default)]
 pub(crate) struct Entered {
     events: Mutex<Vec<Event>>,
     depth: Mutex<usize>,
 }
 
-impl Collector for &'static Entered {
+impl ComponentObserver for &'static Entered {
     fn enter(&self, declared: Declaration<'_>) {
         let mut depth = self.depth.lock().unwrap();
         self.events.lock().unwrap().push(Event::Enter(Entry {
@@ -115,18 +115,18 @@ impl Entered {
     }
 }
 
-/// Record what `run` enters, with the run closed before the recording is read.
-pub(crate) fn entered(run: impl FnOnce()) -> &'static Entered {
-    let (recorder, collecting) = recording();
-    run();
-    drop(collecting);
-    recorder
+/// Observe what `pass` enters, with the observation closed before it is read.
+pub(crate) fn entered(pass: impl FnOnce()) -> &'static Entered {
+    let (seen, observation) = installed();
+    pass();
+    drop(observation);
+    seen
 }
 
-/// A recorder installed on this thread, and the guard holding it open.
-pub(crate) fn recording() -> (&'static Entered, Collecting) {
-    // Leaked: the tests read the recorder after the run, so it outlives every borrow by
+/// A fresh observer installed on this thread, and the guard holding it open.
+pub(crate) fn installed() -> (&'static Entered, ComponentObservation) {
+    // Leaked: the tests read it after the pass, so it outlives every borrow by
     // construction.
-    let recorder: &'static Entered = Box::leak(Box::new(Entered::default()));
-    (recorder, collect(Box::new(recorder)))
+    let seen: &'static Entered = Box::leak(Box::new(Entered::default()));
+    (seen, ComponentObservation::new(Box::new(seen)))
 }

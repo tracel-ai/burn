@@ -13,7 +13,7 @@ use crate::row_path::RowPath;
 /// One collected pass, broken down by component.
 ///
 /// What [`PassCollector::collect`](crate::PassCollector::collect) returns:
-/// data only, so a breakdown collected from a run and one written out in a
+/// data only, so a breakdown collected from a pass and one written out in a
 /// test are the same kind of value.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Breakdown {
@@ -48,7 +48,7 @@ pub struct Breakdown {
     /// device times are only good as proportions and are apportioned onto the
     /// clean pass instead.
     pub timed_alone: bool,
-    /// Kernel time that reached the collector under a different row from the
+    /// Kernel time that reached the recorder under a different row from the
     /// launch it measured, or a measurement that came back empty, so no row
     /// could account for it.
     ///
@@ -358,7 +358,7 @@ impl Node {
 }
 
 /// Kernel time that could not be credited to a row — a timing that reached the
-/// collector under a different attribution from the launch it measured, or a
+/// recorder under a different attribution from the launch it measured, or a
 /// window that came back with no measurement in it.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Unplaced {

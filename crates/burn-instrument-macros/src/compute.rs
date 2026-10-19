@@ -102,7 +102,7 @@ pub fn expand(args: TokenStream, mut function: ItemFn) -> syn::Result<TokenStrea
     function.block = syn::parse_quote!({
         let __burn_instrument_tag = match burn::instrument::armed() {
             None => None,
-            Some(run) => Some(run.enter(burn::instrument::Declaration {
+            Some(observing) => Some(observing.enter(burn::instrument::Declaration {
                 label: #label,
                 variant: #variant,
                 site: #site,

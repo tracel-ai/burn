@@ -8,7 +8,7 @@
 // expansion that warns on either fails this module's compilation.
 #![deny(unused_variables, unused_mut)]
 
-use crate::recording::{entered, recording};
+use crate::observed::{entered, installed};
 use crate::{Bounds, compute};
 
 /// What the expansion names, as a crate depending on `burn` sees it.
@@ -125,62 +125,62 @@ impl MixerStack {
 
 #[test]
 fn a_forward_with_no_label_is_a_row_named_for_its_type() {
-    let (recorder, collecting) = recording();
+    let (seen, observation) = installed();
     let computed = Mixer { scale: 3 }.forward(7);
-    drop(collecting);
+    drop(observation);
 
     assert_eq!(computed, 21, "the body computes what it did before");
-    assert_eq!(recorder.events(), ["+mixer:-:28", "-"]);
+    assert_eq!(seen.events(), ["+mixer:-:28", "-"]);
 }
 
 #[test]
 fn a_mut_parameter_is_the_bodys_to_mutate() {
-    let recorder = entered(|| {
+    let seen = entered(|| {
         assert_eq!(Mixer { scale: 3 }.accumulate(7), 10);
     });
 
-    assert_eq!(recorder.events(), ["+accumulate:-:-", "-"]);
+    assert_eq!(seen.events(), ["+accumulate:-:-", "-"]);
 }
 
 #[test]
 fn a_trait_method_can_be_a_component() {
-    let recorder = entered(|| {
+    let seen = entered(|| {
         assert_eq!(Mixer { scale: 3 }.step(7), 10);
     });
 
-    assert_eq!(recorder.events(), ["+step:-:-", "-"]);
+    assert_eq!(seen.events(), ["+step:-:-", "-"]);
 }
 
 #[test]
 fn a_label_and_a_variant_are_what_the_row_declares() {
-    let recorder = entered(|| {
+    let seen = entered(|| {
         Mixer { scale: 3 }.taps(7);
     });
 
-    assert_eq!(recorder.events(), ["+conv taps:packed:-", "-"]);
+    assert_eq!(seen.events(), ["+conv taps:packed:-", "-"]);
 }
 
 /// An expression names what it prices, and a parameter it reads that the body does not still
 /// does not warn: `_weight` keeps its underscore and `x` does not.
 #[test]
 fn a_floor_can_be_the_call_that_computes_it() {
-    let recorder = entered(|| {
+    let seen = entered(|| {
         Mixer { scale: 3 }.mix(7, 2);
     });
 
-    assert_eq!(recorder.events(), ["+mix:-:56", "-"]);
+    assert_eq!(seen.events(), ["+mix:-:56", "-"]);
 }
 
 #[test]
 fn a_row_can_be_named_by_an_argument_the_body_ignores() {
     let mixer = Mixer { scale: 3 };
-    let recorder = entered(|| {
+    let seen = entered(|| {
         assert_eq!(mixer.rotate(7, Turn::Left), 21);
         mixer.rotate(7, Turn::Right);
     });
 
     assert_eq!(
-        recorder.events(),
+        seen.events(),
         ["+turn left:-:-", "-", "+turn right:-:-", "-"],
         "the label is the argument's, so one component is two rows"
     );
@@ -191,16 +191,16 @@ fn a_row_can_be_named_by_an_argument_the_body_ignores() {
 #[test]
 fn a_row_fed_from_two_places_records_both_sites() {
     let mixer = Mixer { scale: 3 };
-    let recorder = entered(|| {
+    let seen = entered(|| {
         mixer.taps(7);
         mixer.taps_at(7);
     });
 
     assert_eq!(
-        recorder.rows(),
+        seen.rows(),
         ["conv taps (unpriced)", "conv taps (unpriced)"]
     );
-    let sites = recorder.sites("conv taps");
+    let sites = seen.sites("conv taps");
     assert!(
         sites.iter().all(|site| site.starts_with(module_path!())),
         "a site names the module the entry is written in: {sites:?}"
@@ -215,14 +215,14 @@ fn a_row_fed_from_two_places_records_both_sites() {
 #[test]
 fn a_site_entered_repeatedly_is_recorded_once() {
     let mixer = Mixer { scale: 3 };
-    let recorder = entered(|| {
+    let seen = entered(|| {
         mixer.taps(1);
         mixer.taps(2);
         mixer.taps(3);
     });
 
-    assert_eq!(recorder.rows().len(), 3, "three entries");
-    assert_eq!(recorder.sites("conv taps").len(), 1, "of one site");
+    assert_eq!(seen.rows().len(), 3, "three entries");
+    assert_eq!(seen.sites("conv taps").len(), 1, "of one site");
 }
 
 #[test]
@@ -231,19 +231,16 @@ fn a_child_nests_under_whoever_called_it() {
         mixer: Mixer { scale: 3 },
     };
     let mut computed = 0;
-    let recorder = entered(|| computed = stack.forward(7));
+    let seen = entered(|| computed = stack.forward(7));
 
     assert_eq!(computed, 21);
-    assert_eq!(
-        recorder.events(),
-        ["+mixer stack:-:-", "+mixer:-:28", "-", "-"]
-    );
+    assert_eq!(seen.events(), ["+mixer stack:-:-", "+mixer:-:28", "-", "-"]);
 }
 
 #[test]
 fn a_disarmed_forward_records_nothing_and_computes_the_same() {
-    let recorder = entered(|| {});
+    let seen = entered(|| {});
 
     assert_eq!(Mixer { scale: 3 }.forward(7), 21);
-    assert!(recorder.events().is_empty());
+    assert!(seen.events().is_empty());
 }

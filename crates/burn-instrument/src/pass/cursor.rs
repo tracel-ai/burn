@@ -29,7 +29,7 @@
 //!
 //! Sealing order says which component a segment ran *during*, not whose work
 //! it was. Where the fusion server says which operations a block carries out,
-//! the collector knows which components registered them, and for as long as
+//! the recorder knows which components registered them, and for as long as
 //! the block runs the worker's attribution is theirs instead —
 //! [`enter_block`](LaunchCursor::enter_block) — with the components it spans
 //! kept beside it, so a kernel that fused several components' work can be
@@ -47,7 +47,7 @@ use cubecl_common::device_handle::DeviceHandle;
 pub(crate) enum Attribution {
     /// No component is open, so a launch here is untagged.
     Untagged,
-    /// The component at this index of the collector's arena.
+    /// The component at this index of the recorder's component tree.
     Component(usize),
     /// The sync that ends the pass, which runs the fused work still queued
     /// when the last component closed.

@@ -13,17 +13,17 @@
 //! A tag is not a device-time window. Fusion registers operations as the program reaches them
 //! and launches kernels later, a kernel can carry out several components' work, and a window
 //! drawn around a host call holds whatever happened to launch inside it. A tag only says which
-//! component registered the work; what a kernel took, and which component it belongs to, is the
-//! [`Collector`]'s to work out from the launches its runtime reports.
+//! component registered the work; what a kernel took, and which component it belongs to, is for
+//! the [`ComponentObserver`] to work out from the launches its runtime reports.
 //!
-//! With no collector installed, [`armed`] is one thread-local read and an annotated method calls
+//! With no observer installed, [`armed`] is one thread-local read and an annotated method calls
 //! its body directly, so nothing here is behind a feature. Without `std` there is nowhere to
 //! install one, and [`armed`] is always `None`.
 //!
 //! # Collecting a pass
 //!
-//! With the `cubecl` feature, [`PassCollector`] installs itself as the collector and as the
-//! cubecl runtime's launch observer, runs a pass, and returns its [`Breakdown`]: the component
+//! With the `cubecl` feature, [`PassCollector`] installs one recorder as the component observer,
+//! the cubecl runtime's launch observer and the fusion server's observer, runs a pass, and returns its [`Breakdown`]: the component
 //! tree, each component's kernels, and what the device spent on them. Nothing is drained at a
 //! component boundary, so the collected pass runs the kernels a clean pass runs. Each launch is
 //! recorded under the component that registered its work, on whichever thread issues it; on a
@@ -43,14 +43,14 @@
 //!
 //! # Feature flags
 //!
-//! - `std` (default): installing a collector, and reading and writing breakdowns.
-//! - `cubecl`: the collector, which reads a cubecl runtime's kernel launches and fusion blocks.
+//! - `std` (default): installing an observer, and reading and writing breakdowns.
+//! - `cubecl`: [`PassCollector`], which reads a cubecl runtime's kernel launches and fusion blocks.
 
 extern crate alloc;
 
 mod bounds;
-mod collector;
 mod label;
+mod observer;
 
 #[cfg(feature = "std")]
 mod breakdown;
@@ -60,13 +60,13 @@ mod pass;
 mod row_path;
 
 #[cfg(all(test, feature = "std"))]
-mod recording;
+mod observed;
 #[cfg(all(test, feature = "std"))]
 mod tests;
 
 pub use bounds::*;
-pub use collector::*;
 pub use label::*;
+pub use observer::*;
 
 #[cfg(feature = "std")]
 pub use breakdown::{

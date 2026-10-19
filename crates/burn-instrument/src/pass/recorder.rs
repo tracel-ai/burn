@@ -40,7 +40,7 @@ use super::cursor::{Attribution, LaunchCursor};
 use super::origins::{BlockOrigin, OperationOrigins};
 use super::timing::{Kept, Measured, Timeline, Timings};
 use crate::breakdown::Breakdown;
-use crate::{Bounds, Collector, Declaration, ObservedBounds};
+use crate::{Bounds, ComponentObserver, Declaration, ObservedBounds};
 
 /// Records a pass's events into its component tree.
 ///
@@ -195,7 +195,7 @@ impl PassRecorder {
     }
 }
 
-impl Collector for PassRecorder {
+impl ComponentObserver for PassRecorder {
     fn enter(&self, declared: Declaration<'_>) {
         let entered = self.locked().tree.enter(declared);
         // Outside the lock: a full queue waits for the worker, and the worker

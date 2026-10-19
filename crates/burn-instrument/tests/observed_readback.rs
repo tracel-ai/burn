@@ -20,11 +20,11 @@ impl Router {
     /// Declares a floor, so the observed traffic has a row to land on.
     #[compute(bounds = Bounds::default())]
     fn forward(&self, x: Tensor<2>) -> Tensor<2> {
-        if let Some(run) = armed() {
+        if let Some(observing) = armed() {
             // Transposed, so reading it back makes it contiguous first: a kernel the readback
             // launches, after the pass.
             let routes: Tensor<2, Int> = x.clone().greater_elem(0.0).int().swap_dims(0, 1);
-            run.observe(ObservedBounds::new(routes, |routes| Bounds {
+            observing.observe(ObservedBounds::new(routes, |routes| Bounds {
                 read: routes.len() as u64,
                 write: 0,
                 flops: 0,

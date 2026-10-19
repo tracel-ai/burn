@@ -4,7 +4,7 @@ use burn_tensor::Device;
 
 use super::recorder::PassRecorder;
 use super::watching::Watching;
-use crate::Breakdown;
+use crate::{Breakdown, ComponentObservation};
 
 /// Collects one pass on a device into a [`Breakdown`].
 ///
@@ -36,15 +36,15 @@ impl PassCollector {
     /// observer slots are process-wide), if the device stops answering at the
     /// end of the pass, or if the work producing an observed value failed.
     pub fn collect(self, pass: impl FnOnce()) -> Breakdown {
-        // Installed three times over: the components arrive on this thread
-        // and the kernels and fusion blocks on whichever thread runs them, so
-        // the tree is written from both. Each kernel lands under the
+        // One recorder, three observations: the components arrive on this
+        // thread and the kernels and fusion blocks on whichever thread runs
+        // them, so the tree is written from both. Each kernel lands under the
         // attribution of the thread that issued it — see `LaunchCursor`.
         let collector = Arc::new(self.0);
         let watching = Watching::new(&collector);
-        let collecting = crate::collect(Box::new(Arc::clone(&collector)));
+        let observation = ComponentObservation::new(Box::new(Arc::clone(&collector)));
         pass();
-        drop(collecting);
+        drop(observation);
         // While the kernels are still being watched: the pass's last fused
         // segment is still queued, and it runs at the next sync. Every
         // measurement the pass kept is read back there too.

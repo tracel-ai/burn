@@ -32,7 +32,7 @@ use proc_macro::TokenStream;
 ///   block: rows merge on their label among siblings.
 /// * `variant`: an expression naming which execution served this entry, where that is chosen at
 ///   call time, yielding `&str` or `Option<&str>`. Rows still merge on their label; the
-///   collector keeps a histogram of variants per row.
+///   breakdown keeps a histogram of variants per row.
 /// * `bounds`: this entry's `burn::instrument::Bounds`, the floor for running it alone, as the
 ///   call that computes it, evaluated with every parameter in scope. A bare path (`Self::bounds`)
 ///   is called with `self` and every parameter by reference. It may yield `Bounds` or
@@ -43,7 +43,7 @@ use proc_macro::TokenStream;
 /// parameter to a plain name (the path is handed them by name). It may be an inherent method or a
 /// trait method. A parameter only the declaration reads does not warn as unused.
 ///
-/// With no collector installed, the method runs its body after one thread-local read.
+/// With no observer installed, the method runs its body after one thread-local read.
 #[proc_macro_attribute]
 pub fn compute(args: TokenStream, item: TokenStream) -> TokenStream {
     let function = syn::parse_macro_input!(item as syn::ItemFn);

@@ -18,7 +18,7 @@ pub fn type_label<T: ?Sized>() -> &'static str {
 /// hand-written label equal to the type name is a second copy of it that can drift. Interned, since
 /// a component is entered once per layer per pass and the answer never changes.
 ///
-/// Without `std` there is nothing to intern into, and this is [`type_label`]; no collector can be
+/// Without `std` there is nothing to intern into, and this is [`type_label`]; no observer can be
 /// installed there to read it.
 pub fn role_label<T: ?Sized>() -> &'static str {
     #[cfg(feature = "std")]

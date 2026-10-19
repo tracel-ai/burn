@@ -5,28 +5,28 @@ use burn_tensor::{Int, Tensor};
 
 use crate::Bounds;
 
-/// What a measured run does with the components a pass enters.
+/// What a measured pass does with the components it enters.
 ///
 /// Implemented by whoever is measuring; the seam knows nothing about reports, devices or
-/// kernels.
-// Neither `Send` nor `Sync`: a collector lives in the slot of the thread that installed it and is
+/// kernels. The component side of what a runtime's launch observer is to its kernels.
+// Neither `Send` nor `Sync`: an observer lives in the slot of the thread that installed it and is
 // never shared, so requiring either would force interior mutability on implementors that do not
 // need it.
-pub trait Collector {
+pub trait ComponentObserver {
     /// A component was entered, at the path formed by every tag still open.
     fn enter(&self, declared: Declaration<'_>);
     /// The most recently entered component was left.
     fn exit(&self);
     /// The component most recently entered moves more traffic than its declared floor, by an
-    /// amount only the pass's values tell. A run that reads the pass back adds it to that
-    /// component and the ones around it; any other run ignores it.
+    /// amount only the pass's values tell. An observer that reads the pass back adds it to that
+    /// component and the ones around it; any other ignores it.
     fn observe(&self, _observed: ObservedBounds) {}
 }
 
-/// A collector shared with whoever reads it once the pass is over, installed as the collector
+/// An observer shared with whoever reads it once the pass is over, installed as the observer
 /// itself.
 #[cfg(feature = "std")]
-impl<C: Collector + ?Sized> Collector for std::sync::Arc<C> {
+impl<O: ComponentObserver + ?Sized> ComponentObserver for std::sync::Arc<O> {
     fn enter(&self, declared: Declaration<'_>) {
         (**self).enter(declared);
     }
@@ -42,7 +42,7 @@ impl<C: Collector + ?Sized> Collector for std::sync::Arc<C> {
 /// computes, such as which experts a sparse layer's routes select.
 ///
 /// [`Bounds`] are pure, so a declared floor charges only what the shapes force. This keeps the
-/// values on the device with their price, so a run that reads the pass back prices them
+/// values on the device with their price, so an observer that reads the pass back prices them
 /// afterwards and synchronizes nothing during it.
 pub struct ObservedBounds(Box<dyn FnOnce() -> Bounds + Send>);
 
@@ -58,8 +58,8 @@ impl ObservedBounds {
         }))
     }
 
-    /// Read the values back and price them. Waits on the device, so a run calls it after the
-    /// pass is timed.
+    /// Read the values back and price them. Waits on the device, so an observer calls it after
+    /// the pass is timed.
     ///
     /// # Panics
     ///
@@ -68,7 +68,6 @@ impl ObservedBounds {
         (self.0)()
     }
 }
-
 /// What one entry of a component declares about itself.
 ///
 /// A struct rather than a parameter list: [`label`](Self::label) and [`site`](Self::site) are
@@ -100,97 +99,99 @@ pub struct Declaration<'a> {
 
 #[cfg(feature = "std")]
 std::thread_local! {
-    /// Whether this thread is measuring, kept apart from the collector so the disarmed path is one
-    /// read rather than a borrow.
+    /// Whether this thread is observed, kept apart from the observer so the unobserved path is
+    /// one read rather than a borrow.
     ///
-    /// Per thread, not process-wide: a collector belongs to the thread that installed it, and a
-    /// global flag would let one thread arm the annotations of another holding no collector, or
-    /// let a run ending on one thread disarm a run still going on another.
+    /// Per thread, not process-wide: an observer belongs to the thread that installed it, and a
+    /// global flag would let one thread arm the annotations of another holding no observer, or
+    /// let a pass ending on one thread disarm a pass still going on another.
     static ARMED: core::cell::Cell<bool> = const { core::cell::Cell::new(false) };
-    static COLLECTOR: core::cell::RefCell<Option<Box<dyn Collector>>> =
+    static OBSERVER: core::cell::RefCell<Option<Box<dyn ComponentObserver>>> =
         const { core::cell::RefCell::new(None) };
 }
 
-/// The run measuring this thread, or `None` when nothing is.
+/// The observation of this thread, or `None` when nothing observes it.
 ///
-/// Called on every entry of an annotated method, so the unmeasured path is a single
+/// Called on every entry of an annotated method, so the unobserved path is a single
 /// thread-local read.
 #[inline]
-pub fn armed() -> Option<Run> {
+pub fn armed() -> Option<Observing> {
     #[cfg(feature = "std")]
-    return ARMED.with(core::cell::Cell::get).then_some(Run);
+    return ARMED.with(core::cell::Cell::get).then_some(Observing);
     #[cfg(not(feature = "std"))]
     return None;
 }
 
-/// Install `collector` for **this thread** and arm its annotated methods.
+/// An observer installed for **this thread**, arming its annotated methods until it drops.
 ///
-/// A forward pass runs on one thread, so a run installs its collector there and nothing else in
-/// the process is measured or slowed. The collector is removed when the returned guard drops, so
-/// a panicking pass cannot leave the thread armed against a collector nobody holds.
-///
-/// A run started inside another replaces it until its guard drops, and the outer run then
-/// measures again: each guard puts back what it replaced, so guards drop in the reverse order
-/// they were made, as scopes drop them.
-#[cfg(feature = "std")]
-pub fn collect(collector: Box<dyn Collector>) -> Collecting {
-    let replaced = COLLECTOR.with(|slot| slot.replace(Some(collector)));
-    ARMED.with(|armed| armed.set(true));
-    Collecting {
-        replaced,
-        _thread: core::marker::PhantomData,
-    }
-}
-
-/// Holds a measured run open. See [`collect`].
+/// A forward pass runs on one thread, so an observer is installed there and nothing else in the
+/// process is measured or slowed. It is removed when this guard drops, so a panicking pass cannot
+/// leave the thread armed against an observer nobody holds.
 ///
 /// Neither `Send` nor `Sync`: it restores the slot of the thread that made it, and dropped on
-/// another thread it would disarm one that holds no run.
+/// another thread it would disarm one that holds no observer.
 #[cfg(feature = "std")]
-#[must_use = "the collector is uninstalled as soon as this is dropped"]
-pub struct Collecting {
-    /// The run this one replaced, put back on drop.
-    replaced: Option<Box<dyn Collector>>,
+#[must_use = "the observer is uninstalled as soon as this is dropped"]
+pub struct ComponentObservation {
+    /// The observer this one replaced, put back on drop.
+    replaced: Option<Box<dyn ComponentObserver>>,
     _thread: core::marker::PhantomData<*const ()>,
 }
 
 #[cfg(feature = "std")]
-impl Drop for Collecting {
+impl ComponentObservation {
+    /// Install `observer` for this thread.
+    ///
+    /// An observation started inside another replaces it until its guard drops, and the outer
+    /// observer then sees the components again: each guard puts back what it replaced, so guards
+    /// drop in the reverse order they were made, as scopes drop them.
+    pub fn new(observer: Box<dyn ComponentObserver>) -> Self {
+        let replaced = OBSERVER.with(|slot| slot.replace(Some(observer)));
+        ARMED.with(|armed| armed.set(true));
+        Self {
+            replaced,
+            _thread: core::marker::PhantomData,
+        }
+    }
+}
+
+#[cfg(feature = "std")]
+impl Drop for ComponentObservation {
     fn drop(&mut self) {
         let replaced = self.replaced.take();
         ARMED.with(|armed| armed.set(replaced.is_some()));
-        // Dropped outside the slot's borrow, so a collector whose drop touches the slot does not
+        // Dropped outside the slot's borrow, so an observer whose drop touches the slot does not
         // find it borrowed.
-        let ended = COLLECTOR.with(|slot| slot.replace(replaced));
+        let ended = OBSERVER.with(|slot| slot.replace(replaced));
         drop(ended);
     }
 }
 
-/// A measured run, handed to an annotated method by [`armed`].
+/// The observation of this thread, handed to an annotated method by [`armed`].
 #[derive(Clone, Copy, Debug)]
-pub struct Run;
+pub struct Observing;
 
-impl Run {
+impl Observing {
     /// Open a tag for the component being entered. It closes when the returned guard drops, so
     /// an early return cannot leave one open.
     #[inline]
     pub fn enter(self, declared: Declaration<'_>) -> Tag {
-        Self::with_collector(|collector| collector.enter(declared));
+        Self::with_observer(|observer| observer.enter(declared));
         Tag
     }
 
     /// Report traffic beyond the declared floor of the component most recently entered. See
-    /// [`Collector::observe`].
+    /// [`ComponentObserver::observe`].
     pub fn observe(self, observed: ObservedBounds) {
-        Self::with_collector(|collector| collector.observe(observed));
+        Self::with_observer(|observer| observer.observe(observed));
     }
 
     #[cfg_attr(not(feature = "std"), allow(unused_variables))]
-    fn with_collector(call: impl FnOnce(&dyn Collector)) {
+    fn with_observer(call: impl FnOnce(&dyn ComponentObserver)) {
         #[cfg(feature = "std")]
-        COLLECTOR.with(|slot| {
-            if let Some(collector) = slot.borrow().as_ref() {
-                call(collector.as_ref());
+        OBSERVER.with(|slot| {
+            if let Some(observer) = slot.borrow().as_ref() {
+                call(observer.as_ref());
             }
         });
     }
@@ -202,27 +203,27 @@ pub struct Tag;
 
 impl Drop for Tag {
     fn drop(&mut self) {
-        Run::with_collector(|collector| collector.exit());
+        Observing::with_observer(|observer| observer.exit());
     }
 }
 
 #[cfg(all(test, feature = "std"))]
 mod tests {
     use super::*;
-    use crate::recording::recording;
+    use crate::observed::installed;
 
     #[test]
-    fn nothing_is_collected_until_a_run_installs_a_collector() {
+    fn nothing_is_observed_until_an_observer_is_installed() {
         assert!(armed().is_none());
     }
 
     #[test]
     fn a_tag_closes_when_its_guard_drops() {
-        let (recorder, _collecting) = recording();
+        let (seen, _observation) = installed();
 
-        let run = armed().expect("armed by `collect`");
+        let observing = armed().expect("armed by the observation");
         {
-            let _outer = run.enter(Declaration {
+            let _outer = observing.enter(Declaration {
                 label: "attention",
                 variant: Some("flash"),
                 site: "test::attend",
@@ -232,7 +233,7 @@ mod tests {
                     flops: 2,
                 }),
             });
-            let _inner = run.enter(Declaration {
+            let _inner = observing.enter(Declaration {
                 label: "qkv",
                 variant: None,
                 site: "test::project",
@@ -241,38 +242,38 @@ mod tests {
         }
 
         assert_eq!(
-            recorder.events(),
+            seen.events(),
             ["+attention:flash:8", "+qkv:-:-", "-", "-"],
             "children close before their parent"
         );
     }
 
     #[test]
-    fn observed_traffic_reaches_the_collector_under_the_open_component() {
-        let (recorder, _collecting) = recording();
-        let run = armed().expect("armed by `collect`");
+    fn observed_traffic_reaches_the_observer_under_the_open_component() {
+        let (seen, _observation) = installed();
+        let observing = armed().expect("armed by the observation");
         {
-            let _experts = run.enter(Declaration {
+            let _experts = observing.enter(Declaration {
                 label: "experts",
                 variant: None,
                 site: "test::route",
                 bounds: None,
             });
             let named = Tensor::<1, Int>::from_ints([2, 5, 2], &burn_tensor::Device::flex());
-            run.observe(ObservedBounds::new(named, |named| Bounds {
+            observing.observe(ObservedBounds::new(named, |named| Bounds {
                 read: named.iter().sum::<i64>() as u64,
                 write: 0,
                 flops: 0,
             }));
         }
 
-        assert_eq!(recorder.events(), ["+experts:-:-", "?9", "-"]);
+        assert_eq!(seen.events(), ["+experts:-:-", "?9", "-"]);
     }
 
     #[test]
     fn dropping_the_guard_disarms() {
         {
-            let (_recorder, _collecting) = recording();
+            let (_seen, _observation) = installed();
             assert!(armed().is_some());
         }
         assert!(
@@ -282,22 +283,22 @@ mod tests {
     }
 
     #[test]
-    fn a_nested_run_hands_the_thread_back_to_the_outer_one() {
+    fn a_nested_observation_hands_the_thread_back_to_the_outer_one() {
         let declared = |label| Declaration {
             label,
             variant: None,
             site: "test::forward",
             bounds: None,
         };
-        let (outer, _collecting) = recording();
+        let (outer, _observation) = installed();
         let block = armed()
-            .expect("armed by `collect`")
+            .expect("armed by the observation")
             .enter(declared("block"));
         {
-            let (inner, _collecting) = recording();
+            let (inner, _observation) = installed();
             drop(
                 armed()
-                    .expect("armed by `collect`")
+                    .expect("armed by the observation")
                     .enter(declared("probe")),
             );
             assert_eq!(inner.events(), ["+probe:-:-", "-"]);
@@ -307,24 +308,28 @@ mod tests {
         assert_eq!(
             outer.events(),
             ["+block:-:-", "-"],
-            "the outer run measures again once the inner one ends, so its open tag closes on it"
+            "the outer observer sees the components again once the inner one ends, so its open tag closes on it"
         );
         assert!(armed().is_some(), "and the thread is still armed for it");
     }
 
     #[test]
-    fn a_run_on_another_thread_neither_arms_nor_disarms_this_one() {
-        let (mine, _collecting) = recording();
+    fn an_observation_on_another_thread_neither_arms_nor_disarms_this_one() {
+        let (mine, _observation) = installed();
 
         std::thread::spawn(|| {
-            assert!(armed().is_none(), "another thread's run is not this one's");
-            let (_theirs, _collecting) = recording();
+            assert!(
+                armed().is_none(),
+                "another thread's observation is not this one's"
+            );
+            let (_theirs, _observation) = installed();
         })
         .join()
         .expect("the other thread ran");
 
-        let run = armed().expect("a run that ended elsewhere must not disarm this thread");
-        drop(run.enter(Declaration {
+        let observing =
+            armed().expect("an observation that ended elsewhere must not disarm this thread");
+        drop(observing.enter(Declaration {
             label: "attention",
             variant: None,
             site: "test::attend",
