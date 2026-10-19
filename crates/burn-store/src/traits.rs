@@ -79,7 +79,7 @@ pub trait ModuleSnapshot: Module {
     ///
     /// This is the primary apply method that applies tensor data to the corresponding
     /// parameters in the module. The tensors are typically loaded from storage, or obtained
-    /// from `collect()` and converted with [`StoreTensor::from`].
+    /// from `collect()`; anything that converts into a [`StoreTensor`] is accepted.
     ///
     /// # Arguments
     ///
@@ -116,9 +116,9 @@ pub trait ModuleSnapshot: Module {
     /// // Apply with enum variant skipping (for PyTorch models)
     /// let result = model.apply(tensors, None, None, true);
     /// ```
-    fn apply(
+    fn apply<T: Into<StoreTensor>>(
         &mut self,
-        tensors: Vec<StoreTensor>,
+        tensors: impl IntoIterator<Item = T>,
         filter: Option<PathFilter>,
         adapter: Option<Box<dyn ModuleAdapter>>,
         skip_enum_variants: bool,

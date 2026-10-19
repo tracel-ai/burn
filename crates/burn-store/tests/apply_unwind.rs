@@ -54,12 +54,7 @@ fn a_panic_inside_map_aborts_instead_of_double_dropping() {
         // Catching here is what a caller trying to recover would do, and is what made the
         // double drop reachable: without the guard this returns and `model` is dropped again.
         let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            model.apply(
-                vec![tensor.into()],
-                None,
-                Some(Box::new(PanickingAdapter)),
-                false,
-            )
+            model.apply(vec![tensor], None, Some(Box::new(PanickingAdapter)), false)
         }));
 
         unreachable!("the abort guard should have ended the process before reaching here");

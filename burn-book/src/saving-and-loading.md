@@ -458,12 +458,12 @@ use burn_store::{ModuleSnapshot, PathFilter};
 
 // Transfer all weights
 let snapshots = model1.collect(None, None, false);
-model2.apply(snapshots.into_iter().map(Into::into).collect(), None, None, false);
+model2.apply(snapshots, None, None, false);
 
 // Transfer only encoder weights
 let filter = PathFilter::new().with_regex(r"^encoder\..*");
 let snapshots = model1.collect(Some(filter.clone()), None, false);
-model2.apply(snapshots.into_iter().map(Into::into).collect(), Some(filter), None, false);
+model2.apply(snapshots, Some(filter), None, false);
 ```
 
 ### API Reference

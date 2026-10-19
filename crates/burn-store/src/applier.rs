@@ -102,20 +102,21 @@ impl Applier {
     ///
     /// # Arguments
     ///
-    /// * `tensors` - The tensors to apply, keyed by their names
+    /// * `tensors` - The tensors to apply, matched to parameters by name
     /// * `filter` - An optional [`PathFilter`] to determine which tensors to apply.
     ///   When `None`, all available tensors are applied.
     /// * `adapter` - Optional adapter to transform tensors based on container types
     /// * `skip_enum_variants` - Skip enum variant names when matching paths
-    pub fn new(
-        tensors: Vec<StoreTensor>,
+    pub fn new<T: Into<StoreTensor>>(
+        tensors: impl IntoIterator<Item = T>,
         filter: Option<PathFilter>,
         adapter: Option<Box<dyn ModuleAdapter>>,
         skip_enum_variants: bool,
     ) -> Self {
         let tensors: HashMap<String, StoreTensor> = tensors
             .into_iter()
-            .map(|tensor| (tensor.name().to_string(), tensor))
+            .map(Into::into)
+            .map(|tensor: StoreTensor| (tensor.name().to_string(), tensor))
             .collect();
 
         Self {
@@ -779,7 +780,7 @@ mod tests {
                 Err(burn_pack::Error::IoError("device read failed".to_string()))
             });
 
-        let mut applier = Applier::new(vec![failing.into()], None, None, false);
+        let mut applier = Applier::new(vec![failing], None, None, false);
         applier.enter_module("weight", "Struct:Linear");
         let loaded = applier.map_float(Param::initialized(
             ParamId::from(7u64),
