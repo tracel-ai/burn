@@ -21,6 +21,7 @@ use crate::component_path::ComponentPath;
 )]
 #[cfg_attr(not(feature = "cubecl"), doc = concat!("[`PassCollector::collect`]: ", concat!("https://docs.rs/burn-instrument/", env!("CARGO_PKG_VERSION"), "/burn_instrument/struct.PassCollector.html#method.collect")))]
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Breakdown {
     /// The components the collected pass entered.
     pub tree: Vec<Component>,
@@ -67,7 +68,7 @@ pub struct Breakdown {
     /// Each measurement is kept beside the component that counted its launch and read
     /// back once the pass has run, so this is zero unless a runtime hands one
     /// over somewhere else. Reported rather than assumed, because
-    /// [`device`](Self::total_time) is the denominator of every apportioned
+    /// [`total_time`](Self::total_time) is the denominator of every apportioned
     /// millisecond in a report.
     pub unplaced: Unplaced,
     /// Whether the collected pass ran without fusion — no fusion linked, or a
@@ -194,6 +195,7 @@ impl Breakdown {
 /// One kernel a component launched: what it is called, how many times it ran,
 /// and what the device spent on it.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Kernel {
     /// The name the kernel gives itself, in full — shortened for display only,
     /// so two kernels that abbreviate alike are still counted apart.
@@ -228,6 +230,7 @@ pub struct Kernel {
 /// intended reading — the alternative, a component per execution, would be two components
 /// whose times a reader has to add back together to get the component's.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Variant {
     /// What the execution calls itself.
     pub name: String,
@@ -237,6 +240,7 @@ pub struct Variant {
 
 /// One component as the pass measured it: what it declared, and what it took.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Component {
     /// What the component is called — its label, or its type.
     pub label: String,
@@ -261,10 +265,12 @@ pub struct Component {
     /// Summed rather than checked for agreement because a component is legally
     /// entered at several shapes in one pass: chunked prefill runs a full chunk
     /// and a padded tail, and both are real work the component has to account for.
+    #[serde(deserialize_with = "Option::deserialize")]
     pub bounds: Option<Bounds>,
     /// Traffic observed beyond [`bounds`](Self::bounds) under this component,
     /// such as the experts a sparse layer's routes read past one component's. `None`
     /// where nothing under it observed any, or where it declares no floor.
+    #[serde(deserialize_with = "Option::deserialize")]
     pub observed: Option<Bounds>,
     /// How many times the pass entered it.
     pub entries: usize,
@@ -392,6 +398,7 @@ impl Component {
 /// recorder under a different attribution from the launch it measured, or a
 /// window that came back with no measurement in it.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Unplaced {
     /// How many timings had nowhere to go.
     pub timings: usize,

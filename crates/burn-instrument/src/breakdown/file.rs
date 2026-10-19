@@ -1,7 +1,7 @@
 //! A breakdown as a file: versioned JSON that reads back on any machine, with or without a
 //! runtime.
 
-use std::io::{Read, Write};
+use std::io::{BufWriter, Read, Write};
 
 use serde::{Deserialize, Serialize};
 
@@ -26,10 +26,17 @@ struct FileOut<'a> {
 
 /// A breakdown file as it is read: the header, and the breakdown parsed but not yet decoded, so
 /// a file of another format or version is refused before its contents are.
+///
+/// Every header field may be missing here, and is checked in [`Breakdown::read`]: a file with no
+/// format is not a breakdown, and a version too wide for this build's is still one it does not
+/// read.
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 struct FileIn {
-    format: String,
-    version: u32,
+    #[serde(default)]
+    format: Option<String>,
+    #[serde(default)]
+    version: Option<u64>,
     #[serde(default)]
     breakdown: serde_json::Value,
 }
@@ -46,7 +53,7 @@ pub enum BreakdownFileError {
     /// The file is not a breakdown.
     #[error("not a breakdown file: its format is `{found}`")]
     NotABreakdown {
-        /// The format the file declares.
+        /// The format the file declares, empty for a file that declares none.
         found: String,
     },
     /// The file is a breakdown in a version this build does not read.
@@ -55,7 +62,7 @@ pub enum BreakdownFileError {
     )]
     UnsupportedVersion {
         /// The version the file declares.
-        found: u32,
+        found: u64,
         /// The version this build reads, [`BREAKDOWN_FILE_VERSION`].
         supported: u32,
     },
@@ -70,24 +77,33 @@ impl Breakdown {
             version: BREAKDOWN_FILE_VERSION,
             breakdown: self,
         };
-        serde_json::to_writer_pretty(writer, &file)?;
+        // Buffered, so a file handed in as is is not written a token at a time; flushed here so
+        // a failed write is an error rather than lost in a drop.
+        let mut writer = BufWriter::new(writer);
+        serde_json::to_writer_pretty(&mut writer, &file)?;
+        writer.flush()?;
         Ok(())
     }
 
     /// Read back a breakdown [`write`](Self::write) wrote, refusing a file of another format or
-    /// version before decoding its contents.
+    /// version before decoding its contents, and one whose contents are not exactly what that
+    /// version writes: a field missing or one it does not know.
     pub fn read(mut reader: impl Read) -> Result<Self, BreakdownFileError> {
         // Read whole rather than parsed from the reader, which would read a file a byte at a
         // time.
         let mut bytes = Vec::new();
         reader.read_to_end(&mut bytes)?;
         let file: FileIn = serde_json::from_slice(&bytes)?;
-        if file.format != FORMAT {
-            return Err(BreakdownFileError::NotABreakdown { found: file.format });
+        let format = file.format.unwrap_or_default();
+        if format != FORMAT {
+            return Err(BreakdownFileError::NotABreakdown { found: format });
         }
-        if file.version != BREAKDOWN_FILE_VERSION {
+        let Some(version) = file.version else {
+            return Err(<serde_json::Error as serde::de::Error>::missing_field("version").into());
+        };
+        if version != u64::from(BREAKDOWN_FILE_VERSION) {
             return Err(BreakdownFileError::UnsupportedVersion {
-                found: file.version,
+                found: version,
                 supported: BREAKDOWN_FILE_VERSION,
             });
         }
@@ -169,6 +185,49 @@ mod tests {
   }
 }"#;
         assert_eq!(written(&breakdown()), expected);
+        assert_eq!(
+            Breakdown::read(expected.as_bytes()).expect("version 1 reads"),
+            breakdown(),
+            "and reads back as the breakdown it pins"
+        );
+    }
+
+    /// A file is read as its version writes it or not at all: a field this build does not know
+    /// would be dropped unseen, and a missing one read as a value nobody wrote.
+    #[test]
+    fn a_file_unlike_what_its_version_writes_is_refused() {
+        let pinned = written(&breakdown());
+        let unknown = pinned.replace(r#""unfused": false"#, r#""unfused": false, "extra": 1"#);
+        let missing = pinned.replace(r#""observed": null,"#, "");
+        assert_ne!(unknown, pinned);
+        assert_ne!(missing, pinned);
+
+        assert!(matches!(
+            Breakdown::read(unknown.as_bytes()),
+            Err(BreakdownFileError::Malformed(_))
+        ));
+        assert!(matches!(
+            Breakdown::read(missing.as_bytes()),
+            Err(BreakdownFileError::Malformed(_))
+        ));
+    }
+
+    /// The header is told apart before anything else: a file declaring no format is not a
+    /// breakdown, and a version wider than this build's is one it does not read.
+    #[test]
+    fn a_header_is_refused_for_what_it_says() {
+        assert!(matches!(
+            Breakdown::read(r#"{"version": 1}"#.as_bytes()),
+            Err(BreakdownFileError::NotABreakdown { found }) if found.is_empty()
+        ));
+        let wide = r#"{"format": "burn-instrument breakdown", "version": 4294967296}"#;
+        assert!(matches!(
+            Breakdown::read(wide.as_bytes()),
+            Err(BreakdownFileError::UnsupportedVersion {
+                found: 4_294_967_296,
+                supported: 1
+            })
+        ));
     }
 
     /// A file of another version is refused by its header, before contents this build may not know

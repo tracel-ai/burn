@@ -21,6 +21,7 @@ use burn_tensor::{DType, Tensor};
 /// none.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "std", serde(deny_unknown_fields))]
 pub struct Bounds {
     /// Bytes read from global memory, at the widths the tensors are stored in (see
     /// [`tensor_bytes`]).
