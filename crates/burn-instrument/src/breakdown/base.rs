@@ -125,7 +125,8 @@ impl Breakdown {
 
     /// The components whose work all ran in a fused kernel recorded elsewhere: no
     /// kernel under them, and named by a kernel on a component above them or outside
-    /// every component. Such a component ran nothing, so its floor is the kernel's
+    /// every component, or holding one that is. A component between the kernel and
+    /// the ones it names did no work of its own either. Such a component ran nothing, so its floor is the kernel's
     /// that carried its work, and a report sets the component's own aside.
     ///
     /// Asked of the kernels rather than inferred from a zero: a component that
@@ -133,6 +134,10 @@ impl Breakdown {
     /// its zero is its time; and a component whose own kernels lost their timings
     /// also reads zero, though it ran them.
     pub fn fused_elsewhere(&self) -> Vec<&Component> {
+        /// Whether `kernel` carried out work at `path` or below it.
+        fn names(kernel: &Kernel, path: &ComponentPath) -> bool {
+            kernel.fuses.iter().any(|fused| fused.starts_with(path))
+        }
         fn visit<'a>(
             breakdown: &'a Breakdown,
             component: &'a Component,
@@ -150,10 +155,7 @@ impl Breakdown {
                         .chain([&component])
                         .map(|component| component.label.as_str()),
                 );
-                ancestor
-                    .kernels
-                    .iter()
-                    .any(|kernel| kernel.fuses.contains(&path))
+                ancestor.kernels.iter().any(|kernel| names(kernel, &path))
             });
             // Outside every component, a kernel names a component by its path from the
             // root.
@@ -167,7 +169,7 @@ impl Breakdown {
                 .untagged
                 .iter()
                 .chain(&breakdown.end_of_pass)
-                .any(|kernel| kernel.fuses.contains(&path));
+                .any(|kernel| names(kernel, &path));
             let ran_nothing = component
                 .walk()
                 .iter()
@@ -526,5 +528,60 @@ mod tests {
             .map(|component| component.label.as_str())
             .collect();
         assert_eq!(fused, ["norm"]);
+    }
+
+    /// A component whose only work was a child's, fused into a kernel above
+    /// it, ran nothing either: the kernel names the child by its path through
+    /// it, and leaving it out would score its floor against no time at all.
+    #[test]
+    fn a_component_between_a_fused_kernel_and_what_it_names_is_fused_elsewhere() {
+        let leaf = |label: &str| Component {
+            label: label.to_string(),
+            variants: Vec::new(),
+            sites: Vec::new(),
+            bounds: None,
+            observed: None,
+            entries: 1,
+            children: Vec::new(),
+            kernels: Vec::new(),
+            own_wait: Duration::ZERO,
+        };
+        let block = Component {
+            children: vec![
+                leaf("norm"),
+                Component {
+                    children: vec![leaf("query")],
+                    ..leaf("attention")
+                },
+            ],
+            kernels: vec![Kernel {
+                name: "ElemwiseMatmul".to_string(),
+                launches: 1,
+                total: Duration::from_nanos(10),
+                fuses: vec![
+                    ComponentPath::new(["norm"]),
+                    ComponentPath::new(["attention", "query"]),
+                ],
+                fuses_own: false,
+            }],
+            ..leaf("block")
+        };
+        let breakdown = Breakdown {
+            tree: vec![block],
+            untagged: Vec::new(),
+            end_of_pass: Vec::new(),
+            outside_wait: Duration::ZERO,
+            host_timed: false,
+            timed_alone: false,
+            unplaced: Unplaced::default(),
+            unfused: false,
+        };
+
+        let fused: Vec<&str> = breakdown
+            .fused_elsewhere()
+            .iter()
+            .map(|component| component.label.as_str())
+            .collect();
+        assert_eq!(fused, ["norm", "attention", "query"]);
     }
 }

@@ -32,6 +32,11 @@ impl ComponentPath {
         Self(labels)
     }
 
+    /// Whether this path leads through the component at `outer`, or ends there.
+    pub fn starts_with(&self, outer: &ComponentPath) -> bool {
+        self.0.starts_with(&outer.0)
+    }
+
     /// The labels, outermost first.
     pub fn labels(&self) -> impl Iterator<Item = &str> {
         self.0.iter().map(String::as_str)
