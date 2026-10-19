@@ -1100,3 +1100,98 @@ impl<B: Backend> QTensorOps<ForwardDiff<B>> for ForwardDiff<B> {
 impl<B: Backend> TransactionOps<ForwardDiff<B>> for ForwardDiff<B> {}
 
 impl<B: Backend> DistributedOps<ForwardDiff<B>> for ForwardDiff<B> {}
+
+#[cfg(test)]
+mod tests {
+    use crate::{ForwardDiff, FuncTensor, jvp};
+    use alloc::vec;
+    use alloc::vec::Vec;
+    use burn_backend::TensorData;
+    use burn_flex::{Flex, FlexDevice};
+
+    type FD = ForwardDiff<Flex>;
+
+    fn values(tensor: FuncTensor<Flex, 1>) -> Vec<f32> {
+        tensor.into_data_sync().try_to_vec::<f32>().unwrap()
+    }
+
+    #[test]
+    fn jvp_max_pool2d() {
+        let device = FlexDevice;
+        let x = FuncTensor::<Flex, 4>::from_data(
+            TensorData::from([[[[1.0f32, 4.0], [2.0, 3.0]]]]),
+            &device,
+        );
+        let dx = FuncTensor::<Flex, 4>::from_data(
+            TensorData::from([[[[10.0f32, 20.0], [30.0, 40.0]]]]),
+            &device,
+        );
+
+        let f = |x: &FuncTensor<FD, 4>| x.clone().max_pool2d([2, 2], [2, 2], [0, 0], [1, 1]);
+        let tangent: FuncTensor<Flex, 4> = jvp::<Flex, _, _, _>(f, &x, &dx);
+
+        let vals = tangent.into_data_sync().try_to_vec::<f32>().unwrap();
+        // Max element is 4.0 at (0, 1), so winning tangent is 20.0
+        assert_eq!(vals, vec![20.0]);
+    }
+
+    #[test]
+    fn jvp_attention_smoke() {
+        let device = FlexDevice;
+        let q = FuncTensor::<Flex, 4>::from_data(
+            TensorData::from([[[[1.0f32, 0.0], [0.0, 1.0]]]]),
+            &device,
+        );
+        let k = FuncTensor::<Flex, 4>::from_data(
+            TensorData::from([[[[1.0f32, 0.0], [0.0, 1.0]]]]),
+            &device,
+        );
+        let v = FuncTensor::<Flex, 4>::from_data(
+            TensorData::from([[[[1.0f32, 2.0], [3.0, 4.0]]]]),
+            &device,
+        );
+
+        let dq = FuncTensor::<Flex, 4>::from_data(
+            TensorData::from([[[[0.1f32, 0.0], [0.0, 0.0]]]]),
+            &device,
+        );
+        let dk = FuncTensor::<Flex, 4>::zeros([1, 1, 2, 2], &device);
+        let dv = FuncTensor::<Flex, 4>::zeros([1, 1, 2, 2], &device);
+
+        let f = |(q, k, v): &(FuncTensor<FD, 4>, FuncTensor<FD, 4>, FuncTensor<FD, 4>)| {
+            q.clone().attention(k.clone(), v.clone()).sum()
+        };
+        let tangent: FuncTensor<Flex, 1> = jvp::<Flex, _, _, _>(f, &(q, k, v), &(dq, dk, dv));
+        let val = values(tangent)[0];
+        assert!(val.is_finite());
+        assert!(val.abs() > 1e-4);
+    }
+
+    #[test]
+    fn jvp_grid_sample_2d_smoke() {
+        use burn_backend::ops::{GridSampleOptions, InterpolateMode};
+        let device = FlexDevice;
+        let tensor = FuncTensor::<Flex, 4>::from_data(
+            TensorData::from([[[[1.0f32, 2.0], [3.0, 4.0]]]]),
+            &device,
+        );
+        let grid = FuncTensor::<Flex, 4>::from_data(
+            TensorData::from([[[[-0.5f32, -0.5], [0.5, -0.5]], [[-0.5, 0.5], [0.5, 0.5]]]]),
+            &device,
+        );
+        let dt = FuncTensor::<Flex, 4>::from_data(
+            TensorData::from([[[[1.0f32, 1.0], [1.0, 1.0]]]]),
+            &device,
+        );
+        let dg = FuncTensor::<Flex, 4>::zeros([1, 2, 2, 2], &device);
+
+        let options = GridSampleOptions::new(InterpolateMode::Bilinear);
+        let f = |(t, g): &(FuncTensor<FD, 4>, FuncTensor<FD, 4>)| {
+            t.clone().grid_sample_2d(g.clone(), options.clone()).sum()
+        };
+        let tangent: FuncTensor<Flex, 1> = jvp::<Flex, _, _, _>(f, &(tensor, grid), &(dt, dg));
+        let val = values(tangent)[0];
+        assert!(val.is_finite());
+        assert!((val - 4.0).abs() < 1e-3);
+    }
+}

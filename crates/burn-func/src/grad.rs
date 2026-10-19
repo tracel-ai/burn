@@ -320,3 +320,733 @@ where
         tangents,
     )
 }
+
+#[cfg(test)]
+mod tests {
+    use alloc::vec;
+    use alloc::vec::Vec;
+    use burn_autodiff::Autodiff;
+    use burn_backend::{AutodiffBackend, Backend, Scalar, TensorData};
+    use burn_flex::{Flex, FlexDevice};
+
+    use super::*;
+
+    type B = Flex;
+    type AB = Autodiff<B>;
+
+    fn tensor(values: &[f32]) -> FuncTensor<Flex, 1> {
+        FuncTensor::from_data(TensorData::from(values), &FlexDevice)
+    }
+
+    fn values(tensor: FuncTensor<Flex, 1>) -> Vec<f32> {
+        tensor.into_data_sync().try_to_vec::<f32>().unwrap()
+    }
+
+    #[test]
+    fn grad_linear_function() {
+        let device = FlexDevice;
+        let x = FuncTensor::<B, 1>::from_data(TensorData::from([2.0f32]), &device);
+
+        let f = |x: &FuncTensor<AB, 1>| (x.clone() * 3.0f64).sum();
+        let dx = grad::<B, _, _>(f)(&x);
+
+        let values = dx.into_data_sync().try_to_vec::<f32>().unwrap();
+        assert_eq!(values, vec![3.0]);
+    }
+
+    #[test]
+    fn grad_constant_function_is_zero() {
+        let device = FlexDevice;
+        let x = FuncTensor::<B, 1>::from_data(TensorData::from([2.0f32, 4.0f32]), &device);
+
+        let f = |x: &FuncTensor<AB, 1>| {
+            let _ = x;
+            FuncTensor::<AB, 1>::ones([1], &FlexDevice)
+        };
+        let dx = grad::<B, _, _>(f)(&x);
+
+        let values = dx.into_data_sync().try_to_vec::<f32>().unwrap();
+        assert_eq!(values, vec![0.0, 0.0]);
+    }
+
+    #[derive(Clone)]
+    struct Cubic;
+
+    impl<B: Backend> Differentiable<B, FuncTensor<B, 1>> for Cubic {
+        fn eval<B2: Backend>(&self, x: &FuncTensor<B2, 1>) -> FuncTensor<B2, 1> {
+            (x.clone() * x.clone() * x.clone()).sum()
+        }
+    }
+
+    #[test]
+    fn hvp_of_cubic() {
+        let device = FlexDevice;
+        let x = FuncTensor::<Flex, 1>::from_data(TensorData::from([2.0f32]), &device);
+        let v = FuncTensor::<Flex, 1>::from_data(TensorData::from([1.0f32]), &device);
+
+        let (gradient, hessian_vector) = hvp::<Flex, _, _>(Cubic, &x, &v);
+
+        assert_eq!(
+            gradient.into_data_sync().try_to_vec::<f32>().unwrap(),
+            vec![12.0]
+        );
+        assert_eq!(
+            hessian_vector.into_data_sync().try_to_vec::<f32>().unwrap(),
+            vec![12.0]
+        );
+    }
+
+    #[test]
+    fn issue_6090_stateless_line_fit() {
+        let device = FlexDevice;
+        let x =
+            FuncTensor::<Flex, 1>::from_data(TensorData::from([1.0f32, 2.0, 3.0, 4.0]), &device);
+        let y =
+            FuncTensor::<Flex, 1>::from_data(TensorData::from([5.0f32, 7.0, 9.0, 11.0]), &device);
+        let x_ad =
+            FuncTensor::<AB, 1>::from_data(TensorData::from([1.0f32, 2.0, 3.0, 4.0]), &device);
+        let y_ad =
+            FuncTensor::<AB, 1>::from_data(TensorData::from([5.0f32, 7.0, 9.0, 11.0]), &device);
+
+        let mut params = (tensor(&[0.0]), tensor(&[0.0]));
+        let loss_fn = move |(w, b): &(FuncTensor<AB, 1>, FuncTensor<AB, 1>)| {
+            let predictions = w.clone() * x_ad.clone() + b.clone();
+            (predictions - y_ad.clone())
+                .powf_scalar(Scalar::from(2.0f64))
+                .mean()
+        };
+
+        let value_and_gradient = value_and_grad::<Flex, AB, _, _>(loss_fn);
+        for _ in 0..1000 {
+            let (_, grads) = value_and_gradient(&params);
+            params.0 = params.0 - grads.0 * 0.1f64;
+            params.1 = params.1 - grads.1 * 0.1f64;
+        }
+
+        let w = values(params.0)[0];
+        let b = values(params.1)[0];
+        assert!((w - 2.0).abs() < 1e-2, "expected w=2, got {w}");
+        assert!((b - 3.0).abs() < 1e-2, "expected b=3, got {b}");
+
+        let _ = (x, y);
+    }
+
+    #[test]
+    fn constant_function_returns_zero_gradient() {
+        let x = tensor(&[2.0, 4.0]);
+        let f = |_x: &FuncTensor<AB, 1>| FuncTensor::<AB, 1>::ones([1], &FlexDevice);
+        let dx = grad::<Flex, _, _>(f)(&x);
+        assert_eq!(values(dx), vec![0.0, 0.0]);
+    }
+
+    #[test]
+    fn unused_pytree_leaf_gets_zero_gradient() {
+        let params = (tensor(&[2.0]), tensor(&[5.0, 6.0]));
+        let f = |(w, _b): &(FuncTensor<AB, 1>, FuncTensor<AB, 1>)| (w.clone() * 3.0f64).sum();
+        let grads = grad::<Flex, _, _>(f)(&params);
+        assert_eq!(values(grads.0), vec![3.0]);
+        assert_eq!(values(grads.1), vec![0.0, 0.0]);
+    }
+
+    #[test]
+    fn aliased_pytree_leaves_each_receive_gradient() {
+        let x = tensor(&[2.0]);
+        let params = (x.clone(), x);
+        let f = |(a, b): &(FuncTensor<AB, 1>, FuncTensor<AB, 1>)| {
+            (a.clone() * 2.0f64 + b.clone() * 3.0f64).sum()
+        };
+        let grads = grad::<Flex, _, _>(f)(&params);
+        assert_eq!(values(grads.0), vec![2.0]);
+        assert_eq!(values(grads.1), vec![3.0]);
+    }
+
+    #[test]
+    fn multi_output_vjp_sums_cotangents() {
+        let x = tensor(&[2.0]);
+        let f = |x: &FuncTensor<AB, 1>| (x.clone() * 2.0f64, x.clone() * 3.0f64);
+
+        let (output, pullback) =
+            vjp::<Flex, AB, _, (FuncTensor<Flex, 1>, FuncTensor<Flex, 1>), _>(f, &x);
+        assert_eq!(values(output.0), vec![4.0]);
+        assert_eq!(values(output.1), vec![6.0]);
+
+        let cotangent = (tensor(&[1.0]), tensor(&[1.0]));
+        let dx = pullback(&cotangent);
+        assert_eq!(values(dx), vec![5.0]);
+    }
+
+    #[test]
+    fn vjp_shared_intermediate_nodes() {
+        let x = tensor(&[2.0]);
+        let f = |x: &FuncTensor<AB, 1>| {
+            let shared = x.clone() * x.clone();
+            (shared.clone(), shared)
+        };
+
+        let (_, pullback) =
+            vjp::<Flex, AB, _, (FuncTensor<Flex, 1>, FuncTensor<Flex, 1>), _>(f, &x);
+
+        let cotangent = (tensor(&[1.0]), tensor(&[2.0]));
+        let dx = pullback(&cotangent);
+        // d(x^2)/dx = 2x = 4; two outputs contribute 4 * (1 + 2) = 12.
+        assert_eq!(values(dx), vec![12.0]);
+    }
+
+    #[test]
+    fn vjp_once_runs_once() {
+        let x = tensor(&[3.0]);
+        let f = |x: &FuncTensor<AB, 1>| x.clone() * x.clone();
+        let (output, pullback) = vjp_once::<Flex, AB, _, FuncTensor<Flex, 1>, _>(f, &x);
+        assert_eq!(values(output), vec![9.0]);
+        let dx = pullback(&tensor(&[1.0]));
+        assert_eq!(values(dx), vec![6.0]);
+    }
+
+    #[test]
+    fn finite_difference_sweep() {
+        fn assert_fd<Fa, Fb>(name: &str, x0: &[f32], f_ad: Fa, f_fd: Fb, tol: f64)
+        where
+            Fa: Fn(&FuncTensor<AB, 1>) -> FuncTensor<AB, 1>,
+            Fb: Fn(&FuncTensor<Flex, 1>) -> FuncTensor<Flex, 1>,
+        {
+            let device = FlexDevice;
+            let x = FuncTensor::<Flex, 1>::from_data(TensorData::from(x0), &device);
+            let analytical = values(grad::<Flex, _, _>(&f_ad)(&x));
+
+            let eps = 1e-2f64;
+            let mut finite = Vec::new();
+            for index in 0..x0.len() {
+                let mut plus = x0.to_vec();
+                let mut minus = x0.to_vec();
+                plus[index] += eps as f32;
+                minus[index] -= eps as f32;
+                let plus_value = values(f_fd(&FuncTensor::from_data(
+                    TensorData::from(plus.as_slice()),
+                    &device,
+                )))[0];
+                let minus_value = values(f_fd(&FuncTensor::from_data(
+                    TensorData::from(minus.as_slice()),
+                    &device,
+                )))[0];
+                finite.push((plus_value - minus_value) as f64 / (2.0 * eps));
+            }
+
+            for (a, f) in analytical.iter().zip(finite.iter()) {
+                assert!(
+                    ((*a as f64) - f).abs() < tol,
+                    "{name}: analytic {a} vs fd {f} with tol {tol}"
+                );
+            }
+        }
+
+        // Arithmetic & unary
+        assert_fd(
+            "exp+sin+x2",
+            &[0.3, -0.7, 1.1],
+            |x| (x.clone().exp() + x.clone().sin() + x.clone() * x.clone()).sum(),
+            |x| (x.clone().exp() + x.clone().sin() + x.clone() * x.clone()).sum(),
+            1e-3,
+        );
+
+        assert_fd(
+            "relu",
+            &[-1.0, 0.5, 2.0],
+            |x| x.clone().relu().sum(),
+            |x| x.clone().relu().sum(),
+            1e-3,
+        );
+
+        assert_fd(
+            "gelu",
+            &[-1.0, 0.5, 2.0],
+            |x| x.clone().gelu().sum(),
+            |x| x.clone().gelu().sum(),
+            1e-2,
+        );
+
+        assert_fd(
+            "sigmoid",
+            &[-1.0, 0.0, 1.0],
+            |x| x.clone().sigmoid().sum(),
+            |x| x.clone().sigmoid().sum(),
+            1e-3,
+        );
+
+        assert_fd(
+            "tanh",
+            &[-0.5, 0.0, 0.5],
+            |x| x.clone().tanh().sum(),
+            |x| x.clone().tanh().sum(),
+            1e-3,
+        );
+
+        assert_fd(
+            "softmax",
+            &[-0.3, 0.0, 0.7],
+            |x| x.clone().softmax(0).sum(),
+            |x| x.clone().softmax(0).sum(),
+            1e-3,
+        );
+
+        assert_fd(
+            "log_softmax",
+            &[-0.3, 0.0, 0.7],
+            |x| x.clone().log_softmax(0).sum(),
+            |x| x.clone().log_softmax(0).sum(),
+            1e-3,
+        );
+
+        // Reductions
+        assert_fd(
+            "sum_dim",
+            &[1.0, 2.0, 3.0],
+            |x| x.clone().sum_dim(0).sum(),
+            |x| x.clone().sum_dim(0).sum(),
+            1e-3,
+        );
+
+        // Structural
+        assert_fd(
+            "reshape",
+            &[1.0, 2.0, 3.0, 4.0],
+            |x| x.clone().reshape::<2, _>([2, 2]).sum(),
+            |x| x.clone().reshape::<2, _>([2, 2]).sum(),
+            1e-3,
+        );
+
+        assert_fd(
+            "slice",
+            &[1.0, 2.0, 3.0, 4.0],
+            |x| {
+                x.clone()
+                    .slice(&[burn_std::Slice::new(0, Some(2), 1)])
+                    .sum()
+            },
+            |x| {
+                x.clone()
+                    .slice(&[burn_std::Slice::new(0, Some(2), 1)])
+                    .sum()
+            },
+            1e-3,
+        );
+
+        assert_fd(
+            "cat",
+            &[1.0, 2.0, 3.0],
+            |x| FuncTensor::cat(vec![x.clone(), x.clone()], 0).sum(),
+            |x| FuncTensor::cat(vec![x.clone(), x.clone()], 0).sum(),
+            1e-3,
+        );
+
+        // Broadcasting
+        assert_fd(
+            "broadcasting",
+            &[1.0, 2.0, 3.0],
+            |x| {
+                let b = FuncTensor::<AB, 2>::from_data(
+                    TensorData::from([[1.0f32, 1.0, 1.0], [2.0, 2.0, 2.0]]),
+                    &FlexDevice,
+                );
+                (x.clone().reshape::<2, _>([1, 3]) + b).sum()
+            },
+            |x| {
+                let b = FuncTensor::<Flex, 2>::from_data(
+                    TensorData::from([[1.0f32, 1.0, 1.0], [2.0, 2.0, 2.0]]),
+                    &FlexDevice,
+                );
+                (x.clone().reshape::<2, _>([1, 3]) + b).sum()
+            },
+            1e-3,
+        );
+
+        // Matmul
+        assert_fd(
+            "matmul",
+            &[1.0, 2.0, 3.0, 4.0],
+            |x| {
+                let w = FuncTensor::<AB, 2>::from_data(
+                    TensorData::from([[0.5f32, -0.2], [0.1, 0.3]]),
+                    &FlexDevice,
+                );
+                x.clone().reshape::<2, _>([2, 2]).matmul(w).sum()
+            },
+            |x| {
+                let w = FuncTensor::<Flex, 2>::from_data(
+                    TensorData::from([[0.5f32, -0.2], [0.1, 0.3]]),
+                    &FlexDevice,
+                );
+                x.clone().reshape::<2, _>([2, 2]).matmul(w).sum()
+            },
+            1e-3,
+        );
+    }
+
+    #[test]
+    fn grad_rejects_non_scalar_output() {
+        let x = tensor(&[1.0, 2.0]);
+        let f = |x: &FuncTensor<AB, 1>| x.clone() * 2.0f64;
+        let result =
+            std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| grad::<Flex, _, _>(f)(&x)));
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn backend_is_autodiff_capable() {
+        assert!(!<Flex as Backend>::ad_enabled(&FlexDevice));
+        assert!(<AB as Backend>::ad_enabled(&FlexDevice));
+    }
+
+    #[test]
+    #[should_panic(expected = "Cotangent shape")]
+    fn vjp_mismatched_cotangent_shape_panics() {
+        let device = FlexDevice;
+        let x = FuncTensor::<Flex, 2>::from_data(
+            TensorData::from([[1.0f32, 2.0], [3.0, 4.0]]),
+            &device,
+        );
+        let wrong_seed =
+            FuncTensor::<Flex, 2>::from_data(TensorData::from([[1.0f32, 1.0]]), &device);
+        let (_, pullback) = vjp::<Flex, AB, _, _, _>(|x| x.clone(), &x);
+        let _ = pullback(&wrong_seed);
+    }
+
+    #[test]
+    fn vjp_untracked_output_returns_zero() {
+        let device = FlexDevice;
+        let x = FuncTensor::<Flex, 1>::from_data(TensorData::from([2.0f32, 3.0]), &device);
+        // Function that returns a constant untracked tensor (ignoring input)
+        let (_, pullback) = vjp::<Flex, AB, _, _, _>(
+            |x| FuncTensor::from_data(TensorData::from([5.0f32]), &x.device()),
+            &x,
+        );
+        let seed = FuncTensor::<Flex, 1>::from_data(TensorData::from([1.0f32]), &device);
+        let grad = pullback(&seed);
+        assert_eq!(values(grad), vec![0.0, 0.0]);
+    }
+
+    #[derive(Clone)]
+    struct Quartic;
+
+    impl<B: Backend> Differentiable<B, FuncTensor<B, 1>> for Quartic {
+        fn eval<B2: Backend>(&self, x: &FuncTensor<B2, 1>) -> FuncTensor<B2, 1> {
+            let x2 = x.clone() * x.clone();
+            (x2.clone() * x2).sum()
+        }
+    }
+
+    #[test]
+    fn hvp_of_quartic() {
+        let device = FlexDevice;
+        let x = FuncTensor::<Flex, 1>::from_data(TensorData::from([2.0f32]), &device);
+        let v = FuncTensor::<Flex, 1>::from_data(TensorData::from([1.0f32]), &device);
+
+        let (gradient, hvp) = hvp::<Flex, _, _>(Quartic, &x, &v);
+
+        // f(x) = x^4; f'(x) = 4x^3 = 32; f''(x) = 12x^2 = 48.
+        assert_eq!(
+            gradient.into_data_sync().try_to_vec::<f32>().unwrap(),
+            vec![32.0]
+        );
+        assert_eq!(
+            hvp.into_data_sync().try_to_vec::<f32>().unwrap(),
+            vec![48.0]
+        );
+    }
+
+    #[test]
+    fn hvp_matches_reverse_over_reverse() {
+        let device = FlexDevice;
+        let x = FuncTensor::<Flex, 1>::from_data(TensorData::from([1.5f32]), &device);
+        let v = FuncTensor::<Flex, 1>::from_data(TensorData::from([2.0f32]), &device);
+
+        let (_, forward_over_reverse) = hvp::<Flex, _, _>(Quartic, &x, &v);
+
+        // Reverse-over-reverse: differentiate x -> <grad(f)(x), v>.
+        let v_for_inner = FuncTensor::<burn_autodiff::Autodiff<Flex>, 1>::from_data(
+            TensorData::from([2.0f32]),
+            &device,
+        );
+        let reverse_over_reverse =
+            grad::<Flex, _, _>(move |x: &FuncTensor<burn_autodiff::Autodiff<Flex>, 1>| {
+                let x2 = x.clone() * x.clone();
+                let gradient = x2 * x.clone() * 4.0f64; // d(x^4)/dx = 4x^3
+                (gradient * v_for_inner.clone()).sum()
+            })(&x);
+
+        let forward = forward_over_reverse
+            .into_data_sync()
+            .try_to_vec::<f32>()
+            .unwrap()[0];
+        let reverse = reverse_over_reverse
+            .into_data_sync()
+            .try_to_vec::<f32>()
+            .unwrap()[0];
+        assert!(
+            (forward - reverse).abs() < 1e-4,
+            "forward={forward}, reverse={reverse}"
+        );
+    }
+
+    #[test]
+    fn second_derivative_of_transcendental() {
+        let device = FlexDevice;
+        let x = FuncTensor::<Flex, 1>::from_data(TensorData::from([0.7f32]), &device);
+        let v = FuncTensor::<Flex, 1>::from_data(TensorData::from([1.0f32]), &device);
+
+        #[derive(Clone)]
+        struct Sin;
+        impl<B: Backend> Differentiable<B, FuncTensor<B, 1>> for Sin {
+            fn eval<B2: Backend>(&self, x: &FuncTensor<B2, 1>) -> FuncTensor<B2, 1> {
+                x.clone().sin().sum()
+            }
+        }
+
+        let (gradient, hvp) = hvp::<Flex, _, _>(Sin, &x, &v);
+        let gradient = gradient.into_data_sync().try_to_vec::<f32>().unwrap()[0];
+        let hvp = hvp.into_data_sync().try_to_vec::<f32>().unwrap()[0];
+        assert!((gradient - 0.7f32.cos()).abs() < 1e-5);
+        assert!((hvp + 0.7f32.sin()).abs() < 1e-5);
+    }
+
+    #[test]
+    fn scalar_gradient_of_mlp_loss() {
+        let device = FlexDevice;
+        let x =
+            FuncTensor::<AB, 2>::from_data(TensorData::from([[0.2f32, -0.3], [0.5, 0.1]]), &device);
+        let target = FuncTensor::<AB, 1>::from_data(TensorData::from([1.0f32, -1.0]), &device);
+
+        let params = (
+            FuncTensor::<Flex, 2>::from_data(
+                TensorData::from([[0.5f32, -0.2], [0.1, 0.3]]),
+                &device,
+            ),
+            FuncTensor::<Flex, 1>::from_data(TensorData::from([0.0f32, 0.0]), &device),
+        );
+
+        let loss = |(w, b): &(FuncTensor<AB, 2>, FuncTensor<AB, 1>)| {
+            let hidden = x.clone().matmul(w.clone()) + b.clone().reshape([1, 2]);
+            let activated = hidden.tanh();
+            let output = activated.sum_dim(1).reshape([2]);
+            ((output - target.clone()).powf_scalar(Scalar::from(2.0f64))).mean()
+        };
+
+        let grads = grad::<Flex, _, _>(loss)(&params);
+        assert_eq!(grads.0.shape().num_elements(), 4);
+        assert_eq!(grads.1.shape().num_elements(), 2);
+    }
+
+    #[test]
+    fn second_derivative_of_linear_function_is_zero() {
+        let device = FlexDevice;
+        let x = FuncTensor::<Flex, 1>::from_data(TensorData::from([2.0f32, 4.0]), &device);
+
+        // grad(grad(f)) where f(x) = sum(3x)
+        let f = |x: &FuncTensor<Autodiff<Autodiff<Flex>>, 1>| (x.clone() * 3.0f64).sum();
+        let d2 = grad::<Flex, _, _>(|x: &FuncTensor<Autodiff<Flex>, 1>| {
+            grad::<Autodiff<Flex>, _, _>(f)(x).sum()
+        })(&x);
+
+        let values = d2.into_data_sync().try_to_vec::<f32>().unwrap();
+        assert_eq!(values, vec![0.0, 0.0]);
+    }
+
+    #[test]
+    fn third_order_derivative_of_quartic() {
+        let device = FlexDevice;
+
+        let x = FuncTensor::<Flex, 1>::from_data(TensorData::from([1.5f32]), &device);
+        // f = sum(x^4) -> f' = 4x^3 -> f'' = 12x^2 -> f''' = 24x = 24 * 1.5 = 36.
+        let f = |x: &FuncTensor<Autodiff<Autodiff<Autodiff<Flex>>>, 1>| {
+            let x2 = x.clone() * x.clone();
+            (x2.clone() * x2).sum()
+        };
+        let d3 = grad::<Flex, _, _>(|x: &FuncTensor<Autodiff<Flex>, 1>| {
+            grad::<Autodiff<Flex>, _, _>(|x: &FuncTensor<Autodiff<Autodiff<Flex>>, 1>| {
+                grad::<Autodiff<Autodiff<Flex>>, _, _>(f)(x).sum()
+            })(x)
+            .sum()
+        })(&x);
+
+        let val = d3.into_data_sync().try_to_vec::<f32>().unwrap()[0];
+        assert!((val - 36.0).abs() < 1e-4, "Expected 36.0, got {val}");
+    }
+
+    #[test]
+    fn pinn_poisson_1d() {
+        type A1 = Autodiff<Flex>;
+        type A2 = Autodiff<A1>;
+        type A3 = Autodiff<A2>;
+
+        let device = FlexDevice;
+        let n = 16;
+        let xs: Vec<f32> = (0..n)
+            .map(|i| -1.0 + 2.0 * (i as f32) / ((n - 1) as f32))
+            .collect();
+        let x = FuncTensor::<Flex, 2>::from_data(TensorData::new(xs.clone(), [n, 1]), &device);
+
+        // MLP: u(x) = W2 @ tanh(W1 @ x + b1) + b2
+        let mut params = (
+            FuncTensor::<Flex, 2>::from_data(TensorData::from([[0.5f32], [0.7]]), &device),
+            FuncTensor::<Flex, 1>::from_data(TensorData::from([0.0f32, 0.0]), &device),
+            FuncTensor::<Flex, 2>::from_data(TensorData::from([[0.5f32, 0.7]]), &device),
+            FuncTensor::<Flex, 1>::from_data(TensorData::from([0.0f32]), &device),
+        );
+
+        fn mlp<B: Backend>(
+            w1: &FuncTensor<B, 2>,
+            b1: &FuncTensor<B, 1>,
+            w2: &FuncTensor<B, 2>,
+            b2: &FuncTensor<B, 1>,
+            x: &FuncTensor<B, 2>,
+        ) -> FuncTensor<B, 2> {
+            let h = (x.clone().matmul(w1.clone().transpose()) + b1.clone().reshape([1, 2])).tanh();
+            h.matmul(w2.clone().transpose()) + b2.clone().reshape([1, 1])
+        }
+
+        let compute_loss = |params: &(
+            FuncTensor<A1, 2>,
+            FuncTensor<A1, 1>,
+            FuncTensor<A1, 2>,
+            FuncTensor<A1, 1>,
+        )| {
+            let w1_2 =
+                FuncTensor::<A2, 2>::from_primitive(A2::from_inner(params.0.primitive().clone()));
+            let b1_2 =
+                FuncTensor::<A2, 1>::from_primitive(A2::from_inner(params.1.primitive().clone()));
+            let w2_2 =
+                FuncTensor::<A2, 2>::from_primitive(A2::from_inner(params.2.primitive().clone()));
+            let b2_2 =
+                FuncTensor::<A2, 1>::from_primitive(A2::from_inner(params.3.primitive().clone()));
+
+            let x_for_a1 =
+                FuncTensor::<A1, 2>::from_primitive(A1::from_inner(x.primitive().clone()));
+
+            let du_dx = move |x_inner: &FuncTensor<A2, 2>| -> FuncTensor<A2, 2> {
+                let w1_3 =
+                    FuncTensor::<A3, 2>::from_primitive(A3::from_inner(w1_2.primitive().clone()));
+                let b1_3 =
+                    FuncTensor::<A3, 1>::from_primitive(A3::from_inner(b1_2.primitive().clone()));
+                let w2_3 =
+                    FuncTensor::<A3, 2>::from_primitive(A3::from_inner(w2_2.primitive().clone()));
+                let b2_3 =
+                    FuncTensor::<A3, 1>::from_primitive(A3::from_inner(b2_2.primitive().clone()));
+                grad::<A2, _, _>(move |x_in3: &FuncTensor<A3, 2>| {
+                    mlp(&w1_3, &b1_3, &w2_3, &b2_3, x_in3).sum()
+                })(x_inner)
+            };
+
+            let du2_dx2 =
+                grad::<A1, _, _>(move |x_in2: &FuncTensor<A2, 2>| du_dx(x_in2).sum())(&x_for_a1);
+
+            let pi = core::f32::consts::PI;
+            let pi_sq = pi * pi;
+            let forcing = (x_for_a1.clone() * (pi as f64)).sin() * (pi_sq as f64);
+            let residual = du2_dx2 + forcing;
+            (residual.clone() * residual).mean()
+        };
+
+        // Initial loss
+        let initial_loss = {
+            let params_a1 = (
+                FuncTensor::<A1, 2>::from_primitive(A1::from_inner(params.0.primitive().clone())),
+                FuncTensor::<A1, 1>::from_primitive(A1::from_inner(params.1.primitive().clone())),
+                FuncTensor::<A1, 2>::from_primitive(A1::from_inner(params.2.primitive().clone())),
+                FuncTensor::<A1, 1>::from_primitive(A1::from_inner(params.3.primitive().clone())),
+            );
+            compute_loss(&params_a1)
+                .into_data_sync()
+                .try_to_vec::<f32>()
+                .unwrap()[0]
+        };
+
+        // Compute gradients w.r.t. parameters
+        let grads = grad::<Flex, _, _>(compute_loss)(&params);
+
+        // Verify non-zero and finite gradients
+        let g_w1 = grads
+            .0
+            .clone()
+            .into_data_sync()
+            .try_to_vec::<f32>()
+            .unwrap();
+        let g_b1 = grads
+            .1
+            .clone()
+            .into_data_sync()
+            .try_to_vec::<f32>()
+            .unwrap();
+        let g_w2 = grads
+            .2
+            .clone()
+            .into_data_sync()
+            .try_to_vec::<f32>()
+            .unwrap();
+        let g_b2 = grads
+            .3
+            .clone()
+            .into_data_sync()
+            .try_to_vec::<f32>()
+            .unwrap();
+
+        assert!(g_w1.iter().any(|&v| v != 0.0 && !v.is_nan()));
+        assert!(g_b1.iter().all(|&v| !v.is_nan()));
+        assert!(g_w2.iter().any(|&v| v != 0.0 && !v.is_nan()));
+        assert!(g_b2.iter().all(|&v| !v.is_nan()));
+
+        // Gradient descent step
+        let lr = 1e-4f64;
+        params.0 = params.0.clone() - grads.0 * lr;
+        params.1 = params.1.clone() - grads.1 * lr;
+        params.2 = params.2.clone() - grads.2 * lr;
+        params.3 = params.3.clone() - grads.3 * lr;
+
+        let updated_loss = {
+            let params_a1 = (
+                FuncTensor::<A1, 2>::from_primitive(A1::from_inner(params.0.primitive().clone())),
+                FuncTensor::<A1, 1>::from_primitive(A1::from_inner(params.1.primitive().clone())),
+                FuncTensor::<A1, 2>::from_primitive(A1::from_inner(params.2.primitive().clone())),
+                FuncTensor::<A1, 1>::from_primitive(A1::from_inner(params.3.primitive().clone())),
+            );
+            compute_loss(&params_a1)
+                .into_data_sync()
+                .try_to_vec::<f32>()
+                .unwrap()[0]
+        };
+
+        assert!(
+            updated_loss < initial_loss,
+            "Loss should decrease: initial={initial_loss}, updated={updated_loss}"
+        );
+
+        // Verify u is not all zeros
+        let u_out = mlp(&params.0, &params.1, &params.2, &params.3, &x);
+        let u_vals = u_out.into_data_sync().try_to_vec::<f32>().unwrap();
+        assert!(u_vals.iter().any(|&v| v.abs() > 1e-3));
+    }
+
+    #[test]
+    fn hvp_fn_closure_of_quartic() {
+        let device = FlexDevice;
+        let x = FuncTensor::<Flex, 1>::from_data(TensorData::from([2.0f32]), &device);
+        let v = FuncTensor::<Flex, 1>::from_data(TensorData::from([1.0f32]), &device);
+
+        let (gradient, hvp) = hvp_fn::<Flex, _, _>(
+            |x| {
+                let x2 = x.clone() * x.clone();
+                (x2.clone() * x2).sum()
+            },
+            &x,
+            &v,
+        );
+
+        // f(x) = x^4; f'(x) = 4x^3 = 32; f''(x) = 12x^2 = 48.
+        assert_eq!(
+            gradient.into_data_sync().try_to_vec::<f32>().unwrap(),
+            vec![32.0]
+        );
+        assert_eq!(
+            hvp.into_data_sync().try_to_vec::<f32>().unwrap(),
+            vec![48.0]
+        );
+    }
+}

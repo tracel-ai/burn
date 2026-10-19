@@ -70,6 +70,9 @@
 
 extern crate alloc;
 
+#[cfg(test)]
+extern crate self as burn_func;
+
 /// Re-exported so the `PyTree` derive can name backend types without requiring users to add
 /// `burn-backend` as a direct dependency.
 pub use burn_backend;

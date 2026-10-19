@@ -388,3 +388,181 @@ impl<B: Backend, T: Send + 'static> BackendRebind<B> for PhantomData<T> {
         PhantomData
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::{FuncTensor, PyTree, grad::grad};
+    use alloc::string::{String, ToString};
+    use alloc::vec;
+    use alloc::vec::Vec;
+    use burn_autodiff::Autodiff;
+    use burn_backend::{TensorData, TensorMetadata, ops::FloatTensorOps};
+    use burn_flex::{Flex, FlexDevice};
+
+    fn tensor(values: &[f32]) -> FuncTensor<Flex, 1> {
+        FuncTensor::from_data(TensorData::from(values), &FlexDevice)
+    }
+
+    #[derive(Clone, Debug, PyTree)]
+    struct Derived<B: burn_backend::Backend, const N: usize> {
+        weights: FuncTensor<B, 1>,
+        bias: FuncTensor<B, 1>,
+        #[pytree(skip)]
+        metadata: usize,
+        #[pytree(skip)]
+        label: String,
+    }
+
+    #[derive(Clone, Debug, PyTree)]
+    struct Params<B: burn_backend::Backend> {
+        w: FuncTensor<B, 1>,
+        b: FuncTensor<B, 1>,
+        #[pytree(skip)]
+        metadata: usize,
+    }
+
+    #[test]
+    fn tuple_and_array_traversal() {
+        let tuple = (tensor(&[1.0]), tensor(&[2.0, 3.0]));
+        assert_eq!(tuple.num_leaves(), 2);
+
+        let array = [tensor(&[1.0]), tensor(&[2.0])];
+        assert_eq!(array.num_leaves(), 2);
+
+        let mut visited = Vec::new();
+        tuple.visit_float(&mut |leaf| visited.push(leaf.shape().num_elements()));
+        assert_eq!(visited, vec![1, 2]);
+    }
+
+    #[test]
+    fn vec_and_option_traversal() {
+        let values = vec![tensor(&[1.0]), tensor(&[2.0]), tensor(&[3.0])];
+        assert_eq!(values.num_leaves(), 3);
+
+        let some = Some(tensor(&[1.0]));
+        assert_eq!(some.num_leaves(), 1);
+        let none: Option<FuncTensor<Flex, 1>> = None;
+        assert_eq!(none.num_leaves(), 0);
+    }
+
+    #[test]
+    fn derived_struct_traversal_and_skipped_fields() {
+        let params = Derived::<Flex, 1> {
+            weights: tensor(&[1.0, 2.0]),
+            bias: tensor(&[3.0]),
+            metadata: 42,
+            label: "linear".to_string(),
+        };
+        assert_eq!(params.num_leaves(), 2);
+
+        let rebound = params.map_float::<Flex, _>(&mut |leaf| leaf.clone());
+        assert_eq!(rebound.metadata, 42);
+        assert_eq!(rebound.label, "linear");
+        assert_eq!(rebound.weights.shape().num_elements(), 2);
+    }
+
+    #[test]
+    fn zip_float_pairs_leaves() {
+        let lhs = (tensor(&[1.0, 2.0]), tensor(&[3.0]));
+        let rhs = (tensor(&[10.0, 20.0]), tensor(&[30.0]));
+
+        let sum =
+            lhs.zip_float::<Flex, Flex, _>(&rhs, &mut |a, b| Flex::float_add(a.clone(), b.clone()));
+        let values = sum.0.into_data_sync().try_to_vec::<f32>().unwrap();
+        assert_eq!(values, vec![11.0, 22.0]);
+    }
+
+    #[test]
+    fn primitive_scalars_have_no_leaves() {
+        assert_eq!(PyTree::<Flex>::num_leaves(&42usize), 0);
+        assert_eq!(PyTree::<Flex>::num_leaves(&3.5f64), 0);
+        assert_eq!(PyTree::<Flex>::num_leaves(&true), 0);
+        assert_eq!(PyTree::<Flex>::num_leaves(&"metadata".to_string()), 0);
+    }
+
+    #[test]
+    fn skipped_field_requires_b_independence() {
+        #[derive(Clone, PyTree)]
+        struct WithMetadata<B: burn_backend::Backend> {
+            w: FuncTensor<B, 1>,
+            #[pytree(skip)]
+            step: usize,
+        }
+        let _ = WithMetadata::<Flex> {
+            w: tensor(&[1.0]),
+            step: 5,
+        };
+    }
+
+    #[test]
+    fn derive_grad_struct() {
+        let device = FlexDevice;
+        let params = Params::<Flex> {
+            w: FuncTensor::from_data(TensorData::from([2.0f32]), &device),
+            b: FuncTensor::from_data(TensorData::from([1.0f32]), &device),
+            metadata: 7,
+        };
+
+        let f = |p: &Params<Autodiff<Flex>>| {
+            let x =
+                FuncTensor::<Autodiff<Flex>, 1>::from_data(TensorData::from([3.0f32]), &FlexDevice);
+            (p.w.clone() * x + p.b.clone()).sum()
+        };
+
+        let grads = grad::<Flex, _, _>(f)(&params);
+
+        assert_eq!(
+            grads.w.into_data_sync().try_to_vec::<f32>().unwrap(),
+            vec![3.0]
+        );
+        assert_eq!(
+            grads.b.into_data_sync().try_to_vec::<f32>().unwrap(),
+            vec![1.0]
+        );
+        assert_eq!(grads.metadata, 7);
+    }
+
+    #[test]
+    fn tuple_tree() {
+        let device = FlexDevice;
+        let params = (
+            FuncTensor::<Flex, 1>::from_data(TensorData::from([2.0f32]), &device),
+            FuncTensor::<Flex, 1>::from_data(TensorData::from([5.0f32]), &device),
+        );
+
+        let f = |p: &(FuncTensor<Autodiff<Flex>, 1>, FuncTensor<Autodiff<Flex>, 1>)| {
+            (p.0.clone() * 2.0f64 + p.1.clone() * 4.0f64).sum()
+        };
+
+        let grads = grad::<Flex, _, _>(f)(&params);
+
+        assert_eq!(
+            grads.0.into_data_sync().try_to_vec::<f32>().unwrap(),
+            vec![2.0]
+        );
+        assert_eq!(
+            grads.1.into_data_sync().try_to_vec::<f32>().unwrap(),
+            vec![4.0]
+        );
+    }
+
+    mod macro_hygiene {
+        // Intentionally DO NOT import `use super::*;` or `use burn_func::PyTree;`
+        // Verifies that #[derive(PyTree)] expands cleanly using ::burn_func::PyTree
+        #[derive(Clone, burn_derive::PyTree)]
+        struct IsolatedHygieneStruct<B: burn_func::burn_backend::Backend> {
+            val: burn_func::FuncTensor<B, 1>,
+        }
+
+        #[test]
+        fn macro_hygiene_without_imported_trait() {
+            use burn_flex::{Flex, FlexDevice};
+            use burn_func::{FuncTensor, PyTree};
+            let device = FlexDevice;
+            let s = IsolatedHygieneStruct::<Flex> {
+                val: FuncTensor::from_data([1.0f32, 2.0], &device),
+            };
+            assert_eq!(s.num_leaves(), 1);
+        }
+    }
+}

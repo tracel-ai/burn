@@ -1767,3 +1767,68 @@ impl<B: Backend> QTensorOps<Vmap<B>> for Vmap<B> {
 impl<B: Backend> TransactionOps<Vmap<B>> for Vmap<B> {}
 
 impl<B: Backend> DistributedOps<Vmap<B>> for Vmap<B> {}
+
+#[cfg(test)]
+mod tests {
+    use alloc::vec;
+    use burn_backend::{TensorData, ops::ConvOptions};
+    use burn_flex::{Flex, FlexDevice};
+
+    use crate::{FuncTensor, Vmap, VmapAxis, vmap, vmap_with_axes};
+
+    #[test]
+    #[allow(clippy::type_complexity, clippy::identity_op)]
+    fn vmap_conv2d_avg_pool2d_max_pool2d_attention() {
+        let device = FlexDevice;
+        // Physical shape [2, 1, 1, 4, 4] for batch size N=2 of logical 4D inputs [1, 1, 4, 4]
+        let x_data = vec![1.0f32; 2 * 1 * 1 * 4 * 4];
+        let x = FuncTensor::<Flex, 5>::from_data(TensorData::new(x_data, [2, 1, 1, 4, 4]), &device);
+
+        // 1. conv2d with unbatched weight [1, 1, 3, 3]
+        let weight = FuncTensor::<Flex, 4>::ones([1, 1, 3, 3], &device);
+        let f_conv = |(x, w): &(FuncTensor<Vmap<Flex>, 5>, FuncTensor<Vmap<Flex>, 4>)| {
+            x.clone()
+                .conv2d(w.clone(), None, ConvOptions::new([1, 1], [0, 0], [1, 1], 1))
+        };
+        let out_conv: FuncTensor<Flex, 5> = vmap_with_axes::<Flex, _, _, _>(
+            f_conv,
+            vec![VmapAxis::Batched(0), VmapAxis::Unbatched],
+        )(&(x.clone(), weight));
+        assert_eq!(out_conv.shape().as_slice(), &[2, 1, 1, 2, 2]);
+        let conv_vals = out_conv.into_data_sync().try_to_vec::<f32>().unwrap();
+        assert_eq!(conv_vals, vec![9.0f32; 2 * 1 * 1 * 2 * 2]);
+
+        // 2. avg_pool2d
+        let f_avg =
+            |x: &FuncTensor<Vmap<Flex>, 5>| x.clone().avg_pool2d([2, 2], [2, 2], [0, 0], false);
+        let out_avg: FuncTensor<Flex, 5> = vmap::<Flex, _, _, _>(f_avg)(&x);
+        assert_eq!(out_avg.shape().as_slice(), &[2, 1, 1, 2, 2]);
+        let avg_vals = out_avg.into_data_sync().try_to_vec::<f32>().unwrap();
+        assert_eq!(avg_vals, vec![1.0f32; 2 * 1 * 1 * 2 * 2]);
+
+        // 3. max_pool2d
+        let f_max =
+            |x: &FuncTensor<Vmap<Flex>, 5>| x.clone().max_pool2d([2, 2], [2, 2], [0, 0], [1, 1]);
+        let out_max: FuncTensor<Flex, 5> = vmap::<Flex, _, _, _>(f_max)(&x);
+        assert_eq!(out_max.shape().as_slice(), &[2, 1, 1, 2, 2]);
+        let max_vals = out_max.into_data_sync().try_to_vec::<f32>().unwrap();
+        assert_eq!(max_vals, vec![1.0f32; 2 * 1 * 1 * 2 * 2]);
+
+        // 4. attention: logical [1, 1, 2, 2], physical [2, 1, 1, 2, 2]
+        let q = FuncTensor::<Flex, 5>::from_data(
+            TensorData::new(vec![1.0f32; 2 * 1 * 1 * 2 * 2], [2, 1, 1, 2, 2]),
+            &device,
+        );
+        let k = q.clone();
+        let v = q.clone();
+        let f_attn = |(q, k, v): &(
+            FuncTensor<Vmap<Flex>, 5>,
+            FuncTensor<Vmap<Flex>, 5>,
+            FuncTensor<Vmap<Flex>, 5>,
+        )| { q.clone().attention(k.clone(), v.clone()) };
+        let out_attn: FuncTensor<Flex, 5> = vmap::<Flex, _, _, _>(f_attn)(&(q, k, v));
+        assert_eq!(out_attn.shape().as_slice(), &[2, 1, 1, 2, 2]);
+        let attn_vals = out_attn.into_data_sync().try_to_vec::<f32>().unwrap();
+        assert!(attn_vals.iter().all(|&v| v.is_finite()));
+    }
+}
