@@ -50,6 +50,7 @@ mod gather_scatter_nd;
 mod gelu;
 mod gradients;
 mod graph_reuse;
+mod grid_sample_3d;
 mod hypot;
 mod linear;
 mod log;

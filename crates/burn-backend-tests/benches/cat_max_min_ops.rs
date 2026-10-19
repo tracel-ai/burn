@@ -85,6 +85,27 @@ fn make_image_4d(batch: usize, channels: usize, h: usize, w: usize) -> Tensor<4>
     )
 }
 
+fn make_grid_5d(batch: usize, d_out: usize, h_out: usize, w_out: usize) -> Tensor<5> {
+    let size = batch * d_out * h_out * w_out * 3;
+    // Grid values in [-1, 1]
+    let data: Vec<f32> = (0..size)
+        .map(|i| (i as f32 / size as f32) * 2.0 - 1.0)
+        .collect();
+    Tensor::from_data(
+        TensorData::new(data, [batch, d_out, h_out, w_out, 3]),
+        &Default::default(),
+    )
+}
+
+fn make_volume_5d(batch: usize, channels: usize, d: usize, h: usize, w: usize) -> Tensor<5> {
+    let size = batch * channels * d * h * w;
+    let data: Vec<f32> = (0..size).map(|i| (i % 256) as f32 / 255.0).collect();
+    Tensor::from_data(
+        TensorData::new(data, [batch, channels, d, h, w]),
+        &Default::default(),
+    )
+}
+
 // =============================================================================
 // Cat
 // =============================================================================
@@ -312,6 +333,51 @@ macro_rules! bench_cat {
                     bencher.bench_synced(|| {
                         img.clone()
                             .grid_sample_2d(grid.clone(), GridSampleOptions::default())
+                    });
+                }
+            }
+
+            #[divan::bench_group(name = "grid_sample_3d")]
+            mod grid_sample_3d {
+                use super::*;
+
+                #[divan::bench]
+                fn s_b1_c3_16x16x16(bencher: Bencher) {
+                    let vol = make_volume_5d(1, 3, 16, 16, 16);
+                    let grid = make_grid_5d(1, 16, 16, 16);
+                    bencher.bench_synced(|| {
+                        vol.clone()
+                            .grid_sample_3d(grid.clone(), GridSampleOptions::default())
+                    });
+                }
+
+                #[divan::bench]
+                fn s_b1_c3_32x32x32(bencher: Bencher) {
+                    let vol = make_volume_5d(1, 3, 32, 32, 32);
+                    let grid = make_grid_5d(1, 32, 32, 32);
+                    bencher.bench_synced(|| {
+                        vol.clone()
+                            .grid_sample_3d(grid.clone(), GridSampleOptions::default())
+                    });
+                }
+
+                #[divan::bench]
+                fn s_b4_c3_16x16x16(bencher: Bencher) {
+                    let vol = make_volume_5d(4, 3, 16, 16, 16);
+                    let grid = make_grid_5d(4, 16, 16, 16);
+                    bencher.bench_synced(|| {
+                        vol.clone()
+                            .grid_sample_3d(grid.clone(), GridSampleOptions::default())
+                    });
+                }
+
+                #[divan::bench]
+                fn s_b1_c16_32x32x32(bencher: Bencher) {
+                    let vol = make_volume_5d(1, 16, 32, 32, 32);
+                    let grid = make_grid_5d(1, 32, 32, 32);
+                    bencher.bench_synced(|| {
+                        vol.clone()
+                            .grid_sample_3d(grid.clone(), GridSampleOptions::default())
                     });
                 }
             }

@@ -84,6 +84,7 @@ mod full;
 mod gather_scatter;
 mod gather_scatter_nd;
 mod grid_sample;
+mod grid_sample_3d;
 mod hypot;
 mod inf;
 mod init;
