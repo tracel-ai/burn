@@ -113,23 +113,41 @@ pub fn armed() -> Option<Run> {
 /// A forward pass runs on one thread, so a run installs its collector there and nothing else in
 /// the process is measured or slowed. The collector is removed when the returned guard drops, so
 /// a panicking pass cannot leave the thread armed against a collector nobody holds.
+///
+/// A run started inside another replaces it until its guard drops, and the outer run then
+/// measures again: each guard puts back what it replaced, so guards drop in the reverse order
+/// they were made, as scopes drop them.
 #[cfg(feature = "std")]
 pub fn collect(collector: Box<dyn Collector>) -> Collecting {
-    COLLECTOR.with(|slot| *slot.borrow_mut() = Some(collector));
+    let replaced = COLLECTOR.with(|slot| slot.replace(Some(collector)));
     ARMED.with(|armed| armed.set(true));
-    Collecting
+    Collecting {
+        replaced,
+        _thread: core::marker::PhantomData,
+    }
 }
 
 /// Holds a measured run open. See [`collect`].
+///
+/// Neither `Send` nor `Sync`: it restores the slot of the thread that made it, and dropped on
+/// another thread it would disarm one that holds no run.
 #[cfg(feature = "std")]
 #[must_use = "the collector is uninstalled as soon as this is dropped"]
-pub struct Collecting;
+pub struct Collecting {
+    /// The run this one replaced, put back on drop.
+    replaced: Option<Box<dyn Collector>>,
+    _thread: core::marker::PhantomData<*const ()>,
+}
 
 #[cfg(feature = "std")]
 impl Drop for Collecting {
     fn drop(&mut self) {
-        ARMED.with(|armed| armed.set(false));
-        COLLECTOR.with(|slot| *slot.borrow_mut() = None);
+        let replaced = self.replaced.take();
+        ARMED.with(|armed| armed.set(replaced.is_some()));
+        // Dropped outside the slot's borrow, so a collector whose drop touches the slot does not
+        // find it borrowed.
+        let ended = COLLECTOR.with(|slot| slot.replace(replaced));
+        drop(ended);
     }
 }
 
@@ -246,6 +264,37 @@ mod tests {
             armed().is_none(),
             "a pass that panicked must not leave the thread armed"
         );
+    }
+
+    #[test]
+    fn a_nested_run_hands_the_thread_back_to_the_outer_one() {
+        let declared = |label| Declaration {
+            label,
+            variant: None,
+            site: "test::forward",
+            bounds: None,
+        };
+        let (outer, _collecting) = recording();
+        let block = armed()
+            .expect("armed by `collect`")
+            .enter(declared("block"));
+        {
+            let (inner, _collecting) = recording();
+            drop(
+                armed()
+                    .expect("armed by `collect`")
+                    .enter(declared("probe")),
+            );
+            assert_eq!(inner.events(), ["+probe:-:-", "-"]);
+        }
+        drop(block);
+
+        assert_eq!(
+            outer.events(),
+            ["+block:-:-", "-"],
+            "the outer run measures again once the inner one ends, so its open tag closes on it"
+        );
+        assert!(armed().is_some(), "and the thread is still armed for it");
     }
 
     #[test]
