@@ -602,16 +602,16 @@ compose tensor operations. Enable `autodiff` to differentiate through FFTs. Remo
 captured-graph interpreters must register `burn_signal::register_fft_ops` in their custom-operation
 registry (with the `router` feature enabled).
 
-FFT length `n` (and `n_fft` in STFT) must currently be a power of two: when `n` is `Some(size)`, the
-input is truncated or zero-padded to `size` and the output has `size / 2 + 1` frequency bins.
-Non-power-of-two sizes panic at the public API boundary; general arbitrary-size DFT support
-(Bluestein's algorithm) is a tracked follow-up.
+FFT length `n` (and `n_fft` in STFT) can be any size: when `n` is `Some(size)`, the input is
+truncated or zero-padded to `size` and the output has `size / 2 + 1` frequency bins. Power-of-two
+sizes use the backend's radix-2 FFT, while other sizes fall back to Bluestein's chirp-z algorithm.
 
 | Burn API                                              | PyTorch Equivalent                                                                |
 | ----------------------------------------------------- | --------------------------------------------------------------------------------- |
 | `signal::rfft(tensor, dim, n)`                        | `torch.fft.rfft(tensor, n, dim)`                                                  |
 | `signal::irfft(re, im, dim, n)`                       | `torch.fft.irfft(complex, n, dim)`                                                |
 | `signal::cfft(re, im, dim, n)`                        | `torch.fft.fft(complex, n, dim)`                                                 |
+| `signal::ifft(re, im, dim, n)`                        | `torch.fft.ifft(complex, n, dim)`                                                |
 | `signal::stft(signal, window, options)`               | `torch.stft(signal, n_fft, hop_length, win_length, window, center)`               |
 | `signal::istft(stft_matrix, window, length, options)` | `torch.istft(stft_matrix, n_fft, hop_length, win_length, window, center, length)` |
 | `signal::blackman_window(size, periodic, options)`    | `torch.blackman_window(size, periodic)`                                           |
@@ -621,7 +621,7 @@ Non-power-of-two sizes panic at the public API boundary; general arbitrary-size 
 `stft` and `istft` share a `StftOptions` struct with fields `n_fft`, `hop_length`, `win_length`,
 `center`, and `onesided`. Use `StftOptions::new(n_fft)` for PyTorch-style defaults
 (`hop_length = n_fft / 4`, `win_length = None`, `center = true`, `onesided = true`). The option set
-is validated on entry to both `stft` and `istft`; `n_fft` must be a power of two and
+is validated on entry to both `stft` and `istft`; `n_fft` can be any size and
 `hop_length <= effective_win_length` (the COLA prerequisite for invertibility).
 
 ## Displaying Tensor Details

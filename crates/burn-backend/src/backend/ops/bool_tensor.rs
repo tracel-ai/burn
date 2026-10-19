@@ -5,7 +5,7 @@ use crate::tensor::{BoolTensor, Device, FloatTensor, IntTensor};
 use crate::{Backend, TensorData, TensorMetadata, get_or_init_device_settings};
 use crate::{ExecutionError, Scalar};
 use alloc::vec::Vec;
-use burn_std::{BoolDType, FloatDType, IntDType, Shape, Slice};
+use burn_std::{BoolDType, FloatDType, IndexingUpdateOp, IntDType, Shape, Slice};
 use core::future::Future;
 
 /// Bool Tensor API for basic operations, see
@@ -228,7 +228,10 @@ pub trait BoolTensorOps<B: Backend> {
     /// * `indices` - The indices.
     fn bool_gather(dim: usize, tensor: BoolTensor<B>, indices: IntTensor<B>) -> BoolTensor<B>;
 
-    /// Scatter a given value to the tensor at the given indices using boolean or reduction.
+    /// Scatter elements into a tensor using the specified update operation.
+    ///
+    /// `Assign` overwrites, `Add` and `Max` combine with logical or, and `Mul` and `Min`
+    /// combine with logical and.
     ///
     /// # Arguments
     ///
@@ -236,16 +239,32 @@ pub trait BoolTensorOps<B: Backend> {
     /// * `tensor` - The tensor.
     /// * `indices` - The indices.
     /// * `value` - The value.
+    /// * `update` - The update operation.
     ///
     /// # Returns
     ///
     /// The tensor with the values scattered.
-    fn bool_scatter_or(
+    fn bool_scatter(
         dim: usize,
         tensor: BoolTensor<B>,
         indices: IntTensor<B>,
         value: BoolTensor<B>,
+        update: IndexingUpdateOp,
     ) -> BoolTensor<B>;
+
+    /// Multi-dimensional scatter for bool tensors.
+    ///
+    /// `Assign` overwrites, `Add` and `Max` combine with logical or, and `Mul` and `Min`
+    /// combine with logical and.
+    fn bool_scatter_nd(
+        data: BoolTensor<B>,
+        indices: IntTensor<B>,
+        values: BoolTensor<B>,
+        reduction: IndexingUpdateOp,
+    ) -> BoolTensor<B>;
+
+    /// Multi-dimensional gather for bool tensors.
+    fn bool_gather_nd(data: BoolTensor<B>, indices: IntTensor<B>) -> BoolTensor<B>;
 
     /// Select tensor elements along the given dimension corresponding to the given indices.
     ///
@@ -260,8 +279,10 @@ pub trait BoolTensorOps<B: Backend> {
     /// The tensor with the selected elements.
     fn bool_select(tensor: BoolTensor<B>, dim: usize, indices: IntTensor<B>) -> BoolTensor<B>;
 
-    /// Assign the selected elements along the given dimension corresponding to the given indices
-    /// to the given value using sum reduction.
+    /// Assign selected elements along a dimension using the specified update operation.
+    ///
+    /// `Assign` overwrites, `Add` and `Max` combine with logical or, and `Mul` and `Min`
+    /// combine with logical and.
     ///
     /// # Arguments
     ///
@@ -269,15 +290,17 @@ pub trait BoolTensorOps<B: Backend> {
     /// * `dim` - The dimension to select from.
     /// * `indices` - The indices of the elements to assign.
     /// * `value` - The values to assign.
+    /// * `update` - The update operation.
     ///
     /// # Returns
     ///
     /// The tensor with the assigned values.
-    fn bool_select_or(
+    fn bool_select_assign(
         tensor: BoolTensor<B>,
         dim: usize,
         indices: IntTensor<B>,
         value: BoolTensor<B>,
+        update: IndexingUpdateOp,
     ) -> BoolTensor<B>;
 
     /// Repeats one dimension of the tensor a given number of times along that dimension.

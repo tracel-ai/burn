@@ -71,16 +71,4 @@ mod tests {
 
         embedding(model, 1e-3);
     }
-
-    #[test]
-    fn embedding_half_precision() {
-        let device = Default::default();
-        let mut model = Net::init(&device);
-        let mut store = PytorchStore::from_file("tests/embedding/embedding.pt");
-        model
-            .load_from(&mut store)
-            .expect("Should decode state successfully");
-
-        embedding(model, 1e-3);
-    }
 }

@@ -63,7 +63,7 @@ fn test_argmax_and_argmin_support_negative_dims() {
 }
 
 #[test]
-#[should_panic]
+#[should_panic(expected = "out of bounds")]
 fn test_argmax_should_panic_when_negative_dim_is_out_of_bounds() {
     let tensor = TestTensor::<2>::from([[10.0, 11.0, 2.0], [3.0, 4.0, 5.0]]);
 

@@ -116,9 +116,12 @@ tracing-core = { version = "0.1.36", default-features = false }
 tracing-opentelemetry = "0.34.0"
 tracing-subscriber = "0.3.23"
 turso = { version = "0.8.2", default-features = false }
+# Turso's branches 0.4 dependency uses a removed intrinsic on nightly without std.
+# Enable std for dataset SQLite builds and affected documentation builds.
+branches = { version = "0.4.6", default-features = false, features = ["std"] }
 wasm-bindgen = "0.2"
 wasm-bindgen-futures = "0.4"
-zip = { version = "8.6.0", default-features = false, features = ["deflate-flate2-zlib-rs"] }
+zip = { version = "9.0.4", default-features = false, features = ["deflate-flate2-zlib-rs"] }
 
 # Persist related
 memmap2 = { version = "0.9" }
@@ -216,11 +219,11 @@ burn-wgpu = { path = "crates/burn-wgpu", version = "0.22.0", default-features = 
 pytorch-reader = { path = "crates/pytorch-reader", version = "0.22.0" }
 
 ### For the main burn branch. ###
-cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "f70376aba4dd8126df73ecfd344f6bcf0dd6aeca" }
-cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "f70376aba4dd8126df73ecfd344f6bcf0dd6aeca" }
-cubecl-environment = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "f70376aba4dd8126df73ecfd344f6bcf0dd6aeca" }
-cubecl-zspace = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "f70376aba4dd8126df73ecfd344f6bcf0dd6aeca" }
-cubek = { git = "https://github.com/tracel-ai/cubek", default-features = false, rev = "813ead489a66c97b5a7e90135e41d4a7be24d931" }
+cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "0f41bacca8f47c4b9f538cfd364f9ee567eee3d2" }
+cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "0f41bacca8f47c4b9f538cfd364f9ee567eee3d2" }
+cubecl-environment = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "0f41bacca8f47c4b9f538cfd364f9ee567eee3d2" }
+cubecl-zspace = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "0f41bacca8f47c4b9f538cfd364f9ee567eee3d2" }
+cubek = { git = "https://github.com/tracel-ai/cubek", default-features = false, rev = "9aa3a95cb263fae5b7e078ca912de5baae36a0ef" }
 ### For local development. ###
 # cubecl = { path = "../cubecl/crates/cubecl", default-features = false }
 # cubecl-common = { path = "../cubecl/crates/cubecl-common", default-features = false }

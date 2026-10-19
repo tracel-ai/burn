@@ -151,6 +151,22 @@ fn should_handle_infinity_divisor() {
 }
 
 #[test]
+fn should_return_nan_for_infinite_dividend_and_divisor() {
+    let dividend = TensorData::from([f32::INFINITY, f32::NEG_INFINITY, f32::NAN]);
+    let divisor = TensorData::from([f32::INFINITY, f32::INFINITY, f32::NEG_INFINITY]);
+
+    let dividend_tensor = TestTensor::<1>::from_data(dividend, &Default::default());
+    let divisor_tensor = TestTensor::<1>::from_data(divisor, &Default::default());
+
+    let data = dividend_tensor.fmod(divisor_tensor).into_data();
+    let values = data.as_slice::<FloatElem>().unwrap();
+
+    assert!(values[0].is_nan(), "fmod(inf, inf) should be NaN");
+    assert!(values[1].is_nan(), "fmod(-inf, inf) should be NaN");
+    assert!(values[2].is_nan(), "fmod(NaN, -inf) should be NaN");
+}
+
+#[test]
 fn should_handle_nan_arguments() {
     // If either argument is NaN, NaN is returned
     let dividend = TensorData::from([f32::NAN, 5.3, f32::NAN, 0.0]);

@@ -324,7 +324,7 @@ fn should_scatter_add_2d_dim1_diff_shape() {
 }
 
 #[test]
-#[should_panic]
+#[should_panic(expected = "Indices tensor shape should be the same as the value tensor shape")]
 fn scatter_should_panic_on_mismatch_of_shapes() {
     let device = Default::default();
     let tensor = TestTensor::<1>::from_data([0.0, 0.0, 0.0], &device);
