@@ -15,9 +15,9 @@ use crate::bridge;
 /// straight copy instead of gathering it into the view's order and transposing it back.
 ///
 /// Every source reads out as a [`burn_pack::Tensor`] in the end, via
-/// [`into_pack`](Self::into_pack). Only the name changes
-/// in place; a transform of the dtype, shape or data goes through
-/// [`bridge::map_data`], which builds a new tensor and so drops whatever the old source offered.
+/// [`into_pack`](Self::into_pack). Only the name changes in place; a transform of the dtype,
+/// shape or data goes through [`bridge::map_data`], which builds a new tensor and so drops
+/// whatever the old source offered.
 #[derive(Clone, Debug)]
 pub struct StoreTensor {
     source: TensorSource,
@@ -159,45 +159,103 @@ impl From<pytorch_reader::Tensor> for StoreTensor {
 #[cfg(all(test, feature = "pytorch"))]
 mod tests {
     use super::*;
+    use alloc::string::ToString;
+    use alloc::vec;
     use alloc::vec::Vec;
+    use burn_core::tensor::shape;
 
-    /// A weight saved as a `.t()` view offers its transpose, which reads the stored bytes as
-    /// they are and agrees with transposing what the tensor itself reads.
-    #[test]
-    fn a_transposed_view_offers_its_stored_transpose() {
-        let path = concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/pytorch-tests/tests/linear/linear_transposed.pt"
-        );
-        let mut tensors = pytorch_reader::PytorchReader::new(path)
+    use crate::{ModuleAdapter, ModuleContext, ModuleStore, PyTorchToBurnAdapter, PytorchStore};
+
+    const FIXTURE: &str = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/pytorch-tests/tests/linear/linear_transposed.pt"
+    );
+
+    /// The fixture's `[4, 3]` `fc2.weight`, saved as a `.t()` view.
+    fn transposed_view_weight() -> StoreTensor {
+        let mut tensors = pytorch_reader::PytorchReader::new(FIXTURE)
             .unwrap()
             .into_tensors();
+        tensors.remove("fc2.weight").unwrap().into()
+    }
 
-        let weight = StoreTensor::from(tensors.remove("fc2.weight").unwrap());
+    fn values(tensor: StoreTensor) -> Vec<f32> {
+        tensor.into_data().unwrap().try_into_vec::<f32>().unwrap()
+    }
+
+    /// The row-major transpose of a row-major `[rows, cols]` matrix.
+    fn transpose(values: &[f32], cols: usize) -> Vec<f32> {
+        (0..cols)
+            .flat_map(|j| values.iter().skip(j).step_by(cols).copied())
+            .collect()
+    }
+
+    fn adapt_as_linear(tensor: StoreTensor) -> StoreTensor {
+        let containers = vec!["Struct:Linear".to_string()];
+        PyTorchToBurnAdapter.adapt(tensor, ModuleContext::new(&containers))
+    }
+
+    /// A weight saved as a `.t()` view offers its transpose, which reads the stored bytes as
+    /// they are and agrees with transposing what the tensor itself reads. The same weight as a
+    /// [`burn_pack::Tensor`] offers none.
+    #[test]
+    fn a_transposed_view_offers_its_stored_transpose() {
+        let weight = transposed_view_weight();
         assert_eq!(weight.shape(), [4, 3]);
         let transposed = weight
             .stored_transpose()
             .expect("a `.t()` view has a transpose");
         assert_eq!(transposed.shape(), [3, 4]);
         assert_eq!(transposed.name(), weight.name());
-
-        let values = weight.into_data().unwrap().try_into_vec::<f32>().unwrap();
-        let expected: Vec<f32> = (0..3)
-            .flat_map(|j| values.iter().skip(j).step_by(3).copied())
-            .collect();
-        let transposed = transposed
-            .into_data()
-            .unwrap()
-            .try_into_vec::<f32>()
-            .unwrap();
-        assert_eq!(transposed, expected);
-
-        let bias = StoreTensor::from(tensors.remove("fc1.bias").unwrap());
-        assert!(bias.stored_transpose().is_none());
         assert!(
-            StoreTensor::from(bias.into_pack())
+            StoreTensor::from(weight.clone().into_pack())
                 .stored_transpose()
                 .is_none()
         );
+
+        assert_eq!(values(transposed), transpose(&values(weight), 3));
+    }
+
+    /// The Linear adapter takes the stored transpose, leaving the reader's tensor in place
+    /// rather than composing a transpose onto it.
+    #[test]
+    fn linear_adapter_takes_the_stored_transpose() {
+        let weight = transposed_view_weight();
+        let expected = transpose(&values(weight.clone()), 3);
+
+        let adapted = adapt_as_linear(weight);
+        assert!(matches!(adapted.source, TensorSource::PyTorch(_)));
+        assert_eq!(adapted.shape(), [3, 4]);
+        assert_eq!(values(adapted), expected);
+    }
+
+    /// A transform ahead of the Linear adapter is transposed with it, not bypassed by reading
+    /// the stored transpose of the original data.
+    #[test]
+    fn linear_adapter_transposes_a_transformed_view() {
+        let weight = transposed_view_weight();
+        let expected: Vec<f32> = transpose(&values(weight.clone()), 3)
+            .into_iter()
+            .map(|value| value + 10.0)
+            .collect();
+
+        let name = weight.name().to_string();
+        let shifted = bridge::map_data(weight, name, DType::F32, shape![4, 3], |data| {
+            let shifted: Vec<f32> = data.iter::<f32>().map(|value| value + 10.0).collect();
+            TensorData::new(shifted, [4, 3])
+        });
+
+        assert_eq!(values(adapt_as_linear(shifted)), expected);
+    }
+
+    /// A tensor keeps the reader's source, and so its stored transpose, through the store's
+    /// remapping.
+    #[test]
+    fn the_stored_transpose_survives_the_store_and_a_remap() {
+        let mut store = PytorchStore::from_file(FIXTURE).with_key_remapping(r"^fc2\.", "out.");
+        let weight = store.get_tensor("out.weight").unwrap().unwrap();
+
+        assert!(matches!(weight.source, TensorSource::PyTorch(_)));
+        assert!(weight.stored_transpose().is_some());
     }
 }
