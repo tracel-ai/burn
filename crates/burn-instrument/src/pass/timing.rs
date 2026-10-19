@@ -82,8 +82,10 @@ impl Timings {
 }
 
 /// What a breakdown says about how far its timings are to be trusted. See the
-/// fields of [`Breakdown`](crate::Breakdown) of the same names.
-#[derive(Clone, Copy)]
+/// fields of [`Breakdown`](crate::Breakdown) of the same names. The default is
+/// a pass whose every timing was taken on the device, in a full queue, and
+/// found its row.
+#[derive(Clone, Copy, Default)]
 pub(crate) struct TimingQuality {
     pub(crate) host_timed: bool,
     pub(crate) timed_alone: bool,

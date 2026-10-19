@@ -110,3 +110,131 @@ impl BlockOrigin {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::Declaration;
+
+    /// A block that carried out several components' work lands on their
+    /// closest common parent, named for them — the one row that holds all of
+    /// it, however late the block ran.
+    #[test]
+    fn a_fused_block_lands_on_the_closest_parent_of_its_components() {
+        let mut components = ComponentTree::default();
+        let block = components.enter(declared("block"));
+        let norm = components.enter(declared("attn norm"));
+        components.exit();
+        components.enter(declared("attention"));
+        let query = components.enter(declared("query"));
+        let origins = origins([(1, norm), (2, query)]);
+
+        assert_eq!(
+            BlockOrigin::new(&origins, [1, 2].into_iter()).placement(&components),
+            Some(Placement {
+                attribution: block,
+                span: vec![row(norm), row(query)],
+            })
+        );
+    }
+
+    /// An operation that ran unfused is a block of one, and goes back to the
+    /// component that registered it however late something sealed it — the
+    /// case sealing order alone got wrong.
+    #[test]
+    fn an_unfused_operation_goes_back_to_its_component() {
+        let mut components = ComponentTree::default();
+        let norm = components.enter(declared("final norm"));
+        components.exit();
+        components.enter(declared("lm head"));
+        let origins = origins([(7, norm)]);
+
+        assert_eq!(
+            BlockOrigin::new(&origins, [7].into_iter()).placement(&components),
+            Some(Placement::at(norm)),
+            "one component's work, so it names none"
+        );
+    }
+
+    /// A block with work from outside every component is recorded outside
+    /// them, and still names the components it carried.
+    #[test]
+    fn a_block_with_outside_work_is_recorded_outside_and_named() {
+        let mut components = ComponentTree::default();
+        let inner = components.enter(declared("inner"));
+        let origins = origins([(1, Attribution::Untagged), (2, inner)]);
+
+        assert_eq!(
+            BlockOrigin::new(&origins, [1, 2].into_iter()).placement(&components),
+            Some(Placement {
+                attribution: Attribution::Untagged,
+                span: vec![row(inner)],
+            })
+        );
+    }
+
+    /// Components under different roots share no row — a forward and a
+    /// backward, fused across the step that joins them — so a kernel that did
+    /// both is recorded outside every component, named for them. It runs on
+    /// the fusion worker, where a panic would take the device down with it.
+    #[test]
+    fn a_block_across_two_roots_is_recorded_outside_them() {
+        let mut components = ComponentTree::default();
+        let forward = components.enter(declared("transformer"));
+        components.exit();
+        let backward = components.enter(declared("backward"));
+        let origins = origins([(1, forward), (2, backward)]);
+
+        assert_eq!(
+            BlockOrigin::new(&origins, [1, 2].into_iter()).placement(&components),
+            Some(Placement {
+                attribution: Attribution::Untagged,
+                span: vec![row(forward), row(backward)],
+            })
+        );
+    }
+
+    /// A block whose operations were queued before the pass says nothing
+    /// about whose work it is, and keeps the sealing order's answer.
+    #[test]
+    fn a_block_of_operations_never_seen_registering_keeps_the_sealing_order() {
+        let components = ComponentTree::default();
+        let origins = OperationOrigins::default();
+
+        assert_eq!(
+            BlockOrigin::new(&origins, [3].into_iter()),
+            BlockOrigin::Unseen
+        );
+        assert_eq!(
+            BlockOrigin::Unseen.placement(&components),
+            None,
+            "no placement of its own"
+        );
+    }
+
+    fn origins<const N: usize>(registered: [(u64, Attribution); N]) -> OperationOrigins {
+        let mut origins = OperationOrigins::default();
+        for (operation, origin) in registered {
+            origins.record(operation, origin);
+        }
+        origins
+    }
+
+    fn row(entered: Attribution) -> usize {
+        match entered {
+            Attribution::Component(row) => row,
+            Attribution::Untagged | Attribution::EndOfPass => {
+                unreachable!("entering a component lands on its row")
+            }
+        }
+    }
+
+    fn declared(label: &str) -> Declaration<'_> {
+        Declaration {
+            label,
+            variant: None,
+            site: "test::forward",
+            bounds: None,
+        }
+    }
+}

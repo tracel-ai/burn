@@ -2,20 +2,20 @@ use std::sync::Arc;
 
 use burn_tensor::Device;
 
-use super::observer::Watching;
-use super::tree::TreeCollector;
+use super::recorder::PassRecorder;
+use super::watching::Watching;
 use crate::Breakdown;
 
 /// Collects one pass on a device into a [`Breakdown`].
 ///
 /// See the [crate docs](crate#collecting-a-pass) for what a collected pass
 /// records and how far its numbers are to be trusted.
-pub struct PassCollector(TreeCollector);
+pub struct PassCollector(PassRecorder);
 
 impl PassCollector {
     /// A collector for work running on `device`.
     pub fn new(device: &Device) -> Self {
-        Self(TreeCollector::new(device))
+        Self(PassRecorder::new(device))
     }
 
     /// Run `pass` collected, and end it: every component it enters arrives

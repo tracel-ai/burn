@@ -1,9 +1,9 @@
 mod base;
 mod component_tree;
 mod cursor;
-mod observer;
 mod origins;
+mod recorder;
 mod timing;
-mod tree;
+mod watching;
 
 pub use base::PassCollector;

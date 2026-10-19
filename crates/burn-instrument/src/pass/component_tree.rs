@@ -368,3 +368,434 @@ impl KernelCounter {
         self.0.clone()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_repeated_component_is_one_row_entered_many_times() {
+        let mut components = ComponentTree::default();
+        for _ in 0..3 {
+            components.enter(declared("block"));
+            components.enter(declared("attention"));
+            components.exit();
+            components.exit();
+        }
+
+        // Three layers are one row entered three times, not three rows: a
+        // 36-layer stack would otherwise print 36 identical subtrees.
+        assert_eq!(
+            labels(&finished(&components).tree),
+            ["blockx3", "  attentionx3"]
+        );
+    }
+
+    #[test]
+    fn one_row_records_every_execution_that_served_it() {
+        let mut components = ComponentTree::default();
+        for variant in ["tile", "tile", "tensor-ops", "tile"] {
+            components.enter(Declaration {
+                variant: Some(variant),
+                ..declared("attention core")
+            });
+            components.exit();
+        }
+
+        let tree = finished(&components).tree;
+        // Merging is keyed on the label, so a row that routed two ways is still
+        // one row — with a histogram saying how the entries split, in the order
+        // the executions were first seen.
+        assert_eq!(labels(&tree), ["attention corex4"]);
+        assert_eq!(
+            tree[0]
+                .variants
+                .iter()
+                .map(|variant| (variant.name.as_str(), variant.entries))
+                .collect::<Vec<_>>(),
+            [("tile", 3), ("tensor-ops", 1)]
+        );
+    }
+
+    #[test]
+    fn a_row_that_declares_no_variant_carries_none() {
+        let mut components = ComponentTree::default();
+        components.enter(declared("out proj"));
+        components.exit();
+
+        // Most rows have no execution to choose between, and an empty histogram
+        // is what lets the table print nothing rather than a placeholder.
+        assert!(finished(&components).tree[0].variants.is_empty());
+    }
+
+    #[test]
+    fn siblings_keep_first_seen_order() {
+        let mut components = ComponentTree::default();
+        components.enter(declared("block"));
+        for name in ["attn norm", "attention", "ffn norm", "feed-forward"] {
+            components.enter(declared(name));
+            components.exit();
+        }
+        components.exit();
+
+        assert_eq!(
+            labels(&finished(&components).tree),
+            [
+                "blockx1",
+                "  attn normx1",
+                "  attentionx1",
+                "  ffn normx1",
+                "  feed-forwardx1"
+            ],
+            "a breakdown reads in the order the pass ran, not alphabetically"
+        );
+    }
+
+    #[test]
+    fn a_pass_may_enter_several_components_at_top_level() {
+        let mut components = ComponentTree::default();
+        for name in ["embedding", "stack", "lm head"] {
+            components.enter(declared(name));
+            components.exit();
+        }
+        assert_eq!(
+            labels(&finished(&components).tree),
+            ["embeddingx1", "stackx1", "lm headx1"]
+        );
+    }
+
+    /// Two entries written in different places under one label are one row,
+    /// and the row says it was fed from both.
+    ///
+    /// The merge is what makes a stack readable and is also how a row comes to
+    /// hold two different jobs, so the tree is unchanged and the sites are
+    /// recorded for a report to name.
+    #[test]
+    fn a_row_fed_from_two_sites_records_both() {
+        let mut components = ComponentTree::default();
+        for site in ["my_model::rope::apply", "my_model::rope::apply_at"] {
+            components.enter(Declaration {
+                site,
+                ..declared("rope")
+            });
+            components.exit();
+        }
+
+        let tree = finished(&components).tree;
+        assert_eq!(labels(&tree), ["ropex2"], "one label, so still one row");
+        assert_eq!(
+            tree[0].sites,
+            ["my_model::rope::apply", "my_model::rope::apply_at"],
+            "in the order they were first seen"
+        );
+    }
+
+    /// One site entered many times is one site: what a reader acts on is
+    /// *which* places fed a row, and a count would repeat the entry count.
+    #[test]
+    fn a_site_entered_repeatedly_is_recorded_once() {
+        let mut components = ComponentTree::default();
+        for _ in 0..36 {
+            components.enter(declared("block"));
+            components.exit();
+        }
+
+        let tree = finished(&components).tree;
+        assert_eq!(tree[0].entries, 36);
+        assert_eq!(tree[0].sites, ["test::forward"]);
+    }
+
+    #[test]
+    fn bounds_sum_across_entries() {
+        let mut components = ComponentTree::default();
+        for _ in 0..4 {
+            components.enter(Declaration {
+                bounds: Some(Bounds {
+                    read: 7,
+                    write: 3,
+                    flops: 3,
+                }),
+                ..declared("attention")
+            });
+            components.exit();
+        }
+        // A component is legally entered at several shapes in one pass, so the
+        // row accounts for all of them rather than asserting they agreed.
+        assert_eq!(
+            finished(&components).tree[0].bounds,
+            Some(Bounds {
+                read: 28,
+                write: 12,
+                flops: 12
+            })
+        );
+    }
+
+    #[test]
+    fn a_component_without_bounds_reports_none() {
+        let mut components = ComponentTree::default();
+        components.enter(declared("swiglu"));
+        components.exit();
+        assert_eq!(
+            finished(&components).tree[0].bounds,
+            None,
+            "no floor beats a floor no kernel can meet"
+        );
+    }
+
+    #[test]
+    fn a_tree_read_mid_pass_is_a_bug_not_a_partial_result() {
+        let mut components = ComponentTree::default();
+        components.enter(declared("block"));
+        let read =
+            std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| finished(&components).tree));
+        assert!(
+            read.is_err(),
+            "an open component has kernels yet to launch, so its row is not finished"
+        );
+    }
+
+    /// Observed traffic lands beside the declared floor of its row and of every
+    /// parent that declares one.
+    #[test]
+    fn observed_traffic_reaches_its_row_and_every_row_around_it() {
+        let mut components = ComponentTree::default();
+        let floor = Bounds {
+            read: 10,
+            write: 1,
+            flops: 4,
+        };
+        components.enter(declared("model"));
+        components.enter(Declaration {
+            bounds: Some(floor),
+            ..declared("block")
+        });
+        let experts = row(components.enter(Declaration {
+            bounds: Some(floor),
+            ..declared("experts")
+        }));
+        components.exit();
+        components.enter(Declaration {
+            bounds: Some(floor),
+            ..declared("norm")
+        });
+        components.exit();
+        components.exit();
+        components.exit();
+        let extra = Bounds {
+            read: 400,
+            write: 0,
+            flops: 0,
+        };
+        components.add_observed(experts, extra);
+
+        let tree = finished(&components).tree;
+        let model = &tree[0];
+        let block = &model.children[0];
+        let (experts, norm) = (&block.children[0], &block.children[1]);
+        assert_eq!(
+            experts.bounds,
+            Some(floor),
+            "the declared floor stays as declared"
+        );
+        assert_eq!(experts.observed, Some(extra));
+        assert_eq!(
+            block.observed,
+            Some(extra),
+            "its parent moved that traffic too"
+        );
+        assert_eq!(norm.observed, None, "a sibling did not");
+        assert_eq!(
+            (model.bounds, model.observed),
+            (None, None),
+            "a row that declares no floor stays unscored"
+        );
+    }
+
+    /// Two rows under one parent can share a label, and a fused kernel names
+    /// which of them it carried out.
+    ///
+    /// The shape a mixed stack has: one `transformer block` holding a dense
+    /// `feed forward › down` and a `sparse feed forward › down`. Named by
+    /// label alone the two are one string, so a kernel that fused the sparse
+    /// one marks the dense one as fused as well, and the ladder prices its
+    /// work against whichever floor it met first.
+    #[test]
+    fn a_fused_kernel_names_which_of_two_same_named_rows_it_carried() {
+        let mut components = ComponentTree::default();
+        let block = components.enter(declared("block"));
+        components.enter(declared("feed forward"));
+        let dense = row(components.enter(declared("down")));
+        components.exit();
+        components.exit();
+        components.enter(declared("sparse feed forward"));
+        let sparse = row(components.enter(declared("down")));
+        components.exit();
+        components.exit();
+        components.exit();
+
+        components.count_launch(
+            &Placement {
+                attribution: block,
+                span: vec![dense, sparse],
+            },
+            "ElemwiseMatmul",
+        );
+
+        let tree = finished(&components).tree;
+        assert_eq!(
+            named(&tree[0].kernels[0].fuses),
+            ["feed forward › down", "sparse feed forward › down"],
+            "two rows, named apart — by label alone both are `down`, and the \
+             union would record one entry for work done in two places"
+        );
+    }
+
+    /// A kernel on a parent names the rows it carried out by their path from
+    /// that parent, so a second `query` under another child of the block is a
+    /// different row.
+    #[test]
+    fn a_fused_kernel_names_rows_by_their_path_from_its_own() {
+        let mut components = ComponentTree::default();
+        let block = components.enter(declared("block"));
+        let norm = row(components.enter(declared("attn norm")));
+        components.exit();
+        components.enter(declared("attention"));
+        let query = row(components.enter(declared("query")));
+        components.exit();
+        components.exit();
+        components.exit();
+
+        components.count_launch(
+            &Placement {
+                attribution: block,
+                span: vec![norm, query],
+            },
+            "ElemwiseMatmul",
+        );
+
+        let tree = finished(&components).tree;
+        let block = &tree[0];
+        assert_eq!(
+            named(&block.kernels[0].fuses),
+            ["attn norm", "attention › query"]
+        );
+        assert!(
+            !block.kernels[0].fuses_own,
+            "the block registered no work of its own"
+        );
+        assert!(
+            block.children[0].kernels.is_empty(),
+            "none of it is the norm's alone"
+        );
+    }
+
+    /// A kernel carrying a parent's own work and its child's names only the
+    /// child: `fuses` names rows below the one it is on, so the parent naming
+    /// itself would be an empty path. That it carried the parent's work too is
+    /// `fuses_own`, which no name says.
+    #[test]
+    fn a_parent_fused_with_its_child_names_only_the_child() {
+        let mut components = ComponentTree::default();
+        let residual = components.enter(declared("residual"));
+        let gate = row(components.enter(declared("gate")));
+        components.exit();
+        components.exit();
+
+        components.count_launch(
+            &Placement {
+                attribution: residual,
+                span: vec![gate, row(residual)],
+            },
+            "ElemwiseFuse",
+        );
+
+        let tree = finished(&components).tree;
+        assert_eq!(named(&tree[0].kernels[0].fuses), ["gate"]);
+        assert!(tree[0].kernels[0].fuses_own);
+        assert!(tree[0].children[0].kernels.is_empty());
+    }
+
+    /// Outside every component, a kernel names the rows it carried out by
+    /// their path from the root: their rows have no kernel of their own, and
+    /// this is where their time went.
+    #[test]
+    fn a_kernel_outside_every_component_names_rows_from_the_root() {
+        let mut components = ComponentTree::default();
+        components.enter(declared("transformer"));
+        let attention = row(components.enter(declared("attention")));
+        components.exit();
+        components.exit();
+        let backward = row(components.enter(declared("backward")));
+        components.exit();
+
+        components.count_launch(
+            &Placement {
+                attribution: Attribution::Untagged,
+                span: vec![attention, backward],
+            },
+            "ElemwiseFuse",
+        );
+
+        let untagged = finished(&components).untagged;
+        assert_eq!(
+            named(&untagged[0].fuses),
+            ["transformer › attention", "backward"]
+        );
+    }
+
+    /// The sync ending the pass runs fused work the last components left
+    /// queued, and its kernels have a row of their own rather than being
+    /// taken for work no annotation covers.
+    #[test]
+    fn the_end_of_the_pass_is_a_row_of_its_own() {
+        let mut components = ComponentTree::default();
+        components.enter(declared("lm head"));
+        components.exit();
+        components.count_launch(&Placement::at(Attribution::EndOfPass), "FusedMatmul");
+
+        let breakdown = finished(&components);
+        assert_eq!(breakdown.end_of_pass[0].name, "FusedMatmul");
+        assert!(breakdown.untagged.is_empty());
+    }
+
+    /// The breakdown of a pass whose timings are all trusted.
+    fn finished(components: &ComponentTree) -> Breakdown {
+        components.breakdown(TimingQuality::default(), false)
+    }
+
+    /// The row a component was entered on.
+    fn row(entered: Attribution) -> usize {
+        match entered {
+            Attribution::Component(row) => row,
+            Attribution::Untagged | Attribution::EndOfPass => {
+                unreachable!("entering a component lands on its row")
+            }
+        }
+    }
+
+    /// A declaration naming only what a test is about. Everything a test does
+    /// not state is what an ordinary component declares: no variant, no floor,
+    /// and one site — so a row is a merge here only where a test says so.
+    fn declared(label: &str) -> Declaration<'_> {
+        Declaration {
+            label,
+            variant: None,
+            site: "test::forward",
+            bounds: None,
+        }
+    }
+
+    /// The paths a kernel names, as a table prints them.
+    fn named(fuses: &[RowPath]) -> Vec<String> {
+        fuses.iter().map(ToString::to_string).collect()
+    }
+
+    fn labels(nodes: &[Node]) -> Vec<String> {
+        nodes
+            .iter()
+            .flat_map(|node| node.walk())
+            .map(|(depth, node)| format!("{}{}x{}", "  ".repeat(depth), node.label, node.entries))
+            .collect()
+    }
+}
