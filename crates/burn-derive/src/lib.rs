@@ -23,6 +23,7 @@ use proc_macro::TokenStream;
 pub(crate) mod config;
 pub(crate) mod einsum;
 pub(crate) mod module;
+pub(crate) mod pytree;
 pub(crate) mod record_state;
 pub(crate) mod shape;
 pub(crate) mod shared;
@@ -96,6 +97,17 @@ pub fn module_derive(input: TokenStream) -> TokenStream {
 pub fn config_derive(input: TokenStream) -> TokenStream {
     let item = syn::parse(input).unwrap();
     config::derive_impl(&item)
+}
+
+/// Derive macro for `burn_func::PyTree`.
+///
+/// The struct must be generic over a backend type parameter named `B` or bounded by `Backend`.
+/// Non-differentiable fields can be marked `#[pytree(skip)]`; they are cloned unchanged when the
+/// backend is rebound and must not depend on the backend type parameter.
+#[proc_macro_derive(PyTree, attributes(pytree))]
+pub fn pytree_derive(input: TokenStream) -> TokenStream {
+    let input = syn::parse(input).unwrap();
+    pytree::derive_impl(&input)
 }
 
 /// Derive macro for a recordable state (optimizer or learning-rate scheduler), decomposing it

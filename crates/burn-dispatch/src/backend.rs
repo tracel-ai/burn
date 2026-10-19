@@ -353,6 +353,81 @@ impl AutodiffBackend for Dispatch {
         }
     }
 
+    fn backward_with_grad(tensor: DispatchTensor, grad: DispatchTensor) -> Self::Gradients {
+        let DispatchTensor { kind, .. } = tensor;
+
+        match kind {
+            DispatchTensorKind::Autodiff(tensor) => match *tensor {
+                #[cfg(not(backend_enabled))]
+                DispatchTensorKind::Unavailable(never) => never.unreachable(),
+                #[cfg(cube_backend)]
+                DispatchTensorKind::Cube(tensor) => {
+                    let grad = match grad.kind {
+                        crate::DispatchTensorKind::Cube(t) => t.float(),
+                        other => panic!(
+                            "backward_with_grad expected a Cube gradient, got {}",
+                            other.name()
+                        ),
+                    };
+                    tensor.autodiff().backward_with_grad(grad)
+                }
+                #[cfg(feature = "flex")]
+                DispatchTensorKind::Flex(tensor) => {
+                    let grad = match grad.kind {
+                        crate::DispatchTensorKind::Flex(t) => t.float(),
+                        other => panic!(
+                            "backward_with_grad expected a Flex gradient, got {}",
+                            other.name()
+                        ),
+                    };
+                    tensor.autodiff().backward_with_grad(grad)
+                }
+                #[cfg(feature = "remote")]
+                DispatchTensorKind::Remote(tensor) => {
+                    let grad = match grad.kind {
+                        crate::DispatchTensorKind::Remote(t) => t.float(),
+                        other => panic!(
+                            "backward_with_grad expected a Remote gradient, got {}",
+                            other.name()
+                        ),
+                    };
+                    tensor.autodiff().backward_with_grad(grad)
+                }
+                #[cfg(feature = "capture")]
+                DispatchTensorKind::Capture(_) => {
+                    panic!("Capture tensors do not support autodiff")
+                }
+                DispatchTensorKind::Autodiff(_) => {
+                    panic!("Autodiff should not wrap an autodiff tensor.")
+                }
+            },
+            _ => panic!("Requires autodiff tensor."),
+        }
+    }
+
+    fn is_tracked(tensor: &DispatchTensor) -> bool {
+        let DispatchTensor { kind, .. } = tensor;
+
+        match kind {
+            DispatchTensorKind::Autodiff(tensor) => match &**tensor {
+                #[cfg(not(backend_enabled))]
+                DispatchTensorKind::Unavailable(never) => never.unreachable(),
+                #[cfg(cube_backend)]
+                DispatchTensorKind::Cube(tensor) => tensor.as_autodiff().is_tracked(),
+                #[cfg(feature = "flex")]
+                DispatchTensorKind::Flex(tensor) => tensor.as_autodiff().is_tracked(),
+                #[cfg(feature = "remote")]
+                DispatchTensorKind::Remote(tensor) => tensor.as_autodiff().is_tracked(),
+                #[cfg(feature = "capture")]
+                DispatchTensorKind::Capture(_) => false,
+                DispatchTensorKind::Autodiff(_) => {
+                    panic!("Autodiff should not wrap an autodiff tensor.")
+                }
+            },
+            _ => false,
+        }
+    }
+
     fn grad(tensor: &DispatchTensor, grads: &Self::Gradients) -> Option<DispatchTensor> {
         let DispatchTensor { kind, .. } = tensor;
         let grad: Option<DispatchTensorKind> = match &kind {
@@ -1051,6 +1126,14 @@ impl AutodiffBackend for Dispatch {
     type Gradients = bool;
 
     fn backward(_tensor: DispatchTensor) -> Self::Gradients {
+        unimplemented!("Requires `autodiff` feature")
+    }
+
+    fn backward_with_grad(_tensor: DispatchTensor, _grad: DispatchTensor) -> Self::Gradients {
+        unimplemented!("Requires `autodiff` feature")
+    }
+
+    fn is_tracked(_tensor: &DispatchTensor) -> bool {
         unimplemented!("Requires `autodiff` feature")
     }
 

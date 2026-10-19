@@ -33,10 +33,13 @@ pub trait DistributedRegistration: Send + Sync {
 }
 
 #[derive(Default)]
-pub(crate) enum BackwardMode {
+pub(crate) enum BackwardMode<B: Backend> {
+    /// Seed the root with ones.
     #[default]
     Standard,
-    // Distributed registration hook.
+    /// Seed the root with the provided cotangent.
+    Seeded(FloatTensor<B>),
+    /// Distributed registration hook.
     #[cfg(feature = "std")]
     Distributed(Box<dyn FnOnce(GradSyncContext) -> Box<dyn DistributedRegistration>>),
 }
@@ -50,9 +53,43 @@ pub struct Gradients {
 }
 
 impl Gradients {
+    /// Creates an empty gradients container.
+    ///
+    /// Used when the root is not tracked, so there is no tape to traverse and no gradient to
+    /// register.
+    pub fn empty() -> Self {
+        Self {
+            container: TensorContainer::new(),
+            on_register: None,
+        }
+    }
+
     /// Creates a new gradients container.
     pub fn new<B: Backend>(root_node: NodeRef, root_tensor: FloatTensor<B>) -> Self {
         Self::new_with_hook::<B>(root_node, root_tensor, None)
+    }
+
+    /// Creates a new gradients container seeded with `root_grad` instead of ones.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `root_grad` does not have the same shape as `root_tensor`.
+    pub fn new_seeded<B: Backend>(
+        root_node: NodeRef,
+        root_tensor: FloatTensor<B>,
+        root_grad: FloatTensor<B>,
+    ) -> Self {
+        assert_eq!(
+            root_grad.shape(),
+            root_tensor.shape(),
+            "The backward seed must match the root tensor shape"
+        );
+        let mut gradients = Self {
+            container: TensorContainer::new(),
+            on_register: None,
+        };
+        gradients.register::<B>(root_node.id, root_grad);
+        gradients
     }
 
     /// Creates a new gradients container.

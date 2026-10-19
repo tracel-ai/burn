@@ -267,9 +267,25 @@ impl<B: Backend> AutodiffTensor<B> {
 
     #[cfg(not(feature = "std"))]
     pub fn backward(self) -> Gradients {
+        if !self.is_tracked() {
+            return Gradients::empty();
+        }
         let client = self.node.client.clone();
 
-        AutodiffClient::backward::<B>(&client, self, BackwardMode::default())
+        AutodiffClient::backward::<B>(&client, self, BackwardMode::<B>::default())
+    }
+
+    /// Runs the backward pass with an explicit cotangent seed for the root tensor.
+    ///
+    /// This is the primitive behind vector-Jacobian products. When the root is untracked, the
+    /// autodiff server returns an empty gradient container instead of traversing a missing tape.
+    pub fn backward_with_grad(self, grad: B::FloatTensorPrimitive) -> Gradients {
+        if !self.is_tracked() {
+            return Gradients::empty();
+        }
+        let client = self.node.client.clone();
+
+        AutodiffClient::backward::<B>(&client, self, BackwardMode::Seeded(grad))
     }
 
     pub fn grad(&self, grads: &Gradients) -> Option<B::FloatTensorPrimitive> {
@@ -309,11 +325,14 @@ impl<B: Backend> AutodiffTensor<B> {
 #[cfg(feature = "std")]
 impl<B: Backend> AutodiffTensor<B> {
     pub fn backward(self) -> Gradients {
+        if !self.is_tracked() {
+            return Gradients::empty();
+        }
         let device = self.primitive.device();
         let device_cloned = device.clone();
         let client = self.node.client.clone();
 
-        let mode = BackwardMode::Distributed(Box::new(|ctx: GradSyncContext| {
+        let mode = BackwardMode::<B>::Distributed(Box::new(|ctx: GradSyncContext| {
             let registration = DistributedGradientRegistration::<B>::new(
                 ctx.n_required_map,
                 ctx.distributed_params,
@@ -325,5 +344,23 @@ impl<B: Backend> AutodiffTensor<B> {
         let grads = AutodiffClient::backward::<B>(&client, self, mode);
         B::submit_sync_collective(&device);
         grads
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use burn_backend::TensorData;
+    use burn_backend::ops::FloatTensorOps;
+    use burn_flex::{Flex, FlexDevice};
+
+    #[test]
+    fn untracked_tensor_backward_returns_empty_gradients() {
+        let device = FlexDevice;
+        let prim = Flex::float_from_data(TensorData::from([1.0f32, 2.0]), &device);
+        let tensor = AutodiffTensor::<Flex>::new(prim);
+        assert!(!tensor.is_tracked());
+        let grads = tensor.clone().backward();
+        assert!(grads.get(&tensor).is_none());
     }
 }

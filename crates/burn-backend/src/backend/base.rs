@@ -388,6 +388,18 @@ pub trait AutodiffBackend: Backend {
     /// The gradients.
     fn backward(tensor: FloatTensor<Self>) -> Self::Gradients;
 
+    /// Backward pass seeded with an explicit cotangent for the root tensor.
+    ///
+    /// The seed must have the same shape as the root tensor. This is the primitive used to
+    /// compute vector-Jacobian products.
+    fn backward_with_grad(
+        tensor: FloatTensor<Self>,
+        grad: FloatTensor<Self::InnerBackend>,
+    ) -> Self::Gradients;
+
+    /// Returns whether the tensor is tracked by the autodiff graph.
+    fn is_tracked(tensor: &FloatTensor<Self>) -> bool;
+
     /// Returns the gradients of a tensor.
     ///
     /// # Arguments

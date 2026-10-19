@@ -1,0 +1,40 @@
+[package]
+authors = ["Ahmed Sadman Sadik <ssadman30@gmail.com>"]
+categories = ["science"]
+description = "JAX-style functional transformations for the Burn framework"
+edition.workspace = true
+keywords = ["deep-learning", "machine-learning", "autodiff", "functional"]
+license.workspace = true
+name = "burn-func"
+readme = "README.md"
+repository = "https://github.com/tracel-ai/burn/tree/main/crates/burn-func"
+version.workspace = true
+
+[lints]
+workspace = true
+
+[features]
+default = ["std", "derive"]
+std = ["burn-std/std", "burn-backend/std", "burn-autodiff/std"]
+# Derive macro for `PyTree`.
+derive = ["dep:burn-derive"]
+# Conversions to and from the backend-erased `burn_tensor::Tensor<D>` API.
+# Only available for dispatch-supported backends implementing `DispatchKindConversion<B>`.
+bridge = ["dep:burn-tensor", "dep:burn-dispatch", "burn-tensor/extension"]
+
+[dependencies]
+burn-std = { workspace = true }
+burn-backend = { workspace = true }
+burn-autodiff = { workspace = true }
+burn-tensor = { workspace = true, optional = true }
+burn-dispatch = { workspace = true, optional = true }
+burn-derive = { workspace = true, optional = true }
+
+[dev-dependencies]
+burn-flex = { path = "../burn-flex" }
+burn-tensor = { workspace = true, features = ["flex", "extension"] }
+burn-dispatch = { workspace = true, features = ["flex"] }
+
+[package.metadata.docs.rs]
+features = ["default", "derive", "bridge"]
+rustdoc-args = ["--cfg", "docsrs"]

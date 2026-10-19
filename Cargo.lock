@@ -1233,6 +1233,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "burn-func"
+version = "0.22.0"
+dependencies = [
+ "burn-autodiff",
+ "burn-backend",
+ "burn-derive",
+ "burn-dispatch",
+ "burn-flex",
+ "burn-std",
+ "burn-tensor",
+]
+
+[[package]]
 name = "burn-fusion"
 version = "0.22.0"
 dependencies = [

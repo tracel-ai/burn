@@ -108,7 +108,11 @@ impl AutodiffClient for GraphMutexClient {
         state.server.register(node_id_ref, step, actions);
     }
 
-    fn backward<B: Backend>(&self, root: AutodiffTensor<B>, mode: BackwardMode) -> Gradients {
+    fn backward<B: Backend>(&self, root: AutodiffTensor<B>, mode: BackwardMode<B>) -> Gradients {
+        if !root.is_tracked() {
+            return Gradients::empty();
+        }
+
         let node_id = root.node.id;
         let graph = GraphMutexClient::graph(root.node.id, &[]);
 

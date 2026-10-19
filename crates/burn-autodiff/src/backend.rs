@@ -139,6 +139,14 @@ impl<B: Backend, C: CheckpointStrategy> AutodiffBackend for Autodiff<B, C> {
         tensor.backward()
     }
 
+    fn backward_with_grad(tensor: AutodiffTensor<B>, grad: B::FloatTensorPrimitive) -> Gradients {
+        tensor.backward_with_grad(grad)
+    }
+
+    fn is_tracked(tensor: &AutodiffTensor<B>) -> bool {
+        tensor.is_tracked()
+    }
+
     fn grad(tensor: &AutodiffTensor<B>, grads: &Gradients) -> Option<B::FloatTensorPrimitive> {
         tensor.grad(grads)
     }

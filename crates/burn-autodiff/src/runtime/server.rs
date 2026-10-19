@@ -64,8 +64,14 @@ impl AutodiffServer {
         root_node: NodeRef,
         root_tensor: FloatTensor<B>,
         node_id: NodeId,
-        mode: BackwardMode,
+        mode: BackwardMode<B>,
     ) -> Gradients {
+        // An untracked root has no tape entry and no gradient to propagate. Returning an empty
+        // container keeps `grad`-style callers on untracked losses from reaching traversal.
+        if root_node.requirement.is_none() {
+            return Gradients::empty();
+        }
+
         // The graph mutex stays locked through validation and consumption. Reject invalid
         // ancestry before removing even the root so fresh branches survive the rejection.
         let nodes = GraphTraversal
@@ -91,6 +97,7 @@ impl AutodiffServer {
                 let on_register = factory(tape_result.distributed.clone().unwrap());
                 Gradients::new_distributed::<B>(root_node, root_tensor, on_register)
             }
+            BackwardMode::Seeded(seed) => Gradients::new_seeded::<B>(root_node, root_tensor, seed),
             _ => Gradients::new::<B>(root_node, root_tensor),
         };
 
