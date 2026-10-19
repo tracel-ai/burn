@@ -17,6 +17,14 @@ use burn_backend::{
 use burn_std::IntDType;
 
 impl ModuleOps<Self> for CubeBackend {
+    fn embedding_backward(
+        weights: FloatTensor<Self>,
+        output_grad: FloatTensor<Self>,
+        indices: IntTensor<Self>,
+    ) -> FloatTensor<Self> {
+        kernel::embedding_backward(weights, output_grad, indices)
+    }
+
     fn conv1d(
         x: FloatTensor<Self>,
         weight: FloatTensor<Self>,
