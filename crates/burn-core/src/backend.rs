@@ -95,20 +95,18 @@ pub trait ExtensionType<B: Backend> {
     /// anywhere in the inputs.
     fn routing_float_tensor(target: &Self::Target) -> Option<&DispatchTensor>;
 
-    /// Return the merged autodiff context and whether a float tensor has autodiff enabled.
+    /// Return the merged autodiff context and whether float inputs may need autodiff execution.
     ///
-    /// Enabled integer and boolean tensors contribute to the output context but don't require
-    /// execution through the autodiff backend. The default is sufficient for single-float
-    /// implementations; implementations containing multiple or nested tensor fields must inspect
-    /// all of them. The derive handles this automatically and computes both values in one traversal.
+    /// The default conservatively selects autodiff when the merged context is enabled and any
+    /// float is present, since the routing float may not be the only float field. Implementations
+    /// can override this to select autodiff only when a float has it enabled. The derive does this
+    /// automatically, inspecting every tensor field and computing both values in one traversal.
     #[doc(hidden)]
     fn autodiff_routing(target: &Self::Target) -> (DispatchAutodiffContext, bool) {
-        (
-            Self::autodiff_context(target),
-            Self::routing_float_tensor(target).is_some_and(|tensor| {
-                matches!(tensor.autodiff, DispatchAutodiffContext::Enabled(_))
-            }),
-        )
+        let context = Self::autodiff_context(target);
+        let needs_autodiff = matches!(context, DispatchAutodiffContext::Enabled(_))
+            && Self::routing_float_tensor(target).is_some();
+        (context, needs_autodiff)
     }
 
     /// Merge the autodiff contexts of every tensor held by the dispatch form.

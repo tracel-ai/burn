@@ -242,7 +242,10 @@ mod checkpoint_strategy_routing {
 mod extension_context_contract {
     use super::*;
     use burn::backend::autodiff::checkpoint::strategy::CheckpointStrategy;
-    use burn::backend::{Autodiff, GradientCheckpointingStrategy};
+    use burn::backend::{
+        Autodiff, Backend, BackendTensor, DispatchAutodiffContext, DispatchTensor,
+        DispatchTensorKind, GradientCheckpointingStrategy,
+    };
     use core::sync::atomic::{AtomicBool, Ordering};
 
     static IMPLEMENTATION_CALLED: AtomicBool = AtomicBool::new(false);
@@ -275,11 +278,48 @@ mod extension_context_contract {
         indices: IntTensor<B>,
     }
 
+    // A handwritten implementation that inherits the default autodiff routing hook.
+    struct ManualRouteInputs<B: Backend>(MixedRouteInputs<B>);
+
+    impl<B: Backend> ExtensionType<B> for ManualRouteInputs<B> {
+        type Target = ManualRouteInputs<Dispatch>;
+
+        fn map_to_dispatch<F>(self, map_kind: F, autodiff: DispatchAutodiffContext) -> Self::Target
+        where
+            F: Fn(BackendTensor<B>) -> DispatchTensorKind,
+        {
+            ManualRouteInputs(self.0.map_to_dispatch(map_kind, autodiff))
+        }
+
+        fn map_from_dispatch<F>(target: Self::Target, unwrap_kind: F) -> Self
+        where
+            F: Fn(DispatchTensor) -> BackendTensor<B>,
+        {
+            ManualRouteInputs(MixedRouteInputs::<B>::map_from_dispatch(
+                target.0,
+                unwrap_kind,
+            ))
+        }
+
+        fn routing_tensor(target: &Self::Target) -> Option<&DispatchTensor> {
+            MixedRouteInputs::<B>::routing_tensor(&target.0)
+        }
+
+        fn routing_float_tensor(target: &Self::Target) -> Option<&DispatchTensor> {
+            MixedRouteInputs::<B>::routing_float_tensor(&target.0)
+        }
+
+        fn autodiff_context(target: &Self::Target) -> DispatchAutodiffContext {
+            MixedRouteInputs::<B>::autodiff_context(&target.0)
+        }
+    }
+
     #[backend_extension(Autodiff, Flex)]
     trait ContextBackend: burn::backend::Backend {
         fn select(#[extension_type] inputs: NestedInputs<Self>) -> IntTensor<Self>;
         fn select_conflict(#[extension_type] inputs: NestedInputs<Self>) -> IntTensor<Self>;
         fn mixed_route(#[extension_type] inputs: MixedRouteInputs<Self>) -> FloatTensor<Self>;
+        fn manual_route(#[extension_type] inputs: ManualRouteInputs<Self>) -> FloatTensor<Self>;
     }
 
     impl ContextBackend for Flex {
@@ -296,6 +336,10 @@ mod extension_context_contract {
             ROUTED_THROUGH_AUTODIFF.store(false, Ordering::SeqCst);
             inputs.first
         }
+
+        fn manual_route(inputs: ManualRouteInputs<Self>) -> FloatTensor<Self> {
+            inputs.0.second
+        }
     }
 
     impl<C: CheckpointStrategy> ContextBackend for Autodiff<Flex, C> {
@@ -311,6 +355,10 @@ mod extension_context_contract {
         fn mixed_route(inputs: MixedRouteInputs<Self>) -> FloatTensor<Self> {
             ROUTED_THROUGH_AUTODIFF.store(true, Ordering::SeqCst);
             inputs.first
+        }
+
+        fn manual_route(inputs: ManualRouteInputs<Self>) -> FloatTensor<Self> {
+            inputs.0.second
         }
     }
 
@@ -390,6 +438,26 @@ mod extension_context_contract {
             output.device().gradient_checkpointing_strategy(),
             autodiff_device.gradient_checkpointing_strategy()
         );
+    }
+
+    #[test]
+    fn default_autodiff_routing_preserves_a_later_tracked_float() {
+        let plain_device = Device::flex();
+        let autodiff_device = plain_device.clone().autodiff();
+        let output =
+            <Dispatch as ContextBackend>::manual_route(ManualRouteInputs(MixedRouteInputs {
+                first: Tensor::<1>::from_floats([1.0], &plain_device).into_dispatch(),
+                second: Tensor::<1>::from_floats([2.0], &autodiff_device)
+                    .require_grad()
+                    .into_dispatch(),
+                indices: Tensor::<1, Int>::from_ints([0], &plain_device).into_dispatch(),
+            }));
+        let output = Tensor::<1>::from_dispatch(output);
+
+        assert!(output.is_require_grad());
+        output
+            .into_data()
+            .assert_eq(&burn::tensor::TensorData::from([2.0f32]), true);
     }
 
     #[test]
