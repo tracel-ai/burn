@@ -40,6 +40,12 @@ mod composed {
         group().all_reduce_of_held_members();
     }
 
+    #[test]
+    #[should_panic(expected = "fewer than the 3 members it splits over")]
+    fn should_refuse_a_dimension_shorter_than_its_members() {
+        Group { rows: 2, ..group() }.reduce_scatter();
+    }
+
     #[cfg(any(feature = "flex", feature = "cuda"))]
     #[test]
     fn should_average_f16_past_the_range_of_its_sum() {

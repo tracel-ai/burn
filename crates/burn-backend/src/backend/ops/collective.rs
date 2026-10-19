@@ -11,9 +11,10 @@ use core::ops::Range;
 ///
 /// Member `i` is position `i` of the tensors given, each on its own member's device and every one
 /// of one shape. A chunk is a member's share of a dimension, as even as possible with the first
-/// members holding one more. The defaults compose each collective from transfers, slices,
-/// concatenations and additions, so every backend runs them; a backend with a transport between
-/// its devices overrides them.
+/// members holding one more; a dimension split into chunks holds at least one element per member,
+/// since a backend never receives an empty slice. The defaults compose each collective from
+/// transfers, slices, concatenations and additions, so every backend runs them; a backend with a
+/// transport between its devices overrides them.
 ///
 /// They must not run beside [`DistributedOps::all_reduce`](crate::distributed::DistributedOps::all_reduce)
 /// on a device with a transport: both queue on that device's one transport, so the two can
@@ -254,12 +255,15 @@ impl<B: Backend> ComposedReductions<B, IntTensor<B>> {
 }
 
 impl<B: Backend, T: TensorMetadata<Device = Device<B>>> ComposedReductions<B, T> {
-    /// See [`CollectiveOps::float_all_reduce`].
+    /// See [`CollectiveOps::float_all_reduce`]. Reduces once on the first member and broadcasts
+    /// the result, so each tensor crosses a link once each way rather than to every member.
     pub fn all_reduce(&self, tensors: Vec<T>, op: ReduceOperation) -> Vec<T> {
-        ComposedCollectives::<B, T>::devices(&tensors)
-            .iter()
-            .map(|device| self.reduced(self.collectives.moved_to(&tensors, device), op))
-            .collect()
+        let devices = ComposedCollectives::<B, T>::devices(&tensors);
+        let Some(root) = devices.first() else {
+            return Vec::new();
+        };
+        let reduced = self.reduced(self.collectives.moved_to(&tensors, root), op);
+        self.collectives.broadcast(reduced, &devices)
     }
 
     /// See [`CollectiveOps::float_reduce_scatter`]. Only each member's chunk moves to it.
@@ -309,10 +313,17 @@ impl<B: Backend, T: TensorMetadata<Device = Device<B>>> ComposedReductions<B, T>
 
 impl Chunks {
     fn new<T: TensorMetadata>(tensors: &[T], dim: usize) -> Self {
-        Self {
+        let chunks = Self {
             len: tensors.first().map_or(0, |tensor| tensor.shape()[dim]),
             members: tensors.len(),
-        }
+        };
+        assert!(
+            chunks.len >= chunks.members,
+            "dimension {dim} holds {} elements, fewer than the {} members it splits over",
+            chunks.len,
+            chunks.members,
+        );
+        chunks
     }
 
     fn range(&self, member: usize) -> Range<usize> {

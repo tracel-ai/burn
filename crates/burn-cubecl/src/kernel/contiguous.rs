@@ -39,7 +39,13 @@ pub fn into_contiguous(tensor: CubeTensor) -> CubeTensor {
     if tensor.is_contiguous() {
         return tensor;
     }
+    copy_contiguous(tensor)
+}
 
+/// Copy a jit tensor into a new buffer holding exactly its elements in row-major order, even when
+/// it is contiguous already.
+pub fn copy_contiguous(tensor: CubeTensor) -> CubeTensor {
+    let tensor = untile(tensor);
     if tensor.qparams.is_some() {
         return into_contiguous_quantized(tensor, MemoryLayoutStrategy::Contiguous);
     }

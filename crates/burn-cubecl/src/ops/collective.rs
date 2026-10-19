@@ -1,6 +1,6 @@
 use burn_backend::{
     DeviceOps,
-    cubecl::{dtype_to_elem_type, dtype_to_storage_type, reduce_operation_to_cubecl},
+    cubecl::{dtype_to_elem_type, reduce_operation_to_cubecl},
     distributed::ReduceOperation,
     ops::{CollectiveOps, ComposedCollectives, ComposedReductions},
     tensor::{BoolTensor, FloatTensor, IntTensor},
@@ -10,7 +10,7 @@ use cubecl::client::{ClientGroup, MemberBuffers};
 
 use crate::{
     CubeBackend,
-    kernel::into_contiguous,
+    kernel::{copy_contiguous, into_contiguous},
     ops::{numeric::empty_device_contiguous_dtype, permute},
     tensor::CubeTensor,
 };
@@ -210,7 +210,8 @@ impl Members {
         let members = self.tensors.len();
         self.tensors
             .first()
-            .is_some_and(|tensor| tensor.meta.shape()[dim].is_multiple_of(members))
+            .map(|tensor| tensor.meta.shape()[dim])
+            .is_some_and(|len| len >= members && len.is_multiple_of(members))
     }
 
     /// Contiguous sources, each its own destination when nothing else holds it.
@@ -229,17 +230,11 @@ impl Members {
     /// collectives move whole buffers.
     fn dense(tensor: CubeTensor) -> CubeTensor {
         let tensor = into_contiguous(tensor);
-        if tensor.is_contiguous_buffer() {
-            return tensor;
+        match tensor.is_contiguous_buffer() {
+            true => tensor,
+            // `is_contiguous` ignores a dimension of size one, which can still hold a pitched row.
+            false => copy_contiguous(tensor),
         }
-        // `is_contiguous` ignores a dimension of size one, which can still hold a pitched row.
-        let (client, device, dtype) = (tensor.client.clone(), tensor.device.clone(), tensor.dtype);
-        let output = cubecl::std::tensor::into_contiguous(
-            &client,
-            tensor.binding(),
-            dtype_to_storage_type(dtype),
-        );
-        CubeTensor::new(client, output.handle, *output.metadata, device, dtype)
     }
 
     fn empty_like(tensor: &CubeTensor, shape: Shape) -> CubeTensor {
