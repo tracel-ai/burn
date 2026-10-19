@@ -83,13 +83,14 @@ pub fn expand(args: TokenStream, mut function: ItemFn) -> syn::Result<TokenStrea
     // has no floor for what it was handed declines rather than declaring a zero.
     let bounds = match &args.bounds {
         None => quote!(None),
-        // A bare path is called with every parameter by reference.
-        Some(Expr::Path(path)) => {
+        // A function's path is called with `self` and every parameter by reference.
+        Some(Expr::Path(path)) if names_a_function(path, &function) => {
             let priced = parameters(&function)?;
             let priced = priced.iter().map(Parameter::priced);
-            quote!(::core::convert::Into::into(#path(self #(, #priced)*)))
+            quote!(::core::convert::Into::into(#path(&self #(, #priced)*)))
         }
-        // Anything else is the call the author wrote, evaluated with every parameter in scope.
+        // Anything else is the value or the call the author wrote, evaluated with every
+        // parameter in scope.
         Some(bounds) => quote!(::core::convert::Into::into(#bounds)),
     };
 
@@ -113,6 +114,30 @@ pub fn expand(args: TokenStream, mut function: ItemFn) -> syn::Result<TokenStrea
     });
 
     Ok(quote!(#function))
+}
+
+/// Whether `bounds = path` names a function to call with every parameter, rather than a value.
+///
+/// Told by Rust's naming conventions, which its lints hold code to: a function is snake_case,
+/// where a constant (`FLOOR`) and a variant (`None`) are not. A parameter is snake_case too and
+/// is a value, so a path naming one is taken as written.
+fn names_a_function(path: &syn::ExprPath, function: &ItemFn) -> bool {
+    let Some(last) = path.path.segments.last() else {
+        return false;
+    };
+    let name = last.ident.to_string();
+    let snake_case = name
+        .chars()
+        .next()
+        .is_some_and(|first| first.is_lowercase() || first == '_');
+    let parameter = path.path.segments.len() == 1
+        && function.sig.inputs.iter().any(|input| match input {
+            FnArg::Typed(typed) => {
+                matches!(typed.pat.as_ref(), Pat::Ident(binding) if binding.ident == last.ident)
+            }
+            FnArg::Receiver(_) => false,
+        });
+    snake_case && !parameter
 }
 
 /// One parameter past `self`: the name a bare-path `bounds` is handed it by, and how.

@@ -34,9 +34,10 @@ use proc_macro::TokenStream;
 ///   call time, yielding `&str` or `Option<&str>`. Rows still merge on their label; the
 ///   breakdown keeps a histogram of variants per row.
 /// * `bounds`: this entry's `burn::instrument::Bounds`, the floor for running it alone, as the
-///   call that computes it, evaluated with every parameter in scope. A bare path (`Self::bounds`)
-///   is called with `self` and every parameter by reference. It may yield `Bounds` or
-///   `Option<Bounds>`. Omitted, the component is timed and not scored, which is right for one
+///   expression that computes it, evaluated with every parameter in scope. A bare path to a
+///   function (`Self::bounds`, snake_case) is called with `&self` and every parameter by
+///   reference; any other path (`None`, `Self::FLOOR`, a parameter) is taken as a value. It may
+///   yield `Bounds` or `Option<Bounds>`. Omitted, the component is timed and not scored, which is right for one
 ///   that will be fused into its neighbour.
 ///
 /// The method must take `self` (the type names the row), and with a bare-path `bounds` bind each

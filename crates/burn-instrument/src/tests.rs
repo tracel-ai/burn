@@ -91,6 +91,38 @@ impl Mixer {
         x * self.scale
     }
 
+    /// A floor no entry changes, declared once.
+    const FLOOR: Bounds = Bounds {
+        read: 5,
+        write: 1,
+        flops: 0,
+    };
+
+    /// Consumes the component: a bare-path floor is handed `&self`, so pricing it leaves
+    /// `self` to the body.
+    #[compute(label = "consume", bounds = Self::bounds)]
+    fn consume(self, x: u32) -> u32 {
+        x * self.scale
+    }
+
+    /// Declines a floor by naming none.
+    #[compute(label = "decline", bounds = None)]
+    fn decline(&self, x: u32) -> u32 {
+        x + self.scale
+    }
+
+    /// A floor that is a constant, not a function to call.
+    #[compute(label = "fixed", bounds = Self::FLOOR)]
+    fn fixed(&self, x: u32) -> u32 {
+        x + self.scale
+    }
+
+    /// A floor its caller already priced, handed in as a parameter.
+    #[compute(label = "given", bounds = floor)]
+    fn given(&self, x: u32, floor: Bounds) -> u32 {
+        x + self.scale
+    }
+
     /// A parameter the body mutates, declared `mut` as the author wrote it.
     #[compute(label = "accumulate")]
     fn accumulate(&self, mut x: u32) -> u32 {
@@ -133,6 +165,39 @@ fn a_forward_with_no_label_is_a_row_named_for_its_type() {
 
     assert_eq!(computed, 21, "the body computes what it did before");
     assert_eq!(seen.events(), ["+mixer:-:28", "-"]);
+}
+
+/// A bare-path floor is priced from `&self`, so a component that consumes itself still runs its
+/// body with `self` intact.
+#[test]
+fn a_component_that_consumes_itself_is_priced_by_reference() {
+    let seen = entered(|| {
+        assert_eq!(Mixer { scale: 3 }.consume(7), 21);
+    });
+
+    assert_eq!(seen.events(), ["+consume:-:28", "-"]);
+}
+
+/// A path that names a value is that value, not a function to call: a component can decline a
+/// floor with `None`, declare a constant, or take one its caller priced.
+#[test]
+fn a_floor_can_be_a_value_named_by_a_path() {
+    let mixer = Mixer { scale: 3 };
+    let given = Bounds {
+        read: 2,
+        write: 2,
+        flops: 0,
+    };
+    let seen = entered(|| {
+        mixer.decline(7);
+        mixer.fixed(7);
+        mixer.given(7, given);
+    });
+
+    assert_eq!(
+        seen.events(),
+        ["+decline:-:-", "-", "+fixed:-:6", "-", "+given:-:4", "-"]
+    );
 }
 
 /// A `mut` parameter stays the body's to mutate, with nothing left for the expansion to warn
