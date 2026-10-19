@@ -93,6 +93,7 @@ pub mod attention;
 pub mod binary;
 mod bool;
 pub mod cat;
+mod collective;
 pub mod comparison;
 #[macro_use]
 mod conv_common;

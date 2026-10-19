@@ -14,6 +14,10 @@ use core::ops::Range;
 /// members holding one more. The defaults compose each collective from transfers, slices,
 /// concatenations and additions, so every backend runs them; a backend with a transport between
 /// its devices overrides them.
+///
+/// They must not run beside [`DistributedOps::all_reduce`](crate::distributed::DistributedOps::all_reduce)
+/// on a device with a transport: both queue on that device's one transport, so the two can
+/// deadlock.
 pub trait CollectiveOps<B: Backend> {
     /// Every member receives `op` over every member's tensor.
     fn float_all_reduce(tensors: Vec<FloatTensor<B>>, op: ReduceOperation) -> Vec<FloatTensor<B>> {
@@ -169,7 +173,7 @@ impl<B: Backend, T: TensorMetadata<Device = Device<B>>> ComposedCollectives<B, T
 
     /// See [`CollectiveOps::float_all_to_all`]. Only the chunks that change member move.
     pub fn all_to_all(&self, tensors: Vec<T>, split_dim: usize, concat_dim: usize) -> Vec<T> {
-        let chunks = Chunks::of(&tensors, split_dim);
+        let chunks = Chunks::new(&tensors, split_dim);
         Self::devices(&tensors)
             .iter()
             .enumerate()
@@ -249,7 +253,7 @@ impl<B: Backend, T: TensorMetadata<Device = Device<B>>> ComposedReductions<B, T>
 
     /// See [`CollectiveOps::float_reduce_scatter`]. Only each member's chunk moves to it.
     pub fn reduce_scatter(&self, tensors: Vec<T>, dim: usize, op: ReduceOperation) -> Vec<T> {
-        let chunks = Chunks::of(&tensors, dim);
+        let chunks = Chunks::new(&tensors, dim);
         ComposedCollectives::<B, T>::devices(&tensors)
             .iter()
             .enumerate()
@@ -282,7 +286,7 @@ impl<B: Backend, T: TensorMetadata<Device = Device<B>>> ComposedReductions<B, T>
 }
 
 impl Chunks {
-    fn of<T: TensorMetadata>(tensors: &[T], dim: usize) -> Self {
+    fn new<T: TensorMetadata>(tensors: &[T], dim: usize) -> Self {
         Self {
             len: tensors.first().map_or(0, |tensor| tensor.shape()[dim]),
             members: tensors.len(),

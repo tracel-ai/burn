@@ -1,5 +1,5 @@
 //! Conversion helpers between burn's [`DType`] and cubecl's
-//! `ElemType` / `StorageType`.
+//! `ElemType` / `StorageType`, and between their [`ReduceOperation`]s.
 //!
 //! These are exposed as plain named functions (rather than `From`/`Into`
 //! trait impls in `burn-std`) so that `burn-std` doesn't need to depend on
@@ -8,7 +8,9 @@
 //! `burn-backend` (with the `cubecl` feature) and call these functions
 //! explicitly.
 
-use burn_std::{BoolStore, DType, QuantScheme, QuantStore, QuantValue};
+use burn_std::{
+    BoolStore, DType, QuantScheme, QuantStore, QuantValue, distributed::ReduceOperation,
+};
 use cubecl::ir::{ElemType, FloatKind, IntKind, UIntKind};
 
 pub mod autotune;
@@ -124,5 +126,13 @@ pub fn dtype_to_storage_type(dtype: DType) -> ElemType {
             ..
         }) => ElemType::Float(FloatKind::E2M1x2),
         _ => dtype_to_elem_type(dtype),
+    }
+}
+
+/// Convert a burn [`ReduceOperation`] into the cubecl reduction it runs as.
+pub fn reduce_operation_to_cubecl(op: ReduceOperation) -> cubecl::server::ReduceOperation {
+    match op {
+        ReduceOperation::Sum => cubecl::server::ReduceOperation::Sum,
+        ReduceOperation::Mean => cubecl::server::ReduceOperation::Mean,
     }
 }

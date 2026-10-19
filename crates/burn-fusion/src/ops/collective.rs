@@ -16,7 +16,7 @@ impl<B: FusionBackend> CollectiveOps<Self> for Fusion<B> {
         tensors: Vec<FloatTensor<Self>>,
         op: ReduceOperation,
     ) -> Vec<FloatTensor<Self>> {
-        InnerTensors::<B, _>::float().run(
+        InnerKind::<B, _>::float().run(
             tensors,
             |inner| B::float_all_reduce(inner, op),
             |tensors| ComposedReductions::<Self, _>::float().all_reduce(tensors, op),
@@ -24,7 +24,7 @@ impl<B: FusionBackend> CollectiveOps<Self> for Fusion<B> {
     }
 
     fn float_all_gather(tensors: Vec<FloatTensor<Self>>, dim: usize) -> Vec<FloatTensor<Self>> {
-        InnerTensors::<B, _>::float().run(
+        InnerKind::<B, _>::float().run(
             tensors,
             |inner| B::float_all_gather(inner, dim),
             |tensors| ComposedCollectives::<Self, _>::float().all_gather(tensors, dim),
@@ -36,7 +36,7 @@ impl<B: FusionBackend> CollectiveOps<Self> for Fusion<B> {
         dim: usize,
         op: ReduceOperation,
     ) -> Vec<FloatTensor<Self>> {
-        InnerTensors::<B, _>::float().run(
+        InnerKind::<B, _>::float().run(
             tensors,
             |inner| B::float_reduce_scatter(inner, dim, op),
             |tensors| ComposedReductions::<Self, _>::float().reduce_scatter(tensors, dim, op),
@@ -48,7 +48,7 @@ impl<B: FusionBackend> CollectiveOps<Self> for Fusion<B> {
         split_dim: usize,
         concat_dim: usize,
     ) -> Vec<FloatTensor<Self>> {
-        InnerTensors::<B, _>::float().run(
+        InnerKind::<B, _>::float().run(
             tensors,
             |inner| B::float_all_to_all(inner, split_dim, concat_dim),
             |tensors| {
@@ -58,7 +58,7 @@ impl<B: FusionBackend> CollectiveOps<Self> for Fusion<B> {
     }
 
     fn int_all_reduce(tensors: Vec<IntTensor<Self>>, op: ReduceOperation) -> Vec<IntTensor<Self>> {
-        InnerTensors::<B, _>::int().run(
+        InnerKind::<B, _>::int().run(
             tensors,
             |inner| B::int_all_reduce(inner, op),
             |tensors| ComposedReductions::<Self, _>::int().all_reduce(tensors, op),
@@ -66,7 +66,7 @@ impl<B: FusionBackend> CollectiveOps<Self> for Fusion<B> {
     }
 
     fn int_all_gather(tensors: Vec<IntTensor<Self>>, dim: usize) -> Vec<IntTensor<Self>> {
-        InnerTensors::<B, _>::int().run(
+        InnerKind::<B, _>::int().run(
             tensors,
             |inner| B::int_all_gather(inner, dim),
             |tensors| ComposedCollectives::<Self, _>::int().all_gather(tensors, dim),
@@ -78,7 +78,7 @@ impl<B: FusionBackend> CollectiveOps<Self> for Fusion<B> {
         dim: usize,
         op: ReduceOperation,
     ) -> Vec<IntTensor<Self>> {
-        InnerTensors::<B, _>::int().run(
+        InnerKind::<B, _>::int().run(
             tensors,
             |inner| B::int_reduce_scatter(inner, dim, op),
             |tensors| ComposedReductions::<Self, _>::int().reduce_scatter(tensors, dim, op),
@@ -90,7 +90,7 @@ impl<B: FusionBackend> CollectiveOps<Self> for Fusion<B> {
         split_dim: usize,
         concat_dim: usize,
     ) -> Vec<IntTensor<Self>> {
-        InnerTensors::<B, _>::int().run(
+        InnerKind::<B, _>::int().run(
             tensors,
             |inner| B::int_all_to_all(inner, split_dim, concat_dim),
             |tensors| {
@@ -100,7 +100,7 @@ impl<B: FusionBackend> CollectiveOps<Self> for Fusion<B> {
     }
 
     fn bool_all_gather(tensors: Vec<BoolTensor<Self>>, dim: usize) -> Vec<BoolTensor<Self>> {
-        InnerTensors::<B, _>::bool().run(
+        InnerKind::<B, _>::bool().run(
             tensors,
             |inner| B::bool_all_gather(inner, dim),
             |tensors| ComposedCollectives::<Self, _>::bool().all_gather(tensors, dim),
@@ -112,7 +112,7 @@ impl<B: FusionBackend> CollectiveOps<Self> for Fusion<B> {
         split_dim: usize,
         concat_dim: usize,
     ) -> Vec<BoolTensor<Self>> {
-        InnerTensors::<B, _>::bool().run(
+        InnerKind::<B, _>::bool().run(
             tensors,
             |inner| B::bool_all_to_all(inner, split_dim, concat_dim),
             |tensors| {
@@ -124,12 +124,12 @@ impl<B: FusionBackend> CollectiveOps<Self> for Fusion<B> {
 
 /// How one tensor kind passes between Fusion's tensors and its inner backend's, so a collective
 /// runs on the inner backend, whose transport fusion would otherwise hide behind transfers.
-struct InnerTensors<B: FusionBackend, T> {
+struct InnerKind<B: FusionBackend, T> {
     resolve: fn(FusionTensor<B::FusionRuntime>) -> Result<T, ExecutionError>,
     handle: fn(T) -> B::Handle,
 }
 
-impl<B: FusionBackend> InnerTensors<B, FloatTensor<B>> {
+impl<B: FusionBackend> InnerKind<B, FloatTensor<B>> {
     fn float() -> Self {
         Self {
             resolve: |tensor| tensor.client.clone().resolve_tensor_float::<B>(tensor),
@@ -138,7 +138,7 @@ impl<B: FusionBackend> InnerTensors<B, FloatTensor<B>> {
     }
 }
 
-impl<B: FusionBackend> InnerTensors<B, IntTensor<B>> {
+impl<B: FusionBackend> InnerKind<B, IntTensor<B>> {
     fn int() -> Self {
         Self {
             resolve: |tensor| tensor.client.clone().resolve_tensor_int::<B>(tensor),
@@ -147,7 +147,7 @@ impl<B: FusionBackend> InnerTensors<B, IntTensor<B>> {
     }
 }
 
-impl<B: FusionBackend> InnerTensors<B, BoolTensor<B>> {
+impl<B: FusionBackend> InnerKind<B, BoolTensor<B>> {
     fn bool() -> Self {
         Self {
             resolve: |tensor| tensor.client.clone().resolve_tensor_bool::<B>(tensor),
@@ -156,7 +156,7 @@ impl<B: FusionBackend> InnerTensors<B, BoolTensor<B>> {
     }
 }
 
-impl<B: FusionBackend, T: TensorMetadata<Device = Device<B>>> InnerTensors<B, T> {
+impl<B: FusionBackend, T: TensorMetadata<Device = Device<B>>> InnerKind<B, T> {
     /// Runs `inner` on what every member's stream resolves to. When a member's tensor carries a
     /// failure, `composed` runs on Fusion's own tensors instead, so every output carries it.
     fn run(
@@ -170,12 +170,12 @@ impl<B: FusionBackend, T: TensorMetadata<Device = Device<B>>> InnerTensors<B, T>
         let resolved: Vec<_> = tensors
             .into_iter()
             .map(|tensor| {
-                let failed = Failed {
+                let metadata = MemberMetadata {
                     shape: tensor.shape.clone(),
                     dtype: tensor.dtype,
                     client: tensor.client.clone(),
                 };
-                ((self.resolve)(tensor), failed)
+                ((self.resolve)(tensor), metadata)
             })
             .collect();
         if resolved.iter().all(|(resolved, _)| resolved.is_ok()) {
@@ -190,9 +190,9 @@ impl<B: FusionBackend, T: TensorMetadata<Device = Device<B>>> InnerTensors<B, T>
         }
         let tensors = resolved
             .into_iter()
-            .map(|(resolved, failed)| match resolved {
+            .map(|(resolved, metadata)| match resolved {
                 Ok(tensor) => self.registered(tensor),
-                Err(error) => failed.carrying(error),
+                Err(error) => metadata.carrying(error),
             })
             .collect();
         composed(tensors)
@@ -207,13 +207,13 @@ impl<B: FusionBackend, T: TensorMetadata<Device = Device<B>>> InnerTensors<B, T>
 }
 
 /// What a member's tensor was, so a failure resolving it can stand in for it.
-struct Failed<R: FusionRuntime> {
+struct MemberMetadata<R: FusionRuntime> {
     shape: Shape,
     dtype: DType,
     client: Client<R>,
 }
 
-impl<R: FusionRuntime> Failed<R> {
+impl<R: FusionRuntime> MemberMetadata<R> {
     fn carrying(self, error: ExecutionError) -> FusionTensor<R> {
         let id = self.client.register_error(TensorError::new(error));
         FusionTensor::new(id, self.shape, self.dtype, self.client, StreamId::current())

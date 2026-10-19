@@ -1,15 +1,12 @@
 use burn_backend::{
     DeviceOps,
-    cubecl::{dtype_to_elem_type, dtype_to_storage_type},
+    cubecl::{dtype_to_elem_type, dtype_to_storage_type, reduce_operation_to_cubecl},
     distributed::ReduceOperation,
     ops::{CollectiveOps, ComposedCollectives, ComposedReductions},
     tensor::{BoolTensor, FloatTensor, IntTensor},
 };
 use burn_std::Shape;
-use cubecl::{
-    client::{ClientGroup, MemberBuffers},
-    server,
-};
+use cubecl::client::{ClientGroup, MemberBuffers};
 
 use crate::{
     CubeBackend,
@@ -138,14 +135,14 @@ impl Members {
         op: ReduceOperation,
         composed: impl FnOnce(Vec<CubeTensor>) -> Vec<CubeTensor>,
     ) -> Vec<CubeTensor> {
-        let order = AscendingOrder::of(&tensors);
+        let order = AscendingOrder::new(&tensors);
         let members = Self::new(order.sorted(tensors));
         let reduced = match members.reducing() {
             Some(group) => {
                 let group = group.clone();
                 let elem = dtype_to_elem_type(members.tensors[0].dtype);
                 let parts = members.in_place_where_possible();
-                group.all_reduce(parts.buffers, elem, Self::cubecl_op(op));
+                group.all_reduce(parts.buffers, elem, reduce_operation_to_cubecl(op));
                 parts.outputs
             }
             None => composed(members.tensors),
@@ -162,9 +159,9 @@ impl Members {
             return composed(self.tensors);
         };
         let members = self.tensors.len();
-        let parts = Front::along(dim).buffers(self.tensors, |len| len * members);
+        let parts = Front::new(dim).buffers(self.tensors, |len| len * members);
         group.all_gather(parts.buffers);
-        Front::along(dim).restored(parts.outputs)
+        Front::new(dim).restored(parts.outputs)
     }
 
     fn reduce_scatter(
@@ -178,9 +175,9 @@ impl Members {
             return composed(self.tensors);
         };
         let elem = dtype_to_elem_type(self.tensors[0].dtype);
-        let parts = Front::along(dim).buffers(self.tensors, |len| len / members);
-        group.reduce_scatter(parts.buffers, elem, Self::cubecl_op(op));
-        Front::along(dim).restored(parts.outputs)
+        let parts = Front::new(dim).buffers(self.tensors, |len| len / members);
+        group.reduce_scatter(parts.buffers, elem, reduce_operation_to_cubecl(op));
+        Front::new(dim).restored(parts.outputs)
     }
 
     fn all_to_all(
@@ -194,9 +191,9 @@ impl Members {
         let Some(group) = self.group.filter(|_| runs) else {
             return composed(self.tensors);
         };
-        let parts = Front::along(split_dim).buffers(self.tensors, |len| len);
+        let parts = Front::new(split_dim).buffers(self.tensors, |len| len);
         group.all_to_all(parts.buffers);
-        Front::along(split_dim).restored(parts.outputs)
+        Front::new(split_dim).restored(parts.outputs)
     }
 
     /// The group when its devices reduce the members' type.
@@ -229,8 +226,7 @@ impl Members {
     /// collectives move whole buffers.
     fn dense(tensor: CubeTensor) -> CubeTensor {
         let tensor = into_contiguous(tensor);
-        let bytes = tensor.meta.shape().num_elements() * tensor.dtype.size();
-        if tensor.handle.size_in_used() == bytes as u64 {
+        if tensor.is_contiguous_buffer() {
             return tensor;
         }
         // `is_contiguous` ignores a dimension of size one, which can still hold a pitched row.
@@ -250,13 +246,6 @@ impl Members {
             shape,
             tensor.dtype,
         )
-    }
-
-    fn cubecl_op(op: ReduceOperation) -> server::ReduceOperation {
-        match op {
-            ReduceOperation::Sum => server::ReduceOperation::Sum,
-            ReduceOperation::Mean => server::ReduceOperation::Mean,
-        }
     }
 }
 
@@ -285,7 +274,7 @@ struct Front {
 }
 
 impl Front {
-    fn along(dim: usize) -> Self {
+    fn new(dim: usize) -> Self {
         Self { dim }
     }
 
@@ -333,7 +322,7 @@ impl Front {
 }
 
 impl AscendingOrder {
-    fn of(tensors: &[CubeTensor]) -> Self {
+    fn new(tensors: &[CubeTensor]) -> Self {
         let mut members: Vec<usize> = (0..tensors.len()).collect();
         members.sort_by_key(|member| tensors[*member].device.id());
         Self { members }
@@ -356,5 +345,36 @@ impl AscendingOrder {
             .into_iter()
             .map(|tensor| tensor.expect("each member once"))
             .collect()
+    }
+}
+
+#[cfg(all(test, feature = "cuda"))]
+mod tests {
+    use super::*;
+    use crate::CubeDevice;
+    use burn_backend::DType;
+    use cubecl::cuda::CudaDevice;
+
+    /// NCCL runs only over distinct devices in ascending order holding one shape; anything else
+    /// must compose, and a group that silently stopped forming would pass every value test.
+    #[test]
+    #[ignore = "needs two CUDA devices and NCCL"]
+    fn a_group_forms_over_ascending_distinct_devices_of_one_shape() {
+        let devices = [0, 1].map(|index| CubeDevice::Cuda(CudaDevice { index }));
+        let tensor = |member: usize, rows: usize| {
+            let device = devices[member].clone();
+            empty_device_contiguous_dtype(
+                device.client(),
+                device,
+                Shape::new([rows, 2]),
+                DType::F32,
+            )
+        };
+        let forms = |tensors: Vec<CubeTensor>| Members::new(tensors).group.is_some();
+
+        assert!(forms(vec![tensor(0, 2), tensor(1, 2)]));
+        assert!(!forms(vec![tensor(1, 2), tensor(0, 2)]));
+        assert!(!forms(vec![tensor(0, 2), tensor(0, 2)]));
+        assert!(!forms(vec![tensor(0, 2), tensor(1, 3)]));
     }
 }
