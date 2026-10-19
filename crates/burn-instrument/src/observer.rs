@@ -9,6 +9,9 @@ use crate::Bounds;
 ///
 /// Implemented by whoever is measuring; the seam knows nothing about reports, devices or
 /// kernels. The component side of what a runtime's launch observer is to its kernels.
+///
+/// A callback must not install or end a `ComponentObservation` on its thread, nor call an
+/// annotated method: the thread's observer slot is borrowed while it runs.
 // Neither `Send` nor `Sync`: an observer lives in the slot of the thread that installed it and is
 // never shared, so requiring either would force interior mutability on implementors that do not
 // need it.

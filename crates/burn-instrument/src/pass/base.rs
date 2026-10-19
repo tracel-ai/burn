@@ -48,7 +48,9 @@ impl PassCollector {
     ///
     /// Collected, the pass runs the graph it runs in production — nothing is
     /// drained at a boundary — so call it on work already synced: an operation
-    /// queued before it would be watched too.
+    /// queued before it would be watched too. Run it once beforehand, so the
+    /// tuner's work is not collected as the pass's, and keep other threads off
+    /// the device while it runs: see the [crate docs](crate#collecting-a-pass).
     ///
     /// Taken by value: a collector holds one pass, and its breakdown is read
     /// once that pass has ended.

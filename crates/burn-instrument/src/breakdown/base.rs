@@ -278,8 +278,9 @@ pub struct Component {
     /// — the reshapes and residual adds between them — and those are exactly
     /// the work no child accounts for.
     pub kernels: Vec<Kernel>,
-    /// How long the device sat idle, in the collected pass, before the kernels
-    /// this component launched directly — waiting on the host to issue them.
+    /// How long the device sat idle, in the collected pass, before the
+    /// [`kernels`](Self::kernels) recorded on this component — waiting on the
+    /// host to issue them.
     ///
     /// Idle time is charged to the kernel that ended it: that launch is what
     /// the device was waiting for. It is the collected pass's, whose host also
@@ -325,7 +326,9 @@ impl Component {
                 .sum::<Duration>()
     }
 
-    /// Device time in the kernels this component launched directly.
+    /// Device time in the [`kernels`](Self::kernels) recorded on this
+    /// component: its own work, and fused kernels that carried out its
+    /// descendants' work together.
     pub fn own_time(&self) -> Duration {
         self.kernels.iter().map(|kernel| kernel.total).sum()
     }

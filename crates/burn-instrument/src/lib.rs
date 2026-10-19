@@ -30,6 +30,15 @@
 //! fused device, a kernel that carried out several components' work is recorded on the closest
 //! component containing all of them and names the ones it fused.
 //!
+//! Collect a pass the device has already run once. A first pass also autotunes: the candidates
+//! the tuner launches are recorded as untagged kernels, and the stall while it measures them as
+//! the wait of the component that ran next.
+//!
+//! A pass is one thread's work. On a fused device, the operations every thread registers go
+//! through one fusion server, which follows the collecting thread's components, so another
+//! thread's work on the device during the pass is recorded under whichever component the
+//! collecting thread had open.
+//!
 //! ```rust,ignore
 //! let breakdown = PassCollector::new(&device).collect(|| {
 //!     model.forward(input);
