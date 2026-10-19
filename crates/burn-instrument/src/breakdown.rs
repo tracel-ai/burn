@@ -19,7 +19,9 @@ use crate::row_path::RowPath;
 pub struct Breakdown {
     /// The components the collected pass entered.
     pub tree: Vec<Node>,
-    /// Kernels the pass launched under no component at all.
+    /// Kernels the pass launched under no component at all, and fused kernels
+    /// that carried out work from outside every component or across two roots,
+    /// named for the components they did carry out (see [`Kernel::fuses`]).
     pub untagged: Vec<Kernel>,
     /// Kernels the sync ending the pass ran: fused work the last components
     /// left queued, which no op after them was there to seal. See
@@ -47,10 +49,12 @@ pub struct Breakdown {
     /// clean pass instead.
     pub timed_alone: bool,
     /// Kernel time that reached the collector under a different row from the
-    /// launch it measured, so no row could account for it.
+    /// launch it measured, or a measurement that came back empty, so no row
+    /// could account for it.
     ///
-    /// Zero on every pass that resolves its timings inline, which is what the
-    /// runtime does today. Reported rather than assumed, because
+    /// Each measurement is kept beside the row that counted its launch and read
+    /// back once the pass has run, so this is zero unless a runtime hands one
+    /// over somewhere else. Reported rather than assumed, because
     /// [`device`](Self::device) is the denominator of every apportioned
     /// millisecond in a report.
     pub unplaced: Unplaced,
@@ -243,8 +247,9 @@ pub struct Node {
     pub entries: usize,
     /// The components it entered, in first-seen order.
     pub children: Vec<Node>,
-    /// The kernels launched while this component was the innermost one open,
-    /// in first-seen order.
+    /// The kernels recorded on this row, in first-seen order: its own work, and
+    /// fused kernels that carried out several of its descendants' work, which
+    /// land on their closest common parent (see [`Kernel::fuses`]).
     ///
     /// A component with children of its own can still launch kernels directly
     /// — the reshapes and residual adds between them — and those are exactly
@@ -254,10 +259,10 @@ pub struct Node {
     /// this component launched directly — waiting on the host to issue them.
     ///
     /// Idle time is charged to the kernel that ended it: that launch is what
-    /// the device was waiting for. It is the collected pass's, whose host pays
-    /// a round trip per launch to time it, so as an absolute it describes the
-    /// instrumentation; as a share of every gap it says which components the
-    /// device waited on, which is what a clean pass's host time is split by.
+    /// the device was waiting for. It is the collected pass's, whose host also
+    /// records every launch, so as an absolute it includes the instrumentation;
+    /// as a share of every gap it says which components the device waited on,
+    /// which is what a clean pass's host time is split by.
     #[serde(with = "nanoseconds")]
     pub waited: Duration,
 }
