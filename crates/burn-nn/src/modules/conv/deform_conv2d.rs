@@ -178,9 +178,13 @@ impl DeformConv2d {
         mask: Option<Tensor<4>>,
     ) -> Tensor<4> {
         let [_batch_size, _channels_in, height_in, width_in] = input.dims();
-        let padding =
-            self.padding
-                .calculate_padding_2d(height_in, width_in, &self.kernel_size, &self.stride);
+        let padding = self.padding.calculate_padding_2d(
+            height_in,
+            width_in,
+            &self.kernel_size,
+            &self.stride,
+            "DeformConv2d",
+        );
         deform_conv2d(
             input,
             offset,
@@ -283,6 +287,19 @@ mod tests {
         let device = Default::default();
         let config = DeformConv2dConfig::new([4, 4], [2, 2]).with_padding(PaddingConfig2d::Same);
         let _ = config.init(&device);
+    }
+
+    #[test]
+    #[should_panic(expected = "Asymmetric calculated padding is not supported for DeformConv2d")]
+    fn same_with_asymmetric_calculated_padding_is_invalid() {
+        let config = DeformConv2dConfig::new([1, 1], [3, 3])
+            .with_stride([2, 2])
+            .with_padding(PaddingConfig2d::Same);
+        let conv = config.init(&Default::default());
+
+        let input = Tensor::<4>::zeros([1, 1, 4, 5], &Default::default());
+        let offset = Tensor::<4>::zeros([1, 18, 2, 3], &Default::default());
+        let _ = conv.forward(input, offset, None);
     }
 
     #[test]
