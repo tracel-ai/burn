@@ -1,11 +1,11 @@
 use crate::{
-    Backend, Scalar, TensorMetadata,
+    Backend, TensorMetadata,
     distributed::ReduceOperation,
     tensor::{BoolTensor, Device, FloatTensor, IntTensor},
 };
 use alloc::vec::Vec;
 use burn_std::Slice;
-use core::ops::Range;
+use core::{marker::PhantomData, ops::Range};
 
 /// Collectives over a group of devices, called once with every member's tensor.
 ///
@@ -22,12 +22,12 @@ use core::ops::Range;
 pub trait CollectiveOps<B: Backend> {
     /// Every member receives `op` over every member's tensor.
     fn float_all_reduce(tensors: Vec<FloatTensor<B>>, op: ReduceOperation) -> Vec<FloatTensor<B>> {
-        ComposedReductions::<B, _>::float().all_reduce(tensors, op)
+        TransferCollectives::<B, FloatTensors>::all_reduce(tensors, op)
     }
 
     /// Every member receives every member's tensor, concatenated along `dim` in member order.
     fn float_all_gather(tensors: Vec<FloatTensor<B>>, dim: usize) -> Vec<FloatTensor<B>> {
-        ComposedCollectives::<B, _>::float().all_gather(tensors, dim)
+        TransferCollectives::<B, FloatTensors>::all_gather(tensors, dim)
     }
 
     /// Member `i` receives chunk `i` along `dim` of `op` over every member's tensor.
@@ -36,7 +36,7 @@ pub trait CollectiveOps<B: Backend> {
         dim: usize,
         op: ReduceOperation,
     ) -> Vec<FloatTensor<B>> {
-        ComposedReductions::<B, _>::float().reduce_scatter(tensors, dim, op)
+        TransferCollectives::<B, FloatTensors>::reduce_scatter(tensors, dim, op)
     }
 
     /// Member `i` receives chunk `i` along `split_dim` of every member's tensor, concatenated along
@@ -46,22 +46,22 @@ pub trait CollectiveOps<B: Backend> {
         split_dim: usize,
         concat_dim: usize,
     ) -> Vec<FloatTensor<B>> {
-        ComposedCollectives::<B, _>::float().all_to_all(tensors, split_dim, concat_dim)
+        TransferCollectives::<B, FloatTensors>::all_to_all(tensors, split_dim, concat_dim)
     }
 
     /// Each of `devices` receives `tensor`.
     fn float_broadcast(tensor: FloatTensor<B>, devices: &[Device<B>]) -> Vec<FloatTensor<B>> {
-        ComposedCollectives::<B, _>::float().broadcast(tensor, devices)
+        TransferCollectives::<B, FloatTensors>::broadcast(tensor, devices)
     }
 
     /// Every member receives `op` over every member's tensor.
     fn int_all_reduce(tensors: Vec<IntTensor<B>>, op: ReduceOperation) -> Vec<IntTensor<B>> {
-        ComposedReductions::<B, _>::int().all_reduce(tensors, op)
+        TransferCollectives::<B, IntTensors>::all_reduce(tensors, op)
     }
 
     /// Every member receives every member's tensor, concatenated along `dim` in member order.
     fn int_all_gather(tensors: Vec<IntTensor<B>>, dim: usize) -> Vec<IntTensor<B>> {
-        ComposedCollectives::<B, _>::int().all_gather(tensors, dim)
+        TransferCollectives::<B, IntTensors>::all_gather(tensors, dim)
     }
 
     /// Member `i` receives chunk `i` along `dim` of `op` over every member's tensor.
@@ -70,7 +70,7 @@ pub trait CollectiveOps<B: Backend> {
         dim: usize,
         op: ReduceOperation,
     ) -> Vec<IntTensor<B>> {
-        ComposedReductions::<B, _>::int().reduce_scatter(tensors, dim, op)
+        TransferCollectives::<B, IntTensors>::reduce_scatter(tensors, dim, op)
     }
 
     /// Member `i` receives chunk `i` along `split_dim` of every member's tensor, concatenated along
@@ -80,17 +80,17 @@ pub trait CollectiveOps<B: Backend> {
         split_dim: usize,
         concat_dim: usize,
     ) -> Vec<IntTensor<B>> {
-        ComposedCollectives::<B, _>::int().all_to_all(tensors, split_dim, concat_dim)
+        TransferCollectives::<B, IntTensors>::all_to_all(tensors, split_dim, concat_dim)
     }
 
     /// Each of `devices` receives `tensor`.
     fn int_broadcast(tensor: IntTensor<B>, devices: &[Device<B>]) -> Vec<IntTensor<B>> {
-        ComposedCollectives::<B, _>::int().broadcast(tensor, devices)
+        TransferCollectives::<B, IntTensors>::broadcast(tensor, devices)
     }
 
     /// Every member receives every member's tensor, concatenated along `dim` in member order.
     fn bool_all_gather(tensors: Vec<BoolTensor<B>>, dim: usize) -> Vec<BoolTensor<B>> {
-        ComposedCollectives::<B, _>::bool().all_gather(tensors, dim)
+        TransferCollectives::<B, BoolTensors>::all_gather(tensors, dim)
     }
 
     /// Member `i` receives chunk `i` along `split_dim` of every member's tensor, concatenated along
@@ -100,37 +100,54 @@ pub trait CollectiveOps<B: Backend> {
         split_dim: usize,
         concat_dim: usize,
     ) -> Vec<BoolTensor<B>> {
-        ComposedCollectives::<B, _>::bool().all_to_all(tensors, split_dim, concat_dim)
+        TransferCollectives::<B, BoolTensors>::all_to_all(tensors, split_dim, concat_dim)
     }
 
     /// Each of `devices` receives `tensor`.
     fn bool_broadcast(tensor: BoolTensor<B>, devices: &[Device<B>]) -> Vec<BoolTensor<B>> {
-        ComposedCollectives::<B, _>::bool().broadcast(tensor, devices)
+        TransferCollectives::<B, BoolTensors>::broadcast(tensor, devices)
     }
 }
 
-/// The collectives of one tensor kind composed from its transfers, slices and concatenations:
-/// what a backend without a transport of its own runs, and what an override falls back to.
-pub struct ComposedCollectives<B: Backend, T> {
-    to_device: fn(T, &Device<B>) -> T,
-    slice: fn(T, &[Slice]) -> T,
-    cat: fn(Vec<T>, usize) -> T,
+/// What [`TransferCollectives`] needs from a tensor kind to move its tensors, so each collective
+/// is written once for float, int and bool tensors.
+pub trait TransferKind<B: Backend> {
+    /// The kind's tensor primitive.
+    type Tensor: TensorMetadata<Device = Device<B>>;
+
+    /// Moves `tensor` to `device`.
+    fn to_device(tensor: Self::Tensor, device: &Device<B>) -> Self::Tensor;
+
+    /// Slices `tensor`.
+    fn slice(tensor: Self::Tensor, slices: &[Slice]) -> Self::Tensor;
+
+    /// Concatenates `tensors` along `dim`.
+    fn cat(tensors: Vec<Self::Tensor>, dim: usize) -> Self::Tensor;
 }
 
-/// The reductions of one tensor kind composed from its collectives and additions.
-pub struct ComposedReductions<B: Backend, T> {
-    collectives: ComposedCollectives<B, T>,
-    add: fn(T, T) -> T,
-    div_scalar: fn(T, Scalar) -> T,
-    mean: MeanDivides,
+/// What [`TransferCollectives`] also needs from a tensor kind to reduce its tensors.
+pub trait ReduceKind<B: Backend>: TransferKind<B> {
+    /// The elementwise sum of `parts`, all on one device.
+    fn sum(parts: Vec<Self::Tensor>) -> Self::Tensor;
+
+    /// The elementwise mean of `parts`, all on one device.
+    fn mean(parts: Vec<Self::Tensor>) -> Self::Tensor;
 }
 
-/// What a mean divides by the member count.
-enum MeanDivides {
-    /// Each part, as NCCL averages floats, so a sum past the type's range still averages.
-    EachPart,
-    /// The sum, so an integer mean truncates once.
-    Sum,
+/// Float tensors.
+pub struct FloatTensors;
+
+/// Int tensors.
+pub struct IntTensors;
+
+/// Bool tensors, which move but do not reduce.
+pub struct BoolTensors;
+
+/// The collectives of tensor kind `K` built from transfers between devices, slices,
+/// concatenations and additions: what a backend without a transport runs, and what an override
+/// falls back to.
+pub struct TransferCollectives<B, K> {
+    _kind: PhantomData<(B, K)>,
 }
 
 /// A dimension's length split over a group's members.
@@ -139,50 +156,103 @@ struct Chunks {
     members: usize,
 }
 
-impl<B: Backend> ComposedCollectives<B, FloatTensor<B>> {
-    /// The float collectives.
-    pub fn float() -> Self {
-        Self {
-            to_device: B::float_to_device,
-            slice: B::float_slice,
-            cat: B::float_cat,
-        }
+impl<B: Backend> TransferKind<B> for FloatTensors {
+    type Tensor = FloatTensor<B>;
+
+    fn to_device(tensor: Self::Tensor, device: &Device<B>) -> Self::Tensor {
+        B::float_to_device(tensor, device)
+    }
+
+    fn slice(tensor: Self::Tensor, slices: &[Slice]) -> Self::Tensor {
+        B::float_slice(tensor, slices)
+    }
+
+    fn cat(tensors: Vec<Self::Tensor>, dim: usize) -> Self::Tensor {
+        B::float_cat(tensors, dim)
     }
 }
 
-impl<B: Backend> ComposedCollectives<B, IntTensor<B>> {
-    /// The int collectives.
-    pub fn int() -> Self {
-        Self {
-            to_device: B::int_to_device,
-            slice: B::int_slice,
-            cat: B::int_cat,
-        }
+impl<B: Backend> ReduceKind<B> for FloatTensors {
+    fn sum(parts: Vec<Self::Tensor>) -> Self::Tensor {
+        parts
+            .into_iter()
+            .reduce(B::float_add)
+            .expect("a group has a member")
+    }
+
+    /// Divides each part first, as NCCL averages floats, so a sum past the type's range still
+    /// averages.
+    fn mean(parts: Vec<Self::Tensor>) -> Self::Tensor {
+        let members = parts.len();
+        let parts = parts
+            .into_iter()
+            .map(|part| B::float_div_scalar(part, members.into()));
+        <Self as ReduceKind<B>>::sum(parts.collect())
     }
 }
 
-impl<B: Backend> ComposedCollectives<B, BoolTensor<B>> {
-    /// The bool collectives.
-    pub fn bool() -> Self {
-        Self {
-            to_device: B::bool_to_device,
-            slice: B::bool_slice,
-            cat: B::bool_cat,
-        }
+impl<B: Backend> TransferKind<B> for IntTensors {
+    type Tensor = IntTensor<B>;
+
+    fn to_device(tensor: Self::Tensor, device: &Device<B>) -> Self::Tensor {
+        B::int_to_device(tensor, device)
+    }
+
+    fn slice(tensor: Self::Tensor, slices: &[Slice]) -> Self::Tensor {
+        B::int_slice(tensor, slices)
+    }
+
+    fn cat(tensors: Vec<Self::Tensor>, dim: usize) -> Self::Tensor {
+        B::int_cat(tensors, dim)
     }
 }
 
-impl<B: Backend, T: TensorMetadata<Device = Device<B>>> ComposedCollectives<B, T> {
+impl<B: Backend> ReduceKind<B> for IntTensors {
+    fn sum(parts: Vec<Self::Tensor>) -> Self::Tensor {
+        parts
+            .into_iter()
+            .reduce(B::int_add)
+            .expect("a group has a member")
+    }
+
+    /// Divides the sum, so the mean truncates once, as the backend's integer division does.
+    fn mean(parts: Vec<Self::Tensor>) -> Self::Tensor {
+        let members = parts.len();
+        B::int_div_scalar(<Self as ReduceKind<B>>::sum(parts), members.into())
+    }
+}
+
+impl<B: Backend> TransferKind<B> for BoolTensors {
+    type Tensor = BoolTensor<B>;
+
+    fn to_device(tensor: Self::Tensor, device: &Device<B>) -> Self::Tensor {
+        B::bool_to_device(tensor, device)
+    }
+
+    fn slice(tensor: Self::Tensor, slices: &[Slice]) -> Self::Tensor {
+        B::bool_slice(tensor, slices)
+    }
+
+    fn cat(tensors: Vec<Self::Tensor>, dim: usize) -> Self::Tensor {
+        B::bool_cat(tensors, dim)
+    }
+}
+
+impl<B: Backend, K: TransferKind<B>> TransferCollectives<B, K> {
     /// See [`CollectiveOps::float_all_gather`].
-    pub fn all_gather(&self, tensors: Vec<T>, dim: usize) -> Vec<T> {
+    pub fn all_gather(tensors: Vec<K::Tensor>, dim: usize) -> Vec<K::Tensor> {
         Self::devices(&tensors)
             .iter()
-            .map(|device| (self.cat)(self.moved_to(&tensors, device), dim))
+            .map(|device| K::cat(Self::moved_to(&tensors, device), dim))
             .collect()
     }
 
     /// See [`CollectiveOps::float_all_to_all`]. Only the chunks that change member move.
-    pub fn all_to_all(&self, tensors: Vec<T>, split_dim: usize, concat_dim: usize) -> Vec<T> {
+    pub fn all_to_all(
+        tensors: Vec<K::Tensor>,
+        split_dim: usize,
+        concat_dim: usize,
+    ) -> Vec<K::Tensor> {
         let chunks = Chunks::new(&tensors, split_dim);
         Self::devices(&tensors)
             .iter()
@@ -191,123 +261,85 @@ impl<B: Backend, T: TensorMetadata<Device = Device<B>>> ComposedCollectives<B, T
                 let received = tensors
                     .iter()
                     .map(|tensor| {
-                        let chunk = self.chunk(tensor.clone(), split_dim, chunks.range(member));
-                        (self.to_device)(chunk, device)
+                        let chunk = Self::chunk(tensor.clone(), split_dim, chunks.range(member));
+                        K::to_device(chunk, device)
                     })
                     .collect();
-                (self.cat)(received, concat_dim)
+                K::cat(received, concat_dim)
             })
             .collect()
     }
 
     /// See [`CollectiveOps::float_broadcast`].
-    pub fn broadcast(&self, tensor: T, devices: &[Device<B>]) -> Vec<T> {
+    pub fn broadcast(tensor: K::Tensor, devices: &[Device<B>]) -> Vec<K::Tensor> {
         devices
             .iter()
-            .map(|device| (self.to_device)(tensor.clone(), device))
+            .map(|device| K::to_device(tensor.clone(), device))
             .collect()
     }
 
-    fn devices(tensors: &[T]) -> Vec<Device<B>> {
+    fn devices(tensors: &[K::Tensor]) -> Vec<Device<B>> {
         tensors.iter().map(TensorMetadata::device).collect()
     }
 
-    fn moved_to(&self, tensors: &[T], device: &Device<B>) -> Vec<T> {
+    fn moved_to(tensors: &[K::Tensor], device: &Device<B>) -> Vec<K::Tensor> {
         tensors
             .iter()
-            .map(|tensor| (self.to_device)(tensor.clone(), device))
+            .map(|tensor| K::to_device(tensor.clone(), device))
             .collect()
     }
 
-    fn chunk(&self, tensor: T, dim: usize, range: Range<usize>) -> T {
+    fn chunk(tensor: K::Tensor, dim: usize, range: Range<usize>) -> K::Tensor {
         let slices: Vec<Slice> = (0..=dim)
             .map(|axis| match axis == dim {
                 true => Slice::new(range.start as isize, Some(range.end as isize), 1),
                 false => Slice::full(),
             })
             .collect();
-        (self.slice)(tensor, &slices)
+        K::slice(tensor, &slices)
     }
 }
 
-impl<B: Backend> ComposedReductions<B, FloatTensor<B>> {
-    /// The float reductions.
-    pub fn float() -> Self {
-        Self {
-            collectives: ComposedCollectives::float(),
-            add: B::float_add,
-            div_scalar: B::float_div_scalar,
-            mean: MeanDivides::EachPart,
-        }
-    }
-}
-
-impl<B: Backend> ComposedReductions<B, IntTensor<B>> {
-    /// The int reductions, whose mean divides as the backend's integer division does.
-    pub fn int() -> Self {
-        Self {
-            collectives: ComposedCollectives::int(),
-            add: B::int_add,
-            div_scalar: B::int_div_scalar,
-            mean: MeanDivides::Sum,
-        }
-    }
-}
-
-impl<B: Backend, T: TensorMetadata<Device = Device<B>>> ComposedReductions<B, T> {
+impl<B: Backend, K: ReduceKind<B>> TransferCollectives<B, K> {
     /// See [`CollectiveOps::float_all_reduce`]. Reduces once on the first member and broadcasts
     /// the result, so each tensor crosses a link once each way rather than to every member.
-    pub fn all_reduce(&self, tensors: Vec<T>, op: ReduceOperation) -> Vec<T> {
-        let devices = ComposedCollectives::<B, T>::devices(&tensors);
+    pub fn all_reduce(tensors: Vec<K::Tensor>, op: ReduceOperation) -> Vec<K::Tensor> {
+        let devices = Self::devices(&tensors);
         let Some(root) = devices.first() else {
             return Vec::new();
         };
-        let reduced = self.reduced(self.collectives.moved_to(&tensors, root), op);
-        self.collectives.broadcast(reduced, &devices)
+        let reduced = Self::reduced(Self::moved_to(&tensors, root), op);
+        Self::broadcast(reduced, &devices)
     }
 
     /// See [`CollectiveOps::float_reduce_scatter`]. Only each member's chunk moves to it.
-    pub fn reduce_scatter(&self, tensors: Vec<T>, dim: usize, op: ReduceOperation) -> Vec<T> {
+    pub fn reduce_scatter(
+        tensors: Vec<K::Tensor>,
+        dim: usize,
+        op: ReduceOperation,
+    ) -> Vec<K::Tensor> {
         let chunks = Chunks::new(&tensors, dim);
-        ComposedCollectives::<B, T>::devices(&tensors)
+        Self::devices(&tensors)
             .iter()
             .enumerate()
             .map(|(member, device)| {
                 let parts = tensors
                     .iter()
                     .map(|tensor| {
-                        let chunk =
-                            self.collectives
-                                .chunk(tensor.clone(), dim, chunks.range(member));
-                        (self.collectives.to_device)(chunk, device)
+                        let chunk = Self::chunk(tensor.clone(), dim, chunks.range(member));
+                        K::to_device(chunk, device)
                     })
                     .collect();
-                self.reduced(parts, op)
+                Self::reduced(parts, op)
             })
             .collect()
     }
 
-    fn reduced(&self, parts: Vec<T>, op: ReduceOperation) -> T {
-        let members = parts.len();
-        match (op, &self.mean) {
-            (ReduceOperation::Sum, _) => self.sum(parts),
-            (ReduceOperation::Mean, MeanDivides::EachPart) => self.sum(
-                parts
-                    .into_iter()
-                    .map(|part| (self.div_scalar)(part, members.into()))
-                    .collect(),
-            ),
-            (ReduceOperation::Mean, MeanDivides::Sum) => {
-                (self.div_scalar)(self.sum(parts), members.into())
-            }
+    fn reduced(parts: Vec<K::Tensor>, op: ReduceOperation) -> K::Tensor {
+        match op {
+            ReduceOperation::Sum => K::sum(parts),
+            ReduceOperation::Mean => K::mean(parts),
         }
-    }
-
-    fn sum(&self, parts: Vec<T>) -> T {
-        parts
-            .into_iter()
-            .reduce(self.add)
-            .expect("a group has a member")
     }
 }
 
