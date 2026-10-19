@@ -36,19 +36,20 @@ use proc_macro::TokenStream;
 /// * `bounds`: this entry's `burn::instrument::Bounds`, the floor for running it alone, as the
 ///   expression that computes it, evaluated with every parameter in scope. A bare path to a
 ///   function (`Self::bounds`, snake_case) is called with `&self` and every parameter by
-///   reference; any other path (`None`, `Self::FLOOR`, a parameter) is taken as a value. It may
+///   reference, `&mut` for a parameter declared `&mut`; any other path (`None`, `Self::FLOOR`, a parameter) is taken as a value. It may
 ///   yield `Bounds` or `Option<Bounds>`. Omitted, the component is timed and not scored, which is right for one
 ///   that will be fused into its neighbour.
 ///
 /// The method must take `self` (the type names the component), and with a bare-path `bounds` bind each
-/// parameter to a plain name (the path is handed them by name). It may be an inherent method or a
-/// trait method. A parameter only the declaration reads does not warn as unused.
+/// parameter to a plain name (the path is handed them by name). It may be an inherent method, a
+/// trait method's implementation or a provided trait method, but not a required one (it has no
+/// body to wrap), an `async fn` (its body runs across polls that interleave on one thread) or a
+/// `const fn`. A parameter only the declaration reads does not warn as unused.
 ///
 /// With no observer installed, the method runs its body after one thread-local read.
 #[proc_macro_attribute]
 pub fn compute(args: TokenStream, item: TokenStream) -> TokenStream {
-    let function = syn::parse_macro_input!(item as syn::ItemFn);
-    compute::expand(args.into(), function)
+    compute::expand(args.into(), item.into())
         .unwrap_or_else(syn::Error::into_compile_error)
         .into()
 }

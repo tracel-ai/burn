@@ -54,9 +54,10 @@ impl syn::parse::Parse for Args {
     }
 }
 
-/// Open a tag around `function`'s body.
-pub fn expand(args: TokenStream, mut function: ItemFn) -> syn::Result<TokenStream> {
+/// Open a tag around the body of the method `item`.
+pub fn expand(args: TokenStream, item: TokenStream) -> syn::Result<TokenStream> {
     let args: Args = syn::parse2(args)?;
+    let mut function = annotated(item)?;
 
     let receiver = function.sig.inputs.first().and_then(|arg| match arg {
         FnArg::Receiver(receiver) => Some(receiver),
@@ -97,23 +98,62 @@ pub fn expand(args: TokenStream, mut function: ItemFn) -> syn::Result<TokenStrea
     let entry = function.sig.ident.to_string();
     let site = quote!(::core::concat!(::core::module_path!(), "::", #entry));
 
-    let body = &function.block;
+    // The body's statements rather than its block, so a one-line body is not a block in tail
+    // position that rustc would call unnecessary.
+    let body = &function.block.stmts;
     // Bound first, so the tag outlives every local of the body and closes on every return. The
     // declaration is evaluated before the body runs, so a parameter it reads has not been moved.
+    // The names are the macro's own, so they cannot hide a parameter the declaration reads.
     function.block = syn::parse_quote!({
         let __burn_instrument_tag = match burn::instrument::observing() {
             None => None,
-            Some(observing) => Some(observing.enter(burn::instrument::Declaration {
+            Some(__burn_instrument_observing) => Some(__burn_instrument_observing.enter(
+                burn::instrument::Declaration {
                 label: #label,
                 variant: #variant,
                 site: #site,
                 bounds: #bounds,
-            })),
+                },
+            )),
         };
-        #body
+        #(#body)*
     });
 
     Ok(quote!(#function))
+}
+
+/// The method `item` annotates, refused where a tag cannot be held around its body.
+fn annotated(item: TokenStream) -> syn::Result<ItemFn> {
+    let function: ItemFn = match syn::parse2(item.clone()) {
+        Ok(function) => function,
+        // Told apart from any other parse error so a required trait method is named for what it
+        // is rather than reported as missing braces.
+        Err(error) => match syn::parse2::<syn::TraitItemFn>(item) {
+            Ok(required) => {
+                return Err(syn::Error::new(
+                    required.sig.span(),
+                    "`compute` wraps a body, and a required trait method has none: annotate each \
+                     implementation instead",
+                ));
+            }
+            Err(_) => return Err(error),
+        },
+    };
+    if let Some(asyncness) = function.sig.asyncness {
+        return Err(syn::Error::new(
+            asyncness.span(),
+            "`compute` holds a tag on the calling thread while the body runs, and an `async fn` \
+             runs across polls that interleave and move between threads: annotate the methods \
+             it calls instead",
+        ));
+    }
+    if let Some(constness) = function.sig.constness {
+        return Err(syn::Error::new(
+            constness.span(),
+            "`compute` reads the thread's observer, which a `const fn` cannot",
+        ));
+    }
+    Ok(function)
 }
 
 /// Whether `bounds = path` names a function to call with every parameter, rather than a value.
@@ -189,4 +229,54 @@ fn parameters(function: &ItemFn) -> syn::Result<Vec<Parameter>> {
             })
         })
         .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// An `async fn` would hold its tag across polls, so futures interleaved on one thread would
+    /// nest under each other: it is refused rather than measured wrongly.
+    #[test]
+    fn an_async_method_is_refused() {
+        let refused = expand(
+            quote!(),
+            quote!(
+                async fn forward(&self) {}
+            ),
+        )
+        .unwrap_err();
+        assert!(refused.to_string().contains("async fn"), "{refused}");
+    }
+
+    /// A `const fn` cannot read the thread's observer, so it is refused with that reason rather
+    /// than with errors inside the generated code.
+    #[test]
+    fn a_const_method_is_refused() {
+        let refused = expand(
+            quote!(),
+            quote!(
+                const fn forward(&self) {}
+            ),
+        )
+        .unwrap_err();
+        assert!(refused.to_string().contains("const fn"), "{refused}");
+    }
+
+    /// A required trait method has no body to wrap, and is told so rather than reported as
+    /// missing braces.
+    #[test]
+    fn a_required_trait_method_is_refused_by_name() {
+        let refused = expand(
+            quote!(),
+            quote!(
+                fn forward(&self);
+            ),
+        )
+        .unwrap_err();
+        assert!(
+            refused.to_string().contains("required trait method"),
+            "{refused}"
+        );
+    }
 }

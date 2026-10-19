@@ -177,7 +177,9 @@ impl Observing {
     #[inline]
     pub fn enter(self, declared: Declaration<'_>) -> Tag {
         Self::with_observer(|observer| observer.enter(declared));
-        Tag
+        Tag {
+            _thread: core::marker::PhantomData,
+        }
     }
 
     /// Report traffic beyond the declared floor of the component most recently entered. See
@@ -198,8 +200,13 @@ impl Observing {
 }
 
 /// An open component tag. Closes on drop.
+///
+/// Neither `Send` nor `Sync`, like [`ComponentObservation`]: it closes the component on the
+/// observer of the thread that drops it, which has to be the thread that opened it.
 #[must_use = "a tag closes as soon as it is dropped, so it has to outlive the body"]
-pub struct Tag;
+pub struct Tag {
+    _thread: core::marker::PhantomData<*const ()>,
+}
 
 impl Drop for Tag {
     fn drop(&mut self) {

@@ -6,7 +6,7 @@
 // parameter the body mutates. Denied rather than asserted, because the absence of a warning is
 // not something a test can read: `Mixer::rotate` and `Mixer::accumulate` are the cases, and an
 // expansion that warns on either fails this module's compilation.
-#![deny(unused_variables, unused_mut)]
+#![deny(unused_variables, unused_mut, unused_braces)]
 
 use crate::observed::{entered, installed};
 use crate::{Bounds, compute};
@@ -129,6 +129,18 @@ impl Mixer {
         x += self.scale;
         x
     }
+
+    /// A body on one line, as an author may write it: kept on one line so the expansion is checked
+    /// against `unused_braces`.
+    #[rustfmt::skip]
+    #[compute(label = "single")]
+    fn single(&self, x: u32) -> u32 { x * self.scale }
+
+    /// A parameter whose name the expansion could use for its own binding.
+    #[compute(label = observing)]
+    fn named_by(&self, x: u32, observing: &str) -> u32 {
+        x + self.scale
+    }
 }
 
 /// A component whose forward is a trait's.
@@ -165,6 +177,24 @@ fn a_forward_with_no_label_is_a_component_named_for_its_type() {
 
     assert_eq!(computed, 21, "the body computes what it did before");
     assert_eq!(seen.events(), ["+mixer:-:28", "-"]);
+}
+
+/// A one-line body runs as written, and its braces are the author's, not a nested block rustc
+/// would call unnecessary (the module denies `unused_braces`).
+#[test]
+fn a_one_line_body_runs_as_written() {
+    let seen = entered(|| assert_eq!(Mixer { scale: 3 }.single(7), 21));
+
+    assert_eq!(seen.events(), ["+single:-:-", "-"]);
+}
+
+/// The declaration reads the method's parameters as the author named them, whatever names the
+/// expansion binds for itself.
+#[test]
+fn a_declaration_reads_the_parameter_it_names() {
+    let seen = entered(|| assert_eq!(Mixer { scale: 3 }.named_by(7, "query"), 10));
+
+    assert_eq!(seen.events(), ["+query:-:-", "-"]);
 }
 
 /// A bare-path floor is priced from `&self`, so a component that consumes itself still runs its
