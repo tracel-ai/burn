@@ -16,7 +16,7 @@ use super::recorder::PassRecorder;
 
 /// What watching a pass installed: the runtime's launch observer and the
 /// fusion server's. Both come out when it drops.
-pub(crate) struct Watching {
+pub struct Watching {
     _launches: LaunchObservation,
     _fusion: FusionObservation,
     /// Last, since fields drop in order: the claim is given up only once both
@@ -34,7 +34,7 @@ impl Watching {
     /// back on drop.
     ///
     /// `claim` is held until both observers have been put back.
-    pub(crate) fn new(recorder: &Arc<PassRecorder>, claim: Claim) -> Self {
+    pub fn new(recorder: &Arc<PassRecorder>, claim: Claim) -> Self {
         Self {
             _launches: LaunchObservation::new(recorder.clone()),
             _fusion: FusionObservation::new(recorder.clone()),
@@ -47,7 +47,7 @@ impl Watching {
 static WATCHING: AtomicBool = AtomicBool::new(false);
 
 /// This process's one collected pass. Given up on drop.
-pub(crate) struct Claim;
+pub struct Claim;
 
 impl Claim {
     /// # Panics
@@ -55,7 +55,7 @@ impl Claim {
     /// If another pass holds it: the observer slots are process-wide, so a
     /// second collection would record the first's kernels and the first would
     /// lose its own.
-    pub(crate) fn take() -> Self {
+    pub fn take() -> Self {
         let already = WATCHING.swap(true, Ordering::AcqRel);
         assert!(
             !already,

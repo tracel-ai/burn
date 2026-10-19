@@ -19,7 +19,7 @@ use super::cursor::{Attribution, Placement};
 /// An operation the fusion server registered, known by its first output: fresh
 /// for every operation the server registers.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub(crate) struct OperationId(u64);
+pub struct OperationId(u64);
 
 impl OperationId {
     /// The id of `operation`, or `None` for a `Drop` and for the few
@@ -28,7 +28,7 @@ impl OperationId {
     /// A `Drop` is left out: it is registered by whoever let the tensor go,
     /// which says nothing about the work, and fused into a block it would widen
     /// it to a parent that did none of it.
-    pub(crate) fn new(operation: &OperationIr) -> Option<Self> {
+    pub fn new(operation: &OperationIr) -> Option<Self> {
         match operation {
             OperationIr::Drop(_) => None,
             operation => operation
@@ -41,24 +41,24 @@ impl OperationId {
 
 /// The component each operation came from.
 #[derive(Default)]
-pub(crate) struct OperationOrigins(HashMap<OperationId, Attribution>);
+pub struct OperationOrigins(HashMap<OperationId, Attribution>);
 
 impl OperationOrigins {
     /// `operation` was registered under `origin`.
-    pub(crate) fn record(&mut self, operation: OperationId, origin: Attribution) {
+    pub fn record(&mut self, operation: OperationId, origin: Attribution) {
         self.0.insert(operation, origin);
     }
 
     /// Forget every operation: once the pass has run, none is left to map
     /// back.
-    pub(crate) fn clear(&mut self) {
+    pub fn clear(&mut self) {
         self.0.clear();
     }
 }
 
 /// Whose work a block carries out, read off the operations it runs.
 #[derive(Debug, PartialEq, Eq)]
-pub(crate) enum BlockOrigin {
+pub enum BlockOrigin {
     /// None of its operations was seen registering: they were queued before
     /// the pass.
     Unseen,
@@ -71,7 +71,7 @@ pub(crate) enum BlockOrigin {
 
 impl BlockOrigin {
     /// What the block running `operations` carries out.
-    pub(crate) fn new(
+    pub fn new(
         origins: &OperationOrigins,
         operations: impl Iterator<Item = OperationId>,
     ) -> Self {
@@ -103,7 +103,7 @@ impl BlockOrigin {
     /// Where the block's launches land in `tree`: the closest component
     /// containing all of its work, named for the components it came from
     /// where there are several. `None` keeps the sealing order's answer.
-    pub(crate) fn placement(self, tree: &ComponentTree) -> Option<Placement> {
+    pub fn placement(self, tree: &ComponentTree) -> Option<Placement> {
         match self {
             BlockOrigin::Unseen => None,
             // Still named for the components whose work it carried: recorded

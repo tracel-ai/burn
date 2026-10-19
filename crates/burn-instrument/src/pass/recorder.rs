@@ -61,7 +61,7 @@ use crate::{Bounds, ComponentObserver, Declaration, ObservedBounds};
 /// their closest common parent, named for them. Every kernel is on the one component
 /// that holds all it did; outside a block, a launch falls back to the
 /// component whose operation sealed the segment.
-pub(crate) struct PassRecorder {
+pub struct PassRecorder {
     device: Device,
     /// Before the pass, so every measurement's window can be placed after it
     /// on one clock and the gaps between them read off.
@@ -100,7 +100,7 @@ impl PassRecorder {
     /// thread-local, so a worker still pointing into a previous recorder's
     /// arena would record this one's first kernels at an index that means
     /// something else here.
-    pub(crate) fn new(device: &Device) -> Self {
+    pub fn new(device: &Device) -> Self {
         let cursor = LaunchCursor::new(device);
         cursor.point_at(Attribution::Untagged);
         Self {
@@ -123,7 +123,7 @@ impl PassRecorder {
     ///
     /// If the device stops answering, if the work producing an observed value
     /// failed, or if a component is still open.
-    pub(crate) fn finish(&self, watching: Watching) -> Breakdown {
+    pub fn finish(&self, watching: Watching) -> Breakdown {
         self.run_end_of_pass();
         drop(watching);
         self.price_observed();

@@ -29,7 +29,7 @@ use crate::{Bounds, Declaration};
 /// ordinary borrows: a component is known by its [`ComponentId`], which is what
 /// [`Attribution::Component`] carries.
 #[derive(Default)]
-pub(crate) struct ComponentTree {
+pub struct ComponentTree {
     components: Vec<ComponentRecord>,
     /// The components entered and not yet left, outermost first.
     open: Vec<ComponentId>,
@@ -50,7 +50,7 @@ pub(crate) struct ComponentTree {
 /// One component of a [`ComponentTree`], valid in that tree only: minted by
 /// [`ComponentTree::enter`].
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) struct ComponentId(usize);
+pub struct ComponentId(usize);
 
 impl ComponentTree {
     /// Enter the component `declared` names under the innermost open one, and
@@ -58,7 +58,7 @@ impl ComponentTree {
     ///
     /// Entering a label already seen at this path merges into its component, so a
     /// repeated component is one entered many times.
-    pub(crate) fn enter(&mut self, declared: Declaration<'_>) -> Attribution {
+    pub fn enter(&mut self, declared: Declaration<'_>) -> Attribution {
         let component = self.resolve(declared.label);
         self.component_mut(component).enter(declared);
         self.open.push(component);
@@ -66,7 +66,7 @@ impl ComponentTree {
     }
 
     /// Leave the innermost open component, and say where launches land now.
-    pub(crate) fn exit(&mut self) -> Attribution {
+    pub fn exit(&mut self) -> Attribution {
         self.open.pop();
         match self.innermost() {
             Some(component) => Attribution::Component(component),
@@ -75,7 +75,7 @@ impl ComponentTree {
     }
 
     /// The innermost component still open, if any.
-    pub(crate) fn innermost(&self) -> Option<ComponentId> {
+    pub fn innermost(&self) -> Option<ComponentId> {
         self.open.last().copied()
     }
 
@@ -87,13 +87,13 @@ impl ComponentTree {
     /// component saying 28. Called for every launch, so it allocates only for a
     /// kernel or a spanned component the component has not counted before; the components it
     /// spans are named once, in [`breakdown`](Self::breakdown).
-    pub(crate) fn count_launch(&mut self, placement: &Placement, kernel: &str) {
+    pub fn count_launch(&mut self, placement: &Placement, kernel: &str) {
         self.kernels(placement.attribution).count(kernel, placement);
     }
 
     /// Add `duration` to the component that counted `kernel`'s launch under
     /// `attribution`, or `false` when no launch of it was counted there.
-    pub(crate) fn credit(
+    pub fn credit(
         &mut self,
         attribution: Attribution,
         kernel: &str,
@@ -103,7 +103,7 @@ impl ComponentTree {
     }
 
     /// Charge `idle` to the component whose kernel ended it. See [`Component::own_wait`].
-    pub(crate) fn charge_idle(&mut self, attribution: Attribution, idle: Duration) {
+    pub fn charge_idle(&mut self, attribution: Attribution, idle: Duration) {
         match attribution {
             Attribution::Component(component) => self.component_mut(component).own_wait += idle,
             Attribution::Untagged | Attribution::EndOfPass => self.outside_wait += idle,
@@ -113,7 +113,7 @@ impl ComponentTree {
     /// The closest component every one of `components` sits under, itself included
     /// — where a kernel that carried out all of their work belongs. `None` for
     /// components under different roots, which share no component.
-    pub(crate) fn common_parent(&self, components: &[ComponentId]) -> Option<ComponentId> {
+    pub fn common_parent(&self, components: &[ComponentId]) -> Option<ComponentId> {
         let (first, rest) = components.split_first()?;
         let mut common: Vec<ComponentId> = self.ancestors(*first).collect();
         for component in rest {
@@ -128,7 +128,7 @@ impl ComponentTree {
     /// Add `extra` to `component` and every parent that declares a floor. A component
     /// with no floor is timed but not scored, and stays that way; no traffic
     /// leaves every component as it was, so a batch of one marks nothing.
-    pub(crate) fn add_observed(&mut self, component: ComponentId, extra: Bounds) {
+    pub fn add_observed(&mut self, component: ComponentId, extra: Bounds) {
         if extra == Bounds::default() {
             return;
         }
@@ -148,7 +148,7 @@ impl ComponentTree {
     ///
     /// If a component is still open — a tree read mid-pass is missing the
     /// kernels its open components have yet to launch.
-    pub(crate) fn breakdown(&self, timings: TimingQuality, fusion: Fusion) -> Breakdown {
+    pub fn breakdown(&self, timings: TimingQuality, fusion: Fusion) -> Breakdown {
         assert!(
             self.open.is_empty(),
             "a component is still open: read the tree after the pass, not during it"

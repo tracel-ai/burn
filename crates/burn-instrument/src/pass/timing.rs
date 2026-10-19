@@ -10,7 +10,7 @@ use crate::breakdown::Unplaced;
 
 /// The measurements a pass kept, and how far they are to be trusted.
 #[derive(Default)]
-pub(crate) struct Timings {
+pub struct Timings {
     /// Measurements handed over unread, each beside the component its launch was
     /// counted on.
     kept: Vec<Kept>,
@@ -38,7 +38,7 @@ pub(crate) struct Timings {
 
 impl Timings {
     /// Keep a launch's measurement unread, beside the component that counted it.
-    pub(crate) fn keep(
+    pub fn keep(
         &mut self,
         attribution: Attribution,
         kernel: &'static str,
@@ -54,23 +54,23 @@ impl Timings {
 
     /// A measurement was read back as its kernel launched, timed by `method`:
     /// that kernel ran alone.
-    pub(crate) fn read_at_launch(&mut self, method: TimingMethod) {
+    pub fn read_at_launch(&mut self, method: TimingMethod) {
         self.host_timed |= !matches!(method, TimingMethod::Device);
         self.timed_alone = true;
     }
 
     /// Every measurement kept so far, to read back.
-    pub(crate) fn take_kept(&mut self) -> Vec<Kept> {
+    pub fn take_kept(&mut self) -> Vec<Kept> {
         std::mem::take(&mut self.kept)
     }
 
     /// A timing of `duration` that no component could account for.
-    pub(crate) fn unplace(&mut self, duration: Duration) {
+    pub fn unplace(&mut self, duration: Duration) {
         self.unplaced.timings += 1;
         self.unplaced.total += duration;
     }
 
-    pub(crate) fn quality(&self) -> TimingQuality {
+    pub fn quality(&self) -> TimingQuality {
         TimingQuality {
             host_timed: self.host_timed,
             // A host timer syncs at both ends of every window, so a launch it
@@ -86,14 +86,14 @@ impl Timings {
 /// a pass whose every timing was taken on the device, in a full queue, and
 /// found its component.
 #[derive(Clone, Copy, Default)]
-pub(crate) struct TimingQuality {
-    pub(crate) host_timed: bool,
-    pub(crate) timed_alone: bool,
-    pub(crate) unplaced: Unplaced,
+pub struct TimingQuality {
+    pub host_timed: bool,
+    pub timed_alone: bool,
+    pub unplaced: Unplaced,
 }
 
 /// A launch's measurement, not yet read back, and the component it belongs to.
-pub(crate) struct Kept {
+pub struct Kept {
     attribution: Attribution,
     kernel: &'static str,
     profile: ProfileDuration,
@@ -102,7 +102,7 @@ pub(crate) struct Kept {
 impl Kept {
     /// Read the measurement back. Waits for its kernel, so a pass reads them
     /// once it has run.
-    pub(crate) fn resolve(self) -> Measured {
+    pub fn resolve(self) -> Measured {
         Measured {
             attribution: self.attribution,
             kernel: self.kernel,
@@ -112,14 +112,14 @@ impl Kept {
 }
 
 /// A measurement read back, or `None` for a window that came back empty.
-pub(crate) struct Measured {
-    pub(crate) attribution: Attribution,
-    pub(crate) kernel: &'static str,
-    pub(crate) ticks: Option<ProfileTicks>,
+pub struct Measured {
+    pub attribution: Attribution,
+    pub kernel: &'static str,
+    pub ticks: Option<ProfileTicks>,
 }
 
 /// The windows the device ran the pass's kernels in, on one clock.
-pub(crate) struct Timeline {
+pub struct Timeline {
     /// Before the pass, so every window can be placed after it and the gaps
     /// between them read off.
     epoch: Instant,
@@ -134,7 +134,7 @@ struct Window {
 }
 
 impl Timeline {
-    pub(crate) fn new(epoch: Instant) -> Self {
+    pub fn new(epoch: Instant) -> Self {
         Self {
             epoch,
             windows: Vec::new(),
@@ -143,7 +143,7 @@ impl Timeline {
 
     /// Place the window `ticks` measured for a kernel on the component under
     /// `attribution`.
-    pub(crate) fn push(&mut self, attribution: Attribution, ticks: &ProfileTicks) {
+    pub fn push(&mut self, attribution: Attribution, ticks: &ProfileTicks) {
         self.windows.push(Window {
             attribution,
             start: ticks.start_duration_since(self.epoch),
@@ -158,7 +158,7 @@ impl Timeline {
     /// model thread both launch, and the device runs them as they arrive. A
     /// window that starts before the last one ended overlapped it, and the
     /// device was not idle for it at all.
-    pub(crate) fn idle(mut self) -> Vec<(Attribution, Duration)> {
+    pub fn idle(mut self) -> Vec<(Attribution, Duration)> {
         self.windows.sort_by_key(|window| window.start);
         let mut idle = Vec::with_capacity(self.windows.len());
         let mut busy_until: Option<Duration> = None;

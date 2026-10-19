@@ -46,7 +46,7 @@ use cubecl_common::device_handle::DeviceHandle;
 
 /// The component a launch is recorded under.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum Attribution {
+pub enum Attribution {
     /// No component is open, so a launch here is untagged.
     Untagged,
     /// The component at this index of the recorder's component tree.
@@ -59,15 +59,15 @@ pub(crate) enum Attribution {
 /// Where a launch lands: the component it is recorded on, and the components whose
 /// work it carries out where that is more than one.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct Placement {
-    pub(crate) attribution: Attribution,
+pub struct Placement {
+    pub attribution: Attribution,
     /// Empty outside a block, and for a block of one component's work.
-    pub(crate) span: Vec<ComponentId>,
+    pub span: Vec<ComponentId>,
 }
 
 impl Placement {
     /// Under `attribution`, carrying out no one else's work.
-    pub(crate) const fn at(attribution: Attribution) -> Self {
+    pub const fn at(attribution: Attribution) -> Self {
         Self {
             attribution,
             span: Vec::new(),
@@ -77,7 +77,7 @@ impl Placement {
 
 /// Which graph a collected pass ran. See [`Breakdown::unfused`](crate::Breakdown::unfused).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum Fusion {
+pub enum Fusion {
     /// Its ops went through a fusion worker: the graph production runs.
     Fused,
     /// Each op ran as it was registered.
@@ -94,7 +94,7 @@ thread_local! {
 }
 
 /// Moves every launching thread's [`Attribution`] in step with the ops it runs.
-pub(crate) struct LaunchCursor {
+pub struct LaunchCursor {
     /// The fusion worker of the profiled device, where its ops go through one.
     worker: Option<DeviceHandle<WorkerCursor>>,
 }
@@ -103,7 +103,7 @@ impl LaunchCursor {
     /// A cursor for work running on `device`, moving its fusion worker's
     /// attribution too where its ops go through one
     /// (`DispatchDevice::fusion_worker`).
-    pub(crate) fn new(device: &Device) -> Self {
+    pub fn new(device: &Device) -> Self {
         let worker = device.as_dispatch().fusion_worker().map(|worker| {
             // Opening the handle waits on the worker while holding cubecl's channel
             // registry, which a block still running there can need too: open it idle.
@@ -117,7 +117,7 @@ impl LaunchCursor {
 
     /// Whether the profiled device's ops go through a fusion worker — whether,
     /// that is, the pass being collected is the fused graph.
-    pub(crate) fn fusion(&self) -> Fusion {
+    pub fn fusion(&self) -> Fusion {
         match self.worker {
             Some(_) => Fusion::Fused,
             None => Fusion::Unfused,
@@ -131,7 +131,7 @@ impl LaunchCursor {
     /// Never blocks on the worker, so a boundary costs one queued task rather
     /// than a drain — and never call it holding a lock the worker takes, since
     /// a full queue waits for the worker to make room.
-    pub(crate) fn point_at(&self, attribution: Attribution) {
+    pub fn point_at(&self, attribution: Attribution) {
         Self::point_thread_at(attribution);
         if let Some(worker) = &self.worker {
             worker.submit(move |_: &mut WorkerCursor| Self::point_thread_at(attribution));
@@ -139,13 +139,13 @@ impl LaunchCursor {
     }
 
     /// What a launch issued on the calling thread is recorded under.
-    pub(crate) fn current() -> Attribution {
+    pub fn current() -> Attribution {
         PLACEMENT.with(|placement| placement.borrow().attribution)
     }
 
     /// Read where a launch issued on the calling thread lands. Lent rather
     /// than copied: every launch reads it.
-    pub(crate) fn with_placement<R>(read: impl FnOnce(&Placement) -> R) -> R {
+    pub fn with_placement<R>(read: impl FnOnce(&Placement) -> R) -> R {
         PLACEMENT.with(|placement| read(&placement.borrow()))
     }
 
@@ -154,7 +154,7 @@ impl LaunchCursor {
     ///
     /// The calling thread's alone: a block runs on the thread that entered
     /// it, and nothing else in the process launches its kernels.
-    pub(crate) fn enter_block(placement: Option<Placement>) {
+    pub fn enter_block(placement: Option<Placement>) {
         let replaced = PLACEMENT.with(|current| match placement {
             Some(placement) => current.replace(placement),
             None => current.borrow().clone(),
@@ -164,7 +164,7 @@ impl LaunchCursor {
 
     /// The block the calling thread last entered has run: put back what it
     /// replaced.
-    pub(crate) fn leave_block() {
+    pub fn leave_block() {
         if let Some(replaced) = OUTER.with(|outer| outer.borrow_mut().pop()) {
             PLACEMENT.with(|current| *current.borrow_mut() = replaced);
         }
