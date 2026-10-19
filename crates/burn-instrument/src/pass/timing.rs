@@ -1,0 +1,206 @@
+//! What the device spent on each launch: the measurements a pass hands over
+//! unread, and what they say about the pass once read back.
+
+use std::time::{Duration, Instant};
+
+use cubecl::profile::{ProfileDuration, ProfileTicks, TimingMethod};
+
+use super::cursor::Attribution;
+use crate::breakdown::Unplaced;
+
+/// The measurements a pass kept, and how far they are to be trusted.
+#[derive(Default)]
+pub(crate) struct Timings {
+    /// Measurements handed over unread, each beside the row its launch was
+    /// counted on.
+    kept: Vec<Kept>,
+    /// Whether any launch was timed on the host rather than the device.
+    ///
+    /// One is enough to taint the totals: a host timing is wall around a
+    /// blocking submit, so it carries submission and sync and is several times
+    /// the kernel it names.
+    host_timed: bool,
+    /// Whether any launch's measurement was read back as it launched, which
+    /// runs the kernels one at a time. See [`Breakdown::timed_alone`](crate::Breakdown::timed_alone).
+    timed_alone: bool,
+    /// Kernel time that could not be credited to a row, and how many timings
+    /// that was.
+    ///
+    /// A measurement is filed under the attribution of the thread it arrives
+    /// on, and the runtime hands it over on the thread that issued the launch,
+    /// inside the same call — so it finds the row its launch was counted on.
+    /// Anything else has nowhere to go, nor does a window that comes back with
+    /// no measurement in it, and [`Breakdown::device`](crate::Breakdown::device)
+    /// is the denominator of every share, so a silent drop would move every
+    /// number read off it. Counted and reported, like a host timing.
+    unplaced: Unplaced,
+}
+
+impl Timings {
+    /// Keep a launch's measurement unread, beside the row that counted it.
+    pub(crate) fn keep(
+        &mut self,
+        attribution: Attribution,
+        kernel: &'static str,
+        profile: ProfileDuration,
+    ) {
+        self.host_timed |= !matches!(profile.timing_method(), TimingMethod::Device);
+        self.kept.push(Kept {
+            attribution,
+            kernel,
+            profile,
+        });
+    }
+
+    /// A measurement was read back as its kernel launched, timed by `method`:
+    /// that kernel ran alone.
+    pub(crate) fn read_at_launch(&mut self, method: TimingMethod) {
+        self.host_timed |= !matches!(method, TimingMethod::Device);
+        self.timed_alone = true;
+    }
+
+    /// Every measurement kept so far, to read back.
+    pub(crate) fn take_kept(&mut self) -> Vec<Kept> {
+        std::mem::take(&mut self.kept)
+    }
+
+    /// A timing of `duration` that no row could account for.
+    pub(crate) fn unplace(&mut self, duration: Duration) {
+        self.unplaced.timings += 1;
+        self.unplaced.total += duration;
+    }
+
+    pub(crate) fn quality(&self) -> TimingQuality {
+        TimingQuality {
+            host_timed: self.host_timed,
+            // A host timer syncs at both ends of every window, so a launch it
+            // timed ran alone too.
+            timed_alone: self.timed_alone || self.host_timed,
+            unplaced: self.unplaced,
+        }
+    }
+}
+
+/// What a breakdown says about how far its timings are to be trusted. See the
+/// fields of [`Breakdown`](crate::Breakdown) of the same names.
+#[derive(Clone, Copy)]
+pub(crate) struct TimingQuality {
+    pub(crate) host_timed: bool,
+    pub(crate) timed_alone: bool,
+    pub(crate) unplaced: Unplaced,
+}
+
+/// A launch's measurement, not yet read back, and the row it belongs to.
+pub(crate) struct Kept {
+    attribution: Attribution,
+    kernel: &'static str,
+    profile: ProfileDuration,
+}
+
+impl Kept {
+    /// Read the measurement back. Waits for its kernel, so a pass reads them
+    /// once it has run.
+    pub(crate) fn resolve(self) -> Measured {
+        Measured {
+            attribution: self.attribution,
+            kernel: self.kernel,
+            ticks: cubecl::future::block_on(self.profile.resolve()),
+        }
+    }
+}
+
+/// A measurement read back, or `None` for a window that came back empty.
+pub(crate) struct Measured {
+    pub(crate) attribution: Attribution,
+    pub(crate) kernel: &'static str,
+    pub(crate) ticks: Option<ProfileTicks>,
+}
+
+/// The windows the device ran the pass's kernels in, on one clock.
+pub(crate) struct Timeline {
+    /// Before the pass, so every window can be placed after it and the gaps
+    /// between them read off.
+    epoch: Instant,
+    windows: Vec<Window>,
+}
+
+/// One kernel's window on the device, placed after the timeline's epoch.
+struct Window {
+    attribution: Attribution,
+    start: Duration,
+    end: Duration,
+}
+
+impl Timeline {
+    pub(crate) fn new(epoch: Instant) -> Self {
+        Self {
+            epoch,
+            windows: Vec::new(),
+        }
+    }
+
+    /// Place the window `ticks` measured for a kernel on the row under
+    /// `attribution`.
+    pub(crate) fn push(&mut self, attribution: Attribution, ticks: &ProfileTicks) {
+        self.windows.push(Window {
+            attribution,
+            start: ticks.start_duration_since(self.epoch),
+            end: ticks.end_duration_since(self.epoch),
+        });
+    }
+
+    /// Every stretch the device sat idle, each beside the row whose kernel
+    /// ended it: that launch is what the device was waiting for.
+    ///
+    /// In start order rather than launch order: the fusion worker and the
+    /// model thread both launch, and the device runs them as they arrive. A
+    /// window that starts before the last one ended overlapped it, and the
+    /// device was not idle for it at all.
+    pub(crate) fn idle(mut self) -> Vec<(Attribution, Duration)> {
+        self.windows.sort_by_key(|window| window.start);
+        let mut idle = Vec::with_capacity(self.windows.len());
+        let mut busy_until: Option<Duration> = None;
+        for window in self.windows {
+            if let Some(busy) = busy_until {
+                idle.push((window.attribution, window.start.saturating_sub(busy)));
+            }
+            busy_until = Some(busy_until.map_or(window.end, |busy| busy.max(window.end)));
+        }
+        idle
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The device's idle stretches are charged to the kernel that ended each:
+    /// that launch is what it was waiting for. A kernel that starts before
+    /// the last one finished overlapped it, and the device waited for nothing.
+    #[test]
+    fn idle_time_is_charged_to_the_kernel_that_ended_it() {
+        let epoch = Instant::now();
+        let mut timeline = Timeline::new(epoch);
+        let window = |start: u64, end: u64| {
+            let micros = Duration::from_micros;
+            ProfileTicks::from_start_end(epoch + micros(start), epoch + micros(end))
+        };
+        // Out of order on purpose: the device runs them by start time.
+        timeline.push(Attribution::Component(1), &window(15, 20));
+        timeline.push(Attribution::Component(0), &window(0, 10));
+        timeline.push(Attribution::Untagged, &window(18, 30));
+        timeline.push(Attribution::Component(0), &window(40, 50));
+
+        let micros = Duration::from_micros;
+        assert_eq!(
+            timeline.idle(),
+            [
+                (Attribution::Component(1), micros(5)),
+                (Attribution::Untagged, Duration::ZERO),
+                (Attribution::Component(0), micros(10)),
+            ],
+            "idle from 10 to 15 before the matmul, none before the untagged \
+             kernel that overlapped it, and from 30 to 40 before the norm"
+        );
+    }
+}

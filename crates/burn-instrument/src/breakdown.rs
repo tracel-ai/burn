@@ -526,6 +526,62 @@ mod tests {
     }
 
     #[test]
+    fn a_composites_parts_are_summed_for_the_fusion_rung() {
+        let node = Node {
+            variants: Vec::new(),
+            sites: Vec::new(),
+            label: "feed-forward".into(),
+            bounds: Some(Bounds {
+                read: 75,
+                write: 25,
+                flops: 60,
+            }),
+            observed: None,
+            entries: 1,
+            children: vec![
+                Node {
+                    variants: Vec::new(),
+                    sites: Vec::new(),
+                    label: "gate/up".into(),
+                    bounds: Some(Bounds {
+                        read: 60,
+                        write: 20,
+                        flops: 40,
+                    }),
+                    observed: None,
+                    entries: 1,
+                    children: Vec::new(),
+                    kernels: Vec::new(),
+                    waited: Duration::ZERO,
+                },
+                Node {
+                    variants: Vec::new(),
+                    sites: Vec::new(),
+                    label: "down".into(),
+                    bounds: Some(Bounds {
+                        read: 45,
+                        write: 15,
+                        flops: 20,
+                    }),
+                    observed: None,
+                    entries: 1,
+                    children: Vec::new(),
+                    kernels: Vec::new(),
+                    waited: Duration::ZERO,
+                },
+            ],
+            kernels: Vec::new(),
+            waited: Duration::ZERO,
+        };
+        // The parts move more than the whole, and must: the difference is the
+        // intermediate a perfect fuser never lands.
+        let parts = node.parts_bounds().expect("both children declared one");
+        assert_eq!(parts.bytes(), 140);
+        let own = node.bounds.unwrap();
+        assert!(own.moves_within(parts) && own.bytes() < parts.bytes());
+    }
+
+    #[test]
     fn a_written_breakdown_reads_back_unchanged() {
         let breakdown = breakdown();
         let read = Breakdown::read(written(&breakdown).as_bytes()).expect("read back");

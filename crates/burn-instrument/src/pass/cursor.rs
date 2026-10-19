@@ -35,7 +35,7 @@
 //! kept beside it, so a kernel that fused several components' work can be
 //! named for them.
 
-use std::cell::{Cell, RefCell};
+use std::cell::RefCell;
 use std::sync::Arc;
 
 use burn_tensor::Device;
@@ -54,15 +54,32 @@ pub(crate) enum Attribution {
     EndOfPass,
 }
 
+/// Where a launch lands: the row it is recorded on, and the components whose
+/// work it carries out where that is more than one.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct Placement {
+    pub(crate) attribution: Attribution,
+    /// Empty outside a block, and for a block of one component's work.
+    pub(crate) span: Vec<usize>,
+}
+
+impl Placement {
+    /// Under `attribution`, carrying out no one else's work.
+    pub(crate) const fn at(attribution: Attribution) -> Self {
+        Self {
+            attribution,
+            span: Vec::new(),
+        }
+    }
+}
+
 thread_local! {
-    /// What a launch issued on this thread is recorded under.
-    static CURRENT: Cell<Attribution> = const { Cell::new(Attribution::Untagged) };
-    /// The components the block running on this thread carries out work of,
-    /// where it is more than one. Empty outside a block.
-    static SPAN: RefCell<Vec<usize>> = const { RefCell::new(Vec::new()) };
+    /// Where a launch issued on this thread lands.
+    static PLACEMENT: RefCell<Placement> =
+        const { RefCell::new(Placement::at(Attribution::Untagged)) };
     /// What each block this thread is inside replaced, innermost last, so
     /// leaving one restores exactly what entering it overrode.
-    static OUTER: RefCell<Vec<(Attribution, Vec<usize>)>> = const { RefCell::new(Vec::new()) };
+    static OUTER: RefCell<Vec<Placement>> = const { RefCell::new(Vec::new()) };
 }
 
 /// Moves every launching thread's [`Attribution`] in step with the ops it runs.
@@ -101,45 +118,42 @@ impl LaunchCursor {
     /// than a drain — and never call it holding a lock the worker takes, since
     /// a full queue waits for the worker to make room.
     pub(crate) fn point_at(&self, attribution: Attribution) {
-        CURRENT.with(|current| current.set(attribution));
+        Self::point_thread_at(attribution);
         if let Some(worker) = &self.worker {
-            worker.submit(move |_: &mut WorkerCursor| {
-                CURRENT.with(|current| current.set(attribution));
-            });
+            worker.submit(move |_: &mut WorkerCursor| Self::point_thread_at(attribution));
         }
     }
 
     /// What a launch issued on the calling thread is recorded under.
     pub(crate) fn current() -> Attribution {
-        CURRENT.with(Cell::get)
+        PLACEMENT.with(|placement| placement.borrow().attribution)
     }
 
-    /// The components the block running on the calling thread spans, where
-    /// it spans more than one.
-    pub(crate) fn span() -> Vec<usize> {
-        SPAN.with(|span| span.borrow().clone())
+    /// Where a launch issued on the calling thread lands.
+    pub(crate) fn placement() -> Placement {
+        PLACEMENT.with(|placement| placement.borrow().clone())
     }
 
-    /// For as long as a block runs on the calling thread, record its launches
-    /// under `attribution`, spanning `span`.
+    /// For as long as a block runs on the calling thread, land its launches
+    /// at `placement`.
     ///
     /// The calling thread's alone: a block runs on the thread that entered
     /// it, and nothing else in the process launches its kernels.
-    pub(crate) fn enter_block(attribution: Attribution, span: Vec<usize>) {
-        let replaced = (
-            CURRENT.with(|current| current.replace(attribution)),
-            SPAN.with(|current| current.replace(span)),
-        );
+    pub(crate) fn enter_block(placement: Placement) {
+        let replaced = PLACEMENT.with(|current| current.replace(placement));
         OUTER.with(|outer| outer.borrow_mut().push(replaced));
     }
 
     /// The block the calling thread last entered has run: put back what it
     /// replaced.
     pub(crate) fn leave_block() {
-        if let Some((attribution, span)) = OUTER.with(|outer| outer.borrow_mut().pop()) {
-            CURRENT.with(|current| current.set(attribution));
-            SPAN.with(|current| *current.borrow_mut() = span);
+        if let Some(replaced) = OUTER.with(|outer| outer.borrow_mut().pop()) {
+            PLACEMENT.with(|current| *current.borrow_mut() = replaced);
         }
+    }
+
+    fn point_thread_at(attribution: Attribution) {
+        PLACEMENT.with(|placement| placement.borrow_mut().attribution = attribution);
     }
 }
 
@@ -235,21 +249,25 @@ mod tests {
         let cursor = LaunchCursor { worker: None };
         cursor.point_at(Attribution::Component(9));
 
-        LaunchCursor::enter_block(Attribution::Component(1), vec![2, 3]);
-        assert_eq!(LaunchCursor::current(), Attribution::Component(1));
-        assert_eq!(LaunchCursor::span(), [2, 3]);
+        let fused = Placement {
+            attribution: Attribution::Component(1),
+            span: vec![2, 3],
+        };
+        LaunchCursor::enter_block(fused.clone());
+        assert_eq!(LaunchCursor::placement(), fused);
 
-        LaunchCursor::enter_block(Attribution::Component(4), Vec::new());
-        assert_eq!(LaunchCursor::current(), Attribution::Component(4));
-        assert!(LaunchCursor::span().is_empty());
+        let fallback = Placement::at(Attribution::Component(4));
+        LaunchCursor::enter_block(fallback.clone());
+        assert_eq!(LaunchCursor::placement(), fallback);
         LaunchCursor::leave_block();
 
-        assert_eq!(LaunchCursor::current(), Attribution::Component(1));
-        assert_eq!(LaunchCursor::span(), [2, 3]);
+        assert_eq!(LaunchCursor::placement(), fused);
         LaunchCursor::leave_block();
 
-        assert_eq!(LaunchCursor::current(), Attribution::Component(9));
-        assert!(LaunchCursor::span().is_empty());
+        assert_eq!(
+            LaunchCursor::placement(),
+            Placement::at(Attribution::Component(9))
+        );
     }
 
     /// Without a worker the calling thread is the only one launching, and its
