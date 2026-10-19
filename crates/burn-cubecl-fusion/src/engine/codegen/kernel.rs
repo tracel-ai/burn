@@ -329,7 +329,18 @@ fn fuse(
                 inputs: tensors,
                 output,
                 dim,
-            } => concat::<E, N>(inputs, outputs, locals, pos, dim, tensors, output, config),
+                equal_input_sizes,
+            } => concat::<E, N>(
+                inputs,
+                outputs,
+                locals,
+                pos,
+                dim,
+                tensors,
+                output,
+                config,
+                equal_input_sizes,
+            ),
             FuseOp::Dequantize {
                 values,
                 params,
@@ -788,6 +799,7 @@ fn concat<C: Scalar, N: Size>(
     #[comptime] tensors: Vec<FuseArg>,
     #[comptime] output: FuseArg,
     #[comptime] config: &FuseBlockConfig,
+    #[comptime] equal_input_sizes: bool,
 ) {
     let (vector_size_ref, stride_dim_ref, shape_dim_ref) = (
         locals.ref_vector_size,
@@ -798,7 +810,22 @@ fn concat<C: Scalar, N: Size>(
     let mut result = Vector::<C, N>::empty();
     let write_pos_elem = write_pos * vector_size_ref;
 
-    if comptime![dim != config.vector_axis] {
+    if comptime![equal_input_sizes && dim != config.vector_axis] {
+        let coordinate_dim = write_pos_elem / stride_dim_ref % shape_dim_ref;
+        let first = comptime![concat_input_pos(&tensors[0])];
+        let input_size = global_shape(inputs, dim, first);
+        result = concat_equal_input::<C, N>(
+            inputs,
+            &*outputs,
+            &*locals,
+            write_pos,
+            coordinate_dim / input_size,
+            coordinate_dim % input_size,
+            dim,
+            tensors.clone(),
+            config,
+        );
+    } else if comptime![dim != config.vector_axis] {
         // The concatenation axis isn't the vectorization axis, therefore the whole vector is
         // contained in a single input tensor.
         let coordinate_dim = write_pos_elem / stride_dim_ref % shape_dim_ref;
@@ -895,6 +922,79 @@ fn concat<C: Scalar, N: Size>(
     }
 
     write::<C, N>(inputs, outputs, locals, write_pos, result, output, config);
+}
+
+#[cube]
+/// Reads one vector from equal-length concatenation inputs using a balanced branch tree.
+fn concat_equal_input<C: Scalar, N: Size>(
+    inputs: &GlobalArgs,
+    outputs: &GlobalArgs,
+    locals: &LocalArgs,
+    write_pos: usize,
+    input_index: usize,
+    coordinate_dim: usize,
+    #[comptime] dim: usize,
+    #[comptime] tensors: Vec<FuseArg>,
+    #[comptime] config: &FuseBlockConfig,
+) -> Vector<C, N> {
+    if comptime![tensors.len() == 1] {
+        let tensor = comptime![tensors[0].clone()];
+        let pos_tensor = comptime![concat_input_pos(&tensor)];
+        let index = concat_input_offset(
+            inputs,
+            outputs,
+            locals,
+            write_pos,
+            coordinate_dim,
+            tensor,
+            pos_tensor,
+            dim,
+            config,
+        );
+        let stride = global_stride(inputs, comptime![config.vector_axis], pos_tensor);
+        let mut result = Vector::<C, N>::empty();
+        #[unroll]
+        for i in 0..locals.ref_vector_size {
+            let value = read_input::<C, Const<1>>(
+                inputs,
+                locals,
+                pos_tensor,
+                index + i * stride,
+                LayoutInfo::IsRef,
+                config,
+                None,
+            );
+            result.insert(i, value.extract(0usize));
+        }
+        result
+    } else {
+        let middle = comptime![tensors.len() / 2];
+        if input_index < middle {
+            concat_equal_input::<C, N>(
+                inputs,
+                outputs,
+                locals,
+                write_pos,
+                input_index,
+                coordinate_dim,
+                dim,
+                comptime![tensors[..middle].to_vec()],
+                config,
+            )
+        } else {
+            concat_equal_input::<C, N>(
+                inputs,
+                outputs,
+                locals,
+                write_pos,
+                input_index - middle,
+                coordinate_dim,
+                dim,
+                comptime![tensors[middle..].to_vec()],
+                config,
+            )
+        }
+    }
 }
 
 fn concat_input_pos(arg: &FuseArg) -> usize {

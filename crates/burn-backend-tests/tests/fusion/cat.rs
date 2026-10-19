@@ -455,3 +455,33 @@ fn cat_outputs_of_different_shapes_read_their_own_inputs() {
         );
     });
 }
+
+#[test]
+fn cat_equal_noncontiguous_inputs_preserves_order() {
+    let stream = test_stream();
+    stream.executes(|| {
+        let device = Default::default();
+        let inputs = (0..35)
+            .map(|input| {
+                let values = (0..24).map(|index| (input * 32 + index) as f32).collect();
+                TestTensor::<3>::from_data(TensorData::new(values, [2, 3, 4]), &device)
+                    .swap_dims(1, 2)
+            })
+            .collect();
+        let mut expected = Vec::new();
+        for input in 0..35 {
+            for batch in 0..2 {
+                for column in 0..4 {
+                    for row in 0..3 {
+                        expected.push((input * 32 + batch * 12 + row * 4 + column + 1) as f32);
+                    }
+                }
+            }
+        }
+        let output = TestTensor::cat(inputs, 0).add_scalar(1.0);
+        output.into_data().assert_approx_eq::<FloatElem>(
+            &TensorData::new(expected, [70, 4, 3]),
+            Tolerance::default(),
+        );
+    });
+}
