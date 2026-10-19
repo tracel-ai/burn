@@ -100,7 +100,7 @@ pub fn expand(args: TokenStream, mut function: ItemFn) -> syn::Result<TokenStrea
     // Bound first, so the tag outlives every local of the body and closes on every return. The
     // declaration is evaluated before the body runs, so a parameter it reads has not been moved.
     function.block = syn::parse_quote!({
-        let __burn_instrument_tag = match burn::instrument::armed() {
+        let __burn_instrument_tag = match burn::instrument::observing() {
             None => None,
             Some(observing) => Some(observing.enter(burn::instrument::Declaration {
                 label: #label,

@@ -1,8 +1,5 @@
 /// A type's own name: the last path segment, generics dropped.
-///
-/// What a component carries when nobody has named the role it serves. Spelled as the type is in
-/// code, so an unnamed row stands out in a table of roles.
-pub fn type_label<T: ?Sized>() -> &'static str {
+fn type_label<T: ?Sized>() -> &'static str {
     let name = core::any::type_name::<T>();
     let before_generics = name.split('<').next().unwrap_or(name);
     before_generics
@@ -11,15 +8,15 @@ pub fn type_label<T: ?Sized>() -> &'static str {
         .unwrap_or(before_generics)
 }
 
-/// A type's name as a role: [`type_label`] split into words at its capitals and lower-cased, so
-/// `ShortConv` is `short conv`.
+/// A type's name as a role: its last path segment, generics dropped, split into words at its
+/// capitals and lower-cased, so `ShortConv` is `short conv`.
 ///
 /// What a component is labelled when it names no label itself, which is the normal case: a
 /// hand-written label equal to the type name is a second copy of it that can drift. Interned, since
 /// a component is entered once per layer per pass and the answer never changes.
 ///
-/// Without `std` there is nothing to intern into, and this is [`type_label`]; no observer can be
-/// installed there to read it.
+/// Without `std` there is nothing to intern into, and this is the name as written; no observer
+/// can be installed there to read it.
 pub fn role_label<T: ?Sized>() -> &'static str {
     #[cfg(feature = "std")]
     return interned(type_label::<T>());

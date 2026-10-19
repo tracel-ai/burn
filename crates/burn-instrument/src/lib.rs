@@ -16,9 +16,9 @@
 //! component registered the work; what a kernel took, and which component it belongs to, is for
 //! the [`ComponentObserver`] to work out from the launches its runtime reports.
 //!
-//! With no observer installed, [`armed`] is one thread-local read and an annotated method calls
+//! With no observer installed, [`observing`] is one thread-local read and an annotated method calls
 //! its body directly, so nothing here is behind a feature. Without `std` there is nowhere to
-//! install one, and [`armed`] is always `None`.
+//! install one, and [`observing`] is always `None`.
 //!
 //! # Collecting a pass
 //!

@@ -2,7 +2,7 @@
 //! that readback launches is not the pass's work. Run it on a cubecl device (`BURN_DEVICE`).
 #![cfg(feature = "collector-tests")]
 
-use burn_instrument::{Bounds, ObservedBounds, PassCollector, armed, compute};
+use burn_instrument::{Bounds, ObservedBounds, PassCollector, compute, observing};
 use burn_tensor::{Device, Distribution, Int, Tensor};
 
 /// What `#[compute]` expands to, as a crate depending on `burn` sees it.
@@ -20,7 +20,7 @@ impl Router {
     /// Declares a floor, so the observed traffic has a row to land on.
     #[compute(bounds = Bounds::default())]
     fn forward(&self, x: Tensor<2>) -> Tensor<2> {
-        if let Some(observing) = armed() {
+        if let Some(observing) = observing() {
             // Transposed, so reading it back makes it contiguous first: a kernel the readback
             // launches, after the pass.
             let routes: Tensor<2, Int> = x.clone().greater_elem(0.0).int().swap_dims(0, 1);

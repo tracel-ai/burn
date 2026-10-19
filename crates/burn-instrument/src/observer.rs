@@ -104,8 +104,8 @@ std::thread_local! {
     ///
     /// Per thread, not process-wide: an observer belongs to the thread that installed it, and a
     /// global flag would let one thread arm the annotations of another holding no observer, or
-    /// let a pass ending on one thread disarm a pass still going on another.
-    static ARMED: core::cell::Cell<bool> = const { core::cell::Cell::new(false) };
+    /// let a pass ending on one thread stop the observation of a pass still going on another.
+    static OBSERVED: core::cell::Cell<bool> = const { core::cell::Cell::new(false) };
     static OBSERVER: core::cell::RefCell<Option<Box<dyn ComponentObserver>>> =
         const { core::cell::RefCell::new(None) };
 }
@@ -115,9 +115,9 @@ std::thread_local! {
 /// Called on every entry of an annotated method, so the unobserved path is a single
 /// thread-local read.
 #[inline]
-pub fn armed() -> Option<Observing> {
+pub fn observing() -> Option<Observing> {
     #[cfg(feature = "std")]
-    return ARMED.with(core::cell::Cell::get).then_some(Observing);
+    return OBSERVED.with(core::cell::Cell::get).then_some(Observing);
     #[cfg(not(feature = "std"))]
     return None;
 }
@@ -126,10 +126,10 @@ pub fn armed() -> Option<Observing> {
 ///
 /// A forward pass runs on one thread, so an observer is installed there and nothing else in the
 /// process is measured or slowed. It is removed when this guard drops, so a panicking pass cannot
-/// leave the thread armed against an observer nobody holds.
+/// leave the thread observed by an observer nobody holds.
 ///
 /// Neither `Send` nor `Sync`: it restores the slot of the thread that made it, and dropped on
-/// another thread it would disarm one that holds no observer.
+/// another thread it would stop observing one that holds no observer.
 #[cfg(feature = "std")]
 #[must_use = "the observer is uninstalled as soon as this is dropped"]
 pub struct ComponentObservation {
@@ -147,7 +147,7 @@ impl ComponentObservation {
     /// drop in the reverse order they were made, as scopes drop them.
     pub fn new(observer: Box<dyn ComponentObserver>) -> Self {
         let replaced = OBSERVER.with(|slot| slot.replace(Some(observer)));
-        ARMED.with(|armed| armed.set(true));
+        OBSERVED.with(|observed| observed.set(true));
         Self {
             replaced,
             _thread: core::marker::PhantomData,
@@ -159,7 +159,7 @@ impl ComponentObservation {
 impl Drop for ComponentObservation {
     fn drop(&mut self) {
         let replaced = self.replaced.take();
-        ARMED.with(|armed| armed.set(replaced.is_some()));
+        OBSERVED.with(|observed| observed.set(replaced.is_some()));
         // Dropped outside the slot's borrow, so an observer whose drop touches the slot does not
         // find it borrowed.
         let ended = OBSERVER.with(|slot| slot.replace(replaced));
@@ -167,7 +167,7 @@ impl Drop for ComponentObservation {
     }
 }
 
-/// The observation of this thread, handed to an annotated method by [`armed`].
+/// The observation of this thread, handed to an annotated method by [`observing`].
 #[derive(Clone, Copy, Debug)]
 pub struct Observing;
 
@@ -214,14 +214,14 @@ mod tests {
 
     #[test]
     fn nothing_is_observed_until_an_observer_is_installed() {
-        assert!(armed().is_none());
+        assert!(observing().is_none());
     }
 
     #[test]
     fn a_tag_closes_when_its_guard_drops() {
         let (seen, _observation) = installed();
 
-        let observing = armed().expect("armed by the observation");
+        let observing = observing().expect("installed above");
         {
             let _outer = observing.enter(Declaration {
                 label: "attention",
@@ -251,7 +251,7 @@ mod tests {
     #[test]
     fn observed_traffic_reaches_the_observer_under_the_open_component() {
         let (seen, _observation) = installed();
-        let observing = armed().expect("armed by the observation");
+        let observing = observing().expect("installed above");
         {
             let _experts = observing.enter(Declaration {
                 label: "experts",
@@ -271,14 +271,14 @@ mod tests {
     }
 
     #[test]
-    fn dropping_the_guard_disarms() {
+    fn dropping_the_guard_stops_observing() {
         {
             let (_seen, _observation) = installed();
-            assert!(armed().is_some());
+            assert!(observing().is_some());
         }
         assert!(
-            armed().is_none(),
-            "a pass that panicked must not leave the thread armed"
+            observing().is_none(),
+            "a pass that panicked must not leave the thread observed"
         );
     }
 
@@ -291,14 +291,14 @@ mod tests {
             bounds: None,
         };
         let (outer, _observation) = installed();
-        let block = armed()
-            .expect("armed by the observation")
+        let block = observing()
+            .expect("installed above")
             .enter(declared("block"));
         {
             let (inner, _observation) = installed();
             drop(
-                armed()
-                    .expect("armed by the observation")
+                observing()
+                    .expect("installed above")
                     .enter(declared("probe")),
             );
             assert_eq!(inner.events(), ["+probe:-:-", "-"]);
@@ -310,16 +310,19 @@ mod tests {
             ["+block:-:-", "-"],
             "the outer observer sees the components again once the inner one ends, so its open tag closes on it"
         );
-        assert!(armed().is_some(), "and the thread is still armed for it");
+        assert!(
+            observing().is_some(),
+            "and the thread is still observed by it"
+        );
     }
 
     #[test]
-    fn an_observation_on_another_thread_neither_arms_nor_disarms_this_one() {
+    fn an_observation_on_another_thread_neither_starts_nor_stops_this_one() {
         let (mine, _observation) = installed();
 
         std::thread::spawn(|| {
             assert!(
-                armed().is_none(),
+                observing().is_none(),
                 "another thread's observation is not this one's"
             );
             let (_theirs, _observation) = installed();
@@ -328,7 +331,7 @@ mod tests {
         .expect("the other thread ran");
 
         let observing =
-            armed().expect("an observation that ended elsewhere must not disarm this thread");
+            observing().expect("an observation that ended elsewhere must not stop this one");
         drop(observing.enter(Declaration {
             label: "attention",
             variant: None,

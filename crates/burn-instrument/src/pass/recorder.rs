@@ -180,9 +180,9 @@ impl PassRecorder {
     /// kernels its open components have yet to launch.
     pub(crate) fn breakdown(&self) -> Breakdown {
         let state = self.locked();
-        // See `LaunchCursor::fused`.
-        let unfused = !self.cursor.fused();
-        state.tree.breakdown(state.timings.quality(), unfused)
+        state
+            .tree
+            .breakdown(state.timings.quality(), self.cursor.fusion())
     }
 
     /// The shared state, recovering a lock a panicking pass poisoned: a tree

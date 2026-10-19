@@ -16,7 +16,7 @@
 
 use std::time::Duration;
 
-use super::cursor::{Attribution, Placement};
+use super::cursor::{Attribution, Fusion, Placement};
 use super::timing::TimingQuality;
 use crate::breakdown::{Breakdown, Kernel, Row, Variant};
 use crate::row_path::RowPath;
@@ -148,7 +148,7 @@ impl ComponentTree {
     ///
     /// If a component is still open — a tree read mid-pass is missing the
     /// kernels its open components have yet to launch.
-    pub(crate) fn breakdown(&self, timings: TimingQuality, unfused: bool) -> Breakdown {
+    pub(crate) fn breakdown(&self, timings: TimingQuality, fusion: Fusion) -> Breakdown {
         assert!(
             self.open.is_empty(),
             "a component is still open: read the tree after the pass, not during it"
@@ -161,7 +161,7 @@ impl ComponentTree {
             host_timed: timings.host_timed,
             timed_alone: timings.timed_alone,
             unplaced: timings.unplaced,
-            unfused,
+            unfused: fusion == Fusion::Unfused,
         }
     }
 
@@ -800,7 +800,7 @@ mod tests {
 
     /// The breakdown of a pass whose timings are all trusted.
     fn finished(components: &ComponentTree) -> Breakdown {
-        components.breakdown(TimingQuality::default(), false)
+        components.breakdown(TimingQuality::default(), Fusion::Fused)
     }
 
     /// The row a component was entered on.

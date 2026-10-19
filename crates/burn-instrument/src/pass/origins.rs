@@ -84,29 +84,30 @@ impl BlockOrigin {
                 attribution: Attribution::Untagged,
                 span,
             }),
-            BlockOrigin::Within(components) => Some(Self::within(components, tree)),
+            BlockOrigin::Within(components) => Some(Placement {
+                attribution: Self::closest_row(&components, tree),
+                span: Self::named(components),
+            }),
         }
     }
 
-    fn within(components: Vec<RowId>, tree: &ComponentTree) -> Placement {
-        let common = tree.common_parent(&components);
-        let span = match components.len() {
+    /// The closest row holding all of `components`' work. Components under
+    /// different roots — a forward and a backward fused across the step that
+    /// joins them — share no row, so the kernel is recorded outside every one
+    /// of them.
+    fn closest_row(components: &[RowId], tree: &ComponentTree) -> Attribution {
+        match tree.common_parent(components) {
+            Some(common) => Attribution::Component(common),
+            None => Attribution::Untagged,
+        }
+    }
+
+    /// The components a kernel is named for: none for one component's work,
+    /// which is that row's by placement.
+    fn named(components: Vec<RowId>) -> Vec<RowId> {
+        match components.len() {
             1 => Vec::new(),
             _ => components,
-        };
-        match common {
-            Some(common) => Placement {
-                attribution: Attribution::Component(common),
-                span,
-            },
-            // Components under different roots — a forward and a backward
-            // fused across the step that joins them — share no row, so the
-            // kernel is recorded outside every one of them, still named for
-            // what it did.
-            None => Placement {
-                attribution: Attribution::Untagged,
-                span,
-            },
         }
     }
 }

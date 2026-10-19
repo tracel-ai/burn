@@ -75,6 +75,15 @@ impl Placement {
     }
 }
 
+/// Which graph a collected pass ran. See [`Breakdown::unfused`](crate::Breakdown::unfused).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Fusion {
+    /// Its ops went through a fusion worker: the graph production runs.
+    Fused,
+    /// Each op ran as it was registered.
+    Unfused,
+}
+
 thread_local! {
     /// Where a launch issued on this thread lands.
     static PLACEMENT: RefCell<Placement> =
@@ -108,8 +117,11 @@ impl LaunchCursor {
 
     /// Whether the profiled device's ops go through a fusion worker — whether,
     /// that is, the pass being collected is the fused graph.
-    pub(crate) fn fused(&self) -> bool {
-        self.worker.is_some()
+    pub(crate) fn fusion(&self) -> Fusion {
+        match self.worker {
+            Some(_) => Fusion::Fused,
+            None => Fusion::Unfused,
+        }
     }
 
     /// Point every launching thread at `attribution`: this one now, and the

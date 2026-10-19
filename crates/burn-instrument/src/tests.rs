@@ -238,7 +238,7 @@ fn a_child_nests_under_whoever_called_it() {
 }
 
 #[test]
-fn a_disarmed_forward_records_nothing_and_computes_the_same() {
+fn an_unobserved_forward_records_nothing_and_computes_the_same() {
     let seen = entered(|| {});
 
     assert_eq!(Mixer { scale: 3 }.forward(7), 21);
