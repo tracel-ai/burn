@@ -183,23 +183,35 @@ mod tests {
     fn idle_time_is_charged_to_the_kernel_that_ended_it() {
         let epoch = Instant::now();
         let mut timeline = Timeline::new(epoch);
+        let mut tree = super::super::component_tree::ComponentTree::default();
+        let mut row = |label| {
+            let row = tree.enter(crate::Declaration {
+                label,
+                variant: None,
+                site: "test::forward",
+                bounds: None,
+            });
+            tree.exit();
+            row
+        };
+        let (norm, matmul) = (row("norm"), row("matmul"));
         let window = |start: u64, end: u64| {
             let micros = Duration::from_micros;
             ProfileTicks::from_start_end(epoch + micros(start), epoch + micros(end))
         };
         // Out of order on purpose: the device runs them by start time.
-        timeline.push(Attribution::Component(1), &window(15, 20));
-        timeline.push(Attribution::Component(0), &window(0, 10));
+        timeline.push(matmul, &window(15, 20));
+        timeline.push(norm, &window(0, 10));
         timeline.push(Attribution::Untagged, &window(18, 30));
-        timeline.push(Attribution::Component(0), &window(40, 50));
+        timeline.push(norm, &window(40, 50));
 
         let micros = Duration::from_micros;
         assert_eq!(
             timeline.idle(),
             [
-                (Attribution::Component(1), micros(5)),
+                (matmul, micros(5)),
                 (Attribution::Untagged, Duration::ZERO),
-                (Attribution::Component(0), micros(10)),
+                (norm, micros(10)),
             ],
             "idle from 10 to 15 before the matmul, none before the untagged \
              kernel that overlapped it, and from 30 to 40 before the norm"

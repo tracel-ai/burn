@@ -11,7 +11,7 @@
 
 use std::collections::HashMap;
 
-use super::component_tree::ComponentTree;
+use super::component_tree::{ComponentTree, RowId};
 use super::cursor::{Attribution, Placement};
 
 /// The component each operation came from, by its first output's id.
@@ -39,15 +39,15 @@ pub(crate) enum BlockOrigin {
     Unseen,
     /// Work these components registered, in first-seen order, and nothing
     /// else.
-    Within(Vec<usize>),
+    Within(Vec<RowId>),
     /// Work from outside every component, beside these components' work.
-    WithOutside(Vec<usize>),
+    WithOutside(Vec<RowId>),
 }
 
 impl BlockOrigin {
     /// What the block running `operations` carries out.
     pub(crate) fn new(origins: &OperationOrigins, operations: impl Iterator<Item = u64>) -> Self {
-        let mut components: Vec<usize> = Vec::new();
+        let mut components: Vec<RowId> = Vec::new();
         let mut outside = false;
         let mut seen = false;
         for operation in operations {
@@ -88,7 +88,7 @@ impl BlockOrigin {
         }
     }
 
-    fn within(components: Vec<usize>, tree: &ComponentTree) -> Placement {
+    fn within(components: Vec<RowId>, tree: &ComponentTree) -> Placement {
         let common = tree.common_parent(&components);
         let span = match components.len() {
             1 => Vec::new(),
@@ -220,7 +220,7 @@ mod tests {
         origins
     }
 
-    fn row(entered: Attribution) -> usize {
+    fn row(entered: Attribution) -> RowId {
         match entered {
             Attribution::Component(row) => row,
             Attribution::Untagged | Attribution::EndOfPass => {

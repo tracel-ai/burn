@@ -35,7 +35,7 @@ use burn_tensor::Device;
 use cubecl::logging::{LaunchObserver, TimingRequest};
 use cubecl::profile::{ProfileDuration, TimingMethod};
 
-use super::component_tree::ComponentTree;
+use super::component_tree::{ComponentTree, RowId};
 use super::cursor::{Attribution, LaunchCursor};
 use super::origins::{BlockOrigin, OperationOrigins};
 use super::timing::{Kept, Measured, Timeline, Timings};
@@ -89,7 +89,7 @@ struct State {
 
 /// Observed traffic not yet priced, and the row it arrived under.
 struct Unpriced {
-    row: usize,
+    row: RowId,
     bounds: ObservedBounds,
 }
 
@@ -161,7 +161,7 @@ impl PassRecorder {
     pub(crate) fn price_observed(&self) {
         let unpriced = std::mem::take(&mut self.locked().unpriced);
         // Priced outside the lock: each reads its values back.
-        let priced: Vec<(usize, Bounds)> = unpriced
+        let priced: Vec<(RowId, Bounds)> = unpriced
             .into_iter()
             .map(|unpriced| (unpriced.row, unpriced.bounds.resolve()))
             .collect();
@@ -223,8 +223,9 @@ impl ComponentObserver for PassRecorder {
 /// registered its work.
 impl LaunchObserver for PassRecorder {
     fn launched(&self, kernel: &'static str) {
-        let placement = LaunchCursor::placement();
-        self.locked().tree.count_launch(&placement, kernel);
+        LaunchCursor::with_placement(|placement| {
+            self.locked().tree.count_launch(placement, kernel);
+        });
     }
 
     /// Timed, and handed over unread — a breakdown whose kernel rows carried

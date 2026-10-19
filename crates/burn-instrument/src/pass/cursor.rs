@@ -39,6 +39,8 @@ use std::cell::RefCell;
 use std::sync::Arc;
 
 use burn_tensor::Device;
+
+use super::component_tree::RowId;
 use cubecl_common::device::{DeviceId, DeviceService, DeviceServiceStage, ServerUtilitiesHandle};
 use cubecl_common::device_handle::DeviceHandle;
 
@@ -48,7 +50,7 @@ pub(crate) enum Attribution {
     /// No component is open, so a launch here is untagged.
     Untagged,
     /// The component at this index of the recorder's component tree.
-    Component(usize),
+    Component(RowId),
     /// The sync that ends the pass, which runs the fused work still queued
     /// when the last component closed.
     EndOfPass,
@@ -60,7 +62,7 @@ pub(crate) enum Attribution {
 pub(crate) struct Placement {
     pub(crate) attribution: Attribution,
     /// Empty outside a block, and for a block of one component's work.
-    pub(crate) span: Vec<usize>,
+    pub(crate) span: Vec<RowId>,
 }
 
 impl Placement {
@@ -131,7 +133,13 @@ impl LaunchCursor {
 
     /// Where a launch issued on the calling thread lands.
     pub(crate) fn placement() -> Placement {
-        PLACEMENT.with(|placement| placement.borrow().clone())
+        Self::with_placement(Placement::clone)
+    }
+
+    /// Read where a launch issued on the calling thread lands, without the
+    /// copy [`placement`](Self::placement) makes: every launch reads it.
+    pub(crate) fn with_placement<R>(read: impl FnOnce(&Placement) -> R) -> R {
+        PLACEMENT.with(|placement| read(&placement.borrow()))
     }
 
     /// For as long as a block runs on the calling thread, land its launches
@@ -217,10 +225,11 @@ mod tests {
             worker: Some(DeviceHandle::new(device)),
         };
         let ops = DeviceHandle::<Ops>::new(device);
+        let [block] = rows();
         let op = || ops.submit(|ops: &mut Ops| ops.0.push(LaunchCursor::current()));
 
         op();
-        cursor.point_at(Attribution::Component(3));
+        cursor.point_at(block);
         op();
         op();
         cursor.point_at(Attribution::EndOfPass);
@@ -231,12 +240,7 @@ mod tests {
             .expect("the worker answers");
         assert_eq!(
             seen,
-            [
-                Attribution::Untagged,
-                Attribution::Component(3),
-                Attribution::Component(3),
-                Attribution::EndOfPass,
-            ],
+            [Attribution::Untagged, block, block, Attribution::EndOfPass,],
             "each op reads the boundary most recently registered before it"
         );
     }
@@ -247,16 +251,17 @@ mod tests {
     #[test]
     fn a_block_overrides_the_thread_until_it_has_run() {
         let cursor = LaunchCursor { worker: None };
-        cursor.point_at(Attribution::Component(9));
+        let [outer, fused, first, second, fallback] = rows();
+        cursor.point_at(outer);
 
         let fused = Placement {
-            attribution: Attribution::Component(1),
-            span: vec![2, 3],
+            attribution: fused,
+            span: vec![row(first), row(second)],
         };
         LaunchCursor::enter_block(fused.clone());
         assert_eq!(LaunchCursor::placement(), fused);
 
-        let fallback = Placement::at(Attribution::Component(4));
+        let fallback = Placement::at(fallback);
         LaunchCursor::enter_block(fallback.clone());
         assert_eq!(LaunchCursor::placement(), fallback);
         LaunchCursor::leave_block();
@@ -264,10 +269,7 @@ mod tests {
         assert_eq!(LaunchCursor::placement(), fused);
         LaunchCursor::leave_block();
 
-        assert_eq!(
-            LaunchCursor::placement(),
-            Placement::at(Attribution::Component(9))
-        );
+        assert_eq!(LaunchCursor::placement(), Placement::at(outer));
     }
 
     /// Without a worker the calling thread is the only one launching, and its
@@ -275,9 +277,33 @@ mod tests {
     #[test]
     fn without_a_worker_the_calling_thread_moves_at_once() {
         let cursor = LaunchCursor { worker: None };
-        cursor.point_at(Attribution::Component(7));
-        assert_eq!(LaunchCursor::current(), Attribution::Component(7));
+        let [norm] = rows();
+        cursor.point_at(norm);
+        assert_eq!(LaunchCursor::current(), norm);
         cursor.point_at(Attribution::Untagged);
         assert_eq!(LaunchCursor::current(), Attribution::Untagged);
+    }
+
+    /// `N` distinct rows, each where entering it lands a launch.
+    fn rows<const N: usize>() -> [Attribution; N] {
+        let mut tree = super::super::component_tree::ComponentTree::default();
+        let labels = ["a", "b", "c", "d", "e", "f"];
+        std::array::from_fn(|at| {
+            let row = tree.enter(crate::Declaration {
+                label: labels[at],
+                variant: None,
+                site: "test::forward",
+                bounds: None,
+            });
+            tree.exit();
+            row
+        })
+    }
+
+    fn row(attribution: Attribution) -> RowId {
+        match attribution {
+            Attribution::Component(row) => row,
+            Attribution::Untagged | Attribution::EndOfPass => unreachable!("a row"),
+        }
     }
 }
