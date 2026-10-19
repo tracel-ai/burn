@@ -106,12 +106,34 @@ impl burn_fusion::observer::FusionObserver for FusionToCollector {
 pub struct Watching {
     _launches: LaunchObservation,
     _fusion: burn_fusion::observer::FusionObservation,
+    /// Last, since fields drop in order: the claim is given up only once both
+    /// observers above have been put back, so the next pass to claim it
+    /// cannot have its own removed by this one's.
+    _claim: Claim,
 }
 
 /// Whether a pass is being watched anywhere in the process.
 static WATCHING: AtomicBool = AtomicBool::new(false);
 
-impl Drop for Watching {
+/// This process's one watched pass. Given up on drop.
+struct Claim;
+
+impl Claim {
+    /// # Panics
+    ///
+    /// If another pass holds it.
+    fn take() -> Self {
+        let already = WATCHING.swap(true, Ordering::AcqRel);
+        assert!(
+            !already,
+            "a pass is already being collected in this process; the runtime's launch observer is \
+             process-wide, so collections run one at a time"
+        );
+        Claim
+    }
+}
+
+impl Drop for Claim {
     fn drop(&mut self) {
         WATCHING.store(false, Ordering::Release);
     }
@@ -131,16 +153,14 @@ impl Drop for Watching {
 /// collection would record the first's kernels and the first would lose its
 /// own.
 pub fn watch_launches(collector: &SharedCollector) -> Watching {
-    let already = WATCHING.swap(true, Ordering::AcqRel);
-    assert!(
-        !already,
-        "a pass is already being collected in this process; the runtime's launch observer is \
-         process-wide, so collections run one at a time"
-    );
+    // Before the observers, so a second pass is refused before it replaces
+    // the first's.
+    let claim = Claim::take();
     Watching {
         _launches: LaunchObservation::new(Arc::new(ToCollector(collector.handle()))),
         _fusion: burn_fusion::observer::FusionObservation::new(Arc::new(FusionToCollector(
             collector.handle(),
         ))),
+        _claim: claim,
     }
 }

@@ -88,7 +88,7 @@ struct State {
     /// run.
     kept: Vec<Kept>,
     /// Observed traffic not yet priced, each with the component it arrived
-    /// under. Priced in [`TreeCollector::finish`].
+    /// under. Priced in [`TreeCollector::price_observed`].
     pending: Vec<Pending>,
     /// How long the device waited before kernels no component launched — the
     /// untagged ones and the end of the pass. See [`Node::waited`].
@@ -183,13 +183,12 @@ impl TreeCollector {
     /// reading one waits for its kernel, and waiting after every launch runs a
     /// pass one kernel at a time. After the sync every window has closed, so
     /// reading them costs nothing and each is the kernel as it ran in a queue
-    /// kept full. The observed traffic is priced here too, for the same
-    /// reason: reading its values back waits on the device.
+    /// kept full. The observed traffic is priced afterwards, by
+    /// [`price_observed`](Self::price_observed).
     ///
     /// # Panics
     ///
-    /// If the device stops answering, or the work producing observed values
-    /// failed.
+    /// If the device stops answering.
     pub fn finish(&self) {
         self.cursor.point_at(Attribution::EndOfPass);
         self.device
@@ -226,9 +225,20 @@ impl TreeCollector {
             }
         }
         state.charge_waits(windows);
-        let pending = std::mem::take(&mut state.pending);
-        drop(state);
+    }
 
+    /// Price the traffic the pass observed, adding it to the rows it arrived
+    /// under.
+    ///
+    /// Once the launches are no longer watched: reading values back can launch
+    /// kernels of its own, such as making a sliced tensor contiguous, and
+    /// watched they would be recorded as work the pass did.
+    ///
+    /// # Panics
+    ///
+    /// If the work producing an observed value failed.
+    pub fn price_observed(&self) {
+        let pending = std::mem::take(&mut self.locked().pending);
         // Priced outside the lock: each reads its values back.
         let priced: Vec<(usize, Bounds)> = pending
             .into_iter()
@@ -724,6 +734,8 @@ impl SharedCollector {
         // measurement the pass kept is read back there too.
         self.0.finish();
         core::mem::drop(watching);
+        // Unwatched, since reading the values back launches kernels too.
+        self.0.price_observed();
         self.0.breakdown()
     }
 }
@@ -862,6 +874,7 @@ mod tests {
         collector.exit();
         collector.exit();
         collector.finish();
+        collector.price_observed();
 
         let tree = collector.breakdown().tree;
         let model = &tree[0];
