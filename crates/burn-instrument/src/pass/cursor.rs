@@ -40,7 +40,7 @@ use std::sync::Arc;
 
 use burn_tensor::Device;
 
-use super::component_tree::RowId;
+use super::component_tree::ComponentId;
 use cubecl_common::device::{DeviceId, DeviceService, DeviceServiceStage, ServerUtilitiesHandle};
 use cubecl_common::device_handle::DeviceHandle;
 
@@ -50,7 +50,7 @@ pub(crate) enum Attribution {
     /// No component is open, so a launch here is untagged.
     Untagged,
     /// The component at this index of the recorder's component tree.
-    Component(RowId),
+    Component(ComponentId),
     /// The sync that ends the pass, which runs the fused work still queued
     /// when the last component closed.
     EndOfPass,
@@ -62,7 +62,7 @@ pub(crate) enum Attribution {
 pub(crate) struct Placement {
     pub(crate) attribution: Attribution,
     /// Empty outside a block, and for a block of one component's work.
-    pub(crate) span: Vec<RowId>,
+    pub(crate) span: Vec<ComponentId>,
 }
 
 impl Placement {
@@ -310,7 +310,7 @@ mod tests {
         })
     }
 
-    fn row(attribution: Attribution) -> RowId {
+    fn row(attribution: Attribution) -> ComponentId {
         match attribution {
             Attribution::Component(row) => row,
             Attribution::Untagged | Attribution::EndOfPass => unreachable!("a row"),

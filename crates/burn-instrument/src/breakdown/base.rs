@@ -7,7 +7,7 @@ use std::time::Duration;
 use serde::{Deserialize, Serialize};
 
 use crate::Bounds;
-use crate::row_path::RowPath;
+use crate::component_path::ComponentPath;
 
 /// One collected pass, broken down by component.
 ///
@@ -17,7 +17,7 @@ use crate::row_path::RowPath;
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Breakdown {
     /// The components the collected pass entered.
-    pub tree: Vec<Row>,
+    pub tree: Vec<Component>,
     /// Kernels the pass launched under no component at all, and fused kernels
     /// that carried out work from outside every component or across two roots,
     /// named for the components they did carry out (see [`Kernel::fuses`]).
@@ -28,7 +28,7 @@ pub struct Breakdown {
     pub end_of_pass: Vec<Kernel>,
     /// How long the device waited on the host before the untagged kernels
     /// and the end of the pass's — the idle time no row is charged with. See
-    /// [`Row::own_wait`].
+    /// [`Component::own_wait`].
     // Stored as `waited_outside`, the key version 1 files carry.
     #[serde(rename = "waited_outside", with = "nanoseconds")]
     pub outside_wait: Duration,
@@ -77,7 +77,7 @@ impl Breakdown {
     pub fn kernels(&self) -> impl Iterator<Item = &Kernel> {
         self.tree
             .iter()
-            .flat_map(Row::walk)
+            .flat_map(Component::walk)
             .flat_map(|(_, node)| &node.kernels)
             .chain(&self.untagged)
             .chain(&self.end_of_pass)
@@ -101,10 +101,14 @@ impl Breakdown {
     }
 
     /// How long the device waited on the host across the collected pass,
-    /// between every pair of kernels: what [`Row::own_wait`] is apportioned
+    /// between every pair of kernels: what [`Component::own_wait`] is apportioned
     /// by.
     pub fn total_wait(&self) -> Duration {
-        self.tree.iter().map(Row::total_wait).sum::<Duration>() + self.outside_wait
+        self.tree
+            .iter()
+            .map(Component::total_wait)
+            .sum::<Duration>()
+            + self.outside_wait
     }
 
     /// The rows whose work all ran in a fused kernel recorded elsewhere: no
@@ -116,19 +120,19 @@ impl Breakdown {
     /// registered no device work — views and reshapes — also has no kernel, and
     /// its zero is its time; and a row whose own kernels lost their timings
     /// also reads zero, though it ran them.
-    pub fn fused_elsewhere(&self) -> Vec<&Row> {
+    pub fn fused_elsewhere(&self) -> Vec<&Component> {
         fn visit<'a>(
             breakdown: &'a Breakdown,
-            node: &'a Row,
-            ancestors: &mut Vec<&'a Row>,
-            out: &mut Vec<&'a Row>,
+            node: &'a Component,
+            ancestors: &mut Vec<&'a Component>,
+            out: &mut Vec<&'a Component>,
         ) {
             let named_above = ancestors.iter().enumerate().any(|(at, ancestor)| {
                 // What this ancestor's kernels call `node`: the components between
                 // the two, then `node`. A bare label would also match a same-named
                 // row under another branch of the same ancestor, and a mixed
                 // stack's dense and sparse `down` are both `down`.
-                let path = RowPath::new(
+                let path = ComponentPath::new(
                     ancestors[at + 1..]
                         .iter()
                         .chain([&node])
@@ -141,7 +145,7 @@ impl Breakdown {
             });
             // Outside every component, a kernel names a row by its path from the
             // root.
-            let path = RowPath::new(
+            let path = ComponentPath::new(
                 ancestors
                     .iter()
                     .chain([&node])
@@ -191,7 +195,7 @@ pub struct Kernel {
     /// placement, so a kernel on a parent naming one child did the child's
     /// work and the parent's. Empty for a kernel that did one component's work
     /// on that component's row.
-    pub fuses: Vec<RowPath>,
+    pub fuses: Vec<ComponentPath>,
     /// Whether, besides the rows [`fuses`](Self::fuses) names, it carried out
     /// work the row it is recorded on registered itself — a residual add fused
     /// with its child's. That work is priced by no row below, so the kernel
@@ -216,7 +220,7 @@ pub struct Variant {
 
 /// One component's row: what it declared, and what it took.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Row {
+pub struct Component {
     /// What the component is called — its label, or its type.
     pub label: String,
     /// Which executions served its entries, in first-seen order. Empty for a
@@ -248,7 +252,7 @@ pub struct Row {
     /// How many times the pass entered it.
     pub entries: usize,
     /// The components it entered, in first-seen order.
-    pub children: Vec<Row>,
+    pub children: Vec<Component>,
     /// The kernels recorded on this row, in first-seen order: its own work, and
     /// fused kernels that carried out several of its descendants' work, which
     /// land on their closest common parent (see [`Kernel::fuses`]).
@@ -270,22 +274,22 @@ pub struct Row {
     pub own_wait: Duration,
 }
 
-impl Row {
+impl Component {
     /// Every row below this one, depth-first, each with its path from here —
     /// the form a kernel on this row names it by in [`Kernel::fuses`].
     ///
     /// Not [`walk`](Self::walk), which yields a depth and not a path: two rows
     /// at one depth under different parents can share a label, and telling those
     /// apart is the whole reason a kernel records a path.
-    pub fn descendants(&self) -> Vec<(RowPath, &Row)> {
+    pub fn descendants(&self) -> Vec<(ComponentPath, &Component)> {
         let mut out = Vec::new();
-        self.descend(&RowPath::default(), &mut out);
+        self.descend(&ComponentPath::default(), &mut out);
         out
     }
 
     /// The rows below this one, which sits at `at`, onto `out`. See
     /// [`descendants`](Self::descendants).
-    fn descend<'a>(&'a self, at: &RowPath, out: &mut Vec<(RowPath, &'a Row)>) {
+    fn descend<'a>(&'a self, at: &ComponentPath, out: &mut Vec<(ComponentPath, &'a Component)>) {
         for child in &self.children {
             let path = at.child(&child.label);
             out.push((path.clone(), child));
@@ -347,8 +351,8 @@ impl Row {
     }
 
     /// Every row under and including this one, depth-first, with its depth.
-    pub fn walk(&self) -> Vec<(usize, &Row)> {
-        fn descend<'a>(node: &'a Row, depth: usize, out: &mut Vec<(usize, &'a Row)>) {
+    pub fn walk(&self) -> Vec<(usize, &Component)> {
+        fn descend<'a>(node: &'a Component, depth: usize, out: &mut Vec<(usize, &'a Component)>) {
             out.push((depth, node));
             for child in &node.children {
                 descend(child, depth + 1, out);
@@ -397,7 +401,7 @@ mod tests {
     /// perfect fuser never lands, which is the rung of the ladder only fusion recovers.
     #[test]
     fn a_composites_parts_are_summed_for_the_fusion_rung() {
-        let node = Row {
+        let node = Component {
             variants: Vec::new(),
             sites: Vec::new(),
             label: "feed-forward".into(),
@@ -409,7 +413,7 @@ mod tests {
             observed: None,
             entries: 1,
             children: vec![
-                Row {
+                Component {
                     variants: Vec::new(),
                     sites: Vec::new(),
                     label: "gate/up".into(),
@@ -424,7 +428,7 @@ mod tests {
                     kernels: Vec::new(),
                     own_wait: Duration::ZERO,
                 },
-                Row {
+                Component {
                     variants: Vec::new(),
                     sites: Vec::new(),
                     label: "down".into(),
@@ -458,10 +462,13 @@ mod tests {
             name: name.to_string(),
             launches: 1,
             total: Duration::from_nanos(total),
-            fuses: fuses.iter().map(|label| RowPath::new([*label])).collect(),
+            fuses: fuses
+                .iter()
+                .map(|label| ComponentPath::new([*label]))
+                .collect(),
             fuses_own: false,
         };
-        let leaf = |label: &str, kernels: Vec<Kernel>| Row {
+        let leaf = |label: &str, kernels: Vec<Kernel>| Component {
             label: label.to_string(),
             variants: Vec::new(),
             sites: Vec::new(),
@@ -472,7 +479,7 @@ mod tests {
             kernels,
             own_wait: Duration::ZERO,
         };
-        let block = Row {
+        let block = Component {
             children: vec![
                 leaf("norm", Vec::new()),
                 // Ran a kernel of its own whose timing was lost.

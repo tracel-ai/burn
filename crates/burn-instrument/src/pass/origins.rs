@@ -13,7 +13,7 @@ use std::collections::HashMap;
 
 use burn_ir::OperationIr;
 
-use super::component_tree::{ComponentTree, RowId};
+use super::component_tree::{ComponentId, ComponentTree};
 use super::cursor::{Attribution, Placement};
 
 /// An operation the fusion server registered, known by its first output: fresh
@@ -64,9 +64,9 @@ pub(crate) enum BlockOrigin {
     Unseen,
     /// Work these components registered, in first-seen order, and nothing
     /// else.
-    Within(Vec<RowId>),
+    Within(Vec<ComponentId>),
     /// Work from outside every component, beside these components' work.
-    WithOutside(Vec<RowId>),
+    WithOutside(Vec<ComponentId>),
 }
 
 impl BlockOrigin {
@@ -75,7 +75,7 @@ impl BlockOrigin {
         origins: &OperationOrigins,
         operations: impl Iterator<Item = OperationId>,
     ) -> Self {
-        let mut components: Vec<RowId> = Vec::new();
+        let mut components: Vec<ComponentId> = Vec::new();
         let mut outside = false;
         let mut seen = false;
         for operation in operations {
@@ -123,7 +123,7 @@ impl BlockOrigin {
     /// different roots — a forward and a backward fused across the step that
     /// joins them — share no row, so the kernel is recorded outside every one
     /// of them.
-    fn closest_row(components: &[RowId], tree: &ComponentTree) -> Attribution {
+    fn closest_row(components: &[ComponentId], tree: &ComponentTree) -> Attribution {
         match tree.common_parent(components) {
             Some(common) => Attribution::Component(common),
             None => Attribution::Untagged,
@@ -132,7 +132,7 @@ impl BlockOrigin {
 
     /// The components a kernel is named for: none for one component's work,
     /// which is that row's by placement.
-    fn named(components: Vec<RowId>) -> Vec<RowId> {
+    fn named(components: Vec<ComponentId>) -> Vec<ComponentId> {
         match components.len() {
             1 => Vec::new(),
             _ => components,
@@ -249,7 +249,7 @@ mod tests {
         origins
     }
 
-    fn row(entered: Attribution) -> RowId {
+    fn row(entered: Attribution) -> ComponentId {
         match entered {
             Attribution::Component(row) => row,
             Attribution::Untagged | Attribution::EndOfPass => {

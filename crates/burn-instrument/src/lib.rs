@@ -54,10 +54,10 @@ mod observer;
 
 #[cfg(feature = "std")]
 mod breakdown;
+#[cfg(feature = "std")]
+mod component_path;
 #[cfg(feature = "cubecl")]
 mod pass;
-#[cfg(feature = "std")]
-mod row_path;
 
 #[cfg(all(test, feature = "std"))]
 mod observed;
@@ -70,11 +70,11 @@ pub use observer::*;
 
 #[cfg(feature = "std")]
 pub use breakdown::{
-    BREAKDOWN_FILE_VERSION, Breakdown, BreakdownFileError, Kernel, Row, Unplaced, Variant,
+    BREAKDOWN_FILE_VERSION, Breakdown, BreakdownFileError, Component, Kernel, Unplaced, Variant,
 };
+#[cfg(feature = "std")]
+pub use component_path::ComponentPath;
 #[cfg(feature = "cubecl")]
 pub use pass::PassCollector;
-#[cfg(feature = "std")]
-pub use row_path::RowPath;
 
 pub use burn_instrument_macros::compute;

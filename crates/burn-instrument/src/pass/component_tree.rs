@@ -9,7 +9,7 @@
 //! The same merge puts two *different* jobs under one heading when two entry
 //! points share a label, and the sum reads exactly like one entry point run
 //! twice. So `#[compute]` passes the site — `module_path!()` plus the function —
-//! beside the label, and [`Row::sites`] keeps the distinct ones so a report
+//! beside the label, and [`Component::sites`] keeps the distinct ones so a report
 //! can name a row fed from more than one. A site is a function, not a role: one
 //! function entered at two shapes is one site, and a role its caller knows is
 //! named by an argument instead.
@@ -18,24 +18,24 @@ use std::time::Duration;
 
 use super::cursor::{Attribution, Fusion, Placement};
 use super::timing::TimingQuality;
-use crate::breakdown::{Breakdown, Kernel, Row, Variant};
-use crate::row_path::RowPath;
+use crate::breakdown::{Breakdown, Component, Kernel, Variant};
+use crate::component_path::ComponentPath;
 use crate::{Bounds, Declaration};
 
 /// The components a pass entered, as rows built while it runs, beside the rows
 /// for kernels no component holds.
 ///
 /// A flat arena, because a tree with a cursor into it cannot be expressed with
-/// ordinary borrows: a row is its [`RowId`], which is what
+/// ordinary borrows: a row is its [`ComponentId`], which is what
 /// [`Attribution::Component`] carries.
 #[derive(Default)]
 pub(crate) struct ComponentTree {
-    rows: Vec<RowRecord>,
+    rows: Vec<ComponentRecord>,
     /// The components entered and not yet left, outermost first.
-    open: Vec<RowId>,
+    open: Vec<ComponentId>,
     /// The roots, in first-seen order — a pass may enter more than one
     /// component at top level (an embedding, then a stack, then a head).
-    roots: Vec<RowId>,
+    roots: Vec<ComponentId>,
     /// Kernels launched with no component open at all. A real category: a
     /// cache allocation, a sampler, anything the annotations do not cover.
     untagged: KernelCounter,
@@ -43,14 +43,14 @@ pub(crate) struct ComponentTree {
     /// last component closed.
     end_of_pass: KernelCounter,
     /// How long the device waited before kernels no component launched — the
-    /// untagged ones and the end of the pass. See [`Row::own_wait`].
+    /// untagged ones and the end of the pass. See [`Component::own_wait`].
     outside_wait: Duration,
 }
 
 /// One row of a [`ComponentTree`], valid in that tree only: minted by
 /// [`ComponentTree::enter`].
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) struct RowId(usize);
+pub(crate) struct ComponentId(usize);
 
 impl ComponentTree {
     /// Enter the component `declared` names under the innermost open one, and
@@ -75,7 +75,7 @@ impl ComponentTree {
     }
 
     /// The innermost component still open, if any.
-    pub(crate) fn innermost(&self) -> Option<RowId> {
+    pub(crate) fn innermost(&self) -> Option<ComponentId> {
         self.open.last().copied()
     }
 
@@ -102,7 +102,7 @@ impl ComponentTree {
         self.kernels(attribution).credit(kernel, duration)
     }
 
-    /// Charge `idle` to the row whose kernel ended it. See [`Row::own_wait`].
+    /// Charge `idle` to the row whose kernel ended it. See [`Component::own_wait`].
     pub(crate) fn charge_idle(&mut self, attribution: Attribution, idle: Duration) {
         match attribution {
             Attribution::Component(row) => self.row_mut(row).own_wait += idle,
@@ -113,11 +113,11 @@ impl ComponentTree {
     /// The closest component every one of `rows` sits under, itself included
     /// — where a kernel that carried out all of their work belongs. `None` for
     /// rows under different roots, which share no row.
-    pub(crate) fn common_parent(&self, rows: &[RowId]) -> Option<RowId> {
+    pub(crate) fn common_parent(&self, rows: &[ComponentId]) -> Option<ComponentId> {
         let (first, rest) = rows.split_first()?;
-        let mut common: Vec<RowId> = self.ancestors(*first).collect();
+        let mut common: Vec<ComponentId> = self.ancestors(*first).collect();
         for row in rest {
-            let theirs: Vec<RowId> = self.ancestors(*row).collect();
+            let theirs: Vec<ComponentId> = self.ancestors(*row).collect();
             common.retain(|ancestor| theirs.contains(ancestor));
         }
         // Each list runs from the row up to its root, so the first ancestor
@@ -128,11 +128,11 @@ impl ComponentTree {
     /// Add `extra` to `row` and every parent that declares a floor. A row
     /// with no floor is timed but not scored, and stays that way; no traffic
     /// leaves every row as it was, so a batch of one marks nothing.
-    pub(crate) fn add_observed(&mut self, row: RowId, extra: Bounds) {
+    pub(crate) fn add_observed(&mut self, row: ComponentId, extra: Bounds) {
         if extra == Bounds::default() {
             return;
         }
-        let scored: Vec<RowId> = self.ancestors(row).collect();
+        let scored: Vec<ComponentId> = self.ancestors(row).collect();
         for row in scored {
             let row = self.row_mut(row);
             if row.bounds.is_some() {
@@ -167,7 +167,7 @@ impl ComponentTree {
 
     /// The row `label` names under the innermost open component, created on
     /// first sight.
-    fn resolve(&mut self, label: &str) -> RowId {
+    fn resolve(&mut self, label: &str) -> ComponentId {
         let parent = self.innermost();
         let siblings = match parent {
             Some(parent) => &self.row(parent).children,
@@ -180,8 +180,8 @@ impl ComponentTree {
         {
             return found;
         }
-        let row = RowId(self.rows.len());
-        self.rows.push(RowRecord::new(label, parent));
+        let row = ComponentId(self.rows.len());
+        self.rows.push(ComponentRecord::new(label, parent));
         match parent {
             Some(parent) => self.row_mut(parent).children.push(row),
             None => self.roots.push(row),
@@ -189,11 +189,11 @@ impl ComponentTree {
         row
     }
 
-    fn row(&self, row: RowId) -> &RowRecord {
+    fn row(&self, row: ComponentId) -> &ComponentRecord {
         &self.rows[row.0]
     }
 
-    fn row_mut(&mut self, row: RowId) -> &mut RowRecord {
+    fn row_mut(&mut self, row: ComponentId) -> &mut ComponentRecord {
         &mut self.rows[row.0]
     }
 
@@ -207,7 +207,7 @@ impl ComponentTree {
     }
 
     /// `row` and every row above it, innermost first.
-    fn ancestors(&self, row: RowId) -> impl Iterator<Item = RowId> + '_ {
+    fn ancestors(&self, row: ComponentId) -> impl Iterator<Item = ComponentId> + '_ {
         std::iter::successors(Some(row), |row| self.row(*row).parent)
     }
 
@@ -222,7 +222,7 @@ impl ComponentTree {
     ///
     /// Relative, since the kernel is already recorded on `under`. A kernel
     /// under no component at all is named from the root.
-    fn path_under(&self, row: RowId, under: Attribution) -> RowPath {
+    fn path_under(&self, row: ComponentId, under: Attribution) -> ComponentPath {
         let stop = match under {
             Attribution::Component(under) => Some(under),
             Attribution::Untagged | Attribution::EndOfPass => None,
@@ -233,7 +233,7 @@ impl ComponentTree {
             .map(|ancestor| self.row(ancestor).label.as_str())
             .collect();
         labels.reverse();
-        RowPath::new(labels)
+        ComponentPath::new(labels)
     }
 
     /// The kernels `counter` counted on the row at `under`, each naming the
@@ -243,9 +243,9 @@ impl ComponentTree {
     }
 
     /// The finished row at `id`, and everything under it.
-    fn finished(&self, id: RowId) -> Row {
+    fn finished(&self, id: ComponentId) -> Component {
         let row = self.row(id);
-        Row {
+        Component {
             label: row.label.clone(),
             variants: row.variants.clone(),
             sites: row.sites.iter().map(|site| site.to_string()).collect(),
@@ -264,26 +264,26 @@ impl ComponentTree {
 }
 
 /// One row while it is being built.
-struct RowRecord {
+struct ComponentRecord {
     label: String,
     /// The component it was entered under, or `None` for a root.
-    parent: Option<RowId>,
+    parent: Option<ComponentId>,
     /// Variants seen under this label, in first-seen order.
     variants: Vec<Variant>,
     /// Distinct call sites that entered this label, in first-seen order.
     sites: Vec<&'static str>,
     bounds: Option<Bounds>,
-    /// See [`Row::observed`].
+    /// See [`Component::observed`].
     observed: Option<Bounds>,
     entries: usize,
-    children: Vec<RowId>,
+    children: Vec<ComponentId>,
     kernels: KernelCounter,
-    /// See [`Row::own_wait`].
+    /// See [`Component::own_wait`].
     own_wait: Duration,
 }
 
-impl RowRecord {
-    fn new(label: &str, parent: Option<RowId>) -> Self {
+impl ComponentRecord {
+    fn new(label: &str, parent: Option<ComponentId>) -> Self {
         Self {
             label: label.to_string(),
             parent,
@@ -321,7 +321,7 @@ impl RowRecord {
                 }),
             }
         }
-        // Summed across entries — see `Row::bounds`. A component that declared
+        // Summed across entries — see `Component::bounds`. A component that declared
         // them on its first entry and not on a later one keeps the sum of what
         // was declared rather than losing the row's roofline entirely.
         if let Some(bounds) = declared.bounds {
@@ -342,7 +342,7 @@ struct CountedKernel {
     total: Duration,
     /// The rows below the counting row whose work it carried out, in
     /// first-seen order. See [`Kernel::fuses`].
-    fuses: Vec<RowId>,
+    fuses: Vec<ComponentId>,
     /// See [`Kernel::fuses_own`].
     fuses_own: bool,
 }
@@ -394,7 +394,7 @@ impl KernelCounter {
     }
 
     /// The kernels counted, each spanned row named by `path`.
-    fn kernels(&self, path: impl Fn(RowId) -> RowPath) -> Vec<Kernel> {
+    fn kernels(&self, path: impl Fn(ComponentId) -> ComponentPath) -> Vec<Kernel> {
         self.0
             .iter()
             .map(|kernel| Kernel {
@@ -811,7 +811,7 @@ mod tests {
     }
 
     /// The row a component was entered on.
-    fn row(entered: Attribution) -> RowId {
+    fn row(entered: Attribution) -> ComponentId {
         match entered {
             Attribution::Component(row) => row,
             Attribution::Untagged | Attribution::EndOfPass => {
@@ -833,11 +833,11 @@ mod tests {
     }
 
     /// The paths a kernel names, as a table prints them.
-    fn named(fuses: &[RowPath]) -> Vec<String> {
+    fn named(fuses: &[ComponentPath]) -> Vec<String> {
         fuses.iter().map(ToString::to_string).collect()
     }
 
-    fn labels(nodes: &[Row]) -> Vec<String> {
+    fn labels(nodes: &[Component]) -> Vec<String> {
         nodes
             .iter()
             .flat_map(|node| node.walk())

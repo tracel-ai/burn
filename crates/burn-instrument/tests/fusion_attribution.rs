@@ -18,7 +18,9 @@
 use std::fmt;
 use std::sync::Mutex;
 
-use burn_instrument::{Breakdown, Kernel, PassCollector, Row, RowPath, Unplaced, compute};
+use burn_instrument::{
+    Breakdown, Component, ComponentPath, Kernel, PassCollector, Unplaced, compute,
+};
 use burn_tensor::activation::{gelu, sigmoid};
 use burn_tensor::{Device, Distribution, Tensor};
 use cubecl::config::{TypeNameFormatLevel, type_name_format};
@@ -79,7 +81,7 @@ enum Placement {
     /// On the row at this path, naming these paths from it. Naming none, the
     /// whole case is one launch there: no name says the fuser ran, so the
     /// count does.
-    Row {
+    Component {
         at: &'static [&'static str],
         fuses: &'static [&'static [&'static str]],
     },
@@ -113,21 +115,21 @@ impl Boundary {
         match self {
             Boundary::WithinOne => Expected {
                 launching: &[&["chain"]],
-                fused: Placement::Row {
+                fused: Placement::Component {
                     at: &["chain"],
                     fuses: &[],
                 },
             },
             Boundary::Siblings => Expected {
                 launching: &[&["pair", "scale"], &["pair", "shift"]],
-                fused: Placement::Row {
+                fused: Placement::Component {
                     at: &["pair"],
                     fuses: &[&["scale"], &["shift"]],
                 },
             },
             Boundary::ParentAndChild => Expected {
                 launching: &[&["residual"], &["residual", "gate"]],
-                fused: Placement::Row {
+                fused: Placement::Component {
                     at: &["residual"],
                     fuses: &[&["gate"]],
                 },
@@ -137,7 +139,7 @@ impl Boundary {
                     &["branches", "left", "leaf"],
                     &["branches", "right", "leaf"],
                 ],
-                fused: Placement::Row {
+                fused: Placement::Component {
                     at: &["branches"],
                     fuses: &[&["left", "leaf"], &["right", "leaf"]],
                 },
@@ -147,21 +149,21 @@ impl Boundary {
             // nothing.
             Boundary::RepeatedEntries => Expected {
                 launching: &[&["stack", "layer"]],
-                fused: Placement::Row {
+                fused: Placement::Component {
                     at: &["stack", "layer"],
                     fuses: &[],
                 },
             },
             Boundary::IntoReduction => Expected {
                 launching: &[&["log sum exp", "exponent"], &["log sum exp", "row sum"]],
-                fused: Placement::Row {
+                fused: Placement::Component {
                     at: &["log sum exp"],
                     fuses: &[&["exponent"], &["row sum"]],
                 },
             },
             Boundary::MatmulEpilogue => Expected {
                 launching: &[&["mlp", "projection"], &["mlp", "activation"]],
-                fused: Placement::Row {
+                fused: Placement::Component {
                     at: &["mlp"],
                     fuses: &[&["projection"], &["activation"]],
                 },
@@ -234,7 +236,7 @@ impl CaseBreakdown {
     }
 
     /// The row at `path`, from the roots.
-    fn row(&self, path: &[&str]) -> &Row {
+    fn row(&self, path: &[&str]) -> &Component {
         let (first, rest) = path.split_first().expect("a path names a row");
         let mut node = find(&self.breakdown.tree, first);
         for label in rest {
@@ -267,7 +269,7 @@ impl CaseBreakdown {
         );
         for root in &self.breakdown.tree {
             for (_, node) in root.walk() {
-                let below: Vec<RowPath> = node
+                let below: Vec<ComponentPath> = node
                     .descendants()
                     .into_iter()
                     .map(|(path, _)| path)
@@ -285,15 +287,15 @@ impl CaseBreakdown {
         }
         // Outside every component, a kernel names a row by its path from the
         // root.
-        let rows: Vec<RowPath> = self
+        let rows: Vec<ComponentPath> = self
             .breakdown
             .tree
             .iter()
             .flat_map(|root| {
                 let below = root.descendants().into_iter().map(|(path, _)| {
-                    RowPath::new(std::iter::once(root.label.as_str()).chain(path.labels()))
+                    ComponentPath::new(std::iter::once(root.label.as_str()).chain(path.labels()))
                 });
-                std::iter::once(RowPath::new([root.label.as_str()])).chain(below)
+                std::iter::once(ComponentPath::new([root.label.as_str()])).chain(below)
             })
             .collect();
         for kernel in &self.breakdown.untagged {
@@ -331,15 +333,15 @@ impl CaseBreakdown {
     /// case in one launch.
     fn assert_fused(&self, expected: &Expected) {
         let boundary = self.boundary;
-        if let Placement::Row { fuses: [], .. } = expected.fused {
+        if let Placement::Component { fuses: [], .. } = expected.fused {
             assert_eq!(
                 self.launches(),
                 1,
                 "{boundary:?}: the case's work did not run as one kernel\n{self}"
             );
         }
-        let (kernels, fuses, named): (&[Kernel], _, Vec<&Row>) = match expected.fused {
-            Placement::Row { at, fuses } => {
+        let (kernels, fuses, named): (&[Kernel], _, Vec<&Component>) = match expected.fused {
+            Placement::Component { at, fuses } => {
                 let named = fuses.iter().map(|path| self.row(&[at, path].concat()));
                 (&self.row(at).kernels, fuses, named.collect())
             }
@@ -348,9 +350,9 @@ impl CaseBreakdown {
                 (&self.breakdown.untagged, fuses, named.collect())
             }
         };
-        let wanted: Vec<RowPath> = fuses
+        let wanted: Vec<ComponentPath> = fuses
             .iter()
-            .map(|path| RowPath::new(path.iter().copied()))
+            .map(|path| ComponentPath::new(path.iter().copied()))
             .collect();
         // A kernel's names are a set, recorded in first-seen order.
         assert!(
@@ -405,7 +407,7 @@ impl fmt::Display for CaseBreakdown {
     }
 }
 
-fn find<'a>(nodes: &'a [Row], label: &str) -> &'a Row {
+fn find<'a>(nodes: &'a [Component], label: &str) -> &'a Component {
     nodes
         .iter()
         .find(|node| node.label == label)
@@ -413,11 +415,11 @@ fn find<'a>(nodes: &'a [Row], label: &str) -> &'a Row {
 }
 
 /// Paths as a table prints them, for a failure message.
-fn printed(paths: &[RowPath]) -> Vec<String> {
+fn printed(paths: &[ComponentPath]) -> Vec<String> {
     paths.iter().map(ToString::to_string).collect()
 }
 
-fn labels(nodes: &[Row]) -> Vec<&str> {
+fn labels(nodes: &[Component]) -> Vec<&str> {
     nodes.iter().map(|node| node.label.as_str()).collect()
 }
 

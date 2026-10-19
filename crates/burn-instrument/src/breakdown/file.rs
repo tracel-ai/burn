@@ -100,8 +100,8 @@ mod tests {
     use std::time::Duration;
 
     use super::*;
-    use crate::breakdown::{Kernel, Row, Unplaced, Variant};
-    use crate::{Bounds, RowPath};
+    use crate::breakdown::{Component, Kernel, Unplaced, Variant};
+    use crate::{Bounds, ComponentPath};
 
     /// A breakdown written and read back is the breakdown that was written, so one collected on a
     /// device can be read on a machine without it.
@@ -198,7 +198,7 @@ mod tests {
     /// A breakdown with one of everything the file carries.
     fn breakdown() -> Breakdown {
         Breakdown {
-            tree: vec![Row {
+            tree: vec![Component {
                 label: "attention".to_string(),
                 variants: vec![Variant {
                     name: "flash".to_string(),
@@ -217,7 +217,7 @@ mod tests {
                     name: "matmul".to_string(),
                     launches: 2,
                     total: Duration::from_nanos(1_500),
-                    fuses: vec![RowPath::new(["query"])],
+                    fuses: vec![ComponentPath::new(["query"])],
                     fuses_own: true,
                 }],
                 own_wait: Duration::from_nanos(20),

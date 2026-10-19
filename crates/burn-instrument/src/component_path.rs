@@ -14,9 +14,9 @@ use serde::{Deserialize, Serialize};
 /// one run against the other by its path from the root.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(transparent)]
-pub struct RowPath(Vec<String>);
+pub struct ComponentPath(Vec<String>);
 
-impl RowPath {
+impl ComponentPath {
     /// What separates the labels when a path is printed.
     const SEPARATOR: &str = " › ";
 
@@ -40,7 +40,7 @@ impl RowPath {
 
 /// Through [`Formatter::pad`](fmt::Formatter::pad), so a path in a table
 /// column takes the column's width.
-impl Display for RowPath {
+impl Display for ComponentPath {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.pad(&self.0.join(Self::SEPARATOR))
     }

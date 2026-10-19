@@ -34,7 +34,7 @@ use burn_tensor::Device;
 use cubecl::logging::{LaunchObserver, TimingRequest};
 use cubecl::profile::{ProfileDuration, TimingMethod};
 
-use super::component_tree::{ComponentTree, RowId};
+use super::component_tree::{ComponentId, ComponentTree};
 use super::cursor::{Attribution, LaunchCursor};
 use super::origins::{BlockOrigin, OperationId, OperationOrigins};
 use super::timing::{Kept, Measured, Timeline, Timings};
@@ -89,7 +89,7 @@ struct State {
 
 /// Observed traffic not yet priced, and the row it arrived under.
 struct Unpriced {
-    row: RowId,
+    row: ComponentId,
     bounds: ObservedBounds,
 }
 
@@ -180,7 +180,7 @@ impl PassRecorder {
     fn price_observed(&self) {
         let unpriced = std::mem::take(&mut self.locked().unpriced);
         // Priced outside the lock: each reads its values back.
-        let priced: Vec<(RowId, Bounds)> = unpriced
+        let priced: Vec<(ComponentId, Bounds)> = unpriced
             .into_iter()
             .map(|unpriced| (unpriced.row, unpriced.bounds.resolve()))
             .collect();
@@ -340,7 +340,7 @@ impl State {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::breakdown::{Row, Unplaced};
+    use crate::breakdown::{Component, Unplaced};
 
     /// A launch on the thread driving the model lands under the component that
     /// thread has open, and under none once it has closed — the unfused case,
@@ -360,7 +360,7 @@ mod tests {
         let names = |kernels: &[crate::Kernel]| -> Vec<String> {
             kernels.iter().map(|kernel| kernel.name.clone()).collect()
         };
-        let block: &Row = &breakdown.tree[0];
+        let block: &Component = &breakdown.tree[0];
         assert_eq!(names(&block.children[0].kernels), ["Matmul"]);
         assert_eq!(
             names(&block.kernels),
