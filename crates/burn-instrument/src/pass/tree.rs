@@ -8,9 +8,9 @@ use std::time::{Duration, Instant};
 use burn_tensor::Device;
 use cubecl::profile::{ProfileDuration, TimingMethod};
 
+use super::component_tree::ComponentTree;
 use super::cursor::{Attribution, LaunchCursor};
-use super::origins::{BlockWork, OperationOrigins};
-use super::row_tree::RowTree;
+use super::origins::{BlockOrigin, OperationOrigins};
 use super::timing::{Kept, Measured, Timeline, Timings};
 use crate::breakdown::Breakdown;
 use crate::{Bounds, Collector, Declaration, ObservedBounds};
@@ -53,7 +53,7 @@ pub(crate) struct TreeCollector {
 /// What the pass has recorded so far.
 #[derive(Default)]
 struct State {
-    rows: RowTree,
+    tree: ComponentTree,
     timings: Timings,
     /// What a block's operations are mapped back through. See
     /// [`TreeCollector::block_starts`].
@@ -142,7 +142,7 @@ impl TreeCollector {
             .collect();
         let mut state = self.locked();
         for (row, extra) in priced {
-            state.rows.add_observed(row, extra);
+            state.tree.add_observed(row, extra);
         }
     }
 
@@ -157,7 +157,7 @@ impl TreeCollector {
         let state = self.locked();
         // See `LaunchCursor::fused`.
         let unfused = !self.cursor.fused();
-        state.rows.breakdown(state.timings.quality(), unfused)
+        state.tree.breakdown(state.timings.quality(), unfused)
     }
 
     /// Record a kernel where the calling thread's launches land.
@@ -168,7 +168,7 @@ impl TreeCollector {
     /// where the model has got to rather than what sealed this kernel.
     pub(crate) fn record_kernel(&self, name: &str) {
         let placement = LaunchCursor::placement();
-        self.locked().rows.count_launch(&placement, name);
+        self.locked().tree.count_launch(&placement, name);
     }
 
     /// The fusion server registered an operation, keyed by its first output's
@@ -181,7 +181,7 @@ impl TreeCollector {
     }
 
     /// A block is about to run the operations `keys` names: land its launches
-    /// where [`BlockWork::placement`] says.
+    /// where [`BlockOrigin::placement`] says.
     ///
     /// A block with work from outside every component is recorded outside
     /// them too, and so is one whose components sit under different roots and
@@ -190,7 +190,7 @@ impl TreeCollector {
     pub(crate) fn block_starts(&self, keys: impl Iterator<Item = u64>) {
         let placement = {
             let state = self.locked();
-            BlockWork::new(&state.origins, keys).placement(&state.rows)
+            BlockOrigin::new(&state.origins, keys).placement(&state.tree)
         };
         LaunchCursor::enter_block(placement.unwrap_or_else(LaunchCursor::placement));
     }
@@ -235,21 +235,21 @@ impl TreeCollector {
 
 impl Collector for TreeCollector {
     fn enter(&self, declared: Declaration<'_>) {
-        let entered = self.locked().rows.enter(declared);
+        let entered = self.locked().tree.enter(declared);
         // Outside the lock: a full queue waits for the worker, and the worker
         // may be waiting on the lock to record a launch.
         self.cursor.point_at(entered);
     }
 
     fn exit(&self) {
-        let back_to = self.locked().rows.exit();
+        let back_to = self.locked().tree.exit();
         self.cursor.point_at(back_to);
     }
 
     fn observe(&self, bounds: ObservedBounds) {
         let mut state = self.locked();
         // Outside every component there is no floor to add it to.
-        if let Some(row) = state.rows.innermost() {
+        if let Some(row) = state.tree.innermost() {
             state.unpriced.push(Unpriced { row, bounds });
         }
     }
@@ -270,14 +270,14 @@ impl State {
             }
         }
         for (attribution, idle) in timeline.idle() {
-            self.rows.charge_idle(attribution, idle);
+            self.tree.charge_idle(attribution, idle);
         }
     }
 
     /// Add `duration` to the row that counted `kernel`'s launch under
     /// `attribution`.
     fn credit(&mut self, attribution: Attribution, kernel: &str, duration: Duration) {
-        if !self.rows.credit(attribution, kernel, duration) {
+        if !self.tree.credit(attribution, kernel, duration) {
             // No launch of it was counted there, so there is no honest row
             // for it. Say how much rather than let `Breakdown::device` quietly
             // shrink.

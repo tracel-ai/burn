@@ -11,8 +11,8 @@
 
 use std::collections::HashMap;
 
+use super::component_tree::ComponentTree;
 use super::cursor::{Attribution, Placement};
-use super::row_tree::RowTree;
 
 /// The component each operation came from, by its first output's id.
 #[derive(Default)]
@@ -33,7 +33,7 @@ impl OperationOrigins {
 
 /// Whose work a block carries out, read off the operations it runs.
 #[derive(Debug, PartialEq, Eq)]
-pub(crate) enum BlockWork {
+pub(crate) enum BlockOrigin {
     /// None of its operations was seen registering: they were queued before
     /// the pass.
     Unseen,
@@ -44,7 +44,7 @@ pub(crate) enum BlockWork {
     WithOutside(Vec<usize>),
 }
 
-impl BlockWork {
+impl BlockOrigin {
     /// What the block running `operations` carries out.
     pub(crate) fn new(origins: &OperationOrigins, operations: impl Iterator<Item = u64>) -> Self {
         let mut components: Vec<usize> = Vec::new();
@@ -66,30 +66,30 @@ impl BlockWork {
             }
         }
         match (seen, outside) {
-            (false, _) => BlockWork::Unseen,
-            (true, true) => BlockWork::WithOutside(components),
-            (true, false) => BlockWork::Within(components),
+            (false, _) => BlockOrigin::Unseen,
+            (true, true) => BlockOrigin::WithOutside(components),
+            (true, false) => BlockOrigin::Within(components),
         }
     }
 
-    /// Where the block's launches land among `rows`: the closest component
+    /// Where the block's launches land in `tree`: the closest component
     /// containing all of its work, named for the components it came from
     /// where there are several. `None` keeps the sealing order's answer.
-    pub(crate) fn placement(self, rows: &RowTree) -> Option<Placement> {
+    pub(crate) fn placement(self, tree: &ComponentTree) -> Option<Placement> {
         match self {
-            BlockWork::Unseen => None,
+            BlockOrigin::Unseen => None,
             // Still named for the components whose work it carried: recorded
             // outside them, it is the only place their time went.
-            BlockWork::WithOutside(span) => Some(Placement {
+            BlockOrigin::WithOutside(span) => Some(Placement {
                 attribution: Attribution::Untagged,
                 span,
             }),
-            BlockWork::Within(components) => Some(Self::within(components, rows)),
+            BlockOrigin::Within(components) => Some(Self::within(components, tree)),
         }
     }
 
-    fn within(components: Vec<usize>, rows: &RowTree) -> Placement {
-        let common = rows.common_parent(&components);
+    fn within(components: Vec<usize>, tree: &ComponentTree) -> Placement {
+        let common = tree.common_parent(&components);
         let span = match components.len() {
             1 => Vec::new(),
             _ => components,

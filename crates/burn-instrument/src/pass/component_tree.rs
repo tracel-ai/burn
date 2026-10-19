@@ -29,7 +29,7 @@ use crate::{Bounds, Declaration};
 /// ordinary borrows: a row is its index, which is what
 /// [`Attribution::Component`] carries.
 #[derive(Default)]
-pub(crate) struct RowTree {
+pub(crate) struct ComponentTree {
     rows: Vec<Row>,
     /// Indices of the components entered and not yet left, outermost first.
     open: Vec<usize>,
@@ -38,16 +38,16 @@ pub(crate) struct RowTree {
     roots: Vec<usize>,
     /// Kernels launched with no component open at all. A real category: a
     /// cache allocation, a sampler, anything the annotations do not cover.
-    untagged: KernelTally,
+    untagged: KernelCounter,
     /// Kernels the sync ending the pass ran: fused work still queued when the
     /// last component closed.
-    end_of_pass: KernelTally,
+    end_of_pass: KernelCounter,
     /// How long the device waited before kernels no component launched — the
     /// untagged ones and the end of the pass. See [`Node::waited`].
     waited_outside: Duration,
 }
 
-impl RowTree {
+impl ComponentTree {
     /// Enter the component `declared` names under the innermost open one, and
     /// say where its launches land.
     ///
@@ -194,7 +194,7 @@ impl RowTree {
     }
 
     /// The kernels a launch under `attribution` is counted among.
-    fn kernels(&mut self, attribution: Attribution) -> &mut KernelTally {
+    fn kernels(&mut self, attribution: Attribution) -> &mut KernelCounter {
         match attribution {
             Attribution::Untagged => &mut self.untagged,
             Attribution::Component(row) => &mut self.rows[row].kernels,
@@ -263,7 +263,7 @@ struct Row {
     observed: Option<Bounds>,
     entries: usize,
     children: Vec<usize>,
-    kernels: KernelTally,
+    kernels: KernelCounter,
     /// See [`Node::waited`].
     waited: Duration,
 }
@@ -281,7 +281,7 @@ impl Row {
             observed: None,
             entries: 0,
             children: Vec::new(),
-            kernels: KernelTally::default(),
+            kernels: KernelCounter::default(),
             waited: Duration::ZERO,
         }
     }
@@ -318,9 +318,9 @@ impl Row {
 
 /// The kernels one row counted, by name, in first-seen order.
 #[derive(Default)]
-struct KernelTally(Vec<Kernel>);
+struct KernelCounter(Vec<Kernel>);
 
-impl KernelTally {
+impl KernelCounter {
     /// Count one launch of `name`, carrying out the work of `fuses` below the
     /// row and, where `fuses_own`, the row's own.
     fn count(&mut self, name: &str, fuses: Vec<RowPath>, fuses_own: bool) {
