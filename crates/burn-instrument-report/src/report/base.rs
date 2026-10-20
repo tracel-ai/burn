@@ -10,9 +10,10 @@ use std::time::Duration;
 
 use burn_instrument::{CollectedPass, PeakFinding, Peaks};
 
-use super::{HostSplit, Pricing, TimeReading};
 use crate::Comparison;
+use crate::reading::{HostSplit, TimeReading};
 use crate::roofline::Ladder;
+use crate::roofline::Pricing;
 
 /// A collected pass, scored against its device's peaks, and the table that
 /// renders it ([`Display`](std::fmt::Display)).

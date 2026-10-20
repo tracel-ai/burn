@@ -6,8 +6,10 @@ use burn_instrument::{
 };
 use burn_tensor::FloatDType;
 
-use super::{HostSplit, Pricing, Report, TimeReading};
+use super::Report;
 use crate::millis::Millis;
+use crate::reading::{HostSplit, TimeReading};
+use crate::roofline::Pricing;
 use crate::roofline::{Bound, Floor, Ladder};
 
 fn peaks() -> Peaks {

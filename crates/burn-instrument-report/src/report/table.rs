@@ -5,9 +5,10 @@ use std::time::Duration;
 
 use burn_instrument::{Component, Kernel, PeakFinding};
 
+use super::Report;
 use super::worklist::Worklist;
-use super::{HostSplit, Report, TimeReading};
 use crate::millis::Millis;
+use crate::reading::{HostSplit, TimeReading};
 use crate::served_by::ServedBy;
 
 impl Display for Report<'_> {

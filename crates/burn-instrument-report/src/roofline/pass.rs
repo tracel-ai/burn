@@ -1,12 +1,13 @@
-//! What each component of a pass is held to, and how those floors add up the tree.
+//! The roofline applied to a pass: what each component is held to, and how those floors add
+//! up the tree.
 
 use std::collections::HashSet;
 use std::time::Duration;
 
 use burn_instrument::{Bounds, Breakdown, Component, ComponentPath, Peaks};
 
-use super::TimeReading;
-use crate::roofline::{Floor, Score};
+use super::{Floor, Score};
+use crate::reading::TimeReading;
 
 /// Every component of one pass priced against its device's peaks: each component's floor and
 /// score, and the floors of the ladder's two rungs below it.

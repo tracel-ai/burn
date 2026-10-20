@@ -12,6 +12,7 @@
 
 mod comparison;
 mod millis;
+mod reading;
 mod report;
 pub mod roofline;
 mod served_by;
