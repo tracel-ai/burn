@@ -160,7 +160,7 @@ impl Display for Report<'_> {
                     f,
                     "    · {:<width$} {:>8}",
                     fit(launched(&name, kernel), width.saturating_sub(KERNEL_INDENT)),
-                    ms(kernel.total),
+                    ms(self.apportion(kernel.total)),
                     width = width.saturating_sub(KERNEL_INDENT),
                 )?;
             }

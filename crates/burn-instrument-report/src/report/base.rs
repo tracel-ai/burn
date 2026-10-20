@@ -340,7 +340,7 @@ impl<'a> Report<'a> {
         component
             .children
             .iter()
-            .any(|child| child.bounds.is_some() || !child.children.is_empty())
+            .any(|child| child.bounds.is_some() || self.composite(child))
     }
 
     /// This component's milliseconds: its kernels' own device time where they

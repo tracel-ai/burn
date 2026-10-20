@@ -780,6 +780,64 @@ fn an_unpriced_root_keeps_the_fusion_rung() {
     assert!(under_a_root.from_fusion() > Duration::ZERO);
 }
 
+/// A priced component whose priced work is nowhere below it — only an unpriced wrapper
+/// over unpriced leaves — stands at its own floor on both rungs, not at its measured time.
+#[test]
+fn a_priced_component_over_an_unpriced_subtree_keeps_its_own_floor() {
+    let mut pass = pass();
+    pass.breakdown.untagged.clear();
+    pass.breakdown.tree = vec![Component {
+        label: "attention".into(),
+        bounds: Some(Bounds {
+            read: 45_000_000,
+            write: 15_000_000,
+            flops: 0,
+        }),
+        children: vec![Component {
+            label: "wrapper".into(),
+            children: vec![Component {
+                label: "leaf".into(),
+                kernels: vec![kernel("Matmul", 1, 1_000)],
+                ..component()
+            }],
+            ..component()
+        }],
+        ..component()
+    }];
+    let report = Report::new(&pass);
+    let floor = report
+        .floor_of(&pass.breakdown.tree[0])
+        .expect("attention is priced")
+        .time;
+
+    let ladder = report.ladder();
+    assert_eq!(ladder.kernels, floor);
+    assert_eq!(ladder.fused, floor);
+}
+
+/// Kernels outside every component are in the same milliseconds as the components: timed
+/// alone, apportioned onto the clean run, so the rows still sum to its wall.
+#[test]
+fn kernels_outside_every_component_are_apportioned_like_the_rest() {
+    let mut pass = pass();
+    pass.breakdown.untagged = vec![kernel("Reshape", 1, 1_000)];
+    let report = Report::new(&pass);
+    let untagged = &pass.breakdown.untagged[0];
+    let apportioned = report.apportion(untagged.total);
+    assert_ne!(
+        ms(apportioned),
+        ms(untagged.total),
+        "the fixture must tell them apart"
+    );
+
+    let table = report.to_string();
+    let line = table
+        .lines()
+        .find(|line| line.contains("Reshape"))
+        .expect("the untagged kernel");
+    assert!(line.ends_with(&ms(apportioned)), "{line}");
+}
+
 /// The fused work the last components left for the sync ending the pass
 /// is printed under its own heading and counted in what the device did.
 #[test]

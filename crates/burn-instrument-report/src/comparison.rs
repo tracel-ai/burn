@@ -96,6 +96,11 @@ impl<'a> Comparison<'a> {
                 was_alone: was.breakdown.timed_alone,
             });
         }
+        if now.clean_wall.is_some() != was.clean_wall.is_some() {
+            mismatches.push(Mismatch::CleanRun {
+                was_measured: was.clean_wall.is_some(),
+            });
+        }
         mismatches
     }
 }
@@ -109,6 +114,9 @@ enum Mismatch<'a> {
     Graph { was_unfused: bool },
     /// One timed its kernels in place and the other alone; `was_alone` is the saved pass's.
     Timing { was_alone: bool },
+    /// One measured an uncollected run and the other did not, so one side's milliseconds are
+    /// that run's and the other's the collected pass's own; `was_measured` is the saved pass's.
+    CleanRun { was_measured: bool },
 }
 
 impl Display for Mismatch<'_> {
@@ -120,6 +128,10 @@ impl Display for Mismatch<'_> {
         let timed = |alone: bool| match alone {
             true => "alone",
             false => "in place",
+        };
+        let measured = |measured: bool| match measured {
+            true => "measured",
+            false => "not measured",
         };
         match *self {
             Mismatch::Device { was, now } => write!(f, "device was {was}, now {now}"),
@@ -134,6 +146,12 @@ impl Display for Mismatch<'_> {
                 "kernels were timed {}, now {}",
                 timed(was_alone),
                 timed(!was_alone)
+            ),
+            Mismatch::CleanRun { was_measured } => write!(
+                f,
+                "clean run was {}, now {}",
+                measured(was_measured),
+                measured(!was_measured)
             ),
         }
     }
@@ -180,7 +198,7 @@ impl Display for Comparison<'_> {
             f,
             "\n  against a saved pass: {}",
             match mismatches.is_empty() {
-                true => "same device, graph and timing".to_string(),
+                true => "same device, graph, timing and clean run".to_string(),
                 false => format!(
                     "DIFFERENT — {}; the deltas below compare two different measurements",
                     mismatches
@@ -346,7 +364,10 @@ mod tests {
         assert!(norm.contains("0.100"), "{norm}");
         assert!(norm.contains("0.150"), "{norm}");
         assert!(norm.contains("+0.050 +50%"), "{norm}");
-        assert!(table.contains("same device, graph and timing"), "{table}");
+        assert!(
+            table.contains("same device, graph, timing and clean run"),
+            "{table}"
+        );
     }
 
     /// Keyed on where a component sits, not on what it is called: `down` under two different
@@ -415,6 +436,22 @@ mod tests {
         let norm = line(&table, "block › norm");
         assert!(norm.contains("fused ↓"), "{norm}");
         assert!(!norm.contains("-0.100"), "{norm}");
+    }
+
+    /// A saved pass with no uncollected run beside one with: one side's `pass` line is that
+    /// run's wall and the other its kernels' device time, so their difference is the host.
+    #[test]
+    fn a_clean_run_on_one_side_only_is_named() {
+        let was = pass(vec![component("norm", 100, Vec::new())]);
+        let mut now = pass(vec![component("norm", 100, Vec::new())]);
+        now.clean_wall = Some(Duration::from_micros(300));
+
+        let table = Report::new(&now).against(&was).to_string();
+        assert!(table.contains("DIFFERENT"), "{table}");
+        assert!(
+            table.contains("clean run was not measured, now measured"),
+            "{table}"
+        );
     }
 
     /// A delta carries the executions that served the component, because a routing change is
