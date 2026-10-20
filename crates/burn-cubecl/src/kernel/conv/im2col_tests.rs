@@ -175,3 +175,11 @@ fn vulkan_dense_im2col_matches_reference() {
         cubecl::wgpu::WgpuDevice::default().on(cubecl::wgpu::WgpuBackend::Vulkan),
     ));
 }
+
+#[cfg(feature = "metal")]
+#[test]
+fn metal_dense_im2col_matches_reference() {
+    suite(CubeDevice::Wgpu(
+        cubecl::wgpu::WgpuDevice::default().on(cubecl::wgpu::WgpuBackend::Metal),
+    ));
+}

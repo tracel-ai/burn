@@ -8,7 +8,8 @@ use burn_backend::{
 use burn_std::Shape;
 use cubek::{
     convolution::{
-        ConvolutionArgs, ConvolutionInputs, UnitStrategy, components::ConvSetupError, launch_unit,
+        ConvolutionArgs, ConvolutionInputs, Strategy, UnitStrategy, components::ConvSetupError,
+        launch_ref,
     },
     matmul::definition::MatmulElems,
     std::InputBinding,
@@ -75,8 +76,8 @@ pub(crate) fn conv_unit<const N: usize>(
         shape.into(),
         input.dtype,
     );
-    let result = launch_unit(
-        strategy,
+    let result = launch_ref(
+        &Strategy::Unit(strategy),
         &input.client,
         ConvolutionInputs::Forward {
             input: binding(&input),
@@ -109,8 +110,8 @@ pub(crate) fn dgrad_unit<const N: usize>(
         shape.clone(),
         out_grad.dtype,
     );
-    let result = launch_unit(
-        strategy,
+    let result = launch_ref(
+        &Strategy::Unit(strategy),
         &out_grad.client,
         ConvolutionInputs::BackwardData {
             out_grad: binding(&out_grad),
@@ -140,8 +141,8 @@ pub(crate) fn wgrad_unit<const N: usize>(
         shape.clone(),
         input.dtype,
     );
-    let result = launch_unit(
-        strategy,
+    let result = launch_ref(
+        &Strategy::Unit(strategy),
         &input.client,
         ConvolutionInputs::BackwardWeight {
             input: binding(&input),
