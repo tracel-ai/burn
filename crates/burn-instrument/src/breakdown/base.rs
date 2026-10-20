@@ -2,6 +2,7 @@
 //! kernels each launched, and what the collection itself can say about how
 //! far those numbers are to be trusted.
 
+use std::collections::HashMap;
 use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
@@ -140,12 +141,10 @@ impl Breakdown {
             kernel.fuses.iter().any(|fused| fused.starts_with(path))
         }
         let components = self.components();
-        let at = |path: &ComponentPath| {
-            components
-                .iter()
-                .find(|(seen, _)| seen == path)
-                .map(|(_, component)| *component)
-        };
+        let by_path: HashMap<&ComponentPath, &Component> = components
+            .iter()
+            .map(|(path, component)| (path, *component))
+            .collect();
         components
             .iter()
             .filter(|(path, component)| {
@@ -159,7 +158,8 @@ impl Breakdown {
                 // sparse `down` are both `down`.
                 let labels: Vec<&str> = path.labels().collect();
                 let named_above = (1..labels.len()).any(|depth| {
-                    let ancestor = at(&ComponentPath::new(labels[..depth].iter().copied()))
+                    let ancestor = by_path
+                        .get(&ComponentPath::new(labels[..depth].iter().copied()))
                         .expect("every prefix of a component's path is a component");
                     let below = ComponentPath::new(labels[depth..].iter().copied());
                     ancestor.kernels.iter().any(|kernel| names(kernel, &below))
@@ -181,21 +181,13 @@ impl Breakdown {
     /// tells two same-named components apart, and what a comparison keys a component of one
     /// pass against another by.
     pub fn components(&self) -> Vec<(ComponentPath, &Component)> {
-        self.tree
-            .iter()
-            .flat_map(|root| {
-                let at = ComponentPath::new([root.label.as_str()]);
-                let below = root.descendants().into_iter().map(|(path, component)| {
-                    (
-                        ComponentPath::new(at.labels().chain(path.labels())),
-                        component,
-                    )
-                });
-                std::iter::once((at.clone(), root))
-                    .chain(below)
-                    .collect::<Vec<_>>()
-            })
-            .collect()
+        let mut out = Vec::new();
+        for root in &self.tree {
+            let at = ComponentPath::new([root.label.as_str()]);
+            out.push((at.clone(), root));
+            root.descend(&at, &mut out);
+        }
+        out
     }
 }
 
