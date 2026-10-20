@@ -16,7 +16,7 @@ use burn_instrument::{CollectedPass, Component, ComponentPath};
 
 use crate::Report;
 
-/// A pass beside the one it is being held against.
+/// A pass beside the one it is being held against: what [`Report::against`] returns.
 pub struct Comparison<'a> {
     now: Report<'a>,
     was: Report<'a>,
@@ -36,13 +36,14 @@ struct Compared<'a> {
 }
 
 impl<'a> Comparison<'a> {
-    /// `now` against `was`.
-    pub fn new(now: &'a CollectedPass, was: &'a CollectedPass) -> Self {
+    /// `now`'s pass against the pass `saved` holds. Two different types, so the two sides
+    /// cannot be swapped by accident: a swap would flip the sign of every delta.
+    pub(crate) fn new(now: Report<'a>, saved: &'a CollectedPass) -> Self {
         Self {
-            now: Report::new(now),
-            was: Report::new(was),
-            now_components: now.breakdown.components(),
-            was_components: was.breakdown.components(),
+            now_components: now.pass().breakdown.components(),
+            was_components: saved.breakdown.components(),
+            now,
+            was: Report::new(saved),
         }
     }
 
@@ -340,7 +341,7 @@ mod tests {
     fn a_component_that_moved_prints_what_it_moved_by() {
         let was = pass(vec![component("norm", 100, Vec::new())]);
         let now = pass(vec![component("norm", 150, Vec::new())]);
-        let table = Comparison::new(&now, &was).to_string();
+        let table = Report::new(&now).against(&was).to_string();
         let norm = line(&table, "norm");
         assert!(norm.contains("0.100"), "{norm}");
         assert!(norm.contains("0.150"), "{norm}");
@@ -360,7 +361,7 @@ mod tests {
             component("dense", 0, vec![component("down", 110, Vec::new())]),
             component("sparse", 0, vec![component("down", 900, Vec::new())]),
         ]);
-        let table = Comparison::new(&now, &was).to_string();
+        let table = Report::new(&now).against(&was).to_string();
         assert!(
             line(&table, "dense › down").contains("+0.010 +10%"),
             "{table}"
@@ -377,7 +378,7 @@ mod tests {
             component("norm", 100, Vec::new()),
             component("rope", 400, Vec::new()),
         ]);
-        let table = Comparison::new(&now, &was).to_string();
+        let table = Report::new(&now).against(&was).to_string();
         let rope = line(&table, "rope");
         assert!(rope.contains("new"), "{rope}");
         assert!(!rope.contains('+'), "{rope}");
@@ -392,7 +393,7 @@ mod tests {
             component("old name", 100, Vec::new()),
         ]);
         let now = pass(vec![component("norm", 100, Vec::new())]);
-        let table = Comparison::new(&now, &was).to_string();
+        let table = Report::new(&now).against(&was).to_string();
         assert!(table.contains("1 component(s)"), "{table}");
         assert!(table.contains("(old name)"), "{table}");
     }
@@ -410,7 +411,7 @@ mod tests {
         block.kernels = vec![kernel("fused", 300, vec![ComponentPath::new(["norm"])])];
         let now = pass(vec![block]);
 
-        let table = Comparison::new(&now, &was).to_string();
+        let table = Report::new(&now).against(&was).to_string();
         let norm = line(&table, "block › norm");
         assert!(norm.contains("fused ↓"), "{norm}");
         assert!(!norm.contains("-0.100"), "{norm}");
@@ -427,7 +428,7 @@ mod tests {
             entries: 1,
         }];
         let now = pass(vec![attention]);
-        let table = Comparison::new(&now, &was).to_string();
+        let table = Report::new(&now).against(&was).to_string();
         assert!(line(&table, "attention").ends_with("tensor-ops"), "{table}");
     }
 
@@ -439,7 +440,7 @@ mod tests {
         let mut now = was.clone();
         now.device = "Rocm(0)".to_string();
         now.breakdown.unfused = true;
-        let table = Comparison::new(&now, &was).to_string();
+        let table = Report::new(&now).against(&was).to_string();
         let header = table
             .lines()
             .find(|line| line.contains("against a saved pass"))

@@ -7,7 +7,8 @@
 //! component's kernels and their device time, and the device's peaks and clean-pass wall time
 //! measured beside it. This crate turns one into the report a reader acts on, on any machine:
 //! each component scored against the wall it is bound by ([`roofline`]), in a [`Report`]
-//! that renders as a table, and two passes held against each other in a [`Comparison`].
+//! that renders as a table, and a pass held against a saved one ([`Report::against`]) in a
+//! [`Comparison`].
 
 mod comparison;
 mod report;

@@ -13,6 +13,7 @@ use burn_instrument::{
     Bounds, CollectedPass, Component, ComponentPath, Kernel, PeakFinding, Peaks,
 };
 
+use crate::Comparison;
 use crate::roofline::{Floor, Ladder, Score};
 
 /// A collected pass, scored against its device's peaks, and the table that
@@ -119,8 +120,13 @@ impl<'a> Report<'a> {
         }
     }
 
-    /// The pass this report scores.
-    pub fn pass(&self) -> &'a CollectedPass {
+    /// This pass held against `saved`, component by component.
+    pub fn against(self, saved: &'a CollectedPass) -> Comparison<'a> {
+        Comparison::new(self, saved)
+    }
+
+    /// The pass this report scores, for the comparison it is held in.
+    pub(crate) fn pass(&self) -> &'a CollectedPass {
         self.pass
     }
 

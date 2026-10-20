@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 use burn_instrument::CollectedPass;
-use burn_instrument_report::{Comparison, Report};
+use burn_instrument_report::Report;
 
 const USAGE: &str = "usage: burn-instrument-report <pass.json> [--against <saved.json>]";
 
@@ -51,10 +51,11 @@ fn read(path: &Path) -> Result<CollectedPass, String> {
 
 fn run(arguments: Arguments) -> Result<(), String> {
     let pass = read(&arguments.pass)?;
-    print!("{}", Report::new(&pass));
+    let report = Report::new(&pass);
+    print!("{report}");
     if let Some(against) = &arguments.against {
         let saved = read(against)?;
-        print!("{}", Comparison::new(&pass, &saved));
+        print!("{}", report.against(&saved));
     }
     Ok(())
 }
