@@ -4,7 +4,7 @@ use crate::{
     engine::{
         codegen::{
             DynSize,
-            io::ref_len,
+            io::num_elements,
             ir::{
                 FuseArg, FuseBlockConfig, GlobalArgs, GlobalArgsLaunch, RefLayout,
                 multi_block_variables_init,
@@ -134,7 +134,9 @@ fn elemwise_fuse(
     multi_block_variables_init(&config, &mut outputs.variables);
 
     let mut locals = init_locals(inputs, outputs, &config);
-    let length = ref_len(inputs, &*outputs, &locals, &config);
+    // `pos` counts units of `config.width` elements, while the reference tensor may be launched
+    // with another vector size (an in-place output keeps its input's), so bound by elements.
+    let length = num_elements(&locals, &config) / config.width;
 
     if pos < length {
         fuse_on_write::<f32, DynSize>(inputs, outputs, &mut locals, pos, values, args, &config)

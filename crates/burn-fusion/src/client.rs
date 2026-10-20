@@ -13,7 +13,7 @@ use burn_std::{
 };
 
 use burn_backend::{TensorData, backend::ExecutionError};
-use burn_ir::{OperationIr, TensorId, TensorIr};
+use burn_ir::{OperationIr, TensorError, TensorId, TensorIr};
 use burn_std::sync::RwLock;
 use hashbrown::HashSet;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -211,6 +211,16 @@ where
     /// Get the current device used by all operations handled by this client.
     pub fn device(&self) -> &FusionDevice<R> {
         &self.device
+    }
+
+    /// A tensor id on this client whose reads fail with `error`.
+    pub fn register_error(&self, error: TensorError) -> TensorId {
+        let id = self.create_empty_handle();
+
+        self.server
+            .submit(move |server| server.handles.set_error(id, error));
+
+        id
     }
 
     /// Create a tensor with the given handle and returns its corresponding [tensor id](TensorId).
@@ -541,6 +551,64 @@ where
             .submit_blocking(move |server| server.resolve_server_bool::<B>(tensor, stream));
         held::release();
         resolved.unwrap_or_else(|err| Err(crate::backend::server_error(err)))
+    }
+
+    /// Resolve the given float tensor as a read does, keeping the failure claiming it as it is
+    /// carried, so it propagates from its root.
+    pub fn resolve_carrying_float<B>(
+        &self,
+        tensor: FusionTensor<R>,
+    ) -> Result<B::FloatTensorPrimitive, TensorError>
+    where
+        B: FusionBackend<FusionRuntime = R>,
+    {
+        self.resolve_carrying(tensor, |server, tensor, stream| {
+            server.read_float::<B>(tensor, stream)
+        })
+    }
+
+    /// Resolve the given int tensor as a read does, keeping the failure claiming it as it is carried.
+    pub fn resolve_carrying_int<B>(
+        &self,
+        tensor: FusionTensor<R>,
+    ) -> Result<B::IntTensorPrimitive, TensorError>
+    where
+        B: FusionBackend<FusionRuntime = R>,
+    {
+        self.resolve_carrying(tensor, |server, tensor, stream| {
+            server.read_int::<B>(tensor, stream)
+        })
+    }
+
+    /// Resolve the given bool tensor as a read does, keeping the failure claiming it as it is carried.
+    pub fn resolve_carrying_bool<B>(
+        &self,
+        tensor: FusionTensor<R>,
+    ) -> Result<B::BoolTensorPrimitive, TensorError>
+    where
+        B: FusionBackend<FusionRuntime = R>,
+    {
+        self.resolve_carrying(tensor, |server, tensor, stream| {
+            server.read_bool::<B>(tensor, stream)
+        })
+    }
+
+    fn resolve_carrying<T: Send + 'static>(
+        &self,
+        tensor: FusionTensor<R>,
+        read: impl FnOnce(&mut FusionServer<R>, TensorIr, StreamId) -> Result<T, TensorError>
+        + Send
+        + 'static,
+    ) -> Result<T, TensorError> {
+        // `into_ir()` runs on this thread: on the server thread, a cross-stream tensor's
+        // `shared_view` would `submit_blocking` again and panic on the re-entrancy.
+        let stream = tensor.stream;
+        let tensor = tensor.into_ir();
+        let read = self
+            .server
+            .submit_blocking(move |server| read(server, tensor, stream));
+        held::release();
+        read.unwrap_or_else(|err| Err(TensorError::new(crate::backend::server_error(err))))
     }
 
     /// Synchronize the collective operations.

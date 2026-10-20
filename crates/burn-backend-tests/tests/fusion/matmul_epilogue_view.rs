@@ -10,9 +10,13 @@ use burn_fusion::inspect::FusionInspector;
 use burn_tensor::{TensorData, Tolerance};
 
 /// Row-major `[rows, cols]` data, `rows * cols` distinct values.
+///
+/// Each value keeps only the 10 mantissa bits of TF32, which autotune may pick for an f32
+/// matmul: its products are then exact, matching the f32 reference.
 fn data(rows: usize, cols: usize, offset: f32) -> Vec<f32> {
     (0..rows * cols)
         .map(|i| (i as f32 * 0.37 + offset).sin())
+        .map(|v| f32::from_bits(v.to_bits() & 0xFFFF_E000))
         .collect()
 }
 

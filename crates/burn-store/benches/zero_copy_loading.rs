@@ -406,8 +406,7 @@ mod store_only {
                 let mut store = BurnpackStore::from_file(&bp_path);
                 let tensors = store.get_all_tensors().expect("Failed to get tensors");
                 for tensor in tensors.values() {
-                    let _data =
-                        burn_store::bridge::to_data(tensor).expect("Failed to get tensor data");
+                    let _data = tensor.to_data().expect("Failed to get tensor data");
                 }
             });
     }
@@ -425,8 +424,7 @@ mod store_only {
                 let mut store = BurnpackStore::from_bytes(Some(bytes));
                 let tensors = store.get_all_tensors().expect("Failed to get tensors");
                 for tensor in tensors.values() {
-                    let _data =
-                        burn_store::bridge::to_data(tensor).expect("Failed to get tensor data");
+                    let _data = tensor.to_data().expect("Failed to get tensor data");
                 }
             });
     }
@@ -443,8 +441,7 @@ mod store_only {
                 let mut store = BurnpackStore::from_static(static_bytes);
                 let tensors = store.get_all_tensors().expect("Failed to get tensors");
                 for tensor in tensors.values() {
-                    let _data =
-                        burn_store::bridge::to_data(tensor).expect("Failed to get tensor data");
+                    let _data = tensor.to_data().expect("Failed to get tensor data");
                 }
             });
     }

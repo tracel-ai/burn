@@ -7,7 +7,7 @@ use crate::ops::numeric::{self, zeros_client};
 #[cfg(feature = "std")]
 use burn_backend::{
     DeviceId, TensorMetadata,
-    cubecl::dtype_to_elem_type,
+    cubecl::{dtype_to_elem_type, reduce_operation_to_cubecl},
     distributed::{CollectiveTensor, ReduceOperation},
     tensor::{Device, FloatTensor},
 };
@@ -32,10 +32,7 @@ impl DistributedOps<Self> for CubeBackend {
             numeric::add(zeros_tensor, tensor)
         };
 
-        let op = match op {
-            ReduceOperation::Sum => cubecl::server::ReduceOperation::Sum,
-            ReduceOperation::Mean => cubecl::server::ReduceOperation::Mean,
-        };
+        let op = reduce_operation_to_cubecl(op);
 
         let mut client = device.client();
         client.all_reduce(
