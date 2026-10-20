@@ -353,14 +353,23 @@ where
                 // sessions must not wait on each other through earlier tasks.
                 self.probe
                     .emit(|| part.op_event(self.session_id, stream_id));
-                let reduced = match stream_id.executes(|| self.runner.get_tensor(&part.tensor)) {
-                    HandleKind::Float(tensor) => {
-                        self.local_comm.all_reduce(&part, tensor, stream_id).await
+                let input = match self.runner.read_failure(&part.tensor.id) {
+                    Some(reason) => Err(format!("all-reduce {:?}: {reason}", part.collective)),
+                    None => match stream_id.executes(|| self.runner.get_tensor(&part.tensor)) {
+                        HandleKind::Float(tensor) => Ok(tensor),
+                        _ => Err(format!(
+                            "all-reduce {:?} takes float tensors",
+                            part.collective
+                        )),
+                    },
+                };
+                let reduced = match input {
+                    Ok(tensor) => self.local_comm.all_reduce(&part, tensor, stream_id).await,
+                    Err(reason) => {
+                        // The other members wait for this one, so they are told it cannot come.
+                        self.local_comm.fail(&part, &reason).await;
+                        Err(reason)
                     }
-                    _ => Err(format!(
-                        "all-reduce {:?} takes float tensors",
-                        part.collective
-                    )),
                 };
                 match reduced {
                     Ok(reduced) => {

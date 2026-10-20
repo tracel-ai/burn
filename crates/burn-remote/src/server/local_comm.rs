@@ -36,12 +36,93 @@ struct ArrivedMember<B: BackendIr> {
     result: oneshot::Sender<Result<FloatTensor<B>, String>>,
 }
 
+/// Where one all-reduce stands.
+enum Rendezvous<B: BackendIr> {
+    /// Its members so far, by member.
+    Gathering(Vec<Option<ArrivedMember<B>>>),
+    /// Failed, kept until the members still to come are told so.
+    Failed { error: String, remaining: usize },
+}
+
+/// The all-reduces of this server's sessions that are gathering their members or failed.
+struct AllReduces<B: BackendIr>(HashMap<LocalCollectiveId, Rendezvous<B>>);
+
+impl<B: BackendIr> AllReduces<B> {
+    /// Hand `member` over for `part`: every member once the last arrives, nothing while some are
+    /// still to come.
+    fn arrive(
+        &mut self,
+        part: &LocalAllReducePart,
+        member: ArrivedMember<B>,
+    ) -> Result<Option<Vec<ArrivedMember<B>>>, String> {
+        let collective = part.collective;
+        let (index, members) = (part.member as usize, part.members as usize);
+        let rendezvous = self
+            .0
+            .entry(collective)
+            .or_insert_with(|| Rendezvous::Gathering((0..members).map(|_| None).collect()));
+        let arrived = match rendezvous {
+            Rendezvous::Gathering(arrived) => arrived,
+            Rendezvous::Failed { error, remaining } => {
+                let error = error.clone();
+                *remaining = remaining.saturating_sub(1);
+                if *remaining == 0 {
+                    self.0.remove(&collective);
+                }
+                return Err(error);
+            }
+        };
+        if arrived.len() != members || arrived.get(index).is_none_or(Option::is_some) {
+            let error = format!(
+                "member {index} of {members} does not fit all-reduce {collective:?} of {}",
+                arrived.len()
+            );
+            let members = arrived.len();
+            self.fail(collective, members, 0, &error);
+            return Err(error);
+        }
+        arrived[index] = Some(member);
+        if arrived.iter().any(Option::is_none) {
+            return Ok(None);
+        }
+        match self.0.remove(&collective) {
+            Some(Rendezvous::Gathering(arrived)) => {
+                Ok(Some(arrived.into_iter().flatten().collect()))
+            }
+            _ => unreachable!("a complete all-reduce is gathering"),
+        }
+    }
+
+    /// Fail `collective` with `error`: the members waiting are told now, and the rest as they
+    /// arrive, less the `settled` ones that already know.
+    fn fail(&mut self, collective: LocalCollectiveId, members: usize, settled: usize, error: &str) {
+        let to_come = match self.0.remove(&collective) {
+            Some(Rendezvous::Gathering(arrived)) => {
+                let members = arrived.len();
+                let waiting: Vec<_> = arrived.into_iter().flatten().collect();
+                let to_come = members - waiting.len();
+                for member in waiting {
+                    let _ = member.result.send(Err(error.to_string()));
+                }
+                to_come
+            }
+            Some(Rendezvous::Failed { remaining, .. }) => remaining,
+            None => members,
+        };
+        let remaining = to_come.saturating_sub(settled);
+        if remaining > 0 {
+            let error = error.to_string();
+            self.0
+                .insert(collective, Rendezvous::Failed { error, remaining });
+        }
+    }
+}
+
 /// Rendezvous registry for same-host communication, keyed by [`LocalTransferId`].
 pub(crate) struct LocalCommService<B: BackendIr> {
     /// Primitives exposed by source sessions, waiting to be taken by their target.
     pending: Mutex<HashMap<LocalTransferId, Pending<B>>>,
-    /// The members of each all-reduce that have arrived, by member, until the last does.
-    all_reduces: Mutex<HashMap<LocalCollectiveId, Vec<Option<ArrivedMember<B>>>>>,
+    all_reduces: Mutex<AllReduces<B>>,
     /// Wakes takers whenever a new primitive is exposed.
     notify: Arc<Notify>,
 }
@@ -50,7 +131,7 @@ impl<B: BackendIr> LocalCommService<B> {
     pub fn new() -> Self {
         Self {
             pending: Mutex::new(HashMap::new()),
-            all_reduces: Mutex::new(HashMap::new()),
+            all_reduces: Mutex::new(AllReduces(HashMap::new())),
             notify: Arc::new(Notify::new()),
         }
     }
@@ -93,8 +174,8 @@ impl<B: BackendIr> LocalCommService<B> {
     ///
     /// # Errors
     ///
-    /// When the part does not fit its all-reduce's members, which fails the members already
-    /// waiting too, and for every other member when the all-reduce panics in the last one.
+    /// When the part does not fit its all-reduce's members, which fails it for every member, when
+    /// it already failed, and for every other member when it panics in the last one.
     pub async fn all_reduce(
         &self,
         part: &LocalAllReducePart,
@@ -102,35 +183,13 @@ impl<B: BackendIr> LocalCommService<B> {
         stream_id: StreamId,
     ) -> Result<FloatTensor<B>, String> {
         let collective = part.collective;
-        let (member, members) = (part.member as usize, part.members as usize);
         let (sender, result) = oneshot::channel();
-        let complete = {
-            let mut all_reduces = self.all_reduces.lock().await;
-            let arrived = all_reduces
-                .entry(collective)
-                .or_insert_with(|| (0..members).map(|_| None).collect());
-            if arrived.len() != members || arrived.get(member).is_none_or(Option::is_some) {
-                let error = format!(
-                    "member {member} of {members} does not fit all-reduce {collective:?} of {}",
-                    arrived.len()
-                );
-                let waiting = all_reduces.remove(&collective).into_iter().flatten();
-                for waiting in waiting.flatten() {
-                    let _ = waiting.result.send(Err(error.clone()));
-                }
-                return Err(error);
-            }
-            arrived[member] = Some(ArrivedMember {
-                tensor,
-                result: sender,
-            });
-            match arrived.iter().all(Option::is_some) {
-                true => all_reduces.remove(&collective),
-                false => None,
-            }
+        let member = ArrivedMember {
+            tensor,
+            result: sender,
         };
-        if let Some(arrived) = complete {
-            let mut arrived: Vec<_> = arrived.into_iter().flatten().collect();
+        let complete = self.all_reduces.lock().await.arrive(part, member)?;
+        if let Some(mut arrived) = complete {
             // A native group takes its members in ascending device order, and every member
             // receives the same result in any.
             arrived.sort_by_key(|member| member.tensor.device().id());
@@ -149,6 +208,15 @@ impl<B: BackendIr> LocalCommService<B> {
                 "all-reduce {collective:?} failed in its last member"
             )),
         }
+    }
+
+    /// Fail this part's all-reduce for every member, when this one cannot take part.
+    pub async fn fail(&self, part: &LocalAllReducePart, error: &str) {
+        let members = part.members as usize;
+        self.all_reduces
+            .lock()
+            .await
+            .fail(part.collective, members, 1, error);
     }
 
     /// Drop every primitive `session` exposed that no target ever took.
@@ -263,6 +331,38 @@ mod tests {
             .expect("the waiting member was left waiting");
 
         assert!(duplicate.is_err());
+        assert!(first.is_err());
+
+        let late = tokio::time::timeout(
+            Duration::from_secs(10),
+            comm.all_reduce(
+                &part(collective, 1, 2),
+                tensor([5.0, 6.0]),
+                StreamId::current(),
+            ),
+        )
+        .await
+        .expect("a member arriving after the failure was left waiting");
+        assert!(late.is_err());
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_member_that_cannot_take_part_fails_the_one_waiting() {
+        let comm = LocalCommService::<Flex>::new();
+        let collective = LocalCollectiveId::random();
+        let first_part = part(collective, 0, 2);
+        let first = comm.all_reduce(&first_part, tensor([1.0, 2.0]), StreamId::current());
+        tokio::pin!(first);
+        let waiting =
+            std::future::poll_fn(|cx| Poll::Ready(first.as_mut().poll(cx).is_pending())).await;
+        assert!(waiting);
+
+        comm.fail(&part(collective, 1, 2), "its input was never produced")
+            .await;
+        let first = tokio::time::timeout(Duration::from_secs(10), first)
+            .await
+            .expect("the waiting member was left waiting");
+
         assert!(first.is_err());
     }
 }

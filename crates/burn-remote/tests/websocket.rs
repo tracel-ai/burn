@@ -651,6 +651,79 @@ fn ddp_over_one_servers_devices_averages_the_gradients() {
 
 #[test]
 #[serial]
+fn ddp_releases_no_device_until_every_backward_ended() {
+    const ROUNDS: usize = 20;
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()
+        .unwrap();
+    let host = serve(
+        &rt,
+        BackendServer::<Flex>::new(vec![Default::default(), Default::default()]),
+    );
+    let devices: Vec<Device> = (0..2)
+        .map(|index| {
+            Device::remote_options(&host)
+                .device_index(index)
+                .init()
+                .unwrap()
+                .autodiff()
+        })
+        .collect();
+    let config = DistributedConfig {
+        all_reduce_op: ReduceOperation::Mean,
+    };
+    let _context = DistributedContext::init(devices.clone(), config);
+    let param = ParamId::new();
+
+    let gradients = with_deadlock_watchdog(HANG_LIMIT, move || {
+        std::thread::scope(|scope| {
+            let peers: Vec<_> = devices
+                .iter()
+                .enumerate()
+                .map(|(index, device)| {
+                    scope.spawn(move || {
+                        let weights = Tensor::<1>::from_floats([0.5, 0.5], device).require_grad();
+                        let rounds: Vec<_> = (0..ROUNDS)
+                            .map(|_| {
+                                // Backward runs the deepest steps first. Device 1's weights end a
+                                // long chain, so its gradient goes out before the chain's own
+                                // steps, while device 0 is done and starts its next round.
+                                let input = match index {
+                                    1 => {
+                                        let leaf = Tensor::<1>::from_floats([1.0, 1.0], device)
+                                            .require_grad();
+                                        (0..2000).fold(leaf, |chain, _| chain * 1.0)
+                                    }
+                                    _ => Tensor::<1>::from_floats([3.0, 2.0], device),
+                                };
+                                let marked = weights.clone().set_distributed(param);
+                                let loss = (marked.clone() * input).sum();
+                                marked.grad(&loss.backward()).unwrap()
+                            })
+                            .collect();
+                        rounds
+                            .into_iter()
+                            .map(|gradient| gradient.into_data())
+                            .collect::<Vec<_>>()
+                    })
+                })
+                .collect();
+            peers
+                .into_iter()
+                .flat_map(|peer| peer.join().unwrap())
+                .collect::<Vec<_>>()
+        })
+    });
+
+    for gradient in gradients {
+        gradient.assert_eq(&TensorData::from([2.0f32, 1.5]), false);
+    }
+    rt.shutdown_background();
+}
+
+#[test]
+#[serial]
 fn a_second_ddp_context_on_one_backend_is_refused() {
     let rt = tokio::runtime::Builder::new_multi_thread()
         .enable_all()
@@ -682,9 +755,9 @@ fn a_second_ddp_context_on_one_backend_is_refused() {
     rt.shutdown_background();
 }
 
-#[test]
-#[serial]
-fn a_backward_outside_the_ddp_group_does_not_wait_for_it() {
+/// A backward on server device `index`, alone, while devices 0 and 1 of three form a DDP group,
+/// with its weights marked as `mark` when given. It returns its own gradient, unsynced.
+fn lone_backward_beside_a_ddp_group(index: usize, mark: Option<ParamId>) -> TensorData {
     let rt = tokio::runtime::Builder::new_multi_thread()
         .enable_all()
         .build()
@@ -703,17 +776,36 @@ fn a_backward_outside_the_ddp_group_does_not_wait_for_it() {
         all_reduce_op: ReduceOperation::Mean,
     };
     let _context = DistributedContext::init(devices[..2].to_vec(), config);
-    let outside = devices[2].clone();
+    let device = devices[index].clone();
 
     let gradient = with_deadlock_watchdog(HANG_LIMIT, move || {
-        let weights = Tensor::<1>::from_floats([0.5, 0.5], &outside).require_grad();
-        let input = Tensor::<1>::from_floats([1.0, -2.0], &outside);
+        let weights = Tensor::<1>::from_floats([0.5, 0.5], &device).require_grad();
+        let weights = match mark {
+            Some(param) => weights.set_distributed(param),
+            None => weights,
+        };
+        let input = Tensor::<1>::from_floats([1.0, -2.0], &device);
         let gradients = (weights.clone() * input).sum().backward();
         weights.grad(&gradients).unwrap().into_data()
     });
+    rt.shutdown_background();
+    gradient
+}
+
+#[test]
+#[serial]
+fn a_backward_outside_the_ddp_group_is_left_unsynced() {
+    let gradient = lone_backward_beside_a_ddp_group(2, Some(ParamId::new()));
 
     gradient.assert_eq(&TensorData::from([1.0f32, -2.0]), false);
-    rt.shutdown_background();
+}
+
+#[test]
+#[serial]
+fn a_backward_without_distributed_params_on_a_ddp_device_does_not_wait() {
+    let gradient = lone_backward_beside_a_ddp_group(0, None);
+
+    gradient.assert_eq(&TensorData::from([1.0f32, -2.0]), false);
 }
 
 /// Rounds enough for parts sent to several sessions to interleave between concurrent calls.

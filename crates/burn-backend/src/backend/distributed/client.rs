@@ -13,7 +13,7 @@ pub(crate) enum ActionMessage<B: Backend> {
 }
 
 pub(crate) enum DistributedSyncMessage<B: Backend> {
-    RegisterSyncParameters(Vec<DistributedParams>),
+    RegisterSyncParameters((Device<B>, Vec<DistributedParams>)),
     TensorSync((TensorRef<B>, DistributedParams)),
     CollectiveSync((Device<B>, oneshot::Sender<()>)),
 }
@@ -38,10 +38,14 @@ impl<B: Backend> DistributedSyncClient<B> {
         Self { sender: tx }
     }
 
-    pub fn register_sync_parameters(&self, sharded_params: Vec<DistributedParams>) {
+    pub fn register_sync_parameters(
+        &self,
+        device: Device<B>,
+        sharded_params: Vec<DistributedParams>,
+    ) {
         self.sender
             .send(ActionMessage::Message(
-                DistributedSyncMessage::RegisterSyncParameters(sharded_params),
+                DistributedSyncMessage::RegisterSyncParameters((device, sharded_params)),
             ))
             .unwrap();
     }

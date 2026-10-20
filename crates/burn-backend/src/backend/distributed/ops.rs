@@ -60,13 +60,13 @@ pub trait DistributedOps<B: Backend> {
     ///
     /// * `device` - The device calling the initialization.
     /// * `distributed_params` - A list of [`DistributedParams`] of the tensors to sync.
-    fn register_sync_parameters(_device: &B::Device, distributed_params: Vec<DistributedParams>) {
+    fn register_sync_parameters(device: &B::Device, distributed_params: Vec<DistributedParams>) {
         #[cfg(feature = "std")]
         if let Some(sync_client) = get_distributed_sync_client::<B>() {
-            sync_client.register_sync_parameters(distributed_params);
+            sync_client.register_sync_parameters(device.clone(), distributed_params);
         };
         #[cfg(not(feature = "std"))]
-        let _ = distributed_params;
+        let _ = (device, distributed_params);
     }
 
     /// Tell the gradient sync server that this device has submitted all its gradients, and wait

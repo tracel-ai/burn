@@ -14,8 +14,8 @@ pub(crate) struct DistributedSyncServer<B: Backend> {
     param_required_map: HashMap<DistributedParamId, usize>,
     devices: Vec<DeviceId>,
     devices_registered: usize,
-    syncing_devices: Vec<Device<B>>,
-    callbacks: HashMap<DeviceId, oneshot::Sender<()>>,
+    /// The backwards waiting to be released, by device.
+    callbacks: HashMap<DeviceId, Vec<oneshot::Sender<()>>>,
 }
 
 impl<B: Backend> DistributedSyncServer<B> {
@@ -27,7 +27,6 @@ impl<B: Backend> DistributedSyncServer<B> {
             param_required_map: HashMap::default(),
             devices: devices.iter().map(DeviceOps::id).collect(),
             devices_registered: 0,
-            syncing_devices: vec![],
             callbacks: HashMap::default(),
         }
     }
@@ -35,8 +34,8 @@ impl<B: Backend> DistributedSyncServer<B> {
     /// Process message from client.
     pub(crate) fn process_message(&mut self, msg: DistributedSyncMessage<B>) {
         match msg {
-            DistributedSyncMessage::RegisterSyncParameters(params) => {
-                self.register_sync_params(params)
+            DistributedSyncMessage::RegisterSyncParameters((device, params)) => {
+                self.register_sync_params(device, params)
             }
             DistributedSyncMessage::TensorSync((tensor, params)) => {
                 self.register_tensor(tensor, params)
@@ -48,7 +47,10 @@ impl<B: Backend> DistributedSyncServer<B> {
     }
 
     /// Called at the start of the backward process. Lets the device announce what parameters are nodes in the autodiff graph and how many times they are required.
-    fn register_sync_params(&mut self, sharded_params: Vec<DistributedParams>) {
+    fn register_sync_params(&mut self, device: Device<B>, sharded_params: Vec<DistributedParams>) {
+        if !self.is_member(&device) {
+            return;
+        }
         sharded_params.iter().for_each(|params| {
             *self.param_required_map.entry(params.param_id).or_insert(0) += 1;
         });
@@ -57,6 +59,11 @@ impl<B: Backend> DistributedSyncServer<B> {
 
     /// Called on registration of a gradient. Calls the all_reduce operation for any parameter that is no longer required in the autodiff graph.
     fn register_tensor(&mut self, tensor: TensorRef<B>, sharded_params: DistributedParams) {
+        // Safety: its backward sends `CollectiveSync` after this and waits for the answer, so the
+        // gradient is alive.
+        if !self.is_member(&unsafe { &*tensor.0 }.device()) {
+            return;
+        }
         let op_queue = self
             .all_reduce_ops_queue
             .entry(sharded_params.param_id)
@@ -66,26 +73,32 @@ impl<B: Backend> DistributedSyncServer<B> {
     }
 
     fn collective_sync(&mut self, device: Device<B>, callback: oneshot::Sender<()>) {
-        // A backward on a device outside the group syncs nothing, and must not fill the barrier.
-        if !self.devices.contains(&device.id()) {
+        if !self.is_member(&device) {
             callback.send(()).expect("Can send callback");
             return;
         }
-        self.callbacks.insert(device.id(), callback);
-        self.syncing_devices.push(device.clone());
+        self.callbacks
+            .entry(device.id())
+            .or_default()
+            .push(callback);
         self.try_launch_sync();
+    }
+
+    /// Whether `device` is in the group. Another device's backward syncs nothing here: none of
+    /// its gradients are queued, so it is released at once.
+    fn is_member(&self, device: &Device<B>) -> bool {
+        self.devices.contains(&device.id())
     }
 
     fn try_launch_sync(&mut self) {
         // All at once: a device released early registers its next backward before this reset.
-        let devices_missing = self.syncing_devices.len() < self.devices.len();
+        let devices_missing = self.callbacks.len() < self.devices.len();
         if devices_missing || !self.all_reduce_ops_queue.is_empty() {
             return;
         }
         self.devices_registered = 0;
         self.param_required_map.clear();
-        for device in self.syncing_devices.drain(..) {
-            let callback = self.callbacks.remove(&device.id()).unwrap();
+        for callback in self.callbacks.drain().flat_map(|(_, callbacks)| callbacks) {
             callback.send(()).expect("Can send callback");
         }
     }

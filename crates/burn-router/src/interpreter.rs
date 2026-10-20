@@ -5,7 +5,12 @@ use crate::{
     reduce_float_dim_ops, reduce_float2int_dim_ops, reduce_int_dim_ops, scalar_float_cmp_ops,
     scalar_float_ops, scalar_int_cmp_ops, scalar_int_ops, unary_float_ops, unary_int_ops,
 };
-use alloc::{boxed::Box, vec::Vec};
+use alloc::{
+    boxed::Box,
+    format,
+    string::{String, ToString},
+    vec::Vec,
+};
 use burn_backend::{
     Backend, DType, DeviceOps, ExecutionError, FloatDType, ProfileDuration, ProfileOptions,
     ProfileToken, Shape, TensorData, TensorMetadata, TensorPrimitive, ops::TransactionPrimitive,
@@ -139,6 +144,15 @@ impl<B: BackendIr> TensorInterpreter<B> {
     /// Register `id` as failed by `error`, so a read of it reports why instead of finding nothing.
     pub fn set_error(&mut self, id: TensorId, error: TensorError) {
         self.context.handles.set_error(id, error);
+    }
+
+    /// Why `id` cannot be read, if it cannot: a failure claimed it, or nothing produced it.
+    pub fn read_failure(&self, id: &TensorId) -> Option<String> {
+        let handles = &self.context.handles;
+        match handles.error(id) {
+            Some(error) => Some(error.to_string()),
+            None => (!handles.has_handle(id)).then(|| format!("tensor {id:?} was never produced")),
+        }
     }
 
     /// Create a tensor with the given handle and shape.

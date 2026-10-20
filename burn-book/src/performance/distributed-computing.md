@@ -144,5 +144,6 @@ across the selected server devices.
 - Use local DDP when several devices are directly available to the training process.
 - Use remote devices with DDP when a Burn server exposes several accelerators to a client.
 
-CUDA devices with NCCL, local or on one remote server, synchronize gradients natively; any other
-group synchronizes them with transfers between devices.
+DDP runs on the CubeCL backends and on remote devices.
+CUDA devices with NCCL, local or on one remote server, synchronize gradients natively, and the
+others with transfers between devices. Flex and Capture do not run DDP.
