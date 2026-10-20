@@ -44,7 +44,7 @@ use super::{ConnectError, runtime::Executor};
 pub(crate) use conn::{RemoteEndpoint, SubmitChannel};
 use registry::{device_count_cell, settings_cell};
 pub(crate) use registry::{device_count_for, register_endpoint, registered_device, session_end};
-pub(crate) use registry::{has_settings, new_tensor_id, settings_for};
+pub(crate) use registry::{has_settings, new_tensor_id, session_of, settings_for};
 
 /// How long a connection attempt, then the handshake, may each take before the server is taken to
 /// be stuck.
@@ -121,10 +121,10 @@ impl DeviceService for RemoteService {
         let registry::RegisteredDevice {
             endpoint,
             device_index,
+            session_id,
         } = registered_device(id)
             .unwrap_or_else(|| panic!("No endpoint registered for device id {device_id}"));
         let executor = Executor::session();
-        let session_id = SessionId::new();
 
         let probe = if TelemetryLogger::enabled() {
             TelemetryProbe::new(CHANNEL_CAPACITY)

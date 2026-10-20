@@ -11,6 +11,7 @@ use std::{
 };
 
 use super::conn::{EndpointKey, RemoteEndpoint};
+use crate::shared::SessionId;
 
 static TENSOR_ID_COUNTER: AtomicU64 = AtomicU64::new(0);
 
@@ -48,6 +49,7 @@ struct EndpointEntry {
     settings: Arc<OnceLock<DeviceSettings>>,
     device_count: Arc<OnceLock<u32>>,
     session: Arc<SessionEnd>,
+    session_id: SessionId,
 }
 
 static REGISTRY: OnceLock<Mutex<EndpointRegistry>> = OnceLock::new();
@@ -95,15 +97,18 @@ pub(crate) fn register_endpoint(endpoint: RemoteEndpoint, device_index: u32) -> 
             settings: Arc::new(OnceLock::new()),
             device_count: Arc::new(OnceLock::new()),
             session: Arc::default(),
+            session_id: SessionId::new(),
         },
     );
     id
 }
 
-/// A registered device: where its server is, and which of the server's devices it is.
+/// A registered device: where its server is, which of the server's devices it is, and the one
+/// session it opens there.
 pub(crate) struct RegisteredDevice {
     pub(crate) endpoint: RemoteEndpoint,
     pub(crate) device_index: u32,
+    pub(crate) session_id: SessionId,
 }
 
 fn find_entry<T>(id: u32, read: impl FnOnce(&EndpointEntry) -> T) -> Option<T> {
@@ -119,7 +124,13 @@ pub(crate) fn registered_device(id: u32) -> Option<RegisteredDevice> {
     find_entry(id, |entry| RegisteredDevice {
         endpoint: entry.endpoint.clone(),
         device_index: entry.device_index,
+        session_id: entry.session_id,
     })
+}
+
+/// The session the device registered as `id` opens.
+pub fn session_of(id: u32) -> SessionId {
+    with_entry(id, |entry| entry.session_id)
 }
 
 pub(crate) fn settings_for(id: u32) -> DeviceSettings {

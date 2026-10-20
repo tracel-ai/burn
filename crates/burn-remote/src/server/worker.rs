@@ -339,8 +339,7 @@ where
                 let kind = stream_id.executes(|| self.runner.get_tensor(&tensor));
                 self.local_comm
                     .expose(self.session_id, transfer_id, kind)
-                    .await;
-                Ok(())
+                    .await
             }
             Task::RegisterTensorLocal {
                 stream_id,
@@ -556,8 +555,9 @@ mod tests {
     async fn a_panicking_task_still_tears_its_session_down() {
         let local_comm = Arc::new(LocalCommService::<Flex>::new());
         let (response_sender, mut responses) = mpsc::channel(1);
+        let session_id = SessionId::new();
         let tasks = SessionHandler::spawn(
-            SessionId::new(),
+            session_id,
             TensorInterpreter::new(Default::default()),
             HostedDeviceIds::of::<Flex>(&[Default::default()]),
             response_sender,
@@ -584,7 +584,7 @@ mod tests {
             Task::ExposeTensorLocal {
                 stream_id,
                 tensor: exposed,
-                transfer_id: LocalTransferId::from(0),
+                transfer_id: LocalTransferId::new(session_id, 0),
             },
             Task::ReadTensors(request_id, stream_id, vec![never_written]),
         ] {

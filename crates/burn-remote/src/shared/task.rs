@@ -7,6 +7,8 @@ use burn_std::{
 use core::time::Duration;
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
+#[cfg(feature = "client")]
+use std::sync::atomic::{AtomicU64, Ordering};
 
 use crate::{PeerAddr, PeerId};
 
@@ -16,7 +18,7 @@ use crate::{PeerAddr, PeerId};
 /// messages after the handshake are framed, or which operations a server can
 /// run, so a mismatched peer is refused at the handshake rather than failing
 /// mid-session.
-pub const PROTOCOL_VERSION: u16 = 5;
+pub const PROTOCOL_VERSION: u16 = 6;
 
 /// Routing id for a task whose result is fetched back.
 ///
@@ -28,22 +30,32 @@ pub const PROTOCOL_VERSION: u16 = 5;
 /// are plain fire-and-forget [`OperationIr`]s carried by [`Task::RegisterOperation`].
 pub type RequestId = u64;
 
-/// Rendezvous id for moving a tensor between devices on one compute peer. Random, since the
-/// transfers of every client of a server meet in one registry.
+/// Rendezvous id for moving a tensor between devices on one compute peer. The transfers of every
+/// client of a server meet in one registry, so the id names the session exposing the tensor.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub struct LocalTransferId(u64);
-
-impl LocalTransferId {
-    #[cfg(feature = "client")]
-    pub fn random() -> Self {
-        Self(rand::random())
-    }
+pub struct LocalTransferId {
+    source: SessionId,
+    sequence: u64,
 }
 
-#[cfg(test)]
-impl From<u64> for LocalTransferId {
-    fn from(value: u64) -> Self {
-        Self(value)
+impl LocalTransferId {
+    /// The next transfer this process exposes from `source`.
+    #[cfg(feature = "client")]
+    pub fn next(source: SessionId) -> Self {
+        static SEQUENCE: AtomicU64 = AtomicU64::new(0);
+        let sequence = SEQUENCE.fetch_add(1, Ordering::Relaxed);
+        Self { source, sequence }
+    }
+
+    #[cfg(all(test, feature = "server"))]
+    pub fn new(source: SessionId, sequence: u64) -> Self {
+        Self { source, sequence }
+    }
+
+    /// The session exposing the tensor.
+    #[cfg(feature = "server")]
+    pub fn source(&self) -> SessionId {
+        self.source
     }
 }
 

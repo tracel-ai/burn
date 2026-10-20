@@ -404,7 +404,7 @@ impl RemoteTensorHandle {
         // stream that produced it, and the target registers the result on the stream that
         // will consume it — same contract as the regular op/tensor registration paths.
         let stream_id = StreamId::current();
-        let transfer_id = LocalTransferId::random();
+        let transfer_id = LocalTransferId::next(service::session_of(self.client.device.id));
         let tensor = self.tensor.clone();
         self.client.handle.submit(move |s| {
             s.expose_tensor_local(stream_id, tensor, transfer_id);
