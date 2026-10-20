@@ -30,6 +30,71 @@ pub struct Report<'a> {
     /// The components whose work all ran in a fused kernel recorded elsewhere. See
     /// [`Breakdown::fused_elsewhere`](burn_instrument::Breakdown::fused_elsewhere).
     fused_elsewhere: Vec<&'a Component>,
+    /// What a component's milliseconds are, given how its kernels were timed.
+    reading: TimeReading,
+    /// Whether the pass splits into the device's time and the host's.
+    host_split: HostSplit,
+}
+
+/// What a component's milliseconds are, given how the pass timed its kernels and whether an
+/// uncollected run was measured.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum TimeReading {
+    /// Read back after the pass, so the kernels ran back to back: a component's time is its
+    /// kernels' own device time.
+    InPlace,
+    /// Each read as it launched, so the kernels ran one at a time: a component's time is its
+    /// share of the uncollected run, the one unperturbed number there is.
+    ApportionedOnto(Duration),
+    /// Each read as it launched, and no uncollected run to apportion onto: a component's time
+    /// is its kernels' serialized time, and only the proportions mean anything.
+    Serialized,
+}
+
+impl TimeReading {
+    fn new(pass: &CollectedPass) -> Self {
+        match (pass.breakdown.timed_alone, pass.clean_wall) {
+            (false, _) => Self::InPlace,
+            (true, Some(wall)) => Self::ApportionedOnto(wall),
+            (true, None) => Self::Serialized,
+        }
+    }
+}
+
+/// Whether a pass splits into the device's time and the time the device waited on the host,
+/// and why not where it does not: the clean pass less what its kernels took holds only when
+/// that device time is a pipelined pass's.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum HostSplit {
+    /// The time the device spent waiting on the host.
+    Measured(Duration),
+    /// No uncollected run was measured to split.
+    NoCleanRun,
+    /// A launch timed alone serializes the pass, so its total is not a pipelined pass's.
+    TimedAlone,
+    /// Nothing was timed on the device.
+    NothingTimed,
+    /// The kernels measured more than the pass took: two clocks disagreeing, not a negative
+    /// host.
+    ClocksDisagree,
+}
+
+impl HostSplit {
+    fn new(pass: &CollectedPass) -> Self {
+        let Some(wall) = pass.clean_wall else {
+            return Self::NoCleanRun;
+        };
+        let device = pass.breakdown.total_time();
+        if pass.breakdown.timed_alone {
+            Self::TimedAlone
+        } else if device.is_zero() {
+            Self::NothingTimed
+        } else if device > wall {
+            Self::ClocksDisagree
+        } else {
+            Self::Measured(wall - device)
+        }
+    }
 }
 
 impl<'a> Report<'a> {
@@ -49,6 +114,8 @@ impl<'a> Report<'a> {
             findings: peaks.findings(),
             peaks: peaks.trusted(),
             fused_elsewhere: pass.breakdown.fused_elsewhere(),
+            reading: TimeReading::new(pass),
+            host_split: HostSplit::new(pass),
         }
     }
 
@@ -76,18 +143,13 @@ impl<'a> Report<'a> {
     /// add up to more than the clean pass took — two clocks disagreeing, not a
     /// negative host.
     pub fn framework(&self) -> Option<Duration> {
-        let wall = self.pass.clean_wall?;
-        let device = self.pass.breakdown.total_time();
-        let timed_alone = self.pass.breakdown.timed_alone;
-        (!timed_alone && !device.is_zero() && device <= wall).then(|| wall - device)
-    }
-
-    /// The clean pass the components are apportioned onto, where they need to be
-    /// and one was measured. See [`apportioned`](Self::apportioned).
-    fn apportioned_onto(&self) -> Option<Duration> {
-        self.pass
-            .clean_wall
-            .filter(|_| self.pass.breakdown.timed_alone)
+        match self.host_split {
+            HostSplit::Measured(host) => Some(host),
+            HostSplit::NoCleanRun
+            | HostSplit::TimedAlone
+            | HostSplit::NothingTimed
+            | HostSplit::ClocksDisagree => None,
+        }
     }
 
     /// Whether all of `component`'s work ran in a fused kernel recorded elsewhere —
@@ -294,8 +356,9 @@ impl<'a> Report<'a> {
     /// One measured duration in a component's milliseconds. See
     /// [`apportioned`](Self::apportioned).
     fn apportion(&self, measured: Duration) -> Duration {
-        let Some(wall) = self.apportioned_onto() else {
-            return measured;
+        let wall = match self.reading {
+            TimeReading::ApportionedOnto(wall) => wall,
+            TimeReading::InPlace | TimeReading::Serialized => return measured,
         };
         let total = self.pass.breakdown.total_time();
         if total.is_zero() {
@@ -886,16 +949,16 @@ impl Display for Report<'_> {
             true => "unfused — one kernel per operation: not the kernels a fused build runs",
             false => "fused — the kernels a fused build runs",
         };
-        let timings: &[&str] = match (pass.breakdown.timed_alone, pass.clean_wall) {
-            (false, _) => &[
+        let timings: &[&str] = match self.reading {
+            TimeReading::InPlace => &[
                 "in place — read back after the pass, the kernels ran back to back: a component is",
                 "its kernels' device time, and `framework` is the device waiting on the host",
             ],
-            (true, Some(_)) => &[
+            TimeReading::ApportionedOnto(_) => &[
                 "alone — each read as it launched, so the kernels ran one at a time: a component is",
                 "its share of the uncollected run, good to a few percent",
             ],
-            (true, None) => &[
+            TimeReading::Serialized => &[
                 "alone — each read as it launched, so the kernels ran one at a time: a component is",
                 "its kernels' serialized time, and only the proportions mean anything",
             ],
@@ -925,9 +988,9 @@ impl Display for Report<'_> {
             f,
             "  {:<width$} {:>8} {:>7} {:>7}  {:<8} {:<18} {:>8} {:>8}",
             "",
-            match self.apportioned_onto().is_some() {
-                true => "of wall",
-                false => "on device",
+            match self.reading {
+                TimeReading::ApportionedOnto(_) => "of wall",
+                TimeReading::InPlace | TimeReading::Serialized => "on device",
             },
             "of work",
             "waited",
@@ -989,9 +1052,11 @@ impl Display for Report<'_> {
                 "  {:<width$} {:>8} ms   {}",
                 "wall",
                 ms(wall),
-                match pass.breakdown.timed_alone {
-                    true => "the pass run uncollected, and what the components above sum to",
-                    false => "the pass run uncollected",
+                match self.reading {
+                    TimeReading::ApportionedOnto(_) => {
+                        "the pass run uncollected, and what the components above sum to"
+                    }
+                    TimeReading::InPlace | TimeReading::Serialized => "the pass run uncollected",
                 }
             )?;
         }
@@ -1003,9 +1068,9 @@ impl Display for Report<'_> {
                 false => "measured",
             },
             ms(device),
-            match pass.breakdown.timed_alone {
-                true => "each timed alone",
-                false => "timed in place — what the components above sum to",
+            match self.reading {
+                TimeReading::InPlace => "timed in place — what the components above sum to",
+                TimeReading::ApportionedOnto(_) | TimeReading::Serialized => "each timed alone",
             }
         )?;
         if pass.breakdown.host_timed {
@@ -1045,35 +1110,40 @@ impl Display for Report<'_> {
         // the device. Printed only where that device time is a pipelined
         // pass's — see `Report::framework` — and a dash that says why
         // otherwise, rather than a subtraction of the wrong thing.
-        match self.framework() {
-            Some(framework) => writeln!(
+        let not_separable = |f: &mut fmt::Formatter<'_>, why: &[&str]| -> fmt::Result {
+            writeln!(
+                f,
+                "  {:<width$} {:>8}      not separable: {}",
+                "framework", "—", why[0]
+            )?;
+            for line in &why[1..] {
+                writeln!(f, "  {:<width$}               {line}", "")?;
+            }
+            Ok(())
+        };
+        match self.host_split {
+            HostSplit::Measured(framework) => writeln!(
                 f,
                 "  {:<width$} {:>8} ms   {} of the pass the device spent waiting on the host",
                 "framework",
                 ms(framework),
                 share(framework, self.wall()),
             )?,
-            None if pass.clean_wall.is_none() => writeln!(
+            HostSplit::NoCleanRun => not_separable(f, &["no uncollected run was measured"])?,
+            HostSplit::TimedAlone => not_separable(
                 f,
-                "  {:<width$} {:>8}      not separable: no uncollected run was measured",
-                "framework", "—"
+                &[
+                    "a launch timed alone serializes the",
+                    "pass, so the measured total is not a pipelined pass's",
+                ],
             )?,
-            None if pass.breakdown.timed_alone => writeln!(
+            HostSplit::NothingTimed => not_separable(f, &["nothing was timed on the device"])?,
+            HostSplit::ClocksDisagree => not_separable(
                 f,
-                "  {:<width$} {:>8}      not separable: a launch timed alone serializes the\n  \
-                 {:<width$}               pass, so the measured total is not a pipelined pass's",
-                "framework", "—", ""
-            )?,
-            None if device.is_zero() => writeln!(
-                f,
-                "  {:<width$} {:>8}      not separable: nothing was timed on the device",
-                "framework", "—"
-            )?,
-            None => writeln!(
-                f,
-                "  {:<width$} {:>8}      not separable: the kernels measured more than the\n  \
-                 {:<width$}               pass took, so the two clocks disagree",
-                "framework", "—", ""
+                &[
+                    "the kernels measured more than the",
+                    "pass took, so the two clocks disagree",
+                ],
             )?,
         }
 
@@ -1537,6 +1607,55 @@ mod tests {
         // A dtype is a fact about a compute peak, and there is none to state.
         let header = table.lines().next().expect("the device line");
         assert_eq!(header, "device   cpu · unprobed · unprobed", "{table}");
+    }
+
+    /// Each reason a pass has no host/device split is its own case, and only a pipelined pass
+    /// whose kernels fit inside the uncollected run splits: the table explains the case it is
+    /// handed rather than re-deriving it.
+    #[test]
+    fn a_host_split_names_why_it_has_none() {
+        let in_place = |wall: Option<u64>, device: u64| {
+            let mut pass = pass();
+            pass.clean_wall = wall.map(Duration::from_micros);
+            pass.breakdown.timed_alone = false;
+            pass.breakdown.untagged.clear();
+            pass.breakdown.tree = vec![Component {
+                label: "only".into(),
+                kernels: match device {
+                    0 => Vec::new(),
+                    micros => vec![kernel("Only", 1, micros)],
+                },
+                ..component()
+            }];
+            HostSplit::new(&pass)
+        };
+        assert_eq!(
+            in_place(Some(2_000), 1_500),
+            HostSplit::Measured(Duration::from_micros(500))
+        );
+        assert_eq!(in_place(None, 1_500), HostSplit::NoCleanRun);
+        assert_eq!(in_place(Some(2_000), 0), HostSplit::NothingTimed);
+        assert_eq!(in_place(Some(1_000), 1_500), HostSplit::ClocksDisagree);
+        assert_eq!(HostSplit::new(&pass()), HostSplit::TimedAlone);
+    }
+
+    /// A component's milliseconds are apportioned only where the kernels ran alone and there is
+    /// an uncollected run to apportion onto.
+    #[test]
+    fn a_time_reading_apportions_only_onto_a_clean_run() {
+        let reading = |timed_alone: bool, wall: Option<u64>| {
+            let mut pass = pass();
+            pass.breakdown.timed_alone = timed_alone;
+            pass.clean_wall = wall.map(Duration::from_micros);
+            TimeReading::new(&pass)
+        };
+        assert_eq!(reading(false, Some(2_000)), TimeReading::InPlace);
+        assert_eq!(reading(false, None), TimeReading::InPlace);
+        assert_eq!(
+            reading(true, Some(2_000)),
+            TimeReading::ApportionedOnto(Duration::from_micros(2_000))
+        );
+        assert_eq!(reading(true, None), TimeReading::Serialized);
     }
 
     /// Print a real table, so its shape can be read rather than only asserted
