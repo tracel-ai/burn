@@ -24,11 +24,22 @@ const MANY_FRAMES_LONG: usize = 1024 * 1024;
 /// Far beyond what a bounded step here takes when it works, so only a hang reaches it.
 const HANG_LIMIT: std::time::Duration = std::time::Duration::from_secs(10);
 
-/// The address the second client process of `two_clients_keep_their_own_transfers` dials.
-const SECOND_CLIENT_SERVER: &str = "BURN_REMOTE_SECOND_CLIENT_SERVER";
+/// The environment variable naming the server a `transfer_client` process dials.
+const TRANSFER_CLIENT_SERVER: &str = "BURN_REMOTE_TRANSFER_CLIENT_SERVER";
 
-/// What the second client prints once it is about to start its transfers.
-const SECOND_CLIENT_READY: &str = "second client ready";
+/// The environment variable giving a `transfer_client` process its index, which sets the values
+/// of its tensors.
+const TRANSFER_CLIENT_INDEX: &str = "BURN_REMOTE_TRANSFER_CLIENT_INDEX";
+
+/// What a `transfer_client` prints once connected, and after each round.
+const TRANSFER_CLIENT_READY: &str = "transfer client ready";
+const TRANSFER_CLIENT_DONE: &str = "transfer client round done";
+
+/// Rounds of `two_clients_keep_their_own_transfers`, each one transfer per client.
+const TRANSFER_ROUNDS: usize = 200;
+
+/// Far beyond what every round of `two_clients_keep_their_own_transfers` takes when it works.
+const TRANSFER_LIMIT: std::time::Duration = std::time::Duration::from_secs(60);
 
 /// Run `body` on a worker thread and fail the test if it does not finish within `timeout`.
 ///
@@ -275,20 +286,55 @@ fn a_dial_waits_for_a_websocket_server_that_starts_late() {
     rt.shutdown_background();
 }
 
-/// Moves tensors back and forth between the two devices `host` serves, each holding `value` plus
-/// its round, and checks that every one arrives as it left.
-fn move_own_tensors(host: &RemoteHost, value: f32) {
-    let devices = [0, 1].map(|index| {
-        Device::remote_options(host)
-            .device_index(index)
-            .init()
-            .unwrap()
-    });
-    for round in 0..200 {
-        let expected = TensorData::new(vec![value + round as f32; 256], [256]);
-        let moved = Tensor::<1>::from_data(expected.clone(), &devices[round % 2])
-            .to_device(&devices[(round + 1) % 2]);
-        moved.into_data().assert_eq(&expected, false);
+/// A `transfer_client` process, killed when dropped.
+struct TransferClient {
+    index: usize,
+    child: std::process::Child,
+    rounds: std::process::ChildStdin,
+    lines: std::io::Lines<std::io::BufReader<std::process::ChildStdout>>,
+}
+
+impl TransferClient {
+    fn spawn(address: &str, index: usize) -> Self {
+        let mut child = std::process::Command::new(std::env::current_exe().unwrap())
+            .args(["transfer_client", "--exact", "--ignored", "--nocapture"])
+            .env(TRANSFER_CLIENT_SERVER, address)
+            .env(TRANSFER_CLIENT_INDEX, index.to_string())
+            .stdin(std::process::Stdio::piped())
+            .stdout(std::process::Stdio::piped())
+            .spawn()
+            .unwrap();
+        let rounds = child.stdin.take().unwrap();
+        let stdout = child.stdout.take().unwrap();
+        let lines = std::io::BufRead::lines(std::io::BufReader::new(stdout));
+        Self {
+            index,
+            child,
+            rounds,
+            lines,
+        }
+    }
+
+    /// Wait for the client to print `marker`, which libtest may prefix with the test's name.
+    fn wait_for(&mut self, marker: &str) {
+        for line in self.lines.by_ref() {
+            if line.unwrap().ends_with(marker) {
+                return;
+            }
+        }
+        let status = self.child.wait().unwrap();
+        panic!("transfer client {} stopped with {status}", self.index);
+    }
+
+    fn start_round(&mut self) {
+        std::io::Write::write_all(&mut self.rounds, b"go\n").unwrap();
+    }
+}
+
+impl Drop for TransferClient {
+    fn drop(&mut self) {
+        let _ = self.child.kill();
+        let _ = self.child.wait();
     }
 }
 
@@ -304,39 +350,56 @@ fn two_clients_keep_their_own_transfers() {
         .serve_async(WebSocketTransport::from_listener(listener));
     rt.spawn(async move { serving.await.unwrap() });
 
-    let mut second = std::process::Command::new(std::env::current_exe().unwrap())
-        .args(["second_client", "--exact", "--ignored", "--nocapture"])
-        .env(SECOND_CLIENT_SERVER, &address)
-        .stdout(std::process::Stdio::piped())
-        .spawn()
-        .unwrap();
-    // Both start together, so their transfers are in flight at once.
-    let mut lines = std::io::BufRead::lines(std::io::BufReader::new(second.stdout.take().unwrap()));
-    let started = lines.any(|line| line.is_ok_and(|line| line == SECOND_CLIENT_READY));
-    assert!(started, "the second client never started");
-    std::thread::spawn(move || lines.for_each(drop));
-
-    with_deadlock_watchdog(HANG_LIMIT, move || {
-        move_own_tensors(&RemoteHost::websocket(&address), 0.0)
+    // Two fresh processes count their transfers alike, and each round starts in both at once, so
+    // their transfers carry the same ids and are in flight together whatever ran before.
+    let mut clients = [0, 1].map(|index| TransferClient::spawn(&address, index));
+    with_deadlock_watchdog(TRANSFER_LIMIT, move || {
+        clients
+            .iter_mut()
+            .for_each(|client| client.wait_for(TRANSFER_CLIENT_READY));
+        for _ in 0..TRANSFER_ROUNDS {
+            clients.iter_mut().for_each(TransferClient::start_round);
+            clients
+                .iter_mut()
+                .for_each(|client| client.wait_for(TRANSFER_CLIENT_DONE));
+        }
     });
-    assert!(
-        second.wait().unwrap().success(),
-        "the second client lost a transfer"
-    );
     rt.shutdown_background();
 }
 
-/// The second client of `two_clients_keep_their_own_transfers`, in a process of its own so that
-/// it connects as a client of its own rather than sharing the first one's sessions.
+/// One client of `two_clients_keep_their_own_transfers`, in a process of its own so that it
+/// connects as a client of its own. Each round, started by a line on stdin, moves a tensor between
+/// the server's two devices and checks that it arrives as it left.
 #[test]
 #[ignore = "started by two_clients_keep_their_own_transfers"]
-fn second_client() {
-    let Ok(address) = std::env::var(SECOND_CLIENT_SERVER) else {
+fn transfer_client() {
+    let (Ok(address), Ok(index)) = (
+        std::env::var(TRANSFER_CLIENT_SERVER),
+        std::env::var(TRANSFER_CLIENT_INDEX),
+    ) else {
         return;
     };
-    println!("{SECOND_CLIENT_READY}");
-    with_deadlock_watchdog(HANG_LIMIT, move || {
-        move_own_tensors(&RemoteHost::websocket(&address), 1000.0)
+    let index: usize = index.parse().unwrap();
+    let host = RemoteHost::websocket(&address);
+    let devices = [0, 1].map(|device| {
+        Device::remote_options(&host)
+            .device_index(device)
+            .init()
+            .unwrap()
+    });
+    println!("{TRANSFER_CLIENT_READY}");
+
+    with_deadlock_watchdog(TRANSFER_LIMIT, move || {
+        let mut rounds = std::io::stdin().lines();
+        for round in 0..TRANSFER_ROUNDS {
+            rounds.next().unwrap().unwrap();
+            let value = (index * TRANSFER_ROUNDS + round) as f32;
+            let expected = TensorData::new(vec![value; 256], [256]);
+            let moved = Tensor::<1>::from_data(expected.clone(), &devices[round % 2])
+                .to_device(&devices[(round + 1) % 2]);
+            moved.into_data().assert_eq(&expected, false);
+            println!("{TRANSFER_CLIENT_DONE}");
+        }
     });
 }
 

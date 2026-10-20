@@ -40,6 +40,7 @@ impl LocalTransferId {
     }
 }
 
+#[cfg(test)]
 impl From<u64> for LocalTransferId {
     fn from(value: u64) -> Self {
         Self(value)
