@@ -9,9 +9,9 @@ use burn_instrument::{Bounds, Breakdown, Component, ComponentPath, Peaks};
 use super::{Floor, Score};
 use crate::reading::TimeReading;
 
-/// Every component of one pass priced against its device's peaks: each component's floor and
-/// score, and the floors of the ladder's two rungs below it.
-pub(crate) struct Pricing {
+/// The roofline of one pass: every component held against its device's peaks — its floor and
+/// its score — and the floors of the ladder's two rungs below it.
+pub(crate) struct Roofline {
     /// The pass's peaks, with any impossible reading dropped.
     peaks: Peaks,
     /// What the work no floor prices stands at.
@@ -24,7 +24,7 @@ pub(crate) struct Pricing {
     fused_elsewhere: HashSet<*const Component>,
 }
 
-impl Pricing {
+impl Roofline {
     pub(crate) fn new(breakdown: &Breakdown, peaks: Peaks, reading: TimeReading) -> Self {
         Self {
             peaks,

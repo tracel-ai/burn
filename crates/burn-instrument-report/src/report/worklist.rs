@@ -69,7 +69,7 @@ impl Worklist {
     const SHOWN: usize = 5;
 
     pub(super) fn new(report: &Report<'_>) -> Self {
-        let pricing = report.pricing();
+        let roofline = report.roofline();
         let mut entries = Vec::new();
         for (path, component) in report.pass().breakdown.components() {
             // The third lever: what the device waited on the host for before this
@@ -94,13 +94,15 @@ impl Worklist {
                     against,
                 });
             }
-            if let Some(score) = pricing.score_of(component) {
+            if let Some(score) = roofline.score_of(component) {
                 // A component at the roof has nothing to give back, so it sorts to
                 // the bottom on its own — filtering it out would hide the component that
                 // most deserves to be read.
-                let (gain, lever) = match pricing.composite(component) {
+                let (gain, lever) = match roofline.composite(component) {
                     true => (
-                        pricing.deepest_floor(component).saturating_sub(score.floor),
+                        roofline
+                            .deepest_floor(component)
+                            .saturating_sub(score.floor),
                         Lever::FusingInside,
                     ),
                     false => (

@@ -23,8 +23,8 @@ impl Display for Report<'_> {
             f,
             "device   {} · {} · {}",
             pass.device,
-            peak(self.pricing().peaks().copy_bytes_per_s, 1e9, "GB/s"),
-            match self.pricing().peaks().flops {
+            peak(self.roofline().peaks().copy_bytes_per_s, 1e9, "GB/s"),
+            match self.roofline().peaks().flops {
                 Some(flops) => format!("{:.1} TFLOP/s at {:?}", flops.per_s / 1e12, flops.dtype),
                 None => "unprobed".to_string(),
             },
@@ -36,8 +36,8 @@ impl Display for Report<'_> {
         // component was divided by. Absent where the device reported no directions,
         // in which case the copy ceiling above *is* the denominator.
         if let (Some(read), Some(write)) = (
-            self.pricing().peaks().read_bytes_per_s,
-            self.pricing().peaks().write_bytes_per_s,
+            self.roofline().peaks().read_bytes_per_s,
+            self.roofline().peaks().write_bytes_per_s,
         ) {
             writeln!(
                 f,
@@ -297,7 +297,7 @@ impl Display for Report<'_> {
             .iter()
             .flat_map(|component| component.walk())
             .any(|(_, component)| {
-                self.pricing()
+                self.roofline()
                     .score_of(component)
                     .is_some_and(|score| score.achieved > 1.0)
             });
@@ -621,12 +621,12 @@ impl ComponentLines<'_, '_> {
         ancestors: &[&Component],
     ) -> fmt::Result {
         let depth = ancestors.len();
-        let fused_elsewhere = self.report.pricing().is_fused_elsewhere(component);
+        let fused_elsewhere = self.report.roofline().is_fused_elsewhere(component);
         let indent = "  ".repeat(depth);
         let label = fit(heading(component), self.width.saturating_sub(depth * 2));
-        let scored = self.report.pricing().score_of(component);
+        let scored = self.report.roofline().score_of(component);
         let (bound, achieved, floor, gain) =
-            match (scored, self.report.pricing().floor_of(component)) {
+            match (scored, self.report.roofline().floor_of(component)) {
                 (Some(score), _) => (
                     score.bound.to_string(),
                     // A component above 100% is marked and keeps its figure. The peaks are

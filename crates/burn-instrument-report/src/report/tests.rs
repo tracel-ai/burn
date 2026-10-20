@@ -9,7 +9,7 @@ use burn_tensor::FloatDType;
 use super::Report;
 use crate::millis::Millis;
 use crate::reading::{HostSplit, TimeReading};
-use crate::roofline::Pricing;
+use crate::roofline::Roofline;
 use crate::roofline::{Bound, Floor, Ladder};
 
 fn peaks() -> Peaks {
@@ -228,8 +228,8 @@ fn observed_traffic_raises_the_floor_and_marks_the_row() {
         ..plain.clone()
     };
 
-    let pricing = Pricing::new(&pass().breakdown, peaks(), TimeReading::InPlace);
-    let floor = |component: &Component| pricing.floor_of(component).map(|floor| floor.time);
+    let roofline = Roofline::new(&pass().breakdown, peaks(), TimeReading::InPlace);
+    let floor = |component: &Component| roofline.floor_of(component).map(|floor| floor.time);
     let at = |bounds: Bounds| Floor::new(bounds, &peaks()).map(|floor| floor.time);
     assert_eq!(floor(&plain), at(declared));
     assert_eq!(floor(&read), at(declared + observed));
@@ -264,12 +264,12 @@ fn component() -> Component {
 
 /// What the kernel rung counts of `component`'s own kernels beside its children's floors.
 fn counted_beside_its_children(report: &Report<'_>, component: &Component) -> Duration {
-    let pricing = report.pricing();
-    pricing.deepest_floor(component)
+    let roofline = report.roofline();
+    roofline.deepest_floor(component)
         - component
             .children
             .iter()
-            .map(|child| pricing.deepest_floor(child))
+            .map(|child| roofline.deepest_floor(child))
             .sum::<Duration>()
 }
 
@@ -334,7 +334,7 @@ fn an_unprobed_pass_says_why_nothing_is_scored() {
     let report = Report::new(&pass);
     for (_, component) in pass.breakdown.tree.iter().flat_map(|root| root.walk()) {
         assert!(
-            report.pricing().score_of(component).is_none(),
+            report.roofline().score_of(component).is_none(),
             "{}",
             component.label
         );
@@ -522,7 +522,7 @@ fn a_fused_kernel_on_a_parent_is_not_counted_twice() {
         "their work is the kernel's, at what it took"
     );
     assert_eq!(
-        rendered.pricing().deepest_floor(&block.children[0]),
+        rendered.roofline().deepest_floor(&block.children[0]),
         Duration::ZERO,
         "and the norm's floor is not counted beside it"
     );
@@ -560,10 +560,10 @@ fn a_parent_fused_with_its_child_counts_shared_work_once() {
     fused.breakdown.timed_alone = false;
     let rendered = Report::new(&fused);
     let block = &fused.breakdown.tree[1];
-    assert!(rendered.pricing().is_fused_elsewhere(&block.children[0]));
+    assert!(rendered.roofline().is_fused_elsewhere(&block.children[0]));
     assert_eq!(counted_beside_its_children(&rendered, block), total);
     assert_eq!(
-        rendered.pricing().deepest_floor(&block.children[0]),
+        rendered.roofline().deepest_floor(&block.children[0]),
         Duration::ZERO
     );
     let table = rendered.to_string();
@@ -588,9 +588,9 @@ fn a_row_whose_work_ran_in_an_untagged_kernel_says_so() {
 
     let rendered = Report::new(&pass);
     let block = &pass.breakdown.tree[1];
-    assert!(rendered.pricing().is_fused_elsewhere(&block.children[0]));
+    assert!(rendered.roofline().is_fused_elsewhere(&block.children[0]));
     assert_eq!(
-        rendered.pricing().deepest_floor(&block.children[0]),
+        rendered.roofline().deepest_floor(&block.children[0]),
         Duration::ZERO
     );
     let table = rendered.to_string();
@@ -621,7 +621,7 @@ fn a_parents_own_work_fused_with_a_priced_child_still_counts() {
 
     let rendered = Report::new(&pass);
     let block = &pass.breakdown.tree[1];
-    assert!(!rendered.pricing().is_fused_elsewhere(&block.children[0]));
+    assert!(!rendered.roofline().is_fused_elsewhere(&block.children[0]));
     assert_eq!(
         counted_beside_its_children(&rendered, block),
         residual.total
@@ -808,8 +808,10 @@ fn a_composite_is_held_to_the_arithmetic_of_its_parts() {
         ..component()
     };
 
-    let pricing = Pricing::new(&pass.breakdown, peaks(), TimeReading::InPlace);
-    let floor = pricing.floor_of(&model).expect("the model declared bounds");
+    let roofline = Roofline::new(&pass.breakdown, peaks(), TimeReading::InPlace);
+    let floor = roofline
+        .floor_of(&model)
+        .expect("the model declared bounds");
     let held = Bounds {
         read: 1_000_000,
         write: 1_000,
@@ -871,7 +873,7 @@ fn a_priced_component_over_an_unpriced_subtree_keeps_its_own_floor() {
     }];
     let report = Report::new(&pass);
     let floor = report
-        .pricing()
+        .roofline()
         .floor_of(&pass.breakdown.tree[0])
         .expect("attention is priced")
         .time;
@@ -1048,7 +1050,7 @@ fn a_broken_compute_peak_is_reported_not_divided_by() {
         .iter()
         .flat_map(|component| component.walk())
     {
-        if let Some(score) = rendered.pricing().score_of(component) {
+        if let Some(score) = rendered.roofline().score_of(component) {
             assert_eq!(score.bound, Bound::Bytes, "{}", component.label);
         }
     }
@@ -1404,11 +1406,11 @@ fn an_unscored_priced_row_keeps_its_floor() {
     let rendered = Report::new(&pass);
     let query = &pass.breakdown.tree[1].children[1].children[0];
     assert!(
-        rendered.pricing().score_of(query).is_none(),
+        rendered.roofline().score_of(query).is_none(),
         "nothing measured to score"
     );
     let floor = rendered
-        .pricing()
+        .roofline()
         .floor_of(query)
         .expect("the query is priced");
     let table = rendered.to_string();

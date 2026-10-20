@@ -12,8 +12,7 @@ use burn_instrument::{CollectedPass, PeakFinding, Peaks};
 
 use crate::Comparison;
 use crate::reading::{HostSplit, TimeReading};
-use crate::roofline::Ladder;
-use crate::roofline::Pricing;
+use crate::roofline::{Ladder, Roofline};
 
 /// A collected pass, scored against its device's peaks, and the table that
 /// renders it ([`Display`](std::fmt::Display)).
@@ -25,8 +24,8 @@ pub struct Report<'a> {
     /// What the header must say about the probe set before its numbers are
     /// read, already ordered — see [`Peaks::findings`].
     findings: Vec<PeakFinding>,
-    /// What each component is held to.
-    pricing: Pricing,
+    /// The pass's roofline: what each component is held to.
+    roofline: Roofline,
     /// What a component's milliseconds are, given how its kernels were timed.
     reading: TimeReading,
     /// Whether the pass splits into the device's time and the host's.
@@ -49,7 +48,7 @@ impl<'a> Report<'a> {
         Self {
             pass,
             findings: peaks.findings(),
-            pricing: Pricing::new(&pass.breakdown, peaks.trusted(), reading),
+            roofline: Roofline::new(&pass.breakdown, peaks.trusted(), reading),
             reading,
             host_split: HostSplit::new(pass),
         }
@@ -77,11 +76,11 @@ impl<'a> Report<'a> {
             host: self.host_split.host().unwrap_or_default(),
             kernels: tree
                 .iter()
-                .map(|component| self.pricing.deepest_floor(component))
+                .map(|component| self.roofline.deepest_floor(component))
                 .sum(),
             fused: tree
                 .iter()
-                .map(|component| self.pricing.outermost_floor(component))
+                .map(|component| self.roofline.outermost_floor(component))
                 .sum(),
         }
     }
@@ -96,9 +95,9 @@ impl<'a> Report<'a> {
         &self.findings
     }
 
-    /// What each component is held to.
-    pub(crate) fn pricing(&self) -> &Pricing {
-        &self.pricing
+    /// The pass's roofline: what each component is held to.
+    pub(crate) fn roofline(&self) -> &Roofline {
+        &self.roofline
     }
 
     /// What a component's milliseconds are.

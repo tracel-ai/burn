@@ -75,8 +75,8 @@ impl<'a> Comparison<'a> {
     /// twice with opposite signs.
     fn changed_hands(&self, compared: &Compared<'_>) -> bool {
         compared.was.is_some_and(|was| {
-            self.was.pricing().is_fused_elsewhere(was)
-                != self.now.pricing().is_fused_elsewhere(compared.now)
+            self.was.roofline().is_fused_elsewhere(was)
+                != self.now.roofline().is_fused_elsewhere(compared.now)
         })
     }
 
@@ -208,7 +208,7 @@ impl Display for Comparison<'_> {
                 // a `was` to print and no delta to draw from it.
                 Some(was) if self.changed_hands(component) => (
                     format!("{:.3}", Millis(self.was.reading().apportioned(was))),
-                    match self.now.pricing().is_fused_elsewhere(component.now) {
+                    match self.now.roofline().is_fused_elsewhere(component.now) {
                         true => "fused ↓".to_string(),
                         false => "unfused".to_string(),
                     },
