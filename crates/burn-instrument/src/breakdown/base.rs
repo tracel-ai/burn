@@ -77,8 +77,8 @@ pub struct Breakdown {
     /// Whether the instrumented run ran without fusion — no fusion linked, or a
     /// device whose ops do not go through it.
     ///
-    /// Each run has its own way of being read wrong, and the breakdown says
-    /// which it ran. Unfused, it is a graph production does not run: what a
+    /// Each graph has its own way of being read wrong, and the breakdown says
+    /// which one ran. Unfused, it is a graph production does not run: what a
     /// fused kernel would do across two components is charged to each of them.
     /// Fused, it is production's graph, and a kernel that carried out several
     /// components' work is charged to their closest common parent, or outside
@@ -239,7 +239,7 @@ pub struct Variant {
     pub entries: usize,
 }
 
-/// One component as the run measured it: what it declared, and what it took.
+/// One component as the instrumented run recorded it: what it declared, and what it took.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Component {

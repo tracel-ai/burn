@@ -1,4 +1,4 @@
-//! The tree a measured run leaves behind: which components it entered, how
+//! The tree an instrumented run leaves behind: which components it entered, how
 //! they nested, what each declared it should cost, and how long each took.
 //!
 //! Nesting is a consequence of composition — a component's forward calls its
@@ -558,8 +558,8 @@ mod tests {
         assert_eq!(tree[0].sites, ["test::forward"]);
     }
 
-    /// A component is legally entered at several shapes in one run, so its component accounts for all of
-    /// them rather than asserting they agreed.
+    /// A component is legally entered at several shapes in one run, so its
+    /// bounds account for all of them rather than asserting they agreed.
     #[test]
     fn bounds_sum_across_entries() {
         let mut components = ComponentTree::default();
