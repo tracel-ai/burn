@@ -1,6 +1,6 @@
 # Burn Group
 
-> Splits each [Burn](https://github.com/tracel-ai/burn) tensor over a group of devices, for tensor parallelism
+> Splits [Burn](https://github.com/tracel-ai/burn) tensors over a group of devices, for tensor parallelism
 
 [![Current Crates.io Version](https://img.shields.io/crates/v/burn-group.svg)](https://crates.io/crates/burn-group)
 [![Documentation](https://docs.rs/burn-group/badge.svg)](https://docs.rs/burn-group)

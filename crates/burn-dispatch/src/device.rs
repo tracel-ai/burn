@@ -60,7 +60,7 @@ pub enum DispatchDevice {
     #[cfg(feature = "capture")]
     Capture(CaptureDevice),
 
-    /// A [group of devices](crate::backends::Group) that each tensor is split over.
+    /// A [group of devices](crate::backends::Group) that a tensor can be split over.
     #[cfg(feature = "group")]
     Group(GroupDevice),
 
@@ -406,14 +406,14 @@ impl DispatchDevice {
         Self::Capture(CaptureDevice::default())
     }
 
-    /// A new group of `devices`, its members, that each tensor is split over, apart from every
+    /// A new group of `devices`, its members, that a tensor can be split over, apart from every
     /// other group.
     ///
     /// Make a group once and reuse it, as any device: each call registers a new group for the
     /// rest of the process.
     ///
-    /// Each of its default dtypes is the first member's configured one that every member
-    /// supports.
+    /// Each of its default dtypes is the first of the members' configured ones, in member order,
+    /// that every member supports.
     ///
     /// # Errors
     ///

@@ -5,8 +5,8 @@ use burn_std::future::block_on;
 
 use super::{GroupClient, GroupDevice};
 
-/// A backend whose tensors are split over a [`GroupDevice`], each member running the backend the
-/// group was made with.
+/// A backend whose tensors can be split over a [`GroupDevice`], each member running the backend
+/// the group was made with.
 pub type GroupBackend = BackendRouter<GroupChannel>;
 
 /// Routes a group's ops to its [`GroupClient`].

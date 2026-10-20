@@ -34,7 +34,7 @@ pub enum GroupError {
     /// Tensor parallelism needs links as fast as one machine's GPU interconnect, which a remote
     /// device does not have.
     RemoteMember,
-    /// Only Cube and Flex devices form a group.
+    /// Only Cube and Flex devices form a group through burn-dispatch.
     UnsupportedBackend {
         /// The device that cannot be a member.
         device: String,
@@ -60,6 +60,10 @@ impl GroupDevice {
     /// Make a group once and reuse it, as any device: each call registers a new group for the
     /// rest of the process.
     ///
+    /// # Errors
+    ///
+    /// As [`with_member_settings`](Self::with_member_settings).
+    ///
     /// # Panics
     ///
     /// As [`with_member_settings`](Self::with_member_settings).
@@ -69,8 +73,13 @@ impl GroupDevice {
     }
 
     /// A new group whose members run `B` on `devices`, `settings` holding each one's own in member
-    /// order. Each of the group's default dtypes is the first member's own that every member
-    /// supports.
+    /// order. Each of the group's default dtypes is the first of the members' own, in member
+    /// order, that every member supports.
+    ///
+    /// # Errors
+    ///
+    /// When `devices` is empty, when `settings` does not hold one per device, or when no member's
+    /// default for a dtype runs on every member.
     ///
     /// # Panics
     ///

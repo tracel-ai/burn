@@ -53,6 +53,17 @@ fn heads_split_out_of_a_split_hidden_dim_stay_split() {
 }
 
 #[test]
+fn a_split_reshaped_onto_an_empty_dim_adds_a_replicated_tensor() {
+    let device = group(2);
+    let split = Tensor::<2>::zeros([4, 0], &device).with_sharding(Split { dim: 0 });
+
+    let sum = split.reshape([-1, 4]) + Tensor::zeros([0, 4], &device);
+
+    sum.into_data()
+        .assert_approx_eq::<f32>(&TensorData::new(Vec::<f32>::new(), [0, 4]), tolerance());
+}
+
+#[test]
 fn int_and_bool_tensors_split_and_move_back_whole() {
     let ints = TensorData::from([[1i64, 2, 3, 4], [5, 6, 7, 8]]);
     let bools = TensorData::from([[true, false, true, true], [false, false, true, false]]);
@@ -85,6 +96,34 @@ fn a_quantized_tensor_on_a_group_reads_back_but_does_not_split() {
     ));
     Tensor::<2>::from_data(quantized.into_data(), &Device::flex())
         .dequantize()
+        .into_data()
+        .assert_approx_eq::<f32>(&expected, tolerance());
+}
+
+#[test]
+fn a_quantized_tensor_on_a_group_reports_its_sharding() {
+    let quantized = Tensor::<2>::from_data(values([4, 8], 1), &group(2))
+        .quantize_dynamic(&QuantScheme::default());
+
+    assert_eq!(quantized.sharding(), Some(Replicated));
+}
+
+#[test]
+fn a_quantized_replicated_rhs_matmuls_with_a_split_lhs() {
+    let device = group(2);
+    let x = values([4, 6], 1);
+    let weight = Tensor::<2>::from_data(values([6, 8], 2), &device)
+        .quantize_dynamic(&QuantScheme::default());
+    let expected = Tensor::<2>::from_data(x.clone(), &Device::flex())
+        .matmul(Tensor::<2>::from_data(
+            weight.clone().into_data(),
+            &Device::flex(),
+        ))
+        .into_data();
+
+    let product = sharded::<2>(x, &device, Split { dim: 1 }).matmul(weight);
+
+    product
         .into_data()
         .assert_approx_eq::<f32>(&expected, tolerance());
 }

@@ -1,4 +1,4 @@
-//! Splitting each tensor over a group of devices, for tensor parallelism.
+//! Groups of devices that a tensor can be split over, for tensor parallelism.
 //!
 //! Experimental: the API may change, and so far only the forward pass of a Megatron-style MLP
 //! keeps its tensors split.
@@ -23,15 +23,15 @@ pub struct GroupOptions {
 }
 
 impl GroupOptions {
-    /// A new group of the devices, its members, that each tensor is split over, apart from every
+    /// A new group of the devices, its members, that a tensor can be split over, apart from every
     /// other group, even one of the same devices. A tensor made on it is replicated on every
     /// member until it is [sharded](crate::Tensor::with_sharding).
     ///
     /// Make a group once and reuse it, as any device: each call registers a new group for the
     /// rest of the process.
     ///
-    /// Each of its default dtypes is the first member's [configured](Device::settings) one that
-    /// every member supports.
+    /// Each of its default dtypes is the first of the members' [configured](Device::settings)
+    /// ones, in member order, that every member supports.
     ///
     /// # Errors
     ///
@@ -54,7 +54,7 @@ impl GroupOptions {
 }
 
 impl Device {
-    /// Options for a group of `devices` that splits each tensor over them.
+    /// Options for a group of `devices` that a tensor can be split over.
     pub fn group_options(devices: &[Device]) -> GroupOptions {
         GroupOptions {
             devices: devices.to_vec(),

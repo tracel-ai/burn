@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use burn_backend::DType;
 use burn_ir::{
     ActivationOperationIr, BaseOperationIr, BinaryOpIr, FloatOperationIr, MatmulOpIr,
     NumericOperationIr, OperationIr, ScalarOpIr, ShapeOpIr, TensorId, TensorIr, UnaryOpIr,
@@ -53,13 +54,24 @@ impl OpPlan {
         self.execution
     }
 
-    /// `None` when one tensor, read as two inputs, is asked for two shardings.
+    /// `None` when one tensor, read as two inputs, is asked for two shardings, or when a quantized
+    /// tensor would not be replicated: its shards cannot be sliced, concatenated or summed.
     fn ruled<const N: usize>(
         inputs: [&TensorIr; N],
         out: &TensorIr,
         sharding: OpSharding<N>,
         execution: Execution,
     ) -> Option<Self> {
+        if inputs
+            .into_iter()
+            .zip(sharding.inputs)
+            .chain([(out, sharding.output)])
+            .any(|(tensor, target)| {
+                matches!(tensor.dtype, DType::QFloat(_)) && target != Sharding::Replicated
+            })
+        {
+            return None;
+        }
         let mut input_shardings = HashMap::new();
         for (tensor, target) in inputs.into_iter().zip(sharding.inputs) {
             if input_shardings

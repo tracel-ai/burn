@@ -29,7 +29,7 @@
 //! | `Flex`     | `flex`     | Pure Rust CPU backend using `burn-flex` |
 //! | `Remote`   | `remote`   | Devices hosted by another process or machine, through `burn-remote` |
 //! | `Capture`  | `capture`  | Records operation graphs instead of executing them, through `burn-capture` |
-//! | `Group`    | `group`    | Experimental: tensors split over a group of devices of one of the backends above, through `burn-group` |
+//! | `Group`    | `group`    | Experimental: tensors split over a group of Cube or Flex devices, through `burn-group` |
 //! | `Autodiff` | `autodiff` | Autodiff-enabled backend (used in combination with any of the backends above) |
 //!
 //! **Note:** The features can be combined freely. The cubecl-backed ones all

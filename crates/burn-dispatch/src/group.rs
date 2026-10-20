@@ -61,7 +61,8 @@ impl DispatchTensor {
             DispatchTensorKind::Group(
                 BackendTensor::Float(tensor)
                 | BackendTensor::Int(tensor)
-                | BackendTensor::Bool(tensor),
+                | BackendTensor::Bool(tensor)
+                | BackendTensor::Quantized(tensor),
             ) => tensor,
             #[cfg(feature = "autodiff")]
             DispatchTensorKind::Autodiff(inner) => match &**inner {

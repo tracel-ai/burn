@@ -44,7 +44,8 @@ impl ReshapeRule {
     }
 
     /// The output dim starting where input dim `dim` starts in memory. Its chunks hold the same
-    /// elements when it has the same length, or when both lengths split evenly over the members.
+    /// elements when it has the same length, or when both lengths split evenly over the members
+    /// and leave none empty.
     fn chunk_preserving_dim(
         from: &Shape,
         to: &Shape,
@@ -57,7 +58,9 @@ impl ReshapeRule {
         for (candidate, &size) in to.iter().enumerate() {
             if prefix == before && size != 1 {
                 let same_chunks = size == len
-                    || (len.is_multiple_of(num_members) && size.is_multiple_of(num_members));
+                    || (len.is_multiple_of(num_members)
+                        && size.is_multiple_of(num_members)
+                        && size >= num_members);
                 return same_chunks.then_some(candidate);
             }
             prefix *= size;
