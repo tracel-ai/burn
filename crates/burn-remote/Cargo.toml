@@ -87,6 +87,7 @@ burn-dispatch = { path = "../burn-dispatch", default-features = false }
 burn-flex = { path = "../burn-flex", features = ["default"] }
 burn-tensor = { path = "../burn-tensor", features = ["default", "autodiff", "extension", "flex", "remote-server", "remote-websocket"] }
 iroh-relay = { workspace = true, features = ["server"] }
+serial_test = { workspace = true }
 
 [package.metadata.docs.rs]
 features = ["doc"]

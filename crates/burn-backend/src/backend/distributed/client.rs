@@ -24,10 +24,10 @@ pub struct DistributedSyncClient<B: Backend> {
 }
 
 impl<B: Backend> DistributedSyncClient<B> {
-    pub(crate) fn new(num_devices: usize, config: DistributedConfig) -> Self {
+    pub(crate) fn new(devices: &[Device<B>], config: DistributedConfig) -> Self {
         let (tx, rx) = std::sync::mpsc::channel();
 
-        let mut server = DistributedSyncServer::new(num_devices, config);
+        let mut server = DistributedSyncServer::new(devices, config);
         spawn(move || {
             while let ActionMessage::Message(msg) =
                 rx.recv().expect("Gradient sync server disconnected.")

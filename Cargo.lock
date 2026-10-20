@@ -1363,6 +1363,7 @@ dependencies = [
  "rmp-serde",
  "serde",
  "serde_bytes",
+ "serial_test",
  "tempfile",
  "tokio",
  "tokio-util",

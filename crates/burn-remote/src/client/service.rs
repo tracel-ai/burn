@@ -515,6 +515,8 @@ impl RemoteService {
     /// Send one member's part of an all-reduce, flushing immediately: its session waits there
     /// for the other members' parts, which the caller sends next.
     pub fn all_reduce_local(&mut self, stream_id: StreamId, part: LocalAllReducePart) {
+        self.probe
+            .emit(|| part.op_event(self.session_id, stream_id));
         self.submit_task(Task::AllReduceLocal { stream_id, part });
         self.flush();
     }

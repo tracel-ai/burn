@@ -12,7 +12,7 @@ pub(crate) struct DistributedSyncServer<B: Backend> {
     config: DistributedConfig,
     all_reduce_ops_queue: HashMap<DistributedParamId, Vec<TensorRef<B>>>,
     param_required_map: HashMap<DistributedParamId, usize>,
-    num_devices: usize,
+    devices: Vec<DeviceId>,
     devices_registered: usize,
     syncing_devices: Vec<Device<B>>,
     callbacks: HashMap<DeviceId, oneshot::Sender<()>>,
@@ -20,12 +20,12 @@ pub(crate) struct DistributedSyncServer<B: Backend> {
 
 impl<B: Backend> DistributedSyncServer<B> {
     /// Create a new gradient sync server instance.
-    pub(crate) fn new(num_devices: usize, config: DistributedConfig) -> Self {
+    pub(crate) fn new(devices: &[Device<B>], config: DistributedConfig) -> Self {
         Self {
             config,
             all_reduce_ops_queue: HashMap::default(),
             param_required_map: HashMap::default(),
-            num_devices,
+            devices: devices.iter().map(DeviceOps::id).collect(),
             devices_registered: 0,
             syncing_devices: vec![],
             callbacks: HashMap::default(),
@@ -66,6 +66,11 @@ impl<B: Backend> DistributedSyncServer<B> {
     }
 
     fn collective_sync(&mut self, device: Device<B>, callback: oneshot::Sender<()>) {
+        // A backward on a device outside the group syncs nothing, and must not fill the barrier.
+        if !self.devices.contains(&device.id()) {
+            callback.send(()).expect("Can send callback");
+            return;
+        }
         self.callbacks.insert(device.id(), callback);
         self.syncing_devices.push(device.clone());
         self.try_launch_sync();
@@ -73,7 +78,8 @@ impl<B: Backend> DistributedSyncServer<B> {
 
     fn try_launch_sync(&mut self) {
         // All at once: a device released early registers its next backward before this reset.
-        if self.syncing_devices.len() < self.num_devices || !self.all_reduce_ops_queue.is_empty() {
+        let devices_missing = self.syncing_devices.len() < self.devices.len();
+        if devices_missing || !self.all_reduce_ops_queue.is_empty() {
             return;
         }
         self.devices_registered = 0;
@@ -85,7 +91,7 @@ impl<B: Backend> DistributedSyncServer<B> {
     }
 
     fn launch_ops(&mut self) {
-        if self.devices_registered == self.num_devices {
+        if self.devices_registered == self.devices.len() {
             for (param_id, num_tensors) in self.param_required_map.clone() {
                 let queued_tensors = self.all_reduce_ops_queue.entry(param_id).or_insert(vec![]);
 

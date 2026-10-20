@@ -67,12 +67,13 @@ pub enum OpClass {
     Random,
     Drop,
     Custom,
+    Distributed,
     Other,
 }
 
 impl OpClass {
     /// Every variant, in a stable order for layout and iteration.
-    pub const ALL: [OpClass; 15] = [
+    pub const ALL: [OpClass; 16] = [
         OpClass::Matmul,
         OpClass::Conv,
         OpClass::Linear,
@@ -87,6 +88,7 @@ impl OpClass {
         OpClass::Random,
         OpClass::Drop,
         OpClass::Custom,
+        OpClass::Distributed,
         OpClass::Other,
     ];
 
@@ -107,6 +109,7 @@ impl OpClass {
             OpClass::Random => "random",
             OpClass::Drop => "drop",
             OpClass::Custom => "custom",
+            OpClass::Distributed => "distributed",
             OpClass::Other => "other",
         }
     }

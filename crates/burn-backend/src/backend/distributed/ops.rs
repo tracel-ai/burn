@@ -27,7 +27,7 @@ unsafe impl<B> Send for TensorRef<B> where B: Backend {}
 // * `submit_sync_collective`
 // * `submit_gradient_sync`
 
-/// Operations on communication tensors.
+/// Gradient synchronization across the devices of distributed data parallel training.
 pub trait DistributedOps<B: Backend> {
     /// Start the communication server used to orchestrate tensor syncing between devices.
     ///

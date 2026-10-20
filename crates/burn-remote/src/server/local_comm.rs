@@ -33,7 +33,7 @@ struct Pending<B: BackendIr> {
 /// A member that has handed its tensor to an all-reduce, waiting for its result.
 struct ArrivedMember<B: BackendIr> {
     tensor: FloatTensor<B>,
-    result: oneshot::Sender<FloatTensor<B>>,
+    result: oneshot::Sender<Result<FloatTensor<B>, String>>,
 }
 
 /// Rendezvous registry for same-host communication, keyed by [`LocalTransferId`].
@@ -93,8 +93,8 @@ impl<B: BackendIr> LocalCommService<B> {
     ///
     /// # Errors
     ///
-    /// When the part does not fit its all-reduce's members, and for every other member when the
-    /// all-reduce panics in the last one.
+    /// When the part does not fit its all-reduce's members, which fails the members already
+    /// waiting too, and for every other member when the all-reduce panics in the last one.
     pub async fn all_reduce(
         &self,
         part: &LocalAllReducePart,
@@ -110,10 +110,15 @@ impl<B: BackendIr> LocalCommService<B> {
                 .entry(collective)
                 .or_insert_with(|| (0..members).map(|_| None).collect());
             if arrived.len() != members || arrived.get(member).is_none_or(Option::is_some) {
-                return Err(format!(
+                let error = format!(
                     "member {member} of {members} does not fit all-reduce {collective:?} of {}",
                     arrived.len()
-                ));
+                );
+                let waiting = all_reduces.remove(&collective).into_iter().flatten();
+                for waiting in waiting.flatten() {
+                    let _ = waiting.result.send(Err(error.clone()));
+                }
+                return Err(error);
             }
             arrived[member] = Some(ArrivedMember {
                 tensor,
@@ -135,12 +140,15 @@ impl<B: BackendIr> LocalCommService<B> {
                 .unzip();
             let reduced = stream_id.executes(|| B::float_all_reduce(tensors, part.op));
             for (result, tensor) in results.into_iter().zip(reduced) {
-                let _ = result.send(tensor);
+                let _ = result.send(Ok(tensor));
             }
         }
-        result
-            .await
-            .map_err(|_| format!("all-reduce {collective:?} failed in its last member"))
+        match result.await {
+            Ok(reduced) => reduced,
+            Err(_) => Err(format!(
+                "all-reduce {collective:?} failed in its last member"
+            )),
+        }
     }
 
     /// Drop every primitive `session` exposed that no target ever took.
@@ -170,6 +178,7 @@ mod tests {
     };
     use burn_flex::Flex;
     use burn_ir::{TensorId, TensorIr};
+    use std::{task::Poll, time::Duration};
 
     fn part(collective: LocalCollectiveId, member: u32, members: u32) -> LocalAllReducePart {
         LocalAllReducePart {
@@ -229,5 +238,31 @@ mod tests {
             .await;
 
         assert!(refused.is_err());
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_part_that_does_not_fit_fails_the_members_waiting() {
+        let comm = LocalCommService::<Flex>::new();
+        let collective = LocalCollectiveId::random();
+        let first_part = part(collective, 0, 2);
+        let first = comm.all_reduce(&first_part, tensor([1.0, 2.0]), StreamId::current());
+        tokio::pin!(first);
+        let waiting =
+            std::future::poll_fn(|cx| Poll::Ready(first.as_mut().poll(cx).is_pending())).await;
+        assert!(waiting);
+
+        let duplicate = comm
+            .all_reduce(
+                &part(collective, 0, 2),
+                tensor([3.0, 4.0]),
+                StreamId::current(),
+            )
+            .await;
+        let first = tokio::time::timeout(Duration::from_secs(10), first)
+            .await
+            .expect("the waiting member was left waiting");
+
+        assert!(duplicate.is_err());
+        assert!(first.is_err());
     }
 }

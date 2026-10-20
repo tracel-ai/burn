@@ -26,6 +26,10 @@ impl DistributedContext {
     ///
     /// * `devices` - The collection of compute devices participating in the distributed operations.
     /// * `config` - Parameter aggregation settings, such as global reduction strategies (`Mean`, `Sum`, etc.).
+    ///
+    /// # Panics
+    ///
+    /// When another context is alive for the same backend in this process.
     pub fn init(devices: Vec<Device>, config: DistributedConfig) -> Self {
         let dispatch_devices = devices
             .iter()

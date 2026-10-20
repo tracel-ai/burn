@@ -3,7 +3,7 @@ use std::{
     sync::{Mutex, MutexGuard, OnceLock},
 };
 
-use std::collections::HashMap;
+use std::collections::{HashMap, hash_map::Entry};
 
 use crate::Backend;
 
@@ -41,13 +41,24 @@ pub(crate) fn remove_distributed_sync_client<B: Backend>() {
 }
 
 /// Starts the server used to sync the gradients of parameters sharded across multiple devices.
+///
+/// # Panics
+///
+/// When one already runs for `B`: there is one per backend, and the devices of a second would sync
+/// against the first one's.
 pub fn start_distributed_sync_server<B: Backend>(devices: &[B::Device], config: DistributedConfig) {
-    if get_distributed_sync_client::<B>().is_none() {
-        let typeid = TypeId::of::<B>();
-        let mut state_map = get_backend_client_map();
-        let client = DistributedSyncClient::<B>::new(devices.len(), config);
-        state_map.insert(typeid, Box::new(client.clone()));
-    }
+    let started = match get_backend_client_map().entry(TypeId::of::<B>()) {
+        Entry::Occupied(_) => false,
+        Entry::Vacant(entry) => {
+            entry.insert(Box::new(DistributedSyncClient::<B>::new(devices, config)));
+            true
+        }
+    };
+    // Outside the lock, which a panic would poison for every later server.
+    assert!(
+        started,
+        "A distributed context already runs for this backend: drop it before starting another"
+    );
 }
 
 /// Close the gradient syncing server.

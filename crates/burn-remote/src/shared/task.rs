@@ -9,7 +9,10 @@ use core::time::Duration;
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 
-use crate::{PeerAddr, PeerId};
+use crate::{
+    PeerAddr, PeerId,
+    telemetry::{OpClass, TelemetryEvent, TensorRef},
+};
 
 /// Current Burn Remote application-protocol version.
 ///
@@ -69,6 +72,23 @@ pub struct LocalAllReducePart {
     pub member: u32,
     pub members: u32,
     pub op: ReduceOperation,
+}
+
+impl LocalAllReducePart {
+    /// This part as an op of `session`'s telemetry, producing `out` from `tensor`.
+    pub fn op_event(&self, session: SessionId, stream: StreamId) -> TelemetryEvent {
+        TelemetryEvent::Op {
+            session,
+            stream,
+            kind: OpClass::Distributed,
+            inputs: vec![self.tensor.id],
+            outputs: vec![TensorRef {
+                id: self.out,
+                shape: self.tensor.shape.clone(),
+                dtype: self.tensor.dtype,
+            }],
+        }
+    }
 }
 
 /// Unforgeable, bounded-use capability authorizing a peer-to-peer tensor download.

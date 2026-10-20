@@ -35,7 +35,7 @@
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
-use burn_ir::{BackendIr, GraphBindings, GraphId, HandleKind};
+use burn_ir::{BackendIr, GraphBindings, GraphId, HandleKind, TensorError};
 use burn_router::{Graph, TensorInterpreter};
 use burn_std::{ExecutionError, id::StreamId};
 #[cfg(not(target_family = "wasm"))]
@@ -351,20 +351,31 @@ where
             Task::AllReduceLocal { stream_id, part } => {
                 // Blocks this session's worker until every member has arrived, so the members'
                 // sessions must not wait on each other through earlier tasks.
-                let HandleKind::Float(tensor) =
-                    stream_id.executes(|| self.runner.get_tensor(&part.tensor))
-                else {
-                    return Err(format!(
+                self.probe
+                    .emit(|| part.op_event(self.session_id, stream_id));
+                let reduced = match stream_id.executes(|| self.runner.get_tensor(&part.tensor)) {
+                    HandleKind::Float(tensor) => {
+                        self.local_comm.all_reduce(&part, tensor, stream_id).await
+                    }
+                    _ => Err(format!(
                         "all-reduce {:?} takes float tensors",
                         part.collective
-                    ));
+                    )),
                 };
-                let reduced = self.local_comm.all_reduce(&part, tensor, stream_id).await?;
-                stream_id.executes(|| {
-                    self.runner
-                        .register_tensor_to_device(part.out, HandleKind::Float(reduced))
-                });
-                Ok(())
+                match reduced {
+                    Ok(reduced) => {
+                        stream_id.executes(|| {
+                            self.runner
+                                .register_tensor_to_device(part.out, HandleKind::Float(reduced))
+                        });
+                        Ok(())
+                    }
+                    Err(reason) => {
+                        let error = TensorError::new(ExecutionError::generic(reason.clone()));
+                        self.runner.set_error(part.out, error);
+                        Err(reason)
+                    }
+                }
             }
             Task::ExposeTensorRemote {
                 stream_id,

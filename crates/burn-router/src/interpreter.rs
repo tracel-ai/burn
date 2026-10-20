@@ -13,7 +13,7 @@ use burn_backend::{
 use burn_ir::{
     ActivationOperationIr, BackendIr, BaseOperationIr, BoolOperationIr, FloatOperationIr,
     HandleContainer, HandleKind, IntOperationIr, ModuleOperationIr, NumericOperationIr,
-    OperationIr, TensorId, TensorIr, TensorStatus,
+    OperationIr, TensorError, TensorId, TensorIr, TensorStatus,
 };
 use burn_std::{DeviceSettings, future::DynFut};
 use portable_atomic::{AtomicU64, Ordering};
@@ -134,6 +134,11 @@ impl<B: BackendIr> TensorInterpreter<B> {
                 ctx.handles.register_quantized_tensor::<B>(&id, tensor);
             }
         }
+    }
+
+    /// Register `id` as failed by `error`, so a read of it reports why instead of finding nothing.
+    pub fn set_error(&mut self, id: TensorId, error: TensorError) {
+        self.context.handles.set_error(id, error);
     }
 
     /// Create a tensor with the given handle and shape.
