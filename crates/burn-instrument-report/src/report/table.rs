@@ -620,7 +620,7 @@ impl ComponentLines<'_, '_> {
         let (bound, achieved, floor, gain) =
             match (scored, self.report.roofline().floor_of(component)) {
                 (Some(score), _) => (
-                    score.bound.to_string(),
+                    score.floor.bound.to_string(),
                     // A component above 100% is marked and keeps its figure. The peaks are
                     // measured rather than looked up, so 105% is a component at the roof read
                     // through a probe that came in a little low, and 568% is a declared
@@ -637,7 +637,7 @@ impl ComponentLines<'_, '_> {
                             format!("{} {:>3.0}% ", bar(score.achieved), score.achieved * 100.0)
                         }
                     },
-                    Millis(score.floor).to_string(),
+                    Millis(score.floor.time).to_string(),
                     Millis(score.gain(self.report.reading().apportioned(component))).to_string(),
                 ),
                 // Priced but not scored — it measured no time of its own. The floor is

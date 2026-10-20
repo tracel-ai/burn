@@ -1067,7 +1067,7 @@ fn a_broken_compute_peak_is_reported_not_divided_by() {
         .flat_map(|component| component.walk())
     {
         if let Some(score) = rendered.roofline().score_of(component) {
-            assert_eq!(score.bound, Bound::Bytes, "{}", component.label);
+            assert_eq!(score.floor.bound, Bound::Bytes, "{}", component.label);
         }
     }
 }

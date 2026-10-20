@@ -102,7 +102,7 @@ impl Worklist {
                     true => (
                         roofline
                             .deepest_floor(component)
-                            .saturating_sub(score.floor),
+                            .saturating_sub(score.floor.time),
                         Lever::FusingInside,
                     ),
                     false => (
@@ -114,7 +114,11 @@ impl Worklist {
                     path,
                     gain,
                     lever,
-                    against: format!("{:>3.0}% of {} peak", score.achieved * 100.0, score.bound),
+                    against: format!(
+                        "{:>3.0}% of {} peak",
+                        score.achieved * 100.0,
+                        score.floor.bound
+                    ),
                 });
             }
         }

@@ -30,10 +30,8 @@ impl Display for Bound {
 /// What a component would take at the roof, and how close it got.
 #[derive(Clone, Copy, Debug)]
 pub struct Score {
-    /// The wall it is bound by — whichever gives the longer floor.
-    pub bound: Bound,
-    /// The time it cannot go below on this device.
-    pub floor: Duration,
+    /// The time it cannot go below on this device, and the wall it is bound by.
+    pub floor: Floor,
     /// Achieved against the peak of its binding wall, in `[0, 1]` for anything
     /// that is not beating the probe.
     pub achieved: f64,
@@ -52,8 +50,7 @@ impl Score {
         }
         let floor = Floor::new(bounds, peaks)?;
         Some(Self {
-            bound: floor.bound,
-            floor: floor.time,
+            floor,
             achieved: floor.time.as_secs_f64() / seconds,
         })
     }
@@ -64,7 +61,7 @@ impl Score {
     /// composite it is not all reachable by faster kernels — part of it is the
     /// fuser's. [`Ladder`] is what splits the two.
     pub fn gain(&self, measured: Duration) -> Duration {
-        measured.saturating_sub(self.floor)
+        measured.saturating_sub(self.floor.time)
     }
 }
 
@@ -233,11 +230,11 @@ mod tests {
             flops: 0,
         };
         let scored = Score::new(bounds, Duration::from_micros(1_100), &peaks).expect("scored");
-        assert_eq!(scored.bound, Bound::Bytes);
+        assert_eq!(scored.floor.bound, Bound::Bytes);
         assert!(
-            (scored.floor.as_secs_f64() - 0.0011).abs() < 1e-9,
+            (scored.floor.time.as_secs_f64() - 0.0011).abs() < 1e-9,
             "read at its own ceiling plus write at its own: {:?}",
-            scored.floor
+            scored.floor.time
         );
         // The same bytes against the copy ceiling would have claimed 1.51 ms of
         // floor for a pass that took 1.1 -- 137% of a peak it never exceeded.
@@ -261,9 +258,9 @@ mod tests {
         let scored = Score::new(bounds, Duration::from_millis(2), &peaks).expect("scored");
         // 200 MB over 200 GB/s is a millisecond, whatever the mix.
         assert!(
-            (scored.floor.as_secs_f64() - 0.001).abs() < 1e-9,
+            (scored.floor.time.as_secs_f64() - 0.001).abs() < 1e-9,
             "{:?}",
-            scored.floor
+            scored.floor.time
         );
     }
 
@@ -289,9 +286,9 @@ mod tests {
         let scored = Score::new(bounds, Duration::from_millis(2), &half).expect("scored");
         // 200 MB over the 200 GB/s copy ceiling, not 150 over 230.
         assert!(
-            (scored.floor.as_secs_f64() - 0.001).abs() < 1e-9,
+            (scored.floor.time.as_secs_f64() - 0.001).abs() < 1e-9,
             "{:?}",
-            scored.floor
+            scored.floor.time
         );
     }
 
@@ -306,7 +303,7 @@ mod tests {
         };
         let matmul =
             Score::new(matmul, Duration::from_millis(1), &peaks()).expect("both peaks known");
-        assert_eq!(matmul.bound, Bound::Flops);
+        assert_eq!(matmul.floor.bound, Bound::Flops);
 
         // A norm: the same bytes and almost no arithmetic.
         let norm = Bounds {
@@ -315,7 +312,7 @@ mod tests {
             flops: 1_000_000,
         };
         let norm = Score::new(norm, Duration::from_millis(1), &peaks()).expect("both peaks known");
-        assert_eq!(norm.bound, Bound::Bytes);
+        assert_eq!(norm.floor.bound, Bound::Bytes);
     }
 
     #[test]
@@ -357,7 +354,7 @@ mod tests {
             flops: 0,
         };
         let gather = Score::new(gather, Duration::from_millis(1), &peaks()).expect("a memory peak");
-        assert_eq!(gather.bound, Bound::Bytes);
+        assert_eq!(gather.floor.bound, Bound::Bytes);
     }
 
     #[test]
