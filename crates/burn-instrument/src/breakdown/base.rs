@@ -43,7 +43,7 @@ pub struct Breakdown {
     /// and the end of the pass's — the idle time no component is charged with. See
     /// [`Component::own_wait`].
     // Stored as `waited_outside`, the key version 1 files carry.
-    #[serde(rename = "waited_outside", with = "nanoseconds")]
+    #[serde(rename = "waited_outside", with = "super::nanoseconds")]
     pub outside_wait: Duration,
     /// Whether any launch was timed on the host rather than the device.
     ///
@@ -203,7 +203,7 @@ pub struct Kernel {
     /// Launches, across every entry of the component.
     pub launches: usize,
     /// Device time across those launches.
-    #[serde(with = "nanoseconds")]
+    #[serde(with = "super::nanoseconds")]
     pub total: Duration,
     /// The components below the component it is recorded on whose work it carried
     /// out, in first-seen order, each by its path from that component — or from the
@@ -294,7 +294,7 @@ pub struct Component {
     /// as a share of every gap it says which components the device waited on,
     /// which is what a clean pass's host time is split by.
     // Stored as `waited`, the key version 1 files carry.
-    #[serde(rename = "waited", with = "nanoseconds")]
+    #[serde(rename = "waited", with = "super::nanoseconds")]
     pub own_wait: Duration,
 }
 
@@ -403,25 +403,8 @@ pub struct Unplaced {
     /// How many timings had nowhere to go.
     pub timings: usize,
     /// What they came to.
-    #[serde(with = "nanoseconds")]
+    #[serde(with = "super::nanoseconds")]
     pub total: Duration,
-}
-
-/// A [`Duration`] as a whole number of nanoseconds, which any reader of the file can use.
-mod nanoseconds {
-    use std::time::Duration;
-
-    use serde::{Deserialize, Deserializer, Serializer};
-
-    pub fn serialize<S: Serializer>(duration: &Duration, serializer: S) -> Result<S::Ok, S::Error> {
-        // Saturating: a pass would have to run for 584 years to overflow.
-        let nanoseconds = u64::try_from(duration.as_nanos()).unwrap_or(u64::MAX);
-        serializer.serialize_u64(nanoseconds)
-    }
-
-    pub fn deserialize<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Duration, D::Error> {
-        u64::deserialize(deserializer).map(Duration::from_nanos)
-    }
 }
 
 #[cfg(test)]
