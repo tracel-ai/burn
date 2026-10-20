@@ -22,7 +22,7 @@
 //!
 //! # Collecting a pass
 //!
-//! With the `cubecl` feature, [`PassCollector`] installs one recorder as the component observer,
+//! With the `cubecl` feature, [`Instrument`] installs one recorder as the component observer,
 //! the cubecl runtime's launch observer and the fusion server's observer, runs a pass, and returns its [`Breakdown`]: the component
 //! tree, each component's kernels, and what the device spent on them. Nothing is drained at a
 //! component boundary, so the collected pass runs the kernels a clean pass runs. Each launch is
@@ -40,42 +40,39 @@
 //! collecting thread had open.
 //!
 //! ```rust,ignore
-//! // Before the pass: the probes are saturating kernels.
-//! let peaks = Peaks::new(&device, FloatDType::F16);
-//! let breakdown = PassCollector::new(&device).collect(|| {
-//!     model.forward(input);
-//! });
-//! let pass = CollectedPass {
-//!     device: format!("{device:?}"),
-//!     peaks: Some(peaks),
-//!     clean_wall: Some(clean_wall),
-//!     breakdown,
-//! };
-//! pass.write(std::fs::File::create("forward.json")?)?;
+//! let measurement = Instrument::new(&device).measure(|| model.forward(input.clone()));
+//! measurement.write(std::fs::File::create("model.json")?)?;
 //! ```
 //!
-//! A [`Breakdown`] is data, and a [`CollectedPass`] carries it beside the device's [`Peaks`] and
-//! the wall time of the same pass run uncollected. [`CollectedPass::write`] saves it as a
-//! versioned JSON file ([`PASS_FILE_VERSION`]) that [`CollectedPass::read`] reads back on any
+//! [`Instrument::measure`] warms the pass up, measures the device's [`Peaks`] before anything
+//! is timed (the probes are saturating kernels), times uncollected runs for the clean wall, and
+//! collects one more run. [`Instrument::breakdown`] collects a pass alone, for a caller
+//! that warms it up itself.
+//!
+//! A [`Breakdown`] is data, and a [`Measurement`] carries it beside the device's [`Peaks`] and
+//! the wall time of the same pass run uncollected. [`Measurement::write`] saves it as a
+//! versioned JSON file ([`MEASUREMENT_FILE_VERSION`]) that [`Measurement::read`] reads back on any
 //! machine, with or without a runtime, to be scored there.
 //!
 //! # Feature flags
 //!
 //! - `std` (default): installing an observer, and reading and writing breakdowns.
-//! - `cubecl`: [`PassCollector`], which reads a cubecl runtime's kernel launches, and
+//! - `cubecl`: [`Instrument`], which reads a cubecl runtime's kernel launches, and
 //!   [`Peaks::new`].
 //! - `fusion` (default): the collector also reads the fusion server's blocks, which it needs to
 //!   collect a device that fuses.
 //!
 // Where the enabled features leave an item out, its links go to this version's docs.rs page.
-#![cfg_attr(not(feature = "cubecl"), doc = concat!("[`PassCollector`]: ", concat!("https://docs.rs/burn-instrument/", env!("CARGO_PKG_VERSION"), "/burn_instrument/struct.PassCollector.html")))]
+#![cfg_attr(not(feature = "cubecl"), doc = concat!("[`Instrument`]: ", concat!("https://docs.rs/burn-instrument/", env!("CARGO_PKG_VERSION"), "/burn_instrument/struct.Instrument.html")))]
+#![cfg_attr(not(feature = "cubecl"), doc = concat!("[`Instrument::measure`]: ", concat!("https://docs.rs/burn-instrument/", env!("CARGO_PKG_VERSION"), "/burn_instrument/struct.Instrument.html#method.measure")))]
+#![cfg_attr(not(feature = "cubecl"), doc = concat!("[`Instrument::breakdown`]: ", concat!("https://docs.rs/burn-instrument/", env!("CARGO_PKG_VERSION"), "/burn_instrument/struct.Instrument.html#method.breakdown")))]
 #![cfg_attr(not(feature = "cubecl"), doc = concat!("[`Peaks::new`]: ", concat!("https://docs.rs/burn-instrument/", env!("CARGO_PKG_VERSION"), "/burn_instrument/struct.Peaks.html#method.new")))]
 #![cfg_attr(not(feature = "std"), doc = concat!("[`Breakdown`]: ", concat!("https://docs.rs/burn-instrument/", env!("CARGO_PKG_VERSION"), "/burn_instrument/struct.Breakdown.html")))]
-#![cfg_attr(not(feature = "std"), doc = concat!("[`CollectedPass`]: ", concat!("https://docs.rs/burn-instrument/", env!("CARGO_PKG_VERSION"), "/burn_instrument/struct.CollectedPass.html")))]
-#![cfg_attr(not(feature = "std"), doc = concat!("[`CollectedPass::write`]: ", concat!("https://docs.rs/burn-instrument/", env!("CARGO_PKG_VERSION"), "/burn_instrument/struct.CollectedPass.html#method.write")))]
-#![cfg_attr(not(feature = "std"), doc = concat!("[`CollectedPass::read`]: ", concat!("https://docs.rs/burn-instrument/", env!("CARGO_PKG_VERSION"), "/burn_instrument/struct.CollectedPass.html#method.read")))]
+#![cfg_attr(not(feature = "std"), doc = concat!("[`Measurement`]: ", concat!("https://docs.rs/burn-instrument/", env!("CARGO_PKG_VERSION"), "/burn_instrument/struct.Measurement.html")))]
+#![cfg_attr(not(feature = "std"), doc = concat!("[`Measurement::write`]: ", concat!("https://docs.rs/burn-instrument/", env!("CARGO_PKG_VERSION"), "/burn_instrument/struct.Measurement.html#method.write")))]
+#![cfg_attr(not(feature = "std"), doc = concat!("[`Measurement::read`]: ", concat!("https://docs.rs/burn-instrument/", env!("CARGO_PKG_VERSION"), "/burn_instrument/struct.Measurement.html#method.read")))]
 #![cfg_attr(not(feature = "std"), doc = concat!("[`Peaks`]: ", concat!("https://docs.rs/burn-instrument/", env!("CARGO_PKG_VERSION"), "/burn_instrument/struct.Peaks.html")))]
-#![cfg_attr(not(feature = "std"), doc = concat!("[`PASS_FILE_VERSION`]: ", concat!("https://docs.rs/burn-instrument/", env!("CARGO_PKG_VERSION"), "/burn_instrument/constant.PASS_FILE_VERSION.html")))]
+#![cfg_attr(not(feature = "std"), doc = concat!("[`MEASUREMENT_FILE_VERSION`]: ", concat!("https://docs.rs/burn-instrument/", env!("CARGO_PKG_VERSION"), "/burn_instrument/constant.MEASUREMENT_FILE_VERSION.html")))]
 
 extern crate alloc;
 
@@ -88,7 +85,7 @@ mod breakdown;
 #[cfg(feature = "std")]
 mod component_path;
 #[cfg(feature = "cubecl")]
-mod pass;
+mod instrument;
 #[cfg(feature = "std")]
 mod peaks;
 
@@ -103,13 +100,13 @@ pub use observer::*;
 
 #[cfg(feature = "std")]
 pub use breakdown::{
-    Breakdown, CollectedPass, Component, FusedElsewhere, Kernel, PASS_FILE_VERSION, PassFileError,
-    Unplaced, Variant,
+    Breakdown, Component, FusedElsewhere, Kernel, MEASUREMENT_FILE_VERSION, Measurement,
+    MeasurementFileError, Unplaced, Variant,
 };
 #[cfg(feature = "std")]
 pub use component_path::ComponentPath;
 #[cfg(feature = "cubecl")]
-pub use pass::PassCollector;
+pub use instrument::Instrument;
 #[cfg(feature = "std")]
 pub use peaks::{ComputePeak, PeakFinding, Peaks};
 

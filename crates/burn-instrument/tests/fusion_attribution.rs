@@ -18,9 +18,7 @@
 use std::fmt;
 use std::sync::Mutex;
 
-use burn_instrument::{
-    Breakdown, Component, ComponentPath, Kernel, PassCollector, Unplaced, compute,
-};
+use burn_instrument::{Breakdown, Component, ComponentPath, Instrument, Kernel, Unplaced, compute};
 use burn_tensor::activation::{gelu, sigmoid};
 use burn_tensor::{Device, Distribution, Tensor};
 use cubecl::config::{TypeNameFormatLevel, type_name_format};
@@ -205,11 +203,7 @@ impl CaseBreakdown {
         device.sync().expect("the device answers before the pass");
         core::mem::drop(warmed);
 
-        let mut output = None;
-        let breakdown = PassCollector::new(&device).collect(|| output = Some(model(input)));
-        // Held across the collection: an output dropped inside the pass would
-        // let the fuser skip the work that wrote it.
-        core::mem::drop(output);
+        let breakdown = Instrument::new(&device).breakdown(|| model(input));
         core::mem::drop(serial);
         Self {
             boundary,

@@ -1,8 +1,8 @@
 use std::time::Duration;
 
 use burn_instrument::{
-    Bounds, Breakdown, CollectedPass, Component, ComponentPath, ComputePeak, Kernel, Peaks,
-    Unplaced, Variant,
+    Bounds, Breakdown, Component, ComponentPath, ComputePeak, Kernel, Measurement, Peaks, Unplaced,
+    Variant,
 };
 use burn_tensor::FloatDType;
 
@@ -25,13 +25,13 @@ fn peaks() -> Peaks {
 
 /// A pass with a small tree, **built rather than measured**.
 ///
-/// The table is a function of a [`CollectedPass`], so a rendering test
+/// The table is a function of a [`Measurement`], so a rendering test
 /// needs one, not a run that produces one: collecting a pass here would
 /// leave every number at whatever this machine happened to do. What the
 /// collector produces from a real pass is `burn-instrument`'s to test;
 /// these tests own the rendering, and their input is stated.
-fn pass() -> CollectedPass {
-    CollectedPass {
+fn pass() -> Measurement {
+    Measurement {
         device: "cpu".to_string(),
         peaks: Some(peaks()),
         clean_wall: Some(Duration::from_micros(2_000)),
@@ -290,7 +290,7 @@ fn kernel(name: &str, launches: usize, micros: u64) -> Kernel {
 /// mean anything rather than print a `host` line it cannot know.
 #[test]
 fn a_pass_without_a_clean_run_splits_nothing_and_says_so() {
-    let pass = CollectedPass {
+    let pass = Measurement {
         clean_wall: None,
         ..pass()
     };
@@ -328,7 +328,7 @@ fn a_pass_without_a_clean_run_splits_nothing_and_says_so() {
 /// every roofline column is blank.
 #[test]
 fn an_unprobed_pass_says_why_nothing_is_scored() {
-    let pass = CollectedPass {
+    let pass = Measurement {
         peaks: None,
         ..pass()
     };
@@ -975,7 +975,7 @@ fn an_impossible_write_ceiling_is_reported_not_divided_by() {
             dtype: FloatDType::F16,
         }),
     };
-    let pass = CollectedPass {
+    let pass = Measurement {
         peaks: Some(broken),
         ..pass()
     };
@@ -1012,7 +1012,7 @@ fn ceilings_that_do_not_predict_each_other_are_a_caveat_not_a_fallback() {
             dtype: FloatDType::F16,
         }),
     };
-    let pass = CollectedPass {
+    let pass = Measurement {
         peaks: Some(odd),
         ..pass()
     };
@@ -1043,7 +1043,7 @@ fn a_broken_compute_peak_is_reported_not_divided_by() {
         }),
         ..Peaks::default()
     };
-    let pass = CollectedPass {
+    let pass = Measurement {
         peaks: Some(broken),
         ..pass()
     };

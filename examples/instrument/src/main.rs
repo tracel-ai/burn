@@ -7,9 +7,7 @@
 //!
 //! The device is `BURN_DEVICE`'s, or the default one of the linked runtime.
 
-use std::time::{Duration, Instant};
-
-use burn::instrument::{Bounds, CollectedPass, PassCollector, Peaks, compute, tensor_bytes};
+use burn::instrument::{Bounds, Instrument, compute, tensor_bytes};
 use burn::tensor::activation::gelu;
 use burn::tensor::{Device, Distribution, FloatDType, Tensor};
 
@@ -138,42 +136,12 @@ fn main() {
     };
     let input = Tensor::<2>::random([TOKENS, WIDTH], Distribution::Default, &device);
 
-    let pass = || {
-        let output = model.forward(input.clone());
-        device.sync().expect("the device answers");
-        output
-    };
-    for _ in 0..WARMUP {
-        pass();
-    }
-
-    // Before anything is timed: the probes are saturating kernels.
-    let peaks = Peaks::new(&device, FloatDType::F32);
-
-    let mut samples: Vec<Duration> = (0..SAMPLES)
-        .map(|_| {
-            let start = Instant::now();
-            pass();
-            start.elapsed()
-        })
-        .collect();
-    samples.sort();
-    let clean_wall = samples[SAMPLES / 2];
-
-    // Held past the collection: an output dropped inside the pass lets the fuser skip the work
-    // that wrote it.
-    let mut output = None;
-    let breakdown =
-        PassCollector::new(&device).collect(|| output = Some(model.forward(input.clone())));
-    drop(output);
-
-    let collected = CollectedPass {
-        device: format!("{device:?}"),
-        peaks: Some(peaks),
-        clean_wall: Some(clean_wall),
-        breakdown,
-    };
+    let measurement = Instrument::new(&device)
+        .warmup(WARMUP)
+        .samples(SAMPLES)
+        .dtype(FloatDType::F32)
+        .measure(|| model.forward(input.clone()));
     let file = std::fs::File::create(&path).expect("the pass file can be created");
-    collected.write(file).expect("the pass is written");
+    measurement.write(file).expect("the pass is written");
     println!("saved {path}");
 }

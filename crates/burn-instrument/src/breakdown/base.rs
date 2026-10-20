@@ -14,15 +14,15 @@ use super::FusedElsewhere;
 
 /// One collected pass, broken down by component.
 ///
-/// What [`PassCollector::collect`] returns: data only, so a breakdown
+/// What [`Instrument::measure`] returns: data only, so a breakdown
 /// collected from a pass and one written out in a test are the same kind of
 /// value.
 ///
 #[cfg_attr(
     feature = "cubecl",
-    doc = "[`PassCollector::collect`]: crate::PassCollector::collect"
+    doc = "[`Instrument::measure`]: crate::Instrument::measure"
 )]
-#[cfg_attr(not(feature = "cubecl"), doc = concat!("[`PassCollector::collect`]: ", concat!("https://docs.rs/burn-instrument/", env!("CARGO_PKG_VERSION"), "/burn_instrument/struct.PassCollector.html#method.collect")))]
+#[cfg_attr(not(feature = "cubecl"), doc = concat!("[`Instrument::measure`]: ", concat!("https://docs.rs/burn-instrument/", env!("CARGO_PKG_VERSION"), "/burn_instrument/struct.Instrument.html#method.measure")))]
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Breakdown {
@@ -34,13 +34,13 @@ pub struct Breakdown {
     pub untagged: Vec<Kernel>,
     /// Kernels the sync ending the pass ran: fused work the last components
     /// left queued, which no op after them was there to seal. See
-    /// [`PassCollector::collect`].
+    /// [`Instrument::measure`].
     ///
     #[cfg_attr(
         feature = "cubecl",
-        doc = "[`PassCollector::collect`]: crate::PassCollector::collect"
+        doc = "[`Instrument::measure`]: crate::Instrument::measure"
     )]
-    #[cfg_attr(not(feature = "cubecl"), doc = concat!("[`PassCollector::collect`]: ", concat!("https://docs.rs/burn-instrument/", env!("CARGO_PKG_VERSION"), "/burn_instrument/struct.PassCollector.html#method.collect")))]
+    #[cfg_attr(not(feature = "cubecl"), doc = concat!("[`Instrument::measure`]: ", concat!("https://docs.rs/burn-instrument/", env!("CARGO_PKG_VERSION"), "/burn_instrument/struct.Instrument.html#method.measure")))]
     pub end_of_pass: Vec<Kernel>,
     /// How long the device waited on the host before the untagged kernels
     /// and the end of the pass's — the idle time no component is charged with. See

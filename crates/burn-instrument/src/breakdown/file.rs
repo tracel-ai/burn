@@ -10,14 +10,18 @@ use serde::{Deserialize, Serialize};
 use super::Breakdown;
 use crate::Peaks;
 
-/// What a pass file says it is, so a reader can refuse anything else before decoding it.
-const FORMAT: &str = "burn-instrument pass";
+/// What a measurement file says it is, so a reader can refuse anything else before decoding it.
+const FORMAT: &str = "burn-instrument measurement";
+
+/// What versions 1 and 2 said they were, so a file saved by an older build is refused as an
+/// older version rather than as something else.
+const FORMAT_BEFORE_VERSION_3: &str = "burn-instrument pass";
 
 /// The version of the pass file format this build writes and reads.
 ///
 /// Every change to what a file serializes as (a field added, removed, renamed or re-encoded) is a
 /// new version, so a saved pass is read back as it was collected or not at all.
-pub const PASS_FILE_VERSION: u32 = 2;
+pub const MEASUREMENT_FILE_VERSION: u32 = 3;
 
 /// A collected pass and what it is scored against: what a pass file holds.
 ///
@@ -26,7 +30,7 @@ pub const PASS_FILE_VERSION: u32 = 2;
 /// with nothing collecting it; both are measured where the device is, so they travel with the
 /// breakdown rather than being measured again wherever the file is read.
 #[derive(Clone, Debug, PartialEq)]
-pub struct CollectedPass {
+pub struct Measurement {
     /// The device the pass ran on, as its runtime names it.
     pub device: String,
     /// The device's peaks, measured before the pass, or `None` where it was not probed.
@@ -56,7 +60,7 @@ struct FileOut<'a> {
 /// A pass file as it is read: the header, and every other field parsed but not yet decoded,
 /// so a file of another format or version is refused before its contents are.
 ///
-/// Every field may be missing here, and is checked in [`CollectedPass::read`]: a file with no
+/// Every field may be missing here, and is checked in [`Measurement::read`]: a file with no
 /// format is not a pass, a version too wide for this build's is still one it does not read,
 /// and a field the version writes is never read as a default nobody wrote.
 #[derive(Deserialize)]
@@ -78,36 +82,38 @@ struct FileIn {
 
 /// Why a pass file could not be written or read back.
 #[derive(Debug, thiserror::Error)]
-pub enum PassFileError {
+pub enum MeasurementFileError {
     /// The file could not be written or read.
-    #[error("pass file: {0}")]
+    #[error("measurement file: {0}")]
     Io(#[from] std::io::Error),
     /// The file is not JSON, or does not hold what its header says.
-    #[error("pass file is malformed: {0}")]
+    #[error("measurement file is malformed: {0}")]
     Malformed(#[from] serde_json::Error),
-    /// The file is not a pass.
-    #[error("not a pass file: its format is `{found}`")]
-    NotAPass {
+    /// The file is not a measurement.
+    #[error("not a measurement file: its format is `{found}`")]
+    NotAMeasurement {
         /// The format the file declares, empty for a file that declares none.
         found: String,
     },
-    /// The file is a pass in a version this build does not read.
-    #[error("pass file version {found} is not supported; this build reads version {supported}")]
+    /// The file is a measurement in a version this build does not read.
+    #[error(
+        "measurement file version {found} is not supported; this build reads version {supported}"
+    )]
     UnsupportedVersion {
         /// The version the file declares.
         found: u64,
-        /// The version this build reads, [`PASS_FILE_VERSION`].
+        /// The version this build reads, [`MEASUREMENT_FILE_VERSION`].
         supported: u32,
     },
 }
 
-impl CollectedPass {
+impl Measurement {
     /// Write this pass as JSON, under a header naming the format and its
-    /// [`PASS_FILE_VERSION`], so a pass collected on one machine can be read on another.
-    pub fn write(&self, writer: impl Write) -> Result<(), PassFileError> {
+    /// [`MEASUREMENT_FILE_VERSION`], so a pass collected on one machine can be read on another.
+    pub fn write(&self, writer: impl Write) -> Result<(), MeasurementFileError> {
         let file = FileOut {
             format: FORMAT,
-            version: PASS_FILE_VERSION,
+            version: MEASUREMENT_FILE_VERSION,
             device: &self.device,
             peaks: self.peaks.as_ref(),
             clean_wall: self.clean_wall,
@@ -124,21 +130,21 @@ impl CollectedPass {
     /// Read back a pass [`write`](Self::write) wrote, refusing a file of another format or
     /// version before decoding its contents, and one whose contents are not exactly what that
     /// version writes: a field missing or one it does not know.
-    pub fn read(mut reader: impl Read) -> Result<Self, PassFileError> {
+    pub fn read(mut reader: impl Read) -> Result<Self, MeasurementFileError> {
         // Read whole rather than parsed from the reader, which would read a file a byte at a
         // time.
         let mut bytes = Vec::new();
         reader.read_to_end(&mut bytes)?;
         let file: FileIn = serde_json::from_slice(&bytes)?;
         let format = file.format.unwrap_or_default();
-        if format != FORMAT {
-            return Err(PassFileError::NotAPass { found: format });
+        if format != FORMAT && format != FORMAT_BEFORE_VERSION_3 {
+            return Err(MeasurementFileError::NotAMeasurement { found: format });
         }
         let version = required(file.version, "version")?;
-        if version != u64::from(PASS_FILE_VERSION) {
-            return Err(PassFileError::UnsupportedVersion {
+        if version != u64::from(MEASUREMENT_FILE_VERSION) {
+            return Err(MeasurementFileError::UnsupportedVersion {
                 found: version,
-                supported: PASS_FILE_VERSION,
+                supported: MEASUREMENT_FILE_VERSION,
             });
         }
         Ok(Self {
@@ -163,7 +169,7 @@ fn present<'de, D: serde::Deserializer<'de>>(
 }
 
 /// A field the version writes, or the error for a file that left it out.
-fn required<T>(field: Option<T>, name: &'static str) -> Result<T, PassFileError> {
+fn required<T>(field: Option<T>, name: &'static str) -> Result<T, MeasurementFileError> {
     field.ok_or_else(|| serde_json::Error::missing_field(name).into())
 }
 
@@ -182,7 +188,7 @@ mod tests {
     #[test]
     fn a_written_pass_reads_back_unchanged() {
         let pass = pass();
-        let read = CollectedPass::read(written(&pass).as_bytes()).expect("read back");
+        let read = Measurement::read(written(&pass).as_bytes()).expect("read back");
         assert_eq!(read, pass);
     }
 
@@ -190,23 +196,23 @@ mod tests {
     /// a report would divide by.
     #[test]
     fn an_unprobed_pass_reads_back_unprobed() {
-        let pass = CollectedPass {
+        let pass = Measurement {
             peaks: None,
             clean_wall: None,
             ..pass()
         };
-        let read = CollectedPass::read(written(&pass).as_bytes()).expect("read back");
+        let read = Measurement::read(written(&pass).as_bytes()).expect("read back");
         assert_eq!(read.peaks, None);
         assert_eq!(read.clean_wall, None);
     }
 
-    /// The format version 2 is, field for field. A change that fails this test is a new
-    /// [`PASS_FILE_VERSION`], not an edit to the expected text.
+    /// The format version 3 is, field for field. A change that fails this test is a new
+    /// [`MEASUREMENT_FILE_VERSION`], not an edit to the expected text.
     #[test]
-    fn version_two_is_pinned() {
+    fn version_three_is_pinned() {
         let expected = r#"{
-  "format": "burn-instrument pass",
-  "version": 2,
+  "format": "burn-instrument measurement",
+  "version": 3,
   "device": "Rocm(0)",
   "peaks": {
     "copy_bytes_per_s": 161000000000.0,
@@ -269,7 +275,7 @@ mod tests {
 }"#;
         assert_eq!(written(&pass()), expected);
         assert_eq!(
-            CollectedPass::read(expected.as_bytes()).expect("version 2 reads"),
+            Measurement::read(expected.as_bytes()).expect("version 3 reads"),
             pass(),
             "and reads back as the pass it pins"
         );
@@ -290,8 +296,8 @@ mod tests {
             assert_ne!(file, &pinned);
             assert!(
                 matches!(
-                    CollectedPass::read(file.as_bytes()),
-                    Err(PassFileError::Malformed(_))
+                    Measurement::read(file.as_bytes()),
+                    Err(MeasurementFileError::Malformed(_))
                 ),
                 "{file}"
             );
@@ -303,29 +309,30 @@ mod tests {
     #[test]
     fn a_header_is_refused_for_what_it_says() {
         assert!(matches!(
-            CollectedPass::read(r#"{"version": 2}"#.as_bytes()),
-            Err(PassFileError::NotAPass { found }) if found.is_empty()
+            Measurement::read(r#"{"version": 3}"#.as_bytes()),
+            Err(MeasurementFileError::NotAMeasurement { found }) if found.is_empty()
         ));
-        let wide = r#"{"format": "burn-instrument pass", "version": 4294967296}"#;
+        let wide = r#"{"format": "burn-instrument measurement", "version": 4294967296}"#;
         assert!(matches!(
-            CollectedPass::read(wide.as_bytes()),
-            Err(PassFileError::UnsupportedVersion {
+            Measurement::read(wide.as_bytes()),
+            Err(MeasurementFileError::UnsupportedVersion {
                 found: 4_294_967_296,
-                supported: 2
+                supported: 3
             })
         ));
     }
 
     /// A file of another version is refused by its header, before contents this build may not
-    /// know how to decode: version 1 carried no device and no peaks.
+    /// know how to decode: version 1 carried no device and no peaks, and declared the format
+    /// by its old name.
     #[test]
     fn another_version_is_refused_before_its_contents_are_decoded() {
         let file = r#"{"format": "burn-instrument pass", "version": 1, "breakdown": "?"}"#;
         assert!(matches!(
-            CollectedPass::read(file.as_bytes()),
-            Err(PassFileError::UnsupportedVersion {
+            Measurement::read(file.as_bytes()),
+            Err(MeasurementFileError::UnsupportedVersion {
                 found: 1,
-                supported: 2
+                supported: 3
             })
         ));
     }
@@ -333,16 +340,16 @@ mod tests {
     /// A file that is not a pass is refused by its header rather than misread as one.
     #[test]
     fn another_format_is_refused() {
-        let file = r#"{"format": "something else", "version": 2}"#;
+        let file = r#"{"format": "something else", "version": 3}"#;
         assert!(matches!(
-            CollectedPass::read(file.as_bytes()),
-            Err(PassFileError::NotAPass { found }) if found == "something else"
+            Measurement::read(file.as_bytes()),
+            Err(MeasurementFileError::NotAMeasurement { found }) if found == "something else"
         ));
     }
 
     /// A pass with one of everything the file carries.
-    fn pass() -> CollectedPass {
-        CollectedPass {
+    fn pass() -> Measurement {
+        Measurement {
             device: "Rocm(0)".to_string(),
             peaks: Some(Peaks {
                 copy_bytes_per_s: Some(161.0e9),
@@ -390,7 +397,7 @@ mod tests {
         }
     }
 
-    fn written(pass: &CollectedPass) -> String {
+    fn written(pass: &Measurement) -> String {
         let mut bytes = Vec::new();
         pass.write(&mut bytes).expect("written");
         String::from_utf8(bytes).expect("JSON is UTF-8")

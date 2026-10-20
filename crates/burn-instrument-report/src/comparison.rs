@@ -12,7 +12,7 @@
 use std::collections::{HashMap, HashSet};
 use std::fmt::{self, Display};
 
-use burn_instrument::{CollectedPass, Component, ComponentPath};
+use burn_instrument::{Component, ComponentPath, Measurement};
 
 use crate::Report;
 use crate::millis::Millis;
@@ -40,7 +40,7 @@ struct Compared<'a> {
 impl<'a> Comparison<'a> {
     /// `now`'s pass against the pass `saved` holds. Two different types, so the two sides
     /// cannot be swapped by accident: a swap would flip the sign of every delta.
-    pub(crate) fn new(now: Report<'a>, saved: &'a CollectedPass) -> Self {
+    pub(crate) fn new(now: Report<'a>, saved: &'a Measurement) -> Self {
         Self {
             now_components: now.pass().breakdown.components(),
             was_components: saved.breakdown.components(),
@@ -292,8 +292,8 @@ mod tests {
 
     /// A pass, stated rather than measured: the comparison is a function of two of these, so
     /// the tests own both sides and every number in them.
-    fn pass(tree: Vec<Component>) -> CollectedPass {
-        CollectedPass {
+    fn pass(tree: Vec<Component>) -> Measurement {
+        Measurement {
             device: "cpu".to_string(),
             peaks: None,
             clean_wall: None,

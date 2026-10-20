@@ -7,7 +7,7 @@ use std::fs::File;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
-use burn_instrument::CollectedPass;
+use burn_instrument::Measurement;
 use burn_instrument_report::Report;
 
 const USAGE: &str = "usage: burn-instrument-report <pass.json> [--against <saved.json>]";
@@ -61,9 +61,9 @@ impl Arguments {
 }
 
 /// The pass saved at `path`.
-fn read(path: &Path) -> Result<CollectedPass, String> {
+fn read(path: &Path) -> Result<Measurement, String> {
     let file = File::open(path).map_err(|error| format!("{}: {error}", path.display()))?;
-    CollectedPass::read(file).map_err(|error| format!("{}: {error}", path.display()))
+    Measurement::read(file).map_err(|error| format!("{}: {error}", path.display()))
 }
 
 fn main() -> ExitCode {

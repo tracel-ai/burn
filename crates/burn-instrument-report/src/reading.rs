@@ -3,7 +3,7 @@
 
 use std::time::Duration;
 
-use burn_instrument::{CollectedPass, Component};
+use burn_instrument::{Component, Measurement};
 
 /// What a component's milliseconds are, given how the pass timed its kernels and whether an
 /// uncollected run was measured.
@@ -26,7 +26,7 @@ pub(crate) enum TimeReading {
 }
 
 impl TimeReading {
-    pub(crate) fn new(pass: &CollectedPass) -> Self {
+    pub(crate) fn new(pass: &Measurement) -> Self {
         match (pass.breakdown.timed_alone, pass.clean_wall) {
             (false, _) => Self::InPlace,
             (true, Some(wall)) => Self::ApportionedOnto {
@@ -158,7 +158,7 @@ pub(crate) enum HostSplit {
 }
 
 impl HostSplit {
-    pub(crate) fn new(pass: &CollectedPass) -> Self {
+    pub(crate) fn new(pass: &Measurement) -> Self {
         let Some(wall) = pass.clean_wall else {
             return Self::NoCleanRun;
         };

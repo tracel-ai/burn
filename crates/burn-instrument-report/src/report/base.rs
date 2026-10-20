@@ -8,7 +8,7 @@
 
 use std::time::Duration;
 
-use burn_instrument::{CollectedPass, PeakFinding, Peaks};
+use burn_instrument::{Measurement, PeakFinding, Peaks};
 
 use crate::Comparison;
 use crate::reading::{HostSplit, TimeReading};
@@ -20,7 +20,7 @@ use crate::roofline::{Ladder, Roofline};
 /// A front door that knows what the pass was (a model, a batch, a phase)
 /// prints that above this table; the table says only what the file does.
 pub struct Report<'a> {
-    pass: &'a CollectedPass,
+    pass: &'a Measurement,
     /// What the header must say about the probe set before its numbers are
     /// read, already ordered — see [`Peaks::findings`].
     findings: Vec<PeakFinding>,
@@ -42,7 +42,7 @@ impl<'a> Report<'a> {
     /// about the run, and silently falling back to a coarser wall would leave a
     /// reader wondering why nothing is held against `flops`, or why every component
     /// moved at once.
-    pub fn new(pass: &'a CollectedPass) -> Self {
+    pub fn new(pass: &'a Measurement) -> Self {
         let peaks: Peaks = pass.peaks.unwrap_or_default();
         let reading = TimeReading::new(pass);
         Self {
@@ -55,7 +55,7 @@ impl<'a> Report<'a> {
     }
 
     /// This pass held against `saved`, component by component.
-    pub fn against(self, saved: &'a CollectedPass) -> Comparison<'a> {
+    pub fn against(self, saved: &'a Measurement) -> Comparison<'a> {
         Comparison::new(self, saved)
     }
 
@@ -86,7 +86,7 @@ impl<'a> Report<'a> {
     }
 
     /// The pass this report scores.
-    pub(crate) fn pass(&self) -> &'a CollectedPass {
+    pub(crate) fn pass(&self) -> &'a Measurement {
         self.pass
     }
 

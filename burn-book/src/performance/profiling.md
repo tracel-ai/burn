@@ -47,28 +47,26 @@ With no collection running, an annotated method costs one thread-local read.
 
 ## Collecting a pass
 
-Collection needs a CubeCL runtime and, on a fused build, burn's `fusion` feature. Collect a pass
-the device has already run, so autotuning and compilation are not part of it:
+Collection needs a CubeCL runtime and, on a fused build, burn's `fusion` feature:
 
 ```rust,ignore
-use burn::instrument::{CollectedPass, PassCollector, Peaks};
+use burn::instrument::Instrument;
 
-// Warm up first: the first pass compiles and autotunes.
-let peaks = Peaks::new(&device, FloatDType::F32);
-let clean_wall = /* the median wall time of a few uncollected passes */;
-
-let mut output = None;
-let breakdown = PassCollector::new(&device).collect(|| output = Some(model.forward(input.clone())));
-
-let pass = CollectedPass { device: format!("{device:?}"), peaks: Some(peaks), clean_wall: Some(clean_wall), breakdown };
-pass.write(std::fs::File::create("pass.json")?)?;
+let measurement = Instrument::new(&device).measure(|| model.forward(input.clone()));
+measurement.write(std::fs::File::create("model.json")?)?;
 ```
 
-Measure the peaks before the pass: the probes are saturating kernels that move clocks and
-thermals for whatever runs after them. The clean wall is what the report splits into device time
-and the time the device waited on the host. A collected pass times every launch, so its own wall
-time describes the instrumentation, not the model. Hold the outputs past the collection, because an
-output dropped inside the pass lets the fuser skip the work that wrote it.
+`measure` runs the closure several times, holding each output until its run has ended, since an
+output dropped inside the pass lets the fuser skip the work that wrote it:
+
+- **warmup** (5 runs by default, `.warmup(n)`): the first pass compiles and autotunes, which is
+  not part of the model's time.
+- **peaks**, probed before anything is timed, at the device's default float dtype (`.dtype(..)`):
+  the probes are saturating kernels that move clocks and thermals for whatever runs after them.
+- **clean wall**, the median of 10 uncollected runs (`.samples(n)`): what the report splits into
+  device time and the time the device waited on the host. A collected pass times every launch, so
+  its own wall time describes the instrumentation, not the model.
+- **the collected run**, whose breakdown the file holds.
 
 The `instrument` example does all of this for a small model:
 

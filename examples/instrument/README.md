@@ -5,7 +5,7 @@ The example shows you how to:
 - Mark a model's components with `#[compute]`, and price the ones that declare what they must move
   and compute with `Bounds`.
 - Probe the device's peaks with `Peaks`, time a clean pass, and collect one pass with
-  `PassCollector`.
+  `Instrument`.
 - Save the pass for `burn-instrument-report`, which scores each component against the wall it is
   bound by.
 
