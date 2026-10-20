@@ -1,7 +1,7 @@
-//! `burn-instrument-report <pass.json> [--against <saved.json>]`
+//! `burn-instrument-report <measurement.json> [--against <saved.json>]`
 //!
-//! Print the report of a pass `burn-instrument` collected and saved, and with `--against`, the
-//! pass held against a saved one.
+//! Print the report of a measurement `burn-instrument` took and saved, and with `--against`, the
+//! measurement held against a saved one.
 
 use std::fs::File;
 use std::path::{Path, PathBuf};
@@ -10,13 +10,13 @@ use std::process::ExitCode;
 use burn_instrument::Measurement;
 use burn_instrument_report::Report;
 
-const USAGE: &str = "usage: burn-instrument-report <pass.json> [--against <saved.json>]";
+const USAGE: &str = "usage: burn-instrument-report <measurement.json> [--against <saved.json>]";
 
 /// What the command line asked for.
 struct Arguments {
-    /// The pass to report.
-    pass: PathBuf,
-    /// The saved pass to hold it against.
+    /// The measurement to report.
+    measurement: PathBuf,
+    /// The saved measurement to hold it against.
     against: Option<PathBuf>,
 }
 
@@ -25,32 +25,34 @@ impl Arguments {
     ///
     /// # Errors
     ///
-    /// When the line names no pass, two of them, a flag nobody defined, or `--against` with
+    /// When the line names no measurement, two of them, a flag nobody defined, or `--against` with
     /// nothing after it.
     fn new(mut arguments: impl Iterator<Item = String>) -> Result<Self, String> {
-        let mut pass = None;
+        let mut measurement = None;
         let mut against = None;
         while let Some(argument) = arguments.next() {
             match argument.as_str() {
                 "--against" => match arguments.next() {
                     Some(saved) => against = Some(PathBuf::from(saved)),
-                    None => return Err("`--against` needs the saved pass's file".to_string()),
+                    None => {
+                        return Err("`--against` needs the saved measurement's file".to_string());
+                    }
                 },
                 flag if flag.starts_with("--") => return Err(format!("unknown flag `{flag}`")),
-                path if pass.is_none() => pass = Some(PathBuf::from(path)),
-                extra => return Err(format!("one pass at a time, not also `{extra}`")),
+                path if measurement.is_none() => measurement = Some(PathBuf::from(path)),
+                extra => return Err(format!("one measurement at a time, not also `{extra}`")),
             }
         }
         Ok(Self {
-            pass: pass.ok_or_else(|| "which pass?".to_string())?,
+            measurement: measurement.ok_or_else(|| "which measurement?".to_string())?,
             against,
         })
     }
 
     /// Print the report the line asked for.
     fn run(self) -> Result<(), String> {
-        let pass = read(&self.pass)?;
-        let report = Report::new(&pass);
+        let measurement = read(&self.measurement)?;
+        let report = Report::new(&measurement);
         print!("{report}");
         if let Some(against) = &self.against {
             let saved = read(against)?;
@@ -60,7 +62,7 @@ impl Arguments {
     }
 }
 
-/// The pass saved at `path`.
+/// The measurement saved at `path`.
 fn read(path: &Path) -> Result<Measurement, String> {
     let file = File::open(path).map_err(|error| format!("{}: {error}", path.display()))?;
     Measurement::read(file).map_err(|error| format!("{}: {error}", path.display()))
@@ -86,26 +88,26 @@ mod tests {
     }
 
     #[test]
-    fn a_pass_alone_or_against_a_saved_one() {
+    fn a_measurement_alone_or_against_a_saved_one() {
         let alone = parsed(&["now.json"]).expect("parsed");
-        assert_eq!(alone.pass, PathBuf::from("now.json"));
+        assert_eq!(alone.measurement, PathBuf::from("now.json"));
         assert_eq!(alone.against, None);
 
-        // The flag may come before or after the pass.
+        // The flag may come before or after the measurement.
         for line in [
             &["now.json", "--against", "was.json"][..],
             &["--against", "was.json", "now.json"][..],
         ] {
             let against = parsed(line).expect("parsed");
-            assert_eq!(against.pass, PathBuf::from("now.json"));
+            assert_eq!(against.measurement, PathBuf::from("now.json"));
             assert_eq!(against.against, Some(PathBuf::from("was.json")));
         }
     }
 
-    /// What the line cannot mean is refused rather than guessed at: no pass, a second pass, a
-    /// flag nobody defined, or `--against` with nothing after it.
+    /// What the line cannot mean is refused rather than guessed at: no measurement, a second one,
+    /// a flag nobody defined, or `--against` with nothing after it.
     #[test]
-    fn a_line_that_names_no_single_pass_is_refused() {
+    fn a_line_that_names_no_single_measurement_is_refused() {
         for line in [
             &[][..],
             &["now.json", "other.json"][..],

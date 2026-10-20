@@ -1,5 +1,5 @@
-//! Observed traffic is priced by reading its values back once the pass has run, and whatever
-//! that readback launches is not the pass's work. Run it on a cubecl device (`BURN_DEVICE`).
+//! Observed traffic is priced by reading its values back once the run is over, and whatever
+//! that readback launches is not the run's work. Run it on a cubecl device (`BURN_DEVICE`).
 #![cfg(feature = "collector-tests")]
 
 use burn_instrument::{Bounds, Instrument, ObservedBounds, compute, observing};
@@ -22,7 +22,7 @@ impl Router {
     fn forward(&self, x: Tensor<2>) -> Tensor<2> {
         if let Some(observing) = observing() {
             // Transposed, so reading it back makes it contiguous first: a kernel the readback
-            // launches, after the pass.
+            // launches, after the run.
             let routes: Tensor<2, Int> = x.clone().greater_elem(0.0).int().swap_dims(0, 1);
             observing.observe(ObservedBounds::new(routes, |routes| Bounds {
                 read: routes.len() as u64,
@@ -38,9 +38,9 @@ impl Router {
 fn reading_observed_values_back_launches_nothing_the_pass_records() {
     let device = Device::default();
     let input = Tensor::<2>::random([SIDE, SIDE], Distribution::Default, &device);
-    // Uncollected first, so nothing the pass launches is a first sighting being tuned.
+    // Clean runs first, so nothing the run launches is a first sighting being tuned.
     let warmed: Vec<Tensor<2>> = (0..5).map(|_| Router.forward(input.clone())).collect();
-    device.sync().expect("the device answers before the pass");
+    device.sync().expect("the device answers before the run");
     core::mem::drop(warmed);
 
     let breakdown = Instrument::new(&device).breakdown(|| Router.forward(input));
@@ -52,7 +52,7 @@ fn reading_observed_values_back_launches_nothing_the_pass_records() {
         .collect();
     assert!(
         names.is_empty(),
-        "the readback's kernels were recorded as untagged work of the pass: {names:?}"
+        "the readback's kernels were recorded as untagged work of the run: {names:?}"
     );
     assert_eq!(
         breakdown.tree[0].observed,

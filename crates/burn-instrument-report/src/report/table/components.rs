@@ -26,7 +26,7 @@ pub(super) struct ComponentTable<'r, 'a> {
 
 impl<'r, 'a> ComponentTable<'r, 'a> {
     pub(super) fn new(report: &'r Report<'a>) -> Self {
-        let breakdown = &report.pass().breakdown;
+        let breakdown = &report.measurement().breakdown;
         Self {
             report,
             whole: breakdown.total_time(),
@@ -154,7 +154,7 @@ impl<'r, 'a> ComponentTable<'r, 'a> {
 
 impl Display for ComponentTable<'_, '_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let breakdown = &self.report.pass().breakdown;
+        let breakdown = &self.report.measurement().breakdown;
         let width = self.width;
         let rule = width + 70;
         writeln!(
@@ -165,7 +165,7 @@ impl Display for ComponentTable<'_, '_> {
         // What the two bare-percentage columns are *of*. `share` and
         // `achieved` are both percentages and mean different things, and a
         // reader who takes one for the other reads a component at 3% of the
-        // memory peak as 3% of the pass.
+        // memory peak as 3% of the run.
         writeln!(
             f,
             "  {:<width$} {:>8} {:>7} {:>7}  {:<8} {:<18} {:>8} {:>8}",
@@ -183,10 +183,10 @@ impl Display for ComponentTable<'_, '_> {
             self.write_component(f, component, 0)?;
         }
         // Kernels nobody's component claimed, and the fused work the last
-        // components left for the sync that ends the pass. Work the device did
+        // components left for the sync that ends the run. Work the device did
         // is still work, and a component saying so beats a silent omission.
         for (heading, kernels) in [
-            ("end of pass", &breakdown.end_of_pass),
+            ("end of run", &breakdown.end_of_pass),
             ("untagged", &breakdown.untagged),
         ] {
             if kernels.is_empty() {
@@ -203,7 +203,7 @@ impl Display for ComponentTable<'_, '_> {
                 )?;
             }
         }
-        // The two marks a fused pass adds, explained where they are read and
+        // The two marks a fused run adds, explained where they are read and
         // only where they appear.
         if breakdown.kernels().any(|kernel| !kernel.fuses.is_empty()) {
             writeln!(f)?;
@@ -227,7 +227,7 @@ fn bar(fraction: f64) -> String {
     format!("{}{}", "▓".repeat(filled), "░".repeat(10 - filled))
 }
 
-/// A component's heading: what it is called, how many times the pass entered it,
+/// A component's heading: what it is called, how many times the run entered it,
 /// which executions served those entries, and whether its floor includes
 /// observed traffic.
 ///
@@ -244,7 +244,7 @@ fn heading(component: &Component) -> String {
         heading.push_str(&format!(" · {served_by}"));
     }
     if component.observed.is_some() {
-        heading.push_str(" · floor read from the pass");
+        heading.push_str(" · floor read from the run");
     }
     heading
 }

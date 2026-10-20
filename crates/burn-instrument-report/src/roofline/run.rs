@@ -1,4 +1,4 @@
-//! The roofline applied to a pass: what each component is held to, and how those floors add
+//! The roofline applied to a run: what each component is held to, and how those floors add
 //! up the tree.
 
 use std::collections::HashSet;
@@ -9,10 +9,10 @@ use burn_instrument::{Bounds, Breakdown, Component, ComponentPath, FusedElsewher
 use super::{Floor, Score};
 use crate::reading::TimeReading;
 
-/// The roofline of one pass: every component held against its device's peaks — its floor and
+/// The roofline of one run: every component held against its device's peaks — its floor and
 /// its score — and the floors of the ladder's two rungs below it.
 pub(crate) struct Roofline<'a> {
-    /// The pass's peaks, with any impossible reading dropped.
+    /// The run's peaks, with any impossible reading dropped.
     peaks: Peaks,
     /// What the work no floor prices stands at.
     reading: TimeReading,
@@ -30,7 +30,7 @@ impl<'a> Roofline<'a> {
         }
     }
 
-    /// The peaks the pass is scored against, with any impossible reading dropped.
+    /// The peaks the run is scored against, with any impossible reading dropped.
     pub(crate) fn peaks(&self) -> &Peaks {
         &self.peaks
     }
@@ -53,7 +53,7 @@ impl<'a> Roofline<'a> {
     }
 
     /// Score one component against its binding wall, over its apportioned share of
-    /// the clean pass.
+    /// the clean run.
     ///
     /// `None` where nothing under the component was timed: a percentage over
     /// zero measured time is not a percentage.
@@ -165,7 +165,7 @@ impl<'a> Roofline<'a> {
     /// common parent, and where every component it names is still priced —
     /// it ran kernels of its own besides — the rung already counts that work
     /// at their floors: counting the kernel's time as well would price the
-    /// same work twice and lift the rung above the pass. Where any of them is
+    /// same work twice and lift the rung above the run. Where any of them is
     /// not, the kernel stands at what it took, like the rest of this
     /// component's own work. A component whose work all ran in it is not:
     /// its floor is set aside, so the kernel is what counts its work. And a

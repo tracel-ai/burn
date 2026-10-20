@@ -1,8 +1,8 @@
-//! Collect one pass of a small model and save it for `burn-instrument-report`.
+//! Measure a small model and save the measurement for `burn-instrument-report`.
 //!
 //! ```sh
-//! cargo run --release -p instrument --features rocm -- pass.json
-//! cargo run --release -p burn-instrument-report -- pass.json
+//! cargo run --release -p instrument --features rocm -- model.json
+//! cargo run --release -p burn-instrument-report -- model.json
 //! ```
 //!
 //! The device is `BURN_DEVICE`'s, or the default one of the linked runtime.
@@ -19,9 +19,9 @@ const WIDTH: usize = 1024;
 const HIDDEN: usize = 4 * WIDTH;
 /// Blocks in the stack.
 const LAYERS: usize = 4;
-/// Passes run before anything is measured: the first compiles and autotunes.
+/// Runs before anything is measured: the first compiles and autotunes.
 const WARMUP: usize = 5;
-/// Uncollected passes timed for the clean wall, of which the median is kept.
+/// Clean runs timed for the clean wall, of which the median is kept.
 const SAMPLES: usize = 10;
 
 /// A weight multiplied into the residual stream, in one of several roles under its block.
@@ -129,7 +129,7 @@ impl Model {
 fn main() {
     let path = std::env::args()
         .nth(1)
-        .unwrap_or_else(|| "pass.json".to_string());
+        .unwrap_or_else(|| "model.json".to_string());
     let device = Device::default();
     let model = Model {
         blocks: (0..LAYERS).map(|_| Block::new(&device)).collect(),
@@ -141,7 +141,7 @@ fn main() {
         .samples(SAMPLES)
         .dtype(FloatDType::F32)
         .measure(|| model.forward(input.clone()));
-    let file = std::fs::File::create(&path).expect("the pass file can be created");
-    measurement.write(file).expect("the pass is written");
+    let file = std::fs::File::create(&path).expect("the measurement file can be created");
+    measurement.write(file).expect("the measurement is written");
     println!("saved {path}");
 }

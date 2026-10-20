@@ -1,4 +1,4 @@
-//! A collected pass as a file: versioned JSON that reads back on any machine, with or without a
+//! A measurement as a file: versioned JSON that reads back on any machine, with or without a
 //! runtime.
 
 use std::io::{BufWriter, Read, Write};
@@ -17,35 +17,35 @@ const FORMAT: &str = "burn-instrument measurement";
 /// older version rather than as something else.
 const FORMAT_BEFORE_VERSION_3: &str = "burn-instrument pass";
 
-/// The version of the pass file format this build writes and reads.
+/// The version of the measurement file format this build writes and reads.
 ///
 /// Every change to what a file serializes as (a field added, removed, renamed or re-encoded) is a
-/// new version, so a saved pass is read back as it was collected or not at all.
+/// new version, so a saved measurement is read back as it was taken or not at all.
 pub const MEASUREMENT_FILE_VERSION: u32 = 3;
 
-/// A collected pass and what it is scored against: what a pass file holds.
+/// An instrumented run and what it is scored against: what a measurement file holds.
 ///
 /// The breakdown alone says where the device time went. Scoring it needs the device's
-/// [`Peaks`], and splitting a pass into the device's time and the host's needs the same pass run
-/// with nothing collecting it; both are measured where the device is, so they travel with the
+/// [`Peaks`], and splitting a run into the device's time and the host's needs a clean run, with
+/// nothing instrumenting it; both are measured where the device is, so they travel with the
 /// breakdown rather than being measured again wherever the file is read.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Measurement {
-    /// The device the pass ran on, as its runtime names it.
+    /// The device the run ran on, as its runtime names it.
     pub device: String,
-    /// The device's peaks, measured before the pass, or `None` where it was not probed.
+    /// The device's peaks, measured before the run, or `None` where it was not probed.
     pub peaks: Option<Peaks>,
-    /// The wall time of the same pass run with nothing collecting it, where it was measured: the
+    /// The wall time of a clean run, with nothing instrumenting it, where it was measured: the
     /// time a report splits into the device's and the host's.
     ///
-    /// A collected pass times every launch, which costs the host a round trip per kernel, so its
+    /// An instrumented run times every launch, which costs the host a round trip per kernel, so its
     /// own wall time describes the instrumentation; this is the one that describes the model.
     pub clean_wall: Option<Duration>,
-    /// The collected pass.
+    /// The instrumented run.
     pub breakdown: Breakdown,
 }
 
-/// A pass file as it is written.
+/// A measurement file as it is written.
 #[derive(Serialize)]
 struct FileOut<'a> {
     format: &'static str,
@@ -57,11 +57,11 @@ struct FileOut<'a> {
     breakdown: &'a Breakdown,
 }
 
-/// A pass file as it is read: the header, and every other field parsed but not yet decoded,
+/// A measurement file as it is read: the header, and every other field parsed but not yet decoded,
 /// so a file of another format or version is refused before its contents are.
 ///
 /// Every field may be missing here, and is checked in [`Measurement::read`]: a file with no
-/// format is not a pass, a version too wide for this build's is still one it does not read,
+/// format is not a measurement, a version too wide for this build's is still one it does not read,
 /// and a field the version writes is never read as a default nobody wrote.
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -80,7 +80,7 @@ struct FileIn {
     breakdown: Option<serde_json::Value>,
 }
 
-/// Why a pass file could not be written or read back.
+/// Why a measurement file could not be written or read back.
 #[derive(Debug, thiserror::Error)]
 pub enum MeasurementFileError {
     /// The file could not be written or read.
@@ -108,8 +108,8 @@ pub enum MeasurementFileError {
 }
 
 impl Measurement {
-    /// Write this pass as JSON, under a header naming the format and its
-    /// [`MEASUREMENT_FILE_VERSION`], so a pass collected on one machine can be read on another.
+    /// Write this measurement as JSON, under a header naming the format and its
+    /// [`MEASUREMENT_FILE_VERSION`], so one taken on one machine can be read on another.
     pub fn write(&self, writer: impl Write) -> Result<(), MeasurementFileError> {
         let file = FileOut {
             format: FORMAT,
@@ -127,7 +127,7 @@ impl Measurement {
         Ok(())
     }
 
-    /// Read back a pass [`write`](Self::write) wrote, refusing a file of another format or
+    /// Read back a measurement [`write`](Self::write) wrote, refusing a file of another format or
     /// version before decoding its contents, and one whose contents are not exactly what that
     /// version writes: a field missing or one it does not know.
     pub fn read(mut reader: impl Read) -> Result<Self, MeasurementFileError> {
@@ -160,8 +160,8 @@ impl Measurement {
 }
 
 /// A field that is in the file, `null` included: serde reads a `null` into an `Option` as
-/// `None`, which would make a pass written unprobed indistinguishable from a file missing the
-/// field.
+/// `None`, which would make a measurement written unprobed indistinguishable from a file missing
+/// the field.
 fn present<'de, D: serde::Deserializer<'de>>(
     deserializer: D,
 ) -> Result<Option<serde_json::Value>, D::Error> {
@@ -183,25 +183,25 @@ mod tests {
     use crate::breakdown::{Component, Kernel, Unplaced, Variant};
     use crate::{Bounds, ComponentPath, ComputePeak};
 
-    /// A pass written and read back is the pass that was written, so one collected on a device
+    /// A measurement written and read back is the one that was written, so one taken on a device
     /// can be read on a machine without it.
     #[test]
     fn a_written_pass_reads_back_unchanged() {
-        let pass = pass();
-        let read = Measurement::read(written(&pass).as_bytes()).expect("read back");
-        assert_eq!(read, pass);
+        let measurement = measurement();
+        let read = Measurement::read(written(&measurement).as_bytes()).expect("read back");
+        assert_eq!(read, measurement);
     }
 
-    /// What a pass was not measured against reads back as not measured, rather than as a zero
+    /// What a run was not measured against reads back as not measured, rather than as a zero
     /// a report would divide by.
     #[test]
     fn an_unprobed_pass_reads_back_unprobed() {
-        let pass = Measurement {
+        let measurement = Measurement {
             peaks: None,
             clean_wall: None,
-            ..pass()
+            ..measurement()
         };
-        let read = Measurement::read(written(&pass).as_bytes()).expect("read back");
+        let read = Measurement::read(written(&measurement).as_bytes()).expect("read back");
         assert_eq!(read.peaks, None);
         assert_eq!(read.clean_wall, None);
     }
@@ -273,11 +273,11 @@ mod tests {
     "unfused": false
   }
 }"#;
-        assert_eq!(written(&pass()), expected);
+        assert_eq!(written(&measurement()), expected);
         assert_eq!(
             Measurement::read(expected.as_bytes()).expect("version 3 reads"),
-            pass(),
-            "and reads back as the pass it pins"
+            measurement(),
+            "and reads back as the measurement it pins"
         );
     }
 
@@ -285,7 +285,7 @@ mod tests {
     /// would be dropped unseen, and a missing one read as a value nobody wrote.
     #[test]
     fn a_file_unlike_what_its_version_writes_is_refused() {
-        let pinned = written(&pass());
+        let pinned = written(&measurement());
         let unknown = pinned.replace(r#""unfused": false"#, r#""unfused": false, "extra": 1"#);
         let missing = pinned.replace(r#""observed": null,"#, "");
         let no_peaks = pinned.replace(
@@ -305,7 +305,7 @@ mod tests {
     }
 
     /// The header is told apart before anything else: a file declaring no format is not a
-    /// pass, and a version wider than this build's is one it does not read.
+    /// measurement, and a version wider than this build's is one it does not read.
     #[test]
     fn a_header_is_refused_for_what_it_says() {
         assert!(matches!(
@@ -337,7 +337,7 @@ mod tests {
         ));
     }
 
-    /// A file that is not a pass is refused by its header rather than misread as one.
+    /// A file that is not a measurement is refused by its header rather than misread as one.
     #[test]
     fn another_format_is_refused() {
         let file = r#"{"format": "something else", "version": 3}"#;
@@ -347,8 +347,8 @@ mod tests {
         ));
     }
 
-    /// A pass with one of everything the file carries.
-    fn pass() -> Measurement {
+    /// A measurement with one of everything the file carries.
+    fn measurement() -> Measurement {
         Measurement {
             device: "Rocm(0)".to_string(),
             peaks: Some(Peaks {
@@ -397,9 +397,9 @@ mod tests {
         }
     }
 
-    fn written(pass: &Measurement) -> String {
+    fn written(measurement: &Measurement) -> String {
         let mut bytes = Vec::new();
-        pass.write(&mut bytes).expect("written");
+        measurement.write(&mut bytes).expect("written");
         String::from_utf8(bytes).expect("JSON is UTF-8")
     }
 }

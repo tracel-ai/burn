@@ -6,7 +6,7 @@ use std::time::Duration;
 use serde::{Deserialize, Deserializer, Serializer};
 
 pub fn serialize<S: Serializer>(duration: &Duration, serializer: S) -> Result<S::Ok, S::Error> {
-    // Saturating: a pass would have to run for 584 years to overflow.
+    // Saturating: a run would have to run for 584 years to overflow.
     let nanoseconds = u64::try_from(duration.as_nanos()).unwrap_or(u64::MAX);
     serializer.serialize_u64(nanoseconds)
 }

@@ -1,41 +1,41 @@
-//! How the pass was measured.
+//! How the run was measured.
 
 use std::fmt::{self, Display};
 
 use crate::Report;
 use crate::millis::Millis;
 
-/// How the pass was measured, one line per question a reader asks of a number.
+/// How the run was measured, one line per question a reader asks of a number.
 ///
 /// Three independent axes, so each gets its own word and none borrows another's: what the
-/// clean pass took, which graph ran (fused or not), and how the kernels were timed. "Eager",
+/// clean run took, which graph ran (fused or not), and how the kernels were timed. "Eager",
 /// which in burn means *unfused*, is the word this section does not use.
-pub(super) struct Measurement<'r, 'a> {
+pub(super) struct Method<'r, 'a> {
     report: &'r Report<'a>,
 }
 
-impl<'r, 'a> Measurement<'r, 'a> {
+impl<'r, 'a> Method<'r, 'a> {
     pub(super) fn new(report: &'r Report<'a>) -> Self {
         Self { report }
     }
 }
 
-impl Display for Measurement<'_, '_> {
+impl Display for Method<'_, '_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let pass = self.report.pass();
+        let measurement = self.report.measurement();
         writeln!(
             f,
             "\n  {:<10}{}",
-            "pass",
-            match pass.clean_wall {
+            "run",
+            match measurement.clean_wall {
                 Some(wall) => format!(
-                    "{} ms run uncollected, the time the components below break down",
+                    "{} ms clean, the time the components below break down",
                     Millis(wall)
                 ),
-                None => "no uncollected run measured: no host/device split".to_string(),
+                None => "no clean run measured: no host/device split".to_string(),
             }
         )?;
-        let graph = match pass.breakdown.unfused {
+        let graph = match measurement.breakdown.unfused {
             true => "unfused — one kernel per operation: not the kernels a fused build runs",
             false => "fused — the kernels a fused build runs",
         };

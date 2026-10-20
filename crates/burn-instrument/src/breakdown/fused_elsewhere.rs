@@ -31,7 +31,7 @@ impl<'a> FromIterator<&'a Component> for FusedElsewhere<'a> {
 /// A component, equal only to itself.
 ///
 /// By address rather than by path: every caller holds a component borrowed from the
-/// breakdown, and none of them its path. A tree that kept its collector's component indices
+/// breakdown, and none of them its path. A tree that kept its instrument's component indices
 /// would make both unnecessary.
 #[derive(Clone, Copy, Debug)]
 struct ByAddress<'a>(&'a Component);

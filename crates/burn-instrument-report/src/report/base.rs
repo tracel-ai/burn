@@ -1,6 +1,6 @@
-//! The table a collected pass prints.
+//! The table a measurement prints.
 //!
-//! One page: the device and what it can do, how the pass ran, the component
+//! One page: the device and what it can do, how it ran, the component
 //! tree with each component scored against the wall it is bound by, the ladder, and
 //! a worklist ranked by what is actually recoverable. It is plain text,
 //! greppable, and says what it does not know rather than leaving a column
@@ -14,26 +14,26 @@ use crate::Comparison;
 use crate::reading::{HostSplit, TimeReading};
 use crate::roofline::{Ladder, Roofline};
 
-/// A collected pass, scored against its device's peaks, and the table that
+/// A measurement, scored against its device's peaks, and the table that
 /// renders it ([`Display`](std::fmt::Display)).
 ///
-/// A front door that knows what the pass was (a model, a batch, a phase)
+/// A front door that knows what the run was (a model, a batch, a phase)
 /// prints that above this table; the table says only what the file does.
 pub struct Report<'a> {
-    pass: &'a Measurement,
+    measurement: &'a Measurement,
     /// What the header must say about the probe set before its numbers are
     /// read, already ordered — see [`Peaks::findings`].
     findings: Vec<PeakFinding>,
-    /// The pass's roofline: what each component is held to.
+    /// The run's roofline: what each component is held to.
     roofline: Roofline<'a>,
     /// What a component's milliseconds are, given how its kernels were timed.
     reading: TimeReading,
-    /// Whether the pass splits into the device's time and the host's.
+    /// Whether the run splits into the device's time and the host's.
     host_split: HostSplit,
 }
 
 impl<'a> Report<'a> {
-    /// Score `pass` against the peaks its device measured, or against none
+    /// Score `measurement` against the peaks its device measured, or against none
     /// where it was not probed.
     ///
     /// An impossible peak is dropped here rather than divided by — see
@@ -42,35 +42,35 @@ impl<'a> Report<'a> {
     /// about the run, and silently falling back to a coarser wall would leave a
     /// reader wondering why nothing is held against `flops`, or why every component
     /// moved at once.
-    pub fn new(pass: &'a Measurement) -> Self {
-        let peaks: Peaks = pass.peaks.unwrap_or_default();
-        let reading = TimeReading::new(pass);
+    pub fn new(measurement: &'a Measurement) -> Self {
+        let peaks: Peaks = measurement.peaks.unwrap_or_default();
+        let reading = TimeReading::new(measurement);
         Self {
-            pass,
+            measurement,
             findings: peaks.findings(),
-            roofline: Roofline::new(&pass.breakdown, peaks.trusted(), reading),
+            roofline: Roofline::new(&measurement.breakdown, peaks.trusted(), reading),
             reading,
-            host_split: HostSplit::new(pass),
+            host_split: HostSplit::new(measurement),
         }
     }
 
-    /// This pass held against `saved`, component by component.
+    /// This measurement held against `saved`, component by component.
     pub fn against(self, saved: &'a Measurement) -> Comparison<'a> {
         Comparison::new(self, saved)
     }
 
-    /// What the pass took: the clean pass's wall time where it was measured,
-    /// and the collected pass's device time otherwise.
+    /// What the run took: the clean run's wall time where it was measured,
+    /// and the instrumented run's device time otherwise.
     pub fn wall(&self) -> Duration {
-        self.pass
+        self.measurement
             .clean_wall
-            .unwrap_or_else(|| self.pass.breakdown.total_time())
+            .unwrap_or_else(|| self.measurement.breakdown.total_time())
     }
 
     /// The ladder for this run: what it took, what faster kernels reach, and
     /// what perfect fusion inside each component reaches past that.
     pub fn ladder(&self) -> Ladder {
-        let tree = &self.pass.breakdown.tree;
+        let tree = &self.measurement.breakdown.tree;
         Ladder {
             measured: self.wall(),
             host: self.host_split.host().unwrap_or_default(),
@@ -85,9 +85,9 @@ impl<'a> Report<'a> {
         }
     }
 
-    /// The pass this report scores.
-    pub(crate) fn pass(&self) -> &'a Measurement {
-        self.pass
+    /// The measurement this report scores.
+    pub(crate) fn measurement(&self) -> &'a Measurement {
+        self.measurement
     }
 
     /// What the probe set's readings say about themselves, in the order a report says it.
@@ -95,7 +95,7 @@ impl<'a> Report<'a> {
         &self.findings
     }
 
-    /// The pass's roofline: what each component is held to.
+    /// The run's roofline: what each component is held to.
     pub(crate) fn roofline(&self) -> &Roofline<'a> {
         &self.roofline
     }
@@ -105,7 +105,7 @@ impl<'a> Report<'a> {
         self.reading
     }
 
-    /// Whether the pass splits into the device's time and the host's.
+    /// Whether the run splits into the device's time and the host's.
     pub(crate) fn host_split(&self) -> HostSplit {
         self.host_split
     }

@@ -1,7 +1,7 @@
 [package]
 authors = ["nathanielsimard <nathaniel.simard.42@gmail.com>"]
 categories = ["science", "development-tools::profiling"]
-description = "Read a pass burn-instrument collected, and report where its device time went"
+description = "Read a measurement burn-instrument took, and report where its device time went"
 documentation = "https://docs.rs/burn-instrument-report"
 edition.workspace = true
 keywords = ["deep-learning", "machine-learning", "profiling"]

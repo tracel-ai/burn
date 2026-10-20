@@ -1,4 +1,4 @@
-//! One component's floor and score, and the ladder of a whole pass.
+//! One component's floor and score, and the ladder of a whole run.
 
 use std::fmt::{self, Display};
 use std::time::Duration;
@@ -71,7 +71,7 @@ impl Score {
 /// Apart from [`Score`] because a floor belongs to the declaration and the
 /// device, not to what ran. A component whose work fused into the one after it
 /// measured nothing and still has a floor — and the ladder's rungs are sums of
-/// floors, so dropping it there would pull the rung below what the pass's
+/// floors, so dropping it there would pull the rung below what the run's
 /// declarations actually cost.
 #[derive(Clone, Copy, Debug)]
 pub struct Floor {
@@ -126,23 +126,23 @@ impl Floor {
     }
 }
 
-/// Where a pass's time could go, one rung per lever.
+/// Where a run's time could go, one rung per lever.
 ///
 /// The rungs come from the *declarations*, not from what actually fused, so the
 /// two facts a report carries stay independent: this says what fusion could
-/// buy, and the kernels a pass ran say what it did.
+/// buy, and the kernels a run launched say what it did.
 ///
 /// The first lever is not a kernel's at all. Where the device time was
-/// measured in place, the pass splits into the kernels and the time the device
+/// measured in place, the run splits into the kernels and the time the device
 /// waited on the host between them — which no faster kernel and no fusion
 /// recovers, and fewer launches does.
 #[derive(Clone, Copy, Debug)]
 pub struct Ladder {
-    /// What the pass took: the clean pass's wall time where it was measured, and the device's
+    /// What the run took: the clean run's wall time where it was measured, and the device's
     /// time otherwise.
     pub measured: Duration,
     /// Of that, what the device spent waiting on the host. Zero where the
-    /// split is not known, which leaves the whole pass to the kernels.
+    /// split is not known, which leaves the whole run to the kernels.
     pub host: Duration,
     /// Every component at its own floor, taken as deep as the tree declares
     /// one — what faster kernels alone could reach.
@@ -164,7 +164,7 @@ impl Ladder {
         self.fused <= self.kernels && self.kernels <= self.device()
     }
 
-    /// What the pass took with the device never waiting: the rung the kernels
+    /// What the run took with the device never waiting: the rung the kernels
     /// are measured from.
     pub fn device(&self) -> Duration {
         self.measured.saturating_sub(self.host)
@@ -180,7 +180,7 @@ impl Ladder {
         self.kernels.saturating_sub(self.fused)
     }
 
-    /// Everything between what the pass took and its deepest floor.
+    /// Everything between what the run took and its deepest floor.
     pub fn total(&self) -> Duration {
         self.measured.saturating_sub(self.fused)
     }
@@ -237,7 +237,7 @@ mod tests {
             scored.floor.time
         );
         // The same bytes against the copy ceiling would have claimed 1.51 ms of
-        // floor for a pass that took 1.1 -- 137% of a peak it never exceeded.
+        // floor for a run that took 1.1 -- 137% of a peak it never exceeded.
         assert!(scored.achieved <= 1.0, "achieved {}", scored.achieved);
     }
 
@@ -390,7 +390,7 @@ mod tests {
             "all of it is still on the table, by one lever or another"
         );
 
-        // Floors that fit the pass but not the device's share of it are a
+        // Floors that fit the run but not the device's share of it are a
         // broken denominator, not a fast run.
         let inverted = Ladder {
             kernels: Duration::from_millis(950),

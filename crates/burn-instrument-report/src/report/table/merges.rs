@@ -22,7 +22,7 @@ impl<'r, 'a> MergeNotes<'r, 'a> {
 
 impl Display for MergeNotes<'_, '_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        for (under, component) in merged(&self.report.pass().breakdown.tree) {
+        for (under, component) in merged(&self.report.measurement().breakdown.tree) {
             let sites: Vec<String> = component.sites.iter().map(|it| site(it)).collect();
             let under = match under.is_empty() {
                 true => String::new(),

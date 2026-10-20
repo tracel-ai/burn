@@ -4,8 +4,8 @@
 mod base;
 mod components;
 mod device;
-mod measurement;
 mod merges;
+mod method;
 mod recoverable;
 mod roofline_note;
 mod totals;

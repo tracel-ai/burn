@@ -23,14 +23,14 @@ fn peaks() -> Peaks {
     }
 }
 
-/// A pass with a small tree, **built rather than measured**.
+/// A measurement with a small tree, **built rather than taken**.
 ///
 /// The table is a function of a [`Measurement`], so a rendering test
-/// needs one, not a run that produces one: collecting a pass here would
+/// needs one, not a run that produces one: instrumenting a run here would
 /// leave every number at whatever this machine happened to do. What the
-/// collector produces from a real pass is `burn-instrument`'s to test;
+/// instrument produces from a real run is `burn-instrument`'s to test;
 /// these tests own the rendering, and their input is stated.
-fn pass() -> Measurement {
+fn measurement() -> Measurement {
     Measurement {
         device: "cpu".to_string(),
         peaks: Some(peaks()),
@@ -50,13 +50,13 @@ fn pass() -> Measurement {
     }
 }
 
-/// The components of [`pass`]: a two-layer stack between an embedding and a
+/// The components of [`measurement`]: a two-layer stack between an embedding and a
 /// head, priced the way the components price themselves — a composite below
 /// the sum of its parts, and the leaves carrying the kernels.
 ///
 /// The floors are sized against [`peaks`]: bytes ÷ 198.9 GB/s and flops ÷
 /// 49.3 TFLOP/s, so a leaf here is a tenth to a quarter of a millisecond
-/// and the rungs land inside the 2.0 ms the pass took. Numbers a thousand
+/// and the rungs land inside the 2.0 ms the run took. Numbers a thousand
 /// times smaller would render as `0.0` and make the ladder read as
 /// incoherent, which is a fact about the fixture and not about the code.
 /// `attention engine` is the one component held against `flops`, so a table has
@@ -228,22 +228,22 @@ fn observed_traffic_raises_the_floor_and_marks_the_row() {
         ..plain.clone()
     };
 
-    let unscored = pass();
+    let unscored = measurement();
     let roofline = Roofline::new(&unscored.breakdown, peaks(), TimeReading::InPlace);
     let floor = |component: &Component| roofline.floor_of(component).map(|floor| floor.time);
     let at = |bounds: Bounds| Floor::new(bounds, &peaks()).map(|floor| floor.time);
     assert_eq!(floor(&plain), at(declared));
     assert_eq!(floor(&read), at(declared + observed));
 
-    let mut pass = pass();
-    pass.breakdown.tree.push(read);
-    let table = Report::new(&pass).to_string();
+    let mut measurement = measurement();
+    measurement.breakdown.tree.push(read);
+    let table = Report::new(&measurement).to_string();
     assert!(
-        table.contains("routed experts · floor read from the pass"),
+        table.contains("routed experts · floor read from the run"),
         "{table}"
     );
     assert!(
-        !table.contains("embedding · floor read from the pass"),
+        !table.contains("embedding · floor read from the run"),
         "{table}"
     );
 }
@@ -284,24 +284,24 @@ fn kernel(name: &str, launches: usize, micros: u64) -> Kernel {
     }
 }
 
-/// Without an uncollected run there is no host to split off, and a pass
+/// Without a clean run there is no host to split off, and a run
 /// timed alone has nothing to apportion its components onto: they stay the
 /// serialized kernels' own times, and the table says only their proportions
 /// mean anything rather than print a `host` line it cannot know.
 #[test]
-fn a_pass_without_a_clean_run_splits_nothing_and_says_so() {
-    let pass = Measurement {
+fn a_run_without_a_clean_run_splits_nothing_and_says_so() {
+    let measurement = Measurement {
         clean_wall: None,
-        ..pass()
+        ..measurement()
     };
-    let report = Report::new(&pass);
+    let report = Report::new(&measurement);
     assert_eq!(report.host_split().host(), None);
     assert_eq!(
         report.wall(),
-        pass.breakdown.total_time(),
+        measurement.breakdown.total_time(),
         "the ladder starts from what the device measured"
     );
-    let embedding = &pass.breakdown.tree[0];
+    let embedding = &measurement.breakdown.tree[0];
     assert_eq!(
         report.reading().apportioned(embedding),
         embedding.total_time(),
@@ -309,13 +309,13 @@ fn a_pass_without_a_clean_run_splits_nothing_and_says_so() {
     );
 
     let table = report.to_string();
-    assert!(table.contains("no uncollected run measured"), "{table}");
+    assert!(table.contains("no clean run measured"), "{table}");
     assert!(
         table.contains("only the proportions mean anything"),
         "{table}"
     );
     assert!(
-        table.contains("not separable: no uncollected run was measured"),
+        table.contains("not separable: no clean run was measured"),
         "{table}"
     );
     assert!(
@@ -324,16 +324,21 @@ fn a_pass_without_a_clean_run_splits_nothing_and_says_so() {
     );
 }
 
-/// A pass nobody probed is timed and not scored, and the header says why
+/// A measurement nobody probed is timed and not scored, and the header says why
 /// every roofline column is blank.
 #[test]
-fn an_unprobed_pass_says_why_nothing_is_scored() {
-    let pass = Measurement {
+fn an_unprobed_measurement_says_why_nothing_is_scored() {
+    let measurement = Measurement {
         peaks: None,
-        ..pass()
+        ..measurement()
     };
-    let report = Report::new(&pass);
-    for (_, component) in pass.breakdown.tree.iter().flat_map(|root| root.walk()) {
+    let report = Report::new(&measurement);
+    for (_, component) in measurement
+        .breakdown
+        .tree
+        .iter()
+        .flat_map(|root| root.walk())
+    {
         assert!(
             report.roofline().score_of(component).is_none(),
             "{}",
@@ -347,17 +352,17 @@ fn an_unprobed_pass_says_why_nothing_is_scored() {
     assert_eq!(header, "device   cpu · unprobed · unprobed", "{table}");
 }
 
-/// Each reason a pass has no host/device split is its own case, and only a pipelined pass
-/// whose kernels fit inside the uncollected run splits: the table explains the case it is
+/// Each reason a run has no host/device split is its own case, and only a pipelined run
+/// whose kernels fit inside the clean run splits: the table explains the case it is
 /// handed rather than re-deriving it.
 #[test]
 fn a_host_split_names_why_it_has_none() {
     let in_place = |wall: Option<u64>, device: u64| {
-        let mut pass = pass();
-        pass.clean_wall = wall.map(Duration::from_micros);
-        pass.breakdown.timed_alone = false;
-        pass.breakdown.untagged.clear();
-        pass.breakdown.tree = vec![Component {
+        let mut measurement = measurement();
+        measurement.clean_wall = wall.map(Duration::from_micros);
+        measurement.breakdown.timed_alone = false;
+        measurement.breakdown.untagged.clear();
+        measurement.breakdown.tree = vec![Component {
             label: "only".into(),
             kernels: match device {
                 0 => Vec::new(),
@@ -365,7 +370,7 @@ fn a_host_split_names_why_it_has_none() {
             },
             ..component()
         }];
-        HostSplit::new(&pass)
+        HostSplit::new(&measurement)
     };
     assert_eq!(
         in_place(Some(2_000), 1_500),
@@ -377,18 +382,18 @@ fn a_host_split_names_why_it_has_none() {
     assert_eq!(in_place(None, 1_500), HostSplit::NoCleanRun);
     assert_eq!(in_place(Some(2_000), 0), HostSplit::NothingTimed);
     assert_eq!(in_place(Some(1_000), 1_500), HostSplit::ClocksDisagree);
-    assert_eq!(HostSplit::new(&pass()), HostSplit::TimedAlone);
+    assert_eq!(HostSplit::new(&measurement()), HostSplit::TimedAlone);
 }
 
 /// A component's milliseconds are apportioned only where the kernels ran alone and there is
-/// an uncollected run to apportion onto.
+/// a clean run to apportion onto.
 #[test]
 fn a_time_reading_apportions_only_onto_a_clean_run() {
     let reading = |timed_alone: bool, wall: Option<u64>| {
-        let mut pass = pass();
-        pass.breakdown.timed_alone = timed_alone;
-        pass.clean_wall = wall.map(Duration::from_micros);
-        TimeReading::new(&pass)
+        let mut measurement = measurement();
+        measurement.breakdown.timed_alone = timed_alone;
+        measurement.clean_wall = wall.map(Duration::from_micros);
+        TimeReading::new(&measurement)
     };
     assert_eq!(reading(false, Some(2_000)), TimeReading::InPlace);
     assert_eq!(reading(false, None), TimeReading::InPlace);
@@ -396,7 +401,7 @@ fn a_time_reading_apportions_only_onto_a_clean_run() {
         reading(true, Some(2_000)),
         TimeReading::ApportionedOnto {
             wall: Duration::from_micros(2_000),
-            serialized: pass().breakdown.total_time(),
+            serialized: measurement().breakdown.total_time(),
         }
     );
     assert_eq!(reading(true, None), TimeReading::Serialized);
@@ -407,13 +412,13 @@ fn a_time_reading_apportions_only_onto_a_clean_run() {
 #[test]
 #[ignore = "a reporting aid, not an assertion"]
 fn show() {
-    println!("{}", Report::new(&pass()));
+    println!("{}", Report::new(&measurement()));
 }
 
 #[test]
 fn a_table_carries_every_column_a_reader_acts_on() {
-    let pass = pass();
-    let table = Report::new(&pass).to_string();
+    let measurement = measurement();
+    let table = Report::new(&measurement).to_string();
 
     for column in [
         "component",
@@ -427,7 +432,7 @@ fn a_table_carries_every_column_a_reader_acts_on() {
         assert!(table.contains(column), "missing {column}:\n{table}");
     }
     assert!(
-        table.contains("pass"),
+        table.contains("the time the components below break down"),
         "what the components break down:\n{table}"
     );
     assert!(
@@ -444,9 +449,9 @@ fn a_table_carries_every_column_a_reader_acts_on() {
 
 #[test]
 fn an_unfused_breakdown_says_so_on_the_table() {
-    let mut pass = pass();
-    pass.breakdown.unfused = true;
-    let table = Report::new(&pass).to_string();
+    let mut measurement = measurement();
+    measurement.breakdown.unfused = true;
+    let table = Report::new(&measurement).to_string();
     assert!(
         table.contains("graph     unfused"),
         "a reader must not take an unfused breakdown for a fused one:\n{table}"
@@ -459,11 +464,11 @@ fn an_unfused_breakdown_says_so_on_the_table() {
 /// floor, which the kernel below it now counts.
 #[test]
 fn a_component_whose_work_fused_into_its_parent_says_so() {
-    let mut pass = pass();
+    let mut measurement = measurement();
     // Every op the norm registered fused with the query projection's, so
     // the kernel that did both is on the block and none is on the norm.
-    pass.breakdown.tree[1].children[0].kernels.clear();
-    pass.breakdown.tree[1].kernels = vec![Kernel {
+    measurement.breakdown.tree[1].children[0].kernels.clear();
+    measurement.breakdown.tree[1].kernels = vec![Kernel {
         fuses: vec![
             ComponentPath::new(["attn norm"]),
             ComponentPath::new(["attention", "query"]),
@@ -471,7 +476,7 @@ fn a_component_whose_work_fused_into_its_parent_says_so() {
         ..kernel("ElemwiseMatmul", 2, 70)
     }];
 
-    let table = Report::new(&pass).to_string();
+    let table = Report::new(&measurement).to_string();
     assert!(table.contains("graph     fused"), "{table}");
     let norm = table
         .lines()
@@ -483,8 +488,8 @@ fn a_component_whose_work_fused_into_its_parent_says_so() {
     // A component with no kernel that no parent's kernel names did no
     // device work — a view, a reshape — and its zero is its time. A
     // `fused ↓` there would point at a kernel that carries nothing of it.
-    pass.breakdown.tree[1].kernels.clear();
-    let table = Report::new(&pass).to_string();
+    measurement.breakdown.tree[1].kernels.clear();
+    let table = Report::new(&measurement).to_string();
     let norm = table
         .lines()
         .find(|line| line.contains("attn norm"))
@@ -499,8 +504,8 @@ fn a_component_whose_work_fused_into_its_parent_says_so() {
 /// again on top of their floors.
 #[test]
 fn a_fused_kernel_on_a_parent_is_not_counted_twice() {
-    let pass = pass();
-    let mut fused = pass.clone();
+    let measurement = measurement();
+    let mut fused = measurement.clone();
     let norm = std::mem::take(&mut fused.breakdown.tree[1].children[0].kernels);
     let query = std::mem::take(&mut fused.breakdown.tree[1].children[1].children[0].kernels);
     let total = norm.iter().chain(&query).map(|kernel| kernel.total).sum();
@@ -530,7 +535,7 @@ fn a_fused_kernel_on_a_parent_is_not_counted_twice() {
 
     // Both still ran a kernel of their own besides: still priced, so the
     // shared kernel is counted at their floors and not again.
-    let mut partly = pass.clone();
+    let mut partly = measurement.clone();
     partly.breakdown.tree[1].kernels = vec![carried];
     partly.breakdown.timed_alone = false;
     let rendered = Report::new(&partly);
@@ -546,8 +551,8 @@ fn a_fused_kernel_on_a_parent_is_not_counted_twice() {
 /// what it took.
 #[test]
 fn a_parent_fused_with_its_child_counts_shared_work_once() {
-    let pass = pass();
-    let mut fused = pass.clone();
+    let measurement = measurement();
+    let mut fused = measurement.clone();
     let norm = std::mem::take(&mut fused.breakdown.tree[1].children[0].kernels);
     let total: Duration =
         norm.iter().map(|kernel| kernel.total).sum::<Duration>() + Duration::from_micros(5);
@@ -585,15 +590,15 @@ fn a_parent_fused_with_its_child_counts_shared_work_once() {
 /// parent's kernel.
 #[test]
 fn a_row_whose_work_ran_in_an_untagged_kernel_says_so() {
-    let mut pass = pass();
-    let norm = std::mem::take(&mut pass.breakdown.tree[1].children[0].kernels);
-    pass.breakdown.untagged.push(Kernel {
+    let mut measurement = measurement();
+    let norm = std::mem::take(&mut measurement.breakdown.tree[1].children[0].kernels);
+    measurement.breakdown.untagged.push(Kernel {
         fuses: vec![ComponentPath::new(["transformer block", "attn norm"])],
         ..norm[0].clone()
     });
 
-    let rendered = Report::new(&pass);
-    let block = &pass.breakdown.tree[1];
+    let rendered = Report::new(&measurement);
+    let block = &measurement.breakdown.tree[1];
     assert!(
         rendered
             .roofline()
@@ -621,17 +626,17 @@ fn a_row_whose_work_ran_in_an_untagged_kernel_says_so() {
 /// besides — since no floor below prices the parent's part of it.
 #[test]
 fn a_parents_own_work_fused_with_a_priced_child_still_counts() {
-    let mut pass = pass();
+    let mut measurement = measurement();
     let residual = Kernel {
         fuses: vec![ComponentPath::new(["attn norm"])],
         fuses_own: true,
         ..kernel("ElemwiseFuse", 1, 15)
     };
-    pass.breakdown.tree[1].kernels = vec![residual.clone()];
-    pass.breakdown.timed_alone = false;
+    measurement.breakdown.tree[1].kernels = vec![residual.clone()];
+    measurement.breakdown.timed_alone = false;
 
-    let rendered = Report::new(&pass);
-    let block = &pass.breakdown.tree[1];
+    let rendered = Report::new(&measurement);
+    let block = &measurement.breakdown.tree[1];
     assert!(
         !rendered
             .roofline()
@@ -648,8 +653,8 @@ fn a_parents_own_work_fused_with_a_priced_child_still_counts() {
 /// component that holds all of it.
 #[test]
 fn a_fused_kernel_names_the_components_it_carried_out() {
-    let mut pass = pass();
-    pass.breakdown.tree[1].kernels = vec![Kernel {
+    let mut measurement = measurement();
+    measurement.breakdown.tree[1].kernels = vec![Kernel {
         fuses: vec![
             ComponentPath::new(["attn norm"]),
             ComponentPath::new(["attention", "query"]),
@@ -657,7 +662,7 @@ fn a_fused_kernel_names_the_components_it_carried_out() {
         ..kernel("ElemwiseMatmul", 2, 90)
     }];
 
-    let table = Report::new(&pass).to_string();
+    let table = Report::new(&measurement).to_string();
     assert!(
         table.contains("ElemwiseMatmul ×2 · fuses ↑ attn norm + attention › query"),
         "{table}"
@@ -667,13 +672,13 @@ fn a_fused_kernel_names_the_components_it_carried_out() {
 /// The ladder's "kernels at their own roofs" is a sum of floors, and a
 /// floor is the declaration's. Taking it from the component's score dropped every
 /// component whose work fused forward, since a score needs measured time — and
-/// pulled the rung below what the pass's own declarations cost.
+/// pulled the rung below what the run's own declarations cost.
 #[test]
 fn a_floor_counts_on_the_ladder_whoever_ran_its_work() {
-    let pass = pass();
-    let before = Report::new(&pass).ladder();
+    let measurement = measurement();
+    let before = Report::new(&measurement).ladder();
 
-    let mut fused = pass.clone();
+    let mut fused = measurement.clone();
     let moved = std::mem::take(&mut fused.breakdown.tree[1].children[0].kernels);
     // Onto the query projection, the leaf that sealed them.
     fused.breakdown.tree[1].children[1].children[0]
@@ -689,19 +694,19 @@ fn a_floor_counts_on_the_ladder_whoever_ran_its_work() {
 }
 
 /// Measured in place, a component's milliseconds are its kernels' own and the
-/// clean pass splits into the device's time and the host's: the fixture's
-/// kernels come to 1.29 ms of a 2.0 ms pass, so the device waited 0.71 ms.
+/// clean run splits into the device's time and the host's: the fixture's
+/// kernels come to 1.29 ms of a 2.0 ms run, so the device waited 0.71 ms.
 #[test]
-fn a_pass_timed_in_place_splits_the_clean_pass_into_device_and_host() {
-    let mut pass = pass();
-    pass.breakdown.timed_alone = false;
+fn a_run_timed_in_place_splits_the_clean_run_into_device_and_host() {
+    let mut measurement = measurement();
+    measurement.breakdown.timed_alone = false;
     assert_eq!(
-        Report::new(&pass).host_split().host(),
+        Report::new(&measurement).host_split().host(),
         Some(Duration::from_micros(710))
     );
 
-    let rendered = Report::new(&pass);
-    let head = &pass.breakdown.tree[3].children[0];
+    let rendered = Report::new(&measurement);
+    let head = &measurement.breakdown.tree[3].children[0];
     assert_eq!(
         rendered.reading().apportioned(head),
         Duration::from_micros(260),
@@ -720,30 +725,30 @@ fn a_pass_timed_in_place_splits_the_clean_pass_into_device_and_host() {
     assert!(table.contains("timed in place"), "{table}");
 }
 
-/// The clean pass's host time is split by how long the device waited
+/// The clean run's host time is split by how long the device waited
 /// before each component's kernels, and each component's own share is on
 /// the worklist under the lever that recovers it.
 #[test]
 fn the_host_time_is_split_by_where_the_device_waited() {
-    let mut pass = pass();
-    pass.breakdown.timed_alone = false;
+    let mut measurement = measurement();
+    measurement.breakdown.timed_alone = false;
     let micros = Duration::from_micros;
     // The query's launches kept the device waiting three times as long as
-    // the head's: 30 µs against 10 µs of the collected pass's idle time.
-    pass.breakdown.tree[1].children[1].children[0].own_wait = micros(30);
-    pass.breakdown.tree[3].children[0].own_wait = micros(10);
+    // the head's: 30 µs against 10 µs of the instrumented run's idle time.
+    measurement.breakdown.tree[1].children[1].children[0].own_wait = micros(30);
+    measurement.breakdown.tree[3].children[0].own_wait = micros(10);
 
-    let rendered = Report::new(&pass);
-    let query = &pass.breakdown.tree[1].children[1].children[0];
-    // Three quarters of the 710 µs the device waited in the clean pass.
+    let rendered = Report::new(&measurement);
+    let query = &measurement.breakdown.tree[1].children[1].children[0];
+    // Three quarters of the 710 µs the device waited in the clean run.
     let host_of = |component: &Component| rendered.host_split().share(component.total_wait());
-    let host = host_of(query).expect("a pass timed in place splits");
+    let host = host_of(query).expect("a run timed in place splits");
     assert!(
         host.abs_diff(Duration::from_nanos(532_500)) < Duration::from_nanos(10),
         "{host:?}"
     );
     assert_eq!(
-        host_of(&pass.breakdown.tree[1]),
+        host_of(&measurement.breakdown.tree[1]),
         host_of(query),
         "a component's host time is its children's as well"
     );
@@ -758,22 +763,24 @@ fn the_host_time_is_split_by_where_the_device_waited() {
     );
 
     // Timed alone there is no host time to split.
-    pass.breakdown.timed_alone = true;
+    measurement.breakdown.timed_alone = true;
     assert_eq!(
-        Report::new(&pass).host_split().share(query.total_wait()),
+        Report::new(&measurement)
+            .host_split()
+            .share(query.total_wait()),
         None
     );
 }
 
-/// Timed alone, the kernels' sum is a serialized pass's, so subtracting it
-/// from the clean pass would print the lost overlap as host time.
+/// Timed alone, the kernels' sum is a serialized run's, so subtracting it
+/// from the clean run would print the lost overlap as host time.
 #[test]
-fn a_pass_timed_alone_does_not_split_off_the_host() {
-    let pass = pass();
-    assert_eq!(Report::new(&pass).host_split().host(), None);
-    assert_eq!(Report::new(&pass).ladder().host, Duration::ZERO);
+fn a_run_timed_alone_does_not_split_off_the_host() {
+    let measurement = measurement();
+    assert_eq!(Report::new(&measurement).host_split().host(), None);
+    assert_eq!(Report::new(&measurement).ladder().host, Duration::ZERO);
 
-    let table = Report::new(&pass).to_string();
+    let table = Report::new(&measurement).to_string();
     let host = table
         .lines()
         .find(|line| line.trim_start().starts_with("host"))
@@ -781,18 +788,18 @@ fn a_pass_timed_alone_does_not_split_off_the_host() {
     assert!(host.contains('—'), "{host}");
 }
 
-/// With nothing measured on the device there is no split to make — a pass
+/// With nothing measured on the device there is no split to make — a run
 /// on a target the runtime does not observe would otherwise read as all
 /// host.
 #[test]
-fn a_pass_with_no_device_time_splits_nothing() {
-    let mut pass = pass();
-    pass.breakdown.timed_alone = false;
-    for component in pass.breakdown.tree.iter_mut() {
+fn a_run_with_no_device_time_splits_nothing() {
+    let mut measurement = measurement();
+    measurement.breakdown.timed_alone = false;
+    for component in measurement.breakdown.tree.iter_mut() {
         clear(component);
     }
-    pass.breakdown.untagged.clear();
-    assert_eq!(Report::new(&pass).host_split().host(), None);
+    measurement.breakdown.untagged.clear();
+    assert_eq!(Report::new(&measurement).host_split().host(), None);
 
     fn clear(component: &mut Component) {
         component.kernels.clear();
@@ -805,8 +812,8 @@ fn a_pass_with_no_device_time_splits_nothing() {
 /// arithmetic. The whole model declares its floor that way.
 #[test]
 fn a_composite_is_held_to_the_arithmetic_of_its_parts() {
-    let pass = pass();
-    let parts: u64 = pass
+    let measurement = measurement();
+    let parts: u64 = measurement
         .breakdown
         .tree
         .iter()
@@ -820,11 +827,11 @@ fn a_composite_is_held_to_the_arithmetic_of_its_parts() {
             write: 1_000,
             flops: 0,
         }),
-        children: pass.breakdown.tree.clone(),
+        children: measurement.breakdown.tree.clone(),
         ..component()
     };
 
-    let roofline = Roofline::new(&pass.breakdown, peaks(), TimeReading::InPlace);
+    let roofline = Roofline::new(&measurement.breakdown, peaks(), TimeReading::InPlace);
     let floor = roofline
         .floor_of(&model)
         .expect("the model declared bounds");
@@ -847,10 +854,10 @@ fn a_composite_is_held_to_the_arithmetic_of_its_parts() {
 /// rather than falling to the kernel rung.
 #[test]
 fn an_unpriced_root_keeps_the_fusion_rung() {
-    let pass = pass();
-    let flat = Report::new(&pass).ladder();
+    let measurement = measurement();
+    let flat = Report::new(&measurement).ladder();
 
-    let mut rooted = pass.clone();
+    let mut rooted = measurement.clone();
     rooted.breakdown.tree = vec![Component {
         label: "transformer".into(),
         children: std::mem::take(&mut rooted.breakdown.tree),
@@ -867,9 +874,9 @@ fn an_unpriced_root_keeps_the_fusion_rung() {
 /// over unpriced leaves — stands at its own floor on both rungs, not at its measured time.
 #[test]
 fn a_priced_component_over_an_unpriced_subtree_keeps_its_own_floor() {
-    let mut pass = pass();
-    pass.breakdown.untagged.clear();
-    pass.breakdown.tree = vec![Component {
+    let mut measurement = measurement();
+    measurement.breakdown.untagged.clear();
+    measurement.breakdown.tree = vec![Component {
         label: "attention".into(),
         bounds: Some(Bounds {
             read: 45_000_000,
@@ -887,10 +894,10 @@ fn a_priced_component_over_an_unpriced_subtree_keeps_its_own_floor() {
         }],
         ..component()
     }];
-    let report = Report::new(&pass);
+    let report = Report::new(&measurement);
     let floor = report
         .roofline()
-        .floor_of(&pass.breakdown.tree[0])
+        .floor_of(&measurement.breakdown.tree[0])
         .expect("attention is priced")
         .time;
 
@@ -903,10 +910,10 @@ fn a_priced_component_over_an_unpriced_subtree_keeps_its_own_floor() {
 /// alone, apportioned onto the clean run, so the rows still sum to its wall.
 #[test]
 fn kernels_outside_every_component_are_apportioned_like_the_rest() {
-    let mut pass = pass();
-    pass.breakdown.untagged = vec![kernel("Reshape", 1, 1_000)];
-    let report = Report::new(&pass);
-    let untagged = &pass.breakdown.untagged[0];
+    let mut measurement = measurement();
+    measurement.breakdown.untagged = vec![kernel("Reshape", 1, 1_000)];
+    let report = Report::new(&measurement);
+    let untagged = &measurement.breakdown.untagged[0];
     let apportioned = Millis(report.reading().apportion(untagged.total)).to_string();
     assert_ne!(
         apportioned,
@@ -926,7 +933,7 @@ fn kernels_outside_every_component_are_apportioned_like_the_rest() {
 /// feed-forward, and a bare label leaves a reader to find which one by matching numbers.
 #[test]
 fn the_worklist_names_each_component_by_its_path() {
-    let table = Report::new(&pass()).to_string();
+    let table = Report::new(&measurement()).to_string();
     let worklist = &table[table.find("worth reading first").expect("a worklist")..];
     assert!(
         worklist.contains("transformer block › feed forward › gate"),
@@ -934,34 +941,34 @@ fn the_worklist_names_each_component_by_its_path() {
     );
 }
 
-/// The fused work the last components left for the sync ending the pass
+/// The fused work the last components left for the sync ending the run
 /// is printed under its own heading and counted in what the device did.
 #[test]
-fn the_end_of_the_pass_is_printed_and_counted() {
-    let mut pass = pass();
-    let before = pass.breakdown.total_time();
-    pass.breakdown.end_of_pass = vec![kernel("FusedMatmul", 1, 40)];
+fn the_end_of_the_run_is_printed_and_counted() {
+    let mut measurement = measurement();
+    let before = measurement.breakdown.total_time();
+    measurement.breakdown.end_of_pass = vec![kernel("FusedMatmul", 1, 40)];
 
-    let table = Report::new(&pass).to_string();
-    assert!(table.contains("end of pass"), "{table}");
+    let table = Report::new(&measurement).to_string();
+    assert!(table.contains("end of run"), "{table}");
     assert_eq!(
-        pass.breakdown.total_time(),
+        measurement.breakdown.total_time(),
         before + Duration::from_micros(40)
     );
 }
 
 #[test]
 fn an_unprobed_device_scores_nothing_rather_than_printing_a_guess() {
-    let mut pass = pass();
-    pass.peaks = None;
-    let table = Report::new(&pass).to_string();
+    let mut measurement = measurement();
+    measurement.peaks = None;
+    let table = Report::new(&measurement).to_string();
     assert!(table.contains("unprobed"), "the header says so:\n{table}");
     // Every roofline column reads as absent rather than as zero.
     assert!(!table.contains('%') || table.contains('—'), "{table}");
 }
 
 /// A write ceiling above the device's own read ceiling, which no shared bus
-/// produces. The pass must
+/// produces. The report must
 /// say the pair was dropped rather than quietly fall back, or a reader
 /// cannot tell it from a device that reported no directions at all.
 #[test]
@@ -975,11 +982,11 @@ fn an_impossible_write_ceiling_is_reported_not_divided_by() {
             dtype: FloatDType::F16,
         }),
     };
-    let pass = Measurement {
+    let measurement = Measurement {
         peaks: Some(broken),
-        ..pass()
+        ..measurement()
     };
-    let table = Report::new(&pass).to_string();
+    let table = Report::new(&measurement).to_string();
 
     assert!(
         table.contains("REJECTED the per-direction peaks"),
@@ -1012,11 +1019,11 @@ fn ceilings_that_do_not_predict_each_other_are_a_caveat_not_a_fallback() {
             dtype: FloatDType::F16,
         }),
     };
-    let pass = Measurement {
+    let measurement = Measurement {
         peaks: Some(odd),
-        ..pass()
+        ..measurement()
     };
-    let table = Report::new(&pass).to_string();
+    let table = Report::new(&measurement).to_string();
 
     assert!(table.contains("CAVEAT"), "the header says so:\n{table}");
     assert!(
@@ -1031,7 +1038,7 @@ fn ceilings_that_do_not_predict_each_other_are_a_caveat_not_a_fallback() {
 
 /// The failure a real ROCm run hit: the f16 CMMA probe returned a tiny
 /// positive number, so every component read as thousands of percent of peak with
-/// a floor longer than the pass. The pass must say the denominator broke
+/// a floor longer than the run. The report must say the denominator broke
 /// rather than render it.
 #[test]
 fn a_broken_compute_peak_is_reported_not_divided_by() {
@@ -1043,11 +1050,11 @@ fn a_broken_compute_peak_is_reported_not_divided_by() {
         }),
         ..Peaks::default()
     };
-    let pass = Measurement {
+    let measurement = Measurement {
         peaks: Some(broken),
-        ..pass()
+        ..measurement()
     };
-    let table = Report::new(&pass).to_string();
+    let table = Report::new(&measurement).to_string();
 
     assert!(table.contains("REJECTED"), "the header says so:\n{table}");
     assert!(
@@ -1059,8 +1066,8 @@ fn a_broken_compute_peak_is_reported_not_divided_by() {
     // Structurally, not by string: every component falls back to the `bytes`
     // wall, since the one it would otherwise be held against has no
     // denominator anyone measured.
-    let rendered = Report::new(&pass);
-    for (_, component) in pass
+    let rendered = Report::new(&measurement);
+    for (_, component) in measurement
         .breakdown
         .tree
         .iter()
@@ -1083,23 +1090,23 @@ fn a_broken_compute_peak_is_reported_not_divided_by() {
 /// answer.
 #[test]
 fn a_row_past_the_peak_is_marked_and_still_shows_its_numbers() {
-    let mut pass = pass();
+    let mut measurement = measurement();
     // One component whose kernels ran just under its own floor. The roofline is
     // scored on device time, so the component needs a timed kernel rather than a
     // wall time — a component with no kernel has nothing to be a
     // percentage of.
-    pass.breakdown.tree.truncate(1);
-    pass.breakdown.tree[0].bounds = Some(Bounds {
+    measurement.breakdown.tree.truncate(1);
+    measurement.breakdown.tree[0].bounds = Some(Bounds {
         read: 240_000_000,
         write: 80_000_000,
         flops: 0,
     });
-    pass.breakdown.tree[0].children.clear();
-    pass.breakdown.tree[0].kernels = vec![kernel("TheHead", 1, 1_700)];
-    pass.breakdown.untagged.clear();
-    // The one component is the whole pass, so its apportioned share is the
+    measurement.breakdown.tree[0].children.clear();
+    measurement.breakdown.tree[0].kernels = vec![kernel("TheHead", 1, 1_700)];
+    measurement.breakdown.untagged.clear();
+    // The one component is the whole run, so its apportioned share is the
     // wall — and 1.7 ms against a 2.0 ms floor is a component at the roof.
-    pass.clean_wall = Some(Duration::from_micros(1_700));
+    measurement.clean_wall = Some(Duration::from_micros(1_700));
 
     let peaks = Peaks {
         copy_bytes_per_s: Some(160.0e9),
@@ -1109,8 +1116,8 @@ fn a_row_past_the_peak_is_marked_and_still_shows_its_numbers() {
         }),
         ..Peaks::default()
     };
-    pass.peaks = Some(peaks);
-    let table = Report::new(&pass).to_string();
+    measurement.peaks = Some(peaks);
+    let table = Report::new(&measurement).to_string();
     // 320 MB against a 160 GB/s ceiling is a 2.0 ms floor, reached in 1.7.
     assert!(
         table.contains("118%*"),
@@ -1141,13 +1148,13 @@ fn a_row_past_the_peak_is_marked_and_still_shows_its_numbers() {
 /// the sites, which is what a split is made from.
 #[test]
 fn a_row_fed_from_two_sites_says_where_from() {
-    let mut pass = pass();
-    pass.breakdown.tree[1].children[1].sites = vec![
+    let mut measurement = measurement();
+    measurement.breakdown.tree[1].children[1].sites = vec![
         "my_model::attention::base::forward_cached".to_string(),
         "my_model::attention::base::decode_batch".to_string(),
     ];
 
-    let table = Report::new(&pass).to_string();
+    let table = Report::new(&measurement).to_string();
     assert!(
         table.contains(
             "note: `attention` under `transformer block` was entered from 2 sites \
@@ -1161,7 +1168,7 @@ fn a_row_fed_from_two_sites_says_where_from() {
 /// is a footnote a reader stops reading.
 #[test]
 fn a_row_fed_from_one_site_carries_no_note() {
-    let table = Report::new(&pass()).to_string();
+    let table = Report::new(&measurement()).to_string();
     assert!(
         !table.contains("was entered from"),
         "nothing to say about a component nothing merged into:\n{table}"
@@ -1176,11 +1183,11 @@ fn a_row_fed_from_one_site_carries_no_note() {
 /// as though nothing were decided in it.
 #[test]
 fn a_row_prints_which_executions_served_it() {
-    let mut pass = pass();
-    pass.breakdown.tree[0].label = "attention engine".to_string();
-    pass.breakdown.tree[0].children.clear();
-    pass.breakdown.tree[0].entries = 9;
-    pass.breakdown.tree[0].variants = vec![
+    let mut measurement = measurement();
+    measurement.breakdown.tree[0].label = "attention engine".to_string();
+    measurement.breakdown.tree[0].children.clear();
+    measurement.breakdown.tree[0].entries = 9;
+    measurement.breakdown.tree[0].variants = vec![
         Variant {
             name: "tile".to_string(),
             entries: 8,
@@ -1191,7 +1198,7 @@ fn a_row_prints_which_executions_served_it() {
         },
     ];
 
-    let table = Report::new(&pass).to_string();
+    let table = Report::new(&measurement).to_string();
     assert!(
         table.contains("attention engine ×9 · tile ×8, tensor-ops ×1"),
         "the split is beside the entry count:\n{table}"
@@ -1203,16 +1210,16 @@ fn a_row_prints_which_executions_served_it() {
 /// kernel, all nine times" — is the same either way.
 #[test]
 fn a_row_served_one_way_prints_the_bare_name() {
-    let mut pass = pass();
-    pass.breakdown.tree[0].label = "attention engine".to_string();
-    pass.breakdown.tree[0].children.clear();
-    pass.breakdown.tree[0].entries = 28;
-    pass.breakdown.tree[0].variants = vec![Variant {
+    let mut measurement = measurement();
+    measurement.breakdown.tree[0].label = "attention engine".to_string();
+    measurement.breakdown.tree[0].children.clear();
+    measurement.breakdown.tree[0].entries = 28;
+    measurement.breakdown.tree[0].variants = vec![Variant {
         name: "decode".to_string(),
         entries: 28,
     }];
 
-    let table = Report::new(&pass).to_string();
+    let table = Report::new(&measurement).to_string();
     assert!(
         table.contains("attention engine ×28 · decode"),
         "the name alone:\n{table}"
@@ -1228,10 +1235,10 @@ fn a_row_served_one_way_prints_the_bare_name() {
 /// their columns and leaving the rest aligned to nothing.
 #[test]
 fn every_row_keeps_its_columns_when_a_heading_grows() {
-    let mut pass = pass();
-    pass.breakdown.tree[0].label = "attention engine".to_string();
-    pass.breakdown.tree[0].entries = 9;
-    pass.breakdown.tree[0].variants = vec![
+    let mut measurement = measurement();
+    measurement.breakdown.tree[0].label = "attention engine".to_string();
+    measurement.breakdown.tree[0].entries = 9;
+    measurement.breakdown.tree[0].variants = vec![
         Variant {
             name: "prefill-fold".to_string(),
             entries: 8,
@@ -1242,7 +1249,7 @@ fn every_row_keeps_its_columns_when_a_heading_grows() {
         },
     ];
 
-    let table = Report::new(&pass).to_string();
+    let table = Report::new(&measurement).to_string();
     // Where a right-aligned column ends, on the header and on the
     // subheading beneath it.
     let ends = |line: &str, word: &str| {
@@ -1291,8 +1298,8 @@ fn every_row_keeps_its_columns_when_a_heading_grows() {
 /// share beside them.
 #[test]
 fn a_kernel_line_keeps_its_components_columns() {
-    let pass = pass();
-    let table = Report::new(&pass).to_string();
+    let measurement = measurement();
+    let table = Report::new(&measurement).to_string();
     // The column, in characters, where the milliseconds figure after the
     // label ends: `·` and `×` are wider than a byte.
     let ms_end = |needle: &str| {
@@ -1332,11 +1339,11 @@ fn a_kernel_line_keeps_its_components_columns() {
 /// for, and it would be the only unreadable line in the table.
 #[test]
 fn a_heading_past_the_cap_is_elided_rather_than_overflowing() {
-    let mut pass = pass();
-    pass.breakdown.tree[0].label = "an operator with a very long name indeed".to_string();
-    pass.breakdown.tree[0].children.clear();
-    pass.breakdown.tree[0].entries = 4;
-    pass.breakdown.tree[0].variants = ["tile", "cubek", "prefill-fold", "tensor-ops"]
+    let mut measurement = measurement();
+    measurement.breakdown.tree[0].label = "an operator with a very long name indeed".to_string();
+    measurement.breakdown.tree[0].children.clear();
+    measurement.breakdown.tree[0].entries = 4;
+    measurement.breakdown.tree[0].variants = ["tile", "cubek", "prefill-fold", "tensor-ops"]
         .into_iter()
         .map(|name| Variant {
             name: name.to_string(),
@@ -1344,7 +1351,7 @@ fn a_heading_past_the_cap_is_elided_rather_than_overflowing() {
         })
         .collect();
 
-    let table = Report::new(&pass).to_string();
+    let table = Report::new(&measurement).to_string();
     let component = table
         .lines()
         .find(|line| line.contains("an operator with"))
@@ -1385,7 +1392,7 @@ fn a_heading_past_the_cap_is_elided_rather_than_overflowing() {
 }
 
 /// Saturating the ladder's subtractions would print "0.0 on the table"
-/// under rungs that plainly exceed the pass — which reads as "nothing to
+/// under rungs that plainly exceed the run — which reads as "nothing to
 /// win", the opposite of what happened.
 #[test]
 fn an_incoherent_ladder_says_so_rather_than_reporting_nothing_to_win() {
@@ -1416,11 +1423,11 @@ fn an_incoherent_ladder_says_so_rather_than_reporting_nothing_to_win() {
 /// nothing to be reconciled against.
 #[test]
 fn an_unscored_priced_row_keeps_its_floor() {
-    let mut pass = pass();
-    pass.breakdown.tree[1].children[1].children[0].kernels[0].total = Duration::ZERO;
+    let mut measurement = measurement();
+    measurement.breakdown.tree[1].children[1].children[0].kernels[0].total = Duration::ZERO;
 
-    let rendered = Report::new(&pass);
-    let query = &pass.breakdown.tree[1].children[1].children[0];
+    let rendered = Report::new(&measurement);
+    let query = &measurement.breakdown.tree[1].children[1].children[0];
     assert!(
         rendered.roofline().score_of(query).is_none(),
         "nothing measured to score"
@@ -1446,14 +1453,14 @@ fn an_unscored_priced_row_keeps_its_floor() {
 /// say they cannot be trusted rather than "nothing to win".
 #[test]
 fn a_kernel_that_measured_no_time_is_reported_lost() {
-    let mut pass = pass();
-    assert_eq!(pass.breakdown.untimed().count(), 0);
-    let table = Report::new(&pass).to_string();
+    let mut measurement = measurement();
+    assert_eq!(measurement.breakdown.untimed().count(), 0);
+    let table = Report::new(&measurement).to_string();
     assert!(!table.contains("untimed"), "{table}");
 
-    pass.breakdown.tree[1].children[1].children[0].kernels[0].total = Duration::ZERO;
-    assert_eq!(pass.breakdown.untimed().count(), 1);
-    let table = Report::new(&pass).to_string();
+    measurement.breakdown.tree[1].children[1].children[0].kernels[0].total = Duration::ZERO;
+    assert_eq!(measurement.breakdown.untimed().count(), 1);
+    let table = Report::new(&measurement).to_string();
     assert!(
         table.contains("untimed") && table.contains("1 kernels, 2 launches"),
         "{table}"
@@ -1465,11 +1472,11 @@ fn a_kernel_that_measured_no_time_is_reported_lost() {
 /// launch can be taken away from one, so it is not "fewer launches".
 #[test]
 fn a_wait_before_one_launch_is_host_work() {
-    let mut pass = pass();
-    pass.breakdown.timed_alone = false;
-    pass.breakdown.tree[0].own_wait = Duration::from_micros(30);
+    let mut measurement = measurement();
+    measurement.breakdown.timed_alone = false;
+    measurement.breakdown.tree[0].own_wait = Duration::from_micros(30);
 
-    let table = Report::new(&pass).to_string();
+    let table = Report::new(&measurement).to_string();
     let line = table
         .lines()
         .find(|line| line.contains("embedding") && line.contains("host work"))
@@ -1478,9 +1485,9 @@ fn a_wait_before_one_launch_is_host_work() {
 }
 
 #[test]
-fn the_ladder_never_promises_more_than_the_pass_took() {
-    let pass = pass();
-    let rendered = Report::new(&pass);
+fn the_ladder_never_promises_more_than_the_run_took() {
+    let measurement = measurement();
+    let rendered = Report::new(&measurement);
     let ladder = rendered.ladder();
     assert!(
         ladder.total() <= ladder.measured,
@@ -1494,8 +1501,8 @@ fn the_ladder_never_promises_more_than_the_pass_took() {
 
 #[test]
 fn a_repeated_component_says_how_many_times_it_ran() {
-    let pass = pass();
-    let table = Report::new(&pass).to_string();
+    let measurement = measurement();
+    let table = Report::new(&measurement).to_string();
     // Two layers, one component: without the count a reader would divide by the
     // wrong number to get a per-layer figure.
     assert!(

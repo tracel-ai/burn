@@ -20,37 +20,38 @@
 //! its body directly, so nothing here is behind a feature. Without `std` there is nowhere to
 //! install one, and [`observing`] is always `None`.
 //!
-//! # Collecting a pass
+//! # Measuring a model
 //!
 //! With the `cubecl` feature, [`Instrument`] installs one recorder as the component observer,
-//! the cubecl runtime's launch observer and the fusion server's observer, runs a pass, and returns its [`Breakdown`]: the component
-//! tree, each component's kernels, and what the device spent on them. Nothing is drained at a
-//! component boundary, so the collected pass runs the kernels a clean pass runs. Each launch is
+//! the cubecl runtime's launch observer and the fusion server's observer, runs the model, and
+//! returns its [`Breakdown`]: the component tree, each component's kernels, and what the device
+//! spent on them. Nothing is drained at a component boundary, so an instrumented run launches
+//! the kernels a clean run launches. Each launch is
 //! recorded under the component that registered its work, on whichever thread issues it; on a
 //! fused device, a kernel that carried out several components' work is recorded on the closest
 //! component containing all of them and names the ones it fused.
 //!
-//! Collect a pass the device has already run once. A first pass also autotunes: the candidates
+//! Instrument a model the device has already run once. A first run also autotunes: the candidates
 //! the tuner launches are recorded as untagged kernels, and the stall while it measures them as
 //! the wait of the component that ran next.
 //!
-//! A pass is one thread's work. On a fused device, the operations every thread registers go
-//! through one fusion server, which follows the collecting thread's components, so another
-//! thread's work on the device during the pass is recorded under whichever component the
-//! collecting thread had open.
+//! A run is one thread's work. On a fused device, the operations every thread registers go
+//! through one fusion server, which follows the instrumented thread's components, so another
+//! thread's work on the device during the run is recorded under whichever component the
+//! instrumented thread had open.
 //!
 //! ```rust,ignore
 //! let measurement = Instrument::new(&device).measure(|| model.forward(input.clone()));
 //! measurement.write(std::fs::File::create("model.json")?)?;
 //! ```
 //!
-//! [`Instrument::measure`] warms the pass up, measures the device's [`Peaks`] before anything
-//! is timed (the probes are saturating kernels), times uncollected runs for the clean wall, and
-//! collects one more run. [`Instrument::breakdown`] collects a pass alone, for a caller
-//! that warms it up itself.
+//! [`Instrument::measure`] warms the model up, measures the device's [`Peaks`] before anything
+//! is timed (the probes are saturating kernels), times clean runs for the clean wall, and
+//! instruments one more run. [`Instrument::breakdown`] instruments a run alone, for a caller
+//! that warms the model up itself.
 //!
 //! A [`Breakdown`] is data, and a [`Measurement`] carries it beside the device's [`Peaks`] and
-//! the wall time of the same pass run uncollected. [`Measurement::write`] saves it as a
+//! the wall time of a clean run. [`Measurement::write`] saves it as a
 //! versioned JSON file ([`MEASUREMENT_FILE_VERSION`]) that [`Measurement::read`] reads back on any
 //! machine, with or without a runtime, to be scored there.
 //!
@@ -59,8 +60,8 @@
 //! - `std` (default): installing an observer, and reading and writing breakdowns.
 //! - `cubecl`: [`Instrument`], which reads a cubecl runtime's kernel launches, and
 //!   [`Peaks::new`].
-//! - `fusion` (default): the collector also reads the fusion server's blocks, which it needs to
-//!   collect a device that fuses.
+//! - `fusion` (default): the instrument also reads the fusion server's blocks, which it needs to
+//!   instrument a device that fuses.
 //!
 // Where the enabled features leave an item out, its links go to this version's docs.rs page.
 #![cfg_attr(not(feature = "cubecl"), doc = concat!("[`Instrument`]: ", concat!("https://docs.rs/burn-instrument/", env!("CARGO_PKG_VERSION"), "/burn_instrument/struct.Instrument.html")))]

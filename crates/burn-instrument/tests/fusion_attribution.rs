@@ -1,4 +1,4 @@
-//! Where a collected pass places the kernels burn's fuser builds across
+//! Where an instrumented run places the kernels burn's fuser builds across
 //! component boundaries.
 //!
 //! These components are made of plain burn operations so the fuser can
@@ -7,7 +7,7 @@
 //! work from outside every component — and each [`Boundary`] states where its
 //! kernels land with fusion and without.
 //!
-//! Which build ran is read off the collector, not a cargo feature: the device
+//! Which build ran is read off the instrument, not a cargo feature: the device
 //! decides whether a fusion server sits in front of it, so on a device without
 //! one the same test checks the unfused placement: run it on a cubecl device
 //! (`BURN_DEVICE`) with `fusion` for the fused half. Nothing here names a
@@ -29,13 +29,13 @@ mod burn {
 }
 
 /// The runtimes' launch and fusion observers are process-wide slots, so two
-/// collected passes at once would each record the other's kernels.
+/// instrumented runs at once would each record the other's kernels.
 static SERIAL: Mutex<()> = Mutex::new(());
 
 /// Rows and columns of every input and of the projection's weight.
 const SIDE: usize = 64;
 
-/// Uncollected passes before the collected one, so every shape is tuned.
+/// Clean runs before the instrumented one, so every shape is tuned.
 const WARMUP: usize = 5;
 
 /// One kind of boundary the fuser can cross, and the components that make it.
@@ -90,8 +90,8 @@ enum Placement {
 }
 
 impl Boundary {
-    /// The case's components, built on `device` — before the pass, so
-    /// building them is not work the pass collects.
+    /// The case's components, built on `device` — before the run, so
+    /// building them is not work the run records.
     fn build(self, device: &Device) -> Box<dyn Fn(Tensor<2>) -> Tensor<2>> {
         match self {
             Boundary::WithinOne => Box::new(|x| Chain.forward(x)),
@@ -176,14 +176,14 @@ impl Boundary {
     }
 }
 
-/// One case's collected pass, read against what the case expects.
+/// One case's instrumented run, read against what the case expects.
 struct CaseBreakdown {
     boundary: Boundary,
     breakdown: Breakdown,
 }
 
 impl CaseBreakdown {
-    /// Run `boundary`'s components collected, on a model already warmed and
+    /// Run `boundary`'s components instrumented, on a model already warmed and
     /// settled.
     fn new(boundary: Boundary) -> Self {
         let serial = SERIAL
@@ -192,15 +192,15 @@ impl CaseBreakdown {
         let device = Device::default();
         let input = Tensor::<2>::random([SIDE, SIDE], Distribution::Default, &device);
         let model = boundary.build(&device);
-        // Uncollected first: the first sighting of a reduction's or a matmul's
+        // Clean runs first: the first sighting of a reduction's or a matmul's
         // shape tunes it, and every candidate the tuner times is a launch.
-        // Each output is held to the sync, as the collected pass holds its
+        // Each output is held to the sync, as the instrumented run holds its
         // own: one dropped before its block runs lets the fuser leave its
         // write out, which is a different kernel tuned under a different key.
         let warmed: Vec<Tensor<2>> = (0..WARMUP).map(|_| model(input.clone())).collect();
-        // Collected on settled work: building the input and the model, and
+        // Instrumented on settled work: building the input and the model, and
         // warming them, is not the case's.
-        device.sync().expect("the device answers before the pass");
+        device.sync().expect("the device answers before the run");
         core::mem::drop(warmed);
 
         let breakdown = Instrument::new(&device).breakdown(|| model(input));
@@ -211,14 +211,14 @@ impl CaseBreakdown {
         }
     }
 
-    /// Check the pass against the case: what holds in both builds, then what
+    /// Check the run against the case: what holds in both builds, then what
     /// holds in the one that ran.
     fn check(&self) {
         let expected = self.boundary.expected();
         // Which half ran is the device's call, so a run says which it checked.
         let unfused = self.breakdown.unfused;
         eprintln!(
-            "{:?}: collected {}",
+            "{:?}: instrumented {}",
             self.boundary,
             if unfused { "unfused" } else { "fused" }
         );
@@ -244,7 +244,7 @@ impl CaseBreakdown {
     }
 
     /// What holds whichever build ran: every timing found its component, no block
-    /// was left to the sync ending the pass, and every name a fused kernel
+    /// was left to the sync ending the run, and every name a fused kernel
     /// records is a component below the one it is on.
     fn assert_placed(&self) {
         let boundary = self.boundary;
@@ -255,11 +255,11 @@ impl CaseBreakdown {
         );
         assert!(
             self.breakdown.end_of_pass.is_empty(),
-            "{boundary:?}: work that ran at the end of the pass went back to no component\n{self}"
+            "{boundary:?}: work that ran at the end of the run went back to no component\n{self}"
         );
         assert!(
             self.launches() > 0,
-            "{boundary:?}: the pass launched nothing"
+            "{boundary:?}: the run launched nothing"
         );
         for root in &self.breakdown.tree {
             for (_, component) in root.walk() {
@@ -393,7 +393,7 @@ impl fmt::Display for CaseBreakdown {
         }
         for (heading, kernels) in [
             ("untagged ", &self.breakdown.untagged),
-            ("end of pass ", &self.breakdown.end_of_pass),
+            ("end of run ", &self.breakdown.end_of_pass),
         ] {
             for launched in kernels {
                 kernel(f, heading, launched)?;
@@ -581,7 +581,7 @@ struct Stack {
 }
 
 impl Stack {
-    /// Entries of the one `layer` component a pass makes.
+    /// Entries of the one `layer` component a run makes.
     const DEPTH: usize = 4;
 
     #[compute]

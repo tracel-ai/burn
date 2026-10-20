@@ -51,7 +51,7 @@ impl Display for Lever {
 ///
 /// A composite's own gain contains its children's, so ranking it by that would
 /// list the same time again under every ancestor — and a reader adding the list
-/// up would find more on the table than the pass took. So each component is ranked by
+/// up would find more on the table than the run took. So each component is ranked by
 /// the lever that is only available at *its* level: a leaf by what a faster
 /// kernel would buy, a composite by the round-trip between its parts that no
 /// faster kernel can reach. Those are the ladder's two rungs, split per
@@ -59,7 +59,7 @@ impl Display for Lever {
 pub(super) struct Worklist {
     /// The most recoverable, first.
     entries: Vec<WorklistEntry>,
-    /// Whether the pass lost kernel time, so the gains are differences against timings that
+    /// Whether the run lost kernel time, so the gains are differences against timings that
     /// came in short.
     lost_time: bool,
 }
@@ -71,7 +71,7 @@ impl Worklist {
     pub(super) fn new(report: &Report<'_>) -> Self {
         let roofline = report.roofline();
         let mut entries = Vec::new();
-        for (path, component) in report.pass().breakdown.components() {
+        for (path, component) in report.measurement().breakdown.components() {
             // The third lever: what the device waited on the host for before this
             // component's own kernels. Its own, not its subtree's, so a
             // millisecond is listed once however deep the component sits.
@@ -126,7 +126,7 @@ impl Worklist {
         entries.truncate(Self::SHOWN);
         Self {
             entries,
-            lost_time: report.pass().breakdown.untimed().next().is_some(),
+            lost_time: report.measurement().breakdown.untimed().next().is_some(),
         }
     }
 }
@@ -157,7 +157,7 @@ impl Display for Worklist {
         if self.lost_time {
             writeln!(
                 f,
-                "    (from a pass that lost kernel time — see `untimed`; re-measure first)"
+                "    (from a run that lost kernel time — see `untimed`; re-measure first)"
             )?;
         }
         for entry in &self.entries {

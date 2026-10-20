@@ -1,5 +1,5 @@
-//! What a collected pass leaves behind: the components it entered, the
-//! kernels each launched, and what the collection itself can say about how
+//! What an instrumented run leaves behind: the components it entered, the
+//! kernels each launched, and what the instrument itself can say about how
 //! far those numbers are to be trusted.
 
 use std::collections::HashMap;
@@ -12,38 +12,38 @@ use crate::component_path::ComponentPath;
 
 use super::FusedElsewhere;
 
-/// One collected pass, broken down by component.
+/// One instrumented run, broken down by component.
 ///
-/// What [`Instrument::measure`] returns: data only, so a breakdown
-/// collected from a pass and one written out in a test are the same kind of
+/// What [`Instrument::breakdown`] returns: data only, so a breakdown
+/// recorded from a run and one written out in a test are the same kind of
 /// value.
 ///
 #[cfg_attr(
     feature = "cubecl",
-    doc = "[`Instrument::measure`]: crate::Instrument::measure"
+    doc = "[`Instrument::breakdown`]: crate::Instrument::breakdown"
 )]
-#[cfg_attr(not(feature = "cubecl"), doc = concat!("[`Instrument::measure`]: ", concat!("https://docs.rs/burn-instrument/", env!("CARGO_PKG_VERSION"), "/burn_instrument/struct.Instrument.html#method.measure")))]
+#[cfg_attr(not(feature = "cubecl"), doc = concat!("[`Instrument::breakdown`]: ", concat!("https://docs.rs/burn-instrument/", env!("CARGO_PKG_VERSION"), "/burn_instrument/struct.Instrument.html#method.breakdown")))]
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Breakdown {
-    /// The components the collected pass entered.
+    /// The components the instrumented run entered.
     pub tree: Vec<Component>,
-    /// Kernels the pass launched under no component at all, and fused kernels
+    /// Kernels the run launched under no component at all, and fused kernels
     /// that carried out work from outside every component or across two roots,
     /// named for the components they did carry out (see [`Kernel::fuses`]).
     pub untagged: Vec<Kernel>,
-    /// Kernels the sync ending the pass ran: fused work the last components
+    /// Kernels the sync ending the run ran: fused work the last components
     /// left queued, which no op after them was there to seal. See
-    /// [`Instrument::measure`].
+    /// [`Instrument::breakdown`].
     ///
     #[cfg_attr(
         feature = "cubecl",
-        doc = "[`Instrument::measure`]: crate::Instrument::measure"
+        doc = "[`Instrument::breakdown`]: crate::Instrument::breakdown"
     )]
-    #[cfg_attr(not(feature = "cubecl"), doc = concat!("[`Instrument::measure`]: ", concat!("https://docs.rs/burn-instrument/", env!("CARGO_PKG_VERSION"), "/burn_instrument/struct.Instrument.html#method.measure")))]
+    #[cfg_attr(not(feature = "cubecl"), doc = concat!("[`Instrument::breakdown`]: ", concat!("https://docs.rs/burn-instrument/", env!("CARGO_PKG_VERSION"), "/burn_instrument/struct.Instrument.html#method.breakdown")))]
     pub end_of_pass: Vec<Kernel>,
     /// How long the device waited on the host before the untagged kernels
-    /// and the end of the pass's — the idle time no component is charged with. See
+    /// and the end of the run's — the idle time no component is charged with. See
     /// [`Component::own_wait`].
     // Stored as `waited_outside`, the key version 1 files carry.
     #[serde(rename = "waited_outside", with = "super::nanoseconds")]
@@ -52,32 +52,32 @@ pub struct Breakdown {
     ///
     /// wgpu budgets its timestamp query sets and falls back to a host timer
     /// when they run out, and a host timing is wall around a blocking submit —
-    /// submission and sync included, so a pass with one reads several times
+    /// submission and sync included, so a run with one reads several times
     /// its device time.
     pub host_timed: bool,
     /// Whether any launch was timed alone — read back as it launched, or by a
     /// host timer — so the kernels ran one at a time and their sum is not a
-    /// pipelined pass's device time.
+    /// pipelined run's device time.
     ///
     /// Decides how the components are read: in place, a component's milliseconds are its
-    /// kernels' own and the clean pass splits into device and host; alone, the
+    /// kernels' own and the clean run splits into device and host; alone, the
     /// device times are only good as proportions and are apportioned onto the
-    /// clean pass instead.
+    /// clean run instead.
     pub timed_alone: bool,
     /// Kernel time that reached the recorder under a different component from the
     /// launch it measured, or a measurement that came back empty, so no component
     /// could account for it.
     ///
     /// Each measurement is kept beside the component that counted its launch and read
-    /// back once the pass has run, so this is zero unless a runtime hands one
+    /// back once the run is over, so this is zero unless a runtime hands one
     /// over somewhere else. Reported rather than assumed, because
     /// [`total_time`](Self::total_time) is the denominator of every apportioned
     /// millisecond in a report.
     pub unplaced: Unplaced,
-    /// Whether the collected pass ran without fusion — no fusion linked, or a
+    /// Whether the instrumented run ran without fusion — no fusion linked, or a
     /// device whose ops do not go through it.
     ///
-    /// Each pass has its own way of being read wrong, and the breakdown says
+    /// Each run has its own way of being read wrong, and the breakdown says
     /// which it ran. Unfused, it is a graph production does not run: what a
     /// fused kernel would do across two components is charged to each of them.
     /// Fused, it is production's graph, and a kernel that carried out several
@@ -88,8 +88,8 @@ pub struct Breakdown {
 }
 
 impl Breakdown {
-    /// Every kernel of the pass: the ones under a component, then the
-    /// untagged ones and the ones the end of the pass ran.
+    /// Every kernel of the run: the ones under a component, then the
+    /// untagged ones and the ones the end of the run ran.
     pub fn kernels(&self) -> impl Iterator<Item = &Kernel> {
         self.tree
             .iter()
@@ -102,7 +102,7 @@ impl Breakdown {
     /// The kernels that launched and measured no time at all.
     ///
     /// A launch the device ran took some time, so a zero is a timing the
-    /// collection lost rather than a fast kernel — and every component it sits under,
+    /// instrument lost rather than a fast kernel — and every component it sits under,
     /// every share and the device total are short by it. Distinct from
     /// [`unplaced`](Self::unplaced), which is time that arrived with no component to
     /// go to: this is a component whose time never arrived.
@@ -111,12 +111,12 @@ impl Breakdown {
             .filter(|kernel| kernel.launches > 0 && kernel.total.is_zero())
     }
 
-    /// What the device spent on this pass: every kernel, summed.
+    /// What the device spent on this run: every kernel, summed.
     pub fn total_time(&self) -> Duration {
         self.kernels().map(|kernel| kernel.total).sum()
     }
 
-    /// How long the device waited on the host across the collected pass,
+    /// How long the device waited on the host across the instrumented run,
     /// between every pair of kernels: what [`Component::own_wait`] is apportioned
     /// by.
     pub fn total_wait(&self) -> Duration {
@@ -179,9 +179,9 @@ impl Breakdown {
             .collect()
     }
 
-    /// Every component of the pass, depth-first, each with its path from the root: what
+    /// Every component of the run, depth-first, each with its path from the root: what
     /// tells two same-named components apart, and what a comparison keys a component of one
-    /// pass against another by.
+    /// run against another by.
     pub fn components(&self) -> Vec<(ComponentPath, &Component)> {
         let mut out = Vec::new();
         for root in &self.tree {
@@ -235,11 +235,11 @@ pub struct Kernel {
 pub struct Variant {
     /// What the execution calls itself.
     pub name: String,
-    /// Entries it served, across the whole pass.
+    /// Entries it served, across the whole run.
     pub entries: usize,
 }
 
-/// One component as the pass measured it: what it declared, and what it took.
+/// One component as the run measured it: what it declared, and what it took.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Component {
@@ -264,7 +264,7 @@ pub struct Component {
     /// when the component declares none.
     ///
     /// Summed rather than checked for agreement because a component is legally
-    /// entered at several shapes in one pass: chunked prefill runs a full chunk
+    /// entered at several shapes in one run: chunked prefill runs a full chunk
     /// and a padded tail, and both are real work the component has to account for.
     #[serde(deserialize_with = "Option::deserialize")]
     pub bounds: Option<Bounds>,
@@ -273,7 +273,7 @@ pub struct Component {
     /// where nothing under it observed any, or where it declares no floor.
     #[serde(deserialize_with = "Option::deserialize")]
     pub observed: Option<Bounds>,
-    /// How many times the pass entered it.
+    /// How many times the run entered it.
     pub entries: usize,
     /// The components it entered, in first-seen order.
     pub children: Vec<Component>,
@@ -285,15 +285,15 @@ pub struct Component {
     /// — the reshapes and residual adds between them — and those are exactly
     /// the work no child accounts for.
     pub kernels: Vec<Kernel>,
-    /// How long the device sat idle, in the collected pass, before the
+    /// How long the device sat idle, in the instrumented run, before the
     /// [`kernels`](Self::kernels) recorded on this component — waiting on the
     /// host to issue them.
     ///
     /// Idle time is charged to the kernel that ended it: that launch is what
-    /// the device was waiting for. It is the collected pass's, whose host also
+    /// the device was waiting for. It is the instrumented run's, whose host also
     /// records every launch, so as an absolute it includes the instrumentation;
     /// as a share of every gap it says which components the device waited on,
-    /// which is what a clean pass's host time is split by.
+    /// which is what a clean run's host time is split by.
     // Stored as `waited`, the key version 1 files carry.
     #[serde(rename = "waited", with = "super::nanoseconds")]
     pub own_wait: Duration,
@@ -346,8 +346,8 @@ impl Component {
     /// **This is the only time a component has.** Nothing drains at its
     /// boundaries, so a clock around its host call would measure how fast the
     /// host registered ops, not what the device spent. The kernels are what the
-    /// device actually ran, and their sum across a pass comes out within a few
-    /// percent of the clean pass's wall time, which is the cross-check that says
+    /// device actually ran, and their sum across a run comes out within a few
+    /// percent of the clean run's wall time, which is the cross-check that says
     /// so.
     ///
     /// Zero for a component whose work all fused with another's: the kernel

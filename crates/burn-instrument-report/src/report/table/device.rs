@@ -1,4 +1,4 @@
-//! The device a pass ran on, and what it can do.
+//! The device a run used, and what it can do.
 
 use std::fmt::{self, Display};
 
@@ -20,12 +20,12 @@ impl<'r, 'a> DeviceHeader<'r, 'a> {
 
 impl Display for DeviceHeader<'_, '_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let pass = self.report.pass();
+        let measurement = self.report.measurement();
         let peaks = self.report.roofline().peaks();
         writeln!(
             f,
             "device   {} · {} · {}",
-            pass.device,
+            measurement.device,
             match peaks.copy_bytes_per_s {
                 Some(copy) => format!("{:.1} GB/s", copy / 1e9),
                 None => "unprobed".to_string(),
@@ -53,7 +53,7 @@ impl Display for DeviceHeader<'_, '_> {
                 "         its own direction; the copy ceiling is reported, not divided by."
             )?;
         }
-        if pass.peaks.is_none() {
+        if measurement.peaks.is_none() {
             writeln!(
                 f,
                 "         not probed: no component is scored, and the ladder is the measured time"

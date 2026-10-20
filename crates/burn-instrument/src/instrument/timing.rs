@@ -1,5 +1,5 @@
-//! What the device spent on each launch: the measurements a pass hands over
-//! unread, and what they say about the pass once read back.
+//! What the device spent on each launch: the measurements a run hands over
+//! unread, and what they say about the run once read back.
 
 use std::time::{Duration, Instant};
 
@@ -8,7 +8,7 @@ use cubecl::profile::{ProfileDuration, ProfileTicks, TimingMethod};
 use super::cursor::Attribution;
 use crate::breakdown::Unplaced;
 
-/// The measurements a pass kept, and how far they are to be trusted.
+/// The measurements a run kept, and how far they are to be trusted.
 #[derive(Default)]
 pub struct Timings {
     /// Measurements handed over unread, each beside the component its launch was
@@ -83,7 +83,7 @@ impl Timings {
 
 /// What a breakdown says about how far its timings are to be trusted. See the
 /// fields of [`Breakdown`](crate::Breakdown) of the same names. The default is
-/// a pass whose every timing was taken on the device, in a full queue, and
+/// a run whose every timing was taken on the device, in a full queue, and
 /// found its component.
 #[derive(Clone, Copy, Default)]
 pub struct TimingQuality {
@@ -100,7 +100,7 @@ pub struct Kept {
 }
 
 impl Kept {
-    /// Read the measurement back. Waits for its kernel, so a pass reads them
+    /// Read the measurement back. Waits for its kernel, so a run reads them
     /// once it has run.
     pub fn resolve(self) -> Measured {
         Measured {
@@ -118,9 +118,9 @@ pub struct Measured {
     pub ticks: Option<ProfileTicks>,
 }
 
-/// The windows the device ran the pass's kernels in, on one clock.
+/// The windows the device ran the run's kernels in, on one clock.
 pub struct Timeline {
-    /// Before the pass, so every window can be placed after it and the gaps
+    /// Before the run, so every window can be placed after it and the gaps
     /// between them read off.
     epoch: Instant,
     windows: Vec<Window>,

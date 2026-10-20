@@ -345,7 +345,7 @@ fn a_child_nests_under_whoever_called_it() {
 }
 
 /// With no observer installed, an annotated forward records nothing and computes what its body
-/// computes: the annotation costs a production pass nothing it would notice.
+/// computes: the annotation costs a production run nothing it would notice.
 #[test]
 fn an_unobserved_forward_records_nothing_and_computes_the_same() {
     let seen = entered(|| {});

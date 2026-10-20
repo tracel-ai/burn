@@ -1,60 +1,60 @@
-//! What a collected pass's times mean: how its kernels were timed, and whether the clean pass
+//! What an instrumented run's times mean: how its kernels were timed, and whether the clean run
 //! splits into the device's time and the host's.
 
 use std::time::Duration;
 
 use burn_instrument::{Component, Measurement};
 
-/// What a component's milliseconds are, given how the pass timed its kernels and whether an
-/// uncollected run was measured.
+/// What a component's milliseconds are, given how the run timed its kernels and whether a
+/// clean run was measured.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum TimeReading {
-    /// Read back after the pass, so the kernels ran back to back: a component's time is its
+    /// Read back after the run, so the kernels ran back to back: a component's time is its
     /// kernels' own device time.
     InPlace,
     /// Each read as it launched, so the kernels ran one at a time: a component's time is its
-    /// share of the uncollected run, the one unperturbed number there is.
+    /// share of the clean run, the one unperturbed number there is.
     ApportionedOnto {
-        /// The uncollected run's wall time.
+        /// The clean run's wall time.
         wall: Duration,
         /// Every kernel's serialized time, which the shares are of.
         serialized: Duration,
     },
-    /// Each read as it launched, and no uncollected run to apportion onto: a component's time
+    /// Each read as it launched, and no clean run to apportion onto: a component's time
     /// is its kernels' serialized time, and only the proportions mean anything.
     Serialized,
 }
 
 impl TimeReading {
-    pub(crate) fn new(pass: &Measurement) -> Self {
-        match (pass.breakdown.timed_alone, pass.clean_wall) {
+    pub(crate) fn new(measurement: &Measurement) -> Self {
+        match (measurement.breakdown.timed_alone, measurement.clean_wall) {
             (false, _) => Self::InPlace,
             (true, Some(wall)) => Self::ApportionedOnto {
                 wall,
-                serialized: pass.breakdown.total_time(),
+                serialized: measurement.breakdown.total_time(),
             },
             (true, None) => Self::Serialized,
         }
     }
 
     /// This component's milliseconds: its kernels' own device time where they
-    /// were measured in place, and its share of the clean pass where any
+    /// were measured in place, and its share of the clean run where any
     /// launch was timed alone.
     ///
-    /// In place, nothing waited on a kernel while the pass ran, so each
+    /// In place, nothing waited on a kernel during the run, so each
     /// measurement is the kernel as it runs in a full queue and needs no
-    /// correcting. The components then sum to the device's time, and the clean pass's
+    /// correcting. The components then sum to the device's time, and the clean run's
     /// remainder is the host's — the `host` line.
     ///
-    /// **Timed alone, the collected pass has no absolute clock.** Its per-launch device
+    /// **Timed alone, the instrumented run has no absolute clock.** Its per-launch device
     /// times are each measured with the kernel running *alone*, since timing a
-    /// launch blocks on it, so two collections of the same work can read twice
-    /// apart against a clean pass that barely moved.
-    /// What the collected pass measures reliably is the **proportions**,
+    /// launch blocks on it, so two instrumented runs of the same work can read twice
+    /// apart against a clean run that barely moved.
+    /// What the instrumented run measures reliably is the **proportions**,
     /// because every kernel in it is measured the same way.
     ///
     /// So the proportions are apportioned onto the one unperturbed number
-    /// there is: the median wall time of the clean pass. The result is
+    /// there is: the median wall time of the clean run. The result is
     /// absolute, sums to that wall, and is the model's time rather than the
     /// instrumentation's.
     ///
@@ -63,7 +63,7 @@ impl TimeReading {
     /// runs many small kernels against one that runs a few large ones — so a
     /// component is good to a few percent and not to the last digit.
     ///
-    /// Timed alone with no clean pass measured, there is nothing to apportion
+    /// Timed alone with no clean run measured, there is nothing to apportion
     /// onto: the components are the serialized kernels' own times, and only their
     /// proportions mean anything, which the header says.
     pub(crate) fn apportioned(self, component: &Component) -> Duration {
@@ -90,20 +90,20 @@ impl TimeReading {
         match self {
             Self::InPlace => TimeReadingText {
                 timings: [
-                    "in place — read back after the pass, the kernels ran back to back: a component is",
+                    "in place — read back after the run, the kernels ran back to back: a component is",
                     "its kernels' device time, and `host` is the device waiting on the host",
                 ],
                 time_of: "on device",
-                wall: "the pass run uncollected",
+                wall: "the clean run",
                 measured: "timed in place — what the components above sum to",
             },
             Self::ApportionedOnto { .. } => TimeReadingText {
                 timings: [
                     "alone — each read as it launched, so the kernels ran one at a time: a component is",
-                    "its share of the uncollected run, good to a few percent",
+                    "its share of the clean run, good to a few percent",
                 ],
                 time_of: "of wall",
-                wall: "the pass run uncollected, and what the components above sum to",
+                wall: "the clean run, and what the components above sum to",
                 measured: "each timed alone",
             },
             Self::Serialized => TimeReadingText {
@@ -112,7 +112,7 @@ impl TimeReading {
                     "its kernels' serialized time, and only the proportions mean anything",
                 ],
                 time_of: "on device",
-                wall: "the pass run uncollected",
+                wall: "the clean run",
                 measured: "each timed alone",
             },
         }
@@ -127,43 +127,43 @@ pub(crate) struct TimeReadingText {
     pub(crate) timings: [&'static str; 2],
     /// What the time column is a time of.
     pub(crate) time_of: &'static str,
-    /// Beside the uncollected run's wall time.
+    /// Beside the clean run's wall time.
     pub(crate) wall: &'static str,
-    /// Beside the collected pass's device time.
+    /// Beside the instrumented run's device time.
     pub(crate) measured: &'static str,
 }
 
-/// Whether a pass splits into the device's time and the time the device waited on the host,
-/// and why not where it does not: the clean pass less what its kernels took holds only when
-/// that device time is a pipelined pass's.
+/// Whether a run splits into the device's time and the time the device waited on the host,
+/// and why not where it does not: the clean run less what its kernels took holds only when
+/// that device time is a pipelined run's.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum HostSplit {
-    /// The clean pass splits.
+    /// The clean run splits.
     Measured {
-        /// The time the clean pass's device spent waiting on the host.
+        /// The time the clean run's device spent waiting on the host.
         host: Duration,
-        /// How long the collected pass's device waited on the host, which `host` is split
+        /// How long the instrumented run's device waited on the host, which `host` is split
         /// across the components by.
         waited: Duration,
     },
-    /// No uncollected run was measured to split.
+    /// No clean run was measured to split.
     NoCleanRun,
-    /// A launch timed alone serializes the pass, so its total is not a pipelined pass's.
+    /// A launch timed alone serializes the run, so its total is not a pipelined run's.
     TimedAlone,
     /// Nothing was timed on the device.
     NothingTimed,
-    /// The kernels measured more than the pass took: two clocks disagreeing, not a negative
+    /// The kernels measured more than the run took: two clocks disagreeing, not a negative
     /// host.
     ClocksDisagree,
 }
 
 impl HostSplit {
-    pub(crate) fn new(pass: &Measurement) -> Self {
-        let Some(wall) = pass.clean_wall else {
+    pub(crate) fn new(measurement: &Measurement) -> Self {
+        let Some(wall) = measurement.clean_wall else {
             return Self::NoCleanRun;
         };
-        let device = pass.breakdown.total_time();
-        if pass.breakdown.timed_alone {
+        let device = measurement.breakdown.total_time();
+        if measurement.breakdown.timed_alone {
             Self::TimedAlone
         } else if device.is_zero() {
             Self::NothingTimed
@@ -172,13 +172,13 @@ impl HostSplit {
         } else {
             Self::Measured {
                 host: wall - device,
-                waited: pass.breakdown.total_wait(),
+                waited: measurement.breakdown.total_wait(),
             }
         }
     }
 
-    /// Of the clean pass, the time the device spent waiting on the host — the
-    /// launches, the op recording, everything between kernels — where the pass splits.
+    /// Of the clean run, the time the device spent waiting on the host — the
+    /// launches, the op recording, everything between kernels — where the run splits.
     pub(crate) fn host(self) -> Option<Duration> {
         match self {
             Self::Measured { host, .. } => Some(host),
@@ -186,30 +186,30 @@ impl HostSplit {
         }
     }
 
-    /// Why the pass does not split, one string per printed line: empty where it does.
+    /// Why the run does not split, one string per printed line: empty where it does.
     pub(crate) fn why_not_separable(self) -> &'static [&'static str] {
         match self {
             Self::Measured { .. } => &[],
-            Self::NoCleanRun => &["no uncollected run was measured"],
+            Self::NoCleanRun => &["no clean run was measured"],
             Self::TimedAlone => &[
                 "a launch timed alone serializes the",
-                "pass, so the measured total is not a pipelined pass's",
+                "run, so the measured total is not a pipelined run's",
             ],
             Self::NothingTimed => &["nothing was timed on the device"],
             Self::ClocksDisagree => &[
                 "the kernels measured more than the",
-                "pass took, so the two clocks disagree",
+                "run took, so the two clocks disagree",
             ],
         }
     }
 
-    /// The clean pass's host time charged to `waited` of the collected pass's: a
+    /// The clean run's host time charged to `waited` of the instrumented run's: a
     /// component's share, split by how long the device waited before its kernels.
-    /// `None` where the pass does not split.
+    /// `None` where the run does not split.
     ///
-    /// Split rather than read off directly, because the collected pass's host
+    /// Split rather than read off directly, because the instrumented run's host
     /// pays a round trip per launch to time it, so its idle stretches are
-    /// longer than the clean pass's by a cost every launch shares. As shares
+    /// longer than the clean run's by a cost every launch shares. As shares
     /// they still say which components the device waited on; as absolutes they
     /// would describe the instrumentation. Where that shared cost is most of
     /// every stretch the split falls back to counting launches, which is the

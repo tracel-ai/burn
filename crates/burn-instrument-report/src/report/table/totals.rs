@@ -1,4 +1,4 @@
-//! What the pass came to, beneath the component table.
+//! What the run came to, beneath the component table.
 
 use std::fmt::{self, Display};
 
@@ -9,7 +9,7 @@ use crate::millis::Millis;
 use crate::reading::HostSplit;
 use crate::share::Share;
 
-/// The pass's totals, and what each is short by: the uncollected run, the device time the
+/// The run's totals, and what each is short by: the clean run, the device time the
 /// components are shares of, the timings that went missing, and the host split.
 pub(super) struct Totals<'r, 'a> {
     report: &'r Report<'a>,
@@ -25,12 +25,16 @@ impl<'r, 'a> Totals<'r, 'a> {
 
 impl Display for Totals<'_, '_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let pass = self.report.pass();
+        let measurement = self.report.measurement();
         let width = self.width;
         let text = self.report.reading().text();
-        let kernels = pass.breakdown.kernels().count();
-        let launches: usize = pass.breakdown.kernels().map(|kernel| kernel.launches).sum();
-        if let Some(wall) = pass.clean_wall {
+        let kernels = measurement.breakdown.kernels().count();
+        let launches: usize = measurement
+            .breakdown
+            .kernels()
+            .map(|kernel| kernel.launches)
+            .sum();
+        if let Some(wall) = measurement.clean_wall {
             writeln!(
                 f,
                 "  {:<width$} {:>8} ms   {}",
@@ -42,14 +46,14 @@ impl Display for Totals<'_, '_> {
         writeln!(
             f,
             "  {:<width$} {:>8} ms   {kernels} distinct kernels, {launches} launches, {}",
-            match pass.breakdown.host_timed {
+            match measurement.breakdown.host_timed {
                 true => "measured (SOME HOST-TIMED)",
                 false => "measured",
             },
-            Millis(pass.breakdown.total_time()),
+            Millis(measurement.breakdown.total_time()),
             text.measured,
         )?;
-        if pass.breakdown.host_timed {
+        if measurement.breakdown.host_timed {
             for line in [
                 "the runtime could not get a device timestamp for every launch and fell",
                 "back to a host timer, which measures submission and sync as well as the",
@@ -63,7 +67,7 @@ impl Display for Totals<'_, '_> {
         // Lost rather than misplaced, and the reason a table can read a matmul
         // at 0.0 ms beside a counter add at 78: said here, where the total it
         // shortens is printed, and keyed on below.
-        let untimed: Vec<&Kernel> = pass.breakdown.untimed().collect();
+        let untimed: Vec<&Kernel> = measurement.breakdown.untimed().collect();
         if !untimed.is_empty() {
             let launches: usize = untimed.iter().map(|kernel| kernel.launches).sum();
             writeln!(
@@ -74,23 +78,23 @@ impl Display for Totals<'_, '_> {
                 untimed.len(),
             )?;
         }
-        if pass.breakdown.unplaced.timings > 0 {
+        if measurement.breakdown.unplaced.timings > 0 {
             writeln!(
                 f,
                 "  {:<width$} {:>8} ms   {} timings arrived after their component closed",
                 "unplaced",
-                Millis(pass.breakdown.unplaced.total),
-                pass.breakdown.unplaced.timings
+                Millis(measurement.breakdown.unplaced.total),
+                measurement.breakdown.unplaced.timings
             )?;
         }
-        // The host/device split: the clean pass less what its kernels took on
+        // The host/device split: the clean run less what its kernels took on
         // the device. Printed only where that device time is a pipelined
-        // pass's — see `HostSplit` — and a dash that says why
+        // run's — see `HostSplit` — and a dash that says why
         // otherwise, rather than a subtraction of the wrong thing.
         match self.report.host_split() {
             HostSplit::Measured { host, .. } => writeln!(
                 f,
-                "  {:<width$} {:>8} ms   {} of the pass the device spent waiting on the host",
+                "  {:<width$} {:>8} ms   {} of the run the device spent waiting on the host",
                 "host",
                 Millis(host),
                 Share {

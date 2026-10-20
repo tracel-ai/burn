@@ -1,11 +1,11 @@
-//! How much of a pass is on the table, lever by lever.
+//! How much of a run is on the table, lever by lever.
 
 use std::fmt::{self, Display};
 
 use crate::millis::Millis;
 use crate::roofline::Ladder;
 
-/// The ladder as the page prints it: what the pass could give back, one rung per lever, or why
+/// The ladder as the page prints it: what the run could give back, one rung per lever, or why
 /// that is unavailable.
 pub(super) struct Recoverable {
     ladder: Ladder,
@@ -22,7 +22,7 @@ impl Display for Recoverable {
         let ladder = &self.ladder;
         if !ladder.coherent() {
             // Saturating the subtractions would print "0.0 on the table" under
-            // rungs that plainly exceed the pass — the most misleading thing
+            // rungs that plainly exceed the run — the most misleading thing
             // this report could say, since it reads as "nothing to win".
             writeln!(f)?;
             for line in [
@@ -33,7 +33,7 @@ impl Display for Recoverable {
                     Millis(ladder.fused),
                     Millis(ladder.device())
                 ),
-                "  the device spent on this pass, so a denominator is wrong".to_string(),
+                "  the device spent on this run, so a denominator is wrong".to_string(),
             ] {
                 writeln!(f, "  {line}")?;
             }

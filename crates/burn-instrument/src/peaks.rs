@@ -41,7 +41,7 @@ pub struct Peaks {
 pub struct ComputePeak {
     /// FLOP/s, at 2 per multiply-add.
     pub per_s: f64,
-    /// The dtype it was measured at, which should be the one the pass computes in.
+    /// The dtype it was measured at, which should be the one the run computes in.
     pub dtype: FloatDType,
 }
 
@@ -173,7 +173,7 @@ impl Peaks {
     /// Measure `device`'s peaks, the arithmetic one at `dtype`.
     ///
     /// The probes are saturating kernels that move clocks and thermals for whatever runs after
-    /// them, so measure before the pass, not between its parts. The runtime keeps each value for
+    /// them, so measure before the run, not between its parts. The runtime keeps each value for
     /// the process, so a second call is free. A device with no probes (a non-cubecl one, or a
     /// runtime without timing) reports `None` for each.
     pub fn new(device: &burn_tensor::Device, dtype: FloatDType) -> Self {
@@ -260,7 +260,7 @@ mod tests {
     use super::*;
 
     /// A compute peak below the copy bandwidth is a failed probe, and dividing by it would put
-    /// a floor longer than the pass: 0.0045 TFLOP/s beside 166 GB/s was such a reading.
+    /// a floor longer than the run: 0.0045 TFLOP/s beside 166 GB/s was such a reading.
     #[test]
     fn a_compute_peak_below_the_memory_peak_is_rejected() {
         let broken = Peaks {

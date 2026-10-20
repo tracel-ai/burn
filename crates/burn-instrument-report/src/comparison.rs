@@ -1,8 +1,8 @@
-//! Two passes, side by side.
+//! Two measurements, side by side.
 //!
 //! Every performance change is a comparison, and a table on its own is not one: a reader holds
-//! the previous pass in a scrollback buffer and subtracts by eye, which is where a regression in
-//! a component nobody was looking at survives.
+//! the previous measurement in a scrollback buffer and subtracts by eye, which is where a
+//! regression in a component nobody was looking at survives.
 //!
 //! Components are keyed on their **path** from the root: a label alone is ambiguous (`down` sits
 //! under a feed-forward in every layer), and a component is merged on its label only among its
@@ -18,7 +18,7 @@ use crate::Report;
 use crate::millis::Millis;
 use crate::served_by::ServedBy;
 
-/// A pass beside the one it is being held against: what [`Report::against`] returns.
+/// A measurement beside the one it is being held against: what [`Report::against`] returns.
 pub struct Comparison<'a> {
     now: Report<'a>,
     was: Report<'a>,
@@ -28,28 +28,29 @@ pub struct Comparison<'a> {
     was_components: Vec<(ComponentPath, &'a Component)>,
 }
 
-/// One component of the current pass beside the same path in the saved one.
+/// One component of the current measurement beside the same path in the saved one.
 struct Compared<'a> {
     path: &'a ComponentPath,
     now: &'a Component,
-    /// The same path in the saved pass, where it had one. `None` is a component this pass has
-    /// and the saved one did not: added, renamed or newly annotated, and not a delta of any kind.
+    /// The same path in the saved measurement, where it had one. `None` is a component this
+    /// measurement has and the saved one did not: added, renamed or newly annotated, and not a
+    /// delta of any kind.
     was: Option<&'a Component>,
 }
 
 impl<'a> Comparison<'a> {
-    /// `now`'s pass against the pass `saved` holds. Two different types, so the two sides
-    /// cannot be swapped by accident: a swap would flip the sign of every delta.
+    /// `now`'s measurement against `saved`. Two different types, so the two sides cannot be
+    /// swapped by accident: a swap would flip the sign of every delta.
     pub(crate) fn new(now: Report<'a>, saved: &'a Measurement) -> Self {
         Self {
-            now_components: now.pass().breakdown.components(),
+            now_components: now.measurement().breakdown.components(),
             was_components: saved.breakdown.components(),
             now,
             was: Report::new(saved),
         }
     }
 
-    /// Each component of the current pass beside the same path in the saved one.
+    /// Each component of the current measurement beside the same path in the saved one.
     fn compared(&self) -> Vec<Compared<'_>> {
         let was: HashMap<&ComponentPath, &Component> = self
             .was_components
@@ -66,10 +67,10 @@ impl<'a> Comparison<'a> {
             .collect()
     }
 
-    /// Whether `compared`'s work changed hands between the two passes: fused into an ancestor's
-    /// kernel in one and launched on its own in the other.
+    /// Whether `compared`'s work changed hands between the two measurements: fused into an
+    /// ancestor's kernel in one and launched on its own in the other.
     ///
-    /// Not a delta of any kind. A component that fused away since the saved pass reads zero
+    /// Not a delta of any kind. A component that fused away since the saved measurement reads zero
     /// because its work moved up, and the ancestor that absorbed it gained that time, so
     /// subtracting gives a −100% win beside an equal regression: one fusion decision counted
     /// twice with opposite signs.
@@ -80,9 +81,9 @@ impl<'a> Comparison<'a> {
         })
     }
 
-    /// What the two passes differ in that makes their difference a number about nothing.
+    /// What the two measurements differ in that makes their difference a number about nothing.
     fn mismatches(&self) -> Vec<Mismatch<'_>> {
-        let (now, was) = (self.now.pass(), self.was.pass());
+        let (now, was) = (self.now.measurement(), self.was.measurement());
         let mut mismatches = Vec::new();
         if now.device != was.device {
             mismatches.push(Mismatch::Device {
@@ -109,17 +110,17 @@ impl<'a> Comparison<'a> {
     }
 }
 
-/// One way two passes measured different things.
+/// One way two measurements differ in what they measured.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Mismatch<'a> {
     /// They ran on different devices.
     Device { was: &'a str, now: &'a str },
-    /// One ran fused and the other unfused; `was_unfused` is the saved pass's.
+    /// One ran fused and the other unfused; `was_unfused` is the saved measurement's.
     Graph { was_unfused: bool },
-    /// One timed its kernels in place and the other alone; `was_alone` is the saved pass's.
+    /// One timed its kernels in place and the other alone; `was_alone` is the saved measurement's.
     Timing { was_alone: bool },
-    /// One measured an uncollected run and the other did not, so one side's milliseconds are
-    /// that run's and the other's the collected pass's own; `was_measured` is the saved pass's.
+    /// One measured a clean run and the other did not, so one side's milliseconds are that run's
+    /// and the other's the instrumented run's own; `was_measured` is the saved measurement's.
     CleanRun { was_measured: bool },
 }
 
@@ -172,13 +173,13 @@ impl Display for Comparison<'_> {
             .unwrap_or(28)
             .min(56);
 
-        // Named before anything is subtracted: two passes that differ in what
+        // Named before anything is subtracted: two measurements that differ in what
         // they measured have a difference about nothing, and a reader who is
         // not told reads it as a result.
         let mismatches = self.mismatches();
         writeln!(
             f,
-            "\n  against a saved pass: {}",
+            "\n  against a saved measurement: {}",
             match mismatches.is_empty() {
                 true => "same device, graph, timing and clean run".to_string(),
                 false => format!(
@@ -201,10 +202,10 @@ impl Display for Comparison<'_> {
         for component in &compared {
             let now = self.now.reading().apportioned(component.now);
             let delta = match component.was {
-                // A component the saved pass did not have. Dashes, not zeroes:
+                // A component the saved measurement did not have. Dashes, not zeroes:
                 // zero is a measurement and this is the absence of one.
                 None => ("—".to_string(), "new".to_string()),
-                // Both passes have it, but its work changed hands, so there is
+                // Both measurements have it, but its work changed hands, so there is
                 // a `was` to print and no delta to draw from it.
                 Some(was) if self.changed_hands(component) => (
                     format!("{:.3}", Millis(self.was.reading().apportioned(was))),
@@ -244,9 +245,9 @@ impl Display for Comparison<'_> {
             )?;
         }
 
-        // Components the saved pass had and this one does not: the other half
+        // Components the saved measurement had and this one does not: the other half
         // of a rename, which a per-component delta cannot show because it walks
-        // the components this pass produced.
+        // the components this measurement produced.
         let present: HashSet<&ComponentPath> =
             self.now_components.iter().map(|(path, _)| path).collect();
         let gone: Vec<String> = self
@@ -258,7 +259,7 @@ impl Display for Comparison<'_> {
         if !gone.is_empty() {
             writeln!(
                 f,
-                "\n  note: {} component(s) of the saved pass are absent here ({})",
+                "\n  note: {} component(s) of the saved measurement are absent here ({})",
                 gone.len(),
                 gone.join(", ")
             )?;
@@ -275,7 +276,7 @@ impl Display for Comparison<'_> {
         writeln!(
             f,
             "\n  {:<width$} {:>8.3} {:>8.3} ms{relative}",
-            "pass",
+            "run",
             Millis(was),
             Millis(now)
         )
@@ -290,9 +291,9 @@ mod tests {
 
     use super::*;
 
-    /// A pass, stated rather than measured: the comparison is a function of two of these, so
+    /// A measurement, stated rather than taken: the comparison is a function of two of these, so
     /// the tests own both sides and every number in them.
-    fn pass(tree: Vec<Component>) -> Measurement {
+    fn measurement(tree: Vec<Component>) -> Measurement {
         Measurement {
             device: "cpu".to_string(),
             peaks: None,
@@ -348,8 +349,8 @@ mod tests {
     /// The delta a reader came for: what moved, by how much, and against what.
     #[test]
     fn a_component_that_moved_prints_what_it_moved_by() {
-        let was = pass(vec![component("norm", 100, Vec::new())]);
-        let now = pass(vec![component("norm", 150, Vec::new())]);
+        let was = measurement(vec![component("norm", 100, Vec::new())]);
+        let now = measurement(vec![component("norm", 150, Vec::new())]);
         let table = Report::new(&now).against(&was).to_string();
         let norm = line(&table, "norm");
         assert!(norm.contains("0.100"), "{norm}");
@@ -365,11 +366,11 @@ mod tests {
     /// parents is two components.
     #[test]
     fn components_are_keyed_on_their_path_not_their_label() {
-        let was = pass(vec![
+        let was = measurement(vec![
             component("dense", 0, vec![component("down", 100, Vec::new())]),
             component("sparse", 0, vec![component("down", 900, Vec::new())]),
         ]);
-        let now = pass(vec![
+        let now = measurement(vec![
             component("dense", 0, vec![component("down", 110, Vec::new())]),
             component("sparse", 0, vec![component("down", 900, Vec::new())]),
         ]);
@@ -381,12 +382,13 @@ mod tests {
         assert!(line(&table, "sparse › down").contains("+0.000"), "{table}");
     }
 
-    /// A component the saved pass did not have is `new`: printing its whole time as a
-    /// regression would put the biggest number in the table on the component that least deserves it.
+    /// A component the saved measurement did not have is `new`: printing its whole time as a
+    /// regression would put the biggest number in the table on the component that least deserves
+    /// it.
     #[test]
-    fn a_component_the_saved_pass_lacked_is_new_rather_than_a_regression() {
-        let was = pass(vec![component("norm", 100, Vec::new())]);
-        let now = pass(vec![
+    fn a_component_the_saved_measurement_lacked_is_new_rather_than_a_regression() {
+        let was = measurement(vec![component("norm", 100, Vec::new())]);
+        let now = measurement(vec![
             component("norm", 100, Vec::new()),
             component("rope", 400, Vec::new()),
         ]);
@@ -396,15 +398,15 @@ mod tests {
         assert!(!rope.contains('+'), "{rope}");
     }
 
-    /// The other half of a rename: a component the saved pass had and this one does not would
-    /// otherwise read as one that silently got free.
+    /// The other half of a rename: a component the saved measurement had and this one does not
+    /// would otherwise read as one that silently got free.
     #[test]
     fn a_component_that_disappeared_is_named() {
-        let was = pass(vec![
+        let was = measurement(vec![
             component("norm", 100, Vec::new()),
             component("old name", 100, Vec::new()),
         ]);
-        let now = pass(vec![component("norm", 100, Vec::new())]);
+        let now = measurement(vec![component("norm", 100, Vec::new())]);
         let table = Report::new(&now).against(&was).to_string();
         assert!(table.contains("1 component(s)"), "{table}");
         assert!(table.contains("(old name)"), "{table}");
@@ -414,14 +416,14 @@ mod tests {
     /// absorbed it is not a regression of the same size: the change is named, not subtracted.
     #[test]
     fn work_that_changed_hands_is_named_rather_than_subtracted() {
-        let was = pass(vec![component(
+        let was = measurement(vec![component(
             "block",
             200,
             vec![component("norm", 100, Vec::new())],
         )]);
         let mut block = component("block", 0, vec![component("norm", 0, Vec::new())]);
         block.kernels = vec![kernel("fused", 300, vec![ComponentPath::new(["norm"])])];
-        let now = pass(vec![block]);
+        let now = measurement(vec![block]);
 
         let table = Report::new(&now).against(&was).to_string();
         let norm = line(&table, "block › norm");
@@ -429,12 +431,12 @@ mod tests {
         assert!(!norm.contains("-0.100"), "{norm}");
     }
 
-    /// A saved pass with no uncollected run beside one with: one side's `pass` line is that
+    /// A saved measurement with no clean run beside one with: one side's `run` line is that
     /// run's wall and the other its kernels' device time, so their difference is the host.
     #[test]
     fn a_clean_run_on_one_side_only_is_named() {
-        let was = pass(vec![component("norm", 100, Vec::new())]);
-        let mut now = pass(vec![component("norm", 100, Vec::new())]);
+        let was = measurement(vec![component("norm", 100, Vec::new())]);
+        let mut now = measurement(vec![component("norm", 100, Vec::new())]);
         now.clean_wall = Some(Duration::from_micros(300));
 
         let table = Report::new(&now).against(&was).to_string();
@@ -449,29 +451,29 @@ mod tests {
     /// the most common reason for one.
     #[test]
     fn a_delta_carries_the_execution_that_served_it() {
-        let was = pass(vec![component("attention", 100, Vec::new())]);
+        let was = measurement(vec![component("attention", 100, Vec::new())]);
         let mut attention = component("attention", 300, Vec::new());
         attention.variants = vec![Variant {
             name: "tensor-ops".to_string(),
             entries: 1,
         }];
-        let now = pass(vec![attention]);
+        let now = measurement(vec![attention]);
         let table = Report::new(&now).against(&was).to_string();
         assert!(line(&table, "attention").ends_with("tensor-ops"), "{table}");
     }
 
-    /// Two passes that measured different things are announced before a number is printed,
+    /// Two measurements of different things are announced before a number is printed,
     /// each difference named.
     #[test]
-    fn passes_of_different_measurements_are_announced_first() {
-        let was = pass(vec![component("norm", 100, Vec::new())]);
+    fn measurements_of_different_things_are_announced_first() {
+        let was = measurement(vec![component("norm", 100, Vec::new())]);
         let mut now = was.clone();
         now.device = "Rocm(0)".to_string();
         now.breakdown.unfused = true;
         let table = Report::new(&now).against(&was).to_string();
         let header = table
             .lines()
-            .find(|line| line.contains("against a saved pass"))
+            .find(|line| line.contains("against a saved measurement"))
             .expect("the header");
         assert!(header.contains("DIFFERENT"), "{header}");
         assert!(header.contains("device was cpu, now Rocm(0)"), "{header}");
