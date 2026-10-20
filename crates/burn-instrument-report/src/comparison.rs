@@ -301,7 +301,7 @@ mod tests {
             breakdown: Breakdown {
                 tree,
                 untagged: Vec::new(),
-                end_of_pass: Vec::new(),
+                end_of_run: Vec::new(),
                 outside_wait: Duration::ZERO,
                 host_timed: false,
                 timed_alone: false,

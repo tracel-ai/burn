@@ -38,7 +38,7 @@ fn measurement() -> Measurement {
         breakdown: Breakdown {
             tree: tree(),
             untagged: vec![kernel("Reshape", 1, 20)],
-            end_of_pass: Vec::new(),
+            end_of_run: Vec::new(),
             outside_wait: Duration::ZERO,
             host_timed: false,
             // Sized against a 2.0 ms wall that its components are apportioned
@@ -947,7 +947,7 @@ fn the_worklist_names_each_component_by_its_path() {
 fn the_end_of_the_run_is_printed_and_counted() {
     let mut measurement = measurement();
     let before = measurement.breakdown.total_time();
-    measurement.breakdown.end_of_pass = vec![kernel("FusedMatmul", 1, 40)];
+    measurement.breakdown.end_of_run = vec![kernel("FusedMatmul", 1, 40)];
 
     let table = Report::new(&measurement).to_string();
     assert!(table.contains("end of run"), "{table}");

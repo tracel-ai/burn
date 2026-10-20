@@ -41,7 +41,7 @@ pub struct Breakdown {
         doc = "[`Instrument::breakdown`]: crate::Instrument::breakdown"
     )]
     #[cfg_attr(not(feature = "cubecl"), doc = concat!("[`Instrument::breakdown`]: ", concat!("https://docs.rs/burn-instrument/", env!("CARGO_PKG_VERSION"), "/burn_instrument/struct.Instrument.html#method.breakdown")))]
-    pub end_of_pass: Vec<Kernel>,
+    pub end_of_run: Vec<Kernel>,
     /// How long the device waited on the host before the untagged kernels
     /// and the end of the run's — the idle time no component is charged with. See
     /// [`Component::own_wait`].
@@ -96,7 +96,7 @@ impl Breakdown {
             .flat_map(Component::walk)
             .flat_map(|(_, component)| &component.kernels)
             .chain(&self.untagged)
-            .chain(&self.end_of_pass)
+            .chain(&self.end_of_run)
     }
 
     /// The kernels that launched and measured no time at all.
@@ -171,7 +171,7 @@ impl Breakdown {
                 let named_outside = self
                     .untagged
                     .iter()
-                    .chain(&self.end_of_pass)
+                    .chain(&self.end_of_run)
                     .any(|kernel| names(kernel, path));
                 ran_nothing && (named_above || named_outside)
             })
@@ -508,7 +508,7 @@ mod tests {
         let breakdown = Breakdown {
             tree: vec![block],
             untagged: Vec::new(),
-            end_of_pass: Vec::new(),
+            end_of_run: Vec::new(),
             outside_wait: Duration::ZERO,
             host_timed: false,
             timed_alone: false,
@@ -565,7 +565,7 @@ mod tests {
         let breakdown = Breakdown {
             tree: vec![block],
             untagged: Vec::new(),
-            end_of_pass: Vec::new(),
+            end_of_run: Vec::new(),
             outside_wait: Duration::ZERO,
             host_timed: false,
             timed_alone: false,

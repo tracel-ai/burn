@@ -186,7 +186,7 @@ impl Display for ComponentTable<'_, '_> {
         // components left for the sync that ends the run. Work the device did
         // is still work, and a component saying so beats a silent omission.
         for (heading, kernels) in [
-            ("end of run", &breakdown.end_of_pass),
+            ("end of run", &breakdown.end_of_run),
             ("untagged", &breakdown.untagged),
         ] {
             if kernels.is_empty() {

@@ -152,7 +152,7 @@ impl ComponentTree {
         Breakdown {
             tree: self.roots.iter().map(|root| self.finished(*root)).collect(),
             untagged: self.kernels_named(&self.untagged, Attribution::Untagged),
-            end_of_pass: self.kernels_named(&self.end_of_run, Attribution::EndOfRun),
+            end_of_run: self.kernels_named(&self.end_of_run, Attribution::EndOfRun),
             outside_wait: self.outside_wait,
             host_timed: timings.host_timed,
             timed_alone: timings.timed_alone,
@@ -811,7 +811,7 @@ mod tests {
         components.count_launch(&Placement::at(Attribution::EndOfRun), "FusedMatmul");
 
         let breakdown = finished(&components);
-        assert_eq!(breakdown.end_of_pass[0].name, "FusedMatmul");
+        assert_eq!(breakdown.end_of_run[0].name, "FusedMatmul");
         assert!(breakdown.untagged.is_empty());
     }
 

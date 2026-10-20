@@ -254,7 +254,7 @@ impl CaseBreakdown {
             "{boundary:?}: a timing found no component"
         );
         assert!(
-            self.breakdown.end_of_pass.is_empty(),
+            self.breakdown.end_of_run.is_empty(),
             "{boundary:?}: work that ran at the end of the run went back to no component\n{self}"
         );
         assert!(
@@ -393,7 +393,7 @@ impl fmt::Display for CaseBreakdown {
         }
         for (heading, kernels) in [
             ("untagged ", &self.breakdown.untagged),
-            ("end of run ", &self.breakdown.end_of_pass),
+            ("end of run ", &self.breakdown.end_of_run),
         ] {
             for launched in kernels {
                 kernel(f, heading, launched)?;

@@ -262,7 +262,7 @@ mod tests {
       }
     ],
     "untagged": [],
-    "end_of_pass": [],
+    "end_of_run": [],
     "waited_outside": 7,
     "host_timed": false,
     "timed_alone": false,
@@ -387,7 +387,7 @@ mod tests {
                     own_wait: Duration::from_nanos(20),
                 }],
                 untagged: Vec::new(),
-                end_of_pass: Vec::new(),
+                end_of_run: Vec::new(),
                 outside_wait: Duration::from_nanos(7),
                 host_timed: false,
                 timed_alone: false,
