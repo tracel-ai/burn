@@ -1,4 +1,4 @@
-//! A [`Duration`](std::time::Duration) as a whole number of nanoseconds, which any reader of
+//! A [`Duration`] as a whole number of nanoseconds, which any reader of
 //! the file can use.
 
 use std::time::Duration;
