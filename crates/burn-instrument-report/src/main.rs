@@ -21,8 +21,13 @@ struct Arguments {
 }
 
 impl Arguments {
-    /// Parse `arguments`, the command line without the program name.
-    fn parse(mut arguments: impl Iterator<Item = String>) -> Result<Self, String> {
+    /// What `arguments`, the command line without the program name, asks for.
+    ///
+    /// # Errors
+    ///
+    /// When the line names no pass, two of them, a flag nobody defined, or `--against` with
+    /// nothing after it.
+    fn new(mut arguments: impl Iterator<Item = String>) -> Result<Self, String> {
         let mut pass = None;
         let mut against = None;
         while let Some(argument) = arguments.next() {
@@ -41,6 +46,18 @@ impl Arguments {
             against,
         })
     }
+
+    /// Print the report the line asked for.
+    fn run(self) -> Result<(), String> {
+        let pass = read(&self.pass)?;
+        let report = Report::new(&pass);
+        print!("{report}");
+        if let Some(against) = &self.against {
+            let saved = read(against)?;
+            print!("{}", report.against(&saved));
+        }
+        Ok(())
+    }
 }
 
 /// The pass saved at `path`.
@@ -49,20 +66,9 @@ fn read(path: &Path) -> Result<CollectedPass, String> {
     CollectedPass::read(file).map_err(|error| format!("{}: {error}", path.display()))
 }
 
-fn run(arguments: Arguments) -> Result<(), String> {
-    let pass = read(&arguments.pass)?;
-    let report = Report::new(&pass);
-    print!("{report}");
-    if let Some(against) = &arguments.against {
-        let saved = read(against)?;
-        print!("{}", report.against(&saved));
-    }
-    Ok(())
-}
-
 fn main() -> ExitCode {
     let arguments = std::env::args().skip(1);
-    match Arguments::parse(arguments).and_then(run) {
+    match Arguments::new(arguments).and_then(Arguments::run) {
         Ok(()) => ExitCode::SUCCESS,
         Err(error) => {
             eprintln!("{error}\n{USAGE}");
@@ -76,7 +82,7 @@ mod tests {
     use super::*;
 
     fn parsed(line: &[&str]) -> Result<Arguments, String> {
-        Arguments::parse(line.iter().map(|argument| argument.to_string()))
+        Arguments::new(line.iter().map(|argument| argument.to_string()))
     }
 
     #[test]

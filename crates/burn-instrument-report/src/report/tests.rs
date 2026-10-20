@@ -806,8 +806,8 @@ fn an_unprobed_device_scores_nothing_rather_than_printing_a_guess() {
     assert!(!table.contains('%') || table.contains('—'), "{table}");
 }
 
-/// The wgpu reading that prompted the guard: a write ceiling above the
-/// device's own read ceiling, on a bus that carries neither. The pass must
+/// A write ceiling above the device's own read ceiling, which no shared bus
+/// produces. The pass must
 /// say the pair was dropped rather than quietly fall back, or a reader
 /// cannot tell it from a device that reported no directions at all.
 #[test]
