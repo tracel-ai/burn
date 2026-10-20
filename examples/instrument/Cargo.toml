@@ -21,4 +21,6 @@ vulkan = ["burn/vulkan"]
 wgpu = ["burn/wgpu"]
 
 [dependencies]
-burn = { workspace = true, features = ["std", "fusion"] }
+# `autotune`, so the run measured is the tuned one production runs: without it every kernel
+# keeps its default configuration.
+burn = { workspace = true, features = ["std", "fusion", "autotune"] }
