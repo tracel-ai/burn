@@ -1,0 +1,442 @@
+//! Two passes, side by side.
+//!
+//! Every performance change is a comparison, and a table on its own is not one: a reader holds
+//! the previous pass in a scrollback buffer and subtracts by eye, which is where a regression in
+//! a component nobody was looking at survives.
+//!
+//! Components are keyed on their **path** from the root: a label alone is ambiguous (`down` sits
+//! under a feed-forward in every layer), and a component is merged on its label only among its
+//! siblings. Each side's milliseconds are the ones its own [`Report`] prints, so the comparison
+//! cannot disagree with either table.
+
+use std::fmt::{self, Display};
+use std::time::Duration;
+
+use burn_instrument::{CollectedPass, Component, ComponentPath};
+
+use crate::Report;
+
+/// A pass beside the one it is being held against.
+pub struct Comparison<'a> {
+    now: Report<'a>,
+    was: Report<'a>,
+    /// Every component of `now`, depth-first, with its path from the root.
+    now_components: Vec<(ComponentPath, &'a Component)>,
+    /// Every component of `was`, depth-first, with its path from the root.
+    was_components: Vec<(ComponentPath, &'a Component)>,
+}
+
+/// One component of the current pass beside the same path in the saved one.
+struct Compared<'a> {
+    path: &'a ComponentPath,
+    now: &'a Component,
+    /// The same path in the saved pass, where it had one. `None` is a component this pass has
+    /// and the saved one did not: added, renamed or newly annotated, and not a delta of any kind.
+    was: Option<&'a Component>,
+}
+
+impl<'a> Comparison<'a> {
+    /// `now` against `was`.
+    pub fn new(now: &'a CollectedPass, was: &'a CollectedPass) -> Self {
+        Self {
+            now: Report::new(now),
+            was: Report::new(was),
+            now_components: components(now),
+            was_components: components(was),
+        }
+    }
+
+    /// Each component of the current pass beside the same path in the saved one.
+    fn compared(&self) -> Vec<Compared<'_>> {
+        self.now_components
+            .iter()
+            .map(|(path, now)| Compared {
+                path,
+                now,
+                was: self
+                    .was_components
+                    .iter()
+                    .find(|(seen, _)| seen == path)
+                    .map(|(_, was)| *was),
+            })
+            .collect()
+    }
+
+    /// Whether `compared`'s work changed hands between the two passes: fused into an ancestor's
+    /// kernel in one and launched on its own in the other.
+    ///
+    /// Not a delta of any kind. A component that fused away since the saved pass reads zero
+    /// because its work moved up, and the ancestor that absorbed it gained that time, so
+    /// subtracting gives a −100% win beside an equal regression: one fusion decision counted
+    /// twice with opposite signs.
+    fn changed_hands(&self, compared: &Compared<'_>) -> bool {
+        compared.was.is_some_and(|was| {
+            self.was.is_fused_elsewhere(was) != self.now.is_fused_elsewhere(compared.now)
+        })
+    }
+
+    /// What the two passes differ in that makes their difference a number about nothing: a
+    /// different device, a different graph, or kernels timed differently.
+    fn mismatches(&self) -> Vec<String> {
+        let (now, was) = (self.now.pass(), self.was.pass());
+        let mut mismatches = Vec::new();
+        if now.device != was.device {
+            mismatches.push(format!("device was {}, now {}", was.device, now.device));
+        }
+        if now.breakdown.unfused != was.breakdown.unfused {
+            let graph = |unfused: bool| match unfused {
+                true => "unfused",
+                false => "fused",
+            };
+            mismatches.push(format!(
+                "graph was {}, now {}",
+                graph(was.breakdown.unfused),
+                graph(now.breakdown.unfused)
+            ));
+        }
+        if now.breakdown.timed_alone != was.breakdown.timed_alone {
+            let timed = |alone: bool| match alone {
+                true => "alone",
+                false => "in place",
+            };
+            mismatches.push(format!(
+                "kernels were timed {}, now {}",
+                timed(was.breakdown.timed_alone),
+                timed(now.breakdown.timed_alone)
+            ));
+        }
+        mismatches
+    }
+}
+
+/// Every component of `pass`, depth-first, each with its path from the root.
+fn components(pass: &CollectedPass) -> Vec<(ComponentPath, &Component)> {
+    pass.breakdown
+        .tree
+        .iter()
+        .flat_map(|root| {
+            let at = ComponentPath::new([root.label.as_str()]);
+            let below = root
+                .descendants()
+                .into_iter()
+                .map(move |(path, component)| {
+                    let mut labels: Vec<&str> = vec![root.label.as_str()];
+                    labels.extend(path.labels());
+                    (ComponentPath::new(labels), component)
+                });
+            std::iter::once((at, root)).chain(below).collect::<Vec<_>>()
+        })
+        .collect()
+}
+
+/// Which executions served a component, as the comparison prints them beside its delta.
+///
+/// A routing change is the most common cause of one, and a delta that carries it explains
+/// itself: a component that was `tile` and is now `tensor-ops` did not get slower, it was routed
+/// somewhere else.
+fn variants(component: &Component) -> String {
+    match component.variants.as_slice() {
+        [] => String::new(),
+        [only] if only.entries == component.entries => only.name.clone(),
+        several => several
+            .iter()
+            .map(|variant| format!("{} ×{}", variant.name, variant.entries))
+            .collect::<Vec<_>>()
+            .join(", "),
+    }
+}
+
+/// Milliseconds, to the microsecond a comparison needs.
+fn ms(duration: Duration) -> String {
+    format!("{:.3}", duration.as_secs_f64() * 1e3)
+}
+
+impl Display for Comparison<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let compared = self.compared();
+        let width = compared
+            .iter()
+            .map(|row| row.path.to_string().chars().count())
+            .chain([28])
+            .max()
+            .unwrap_or(28)
+            .min(56);
+
+        // Named before anything is subtracted: two passes that differ in what
+        // they measured have a difference about nothing, and a reader who is
+        // not told reads it as a result.
+        let mismatches = self.mismatches();
+        writeln!(
+            f,
+            "\n  against a saved pass: {}",
+            match mismatches.is_empty() {
+                true => "same device, graph and timing".to_string(),
+                false => format!(
+                    "DIFFERENT — {}; the deltas below compare two different measurements",
+                    mismatches.join(", ")
+                ),
+            }
+        )?;
+
+        writeln!(
+            f,
+            "\n  {:<width$} {:>8} {:>8} {:>13}  served by",
+            "component", "was ms", "now ms", "delta"
+        )?;
+        writeln!(f, "  {}", "─".repeat(width + 42))?;
+        for row in &compared {
+            let now = self.now.apportioned(row.now);
+            let delta = match row.was {
+                // A component the saved pass did not have. Dashes, not zeroes:
+                // zero is a measurement and this is the absence of one.
+                None => ("—".to_string(), "new".to_string()),
+                // Both passes have it, but its work changed hands, so there is
+                // a `was` to print and no delta to draw from it.
+                Some(was) if self.changed_hands(row) => (
+                    ms(self.was.apportioned(was)),
+                    match self.now.is_fused_elsewhere(row.now) {
+                        true => "fused ↓".to_string(),
+                        false => "unfused".to_string(),
+                    },
+                ),
+                Some(was) => {
+                    let was = self.was.apportioned(was);
+                    let change = (now.as_secs_f64() - was.as_secs_f64()) * 1e3;
+                    // No ratio against nothing: "infinitely worse" about a
+                    // component that may have moved a microsecond.
+                    let delta = match was.is_zero() {
+                        true => format!("{change:+.3}"),
+                        false => format!(
+                            "{change:+.3} {:+.0}%",
+                            change / (was.as_secs_f64() * 1e3) * 100.0
+                        ),
+                    };
+                    (ms(was), delta)
+                }
+            };
+            writeln!(
+                f,
+                "  {:<width$} {:>8} {:>8} {:>13}  {}",
+                row.path,
+                delta.0,
+                ms(now),
+                delta.1,
+                variants(row.now)
+            )?;
+        }
+
+        // Components the saved pass had and this one does not: the other half
+        // of a rename, which a per-component delta cannot show because it walks
+        // the components this pass produced.
+        let gone: Vec<String> = self
+            .was_components
+            .iter()
+            .filter(|(path, _)| !self.now_components.iter().any(|(now, _)| now == path))
+            .map(|(path, _)| path.to_string())
+            .collect();
+        if !gone.is_empty() {
+            writeln!(
+                f,
+                "\n  note: {} component(s) of the saved pass are absent here ({})",
+                gone.len(),
+                gone.join(", ")
+            )?;
+        }
+
+        let (now, was) = (self.now.wall(), self.was.wall());
+        let relative = match was.is_zero() {
+            true => String::new(),
+            false => format!(
+                " ({:+.1}%)",
+                (now.as_secs_f64() - was.as_secs_f64()) / was.as_secs_f64() * 100.0
+            ),
+        };
+        writeln!(
+            f,
+            "\n  {:<width$} {:>8} {:>8} ms{relative}",
+            "pass",
+            ms(was),
+            ms(now)
+        )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use burn_instrument::{Breakdown, Kernel, Unplaced, Variant};
+
+    use super::*;
+
+    /// A pass, stated rather than measured: the comparison is a function of two of these, so
+    /// the tests own both sides and every number in them.
+    fn pass(tree: Vec<Component>) -> CollectedPass {
+        CollectedPass {
+            device: "cpu".to_string(),
+            peaks: None,
+            clean_wall: None,
+            breakdown: Breakdown {
+                tree,
+                untagged: Vec::new(),
+                end_of_pass: Vec::new(),
+                outside_wait: Duration::ZERO,
+                host_timed: false,
+                timed_alone: false,
+                unplaced: Unplaced::default(),
+                unfused: false,
+            },
+        }
+    }
+
+    /// A component whose one kernel took `micros`, with `children` under it.
+    fn component(label: &str, micros: u64, children: Vec<Component>) -> Component {
+        Component {
+            label: label.to_string(),
+            variants: Vec::new(),
+            sites: Vec::new(),
+            bounds: None,
+            observed: None,
+            entries: 1,
+            children,
+            kernels: match micros {
+                0 => Vec::new(),
+                micros => vec![kernel(label, micros, Vec::new())],
+            },
+            own_wait: Duration::ZERO,
+        }
+    }
+
+    fn kernel(name: &str, micros: u64, fuses: Vec<ComponentPath>) -> Kernel {
+        Kernel {
+            name: name.to_string(),
+            launches: 1,
+            total: Duration::from_micros(micros),
+            fuses,
+            fuses_own: false,
+        }
+    }
+
+    fn line<'t>(table: &'t str, path: &str) -> &'t str {
+        table
+            .lines()
+            .find(|line| line.trim_start().starts_with(path))
+            .unwrap_or_else(|| panic!("no line for {path}:\n{table}"))
+    }
+
+    /// The delta a reader came for: what moved, by how much, and against what.
+    #[test]
+    fn a_component_that_moved_prints_what_it_moved_by() {
+        let was = pass(vec![component("norm", 100, Vec::new())]);
+        let now = pass(vec![component("norm", 150, Vec::new())]);
+        let table = Comparison::new(&now, &was).to_string();
+        let norm = line(&table, "norm");
+        assert!(norm.contains("0.100"), "{norm}");
+        assert!(norm.contains("0.150"), "{norm}");
+        assert!(norm.contains("+0.050 +50%"), "{norm}");
+        assert!(table.contains("same device, graph and timing"), "{table}");
+    }
+
+    /// Keyed on where a component sits, not on what it is called: `down` under two different
+    /// parents is two components.
+    #[test]
+    fn components_are_keyed_on_their_path_not_their_label() {
+        let was = pass(vec![
+            component("dense", 0, vec![component("down", 100, Vec::new())]),
+            component("sparse", 0, vec![component("down", 900, Vec::new())]),
+        ]);
+        let now = pass(vec![
+            component("dense", 0, vec![component("down", 110, Vec::new())]),
+            component("sparse", 0, vec![component("down", 900, Vec::new())]),
+        ]);
+        let table = Comparison::new(&now, &was).to_string();
+        assert!(
+            line(&table, "dense › down").contains("+0.010 +10%"),
+            "{table}"
+        );
+        assert!(line(&table, "sparse › down").contains("+0.000"), "{table}");
+    }
+
+    /// A component the saved pass did not have is `new`: printing its whole time as a
+    /// regression would put the biggest number in the table on the row that least deserves it.
+    #[test]
+    fn a_component_the_saved_pass_lacked_is_new_rather_than_a_regression() {
+        let was = pass(vec![component("norm", 100, Vec::new())]);
+        let now = pass(vec![
+            component("norm", 100, Vec::new()),
+            component("rope", 400, Vec::new()),
+        ]);
+        let table = Comparison::new(&now, &was).to_string();
+        let rope = line(&table, "rope");
+        assert!(rope.contains("new"), "{rope}");
+        assert!(!rope.contains('+'), "{rope}");
+    }
+
+    /// The other half of a rename: a component the saved pass had and this one does not would
+    /// otherwise read as one that silently got free.
+    #[test]
+    fn a_component_that_disappeared_is_named() {
+        let was = pass(vec![
+            component("norm", 100, Vec::new()),
+            component("old name", 100, Vec::new()),
+        ]);
+        let now = pass(vec![component("norm", 100, Vec::new())]);
+        let table = Comparison::new(&now, &was).to_string();
+        assert!(table.contains("1 component(s)"), "{table}");
+        assert!(table.contains("(old name)"), "{table}");
+    }
+
+    /// A component whose work fused into its parent's kernel is not a win, and the parent that
+    /// absorbed it is not a regression of the same size: the change is named, not subtracted.
+    #[test]
+    fn work_that_changed_hands_is_named_rather_than_subtracted() {
+        let was = pass(vec![component(
+            "block",
+            200,
+            vec![component("norm", 100, Vec::new())],
+        )]);
+        let mut block = component("block", 0, vec![component("norm", 0, Vec::new())]);
+        block.kernels = vec![kernel("fused", 300, vec![ComponentPath::new(["norm"])])];
+        let now = pass(vec![block]);
+
+        let table = Comparison::new(&now, &was).to_string();
+        let norm = line(&table, "block › norm");
+        assert!(norm.contains("fused ↓"), "{norm}");
+        assert!(!norm.contains("-0.100"), "{norm}");
+    }
+
+    /// A delta carries the executions that served the component, because a routing change is
+    /// the most common reason for one.
+    #[test]
+    fn a_delta_carries_the_execution_that_served_it() {
+        let was = pass(vec![component("attention", 100, Vec::new())]);
+        let mut attention = component("attention", 300, Vec::new());
+        attention.variants = vec![Variant {
+            name: "tensor-ops".to_string(),
+            entries: 1,
+        }];
+        let now = pass(vec![attention]);
+        let table = Comparison::new(&now, &was).to_string();
+        assert!(line(&table, "attention").ends_with("tensor-ops"), "{table}");
+    }
+
+    /// Two passes that measured different things are announced before a number is printed,
+    /// each difference named.
+    #[test]
+    fn passes_of_different_measurements_are_announced_first() {
+        let was = pass(vec![component("norm", 100, Vec::new())]);
+        let mut now = was.clone();
+        now.device = "Rocm(0)".to_string();
+        now.breakdown.unfused = true;
+        let table = Comparison::new(&now, &was).to_string();
+        let header = table
+            .lines()
+            .find(|line| line.contains("against a saved pass"))
+            .expect("the header");
+        assert!(header.contains("DIFFERENT"), "{header}");
+        assert!(header.contains("device was cpu, now Rocm(0)"), "{header}");
+        assert!(header.contains("graph was fused, now unfused"), "{header}");
+        assert!(
+            table.find("DIFFERENT").unwrap() < table.find("norm").unwrap(),
+            "before any component:\n{table}"
+        );
+    }
+}

@@ -52,6 +52,11 @@ impl<'a> Report<'a> {
         }
     }
 
+    /// The pass this report scores.
+    pub fn pass(&self) -> &'a CollectedPass {
+        self.pass
+    }
+
     /// What the pass took: the clean pass's wall time where it was measured,
     /// and the collected pass's device time otherwise.
     pub fn wall(&self) -> Duration {
@@ -92,7 +97,7 @@ impl<'a> Report<'a> {
     /// floor is set aside: the work it declared is in the kernel that carried
     /// it out, which stands at what it took on the row that holds it. Counting
     /// the floor as well would price that work twice.
-    fn is_fused_elsewhere(&self, node: &Component) -> bool {
+    pub(crate) fn is_fused_elsewhere(&self, node: &Component) -> bool {
         // By identity rather than by path: every caller holds a node borrowed
         // from this report, and none of them its path. A tree that kept its
         // collector's row indices would make both unnecessary.
@@ -278,7 +283,7 @@ impl<'a> Report<'a> {
     /// Timed alone with no clean pass measured, there is nothing to apportion
     /// onto: the rows are the serialized kernels' own times, and only their
     /// proportions mean anything, which the header says.
-    fn apportioned(&self, node: &Component) -> Duration {
+    pub(crate) fn apportioned(&self, node: &Component) -> Duration {
         self.apportion(node.total_time())
     }
 
