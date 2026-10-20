@@ -1,0 +1,21 @@
+[package]
+authors = ["nathanielsimard <nathaniel.simard.42@gmail.com>"]
+categories = ["science", "development-tools::profiling"]
+description = "Read a pass burn-instrument collected, and report where its device time went"
+documentation = "https://docs.rs/burn-instrument-report"
+edition.workspace = true
+keywords = ["deep-learning", "machine-learning", "profiling"]
+license.workspace = true
+name = "burn-instrument-report"
+readme.workspace = true
+repository = "https://github.com/tracel-ai/burn/tree/main/crates/burn-instrument-report"
+version.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+burn-instrument = { workspace = true, features = ["std"] }
+
+[package.metadata.docs.rs]
+rustdoc-args = ["--cfg", "docsrs"]

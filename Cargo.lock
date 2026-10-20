@@ -1270,6 +1270,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "burn-instrument-report"
+version = "0.22.0"
+dependencies = [
+ "burn-instrument",
+]
+
+[[package]]
 name = "burn-ir"
 version = "0.22.0"
 dependencies = [
