@@ -379,7 +379,7 @@ impl CubeTensor {
     /// Check if the current tensor has a contiguous backing buffer (no overlap and no empty memory
     /// regions within the shape).
     pub fn is_contiguous_buffer(&self) -> bool {
-        self.meta.shape().num_elements() * self.dtype.size() == self.handle.size() as usize
+        self.meta.shape().num_elements() * self.dtype.size() == self.handle.size_in_used() as usize
     }
 
     /// Checks if the tensor is non-overlapping (can be safely written to).
