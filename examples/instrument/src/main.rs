@@ -9,7 +9,7 @@
 
 use burn::instrument::{Bounds, Instrument, compute, tensor_bytes};
 use burn::tensor::activation::gelu;
-use burn::tensor::{Device, Distribution, FloatDType, Tensor};
+use burn::tensor::{Device, Distribution, Tensor};
 
 /// Rows of the input, as a batch of tokens.
 const TOKENS: usize = 512;
@@ -19,10 +19,6 @@ const WIDTH: usize = 1024;
 const HIDDEN: usize = 4 * WIDTH;
 /// Blocks in the stack.
 const LAYERS: usize = 4;
-/// Runs before anything is measured: the first compiles and autotunes.
-const WARMUP: usize = 5;
-/// Clean runs timed for the clean wall, of which the median is kept.
-const SAMPLES: usize = 10;
 
 /// A weight multiplied into the residual stream, in one of several roles under its block.
 struct Projection {
@@ -136,11 +132,9 @@ fn main() {
     };
     let input = Tensor::<2>::random([TOKENS, WIDTH], Distribution::Default, &device);
 
-    let measurement = Instrument::new(&device)
-        .warmup(WARMUP)
-        .samples(SAMPLES)
-        .dtype(FloatDType::F32)
-        .measure(|| model.forward(input.clone()));
+    // The model computes in the device's default float dtype, which is what the arithmetic
+    // peak is probed at unless `.dtype(..)` says otherwise.
+    let measurement = Instrument::new(&device).measure(|| model.forward(input.clone()));
     let file = std::fs::File::create(&path).expect("the measurement file can be created");
     measurement.write(file).expect("the measurement is written");
     println!("saved {path}");

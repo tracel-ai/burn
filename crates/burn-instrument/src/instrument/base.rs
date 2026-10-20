@@ -27,13 +27,22 @@ pub struct Instrument {
 }
 
 impl Instrument {
+    /// How many times [`measure`](Self::measure) runs the model before
+    /// anything is measured, unless [`warmup`](Self::warmup) says otherwise.
+    pub const WARMUP_RUNS: usize = 5;
+
+    /// How many clean runs [`measure`](Self::measure) takes the median of,
+    /// unless [`samples`](Self::samples) says otherwise.
+    pub const SAMPLE_RUNS: usize = 10;
+
     /// An instrument for work running on `device`, and the process's one until
     /// it is dropped.
     ///
-    /// It warms the run up 5 times, takes the clean wall as the median of 10
-    /// clean runs, and probes the arithmetic peak at the device's
-    /// default float dtype; see [`warmup`](Self::warmup),
-    /// [`samples`](Self::samples) and [`dtype`](Self::dtype).
+    /// It warms the model up [`WARMUP_RUNS`](Self::WARMUP_RUNS) times, takes
+    /// the clean wall as the median of [`SAMPLE_RUNS`](Self::SAMPLE_RUNS)
+    /// clean runs, and probes the arithmetic peak at the device's default
+    /// float dtype; see [`warmup`](Self::warmup), [`samples`](Self::samples)
+    /// and [`dtype`](Self::dtype).
     ///
     /// # Panics
     ///
@@ -53,8 +62,8 @@ impl Instrument {
         Self {
             claim: Claim::take(),
             device: device.clone(),
-            warmup: 5,
-            samples: 10,
+            warmup: Self::WARMUP_RUNS,
+            samples: Self::SAMPLE_RUNS,
             dtype: device.settings().float_dtype,
         }
     }
@@ -122,8 +131,9 @@ impl Instrument {
     /// Instrumented, the model runs the graph it runs in production — nothing
     /// is drained at a boundary — so call it on work already synced: an
     /// operation queued before it would be watched too. Run it once
-    /// beforehand, so the tuner's work is not recorded as the run's, and keep other threads off
-    /// the device while it runs: see the [crate docs](crate#measuring-a-model).
+    /// beforehand, so the tuner's work is not recorded as the run's, and keep
+    /// other threads off the device while it runs: see the
+    /// [crate docs](crate#measuring-a-model).
     ///
     /// Taken by value: an instrument holds one run, and its breakdown is read
     /// once that run has ended.
@@ -150,15 +160,14 @@ impl Instrument {
 
     /// The median wall time of the configured samples, or `None` for none.
     fn clean_wall<T>(&self, model: &mut impl FnMut() -> T) -> Option<Duration> {
-        let mut samples: Vec<Duration> = (0..self.samples)
+        let samples = (0..self.samples)
             .map(|_| {
                 let start = Instant::now();
                 self.run_clean(model);
                 start.elapsed()
             })
             .collect();
-        samples.sort();
-        samples.get(samples.len() / 2).copied()
+        median(samples)
     }
 
     /// Run `model` clean to its end, its output held to the sync.
@@ -169,9 +178,67 @@ impl Instrument {
     }
 }
 
+/// The middle of `samples`, the later of the two for an even count: robust to
+/// the one run a background task or a clock change slowed, which a mean is
+/// not.
+fn median(mut samples: Vec<Duration>) -> Option<Duration> {
+    samples.sort();
+    samples.get(samples.len() / 2).copied()
+}
+
 #[cfg(test)]
 mod tests {
+    use std::sync::Mutex;
+
     use super::*;
+
+    /// One instrument at a time, in a process where every test runs alongside
+    /// the others.
+    static SERIAL: Mutex<()> = Mutex::new(());
+
+    fn serial() -> std::sync::MutexGuard<'static, ()> {
+        SERIAL
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+    }
+
+    /// The model runs once per warmup, once per sample and once instrumented:
+    /// a warmup left out would leave the tuner's candidates in the breakdown.
+    #[test]
+    fn measure_runs_the_model_once_per_warmup_sample_and_instrumented_run() {
+        let _serial = serial();
+        let mut runs = 0;
+        let measurement = Instrument::new(&Device::flex())
+            .warmup(2)
+            .samples(3)
+            .measure(|| runs += 1);
+        assert_eq!(runs, 2 + 3 + 1);
+        assert!(measurement.clean_wall.is_some());
+    }
+
+    /// No samples is no clean wall, rather than a wall of zero that the report
+    /// would split into a host time of nothing.
+    #[test]
+    fn no_samples_leave_the_clean_wall_unmeasured() {
+        let _serial = serial();
+        let measurement = Instrument::new(&Device::flex()).samples(0).measure(|| ());
+        assert_eq!(measurement.clean_wall, None);
+    }
+
+    /// The median, not the mean: one slow run moves a mean and not the middle.
+    #[test]
+    fn the_clean_wall_is_the_median_sample() {
+        let millis = |values: &[u64]| values.iter().copied().map(Duration::from_millis).collect();
+        assert_eq!(
+            median(millis(&[9, 1, 2, 90, 3])),
+            Some(Duration::from_millis(3))
+        );
+        assert_eq!(
+            median(millis(&[4, 1, 3, 2])),
+            Some(Duration::from_millis(3))
+        );
+        assert_eq!(median(Vec::new()), None);
+    }
 
     /// A second instrument is refused before it touches the device: built while
     /// another exists, it would sync the device and point the fusion worker
@@ -179,6 +246,7 @@ mod tests {
     /// refuse it.
     #[test]
     fn a_second_instrument_is_refused_before_it_touches_the_device() {
+        let _serial = serial();
         let device = Device::flex();
         let first = Instrument::new(&device);
         let second = std::panic::catch_unwind(|| Instrument::new(&Device::flex()));
