@@ -5,12 +5,12 @@ use std::time::Duration;
 
 use burn_instrument::ComponentPath;
 
-use super::Report;
+use crate::Report;
 use crate::millis::Millis;
 
 /// One component's line on the worklist: what it could give back, and which
 /// lever gives it.
-struct Recoverable {
+struct WorklistEntry {
     /// Where the component sits: a label alone is ambiguous, since `down` sits under
     /// every layer.
     path: ComponentPath,
@@ -58,7 +58,7 @@ impl Display for Lever {
 /// component, and they are disjoint by construction.
 pub(super) struct Worklist {
     /// The most recoverable, first.
-    entries: Vec<Recoverable>,
+    entries: Vec<WorklistEntry>,
     /// Whether the pass lost kernel time, so the gains are differences against timings that
     /// came in short.
     lost_time: bool,
@@ -87,7 +87,7 @@ impl Worklist {
                     1 => (Lever::LessHostWork, "before its one launch".to_string()),
                     _ => (Lever::FewerLaunches, format!("{launches} launches")),
                 };
-                entries.push(Recoverable {
+                entries.push(WorklistEntry {
                     path: path.clone(),
                     gain: host,
                     lever,
@@ -110,7 +110,7 @@ impl Worklist {
                         Lever::FasterKernel,
                     ),
                 };
-                entries.push(Recoverable {
+                entries.push(WorklistEntry {
                     path,
                     gain,
                     lever,

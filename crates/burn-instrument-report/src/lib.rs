@@ -16,6 +16,7 @@ mod reading;
 mod report;
 pub mod roofline;
 mod served_by;
+mod share;
 
 pub use comparison::Comparison;
 pub use report::Report;
