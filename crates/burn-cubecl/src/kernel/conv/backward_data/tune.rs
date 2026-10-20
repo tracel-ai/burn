@@ -5,7 +5,7 @@ use cubecl::{
     ir::ElemType,
     tune::{LocalTuner, Tunable, TunableSet, anchor, local_tuner},
 };
-use cubek::convolution::AcceleratedTileKind;
+use cubek::convolution::{AcceleratedTileKind, UnitStrategy, UnitTiling};
 
 use crate::{
     CubeAutotuneKey, CubeTuneId,
@@ -13,6 +13,7 @@ use crate::{
         ConvAutotuneKey,
         backward_data::{fallback::conv_data_backward_fallback, implicit_gemm::*},
         im2col::{dgrad_im2col, dgrad_im2col_1x1},
+        unit::dgrad_unit,
     },
     tensor::CubeTensor,
 };
@@ -56,6 +57,70 @@ pub fn dgrad_autotune<const N: usize>(
                 "dgrad_im2col",
                 |(out_grad, weights, input_shape, options)| {
                     dgrad_im2col::<N>(out_grad, weights, input_shape, options)
+                },
+            ))
+            // The data gradient's matmul has `N = C_in`, `M = batch * input
+            // spatial` and `K = taps * C_out`; the same regime span as the
+            // forward applies, so it carries the same forced tilings. A cached
+            // key that does not fit any of them still falls back in `dgrad_unit`.
+            .with(Tunable::new(
+                "dgrad_unit_narrow",
+                |(grad, weights, shape, options)| {
+                    dgrad_unit(
+                        grad,
+                        weights,
+                        shape,
+                        options,
+                        UnitStrategy::Fixed(UnitTiling::NARROW),
+                    )
+                },
+            ))
+            .with(Tunable::new(
+                "dgrad_unit_balanced",
+                |(grad, weights, shape, options)| {
+                    dgrad_unit(
+                        grad,
+                        weights,
+                        shape,
+                        options,
+                        UnitStrategy::Fixed(UnitTiling::BALANCED),
+                    )
+                },
+            ))
+            .with(Tunable::new(
+                "dgrad_unit_wide",
+                |(grad, weights, shape, options)| {
+                    dgrad_unit(
+                        grad,
+                        weights,
+                        shape,
+                        options,
+                        UnitStrategy::Fixed(UnitTiling::WIDE),
+                    )
+                },
+            ))
+            .with(Tunable::new(
+                "dgrad_unit_deep",
+                |(grad, weights, shape, options)| {
+                    dgrad_unit(
+                        grad,
+                        weights,
+                        shape,
+                        options,
+                        UnitStrategy::Fixed(UnitTiling::DEEP),
+                    )
+                },
+            ))
+            .with(Tunable::new(
+                "dgrad_unit_tall",
+                |(grad, weights, shape, options)| {
+                    dgrad_unit(
+                        grad,
+                        weights,
+                        shape,
+                        options,
+                        UnitStrategy::Fixed(UnitTiling::TALL),
+                    )
                 },
             ))
             .with(Tunable::new(
