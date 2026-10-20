@@ -573,7 +573,7 @@ fn component_lines(
     let scored = rendered.score_of(component);
     let (bound, achieved, floor, gain) = match (scored, rendered.floor_of(component)) {
         (Some(score), _) => (
-            score.bound.label().to_string(),
+            score.bound.to_string(),
             // A component above 100% is marked and keeps its figure. The peaks are
             // measured rather than looked up, so 105% is a component at the roof read
             // through a probe that came in a little low, and 568% is a declared
@@ -596,7 +596,7 @@ fn component_lines(
         // component says what that is rather than leaving the parent's figure to be
         // reconciled against blanks.
         (None, Some(floor)) => (
-            floor.bound.label().to_string(),
+            floor.bound.to_string(),
             String::new(),
             ms(floor.time),
             "—".to_string(),
@@ -713,10 +713,35 @@ fn named(kernels: &[Kernel]) -> Vec<(String, &Kernel)> {
 struct Recoverable {
     label: String,
     gain: Duration,
-    /// The lever, named — the two are different work for different people.
-    lever: &'static str,
+    /// The lever, named — each is different work for different people.
+    lever: Lever,
     /// Where it stands against its binding wall.
     against: String,
+}
+
+/// What gives a component's time back, each a different kind of work.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Lever {
+    /// The host's work ahead of a single launch, which no launch can be taken away from.
+    LessHostWork,
+    /// The device waiting between launches, which fewer of them removes.
+    FewerLaunches,
+    /// The round trips between a composite's parts, which no faster kernel reaches.
+    FusingInside,
+    /// A leaf below its floor, which a faster kernel recovers.
+    FasterKernel,
+}
+
+/// What the worklist prints, padded to its column.
+impl Display for Lever {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.pad(match self {
+            Lever::LessHostWork => "less host work",
+            Lever::FewerLaunches => "fewer launches",
+            Lever::FusingInside => "fusing inside",
+            Lever::FasterKernel => "a faster kernel",
+        })
+    }
 }
 
 /// Every priced component by what it could still give back, **counting each
@@ -742,8 +767,8 @@ fn worklist(rendered: &Report<'_>) -> Vec<Recoverable> {
             // A wait before a single launch is the host's work ahead of it,
             // which no launch can be taken away from.
             let (lever, against) = match launches {
-                1 => ("less host work", "before its one launch".to_string()),
-                _ => ("fewer launches", format!("{launches} launches")),
+                1 => (Lever::LessHostWork, "before its one launch".to_string()),
+                _ => (Lever::FewerLaunches, format!("{launches} launches")),
             };
             out.push(Recoverable {
                 label: component.label.clone(),
@@ -761,22 +786,18 @@ fn worklist(rendered: &Report<'_>) -> Vec<Recoverable> {
                     rendered
                         .deepest_floor(component)
                         .saturating_sub(score.floor),
-                    "fusing inside",
+                    Lever::FusingInside,
                 ),
                 false => (
                     score.gain(rendered.apportioned(component)),
-                    "a faster kernel",
+                    Lever::FasterKernel,
                 ),
             };
             out.push(Recoverable {
                 label: component.label.clone(),
                 gain,
                 lever,
-                against: format!(
-                    "{:>3.0}% of {} peak",
-                    score.achieved * 100.0,
-                    score.bound.label()
-                ),
+                against: format!("{:>3.0}% of {} peak", score.achieved * 100.0, score.bound),
             });
         }
         for child in &component.children {
@@ -1188,14 +1209,14 @@ impl Display for Report<'_> {
                     "    (from a pass that lost kernel time — see `untimed`; re-measure first)"
                 )?;
             }
-            for component in worklist.iter().take(5) {
+            for entry in worklist.iter().take(5) {
                 writeln!(
                     f,
                     "    {:<22} {:>6} ms   {:<16} {}",
-                    component.label,
-                    ms(component.gain),
-                    component.lever,
-                    component.against
+                    entry.label,
+                    ms(entry.gain),
+                    entry.lever,
+                    entry.against
                 )?;
             }
         }
@@ -2442,7 +2463,7 @@ mod tests {
             .lines()
             .find(|line| line.trim_start().starts_with("query"))
             .expect("the query's component");
-        assert!(component.contains(floor.bound.label()), "{component}");
+        assert!(component.contains(&floor.bound.to_string()), "{component}");
         assert!(component.contains(&ms(floor.time)), "{component}");
     }
 

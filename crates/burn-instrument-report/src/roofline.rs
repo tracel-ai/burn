@@ -15,6 +15,7 @@
 //! [`Ladder`]. `flops` is logical arithmetic, so a quantized component's dequantization is absent
 //! from it.
 
+use std::fmt::{self, Display};
 use std::time::Duration;
 
 use burn_instrument::{Bounds, Peaks};
@@ -31,13 +32,13 @@ pub enum Bound {
     Flops,
 }
 
-impl Bound {
-    /// The word a report prints.
-    pub fn label(self) -> &'static str {
-        match self {
+/// The word a report prints, padded to the column it is printed in.
+impl Display for Bound {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.pad(match self {
             Bound::Bytes => "bytes",
             Bound::Flops => "flops",
-        }
+        })
     }
 }
 

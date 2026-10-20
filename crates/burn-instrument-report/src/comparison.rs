@@ -75,37 +75,66 @@ impl<'a> Comparison<'a> {
         })
     }
 
-    /// What the two passes differ in that makes their difference a number about nothing: a
-    /// different device, a different graph, or kernels timed differently.
-    fn mismatches(&self) -> Vec<String> {
+    /// What the two passes differ in that makes their difference a number about nothing.
+    fn mismatches(&self) -> Vec<Mismatch<'_>> {
         let (now, was) = (self.now.pass(), self.was.pass());
         let mut mismatches = Vec::new();
         if now.device != was.device {
-            mismatches.push(format!("device was {}, now {}", was.device, now.device));
+            mismatches.push(Mismatch::Device {
+                was: &was.device,
+                now: &now.device,
+            });
         }
         if now.breakdown.unfused != was.breakdown.unfused {
-            let graph = |unfused: bool| match unfused {
-                true => "unfused",
-                false => "fused",
-            };
-            mismatches.push(format!(
-                "graph was {}, now {}",
-                graph(was.breakdown.unfused),
-                graph(now.breakdown.unfused)
-            ));
+            mismatches.push(Mismatch::Graph {
+                was_unfused: was.breakdown.unfused,
+            });
         }
         if now.breakdown.timed_alone != was.breakdown.timed_alone {
-            let timed = |alone: bool| match alone {
-                true => "alone",
-                false => "in place",
-            };
-            mismatches.push(format!(
-                "kernels were timed {}, now {}",
-                timed(was.breakdown.timed_alone),
-                timed(now.breakdown.timed_alone)
-            ));
+            mismatches.push(Mismatch::Timing {
+                was_alone: was.breakdown.timed_alone,
+            });
         }
         mismatches
+    }
+}
+
+/// One way two passes measured different things.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Mismatch<'a> {
+    /// They ran on different devices.
+    Device { was: &'a str, now: &'a str },
+    /// One ran fused and the other unfused; `was_unfused` is the saved pass's.
+    Graph { was_unfused: bool },
+    /// One timed its kernels in place and the other alone; `was_alone` is the saved pass's.
+    Timing { was_alone: bool },
+}
+
+impl Display for Mismatch<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let graph = |unfused: bool| match unfused {
+            true => "unfused",
+            false => "fused",
+        };
+        let timed = |alone: bool| match alone {
+            true => "alone",
+            false => "in place",
+        };
+        match *self {
+            Mismatch::Device { was, now } => write!(f, "device was {was}, now {now}"),
+            Mismatch::Graph { was_unfused } => write!(
+                f,
+                "graph was {}, now {}",
+                graph(was_unfused),
+                graph(!was_unfused)
+            ),
+            Mismatch::Timing { was_alone } => write!(
+                f,
+                "kernels were timed {}, now {}",
+                timed(was_alone),
+                timed(!was_alone)
+            ),
+        }
     }
 }
 
@@ -153,7 +182,11 @@ impl Display for Comparison<'_> {
                 true => "same device, graph and timing".to_string(),
                 false => format!(
                     "DIFFERENT — {}; the deltas below compare two different measurements",
-                    mismatches.join(", ")
+                    mismatches
+                        .iter()
+                        .map(ToString::to_string)
+                        .collect::<Vec<_>>()
+                        .join(", ")
                 ),
             }
         )?;
