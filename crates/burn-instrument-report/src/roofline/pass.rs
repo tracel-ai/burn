@@ -85,15 +85,7 @@ impl<'a> Roofline<'a> {
     /// priced cannot be claimed back, so it counts at what it cost.
     pub(crate) fn deepest_floor(&self, component: &Component) -> Duration {
         if self.composite(component) {
-            let children: Duration = component
-                .children
-                .iter()
-                .map(|child| self.deepest_floor(child))
-                .sum();
-            // Whatever the children did not account for is this component's
-            // own work, and no declaration prices it — so it stands, at what
-            // the device spent on it.
-            return children + self.reading.apportion(self.unpriced_kernel_time(component));
+            return self.parts_floor(component, Self::deepest_floor);
         }
         self.own_floor(component)
             .unwrap_or(self.reading.apportioned(component))
@@ -112,16 +104,27 @@ impl<'a> Roofline<'a> {
             return floor;
         }
         match self.composite(component) {
-            true => {
-                component
-                    .children
-                    .iter()
-                    .map(|child| self.outermost_floor(child))
-                    .sum::<Duration>()
-                    + self.reading.apportion(self.unpriced_kernel_time(component))
-            }
+            true => self.parts_floor(component, Self::outermost_floor),
             false => self.reading.apportioned(component),
         }
+    }
+
+    /// A composite's floor read through its parts: each child at `child_floor`, and what
+    /// `component` launched itself that no part prices.
+    ///
+    /// Whatever the children did not account for is this component's own work, and no
+    /// declaration prices it — so it stands, at what the device spent on it.
+    fn parts_floor(
+        &self,
+        component: &Component,
+        child_floor: fn(&Self, &Component) -> Duration,
+    ) -> Duration {
+        component
+            .children
+            .iter()
+            .map(|child| child_floor(self, child))
+            .sum::<Duration>()
+            + self.reading.apportion(self.unpriced_kernel_time(component))
     }
 
     /// This component's own floor. See [`floor_of`](Self::floor_of).
