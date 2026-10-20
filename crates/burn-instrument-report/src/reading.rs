@@ -95,7 +95,7 @@ impl TimeReading {
                 ],
                 time_of: "on device",
                 wall: "the clean run",
-                measured: "timed in place — what the components above sum to",
+                on_device: "timed in place — what the components above sum to",
             },
             Self::ApportionedOnto { .. } => TimeReadingText {
                 timings: [
@@ -104,7 +104,7 @@ impl TimeReading {
                 ],
                 time_of: "of wall",
                 wall: "the clean run, and what the components above sum to",
-                measured: "each timed alone",
+                on_device: "each timed alone",
             },
             Self::Serialized => TimeReadingText {
                 timings: [
@@ -113,7 +113,7 @@ impl TimeReading {
                 ],
                 time_of: "on device",
                 wall: "the clean run",
-                measured: "each timed alone",
+                on_device: "each timed alone",
             },
         }
     }
@@ -130,7 +130,7 @@ pub(crate) struct TimeReadingText {
     /// Beside the clean run's wall time.
     pub(crate) wall: &'static str,
     /// Beside the instrumented run's device time.
-    pub(crate) measured: &'static str,
+    pub(crate) on_device: &'static str,
 }
 
 /// Whether a run splits into the device's time and the time the device waited on the host,

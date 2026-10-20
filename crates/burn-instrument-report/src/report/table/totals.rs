@@ -47,11 +47,11 @@ impl Display for Totals<'_, '_> {
             f,
             "  {:<width$} {:>8} ms   {kernels} distinct kernels, {launches} launches, {}",
             match measurement.breakdown.host_timed {
-                true => "measured (SOME HOST-TIMED)",
-                false => "measured",
+                true => "on device (SOME HOST-TIMED)",
+                false => "on device",
             },
             Millis(measurement.breakdown.total_time()),
-            text.measured,
+            text.on_device,
         )?;
         if measurement.breakdown.host_timed {
             for line in [
