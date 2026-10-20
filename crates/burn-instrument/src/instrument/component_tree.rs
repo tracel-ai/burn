@@ -499,7 +499,7 @@ mod tests {
     /// A run may enter several components at top level — an embedding, a stack, a head — and each
     /// is a root.
     #[test]
-    fn a_pass_may_enter_several_components_at_top_level() {
+    fn a_run_may_enter_several_components_at_top_level() {
         let mut components = ComponentTree::default();
         for name in ["embedding", "stack", "lm head"] {
             components.enter(declared(name));
@@ -600,7 +600,7 @@ mod tests {
     /// Reading the tree with a component still open is a bug, not a partial result: the open
     /// component has kernels yet to launch.
     #[test]
-    fn a_tree_read_mid_pass_is_a_bug_not_a_partial_result() {
+    fn a_tree_read_mid_run_is_a_bug_not_a_partial_result() {
         let mut components = ComponentTree::default();
         components.enter(declared("block"));
         let read =
@@ -804,7 +804,7 @@ mod tests {
     /// queued, and its kernels have a component of their own rather than being
     /// taken for work no annotation covers.
     #[test]
-    fn the_end_of_the_pass_is_a_component_of_its_own() {
+    fn the_end_of_the_run_is_a_component_of_its_own() {
         let mut components = ComponentTree::default();
         components.enter(declared("lm head"));
         components.exit();

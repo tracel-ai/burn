@@ -186,7 +186,7 @@ mod tests {
     /// A measurement written and read back is the one that was written, so one taken on a device
     /// can be read on a machine without it.
     #[test]
-    fn a_written_pass_reads_back_unchanged() {
+    fn a_written_measurement_reads_back_unchanged() {
         let measurement = measurement();
         let read = Measurement::read(written(&measurement).as_bytes()).expect("read back");
         assert_eq!(read, measurement);
@@ -195,7 +195,7 @@ mod tests {
     /// What a run was not measured against reads back as not measured, rather than as a zero
     /// a report would divide by.
     #[test]
-    fn an_unprobed_pass_reads_back_unprobed() {
+    fn an_unprobed_measurement_reads_back_unprobed() {
         let measurement = Measurement {
             peaks: None,
             clean_wall: None,

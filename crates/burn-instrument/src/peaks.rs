@@ -106,7 +106,7 @@ impl Peaks {
             false => self,
         };
         // Both directions go together: they are scored as a pair, so keeping the believable
-        // half of an impossible pair would divide one direction by a measurement and the other
+        // half of an impossible pair would divide one direction by a reading and the other
         // by nothing.
         match trusted.rejected_directions().is_some() {
             true => Self {

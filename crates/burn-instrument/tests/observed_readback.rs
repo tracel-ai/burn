@@ -35,7 +35,7 @@ impl Router {
 }
 
 #[test]
-fn reading_observed_values_back_launches_nothing_the_pass_records() {
+fn reading_observed_values_back_launches_nothing_the_run_records() {
     let device = Device::default();
     let input = Tensor::<2>::random([SIDE, SIDE], Distribution::Default, &device);
     // Clean runs first, so nothing the run launches is a first sighting being tuned.

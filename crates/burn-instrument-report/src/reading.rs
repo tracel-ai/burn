@@ -42,7 +42,7 @@ impl TimeReading {
     /// launch was timed alone.
     ///
     /// In place, nothing waited on a kernel during the run, so each
-    /// measurement is the kernel as it runs in a full queue and needs no
+    /// timing is the kernel as it runs in a full queue and needs no
     /// correcting. The components then sum to the device's time, and the clean run's
     /// remainder is the host's — the `host` line.
     ///

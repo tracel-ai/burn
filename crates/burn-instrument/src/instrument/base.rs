@@ -116,7 +116,7 @@ impl Instrument {
     /// measuring what it is scored against: every component it enters arrives
     /// from this thread and every kernel the runtime issues for it from
     /// whichever thread issued it, until the run's last queued segment has
-    /// executed and its measurements are read back. What `model` returns is
+    /// executed and its timings are read back. What `model` returns is
     /// held until then.
     ///
     /// Instrumented, the model runs the graph it runs in production — nothing

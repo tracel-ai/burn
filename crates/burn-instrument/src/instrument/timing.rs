@@ -1,4 +1,4 @@
-//! What the device spent on each launch: the measurements a run hands over
+//! What the device spent on each launch: the timings a run hands over
 //! unread, and what they say about the run once read back.
 
 use std::time::{Duration, Instant};
@@ -8,10 +8,10 @@ use cubecl::profile::{ProfileDuration, ProfileTicks, TimingMethod};
 use super::cursor::Attribution;
 use crate::breakdown::Unplaced;
 
-/// The measurements a run kept, and how far they are to be trusted.
+/// The timings a run kept, and how far they are to be trusted.
 #[derive(Default)]
 pub struct Timings {
-    /// Measurements handed over unread, each beside the component its launch was
+    /// Timings handed over unread, each beside the component its launch was
     /// counted on.
     kept: Vec<Kept>,
     /// Whether any launch was timed on the host rather than the device.
@@ -20,24 +20,24 @@ pub struct Timings {
     /// blocking submit, so it carries submission and sync and is several times
     /// the kernel it names.
     host_timed: bool,
-    /// Whether any launch's measurement was read back as it launched, which
+    /// Whether any launch's timing was read back as it launched, which
     /// runs the kernels one at a time. See [`Breakdown::timed_alone`](crate::Breakdown::timed_alone).
     timed_alone: bool,
     /// Kernel time that could not be credited to a component, and how many timings
     /// that was.
     ///
-    /// A measurement is filed under the attribution of the thread it arrives
+    /// A timing is filed under the attribution of the thread it arrives
     /// on, and the runtime hands it over on the thread that issued the launch,
     /// inside the same call — so it finds the component its launch was counted on.
     /// Anything else has nowhere to go, nor does a window that comes back with
-    /// no measurement in it, and [`Breakdown::total_time`](crate::Breakdown::total_time)
+    /// no timing in it, and [`Breakdown::total_time`](crate::Breakdown::total_time)
     /// is the denominator of every share, so a silent drop would move every
     /// number read off it. Counted and reported, like a host timing.
     unplaced: Unplaced,
 }
 
 impl Timings {
-    /// Keep a launch's measurement unread, beside the component that counted it.
+    /// Keep a launch's timing unread, beside the component that counted it.
     pub fn keep(
         &mut self,
         attribution: Attribution,
@@ -52,14 +52,14 @@ impl Timings {
         });
     }
 
-    /// A measurement was read back as its kernel launched, timed by `method`:
+    /// A timing was read back as its kernel launched, timed by `method`:
     /// that kernel ran alone.
     pub fn read_at_launch(&mut self, method: TimingMethod) {
         self.host_timed |= !matches!(method, TimingMethod::Device);
         self.timed_alone = true;
     }
 
-    /// Every measurement kept so far, to read back.
+    /// Every timing kept so far, to read back.
     pub fn take_kept(&mut self) -> Vec<Kept> {
         std::mem::take(&mut self.kept)
     }
@@ -92,7 +92,7 @@ pub struct TimingQuality {
     pub unplaced: Unplaced,
 }
 
-/// A launch's measurement, not yet read back, and the component it belongs to.
+/// A launch's timing, not yet read back, and the component it belongs to.
 pub struct Kept {
     attribution: Attribution,
     kernel: &'static str,
@@ -100,10 +100,10 @@ pub struct Kept {
 }
 
 impl Kept {
-    /// Read the measurement back. Waits for its kernel, so a run reads them
+    /// Read the timing back. Waits for its kernel, so a run reads them
     /// once it has run.
-    pub fn resolve(self) -> Measured {
-        Measured {
+    pub fn resolve(self) -> Timed {
+        Timed {
             attribution: self.attribution,
             kernel: self.kernel,
             ticks: cubecl::future::block_on(self.profile.resolve()),
@@ -111,8 +111,8 @@ impl Kept {
     }
 }
 
-/// A measurement read back, or `None` for a window that came back empty.
-pub struct Measured {
+/// A timing read back, or `None` for a window that came back empty.
+pub struct Timed {
     pub attribution: Attribution,
     pub kernel: &'static str,
     pub ticks: Option<ProfileTicks>,

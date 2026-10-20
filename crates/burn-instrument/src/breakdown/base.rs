@@ -65,10 +65,10 @@ pub struct Breakdown {
     /// clean run instead.
     pub timed_alone: bool,
     /// Kernel time that reached the recorder under a different component from the
-    /// launch it measured, or a measurement that came back empty, so no component
+    /// launch it timed, or a timing that came back empty, so no component
     /// could account for it.
     ///
-    /// Each measurement is kept beside the component that counted its launch and read
+    /// Each timing is kept beside the component that counted its launch and read
     /// back once the run is over, so this is zero unless a runtime hands one
     /// over somewhere else. Reported rather than assumed, because
     /// [`total_time`](Self::total_time) is the denominator of every apportioned
@@ -397,7 +397,7 @@ impl Component {
 
 /// Kernel time that could not be credited to a component — a timing that reached the
 /// recorder under a different attribution from the launch it measured, or a
-/// window that came back with no measurement in it.
+/// window that came back with no timing in it.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Unplaced {

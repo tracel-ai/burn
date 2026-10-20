@@ -1004,7 +1004,7 @@ fn an_impossible_write_ceiling_is_reported_not_divided_by() {
     assert!(!table.contains("CAVEAT"), "named once:\n{table}");
 }
 
-/// Three ceilings that cannot all be measurements of one device are named,
+/// Three ceilings that cannot all be readings of one device are named,
 /// and still divided by — nothing in the readings says which is wrong.
 #[test]
 fn ceilings_that_do_not_predict_each_other_are_a_caveat_not_a_fallback() {

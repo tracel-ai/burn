@@ -1,6 +1,6 @@
 //! Where every event of an instrumented run is recorded: the components it
 //! enters, from the thread driving the model, and the kernels, blocks and
-//! measurements the runtimes report, from whichever thread issues them.
+//! timings the runtimes report, from whichever thread issues them.
 //!
 //! The runtime calls a [`LaunchObserver`] synchronously, on the thread that
 //! issued the launch, before it is submitted. The recorder is the observer,
@@ -9,9 +9,9 @@
 //! components whose work the block carries out, with nothing drained to make
 //! it so → [`LaunchCursor`].
 //!
-//! # Measurements are read once the run is over
+//! # Timings are read once the run is over
 //!
-//! Each launch's measurement arrives unread and the recorder keeps it, reading
+//! Each launch's timing arrives unread and the recorder keeps it, reading
 //! them all back after the run's last sync. Reading one waits for its kernel,
 //! so reading each as it arrived would execute the run one kernel at a time — the
 //! kernels would each be timed alone, and their sum would say nothing about a
@@ -40,7 +40,7 @@ use super::component_tree::{ComponentId, ComponentTree};
 use super::cursor::{Attribution, LaunchCursor};
 #[cfg(feature = "fusion")]
 use super::origins::{BlockOrigin, OperationId, OperationOrigins};
-use super::timing::{Kept, Measured, Timeline, Timings};
+use super::timing::{Kept, Timed, Timeline, Timings};
 use super::watching::Watching;
 use crate::breakdown::Breakdown;
 use crate::{Bounds, ComponentObserver, Declaration, ObservedBounds};
@@ -66,7 +66,7 @@ use crate::{Bounds, ComponentObserver, Declaration, ObservedBounds};
 /// component whose operation sealed the segment.
 pub struct RunRecorder {
     device: Device,
-    /// Before the run, so every measurement's window can be placed after it
+    /// Before the run, so every timing's window can be placed after it
     /// on one clock and the gaps between them read off.
     epoch: Instant,
     /// Where each launching thread records, moved at every boundary.
@@ -135,7 +135,7 @@ impl RunRecorder {
     }
 
     /// Run the fused work still queued, under a component of its own, stop
-    /// attributing, and read back every measurement the run kept.
+    /// attributing, and read back every timing the run kept.
     ///
     /// A fused segment runs when an op seals it, and the run's last one has
     /// no op after it — the output is returned unread — so its kernels would
@@ -144,7 +144,7 @@ impl RunRecorder {
     /// are the work of the last components, but no component can say which, so they
     /// are named for when they ran.
     ///
-    /// The measurements are read here rather than as each kernel launched:
+    /// The timings are read here rather than as each kernel launched:
     /// reading one waits for its kernel, and waiting after every launch
     /// executes a run one kernel at a time. After the sync every window has closed, so
     /// reading them costs nothing and each is the kernel as it ran in a queue
@@ -165,11 +165,11 @@ impl RunRecorder {
         // device resolves by waiting, and a launch still being recorded would
         // wait behind it.
         let kept = self.locked().timings.take_kept();
-        let measured: Vec<Measured> = kept.into_iter().map(Kept::resolve).collect();
+        let timed: Vec<Timed> = kept.into_iter().map(Kept::resolve).collect();
         let mut state = self.locked();
         #[cfg(feature = "fusion")]
         state.origins.clear();
-        state.settle(measured, self.epoch);
+        state.settle(timed, self.epoch);
     }
 
     /// Price the traffic the run observed, adding it to the components it arrived
@@ -253,7 +253,7 @@ impl LaunchObserver for RunRecorder {
 
     /// Timed, and handed over unread — a breakdown whose kernel components carried
     /// no time would say which kernels ran and nothing about which of them
-    /// mattered, and reading each measurement at its launch waits for that
+    /// mattered, and reading each timing at its launch waits for that
     /// kernel, which executes the run one kernel at a time.
     fn timing(&self) -> TimingRequest {
         TimingRequest::Deferred
@@ -268,7 +268,7 @@ impl LaunchObserver for RunRecorder {
         self.locked().timings.keep(attribution, kernel, profile);
     }
 
-    /// Only while the runtime's profiling logger reads measurements too, which
+    /// Only while the runtime's profiling logger reads timings too, which
     /// reads each at its launch and hands the observer the duration. A kernel
     /// read as it launched ran alone, so the run is marked
     /// [`timed_alone`](Breakdown::timed_alone).
@@ -313,15 +313,15 @@ impl FusionObserver for RunRecorder {
 }
 
 impl State {
-    /// File every measurement read back under the component that counted its
+    /// File every timing read back under the component that counted its
     /// launch, and charge the device's idle stretches between them.
-    fn settle(&mut self, measured: Vec<Measured>, epoch: Instant) {
+    fn settle(&mut self, timed: Vec<Timed>, epoch: Instant) {
         let mut timeline = Timeline::new(epoch);
-        for measured in measured {
-            match measured.ticks {
+        for timed in timed {
+            match timed.ticks {
                 Some(ticks) => {
-                    self.credit(measured.attribution, measured.kernel, ticks.duration());
-                    timeline.push(measured.attribution, &ticks);
+                    self.credit(timed.attribution, timed.kernel, ticks.duration());
+                    timeline.push(timed.attribution, &ticks);
                 }
                 None => self.timings.unplace(Duration::ZERO),
             }
@@ -396,7 +396,7 @@ mod tests {
         assert_eq!(recorder.breakdown().untagged[0].name, "Stray");
     }
 
-    /// A measurement is kept beside the component its launch was counted on and
+    /// A timing is kept beside the component its launch was counted on and
     /// read back when the run ends — so a kernel two components share by name keeps
     /// each component's time apart, and nothing waited on a kernel while the run
     /// ran.
@@ -406,7 +406,7 @@ mod tests {
         for (label, micros) in [("query", 13), ("key", 5)] {
             recorder.enter(declared(label));
             recorder.launched("MatmulEntry");
-            recorder.profiled("MatmulEntry", measured(micros));
+            recorder.profiled("MatmulEntry", unread_timing(micros));
             recorder.exit();
         }
         assert_eq!(
@@ -427,7 +427,7 @@ mod tests {
     /// and says the run ran that kernel alone — which is what stops the
     /// report from subtracting a serialized sum from a pipelined wall.
     #[test]
-    fn a_duration_read_at_launch_marks_the_pass_timed_alone() {
+    fn a_duration_read_at_launch_marks_the_run_timed_alone() {
         let recorder = recorder();
         recorder.enter(declared("query"));
         recorder.launched("MatmulEntry");
@@ -490,8 +490,8 @@ mod tests {
         RunRecorder::new(&Device::flex())
     }
 
-    /// A device measurement of `micros`, as the runtime hands one over: unread.
-    fn measured(micros: u64) -> ProfileDuration {
+    /// A device timing of `micros`, as the runtime hands one over: unread.
+    fn unread_timing(micros: u64) -> ProfileDuration {
         let start = Instant::now();
         let end = start + Duration::from_micros(micros);
         ProfileDuration::new_device_time(async move {
