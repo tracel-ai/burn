@@ -16,6 +16,8 @@ workspace = true
 
 [dependencies]
 burn-instrument = { workspace = true, features = ["std"] }
+# Kernel names are cubecl type names, shortened the way the runtime's own logs shorten them.
+cubecl = { workspace = true }
 
 [package.metadata.docs.rs]
 rustdoc-args = ["--cfg", "docsrs"]
