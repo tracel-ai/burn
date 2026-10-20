@@ -3,15 +3,17 @@
 use std::fmt::{self, Display};
 use std::time::Duration;
 
-use burn_instrument::Component;
+use burn_instrument::ComponentPath;
 
 use super::Report;
-use super::table::ms;
+use crate::millis::Millis;
 
 /// One component's line on the worklist: what it could give back, and which
 /// lever gives it.
 struct Recoverable {
-    label: String,
+    /// Where the component sits: a label alone is ambiguous, since `down` sits under
+    /// every layer.
+    path: ComponentPath,
     gain: Duration,
     /// The lever, named — each is different work for different people.
     lever: Lever,
@@ -55,7 +57,7 @@ impl Display for Lever {
 /// faster kernel can reach. Those are the ladder's two rungs, split per
 /// component, and they are disjoint by construction.
 pub(super) struct Worklist {
-    /// Most recoverable first.
+    /// The most recoverable, first.
     entries: Vec<Recoverable>,
     /// Whether the pass lost kernel time, so the gains are differences against timings that
     /// came in short.
@@ -63,13 +65,19 @@ pub(super) struct Worklist {
 }
 
 impl Worklist {
+    /// How many components the worklist names.
+    const SHOWN: usize = 5;
+
     pub(super) fn new(report: &Report<'_>) -> Self {
-        fn visit(report: &Report<'_>, component: &Component, out: &mut Vec<Recoverable>) {
+        let pricing = report.pricing();
+        let mut entries = Vec::new();
+        for (path, component) in report.pass().breakdown.components() {
             // The third lever: what the device waited on the host for before this
             // component's own kernels. Its own, not its subtree's, so a
             // millisecond is listed once however deep the component sits.
             if let Some(host) = report
-                .host_share(component.own_wait)
+                .host_split()
+                .share(component.own_wait)
                 .filter(|host| !host.is_zero())
             {
                 let launches: usize = component.kernels.iter().map(|kernel| kernel.launches).sum();
@@ -79,43 +87,37 @@ impl Worklist {
                     1 => (Lever::LessHostWork, "before its one launch".to_string()),
                     _ => (Lever::FewerLaunches, format!("{launches} launches")),
                 };
-                out.push(Recoverable {
-                    label: component.label.clone(),
+                entries.push(Recoverable {
+                    path: path.clone(),
                     gain: host,
                     lever,
                     against,
                 });
             }
-            if let Some(score) = report.score_of(component) {
+            if let Some(score) = pricing.score_of(component) {
                 // A component at the roof has nothing to give back, so it sorts to
                 // the bottom on its own — filtering it out would hide the component that
                 // most deserves to be read.
-                let (gain, lever) = match report.composite(component) {
+                let (gain, lever) = match pricing.composite(component) {
                     true => (
-                        report.deepest_floor(component).saturating_sub(score.floor),
+                        pricing.deepest_floor(component).saturating_sub(score.floor),
                         Lever::FusingInside,
                     ),
                     false => (
-                        score.gain(report.apportioned(component)),
+                        score.gain(report.reading().apportioned(component)),
                         Lever::FasterKernel,
                     ),
                 };
-                out.push(Recoverable {
-                    label: component.label.clone(),
+                entries.push(Recoverable {
+                    path,
                     gain,
                     lever,
                     against: format!("{:>3.0}% of {} peak", score.achieved * 100.0, score.bound),
                 });
             }
-            for child in &component.children {
-                visit(report, child, out);
-            }
-        }
-        let mut entries = Vec::new();
-        for component in &report.pass().breakdown.tree {
-            visit(report, component, &mut entries);
         }
         entries.sort_by_key(|entry| std::cmp::Reverse(entry.gain));
+        entries.truncate(Self::SHOWN);
         Self {
             entries,
             lost_time: report.pass().breakdown.untimed().next().is_some(),
@@ -129,7 +131,21 @@ impl Display for Worklist {
         if self.entries.is_empty() {
             return Ok(());
         }
-        writeln!(f, "\n  worth reading first    recoverable   by")?;
+        // Each component by its whole path, so the column grows to the longest of them
+        // and the gains stay under `recoverable`.
+        let width = self
+            .entries
+            .iter()
+            .map(|entry| entry.path.to_string().chars().count())
+            .chain([22])
+            .max()
+            .unwrap_or(22);
+        writeln!(
+            f,
+            "\n  {:<heading$}recoverable   by",
+            "worth reading first",
+            heading = width + 1
+        )?;
         // Its gains are differences against those timings and its waits are
         // gaps between them, so it carries the same caveat.
         if self.lost_time {
@@ -138,12 +154,12 @@ impl Display for Worklist {
                 "    (from a pass that lost kernel time — see `untimed`; re-measure first)"
             )?;
         }
-        for entry in self.entries.iter().take(5) {
+        for entry in &self.entries {
             writeln!(
                 f,
-                "    {:<22} {:>6} ms   {:<16} {}",
-                entry.label,
-                ms(entry.gain),
+                "    {:<width$} {:>6} ms   {:<16} {}",
+                entry.path,
+                Millis(entry.gain),
                 entry.lever,
                 entry.against
             )?;

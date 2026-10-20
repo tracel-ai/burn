@@ -7,6 +7,8 @@ use burn_instrument::{Component, Kernel, PeakFinding};
 
 use super::worklist::Worklist;
 use super::{HostSplit, Report, TimeReading};
+use crate::millis::Millis;
+use crate::served_by::ServedBy;
 
 impl Display for Report<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -20,8 +22,8 @@ impl Display for Report<'_> {
             f,
             "device   {} · {} · {}",
             pass.device,
-            peak(self.peaks().copy_bytes_per_s, 1e9, "GB/s"),
-            match self.peaks().flops {
+            peak(self.pricing().peaks().copy_bytes_per_s, 1e9, "GB/s"),
+            match self.pricing().peaks().flops {
                 Some(flops) => format!("{:.1} TFLOP/s at {:?}", flops.per_s / 1e12, flops.dtype),
                 None => "unprobed".to_string(),
             },
@@ -33,8 +35,8 @@ impl Display for Report<'_> {
         // component was divided by. Absent where the device reported no directions,
         // in which case the copy ceiling above *is* the denominator.
         if let (Some(read), Some(write)) = (
-            self.peaks().read_bytes_per_s,
-            self.peaks().write_bytes_per_s,
+            self.pricing().peaks().read_bytes_per_s,
+            self.pricing().peaks().write_bytes_per_s,
         ) {
             writeln!(
                 f,
@@ -74,7 +76,7 @@ impl Display for Report<'_> {
             match pass.clean_wall {
                 Some(wall) => format!(
                     "{} ms run uncollected, the time the components below break down",
-                    ms(wall)
+                    Millis(wall)
                 ),
                 None => "no uncollected run measured: no host/device split".to_string(),
             }
@@ -86,9 +88,9 @@ impl Display for Report<'_> {
         let timings: &[&str] = match self.reading() {
             TimeReading::InPlace => &[
                 "in place — read back after the pass, the kernels ran back to back: a component is",
-                "its kernels' device time, and `framework` is the device waiting on the host",
+                "its kernels' device time, and `host` is the device waiting on the host",
             ],
-            TimeReading::ApportionedOnto(_) => &[
+            TimeReading::ApportionedOnto { .. } => &[
                 "alone — each read as it launched, so the kernels ran one at a time: a component is",
                 "its share of the uncollected run, good to a few percent",
             ],
@@ -123,7 +125,7 @@ impl Display for Report<'_> {
             "  {:<width$} {:>8} {:>7} {:>7}  {:<8} {:<18} {:>8} {:>8}",
             "",
             match self.reading() {
-                TimeReading::ApportionedOnto(_) => "of wall",
+                TimeReading::ApportionedOnto { .. } => "of wall",
                 TimeReading::InPlace | TimeReading::Serialized => "on device",
             },
             "of work",
@@ -160,7 +162,7 @@ impl Display for Report<'_> {
                     f,
                     "    · {:<width$} {:>8}",
                     fit(launched(&name, kernel), width.saturating_sub(KERNEL_INDENT)),
-                    ms(self.apportion(kernel.total)),
+                    Millis(self.reading().apportion(kernel.total)),
                     width = width.saturating_sub(KERNEL_INDENT),
                 )?;
             }
@@ -190,9 +192,9 @@ impl Display for Report<'_> {
                 f,
                 "  {:<width$} {:>8} ms   {}",
                 "wall",
-                ms(wall),
+                Millis(wall),
                 match self.reading() {
-                    TimeReading::ApportionedOnto(_) => {
+                    TimeReading::ApportionedOnto { .. } => {
                         "the pass run uncollected, and what the components above sum to"
                     }
                     TimeReading::InPlace | TimeReading::Serialized => "the pass run uncollected",
@@ -206,10 +208,10 @@ impl Display for Report<'_> {
                 true => "measured (SOME HOST-TIMED)",
                 false => "measured",
             },
-            ms(device),
+            Millis(device),
             match self.reading() {
                 TimeReading::InPlace => "timed in place — what the components above sum to",
-                TimeReading::ApportionedOnto(_) | TimeReading::Serialized => "each timed alone",
+                TimeReading::ApportionedOnto { .. } | TimeReading::Serialized => "each timed alone",
             }
         )?;
         if pass.breakdown.host_timed {
@@ -241,19 +243,19 @@ impl Display for Report<'_> {
                 f,
                 "  {:<width$} {:>8} ms   {} timings arrived after their component closed",
                 "unplaced",
-                ms(pass.breakdown.unplaced.total),
+                Millis(pass.breakdown.unplaced.total),
                 pass.breakdown.unplaced.timings
             )?;
         }
         // The host/device split: the clean pass less what its kernels took on
         // the device. Printed only where that device time is a pipelined
-        // pass's — see `Report::framework` — and a dash that says why
+        // pass's — see `HostSplit` — and a dash that says why
         // otherwise, rather than a subtraction of the wrong thing.
         let not_separable = |f: &mut fmt::Formatter<'_>, why: &[&str]| -> fmt::Result {
             writeln!(
                 f,
                 "  {:<width$} {:>8}      not separable: {}",
-                "framework", "—", why[0]
+                "host", "—", why[0]
             )?;
             for line in &why[1..] {
                 writeln!(f, "  {:<width$}               {line}", "")?;
@@ -261,12 +263,12 @@ impl Display for Report<'_> {
             Ok(())
         };
         match self.host_split() {
-            HostSplit::Measured(framework) => writeln!(
+            HostSplit::Measured { host, .. } => writeln!(
                 f,
                 "  {:<width$} {:>8} ms   {} of the pass the device spent waiting on the host",
-                "framework",
-                ms(framework),
-                share(framework, self.wall()),
+                "host",
+                Millis(host),
+                share(host, self.wall()),
             )?,
             HostSplit::NoCleanRun => not_separable(f, &["no uncollected run was measured"])?,
             HostSplit::TimedAlone => not_separable(
@@ -294,7 +296,8 @@ impl Display for Report<'_> {
             .iter()
             .flat_map(|component| component.walk())
             .any(|(_, component)| {
-                self.score_of(component)
+                self.pricing()
+                    .score_of(component)
                     .is_some_and(|score| score.achieved > 1.0)
             });
         if at_the_roof {
@@ -343,7 +346,7 @@ impl Display for Report<'_> {
             writeln!(
                 f,
                 "\n  how much is on the table{:>22} ms",
-                ms(ladder.total())
+                Millis(ladder.total())
             )?;
             // The outermost lever where the split is known: time the device
             // spent idle, which no kernel and no fusion recovers.
@@ -352,23 +355,23 @@ impl Display for Report<'_> {
                     f,
                     "    {:<34} {:>8} ms   ← fewer launches {:>10} ms",
                     "the device never waiting",
-                    ms(ladder.device()),
-                    ms(ladder.host)
+                    Millis(ladder.device()),
+                    Millis(ladder.host)
                 )?;
             }
             writeln!(
                 f,
                 "    {:<34} {:>8} ms   ← faster kernels {:>10} ms",
                 "kernels at their own roofs",
-                ms(ladder.kernels),
-                ms(ladder.from_kernels())
+                Millis(ladder.kernels),
+                Millis(ladder.from_kernels())
             )?;
             writeln!(
                 f,
                 "    {:<34} {:>8} ms   ← fewer round-trips {:>7} ms",
                 "perfect fusion inside components",
-                ms(ladder.fused),
-                ms(ladder.from_fusion())
+                Millis(ladder.fused),
+                Millis(ladder.from_fusion())
             )?;
         } else {
             // Saturating the subtractions would print "0.0 on the table" under
@@ -379,9 +382,9 @@ impl Display for Report<'_> {
                 "how much is on the table   unavailable".to_string(),
                 format!(
                     "  the floors ({} ms / {} ms) do not fit inside the {} ms",
-                    ms(ladder.kernels),
-                    ms(ladder.fused),
-                    ms(ladder.device())
+                    Millis(ladder.kernels),
+                    Millis(ladder.fused),
+                    Millis(ladder.device())
                 ),
                 "  the device spent on this pass, so a denominator is wrong".to_string(),
             ] {
@@ -417,11 +420,6 @@ impl Display for Report<'_> {
 fn bar(fraction: f64) -> String {
     let filled = (fraction.clamp(0.0, 1.0) * 10.0).round() as usize;
     format!("{}{}", "▓".repeat(filled), "░".repeat(10 - filled))
-}
-
-/// Milliseconds, at the precision a reader can act on.
-pub(super) fn ms(duration: Duration) -> String {
-    format!("{:.1}", duration.as_secs_f64() * 1e3)
 }
 
 /// A share of the whole, or blank when there is no whole to take one of.
@@ -495,41 +493,19 @@ fn note(finding: &PeakFinding) -> Vec<String> {
 /// The variant sits beside the count rather than on a line of its own because a
 /// component that routed one way is one fact about that component, and a second line per
 /// component would double a 40-component table to say it.
-pub(super) fn heading(component: &Component) -> String {
+fn heading(component: &Component) -> String {
     let mut heading = match component.entries {
         1 => component.label.clone(),
         many => format!("{} ×{many}", component.label),
     };
-    if let Some(variants) = variants(component) {
-        heading.push_str(" · ");
-        heading.push_str(&variants);
+    let served_by = ServedBy(component);
+    if !served_by.is_empty() {
+        heading.push_str(&format!(" · {served_by}"));
     }
     if component.observed.is_some() {
         heading.push_str(" · floor read from the pass");
     }
     heading
-}
-
-/// Which executions served a component's entries, or `None` where it declares no
-/// variant — which is most components.
-///
-/// A single execution that served every entry prints as its bare name: its
-/// count would only repeat the component's own. Several print with theirs, because
-/// *how the entries split* is the whole reason to look — `tile ×8, tensor ops
-/// ×1` says a routing decision went one way eight times and the other once, and
-/// that is a finding.
-fn variants(component: &Component) -> Option<String> {
-    match component.variants.as_slice() {
-        [] => None,
-        [only] if only.entries == component.entries => Some(only.name.clone()),
-        several => Some(
-            several
-                .iter()
-                .map(|variant| format!("{} ×{}", variant.name, variant.entries))
-                .collect::<Vec<_>>()
-                .join(", "),
-        ),
-    }
 }
 
 /// How wide the component column has to be for `tree` to fit in it.
@@ -615,7 +591,7 @@ fn merged(tree: &[Component]) -> Vec<(String, &Component)> {
 /// so is a `base` module, which holds a folder's one implementation — so
 /// `my_model::rope::base::apply` reads as `rope::apply`, which is what a
 /// reader greps for.
-pub(super) fn site(site: &str) -> String {
+fn site(site: &str) -> String {
     site.split("::")
         .skip(1)
         .filter(|segment| *segment != "base")
@@ -644,58 +620,65 @@ impl ComponentLines<'_, '_> {
         ancestors: &[&Component],
     ) -> fmt::Result {
         let depth = ancestors.len();
-        let fused_elsewhere = self.report.is_fused_elsewhere(component);
+        let fused_elsewhere = self.report.pricing().is_fused_elsewhere(component);
         let indent = "  ".repeat(depth);
         let label = fit(heading(component), self.width.saturating_sub(depth * 2));
-        let scored = self.report.score_of(component);
-        let (bound, achieved, floor, gain) = match (scored, self.report.floor_of(component)) {
-            (Some(score), _) => (
-                score.bound.to_string(),
-                // A component above 100% is marked and keeps its figure. The peaks are
-                // measured rather than looked up, so 105% is a component at the roof read
-                // through a probe that came in a little low, and 568% is a declared
-                // bound that is wrong — different findings, and one number
-                // separates them where a shared ">100%" gave both the same answer.
-                // Marked rather than suppressed: this is usually the most
-                // interesting component on the page. The systemically broken denominator
-                // is caught at the peak, not here.
-                //
-                // Only the bar is clamped, because a bar cannot say more than full.
-                match score.achieved > 1.0 {
-                    true => format!("{} {:>3.0}%*", bar(1.0), score.achieved * 100.0),
-                    false => format!("{} {:>3.0}% ", bar(score.achieved), score.achieved * 100.0),
-                },
-                ms(score.floor),
-                ms(score.gain(self.report.apportioned(component))),
-            ),
-            // Priced but not scored — it measured no time of its own. The floor is
-            // still the declaration's, and its parent's floor counts it, so the
-            // component says what that is rather than leaving the parent's figure to be
-            // reconciled against blanks.
-            (None, Some(floor)) => (
-                floor.bound.to_string(),
-                String::new(),
-                ms(floor.time),
-                "—".to_string(),
-            ),
-            // A component nobody priced is timed and says so, rather than being
-            // scored against a floor no kernel could meet.
-            (None, None) => (
-                "—".to_string(),
-                String::new(),
-                "—".to_string(),
-                "—".to_string(),
-            ),
-        };
+        let scored = self.report.pricing().score_of(component);
+        let (bound, achieved, floor, gain) =
+            match (scored, self.report.pricing().floor_of(component)) {
+                (Some(score), _) => (
+                    score.bound.to_string(),
+                    // A component above 100% is marked and keeps its figure. The peaks are
+                    // measured rather than looked up, so 105% is a component at the roof read
+                    // through a probe that came in a little low, and 568% is a declared
+                    // bound that is wrong — different findings, and one number
+                    // separates them where a shared ">100%" gave both the same answer.
+                    // Marked rather than suppressed: this is usually the most
+                    // interesting component on the page. The systemically broken denominator
+                    // is caught at the peak, not here.
+                    //
+                    // Only the bar is clamped, because a bar cannot say more than full.
+                    match score.achieved > 1.0 {
+                        true => format!("{} {:>3.0}%*", bar(1.0), score.achieved * 100.0),
+                        false => {
+                            format!("{} {:>3.0}% ", bar(score.achieved), score.achieved * 100.0)
+                        }
+                    },
+                    Millis(score.floor).to_string(),
+                    Millis(score.gain(self.report.reading().apportioned(component))).to_string(),
+                ),
+                // Priced but not scored — it measured no time of its own. The floor is
+                // still the declaration's, and its parent's floor counts it, so the
+                // component says what that is rather than leaving the parent's figure to be
+                // reconciled against blanks.
+                (None, Some(floor)) => (
+                    floor.bound.to_string(),
+                    String::new(),
+                    Millis(floor.time).to_string(),
+                    "—".to_string(),
+                ),
+                // A component nobody priced is timed and says so, rather than being
+                // scored against a floor no kernel could meet.
+                (None, None) => (
+                    "—".to_string(),
+                    String::new(),
+                    "—".to_string(),
+                    "—".to_string(),
+                ),
+            };
         // `fused ↓` rather than `0.0`: a zero reads as a component that cost
         // nothing, and this one's cost is in a fused kernel listed below it — on a
         // component above, after that component's children, or outside every component.
         let (time, of_work, host) = match fused_elsewhere {
             true => ("fused ↓".to_string(), String::new(), String::new()),
             false => (
-                ms(self.report.apportioned(component)),
+                Millis(self.report.reading().apportioned(component)).to_string(),
                 share(component.total_time(), self.whole),
-                self.report.host(component).map(ms).unwrap_or_default(),
+                self.report
+                    .host_split()
+                    .share(component.total_wait())
+                    .map(|host| Millis(host).to_string())
+                    .unwrap_or_default(),
             ),
         };
         writeln!(
@@ -728,7 +711,7 @@ impl ComponentLines<'_, '_> {
                     launched(&name, kernel),
                     self.width.saturating_sub(depth * 2 + KERNEL_INDENT)
                 ),
-                ms(self.report.apportion(kernel.total)),
+                Millis(self.report.reading().apportion(kernel.total)),
                 share(kernel.total, self.whole),
                 width = self.width.saturating_sub(depth * 2 + KERNEL_INDENT),
             )?;

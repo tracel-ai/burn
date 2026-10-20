@@ -9,12 +9,14 @@
 //! siblings. Each side's milliseconds are the ones its own [`Report`] prints, so the comparison
 //! cannot disagree with either table.
 
+use std::collections::{HashMap, HashSet};
 use std::fmt::{self, Display};
-use std::time::Duration;
 
 use burn_instrument::{CollectedPass, Component, ComponentPath};
 
 use crate::Report;
+use crate::millis::Millis;
+use crate::served_by::ServedBy;
 
 /// A pass beside the one it is being held against: what [`Report::against`] returns.
 pub struct Comparison<'a> {
@@ -49,16 +51,17 @@ impl<'a> Comparison<'a> {
 
     /// Each component of the current pass beside the same path in the saved one.
     fn compared(&self) -> Vec<Compared<'_>> {
+        let was: HashMap<&ComponentPath, &Component> = self
+            .was_components
+            .iter()
+            .map(|(path, component)| (path, *component))
+            .collect();
         self.now_components
             .iter()
             .map(|(path, now)| Compared {
                 path,
                 now,
-                was: self
-                    .was_components
-                    .iter()
-                    .find(|(seen, _)| seen == path)
-                    .map(|(_, was)| *was),
+                was: was.get(path).copied(),
             })
             .collect()
     }
@@ -72,7 +75,8 @@ impl<'a> Comparison<'a> {
     /// twice with opposite signs.
     fn changed_hands(&self, compared: &Compared<'_>) -> bool {
         compared.was.is_some_and(|was| {
-            self.was.is_fused_elsewhere(was) != self.now.is_fused_elsewhere(compared.now)
+            self.was.pricing().is_fused_elsewhere(was)
+                != self.now.pricing().is_fused_elsewhere(compared.now)
         })
     }
 
@@ -157,28 +161,6 @@ impl Display for Mismatch<'_> {
     }
 }
 
-/// Which executions served a component, as the comparison prints them beside its delta.
-///
-/// A routing change is the most common cause of one, and a delta that carries it explains
-/// itself: a component that was `tile` and is now `tensor-ops` did not get slower, it was routed
-/// somewhere else.
-fn variants(component: &Component) -> String {
-    match component.variants.as_slice() {
-        [] => String::new(),
-        [only] if only.entries == component.entries => only.name.clone(),
-        several => several
-            .iter()
-            .map(|variant| format!("{} ×{}", variant.name, variant.entries))
-            .collect::<Vec<_>>()
-            .join(", "),
-    }
-}
-
-/// Milliseconds, to the microsecond a comparison needs.
-fn ms(duration: Duration) -> String {
-    format!("{:.3}", duration.as_secs_f64() * 1e3)
-}
-
 impl Display for Comparison<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let compared = self.compared();
@@ -217,7 +199,7 @@ impl Display for Comparison<'_> {
         )?;
         writeln!(f, "  {}", "─".repeat(width + 42))?;
         for component in &compared {
-            let now = self.now.apportioned(component.now);
+            let now = self.now.reading().apportioned(component.now);
             let delta = match component.was {
                 // A component the saved pass did not have. Dashes, not zeroes:
                 // zero is a measurement and this is the absence of one.
@@ -225,14 +207,14 @@ impl Display for Comparison<'_> {
                 // Both passes have it, but its work changed hands, so there is
                 // a `was` to print and no delta to draw from it.
                 Some(was) if self.changed_hands(component) => (
-                    ms(self.was.apportioned(was)),
-                    match self.now.is_fused_elsewhere(component.now) {
+                    format!("{:.3}", Millis(self.was.reading().apportioned(was))),
+                    match self.now.pricing().is_fused_elsewhere(component.now) {
                         true => "fused ↓".to_string(),
                         false => "unfused".to_string(),
                     },
                 ),
                 Some(was) => {
-                    let was = self.was.apportioned(was);
+                    let was = self.was.reading().apportioned(was);
                     let change = (now.as_secs_f64() - was.as_secs_f64()) * 1e3;
                     // No ratio against nothing: "infinitely worse" about a
                     // component that may have moved a microsecond.
@@ -243,27 +225,29 @@ impl Display for Comparison<'_> {
                             change / (was.as_secs_f64() * 1e3) * 100.0
                         ),
                     };
-                    (ms(was), delta)
+                    (format!("{:.3}", Millis(was)), delta)
                 }
             };
             writeln!(
                 f,
-                "  {:<width$} {:>8} {:>8} {:>13}  {}",
+                "  {:<width$} {:>8} {:>8.3} {:>13}  {}",
                 component.path,
                 delta.0,
-                ms(now),
+                Millis(now),
                 delta.1,
-                variants(component.now)
+                ServedBy(component.now)
             )?;
         }
 
         // Components the saved pass had and this one does not: the other half
         // of a rename, which a per-component delta cannot show because it walks
         // the components this pass produced.
+        let present: HashSet<&ComponentPath> =
+            self.now_components.iter().map(|(path, _)| path).collect();
         let gone: Vec<String> = self
             .was_components
             .iter()
-            .filter(|(path, _)| !self.now_components.iter().any(|(now, _)| now == path))
+            .filter(|(path, _)| !present.contains(path))
             .map(|(path, _)| path.to_string())
             .collect();
         if !gone.is_empty() {
@@ -285,16 +269,18 @@ impl Display for Comparison<'_> {
         };
         writeln!(
             f,
-            "\n  {:<width$} {:>8} {:>8} ms{relative}",
+            "\n  {:<width$} {:>8.3} {:>8.3} ms{relative}",
             "pass",
-            ms(was),
-            ms(now)
+            Millis(was),
+            Millis(now)
         )
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use std::time::Duration;
+
     use burn_instrument::{Breakdown, Kernel, Unplaced, Variant};
 
     use super::*;

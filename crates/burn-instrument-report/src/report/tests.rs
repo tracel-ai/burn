@@ -6,9 +6,9 @@ use burn_instrument::{
 };
 use burn_tensor::FloatDType;
 
-use super::table::*;
-use super::{HostSplit, Report, TimeReading};
-use crate::roofline::{Bound, Ladder};
+use super::{HostSplit, Pricing, Report, TimeReading};
+use crate::millis::Millis;
+use crate::roofline::{Bound, Floor, Ladder};
 
 fn peaks() -> Peaks {
     Peaks {
@@ -226,10 +226,23 @@ fn observed_traffic_raises_the_floor_and_marks_the_row() {
         ..plain.clone()
     };
 
-    assert_eq!(Report::held(&plain), Some(declared));
-    assert_eq!(Report::held(&read), Some(declared + observed));
-    assert_eq!(heading(&plain), "routed experts");
-    assert_eq!(heading(&read), "routed experts · floor read from the pass");
+    let pricing = Pricing::new(&pass().breakdown, peaks(), TimeReading::InPlace);
+    let floor = |component: &Component| pricing.floor_of(component).map(|floor| floor.time);
+    let at = |bounds: Bounds| Floor::new(bounds, &peaks()).map(|floor| floor.time);
+    assert_eq!(floor(&plain), at(declared));
+    assert_eq!(floor(&read), at(declared + observed));
+
+    let mut pass = pass();
+    pass.breakdown.tree.push(read);
+    let table = Report::new(&pass).to_string();
+    assert!(
+        table.contains("routed experts · floor read from the pass"),
+        "{table}"
+    );
+    assert!(
+        !table.contains("embedding · floor read from the pass"),
+        "{table}"
+    );
 }
 
 /// An empty component, so a fixture states only the fields it is about.
@@ -247,6 +260,17 @@ fn component() -> Component {
     }
 }
 
+/// What the kernel rung counts of `component`'s own kernels beside its children's floors.
+fn counted_beside_its_children(report: &Report<'_>, component: &Component) -> Duration {
+    let pricing = report.pricing();
+    pricing.deepest_floor(component)
+        - component
+            .children
+            .iter()
+            .map(|child| pricing.deepest_floor(child))
+            .sum::<Duration>()
+}
+
 fn kernel(name: &str, launches: usize, micros: u64) -> Kernel {
     Kernel {
         name: name.to_string(),
@@ -260,7 +284,7 @@ fn kernel(name: &str, launches: usize, micros: u64) -> Kernel {
 /// Without an uncollected run there is no host to split off, and a pass
 /// timed alone has nothing to apportion its components onto: they stay the
 /// serialized kernels' own times, and the table says only their proportions
-/// mean anything rather than print a `framework` line it cannot know.
+/// mean anything rather than print a `host` line it cannot know.
 #[test]
 fn a_pass_without_a_clean_run_splits_nothing_and_says_so() {
     let pass = CollectedPass {
@@ -268,7 +292,7 @@ fn a_pass_without_a_clean_run_splits_nothing_and_says_so() {
         ..pass()
     };
     let report = Report::new(&pass);
-    assert_eq!(report.framework(), None);
+    assert_eq!(report.host_split().host(), None);
     assert_eq!(
         report.wall(),
         pass.breakdown.total_time(),
@@ -276,7 +300,7 @@ fn a_pass_without_a_clean_run_splits_nothing_and_says_so() {
     );
     let embedding = &pass.breakdown.tree[0];
     assert_eq!(
-        report.apportioned(embedding),
+        report.reading().apportioned(embedding),
         embedding.total_time(),
         "nothing to apportion onto"
     );
@@ -307,7 +331,11 @@ fn an_unprobed_pass_says_why_nothing_is_scored() {
     };
     let report = Report::new(&pass);
     for (_, component) in pass.breakdown.tree.iter().flat_map(|root| root.walk()) {
-        assert!(report.score_of(component).is_none(), "{}", component.label);
+        assert!(
+            report.pricing().score_of(component).is_none(),
+            "{}",
+            component.label
+        );
     }
     let table = report.to_string();
     assert!(table.contains("not probed"), "{table}");
@@ -338,7 +366,10 @@ fn a_host_split_names_why_it_has_none() {
     };
     assert_eq!(
         in_place(Some(2_000), 1_500),
-        HostSplit::Measured(Duration::from_micros(500))
+        HostSplit::Measured {
+            host: Duration::from_micros(500),
+            waited: Duration::ZERO,
+        }
     );
     assert_eq!(in_place(None, 1_500), HostSplit::NoCleanRun);
     assert_eq!(in_place(Some(2_000), 0), HostSplit::NothingTimed);
@@ -360,7 +391,10 @@ fn a_time_reading_apportions_only_onto_a_clean_run() {
     assert_eq!(reading(false, None), TimeReading::InPlace);
     assert_eq!(
         reading(true, Some(2_000)),
-        TimeReading::ApportionedOnto(Duration::from_micros(2_000))
+        TimeReading::ApportionedOnto {
+            wall: Duration::from_micros(2_000),
+            serialized: pass().breakdown.total_time(),
+        }
     );
     assert_eq!(reading(true, None), TimeReading::Serialized);
 }
@@ -393,7 +427,12 @@ fn a_table_carries_every_column_a_reader_acts_on() {
         table.contains("pass"),
         "what the components break down:\n{table}"
     );
-    assert!(table.contains("framework"), "the host half:\n{table}");
+    assert!(
+        table
+            .lines()
+            .any(|line| line.trim_start().starts_with("host")),
+        "the host half:\n{table}"
+    );
     assert!(
         table.contains("how much is on the table"),
         "the ladder:\n{table}"
@@ -472,15 +511,16 @@ fn a_fused_kernel_on_a_parent_is_not_counted_twice() {
     };
     fused.breakdown.tree[1].kernels = vec![carried.clone()];
 
+    fused.breakdown.timed_alone = false;
     let rendered = Report::new(&fused);
     let block = &fused.breakdown.tree[1];
     assert_eq!(
-        rendered.unpriced_kernel_time(block),
+        counted_beside_its_children(&rendered, block),
         total,
         "their work is the kernel's, at what it took"
     );
     assert_eq!(
-        rendered.deepest_floor(&block.children[0]),
+        rendered.pricing().deepest_floor(&block.children[0]),
         Duration::ZERO,
         "and the norm's floor is not counted beside it"
     );
@@ -489,9 +529,10 @@ fn a_fused_kernel_on_a_parent_is_not_counted_twice() {
     // shared kernel is counted at their floors and not again.
     let mut partly = pass.clone();
     partly.breakdown.tree[1].kernels = vec![carried];
+    partly.breakdown.timed_alone = false;
     let rendered = Report::new(&partly);
     assert_eq!(
-        rendered.unpriced_kernel_time(&partly.breakdown.tree[1]),
+        counted_beside_its_children(&rendered, &partly.breakdown.tree[1]),
         Duration::ZERO
     );
 }
@@ -514,11 +555,15 @@ fn a_parent_fused_with_its_child_counts_shared_work_once() {
         ..kernel("ElemwiseFuse", 1, 0)
     }];
 
+    fused.breakdown.timed_alone = false;
     let rendered = Report::new(&fused);
     let block = &fused.breakdown.tree[1];
-    assert!(rendered.is_fused_elsewhere(&block.children[0]));
-    assert_eq!(rendered.unpriced_kernel_time(block), total);
-    assert_eq!(rendered.deepest_floor(&block.children[0]), Duration::ZERO);
+    assert!(rendered.pricing().is_fused_elsewhere(&block.children[0]));
+    assert_eq!(counted_beside_its_children(&rendered, block), total);
+    assert_eq!(
+        rendered.pricing().deepest_floor(&block.children[0]),
+        Duration::ZERO
+    );
     let table = rendered.to_string();
     assert!(
         table.contains("ElemwiseFuse ×1 · fuses ↑ attn norm"),
@@ -541,8 +586,11 @@ fn a_row_whose_work_ran_in_an_untagged_kernel_says_so() {
 
     let rendered = Report::new(&pass);
     let block = &pass.breakdown.tree[1];
-    assert!(rendered.is_fused_elsewhere(&block.children[0]));
-    assert_eq!(rendered.deepest_floor(&block.children[0]), Duration::ZERO);
+    assert!(rendered.pricing().is_fused_elsewhere(&block.children[0]));
+    assert_eq!(
+        rendered.pricing().deepest_floor(&block.children[0]),
+        Duration::ZERO
+    );
     let table = rendered.to_string();
     let component = table
         .lines()
@@ -567,11 +615,15 @@ fn a_parents_own_work_fused_with_a_priced_child_still_counts() {
         ..kernel("ElemwiseFuse", 1, 15)
     };
     pass.breakdown.tree[1].kernels = vec![residual.clone()];
+    pass.breakdown.timed_alone = false;
 
     let rendered = Report::new(&pass);
     let block = &pass.breakdown.tree[1];
-    assert!(!rendered.is_fused_elsewhere(&block.children[0]));
-    assert_eq!(rendered.unpriced_kernel_time(block), residual.total);
+    assert!(!rendered.pricing().is_fused_elsewhere(&block.children[0]));
+    assert_eq!(
+        counted_beside_its_children(&rendered, block),
+        residual.total
+    );
 }
 
 /// A kernel that carried out several components' work says whose, on the
@@ -626,26 +678,26 @@ fn a_pass_timed_in_place_splits_the_clean_pass_into_device_and_host() {
     let mut pass = pass();
     pass.breakdown.timed_alone = false;
     assert_eq!(
-        Report::new(&pass).framework(),
+        Report::new(&pass).host_split().host(),
         Some(Duration::from_micros(710))
     );
 
     let rendered = Report::new(&pass);
     let head = &pass.breakdown.tree[3].children[0];
     assert_eq!(
-        rendered.apportioned(head),
+        rendered.reading().apportioned(head),
         Duration::from_micros(260),
         "the kernel's own time, not a share of the wall"
     );
     assert_eq!(rendered.ladder().host, Duration::from_micros(710));
 
     let table = rendered.to_string();
-    let framework = table
+    let host = table
         .lines()
-        .find(|line| line.trim_start().starts_with("framework"))
-        .expect("the framework line");
-    assert!(framework.contains("0.7 ms"), "{framework}");
-    assert!(framework.contains("35.5%"), "{framework}");
+        .find(|line| line.trim_start().starts_with("host"))
+        .expect("the host line");
+    assert!(host.contains("0.7 ms"), "{host}");
+    assert!(host.contains("35.5%"), "{host}");
     assert!(table.contains("on device"), "{table}");
     assert!(table.contains("timed in place"), "{table}");
 }
@@ -666,14 +718,15 @@ fn the_host_time_is_split_by_where_the_device_waited() {
     let rendered = Report::new(&pass);
     let query = &pass.breakdown.tree[1].children[1].children[0];
     // Three quarters of the 710 µs the device waited in the clean pass.
-    let host = rendered.host(query).expect("a pass timed in place splits");
+    let host_of = |component: &Component| rendered.host_split().share(component.total_wait());
+    let host = host_of(query).expect("a pass timed in place splits");
     assert!(
         host.abs_diff(Duration::from_nanos(532_500)) < Duration::from_nanos(10),
         "{host:?}"
     );
     assert_eq!(
-        rendered.host(&pass.breakdown.tree[1]),
-        rendered.host(query),
+        host_of(&pass.breakdown.tree[1]),
+        host_of(query),
         "a component's host time is its children's as well"
     );
 
@@ -688,7 +741,10 @@ fn the_host_time_is_split_by_where_the_device_waited() {
 
     // Timed alone there is no host time to split.
     pass.breakdown.timed_alone = true;
-    assert_eq!(Report::new(&pass).host(query), None);
+    assert_eq!(
+        Report::new(&pass).host_split().share(query.total_wait()),
+        None
+    );
 }
 
 /// Timed alone, the kernels' sum is a serialized pass's, so subtracting it
@@ -696,15 +752,15 @@ fn the_host_time_is_split_by_where_the_device_waited() {
 #[test]
 fn a_pass_timed_alone_does_not_split_off_the_host() {
     let pass = pass();
-    assert_eq!(Report::new(&pass).framework(), None);
+    assert_eq!(Report::new(&pass).host_split().host(), None);
     assert_eq!(Report::new(&pass).ladder().host, Duration::ZERO);
 
     let table = Report::new(&pass).to_string();
-    let framework = table
+    let host = table
         .lines()
-        .find(|line| line.trim_start().starts_with("framework"))
-        .expect("the framework line");
-    assert!(framework.contains('—'), "{framework}");
+        .find(|line| line.trim_start().starts_with("host"))
+        .expect("the host line");
+    assert!(host.contains('—'), "{host}");
 }
 
 /// With nothing measured on the device there is no split to make — a pass
@@ -718,7 +774,7 @@ fn a_pass_with_no_device_time_splits_nothing() {
         clear(component);
     }
     pass.breakdown.untagged.clear();
-    assert_eq!(Report::new(&pass).framework(), None);
+    assert_eq!(Report::new(&pass).host_split().host(), None);
 
     fn clear(component: &mut Component) {
         component.kernels.clear();
@@ -750,13 +806,20 @@ fn a_composite_is_held_to_the_arithmetic_of_its_parts() {
         ..component()
     };
 
-    let held = Report::held(&model).expect("the model declared bounds");
-    assert_eq!(held.flops, parts);
+    let pricing = Pricing::new(&pass.breakdown, peaks(), TimeReading::InPlace);
+    let floor = pricing.floor_of(&model).expect("the model declared bounds");
+    let held = Bounds {
+        read: 1_000_000,
+        write: 1_000,
+        flops: parts,
+    };
+    let expected = Floor::new(held, &peaks()).expect("the device was probed");
     assert_eq!(
-        (held.read, held.write),
-        (1_000_000, 1_000),
-        "its traffic is its own"
+        (floor.bound, floor.time),
+        (expected.bound, expected.time),
+        "its traffic is its own, its arithmetic its parts'"
     );
+    assert_eq!(floor.bound, Bound::Flops);
 }
 
 /// An unpriced root — the model itself — does not hide the priced
@@ -806,6 +869,7 @@ fn a_priced_component_over_an_unpriced_subtree_keeps_its_own_floor() {
     }];
     let report = Report::new(&pass);
     let floor = report
+        .pricing()
         .floor_of(&pass.breakdown.tree[0])
         .expect("attention is priced")
         .time;
@@ -823,10 +887,10 @@ fn kernels_outside_every_component_are_apportioned_like_the_rest() {
     pass.breakdown.untagged = vec![kernel("Reshape", 1, 1_000)];
     let report = Report::new(&pass);
     let untagged = &pass.breakdown.untagged[0];
-    let apportioned = report.apportion(untagged.total);
+    let apportioned = Millis(report.reading().apportion(untagged.total)).to_string();
     assert_ne!(
-        ms(apportioned),
-        ms(untagged.total),
+        apportioned,
+        Millis(untagged.total).to_string(),
         "the fixture must tell them apart"
     );
 
@@ -835,7 +899,19 @@ fn kernels_outside_every_component_are_apportioned_like_the_rest() {
         .lines()
         .find(|line| line.contains("Reshape"))
         .expect("the untagged kernel");
-    assert!(line.ends_with(&ms(apportioned)), "{line}");
+    assert!(line.ends_with(&apportioned), "{line}");
+}
+
+/// The worklist names a component by its path: `gate` and `down` sit under every
+/// feed-forward, and a bare label leaves a reader to find which one by matching numbers.
+#[test]
+fn the_worklist_names_each_component_by_its_path() {
+    let table = Report::new(&pass()).to_string();
+    let worklist = &table[table.find("worth reading first").expect("a worklist")..];
+    assert!(
+        worklist.contains("transformer block › feed forward › gate"),
+        "{worklist}"
+    );
 }
 
 /// The fused work the last components left for the sync ending the pass
@@ -970,7 +1046,7 @@ fn a_broken_compute_peak_is_reported_not_divided_by() {
         .iter()
         .flat_map(|component| component.walk())
     {
-        if let Some(score) = rendered.score_of(component) {
+        if let Some(score) = rendered.pricing().score_of(component) {
             assert_eq!(score.bound, Bound::Bytes, "{}", component.label);
         }
     }
@@ -1069,18 +1145,6 @@ fn a_row_fed_from_one_site_carries_no_note() {
     assert!(
         !table.contains("was entered from"),
         "nothing to say about a component nothing merged into:\n{table}"
-    );
-}
-
-/// A site is shortened to what a reader greps for: the crate is the same
-/// for most components in the tree, and a `base` module holds a folder's one
-/// implementation, so neither tells anyone anything.
-#[test]
-fn a_site_is_named_by_its_module_and_entry() {
-    assert_eq!(site("my_model::rope::base::apply"), "rope::apply");
-    assert_eq!(
-        site("my_model::attention::cache::base::append"),
-        "attention::cache::append"
     );
 }
 
@@ -1338,17 +1402,23 @@ fn an_unscored_priced_row_keeps_its_floor() {
     let rendered = Report::new(&pass);
     let query = &pass.breakdown.tree[1].children[1].children[0];
     assert!(
-        rendered.score_of(query).is_none(),
+        rendered.pricing().score_of(query).is_none(),
         "nothing measured to score"
     );
-    let floor = rendered.floor_of(query).expect("the query is priced");
+    let floor = rendered
+        .pricing()
+        .floor_of(query)
+        .expect("the query is priced");
     let table = rendered.to_string();
     let component = table
         .lines()
         .find(|line| line.trim_start().starts_with("query"))
         .expect("the query's component");
     assert!(component.contains(&floor.bound.to_string()), "{component}");
-    assert!(component.contains(&ms(floor.time)), "{component}");
+    assert!(
+        component.contains(&Millis(floor.time).to_string()),
+        "{component}"
+    );
 }
 
 /// A kernel that launched and measured nothing is a lost timing, said in

@@ -11,8 +11,10 @@
 //! [`Comparison`].
 
 mod comparison;
+mod millis;
 mod report;
 pub mod roofline;
+mod served_by;
 
 pub use comparison::Comparison;
 pub use report::Report;
