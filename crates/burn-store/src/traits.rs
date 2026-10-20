@@ -8,7 +8,7 @@ use burn_pack::Tensor as PackTensor;
 use super::applier::Applier;
 use super::apply_result::ApplyResult;
 use crate::collector::Collector;
-use crate::{ModuleAdapter, PathFilter};
+use crate::{ModuleAdapter, PathFilter, StoreTensor};
 use burn_core::module::Module;
 
 /// Ends the process if dropped while a panic is unwinding.
@@ -78,8 +78,8 @@ pub trait ModuleSnapshot: Module {
     /// Applies tensors to the module.
     ///
     /// This is the primary apply method that applies tensor data to the corresponding
-    /// parameters in the module. The tensors are typically obtained from `collect()` or
-    /// loaded from storage.
+    /// parameters in the module. The tensors are typically loaded from storage, or obtained
+    /// from `collect()`; anything that converts into a [`StoreTensor`] is accepted.
     ///
     /// # Arguments
     ///
@@ -116,9 +116,9 @@ pub trait ModuleSnapshot: Module {
     /// // Apply with enum variant skipping (for PyTorch models)
     /// let result = model.apply(tensors, None, None, true);
     /// ```
-    fn apply(
+    fn apply<T: Into<StoreTensor>>(
         &mut self,
-        tensors: Vec<PackTensor>,
+        tensors: impl IntoIterator<Item = T>,
         filter: Option<PathFilter>,
         adapter: Option<Box<dyn ModuleAdapter>>,
         skip_enum_variants: bool,
@@ -255,7 +255,7 @@ pub trait ModuleStore {
     ///
     /// # Returns
     ///
-    /// * `Ok(Some(&burn_pack::Tensor))` - Reference to the tensor if found
+    /// * `Ok(Some(&StoreTensor))` - Reference to the tensor if found
     /// * `Ok(None)` - If no tensor with that name exists
     /// * `Err(Self::Error)` - If an error occurred accessing storage
     ///
@@ -267,12 +267,16 @@ pub trait ModuleStore {
     /// ```rust,ignore
     /// let mut store = BurnpackStore::from_file("model.bpk");
     /// if let Some(tensor) = store.get_tensor("encoder.weight")? {
-    ///     println!("Shape: {:?}", tensor.shape);
-    ///     println!("Dtype: {:?}", tensor.dtype);
-    ///     let data = burn_store::bridge::to_data(tensor)?;  // Lazy load
+    ///     println!("Shape: {:?}", tensor.shape());
+    ///     println!("Dtype: {:?}", tensor.dtype());
+    ///     let data = tensor.to_data()?;  // Lazy load
     /// }
     /// ```
-    fn get_tensor(&mut self, name: &str) -> Result<Option<&PackTensor>, Self::Error>;
+    ///
+    /// # Errors
+    ///
+    /// If the storage cannot be read.
+    fn get_tensor(&mut self, name: &str) -> Result<Option<&StoreTensor>, Self::Error>;
 
     /// Get all tensors from storage as an ordered map.
     ///
@@ -288,7 +292,7 @@ pub trait ModuleStore {
     ///
     /// # Returns
     ///
-    /// * `Ok(&BTreeMap<String, burn_pack::Tensor>)` - Reference to all tensors
+    /// * `Ok(&BTreeMap<String, StoreTensor>)` - Reference to all tensors
     /// * `Err(Self::Error)` - If an error occurred accessing storage
     ///
     /// # Example
@@ -296,10 +300,14 @@ pub trait ModuleStore {
     /// ```rust,ignore
     /// let mut store = SafetensorsStore::from_file("model.safetensors");
     /// for (name, tensor) in store.get_all_tensors()? {
-    ///     println!("{}: {:?}", name, tensor.shape);
+    ///     println!("{}: {:?}", name, tensor.shape());
     /// }
     /// ```
-    fn get_all_tensors(&mut self) -> Result<&BTreeMap<String, PackTensor>, Self::Error>;
+    ///
+    /// # Errors
+    ///
+    /// If the storage cannot be read.
+    fn get_all_tensors(&mut self) -> Result<&BTreeMap<String, StoreTensor>, Self::Error>;
 
     /// Get all tensor names/keys in storage.
     ///

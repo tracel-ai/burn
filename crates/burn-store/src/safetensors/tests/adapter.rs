@@ -173,14 +173,14 @@ fn half_precision_adapter_round_trip() {
     for (name, snapshot) in snapshots.iter() {
         if name.starts_with("linear") {
             assert_eq!(
-                snapshot.dtype,
+                snapshot.dtype(),
                 DType::F16,
                 "Linear tensor '{}' should be F16",
                 name
             );
         } else {
             assert_eq!(
-                snapshot.dtype,
+                snapshot.dtype(),
                 DType::F32,
                 "Raw param '{}' should stay F32",
                 name
@@ -248,14 +248,14 @@ fn half_precision_adapter_without_module() {
     for (name, snapshot) in snapshots {
         if name.starts_with("linear") {
             assert_eq!(
-                snapshot.dtype,
+                snapshot.dtype(),
                 DType::F16,
                 "Linear tensor '{}' should be F16",
                 name
             );
         } else if name.starts_with("norm") {
             assert_eq!(
-                snapshot.dtype,
+                snapshot.dtype(),
                 DType::F32,
                 "LayerNorm tensor '{}' should stay F32",
                 name
@@ -295,11 +295,11 @@ fn half_precision_adapter_default_converts_layer_norm() {
     let snapshots = inspect_store.get_all_tensors().unwrap();
     for (name, snapshot) in snapshots {
         assert_eq!(
-            snapshot.dtype,
+            snapshot.dtype(),
             DType::F16,
             "All tensors should be F16 by default, but '{}' is {:?}",
             name,
-            snapshot.dtype
+            snapshot.dtype()
         );
     }
 }
