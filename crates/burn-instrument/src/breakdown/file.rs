@@ -48,8 +48,8 @@ struct FileOut<'a> {
     version: u32,
     device: &'a str,
     peaks: Option<&'a Peaks>,
-    /// Whole nanoseconds, as every duration in the file.
-    clean_wall: Option<u64>,
+    #[serde(with = "super::nanoseconds::optional")]
+    clean_wall: Option<Duration>,
     breakdown: &'a Breakdown,
 }
 
@@ -110,10 +110,7 @@ impl CollectedPass {
             version: PASS_FILE_VERSION,
             device: &self.device,
             peaks: self.peaks.as_ref(),
-            // Saturating: a pass would have to run for 584 years to overflow.
-            clean_wall: self
-                .clean_wall
-                .map(|wall| u64::try_from(wall.as_nanos()).unwrap_or(u64::MAX)),
+            clean_wall: self.clean_wall,
             breakdown: &self.breakdown,
         };
         // Buffered, so a file handed in as is is not written a token at a time; flushed here so
@@ -144,12 +141,13 @@ impl CollectedPass {
                 supported: PASS_FILE_VERSION,
             });
         }
-        let clean_wall: Option<u64> =
-            serde_json::from_value(required(file.clean_wall, "clean_wall")?)?;
         Ok(Self {
             device: serde_json::from_value(required(file.device, "device")?)?,
             peaks: serde_json::from_value(required(file.peaks, "peaks")?)?,
-            clean_wall: clean_wall.map(Duration::from_nanos),
+            clean_wall: super::nanoseconds::optional::deserialize(required(
+                file.clean_wall,
+                "clean_wall",
+            )?)?,
             breakdown: serde_json::from_value(required(file.breakdown, "breakdown")?)?,
         })
     }
