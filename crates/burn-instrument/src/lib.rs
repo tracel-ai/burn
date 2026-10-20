@@ -103,8 +103,8 @@ pub use observer::*;
 
 #[cfg(feature = "std")]
 pub use breakdown::{
-    Breakdown, CollectedPass, Component, Kernel, PASS_FILE_VERSION, PassFileError, Unplaced,
-    Variant,
+    Breakdown, CollectedPass, Component, FusedElsewhere, Kernel, PASS_FILE_VERSION, PassFileError,
+    Unplaced, Variant,
 };
 #[cfg(feature = "std")]
 pub use component_path::ComponentPath;

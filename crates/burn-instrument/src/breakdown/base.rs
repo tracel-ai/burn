@@ -10,6 +10,8 @@ use serde::{Deserialize, Serialize};
 use crate::Bounds;
 use crate::component_path::ComponentPath;
 
+use super::FusedElsewhere;
+
 /// One collected pass, broken down by component.
 ///
 /// What [`PassCollector::collect`] returns: data only, so a breakdown
@@ -135,7 +137,7 @@ impl Breakdown {
     /// registered no device work — views and reshapes — also has no kernel, and
     /// its zero is its time; and a component whose own kernels lost their timings
     /// also reads zero, though it ran them.
-    pub fn fused_elsewhere(&self) -> Vec<&Component> {
+    pub fn fused_elsewhere(&self) -> FusedElsewhere<'_> {
         /// Whether `kernel` carried out work at `path` or below it.
         fn names(kernel: &Kernel, path: &ComponentPath) -> bool {
             kernel.fuses.iter().any(|fused| fused.starts_with(path))
@@ -514,10 +516,12 @@ mod tests {
             unfused: false,
         };
 
+        let fused_elsewhere = breakdown.fused_elsewhere();
         let fused: Vec<&str> = breakdown
-            .fused_elsewhere()
-            .iter()
-            .map(|component| component.label.as_str())
+            .components()
+            .into_iter()
+            .filter(|(_, component)| fused_elsewhere.contains(component))
+            .map(|(_, component)| component.label.as_str())
             .collect();
         assert_eq!(fused, ["norm"]);
     }
@@ -569,10 +573,12 @@ mod tests {
             unfused: false,
         };
 
+        let fused_elsewhere = breakdown.fused_elsewhere();
         let fused: Vec<&str> = breakdown
-            .fused_elsewhere()
-            .iter()
-            .map(|component| component.label.as_str())
+            .components()
+            .into_iter()
+            .filter(|(_, component)| fused_elsewhere.contains(component))
+            .map(|(_, component)| component.label.as_str())
             .collect();
         assert_eq!(fused, ["norm", "attention", "query"]);
     }

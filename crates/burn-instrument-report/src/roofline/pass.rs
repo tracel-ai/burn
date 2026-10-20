@@ -4,36 +4,29 @@
 use std::collections::HashSet;
 use std::time::Duration;
 
-use burn_instrument::{Bounds, Breakdown, Component, ComponentPath, Peaks};
+use burn_instrument::{Bounds, Breakdown, Component, ComponentPath, FusedElsewhere, Peaks};
 
 use super::{Floor, Score};
 use crate::reading::TimeReading;
 
 /// The roofline of one pass: every component held against its device's peaks — its floor and
 /// its score — and the floors of the ladder's two rungs below it.
-pub(crate) struct Roofline {
+pub(crate) struct Roofline<'a> {
     /// The pass's peaks, with any impossible reading dropped.
     peaks: Peaks,
     /// What the work no floor prices stands at.
     reading: TimeReading,
-    /// The components whose work all ran in a fused kernel recorded elsewhere, by address.
-    /// See [`Breakdown::fused_elsewhere`].
-    // By identity rather than by path: every caller holds a component borrowed
-    // from the pass this prices, and none of them its path. A tree that kept its
-    // collector's component indices would make both unnecessary.
-    fused_elsewhere: HashSet<*const Component>,
+    /// The components whose work all ran in a fused kernel recorded elsewhere, and so have
+    /// their floors set aside. See [`fused_elsewhere`](Self::fused_elsewhere).
+    fused_elsewhere: FusedElsewhere<'a>,
 }
 
-impl Roofline {
-    pub(crate) fn new(breakdown: &Breakdown, peaks: Peaks, reading: TimeReading) -> Self {
+impl<'a> Roofline<'a> {
+    pub(crate) fn new(breakdown: &'a Breakdown, peaks: Peaks, reading: TimeReading) -> Self {
         Self {
             peaks,
             reading,
-            fused_elsewhere: breakdown
-                .fused_elsewhere()
-                .into_iter()
-                .map(std::ptr::from_ref)
-                .collect(),
+            fused_elsewhere: breakdown.fused_elsewhere(),
         }
     }
 
@@ -42,16 +35,15 @@ impl Roofline {
         &self.peaks
     }
 
-    /// Whether all of `component`'s work ran in a fused kernel recorded elsewhere —
-    /// on a component above it, or outside every component.
+    /// The components whose work all ran in a fused kernel recorded elsewhere — on a
+    /// component above them, or outside every component.
     ///
     /// Such a component ran nothing, so it has no time to score and its declared
     /// floor is set aside: the work it declared is in the kernel that carried
     /// it out, which stands at what it took on the component that holds it. Counting
     /// the floor as well would price that work twice.
-    pub(crate) fn is_fused_elsewhere(&self, component: &Component) -> bool {
-        self.fused_elsewhere
-            .contains(&std::ptr::from_ref(component))
+    pub(crate) fn fused_elsewhere(&self) -> &FusedElsewhere<'a> {
+        &self.fused_elsewhere
     }
 
     /// This component's floor and the wall that sets it, when it declared bounds and the
@@ -138,9 +130,9 @@ impl Roofline {
     }
 
     /// What `component` is held to, unless its work all ran elsewhere. See
-    /// [`is_fused_elsewhere`](Self::is_fused_elsewhere).
+    /// [`fused_elsewhere`](Self::fused_elsewhere).
     fn priced(&self, component: &Component) -> Option<Bounds> {
-        match self.is_fused_elsewhere(component) {
+        match self.fused_elsewhere.contains(component) {
             true => None,
             false => Self::held(component),
         }

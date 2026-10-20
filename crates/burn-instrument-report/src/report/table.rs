@@ -621,7 +621,7 @@ impl ComponentLines<'_, '_> {
         ancestors: &[&Component],
     ) -> fmt::Result {
         let depth = ancestors.len();
-        let fused_elsewhere = self.report.roofline().is_fused_elsewhere(component);
+        let fused_elsewhere = self.report.roofline().fused_elsewhere().contains(component);
         let indent = "  ".repeat(depth);
         let label = fit(heading(component), self.width.saturating_sub(depth * 2));
         let scored = self.report.roofline().score_of(component);

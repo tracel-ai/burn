@@ -228,7 +228,8 @@ fn observed_traffic_raises_the_floor_and_marks_the_row() {
         ..plain.clone()
     };
 
-    let roofline = Roofline::new(&pass().breakdown, peaks(), TimeReading::InPlace);
+    let unscored = pass();
+    let roofline = Roofline::new(&unscored.breakdown, peaks(), TimeReading::InPlace);
     let floor = |component: &Component| roofline.floor_of(component).map(|floor| floor.time);
     let at = |bounds: Bounds| Floor::new(bounds, &peaks()).map(|floor| floor.time);
     assert_eq!(floor(&plain), at(declared));
@@ -560,7 +561,12 @@ fn a_parent_fused_with_its_child_counts_shared_work_once() {
     fused.breakdown.timed_alone = false;
     let rendered = Report::new(&fused);
     let block = &fused.breakdown.tree[1];
-    assert!(rendered.roofline().is_fused_elsewhere(&block.children[0]));
+    assert!(
+        rendered
+            .roofline()
+            .fused_elsewhere()
+            .contains(&block.children[0])
+    );
     assert_eq!(counted_beside_its_children(&rendered, block), total);
     assert_eq!(
         rendered.roofline().deepest_floor(&block.children[0]),
@@ -588,7 +594,12 @@ fn a_row_whose_work_ran_in_an_untagged_kernel_says_so() {
 
     let rendered = Report::new(&pass);
     let block = &pass.breakdown.tree[1];
-    assert!(rendered.roofline().is_fused_elsewhere(&block.children[0]));
+    assert!(
+        rendered
+            .roofline()
+            .fused_elsewhere()
+            .contains(&block.children[0])
+    );
     assert_eq!(
         rendered.roofline().deepest_floor(&block.children[0]),
         Duration::ZERO
@@ -621,7 +632,12 @@ fn a_parents_own_work_fused_with_a_priced_child_still_counts() {
 
     let rendered = Report::new(&pass);
     let block = &pass.breakdown.tree[1];
-    assert!(!rendered.roofline().is_fused_elsewhere(&block.children[0]));
+    assert!(
+        !rendered
+            .roofline()
+            .fused_elsewhere()
+            .contains(&block.children[0])
+    );
     assert_eq!(
         counted_beside_its_children(&rendered, block),
         residual.total

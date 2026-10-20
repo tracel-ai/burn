@@ -25,7 +25,7 @@ pub struct Report<'a> {
     /// read, already ordered — see [`Peaks::findings`].
     findings: Vec<PeakFinding>,
     /// The pass's roofline: what each component is held to.
-    roofline: Roofline,
+    roofline: Roofline<'a>,
     /// What a component's milliseconds are, given how its kernels were timed.
     reading: TimeReading,
     /// Whether the pass splits into the device's time and the host's.
@@ -96,7 +96,7 @@ impl<'a> Report<'a> {
     }
 
     /// The pass's roofline: what each component is held to.
-    pub(crate) fn roofline(&self) -> &Roofline {
+    pub(crate) fn roofline(&self) -> &Roofline<'a> {
         &self.roofline
     }
 
