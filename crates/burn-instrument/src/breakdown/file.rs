@@ -10,16 +10,16 @@ use serde::{Deserialize, Serialize};
 use super::Breakdown;
 use crate::Peaks;
 
-/// What a breakdown file says it is, so a reader can refuse anything else before decoding it.
-const FORMAT: &str = "burn-instrument breakdown";
+/// What a pass file says it is, so a reader can refuse anything else before decoding it.
+const FORMAT: &str = "burn-instrument pass";
 
-/// The version of the breakdown file format this build writes and reads.
+/// The version of the pass file format this build writes and reads.
 ///
 /// Every change to what a file serializes as (a field added, removed, renamed or re-encoded) is a
 /// new version, so a saved pass is read back as it was collected or not at all.
-pub const BREAKDOWN_FILE_VERSION: u32 = 2;
+pub const PASS_FILE_VERSION: u32 = 2;
 
-/// A collected pass and what it is scored against: what a breakdown file holds.
+/// A collected pass and what it is scored against: what a pass file holds.
 ///
 /// The breakdown alone says where the device time went. Scoring it needs the device's
 /// [`Peaks`], and splitting a pass into the device's time and the host's needs the same pass run
@@ -41,7 +41,7 @@ pub struct CollectedPass {
     pub breakdown: Breakdown,
 }
 
-/// A breakdown file as it is written.
+/// A pass file as it is written.
 #[derive(Serialize)]
 struct FileOut<'a> {
     format: &'static str,
@@ -53,11 +53,11 @@ struct FileOut<'a> {
     breakdown: &'a Breakdown,
 }
 
-/// A breakdown file as it is read: the header, and every other field parsed but not yet decoded,
+/// A pass file as it is read: the header, and every other field parsed but not yet decoded,
 /// so a file of another format or version is refused before its contents are.
 ///
 /// Every field may be missing here, and is checked in [`CollectedPass::read`]: a file with no
-/// format is not a breakdown, a version too wide for this build's is still one it does not read,
+/// format is not a pass, a version too wide for this build's is still one it does not read,
 /// and a field the version writes is never read as a default nobody wrote.
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -76,40 +76,38 @@ struct FileIn {
     breakdown: Option<serde_json::Value>,
 }
 
-/// Why a breakdown file could not be written or read back.
+/// Why a pass file could not be written or read back.
 #[derive(Debug, thiserror::Error)]
-pub enum BreakdownFileError {
+pub enum PassFileError {
     /// The file could not be written or read.
-    #[error("breakdown file: {0}")]
+    #[error("pass file: {0}")]
     Io(#[from] std::io::Error),
     /// The file is not JSON, or does not hold what its header says.
-    #[error("breakdown file is malformed: {0}")]
+    #[error("pass file is malformed: {0}")]
     Malformed(#[from] serde_json::Error),
-    /// The file is not a breakdown.
-    #[error("not a breakdown file: its format is `{found}`")]
-    NotABreakdown {
+    /// The file is not a pass.
+    #[error("not a pass file: its format is `{found}`")]
+    NotAPass {
         /// The format the file declares, empty for a file that declares none.
         found: String,
     },
-    /// The file is a breakdown in a version this build does not read.
-    #[error(
-        "breakdown file version {found} is not supported; this build reads version {supported}"
-    )]
+    /// The file is a pass in a version this build does not read.
+    #[error("pass file version {found} is not supported; this build reads version {supported}")]
     UnsupportedVersion {
         /// The version the file declares.
         found: u64,
-        /// The version this build reads, [`BREAKDOWN_FILE_VERSION`].
+        /// The version this build reads, [`PASS_FILE_VERSION`].
         supported: u32,
     },
 }
 
 impl CollectedPass {
     /// Write this pass as JSON, under a header naming the format and its
-    /// [`BREAKDOWN_FILE_VERSION`], so a pass collected on one machine can be read on another.
-    pub fn write(&self, writer: impl Write) -> Result<(), BreakdownFileError> {
+    /// [`PASS_FILE_VERSION`], so a pass collected on one machine can be read on another.
+    pub fn write(&self, writer: impl Write) -> Result<(), PassFileError> {
         let file = FileOut {
             format: FORMAT,
-            version: BREAKDOWN_FILE_VERSION,
+            version: PASS_FILE_VERSION,
             device: &self.device,
             peaks: self.peaks.as_ref(),
             // Saturating: a pass would have to run for 584 years to overflow.
@@ -129,7 +127,7 @@ impl CollectedPass {
     /// Read back a pass [`write`](Self::write) wrote, refusing a file of another format or
     /// version before decoding its contents, and one whose contents are not exactly what that
     /// version writes: a field missing or one it does not know.
-    pub fn read(mut reader: impl Read) -> Result<Self, BreakdownFileError> {
+    pub fn read(mut reader: impl Read) -> Result<Self, PassFileError> {
         // Read whole rather than parsed from the reader, which would read a file a byte at a
         // time.
         let mut bytes = Vec::new();
@@ -137,13 +135,13 @@ impl CollectedPass {
         let file: FileIn = serde_json::from_slice(&bytes)?;
         let format = file.format.unwrap_or_default();
         if format != FORMAT {
-            return Err(BreakdownFileError::NotABreakdown { found: format });
+            return Err(PassFileError::NotAPass { found: format });
         }
         let version = required(file.version, "version")?;
-        if version != u64::from(BREAKDOWN_FILE_VERSION) {
-            return Err(BreakdownFileError::UnsupportedVersion {
+        if version != u64::from(PASS_FILE_VERSION) {
+            return Err(PassFileError::UnsupportedVersion {
                 found: version,
-                supported: BREAKDOWN_FILE_VERSION,
+                supported: PASS_FILE_VERSION,
             });
         }
         let clean_wall: Option<u64> =
@@ -167,7 +165,7 @@ fn present<'de, D: serde::Deserializer<'de>>(
 }
 
 /// A field the version writes, or the error for a file that left it out.
-fn required<T>(field: Option<T>, name: &'static str) -> Result<T, BreakdownFileError> {
+fn required<T>(field: Option<T>, name: &'static str) -> Result<T, PassFileError> {
     field.ok_or_else(|| serde_json::Error::missing_field(name).into())
 }
 
@@ -205,11 +203,11 @@ mod tests {
     }
 
     /// The format version 2 is, field for field. A change that fails this test is a new
-    /// [`BREAKDOWN_FILE_VERSION`], not an edit to the expected text.
+    /// [`PASS_FILE_VERSION`], not an edit to the expected text.
     #[test]
     fn version_two_is_pinned() {
         let expected = r#"{
-  "format": "burn-instrument breakdown",
+  "format": "burn-instrument pass",
   "version": 2,
   "device": "Rocm(0)",
   "peaks": {
@@ -293,7 +291,7 @@ mod tests {
             assert!(
                 matches!(
                     CollectedPass::read(file.as_bytes()),
-                    Err(BreakdownFileError::Malformed(_))
+                    Err(PassFileError::Malformed(_))
                 ),
                 "{file}"
             );
@@ -301,17 +299,17 @@ mod tests {
     }
 
     /// The header is told apart before anything else: a file declaring no format is not a
-    /// breakdown, and a version wider than this build's is one it does not read.
+    /// pass, and a version wider than this build's is one it does not read.
     #[test]
     fn a_header_is_refused_for_what_it_says() {
         assert!(matches!(
             CollectedPass::read(r#"{"version": 2}"#.as_bytes()),
-            Err(BreakdownFileError::NotABreakdown { found }) if found.is_empty()
+            Err(PassFileError::NotAPass { found }) if found.is_empty()
         ));
-        let wide = r#"{"format": "burn-instrument breakdown", "version": 4294967296}"#;
+        let wide = r#"{"format": "burn-instrument pass", "version": 4294967296}"#;
         assert!(matches!(
             CollectedPass::read(wide.as_bytes()),
-            Err(BreakdownFileError::UnsupportedVersion {
+            Err(PassFileError::UnsupportedVersion {
                 found: 4_294_967_296,
                 supported: 2
             })
@@ -322,23 +320,23 @@ mod tests {
     /// know how to decode: version 1 carried no device and no peaks.
     #[test]
     fn another_version_is_refused_before_its_contents_are_decoded() {
-        let file = r#"{"format": "burn-instrument breakdown", "version": 1, "breakdown": "?"}"#;
+        let file = r#"{"format": "burn-instrument pass", "version": 1, "breakdown": "?"}"#;
         assert!(matches!(
             CollectedPass::read(file.as_bytes()),
-            Err(BreakdownFileError::UnsupportedVersion {
+            Err(PassFileError::UnsupportedVersion {
                 found: 1,
                 supported: 2
             })
         ));
     }
 
-    /// A file that is not a breakdown is refused by its header rather than misread as one.
+    /// A file that is not a pass is refused by its header rather than misread as one.
     #[test]
     fn another_format_is_refused() {
         let file = r#"{"format": "something else", "version": 2}"#;
         assert!(matches!(
             CollectedPass::read(file.as_bytes()),
-            Err(BreakdownFileError::NotABreakdown { found }) if found == "something else"
+            Err(PassFileError::NotAPass { found }) if found == "something else"
         ));
     }
 

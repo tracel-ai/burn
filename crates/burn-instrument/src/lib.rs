@@ -56,7 +56,7 @@
 //!
 //! A [`Breakdown`] is data, and a [`CollectedPass`] carries it beside the device's [`Peaks`] and
 //! the wall time of the same pass run uncollected. [`CollectedPass::write`] saves it as a
-//! versioned JSON file ([`BREAKDOWN_FILE_VERSION`]) that [`CollectedPass::read`] reads back on any
+//! versioned JSON file ([`PASS_FILE_VERSION`]) that [`CollectedPass::read`] reads back on any
 //! machine, with or without a runtime, to be scored there.
 //!
 //! # Feature flags
@@ -75,7 +75,7 @@
 #![cfg_attr(not(feature = "std"), doc = concat!("[`CollectedPass::write`]: ", concat!("https://docs.rs/burn-instrument/", env!("CARGO_PKG_VERSION"), "/burn_instrument/struct.CollectedPass.html#method.write")))]
 #![cfg_attr(not(feature = "std"), doc = concat!("[`CollectedPass::read`]: ", concat!("https://docs.rs/burn-instrument/", env!("CARGO_PKG_VERSION"), "/burn_instrument/struct.CollectedPass.html#method.read")))]
 #![cfg_attr(not(feature = "std"), doc = concat!("[`Peaks`]: ", concat!("https://docs.rs/burn-instrument/", env!("CARGO_PKG_VERSION"), "/burn_instrument/struct.Peaks.html")))]
-#![cfg_attr(not(feature = "std"), doc = concat!("[`BREAKDOWN_FILE_VERSION`]: ", concat!("https://docs.rs/burn-instrument/", env!("CARGO_PKG_VERSION"), "/burn_instrument/constant.BREAKDOWN_FILE_VERSION.html")))]
+#![cfg_attr(not(feature = "std"), doc = concat!("[`PASS_FILE_VERSION`]: ", concat!("https://docs.rs/burn-instrument/", env!("CARGO_PKG_VERSION"), "/burn_instrument/constant.PASS_FILE_VERSION.html")))]
 
 extern crate alloc;
 
@@ -103,8 +103,8 @@ pub use observer::*;
 
 #[cfg(feature = "std")]
 pub use breakdown::{
-    BREAKDOWN_FILE_VERSION, Breakdown, BreakdownFileError, CollectedPass, Component, Kernel,
-    Unplaced, Variant,
+    Breakdown, CollectedPass, Component, Kernel, PASS_FILE_VERSION, PassFileError, Unplaced,
+    Variant,
 };
 #[cfg(feature = "std")]
 pub use component_path::ComponentPath;
