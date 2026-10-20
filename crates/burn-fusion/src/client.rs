@@ -2,6 +2,7 @@ use crate::{
     FusionBackend, FusionDevice, FusionHandle, FusionRuntime, FusionServer, FusionTensor,
     FusionUtilities, UnfusedOp,
     stream::{StreamId, execution::Operation},
+    tensor::held,
 };
 use burn_backend::{
     Device, DeviceHandle, DeviceId, DeviceService, DeviceServiceStage, ServerUtilitiesHandle,
@@ -12,7 +13,7 @@ use burn_std::{
 };
 
 use burn_backend::{TensorData, backend::ExecutionError};
-use burn_ir::{OperationIr, TensorId, TensorIr};
+use burn_ir::{OperationIr, TensorError, TensorId, TensorIr};
 use burn_std::sync::RwLock;
 use hashbrown::HashSet;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -104,6 +105,9 @@ where
     where
         O: Operation<R> + 'static,
     {
+        // A drop can be registered while an operation is still being built: it releases nothing.
+        let submits_an_operation = !matches!(repr, OperationIr::Drop(_));
+
         // Create output tensors returned by this operation
         let outputs = repr
             .outputs()
@@ -137,11 +141,15 @@ where
             });
         }
 
+        if submits_an_operation {
+            held::release();
+        }
+
         outputs
     }
 
-    /// Free a tensor dropped on a thread other than its home `stream`. Same-stream drops must
-    /// keep using [`Self::register`].
+    /// Free a tensor outside its home `stream`'s queue, once no pending operation references it. A
+    /// drop on the home stream's own thread queues through [`Self::register`] instead.
     pub(crate) fn foreign_drop(&self, stream: StreamId, ir: TensorIr) {
         self.server
             .submit(move |server| server.foreign_drop(stream, ir));
@@ -205,6 +213,16 @@ where
         &self.device
     }
 
+    /// A tensor id on this client whose reads fail with `error`.
+    pub fn register_error(&self, error: TensorError) -> TensorId {
+        let id = self.create_empty_handle();
+
+        self.server
+            .submit(move |server| server.handles.set_error(id, error));
+
+        id
+    }
+
     /// Create a tensor with the given handle and returns its corresponding [tensor id](TensorId).
     pub fn register_tensor_handle(&self, handle: FusionHandle<R>) -> TensorId {
         let id = self.create_empty_handle();
@@ -227,6 +245,7 @@ where
         let read = self
             .server
             .submit_blocking(move |server| server.float_data::<B>(tensor, stream));
+        held::release();
         async move {
             match read {
                 Ok(read) => read.await,
@@ -247,6 +266,7 @@ where
         let read = self
             .server
             .submit_blocking(move |server| server.int_data::<B>(tensor, stream));
+        held::release();
         async move {
             match read {
                 Ok(read) => read.await,
@@ -267,6 +287,7 @@ where
         let read = self
             .server
             .submit_blocking(move |server| server.bool_data::<B>(tensor, stream));
+        held::release();
         async move {
             match read {
                 Ok(read) => read.await,
@@ -287,6 +308,7 @@ where
         let read = self
             .server
             .submit_blocking(move |server| server.quantized_data::<B>(tensor, stream));
+        held::release();
         async move {
             match read {
                 Ok(read) => read.await,
@@ -312,9 +334,9 @@ where
 
         let float_tensor = client_src
             .server
-            .submit_blocking(move |server_src| server_src.read_float::<B>(tensor, stream))
-            .unwrap();
-        match float_tensor {
+            .submit_blocking(move |server_src| server_src.read_float::<B>(tensor, stream));
+        held::release();
+        match float_tensor.unwrap() {
             Ok(float_tensor) => {
                 let float_tensor = B::float_to_device(float_tensor, client_dst.device());
                 client_dst.server.submit(move |server_dst| {
@@ -356,9 +378,9 @@ where
 
         let int_tensor = client_src
             .server
-            .submit_blocking(move |server_src| server_src.read_int::<B>(tensor, stream))
-            .unwrap();
-        match int_tensor {
+            .submit_blocking(move |server_src| server_src.read_int::<B>(tensor, stream));
+        held::release();
+        match int_tensor.unwrap() {
             Ok(int_tensor) => {
                 let int_tensor = B::int_to_device(int_tensor, client_dst.device());
                 client_dst.server.submit(move |server_dst| {
@@ -400,9 +422,9 @@ where
 
         let bool_tensor = client_src
             .server
-            .submit_blocking(move |server_src| server_src.read_bool::<B>(tensor, stream))
-            .unwrap();
-        match bool_tensor {
+            .submit_blocking(move |server_src| server_src.read_bool::<B>(tensor, stream));
+        held::release();
+        match bool_tensor.unwrap() {
             Ok(bool_tensor) => {
                 let bool_tensor = B::bool_to_device(bool_tensor, client_dst.device());
                 client_dst.server.submit(move |server_dst| {
@@ -444,9 +466,9 @@ where
 
         let q_tensor = client_src
             .server
-            .submit_blocking(move |server_src| server_src.read_quantized::<B>(tensor, stream))
-            .unwrap();
-        match q_tensor {
+            .submit_blocking(move |server_src| server_src.read_quantized::<B>(tensor, stream));
+        held::release();
+        match q_tensor.unwrap() {
             Ok(q_tensor) => {
                 let q_tensor = B::q_to_device(q_tensor, client_dst.device());
                 client_dst.server.submit(move |server_dst| {
@@ -484,9 +506,11 @@ where
         // `submit_blocking`, causing a fatal channel re-entrancy panic (`BorrowMutError`).
         let stream = tensor.stream;
         let tensor = tensor.into_ir();
-        self.server
-            .submit_blocking(move |server| server.resolve_server_float::<B>(tensor, stream))
-            .unwrap_or_else(|err| Err(crate::backend::server_error(err)))
+        let resolved = self
+            .server
+            .submit_blocking(move |server| server.resolve_server_float::<B>(tensor, stream));
+        held::release();
+        resolved.unwrap_or_else(|err| Err(crate::backend::server_error(err)))
     }
 
     /// Resolve the given int tensor to a primitive tensor, as a read does.
@@ -502,9 +526,11 @@ where
         // `submit_blocking`, causing a fatal channel re-entrancy panic (`BorrowMutError`).
         let stream = tensor.stream;
         let tensor = tensor.into_ir();
-        self.server
-            .submit_blocking(move |server| server.resolve_server_int::<B>(tensor, stream))
-            .unwrap_or_else(|err| Err(crate::backend::server_error(err)))
+        let resolved = self
+            .server
+            .submit_blocking(move |server| server.resolve_server_int::<B>(tensor, stream));
+        held::release();
+        resolved.unwrap_or_else(|err| Err(crate::backend::server_error(err)))
     }
 
     /// Resolve the given bool tensor to a primitive tensor, as a read does.
@@ -520,9 +546,69 @@ where
         // `submit_blocking`, causing a fatal channel re-entrancy panic (`BorrowMutError`).
         let stream = tensor.stream;
         let tensor = tensor.into_ir();
-        self.server
-            .submit_blocking(move |server| server.resolve_server_bool::<B>(tensor, stream))
-            .unwrap_or_else(|err| Err(crate::backend::server_error(err)))
+        let resolved = self
+            .server
+            .submit_blocking(move |server| server.resolve_server_bool::<B>(tensor, stream));
+        held::release();
+        resolved.unwrap_or_else(|err| Err(crate::backend::server_error(err)))
+    }
+
+    /// Resolve the given float tensor as a read does, keeping the failure claiming it as it is
+    /// carried, so it propagates from its root.
+    pub fn resolve_carrying_float<B>(
+        &self,
+        tensor: FusionTensor<R>,
+    ) -> Result<B::FloatTensorPrimitive, TensorError>
+    where
+        B: FusionBackend<FusionRuntime = R>,
+    {
+        self.resolve_carrying(tensor, |server, tensor, stream| {
+            server.read_float::<B>(tensor, stream)
+        })
+    }
+
+    /// Resolve the given int tensor as a read does, keeping the failure claiming it as it is carried.
+    pub fn resolve_carrying_int<B>(
+        &self,
+        tensor: FusionTensor<R>,
+    ) -> Result<B::IntTensorPrimitive, TensorError>
+    where
+        B: FusionBackend<FusionRuntime = R>,
+    {
+        self.resolve_carrying(tensor, |server, tensor, stream| {
+            server.read_int::<B>(tensor, stream)
+        })
+    }
+
+    /// Resolve the given bool tensor as a read does, keeping the failure claiming it as it is carried.
+    pub fn resolve_carrying_bool<B>(
+        &self,
+        tensor: FusionTensor<R>,
+    ) -> Result<B::BoolTensorPrimitive, TensorError>
+    where
+        B: FusionBackend<FusionRuntime = R>,
+    {
+        self.resolve_carrying(tensor, |server, tensor, stream| {
+            server.read_bool::<B>(tensor, stream)
+        })
+    }
+
+    fn resolve_carrying<T: Send + 'static>(
+        &self,
+        tensor: FusionTensor<R>,
+        read: impl FnOnce(&mut FusionServer<R>, TensorIr, StreamId) -> Result<T, TensorError>
+        + Send
+        + 'static,
+    ) -> Result<T, TensorError> {
+        // `into_ir()` runs on this thread: on the server thread, a cross-stream tensor's
+        // `shared_view` would `submit_blocking` again and panic on the re-entrancy.
+        let stream = tensor.stream;
+        let tensor = tensor.into_ir();
+        let read = self
+            .server
+            .submit_blocking(move |server| read(server, tensor, stream));
+        held::release();
+        read.unwrap_or_else(|err| Err(TensorError::new(crate::backend::server_error(err))))
     }
 
     /// Synchronize the collective operations.

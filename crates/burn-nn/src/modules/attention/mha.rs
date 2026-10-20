@@ -2,7 +2,7 @@ use crate::Initializer;
 use burn_core as burn;
 
 use crate::activation::Gelu;
-use crate::cache::TensorCache;
+use crate::cache::{CacheState, TensorCache};
 use crate::{Dropout, DropoutConfig, Linear, LinearConfig};
 use burn::config::Config;
 use burn::module::{Content, DisplaySettings, Module, ModuleDisplay};
@@ -23,9 +23,8 @@ pub struct MultiHeadAttentionConfig {
     /// The dropout rate. Default: 0.1
     #[config(default = 0.1)]
     pub dropout: f64,
-    /// The minimum value a float can take. Default: -1.0e4
-    /// This is used to mask attention scores before calculating attention weights.
-    /// A value too low might result in NaN.
+    /// Legacy masking value, retained for configuration compatibility. Default: -1.0e4
+    /// Attention masking uses negative infinity; this value has no effect.
     #[config(default = -1.0e4)]
     pub min_float: f64,
     /// Use "quiet softmax" instead of regular softmax.
@@ -90,7 +89,7 @@ pub struct MultiHeadAttention {
     pub n_heads: usize,
     /// Size of the key and query vectors.
     pub d_k: usize,
-    /// Minimum value a float can take.
+    /// Legacy masking value, retained for compatibility. This value has no effect.
     pub min_float: f64,
     /// Use "quiet softmax" instead of regular softmax.
     pub quiet_softmax: bool,
@@ -194,6 +193,7 @@ impl MhaInput {
 #[derive(Debug, Clone)]
 pub struct MhaOutput {
     /// The attention weights `[batch_size, n_heads, seq_length_1, seq_length_2]`.
+    /// Masked entries, including fully masked rows, have zero weight.
     /// During training, dropout is applied to these weights after softmax, so rows may not sum to 1.
     pub weights: Tensor<4>,
     /// The context tensor `[batch_size, seq_length_1, d_model]`.
@@ -255,13 +255,58 @@ impl MultiHeadAttention {
     /// of `key` or `value` differs from `query`, or if the sequence length of `value` differs
     /// from `key`.
     pub fn forward_cache(&self, input: MhaInput, cache: &mut MhaCache) -> MhaOutput {
+        self.forward_cache_inner(input, cache, false)
+    }
+
+    /// Applies cached attention, returning only the context tensor.
+    ///
+    /// Pass the full query prefix on each call: a nonempty prefill followed by exactly one
+    /// appended token per call. Keys and values follow the same rule for an
+    /// [autoregressive cache](MhaCache::autoregressive), or remain fixed for a
+    /// [cross-attention cache](MhaCache::autoregressive_cross_attention).
+    ///
+    /// After prefill, only the newest query attends to the cached keys and values. The returned
+    /// tensor includes the cached output prefix, just like [`forward_cache`](Self::forward_cache).
+    /// Attention masks use the full prefix shape; only their newest query row is evaluated.
+    /// Previously cached outputs are retained even if earlier input tokens or mask rows change.
+    ///
+    /// The same cache may be used interchangeably with [`forward_cache`](Self::forward_cache):
+    /// query projections are retained so that full attention weights remain available. When
+    /// dropout is active, this uses the full attention path to preserve its random draws.
+    /// Floating-point results may differ slightly because the attention matrix shapes differ.
+    ///
+    /// # Shapes
+    ///
+    /// - query: `[batch_size, seq_length_1, d_model]`
+    /// - key, value: `[batch_size, seq_length_2, d_model]`
+    /// - output: `[batch_size, seq_length_1, d_model]`
+    ///
+    /// # Panics
+    ///
+    /// Panics under the same shape constraints as [`forward_cache`](Self::forward_cache).
+    pub fn forward_cache_context(&self, input: MhaInput, cache: &mut MhaCache) -> Tensor<3> {
+        let dropout_active = self.dropout.prob > 0.0
+            && self.dropout.training.is_enabled()
+            && input.query.device().is_autodiff();
+        let last_query_only = cache.output.is_initialized() && !dropout_active;
+
+        self.forward_cache_inner(input, cache, last_query_only)
+            .context
+    }
+
+    fn forward_cache_inner(
+        &self,
+        mut input: MhaInput,
+        cache: &mut MhaCache,
+        last_query_only: bool,
+    ) -> MhaOutput {
         let [batch_size, seq_length_1, d_model] = input.query.dims();
         let [_, seq_length_2, _] = input.key.dims();
         assert_shape!(input.query, [_, _, self.d_model]);
         assert_shape!(input.key, [batch_size, _, self.d_model]);
         assert_shape!(input.value, [batch_size, seq_length_2, self.d_model]);
 
-        let query = cache
+        let mut query = cache
             .query
             .forward(input.query, |t| self.attention_linear(t, &self.query));
         let key = cache
@@ -271,6 +316,24 @@ impl MultiHeadAttention {
             .value
             .forward(input.value, |t| self.attention_linear(t, &self.value));
 
+        if last_query_only {
+            assert_shape!(query, [batch_size, self.n_heads, seq_length_1, self.d_k]);
+            query = query.slice([
+                0..batch_size,
+                0..self.n_heads,
+                seq_length_1 - 1..seq_length_1,
+                0..self.d_k,
+            ]);
+            input.mask_attn = input.mask_attn.map(|mask| {
+                let [batch_size, query_length, key_length] = mask.dims();
+                if query_length != 1 {
+                    assert_shape!(mask, [_, seq_length_1, _]);
+                }
+                mask.slice([0..batch_size, query_length - 1..query_length, 0..key_length])
+            });
+        }
+
+        let seq_length_1 = if last_query_only { 1 } else { seq_length_1 };
         let attn_scores = self.attn_scores(query, key);
         let weights = self.attn_weights(attn_scores, input.mask_pad, input.mask_attn);
 
@@ -296,28 +359,37 @@ impl MultiHeadAttention {
         mask_pad: Option<Tensor<2, Bool>>,
         mask_attn: Option<Tensor<3, Bool>>,
     ) -> Tensor<4> {
-        if let Some(mask_pad) = mask_pad {
+        let mask_pad = mask_pad.map(|mask_pad| {
             let [batch_size, seq_length] = mask_pad.dims();
-
-            attn_scores = attn_scores.mask_fill(
-                mask_pad.reshape([batch_size, 1, 1, seq_length]),
-                self.min_float,
-            );
-        }
-
-        if let Some(mask_attn) = mask_attn {
+            mask_pad.reshape([batch_size, 1, 1, seq_length])
+        });
+        let mask_attn = mask_attn.map(|mask_attn| {
             let [batch_size, seq_length_1, seq_length_2] = mask_attn.dims();
+            mask_attn.reshape([batch_size, 1, seq_length_1, seq_length_2])
+        });
+        let mask = match (mask_pad, mask_attn) {
+            (Some(mask_pad), Some(mask_attn)) => Some(mask_pad.bool_or(mask_attn)),
+            (Some(mask), None) | (None, Some(mask)) => Some(mask),
+            (None, None) => None,
+        };
 
-            attn_scores = attn_scores.mask_fill(
-                mask_attn.reshape([batch_size, 1, seq_length_1, seq_length_2]),
-                self.min_float,
-            );
+        if let Some(mask) = &mask {
+            attn_scores = attn_scores.mask_fill(mask.clone(), f32::NEG_INFINITY);
+            // Avoid NaNs in both forward and backward by making fully masked rows
+            // finite before softmax. Their weights are explicitly zeroed below.
+            attn_scores = attn_scores.mask_fill(mask.clone().all_dim(3), 0.0);
         }
 
         let weights = if self.quiet_softmax {
             quiet_softmax(attn_scores, 3)
         } else {
             softmax(attn_scores, 3)
+        };
+
+        let weights = if let Some(mask) = mask {
+            weights.mask_fill(mask, 0.0)
+        } else {
+            weights
         };
 
         self.dropout.forward(weights)
@@ -371,6 +443,13 @@ impl MhaCache {
 }
 
 impl<const D: usize> MhaLinearCache<D> {
+    fn is_initialized(&self) -> bool {
+        let cache = match self {
+            Self::Autoregressive(cache, _) | Self::Full(cache) => cache,
+        };
+        matches!(&cache.state, CacheState::Value(_))
+    }
+
     pub fn forward<F: Fn(Tensor<3>) -> Tensor<D>>(
         &mut self,
         tensor: Tensor<3>,
@@ -386,13 +465,194 @@ impl<const D: usize> MhaLinearCache<D> {
 }
 
 #[cfg(test)]
+#[path = "mha_cache_tests.rs"]
+mod cache_tests;
+
+#[cfg(test)]
 mod tests {
     use super::*;
     use crate::attention::generate_autoregressive_mask;
     use alloc::vec::Vec;
     use burn::tensor::Int;
     use burn::tensor::Tolerance;
+    use burn::tensor::{DType, TensorData};
     use burn::tensor::{Distribution, Shape};
+    use rstest::rstest;
+
+    #[rstest]
+    #[case(DType::F16)]
+    #[case(DType::BF16)]
+    #[case(DType::F32)]
+    #[case(DType::F64)]
+    fn masked_attention_weights(#[case] dtype: DType) {
+        let device = crate::test_device();
+        let mha = MultiHeadAttentionConfig::new(2, 2)
+            .with_dropout(0.0)
+            // The legacy masking value must not let masked keys contribute.
+            .with_min_float(-1.0)
+            .init(&device);
+        let scores = Tensor::<4>::from_data(
+            [[
+                [[num_traits::Float::ln(3.0f32), 0.0, 100.0], [1.0, 2.0, 3.0]],
+                [[num_traits::Float::ln(3.0f32), 0.0, 100.0], [1.0, 2.0, 3.0]],
+            ]],
+            (&device, dtype),
+        );
+        let mask =
+            Tensor::<3, Bool>::from_data([[[false, false, true], [true, true, true]]], &device);
+        let weights = mha.attn_weights(scores, None, Some(mask));
+        assert_eq!(weights.dtype(), dtype);
+        weights.into_data().assert_approx_eq::<f32>(
+            &TensorData::from([[
+                [[0.75, 0.25, 0.0], [0.0, 0.0, 0.0]],
+                [[0.75, 0.25, 0.0], [0.0, 0.0, 0.0]],
+            ]]),
+            Tolerance::absolute(0.01),
+        );
+    }
+
+    #[rstest]
+    #[case(DType::F16)]
+    #[case(DType::BF16)]
+    #[case(DType::F32)]
+    #[case(DType::F64)]
+    fn combined_attention_masks(#[case] dtype: DType) {
+        let device = crate::test_device();
+        let mha = MultiHeadAttentionConfig::new(2, 2)
+            .with_dropout(0.0)
+            .init(&device);
+        let scores = Tensor::<4>::zeros([2, 2, 2, 3], (&device, dtype));
+        let pad = Tensor::<2, Bool>::from_data([[false, false, true], [true, true, true]], &device);
+        let attn = Tensor::<3, Bool>::from_data(
+            [
+                [[true, false, false], [true, true, false]],
+                [[false, false, false], [false, false, false]],
+            ],
+            &device,
+        );
+        let weights = mha.attn_weights(scores, Some(pad), Some(attn));
+        weights.into_data().assert_eq(
+            &TensorData::from([
+                [
+                    [[0.0, 1.0, 0.0], [0.0, 0.0, 0.0]],
+                    [[0.0, 1.0, 0.0], [0.0, 0.0, 0.0]],
+                ],
+                [
+                    [[0.0, 0.0, 0.0], [0.0, 0.0, 0.0]],
+                    [[0.0, 0.0, 0.0], [0.0, 0.0, 0.0]],
+                ],
+            ])
+            .convert_dtype(dtype),
+            true,
+        );
+    }
+
+    #[test]
+    fn masked_attention_below_min_float_stays_normalized() {
+        let device = crate::test_device();
+        let mha = MultiHeadAttentionConfig::new(1, 1)
+            .with_dropout(0.0)
+            .init(&device);
+        let scores = Tensor::<4>::from_data([[[[-20000.0, -20000.0, 0.0]]]], &device);
+        let mask = Tensor::<3, Bool>::from_data([[[false, false, true]]], &device);
+        mha.attn_weights(scores, None, Some(mask))
+            .into_data()
+            .assert_approx_eq::<f32>(
+                &TensorData::from([[[[0.5, 0.5, 0.0]]]]),
+                Tolerance::default(),
+            );
+    }
+
+    #[rstest]
+    fn masked_attention_preserves_gradients(
+        #[values(false, true)] quiet: bool,
+        #[values(DType::F16, DType::BF16, DType::F32, DType::F64)] dtype: DType,
+    ) {
+        let device = crate::test_device().autodiff();
+        let mha = MultiHeadAttentionConfig::new(1, 1)
+            .with_dropout(0.0)
+            .with_quiet_softmax(quiet)
+            .init(&device);
+        let scores =
+            Tensor::<4>::from_data([[[[0.0, 0.0, 10.0], [1.0, 2.0, 3.0]]]], (&device, dtype))
+                .require_grad();
+        let values =
+            Tensor::<4>::from_data([[[[2.0], [6.0], [100.0]]]], (&device, dtype)).require_grad();
+        let mask =
+            Tensor::<3, Bool>::from_data([[[false, false, true], [true, true, true]]], &device);
+        let context = mha
+            .attn_weights(scores.clone(), None, Some(mask))
+            .matmul(values.clone());
+        let weight = if quiet { 1.0f32 / 3.0 } else { 0.5 };
+        let expected_context = 8.0 * weight;
+        context.clone().into_data().assert_approx_eq::<f32>(
+            &TensorData::from([[[[expected_context], [0.0]]]]),
+            Tolerance::absolute(0.02),
+        );
+        let grads = context.sum().backward();
+        scores
+            .grad(&grads)
+            .unwrap()
+            .into_data()
+            .assert_approx_eq::<f32>(
+                &TensorData::from([[[
+                    [
+                        (2.0 - expected_context) * weight,
+                        (6.0 - expected_context) * weight,
+                        0.0,
+                    ],
+                    [0.0, 0.0, 0.0],
+                ]]]),
+                Tolerance::absolute(0.01),
+            );
+        values
+            .grad(&grads)
+            .unwrap()
+            .into_data()
+            .assert_approx_eq::<f32>(
+                &TensorData::from([[[[weight], [weight], [0.0]]]]),
+                Tolerance::absolute(0.01),
+            );
+    }
+
+    #[rstest]
+    #[case(false)]
+    #[case(true)]
+    fn fully_masked_attention_ignores_values(
+        #[case] cached: bool,
+        #[values(false, true)] quiet: bool,
+    ) {
+        let device = crate::test_device();
+        let mha = MultiHeadAttentionConfig::new(2, 1)
+            .with_dropout(0.0)
+            .with_output_bias(false)
+            .with_quiet_softmax(quiet)
+            .init(&device);
+        let query = Tensor::<3>::zeros([1, 1, 2], &device);
+        let key = Tensor::<3>::zeros([1, 2, 2], &device);
+        let mask = Tensor::<2, Bool>::from_data([[true, true]], &device);
+        for value in [1.0, 100.0] {
+            let input = MhaInput::new(
+                query.clone(),
+                key.clone(),
+                Tensor::full([1, 2, 2], value, &device),
+            )
+            .mask_pad(mask.clone());
+            let output = if cached {
+                mha.forward_cache(input, &mut MhaCache::autoregressive_cross_attention())
+            } else {
+                mha.forward(input)
+            };
+            output
+                .weights
+                .into_data()
+                .assert_eq(&TensorData::zeros::<f32, _>([1, 1, 1, 2]), true);
+            output
+                .context
+                .into_data()
+                .assert_eq(&TensorData::zeros::<f32, _>([1, 1, 2]), true);
+        }
+    }
 
     #[test]
     fn attention_dropout_applies_after_softmax() {

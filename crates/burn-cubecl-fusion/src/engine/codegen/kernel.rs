@@ -272,6 +272,7 @@ fn fuse(
             FuseOp::Sub(op) => sub::<E, N>(inputs, outputs, locals, pos, op, config),
             FuseOp::Mul(op) => mul::<E, N>(inputs, outputs, locals, pos, op, config),
             FuseOp::Powf(op) => powf::<E, N>(inputs, outputs, locals, pos, op, config),
+            FuseOp::Powi(op) => powi::<E, N>(inputs, outputs, locals, pos, op, config),
             FuseOp::Erf(op) => erf::<E, N>(inputs, outputs, locals, pos, op, config),
             FuseOp::Sqrt(op) => sqrt::<E, N>(inputs, outputs, locals, pos, op, config),
             FuseOp::Abs(op) => abs::<E, N>(inputs, outputs, locals, pos, op, config),
@@ -346,6 +347,7 @@ fn fuse(
                 config,
             ),
             FuseOp::Rem(op) => rem::<E, N>(inputs, outputs, locals, pos, op, config),
+            FuseOp::Fmod(op) => fmod::<E, N>(inputs, outputs, locals, pos, op, config),
             FuseOp::Clamp {
                 input,
                 min,
@@ -1151,7 +1153,34 @@ comparison_op!(lower, Vector::<C, N>::less_than);
 comparison_op!(lower_equal, Vector::<C, N>::less_equal);
 
 binary_func!(powf, Vector::<C, N>::powf, Float);
+
+#[cube]
+fn powi<C: Float, N: Size>(
+    inputs: &GlobalArgs,
+    outputs: &mut GlobalArgs,
+    locals: &mut LocalArgs,
+    write_pos: usize,
+    #[comptime] op: BinaryFuseArgs,
+    #[comptime] config: &FuseBlockConfig,
+) {
+    let lhs = read::<C, N>(inputs, &*outputs, &*locals, write_pos, op.lhs, config);
+    let rhs = read::<i32, N>(inputs, &*outputs, &*locals, write_pos, op.rhs, config);
+    let result = lhs.powi(rhs);
+    write::<C, N>(inputs, outputs, locals, write_pos, result, op.out, config);
+}
+
 binary_func!(rem, Vector::<C, N>::mod_floor, Float);
+binary_func!(fmod, fmod_vector::<C, N>, Float);
+
+/// `fmod(x, ±inf)` is `x` for a finite `x` and NaN for an infinite one. Targets disagree on `%`
+/// there: WGSL and Vulkan allow `x - y * trunc(x / y)`, which is NaN for a finite `x`, and NVPTX
+/// returns `x` even when `x` is infinite. So that case is handled explicitly.
+#[cube]
+fn fmod_vector<F: Float, N: Size>(lhs: Vector<F, N>, rhs: Vector<F, N>) -> Vector<F, N> {
+    let nan = Vector::new(F::new(f64::NAN));
+    let inf_divisor = select_many(Vector::is_inf(lhs), nan, lhs);
+    select_many(Vector::is_inf(rhs), inf_divisor, lhs % rhs)
+}
 
 unary_func!(exp, Vector::<C, N>::exp, Float);
 unary_func!(log, Vector::<C, N>::ln, Float);

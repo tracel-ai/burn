@@ -17,13 +17,13 @@ pub enum ServeError {
     },
     /// The server was given no device to host.
     NoDevices,
-    /// A device whose backend cannot run remote sessions, such as LibTorch or a remote device.
+    /// A device whose backend cannot run remote sessions, such as a remote device.
     UnsupportedDevice {
         /// Which device, and why.
         reason: String,
     },
     /// The devices belong to more than one backend. Every CubeCL runtime is one backend, so CUDA
-    /// and wgpu devices can be served together, but not with Flex or NdArray ones.
+    /// and wgpu devices can be served together, but not with Flex ones.
     MixedBackends,
     /// Custom operations were registered for a backend other than the devices'.
     CustomOpBackend {

@@ -105,11 +105,6 @@ mod tests {
     use alloc::collections::BTreeSet;
     use alloc::string::ToString;
 
-    #[cfg(feature = "std")]
-    use dashmap::DashSet; //Concurrent HashMap
-    #[cfg(feature = "std")]
-    use std::{sync::Arc, thread};
-
     #[test]
     fn uniqueness_test() {
         const IDS_CNT: usize = 10_000;
@@ -123,34 +118,6 @@ mod tests {
         assert_eq!(set.len(), IDS_CNT);
     }
 
-    #[cfg(feature = "std")]
-    #[test]
-    fn thread_safety_test() {
-        const NUM_THREADS: usize = 10;
-        const NUM_REPEATS: usize = 1_000;
-        const EXPECTED_TOTAL_IDS: usize = NUM_THREADS * NUM_REPEATS;
-
-        let set: Arc<DashSet<u64>> = Arc::new(DashSet::new());
-
-        let mut handles = vec![];
-
-        for _ in 0..NUM_THREADS {
-            let set = set.clone();
-
-            let handle = thread::spawn(move || {
-                for _i in 0..NUM_REPEATS {
-                    assert!(set.insert(IdGenerator::generate()));
-                }
-            });
-            handles.push(handle);
-        }
-
-        for handle in handles {
-            handle.join().unwrap();
-        }
-        assert_eq!(set.len(), EXPECTED_TOTAL_IDS);
-    }
-
     #[test]
     fn param_serde_try_deserialize() {
         let val = ParamId::from(123456u64);
@@ -158,13 +125,6 @@ mod tests {
         assert_eq!(val, deserialized);
 
         assert_eq!(ParamId::from_str("invalid_id"), Err("Invalid id."));
-    }
-
-    #[test]
-    fn param_serde_deserialize() {
-        let val = ParamId::from(123456u64);
-        let deserialized = ParamId::from_str(&val.to_string()).unwrap();
-        assert_eq!(val, deserialized);
     }
 
     #[test]

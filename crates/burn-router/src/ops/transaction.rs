@@ -14,25 +14,22 @@ impl<R: RouterChannel> TransactionOps<Self> for BackendRouter<R> {
         transaction: TransactionPrimitive<Self>,
     ) -> impl Future<Output = Result<TransactionPrimitiveData, ExecutionError>> + Send {
         let floats = transaction.read_floats.len();
+        let qfloats = transaction.read_qfloats.len();
         let ints = transaction.read_ints.len();
-        let reads = transaction.read_qfloats.is_empty().then(|| {
-            TransactionReads::new(
-                transaction
-                    .read_floats
-                    .into_iter()
-                    .chain(transaction.read_ints)
-                    .chain(transaction.read_bools),
-            )
-        });
+        let reads = TransactionReads::new(
+            transaction
+                .read_floats
+                .into_iter()
+                .chain(transaction.read_qfloats)
+                .chain(transaction.read_ints)
+                .chain(transaction.read_bools),
+        );
 
         async move {
-            let reads = reads.ok_or_else(|| {
-                ExecutionError::generic("A router transaction cannot read quantized tensors yet")
-            })?;
             let mut data = reads.wait().await?.into_iter();
             Ok(TransactionPrimitiveData {
                 read_floats: data.by_ref().take(floats).collect(),
-                read_qfloats: Vec::new(),
+                read_qfloats: data.by_ref().take(qfloats).collect(),
                 read_ints: data.by_ref().take(ints).collect(),
                 read_bools: data.collect(),
             })

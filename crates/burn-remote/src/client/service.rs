@@ -1,9 +1,16 @@
-use crate::metrics::{MetricSide, TelemetryLogger, logger_task};
-use crate::shared::{
-    LocalTransferId, PROTOCOL_VERSION, RemoteMessage, RequestId, SessionId, SessionInfo,
-    SessionInit, Task, TaskResponse, TaskResponseContent, TensorRemote, TransferCapability,
+use crate::{
+    metrics::{MetricSide, TelemetryLogger, logger_task},
+    shared::{
+        Encode, LocalTransferId, PROTOCOL_VERSION, RemoteMessage, RequestId, SessionId,
+        SessionInfo, SessionInit, Task, TaskResponse, TaskResponseContent, TensorRemote,
+        TransferCapability,
+    },
+    telemetry::{CHANNEL_CAPACITY, TelemetryEvent, TelemetryProbe, serialized_len},
+    transport::{
+        link::{FrameSink, FrameSource, MAX_FRAME_SIZE, MAX_UNAUTHORIZED_FRAME_SIZE},
+        message::MessageSource,
+    },
 };
-use crate::telemetry::{CHANNEL_CAPACITY, TelemetryEvent, TelemetryProbe, serialized_len};
 use burn_backend::{
     DTypeUsageSet, ExecutionError, ProfileDuration, ProfileOptions, ProfileTicks, ProfileToken,
     TensorData,
@@ -191,27 +198,44 @@ impl RemoteService {
         executor.block_on(endpoint.open_channels())
     }
 
-    /// Send the session-init handshake on both streams and wait for the server's answer, checked
-    /// to speak this client's protocol version. Both streams carry the same `Vec<RemoteMessage>`
-    /// wire format; the handshake is just a single-element batch.
-    async fn handshake_async(
-        streams: &mut SessionStreams,
+    /// The session-init handshake: a single-element `Vec<RemoteMessage>` batch, refused before any
+    /// stream opens if it is larger than a server reads from a client it has not admitted.
+    fn init_frame(
         endpoint: &RemoteEndpoint,
         session_id: SessionId,
         device_index: u32,
+    ) -> Result<bytes::Bytes, ConnectError> {
+        let init = vec![RemoteMessage::Init(SessionInit::new(
+            session_id,
+            device_index,
+            endpoint.credential().as_bytes().to_vec(),
+        ))]
+        .encode()
+        .expect("Can serialize RemoteMessage::Init")
+        .into_bytes();
+        if init.len() > MAX_UNAUTHORIZED_FRAME_SIZE {
+            return Err(ConnectError::InvalidConfiguration {
+                reason: format!(
+                    "the credential is too large: a server reads at most \
+                     {MAX_UNAUTHORIZED_FRAME_SIZE} bytes before admitting a client, and this \
+                     handshake takes {}",
+                    init.len()
+                ),
+            });
+        }
+        Ok(init)
+    }
+
+    /// Send the session-init handshake and wait for the server's answer, checked to speak this
+    /// client's protocol version. Both go in one bare frame, since a server on another version
+    /// refuses that way.
+    async fn handshake_async(
+        streams: &mut SessionStreams,
+        init: bytes::Bytes,
     ) -> Result<SessionInfo, ConnectError> {
         let failed = |reason: String| ConnectError::Handshake { reason };
-        let init_bytes: bytes::Bytes =
-            rmp_serde::to_vec(&vec![RemoteMessage::Init(SessionInit::new(
-                session_id,
-                device_index,
-                endpoint.credential().as_bytes().to_vec(),
-            ))])
-            .expect("Can serialize RemoteMessage::Init")
-            .into();
-
-        streams.submit.send(init_bytes).await.map_err(failed)?;
-        let msg = crate::time::timeout(OPEN_DEADLINE, streams.response.recv())
+        streams.submit.send(init).await.map_err(failed)?;
+        let msg = crate::time::timeout(OPEN_DEADLINE, streams.response.recv(MAX_FRAME_SIZE))
             .await
             .map_err(|()| {
                 failed(format!(
@@ -245,26 +269,16 @@ impl RemoteService {
     fn handshake(
         executor: &Executor,
         streams: &mut SessionStreams,
-        endpoint: &RemoteEndpoint,
-        session_id: SessionId,
-        device_index: u32,
+        init: bytes::Bytes,
     ) -> Result<SessionInfo, ConnectError> {
-        executor.block_on(Self::handshake_async(
-            streams,
-            endpoint,
-            session_id,
-            device_index,
-        ))
+        executor.block_on(Self::handshake_async(streams, init))
     }
 
     /// Spawn the response-demux task: route each [`TaskResponse`] to its pending callback by
     /// [`RequestId`] via the [`Responder`]. Lives on the service runtime; exits when the
     /// response stream closes, ending the session.
-    fn spawn_response_demux(
-        executor: &Executor,
-        mut response: ResponseChannel,
-        responder: Responder,
-    ) {
+    fn spawn_response_demux(executor: &Executor, response: ResponseChannel, responder: Responder) {
+        let mut response = MessageSource::new(response);
         // Detached: the task owns the response stream and runs until it closes.
         let _demux = executor.spawn(async move {
             loop {
@@ -327,14 +341,9 @@ pub(crate) struct WasmConnected {
 pub(crate) async fn wasm_connect(plan: WasmConnectPlan) -> Result<WasmConnected, ConnectError> {
     let executor = Executor::WasmLocal;
 
+    let init = RemoteService::init_frame(&plan.endpoint, plan.session_id, plan.device_index)?;
     let mut streams = plan.endpoint.open_channels().await?;
-    let info = RemoteService::handshake_async(
-        &mut streams,
-        &plan.endpoint,
-        plan.session_id,
-        plan.device_index,
-    )
-    .await?;
+    let info = RemoteService::handshake_async(&mut streams, init).await?;
 
     let responder = plan.responder.clone();
     RemoteService::spawn_response_demux(&executor, streams.response, plan.responder);
@@ -737,14 +746,9 @@ impl RemoteService {
                 self.endpoint.peer_addr(),
                 self.device_index
             );
+            let init = Self::init_frame(&self.endpoint, self.session_id, self.device_index)?;
             let mut streams = Self::connect_streams(&self.executor, &self.endpoint)?;
-            let info = Self::handshake(
-                &self.executor,
-                &mut streams,
-                &self.endpoint,
-                self.session_id,
-                self.device_index,
-            )?;
+            let info = Self::handshake(&self.executor, &mut streams, init)?;
 
             // Publish to the shared cells so `RemoteDevice::defaults` and listing can read them.
             let _ = self.settings.set(info.settings);

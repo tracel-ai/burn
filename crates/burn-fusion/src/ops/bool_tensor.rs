@@ -11,10 +11,10 @@ use burn_backend::{
 };
 use burn_ir::{
     BaseOperationIr, BinaryOpIr, BoolOperationIr, CastOpIr, CatOpIr, CreationOpIr, FlipOpIr,
-    GatherOpIr, HandleContainer, MaskFillOpIr, MaskWhereOpIr, OperationIr, OperationOutput,
-    PermuteOpIr, ReduceDimOpIr, ReduceOpIr, RepeatDimOpIr, ScalarOpIr, ScatterOpIr,
-    SelectAssignOpIr, SelectOpIr, ShapeOpIr, SliceAssignOpIr, SliceOpIr, SwapDimsOpIr, TensorIr,
-    UnaryOpIr, UnfoldOpIr,
+    GatherNdOpIr, GatherOpIr, HandleContainer, MaskFillOpIr, MaskWhereOpIr, OperationIr,
+    OperationOutput, PermuteOpIr, ReduceDimOpIr, ReduceOpIr, RepeatDimOpIr, ScalarOpIr,
+    ScatterNdOpIr, ScatterOpIr, SelectAssignOpIr, SelectOpIr, ShapeOpIr, SliceAssignOpIr,
+    SliceOpIr, SwapDimsOpIr, TensorIr, UnaryOpIr, UnfoldOpIr,
 };
 use std::marker::PhantomData;
 
@@ -973,11 +973,12 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
             .output()
     }
 
-    fn bool_scatter_or(
+    fn bool_scatter(
         dim: usize,
         tensor: BoolTensor<Self>,
         indices: IntTensor<Self>,
         value: BoolTensor<Self>,
+        update: IndexingUpdateOp,
     ) -> BoolTensor<Self> {
         #[derive(new, Debug)]
         struct ScatterOps<B: FusionBackend> {
@@ -994,7 +995,8 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
                 let indices = handles.get_int_tensor::<B>(&self.desc.indices);
                 let value = handles.get_bool_tensor::<B>(&self.desc.value);
 
-                let output = B::bool_scatter_or(self.desc.dim, tensor, indices, value);
+                let output =
+                    B::bool_scatter(self.desc.dim, tensor, indices, value, self.desc.update);
 
                 handles.register_bool_tensor::<B>(&self.desc.out.id, output);
 
@@ -1010,7 +1012,7 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
             dim,
             indices.into_ir(),
             value.into_ir(),
-            IndexingUpdateOp::Add,
+            update,
             || client.create_empty_handle(),
         );
 
@@ -1019,6 +1021,93 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
                 streams,
                 OperationIr::BaseBool(BaseOperationIr::Scatter(desc.clone())),
                 ScatterOps::<B>::new(desc),
+            )
+            .output()
+    }
+
+    fn bool_scatter_nd(
+        data: BoolTensor<Self>,
+        indices: IntTensor<Self>,
+        values: BoolTensor<Self>,
+        reduction: IndexingUpdateOp,
+    ) -> BoolTensor<Self> {
+        #[derive(new, Debug)]
+        struct ScatterNdOps<B: FusionBackend> {
+            desc: ScatterNdOpIr,
+            _b: PhantomData<B>,
+        }
+
+        impl<B: FusionBackend> Operation<B::FusionRuntime> for ScatterNdOps<B> {
+            fn execute(
+                &self,
+                handles: &mut HandleContainer<B::Handle>,
+            ) -> Result<(), ExecutionError> {
+                let data = handles.get_bool_tensor::<B>(&self.desc.data);
+                let indices = handles.get_int_tensor::<B>(&self.desc.indices);
+                let values = handles.get_bool_tensor::<B>(&self.desc.values);
+
+                let output = B::bool_scatter_nd(data, indices, values, self.desc.reduction);
+
+                handles.register_bool_tensor::<B>(&self.desc.out.id, output);
+
+                Ok(())
+            }
+        }
+
+        let streams = StreamId::current();
+
+        let client = data.client.clone();
+        let desc = ScatterNdOpIr::create(
+            data.into_ir(),
+            indices.into_ir(),
+            values.into_ir(),
+            reduction,
+            || client.create_empty_handle(),
+        );
+
+        client
+            .register(
+                streams,
+                OperationIr::BaseBool(BaseOperationIr::ScatterNd(desc.clone())),
+                ScatterNdOps::<B>::new(desc),
+            )
+            .output()
+    }
+
+    fn bool_gather_nd(data: BoolTensor<Self>, indices: IntTensor<Self>) -> BoolTensor<Self> {
+        #[derive(new, Debug)]
+        struct GatherNdOps<B: FusionBackend> {
+            desc: GatherNdOpIr,
+            _b: PhantomData<B>,
+        }
+
+        impl<B: FusionBackend> Operation<B::FusionRuntime> for GatherNdOps<B> {
+            fn execute(
+                &self,
+                handles: &mut HandleContainer<B::Handle>,
+            ) -> Result<(), ExecutionError> {
+                let data = handles.get_bool_tensor::<B>(&self.desc.data);
+                let indices = handles.get_int_tensor::<B>(&self.desc.indices);
+
+                let output = B::bool_gather_nd(data, indices);
+                handles.register_bool_tensor::<B>(&self.desc.out.id, output);
+
+                Ok(())
+            }
+        }
+
+        let streams = StreamId::current();
+
+        let client = data.client.clone();
+        let desc = GatherNdOpIr::create(data.into_ir(), indices.into_ir(), || {
+            client.create_empty_handle()
+        });
+
+        client
+            .register(
+                streams,
+                OperationIr::BaseBool(BaseOperationIr::GatherNd(desc.clone())),
+                GatherNdOps::<B>::new(desc),
             )
             .output()
     }
@@ -1103,11 +1192,12 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
             .output()
     }
 
-    fn bool_select_or(
+    fn bool_select_assign(
         tensor: BoolTensor<Self>,
         dim: usize,
         indices: IntTensor<Self>,
         value: BoolTensor<Self>,
+        update: IndexingUpdateOp,
     ) -> BoolTensor<Self> {
         #[derive(new, Debug)]
         struct SelectAssignOps<B: FusionBackend> {
@@ -1124,7 +1214,8 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
                 let indices = handles.get_int_tensor::<B>(&self.desc.indices);
                 let value = handles.get_bool_tensor::<B>(&self.desc.value);
 
-                let output = B::bool_select_or(tensor, self.desc.dim, indices, value);
+                let output =
+                    B::bool_select_assign(tensor, self.desc.dim, indices, value, self.desc.update);
 
                 handles.register_bool_tensor::<B>(&self.desc.out.id, output);
 
@@ -1140,7 +1231,7 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
             dim,
             indices.into_ir(),
             value.into_ir(),
-            IndexingUpdateOp::Add,
+            update,
             || client.create_empty_handle(),
         );
 

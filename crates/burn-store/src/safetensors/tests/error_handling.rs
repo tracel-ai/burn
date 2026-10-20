@@ -50,23 +50,23 @@ fn shape_mismatch_errors() {
 /// store and leaving a half-written file behind.
 #[test]
 fn a_failing_tensor_does_not_unwind_out_of_collect_from() {
-    use crate::{ModuleAdapter, ModuleContext, bridge};
+    use crate::{ModuleAdapter, ModuleContext, StoreTensor, bridge};
     use alloc::boxed::Box;
-    use burn_pack::Tensor as PackTensor;
 
     /// Stands in for a backend that panics reading a parameter back from its device.
     #[derive(Clone)]
     struct PanickingAdapter;
 
     impl ModuleAdapter for PanickingAdapter {
-        fn adapt(&self, tensor: PackTensor, _ctx: ModuleContext<'_>) -> PackTensor {
+        fn adapt(&self, tensor: StoreTensor, _ctx: ModuleContext<'_>) -> StoreTensor {
             bridge::deferred(
-                tensor.name.clone(),
-                tensor.dtype,
-                tensor.shape.clone(),
+                tensor.name().to_string(),
+                tensor.dtype(),
+                tensor.shape().into(),
                 None,
                 || panic!("device readback panicked"),
             )
+            .into()
         }
 
         fn clone_box(&self) -> Box<dyn ModuleAdapter> {

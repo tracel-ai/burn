@@ -13,6 +13,7 @@ use serde::{Deserialize, Serialize};
 
 use alloc::vec;
 use alloc::vec::Vec;
+use core::ops::Range;
 #[cfg(not(feature = "std"))]
 #[allow(unused_imports)]
 use num_traits::Float as _;
@@ -61,7 +62,7 @@ struct LineSearchSample {
     // loss
     f: f64,
     // gradient
-    g: Tensor<1>,
+    g: FlatGradients,
     // directional derivative
     gtd: f64,
 }
@@ -75,22 +76,22 @@ fn strong_wolfe<F>(
     mut t: f64,
     d: &Tensor<1>,
     f: f64,
-    g: Tensor<1>,
+    g: FlatGradients,
     gtd: f64,
     c1: f64,
     c2: f64,
     tolerance_change: f64,
     max_ls: usize,
-) -> (f64, Tensor<1>, f64, usize)
+) -> (f64, FlatGradients, f64, usize)
 where
-    F: FnMut(&Tensor<1>, f64, &Tensor<1>) -> (f64, Tensor<1>),
+    F: FnMut(&Tensor<1>, f64, &Tensor<1>) -> (f64, FlatGradients),
 {
     let d_norm: f64 = d.clone().abs().max().into_scalar();
 
     // evaluate objective and gradient using initial step
     let (mut f_new, mut g_new) = obj_func(x, t, d);
     let mut ls_func_evals = 1;
-    let mut gtd_new = g_new.clone().dot(d.clone()).into_scalar();
+    let mut gtd_new = g_new.tensor.clone().dot(d.clone()).into_scalar();
 
     // bracket an interval [t_prev,t] containing a point satisfying the Wolfe criteria
     let (mut t_prev, mut f_prev, mut g_prev, mut gtd_prev) = (0.0, f, g.clone(), gtd);
@@ -177,7 +178,7 @@ where
         t = t_next;
         (f_new, g_new) = obj_func(x, t, d);
         ls_func_evals += 1;
-        gtd_new = g_new.clone().dot(d.clone()).into_scalar();
+        gtd_new = g_new.tensor.clone().dot(d.clone()).into_scalar();
         ls_iter += 1;
     }
     if let Some(sample) = wolfe_bracket {
@@ -253,7 +254,7 @@ where
         (f_new, g_new) = obj_func(x, t, d);
 
         ls_func_evals += 1;
-        gtd_new = g_new.clone().dot(d.clone()).into_scalar();
+        gtd_new = g_new.tensor.clone().dot(d.clone()).into_scalar();
         ls_iter += 1;
 
         let armijo_holds = f_new <= (f + c1 * t * gtd) && f_new < bracket[low_idx].f;
@@ -361,18 +362,59 @@ impl LBFGSConfig {
     }
 }
 
-/// Collects gradients in module visit order.
+#[derive(Clone)]
+struct FlatGradients {
+    tensor: Tensor<1>,
+    missing: Vec<Range<usize>>,
+}
+
+impl FlatGradients {
+    fn mask_direction(&self, mut direction: Tensor<1>) -> Tensor<1> {
+        assert_eq!(
+            direction.dims(),
+            self.tensor.dims(),
+            "L-BFGS search direction length must match the gradient length"
+        );
+        // History can couple parameters, giving a nonzero direction even where gradients are absent.
+        for range in &self.missing {
+            direction =
+                direction.slice_assign(range.clone(), self.tensor.clone().slice(range.clone()));
+        }
+        direction
+    }
+}
+
+/// Collects gradients in module visit order, retaining slots for missing gradients.
 struct FlattenGradsVisitorInner<'a> {
     grads: &'a GradientsParams,
     tensors: &'a mut Vec<Tensor<1>>,
+    missing: &'a mut Vec<Range<usize>>,
+    offset: usize,
 }
 
 impl ModuleVisitor for FlattenGradsVisitorInner<'_> {
     fn visit_float<const D: usize>(&mut self, param: &Param<Tensor<D>>) {
-        if let Some(g) = self.grads.get::<D>(param.id) {
-            let numel = g.shape().num_elements();
-            self.tensors.push(g.reshape([numel]));
-        }
+        let shape = param.lazy_shape();
+        let numel = shape.num_elements();
+        let grad = match self.grads.get::<D>(param.id) {
+            Some(grad) => {
+                assert_eq!(
+                    grad.shape(),
+                    shape,
+                    "L-BFGS gradient shape must match parameter {}",
+                    param.id
+                );
+                grad
+            }
+            None => {
+                if numel > 0 {
+                    self.missing.push(self.offset..self.offset + numel);
+                }
+                param.val().inner().dequantize().zeros_like()
+            }
+        };
+        self.tensors.push(grad.reshape([numel]));
+        self.offset += numel;
     }
 }
 
@@ -402,17 +444,22 @@ impl ModuleVisitor for FlattenParamsVisitorInner<'_> {
 }
 
 /// Flatten gradients for a module.
-fn flatten_grads_inner<M: Module>(module: &M, grads: &GradientsParams) -> Tensor<1> {
+fn flatten_grads_inner<M: Module>(module: &M, grads: &GradientsParams) -> FlatGradients {
     let mut tensors = Vec::new();
+    let mut missing = Vec::new();
     let mut visitor = FlattenGradsVisitorInner {
         grads,
         tensors: &mut tensors,
+        missing: &mut missing,
+        offset: 0,
     };
     module.visit(&mut visitor);
-    if tensors.is_empty() {
-        return Tensor::empty([0], &module.devices()[0].clone().inner());
-    }
-    Tensor::cat(tensors, 0)
+    let tensor = if tensors.is_empty() {
+        Tensor::empty([0], &module.devices()[0].clone().inner())
+    } else {
+        Tensor::cat(tensors, 0)
+    };
+    FlatGradients { tensor, missing }
 }
 
 /// Mapper that assigns each float param from a flat inner-backend 1D tensor.
@@ -442,6 +489,11 @@ impl ModuleMapper for ParamsFromFlatMapperInner<'_> {
 
 /// Overwrite module parameters from a flat inner-backend 1D tensor
 fn set_params_from_flat_inner<M: Module>(module: M, flat: Tensor<1>) -> M {
+    assert_eq!(
+        flat.dims(),
+        [module.num_params()],
+        "L-BFGS flat parameter length must match the module parameter count"
+    );
     let mut offset = 0;
     let mut mapper = ParamsFromFlatMapperInner {
         flat: &flat,
@@ -470,6 +522,22 @@ pub struct LBFGSState {
 }
 
 impl LBFGSState {
+    fn check_num_params(&self, num_params: usize) {
+        for tensor in self
+            .history_s
+            .iter()
+            .chain(self.history_y.iter())
+            .chain(self.d.iter())
+            .chain(self.prev_flat_grad.iter())
+        {
+            assert_eq!(
+                tensor.dims(),
+                [num_params],
+                "L-BFGS state tensor length must match the module parameter count"
+            );
+        }
+    }
+
     /// The device of the state's tensors, if any have been populated.
     fn current_device(&self) -> Option<Device> {
         self.prev_flat_grad
@@ -595,6 +663,14 @@ impl LBFGS {
     }
 
     /// A single optimization step for any tensor that represents the parameters of a model.
+    ///
+    /// Parameters without gradients are left unchanged. Their flattened gradient entries and search
+    /// direction entries are zero, including when the optimizer has accumulated history.
+    ///
+    /// # Panics
+    ///
+    /// Panics if a gradient shape does not match its parameter or saved state tensor lengths do not
+    /// match the module's parameter count.
     pub fn step<M, F>(&mut self, lr: LearningRate, mut module: M, mut closure: F) -> (M, f64)
     where
         M: Module + Clone,
@@ -606,16 +682,26 @@ impl LBFGS {
 
         let mut flat_grad = flatten_grads_inner::<M>(&module, &grads);
         let mut x_flat = flatten_params_inner::<M>(&module);
+        assert_eq!(
+            x_flat.dims(),
+            flat_grad.tensor.dims(),
+            "L-BFGS flat parameter and gradient lengths must match"
+        );
+        self.state.check_num_params(x_flat.dims()[0]);
+
+        if x_flat.dims()[0] == 0 {
+            return (module, loss);
+        }
 
         // Migrate the state to the gradient's device when they differ (e.g. just after loading a
         // record on the default device). This is a no-op once the state is built from gradients.
-        let device = flat_grad.device();
+        let device = flat_grad.tensor.device();
         if self.state.current_device().is_some_and(|d| d != device) {
             self.state = core::mem::take(&mut self.state).to_device(&device);
         }
 
         let opt_cond =
-            flat_grad.clone().abs().max().into_scalar::<f64>() <= self.config.tolerance_grad;
+            flat_grad.tensor.clone().abs().max().into_scalar::<f64>() <= self.config.tolerance_grad;
         // optimal condition
         if opt_cond {
             return (module, loss);
@@ -626,7 +712,7 @@ impl LBFGS {
             .state
             .d
             .take()
-            .unwrap_or_else(|| flat_grad.clone().neg());
+            .unwrap_or_else(|| flat_grad.tensor.clone().neg());
         let mut t = self.state.t.unwrap_or(lr);
         let mut prev_flat_grad = self.state.prev_flat_grad.take();
 
@@ -640,13 +726,13 @@ impl LBFGS {
 
             // compute gradient descent direction
             if self.state.g_iter == 1 {
-                d = flat_grad.clone().neg();
+                d = flat_grad.tensor.clone().neg();
                 self.state.history_s.clear();
                 self.state.history_y.clear();
             } else {
                 // do lbfgs update (update memory)
                 if let Some(pg) = prev_flat_grad.as_ref() {
-                    let y = flat_grad.clone().sub(pg.clone());
+                    let y = flat_grad.tensor.clone().sub(pg.clone());
                     let s = d.clone().mul_scalar(t);
 
                     let ys: f64 = y.clone().dot(s.clone()).into_scalar();
@@ -666,9 +752,9 @@ impl LBFGS {
                 // compute the approximate (L-BFGS) inverse Hessian
                 // multiplied by the gradient
                 let num_old = self.state.history_s.len();
-                let mut q = flat_grad.clone().neg();
+                let mut q = flat_grad.tensor.clone().neg();
                 let mut alphas: Vec<Tensor<1>> =
-                    vec![Tensor::zeros([1], &flat_grad.device().inner()); num_old];
+                    vec![Tensor::zeros([1], &flat_grad.tensor.device().inner()); num_old];
 
                 if num_old > 0 {
                     // multiply by initial Hessian
@@ -710,19 +796,20 @@ impl LBFGS {
                 }
             }
 
-            prev_flat_grad = Some(flat_grad.clone());
+            d = flat_grad.mask_direction(d);
+            prev_flat_grad = Some(flat_grad.tensor.clone());
             let prev_loss_iter = loss;
 
             // compute step len
             if self.state.g_iter == 1 {
-                let grad_l1: f64 = flat_grad.clone().abs().sum().into_scalar();
+                let grad_l1: f64 = flat_grad.tensor.clone().abs().sum().into_scalar();
                 t = (1.0f64 / grad_l1).min(1.0) * lr;
             } else {
                 t = lr;
             }
 
             // directional derivative
-            let gtd = flat_grad.clone().dot(d.clone()).into_scalar();
+            let gtd = flat_grad.tensor.clone().dot(d.clone()).into_scalar();
 
             if gtd > -self.config.tolerance_change {
                 break;
@@ -784,7 +871,9 @@ impl LBFGS {
                 break;
             }
 
-            if flat_grad.clone().abs().max().into_scalar::<f64>() <= self.config.tolerance_grad {
+            if flat_grad.tensor.clone().abs().max().into_scalar::<f64>()
+                <= self.config.tolerance_grad
+            {
                 break;
             }
 
@@ -901,7 +990,7 @@ mod tests {
             let x = Tensor::<1>::from_floats([2.1321912957_f64], &device);
             let d = Tensor::<1>::from_floats([0.91312321_f64], &device);
             let t_initial = 1.213132_f64;
-            fn func(x_base: &Tensor<1>, t_val: f64, d_vec: &Tensor<1>) -> (f64, Tensor<1>) {
+            fn func(x_base: &Tensor<1>, t_val: f64, d_vec: &Tensor<1>) -> (f64, FlatGradients) {
                 let curr_x = x_base.clone().add(d_vec.clone().mul_scalar(t_val));
                 let x2 = curr_x.clone().mul(curr_x.clone());
                 let x3 = x2.clone().mul(curr_x.clone());
@@ -916,10 +1005,16 @@ mod tests {
                 let g = x3.mul_scalar(4.0) - curr_x.clone().mul_scalar(4.0)
                     + Tensor::ones_like(&curr_x);
 
-                (f_val, g)
+                (
+                    f_val,
+                    FlatGradients {
+                        tensor: g,
+                        missing: Vec::new(),
+                    },
+                )
             }
             let (f_init, g_init) = func(&x, 0.0, &d);
-            let gtd_init = g_init.clone().dot(d.clone()).into_scalar::<f64>();
+            let gtd_init = g_init.tensor.clone().dot(d.clone()).into_scalar::<f64>();
             println!("Initial State: f={},gtd = {}", f_init, gtd_init);
             assert!((f_init - 13.7080059052).abs() < tol);
             assert!((gtd_init - 28.5305728912).abs() < tol);
@@ -938,7 +1033,7 @@ mod tests {
                 1e-9, // tolerance_change
                 10,   // max_ls
             );
-            let g_f = _g_final.into_scalar::<f64>();
+            let g_f = _g_final.tensor.into_scalar::<f64>();
             println!(
                 "f_final:{:?},_g_final:{:?},t_final:{:?},evals:{:?}",
                 f_final, g_f, t_final, evals
@@ -1072,5 +1167,181 @@ mod tests {
 
         assert!((optimized_data - 0.5302446192).abs() < tol);
         assert!((optimized_bias - 0.1142520783).abs() < tol);
+    }
+
+    #[test]
+    fn test_lbfgs_missing_gradients_preserve_parameter_positions() {
+        let device = Device::default().autodiff();
+        let values = [[1.0f32, 2.0], [3.0, 4.0], [5.0, 6.0]];
+
+        for line_search in [LineSearchFn::None, LineSearchFn::StrongWolfe] {
+            for frozen in [false, true] {
+                for missing in 0..values.len() {
+                    let module: Vec<Param<Tensor<1>>> = values
+                        .iter()
+                        .enumerate()
+                        .map(|(i, value)| {
+                            let param = Param::from_tensor(Tensor::from_floats(*value, &device));
+                            if frozen && i == missing {
+                                param.freeze()
+                            } else {
+                                param
+                            }
+                        })
+                        .collect();
+                    let mut optimizer = LBFGSConfig::new()
+                        .with_max_iter(1)
+                        .with_line_search_fn(line_search)
+                        .init();
+                    let (module, _) = optimizer.step(1.0, module, |module| {
+                        let loss = module
+                            .iter()
+                            .enumerate()
+                            .filter(|(i, _)| frozen || *i != missing)
+                            .map(|(_, param)| param.val().powf_scalar(2.0).sum())
+                            .reduce(|a, b| a + b)
+                            .unwrap();
+                        let grads = GradientsParams::from_grads(loss.backward(), &module);
+                        (loss.into_scalar::<f64>(), grads)
+                    });
+
+                    let active_sum: f32 = values
+                        .iter()
+                        .enumerate()
+                        .filter(|(i, _)| *i != missing)
+                        .flat_map(|(_, value)| value)
+                        .sum();
+                    for (i, param) in module.iter().enumerate() {
+                        let expected = values[i].map(|value| {
+                            if i == missing {
+                                value
+                            } else {
+                                value - value / active_sum
+                            }
+                        });
+                        param.val().into_data().assert_approx_eq::<f32>(
+                            &TensorData::from(expected),
+                            Default::default(),
+                        );
+                        assert_eq!(param.is_require_grad(), !frozen || i != missing);
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn test_lbfgs_missing_scalar_gradient_does_not_broadcast() {
+        let device = Device::default().autodiff();
+        for line_search in [LineSearchFn::None, LineSearchFn::StrongWolfe] {
+            let module = vec![
+                Param::from_tensor(Tensor::<1>::from_floats([10.0], &device)).freeze(),
+                Param::from_tensor(Tensor::<1>::from_floats([20.0], &device)),
+            ];
+            let mut optimizer = LBFGSConfig::new()
+                .with_max_iter(1)
+                .with_line_search_fn(line_search)
+                .init();
+            let (module, _) = optimizer.step(1.0, module, |module| {
+                let loss = module[1].val().powf_scalar(2.0).sum();
+                let grads = GradientsParams::from_grads(loss.backward(), &module);
+                (loss.into_scalar::<f64>(), grads)
+            });
+
+            assert_eq!(module[0].val().into_scalar::<f32>(), 10.0);
+            assert_eq!(module[1].val().into_scalar::<f32>(), 19.0);
+        }
+    }
+
+    #[test]
+    fn test_lbfgs_history_does_not_move_parameters_without_gradients() {
+        let device = Device::default().autodiff();
+        let coupled_loss = |module: Vec<Param<Tensor<1>>>| {
+            let loss = (module[0].val() + module[1].val()).powf_scalar(2.0)
+                + module[1].val().powf_scalar(2.0);
+            let grads = GradientsParams::from_grads(loss.backward(), &module);
+            (loss.into_scalar::<f64>(), grads)
+        };
+
+        for line_search in [LineSearchFn::None, LineSearchFn::StrongWolfe] {
+            for frozen in [false, true] {
+                let mut module = vec![
+                    Param::from_tensor(Tensor::<1>::from_floats([1.0], &device)),
+                    Param::from_tensor(Tensor::<1>::from_floats([2.0], &device)),
+                ];
+                let mut optimizer = LBFGSConfig::new()
+                    .with_max_iter(1)
+                    .with_max_eval(Some(20))
+                    .with_line_search_fn(line_search)
+                    .init();
+                (module, _) = optimizer.step(0.1, module, coupled_loss);
+                (module, _) = optimizer.step(0.1, module, coupled_loss);
+                assert!(!optimizer.state.history_s.is_empty());
+
+                if frozen {
+                    module[0] = module[0].clone().freeze();
+                }
+                let unchanged = module[0].val().into_scalar::<f32>();
+                let mut closure = |module: Vec<Param<Tensor<1>>>| {
+                    if frozen {
+                        coupled_loss(module)
+                    } else {
+                        let loss = module[1].val().powf_scalar(2.0);
+                        let grads = GradientsParams::from_grads(loss.backward(), &module);
+                        (loss.into_scalar::<f64>(), grads)
+                    }
+                };
+                let initial_loss = closure(module.clone()).0;
+                let (module, final_loss) = optimizer.step(0.1, module, &mut closure);
+
+                assert_eq!(module[0].val().into_scalar::<f32>(), unchanged);
+                assert!(final_loss < initial_loss);
+            }
+        }
+    }
+
+    #[test]
+    fn test_lbfgs_no_gradients_leaves_parameters_unchanged() {
+        let device = Device::default().autodiff();
+        let module = Param::from_tensor(
+            Tensor::<1>::from_floats([1.0, 2.0], &device).cast(burn::tensor::DType::F64),
+        )
+        .freeze();
+        let mut optimizer = LBFGSConfig::new().init();
+        let (module, _) = optimizer.step(1.0, module, |_| (0.0, GradientsParams::new()));
+
+        assert_eq!(optimizer.state.g_iter, 0);
+        assert_eq!(module.val().dtype(), burn::tensor::DType::F64);
+        module
+            .val()
+            .into_data()
+            .assert_eq(&TensorData::from([1.0f64, 2.0]), false);
+    }
+
+    #[test]
+    #[should_panic(expected = "L-BFGS gradient shape must match parameter")]
+    fn test_lbfgs_rejects_incorrect_gradient_shape() {
+        let device = Device::default().autodiff();
+        let module = Param::from_tensor(Tensor::<1>::from_floats([1.0, 2.0], &device));
+        let mut optimizer = LBFGSConfig::new().init();
+        optimizer.step(1.0, module, |module| {
+            let mut grads = GradientsParams::new();
+            grads.register(module.id, Tensor::<1>::ones([1], &device.clone().inner()));
+            (1.0, grads)
+        });
+    }
+
+    #[test]
+    #[should_panic(expected = "L-BFGS state tensor length must match the module parameter count")]
+    fn test_lbfgs_rejects_incorrect_state_length() {
+        let device = Device::default().autodiff();
+        let module = Param::from_tensor(Tensor::<1>::from_floats([1.0, 2.0], &device));
+        let mut optimizer = LBFGSConfig::new().init();
+        optimizer.state.d = Some(Tensor::ones([1], &device.clone().inner()));
+        optimizer.step(1.0, module, |module| {
+            let loss = module.val().powf_scalar(2.0).sum();
+            let grads = GradientsParams::from_grads(loss.backward(), &module);
+            (loss.into_scalar::<f64>(), grads)
+        });
     }
 }

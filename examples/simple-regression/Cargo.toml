@@ -12,8 +12,6 @@ workspace = true
 [features]
 default = ["burn/dataset", "burn/sqlite"]
 flex = ["burn/flex"]
-tch-cpu = ["burn/tch"]
-tch-gpu = ["burn/tch"]
 wgpu = ["burn/wgpu"]
 remote = ["burn/remote-websocket"]
 

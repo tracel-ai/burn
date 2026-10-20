@@ -77,29 +77,6 @@ mod flex {
     }
 }
 
-#[cfg(feature = "tch-gpu")]
-mod tch_gpu {
-    use burn::tensor::{Device, DeviceIndex};
-
-    pub fn run() {
-        #[cfg(not(target_os = "macos"))]
-        let device = Device::libtorch_cuda(DeviceIndex::Default);
-        #[cfg(target_os = "macos")]
-        let device = Device::libtorch_mps();
-
-        crate::launch_single(device);
-    }
-}
-
-#[cfg(feature = "tch-cpu")]
-mod tch_cpu {
-    use burn::tensor::Device;
-
-    pub fn run() {
-        crate::launch_single(Device::libtorch());
-    }
-}
-
 #[cfg(any(feature = "wgpu", feature = "vulkan", feature = "metal"))]
 mod wgpu {
     use burn::tensor::{Device, DeviceKind};
@@ -171,10 +148,6 @@ mod rocm {
 fn main() {
     #[cfg(feature = "flex")]
     flex::run();
-    #[cfg(feature = "tch-gpu")]
-    tch_gpu::run();
-    #[cfg(feature = "tch-cpu")]
-    tch_cpu::run();
     #[cfg(any(feature = "wgpu", feature = "vulkan", feature = "metal"))]
     wgpu::run();
     #[cfg(feature = "cuda")]

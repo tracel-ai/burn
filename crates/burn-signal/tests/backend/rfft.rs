@@ -8,7 +8,13 @@ fn rfft_both_outputs_match_finite_differences() {
     let values = vec![0.2f32, -0.3, 0.7, 0.1, -0.2, 0.6, 0.4, -0.5];
     let device = AutodiffDevice::new();
     let plain_device = burn_core::tensor::Device::default();
-    for (dim, n) in [(0, Some(2)), (0, Some(8)), (1, None)] {
+    for (dim, n) in [
+        (0, Some(2)),
+        (0, Some(8)),
+        (1, None),
+        (0, Some(5)),
+        (1, Some(5)),
+    ] {
         let objective = |input| {
             let (real, imag) = signal::rfft(input, dim, n);
             real.square().sum() + imag.square().sum() * 0.7
@@ -46,7 +52,7 @@ fn irfft_both_inputs_match_finite_differences() {
     let imag_values = vec![0.4f32, 0.5, -0.6, 0.3, 0.8, -0.7];
     let device = AutodiffDevice::new();
     let plain_device = burn_core::tensor::Device::default();
-    for n in [Some(2), None, Some(8)] {
+    for n in [Some(2), None, Some(8), Some(5), Some(7)] {
         let objective = |real, imag| signal::irfft(real, imag, 0, n).square().sum();
         let real =
             TestTensor::<2>::from_data(TensorData::new(real_values.clone(), [3, 2]), &device)
@@ -83,6 +89,58 @@ fn irfft_both_inputs_match_finite_differences() {
                 .collect();
             actual.into_data().assert_approx_eq::<f32>(
                 &TensorData::new(expected, [3, 2]),
+                Tolerance::absolute(1e-3),
+            );
+        }
+    }
+}
+
+#[test]
+fn ifft_both_inputs_match_finite_differences() {
+    let real_values = vec![0.2f32, -0.3, 0.7, 0.1, -0.2, 0.6, 0.4, -0.5];
+    let imag_values = vec![0.4f32, 0.5, -0.6, 0.3, 0.8, -0.7, 0.2, -0.1];
+    let device = AutodiffDevice::new();
+    let plain_device = burn_core::tensor::Device::default();
+    for n in [None, Some(4), Some(8)] {
+        let objective = |real, imag| {
+            let (re, im) = signal::ifft(real, imag, 0, n);
+            re.square().sum() + im.square().sum() * 0.7
+        };
+        let real =
+            TestTensor::<2>::from_data(TensorData::new(real_values.clone(), [4, 2]), &device)
+                .require_grad();
+        let imag =
+            TestTensor::<2>::from_data(TensorData::new(imag_values.clone(), [4, 2]), &device)
+                .require_grad();
+        let gradients = objective(real.clone(), imag.clone()).backward();
+        for (component, actual) in [
+            real.grad(&gradients).unwrap(),
+            imag.grad(&gradients).unwrap(),
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            let expected: Vec<f32> = (0..8)
+                .map(|i| {
+                    let eval = |delta| {
+                        let mut re = real_values.clone();
+                        let mut im = imag_values.clone();
+                        if component == 0 {
+                            re[i] += delta;
+                        } else {
+                            im[i] += delta;
+                        }
+                        objective(
+                            TestTensor::<2>::from_data(TensorData::new(re, [4, 2]), &plain_device),
+                            TestTensor::<2>::from_data(TensorData::new(im, [4, 2]), &plain_device),
+                        )
+                        .into_scalar::<f32>()
+                    };
+                    (eval(1e-3) - eval(-1e-3)) / 2e-3
+                })
+                .collect();
+            actual.into_data().assert_approx_eq::<f32>(
+                &TensorData::new(expected, [4, 2]),
                 Tolerance::absolute(1e-3),
             );
         }

@@ -1,9 +1,10 @@
+use alloc::{boxed::Box, vec::Vec};
 use burn_backend::{ElementConversion, Scalar};
 use burn_std::{AsIndex, IndexingUpdateOp};
 
 use crate::check::unwrap_dim_index;
 use crate::kind::Ordered;
-use crate::{Bool, Int, check};
+use crate::{Bool, Int, TensorData, check};
 use crate::{Tensor, check::TensorCheck};
 
 impl<const D: usize, K> Tensor<D, K>
@@ -270,6 +271,12 @@ where
 
     /// Create a one hot tensor.
     ///
+    /// # Panics
+    ///
+    /// If an index is outside `[-num_classes, num_classes)`, if `num_classes` is less than 2, or if
+    /// the tensor is quantized. Use [`one_hot_fill`](Tensor::one_hot_fill) to get an `off_value` row
+    /// for out-of-range indices instead.
+    ///
     /// # Example
     ///
     /// ```rust
@@ -285,8 +292,10 @@ where
     /// ```
     pub fn one_hot<const D2: usize>(self, num_classes: usize) -> Tensor<D2, K> {
         check!(TensorCheck::quantized_unsupported("One Hot", self.dtype()));
-        check!(TensorCheck::one_hot_tensor(self.clone(), num_classes));
-        self.one_hot_fill(num_classes, 1.0, 0.0, -1)
+        let classes = one_hot_classes(&self.to_data(), num_classes);
+        check!(TensorCheck::one_hot_tensor(&self, num_classes, &classes));
+        check!(TensorCheck::one_hot_tensor_rank::<D, D2>());
+        self.one_hot_from_classes(num_classes, 1.0, 0.0, D, &classes)
     }
 
     /// Create a one-hot encoded tensor with configurable `num_classes`, `on_value`, `off_value`, and `axis` including high-ranked tensors.
@@ -302,6 +311,11 @@ where
     /// # Returns
     ///
     /// A tensor with one additional dimension for the one-hot encoding, where active positions are filled with `on_value` and others with `off_value`.
+    ///
+    /// Indices outside `[-num_classes, num_classes)` produce a row filled with `off_value`, as in
+    /// ONNX `OneHot`. Float indices are truncated toward zero first; NaN and infinities are out of
+    /// range. With `num_classes == 0`, every index is out of range and the one-hot
+    /// dimension is empty. Use [`one_hot`](Tensor::one_hot) to reject out-of-range indices instead.
     ///
     /// # Panics
     ///
@@ -331,28 +345,53 @@ where
         check!(TensorCheck::quantized_unsupported("One Hot", self.dtype()));
         let axis = unwrap_dim_index(axis.try_dim_index(D + 1), "One Hot");
 
+        let classes = if num_classes == 0 {
+            Vec::new()
+        } else {
+            one_hot_classes(&self.to_data(), num_classes)
+        };
+        self.one_hot_from_classes(num_classes, on_value, off_value, axis, &classes)
+    }
+
+    fn one_hot_from_classes<const D2: usize>(
+        self,
+        num_classes: usize,
+        on_value: f32,
+        off_value: f32,
+        axis: usize,
+        classes: &[Option<usize>],
+    ) -> Tensor<D2, K> {
         // Initialize shape from the current tensor dimensions and prepare for modification
-        let mut shape = self.shape();
+        let index_shape = self.shape();
+        let mut shape = index_shape.clone();
         let device = self.device();
         let dtype = self.dtype();
 
-        // Convert the input tensor to integer indices
-        let indices: Tensor<D, Int> = Tensor::from_data(self.to_data().convert::<i64>(), &device);
         // Insert the new dimension for the one-hot representation
         shape.insert(axis, num_classes);
-        // Adjust indices to valid range and handle invalid indices
-        let adjusted_indices = indices
-            .clone()
-            .mask_fill(self.clone().lower_scalar(0), num_classes as i64) // Handle negative indices
-            .add(indices.clone().mask_fill(self.clone().greater_scalar(0), 0)); // Handle positive indices
-
-        // Unsqueeze the indices tensor along the specified axis
-        let indices_unsqueezed: Tensor<D2, Int> = adjusted_indices.unsqueeze_dim(axis);
 
         // Initialize the output tensor with the off_value
         let output = Tensor::full(shape.clone(), off_value, (&device, dtype));
 
-        let on_values = Tensor::full(indices_unsqueezed.shape(), on_value, (&device, dtype));
+        // Every index is out of range: the one-hot dimension is empty and there is nothing to scatter
+        if num_classes == 0 {
+            return output;
+        }
+
+        // Out-of-range positions get class 0 and scatter off_value there, so their row is unchanged
+        let out_of_range: Vec<bool> = classes.iter().map(Option::is_none).collect();
+        let class_indices: Vec<i64> = classes.iter().map(|c| c.unwrap_or(0) as i64).collect();
+        let adjusted_indices: Tensor<D, Int> =
+            Tensor::from_data(TensorData::new(class_indices, index_shape.clone()), &device);
+        let out_of_range: Tensor<D, Bool> =
+            Tensor::from_data(TensorData::new(out_of_range, index_shape), &device);
+
+        // Unsqueeze the indices tensor along the specified axis
+        let indices_unsqueezed: Tensor<D2, Int> = adjusted_indices.unsqueeze_dim(axis);
+
+        // Out-of-range positions scatter off_value, so their row stays unchanged
+        let on_values = Tensor::full(indices_unsqueezed.shape(), on_value, (&device, dtype))
+            .mask_fill(out_of_range.unsqueeze_dim(axis), off_value);
 
         // Scatter on_value at the appropriate indices to create the one-hot representation
         output.scatter(
@@ -1173,4 +1212,41 @@ where
     pub fn max_dims<I: AsIndex>(self, dims: &[I]) -> Self {
         dims.iter().fold(self, |tensor, &dim| tensor.max_dim(dim))
     }
+}
+
+/// The one-hot class of each index, or `None` when the index is outside
+/// `[-num_classes, num_classes)`.
+///
+/// Indices are converted to integers first, truncating fractional values toward zero as ONNX
+/// `OneHot` does; values that can't be converted (NaN, infinities, beyond `i64`) are out of range.
+/// The class bounds are then checked on the integers, so they never depend on the index dtype.
+fn one_hot_classes(indices: &TensorData, num_classes: usize) -> Vec<Option<usize>> {
+    // Every float in [-2^63, 2^63) converts to an i64
+    const I64_RANGE: f64 = 9_223_372_036_854_775_808.0;
+
+    let integers: Box<dyn Iterator<Item = Option<i64>>> = if indices.dtype().is_float() {
+        // NaN fails the range check; `as` truncates in-range values toward zero
+        Box::new(indices.iter::<f64>().map(|value| {
+            (-I64_RANGE..I64_RANGE)
+                .contains(&value)
+                .then_some(value as i64)
+        }))
+    } else if indices.dtype().is_uint() {
+        Box::new(indices.iter::<u64>().map(|value| i64::try_from(value).ok()))
+    } else {
+        Box::new(indices.iter::<i64>().map(Some))
+    };
+
+    let num_classes = i64::try_from(num_classes).unwrap_or(i64::MAX);
+    integers
+        .map(|index| {
+            let index = index?;
+            let class = if index < 0 {
+                index + num_classes
+            } else {
+                index
+            };
+            (0..num_classes).contains(&class).then_some(class as usize)
+        })
+        .collect()
 }

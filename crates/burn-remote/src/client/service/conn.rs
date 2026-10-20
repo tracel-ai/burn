@@ -225,8 +225,8 @@ pub(crate) enum SubmitChannel {
     WebSocket(Box<burn_communication::websocket::WsClientSink>),
 }
 
-impl SubmitChannel {
-    pub(crate) async fn send(&mut self, bytes: bytes::Bytes) -> Result<(), String> {
+impl FrameSink for SubmitChannel {
+    async fn send(&mut self, bytes: bytes::Bytes) -> Result<(), String> {
         match self {
             #[cfg(feature = "iroh")]
             Self::Iroh(stream) => FrameSink::send(stream, bytes).await,
@@ -235,7 +235,7 @@ impl SubmitChannel {
         }
     }
 
-    pub(crate) async fn close(&mut self) -> Result<(), String> {
+    async fn close(&mut self) -> Result<(), String> {
         match self {
             #[cfg(feature = "iroh")]
             Self::Iroh(stream) => FrameSink::close(stream).await,
@@ -253,13 +253,22 @@ pub(crate) enum ResponseChannel {
     WebSocket(Box<burn_communication::websocket::WsClientStream>),
 }
 
-impl ResponseChannel {
-    pub(crate) async fn recv(&mut self) -> Result<Option<bytes::Bytes>, String> {
+impl FrameSource for ResponseChannel {
+    async fn recv(&mut self, max_len: usize) -> Result<Option<bytes::Bytes>, String> {
         match self {
             #[cfg(feature = "iroh")]
-            Self::Iroh(stream) => FrameSource::recv(stream).await,
+            Self::Iroh(stream) => FrameSource::recv(stream, max_len).await,
             #[cfg(feature = "websocket")]
-            Self::WebSocket(stream) => FrameSource::recv(stream.as_mut()).await,
+            Self::WebSocket(stream) => FrameSource::recv(stream.as_mut(), max_len).await,
+        }
+    }
+
+    async fn recv_into(&mut self, buf: &mut [u8]) -> Result<usize, String> {
+        match self {
+            #[cfg(feature = "iroh")]
+            Self::Iroh(stream) => FrameSource::recv_into(stream, buf).await,
+            #[cfg(feature = "websocket")]
+            Self::WebSocket(stream) => FrameSource::recv_into(stream.as_mut(), buf).await,
         }
     }
 }

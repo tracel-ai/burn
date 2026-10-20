@@ -38,7 +38,7 @@ pub fn sync() {
 
 // --- Panic-tolerant bench execution -----------------------------------------
 //
-// Some ops are not implemented on every backend (quantization on tch, deformable conv on metal,
+// Some ops are not implemented on every backend (deformable conv on metal,
 // etc.). Without handling, the first panic in a bench binary aborts the whole run. We pre-flight
 // each bench under `catch_unwind`; on panic we record the failure, skip the bench loop, and let
 // subsequent benches in the same binary continue. `report_failures` at the end of `main()`

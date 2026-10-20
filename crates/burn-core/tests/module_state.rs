@@ -53,7 +53,7 @@ mod autodiff {
         skipped: Tensor<1>,
     }
 
-    type Nested = Envelope<(Vec<Option<[State; 1]>>, Choice<Param<Flag>>)>;
+    type Nested = Envelope<(Vec<Option<Box<[State; 1]>>>, Choice<Param<Flag>>)>;
 
     fn state(module: &Nested) -> &State {
         &module.state.0[0].as_ref().unwrap()[0]
@@ -73,14 +73,14 @@ mod autodiff {
         running.update(Tensor::from_floats([7.0], &device));
         let module = Envelope {
             state: (
-                vec![Some([State {
+                vec![Some(Box::new([State {
                     weight: Param::from_tensor(Tensor::ones([1], &device)),
                     indices: Param::initialized(ParamId::new(), Tensor::from_ints([1], &device)),
                     mask: Param::initialized(ParamId::new(), Tensor::from_bool([true], &device)),
                     raw: Tensor::ones([1], &device),
                     running,
                     skipped: Tensor::ones([1], &device),
-                }])],
+                }]))],
                 Choice::Value(Param::from_bool(true)),
             ),
         };

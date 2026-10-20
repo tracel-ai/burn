@@ -29,7 +29,7 @@ fn permute_int() {
 }
 
 #[test]
-#[should_panic]
+#[should_panic(expected = "The axes must be unique")]
 fn edge_repeated_axes() {
     let device = Default::default();
     let tensor = TestTensorInt::<1>::arange(0..24, &device).reshape([2, 3, 4]);
@@ -39,7 +39,7 @@ fn edge_repeated_axes() {
 }
 
 #[test]
-#[should_panic]
+#[should_panic(expected = "out of bounds")]
 fn edge_out_of_bound_axis() {
     let device = Default::default();
     let tensor = TestTensorInt::<1>::arange(0..24, &device).reshape([2, 3, 4]);

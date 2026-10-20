@@ -1,8 +1,13 @@
-//! Outgoing-frame writer task.
+//! Outgoing-message writer task.
 
-use crate::client::runtime::{Executor, SpawnHandle};
-use crate::client::service::SubmitChannel;
-use crate::shared::RemoteMessage;
+use crate::{
+    client::{
+        runtime::{Executor, SpawnHandle},
+        service::SubmitChannel,
+    },
+    shared::{Encode, RemoteMessage},
+    transport::message::MessageSink,
+};
 use tokio::sync::mpsc;
 
 /// Bound on task batches queued for the writer task on native targets.
@@ -20,15 +25,15 @@ type BatchSender = mpsc::Sender<Vec<RemoteMessage>>;
 #[cfg(target_family = "wasm")]
 type BatchSender = mpsc::UnboundedSender<Vec<RemoteMessage>>;
 
-/// Owns the submit channel on the service runtime and turns task batches into wire frames.
+/// Owns the submit channel on the service runtime and turns task batches into messages.
 ///
 /// The runner thread hands raw [`RemoteMessage`] batches to [`send`](Self::send) over a channel;
 /// the writer task serializes and `await`s each socket send fully before pulling the next, so
-/// frames reach the wire in FIFO order without ever parking the runner thread on serialization or
-/// the network. Serializing here (rather than on the runner thread) lets encoding one frame —
-/// which for `RegisterTensor` carries full tensor payloads — overlap with the runner registering
-/// the next op. That single-task FIFO drain is also what guarantees a frame is fully flushed
-/// before the next begins — the socket sink itself offers no such queue.
+/// messages reach the wire in FIFO order without ever parking the runner thread on serialization
+/// or the network. Serializing here (rather than on the runner thread) lets encoding one message,
+/// which for `RegisterTensor` carries full tensor payloads, overlap with the runner registering
+/// the next op. That single-task FIFO drain is also what guarantees a message's frames are all
+/// sent before the next message begins; the socket sink itself offers no such queue.
 pub(crate) struct SubmitWriter {
     /// `Option` so [`shutdown`](Self::shutdown) can drop the sender to signal the task to
     /// finish once it has drained.
@@ -38,11 +43,12 @@ pub(crate) struct SubmitWriter {
 }
 
 impl SubmitWriter {
-    /// Spawn the writer task on `runtime`, taking ownership of the submit `channel`. A failed send
-    /// runs `end_session`, so readers fail instead of waiting for replies to frames never sent.
+    /// Spawn the writer task on `runtime`, taking ownership of the submit `channel`, which must be
+    /// past the handshake. A failed send runs `end_session`, so readers fail instead of waiting for
+    /// replies to frames never sent.
     pub(crate) fn spawn(
         runtime: &Executor,
-        mut channel: SubmitChannel,
+        channel: SubmitChannel,
         end_session: impl FnOnce() + Send + 'static,
     ) -> Self {
         #[cfg(not(target_family = "wasm"))]
@@ -50,16 +56,17 @@ impl SubmitWriter {
         #[cfg(target_family = "wasm")]
         let (tx, mut rx) = mpsc::unbounded_channel::<Vec<RemoteMessage>>();
 
+        let mut channel = MessageSink::new(channel);
         let handle = runtime.spawn(async move {
             while let Some(batch) = rx.recv().await {
-                let bytes: bytes::Bytes = match rmp_serde::to_vec(&batch) {
-                    Ok(b) => b.into(),
+                let message = match batch.encode() {
+                    Ok(message) => message,
                     Err(err) => {
                         log::error!("Failed to serialize outgoing task batch: {err:?}; dropping");
                         continue;
                     }
                 };
-                if let Err(err) = channel.send(bytes).await {
+                if let Err(err) = channel.send(message).await {
                     log::warn!("Remote submit writer send failed: {err:?}; closing writer");
                     end_session();
                     return;

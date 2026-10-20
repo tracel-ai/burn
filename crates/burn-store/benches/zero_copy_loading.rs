@@ -1,6 +1,3 @@
-// The LibTorch bench group exists to compare against the deprecated backend.
-#![cfg_attr(feature = "tch", allow(deprecated))]
-
 //! Benchmark comparing different loading modes for BurnpackStore.
 //!
 //! This benchmark measures the performance difference between:
@@ -159,8 +156,6 @@ fn main() {
     println!("  - WGPU (GPU)");
     #[cfg(feature = "cuda")]
     println!("  - CUDA (NVIDIA GPU)");
-    #[cfg(feature = "tch")]
-    println!("  - LibTorch");
     #[cfg(feature = "metal")]
     println!("  - Metal (Apple GPU)");
     println!();
@@ -411,8 +406,7 @@ mod store_only {
                 let mut store = BurnpackStore::from_file(&bp_path);
                 let tensors = store.get_all_tensors().expect("Failed to get tensors");
                 for tensor in tensors.values() {
-                    let _data =
-                        burn_store::bridge::to_data(tensor).expect("Failed to get tensor data");
+                    let _data = tensor.to_data().expect("Failed to get tensor data");
                 }
             });
     }
@@ -430,8 +424,7 @@ mod store_only {
                 let mut store = BurnpackStore::from_bytes(Some(bytes));
                 let tensors = store.get_all_tensors().expect("Failed to get tensors");
                 for tensor in tensors.values() {
-                    let _data =
-                        burn_store::bridge::to_data(tensor).expect("Failed to get tensor data");
+                    let _data = tensor.to_data().expect("Failed to get tensor data");
                 }
             });
     }
@@ -448,8 +441,7 @@ mod store_only {
                 let mut store = BurnpackStore::from_static(static_bytes);
                 let tensors = store.get_all_tensors().expect("Failed to get tensors");
                 for tensor in tensors.values() {
-                    let _data =
-                        burn_store::bridge::to_data(tensor).expect("Failed to get tensor data");
+                    let _data = tensor.to_data().expect("Failed to get tensor data");
                 }
             });
     }
@@ -475,9 +467,6 @@ bench_backend!(
     cuda_backend,
     "CUDA Backend (NVIDIA GPU)"
 );
-
-#[cfg(feature = "tch")]
-bench_backend!(LibTorchDevice::default(), tch_backend, "LibTorch Backend");
 
 #[cfg(feature = "metal")]
 bench_backend!(

@@ -131,7 +131,7 @@ fn test_scatter_nd_add_2d() {
 }
 
 // Duplicate indices are non-deterministic on GPU; only test on CPU backends.
-#[cfg(feature = "ndarray")]
+#[cfg(feature = "flex")]
 #[test]
 fn test_scatter_nd_add_duplicate_indices() {
     let device = Default::default();
