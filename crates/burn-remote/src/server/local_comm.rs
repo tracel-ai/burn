@@ -7,20 +7,21 @@
 //! its own device with the inner backend's `to_device`. This is the same-host counterpart of the
 //! cross-server tensor transfer, which moves data *between* servers over the network.
 //!
-//! Today this backs cross-device `to_device`, but the mechanism is general: any same-host
-//! collective (e.g. all-reduce) that needs ranks to exchange primitives uses the same
-//! expose/take rendezvous.
+//! It backs cross-device `to_device` and the all-reduce over devices of one server, whose
+//! members each hand over their primitive and wait for the last to run it over them all.
 //!
 //! This registry is the rendezvous point. The source session exposes a primitive under a
 //! [`LocalTransferId`]; the target session takes it. Either may arrive first — the source op
 //! and the target op travel on separate connections with no cross-connection ordering — so the
 //! taker waits on a [`Notify`] until the primitive shows up.
 
-use crate::shared::{LocalTransferId, SessionId};
+use crate::shared::{LocalAllReducePart, LocalCollectiveId, LocalTransferId, SessionId};
+use burn_backend::{DeviceOps, TensorMetadata, tensor::FloatTensor};
 use burn_ir::{BackendIr, HandleKind};
+use burn_std::id::StreamId;
 use std::collections::HashMap;
 use std::sync::Arc;
-use tokio::sync::{Mutex, Notify};
+use tokio::sync::{Mutex, Notify, oneshot};
 
 /// A primitive parked in the registry, tagged with the session that exposed it so the entry can
 /// be reclaimed if that session goes away before its target takes it.
@@ -29,10 +30,18 @@ struct Pending<B: BackendIr> {
     tensor: HandleKind<B>,
 }
 
+/// A member that has handed its tensor to an all-reduce, waiting for its result.
+struct ArrivedMember<B: BackendIr> {
+    tensor: FloatTensor<B>,
+    result: oneshot::Sender<FloatTensor<B>>,
+}
+
 /// Rendezvous registry for same-host communication, keyed by [`LocalTransferId`].
 pub(crate) struct LocalCommService<B: BackendIr> {
     /// Primitives exposed by source sessions, waiting to be taken by their target.
     pending: Mutex<HashMap<LocalTransferId, Pending<B>>>,
+    /// The members of each all-reduce that have arrived, by member, until the last does.
+    all_reduces: Mutex<HashMap<LocalCollectiveId, Vec<Option<ArrivedMember<B>>>>>,
     /// Wakes takers whenever a new primitive is exposed.
     notify: Arc<Notify>,
 }
@@ -41,6 +50,7 @@ impl<B: BackendIr> LocalCommService<B> {
     pub fn new() -> Self {
         Self {
             pending: Mutex::new(HashMap::new()),
+            all_reduces: Mutex::new(HashMap::new()),
             notify: Arc::new(Notify::new()),
         }
     }
@@ -78,6 +88,61 @@ impl<B: BackendIr> LocalCommService<B> {
         }
     }
 
+    /// This member's result of its all-reduce, once every member has handed over its tensor. The
+    /// last to arrive runs it on `stream_id`; until then the others wait, as NCCL's members do.
+    ///
+    /// # Errors
+    ///
+    /// When the part does not fit its all-reduce's members, and for every other member when the
+    /// all-reduce panics in the last one.
+    pub async fn all_reduce(
+        &self,
+        part: &LocalAllReducePart,
+        tensor: FloatTensor<B>,
+        stream_id: StreamId,
+    ) -> Result<FloatTensor<B>, String> {
+        let collective = part.collective;
+        let (member, members) = (part.member as usize, part.members as usize);
+        let (sender, result) = oneshot::channel();
+        let complete = {
+            let mut all_reduces = self.all_reduces.lock().await;
+            let arrived = all_reduces
+                .entry(collective)
+                .or_insert_with(|| (0..members).map(|_| None).collect());
+            if arrived.len() != members || arrived.get(member).is_none_or(Option::is_some) {
+                return Err(format!(
+                    "member {member} of {members} does not fit all-reduce {collective:?} of {}",
+                    arrived.len()
+                ));
+            }
+            arrived[member] = Some(ArrivedMember {
+                tensor,
+                result: sender,
+            });
+            match arrived.iter().all(Option::is_some) {
+                true => all_reduces.remove(&collective),
+                false => None,
+            }
+        };
+        if let Some(arrived) = complete {
+            let mut arrived: Vec<_> = arrived.into_iter().flatten().collect();
+            // A native group takes its members in ascending device order, and every member
+            // receives the same result in any.
+            arrived.sort_by_key(|member| member.tensor.device().id());
+            let (tensors, results): (Vec<_>, Vec<_>) = arrived
+                .into_iter()
+                .map(|member| (member.tensor, member.result))
+                .unzip();
+            let reduced = stream_id.executes(|| B::float_all_reduce(tensors, part.op));
+            for (result, tensor) in results.into_iter().zip(reduced) {
+                let _ = result.send(tensor);
+            }
+        }
+        result
+            .await
+            .map_err(|_| format!("all-reduce {collective:?} failed in its last member"))
+    }
+
     /// Drop every primitive `session` exposed that no target ever took.
     ///
     /// Called when a session closes. In normal operation every exposed primitive is taken (and so
@@ -94,5 +159,75 @@ impl<B: BackendIr> LocalCommService<B> {
     #[cfg(all(test, not(target_family = "wasm")))]
     pub(crate) async fn is_empty(&self) -> bool {
         self.pending.lock().await.is_empty()
+    }
+}
+
+#[cfg(all(test, not(target_family = "wasm")))]
+mod tests {
+    use super::*;
+    use burn_backend::{
+        DType, Shape, TensorData, distributed::ReduceOperation, ops::FloatTensorOps,
+    };
+    use burn_flex::Flex;
+    use burn_ir::{TensorId, TensorIr};
+
+    fn part(collective: LocalCollectiveId, member: u32, members: u32) -> LocalAllReducePart {
+        LocalAllReducePart {
+            tensor: TensorIr::uninit(TensorId::new(member as u64), Shape::new([2]), DType::F32),
+            out: TensorId::new(10 + member as u64),
+            collective,
+            member,
+            members,
+            op: ReduceOperation::Sum,
+        }
+    }
+
+    fn tensor(values: [f32; 2]) -> FloatTensor<Flex> {
+        Flex::float_from_data(TensorData::from(values), &Default::default())
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn every_member_receives_the_reduction_once_the_last_arrives() {
+        let comm = Arc::new(LocalCommService::<Flex>::new());
+        let collective = LocalCollectiveId::random();
+        let first = tokio::spawn({
+            let comm = comm.clone();
+            async move {
+                let part = part(collective, 0, 2);
+                comm.all_reduce(&part, tensor([1.0, -2.5]), StreamId::current())
+                    .await
+            }
+        });
+        let second = comm
+            .all_reduce(
+                &part(collective, 1, 2),
+                tensor([3.5, 4.0]),
+                StreamId::current(),
+            )
+            .await
+            .unwrap();
+        let first = first.await.unwrap().unwrap();
+
+        for reduced in [first, second] {
+            Flex::float_into_data(reduced)
+                .await
+                .unwrap()
+                .assert_eq(&TensorData::from([4.5f32, 1.5]), false);
+        }
+    }
+
+    #[tokio::test]
+    async fn a_member_outside_its_all_reduce_is_refused() {
+        let comm = LocalCommService::<Flex>::new();
+
+        let refused = comm
+            .all_reduce(
+                &part(LocalCollectiveId::random(), 2, 2),
+                tensor([1.0, 2.0]),
+                StreamId::current(),
+            )
+            .await;
+
+        assert!(refused.is_err());
     }
 }

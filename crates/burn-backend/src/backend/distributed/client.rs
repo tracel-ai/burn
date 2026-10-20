@@ -15,8 +15,7 @@ pub(crate) enum ActionMessage<B: Backend> {
 pub(crate) enum DistributedSyncMessage<B: Backend> {
     RegisterSyncParameters(Vec<DistributedParams>),
     TensorSync((TensorRef<B>, DistributedParams)),
-    #[allow(clippy::type_complexity)]
-    CollectiveSync((Device<B>, oneshot::Sender<Box<dyn FnOnce() + Send>>)),
+    CollectiveSync((Device<B>, oneshot::Sender<()>)),
 }
 
 #[derive(Clone)]
@@ -64,9 +63,7 @@ impl<B: Backend> DistributedSyncClient<B> {
             ))
             .unwrap();
 
-        let sync = rx.recv().expect("Can receive callback");
-
-        sync();
+        rx.recv().expect("Can receive callback");
     }
 
     pub(crate) fn close(&self) {

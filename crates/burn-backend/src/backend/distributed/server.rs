@@ -16,7 +16,7 @@ pub(crate) struct DistributedSyncServer<B: Backend> {
     devices_registered: usize,
     syncing_devices: Vec<Device<B>>,
     devices_synced: usize,
-    callbacks: HashMap<DeviceId, oneshot::Sender<Box<dyn FnOnce() + Send>>>,
+    callbacks: HashMap<DeviceId, oneshot::Sender<()>>,
 }
 
 impl<B: Backend> DistributedSyncServer<B> {
@@ -67,11 +67,7 @@ impl<B: Backend> DistributedSyncServer<B> {
         self.launch_ops();
     }
 
-    fn collective_sync(
-        &mut self,
-        device: Device<B>,
-        callback: oneshot::Sender<Box<dyn FnOnce() + Send>>,
-    ) {
+    fn collective_sync(&mut self, device: Device<B>, callback: oneshot::Sender<()>) {
         self.callbacks.insert(device.id(), callback);
         self.syncing_devices.push(device.clone());
         self.try_launch_sync();
@@ -81,8 +77,7 @@ impl<B: Backend> DistributedSyncServer<B> {
         if self.all_reduce_ops_queue.is_empty() {
             for d in self.syncing_devices.clone() {
                 let callback = self.callbacks.remove(&d.id()).unwrap();
-                let closure = Box::new(move || B::sync_collective(&d));
-                callback.send(closure).expect("Can send callback");
+                callback.send(()).expect("Can send callback");
                 self.devices_synced += 1;
             }
             self.syncing_devices.clear();
@@ -103,31 +98,22 @@ impl<B: Backend> DistributedSyncServer<B> {
 
                 if num_tensors == queued_tensors.len() {
                     // Safety: Tensors sent to the `DistributedSyncServer` should not be accessed or modified until the end of the backward pass.
-                    let device_ids = queued_tensors
+                    // A native group takes its members in ascending device order, and every member
+                    // receives the same result in any.
+                    queued_tensors.sort_by_key(|tensor| unsafe { &*tensor.0 }.device().id());
+                    let tensors = queued_tensors
                         .iter()
-                        .map(|t| unsafe { &*t.0 }.device().id())
-                        .collect::<Vec<_>>();
-                    let reduced_tensors: Vec<B::FloatTensorPrimitive> = queued_tensors
-                        .iter()
-                        .map(|tensor|
-                            // Safety: we can call `assume_resolved` on these tensors since we know `B::sync_collective` is called
-                            // at the end of the backward pass.
-                            unsafe {
-                            B::all_reduce(
-                                (*tensor.0).clone(),
-                                self.config.all_reduce_op,
-                                device_ids.clone(),
-                            )
-                            .assume_resolved()
-                        })
+                        .map(|tensor| unsafe { (*tensor.0).clone() })
                         .collect();
+                    let reduced = B::float_all_reduce(tensors, self.config.all_reduce_op);
 
-                    // Make the tensor reference point to the reduced tensor to perform an in-place all_reduce.
-                    // Safety: `B::sync_collective` should be automatically called after the backward pass.
+                    // Safety: each device waits in `submit_sync_collective` for every reduction
+                    // before reading its gradients.
                     unsafe {
-                        queued_tensors.iter().zip(reduced_tensors).for_each(
-                            |(tensor_ref, reduced_tensor)| *tensor_ref.0 = reduced_tensor,
-                        );
+                        queued_tensors
+                            .iter()
+                            .zip(reduced)
+                            .for_each(|(tensor_ref, reduced)| *tensor_ref.0 = reduced);
                     }
 
                     self.all_reduce_ops_queue.remove(&param_id).unwrap();

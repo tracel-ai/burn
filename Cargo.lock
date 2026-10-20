@@ -1346,6 +1346,7 @@ dependencies = [
  "blake3",
  "burn-backend",
  "burn-communication",
+ "burn-dispatch",
  "burn-flex",
  "burn-fusion",
  "burn-ir",

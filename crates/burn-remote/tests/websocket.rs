@@ -2,6 +2,8 @@
 
 mod common;
 
+use burn_backend::{distributed::ReduceOperation, ops::CollectiveOps};
+use burn_dispatch::Dispatch;
 use burn_flex::Flex;
 use burn_remote::{
     ConnectError,
@@ -10,9 +12,13 @@ use burn_remote::{
         WebSocketTransport,
     },
 };
+use burn_std::id::ParamId;
 use burn_tensor::{
     Bool, DType, Device, DeviceType, Distribution, Int, Tensor, TensorData, Tolerance, Transaction,
-    quantization::ScaleDtype, remote::RemoteHost, server::RemoteServer,
+    distributed::{DistributedConfig, DistributedContext},
+    quantization::ScaleDtype,
+    remote::RemoteHost,
+    server::RemoteServer,
 };
 use common::{assert_same_bytes, int8_scheme, wire_floats, wire_schemes};
 
@@ -537,6 +543,96 @@ fn a_quantized_tensor_moves_between_devices_of_one_server_and_back() {
         assert_same_bytes(&moved.to_device(&device_0).into_data(), &expected);
     }
 
+    rt.shutdown_background();
+}
+
+#[test]
+fn an_all_reduce_over_one_servers_devices_reaches_every_member() {
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()
+        .unwrap();
+    let host = serve(
+        &rt,
+        BackendServer::<Flex>::new(vec![Default::default(), Default::default()]),
+    );
+    let devices = [0, 1].map(|index| {
+        Device::remote_options(&host)
+            .device_index(index)
+            .init()
+            .unwrap()
+    });
+    let members = [[1.0, -2.5], [3.5, 4.0]]
+        .iter()
+        .zip(&devices)
+        .map(|(values, device)| Tensor::<1>::from_floats(*values, device).into_dispatch())
+        .collect();
+
+    let reduced = with_deadlock_watchdog(HANG_LIMIT, move || {
+        Dispatch::float_all_reduce(members, ReduceOperation::Mean)
+            .into_iter()
+            .map(|tensor| Tensor::<1>::from_dispatch(tensor).into_data())
+            .collect::<Vec<_>>()
+    });
+
+    for data in reduced {
+        data.assert_eq(&TensorData::from([2.25f32, 0.75]), false);
+    }
+    rt.shutdown_background();
+}
+
+#[test]
+fn ddp_over_one_servers_devices_averages_the_gradients() {
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()
+        .unwrap();
+    let host = serve(
+        &rt,
+        BackendServer::<Flex>::new(vec![Default::default(), Default::default()]),
+    );
+    let devices: Vec<Device> = (0..2)
+        .map(|index| {
+            Device::remote_options(&host)
+                .device_index(index)
+                .init()
+                .unwrap()
+                .autodiff()
+        })
+        .collect();
+    let config = DistributedConfig {
+        all_reduce_op: ReduceOperation::Mean,
+    };
+    let _context = DistributedContext::init(devices.clone(), config);
+    let param = ParamId::new();
+
+    // The gradient of `sum(weights * input)` is the input, so each device computes its own.
+    let gradients = with_deadlock_watchdog(HANG_LIMIT, move || {
+        std::thread::scope(|scope| {
+            let peers: Vec<_> = devices
+                .iter()
+                .zip([[1.0, -2.0], [3.0, 5.0]])
+                .map(|(device, input)| {
+                    scope.spawn(move || {
+                        let weights = Tensor::<1>::from_floats([0.5, 0.5], device)
+                            .require_grad()
+                            .set_distributed(param);
+                        let input = Tensor::<1>::from_floats(input, device);
+                        let gradients = (weights.clone() * input).sum().backward();
+                        weights.grad(&gradients).unwrap().into_data()
+                    })
+                })
+                .collect();
+            peers
+                .into_iter()
+                .map(|peer| peer.join().unwrap())
+                .collect::<Vec<_>>()
+        })
+    });
+
+    for gradient in gradients {
+        gradient.assert_eq(&TensorData::from([2.0f32, 1.5]), false);
+    }
     rt.shutdown_background();
 }
 

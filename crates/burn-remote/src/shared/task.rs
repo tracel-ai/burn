@@ -2,6 +2,7 @@ use burn_backend::{DTypeUsageSet, ExecutionError, ProfileOptions, ProfileToken, 
 use burn_ir::{GraphBindings, GraphId, OperationIr, TensorId, TensorIr};
 use burn_std::{
     DType, DeviceSettings,
+    distributed::ReduceOperation,
     id::{IdGenerator, StreamId},
 };
 use core::time::Duration;
@@ -16,7 +17,7 @@ use crate::{PeerAddr, PeerId};
 /// messages after the handshake are framed, or which operations a server can
 /// run, so a mismatched peer is refused at the handshake rather than failing
 /// mid-session.
-pub const PROTOCOL_VERSION: u16 = 5;
+pub const PROTOCOL_VERSION: u16 = 6;
 
 /// Routing id for a task whose result is fetched back.
 ///
@@ -24,8 +25,7 @@ pub const PROTOCOL_VERSION: u16 = 5;
 /// [`Task::DTypeUsage`], [`Task::ProfileStart`], [`Task::ProfileEnd`]) carry a `RequestId`;
 /// the server echoes it on its [`TaskResponse`] so
 /// the client demultiplexes results back to the right pending callback. Fire-and-forget tasks
-/// have no id because no result ever comes back. Collective ops (all-reduce, sync-collective)
-/// are plain fire-and-forget [`OperationIr`]s carried by [`Task::RegisterOperation`].
+/// have no id because no result ever comes back.
 pub type RequestId = u64;
 
 /// Process-local rendezvous id for moving tensors between devices on one compute peer.
@@ -43,6 +43,32 @@ impl From<u64> for LocalTransferId {
     fn from(value: u64) -> Self {
         Self(value)
     }
+}
+
+/// Rendezvous id shared by every member's part of one collective over devices on one compute
+/// peer. Random, since the collectives of every client of a server meet in one registry.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct LocalCollectiveId(u64);
+
+impl LocalCollectiveId {
+    #[cfg(any(feature = "client", test))]
+    pub fn random() -> Self {
+        Self(rand::random())
+    }
+}
+
+/// Member `member` of `members` in an all-reduce over devices of one server. Each member's session
+/// is sent one under the same `collective`; the last to arrive runs it over them all, and each
+/// registers its own result under `out`.
+#[allow(missing_docs)]
+#[derive(Serialize, Deserialize, Debug)]
+pub struct LocalAllReducePart {
+    pub tensor: TensorIr,
+    pub out: TensorId,
+    pub collective: LocalCollectiveId,
+    pub member: u32,
+    pub members: u32,
+    pub op: ReduceOperation,
 }
 
 /// Unforgeable, bounded-use capability authorizing a peer-to-peer tensor download.
@@ -252,6 +278,11 @@ pub enum Task {
         stream_id: StreamId,
         transfer_id: LocalTransferId,
         new_id: TensorId,
+    },
+    /// One member's part of an all-reduce over devices of this server.
+    AllReduceLocal {
+        stream_id: StreamId,
+        part: LocalAllReducePart,
     },
     /// Read several tensors as one backend transaction, answered in the same order.
     ReadTensors(RequestId, StreamId, Vec<TensorIr>),

@@ -1,8 +1,8 @@
 use crate::{
     metrics::{MetricSide, TelemetryLogger, logger_task},
     shared::{
-        Encode, LocalTransferId, PROTOCOL_VERSION, RemoteMessage, RequestId, SessionId,
-        SessionInfo, SessionInit, Task, TaskResponse, TaskResponseContent, TensorRemote,
+        Encode, LocalAllReducePart, LocalTransferId, PROTOCOL_VERSION, RemoteMessage, RequestId,
+        SessionId, SessionInfo, SessionInit, Task, TaskResponse, TaskResponseContent, TensorRemote,
         TransferCapability,
     },
     telemetry::{CHANNEL_CAPACITY, TelemetryEvent, TelemetryProbe, serialized_len},
@@ -509,6 +509,13 @@ impl RemoteService {
             transfer_id,
             new_id,
         });
+        self.flush();
+    }
+
+    /// Send one member's part of an all-reduce, flushing immediately: its session waits there
+    /// for the other members' parts, which the caller sends next.
+    pub fn all_reduce_local(&mut self, stream_id: StreamId, part: LocalAllReducePart) {
+        self.submit_task(Task::AllReduceLocal { stream_id, part });
         self.flush();
     }
 
