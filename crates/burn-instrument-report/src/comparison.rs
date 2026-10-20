@@ -156,7 +156,7 @@ impl Display for Comparison<'_> {
         let compared = self.compared();
         let width = compared
             .iter()
-            .map(|row| row.path.to_string().chars().count())
+            .map(|component| component.path.to_string().chars().count())
             .chain([28])
             .max()
             .unwrap_or(28)
@@ -184,17 +184,17 @@ impl Display for Comparison<'_> {
             "component", "was ms", "now ms", "delta"
         )?;
         writeln!(f, "  {}", "─".repeat(width + 42))?;
-        for row in &compared {
-            let now = self.now.apportioned(row.now);
-            let delta = match row.was {
+        for component in &compared {
+            let now = self.now.apportioned(component.now);
+            let delta = match component.was {
                 // A component the saved pass did not have. Dashes, not zeroes:
                 // zero is a measurement and this is the absence of one.
                 None => ("—".to_string(), "new".to_string()),
                 // Both passes have it, but its work changed hands, so there is
                 // a `was` to print and no delta to draw from it.
-                Some(was) if self.changed_hands(row) => (
+                Some(was) if self.changed_hands(component) => (
                     ms(self.was.apportioned(was)),
-                    match self.now.is_fused_elsewhere(row.now) {
+                    match self.now.is_fused_elsewhere(component.now) {
                         true => "fused ↓".to_string(),
                         false => "unfused".to_string(),
                     },
@@ -217,11 +217,11 @@ impl Display for Comparison<'_> {
             writeln!(
                 f,
                 "  {:<width$} {:>8} {:>8} {:>13}  {}",
-                row.path,
+                component.path,
                 delta.0,
                 ms(now),
                 delta.1,
-                variants(row.now)
+                variants(component.now)
             )?;
         }
 
@@ -356,7 +356,7 @@ mod tests {
     }
 
     /// A component the saved pass did not have is `new`: printing its whole time as a
-    /// regression would put the biggest number in the table on the row that least deserves it.
+    /// regression would put the biggest number in the table on the component that least deserves it.
     #[test]
     fn a_component_the_saved_pass_lacked_is_new_rather_than_a_regression() {
         let was = pass(vec![component("norm", 100, Vec::new())]);
