@@ -54,6 +54,24 @@ pub struct Score {
 }
 
 impl Score {
+    /// `bounds` scored against `peaks`, given what it measured.
+    ///
+    /// `None` when the device could not be probed, or when nothing was measured: a
+    /// percentage against a denominator nobody measured, or of no time at all, is
+    /// worse than no percentage.
+    pub fn new(bounds: Bounds, measured: Duration, peaks: &Peaks) -> Option<Self> {
+        let seconds = measured.as_secs_f64();
+        if seconds <= 0.0 {
+            return None;
+        }
+        let floor = Floor::new(bounds, peaks)?;
+        Some(Self {
+            bound: floor.bound,
+            floor: floor.time,
+            achieved: floor.time.as_secs_f64() / seconds,
+        })
+    }
+
     /// Time the component could still give back: what it took, less its floor.
     ///
     /// An **upper** bound on what any amount of work can recover, and at a
@@ -123,24 +141,6 @@ impl Floor {
             time: Duration::from_secs_f64(seconds),
         })
     }
-}
-
-/// Score `bounds` against `peaks`, given what it measured.
-///
-/// `None` when the device could not be probed, or when nothing was measured: a
-/// percentage against a denominator nobody measured, or of no time at all, is
-/// worse than no percentage.
-pub fn score(bounds: Bounds, measured: Duration, peaks: &Peaks) -> Option<Score> {
-    let seconds = measured.as_secs_f64();
-    if seconds <= 0.0 {
-        return None;
-    }
-    let floor = Floor::new(bounds, peaks)?;
-    Some(Score {
-        bound: floor.bound,
-        floor: floor.time,
-        achieved: floor.time.as_secs_f64() / seconds,
-    })
 }
 
 /// Where a pass's time could go, one rung per lever.
@@ -246,7 +246,7 @@ mod tests {
             write: 11_500_000,
             flops: 0,
         };
-        let scored = score(bounds, Duration::from_micros(1_100), &peaks).expect("scored");
+        let scored = Score::new(bounds, Duration::from_micros(1_100), &peaks).expect("scored");
         assert_eq!(scored.bound, Bound::Bytes);
         assert!(
             (scored.floor.as_secs_f64() - 0.0011).abs() < 1e-9,
@@ -272,7 +272,7 @@ mod tests {
             write: 50_000_000,
             flops: 0,
         };
-        let scored = score(bounds, Duration::from_millis(2), &peaks).expect("scored");
+        let scored = Score::new(bounds, Duration::from_millis(2), &peaks).expect("scored");
         // 200 MB over 200 GB/s is a millisecond, whatever the mix.
         assert!(
             (scored.floor.as_secs_f64() - 0.001).abs() < 1e-9,
@@ -300,7 +300,7 @@ mod tests {
             write: 50_000_000,
             flops: 0,
         };
-        let scored = score(bounds, Duration::from_millis(2), &half).expect("scored");
+        let scored = Score::new(bounds, Duration::from_millis(2), &half).expect("scored");
         // 200 MB over the 200 GB/s copy ceiling, not 150 over 230.
         assert!(
             (scored.floor.as_secs_f64() - 0.001).abs() < 1e-9,
@@ -318,7 +318,8 @@ mod tests {
             write: 6_250_000,
             flops: 25_000_000_000,
         };
-        let matmul = score(matmul, Duration::from_millis(1), &peaks()).expect("both peaks known");
+        let matmul =
+            Score::new(matmul, Duration::from_millis(1), &peaks()).expect("both peaks known");
         assert_eq!(matmul.bound, Bound::Flops);
 
         // A norm: the same bytes and almost no arithmetic.
@@ -327,7 +328,7 @@ mod tests {
             write: 6_250_000,
             flops: 1_000_000,
         };
-        let norm = score(norm, Duration::from_millis(1), &peaks()).expect("both peaks known");
+        let norm = Score::new(norm, Duration::from_millis(1), &peaks()).expect("both peaks known");
         assert_eq!(norm.bound, Bound::Bytes);
     }
 
@@ -339,7 +340,7 @@ mod tests {
             flops: 0,
         };
         // A second's worth of traffic, measured in a second.
-        let scored = score(bounds, Duration::from_secs(1), &peaks()).expect("a memory peak");
+        let scored = Score::new(bounds, Duration::from_secs(1), &peaks()).expect("a memory peak");
         assert!((scored.achieved - 1.0).abs() < 1e-9);
         assert_eq!(scored.gain(Duration::from_secs(1)), Duration::ZERO);
     }
@@ -348,7 +349,7 @@ mod tests {
     fn an_unprobed_device_scores_nothing_rather_than_dividing_by_a_guess() {
         let blank = Peaks::default();
         assert!(
-            score(
+            Score::new(
                 Bounds {
                     read: 1,
                     write: 0,
@@ -369,7 +370,7 @@ mod tests {
             write: 250_000,
             flops: 0,
         };
-        let gather = score(gather, Duration::from_millis(1), &peaks()).expect("a memory peak");
+        let gather = Score::new(gather, Duration::from_millis(1), &peaks()).expect("a memory peak");
         assert_eq!(gather.bound, Bound::Bytes);
     }
 

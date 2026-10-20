@@ -13,7 +13,7 @@ use burn_instrument::{
     Bounds, CollectedPass, Component, ComponentPath, Kernel, PeakFinding, Peaks,
 };
 
-use crate::roofline::{Floor, Ladder, Score, score};
+use crate::roofline::{Floor, Ladder, Score};
 
 /// A collected pass, scored against its device's peaks, and the table that
 /// renders it ([`Display`]).
@@ -339,7 +339,7 @@ impl<'a> Report<'a> {
     fn score_of(&self, component: &Component) -> Option<Score> {
         let measured = self.apportioned(component);
         (!measured.is_zero())
-            .then(|| score(self.priced(component)?, measured, &self.peaks))
+            .then(|| Score::new(self.priced(component)?, measured, &self.peaks))
             .flatten()
     }
 }
