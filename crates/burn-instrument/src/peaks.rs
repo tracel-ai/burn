@@ -183,7 +183,7 @@ impl Peaks {
     /// them, so measure before the pass, not between its parts. The runtime keeps each value for
     /// the process, so a second call is free. A device with no probes (a non-cubecl one, or a
     /// runtime without timing) reports `None` for each.
-    pub fn measure(device: &burn_tensor::Device, dtype: FloatDType) -> Self {
+    pub fn new(device: &burn_tensor::Device, dtype: FloatDType) -> Self {
         use cubecl::throughput::{MemoryAccess, ThroughputKey, ThroughputMode};
 
         let memory = |access| {

@@ -41,7 +41,7 @@
 //!
 //! ```rust,ignore
 //! // Before the pass: the probes are saturating kernels.
-//! let peaks = Peaks::measure(&device, FloatDType::F16);
+//! let peaks = Peaks::new(&device, FloatDType::F16);
 //! let breakdown = PassCollector::new(&device).collect(|| {
 //!     model.forward(input);
 //! });
@@ -63,13 +63,13 @@
 //!
 //! - `std` (default): installing an observer, and reading and writing breakdowns.
 //! - `cubecl`: [`PassCollector`], which reads a cubecl runtime's kernel launches, and
-//!   [`Peaks::measure`].
+//!   [`Peaks::new`].
 //! - `fusion` (default): the collector also reads the fusion server's blocks, which it needs to
 //!   collect a device that fuses.
 //!
 // Where the enabled features leave an item out, its links go to this version's docs.rs page.
 #![cfg_attr(not(feature = "cubecl"), doc = concat!("[`PassCollector`]: ", concat!("https://docs.rs/burn-instrument/", env!("CARGO_PKG_VERSION"), "/burn_instrument/struct.PassCollector.html")))]
-#![cfg_attr(not(feature = "cubecl"), doc = concat!("[`Peaks::measure`]: ", concat!("https://docs.rs/burn-instrument/", env!("CARGO_PKG_VERSION"), "/burn_instrument/struct.Peaks.html#method.measure")))]
+#![cfg_attr(not(feature = "cubecl"), doc = concat!("[`Peaks::new`]: ", concat!("https://docs.rs/burn-instrument/", env!("CARGO_PKG_VERSION"), "/burn_instrument/struct.Peaks.html#method.new")))]
 #![cfg_attr(not(feature = "std"), doc = concat!("[`Breakdown`]: ", concat!("https://docs.rs/burn-instrument/", env!("CARGO_PKG_VERSION"), "/burn_instrument/struct.Breakdown.html")))]
 #![cfg_attr(not(feature = "std"), doc = concat!("[`CollectedPass`]: ", concat!("https://docs.rs/burn-instrument/", env!("CARGO_PKG_VERSION"), "/burn_instrument/struct.CollectedPass.html")))]
 #![cfg_attr(not(feature = "std"), doc = concat!("[`CollectedPass::write`]: ", concat!("https://docs.rs/burn-instrument/", env!("CARGO_PKG_VERSION"), "/burn_instrument/struct.CollectedPass.html#method.write")))]

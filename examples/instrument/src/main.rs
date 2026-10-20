@@ -148,7 +148,7 @@ fn main() {
     }
 
     // Before anything is timed: the probes are saturating kernels.
-    let peaks = Peaks::measure(&device, FloatDType::F32);
+    let peaks = Peaks::new(&device, FloatDType::F32);
 
     let mut samples: Vec<Duration> = (0..SAMPLES)
         .map(|_| {

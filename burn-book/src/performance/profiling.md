@@ -54,7 +54,7 @@ the device has already run, so autotuning and compilation are not part of it:
 use burn::instrument::{CollectedPass, PassCollector, Peaks};
 
 // Warm up first: the first pass compiles and autotunes.
-let peaks = Peaks::measure(&device, FloatDType::F32);
+let peaks = Peaks::new(&device, FloatDType::F32);
 let clean_wall = /* the median wall time of a few uncollected passes */;
 
 let mut output = None;
