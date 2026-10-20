@@ -15,7 +15,6 @@ pub(crate) struct DistributedSyncServer<B: Backend> {
     num_devices: usize,
     devices_registered: usize,
     syncing_devices: Vec<Device<B>>,
-    devices_synced: usize,
     callbacks: HashMap<DeviceId, oneshot::Sender<()>>,
 }
 
@@ -29,7 +28,6 @@ impl<B: Backend> DistributedSyncServer<B> {
             num_devices,
             devices_registered: 0,
             syncing_devices: vec![],
-            devices_synced: 0,
             callbacks: HashMap::default(),
         }
     }
@@ -74,20 +72,15 @@ impl<B: Backend> DistributedSyncServer<B> {
     }
 
     fn try_launch_sync(&mut self) {
-        if self.all_reduce_ops_queue.is_empty() {
-            for d in self.syncing_devices.clone() {
-                let callback = self.callbacks.remove(&d.id()).unwrap();
-                callback.send(()).expect("Can send callback");
-                self.devices_synced += 1;
-            }
-            self.syncing_devices.clear();
+        // All at once: a device released early registers its next backward before this reset.
+        if self.syncing_devices.len() < self.num_devices || !self.all_reduce_ops_queue.is_empty() {
+            return;
         }
-
-        if self.devices_synced == self.num_devices {
-            self.devices_registered = 0;
-            self.devices_synced = 0;
-            self.param_required_map.clear();
-            self.callbacks.clear();
+        self.devices_registered = 0;
+        self.param_required_map.clear();
+        for device in self.syncing_devices.drain(..) {
+            let callback = self.callbacks.remove(&device.id()).unwrap();
+            callback.send(()).expect("Can send callback");
         }
     }
 
