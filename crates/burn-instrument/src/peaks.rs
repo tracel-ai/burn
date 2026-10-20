@@ -52,8 +52,9 @@ pub struct ComputePeak {
 /// kept one, because nothing in the readings says which of them is wrong.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum PeakFinding {
-    /// The write ceiling came in above the read one, which no shared bus does, so both were
-    /// dropped and bytes fall back to the copy ceiling. See [`Peaks::rejected_directions`].
+    /// The write ceiling came in above the read one, so both were dropped and bytes fall back to
+    /// the copy ceiling. A store moves at least the bytes a load does, so this is the probe
+    /// counting bytes it did not pay for, such as lines still resident in cache.
     ImpossibleDirections {
         /// The read ceiling the probe reported, bytes/s.
         read_bytes_per_s: f64,
@@ -61,7 +62,11 @@ pub enum PeakFinding {
         write_bytes_per_s: f64,
     },
     /// The two directions predict a copy ceiling the probe did not measure. Kept and still
-    /// divided by. See [`Peaks::inconsistent_ceilings`].
+    /// divided by: when the three disagree, nothing in the readings says which is wrong.
+    ///
+    /// A copy moves half its bytes each way, so its ceiling is the harmonic mean of the two
+    /// directions. Only the ratio is tested, so all three reading low in the same proportion
+    /// goes unseen.
     UnpredictedCopyCeiling {
         /// What the copy probe measured, bytes/s.
         measured_bytes_per_s: f64,
@@ -69,7 +74,9 @@ pub enum PeakFinding {
         predicted_bytes_per_s: f64,
     },
     /// The arithmetic peak came in below the device's own copy bandwidth, so it was dropped and
-    /// components are scored on memory alone. See [`Peaks::rejected_compute`].
+    /// components are scored on memory alone. Below one FLOP per byte moved no arithmetic would
+    /// ever be worth doing between two loads, and no accelerator is built that way: such a
+    /// reading is the probe failing.
     ImpossibleCompute {
         /// What the compute probe reported, FLOP/s.
         flops_per_s: f64,
@@ -89,26 +96,25 @@ impl Peaks {
     /// rather than divide by a broken denominator: an impossible arithmetic peak leaves the
     /// bytes wall, and an impossible pair of directions leaves the copy ceiling.
     ///
-    /// A merely implausible reading is kept; see
-    /// [`inconsistent_ceilings`](Self::inconsistent_ceilings).
+    /// A merely implausible reading is kept; see [`PeakFinding::UnpredictedCopyCeiling`].
     pub fn trusted(self) -> Self {
-        let trusted = match self.rejected_compute() {
-            Some(_) => Self {
+        let trusted = match self.rejected_compute().is_some() {
+            true => Self {
                 flops: None,
                 ..self
             },
-            None => self,
+            false => self,
         };
         // Both directions go together: they are scored as a pair, so keeping the believable
         // half of an impossible pair would divide one direction by a measurement and the other
         // by nothing.
-        match trusted.rejected_directions() {
-            Some(_) => Self {
+        match trusted.rejected_directions().is_some() {
+            true => Self {
                 read_bytes_per_s: None,
                 write_bytes_per_s: None,
                 ..trusted
             },
-            None => trusted,
+            false => trusted,
         }
     }
 
@@ -118,57 +124,47 @@ impl Peaks {
     /// The consistency check reads the [`trusted`](Self::trusted) peaks, so a pair already
     /// rejected is not also reported as disagreeing with the copy ceiling.
     pub fn findings(self) -> Vec<PeakFinding> {
-        let mut findings = Vec::new();
-        if let Some((read, write)) = self.rejected_directions() {
-            findings.push(PeakFinding::ImpossibleDirections {
-                read_bytes_per_s: read,
-                write_bytes_per_s: write,
-            });
-        }
-        if let Some((measured, predicted)) = self.trusted().inconsistent_ceilings() {
-            findings.push(PeakFinding::UnpredictedCopyCeiling {
-                measured_bytes_per_s: measured,
-                predicted_bytes_per_s: predicted,
-            });
-        }
-        if let Some(flops) = self.rejected_compute() {
-            findings.push(PeakFinding::ImpossibleCompute { flops_per_s: flops });
-        }
-        findings
+        [
+            self.rejected_directions(),
+            self.trusted().inconsistent_ceilings(),
+            self.rejected_compute(),
+        ]
+        .into_iter()
+        .flatten()
+        .collect()
     }
 
-    /// The arithmetic peak, when it is too low to believe: below the ridge point of one FLOP per
-    /// byte moved, where no arithmetic would ever be worth doing between two loads. No
-    /// accelerator is built that way, so such a reading is the probe failing.
-    pub fn rejected_compute(self) -> Option<f64> {
+    /// The arithmetic peak, when it is too low to believe.
+    fn rejected_compute(self) -> Option<PeakFinding> {
         let compute = self.flops?.per_s;
         let memory = self.copy_bytes_per_s?;
-        (compute < memory).then_some(compute)
+        (compute < memory).then_some(PeakFinding::ImpossibleCompute {
+            flops_per_s: compute,
+        })
     }
 
-    /// The read and write ceilings, when they cannot both be true: a write ceiling above the
-    /// read one. A store moves at least the bytes a load does, so this is the probe counting
-    /// bytes it did not pay for, such as lines still resident in cache.
-    pub fn rejected_directions(self) -> Option<(f64, f64)> {
+    /// The read and write ceilings, when they cannot both be true.
+    fn rejected_directions(self) -> Option<PeakFinding> {
         let read = self.read_bytes_per_s?;
         let write = self.write_bytes_per_s?;
-        (write > read).then_some((read, write))
+        (write > read).then_some(PeakFinding::ImpossibleDirections {
+            read_bytes_per_s: read,
+            write_bytes_per_s: write,
+        })
     }
 
     /// The measured copy ceiling and the one the two directions predict, when they are too far
     /// apart to describe one device.
-    ///
-    /// A copy moves half its bytes each way, so its ceiling is the harmonic mean of the two
-    /// directions. This reports and does not reject: when the three disagree, nothing in the
-    /// readings says which is wrong. It cannot catch all three reading low in the same
-    /// proportion, since the ratio is all it tests.
-    pub fn inconsistent_ceilings(self) -> Option<(f64, f64)> {
+    fn inconsistent_ceilings(self) -> Option<PeakFinding> {
         let copy = self.copy_bytes_per_s?;
         let read = self.read_bytes_per_s?;
         let write = self.write_bytes_per_s?;
         let predicted = 2.0 / (1.0 / read + 1.0 / write);
         let apart = (predicted - copy).abs() / copy;
-        (apart > CEILING_TOLERANCE).then_some((copy, predicted))
+        (apart > CEILING_TOLERANCE).then_some(PeakFinding::UnpredictedCopyCeiling {
+            measured_bytes_per_s: copy,
+            predicted_bytes_per_s: predicted,
+        })
     }
 }
 
@@ -275,7 +271,10 @@ mod tests {
             }),
             ..Peaks::default()
         };
-        assert_eq!(broken.rejected_compute(), Some(4.5e9));
+        assert_eq!(
+            broken.rejected_compute(),
+            Some(PeakFinding::ImpossibleCompute { flops_per_s: 4.5e9 })
+        );
         assert_eq!(broken.trusted().flops.map(|flops| flops.per_s), None);
         assert_eq!(broken.trusted().copy_bytes_per_s, Some(166.1e9));
     }
@@ -310,7 +309,13 @@ mod tests {
                 dtype: FloatDType::F16,
             }),
         };
-        assert_eq!(broken.rejected_directions(), Some((227.0e9, 281.0e9)));
+        assert_eq!(
+            broken.rejected_directions(),
+            Some(PeakFinding::ImpossibleDirections {
+                read_bytes_per_s: 227.0e9,
+                write_bytes_per_s: 281.0e9,
+            })
+        );
         let trusted = broken.trusted();
         assert_eq!(trusted.read_bytes_per_s, None);
         assert_eq!(trusted.write_bytes_per_s, None);
@@ -356,7 +361,13 @@ mod tests {
             write_bytes_per_s: Some(281.0e9),
             ..Peaks::default()
         };
-        let (copy, predicted) = broken.inconsistent_ceilings().expect("61% apart");
+        let Some(PeakFinding::UnpredictedCopyCeiling {
+            measured_bytes_per_s: copy,
+            predicted_bytes_per_s: predicted,
+        }) = broken.inconsistent_ceilings()
+        else {
+            panic!("61% apart");
+        };
         assert_eq!(copy, 156.0e9);
         assert!((predicted / 1e9 - 251.0).abs() < 1.0, "{predicted}");
 
