@@ -16,8 +16,9 @@ workspace = true
 
 [dependencies]
 burn-instrument = { workspace = true, features = ["std"] }
-# Kernel names are cubecl type names, shortened the way the runtime's own logs shorten them.
-cubecl = { workspace = true }
+# Kernel names are cubecl type names, shortened the way the runtime's own logs shorten them;
+# `std`, as a host binary: without it cubecl's IR builds `no_std`.
+cubecl = { workspace = true, features = ["std"] }
 
 [dev-dependencies]
 # The dtype a test's compute peak is stated at.
