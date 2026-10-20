@@ -69,7 +69,7 @@ pub(crate) fn dgrad_stride_phases<const N: usize>(
         return Err(ConvSetupError::Unknown);
     }
     let out_grad = crate::kernel::untile(out_grad);
-    let weights = crate::kernel::untile(weights);
+    let weights = crate::kernel::into_contiguous_aligned(weights);
     let contraction = weights.meta.shape()[..N + 1]
         .iter()
         .try_fold(1usize, |size, extent| size.checked_mul(*extent));
@@ -305,5 +305,33 @@ mod tests {
             4,
             false,
         );
+    }
+    #[test]
+    fn stride_phases_accept_channel_strided_weights() {
+        let device = CubeDevice::cuda(0).unwrap();
+        let weights: Vec<f32> = (0..8 * 32 * 4 * 4)
+            .map(|index| (index % 7) as f32 / 8.0)
+            .collect();
+        let weights = crate::ops::from_data(TensorData::new(weights, [8, 32, 4, 4]), &device);
+        let weights = crate::ops::permute_nchw_to_nhwc(weights);
+        assert_ne!(weights.meta.strides()[3], 1);
+        let gradients: Vec<f32> = (0..2 * 4 * 5 * 8)
+            .map(|index| (index % 5) as f32 / 4.0)
+            .collect();
+        let gradients = crate::ops::from_data(TensorData::new(gradients, [2, 4, 5, 8]), &device);
+        let shape = Shape::new([2, 11, 13, 32]);
+        let options = ConvOptions::new([2; 2], [0; 2], [1; 2], 1);
+        let expected = conv_data_backward_fallback(
+            gradients.clone(),
+            weights.clone(),
+            shape.clone(),
+            options.clone(),
+        )
+        .unwrap();
+        let expected = crate::ops::into_data_sync(expected)
+            .try_to_vec::<f32>()
+            .unwrap();
+        let actual = dgrad_stride_phases(gradients, weights, shape, options).unwrap();
+        assert_values(actual, &expected);
     }
 }
