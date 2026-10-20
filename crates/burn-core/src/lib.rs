@@ -14,6 +14,8 @@
 //! - [`config`]: serializable configuration structs with `#[derive(Config)]`.
 //! - [`store`]: module records and the burnpack format.
 //! - [`data`]: datasets, batchers and data loaders (`std` only).
+//! - [`instrument`]: declaring components with `#[compute]` and measuring where a pass's device
+//!   time goes.
 //! - [`prelude`]: the types most programs import.
 //!
 //! # Feature flags
@@ -47,6 +49,9 @@ pub mod module;
 
 /// Module for saving and loading module/optimizer state in the burnpack format.
 pub mod store;
+
+/// Declaring components and measuring where a pass's device time goes.
+pub use burn_instrument as instrument;
 
 /// Module for the tensor.
 pub mod tensor;
