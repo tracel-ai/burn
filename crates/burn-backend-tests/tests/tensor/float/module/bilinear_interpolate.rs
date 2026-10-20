@@ -1,7 +1,7 @@
 use super::*;
 use burn_tensor::Tolerance;
 use burn_tensor::module::interpolate;
-use burn_tensor::ops::{InterpolateMode, InterpolateOptions};
+use burn_tensor::ops::{CoordinateTransformMode, InterpolateMode, InterpolateOptions};
 use burn_tensor::{DType, Shape};
 
 #[test]
@@ -266,4 +266,113 @@ fn test_upsample_half_pixel() {
         ]]]),
         false,
     );
+}
+
+#[test]
+fn test_bilinear_scale_driven_mapping() {
+    let device = Default::default();
+    // 4x4 input where each row is [10.0, 20.0, 30.0, 40.0]
+    let input = TestTensor::<4>::from_data(
+        [[[
+            [10.0, 20.0, 30.0, 40.0],
+            [10.0, 20.0, 30.0, 40.0],
+            [10.0, 20.0, 30.0, 40.0],
+            [10.0, 20.0, 30.0, 40.0],
+        ]]],
+        &device,
+    );
+
+    // Downsample size 4 with scale_factor = [0.6, 0.6] -> output size [2, 2].
+    // If scale 0.6 is used:
+    // x_in = (x_out + 0.5) / 0.6 - 0.5
+    // x_out = 0 -> x_in = 1/3 -> (1 - 1/3)*10.0 + (1/3)*20.0 = 13.333333
+    // x_out = 1 -> x_in = 2.0 -> 30.0
+    // If 2/4 = 0.5 were used instead, x_out = 0 -> 15.0 and x_out = 1 -> 35.0.
+    let output = interpolate(
+        input,
+        InterpolateOptions::new(InterpolateMode::Bilinear)
+            .with_coordinate_transform(CoordinateTransformMode::HalfPixel)
+            .with_scale_factor([0.6, 0.6]),
+    );
+
+    let expected = TestTensor::<4>::from([[[[13.333333, 30.0], [13.333333, 30.0]]]]);
+
+    output
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&expected.into_data(), Tolerance::default());
+}
+
+#[test]
+fn test_bilinear_pytorch_half_pixel_output_size_one() {
+    let device = Default::default();
+    let input = TestTensor::<4>::from_data([[[[10.0, 20.0, 30.0, 40.0]]]], &device);
+
+    // PytorchHalfPixel should return 0.0 coordinate when L_out == 1.
+    // Thus x_in = 0.0 -> value 10.0.
+    let output = interpolate(
+        input,
+        InterpolateOptions::new(InterpolateMode::Bilinear)
+            .with_coordinate_transform(CoordinateTransformMode::PytorchHalfPixel)
+            .with_output_size([1, 1]),
+    );
+
+    let expected = TestTensor::<4>::from([[[[10.0]]]]);
+    output
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&expected.into_data(), Tolerance::default());
+}
+
+#[test]
+fn test_bilinear_half_pixel_symmetric_centering() {
+    let device = Default::default();
+    let input = TestTensor::<4>::from_data([[[[10.0, 20.0, 30.0, 40.0]]]], &device);
+
+    // L_in = 4, L_out = 2 (derived from scale_factor = 0.6, 4 * 0.6 = 2)
+    // Uneven product: L_in * s = 2.4 != L_out
+    // Offset: (2.4 - 2.0) / 2 = 0.2
+    // x_in = (x_out + 0.5 + 0.2) / 0.6 - 0.5
+    // x_out = 0 -> (0.7 / 0.6) - 0.5 = 2/3 -> (1 - 2/3)*10 + (2/3)*20 = 16.666667
+    // x_out = 1 -> (1.7 / 0.6) - 0.5 = 7/3 -> (1 - 1/3)*30 + (1/3)*40 = 33.333333
+    let output = interpolate(
+        input,
+        InterpolateOptions::new(InterpolateMode::Bilinear)
+            .with_coordinate_transform(CoordinateTransformMode::HalfPixelSymmetric)
+            .with_scale_factor([1.0, 0.6]),
+    );
+
+    let expected = TestTensor::<4>::from([[[[16.666667, 33.333333]]]]);
+    output
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&expected.into_data(), Tolerance::default());
+}
+
+#[test]
+fn test_bilinear_align_corners_single_pixel_finite() {
+    let device = Default::default();
+    let input = TestTensor::<4>::from_data(
+        [[[
+            [1.0, 2.0, 3.0, 4.0],
+            [5.0, 6.0, 7.0, 8.0],
+            [9.0, 10.0, 11.0, 12.0],
+            [13.0, 14.0, 15.0, 16.0],
+        ]]],
+        &device,
+    );
+
+    let output = interpolate(
+        input,
+        InterpolateOptions::new(InterpolateMode::Bilinear)
+            .with_coordinate_transform(CoordinateTransformMode::AlignCorners)
+            .with_output_size([1, 1]),
+    );
+
+    let data = output.clone().into_data().convert::<f32>();
+    let val = data.as_slice::<f32>().unwrap()[0];
+    assert!(val.is_finite());
+    assert!(!val.is_nan());
+
+    let expected = TestTensor::<4>::from([[[[1.0]]]]);
+    output
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&expected.into_data(), Tolerance::default());
 }

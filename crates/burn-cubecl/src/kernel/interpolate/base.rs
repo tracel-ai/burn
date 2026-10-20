@@ -6,7 +6,13 @@ use crate::{
     tensor::CubeTensor,
 };
 use burn_backend::cubecl::dtype_to_storage_type;
-use burn_backend::{Shape, TensorMetadata, ops::InterpolateMode, ops::InterpolateOptions};
+use burn_backend::{
+    Shape, TensorMetadata,
+    ops::{
+        CoordinateTransformMode, CubicOptions, InterpolateMode, InterpolateOptions,
+        NearestRoundingMode,
+    },
+};
 use cubek::interpolate::{
     InterpolateStrategy as CubekInterpolateStrategy,
     definition::{
@@ -142,8 +148,37 @@ pub(crate) fn map_mode(mode: InterpolateMode) -> CubekInterpolateMode {
 }
 
 pub(crate) fn map_options(options: InterpolateOptions) -> CubekInterpolateOptions {
+    if options.cubic_options != CubicOptions::default() || options.scale_factor.is_some() {
+        panic!(
+            "CubeCL backend does not yet support extended coordinate transform/nearest modes. Please run on Flex or wait for cubek upstream integration."
+        );
+    }
+
+    let align_corners = match options.coordinate_transform {
+        CoordinateTransformMode::AlignCorners => true,
+        CoordinateTransformMode::HalfPixel => false,
+        CoordinateTransformMode::Asymmetric if matches!(options.mode, InterpolateMode::Nearest) => {
+            false
+        }
+        _ => panic!(
+            "CubeCL backend does not yet support extended coordinate transform/nearest modes. Please run on Flex or wait for cubek upstream integration."
+        ),
+    };
+
+    match (options.mode, options.nearest_mode) {
+        (InterpolateMode::Nearest, NearestRoundingMode::Floor) => {}
+        (InterpolateMode::NearestExact, NearestRoundingMode::Floor) => {}
+        (
+            InterpolateMode::Bilinear | InterpolateMode::Bicubic | InterpolateMode::Lanczos3,
+            NearestRoundingMode::RoundPreferFloor,
+        ) => {}
+        _ => panic!(
+            "CubeCL backend does not yet support extended coordinate transform/nearest modes. Please run on Flex or wait for cubek upstream integration."
+        ),
+    }
+
     CubekInterpolateOptions {
         mode: map_mode(options.mode),
-        align_corners: options.align_corners,
+        align_corners,
     }
 }

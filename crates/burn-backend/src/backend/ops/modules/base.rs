@@ -4,9 +4,10 @@ use crate::tensor::{BoolTensor, FloatTensor, IntTensor};
 use crate::{Backend, Scalar, TensorMetadata};
 #[allow(deprecated)]
 pub use burn_std::ops::{
-    AttentionModuleOptions, AvgPoolOptions, ConvOptions, ConvTransposeOptions, DeformConvOptions,
-    GridSampleOptions, GridSamplePaddingMode, InterpolateMode, InterpolateOptions, MaxPoolOptions,
-    PadMode, PaddedConvOptions, UnfoldOptions,
+    AttentionModuleOptions, AvgPoolOptions, ConvOptions, ConvTransposeOptions,
+    CoordinateTransformMode, CubicOptions, DeformConvOptions, GridSampleOptions,
+    GridSamplePaddingMode, InterpolateMode, InterpolateOptions, MaxPoolOptions,
+    NearestRoundingMode, PadMode, PaddedConvOptions, UnfoldOptions,
 };
 use burn_std::{IndexingUpdateOp, IntDType, Shape};
 

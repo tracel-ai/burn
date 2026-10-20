@@ -410,7 +410,7 @@ impl UnfoldOptions {
 }
 
 /// Algorithm used.
-#[derive(new, Debug, Clone, serde::Deserialize, serde::Serialize)]
+#[derive(new, Debug, Clone, Copy, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
 pub enum InterpolateMode {
     /// Nearest-neighbor floor interpolation.
     /// Matches the legacy behavior of OpenCV’s INTER_NEAREST. It results in a bottom-right shift when resizing.
@@ -434,44 +434,142 @@ pub enum InterpolateMode {
     Lanczos3,
 }
 
+/// Coordinate transformation mode for interpolation.
+#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
+pub enum CoordinateTransformMode {
+    /// Half-pixel coordinate mapping: `(x_out + 0.5) / scale - 0.5`.
+    HalfPixel,
+    /// Align corners coordinate mapping: `x_out * (l_in - 1) / (l_out - 1)`.
+    AlignCorners,
+    /// Asymmetric coordinate mapping: `x_out / scale`.
+    Asymmetric,
+    /// PyTorch half-pixel coordinate mapping: `(x_out + 0.5) / scale - 0.5` if `l_out > 1` else `0.0`.
+    PytorchHalfPixel,
+    /// Half-pixel symmetric coordinate mapping.
+    HalfPixelSymmetric,
+    /// TensorFlow crop and resize coordinate mapping with normalized ROI bounding box.
+    TfCropAndResize {
+        /// Normalized bounding box per spatial axis: [[y_start, y_end], [x_start, x_end]]
+        roi: [[f32; 2]; 2],
+        /// Extrapolation fill value for coordinates outside bounds
+        extrapolation_value: f32,
+    },
+}
+
+/// Nearest rounding mode for nearest neighbor interpolation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub enum NearestRoundingMode {
+    /// Round with preference to floor at 0.5 boundaries (`ceil(x - 0.5)`).
+    RoundPreferFloor,
+    /// Round with preference to ceil at 0.5 boundaries (`floor(x + 0.5)`).
+    RoundPreferCeil,
+    /// Floor rounding (`floor(x)`).
+    Floor,
+    /// Ceil rounding (`ceil(x)`).
+    Ceil,
+}
+
+/// Configuration options for bicubic interpolation.
+#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct CubicOptions {
+    /// Cubic spline parameter 'a'. Default: -0.75 (PyTorch/ONNX), -0.5 (TensorFlow).
+    pub a: f32,
+    /// Zero out-of-bounds tap weights and renormalize remaining weights.
+    pub exclude_outside: bool,
+}
+
+impl Default for CubicOptions {
+    fn default() -> Self {
+        Self {
+            a: -0.75,
+            exclude_outside: false,
+        }
+    }
+}
+
 /// Interpolation options.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct InterpolateOptions {
     /// Algorithm used.
     pub mode: InterpolateMode,
-    /// If `true`, the input and output tensors are aligned by their corner pixels.
-    /// If `false`, half-pixel coordinate mapping is used instead.
-    pub align_corners: bool,
+    /// Coordinate transformation mode.
+    pub coordinate_transform: CoordinateTransformMode,
+    /// Nearest rounding mode.
+    pub nearest_mode: NearestRoundingMode,
+    /// Cubic interpolation options.
+    pub cubic_options: CubicOptions,
     /// Output spatial size `[height, width]`.
     ///
     /// Exactly one of `output_size` or `scale_factor` must be set when calling
-    /// `burn_tensor::module::interpolate`. Backends receive the resolved size as a
-    /// separate argument and ignore this field.
+    /// `burn_tensor::module::interpolate`.
     pub output_size: Option<[usize; 2]>,
     /// Scale factor `[scale_height, scale_width]` applied to the input spatial size.
     /// The output size is `floor(input_size * scale_factor)`.
-    ///
-    /// Exactly one of `output_size` or `scale_factor` must be set when calling
-    /// `burn_tensor::module::interpolate`. Backends ignore this field.
     pub scale_factor: Option<[f32; 2]>,
 }
 
 impl InterpolateOptions {
-    /// Create new interpolate options with the given mode.
-    /// Defaults to `align_corners = true` and no output size or scale factor.
+    /// Create new interpolate options with mode-dependent defaults.
     pub fn new(mode: InterpolateMode) -> Self {
+        let (coordinate_transform, nearest_mode) = match mode {
+            InterpolateMode::Nearest => (
+                CoordinateTransformMode::Asymmetric,
+                NearestRoundingMode::Floor,
+            ),
+            InterpolateMode::NearestExact => (
+                CoordinateTransformMode::HalfPixel,
+                NearestRoundingMode::Floor,
+            ),
+            InterpolateMode::Bilinear | InterpolateMode::Bicubic | InterpolateMode::Lanczos3 => (
+                CoordinateTransformMode::AlignCorners,
+                NearestRoundingMode::RoundPreferFloor,
+            ),
+        };
+
         Self {
             mode,
-            align_corners: true,
+            coordinate_transform,
+            nearest_mode,
+            cubic_options: CubicOptions::default(),
             output_size: None,
             scale_factor: None,
         }
     }
 
-    /// Set align_corners.
-    pub fn with_align_corners(mut self, align_corners: bool) -> Self {
-        self.align_corners = align_corners;
+    /// Set coordinate transformation mode.
+    pub fn with_coordinate_transform(mut self, mode: CoordinateTransformMode) -> Self {
+        self.coordinate_transform = mode;
         self
+    }
+
+    /// Set nearest rounding mode.
+    pub fn with_nearest_mode(mut self, mode: NearestRoundingMode) -> Self {
+        self.nearest_mode = mode;
+        self
+    }
+
+    /// Set cubic options.
+    pub fn with_cubic_options(mut self, options: CubicOptions) -> Self {
+        self.cubic_options = options;
+        self
+    }
+
+    /// Set align_corners (`true` maps to `AlignCorners`, `false` maps to `HalfPixel`).
+    pub fn with_align_corners(mut self, align_corners: bool) -> Self {
+        self.coordinate_transform = if align_corners {
+            CoordinateTransformMode::AlignCorners
+        } else {
+            CoordinateTransformMode::HalfPixel
+        };
+        self
+    }
+
+    /// Returns `true` if coordinate transform is `AlignCorners`.
+    pub fn align_corners(&self) -> bool {
+        matches!(
+            self.coordinate_transform,
+            CoordinateTransformMode::AlignCorners
+        )
     }
 
     /// Set the output size `[height, width]`, clearing any scale factor.

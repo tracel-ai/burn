@@ -2,7 +2,9 @@ use super::*;
 use burn_tensor::Shape;
 use burn_tensor::Tolerance;
 use burn_tensor::module::interpolate;
-use burn_tensor::ops::{InterpolateMode, InterpolateOptions};
+use burn_tensor::ops::{
+    CoordinateTransformMode, CubicOptions, InterpolateMode, InterpolateOptions,
+};
 
 #[test]
 fn test_upsample_interpolation() {
@@ -193,4 +195,95 @@ fn test_upsample_half_pixel() {
         ]]]),
         false,
     );
+}
+
+#[test]
+fn test_bicubic_spline_parameter_a() {
+    let device = Default::default();
+    let input = TestTensor::<4>::from_data([[[[10.0, 0.0, 0.0, 10.0]]]], &device);
+
+    // HalfPixel downsample 4 -> 1 has coordinate x_in = 0.5 / 0.25 - 0.5 = 1.5.
+    // Taps are 0, 1, 2, 3 with weights [0.125*a, -0.125*a + 0.5, -0.125*a + 0.5, 0.125*a].
+    // Input values are [10, 0, 0, 10].
+    // Result is 10.0 * (0.125*a + 0.125*a) = 2.5 * a.
+
+    // 1. a = -0.5 (TensorFlow) -> 2.5 * -0.5 = -1.25
+    let out_tf = interpolate(
+        input.clone(),
+        InterpolateOptions::new(InterpolateMode::Bicubic)
+            .with_coordinate_transform(CoordinateTransformMode::HalfPixel)
+            .with_cubic_options(CubicOptions {
+                a: -0.5,
+                exclude_outside: false,
+            })
+            .with_output_size([1, 1]),
+    );
+    let expected_tf = TestTensor::<4>::from([[[[-1.25]]]]);
+    out_tf
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&expected_tf.into_data(), Tolerance::default());
+
+    // 2. a = -0.75 (PyTorch/ONNX) -> 2.5 * -0.75 = -1.875
+    let out_onnx = interpolate(
+        input,
+        InterpolateOptions::new(InterpolateMode::Bicubic)
+            .with_coordinate_transform(CoordinateTransformMode::HalfPixel)
+            .with_cubic_options(CubicOptions {
+                a: -0.75,
+                exclude_outside: false,
+            })
+            .with_output_size([1, 1]),
+    );
+    let expected_onnx = TestTensor::<4>::from([[[[-1.875]]]]);
+    out_onnx
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&expected_onnx.into_data(), Tolerance::default());
+}
+
+#[test]
+fn test_bicubic_exclude_outside() {
+    let device = Default::default();
+    let input = TestTensor::<4>::from_data([[[[100.0, 200.0, 300.0, 400.0]]]], &device);
+
+    // Coordinate x_in = 0.5 (via Asymmetric with scale = 2.0, x_out = 1).
+    // Taps: -1, 0, 1, 2. Tap -1 is outside [0, 3].
+    // Weights for a = -0.75: w_0 = -0.09375, w_1 = 0.59375, w_2 = 0.59375, w_3 = -0.09375.
+
+    // exclude_outside = false:
+    // Tap -1 clamped to 0 (value 100).
+    // Result at x_out = 1: -0.09375*100 + 0.59375*100 + 0.59375*200 - 0.09375*300 = 140.625
+    let out_inc = interpolate(
+        input.clone(),
+        InterpolateOptions::new(InterpolateMode::Bicubic)
+            .with_coordinate_transform(CoordinateTransformMode::Asymmetric)
+            .with_cubic_options(CubicOptions {
+                a: -0.75,
+                exclude_outside: false,
+            })
+            .with_scale_factor([1.0, 2.0]),
+    );
+    let expected_inc = TestTensor::<4>::from([[[[100.0, 140.625]]]]);
+    out_inc
+        .slice([0..1, 0..1, 0..1, 0..2])
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&expected_inc.into_data(), Tolerance::default());
+
+    // exclude_outside = true:
+    // w_0 zeroed. Sum S = 1.09375.
+    // Result at x_out = 1: (0.59375*100 + 0.59375*200 - 0.09375*300) / 1.09375 = 150 / 1.09375 = 137.142857
+    let out_exc = interpolate(
+        input,
+        InterpolateOptions::new(InterpolateMode::Bicubic)
+            .with_coordinate_transform(CoordinateTransformMode::Asymmetric)
+            .with_cubic_options(CubicOptions {
+                a: -0.75,
+                exclude_outside: true,
+            })
+            .with_scale_factor([1.0, 2.0]),
+    );
+    let expected_exc = TestTensor::<4>::from([[[[100.0, 137.142857]]]]);
+    out_exc
+        .slice([0..1, 0..1, 0..1, 0..2])
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&expected_exc.into_data(), Tolerance::default());
 }
