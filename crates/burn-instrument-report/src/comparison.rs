@@ -41,8 +41,8 @@ impl<'a> Comparison<'a> {
         Self {
             now: Report::new(now),
             was: Report::new(was),
-            now_components: components(now),
-            was_components: components(was),
+            now_components: now.breakdown.components(),
+            was_components: was.breakdown.components(),
         }
     }
 
@@ -107,26 +107,6 @@ impl<'a> Comparison<'a> {
         }
         mismatches
     }
-}
-
-/// Every component of `pass`, depth-first, each with its path from the root.
-fn components(pass: &CollectedPass) -> Vec<(ComponentPath, &Component)> {
-    pass.breakdown
-        .tree
-        .iter()
-        .flat_map(|root| {
-            let at = ComponentPath::new([root.label.as_str()]);
-            let below = root
-                .descendants()
-                .into_iter()
-                .map(move |(path, component)| {
-                    let mut labels: Vec<&str> = vec![root.label.as_str()];
-                    labels.extend(path.labels());
-                    (ComponentPath::new(labels), component)
-                });
-            std::iter::once((at, root)).chain(below).collect::<Vec<_>>()
-        })
-        .collect()
 }
 
 /// Which executions served a component, as the comparison prints them beside its delta.

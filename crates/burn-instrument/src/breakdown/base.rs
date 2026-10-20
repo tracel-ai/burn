@@ -139,56 +139,63 @@ impl Breakdown {
         fn names(kernel: &Kernel, path: &ComponentPath) -> bool {
             kernel.fuses.iter().any(|fused| fused.starts_with(path))
         }
-        fn visit<'a>(
-            breakdown: &'a Breakdown,
-            component: &'a Component,
-            ancestors: &mut Vec<&'a Component>,
-            out: &mut Vec<&'a Component>,
-        ) {
-            let named_above = ancestors.iter().enumerate().any(|(at, ancestor)| {
-                // What this ancestor's kernels call `component`: the components between
-                // the two, then `component`. A bare label would also match a same-named
-                // component under another branch of the same ancestor, and a mixed
-                // stack's dense and sparse `down` are both `down`.
-                let path = ComponentPath::new(
-                    ancestors[at + 1..]
-                        .iter()
-                        .chain([&component])
-                        .map(|component| component.label.as_str()),
-                );
-                ancestor.kernels.iter().any(|kernel| names(kernel, &path))
-            });
-            // Outside every component, a kernel names a component by its path from the
-            // root.
-            let path = ComponentPath::new(
-                ancestors
+        let components = self.components();
+        let at = |path: &ComponentPath| {
+            components
+                .iter()
+                .find(|(seen, _)| seen == path)
+                .map(|(_, component)| *component)
+        };
+        components
+            .iter()
+            .filter(|(path, component)| {
+                let ran_nothing = component
+                    .walk()
                     .iter()
-                    .chain([&component])
-                    .map(|component| component.label.as_str()),
-            );
-            let named_outside = breakdown
-                .untagged
-                .iter()
-                .chain(&breakdown.end_of_pass)
-                .any(|kernel| names(kernel, &path));
-            let ran_nothing = component
-                .walk()
-                .iter()
-                .all(|(_, component)| component.kernels.is_empty());
-            if ran_nothing && (named_above || named_outside) {
-                out.push(component);
-            }
-            ancestors.push(component);
-            for child in &component.children {
-                visit(breakdown, child, ancestors, out);
-            }
-            ancestors.pop();
-        }
-        let mut out = Vec::new();
-        for root in &self.tree {
-            visit(self, root, &mut Vec::new(), &mut out);
-        }
-        out
+                    .all(|(_, component)| component.kernels.is_empty());
+                // An ancestor's kernels name `component` by the labels between the
+                // two: a bare label would also match a same-named component under
+                // another branch of the same ancestor, and a mixed stack's dense and
+                // sparse `down` are both `down`.
+                let labels: Vec<&str> = path.labels().collect();
+                let named_above = (1..labels.len()).any(|depth| {
+                    let ancestor = at(&ComponentPath::new(labels[..depth].iter().copied()))
+                        .expect("every prefix of a component's path is a component");
+                    let below = ComponentPath::new(labels[depth..].iter().copied());
+                    ancestor.kernels.iter().any(|kernel| names(kernel, &below))
+                });
+                // Outside every component, a kernel names a component by its path
+                // from the root.
+                let named_outside = self
+                    .untagged
+                    .iter()
+                    .chain(&self.end_of_pass)
+                    .any(|kernel| names(kernel, path));
+                ran_nothing && (named_above || named_outside)
+            })
+            .map(|(_, component)| *component)
+            .collect()
+    }
+
+    /// Every component of the pass, depth-first, each with its path from the root: what
+    /// tells two same-named components apart, and what a comparison keys a component of one
+    /// pass against another by.
+    pub fn components(&self) -> Vec<(ComponentPath, &Component)> {
+        self.tree
+            .iter()
+            .flat_map(|root| {
+                let at = ComponentPath::new([root.label.as_str()]);
+                let below = root.descendants().into_iter().map(|(path, component)| {
+                    (
+                        ComponentPath::new(at.labels().chain(path.labels())),
+                        component,
+                    )
+                });
+                std::iter::once((at.clone(), root))
+                    .chain(below)
+                    .collect::<Vec<_>>()
+            })
+            .collect()
     }
 }
 
