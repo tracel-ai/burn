@@ -76,6 +76,8 @@ mod breakdown;
 mod component_path;
 #[cfg(feature = "cubecl")]
 mod pass;
+#[cfg(feature = "std")]
+mod peaks;
 
 #[cfg(all(test, feature = "std"))]
 mod observed;
@@ -94,5 +96,7 @@ pub use breakdown::{
 pub use component_path::ComponentPath;
 #[cfg(feature = "cubecl")]
 pub use pass::PassCollector;
+#[cfg(feature = "std")]
+pub use peaks::{PeakFinding, Peaks};
 
 pub use burn_instrument_macros::compute;
