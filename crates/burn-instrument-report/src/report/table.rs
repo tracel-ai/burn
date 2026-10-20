@@ -5,7 +5,7 @@ use std::time::Duration;
 
 use burn_instrument::{Component, Kernel, PeakFinding};
 
-use super::worklist::worklist;
+use super::worklist::Worklist;
 use super::{HostSplit, Report, TimeReading};
 
 impl Display for Report<'_> {
@@ -135,8 +135,13 @@ impl Display for Report<'_> {
         )?;
         writeln!(f, "  {}", "─".repeat(rule))?;
         let mut body = String::new();
+        let lines = ComponentLines {
+            report: self,
+            whole: device,
+            width,
+        };
         for component in &pass.breakdown.tree {
-            component_lines(&mut body, self, component, &[], device, width)?;
+            lines.write(&mut body, component, &[])?;
         }
         f.write_str(&body)?;
         // Kernels nobody's component claimed, and the fused work the last
@@ -402,28 +407,7 @@ impl Display for Report<'_> {
             )?;
         }
 
-        let worklist = worklist(self);
-        if !worklist.is_empty() {
-            writeln!(f, "\n  worth reading first    recoverable   by")?;
-            // Its gains are differences against those timings and its waits
-            // are gaps between them, so it carries the same caveat.
-            if !untimed.is_empty() {
-                writeln!(
-                    f,
-                    "    (from a pass that lost kernel time — see `untimed`; re-measure first)"
-                )?;
-            }
-            for entry in worklist.iter().take(5) {
-                writeln!(
-                    f,
-                    "    {:<22} {:>6} ms   {:<16} {}",
-                    entry.label,
-                    ms(entry.gain),
-                    entry.lever,
-                    entry.against
-                )?;
-            }
-        }
+        write!(f, "{}", Worklist::new(self))?;
         Ok(())
     }
 }
@@ -639,108 +623,118 @@ pub(super) fn site(site: &str) -> String {
         .join("::")
 }
 
-/// A component's line, and its children's beneath it. `ancestors` are the
-/// components it sits under, outermost first — its depth, and where a kernel
-/// that fused its work would be.
-fn component_lines(
-    out: &mut String,
-    rendered: &Report<'_>,
-    component: &Component,
-    ancestors: &[&Component],
+/// The component tree as the table prints it: each component's line, its children's beneath
+/// it, then the kernels it launched itself.
+struct ComponentLines<'r, 'a> {
+    report: &'r Report<'a>,
+    /// The device time every share is of.
     whole: Duration,
+    /// The width of the component column.
     width: usize,
-) -> fmt::Result {
-    let depth = ancestors.len();
-    let fused_elsewhere = rendered.is_fused_elsewhere(component);
-    let indent = "  ".repeat(depth);
-    let label = fit(heading(component), width.saturating_sub(depth * 2));
-    let scored = rendered.score_of(component);
-    let (bound, achieved, floor, gain) = match (scored, rendered.floor_of(component)) {
-        (Some(score), _) => (
-            score.bound.to_string(),
-            // A component above 100% is marked and keeps its figure. The peaks are
-            // measured rather than looked up, so 105% is a component at the roof read
-            // through a probe that came in a little low, and 568% is a declared
-            // bound that is wrong — different findings, and one number
-            // separates them where a shared ">100%" gave both the same answer.
-            // Marked rather than suppressed: this is usually the most
-            // interesting component on the page. The systemically broken denominator
-            // is caught at the peak, not here.
-            //
-            // Only the bar is clamped, because a bar cannot say more than full.
-            match score.achieved > 1.0 {
-                true => format!("{} {:>3.0}%*", bar(1.0), score.achieved * 100.0),
-                false => format!("{} {:>3.0}% ", bar(score.achieved), score.achieved * 100.0),
-            },
-            ms(score.floor),
-            ms(score.gain(rendered.apportioned(component))),
-        ),
-        // Priced but not scored — it measured no time of its own. The floor is
-        // still the declaration's, and its parent's floor counts it, so the
-        // component says what that is rather than leaving the parent's figure to be
-        // reconciled against blanks.
-        (None, Some(floor)) => (
-            floor.bound.to_string(),
-            String::new(),
-            ms(floor.time),
-            "—".to_string(),
-        ),
-        // A component nobody priced is timed and says so, rather than being
-        // scored against a floor no kernel could meet.
-        (None, None) => (
-            "—".to_string(),
-            String::new(),
-            "—".to_string(),
-            "—".to_string(),
-        ),
-    };
-    // `fused ↓` rather than `0.0`: a zero reads as a component that cost
-    // nothing, and this one's cost is in a fused kernel listed below it — on a
-    // component above, after that component's children, or outside every component.
-    let (time, of_work, host) = match fused_elsewhere {
-        true => ("fused ↓".to_string(), String::new(), String::new()),
-        false => (
-            ms(rendered.apportioned(component)),
-            share(component.total_time(), whole),
-            rendered.host(component).map(ms).unwrap_or_default(),
-        ),
-    };
-    writeln!(
-        out,
-        "  {indent}{:<width$} {:>8} {:>7} {:>7}  {:<8} {:<18} {:>8} {:>8}",
-        label,
-        time,
-        of_work,
-        host,
-        bound,
-        achieved,
-        floor,
-        gain,
-        width = width.saturating_sub(depth * 2),
-    )?;
-    let under: Vec<&Component> = ancestors.iter().copied().chain([component]).collect();
-    for child in &component.children {
-        component_lines(out, rendered, child, &under, whole, width)?;
-    }
-    // The kernels this component launched itself, after the components it
-    // entered. A kernel here that sits above a component's own component is one that
-    // fused across it — the fuser's behaviour, read off the indentation rather
-    // than asked about.
-    for (name, kernel) in named(&component.kernels) {
+}
+
+impl ComponentLines<'_, '_> {
+    /// A component's line, and its children's beneath it. `ancestors` are the
+    /// components it sits under, outermost first — its depth, and where a kernel
+    /// that fused its work would be.
+    fn write(
+        &self,
+        out: &mut String,
+        component: &Component,
+        ancestors: &[&Component],
+    ) -> fmt::Result {
+        let depth = ancestors.len();
+        let fused_elsewhere = self.report.is_fused_elsewhere(component);
+        let indent = "  ".repeat(depth);
+        let label = fit(heading(component), self.width.saturating_sub(depth * 2));
+        let scored = self.report.score_of(component);
+        let (bound, achieved, floor, gain) = match (scored, self.report.floor_of(component)) {
+            (Some(score), _) => (
+                score.bound.to_string(),
+                // A component above 100% is marked and keeps its figure. The peaks are
+                // measured rather than looked up, so 105% is a component at the roof read
+                // through a probe that came in a little low, and 568% is a declared
+                // bound that is wrong — different findings, and one number
+                // separates them where a shared ">100%" gave both the same answer.
+                // Marked rather than suppressed: this is usually the most
+                // interesting component on the page. The systemically broken denominator
+                // is caught at the peak, not here.
+                //
+                // Only the bar is clamped, because a bar cannot say more than full.
+                match score.achieved > 1.0 {
+                    true => format!("{} {:>3.0}%*", bar(1.0), score.achieved * 100.0),
+                    false => format!("{} {:>3.0}% ", bar(score.achieved), score.achieved * 100.0),
+                },
+                ms(score.floor),
+                ms(score.gain(self.report.apportioned(component))),
+            ),
+            // Priced but not scored — it measured no time of its own. The floor is
+            // still the declaration's, and its parent's floor counts it, so the
+            // component says what that is rather than leaving the parent's figure to be
+            // reconciled against blanks.
+            (None, Some(floor)) => (
+                floor.bound.to_string(),
+                String::new(),
+                ms(floor.time),
+                "—".to_string(),
+            ),
+            // A component nobody priced is timed and says so, rather than being
+            // scored against a floor no kernel could meet.
+            (None, None) => (
+                "—".to_string(),
+                String::new(),
+                "—".to_string(),
+                "—".to_string(),
+            ),
+        };
+        // `fused ↓` rather than `0.0`: a zero reads as a component that cost
+        // nothing, and this one's cost is in a fused kernel listed below it — on a
+        // component above, after that component's children, or outside every component.
+        let (time, of_work, host) = match fused_elsewhere {
+            true => ("fused ↓".to_string(), String::new(), String::new()),
+            false => (
+                ms(self.report.apportioned(component)),
+                share(component.total_time(), self.whole),
+                self.report.host(component).map(ms).unwrap_or_default(),
+            ),
+        };
         writeln!(
             out,
-            "  {}· {:<width$} {:>8} {:>7}",
-            "  ".repeat(depth + 1),
-            fit(
-                launched(&name, kernel),
-                width.saturating_sub(depth * 2 + KERNEL_INDENT)
-            ),
-            ms(rendered.apportion(kernel.total)),
-            share(kernel.total, whole),
-            width = width.saturating_sub(depth * 2 + KERNEL_INDENT),
+            "  {indent}{:<width$} {:>8} {:>7} {:>7}  {:<8} {:<18} {:>8} {:>8}",
+            label,
+            time,
+            of_work,
+            host,
+            bound,
+            achieved,
+            floor,
+            gain,
+            width = self.width.saturating_sub(depth * 2),
         )?;
+        let under: Vec<&Component> = ancestors.iter().copied().chain([component]).collect();
+        for child in &component.children {
+            self.write(out, child, &under)?;
+        }
+        // The kernels this component launched itself, after the components it
+        // entered. A kernel here that sits above a component's own component is one that
+        // fused across it — the fuser's behaviour, read off the indentation rather
+        // than asked about.
+        for (name, kernel) in named(&component.kernels) {
+            writeln!(
+                out,
+                "  {}· {:<width$} {:>8} {:>7}",
+                "  ".repeat(depth + 1),
+                fit(
+                    launched(&name, kernel),
+                    self.width.saturating_sub(depth * 2 + KERNEL_INDENT)
+                ),
+                ms(self.report.apportion(kernel.total)),
+                share(kernel.total, self.whole),
+                width = self.width.saturating_sub(depth * 2 + KERNEL_INDENT),
+            )?;
+        }
+        Ok(())
     }
-    Ok(())
 }
 
 /// How much further in a kernel's name starts than its component's heading:
