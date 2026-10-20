@@ -24,6 +24,12 @@ const MANY_FRAMES_LONG: usize = 1024 * 1024;
 /// Far beyond what a bounded step here takes when it works, so only a hang reaches it.
 const HANG_LIMIT: std::time::Duration = std::time::Duration::from_secs(10);
 
+/// The address the second client process of `two_clients_keep_their_own_transfers` dials.
+const SECOND_CLIENT_SERVER: &str = "BURN_REMOTE_SECOND_CLIENT_SERVER";
+
+/// What the second client prints once it is about to start its transfers.
+const SECOND_CLIENT_READY: &str = "second client ready";
+
 /// Run `body` on a worker thread and fail the test if it does not finish within `timeout`.
 ///
 /// A hung worker cannot be killed, so the test thread panics and the process exit takes it away.
@@ -267,6 +273,71 @@ fn a_dial_waits_for_a_websocket_server_that_starts_late() {
     });
 
     rt.shutdown_background();
+}
+
+/// Moves tensors back and forth between the two devices `host` serves, each holding `value` plus
+/// its round, and checks that every one arrives as it left.
+fn move_own_tensors(host: &RemoteHost, value: f32) {
+    let devices = [0, 1].map(|index| {
+        Device::remote_options(host)
+            .device_index(index)
+            .init()
+            .unwrap()
+    });
+    for round in 0..200 {
+        let expected = TensorData::new(vec![value + round as f32; 256], [256]);
+        let moved = Tensor::<1>::from_data(expected.clone(), &devices[round % 2])
+            .to_device(&devices[(round + 1) % 2]);
+        moved.into_data().assert_eq(&expected, false);
+    }
+}
+
+#[test]
+fn two_clients_keep_their_own_transfers() {
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()
+        .unwrap();
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let address = format!("ws://{}", listener.local_addr().unwrap());
+    let serving = BackendServer::<Flex>::new(vec![Default::default(), Default::default()])
+        .serve_async(WebSocketTransport::from_listener(listener));
+    rt.spawn(async move { serving.await.unwrap() });
+
+    let mut second = std::process::Command::new(std::env::current_exe().unwrap())
+        .args(["second_client", "--exact", "--ignored", "--nocapture"])
+        .env(SECOND_CLIENT_SERVER, &address)
+        .stdout(std::process::Stdio::piped())
+        .spawn()
+        .unwrap();
+    // Both start together, so their transfers are in flight at once.
+    let mut lines = std::io::BufRead::lines(std::io::BufReader::new(second.stdout.take().unwrap()));
+    let started = lines.any(|line| line.is_ok_and(|line| line == SECOND_CLIENT_READY));
+    assert!(started, "the second client never started");
+    std::thread::spawn(move || lines.for_each(drop));
+
+    with_deadlock_watchdog(HANG_LIMIT, move || {
+        move_own_tensors(&RemoteHost::websocket(&address), 0.0)
+    });
+    assert!(
+        second.wait().unwrap().success(),
+        "the second client lost a transfer"
+    );
+    rt.shutdown_background();
+}
+
+/// The second client of `two_clients_keep_their_own_transfers`, in a process of its own so that
+/// it connects as a client of its own rather than sharing the first one's sessions.
+#[test]
+#[ignore = "started by two_clients_keep_their_own_transfers"]
+fn second_client() {
+    let Ok(address) = std::env::var(SECOND_CLIENT_SERVER) else {
+        return;
+    };
+    println!("{SECOND_CLIENT_READY}");
+    with_deadlock_watchdog(HANG_LIMIT, move || {
+        move_own_tensors(&RemoteHost::websocket(&address), 1000.0)
+    });
 }
 
 #[test]
