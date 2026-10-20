@@ -84,6 +84,53 @@ impl TimeReading {
             wall.as_secs_f64() * measured.as_secs_f64() / serialized.as_secs_f64(),
         )
     }
+
+    /// What a report says about this reading, wherever it says it.
+    pub(crate) fn text(self) -> TimeReadingText {
+        match self {
+            Self::InPlace => TimeReadingText {
+                timings: [
+                    "in place — read back after the pass, the kernels ran back to back: a component is",
+                    "its kernels' device time, and `host` is the device waiting on the host",
+                ],
+                time_of: "on device",
+                wall: "the pass run uncollected",
+                measured: "timed in place — what the components above sum to",
+            },
+            Self::ApportionedOnto { .. } => TimeReadingText {
+                timings: [
+                    "alone — each read as it launched, so the kernels ran one at a time: a component is",
+                    "its share of the uncollected run, good to a few percent",
+                ],
+                time_of: "of wall",
+                wall: "the pass run uncollected, and what the components above sum to",
+                measured: "each timed alone",
+            },
+            Self::Serialized => TimeReadingText {
+                timings: [
+                    "alone — each read as it launched, so the kernels ran one at a time: a component is",
+                    "its kernels' serialized time, and only the proportions mean anything",
+                ],
+                time_of: "on device",
+                wall: "the pass run uncollected",
+                measured: "each timed alone",
+            },
+        }
+    }
+}
+
+/// What a report says about one [`TimeReading`], gathered so that a reading's words change
+/// together.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct TimeReadingText {
+    /// How the kernels were timed and what a component's time is, one string per line.
+    pub(crate) timings: [&'static str; 2],
+    /// What the time column is a time of.
+    pub(crate) time_of: &'static str,
+    /// Beside the uncollected run's wall time.
+    pub(crate) wall: &'static str,
+    /// Beside the collected pass's device time.
+    pub(crate) measured: &'static str,
 }
 
 /// Whether a pass splits into the device's time and the time the device waited on the host,
@@ -136,6 +183,23 @@ impl HostSplit {
         match self {
             Self::Measured { host, .. } => Some(host),
             Self::NoCleanRun | Self::TimedAlone | Self::NothingTimed | Self::ClocksDisagree => None,
+        }
+    }
+
+    /// Why the pass does not split, one string per printed line: empty where it does.
+    pub(crate) fn why_not_separable(self) -> &'static [&'static str] {
+        match self {
+            Self::Measured { .. } => &[],
+            Self::NoCleanRun => &["no uncollected run was measured"],
+            Self::TimedAlone => &[
+                "a launch timed alone serializes the",
+                "pass, so the measured total is not a pipelined pass's",
+            ],
+            Self::NothingTimed => &["nothing was timed on the device"],
+            Self::ClocksDisagree => &[
+                "the kernels measured more than the",
+                "pass took, so the two clocks disagree",
+            ],
         }
     }
 

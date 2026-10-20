@@ -8,7 +8,7 @@ use burn_instrument::{Component, Kernel, PeakFinding};
 use super::Report;
 use super::worklist::Worklist;
 use crate::millis::Millis;
-use crate::reading::{HostSplit, TimeReading};
+use crate::reading::HostSplit;
 use crate::served_by::ServedBy;
 
 impl Display for Report<'_> {
@@ -86,25 +86,11 @@ impl Display for Report<'_> {
             true => "unfused — one kernel per operation: not the kernels a fused build runs",
             false => "fused — the kernels a fused build runs",
         };
-        let timings: &[&str] = match self.reading() {
-            TimeReading::InPlace => &[
-                "in place — read back after the pass, the kernels ran back to back: a component is",
-                "its kernels' device time, and `host` is the device waiting on the host",
-            ],
-            TimeReading::ApportionedOnto { .. } => &[
-                "alone — each read as it launched, so the kernels ran one at a time: a component is",
-                "its share of the uncollected run, good to a few percent",
-            ],
-            TimeReading::Serialized => &[
-                "alone — each read as it launched, so the kernels ran one at a time: a component is",
-                "its kernels' serialized time, and only the proportions mean anything",
-            ],
-        };
+        let text = self.reading().text();
         writeln!(f, "  {:<10}{graph}", "graph")?;
-        writeln!(f, "  {:<10}{}", "timings", timings[0])?;
-        for line in &timings[1..] {
-            writeln!(f, "  {:<10}{line}", "")?;
-        }
+        let [first, second] = text.timings;
+        writeln!(f, "  {:<10}{first}", "timings")?;
+        writeln!(f, "  {:<10}{second}", "")?;
 
         // The component column sizes itself to the widest heading, variants
         // included, and the rule and the summary below follow it — so one long
@@ -124,17 +110,7 @@ impl Display for Report<'_> {
         writeln!(
             f,
             "  {:<width$} {:>8} {:>7} {:>7}  {:<8} {:<18} {:>8} {:>8}",
-            "",
-            match self.reading() {
-                TimeReading::ApportionedOnto { .. } => "of wall",
-                TimeReading::InPlace | TimeReading::Serialized => "on device",
-            },
-            "of work",
-            "waited",
-            "",
-            "of peak",
-            "at best",
-            "recoverable"
+            "", text.time_of, "of work", "waited", "", "of peak", "at best", "recoverable"
         )?;
         writeln!(f, "  {}", "─".repeat(rule))?;
         let mut body = String::new();
@@ -194,12 +170,7 @@ impl Display for Report<'_> {
                 "  {:<width$} {:>8} ms   {}",
                 "wall",
                 Millis(wall),
-                match self.reading() {
-                    TimeReading::ApportionedOnto { .. } => {
-                        "the pass run uncollected, and what the components above sum to"
-                    }
-                    TimeReading::InPlace | TimeReading::Serialized => "the pass run uncollected",
-                }
+                text.wall,
             )?;
         }
         writeln!(
@@ -210,10 +181,7 @@ impl Display for Report<'_> {
                 false => "measured",
             },
             Millis(device),
-            match self.reading() {
-                TimeReading::InPlace => "timed in place — what the components above sum to",
-                TimeReading::ApportionedOnto { .. } | TimeReading::Serialized => "each timed alone",
-            }
+            text.measured,
         )?;
         if pass.breakdown.host_timed {
             for line in [
@@ -252,17 +220,6 @@ impl Display for Report<'_> {
         // the device. Printed only where that device time is a pipelined
         // pass's — see `HostSplit` — and a dash that says why
         // otherwise, rather than a subtraction of the wrong thing.
-        let not_separable = |f: &mut fmt::Formatter<'_>, why: &[&str]| -> fmt::Result {
-            writeln!(
-                f,
-                "  {:<width$} {:>8}      not separable: {}",
-                "host", "—", why[0]
-            )?;
-            for line in &why[1..] {
-                writeln!(f, "  {:<width$}               {line}", "")?;
-            }
-            Ok(())
-        };
         match self.host_split() {
             HostSplit::Measured { host, .. } => writeln!(
                 f,
@@ -271,22 +228,18 @@ impl Display for Report<'_> {
                 Millis(host),
                 share(host, self.wall()),
             )?,
-            HostSplit::NoCleanRun => not_separable(f, &["no uncollected run was measured"])?,
-            HostSplit::TimedAlone => not_separable(
-                f,
-                &[
-                    "a launch timed alone serializes the",
-                    "pass, so the measured total is not a pipelined pass's",
-                ],
-            )?,
-            HostSplit::NothingTimed => not_separable(f, &["nothing was timed on the device"])?,
-            HostSplit::ClocksDisagree => not_separable(
-                f,
-                &[
-                    "the kernels measured more than the",
-                    "pass took, so the two clocks disagree",
-                ],
-            )?,
+            unsplit => {
+                for (index, line) in unsplit.why_not_separable().iter().enumerate() {
+                    match index {
+                        0 => writeln!(
+                            f,
+                            "  {:<width$} {:>8}      not separable: {line}",
+                            "host", "—"
+                        )?,
+                        _ => writeln!(f, "  {:<width$}               {line}", "")?,
+                    }
+                }
+            }
         }
 
         let ladder = self.ladder();
