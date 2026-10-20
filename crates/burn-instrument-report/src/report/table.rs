@@ -144,7 +144,7 @@ impl Display for Report<'_> {
             width,
         };
         for component in &pass.breakdown.tree {
-            lines.write(&mut body, component, &[])?;
+            lines.write(&mut body, component, 0)?;
         }
         f.write_str(&body)?;
         // Kernels nobody's component claimed, and the fused work the last
@@ -611,16 +611,8 @@ struct ComponentLines<'r, 'a> {
 }
 
 impl ComponentLines<'_, '_> {
-    /// A component's line, and its children's beneath it. `ancestors` are the
-    /// components it sits under, outermost first — its depth, and where a kernel
-    /// that fused its work would be.
-    fn write(
-        &self,
-        out: &mut String,
-        component: &Component,
-        ancestors: &[&Component],
-    ) -> fmt::Result {
-        let depth = ancestors.len();
+    /// A component's line, and its children's beneath it, `depth` components below the root.
+    fn write(&self, out: &mut String, component: &Component, depth: usize) -> fmt::Result {
         let fused_elsewhere = self.report.roofline().fused_elsewhere().contains(component);
         let indent = "  ".repeat(depth);
         let label = fit(heading(component), self.width.saturating_sub(depth * 2));
@@ -695,9 +687,8 @@ impl ComponentLines<'_, '_> {
             gain,
             width = self.width.saturating_sub(depth * 2),
         )?;
-        let under: Vec<&Component> = ancestors.iter().copied().chain([component]).collect();
         for child in &component.children {
-            self.write(out, child, &under)?;
+            self.write(out, child, depth + 1)?;
         }
         // The kernels this component launched itself, after the components it
         // entered. A kernel here that sits above a component's own component is one that
