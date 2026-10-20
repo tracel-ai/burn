@@ -801,11 +801,13 @@ impl Display for Report<'_> {
         };
         writeln!(
             f,
-            "device   {} · {} · {} at {:?}",
+            "device   {} · {} · {}",
             pass.device,
             peak(self.peaks.copy_bytes_per_s, 1e9, "GB/s"),
-            peak(self.peaks.flops_per_s, 1e12, "TFLOP/s"),
-            self.peaks.compute_dtype,
+            match self.peaks.flops {
+                Some(flops) => format!("{:.1} TFLOP/s at {:?}", flops.per_s / 1e12, flops.dtype),
+                None => "unprobed".to_string(),
+            },
         )?;
         // The two ceilings a bytes component is actually divided by, beside the copy
         // figure above. A percentage whose denominator is nowhere on the page
@@ -1203,6 +1205,9 @@ impl Display for Report<'_> {
 
 #[cfg(test)]
 mod tests {
+    use burn_instrument::ComputePeak;
+    use burn_tensor::FloatDType;
+
     use super::*;
     use crate::roofline::Bound;
     use burn_instrument::{Breakdown, Unplaced, Variant};
@@ -1210,7 +1215,10 @@ mod tests {
     fn peaks() -> Peaks {
         Peaks {
             copy_bytes_per_s: Some(198.9e9),
-            flops_per_s: Some(49.3e12),
+            flops: Some(ComputePeak {
+                per_s: 49.3e12,
+                dtype: FloatDType::F16,
+            }),
             ..Peaks::default()
         }
     }
@@ -1503,7 +1511,11 @@ mod tests {
         for (_, component) in pass.breakdown.tree.iter().flat_map(|root| root.walk()) {
             assert!(report.score_of(component).is_none(), "{}", component.label);
         }
-        assert!(report.to_string().contains("not probed"));
+        let table = report.to_string();
+        assert!(table.contains("not probed"), "{table}");
+        // A dtype is a fact about a compute peak, and there is none to state.
+        let header = table.lines().next().expect("the device line");
+        assert_eq!(header, "device   cpu · unprobed · unprobed", "{table}");
     }
 
     /// Print a real table, so its shape can be read rather than only asserted
@@ -1957,8 +1969,10 @@ mod tests {
             copy_bytes_per_s: Some(156.0e9),
             read_bytes_per_s: Some(227.0e9),
             write_bytes_per_s: Some(281.0e9),
-            flops_per_s: Some(49.3e12),
-            ..Peaks::default()
+            flops: Some(ComputePeak {
+                per_s: 49.3e12,
+                dtype: FloatDType::F16,
+            }),
         };
         let pass = CollectedPass {
             peaks: Some(broken),
@@ -1992,8 +2006,10 @@ mod tests {
             copy_bytes_per_s: Some(140.0e9),
             read_bytes_per_s: Some(234.0e9),
             write_bytes_per_s: Some(212.0e9),
-            flops_per_s: Some(49.3e12),
-            ..Peaks::default()
+            flops: Some(ComputePeak {
+                per_s: 49.3e12,
+                dtype: FloatDType::F16,
+            }),
         };
         let pass = CollectedPass {
             peaks: Some(odd),
@@ -2020,7 +2036,10 @@ mod tests {
     fn a_broken_compute_peak_is_reported_not_divided_by() {
         let broken = Peaks {
             copy_bytes_per_s: Some(166.1e9),
-            flops_per_s: Some(4.5e9),
+            flops: Some(ComputePeak {
+                per_s: 4.5e9,
+                dtype: FloatDType::F16,
+            }),
             ..Peaks::default()
         };
         let pass = CollectedPass {
@@ -2083,7 +2102,10 @@ mod tests {
 
         let peaks = Peaks {
             copy_bytes_per_s: Some(160.0e9),
-            flops_per_s: Some(32.0e12),
+            flops: Some(ComputePeak {
+                per_s: 32.0e12,
+                dtype: FloatDType::F16,
+            }),
             ..Peaks::default()
         };
         pass.peaks = Some(peaks);

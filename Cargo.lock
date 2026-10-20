@@ -1274,6 +1274,7 @@ name = "burn-instrument-report"
 version = "0.22.0"
 dependencies = [
  "burn-instrument",
+ "burn-tensor",
  "cubecl",
 ]
 

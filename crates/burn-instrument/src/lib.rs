@@ -111,6 +111,6 @@ pub use component_path::ComponentPath;
 #[cfg(feature = "cubecl")]
 pub use pass::PassCollector;
 #[cfg(feature = "std")]
-pub use peaks::{PeakFinding, Peaks};
+pub use peaks::{ComputePeak, PeakFinding, Peaks};
 
 pub use burn_instrument_macros::compute;

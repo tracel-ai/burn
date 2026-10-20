@@ -177,7 +177,7 @@ mod tests {
 
     use super::*;
     use crate::breakdown::{Component, Kernel, Unplaced, Variant};
-    use crate::{Bounds, ComponentPath};
+    use crate::{Bounds, ComponentPath, ComputePeak};
 
     /// A pass written and read back is the pass that was written, so one collected on a device
     /// can be read on a machine without it.
@@ -214,8 +214,10 @@ mod tests {
     "copy_bytes_per_s": 161000000000.0,
     "read_bytes_per_s": 199000000000.0,
     "write_bytes_per_s": 137000000000.0,
-    "flops_per_s": 49300000000000.0,
-    "compute_dtype": "F16"
+    "flops": {
+      "per_s": 49300000000000.0,
+      "dtype": "F16"
+    }
   },
   "clean_wall": 2000,
   "breakdown": {
@@ -348,8 +350,10 @@ mod tests {
                 copy_bytes_per_s: Some(161.0e9),
                 read_bytes_per_s: Some(199.0e9),
                 write_bytes_per_s: Some(137.0e9),
-                flops_per_s: Some(49.3e12),
-                compute_dtype: FloatDType::F16,
+                flops: Some(ComputePeak {
+                    per_s: 49.3e12,
+                    dtype: FloatDType::F16,
+                }),
             }),
             clean_wall: Some(Duration::from_nanos(2_000)),
             breakdown: Breakdown {

@@ -103,7 +103,8 @@ impl Floor {
                 .map(|peak| bounds.bytes() as f64 / peak),
         };
         let flops = peaks
-            .flops_per_s
+            .flops
+            .map(|peak| peak.per_s)
             .filter(|peak| *peak > 0.0)
             .filter(|_| bounds.flops > 0)
             .map(|peak| bounds.flops as f64 / peak);
@@ -204,13 +205,19 @@ impl Ladder {
 
 #[cfg(test)]
 mod tests {
+    use burn_instrument::ComputePeak;
+    use burn_tensor::FloatDType;
+
     use super::*;
 
     /// ~199 GB/s and ~49 TFLOP/s at f16.
     fn peaks() -> Peaks {
         Peaks {
             copy_bytes_per_s: Some(198.9e9),
-            flops_per_s: Some(49.3e12),
+            flops: Some(ComputePeak {
+                per_s: 49.3e12,
+                dtype: FloatDType::F16,
+            }),
             ..Peaks::default()
         }
     }
@@ -228,8 +235,10 @@ mod tests {
             copy_bytes_per_s: Some(160.0e9),
             read_bytes_per_s: Some(230.0e9),
             write_bytes_per_s: Some(115.0e9),
-            flops_per_s: Some(50.0e12),
-            ..Peaks::default()
+            flops: Some(ComputePeak {
+                per_s: 50.0e12,
+                dtype: FloatDType::F16,
+            }),
         };
         // 230 MB read, 11.5 MB written: 1 ms of reading and 0.1 ms of writing.
         let bounds = Bounds {
@@ -255,7 +264,7 @@ mod tests {
     fn the_copy_ceiling_is_the_fallback_where_directions_are_unmeasured() {
         let peaks = Peaks {
             copy_bytes_per_s: Some(200.0e9),
-            flops_per_s: None,
+            flops: None,
             ..Peaks::default()
         };
         let bounds = Bounds {
@@ -283,7 +292,7 @@ mod tests {
         let half = Peaks {
             copy_bytes_per_s: Some(200.0e9),
             read_bytes_per_s: Some(230.0e9),
-            flops_per_s: None,
+            flops: None,
             ..Peaks::default()
         };
         let bounds = Bounds {

@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 /// them at once. A probe can fail without erroring and return a small positive number, so a
 /// scorer divides by [`trusted`](Self::trusted), never by the raw readings, and a report says
 /// what [`findings`](Self::findings) found.
-#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Peaks {
     /// Copy bandwidth, bytes/s: every byte read and written back. The ceiling for traffic split
@@ -27,25 +27,22 @@ pub struct Peaks {
     /// Write bandwidth, bytes/s, in the bytes a kernel stores. See
     /// [`read_bytes_per_s`](Self::read_bytes_per_s).
     pub write_bytes_per_s: Option<f64>,
-    /// Arithmetic peak, FLOP/s at 2 per multiply-add, at [`compute_dtype`](Self::compute_dtype):
-    /// the tensor-core kernel for 16-bit floats, plain arithmetic otherwise.
-    pub flops_per_s: Option<f64>,
-    /// The dtype the arithmetic peak was measured at, which should be the one the pass computes
-    /// in.
-    pub compute_dtype: FloatDType,
+    /// The arithmetic peak, where the device has one.
+    pub flops: Option<ComputePeak>,
 }
 
-impl Default for Peaks {
-    /// Nothing measured.
-    fn default() -> Self {
-        Self {
-            copy_bytes_per_s: None,
-            read_bytes_per_s: None,
-            write_bytes_per_s: None,
-            flops_per_s: None,
-            compute_dtype: FloatDType::F32,
-        }
-    }
+/// An arithmetic peak and the dtype it was measured at: the tensor-core kernel for 16-bit floats,
+/// plain arithmetic otherwise.
+///
+/// One value, because the rate means nothing without the dtype and the dtype nothing without a
+/// rate.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ComputePeak {
+    /// FLOP/s, at 2 per multiply-add.
+    pub per_s: f64,
+    /// The dtype it was measured at, which should be the one the pass computes in.
+    pub dtype: FloatDType,
 }
 
 /// What a reader must be told about a set of peaks before its numbers mean anything. See
@@ -97,7 +94,7 @@ impl Peaks {
     pub fn trusted(self) -> Self {
         let trusted = match self.rejected_compute() {
             Some(_) => Self {
-                flops_per_s: None,
+                flops: None,
                 ..self
             },
             None => self,
@@ -144,7 +141,7 @@ impl Peaks {
     /// byte moved, where no arithmetic would ever be worth doing between two loads. No
     /// accelerator is built that way, so such a reading is the probe failing.
     pub fn rejected_compute(self) -> Option<f64> {
-        let compute = self.flops_per_s?;
+        let compute = self.flops?.per_s;
         let memory = self.copy_bytes_per_s?;
         (compute < memory).then_some(compute)
     }
@@ -198,10 +195,10 @@ impl Peaks {
             copy_bytes_per_s: memory(MemoryAccess::Copy),
             read_bytes_per_s: memory(MemoryAccess::Read),
             write_bytes_per_s: memory(MemoryAccess::Write),
-            flops_per_s: compute_keys(dtype)
+            flops: compute_keys(dtype)
                 .into_iter()
-                .find_map(|key| measured(device, key)),
-            compute_dtype: dtype,
+                .find_map(|key| measured(device, key))
+                .map(|per_s| ComputePeak { per_s, dtype }),
         }
     }
 }
@@ -272,11 +269,14 @@ mod tests {
     fn a_compute_peak_below_the_memory_peak_is_rejected() {
         let broken = Peaks {
             copy_bytes_per_s: Some(166.1e9),
-            flops_per_s: Some(4.5e9),
+            flops: Some(ComputePeak {
+                per_s: 4.5e9,
+                dtype: FloatDType::F16,
+            }),
             ..Peaks::default()
         };
         assert_eq!(broken.rejected_compute(), Some(4.5e9));
-        assert_eq!(broken.trusted().flops_per_s, None);
+        assert_eq!(broken.trusted().flops.map(|flops| flops.per_s), None);
         assert_eq!(broken.trusted().copy_bytes_per_s, Some(166.1e9));
     }
 
@@ -284,11 +284,17 @@ mod tests {
     fn a_real_compute_peak_is_left_alone() {
         let measured = Peaks {
             copy_bytes_per_s: Some(198.9e9),
-            flops_per_s: Some(49.3e12),
+            flops: Some(ComputePeak {
+                per_s: 49.3e12,
+                dtype: FloatDType::F16,
+            }),
             ..Peaks::default()
         };
         assert_eq!(measured.rejected_compute(), None);
-        assert_eq!(measured.trusted().flops_per_s, Some(49.3e12));
+        assert_eq!(
+            measured.trusted().flops.map(|flops| flops.per_s),
+            Some(49.3e12)
+        );
     }
 
     /// A write ceiling above the read one takes both directions with it, and the copy ceiling
@@ -299,15 +305,17 @@ mod tests {
             copy_bytes_per_s: Some(156.0e9),
             read_bytes_per_s: Some(227.0e9),
             write_bytes_per_s: Some(281.0e9),
-            flops_per_s: Some(49.3e12),
-            compute_dtype: FloatDType::F16,
+            flops: Some(ComputePeak {
+                per_s: 49.3e12,
+                dtype: FloatDType::F16,
+            }),
         };
         assert_eq!(broken.rejected_directions(), Some((227.0e9, 281.0e9)));
         let trusted = broken.trusted();
         assert_eq!(trusted.read_bytes_per_s, None);
         assert_eq!(trusted.write_bytes_per_s, None);
         assert_eq!(trusted.copy_bytes_per_s, Some(156.0e9));
-        assert_eq!(trusted.flops_per_s, Some(49.3e12));
+        assert_eq!(trusted.flops.map(|flops| flops.per_s), Some(49.3e12));
     }
 
     /// The ordering a working probe reports is left alone, and one direction alone has nothing
@@ -368,8 +376,10 @@ mod tests {
             copy_bytes_per_s: Some(156.0e9),
             read_bytes_per_s: Some(227.0e9),
             write_bytes_per_s: Some(281.0e9),
-            flops_per_s: Some(49.3e12),
-            compute_dtype: FloatDType::F16,
+            flops: Some(ComputePeak {
+                per_s: 49.3e12,
+                dtype: FloatDType::F16,
+            }),
         };
         assert!(broken.inconsistent_ceilings().is_some(), "both checks fire");
         assert_eq!(
@@ -387,8 +397,10 @@ mod tests {
             copy_bytes_per_s: Some(140.0e9),
             read_bytes_per_s: Some(234.0e9),
             write_bytes_per_s: Some(212.0e9),
-            flops_per_s: Some(4.5e9),
-            compute_dtype: FloatDType::F16,
+            flops: Some(ComputePeak {
+                per_s: 4.5e9,
+                dtype: FloatDType::F16,
+            }),
         };
         let findings = odd.findings();
         assert_eq!(findings.len(), 2, "{findings:?}");
@@ -408,8 +420,10 @@ mod tests {
             copy_bytes_per_s: Some(161.0e9),
             read_bytes_per_s: Some(199.0e9),
             write_bytes_per_s: Some(137.0e9),
-            flops_per_s: Some(49.3e12),
-            compute_dtype: FloatDType::F16,
+            flops: Some(ComputePeak {
+                per_s: 49.3e12,
+                dtype: FloatDType::F16,
+            }),
         };
         assert_eq!(measured.findings(), Vec::new());
     }
@@ -432,10 +446,16 @@ mod tests {
     #[test]
     fn nothing_is_rejected_when_there_is_nothing_to_compare_against() {
         let partial = Peaks {
-            flops_per_s: Some(4.5e9),
+            flops: Some(ComputePeak {
+                per_s: 4.5e9,
+                dtype: FloatDType::F16,
+            }),
             ..Peaks::default()
         };
         assert_eq!(partial.rejected_compute(), None);
-        assert_eq!(partial.trusted().flops_per_s, Some(4.5e9));
+        assert_eq!(
+            partial.trusted().flops.map(|flops| flops.per_s),
+            Some(4.5e9)
+        );
     }
 }
