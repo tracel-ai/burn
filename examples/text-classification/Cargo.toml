@@ -49,3 +49,7 @@ tokenizers = { version = "0.23.2", default-features = false, features = [
 # Utils
 derive-new = { workspace = true }
 serde = { workspace = true, features = ["std", "derive"] }
+
+[dev-dependencies]
+# The report the `profile` example prints.
+burn-instrument-report = { workspace = true }

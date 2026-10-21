@@ -38,6 +38,21 @@ cargo run -p text-classification --example db-pedia-train --release --features f
 cargo run -p text-classification --example db-pedia-infer --release --features flex  # Run inference db pedia dataset
 ```
 
+## Profiling
+
+The `profile` example measures where the AG News classifier's inference spends its device time,
+component by component, and prints the report. It needs a CubeCL backend:
+
+```bash
+cargo run -p text-classification --example profile --release --features cuda
+# Also save the measurement, to hold a later run against with `burn-instrument-report --against`.
+cargo run -p text-classification --example profile --release --features cuda -- now.json
+# In half precision, with `f16`, `bf16` or `flex32`.
+cargo run -p text-classification --example profile --release --features cuda,f16
+```
+
+See [Profiling](../../burn-book/src/performance/profiling.md) in the Burn Book for how to read it.
+
 ## WGPU backend
 
 ```bash

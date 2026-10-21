@@ -81,13 +81,18 @@ output dropped inside the run lets the fuser skip the work that wrote it:
   own wall time describes the instrumentation, not the model.
 - **the instrumented run**, whose breakdown the file holds.
 
-The `instrument` example does all of this for a small model:
+The text-classification example's `profile` does all of this for the AG News classifier, a
+transformer encoder built from `burn::nn`, and prints the report; with a path, it saves the
+measurement there too:
 
 ```sh
-cargo run --release -p instrument --features cuda -- model.json
+cargo run --release -p text-classification --example profile --features cuda -- model.json
 ```
 
 ## Reading the report
+
+`burn_instrument_report::Report` renders a measurement as the report, and `burn-instrument-report`
+prints a saved one:
 
 ```sh
 cargo run --release -p burn-instrument-report -- model.json
