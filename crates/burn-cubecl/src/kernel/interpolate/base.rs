@@ -154,15 +154,19 @@ pub(crate) fn map_options(options: InterpolateOptions) -> CubekInterpolateOption
         );
     }
 
-    let align_corners = match options.coordinate_transform {
-        CoordinateTransformMode::AlignCorners => true,
-        CoordinateTransformMode::HalfPixel => false,
-        CoordinateTransformMode::Asymmetric if matches!(options.mode, InterpolateMode::Nearest) => {
-            false
+    let align_corners = match (options.mode, options.coordinate_transform) {
+        // Legacy nearest in Burn / cubek executes with align_corners = false
+        (
+            InterpolateMode::Nearest | InterpolateMode::NearestExact,
+            CoordinateTransformMode::Asymmetric,
+        ) => false,
+        (_, CoordinateTransformMode::HalfPixel) => false,
+        (_, CoordinateTransformMode::AlignCorners) => true,
+        _ => {
+            panic!(
+                "CubeCL backend does not yet support extended coordinate transform/nearest modes. Please run on Flex or wait for cubek upstream integration."
+            );
         }
-        _ => panic!(
-            "CubeCL backend does not yet support extended coordinate transform/nearest modes. Please run on Flex or wait for cubek upstream integration."
-        ),
     };
 
     match (options.mode, options.nearest_mode) {

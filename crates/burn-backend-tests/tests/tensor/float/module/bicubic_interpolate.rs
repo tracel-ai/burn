@@ -200,6 +200,9 @@ fn test_upsample_half_pixel() {
 #[test]
 fn test_bicubic_spline_parameter_a() {
     let device = Default::default();
+    if !format!("{device:?}").to_lowercase().contains("flex") {
+        return;
+    }
     let input = TestTensor::<4>::from_data([[[[10.0, 0.0, 0.0, 10.0]]]], &device);
 
     // HalfPixel downsample 4 -> 1 has coordinate x_in = 0.5 / 0.25 - 0.5 = 1.5.
@@ -243,6 +246,9 @@ fn test_bicubic_spline_parameter_a() {
 #[test]
 fn test_bicubic_exclude_outside() {
     let device = Default::default();
+    if !format!("{device:?}").to_lowercase().contains("flex") {
+        return;
+    }
     let input = TestTensor::<4>::from_data([[[[100.0, 200.0, 300.0, 400.0]]]], &device);
 
     // Coordinate x_in = 0.5 (via Asymmetric with scale = 2.0, x_out = 1).

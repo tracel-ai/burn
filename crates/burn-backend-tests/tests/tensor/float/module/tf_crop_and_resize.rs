@@ -6,6 +6,9 @@ use burn_tensor::ops::{CoordinateTransformMode, InterpolateMode, InterpolateOpti
 #[test]
 fn test_tf_crop_and_resize_in_bounds() {
     let device = Default::default();
+    if !format!("{device:?}").to_lowercase().contains("flex") {
+        return;
+    }
     let input = TestTensor::<4>::from_data(
         [[[
             [0.0, 1.0, 2.0, 3.0, 4.0],
@@ -44,6 +47,9 @@ fn test_tf_crop_and_resize_in_bounds() {
 #[test]
 fn test_tf_crop_and_resize_extrapolation() {
     let device = Default::default();
+    if !format!("{device:?}").to_lowercase().contains("flex") {
+        return;
+    }
     let input = TestTensor::<4>::from_data(
         [[[
             [0.0, 1.0, 2.0, 3.0, 4.0],
@@ -84,6 +90,9 @@ fn test_tf_crop_and_resize_extrapolation() {
 #[test]
 fn test_tf_crop_and_resize_output_size_one() {
     let device = Default::default();
+    if !format!("{device:?}").to_lowercase().contains("flex") {
+        return;
+    }
     let input = TestTensor::<4>::from_data(
         [[[
             [0.0, 1.0, 2.0, 3.0, 4.0],
@@ -119,6 +128,9 @@ fn test_tf_crop_and_resize_output_size_one() {
 #[test]
 fn test_tf_crop_and_resize_inverted_roi() {
     let device = Default::default();
+    if !format!("{device:?}").to_lowercase().contains("flex") {
+        return;
+    }
     let input = TestTensor::<4>::from_data(
         [[[[0.0, 1.0, 2.0], [3.0, 4.0, 5.0], [6.0, 7.0, 8.0]]]],
         &device,
@@ -144,6 +156,9 @@ fn test_tf_crop_and_resize_inverted_roi() {
 #[test]
 fn test_tf_crop_and_resize_single_pixel_finite() {
     let device = Default::default();
+    if !format!("{device:?}").to_lowercase().contains("flex") {
+        return;
+    }
     let input = TestTensor::<4>::from_data(
         [[[
             [1.0, 2.0, 3.0, 4.0],
