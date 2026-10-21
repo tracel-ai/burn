@@ -3,6 +3,7 @@
 //! the input, on its own device, and receives position `i` of the output.
 
 use burn_backend::{
+    DeviceOps,
     cubecl::{dtype_to_elem_type, reduce_operation_to_cubecl},
     distributed::ReduceOperation,
     ops::{CollectiveOps, EmulatedCollectives},
@@ -26,12 +27,14 @@ impl CollectiveOps<Self> for CubeBackend {
         tensors: Vec<FloatTensor<Self>>,
         op: ReduceOperation,
     ) -> Vec<FloatTensor<Self>> {
-        match CollectivePlan::all_reduce(tensors) {
-            CollectivePlan::Native(group) => group.all_reduce(op),
-            CollectivePlan::Emulated(tensors) => {
-                EmulatedCollectives::<Self>::float_all_reduce(tensors, op)
+        CollectivePlan::in_device_order(tensors, |tensors| {
+            match CollectivePlan::all_reduce(tensors) {
+                CollectivePlan::Native(group) => group.all_reduce(op),
+                CollectivePlan::Emulated(tensors) => {
+                    EmulatedCollectives::<Self>::float_all_reduce(tensors, op)
+                }
             }
-        }
+        })
     }
 
     fn float_all_gather(tensors: Vec<FloatTensor<Self>>, dim: usize) -> Vec<FloatTensor<Self>> {
@@ -70,12 +73,14 @@ impl CollectiveOps<Self> for CubeBackend {
     }
 
     fn int_all_reduce(tensors: Vec<IntTensor<Self>>, op: ReduceOperation) -> Vec<IntTensor<Self>> {
-        match CollectivePlan::all_reduce(tensors) {
-            CollectivePlan::Native(group) => group.all_reduce(op),
-            CollectivePlan::Emulated(tensors) => {
-                EmulatedCollectives::<Self>::int_all_reduce(tensors, op)
+        CollectivePlan::in_device_order(tensors, |tensors| {
+            match CollectivePlan::all_reduce(tensors) {
+                CollectivePlan::Native(group) => group.all_reduce(op),
+                CollectivePlan::Emulated(tensors) => {
+                    EmulatedCollectives::<Self>::int_all_reduce(tensors, op)
+                }
             }
-        }
+        })
     }
 
     fn int_all_gather(tensors: Vec<IntTensor<Self>>, dim: usize) -> Vec<IntTensor<Self>> {
@@ -160,6 +165,20 @@ struct LeadingDim {
 impl CollectivePlan {
     fn all_reduce(tensors: Vec<CubeTensor>) -> Self {
         Self::native_if(tensors, NativeGroup::reduces)
+    }
+
+    /// Runs `all_reduce` over the members in the ascending device order a native group takes, and
+    /// returns each member's output at its position. Every member receives the same result.
+    fn in_device_order(
+        tensors: Vec<CubeTensor>,
+        all_reduce: impl FnOnce(Vec<CubeTensor>) -> Vec<CubeTensor>,
+    ) -> Vec<CubeTensor> {
+        let mut members: Vec<_> = tensors.into_iter().enumerate().collect();
+        members.sort_by_key(|(_, tensor)| tensor.device.id());
+        let (positions, sorted): (Vec<_>, Vec<_>) = members.into_iter().unzip();
+        let mut outputs: Vec<_> = positions.into_iter().zip(all_reduce(sorted)).collect();
+        outputs.sort_by_key(|(position, _)| *position);
+        outputs.into_iter().map(|(_, output)| output).collect()
     }
 
     fn all_gather(tensors: Vec<CubeTensor>) -> Self {
@@ -396,8 +415,16 @@ mod tests {
         assert!(native(CollectivePlan::all_gather(unreduced())));
         assert!(!native(CollectivePlan::all_reduce(unreduced())));
 
-        let descending = members([1, 0], [2, 2], DType::F32);
-        assert!(!native(CollectivePlan::all_reduce(descending)));
+        let descending = || members([1, 0], [2, 2], DType::F32);
+        assert!(!native(CollectivePlan::all_reduce(descending())));
+        let mut sorted_native = false;
+        let outputs = CollectivePlan::in_device_order(descending(), |sorted| {
+            sorted_native = native(CollectivePlan::all_reduce(sorted.clone()));
+            sorted
+        });
+        assert!(sorted_native);
+        let output_devices: Vec<_> = outputs.iter().map(|output| output.device.clone()).collect();
+        assert_eq!(output_devices, [devices[1].clone(), devices[0].clone()]);
         assert!(!native(CollectivePlan::all_gather(members(
             [0, 0],
             [2, 2],

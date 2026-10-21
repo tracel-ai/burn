@@ -60,9 +60,9 @@ impl LocalCollectiveId {
     }
 }
 
-/// Member `member` of `members` in an all-reduce over devices of one server. Each member's session
-/// is sent one under the same `collective`; the last to arrive runs it over them all, and each
-/// registers its own result under `out`.
+/// Member `member` of an all-reduce over devices of one server, whose members' sessions are
+/// `sessions`, by member. Each member's session is sent one under the same `collective`; the last
+/// to arrive runs it over them all, and each registers its own result under `out`.
 #[allow(missing_docs)]
 #[derive(Serialize, Deserialize, Debug)]
 pub struct LocalAllReducePart {
@@ -70,11 +70,16 @@ pub struct LocalAllReducePart {
     pub out: TensorId,
     pub collective: LocalCollectiveId,
     pub member: u32,
-    pub members: u32,
+    pub sessions: Vec<SessionId>,
     pub op: ReduceOperation,
 }
 
 impl LocalAllReducePart {
+    /// How many members the all-reduce has.
+    pub fn members(&self) -> usize {
+        self.sessions.len()
+    }
+
     /// This part as an op of `session`'s telemetry, producing `out` from `tensor`.
     pub fn op_event(&self, session: SessionId, stream: StreamId) -> TelemetryEvent {
         TelemetryEvent::Op {

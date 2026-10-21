@@ -8,6 +8,7 @@ use burn_backend::{
 use burn_ir::TensorIr;
 use burn_router::{MultiBackendBridge, RouterClient, RouterTensor, get_client};
 use burn_std::{DeviceSettings, future::DynFut};
+use std::collections::{BTreeMap, BTreeSet};
 use std::sync::{Mutex, MutexGuard, PoisonError};
 
 use service::RemoteEndpoint;
@@ -349,12 +350,30 @@ fn get_next_transfer_id() -> LocalTransferId {
     }
 }
 
-/// Held while one call sends tasks to several sessions, so that every session receives the tasks
-/// of concurrent calls in one order: a session waiting in a transfer or a collective for another
-/// session's task would otherwise wait on one queued behind its own.
-pub fn session_order() -> MutexGuard<'static, ()> {
-    static ORDER: Mutex<()> = Mutex::new(());
-    ORDER.lock().unwrap_or_else(PoisonError::into_inner)
+/// Held while one call sends tasks to the sessions of `devices`, so that every session receives
+/// the tasks of concurrent calls sharing it in one order: a session waiting in a transfer or a
+/// collective for another session's task would otherwise wait on one queued behind its own.
+pub fn session_order<'a>(
+    devices: impl IntoIterator<Item = &'a RemoteDevice>,
+) -> Vec<MutexGuard<'static, ()>> {
+    // One per registered device, which the device registry also keeps for the process's lifetime.
+    static ORDERS: Mutex<BTreeMap<u32, &'static Mutex<()>>> = Mutex::new(BTreeMap::new());
+    let ids: BTreeSet<u32> = devices.into_iter().map(|device| device.id).collect();
+    let orders: Vec<&'static Mutex<()>> = {
+        let mut orders = ORDERS.lock().unwrap_or_else(PoisonError::into_inner);
+        ids.into_iter()
+            .map(|id| {
+                *orders
+                    .entry(id)
+                    .or_insert_with(|| Box::leak(Box::default()))
+            })
+            .collect()
+    };
+    // In ascending id order, so two calls sharing sessions never each hold one the other waits on.
+    orders
+        .into_iter()
+        .map(|order| order.lock().unwrap_or_else(PoisonError::into_inner))
+        .collect()
 }
 
 impl RemoteTensorHandle {
@@ -397,7 +416,7 @@ impl RemoteTensorHandle {
         let transfer_id = get_next_transfer_id();
         let tensor = self.tensor.clone();
         let target_client = get_client::<RemoteChannel>(target_device);
-        let order = session_order();
+        let order = session_order([&self.client.device, target_device]);
         self.client.handle.submit(move |s| {
             s.expose_tensor_local(stream_id, tensor, transfer_id);
         });
@@ -431,7 +450,7 @@ impl RemoteTensorHandle {
         let tensor = self.tensor.clone();
         let target = target_device.peer_id();
         let target_client = get_client::<RemoteChannel>(target_device);
-        let order = session_order();
+        let order = session_order([&self.client.device, target_device]);
         self.client.handle.submit(move |s| {
             s.expose_tensor_remote(stream_id, tensor, 1, capability, target);
         });

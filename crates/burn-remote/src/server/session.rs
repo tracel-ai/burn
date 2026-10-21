@@ -72,9 +72,9 @@ where
             "A remote server must host at least one device"
         );
         Self {
+            local_comm: Arc::new(LocalCommService::new(devices.len())),
             devices,
             transfer,
-            local_comm: Arc::new(LocalCommService::new()),
             custom_ops: CustomOpRegistry::default(),
             sessions: Mutex::new(HashMap::new()),
             probe: TelemetryProbe::disabled(),
@@ -207,5 +207,7 @@ where
                 session: session_id,
             });
         }
+        drop(sessions);
+        self.local_comm.abandon_session(session_id).await;
     }
 }

@@ -9,7 +9,7 @@ use super::{
     runner::{RemoteBridge, RemoteDevice, RemoteTensorHandle, session_order},
     service,
 };
-use crate::shared::{LocalAllReducePart, LocalCollectiveId};
+use crate::shared::{LocalAllReducePart, LocalCollectiveId, SessionId};
 
 /// A local channel with direct connection to the backend runner clients.
 pub struct RemoteChannel;
@@ -89,9 +89,12 @@ impl RemoteChannel {
         op: ReduceOperation,
     ) -> Vec<RouterTensor<RemoteClient>> {
         let collective = LocalCollectiveId::random();
-        let members = tensors.len() as u32;
+        let sessions: Vec<SessionId> = tensors
+            .iter()
+            .map(|tensor| service::session_of(tensor.client.device.id))
+            .collect();
         let stream_id = StreamId::current();
-        let _order = session_order();
+        let _order = session_order(tensors.iter().map(|tensor| &tensor.client.device));
         tensors
             .into_iter()
             .zip(0..)
@@ -104,7 +107,7 @@ impl RemoteChannel {
                     out,
                     collective,
                     member,
-                    members,
+                    sessions: sessions.clone(),
                     op,
                 };
                 client

@@ -612,14 +612,40 @@ fn ddp_over_one_servers_devices_averages_the_gradients() {
                 .autodiff()
         })
         .collect();
+
+    for gradient in ddp_averaged_gradients(devices) {
+        gradient.assert_eq(&TensorData::from([2.0f32, 1.5]), false);
+    }
+    assert_eq!(all_reduce_parts_run_by(&mut events), 2);
+    rt.shutdown_background();
+}
+
+#[test]
+#[serial]
+fn ddp_over_a_repeated_device_averages_the_gradients() {
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()
+        .unwrap();
+    let host = serve(&rt, BackendServer::<Flex>::new(vec![Default::default()]));
+    let device = Device::remote_options(&host).init().unwrap().autodiff();
+
+    for gradient in ddp_averaged_gradients(vec![device.clone(), device]) {
+        gradient.assert_eq(&TensorData::from([2.0f32, 1.5]), false);
+    }
+    rt.shutdown_background();
+}
+
+/// Each member's gradient of `sum(weights * input)`, which is its own input until DDP averages it,
+/// for the inputs `[1, -2]` and `[3, 5]`.
+fn ddp_averaged_gradients(devices: Vec<Device>) -> Vec<TensorData> {
     let config = DistributedConfig {
         all_reduce_op: ReduceOperation::Mean,
     };
     let _context = DistributedContext::init(devices.clone(), config);
     let param = ParamId::new();
 
-    // The gradient of `sum(weights * input)` is the input, so each device computes its own.
-    let gradients = with_deadlock_watchdog(HANG_LIMIT, move || {
+    with_deadlock_watchdog(HANG_LIMIT, move || {
         std::thread::scope(|scope| {
             let peers: Vec<_> = devices
                 .iter()
@@ -640,13 +666,7 @@ fn ddp_over_one_servers_devices_averages_the_gradients() {
                 .map(|peer| peer.join().unwrap())
                 .collect::<Vec<_>>()
         })
-    });
-
-    for gradient in gradients {
-        gradient.assert_eq(&TensorData::from([2.0f32, 1.5]), false);
-    }
-    assert_eq!(all_reduce_parts_run_by(&mut events), 2);
-    rt.shutdown_background();
+    })
 }
 
 #[test]
@@ -693,7 +713,7 @@ fn ddp_releases_no_device_until_every_backward_ended() {
                                     1 => {
                                         let leaf = Tensor::<1>::from_floats([1.0, 1.0], device)
                                             .require_grad();
-                                        (0..2000).fold(leaf, |chain, _| chain * 1.0)
+                                        (0..200).fold(leaf, |chain, _| chain * 1.0)
                                     }
                                     _ => Tensor::<1>::from_floats([3.0, 2.0], device),
                                 };

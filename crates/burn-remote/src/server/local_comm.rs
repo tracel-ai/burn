@@ -16,10 +16,10 @@
 //! taker waits on a [`Notify`] until the primitive shows up.
 
 use crate::shared::{LocalAllReducePart, LocalCollectiveId, LocalTransferId, SessionId};
-use burn_backend::{DeviceOps, TensorMetadata, tensor::FloatTensor};
+use burn_backend::tensor::FloatTensor;
 use burn_ir::{BackendIr, HandleKind};
 use burn_std::id::StreamId;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use tokio::sync::{Mutex, Notify, oneshot};
 
@@ -36,16 +36,46 @@ struct ArrivedMember<B: BackendIr> {
     result: oneshot::Sender<Result<FloatTensor<B>, String>>,
 }
 
-/// Where one all-reduce stands.
+/// What fails an all-reduce, which decides whether one of the members still to come already knows.
+#[derive(Clone, Copy)]
+enum FailedBy {
+    /// A member still to come that cannot take part, told by its own failure.
+    MemberToCome,
+    /// A part that does not fit, holding no member's place.
+    Misfit,
+}
+
+/// Where one all-reduce stands, with its members' sessions, by member.
 enum Rendezvous<B: BackendIr> {
     /// Its members so far, by member.
-    Gathering(Vec<Option<ArrivedMember<B>>>),
+    Gathering {
+        sessions: Vec<SessionId>,
+        arrived: Vec<Option<ArrivedMember<B>>>,
+    },
     /// Failed, kept until the members still to come are told so.
-    Failed { error: String, remaining: usize },
+    Failed {
+        sessions: Vec<SessionId>,
+        error: String,
+        remaining: usize,
+    },
+}
+
+impl<B: BackendIr> Rendezvous<B> {
+    fn sessions(&self) -> &[SessionId] {
+        match self {
+            Rendezvous::Gathering { sessions, .. } | Rendezvous::Failed { sessions, .. } => {
+                sessions
+            }
+        }
+    }
 }
 
 /// The all-reduces of this server's sessions that are gathering their members or failed.
-struct AllReduces<B: BackendIr>(HashMap<LocalCollectiveId, Rendezvous<B>>);
+struct AllReduces<B: BackendIr> {
+    rendezvous: HashMap<LocalCollectiveId, Rendezvous<B>>,
+    /// Kept for the server's lifetime: a part naming a closed session can arrive at any time.
+    closed_sessions: HashSet<SessionId>,
+}
 
 impl<B: BackendIr> AllReduces<B> {
     /// Hand `member` over for `part`: every member once the last arrives, nothing while some are
@@ -56,37 +86,53 @@ impl<B: BackendIr> AllReduces<B> {
         member: ArrivedMember<B>,
     ) -> Result<Option<Vec<ArrivedMember<B>>>, String> {
         let collective = part.collective;
-        let (index, members) = (part.member as usize, part.members as usize);
-        let rendezvous = self
-            .0
-            .entry(collective)
-            .or_insert_with(|| Rendezvous::Gathering((0..members).map(|_| None).collect()));
+        if let Some(closed) = part
+            .sessions
+            .iter()
+            .find(|session| self.closed_sessions.contains(session))
+        {
+            return Err(format!(
+                "all-reduce {collective:?} lost a member: {closed} closed"
+            ));
+        }
+        let index = part.member as usize;
+        let rendezvous =
+            self.rendezvous
+                .entry(collective)
+                .or_insert_with(|| Rendezvous::Gathering {
+                    sessions: part.sessions.clone(),
+                    arrived: (0..part.members()).map(|_| None).collect(),
+                });
         let arrived = match rendezvous {
-            Rendezvous::Gathering(arrived) => arrived,
-            Rendezvous::Failed { error, remaining } => {
+            Rendezvous::Gathering { sessions, arrived } if *sessions == part.sessions => arrived,
+            Rendezvous::Gathering { .. } => {
+                let error =
+                    format!("member {index} of all-reduce {collective:?} names other members");
+                self.fail(collective, &part.sessions, FailedBy::Misfit, &error);
+                return Err(error);
+            }
+            Rendezvous::Failed {
+                error, remaining, ..
+            } => {
                 let error = error.clone();
                 *remaining = remaining.saturating_sub(1);
                 if *remaining == 0 {
-                    self.0.remove(&collective);
+                    self.rendezvous.remove(&collective);
                 }
                 return Err(error);
             }
         };
-        if arrived.len() != members || arrived.get(index).is_none_or(Option::is_some) {
-            let error = format!(
-                "member {index} of {members} does not fit all-reduce {collective:?} of {}",
-                arrived.len()
-            );
-            let members = arrived.len();
-            self.fail(collective, members, 0, &error);
+        if arrived[index].is_some() {
+            let error = format!("member {index} of all-reduce {collective:?} arrived twice");
+            self.fail(collective, &part.sessions, FailedBy::Misfit, &error);
             return Err(error);
         }
         arrived[index] = Some(member);
         if arrived.iter().any(Option::is_none) {
             return Ok(None);
         }
-        match self.0.remove(&collective) {
-            Some(Rendezvous::Gathering(arrived)) => {
+        match self.rendezvous.remove(&collective) {
+            Some(Rendezvous::Gathering { arrived, .. }) => {
                 Ok(Some(arrived.into_iter().flatten().collect()))
             }
             _ => unreachable!("a complete all-reduce is gathering"),
@@ -94,27 +140,67 @@ impl<B: BackendIr> AllReduces<B> {
     }
 
     /// Fail `collective` with `error`: the members waiting are told now, and the rest as they
-    /// arrive, less the `settled` ones that already know.
-    fn fail(&mut self, collective: LocalCollectiveId, members: usize, settled: usize, error: &str) {
-        let to_come = match self.0.remove(&collective) {
-            Some(Rendezvous::Gathering(arrived)) => {
+    /// arrive, less the one failing it when that one is still to come. `sessions` are its members'
+    /// when nothing has arrived for it yet.
+    fn fail(
+        &mut self,
+        collective: LocalCollectiveId,
+        sessions: &[SessionId],
+        by: FailedBy,
+        error: &str,
+    ) {
+        let settled = match by {
+            FailedBy::MemberToCome => 1,
+            FailedBy::Misfit => 0,
+        };
+        let (sessions, to_come) = match self.rendezvous.remove(&collective) {
+            Some(Rendezvous::Gathering { sessions, arrived }) => {
                 let members = arrived.len();
                 let waiting: Vec<_> = arrived.into_iter().flatten().collect();
                 let to_come = members - waiting.len();
                 for member in waiting {
                     let _ = member.result.send(Err(error.to_string()));
                 }
-                to_come
+                (sessions, to_come)
             }
-            Some(Rendezvous::Failed { remaining, .. }) => remaining,
-            None => members,
+            Some(Rendezvous::Failed {
+                sessions,
+                remaining,
+                ..
+            }) => (sessions, remaining),
+            None => (sessions.to_vec(), sessions.len()),
         };
         let remaining = to_come.saturating_sub(settled);
         if remaining > 0 {
             let error = error.to_string();
-            self.0
-                .insert(collective, Rendezvous::Failed { error, remaining });
+            self.rendezvous.insert(
+                collective,
+                Rendezvous::Failed {
+                    sessions,
+                    error,
+                    remaining,
+                },
+            );
         }
+    }
+
+    /// Fail every all-reduce with a member in `session`, waiting or still to come, and refuse
+    /// every later part that names it.
+    fn abandon(&mut self, session: SessionId) {
+        self.closed_sessions.insert(session);
+        self.rendezvous.retain(|collective, rendezvous| {
+            if !rendezvous.sessions().contains(&session) {
+                return true;
+            }
+            if let Rendezvous::Gathering { arrived, .. } = rendezvous {
+                for member in arrived.drain(..).flatten() {
+                    let error =
+                        format!("all-reduce {collective:?} lost a member: {session} closed");
+                    let _ = member.result.send(Err(error));
+                }
+            }
+            false
+        });
     }
 }
 
@@ -123,15 +209,21 @@ pub(crate) struct LocalCommService<B: BackendIr> {
     /// Primitives exposed by source sessions, waiting to be taken by their target.
     pending: Mutex<HashMap<LocalTransferId, Pending<B>>>,
     all_reduces: Mutex<AllReduces<B>>,
+    /// The devices this server hosts, which bound an all-reduce's members: each is a distinct one.
+    hosted_devices: usize,
     /// Wakes takers whenever a new primitive is exposed.
     notify: Arc<Notify>,
 }
 
 impl<B: BackendIr> LocalCommService<B> {
-    pub fn new() -> Self {
+    pub fn new(hosted_devices: usize) -> Self {
         Self {
             pending: Mutex::new(HashMap::new()),
-            all_reduces: Mutex::new(AllReduces(HashMap::new())),
+            all_reduces: Mutex::new(AllReduces {
+                rendezvous: HashMap::new(),
+                closed_sessions: HashSet::new(),
+            }),
+            hosted_devices,
             notify: Arc::new(Notify::new()),
         }
     }
@@ -174,8 +266,10 @@ impl<B: BackendIr> LocalCommService<B> {
     ///
     /// # Errors
     ///
-    /// When the part does not fit its all-reduce's members, which fails it for every member, when
-    /// it already failed, and for every other member when it panics in the last one.
+    /// When the part names more members than this server hosts devices, or a member past them;
+    /// when it does not fit its all-reduce's members, which fails it for every member; when it
+    /// already failed; for every other member when it panics in the last one; and when the
+    /// session of any of its members closes.
     pub async fn all_reduce(
         &self,
         part: &LocalAllReducePart,
@@ -183,16 +277,14 @@ impl<B: BackendIr> LocalCommService<B> {
         stream_id: StreamId,
     ) -> Result<FloatTensor<B>, String> {
         let collective = part.collective;
+        self.fits(part)?;
         let (sender, result) = oneshot::channel();
         let member = ArrivedMember {
             tensor,
             result: sender,
         };
         let complete = self.all_reduces.lock().await.arrive(part, member)?;
-        if let Some(mut arrived) = complete {
-            // A native group takes its members in ascending device order, and every member
-            // receives the same result in any.
-            arrived.sort_by_key(|member| member.tensor.device().id());
+        if let Some(arrived) = complete {
             let (tensors, results): (Vec<_>, Vec<_>) = arrived
                 .into_iter()
                 .map(|member| (member.tensor, member.result))
@@ -212,11 +304,34 @@ impl<B: BackendIr> LocalCommService<B> {
 
     /// Fail this part's all-reduce for every member, when this one cannot take part.
     pub async fn fail(&self, part: &LocalAllReducePart, error: &str) {
-        let members = part.members as usize;
-        self.all_reduces
-            .lock()
-            .await
-            .fail(part.collective, members, 1, error);
+        if self.fits(part).is_err() {
+            return;
+        }
+        self.all_reduces.lock().await.fail(
+            part.collective,
+            &part.sessions,
+            FailedBy::MemberToCome,
+            error,
+        );
+    }
+
+    /// Fail every all-reduce with a member in `session`, closed or stopped by a panic, whose other
+    /// members would otherwise wait for it for good.
+    pub async fn abandon_session(&self, session: SessionId) {
+        self.all_reduces.lock().await.abandon(session);
+    }
+
+    /// Refuses a part that names more members than this server hosts devices, each member being a
+    /// distinct one, or a member past them.
+    fn fits(&self, part: &LocalAllReducePart) -> Result<(), String> {
+        let members = part.members();
+        if (part.member as usize) < members && members <= self.hosted_devices {
+            return Ok(());
+        }
+        Err(format!(
+            "member {} of {members} does not fit an all-reduce over the {} devices of this server",
+            part.member, self.hosted_devices
+        ))
     }
 
     /// Drop every primitive `session` exposed that no target ever took.
@@ -234,7 +349,7 @@ impl<B: BackendIr> LocalCommService<B> {
 
     #[cfg(all(test, not(target_family = "wasm")))]
     pub(crate) async fn is_empty(&self) -> bool {
-        self.pending.lock().await.is_empty()
+        self.pending.lock().await.is_empty() && self.all_reduces.lock().await.rendezvous.is_empty()
     }
 }
 
@@ -248,15 +363,23 @@ mod tests {
     use burn_ir::{TensorId, TensorIr};
     use std::{task::Poll, time::Duration};
 
-    fn part(collective: LocalCollectiveId, member: u32, members: u32) -> LocalAllReducePart {
+    fn part(
+        collective: LocalCollectiveId,
+        member: u32,
+        sessions: &[SessionId],
+    ) -> LocalAllReducePart {
         LocalAllReducePart {
             tensor: TensorIr::uninit(TensorId::new(member as u64), Shape::new([2]), DType::F32),
             out: TensorId::new(10 + member as u64),
             collective,
             member,
-            members,
+            sessions: sessions.to_vec(),
             op: ReduceOperation::Sum,
         }
+    }
+
+    fn sessions(members: usize) -> Vec<SessionId> {
+        (0..members).map(|_| SessionId::new()).collect()
     }
 
     fn tensor(values: [f32; 2]) -> FloatTensor<Flex> {
@@ -265,19 +388,20 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread")]
     async fn every_member_receives_the_reduction_once_the_last_arrives() {
-        let comm = Arc::new(LocalCommService::<Flex>::new());
+        let comm = Arc::new(LocalCommService::<Flex>::new(2));
         let collective = LocalCollectiveId::random();
+        let members = sessions(2);
         let first = tokio::spawn({
             let comm = comm.clone();
+            let part = part(collective, 0, &members);
             async move {
-                let part = part(collective, 0, 2);
                 comm.all_reduce(&part, tensor([1.0, -2.5]), StreamId::current())
                     .await
             }
         });
         let second = comm
             .all_reduce(
-                &part(collective, 1, 2),
+                &part(collective, 1, &members),
                 tensor([3.5, 4.0]),
                 StreamId::current(),
             )
@@ -295,24 +419,28 @@ mod tests {
 
     #[tokio::test]
     async fn a_member_outside_its_all_reduce_is_refused() {
-        let comm = LocalCommService::<Flex>::new();
+        let comm = LocalCommService::<Flex>::new(2);
 
-        let refused = comm
-            .all_reduce(
-                &part(LocalCollectiveId::random(), 2, 2),
-                tensor([1.0, 2.0]),
-                StreamId::current(),
-            )
-            .await;
+        for (member, members) in [(2, sessions(2)), (0, sessions(3))] {
+            let refused = comm
+                .all_reduce(
+                    &part(LocalCollectiveId::random(), member, &members),
+                    tensor([1.0, 2.0]),
+                    StreamId::current(),
+                )
+                .await;
 
-        assert!(refused.is_err());
+            assert!(refused.is_err());
+        }
+        assert!(comm.is_empty().await);
     }
 
     #[tokio::test(flavor = "multi_thread")]
     async fn a_part_that_does_not_fit_fails_the_members_waiting() {
-        let comm = LocalCommService::<Flex>::new();
+        let comm = LocalCommService::<Flex>::new(2);
         let collective = LocalCollectiveId::random();
-        let first_part = part(collective, 0, 2);
+        let members = sessions(2);
+        let first_part = part(collective, 0, &members);
         let first = comm.all_reduce(&first_part, tensor([1.0, 2.0]), StreamId::current());
         tokio::pin!(first);
         let waiting =
@@ -321,7 +449,7 @@ mod tests {
 
         let duplicate = comm
             .all_reduce(
-                &part(collective, 0, 2),
+                &part(collective, 0, &members),
                 tensor([3.0, 4.0]),
                 StreamId::current(),
             )
@@ -336,7 +464,7 @@ mod tests {
         let late = tokio::time::timeout(
             Duration::from_secs(10),
             comm.all_reduce(
-                &part(collective, 1, 2),
+                &part(collective, 1, &members),
                 tensor([5.0, 6.0]),
                 StreamId::current(),
             ),
@@ -348,21 +476,57 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread")]
     async fn a_member_that_cannot_take_part_fails_the_one_waiting() {
-        let comm = LocalCommService::<Flex>::new();
+        let comm = LocalCommService::<Flex>::new(2);
         let collective = LocalCollectiveId::random();
-        let first_part = part(collective, 0, 2);
+        let members = sessions(2);
+        let first_part = part(collective, 0, &members);
         let first = comm.all_reduce(&first_part, tensor([1.0, 2.0]), StreamId::current());
         tokio::pin!(first);
         let waiting =
             std::future::poll_fn(|cx| Poll::Ready(first.as_mut().poll(cx).is_pending())).await;
         assert!(waiting);
 
-        comm.fail(&part(collective, 1, 2), "its input was never produced")
-            .await;
+        comm.fail(
+            &part(collective, 1, &members),
+            "its input was never produced",
+        )
+        .await;
         let first = tokio::time::timeout(Duration::from_secs(10), first)
             .await
             .expect("the waiting member was left waiting");
 
         assert!(first.is_err());
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_member_session_that_closes_before_arriving_fails_the_all_reduce() {
+        let comm = LocalCommService::<Flex>::new(2);
+        let collective = LocalCollectiveId::random();
+        let members = sessions(2);
+        let first_part = part(collective, 0, &members);
+        let first = comm.all_reduce(&first_part, tensor([1.0, 2.0]), StreamId::current());
+        tokio::pin!(first);
+        let waiting =
+            std::future::poll_fn(|cx| Poll::Ready(first.as_mut().poll(cx).is_pending())).await;
+        assert!(waiting);
+
+        comm.abandon_session(members[1]).await;
+        let first = tokio::time::timeout(Duration::from_secs(10), first)
+            .await
+            .expect("the waiting member was left waiting");
+        let late = tokio::time::timeout(
+            Duration::from_secs(10),
+            comm.all_reduce(
+                &part(collective, 1, &members),
+                tensor([3.0, 4.0]),
+                StreamId::current(),
+            ),
+        )
+        .await
+        .expect("the closed session's own part was left waiting");
+
+        assert!(first.is_err());
+        assert!(late.is_err());
+        assert!(comm.is_empty().await);
     }
 }

@@ -983,6 +983,7 @@ dependencies = [
  "derive-new",
  "enumset",
  "hashbrown 0.16.1",
+ "log",
  "num-traits",
  "oneshot",
  "rand 0.10.3",

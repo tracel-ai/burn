@@ -188,6 +188,7 @@ where
         // Reclaim any same-host transfers this session exposed that no target ever took, so a
         // half-finished transfer doesn't strand device memory in the shared registry.
         self.local_comm.purge_session(session_id).await;
+        self.local_comm.abandon_session(session_id).await;
 
         log::debug!("Session {session_id} worker draining and exiting");
 
@@ -583,7 +584,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread")]
     async fn a_panicking_task_still_tears_its_session_down() {
-        let local_comm = Arc::new(LocalCommService::<Flex>::new());
+        let local_comm = Arc::new(LocalCommService::<Flex>::new(1));
         let (response_sender, mut responses) = mpsc::channel(1);
         let tasks = SessionHandler::spawn(
             SessionId::new(),
@@ -688,7 +689,7 @@ mod tests {
                 response_sender,
                 response_tasks: ResponseTasks::default(),
                 transfer: Arc::new(NoTransfer),
-                local_comm: Arc::new(LocalCommService::<Flex>::new()),
+                local_comm: Arc::new(LocalCommService::<Flex>::new(1)),
                 graphs: Mutex::new(HashMap::new()),
                 probe: TelemetryProbe::disabled(),
             }

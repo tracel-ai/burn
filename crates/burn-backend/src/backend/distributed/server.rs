@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use crate::{Backend, TensorMetadata};
 use crate::{DeviceId, DeviceOps, tensor::Device};
@@ -14,8 +14,10 @@ pub(crate) struct DistributedSyncServer<B: Backend> {
     param_required_map: HashMap<DistributedParamId, usize>,
     devices: Vec<DeviceId>,
     devices_registered: usize,
-    /// The backwards waiting to be released, by device.
-    callbacks: HashMap<DeviceId, Vec<oneshot::Sender<()>>>,
+    /// The backwards waiting to be released, one per member of `devices`, which may repeat one.
+    callbacks: Vec<oneshot::Sender<()>>,
+    /// The devices outside the group already warned that their gradients are not synced.
+    warned_outsiders: HashSet<DeviceId>,
 }
 
 impl<B: Backend> DistributedSyncServer<B> {
@@ -27,7 +29,8 @@ impl<B: Backend> DistributedSyncServer<B> {
             param_required_map: HashMap::default(),
             devices: devices.iter().map(DeviceOps::id).collect(),
             devices_registered: 0,
-            callbacks: HashMap::default(),
+            callbacks: Vec::new(),
+            warned_outsiders: HashSet::default(),
         }
     }
 
@@ -49,6 +52,12 @@ impl<B: Backend> DistributedSyncServer<B> {
     /// Called at the start of the backward process. Lets the device announce what parameters are nodes in the autodiff graph and how many times they are required.
     fn register_sync_params(&mut self, device: Device<B>, sharded_params: Vec<DistributedParams>) {
         if !self.is_member(&device) {
+            if self.warned_outsiders.insert(device.id()) {
+                log::warn!(
+                    "{device:?} is outside the DDP group, so the gradients of its distributed \
+                     parameters are not synchronized"
+                );
+            }
             return;
         }
         sharded_params.iter().for_each(|params| {
@@ -77,10 +86,7 @@ impl<B: Backend> DistributedSyncServer<B> {
             callback.send(()).expect("Can send callback");
             return;
         }
-        self.callbacks
-            .entry(device.id())
-            .or_default()
-            .push(callback);
+        self.callbacks.push(callback);
         self.try_launch_sync();
     }
 
@@ -98,7 +104,7 @@ impl<B: Backend> DistributedSyncServer<B> {
         }
         self.devices_registered = 0;
         self.param_required_map.clear();
-        for callback in self.callbacks.drain().flat_map(|(_, callbacks)| callbacks) {
+        for callback in self.callbacks.drain(..) {
             callback.send(()).expect("Can send callback");
         }
     }
@@ -110,9 +116,6 @@ impl<B: Backend> DistributedSyncServer<B> {
 
                 if num_tensors == queued_tensors.len() {
                     // Safety: Tensors sent to the `DistributedSyncServer` should not be accessed or modified until the end of the backward pass.
-                    // A native group takes its members in ascending device order, and every member
-                    // receives the same result in any.
-                    queued_tensors.sort_by_key(|tensor| unsafe { &*tensor.0 }.device().id());
                     let tensors = queued_tensors
                         .iter()
                         .map(|tensor| unsafe { (*tensor.0).clone() })
