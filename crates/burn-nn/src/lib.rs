@@ -42,6 +42,9 @@ pub use padding::*;
 
 extern crate alloc;
 
+#[cfg(all(test, feature = "std"))]
+mod recording;
+
 #[cfg(test)]
 fn test_device() -> burn_core::tensor::Device {
     burn_core::tensor::Device::flex()

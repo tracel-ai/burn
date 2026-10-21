@@ -2,11 +2,12 @@ use crate::Initializer;
 use burn_core as burn;
 
 use burn::config::Config;
+use burn::instrument::{self, Bounds, compute};
 use burn::module::Module;
 use burn::module::Param;
 use burn::module::{Content, DisplaySettings, ModuleDisplay};
 use burn::tensor::Int;
-use burn::tensor::{Device, Tensor};
+use burn::tensor::{DType, Device, Tensor};
 
 use burn::tensor::module::embedding;
 
@@ -61,6 +62,27 @@ impl EmbeddingConfig {
 }
 
 impl Embedding {
+    /// The floor for a lookup alone: read the indices and the rows they select once, write the
+    /// embeddings once.
+    ///
+    /// None for a quantized table, whose rows come out at a width the table does not say.
+    fn bounds(&self, input: &Tensor<2, Int>) -> Option<Bounds> {
+        let weight = self.weight.val();
+        let width = match weight.dtype() {
+            DType::QFloat(_) => return None,
+            dtype => dtype.size() as u64,
+        };
+        let [_, d_model] = weight.dims().map(|dim| dim as u64);
+        let [batch_size, seq_length] = input.dims().map(|dim| dim as u64);
+        let rows = batch_size * seq_length;
+        let embeddings = rows * d_model * width;
+        Some(Bounds {
+            read: instrument::tensor_bytes(input) + embeddings,
+            write: embeddings,
+            flops: 0,
+        })
+    }
+
     /// Applies the forward pass on the input tensor.
     ///
     /// See also [embedding](burn::tensor::module::embedding).
@@ -69,6 +91,7 @@ impl Embedding {
     ///
     /// - input: `[batch_size, seq_length]`
     /// - output: `[batch_size, seq_length, d_model]`
+    #[compute(bounds = Self::bounds)]
     pub fn forward(&self, input: Tensor<2, Int>) -> Tensor<3> {
         embedding(self.weight.val(), input)
     }
@@ -80,6 +103,30 @@ mod tests {
     use burn::tensor::TensorData;
     use burn::tensor::Tolerance;
     type FT = f32;
+
+    /// A lookup reads the rows it selects rather than the whole table.
+    #[cfg(feature = "std")]
+    #[test]
+    fn a_lookup_declares_the_rows_it_selects() {
+        let device = Default::default();
+        let embedding = EmbeddingConfig::new(100, 8).init(&device);
+        let input = Tensor::<2, Int>::zeros([2, 3], &device);
+        let index = input.dtype().size() as u64;
+
+        let recorded = crate::recording::recorded(|| {
+            embedding.forward(input);
+        });
+
+        assert_eq!(recorded.lines(), ["embedding"]);
+        assert_eq!(
+            recorded.declared(),
+            Some(Bounds {
+                read: 2 * 3 * index + 2 * 3 * 8 * 4,
+                write: 2 * 3 * 8 * 4,
+                flops: 0,
+            })
+        );
+    }
 
     #[test]
     fn initializer_zeros() {
