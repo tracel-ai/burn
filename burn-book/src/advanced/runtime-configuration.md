@@ -1,7 +1,7 @@
 # Runtime Configuration
 
-Burn provides runtime configuration for autotuning, profiling, logging, operation fusion, and
-remote-backend batching.
+Burn provides runtime configuration for matmul precision, autotuning, profiling, logging, operation
+fusion, and remote-backend batching.
 
 ## Overview
 
@@ -24,6 +24,9 @@ with a warning.
 A typical `burn.toml` file might look like this:
 
 ```toml
+[cubek.matmul]
+allow_tf32 = true
+
 [cubecl.autotune]
 level = "balanced"
 
@@ -44,11 +47,30 @@ flush_bytes_threshold = 1048576
 Each section configures a different aspect of Burn:
 
 - **cubecl**: Configures autotuning, profiling, compilation, and memory for CubeCL backends.
+- **cubek**: Configures CubeK kernels used by CubeCL backends, including matmul precision.
 - **fusion**: Controls operation fusion and its logging.
 - **autodiff**: Controls automatic differentiation logging.
 - **remote**: Configures remote-backend batching and logging.
 
 ## Configuration Options
+
+### CubeK Matmul Precision
+
+On supported devices, CubeK permits automatic F32-to-TF32 conversion for accelerated matrix
+multiplication by default. To preserve F32 operands during automatic selection, add:
+
+```toml
+# burn.toml
+[cubek.matmul]
+allow_tf32 = false
+```
+
+`allow_tf32` defaults to `true`. Disabling it may reduce performance. It applies to CubeK matmul
+with or without fusion and autotuning.
+
+At each directory level, CubeK checks `cubek.toml` and `CubeK.toml` before `[cubek]` in `burn.toml`
+or `Burn.toml`, then searches parent directories. Files are not merged. Standalone CubeK files use
+`[matmul]` without the `cubek.` prefix.
 
 ### CubeCL
 
