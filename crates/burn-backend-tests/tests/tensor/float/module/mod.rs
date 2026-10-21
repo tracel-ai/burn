@@ -26,5 +26,4 @@ mod maxpool1d;
 mod maxpool2d;
 mod maxpool3d;
 mod nearest_interpolate;
-mod tf_crop_and_resize;
 mod unfold4d;
