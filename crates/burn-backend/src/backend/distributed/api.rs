@@ -64,7 +64,7 @@ pub fn start_distributed_sync_server<B: Backend>(devices: &[B::Device], config: 
 /// Close the gradient syncing server.
 pub fn close_distributed_sync_server<B: Backend>() {
     if let Some(client) = get_distributed_sync_client::<B>() {
-        client.close();
         remove_distributed_sync_client::<B>();
+        client.close();
     }
 }

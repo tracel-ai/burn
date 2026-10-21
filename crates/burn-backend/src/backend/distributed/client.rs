@@ -71,6 +71,7 @@ impl<B: Backend> DistributedSyncClient<B> {
     }
 
     pub(crate) fn close(&self) {
-        self.sender.send(ActionMessage::Close()).unwrap();
+        // A server that died has nothing left to close.
+        let _ = self.sender.send(ActionMessage::Close());
     }
 }

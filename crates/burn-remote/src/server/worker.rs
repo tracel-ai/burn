@@ -35,6 +35,7 @@
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
+use burn_backend::tensor::FloatTensor;
 use burn_ir::{BackendIr, GraphBindings, GraphId, HandleKind, TensorError};
 use burn_router::{Graph, TensorInterpreter};
 use burn_std::{ExecutionError, id::StreamId};
@@ -50,7 +51,9 @@ use tokio::sync::mpsc;
 use crate::server::local_comm::LocalCommService;
 use crate::server::spawn::{CatchPanic, ResponseTasks, spawn_detached};
 use crate::server::transfer::TensorTransfer;
-use crate::shared::{RequestId, SessionId, Task, TaskResponse, TaskResponseContent};
+use crate::shared::{
+    LocalAllReducePart, RequestId, SessionId, Task, TaskResponse, TaskResponseContent,
+};
 use crate::telemetry::{
     TelemetryEvent, TelemetryProbe, TransferPhase, TransferScope, serialized_len,
 };
@@ -350,42 +353,7 @@ where
                 Ok(())
             }
             Task::AllReduceLocal { stream_id, part } => {
-                // Blocks this session's worker until every member has arrived, so the members'
-                // sessions must not wait on each other through earlier tasks.
-                self.probe
-                    .emit(|| part.op_event(self.session_id, stream_id));
-                let input = match self.runner.read_failure(&part.tensor.id) {
-                    Some(reason) => Err(format!("all-reduce {:?}: {reason}", part.collective)),
-                    None => match stream_id.executes(|| self.runner.get_tensor(&part.tensor)) {
-                        HandleKind::Float(tensor) => Ok(tensor),
-                        _ => Err(format!(
-                            "all-reduce {:?} takes float tensors",
-                            part.collective
-                        )),
-                    },
-                };
-                let reduced = match input {
-                    Ok(tensor) => self.local_comm.all_reduce(&part, tensor, stream_id).await,
-                    Err(reason) => {
-                        // The other members wait for this one, so they are told it cannot come.
-                        self.local_comm.fail(&part, &reason).await;
-                        Err(reason)
-                    }
-                };
-                match reduced {
-                    Ok(reduced) => {
-                        stream_id.executes(|| {
-                            self.runner
-                                .register_tensor_to_device(part.out, HandleKind::Float(reduced))
-                        });
-                        Ok(())
-                    }
-                    Err(reason) => {
-                        let error = TensorError::new(ExecutionError::generic(reason.clone()));
-                        self.runner.set_error(part.out, error);
-                        Err(reason)
-                    }
-                }
+                self.all_reduce_local(stream_id, part).await
             }
             Task::ExposeTensorRemote {
                 stream_id,
@@ -491,6 +459,58 @@ where
                 self.answer_when_ready(request_id, measured, TaskResponseContent::ProfileEnd);
                 Ok(())
             }
+        }
+    }
+
+    /// Hands this session's member to its all-reduce and registers its result, or the error that
+    /// stopped it, as `part.out`. Blocks this session's worker until every member has arrived, so
+    /// the members' sessions must not wait on each other through earlier tasks.
+    async fn all_reduce_local(
+        &mut self,
+        stream_id: StreamId,
+        part: LocalAllReducePart,
+    ) -> Result<(), String> {
+        self.probe
+            .emit(|| part.op_event(self.session_id, stream_id));
+        let reduced = match self.all_reduce_input(stream_id, &part) {
+            Ok(tensor) => self.local_comm.all_reduce(&part, tensor, stream_id).await,
+            Err(reason) => {
+                // The other members wait for this one, so they are told it cannot come.
+                self.local_comm.fail(&part, &reason).await;
+                Err(reason)
+            }
+        };
+        match reduced {
+            Ok(reduced) => {
+                stream_id.executes(|| {
+                    self.runner
+                        .register_tensor_to_device(part.out, HandleKind::Float(reduced))
+                });
+                Ok(())
+            }
+            Err(reason) => {
+                let error = TensorError::new(ExecutionError::generic(reason.clone()));
+                self.runner.set_error(part.out, error);
+                Err(reason)
+            }
+        }
+    }
+
+    /// This member's tensor, unless the op producing it failed or it is not a float.
+    fn all_reduce_input(
+        &mut self,
+        stream_id: StreamId,
+        part: &LocalAllReducePart,
+    ) -> Result<FloatTensor<B>, String> {
+        if let Some(reason) = self.runner.read_failure(&part.tensor.id) {
+            return Err(format!("all-reduce {:?}: {reason}", part.collective));
+        }
+        match stream_id.executes(|| self.runner.get_tensor(&part.tensor)) {
+            HandleKind::Float(tensor) => Ok(tensor),
+            _ => Err(format!(
+                "all-reduce {:?} takes float tensors",
+                part.collective
+            )),
         }
     }
 

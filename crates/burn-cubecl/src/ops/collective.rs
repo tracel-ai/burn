@@ -24,17 +24,17 @@ use crate::{
 
 impl CollectiveOps<Self> for CubeBackend {
     fn float_all_reduce(
-        tensors: Vec<FloatTensor<Self>>,
+        mut tensors: Vec<FloatTensor<Self>>,
         op: ReduceOperation,
     ) -> Vec<FloatTensor<Self>> {
-        CollectivePlan::in_device_order(tensors, |tensors| {
-            match CollectivePlan::all_reduce(tensors) {
-                CollectivePlan::Native(group) => group.all_reduce(op),
-                CollectivePlan::Emulated(tensors) => {
-                    EmulatedCollectives::<Self>::float_all_reduce(tensors, op)
-                }
+        let order = DeviceOrder::sort(&mut tensors);
+        let outputs = match CollectivePlan::all_reduce(tensors) {
+            CollectivePlan::Native(group) => group.all_reduce(op),
+            CollectivePlan::Emulated(tensors) => {
+                EmulatedCollectives::<Self>::float_all_reduce(tensors, op)
             }
-        })
+        };
+        order.restored(outputs)
     }
 
     fn float_all_gather(tensors: Vec<FloatTensor<Self>>, dim: usize) -> Vec<FloatTensor<Self>> {
@@ -72,15 +72,18 @@ impl CollectiveOps<Self> for CubeBackend {
         }
     }
 
-    fn int_all_reduce(tensors: Vec<IntTensor<Self>>, op: ReduceOperation) -> Vec<IntTensor<Self>> {
-        CollectivePlan::in_device_order(tensors, |tensors| {
-            match CollectivePlan::all_reduce(tensors) {
-                CollectivePlan::Native(group) => group.all_reduce(op),
-                CollectivePlan::Emulated(tensors) => {
-                    EmulatedCollectives::<Self>::int_all_reduce(tensors, op)
-                }
+    fn int_all_reduce(
+        mut tensors: Vec<IntTensor<Self>>,
+        op: ReduceOperation,
+    ) -> Vec<IntTensor<Self>> {
+        let order = DeviceOrder::sort(&mut tensors);
+        let outputs = match CollectivePlan::all_reduce(tensors) {
+            CollectivePlan::Native(group) => group.all_reduce(op),
+            CollectivePlan::Emulated(tensors) => {
+                EmulatedCollectives::<Self>::int_all_reduce(tensors, op)
             }
-        })
+        };
+        order.restored(outputs)
     }
 
     fn int_all_gather(tensors: Vec<IntTensor<Self>>, dim: usize) -> Vec<IntTensor<Self>> {
@@ -162,23 +165,16 @@ struct LeadingDim {
     dim: usize,
 }
 
+/// The ascending device order a native group takes its members in. An all-reduce gives every
+/// member the same result, so it runs in that order and hands each output back to its member.
+struct DeviceOrder {
+    /// The caller's position of each member, in device order.
+    positions: Vec<usize>,
+}
+
 impl CollectivePlan {
     fn all_reduce(tensors: Vec<CubeTensor>) -> Self {
         Self::native_if(tensors, NativeGroup::reduces)
-    }
-
-    /// Runs `all_reduce` over the members in the ascending device order a native group takes, and
-    /// returns each member's output at its position. Every member receives the same result.
-    fn in_device_order(
-        tensors: Vec<CubeTensor>,
-        all_reduce: impl FnOnce(Vec<CubeTensor>) -> Vec<CubeTensor>,
-    ) -> Vec<CubeTensor> {
-        let mut members: Vec<_> = tensors.into_iter().enumerate().collect();
-        members.sort_by_key(|(_, tensor)| tensor.device.id());
-        let (positions, sorted): (Vec<_>, Vec<_>) = members.into_iter().unzip();
-        let mut outputs: Vec<_> = positions.into_iter().zip(all_reduce(sorted)).collect();
-        outputs.sort_by_key(|(position, _)| *position);
-        outputs.into_iter().map(|(_, output)| output).collect()
     }
 
     fn all_gather(tensors: Vec<CubeTensor>) -> Self {
@@ -371,6 +367,26 @@ impl LeadingDim {
     }
 }
 
+impl DeviceOrder {
+    fn sort(tensors: &mut [CubeTensor]) -> Self {
+        let mut positions: Vec<usize> = (0..tensors.len()).collect();
+        positions.sort_by_key(|&position| tensors[position].device.id());
+        // Both sorts are stable, so `positions` names where each sorted member came from.
+        tensors.sort_by_key(|tensor| tensor.device.id());
+        Self { positions }
+    }
+
+    /// The outputs back in the members' order.
+    fn restored(&self, outputs: Vec<CubeTensor>) -> Vec<CubeTensor> {
+        if self.positions.is_sorted() {
+            return outputs;
+        }
+        let mut outputs: Vec<_> = self.positions.iter().zip(outputs).collect();
+        outputs.sort_by_key(|(position, _)| **position);
+        outputs.into_iter().map(|(_, output)| output).collect()
+    }
+}
+
 #[cfg(all(test, feature = "cuda"))]
 mod tests {
     use super::*;
@@ -417,14 +433,15 @@ mod tests {
 
         let descending = || members([1, 0], [2, 2], DType::F32);
         assert!(!native(CollectivePlan::all_reduce(descending())));
-        let mut sorted_native = false;
-        let outputs = CollectivePlan::in_device_order(descending(), |sorted| {
-            sorted_native = native(CollectivePlan::all_reduce(sorted.clone()));
-            sorted
-        });
-        assert!(sorted_native);
-        let output_devices: Vec<_> = outputs.iter().map(|output| output.device.clone()).collect();
-        assert_eq!(output_devices, [devices[1].clone(), devices[0].clone()]);
+        let mut sorted = descending();
+        let order = DeviceOrder::sort(&mut sorted);
+        assert!(native(CollectivePlan::all_reduce(sorted.clone())));
+        let restored: Vec<_> = order
+            .restored(sorted)
+            .iter()
+            .map(|tensor| tensor.device.clone())
+            .collect();
+        assert_eq!(restored, [devices[1].clone(), devices[0].clone()]);
         assert!(!native(CollectivePlan::all_gather(members(
             [0, 0],
             [2, 2],

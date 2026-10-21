@@ -11,7 +11,7 @@ use alloc::{boxed::Box, vec};
 use burn_backend::{Backend, BackendTypes, TensorMetadata};
 use burn_std::sync::Arc;
 #[cfg(feature = "std")]
-use core::sync::atomic::{AtomicBool, Ordering};
+use {alloc::rc::Rc, core::cell::Cell};
 
 use burn_backend::distributed::{DistributedParamId, DistributedParams};
 
@@ -314,12 +314,12 @@ impl<B: Backend> AutodiffTensor<B> {
         let device = self.primitive.device();
         let device_cloned = device.clone();
         let client = self.node.client.clone();
-        let registered = Arc::new(AtomicBool::new(false));
+        let registered = Rc::new(Cell::new(false));
 
         let mode = BackwardMode::Distributed(Box::new({
             let registered = registered.clone();
             move |ctx: GradSyncContext| {
-                registered.store(!ctx.distributed_params.is_empty(), Ordering::Relaxed);
+                registered.set(!ctx.distributed_params.is_empty());
                 let registration = DistributedGradientRegistration::<B>::new(
                     ctx.n_required_map,
                     ctx.distributed_params,
@@ -331,7 +331,7 @@ impl<B: Backend> AutodiffTensor<B> {
 
         let grads = AutodiffClient::backward::<B>(&client, self, mode);
         // A backward that registered nothing has no gradient to wait for.
-        if registered.load(Ordering::Relaxed) {
+        if registered.get() {
             B::submit_sync_collective(&device);
         }
         grads

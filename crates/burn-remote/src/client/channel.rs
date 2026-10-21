@@ -3,6 +3,7 @@ use burn_backend::{
 };
 use burn_ir::TensorIr;
 use burn_router::{BackendRouter, RouterChannel, RouterTensor, get_client};
+use std::collections::BTreeSet;
 
 use super::{
     RemoteClient,
@@ -72,16 +73,28 @@ impl RouterChannel for RemoteChannel {
     ) -> Vec<RouterTensor<RemoteClient>> {
         let devices: Vec<&RemoteDevice> =
             tensors.iter().map(|tensor| &tensor.client.device).collect();
-        match AllReducePlan::of(&devices) {
-            AllReducePlan::OnServer => Self::all_reduce_on_server(tensors, op),
-            AllReducePlan::Emulated => {
-                EmulatedCollectives::<BackendRouter<Self>>::float_all_reduce(tensors, op)
-            }
+        match Self::runs_on_server(&devices) {
+            true => Self::all_reduce_on_server(tensors, op),
+            false => EmulatedCollectives::<BackendRouter<Self>>::float_all_reduce(tensors, op),
         }
     }
 }
 
 impl RemoteChannel {
+    /// Whether the members are distinct devices of one server with their sessions open, so the
+    /// server runs the all-reduce. A member repeating a device would wait in its own session for
+    /// its next part.
+    fn runs_on_server(devices: &[&RemoteDevice]) -> bool {
+        let Some(first) = devices.first() else {
+            return false;
+        };
+        let indices: BTreeSet<usize> = devices.iter().map(|device| device.device_index()).collect();
+        indices.len() == devices.len()
+            && devices
+                .iter()
+                .all(|device| device.peer_id() == first.peer_id() && !device.session_ended())
+    }
+
     /// Sends each member's part to its session; the server runs the all-reduce once every part
     /// has arrived.
     fn all_reduce_on_server(
@@ -120,37 +133,6 @@ impl RemoteChannel {
     }
 }
 
-/// Where an all-reduce over remote members runs.
-#[derive(Debug, PartialEq, Eq)]
-enum AllReducePlan {
-    /// On the members' server, as its own all-reduce, NCCL on CUDA.
-    OnServer,
-    /// With transfers between the members.
-    Emulated,
-}
-
-impl AllReducePlan {
-    /// On the server when the members are distinct devices of one, with their sessions open. A
-    /// member repeating a device would wait in its own session for its next part.
-    fn of(devices: &[&RemoteDevice]) -> Self {
-        let Some(first) = devices.first() else {
-            return Self::Emulated;
-        };
-        let distinct = devices.iter().enumerate().all(|(i, device)| {
-            devices[..i]
-                .iter()
-                .all(|other| other.device_index() != device.device_index())
-        });
-        let on_one_server = devices
-            .iter()
-            .all(|device| device.peer_id() == first.peer_id() && !device.session_ended());
-        match distinct && on_one_server {
-            true => Self::OnServer,
-            false => Self::Emulated,
-        }
-    }
-}
-
 impl Clone for RemoteChannel {
     fn clone(&self) -> Self {
         RemoteChannel
@@ -179,10 +161,7 @@ mod tests {
             device("ws://10.0.0.1:3000", 0),
         ];
 
-        assert_eq!(
-            AllReducePlan::of(&[&devices[0], &devices[1]]),
-            AllReducePlan::OnServer
-        );
+        assert!(RemoteChannel::runs_on_server(&[&devices[0], &devices[1]]));
     }
 
     #[test]
@@ -190,13 +169,7 @@ mod tests {
         let first = device("ws://10.0.0.1:3000", 0);
         let other_server = device("ws://10.0.0.2:3000", 1);
 
-        assert_eq!(
-            AllReducePlan::of(&[&first, &first]),
-            AllReducePlan::Emulated
-        );
-        assert_eq!(
-            AllReducePlan::of(&[&first, &other_server]),
-            AllReducePlan::Emulated
-        );
+        assert!(!RemoteChannel::runs_on_server(&[&first, &first]));
+        assert!(!RemoteChannel::runs_on_server(&[&first, &other_server]));
     }
 }

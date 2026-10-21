@@ -36,43 +36,17 @@ struct ArrivedMember<B: BackendIr> {
     result: oneshot::Sender<Result<FloatTensor<B>, String>>,
 }
 
-/// What fails an all-reduce, which decides whether one of the members still to come already knows.
-#[derive(Clone, Copy)]
-enum FailedBy {
-    /// A member still to come that cannot take part, told by its own failure.
-    MemberToCome,
-    /// A part that does not fit, holding no member's place.
-    Misfit,
-}
-
-/// Where one all-reduce stands, with its members' sessions, by member.
-enum Rendezvous<B: BackendIr> {
-    /// Its members so far, by member.
-    Gathering {
-        sessions: Vec<SessionId>,
-        arrived: Vec<Option<ArrivedMember<B>>>,
-    },
-    /// Failed, kept until the members still to come are told so.
-    Failed {
-        sessions: Vec<SessionId>,
-        error: String,
-        remaining: usize,
-    },
-}
-
-impl<B: BackendIr> Rendezvous<B> {
-    fn sessions(&self) -> &[SessionId] {
-        match self {
-            Rendezvous::Gathering { sessions, .. } | Rendezvous::Failed { sessions, .. } => {
-                sessions
-            }
-        }
-    }
+/// The members of one all-reduce that have arrived, by member, with its members' sessions.
+struct Gathering<B: BackendIr> {
+    sessions: Vec<SessionId>,
+    arrived: Vec<Option<ArrivedMember<B>>>,
 }
 
 /// The all-reduces of this server's sessions that are gathering their members or failed.
 struct AllReduces<B: BackendIr> {
-    rendezvous: HashMap<LocalCollectiveId, Rendezvous<B>>,
+    gathering: HashMap<LocalCollectiveId, Gathering<B>>,
+    /// Kept for the server's lifetime: a member still to come can arrive at any time.
+    failed: HashMap<LocalCollectiveId, String>,
     /// Kept for the server's lifetime: a part naming a closed session can arrive at any time.
     closed_sessions: HashSet<SessionId>,
 }
@@ -86,6 +60,9 @@ impl<B: BackendIr> AllReduces<B> {
         member: ArrivedMember<B>,
     ) -> Result<Option<Vec<ArrivedMember<B>>>, String> {
         let collective = part.collective;
+        if let Some(error) = self.failed.get(&collective) {
+            return Err(error.clone());
+        }
         if let Some(closed) = part
             .sessions
             .iter()
@@ -96,108 +73,62 @@ impl<B: BackendIr> AllReduces<B> {
             ));
         }
         let index = part.member as usize;
-        let rendezvous =
-            self.rendezvous
-                .entry(collective)
-                .or_insert_with(|| Rendezvous::Gathering {
-                    sessions: part.sessions.clone(),
-                    arrived: (0..part.members()).map(|_| None).collect(),
-                });
-        let arrived = match rendezvous {
-            Rendezvous::Gathering { sessions, arrived } if *sessions == part.sessions => arrived,
-            Rendezvous::Gathering { .. } => {
-                let error =
-                    format!("member {index} of all-reduce {collective:?} names other members");
-                self.fail(collective, &part.sessions, FailedBy::Misfit, &error);
-                return Err(error);
-            }
-            Rendezvous::Failed {
-                error, remaining, ..
-            } => {
-                let error = error.clone();
-                *remaining = remaining.saturating_sub(1);
-                if *remaining == 0 {
-                    self.rendezvous.remove(&collective);
-                }
-                return Err(error);
-            }
+        let gathering = self
+            .gathering
+            .entry(collective)
+            .or_insert_with(|| Gathering {
+                sessions: part.sessions.clone(),
+                arrived: (0..part.members()).map(|_| None).collect(),
+            });
+        let misfit = if gathering.sessions != part.sessions {
+            Some(format!(
+                "member {index} of all-reduce {collective:?} names other members"
+            ))
+        } else if gathering.arrived[index].is_some() {
+            Some(format!(
+                "member {index} of all-reduce {collective:?} arrived twice"
+            ))
+        } else {
+            None
         };
-        if arrived[index].is_some() {
-            let error = format!("member {index} of all-reduce {collective:?} arrived twice");
-            self.fail(collective, &part.sessions, FailedBy::Misfit, &error);
+        if let Some(error) = misfit {
+            self.fail(collective, &error);
             return Err(error);
         }
-        arrived[index] = Some(member);
-        if arrived.iter().any(Option::is_none) {
+        gathering.arrived[index] = Some(member);
+        if gathering.arrived.iter().any(Option::is_none) {
             return Ok(None);
         }
-        match self.rendezvous.remove(&collective) {
-            Some(Rendezvous::Gathering { arrived, .. }) => {
-                Ok(Some(arrived.into_iter().flatten().collect()))
-            }
-            _ => unreachable!("a complete all-reduce is gathering"),
-        }
+        Ok(self
+            .gathering
+            .remove(&collective)
+            .map(|gathering| gathering.arrived.into_iter().flatten().collect()))
     }
 
     /// Fail `collective` with `error`: the members waiting are told now, and the rest as they
-    /// arrive, less the one failing it when that one is still to come. `sessions` are its members'
-    /// when nothing has arrived for it yet.
-    fn fail(
-        &mut self,
-        collective: LocalCollectiveId,
-        sessions: &[SessionId],
-        by: FailedBy,
-        error: &str,
-    ) {
-        let settled = match by {
-            FailedBy::MemberToCome => 1,
-            FailedBy::Misfit => 0,
-        };
-        let (sessions, to_come) = match self.rendezvous.remove(&collective) {
-            Some(Rendezvous::Gathering { sessions, arrived }) => {
-                let members = arrived.len();
-                let waiting: Vec<_> = arrived.into_iter().flatten().collect();
-                let to_come = members - waiting.len();
-                for member in waiting {
-                    let _ = member.result.send(Err(error.to_string()));
-                }
-                (sessions, to_come)
+    /// arrive.
+    fn fail(&mut self, collective: LocalCollectiveId, error: &str) {
+        if let Some(gathering) = self.gathering.remove(&collective) {
+            for member in gathering.arrived.into_iter().flatten() {
+                let _ = member.result.send(Err(error.to_string()));
             }
-            Some(Rendezvous::Failed {
-                sessions,
-                remaining,
-                ..
-            }) => (sessions, remaining),
-            None => (sessions.to_vec(), sessions.len()),
-        };
-        let remaining = to_come.saturating_sub(settled);
-        if remaining > 0 {
-            let error = error.to_string();
-            self.rendezvous.insert(
-                collective,
-                Rendezvous::Failed {
-                    sessions,
-                    error,
-                    remaining,
-                },
-            );
         }
+        self.failed
+            .entry(collective)
+            .or_insert_with(|| error.to_string());
     }
 
     /// Fail every all-reduce with a member in `session`, waiting or still to come, and refuse
     /// every later part that names it.
     fn abandon(&mut self, session: SessionId) {
         self.closed_sessions.insert(session);
-        self.rendezvous.retain(|collective, rendezvous| {
-            if !rendezvous.sessions().contains(&session) {
+        self.gathering.retain(|collective, gathering| {
+            if !gathering.sessions.contains(&session) {
                 return true;
             }
-            if let Rendezvous::Gathering { arrived, .. } = rendezvous {
-                for member in arrived.drain(..).flatten() {
-                    let error =
-                        format!("all-reduce {collective:?} lost a member: {session} closed");
-                    let _ = member.result.send(Err(error));
-                }
+            for member in gathering.arrived.drain(..).flatten() {
+                let error = format!("all-reduce {collective:?} lost a member: {session} closed");
+                let _ = member.result.send(Err(error));
             }
             false
         });
@@ -220,7 +151,8 @@ impl<B: BackendIr> LocalCommService<B> {
         Self {
             pending: Mutex::new(HashMap::new()),
             all_reduces: Mutex::new(AllReduces {
-                rendezvous: HashMap::new(),
+                gathering: HashMap::new(),
+                failed: HashMap::new(),
                 closed_sessions: HashSet::new(),
             }),
             hosted_devices,
@@ -307,12 +239,7 @@ impl<B: BackendIr> LocalCommService<B> {
         if self.fits(part).is_err() {
             return;
         }
-        self.all_reduces.lock().await.fail(
-            part.collective,
-            &part.sessions,
-            FailedBy::MemberToCome,
-            error,
-        );
+        self.all_reduces.lock().await.fail(part.collective, error);
     }
 
     /// Fail every all-reduce with a member in `session`, closed or stopped by a panic, whose other
@@ -349,7 +276,7 @@ impl<B: BackendIr> LocalCommService<B> {
 
     #[cfg(all(test, not(target_family = "wasm")))]
     pub(crate) async fn is_empty(&self) -> bool {
-        self.pending.lock().await.is_empty() && self.all_reduces.lock().await.rendezvous.is_empty()
+        self.pending.lock().await.is_empty() && self.all_reduces.lock().await.gathering.is_empty()
     }
 }
 
