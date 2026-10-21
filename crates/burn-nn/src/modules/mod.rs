@@ -1,6 +1,8 @@
 /// Attention module
 pub mod attention;
 
+pub(crate) mod bounds;
+
 /// Cache module
 pub mod cache;
 

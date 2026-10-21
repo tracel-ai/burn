@@ -1,4 +1,5 @@
 use crate::Initializer;
+use crate::modules::bounds;
 use burn_core as burn;
 
 use burn::config::Config;
@@ -73,14 +74,10 @@ impl LayerNorm {
     /// The floor for a normalization alone: read the input and the parameters once, write the
     /// output once. The statistics are a pass over the same bytes, so no arithmetic is declared.
     fn bounds<const D: usize>(&self, input: &Tensor<D>) -> Bounds {
-        let beta = self
-            .beta
-            .as_ref()
-            .map_or(0, |beta| instrument::tensor_bytes(&beta.val()));
         Bounds {
             read: instrument::tensor_bytes(input)
                 + instrument::tensor_bytes(&self.gamma.val())
-                + beta,
+                + bounds::optional_parameter(&self.beta),
             write: instrument::tensor_bytes(input),
             flops: 0,
         }

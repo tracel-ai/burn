@@ -1,4 +1,5 @@
 use crate::Initializer;
+use crate::modules::bounds;
 use burn_core as burn;
 
 use burn::config::Config;
@@ -122,12 +123,10 @@ impl Linear {
             .iter()
             .map(|dim| *dim as u64)
             .product();
-        let bias = self
-            .bias
-            .as_ref()
-            .map_or(0, |bias| instrument::tensor_bytes(&bias.val()));
         Bounds {
-            read: instrument::tensor_bytes(input) + instrument::tensor_bytes(&weight) + bias,
+            read: instrument::tensor_bytes(input)
+                + instrument::tensor_bytes(&weight)
+                + bounds::optional_parameter(&self.bias),
             write: rows * d_output * input.dtype().size() as u64,
             flops: 2 * rows * d_input * d_output,
         }

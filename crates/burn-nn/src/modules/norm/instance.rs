@@ -1,4 +1,5 @@
 use crate::Initializer;
+use crate::modules::bounds;
 use burn_core as burn;
 
 use crate::norm::group_norm;
@@ -83,13 +84,10 @@ impl InstanceNorm {
     /// The floor for a normalization alone: read the input and the parameters once, write the
     /// output once. The statistics are a pass over the same bytes, so no arithmetic is declared.
     fn bounds<const D: usize>(&self, input: &Tensor<D>) -> Bounds {
-        let parameters: u64 = [&self.gamma, &self.beta]
-            .into_iter()
-            .flatten()
-            .map(|parameter| instrument::tensor_bytes(&parameter.val()))
-            .sum();
         Bounds {
-            read: instrument::tensor_bytes(input) + parameters,
+            read: instrument::tensor_bytes(input)
+                + bounds::optional_parameter(&self.gamma)
+                + bounds::optional_parameter(&self.beta),
             write: instrument::tensor_bytes(input),
             flops: 0,
         }
