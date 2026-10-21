@@ -1271,6 +1271,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "burn-instrument-report"
+version = "0.22.0"
+dependencies = [
+ "burn-instrument",
+ "burn-tensor",
+ "cubecl",
+]
+
+[[package]]
 name = "burn-ir"
 version = "0.22.0"
 dependencies = [
@@ -5220,6 +5229,13 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 3.0.6",
+]
+
+[[package]]
+name = "instrument"
+version = "0.22.0"
+dependencies = [
+ "burn",
 ]
 
 [[package]]

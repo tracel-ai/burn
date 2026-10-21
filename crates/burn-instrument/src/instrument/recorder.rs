@@ -1,6 +1,6 @@
-//! Where every event of a collected pass is recorded: the components it
+//! Where every event of an instrumented run is recorded: the components it
 //! enters, from the thread driving the model, and the kernels, blocks and
-//! measurements the runtimes report, from whichever thread issues them.
+//! timings the runtimes report, from whichever thread issues them.
 //!
 //! The runtime calls a [`LaunchObserver`] synchronously, on the thread that
 //! issued the launch, before it is submitted. The recorder is the observer,
@@ -9,13 +9,13 @@
 //! components whose work the block carries out, with nothing drained to make
 //! it so → [`LaunchCursor`].
 //!
-//! # Measurements are read once the pass is over
+//! # Timings are read once the run is over
 //!
-//! Each launch's measurement arrives unread and the recorder keeps it, reading
-//! them all back after the pass's last sync. Reading one waits for its kernel,
-//! so reading each as it arrived would run the pass one kernel at a time — the
+//! Each launch's timing arrives unread and the recorder keeps it, reading
+//! them all back after the run's last sync. Reading one waits for its kernel,
+//! so reading each as it arrived would execute the run one kernel at a time — the
 //! kernels would each be timed alone, and their sum would say nothing about a
-//! pass that keeps the device fed.
+//! run that keeps the device fed.
 //!
 //! # The fusion server says whose work a block is
 //!
@@ -40,18 +40,18 @@ use super::component_tree::{ComponentId, ComponentTree};
 use super::cursor::{Attribution, LaunchCursor};
 #[cfg(feature = "fusion")]
 use super::origins::{BlockOrigin, OperationId, OperationOrigins};
-use super::timing::{Kept, Measured, Timeline, Timings};
+use super::timing::{Kept, Timed, Timeline, Timings};
 use super::watching::Watching;
 use crate::breakdown::Breakdown;
 use crate::{Bounds, ComponentObserver, Declaration, ObservedBounds};
 
-/// Records a pass's events into its component tree.
+/// Records a run's events into its component tree.
 ///
 /// # What the timing is, and is not
 ///
 /// A component has no clock of its own. Nothing drains the device at its
 /// boundaries — a drain there would seal every fused segment at the boundary
-/// and collect a graph production does not run — so its time is the device
+/// and record a graph production does not run — so its time is the device
 /// time of the kernels recorded under it, each timed by the runtime as it
 /// launched.
 ///
@@ -64,9 +64,9 @@ use crate::{Bounds, ComponentObserver, Declaration, ObservedBounds};
 /// their closest common parent, named for them. Every kernel is on the one component
 /// that holds all it did; outside a block, a launch falls back to the
 /// component whose operation sealed the segment.
-pub struct PassRecorder {
+pub struct RunRecorder {
     device: Device,
-    /// Before the pass, so every measurement's window can be placed after it
+    /// Before the run, so every timing's window can be placed after it
     /// on one clock and the gaps between them read off.
     epoch: Instant,
     /// Where each launching thread records, moved at every boundary.
@@ -79,7 +79,7 @@ pub struct PassRecorder {
     state: Mutex<State>,
 }
 
-/// What the pass has recorded so far.
+/// What the run has recorded so far.
 #[derive(Default)]
 struct State {
     tree: ComponentTree,
@@ -87,7 +87,7 @@ struct State {
     /// What a block's operations are mapped back through.
     #[cfg(feature = "fusion")]
     origins: OperationOrigins,
-    /// Observed traffic not yet priced. See [`PassRecorder::price_observed`].
+    /// Observed traffic not yet priced. See [`RunRecorder::price_observed`].
     unpriced: Vec<Unpriced>,
 }
 
@@ -97,7 +97,7 @@ struct Unpriced {
     bounds: ObservedBounds,
 }
 
-impl PassRecorder {
+impl RunRecorder {
     /// A recorder for work running on `device`.
     ///
     /// Points every launching thread at no component first: the cursor is a
@@ -115,9 +115,9 @@ impl PassRecorder {
         }
     }
 
-    /// End the pass and say what it left behind.
+    /// End the run and say what it left behind.
     ///
-    /// In this order, which is what makes the breakdown the pass's alone: the
+    /// In this order, which is what makes the breakdown the run's alone: the
     /// work still queued runs while the launches are watched, so it is
     /// counted; the observers come out, with `watching`; and only then are
     /// observed values read back, since reading them launches kernels of its
@@ -128,25 +128,25 @@ impl PassRecorder {
     /// If the device stops answering, if the work producing an observed value
     /// failed, or if a component is still open.
     pub fn finish(&self, watching: Watching) -> Breakdown {
-        self.run_end_of_pass();
+        self.end_run();
         drop(watching);
         self.price_observed();
         self.breakdown()
     }
 
     /// Run the fused work still queued, under a component of its own, stop
-    /// attributing, and read back every measurement the pass kept.
+    /// attributing, and read back every timing the run kept.
     ///
-    /// A fused segment runs when an op seals it, and the pass's last one has
+    /// A fused segment runs when an op seals it, and the run's last one has
     /// no op after it — the output is returned unread — so its kernels would
     /// otherwise launch at whatever sync came next, after the recorder had
     /// been taken down, and [`Breakdown::total_time`] would quietly shrink by them. They
     /// are the work of the last components, but no component can say which, so they
     /// are named for when they ran.
     ///
-    /// The measurements are read here rather than as each kernel launched:
-    /// reading one waits for its kernel, and waiting after every launch runs a
-    /// pass one kernel at a time. After the sync every window has closed, so
+    /// The timings are read here rather than as each kernel launched:
+    /// reading one waits for its kernel, and waiting after every launch
+    /// executes a run one kernel at a time. After the sync every window has closed, so
     /// reading them costs nothing and each is the kernel as it ran in a queue
     /// kept full. The observed traffic is priced afterwards, by
     /// [`price_observed`](Self::price_observed).
@@ -154,30 +154,30 @@ impl PassRecorder {
     /// # Panics
     ///
     /// If the device stops answering.
-    fn run_end_of_pass(&self) {
-        self.cursor.point_at(Attribution::EndOfPass);
+    fn end_run(&self) {
+        self.cursor.point_at(Attribution::EndOfRun);
         self.device
             .sync()
-            .expect("the device answers at the end of the pass");
+            .expect("the device answers at the end of the run");
         self.cursor.point_at(Attribution::Untagged);
 
         // Read outside the lock: a window the backend could not close on the
         // device resolves by waiting, and a launch still being recorded would
         // wait behind it.
         let kept = self.locked().timings.take_kept();
-        let measured: Vec<Measured> = kept.into_iter().map(Kept::resolve).collect();
+        let timed: Vec<Timed> = kept.into_iter().map(Kept::resolve).collect();
         let mut state = self.locked();
         #[cfg(feature = "fusion")]
         state.origins.clear();
-        state.settle(measured, self.epoch);
+        state.settle(timed, self.epoch);
     }
 
-    /// Price the traffic the pass observed, adding it to the components it arrived
+    /// Price the traffic the run observed, adding it to the components it arrived
     /// under.
     ///
     /// Once the launches are no longer watched: reading values back can launch
     /// kernels of its own, such as making a sliced tensor contiguous, and
-    /// watched they would be recorded as work the pass did.
+    /// watched they would be recorded as work the run did.
     ///
     /// # Panics
     ///
@@ -195,11 +195,11 @@ impl PassRecorder {
         }
     }
 
-    /// What the pass left behind.
+    /// What the run left behind.
     ///
     /// # Panics
     ///
-    /// If a component is still open — a tree read mid-pass is missing the
+    /// If a component is still open — a tree read mid-run is missing the
     /// kernels its open components have yet to launch.
     fn breakdown(&self) -> Breakdown {
         let state = self.locked();
@@ -208,7 +208,7 @@ impl PassRecorder {
             .breakdown(state.timings.quality(), self.cursor.fusion())
     }
 
-    /// The shared state, recovering a lock a panicking pass poisoned: a tree
+    /// The shared state, recovering a lock a panicking run poisoned: a tree
     /// half-built is still worth reading, and the panic itself is reported by
     /// whoever caught it.
     fn locked(&self) -> MutexGuard<'_, State> {
@@ -218,7 +218,7 @@ impl PassRecorder {
     }
 }
 
-impl ComponentObserver for PassRecorder {
+impl ComponentObserver for RunRecorder {
     fn enter(&self, declared: Declaration<'_>) {
         let entered = self.locked().tree.enter(declared);
         // Outside the lock: a full queue waits for the worker, and the worker
@@ -244,7 +244,7 @@ impl ComponentObserver for PassRecorder {
 /// launches, never where the model thread has got to: under fusion a kernel
 /// launches on the fusion worker, dozens of ops after the model thread
 /// registered its work.
-impl LaunchObserver for PassRecorder {
+impl LaunchObserver for RunRecorder {
     fn launched(&self, kernel: &'static str) {
         LaunchCursor::with_placement(|placement| {
             self.locked().tree.count_launch(placement, kernel);
@@ -253,14 +253,14 @@ impl LaunchObserver for PassRecorder {
 
     /// Timed, and handed over unread — a breakdown whose kernel components carried
     /// no time would say which kernels ran and nothing about which of them
-    /// mattered, and reading each measurement at its launch waits for that
-    /// kernel, which runs the pass one kernel at a time.
+    /// mattered, and reading each timing at its launch waits for that
+    /// kernel, which executes the run one kernel at a time.
     fn timing(&self) -> TimingRequest {
         TimingRequest::Deferred
     }
 
     /// Kept beside the component that counted the launch, and read back in
-    /// [`finish`](PassRecorder::finish). The runtime hands it over on the
+    /// [`finish`](RunRecorder::finish). The runtime hands it over on the
     /// thread that issued the launch, inside the same call, so the calling
     /// thread's attribution is still the launch's.
     fn profiled(&self, kernel: &'static str, profile: ProfileDuration) {
@@ -268,9 +268,9 @@ impl LaunchObserver for PassRecorder {
         self.locked().timings.keep(attribution, kernel, profile);
     }
 
-    /// Only while the runtime's profiling logger reads measurements too, which
+    /// Only while the runtime's profiling logger reads timings too, which
     /// reads each at its launch and hands the observer the duration. A kernel
-    /// read as it launched ran alone, so the pass is marked
+    /// read as it launched ran alone, so the run is marked
     /// [`timed_alone`](Breakdown::timed_alone).
     fn timed(&self, kernel: &'static str, duration: Duration, method: TimingMethod) {
         let attribution = LaunchCursor::current();
@@ -281,7 +281,7 @@ impl LaunchObserver for PassRecorder {
 }
 
 #[cfg(feature = "fusion")]
-impl FusionObserver for PassRecorder {
+impl FusionObserver for RunRecorder {
     /// Recorded under whichever component the server's thread is pointed at —
     /// the one that registered it, since the cursor moves in the same queue
     /// the operations do.
@@ -313,15 +313,15 @@ impl FusionObserver for PassRecorder {
 }
 
 impl State {
-    /// File every measurement read back under the component that counted its
+    /// File every timing read back under the component that counted its
     /// launch, and charge the device's idle stretches between them.
-    fn settle(&mut self, measured: Vec<Measured>, epoch: Instant) {
+    fn settle(&mut self, timed: Vec<Timed>, epoch: Instant) {
         let mut timeline = Timeline::new(epoch);
-        for measured in measured {
-            match measured.ticks {
+        for timed in timed {
+            match timed.ticks {
                 Some(ticks) => {
-                    self.credit(measured.attribution, measured.kernel, ticks.duration());
-                    timeline.push(measured.attribution, &ticks);
+                    self.credit(timed.attribution, timed.kernel, ticks.duration());
+                    timeline.push(timed.attribution, &ticks);
                 }
                 None => self.timings.unplace(Duration::ZERO),
             }
@@ -396,9 +396,9 @@ mod tests {
         assert_eq!(recorder.breakdown().untagged[0].name, "Stray");
     }
 
-    /// A measurement is kept beside the component its launch was counted on and
-    /// read back when the pass ends — so a kernel two components share by name keeps
-    /// each component's time apart, and nothing waited on a kernel while the pass
+    /// A timing is kept beside the component its launch was counted on and
+    /// read back when the run ends — so a kernel two components share by name keeps
+    /// each component's time apart, and nothing waited on a kernel while the run
     /// ran.
     #[test]
     fn a_kept_measurement_lands_on_the_component_that_counted_its_launch() {
@@ -406,16 +406,16 @@ mod tests {
         for (label, micros) in [("query", 13), ("key", 5)] {
             recorder.enter(declared(label));
             recorder.launched("MatmulEntry");
-            recorder.profiled("MatmulEntry", measured(micros));
+            recorder.profiled("MatmulEntry", unread_timing(micros));
             recorder.exit();
         }
         assert_eq!(
             recorder.breakdown().tree[0].own_time(),
             Duration::ZERO,
-            "nothing is read back while the pass runs"
+            "nothing is read back while the run is going"
         );
 
-        recorder.run_end_of_pass();
+        recorder.end_run();
         let breakdown = recorder.breakdown();
         assert_eq!(breakdown.tree[0].own_time(), Duration::from_micros(13));
         assert_eq!(breakdown.tree[1].own_time(), Duration::from_micros(5));
@@ -424,10 +424,10 @@ mod tests {
     }
 
     /// A duration read as its kernel launched is still credited to its component,
-    /// and says the pass ran that kernel alone — which is what stops the
+    /// and says the run ran that kernel alone — which is what stops the
     /// report from subtracting a serialized sum from a pipelined wall.
     #[test]
-    fn a_duration_read_at_launch_marks_the_pass_timed_alone() {
+    fn a_duration_read_at_launch_marks_the_run_timed_alone() {
         let recorder = recorder();
         recorder.enter(declared("query"));
         recorder.launched("MatmulEntry");
@@ -478,20 +478,20 @@ mod tests {
     }
 
     /// Finishing leaves the calling thread attributing nothing, so a launch
-    /// after the pass is not counted as part of it.
+    /// after the run is not counted as part of it.
     #[test]
     fn finishing_stops_attributing() {
         let recorder = recorder();
-        recorder.run_end_of_pass();
+        recorder.end_run();
         assert_eq!(LaunchCursor::current(), Attribution::Untagged);
     }
 
-    fn recorder() -> PassRecorder {
-        PassRecorder::new(&Device::flex())
+    fn recorder() -> RunRecorder {
+        RunRecorder::new(&Device::flex())
     }
 
-    /// A device measurement of `micros`, as the runtime hands one over: unread.
-    fn measured(micros: u64) -> ProfileDuration {
+    /// A device timing of `micros`, as the runtime hands one over: unread.
+    fn unread_timing(micros: u64) -> ProfileDuration {
         let start = Instant::now();
         let end = start + Duration::from_micros(micros);
         ProfileDuration::new_device_time(async move {

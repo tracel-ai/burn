@@ -72,5 +72,6 @@ if those tensors are part of a signal in neural networks.
 
 Reordering operations can help in such scenarios but will not create temporary values, making the
 previous optimization harder. We might eventually automatically optimize these cases, but the
-solution space is quite large, and it’s not a planned optimization. Profiling model blocks is always
-a good idea to identify which code block is faster when faced with ambiguous situations.
+solution space is quite large, and it’s not a planned optimization. [Profiling](../profiling.md)
+model blocks is always a good idea to identify which code block is faster when faced with
+ambiguous situations.
