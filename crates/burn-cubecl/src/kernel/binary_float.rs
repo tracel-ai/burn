@@ -8,6 +8,7 @@ use crate::{
 use burn_backend::cubecl::dtype_to_storage_type;
 use cubecl::{
     calculate_cube_count_elemwise,
+    ir::FloatKind,
     prelude::*,
     std::tensor::layout::linear::{LinearView, LinearViewMut},
 };
@@ -37,6 +38,58 @@ impl BinaryOpFloatFamily for FmodOp {
 impl<T: Float, N: Size> BinaryOpFloat<T, N> for ArcTan2Op {
     fn execute(lhs: Vector<T, N>, rhs: Vector<T, N>) -> Vector<T, N> {
         Vector::atan2(lhs, rhs)
+    }
+}
+
+pub(crate) struct GeluBackwardOp;
+
+impl BinaryOpFloatFamily for GeluBackwardOp {
+    type BinaryOp<C: Float, N: Size> = Self;
+}
+
+#[cube]
+impl<T: Float, N: Size> BinaryOpFloat<T, N> for GeluBackwardOp {
+    fn execute(lhs: Vector<T, N>, rhs: Vector<T, N>) -> Vector<T, N> {
+        let dtype = elem_type_of::<T>().comptime();
+        let define!(C) = comptime!(match dtype {
+            ElemType::Float(FloatKind::F64) => dtype,
+            _ => ElemType::Float(FloatKind::F32),
+        });
+
+        let x = Vector::<C, N>::cast_from(lhs);
+        let dy = Vector::<C, N>::cast_from(rhs);
+        let half = Vector::<C, N>::new(<C as Float>::new(0.5));
+        let one = Vector::<C, N>::new(<C as Float>::new(1.0));
+        let inv_sqrt2 = Vector::<C, N>::new(<C as Float>::new(core::f64::consts::FRAC_1_SQRT_2));
+        let inv_sqrt2pi = Vector::<C, N>::new(<C as Float>::new(0.3989422804014327));
+
+        let cdf = half * (one + Vector::erf(x * inv_sqrt2));
+        let pdf = inv_sqrt2pi * Vector::exp(-half * x * x);
+
+        Vector::<T, N>::cast_from(dy * (cdf + x * pdf))
+    }
+}
+
+pub(crate) struct SigmoidBackwardOp;
+
+impl BinaryOpFloatFamily for SigmoidBackwardOp {
+    type BinaryOp<C: Float, N: Size> = Self;
+}
+
+#[cube]
+impl<T: Float, N: Size> BinaryOpFloat<T, N> for SigmoidBackwardOp {
+    fn execute(lhs: Vector<T, N>, rhs: Vector<T, N>) -> Vector<T, N> {
+        let dtype = elem_type_of::<T>().comptime();
+        let define!(C) = comptime!(match dtype {
+            ElemType::Float(FloatKind::F64) => dtype,
+            _ => ElemType::Float(FloatKind::F32),
+        });
+
+        let s = Vector::<C, N>::cast_from(lhs);
+        let dy = Vector::<C, N>::cast_from(rhs);
+        let one = Vector::<C, N>::new(<C as Float>::new(1.0));
+
+        Vector::<T, N>::cast_from(dy * s * (one - s))
     }
 }
 
