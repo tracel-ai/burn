@@ -38,6 +38,7 @@ fn cost((query, key, value, mask, _attn_bias, options): &Inputs) -> AttentionCos
             batch: query.meta.shape[0],
             num_heads: query.meta.shape[1],
             seq_q: query.meta.shape[2],
+            num_kv_heads: key.meta.shape[1],
             head_dim: query.meta.shape[3],
             seq_kv: value.meta.shape[2],
             val_dim: value.meta.shape[3],
