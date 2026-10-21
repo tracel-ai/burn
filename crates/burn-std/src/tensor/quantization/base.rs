@@ -474,55 +474,10 @@ fn read_bytes_to_i8(bytes: Bytes) -> Vec<i8> {
     }
 }
 
-/// Pack signed 8-bit integer values into a sequence of unsigned 32-bit integers.
-///
-/// Values fill each word from the least significant byte, regardless of target endianness.
-/// The last word is padded with zeros if there are fewer than four values.
-pub fn pack_i8s_to_u32s(values: Vec<i8>) -> Vec<u32> {
-    let mut packed = bytemuck::allocation::pod_collect_to_vec::<i8, u32>(&values);
-    for word in &mut packed {
-        *word = u32::from_le(*word);
-    }
-    packed
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use alloc::vec;
-
-    #[test]
-    fn should_pack_i8s_to_u32() {
-        let packed = pack_i8s_to_u32s(vec![-128, 2, -3, 127]);
-
-        assert_eq!(packed, vec![2147287680]);
-    }
-
-    #[test]
-    fn should_pack_i8s_to_u32_padded() {
-        let packed = pack_i8s_to_u32s(vec![-128, 2, -3, 127, 55]);
-        let packed_padded = pack_i8s_to_u32s(vec![-128, 2, -3, 127, 55, 0, 0, 0]);
-
-        assert_eq!(packed, vec![2147287680, 55]);
-        assert_eq!(packed, packed_padded);
-    }
-
-    #[test]
-    fn should_pack_i8s_to_u32_empty() {
-        let packed = pack_i8s_to_u32s(Vec::new());
-
-        assert_eq!(packed, Vec::<u32>::new());
-    }
-
-    #[test]
-    fn should_pack_i8s_to_u32_with_spare_capacity() {
-        // The byte capacity deliberately does not hold a whole number of u32 values.
-        let mut values = Vec::with_capacity(9);
-        values.extend([-128, 2, -3, 127, 55, -1, -128, -2]);
-        let packed = pack_i8s_to_u32s(values);
-
-        assert_eq!(packed, vec![2147287680, 0xfe80_ff37]);
-    }
 
     #[test]
     fn should_pack_unpack_quantization_parameters_per_tensor_symmetric() {
