@@ -1,6 +1,7 @@
 pub use super::*;
 
 mod cat;
+mod dropped_view_source;
 mod fusion_f16_broadcast;
 mod fusion_f16_write_vectorization;
 mod fusion_shape;

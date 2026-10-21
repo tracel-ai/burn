@@ -223,7 +223,28 @@ impl<'a> VectorizationPlanner<'a> {
             }
         }
 
-        let mut previous_widths = Vec::with_capacity(block_vectorization.len());
+        // An output aliasing an input reuses that input's buffer at its launched vector size,
+        // and a block reading it at a wider width would index it in the wrong unit.
+        let alias_widths: Vec<VectorSize> = plan
+            .blocks
+            .iter()
+            .map(|block_plan| {
+                plan.handle_outputs
+                    .iter()
+                    .filter_map(|output| match output {
+                        HandleOutput::Alias { input_pos, .. } => {
+                            plan.handle_inputs[*input_pos].as_normal()
+                        }
+                        _ => None,
+                    })
+                    .filter(|input| block_plan.reads.contains_key(&input.relative_id))
+                    .map(|input| plan.vectorizations[&input.global_ir.id].vector_size())
+                    .min()
+                    .unwrap_or(u8::MAX as usize)
+            })
+            .collect();
+
+        let mut previous_widths: Vec<VectorSize> = Vec::with_capacity(block_vectorization.len());
 
         // Unhandled inputs might not get included in any fused blocks for now.
         //
@@ -256,10 +277,11 @@ impl<'a> VectorizationPlanner<'a> {
             }
         }
 
-        for ((tmp, block_plan), block) in block_vectorization
+        for (((tmp, block_plan), block), alias_width) in block_vectorization
             .into_iter()
             .zip(plan.blocks.iter_mut())
             .zip(self.blocks)
+            .zip(alias_widths)
         {
             match block.settings.vectorization {
                 VectorizationSetting::Activated => {
@@ -268,7 +290,7 @@ impl<'a> VectorizationPlanner<'a> {
                         &mut plan.handle_inputs,
                         &mut plan.handle_outputs,
                         block_plan,
-                        u8::MAX as usize,
+                        alias_width,
                     );
                 }
                 VectorizationSetting::SmallerOrEqualThanPreviousBlock { block_pos } => {
@@ -277,7 +299,7 @@ impl<'a> VectorizationPlanner<'a> {
                         &mut plan.handle_inputs,
                         &mut plan.handle_outputs,
                         block_plan,
-                        previous_widths[block_pos],
+                        previous_widths[block_pos].min(alias_width),
                     );
                     if block_plan.width == 0 {
                         block_plan.width = previous_widths[block_pos];
