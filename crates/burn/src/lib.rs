@@ -142,6 +142,9 @@
 //!   - `template`: Enable hand-written, non-JIT custom kernels in the CubeCL backends.
 //!   - `fusion`: Enable operation fusion in backends that support it.
 //!   - `tracing`: Enable diagnostic tracing in the selected backends (disabled by default).
+//!   - `instrument`: Arm the `#[compute]` annotations of the layers and of your own components,
+//!     for `burn::instrument::Instrument` to measure (disabled by default; without it the
+//!     annotations compile away).
 //! - Backend decorators
 //!   - `autodiff`: Makes available the Autodiff backend
 //! - Model Storage

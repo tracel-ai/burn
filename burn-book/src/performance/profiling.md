@@ -43,7 +43,9 @@ impl Projection {
   it off for a component that will be fused into its neighbour. A floor nothing can reach is worse
   than none.
 
-With no measurement running, an annotated method costs one thread-local read.
+The annotations are armed by burn's `instrument` feature. Without it they compile away, so a library
+can annotate its components at no cost to a build that never measures; with it and no measurement
+running, an annotated method costs one thread-local read.
 
 ### The layers of `burn::nn`
 
@@ -60,7 +62,8 @@ name what composes them.
 
 ## Measuring a model
 
-Measuring needs a CubeCL runtime and, on a fused build, burn's `fusion` feature:
+Measuring needs burn's `instrument` feature, a CubeCL runtime and, on a fused build, burn's `fusion`
+feature:
 
 ```rust,ignore
 use burn::instrument::Instrument;

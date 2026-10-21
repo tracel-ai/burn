@@ -37,6 +37,8 @@ burn = { workspace = true, features = [
     "autotune",
     "fusion",
     "std",
+    # The `profile` example measures the model's annotated layers.
+    "instrument",
 ] }
 log = { workspace = true }
 

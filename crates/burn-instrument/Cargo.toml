@@ -15,8 +15,8 @@ version.workspace = true
 workspace = true
 
 [features]
-default = ["std", "fusion", "burn-tensor/default"]
-doc = ["default", "cubecl", "fusion"]
+default = ["std", "observe", "fusion", "burn-tensor/default"]
+doc = ["default", "cubecl", "observe", "fusion"]
 std = [
     "burn-tensor/std",
     "dep:serde",
@@ -27,7 +27,12 @@ std = [
     "burn-fusion?/std",
     "burn-ir?/std",
 ]
-# The collector, which reads a cubecl runtime's launches.
+# Installing an observer, which arms every annotated method: without it, `observing()` is always
+# `None` and an annotation compiles to the method's body, so a library annotates its components
+# without costing a build that never measures. Off in burn unless its `instrument` feature asks.
+observe = ["std"]
+# The device's peaks, and with `observe` the collector, which reads a cubecl runtime's launches.
+# A runtime enables it, so it must not arm the annotations on its own.
 cubecl = ["std", "dep:cubecl", "dep:cubecl-common", "burn-tensor/cubecl"]
 # The collector also reads the fusion server's blocks, so it can collect a device that fuses.
 # Enabled with `burn-core/fusion`, so a build that cannot fuse does not compile the fusion server
@@ -38,7 +43,7 @@ fusion = ["dep:burn-fusion", "dep:burn-ir", "burn-tensor/fusion"]
 # The collector's integration tests, which need kernels to place. Enable a cubecl runtime
 # separately (e.g. `burn-tensor/wgpu`) and select it with BURN_DEVICE; add `fusion` for the fused
 # half.
-collector-tests = ["cubecl"]
+collector-tests = ["cubecl", "observe"]
 
 [dependencies]
 burn-instrument-macros = { workspace = true }
