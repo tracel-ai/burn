@@ -208,7 +208,7 @@ mod tests {
         assert_eq!(output.dims(), [2, 6, 7, 5]);
         assert_eq!(recorded.lines(), ["conv transpose2d"]);
         assert_eq!(
-            recorded.declared(),
+            recorded.declared("conv transpose2d"),
             Some(Bounds {
                 read: (2 * 4 * 3 * 4 + 4 * 3 * 3 * 2 + 6) * 4,
                 write: burn::instrument::tensor_bytes(&output),

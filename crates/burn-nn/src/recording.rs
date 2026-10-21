@@ -56,12 +56,34 @@ impl Recorded {
             .collect()
     }
 
-    /// The floor the first entry declared: the module the run called.
-    pub(crate) fn declared(&self) -> Option<Bounds> {
+    /// The floors of the first entry's parts, summed: each priced entry below it with no priced
+    /// entry between the two, so a role a parent names without a floor of its own is looked
+    /// through to the component under it.
+    pub(crate) fn parts(&self) -> Bounds {
+        let entries = self.entries.lock().unwrap();
+        // Whether the entry open at each depth below the first is priced.
+        let mut priced_above: Vec<bool> = Vec::new();
+        let mut parts = Bounds::default();
+        // The first entry's subtree ends at the next entry as shallow as it.
+        for entry in entries.iter().skip(1).take_while(|entry| entry.depth > 0) {
+            priced_above.truncate(entry.depth - 1);
+            if let Some(bounds) = entry.bounds
+                && !priced_above.contains(&true)
+            {
+                parts = parts + bounds;
+            }
+            priced_above.push(entry.bounds.is_some());
+        }
+        parts
+    }
+
+    /// The floor the first entry labelled `label` declared.
+    pub(crate) fn declared(&self, label: &str) -> Option<Bounds> {
         self.entries
             .lock()
             .unwrap()
-            .first()
+            .iter()
+            .find(|entry| entry.label == label)
             .and_then(|entry| entry.bounds)
     }
 }

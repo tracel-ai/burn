@@ -242,7 +242,7 @@ mod tests {
         });
 
         assert_eq!(
-            recorded.declared(),
+            recorded.declared("group norm"),
             Some(Bounds {
                 read: 2 * 4 * 5 * 4,
                 write: 2 * 4 * 5 * 4,

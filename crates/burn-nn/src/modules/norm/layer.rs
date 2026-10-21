@@ -159,7 +159,7 @@ mod tests {
 
         assert_eq!(recorded.lines(), ["layer norm"]);
         assert_eq!(
-            recorded.declared(),
+            recorded.declared("layer norm"),
             Some(burn::instrument::Bounds {
                 read: (2 * 3 * 8 + 8 + 8) * 4,
                 write: 2 * 3 * 8 * 4,

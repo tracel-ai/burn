@@ -230,7 +230,7 @@ mod tests {
 
         // A 2x2 output, each window one position of the 4x4 input.
         assert_eq!(
-            recorded.declared().map(|bounds| bounds.read),
+            recorded.declared("conv2d").map(|bounds| bounds.read),
             Some((2 * 2 + 1) * 4)
         );
     }
@@ -256,7 +256,7 @@ mod tests {
         let outputs = 2 * 6 * 3 * 4;
         assert_eq!(recorded.lines(), ["conv2d"]);
         assert_eq!(
-            recorded.declared(),
+            recorded.declared("conv2d"),
             Some(Bounds {
                 read: (2 * 4 * 7 * 5 + 6 * 2 * 3 * 2 + 6) * 4,
                 write: burn::instrument::tensor_bytes(&output.unwrap()),

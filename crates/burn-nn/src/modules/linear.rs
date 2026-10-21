@@ -116,7 +116,7 @@ impl LinearConfig {
 impl Linear {
     /// The floor for running this projection alone: read the input and the parameters once,
     /// write the output once.
-    fn bounds<const D: usize>(&self, input: &Tensor<D>) -> Bounds {
+    pub(crate) fn bounds<const D: usize>(&self, input: &Tensor<D>) -> Bounds {
         let weight = self.weight.val();
         let [d_input, d_output] = weight.dims().map(|dim| dim as u64);
         let rows: u64 = input.dims()[..D - 1]
@@ -202,7 +202,7 @@ mod tests {
 
         assert_eq!(recorded.lines(), ["linear"]);
         assert_eq!(
-            recorded.declared(),
+            recorded.declared("linear"),
             Some(Bounds {
                 read: (2 * 5 * 3 + 3 * 4 + 4) * 4,
                 write: 2 * 5 * 4 * 4,

@@ -154,7 +154,7 @@ mod tests {
 
         assert_eq!(recorded.lines(), ["max pool2d"]);
         assert_eq!(
-            recorded.declared(),
+            recorded.declared("max pool2d"),
             Some(Bounds {
                 read,
                 write: burn::instrument::tensor_bytes(&output.unwrap()),

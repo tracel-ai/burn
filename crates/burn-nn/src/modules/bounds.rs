@@ -4,7 +4,7 @@
 use burn_core as burn;
 
 use burn::instrument::{self, Bounds};
-use burn::module::Param;
+use burn::module::{Module, ModuleVisitor, Param};
 use burn::tensor::Tensor;
 use burn::tensor::ops::{AvgPoolOptions, ConvOptions, MaxPoolOptions};
 
@@ -21,6 +21,35 @@ pub(crate) fn optional_parameter<const D: usize>(parameter: &Option<Param<Tensor
     parameter
         .as_ref()
         .map_or(0, |parameter| instrument::tensor_bytes(&parameter.val()))
+}
+
+/// The bytes of every parameter of `module`, at the widths they are stored in: what a composite
+/// reads once of the modules under it.
+pub(crate) fn parameters<M: Module>(module: &M) -> u64 {
+    struct Parameters(u64);
+    impl ModuleVisitor for Parameters {
+        fn visit_float<const D: usize>(&mut self, param: &Param<Tensor<D>>) {
+            self.0 += instrument::tensor_bytes(&param.val());
+        }
+        fn visit_int<const D: usize>(&mut self, param: &Param<Tensor<D, burn::tensor::Int>>) {
+            self.0 += instrument::tensor_bytes(&param.val());
+        }
+        fn visit_bool<const D: usize>(&mut self, param: &Param<Tensor<D, burn::tensor::Bool>>) {
+            self.0 += instrument::tensor_bytes(&param.val());
+        }
+    }
+    let mut parameters = Parameters(0);
+    module.visit(&mut parameters);
+    parameters.0
+}
+
+/// The bytes of an attention's padding and attention masks, where it has them.
+pub(crate) fn masks(
+    mask_pad: &Option<Tensor<2, burn::tensor::Bool>>,
+    mask_attn: &Option<Tensor<3, burn::tensor::Bool>>,
+) -> u64 {
+    mask_pad.as_ref().map_or(0, instrument::tensor_bytes)
+        + mask_attn.as_ref().map_or(0, instrument::tensor_bytes)
 }
 
 /// How the windows of a pool or a convolution slide over each spatial dimension of its input:
@@ -171,6 +200,51 @@ pub(crate) fn transposed_convolution<const D: usize, const N: usize>(
             + optional_parameter(bias),
         write: outputs * input.dtype().size() as u64,
         flops: 2 * inputs * kernel,
+    }
+}
+
+/// Scaled dot-product attention, as its arithmetic sees it: the query rows over every head, each
+/// scored against `key_length` keys of `key_width` and weighing as many values of `value_width`.
+pub(crate) struct ScaledDotProduct {
+    pub(crate) query_rows: u64,
+    pub(crate) key_length: u64,
+    pub(crate) key_width: u64,
+    pub(crate) value_width: u64,
+}
+
+impl ScaledDotProduct {
+    /// The heads of `query` attending over those of `key` and `value`, `[batch, heads, length,
+    /// width]` each.
+    pub(crate) fn new(query: &Tensor<4>, key: &Tensor<4>, value: &Tensor<4>) -> Self {
+        let [batch, heads, length_query, key_width] = query.dims().map(|dim| dim as u64);
+        Self {
+            query_rows: batch * heads * length_query,
+            key_length: key.dims()[2] as u64,
+            key_width,
+            value_width: value.dims()[3] as u64,
+        }
+    }
+
+    /// Two flops per multiply-add of the scores and of the context.
+    pub(crate) fn flops(&self) -> u64 {
+        2 * self.query_rows * self.key_length * (self.key_width + self.value_width)
+    }
+}
+
+/// The floor for scaled dot-product attention alone: read the query, key and value heads once,
+/// write the context once.
+///
+/// `query` is `[batch, heads, length_query, d_key]`, and `key` and `value` are
+/// `[batch, heads_kv, length_key, d_key]` and `[batch, heads_kv, length_key, d_value]`: each key
+/// and value head is read once however many query heads share it.
+pub(crate) fn attention(query: &Tensor<4>, key: &Tensor<4>, value: &Tensor<4>) -> Bounds {
+    let attention = ScaledDotProduct::new(query, key, value);
+    Bounds {
+        read: instrument::tensor_bytes(query)
+            + instrument::tensor_bytes(key)
+            + instrument::tensor_bytes(value),
+        write: attention.query_rows * attention.value_width * query.dtype().size() as u64,
+        flops: attention.flops(),
     }
 }
 

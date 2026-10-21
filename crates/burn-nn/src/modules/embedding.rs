@@ -119,7 +119,7 @@ mod tests {
 
         assert_eq!(recorded.lines(), ["embedding"]);
         assert_eq!(
-            recorded.declared(),
+            recorded.declared("embedding"),
             Some(Bounds {
                 read: 2 * 3 * index + 2 * 3 * 8 * 4,
                 write: 2 * 3 * 8 * 4,

@@ -250,7 +250,7 @@ mod tests {
         let output = output.unwrap();
         assert_eq!(output.dims(), [1, 4, 3, 3]);
         assert_eq!(
-            recorded.declared(),
+            recorded.declared("deform conv2d"),
             Some(Bounds {
                 read: (2 * 5 * 5 + 4 * 2 * 3 * 3 + 4 + 18 * 3 * 3 + 9 * 3 * 3) * 4,
                 write: burn::instrument::tensor_bytes(&output),

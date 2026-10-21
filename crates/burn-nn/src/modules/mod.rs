@@ -2,6 +2,7 @@
 pub mod attention;
 
 pub(crate) mod bounds;
+pub(crate) mod role;
 
 /// Cache module
 pub mod cache;
