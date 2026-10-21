@@ -15,10 +15,10 @@ hosted by another process. These capabilities can be used independently or toget
 Backends run collectives over a group of devices: all-reduce, all-gather, reduce-scatter,
 all-to-all and broadcast, given every member's tensor at once. They are backend operations
 (`burn_backend::ops::CollectiveOps`), not yet part of the `Tensor` API. A runtime with a transport
-between its devices runs them natively, NCCL on CUDA; any other runtime, and a group mixing
-runtimes, emulates them with transfers between devices. DDP synchronizes gradients with the
-all-reduce, so it runs on every CubeCL runtime and on remote devices, at full speed where the
-devices share a transport.
+between its devices runs what it can natively, NCCL on CUDA, and broadcast is always emulated; any
+other runtime, and a group mixing runtimes, emulates them with transfers between devices. DDP
+synchronizes gradients with the all-reduce, so it runs on every CubeCL runtime and on remote
+devices, at full speed where the devices share a transport.
 
 `burn::tensor::distributed` holds what DDP is configured with:
 

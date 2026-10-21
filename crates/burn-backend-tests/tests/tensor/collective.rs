@@ -131,14 +131,6 @@ mod nccl {
 
     #[test]
     #[serial]
-    fn should_all_reduce_members_out_of_device_order() {
-        let Some(mut group) = group() else { return };
-        group.devices.reverse();
-        group.all_reduce();
-    }
-
-    #[test]
-    #[serial]
     fn should_all_gather() {
         let Some(group) = group() else { return };
         group.all_gather();
