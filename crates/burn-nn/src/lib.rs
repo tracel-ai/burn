@@ -15,6 +15,10 @@
 //! - [`loss`]: loss functions, from mean squared error and cross-entropy to CTC.
 //! - [`Initializer`]: weight initialization schemes.
 //!
+//! Each layer is a [`compute`](burn_core::instrument::compute) component, so
+//! [`burn::instrument`](burn_core::instrument) breaks a model built from them down by layer, and
+//! the layers that run one operation declare the floor they are scored against.
+//!
 //! # Feature flags
 //!
 //! - `std` (default): standard library support. Without it the crate is `no_std` with `alloc`.

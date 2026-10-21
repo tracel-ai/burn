@@ -45,6 +45,19 @@ impl Projection {
 
 With no measurement running, an annotated method costs one thread-local read.
 
+### The layers of `burn::nn`
+
+The layers in `burn::nn` are components already, so a model built from them is broken down without
+annotating anything. The layers that run one operation (linear, embedding, the norms, the
+convolutions, the pools, the interpolations and the positional encodings) declare their floors.
+The feed-forward and the transformer's encoder and decoder, their layers and their stacks are priced
+whole as well, so the report can say what fusing inside them would recover. Attention and the
+recurrent layers are timed, and their parts are priced: their projections and gates, and the scaled
+dot product inside each attention. Where one
+type serves several roles in a layer, each runs under its role, so an attention's `query` and `key`
+projections are two components and not one `linear` entered twice. Annotate your own modules to
+name what composes them.
+
 ## Measuring a model
 
 Measuring needs a CubeCL runtime and, on a fused build, burn's `fusion` feature:
