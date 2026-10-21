@@ -1,5 +1,7 @@
 use super::{RemoteChannel, RemoteClient, service};
-use crate::shared::{LocalTransferId, TaskResponseContent, TensorRemote, TransferCapability};
+use crate::shared::{
+    LocalTransferId, SessionId, TaskResponseContent, TensorRemote, TransferCapability,
+};
 use crate::{PeerAddr, PeerId};
 use burn_backend::{
     DeviceId, DeviceOps, ExecutionError, ProfileDuration, ProfileOptions, ProfileToken,
@@ -289,6 +291,11 @@ impl RemoteDevice {
     pub(crate) fn session_ended(&self) -> bool {
         service::session_end(self.id).has_ended()
     }
+
+    /// The session this device opens on its server.
+    pub(crate) fn session_id(&self) -> SessionId {
+        service::session_of(self.id)
+    }
 }
 
 impl PartialEq for RemoteDevice {
@@ -404,7 +411,7 @@ impl RemoteTensorHandle {
         // stream that produced it, and the target registers the result on the stream that
         // will consume it — same contract as the regular op/tensor registration paths.
         let stream_id = StreamId::current();
-        let transfer_id = LocalTransferId::next(service::session_of(self.client.device.id));
+        let transfer_id = LocalTransferId::next(self.client.device.session_id());
         let tensor = self.tensor.clone();
         self.client.handle.submit(move |s| {
             s.expose_tensor_local(stream_id, tensor, transfer_id);
