@@ -121,6 +121,7 @@ mod tests {
     use super::*;
     use burn_backend::{TensorData, ops::FloatTensorOps};
     use burn_flex::Flex;
+    use std::time::Duration;
 
     fn tensor(value: f32) -> HandleKind<Flex> {
         HandleKind::Float(Flex::float_from_data(
@@ -139,7 +140,11 @@ mod tests {
 
         assert!(again.is_err());
         for _ in 0..2 {
-            assert!(comm.take(id).await.is_err());
+            let taken = tokio::time::timeout(Duration::from_secs(10), comm.take(id)).await;
+            assert!(
+                matches!(taken, Ok(Err(_))),
+                "a taker of a transfer exposed twice did not fail"
+            );
         }
     }
 }

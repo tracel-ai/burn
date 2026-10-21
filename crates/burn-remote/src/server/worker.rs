@@ -353,7 +353,13 @@ where
                 // in order so subsequent ops on this session that consume `new_id` see it
                 // registered first — same ordering contract as `RegisterTensorRemote`. The wait
                 // blocks only this session's worker, not the source session's.
-                let kind = self.local_comm.take(transfer_id).await?;
+                let kind = match self.local_comm.take(transfer_id).await {
+                    Ok(kind) => kind,
+                    Err(err) => {
+                        self.emit_transfer(None, TransferScope::Local, TransferPhase::Failed);
+                        return Err(err);
+                    }
+                };
                 stream_id.executes(|| self.runner.register_tensor_to_device(new_id, kind));
                 self.emit_transfer(None, TransferScope::Local, TransferPhase::Completed);
                 Ok(())
