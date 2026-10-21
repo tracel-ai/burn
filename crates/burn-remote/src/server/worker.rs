@@ -51,7 +51,9 @@ use crate::server::local_comm::LocalCommService;
 use crate::server::session::HostedDeviceIds;
 use crate::server::spawn::{CatchPanic, ResponseTasks, spawn_detached};
 use crate::server::transfer::TensorTransfer;
-use crate::shared::{RequestId, SessionId, Task, TaskResponse, TaskResponseContent};
+use crate::shared::{
+    LocalTransferId, RequestId, SessionId, Task, TaskResponse, TaskResponseContent,
+};
 use crate::telemetry::{
     TelemetryEvent, TelemetryProbe, TransferPhase, TransferScope, serialized_len,
 };
@@ -329,7 +331,7 @@ where
             Task::ExposeTensorLocal {
                 stream_id,
                 tensor,
-                transfer_id,
+                sequence,
             } => {
                 // Source side of a same-host transfer. Grab the device-resident primitive
                 // (no host readback) and park it in the registry for the target session to
@@ -338,7 +340,7 @@ where
                 // client stream that produced it, carried over the wire.
                 let kind = stream_id.executes(|| self.runner.get_tensor(&tensor));
                 self.local_comm
-                    .expose(self.session_id, transfer_id, kind)
+                    .expose(LocalTransferId::new(self.session_id, sequence), kind)
                     .await
             }
             Task::RegisterTensorLocal {
@@ -351,7 +353,7 @@ where
                 // in order so subsequent ops on this session that consume `new_id` see it
                 // registered first — same ordering contract as `RegisterTensorRemote`. The wait
                 // blocks only this session's worker, not the source session's.
-                let kind = self.local_comm.take(transfer_id).await;
+                let kind = self.local_comm.take(transfer_id).await?;
                 stream_id.executes(|| self.runner.register_tensor_to_device(new_id, kind));
                 self.emit_transfer(None, TransferScope::Local, TransferPhase::Completed);
                 Ok(())
@@ -530,10 +532,7 @@ where
 #[cfg(all(test, not(target_family = "wasm")))]
 mod tests {
     use super::*;
-    use crate::{
-        PeerAddr, PeerId,
-        shared::{LocalTransferId, TransferCapability},
-    };
+    use crate::{PeerAddr, PeerId, shared::TransferCapability};
     use burn_backend::{DType, Shape, TensorData};
     use burn_flex::Flex;
     use burn_ir::{TensorId, TensorIr, TensorStatus};
@@ -555,9 +554,8 @@ mod tests {
     async fn a_panicking_task_still_tears_its_session_down() {
         let local_comm = Arc::new(LocalCommService::<Flex>::new());
         let (response_sender, mut responses) = mpsc::channel(1);
-        let session_id = SessionId::new();
         let tasks = SessionHandler::spawn(
-            session_id,
+            SessionId::new(),
             TensorInterpreter::new(Default::default()),
             HostedDeviceIds::of::<Flex>(&[Default::default()]),
             response_sender,
@@ -584,7 +582,7 @@ mod tests {
             Task::ExposeTensorLocal {
                 stream_id,
                 tensor: exposed,
-                transfer_id: LocalTransferId::new(session_id, 0),
+                sequence: 0,
             },
             Task::ReadTensors(request_id, stream_id, vec![never_written]),
         ] {

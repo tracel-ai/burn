@@ -226,19 +226,26 @@ pub struct RemoteDevice {
     pub(crate) device_index: u32,
     /// Local registry id for this device.
     pub(crate) id: u32,
+    /// The session this device opens on its server.
+    pub(crate) session_id: SessionId,
 }
 
 impl RemoteDevice {
     /// The device registered for `endpoint` and `device_index`, which may have its session open
     /// already, or a new one once its session ended.
     pub(crate) fn register(endpoint: RemoteEndpoint, device_index: usize) -> Self {
-        let device_index = device_index as u32;
-        let id = service::register_endpoint(endpoint.clone(), device_index);
-        Self {
-            endpoint,
-            device_index,
+        let id = service::register_endpoint(endpoint, device_index as u32);
+        Self::registered(id).expect("the device was just registered")
+    }
+
+    /// The device registered as `id`, if there is one.
+    fn registered(id: u32) -> Option<Self> {
+        service::registered_device(id).map(|registered| Self {
+            endpoint: registered.endpoint,
+            device_index: registered.device_index,
             id,
-        }
+            session_id: registered.session_id,
+        })
     }
 
     /// A WebSocket device with no session opened yet, which connects on first use.
@@ -291,11 +298,6 @@ impl RemoteDevice {
     pub(crate) fn session_ended(&self) -> bool {
         service::session_end(self.id).has_ended()
     }
-
-    /// The session this device opens on its server.
-    pub(crate) fn session_id(&self) -> SessionId {
-        service::session_of(self.id)
-    }
 }
 
 impl PartialEq for RemoteDevice {
@@ -332,13 +334,8 @@ impl burn_std::device::Device for RemoteDevice {
             u16::from(RouterDeviceType::Remote),
             "invalid remote device type"
         );
-        let registered = service::registered_device(device_id.index_id as u32)
-            .unwrap_or_else(|| panic!("Invalid device id: {device_id}"));
-        Self {
-            endpoint: registered.endpoint,
-            device_index: registered.device_index,
-            id: device_id.index_id as u32,
-        }
+        Self::registered(device_id.index_id as u32)
+            .unwrap_or_else(|| panic!("Invalid device id: {device_id}"))
     }
 
     fn to_id(&self) -> DeviceId {
@@ -411,7 +408,7 @@ impl RemoteTensorHandle {
         // stream that produced it, and the target registers the result on the stream that
         // will consume it — same contract as the regular op/tensor registration paths.
         let stream_id = StreamId::current();
-        let transfer_id = LocalTransferId::next(self.client.device.session_id());
+        let transfer_id = LocalTransferId::next(self.client.device.session_id);
         let tensor = self.tensor.clone();
         self.client.handle.submit(move |s| {
             s.expose_tensor_local(stream_id, tensor, transfer_id);

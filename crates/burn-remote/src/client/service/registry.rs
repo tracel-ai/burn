@@ -128,11 +128,6 @@ pub(crate) fn registered_device(id: u32) -> Option<RegisteredDevice> {
     })
 }
 
-/// The session the device registered as `id` opens.
-pub fn session_of(id: u32) -> SessionId {
-    with_entry(id, |entry| entry.session_id)
-}
-
 pub(crate) fn settings_for(id: u32) -> DeviceSettings {
     *settings_cell(id)
         .get()

@@ -47,7 +47,8 @@ impl LocalTransferId {
         Self { source, sequence }
     }
 
-    #[cfg(all(test, feature = "server"))]
+    /// The transfer `source` exposes as `sequence`.
+    #[cfg(feature = "server")]
     pub fn new(source: SessionId, sequence: u64) -> Self {
         Self { source, sequence }
     }
@@ -56,6 +57,12 @@ impl LocalTransferId {
     #[cfg(feature = "server")]
     pub fn source(&self) -> SessionId {
         self.source
+    }
+
+    /// The number the exposing session gives this transfer.
+    #[cfg(feature = "client")]
+    pub fn sequence(&self) -> u64 {
+        self.sequence
     }
 }
 
@@ -245,9 +252,9 @@ pub enum Task {
         target: PeerId,
     },
     /// Source side of a same-host transfer: hand the device-resident primitive for `tensor`
-    /// to the server's local comm registry under `transfer_id`. No host readback — the
-    /// counterpart [`RegisterTensorLocal`](Task::RegisterTensorLocal), running on the
-    /// target session of the same server, moves it onto the target device via the inner
+    /// to the server's local comm registry as this session's transfer `sequence`. No host
+    /// readback: the counterpart [`RegisterTensorLocal`](Task::RegisterTensorLocal), running on
+    /// the target session of the same server, moves it onto the target device via the inner
     /// backend's `to_device`.
     ///
     /// `stream_id` is the client stream that produced `tensor`, so the server reads it back on
@@ -255,7 +262,7 @@ pub enum Task {
     ExposeTensorLocal {
         stream_id: StreamId,
         tensor: TensorIr,
-        transfer_id: LocalTransferId,
+        sequence: u64,
     },
     /// Target side of a same-host transfer: wait for `transfer_id` to be exposed, move the
     /// primitive onto this session's device, and register it under `new_id`.

@@ -44,7 +44,7 @@ use super::{ConnectError, runtime::Executor};
 pub(crate) use conn::{RemoteEndpoint, SubmitChannel};
 use registry::{device_count_cell, settings_cell};
 pub(crate) use registry::{device_count_for, register_endpoint, registered_device, session_end};
-pub(crate) use registry::{has_settings, new_tensor_id, session_of, settings_for};
+pub(crate) use registry::{has_settings, new_tensor_id, settings_for};
 
 /// How long a connection attempt, then the handshake, may each take before the server is taken to
 /// be stuck.
@@ -489,7 +489,7 @@ impl RemoteService {
         self.submit_task(Task::ExposeTensorLocal {
             stream_id,
             tensor,
-            transfer_id,
+            sequence: transfer_id.sequence(),
         });
         self.flush();
     }
