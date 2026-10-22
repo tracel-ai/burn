@@ -260,11 +260,8 @@ impl TensorData {
         let expected = match dtype {
             DType::QFloat(scheme) => {
                 match crate::tensor::quantization::try_quantized_data_len(&scheme, &shape) {
-                    Ok(expected) => Some(expected),
-                    Err(
-                        crate::tensor::quantization::QuantizedDataLengthError::InvalidScheme
-                        | crate::tensor::quantization::QuantizedDataLengthError::Overflow,
-                    ) => return Err(DataError::InvalidQuantizedLayout { shape, dtype }),
+                    Some(expected) => Some(expected),
+                    None => return Err(DataError::InvalidQuantizedLayout { shape, dtype }),
                 }
             }
             _ => checked_numel(&shape).and_then(|numel| numel.checked_mul(dtype.size())),

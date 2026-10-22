@@ -367,27 +367,15 @@ pub fn global_scale_size(scheme: &QuantScheme) -> usize {
 /// over the flattened tensor, as [`QuantizedBytes::new`] lays it out. Flattening first would
 /// under-count: a `[3, 3]` Q4 `PackedU32` tensor occupies `3 * ceil(3 / 8) = 3` words, not
 /// `ceil(9 / 8) = 2`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum QuantizedDataLengthError {
-    InvalidScheme,
-    Overflow,
-}
-
-fn storage_elements(
-    scheme: &QuantScheme,
-    shape: &Shape,
-) -> Result<usize, QuantizedDataLengthError> {
+fn storage_elements(scheme: &QuantScheme, shape: &Shape) -> Option<usize> {
     let num_quants = scheme.num_quants();
     if num_quants == 0 {
-        return Err(QuantizedDataLengthError::InvalidScheme);
+        return None;
     }
 
     match scheme.store {
         QuantStore::PackedU32(packed_dim) | QuantStore::PackedNative(packed_dim) => {
-            let packed_dim = packed_dim
-                .checked_add(1)
-                .and_then(|dim| shape.num_dims().checked_sub(dim))
-                .ok_or(QuantizedDataLengthError::InvalidScheme)?;
+            let packed_dim = shape.num_dims().checked_sub(packed_dim.checked_add(1)?)?;
             let mut storage = shape.clone();
             if num_quants > 1 {
                 storage[packed_dim] = storage[packed_dim].div_ceil(num_quants);
@@ -395,12 +383,10 @@ fn storage_elements(
             storage
                 .iter()
                 .try_fold(1usize, |elements, &dim| elements.checked_mul(dim))
-                .ok_or(QuantizedDataLengthError::Overflow)
         }
         QuantStore::Native => shape
             .iter()
-            .try_fold(1usize, |elements, &dim| elements.checked_mul(dim))
-            .ok_or(QuantizedDataLengthError::Overflow),
+            .try_fold(1usize, |elements, &dim| elements.checked_mul(dim)),
     }
 }
 
@@ -413,47 +399,37 @@ pub fn quantized_data_len(scheme: &QuantScheme, shape: &Shape) -> usize {
 
 /// Try to calculate the number of bytes required to store quantized data with this shape and scheme.
 ///
-/// Returns an error when the scheme is invalid for the shape or a size calculation overflows.
+/// Returns `None` when the scheme is invalid for the shape or a size calculation overflows.
 /// This is suitable for validating untrusted serialized metadata.
-pub(crate) fn try_quantized_data_len(
-    scheme: &QuantScheme,
-    shape: &Shape,
-) -> Result<usize, QuantizedDataLengthError> {
+pub(crate) fn try_quantized_data_len(scheme: &QuantScheme, shape: &Shape) -> Option<usize> {
     let value_bytes_per_element = match scheme.store {
         QuantStore::Native => core::mem::size_of::<i8>(),
         _ => scheme.size_bits_stored().div_ceil(8),
     };
-    let value_bytes = storage_elements(scheme, shape)?
-        .checked_mul(value_bytes_per_element)
-        .ok_or(QuantizedDataLengthError::Overflow)?;
+    let value_bytes = storage_elements(scheme, shape)?.checked_mul(value_bytes_per_element)?;
 
     let num_params = if let Some(block) = scheme.block_size() {
         if block.as_slice().len() > shape.num_dims() {
-            return Err(QuantizedDataLengthError::InvalidScheme);
+            return None;
         }
         let block_shape = block.to_dim_vec(shape.num_dims());
         let mut num_params = 1usize;
         for (&dim, block) in shape.iter().zip(block_shape) {
             let block = block as usize;
             if block == 0 {
-                return Err(QuantizedDataLengthError::InvalidScheme);
+                return None;
             }
-            num_params = num_params
-                .checked_mul(dim.div_ceil(block))
-                .ok_or(QuantizedDataLengthError::Overflow)?;
+            num_params = num_params.checked_mul(dim.div_ceil(block))?;
         }
         num_params
     } else {
         1
     };
-    let scale_bytes = num_params
-        .checked_mul(scale_size(scheme.scale_dtype()))
-        .ok_or(QuantizedDataLengthError::Overflow)?;
+    let scale_bytes = num_params.checked_mul(scale_size(scheme.scale_dtype()))?;
 
     value_bytes
-        .checked_add(scale_bytes)
-        .and_then(|bytes| bytes.checked_add(global_scale_size(scheme)))
-        .ok_or(QuantizedDataLengthError::Overflow)
+        .checked_add(scale_bytes)?
+        .checked_add(global_scale_size(scheme))
 }
 
 /// Bytes the values of a tensor of `shape` take under `scheme`, before its scales.
