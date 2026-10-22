@@ -2068,6 +2068,14 @@ pub enum CoordinateTransformModeIr {
     },
 }
 
+fn canonicalize_f32_bits(val: f32) -> u32 {
+    if val == 0.0 {
+        0.0f32.to_bits()
+    } else {
+        val.to_bits()
+    }
+}
+
 impl Hash for CoordinateTransformModeIr {
     fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
         core::mem::discriminant(self).hash(state);
@@ -2083,10 +2091,10 @@ impl Hash for CoordinateTransformModeIr {
             } => {
                 for row in roi {
                     for val in row {
-                        val.to_bits().hash(state);
+                        canonicalize_f32_bits(*val).hash(state);
                     }
                 }
-                extrapolation_value.to_bits().hash(state);
+                canonicalize_f32_bits(*extrapolation_value).hash(state);
             }
         }
     }
@@ -2110,7 +2118,7 @@ pub struct CubicOptionsIr {
 
 impl Hash for CubicOptionsIr {
     fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
-        self.a.to_bits().hash(state);
+        canonicalize_f32_bits(self.a).hash(state);
         self.exclude_outside.hash(state);
     }
 }
@@ -2135,7 +2143,7 @@ impl Hash for InterpolateOptionsIr {
         self.output_size.hash(state);
         if let Some(scale) = self.scale_factor {
             for s in scale {
-                s.to_bits().hash(state);
+                canonicalize_f32_bits(s).hash(state);
             }
         }
     }
@@ -5620,5 +5628,50 @@ mod tests {
             panic!("expected pad operation");
         };
         assert_eq!(desc.mode, PadModeIr::Constant(ScalarIr::Float(7.0)));
+    }
+
+    #[test]
+    fn interpolate_options_ir_hash_canonicalizes_signed_zero() {
+        use core::hash::{Hash, Hasher};
+        use std::collections::hash_map::DefaultHasher;
+
+        fn calculate_hash<T: Hash>(t: &T) -> u64 {
+            let mut s = DefaultHasher::new();
+            t.hash(&mut s);
+            s.finish()
+        }
+
+        let opt1 = InterpolateOptionsIr {
+            mode: InterpolateModeIr::Bicubic,
+            coordinate_transform: CoordinateTransformModeIr::TfCropAndResize {
+                roi: [[0.0, 0.0], [1.0, 1.0]],
+                extrapolation_value: 0.0,
+            },
+            nearest_mode: NearestRoundingModeIr::Floor,
+            cubic_options: CubicOptionsIr {
+                a: 0.0,
+                exclude_outside: true,
+            },
+            output_size: Some([4, 4]),
+            scale_factor: None,
+        };
+
+        let opt2 = InterpolateOptionsIr {
+            mode: InterpolateModeIr::Bicubic,
+            coordinate_transform: CoordinateTransformModeIr::TfCropAndResize {
+                roi: [[-0.0, -0.0], [1.0, 1.0]],
+                extrapolation_value: -0.0,
+            },
+            nearest_mode: NearestRoundingModeIr::Floor,
+            cubic_options: CubicOptionsIr {
+                a: -0.0,
+                exclude_outside: true,
+            },
+            output_size: Some([4, 4]),
+            scale_factor: None,
+        };
+
+        assert_eq!(opt1, opt2);
+        assert_eq!(calculate_hash(&opt1), calculate_hash(&opt2));
     }
 }

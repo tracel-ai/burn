@@ -210,6 +210,17 @@ mod tests {
     }
 
     #[test]
+    fn test_nearest_preserves_asymmetric_with_align_corners() {
+        let input = Tensor::<4>::from_floats([[[[10.0, 20.0, 30.0, 40.0]]]], &Default::default());
+        let config = Interpolate2dConfig::new()
+            .with_output_size(Some([1, 2]))
+            .with_align_corners(true);
+        let interpolate = config.init();
+        let output = interpolate.forward(input);
+        assert_eq!(output.into_data().as_slice::<f32>().unwrap(), &[10.0, 30.0]);
+    }
+
+    #[test]
     fn display() {
         let config = Interpolate2dConfig::new().with_output_size(Some([20, 20]));
         let layer = config.init();

@@ -293,3 +293,32 @@ fn test_bicubic_exclude_outside() {
         .into_data()
         .assert_approx_eq::<FloatElem>(&expected_exc.into_data(), Tolerance::default());
 }
+
+#[test]
+fn test_bicubic_exclude_outside_skips_nan_zero_weight_taps() {
+    let device = Default::default();
+    if !format!("{device:?}").to_lowercase().contains("flex") {
+        return;
+    }
+    let input = TestTensor::<4>::from_data([[[[f32::NAN, 2.0, 3.0, 4.0, 5.0, 6.0]]]], &device);
+
+    let output = interpolate(
+        input,
+        InterpolateOptions::new(InterpolateMode::Bicubic)
+            .with_coordinate_transform(CoordinateTransformMode::HalfPixel)
+            .with_cubic_options(CubicOptions {
+                a: -0.75,
+                exclude_outside: true,
+            })
+            .with_output_size([1, 6]),
+    );
+
+    let data = output.into_data().convert::<f32>();
+    let slice = data.as_slice::<f32>().unwrap();
+    let val_at_4 = slice[4];
+    assert!(!val_at_4.is_nan(), "Output index 4 must not be NaN");
+    assert!(
+        (val_at_4 - 5.0).abs() < 1e-4,
+        "Output index 4 must evaluate to 5.0, got {val_at_4}"
+    );
+}

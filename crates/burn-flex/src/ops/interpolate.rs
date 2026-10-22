@@ -181,9 +181,9 @@ interpolate_backward_bf16!(
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum MappedCoord {
     /// In-bounds fractional coordinate.
-    InBounds(f32),
+    InBounds(f64),
     /// Out-of-bounds coordinate for TfCropAndResize with its extrapolation fill value.
-    Extrapolated(f32),
+    Extrapolated(f64),
 }
 
 /// Map an output coordinate to input coordinate for a given spatial axis.
@@ -195,13 +195,13 @@ pub fn map_coordinate(
     mode: CoordinateTransformMode,
     axis: usize,
 ) -> MappedCoord {
-    let s = match scale_factor {
-        Some(s) => s,
-        None => out_size as f32 / in_size as f32,
+    let s: f64 = match scale_factor {
+        Some(s) => s as f64,
+        None => out_size as f64 / in_size as f64,
     };
-    let l_in = in_size as f32;
-    let l_out = out_size as f32;
-    let x_out = out_coord as f32;
+    let l_in = in_size as f64;
+    let l_out = out_size as f64;
+    let x_out = out_coord as f64;
 
     match mode {
         CoordinateTransformMode::HalfPixel => {
@@ -243,13 +243,15 @@ pub fn map_coordinate(
                 r_start,
                 r_end
             );
+            let r_start = r_start as f64;
+            let r_end = r_end as f64;
             let x_in = if out_size == 1 {
                 0.5 * (r_start + r_end) * (l_in - 1.0)
             } else {
                 r_start * (l_in - 1.0) + x_out * (r_end - r_start) * (l_in - 1.0) / (l_out - 1.0)
             };
             if x_in < 0.0 || x_in > (l_in - 1.0) {
-                MappedCoord::Extrapolated(extrapolation_value)
+                MappedCoord::Extrapolated(extrapolation_value as f64)
             } else {
                 MappedCoord::InBounds(x_in)
             }
@@ -260,7 +262,7 @@ pub fn map_coordinate(
 #[derive(Clone, Copy)]
 enum NearestEntry {
     Index(usize),
-    Extrapolated(f32),
+    Extrapolated(f64),
 }
 
 fn nearest_axis_map(
@@ -436,7 +438,7 @@ enum BilinearTap {
         high: usize,
         weight: f64,
     },
-    Extrapolated(f32),
+    Extrapolated(f64),
 }
 
 fn bilinear_axis_taps(
@@ -451,10 +453,9 @@ fn bilinear_axis_taps(
             match map_coordinate(out_coord, in_size, out_size, scale_factor, coord_mode, axis) {
                 MappedCoord::Extrapolated(val) => BilinearTap::Extrapolated(val),
                 MappedCoord::InBounds(x_in) => {
-                    let x_in_f64 = x_in as f64;
-                    let low = (x_in_f64.floor().max(0.0) as usize).min(in_size - 1);
+                    let low = (x_in.floor().max(0.0) as usize).min(in_size - 1);
                     let high = (low + 1).min(in_size - 1);
-                    let weight = (x_in_f64 - low as f64).max(0.0);
+                    let weight = (x_in - low as f64).max(0.0);
                     BilinearTap::InBounds { low, high, weight }
                 }
             }
@@ -622,7 +623,7 @@ impl<const N: usize> AxisTaps<N> {
 #[derive(Clone, Copy)]
 enum BicubicTap {
     InBounds([AxisTap; 4]),
-    Extrapolated(f32),
+    Extrapolated(f64),
 }
 
 /// Precompute Bicubic source indices and weights for one output axis.
@@ -641,8 +642,7 @@ fn bicubic_axis_taps(
         .map(|out_coord| {
             match map_coordinate(out_coord, in_size, out_size, scale_factor, coord_mode, axis) {
                 MappedCoord::Extrapolated(val) => BicubicTap::Extrapolated(val),
-                MappedCoord::InBounds(x_in) => {
-                    let coord = x_in as f64;
+                MappedCoord::InBounds(coord) => {
                     let base = coord.floor() as isize;
                     let mut taps = [AxisTap {
                         index: 0,
@@ -653,7 +653,7 @@ fn bicubic_axis_taps(
                         let mut sum = 0.0_f64;
                         for (tap, offset) in taps.iter_mut().zip(-1..=2_isize) {
                             let raw_idx = base + offset;
-                            let distance = coord - raw_idx as f64;
+                            let distance = (coord - base as f64) - offset as f64;
                             if raw_idx >= 0 && raw_idx < in_size as isize {
                                 let w = cubic_weight(distance, a);
                                 *tap = AxisTap {
@@ -687,7 +687,7 @@ fn bicubic_axis_taps(
                         for (tap, offset) in taps.iter_mut().zip(-1..=2_isize) {
                             let raw_idx = base + offset;
                             let index = raw_idx.clamp(0, in_size as isize - 1) as usize;
-                            let distance = coord - raw_idx as f64;
+                            let distance = (coord - base as f64) - offset as f64;
                             *tap = AxisTap {
                                 index,
                                 weight: cubic_weight(distance, a),
@@ -764,7 +764,13 @@ where
                 let mut sum = 0.0_f64;
 
                 for y_tap in y_taps {
+                    if y_tap.weight == 0.0 {
+                        continue;
+                    }
                     for x_tap in x_taps {
+                        if x_tap.weight == 0.0 {
+                            continue;
+                        }
                         let value = input[in_base + y_tap.index * in_width + x_tap.index];
                         let value = <T as num_traits::ToPrimitive>::to_f64(&value).unwrap_or(0.0);
                         sum += value * x_tap.weight * y_tap.weight;
@@ -893,7 +899,7 @@ fn lanczos3_weight(x: f64) -> f64 {
 #[derive(Clone, Copy)]
 enum Lanczos3Tap {
     InBounds(AxisTaps<6>),
-    Extrapolated(f32),
+    Extrapolated(f64),
 }
 
 /// Precompute Lanczos3 source indices and weights for one output axis.
@@ -908,8 +914,7 @@ fn lanczos3_axis_taps(
         .map(|out_coord| {
             match map_coordinate(out_coord, in_size, out_size, scale_factor, coord_mode, axis) {
                 MappedCoord::Extrapolated(val) => Lanczos3Tap::Extrapolated(val),
-                MappedCoord::InBounds(x_in) => {
-                    let coord = x_in as f64;
+                MappedCoord::InBounds(coord) => {
                     let base = coord.floor();
                     let mut taps = [AxisTap {
                         index: 0,
@@ -1382,7 +1387,13 @@ where
                         .unwrap_or(0.0);
 
                         for y_t in y_taps {
+                            if y_t.weight == 0.0 {
+                                continue;
+                            }
                             for x_t in x_taps {
+                                if x_t.weight == 0.0 {
+                                    continue;
+                                }
                                 let weight = x_t.weight * y_t.weight * grad_val;
                                 grad_plane[y_t.index * in_width + x_t.index] = grad_plane
                                     [y_t.index * in_width + x_t.index]
@@ -1508,7 +1519,7 @@ mod tests {
                 for oh in 0..out_height {
                     let y_in = match map_coordinate(oh, in_height, out_height, None, coord_mode, 0)
                     {
-                        MappedCoord::InBounds(c) => c as f64,
+                        MappedCoord::InBounds(c) => c,
                         _ => panic!("Expected InBounds"),
                     };
                     let y0 = y_in.floor() as isize;
@@ -1516,7 +1527,7 @@ mod tests {
                     for ow in 0..out_width {
                         let x_in =
                             match map_coordinate(ow, in_width, out_width, None, coord_mode, 1) {
-                                MappedCoord::InBounds(c) => c as f64,
+                                MappedCoord::InBounds(c) => c,
                                 _ => panic!("Expected InBounds"),
                             };
                         let x0 = x_in.floor() as isize;
@@ -1579,7 +1590,7 @@ mod tests {
                 for oh in 0..out_height {
                     let y_in = match map_coordinate(oh, in_height, out_height, None, coord_mode, 0)
                     {
-                        MappedCoord::InBounds(c) => c as f64,
+                        MappedCoord::InBounds(c) => c,
                         _ => panic!("Expected InBounds"),
                     };
                     let y0 = y_in.floor();
@@ -1587,7 +1598,7 @@ mod tests {
                     for ow in 0..out_width {
                         let x_in =
                             match map_coordinate(ow, in_width, out_width, None, coord_mode, 1) {
-                                MappedCoord::InBounds(c) => c as f64,
+                                MappedCoord::InBounds(c) => c,
                                 _ => panic!("Expected InBounds"),
                             };
                         let x0 = x_in.floor();
@@ -1794,7 +1805,7 @@ mod tests {
                         let coord =
                             match map_coordinate(out_coord, in_size, out_size, None, coord_mode, 0)
                             {
-                                MappedCoord::InBounds(c) => c as f64,
+                                MappedCoord::InBounds(c) => c,
                                 _ => panic!("Expected InBounds"),
                             };
                         let base = coord.floor() as isize;
@@ -1832,7 +1843,7 @@ mod tests {
                         let coord =
                             match map_coordinate(out_coord, in_size, out_size, None, coord_mode, 0)
                             {
-                                MappedCoord::InBounds(c) => c as f64,
+                                MappedCoord::InBounds(c) => c,
                                 _ => panic!("Expected InBounds"),
                             };
                         let base = coord.floor();
@@ -1974,5 +1985,27 @@ mod tests {
 
         assert_eq!(output.len(), 4);
         assert!((output[0] - 4.0).abs() < 1e-5);
+    }
+
+    #[test]
+    fn test_nearest_downsample_f64_precision_backward() {
+        let x = FlexTensor::new(
+            Bytes::from_elems((0..14).map(|i| i as f32).collect::<Vec<_>>()),
+            Layout::contiguous(Shape::from(vec![1, 1, 1, 14])),
+            DType::F32,
+        );
+        let grad = FlexTensor::new(
+            Bytes::from_elems(vec![1.0f32, 1.0f32]),
+            Layout::contiguous(Shape::from(vec![1, 1, 1, 2])),
+            DType::F32,
+        );
+        let options = InterpolateOptions::new(InterpolateMode::Nearest)
+            .with_coordinate_transform(CoordinateTransformMode::Asymmetric)
+            .with_nearest_mode(NearestRoundingMode::Floor);
+        let result = interpolate_nearest_backward_f32(x, grad, [1, 2], &options);
+        let output = result.storage::<f32>();
+        assert_eq!(output[0], 1.0);
+        assert_eq!(output[6], 0.0);
+        assert_eq!(output[7], 1.0);
     }
 }

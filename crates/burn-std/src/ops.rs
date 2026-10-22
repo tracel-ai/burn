@@ -518,7 +518,7 @@ impl InterpolateOptions {
             ),
             InterpolateMode::NearestExact => (
                 CoordinateTransformMode::HalfPixel,
-                NearestRoundingMode::Floor,
+                NearestRoundingMode::RoundPreferCeil,
             ),
             InterpolateMode::Bilinear | InterpolateMode::Bicubic | InterpolateMode::Lanczos3 => (
                 CoordinateTransformMode::AlignCorners,
@@ -556,11 +556,16 @@ impl InterpolateOptions {
 
     /// Set align_corners (`true` maps to `AlignCorners`, `false` maps to `HalfPixel`).
     pub fn with_align_corners(mut self, align_corners: bool) -> Self {
-        self.coordinate_transform = if align_corners {
-            CoordinateTransformMode::AlignCorners
-        } else {
-            CoordinateTransformMode::HalfPixel
-        };
+        if !matches!(
+            self.mode,
+            InterpolateMode::Nearest | InterpolateMode::NearestExact
+        ) {
+            self.coordinate_transform = if align_corners {
+                CoordinateTransformMode::AlignCorners
+            } else {
+                CoordinateTransformMode::HalfPixel
+            };
+        }
         self
     }
 

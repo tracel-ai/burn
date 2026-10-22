@@ -291,3 +291,49 @@ fn test_interpolate_options_builder_mutual_exclusion() {
     assert_eq!(opts2.output_size, None);
     assert_eq!(opts2.scale_factor, Some([2.0, 2.0]));
 }
+
+#[test]
+fn test_nearest_downsample_f64_precision_coordinate_mapping() {
+    let device = Default::default();
+    if !format!("{device:?}").to_lowercase().contains("flex") {
+        return;
+    }
+    let input_vec: [f32; 14] = [
+        0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0, 13.0,
+    ];
+    let input = TestTensor::<4>::from_data([[[input_vec]]], &device);
+
+    let output = interpolate(
+        input,
+        InterpolateOptions::new(InterpolateMode::Nearest)
+            .with_coordinate_transform(CoordinateTransformMode::Asymmetric)
+            .with_nearest_mode(NearestRoundingMode::Floor)
+            .with_output_size([1, 2]),
+    );
+
+    // In f32, 1.0 / (2.0 / 14.0) = 6.9999995 which floored to 6.
+    // In f64, 1.0 / (2.0 / 14.0) = 7.0 which floors to 7.
+    let expected = TestTensor::<4>::from([[[[0.0, 7.0]]]]);
+    output
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&expected.into_data(), Tolerance::default());
+}
+
+#[test]
+fn test_nearest_exact_upsample() {
+    let device = Default::default();
+    if !format!("{device:?}").to_lowercase().contains("flex") {
+        return;
+    }
+    let input = TestTensor::<4>::from_data([[[[10.0, 20.0]]]], &device);
+
+    let output = interpolate(
+        input,
+        InterpolateOptions::new(InterpolateMode::NearestExact).with_output_size([1, 4]),
+    );
+
+    let expected = TestTensor::<4>::from([[[[10.0, 10.0, 20.0, 20.0]]]]);
+    output
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&expected.into_data(), Tolerance::default());
+}

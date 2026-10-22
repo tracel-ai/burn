@@ -151,11 +151,8 @@ impl Interpolate1d {
         if let Some(co) = self.cubic_options {
             options = options.with_cubic_options(co);
         }
-        if let Some(size) = self.output_size {
-            options = options.with_output_size([1, size]);
-        } else if let Some(scale) = self.scale_factor {
-            options = options.with_scale_factor([1.0, scale]);
-        }
+        options.output_size = self.output_size.map(|size| [1, size]);
+        options.scale_factor = self.scale_factor.map(|scale| [1.0, scale]);
 
         // Use the interpolate operation to resize the temporal input tensor
         // by adding a new dimension for the interpolation axis
@@ -216,6 +213,21 @@ mod tests {
         let interpolate = config.init();
         let output = interpolate.forward(input);
         assert_eq!(output.dims(), [2, 3, 6]);
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_conflicting_size_and_scale_panics() {
+        let input = Tensor::<3>::random(
+            [2, 3, 4],
+            Distribution::Uniform(0.0, 1.0),
+            &Default::default(),
+        );
+        let config = Interpolate1dConfig::new()
+            .with_output_size(Some(8))
+            .with_scale_factor(Some(2.0));
+        let interpolate = config.init();
+        let _ = interpolate.forward(input);
     }
 
     #[test]

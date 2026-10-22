@@ -74,7 +74,7 @@ pub fn execute_interpolate(
     options: InterpolateOptions,
     strategy: CubekInterpolateStrategy,
 ) -> Result<CubeTensor, InterpolateError> {
-    let [batch_size, channels, _, _] = input.meta.shape().dims();
+    let [batch_size, channels, in_height, in_width] = input.meta.shape().dims();
     let [out_height, out_width] = output_size;
 
     let input = into_contiguous(permute_nchw_to_nhwc(input));
@@ -91,7 +91,7 @@ pub fn execute_interpolate(
         &input.client.clone(),
         input.clone().binding(),
         output.clone().binding(),
-        map_options(options.clone()),
+        map_options(options.clone(), [in_height, in_width], output_size),
         strategy,
         dtype_to_storage_type(input.dtype),
     )?;
@@ -105,7 +105,7 @@ pub fn execute_interpolate(
 pub fn interpolate_backward(
     input: CubeTensor,
     out_grad: CubeTensor,
-    _output_size: [usize; 2],
+    output_size: [usize; 2],
     options: InterpolateOptions,
 ) -> CubeTensor {
     let input = permute_nchw_to_nhwc(input);
@@ -119,12 +119,13 @@ pub fn interpolate_backward(
         input.dtype,
     );
 
+    let [_, _, in_height, in_width] = input.meta.shape().dims();
     cubek_interpolate_backward(
         &input.client.clone(),
         input.clone().binding(),
         out_grad.binding(),
         output.clone().binding(),
-        map_options(options.clone()),
+        map_options(options.clone(), [in_height, in_width], output_size),
         dtype_to_storage_type(input.dtype),
     )
     .unwrap_or_else(|e| {
@@ -147,11 +148,38 @@ pub(crate) fn map_mode(mode: InterpolateMode) -> CubekInterpolateMode {
     }
 }
 
-pub(crate) fn map_options(options: InterpolateOptions) -> CubekInterpolateOptions {
-    if options.cubic_options != CubicOptions::default() || options.scale_factor.is_some() {
+pub(crate) fn map_options(
+    options: InterpolateOptions,
+    in_size: [usize; 2],
+    output_size: [usize; 2],
+) -> CubekInterpolateOptions {
+    if options.cubic_options != CubicOptions::default() {
         panic!(
             "CubeCL backend does not yet support extended coordinate transform/nearest modes. Please run on Flex or wait for cubek upstream integration."
         );
+    }
+
+    if let Some(scale) = options.scale_factor {
+        let is_align_corners =
+            options.coordinate_transform == CoordinateTransformMode::AlignCorners;
+        let is_compatible_half_pixel_or_asym = match (options.mode, options.coordinate_transform) {
+            (
+                InterpolateMode::Nearest | InterpolateMode::NearestExact,
+                CoordinateTransformMode::Asymmetric,
+            )
+            | (_, CoordinateTransformMode::HalfPixel) => {
+                let ratio_h = output_size[0] as f32 / in_size[0] as f32;
+                let ratio_w = output_size[1] as f32 / in_size[1] as f32;
+                (scale[0] - ratio_h).abs() <= 1e-5 && (scale[1] - ratio_w).abs() <= 1e-5
+            }
+            _ => false,
+        };
+
+        if !is_align_corners && !is_compatible_half_pixel_or_asym {
+            panic!(
+                "CubeCL backend does not yet support extended scale-driven coordinate mapping where scale differs from output/input ratio. Please run on Flex or wait for cubek upstream integration."
+            );
+        }
     }
 
     let align_corners = match (options.mode, options.coordinate_transform) {
@@ -160,6 +188,7 @@ pub(crate) fn map_options(options: InterpolateOptions) -> CubekInterpolateOption
             InterpolateMode::Nearest | InterpolateMode::NearestExact,
             CoordinateTransformMode::Asymmetric,
         ) => false,
+        (InterpolateMode::NearestExact, CoordinateTransformMode::HalfPixel) => false,
         (_, CoordinateTransformMode::HalfPixel) => false,
         (_, CoordinateTransformMode::AlignCorners) => true,
         _ => {
@@ -171,7 +200,10 @@ pub(crate) fn map_options(options: InterpolateOptions) -> CubekInterpolateOption
 
     match (options.mode, options.nearest_mode) {
         (InterpolateMode::Nearest, NearestRoundingMode::Floor) => {}
-        (InterpolateMode::NearestExact, NearestRoundingMode::Floor) => {}
+        (
+            InterpolateMode::NearestExact,
+            NearestRoundingMode::RoundPreferCeil | NearestRoundingMode::Floor,
+        ) => {}
         (
             InterpolateMode::Bilinear | InterpolateMode::Bicubic | InterpolateMode::Lanczos3,
             NearestRoundingMode::RoundPreferFloor,
