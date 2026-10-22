@@ -1,22 +1,20 @@
 use super::codegen::ModuleCodegen;
-use crate::module::{
-    codegen_struct::{ModuleFieldType, parse_module_field_type},
-    generics::{ModuleGenerics, parse_module_generics},
-};
+use crate::module::codegen_struct::{ModuleFieldType, parse_module_field_type};
 use proc_macro2::{Ident, Span, TokenStream};
 use quote::quote;
 
 pub(crate) struct EnumModuleCodegen {
     pub name: Ident,
     pub variants: Vec<EnumVariant>,
-    pub generics: ModuleGenerics,
 }
 
 impl ModuleCodegen for EnumModuleCodegen {
     fn gen_num_params(&self) -> TokenStream {
-        let match_body = self.gen_variants_match_fn(|_| {
-            quote! {
-                burn::module::Module::num_params(module)
+        let match_body = self.gen_variants_match_fn(|_, is_module| {
+            if is_module {
+                quote! { burn::module::Module::num_params(module) }
+            } else {
+                quote! { 0 }
             }
         });
 
@@ -30,7 +28,10 @@ impl ModuleCodegen for EnumModuleCodegen {
     fn gen_visit(&self) -> TokenStream {
         let enum_name = self.name.to_string();
         let container_type = format!("Enum:{}", enum_name);
-        let match_body = self.gen_variants_match_fn(|variant_name| {
+        let match_body = self.gen_variants_match_fn(|variant_name, is_module| {
+            if !is_module {
+                return quote! { {} };
+            }
             let variant_str = variant_name.to_string();
             quote! {
                 {
@@ -49,9 +50,11 @@ impl ModuleCodegen for EnumModuleCodegen {
     }
 
     fn gen_collect_devices(&self) -> TokenStream {
-        let match_body = self.gen_variants_match_fn(|_| {
-            quote! {
-                burn::module::Module::collect_devices(module, devices)
+        let match_body = self.gen_variants_match_fn(|_, is_module| {
+            if is_module {
+                quote! { burn::module::Module::collect_devices(module, devices) }
+            } else {
+                quote! { devices }
             }
         });
 
@@ -66,7 +69,10 @@ impl ModuleCodegen for EnumModuleCodegen {
     }
 
     fn gen_to_device(&self) -> TokenStream {
-        let match_body = self.gen_variants_match_fn(|variant| {
+        let match_body = self.gen_variants_match_fn(|variant, is_module| {
+            if !is_module {
+                return quote! { Self::#variant(module) };
+            }
             quote! {
                 Self::#variant(burn::module::Module::to_device(module, device))
             }
@@ -80,7 +86,10 @@ impl ModuleCodegen for EnumModuleCodegen {
     }
 
     fn gen_fork(&self) -> TokenStream {
-        let match_body = self.gen_variants_match_fn(|variant| {
+        let match_body = self.gen_variants_match_fn(|variant, is_module| {
+            if !is_module {
+                return quote! { Self::#variant(module) };
+            }
             quote! {
                 Self::#variant(burn::module::Module::fork(module, device))
             }
@@ -96,7 +105,10 @@ impl ModuleCodegen for EnumModuleCodegen {
     fn gen_map(&self) -> TokenStream {
         let enum_name = self.name.to_string();
         let container_type = format!("Enum:{}", enum_name);
-        let match_body = self.gen_variants_match_fn(|variant| {
+        let match_body = self.gen_variants_match_fn(|variant, is_module| {
+            if !is_module {
+                return quote! { Self::#variant(module) };
+            }
             let variant_str = variant.to_string();
             quote! {
                 {
@@ -116,7 +128,10 @@ impl ModuleCodegen for EnumModuleCodegen {
     }
 
     fn gen_valid(&self) -> TokenStream {
-        let match_body = self.gen_variants_match_fn(|variant| {
+        let match_body = self.gen_variants_match_fn(|variant, is_module| {
+            if !is_module {
+                return quote! { Self::#variant(module.clone()) };
+            }
             quote! {
                 Self::#variant(burn::module::Module::valid(module))
             }
@@ -130,11 +145,15 @@ impl ModuleCodegen for EnumModuleCodegen {
     }
 
     fn gen_train(&self) -> TokenStream {
-        let match_body = self.gen_variants_match_fn_param("self", "Self::", |variant| {
-            quote! {
-                Self::#variant(burn::module::Module::train(module))
-            }
-        });
+        let match_body =
+            self.gen_variants_match_fn_param("self", "Self::", |variant, is_module| {
+                if !is_module {
+                    return quote! { Self::#variant(module) };
+                }
+                quote! {
+                    Self::#variant(burn::module::Module::train(module))
+                }
+            });
 
         quote! {
             fn train(self) -> Self {
@@ -144,11 +163,15 @@ impl ModuleCodegen for EnumModuleCodegen {
     }
 
     fn gen_materialize(&self) -> TokenStream {
-        let match_body = self.gen_variants_match_fn_param("self", "Self::", |variant| {
-            quote! {
-                Self::#variant(burn::module::Module::materialize(module))
-            }
-        });
+        let match_body =
+            self.gen_variants_match_fn_param("self", "Self::", |variant, is_module| {
+                if !is_module {
+                    return quote! { Self::#variant(module) };
+                }
+                quote! {
+                    Self::#variant(burn::module::Module::materialize(module))
+                }
+            });
 
         quote! {
             fn materialize(self) -> Self {
@@ -158,7 +181,7 @@ impl ModuleCodegen for EnumModuleCodegen {
     }
 
     fn gen_clone(&self) -> TokenStream {
-        let match_body = self.gen_variants_match_fn(|variant| {
+        let match_body = self.gen_variants_match_fn(|variant, _| {
             quote! {
                 Self::#variant(module.clone())
             }
@@ -171,8 +194,11 @@ impl ModuleCodegen for EnumModuleCodegen {
         }
     }
 
-    fn module_generics(&self) -> &ModuleGenerics {
-        &self.generics
+    fn fields(&self) -> Vec<(&syn::Field, &ModuleFieldType)> {
+        self.variants
+            .iter()
+            .map(|variant| (&variant.field, &variant.field_type))
+            .collect()
     }
 
     fn gen_display(&self) -> TokenStream {
@@ -183,7 +209,11 @@ impl ModuleCodegen for EnumModuleCodegen {
                 (0..1).map(|i| syn::Ident::new(&format!("_{i}"), proc_macro2::Span::call_site()));
 
             let field_prints = field_names.clone().map(|field_name| {
-                quote! { .add(stringify!(#field_name), #field_name) }
+                if variant.field_type.is_module {
+                    quote! { .add(stringify!(#field_name), #field_name) }
+                } else {
+                    quote! { .add_debug_attribute(stringify!(#field_name), #field_name) }
+                }
             });
             quote! {
                 Self::#variant_name(#(#field_names),*) => {
@@ -205,18 +235,16 @@ impl ModuleCodegen for EnumModuleCodegen {
 
 impl EnumModuleCodegen {
     pub fn from_ast(ast: &syn::DeriveInput) -> syn::Result<Self> {
-        let mut generics = parse_module_generics(&ast.generics);
         Ok(Self {
             name: ast.ident.clone(),
-            variants: parse_variants(ast, &mut generics)?,
-            generics,
+            variants: parse_variants(ast)?,
         })
     }
 
     /// Generate the enum variants' match arms with the provided function
     fn gen_variants_match_fn<F>(&self, func: F) -> TokenStream
     where
-        F: Fn(Ident) -> TokenStream,
+        F: Fn(Ident, bool) -> TokenStream,
     {
         self.gen_variants_match_fn_param("self", "Self::", func)
     }
@@ -225,13 +253,13 @@ impl EnumModuleCodegen {
     /// and using the provided prefix for variants (e.g., `Self::`)
     fn gen_variants_match_fn_param<F>(&self, arg: &str, prefix: &str, func: F) -> TokenStream
     where
-        F: Fn(Ident) -> TokenStream,
+        F: Fn(Ident, bool) -> TokenStream,
     {
         let match_arms = self.variants.iter().map(|variant| {
             let name = &variant.ident;
             let full_variant = syn::parse_str::<syn::Path>(&format!("{prefix}{name}")).unwrap();
             let arm_pattern = quote! { #full_variant(module) };
-            let arm_code = func(name.clone());
+            let arm_code = func(name.clone(), variant.field_type.is_module);
             quote! { #arm_pattern => #arm_code, }
         });
 
@@ -255,13 +283,11 @@ impl EnumModuleCodegen {
 /// Module enum variant
 pub(crate) struct EnumVariant {
     pub ident: syn::Ident,
+    pub field: syn::Field,
     pub field_type: ModuleFieldType,
 }
 
-pub(crate) fn parse_variants(
-    ast: &syn::DeriveInput,
-    generics: &mut ModuleGenerics,
-) -> syn::Result<Vec<EnumVariant>> {
+pub(crate) fn parse_variants(ast: &syn::DeriveInput) -> syn::Result<Vec<EnumVariant>> {
     let enum_data = match &ast.data {
         syn::Data::Enum(data) => data,
         _ => return Err(syn::Error::new_spanned(ast, "Only enums are supported")),
@@ -285,10 +311,11 @@ pub(crate) fn parse_variants(
 
                 // USE THE SAME PARSER AS STRUCTS
                 // This gives us the is_module, is_param, etc. logic
-                let field_type = parse_module_field_type(field, generics)?;
+                let field_type = parse_module_field_type(field)?;
 
                 variants.push(EnumVariant {
                     ident: variant.ident.clone(),
+                    field: field.clone(),
                     field_type,
                 });
             }

@@ -442,10 +442,10 @@ let names = store.keys()?;
 
 // Get specific tensor
 if let Some(tensor) = store.get_tensor("encoder.layer0.weight")? {
-    println!("Shape: {:?}, DType: {:?}", tensor.shape, tensor.dtype);
+    println!("Shape: {:?}, DType: {:?}", tensor.shape(), tensor.dtype());
 
-    // Reading the data is a free function, not a method on the tensor
-    let data = burn_store::bridge::to_data(tensor)?;
+    // Reads the tensor's data from the file
+    let data = tensor.to_data()?;
 }
 ```
 

@@ -516,6 +516,12 @@ impl TraceOperationFuser {
             FloatOperationIr::PowfScalar(desc) => self.fuse_scalar_ops(desc, |lhs, rhs, out| {
                 FuseOp::Powf(BinaryFuseArgs { lhs, rhs, out })
             }),
+            FloatOperationIr::Fmod(desc) => self.fuse_binary_ops(desc, |lhs, rhs, out| {
+                FuseOp::Fmod(BinaryFuseArgs { lhs, rhs, out })
+            }),
+            FloatOperationIr::FmodScalar(desc) => self.fuse_scalar_ops(desc, |lhs, rhs, out| {
+                FuseOp::Fmod(BinaryFuseArgs { lhs, rhs, out })
+            }),
             FloatOperationIr::Tanh(desc) => self.fuse_unary_ops(desc, |input, out| {
                 FuseOp::Tanh(UnaryFuseArgs { input, out })
             }),
@@ -905,14 +911,14 @@ impl TryTraceFuser {
             return false;
         }
 
-        // Always allow the first operation to be added.
+        // Optimization to avoid cloning the fuser when adding the first operation
         if !self.added_ops {
             self.added_ops = true;
 
             if add_ops(&mut self.fuser).is_none() {
                 return false;
             }
-            return true;
+            return self.fuser.estimate_bindings() <= self.max_bindings;
         }
 
         let mut cloned = self.fuser.clone();
@@ -930,5 +936,87 @@ impl TryTraceFuser {
 
     fn finish(&mut self, shape: Shape) -> FuseTrace {
         self.fuser.finish(shape)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use burn_ir::{TensorId, TensorStatus};
+
+    const MAX_BINDINGS: u32 = 8;
+    /// `estimate_bindings` counts one binding per input, one for output
+    /// and one for metadata. So a `cat` for `n` inputs is estimated as needing
+    /// `n + 2` bindings.
+    const CAT_OVERHEAD: usize = 2;
+    const MAX_CAT_INPUTS: usize = MAX_BINDINGS as usize - CAT_OVERHEAD;
+
+    /// A single op can exceed `max_bindings` on its own (here a `cat` with many inputs), so the
+    /// binding check must also apply to the first op of a kernel.
+    /// Regression test for https://github.com/tracel-ai/burn/issues/6049.
+    #[test]
+    fn cat_exceeding_max_bindings_is_not_fused() {
+        let num_inputs = MAX_CAT_INPUTS + 1;
+        let mut fuser = TraceOperationFuser::new(MAX_BINDINGS, FuseSettings::default());
+        fuse_n_inputs_with_cat(num_inputs, &mut fuser);
+        assert_eq!(
+            fuser.len(),
+            0,
+            "a cat of {num_inputs} inputs (estimated {} bindings) should be rejected with max_bindings = {MAX_BINDINGS}",
+            num_inputs + CAT_OVERHEAD
+        );
+    }
+
+    /// Control for `cat_exceeding_max_bindings_is_not_fused`: The same `cat` fuses
+    /// when it fits. A rejection comes from the binding check, not from the op itself
+    #[test]
+    fn cat_within_max_bindings_is_fused() {
+        let num_inputs = MAX_CAT_INPUTS - 1;
+        let mut fuser = TraceOperationFuser::new(MAX_BINDINGS, FuseSettings::default());
+        fuse_n_inputs_with_cat(num_inputs, &mut fuser);
+        assert_eq!(
+            fuser.len(),
+            1,
+            "a cat of {num_inputs} inputs (estimated {} bindings) should be accepted with max_bindings = {MAX_BINDINGS}",
+            num_inputs + CAT_OVERHEAD
+        );
+    }
+
+    /// Control for `cat_exceeding_max_bindings_is_not_fused`: The same `cat` fuses
+    /// when it fits. A rejection comes from the binding check, not from the op itself
+    #[test]
+    fn cat_at_max_bindings_is_fused() {
+        let num_inputs = MAX_CAT_INPUTS;
+        let mut fuser = TraceOperationFuser::new(MAX_BINDINGS, FuseSettings::default());
+        fuse_n_inputs_with_cat(num_inputs, &mut fuser);
+        assert_eq!(
+            fuser.len(),
+            1,
+            "a cat of {num_inputs} inputs (estimated {} bindings) should be accepted with max_bindings = {MAX_BINDINGS}",
+            num_inputs + CAT_OVERHEAD
+        );
+    }
+
+    fn fuse_n_inputs_with_cat(n: usize, fuser: &mut TraceOperationFuser) {
+        let inputs: Vec<TensorIr> = (0..n as u64)
+            .map(|i| tensor(i, &[1], TensorStatus::ReadOnly))
+            .collect();
+        let output = tensor(n as u64, &[n], TensorStatus::NotInit);
+
+        let op = OperationIr::BaseFloat(BaseOperationIr::Cat(burn_ir::CatOpIr {
+            tensors: inputs,
+            dim: 0,
+            out: output,
+        }));
+        fuser.fuse(&op);
+    }
+
+    fn tensor(id: u64, shape: &[usize], status: TensorStatus) -> TensorIr {
+        TensorIr {
+            id: TensorId::new(id),
+            shape: Shape::from(shape),
+            status,
+            dtype: DType::F32,
+        }
     }
 }

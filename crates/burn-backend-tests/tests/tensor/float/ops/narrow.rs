@@ -65,7 +65,7 @@ fn test_narrow_invalid_dim() {
 }
 
 #[test]
-#[should_panic]
+#[should_panic(expected = "start exceeds the size")]
 fn test_narrow_invalid_start() {
     let tensor = TestTensor::<2>::from_data(
         TensorData::from([[1., 2., 3.], [4., 5., 6.], [7., 8., 9.]]),
@@ -76,7 +76,7 @@ fn test_narrow_invalid_start() {
 }
 
 #[test]
-#[should_panic]
+#[should_panic(expected = "length must be greater than 0")]
 fn test_narrow_invalid_zero_length() {
     let tensor = TestTensor::<2>::from_data(
         TensorData::from([[1., 2., 3.], [4., 5., 6.], [7., 8., 9.]]),
@@ -87,7 +87,7 @@ fn test_narrow_invalid_zero_length() {
 }
 
 #[test]
-#[should_panic]
+#[should_panic(expected = "start + length exceeds")]
 fn test_narrow_invalid_length() {
     let tensor = TestTensor::<2>::from_data(
         TensorData::from([[1., 2., 3.], [4., 5., 6.], [7., 8., 9.]]),

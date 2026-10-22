@@ -101,6 +101,14 @@ impl FloatTensorOps<Self> for Dispatch {
         B::float_remainder_scalar(lhs, rhs)
     }
 
+    fn float_fmod(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> FloatTensor<Self> {
+        B::float_fmod(lhs, rhs)
+    }
+
+    fn float_fmod_scalar(lhs: FloatTensor<Self>, rhs: Scalar) -> FloatTensor<Self> {
+        B::float_fmod_scalar(lhs, rhs)
+    }
+
     fn float_matmul(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> FloatTensor<Self> {
         B::float_matmul(lhs, rhs)
     }

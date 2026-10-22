@@ -410,6 +410,25 @@ impl DispatchDevice {
         DispatchDevice::Autodiff(AutodiffDevice::new(device, checkpointing))
     }
 
+    /// The id of the worker this device's fusion server runs on, or `None` when its operations do
+    /// not go through one.
+    ///
+    /// This is the runtime device's own id, not the one this device reports through
+    /// [`Device::to_id`](burn_backend::Device::to_id), which encodes the dispatch variant into its
+    /// type. A [`DeviceHandle`](burn_backend::DeviceHandle) opened with it shares the fusion
+    /// server's queue, so a task submitted there runs between the operations registered before
+    /// and after it. An autodiff device answers for the device it wraps.
+    pub fn fusion_worker(&self) -> Option<DeviceId> {
+        match self {
+            #[cfg(cube_backend)]
+            DispatchDevice::Cube(device) => burn_cubecl::FUSED.then(|| device.to_id()),
+            #[cfg(feature = "autodiff")]
+            DispatchDevice::Autodiff(device) => device.inner.fusion_worker(),
+            #[allow(unreachable_patterns)]
+            _ => None,
+        }
+    }
+
     /// Returns the inner device, without autodiff (when enabled).
     pub fn inner(self) -> Self {
         #[cfg(feature = "autodiff")]

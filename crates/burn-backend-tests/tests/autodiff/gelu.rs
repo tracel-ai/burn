@@ -14,13 +14,15 @@ fn should_diff_gelu() {
     let grad_1 = tensor_1.grad(&grads).unwrap();
     let grad_2 = tensor_2.grad(&grads).unwrap();
 
-    let tolerance = Tolerance::permissive();
-    let expected = TensorData::from([[1.46281, 1.46281], [48.22866, 153.46280]]);
+    let tolerance = Tolerance::rel_abs(1e-4, 1e-5)
+        .set_half_precision_relative(1e-2)
+        .set_half_precision_absolute(1e-2);
+    let expected = TensorData::from([[1.46281, 1.46281], [48.22866, 153.46281]]);
     grad_1
         .to_data()
         .assert_approx_eq::<FloatElem>(&expected, tolerance);
 
-    let expected = TensorData::from([[-15.0000, -1.98757], [17.0000, 17.0000]]);
+    let expected = TensorData::from([[-15.0000, -1.9875731], [17.0000, 17.0000]]);
     grad_2
         .to_data()
         .assert_approx_eq::<FloatElem>(&expected, tolerance);

@@ -163,6 +163,7 @@ pub enum FuseOp {
     Greater(BinaryFuseArgs),
     LowerEqual(BinaryFuseArgs),
     Rem(BinaryFuseArgs),
+    Fmod(BinaryFuseArgs),
     GreaterEqual(BinaryFuseArgs),
     BitwiseAnd(BinaryFuseArgs),
     BitwiseOr(BinaryFuseArgs),
@@ -234,6 +235,9 @@ impl Display for FuseOp {
             FuseOp::Greater(args) => write!(f, "{} = {} > {}", args.out, args.lhs, args.rhs),
             FuseOp::LowerEqual(args) => write!(f, "{} = {} <= {}", args.out, args.lhs, args.rhs),
             FuseOp::Rem(args) => write!(f, "{} = {} % {}", args.out, args.lhs, args.rhs),
+            FuseOp::Fmod(args) => {
+                write!(f, "{} = fmod({}, {})", args.out, args.lhs, args.rhs)
+            }
             FuseOp::GreaterEqual(args) => write!(f, "{} = {} >= {}", args.out, args.lhs, args.rhs),
             FuseOp::BitwiseAnd(args) => write!(f, "{} = {} & {}", args.out, args.lhs, args.rhs),
             FuseOp::BitwiseOr(args) => write!(f, "{} = {} | {}", args.out, args.lhs, args.rhs),
@@ -355,6 +359,7 @@ impl FuseOp {
             FuseOp::Cat { output, .. } => output.precision().into_elem(),
             FuseOp::Dequantize { output, .. } => output.precision().into_elem(),
             FuseOp::Rem(op) => op.out.precision().into_elem(),
+            FuseOp::Fmod(op) => op.out.precision().into_elem(),
             FuseOp::Clamp { out, .. } => out.precision().into_elem(),
         }
     }
@@ -504,12 +509,12 @@ impl GlobalArgsLaunch {
                     shape.swap(dims.0, dims.1);
                     shape
                 }
-                VirtualLayout::Reshaped { reshape_pos, .. } => {
+                VirtualLayout::Reshaped { reshape_pos } => {
                     let start = *reshape_pos * rank;
                     let end = start + rank;
                     self.reshapes.values[start..end].iter().copied().collect()
                 }
-                VirtualLayout::Shape(original, _) => self.shape(original),
+                VirtualLayout::Shape(original) => self.shape(original),
                 VirtualLayout::Runtime { pos } => {
                     let start = (*pos * 2) * rank;
                     let end = start + rank;
@@ -732,6 +737,7 @@ impl FuseOp {
             | FuseOp::Greater(binary_fuse_args)
             | FuseOp::LowerEqual(binary_fuse_args)
             | FuseOp::Rem(binary_fuse_args)
+            | FuseOp::Fmod(binary_fuse_args)
             | FuseOp::GreaterEqual(binary_fuse_args)
             | FuseOp::BitwiseAnd(binary_fuse_args)
             | FuseOp::BitwiseOr(binary_fuse_args)
@@ -857,15 +863,12 @@ pub enum RefLayout {
 /// tensor with swap dimensions.
 pub enum VirtualLayout {
     /// Virtual tensor with the provided shape id and contiguous strides.
-    Reshaped {
-        reshape_pos: usize,
-        vector_size: VectorSize,
-    },
+    Reshaped { reshape_pos: usize },
     /// Virtual tensor with the same shape as the given input, but with swap dims and contiguous
     /// strides.
     SwapDims(FuseArg, (usize, usize)),
     /// Virtual tensor with the same shape as the given input, but with contiguous strides.
-    Shape(FuseArg, usize),
+    Shape(FuseArg),
     /// We don't have access to global metadata, they are passed as runtime values.
     Runtime { pos: usize },
 }

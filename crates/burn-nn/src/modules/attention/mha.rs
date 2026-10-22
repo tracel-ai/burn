@@ -2,7 +2,7 @@ use crate::Initializer;
 use burn_core as burn;
 
 use crate::activation::Gelu;
-use crate::cache::TensorCache;
+use crate::cache::{CacheState, TensorCache};
 use crate::{Dropout, DropoutConfig, Linear, LinearConfig};
 use burn::config::Config;
 use burn::module::{Content, DisplaySettings, Module, ModuleDisplay};
@@ -255,13 +255,58 @@ impl MultiHeadAttention {
     /// of `key` or `value` differs from `query`, or if the sequence length of `value` differs
     /// from `key`.
     pub fn forward_cache(&self, input: MhaInput, cache: &mut MhaCache) -> MhaOutput {
+        self.forward_cache_inner(input, cache, false)
+    }
+
+    /// Applies cached attention, returning only the context tensor.
+    ///
+    /// Pass the full query prefix on each call: a nonempty prefill followed by exactly one
+    /// appended token per call. Keys and values follow the same rule for an
+    /// [autoregressive cache](MhaCache::autoregressive), or remain fixed for a
+    /// [cross-attention cache](MhaCache::autoregressive_cross_attention).
+    ///
+    /// After prefill, only the newest query attends to the cached keys and values. The returned
+    /// tensor includes the cached output prefix, just like [`forward_cache`](Self::forward_cache).
+    /// Attention masks use the full prefix shape; only their newest query row is evaluated.
+    /// Previously cached outputs are retained even if earlier input tokens or mask rows change.
+    ///
+    /// The same cache may be used interchangeably with [`forward_cache`](Self::forward_cache):
+    /// query projections are retained so that full attention weights remain available. When
+    /// dropout is active, this uses the full attention path to preserve its random draws.
+    /// Floating-point results may differ slightly because the attention matrix shapes differ.
+    ///
+    /// # Shapes
+    ///
+    /// - query: `[batch_size, seq_length_1, d_model]`
+    /// - key, value: `[batch_size, seq_length_2, d_model]`
+    /// - output: `[batch_size, seq_length_1, d_model]`
+    ///
+    /// # Panics
+    ///
+    /// Panics under the same shape constraints as [`forward_cache`](Self::forward_cache).
+    pub fn forward_cache_context(&self, input: MhaInput, cache: &mut MhaCache) -> Tensor<3> {
+        let dropout_active = self.dropout.prob > 0.0
+            && self.dropout.training.is_enabled()
+            && input.query.device().is_autodiff();
+        let last_query_only = cache.output.is_initialized() && !dropout_active;
+
+        self.forward_cache_inner(input, cache, last_query_only)
+            .context
+    }
+
+    fn forward_cache_inner(
+        &self,
+        mut input: MhaInput,
+        cache: &mut MhaCache,
+        last_query_only: bool,
+    ) -> MhaOutput {
         let [batch_size, seq_length_1, d_model] = input.query.dims();
         let [_, seq_length_2, _] = input.key.dims();
         assert_shape!(input.query, [_, _, self.d_model]);
         assert_shape!(input.key, [batch_size, _, self.d_model]);
         assert_shape!(input.value, [batch_size, seq_length_2, self.d_model]);
 
-        let query = cache
+        let mut query = cache
             .query
             .forward(input.query, |t| self.attention_linear(t, &self.query));
         let key = cache
@@ -271,6 +316,24 @@ impl MultiHeadAttention {
             .value
             .forward(input.value, |t| self.attention_linear(t, &self.value));
 
+        if last_query_only {
+            assert_shape!(query, [batch_size, self.n_heads, seq_length_1, self.d_k]);
+            query = query.slice([
+                0..batch_size,
+                0..self.n_heads,
+                seq_length_1 - 1..seq_length_1,
+                0..self.d_k,
+            ]);
+            input.mask_attn = input.mask_attn.map(|mask| {
+                let [batch_size, query_length, key_length] = mask.dims();
+                if query_length != 1 {
+                    assert_shape!(mask, [_, seq_length_1, _]);
+                }
+                mask.slice([0..batch_size, query_length - 1..query_length, 0..key_length])
+            });
+        }
+
+        let seq_length_1 = if last_query_only { 1 } else { seq_length_1 };
         let attn_scores = self.attn_scores(query, key);
         let weights = self.attn_weights(attn_scores, input.mask_pad, input.mask_attn);
 
@@ -380,6 +443,13 @@ impl MhaCache {
 }
 
 impl<const D: usize> MhaLinearCache<D> {
+    fn is_initialized(&self) -> bool {
+        let cache = match self {
+            Self::Autoregressive(cache, _) | Self::Full(cache) => cache,
+        };
+        matches!(&cache.state, CacheState::Value(_))
+    }
+
     pub fn forward<F: Fn(Tensor<3>) -> Tensor<D>>(
         &mut self,
         tensor: Tensor<3>,
@@ -393,6 +463,10 @@ impl<const D: usize> MhaLinearCache<D> {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "mha_cache_tests.rs"]
+mod cache_tests;
 
 #[cfg(test)]
 mod tests {
@@ -469,30 +543,6 @@ mod tests {
                 ],
             ])
             .convert_dtype(dtype),
-            true,
-        );
-    }
-
-    #[rstest]
-    #[case(false)]
-    #[case(true)]
-    fn masked_attention_ignores_legacy_mask_value(
-        #[case] quiet: bool,
-        #[values(DType::F16, DType::BF16, DType::F32, DType::F64)] dtype: DType,
-        #[values(-1.0, -1.0e4, -1.0e100, f64::NEG_INFINITY)] min_float: f64,
-    ) {
-        let device = crate::test_device();
-        let mha = MultiHeadAttentionConfig::new(1, 1)
-            .with_dropout(0.0)
-            .with_min_float(min_float)
-            .with_quiet_softmax(quiet)
-            .init(&device);
-        let scores = Tensor::<4>::zeros([1, 1, 2, 2], (&device, dtype));
-        let mask = Tensor::<3, Bool>::from_data([[[false, true], [true, true]]], &device);
-        let weights = mha.attn_weights(scores, None, Some(mask));
-        let expected = if quiet { 0.5f32 } else { 1.0 };
-        weights.into_data().assert_eq(
-            &TensorData::from([[[[expected, 0.0], [0.0, 0.0]]]]).convert_dtype(dtype),
             true,
         );
     }

@@ -440,9 +440,9 @@ fn validate_extension_ty(ty: &Type) -> syn::Result<()> {
 /// Backend identity is nested inside `DispatchTensorKind::Autodiff` for tracked float tensors, and
 /// extension structs can't be destructured in a dispatch-kind match. Therefore we:
 /// 1. Find a routing [`DispatchTensor`] (a bare tensor itself, or a struct's via
-///    `ExtensionType::routing_tensor`) and fold its `.kind` and float status into small values.
-///    Separately merge every input's autodiff context. This drops all borrows before any input is
-///    moved.
+///    `ExtensionType::routing_tensor`) and fold its `.kind` into a backend tag. Separately merge
+///    every input's autodiff context and check whether any float has autodiff enabled. This drops
+///    all borrows before any input is moved.
 /// 2. In the matched context/backend arm, unwrap every input and re-wrap the output.
 ///
 /// For an autodiff arm the target backend is `Autodiff<B>`: float tensors/fields unwrap through the
@@ -469,10 +469,10 @@ fn gen_tensor_input_dispatch_body(ir: &Extension, op: &Operation) -> TokenStream
         &paths,
         "backend extension op received no tensor input to select a backend from (e.g. an enum input on a tensor-less variant with no other tensor input)",
     );
-    let autodiff_context = routing::operation_autodiff_context(op, &paths);
+    let (autodiff_routing, _) = routing::operation_autodiff_routing(op, &paths);
 
-    // The routing tensor selects the concrete backend. The merged context and whether the active
-    // inputs contain a float decide if the autodiff implementation is needed.
+    // The routing tensor selects the concrete backend. The merged context controls the output
+    // association, while an autodiff-associated float selects the autodiff implementation.
     let kind_arms = routing::backend_kind_arms(
         &paths,
         &ir.backends.concrete,
@@ -498,13 +498,13 @@ fn gen_tensor_input_dispatch_body(ir: &Extension, op: &Operation) -> TokenStream
     quote! {
         // Compute the autodiff context and backend tag in a scoped block so the routing tensor's
         // borrow of the inputs ends before the dispatch arms below move them.
-        let (__burn_backend_tag, __ad_ctx, __has_float_input): (
+        let (__burn_backend_tag, __ad_ctx, __has_autodiff_float_input): (
             usize,
             burn::backend::DispatchAutodiffContext,
             bool,
         ) = {
             #routing_tensor_init
-            #autodiff_context
+            #autodiff_routing
             let __backend_tag = match &__routing_tensor.kind {
                 #ad_tag_arm
                 #( #concrete_tag_arms )*
@@ -514,10 +514,10 @@ fn gen_tensor_input_dispatch_body(ir: &Extension, op: &Operation) -> TokenStream
             (
                 __backend_tag,
                 __ad_ctx,
-                __routing_tensor_is_float,
+                __has_autodiff_float_input,
             )
         };
-        match (__burn_backend_tag, __has_float_input) {
+        match (__burn_backend_tag, __has_autodiff_float_input) {
             #( #dispatch_arms )*
             _ => unimplemented!("Backend not supported for custom op `{}`", stringify!(#name)),
         }
@@ -542,7 +542,7 @@ fn gen_tensor_input_backend_arm(
     );
     quote! {
         #cfg_attr
-        (#i, __has_float_input) => { #routes },
+        (#i, __has_autodiff_float_input) => { #routes },
     }
 }
 

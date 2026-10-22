@@ -91,11 +91,16 @@ impl PaddingConfig2d {
         width: usize,
         kernel_size: &[usize; 2],
         stride: &[usize; 2],
+        context: &str,
     ) -> [usize; 2] {
         let ((top, bottom), (left, right)) =
             self.calculate_padding_2d_pairs(height, width, kernel_size, stride);
         if top != bottom || left != right {
-            panic!("Asymmetric padding should be handled via calculate_padding_2d_pairs()")
+            panic!(
+                "Asymmetric calculated padding is not supported for {context}. \
+                 Got top={top}, left={left}, bottom={bottom}, right={right} \
+                 for input size [{height}, {width}], kernel size {kernel_size:?}, and stride {stride:?}."
+            )
         }
         [top, left]
     }
@@ -210,7 +215,7 @@ mod tests {
     fn test_padding_config_2d_calculate_symmetric_valid() {
         let padding = PaddingConfig2d::Valid;
         assert_eq!(
-            padding.calculate_padding_2d(10, 10, &[3, 3], &[1, 1]),
+            padding.calculate_padding_2d(10, 10, &[3, 3], &[1, 1], "PaddingConfig2d"),
             [0, 0]
         );
     }
@@ -219,18 +224,16 @@ mod tests {
     fn test_padding_config_2d_calculate_symmetric_explicit() {
         let padding = PaddingConfig2d::Explicit(2, 3, 2, 3);
         assert_eq!(
-            padding.calculate_padding_2d(10, 10, &[3, 3], &[1, 1]),
+            padding.calculate_padding_2d(10, 10, &[3, 3], &[1, 1], "PaddingConfig2d"),
             [2, 3]
         );
     }
 
     #[test]
-    #[should_panic(
-        expected = "Asymmetric padding should be handled via calculate_padding_2d_pairs"
-    )]
+    #[should_panic(expected = "Asymmetric calculated padding is not supported for PaddingConfig2d")]
     fn test_padding_config_2d_calculate_symmetric_asymmetric_panics() {
         let padding = PaddingConfig2d::Explicit(1, 2, 3, 4);
-        let _ = padding.calculate_padding_2d(10, 10, &[3, 3], &[1, 1]);
+        let _ = padding.calculate_padding_2d(10, 10, &[3, 3], &[1, 1], "PaddingConfig2d");
     }
 
     // ==================== PaddingConfig3d Tests ====================

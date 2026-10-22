@@ -1,0 +1,22 @@
+[package]
+authors = ["nathanielsimard <nathaniel.simard.42@gmail.com>"]
+categories = ["science", "development-tools::profiling"]
+description = "The attribute a Burn component declares itself with, for burn-instrument"
+documentation = "https://docs.rs/burn-instrument-macros"
+edition.workspace = true
+license.workspace = true
+name = "burn-instrument-macros"
+readme.workspace = true
+repository = "https://github.com/tracel-ai/burn/tree/main/crates/burn-instrument-macros"
+version.workspace = true
+
+[lints]
+workspace = true
+
+[lib]
+proc-macro = true
+
+[dependencies]
+proc-macro2 = { workspace = true }
+quote = { workspace = true }
+syn = { workspace = true }

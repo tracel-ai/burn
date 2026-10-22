@@ -41,6 +41,15 @@ def main():
     torch.save(model_with_bias.state_dict(), "linear_with_bias.pt")
     # The whole module rather than its state_dict, which must load the same.
     torch.save(model, "linear_full_model.pt")
+    # The same weights stored as `.t()` views of their transposes, as some checkpoints
+    # (Whisper's, for one) save Linear weights.
+    torch.save(
+        {
+            name: tensor.t().contiguous().t() if tensor.dim() == 2 else tensor
+            for name, tensor in model.state_dict().items()
+        },
+        "linear_transposed.pt",
+    )
     
     input = torch.rand(1, 2, 2, 2)
     print("Input shape: {}", input.shape)

@@ -115,7 +115,7 @@ pub fn init_locals(
     let mut ref_shape = Array::new(config.rank);
     let mut ref_strides = Array::new(config.rank);
 
-    let locals = match config.ref_layout.clone() {
+    match config.ref_layout.clone() {
         RefLayout::Concrete(arg) => match comptime![arg] {
             FuseArg::Input(index, ..) => {
                 let layout = inputs.tensors.index(index);
@@ -128,12 +128,6 @@ pub fn init_locals(
                     ref_shape[i] = shape;
                     ref_strides[i] = normalize_reference_stride(shape, stride);
                 }
-
-                LocalArgs::new(
-                    ref_shape.as_slice(),
-                    ref_strides.as_slice(),
-                    layout.tensor.vector_size(),
-                )
             }
             FuseArg::Output(index, ..) => {
                 let layout = outputs.tensors.index(index);
@@ -146,12 +140,6 @@ pub fn init_locals(
                     ref_shape[i] = shape;
                     ref_strides[i] = normalize_reference_stride(shape, stride);
                 }
-
-                LocalArgs::new(
-                    ref_shape.as_slice(),
-                    ref_strides.as_slice(),
-                    layout.tensor.vector_size(),
-                )
             }
             _ => comptime![panic!("Invalid concrete ref layout.")],
         },
@@ -177,17 +165,8 @@ pub fn init_locals(
 
                     stride_curr *= ref_shape[comptime![reverse]];
                 }
-
-                LocalArgs::new(
-                    ref_shape.as_slice(),
-                    ref_strides.as_slice(),
-                    layout.tensor.vector_size(),
-                )
             }
-            VirtualLayout::Reshaped {
-                reshape_pos,
-                vector_size,
-            } => {
+            VirtualLayout::Reshaped { reshape_pos } => {
                 let mut stride_curr = 1;
                 let start = reshape_pos * config.rank;
 
@@ -203,8 +182,6 @@ pub fn init_locals(
 
                     stride_curr *= ref_shape[comptime![reverse]];
                 }
-
-                LocalArgs::new(ref_shape.as_slice(), ref_strides.as_slice(), vector_size)
             }
             VirtualLayout::Runtime { pos } => {
                 let start_shape = (pos * 2) * config.rank;
@@ -220,10 +197,8 @@ pub fn init_locals(
                     ref_shape[i] = shape;
                     ref_strides[i] = normalize_reference_stride(shape, stride);
                 }
-
-                LocalArgs::new(ref_shape.as_slice(), ref_strides.as_slice(), config.width)
             }
-            VirtualLayout::Shape(original, vector_size) => {
+            VirtualLayout::Shape(original) => {
                 let layout = match original.clone() {
                     FuseArg::Input(pos, ..) => inputs.tensors.index(pos),
                     FuseArg::Output(pos, ..) => outputs.tensors.index(pos),
@@ -242,11 +217,12 @@ pub fn init_locals(
 
                     stride_curr *= ref_shape[comptime![reverse]];
                 }
-
-                LocalArgs::new(ref_shape.as_slice(), ref_strides.as_slice(), vector_size)
             }
         },
-    };
+    }
+
+    // Positions count units of the block width, whatever vector size the reference is launched with.
+    let locals = LocalArgs::new(ref_shape.as_slice(), ref_strides.as_slice(), config.width);
     comment!("Init locals end");
     locals
 }
@@ -347,6 +323,7 @@ fn fuse(
                 config,
             ),
             FuseOp::Rem(op) => rem::<E, N>(inputs, outputs, locals, pos, op, config),
+            FuseOp::Fmod(op) => fmod::<E, N>(inputs, outputs, locals, pos, op, config),
             FuseOp::Clamp {
                 input,
                 min,
@@ -1163,6 +1140,17 @@ fn powi<C: Float, N: Size>(
 }
 
 binary_func!(rem, Vector::<C, N>::mod_floor, Float);
+binary_func!(fmod, fmod_vector::<C, N>, Float);
+
+/// `fmod(x, ±inf)` is `x` for a finite `x` and NaN for an infinite one. Targets disagree on `%`
+/// there: WGSL and Vulkan allow `x - y * trunc(x / y)`, which is NaN for a finite `x`, and NVPTX
+/// returns `x` even when `x` is infinite. So that case is handled explicitly.
+#[cube]
+fn fmod_vector<F: Float, N: Size>(lhs: Vector<F, N>, rhs: Vector<F, N>) -> Vector<F, N> {
+    let nan = Vector::new(F::new(f64::NAN));
+    let inf_divisor = select_many(Vector::is_inf(lhs), nan, lhs);
+    select_many(Vector::is_inf(rhs), inf_divisor, lhs % rhs)
+}
 
 unary_func!(exp, Vector::<C, N>::exp, Float);
 unary_func!(log, Vector::<C, N>::ln, Float);

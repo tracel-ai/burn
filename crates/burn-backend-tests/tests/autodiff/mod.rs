@@ -44,6 +44,7 @@ mod exp;
 mod expand;
 mod flip;
 mod floor;
+mod fmod;
 mod gather_scatter;
 mod gather_scatter_nd;
 mod gelu;

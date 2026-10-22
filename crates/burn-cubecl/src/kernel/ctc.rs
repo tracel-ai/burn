@@ -5,12 +5,45 @@ use crate::{kernel::into_contiguous, ops::numeric::empty_device_dtype, tensor::C
 use burn_backend::{Shape, TensorMetadata};
 
 /// Maximum `2 * max_target_len + 1` the kernel supports. The alpha/beta state is
-/// held in shared memory as two f32 buffers of this size (active row + scratch),
-/// so peak shared use at full capacity is `2 * 8192 * 4 = 64 KB`. Apple Metal
-/// caps shared memory at 32 KB per block, so the launch site sizes the buffer to
-/// the actual per-batch `max_l_prime`; this constant is only the kernel-side
-/// upper bound. Inputs exceeding it panic rather than silently degrade.
+/// held in shared memory as two buffers of this size (active row + scratch), so
+/// peak shared use at full capacity is `2 * 8192 * 4 = 64 KB` for f32. Devices
+/// often allow less (Apple Metal caps shared memory at 32 KB per block), so the
+/// launch site sizes the buffer to the actual per-batch `max_l_prime` and also
+/// checks it against the device limit; this constant is only the kernel-side
+/// upper bound.
 const SHARED_ALPHA_CAPACITY: u32 = 8192;
+
+/// Panics unless the alpha/beta state for `max_l_prime` fits both
+/// `SHARED_ALPHA_CAPACITY` and the shared memory of `log_probs`'s device.
+fn assert_alpha_fits(op: &str, log_probs: &CubeTensor, max_l_prime: usize) {
+    let available = log_probs
+        .client
+        .properties()
+        .hardware
+        .max_shared_memory_size;
+    if let Err(msg) = check_alpha_fits(max_l_prime, log_probs.dtype.size(), available) {
+        panic!("{op}: {msg}");
+    }
+}
+
+/// The kernel holds two rows of `max_l_prime` elements in shared memory.
+fn check_alpha_fits(max_l_prime: usize, elem_size: usize, available: usize) -> Result<(), String> {
+    if max_l_prime as u32 > SHARED_ALPHA_CAPACITY {
+        return Err(format!(
+            "2 * max_target_len + 1 = {max_l_prime} exceeds the kernel's shared-memory alpha \
+             capacity ({SHARED_ALPHA_CAPACITY}). Reduce target length or raise \
+             SHARED_ALPHA_CAPACITY."
+        ));
+    }
+    let required = 2 * max_l_prime * elem_size;
+    if required > available {
+        return Err(format!(
+            "2 * max_target_len + 1 = {max_l_prime} needs {required} bytes of shared memory, \
+             but the device allows {available}. Reduce target length."
+        ));
+    }
+    Ok(())
+}
 
 /// Class label at position `s` of the blank-inserted label sequence `l'`.
 /// Odd `s` reads the underlying target at index `(s-1)/2`; even `s` is a blank.
@@ -279,7 +312,8 @@ fn ctc_loss_kernel<F: Float, I: Numeric>(
 /// Fused CTC loss for burn-cubecl. Single kernel launch covers the entire
 /// alpha recursion across all timesteps.
 ///
-/// Panics if `2 * max_target_len + 1` exceeds `SHARED_ALPHA_CAPACITY` (8192).
+/// Panics if `2 * max_target_len + 1` exceeds `SHARED_ALPHA_CAPACITY` (8192)
+/// or the device's shared memory.
 pub fn ctc_loss(
     log_probs: CubeTensor,
     targets: CubeTensor,
@@ -301,13 +335,7 @@ pub fn ctc_loss(
     let max_target_len = target_shape.dims::<2>()[1];
     let max_l_prime = 2 * max_target_len + 1;
 
-    assert!(
-        max_l_prime as u32 <= SHARED_ALPHA_CAPACITY,
-        "ctc_loss: 2 * max_target_len + 1 = {} exceeds the kernel's shared-memory \
-         alpha capacity ({}). Reduce target length or raise SHARED_ALPHA_CAPACITY.",
-        max_l_prime,
-        SHARED_ALPHA_CAPACITY,
-    );
+    assert_alpha_fits("ctc_loss", &log_probs, max_l_prime);
 
     // Pick a thread count that fits the runtime's per-cube limit. We don't
     // need one thread per s position - threads stride over s.
@@ -324,11 +352,10 @@ pub fn ctc_loss(
     let cube_dim = CubeDim::new_1d(cube_dim_x);
 
     // Pass the actual max_l_prime (not the static capacity) so shared memory
-    // is sized to what we need. Metal limits threadgroup memory to 32 KB;
-    // allocating 2 * 8192 * sizeof(f32) = 64 KB would silently corrupt on
-    // Apple GPUs. Different max_l_prime values trigger separate kernel
-    // compilations (it's a comptime param), but that's fine: target lengths
-    // are stable within a dataset.
+    // is sized to what we need; allocating the full 2 * 8192 * sizeof(f32) =
+    // 64 KB would exceed Metal's 32 KB limit even for short targets. Different
+    // max_l_prime values trigger separate kernel compilations (it's a comptime
+    // param), but that's fine: target lengths are stable within a dataset.
     ctc_loss_kernel::launch(
         &client,
         cube_count,
@@ -582,7 +609,8 @@ fn ctc_alpha_beta_kernel<F: Float, I: Numeric>(
 /// `(t < input_length, s < 2*target_length+1)` rectangle hold the
 /// pre-fill value `-inf`, matching the default backend's convention.
 ///
-/// Panics if `2 * max_target_len + 1` exceeds `SHARED_ALPHA_CAPACITY`.
+/// Panics if `2 * max_target_len + 1` exceeds `SHARED_ALPHA_CAPACITY` or the
+/// device's shared memory.
 pub fn ctc_alpha_beta(
     log_probs: CubeTensor,
     targets: CubeTensor,
@@ -604,13 +632,7 @@ pub fn ctc_alpha_beta(
     let max_target_len = target_shape.dims::<2>()[1];
     let max_l_prime = 2 * max_target_len + 1;
 
-    assert!(
-        max_l_prime as u32 <= SHARED_ALPHA_CAPACITY,
-        "ctc_loss_backward: 2 * max_target_len + 1 = {} exceeds the kernel's shared-memory \
-         alpha capacity ({}). Reduce target length or raise SHARED_ALPHA_CAPACITY.",
-        max_l_prime,
-        SHARED_ALPHA_CAPACITY,
-    );
+    assert_alpha_fits("ctc_loss_backward", &log_probs, max_l_prime);
 
     let hw_max = log_probs.client.properties().hardware.max_cube_dim.0;
     let cube_dim_x = (max_l_prime as u32).min(hw_max).min(256);
@@ -664,4 +686,26 @@ pub fn ctc_alpha_beta(
     );
 
     (alpha_out, beta_out, nll_out)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const METAL_SHARED: usize = 32 * 1024;
+
+    #[test]
+    fn alpha_state_is_checked_against_device_shared_memory() {
+        // l' = 4201 is within SHARED_ALPHA_CAPACITY but needs 33608 bytes in f32.
+        assert!(check_alpha_fits(4201, 4, METAL_SHARED).is_err());
+        assert!(check_alpha_fits(4095, 4, METAL_SHARED).is_ok());
+        // The buffers use the float dtype, so f16 fits where f32 does not.
+        assert!(check_alpha_fits(4201, 2, METAL_SHARED).is_ok());
+    }
+
+    #[test]
+    fn alpha_state_is_checked_against_kernel_capacity() {
+        let l_prime = SHARED_ALPHA_CAPACITY as usize + 1;
+        assert!(check_alpha_fits(l_prime, 4, usize::MAX).is_err());
+    }
 }

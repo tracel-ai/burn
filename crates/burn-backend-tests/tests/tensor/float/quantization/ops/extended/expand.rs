@@ -83,7 +83,7 @@ fn broadcast_single() {
 }
 
 #[test]
-#[should_panic]
+#[should_panic(expected = "can't be broadcasted to the target shape")]
 fn should_fail_expand_incompatible_shapes() {
     let tensor = QTensor::<1>::int8([1.0, 2.0, 3.0]);
     let _expanded_tensor = tensor.expand([2, 2]);
@@ -105,7 +105,7 @@ fn should_all_negative_one() {
 }
 
 #[test]
-#[should_panic]
+#[should_panic(expected = "Cannot substitute -1 for a non-existing dimension")]
 fn should_panic_negative_one_on_non_existing_dim() {
     let tensor = QTensor::<1>::int8([1.0, 2.0, 3.0]);
     let _expanded_tensor = tensor.expand([-1, 3]);

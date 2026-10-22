@@ -15,6 +15,7 @@ use cubecl::{
 };
 use cubek::matmul::{
     definition::{MatmulElems, MatmulGlobalElems, MatmulKind},
+    kernels::{CubeStagedMatmulRoutineSettings, UnitRegistersMatmulRoutineSettings},
     multi_level::{
         Strategy,
         components::tile::TileMatmulKind,
@@ -30,7 +31,7 @@ use cubek::matmul::{
         },
     },
     routine::BlueprintStrategy,
-    tiled::{Strategy as TiledStrategy, cpu_gemm::CpuGemmStrategy},
+    tiled::Strategy as TiledStrategy,
     tune_key::{
         MatmulAutotuneKey, MatmulGlobalScale, MatmulProblemDefinition, StorageTileKey,
         should_tune_double_buffering,
@@ -341,8 +342,7 @@ pub fn matmul_autotune(
         );
 
         // CPU GEMM (CPU-only via the `cpu` group; the size limit is specific to this strategy).
-        let cpu_gemm_strategy =
-            TiledStrategy::CpuGemm(BlueprintStrategy::Inferred(CpuGemmStrategy::default()));
+        let cpu_gemm_strategy = TiledStrategy::CpuGemm(UnitRegistersMatmulRoutineSettings::DEFAULT);
         set = set.with(
             Tunable::new(&cpu_gemm_strategy.to_string(), move |(lhs, rhs, out)| {
                 launch_matmul::<_>(&cpu_gemm_strategy, lhs, rhs, out)
@@ -586,7 +586,7 @@ pub fn matmul_autotune(
         // A storage-tiled operand is read only by the tiled cmma routine, which stages to its
         // tiles; every other candidate refuses it. The candidate joins the plan for such a
         // problem alone, so a plain one tunes as before.
-        let tiled_cmma = TiledStrategy::Cmma(BlueprintStrategy::Inferred(Default::default()));
+        let tiled_cmma = TiledStrategy::Cmma(CubeStagedMatmulRoutineSettings::DEFAULT);
         set = set.with(
             Tunable::new(&tiled_cmma.to_string(), move |(lhs, rhs, out)| {
                 launch_matmul::<_>(&tiled_cmma, lhs, rhs, out).map_err(|err| format!("{err:?}"))

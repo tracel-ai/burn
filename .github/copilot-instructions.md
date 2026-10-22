@@ -5,8 +5,10 @@ See [AGENTS.md](../AGENTS.md) for layout, architecture, and conventions. These n
 ## Priorities
 
 Report correctness problems first, then missing test coverage, then documentation that contradicts
-the code. Each finding should name a concrete input or configuration that fails and what happens.
-Skip a finding you cannot back with the code in this checkout.
+the code. For correctness findings, identify a failing input or configuration and its consequence.
+For design findings, identify concrete complexity, duplication, or API friction and explain the
+benefit of the proposed change. Ask questions when intent or trade-offs remain unclear. Skip a
+finding you cannot back with the code in this checkout.
 
 Look closely for:
 
@@ -60,4 +62,4 @@ Look closely for:
   clippy.
 - Repeating a finding on every occurrence. Report it once and list the other locations.
 
-Keep comments short: the problem, a failing case, and a fix when it is clear.
+Keep comments short: the problem, its evidence, and a fix when it is clear.

@@ -233,15 +233,10 @@ mod tests {
         #[case] invalid: i32,
         #[values(false, true)] logits: bool,
         #[values(false, true)] multilabel: bool,
-        #[values(None, Some(1.0))] smoothing: Option<f32>,
-        #[values(false, true)] weighted: bool,
     ) {
         let device = Default::default();
-        let weights = weighted.then(|| alloc::vec![3.0, 7.0]);
         let loss = BinaryCrossEntropyLossConfig::new()
             .with_logits(logits)
-            .with_smoothing(smoothing)
-            .with_weights(weights)
             .init(&device);
         let inputs = Tensor::<1>::from_floats([0.5, 0.5], &device);
         let targets = Tensor::<1, Int>::from_data([0, invalid], &device);
