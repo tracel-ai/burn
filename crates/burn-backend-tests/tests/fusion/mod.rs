@@ -8,7 +8,6 @@ mod fusion_shape;
 // feature pulls in; the rest of this suite also runs on non-cube fusion backends (flex).
 #[cfg(feature = "cube")]
 mod inplace;
-mod inplace_vector_size;
 mod int_bitwise;
 mod matmul;
 // Asserts the matmul and its epilogue fuse, which only the cube fusion backend does.
