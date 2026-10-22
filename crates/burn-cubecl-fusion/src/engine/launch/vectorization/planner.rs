@@ -223,13 +223,6 @@ impl<'a> VectorizationPlanner<'a> {
             }
         }
 
-        // An aliased output keeps its input's launched vector size, so the block cannot step wider.
-        let alias_widths: Vec<_> = plan
-            .blocks
-            .iter()
-            .map(|block_plan| aliased_input_width(plan, block_plan))
-            .collect();
-
         let mut previous_widths = Vec::with_capacity(block_vectorization.len());
 
         // Unhandled inputs might not get included in any fused blocks for now.
@@ -263,11 +256,10 @@ impl<'a> VectorizationPlanner<'a> {
             }
         }
 
-        for (((tmp, block_plan), block), alias_width) in block_vectorization
+        for ((tmp, block_plan), block) in block_vectorization
             .into_iter()
             .zip(plan.blocks.iter_mut())
             .zip(self.blocks)
-            .zip(alias_widths)
         {
             match block.settings.vectorization {
                 VectorizationSetting::Activated => {
@@ -276,7 +268,7 @@ impl<'a> VectorizationPlanner<'a> {
                         &mut plan.handle_inputs,
                         &mut plan.handle_outputs,
                         block_plan,
-                        alias_width.unwrap_or(u8::MAX as usize),
+                        u8::MAX as usize,
                     );
                 }
                 VectorizationSetting::SmallerOrEqualThanPreviousBlock { block_pos } => {
@@ -285,9 +277,7 @@ impl<'a> VectorizationPlanner<'a> {
                         &mut plan.handle_inputs,
                         &mut plan.handle_outputs,
                         block_plan,
-                        alias_width.map_or(previous_widths[block_pos], |width| {
-                            width.min(previous_widths[block_pos])
-                        }),
+                        previous_widths[block_pos],
                     );
                     if block_plan.width == 0 {
                         block_plan.width = previous_widths[block_pos];
@@ -341,19 +331,6 @@ struct BlockVectorization {
     action: VectorizationAction,
     potential: VectorSize,
     broadcasted: bool,
-}
-
-/// The smallest launched vector size among the inputs `block_plan` reads that an output aliases.
-fn aliased_input_width(plan: &LaunchPlan, block_plan: &BlockPlan) -> Option<VectorSize> {
-    plan.handle_outputs
-        .iter()
-        .filter_map(|output| match output {
-            HandleOutput::Alias { input_pos, .. } => plan.handle_inputs[*input_pos].as_normal(),
-            _ => None,
-        })
-        .filter(|input| block_plan.reads.contains_key(&input.relative_id))
-        .map(|input| plan.vectorizations[&input.global_ir.id].vector_size())
-        .min()
 }
 
 fn apply_vectorization_block(
