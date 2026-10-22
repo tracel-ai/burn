@@ -509,12 +509,12 @@ impl GlobalArgsLaunch {
                     shape.swap(dims.0, dims.1);
                     shape
                 }
-                VirtualLayout::Reshaped { reshape_pos, .. } => {
+                VirtualLayout::Reshaped { reshape_pos } => {
                     let start = *reshape_pos * rank;
                     let end = start + rank;
                     self.reshapes.values[start..end].iter().copied().collect()
                 }
-                VirtualLayout::Shape(original, _) => self.shape(original),
+                VirtualLayout::Shape(original) => self.shape(original),
                 VirtualLayout::Runtime { pos } => {
                     let start = (*pos * 2) * rank;
                     let end = start + rank;
@@ -862,15 +862,12 @@ pub enum RefLayout {
 /// tensor with swap dimensions.
 pub enum VirtualLayout {
     /// Virtual tensor with the provided shape id and contiguous strides.
-    Reshaped {
-        reshape_pos: usize,
-        vector_size: VectorSize,
-    },
+    Reshaped { reshape_pos: usize },
     /// Virtual tensor with the same shape as the given input, but with swap dims and contiguous
     /// strides.
     SwapDims(FuseArg, (usize, usize)),
     /// Virtual tensor with the same shape as the given input, but with contiguous strides.
-    Shape(FuseArg, usize),
+    Shape(FuseArg),
     /// We don't have access to global metadata, they are passed as runtime values.
     Runtime { pos: usize },
 }
