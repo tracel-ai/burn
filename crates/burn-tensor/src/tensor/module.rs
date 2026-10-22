@@ -1486,6 +1486,7 @@ mod tests {
     }
 
     /// The size the pooling functions return, or `None` where they panic.
+    #[cfg(feature = "std")]
     fn pooled(pool: impl FnOnce() -> Tensor<3> + std::panic::UnwindSafe) -> Option<usize> {
         std::panic::catch_unwind(pool)
             .ok()
@@ -1495,6 +1496,7 @@ mod tests {
     /// Wherever a pool runs, symmetric or asymmetric, padded within half its kernel or beyond
     /// it, in both rounding modes, its output is sized as the pooling functions size it,
     /// including the ceil-mode window dropped from the end padding. Sizing never panics.
+    #[cfg(feature = "std")]
     #[test]
     fn pool_output_size_is_the_size_pooling_returns() {
         let device = Default::default();
