@@ -119,7 +119,7 @@ impl Initializer {
                     // with many different sizes, which cannot share exact-fit persistent buffers.
                     let tensor = config.init_tensor(shape, fan_in, fan_out, device);
                     device.memory_persistent_allocations(tensor, |tensor| {
-                        tensor.zeros_like().slice_assign([..; D], tensor)
+                        tensor.empty_like().slice_assign([..; D], tensor)
                     })
                 } else {
                     device.memory_persistent_allocations((), move |_| {
