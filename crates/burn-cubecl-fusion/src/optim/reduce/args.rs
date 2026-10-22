@@ -178,7 +178,7 @@ impl ReduceArgs for FusedReduceArgs {
     }
 
     fn vector_size_input<P: ReduceDType>(state: &Self::State<P>) -> comptime_type!(VectorSize) {
-        state.config_on_read.width
+        ref_vector_size(&state.locals_on_read)
     }
 
     fn vector_size_output<P: ReduceDType>(state: &Self::State<P>) -> comptime_type!(VectorSize) {

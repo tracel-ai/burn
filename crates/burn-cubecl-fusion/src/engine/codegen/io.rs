@@ -223,7 +223,14 @@ pub fn read_quantized<C: Scalar, N: Size>(
     #[comptime] config: &FuseBlockConfig,
     #[comptime] scheme: QuantScheme,
 ) -> Vector<C, N> {
-    read_quantized_at::<C, N>(inputs, locals, ref_pos * config.width, arg, config, scheme)
+    read_quantized_at::<C, N>(
+        inputs,
+        locals,
+        ref_pos * locals.ref_vector_size,
+        arg,
+        config,
+        scheme,
+    )
 }
 
 /// Reads a single packed quantized value for the logical tensor position.
@@ -426,7 +433,7 @@ pub fn get_offset_aligned(
 ) -> usize {
     match layout {
         LayoutInfo::SameAsRef | LayoutInfo::IsRef => {
-            (ref_pos * config.width) / tensor.tensor.vector_size()
+            (ref_pos * locals.ref_vector_size) / tensor.tensor.vector_size()
         }
         LayoutInfo::Unknown => get_offset(
             inputs,
@@ -634,7 +641,7 @@ fn get_offset(
     #[comptime] config: &FuseBlockConfig,
     #[comptime] transform: Option<Transform>,
 ) -> usize {
-    let offset_ref = ref_pos * config.width;
+    let offset_ref = ref_pos * locals.ref_vector_size;
     index_offset_with_layout(
         inputs,
         tensor,

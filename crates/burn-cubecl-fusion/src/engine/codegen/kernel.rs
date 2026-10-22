@@ -63,7 +63,7 @@ pub fn fuse_on_write<E: Scalar, N: Size>(
 ///
 /// # Returns
 ///
-/// - A sequence of values associated to the given `read_args`.
+/// - A sequence of values associated to the given `read_args`.  
 pub fn fuse_on_read<E: Scalar, N: Size>(
     inputs: &GlobalArgs,
     outputs: &mut GlobalArgs,
@@ -478,7 +478,7 @@ fn gather<C: Numeric, N: Size>(
     #[comptime] output: FuseArg,
     #[comptime] config: &FuseBlockConfig,
 ) {
-    let vector_size = config.width;
+    let vector_size = locals.ref_vector_size;
 
     let pos_input = comptime! {
         match input {
@@ -610,8 +610,11 @@ fn select_indices<C: Numeric, N: Size>(
     #[comptime] output: FuseArg,
     #[comptime] config: &FuseBlockConfig,
 ) {
-    let (config_width, stride_dim_ref, shape_dim_ref) =
-        (config.width, locals.ref_strides[dim], locals.ref_shape[dim]);
+    let (vector_size_ref, stride_dim_ref, shape_dim_ref) = (
+        locals.ref_vector_size,
+        locals.ref_strides[dim],
+        locals.ref_shape[dim],
+    );
 
     let pos_input = comptime! {
         match input {
@@ -661,7 +664,7 @@ fn select_indices<C: Numeric, N: Size>(
         }
 
         let stride_input_vector = global_stride(inputs, comptime![config.rank - 1], pos_input);
-        let write_pos_input = write_pos * config_width;
+        let write_pos_input = write_pos * vector_size_ref;
         let coordinate_dim = write_pos_input / stride_dim_ref % shape_dim_ref;
         let offset_dim = read_input::<u32, Const<1>>(
             inputs,
@@ -676,7 +679,7 @@ fn select_indices<C: Numeric, N: Size>(
         index += offset_dim.extract(0usize) as usize * stride_input_dim;
 
         #[unroll]
-        for i in 0..config_width {
+        for i in 0..vector_size_ref {
             let input = read_input::<C, Const<1>>(
                 inputs,
                 &*locals,
@@ -720,10 +723,10 @@ fn select_indices<C: Numeric, N: Size>(
             index += index_after;
         }
 
-        let write_pos_indices = write_pos * config_width;
+        let write_pos_indices = write_pos * vector_size_ref;
 
         #[unroll]
-        for i in 0..config_width {
+        for i in 0..vector_size_ref {
             let coordinate_dim = (write_pos_indices + i) / stride_dim_ref % shape_dim_ref;
             let offset_dim = read_input::<u32, Const<1>>(
                 inputs,
@@ -762,11 +765,14 @@ fn concat<C: Scalar, N: Size>(
     #[comptime] output: FuseArg,
     #[comptime] config: &FuseBlockConfig,
 ) {
-    let (config_width, stride_dim_ref, shape_dim_ref) =
-        (config.width, locals.ref_strides[dim], locals.ref_shape[dim]);
+    let (vector_size_ref, stride_dim_ref, shape_dim_ref) = (
+        locals.ref_vector_size,
+        locals.ref_strides[dim],
+        locals.ref_shape[dim],
+    );
 
     let mut result = Vector::<C, N>::empty();
-    let write_pos_elem = write_pos * config_width;
+    let write_pos_elem = write_pos * vector_size_ref;
 
     if comptime![dim != config.vector_axis] {
         // The concatenation axis isn't the vectorization axis, therefore the whole vector is
@@ -800,7 +806,7 @@ fn concat<C: Scalar, N: Size>(
                     global_stride(inputs, comptime![config.vector_axis], pos_tensor);
 
                 #[unroll]
-                for i in 0..config_width {
+                for i in 0..vector_size_ref {
                     let input = read_input::<C, Const<1>>(
                         inputs,
                         &*locals,
@@ -820,7 +826,7 @@ fn concat<C: Scalar, N: Size>(
         // The concatenation happens along the vectorization axis, therefore each element of the
         // vector may come from a different input tensor.
         #[unroll]
-        for i in 0..config_width {
+        for i in 0..vector_size_ref {
             let coordinate_dim = (write_pos_elem + i) / stride_dim_ref % shape_dim_ref;
             let mut offset_dim_start = 0;
 
@@ -1063,7 +1069,7 @@ fn dequantize<C: Float, N: Size>(
 
         #[unroll]
         for i in 0..N::value() {
-            let position = write_pos * config.width + i;
+            let position = write_pos * locals.ref_vector_size + i;
             let packed_coord =
                 position / locals.ref_strides[packed_axis] % locals.ref_shape[packed_axis];
             let packed_index = packed_coord % num_quants;
