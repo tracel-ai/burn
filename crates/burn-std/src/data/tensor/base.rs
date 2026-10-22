@@ -73,6 +73,16 @@ pub enum DataError {
         /// The number of bytes present in storage.
         len: usize,
     },
+
+    /// The quantized storage layout is invalid or cannot be represented for the tensor shape.
+    #[error("Quantized layout for shape {:?} and dtype {dtype:?} is invalid", shape.as_slice())]
+    InvalidQuantizedLayout {
+        /// The shape describing the tensor.
+        shape: Shape,
+
+        /// The quantized storage dtype.
+        dtype: DType,
+    },
 }
 
 /// Errors that can occur while reading host data from a tensor.
@@ -109,9 +119,8 @@ impl DataError {
 
 /// Data structure for tensors.
 ///
-/// The byte length of the storage always matches the size implied by the shape and dtype, except
-/// for quantized data, whose length isn't validated yet (tracel-ai/burn#5836). Element values
-/// aren't validated on construction; the checked accessors reject invalid representations.
+/// The byte length of the storage always matches the size implied by the shape and dtype. Element
+/// values aren't validated on construction; the checked accessors reject invalid representations.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(try_from = "TensorDataDe")]
 pub struct TensorData {
@@ -203,8 +212,8 @@ impl TensorData {
     ///
     /// # Panics
     ///
-    /// Panics if the byte length doesn't match the shape and dtype. See
-    /// [`TensorData::try_from_bytes`] for the fallible version.
+    /// Panics if the byte length doesn't match the shape and dtype, or the quantized scheme is
+    /// invalid for the shape. See [`TensorData::try_from_bytes`] for the fallible version.
     #[track_caller]
     pub fn from_bytes<S: Into<Shape>>(bytes: Bytes, shape: S, dtype: DType) -> Self {
         match Self::try_from_bytes(bytes, shape, dtype) {
@@ -220,8 +229,8 @@ impl TensorData {
     ///
     /// # Panics
     ///
-    /// Panics if the byte length doesn't match the shape and dtype. See
-    /// [`TensorData::try_from_bytes_vec`] for the fallible version.
+    /// Panics if the byte length doesn't match the shape and dtype, or the quantized scheme is
+    /// invalid for the shape. See [`TensorData::try_from_bytes_vec`] for the fallible version.
     #[track_caller]
     pub fn from_bytes_vec<S: Into<Shape>>(bytes: Vec<u8>, shape: S, dtype: DType) -> Self {
         Self::from_bytes(Bytes::from_bytes_vec(bytes), shape, dtype)
@@ -233,6 +242,8 @@ impl TensorData {
     ///
     /// Returns [`DataError::InvalidByteLength`] if the byte length doesn't match the storage
     /// layout described by the shape and dtype, including quantized schemes.
+    /// Returns [`DataError::InvalidQuantizedLayout`] if a quantized storage layout is invalid for
+    /// the shape or its size overflows.
     ///
     /// The element values themselves aren't validated here (e.g. a `bool` byte other than 0 or
     /// 1); the checked accessors ([`TensorData::as_slice`], [`TensorData::try_to_vec`],
@@ -243,13 +254,18 @@ impl TensorData {
         dtype: DType,
     ) -> Result<Self, DataError> {
         let shape = shape.into();
-        // `dtype.size()` is not the stored width of quantized data (sub-byte values plus
-        // appended scales), so only the other dtypes have a shape-derived byte length. The
-        // product is checked as well: a shape that overflows `usize` would otherwise wrap into
-        // a small element count that matches the payload.
+        // `dtype.size()` is not the stored width of quantized data (packed values plus appended
+        // scales), so quantized dtypes use their storage scheme to determine the byte length.
+        // Products are checked because untrusted shapes and schemes can overflow `usize`.
         let expected = match dtype {
             DType::QFloat(scheme) => {
-                crate::tensor::quantization::try_quantized_data_len(&scheme, &shape)
+                match crate::tensor::quantization::try_quantized_data_len(&scheme, &shape) {
+                    Ok(expected) => Some(expected),
+                    Err(
+                        crate::tensor::quantization::QuantizedDataLengthError::InvalidScheme
+                        | crate::tensor::quantization::QuantizedDataLengthError::Overflow,
+                    ) => return Err(DataError::InvalidQuantizedLayout { shape, dtype }),
+                }
             }
             _ => checked_numel(&shape).and_then(|numel| numel.checked_mul(dtype.size())),
         };
@@ -1225,18 +1241,18 @@ mod tests {
         let invalid_packed_dim = scheme.with_store(QuantStore::PackedU32(1));
         assert!(matches!(
             TensorData::try_from_bytes_vec(vec![0; 4], [1], DType::QFloat(invalid_packed_dim)),
-            Err(DataError::InvalidByteLength { .. })
+            Err(DataError::InvalidQuantizedLayout { .. })
         ));
 
         let zero_block = scheme.per_block([0], crate::ScaleDtype::F32);
         assert!(matches!(
             TensorData::try_from_bytes_vec(vec![0; 4], [1], DType::QFloat(zero_block)),
-            Err(DataError::InvalidByteLength { .. })
+            Err(DataError::InvalidQuantizedLayout { .. })
         ));
 
         assert!(matches!(
             TensorData::try_from_bytes_vec(vec![], [usize::MAX, 2], DType::QFloat(scheme)),
-            Err(DataError::InvalidByteLength { .. })
+            Err(DataError::InvalidQuantizedLayout { .. })
         ));
     }
 
@@ -1250,6 +1266,42 @@ mod tests {
         let serialized = serde_json::to_string(&invalid).unwrap();
 
         assert!(serde_json::from_str::<TensorData>(&serialized).is_err());
+    }
+
+    #[test]
+    fn try_from_bytes_accepts_packed_quantized_layout_per_row() {
+        let scheme = QuantScheme::default()
+            .with_value(QuantValue::Q4S)
+            .with_store(QuantStore::PackedU32(0));
+        let data = TensorData::quantized(vec![0i8; 9], [3, 3], scheme, &[1.0], None);
+        let (bytes, shape, dtype) = data.into_parts();
+
+        // Three rows each occupy one u32 word, followed by the per-tensor f32 scale.
+        assert_eq!(bytes.len(), 3 * core::mem::size_of::<u32>() + 4);
+        assert!(TensorData::try_from_bytes(bytes.clone(), shape.clone(), dtype).is_ok());
+        for len in [bytes.len() - 1, bytes.len() + 1] {
+            assert!(matches!(
+                TensorData::try_from_bytes_vec(vec![0; len], shape.clone(), dtype),
+                Err(DataError::InvalidByteLength { .. })
+            ));
+        }
+    }
+
+    #[test]
+    fn try_from_bytes_accepts_zero_sized_quantized_tensors() {
+        let per_tensor =
+            TensorData::quantized(Vec::<i8>::new(), [0], QuantScheme::default(), &[1.0], None);
+        let (bytes, shape, dtype) = per_tensor.into_parts();
+        assert_eq!(bytes.len(), 4);
+        assert!(TensorData::try_from_bytes(bytes, shape, dtype).is_ok());
+
+        let per_block = QuantScheme::default()
+            .with_store(QuantStore::Native)
+            .per_block([2], crate::ScaleDtype::F32);
+        let empty = TensorData::quantized(Vec::<i8>::new(), [0], per_block, &[], None);
+        let (bytes, shape, dtype) = empty.into_parts();
+        assert!(bytes.is_empty());
+        assert!(TensorData::try_from_bytes(bytes, shape, dtype).is_ok());
     }
 
     #[test]
