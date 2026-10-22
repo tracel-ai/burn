@@ -166,7 +166,7 @@ pub fn init_locals(
                     stride_curr *= ref_shape[comptime![reverse]];
                 }
             }
-            VirtualLayout::Reshaped { reshape_pos, .. } => {
+            VirtualLayout::Reshaped { reshape_pos } => {
                 let mut stride_curr = 1;
                 let start = reshape_pos * config.rank;
 
@@ -198,7 +198,7 @@ pub fn init_locals(
                     ref_strides[i] = normalize_reference_stride(shape, stride);
                 }
             }
-            VirtualLayout::Shape(original, _) => {
+            VirtualLayout::Shape(original) => {
                 let layout = match original.clone() {
                     FuseArg::Input(pos, ..) => inputs.tensors.index(pos),
                     FuseArg::Output(pos, ..) => outputs.tensors.index(pos),
@@ -219,8 +219,9 @@ pub fn init_locals(
                 }
             }
         },
-    };
+    }
 
+    // Positions count units of the block width, whatever vector size the reference is launched with.
     let locals = LocalArgs::new(ref_shape.as_slice(), ref_strides.as_slice(), config.width);
     comment!("Init locals end");
     locals
