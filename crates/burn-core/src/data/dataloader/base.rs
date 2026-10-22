@@ -5,23 +5,66 @@ use burn_dataset::DatasetError;
 use core::iter::Iterator;
 use std::sync::Arc;
 
-/// A progress struct that can be used to track the progress of a data loader.
-#[derive(new, Clone, Debug)]
+/// A progress snapshot with a processed item count and an expected total.
+///
+/// Counts describe work observed, not execution state. A data loader is exhausted when its
+/// iterator returns `None`. Reaching the expected total does not establish exhaustion or success.
+#[derive(Clone, Debug)]
 pub struct Progress {
-    /// The number of items that have been processed.
+    /// The number of items processed, measured in `unit`. Data loaders count items in yielded batches.
     pub items_processed: usize,
 
-    /// The total number of items that need to be processed.
-    pub items_total: usize,
+    /// The exact total number of items, or `None` if it is not known.
+    pub total: Option<usize>,
 
     /// The unit of measurement for the progress (e.g., "items", "batches").
     pub unit: Option<String>,
 }
 
 impl Progress {
-    /// Returns whether all items have been processed.
-    pub fn is_completed(&self) -> bool {
-        self.items_processed == self.items_total
+    /// Creates a progress snapshot.
+    pub fn new(
+        items_processed: usize,
+        total: impl Into<Option<usize>>,
+        unit: Option<String>,
+    ) -> Self {
+        Self {
+            items_processed,
+            total: total.into(),
+            unit,
+        }
+    }
+
+    /// Resolves an unknown total to the observed count once no more items will be emitted.
+    /// A known total retains its declared value. This does not indicate execution success.
+    pub fn resolve_total(&mut self) {
+        if self.total.is_none() {
+            self.total = Some(self.items_processed);
+        }
+    }
+
+    /// Combines progress snapshots with the same unit.
+    /// An empty collection produces a snapshot with an exact zero total.
+    pub fn aggregate<'a>(progresses: impl IntoIterator<Item = &'a Self>) -> Self {
+        let mut iter = progresses.into_iter();
+        let Some(first) = iter.next() else {
+            return Self::new(0, Some(0), None);
+        };
+        iter.fold(first.clone(), |mut result, progress| {
+            result.items_processed += progress.items_processed;
+            result.total = [result.total, progress.total].into_iter().sum();
+            result
+        })
+    }
+}
+
+impl core::fmt::Display for Progress {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "{}", self.items_processed)?;
+        if let Some(total) = self.total {
+            write!(f, "/{total}")?;
+        }
+        Ok(())
     }
 }
 
@@ -39,9 +82,21 @@ pub trait DataLoader<O>: Send + Sync {
     /// Returns a boxed [iterator](DataLoaderIterator) to iterate over the data loader.
     fn iter<'a>(&'a self) -> Box<dyn DataLoaderIterator<O> + 'a>;
 
-    /// The number of items (not the number of batches nor the number of iterations),
-    /// corresponding to the items_total of the progress returned by the iterator.
+    /// The number of items in the input dataset.
+    ///
+    /// The number of items yielded depends on the batching strategy.
     fn num_items(&self) -> usize;
+
+    /// Returns the exact number of samples yielded over a complete pass, if known.
+    ///
+    /// Counts samples within batches, not batches. This can differ from [`Self::num_items`]
+    /// when the batching strategy drops or repeats samples. `Some(0)` means no samples
+    /// will be yielded; `None` means the count cannot be determined in advance.
+    /// Querying this count must not consume samples or advance the loader's random state.
+    /// Iterator progress uses the same counting unit and may resolve an unknown total.
+    fn expected_num_items(&self) -> Option<usize> {
+        None
+    }
 
     /// Move the data loader to the given device, ensuring the batches are assigned to the correct device.
     fn to_device(&self, device: &Device) -> Arc<dyn DataLoader<O>>;
@@ -60,4 +115,31 @@ pub trait DataLoader<O>: Send + Sync {
     ///
     /// A boxed [`DataLoader`] instance containing only the specified range.
     fn slice(&self, start: usize, end: usize) -> Arc<dyn DataLoader<O>>;
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn resolves_only_unknown_totals() {
+        for (total, expected) in [(None, Some(2)), (Some(3), Some(3))] {
+            let mut progress = Progress::new(2, total, None);
+            progress.resolve_total();
+            assert_eq!(progress.total, expected);
+        }
+    }
+
+    #[test]
+    fn aggregate_preserves_unknown_totals() {
+        for (totals, expected) in [([Some(2), Some(3)], Some(5)), ([Some(2), None], None)] {
+            let parts = [
+                Progress::new(2, totals[0], None),
+                Progress::new(3, totals[1], None),
+            ];
+            let progress = Progress::aggregate(&parts);
+            assert_eq!(progress.items_processed, 5);
+            assert_eq!(progress.total, expected);
+        }
+    }
 }

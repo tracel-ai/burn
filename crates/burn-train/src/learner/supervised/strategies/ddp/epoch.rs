@@ -1,10 +1,10 @@
 use burn_core::data::dataloader::Progress;
 use burn_optim::GradientsAccumulator;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Barrier, Mutex};
 
-use crate::SupervisedTrainingEventProcessor;
+use super::strategy::DdpEventProcessor;
 use crate::learner::base::Interrupter;
-use crate::metric::processor::{EventProcessorTraining, LearnerEvent, TrainingItem};
+use crate::metric::processor::{LearnerEvent, TrainingItem};
 use crate::{InferenceStep, Learner, LearnerModel, TrainLoader, ValidLoader};
 
 /// A validation epoch.
@@ -31,7 +31,7 @@ impl<M: LearnerModel> DdpValidEpoch<M> {
         &self,
         model: &M,
         global_progress: &Progress,
-        processor: &mut SupervisedTrainingEventProcessor<M>,
+        processor: &Mutex<DdpEventProcessor<M>>,
         interrupter: &Interrupter,
     ) {
         let epoch = global_progress.items_processed;
@@ -39,9 +39,14 @@ impl<M: LearnerModel> DdpValidEpoch<M> {
         let model = model.valid();
 
         let mut iterator = self.dataloader.iter();
+        processor.lock().unwrap().valid(LearnerEvent::StartSplit {
+            epoch_number: epoch,
+            progress: iterator.progress(),
+        });
         let mut iteration = 0;
 
-        while let Some(item) = iterator.next() {
+        while !interrupter.should_stop() {
+            let Some(item) = iterator.next() else { break };
             let item = match item {
                 Ok(item) => item,
                 Err(err) => {
@@ -56,14 +61,26 @@ impl<M: LearnerModel> DdpValidEpoch<M> {
             let item = TrainingItem::new(item, progress, Some(iteration), None);
 
             processor
-                .process_valid(LearnerEvent::ProcessedItem(item))
-                .unwrap();
+                .lock()
+                .unwrap()
+                .valid(LearnerEvent::ProcessedItem(item));
 
             if interrupter.should_stop() {
                 log::info!("Training interrupted.");
                 break;
             }
         }
+        processor.lock().unwrap().flush();
+
+        let mut progress = iterator.progress();
+        if !interrupter.should_stop() {
+            progress.resolve_total();
+        }
+        processor
+            .lock()
+            .unwrap()
+            .valid(LearnerEvent::EndSplit { epoch, progress });
+        processor.lock().unwrap().flush();
     }
 }
 
@@ -84,9 +101,10 @@ impl<M: LearnerModel> DdpTrainEpoch<M> {
         &self,
         learner: &mut Learner<M>,
         global_progress: &Progress,
-        processor: Arc<Mutex<SupervisedTrainingEventProcessor<M>>>,
+        processor: Arc<Mutex<DdpEventProcessor<M>>>,
         interrupter: &Interrupter,
-        peer_count: usize,
+        worker_id: usize,
+        barrier: &Barrier,
     ) {
         let epoch = global_progress.items_processed;
         log::info!("Executing training step for epoch {}", epoch,);
@@ -96,20 +114,19 @@ impl<M: LearnerModel> DdpTrainEpoch<M> {
         let mut accumulator = GradientsAccumulator::new();
         let mut accumulation_current = 0;
 
-        while let Some(item) = iterator.next() {
-            let item = match item {
-                Ok(item) => item,
-                Err(err) => {
+        while !interrupter.should_stop() {
+            let item = match iterator.next() {
+                Some(Ok(item)) => item,
+                None => break,
+                Some(Err(err)) => {
                     interrupter.fail(err);
                     break;
                 }
             };
-            iteration += peer_count;
+            iteration += 1;
             log::info!("Iteration {iteration}");
 
-            let mut progress = iterator.progress();
-            progress.items_processed *= peer_count;
-            progress.items_total *= peer_count;
+            let progress = iterator.progress();
 
             let item = learner.train_step(item);
 
@@ -118,7 +135,7 @@ impl<M: LearnerModel> DdpTrainEpoch<M> {
                     accumulator.accumulate(&learner.model(), item.grads);
                     accumulation_current += 1;
 
-                    if accumulation <= accumulation_current || progress.is_completed() {
+                    if accumulation <= accumulation_current {
                         let grads = accumulator.grads();
 
                         learner.lr_step();
@@ -138,18 +155,26 @@ impl<M: LearnerModel> DdpTrainEpoch<M> {
                 Some(iteration),
                 Some(learner.lr_current()),
             );
-
-            {
-                let mut processor = processor.lock().unwrap();
-                processor
-                    .process_train(LearnerEvent::ProcessedItem(item))
-                    .unwrap();
-            }
+            processor.lock().unwrap().train(worker_id, item);
 
             if interrupter.should_stop() {
                 log::info!("Training interrupted.");
                 break;
             }
         }
+        processor.lock().unwrap().flush();
+        // All workers' metric failures must be visible before any final partial update.
+        barrier.wait();
+        if accumulation_current > 0 && !interrupter.should_stop() {
+            let grads = accumulator.grads();
+            learner.lr_step();
+            learner.optimizer_step(grads);
+        }
+        let mut progress = iterator.progress();
+
+        if !interrupter.should_stop() {
+            progress.resolve_total();
+        }
+        processor.lock().unwrap().end_train(worker_id, progress);
     }
 }

@@ -39,7 +39,7 @@ pub enum Message<O> {
     Batch(usize, O, Progress),
 
     /// The thread is done.
-    Done,
+    Done(usize, Progress),
 
     /// The worker hit an unrecoverable error (e.g. `Dataset::get` failed) and stopped early.
     Error(usize, String),
@@ -47,6 +47,7 @@ pub enum Message<O> {
 
 struct MultiThreadsDataloaderIterator<O> {
     num_done: usize,
+    terminated: bool,
     num_workers: usize,
     receiver: mpsc::Receiver<Message<O>>,
     progresses: Vec<Progress>,
@@ -59,7 +60,7 @@ struct WorkerPool<O> {
     /// One command channel per worker; sending a per-epoch sender starts a pass.
     senders: Vec<mpsc::Sender<WorkerCommand<O>>>,
     handles: Vec<thread::JoinHandle<()>>,
-    item_counts: Vec<usize>,
+    totals: Vec<Option<usize>>,
 }
 
 impl<O> Drop for WorkerPool<O> {
@@ -183,7 +184,7 @@ where
     fn workers(&self) -> &WorkerPool<O> {
         self.workers.get_or_init(|| {
             let dataloaders = self.initialize();
-            let item_counts: Vec<usize> = dataloaders.iter().map(|d| d.num_items()).collect();
+            let totals = dataloaders.iter().map(|d| d.expected_num_items()).collect();
 
             let mut senders = Vec::with_capacity(dataloaders.len());
             let mut handles = Vec::with_capacity(dataloaders.len());
@@ -209,7 +210,10 @@ where
                                             break;
                                         }
                                     }
-                                    None => break,
+                                    None => {
+                                        sender.send(Message::Done(index, iterator.progress())).ok();
+                                        break;
+                                    }
                                     Some(Err(dataset_err)) => {
                                         sender
                                             .send(Message::Error(index, dataset_err.to_string()))
@@ -218,7 +222,6 @@ where
                                     }
                                 }
                             }
-                            sender.send(Message::Done).ok();
                         }
                     })
                     .unwrap();
@@ -230,7 +233,7 @@ where
             WorkerPool {
                 senders,
                 handles,
-                item_counts,
+                totals,
             }
         })
     }
@@ -248,8 +251,8 @@ where
         let unit: Option<String> = Some("items".to_string());
 
         let mut progresses = Vec::with_capacity(workers.senders.len());
-        for (command_sender, &num_items) in workers.senders.iter().zip(workers.item_counts.iter()) {
-            progresses.push(Progress::new(0, num_items, unit.clone()));
+        for (command_sender, &total) in workers.senders.iter().zip(workers.totals.iter()) {
+            progresses.push(Progress::new(0, total, unit.clone()));
             command_sender
                 .send(sender.clone())
                 .expect("Dataloader worker thread should be alive");
@@ -264,6 +267,13 @@ where
             num_workers,
             progresses,
         ))
+    }
+
+    fn expected_num_items(&self) -> Option<usize> {
+        self.initialize()
+            .iter()
+            .map(|loader| loader.expected_num_items())
+            .sum()
     }
 
     fn num_items(&self) -> usize {
@@ -304,6 +314,7 @@ impl<O> MultiThreadsDataloaderIterator<O> {
     ) -> Self {
         MultiThreadsDataloaderIterator {
             num_done: 0,
+            terminated: false,
             num_workers,
             receiver,
             progresses,
@@ -312,16 +323,9 @@ impl<O> MultiThreadsDataloaderIterator<O> {
 }
 impl<O: std::fmt::Debug> DataLoaderIterator<O> for MultiThreadsDataloaderIterator<O> {
     fn progress(&self) -> Progress {
-        let mut items_total = 0;
-        let mut items_processed = 0;
-        let unit: Option<String> = Some("items".to_string());
-
-        for progress in self.progresses.iter() {
-            items_total += progress.items_total;
-            items_processed += progress.items_processed;
-        }
-
-        Progress::new(items_processed, items_total, unit)
+        let mut progress = Progress::aggregate(&self.progresses);
+        progress.unit = Some("items".to_string());
+        progress
     }
 }
 
@@ -329,7 +333,11 @@ impl<O: std::fmt::Debug> Iterator for MultiThreadsDataloaderIterator<O> {
     type Item = Result<O, burn_dataset::DatasetError>;
 
     fn next(&mut self) -> Option<Self::Item> {
+        if self.terminated {
+            return None;
+        }
         if self.num_workers == 0 {
+            self.terminated = true;
             return None;
         }
 
@@ -341,19 +349,26 @@ impl<O: std::fmt::Debug> Iterator for MultiThreadsDataloaderIterator<O> {
                     }
                     return Some(Ok(item));
                 }
-                Ok(Message::Done) => {
+                Ok(Message::Done(index, progress)) => {
+                    self.progresses[index] = progress;
                     self.num_done += 1;
                     if self.num_done == self.num_workers {
-                        // Workers stay alive for the next epoch; nothing to join.
+                        self.terminated = true;
                         return None;
                     }
                 }
                 Ok(Message::Error(index, msg)) => {
+                    self.terminated = true;
                     return Some(Err(burn_dataset::DatasetError::new(std::io::Error::other(
                         format!("dataloader worker {index} failed: {msg}"),
                     ))));
                 }
-                Err(_) => return None,
+                Err(_) => {
+                    self.terminated = true;
+                    return Some(Err(burn_dataset::DatasetError::new(std::io::Error::other(
+                        "dataloader workers disconnected before completing",
+                    ))));
+                }
             }
         }
     }
@@ -626,5 +641,44 @@ mod tests {
             "expected the dataloader to yield an Err on a worker error"
         );
         let _ = handle.join();
+    }
+    #[test]
+    fn completion_waits_for_queued_batches_and_all_workers() {
+        let (sender, receiver) = mpsc::channel();
+        let initial = vec![Progress::new(0, None, None); 2];
+        sender
+            .send(Message::Batch(0, 10, Progress::new(1, None, None)))
+            .unwrap();
+        let mut done = Progress::new(1, None, None);
+        done.resolve_total();
+        sender.send(Message::Done(0, done.clone())).unwrap();
+        sender
+            .send(Message::Batch(1, 20, Progress::new(1, None, None)))
+            .unwrap();
+        sender.send(Message::Done(1, done)).unwrap();
+        // Keep the sender alive: completion must come from worker messages, not disconnection.
+        let mut iterator = MultiThreadsDataloaderIterator::new(receiver, 2, initial);
+        assert_eq!(iterator.progress().items_processed, 0);
+        assert_eq!(iterator.next().unwrap().unwrap(), 10);
+        assert_eq!(iterator.progress().items_processed, 1);
+        assert_eq!(iterator.next().unwrap().unwrap(), 20);
+        assert!(iterator.next().is_none());
+        assert_eq!(iterator.progress().total, Some(2));
+        assert!(iterator.next().is_none());
+    }
+
+    #[test]
+    fn worker_error_or_disconnection_terminates_the_iterator() {
+        for send_error in [false, true] {
+            let (sender, receiver) = mpsc::channel::<Message<usize>>();
+            if send_error {
+                sender.send(Message::Error(0, "test error".into())).unwrap();
+            }
+            drop(sender);
+            let mut iterator =
+                MultiThreadsDataloaderIterator::new(receiver, 1, vec![Progress::new(0, 1, None)]);
+            assert!(iterator.next().unwrap().is_err());
+            assert!(iterator.next().is_none());
+        }
     }
 }
