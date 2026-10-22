@@ -100,12 +100,27 @@ impl GaussianNLLLoss {
     /// - target: `[...dims]`
     /// - var:    `[...dims]` (predicted variance, positive)
     /// - output: `[...dims]`
+    ///
+    /// # Panics
+    ///
+    /// In debug builds, panics if any variance entry is negative. Zero and small positive
+    /// variances are still clamped to `eps`.
     pub fn forward_no_reduction<const D: usize>(
         &self,
         input: Tensor<D>,
         target: Tensor<D>,
         var: Tensor<D>,
     ) -> Tensor<D> {
+        // Negative variance is invalid. Value checks require a synchronous readback, so keep
+        // them debug-only; zero and small positive variances are clamped below as before.
+        debug_assert!(
+            var.clone()
+                .greater_equal_scalar(0.0)
+                .all()
+                .into_scalar::<bool>(),
+            "GaussianNLLLoss expects non-negative variance."
+        );
+
         // Clamp the variance for numerical stability.
         let var = var.clamp_min(self.eps);
 
@@ -193,6 +208,19 @@ mod tests {
         clamped
             .into_data()
             .assert_approx_eq::<FT>(&at_eps.into_data(), Tolerance::default());
+    }
+
+    #[cfg(debug_assertions)]
+    #[test]
+    #[should_panic(expected = "GaussianNLLLoss expects non-negative variance.")]
+    fn negative_variance_should_panic_in_debug() {
+        let device = Default::default();
+        let input = Tensor::<1>::from_data(TensorData::from([1.0, 2.0]), &device);
+        let target = Tensor::<1>::from_data(TensorData::from([1.5, 1.0]), &device);
+        let var = Tensor::<1>::from_data(TensorData::from([-1.0, -0.5]), &device);
+
+        let loss = GaussianNLLLossConfig::new().init();
+        let _ = loss.forward_no_reduction(input, target, var);
     }
 
     #[test]
