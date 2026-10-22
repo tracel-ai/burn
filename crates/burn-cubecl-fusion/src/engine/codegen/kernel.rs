@@ -1040,7 +1040,7 @@ fn dequantize<C: Float, N: Size>(
         QuantStore::PackedU32(dim) | QuantStore::PackedNative(dim) => dim,
     }];
 
-    if comptime![packed_dim == 0] {
+    if comptime![packed_dim == 0 && config.width >= scheme.num_quants()] {
         let q_vector_size = N::value().comptime() / scheme.num_quants();
         let size!(QStoreSize) = q_vector_size;
         let input = read_quantized::<QStoreType, QStoreSize>(
