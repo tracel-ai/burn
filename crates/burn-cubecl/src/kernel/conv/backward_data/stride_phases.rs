@@ -217,16 +217,17 @@ mod tests {
                 for x in 0..out_spatial[1] {
                     for ky in 0..kernel[0] {
                         for kx in 0..kernel[1] {
-                            let iy = (y * options.stride[0] + ky) as isize
+                            let input_y = (y * options.stride[0] + ky) as isize
                                 - options.padding[0].0 as isize;
-                            let ix = (x * options.stride[1] + kx) as isize
+                            let input_x = (x * options.stride[1] + kx) as isize
                                 - options.padding[1].0 as isize;
-                            if !(0..11).contains(&iy) || !(0..13).contains(&ix) {
+                            if !(0..11).contains(&input_y) || !(0..13).contains(&input_x) {
                                 continue;
                             }
                             for co in 0..8 {
                                 for ci in 0..channels {
-                                    expected[((b * 11 + iy as usize) * 13 + ix as usize)
+                                    expected[((b * 11 + input_y as usize) * 13
+                                        + input_x as usize)
                                         * channels
                                         + ci] += grad_values
                                         [((b * out_spatial[0] + y) * out_spatial[1] + x) * 8 + co]
