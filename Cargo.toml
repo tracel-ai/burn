@@ -226,7 +226,7 @@ cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false
 cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "9d9f3b7b4e687a56cc545b11408b55225ec2160d" }
 cubecl-environment = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "9d9f3b7b4e687a56cc545b11408b55225ec2160d" }
 cubecl-zspace = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "9d9f3b7b4e687a56cc545b11408b55225ec2160d" }
-cubek = { git = "https://github.com/tracel-ai/cubek", default-features = false, rev = "6d744f48817dcf8546487264d1047caef0d5b664" }
+cubek = { git = "https://github.com/tracel-ai/cubek", default-features = false, rev = "cc23e559c9022a90f0da9e4662b30d889d220f1f" }
 ### For local development. ###
 # cubecl = { path = "../cubecl/crates/cubecl", default-features = false }
 # cubecl-common = { path = "../cubecl/crates/cubecl-common", default-features = false }
