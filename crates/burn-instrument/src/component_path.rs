@@ -12,7 +12,7 @@ use serde::{Deserialize, Serialize};
 /// only among its siblings. A kernel names the components whose work it carried by
 /// their path from the component it is recorded on, and a comparison keys a component of
 /// one run against the other by its path from the root.
-#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct ComponentPath(Vec<String>);
 

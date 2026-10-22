@@ -385,8 +385,7 @@ impl TransformerDecoderLayer {
         }
         let residual_path = self
             .self_attn
-            .forward_cache(self_attn_input, &mut cache.self_attn)
-            .context;
+            .forward_cache_context(self_attn_input, &mut cache.self_attn);
 
         let residual_path = self.dropout.forward(residual_path);
         let mut x = x + residual_path;
@@ -415,8 +414,7 @@ impl TransformerDecoderLayer {
         }
         let residual_path = self
             .cross_attn
-            .forward_cache(cross_attn_input, &mut cache.cross_attn)
-            .context;
+            .forward_cache_context(cross_attn_input, &mut cache.cross_attn);
 
         let residual_path = self.dropout.forward(residual_path);
         let mut x = x + residual_path;

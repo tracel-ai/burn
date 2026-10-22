@@ -22,8 +22,8 @@
 //!   and a kernel launched outside any block lands under the component whose
 //!   op sealed its segment — with nothing draining the stream to make it so.
 //!
-//! The task touches no fusion state, so the graph a collected pass runs is the
-//! graph a clean pass runs.
+//! The task touches no fusion state, so an instrumented run executes the graph a
+//! clean run executes.
 //!
 //! # Inside a block, the block decides
 //!
@@ -51,9 +51,9 @@ pub enum Attribution {
     Untagged,
     /// The component at this index of the recorder's component tree.
     Component(ComponentId),
-    /// The sync that ends the pass, which runs the fused work still queued
+    /// The sync that ends the run, which runs the fused work still queued
     /// when the last component closed.
-    EndOfPass,
+    EndOfRun,
 }
 
 /// Where a launch lands: the component it is recorded on, and the components whose
@@ -75,7 +75,7 @@ impl Placement {
     }
 }
 
-/// Which graph a collected pass ran. See [`Breakdown::unfused`](crate::Breakdown::unfused).
+/// Which graph an instrumented run ran. See [`Breakdown::unfused`](crate::Breakdown::unfused).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Fusion {
     /// Its ops went through a fusion worker: the graph production runs.
@@ -117,7 +117,7 @@ impl LaunchCursor {
     }
 
     /// Whether the profiled device's ops go through a fusion worker — whether,
-    /// that is, the pass being collected is the fused graph.
+    /// that is, the run being instrumented is the fused graph.
     pub fn fusion(&self) -> Fusion {
         match self.worker {
             Some(_) => Fusion::Fused,
@@ -245,7 +245,7 @@ mod tests {
         cursor.point_at(block);
         op();
         op();
-        cursor.point_at(Attribution::EndOfPass);
+        cursor.point_at(Attribution::EndOfRun);
         op();
 
         let seen = ops
@@ -253,7 +253,7 @@ mod tests {
             .expect("the worker answers");
         assert_eq!(
             seen,
-            [Attribution::Untagged, block, block, Attribution::EndOfPass,],
+            [Attribution::Untagged, block, block, Attribution::EndOfRun,],
             "each op reads the boundary most recently registered before it"
         );
     }
@@ -318,7 +318,7 @@ mod tests {
     fn component(attribution: Attribution) -> ComponentId {
         match attribution {
             Attribution::Component(component) => component,
-            Attribution::Untagged | Attribution::EndOfPass => {
+            Attribution::Untagged | Attribution::EndOfRun => {
                 unreachable!("entering a component lands on it")
             }
         }

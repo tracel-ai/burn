@@ -31,17 +31,19 @@ pub const PROTOCOL_VERSION: u16 = 6;
 /// have no id because no result ever comes back.
 pub type RequestId = u64;
 
-/// Process-local rendezvous id for moving tensors between devices on one compute peer.
+/// Rendezvous id for moving a tensor between devices on one compute peer. Random, since the
+/// transfers of every client of a server meet in one registry.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct LocalTransferId(u64);
 
 impl LocalTransferId {
     #[cfg(feature = "client")]
-    pub fn next(&mut self) {
-        self.0 += 1;
+    pub fn random() -> Self {
+        Self(rand::random())
     }
 }
 
+#[cfg(test)]
 impl From<u64> for LocalTransferId {
     fn from(value: u64) -> Self {
         Self(value)

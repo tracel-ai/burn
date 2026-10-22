@@ -732,7 +732,7 @@ fn launch_inner_fix_dtype<A: BatchMatmulRoutine<()>>(
     output: GlobalArgsLaunch,
     problem: MatmulProblem,
     vector_sizes: MatmulVectorSizes,
-    blueprint_strategy: &BlueprintStrategy<(), A>,
+    blueprint_strategy: &BlueprintStrategy<A>,
 ) -> Result<(), MatmulSetupError> {
     launch_kernel_virtual::<FusedMatmulArgs, A>(
         client,

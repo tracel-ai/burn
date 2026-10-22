@@ -324,32 +324,6 @@ pub struct RemoteTensorHandle {
     pub(crate) tensor: TensorIr,
 }
 
-static TRANSFER_COUNTER: Mutex<Option<LocalTransferId>> = Mutex::new(None);
-
-/// Allocate the next process-unique [`LocalTransferId`] for a same-peer transfer.
-///
-/// The id keys the server's transfer rendezvous (`local_comm` / `external_comm`), so two
-/// transfers that are ever in flight at the same time MUST get distinct ids; otherwise a `take`
-/// can pick up the wrong (or an overwritten) exposed primitive and its peer hangs forever. The
-/// counter is incremented **in place** in the static; `LocalTransferId` is `Copy`, so the
-/// earlier `transfer_counter.unwrap()` copied the value out and incremented a throwaway local,
-/// leaving every transfer after the first sharing id 1 (harmless sequentially, a deadlock under
-/// concurrency).
-fn get_next_transfer_id() -> LocalTransferId {
-    let mut transfer_counter = TRANSFER_COUNTER.lock().unwrap();
-    match transfer_counter.as_mut() {
-        Some(id) => {
-            id.next();
-            *id
-        }
-        None => {
-            let id = LocalTransferId::from(0);
-            *transfer_counter = Some(id);
-            id
-        }
-    }
-}
-
 /// Held while one call sends tasks to the sessions of `devices`, so that every session receives
 /// the tasks of concurrent calls sharing it in one order: a session waiting in a transfer or a
 /// collective for another session's task would otherwise wait on one queued behind its own.
@@ -413,7 +387,7 @@ impl RemoteTensorHandle {
         // stream that produced it, and the target registers the result on the stream that
         // will consume it — same contract as the regular op/tensor registration paths.
         let stream_id = StreamId::current();
-        let transfer_id = get_next_transfer_id();
+        let transfer_id = LocalTransferId::random();
         let tensor = self.tensor.clone();
         let target_client = get_client::<RemoteChannel>(target_device);
         let order = session_order([&self.client.device, target_device]);

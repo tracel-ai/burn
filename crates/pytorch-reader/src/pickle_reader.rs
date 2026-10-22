@@ -901,11 +901,10 @@ fn gather_strided(
 fn gather_elements<const N: usize>(data: &[u8], shape: &[usize], stride: &[usize]) -> Vec<u8> {
     let (elements, _) = data.as_chunks::<N>();
 
-    // A `.t()` view, which is how `nn.Linear` weights are often saved.
-    if let ([rows, cols], [1, step]) = (shape, stride)
-        && step == rows
-    {
-        return transpose(elements, *cols, *rows).into_flattened();
+    // A `.t()` view, which is how `nn.Linear` weights are often saved: its storage is the
+    // row-major `[cols, rows]` transpose.
+    if let Some(([rows, cols], _)) = contiguous_transpose(shape, stride) {
+        return transpose(elements, rows, cols).into_flattened();
     }
 
     let ((&inner_len, outer_shape), (&inner_step, outer_stride)) = (
@@ -1023,14 +1022,84 @@ pub(crate) fn build_tensor(
     }
 
     let StorageRef { source, key, .. } = storage;
-    let provider_shape = shape.clone();
     // Read only the window the view can touch: a storage that reaches further, before the
     // tensor's offset or past its extent, is not paid for.
-    let window_start = storage_offset.saturating_mul(element_size);
-    let window_len = (extent - storage_offset).saturating_mul(element_size);
-    let provider = move || -> io::Result<Vec<u8>> {
-        let shape = &provider_shape;
-        let (mut data, skipped) = source.read(&key, window_start, window_len).map_err(|err| {
+    let window = Arc::new(StorageWindow {
+        source,
+        key,
+        shape: shape.clone(),
+        dtype,
+        start: storage_offset.saturating_mul(element_size),
+        len: (extent - storage_offset).saturating_mul(element_size),
+        extent,
+    });
+    let transposed = contiguous_transpose(&shape, &stride).map(|(shape, stride)| {
+        let window = Arc::clone(&window);
+        move || window.read(&shape, &stride)
+    });
+    let read = {
+        let shape = shape.clone();
+        move || window.read(&shape, &stride)
+    };
+
+    // The tensor's name is its path through the pickle's dicts, which `extract_tensors`
+    // assigns once the whole pickle has been walked.
+    let tensor = Tensor::new(String::new(), dtype, shape, read);
+    Ok(match transposed {
+        Some(read) => tensor.with_transposed(read),
+        None => tensor,
+    })
+}
+
+/// The shape and stride of the transpose of a 2-D view that reads contiguously only as its
+/// transpose: a `.t()` view, which is how `nn.Linear` weights are often saved.
+fn contiguous_transpose(shape: &[usize], stride: &[usize]) -> Option<([usize; 2], [usize; 2])> {
+    let (&[rows, cols], &[row_step, col_step]) = (shape, stride) else {
+        return None;
+    };
+    let (transposed_shape, transposed_stride) = ([cols, rows], [col_step, row_step]);
+
+    (!is_contiguous_stride(shape, stride)
+        && is_contiguous_stride(&transposed_shape, &transposed_stride))
+    .then_some((transposed_shape, transposed_stride))
+}
+
+/// The part of a storage a tensor's view can reach, from which any view of the same elements
+/// is read.
+struct StorageWindow {
+    source: Arc<StorageSource>,
+    key: String,
+    /// The tensor's declared shape, which errors report whichever view is read.
+    shape: Vec<usize>,
+    dtype: DType,
+    /// Byte offset of the view's first element in the storage.
+    start: usize,
+    /// Bytes from `start` to the end of the last element the view reaches.
+    len: usize,
+    /// Elements the storage must hold, counted from its start, for the view to fit.
+    extent: usize,
+}
+
+impl StorageWindow {
+    /// Read the view of the window's elements with this shape and stride, as row-major,
+    /// native-endian bytes.
+    ///
+    /// The view must reach no further than `extent`, which `build_tensor` validated for the
+    /// tensor's own view and holds for its transpose, which reaches the same elements.
+    fn read(&self, shape: &[usize], stride: &[usize]) -> io::Result<Vec<u8>> {
+        let Self {
+            source,
+            key,
+            shape: declared_shape,
+            dtype,
+            start,
+            len,
+            extent,
+        } = self;
+        let element_size = dtype.size();
+        let byte_len = shape.iter().product::<usize>() * element_size;
+
+        let (mut data, skipped) = source.read(key, *start, *len).map_err(|err| {
             // A source reports a missing, corrupt or unreadable storage with whatever kind
             // it or its container library chose, so they are folded into one. Only an error
             // that came from the operating system keeps its kind: that is how a caller tells
@@ -1042,30 +1111,32 @@ pub(crate) fn build_tensor(
             };
             io::Error::new(
                 kind,
-                format!("Failed to read storage '{key}' for tensor with shape {shape:?}: {err}"),
+                format!(
+                    "Failed to read storage '{key}' for tensor with shape {declared_shape:?}: {err}"
+                ),
             )
         })?;
 
         // `data` starts at the tensor's own offset, so every index below is relative to it.
         let available = (skipped + data.len()) / element_size;
-        if extent > available {
+        if *extent > available {
             return Err(io::Error::new(
                 io::ErrorKind::UnexpectedEof,
                 format!(
-                    "Tensor with shape {shape:?} requires {extent} elements from storage '{key}', but only {available} are available"
+                    "Tensor with shape {declared_shape:?} requires {extent} elements from storage '{key}', but only {available} are available"
                 ),
             ));
         }
 
-        let mut bytes = if is_contiguous_stride(shape, &stride) {
+        let mut bytes = if is_contiguous_stride(shape, stride) {
             data.truncate(byte_len);
             data
         } else {
-            gather_strided(&data, shape, &stride, element_size, byte_len)
+            gather_strided(&data, shape, stride, element_size, byte_len)
         };
 
         to_native_endian(&mut bytes, element_size);
-        if dtype == DType::Bool {
+        if *dtype == DType::Bool {
             // A well-formed file holds only 0 or 1; any other byte would be an invalid
             // `bool`, so normalize so a consumer can reinterpret them as such.
             for byte in &mut bytes {
@@ -1074,11 +1145,7 @@ pub(crate) fn build_tensor(
         }
 
         Ok(bytes)
-    };
-
-    // The tensor's name is its path through the pickle's dicts, which `extract_tensors`
-    // assigns once the whole pickle has been walked.
-    Ok(Tensor::new(String::new(), dtype, shape, provider))
+    }
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -2249,6 +2316,55 @@ mod tests {
         }
     }
 
+    /// Only a 2-D view stored as its transpose offers one, and that transpose reads as the
+    /// transpose of what `read` gathers, from the view's own offset.
+    #[test]
+    fn transposed_is_offered_only_for_views_stored_transposed() {
+        let source = fixture_source();
+        let to_i64 = |dims: &[usize]| -> Vec<i64> {
+            dims.iter().map(|&d| i64::try_from(d).unwrap()).collect()
+        };
+        let view = |offset: usize, shape: &[usize], stride: &[usize]| {
+            rebuild(rebuild_args(
+                "FloatStorage",
+                "0",
+                32,
+                i64::try_from(offset).unwrap(),
+                &to_i64(shape),
+                &to_i64(stride),
+                &source,
+            ))
+            .unwrap()
+        };
+
+        for (offset, rows, cols) in [(0, 3, 4), (2, 3, 4), (5, 4, 6)] {
+            let tensor = view(offset, &[rows, cols], &[1, rows]);
+            let transposed = tensor.transposed().expect("a `.t()` view has a transpose");
+            assert_eq!(transposed.shape(), [cols, rows]);
+            assert!(transposed.transposed().is_none());
+
+            let gathered = &read_as::<f32>(&tensor);
+            let expected: Vec<f32> = (0..cols)
+                .flat_map(|j| (0..rows).map(move |i| gathered[i * cols + j]))
+                .collect();
+            assert_eq!(read_as::<f32>(&transposed), expected, "offset {offset}");
+        }
+
+        for (shape, stride) in [
+            (&[3, 4][..], &[4, 1][..]),
+            (&[3, 1][..], &[1, 7][..]),
+            (&[1, 3][..], &[12, 1][..]),
+            (&[4, 3][..], &[1, 1][..]),
+            (&[2, 3][..], &[1, 4][..]),
+            (&[2, 3, 2][..], &[1, 2, 6][..]),
+        ] {
+            assert!(
+                view(0, shape, stride).transposed().is_none(),
+                "shape {shape:?}, stride {stride:?}"
+            );
+        }
+    }
+
     #[test]
     fn strided_views_for_other_element_sizes() {
         // The same 128 storage bytes viewed as i16, u8 and f64 through non-contiguous
@@ -2352,6 +2468,30 @@ mod tests {
         assert!(
             err.to_string()
                 .contains("requires 46 elements from storage '0', but only 32 are available"),
+            "{err}"
+        );
+    }
+
+    /// A `.t()` view read through its transpose reports the shape the checkpoint declares,
+    /// not the transpose's.
+    #[test]
+    fn truncated_transposed_read_reports_the_declared_shape() {
+        let source = fixture_source();
+        let tensor = rebuild(rebuild_args(
+            "FloatStorage",
+            "0",
+            64,
+            30,
+            &[2, 3],
+            &[1, 2],
+            &source,
+        ))
+        .unwrap();
+        let err = tensor.transposed().unwrap().read().unwrap_err();
+        assert_eq!(err.kind(), io::ErrorKind::UnexpectedEof);
+        assert!(
+            err.to_string()
+                .contains("Tensor with shape [2, 3] requires"),
             "{err}"
         );
     }

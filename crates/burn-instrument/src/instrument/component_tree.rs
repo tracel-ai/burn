@@ -1,4 +1,4 @@
-//! The tree a measured pass leaves behind: which components it entered, how
+//! The tree an instrumented run leaves behind: which components it entered, how
 //! they nested, what each declared it should cost, and how long each took.
 //!
 //! Nesting is a consequence of composition — a component's forward calls its
@@ -22,7 +22,7 @@ use crate::breakdown::{Breakdown, Component, Kernel, Variant};
 use crate::component_path::ComponentPath;
 use crate::{Bounds, Declaration};
 
-/// The components a pass entered, built while it runs, beside the kernels no
+/// The components a run entered, built while it runs, beside the kernels no
 /// component holds.
 ///
 /// A flat arena, because a tree with a cursor into it cannot be expressed with
@@ -33,17 +33,17 @@ pub struct ComponentTree {
     components: Vec<ComponentRecord>,
     /// The components entered and not yet left, outermost first.
     open: Vec<ComponentId>,
-    /// The roots, in first-seen order — a pass may enter more than one
+    /// The roots, in first-seen order — a run may enter more than one
     /// component at top level (an embedding, then a stack, then a head).
     roots: Vec<ComponentId>,
     /// Kernels launched with no component open at all. A real category: a
     /// cache allocation, a sampler, anything the annotations do not cover.
     untagged: KernelCounter,
-    /// Kernels the sync ending the pass ran: fused work still queued when the
+    /// Kernels the sync ending the run ran: fused work still queued when the
     /// last component closed.
-    end_of_pass: KernelCounter,
+    end_of_run: KernelCounter,
     /// How long the device waited before kernels no component launched — the
-    /// untagged ones and the end of the pass. See [`Component::own_wait`].
+    /// untagged ones and the end of the run. See [`Component::own_wait`].
     outside_wait: Duration,
 }
 
@@ -101,7 +101,7 @@ impl ComponentTree {
     pub fn charge_idle(&mut self, attribution: Attribution, idle: Duration) {
         match attribution {
             Attribution::Component(component) => self.component_mut(component).own_wait += idle,
-            Attribution::Untagged | Attribution::EndOfPass => self.outside_wait += idle,
+            Attribution::Untagged | Attribution::EndOfRun => self.outside_wait += idle,
         }
     }
 
@@ -137,22 +137,22 @@ impl ComponentTree {
         }
     }
 
-    /// The breakdown these components make, with what the collection says about its
+    /// The breakdown these components make, with what the instrument says about its
     /// timings.
     ///
     /// # Panics
     ///
-    /// If a component is still open — a tree read mid-pass is missing the
+    /// If a component is still open — a tree read mid-run is missing the
     /// kernels its open components have yet to launch.
     pub fn breakdown(&self, timings: TimingQuality, fusion: Fusion) -> Breakdown {
         assert!(
             self.open.is_empty(),
-            "a component is still open: read the tree after the pass, not during it"
+            "a component is still open: read the tree after the run, not during it"
         );
         Breakdown {
             tree: self.roots.iter().map(|root| self.finished(*root)).collect(),
             untagged: self.kernels_named(&self.untagged, Attribution::Untagged),
-            end_of_pass: self.kernels_named(&self.end_of_pass, Attribution::EndOfPass),
+            end_of_run: self.kernels_named(&self.end_of_run, Attribution::EndOfRun),
             outside_wait: self.outside_wait,
             host_timed: timings.host_timed,
             timed_alone: timings.timed_alone,
@@ -198,7 +198,7 @@ impl ComponentTree {
         match attribution {
             Attribution::Untagged => &mut self.untagged,
             Attribution::Component(component) => &mut self.component_mut(component).kernels,
-            Attribution::EndOfPass => &mut self.end_of_pass,
+            Attribution::EndOfRun => &mut self.end_of_run,
         }
     }
 
@@ -223,7 +223,7 @@ impl ComponentTree {
     fn path_under(&self, component: ComponentId, under: Attribution) -> ComponentPath {
         let stop = match under {
             Attribution::Component(under) => Some(under),
-            Attribution::Untagged | Attribution::EndOfPass => None,
+            Attribution::Untagged | Attribution::EndOfRun => None,
         };
         let mut labels: Vec<&str> = self
             .ancestors(component)
@@ -472,7 +472,7 @@ mod tests {
         assert!(finished(&components).tree[0].variants.is_empty());
     }
 
-    /// A breakdown reads in the order the pass ran, not alphabetically.
+    /// A breakdown reads in the order the run ran, not alphabetically.
     #[test]
     fn siblings_keep_first_seen_order() {
         let mut components = ComponentTree::default();
@@ -492,14 +492,14 @@ mod tests {
                 "  ffn normx1",
                 "  feed-forwardx1"
             ],
-            "a breakdown reads in the order the pass ran, not alphabetically"
+            "a breakdown reads in the order the run ran, not alphabetically"
         );
     }
 
-    /// A pass may enter several components at top level — an embedding, a stack, a head — and each
+    /// A run may enter several components at top level — an embedding, a stack, a head — and each
     /// is a root.
     #[test]
-    fn a_pass_may_enter_several_components_at_top_level() {
+    fn a_run_may_enter_several_components_at_top_level() {
         let mut components = ComponentTree::default();
         for name in ["embedding", "stack", "lm head"] {
             components.enter(declared(name));
@@ -558,8 +558,8 @@ mod tests {
         assert_eq!(tree[0].sites, ["test::forward"]);
     }
 
-    /// A component is legally entered at several shapes in one pass, so its component accounts for all of
-    /// them rather than asserting they agreed.
+    /// A component is legally entered at several shapes in one run, so its
+    /// bounds account for all of them rather than asserting they agreed.
     #[test]
     fn bounds_sum_across_entries() {
         let mut components = ComponentTree::default();
@@ -600,7 +600,7 @@ mod tests {
     /// Reading the tree with a component still open is a bug, not a partial result: the open
     /// component has kernels yet to launch.
     #[test]
-    fn a_tree_read_mid_pass_is_a_bug_not_a_partial_result() {
+    fn a_tree_read_mid_run_is_a_bug_not_a_partial_result() {
         let mut components = ComponentTree::default();
         components.enter(declared("block"));
         let read =
@@ -800,22 +800,22 @@ mod tests {
         );
     }
 
-    /// The sync ending the pass runs fused work the last components left
+    /// The sync ending the run executes fused work the last components left
     /// queued, and its kernels have a component of their own rather than being
     /// taken for work no annotation covers.
     #[test]
-    fn the_end_of_the_pass_is_a_component_of_its_own() {
+    fn the_end_of_the_run_is_a_component_of_its_own() {
         let mut components = ComponentTree::default();
         components.enter(declared("lm head"));
         components.exit();
-        components.count_launch(&Placement::at(Attribution::EndOfPass), "FusedMatmul");
+        components.count_launch(&Placement::at(Attribution::EndOfRun), "FusedMatmul");
 
         let breakdown = finished(&components);
-        assert_eq!(breakdown.end_of_pass[0].name, "FusedMatmul");
+        assert_eq!(breakdown.end_of_run[0].name, "FusedMatmul");
         assert!(breakdown.untagged.is_empty());
     }
 
-    /// The breakdown of a pass whose timings are all trusted.
+    /// The breakdown of a run whose timings are all trusted.
     fn finished(components: &ComponentTree) -> Breakdown {
         components.breakdown(TimingQuality::default(), Fusion::Fused)
     }
@@ -824,7 +824,7 @@ mod tests {
     fn component(entered: Attribution) -> ComponentId {
         match entered {
             Attribution::Component(component) => component,
-            Attribution::Untagged | Attribution::EndOfPass => {
+            Attribution::Untagged | Attribution::EndOfRun => {
                 unreachable!("entering a component lands on it")
             }
         }

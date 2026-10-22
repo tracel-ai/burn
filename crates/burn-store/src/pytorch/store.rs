@@ -2,12 +2,10 @@
 
 use crate::{
     ApplyResult, KeyRemapper, ModuleSnapshot, ModuleStore, PathFilter, PyTorchToBurnAdapter,
-    bridge, map_indices_contiguous_except,
+    StoreTensor, map_indices_contiguous_except,
 };
 
 use alloc::collections::BTreeMap;
-
-use burn_pack::Tensor as PackTensor;
 
 use alloc::format;
 use alloc::string::{String, ToString};
@@ -83,7 +81,7 @@ pub struct PytorchStore {
     /// Prefixes whose indices contiguous mapping leaves untouched
     pub(crate) keep_indices: PathFilter,
     /// Cached tensors (parsed once, reused until a builder that feeds the cache is called)
-    tensors_cache: Option<BTreeMap<String, PackTensor>>,
+    tensors_cache: Option<BTreeMap<String, StoreTensor>>,
 }
 
 impl PytorchStore {
@@ -345,7 +343,7 @@ impl PytorchStore {
     }
 
     /// Apply remapping to tensors.
-    fn apply_remapping(&self, tensors: Vec<PackTensor>) -> Vec<PackTensor> {
+    fn apply_remapping(&self, tensors: Vec<StoreTensor>) -> Vec<StoreTensor> {
         if self.remapper.is_empty() {
             return tensors;
         }
@@ -378,7 +376,7 @@ impl ModuleStore for PytorchStore {
 
     fn apply_to<M: ModuleSnapshot>(&mut self, module: &mut M) -> Result<ApplyResult, Self::Error> {
         // Get tensors from cache
-        let tensors: Vec<PackTensor> = self.get_all_tensors()?.values().cloned().collect();
+        let tensors: Vec<StoreTensor> = self.get_all_tensors()?.values().cloned().collect();
 
         // Get filter (convert to Option for apply)
         let filter_opt = if self.filter.is_empty() {
@@ -418,12 +416,12 @@ impl ModuleStore for PytorchStore {
         Ok(result)
     }
 
-    fn get_tensor(&mut self, name: &str) -> Result<Option<&PackTensor>, Self::Error> {
+    fn get_tensor(&mut self, name: &str) -> Result<Option<&StoreTensor>, Self::Error> {
         self.ensure_tensors_cache()?;
         Ok(self.tensors_cache.as_ref().unwrap().get(name))
     }
 
-    fn get_all_tensors(&mut self) -> Result<&BTreeMap<String, PackTensor>, Self::Error> {
+    fn get_all_tensors(&mut self) -> Result<&BTreeMap<String, StoreTensor>, Self::Error> {
         self.ensure_tensors_cache()?;
         Ok(self.tensors_cache.as_ref().unwrap())
     }
@@ -445,10 +443,10 @@ impl PytorchStore {
 
         // The reader already names each tensor by its key, so nothing has to be patched up
         // here beyond wrapping each one for the applier.
-        let mut tensors: Vec<PackTensor> = reader
+        let mut tensors: Vec<StoreTensor> = reader
             .into_tensors()
             .into_values()
-            .map(bridge::from_pytorch)
+            .map(StoreTensor::from)
             .collect();
 
         // Apply remapping (but NOT filtering - that's done at apply time)
@@ -463,8 +461,10 @@ impl PytorchStore {
         }
 
         // Build cache as BTreeMap
-        let cache: BTreeMap<String, PackTensor> =
-            tensors.into_iter().map(|t| (t.name.clone(), t)).collect();
+        let cache: BTreeMap<String, StoreTensor> = tensors
+            .into_iter()
+            .map(|t| (t.name().to_string(), t))
+            .collect();
 
         self.tensors_cache = Some(cache);
         Ok(())

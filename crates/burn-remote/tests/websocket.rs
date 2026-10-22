@@ -35,6 +35,23 @@ const HANG_LIMIT: std::time::Duration = std::time::Duration::from_secs(10);
 /// Far beyond what the concurrent rounds take when they work.
 const CONCURRENT_LIMIT: std::time::Duration = std::time::Duration::from_secs(30);
 
+/// The environment variable naming the server a `transfer_client` process dials.
+const TRANSFER_CLIENT_SERVER: &str = "BURN_REMOTE_TRANSFER_CLIENT_SERVER";
+
+/// The environment variable giving a `transfer_client` process its index, which sets the values
+/// of its tensors.
+const TRANSFER_CLIENT_INDEX: &str = "BURN_REMOTE_TRANSFER_CLIENT_INDEX";
+
+/// What a `transfer_client` prints once connected, and after each round.
+const TRANSFER_CLIENT_READY: &str = "transfer client ready";
+const TRANSFER_CLIENT_DONE: &str = "transfer client round done";
+
+/// Rounds of `two_clients_keep_their_own_transfers`, each one transfer per client.
+const TRANSFER_ROUNDS: usize = 200;
+
+/// Far beyond what every round of `two_clients_keep_their_own_transfers` takes when it works.
+const TRANSFER_LIMIT: std::time::Duration = std::time::Duration::from_secs(60);
+
 /// Run `body` on a worker thread and fail the test if it does not finish within `timeout`.
 ///
 /// A hung worker cannot be killed, so the test thread panics and the process exit takes it away.
@@ -278,6 +295,123 @@ fn a_dial_waits_for_a_websocket_server_that_starts_late() {
     });
 
     rt.shutdown_background();
+}
+
+/// A `transfer_client` process, killed when dropped.
+struct TransferClient {
+    index: usize,
+    child: std::process::Child,
+    rounds: std::process::ChildStdin,
+    lines: std::io::Lines<std::io::BufReader<std::process::ChildStdout>>,
+}
+
+impl TransferClient {
+    fn spawn(address: &str, index: usize) -> Self {
+        let mut child = std::process::Command::new(std::env::current_exe().unwrap())
+            .args(["transfer_client", "--exact", "--ignored", "--nocapture"])
+            .env(TRANSFER_CLIENT_SERVER, address)
+            .env(TRANSFER_CLIENT_INDEX, index.to_string())
+            .stdin(std::process::Stdio::piped())
+            .stdout(std::process::Stdio::piped())
+            .spawn()
+            .unwrap();
+        let rounds = child.stdin.take().unwrap();
+        let stdout = child.stdout.take().unwrap();
+        let lines = std::io::BufRead::lines(std::io::BufReader::new(stdout));
+        Self {
+            index,
+            child,
+            rounds,
+            lines,
+        }
+    }
+
+    /// Wait for the client to print `marker`, which libtest may prefix with the test's name.
+    fn wait_for(&mut self, marker: &str) {
+        for line in self.lines.by_ref() {
+            if line.unwrap().ends_with(marker) {
+                return;
+            }
+        }
+        let status = self.child.wait().unwrap();
+        panic!("transfer client {} stopped with {status}", self.index);
+    }
+
+    fn start_round(&mut self) {
+        std::io::Write::write_all(&mut self.rounds, b"go\n").unwrap();
+    }
+}
+
+impl Drop for TransferClient {
+    fn drop(&mut self) {
+        let _ = self.child.kill();
+        let _ = self.child.wait();
+    }
+}
+
+#[test]
+fn two_clients_keep_their_own_transfers() {
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()
+        .unwrap();
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let address = format!("ws://{}", listener.local_addr().unwrap());
+    let serving = BackendServer::<Flex>::new(vec![Default::default(), Default::default()])
+        .serve_async(WebSocketTransport::from_listener(listener));
+    rt.spawn(async move { serving.await.unwrap() });
+
+    // Each round starts in both processes at once, so their transfers are in flight together and
+    // any id the two clients share meets in the server's one registry.
+    let mut clients = [0, 1].map(|index| TransferClient::spawn(&address, index));
+    with_deadlock_watchdog(TRANSFER_LIMIT, move || {
+        clients
+            .iter_mut()
+            .for_each(|client| client.wait_for(TRANSFER_CLIENT_READY));
+        for _ in 0..TRANSFER_ROUNDS {
+            clients.iter_mut().for_each(TransferClient::start_round);
+            clients
+                .iter_mut()
+                .for_each(|client| client.wait_for(TRANSFER_CLIENT_DONE));
+        }
+    });
+    rt.shutdown_background();
+}
+
+/// One client of `two_clients_keep_their_own_transfers`, in a process of its own so that it
+/// connects as a client of its own. Each round, started by a line on stdin, moves a tensor between
+/// the server's two devices and checks that it arrives as it left.
+#[test]
+#[ignore = "started by two_clients_keep_their_own_transfers"]
+fn transfer_client() {
+    let (Ok(address), Ok(index)) = (
+        std::env::var(TRANSFER_CLIENT_SERVER),
+        std::env::var(TRANSFER_CLIENT_INDEX),
+    ) else {
+        return;
+    };
+    let index: usize = index.parse().unwrap();
+    let host = RemoteHost::websocket(&address);
+    let devices = [0, 1].map(|device| {
+        Device::remote_options(&host)
+            .device_index(device)
+            .init()
+            .unwrap()
+    });
+    println!("{TRANSFER_CLIENT_READY}");
+
+    with_deadlock_watchdog(TRANSFER_LIMIT, move || {
+        let mut rounds = std::io::stdin().lines();
+        for round in 0..TRANSFER_ROUNDS {
+            rounds.next().unwrap().unwrap();
+            let value = (index * TRANSFER_ROUNDS + round) as f32;
+            let expected = TensorData::new(vec![value; 256], [256]);
+            let moved = Tensor::<1>::from_data(expected.clone(), &devices[round % 2])
+                .to_device(&devices[(round + 1) % 2]);
+            moved.into_data().assert_eq(&expected, false);
+            println!("{TRANSFER_CLIENT_DONE}");
+        }
+    });
 }
 
 #[test]

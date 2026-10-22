@@ -7,4 +7,4 @@ mod recorder;
 mod timing;
 mod watching;
 
-pub use base::PassCollector;
+pub use base::Instrument;
