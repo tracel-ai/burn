@@ -274,6 +274,7 @@ impl Group {
     }
 
     /// Every member holds 40000, whose sum overflows f16 though the mean does not.
+    #[cfg(any(feature = "flex", feature = "cuda"))]
     fn f16_mean_past_the_range_of_its_sum(&self) {
         let members = self.devices.iter().map(|device| {
             TestTensor::<1>::from_data([40000.0, 40000.0], device)

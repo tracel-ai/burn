@@ -356,16 +356,6 @@ impl_ir_create!(
 );
 
 impl_ir_create!(
-    AllReduceOpIr {
-        tensor: TensorIr,
-        op: burn_backend::distributed::ReduceOperation,
-        device_ids: Vec<DeviceIdIr>
-    },
-    shape = tensor.shape.clone(),
-    dtype = tensor.dtype
-);
-
-impl_ir_create!(
     GatherOpIr {
         tensor: TensorIr,
         dim: usize,

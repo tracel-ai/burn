@@ -20,8 +20,8 @@
 //!
 //! Some tasks are **synchronously blocking** — a same-host transfer's
 //! [`RegisterTensorLocal`](crate::shared::Task::RegisterTensorLocal) waits on the rendezvous
-//! (`local_comm.take`) for its source session to expose the primitive, and a collective op
-//! (all-reduce / sync-collective) parks until *every* participating device reaches the barrier.
+//! (`local_comm.take`) for its source session to expose the primitive, and an
+//! [`AllReduceLocal`](crate::shared::Task::AllReduceLocal) parks until *every* member arrives.
 //! Running those on a shared tokio worker would tie up a runtime thread; once more devices are
 //! blocked than the runtime has workers, the remaining devices can never be scheduled to reach the
 //! barrier and it deadlocks. Giving each session its own OS thread keeps that blocking off the
@@ -35,7 +35,8 @@
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
-use burn_ir::{BackendIr, GraphBindings, GraphId};
+use burn_backend::tensor::FloatTensor;
+use burn_ir::{BackendIr, GraphBindings, GraphId, HandleKind, TensorError};
 use burn_router::{Graph, TensorInterpreter};
 use burn_std::{ExecutionError, id::StreamId};
 #[cfg(not(target_family = "wasm"))]
@@ -48,10 +49,11 @@ use tokio::runtime::Handle;
 use tokio::sync::mpsc;
 
 use crate::server::local_comm::LocalCommService;
-use crate::server::session::HostedDeviceIds;
 use crate::server::spawn::{CatchPanic, ResponseTasks, spawn_detached};
 use crate::server::transfer::TensorTransfer;
-use crate::shared::{RequestId, SessionId, Task, TaskResponse, TaskResponseContent};
+use crate::shared::{
+    LocalAllReducePart, RequestId, SessionId, Task, TaskResponse, TaskResponseContent,
+};
 use crate::telemetry::{
     TelemetryEvent, TelemetryProbe, TransferPhase, TransferScope, serialized_len,
 };
@@ -76,7 +78,6 @@ where
 {
     session_id: SessionId,
     runner: TensorInterpreter<B>,
-    device_ids: HostedDeviceIds,
     response_sender: mpsc::Sender<TaskResponse>,
     response_tasks: ResponseTasks,
     transfer: Arc<T>,
@@ -103,7 +104,6 @@ where
     pub(crate) fn spawn(
         session_id: SessionId,
         runner: TensorInterpreter<B>,
-        device_ids: HostedDeviceIds,
         response_sender: mpsc::Sender<TaskResponse>,
         transfer: Arc<T>,
         local_comm: Arc<LocalCommService<B>>,
@@ -112,7 +112,6 @@ where
         let handler = SessionHandler {
             session_id,
             runner,
-            device_ids,
             response_sender,
             response_tasks: ResponseTasks::default(),
             transfer,
@@ -192,6 +191,7 @@ where
         // Reclaim any same-host transfers this session exposed that no target ever took, so a
         // half-finished transfer doesn't strand device memory in the shared registry.
         self.local_comm.purge_session(session_id).await;
+        self.local_comm.abandon_session(session_id).await;
 
         log::debug!("Session {session_id} worker draining and exiting");
 
@@ -235,8 +235,7 @@ where
     /// the future at construction time via `executes`.
     async fn process_task(&mut self, task: Task) -> Result<(), String> {
         match task {
-            Task::RegisterOperation(stream_id, mut op) => {
-                self.device_ids.resolve(&mut op)?;
+            Task::RegisterOperation(stream_id, op) => {
                 // An op received individually (not as part of a cached graph) is an unfused op.
                 self.emit_op(stream_id, &op);
                 stream_id.executes(|| self.runner.register_op(op));
@@ -245,13 +244,9 @@ where
             Task::RegisterAndExecuteGraph {
                 stream_id,
                 graph_id,
-                mut relative_graph,
+                relative_graph,
                 bindings,
             } => {
-                // Cache backend ids once; a replay must not resolve them as hosted positions.
-                for op in &mut relative_graph {
-                    self.device_ids.resolve(op)?;
-                }
                 self.probe.emit(|| {
                     TelemetryEvent::graph_registered(
                         self.session_id,
@@ -356,6 +351,9 @@ where
                 stream_id.executes(|| self.runner.register_tensor_to_device(new_id, kind));
                 self.emit_transfer(None, TransferScope::Local, TransferPhase::Completed);
                 Ok(())
+            }
+            Task::AllReduceLocal { stream_id, part } => {
+                self.all_reduce_local(stream_id, part).await
             }
             Task::ExposeTensorRemote {
                 stream_id,
@@ -464,6 +462,58 @@ where
         }
     }
 
+    /// Hands this session's member to its all-reduce and registers its result, or the error that
+    /// stopped it, as `part.out`. Blocks this session's worker until every member has arrived, so
+    /// the members' sessions must not wait on each other through earlier tasks.
+    async fn all_reduce_local(
+        &mut self,
+        stream_id: StreamId,
+        part: LocalAllReducePart,
+    ) -> Result<(), String> {
+        self.probe
+            .emit(|| part.op_event(self.session_id, stream_id));
+        let reduced = match self.all_reduce_input(stream_id, &part) {
+            Ok(tensor) => self.local_comm.all_reduce(&part, tensor, stream_id).await,
+            Err(reason) => {
+                // The other members wait for this one, so they are told it cannot come.
+                self.local_comm.fail(&part, &reason).await;
+                Err(reason)
+            }
+        };
+        match reduced {
+            Ok(reduced) => {
+                stream_id.executes(|| {
+                    self.runner
+                        .register_tensor_to_device(part.out, HandleKind::Float(reduced))
+                });
+                Ok(())
+            }
+            Err(reason) => {
+                let error = TensorError::new(ExecutionError::generic(reason.clone()));
+                self.runner.set_error(part.out, error);
+                Err(reason)
+            }
+        }
+    }
+
+    /// This member's tensor, unless the op producing it failed or it is not a float.
+    fn all_reduce_input(
+        &mut self,
+        stream_id: StreamId,
+        part: &LocalAllReducePart,
+    ) -> Result<FloatTensor<B>, String> {
+        if let Some(reason) = self.runner.read_failure(&part.tensor.id) {
+            return Err(format!("all-reduce {:?}: {reason}", part.collective));
+        }
+        match stream_id.executes(|| self.runner.get_tensor(&part.tensor)) {
+            HandleKind::Float(tensor) => Ok(tensor),
+            _ => Err(format!(
+                "all-reduce {:?} takes float tensors",
+                part.collective
+            )),
+        }
+    }
+
     /// Sends the answer once `ready` resolves, without holding up the ops after it. A panic is
     /// answered as an error, so the client is never left waiting.
     fn answer_when_ready<Value: Send + 'static>(
@@ -554,12 +604,11 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread")]
     async fn a_panicking_task_still_tears_its_session_down() {
-        let local_comm = Arc::new(LocalCommService::<Flex>::new());
+        let local_comm = Arc::new(LocalCommService::<Flex>::new(1));
         let (response_sender, mut responses) = mpsc::channel(1);
         let tasks = SessionHandler::spawn(
             SessionId::new(),
             TensorInterpreter::new(Default::default()),
-            HostedDeviceIds::of::<Flex>(&[Default::default()]),
             response_sender,
             Arc::new(NoTransfer),
             local_comm.clone(),
@@ -657,11 +706,10 @@ mod tests {
             Self {
                 session_id: SessionId::new(),
                 runner: TensorInterpreter::new(Default::default()),
-                device_ids: HostedDeviceIds::of::<Flex>(&[Default::default()]),
                 response_sender,
                 response_tasks: ResponseTasks::default(),
                 transfer: Arc::new(NoTransfer),
-                local_comm: Arc::new(LocalCommService::<Flex>::new()),
+                local_comm: Arc::new(LocalCommService::<Flex>::new(1)),
                 graphs: Mutex::new(HashMap::new()),
                 probe: TelemetryProbe::disabled(),
             }

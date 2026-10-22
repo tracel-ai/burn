@@ -3,70 +3,30 @@
 Burn supports data-parallel training across multiple devices and transparent execution on devices
 hosted by another process. These capabilities can be used independently or together:
 
-- The types in `burn::tensor::distributed` provide collective tensor operations across a group of
+- The types in `burn::tensor::distributed` configure gradient synchronization across a group of
   devices.
-- `burn::train::ExecutionStrategy::ddp` uses those collectives to synchronize gradients during
-  distributed data-parallel (DDP) training.
+- `burn::train::ExecutionStrategy::ddp` synchronizes gradients with the backends' collectives
+  during distributed data-parallel (DDP) training.
 - A remote `Device` sends normal tensor operations to a Burn compute server. A set of remote devices
   can also participate in DDP.
 
 ## Distributed Tensor Operations
 
-Collective support depends on the execution runtime. The current CubeCL implementation supplies
-all-reduce on CUDA. Remote DDP also requires collective support on the server's devices. Use the
-non-DDP multi-device strategy when the selected runtimes do not provide collectives.
+Backends run collectives over a group of devices: all-reduce, all-gather, reduce-scatter,
+all-to-all and broadcast, given every member's tensor at once. They are backend operations
+(`burn_backend::ops::CollectiveOps`), not yet part of the `Tensor` API. A runtime with a transport
+between its devices runs what it can natively, NCCL on CUDA, and broadcast is always emulated; any
+other runtime, and a group mixing runtimes, emulates them with transfers between devices. DDP
+synchronizes gradients with the all-reduce, so it runs on every CubeCL runtime and on remote
+devices, at full speed where the devices share a transport.
 
-The distributed tensor API currently centers on all-reduce:
+`burn::tensor::distributed` holds what DDP is configured with:
 
-| Type or function     | Purpose                                                                           |
-| -------------------- | --------------------------------------------------------------------------------- |
-| `DistributedContext` | Starts and owns communication resources for a device group                        |
-| `DistributedConfig`  | Configures gradient aggregation for the group                                     |
-| `ReduceOperation`    | Selects `Sum` or `Mean` reduction                                                 |
-| `all_reduce`         | Reduces a tensor across every participating device and returns the result to each |
-| `CollectiveTensor`   | Represents a collective result that must be synchronized before normal use        |
-
-Create a context before issuing collectives. Dropping the context closes its communication server,
-so keep it alive for as long as the device group is active:
-
-```rust, ignore
-use burn::tensor::{
-    Device, DeviceType, Tensor,
-    distributed::{
-        CollectiveTensor, DistributedConfig, DistributedContext, ReduceOperation, all_reduce,
-    },
-};
-
-let devices = Device::enumerate(DeviceType::Cuda).into_vec();
-let _context = DistributedContext::init(
-    devices.clone(),
-    DistributedConfig {
-        all_reduce_op: ReduceOperation::Mean,
-    },
-);
-
-// Every participant submits its local tensor with the same device list.
-let local_tensors: Vec<Tensor<2>> = devices
-    .iter()
-    .map(compute_local_value)
-    .collect();
-let collectives: Vec<_> = local_tensors
-    .into_iter()
-    .map(|tensor| all_reduce(tensor, ReduceOperation::Sum, devices.clone()))
-    .collect();
-let reduced: Vec<Tensor<2>> = collectives
-    .into_iter()
-    .map(CollectiveTensor::resolve)
-    .collect();
-```
-
-`all_reduce` returns a `CollectiveTensor` because collective communication can be asynchronous. Call
-`resolve()` before using its result; it synchronizes the collective and returns a regular `Tensor`.
-The unsafe `assume_resolved()` method is reserved for code that arranges synchronization itself.
-
-Every participant must invoke collectives in a compatible order with the same device group.
-Application code will usually use the DDP training strategy instead of calling `all_reduce`
-directly.
+| Type                 | Purpose                                                   |
+| -------------------- | --------------------------------------------------------- |
+| `DistributedContext` | Starts and owns the gradient synchronization of a group   |
+| `DistributedConfig`  | Configures gradient aggregation for the group             |
+| `ReduceOperation`    | Selects `Sum` or `Mean` reduction                         |
 
 ## Distributed Data Parallel Training
 
@@ -184,4 +144,6 @@ across the selected server devices.
 - Use local DDP when several devices are directly available to the training process.
 - Use remote devices with DDP when a Burn server exposes several accelerators to a client.
 
-Distributed execution assumes that participating devices support the required collective operations.
+DDP runs on the CubeCL backends and on remote devices.
+CUDA devices with NCCL, local or on one remote server, synchronize gradients natively, and the
+others with transfers between devices. Flex and Capture do not run DDP.
