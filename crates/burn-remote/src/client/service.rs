@@ -121,10 +121,10 @@ impl DeviceService for RemoteService {
         let registry::RegisteredDevice {
             endpoint,
             device_index,
-            session_id,
         } = registered_device(id)
             .unwrap_or_else(|| panic!("No endpoint registered for device id {device_id}"));
         let executor = Executor::session();
+        let session_id = SessionId::new();
 
         let probe = if TelemetryLogger::enabled() {
             TelemetryProbe::new(CHANNEL_CAPACITY)
@@ -489,7 +489,7 @@ impl RemoteService {
         self.submit_task(Task::ExposeTensorLocal {
             stream_id,
             tensor,
-            sequence: transfer_id.sequence(),
+            transfer_id,
         });
         self.flush();
     }

@@ -18,21 +18,21 @@
 
 use crate::shared::{LocalTransferId, SessionId};
 use burn_ir::{BackendIr, HandleKind};
-use std::collections::{HashMap, hash_map::Entry};
+use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::{Mutex, Notify};
 
-/// What a source session left under a transfer id.
-enum Exposed<B: BackendIr> {
-    Tensor(HandleKind<B>),
-    /// Exposed more than once, so no target can tell which tensor is its own.
-    Ambiguous,
+/// A primitive parked in the registry, tagged with the session that exposed it so the entry can
+/// be reclaimed if that session goes away before its target takes it.
+struct Pending<B: BackendIr> {
+    source: SessionId,
+    tensor: HandleKind<B>,
 }
 
 /// Rendezvous registry for same-host communication, keyed by [`LocalTransferId`].
 pub(crate) struct LocalCommService<B: BackendIr> {
     /// Primitives exposed by source sessions, waiting to be taken by their target.
-    pending: Mutex<HashMap<LocalTransferId, Exposed<B>>>,
+    pending: Mutex<HashMap<LocalTransferId, Pending<B>>>,
     /// Wakes takers whenever a new primitive is exposed.
     notify: Arc<Notify>,
 }
@@ -45,37 +45,24 @@ impl<B: BackendIr> LocalCommService<B> {
         }
     }
 
-    /// Expose `tensor` under `transfer_id`, waking any session already waiting for it.
-    ///
-    /// # Errors
-    ///
-    /// When `transfer_id` is exposed already. Its takers then fail as well, since none can tell
-    /// which tensor is its own.
+    /// Expose `tensor` under `transfer_id`, waking any session already waiting for it. `source` is
+    /// the session exposing it, so a stranded entry can be purged if that session closes before its
+    /// target takes the tensor (see [`purge_session`](Self::purge_session)).
     pub async fn expose(
         &self,
+        source: SessionId,
         transfer_id: LocalTransferId,
         tensor: HandleKind<B>,
-    ) -> Result<(), String> {
-        let exposed = match self.pending.lock().await.entry(transfer_id) {
-            Entry::Occupied(mut entry) => {
-                entry.insert(Exposed::Ambiguous);
-                Err(format!("{transfer_id:?} is exposed already"))
-            }
-            Entry::Vacant(entry) => {
-                entry.insert(Exposed::Tensor(tensor));
-                Ok(())
-            }
-        };
+    ) {
+        self.pending
+            .lock()
+            .await
+            .insert(transfer_id, Pending { source, tensor });
         self.notify.notify_waiters();
-        exposed
     }
 
     /// Take the primitive exposed under `transfer_id`, waiting until it is exposed.
-    ///
-    /// # Errors
-    ///
-    /// When `transfer_id` was exposed more than once.
-    pub async fn take(&self, transfer_id: LocalTransferId) -> Result<HandleKind<B>, String> {
+    pub async fn take(&self, transfer_id: LocalTransferId) -> HandleKind<B> {
         loop {
             // Register interest *before* checking the map so an `expose` that lands between
             // the check and the await can't slip through the gap and leave us parked forever.
@@ -83,14 +70,8 @@ impl<B: BackendIr> LocalCommService<B> {
             tokio::pin!(notified);
             notified.as_mut().enable();
 
-            let mut pending = self.pending.lock().await;
-            match pending.remove(&transfer_id) {
-                Some(Exposed::Tensor(tensor)) => return Ok(tensor),
-                Some(Exposed::Ambiguous) => {
-                    pending.insert(transfer_id, Exposed::Ambiguous);
-                    return Err(format!("{transfer_id:?} was exposed more than once"));
-                }
-                None => drop(pending),
+            if let Some(pending) = self.pending.lock().await.remove(&transfer_id) {
+                return pending.tensor;
             }
 
             notified.await;
@@ -107,44 +88,11 @@ impl<B: BackendIr> LocalCommService<B> {
         self.pending
             .lock()
             .await
-            .retain(|transfer_id, _| transfer_id.source() != session);
+            .retain(|_, pending| pending.source != session);
     }
 
     #[cfg(all(test, not(target_family = "wasm")))]
     pub(crate) async fn is_empty(&self) -> bool {
         self.pending.lock().await.is_empty()
-    }
-}
-
-#[cfg(all(test, not(target_family = "wasm")))]
-mod tests {
-    use super::*;
-    use burn_backend::{TensorData, ops::FloatTensorOps};
-    use burn_flex::Flex;
-    use std::time::Duration;
-
-    fn tensor(value: f32) -> HandleKind<Flex> {
-        HandleKind::Float(Flex::float_from_data(
-            TensorData::from([value]),
-            &Default::default(),
-        ))
-    }
-
-    #[tokio::test]
-    async fn a_transfer_exposed_twice_fails_each_taker() {
-        let comm = LocalCommService::<Flex>::new();
-        let id = LocalTransferId::new(SessionId::new(), 0);
-
-        comm.expose(id, tensor(1.0)).await.unwrap();
-        let again = comm.expose(id, tensor(2.0)).await;
-
-        assert!(again.is_err());
-        for _ in 0..2 {
-            let taken = tokio::time::timeout(Duration::from_secs(10), comm.take(id)).await;
-            assert!(
-                matches!(taken, Ok(Err(_))),
-                "a taker of a transfer exposed twice did not fail"
-            );
-        }
     }
 }

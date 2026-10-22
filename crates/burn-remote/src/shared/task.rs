@@ -7,8 +7,6 @@ use burn_std::{
 use core::time::Duration;
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
-#[cfg(feature = "client")]
-use std::sync::atomic::{AtomicU64, Ordering};
 
 use crate::{PeerAddr, PeerId};
 
@@ -18,7 +16,7 @@ use crate::{PeerAddr, PeerId};
 /// messages after the handshake are framed, or which operations a server can
 /// run, so a mismatched peer is refused at the handshake rather than failing
 /// mid-session.
-pub const PROTOCOL_VERSION: u16 = 6;
+pub const PROTOCOL_VERSION: u16 = 5;
 
 /// Routing id for a task whose result is fetched back.
 ///
@@ -30,39 +28,22 @@ pub const PROTOCOL_VERSION: u16 = 6;
 /// are plain fire-and-forget [`OperationIr`]s carried by [`Task::RegisterOperation`].
 pub type RequestId = u64;
 
-/// Rendezvous id for moving a tensor between devices on one compute peer. The transfers of every
-/// client of a server meet in one registry, so the id names the session exposing the tensor.
+/// Rendezvous id for moving a tensor between devices on one compute peer. Random, since the
+/// transfers of every client of a server meet in one registry.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub struct LocalTransferId {
-    source: SessionId,
-    sequence: u64,
-}
+pub struct LocalTransferId(u64);
 
 impl LocalTransferId {
-    /// The next transfer this process exposes from `source`.
     #[cfg(feature = "client")]
-    pub fn next(source: SessionId) -> Self {
-        static SEQUENCE: AtomicU64 = AtomicU64::new(0);
-        let sequence = SEQUENCE.fetch_add(1, Ordering::Relaxed);
-        Self { source, sequence }
+    pub fn random() -> Self {
+        Self(rand::random())
     }
+}
 
-    /// The transfer `source` exposes as `sequence`.
-    #[cfg(feature = "server")]
-    pub fn new(source: SessionId, sequence: u64) -> Self {
-        Self { source, sequence }
-    }
-
-    /// The session exposing the tensor.
-    #[cfg(feature = "server")]
-    pub fn source(&self) -> SessionId {
-        self.source
-    }
-
-    /// The number the exposing session gives this transfer.
-    #[cfg(feature = "client")]
-    pub fn sequence(&self) -> u64 {
-        self.sequence
+#[cfg(test)]
+impl From<u64> for LocalTransferId {
+    fn from(value: u64) -> Self {
+        Self(value)
     }
 }
 
@@ -252,9 +233,9 @@ pub enum Task {
         target: PeerId,
     },
     /// Source side of a same-host transfer: hand the device-resident primitive for `tensor`
-    /// to the server's local comm registry as this session's transfer `sequence`. No host
-    /// readback: the counterpart [`RegisterTensorLocal`](Task::RegisterTensorLocal), running on
-    /// the target session of the same server, moves it onto the target device via the inner
+    /// to the server's local comm registry under `transfer_id`. No host readback — the
+    /// counterpart [`RegisterTensorLocal`](Task::RegisterTensorLocal), running on the
+    /// target session of the same server, moves it onto the target device via the inner
     /// backend's `to_device`.
     ///
     /// `stream_id` is the client stream that produced `tensor`, so the server reads it back on
@@ -262,7 +243,7 @@ pub enum Task {
     ExposeTensorLocal {
         stream_id: StreamId,
         tensor: TensorIr,
-        sequence: u64,
+        transfer_id: LocalTransferId,
     },
     /// Target side of a same-host transfer: wait for `transfer_id` to be exposed, move the
     /// primitive onto this session's device, and register it under `new_id`.

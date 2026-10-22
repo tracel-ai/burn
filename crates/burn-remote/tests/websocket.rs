@@ -350,8 +350,8 @@ fn two_clients_keep_their_own_transfers() {
         .serve_async(WebSocketTransport::from_listener(listener));
     rt.spawn(async move { serving.await.unwrap() });
 
-    // Two fresh processes count their transfers alike, and each round starts in both at once, so
-    // their transfers carry the same sequences and are in flight together whatever ran before.
+    // Each round starts in both processes at once, so their transfers are in flight together and
+    // any id the two clients share meets in the server's one registry.
     let mut clients = [0, 1].map(|index| TransferClient::spawn(&address, index));
     with_deadlock_watchdog(TRANSFER_LIMIT, move || {
         clients
