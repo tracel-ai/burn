@@ -45,12 +45,15 @@ impl Progress {
 
     /// Combines progress snapshots with the same unit.
     /// An empty collection produces a snapshot with an exact zero total.
-    pub fn aggregate<'a>(progresses: impl IntoIterator<Item = &'a Self>) -> Self {
+    pub fn aggregate<P: core::borrow::Borrow<Self>>(
+        progresses: impl IntoIterator<Item = P>,
+    ) -> Self {
         let mut iter = progresses.into_iter();
         let Some(first) = iter.next() else {
             return Self::new(0, Some(0), None);
         };
-        iter.fold(first.clone(), |mut result, progress| {
+        iter.fold(first.borrow().clone(), |mut result, progress| {
+            let progress = progress.borrow();
             result.items_processed += progress.items_processed;
             result.total = [result.total, progress.total].into_iter().sum();
             result
@@ -122,24 +125,32 @@ mod tests {
     use super::*;
 
     #[test]
-    fn resolves_only_unknown_totals() {
-        for (total, expected) in [(None, Some(2)), (Some(3), Some(3))] {
-            let mut progress = Progress::new(2, total, None);
-            progress.resolve_total();
-            assert_eq!(progress.total, expected);
-        }
+    fn resolves_unknown_total_to_processed_count() {
+        let mut progress = Progress::new(2, None, None);
+        progress.resolve_total();
+        assert_eq!(progress.total, Some(2));
+    }
+
+    #[test]
+    fn preserves_known_total_when_resolving() {
+        let mut progress = Progress::new(2, 3, None);
+        progress.resolve_total();
+        assert_eq!(progress.total, Some(3));
+    }
+
+    #[test]
+    fn aggregates_known_totals() {
+        let parts = [Progress::new(2, 4, None), Progress::new(3, 6, None)];
+        let progress = Progress::aggregate(&parts);
+        assert_eq!(progress.items_processed, 5);
+        assert_eq!(progress.total, Some(10));
     }
 
     #[test]
     fn aggregate_preserves_unknown_totals() {
-        for (totals, expected) in [([Some(2), Some(3)], Some(5)), ([Some(2), None], None)] {
-            let parts = [
-                Progress::new(2, totals[0], None),
-                Progress::new(3, totals[1], None),
-            ];
-            let progress = Progress::aggregate(&parts);
-            assert_eq!(progress.items_processed, 5);
-            assert_eq!(progress.total, expected);
-        }
+        let progress =
+            Progress::aggregate([Progress::new(2, 4, None), Progress::new(3, None, None)]);
+        assert_eq!(progress.items_processed, 5);
+        assert_eq!(progress.total, None);
     }
 }

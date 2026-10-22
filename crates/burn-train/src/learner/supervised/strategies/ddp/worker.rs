@@ -61,6 +61,7 @@ impl<M: LearnerModel> DdpWorker<M> {
         let epoch_train = DdpTrainEpoch::<M>::new(
             self.dataloader_train.clone(),
             self.components.grad_accumulation,
+            self.components.steps.clone(),
         );
         let epoch_valid = self
             .dataloader_valid

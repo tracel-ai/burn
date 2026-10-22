@@ -80,9 +80,7 @@ impl<M: LearnerModel> MultiDeviceTrainEpoch<M> {
             .collect::<Vec<_>>();
         interrupter.fail_on_error(event_processor.process_train(LearnerEvent::StartSplit {
             epoch_number: epoch,
-            progress: Progress::aggregate(
-                &iterators.iter().map(|it| it.progress()).collect::<Vec<_>>(),
-            ),
+            progress: Progress::aggregate(iterators.iter().map(|it| it.progress())),
         }));
         let mut iteration = 0;
         let mut accumulator = GradientsAccumulator::new();
@@ -147,8 +145,7 @@ impl<M: LearnerModel> MultiDeviceTrainEpoch<M> {
             learner.optimizer_step(grads);
         }
 
-        let mut progress =
-            Progress::aggregate(&iterators.iter().map(|it| it.progress()).collect::<Vec<_>>());
+        let mut progress = Progress::aggregate(iterators.iter().map(|it| it.progress()));
         if !interrupter.should_stop() {
             progress.resolve_total();
         }
@@ -180,9 +177,7 @@ impl<M: LearnerModel> MultiDeviceTrainEpoch<M> {
             .collect::<Vec<_>>();
         interrupter.fail_on_error(event_processor.process_train(LearnerEvent::StartSplit {
             epoch_number: epoch,
-            progress: Progress::aggregate(
-                &iterators.iter().map(|it| it.progress()).collect::<Vec<_>>(),
-            ),
+            progress: Progress::aggregate(iterators.iter().map(|it| it.progress())),
         }));
         let mut iteration = 0;
         let mut accumulators: Vec<GradientsAccumulator<_>> = (0..devices.len())
@@ -242,8 +237,7 @@ impl<M: LearnerModel> MultiDeviceTrainEpoch<M> {
             Self::step_sharded(learner, &mut accumulators, &devices);
         }
 
-        let mut progress =
-            Progress::aggregate(&iterators.iter().map(|it| it.progress()).collect::<Vec<_>>());
+        let mut progress = Progress::aggregate(iterators.iter().map(|it| it.progress()));
         if !interrupter.should_stop() {
             progress.resolve_total();
         }

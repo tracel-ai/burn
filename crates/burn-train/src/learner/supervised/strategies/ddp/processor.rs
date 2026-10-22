@@ -113,18 +113,97 @@ impl<P> WorkerEventProcessor<P> {
 
 #[cfg(test)]
 mod tests {
+    use super::super::step::StepCoordinator;
     use super::*;
     use crate::{EventProcessorError, metric::store::Split, renderer::MetricsRenderer};
+    use std::sync::{Arc, Barrier, Mutex, mpsc};
+    use std::time::Duration;
+
+    #[test]
+    fn metric_failure_stops_a_peer_already_loading_the_next_batch() {
+        let interrupter = Interrupter::new();
+        let steps = Arc::new(StepCoordinator::new(2));
+        let backward = Arc::new(Barrier::new(2));
+        let reporting = Arc::new(Mutex::new(WorkerEventProcessor::new(
+            RecordingProcessor {
+                fail_on_item: Some(2),
+                ..Default::default()
+            },
+            vec![Some(3); 2],
+            interrupter.clone(),
+        )));
+        reporting.lock().unwrap().start_epoch(1);
+        let (next_batch_tx, next_batch_rx) = mpsc::channel();
+        let (finished_tx, finished_rx) = mpsc::channel();
+
+        let mut workers = Vec::new();
+        for next_batch_rx in [None, Some(next_batch_rx)] {
+            let worker_id = usize::from(next_batch_rx.is_some());
+            let (steps, backward, reporting, interrupter) = (
+                steps.clone(),
+                backward.clone(),
+                reporting.clone(),
+                interrupter.clone(),
+            );
+            let next_batch_tx = next_batch_tx.clone();
+            let finished_tx = finished_tx.clone();
+            workers.push(std::thread::spawn(move || {
+                let mut batches = (0..3).map(|batch| {
+                    if worker_id == 0 && batch == 1 {
+                        next_batch_tx.send(()).unwrap();
+                    }
+                    Ok(batch)
+                });
+                assert_eq!(steps.next(&mut batches, &interrupter), Some(0));
+                // Model a collective: both workers must enter every backward together.
+                backward.wait();
+                if let Some(receiver) = next_batch_rx {
+                    receiver.recv_timeout(Duration::from_secs(5)).unwrap();
+                }
+                reporting.lock().unwrap().train(worker_id, item(1));
+                let next = steps.next(&mut batches, &interrupter);
+                if next.is_some() {
+                    backward.wait();
+                }
+                finished_tx.send(next).unwrap();
+            }));
+        }
+
+        for _ in 0..2 {
+            assert_eq!(
+                finished_rx.recv_timeout(Duration::from_secs(5)).unwrap(),
+                None
+            );
+        }
+        for worker in workers {
+            worker.join().unwrap();
+        }
+        assert!(interrupter.error().is_some());
+    }
 
     #[derive(Default)]
     struct RecordingProcessor {
         events: Vec<LearnerEvent<()>>,
         fail_flush: bool,
+        fail_on_item: Option<usize>,
     }
 
     impl EventProcessorTraining<LearnerEvent<()>, LearnerEvent<()>> for RecordingProcessor {
         fn process_train(&mut self, event: LearnerEvent<()>) -> Result<(), EventProcessorError> {
             self.events.push(event);
+            if self.fail_on_item
+                == Some(
+                    self.events
+                        .iter()
+                        .filter(|event| matches!(event, LearnerEvent::ProcessedItem(_)))
+                        .count(),
+                )
+            {
+                return Err(EventProcessorError::sync(
+                    Split::Train,
+                    burn_std::ExecutionError::with_context("metric failed"),
+                ));
+            }
             Ok(())
         }
 

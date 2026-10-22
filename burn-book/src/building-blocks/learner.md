@@ -60,48 +60,14 @@ a single device, Burn computes gradients for each batch and sums them over `n` b
 updating the model parameters.
 
 Burn applies any remaining accumulated gradients when the training dataloader is exhausted.
-An interruption or error observed before that update discards the pending window. Progress counters
-never trigger optimizer updates: a loader can buffer batches, drop items, or have an unknown total.
-Learning-rate schedulers advance once per optimizer update, so warmup and decay durations should
-use that unit.
+An interruption or error observed before that update discards the pending window. Learning-rate
+schedulers advance once per optimizer update, so warmup and decay durations should use that unit.
 
 Accumulated gradients are summed without normalization. Account for this when choosing loss
 scaling and learning rates.
 
 Custom training strategies and loops are responsible for their own accumulation and scheduler
 timing.
-
-## Progress in Custom Loaders and Training Loops
-
-`Progress` is a measurement snapshot: a processed count, an optional exact total, and a unit.
-`Some(n)` means the total is known; `None` means it is unavailable. An unknown total is not zero,
-and reaching a total does not prove that iteration has ended or that execution succeeded.
-
-`DataLoader::num_items()` counts source items for slicing. `DataLoader::expected_num_items()` returns
-how many samples the loader will include in its batches over a complete pass, if known.
-`BatchStrategy::expected_num_items()` supplies that count for built-in loaders; custom strategies
-default to `None`. Iterator progress
-counts items in batches actually yielded, so buffering or filtering does not advance the counter
-prematurely. After normal exhaustion, unknown totals resolve to the emitted count; declared exact
-totals are preserved.
-
-`Progress::aggregate()` combines snapshots with the same unit. Counts add together; an unknown total
-makes the aggregate unknown; otherwise the known totals are summed. Finished workers
-retain their final contribution. Start, update, and end callbacks carry snapshots so consumers see
-changes in totals without fabricating an extra batch or iteration.
-
-When migrating custom implementations:
-
-- Replace `Progress::items_total` with `total: Some(n)` for a known count or `total: None` for an
-  unknown count. `Progress::new(processed, n, unit)` still accepts an exact `usize` count.
-- Replace `is_completed()` checks with iterator exhaustion or the existing interruption/error checks.
-- Progress logger callbacks receive `&Progress`, including the final snapshot on end callbacks.
-- Emit `LearnerEvent::EndSplit { epoch, progress }` once per split after any final
-  optimizer update. Evaluation uses `EvaluatorEvent::EndTest { progress }`.
-
-DDP workers finish training before the main worker validates, and all workers wait for validation,
-checkpointing, and the early-stopping decision before entering the next epoch. Reports are processed
-as they arrive within each split; future epochs are not buffered.
 
 ## Parameter Groups
 

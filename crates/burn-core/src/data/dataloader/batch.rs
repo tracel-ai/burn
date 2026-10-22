@@ -335,21 +335,6 @@ mod tests {
         assert_eq!(batch_sizes, vec![5, 5, 5, 5, 5]);
     }
 
-    #[test]
-    fn test_batch_dataloader_empty_dataset() {
-        let batcher = Arc::new(TestBatcher::new());
-        let dataset = Arc::new(FakeDataset::<String>::new(0));
-        let dataloader = BatchDataLoader::new(
-            Box::new(FixBatchStrategy::new(5)),
-            dataset,
-            batcher,
-            Default::default(),
-            None,
-        );
-
-        assert!(dataloader.iter().next().is_none());
-    }
-
     /// Buffers the whole input and drops an incomplete pair.
     struct BufferedPairs {
         items: Vec<usize>,

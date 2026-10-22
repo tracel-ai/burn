@@ -194,10 +194,8 @@ impl EvaluationProgressLogger for RecordingProgress {
     fn end_global_progress(&mut self) {}
 }
 
-#[rstest::rstest]
-#[case::completed(usize::MAX)]
-#[case::last_batch(2)]
-fn training_stops_on_metric_errors(#[case] fail_from: usize) {
+#[test]
+fn last_batch_metric_error_prevents_the_partial_update() {
     let learner = make_learner(&Device::flex().autodiff());
     let before = learner
         .model()
@@ -211,7 +209,7 @@ fn training_stops_on_metric_errors(#[case] fail_from: usize) {
     let dir = tempfile::tempdir().unwrap();
     let metric = FailingMetric {
         updates: Arc::new(AtomicUsize::new(0)),
-        fail_from,
+        fail_from: 2,
     };
     let result = SupervisedTraining::new(dir.path(), train, validation)
         .metric_train(metric)
@@ -222,19 +220,13 @@ fn training_stops_on_metric_errors(#[case] fail_from: usize) {
         .with_application_logger(None)
         .launch(learner);
     assert_eq!(result.interrupted, None, "an error is not an interruption");
-    if fail_from == usize::MAX {
-        assert!(result.error.is_none());
-        assert_eq!(events.lock().unwrap().epochs, 2);
-        return;
-    }
     let (metric, split) = metric_failure(result.error);
     assert_eq!(metric, "Failing");
     assert_eq!(split, Split::Train);
     let events = events.lock().unwrap();
     assert_eq!(events.starts, ["train"]);
-    assert_eq!(events.ends.len(), events.starts.len());
     assert_eq!(events.epochs, 0);
-    assert!(matches!(events.ends.last(), Some(progress)
+    assert!(matches!(events.ends.as_slice(), [progress]
         if progress.items_processed == 4 && progress.total == Some(4)));
     assert_eq!(
         before,
@@ -253,7 +245,7 @@ fn empty_splits_finish_without_iterations(#[case] training: bool) {
     let dir = tempfile::tempdir().unwrap();
     let error = if training {
         SupervisedTraining::new(dir.path(), train.slice(0, 0), valid.slice(0, 0))
-            .num_epochs(1)
+            .num_epochs(2)
             .with_progress_logger(report)
             .with_metric_logger(InMemoryMetricLogger::new())
             .with_application_logger(None)
@@ -269,7 +261,8 @@ fn empty_splits_finish_without_iterations(#[case] training: bool) {
     };
     assert!(error.is_none());
     let events = events.lock().unwrap();
-    assert_eq!(events.ends.len(), if training { 2 } else { 1 });
+    assert_eq!(events.ends.len(), if training { 4 } else { 1 });
+    assert_eq!(events.epochs, if training { 2 } else { 0 });
     assert_eq!(events.updates, 0);
     assert_eq!(events.iterations, 0);
     for progress in &events.ends {

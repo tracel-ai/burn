@@ -13,6 +13,7 @@ use burn_core::tensor::Device;
 use burn_core::tensor::distributed::DistributedContext;
 
 use super::processor::WorkerEventProcessor;
+use super::step::StepCoordinator;
 
 pub(crate) type DdpEventProcessor<M> = WorkerEventProcessor<SupervisedTrainingEventProcessor<M>>;
 
@@ -30,6 +31,8 @@ pub(crate) struct WorkerComponents {
     pub event_store: Arc<EventStoreClient>,
     /// All workers finish training before validation, and validation before the next epoch.
     pub epoch_barrier: Arc<Barrier>,
+    /// Coordinates batch availability and stop decisions before collective backward passes.
+    pub steps: Arc<StepCoordinator>,
 }
 
 /// A training strategy for Distributed Data Parallel (DDP) training.
@@ -99,6 +102,7 @@ impl<M: LearnerModel> SupervisedLearningStrategy<M> for DdpTrainingStrategy {
             early_stopping: training_components.early_stopping,
             event_store: training_components.event_store,
             epoch_barrier: Arc::new(Barrier::new(peer_count)),
+            steps: Arc::new(StepCoordinator::new(peer_count)),
         };
 
         // Start worker for main device

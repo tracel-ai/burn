@@ -2,6 +2,7 @@ use burn_core::data::dataloader::Progress;
 use burn_optim::GradientsAccumulator;
 use std::sync::{Arc, Barrier, Mutex};
 
+use super::step::StepCoordinator;
 use super::strategy::DdpEventProcessor;
 use crate::learner::base::Interrupter;
 use crate::metric::processor::{LearnerEvent, TrainingItem};
@@ -18,6 +19,7 @@ pub struct DdpValidEpoch<M: LearnerModel> {
 pub struct DdpTrainEpoch<M: LearnerModel> {
     dataloader: TrainLoader<M>,
     grad_accumulation: Option<usize>,
+    steps: Arc<StepCoordinator>,
 }
 
 impl<M: LearnerModel> DdpValidEpoch<M> {
@@ -114,15 +116,9 @@ impl<M: LearnerModel> DdpTrainEpoch<M> {
         let mut accumulator = GradientsAccumulator::new();
         let mut accumulation_current = 0;
 
-        while !interrupter.should_stop() {
-            let item = match iterator.next() {
-                Some(Ok(item)) => item,
-                None => break,
-                Some(Err(err)) => {
-                    interrupter.fail(err);
-                    break;
-                }
-            };
+        // Every worker must enter the same backward passes, even if a stop arrives after
+        // the shared decision. The next rendezvous observes it before another backward.
+        while let Some(item) = self.steps.next(&mut iterator, interrupter) {
             iteration += 1;
             log::info!("Iteration {iteration}");
 
@@ -156,11 +152,6 @@ impl<M: LearnerModel> DdpTrainEpoch<M> {
                 Some(learner.lr_current()),
             );
             processor.lock().unwrap().train(worker_id, item);
-
-            if interrupter.should_stop() {
-                log::info!("Training interrupted.");
-                break;
-            }
         }
         processor.lock().unwrap().flush();
         // All workers' metric failures must be visible before any final partial update.

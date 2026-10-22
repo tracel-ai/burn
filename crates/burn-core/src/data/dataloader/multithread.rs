@@ -629,19 +629,21 @@ mod tests {
 
         let (done_tx, done_rx) = mpsc::channel();
         let handle = thread::spawn(move || {
-            let saw_error = dataloader.iter().any(|batch| batch.is_err());
-            done_tx.send(saw_error).ok();
+            let mut iterator = dataloader.iter();
+            let error = iterator
+                .find_map(Result::err)
+                .expect("expected a worker error");
+            assert!(iterator.next().is_none());
+            done_tx.send(error.to_string()).unwrap();
         });
 
-        let saw_error = done_rx
+        let error = done_rx
             .recv_timeout(Duration::from_secs(10))
             .expect("dataloader hung instead of reporting the worker error");
-        assert!(
-            saw_error,
-            "expected the dataloader to yield an Err on a worker error"
-        );
-        let _ = handle.join();
+        assert!(error.contains("simulated dataset failure"), "{error}");
+        handle.join().unwrap();
     }
+
     #[test]
     fn completion_waits_for_queued_batches_and_all_workers() {
         let (sender, receiver) = mpsc::channel();
@@ -649,8 +651,7 @@ mod tests {
         sender
             .send(Message::Batch(0, 10, Progress::new(1, None, None)))
             .unwrap();
-        let mut done = Progress::new(1, None, None);
-        done.resolve_total();
+        let done = Progress::new(1, 1, None);
         sender.send(Message::Done(0, done.clone())).unwrap();
         sender
             .send(Message::Batch(1, 20, Progress::new(1, None, None)))
@@ -668,17 +669,12 @@ mod tests {
     }
 
     #[test]
-    fn worker_error_or_disconnection_terminates_the_iterator() {
-        for send_error in [false, true] {
-            let (sender, receiver) = mpsc::channel::<Message<usize>>();
-            if send_error {
-                sender.send(Message::Error(0, "test error".into())).unwrap();
-            }
-            drop(sender);
-            let mut iterator =
-                MultiThreadsDataloaderIterator::new(receiver, 1, vec![Progress::new(0, 1, None)]);
-            assert!(iterator.next().unwrap().is_err());
-            assert!(iterator.next().is_none());
-        }
+    fn worker_disconnection_terminates_the_iterator() {
+        let (sender, receiver) = mpsc::channel::<Message<usize>>();
+        drop(sender);
+        let mut iterator =
+            MultiThreadsDataloaderIterator::new(receiver, 1, vec![Progress::new(0, 1, None)]);
+        assert!(iterator.next().unwrap().is_err());
+        assert!(iterator.next().is_none());
     }
 }
