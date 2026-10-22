@@ -100,7 +100,7 @@ pub struct Declaration<'a> {
     pub bounds: Option<Bounds>,
 }
 
-#[cfg(feature = "observe")]
+#[cfg(feature = "instrument")]
 std::thread_local! {
     /// Whether this thread is observed, kept apart from the observer so the unobserved path is
     /// one read rather than a borrow.
@@ -119,9 +119,9 @@ std::thread_local! {
 /// thread-local read.
 #[inline]
 pub fn observing() -> Option<Observing> {
-    #[cfg(feature = "observe")]
+    #[cfg(feature = "instrument")]
     return OBSERVED.with(core::cell::Cell::get).then_some(Observing);
-    #[cfg(not(feature = "observe"))]
+    #[cfg(not(feature = "instrument"))]
     return None;
 }
 
@@ -133,7 +133,7 @@ pub fn observing() -> Option<Observing> {
 ///
 /// Neither `Send` nor `Sync`: it restores the slot of the thread that made it, and dropped on
 /// another thread it would stop observing one that holds no observer.
-#[cfg(feature = "observe")]
+#[cfg(feature = "instrument")]
 #[must_use = "the observer is uninstalled as soon as this is dropped"]
 pub struct ComponentObservation {
     /// The observer this one replaced, put back on drop.
@@ -141,7 +141,7 @@ pub struct ComponentObservation {
     _thread: core::marker::PhantomData<*const ()>,
 }
 
-#[cfg(feature = "observe")]
+#[cfg(feature = "instrument")]
 impl ComponentObservation {
     /// Install `observer` for this thread.
     ///
@@ -158,7 +158,7 @@ impl ComponentObservation {
     }
 }
 
-#[cfg(feature = "observe")]
+#[cfg(feature = "instrument")]
 impl Drop for ComponentObservation {
     fn drop(&mut self) {
         let replaced = self.replaced.take();
@@ -191,9 +191,9 @@ impl Observing {
         Self::with_observer(|observer| observer.observe(observed));
     }
 
-    #[cfg_attr(not(feature = "observe"), allow(unused_variables))]
+    #[cfg_attr(not(feature = "instrument"), allow(unused_variables))]
     fn with_observer(call: impl FnOnce(&dyn ComponentObserver)) {
-        #[cfg(feature = "observe")]
+        #[cfg(feature = "instrument")]
         OBSERVER.with(|slot| {
             if let Some(observer) = slot.borrow().as_ref() {
                 call(observer.as_ref());
@@ -217,7 +217,7 @@ impl Drop for Tag {
     }
 }
 
-#[cfg(all(test, feature = "observe"))]
+#[cfg(all(test, feature = "instrument"))]
 mod tests {
     use super::*;
     use crate::observed::installed;
