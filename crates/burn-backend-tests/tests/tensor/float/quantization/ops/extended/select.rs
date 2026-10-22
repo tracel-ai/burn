@@ -111,7 +111,7 @@ fn should_select_assign_2d_dim1() {
 }
 
 #[test]
-#[should_panic]
+#[should_panic(expected = "out of bounds")]
 fn should_select_panic_invalid_dimension() {
     let tensor = QTensor::<2>::int8([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
     let indices = TestTensorInt::from_data([1, 1, 0, 1, 2], &Default::default());

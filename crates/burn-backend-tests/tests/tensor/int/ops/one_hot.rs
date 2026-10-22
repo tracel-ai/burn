@@ -10,14 +10,14 @@ fn int_should_support_one_hot() {
 }
 
 #[test]
-#[should_panic]
+#[should_panic(expected = "containing indexes outside [-5, 5)")]
 fn int_one_hot_should_panic_when_index_exceeds_number_of_classes() {
     let tensor = TestTensorInt::<1>::from([5]);
     let _result: TestTensorInt<2> = tensor.one_hot(5);
 }
 
 #[test]
-#[should_panic]
+#[should_panic(expected = "less than 2 classes")]
 fn int_one_hot_should_panic_when_number_of_classes_is_zero() {
     let tensor = TestTensorInt::<1>::from([2]);
     let _result: TestTensorInt<2> = tensor.one_hot(0);

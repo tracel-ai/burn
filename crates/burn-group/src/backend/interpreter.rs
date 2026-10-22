@@ -137,9 +137,6 @@ impl<B: BackendIr> DynGroupInterpreter for GroupInterpreter<B> {
             // The data was registered on every member with the tensor.
             OperationIr::Init(_) => {}
             OperationIr::Drop(tensor) => self.drop_tensor(tensor.id),
-            OperationIr::Distributed(_) => {
-                panic!("A device group runs its own collectives and takes none from outside")
-            }
             op => self.run(op),
         }
     }

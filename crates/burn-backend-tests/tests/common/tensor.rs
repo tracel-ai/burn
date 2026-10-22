@@ -5,13 +5,12 @@ pub use super::*;
 #[path = "../tensor/clone_invariance.rs"]
 mod clone_invariance;
 
+#[path = "../tensor/collective.rs"]
+mod collective;
+
 #[cfg(feature = "std")]
 #[path = "../tensor/multi_threads.rs"]
 mod multi_threads;
-
-#[cfg(feature = "distributed")]
-#[path = "../tensor/distributed.rs"]
-mod distributed;
 
 #[path = "../tensor/extract_inplace.rs"]
 mod extract_inplace;

@@ -2,6 +2,7 @@ mod activation;
 mod backward;
 mod base;
 mod bool_tensor;
+mod collective;
 mod distributed;
 mod int_tensor;
 mod module;

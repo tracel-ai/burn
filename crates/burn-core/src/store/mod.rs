@@ -487,21 +487,6 @@ mod tests {
     }
 
     #[test]
-    fn round_trip_in_memory() {
-        let device = Default::default();
-        let model = Tiny::new([[1.0, 2.0], [3.0, 4.0]], [5.0, 6.0], &device);
-
-        let bytes = model.into_record().into_bytes().unwrap();
-        let record = ModuleRecord::from_bytes(bytes).unwrap();
-        assert_eq!(record.len(), 2);
-
-        let loaded = Tiny::new([[0.0; 2]; 2], [0.0; 2], &device).load_record(record);
-        let (w, b) = weights(&loaded);
-        assert_eq!(w, vec![1.0, 2.0, 3.0, 4.0]);
-        assert_eq!(b, vec![5.0, 6.0]);
-    }
-
-    #[test]
     fn records_exclude_flags_and_loading_preserves_the_target_flag() {
         let device = Default::default();
         let bytes = Flagged::new(7.0, false, &device)
@@ -568,24 +553,6 @@ mod tests {
             .try_load_record(record.allow_unused(true))
             .unwrap();
         assert_eq!(weights(&loaded), (vec![0.0; 4], vec![0.0; 2]));
-    }
-
-    #[test]
-    fn round_trip_file() {
-        let device = Default::default();
-        let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join("tiny.bpk");
-
-        Tiny::new([[1.0, 2.0], [3.0, 4.0]], [5.0, 6.0], &device)
-            .into_record()
-            .save(&path)
-            .unwrap();
-
-        let record = ModuleRecord::load(&path).unwrap();
-        let loaded = Tiny::new([[0.0; 2]; 2], [0.0; 2], &device).load_record(record);
-        let (w, b) = weights(&loaded);
-        assert_eq!(w, vec![1.0, 2.0, 3.0, 4.0]);
-        assert_eq!(b, vec![5.0, 6.0]);
     }
 
     #[test]

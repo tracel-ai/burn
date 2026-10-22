@@ -395,19 +395,19 @@ impl TensorCheck {
         classes: &[Option<usize>],
     ) -> Self {
         let mut check = Self::Ok;
-        // `one_hot_fill` keeps an off_value row for out-of-range indices; `one_hot` rejects them
-        if classes.iter().any(Option::is_none) {
+        if num_classes <= 1 {
+            check = check.register(
+                "One Hot",
+                TensorError::new("Can't create a one hot tensor with less than 2 classes"),
+            )
+        } else if classes.iter().any(Option::is_none) {
+            // `one_hot_fill` keeps an off_value row for out-of-range indices; `one_hot` rejects them
             check = check.register(
                 "One Hot",
                 TensorError::new(format!(
                     "Can't create a one hot tensor from ({index_tensor:?}) containing indexes outside [-{num_classes}, {num_classes})",
                 )),
             );
-        } else if num_classes <= 1 {
-            check = check.register(
-                "One Hot",
-                TensorError::new("Can't create a one hot tensor with less than 2 classes"),
-            )
         }
         check
     }
@@ -1416,21 +1416,21 @@ mod tests {
     use macros::check;
 
     #[test]
-    #[should_panic]
+    #[should_panic(expected = "range that exceeds the current tensor")]
     fn index_range_exceed_dimension() {
         let slices = vec![Slice::from(0..2), Slice::from(0..4), Slice::from(1..8)];
         check!(TensorCheck::slice::<3>(&Shape::new([3, 5, 7]), &slices));
     }
 
     #[test]
-    #[should_panic]
+    #[should_panic(expected = "higher number of dimensions than the current")]
     fn index_range_exceed_number_of_dimensions() {
         let slices = vec![Slice::from(0..1), Slice::from(0..1), Slice::from(0..1)];
         check!(TensorCheck::slice::<2>(&Shape::new([3, 5]), &slices));
     }
 
     #[test]
-    #[should_panic]
+    #[should_panic(expected = "incompatible shapes")]
     fn binary_ops_shapes_no_broadcast() {
         check!(TensorCheck::binary_ops_ew_shape::<2>(
             TensorCheck::Ok,
@@ -1451,7 +1451,7 @@ mod tests {
     }
 
     #[test]
-    #[should_panic]
+    #[should_panic(expected = "not on the same device")]
     fn binary_ops_devices() {
         check!(TensorCheck::binary_ops_device(
             TensorCheck::Ok,
@@ -1462,19 +1462,19 @@ mod tests {
     }
 
     #[test]
-    #[should_panic]
+    #[should_panic(expected = "The given dimensions are out of bounds")]
     fn movedim_args_vec_out_of_bounds() {
         check!(TensorCheck::movedim_args_vec::<3>(&vec![0, 1, 3]));
     }
 
     #[test]
-    #[should_panic]
+    #[should_panic(expected = "contain duplicates")]
     fn movedim_args_vec_duplicates() {
         check!(TensorCheck::movedim_args_vec::<3>(&vec![0, 1, 1]));
     }
 
     #[test]
-    #[should_panic]
+    #[should_panic(expected = "source and destination must be equal")]
     fn movedim_args_length() {
         check!(TensorCheck::movedim_args_length(
             &vec![0, 1],
@@ -1483,7 +1483,7 @@ mod tests {
     }
 
     #[test]
-    #[should_panic]
+    #[should_panic(expected = "unsqueezed rank must be greater")]
     fn unsqueeze_dim_same_rank() {
         check!(TensorCheck::unsqueeze_dim::<3, 3>(2));
     }

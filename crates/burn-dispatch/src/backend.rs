@@ -737,11 +737,22 @@ mod autodiff_context_tests {
         fn conditional_float_route(
             int: IntTensor<Self>,
             float: Option<FloatTensor<Self>>,
+            expect_autodiff: bool,
         ) -> IntTensor<Self> {
-            // `optional_float_only_uses_autodiff_when_present` exercises both routes: an enabled
-            // int alone uses the concrete backend, while a present float selects `Autodiff<B>`.
-            assert_eq!(float.is_some(), B::ad_enabled(&int.device()));
+            let _ = float;
+            assert_eq!(expect_autodiff, B::ad_enabled(&int.device()));
             int
+        }
+
+        fn mixed_plain_float_and_enabled_int_route(
+            float: FloatTensor<Self>,
+            _int: IntTensor<Self>,
+        ) -> FloatTensor<Self> {
+            assert!(
+                !B::ad_enabled(&float.device()),
+                "an enabled integer should not route a plain float through autodiff"
+            );
+            float
         }
 
         fn optional_routing_tensor(
@@ -760,6 +771,15 @@ mod autodiff_context_tests {
                 .chain(second)
                 .next()
                 .expect("test requires one tensor")
+        }
+
+        fn vector_float_route(
+            int: IntTensor<Self>,
+            _floats: Vec<FloatTensor<Self>>,
+            expect_autodiff: bool,
+        ) -> IntTensor<Self> {
+            assert_eq!(expect_autodiff, B::ad_enabled(&int.device()));
+            int
         }
     }
 
@@ -859,13 +879,51 @@ mod autodiff_context_tests {
     fn optional_float_only_uses_autodiff_when_present() {
         let strategy = GradientCheckpointingStrategy::Balanced;
         let int = Dispatch::int_from_data(TensorData::from([1i32, 2]), &device(strategy));
-        let output = Dispatch::conditional_float_route(int, None);
+        let output = Dispatch::conditional_float_route(int, None, false);
         assert_eq!(output.autodiff, DispatchAutodiffContext::Enabled(strategy));
 
         let int = Dispatch::int_from_data(TensorData::from([1i32, 2]), &inner_device());
-        let float = float([1.0, 2.0], &device(strategy));
-        let output = Dispatch::conditional_float_route(int, Some(float));
+        let enabled_float = float([1.0, 2.0], &device(strategy));
+        assert!(!Dispatch::is_tracked(&enabled_float));
+        let output = Dispatch::conditional_float_route(int, Some(enabled_float), true);
         assert_eq!(output.autodiff, DispatchAutodiffContext::Enabled(strategy));
+
+        let int = Dispatch::int_from_data(TensorData::from([1i32, 2]), &device(strategy));
+        let plain_float = float([1.0, 2.0], &inner_device());
+        let output = Dispatch::conditional_float_route(int, Some(plain_float), false);
+        assert_eq!(output.autodiff, DispatchAutodiffContext::Enabled(strategy));
+    }
+
+    #[test]
+    fn vector_float_route_uses_only_autodiff_floats_to_select_autodiff() {
+        let strategy = GradientCheckpointingStrategy::Balanced;
+        let int = Dispatch::int_from_data(TensorData::from([1i32, 2]), &device(strategy));
+        let output =
+            Dispatch::vector_float_route(int, vec![float([1.0, 2.0], &inner_device())], false);
+        assert_eq!(output.autodiff, DispatchAutodiffContext::Enabled(strategy));
+
+        let int = Dispatch::int_from_data(TensorData::from([1i32, 2]), &inner_device());
+        let output = Dispatch::vector_float_route(
+            int,
+            vec![
+                float([1.0, 2.0], &inner_device()),
+                float([3.0, 4.0], &device(strategy)),
+            ],
+            true,
+        );
+        assert_eq!(output.autodiff, DispatchAutodiffContext::Enabled(strategy));
+    }
+
+    #[test]
+    fn enabled_integer_does_not_route_a_plain_float_through_autodiff() {
+        let strategy = GradientCheckpointingStrategy::Balanced;
+        let float = float([1.0, 2.0], &inner_device());
+        let int = Dispatch::int_from_data(TensorData::from([1i32, 2]), &device(strategy));
+
+        let output = Dispatch::mixed_plain_float_and_enabled_int_route(float, int);
+
+        assert_enabled_float(&output, strategy);
+        assert!(!Dispatch::is_tracked(&output));
     }
 
     #[test]

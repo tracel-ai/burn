@@ -18,7 +18,7 @@ workspace = true
 # `sqlite` is opt-in: it pulls the Turso engine and its dependency tree, which a dataset pipeline
 # built on CSV or in-memory sources has no use for.
 default = []
-doc = ["default", "sqlite", "dep:branches"]
+doc = ["default", "sqlite"]
 tracing = [
     "burn-std?/tracing",
 ]
@@ -29,6 +29,7 @@ fake = ["dep:fake"]
 network = ["dep:burn-std"]
 sqlite = [
     "dep:turso",
+    "dep:branches",
     "dep:futures-lite",
     "dep:r2d2",
     "dep:image",

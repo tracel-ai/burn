@@ -228,6 +228,38 @@ fn test_conv3d_complex() {
     ]));
 }
 
+#[test]
+fn test_conv3d_depth_padding_only_slice() {
+    // With depth padding 1 and depth stride 3, the single output slice sits entirely in the
+    // depth padding, so the output is the bias alone
+    let test = Conv3dTestCase {
+        batch_size: 1,
+        channels_in: 5,
+        channels_out: 2,
+        kernel_size_1: 1,
+        kernel_size_2: 3,
+        kernel_size_3: 3,
+        padding_1: 1,
+        padding_2: 1,
+        padding_3: 1,
+        stride_1: 3,
+        stride_2: 1,
+        stride_3: 1,
+        dilation_1: 1,
+        dilation_2: 1,
+        dilation_3: 1,
+        groups: 1,
+        depth: 1,
+        height: 3,
+        width: 3,
+    };
+
+    test.assert_output(TestTensor::from([[
+        [[[0., 0., 0.], [0., 0., 0.], [0., 0., 0.]]],
+        [[[1., 1., 1.], [1., 1., 1.], [1., 1., 1.]]],
+    ]]));
+}
+
 struct Conv3dTestCase {
     batch_size: usize,
     channels_in: usize,

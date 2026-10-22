@@ -48,14 +48,14 @@ fn should_flatten_end_negative_indices() {
 
 /// Test if the function panics when the start dimension is greater than the end dimension.
 #[test]
-#[should_panic]
+#[should_panic(expected = "must be smaller than or equal to the end dim")]
 fn should_flatten_panic() {
     let tensor = TestTensor::<4>::ones(Shape::new([2, 3, 4, 5]), &Default::default());
     let _flattened_tensor: TestTensor<2> = tensor.flatten(2, 0);
 }
 
 #[test]
-#[should_panic]
+#[should_panic(expected = "must be large enough to accommodate")]
 fn not_enough_destination_dimension() {
     let tensor = TestTensor::<3>::ones(Shape::new([1, 5, 15]), &Default::default());
     let flattened_tensor: TestTensor<1> = tensor.flatten(1, 2);

@@ -367,38 +367,79 @@ pub fn global_scale_size(scheme: &QuantScheme) -> usize {
 /// over the flattened tensor, as [`QuantizedBytes::new`] lays it out. Flattening first would
 /// under-count: a `[3, 3]` Q4 `PackedU32` tensor occupies `3 * ceil(3 / 8) = 3` words, not
 /// `ceil(9 / 8) = 2`.
-fn storage_elements(scheme: &QuantScheme, shape: &Shape) -> usize {
+fn storage_elements(scheme: &QuantScheme, shape: &Shape) -> Option<usize> {
     let num_quants = scheme.num_quants();
+    if num_quants == 0 {
+        return None;
+    }
 
     match scheme.store {
-        QuantStore::PackedU32(packed_dim) | QuantStore::PackedNative(packed_dim)
-            if num_quants > 1 && !shape.is_empty() =>
-        {
-            assert!(
-                packed_dim < shape.num_dims(),
-                "{scheme:?} packs along dim {packed_dim} from the innermost, which {shape:?} lacks"
-            );
-            let packed_dim = shape.num_dims() - packed_dim - 1;
+        QuantStore::PackedU32(packed_dim) | QuantStore::PackedNative(packed_dim) => {
+            // PackedOrder treats a scalar as one line containing one value.
+            if shape.is_empty() {
+                return (packed_dim == 0).then_some(1);
+            }
+            let packed_dim = shape.num_dims().checked_sub(packed_dim.checked_add(1)?)?;
             let mut storage = shape.clone();
-            storage[packed_dim] = storage[packed_dim].div_ceil(num_quants);
-            storage.num_elements()
+            if num_quants > 1 {
+                storage[packed_dim] = storage[packed_dim].div_ceil(num_quants);
+            }
+            storage
+                .iter()
+                .try_fold(1usize, |elements, &dim| elements.checked_mul(dim))
         }
-        _ => shape.num_elements().div_ceil(num_quants),
+        QuantStore::Native => shape
+            .iter()
+            .try_fold(1usize, |elements, &dim| elements.checked_mul(dim)),
     }
 }
 
 /// Total bytes a tensor of `shape` occupies under `scheme`, laid out as [`QuantizedBytes::new`]
 /// writes it: values, then block scales, then (for a two-level scheme) the per-tensor scale.
 pub fn quantized_data_len(scheme: &QuantScheme, shape: &Shape) -> usize {
-    let num_params = params_shape(shape, scheme).num_elements();
-    let scale_bytes = num_params * scale_size(scheme.scale_dtype());
+    try_quantized_data_len(scheme, shape)
+        .expect("quantized tensor layout is invalid or overflows usize")
+}
 
-    value_bytes(scheme, shape) + scale_bytes + global_scale_size(scheme)
+/// Try to calculate the number of bytes required to store quantized data with this shape and scheme.
+///
+/// Returns `None` when the scheme is invalid for the shape or a size calculation overflows.
+/// This is suitable for validating untrusted serialized metadata.
+pub(crate) fn try_quantized_data_len(scheme: &QuantScheme, shape: &Shape) -> Option<usize> {
+    let value_bytes_per_element = match scheme.store {
+        QuantStore::Native => core::mem::size_of::<i8>(),
+        _ => scheme.size_bits_stored().div_ceil(8),
+    };
+    let value_bytes = storage_elements(scheme, shape)?.checked_mul(value_bytes_per_element)?;
+
+    let num_params = if let Some(block) = scheme.block_size() {
+        if block.as_slice().len() > shape.num_dims() {
+            return None;
+        }
+        let block_shape = block.to_dim_vec(shape.num_dims());
+        let mut num_params = 1usize;
+        for (&dim, block) in shape.iter().zip(block_shape) {
+            let block = block as usize;
+            if block == 0 {
+                return None;
+            }
+            num_params = num_params.checked_mul(dim.div_ceil(block))?;
+        }
+        num_params
+    } else {
+        1
+    };
+    let scale_bytes = num_params.checked_mul(scale_size(scheme.scale_dtype()))?;
+
+    value_bytes
+        .checked_add(scale_bytes)?
+        .checked_add(global_scale_size(scheme))
 }
 
 /// Bytes the values of a tensor of `shape` take under `scheme`, before its scales.
 fn value_bytes(scheme: &QuantScheme, shape: &Shape) -> usize {
-    storage_elements(scheme, shape) * scheme.size_bits_stored().div_ceil(8)
+    storage_elements(scheme, shape).expect("quantized tensor layout is invalid or overflows usize")
+        * scheme.size_bits_stored().div_ceil(8)
 }
 
 /// Bytes per stored scale entry for the given scale dtype.
@@ -474,65 +515,10 @@ fn read_bytes_to_i8(bytes: Bytes) -> Vec<i8> {
     }
 }
 
-/// Pack signed 8-bit integer values into a sequence of unsigned 32-bit integers.
-pub fn pack_i8s_to_u32s(values: Vec<i8>) -> Vec<u32> {
-    // Shift and combine groups of four 8-bit values into a u32.
-    // Same as doing this:
-    //     let result = (d_u8 & 0xFF) << 24 | (c_u8 & 0xFF) << 16 | (b_u8 & 0xFF) << 8 | (a_u8 & 0xFF);
-    #[cfg(target_endian = "big")]
-    {
-        values
-            .chunks(4)
-            .map(|x| {
-                x.iter()
-                    .enumerate()
-                    .fold(0u32, |acc, (i, x)| acc | (*x as u32 & 0xFF) << (i * 8))
-            })
-            .collect()
-    }
-
-    // The order of bytes in little endian matches the above description, we just need to
-    // handle padding when the number of values is not a factor of 4
-    #[cfg(target_endian = "little")]
-    {
-        let mut values = values;
-        let remainder = values.len() % 4;
-        if remainder != 0 {
-            // Pad with zeros
-            values.extend(core::iter::repeat_n(0, 4 - remainder));
-        }
-
-        let len = values.len() / 4;
-        let capacity = values.capacity() / 4;
-
-        // Pre-forget the old vec and re-interpret as u32
-        let mut values = core::mem::ManuallyDrop::new(values);
-        let ptr = values.as_mut_ptr() as *mut u32;
-
-        unsafe { Vec::from_raw_parts(ptr, len, capacity) }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use alloc::vec;
-
-    #[test]
-    fn should_pack_i8s_to_u32() {
-        let packed = pack_i8s_to_u32s(vec![-128, 2, -3, 127]);
-
-        assert_eq!(packed, vec![2147287680]);
-    }
-
-    #[test]
-    fn should_pack_i8s_to_u32_padded() {
-        let packed = pack_i8s_to_u32s(vec![-128, 2, -3, 127, 55]);
-        let packed_padded = pack_i8s_to_u32s(vec![-128, 2, -3, 127, 55, 0, 0, 0]);
-
-        assert_eq!(packed, vec![2147287680, 55]);
-        assert_eq!(packed, packed_padded);
-    }
 
     #[test]
     fn should_pack_unpack_quantization_parameters_per_tensor_symmetric() {

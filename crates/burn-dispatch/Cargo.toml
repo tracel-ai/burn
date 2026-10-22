@@ -38,7 +38,7 @@ tracing = [
 ]
 
 # Enables cubecl-facing APIs (e.g. throughput measurement) on cubecl-backed devices.
-cubecl = ["dep:burn-cubecl", "burn-backend/cubecl"]
+cubecl = ["burn-backend/cubecl"]
 
 # Backends
 cuda = ["cubecl", "burn-cubecl/cuda"]

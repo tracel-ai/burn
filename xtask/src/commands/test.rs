@@ -147,32 +147,47 @@ pub(crate) fn handle_backend_tests(
     if matches!(backend, TestBackend::Flex) && matches!(context, Context::Std) {
         // These targets need two concrete backends. Keep CPU runtime dependencies out of
         // the portable/no-std suites and run the shared suites with only Flex selected.
-        for (package, target, features) in [
-            ("burn-backend-tests", "autodiff_transfer", "flex,cpu,std"),
-            ("burn-core", "lazy_param_device", "flex,cpu,std"),
-            (
-                "burn",
-                "backend_extension_runtime",
-                "flex,cpu,std,autodiff,extension",
+        let features = [
+            "burn-backend-tests/flex,burn-backend-tests/cpu,burn-backend-tests/std",
+            "burn-core/flex,burn-core/cpu,burn-core/std",
+            "burn/flex,burn/cpu,burn/std,burn/autodiff,burn/extension",
+        ]
+        .join(",");
+        // One invocation shares dependency builds across these integration targets.
+        // Keep defaults disabled so the transfer tests do not enable fusion.
+        group!("Tests: Flex/CPU transfer integration tests");
+        let result = run_process(
+            "cargo",
+            &handle_test_args(
+                &[
+                    "test",
+                    "--color",
+                    "always",
+                    "--no-default-features",
+                    "-p",
+                    "burn-backend-tests",
+                    "-p",
+                    "burn-core",
+                    "-p",
+                    "burn",
+                    "--features",
+                    &features,
+                    "--test",
+                    "autodiff_transfer",
+                    "--test",
+                    "lazy_param_device",
+                    "--test",
+                    "backend_extension_runtime",
+                ],
+                args.release,
             ),
-        ] {
-            build_helpers::custom_crates_tests(
-                vec![package],
-                handle_test_args(
-                    &[
-                        "--no-default-features",
-                        "--features",
-                        features,
-                        "--test",
-                        target,
-                    ],
-                    args.release,
-                ),
-                None,
-                None,
-                target,
-            )?;
-        }
+            None,
+            None,
+            "Flex/CPU transfer integration tests",
+        );
+        endgroup!();
+        result?;
+
         build_helpers::custom_crates_tests(
             vec!["burn-dispatch"],
             handle_test_args(
