@@ -16,7 +16,7 @@ on every member, so results stay correct while rules are added.
 
 `GroupBackend` runs a group as a [burn-router](https://github.com/tracel-ai/burn/tree/main/crates/burn-router)
 backend: one `TensorInterpreter` per member replays each op at the member's local shapes, and
-shards move between members with `to_device`.
+shards move between members with the backend's collectives.
 
 ## Usage
 

@@ -154,9 +154,9 @@ impl<B: BackendIr> DynGroupInterpreter for GroupInterpreter<B> {
                 return Err(error);
             }
         };
-        let shards =
-            self.take_shards(&tensor, current)
-                .reshard(resharding, &tensor.shape, &self.devices);
+        let shards = self
+            .take_shards(&tensor, current)
+            .reshard(resharding, &tensor.shape);
         let id = self.new_tensor_id();
         self.register_shards(id, shards, sharding);
         Ok(id)
@@ -250,9 +250,9 @@ impl<B: BackendIr> GroupInterpreter<B> {
                     .unwrap_or_else(|error| {
                         panic!("A rule asked for {target:?} from {current:?}: {error}")
                     });
-            let shards =
-                self.take_shards(&read, current)
-                    .reshard(resharding, &input.shape, &self.devices);
+            let shards = self
+                .take_shards(&read, current)
+                .reshard(resharding, &input.shape);
             let temporary = self.new_tensor_id();
             self.register_shards(temporary, shards, target);
             resharded.temporaries.insert(input.id, temporary);

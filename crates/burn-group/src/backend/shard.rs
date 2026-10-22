@@ -1,6 +1,8 @@
 use std::ops::Range;
 
-use burn_backend::{ExecutionError, Shape, Slice, TensorData, TensorMetadata};
+use burn_backend::{
+    ExecutionError, Shape, Slice, TensorData, TensorMetadata, distributed::ReduceOperation,
+};
 use burn_ir::{BackendIr, HandleKind};
 use burn_std::future::DynFut;
 
@@ -33,18 +35,18 @@ impl<B: BackendIr> ShardList<B> {
         self.shards.into_iter().map(|shard| shard.0)
     }
 
-    /// Collectives emulated by moving shards with `to_device`: correct on any backend, fast on
-    /// none.
-    pub fn reshard(self, resharding: Resharding, shape: &Shape, devices: &[B::Device]) -> Self {
+    /// The shards once resharded, through the backend's collectives: native between its own
+    /// devices where it has them, composed from transfers where it does not.
+    pub fn reshard(self, resharding: Resharding, shape: &Shape) -> Self {
         match resharding {
             Resharding::Keep => self,
             Resharding::Slice { dim } => self.slice(dim, shape),
-            Resharding::AllGather { dim } => self.all_gather(dim, devices),
-            Resharding::AllReduce => self.all_reduce(devices),
-            Resharding::ReduceScatter { dim } => self.all_reduce(devices).slice(dim, shape),
-            Resharding::AllToAll { from_dim, to_dim } => {
-                self.all_gather(from_dim, devices).slice(to_dim, shape)
-            }
+            Resharding::AllGather { dim } => self.all_gather(dim),
+            Resharding::AllReduce => self.all_reduce(),
+            Resharding::ReduceScatter { dim } => self.reduce_scatter(dim),
+            // A member keeps its own chunk of `to_dim`, so that is the dim the shards split on,
+            // and what it receives from every member makes up the whole of `from_dim`.
+            Resharding::AllToAll { from_dim, to_dim } => self.all_to_all(to_dim, from_dim),
         }
     }
 
@@ -78,31 +80,84 @@ impl<B: BackendIr> ShardList<B> {
         }
     }
 
-    fn all_gather(self, dim: usize, devices: &[B::Device]) -> Self {
-        self.combine_on_every_member(devices, |shards| Shard::concat(shards, dim))
+    fn all_gather(self, dim: usize) -> Self {
+        self.moved(
+            |shards| B::float_all_gather(shards, dim),
+            |shards| B::int_all_gather(shards, dim),
+            |shards| B::bool_all_gather(shards, dim),
+        )
     }
 
-    fn all_reduce(self, devices: &[B::Device]) -> Self {
-        self.combine_on_every_member(devices, Shard::sum)
+    fn all_to_all(self, split_dim: usize, concat_dim: usize) -> Self {
+        self.moved(
+            |shards| B::float_all_to_all(shards, split_dim, concat_dim),
+            |shards| B::int_all_to_all(shards, split_dim, concat_dim),
+            |shards| B::bool_all_to_all(shards, split_dim, concat_dim),
+        )
     }
 
-    fn combine_on_every_member(
+    fn all_reduce(self) -> Self {
+        self.reduced(
+            |shards| B::float_all_reduce(shards, ReduceOperation::Sum),
+            |shards| B::int_all_reduce(shards, ReduceOperation::Sum),
+        )
+    }
+
+    fn reduce_scatter(self, dim: usize) -> Self {
+        self.reduced(
+            |shards| B::float_reduce_scatter(shards, dim, ReduceOperation::Sum),
+            |shards| B::int_reduce_scatter(shards, dim, ReduceOperation::Sum),
+        )
+    }
+
+    /// A collective that only moves elements, which every kind but a quantized tensor has.
+    fn moved(
         self,
-        devices: &[B::Device],
-        combine: impl Fn(Vec<Shard<B>>) -> Shard<B>,
+        floats: impl FnOnce(Vec<B::FloatTensorPrimitive>) -> Vec<B::FloatTensorPrimitive>,
+        ints: impl FnOnce(Vec<B::IntTensorPrimitive>) -> Vec<B::IntTensorPrimitive>,
+        bools: impl FnOnce(Vec<B::BoolTensorPrimitive>) -> Vec<B::BoolTensorPrimitive>,
     ) -> Self {
-        let shards = devices
-            .iter()
-            .map(|device| {
-                let moved = self
-                    .shards
-                    .iter()
-                    .map(|shard| shard.clone().moved_to(device))
-                    .collect();
-                combine(moved)
-            })
-            .collect();
-        Self { shards }
+        let mut shards = self.shards.into_iter().peekable();
+        match shards.peek().map(|shard| &shard.0) {
+            Some(HandleKind::Float(_)) => {
+                Self::floats(floats(shards.map(Shard::into_float).collect()))
+            }
+            Some(HandleKind::Int(_)) => Self::ints(ints(shards.map(Shard::into_int).collect())),
+            Some(HandleKind::Bool(_)) => Self::bools(bools(shards.map(Shard::into_bool).collect())),
+            Some(HandleKind::Quantized(_)) => Shard::<B>::quantized_unsupported(),
+            None => panic!("A group has a member"),
+        }
+    }
+
+    /// A collective that sums the shards, which only a float or int tensor has.
+    fn reduced(
+        self,
+        floats: impl FnOnce(Vec<B::FloatTensorPrimitive>) -> Vec<B::FloatTensorPrimitive>,
+        ints: impl FnOnce(Vec<B::IntTensorPrimitive>) -> Vec<B::IntTensorPrimitive>,
+    ) -> Self {
+        let mut shards = self.shards.into_iter().peekable();
+        match shards.peek().map(|shard| &shard.0) {
+            Some(HandleKind::Float(_)) => {
+                Self::floats(floats(shards.map(Shard::into_float).collect()))
+            }
+            Some(HandleKind::Int(_)) => Self::ints(ints(shards.map(Shard::into_int).collect())),
+            Some(HandleKind::Bool(_) | HandleKind::Quantized(_)) => {
+                panic!("Only a float or int tensor can be a partial sum")
+            }
+            None => panic!("A group has a member"),
+        }
+    }
+
+    fn floats(tensors: Vec<B::FloatTensorPrimitive>) -> Self {
+        Self::new(tensors.into_iter().map(HandleKind::Float).collect())
+    }
+
+    fn ints(tensors: Vec<B::IntTensorPrimitive>) -> Self {
+        Self::new(tensors.into_iter().map(HandleKind::Int).collect())
+    }
+
+    fn bools(tensors: Vec<B::BoolTensorPrimitive>) -> Self {
+        Self::new(tensors.into_iter().map(HandleKind::Bool).collect())
     }
 }
 
@@ -244,11 +299,8 @@ mod tests {
         let whole =
             Flex::float_from_data(TensorData::new(vec![0f32; 24], shape.clone()), &FlexDevice);
 
-        let shards = ShardList::<Flex>::replicated(HandleKind::Float(whole), &devices).reshard(
-            Resharding::Slice { dim: 0 },
-            &shape,
-            &devices,
-        );
+        let shards = ShardList::<Flex>::replicated(HandleKind::Float(whole), &devices)
+            .reshard(Resharding::Slice { dim: 0 }, &shape);
 
         for handle in shards.into_handles() {
             let HandleKind::Float(shard) = handle else {
