@@ -43,8 +43,10 @@ let hidden = activation::relu(x.matmul(w1));
 let output = hidden.matmul(w2);
 ```
 
-A group's members are Cube devices of one runtime, or Flex devices. A tensor is created whole on
-every member before `with_sharding` splits it.
+A group's members are Cube devices, of one runtime or of several, or Flex devices. Members on
+different runtimes form a group whose every collective is emulated through the host: correct, and
+far slower than members that share a runtime. A tensor is created whole on every member before
+`with_sharding` splits it.
 
 <!-- burn-crate-footer -->
 

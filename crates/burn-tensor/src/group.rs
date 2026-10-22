@@ -33,12 +33,16 @@ impl GroupOptions {
     /// Each of its default dtypes is the first of the members' [configured](Device::settings)
     /// ones, in member order, that every member supports.
     ///
+    /// Members on different runtimes of one backend form a group, and every collective between
+    /// them is emulated with transfers staged through the host, so such a group is correct and far
+    /// slower than one whose members share a runtime.
+    ///
     /// # Errors
     ///
-    /// When there are no devices, when they mix backends or runtimes, when they are not Cube or
-    /// Flex devices, or when no member's default for a dtype runs on every member. For autodiff,
-    /// group the plain devices and call `autodiff` on the group. Remote devices are left out:
-    /// tensor parallelism needs links as fast as one machine's GPU interconnect.
+    /// When there are no devices, when they mix backends, when they are not Cube or Flex devices,
+    /// or when no member's default for a dtype runs on every member. For autodiff, group the plain
+    /// devices and call `autodiff` on the group. Remote devices are left out: tensor parallelism
+    /// needs links as fast as one machine's GPU interconnect.
     ///
     /// # Panics
     ///

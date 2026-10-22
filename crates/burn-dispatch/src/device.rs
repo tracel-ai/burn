@@ -417,9 +417,9 @@ impl DispatchDevice {
     ///
     /// # Errors
     ///
-    /// When `devices` is empty or mixes backends or runtimes, when they are not Cube or Flex
-    /// devices, or when no member's default for a dtype runs on every member. An autodiff group is
-    /// a group of plain devices made autodiff afterwards.
+    /// When `devices` is empty or mixes backends, when they are not Cube or Flex devices, or when
+    /// no member's default for a dtype runs on every member. An autodiff group is a group of plain
+    /// devices made autodiff afterwards.
     ///
     /// # Panics
     ///
@@ -432,12 +432,8 @@ impl DispatchDevice {
             .collect();
         let group = match devices.first() {
             #[cfg(cube_backend)]
-            Some(Self::Cube(first)) => {
-                let runtime = first.runtime();
+            Some(Self::Cube(_)) => {
                 let members = group_members!(devices, Cube)?;
-                if members.iter().any(|member| member.runtime() != runtime) {
-                    return Err(GroupError::MixedRuntimes);
-                }
                 GroupDevice::with_member_settings::<crate::backends::Cube>(&members, &settings)
             }
             #[cfg(feature = "flex")]

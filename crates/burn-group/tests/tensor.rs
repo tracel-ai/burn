@@ -288,12 +288,28 @@ fn group(num_members: usize) -> Device {
         .expect("The test's devices form a group")
 }
 
-#[cfg(feature = "test-cuda")]
+/// One member per runtime, so no collective between them has a native path.
+#[cfg(feature = "test-mixed-runtimes")]
+fn member_devices() -> Vec<Device> {
+    let cuda = Device::enumerate(burn_tensor::DeviceType::Cuda).into_vec();
+    let vulkan = Device::enumerate(burn_tensor::DeviceType::Vulkan).into_vec();
+    let members: Vec<Device> = cuda
+        .into_iter()
+        .take(1)
+        .chain(vulkan.into_iter().take(1))
+        .collect();
+    // Without both, the group spans one runtime and the suite proves nothing it was run for.
+    assert_eq!(members.len(), 2, "A CUDA and a Vulkan device are needed");
+    assert_ne!(members[0], members[1], "The members are two devices");
+    members
+}
+
+#[cfg(all(feature = "test-cuda", not(feature = "test-mixed-runtimes")))]
 fn member_devices() -> Vec<Device> {
     Device::enumerate(burn_tensor::DeviceType::Cuda).into_vec()
 }
 
-#[cfg(not(feature = "test-cuda"))]
+#[cfg(not(any(feature = "test-cuda", feature = "test-mixed-runtimes")))]
 fn member_devices() -> Vec<Device> {
     vec![Device::flex()]
 }
@@ -314,14 +330,14 @@ fn values<const D: usize>(shape: [usize; D], seed: usize) -> TensorData {
     TensorData::new(values, shape)
 }
 
-#[cfg(not(feature = "test-cuda"))]
+#[cfg(not(any(feature = "test-cuda", feature = "test-mixed-runtimes")))]
 fn tolerance() -> Tolerance<f32> {
     Tolerance::rel_abs(1e-4, 1e-5)
 }
 
 /// CUDA rounds f32 matmuls through TF32 on cards that have it, about 1% off Flex; a lost or
 /// doubled summand is off by far more.
-#[cfg(feature = "test-cuda")]
+#[cfg(any(feature = "test-cuda", feature = "test-mixed-runtimes"))]
 fn tolerance() -> Tolerance<f32> {
     Tolerance::rel_abs(3e-2, 1e-2)
 }

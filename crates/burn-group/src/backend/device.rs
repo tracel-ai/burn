@@ -27,8 +27,6 @@ pub enum GroupError {
     NoDevices,
     /// Every member of a group runs one backend.
     MixedBackends,
-    /// Every member of a group runs one runtime of its backend.
-    MixedRuntimes,
     /// A group is made from plain devices: group them, then make the group autodiff.
     AutodiffMember,
     /// Tensor parallelism needs links as fast as one machine's GPU interconnect, which a remote
@@ -116,7 +114,6 @@ impl fmt::Display for GroupError {
         match self {
             Self::NoDevices => write!(f, "A device group needs at least one device"),
             Self::MixedBackends => write!(f, "A device group's members run one backend"),
-            Self::MixedRuntimes => write!(f, "A device group's members run one runtime"),
             Self::AutodiffMember => write!(
                 f,
                 "A device group is made from plain devices: group them, then make the group \

@@ -16,6 +16,8 @@ workspace = true
 # devices.
 test-cuda = ["burn-tensor/cuda"]
 test-fusion = ["burn-tensor/fusion"]
+# Test-only: the members are one CUDA and one Vulkan device, so a group spans two runtimes.
+test-mixed-runtimes = ["burn-tensor/cuda", "burn-tensor/vulkan"]
 
 [dependencies]
 burn-backend = { workspace = true, features = ["std"] }
