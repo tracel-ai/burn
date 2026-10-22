@@ -433,15 +433,16 @@ mod tests {
                 for x in 0..spatial[1] {
                     for ky in 0..3 {
                         for kx in 0..3 {
-                            let iy = (y * stride + ky * dilation) as isize - padding as isize;
-                            let ix = (x * stride + kx * dilation) as isize - padding as isize;
-                            if !(0..13).contains(&iy) || !(0..15).contains(&ix) {
+                            let input_y = (y * stride + ky * dilation) as isize - padding as isize;
+                            let input_x = (x * stride + kx * dilation) as isize - padding as isize;
+                            if !(0..13).contains(&input_y) || !(0..15).contains(&input_x) {
                                 continue;
                             }
                             for co in 0..8 {
                                 for ci in 0..channels {
                                     expected[((co * 3 + ky) * 3 + kx) * channels + ci] +=
-                                        input[((b * 13 + iy as usize) * 15 + ix as usize)
+                                        input[((b * 13 + input_y as usize) * 15
+                                            + input_x as usize)
                                             * channels
                                             + ci]
                                             * grad
