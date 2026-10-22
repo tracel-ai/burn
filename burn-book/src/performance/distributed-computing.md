@@ -12,13 +12,35 @@ hosted by another process. These capabilities can be used independently or toget
 
 ## Distributed Tensor Operations
 
-Backends run collectives over a group of devices: all-reduce, all-gather, reduce-scatter,
-all-to-all and broadcast, given every member's tensor at once. They are backend operations
-(`burn_backend::ops::CollectiveOps`), not yet part of the `Tensor` API. A runtime with a transport
-between its devices runs what it can natively, NCCL on CUDA, and broadcast is always emulated; any
-other runtime, and a group mixing runtimes, emulates them with transfers between devices. DDP
-synchronizes gradients with the all-reduce, so it runs on every CubeCL runtime and on remote
-devices, at full speed where the devices share a transport.
+`Tensor` runs five collectives over a group of devices, each called once with every member's
+tensor. Member `i` is position `i`, on its own member's device and of the same shape and dtype as
+every other member, and one output comes back per member, on that member's device. A chunk is a
+member's share of a dimension, as even as possible with the first members holding one more.
+
+| Operation                                    | Member `i` receives                                      |
+| -------------------------------------------- | -------------------------------------------------------- |
+| `Tensor::all_reduce(tensors, op)`            | `op` over every member's tensor                          |
+| `Tensor::all_gather(tensors, dim)`           | every member's tensor, concatenated in member order      |
+| `Tensor::reduce_scatter(tensors, dim, op)`   | chunk `i` of `op` over every member's tensor             |
+| `Tensor::all_to_all(tensors, split, concat)` | chunk `i` of every member's tensor, concatenated         |
+| `Tensor::broadcast(tensor, devices)`         | the tensor, on each of `devices`                         |
+
+The reductions take a numeric tensor, float or int; the others take any kind, bool included. No
+backend has a quantized collective, so a quantized tensor is refused.
+
+```rust, ignore
+let devices = Device::enumerate(DeviceType::Cuda).into_vec();
+let ones = Tensor::<2>::ones([32, 128], &devices[0]);
+
+// One tensor per device, then their sum on every device.
+let members = Tensor::broadcast(ones, &devices);
+let summed = Tensor::all_reduce(members, ReduceOperation::Sum);
+```
+
+A runtime with a transport between its devices runs what it can natively, NCCL on CUDA, and
+broadcast is always emulated; any other runtime, and a group mixing runtimes, emulates them with
+transfers between devices. DDP synchronizes gradients with the all-reduce, so it runs on every
+CubeCL runtime and on remote devices, at full speed where the devices share a transport.
 
 `burn::tensor::distributed` holds what DDP is configured with:
 

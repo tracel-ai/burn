@@ -533,15 +533,15 @@ reports them as errors. `MultiDevicesTrainStep::step` returns `MultiDeviceStepEr
 ### Distributed training
 
 Remove the `distributed` and `collective` feature flags and the `burn-collective` dependency.
-0.22 has no `Tensor` collective: the all-reduce is a backend operation (`CollectiveOps`) that DDP
-uses to synchronize gradients.
+0.22 exposes the all-reduce through `burn::tensor::distributed`, and it runs on CUDA only, on a
+remote server's devices as much as on local ones.
 
 - Replace `DistributedSession` / `DistributedRuntime` with `DistributedContext`.
 - Construct DDP strategies with `ExecutionStrategy::ddp(devices, DistributedConfig { .. })`.
 - Call `.into_vec()` on `Device::enumerate(..)` when a `Vec<Device>` is required.
 
-DDP runs on every CubeCL runtime and on remote devices, natively over NCCL on CUDA and emulated
-with transfers elsewhere. See [Distributed Computing](./performance/distributed-computing.md).
+See [Distributed Computing](./performance/distributed-computing.md) for the collectives as they
+stand now.
 
 ### Remote backend
 

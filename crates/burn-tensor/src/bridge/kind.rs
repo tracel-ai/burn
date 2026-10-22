@@ -336,6 +336,18 @@ impl BridgeTensor {
         }
     }
 
+    pub(crate) fn floats(tensors: Vec<DispatchTensor>) -> Vec<Self> {
+        tensors.into_iter().map(Self::float).collect()
+    }
+
+    pub(crate) fn ints(tensors: Vec<DispatchTensor>) -> Vec<Self> {
+        tensors.into_iter().map(Self::int).collect()
+    }
+
+    pub(crate) fn bools(tensors: Vec<DispatchTensor>) -> Vec<Self> {
+        tensors.into_iter().map(Self::bool).collect()
+    }
+
     pub(crate) fn into_dispatch_vec(tensors: Vec<Self>) -> Vec<DispatchTensor> {
         tensors.into_iter().map(Into::into).collect()
     }
