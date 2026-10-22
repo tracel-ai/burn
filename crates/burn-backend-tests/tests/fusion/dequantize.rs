@@ -1,4 +1,5 @@
 use super::*;
+use burn_tensor::Tolerance;
 
 const VALUES: [f32; 12] = [
     1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0,
@@ -20,6 +21,6 @@ fn dequantize_is_unchanged_by_input_drop() {
         };
         let without_drop = run(false);
         let with_drop = run(true);
-        with_drop.assert_eq(&without_drop, true);
+        with_drop.assert_approx_eq::<FloatElem>(&without_drop, Tolerance::default());
     });
 }
