@@ -108,6 +108,10 @@ pub fn batch_norm_train<const D: usize>(
 
 /// Computes the [CTC loss](burn_backend::ops::ModuleOps::ctc_loss).
 ///
+/// CubeCL backends compute f16 and bf16 inputs internally in f32 and return
+/// losses and gradients in the input dtype. Their shared-memory target-length
+/// limit therefore uses f32 storage even for half-precision inputs.
+///
 /// # Arguments
 ///
 /// * `log_probs` - Log-probabilities of shape `[T, N, C]`
