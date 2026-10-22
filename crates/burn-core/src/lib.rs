@@ -28,7 +28,7 @@
 //! - `network`: file downloads with a progress bar.
 //! - `instrument`: arm the `#[compute]` annotations, for [`instrument`] to measure a model.
 //!   Without it they compile away.
-//! - `tracing`: instrument operations with the `tracing` crate.
+//! - `tracing`: trace operations with the `tracing` crate.
 
 // `derive_new` provides the `#[derive(new)]` macro used across the crate; the lint mistakenly
 // reports the `#[macro_use]` as unused.

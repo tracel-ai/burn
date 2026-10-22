@@ -37,8 +37,6 @@ burn = { workspace = true, features = [
     "autotune",
     "fusion",
     "std",
-    # The `profile` example measures the model's annotated layers.
-    "instrument",
 ] }
 log = { workspace = true }
 
@@ -53,5 +51,8 @@ derive-new = { workspace = true }
 serde = { workspace = true, features = ["std", "derive"] }
 
 [dev-dependencies]
+# The `profile` example measures the model's annotated layers; the training and inference
+# binaries leave them unarmed.
+burn = { workspace = true, features = ["instrument"] }
 # The report the `profile` example prints.
 burn-instrument-report = { workspace = true }

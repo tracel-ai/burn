@@ -60,7 +60,7 @@ std = [
     "burn-optim?/std",
 ]
 # Arms the components' `#[compute]` annotations, for `burn::instrument::Instrument` to measure.
-instrument = ["burn-core/instrument"]
+instrument = ["std", "burn-core/instrument"]
 tracing = [
     "cubecl?/tracing",
     "burn-core/tracing",

@@ -65,6 +65,9 @@ impl Embedding {
     /// The floor for a lookup alone: read the indices and the rows they select once, write the
     /// embeddings once.
     ///
+    /// Each index is priced as its own row read: which rows repeat is in the indices' values,
+    /// which a floor cannot read without a sync, so a batch of many repeated tokens can beat it.
+    ///
     /// None for a quantized table, whose rows come out at a width the table does not say.
     fn bounds(&self, input: &Tensor<2, Int>) -> Option<Bounds> {
         let weight = self.weight.val();
