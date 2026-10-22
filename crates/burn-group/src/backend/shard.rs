@@ -20,8 +20,20 @@ impl<B: BackendIr> ShardList<B> {
         }
     }
 
-    /// `handle` copied onto each of `devices`, one member each.
+    /// `handle` on each of `devices`, one member each, through the backend's broadcast.
     pub fn replicated(handle: HandleKind<B>, devices: &[B::Device]) -> Self {
+        match handle {
+            HandleKind::Float(tensor) => Self::floats(B::float_broadcast(tensor, devices)),
+            HandleKind::Int(tensor) => Self::ints(B::int_broadcast(tensor, devices)),
+            HandleKind::Bool(tensor) => Self::bools(B::bool_broadcast(tensor, devices)),
+            // A quantized tensor has no broadcast, and a group only ever replicates one.
+            HandleKind::Quantized(tensor) => {
+                Self::copied(HandleKind::Quantized(tensor), devices)
+            }
+        }
+    }
+
+    fn copied(handle: HandleKind<B>, devices: &[B::Device]) -> Self {
         let shard = Shard(handle);
         Self {
             shards: devices
