@@ -375,6 +375,10 @@ fn storage_elements(scheme: &QuantScheme, shape: &Shape) -> Option<usize> {
 
     match scheme.store {
         QuantStore::PackedU32(packed_dim) | QuantStore::PackedNative(packed_dim) => {
+            // PackedOrder treats a scalar as one line containing one value.
+            if shape.is_empty() {
+                return (packed_dim == 0).then_some(1);
+            }
             let packed_dim = shape.num_dims().checked_sub(packed_dim.checked_add(1)?)?;
             let mut storage = shape.clone();
             if num_quants > 1 {

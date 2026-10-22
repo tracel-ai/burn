@@ -1222,6 +1222,20 @@ mod tests {
     }
 
     #[test]
+    fn packed_quantized_scalar_roundtrips() {
+        for store in [QuantStore::PackedU32(0), QuantStore::PackedNative(0)] {
+            let scheme = QuantScheme::default()
+                .with_store(store)
+                .with_value(QuantValue::E2M1);
+            let data = TensorData::quantized(vec![1i8], [0usize; 0], scheme, &[0.5], None);
+
+            let serialized = serde_json::to_string(&data).unwrap();
+            let deserialized: TensorData = serde_json::from_str(&serialized).unwrap();
+            assert_eq!(deserialized, data);
+        }
+    }
+
+    #[test]
     fn try_from_bytes_rejects_invalid_quantized_lengths_and_schemes() {
         let scheme = QuantScheme::default();
         let valid = TensorData::quantized(vec![0i8; 3], [3], scheme, &[1.0], None);
@@ -1236,10 +1250,16 @@ mod tests {
         }
 
         let invalid_packed_dim = scheme.with_store(QuantStore::PackedU32(1));
-        assert!(matches!(
-            TensorData::try_from_bytes_vec(vec![0; 4], [1], DType::QFloat(invalid_packed_dim)),
-            Err(DataError::InvalidQuantizedLayout { .. })
-        ));
+        for shape in [Shape::new([1]), Shape::new([0usize; 0])] {
+            assert!(matches!(
+                TensorData::try_from_bytes_vec(
+                    vec![0; 4],
+                    shape,
+                    DType::QFloat(invalid_packed_dim)
+                ),
+                Err(DataError::InvalidQuantizedLayout { .. })
+            ));
+        }
 
         let zero_block = scheme.per_block([0], crate::ScaleDtype::F32);
         assert!(matches!(
