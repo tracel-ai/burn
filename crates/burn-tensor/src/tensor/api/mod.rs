@@ -5,6 +5,7 @@ mod base;
 mod bool;
 mod cartesian_grid;
 mod cast;
+mod collective;
 mod einsum;
 mod float;
 mod fmod;

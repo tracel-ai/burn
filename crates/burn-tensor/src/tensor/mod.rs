@@ -40,7 +40,6 @@ pub mod ops {
 /// Tensor quantization module.
 pub mod quantization;
 
-#[cfg(feature = "std")]
 pub mod distributed;
 
 #[cfg(feature = "std")]

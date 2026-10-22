@@ -1,7 +1,8 @@
 use alloc::vec::Vec;
 use burn_backend::{
     AutodiffBackend, Distribution, Scalar, TensorData, TensorMetadata,
-    ops::{IntTensorOps, TransactionPrimitive},
+    distributed::ReduceOperation,
+    ops::{CollectiveOps, IntTensorOps, TransactionPrimitive},
 };
 use burn_dispatch::Dispatch;
 use burn_std::{DType, ExecutionError, IndexingUpdateOp, PadMode, Shape, Slice};
@@ -233,6 +234,32 @@ impl BasicOps for Int {
     fn unfold(tensor: BridgeTensor, dim: usize, size: usize, step: usize) -> BridgeTensor {
         BridgeTensor::int(Dispatch::int_unfold(tensor.into(), dim, size, step))
     }
+
+    fn all_gather(tensors: Vec<BridgeTensor>, dim: usize) -> Vec<BridgeTensor> {
+        BridgeTensor::ints(Dispatch::int_all_gather(
+            BridgeTensor::into_dispatch_vec(tensors),
+            dim,
+        ))
+    }
+
+    fn all_to_all(
+        tensors: Vec<BridgeTensor>,
+        split_dim: usize,
+        concat_dim: usize,
+    ) -> Vec<BridgeTensor> {
+        BridgeTensor::ints(Dispatch::int_all_to_all(
+            BridgeTensor::into_dispatch_vec(tensors),
+            split_dim,
+            concat_dim,
+        ))
+    }
+
+    fn broadcast(tensor: BridgeTensor, devices: &[Device]) -> Vec<BridgeTensor> {
+        BridgeTensor::ints(Dispatch::int_broadcast(
+            tensor.into(),
+            &Device::as_dispatch_vec(devices),
+        ))
+    }
 }
 
 impl Numeric for Int {
@@ -357,6 +384,25 @@ impl Numeric for Int {
     /// If the two tensors don't have a compatible shape.
     fn matmul(lhs: BridgeTensor, rhs: BridgeTensor) -> BridgeTensor {
         BridgeTensor::int(Dispatch::int_matmul(lhs.into(), rhs.into()))
+    }
+
+    fn all_reduce(tensors: Vec<BridgeTensor>, op: ReduceOperation) -> Vec<BridgeTensor> {
+        BridgeTensor::ints(Dispatch::int_all_reduce(
+            BridgeTensor::into_dispatch_vec(tensors),
+            op,
+        ))
+    }
+
+    fn reduce_scatter(
+        tensors: Vec<BridgeTensor>,
+        dim: usize,
+        op: ReduceOperation,
+    ) -> Vec<BridgeTensor> {
+        BridgeTensor::ints(Dispatch::int_reduce_scatter(
+            BridgeTensor::into_dispatch_vec(tensors),
+            dim,
+            op,
+        ))
     }
 }
 
