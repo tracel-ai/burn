@@ -27,9 +27,7 @@ impl<B: BackendIr> ShardList<B> {
             HandleKind::Int(tensor) => Self::ints(B::int_broadcast(tensor, devices)),
             HandleKind::Bool(tensor) => Self::bools(B::bool_broadcast(tensor, devices)),
             // A quantized tensor has no broadcast, and a group only ever replicates one.
-            HandleKind::Quantized(tensor) => {
-                Self::copied(HandleKind::Quantized(tensor), devices)
-            }
+            HandleKind::Quantized(tensor) => Self::copied(HandleKind::Quantized(tensor), devices),
         }
     }
 
