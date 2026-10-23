@@ -45,6 +45,7 @@ fn cost((query, key, value, mask, _attn_bias, options): &Inputs) -> AttentionCos
         },
         masked: mask.is_some(),
         causal: options.is_causal,
+        sliding_window: None,
         types: AttentionGlobalTypes {
             query: query_type,
             key: dtype_to_storage_type(key.dtype),
