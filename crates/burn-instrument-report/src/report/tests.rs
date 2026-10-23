@@ -75,7 +75,6 @@ fn tree() -> Vec<Component> {
         },
         Component {
             label: "transformer block".into(),
-            observed: None,
             entries: 2,
             bounds: Some(Bounds {
                 read: 82_500_000,
@@ -85,7 +84,6 @@ fn tree() -> Vec<Component> {
             children: vec![
                 Component {
                     label: "attn norm".into(),
-                    observed: None,
                     entries: 2,
                     bounds: Some(Bounds {
                         read: 15_000_000,
@@ -97,7 +95,6 @@ fn tree() -> Vec<Component> {
                 },
                 Component {
                     label: "attention".into(),
-                    observed: None,
                     entries: 2,
                     bounds: Some(Bounds {
                         read: 45_000_000,
@@ -107,7 +104,6 @@ fn tree() -> Vec<Component> {
                     children: vec![
                         Component {
                             label: "query".into(),
-                            observed: None,
                             entries: 2,
                             bounds: Some(Bounds {
                                 read: 30_000_000,
@@ -119,7 +115,6 @@ fn tree() -> Vec<Component> {
                         },
                         Component {
                             label: "attention engine".into(),
-                            observed: None,
                             entries: 2,
                             bounds: Some(Bounds {
                                 read: 30_000_000,
@@ -134,7 +129,6 @@ fn tree() -> Vec<Component> {
                 },
                 Component {
                     label: "feed forward".into(),
-                    observed: None,
                     entries: 2,
                     bounds: Some(Bounds {
                         read: 45_000_000,
@@ -144,7 +138,6 @@ fn tree() -> Vec<Component> {
                     children: vec![
                         Component {
                             label: "gate".into(),
-                            observed: None,
                             entries: 2,
                             bounds: Some(Bounds {
                                 read: 30_000_000,
@@ -156,7 +149,6 @@ fn tree() -> Vec<Component> {
                         },
                         Component {
                             label: "down".into(),
-                            observed: None,
                             entries: 2,
                             bounds: Some(Bounds {
                                 read: 30_000_000,
@@ -204,50 +196,6 @@ fn tree() -> Vec<Component> {
     ]
 }
 
-/// A component is held to its declared floor plus the traffic observed beyond
-/// it, and its heading says so.
-#[test]
-fn observed_traffic_raises_the_floor_and_marks_the_row() {
-    let declared = Bounds {
-        read: 100,
-        write: 10,
-        flops: 50,
-    };
-    let observed = Bounds {
-        read: 300,
-        write: 0,
-        flops: 0,
-    };
-    let plain = Component {
-        label: "routed experts".into(),
-        bounds: Some(declared),
-        ..component()
-    };
-    let read = Component {
-        observed: Some(observed),
-        ..plain.clone()
-    };
-
-    let unscored = measurement();
-    let roofline = Roofline::new(&unscored.breakdown, peaks(), TimeReading::InPlace);
-    let floor = |component: &Component| roofline.floor_of(component).map(|floor| floor.time);
-    let at = |bounds: Bounds| Floor::new(bounds, &peaks()).map(|floor| floor.time);
-    assert_eq!(floor(&plain), at(declared));
-    assert_eq!(floor(&read), at(declared + observed));
-
-    let mut measurement = measurement();
-    measurement.breakdown.tree.push(read);
-    let table = Report::new(&measurement).to_string();
-    assert!(
-        table.contains("routed experts · floor read from the run"),
-        "{table}"
-    );
-    assert!(
-        !table.contains("embedding · floor read from the run"),
-        "{table}"
-    );
-}
-
 /// An empty component, so a fixture states only the fields it is about.
 fn component() -> Component {
     Component {
@@ -255,7 +203,6 @@ fn component() -> Component {
         variants: Vec::new(),
         sites: Vec::new(),
         bounds: None,
-        observed: None,
         entries: 1,
         children: Vec::new(),
         kernels: Vec::new(),

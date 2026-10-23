@@ -268,11 +268,6 @@ pub struct Component {
     /// and a padded tail, and both are real work the component has to account for.
     #[serde(deserialize_with = "Option::deserialize")]
     pub bounds: Option<Bounds>,
-    /// Traffic observed beyond [`bounds`](Self::bounds) under this component,
-    /// such as the experts a sparse layer's routes read past one component's. `None`
-    /// where nothing under it observed any, or where it declares no floor.
-    #[serde(deserialize_with = "Option::deserialize")]
-    pub observed: Option<Bounds>,
     /// How many times the run entered it.
     pub entries: usize,
     /// The components it entered, in first-seen order.
@@ -425,7 +420,6 @@ mod tests {
                 write: 25,
                 flops: 60,
             }),
-            observed: None,
             entries: 1,
             children: vec![
                 Component {
@@ -437,7 +431,6 @@ mod tests {
                         write: 20,
                         flops: 40,
                     }),
-                    observed: None,
                     entries: 1,
                     children: Vec::new(),
                     kernels: Vec::new(),
@@ -452,7 +445,6 @@ mod tests {
                         write: 15,
                         flops: 20,
                     }),
-                    observed: None,
                     entries: 1,
                     children: Vec::new(),
                     kernels: Vec::new(),
@@ -490,7 +482,6 @@ mod tests {
             variants: Vec::new(),
             sites: Vec::new(),
             bounds: None,
-            observed: None,
             entries: 1,
             children: Vec::new(),
             kernels,
@@ -536,7 +527,6 @@ mod tests {
             variants: Vec::new(),
             sites: Vec::new(),
             bounds: None,
-            observed: None,
             entries: 1,
             children: Vec::new(),
             kernels: Vec::new(),

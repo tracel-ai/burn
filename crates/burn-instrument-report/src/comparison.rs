@@ -318,7 +318,6 @@ mod tests {
             variants: Vec::new(),
             sites: Vec::new(),
             bounds: None,
-            observed: None,
             entries: 1,
             children,
             kernels: match micros {

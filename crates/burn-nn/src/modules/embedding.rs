@@ -1,6 +1,7 @@
 use crate::Initializer;
 use burn_core as burn;
 
+use alloc::vec::Vec;
 use burn::config::Config;
 use burn::instrument::{self, Bounds, compute};
 use burn::module::Module;
@@ -62,11 +63,11 @@ impl EmbeddingConfig {
 }
 
 impl Embedding {
-    /// The floor for a lookup alone: read the indices and the rows they select once, write the
-    /// embeddings once.
+    /// The floor for a lookup alone: read the indices and each distinct row they select once,
+    /// write the embeddings once.
     ///
-    /// Each index is priced as its own row read: which rows repeat is in the indices' values,
-    /// which a floor cannot read without a sync, so a batch of many repeated tokens can beat it.
+    /// Reads the indices back to count the distinct rows, so it is evaluated only for an
+    /// observer that prices.
     ///
     /// None for a quantized table, whose rows come out at a width the table does not say.
     fn bounds(&self, input: &Tensor<2, Int>) -> Option<Bounds> {
@@ -77,11 +78,13 @@ impl Embedding {
         };
         let [_, d_model] = weight.dims().map(|dim| dim as u64);
         let [batch_size, seq_length] = input.dims().map(|dim| dim as u64);
-        let rows = batch_size * seq_length;
-        let embeddings = rows * d_model * width;
+        let mut indices: Vec<i64> = input.clone().into_data().iter::<i64>().collect();
+        indices.sort_unstable();
+        indices.dedup();
+        let row = d_model * width;
         Some(Bounds {
-            read: instrument::tensor_bytes(input) + embeddings,
-            write: embeddings,
+            read: instrument::tensor_bytes(input) + indices.len() as u64 * row,
+            write: batch_size * seq_length * row,
             flops: 0,
         })
     }
@@ -107,13 +110,13 @@ mod tests {
     use burn::tensor::Tolerance;
     type FT = f32;
 
-    /// A lookup reads the rows it selects rather than the whole table.
+    /// A lookup reads each distinct row it selects once, however often it repeats.
     #[cfg(feature = "std")]
     #[test]
-    fn a_lookup_declares_the_rows_it_selects() {
+    fn a_lookup_reads_each_distinct_row_once() {
         let device = Default::default();
         let embedding = EmbeddingConfig::new(100, 8).init(&device);
-        let input = Tensor::<2, Int>::zeros([2, 3], &device);
+        let input = Tensor::<2, Int>::from_ints([[1, 2, 1], [2, 2, 5]], &device);
         let index = input.dtype().size() as u64;
 
         let recorded = crate::recording::recorded(|| {
@@ -124,7 +127,7 @@ mod tests {
         assert_eq!(
             recorded.declared("embedding"),
             Some(Bounds {
-                read: 2 * 3 * index + 2 * 3 * 8 * 4,
+                read: 2 * 3 * index + 3 * 8 * 4,
                 write: 2 * 3 * 8 * 4,
                 flops: 0,
             })

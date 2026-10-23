@@ -159,7 +159,7 @@ The text-classification `profile` example measures the AG News classifier and pr
 Pass a path to save the measurement as well:
 
 ```sh
-cargo run --release -p text-classification --example profile --features cuda -- model.json
+cargo run --release -p text-classification --example profile --features cuda,profile -- model.json
 ```
 
 ## Reading the report

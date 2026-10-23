@@ -49,7 +49,9 @@
 //! [`Instrument::measure`] warms the model up, measures the device's [`Peaks`] before anything
 //! is timed (the probes are saturating kernels), times clean runs for the clean wall, and
 //! instruments one more run. [`Instrument::breakdown`] instruments a run alone, for a caller
-//! that warms the model up itself.
+//! that warms the model up itself. Either prices the model first, in a run it does not time:
+//! the [`Bounds`] are evaluated there, where reading values back costs the measurement nothing,
+//! and the instrumented run's entries take them by position.
 //!
 //! A [`Breakdown`] is data, and a [`Measurement`] carries it beside the device's [`Peaks`] and
 //! the wall time of a clean run. [`Measurement::write`] saves it as a

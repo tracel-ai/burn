@@ -44,11 +44,11 @@ The `profile` example measures where the AG News classifier's inference spends i
 component by component, and prints the report. It needs a CubeCL backend:
 
 ```bash
-cargo run -p text-classification --example profile --release --features cuda
+cargo run -p text-classification --example profile --release --features cuda,profile
 # Also save the measurement, to hold a later run against with `burn-instrument-report --against`.
-cargo run -p text-classification --example profile --release --features cuda -- now.json
+cargo run -p text-classification --example profile --release --features cuda,profile -- now.json
 # In half precision, with `f16`, `bf16` or `flex32`.
-cargo run -p text-classification --example profile --release --features cuda,f16
+cargo run -p text-classification --example profile --release --features cuda,profile,f16
 ```
 
 See [Profiling](../../burn-book/src/performance/profiling.md) in the Burn Book for how to read it.

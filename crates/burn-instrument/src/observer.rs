@@ -1,7 +1,5 @@
+#[cfg(feature = "instrument")]
 use alloc::boxed::Box;
-use alloc::vec::Vec;
-
-use burn_tensor::{Int, Tensor};
 
 use crate::Bounds;
 
@@ -20,10 +18,12 @@ pub trait ComponentObserver {
     fn enter(&self, declared: Declaration<'_>);
     /// The most recently entered component was left.
     fn exit(&self);
-    /// The component most recently entered moves more traffic than its declared floor, by an
-    /// amount only the run's values tell. An observer that reads the run back adds it to that
-    /// component and the ones around it; any other ignores it.
-    fn observe(&self, _observed: ObservedBounds) {}
+    /// Whether the components entered evaluate their bounds for this observer. A bounds function
+    /// may read values back, so an observer of a run it times says no, taking the floors from a
+    /// pricing run of its own.
+    fn prices(&self) -> bool {
+        true
+    }
 }
 
 /// An observer shared with whoever reads it once the run is over, installed as the observer
@@ -36,41 +36,11 @@ impl<O: ComponentObserver + ?Sized> ComponentObserver for std::sync::Arc<O> {
     fn exit(&self) {
         (**self).exit();
     }
-    fn observe(&self, observed: ObservedBounds) {
-        (**self).observe(observed);
+    fn prices(&self) -> bool {
+        (**self).prices()
     }
 }
 
-/// Traffic a component moves beyond its declared floor that depends on values the run
-/// computes, such as which experts a sparse layer's routes select.
-///
-/// [`Bounds`] are pure, so a declared floor charges only what the shapes force. This keeps the
-/// values on the device with their price, so an observer that reads the run back prices them
-/// afterwards and synchronizes nothing during it.
-pub struct ObservedBounds(Box<dyn FnOnce() -> Bounds + Send>);
-
-impl ObservedBounds {
-    /// `values`, priced by `price` once read back.
-    pub fn new<const D: usize>(
-        values: Tensor<D, Int>,
-        price: impl FnOnce(&[i64]) -> Bounds + Send + 'static,
-    ) -> Self {
-        Self(Box::new(move || {
-            let values: Vec<i64> = values.into_data().iter::<i64>().collect();
-            price(&values)
-        }))
-    }
-
-    /// Read the values back and price them. Waits on the device, so an observer calls it after
-    /// the run is timed.
-    ///
-    /// # Panics
-    ///
-    /// If the work producing the values failed on the device.
-    pub fn resolve(self) -> Bounds {
-        (self.0)()
-    }
-}
 /// What one entry of a component declares about itself.
 ///
 /// A struct rather than a parameter list: [`label`](Self::label) and [`site`](Self::site) are
@@ -185,10 +155,13 @@ impl Observing {
         }
     }
 
-    /// Report traffic beyond the declared floor of the component most recently entered. See
-    /// [`ComponentObserver::observe`].
-    pub fn observe(self, observed: ObservedBounds) {
-        Self::with_observer(|observer| observer.observe(observed));
+    /// Whether the component being entered should evaluate its bounds. See
+    /// [`ComponentObserver::prices`].
+    #[inline]
+    pub fn prices(self) -> bool {
+        let mut prices = false;
+        Self::with_observer(|observer| prices = observer.prices());
+        prices
     }
 
     #[cfg_attr(not(feature = "instrument"), allow(unused_variables))]
@@ -260,30 +233,6 @@ mod tests {
             ["+attention:flash:8", "+qkv:-:-", "-", "-"],
             "children close before their parent"
         );
-    }
-
-    /// Observed traffic reaches the observer between the entry and exit of the component that
-    /// observed it, which is how the observer knows whose it is.
-    #[test]
-    fn observed_traffic_reaches_the_observer_under_the_open_component() {
-        let (seen, _observation) = installed();
-        let observing = observing().expect("installed above");
-        {
-            let _experts = observing.enter(Declaration {
-                label: "experts",
-                variant: None,
-                site: "test::route",
-                bounds: None,
-            });
-            let named = Tensor::<1, Int>::from_ints([2, 5, 2], &burn_tensor::Device::flex());
-            observing.observe(ObservedBounds::new(named, |named| Bounds {
-                read: named.iter().sum::<i64>() as u64,
-                write: 0,
-                flops: 0,
-            }));
-        }
-
-        assert_eq!(seen.events(), ["+experts:-:-", "?9", "-"]);
     }
 
     /// Dropping the observation stops observing the thread, so a run that panicked cannot leave it
