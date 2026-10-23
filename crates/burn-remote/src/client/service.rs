@@ -1,8 +1,8 @@
 use crate::{
     metrics::{MetricSide, TelemetryLogger, logger_task},
     shared::{
-        Encode, LocalTransferId, PROTOCOL_VERSION, RemoteMessage, RequestId, SessionId,
-        SessionInfo, SessionInit, Task, TaskResponse, TaskResponseContent, TensorRemote,
+        Encode, LocalAllReducePart, LocalTransferId, PROTOCOL_VERSION, RemoteMessage, RequestId,
+        SessionId, SessionInfo, SessionInit, Task, TaskResponse, TaskResponseContent, TensorRemote,
         TransferCapability,
     },
     telemetry::{CHANNEL_CAPACITY, TelemetryEvent, TelemetryProbe, serialized_len},
@@ -44,7 +44,7 @@ use super::{ConnectError, runtime::Executor};
 pub(crate) use conn::{RemoteEndpoint, SubmitChannel};
 use registry::{device_count_cell, settings_cell};
 pub(crate) use registry::{device_count_for, register_endpoint, registered_device, session_end};
-pub(crate) use registry::{has_settings, new_tensor_id, settings_for};
+pub(crate) use registry::{has_settings, new_tensor_id, session_of, settings_for};
 
 /// How long a connection attempt, then the handshake, may each take before the server is taken to
 /// be stuck.
@@ -124,7 +124,7 @@ impl DeviceService for RemoteService {
         } = registered_device(id)
             .unwrap_or_else(|| panic!("No endpoint registered for device id {device_id}"));
         let executor = Executor::session();
-        let session_id = SessionId::new();
+        let session_id = session_of(id);
 
         let probe = if TelemetryLogger::enabled() {
             TelemetryProbe::new(CHANNEL_CAPACITY)
@@ -509,6 +509,15 @@ impl RemoteService {
             transfer_id,
             new_id,
         });
+        self.flush();
+    }
+
+    /// Send one member's part of an all-reduce, flushing immediately: its session waits there
+    /// for the other members' parts, which the caller sends next.
+    pub fn all_reduce_local(&mut self, stream_id: StreamId, part: LocalAllReducePart) {
+        self.probe
+            .emit(|| part.op_event(self.session_id, stream_id));
+        self.submit_task(Task::AllReduceLocal { stream_id, part });
         self.flush();
     }
 

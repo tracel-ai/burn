@@ -1,4 +1,7 @@
-use super::deferred;
+use super::{
+    deferred,
+    held::{self, HeldInput},
+};
 use crate::{
     Client, FusionBackend, FusionRuntime,
     stream::{Operation, StreamId},
@@ -22,7 +25,9 @@ pub struct FusionTensor<R: FusionRuntime> {
     pub dtype: DType,
     /// The current stream id this tensor is on.
     pub stream: StreamId,
-    pub(crate) count: Arc<AtomicU32>,
+    /// The clones sharing the tensor, counting this one until [`into_ir`](Self::into_ir) hands its
+    /// reference over.
+    pub(crate) count: Option<Arc<AtomicU32>>,
 }
 
 impl<R: FusionRuntime> Clone for FusionTensor<R> {
@@ -32,7 +37,8 @@ impl<R: FusionRuntime> Clone for FusionTensor<R> {
             return self.shared_view(current);
         }
 
-        self.count.fetch_add(1, Ordering::Acquire);
+        let count = self.count();
+        count.fetch_add(1, Ordering::Acquire);
 
         Self {
             id: self.id,
@@ -40,7 +46,7 @@ impl<R: FusionRuntime> Clone for FusionTensor<R> {
             client: self.client.clone(),
             dtype: self.dtype,
             stream: self.stream,
-            count: self.count.clone(),
+            count: Some(count.clone()),
         }
     }
 }
@@ -78,13 +84,10 @@ impl<R: FusionRuntime> TensorMetadata for FusionTensor<R> {
     }
 
     fn can_mut(&self) -> bool {
-        // Same rule as `status` at drain time: a handle shared on its stream
-        // (count > 1) is read-only, a unique one is read-write and the fused
-        // kernel may write its buffer in place.
-        matches!(
-            self.status(self.count.load(Ordering::Acquire)),
-            TensorStatus::ReadWrite
-        )
+        // Same rule as `into_ir`: a tensor another clone shares is read-only, a
+        // unique one is read-write and the fused kernel may write its buffer in
+        // place.
+        matches!(self.status(self.holders()), TensorStatus::ReadWrite)
     }
 }
 
@@ -102,8 +105,14 @@ impl<R: FusionRuntime> FusionTensor<R> {
             client,
             dtype,
             stream,
-            count: Arc::new(AtomicU32::new(1)),
+            count: Some(Arc::new(AtomicU32::new(1))),
         }
+    }
+
+    fn count(&self) -> &Arc<AtomicU32> {
+        self.count
+            .as_ref()
+            .expect("a tensor holds its reference until it is consumed")
     }
 
     fn status(&self, count: u32) -> TensorStatus {
@@ -111,6 +120,15 @@ impl<R: FusionRuntime> FusionTensor<R> {
             TensorStatus::ReadWrite
         } else {
             TensorStatus::ReadOnly
+        }
+    }
+
+    /// The clones holding the tensor, less those this thread holds for the operation it is
+    /// building: an operation reading a tensor twice decides as if its first read had let go.
+    fn holders(&self) -> u32 {
+        match self.count().load(Ordering::Acquire) {
+            count @ (0 | 1) => count,
+            count => count - held::count(self.id),
         }
     }
 
@@ -125,24 +143,28 @@ impl<R: FusionRuntime> FusionTensor<R> {
     }
 
     /// Intermediate representation to be used when using an initialized tensor used as input.
+    ///
+    /// The operation it goes into must be submitted through the client on this thread, without
+    /// yielding in between: until then this thread holds a read-only input's reference for it.
     pub fn into_ir(mut self) -> TensorIr {
         let current = StreamId::current();
         if self.stream != current {
             self = self.shared_view(current);
         }
 
-        let count = self.count.load(Ordering::Acquire);
-        let status = self.status(count);
+        let status = self.status(self.holders());
 
         let mut shape_out = Shape::from(Vec::<usize>::new());
         core::mem::swap(&mut self.shape, &mut shape_out);
 
-        if let TensorStatus::ReadWrite = status {
-            // Avoids an unwanted drop on the same thread.
-            //
-            // Since `drop` is called after `into_ir`, we must not register a drop if the tensor
-            // was consumed with a `ReadWrite` status.
-            self.count.fetch_add(1, Ordering::Acquire);
+        // Handed over rather than released: a consumed tensor's reference passes to the operation,
+        // and a read-only input's is held until the operation is submitted.
+        let count = self
+            .count
+            .take()
+            .expect("a tensor holds its reference until it is consumed");
+        if let TensorStatus::ReadOnly = status {
+            held::hold(HeldInput::new(&self, count));
         }
 
         TensorIr {
@@ -239,7 +261,10 @@ impl<RO: FusionRuntime> Operation<RO> for DropOp {
 }
 impl<R: FusionRuntime> Drop for FusionTensor<R> {
     fn drop(&mut self) {
-        let count = self.count.fetch_sub(1, Ordering::Acquire);
+        let Some(count) = self.count.take() else {
+            return;
+        };
+        let count = count.fetch_sub(1, Ordering::Acquire);
 
         let TensorStatus::ReadWrite = self.status(count) else {
             return;

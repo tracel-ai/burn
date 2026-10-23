@@ -1,5 +1,5 @@
 use super::*;
-use burn_tensor::TensorData;
+use burn_tensor::{Shape, TensorData};
 
 #[test]
 fn should_support_rank() {
@@ -62,6 +62,36 @@ fn should_support_dim_infererence() {
 }
 
 #[test]
+fn should_reshape_to_shape_with_zero_length_dim() {
+    let tensor = TestTensor::<2>::zeros([0, 2], &Default::default());
+
+    // A `0` in a `Shape` is a zero-length dimension, not "keep the source dimension".
+    let reshaped: TestTensor<2> = tensor.reshape(Shape::new([2, 0]));
+
+    assert_eq!(reshaped.shape(), Shape::new([2, 0]));
+    assert_eq!(reshaped.into_data().num_elements(), 0);
+}
+
+#[test]
+#[should_panic(
+    expected = "The given shape doesn't have the same number of elements as the current shape."
+)]
+fn should_panic_reshape_to_shape_with_different_num_elements() {
+    let tensor = TestTensor::<1>::zeros([3], &Default::default());
+    let _reshaped: TestTensor<2> = tensor.reshape(Shape::new([2, 2]));
+}
+
+#[test]
+#[should_panic(
+    expected = "The given shape doesn't have the same number of dimensions as the target tensor."
+)]
+fn should_panic_reshape_to_shape_with_wrong_rank() {
+    let tensor = TestTensor::<1>::zeros([6], &Default::default());
+    // Same element count (6), but the `Shape` has rank 2 while the target type has rank 3.
+    let _reshaped: TestTensor<3> = tensor.reshape(Shape::new([2, 3]));
+}
+
+#[test]
 fn should_not_corrupt_after_slice() {
     let zeros = TestTensor::<1>::zeros([2], &Default::default());
     zeros.clone().slice([1..2]).reshape([1]).exp();
@@ -74,7 +104,7 @@ fn should_not_corrupt_after_slice() {
 }
 
 #[test]
-#[should_panic]
+#[should_panic(expected = "Repeated -1 in reshape")]
 fn multiple_neg_ones() {
     let data = TensorData::from([0.0, 1.0, 2.0]);
     let tensor = TestTensor::<1>::from_data(data, &Default::default());
@@ -82,7 +112,7 @@ fn multiple_neg_ones() {
 }
 
 #[test]
-#[should_panic]
+#[should_panic(expected = "cannot contain negative dimensions")]
 fn neg_value() {
     let data = TensorData::from([0.0, 1.0, 2.0]);
     let tensor = TestTensor::<1>::from_data(data, &Default::default());

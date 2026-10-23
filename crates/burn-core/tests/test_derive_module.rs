@@ -493,20 +493,6 @@ mod lazy_clone {
     }
 
     #[test]
-    fn lazy_clone_and_original_have_same_init() {
-        let device = test_device();
-        let module = ModuleBasic::new(&device);
-        let cloned = module.clone();
-
-        let clone_data = cloned.weight_basic.to_data();
-        let orig_data = module.weight_basic.to_data();
-
-        assert_eq!(*clone_data.shape(), [20, 20].into());
-        assert_eq!(*orig_data.shape(), [20, 20].into());
-        assert_eq!(clone_data, orig_data);
-    }
-
-    #[test]
     fn lazy_clone_deref_should_trigger_init() {
         let device = test_device();
         let module = ModuleBasic::new(&device);

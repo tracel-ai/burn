@@ -8,7 +8,8 @@ use burn_backend::{
 use burn_ir::TensorIr;
 use burn_router::{MultiBackendBridge, RouterClient, RouterTensor, get_client};
 use burn_std::{DeviceSettings, future::DynFut};
-use std::sync::Mutex;
+use std::collections::{BTreeMap, BTreeSet};
+use std::sync::{Mutex, MutexGuard, PoisonError};
 
 use service::RemoteEndpoint;
 
@@ -21,10 +22,6 @@ impl RouterClient for RemoteClient {
 
     fn register_op(&self, op: burn_ir::OperationIr) {
         let stream_id = StreamId::current();
-        // Device ids in the op's payload are *client* remote device ids; rewrite them to
-        // server-local device indices the server can resolve to its own backend devices. Applies
-        // to every op — only ops that actually carry device ids are rewritten.
-        let op = self.resolve_devices(op);
         self.handle.submit(move |s| s.register_op(stream_id, op));
     }
 
@@ -134,10 +131,6 @@ impl RouterClient for RemoteClient {
         bindings: burn_ir::GraphBindings,
     ) {
         let stream_id = StreamId::current();
-        let relative_graph = relative_graph
-            .into_iter()
-            .map(|op| self.resolve_devices(op))
-            .collect();
         self.handle.submit(move |s| {
             s.register_and_execute_graph(stream_id, graph_id, relative_graph, bindings)
         });
@@ -173,43 +166,6 @@ impl RemoteClient {
                 ))),
             }
         })
-    }
-
-    /// Rewrite the device ids carried by an op so the server can resolve them.
-    ///
-    /// This runs for every op, but only ops that carry device ids (currently the collective ops)
-    /// are affected. On the client, the participating devices are identified by their *remote*
-    /// device ids, whose `index_id` is this process's registry index for `address` + device index.
-    /// The server cannot resolve that index, so we translate each id to the device's position on
-    /// the server (in `index_id`, with `type_id` 0), which the server resolves to the backend id
-    /// of the device it hosts there.
-    ///
-    /// Only same-server collectives are supported for now: every participating device must live
-    /// on the same address as the tensor's device. A cross-server group panics with a clear
-    /// message rather than silently reducing the wrong devices.
-    fn resolve_devices(&self, mut op: burn_ir::OperationIr) -> burn_ir::OperationIr {
-        use burn_ir::{DistributedOperationIr, OperationIr};
-
-        if let OperationIr::Distributed(DistributedOperationIr::AllReduce(desc)) = &mut op {
-            let local_peer = self.device.peer_id();
-            for id in desc.device_ids.iter_mut() {
-                let registered = service::registered_device(id.index_id as u32).expect(
-                    "an all_reduce device must be a registered remote device on this process",
-                );
-                assert_eq!(
-                    registered.endpoint.peer_id(),
-                    local_peer,
-                    "cross-peer all_reduce is not supported yet: the tensor is on `{local_peer}` \
-                     but the collective includes a device on `{}`",
-                    registered.endpoint.peer_id(),
-                );
-                id.type_id = 0;
-                id.index_id = registered.device_index as u16;
-            }
-            log::trace!("All-reduce on {:?} ({local_peer}): {desc:?}", self.device);
-        }
-
-        op
     }
 }
 
@@ -368,30 +324,30 @@ pub struct RemoteTensorHandle {
     pub(crate) tensor: TensorIr,
 }
 
-static TRANSFER_COUNTER: Mutex<Option<LocalTransferId>> = Mutex::new(None);
-
-/// Allocate the next process-unique [`LocalTransferId`] for a same-peer transfer.
-///
-/// The id keys the server's transfer rendezvous (`local_comm` / `external_comm`), so two
-/// transfers that are ever in flight at the same time MUST get distinct ids; otherwise a `take`
-/// can pick up the wrong (or an overwritten) exposed primitive and its peer hangs forever. The
-/// counter is incremented **in place** in the static; `LocalTransferId` is `Copy`, so the
-/// earlier `transfer_counter.unwrap()` copied the value out and incremented a throwaway local,
-/// leaving every transfer after the first sharing id 1 (harmless sequentially, a deadlock under
-/// concurrency).
-fn get_next_transfer_id() -> LocalTransferId {
-    let mut transfer_counter = TRANSFER_COUNTER.lock().unwrap();
-    match transfer_counter.as_mut() {
-        Some(id) => {
-            id.next();
-            *id
-        }
-        None => {
-            let id = LocalTransferId::from(0);
-            *transfer_counter = Some(id);
-            id
-        }
-    }
+/// Held while one call sends tasks to the sessions of `devices`, so that every session receives
+/// the tasks of concurrent calls sharing it in one order: a session waiting in a transfer or a
+/// collective for another session's task would otherwise wait on one queued behind its own.
+pub fn session_order<'a>(
+    devices: impl IntoIterator<Item = &'a RemoteDevice>,
+) -> Vec<MutexGuard<'static, ()>> {
+    // One per registered device, which the device registry also keeps for the process's lifetime.
+    static ORDERS: Mutex<BTreeMap<u32, &'static Mutex<()>>> = Mutex::new(BTreeMap::new());
+    let ids: BTreeSet<u32> = devices.into_iter().map(|device| device.id).collect();
+    let orders: Vec<&'static Mutex<()>> = {
+        let mut orders = ORDERS.lock().unwrap_or_else(PoisonError::into_inner);
+        ids.into_iter()
+            .map(|id| {
+                *orders
+                    .entry(id)
+                    .or_insert_with(|| Box::leak(Box::default()))
+            })
+            .collect()
+    };
+    // In ascending id order, so two calls sharing sessions never each hold one the other waits on.
+    orders
+        .into_iter()
+        .map(|order| order.lock().unwrap_or_else(PoisonError::into_inner))
+        .collect()
 }
 
 impl RemoteTensorHandle {
@@ -431,8 +387,10 @@ impl RemoteTensorHandle {
         // stream that produced it, and the target registers the result on the stream that
         // will consume it — same contract as the regular op/tensor registration paths.
         let stream_id = StreamId::current();
-        let transfer_id = get_next_transfer_id();
+        let transfer_id = LocalTransferId::random();
         let tensor = self.tensor.clone();
+        let target_client = get_client::<RemoteChannel>(target_device);
+        let order = session_order([&self.client.device, target_device]);
         self.client.handle.submit(move |s| {
             s.expose_tensor_local(stream_id, tensor, transfer_id);
         });
@@ -440,12 +398,12 @@ impl RemoteTensorHandle {
         // as the cross-server path below.
         self.client.handle.flush_queue();
 
-        let target_client = get_client::<RemoteChannel>(target_device);
         let new_id = service::new_tensor_id();
         target_client.handle.submit(move |s| {
             s.register_tensor_local(stream_id, transfer_id, new_id);
         });
         target_client.handle.flush_queue();
+        drop(order);
 
         self.tensor.id = new_id;
         self.client = target_client;
@@ -465,6 +423,8 @@ impl RemoteTensorHandle {
         let capability = TransferCapability::random();
         let tensor = self.tensor.clone();
         let target = target_device.peer_id();
+        let target_client = get_client::<RemoteChannel>(target_device);
+        let order = session_order([&self.client.device, target_device]);
         self.client.handle.submit(move |s| {
             s.expose_tensor_remote(stream_id, tensor, 1, capability, target);
         });
@@ -475,8 +435,6 @@ impl RemoteTensorHandle {
         // the target server starts trying to download.
         self.client.handle.flush_queue();
 
-        let target_client = get_client::<RemoteChannel>(target_device);
-
         let peer = self.client.device.peer_addr();
         let new_id = service::new_tensor_id();
         target_client.handle.submit(move |s| {
@@ -485,6 +443,7 @@ impl RemoteTensorHandle {
         // Same as the source side: drain the closure queue so it runs now and
         // `register_tensor_remote` flushes the registration onto the target's wire.
         target_client.handle.flush_queue();
+        drop(order);
 
         self.tensor.id = new_id;
         self.client = target_client;

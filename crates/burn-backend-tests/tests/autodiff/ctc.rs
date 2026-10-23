@@ -17,6 +17,91 @@ fn generate_logits(t_size: usize, n_size: usize, c_size: usize, device: &Device)
     TestTensor::<3>::from_data(TensorData::new(data, [t_size, n_size, c_size]), device)
 }
 
+/// An empty target has only the all-blank alignment, so both the loss and
+/// gradient are known exactly even for sequences that exhaust f16 precision.
+#[cfg(feature = "cube")]
+#[test]
+fn test_ctc_loss_long_empty_target_precision() {
+    let device = AutodiffDevice::new();
+    let t: usize = 4400;
+    let data = (0..t)
+        .flat_map(|_| [-1.0_f32, (1.0 - (-1.0_f32).exp()).ln()])
+        .collect();
+    let log_probs =
+        TestTensor::<3>::from_data(TensorData::new(data, [t, 1, 2]), &device).require_grad();
+    let dtype = log_probs.dtype();
+    let targets = TestTensorInt::<2>::from_data([[0]], &device);
+    let input_lengths = TestTensorInt::<1>::from_data([t as i32], &device);
+    let target_lengths = TestTensorInt::<1>::from_data([0], &device);
+
+    let log_p: Vec<f32> = log_probs
+        .clone()
+        .into_data()
+        .iter::<f32>()
+        .take(2)
+        .collect();
+    let loss = ctc_loss(log_probs.clone(), targets, input_lengths, target_lengths, 0).sum();
+    assert_eq!(loss.dtype(), dtype);
+    loss.clone().into_data().assert_approx_eq::<FloatElem>(
+        &TensorData::from([-(t as f32) * log_p[0]]),
+        Tolerance::rel_abs(1e-3, 1e-3),
+    );
+
+    let grads = loss.backward();
+    let grad = log_probs.grad(&grads).unwrap();
+    assert_eq!(grad.dtype(), dtype);
+    let expected: Vec<f32> = (0..t)
+        .flat_map(|_| [log_p[0].exp() - 1.0, log_p[1].exp()])
+        .collect();
+    grad.into_data().assert_approx_eq::<FloatElem>(
+        &TensorData::new(expected, [t, 1, 2]),
+        Tolerance::rel_abs(1e-2, 1e-2),
+    );
+}
+
+/// Many target states expose overflow in the alignment posterior when rounded
+/// alpha and beta histories are combined with the negative log-likelihood.
+#[cfg(feature = "cube")]
+#[test]
+fn test_ctc_loss_long_sequence_grad_precision() {
+    use burn_tensor::FloatDType;
+
+    let device = AutodiffDevice::new();
+    let (t, c, len): (usize, usize, usize) = (4400, 3, 1000);
+    let log_probs = log_softmax(generate_logits(t, 1, c, &device), 2);
+    let reference = log_probs.clone().cast(FloatDType::F32).require_grad();
+    let log_probs = log_probs.require_grad();
+    let dtype = log_probs.dtype();
+    let targets = TestTensorInt::<2>::from_data(
+        TensorData::new((0..len).map(|i| 1 + (i % 2) as i32).collect(), [1, len]),
+        &device,
+    );
+    let input_lengths = TestTensorInt::<1>::from_data([t as i32], &device);
+    let target_lengths = TestTensorInt::<1>::from_data([len as i32], &device);
+    let loss = ctc_loss(
+        log_probs.clone(),
+        targets.clone(),
+        input_lengths.clone(),
+        target_lengths.clone(),
+        0,
+    )
+    .sum();
+    let reference_loss =
+        ctc_loss(reference.clone(), targets, input_lengths, target_lengths, 0).sum();
+    loss.clone().into_data().assert_approx_eq::<FloatElem>(
+        &reference_loss.clone().into_data(),
+        Tolerance::rel_abs(1e-3, 1e-3),
+    );
+    let grads = loss.backward();
+    let reference_grads = reference_loss.backward();
+    let grad = log_probs.grad(&grads).unwrap();
+    assert_eq!(grad.dtype(), dtype);
+    let expected = reference.grad(&reference_grads).unwrap().into_data();
+    assert!(expected.iter::<f32>().all(f32::is_finite));
+    grad.into_data()
+        .assert_approx_eq::<FloatElem>(&expected, Tolerance::rel_abs(1e-2, 1e-2));
+}
+
 #[allow(clippy::too_many_arguments)]
 fn run_comparison(
     t_size: usize,

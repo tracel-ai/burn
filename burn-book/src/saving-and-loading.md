@@ -4,8 +4,8 @@ Saving your trained machine learning model is quite easy. As mentioned in the
 [Record](./building-blocks/record.md) section, a module's parameters are captured in a
 `ModuleRecord` and serialized to the [burnpack](./building-blocks/record.md) format (`.bpk`).
 
-For checkpoints saved with an older Burn release, see
-[Migrating checkpoints](./migrating-to-0.22.md#migrating-checkpoints).
+For checkpoints saved before Burn 0.22, see
+[Migrating checkpoints](https://github.com/tracel-ai/burn/blob/release/0.22/burn-book/src/migrating-to-0.22.md#migrating-checkpoints).
 
 ```rust, ignore
 use burn::store::ModuleRecord;
@@ -442,10 +442,10 @@ let names = store.keys()?;
 
 // Get specific tensor
 if let Some(tensor) = store.get_tensor("encoder.layer0.weight")? {
-    println!("Shape: {:?}, DType: {:?}", tensor.shape, tensor.dtype);
+    println!("Shape: {:?}, DType: {:?}", tensor.shape(), tensor.dtype());
 
-    // Reading the data is a free function, not a method on the tensor
-    let data = burn_store::bridge::to_data(tensor)?;
+    // Reads the tensor's data from the file
+    let data = tensor.to_data()?;
 }
 ```
 

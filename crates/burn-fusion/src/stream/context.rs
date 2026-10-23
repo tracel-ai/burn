@@ -208,7 +208,6 @@ impl RelativeOps for OperationIr {
             OperationIr::Custom(ops) => OperationIr::Custom(ops.to_relative(converter)),
             OperationIr::Init(ops) => OperationIr::Init(ops.to_relative(converter)),
             OperationIr::Drop(tensor) => OperationIr::Drop(tensor.to_relative(converter)),
-            OperationIr::Distributed(ops) => OperationIr::Distributed(ops.to_relative(converter)),
             OperationIr::Activation(ops) => OperationIr::Activation(ops.to_relative(converter)),
         }
     }
@@ -769,6 +768,16 @@ impl RelativeOps for FloatOperationIr {
                 out: desc.out.to_relative(converter),
             }),
             FloatOperationIr::Hypot(desc) => FloatOperationIr::Hypot(BinaryOpIr {
+                lhs: desc.lhs.to_relative(converter),
+                rhs: desc.rhs.to_relative(converter),
+                out: desc.out.to_relative(converter),
+            }),
+            FloatOperationIr::Fmod(desc) => FloatOperationIr::Fmod(BinaryOpIr {
+                lhs: desc.lhs.to_relative(converter),
+                rhs: desc.rhs.to_relative(converter),
+                out: desc.out.to_relative(converter),
+            }),
+            FloatOperationIr::FmodScalar(desc) => FloatOperationIr::FmodScalar(ScalarOpIr {
                 lhs: desc.lhs.to_relative(converter),
                 rhs: desc.rhs.to_relative(converter),
                 out: desc.out.to_relative(converter),
@@ -1681,22 +1690,6 @@ impl RelativeOps for TensorIr {
             .insert(self.id, relative_tensor.clone());
 
         relative_tensor
-    }
-}
-
-impl RelativeOps for DistributedOperationIr {
-    fn to_relative(&self, converter: &mut OperationConverter) -> Self {
-        match self {
-            DistributedOperationIr::AllReduce(desc) => {
-                DistributedOperationIr::AllReduce(AllReduceOpIr {
-                    tensor: desc.tensor.to_relative(converter),
-                    out: desc.out.to_relative(converter),
-                    op: desc.op,
-                    device_ids: desc.device_ids.clone(),
-                })
-            }
-            DistributedOperationIr::SyncCollective => DistributedOperationIr::SyncCollective,
-        }
     }
 }
 

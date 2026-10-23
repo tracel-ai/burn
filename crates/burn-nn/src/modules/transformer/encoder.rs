@@ -340,7 +340,7 @@ impl TransformerEncoderLayer {
         if let Some(mask_attn) = mask_attn {
             input_mhs = input_mhs.mask_attn(mask_attn);
         }
-        let residual_path = self.mha.forward_cache(input_mhs, &mut cache.mha).context;
+        let residual_path = self.mha.forward_cache_context(input_mhs, &mut cache.mha);
 
         let residual_path = self.dropout.forward(residual_path);
         let mut x = x + residual_path;

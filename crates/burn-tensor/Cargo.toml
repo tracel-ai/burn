@@ -16,7 +16,18 @@ workspace = true
 
 [features]
 default = ["std", "burn-dispatch/default"]
-doc = ["default", "flex"]
+doc = [
+    "default",
+    "flex",
+    "wgpu",
+    "metal",
+    "vulkan",
+    "webgpu",
+    "cuda",
+    "rocm",
+    "cpu",
+    "dep:branches",
+]
 std = [
     "num-traits/std",
     "burn-std/std",
@@ -68,6 +79,7 @@ apple-amx = ["burn-dispatch/apple-amx"]
 template = ["burn-dispatch/template"]
 
 [dependencies]
+branches = { workspace = true, optional = true }
 burn-std = { workspace = true }
 burn-backend = { workspace = true }
 burn-dispatch = { workspace = true }

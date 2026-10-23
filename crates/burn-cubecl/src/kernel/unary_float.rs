@@ -143,6 +143,8 @@ pub(crate) mod unary_basic {
         Trunc,
         Erf,
         Recip,
+        Gelu,
+        Sigmoid,
     }
 
     #[derive(CubeLaunch, CubeType)]
@@ -166,7 +168,7 @@ pub(crate) mod unary_basic {
                 BasicFloatUnaryKind::Sign => {
                     let zero = Vector::zero();
                     let one = Vector::one();
-                    let minus_one = Vector::new(F::new(-1.0_f32));
+                    let minus_one = Vector::new(F::new(-1.0));
 
                     let is_positive = input.greater_than(&zero);
                     let is_negative = input.less_than(&zero);
@@ -192,6 +194,33 @@ pub(crate) mod unary_basic {
                 BasicFloatUnaryKind::ArcSinh => Vector::asinh(input),
                 BasicFloatUnaryKind::ArcTan => Vector::atan(input),
                 BasicFloatUnaryKind::ArcTanh => Vector::atanh(input),
+                BasicFloatUnaryKind::Gelu => {
+                    let dtype = elem_type_of::<F>().comptime();
+                    let define!(C) = comptime!(match dtype {
+                        ElemType::Float(cubecl::ir::FloatKind::F64) => dtype,
+                        _ => ElemType::Float(cubecl::ir::FloatKind::F32),
+                    });
+
+                    let x = Vector::<C, N>::cast_from(input);
+                    let half = Vector::<C, N>::new(<C as Float>::new(0.5));
+                    let one = Vector::<C, N>::new(<C as Float>::new(1.0));
+                    let inv_sqrt2 =
+                        Vector::<C, N>::new(<C as Float>::new(core::f64::consts::FRAC_1_SQRT_2));
+                    let y = half * x * (one + Vector::erf(x * inv_sqrt2));
+                    Vector::<F, N>::cast_from(y)
+                }
+                BasicFloatUnaryKind::Sigmoid => {
+                    let dtype = elem_type_of::<F>().comptime();
+                    let define!(C) = comptime!(match dtype {
+                        ElemType::Float(cubecl::ir::FloatKind::F64) => dtype,
+                        _ => ElemType::Float(cubecl::ir::FloatKind::F32),
+                    });
+
+                    let x = Vector::<C, N>::cast_from(input);
+                    let one = Vector::<C, N>::new(<C as Float>::new(1.0));
+                    let y = one / (one + Vector::exp(-x));
+                    Vector::<F, N>::cast_from(y)
+                }
             }
         }
     }

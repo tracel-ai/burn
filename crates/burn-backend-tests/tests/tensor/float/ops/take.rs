@@ -155,7 +155,7 @@ fn should_take_with_3d_indices() {
 }
 
 #[test]
-#[should_panic]
+#[should_panic(expected = "out of bounds")]
 fn should_panic_take_invalid_dimension() {
     let device = Default::default();
     let tensor = TestTensor::<2>::from_data([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]], &device);
@@ -195,7 +195,7 @@ fn should_take_with_negative_dim_2d() {
 }
 
 #[test]
-#[should_panic]
+#[should_panic(expected = "out of bounds")]
 fn should_panic_take_negative_dim_out_of_bounds() {
     let device = Default::default();
     let tensor = TestTensor::<2>::from_data([[1.0, 2.0], [3.0, 4.0]], &device);

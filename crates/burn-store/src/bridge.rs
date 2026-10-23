@@ -2,8 +2,9 @@
 //!
 //! [`burn_pack::Tensor`] carries the format-level facts about a tensor (name, dtype, shape,
 //! optional param id) and a source for its raw little-endian bytes, which may not exist yet.
-//! burn-store uses it as its single tensor-transport type: what a [`Collector`](crate::Collector)
-//! produces, what an [`Applier`](crate::Applier) consumes, and what the stores read and write.
+//! It is what a [`Collector`](crate::Collector) produces and what the stores write. On the way
+//! in, a [`StoreTensor`] wraps it, or a source that can do more, until an
+//! [`Applier`](crate::Applier) has run the adapters and takes the data.
 //!
 //! This module is the seam where burn-core's [`TensorData`] meets those raw bytes. The lazy
 //! paths are the load-bearing ones: a tensor built by [`from_tensor`] holds the
@@ -15,6 +16,8 @@ use alloc::format;
 use alloc::string::{String, ToString};
 
 use burn_pack::{Error as PackError, Tensor as PackTensor};
+
+use crate::StoreTensor;
 
 use burn_core::tensor::kind::Basic;
 use burn_core::tensor::quantization::quantized_data_len;
@@ -190,23 +193,29 @@ pub(crate) fn tensor_data(
 /// Takes the tensor by value: the closure holds it for the adapted tensor's whole lifetime, so
 /// borrowing here would only mean cloning it into the closure anyway.
 pub fn map_data(
-    tensor: PackTensor,
+    tensor: StoreTensor,
     name: String,
     dtype: DType,
     shape: Shape,
     f: impl Fn(TensorData) -> TensorData + MaybeSendSync + 'static,
-) -> PackTensor {
-    let param_id = tensor.param_id;
+) -> StoreTensor {
+    let param_id = tensor.param_id();
+    let tensor = tensor.into_pack();
 
     deferred(name, dtype, shape, param_id, move || {
         to_data(&tensor).map(&f)
     })
+    .into()
 }
 
 /// Wrap a PyTorch checkpoint tensor, leaving its bytes unread until they are drawn.
 ///
 /// PyTorch carries no parameter identity, so `param_id` stays `None`. Takes the tensor by
 /// value for the same reason [`map_data`] does.
+///
+/// This fixes the tensor's layout as row-major. Converting it into a [`StoreTensor`] instead
+/// keeps the reader's tensor, so an adapter can still read a matrix the checkpoint stores
+/// transposed in that order.
 #[cfg(feature = "pytorch")]
 pub fn from_pytorch(tensor: pytorch_reader::Tensor) -> PackTensor {
     use std::io::ErrorKind;
@@ -230,7 +239,7 @@ pub fn from_pytorch(tensor: pytorch_reader::Tensor) -> PackTensor {
 }
 
 #[cfg(feature = "pytorch")]
-fn pytorch_dtype(dtype: pytorch_reader::DType) -> DType {
+pub(crate) fn pytorch_dtype(dtype: pytorch_reader::DType) -> DType {
     use burn_core::tensor::BoolStore;
     use pytorch_reader::DType as Pt;
 
@@ -301,18 +310,25 @@ mod tests {
     /// width rounds down to zero bytes if divided rather than div_ceil'd). A 32x32 Q8 tensor
     /// passes either way, so it cannot stand in for these.
     ///
-    /// Both axes rely on the test backend storing quantized values natively, one `i8` per
-    /// value: `quantize_dynamic` rewrites the scheme's store to `QuantStore::Native` even
-    /// though `QuantScheme::default()` starts as `PackedU32`. A backend honoring `PackedU32`
-    /// would produce 4-byte-exact value counts and exercise neither axis.
+    /// The `Native` schemes hit both; the packed ones check that each line's padding is counted.
     #[test]
     fn data_len_matches_materialized_bytes_when_quantized() {
         let device = Device::default();
 
+        let native = QuantScheme::default().with_store(QuantStore::Native);
         let schemes = [
-            ("q8", QuantScheme::default()),
-            ("q4", QuantScheme::default().with_value(QuantValue::Q4S)),
-            ("q2", QuantScheme::default().with_value(QuantValue::Q2S)),
+            ("q8", native),
+            ("q4", native.with_value(QuantValue::Q4S)),
+            ("q2", native.with_value(QuantValue::Q2S)),
+            ("q8-packed", QuantScheme::default()),
+            (
+                "q4-packed",
+                QuantScheme::default().with_value(QuantValue::Q4S),
+            ),
+            (
+                "q2-packed",
+                QuantScheme::default().with_value(QuantValue::Q2S),
+            ),
         ];
         // Element counts that are and are not multiples of the 4-byte scale alignment.
         let shapes = [shape![32, 32], shape![3, 3], shape![5, 5], shape![2, 3]];
@@ -358,10 +374,28 @@ mod tests {
         }
     }
 
+    #[test]
+    fn data_len_matches_default_quantized_values() {
+        for values in [3usize, 4, 5] {
+            let data = TensorData::quantized(
+                vec![0i8; values],
+                [values],
+                QuantScheme::default(),
+                &[0.5],
+                None,
+            );
+
+            assert_eq!(
+                data_len(data.dtype(), data.shape()),
+                data.bytes().len(),
+                "predicted size disagrees for {values} default-scheme values"
+            );
+        }
+    }
+
     /// Packed quantized storage divides only the packed dimension, so a non-divisible extent
-    /// pads once per line rather than once over the flattened tensor. No current backend can
-    /// materialize such a tensor, so this pins the formula against the storage shape the
-    /// allocation would use (`CubeTensor::quantized_storage`) rather than against real bytes.
+    /// pads once per line rather than once over the flattened tensor, as `QuantizedBytes::new`
+    /// lays it out.
     #[test]
     fn data_len_packs_per_line_for_packed_stores() {
         // Q4 in u32 words: 8 values per storage element, packed along the last dimension.
@@ -558,12 +592,16 @@ mod tests {
         assert_eq!(source.byte_len(), 16);
 
         let shape = source.shape.clone();
-        let cast = map_data(source, "weight".to_string(), DType::F16, shape, |data| {
-            data.convert_dtype(DType::F16)
-        });
+        let cast = map_data(
+            source.into(),
+            "weight".to_string(),
+            DType::F16,
+            shape,
+            |data| data.convert_dtype(DType::F16),
+        );
 
         assert_eq!(cast.byte_len(), 8);
-        assert_byte_len_matches(cast);
+        assert_byte_len_matches(cast.into_pack());
     }
 
     /// A checkpoint tensor crosses over with its identity intact and its bytes reinterpreted

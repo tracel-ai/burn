@@ -7,7 +7,10 @@
 use bytes::Bytes;
 use iroh::endpoint::{ReadExactError, RecvStream, SendStream};
 
-use crate::transport::link::{FrameSink, FrameSource};
+use crate::{
+    shared::BUFFERS,
+    transport::link::{FrameSink, FrameSource, MAX_WHOLE_MESSAGE_SIZE},
+};
 
 impl FrameSink for SendStream {
     async fn send(&mut self, frame: Bytes) -> Result<(), String> {
@@ -29,11 +32,22 @@ impl FrameSource for RecvStream {
         let Some(length) = FrameLength::read(self).await? else {
             return Ok(None);
         };
-        let mut frame = vec![0; length.at_most(max_len)?];
+        let length = length.at_most(max_len)?;
+        if length <= MAX_WHOLE_MESSAGE_SIZE {
+            let mut frame = vec![0; length];
+            self.read_exact(&mut frame)
+                .await
+                .map_err(|err| format!("Failed to read Iroh frame: {err}"))?;
+            return Ok(Some(frame.into()));
+        }
+        let mut frame = BUFFERS.take_to_overwrite(length).map_err(|_| {
+            format!("Peer sent a frame of {length} bytes, more than can be allocated")
+        })?;
+        frame.resize(length, 0);
         self.read_exact(&mut frame)
             .await
             .map_err(|err| format!("Failed to read Iroh frame: {err}"))?;
-        Ok(Some(frame.into()))
+        Ok(Some(frame.into_bytes()))
     }
 
     async fn recv_into(&mut self, buf: &mut [u8]) -> Result<usize, String> {

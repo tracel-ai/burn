@@ -33,6 +33,11 @@ impl<T: ?Sized> MaybeSend for T {}
 /// The largest frame either transport carries; a longer message travels in several.
 pub const MAX_FRAME_SIZE: usize = 1024 * 1024;
 
+/// The largest message sent whole, copied into one frame behind its tag. It is copied anyway, so
+/// it is built and read in a plain allocation; a larger message travels in segments of their own
+/// and is worth a pooled buffer.
+pub const MAX_WHOLE_MESSAGE_SIZE: usize = 64 * 1024;
+
 /// The largest frame read from a peer before it is authorized: a stream's header, a session's
 /// `Init` or a tensor-transfer request. It bounds what a stranger can make an Iroh server hold;
 /// WebSocket reads a frame up to [`MAX_FRAME_SIZE`] before refusing it.

@@ -9,8 +9,7 @@ use burn_core as burn;
 
 use burn_core::module::{Module, Param, ParamId};
 use burn_core::tensor::{DType, Device, Tensor, TensorData};
-use burn_pack::Tensor as PackTensor;
-use burn_store::{ModuleAdapter, ModuleContext, ModuleSnapshot, SafetensorsStore};
+use burn_store::{ModuleAdapter, ModuleContext, ModuleSnapshot, SafetensorsStore, StoreTensor};
 
 #[derive(Module, Debug)]
 struct Model {
@@ -32,14 +31,15 @@ fn model(device: &Device) -> Model {
 struct FailingAdapter;
 
 impl ModuleAdapter for FailingAdapter {
-    fn adapt(&self, tensor: PackTensor, _ctx: ModuleContext<'_>) -> PackTensor {
+    fn adapt(&self, tensor: StoreTensor, _ctx: ModuleContext<'_>) -> StoreTensor {
         burn_store::bridge::deferred(
-            tensor.name.clone(),
+            tensor.name().to_string(),
             DType::F32,
-            tensor.shape.clone(),
+            tensor.shape().into(),
             None,
             || Err(burn_pack::Error::IoError("device readback failed".into())),
         )
+        .into()
     }
 
     fn clone_box(&self) -> Box<dyn ModuleAdapter> {
@@ -55,19 +55,20 @@ struct PlantingAdapter {
 }
 
 impl ModuleAdapter for PlantingAdapter {
-    fn adapt(&self, tensor: PackTensor, _ctx: ModuleContext<'_>) -> PackTensor {
+    fn adapt(&self, tensor: StoreTensor, _ctx: ModuleContext<'_>) -> StoreTensor {
         let dest = self.dest.clone();
-        let shape = tensor.shape.clone();
+        let shape = tensor.shape().to_vec();
         burn_store::bridge::deferred(
-            tensor.name.clone(),
+            tensor.name().to_string(),
             DType::F32,
-            tensor.shape.clone(),
+            tensor.shape().into(),
             None,
             move || {
                 std::fs::write(&dest, b"theirs").unwrap();
                 Ok(TensorData::zeros::<f32, _>(shape.clone()))
             },
         )
+        .into()
     }
 
     fn clone_box(&self) -> Box<dyn ModuleAdapter> {

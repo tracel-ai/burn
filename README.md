@@ -551,7 +551,7 @@ Loading Model Records From Previous Versions ⚠️
 Burn 0.22 uses burnpack for native records and cannot directly read legacy `Recorder` formats such
 as `.mpk`, `.bin`, or JSON. Load the checkpoint in a compatible older Burn project, export the model
 weights through `burn-store`, and import them into your 0.22 model. See
-[Migrating checkpoints](https://github.com/tracel-ai/burn/blob/main/burn-book/src/migrating-to-0.22.md#migrating-checkpoints) for an example and
+[Migrating checkpoints](https://github.com/tracel-ai/burn/blob/release/0.22/burn-book/src/migrating-to-0.22.md#migrating-checkpoints) for an example and
 the distinction between transferring weights and resuming training state.
 
 For records saved before `0.14.0`, an earlier migration step may also be needed: use Burn `0.14`,

@@ -131,7 +131,7 @@ pub trait RouterClient: Clone + Send + Sync + Sized {
     /// Register `new_id` as an alias of `src_id` — a second handle over the same backing buffer.
     ///
     /// Used by the fusion layer's cross-stream sharing (see
-    /// [`FusionRuntime::alias_handle`](burn_fusion::FusionRuntime::alias_handle)): when a tensor is
+    /// `burn_fusion::FusionRuntime::alias_handle`): when a tensor is
     /// shared to another stream, that stream's view needs its own id so that consuming it (a
     /// `ReadWrite` last-use) frees only this alias, leaving the original handle valid. The server
     /// clones the source handle (an `Arc`-style refcount on the device buffer) under `new_id`.

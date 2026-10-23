@@ -30,9 +30,14 @@ pub fn slice(tensor: CubeTensor, indices: &[Range<usize>]) -> CubeTensor {
     let offset_end = offset_end * tensor.dtype.size() as u64;
 
     let memory_offset_alignment = tensor.client.properties().memory.alignment;
+    // Only `offset_start` shifts the base pointer and must satisfy `memory_offset_alignment`
+    // (e.g. 512B on CUDA, 256B on WGPU). `offset_end` only trims `size_in_used()` from the end,
+    // so 32-byte alignment suffices for all vectorized `Line<E, N>` widths (up to `vec4<f64>`)
+    // and WebGPU's 4-byte `COPY_BUFFER_ALIGNMENT`.
+    let end_alignment = memory_offset_alignment.min(32);
 
     if offset_start.is_multiple_of(memory_offset_alignment)
-        && offset_end.is_multiple_of(memory_offset_alignment)
+        && offset_end.is_multiple_of(end_alignment)
     {
         CubeTensor::new(
             tensor.client.clone(),

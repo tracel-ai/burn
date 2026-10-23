@@ -2,10 +2,8 @@
 #![cfg(all(feature = "std", not(feature = "metal")))]
 
 use super::*;
-use burn_backend_tests::might_panic;
 use burn_tensor::{DType, TensorData};
 
-#[might_panic(reason = "Unsupported precision for fusion")]
 #[test]
 fn cast_keeps_gradient_flow() {
     let device = AutodiffDevice::new();

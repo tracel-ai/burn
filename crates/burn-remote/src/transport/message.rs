@@ -1,14 +1,15 @@
 //! Messages carried in frames of at most [`MAX_FRAME_SIZE`] bytes.
 //!
-//! Past the handshake, a small message travels as one frame behind a tag byte. A larger
-//! one opens with a frame giving its length, then follows as the segments it was encoded into, so
-//! it is never copied to be sent and is read into one buffer allocated for it. The handshake itself
-//! stays in bare frames: a peer on another protocol version reads its refusal from them.
+//! Past the handshake, a small message travels as one frame behind a tag byte. A larger one opens
+//! with a frame giving its length, then follows as the segments it was encoded into, so it is never
+//! copied to be sent; a message of several segments is read into one buffer from [`BUFFERS`]. The
+//! handshake itself stays in bare frames: a peer on another protocol version reads its refusal from
+//! them.
 
 use bytes::{Buf, BufMut, Bytes, BytesMut};
 
-use super::link::{FrameSink, FrameSource, MAX_FRAME_SIZE};
-use crate::shared::Encoded;
+use super::link::{FrameSink, FrameSource, MAX_FRAME_SIZE, MAX_WHOLE_MESSAGE_SIZE};
+use crate::shared::{BUFFERS, Encoded};
 
 /// Sends each message in as many frames as it takes.
 pub struct MessageSink<S> {
@@ -26,7 +27,7 @@ impl<S: FrameSink> MessageSink<S> {
     }
 
     pub async fn send(&mut self, message: Encoded) -> Result<(), String> {
-        if message.len() <= MessageHead::MAX_WHOLE {
+        if message.len() <= MAX_WHOLE_MESSAGE_SIZE {
             let whole = MessageHead::Whole(message.into_bytes());
             return self.frames.send(whole.into()).await;
         }
@@ -65,20 +66,44 @@ impl<S: FrameSource> MessageSource<S> {
     async fn recv_segmented(&mut self, len: u64) -> Result<Bytes, String> {
         let len = usize::try_from(len)
             .map_err(|_| format!("Peer sent a message of {len} bytes, too large to address"))?;
-        let mut message = Vec::new();
-        message.try_reserve_exact(len).map_err(|_| {
+        if len <= MAX_FRAME_SIZE {
+            self.recv_one_segment(len).await
+        } else {
+            self.recv_many_segments(len).await
+        }
+    }
+
+    /// A message of one segment, handed on as the frame the transport delivered.
+    async fn recv_one_segment(&mut self, len: usize) -> Result<Bytes, String> {
+        match self.frames.recv(len).await? {
+            Some(segment) if segment.len() == len => Ok(segment),
+            Some(segment) => Err(format!(
+                "Peer sent a message of {len} bytes in a segment of {}",
+                segment.len()
+            )),
+            None => Err("Peer closed the stream in the middle of a message".into()),
+        }
+    }
+
+    /// A message of several segments, read into one pooled buffer.
+    async fn recv_many_segments(&mut self, len: usize) -> Result<Bytes, String> {
+        let mut message = BUFFERS.take_to_overwrite(len).map_err(|_| {
             format!("Peer sent a message of {len} bytes, more than can be allocated")
         })?;
-        while message.len() < len {
-            let filled = message.len();
+        let mut filled = 0;
+        while filled < len {
+            let end = len.min(filled + MAX_FRAME_SIZE);
             // Zeroed a frame at a time, so the read overwrites it while it is still in cache.
-            message.resize(len.min(filled + MAX_FRAME_SIZE), 0);
-            match self.frames.recv_into(&mut message[filled..]).await? {
+            if message.len() < end {
+                message.resize(end, 0);
+            }
+            match self.frames.recv_into(&mut message[filled..end]).await? {
                 0 => return Err("Peer sent an empty frame in the middle of a message".into()),
-                read => message.truncate(filled + read),
+                read => filled += read,
             }
         }
-        Ok(message.into())
+        message.truncate(len);
+        Ok(message.into_bytes())
     }
 }
 
@@ -87,14 +112,13 @@ impl<S: FrameSource> MessageSource<S> {
 enum MessageHead {
     /// The whole message, behind its tag.
     Whole(Bytes),
-    /// The length of a message whose bytes follow in frames of their own.
+    /// The length of a message whose bytes follow in frames of their own; one that fits in a frame
+    /// follows in exactly one.
     Segmented { len: u64 },
 }
 
 impl MessageHead {
-    /// The largest message sent whole: a larger one is never copied behind a tag.
-    const MAX_WHOLE: usize = 64 * 1024;
-    const MAX_SIZE: usize = 1 + Self::MAX_WHOLE;
+    const MAX_SIZE: usize = 1 + MAX_WHOLE_MESSAGE_SIZE;
     const WHOLE: u8 = 0;
     const SEGMENTED: u8 = 1;
 }
@@ -141,11 +165,13 @@ impl From<MessageHead> for Bytes {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::shared::Encode;
+    use serde::Serialize;
     use std::collections::VecDeque;
 
     #[tokio::test]
     async fn a_small_message_is_one_frame() {
-        let message = message_of(MessageHead::MAX_WHOLE);
+        let message = message_of(MAX_WHOLE_MESSAGE_SIZE);
 
         let frames = frames_of([message.clone()]).await;
 
@@ -155,7 +181,7 @@ mod tests {
 
     #[tokio::test]
     async fn a_message_one_byte_over_the_whole_size_follows_its_head() {
-        let message = message_of(MessageHead::MAX_WHOLE + 1);
+        let message = message_of(MAX_WHOLE_MESSAGE_SIZE + 1);
 
         let frames = frames_of([message.clone()]).await;
 
@@ -201,11 +227,35 @@ mod tests {
         );
     }
 
+    /// Encoded a field at a time, as task batches are, so its first segment fills before it ends.
+    #[tokio::test]
+    async fn a_message_encoded_in_small_pieces_arrives_whole() {
+        let values = Values((0..30_000).map(|i| u64::MAX - i).collect());
+        let expected = rmp_serde::to_vec(&values).unwrap();
+
+        let frames = frames_of([values.encode().unwrap()]).await;
+
+        assert_eq!(frames.len(), 2);
+        assert_eq!(received(frames).await, [expected]);
+    }
+
     #[tokio::test]
     async fn a_peer_that_closes_in_the_middle_of_a_message_is_an_error() {
         let mut frames = frames_of([message_of(2 * MAX_FRAME_SIZE)]).await;
         frames.pop();
         let mut source = MessageSource::new(ScriptedFrames(frames.into()));
+
+        let result = source.recv().await;
+
+        assert!(result.is_err(), "{result:?}");
+    }
+
+    #[tokio::test]
+    async fn a_message_of_one_segment_cut_short_is_an_error() {
+        let len = MAX_WHOLE_MESSAGE_SIZE + 1;
+        let head = MessageHead::Segmented { len: len as u64 };
+        let short = Bytes::from(vec![7; len - 1]);
+        let mut source = MessageSource::new(ScriptedFrames([head.into(), short].into()));
 
         let result = source.recv().await;
 
@@ -221,6 +271,11 @@ mod tests {
 
         assert!(result.is_err(), "{result:?}");
     }
+
+    #[derive(Serialize)]
+    struct Values(Vec<u64>);
+
+    impl Encode for Values {}
 
     fn message_of(len: usize) -> Encoded {
         Encoded::from(&(0..len).map(|i| i as u8).collect::<Vec<_>>()[..])

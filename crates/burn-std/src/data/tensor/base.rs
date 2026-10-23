@@ -12,7 +12,7 @@ use crate::element::{Element, ElementConversion};
 use crate::tensor::DType;
 use crate::{
     AccessError, BoolStore, Bytes, ExecutionError, QuantMode, QuantScheme, QuantValue,
-    QuantizedBytes, Reader, Shape, Writer, bf16, f16,
+    QuantizedBytes, Reader, Shape, Writer, bf16, f16, flex32,
 };
 
 use serde::{Deserialize, Serialize};
@@ -73,6 +73,16 @@ pub enum DataError {
         /// The number of bytes present in storage.
         len: usize,
     },
+
+    /// The quantized storage layout is invalid or cannot be represented for the tensor shape.
+    #[error("Quantized layout for shape {:?} and dtype {dtype:?} is invalid", shape.as_slice())]
+    InvalidQuantizedLayout {
+        /// The shape describing the tensor.
+        shape: Shape,
+
+        /// The quantized storage dtype.
+        dtype: DType,
+    },
 }
 
 /// Errors that can occur while reading host data from a tensor.
@@ -109,9 +119,8 @@ impl DataError {
 
 /// Data structure for tensors.
 ///
-/// The byte length of the storage always matches the size implied by the shape and dtype, except
-/// for quantized data, whose length isn't validated yet (tracel-ai/burn#5836). Element values
-/// aren't validated on construction; the checked accessors reject invalid representations.
+/// The byte length of the storage always matches the size implied by the shape and dtype. Element
+/// values aren't validated on construction; the checked accessors reject invalid representations.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(try_from = "TensorDataDe")]
 pub struct TensorData {
@@ -203,8 +212,8 @@ impl TensorData {
     ///
     /// # Panics
     ///
-    /// Panics if the byte length doesn't match the shape and dtype. See
-    /// [`TensorData::try_from_bytes`] for the fallible version.
+    /// Panics if the byte length doesn't match the shape and dtype, or the quantized scheme is
+    /// invalid for the shape. See [`TensorData::try_from_bytes`] for the fallible version.
     #[track_caller]
     pub fn from_bytes<S: Into<Shape>>(bytes: Bytes, shape: S, dtype: DType) -> Self {
         match Self::try_from_bytes(bytes, shape, dtype) {
@@ -220,8 +229,8 @@ impl TensorData {
     ///
     /// # Panics
     ///
-    /// Panics if the byte length doesn't match the shape and dtype. See
-    /// [`TensorData::try_from_bytes_vec`] for the fallible version.
+    /// Panics if the byte length doesn't match the shape and dtype, or the quantized scheme is
+    /// invalid for the shape. See [`TensorData::try_from_bytes_vec`] for the fallible version.
     #[track_caller]
     pub fn from_bytes_vec<S: Into<Shape>>(bytes: Vec<u8>, shape: S, dtype: DType) -> Self {
         Self::from_bytes(Bytes::from_bytes_vec(bytes), shape, dtype)
@@ -231,9 +240,10 @@ impl TensorData {
     ///
     /// # Errors
     ///
-    /// Returns [`DataError::InvalidByteLength`] if the byte length doesn't match the number of
-    /// elements described by the shape times the dtype size. Quantized dtypes aren't checked,
-    /// since their packed layout isn't derived from the shape alone.
+    /// Returns [`DataError::InvalidByteLength`] if the byte length doesn't match the storage
+    /// layout described by the shape and dtype, including quantized schemes.
+    /// Returns [`DataError::InvalidQuantizedLayout`] if a quantized storage layout is invalid for
+    /// the shape or its size overflows.
     ///
     /// The element values themselves aren't validated here (e.g. a `bool` byte other than 0 or
     /// 1); the checked accessors ([`TensorData::as_slice`], [`TensorData::try_to_vec`],
@@ -244,13 +254,20 @@ impl TensorData {
         dtype: DType,
     ) -> Result<Self, DataError> {
         let shape = shape.into();
-        // `dtype.size()` is not the stored width of quantized data (sub-byte values plus
-        // appended scales), so only the other dtypes have a shape-derived byte length. The
-        // product is checked as well: a shape that overflows `usize` would otherwise wrap into
-        // a small element count that matches the payload.
-        let expected = checked_numel(&shape).and_then(|numel| numel.checked_mul(dtype.size()));
+        // `dtype.size()` is not the stored width of quantized data (packed values plus appended
+        // scales), so quantized dtypes use their storage scheme to determine the byte length.
+        // Products are checked because untrusted shapes and schemes can overflow `usize`.
+        let expected = match dtype {
+            DType::QFloat(scheme) => {
+                match crate::tensor::quantization::try_quantized_data_len(&scheme, &shape) {
+                    Some(expected) => Some(expected),
+                    None => return Err(DataError::InvalidQuantizedLayout { shape, dtype }),
+                }
+            }
+            _ => checked_numel(&shape).and_then(|numel| numel.checked_mul(dtype.size())),
+        };
 
-        if !matches!(dtype, DType::QFloat(_)) && expected != Some(bytes.len()) {
+        if expected != Some(bytes.len()) {
             return Err(DataError::InvalidByteLength {
                 shape,
                 dtype,
@@ -417,30 +434,68 @@ impl TensorData {
         TensorData::new(data, shape)
     }
 
+    /// Populates the data with random values of the requested dtype.
+    ///
+    /// Boolean values are sampled as `bool` and encoded using the requested storage type.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `dtype` is [`DType::QFloat`] or the distribution is invalid for the element type.
+    pub fn random_dtype<R: Rng, S: Into<Shape>>(
+        shape: S,
+        distribution: Distribution,
+        rng: &mut R,
+        dtype: DType,
+    ) -> Self {
+        match dtype {
+            DType::F64 => Self::random::<f64, _, _>(shape, distribution, rng),
+            DType::F32 => Self::random::<f32, _, _>(shape, distribution, rng),
+            DType::Flex32 => Self::random::<flex32, _, _>(shape, distribution, rng),
+            DType::F16 => Self::random::<f16, _, _>(shape, distribution, rng),
+            DType::BF16 => Self::random::<bf16, _, _>(shape, distribution, rng),
+            DType::I64 => Self::random::<i64, _, _>(shape, distribution, rng),
+            DType::I32 => Self::random::<i32, _, _>(shape, distribution, rng),
+            DType::I16 => Self::random::<i16, _, _>(shape, distribution, rng),
+            DType::I8 => Self::random::<i8, _, _>(shape, distribution, rng),
+            DType::U64 => Self::random::<u64, _, _>(shape, distribution, rng),
+            DType::U32 => Self::random::<u32, _, _>(shape, distribution, rng),
+            DType::U16 => Self::random::<u16, _, _>(shape, distribution, rng),
+            DType::U8 => Self::random::<u8, _, _>(shape, distribution, rng),
+            DType::Bool(_) => {
+                Self::random::<bool, _, _>(shape, distribution, rng).convert_dtype(dtype)
+            }
+            DType::QFloat(_) => {
+                panic!("Cannot create random tensor data with quantized dtype {dtype:?}")
+            }
+        }
+    }
+
     /// Populates the data with zeros.
     pub fn zeros<E: Element, S: Into<Shape>>(shape: S) -> TensorData {
-        let shape = shape.into();
-        let num_elements = numel(&shape);
-        let mut data = Vec::<E>::with_capacity(num_elements);
+        Self::full(shape, 0.elem::<E>())
+    }
 
-        for _ in 0..num_elements {
-            data.push(0.elem());
-        }
-
-        TensorData::new(data, shape)
+    /// Populates the data with zeros of the requested dtype.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `dtype` is [`DType::QFloat`].
+    pub fn zeros_dtype<S: Into<Shape>>(shape: S, dtype: DType) -> Self {
+        Self::full_dtype(shape, 0, dtype)
     }
 
     /// Populates the data with ones.
     pub fn ones<E: Element, S: Into<Shape>>(shape: S) -> TensorData {
-        let shape = shape.into();
-        let num_elements = numel(&shape);
-        let mut data = Vec::<E>::with_capacity(num_elements);
+        Self::full(shape, 1.elem::<E>())
+    }
 
-        for _ in 0..num_elements {
-            data.push(1.elem());
-        }
-
-        TensorData::new(data, shape)
+    /// Populates the data with ones of the requested dtype.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `dtype` is [`DType::QFloat`].
+    pub fn ones_dtype<S: Into<Shape>>(shape: S, dtype: DType) -> Self {
+        Self::full_dtype(shape, 1, dtype)
     }
 
     /// Populates the data with the given value
@@ -455,7 +510,11 @@ impl TensorData {
         TensorData::new(data, shape)
     }
 
-    /// Populates the data with the given value
+    /// Populates the data with the given value of the requested dtype.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `dtype` is [`DType::QFloat`].
     pub fn full_dtype<E: Into<Scalar>, S: Into<Shape>>(
         shape: S,
         fill_value: E,
@@ -464,7 +523,8 @@ impl TensorData {
         let fill_value = fill_value.into();
         match dtype {
             DType::F64 => Self::full::<f64, _>(shape, fill_value.elem()),
-            DType::F32 | DType::Flex32 => Self::full::<f32, _>(shape, fill_value.elem()),
+            DType::F32 => Self::full::<f32, _>(shape, fill_value.elem()),
+            DType::Flex32 => Self::full::<flex32, _>(shape, fill_value.elem()),
             DType::F16 => Self::full::<f16, _>(shape, fill_value.elem()),
             DType::BF16 => Self::full::<bf16, _>(shape, fill_value.elem()),
             DType::I64 => Self::full::<i64, _>(shape, fill_value.elem()),
@@ -482,7 +542,9 @@ impl TensorData {
             DType::Bool(BoolStore::U32) => {
                 Self::full::<u32, _>(shape, fill_value.elem()).into_bool_u32()
             }
-            DType::QFloat(_) => unreachable!(),
+            DType::QFloat(_) => {
+                panic!("Cannot create full tensor data with quantized dtype {dtype:?}")
+            }
         }
     }
 
@@ -731,6 +793,23 @@ mod tests {
     use core::mem::{MaybeUninit, align_of, size_of};
 
     #[test]
+    #[should_panic(expected = "Cannot create full tensor data with quantized dtype")]
+    fn full_dtype_rejects_quantized() {
+        TensorData::full_dtype([2, 3], 0, DType::QFloat(Default::default()));
+    }
+
+    #[test]
+    #[should_panic(expected = "Cannot create random tensor data with quantized dtype")]
+    fn random_dtype_rejects_quantized() {
+        TensorData::random_dtype(
+            [2, 3],
+            Distribution::Default,
+            &mut StdRng::seed_from_u64(42),
+            DType::QFloat(Default::default()),
+        );
+    }
+
+    #[test]
     fn should_have_rank() {
         let shape = [3, 5, 6];
         let data = TensorData::random::<f32, _, _>(
@@ -824,6 +903,43 @@ mod tests {
     }
 
     #[test]
+    fn should_preserve_flex32_dtype_when_casting_from_f32() {
+        let data = TensorData::from([-1.5f32, 0.0, 2.25]);
+        let expected = TensorData::from([-1.5, 0.0, 2.25].map(flex32::from_f32));
+
+        let actual = data.clone().try_cast(DType::Flex32).unwrap();
+        assert_eq!(actual, expected);
+        assert_eq!(data.try_cast_as::<flex32>().unwrap(), expected);
+        assert_eq!(
+            actual.try_cast(DType::F32).unwrap(),
+            TensorData::from([-1.5f32, 0.0, 2.25])
+        );
+    }
+
+    #[test]
+    fn should_preserve_flex32_dtype_when_casting_from_f64() {
+        let data = TensorData::from([-1.5f64, 0.0, 2.25]);
+        let expected = TensorData::from([-1.5, 0.0, 2.25].map(flex32::from_f32));
+
+        let actual = data.clone().try_cast(DType::Flex32).unwrap();
+        assert_eq!(actual, expected);
+        assert_eq!(data.try_cast_as::<flex32>().unwrap(), expected);
+        assert_eq!(
+            actual.try_cast(DType::F32).unwrap(),
+            TensorData::from([-1.5f32, 0.0, 2.25])
+        );
+    }
+
+    #[test]
+    fn should_preserve_flex32_dtype_when_constructing_full_data() {
+        let actual = TensorData::full_dtype([2, 2], 1.5f32, DType::Flex32);
+        let expected = TensorData::full::<flex32, _>([2, 2], 1.5f32.elem());
+
+        assert_eq!(actual, expected);
+        assert_eq!(actual.dtype(), DType::Flex32);
+    }
+
+    #[test]
     fn should_convert_negative_values_to_bool_store() {
         for store in [BoolStore::U8, BoolStore::U32, BoolStore::Native] {
             let data = TensorData::from([-1i32, 0, 1, -12]).convert_dtype(DType::Bool(store));
@@ -838,12 +954,36 @@ mod tests {
         }
     }
 
+    fn check_dtype_constructors<E: Element + PartialEq, S: Element>(dtype: DType) {
+        let distribution = Distribution::Uniform(0.0, 8.0);
+        let random =
+            TensorData::random_dtype([2, 3], distribution, &mut StdRng::seed_from_u64(42), dtype);
+        let expected =
+            TensorData::random::<S, _, _>([2, 3], distribution, &mut StdRng::seed_from_u64(42));
+        for (data, values) in [
+            (
+                TensorData::zeros_dtype([2, 3], dtype),
+                vec![0.elem::<E>(); 6],
+            ),
+            (
+                TensorData::ones_dtype([2, 3], dtype),
+                vec![1.elem::<E>(); 6],
+            ),
+            (random, expected.iter::<E>().collect()),
+        ] {
+            assert_eq!(data.dtype(), dtype);
+            assert_eq!(data.shape(), &Shape::new([2, 3]));
+            assert_eq!(data.try_into_vec::<E>().unwrap(), values);
+        }
+    }
+
     macro_rules! test_dtypes {
     ($test_name:ident, $($dtype:ty),*) => {
         $(
             paste::paste! {
                 #[test]
                 fn [<$test_name _ $dtype:snake>]() {
+                    check_dtype_constructors::<$dtype, $dtype>(<$dtype>::dtype());
                     let full_dtype = TensorData::full_dtype([2, 16], 4, <$dtype>::dtype());
                     let full = TensorData::full::<$dtype, _>([2, 16], 4.elem());
                     assert_eq!(full_dtype, full);
@@ -867,8 +1007,19 @@ mod tests {
         f16,
         bf16,
         f32,
-        f64
+        f64,
+        flex32
     );
+
+    #[test]
+    fn should_create_with_dtype_bool_u8() {
+        check_dtype_constructors::<u8, bool>(DType::Bool(BoolStore::U8));
+    }
+
+    #[test]
+    fn should_create_with_dtype_bool_u32() {
+        check_dtype_constructors::<u32, bool>(DType::Bool(BoolStore::U32));
+    }
 
     #[test]
     fn should_serialize_deserialize_tensor_data() {
@@ -1068,6 +1219,106 @@ mod tests {
         let serialized = serde_json::to_string(&data).unwrap();
         let deserialized: TensorData = serde_json::from_str(&serialized).unwrap();
         assert_eq!(deserialized, data);
+    }
+
+    #[test]
+    fn packed_quantized_scalar_roundtrips() {
+        for store in [QuantStore::PackedU32(0), QuantStore::PackedNative(0)] {
+            let scheme = QuantScheme::default()
+                .with_store(store)
+                .with_value(QuantValue::E2M1);
+            let data = TensorData::quantized(vec![1i8], [0usize; 0], scheme, &[0.5], None);
+
+            let serialized = serde_json::to_string(&data).unwrap();
+            let deserialized: TensorData = serde_json::from_str(&serialized).unwrap();
+            assert_eq!(deserialized, data);
+        }
+    }
+
+    #[test]
+    fn try_from_bytes_rejects_invalid_quantized_lengths_and_schemes() {
+        let scheme = QuantScheme::default();
+        let valid = TensorData::quantized(vec![0i8; 3], [3], scheme, &[1.0], None);
+        let (bytes, shape, dtype) = valid.into_parts();
+        assert!(TensorData::try_from_bytes(bytes.clone(), shape.clone(), dtype).is_ok());
+
+        for len in [bytes.len() - 1, bytes.len() + 1] {
+            assert!(matches!(
+                TensorData::try_from_bytes_vec(vec![0; len], shape.clone(), dtype),
+                Err(DataError::InvalidByteLength { .. })
+            ));
+        }
+
+        let invalid_packed_dim = scheme.with_store(QuantStore::PackedU32(1));
+        for shape in [Shape::new([1]), Shape::new([0usize; 0])] {
+            assert!(matches!(
+                TensorData::try_from_bytes_vec(
+                    vec![0; 4],
+                    shape,
+                    DType::QFloat(invalid_packed_dim)
+                ),
+                Err(DataError::InvalidQuantizedLayout { .. })
+            ));
+        }
+
+        let zero_block = scheme.per_block([0], crate::ScaleDtype::F32);
+        assert!(matches!(
+            TensorData::try_from_bytes_vec(vec![0; 4], [1], DType::QFloat(zero_block)),
+            Err(DataError::InvalidQuantizedLayout { .. })
+        ));
+
+        assert!(matches!(
+            TensorData::try_from_bytes_vec(vec![], [usize::MAX, 2], DType::QFloat(scheme)),
+            Err(DataError::InvalidQuantizedLayout { .. })
+        ));
+    }
+
+    #[test]
+    fn deserialization_rejects_invalid_quantized_length() {
+        let invalid = TensorData::from_bytes_unchecked(
+            Bytes::from_bytes_vec(vec![0; 3]),
+            [4],
+            DType::QFloat(QuantScheme::default().with_store(QuantStore::Native)),
+        );
+        let serialized = serde_json::to_string(&invalid).unwrap();
+
+        assert!(serde_json::from_str::<TensorData>(&serialized).is_err());
+    }
+
+    #[test]
+    fn try_from_bytes_accepts_packed_quantized_layout_per_row() {
+        let scheme = QuantScheme::default()
+            .with_value(QuantValue::Q4S)
+            .with_store(QuantStore::PackedU32(0));
+        let data = TensorData::quantized(vec![0i8; 9], [3, 3], scheme, &[1.0], None);
+        let (bytes, shape, dtype) = data.into_parts();
+
+        // Three rows each occupy one u32 word, followed by the per-tensor f32 scale.
+        assert_eq!(bytes.len(), 3 * core::mem::size_of::<u32>() + 4);
+        assert!(TensorData::try_from_bytes(bytes.clone(), shape.clone(), dtype).is_ok());
+        for len in [bytes.len() - 1, bytes.len() + 1] {
+            assert!(matches!(
+                TensorData::try_from_bytes_vec(vec![0; len], shape.clone(), dtype),
+                Err(DataError::InvalidByteLength { .. })
+            ));
+        }
+    }
+
+    #[test]
+    fn try_from_bytes_accepts_zero_sized_quantized_tensors() {
+        let per_tensor =
+            TensorData::quantized(Vec::<i8>::new(), [0], QuantScheme::default(), &[1.0], None);
+        let (bytes, shape, dtype) = per_tensor.into_parts();
+        assert_eq!(bytes.len(), 4);
+        assert!(TensorData::try_from_bytes(bytes, shape, dtype).is_ok());
+
+        let per_block = QuantScheme::default()
+            .with_store(QuantStore::Native)
+            .per_block([2], crate::ScaleDtype::F32);
+        let empty = TensorData::quantized(Vec::<i8>::new(), [0], per_block, &[], None);
+        let (bytes, shape, dtype) = empty.into_parts();
+        assert!(bytes.is_empty());
+        assert!(TensorData::try_from_bytes(bytes, shape, dtype).is_ok());
     }
 
     #[test]

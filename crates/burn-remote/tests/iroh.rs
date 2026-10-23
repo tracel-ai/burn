@@ -1,5 +1,7 @@
 #![cfg(all(feature = "client", feature = "server", feature = "iroh"))]
 
+mod common;
+
 use burn_flex::Flex;
 use burn_ir::BackendIr;
 use burn_remote::{
@@ -11,6 +13,7 @@ use burn_tensor::{
     DType, Device, Int, Tensor, TensorData,
     remote::{ConnectError, IrohHost, IrohRelays, RemoteHost},
 };
+use common::{assert_same_bytes, wire_floats, wire_schemes};
 use iroh::{
     Endpoint, EndpointAddr, RelayMode, SecretKey,
     address_lookup::MemoryLookup,
@@ -263,6 +266,42 @@ async fn transfers_tensor_directly_between_iroh_compute_peers() {
         transferred.try_into_vec_as::<f32>().unwrap(),
         vec![3.0, 5.0, 7.0]
     );
+
+    source_router.shutdown().await.unwrap();
+    target_router.shutdown().await.unwrap();
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn quantized_data_moves_between_iroh_servers_byte_for_byte() {
+    let source_server = local_endpoint().await;
+    let target_server = local_endpoint().await;
+    let client = local_endpoint().await;
+
+    let source_router =
+        spawn_router::<Flex>(source_server.clone(), AllowAll, TelemetryProbe::disabled());
+    let target_router =
+        spawn_router::<Flex>(target_server.clone(), AllowAll, TelemetryProbe::disabled());
+
+    let source = Device::remote_options(&host_dialed_from(&client, source_server.addr()))
+        .init_async()
+        .await
+        .unwrap();
+    let target = Device::remote_options(&host_dialed_from(&client, target_server.addr()))
+        .init_async()
+        .await
+        .unwrap();
+
+    for scheme in wire_schemes(&source) {
+        let expected = Tensor::<2>::from_data(wire_floats(), &Device::flex())
+            .quantize_dynamic(&scheme)
+            .into_data();
+
+        let moved = Tensor::<2>::from_data(expected.clone(), &source)
+            .to_device(&target)
+            .into_data();
+
+        assert_same_bytes(&moved, &expected);
+    }
 
     source_router.shutdown().await.unwrap();
     target_router.shutdown().await.unwrap();

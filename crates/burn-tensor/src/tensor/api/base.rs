@@ -406,13 +406,17 @@ where
     /// to infer the remaining dimensions, e.g. `[0, -1]` will reshape the tensor
     /// with [1, 3, 4] dimensions to [1, 12].
     ///
+    /// These placeholders only apply to the array form. A [`Shape`] is used as given, so a `0`
+    /// in a `Shape` is a zero-length dimension.
+    ///
     /// # Arguments
     /// - `shape`: The new shape of the tensor.
     ///
     /// # Panics
-    /// - If the tensor contains more than one `-1` in the shape.
-    /// - If the tensor contains values that are not positive (other than -1).
-    /// - If the shape does not match the number of elements of the original shape.
+    /// - If the shape array contains more than one `-1`.
+    /// - If the shape array contains a dimension below `-1`.
+    /// - If the resolved shape does not have the same number of elements as the original shape.
+    /// - If a given [`Shape`] does not have `D2` dimensions.
     ///
     /// # Example
     ///
@@ -1702,12 +1706,12 @@ where
     /// from the value tensor to the original tensor using the requested update operation.
     ///
     /// # Note
-    /// - `IndexingUpdateOp::Add` accumulates values at the selected positions (`+=`). For
-    ///   booleans, `Add` is logical or.
+    /// - `IndexingUpdateOp::Add` accumulates values at the selected positions (`+=`).
     /// - `IndexingUpdateOp::Assign` replaces values at the selected positions (`=`), when
     ///   supported by the backend.
     /// - `IndexingUpdateOp::Mul` multiplies values at the selected positions (`*=`), when
     ///   supported by the backend.
+    /// - For booleans, `Add` and `Max` are logical or, and `Mul` and `Min` are logical and.
     ///
     /// When `indices` contains duplicate entries, behavior varies by operation:
     /// - For `Add`, accumulation is supported, though results may be non-deterministic on GPU
@@ -1955,6 +1959,8 @@ where
     /// The index tensor should have the same shape as the original tensor except for the specified
     /// dimension. The value and index tensors should have the same shape.
     ///
+    /// For booleans, `Add` and `Max` are logical or, and `Mul` and `Min` are logical and.
+    ///
     /// When `indices` contains duplicate entries, behavior varies by operation:
     /// - For `Add`, accumulation is supported, though results may be non-deterministic on GPU
     ///   backends.
@@ -2012,6 +2018,8 @@ where
     /// * `update` - The operation used to update the existing values at the indexed positions (e.g., add).
     ///
     /// # Note
+    ///
+    /// For booleans, `Add` and `Max` are logical or, and `Mul` and `Min` are logical and.
     ///
     /// When `indices` contains duplicate entries, behavior varies by operation:
     /// - For `Add`, accumulation is supported, though results may be non-deterministic on GPU
@@ -3414,7 +3422,10 @@ impl<const D2: usize, I: AsIndex> ReshapeArgs<D2> for [I; D2] {
 
 impl<const D2: usize> ReshapeArgs<D2> for Shape {
     fn into_shape<const D: usize>(self, source: Shape) -> Shape {
-        unwrap_shape_reshape(source.reshape(self))
+        // A `Shape` holds concrete dimensions, so a `0` is a zero-length dimension rather than
+        // the "keep this dimension" placeholder of the array form.
+        check!(TensorCheck::reshape::<D2>(&source, &self));
+        self
     }
 }
 
