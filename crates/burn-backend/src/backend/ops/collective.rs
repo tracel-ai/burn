@@ -114,10 +114,16 @@ pub struct EmulatedCollectives<B> {
 
 /// Dimension `dim`, of length `len`, cut into one chunk per member, a member being one of the
 /// tensors a collective is given: as even as possible, with the first members holding one more.
-struct DimSplit {
-    dim: usize,
-    len: usize,
-    members: usize,
+///
+/// A caller that splits a tensor itself must cut it the same way, so this is public.
+#[derive(Clone, Copy, Debug)]
+pub struct DimSplit {
+    /// The dimension the chunks cut along.
+    pub dim: usize,
+    /// How many elements that dimension holds.
+    pub len: usize,
+    /// How many chunks it is cut into, one per member.
+    pub members: usize,
 }
 
 impl<B: Backend> EmulatedCollectives<B> {
@@ -410,7 +416,8 @@ impl DimSplit {
         split
     }
 
-    fn range(&self, member: usize) -> Range<usize> {
+    /// The indices along `dim` that `member` holds.
+    pub fn range(&self, member: usize) -> Range<usize> {
         let base = self.len / self.members;
         let longer = self.len % self.members;
         let start = member * base + member.min(longer);
@@ -418,7 +425,7 @@ impl DimSplit {
     }
 
     /// The slices that select `member`'s chunk.
-    fn slices(&self, member: usize) -> Vec<Slice> {
+    pub fn slices(&self, member: usize) -> Vec<Slice> {
         let range = self.range(member);
         (0..=self.dim)
             .map(|axis| match axis == self.dim {

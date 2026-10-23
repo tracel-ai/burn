@@ -199,6 +199,7 @@ burn-dispatch = { path = "crates/burn-dispatch", version = "0.23.0-pre.1", defau
 burn-einsum = { path = "crates/burn-einsum", version = "0.23.0-pre.1", default-features = false }
 burn-flex = { path = "crates/burn-flex", version = "0.23.0-pre.1", default-features = false }
 burn-fusion = { path = "crates/burn-fusion", version = "0.23.0-pre.1", default-features = false }
+burn-group = { path = "crates/burn-group", version = "0.23.0-pre.1", default-features = false }
 burn-instrument = { path = "crates/burn-instrument", version = "0.23.0-pre.1", default-features = false }
 burn-instrument-report = { path = "crates/burn-instrument-report", version = "0.23.0-pre.1", default-features = false }
 burn-instrument-macros = { path = "crates/burn-instrument-macros", version = "0.23.0-pre.1", default-features = false }
