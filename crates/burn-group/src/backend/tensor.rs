@@ -65,9 +65,7 @@ impl<B: BackendIr> ShardedTensor<B> {
             Resharding::AllGather { dim } => self.all_gather(dim),
             Resharding::AllReduce => self.all_reduce(),
             Resharding::ReduceScatter { dim } => self.reduce_scatter(dim),
-            // A member keeps its own chunk of `to_dim`, so that is the dim the shards split on,
-            // and what it receives from every member makes up the whole of `from_dim`.
-            Resharding::AllToAll { from_dim, to_dim } => self.all_to_all(to_dim, from_dim),
+            Resharding::AllToAll { from_dim, to_dim } => self.all_to_all(from_dim, to_dim),
         }
     }
 
@@ -198,7 +196,11 @@ impl<B: BackendIr> ShardedTensor<B> {
         })
     }
 
-    fn all_to_all(self, split_dim: usize, concat_dim: usize) -> Result<Self, ShardingError> {
+    fn all_to_all(self, from_dim: usize, to_dim: usize) -> Result<Self, ShardingError> {
+        // A member keeps its own chunk of `to_dim`, so that is the dim the shards split on, and
+        // what it receives from every member makes up the whole of `from_dim`.
+        let split_dim = to_dim;
+        let concat_dim = from_dim;
         Ok(match self {
             Self::Float(shards) => Self::Float(B::float_all_to_all(shards, split_dim, concat_dim)),
             Self::Int(shards) => Self::Int(B::int_all_to_all(shards, split_dim, concat_dim)),

@@ -202,6 +202,41 @@ fn an_empty_group_is_refused() {
 }
 
 #[test]
+fn an_autodiff_member_after_the_first_is_refused_as_one() {
+    let refused = Device::group_options(&[Device::flex(), Device::flex().autodiff()]).init();
+
+    assert!(matches!(refused, Err(GroupError::AutodiffMember)));
+}
+
+#[test]
+fn ops_without_a_rule_gather_a_split_and_a_partial_sum() {
+    let (lhs, rhs) = (values([4, 6], 1), values([6, 3], 2));
+    let flex = Device::flex();
+    let whole =
+        Tensor::<2>::from_data(lhs.clone(), &flex).matmul(Tensor::from_data(rhs.clone(), &flex));
+    let expected_exp = whole.clone().exp().into_data();
+    let expected_shifted = whole.add_scalar(1.0).into_data();
+
+    let device = group(2);
+    let partial = sharded::<2>(lhs, &device, Split { dim: 1 }).matmul(sharded(
+        rhs,
+        &device,
+        Split { dim: 0 },
+    ));
+    assert_eq!(partial.sharding(), Some(PartialSum));
+    let split = partial.clone().with_sharding(Split { dim: 0 });
+
+    split
+        .exp()
+        .into_data()
+        .assert_approx_eq::<f32>(&expected_exp, tolerance());
+    partial
+        .add_scalar(1.0)
+        .into_data()
+        .assert_approx_eq::<f32>(&expected_shifted, tolerance());
+}
+
+#[test]
 fn groups_of_the_same_devices_are_apart() {
     let (first, second) = (group(2), group(2));
     assert_ne!(first, second);

@@ -426,6 +426,9 @@ impl DispatchDevice {
     /// When the process already has 65,536 groups.
     #[cfg(feature = "group")]
     pub fn group(devices: alloc::vec::Vec<DispatchDevice>) -> Result<Self, GroupError> {
+        if let Some(error) = devices.iter().find_map(Self::refused_as_member) {
+            return Err(error);
+        }
         let group = match devices.first() {
             #[cfg(cube_backend)]
             Some(Self::Cube(_)) => {
@@ -437,16 +440,29 @@ impl DispatchDevice {
                 let members = group_members!(devices, Flex)?;
                 GroupDevice::with_member_settings::<crate::backends::Flex>(&members)
             }
-            #[cfg(feature = "autodiff")]
-            Some(Self::Autodiff(_)) => Err(GroupError::AutodiffMember),
-            #[cfg(feature = "remote")]
-            Some(Self::Remote(_)) => Err(GroupError::RemoteMember),
-            Some(other) => Err(GroupError::UnsupportedBackend {
-                device: alloc::format!("{other:?}"),
-            }),
+            Some(other) => unreachable!("{other:?} was refused as a member"),
             None => Err(GroupError::NoDevices),
         }?;
         Ok(Self::Group(group))
+    }
+
+    /// Why this device cannot be a group's member, or `None` when it can.
+    #[cfg(feature = "group")]
+    fn refused_as_member(&self) -> Option<GroupError> {
+        match self {
+            #[cfg(cube_backend)]
+            Self::Cube(_) => None,
+            #[cfg(feature = "flex")]
+            Self::Flex(_) => None,
+            #[cfg(feature = "autodiff")]
+            Self::Autodiff(_) => Some(GroupError::AutodiffMember),
+            #[cfg(feature = "remote")]
+            Self::Remote(_) => Some(GroupError::RemoteMember),
+            #[allow(unreachable_patterns)]
+            other => Some(GroupError::UnsupportedBackend {
+                device: alloc::format!("{other:?}"),
+            }),
+        }
     }
 
     #[cfg(feature = "autodiff")]

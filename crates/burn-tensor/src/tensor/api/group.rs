@@ -1,4 +1,7 @@
-use burn_dispatch::backends::{Sharding, ShardingError};
+use burn_dispatch::{
+    DispatchTensor,
+    backends::{Sharding, ShardingError},
+};
 
 use crate::{
     Tensor,
@@ -17,8 +20,12 @@ impl<const D: usize, K: Basic> Tensor<D, K> {
     ///
     /// When [`try_with_sharding`](Self::try_with_sharding) refuses the sharding.
     pub fn with_sharding(self, sharding: Sharding) -> Self {
-        self.try_with_sharding(sharding)
-            .unwrap_or_else(|error| panic!("{error}"))
+        // Owning the tensor lets the group free the old shards as it reshards, and work in place.
+        let (kind, tensor) = self.primitive.into_parts();
+        let resharded = tensor
+            .try_with_sharding(sharding)
+            .unwrap_or_else(|error| panic!("{error}"));
+        Self::rewrapped(kind, resharded)
     }
 
     /// The same value, split over its device group as `sharding` says, or why it cannot be. A
@@ -32,12 +39,16 @@ impl<const D: usize, K: Basic> Tensor<D, K> {
     pub fn try_with_sharding(&self, sharding: Sharding) -> Result<Self, ShardingError> {
         let (kind, tensor) = self.primitive.clone().into_parts();
         let resharded = tensor.try_with_sharding(sharding)?;
-        Ok(Self::new(match kind {
+        Ok(Self::rewrapped(kind, resharded))
+    }
+
+    fn rewrapped(kind: BridgeKind, resharded: DispatchTensor) -> Self {
+        Self::new(match kind {
             BridgeKind::Float => BridgeTensor::float(resharded),
             BridgeKind::Int => BridgeTensor::int(resharded),
             BridgeKind::Bool => BridgeTensor::bool(resharded),
             BridgeKind::QFloat => unreachable!("A quantized tensor is refused as it is resharded"),
-        }))
+        })
     }
 
     /// How the tensor is split over its device group, or `None` when it is not on one.
