@@ -1635,6 +1635,66 @@ impl MaxPool1dWithIndicesOpIr {
     }
 }
 
+impl AttentionWithLogsumexpOpIr {
+    pub fn create(
+        query: TensorIr,
+        key: TensorIr,
+        value: TensorIr,
+        options: AttentionOptionsIr,
+        mut new_id: impl FnMut() -> TensorId,
+    ) -> Self {
+        let [batch, heads, queries] = [query.shape[0], query.shape[1], query.shape[2]];
+        let out = TensorIr::uninit(
+            new_id(),
+            Shape::new([batch, heads, queries, value.shape[3]]),
+            query.dtype,
+        );
+        // The logsumexp is `f32` whatever the operands: `exp(score − logsumexp)` is where the
+        // backward pass's precision is lost.
+        let logsumexp = TensorIr::uninit(new_id(), Shape::new([batch, heads, queries]), DType::F32);
+
+        AttentionWithLogsumexpOpIr {
+            query,
+            key,
+            value,
+            options,
+            out,
+            logsumexp,
+        }
+    }
+}
+
+impl AttentionBackwardOpIr {
+    #[allow(clippy::too_many_arguments)]
+    pub fn create(
+        query: TensorIr,
+        key: TensorIr,
+        value: TensorIr,
+        out: TensorIr,
+        logsumexp: TensorIr,
+        out_grad: TensorIr,
+        options: AttentionOptionsIr,
+        mut new_id: impl FnMut() -> TensorId,
+    ) -> Self {
+        let query_grad = TensorIr::uninit(new_id(), query.shape.clone(), query.dtype);
+        let key_grad = TensorIr::uninit(new_id(), key.shape.clone(), key.dtype);
+        let value_grad = TensorIr::uninit(new_id(), value.shape.clone(), value.dtype);
+
+        AttentionBackwardOpIr {
+            query,
+            key,
+            value,
+            out,
+            logsumexp,
+            out_grad,
+            options,
+            query_grad,
+            key_grad,
+            value_grad,
+        }
+    }
+}
+
 impl MaxPool2dWithIndicesOpIr {
     #[allow(clippy::too_many_arguments)]
     pub fn create(

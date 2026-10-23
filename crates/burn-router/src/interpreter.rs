@@ -2082,6 +2082,32 @@ impl<B: BackendIr> TensorInterpreter<B> {
 
                     handles.register_float_tensor::<B>(&desc.out.id, output);
                 }
+                ModuleOperationIr::AttentionWithLogsumexp(desc) => {
+                    let query = handles.get_float_tensor::<B>(&desc.query);
+                    let key = handles.get_float_tensor::<B>(&desc.key);
+                    let value = handles.get_float_tensor::<B>(&desc.value);
+
+                    let (out, logsumexp) =
+                        B::attention_with_logsumexp(query, key, value, desc.options.clone().into());
+
+                    handles.register_float_tensor::<B>(&desc.out.id, out);
+                    handles.register_float_tensor::<B>(&desc.logsumexp.id, logsumexp);
+                }
+                ModuleOperationIr::AttentionBackward(desc) => {
+                    let gradients = B::attention_backward(
+                        handles.get_float_tensor::<B>(&desc.query),
+                        handles.get_float_tensor::<B>(&desc.key),
+                        handles.get_float_tensor::<B>(&desc.value),
+                        handles.get_float_tensor::<B>(&desc.out),
+                        handles.get_float_tensor::<B>(&desc.logsumexp),
+                        handles.get_float_tensor::<B>(&desc.out_grad),
+                        desc.options.clone().into(),
+                    );
+
+                    handles.register_float_tensor::<B>(&desc.query_grad.id, gradients.query_grad);
+                    handles.register_float_tensor::<B>(&desc.key_grad.id, gradients.key_grad);
+                    handles.register_float_tensor::<B>(&desc.value_grad.id, gradients.value_grad);
+                }
                 ModuleOperationIr::CtcLoss(desc) => {
                     let log_probs = handles.get_float_tensor::<B>(&desc.log_probs);
                     let targets = handles.get_int_tensor::<B>(&desc.targets);

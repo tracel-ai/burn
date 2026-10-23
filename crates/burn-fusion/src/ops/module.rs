@@ -4,14 +4,15 @@ use crate::{
 };
 use burn_backend::{
     ops::{
-        ConvOptions, ConvTransposeOptions, DeformConv2dBackward, DeformConvOptions,
-        InterpolateOptions, MaxPool1dBackward, MaxPool1dWithIndices, MaxPool2dBackward,
-        MaxPool2dWithIndices, MaxPool3dBackward, MaxPool3dWithIndices, ModuleOps,
+        AttentionBackward, AttentionModuleOptions, ConvOptions, ConvTransposeOptions,
+        DeformConv2dBackward, DeformConvOptions, InterpolateOptions, MaxPool1dBackward,
+        MaxPool1dWithIndices, MaxPool2dBackward, MaxPool2dWithIndices, MaxPool3dBackward,
+        MaxPool3dWithIndices, ModuleOps,
     },
     tensor::{FloatTensor, IntTensor},
 };
 use burn_ir::*;
-use burn_std::IntDType;
+use burn_std::{IntDType, Shape};
 use std::marker::PhantomData;
 
 macro_rules! make_ops {
@@ -1857,6 +1858,107 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
                 AttentionOps::<B>::new(desc),
             )
             .output()
+    }
+
+    fn has_attention_backward(
+        query: &Shape,
+        key: &Shape,
+        options: &AttentionModuleOptions,
+    ) -> bool {
+        B::has_attention_backward(query, key, options)
+    }
+
+    fn attention_with_logsumexp(
+        query: FloatTensor<Self>,
+        key: FloatTensor<Self>,
+        value: FloatTensor<Self>,
+        options: AttentionModuleOptions,
+    ) -> (FloatTensor<Self>, FloatTensor<Self>) {
+        // Its own non-fuseable IR node, as `attention` is, dispatched to the inner backend's
+        // kernel.
+        make_ops!(
+            AttentionWithLogsumexpOps,
+            AttentionWithLogsumexpOpIr,
+            |args: &AttentionWithLogsumexpOpIr, handles: &mut HandleContainer<B::Handle>| {
+                let query = handles.get_float_tensor::<B>(&args.query);
+                let key = handles.get_float_tensor::<B>(&args.key);
+                let value = handles.get_float_tensor::<B>(&args.value);
+                let (out, logsumexp) =
+                    B::attention_with_logsumexp(query, key, value, args.options.clone().into());
+                handles.register_float_tensor::<B>(&args.out.id, out);
+                handles.register_float_tensor::<B>(&args.logsumexp.id, logsumexp);
+            }
+        );
+
+        let streams = StreamId::current();
+        let client = query.client.clone();
+        let desc = AttentionWithLogsumexpOpIr::create(
+            query.into_ir(),
+            key.into_ir(),
+            value.into_ir(),
+            options.into(),
+            || client.create_empty_handle(),
+        );
+
+        let [out, logsumexp] = client
+            .register(
+                streams,
+                OperationIr::Module(ModuleOperationIr::AttentionWithLogsumexp(desc.clone())),
+                AttentionWithLogsumexpOps::<B>::new(desc),
+            )
+            .outputs();
+        (out, logsumexp)
+    }
+
+    fn attention_backward(
+        query: FloatTensor<Self>,
+        key: FloatTensor<Self>,
+        value: FloatTensor<Self>,
+        out: FloatTensor<Self>,
+        logsumexp: FloatTensor<Self>,
+        out_grad: FloatTensor<Self>,
+        options: AttentionModuleOptions,
+    ) -> AttentionBackward<Self> {
+        make_ops!(
+            AttentionBackwardOps,
+            AttentionBackwardOpIr,
+            |args: &AttentionBackwardOpIr, handles: &mut HandleContainer<B::Handle>| {
+                let gradients = B::attention_backward(
+                    handles.get_float_tensor::<B>(&args.query),
+                    handles.get_float_tensor::<B>(&args.key),
+                    handles.get_float_tensor::<B>(&args.value),
+                    handles.get_float_tensor::<B>(&args.out),
+                    handles.get_float_tensor::<B>(&args.logsumexp),
+                    handles.get_float_tensor::<B>(&args.out_grad),
+                    args.options.clone().into(),
+                );
+                handles.register_float_tensor::<B>(&args.query_grad.id, gradients.query_grad);
+                handles.register_float_tensor::<B>(&args.key_grad.id, gradients.key_grad);
+                handles.register_float_tensor::<B>(&args.value_grad.id, gradients.value_grad);
+            }
+        );
+
+        let streams = StreamId::current();
+        let client = query.client.clone();
+        let desc = AttentionBackwardOpIr::create(
+            query.into_ir(),
+            key.into_ir(),
+            value.into_ir(),
+            out.into_ir(),
+            logsumexp.into_ir(),
+            out_grad.into_ir(),
+            options.into(),
+            || client.create_empty_handle(),
+        );
+
+        let [query_grad, key_grad, value_grad] = client
+            .register(
+                streams,
+                OperationIr::Module(ModuleOperationIr::AttentionBackward(Box::new(desc.clone()))),
+                AttentionBackwardOps::<B>::new(desc),
+            )
+            .outputs();
+        AttentionBackward::new(query_grad, key_grad, value_grad)
     }
 
     fn has_ctc_loss_backward() -> bool {
