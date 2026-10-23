@@ -1008,6 +1008,7 @@ version = "0.23.0-pre.1"
 dependencies = [
  "burn-autodiff",
  "burn-backend",
+ "burn-cubecl",
  "burn-cubecl-fusion",
  "burn-dispatch",
  "burn-flex",
@@ -2824,6 +2825,7 @@ dependencies = [
  "cubek-fft",
  "cubek-interpolate",
  "cubek-matmul",
+ "cubek-microkernel",
  "cubek-pool",
  "cubek-quant",
  "cubek-random",
@@ -2840,6 +2842,7 @@ dependencies = [
  "cubecl",
  "cubecl-common",
  "cubek-matmul",
+ "cubek-microkernel",
  "cubek-std",
  "half",
  "serde",
