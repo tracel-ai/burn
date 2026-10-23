@@ -55,7 +55,7 @@ pub fn attention(
     strategy: AttentionStrategy,
 ) -> Result<CubeTensor, AttentionSetupError> {
     // Decided before autotune, so every candidate computes the same result.
-    if flash_unsupported(&query, &key, &value, attn_bias.as_ref(), &options).is_some() {
+    if flash_unsupported(&query, &key, attn_bias.as_ref(), &options).is_some() {
         return Ok(attention_fallback::<CubeBackend>(
             query, key, value, mask, attn_bias, options,
         ));
@@ -120,7 +120,7 @@ pub fn flash_attention(
     options: AttentionModuleOptions,
     strategy: launch::Strategy,
 ) -> Result<CubeTensor, AttentionSetupError> {
-    if let Some(reason) = flash_unsupported(&query, &key, &value, _attn_bias.as_ref(), &options) {
+    if let Some(reason) = flash_unsupported(&query, &key, _attn_bias.as_ref(), &options) {
         return Err(AttentionSetupError::InvalidConfig(Box::new(format!(
             "flash attention does not support {reason}"
         ))));
@@ -181,19 +181,13 @@ pub(crate) fn flash_unsupported_options(
     }
 }
 
-/// What the flash kernels can't compute in this call, if anything. On top of
-/// [`flash_unsupported_options`], they read K/V with the query's head index.
+/// What the flash kernels can't compute in this call, if anything.
 fn flash_unsupported(
     query: &CubeTensor,
     key: &CubeTensor,
-    value: &CubeTensor,
     attn_bias: Option<&CubeTensor>,
     options: &AttentionModuleOptions,
 ) -> Option<&'static str> {
-    let q_heads = query.meta.shape[1];
-    if key.meta.shape[1] != q_heads || value.meta.shape[1] != q_heads {
-        return Some("fewer key/value heads than query heads");
-    }
     flash_unsupported_options(
         options,
         attn_bias.is_some(),
