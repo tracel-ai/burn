@@ -10,7 +10,7 @@ mod resharding;
 mod rules;
 mod sharding;
 
-pub use backend::{GroupBackend, GroupDevice, GroupError};
+pub use backend::{GroupBackend, GroupDevice, GroupError, MemberDevice};
 pub use sharding::{Sharding, ShardingError};
 
 use resharding::Resharding;

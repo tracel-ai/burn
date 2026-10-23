@@ -6,7 +6,7 @@ use std::{
 use burn_backend::{DType, DeviceId, DeviceOps, DeviceSettings, RouterDeviceType};
 use burn_ir::BackendIr;
 use burn_router::{get_client, register_scoped_client};
-use burn_std::device::Device;
+use burn_std::{QuantConfig, device::Device};
 
 use super::{GroupClient, channel::GroupChannel, interpreter::GroupInterpreter};
 
@@ -15,10 +15,11 @@ use super::{GroupClient, channel::GroupChannel, interpreter::GroupInterpreter};
 /// Like any device, a group lasts as long as the process.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct GroupDevice {
-    index: u16,
+    /// Which group of the process this is, in creation order, not a member's position.
+    id: u16,
 }
 
-static NEXT_INDEX: AtomicU32 = AtomicU32::new(0);
+static NEXT_ID: AtomicU32 = AtomicU32::new(0);
 
 /// Why a set of devices cannot form a group.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -42,13 +43,20 @@ pub enum GroupError {
         /// Each member's default for that dtype, in member order.
         candidates: Vec<DType>,
     },
-    /// A group takes one settings per member.
-    SettingsPerMember {
-        /// How many devices were given.
-        devices: usize,
-        /// How many settings were given.
-        settings: usize,
+    /// Every member of a group quantizes the same way, since one op quantizes on all of them.
+    MixedQuantization {
+        /// Each member's quantization config, in member order.
+        configs: Vec<QuantConfig>,
     },
+}
+
+/// A member of a group: its device, and the settings it runs with.
+#[derive(Clone, Debug)]
+pub struct MemberDevice<D> {
+    /// The member's device.
+    pub device: D,
+    /// The member's own settings.
+    pub settings: DeviceSettings,
 }
 
 impl GroupDevice {
@@ -66,40 +74,40 @@ impl GroupDevice {
     ///
     /// As [`with_member_settings`](Self::with_member_settings).
     pub fn new<B: BackendIr>(devices: &[B::Device]) -> Result<Self, GroupError> {
-        let settings: Vec<DeviceSettings> = devices.iter().map(DeviceOps::defaults).collect();
-        Self::with_member_settings::<B>(devices, &settings)
+        let members: Vec<MemberDevice<B::Device>> = devices
+            .iter()
+            .map(|device| MemberDevice {
+                device: device.clone(),
+                settings: device.defaults(),
+            })
+            .collect();
+        Self::with_member_settings::<B>(&members)
     }
 
-    /// A new group whose members run `B` on `devices`, `settings` holding each one's own in member
-    /// order. Each of the group's default dtypes is the first of the members' own, in member
-    /// order, that every member supports.
+    /// A new group whose `members` run `B`, each with its own settings. Each of the group's
+    /// default dtypes is the first of the members' own, in member order, that every member
+    /// supports.
     ///
     /// # Errors
     ///
-    /// When `devices` is empty, when `settings` does not hold one per device, or when no member's
-    /// default for a dtype runs on every member.
+    /// When `members` is empty, when no member's default for a dtype runs on every member, or
+    /// when the members quantize differently.
     ///
     /// # Panics
     ///
     /// When the process already has 65,536 groups.
     pub fn with_member_settings<B: BackendIr>(
-        devices: &[B::Device],
-        settings: &[DeviceSettings],
+        members: &[MemberDevice<B::Device>],
     ) -> Result<Self, GroupError> {
-        if devices.is_empty() {
+        if members.is_empty() {
             return Err(GroupError::NoDevices);
         }
-        if devices.len() != settings.len() {
-            return Err(GroupError::SettingsPerMember {
-                devices: devices.len(),
-                settings: settings.len(),
-            });
-        }
-        let interpreter = GroupInterpreter::<B>::new(devices.to_vec());
-        let group_settings = interpreter.default_settings(settings)?;
-        let index = NEXT_INDEX.fetch_add(1, Ordering::Relaxed);
+        let interpreter =
+            GroupInterpreter::<B>::new(members.iter().map(|it| it.device.clone()).collect());
+        let group_settings = interpreter.default_settings(members)?;
+        let id = NEXT_ID.fetch_add(1, Ordering::Relaxed);
         let device = Self {
-            index: u16::try_from(index).expect("Fewer than 65536 device groups in one process"),
+            id: u16::try_from(id).expect("Fewer than 65536 device groups in one process"),
         };
         let client = GroupClient::new(device, interpreter, group_settings);
         register_scoped_client::<GroupChannel>(&device, client)
@@ -134,9 +142,9 @@ impl fmt::Display for GroupError {
                 f,
                 "None of the members' defaults {candidates:?} runs on every member"
             ),
-            Self::SettingsPerMember { devices, settings } => write!(
+            Self::MixedQuantization { configs } => write!(
                 f,
-                "A device group takes one settings per member, not {settings} for {devices}"
+                "A device group's members quantize the same way, not as {configs:?}"
             ),
         }
     }
@@ -162,14 +170,14 @@ impl Device for GroupDevice {
             "Not a device group id"
         );
         Self {
-            index: device_id.index_id,
+            id: device_id.index_id,
         }
     }
 
     fn to_id(&self) -> DeviceId {
         DeviceId {
             type_id: RouterDeviceType::Group.into(),
-            index_id: self.index,
+            index_id: self.id,
         }
     }
 }

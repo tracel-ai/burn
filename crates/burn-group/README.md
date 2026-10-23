@@ -23,7 +23,7 @@ shards move between members with the backend's collectives.
 Enable Burn's `group` feature, with the backend its members run:
 
 ```toml
-burn = { version = "0.22", features = ["group", "cuda"] }
+burn = { version = "0.23", features = ["group", "cuda"] }
 ```
 
 ```rust,ignore

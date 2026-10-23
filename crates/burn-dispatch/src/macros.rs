@@ -520,13 +520,13 @@ macro_rules! group_members {
         $devices
             .iter()
             .map(|device| match device {
-                $crate::DispatchDevice::$variant(member) => Ok((
-                    member.clone(),
-                    burn_backend::get_device_settings::<crate::backend::Dispatch>(device),
-                )),
+                $crate::DispatchDevice::$variant(member) => Ok(burn_group::MemberDevice {
+                    device: member.clone(),
+                    settings: burn_backend::get_device_settings::<crate::backend::Dispatch>(device),
+                }),
                 #[allow(unreachable_patterns)]
                 _ => Err(burn_group::GroupError::MixedBackends),
             })
-            .collect::<Result<(alloc::vec::Vec<_>, alloc::vec::Vec<_>), burn_group::GroupError>>()
+            .collect::<Result<alloc::vec::Vec<_>, burn_group::GroupError>>()
     };
 }

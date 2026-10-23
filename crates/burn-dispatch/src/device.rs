@@ -417,9 +417,9 @@ impl DispatchDevice {
     ///
     /// # Errors
     ///
-    /// When `devices` is empty or mixes backends, when they are not Cube or Flex devices, or when
-    /// no member's default for a dtype runs on every member. An autodiff group is a group of plain
-    /// devices made autodiff afterwards.
+    /// When `devices` is empty or mixes backends, when they are not Cube or Flex devices, when no
+    /// member's default for a dtype runs on every member, or when the members quantize
+    /// differently. An autodiff group is a group of plain devices made autodiff afterwards.
     ///
     /// # Panics
     ///
@@ -429,13 +429,13 @@ impl DispatchDevice {
         let group = match devices.first() {
             #[cfg(cube_backend)]
             Some(Self::Cube(_)) => {
-                let (members, settings) = group_members!(devices, Cube)?;
-                GroupDevice::with_member_settings::<crate::backends::Cube>(&members, &settings)
+                let members = group_members!(devices, Cube)?;
+                GroupDevice::with_member_settings::<crate::backends::Cube>(&members)
             }
             #[cfg(feature = "flex")]
             Some(Self::Flex(_)) => {
-                let (members, settings) = group_members!(devices, Flex)?;
-                GroupDevice::with_member_settings::<crate::backends::Flex>(&members, &settings)
+                let members = group_members!(devices, Flex)?;
+                GroupDevice::with_member_settings::<crate::backends::Flex>(&members)
             }
             #[cfg(feature = "autodiff")]
             Some(Self::Autodiff(_)) => Err(GroupError::AutodiffMember),

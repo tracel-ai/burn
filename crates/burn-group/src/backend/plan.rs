@@ -54,9 +54,10 @@ impl OpPlan {
         self.execution
     }
 
-    /// `None` when one tensor, read as two inputs, is asked for two shardings, or when a quantized
-    /// tensor would not be replicated: its shards cannot be sliced, concatenated or summed.
-    fn ruled<const N: usize>(
+    /// The plan a rule's `sharding` asks for, or `None` when one tensor, read as two inputs, is
+    /// asked for two shardings, or when a quantized tensor would not be replicated: its shards
+    /// cannot be sliced, concatenated or summed.
+    fn from_rule<const N: usize>(
         inputs: [&TensorIr; N],
         out: &TensorIr,
         sharding: OpSharding<N>,
@@ -177,7 +178,7 @@ impl GroupShardings<'_> {
             inputs.map(|input| self.sharding(input)),
             inputs.map(|input| &input.shape),
         );
-        OpPlan::ruled(inputs, out, sharding, Execution::EveryMember)
+        OpPlan::from_rule(inputs, out, sharding, Execution::EveryMember)
     }
 
     fn matmul(&self, desc: &MatmulOpIr) -> Option<OpPlan> {
@@ -187,7 +188,7 @@ impl GroupShardings<'_> {
             desc.lhs.shape.num_dims(),
         )
         .sharding();
-        OpPlan::ruled(
+        OpPlan::from_rule(
             [&desc.lhs, &desc.rhs],
             &desc.out,
             sharding,
@@ -197,7 +198,7 @@ impl GroupShardings<'_> {
 
     fn sum(&self, input: &TensorIr, out: &TensorIr, reduced_dims: ReducedDims) -> Option<OpPlan> {
         let sharding = SumRule::new(self.sharding(input), reduced_dims).sharding();
-        OpPlan::ruled([input], out, sharding, Execution::EveryMember)
+        OpPlan::from_rule([input], out, sharding, Execution::EveryMember)
     }
 
     fn reshape(&self, desc: &ShapeOpIr) -> Option<OpPlan> {
@@ -208,7 +209,7 @@ impl GroupShardings<'_> {
             self.num_members,
         )
         .sharding();
-        OpPlan::ruled([&desc.input], &desc.out, sharding, Execution::EveryMember)
+        OpPlan::from_rule([&desc.input], &desc.out, sharding, Execution::EveryMember)
     }
 
     fn random(&self, out: &TensorIr) -> Option<OpPlan> {
@@ -216,7 +217,7 @@ impl GroupShardings<'_> {
             inputs: [],
             output: Sharding::Replicated,
         };
-        OpPlan::ruled([], out, sharding, Execution::FirstMemberCopied)
+        OpPlan::from_rule([], out, sharding, Execution::FirstMemberCopied)
     }
 
     fn sharding(&self, tensor: &TensorIr) -> Sharding {

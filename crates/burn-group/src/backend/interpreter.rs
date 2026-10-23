@@ -3,12 +3,12 @@ use std::collections::HashMap;
 use burn_backend::{DType, DTypeUsageSet, DeviceSettings, ExecutionError, TensorData};
 use burn_ir::{BackendIr, IrVisitorMut, OperationIr, TensorId, TensorIr, TensorStatus};
 use burn_router::TensorInterpreter;
-use burn_std::future::DynFut;
+use burn_std::{QuantConfig, future::DynFut};
 
-use super::GroupError;
+use super::{GroupError, MemberDevice};
 use super::{
     plan::{Execution, OpPlan},
-    shard::ShardList,
+    tensor::ShardedTensor,
 };
 use crate::{GroupMember, Resharding, Sharding, ShardingError};
 
@@ -80,19 +80,32 @@ impl<B: BackendIr> GroupInterpreter<B> {
         }
     }
 
-    /// Each default dtype is the first of the members' `settings` that every member supports, so
-    /// a tensor made on the group runs on all of them.
+    /// Each default dtype is the first of the `members`' own that every member supports, so a
+    /// tensor made on the group runs on all of them.
     pub fn default_settings(
         &self,
-        settings: &[DeviceSettings],
+        members: &[MemberDevice<B::Device>],
     ) -> Result<DeviceSettings, GroupError> {
+        let settings = || members.iter().map(|it| it.settings);
         Ok(DeviceSettings::new(
-            self.first_supported_everywhere(settings.iter().map(|it| it.float_dtype))?,
-            self.first_supported_everywhere(settings.iter().map(|it| it.int_dtype))?,
-            self.first_supported_everywhere(settings.iter().map(|it| it.bool_dtype))?,
-            // Every device of one backend shares its quantization config.
-            settings[0].quantization,
+            self.first_supported_everywhere(settings().map(|it| it.float_dtype))?,
+            self.first_supported_everywhere(settings().map(|it| it.int_dtype))?,
+            self.first_supported_everywhere(settings().map(|it| it.bool_dtype))?,
+            Self::shared_quantization(settings().map(|it| it.quantization))?,
         ))
+    }
+
+    fn shared_quantization(
+        configs: impl Iterator<Item = QuantConfig> + Clone,
+    ) -> Result<QuantConfig, GroupError> {
+        let mut rest = configs.clone();
+        let first = rest.next().expect("A group has at least one member");
+        match rest.all(|config| config == first) {
+            true => Ok(first),
+            false => Err(GroupError::MixedQuantization {
+                configs: configs.collect(),
+            }),
+        }
     }
 
     fn first_supported_everywhere<T: Copy + Into<DType>>(
@@ -143,22 +156,25 @@ impl<B: BackendIr> DynGroupInterpreter for GroupInterpreter<B> {
 
     fn reshard(&mut self, tensor: TensorIr, sharding: Sharding) -> Result<TensorId, ShardingError> {
         let current = self.shardings[&tensor.id];
-        let resharding = match self.resharding(&tensor, current, sharding) {
-            Ok(resharding) => resharding,
+        let resharded = Resharding::new(current, sharding, &tensor.shape, self.interpreters.len())
+            .and_then(|resharding| {
+                self.take_shards(&tensor, current)
+                    .reshard(resharding, &tensor.shape)
+            });
+        match resharded {
+            Ok(shards) => {
+                let id = self.new_tensor_id();
+                self.register_shards(id, shards, sharding);
+                Ok(id)
+            }
             Err(error) => {
                 // The caller gave the tensor up, so a refusal must not leave it on the members.
                 if tensor.status == TensorStatus::ReadWrite {
                     self.drop_tensor(tensor.id);
                 }
-                return Err(error);
+                Err(error)
             }
-        };
-        let shards = self
-            .take_shards(&tensor, current)
-            .reshard(resharding, &tensor.shape);
-        let id = self.new_tensor_id();
-        self.register_shards(id, shards, sharding);
-        Ok(id)
+        }
     }
 
     fn read(&mut self, tensor: TensorIr) -> DynFut<Result<TensorData, ExecutionError>> {
@@ -200,20 +216,6 @@ impl<B: BackendIr> DynGroupInterpreter for GroupInterpreter<B> {
 }
 
 impl<B: BackendIr> GroupInterpreter<B> {
-    /// A quantized tensor's shards cannot be sliced, summed or concatenated, so it only ever
-    /// stays replicated.
-    fn resharding(
-        &self,
-        tensor: &TensorIr,
-        from: Sharding,
-        to: Sharding,
-    ) -> Result<Resharding, ShardingError> {
-        if matches!(tensor.dtype, DType::QFloat(_)) && to != Sharding::Replicated {
-            return Err(ShardingError::Quantized);
-        }
-        Resharding::new(from, to, &tensor.shape, self.interpreters.len())
-    }
-
     fn run(&mut self, mut op: OperationIr) {
         let plan = OpPlan::new(&op, &self.shardings, self.interpreters.len());
         let temporaries = self.reshard_inputs(&mut op, &plan);
@@ -258,14 +260,14 @@ impl<B: BackendIr> GroupInterpreter<B> {
                 },
                 ..input.clone()
             };
-            let resharding =
-                Resharding::new(current, target, &input.shape, self.interpreters.len())
-                    .unwrap_or_else(|error| {
-                        panic!("A rule asked for {target:?} from {current:?}: {error}")
-                    });
-            let shards = self
-                .take_shards(&read, current)
-                .reshard(resharding, &input.shape);
+            let shards = Resharding::new(current, target, &input.shape, self.interpreters.len())
+                .and_then(|resharding| {
+                    self.take_shards(&read, current)
+                        .reshard(resharding, &input.shape)
+                })
+                .unwrap_or_else(|error| {
+                    panic!("A rule asked for {target:?} from {current:?}: {error}")
+                });
             let temporary = self.new_tensor_id();
             self.register_shards(temporary, shards, target);
             resharded.temporaries.insert(input.id, temporary);
@@ -294,14 +296,14 @@ impl<B: BackendIr> GroupInterpreter<B> {
                 ..output.clone()
             };
             let copies =
-                ShardList::replicated(self.interpreters[0].get_tensor(&read), &self.devices);
+                ShardedTensor::replicated(self.interpreters[0].get_tensor(&read), &self.devices);
             for (interpreter, copy) in self.interpreters.iter_mut().zip(copies.into_handles()) {
                 interpreter.register_tensor_to_device(output.id, copy);
             }
         }
     }
 
-    fn take_shards(&mut self, tensor: &TensorIr, sharding: Sharding) -> ShardList<B> {
+    fn take_shards(&mut self, tensor: &TensorIr, sharding: Sharding) -> ShardedTensor<B> {
         let num_members = self.interpreters.len();
         let shards = self
             .interpreters
@@ -315,10 +317,10 @@ impl<B: BackendIr> GroupInterpreter<B> {
         if tensor.status == TensorStatus::ReadWrite {
             self.shardings.remove(&tensor.id);
         }
-        ShardList::new(shards)
+        ShardedTensor::new(shards)
     }
 
-    fn register_shards(&mut self, id: TensorId, shards: ShardList<B>, sharding: Sharding) {
+    fn register_shards(&mut self, id: TensorId, shards: ShardedTensor<B>, sharding: Sharding) {
         for (interpreter, handle) in self.interpreters.iter_mut().zip(shards.into_handles()) {
             interpreter.register_tensor_to_device(id, handle);
         }

@@ -3,8 +3,8 @@ mod client;
 mod device;
 mod interpreter;
 mod plan;
-mod shard;
+mod tensor;
 
 pub use channel::GroupBackend;
 pub use client::GroupClient;
-pub use device::{GroupDevice, GroupError};
+pub use device::{GroupDevice, GroupError, MemberDevice};

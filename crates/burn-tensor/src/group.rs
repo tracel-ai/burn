@@ -40,7 +40,8 @@ impl GroupOptions {
     /// # Errors
     ///
     /// When there are no devices, when they mix backends, when they are not Cube or Flex devices,
-    /// or when no member's default for a dtype runs on every member. For autodiff, group the plain
+    /// when no member's default for a dtype runs on every member, or when the members quantize
+    /// differently. For autodiff, group the plain
     /// devices and call `autodiff` on the group. Remote devices are left out: tensor parallelism
     /// needs links as fast as one machine's GPU interconnect.
     ///
