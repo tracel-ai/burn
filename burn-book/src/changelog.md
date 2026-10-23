@@ -245,6 +245,10 @@ loading those checkpoints by filtering to `linear_inner` and `linear_outer`.
   ([#5842](https://github.com/tracel-ai/burn/pull/5842))
 - Support all indexing update operations for boolean `scatter` and `select_assign`, and add boolean
   `scatter_nd` and `gather_nd`. `Add`/`Max` use logical OR; `Mul`/`Min` use logical AND.
+  **Breaking for third-party backends:** In `BoolTensorOps`, replace `bool_scatter_or` and
+  `bool_select_or` with `bool_scatter` and `bool_select_assign`, respectively, accepting an
+  `IndexingUpdateOp` argument and implementing each update operation. Implement the new required
+  `bool_scatter_nd` and `bool_gather_nd` methods.
   ([#6035](https://github.com/tracel-ai/burn/pull/6035),
   [#6047](https://github.com/tracel-ai/burn/pull/6047))
 - Add dtype-aware `TensorData::random_dtype`, `zeros_dtype`, and `ones_dtype` constructors.
