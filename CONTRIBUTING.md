@@ -38,7 +38,9 @@ questions or need early feedback, let us know on the PR or on
 Use [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/) for PR titles:
 `type(scope): description`. The scope is optional; use it to identify the affected component.
 
-Mark breaking changes with `!` before the colon and explain their impact and migration in the PR description.
+Mark breaking changes relative to the latest official release with `!` before the colon, and explain
+their impact and migration in the PR description. Changes limited to unreleased features do not
+require `!`; document any impact on users tracking `main` in the PR description.
 
 Before merging, ensure the squash commit title or each rebased commit follows this convention.
 Intermediate commits that will be squashed are exempt.
@@ -106,6 +108,35 @@ messages.
 Prioritize documentation changes that improve correctness or understanding, such as fixing incorrect
 explanations, broken examples, or misleading API documentation. Maintainers may close purely
 cosmetic PRs to preserve review capacity.
+
+### Changelog
+
+User-visible changes must be recorded under `Unreleased` in
+[burn-book/src/changelog.md](burn-book/src/changelog.md) in the same PR. This includes public API
+and behavior changes, new functionality, significant bug fixes, and notable performance
+improvements. Internal refactors, test-only changes, and editorial corrections generally do not need
+entries.
+
+For CubeCL and CubeK updates, record significant user-visible benefits that Burn actually uses or
+exposes, rather than the version bump itself. Omit upstream refactors and capabilities not yet used
+by Burn.
+
+Keep entries concise and describe the impact on users. Give major features and breaking changes
+descriptive subsections, with migration steps and short API examples where useful. Smaller changes
+can remain bullets, grouped by topic when needed. For API changes, state what users need to replace
+or update. Link relevant PRs and credit their authors.
+
+Update existing entries for follow-up work, describing the resulting behavior and migration from the
+last release. Remove superseded guidance; retain relevant PR links and attribution.
+
+Group related API changes, additions, fixes, and performance improvements under the same topic. Lead
+with standout new capabilities and substantial execution-performance improvements, including kernel
+and fusion work. Within each topic, present major capabilities and breaking changes before focused
+improvements and fixes. Mark breaking changes explicitly. Place specialized features and
+integrations with narrower audiences later, while keeping related entries together.
+
+At release time, incorporate the pending entries into the release notes and any migration guide,
+then clear them. Published release history lives in GitHub Releases.
 
 ### Large Pull Requests
 

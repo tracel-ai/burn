@@ -52,6 +52,10 @@ such as fusion keeping `linear` decomposed to preserve downstream fusion.
   `i64`; some devices lack 64-bit integers. Handle quantized inputs and zero-sized dimensions.
 - Avoid host synchronization (`into_data`, `into_scalar`) in forward passes, losses, and metrics.
 - Update documentation and examples in the same change when behavior or APIs change.
+- Record user-visible changes in [burn-book/src/changelog.md](burn-book/src/changelog.md), following
+  the [changelog policy](CONTRIBUTING.md#changelog). Highlight major changes with descriptive
+  subsections; keep entries concise and include migration steps for API changes. Update existing
+  entries when follow-up work changes them.
 
 ### Backends and Kernels
 
