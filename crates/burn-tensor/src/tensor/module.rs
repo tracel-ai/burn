@@ -1226,7 +1226,8 @@ fn linear_impl(
 
 /// Computes scaled dot-product attention: softmax(QKᵗ * scale) · V,
 /// where scale defaults to 1/sqrt(head_dim) (configurable via `options.scale`).
-/// Optionally applies masking, additive bias, causal masking, and softcap.
+/// Optionally applies masking, additive bias, causal masking, sliding-window
+/// masking, and softcap.
 ///
 /// Scores are computed as `softcap(QKᵗ · scale)`, then masked (`mask` and causal) to
 /// `-inf`, then `attn_bias` is added, then softmax is taken; see
@@ -1243,7 +1244,8 @@ fn linear_impl(
 ///   where `true` indicates positions to mask (i.e. set to -inf before softmax).
 /// - `attn_bias`: Optional float tensor of shape `[batch_size, num_heads, seq_len_q, seq_len_k]`
 ///   added to the attention scores before softmax (e.g. ALiBi, relative position biases).
-/// - `options`: Additional attention options (custom scale, softcap, causal masking).
+/// - `options`: Additional attention options (custom scale, softcap, causal and
+///   sliding-window masking).
 ///
 /// # Returns
 /// A tensor of shape `[batch_size, num_heads, seq_len_q, val_dim]`

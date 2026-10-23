@@ -54,9 +54,9 @@ Reports also include the measured cost of a kernel launch.
 
 ### Execution performance
 
-#### Grouped-query attention and causal masks
+#### Grouped-query attention, sliding window and causal masks
 
-Grouped-query attention now works across backends and autodiff, with native CubeCL acceleration.
+Grouped-query and sliding window attention now works across backends and autodiff, with native CubeCL acceleration.
 Query heads can share fewer key/value heads; invalid head counts are rejected.
 
 **Breaking:** `AttentionModuleOptions` gains `causal_alignment`. Add
