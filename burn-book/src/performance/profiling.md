@@ -7,11 +7,92 @@ with fusion on, the kernels it times are the fused ones a clean run launches.
 
 ## Declaring components
 
-A component is a method annotated with `#[compute]`. Every call opens a tag that names it, and
-components nest the way the methods call each other:
+Add `#[compute]` to a method to include it in the profile. Annotated calls form a component tree.
+This works for custom modules built from layers or tensor operations, without defining bounds.
+
+Enable the `instrument` feature on your `burn` dependency to activate the annotations.
+Without it, they compile away.
+
+### Custom modules
+
+The classifier below uses named methods to keep its two `Linear` layers separate in the report.
+Without those labels, both calls would appear as one `linear` component under `classifier`.
+
+```rust,ignore
+use burn::instrument::compute;
+use burn::module::Module;
+use burn::nn::{Linear, LinearConfig};
+use burn::tensor::{Device, Tensor, activation::relu};
+
+#[derive(Module, Debug)]
+struct Classifier {
+    hidden: Linear,
+    output: Linear,
+}
+
+impl Classifier {
+    fn new(device: &Device) -> Self {
+        Self {
+            hidden: LinearConfig::new(32, 64).init(device),
+            output: LinearConfig::new(64, 10).init(device),
+        }
+    }
+
+    #[compute]
+    fn forward(&self, input: Tensor<2>) -> Tensor<2> {
+        let hidden = relu(self.project_hidden(input));
+        self.project_output(hidden)
+    }
+
+    #[compute(label = "hidden projection")]
+    fn project_hidden(&self, input: Tensor<2>) -> Tensor<2> {
+        self.hidden.forward(input)
+    }
+
+    #[compute(label = "output projection")]
+    fn project_output(&self, input: Tensor<2>) -> Tensor<2> {
+        self.output.forward(input)
+    }
+}
+```
+
+Calling `model.forward(input)` during a measurement produces this tree:
+
+```text
+classifier
+├── hidden projection
+│   └── linear
+└── output projection
+    └── linear
+```
+
+The linear layers already define their bounds. The `relu` call has no annotation, so its work
+belongs to the classifier. When a kernel fuses work from several components, its time is counted
+under their closest common parent.
+
+### The layers of `burn::nn`
+
+Built-in layers are already annotated. Linear, embedding, normalization, convolution, pooling,
+interpolation and positional encoding layers declare bounds. Feed-forward blocks and transformer
+layers and stacks also declare bounds for the whole component, so the report can show how much
+time fusion could save.
+
+Attention and recurrent layers declare bounds for their parts. They use labels to distinguish
+layers of the same type, such as an attention's query and key projections.
+
+### Component options and bounds
+
+Bounds describe the minimum traffic and arithmetic for a component running alone.
+This projection assumes floating-point inputs and weights of the same dtype:
 
 ```rust,ignore
 use burn::instrument::{Bounds, compute, tensor_bytes};
+use burn::tensor::Tensor;
+
+struct Projection {
+    role: &'static str,
+    weight: Tensor<2>,
+}
 
 impl Projection {
     #[compute(label = self.role, bounds = self.bounds(&x))]
@@ -23,7 +104,7 @@ impl Projection {
     fn bounds(&self, x: &Tensor<2>) -> Bounds {
         let [rows, input] = x.dims();
         let [_, output] = self.weight.dims();
-        let element = tensor_bytes(x) / (rows * input) as u64;
+        let element = x.dtype().size() as u64;
         Bounds {
             read: tensor_bytes(x) + tensor_bytes(&self.weight),
             write: (rows * output) as u64 * element,
@@ -33,43 +114,33 @@ impl Projection {
 }
 ```
 
-- **`label`** names the component. It defaults to the type's name in words (`RmsNorm` is
-  `rms norm`). Components merge on their label among siblings, so a type used in several roles
-  under one parent, like the projections of a block, needs one label per role.
-- **`variant`** names which execution served a call, where that is chosen at run time. The report
-  prints how often each one ran.
+- **`label`** names the component. It defaults to the type's name in words (`RmsNorm` becomes
+  `rms norm`). Components with the same label under the same parent merge.
+- **`variant`** names the execution chosen at run time. The report counts calls per variant.
 - **`bounds`** is the floor for running the component alone: the bytes it must read and write
   through global memory at the widths its tensors are stored in, and its multiply-add FLOPs. Leave
   it off for a component that will be fused into its neighbour. A floor nothing can reach is worse
   than none.
 
-The annotations are armed by burn's `instrument` feature. Without it they compile away, so a library
-can annotate its components at no cost to a build that never measures; with it and no measurement
-running, an annotated method costs one thread-local read.
-
-### The layers of `burn::nn`
-
-The layers in `burn::nn` are components already, so a model built from them is broken down without
-annotating anything. The layers that run one operation (linear, embedding, the norms, the
-convolutions, the pools, the interpolations and the positional encodings) declare their floors.
-The feed-forward and the transformer's encoder and decoder, their layers and their stacks are priced
-whole as well, so the report can say what fusing inside them would recover. Attention and the
-recurrent layers are timed, and their parts are priced: their projections and gates, and the scaled
-dot product inside each attention. Where one
-type serves several roles in a layer, each runs under its role, so an attention's `query` and `key`
-projections are two components and not one `linear` entered twice. Annotate your own modules to
-name what composes them.
-
 ## Measuring a model
 
-Measuring needs burn's `instrument` feature, a CubeCL runtime and, on a fused build, burn's `fusion`
-feature:
+To measure the classifier on CUDA, enable `instrument` and `cuda` on your `burn` dependency
+and add this entry point. If your backend uses fusion, enable `fusion` too.
+You can use another CubeCL backend by changing the backend feature and device constructor.
 
 ```rust,ignore
 use burn::instrument::Instrument;
+use burn::tensor::DeviceIndex;
 
-let measurement = Instrument::new(&device).measure(|| model.forward(input.clone()));
-measurement.write(std::fs::File::create("model.json")?)?;
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let device = Device::cuda(DeviceIndex::Default);
+    let model = Classifier::new(&device);
+    let input = Tensor::<2>::ones([128, 32], &device);
+
+    let measurement = Instrument::new(&device).measure(|| model.forward(input.clone()));
+    measurement.write(std::fs::File::create("model.json")?)?;
+    Ok(())
+}
 ```
 
 `measure` runs the closure several times, holding each output until its run has ended, since an
@@ -84,9 +155,8 @@ output dropped inside the run lets the fuser skip the work that wrote it:
   own wall time describes the instrumentation, not the model.
 - **the instrumented run**, whose breakdown the file holds.
 
-The text-classification example's `profile` does all of this for the AG News classifier, a
-transformer encoder built from `burn::nn`, and prints the report; with a path, it saves the
-measurement there too:
+The text-classification `profile` example measures the AG News classifier and prints the report.
+Pass a path to save the measurement as well:
 
 ```sh
 cargo run --release -p text-classification --example profile --features cuda -- model.json
