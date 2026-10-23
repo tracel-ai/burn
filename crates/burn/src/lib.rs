@@ -126,6 +126,8 @@
 //!   - `vulkan`: Adds `Device::vulkan`, pinned to Vulkan (implies `wgpu`)
 //!   - `metal`: Adds `Device::metal`, pinned to Metal with native MSL (implies `wgpu`)
 //!   - `cuda`: Makes available the CUDA backend
+//!   - `cuda-cpp`: Compiles CUDA kernels as CUDA C++ through NVRTC instead of through LLVM
+//!     (implies `cuda`)
 //!   - `rocm`: Makes available the ROCm backend
 //!   - `cpu`: Makes available the CubeCL CPU backend
 //!   - `flex`: Makes available the Flex backend (pure-Rust CPU, std/no_std/WASM)

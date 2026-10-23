@@ -131,6 +131,7 @@ remote-server = ["remote", "burn-core/remote-server", "burn-signal?/router"]
 remote-websocket = ["remote", "burn-core/remote-websocket", "burn-signal?/remote-websocket"]
 
 cuda = ["burn-core/cuda", "burn-linalg?/cuda", "burn-signal?/cuda", "burn-vision?/cuda"]
+cuda-cpp = ["cuda", "burn-core/cuda-cpp"]
 rocm = ["burn-core/rocm", "burn-linalg?/rocm", "burn-signal?/rocm", "burn-vision?/rocm"]
 flex = ["burn-core/flex", "burn-linalg?/flex", "burn-signal?/flex", "burn-vision?/flex"]
 vulkan = ["wgpu", "burn-core/vulkan", "burn-linalg?/vulkan", "burn-signal?/vulkan", "burn-vision?/vulkan"]

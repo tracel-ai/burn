@@ -40,6 +40,7 @@ fft = ["cubek/fft"]
 # `burn-wgpu`, `burn-rocm`, `burn-cpu`) each turn one on for their own dependents; these are here
 # so that this crate also builds, and documents, on its own. `doc` picks wgpu as the portable one.
 cuda = ["cubecl/cuda", "burn-backend/cubecl-cuda"]
+cuda-cpp = ["cuda", "cubecl/cuda-cpp"]
 hip = ["cubecl/hip", "burn-backend/cubecl-hip"]
 cpu = ["cubecl/cpu", "burn-backend/cubecl-cpu"]
 wgpu = ["cubecl/wgpu", "burn-backend/cubecl-wgpu"]
