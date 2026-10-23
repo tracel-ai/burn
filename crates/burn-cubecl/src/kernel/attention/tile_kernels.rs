@@ -21,7 +21,7 @@ use cubek::std::autotune::GroupPriority;
 /// # Panics
 ///
 /// A mask tensor, an additive bias or a softcap, which the routines take none of, and operands
-/// they serve whatever the device: an element they do not take, or query heads that do not split
+/// they do not serve whatever the device: an element they do not take, or query heads that do not split
 /// evenly over the key heads.
 pub fn attention_autotune(
     query: CubeTensor,
