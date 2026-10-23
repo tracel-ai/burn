@@ -1,3 +1,4 @@
+use burn::instrument::{self, Bounds, compute};
 use burn_core as burn;
 
 use alloc::vec::Vec;
@@ -88,6 +89,18 @@ impl PositionalEncodingConfig {
 }
 
 impl PositionalEncoding {
+    /// The floor for adding the encoding alone: read the input and the sinusoids of its
+    /// positions once, write the output once.
+    fn bounds(&self, input: &Tensor<3>) -> Bounds {
+        let [_, seq_length, d_model] = input.dims();
+        let sinusoids = seq_length * d_model * self.sinusoids.dtype().size();
+        Bounds {
+            read: instrument::tensor_bytes(input) + sinusoids as u64,
+            write: instrument::tensor_bytes(input),
+            flops: 0,
+        }
+    }
+
     /// Applies the forward pass on the input tensor by adding the sinusoids to the input.
     ///
     /// # Shapes
@@ -100,6 +113,7 @@ impl PositionalEncoding {
     ///
     /// * Panics if the input sequence length is greater than the maximum sequence size.
     /// * Panics if the input d_model is not equal to the d_model of the sinusoids.
+    #[compute(bounds = Self::bounds)]
     pub fn forward(&self, input: Tensor<3>) -> Tensor<3> {
         let [_, seq_length, _] = input.dims();
         let [batch_size, max_sequence_size, d_model] = self.sinusoids.dims();

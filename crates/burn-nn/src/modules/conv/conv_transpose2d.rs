@@ -1,6 +1,9 @@
 use crate::Initializer;
 use alloc::format;
 
+use crate::modules::bounds;
+use burn::instrument::{Bounds, compute};
+use burn::tensor::module::conv_transpose_output_size;
 use burn_core as burn;
 
 use crate::conv::checks;
@@ -132,6 +135,31 @@ impl ConvTranspose2dConfig {
 }
 
 impl ConvTranspose2d {
+    /// The options the transposed convolution runs with.
+    fn options(&self) -> ConvTransposeOptions<2> {
+        ConvTransposeOptions::new(
+            self.stride,
+            self.padding,
+            self.padding_out,
+            self.dilation,
+            self.groups,
+        )
+    }
+
+    /// None where the transposed convolution cannot size its output, which it rejects.
+    fn bounds(&self, input: &Tensor<4>) -> Option<Bounds> {
+        let weight = self.weight.val();
+        let output_size =
+            conv_transpose_output_size(bounds::spatial(input), &weight.shape(), &self.options())?;
+        Some(bounds::transposed_convolution(
+            input,
+            &weight,
+            &self.bias,
+            self.groups,
+            output_size,
+        ))
+    }
+
     /// Applies the forward pass on the input tensor.
     ///
     /// See also [conv_transpose2d](burn::tensor::module::conv_transpose2d).
@@ -140,18 +168,13 @@ impl ConvTranspose2d {
     ///
     /// - input: `[batch_size, channels_in, height_in, width_in]`
     /// - output: `[batch_size, channels_out, height_out, width_out]`
+    #[compute(bounds = Self::bounds)]
     pub fn forward(&self, input: Tensor<4>) -> Tensor<4> {
         conv_transpose2d(
             input,
             self.weight.val(),
             self.bias.as_ref().map(|bias| bias.val()),
-            ConvTransposeOptions::new(
-                self.stride,
-                self.padding,
-                self.padding_out,
-                self.dilation,
-                self.groups,
-            ),
+            self.options(),
         )
     }
 }
@@ -162,6 +185,37 @@ mod tests {
     use burn::tensor::TensorData;
     use burn::tensor::{ElementConversion, Tolerance};
     type FT = f32;
+
+    /// A transposed convolution multiply-adds each input into its window, as many as the
+    /// convolution it transposes, and writes the output its stride sizes.
+    #[cfg(feature = "std")]
+    #[test]
+    fn a_transposed_convolution_declares_its_floor() {
+        let device = Default::default();
+        let conv = ConvTranspose2dConfig::new([4, 6], [3, 2])
+            .with_stride([2, 1])
+            .with_groups(2)
+            .init(&device);
+        let input = Tensor::<4>::zeros([2, 4, 3, 4], &device);
+        let mut output = None;
+
+        let recorded = crate::recording::recorded(|| {
+            output = Some(conv.forward(input));
+        });
+
+        // The weight is `[4, 6 / 2, 3, 2]` and the output `[2, 6, 7, 5]`.
+        let output = output.unwrap();
+        assert_eq!(output.dims(), [2, 6, 7, 5]);
+        assert_eq!(recorded.lines(), ["conv transpose2d"]);
+        assert_eq!(
+            recorded.declared("conv transpose2d"),
+            Some(Bounds {
+                read: (2 * 4 * 3 * 4 + 4 * 3 * 3 * 2 + 6) * 4,
+                write: burn::instrument::tensor_bytes(&output),
+                flops: 2 * (2 * 4 * 3 * 4) * 3 * 3 * 2,
+            })
+        );
+    }
 
     #[test]
     fn initializer_default() {

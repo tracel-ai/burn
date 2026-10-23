@@ -3,7 +3,7 @@ use burn_dispatch::Dispatch;
 use burn_std::{MatmulTransformAction, MatmulTransformAnalysis, MatmulTransformPolicy};
 
 use crate::{
-    Bool, DType, Int, Tensor, check,
+    Bool, DType, Int, Shape, Tensor, check,
     check::TensorCheck,
     kind::Basic,
     ops::{
@@ -718,12 +718,211 @@ fn drop_end_padding_windows<const D: usize, const N: usize, K: Basic>(
         let dim = D - N + i;
         let size = output.dims()[dim];
         let (begin, _) = padding[i];
-        if size > 1 && (size - 1) * stride[i] >= input_dims[dim] + begin {
+        if last_window_starts_in_end_padding(size, stride[i], input_dims[dim], begin) {
             output.narrow(dim, 0, size - 1)
         } else {
             output
         }
     })
+}
+
+/// Whether the last of `size` ceil-mode windows starts in the end padding, past the input and
+/// the `begin` padding before it. See [`drop_end_padding_windows`].
+fn last_window_starts_in_end_padding(
+    size: usize,
+    stride: usize,
+    size_in: usize,
+    begin: usize,
+) -> bool {
+    size > 1 && (size - 1) * stride >= size_in + begin
+}
+
+/// How a pooling function pads a dimension, which decides the size of its output.
+#[derive(Clone, Copy)]
+enum PoolPadding {
+    /// The pooling function pads the input itself, which it does for every dimension once any one
+    /// is padded asymmetrically, then drops the ceil-mode window that starts in the end padding
+    /// (see [`drop_end_padding_windows`]).
+    Materialized,
+    /// The backend applies the symmetric padding, and the pooling function drops the ceil-mode
+    /// window that starts in the end padding if `drops_end_window`.
+    Backend { drops_end_window: bool },
+}
+
+/// One spatial dimension of a pool, as its options describe it.
+struct PooledDimension {
+    size_in: usize,
+    kernel_size: usize,
+    stride: usize,
+    padding: (usize, usize),
+    dilation: usize,
+    ceil_mode: bool,
+}
+
+impl PooledDimension {
+    /// The size of this dimension of the output, or `None` where the pool cannot size it: a zero
+    /// kernel, stride or dilation, or a padded input shorter than the dilated kernel.
+    fn output_size(&self, padding: PoolPadding) -> Option<usize> {
+        let (begin, end) = self.padding;
+        if self.kernel_size == 0 || self.stride == 0 || self.dilation == 0 {
+            return None;
+        }
+        let (applied, size, drops_end_window) = match padding {
+            PoolPadding::Materialized => (0, self.size_in + begin + end, true),
+            PoolPadding::Backend { drops_end_window } => (begin, self.size_in, drops_end_window),
+        };
+        let effective_kernel = self.dilation * (self.kernel_size - 1) + 1;
+        let padded = size + 2 * applied;
+        let overhangs =
+            self.ceil_mode && effective_kernel - padded.min(effective_kernel) < self.stride;
+        if padded < effective_kernel && !overhangs {
+            return None;
+        }
+        let size = burn_backend::ops::conv::calculate_pool_output_size(
+            self.kernel_size,
+            self.stride,
+            applied,
+            self.dilation,
+            size,
+            self.ceil_mode,
+        );
+        let dropped = drops_end_window
+            && self.ceil_mode
+            && last_window_starts_in_end_padding(size, self.stride, self.size_in, begin);
+        match dropped {
+            true => Some(size - 1),
+            false => Some(size),
+        }
+    }
+}
+
+// The output sizes are functions rather than methods on the options: the options live in burn-std,
+// below the sizing formulas the backends use in burn-backend.
+
+/// The spatial size of the output [`max_pool1d`], [`max_pool2d`] or [`max_pool3d`] returns for
+/// an input whose spatial size is `input_size`, or `None` where the options cannot size it: a
+/// zero kernel, stride or dilation, or a padded input shorter than the dilated kernel.
+pub fn max_pool_output_size<const N: usize>(
+    input_size: [usize; N],
+    options: &MaxPoolOptions<N>,
+) -> Option<[usize; N]> {
+    let padding = match options.is_asymmetric() {
+        true => PoolPadding::Materialized,
+        // Max pooling drops the window whether the padding is materialized or not.
+        false => PoolPadding::Backend {
+            drops_end_window: true,
+        },
+    };
+    every_dimension(|i| {
+        PooledDimension {
+            size_in: input_size[i],
+            kernel_size: options.kernel_size[i],
+            stride: options.stride[i],
+            padding: options.padding[i],
+            dilation: options.dilation[i],
+            ceil_mode: options.ceil_mode,
+        }
+        .output_size(padding)
+    })
+}
+
+/// The spatial size of the output [`avg_pool1d`], [`avg_pool2d`] or [`avg_pool3d`] returns for
+/// an input whose spatial size is `input_size`, or `None` where the options cannot size it: a
+/// zero kernel or stride, or a padded input shorter than the kernel.
+pub fn avg_pool_output_size<const N: usize>(
+    input_size: [usize; N],
+    options: &AvgPoolOptions<N>,
+) -> Option<[usize; N]> {
+    let padding = match options.is_asymmetric() {
+        true => PoolPadding::Materialized,
+        // Average pooling drops it only from the padding it materializes.
+        false => PoolPadding::Backend {
+            drops_end_window: false,
+        },
+    };
+    every_dimension(|i| {
+        PooledDimension {
+            size_in: input_size[i],
+            kernel_size: options.kernel_size[i],
+            stride: options.stride[i],
+            padding: options.padding[i],
+            dilation: 1,
+            ceil_mode: options.ceil_mode,
+        }
+        .output_size(padding)
+    })
+}
+
+/// The spatial size of the output [`conv1d`], [`conv2d`] or [`conv3d`] returns for an input
+/// whose spatial size is `input_size`, convolved with a weight of `weight_shape`
+/// (`[channels_out, channels_in / groups, kernel_size..]`), or `None` where it cannot be sized: a
+/// weight of another rank, a zero kernel, stride or dilation, or a padded input shorter than the
+/// dilated kernel.
+pub fn conv_output_size<const N: usize>(
+    input_size: [usize; N],
+    weight_shape: &Shape,
+    options: &ConvOptions<N>,
+) -> Option<[usize; N]> {
+    let kernel_size = kernel_size::<N>(weight_shape)?;
+    every_dimension(|i| {
+        let (begin, end) = options.padding[i];
+        let (stride, dilation) = (options.stride[i], options.dilation[i]);
+        if kernel_size[i] == 0 || stride == 0 || dilation == 0 {
+            return None;
+        }
+        let effective_kernel = dilation * (kernel_size[i] - 1) + 1;
+        (input_size[i] + begin + end).checked_sub(effective_kernel)?;
+        Some(
+            burn_backend::ops::conv::calculate_conv_output_size_asymmetric(
+                kernel_size[i],
+                stride,
+                (begin, end),
+                dilation,
+                input_size[i],
+            ),
+        )
+    })
+}
+
+/// The spatial size of the output [`conv_transpose1d`], [`conv_transpose2d`] or
+/// [`conv_transpose3d`] returns for an input whose spatial size is `input_size`, convolved with a
+/// weight of `weight_shape` (`[channels_in, channels_out / groups, kernel_size..]`), or `None`
+/// where it cannot be sized: a weight of another rank, an empty input, a zero kernel, stride or
+/// dilation, or padding that crops away the whole output.
+pub fn conv_transpose_output_size<const N: usize>(
+    input_size: [usize; N],
+    weight_shape: &Shape,
+    options: &ConvTransposeOptions<N>,
+) -> Option<[usize; N]> {
+    let kernel_size = kernel_size::<N>(weight_shape)?;
+    every_dimension(|i| {
+        let (stride, dilation) = (options.stride[i], options.dilation[i]);
+        if input_size[i] == 0 || kernel_size[i] == 0 || stride == 0 || dilation == 0 {
+            return None;
+        }
+        let uncropped = (input_size[i] - 1) * stride
+            + dilation * (kernel_size[i] - 1)
+            + 1
+            + options.padding_out[i];
+        uncropped
+            .checked_sub(2 * options.padding[i])
+            .filter(|size| *size > 0)
+    })
+}
+
+/// The spatial size of a convolution's kernel, the last `N` dimensions of its weight, or `None`
+/// for a weight of another rank than `N + 2`.
+fn kernel_size<const N: usize>(weight_shape: &Shape) -> Option<[usize; N]> {
+    (weight_shape.rank() == N + 2).then(|| core::array::from_fn(|i| weight_shape[2 + i]))
+}
+
+/// The size of every one of `N` dimensions, or `None` if any has none.
+fn every_dimension<const N: usize>(size: impl Fn(usize) -> Option<usize>) -> Option<[usize; N]> {
+    let sizes: [Option<usize>; N] = core::array::from_fn(size);
+    if sizes.iter().any(Option::is_none) {
+        return None;
+    }
+    Some(sizes.map(|size| size.unwrap_or_default()))
 }
 
 /// Applies a [3D max pooling with indices](burn_backend::ops::ModuleOps::max_pool3d_with_indices).
@@ -864,7 +1063,13 @@ pub fn interpolate(x: Tensor<4>, options: InterpolateOptions) -> Tensor<4> {
     )))
 }
 
-fn interpolate_output_size(input_size: [usize; 2], options: &InterpolateOptions) -> [usize; 2] {
+/// The spatial size of the output [`interpolate`] returns for an input whose spatial size is
+/// `input_size`.
+///
+/// # Panics
+///
+/// Under the same conditions as [`interpolate`].
+pub fn interpolate_output_size(input_size: [usize; 2], options: &InterpolateOptions) -> [usize; 2] {
     match (options.output_size, options.scale_factor) {
         (Some(output_size), None) => output_size,
         (None, Some(scale_factor)) => core::array::from_fn(|i| {
@@ -1282,6 +1487,81 @@ mod tests {
 
     fn options() -> InterpolateOptions {
         InterpolateOptions::new(InterpolateMode::Nearest)
+    }
+
+    /// The size the pooling functions return, or `None` where they panic.
+    #[cfg(feature = "std")]
+    fn pooled(pool: impl FnOnce() -> Tensor<3> + std::panic::UnwindSafe) -> Option<usize> {
+        std::panic::catch_unwind(pool)
+            .ok()
+            .map(|output| output.dims()[2])
+    }
+
+    /// Wherever a pool runs, symmetric or asymmetric, padded within half its kernel or beyond
+    /// it, in both rounding modes, its output is sized as the pooling functions size it,
+    /// including the ceil-mode window dropped from the end padding. Sizing never panics.
+    #[cfg(feature = "std")]
+    #[test]
+    fn pool_output_size_is_the_size_pooling_returns() {
+        let device = Default::default();
+        for size_in in 1..7 {
+            let x = Tensor::<3>::ones([1, 1, size_in], &device);
+            for (kernel_size, stride, dilation) in [(1, 1, 1), (2, 2, 1), (3, 2, 1), (2, 3, 2)] {
+                for (begin, end, ceil_mode) in (0..=kernel_size + 1)
+                    .flat_map(|begin| (0..=kernel_size + 1).map(move |end| (begin, end)))
+                    .flat_map(|(begin, end)| [(begin, end, false), (begin, end, true)])
+                {
+                    let max = MaxPoolOptions::new([kernel_size])
+                        .with_stride([stride])
+                        .with_dilation([dilation])
+                        .with_padding_pairs([(begin, end)])
+                        .with_ceil_mode(ceil_mode);
+                    let sized = max_pool_output_size([size_in], &max);
+                    let (input, options) = (x.clone(), max.clone());
+                    if let Some(size) = pooled(move || max_pool1d(input, options)) {
+                        assert_eq!(sized, Some([size]), "{max:?} over {size_in}");
+                    }
+                    if dilation == 1 {
+                        let avg = AvgPoolOptions::new([kernel_size])
+                            .with_stride([stride])
+                            .with_padding_pairs([(begin, end)])
+                            .with_ceil_mode(ceil_mode);
+                        let sized = avg_pool_output_size([size_in], &avg);
+                        let (input, options) = (x.clone(), avg.clone());
+                        if let Some(size) = pooled(move || avg_pool1d(input, options)) {
+                            assert_eq!(sized, Some([size]), "{avg:?} over {size_in}");
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /// Asymmetric padding and dilation size a convolution's output, and its transpose's, as
+    /// the convolution functions do; an input they cannot size is `None` rather than a wrapped
+    /// size.
+    #[test]
+    fn conv_output_size_is_the_size_convolution_returns() {
+        let device = Default::default();
+        let x = Tensor::<4>::ones([1, 2, 7, 6], &device);
+        let weight = Tensor::<4>::ones([2, 2, 3, 2], &device);
+        let weight_shape = weight.shape();
+        let options = ConvOptions::new_with_padding([2, 1], [(1, 0), (0, 2)], [1, 2], 1);
+        assert_eq!(
+            conv_output_size([7, 6], &weight_shape, &options).map(|size| size.to_vec()),
+            Some(conv2d(x.clone(), weight.clone(), None, options.clone()).dims()[2..].to_vec())
+        );
+        assert_eq!(conv_output_size([1, 6], &weight_shape, &options), None);
+
+        let options = ConvTransposeOptions::new([2, 3], [1, 0], [1, 2], [1, 2], 1);
+        assert_eq!(
+            conv_transpose_output_size([7, 6], &weight_shape, &options).map(|size| size.to_vec()),
+            Some(conv_transpose2d(x, weight, None, options.clone()).dims()[2..].to_vec())
+        );
+        assert_eq!(
+            conv_transpose_output_size([0, 6], &weight_shape, &options),
+            None
+        );
     }
 
     #[test]

@@ -16,17 +16,18 @@
 //! component registered the work; what a kernel took, and which component it belongs to, is for
 //! the [`ComponentObserver`] to work out from the launches its runtime reports.
 //!
-//! With no observer installed, [`observing`] is one thread-local read and an annotated method calls
-//! its body directly, so nothing here is behind a feature. Without `std` there is nowhere to
-//! install one, and [`observing`] is always `None`.
+//! Observing is the `instrument` feature. Without it there is nowhere to install an observer,
+//! [`observing`] is always `None`, and an annotated method compiles to its body: a library can
+//! annotate its components and cost a build that never measures nothing. With it and no observer
+//! installed, [`observing`] is one thread-local read.
 //!
 //! # Measuring a model
 //!
-//! With the `cubecl` feature, [`Instrument`] installs one recorder as the component observer,
-//! the cubecl runtime's launch observer and the fusion server's observer, runs the model, and
-//! returns its [`Breakdown`]: the component tree, each component's kernels, and what the device
-//! spent on them. Nothing is drained at a component boundary, so an instrumented run launches
-//! the kernels a clean run launches. Each launch is
+//! With the `cubecl` and `instrument` features, [`Instrument`] installs one recorder as the
+//! component observer, the cubecl runtime's launch observer and the fusion server's observer,
+//! runs the model, and returns its [`Breakdown`]: the component tree, each component's kernels,
+//! and what the device spent on them. Nothing is drained at a component boundary, so an
+//! instrumented run launches the kernels a clean run launches. Each launch is
 //! recorded under the component that registered its work, on whichever thread issues it; on a
 //! fused device, a kernel that carried out several components' work is recorded on the closest
 //! component containing all of them and names the ones it fused.
@@ -57,16 +58,18 @@
 //!
 //! # Feature flags
 //!
-//! - `std` (default): installing an observer, and reading and writing breakdowns.
-//! - `cubecl`: [`Instrument`], which reads a cubecl runtime's kernel launches, and
-//!   [`Peaks::new`].
+//! - `std` (default): reading and writing breakdowns.
+//! - `instrument` (default): installing an observer, which arms every annotated method. Off, the
+//!   annotations compile away.
+//! - `cubecl`: [`Peaks::new`], and with `instrument` [`Instrument`], which reads a cubecl runtime's
+//!   kernel launches.
 //! - `fusion` (default): the instrument also reads the fusion server's blocks, which it needs to
 //!   instrument a device that fuses.
 //!
 // Where the enabled features leave an item out, its links go to this version's docs.rs page.
-#![cfg_attr(not(feature = "cubecl"), doc = concat!("[`Instrument`]: ", concat!("https://docs.rs/burn-instrument/", env!("CARGO_PKG_VERSION"), "/burn_instrument/struct.Instrument.html")))]
-#![cfg_attr(not(feature = "cubecl"), doc = concat!("[`Instrument::measure`]: ", concat!("https://docs.rs/burn-instrument/", env!("CARGO_PKG_VERSION"), "/burn_instrument/struct.Instrument.html#method.measure")))]
-#![cfg_attr(not(feature = "cubecl"), doc = concat!("[`Instrument::breakdown`]: ", concat!("https://docs.rs/burn-instrument/", env!("CARGO_PKG_VERSION"), "/burn_instrument/struct.Instrument.html#method.breakdown")))]
+#![cfg_attr(not(all(feature = "cubecl", feature = "instrument")), doc = concat!("[`Instrument`]: ", concat!("https://docs.rs/burn-instrument/", env!("CARGO_PKG_VERSION"), "/burn_instrument/struct.Instrument.html")))]
+#![cfg_attr(not(all(feature = "cubecl", feature = "instrument")), doc = concat!("[`Instrument::measure`]: ", concat!("https://docs.rs/burn-instrument/", env!("CARGO_PKG_VERSION"), "/burn_instrument/struct.Instrument.html#method.measure")))]
+#![cfg_attr(not(all(feature = "cubecl", feature = "instrument")), doc = concat!("[`Instrument::breakdown`]: ", concat!("https://docs.rs/burn-instrument/", env!("CARGO_PKG_VERSION"), "/burn_instrument/struct.Instrument.html#method.breakdown")))]
 #![cfg_attr(not(feature = "cubecl"), doc = concat!("[`Peaks::new`]: ", concat!("https://docs.rs/burn-instrument/", env!("CARGO_PKG_VERSION"), "/burn_instrument/struct.Peaks.html#method.new")))]
 #![cfg_attr(not(feature = "std"), doc = concat!("[`Breakdown`]: ", concat!("https://docs.rs/burn-instrument/", env!("CARGO_PKG_VERSION"), "/burn_instrument/struct.Breakdown.html")))]
 #![cfg_attr(not(feature = "std"), doc = concat!("[`Measurement`]: ", concat!("https://docs.rs/burn-instrument/", env!("CARGO_PKG_VERSION"), "/burn_instrument/struct.Measurement.html")))]
@@ -85,14 +88,14 @@ mod observer;
 mod breakdown;
 #[cfg(feature = "std")]
 mod component_path;
-#[cfg(feature = "cubecl")]
+#[cfg(all(feature = "cubecl", feature = "instrument"))]
 mod instrument;
 #[cfg(feature = "std")]
 mod peaks;
 
-#[cfg(all(test, feature = "std"))]
+#[cfg(all(test, feature = "instrument"))]
 mod observed;
-#[cfg(all(test, feature = "std"))]
+#[cfg(all(test, feature = "instrument"))]
 mod tests;
 
 pub use bounds::*;
@@ -106,7 +109,7 @@ pub use breakdown::{
 };
 #[cfg(feature = "std")]
 pub use component_path::ComponentPath;
-#[cfg(feature = "cubecl")]
+#[cfg(all(feature = "cubecl", feature = "instrument"))]
 pub use instrument::Instrument;
 #[cfg(feature = "std")]
 pub use peaks::{ComputePeak, PeakFinding, Peaks};

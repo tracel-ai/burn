@@ -43,11 +43,27 @@ impl Projection {
   it off for a component that will be fused into its neighbour. A floor nothing can reach is worse
   than none.
 
-With no measurement running, an annotated method costs one thread-local read.
+The annotations are armed by burn's `instrument` feature. Without it they compile away, so a library
+can annotate its components at no cost to a build that never measures; with it and no measurement
+running, an annotated method costs one thread-local read.
+
+### The layers of `burn::nn`
+
+The layers in `burn::nn` are components already, so a model built from them is broken down without
+annotating anything. The layers that run one operation (linear, embedding, the norms, the
+convolutions, the pools, the interpolations and the positional encodings) declare their floors.
+The feed-forward and the transformer's encoder and decoder, their layers and their stacks are priced
+whole as well, so the report can say what fusing inside them would recover. Attention and the
+recurrent layers are timed, and their parts are priced: their projections and gates, and the scaled
+dot product inside each attention. Where one
+type serves several roles in a layer, each runs under its role, so an attention's `query` and `key`
+projections are two components and not one `linear` entered twice. Annotate your own modules to
+name what composes them.
 
 ## Measuring a model
 
-Measuring needs a CubeCL runtime and, on a fused build, burn's `fusion` feature:
+Measuring needs burn's `instrument` feature, a CubeCL runtime and, on a fused build, burn's `fusion`
+feature:
 
 ```rust,ignore
 use burn::instrument::Instrument;
@@ -68,13 +84,18 @@ output dropped inside the run lets the fuser skip the work that wrote it:
   own wall time describes the instrumentation, not the model.
 - **the instrumented run**, whose breakdown the file holds.
 
-The `instrument` example does all of this for a small model:
+The text-classification example's `profile` does all of this for the AG News classifier, a
+transformer encoder built from `burn::nn`, and prints the report; with a path, it saves the
+measurement there too:
 
 ```sh
-cargo run --release -p instrument --features cuda -- model.json
+cargo run --release -p text-classification --example profile --features cuda -- model.json
 ```
 
 ## Reading the report
+
+`burn_instrument_report::Report` renders a measurement as the report, and `burn-instrument-report`
+prints a saved one:
 
 ```sh
 cargo run --release -p burn-instrument-report -- model.json

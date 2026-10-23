@@ -1,7 +1,9 @@
 use crate::Initializer;
+use crate::modules::bounds;
 use burn_core as burn;
 
 use burn::config::Config;
+use burn::instrument::{self, Bounds, compute};
 use burn::module::Param;
 use burn::module::{Content, DisplaySettings, Module, ModuleDisplay};
 use burn::tensor::module::linear;
@@ -112,6 +114,24 @@ impl LinearConfig {
 }
 
 impl Linear {
+    /// The floor for running this projection alone: read the input and the parameters once,
+    /// write the output once.
+    pub(crate) fn bounds<const D: usize>(&self, input: &Tensor<D>) -> Bounds {
+        let weight = self.weight.val();
+        let [d_input, d_output] = weight.dims().map(|dim| dim as u64);
+        let rows: u64 = input.dims()[..D - 1]
+            .iter()
+            .map(|dim| *dim as u64)
+            .product();
+        Bounds {
+            read: instrument::tensor_bytes(input)
+                + instrument::tensor_bytes(&weight)
+                + bounds::optional_parameter(&self.bias),
+            write: rows * d_output * input.dtype().size() as u64,
+            flops: 2 * rows * d_input * d_output,
+        }
+    }
+
     /// Applies the forward pass on the input tensor.
     ///
     /// # Arguments
@@ -130,6 +150,7 @@ impl Linear {
     /// # Panics
     ///
     /// Panics if the last axis of `input` is not `d_input`.
+    #[compute(bounds = Self::bounds)]
     pub fn forward<const D: usize>(&self, input: Tensor<D>) -> Tensor<D> {
         let weight = self.weight.val();
         let [d_input, _] = weight.dims();
@@ -165,6 +186,30 @@ mod tests {
     use burn::tensor::Tolerance;
     use burn::tensor::{Shape, TensorData};
     type FT = f32;
+
+    /// A projection reads its input, weight and bias and writes its output once, at two flops
+    /// per multiply-add of every row.
+    #[cfg(feature = "std")]
+    #[test]
+    fn a_projection_declares_its_floor() {
+        let device = Default::default();
+        let linear = LinearConfig::new(3, 4).init(&device);
+        let input = Tensor::<3>::zeros([2, 5, 3], &device);
+
+        let recorded = crate::recording::recorded(|| {
+            linear.forward(input);
+        });
+
+        assert_eq!(recorded.lines(), ["linear"]);
+        assert_eq!(
+            recorded.declared("linear"),
+            Some(Bounds {
+                read: (2 * 5 * 3 + 3 * 4 + 4) * 4,
+                write: 2 * 5 * 4 * 4,
+                flops: 2 * 2 * 5 * 3 * 4,
+            })
+        );
+    }
 
     #[test]
     #[should_panic(expected = "assert_shape!(input, [.., d_input]): axis 1 expected 4, got 3")]

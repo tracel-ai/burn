@@ -5248,13 +5248,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "instrument"
-version = "0.23.0-pre.1"
-dependencies = [
- "burn",
-]
-
-[[package]]
 name = "internment"
 version = "0.8.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -10508,6 +10501,7 @@ name = "text-classification"
 version = "0.23.0-pre.1"
 dependencies = [
  "burn",
+ "burn-instrument-report",
  "derive-new",
  "log",
  "serde",
