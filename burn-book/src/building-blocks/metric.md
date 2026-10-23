@@ -14,6 +14,9 @@ throughout the training process. We currently offer a restricted range of metric
 | AUROC               | Calculate the area under curve of ROC in percentage                                         |
 | AUC-PR              | Calculate the area under the precision-recall curve (average precision) in percentage       |
 | Loss                | Output the loss used for the backward pass                                                  |
+| MseMetric (MSE)     | Mean squared error over regression predictions and targets                                  |
+| MaeMetric (MAE)     | Mean absolute error over regression predictions and targets                                 |
+| R2ScoreMetric (R²)  | Coefficient of determination for regression; higher is better                               |
 | CharErrorRate (CER) | Calculate Character Error Rate in percentage                                                |
 | WordErrorRate (WER) | Calculate Word Error Rate in percentage                                                     |
 | HammingScore        | Calculate hamming score (also known as multi-label or label-based accuracy) in percentage   |
@@ -57,11 +60,20 @@ adaptor code yourself.
 - `RegressionOutput`:
     - Use case: Regression tasks
     - Fields: `loss: Tensor<1>`, `output: Tensor<2>`, `targets: Tensor<2>`
-    - Adapted metrics: Loss
+    - Adapted metrics: Loss, MseMetric, MaeMetric, R2ScoreMetric
 - `SequenceOutput`:
     - Use case: Sequence prediction
     - Fields: `loss: Tensor<1>`, `logits: Tensor<3>`, `predictions: Option<Tensor<2, Int>>`, `targets: Tensor<2, Int>`
     - Adapted metrics: Accuracy, TopKAccuracy, Perplexity, CER, WER, Loss
+
+Regression metrics accept predictions and targets shaped `[samples, targets]`.
+MSE and MAE average over all values, including all target columns. R² computes
+one score per target and averages those scores uniformly. It uses all samples
+seen in the epoch, even when batches differ in size. For constant targets, R²
+is 1 for perfect predictions and 0 otherwise; it is undefined (`NaN`) when
+fewer than two samples have been seen. Register the metrics on a regression
+learner with `.metrics((MseMetric::new(), MaeMetric::new(), R2ScoreMetric::new()))`.
+The original `MSEMetric` and `MAEMetric` names are also available.
 
 \* Precision, Recall, FBetaScore, AUROC, and AUC-PR all use `ConfusionStatsInput` as their input type so these 
 metrics are automatically (implicitly) adapted since `ConfusionStatsInput` is adapted.
