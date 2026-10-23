@@ -22,9 +22,9 @@ use burn_std::{FloatDType, Slice};
 ///
 /// Flex CPU tensors without autodiff use a direct blocked factorization with
 /// matrix-matrix updates. Supported CubeCL devices with fixed 32-lane subgroups
-/// use tiled GPU kernels for F32 tensors without autodiff. These
-/// perform one final synchronous read of the failure status. Other dtypes,
-/// backends, and autodiff tensors use the portable tensor implementation, which
+/// use tiled GPU kernels for F32 tensors without autodiff. Both optimized paths
+/// return per-matrix status, checked synchronously once after factorization.
+/// Other dtypes, backends, and autodiff tensors use the portable tensor implementation, which
 /// synchronously checks each pivot. The portable path is slower on GPUs.
 ///
 /// # Panics
@@ -66,60 +66,44 @@ pub fn cholesky<const D: usize>(mut a: Tensor<D>, upper: bool) -> Tensor<D> {
     if needs_upcast {
         a = a.cast(FloatDType::F32);
     }
-    #[cfg(feature = "flex")]
+    #[cfg(any(feature = "flex", feature = "cubecl-backend"))]
     {
-        let device = a.device();
-        if !device.is_autodiff()
-            && matches!(
-                device.as_dispatch(),
-                burn_core::backend::DispatchDevice::Flex(_)
-            )
-            && matches!(a.dtype(), DType::F32 | DType::F64)
-        {
-            use crate::cholesky_cpu::CholeskyCpuOps;
-            use burn_core::backend::Dispatch;
-            let factor = Tensor::<D>::from_dispatch(<Dispatch as CholeskyCpuOps>::cholesky_cpu(
-                a.into_dispatch(),
-                upper,
-            ));
-            return if needs_upcast {
-                factor.cast(original_dtype)
-            } else {
-                factor
-            };
-        }
-    }
+        use crate::cholesky::CholeskyOps;
+        use burn_core::backend::Dispatch;
+        use burn_core::tensor::Int;
 
-    #[cfg(any(
-        feature = "wgpu",
-        feature = "webgpu",
-        feature = "vulkan",
-        feature = "metal",
-        feature = "cuda",
-        feature = "rocm",
-        feature = "cpu"
-    ))]
-    {
         let device = a.device();
-        if !device.is_autodiff()
-            && matches!(
-                device.as_dispatch(),
-                burn_core::backend::DispatchDevice::Cube(cube)
-                    if crate::cholesky_gpu::supported(cube, n, dims[..D-2].iter().product())
-            )
-            && a.dtype() == DType::F32
-        {
-            use crate::cholesky_gpu::CholeskyGpuOps;
-            use burn_core::backend::Dispatch;
-            use burn_core::tensor::Int;
-            let (factor, info) =
-                <Dispatch as CholeskyGpuOps>::cholesky_gpu(a.into_dispatch(), upper);
-            let info = Tensor::<2, Int>::from_dispatch(info).into_data();
-            for pivot in info.iter::<i32>() {
+        let supported = !device.is_autodiff()
+            && match device.as_dispatch() {
+                #[cfg(feature = "flex")]
+                burn_core::backend::DispatchDevice::Flex(_) => {
+                    matches!(a.dtype(), DType::F32 | DType::F64)
+                }
+                #[cfg(any(
+                    feature = "wgpu",
+                    feature = "webgpu",
+                    feature = "vulkan",
+                    feature = "metal",
+                    feature = "cuda",
+                    feature = "rocm",
+                    feature = "cpu"
+                ))]
+                burn_core::backend::DispatchDevice::Cube(cube) => {
+                    a.dtype() == DType::F32
+                        && crate::cholesky_gpu::supported(cube, n, dims[..D - 2].iter().product())
+                }
+                #[allow(unreachable_patterns)]
+                _ => false,
+            };
+        if supported {
+            let (factor, info) = <Dispatch as CholeskyOps>::cholesky(a.into_dispatch(), upper);
+            let info = Tensor::<1, Int>::from_dispatch(info).into_data();
+            for (batch, pivot) in info.iter::<i32>().enumerate() {
                 assert!(
                     pivot == 0,
-                    "linalg::cholesky: input is not positive definite or has non-finite values (pivot {})",
-                    pivot
+                    "linalg::cholesky: input is not positive definite or has non-finite values (pivot {}, batch {})",
+                    pivot,
+                    batch
                 );
             }
             let factor = Tensor::<D>::from_dispatch(factor);

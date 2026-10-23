@@ -1,17 +1,18 @@
 //! Direct Flex CPU factorization. The public function handles shapes, dtype
 //! promotion, and routing; gradient-enabled tensors use the tensor algorithm.
-use burn_core as burn;
-use burn_core::backend::{Backend, Flex, backend_extension, tensor::FloatTensor};
+use crate::cholesky::CholeskyOps;
+use alloc::{vec, vec::Vec};
+use burn_core::backend::{
+    Flex, TensorMetadata,
+    ops::IntTensorOps,
+    tensor::{FloatTensor, IntTensor},
+};
+use burn_core::tensor::TensorData;
 use burn_std::DType;
 use num_traits::Float;
 
-#[backend_extension(Flex: cfg(feature = "flex"))]
-pub(crate) trait CholeskyCpuOps: Backend {
-    fn cholesky_cpu(tensor: FloatTensor<Self>, upper: bool) -> FloatTensor<Self>;
-}
-
-impl CholeskyCpuOps for Flex {
-    fn cholesky_cpu(tensor: FloatTensor<Self>, upper: bool) -> FloatTensor<Self> {
+impl CholeskyOps for Flex {
+    fn cholesky(tensor: FloatTensor<Self>, upper: bool) -> (FloatTensor<Self>, IntTensor<Self>) {
         let shape = tensor.layout().shape();
         let n = shape[shape.num_dims() - 1];
         let len = shape.num_elements();
@@ -22,22 +23,25 @@ impl CholeskyCpuOps for Flex {
         } else {
             tensor.to_contiguous()
         };
-        match tensor.dtype() {
+        let info = match tensor.dtype() {
             DType::F32 => factor_batch(&mut tensor.storage_mut::<f32>()[..len], n, upper),
             DType::F64 => factor_batch(&mut tensor.storage_mut::<f64>()[..len], n, upper),
             _ => unreachable!("Cholesky CPU inputs must be promoted to F32 or F64"),
-        }
-        tensor
+        };
+        let batch = info.len();
+        let info = Self::int_from_data(TensorData::new(info, [batch]), &tensor.device());
+        (tensor, info)
     }
 }
 
-fn factor_batch<T: Float + 'static>(values: &mut [T], n: usize, upper: bool) {
+fn factor_batch<T: Float + 'static>(values: &mut [T], n: usize, upper: bool) -> Vec<i32> {
     // The public API returns empty inputs before entering this kernel.
     assert!(n > 0);
     let matrix_len = n.checked_mul(n).expect("Cholesky matrix size overflow");
     assert_eq!(values.len() % matrix_len, 0);
     assert!(isize::try_from(matrix_len).is_ok());
-    for (batch, a) in values.chunks_exact_mut(matrix_len).enumerate() {
+    let mut info = vec![0; values.len() / matrix_len];
+    for (a, status) in values.chunks_exact_mut(matrix_len).zip(info.iter_mut()) {
         if upper {
             // Copy only the authoritative upper entries. Finish the copy
             // before clearing the upper triangle, which still holds inputs.
@@ -52,11 +56,8 @@ fn factor_batch<T: Float + 'static>(values: &mut [T], n: usize, upper: bool) {
             a[i * n + i + 1..(i + 1) * n].fill(T::zero());
         }
         if let Err(pivot) = factor(a, n) {
-            panic!(
-                "linalg::cholesky: input is not positive definite or has non-finite values (pivot {}, batch {})",
-                pivot + 1,
-                batch
-            );
+            *status = i32::try_from(pivot + 1).expect("Cholesky pivot index exceeds I32");
+            continue;
         }
         // GEMM also updates the unused portion of each diagonal block.
         for i in 0..n {
@@ -66,6 +67,7 @@ fn factor_batch<T: Float + 'static>(values: &mut [T], n: usize, upper: bool) {
             transpose(a, n);
         }
     }
+    info
 }
 
 fn transpose<T>(a: &mut [T], n: usize) {

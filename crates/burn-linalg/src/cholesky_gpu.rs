@@ -5,10 +5,10 @@
 //! Panel workgroups independently factor the small diagonal tile. They write
 //! only the factor buffer; other workgroups update disjoint workspace tiles.
 //! This avoids inter-workgroup barriers and needs only ceil(n / B) launches.
+use crate::cholesky::CholeskyOps;
 use alloc::vec::Vec;
-use burn_core as burn;
 use burn_core::backend::{
-    Backend, TensorMetadata, backend_extension,
+    TensorMetadata,
     tensor::{FloatTensor, IntTensor},
 };
 use burn_cubecl::{CubeBackend, cubecl, ops::numeric::empty_device_contiguous_dtype};
@@ -39,22 +39,6 @@ pub(crate) fn supported(device: &burn_cubecl::CubeDevice, n: usize, batch: usize
         && n.checked_mul(n)
             .and_then(|v| v.checked_mul(batch))
             .is_some_and(|v| v <= u32::MAX as usize)
-}
-
-#[backend_extension(
-    Cube: cfg(any(feature = "wgpu", feature = "webgpu", feature = "vulkan",
-        feature = "metal", feature = "cuda", feature = "rocm", feature = "cpu")),
-    Fusion: cfg(feature = "fusion")
-)]
-pub(crate) trait CholeskyGpuOps: Backend {
-    #[fusion(meta = |tensor, _upper| {
-        let n = tensor.shape[tensor.shape.num_dims() - 1];
-        let batch = tensor.shape.num_elements() / (n * n);
-        (tensor.clone(), burn::backend::fusion::custom::TensorSpec::new(
-            Shape::new([batch, n.div_ceil(BLOCK)]), DType::I32))
-    })]
-    fn cholesky_gpu(tensor: FloatTensor<Self>, upper: bool)
-    -> (FloatTensor<Self>, IntTensor<Self>);
 }
 
 #[cube(launch_unchecked, address_type = "dynamic")]
@@ -233,17 +217,20 @@ fn panel(
             }
         }
         if tile == 0 && tid == 0 {
-            let info_index = batch * info.shape(1) + start / block;
-            info[info_index] = failure;
+            // Only the diagonal workgroup writes status. Initialize it on the
+            // first launch and preserve the earliest failure across panels.
+            if start == 0 {
+                info[batch] = 0;
+            }
+            if failure != 0 && info[batch] == 0 {
+                info[batch] = failure;
+            }
         }
     }
 }
 
-impl CholeskyGpuOps for CubeBackend {
-    fn cholesky_gpu(
-        tensor: FloatTensor<Self>,
-        upper: bool,
-    ) -> (FloatTensor<Self>, IntTensor<Self>) {
+impl CholeskyOps for CubeBackend {
+    fn cholesky(tensor: FloatTensor<Self>, upper: bool) -> (FloatTensor<Self>, IntTensor<Self>) {
         let tensor = burn_cubecl::kernel::untile(tensor);
         assert_eq!(tensor.dtype, DType::F32);
         let shape = tensor.shape();
@@ -266,7 +253,7 @@ impl CholeskyGpuOps for CubeBackend {
         let info = empty_device_contiguous_dtype(
             client.clone(),
             tensor.device.clone(),
-            Shape::new([batch, n.div_ceil(BLOCK)]),
+            Shape::new([batch]),
             DType::I32,
         );
         // Views may refer to a larger allocation than their logical shape.

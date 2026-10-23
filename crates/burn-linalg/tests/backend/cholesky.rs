@@ -450,7 +450,7 @@ fn test_cholesky_rejects_invalid_later_batch_and_panel() {
     let device = Default::default();
     let n = 65;
     for upper in [false, true] {
-        for pivot in [16, 32, 64] {
+        for pivot in [0, 16, 32, 64] {
             // Keep the first matrix valid; fail only in the second matrix,
             // including panels that read the GPU workspace.
             let mut matrices = vec![0.0; 2 * n * n];
@@ -461,7 +461,7 @@ fn test_cholesky_rejects_invalid_later_batch_and_panel() {
             }
             matrices[n * n + pivot * n + pivot] = 0.0;
             let input = TestTensor::<3>::from_data(TensorData::new(matrices, [2, n, n]), &device);
-            assert_rejected(input, upper);
+            assert_panics_with(input, upper, &format!("pivot {}", pivot + 1));
         }
     }
 }
