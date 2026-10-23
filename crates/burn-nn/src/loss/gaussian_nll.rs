@@ -103,7 +103,7 @@ impl GaussianNLLLoss {
     ///
     /// # Panics
     ///
-    /// In debug builds, panics if any variance entry is negative. Zero and small positive
+    /// In debug builds, panics if any variance entry is negative or NaN. Zero and small positive
     /// variances are still clamped to `eps`.
     pub fn forward_no_reduction<const D: usize>(
         &self,
@@ -206,6 +206,26 @@ mod tests {
         let at_eps = loss.forward_no_reduction(input, target, var_eps);
 
         clamped
+            .into_data()
+            .assert_approx_eq::<FT>(&at_eps.into_data(), Tolerance::default());
+    }
+
+    #[test]
+    fn zero_variance_clamps_to_eps_without_panicking() {
+        let device = Default::default();
+        let input = Tensor::<1>::from_data(TensorData::from([1.0, 2.0]), &device);
+        let target = Tensor::<1>::from_data(TensorData::from([1.5, 1.0]), &device);
+
+        let loss = GaussianNLLLossConfig::new().init(); // eps = 1e-6
+
+        // Zero variance is valid and must not trip the debug-only check; it clamps to `eps`.
+        let var_zero = Tensor::<1>::from_data(TensorData::from([0.0, 0.0]), &device);
+        let var_eps = Tensor::<1>::from_data(TensorData::from([1e-6, 1e-6]), &device);
+
+        let at_zero = loss.forward_no_reduction(input.clone(), target.clone(), var_zero);
+        let at_eps = loss.forward_no_reduction(input, target, var_eps);
+
+        at_zero
             .into_data()
             .assert_approx_eq::<FT>(&at_eps.into_data(), Tolerance::default());
     }
