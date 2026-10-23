@@ -974,6 +974,7 @@ fn an_unprobed_device_scores_nothing_rather_than_printing_a_guess() {
 #[test]
 fn an_impossible_write_ceiling_is_reported_not_divided_by() {
     let broken = Peaks {
+        launch_seconds: None,
         copy_bytes_per_s: Some(156.0e9),
         read_bytes_per_s: Some(227.0e9),
         write_bytes_per_s: Some(281.0e9),
@@ -1011,6 +1012,7 @@ fn ceilings_that_do_not_predict_each_other_are_a_caveat_not_a_fallback() {
     // Plausible in their ordering, so nothing is rejected; but 234 and 212
     // predict a 222 GB/s copy ceiling against a measured 140.
     let odd = Peaks {
+        launch_seconds: None,
         copy_bytes_per_s: Some(140.0e9),
         read_bytes_per_s: Some(234.0e9),
         write_bytes_per_s: Some(212.0e9),
