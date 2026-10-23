@@ -1,0 +1,274 @@
+# Changelog
+
+Changes for the next release. For published releases, see
+[GitHub Releases](https://github.com/tracel-ai/burn/releases).
+
+## Unreleased
+
+### Device-time instrumentation
+
+`burn-instrument` and `#[compute]` annotations measure device time by model component. Measurement
+files and reports can be analyzed without a runtime.
+([#6131](https://github.com/tracel-ai/burn/pull/6131),
+[#6143](https://github.com/tracel-ai/burn/pull/6143))
+
+### Execution performance
+
+#### Kernels
+
+- Enable grouped-query attention on CubeCL backends.
+  ([#6127](https://github.com/tracel-ai/burn/pull/6127))
+- Enable CUDA tensor-core acceleration on Blackwell and Blackwell Ultra GPUs, including B300.
+  ([#6161](https://github.com/tracel-ai/burn/pull/6161))
+- Improve CubeCL CPU matrix multiplication by selecting tile sizes that fit the vector width.
+  ([#6177](https://github.com/tracel-ai/burn/pull/6177))
+- Speed up CubeCL `conv_transpose3d` and reduce Flex `conv2d` memory use and layout conversions.
+  ([#5793](https://github.com/tracel-ai/burn/pull/5793),
+  [#6075](https://github.com/tracel-ai/burn/pull/6075))
+
+#### Compilation and autotuning
+
+- Compile autotuning candidates in parallel, including CUDA binary assembly, to reduce startup time.
+  ([#5996](https://github.com/tracel-ai/burn/pull/5996),
+  [#6074](https://github.com/tracel-ai/burn/pull/6074))
+- Reuse compiled CPU kernels across process runs when persistent compilation caching is enabled.
+  ([#6099](https://github.com/tracel-ai/burn/pull/6099))
+- Share autotuning results across devices with the same hardware. Previously saved per-device
+  results are tuned again once. ([#6150](https://github.com/tracel-ai/burn/pull/6150))
+- Avoid excessive kernel compilation for large depthwise-convolution filters.
+  ([#6072](https://github.com/tracel-ai/burn/pull/6072))
+- Stop dumping LLVM compiler IR into normal experiment logs, reducing compilation overhead and log
+  size. ([#6188](https://github.com/tracel-ai/burn/pull/6188),
+  [CubeCL #1895](https://github.com/tracel-ai/cubecl/pull/1895))
+
+### Runtime configuration
+
+Matrix multiplication precision is now configurable through `[cubek.matmul].allow_tf32` in
+`burn.toml`. Set it to `false` to disable automatic F32-to-TF32 conversion; the default is `true`.
+([#6170](https://github.com/tracel-ai/burn/pull/6170))
+
+```toml
+# burn.toml
+[cubek.matmul]
+allow_tf32 = false
+```
+
+See [runtime configuration](./advanced/runtime-configuration.md#cubek-matmul-precision) for details.
+
+### Distributed and remote execution
+
+#### Distributed collectives
+
+**Breaking:** `distributed::all_reduce` and `CollectiveTensor` have been removed. Use
+`Tensor::all_reduce(tensors, op)`, passing all participating tensors together. Only one
+`DistributedContext` may be alive per backend in a process.
+([#6144](https://github.com/tracel-ai/burn/pull/6144),
+[#6183](https://github.com/tracel-ai/burn/pull/6183))
+
+`Tensor::all_reduce`, `reduce_scatter`, `all_gather`, `all_to_all`, and `broadcast` provide
+collectives across a group of devices. Reductions support float and integer tensors; gather,
+all-to-all, and broadcast also support boolean tensors. Quantized tensors are rejected.
+([#6183](https://github.com/tracel-ai/burn/pull/6183))
+
+- Fix DDP gradient-synchronization hangs across local and remote devices.
+  ([#6144](https://github.com/tracel-ai/burn/pull/6144))
+- Coordinate DDP batch availability before backward passes and synchronize epoch transitions.
+  Workers must yield the same number of training batches; uneven exhaustion now reports an error.
+  ([#6184](https://github.com/tracel-ai/burn/pull/6184))
+
+#### Remote execution
+
+**Breaking:** Remote clients and servers must be upgraded together for the new protocol.
+([#6002](https://github.com/tracel-ai/burn/pull/6002),
+[#6010](https://github.com/tracel-ai/burn/pull/6010),
+[#6144](https://github.com/tracel-ai/burn/pull/6144))
+
+- Support quantized tensors on the remote backend and transfers larger than 1 GiB through segmented
+  messages. ([#6010](https://github.com/tracel-ai/burn/pull/6010),
+  [#6002](https://github.com/tracel-ai/burn/pull/6002))
+- Allow reconnecting after a remote server restart and prevent transfers between independent clients
+  from receiving the wrong tensor. Tensors from an ended session remain invalid.
+  ([#5951](https://github.com/tracel-ai/burn/pull/5951),
+  [#6145](https://github.com/tracel-ai/burn/pull/6145))
+- Speed up remote tensor transfers and batched reads.
+  ([#5983](https://github.com/tracel-ai/burn/pull/5983),
+  [#5989](https://github.com/tracel-ai/burn/pull/5989),
+  [#6017](https://github.com/tracel-ai/burn/pull/6017))
+
+### Training and modules
+
+#### More flexible `#[derive(Module)]`
+
+`#[derive(Module)]` now supports generic fields, associated types, and recursive modules. Trait
+bounds are inferred from the actual field types, and generics can be shared between module fields
+and skipped configuration or caches. This makes reusable module definitions easier to write.
+([#6059](https://github.com/tracel-ai/burn/pull/6059))
+
+#### Dataloader progress and training completion
+
+**Breaking:** Progress counts samples in yielded batches, independently of iterator exhaustion.
+Training no longer treats reaching the reported total as completion, supporting custom batching
+strategies that buffer or drop samples and loaders with unknown output counts.
+
+Replace `Progress::items_total` with `total: Option<usize>` (`None` means unknown), and use iterator
+exhaustion instead of `Progress::is_completed()`. Custom loaders and batching strategies can
+implement `expected_num_items()` to report their output sample count; `DataLoader::num_items()`
+describes the input dataset size.
+
+Split-start events now carry `Progress`. Update terminal event matches to
+`EndSplit { epoch, progress }` and `EndTest { progress }`. Progress logger callbacks for starting,
+updating, and ending splits now receive `&Progress`, including final snapshots for empty,
+interrupted, or failed splits. ([#6184](https://github.com/tracel-ai/burn/pull/6184))
+
+For example, update custom progress logger implementations:
+
+```diff
+- fn end_split(&mut self);
++ fn end_split(&mut self, progress: &Progress);
+
+- fn end_test(&mut self);
++ fn end_test(&mut self, progress: &Progress);
+```
+
+- Flush partial gradient accumulation only after normal dataloader exhaustion. An interruption or
+  error observed before that update discards the pending window.
+  ([#6184](https://github.com/tracel-ai/burn/pull/6184))
+
+#### Stateful feed-forward activations
+
+Stateful `PositionWiseFeedForward` activations such as PReLU and SwiGLU are now trained and
+persisted. Older checkpoints lack these activation parameters; retain their initialized values when
+loading those checkpoints by filtering to `linear_inner` and `linear_outer`.
+([#5932](https://github.com/tracel-ai/burn/pull/5932))
+
+#### Modules, losses, and metrics
+
+- Add `MultiHeadAttention::forward_cache_context` for faster cached inference when attention weights
+  are not needed. ([#6125](https://github.com/tracel-ai/burn/pull/6125))
+- Add `AvgPool3d`, `MaxPool3d`, `LpPool1d`, and `LpPool2d` pooling modules.
+  ([#5801](https://github.com/tracel-ai/burn/pull/5801),
+  [#5977](https://github.com/tracel-ai/burn/pull/5977))
+- Add the Matthews correlation coefficient metric for binary and multiclass classification.
+  ([#5818](https://github.com/tracel-ai/burn/pull/5818))
+- Improve half-precision CTC loss and transposed-convolution accuracy. Fix CTC execution through
+  router and remote backends and reject CTC inputs exceeding the device shared-memory limit.
+  ([#6103](https://github.com/tracel-ai/burn/pull/6103),
+  [#5963](https://github.com/tracel-ai/burn/pull/5963),
+  [#6001](https://github.com/tracel-ai/burn/pull/6001),
+  [#6029](https://github.com/tracel-ai/burn/pull/6029))
+- Return zero attention for fully masked rows instead of producing NaNs.
+  ([#6039](https://github.com/tracel-ai/burn/pull/6039))
+- Correct accelerated attention results for padding masks broadcast across query positions.
+  ([#6008](https://github.com/tracel-ai/burn/pull/6008))
+- Correct max-pooling SAME padding with dilation. Reject unsupported asymmetric
+  deformable-convolution padding and invalid binary-cross-entropy inputs.
+  ([#6023](https://github.com/tracel-ai/burn/pull/6023),
+  [#6101](https://github.com/tracel-ai/burn/pull/6101),
+  [#5969](https://github.com/tracel-ai/burn/pull/5969))
+- Keep LBFGS parameter updates aligned when some parameters have no gradients, including when
+  optimizer history exists. ([#6121](https://github.com/tracel-ai/burn/pull/6121))
+- Reject incomplete LPIPS pretrained weights instead of silently using random parameters, and
+  correct the AlexNet checkpoint. Use `try_init_pretrained` or `try_load_pretrained_weights` to
+  handle loading failures without panicking. ([#6067](https://github.com/tracel-ai/burn/pull/6067))
+- Default the F-beta metric to F1 and require a finite, positive beta. Correct CER padding handling
+  and WER calculations when reference and prediction sequence lengths differ.
+  ([#5965](https://github.com/tracel-ai/burn/pull/5965),
+  [#5945](https://github.com/tracel-ai/burn/pull/5945),
+  [#6028](https://github.com/tracel-ai/burn/pull/6028))
+- Fix CPU non-maximum-suppression results and restore GPU acceleration for connected components.
+  ([#6019](https://github.com/tracel-ai/burn/pull/6019),
+  [#6003](https://github.com/tracel-ai/burn/pull/6003))
+
+### Tensors and backends
+
+#### NdArray and LibTorch backend removal
+
+**Breaking:** The deprecated NdArray and LibTorch backends have been removed. Replace `NdArray` or
+`Tch` and their feature flags with a supported backend, such as `Flex` for CPU execution.
+([#5999](https://github.com/tracel-ai/burn/pull/5999),
+[#6009](https://github.com/tracel-ai/burn/pull/6009))
+
+#### Tensor operations
+
+- **Breaking:** Reject malformed quantized `TensorData` during construction and deserialization,
+  including payloads missing required padding or scales. Use `try_from_bytes` to handle errors.
+  ([#5978](https://github.com/tracel-ai/burn/pull/5978),
+  [#6004](https://github.com/tracel-ai/burn/pull/6004))
+- Support every symmetric quantization scheme on Flex, including FP8 and FP4, while preserving the
+  requested scheme when reading tensor data. ([#6004](https://github.com/tracel-ai/burn/pull/6004))
+- Add `Tensor::round_to(decimals)` for rounding to a specified number of decimal places.
+  ([#5842](https://github.com/tracel-ai/burn/pull/5842))
+- Support all indexing update operations for boolean `scatter` and `select_assign`, and add boolean
+  `scatter_nd` and `gather_nd`. `Add`/`Max` use logical OR; `Mul`/`Min` use logical AND.
+  ([#6035](https://github.com/tracel-ai/burn/pull/6035),
+  [#6047](https://github.com/tracel-ai/burn/pull/6047))
+- Add dtype-aware `TensorData::random_dtype`, `zeros_dtype`, and `ones_dtype` constructors.
+  ([#6088](https://github.com/tracel-ai/burn/pull/6088))
+- Add `CaptureScope::input`, `CaptureScope::complete_with`, and `Tensor::capture_id` helpers for
+  declaring graph inputs and outputs. ([#5990](https://github.com/tracel-ai/burn/pull/5990))
+
+#### Fusion and correctness fixes
+
+- Fix concurrent CUDA transfers between devices returning another transfer's data or deadlocking.
+  ([#6008](https://github.com/tracel-ai/burn/pull/6008))
+- Report lost WGPU devices instead of hanging during synchronization, and avoid Vulkan loader
+  crashes during concurrent device enumeration.
+  ([#6008](https://github.com/tracel-ai/burn/pull/6008))
+- Fix compiler simplifications that changed NaN and signed-zero results, and invalid fused
+  multiply-add generation for complex types. ([#6161](https://github.com/tracel-ai/burn/pull/6161))
+- Fix half-precision `tanh` compilation with CUDA toolkits older than 12.8.
+  ([#6188](https://github.com/tracel-ai/burn/pull/6188),
+  [CubeCL #1856](https://github.com/tracel-ai/cubecl/pull/1856))
+- Fix incorrect results and out-of-bounds accesses in fused operations with mixed vector widths,
+  including quantized tensors and gather/select autotuning.
+  ([#6138](https://github.com/tracel-ai/burn/pull/6138),
+  [#6169](https://github.com/tracel-ai/burn/pull/6169),
+  [#6091](https://github.com/tracel-ai/burn/pull/6091),
+  [#6076](https://github.com/tracel-ai/burn/pull/6076))
+- Fix fusion failures when tensors are dropped on another thread, and report failed transaction
+  reads as errors instead of panicking. ([#6086](https://github.com/tracel-ai/burn/pull/6086),
+  [#5970](https://github.com/tracel-ai/burn/pull/5970),
+  [#5986](https://github.com/tracel-ai/burn/pull/5986))
+- Correct GELU gradients, scalar powers with integer exponents, and floating-point remainder results
+  for special values. ([#6114](https://github.com/tracel-ai/burn/pull/6114),
+  [#6058](https://github.com/tracel-ai/burn/pull/6058),
+  [#6045](https://github.com/tracel-ai/burn/pull/6045))
+- Preserve the Flex32 dtype during tensor uploads, `TensorData` conversions, and filled-data
+  construction. ([#6056](https://github.com/tracel-ai/burn/pull/6056),
+  [#6062](https://github.com/tracel-ai/burn/pull/6062),
+  [#6069](https://github.com/tracel-ai/burn/pull/6069))
+- Return off-value rows from `one_hot_fill` for out-of-range indices, including NaN and infinity.
+  ([#6065](https://github.com/tracel-ai/burn/pull/6065))
+
+### Checkpoints and interoperability
+
+#### Checkpoint adapters use `StoreTensor`
+
+**Breaking:** Module adapters now use `StoreTensor` to preserve source tensor layouts during
+checkpoint loading. Use `StoreTensor` instead of `burn_pack::Tensor` in module adapters and
+`ModuleSnapshot::apply`. Convert pack tensors with `.into()`, use metadata accessors instead of
+public fields, and call `into_pack()` when a pack tensor is needed.
+([#6113](https://github.com/tracel-ai/burn/pull/6113))
+
+```rust,ignore
+let tensor: burn_store::StoreTensor = pack_tensor.into();
+let shape = tensor.shape();
+let pack_tensor = tensor.into_pack();
+```
+
+- Add `PytorchReader::from_bytes` for loading checkpoints from memory and configurable
+  `burn_pack::ReaderLimits` through `Reader::with_limits`.
+  ([#5755](https://github.com/tracel-ai/burn/pull/5755),
+  [#6007](https://github.com/tracel-ai/burn/pull/6007))
+- Speed up loading strided and transposed PyTorch checkpoint weights.
+  ([#6041](https://github.com/tracel-ai/burn/pull/6041),
+  [#6113](https://github.com/tracel-ai/burn/pull/6113))
+
+### Extensions
+
+#### FFTs of arbitrary sizes
+
+Real FFTs and their inverses now accept arbitrary sizes, removing the power-of-two restriction.
+Complex inverse FFT (`ifft`) is also available.
+([#5840](https://github.com/tracel-ai/burn/pull/5840),
+[#5757](https://github.com/tracel-ai/burn/pull/5757))

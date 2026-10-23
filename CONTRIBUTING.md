@@ -97,6 +97,35 @@ Prioritize documentation changes that improve correctness or understanding, such
 explanations, broken examples, or misleading API documentation. Maintainers may close purely
 cosmetic PRs to preserve review capacity.
 
+### Changelog
+
+User-visible changes must be recorded under `Unreleased` in
+[burn-book/src/changelog.md](burn-book/src/changelog.md) in the same PR. This includes public API
+and behavior changes, new functionality, significant bug fixes, and notable performance
+improvements. Internal refactors, test-only changes, and editorial corrections generally do not need
+entries.
+
+For CubeCL and CubeK updates, record significant user-visible benefits that Burn actually uses or
+exposes, rather than the version bump itself. Omit upstream refactors and capabilities not yet used
+by Burn.
+
+Keep entries concise and describe the impact on users. Give major features and breaking changes
+descriptive subsections, with migration steps and short API examples where useful. Smaller changes
+can remain bullets, grouped by topic when needed. For API changes, state what users need to replace
+or update. Link relevant PRs and credit their authors.
+
+Update existing entries for follow-up work, describing the resulting behavior and migration from the
+last release. Remove superseded guidance; retain relevant PR links and attribution.
+
+Group related API changes, additions, fixes, and performance improvements under the same topic. Lead
+with standout new capabilities and substantial execution-performance improvements, including kernel
+and fusion work. Within each topic, present major capabilities and breaking changes before focused
+improvements and fixes. Mark breaking changes explicitly. Place specialized features and
+integrations with narrower audiences later, while keeping related entries together.
+
+At release time, incorporate the pending entries into the release notes and any migration guide,
+then clear them. Published release history lives in GitHub Releases.
+
 ### Large Pull Requests
 
 Large, complex PRs are harder to review effectively and carry more risk. To help both yourself and

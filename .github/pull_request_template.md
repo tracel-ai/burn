@@ -5,6 +5,7 @@
 - [ ] I have reviewed and understand the changes in this PR.
 - [ ] Confirmed that `cargo run-checks` has been executed.
 - [ ] Made sure the book is up to date with changes in this PR.
+- [ ] Added or updated changelog entries for user-visible changes, if applicable (see [policy](../CONTRIBUTING.md#changelog)).
 
 > `cargo run-checks` tests with `Flex` by default. Use `cargo run-checks --backend <backend>` when
 > targeting another backend. Consider running additional tests relevant to the crates changed.
