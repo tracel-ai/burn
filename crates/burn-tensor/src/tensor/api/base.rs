@@ -3423,7 +3423,7 @@ impl<const D2: usize> ReshapeArgs<D2> for Shape {
     fn into_shape<const D: usize>(self, source: Shape) -> Shape {
         // A `Shape` holds concrete dimensions, so a `0` is a zero-length dimension rather than
         // the "keep this dimension" placeholder of the array form.
-        check!(TensorCheck::reshape(&source, &self));
+        check!(TensorCheck::reshape::<D2>(&source, &self));
         self
     }
 }

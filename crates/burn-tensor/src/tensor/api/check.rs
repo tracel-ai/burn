@@ -244,7 +244,7 @@ impl TensorCheck {
         check
     }
 
-    pub(crate) fn reshape(source: &Shape, target: &Shape) -> Self {
+    pub(crate) fn reshape<const D2: usize>(source: &Shape, target: &Shape) -> Self {
         let mut check = Self::Ok;
 
         if source.num_elements() != target.num_elements() {
@@ -252,6 +252,15 @@ impl TensorCheck {
                 "Reshape",
                 TensorError::new(format!(
                     "The given shape doesn't have the same number of elements as the current shape. Current shape: {source}, target shape: {target}."
+                )),
+            );
+        }
+
+        if target.num_dims() != D2 {
+            check = check.register(
+                "Reshape",
+                TensorError::new(format!(
+                    "The given shape doesn't have the same number of dimensions as the target tensor. Target shape: {target}, expected rank: {D2}."
                 )),
             );
         }

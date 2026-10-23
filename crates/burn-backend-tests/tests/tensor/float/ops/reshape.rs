@@ -73,10 +73,22 @@ fn should_reshape_to_shape_with_zero_length_dim() {
 }
 
 #[test]
-#[should_panic(expected = "=== Tensor Operation Error ===")]
+#[should_panic(
+    expected = "The given shape doesn't have the same number of elements as the current shape."
+)]
 fn should_panic_reshape_to_shape_with_different_num_elements() {
     let tensor = TestTensor::<1>::zeros([3], &Default::default());
     let _reshaped: TestTensor<2> = tensor.reshape(Shape::new([2, 2]));
+}
+
+#[test]
+#[should_panic(
+    expected = "The given shape doesn't have the same number of dimensions as the target tensor."
+)]
+fn should_panic_reshape_to_shape_with_wrong_rank() {
+    let tensor = TestTensor::<1>::zeros([6], &Default::default());
+    // Same element count (6), but the `Shape` has rank 2 while the target type has rank 3.
+    let _reshaped: TestTensor<3> = tensor.reshape(Shape::new([2, 3]));
 }
 
 #[test]
