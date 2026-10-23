@@ -322,3 +322,25 @@ fn test_bicubic_exclude_outside_skips_nan_zero_weight_taps() {
         "Output index 4 must evaluate to 5.0, got {val_at_4}"
     );
 }
+
+#[test]
+fn test_bicubic_negative_retained_weight_sum_normalization() {
+    let device = Default::default();
+    if !format!("{device:?}").to_lowercase().contains("flex") {
+        return;
+    }
+    // [10.0, 20.0] resized to 1 pixel with a = -8.0, HalfPixel, exclude_outside = true
+    let input = TestTensor::<4>::from_data([[[[10.0, 20.0]]]], &device);
+    let options = InterpolateOptions::new(InterpolateMode::Bicubic)
+        .with_coordinate_transform(CoordinateTransformMode::HalfPixel)
+        .with_cubic_options(CubicOptions {
+            a: -8.0,
+            exclude_outside: true,
+        })
+        .with_output_size([1, 1]);
+
+    let output = burn_tensor::module::interpolate(input, options);
+    let val: f32 = output.into_data().try_into_vec_as::<f32>().unwrap()[0];
+    // Both valid weights are -0.5, summing to -1.0. Normalizing gives 0.5 each -> 15.0
+    assert!((val - 15.0).abs() < 1e-4, "Expected 15.0, got {val}");
+}

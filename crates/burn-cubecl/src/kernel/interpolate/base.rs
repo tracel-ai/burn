@@ -159,15 +159,42 @@ pub(crate) fn map_options(
         );
     }
 
+    if matches!(
+        options.mode,
+        InterpolateMode::Nearest | InterpolateMode::NearestExact
+    ) {
+        match (
+            options.mode,
+            options.coordinate_transform,
+            options.nearest_mode,
+        ) {
+            (
+                InterpolateMode::Nearest,
+                CoordinateTransformMode::Asymmetric,
+                NearestRoundingMode::Floor,
+            )
+            | (
+                InterpolateMode::NearestExact,
+                CoordinateTransformMode::HalfPixel,
+                NearestRoundingMode::RoundPreferCeil,
+            ) => {}
+            _ => panic!(
+                "CubeCL backend does not yet support nearest interpolation with mode {:?}, transform {:?}, and rounding {:?}. Please run on Flex or wait for cubek upstream integration.",
+                options.mode, options.coordinate_transform, options.nearest_mode
+            ),
+        }
+    }
+
     if let Some(scale) = options.scale_factor {
         let is_align_corners =
             options.coordinate_transform == CoordinateTransformMode::AlignCorners;
         let is_compatible_half_pixel_or_asym = match (options.mode, options.coordinate_transform) {
-            (
-                InterpolateMode::Nearest | InterpolateMode::NearestExact,
-                CoordinateTransformMode::Asymmetric,
-            )
-            | (_, CoordinateTransformMode::HalfPixel) => {
+            (InterpolateMode::Nearest, CoordinateTransformMode::Asymmetric)
+            | (InterpolateMode::NearestExact, CoordinateTransformMode::HalfPixel)
+            | (
+                InterpolateMode::Bilinear | InterpolateMode::Bicubic | InterpolateMode::Lanczos3,
+                CoordinateTransformMode::HalfPixel,
+            ) => {
                 let ratio_h = output_size[0] as f64 / in_size[0] as f64;
                 let ratio_w = output_size[1] as f64 / in_size[1] as f64;
                 f64::from(scale[0]) == ratio_h && f64::from(scale[1]) == ratio_w
@@ -182,36 +209,18 @@ pub(crate) fn map_options(
         }
     }
 
-    let align_corners = match (options.mode, options.coordinate_transform) {
-        // Legacy nearest in Burn / cubek executes with align_corners = false
-        (
-            InterpolateMode::Nearest | InterpolateMode::NearestExact,
-            CoordinateTransformMode::Asymmetric,
-        ) => false,
-        (InterpolateMode::NearestExact, CoordinateTransformMode::HalfPixel) => false,
-        (_, CoordinateTransformMode::HalfPixel) => false,
-        (_, CoordinateTransformMode::AlignCorners) => true,
+    let align_corners = match options.coordinate_transform {
+        CoordinateTransformMode::Asymmetric if matches!(options.mode, InterpolateMode::Nearest) => {
+            false
+        }
+        CoordinateTransformMode::HalfPixel => false,
+        CoordinateTransformMode::AlignCorners => true,
         _ => {
             panic!(
                 "CubeCL backend does not yet support extended coordinate transform/nearest modes. Please run on Flex or wait for cubek upstream integration."
             );
         }
     };
-
-    match (options.mode, options.nearest_mode) {
-        (InterpolateMode::Nearest, NearestRoundingMode::Floor) => {}
-        (
-            InterpolateMode::NearestExact,
-            NearestRoundingMode::RoundPreferCeil | NearestRoundingMode::Floor,
-        ) => {}
-        (
-            InterpolateMode::Bilinear | InterpolateMode::Bicubic | InterpolateMode::Lanczos3,
-            NearestRoundingMode::RoundPreferFloor,
-        ) => {}
-        _ => panic!(
-            "CubeCL backend does not yet support extended coordinate transform/nearest modes. Please run on Flex or wait for cubek upstream integration."
-        ),
-    }
 
     CubekInterpolateOptions {
         mode: map_mode(options.mode),

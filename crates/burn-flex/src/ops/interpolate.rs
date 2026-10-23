@@ -672,7 +672,7 @@ fn bicubic_axis_taps(
                             }
                         }
 
-                        if sum > 1e-6 {
+                        if sum.abs() > 1e-6 {
                             for tap in taps.iter_mut() {
                                 tap.weight /= sum;
                             }
