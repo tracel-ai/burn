@@ -89,7 +89,7 @@ transformer encoder built from `burn::nn`, and prints the report; with a path, i
 measurement there too:
 
 ```sh
-cargo run --release -p text-classification --example profile --features cuda -- model.json
+cargo run --release -p text-classification --example profile --features cuda,profile -- model.json
 ```
 
 ## Reading the report

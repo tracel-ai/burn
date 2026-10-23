@@ -116,6 +116,9 @@ impl LinearConfig {
 impl Linear {
     /// The floor for running this projection alone: read the input and the parameters once,
     /// write the output once.
+    ///
+    /// Assumes a floating-point input: the output is priced at the input's width, which
+    /// undercounts it for a quantized input projected to floating point.
     pub(crate) fn bounds<const D: usize>(&self, input: &Tensor<D>) -> Bounds {
         let weight = self.weight.val();
         let [d_input, d_output] = weight.dims().map(|dim| dim as u64);

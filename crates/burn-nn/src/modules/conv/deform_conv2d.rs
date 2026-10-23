@@ -2,8 +2,7 @@ use crate::Initializer;
 use alloc::format;
 use burn::tensor::ops::DeformConvOptions;
 
-use crate::modules::bounds::{self, Windowing};
-use burn::instrument::{self, Bounds, compute};
+use burn::instrument::compute;
 use burn_core as burn;
 
 use crate::PaddingConfig2d;
@@ -163,24 +162,6 @@ impl ModuleDisplay for DeformConv2d {
 }
 
 impl DeformConv2d {
-    /// The floor for a deformable convolution alone: a convolution's, reading the offsets and
-    /// the mask besides. The output is as large as the offsets are, and the bilinear sampling
-    /// is not declared.
-    fn bounds(&self, input: &Tensor<4>, offset: &Tensor<4>, mask: &Option<Tensor<4>>) -> Bounds {
-        let convolution = Windowing {
-            output_size: bounds::spatial::<4, 2>(offset),
-            // An offset can move a tap anywhere, so every position may be read.
-            read_size: bounds::spatial(input),
-        }
-        .convolution(input, &self.weight.val(), &self.bias);
-        let sampling =
-            instrument::tensor_bytes(offset) + mask.as_ref().map_or(0, instrument::tensor_bytes);
-        Bounds {
-            read: convolution.read + sampling,
-            ..convolution
-        }
-    }
-
     /// Applies the forward pass on the input tensor.
     ///
     /// See [deform_conv2d](burn::tensor::module::deform_conv2d) for more information.
@@ -191,7 +172,9 @@ impl DeformConv2d {
     /// - offset: `[batch_size, 2 * offset_groups * kernel_height * kernel_width, height_out, width_out]`
     /// - mask: `[batch_size, offset_groups * kernel_height * kernel_width, height_out, width_out]`
     /// - output: `[batch_size, channels_out, height_out, width_out]`
-    #[compute(bounds = Self::bounds)]
+    ///
+    /// Timed without bounds: the input positions it samples depend on the offsets' values.
+    #[compute]
     pub fn forward(
         &self,
         input: Tensor<4>,
@@ -231,32 +214,20 @@ mod tests {
     use super::*;
     use burn::tensor::TensorData;
 
-    /// A deformable convolution reads its offsets and mask besides a convolution's operands, and
-    /// writes an output as large as the offsets are.
+    /// A deformable convolution is timed but declares no bounds.
     #[cfg(feature = "std")]
     #[test]
-    fn a_deformable_convolution_reads_its_offsets_and_mask() {
+    fn a_deformable_convolution_declares_no_bounds() {
         let device = Default::default();
         let conv = DeformConv2dConfig::new([2, 4], [3, 3]).init(&device);
         let input = Tensor::<4>::zeros([1, 2, 5, 5], &device);
         let offset = Tensor::<4>::zeros([1, 2 * 3 * 3, 3, 3], &device);
-        let mask = Tensor::<4>::ones([1, 3 * 3, 3, 3], &device);
-        let mut output = None;
 
         let recorded = crate::recording::recorded(|| {
-            output = Some(conv.forward(input, offset, Some(mask)));
+            conv.forward(input, offset, None);
         });
 
-        let output = output.unwrap();
-        assert_eq!(output.dims(), [1, 4, 3, 3]);
-        assert_eq!(
-            recorded.declared("deform conv2d"),
-            Some(Bounds {
-                read: (2 * 5 * 5 + 4 * 2 * 3 * 3 + 4 + 18 * 3 * 3 + 9 * 3 * 3) * 4,
-                write: burn::instrument::tensor_bytes(&output),
-                flops: 2 * (4 * 3 * 3) * 2 * 3 * 3,
-            })
-        );
+        assert_eq!(recorded.lines(), ["deform conv2d (unpriced)"]);
     }
 
     #[test]
