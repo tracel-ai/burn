@@ -40,6 +40,7 @@ use super::component_tree::{ComponentId, ComponentTree};
 use super::cursor::{Attribution, LaunchCursor};
 #[cfg(feature = "fusion")]
 use super::origins::{BlockOrigin, OperationId, OperationOrigins};
+use super::pricing::Floors;
 use super::timing::{Kept, Timed, Timeline, Timings};
 use super::watching::Watching;
 use crate::breakdown::Breakdown;
@@ -89,6 +90,8 @@ struct State {
     origins: OperationOrigins,
     /// Observed traffic not yet priced. See [`RunRecorder::price_observed`].
     unpriced: Vec<Unpriced>,
+    /// The floors of a pricing run, taken by the entries in the order they arrive.
+    floors: Floors,
 }
 
 /// Observed traffic not yet priced, and the component it arrived under.
@@ -98,20 +101,24 @@ struct Unpriced {
 }
 
 impl RunRecorder {
-    /// A recorder for work running on `device`.
+    /// A recorder for work running on `device`, its entries scored against
+    /// `floors`.
     ///
     /// Points every launching thread at no component first: the cursor is a
     /// thread-local, so a worker still pointing into a previous recorder's
     /// arena would record this one's first kernels at an index that means
     /// something else here.
-    pub fn new(device: &Device) -> Self {
+    pub fn new(device: &Device, floors: Floors) -> Self {
         let cursor = LaunchCursor::new(device);
         cursor.point_at(Attribution::Untagged);
         Self {
             device: device.clone(),
             epoch: Instant::now(),
             cursor,
-            state: Mutex::new(State::default()),
+            state: Mutex::new(State {
+                floors,
+                ..State::default()
+            }),
         }
     }
 
@@ -220,7 +227,14 @@ impl RunRecorder {
 
 impl ComponentObserver for RunRecorder {
     fn enter(&self, declared: Declaration<'_>) {
-        let entered = self.locked().tree.enter(declared);
+        let entered = {
+            let mut state = self.locked();
+            let floor = state.floors.next();
+            state.tree.enter(Declaration {
+                bounds: declared.bounds.or(floor),
+                ..declared
+            })
+        };
         // Outside the lock: a full queue waits for the worker, and the worker
         // may be waiting on the lock to record a launch.
         self.cursor.point_at(entered);
@@ -237,6 +251,11 @@ impl ComponentObserver for RunRecorder {
         if let Some(component) = state.tree.innermost() {
             state.unpriced.push(Unpriced { component, bounds });
         }
+    }
+
+    /// The floors came from the pricing run.
+    fn prices(&self) -> bool {
+        false
     }
 }
 
@@ -487,7 +506,7 @@ mod tests {
     }
 
     fn recorder() -> RunRecorder {
-        RunRecorder::new(&Device::flex())
+        RunRecorder::new(&Device::flex(), Floors::default())
     }
 
     /// A device timing of `micros`, as the runtime hands one over: unread.

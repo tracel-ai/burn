@@ -17,9 +17,10 @@ use burn_tensor::{DType, Tensor};
 /// children's in each direction ([`moves_within`](Self::moves_within)), and the gap is the
 /// intermediate traffic a perfect fuser would remove.
 ///
-/// Leave bounds off where a component will be fused into its neighbour, or where its floor
-/// depends on values the host does not have: a floor no achievable kernel can meet is worse than
-/// none.
+/// A floor that depends on the values, such as the distinct rows a lookup selects, may read them
+/// back: the `Instrument` evaluates bounds in a pricing run of their own, and
+/// the run it times evaluates none. Leave bounds off where a component will be fused into its
+/// neighbour: a floor no achievable kernel can meet is worse than none.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "std", serde(deny_unknown_fields))]

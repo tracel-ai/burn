@@ -43,7 +43,7 @@ fn reading_observed_values_back_launches_nothing_the_run_records() {
     device.sync().expect("the device answers before the run");
     core::mem::drop(warmed);
 
-    let breakdown = Instrument::new(&device).breakdown(|| Router.forward(input));
+    let breakdown = Instrument::new(&device).breakdown(|| Router.forward(input.clone()));
 
     let names: Vec<&str> = breakdown
         .untagged

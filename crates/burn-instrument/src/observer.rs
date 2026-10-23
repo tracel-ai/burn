@@ -24,6 +24,12 @@ pub trait ComponentObserver {
     /// amount only the run's values tell. An observer that reads the run back adds it to that
     /// component and the ones around it; any other ignores it.
     fn observe(&self, _observed: ObservedBounds) {}
+    /// Whether the components entered evaluate their bounds for this observer. A bounds function
+    /// may read values back, so an observer of a run it times says no, taking the floors from a
+    /// pricing run of its own.
+    fn prices(&self) -> bool {
+        true
+    }
 }
 
 /// An observer shared with whoever reads it once the run is over, installed as the observer
@@ -38,6 +44,9 @@ impl<O: ComponentObserver + ?Sized> ComponentObserver for std::sync::Arc<O> {
     }
     fn observe(&self, observed: ObservedBounds) {
         (**self).observe(observed);
+    }
+    fn prices(&self) -> bool {
+        (**self).prices()
     }
 }
 
@@ -183,6 +192,15 @@ impl Observing {
         Tag {
             _thread: core::marker::PhantomData,
         }
+    }
+
+    /// Whether the component being entered should evaluate its bounds. See
+    /// [`ComponentObserver::prices`].
+    #[inline]
+    pub fn prices(self) -> bool {
+        let mut prices = false;
+        Self::with_observer(|observer| prices = observer.prices());
+        prices
     }
 
     /// Report traffic beyond the declared floor of the component most recently entered. See
