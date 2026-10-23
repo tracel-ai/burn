@@ -413,9 +413,10 @@ where
     /// - `shape`: The new shape of the tensor.
     ///
     /// # Panics
-    /// - If the tensor contains more than one `-1` in the shape.
-    /// - If the tensor contains values that are not positive (other than -1).
-    /// - If the shape does not match the number of elements of the original shape.
+    /// - If the shape array contains more than one `-1`.
+    /// - If the shape array contains a dimension below `-1`.
+    /// - If the resolved shape does not have the same number of elements as the original shape.
+    /// - If a given [`Shape`] does not have `D2` dimensions.
     ///
     /// # Example
     ///
