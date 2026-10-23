@@ -15,30 +15,61 @@ use burn_cubecl::{CubeBackend, cubecl, ops::numeric::empty_device_contiguous_dty
 use burn_std::{DType, Shape};
 use cubecl::prelude::*;
 
-const BLOCK: usize = 32;
+/// A validated panel launch for nonempty matrices on a fixed 32-lane device.
+#[derive(Debug)]
+struct CholeskyLaunch {
+    n: usize,
+    batch: u32,
+}
+
+impl CholeskyLaunch {
+    const BLOCK: usize = 32;
+    const UNITS: u32 = 128;
+    const SHARED_BYTES: usize = 4 * Self::BLOCK * Self::BLOCK * size_of::<f32>();
+
+    fn new(properties: &DeviceProperties, n: usize, batch: usize) -> Option<Self> {
+        let hardware = &properties.hardware;
+        let blocks = n.div_ceil(Self::BLOCK);
+        let elements = n.checked_mul(n)?.checked_mul(batch)?;
+        let supported = n > 0
+            && batch > 0
+            && hardware.plane_size_min == Self::BLOCK as u32
+            && hardware.plane_size_max == Self::BLOCK as u32
+            && properties
+                .features
+                .plane
+                .contains(cubecl::features::Plane::Ops)
+            && hardware.max_shared_memory_size >= Self::SHARED_BYTES
+            && hardware.max_units_per_cube >= Self::UNITS
+            && hardware.max_cube_dim.0 >= Self::UNITS
+            && blocks <= hardware.max_cube_count.0.min(hardware.max_cube_count.1) as usize
+            && batch <= hardware.max_cube_count.1.min(hardware.max_cube_count.2) as usize
+            && elements <= u32::MAX as usize;
+
+        supported.then_some(Self {
+            n,
+            batch: batch as u32,
+        })
+    }
+
+    fn cube_dim(&self) -> CubeDim {
+        CubeDim::new_1d(Self::UNITS)
+    }
+
+    fn panels(&self) -> impl Iterator<Item = (usize, CubeCount)> + '_ {
+        (0..self.n).step_by(Self::BLOCK).map(|start| {
+            let remaining = (self.n - start).div_ceil(Self::BLOCK) as u32;
+            let columns = if start == 0 { 1 } else { remaining };
+            (start, CubeCount::Static(remaining, columns, self.batch))
+        })
+    }
+}
 
 /// The subgroup kernel requires a fixed 32-lane plane. Other hardware keeps
 /// the portable tensor path; never assume a subgroup width on variable-width
 /// devices. Bound launch dimensions and the default 32-bit element addresses.
 pub(crate) fn supported(device: &burn_cubecl::CubeDevice, n: usize, batch: usize) -> bool {
-    let client = device.client();
-    let properties = client.properties();
-    let hardware = &properties.hardware;
-    let blocks = n.div_ceil(BLOCK);
-    hardware.plane_size_min == 32
-        && hardware.plane_size_max == 32
-        && properties
-            .features
-            .plane
-            .contains(cubecl::features::Plane::Ops)
-        && hardware.max_shared_memory_size >= 4 * BLOCK * BLOCK * size_of::<f32>()
-        && hardware.max_units_per_cube >= 128
-        && hardware.max_cube_dim.0 >= 128
-        && blocks <= hardware.max_cube_count.0.min(hardware.max_cube_count.1) as usize
-        && batch <= hardware.max_cube_count.1.min(hardware.max_cube_count.2) as usize
-        && n.checked_mul(n)
-            .and_then(|v| v.checked_mul(batch))
-            .is_some_and(|v| v <= u32::MAX as usize)
+    CholeskyLaunch::new(device.client().properties(), n, batch).is_some()
 }
 
 #[cube(launch_unchecked, address_type = "dynamic")]
@@ -237,10 +268,8 @@ impl CholeskyOps for CubeBackend {
         let rank = shape.num_dims();
         let n = shape[rank - 1];
         let batch = shape.num_elements() / (n * n);
-        assert!(
-            supported(&tensor.device, n, batch),
-            "unsupported Cholesky GPU launch"
-        );
+        let launch = CholeskyLaunch::new(tensor.client.properties(), n, batch)
+            .expect("unsupported Cholesky GPU launch");
         let client = tensor.client.clone();
         let output =
             empty_device_contiguous_dtype(client.clone(), tensor.device.clone(), shape, DType::F32);
@@ -262,8 +291,8 @@ impl CholeskyOps for CubeBackend {
             .max(output.required_address_type())
             .max(workspace.required_address_type())
             .max(info.required_address_type());
-        for start in (0..n).step_by(BLOCK) {
-            // SAFETY: supported() bounds grid and address sizes. Every global
+        for (start, cube_count) in launch.panels() {
+            // SAFETY: CholeskyLaunch bounds grid and address sizes. Every global
             // row/column access guards the matrix tails. Shared indices are
             // below BLOCK²; previous factor columns exist when start > 0.
             // All threads reach workgroup barriers uniformly. Broadcasts use
@@ -274,16 +303,8 @@ impl CholeskyOps for CubeBackend {
             unsafe {
                 panel::launch_unchecked(
                     &client,
-                    CubeCount::Static(
-                        (n - start).div_ceil(BLOCK) as u32,
-                        if start == 0 {
-                            1
-                        } else {
-                            (n - start).div_ceil(BLOCK) as u32
-                        },
-                        batch as u32,
-                    ),
-                    CubeDim::new_1d(128),
+                    cube_count,
+                    launch.cube_dim(),
                     address_type,
                     tensor.clone().into_tensor_arg(),
                     output.clone().into_tensor_arg(),
@@ -291,7 +312,7 @@ impl CholeskyOps for CubeBackend {
                     info.clone().into_tensor_arg(),
                     n,
                     start,
-                    BLOCK,
+                    CholeskyLaunch::BLOCK,
                     upper,
                 );
             }
