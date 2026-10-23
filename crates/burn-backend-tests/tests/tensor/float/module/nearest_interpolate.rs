@@ -337,3 +337,22 @@ fn test_nearest_exact_upsample() {
         .into_data()
         .assert_approx_eq::<FloatElem>(&expected.into_data(), Tolerance::default());
 }
+
+#[test]
+fn test_nearest_asymmetric_14_to_18_ratio_precision() {
+    let device = Default::default();
+    if !format!("{device:?}").to_lowercase().contains("flex") {
+        return;
+    }
+    // Shape [1, 1, 1, 14] -> [1, 1, 1, 18]
+    let input = TestTensorInt::arange(0..14, &device)
+        .float()
+        .reshape([1, 1, 1, 14]);
+    let output = burn_tensor::module::interpolate(
+        input,
+        InterpolateOptions::new(InterpolateMode::Nearest).with_output_size([1, 18]),
+    );
+    let values: Vec<f32> = output.into_data().try_into_vec_as::<f32>().unwrap();
+    // Index 9 must map to 9 * 14 / 18 = 7.0 -> element 7 (not 6)
+    assert_eq!(values[9], 7.0);
+}

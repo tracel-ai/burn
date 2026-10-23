@@ -119,7 +119,7 @@ pub fn interpolate_backward(
         input.dtype,
     );
 
-    let [_, _, in_height, in_width] = input.meta.shape().dims();
+    let [_, in_height, in_width, _] = input.meta.shape().dims();
     cubek_interpolate_backward(
         &input.client.clone(),
         input.clone().binding(),
@@ -168,9 +168,9 @@ pub(crate) fn map_options(
                 CoordinateTransformMode::Asymmetric,
             )
             | (_, CoordinateTransformMode::HalfPixel) => {
-                let ratio_h = output_size[0] as f32 / in_size[0] as f32;
-                let ratio_w = output_size[1] as f32 / in_size[1] as f32;
-                (scale[0] - ratio_h).abs() <= 1e-5 && (scale[1] - ratio_w).abs() <= 1e-5
+                let ratio_h = output_size[0] as f64 / in_size[0] as f64;
+                let ratio_w = output_size[1] as f64 / in_size[1] as f64;
+                f64::from(scale[0]) == ratio_h && f64::from(scale[1]) == ratio_w
             }
             _ => false,
         };

@@ -217,7 +217,10 @@ pub fn map_coordinate(
             MappedCoord::InBounds(x_in)
         }
         CoordinateTransformMode::Asymmetric => {
-            let x_in = x_out / s;
+            let x_in = match scale_factor {
+                Some(_) => x_out / s,
+                None => x_out * l_in / l_out,
+            };
             MappedCoord::InBounds(x_in)
         }
         CoordinateTransformMode::PytorchHalfPixel => {

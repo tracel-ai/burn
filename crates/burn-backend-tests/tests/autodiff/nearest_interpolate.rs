@@ -126,3 +126,97 @@ fn test_nearest_downsample_f64_precision_backward() {
         .to_data()
         .assert_approx_eq::<FloatElem>(&x_grad.into_data(), Tolerance::default());
 }
+
+#[test]
+fn test_nearest_asymmetric_14_to_18_backward_scatter() {
+    let device = AutodiffDevice::new();
+    if !format!("{device:?}").to_lowercase().contains("flex") {
+        return;
+    }
+    let input = TestTensorInt::arange(0..14, &device)
+        .float()
+        .reshape([1, 1, 1, 14])
+        .require_grad();
+    let output = burn_tensor::module::interpolate(
+        input.clone(),
+        InterpolateOptions::new(InterpolateMode::Nearest).with_output_size([1, 18]),
+    );
+    let grad = output.backward();
+    let input_grad = input.grad(&grad).unwrap();
+    let grad_values: Vec<f32> = input_grad.into_data().try_into_vec_as::<f32>().unwrap();
+    // Element 7 must receive gradients scattered from output index 9
+    assert!(grad_values[7] >= 1.0);
+}
+
+#[test]
+fn test_bilinear_backward_crop_extrapolation_zero_gradient() {
+    let device = AutodiffDevice::new();
+    if !format!("{device:?}").to_lowercase().contains("flex") {
+        return;
+    }
+    let input =
+        TestTensor::<4>::from_data([[[[10.0, 20.0], [30.0, 40.0]]]], &device).require_grad();
+
+    let options = InterpolateOptions::new(InterpolateMode::Bilinear)
+        .with_coordinate_transform(burn_tensor::ops::CoordinateTransformMode::TfCropAndResize {
+            roi: [[0.0, 2.0], [0.0, 2.0]],
+            extrapolation_value: 0.0,
+        })
+        .with_output_size([4, 4]);
+
+    let output = burn_tensor::module::interpolate(input.clone(), options);
+    let grad = output.backward();
+    let input_grad = input.grad(&grad).unwrap();
+    let grad_values: Vec<f32> = input_grad.into_data().try_into_vec_as::<f32>().unwrap();
+    assert!(grad_values.iter().all(|&g| g.is_finite()));
+}
+
+#[test]
+fn test_bilinear_backward_non_integer_scale_gradients() {
+    let device = AutodiffDevice::new();
+    if !format!("{device:?}").to_lowercase().contains("flex") {
+        return;
+    }
+    let input = TestTensor::<4>::from_data([[[[1.0, 2.0], [3.0, 4.0]]]], &device).require_grad();
+
+    let options = InterpolateOptions::new(InterpolateMode::Bilinear).with_scale_factor([1.5, 2.5]);
+
+    let output = burn_tensor::module::interpolate(input.clone(), options);
+    let grad = output.backward();
+    let input_grad = input.grad(&grad).unwrap();
+    let grad_values: Vec<f32> = input_grad.into_data().try_into_vec_as::<f32>().unwrap();
+    assert_eq!(grad_values.len(), 4);
+    assert!(grad_values.iter().all(|&g| g > 0.0 && g.is_finite()));
+}
+
+#[test]
+fn test_bicubic_backward_exclude_outside_tap_gradient() {
+    let device = AutodiffDevice::new();
+    if !format!("{device:?}").to_lowercase().contains("flex") {
+        return;
+    }
+    let input = TestTensor::<4>::from_data(
+        [[[
+            [1.0, 2.0, 3.0, 4.0],
+            [5.0, 6.0, 7.0, 8.0],
+            [9.0, 10.0, 11.0, 12.0],
+            [13.0, 14.0, 15.0, 16.0],
+        ]]],
+        &device,
+    )
+    .require_grad();
+
+    let options = InterpolateOptions::new(InterpolateMode::Bicubic)
+        .with_cubic_options(burn_tensor::ops::CubicOptions {
+            a: -0.75,
+            exclude_outside: true,
+        })
+        .with_output_size([2, 2]);
+
+    let output = burn_tensor::module::interpolate(input.clone(), options);
+    let grad = output.backward();
+    let input_grad = input.grad(&grad).unwrap();
+    let grad_values: Vec<f32> = input_grad.into_data().try_into_vec_as::<f32>().unwrap();
+    assert_eq!(grad_values.len(), 16);
+    assert!(grad_values.iter().all(|&g| g.is_finite()));
+}
