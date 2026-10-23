@@ -38,7 +38,9 @@ questions or need early feedback, let us know on the PR or on
 Use [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/) for PR titles:
 `type(scope): description`. The scope is optional; use it to identify the affected component.
 
-Mark breaking changes with `!` before the colon and explain their impact and migration in the PR description.
+Mark breaking changes relative to the latest official release with `!` before the colon, and explain
+their impact and migration in the PR description. Changes limited to unreleased features do not
+require `!`; document any impact on users tracking `main` in the PR description.
 
 Before merging, ensure the squash commit title or each rebased commit follows this convention.
 Intermediate commits that will be squashed are exempt.
