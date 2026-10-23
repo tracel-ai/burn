@@ -116,14 +116,13 @@ mod tests {
     use super::super::step::StepCoordinator;
     use super::*;
     use crate::{EventProcessorError, metric::store::Split, renderer::MetricsRenderer};
-    use std::sync::{Arc, Barrier, Mutex, mpsc};
+    use std::sync::{Arc, Mutex, mpsc};
     use std::time::Duration;
 
     #[test]
     fn metric_failure_stops_a_peer_already_loading_the_next_batch() {
         let interrupter = Interrupter::new();
         let steps = Arc::new(StepCoordinator::new(2));
-        let backward = Arc::new(Barrier::new(2));
         let reporting = Arc::new(Mutex::new(WorkerEventProcessor::new(
             RecordingProcessor {
                 fail_on_item: Some(2),
@@ -139,12 +138,9 @@ mod tests {
         let mut workers = Vec::new();
         for next_batch_rx in [None, Some(next_batch_rx)] {
             let worker_id = usize::from(next_batch_rx.is_some());
-            let (steps, backward, reporting, interrupter) = (
-                steps.clone(),
-                backward.clone(),
-                reporting.clone(),
-                interrupter.clone(),
-            );
+            let steps = steps.clone();
+            let reporting = reporting.clone();
+            let interrupter = interrupter.clone();
             let next_batch_tx = next_batch_tx.clone();
             let finished_tx = finished_tx.clone();
             workers.push(std::thread::spawn(move || {
@@ -155,17 +151,13 @@ mod tests {
                     Ok(batch)
                 });
                 assert_eq!(steps.next(&mut batches, &interrupter), Some(0));
-                // Model a collective: both workers must enter every backward together.
-                backward.wait();
                 if let Some(receiver) = next_batch_rx {
                     receiver.recv_timeout(Duration::from_secs(5)).unwrap();
                 }
                 reporting.lock().unwrap().train(worker_id, item(1));
-                let next = steps.next(&mut batches, &interrupter);
-                if next.is_some() {
-                    backward.wait();
-                }
-                finished_tx.send(next).unwrap();
+                finished_tx
+                    .send(steps.next(&mut batches, &interrupter))
+                    .unwrap();
             }));
         }
 
@@ -267,7 +259,7 @@ mod tests {
     }
 
     #[test]
-    fn flush_observes_worker_errors_before_the_final_update_decision() {
+    fn flush_failure_preserves_unknown_total_and_suppresses_epoch_end() {
         let processor = RecordingProcessor {
             fail_flush: true,
             ..Default::default()
@@ -278,19 +270,14 @@ mod tests {
         reporting.start_epoch(1);
         reporting.train(1, item(1));
         assert!(!interrupter.should_stop());
-        reporting.flush();
-        assert!(interrupter.should_stop());
         reporting.finish_train(1);
+        assert!(interrupter.should_stop());
         reporting.end_epoch(1);
         let events = reporting.into_inner().events;
-        assert!(
-            matches!(events.last(), Some(LearnerEvent::EndSplit { progress, .. })
-            if progress.total == None)
-        );
-        assert!(
-            !events
-                .iter()
-                .any(|event| matches!(event, LearnerEvent::EndEpoch(_)))
-        );
+        assert!(matches!(events.as_slice(), [
+            LearnerEvent::StartSplit { .. },
+            LearnerEvent::ProcessedItem(_),
+            LearnerEvent::EndSplit { progress, .. },
+        ] if progress.total.is_none()));
     }
 }

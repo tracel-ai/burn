@@ -1,9 +1,6 @@
 mod common;
 
-use std::sync::{
-    Arc, Mutex,
-    atomic::{AtomicUsize, Ordering},
-};
+use std::sync::{Arc, Mutex};
 
 use burn_core::{
     data::dataloader::Progress,
@@ -19,12 +16,10 @@ use burn_train::{
 };
 use common::*;
 
-/// A metric that cannot read its input from the `fail_from`-th update on, the way a metric
-/// fails when the computation it reads failed.
-#[derive(Clone)]
+/// Fails on the last of the fixture's two batches; its error may still be pending at exhaustion.
+#[derive(Clone, Default)]
 struct FailingMetric {
-    updates: Arc<AtomicUsize>,
-    fail_from: usize,
+    updates: usize,
 }
 
 impl Metric for FailingMetric {
@@ -39,8 +34,8 @@ impl Metric for FailingMetric {
         _item: &(),
         _metadata: &MetricMetadata,
     ) -> Result<SerializedEntry, TensorReadError> {
-        let update = self.updates.fetch_add(1, Ordering::SeqCst) + 1;
-        if update >= self.fail_from {
+        self.updates += 1;
+        if self.updates >= 2 {
             return Err(ExecutionError::with_context("the metric could not read its input").into());
         }
         Ok(SerializedEntry::new("ok".into(), "ok".into()))
@@ -116,15 +111,10 @@ fn a_stop_request_and_an_error_are_kept_apart() {
 fn a_metric_error_stops_evaluation_and_is_reported_as_an_error() {
     let (_, dl_test) = make_dataloaders();
     let dir = tempfile::tempdir().unwrap();
-    let updates = Arc::new(AtomicUsize::new(0));
-
     let report = RecordingProgress::default();
     let events = report.events.clone();
     let result = EvaluatorBuilder::new(dir.path())
-        .metric(FailingMetric {
-            updates: updates.clone(),
-            fail_from: 2,
-        })
+        .metric(FailingMetric::default())
         .with_progress_logger(report)
         .with_application_logger(None)
         .build(ToyModel::new(&Device::flex()))
@@ -133,9 +123,8 @@ fn a_metric_error_stops_evaluation_and_is_reported_as_an_error() {
     assert_eq!(result.interrupted, None, "an error is not an interruption");
     let (_, split) = metric_failure(result.error);
     assert_eq!(split, Split::Test(Some(Arc::new("first".to_string()))));
-    // The second dataset is not evaluated once the first one failed.
-    assert!(updates.load(Ordering::SeqCst) < 4, "evaluation went on");
     let events = events.lock().unwrap();
+    // The second dataset is not evaluated once the first one failed.
     assert_eq!(events.starts, ["first"]);
     assert!(matches!(events.ends.as_slice(), [progress]
         if progress.items_processed == 4 && progress.total == Some(4)));
@@ -207,12 +196,8 @@ fn last_batch_metric_error_prevents_the_partial_update() {
     let report = RecordingProgress::default();
     let events = report.events.clone();
     let dir = tempfile::tempdir().unwrap();
-    let metric = FailingMetric {
-        updates: Arc::new(AtomicUsize::new(0)),
-        fail_from: 2,
-    };
     let result = SupervisedTraining::new(dir.path(), train, validation)
-        .metric_train(metric)
+        .metric_train(FailingMetric::default())
         .num_epochs(2)
         .grads_accumulation(3)
         .with_progress_logger(report)

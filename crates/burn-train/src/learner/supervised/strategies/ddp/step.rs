@@ -84,29 +84,11 @@ mod tests {
     fn workers_exhaust_together_and_can_start_another_epoch() {
         let steps = Arc::new(StepCoordinator::new(2));
         let interrupter = Interrupter::new();
-        let (sender, receiver) = mpsc::channel();
-        let workers: Vec<_> = (0..2)
-            .map(|_| {
-                let steps = steps.clone();
-                let interrupter = interrupter.clone();
-                let sender = sender.clone();
-                std::thread::spawn(move || {
-                    for len in [3, 0, 2] {
-                        let mut batches = (0..len).map(Ok);
-                        for expected in 0..len {
-                            assert_eq!(steps.next(&mut batches, &interrupter), Some(expected));
-                        }
-                        assert_eq!(steps.next(&mut batches, &interrupter), None);
-                    }
-                    sender.send(()).unwrap();
-                })
-            })
-            .collect();
-        for _ in 0..2 {
-            receiver.recv_timeout(Duration::from_secs(5)).unwrap();
-        }
-        for worker in workers {
-            worker.join().unwrap();
+        for len in [3, 0, 2] {
+            let expected: Vec<_> = (0..len).collect();
+            for batches in run_epoch(&steps, &interrupter, [len; 2]) {
+                assert_eq!(batches, expected);
+            }
         }
         assert!(!interrupter.should_stop());
     }
@@ -115,25 +97,8 @@ mod tests {
     fn uneven_exhaustion_stops_all_workers_before_an_unmatched_backward() {
         let steps = Arc::new(StepCoordinator::new(2));
         let interrupter = Interrupter::new();
-        let (sender, receiver) = mpsc::channel();
-        let workers: Vec<_> = [1, 2]
-            .into_iter()
-            .map(|len| {
-                let steps = steps.clone();
-                let interrupter = interrupter.clone();
-                let sender = sender.clone();
-                std::thread::spawn(move || {
-                    let mut batches = (0..len).map(Ok);
-                    assert_eq!(steps.next(&mut batches, &interrupter), Some(0));
-                    sender.send(steps.next(&mut batches, &interrupter)).unwrap();
-                })
-            })
-            .collect();
-        for _ in 0..2 {
-            assert_eq!(receiver.recv_timeout(Duration::from_secs(5)).unwrap(), None);
-        }
-        for worker in workers {
-            worker.join().unwrap();
+        for batches in run_epoch(&steps, &interrupter, [1, 2]) {
+            assert_eq!(batches, [0]);
         }
         assert!(
             interrupter
@@ -142,5 +107,34 @@ mod tests {
                 .to_string()
                 .contains("same number of training batches")
         );
+    }
+
+    fn run_epoch(
+        steps: &Arc<StepCoordinator>,
+        interrupter: &Interrupter,
+        lengths: [usize; 2],
+    ) -> Vec<Vec<usize>> {
+        let (sender, receiver) = mpsc::channel();
+        let workers: Vec<_> = lengths
+            .into_iter()
+            .map(|len| {
+                let steps = steps.clone();
+                let interrupter = interrupter.clone();
+                let sender = sender.clone();
+                std::thread::spawn(move || {
+                    let mut batches = (0..len).map(Ok);
+                    let admitted: Vec<_> =
+                        std::iter::from_fn(|| steps.next(&mut batches, &interrupter)).collect();
+                    sender.send(admitted).unwrap();
+                })
+            })
+            .collect();
+        let batches = (0..2)
+            .map(|_| receiver.recv_timeout(Duration::from_secs(5)).unwrap())
+            .collect();
+        for worker in workers {
+            worker.join().unwrap();
+        }
+        batches
     }
 }
