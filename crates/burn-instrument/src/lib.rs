@@ -52,6 +52,9 @@
 //! that warms the model up itself. Either prices the model first, in a run it does not time:
 //! the [`Bounds`] are evaluated there, where reading values back costs the measurement nothing,
 //! and the instrumented run's entries take them by position.
+//! Both runs must replay the same components and inputs relevant to their bounds; device
+//! seeding does not restore model state, and mismatches are not checked. See
+//! [`Instrument::breakdown`] for the replay requirements.
 //!
 //! A [`Breakdown`] is data, and a [`Measurement`] carries it beside the device's [`Peaks`] and
 //! the wall time of a clean run. [`Measurement::write`] saves it as a
