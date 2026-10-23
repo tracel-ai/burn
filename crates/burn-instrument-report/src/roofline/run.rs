@@ -141,8 +141,8 @@ impl<'a> Roofline<'a> {
         }
     }
 
-    /// What `component` is held to: its declared bounds plus the traffic observed
-    /// beyond them, with at least the arithmetic of its parts.
+    /// What `component` is held to: its declared bounds, with at least the
+    /// arithmetic of its parts.
     ///
     /// Fusion removes traffic, never arithmetic, so a composite that prices
     /// only the traffic it must move — the whole model does, rather than
@@ -150,7 +150,7 @@ impl<'a> Roofline<'a> {
     /// it to do. Everything a component is scored against goes through here, so its
     /// floor and its percentage cannot be of two different bounds.
     fn held(component: &Component) -> Option<Bounds> {
-        let own = component.bounds? + component.observed.unwrap_or_default();
+        let own = component.bounds?;
         let flops = component
             .parts_bounds()
             .map_or(own.flops, |parts| own.flops.max(parts.flops));

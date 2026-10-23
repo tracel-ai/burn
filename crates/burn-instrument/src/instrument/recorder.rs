@@ -36,7 +36,7 @@ use burn_tensor::Device;
 use cubecl::logging::{LaunchObserver, TimingRequest};
 use cubecl::profile::{ProfileDuration, TimingMethod};
 
-use super::component_tree::{ComponentId, ComponentTree};
+use super::component_tree::ComponentTree;
 use super::cursor::{Attribution, LaunchCursor};
 #[cfg(feature = "fusion")]
 use super::origins::{BlockOrigin, OperationId, OperationOrigins};
@@ -44,7 +44,7 @@ use super::pricing::Floors;
 use super::timing::{Kept, Timed, Timeline, Timings};
 use super::watching::Watching;
 use crate::breakdown::Breakdown;
-use crate::{Bounds, ComponentObserver, Declaration, ObservedBounds};
+use crate::{ComponentObserver, Declaration};
 
 /// Records a run's events into its component tree.
 ///
@@ -88,16 +88,8 @@ struct State {
     /// What a block's operations are mapped back through.
     #[cfg(feature = "fusion")]
     origins: OperationOrigins,
-    /// Observed traffic not yet priced. See [`RunRecorder::price_observed`].
-    unpriced: Vec<Unpriced>,
     /// The floors of a pricing run, taken by the entries in the order they arrive.
     floors: Floors,
-}
-
-/// Observed traffic not yet priced, and the component it arrived under.
-struct Unpriced {
-    component: ComponentId,
-    bounds: ObservedBounds,
 }
 
 impl RunRecorder {
@@ -124,20 +116,15 @@ impl RunRecorder {
 
     /// End the run and say what it left behind.
     ///
-    /// In this order, which is what makes the breakdown the run's alone: the
-    /// work still queued runs while the launches are watched, so it is
-    /// counted; the observers come out, with `watching`; and only then are
-    /// observed values read back, since reading them launches kernels of its
-    /// own that no component did.
+    /// The work still queued runs while the launches are watched, so it is
+    /// counted, and the observers come out with `watching`.
     ///
     /// # Panics
     ///
-    /// If the device stops answering, if the work producing an observed value
-    /// failed, or if a component is still open.
+    /// If the device stops answering, or if a component is still open.
     pub fn finish(&self, watching: Watching) -> Breakdown {
         self.end_run();
         drop(watching);
-        self.price_observed();
         self.breakdown()
     }
 
@@ -155,8 +142,7 @@ impl RunRecorder {
     /// reading one waits for its kernel, and waiting after every launch
     /// executes a run one kernel at a time. After the sync every window has closed, so
     /// reading them costs nothing and each is the kernel as it ran in a queue
-    /// kept full. The observed traffic is priced afterwards, by
-    /// [`price_observed`](Self::price_observed).
+    /// kept full.
     ///
     /// # Panics
     ///
@@ -177,29 +163,6 @@ impl RunRecorder {
         #[cfg(feature = "fusion")]
         state.origins.clear();
         state.settle(timed, self.epoch);
-    }
-
-    /// Price the traffic the run observed, adding it to the components it arrived
-    /// under.
-    ///
-    /// Once the launches are no longer watched: reading values back can launch
-    /// kernels of its own, such as making a sliced tensor contiguous, and
-    /// watched they would be recorded as work the run did.
-    ///
-    /// # Panics
-    ///
-    /// If the work producing an observed value failed.
-    fn price_observed(&self) {
-        let unpriced = std::mem::take(&mut self.locked().unpriced);
-        // Priced outside the lock: each reads its values back.
-        let priced: Vec<(ComponentId, Bounds)> = unpriced
-            .into_iter()
-            .map(|unpriced| (unpriced.component, unpriced.bounds.resolve()))
-            .collect();
-        let mut state = self.locked();
-        for (component, extra) in priced {
-            state.tree.add_observed(component, extra);
-        }
     }
 
     /// What the run left behind.
@@ -243,14 +206,6 @@ impl ComponentObserver for RunRecorder {
     fn exit(&self) {
         let back_to = self.locked().tree.exit();
         self.cursor.point_at(back_to);
-    }
-
-    fn observe(&self, bounds: ObservedBounds) {
-        let mut state = self.locked();
-        // Outside every component there is no floor to add it to.
-        if let Some(component) = state.tree.innermost() {
-            state.unpriced.push(Unpriced { component, bounds });
-        }
     }
 
     /// The floors came from the pricing run.
@@ -460,40 +415,6 @@ mod tests {
         let breakdown = recorder.breakdown();
         assert_eq!(breakdown.tree[0].own_time(), Duration::from_micros(13));
         assert!(breakdown.timed_alone);
-    }
-
-    /// Observed traffic is filed under the component open when it arrived,
-    /// and priced only when asked: pricing reads values back.
-    #[test]
-    fn observed_traffic_is_priced_under_the_component_it_arrived_in() {
-        let recorder = recorder();
-        recorder.enter(Declaration {
-            bounds: Some(Bounds::default()),
-            ..declared("experts")
-        });
-        let routes =
-            burn_tensor::Tensor::<1, burn_tensor::Int>::from_ints([3, 1, 3, 7], &Device::flex());
-        recorder.observe(ObservedBounds::new(routes, |routes| Bounds {
-            read: routes.len() as u64,
-            write: 0,
-            flops: 0,
-        }));
-        recorder.exit();
-        assert_eq!(
-            recorder.breakdown().tree[0].observed,
-            None,
-            "not priced yet"
-        );
-
-        recorder.price_observed();
-        assert_eq!(
-            recorder.breakdown().tree[0].observed,
-            Some(Bounds {
-                read: 4,
-                write: 0,
-                flops: 0
-            })
-        );
     }
 
     /// Finishing leaves the calling thread attributing nothing, so a launch

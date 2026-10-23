@@ -110,8 +110,7 @@ impl Instrument {
     ///
     /// # Panics
     ///
-    /// If the device stops answering, or if the work producing an observed
-    /// value failed.
+    /// If the device stops answering.
     pub fn measure<T>(self, mut model: impl FnMut() -> T) -> Measurement {
         for _ in 0..self.warmup {
             self.run_clean(&mut model);
@@ -158,8 +157,7 @@ impl Instrument {
     ///
     /// # Panics
     ///
-    /// If the device stops answering at the end of the run, or if the work
-    /// producing an observed value failed.
+    /// If the device stops answering at the end of the run.
     pub fn breakdown<T>(self, mut model: impl FnMut() -> T) -> Breakdown {
         let floors = self.price(&mut model);
         self.device.seed(Self::SEED);
