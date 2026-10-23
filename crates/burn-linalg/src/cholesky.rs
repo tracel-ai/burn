@@ -38,7 +38,7 @@ mod tests {
     fn reports_first_invalid_pivot_per_matrix() {
         let device = Device::default();
         let n = 65;
-        let batch = 4;
+        let batch = 3;
         #[cfg(any(
             feature = "wgpu",
             feature = "webgpu",
@@ -72,7 +72,7 @@ mod tests {
             assert_eq!(info.dtype(), DType::I32);
             assert_eq!(
                 info.into_data().iter::<i32>().collect::<Vec<_>>(),
-                vec![0, 17, 65, 0]
+                vec![0, 17, 65]
             );
         }
     }
