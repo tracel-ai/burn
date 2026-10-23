@@ -1,3 +1,5 @@
+#[cfg(feature = "fusion")]
+use alloc::{vec, vec::Vec};
 use burn_core as burn;
 use burn_core::backend::{
     Backend, backend_extension,
