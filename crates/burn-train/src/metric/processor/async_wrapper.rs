@@ -425,11 +425,13 @@ mod tests {
             event: EvaluatorEvent<NoItem>,
         ) -> Result<(), EventProcessorError> {
             match event {
-                EvaluatorEvent::EndTest => EventProcessorError::from_errors(vec![MetricError {
-                    metric: Arc::new("Accuracy".to_string()),
-                    split: Split::Test(None),
-                    source: ExecutionError::with_context("refused").into(),
-                }]),
+                EvaluatorEvent::EndTest { .. } => {
+                    EventProcessorError::from_errors(vec![MetricError {
+                        metric: Arc::new("Accuracy".to_string()),
+                        split: Split::Test(None),
+                        source: ExecutionError::with_context("refused").into(),
+                    }])
+                }
                 _ => Ok(()),
             }
         }
@@ -446,7 +448,9 @@ mod tests {
         // The last event's own call may return before the worker processed it: the flush
         // is what guarantees its error is seen before the processor is consumed.
         let reported = processor
-            .process_test(EvaluatorEvent::EndTest)
+            .process_test(EvaluatorEvent::EndTest {
+                progress: burn_core::data::dataloader::Progress::new(0, 0, None),
+            })
             .err()
             .or_else(|| processor.flush().err())
             .expect("the last event's error must reach the caller");

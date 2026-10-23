@@ -5,16 +5,20 @@ use crate::{
     reduce_float_dim_ops, reduce_float2int_dim_ops, reduce_int_dim_ops, scalar_float_cmp_ops,
     scalar_float_ops, scalar_int_cmp_ops, scalar_int_ops, unary_float_ops, unary_int_ops,
 };
-use alloc::{boxed::Box, vec::Vec};
+use alloc::{
+    boxed::Box,
+    format,
+    string::{String, ToString},
+    vec::Vec,
+};
 use burn_backend::{
     Backend, DType, DeviceOps, ExecutionError, FloatDType, ProfileDuration, ProfileOptions,
-    ProfileToken, Shape, TensorData, TensorMetadata, TensorPrimitive, distributed::DistributedOps,
-    ops::TransactionPrimitive,
+    ProfileToken, Shape, TensorData, TensorMetadata, TensorPrimitive, ops::TransactionPrimitive,
 };
 use burn_ir::{
     ActivationOperationIr, BackendIr, BaseOperationIr, BoolOperationIr, FloatOperationIr,
     HandleContainer, HandleKind, IntOperationIr, ModuleOperationIr, NumericOperationIr,
-    OperationIr, TensorId, TensorIr, TensorStatus,
+    OperationIr, TensorError, TensorId, TensorIr, TensorStatus,
 };
 use burn_std::{DeviceSettings, future::DynFut};
 use portable_atomic::{AtomicU64, Ordering};
@@ -58,9 +62,6 @@ pub struct TensorInterpreter<B: BackendIr> {
     /// Handlers for [custom operations](OperationIr::Custom), keyed by id. Shared read-only across
     /// every session, so executing a custom op is a map lookup plus a call.
     custom_ops: CustomOpRegistry<B>,
-    /// A flush that failed where no error could be returned, reported by the next
-    /// [`sync`](Self::sync).
-    flush_error: burn_std::sync::Mutex<Option<ExecutionError>>,
 }
 
 impl<B: BackendIr> core::fmt::Debug for TensorInterpreter<B> {
@@ -85,7 +86,6 @@ impl<B: BackendIr> TensorInterpreter<B> {
             },
             device,
             custom_ops,
-            flush_error: burn_std::sync::Mutex::new(None),
         }
     }
 
@@ -138,6 +138,20 @@ impl<B: BackendIr> TensorInterpreter<B> {
                 let tensor = B::q_to_device(tensor, &self.device);
                 ctx.handles.register_quantized_tensor::<B>(&id, tensor);
             }
+        }
+    }
+
+    /// Register `id` as failed by `error`, so a read of it reports why instead of finding nothing.
+    pub fn set_error(&mut self, id: TensorId, error: TensorError) {
+        self.context.handles.set_error(id, error);
+    }
+
+    /// Why `id` cannot be read, if it cannot: a failure claimed it, or nothing produced it.
+    pub fn read_failure(&self, id: &TensorId) -> Option<String> {
+        let handles = &self.context.handles;
+        match handles.error(id) {
+            Some(error) => Some(error.to_string()),
+            None => (!handles.has_handle(id)).then(|| format!("tensor {id:?} was never produced")),
         }
     }
 
@@ -2268,23 +2282,6 @@ impl<B: BackendIr> TensorInterpreter<B> {
             OperationIr::Drop(repr) => {
                 handles.remove_handle(repr.id);
             }
-            OperationIr::Distributed(op) => match op {
-                burn_ir::DistributedOperationIr::AllReduce(desc) => {
-                    let tensor = handles.get_float_tensor::<B>(&desc.tensor);
-                    let device_ids = desc.device_ids.iter().map(|id| (*id).into()).collect();
-
-                    let output = <B as DistributedOps<B>>::all_reduce(tensor, desc.op, device_ids);
-                    // Safety: the collective tensor is resolved through the normal op stream
-                    // (a `SyncCollective` op follows), so the handle is valid once that runs.
-                    let output = unsafe { output.assume_resolved() };
-                    if let Err(err) = B::flush(&self.device) {
-                        // Registering an operation reports nothing: the next sync does.
-                        self.flush_error.lock().get_or_insert(err);
-                    }
-                    handles.register_float_tensor::<B>(&desc.out.id, output);
-                }
-                burn_ir::DistributedOperationIr::SyncCollective => B::sync_collective(&self.device),
-            },
         }
     }
 
@@ -2349,12 +2346,8 @@ impl<B: BackendIr> TensorInterpreter<B> {
     ///
     /// # Errors
     ///
-    /// Returns an [`ExecutionError`] when the queued work failed, or when a flush made while
-    /// registering operations failed since the last sync.
+    /// Returns an [`ExecutionError`] when the queued work failed.
     pub fn sync(&self) -> Result<(), ExecutionError> {
-        if let Some(err) = self.flush_error.lock().take() {
-            return Err(err);
-        }
         B::sync(&self.device)
     }
 

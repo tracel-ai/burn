@@ -37,6 +37,9 @@ doc = [
     "burn-instrument/doc",
     "dep:regex"
 ]
+# Arms the `#[compute]` annotations, so `instrument::Instrument` can measure a model built from
+# them. Off, they compile away.
+instrument = ["std", "burn-instrument/instrument"]
 tracing = [
     "burn-std/tracing",
     "burn-tensor/tracing",

@@ -2,6 +2,9 @@ use alloc::format;
 
 use burn::tensor::module::interpolate;
 
+use crate::modules::bounds::{self, Windowing};
+use burn::instrument::{Bounds, compute};
+use burn::tensor::module::interpolate_output_size;
 use burn_core as burn;
 
 use burn::config::Config;
@@ -110,6 +113,41 @@ impl Interpolate1dConfig {
 }
 
 impl Interpolate1d {
+    /// The options the interpolation runs with, over an input given a unit height.
+    fn options(&self) -> InterpolateOptions {
+        let mut options = InterpolateOptions::new(self.mode.clone().into());
+        if let Some(mut ct) = self.coordinate_transform {
+            if let CoordinateTransformMode::TfCropAndResize { ref mut roi, .. } = ct {
+                roi[0] = [0.0, 1.0];
+            }
+            options = options.with_coordinate_transform(ct);
+        } else {
+            options = options.with_align_corners(self.align_corners);
+        }
+        if let Some(nm) = self.nearest_mode {
+            options = options.with_nearest_mode(nm);
+        }
+        if let Some(co) = self.cubic_options {
+            options = options.with_cubic_options(co);
+        }
+        options.output_size = self.output_size.map(|size| [1, size]);
+        options.scale_factor = self.scale_factor.map(|scale| [1.0, scale]);
+        options
+    }
+
+    /// The floor for an interpolation alone: a resampling to the length it produces. Each output
+    /// element blends a few neighbours, below this model's resolution, and reads at least one
+    /// position of its own where it downsamples.
+    fn bounds(&self, input: &Tensor<3>) -> Bounds {
+        let [length] = bounds::spatial(input);
+        let [_, output_length] = interpolate_output_size([1, length], &self.options());
+        Windowing {
+            output_size: [output_length],
+            read_size: [length.min(output_length)],
+        }
+        .resampling(input)
+    }
+
     /// Performs the forward pass of the 1D interpolation module
     ///
     /// # Arguments
@@ -135,30 +173,13 @@ impl Interpolate1d {
     /// let output = interpolate.forward(input);
     /// assert_eq!(output.dims(), [1, 3, 128]);
     /// ```
+    #[compute(bounds = Self::bounds)]
     pub fn forward(&self, input: Tensor<3>) -> Tensor<3> {
-        let mut options = InterpolateOptions::new(self.mode.clone().into());
-        if let Some(mut ct) = self.coordinate_transform {
-            if let CoordinateTransformMode::TfCropAndResize { ref mut roi, .. } = ct {
-                roi[0] = [0.0, 1.0];
-            }
-            options = options.with_coordinate_transform(ct);
-        } else {
-            options = options.with_align_corners(self.align_corners);
-        }
-        if let Some(nm) = self.nearest_mode {
-            options = options.with_nearest_mode(nm);
-        }
-        if let Some(co) = self.cubic_options {
-            options = options.with_cubic_options(co);
-        }
-        options.output_size = self.output_size.map(|size| [1, size]);
-        options.scale_factor = self.scale_factor.map(|scale| [1.0, scale]);
-
         // Use the interpolate operation to resize the temporal input tensor
         // by adding a new dimension for the interpolation axis
         let input = input.unsqueeze_dim(2);
 
-        let result = interpolate(input, options);
+        let result = interpolate(input, self.options());
 
         result.squeeze_dims(&[2])
     }

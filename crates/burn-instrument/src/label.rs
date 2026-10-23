@@ -13,7 +13,7 @@ fn type_label<T: ?Sized>() -> &'static str {
 ///
 /// What a component is labelled when it names no label itself, which is the normal case: a
 /// hand-written label equal to the type name is a second copy of it that can drift. Interned, since
-/// a component is entered once per layer per pass and the answer never changes.
+/// a component is entered once per layer per run and the answer never changes.
 ///
 /// Without `std` there is nothing to intern into, and this is the name as written; no observer
 /// can be installed there to read it.

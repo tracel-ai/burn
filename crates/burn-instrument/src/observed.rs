@@ -1,4 +1,4 @@
-//! The test double for the [`ComponentObserver`] seam: one observation of a pass, read as the exact
+//! The test double for the [`ComponentObserver`] seam: one observation of a run, read as the exact
 //! sequence of entries and exits.
 
 use std::sync::Mutex;
@@ -14,7 +14,7 @@ struct Entry {
     bounds: Option<Bounds>,
 }
 
-/// What a pass did at the seam, in order. Exits are kept as well as entries, because "children
+/// What a run did at the seam, in order. Exits are kept as well as entries, because "children
 /// close before their parent" is a property of the sequence and not of the components it produced.
 enum Event {
     Enter(Entry),
@@ -23,7 +23,7 @@ enum Event {
     Observed(Bounds),
 }
 
-/// What one pass entered.
+/// What one run entered.
 #[derive(Default)]
 pub(crate) struct Entered {
     events: Mutex<Vec<Event>>,
@@ -115,17 +115,17 @@ impl Entered {
     }
 }
 
-/// Observe what `pass` enters, with the observation closed before it is read.
-pub(crate) fn entered(pass: impl FnOnce()) -> &'static Entered {
+/// Observe what `run` enters, with the observation closed before it is read.
+pub(crate) fn entered(run: impl FnOnce()) -> &'static Entered {
     let (seen, observation) = installed();
-    pass();
+    run();
     drop(observation);
     seen
 }
 
 /// A fresh observer installed on this thread, and the guard holding it open.
 pub(crate) fn installed() -> (&'static Entered, ComponentObservation) {
-    // Leaked: the tests read it after the pass, so it outlives every borrow by
+    // Leaked: the tests read it after the run, so it outlives every borrow by
     // construction.
     let seen: &'static Entered = Box::leak(Box::new(Entered::default()));
     (seen, ComponentObservation::new(Box::new(seen)))

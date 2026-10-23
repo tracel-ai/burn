@@ -15,10 +15,6 @@ use core::{marker::PhantomData, ops::Range};
 /// since a backend never receives an empty slice. The defaults emulate each collective with
 /// transfers, slices, concatenations and additions, so every backend runs them; a backend with a
 /// native collective between its devices overrides them.
-///
-/// They must not run beside [`DistributedOps::all_reduce`](crate::distributed::DistributedOps::all_reduce)
-/// on a device with a transport: both queue on that device's one transport, so the two can
-/// deadlock.
 pub trait CollectiveOps<B: Backend> {
     /// Every member receives `op` over every member's tensor.
     fn float_all_reduce(tensors: Vec<FloatTensor<B>>, op: ReduceOperation) -> Vec<FloatTensor<B>> {

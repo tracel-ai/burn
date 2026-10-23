@@ -1,5 +1,5 @@
 use crate::bridge::{BasicOps, Ordered};
-use crate::{DType, Shape, Slice, Tensor};
+use crate::{DType, Device, Shape, Slice, Tensor};
 use alloc::format;
 use alloc::string::{String, ToString};
 use alloc::vec;
@@ -237,6 +237,30 @@ impl TensorCheck {
                 "Tri",
                 TensorError::new(format!(
                     "The input tensor must have at least 2 dimensions, got {D}"
+                )),
+            );
+        }
+
+        check
+    }
+
+    pub(crate) fn reshape<const D2: usize>(source: &Shape, target: &Shape) -> Self {
+        let mut check = Self::Ok;
+
+        if source.num_elements() != target.num_elements() {
+            check = check.register(
+                "Reshape",
+                TensorError::new(format!(
+                    "The given shape doesn't have the same number of elements as the current shape. Current shape: {source}, target shape: {target}."
+                )),
+            );
+        }
+
+        if target.num_dims() != D2 {
+            check = check.register(
+                "Reshape",
+                TensorError::new(format!(
+                    "The given shape doesn't have the same number of dimensions as the target tensor. Target shape: {target}, expected rank: {D2}."
                 )),
             );
         }
@@ -659,6 +683,88 @@ impl TensorCheck {
                     )),
                 );
             }
+        }
+
+        check
+    }
+
+    pub(crate) fn collective<const D: usize, K: BasicOps>(
+        ops: &str,
+        tensors: &[Tensor<D, K>],
+    ) -> Self {
+        let Some(first) = tensors.first() else {
+            return Self::Ok.register(
+                ops,
+                TensorError::new("Can't run a collective over an empty list of tensors."),
+            );
+        };
+
+        let shape = first.shape();
+        let dtype = first.dtype();
+
+        for (member, tensor) in tensors.iter().enumerate() {
+            let quantized = Self::quantized_unsupported(ops, tensor.dtype());
+            if matches!(quantized, Self::Failed(_)) {
+                return quantized;
+            }
+
+            if tensor.shape() != shape || tensor.dtype() != dtype {
+                return Self::Ok.register(
+                    ops,
+                    TensorError::new(
+                        "Can't run a collective over members of different shapes or dtypes.",
+                    )
+                    .details(format!(
+                        "Member {member} holds {:?} of {:?}, member 0 holds {:?} of {:?}.",
+                        tensor.shape(),
+                        tensor.dtype(),
+                        shape,
+                        dtype,
+                    )),
+                );
+            }
+        }
+
+        Self::Ok
+    }
+
+    pub(crate) fn collective_chunks<const D: usize, K: BasicOps>(
+        ops: &str,
+        tensors: &[Tensor<D, K>],
+        dim: usize,
+    ) -> Self {
+        let check = Self::Ok;
+        // An empty list is `collective`'s to report.
+        let Some(first) = tensors.first() else {
+            return check;
+        };
+
+        let members = tensors.len();
+        let len = first.shape()[dim];
+
+        if len < members {
+            return check.register(
+                ops,
+                TensorError::new(
+                    "Can't give every member a chunk of a dimension shorter than the group.",
+                )
+                .details(format!(
+                    "Dimension {dim} holds {len} elements over {members} members."
+                )),
+            );
+        }
+
+        check
+    }
+
+    pub(crate) fn collective_devices(ops: &str, devices: &[Device]) -> Self {
+        let check = Self::Ok;
+
+        if devices.is_empty() {
+            return check.register(
+                ops,
+                TensorError::new("Can't broadcast to an empty list of devices."),
+            );
         }
 
         check

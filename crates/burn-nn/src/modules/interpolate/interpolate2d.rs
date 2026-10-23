@@ -2,6 +2,9 @@ use alloc::format;
 
 use burn::tensor::module::interpolate;
 
+use crate::modules::bounds::{self, Windowing};
+use burn::instrument::{Bounds, compute};
+use burn::tensor::module::interpolate_output_size;
 use burn_core as burn;
 
 use burn::config::Config;
@@ -110,6 +113,38 @@ impl Interpolate2dConfig {
     }
 }
 impl Interpolate2d {
+    /// The options the interpolation runs with.
+    fn options(&self) -> InterpolateOptions {
+        let mut options = InterpolateOptions::new(self.mode.clone().into());
+        if let Some(ct) = self.coordinate_transform {
+            options = options.with_coordinate_transform(ct);
+        } else {
+            options = options.with_align_corners(self.align_corners);
+        }
+        if let Some(nm) = self.nearest_mode {
+            options = options.with_nearest_mode(nm);
+        }
+        if let Some(co) = self.cubic_options {
+            options = options.with_cubic_options(co);
+        }
+        options.output_size = self.output_size;
+        options.scale_factor = self.scale_factor;
+        options
+    }
+
+    /// The floor for an interpolation alone: a resampling to the size it produces. Each output
+    /// element blends a few neighbours, below this model's resolution, and reads at least one
+    /// position of its own along each dimension a downsampling shrinks.
+    fn bounds(&self, input: &Tensor<4>) -> Bounds {
+        let input_size = bounds::spatial(input);
+        let output_size = interpolate_output_size(input_size, &self.options());
+        Windowing {
+            output_size,
+            read_size: core::array::from_fn(|i| input_size[i].min(output_size[i])),
+        }
+        .resampling(input)
+    }
+
     /// Performs the forward pass of the interpolation module
     ///
     /// # Arguments
@@ -135,22 +170,9 @@ impl Interpolate2d {
     /// let output = interpolate.forward(input);
     /// assert_eq!(output.dims(), [1, 3, 128, 128]);
     /// ```
+    #[compute(bounds = Self::bounds)]
     pub fn forward(&self, input: Tensor<4>) -> Tensor<4> {
-        let mut options = InterpolateOptions::new(self.mode.clone().into());
-        if let Some(ct) = self.coordinate_transform {
-            options = options.with_coordinate_transform(ct);
-        } else {
-            options = options.with_align_corners(self.align_corners);
-        }
-        if let Some(nm) = self.nearest_mode {
-            options = options.with_nearest_mode(nm);
-        }
-        if let Some(co) = self.cubic_options {
-            options = options.with_cubic_options(co);
-        }
-        options.output_size = self.output_size;
-        options.scale_factor = self.scale_factor;
-        interpolate(input, options)
+        interpolate(input, self.options())
     }
 }
 

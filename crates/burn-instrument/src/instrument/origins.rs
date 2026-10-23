@@ -49,7 +49,7 @@ impl OperationOrigins {
         self.0.insert(operation, origin);
     }
 
-    /// Forget every operation: once the pass has run, none is left to map
+    /// Forget every operation: once the run is over, none is left to map
     /// back.
     pub fn clear(&mut self) {
         self.0.clear();
@@ -60,7 +60,7 @@ impl OperationOrigins {
 #[derive(Debug, PartialEq, Eq)]
 pub enum BlockOrigin {
     /// None of its operations was seen registering: they were queued before
-    /// the pass.
+    /// the run.
     Unseen,
     /// Work these components registered, in first-seen order, and nothing
     /// else.
@@ -83,7 +83,7 @@ impl BlockOrigin {
                         components.push(*component);
                     }
                 }
-                Some(Attribution::Untagged | Attribution::EndOfPass) => {
+                Some(Attribution::Untagged | Attribution::EndOfRun) => {
                     seen = true;
                     outside = true;
                 }
@@ -220,7 +220,7 @@ mod tests {
         );
     }
 
-    /// A block whose operations were queued before the pass says nothing
+    /// A block whose operations were queued before the run says nothing
     /// about whose work it is, and keeps the sealing order's answer.
     #[test]
     fn a_block_of_operations_never_seen_registering_keeps_the_sealing_order() {
@@ -249,7 +249,7 @@ mod tests {
     fn component(entered: Attribution) -> ComponentId {
         match entered {
             Attribution::Component(component) => component,
-            Attribution::Untagged | Attribution::EndOfPass => {
+            Attribution::Untagged | Attribution::EndOfRun => {
                 unreachable!("entering a component lands on it")
             }
         }

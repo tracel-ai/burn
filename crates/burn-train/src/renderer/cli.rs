@@ -9,6 +9,7 @@ use crate::{
 pub struct CliMetricsRenderer {
     label: String,
     training_progress: ProgressSnapshot,
+    has_epochs: bool,
     eval_progress: ProgressSnapshot,
 }
 
@@ -19,6 +20,7 @@ impl CliMetricsRenderer {
         let init = Progress::new(0, 0, Some(String::new()));
         Self {
             training_progress: ProgressSnapshot::new(init.clone(), init.clone()),
+            has_epochs: true,
             eval_progress: ProgressSnapshot::new(init.clone(), init),
             label: String::from("training"),
         }
@@ -39,6 +41,7 @@ impl TrainingProgressLogger for CliMetricsRenderer {
         total_items: Option<usize>,
         label: Option<&str>,
     ) {
+        self.has_epochs = total_epochs > 0;
         self.training_progress.global =
             Progress::new(starting_epoch, total_epochs, Some("epochs".to_string()));
         if let Some(items) = total_items {
@@ -48,31 +51,37 @@ impl TrainingProgressLogger for CliMetricsRenderer {
         println!("Starting {} for {} epochs.", self.label, total_epochs);
     }
 
-    fn start_split(&mut self, split_name: &str, total_items: usize) {
-        self.training_progress.split = Progress::new(0, total_items, Some("items".to_string()));
-        println!("Starting split '{split_name}' with {total_items} items.");
+    fn start_split(&mut self, split_name: &str, progress: &Progress) {
+        self.training_progress.split = progress.clone();
+        println!(
+            "Starting split '{split_name}': {progress} {}.",
+            progress.unit.as_deref().unwrap_or("items")
+        );
     }
 
-    fn update_split(&mut self, items_processed: usize) {
-        let total = self.training_progress.split.items_total;
-        let unit = self.training_progress.split.unit.clone();
-        self.training_progress.split = Progress::new(items_processed, total, unit);
+    fn update_split(&mut self, progress: &Progress) {
+        self.training_progress.split = progress.clone();
 
-        // For RL: global_progress.items_total == 0 means no epoch concept; mirror split.
-        if self.training_progress.global.items_total == 0 {
+        // Step-based runs mirror split progress.
+        if !self.has_epochs {
             self.training_progress.global = self.training_progress.split.clone();
         }
-        println!("{:?}", self.training_progress);
+        println!(
+            "{}: {}",
+            progress.unit.as_deref().unwrap_or("items"),
+            progress
+        );
     }
 
     fn update_epoch(&mut self, epoch: usize) {
-        let total = self.training_progress.global.items_total;
+        let total = self.training_progress.global.total;
         let unit = self.training_progress.global.unit.clone();
         self.training_progress.global = Progress::new(epoch + 1, total, unit);
     }
 
-    fn end_split(&mut self) {
-        println!("Split ended.");
+    fn end_split(&mut self, progress: &Progress) {
+        self.training_progress.split = progress.clone();
+        println!("Split ended: {progress}");
     }
 
     fn end(&mut self) {
@@ -88,22 +97,30 @@ impl EvaluationProgressLogger for CliMetricsRenderer {
         println!("Starting evaluation with {total_tests} test(s).");
     }
 
-    fn start_test(&mut self, name: &str, total_items: usize) {
+    fn start_test(&mut self, name: &str, progress: &Progress) {
         let current = self.eval_progress.global.items_processed + 1;
-        let total = self.eval_progress.global.items_total;
+        let total = self.eval_progress.global.total;
         self.eval_progress.global = Progress::new(current, total, Some("tests".to_string()));
-        self.eval_progress.split = Progress::new(0, total_items, Some("items".to_string()));
-        println!("Starting test '{name}' with {total_items} items.");
+        self.eval_progress.split = progress.clone();
+        println!(
+            "Starting test '{name}': {progress} {}.",
+            progress.unit.as_deref().unwrap_or("items")
+        );
     }
 
-    fn update_test_progress(&mut self, items_processed: usize) {
-        let total = self.eval_progress.split.items_total;
-        let unit = self.eval_progress.split.unit.clone();
-        self.eval_progress.split = Progress::new(items_processed, total, unit);
-        println!("{:?}", self.eval_progress);
+    fn update_test_progress(&mut self, progress: &Progress) {
+        self.eval_progress.split = progress.clone();
+        println!(
+            "{}: {}",
+            progress.unit.as_deref().unwrap_or("items"),
+            progress
+        );
     }
 
-    fn end_test(&mut self) {}
+    fn end_test(&mut self, progress: &Progress) {
+        self.eval_progress.split = progress.clone();
+        println!("Split ended: {progress}");
+    }
 
     fn end_global_progress(&mut self) {}
 

@@ -1,3 +1,6 @@
+use crate::modules::bounds::{self, Windows};
+use burn::instrument::{Bounds, compute};
+use burn::tensor::module::avg_pool_output_size;
 use burn_core as burn;
 
 use crate::PaddingConfig1d;
@@ -90,6 +93,31 @@ impl AvgPool1dConfig {
 }
 
 impl AvgPool1d {
+    /// The options the pool runs with, its padding resolved against `input`'s size.
+    fn options(&self, input: &Tensor<3>) -> AvgPoolOptions<1> {
+        let [_batch_size, _channels, length] = input.dims();
+        let padding = self
+            .padding
+            .calculate_padding_1d_pair(length, self.kernel_size, self.stride);
+
+        AvgPoolOptions::new([self.kernel_size])
+            .with_stride([self.stride])
+            .with_padding_pairs([padding])
+            .with_count_include_pad(self.count_include_pad)
+            .with_ceil_mode(self.ceil_mode)
+    }
+
+    /// None where the pool cannot size its output, which it rejects.
+    fn bounds(&self, input: &Tensor<3>) -> Option<Bounds> {
+        let options = self.options(input);
+        let output_size = avg_pool_output_size(bounds::spatial(input), &options)?;
+        Some(
+            Windows::avg_pool(&options)
+                .over(input, output_size)
+                .resampling(input),
+        )
+    }
+
     /// Applies the forward pass on the input tensor.
     ///
     /// See [avg_pool1d](burn::tensor::module::avg_pool1d) for more information.
@@ -98,20 +126,10 @@ impl AvgPool1d {
     ///
     /// - input: `[batch_size, channels, length_in]`
     /// - output: `[batch_size, channels, length_out]`
+    #[compute(bounds = Self::bounds)]
     pub fn forward(&self, input: Tensor<3>) -> Tensor<3> {
-        let [_batch_size, _channels, length] = input.dims();
-        let padding = self
-            .padding
-            .calculate_padding_1d_pair(length, self.kernel_size, self.stride);
-
-        avg_pool1d(
-            input,
-            AvgPoolOptions::new([self.kernel_size])
-                .with_stride([self.stride])
-                .with_padding_pairs([padding])
-                .with_count_include_pad(self.count_include_pad)
-                .with_ceil_mode(self.ceil_mode),
-        )
+        let options = self.options(&input);
+        avg_pool1d(input, options)
     }
 }
 

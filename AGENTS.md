@@ -52,6 +52,10 @@ such as fusion keeping `linear` decomposed to preserve downstream fusion.
   `i64`; some devices lack 64-bit integers. Handle quantized inputs and zero-sized dimensions.
 - Avoid host synchronization (`into_data`, `into_scalar`) in forward passes, losses, and metrics.
 - Update documentation and examples in the same change when behavior or APIs change.
+- Record user-visible changes in [burn-book/src/changelog.md](burn-book/src/changelog.md), following
+  the [changelog policy](CONTRIBUTING.md#changelog). Highlight major changes with descriptive
+  subsections; keep entries concise and include migration steps for API changes. Update existing
+  entries when follow-up work changes them.
 
 ### Backends and Kernels
 
@@ -127,6 +131,9 @@ Follow the [contribution policy](CONTRIBUTING.md#ai-assisted-contributions) when
 contributor remains responsible for understanding and validating the submitted changes.
 
 - When preparing or updating a PR, read and use the [PR template](.github/pull_request_template.md).
+- Use Conventional Commits for commit messages and PR titles, following the
+  [title and commit policy](CONTRIBUTING.md#pr-titles-and-commit-messages), and keep the PR title
+  aligned with the final scope of the change.
 - Complete its AI Usage section accurately. Describe your involvement in implementation, tests,
   investigation, documentation, the PR description, or review, including whether you assisted with
   specific tasks or carried out most or all of the work autonomously. Explicitly say when you wrote

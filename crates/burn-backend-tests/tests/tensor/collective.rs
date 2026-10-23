@@ -1,6 +1,8 @@
-use burn_backend::{distributed::ReduceOperation, ops::CollectiveOps};
-use burn_dispatch::{Dispatch, DispatchDevice, DispatchTensor};
-use burn_tensor::{DType, Device, TensorData, Tolerance, kind::Basic};
+use burn_backend::ops::CollectiveOps;
+use burn_dispatch::Dispatch;
+use burn_tensor::{
+    DType, Device, TensorData, Tolerance, distributed::ReduceOperation, kind::Basic,
+};
 use core::ops::Range;
 
 use super::*;
@@ -41,9 +43,81 @@ mod emulated {
     }
 
     #[test]
-    #[should_panic(expected = "fewer than the 3 members it splits over")]
+    #[should_panic(expected = "an empty list of tensors")]
+    fn should_refuse_a_group_without_members() {
+        TestTensor::<2>::all_reduce(Vec::new(), ReduceOperation::Sum);
+    }
+
+    #[test]
+    #[should_panic(expected = "different shapes or dtypes")]
+    fn should_refuse_members_of_different_shapes() {
+        let device = Device::default();
+        let members = vec![
+            TestTensor::<2>::from_data([[1.0, 2.0]], &device),
+            TestTensor::<2>::from_data([[1.0, 2.0, 3.0]], &device),
+        ];
+
+        TestTensor::all_gather(members, 0);
+    }
+
+    #[test]
+    #[should_panic(expected = "a dimension shorter than the group")]
     fn should_refuse_a_dimension_shorter_than_its_members() {
         Group { rows: 2, ..group() }.reduce_scatter();
+    }
+
+    /// The split rule belongs to `CollectiveOps`, which asserts it for the callers that reach a
+    /// collective without the `Tensor` check: the router's emulation, and a backend itself.
+    #[test]
+    #[should_panic(expected = "fewer than the 3 members it splits over")]
+    fn should_refuse_a_short_dimension_at_the_backend() {
+        let group = Group { rows: 2, ..group() };
+        let members = group
+            .float()
+            .into_iter()
+            .map(|member| member.into_dispatch())
+            .collect();
+
+        Dispatch::float_reduce_scatter(members, 0, ReduceOperation::Sum);
+    }
+
+    #[test]
+    #[should_panic(expected = "an empty list of devices")]
+    fn should_refuse_a_broadcast_to_no_device() {
+        let tensor = TestTensor::<2>::from_data([[1.0, 2.0]], &Device::default());
+
+        TestTensor::broadcast(tensor, &[]);
+    }
+
+    /// No backend has a quantized collective, and dequantizing to run one would change the
+    /// precision of a result the caller asked for in a quantized dtype.
+    #[cfg(feature = "quantization")]
+    #[test]
+    #[should_panic(expected = "Quantized tensors are not supported")]
+    fn should_refuse_quantized_members() {
+        let device = Device::default();
+        let scheme = device.settings().quantization.scheme;
+        // A packed store quantizes a last dimension that fills whole u32 words, and no other.
+        let plain = TestTensor::<1>::ones([16], &device);
+        // Quantized second, where the dtype comparison must not claim a plain mismatch instead.
+        let members = vec![plain.clone(), plain.quantize_dynamic(&scheme)];
+
+        TestTensor::all_reduce(members, ReduceOperation::Sum);
+    }
+
+    /// `Tensor::cat` drops zero-length members before the backend sees them, which a collective
+    /// does not, so a gather over an empty dimension reaches the backend's `cat` with every member
+    /// empty.
+    #[test]
+    fn should_gather_an_empty_dimension() {
+        let device = Device::default();
+        let members = vec![TestTensor::<2>::zeros([0, 3], &device); 3];
+
+        let gathered = TestTensor::all_gather(members, 0);
+
+        for member in gathered {
+            assert_eq!(member.dims(), [0, 3]);
+        }
     }
 
     #[cfg(any(feature = "flex", feature = "cuda"))]
@@ -77,9 +151,8 @@ mod emulated {
             })
             .collect();
 
-        let inputs = members.iter().map(|member| member.clone().into_dispatch());
-        let mut outputs = Dispatch::float_all_gather(inputs.collect(), 0);
-        let gathered = TestTensor::<2>::from_dispatch(outputs.remove(0));
+        let mut outputs = TestTensor::all_gather(members.clone(), 0);
+        let gathered = outputs.remove(0);
         let grads = (gathered.clone() * gathered).sum().backward();
 
         for (member, tensor) in members.iter().enumerate() {
@@ -262,28 +335,27 @@ impl Group {
         let sum = Grid::sum(&self.every_value());
         let members = self.devices.len() as i32;
 
-        let outputs = Dispatch::float_all_reduce(self.float(), ReduceOperation::Sum);
+        let outputs = TestTensor::all_reduce(self.float(), ReduceOperation::Sum);
         self.assert_float(outputs, |_| sum.float());
-        let outputs = Dispatch::float_all_reduce(self.float(), ReduceOperation::Mean);
+        let outputs = TestTensor::all_reduce(self.float(), ReduceOperation::Mean);
         self.assert_float(outputs, |_| sum.float_divided(members));
 
-        let outputs = Dispatch::int_all_reduce(self.int(), ReduceOperation::Sum);
-        self.assert_int(outputs, |_| sum.int());
-        let outputs = Dispatch::int_all_reduce(self.int(), ReduceOperation::Mean);
-        self.assert_int(outputs, |_| sum.divided(members).int());
+        let outputs = TestTensorInt::all_reduce(self.int(), ReduceOperation::Sum);
+        self.assert_values(outputs, |_| sum.int());
+        let outputs = TestTensorInt::all_reduce(self.int(), ReduceOperation::Mean);
+        self.assert_values(outputs, |_| sum.divided(members).int());
     }
 
     /// Every member holds 40000, whose sum overflows f16 though the mean does not.
+    #[cfg(any(feature = "flex", feature = "cuda"))]
     fn f16_mean_past_the_range_of_its_sum(&self) {
-        let members = self.devices.iter().map(|device| {
-            TestTensor::<1>::from_data([40000.0, 40000.0], device)
-                .cast(DType::F16)
-                .into_dispatch()
-        });
+        let members = self
+            .devices
+            .iter()
+            .map(|device| TestTensor::<1>::from_data([40000.0, 40000.0], device).cast(DType::F16));
 
-        let outputs = Dispatch::float_all_reduce(members.collect(), ReduceOperation::Mean);
+        let outputs = TestTensor::all_reduce(members.collect(), ReduceOperation::Mean);
         for output in outputs {
-            let output = TestTensor::<1>::from_dispatch(output);
             assert_eq!(output.dtype(), DType::F16);
             output.into_data().convert::<f32>().assert_approx_eq::<f32>(
                 &TensorData::from([40000.0, 40000.0]),
@@ -297,7 +369,7 @@ impl Group {
         let sum = Grid::sum(&self.every_value());
         let held = self.float();
 
-        let outputs = Dispatch::float_all_reduce(held.clone(), ReduceOperation::Sum);
+        let outputs = TestTensor::all_reduce(held.clone(), ReduceOperation::Sum);
         self.assert_float(outputs, |_| sum.float());
         self.assert_float(held, |member| self.values(member).float());
     }
@@ -306,12 +378,12 @@ impl Group {
         for dim in [0, 1] {
             let gathered = Grid::cat(self.every_value(), dim);
 
-            let outputs = Dispatch::float_all_gather(self.float(), dim);
+            let outputs = TestTensor::all_gather(self.float(), dim);
             self.assert_float(outputs, |_| gathered.float());
-            let outputs = Dispatch::int_all_gather(self.int(), dim);
-            self.assert_int(outputs, |_| gathered.int());
-            let outputs = Dispatch::bool_all_gather(self.bool(), dim);
-            self.assert_bool(outputs, |_| gathered.bool());
+            let outputs = TestTensorInt::all_gather(self.int(), dim);
+            self.assert_values(outputs, |_| gathered.int());
+            let outputs = TestTensorBool::all_gather(self.bool(), dim);
+            self.assert_values(outputs, |_| gathered.bool());
         }
     }
 
@@ -321,15 +393,15 @@ impl Group {
         for dim in [0, 1] {
             let chunk = |member| sum.chunk(dim, self.chunk(self.len(dim), member));
 
-            let outputs = Dispatch::float_reduce_scatter(self.float(), dim, ReduceOperation::Sum);
+            let outputs = TestTensor::reduce_scatter(self.float(), dim, ReduceOperation::Sum);
             self.assert_float(outputs, |member| chunk(member).float());
-            let outputs = Dispatch::float_reduce_scatter(self.float(), dim, ReduceOperation::Mean);
+            let outputs = TestTensor::reduce_scatter(self.float(), dim, ReduceOperation::Mean);
             self.assert_float(outputs, |member| chunk(member).float_divided(members));
 
-            let outputs = Dispatch::int_reduce_scatter(self.int(), dim, ReduceOperation::Sum);
-            self.assert_int(outputs, |member| chunk(member).int());
-            let outputs = Dispatch::int_reduce_scatter(self.int(), dim, ReduceOperation::Mean);
-            self.assert_int(outputs, |member| chunk(member).divided(members).int());
+            let outputs = TestTensorInt::reduce_scatter(self.int(), dim, ReduceOperation::Sum);
+            self.assert_values(outputs, |member| chunk(member).int());
+            let outputs = TestTensorInt::reduce_scatter(self.int(), dim, ReduceOperation::Mean);
+            self.assert_values(outputs, |member| chunk(member).divided(members).int());
         }
     }
 
@@ -345,12 +417,12 @@ impl Group {
                 Grid::cat(chunks, concat_dim)
             };
 
-            let outputs = Dispatch::float_all_to_all(self.float(), split_dim, concat_dim);
+            let outputs = TestTensor::all_to_all(self.float(), split_dim, concat_dim);
             self.assert_float(outputs, |member| received(member).float());
-            let outputs = Dispatch::int_all_to_all(self.int(), split_dim, concat_dim);
-            self.assert_int(outputs, |member| received(member).int());
-            let outputs = Dispatch::bool_all_to_all(self.bool(), split_dim, concat_dim);
-            self.assert_bool(outputs, |member| received(member).bool());
+            let outputs = TestTensorInt::all_to_all(self.int(), split_dim, concat_dim);
+            self.assert_values(outputs, |member| received(member).int());
+            let outputs = TestTensorBool::all_to_all(self.bool(), split_dim, concat_dim);
+            self.assert_values(outputs, |member| received(member).bool());
         }
     }
 
@@ -358,14 +430,13 @@ impl Group {
     fn broadcast(&self) {
         let root = self.devices.len() - 1;
         let values = self.values(root);
-        let devices = self.dispatch_devices();
 
-        let outputs = Dispatch::float_broadcast(self.float().remove(root), &devices);
+        let outputs = TestTensor::broadcast(self.float().remove(root), &self.devices);
         self.assert_float(outputs, |_| values.float());
-        let outputs = Dispatch::int_broadcast(self.int().remove(root), &devices);
-        self.assert_int(outputs, |_| values.int());
-        let outputs = Dispatch::bool_broadcast(self.bool().remove(root), &devices);
-        self.assert_bool(outputs, |_| values.bool());
+        let outputs = TestTensorInt::broadcast(self.int().remove(root), &self.devices);
+        self.assert_values(outputs, |_| values.int());
+        let outputs = TestTensorBool::broadcast(self.bool().remove(root), &self.devices);
+        self.assert_values(outputs, |_| values.bool());
     }
 
     /// Each member's values as `[rows, cols / 2, 2]`, gathered and scattered along the middle
@@ -379,9 +450,9 @@ impl Group {
             sum.chunk(1, 2 * range.start..2 * range.end)
         };
 
-        let outputs = Dispatch::float_all_gather(self.float_3d(), 1);
+        let outputs = TestTensor::all_gather(self.float_3d(), 1);
         self.assert_float(Self::flattened(outputs), |_| gathered.float());
-        let outputs = Dispatch::float_reduce_scatter(self.float_3d(), 1, ReduceOperation::Sum);
+        let outputs = TestTensor::reduce_scatter(self.float_3d(), 1, ReduceOperation::Sum);
         self.assert_float(Self::flattened(outputs), |member| chunk(member).float());
     }
 
@@ -403,28 +474,28 @@ impl Group {
             .collect()
     }
 
-    fn float(&self) -> Vec<DispatchTensor> {
+    fn float(&self) -> Vec<TestTensor<2>> {
         self.members(|values, device| match self.strided {
             true => TestTensor::<2>::from_data(values.transposed().float(), device).transpose(),
             false => TestTensor::<2>::from_data(values.float(), device),
         })
     }
 
-    fn int(&self) -> Vec<DispatchTensor> {
+    fn int(&self) -> Vec<TestTensorInt<2>> {
         self.members(|values, device| match self.strided {
             true => TestTensorInt::<2>::from_data(values.transposed().int(), device).transpose(),
             false => TestTensorInt::<2>::from_data(values.int(), device),
         })
     }
 
-    fn bool(&self) -> Vec<DispatchTensor> {
+    fn bool(&self) -> Vec<TestTensorBool<2>> {
         self.members(|values, device| match self.strided {
             true => TestTensorBool::<2>::from_data(values.transposed().bool(), device).transpose(),
             false => TestTensorBool::<2>::from_data(values.bool(), device),
         })
     }
 
-    fn float_3d(&self) -> Vec<DispatchTensor> {
+    fn float_3d(&self) -> Vec<TestTensor<3>> {
         self.members(|values, device| {
             TestTensor::<2>::from_data(values.float(), device).reshape([
                 self.rows,
@@ -437,29 +508,21 @@ impl Group {
     fn members<const D: usize, K: Basic>(
         &self,
         tensor: impl Fn(Grid, &Device) -> Tensor<D, K>,
-    ) -> Vec<DispatchTensor> {
+    ) -> Vec<Tensor<D, K>> {
         self.devices
             .iter()
             .enumerate()
-            .map(|(member, device)| tensor(self.values(member), device).into_dispatch())
+            .map(|(member, device)| tensor(self.values(member), device))
             .collect()
     }
 
-    fn flattened(outputs: Vec<DispatchTensor>) -> Vec<DispatchTensor> {
+    fn flattened(outputs: Vec<TestTensor<3>>) -> Vec<TestTensor<2>> {
         outputs
             .into_iter()
             .map(|output| {
-                let output = TestTensor::<3>::from_dispatch(output);
                 let [rows, middle, pair] = output.dims();
-                output.reshape([rows, middle * pair]).into_dispatch()
+                output.reshape([rows, middle * pair])
             })
-            .collect()
-    }
-
-    fn dispatch_devices(&self) -> Vec<DispatchDevice> {
-        self.devices
-            .iter()
-            .map(|device| device.as_dispatch().clone())
             .collect()
     }
 
@@ -474,10 +537,9 @@ impl Group {
         [self.rows, self.cols][dim]
     }
 
-    fn assert_float(&self, outputs: Vec<DispatchTensor>, expected: impl Fn(usize) -> TensorData) {
+    fn assert_float(&self, outputs: Vec<TestTensor<2>>, expected: impl Fn(usize) -> TensorData) {
         self.assert_members(outputs.len());
         for (member, output) in outputs.into_iter().enumerate() {
-            let output = TestTensor::<2>::from_dispatch(output);
             assert_eq!(output.device(), self.devices[member], "member {member}");
             output
                 .into_data()
@@ -485,19 +547,13 @@ impl Group {
         }
     }
 
-    fn assert_int(&self, outputs: Vec<DispatchTensor>, expected: impl Fn(usize) -> TensorData) {
+    fn assert_values<K: Basic>(
+        &self,
+        outputs: Vec<Tensor<2, K>>,
+        expected: impl Fn(usize) -> TensorData,
+    ) {
         self.assert_members(outputs.len());
         for (member, output) in outputs.into_iter().enumerate() {
-            let output = TestTensorInt::<2>::from_dispatch(output);
-            assert_eq!(output.device(), self.devices[member], "member {member}");
-            output.into_data().assert_eq(&expected(member), false);
-        }
-    }
-
-    fn assert_bool(&self, outputs: Vec<DispatchTensor>, expected: impl Fn(usize) -> TensorData) {
-        self.assert_members(outputs.len());
-        for (member, output) in outputs.into_iter().enumerate() {
-            let output = TestTensorBool::<2>::from_dispatch(output);
             assert_eq!(output.device(), self.devices[member], "member {member}");
             output.into_data().assert_eq(&expected(member), false);
         }

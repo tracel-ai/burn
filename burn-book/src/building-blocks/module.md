@@ -45,7 +45,7 @@ These children participate in traversal, checkpoints and state transitions like 
 
 Custom generic types such as `Block<f32>` are treated as submodules; use `#[module(skip)]` if they
 hold configuration instead. For structures requiring custom traversal, use a
-[manual implementation](../migrating-to-0.22.md#manual-module-implementations).
+[manual implementation](https://github.com/tracel-ai/burn/blob/release/0.22/burn-book/src/migrating-to-0.22.md#manual-module-implementations).
 
 ## Forward Contract
 

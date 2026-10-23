@@ -5,7 +5,7 @@ use burn_tensor::{Int, Tensor};
 
 use crate::Bounds;
 
-/// What a measured pass does with the components it enters.
+/// What a measured run does with the components it enters.
 ///
 /// Implemented by whoever is measuring; the seam knows nothing about reports, devices or
 /// kernels. The component side of what a runtime's launch observer is to its kernels.
@@ -21,12 +21,12 @@ pub trait ComponentObserver {
     /// The most recently entered component was left.
     fn exit(&self);
     /// The component most recently entered moves more traffic than its declared floor, by an
-    /// amount only the pass's values tell. An observer that reads the pass back adds it to that
+    /// amount only the run's values tell. An observer that reads the run back adds it to that
     /// component and the ones around it; any other ignores it.
     fn observe(&self, _observed: ObservedBounds) {}
 }
 
-/// An observer shared with whoever reads it once the pass is over, installed as the observer
+/// An observer shared with whoever reads it once the run is over, installed as the observer
 /// itself.
 #[cfg(feature = "std")]
 impl<O: ComponentObserver + ?Sized> ComponentObserver for std::sync::Arc<O> {
@@ -41,11 +41,11 @@ impl<O: ComponentObserver + ?Sized> ComponentObserver for std::sync::Arc<O> {
     }
 }
 
-/// Traffic a component moves beyond its declared floor that depends on values the pass
+/// Traffic a component moves beyond its declared floor that depends on values the run
 /// computes, such as which experts a sparse layer's routes select.
 ///
 /// [`Bounds`] are pure, so a declared floor charges only what the shapes force. This keeps the
-/// values on the device with their price, so an observer that reads the pass back prices them
+/// values on the device with their price, so an observer that reads the run back prices them
 /// afterwards and synchronizes nothing during it.
 pub struct ObservedBounds(Box<dyn FnOnce() -> Bounds + Send>);
 
@@ -62,7 +62,7 @@ impl ObservedBounds {
     }
 
     /// Read the values back and price them. Waits on the device, so an observer calls it after
-    /// the pass is timed.
+    /// the run is timed.
     ///
     /// # Panics
     ///
@@ -100,14 +100,14 @@ pub struct Declaration<'a> {
     pub bounds: Option<Bounds>,
 }
 
-#[cfg(feature = "std")]
+#[cfg(feature = "instrument")]
 std::thread_local! {
     /// Whether this thread is observed, kept apart from the observer so the unobserved path is
     /// one read rather than a borrow.
     ///
     /// Per thread, not process-wide: an observer belongs to the thread that installed it, and a
     /// global flag would let one thread arm the annotations of another holding no observer, or
-    /// let a pass ending on one thread stop the observation of a pass still going on another.
+    /// let a run ending on one thread stop the observation of a run still going on another.
     static OBSERVED: core::cell::Cell<bool> = const { core::cell::Cell::new(false) };
     static OBSERVER: core::cell::RefCell<Option<Box<dyn ComponentObserver>>> =
         const { core::cell::RefCell::new(None) };
@@ -119,21 +119,21 @@ std::thread_local! {
 /// thread-local read.
 #[inline]
 pub fn observing() -> Option<Observing> {
-    #[cfg(feature = "std")]
+    #[cfg(feature = "instrument")]
     return OBSERVED.with(core::cell::Cell::get).then_some(Observing);
-    #[cfg(not(feature = "std"))]
+    #[cfg(not(feature = "instrument"))]
     return None;
 }
 
 /// An observer installed for **this thread**, arming its annotated methods until it drops.
 ///
 /// A forward pass runs on one thread, so an observer is installed there and nothing else in the
-/// process is measured or slowed. It is removed when this guard drops, so a panicking pass cannot
+/// process is measured or slowed. It is removed when this guard drops, so a panicking run cannot
 /// leave the thread observed by an observer nobody holds.
 ///
 /// Neither `Send` nor `Sync`: it restores the slot of the thread that made it, and dropped on
 /// another thread it would stop observing one that holds no observer.
-#[cfg(feature = "std")]
+#[cfg(feature = "instrument")]
 #[must_use = "the observer is uninstalled as soon as this is dropped"]
 pub struct ComponentObservation {
     /// The observer this one replaced, put back on drop.
@@ -141,7 +141,7 @@ pub struct ComponentObservation {
     _thread: core::marker::PhantomData<*const ()>,
 }
 
-#[cfg(feature = "std")]
+#[cfg(feature = "instrument")]
 impl ComponentObservation {
     /// Install `observer` for this thread.
     ///
@@ -158,7 +158,7 @@ impl ComponentObservation {
     }
 }
 
-#[cfg(feature = "std")]
+#[cfg(feature = "instrument")]
 impl Drop for ComponentObservation {
     fn drop(&mut self) {
         let replaced = self.replaced.take();
@@ -191,9 +191,9 @@ impl Observing {
         Self::with_observer(|observer| observer.observe(observed));
     }
 
-    #[cfg_attr(not(feature = "std"), allow(unused_variables))]
+    #[cfg_attr(not(feature = "instrument"), allow(unused_variables))]
     fn with_observer(call: impl FnOnce(&dyn ComponentObserver)) {
-        #[cfg(feature = "std")]
+        #[cfg(feature = "instrument")]
         OBSERVER.with(|slot| {
             if let Some(observer) = slot.borrow().as_ref() {
                 call(observer.as_ref());
@@ -217,7 +217,7 @@ impl Drop for Tag {
     }
 }
 
-#[cfg(all(test, feature = "std"))]
+#[cfg(all(test, feature = "instrument"))]
 mod tests {
     use super::*;
     use crate::observed::installed;
@@ -286,7 +286,7 @@ mod tests {
         assert_eq!(seen.events(), ["+experts:-:-", "?9", "-"]);
     }
 
-    /// Dropping the observation stops observing the thread, so a pass that panicked cannot leave it
+    /// Dropping the observation stops observing the thread, so a run that panicked cannot leave it
     /// observed by an observer nobody holds.
     #[test]
     fn dropping_the_guard_stops_observing() {
@@ -296,7 +296,7 @@ mod tests {
         }
         assert!(
             observing().is_none(),
-            "a pass that panicked must not leave the thread observed"
+            "a run that panicked must not leave the thread observed"
         );
     }
 

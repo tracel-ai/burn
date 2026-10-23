@@ -127,7 +127,6 @@ pub fn classify(op: &OperationIr) -> OpClass {
         O::Init(_) => OpClass::Init,
         O::Custom(_) => OpClass::Custom,
         O::Drop(_) => OpClass::Drop,
-        O::Distributed(_) => OpClass::Distributed,
         O::Bool(_) | O::Int(_) => OpClass::Elementwise,
     }
 }
