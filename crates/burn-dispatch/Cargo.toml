@@ -62,6 +62,8 @@ capture = ["burn-capture"]
 persistence = ["burn-cubecl?/persistence"]
 autotune = ["burn-cubecl?/autotune"]
 autotune-checks = ["burn-cubecl?/autotune-checks"]
+# Attention's backward pass through cubek's tile-DSL routines, for training.
+attention-backward = ["burn-cubecl?/attention-backward"]
 fusion = [
     "burn-cubecl?/fusion",
     "burn-remote?/fusion",

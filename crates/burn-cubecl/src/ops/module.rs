@@ -465,6 +465,50 @@ impl ModuleOps<Self> for CubeBackend {
         .expect("Kernel to never fail")
     }
 
+    #[cfg(feature = "attention-backward")]
+    fn has_attention_backward(
+        query: &burn_std::Shape,
+        key: &burn_std::Shape,
+        options: &AttentionModuleOptions,
+    ) -> bool {
+        kernel::attention::backward_serves(query, key, options)
+    }
+
+    #[cfg(feature = "attention-backward")]
+    fn attention_with_logsumexp(
+        query: FloatTensor<Self>,
+        key: FloatTensor<Self>,
+        value: FloatTensor<Self>,
+        options: AttentionModuleOptions,
+    ) -> (FloatTensor<Self>, FloatTensor<Self>) {
+        // What the kernels do not serve, a softcap or a causal mask anchored at the top left, is
+        // composed: a router asks for both operations whatever the options.
+        if !kernel::attention::backward_serves(&query.shape(), &key.shape(), &options) {
+            return burn_backend::ops::attention::attention_with_logsumexp_default::<Self>(
+                query, key, value, options,
+            );
+        }
+        kernel::attention::attention_with_logsumexp(query, key, value, options)
+    }
+
+    #[cfg(feature = "attention-backward")]
+    fn attention_backward(
+        query: FloatTensor<Self>,
+        key: FloatTensor<Self>,
+        value: FloatTensor<Self>,
+        out: FloatTensor<Self>,
+        logsumexp: FloatTensor<Self>,
+        out_grad: FloatTensor<Self>,
+        options: AttentionModuleOptions,
+    ) -> burn_backend::ops::AttentionBackward<Self> {
+        if !kernel::attention::backward_serves(&query.shape(), &key.shape(), &options) {
+            return burn_backend::ops::attention::attention_backward_default::<Self>(
+                query, key, value, out, logsumexp, out_grad, options,
+            );
+        }
+        kernel::attention::attention_backward(query, key, value, out, logsumexp, out_grad, options)
+    }
+
     fn has_ctc_loss_backward() -> bool {
         true
     }
