@@ -1,5 +1,15 @@
 /// A strategy to batch items.
 pub trait BatchStrategy<I>: Send + Sync {
+    /// Returns the exact number of samples emitted after accepting `input_items` samples
+    /// and draining all batches, if known. Counts samples within batches, not batches.
+    ///
+    /// The count describes a complete pass from an empty strategy, including any dropped
+    /// or repeated samples. Return `None` when it depends on the sample contents.
+    /// This query must not change the strategy's state.
+    fn expected_num_items(&self, _input_items: usize) -> Option<usize> {
+        None
+    }
+
     /// Adds an item to the strategy.
     ///
     /// # Arguments
@@ -50,6 +60,7 @@ impl<I> FixBatchStrategy<I> {
     ///
     /// The strategy.
     pub fn new(batch_size: usize) -> Self {
+        assert!(batch_size > 0, "Batch size must be greater than zero.");
         FixBatchStrategy {
             items: Vec::with_capacity(batch_size),
             batch_size,
@@ -58,6 +69,10 @@ impl<I> FixBatchStrategy<I> {
 }
 
 impl<I: Send + Sync + 'static> BatchStrategy<I> for FixBatchStrategy<I> {
+    fn expected_num_items(&self, input_items: usize) -> Option<usize> {
+        Some(input_items)
+    }
+
     fn add(&mut self, item: I) {
         self.items.push(item);
     }
