@@ -313,6 +313,7 @@ where
     } else {
         None
     };
+    let sliding_window = options.sliding_window;
 
     let q_data: &[T] = query.storage();
     let k_data: &[T] = key.storage();
@@ -352,6 +353,7 @@ where
         scale,
         softcap,
         causal_offset,
+        sliding_window,
         seq_q,
         seq_kv,
         head_dim,
@@ -504,6 +506,7 @@ struct AttentionParams<T> {
     scale: T,
     softcap: Option<T>,
     causal_offset: Option<isize>,
+    sliding_window: Option<u32>,
     seq_q: usize,
     seq_kv: usize,
     head_dim: usize,
@@ -550,6 +553,7 @@ fn flash_attention_head<T: FlashGemm>(
         scale,
         softcap,
         causal_offset,
+        sliding_window,
         seq_q,
         seq_kv,
         head_dim,
@@ -621,6 +625,15 @@ fn flash_attention_head<T: FlashGemm>(
                     && (kv_idx as isize) > (qi as isize) + offset
                 {
                     val = neg_inf;
+                }
+
+                if let Some(sliding_window) = sliding_window {
+                    let right = qi as isize + seq_kv as isize - seq_q as isize;
+                    let left = right - (sliding_window as isize - 1);
+                    let kv = kv_idx as isize;
+                    if kv > right || kv < left {
+                        val = neg_inf;
+                    }
                 }
 
                 if let Some(b) = bias {
@@ -809,6 +822,7 @@ where
     } else {
         None
     };
+    let sliding_window = options.sliding_window;
 
     let q_data: &[T] = query.storage();
     let k_data: &[T] = key.storage();
@@ -847,6 +861,7 @@ where
         scale,
         softcap,
         causal_offset,
+        sliding_window,
         seq_q,
         seq_kv,
         head_dim,
@@ -929,6 +944,7 @@ fn naive_attention_head<T: FlashGemm>(
         scale,
         softcap,
         causal_offset,
+        sliding_window,
         seq_q,
         seq_kv,
         head_dim,
@@ -977,6 +993,15 @@ fn naive_attention_head<T: FlashGemm>(
                 && (ki as isize) > (qi as isize) + offset
             {
                 val = neg_inf;
+            }
+
+            if let Some(sliding_window) = sliding_window {
+                let right = qi as isize + seq_kv as isize - seq_q as isize;
+                let left = right - (sliding_window as isize - 1);
+                let ki = ki as isize;
+                if ki > right || ki < left {
+                    val = neg_inf;
+                }
             }
 
             if let Some(b) = bias {

@@ -297,6 +297,16 @@ fn attention_scores<B: Backend>(
         attention_scores
     };
 
+    // Sliding-window masking: keep only the `window` keys ending at the query's
+    // own (bottom-right aligned) position.
+    let attention_scores = match options.sliding_window {
+        Some(window) => {
+            let window_mask = build_sliding_window_mask::<B>(&attention_scores, window);
+            B::float_mask_fill(attention_scores, window_mask, f32::NEG_INFINITY.into())
+        }
+        None => attention_scores,
+    };
+
     // Additive bias (ALiBi, relative position biases, etc.)
     if let Some(bias) = attn_bias {
         B::float_add(attention_scores, bias)
@@ -383,6 +393,43 @@ fn build_causal_mask<B: Backend>(attention_scores: &FloatTensor<B>, offset: i64)
     let mask_2d = B::int_lower(rows_shifted, cols, settings.bool_dtype);
 
     // Reshape to [1, 1, seq_q, seq_k] then expand to [batch_size, num_heads, seq_q, seq_k]
+    let mask_4d = B::bool_reshape(mask_2d, Shape::new([1, 1, seq_q, seq_k]));
+    B::bool_expand(mask_4d, Shape::new([batch_size, num_heads, seq_q, seq_k]))
+}
+
+/// Builds a bool mask for a bottom-right aligned sliding window of `window`
+/// keys. `true` means "mask this position": both keys newer than the query's
+/// own position and keys older than the window's start are masked.
+fn build_sliding_window_mask<B: Backend>(
+    attention_scores: &FloatTensor<B>,
+    window: u32,
+) -> BoolTensor<B> {
+    let device = attention_scores.device();
+    let scores_shape = attention_scores.shape().dims::<4>();
+    let [batch_size, num_heads, seq_q, seq_k] = scores_shape;
+    let settings = get_or_init_device_settings::<B>(&device);
+
+    let offset = seq_k as i64 - seq_q as i64;
+    let rows = B::int_reshape(
+        B::int_arange(0..seq_q as i64, &device, settings.int_dtype),
+        Shape::new([seq_q, 1]),
+    );
+    let cols = B::int_reshape(
+        B::int_arange(0..seq_k as i64, &device, settings.int_dtype),
+        Shape::new([1, seq_k]),
+    );
+
+    // The query's own position in key space, bottom-right aligned.
+    let right = B::int_add_scalar(rows, offset.into());
+
+    // Mask newer keys: `col > right`.
+    let future = B::int_lower(right.clone(), cols.clone(), settings.bool_dtype);
+
+    // Mask keys older than the window start: `col < right - (window - 1)`.
+    let left = B::int_sub_scalar(right, (window.saturating_sub(1) as i64).into());
+    let past = B::int_lower(cols, left, settings.bool_dtype);
+
+    let mask_2d = B::bool_or(future, past);
     let mask_4d = B::bool_reshape(mask_2d, Shape::new([1, 1, seq_q, seq_k]));
     B::bool_expand(mask_4d, Shape::new([batch_size, num_heads, seq_q, seq_k]))
 }
