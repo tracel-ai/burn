@@ -90,6 +90,7 @@ pub fn matmul(
     }
 }
 
+#[cfg(not(feature = "tile-kernels-only"))]
 pub(crate) fn launch_matmul_naive<S: Clone + Into<Strategy>>(
     strategy: &S,
     mut lhs: CubeTensor,

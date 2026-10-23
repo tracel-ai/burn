@@ -1008,6 +1008,7 @@ version = "0.23.0-pre.1"
 dependencies = [
  "burn-autodiff",
  "burn-backend",
+ "burn-cubecl",
  "burn-cubecl-fusion",
  "burn-dispatch",
  "burn-flex",
@@ -2307,7 +2308,7 @@ dependencies = [
 [[package]]
 name = "cubecl"
 version = "0.12.0-pre.1"
-source = "git+https://github.com/tracel-ai/cubecl?rev=10642912bdf1f8c3d86e23b9a7f94a970b21d076#10642912bdf1f8c3d86e23b9a7f94a970b21d076"
+source = "git+https://github.com/tracel-ai/cubecl?rev=c97b512e3492e92c45b63cb454dacb04db089c0e#c97b512e3492e92c45b63cb454dacb04db089c0e"
 dependencies = [
  "cubecl-core",
  "cubecl-cpu",
@@ -2326,7 +2327,7 @@ dependencies = [
 [[package]]
 name = "cubecl-common"
 version = "0.12.0-pre.1"
-source = "git+https://github.com/tracel-ai/cubecl?rev=10642912bdf1f8c3d86e23b9a7f94a970b21d076#10642912bdf1f8c3d86e23b9a7f94a970b21d076"
+source = "git+https://github.com/tracel-ai/cubecl?rev=c97b512e3492e92c45b63cb454dacb04db089c0e#c97b512e3492e92c45b63cb454dacb04db089c0e"
 dependencies = [
  "bytemuck",
  "cfg_aliases",
@@ -2350,7 +2351,7 @@ dependencies = [
 [[package]]
 name = "cubecl-core"
 version = "0.12.0-pre.1"
-source = "git+https://github.com/tracel-ai/cubecl?rev=10642912bdf1f8c3d86e23b9a7f94a970b21d076#10642912bdf1f8c3d86e23b9a7f94a970b21d076"
+source = "git+https://github.com/tracel-ai/cubecl?rev=c97b512e3492e92c45b63cb454dacb04db089c0e#c97b512e3492e92c45b63cb454dacb04db089c0e"
 dependencies = [
  "bitflags 2.13.2",
  "bytemuck",
@@ -2380,7 +2381,7 @@ dependencies = [
 [[package]]
 name = "cubecl-cpp"
 version = "0.12.0-pre.1"
-source = "git+https://github.com/tracel-ai/cubecl?rev=10642912bdf1f8c3d86e23b9a7f94a970b21d076#10642912bdf1f8c3d86e23b9a7f94a970b21d076"
+source = "git+https://github.com/tracel-ai/cubecl?rev=c97b512e3492e92c45b63cb454dacb04db089c0e#c97b512e3492e92c45b63cb454dacb04db089c0e"
 dependencies = [
  "bytemuck",
  "cubecl-common",
@@ -2403,7 +2404,7 @@ dependencies = [
 [[package]]
 name = "cubecl-cpu"
 version = "0.12.0-pre.1"
-source = "git+https://github.com/tracel-ai/cubecl?rev=10642912bdf1f8c3d86e23b9a7f94a970b21d076#10642912bdf1f8c3d86e23b9a7f94a970b21d076"
+source = "git+https://github.com/tracel-ai/cubecl?rev=c97b512e3492e92c45b63cb454dacb04db089c0e#c97b512e3492e92c45b63cb454dacb04db089c0e"
 dependencies = [
  "bytemuck",
  "crossbeam-utils",
@@ -2425,7 +2426,7 @@ dependencies = [
 [[package]]
 name = "cubecl-cuda"
 version = "0.12.0-pre.1"
-source = "git+https://github.com/tracel-ai/cubecl?rev=10642912bdf1f8c3d86e23b9a7f94a970b21d076#10642912bdf1f8c3d86e23b9a7f94a970b21d076"
+source = "git+https://github.com/tracel-ai/cubecl?rev=c97b512e3492e92c45b63cb454dacb04db089c0e#c97b512e3492e92c45b63cb454dacb04db089c0e"
 dependencies = [
  "bytemuck",
  "cubecl-common",
@@ -2446,7 +2447,7 @@ dependencies = [
 [[package]]
 name = "cubecl-environment"
 version = "0.12.0-pre.1"
-source = "git+https://github.com/tracel-ai/cubecl?rev=10642912bdf1f8c3d86e23b9a7f94a970b21d076#10642912bdf1f8c3d86e23b9a7f94a970b21d076"
+source = "git+https://github.com/tracel-ai/cubecl?rev=c97b512e3492e92c45b63cb454dacb04db089c0e#c97b512e3492e92c45b63cb454dacb04db089c0e"
 dependencies = [
  "async-channel",
  "backtrace",
@@ -2485,7 +2486,7 @@ dependencies = [
 [[package]]
 name = "cubecl-hip"
 version = "0.12.0-pre.1"
-source = "git+https://github.com/tracel-ai/cubecl?rev=10642912bdf1f8c3d86e23b9a7f94a970b21d076#10642912bdf1f8c3d86e23b9a7f94a970b21d076"
+source = "git+https://github.com/tracel-ai/cubecl?rev=c97b512e3492e92c45b63cb454dacb04db089c0e#c97b512e3492e92c45b63cb454dacb04db089c0e"
 dependencies = [
  "bytemuck",
  "cubecl-common",
@@ -2518,7 +2519,7 @@ dependencies = [
 [[package]]
 name = "cubecl-ir"
 version = "0.12.0-pre.1"
-source = "git+https://github.com/tracel-ai/cubecl?rev=10642912bdf1f8c3d86e23b9a7f94a970b21d076#10642912bdf1f8c3d86e23b9a7f94a970b21d076"
+source = "git+https://github.com/tracel-ai/cubecl?rev=c97b512e3492e92c45b63cb454dacb04db089c0e#c97b512e3492e92c45b63cb454dacb04db089c0e"
 dependencies = [
  "bumpalo",
  "cubecl-common",
@@ -2549,7 +2550,7 @@ dependencies = [
 [[package]]
 name = "cubecl-llvm"
 version = "0.12.0-pre.1"
-source = "git+https://github.com/tracel-ai/cubecl?rev=10642912bdf1f8c3d86e23b9a7f94a970b21d076#10642912bdf1f8c3d86e23b9a7f94a970b21d076"
+source = "git+https://github.com/tracel-ai/cubecl?rev=c97b512e3492e92c45b63cb454dacb04db089c0e#c97b512e3492e92c45b63cb454dacb04db089c0e"
 dependencies = [
  "cc",
  "cubecl-core",
@@ -2568,7 +2569,7 @@ dependencies = [
 [[package]]
 name = "cubecl-macros"
 version = "0.12.0-pre.1"
-source = "git+https://github.com/tracel-ai/cubecl?rev=10642912bdf1f8c3d86e23b9a7f94a970b21d076#10642912bdf1f8c3d86e23b9a7f94a970b21d076"
+source = "git+https://github.com/tracel-ai/cubecl?rev=c97b512e3492e92c45b63cb454dacb04db089c0e#c97b512e3492e92c45b63cb454dacb04db089c0e"
 dependencies = [
  "darling 0.24.1",
  "derive-new",
@@ -2585,7 +2586,7 @@ dependencies = [
 [[package]]
 name = "cubecl-macros-internal"
 version = "0.12.0-pre.1"
-source = "git+https://github.com/tracel-ai/cubecl?rev=10642912bdf1f8c3d86e23b9a7f94a970b21d076#10642912bdf1f8c3d86e23b9a7f94a970b21d076"
+source = "git+https://github.com/tracel-ai/cubecl?rev=c97b512e3492e92c45b63cb454dacb04db089c0e#c97b512e3492e92c45b63cb454dacb04db089c0e"
 dependencies = [
  "darling 0.24.1",
  "inflections",
@@ -2597,7 +2598,7 @@ dependencies = [
 [[package]]
 name = "cubecl-metal"
 version = "0.12.0-pre.1"
-source = "git+https://github.com/tracel-ai/cubecl?rev=10642912bdf1f8c3d86e23b9a7f94a970b21d076#10642912bdf1f8c3d86e23b9a7f94a970b21d076"
+source = "git+https://github.com/tracel-ai/cubecl?rev=c97b512e3492e92c45b63cb454dacb04db089c0e#c97b512e3492e92c45b63cb454dacb04db089c0e"
 dependencies = [
  "block2",
  "bytemuck",
@@ -2621,7 +2622,7 @@ dependencies = [
 [[package]]
 name = "cubecl-monitoring"
 version = "0.12.0-pre.1"
-source = "git+https://github.com/tracel-ai/cubecl?rev=10642912bdf1f8c3d86e23b9a7f94a970b21d076#10642912bdf1f8c3d86e23b9a7f94a970b21d076"
+source = "git+https://github.com/tracel-ai/cubecl?rev=c97b512e3492e92c45b63cb454dacb04db089c0e#c97b512e3492e92c45b63cb454dacb04db089c0e"
 dependencies = [
  "cfg_aliases",
  "cubecl-ir",
@@ -2634,7 +2635,7 @@ dependencies = [
 [[package]]
 name = "cubecl-opt"
 version = "0.12.0-pre.1"
-source = "git+https://github.com/tracel-ai/cubecl?rev=10642912bdf1f8c3d86e23b9a7f94a970b21d076#10642912bdf1f8c3d86e23b9a7f94a970b21d076"
+source = "git+https://github.com/tracel-ai/cubecl?rev=c97b512e3492e92c45b63cb454dacb04db089c0e#c97b512e3492e92c45b63cb454dacb04db089c0e"
 dependencies = [
  "cubecl-common",
  "cubecl-core",
@@ -2656,7 +2657,7 @@ dependencies = [
 [[package]]
 name = "cubecl-runtime"
 version = "0.12.0-pre.1"
-source = "git+https://github.com/tracel-ai/cubecl?rev=10642912bdf1f8c3d86e23b9a7f94a970b21d076#10642912bdf1f8c3d86e23b9a7f94a970b21d076"
+source = "git+https://github.com/tracel-ai/cubecl?rev=c97b512e3492e92c45b63cb454dacb04db089c0e#c97b512e3492e92c45b63cb454dacb04db089c0e"
 dependencies = [
  "buildid",
  "bytemuck",
@@ -2687,7 +2688,7 @@ dependencies = [
 [[package]]
 name = "cubecl-server"
 version = "0.12.0-pre.1"
-source = "git+https://github.com/tracel-ai/cubecl?rev=10642912bdf1f8c3d86e23b9a7f94a970b21d076#10642912bdf1f8c3d86e23b9a7f94a970b21d076"
+source = "git+https://github.com/tracel-ai/cubecl?rev=c97b512e3492e92c45b63cb454dacb04db089c0e#c97b512e3492e92c45b63cb454dacb04db089c0e"
 dependencies = [
  "buildid",
  "bytemuck",
@@ -2716,7 +2717,7 @@ dependencies = [
 [[package]]
 name = "cubecl-spirv"
 version = "0.12.0-pre.1"
-source = "git+https://github.com/tracel-ai/cubecl?rev=10642912bdf1f8c3d86e23b9a7f94a970b21d076#10642912bdf1f8c3d86e23b9a7f94a970b21d076"
+source = "git+https://github.com/tracel-ai/cubecl?rev=c97b512e3492e92c45b63cb454dacb04db089c0e#c97b512e3492e92c45b63cb454dacb04db089c0e"
 dependencies = [
  "bitflags 2.13.2",
  "cubecl-common",
@@ -2739,7 +2740,7 @@ dependencies = [
 [[package]]
 name = "cubecl-std"
 version = "0.12.0-pre.1"
-source = "git+https://github.com/tracel-ai/cubecl?rev=10642912bdf1f8c3d86e23b9a7f94a970b21d076#10642912bdf1f8c3d86e23b9a7f94a970b21d076"
+source = "git+https://github.com/tracel-ai/cubecl?rev=c97b512e3492e92c45b63cb454dacb04db089c0e#c97b512e3492e92c45b63cb454dacb04db089c0e"
 dependencies = [
  "cubecl-common",
  "cubecl-core",
@@ -2756,7 +2757,7 @@ dependencies = [
 [[package]]
 name = "cubecl-tile"
 version = "0.12.0-pre.1"
-source = "git+https://github.com/tracel-ai/cubecl?rev=10642912bdf1f8c3d86e23b9a7f94a970b21d076#10642912bdf1f8c3d86e23b9a7f94a970b21d076"
+source = "git+https://github.com/tracel-ai/cubecl?rev=c97b512e3492e92c45b63cb454dacb04db089c0e#c97b512e3492e92c45b63cb454dacb04db089c0e"
 dependencies = [
  "cubecl-core",
  "cubecl-ir",
@@ -2770,7 +2771,7 @@ dependencies = [
 [[package]]
 name = "cubecl-wgpu"
 version = "0.12.0-pre.1"
-source = "git+https://github.com/tracel-ai/cubecl?rev=10642912bdf1f8c3d86e23b9a7f94a970b21d076#10642912bdf1f8c3d86e23b9a7f94a970b21d076"
+source = "git+https://github.com/tracel-ai/cubecl?rev=c97b512e3492e92c45b63cb454dacb04db089c0e#c97b512e3492e92c45b63cb454dacb04db089c0e"
 dependencies = [
  "ash",
  "bytemuck",
@@ -2806,7 +2807,7 @@ dependencies = [
 [[package]]
 name = "cubecl-zspace"
 version = "0.12.0-pre.1"
-source = "git+https://github.com/tracel-ai/cubecl?rev=10642912bdf1f8c3d86e23b9a7f94a970b21d076#10642912bdf1f8c3d86e23b9a7f94a970b21d076"
+source = "git+https://github.com/tracel-ai/cubecl?rev=c97b512e3492e92c45b63cb454dacb04db089c0e#c97b512e3492e92c45b63cb454dacb04db089c0e"
 dependencies = [
  "derive-new",
  "serde",
@@ -2816,7 +2817,7 @@ dependencies = [
 [[package]]
 name = "cubek"
 version = "0.4.0-pre.1"
-source = "git+https://github.com/tracel-ai/cubek?rev=1cbb4209fbcbafba42d046e0024612db65c4a72b#1cbb4209fbcbafba42d046e0024612db65c4a72b"
+source = "git+https://github.com/tracel-ai/cubek?rev=dbfe687860657bf3f3f55432165ebd472e07ea9b#dbfe687860657bf3f3f55432165ebd472e07ea9b"
 dependencies = [
  "cubecl",
  "cubek-attention",
@@ -2824,6 +2825,7 @@ dependencies = [
  "cubek-fft",
  "cubek-interpolate",
  "cubek-matmul",
+ "cubek-microkernel",
  "cubek-pool",
  "cubek-quant",
  "cubek-random",
@@ -2834,12 +2836,13 @@ dependencies = [
 [[package]]
 name = "cubek-attention"
 version = "0.4.0-pre.1"
-source = "git+https://github.com/tracel-ai/cubek?rev=1cbb4209fbcbafba42d046e0024612db65c4a72b#1cbb4209fbcbafba42d046e0024612db65c4a72b"
+source = "git+https://github.com/tracel-ai/cubek?rev=dbfe687860657bf3f3f55432165ebd472e07ea9b#dbfe687860657bf3f3f55432165ebd472e07ea9b"
 dependencies = [
  "bytemuck",
  "cubecl",
  "cubecl-common",
  "cubek-matmul",
+ "cubek-microkernel",
  "cubek-std",
  "half",
  "serde",
@@ -2848,7 +2851,7 @@ dependencies = [
 [[package]]
 name = "cubek-convolution"
 version = "0.4.0-pre.1"
-source = "git+https://github.com/tracel-ai/cubek?rev=1cbb4209fbcbafba42d046e0024612db65c4a72b#1cbb4209fbcbafba42d046e0024612db65c4a72b"
+source = "git+https://github.com/tracel-ai/cubek?rev=dbfe687860657bf3f3f55432165ebd472e07ea9b#dbfe687860657bf3f3f55432165ebd472e07ea9b"
 dependencies = [
  "bytemuck",
  "cubecl",
@@ -2863,7 +2866,7 @@ dependencies = [
 [[package]]
 name = "cubek-fft"
 version = "0.4.0-pre.1"
-source = "git+https://github.com/tracel-ai/cubek?rev=1cbb4209fbcbafba42d046e0024612db65c4a72b#1cbb4209fbcbafba42d046e0024612db65c4a72b"
+source = "git+https://github.com/tracel-ai/cubek?rev=dbfe687860657bf3f3f55432165ebd472e07ea9b#dbfe687860657bf3f3f55432165ebd472e07ea9b"
 dependencies = [
  "cubecl",
  "thiserror 2.0.21",
@@ -2872,7 +2875,7 @@ dependencies = [
 [[package]]
 name = "cubek-interpolate"
 version = "0.4.0-pre.1"
-source = "git+https://github.com/tracel-ai/cubek?rev=1cbb4209fbcbafba42d046e0024612db65c4a72b#1cbb4209fbcbafba42d046e0024612db65c4a72b"
+source = "git+https://github.com/tracel-ai/cubek?rev=dbfe687860657bf3f3f55432165ebd472e07ea9b#dbfe687860657bf3f3f55432165ebd472e07ea9b"
 dependencies = [
  "cubecl",
  "cubecl-common",
@@ -2885,7 +2888,7 @@ dependencies = [
 [[package]]
 name = "cubek-matmul"
 version = "0.4.0-pre.1"
-source = "git+https://github.com/tracel-ai/cubek?rev=1cbb4209fbcbafba42d046e0024612db65c4a72b#1cbb4209fbcbafba42d046e0024612db65c4a72b"
+source = "git+https://github.com/tracel-ai/cubek?rev=dbfe687860657bf3f3f55432165ebd472e07ea9b#dbfe687860657bf3f3f55432165ebd472e07ea9b"
 dependencies = [
  "bytemuck",
  "cubecl",
@@ -2900,7 +2903,7 @@ dependencies = [
 [[package]]
 name = "cubek-microkernel"
 version = "0.4.0-pre.1"
-source = "git+https://github.com/tracel-ai/cubek?rev=1cbb4209fbcbafba42d046e0024612db65c4a72b#1cbb4209fbcbafba42d046e0024612db65c4a72b"
+source = "git+https://github.com/tracel-ai/cubek?rev=dbfe687860657bf3f3f55432165ebd472e07ea9b#dbfe687860657bf3f3f55432165ebd472e07ea9b"
 dependencies = [
  "cubecl",
  "cubek-std",
@@ -2910,7 +2913,7 @@ dependencies = [
 [[package]]
 name = "cubek-pool"
 version = "0.4.0-pre.1"
-source = "git+https://github.com/tracel-ai/cubek?rev=1cbb4209fbcbafba42d046e0024612db65c4a72b#1cbb4209fbcbafba42d046e0024612db65c4a72b"
+source = "git+https://github.com/tracel-ai/cubek?rev=dbfe687860657bf3f3f55432165ebd472e07ea9b#dbfe687860657bf3f3f55432165ebd472e07ea9b"
 dependencies = [
  "cubecl",
  "cubecl-common",
@@ -2920,7 +2923,7 @@ dependencies = [
 [[package]]
 name = "cubek-quant"
 version = "0.4.0-pre.1"
-source = "git+https://github.com/tracel-ai/cubek?rev=1cbb4209fbcbafba42d046e0024612db65c4a72b#1cbb4209fbcbafba42d046e0024612db65c4a72b"
+source = "git+https://github.com/tracel-ai/cubek?rev=dbfe687860657bf3f3f55432165ebd472e07ea9b#dbfe687860657bf3f3f55432165ebd472e07ea9b"
 dependencies = [
  "cubecl",
  "cubecl-common",
@@ -2932,7 +2935,7 @@ dependencies = [
 [[package]]
 name = "cubek-random"
 version = "0.4.0-pre.1"
-source = "git+https://github.com/tracel-ai/cubek?rev=1cbb4209fbcbafba42d046e0024612db65c4a72b#1cbb4209fbcbafba42d046e0024612db65c4a72b"
+source = "git+https://github.com/tracel-ai/cubek?rev=dbfe687860657bf3f3f55432165ebd472e07ea9b#dbfe687860657bf3f3f55432165ebd472e07ea9b"
 dependencies = [
  "cubecl",
  "cubecl-common",
@@ -2947,7 +2950,7 @@ dependencies = [
 [[package]]
 name = "cubek-reduce"
 version = "0.4.0-pre.1"
-source = "git+https://github.com/tracel-ai/cubek?rev=1cbb4209fbcbafba42d046e0024612db65c4a72b#1cbb4209fbcbafba42d046e0024612db65c4a72b"
+source = "git+https://github.com/tracel-ai/cubek?rev=dbfe687860657bf3f3f55432165ebd472e07ea9b#dbfe687860657bf3f3f55432165ebd472e07ea9b"
 dependencies = [
  "cubecl",
  "cubek-std",
@@ -2960,7 +2963,7 @@ dependencies = [
 [[package]]
 name = "cubek-std"
 version = "0.4.0-pre.1"
-source = "git+https://github.com/tracel-ai/cubek?rev=1cbb4209fbcbafba42d046e0024612db65c4a72b#1cbb4209fbcbafba42d046e0024612db65c4a72b"
+source = "git+https://github.com/tracel-ai/cubek?rev=dbfe687860657bf3f3f55432165ebd472e07ea9b#dbfe687860657bf3f3f55432165ebd472e07ea9b"
 dependencies = [
  "cubecl",
  "cubecl-common",

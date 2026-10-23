@@ -872,3 +872,74 @@ fn test_attention_softcap_applies_before_bias() {
         Tolerance::rel_abs(1e-3, 1e-4).set_half_precision_relative(1e-2),
     );
 }
+
+/// `attention` against the fallback on random operands of these extents, the keys and values
+/// with `num_kv_heads` heads.
+fn assert_attention_matches_fallback(
+    [
+        num_batches,
+        num_heads,
+        num_kv_heads,
+        seq_q,
+        seq_kv,
+        head_dim,
+    ]: [usize; 6],
+    options: AttentionModuleOptions,
+) {
+    let operand = |heads: usize, seq: usize| {
+        TestTensor::<4>::random(
+            [num_batches, heads, seq, head_dim],
+            Distribution::Uniform(-1., 1.),
+            &Default::default(),
+        )
+    };
+    let (query, key, value) = (
+        operand(num_heads, seq_q),
+        operand(num_kv_heads, seq_kv),
+        operand(num_kv_heads, seq_kv),
+    );
+
+    let output = attention(
+        query.clone(),
+        key.clone(),
+        value.clone(),
+        None,
+        None,
+        options,
+    );
+
+    let expected = attention_fallback(query, key, value, None, None, options);
+
+    output.into_data().assert_approx_eq::<FloatElem>(
+        &expected.into_data(),
+        Tolerance::rel_abs(1e-2, 1e-3).set_half_precision_relative(1e-1),
+    );
+}
+
+/// A causal prompt at a transformer's head shape: 32 query heads of 128 features sharing 8 key
+/// heads, over 512 positions.
+#[test]
+fn test_attention_prompt_transformer_heads() {
+    let options = AttentionModuleOptions {
+        is_causal: true,
+        ..Default::default()
+    };
+    assert_attention_matches_fallback([1, 32, 8, 512, 512, 128], options);
+}
+
+/// Decode steps of several sequences, one query each, against a cache whose length is no
+/// multiple of a kernel's step of keys.
+#[test]
+fn test_attention_decode_steps() {
+    assert_attention_matches_fallback([4, 8, 2, 1, 1000, 128], Default::default());
+}
+
+/// A causal chunk: fewer queries than keys, the queries the last positions of the keys.
+#[test]
+fn test_attention_causal_chunk() {
+    let options = AttentionModuleOptions {
+        is_causal: true,
+        ..Default::default()
+    };
+    assert_attention_matches_fallback([2, 4, 4, 64, 192, 64], options);
+}
