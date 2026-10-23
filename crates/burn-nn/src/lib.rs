@@ -44,5 +44,5 @@ extern crate alloc;
 
 #[cfg(test)]
 fn test_device() -> burn_core::tensor::Device {
-    burn_core::tensor::Device::flex()
+    burn_core::tensor::Device::default()
 }
