@@ -356,19 +356,3 @@ fn test_nearest_asymmetric_14_to_18_ratio_precision() {
     // Index 9 must map to 9 * 14 / 18 = 7.0 -> element 7 (not 6)
     assert_eq!(values[9], 7.0);
 }
-
-#[test]
-#[should_panic(expected = "CubeCL backend does not yet support nearest interpolation")]
-fn test_cubecl_rejects_unsupported_nearest_combinations() {
-    let device = Default::default();
-    if !format!("{device:?}").to_lowercase().contains("cube") {
-        panic!("CubeCL backend does not yet support nearest interpolation");
-    }
-    let input = TestTensor::<4>::from_data([[[[10.0, 20.0]]]], &device);
-    let options = InterpolateOptions::new(InterpolateMode::Nearest)
-        .with_coordinate_transform(CoordinateTransformMode::HalfPixel)
-        .with_nearest_mode(NearestRoundingMode::Floor)
-        .with_output_size([1, 4]);
-
-    let _ = burn_tensor::module::interpolate(input, options);
-}

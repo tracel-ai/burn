@@ -91,7 +91,7 @@ pub fn execute_interpolate(
         &input.client.clone(),
         input.clone().binding(),
         output.clone().binding(),
-        map_options(options.clone(), [in_height, in_width], output_size),
+        map_options(&options, [in_height, in_width], output_size),
         strategy,
         dtype_to_storage_type(input.dtype),
     )?;
@@ -125,7 +125,7 @@ pub fn interpolate_backward(
         input.clone().binding(),
         out_grad.binding(),
         output.clone().binding(),
-        map_options(options.clone(), [in_height, in_width], output_size),
+        map_options(&options, [in_height, in_width], output_size),
         dtype_to_storage_type(input.dtype),
     )
     .unwrap_or_else(|e| {
@@ -149,7 +149,7 @@ pub(crate) fn map_mode(mode: InterpolateMode) -> CubekInterpolateMode {
 }
 
 pub(crate) fn map_options(
-    options: InterpolateOptions,
+    options: &InterpolateOptions,
     in_size: [usize; 2],
     output_size: [usize; 2],
 ) -> CubekInterpolateOptions {
@@ -225,5 +225,28 @@ pub(crate) fn map_options(
     CubekInterpolateOptions {
         mode: map_mode(options.mode),
         align_corners,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    #[should_panic(expected = "CubeCL backend does not yet support nearest interpolation")]
+    fn test_cubecl_rejects_unsupported_nearest_combinations() {
+        let options = InterpolateOptions::new(InterpolateMode::Nearest)
+            .with_coordinate_transform(CoordinateTransformMode::HalfPixel)
+            .with_nearest_mode(NearestRoundingMode::Floor);
+        let _ = map_options(&options, [1, 2], [1, 4]);
+    }
+
+    #[test]
+    #[should_panic(expected = "CubeCL backend does not yet support nearest interpolation")]
+    fn test_cubecl_rejects_nearest_exact_with_asymmetric() {
+        let options = InterpolateOptions::new(InterpolateMode::NearestExact)
+            .with_coordinate_transform(CoordinateTransformMode::Asymmetric)
+            .with_nearest_mode(NearestRoundingMode::RoundPreferCeil);
+        let _ = map_options(&options, [1, 2], [1, 4]);
     }
 }

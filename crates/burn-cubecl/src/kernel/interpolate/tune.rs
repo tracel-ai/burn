@@ -107,7 +107,7 @@ fn forward_problem(
     InterpolateForwardProblem::from_input_output_shapes(
         &shape,
         output_size,
-        map_options(options.clone(), [in_height, in_width], *output_size),
+        map_options(options, [in_height, in_width], *output_size),
     )
 }
 
