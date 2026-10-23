@@ -426,19 +426,15 @@ impl DispatchDevice {
     /// When the process already has 65,536 groups.
     #[cfg(feature = "group")]
     pub fn group(devices: alloc::vec::Vec<DispatchDevice>) -> Result<Self, GroupError> {
-        let settings: alloc::vec::Vec<DeviceSettings> = devices
-            .iter()
-            .map(burn_backend::get_device_settings::<crate::backend::Dispatch>)
-            .collect();
         let group = match devices.first() {
             #[cfg(cube_backend)]
             Some(Self::Cube(_)) => {
-                let members = group_members!(devices, Cube)?;
+                let (members, settings) = group_members!(devices, Cube)?;
                 GroupDevice::with_member_settings::<crate::backends::Cube>(&members, &settings)
             }
             #[cfg(feature = "flex")]
             Some(Self::Flex(_)) => {
-                let members = group_members!(devices, Flex)?;
+                let (members, settings) = group_members!(devices, Flex)?;
                 GroupDevice::with_member_settings::<crate::backends::Flex>(&members, &settings)
             }
             #[cfg(feature = "autodiff")]
@@ -477,7 +473,8 @@ impl DispatchDevice {
     /// [`Device::to_id`](burn_backend::Device::to_id), which encodes the dispatch variant into its
     /// type. A [`DeviceHandle`](burn_backend::DeviceHandle) opened with it shares the fusion
     /// server's queue, so a task submitted there runs between the operations registered before
-    /// and after it. An autodiff device answers for the device it wraps.
+    /// and after it. An autodiff device answers for the device it wraps. A device group answers
+    /// `None`: each of its members has a fusion server of its own.
     pub fn fusion_worker(&self) -> Option<DeviceId> {
         match self {
             #[cfg(cube_backend)]

@@ -15,4 +15,4 @@ pub use sharding::{Sharding, ShardingError};
 
 use resharding::Resharding;
 use rules::{ElementwiseRule, MatmulRule, ReducedDims, ReshapeRule, SumRule};
-use sharding::{DimSplit, GroupMember, OpSharding};
+use sharding::{GroupMember, OpSharding};

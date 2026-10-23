@@ -42,10 +42,10 @@ impl GroupClient {
         sharding: Sharding,
     ) -> Result<RouterTensor<Self>, ShardingError> {
         let (shape, dtype) = (tensor.shape(), tensor.dtype());
-        let id = self
-            .interpreter
-            .lock()
-            .reshard(tensor.into_ir(), sharding)?;
+        // Giving up the tensor can register a drop through this same interpreter, so its ir is
+        // taken before the lock.
+        let ir = tensor.into_ir();
+        let id = self.interpreter.lock().reshard(ir, sharding)?;
         Ok(RouterTensor::new(id, shape, dtype, self.clone()))
     }
 

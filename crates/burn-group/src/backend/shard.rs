@@ -1,12 +1,11 @@
-use std::ops::Range;
-
 use burn_backend::{
     ExecutionError, Shape, Slice, TensorData, TensorMetadata, distributed::ReduceOperation,
+    ops::DimSplit,
 };
 use burn_ir::{BackendIr, HandleKind};
 use burn_std::future::DynFut;
 
-use crate::{DimSplit, Resharding, Sharding, ShardingError};
+use crate::{Resharding, Sharding, ShardingError};
 
 /// The shard of one tensor on every member, in member order, as the backend holds them.
 pub struct ShardList<B: BackendIr> {
@@ -77,15 +76,16 @@ impl<B: BackendIr> ShardList<B> {
 
     fn slice(self, dim: usize, shape: &Shape) -> Self {
         let split = DimSplit {
+            dim,
             len: shape[dim],
-            num_members: self.shards.len(),
+            members: self.shards.len(),
         };
         Self {
             shards: self
                 .shards
                 .into_iter()
-                .zip(split.ranges())
-                .map(|(shard, range)| shard.slice(dim, range))
+                .enumerate()
+                .map(|(member, shard)| shard.slice(&split.slices(member)))
                 .collect(),
         }
     }
@@ -175,17 +175,11 @@ impl<B: BackendIr> ShardList<B> {
 struct Shard<B: BackendIr>(HandleKind<B>);
 
 impl<B: BackendIr> Shard<B> {
-    fn slice(self, dim: usize, range: Range<usize>) -> Self {
-        let slices: Vec<Slice> = (0..=dim)
-            .map(|axis| match axis == dim {
-                true => Slice::new(range.start as isize, Some(range.end as isize), 1),
-                false => Slice::new(0, None, 1),
-            })
-            .collect();
+    fn slice(self, slices: &[Slice]) -> Self {
         Self(match self.0 {
-            HandleKind::Float(tensor) => HandleKind::Float(B::float_slice(tensor, &slices)),
-            HandleKind::Int(tensor) => HandleKind::Int(B::int_slice(tensor, &slices)),
-            HandleKind::Bool(tensor) => HandleKind::Bool(B::bool_slice(tensor, &slices)),
+            HandleKind::Float(tensor) => HandleKind::Float(B::float_slice(tensor, slices)),
+            HandleKind::Int(tensor) => HandleKind::Int(B::int_slice(tensor, slices)),
+            HandleKind::Bool(tensor) => HandleKind::Bool(B::bool_slice(tensor, slices)),
             HandleKind::Quantized(_) => Self::quantized_unsupported(),
         })
         .owned()

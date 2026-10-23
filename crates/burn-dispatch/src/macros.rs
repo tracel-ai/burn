@@ -508,17 +508,25 @@ macro_rules! transaction_op {
     };
 }
 
-/// `$devices` as `$variant`'s own devices, or [`GroupError::MixedBackends`](burn_group::GroupError).
+/// `$devices` as `$variant`'s own devices, each with its settings, or
+/// [`GroupError::MixedBackends`](burn_group::GroupError).
+///
+/// A device is asked for its settings only once it is known to be a member, since asking a remote
+/// device for its own connects to its server.
 #[cfg(feature = "group")]
+#[allow(unused_macros)]
 macro_rules! group_members {
     ($devices:expr, $variant:ident) => {
         $devices
-            .into_iter()
+            .iter()
             .map(|device| match device {
-                $crate::DispatchDevice::$variant(device) => Ok(device),
+                $crate::DispatchDevice::$variant(member) => Ok((
+                    member.clone(),
+                    burn_backend::get_device_settings::<crate::backend::Dispatch>(device),
+                )),
                 #[allow(unreachable_patterns)]
                 _ => Err(burn_group::GroupError::MixedBackends),
             })
-            .collect::<Result<alloc::vec::Vec<_>, burn_group::GroupError>>()
+            .collect::<Result<(alloc::vec::Vec<_>, alloc::vec::Vec<_>), burn_group::GroupError>>()
     };
 }

@@ -1,6 +1,7 @@
 use burn_backend::{
     Backend, Scalar, Shape, TensorData,
-    ops::{ActivationOps, FloatTensorOps},
+    ops::{ActivationOps, FloatTensorOps, QTensorOps},
+    quantization::QuantScheme,
     tensor::FloatTensor,
 };
 use burn_flex::{Flex, FlexDevice};
@@ -128,19 +129,15 @@ fn split_tensors_stay_split_where_megatron_keeps_them() {
 }
 
 #[test]
-fn a_dim_shorter_than_the_group_is_not_split() {
-    let tensor = Group::float_from_data(data([2, 6], 1), &group(3));
+fn a_quantized_tensor_is_not_split() {
+    // CUDA packs four quantized values per u32, so the last dim is a multiple of four.
+    let whole = Group::float_from_data(data([4, 8], 1), &group(2));
+    let quantized = Group::quantize_dynamic(whole, &QuantScheme::default());
+    let client = quantized.client.clone();
 
-    let refused = tensor.client.clone().reshard(tensor, Split { dim: 0 });
+    let refused = client.reshard(quantized, Split { dim: 0 });
 
-    assert!(matches!(
-        refused,
-        Err(ShardingError::DimShorterThanGroup {
-            dim: 0,
-            num_members: 3,
-            ..
-        })
-    ));
+    assert!(matches!(refused, Err(ShardingError::Quantized)));
 }
 
 #[test]
@@ -153,10 +150,11 @@ fn every_sharding_moves_to_every_other_and_keeps_its_value() {
                 if to == PartialSum && from != PartialSum {
                     continue;
                 }
-                let moved = reshard(sharded(&input, &group, from), to);
+                let (tensor, value) = sharded(&input, &group, from);
+                let moved = reshard(tensor, to);
                 assert_eq!(sharding_of(&moved), to);
                 let case = format!("{num_members} members, {from:?} to {to:?}");
-                assert_close(read::<Group>(moved), input.clone(), &case);
+                assert_close(read::<Group>(moved), value, &case);
             }
         }
     }
@@ -168,13 +166,14 @@ fn assert_unary_matches(
     on_group: impl Fn(FloatTensor<Group>) -> FloatTensor<Group>,
     on_flex: impl Fn(FloatTensor<Flex>) -> FloatTensor<Flex>,
 ) {
-    let expected = read::<Flex>(on_flex(Flex::float_from_data(input.clone(), &FlexDevice)));
     let device = group(num_members);
     for sharding in shardings(input.shape(), num_members) {
-        let actual = read::<Group>(on_group(sharded(input, &device, sharding)));
+        let (tensor, value) = sharded(input, &device, sharding);
+        let expected = read::<Flex>(on_flex(Flex::float_from_data(value, &FlexDevice)));
+        let actual = read::<Group>(on_group(tensor));
         assert_close(
             actual,
-            expected.clone(),
+            expected,
             &format!("{num_members} members, {sharding:?}"),
         );
     }
@@ -187,44 +186,62 @@ fn assert_binary_matches(
     on_group: impl Fn(FloatTensor<Group>, FloatTensor<Group>) -> FloatTensor<Group>,
     on_flex: impl Fn(FloatTensor<Flex>, FloatTensor<Flex>) -> FloatTensor<Flex>,
 ) {
-    let expected = read::<Flex>(on_flex(
-        Flex::float_from_data(lhs.clone(), &FlexDevice),
-        Flex::float_from_data(rhs.clone(), &FlexDevice),
-    ));
     let device = group(num_members);
     for lhs_sharding in shardings(lhs.shape(), num_members) {
         for rhs_sharding in shardings(rhs.shape(), num_members) {
-            let actual = read::<Group>(on_group(
-                sharded(lhs, &device, lhs_sharding),
-                sharded(rhs, &device, rhs_sharding),
+            let (lhs_tensor, lhs_value) = sharded(lhs, &device, lhs_sharding);
+            let (rhs_tensor, rhs_value) = sharded(rhs, &device, rhs_sharding);
+            let expected = read::<Flex>(on_flex(
+                Flex::float_from_data(lhs_value, &FlexDevice),
+                Flex::float_from_data(rhs_value, &FlexDevice),
             ));
+            let actual = read::<Group>(on_group(lhs_tensor, rhs_tensor));
             let case = format!("{num_members} members, {lhs_sharding:?} with {rhs_sharding:?}");
-            assert_close(actual, expected.clone(), &case);
+            assert_close(actual, expected, &case);
         }
     }
 }
 
-/// A partial sum is built as a contraction, `data @ I` with both split, so each member holds a
-/// different summand.
-fn sharded(data: &TensorData, device: &GroupDevice, sharding: Sharding) -> FloatTensor<Group> {
+/// `data` with the sharding, and the value one device gives it: a partial sum is built as the
+/// contraction `data @ weights` with both split, so it holds the product instead.
+fn sharded(
+    data: &TensorData,
+    device: &GroupDevice,
+    sharding: Sharding,
+) -> (FloatTensor<Group>, TensorData) {
     let tensor = Group::float_from_data(data.clone(), device);
     if sharding != PartialSum {
-        return reshard(tensor, sharding);
+        return (reshard(tensor, sharding), data.clone());
     }
     let num_dims = data.shape().num_dims();
-    let len = data.shape()[num_dims - 1];
-    let mut eye_shape = vec![1; num_dims - 2];
-    eye_shape.extend([len, len]);
-    let eye: Vec<f32> = (0..len * len)
-        .map(|i| f32::from(u8::from(i / len == i % len)))
-        .collect();
-    let eye = Group::float_from_data(TensorData::new(eye, eye_shape), device);
+    let weights = contraction_weights(data.shape());
     let partial = Group::float_matmul(
         reshard(tensor, Split { dim: num_dims - 1 }),
-        reshard(eye, Split { dim: num_dims - 2 }),
+        reshard(
+            Group::float_from_data(weights.clone(), device),
+            Split { dim: num_dims - 2 },
+        ),
     );
     assert_eq!(sharding_of(&partial), PartialSum);
-    partial
+    (partial, product_on_one_device(data, &weights))
+}
+
+/// Dense, so every member holds a summand of every element and a rule that wrongly keeps a value
+/// partial, or a slice standing in for a reduce-scatter, comes out wrong. Positive, so a partial
+/// sum of positive values stays away from zero and a division by one is bounded.
+fn contraction_weights(shape: &Shape) -> TensorData {
+    let num_dims = shape.num_dims();
+    let len = shape[num_dims - 1];
+    let mut weights_shape = vec![1; num_dims - 2];
+    weights_shape.extend([len, len]);
+    positive(data(weights_shape, 4))
+}
+
+fn product_on_one_device(data: &TensorData, weights: &TensorData) -> TensorData {
+    read::<Flex>(Flex::float_matmul(
+        Flex::float_from_data(data.clone(), &FlexDevice),
+        Flex::float_from_data(weights.clone(), &FlexDevice),
+    ))
 }
 
 /// A partial sum needs a last dim to contract, at least as long as the group.

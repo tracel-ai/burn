@@ -69,6 +69,7 @@ impl DispatchTensor {
                 DispatchTensorKind::Group(BackendTensor::Autodiff(tensor)) => tensor.primitive(),
                 _ => return None,
             },
+            #[allow(unreachable_patterns)]
             _ => return None,
         };
         Some(primitive.client.sharding(primitive))

@@ -189,16 +189,6 @@ fn a_random_tensor_is_the_same_on_every_member() {
 }
 
 #[test]
-fn a_split_along_a_dim_the_tensor_lacks_is_refused() {
-    let refused = Tensor::<2>::zeros([4, 6], &group(2)).try_with_sharding(Split { dim: 2 });
-
-    assert!(matches!(
-        refused,
-        Err(ShardingError::MissingDim { dim: 2, .. })
-    ));
-}
-
-#[test]
 #[should_panic(expected = "is not a partial sum and cannot become one")]
 fn a_whole_tensor_is_not_sharded_as_a_partial_sum() {
     Tensor::<2>::zeros([4, 6], &group(2)).with_sharding(PartialSum);

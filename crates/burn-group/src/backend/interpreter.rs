@@ -143,8 +143,7 @@ impl<B: BackendIr> DynGroupInterpreter for GroupInterpreter<B> {
 
     fn reshard(&mut self, tensor: TensorIr, sharding: Sharding) -> Result<TensorId, ShardingError> {
         let current = self.shardings[&tensor.id];
-        let num_members = self.interpreters.len();
-        let resharding = match Resharding::new(current, sharding, &tensor.shape, num_members) {
+        let resharding = match self.resharding(&tensor, current, sharding) {
             Ok(resharding) => resharding,
             Err(error) => {
                 // The caller gave the tensor up, so a refusal must not leave it on the members.
@@ -201,6 +200,20 @@ impl<B: BackendIr> DynGroupInterpreter for GroupInterpreter<B> {
 }
 
 impl<B: BackendIr> GroupInterpreter<B> {
+    /// A quantized tensor's shards cannot be sliced, summed or concatenated, so it only ever
+    /// stays replicated.
+    fn resharding(
+        &self,
+        tensor: &TensorIr,
+        from: Sharding,
+        to: Sharding,
+    ) -> Result<Resharding, ShardingError> {
+        if matches!(tensor.dtype, DType::QFloat(_)) && to != Sharding::Replicated {
+            return Err(ShardingError::Quantized);
+        }
+        Resharding::new(from, to, &tensor.shape, self.interpreters.len())
+    }
+
     fn run(&mut self, mut op: OperationIr) {
         let plan = OpPlan::new(&op, &self.shardings, self.interpreters.len());
         let temporaries = self.reshard_inputs(&mut op, &plan);

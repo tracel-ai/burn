@@ -1,5 +1,6 @@
-use std::{fmt, ops::Range};
+use std::fmt;
 
+use burn_backend::ops::DimSplit;
 use burn_ir::TensorIr;
 use burn_std::Shape;
 
@@ -94,8 +95,9 @@ impl GroupMember {
         let mut shape = tensor.shape.clone();
         if let Sharding::Split { dim } = sharding {
             let split = DimSplit {
+                dim,
                 len: shape[dim],
-                num_members: self.num_members,
+                members: self.num_members,
             };
             shape[dim] = split.range(self.index).len();
         }
@@ -103,25 +105,5 @@ impl GroupMember {
             shape,
             ..tensor.clone()
         }
-    }
-}
-
-/// How a dim of `len` elements splits over a group: the first `len % num_members` members hold one
-/// more.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct DimSplit {
-    pub len: usize,
-    pub num_members: usize,
-}
-
-impl DimSplit {
-    pub fn range(&self, index: usize) -> Range<usize> {
-        let (base, extra) = (self.len / self.num_members, self.len % self.num_members);
-        let start = index * base + index.min(extra);
-        start..start + base + usize::from(index < extra)
-    }
-
-    pub fn ranges(self) -> impl Iterator<Item = Range<usize>> {
-        (0..self.num_members).map(move |index| self.range(index))
     }
 }
