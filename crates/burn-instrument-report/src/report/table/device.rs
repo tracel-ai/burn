@@ -53,6 +53,13 @@ impl Display for DeviceHeader<'_, '_> {
                 "         its own direction; the copy ceiling is reported, not divided by."
             )?;
         }
+        if let Some(launch) = peaks.launch_seconds {
+            writeln!(
+                f,
+                "         one launch takes {:.2} µs back to back; no floor below charges it",
+                launch * 1e6,
+            )?;
+        }
         if measurement.peaks.is_none() {
             writeln!(
                 f,

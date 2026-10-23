@@ -33,6 +33,16 @@ CI checks should pass before requesting review, though the signal isn't always a
 questions or need early feedback, let us know on the PR or on
 [Discord](https://discord.gg/uPEBbYYDB6).
 
+### PR Titles and Commit Messages
+
+Use [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/) for PR titles:
+`type(scope): description`. The scope is optional; use it to identify the affected component.
+
+Mark breaking changes with `!` before the colon and explain their impact and migration in the PR description.
+
+Before merging, ensure the squash commit title or each rebased commit follows this convention.
+Intermediate commits that will be squashed are exempt.
+
 ### Change Ownership
 
 The core principle behind all contributions: **PR authors must understand, justify, and explain

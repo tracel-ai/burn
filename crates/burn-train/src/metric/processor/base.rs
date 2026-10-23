@@ -26,11 +26,16 @@ pub enum LearnerEvent<T> {
     StartSplit {
         /// The epoch number.
         epoch_number: usize,
-        /// The total number of items to be processed during this split.
-        total_items: usize,
+        /// The initial progress of the split.
+        progress: Progress,
     },
-    /// Signal the end of a split, carrying the current epoch number.
-    EndSplit(usize),
+    /// Signal the end of a split, including unsuccessful endings.
+    EndSplit {
+        /// The epoch number.
+        epoch: usize,
+        /// The final progress measurements.
+        progress: Progress,
+    },
     /// Signal the end of a full epoch.
     EndEpoch(usize),
     /// Signal the end of the process (e.g., training end).
@@ -44,12 +49,15 @@ pub enum EvaluatorEvent<T> {
         /// The total number of items to evaluate.
         total_tests: usize,
     },
-    /// Signal the start of a test split, carrying the split name and total number of items.
-    StartTest(EvaluationName, usize),
+    /// Signal the start of a test split, carrying the split name and initial progress.
+    StartTest(EvaluationName, Progress),
     /// Signal that an item have been processed.
     ProcessedItem(EvaluationName, EvaluationItem<T>),
     /// Signal the end of a single test split.
-    EndTest,
+    EndTest {
+        /// The final progress measurements.
+        progress: Progress,
+    },
     /// Signal the end of the process (e.g., evaluation end).
     End(Option<LearnerSummary>),
 }

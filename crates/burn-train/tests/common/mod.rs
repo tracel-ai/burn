@@ -30,7 +30,7 @@ impl ToyModel {
 
 #[derive(Clone, Debug)]
 pub struct DummyBatch {
-    target: Tensor<2>,
+    pub target: Tensor<2>,
 }
 
 pub struct DummyBatcher;

@@ -131,6 +131,9 @@ Follow the [contribution policy](CONTRIBUTING.md#ai-assisted-contributions) when
 contributor remains responsible for understanding and validating the submitted changes.
 
 - When preparing or updating a PR, read and use the [PR template](.github/pull_request_template.md).
+- Use Conventional Commits for commit messages and PR titles, following the
+  [title and commit policy](CONTRIBUTING.md#pr-titles-and-commit-messages), and keep the PR title
+  aligned with the final scope of the change.
 - Complete its AI Usage section accurately. Describe your involvement in implementation, tests,
   investigation, documentation, the PR description, or review, including whether you assisted with
   specific tasks or carried out most or all of the work autonomously. Explicitly say when you wrote

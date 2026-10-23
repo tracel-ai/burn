@@ -31,10 +31,8 @@ impl<M: LearnerModel> SupervisedLearningStrategy<M> for MultiDeviceLearningStrat
         // `MultiDevicesTrainStep` has one worker per device, so we use a fixed device strategy
         // for each (worker) data loader. This matches the expected device on the worker, so we
         // don't have to move the data between devices.
-        let train_total_items = dataloader_train.num_items();
         let dataloader_train = split_dataloader(dataloader_train, &self.devices);
         let dataloader_valid = dataloader_valid.to_device(&main_device.clone().inner());
-        let valid_total_items = dataloader_valid.num_items();
 
         learner.fork(main_device);
         let mut event_processor = training_components.event_processor;
@@ -52,10 +50,6 @@ impl<M: LearnerModel> SupervisedLearningStrategy<M> for MultiDeviceLearningStrat
         for training_progress in TrainingLoop::new(starting_epoch, training_components.num_epochs) {
             let epoch = training_progress.items_processed;
 
-            interrupter.fail_on_error(event_processor.process_train(LearnerEvent::StartSplit {
-                epoch_number: epoch,
-                total_items: train_total_items,
-            }));
             epoch_train.run(
                 &mut learner,
                 &training_progress,
@@ -64,7 +58,6 @@ impl<M: LearnerModel> SupervisedLearningStrategy<M> for MultiDeviceLearningStrat
                 self.devices.to_vec(),
                 self.optim,
             );
-            interrupter.fail_on_error(event_processor.process_train(LearnerEvent::EndSplit(epoch)));
 
             if interrupter.should_stop() {
                 if let Some(interruption) = interrupter.interruption() {
@@ -80,17 +73,15 @@ impl<M: LearnerModel> SupervisedLearningStrategy<M> for MultiDeviceLearningStrat
                 learner.fork(main_device);
             }
 
-            interrupter.fail_on_error(event_processor.process_valid(LearnerEvent::StartSplit {
-                epoch_number: epoch,
-                total_items: valid_total_items,
-            }));
             epoch_valid.run(
                 &learner,
                 &training_progress,
                 &mut event_processor,
                 &interrupter,
             );
-            interrupter.fail_on_error(event_processor.process_valid(LearnerEvent::EndSplit(epoch)));
+            if interrupter.should_stop() {
+                break;
+            }
             interrupter.fail_on_error(event_processor.process_train(LearnerEvent::EndEpoch(epoch)));
             if checkpointer.is_some() || early_stopping.is_some() {
                 interrupter.fail_on_error(event_processor.flush());
