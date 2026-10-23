@@ -29,7 +29,8 @@ be enabled together; the device chooses where operations execute.
 | `Device::vulkan(Default::default())` | `vulkan`      | Vulkan through WGPU; native SPIR-V when supported, with WGSL fallback                   |
 | `Device::metal(Default::default())`  | `metal`       | Metal through WGPU with native MSL; initialization panics if native MSL is unavailable  |
 | `Device::webgpu(Default::default())` | `webgpu`      | Browser WebGPU with WGSL                                                                |
-| `Device::cuda(0)`                    | `cuda`        | NVIDIA GPU through CubeCL's CUDA runtime                                                |
+| `Device::cuda(0)`                    | `cuda`        | NVIDIA GPU through CubeCL's CUDA runtime; kernels compiled through LLVM to PTX          |
+| `Device::cuda(0)`                    | `cuda-cpp`    | NVIDIA GPU through CubeCL's CUDA runtime; kernels compiled as CUDA C++ by NVRTC         |
 | `Device::rocm(0)`                    | `rocm`        | AMD GPU through CubeCL's HIP runtime                                                    |
 | `Device::cpu()`                      | `cpu`         | CPU through CubeCL's CPU runtime (LLVM JIT, supports fusion)                            |
 | `Device::flex()`                     | `flex`        | CPU through the pure-Rust Flex backend (eager, supports `no_std` and Wasm)              |

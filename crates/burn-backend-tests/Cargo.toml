@@ -23,6 +23,7 @@ std = ["burn-tensor/std"]
 bench-disable-alloc = []
 # Backends
 cuda = ["burn-tensor/cuda", "quantization", "cube"]
+cuda-cpp = ["cuda", "burn-tensor/cuda-cpp"]
 rocm = ["burn-tensor/rocm", "quantization", "cube"]
 flex = ["burn-tensor/flex", "quantization"]
 flex-simd = ["flex", "burn-flex/simd"]

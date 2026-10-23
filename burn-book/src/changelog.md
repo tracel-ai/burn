@@ -64,6 +64,9 @@ positions when sequence lengths differ.
 
 #### Compilation and autotuning
 
+- Add the `cuda-cpp` feature to compile CUDA kernels as CUDA C++ through NVRTC. `cuda` keeps
+  compiling them through LLVM. ([#6208](https://github.com/tracel-ai/burn/pull/6208))
+  [@louisfd](https://github.com/louisfd)
 - Compile autotuning candidates in parallel, including CUDA binary assembly, to reduce startup time.
   ([#5996](https://github.com/tracel-ai/burn/pull/5996),
   [#6074](https://github.com/tracel-ai/burn/pull/6074))

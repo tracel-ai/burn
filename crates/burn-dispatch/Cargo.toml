@@ -42,6 +42,7 @@ cubecl = ["burn-backend/cubecl"]
 
 # Backends
 cuda = ["cubecl", "burn-cubecl/cuda"]
+cuda-cpp = ["cuda", "burn-cubecl/cuda-cpp"]
 flex = ["dep:burn-flex"]
 rocm = ["cubecl", "burn-cubecl/hip"]
 vulkan = ["wgpu", "burn-cubecl/vulkan"]
