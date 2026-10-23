@@ -9,8 +9,80 @@ use crate::{
     tensor::{BoolTensor, FloatTensor},
 };
 
+/// Shapes of an attention call, validated against the [`attention`](crate::ops::ModuleOps::attention)
+/// contract.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct AttentionShapes {
+    /// Batch size.
+    pub batch: usize,
+    /// Number of query heads.
+    pub q_heads: usize,
+    /// Number of key/value heads. Divides `q_heads`.
+    pub kv_heads: usize,
+    /// Query sequence length.
+    pub seq_q: usize,
+    /// Key/value sequence length.
+    pub seq_k: usize,
+    /// Query/key head dimension.
+    pub head_dim: usize,
+    /// Value head dimension.
+    pub val_dim: usize,
+}
+
+impl AttentionShapes {
+    /// Query heads sharing one K/V head (`1` for multi-head attention).
+    pub fn groups(&self) -> usize {
+        self.q_heads / self.kv_heads
+    }
+
+    /// Validates the shapes of an attention call, panicking with a descriptive message
+    /// when they do not satisfy the contract.
+    ///
+    /// Backends index K/V with these shapes (some through unchecked pointer arithmetic),
+    /// so this must run before any kernel sees the tensors.
+    pub fn new(query: &Shape, key: &Shape, value: &Shape) -> Self {
+        assert!(
+            query.num_dims() == 4 && key.num_dims() == 4 && value.num_dims() == 4,
+            "attention: query, key and value must be 4D, got {query:?}, {key:?}, {value:?}"
+        );
+        let [batch, q_heads, seq_q, head_dim] = query.dims::<4>();
+        let [k_batch, kv_heads, seq_k, k_dim] = key.dims::<4>();
+        let [v_batch, v_heads, v_seq, val_dim] = value.dims::<4>();
+        assert!(
+            k_batch == batch && v_batch == batch,
+            "attention: batch mismatch (query {batch}, key {k_batch}, value {v_batch})"
+        );
+        assert_eq!(k_dim, head_dim, "attention: key head_dim mismatch");
+        assert!(head_dim > 0, "attention: head_dim must be non-zero");
+        assert_eq!(
+            v_heads, kv_heads,
+            "attention: key and value head counts differ"
+        );
+        assert_eq!(
+            v_seq, seq_k,
+            "attention: key and value sequence lengths differ"
+        );
+        assert!(
+            kv_heads > 0 && q_heads.is_multiple_of(kv_heads),
+            "attention: query heads ({q_heads}) must be a multiple of key/value heads ({kv_heads})"
+        );
+        Self {
+            batch,
+            q_heads,
+            kv_heads,
+            seq_q,
+            seq_k,
+            head_dim,
+            val_dim,
+        }
+    }
+}
+
 /// Computes softmax(QKᵗ * scale) · V using separate kernels.
 /// Serves as a fallback when FlashAttention is not used.
+///
+/// Follows the order documented on [`attention`](crate::ops::ModuleOps::attention):
+/// scale, softcap, bool and causal masks, additive bias, softmax.
 pub fn attention_fallback<B: Backend>(
     query: FloatTensor<B>,
     key: FloatTensor<B>,
@@ -22,14 +94,43 @@ pub fn attention_fallback<B: Backend>(
     if let Some(softcap) = options.softcap {
         assert!(softcap > 0.0, "softcap must be positive, got {softcap}");
     }
+    let shapes = AttentionShapes::new(&query.shape(), &key.shape(), &value.shape());
+    let AttentionShapes {
+        batch,
+        q_heads,
+        kv_heads,
+        seq_q,
+        seq_k,
+        head_dim,
+        val_dim,
+    } = shapes;
+    let groups = shapes.groups();
+
+    // Grouped-query attention: query head `h` reads K/V head `h / groups`. The query
+    // heads sharing a K/V head are adjacent, so folding them into the row dimension
+    // (`[batch, kv_heads, groups * seq_q, head_dim]`) turns GQA into plain attention
+    // over `kv_heads` heads without repeating K and V. Scores are unfolded back to
+    // `[batch, q_heads, seq_q, seq_k]` so masks, bias and causality see query rows.
+    let query = if groups > 1 {
+        B::float_reshape(
+            query,
+            Shape::new([batch, kv_heads, groups * seq_q, head_dim]),
+        )
+    } else {
+        query
+    };
 
     // Attention scores: A = QKᵗ * scale
-    let query_shape = query.shape().dims::<4>();
     let scale = options
         .scale
-        .unwrap_or_else(|| 1.0 / (*query_shape.last().unwrap() as f64).sqrt());
+        .unwrap_or_else(|| 1.0 / (head_dim as f64).sqrt());
     let transposed_key = B::float_transpose(key);
     let qk = B::float_matmul(query, transposed_key);
+    let qk = if groups > 1 {
+        B::float_reshape(qk, Shape::new([batch, q_heads, seq_q, seq_k]))
+    } else {
+        qk
+    };
     let attention_scores = B::float_mul_scalar(qk, scale.into());
 
     // Softcap: softcap * tanh(scores / softcap)
@@ -52,7 +153,10 @@ pub fn attention_fallback<B: Backend>(
 
     // Causal masking: mask positions where col > row (future positions)
     let attention_scores = if options.is_causal {
-        let causal_mask = build_causal_mask::<B>(&attention_scores);
+        let causal_mask = build_causal_mask::<B>(
+            &attention_scores,
+            options.causal_alignment.offset(seq_q, seq_k),
+        );
         B::float_mask_fill(attention_scores, causal_mask, f32::NEG_INFINITY.into())
     } else {
         attention_scores
@@ -81,21 +185,28 @@ pub fn attention_fallback<B: Backend>(
     let softmax = B::float_div(numerator, sum_exp);
 
     // Context: S · V
-    B::float_matmul(softmax, value)
+    if groups > 1 {
+        let softmax = B::float_reshape(
+            softmax,
+            Shape::new([batch, kv_heads, groups * seq_q, seq_k]),
+        );
+        let context = B::float_matmul(softmax, value);
+        B::float_reshape(context, Shape::new([batch, q_heads, seq_q, val_dim]))
+    } else {
+        B::float_matmul(softmax, value)
+    }
 }
 
 /// Builds a causal (upper-triangular) bool mask where `true` means "mask this position".
-/// Shape: [batch_size, num_heads, seq_q, seq_k], masking positions where col > row.
-fn build_causal_mask<B: Backend>(attention_scores: &FloatTensor<B>) -> BoolTensor<B> {
+/// Shape: [batch_size, num_heads, seq_q, seq_k], masking positions where col > row + offset
+/// (see [`CausalAlignment::offset`](crate::ops::CausalAlignment::offset)).
+fn build_causal_mask<B: Backend>(attention_scores: &FloatTensor<B>, offset: i64) -> BoolTensor<B> {
     let device = attention_scores.device();
     let scores_shape = attention_scores.shape().dims::<4>();
     let [batch_size, num_heads, seq_q, seq_k] = scores_shape;
     let settings = get_or_init_device_settings::<B>(&device);
 
     // row indices [seq_q, 1] and col indices [1, seq_k]
-    // Offset col indices so that the causal boundary aligns at the bottom-right corner,
-    // which handles cross-attention (seq_k > seq_q) correctly.
-    let offset = seq_k as i64 - seq_q as i64;
     let rows = B::int_reshape(
         B::int_arange(0..seq_q as i64, &device, settings.int_dtype),
         Shape::new([seq_q, 1]),
