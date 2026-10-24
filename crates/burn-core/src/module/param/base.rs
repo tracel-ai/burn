@@ -737,6 +737,26 @@ mod tests {
         check();
     }
 
+    /// A weight never decides the dtype of the activations it meets: whether the parameter was
+    /// built initialized or lazily, its value inhibits.
+    #[test]
+    fn a_float_parameter_inhibits() {
+        use burn_tensor::DTypePropagation;
+
+        let device = Default::default();
+        let initialized = Param::from_tensor(Tensor::<2>::zeros([2, 2], &device));
+        assert_eq!(initialized.val().propagation(), DTypePropagation::Inhibit);
+
+        let lazy = Param::uninitialized(
+            ParamId::new(),
+            move |device, _| Tensor::<2>::zeros([2, 2], device),
+            device,
+            false,
+            [2, 2].into(),
+        );
+        assert_eq!(lazy.val().propagation(), DTypePropagation::Inhibit);
+    }
+
     #[test]
     fn parameter_capabilities_are_split_by_value_kind() {
         _assert_parameter_value::<crate::module::Flag>();
