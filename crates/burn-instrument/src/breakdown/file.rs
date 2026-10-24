@@ -243,7 +243,6 @@ mod tests {
           "write": 16,
           "flops": 128
         },
-        "observed": null,
         "entries": 2,
         "children": [],
         "kernels": [
@@ -288,7 +287,9 @@ mod tests {
     fn a_file_unlike_what_its_version_writes_is_refused() {
         let pinned = written(&measurement());
         let unknown = pinned.replace(r#""unfused": false"#, r#""unfused": false, "extra": 1"#);
-        let missing = pinned.replace(r#""observed": null,"#, "");
+        let bounds = pinned.find(r#""bounds""#).unwrap();
+        let after_bounds = bounds + pinned[bounds..].find(r#""entries""#).unwrap();
+        let missing = pinned.replace(&pinned[bounds..after_bounds], "");
         let no_peaks = pinned.replace(
             &pinned[pinned.find(r#""peaks""#).unwrap()..pinned.find(r#""clean_wall""#).unwrap()],
             "",
@@ -376,7 +377,6 @@ mod tests {
                         write: 16,
                         flops: 128,
                     }),
-                    observed: None,
                     entries: 2,
                     children: Vec::new(),
                     kernels: vec![Kernel {

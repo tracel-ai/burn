@@ -1,7 +1,5 @@
+#[cfg(feature = "instrument")]
 use alloc::boxed::Box;
-use alloc::vec::Vec;
-
-use burn_tensor::{Int, Tensor};
 
 use crate::Bounds;
 
@@ -20,10 +18,12 @@ pub trait ComponentObserver {
     fn enter(&self, declared: Declaration<'_>);
     /// The most recently entered component was left.
     fn exit(&self);
-    /// The component most recently entered moves more traffic than its declared floor, by an
-    /// amount only the run's values tell. An observer that reads the run back adds it to that
-    /// component and the ones around it; any other ignores it.
-    fn observe(&self, _observed: ObservedBounds) {}
+    /// Whether the components entered evaluate their bounds for this observer. A bounds function
+    /// may read values back, so an observer of a run it times says no, taking the floors from a
+    /// pricing run of its own.
+    fn prices(&self) -> bool {
+        true
+    }
 }
 
 /// An observer shared with whoever reads it once the run is over, installed as the observer
@@ -36,41 +36,11 @@ impl<O: ComponentObserver + ?Sized> ComponentObserver for std::sync::Arc<O> {
     fn exit(&self) {
         (**self).exit();
     }
-    fn observe(&self, observed: ObservedBounds) {
-        (**self).observe(observed);
+    fn prices(&self) -> bool {
+        (**self).prices()
     }
 }
 
-/// Traffic a component moves beyond its declared floor that depends on values the run
-/// computes, such as which experts a sparse layer's routes select.
-///
-/// [`Bounds`] are pure, so a declared floor charges only what the shapes force. This keeps the
-/// values on the device with their price, so an observer that reads the run back prices them
-/// afterwards and synchronizes nothing during it.
-pub struct ObservedBounds(Box<dyn FnOnce() -> Bounds + Send>);
-
-impl ObservedBounds {
-    /// `values`, priced by `price` once read back.
-    pub fn new<const D: usize>(
-        values: Tensor<D, Int>,
-        price: impl FnOnce(&[i64]) -> Bounds + Send + 'static,
-    ) -> Self {
-        Self(Box::new(move || {
-            let values: Vec<i64> = values.into_data().iter::<i64>().collect();
-            price(&values)
-        }))
-    }
-
-    /// Read the values back and price them. Waits on the device, so an observer calls it after
-    /// the run is timed.
-    ///
-    /// # Panics
-    ///
-    /// If the work producing the values failed on the device.
-    pub fn resolve(self) -> Bounds {
-        (self.0)()
-    }
-}
 /// What one entry of a component declares about itself.
 ///
 /// A struct rather than a parameter list: [`label`](Self::label) and [`site`](Self::site) are
@@ -125,18 +95,18 @@ pub fn observing() -> Option<Observing> {
     return None;
 }
 
-/// An observer installed for **this thread**, arming its annotated methods until it drops.
+/// A scoped change to component observation on **this thread**.
 ///
-/// A forward pass runs on one thread, so an observer is installed there and nothing else in the
-/// process is measured or slowed. It is removed when this guard drops, so a panicking run cannot
-/// leave the thread observed by an observer nobody holds.
+/// Installs an observer or suspends observation until the guard drops, restoring the previous
+/// observer even if the scope unwinds. Other threads' component observation is unaffected.
+/// Without the `instrument` feature, the guard is inert and observers cannot be installed.
 ///
 /// Neither `Send` nor `Sync`: it restores the slot of the thread that made it, and dropped on
 /// another thread it would stop observing one that holds no observer.
-#[cfg(feature = "instrument")]
-#[must_use = "the observer is uninstalled as soon as this is dropped"]
+#[must_use = "the previous observation is restored as soon as this guard is dropped"]
 pub struct ComponentObservation {
     /// The observer this one replaced, put back on drop.
+    #[cfg(feature = "instrument")]
     replaced: Option<Box<dyn ComponentObserver>>,
     _thread: core::marker::PhantomData<*const ()>,
 }
@@ -149,8 +119,14 @@ impl ComponentObservation {
     /// observer then sees the components again: each guard puts back what it replaced, so guards
     /// drop in the reverse order they were made, as scopes drop them.
     pub fn new(observer: Box<dyn ComponentObserver>) -> Self {
-        let replaced = OBSERVER.with(|slot| slot.replace(Some(observer)));
-        OBSERVED.with(|observed| observed.set(true));
+        Self::replace(Some(observer))
+    }
+
+    /// `None` suspends observation until the guard restores it, including on unwind.
+    fn replace(observer: Option<Box<dyn ComponentObserver>>) -> Self {
+        let enabled = observer.is_some();
+        let replaced = OBSERVER.with(|slot| slot.replace(observer));
+        OBSERVED.with(|observed| observed.set(enabled));
         Self {
             replaced,
             _thread: core::marker::PhantomData,
@@ -185,10 +161,26 @@ impl Observing {
         }
     }
 
-    /// Report traffic beyond the declared floor of the component most recently entered. See
-    /// [`ComponentObserver::observe`].
-    pub fn observe(self, observed: ObservedBounds) {
-        Self::with_observer(|observer| observer.observe(observed));
+    /// Whether the component being entered should evaluate its bounds. See
+    /// [`ComponentObserver::prices`].
+    #[inline]
+    pub fn prices(self) -> bool {
+        let mut prices = false;
+        Self::with_observer(|observer| prices = observer.prices());
+        prices
+    }
+
+    /// Suspend observation while a bounds expression runs, so its annotated helpers
+    /// do not become entries of the model. Dropping the guard restores observation.
+    #[doc(hidden)]
+    #[inline]
+    pub fn suspend(self) -> ComponentObservation {
+        #[cfg(feature = "instrument")]
+        return ComponentObservation::replace(None);
+        #[cfg(not(feature = "instrument"))]
+        ComponentObservation {
+            _thread: core::marker::PhantomData,
+        }
     }
 
     #[cfg_attr(not(feature = "instrument"), allow(unused_variables))]
@@ -229,6 +221,29 @@ mod tests {
         assert!(observing().is_none());
     }
 
+    /// A failed bounds calculation must not disable observation for subsequent components.
+    #[test]
+    fn observation_is_restored_after_bounds_panic() {
+        let (seen, _observation) = installed();
+        let failed = std::panic::catch_unwind(|| {
+            let _suspended = observing().unwrap().suspend();
+            panic!("bounds failed");
+        });
+        assert!(failed.is_err());
+
+        drop(
+            observing()
+                .expect("observation restored")
+                .enter(Declaration {
+                    label: "after panic",
+                    variant: None,
+                    site: "test::forward",
+                    bounds: None,
+                }),
+        );
+        assert_eq!(seen.events(), ["+after panic:-:-", "-"]);
+    }
+
     /// A tag closes when its guard drops, so children close before their parent and an early return
     /// cannot leave one open.
     #[test]
@@ -260,30 +275,6 @@ mod tests {
             ["+attention:flash:8", "+qkv:-:-", "-", "-"],
             "children close before their parent"
         );
-    }
-
-    /// Observed traffic reaches the observer between the entry and exit of the component that
-    /// observed it, which is how the observer knows whose it is.
-    #[test]
-    fn observed_traffic_reaches_the_observer_under_the_open_component() {
-        let (seen, _observation) = installed();
-        let observing = observing().expect("installed above");
-        {
-            let _experts = observing.enter(Declaration {
-                label: "experts",
-                variant: None,
-                site: "test::route",
-                bounds: None,
-            });
-            let named = Tensor::<1, Int>::from_ints([2, 5, 2], &burn_tensor::Device::flex());
-            observing.observe(ObservedBounds::new(named, |named| Bounds {
-                read: named.iter().sum::<i64>() as u64,
-                write: 0,
-                flops: 0,
-            }));
-        }
-
-        assert_eq!(seen.events(), ["+experts:-:-", "?9", "-"]);
     }
 
     /// Dropping the observation stops observing the thread, so a run that panicked cannot leave it

@@ -153,13 +153,39 @@ output dropped inside the run lets the fuser skip the work that wrote it:
 - **clean wall**, the median of 10 clean runs (`.samples(n)`): what the report splits into device
   time and the time the device waited on the host. An instrumented run times every launch, so its
   own wall time describes the instrumentation, not the model.
+- **pricing**, one untimed run that evaluates component bounds, including any value readbacks.
 - **the instrumented run**, whose breakdown the file holds.
+
+### Replay requirements
+
+The pricing and instrumented runs must enter the same annotated components in the same order,
+with equivalent shapes and values wherever they affect bounds. Reuse the same inputs and ensure
+relevant model state is equivalent for each invocation. Advancing a batch iterator, growing a
+KV cache, or changing routing decisions can invalidate the result.
+
+The device is reseeded before pricing and timing. This can repeat device random draws, but does
+not reset application state, model state, or host-side random generators. Bounds calculations
+must also preserve state and randomness needed by the forward pass. The instrument does not
+check that the runs match: a mismatch can silently assign bounds to the wrong components or
+score a component using bounds calculated for different inputs.
+
+Read a batch before profiling, rather than advancing the iterator inside the measured closure:
+
+```rust,ignore
+let batch = batches.next().unwrap();
+let measurement = Instrument::new(&device).measure(|| model.forward(batch.clone()));
+```
+
+The model must also satisfy the state requirements above. `Instrument::breakdown` runs the
+closure twice, for pricing and timing, and has the same replay requirements.
+
+### Profiling the text classifier
 
 The text-classification `profile` example measures the AG News classifier and prints the report.
 Pass a path to save the measurement as well:
 
 ```sh
-cargo run --release -p text-classification --example profile --features cuda -- model.json
+cargo run --release -p text-classification --example profile --features cuda,profile -- model.json
 ```
 
 ## Reading the report

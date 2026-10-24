@@ -2,10 +2,10 @@
 //! report.
 //!
 //! ```sh
-//! cargo run -p text-classification --example profile --release --features cuda
-//! cargo run -p text-classification --example profile --release --features cuda -- now.json
+//! cargo run -p text-classification --example profile --release --features cuda,profile
+//! cargo run -p text-classification --example profile --release --features cuda,profile -- now.json
 //! # In half precision: `f16`, `bf16` or `flex32`, as the other examples take it.
-//! cargo run -p text-classification --example profile --release --features cuda,f16
+//! cargo run -p text-classification --example profile --release --features cuda,profile,f16
 //! ```
 //!
 //! The model is the one `ag-news-train` trains, at random weights: what a pass costs depends on

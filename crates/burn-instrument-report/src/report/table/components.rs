@@ -228,8 +228,7 @@ fn bar(fraction: f64) -> String {
 }
 
 /// A component's heading: what it is called, how many times the run entered it,
-/// which executions served those entries, and whether its floor includes
-/// observed traffic.
+/// and which executions served those entries.
 ///
 /// The variant sits beside the count rather than on a line of its own because a
 /// component that routed one way is one fact about that component, and a second line per
@@ -242,9 +241,6 @@ fn heading(component: &Component) -> String {
     let served_by = ServedBy(component);
     if !served_by.is_empty() {
         heading.push_str(&format!(" · {served_by}"));
-    }
-    if component.observed.is_some() {
-        heading.push_str(" · floor read from the run");
     }
     heading
 }
