@@ -11,6 +11,23 @@ use cubecl::std::tensor::layout::linear::LinearView;
 use cubecl::{CubeDim, calculate_cube_count_elemwise};
 use cubecl::{prelude::*, std::FastDivmod};
 
+/// How [`scatter_nd_kernel`] writes an update into the data.
+///
+/// Each unit applies one update element with a plain read-modify-write, so with repeated
+/// targets two units can read the same old value and one update is lost. For bool, or and
+/// and have an absorbing value: writing only that value (true for or, false for and) and
+/// skipping the rest makes every concurrent write to a position store the same value, so
+/// the result doesn't depend on the order the updates land in.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub(crate) enum ScatterNdWrite {
+    /// `data = Op(data, update)`.
+    Reduce,
+    /// Bool or: write the update only when it is true.
+    OnlyTrue,
+    /// Bool and: write the update only when it is false.
+    OnlyFalse,
+}
+
 /// scatter_nd GPU kernel.
 ///
 /// Each thread handles one element across all update slices.
@@ -25,6 +42,7 @@ fn scatter_nd_kernel<T: Numeric, I: Int, Op: BinaryOpFamily>(
     slice_size: usize,
     k: usize,
     working_units: usize,
+    #[comptime] write: ScatterNdWrite,
     #[define(T, I)] _dtypes: [ElemType; 2],
 ) {
     if ABSOLUTE_POS >= working_units {
@@ -78,11 +96,20 @@ fn scatter_nd_kernel<T: Numeric, I: Int, Op: BinaryOpFamily>(
     }
 
     let data_idx = base_offset + data_slice_offset;
-    let result = Op::BinaryOp::<T, Const<1>>::execute(
-        Vector::cast_from(data[data_idx]),
-        Vector::cast_from(values[val_offset]),
-    );
-    data[data_idx] = result.extract(0usize);
+    let value = values[val_offset];
+    if comptime!(write == ScatterNdWrite::Reduce) {
+        let result = Op::BinaryOp::<T, Const<1>>::execute(
+            Vector::cast_from(data[data_idx]),
+            Vector::cast_from(value),
+        );
+        data[data_idx] = result.extract(0usize);
+    } else if comptime!(write == ScatterNdWrite::OnlyTrue) {
+        if value != T::from_int(0) {
+            data[data_idx] = value;
+        }
+    } else if value == T::from_int(0) {
+        data[data_idx] = value;
+    }
 }
 
 pub(crate) fn scatter_nd(
@@ -90,6 +117,32 @@ pub(crate) fn scatter_nd(
     indices: CubeTensor,
     values: CubeTensor,
     reduction: IndexingUpdateOp,
+) -> CubeTensor {
+    scatter_nd_with(tensor, indices, values, reduction, ScatterNdWrite::Reduce)
+}
+
+/// scatter_nd on bool data stored as 0/1: `Add`/`Max` are a logical or and `Mul`/`Min` a
+/// logical and. Both write only their absorbing value, so repeated targets are safe.
+pub(crate) fn bool_scatter_nd(
+    tensor: CubeTensor,
+    indices: CubeTensor,
+    values: CubeTensor,
+    reduction: IndexingUpdateOp,
+) -> CubeTensor {
+    let write = match reduction {
+        IndexingUpdateOp::Assign => ScatterNdWrite::Reduce,
+        IndexingUpdateOp::Add | IndexingUpdateOp::Max => ScatterNdWrite::OnlyTrue,
+        IndexingUpdateOp::Mul | IndexingUpdateOp::Min => ScatterNdWrite::OnlyFalse,
+    };
+    scatter_nd_with(tensor, indices, values, IndexingUpdateOp::Assign, write)
+}
+
+fn scatter_nd_with(
+    tensor: CubeTensor,
+    indices: CubeTensor,
+    values: CubeTensor,
+    reduction: IndexingUpdateOp,
+    write: ScatterNdWrite,
 ) -> CubeTensor {
     // Ensure we can write in-place
     let tensor = match tensor.can_mut() && tensor.is_nonoverlapping() {
@@ -138,6 +191,7 @@ pub(crate) fn scatter_nd(
             slice_size,
             k,
             working_units,
+            write,
             [
                 dtype_to_storage_type(tensor_dtype),
                 dtype_to_storage_type(indices_dtype),
