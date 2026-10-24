@@ -8,7 +8,8 @@ use crate::{
     kind::Basic,
     ops::{
         AttentionModuleOptions, AvgPoolOptions, BridgeTensor, ConvOptions, ConvTransposeOptions,
-        DeformConvOptions, InterpolateOptions, MaxPoolOptions, PadMode, Resolved, UnfoldOptions,
+        DeformConvOptions, InterpolateOptions, MaxPoolOptions, PadMode, ResolvedOutput,
+        UnfoldOptions,
     },
 };
 
@@ -38,7 +39,7 @@ pub fn batch_norm<const D: usize>(
         [channels],
         "invalid batch norm variance shape"
     );
-    let resolved = Resolved::combine([
+    let resolved = ResolvedOutput::combine([
         &input.primitive,
         &gamma.primitive,
         &beta.primitive,
@@ -99,7 +100,7 @@ pub fn batch_norm_train<const D: usize>(
     let channels = input.dims()[1];
     assert_eq!(gamma.dims(), [channels], "invalid batch norm gamma shape");
     assert_eq!(beta.dims(), [channels], "invalid batch norm beta shape");
-    let resolved = Resolved::combine([&input.primitive, &gamma.primitive, &beta.primitive]);
+    let resolved = ResolvedOutput::combine([&input.primitive, &gamma.primitive, &beta.primitive]);
     let result = Dispatch::batch_norm_train(
         resolved.operand(input.primitive),
         resolved.operand(gamma.primitive),
@@ -139,7 +140,7 @@ pub fn ctc_loss(
     target_lengths: Tensor<1, Int>,
     blank: usize,
 ) -> Tensor<1> {
-    let resolved = Resolved::combine([&log_probs.primitive]);
+    let resolved = ResolvedOutput::combine([&log_probs.primitive]);
     Tensor::new(resolved.output(Dispatch::ctc_loss(
         resolved.operand(log_probs.primitive),
         targets.primitive.into(),
@@ -160,7 +161,7 @@ pub fn embedding(weights: Tensor<2>, indices: Tensor<2, Int>) -> Tensor<3> {
             .select(0, indices.reshape([batch * sequence]))
             .reshape([batch, sequence, width]);
     }
-    let resolved = Resolved::combine([&weights.primitive]);
+    let resolved = ResolvedOutput::combine([&weights.primitive]);
     Tensor::new(resolved.output(Dispatch::embedding(
         resolved.operand(weights.primitive),
         indices.primitive.into(),
@@ -186,7 +187,7 @@ pub fn conv1d(
         options.groups,
     ));
 
-    let resolved = Resolved::combine(
+    let resolved = ResolvedOutput::combine(
         [&x.primitive, &weight.primitive]
             .into_iter()
             .chain(bias.as_ref().map(|b| &b.primitive)),
@@ -218,7 +219,7 @@ pub fn conv2d(
         options.groups,
     ));
 
-    let resolved = Resolved::combine(
+    let resolved = ResolvedOutput::combine(
         [&x.primitive, &weight.primitive]
             .into_iter()
             .chain(bias.as_ref().map(|b| &b.primitive)),
@@ -254,7 +255,7 @@ pub fn conv3d(
         panic!("Asymmetric padding is not yet supported for conv3d");
     }
 
-    let resolved = Resolved::combine(
+    let resolved = ResolvedOutput::combine(
         [&x.primitive, &weight.primitive]
             .into_iter()
             .chain(bias.as_ref().map(|b| &b.primitive)),
@@ -282,7 +283,7 @@ pub fn deform_conv2d(
         weight.dims(),
         options.weight_groups,
     ));
-    let resolved = Resolved::combine(
+    let resolved = ResolvedOutput::combine(
         [&x.primitive, &offset.primitive, &weight.primitive]
             .into_iter()
             .chain(mask.as_ref().map(|m| &m.primitive))
@@ -311,7 +312,7 @@ pub fn conv_transpose1d(
         x.dims(),
         weight.dims(),
     ));
-    let resolved = Resolved::combine(
+    let resolved = ResolvedOutput::combine(
         [&x.primitive, &weight.primitive]
             .into_iter()
             .chain(bias.as_ref().map(|b| &b.primitive)),
@@ -336,7 +337,7 @@ pub fn conv_transpose2d(
         x.dims(),
         weight.dims(),
     ));
-    let resolved = Resolved::combine(
+    let resolved = ResolvedOutput::combine(
         [&x.primitive, &weight.primitive]
             .into_iter()
             .chain(bias.as_ref().map(|b| &b.primitive)),
@@ -361,7 +362,7 @@ pub fn conv_transpose3d(
         x.dims(),
         weight.dims(),
     ));
-    let resolved = Resolved::combine(
+    let resolved = ResolvedOutput::combine(
         [&x.primitive, &weight.primitive]
             .into_iter()
             .chain(bias.as_ref().map(|b| &b.primitive)),
@@ -376,7 +377,7 @@ pub fn conv_transpose3d(
 
 /// Applies a [4D to 3D unfold](burn_backend::ops::ModuleOps::unfold4d).
 pub fn unfold4d(x: Tensor<4>, kernel_size: [usize; 2], options: UnfoldOptions) -> Tensor<3> {
-    let resolved = Resolved::combine([&x.primitive]);
+    let resolved = ResolvedOutput::combine([&x.primitive]);
     Tensor::new(resolved.output(Dispatch::unfold4d(
         resolved.operand(x.primitive),
         kernel_size,
@@ -408,7 +409,7 @@ pub fn fold4d(
     kernel_size: [usize; 2],
     options: UnfoldOptions,
 ) -> Tensor<4> {
-    let resolved = Resolved::combine([&x.primitive]);
+    let resolved = ResolvedOutput::combine([&x.primitive]);
     Tensor::new(resolved.output(Dispatch::fold4d(
         resolved.operand(x.primitive),
         output_size,
@@ -423,7 +424,7 @@ pub fn fold4d(
 pub fn max_pool1d(x: Tensor<3>, options: MaxPoolOptions<1>) -> Tensor<3> {
     let dims = x.dims();
     let (x, padding) = pad_max_pool_input(x, &options);
-    let resolved = Resolved::combine([&x.primitive]);
+    let resolved = ResolvedOutput::combine([&x.primitive]);
     let output = Tensor::new(resolved.output(Dispatch::max_pool1d(
         resolved.operand(x.primitive),
         options.kernel_size[0],
@@ -448,7 +449,7 @@ pub fn max_pool1d(x: Tensor<3>, options: MaxPoolOptions<1>) -> Tensor<3> {
 pub fn max_pool2d(x: Tensor<4>, options: MaxPoolOptions<2>) -> Tensor<4> {
     let dims = x.dims();
     let (x, padding) = pad_max_pool_input(x, &options);
-    let resolved = Resolved::combine([&x.primitive]);
+    let resolved = ResolvedOutput::combine([&x.primitive]);
     let output = Tensor::new(resolved.output(Dispatch::max_pool2d(
         resolved.operand(x.primitive),
         options.kernel_size,
@@ -505,7 +506,7 @@ pub fn max_pool3d(x: Tensor<5>, options: MaxPoolOptions<3>) -> Tensor<5> {
             dilation
         );
     }
-    let resolved = Resolved::combine([&x.primitive]);
+    let resolved = ResolvedOutput::combine([&x.primitive]);
     let output = Tensor::new(resolved.output(Dispatch::max_pool3d(
         resolved.operand(x.primitive),
         kernel_size,
@@ -523,7 +524,7 @@ pub fn max_pool3d(x: Tensor<5>, options: MaxPoolOptions<3>) -> Tensor<5> {
 /// Supports symmetric and asymmetric padding through [`AvgPoolOptions`].
 pub fn avg_pool2d(x: Tensor<4>, options: AvgPoolOptions<2>) -> Tensor<4> {
     avg_pool(x, &options, |x, padding, count_include_pad| {
-        let resolved = Resolved::combine([&x.primitive]);
+        let resolved = ResolvedOutput::combine([&x.primitive]);
         Tensor::new(resolved.output(Dispatch::avg_pool2d(
             resolved.operand(x.primitive),
             options.kernel_size,
@@ -564,7 +565,7 @@ pub fn avg_pool3d(x: Tensor<5>, options: AvgPoolOptions<3>) -> Tensor<5> {
                 kernel_size
             );
         }
-        let resolved = Resolved::combine([&x.primitive]);
+        let resolved = ResolvedOutput::combine([&x.primitive]);
         Tensor::new(resolved.output(Dispatch::avg_pool3d(
             resolved.operand(x.primitive),
             kernel_size,
@@ -581,7 +582,7 @@ pub fn avg_pool3d(x: Tensor<5>, options: AvgPoolOptions<3>) -> Tensor<5> {
 /// Supports symmetric and asymmetric padding through [`AvgPoolOptions`].
 pub fn avg_pool1d(x: Tensor<3>, options: AvgPoolOptions<1>) -> Tensor<3> {
     avg_pool(x, &options, |x, padding, count_include_pad| {
-        let resolved = Resolved::combine([&x.primitive]);
+        let resolved = ResolvedOutput::combine([&x.primitive]);
         Tensor::new(resolved.output(Dispatch::avg_pool1d(
             resolved.operand(x.primitive),
             options.kernel_size[0],
@@ -605,7 +606,7 @@ pub fn max_pool1d_with_indices(
     let [_, _, length] = dims;
     let indices_dtype = x.device().get_or_init_settings().int_dtype;
     let (x, padding) = pad_max_pool_input(x, &options);
-    let resolved = Resolved::combine([&x.primitive]);
+    let resolved = ResolvedOutput::combine([&x.primitive]);
     let output = Dispatch::max_pool1d_with_indices(
         resolved.operand(x.primitive),
         options.kernel_size[0],
@@ -647,7 +648,7 @@ pub fn max_pool2d_with_indices(
     let [_, _, height, width] = dims;
     let indices_dtype = x.device().get_or_init_settings().int_dtype;
     let (x, padding) = pad_max_pool_input(x, &options);
-    let resolved = Resolved::combine([&x.primitive]);
+    let resolved = ResolvedOutput::combine([&x.primitive]);
     let output = Dispatch::max_pool2d_with_indices(
         resolved.operand(x.primitive),
         options.kernel_size,
@@ -1036,7 +1037,7 @@ pub fn max_pool3d_with_indices(
             dilation
         );
     }
-    let resolved = Resolved::combine([&x.primitive]);
+    let resolved = ResolvedOutput::combine([&x.primitive]);
     let output = Dispatch::max_pool3d_with_indices(
         resolved.operand(x.primitive),
         kernel_size,
@@ -1081,7 +1082,7 @@ pub fn max_pool3d_with_indices(
 }
 /// Applies a [2D adaptive avg pooling](burn_backend::ops::ModuleOps::adaptive_avg_pool2d).
 pub fn adaptive_avg_pool2d(x: Tensor<4>, output_size: [usize; 2]) -> Tensor<4> {
-    let resolved = Resolved::combine([&x.primitive]);
+    let resolved = ResolvedOutput::combine([&x.primitive]);
     Tensor::new(resolved.output(Dispatch::adaptive_avg_pool2d(
         resolved.operand(x.primitive),
         output_size,
@@ -1090,7 +1091,7 @@ pub fn adaptive_avg_pool2d(x: Tensor<4>, output_size: [usize; 2]) -> Tensor<4> {
 
 /// Applies a [3D adaptive avg pooling](burn_backend::ops::ModuleOps::adaptive_avg_pool3d).
 pub fn adaptive_avg_pool3d(x: Tensor<5>, output_size: [usize; 3]) -> Tensor<5> {
-    let resolved = Resolved::combine([&x.primitive]);
+    let resolved = ResolvedOutput::combine([&x.primitive]);
     Tensor::new(resolved.output(Dispatch::adaptive_avg_pool3d(
         resolved.operand(x.primitive),
         output_size,
@@ -1099,7 +1100,7 @@ pub fn adaptive_avg_pool3d(x: Tensor<5>, output_size: [usize; 3]) -> Tensor<5> {
 
 /// Applies a [1D adaptive avg pooling](burn_backend::ops::ModuleOps::adaptive_avg_pool1d).
 pub fn adaptive_avg_pool1d(x: Tensor<3>, output_size: usize) -> Tensor<3> {
-    let resolved = Resolved::combine([&x.primitive]);
+    let resolved = ResolvedOutput::combine([&x.primitive]);
     Tensor::new(resolved.output(Dispatch::adaptive_avg_pool1d(
         resolved.operand(x.primitive),
         output_size,
@@ -1127,7 +1128,7 @@ pub fn adaptive_avg_pool1d(x: Tensor<3>, output_size: usize) -> Tensor<3> {
 pub fn interpolate(x: Tensor<4>, options: InterpolateOptions) -> Tensor<4> {
     let [_, _, h, w] = x.dims();
     let output_size = interpolate_output_size([h, w], &options);
-    let resolved = Resolved::combine([&x.primitive]);
+    let resolved = ResolvedOutput::combine([&x.primitive]);
     Tensor::new(resolved.output(Dispatch::interpolate(
         resolved.operand(x.primitive),
         output_size,
@@ -1241,7 +1242,7 @@ fn linear_impl(
     weight: BridgeTensor,
     bias: Option<BridgeTensor>,
 ) -> BridgeTensor {
-    let resolved = Resolved::combine([&input, &weight].into_iter().chain(bias.as_ref()));
+    let resolved = ResolvedOutput::combine([&input, &weight].into_iter().chain(bias.as_ref()));
     resolved.output(Dispatch::linear(
         resolved.operand(input),
         resolved.operand(weight),
@@ -1290,7 +1291,7 @@ pub fn attention(
         &key.shape(),
         &value.shape(),
     );
-    let resolved = Resolved::combine(
+    let resolved = ResolvedOutput::combine(
         [&query.primitive, &key.primitive, &value.primitive]
             .into_iter()
             .chain(attn_bias.as_ref().map(|bias| &bias.primitive)),
@@ -1314,7 +1315,7 @@ pub fn attention_fallback(
     attn_bias: Option<Tensor<4>>,
     options: AttentionModuleOptions,
 ) -> Tensor<4> {
-    let resolved = Resolved::combine(
+    let resolved = ResolvedOutput::combine(
         [&query.primitive, &key.primitive, &value.primitive]
             .into_iter()
             .chain(attn_bias.as_ref().map(|bias| &bias.primitive)),
@@ -1338,7 +1339,8 @@ pub fn conv2d_weight_backward(
     output_grad: Tensor<4>,
     options: ConvOptions<2>,
 ) -> Tensor<4> {
-    let resolved = Resolved::combine([&x.primitive, &weight.primitive, &output_grad.primitive]);
+    let resolved =
+        ResolvedOutput::combine([&x.primitive, &weight.primitive, &output_grad.primitive]);
     Tensor::new(resolved.output(Dispatch::conv2d_weight_backward(
         resolved.operand(x.primitive),
         resolved.operand(weight.primitive),
@@ -1357,7 +1359,7 @@ pub fn avg_pool2d_backward(
     count_include_pad: bool,
     ceil_mode: bool,
 ) -> Tensor<4> {
-    let resolved = Resolved::combine([&x.primitive, &grad.primitive]);
+    let resolved = ResolvedOutput::combine([&x.primitive, &grad.primitive]);
     Tensor::new(resolved.output(Dispatch::avg_pool2d_backward(
         resolved.operand(x.primitive),
         resolved.operand(grad.primitive),
@@ -1381,7 +1383,7 @@ pub fn max_pool2d_with_indices_backward(
     output_grad: Tensor<4>,
     indices: Tensor<4, Int>,
 ) -> Tensor<4> {
-    let resolved = Resolved::combine([&x.primitive, &output_grad.primitive]);
+    let resolved = ResolvedOutput::combine([&x.primitive, &output_grad.primitive]);
     Tensor::new(
         resolved.output(
             Dispatch::max_pool2d_with_indices_backward(
@@ -1468,7 +1470,7 @@ pub fn avg_pool3d_backward(
         grad.dims(),
         expected_output_dims
     );
-    let resolved = Resolved::combine([&x.primitive, &grad.primitive]);
+    let resolved = ResolvedOutput::combine([&x.primitive, &grad.primitive]);
     Tensor::new(resolved.output(Dispatch::avg_pool3d_backward(
         resolved.operand(x.primitive),
         resolved.operand(grad.primitive),
@@ -1529,7 +1531,7 @@ pub fn max_pool3d_with_indices_backward(
         indices.dims(),
         output_grad.dims()
     );
-    let resolved = Resolved::combine([&x.primitive, &output_grad.primitive]);
+    let resolved = ResolvedOutput::combine([&x.primitive, &output_grad.primitive]);
     Tensor::new(
         resolved.output(
             Dispatch::max_pool3d_with_indices_backward(
@@ -1576,7 +1578,7 @@ fn layer_norm_impl(
     beta: Option<BridgeTensor>,
     epsilon: f64,
 ) -> BridgeTensor {
-    let resolved = Resolved::combine([&input, &gamma].into_iter().chain(beta.as_ref()));
+    let resolved = ResolvedOutput::combine([&input, &gamma].into_iter().chain(beta.as_ref()));
     resolved.output(Dispatch::layer_norm(
         resolved.operand(input),
         resolved.operand(gamma),

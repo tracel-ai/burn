@@ -34,6 +34,7 @@ pub mod module;
 
 /// Operations on tensors module.
 pub mod ops {
+    pub use crate::bridge::ResolvedOutput;
     pub(crate) use crate::bridge::*;
     pub use burn_std::ops::*;
 }

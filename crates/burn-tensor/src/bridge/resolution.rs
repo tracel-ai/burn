@@ -15,12 +15,55 @@ use super::{BridgeKind, BridgeTensor};
 /// output from all its inputs ([`combine`](Self::combine)), an operation writing into a tensor
 /// keeps that tensor's type ([`into`](Self::into)). Backends never see a propagation: they receive
 /// operands already converted and return an output this brings to the resolved type.
+///
+/// A custom operation — a backend extension's kernel — resolves its output the same way, so it
+/// keeps a quantized signal quantized as a built-in operation does: [`of`](Self::of) or
+/// [`written_into`](Self::written_into) the types of its inputs, [`read`](Self::read) each float
+/// operand its kernel takes, [`write`](Self::write) the kernel's output.
 #[derive(Clone, Copy, Debug)]
-pub(crate) struct Resolved {
+pub struct ResolvedOutput {
     out: TensorType,
 }
 
-impl Resolved {
+impl ResolvedOutput {
+    /// The output of a custom operation combining inputs of these types, resolved as a built-in
+    /// combining operation's is (see [`TensorType::combine`]).
+    ///
+    /// # Panics
+    ///
+    /// Under [`DTypeResolution::Strict`], when two propagating inputs hold different dtypes.
+    pub fn of(inputs: impl IntoIterator<Item = TensorType>) -> Self {
+        let out = TensorType::combine(inputs, DTypeResolution::current())
+            .unwrap_or_else(|conflict| panic!("{conflict}"));
+        Self { out }
+    }
+
+    /// The output of a custom operation writing into a tensor of type `target`: that type.
+    pub fn written_into(target: TensorType) -> Self {
+        Self { out: target }
+    }
+
+    /// The type the output resolves to.
+    pub fn tensor_type(&self) -> TensorType {
+        self.out
+    }
+
+    /// `tensor` as the operation reads a float operand: in [`compute`](Self::compute), decoded
+    /// when it is quantized.
+    pub fn read<const D: usize>(&self, tensor: crate::Tensor<D>) -> crate::Tensor<D> {
+        crate::Tensor::new(BridgeTensor::float(self.operand(tensor.primitive)))
+    }
+
+    /// The operation's float output `tensor`, brought to the resolved type: quantized when the
+    /// type is, cast when its float precision differs, propagating as the type does.
+    pub fn write<const D: usize>(&self, tensor: crate::Tensor<D>) -> crate::Tensor<D> {
+        let primitive = match tensor.primitive.into_parts() {
+            (BridgeKind::QFloat, tensor) => TensorPrimitive::QFloat(tensor),
+            (_, tensor) => TensorPrimitive::Float(tensor),
+        };
+        crate::Tensor::new(self.primitive(primitive))
+    }
+
     /// The output of a combining operation — elementwise, a matmul, a concatenation, a reduction —
     /// over `inputs`, under the process's [`DTypeResolution`].
     ///
@@ -43,7 +86,7 @@ impl Resolved {
 
     /// The float precision the operation computes in: the output's when it is float, `f32` when
     /// it is quantized.
-    pub(crate) fn compute(&self) -> FloatDType {
+    pub fn compute(&self) -> FloatDType {
         match self.out.dtype {
             DType::QFloat(_) => FloatDType::F32,
             dtype => dtype.into(),

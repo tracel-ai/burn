@@ -6,7 +6,7 @@ use crate::check;
 use crate::check::TensorCheck;
 use crate::{
     Float, Tensor,
-    ops::{BridgeTensor, Resolved},
+    ops::{BridgeTensor, ResolvedOutput},
 };
 
 impl<const D: usize> Tensor<D, Float> {
@@ -85,7 +85,7 @@ impl<const D: usize> Tensor<D, Float> {
 }
 
 fn fmod_impl(lhs: BridgeTensor, rhs: BridgeTensor) -> BridgeTensor {
-    let resolved = Resolved::combine([&lhs, &rhs]);
+    let resolved = ResolvedOutput::combine([&lhs, &rhs]);
     resolved.output(Dispatch::float_fmod(
         resolved.operand(lhs),
         resolved.operand(rhs),
@@ -93,6 +93,6 @@ fn fmod_impl(lhs: BridgeTensor, rhs: BridgeTensor) -> BridgeTensor {
 }
 
 fn fmod_scalar_impl(lhs: BridgeTensor, rhs: Scalar) -> BridgeTensor {
-    let resolved = Resolved::combine([&lhs]);
+    let resolved = ResolvedOutput::combine([&lhs]);
     resolved.output(Dispatch::float_fmod_scalar(resolved.operand(lhs), rhs))
 }

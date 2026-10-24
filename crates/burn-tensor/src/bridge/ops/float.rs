@@ -13,7 +13,7 @@ use burn_std::{DType, ExecutionError, IndexingUpdateOp, PadMode, Shape, Slice};
 use crate::{
     Device, Float,
     bridge::{BasicAutodiffOps, BasicOps, FloatMathOps, Numeric, Ordered, TransactionOp},
-    ops::{BridgeKind, BridgeTensor, Resolved},
+    ops::{BridgeKind, BridgeTensor, ResolvedOutput},
 };
 
 /// A combining operation over two operands, resolved from both: the backend's quantized `$q_op`
@@ -21,8 +21,8 @@ use crate::{
 /// output resolves to.
 macro_rules! combine_binary {
     ($lhs:ident, $rhs:ident, $op:ident, $q_op:ident) => {{
-        let resolved = Resolved::combine([&$lhs, &$rhs]);
-        match Resolved::all_quantized([&$lhs, &$rhs]) {
+        let resolved = ResolvedOutput::combine([&$lhs, &$rhs]);
+        match ResolvedOutput::all_quantized([&$lhs, &$rhs]) {
             true => resolved.primitive(Dispatch::$q_op($lhs.into_parts().1, $rhs.into_parts().1)),
             false => resolved.output(Dispatch::$op(
                 resolved.operand($lhs),
@@ -36,7 +36,7 @@ macro_rules! combine_binary {
 /// operand as it is stored and returns a [`TensorPrimitive`], `$float` on a float one.
 macro_rules! unary {
     ($tensor:ident, |$float_arg:ident| $float:expr, |$quant_arg:ident| $quant:expr) => {{
-        let resolved = Resolved::combine([&$tensor]);
+        let resolved = ResolvedOutput::combine([&$tensor]);
         match $tensor.is_qfloat() {
             true => {
                 let $quant_arg = $tensor.into_parts().1;
@@ -51,7 +51,7 @@ macro_rules! unary {
     // An operation with no quantized form: a quantized operand is decoded, and the output
     // quantized again when the operand's type is.
     ($tensor:ident, |$float_arg:ident| $float:expr) => {{
-        let resolved = Resolved::combine([&$tensor]);
+        let resolved = ResolvedOutput::combine([&$tensor]);
         let $float_arg = resolved.operand($tensor);
         resolved.output($float)
     }};
@@ -133,7 +133,7 @@ impl BasicOps for Float {
     }
 
     fn slice_assign(tensor: BridgeTensor, slices: &[Slice], value: BridgeTensor) -> BridgeTensor {
-        let resolved = Resolved::into(&tensor);
+        let resolved = ResolvedOutput::into(&tensor);
         resolved.output(Dispatch::float_slice_assign(
             resolved.operand(tensor),
             slices,
@@ -156,7 +156,7 @@ impl BasicOps for Float {
         values: BridgeTensor,
         update: IndexingUpdateOp,
     ) -> BridgeTensor {
-        let resolved = Resolved::into(&tensor);
+        let resolved = ResolvedOutput::into(&tensor);
         resolved.output(Dispatch::float_select_assign(
             resolved.operand(tensor),
             dim,
@@ -167,7 +167,7 @@ impl BasicOps for Float {
     }
 
     fn mask_where(tensor: BridgeTensor, mask: BridgeTensor, source: BridgeTensor) -> BridgeTensor {
-        let resolved = Resolved::combine([&tensor, &source]);
+        let resolved = ResolvedOutput::combine([&tensor, &source]);
         resolved.output(Dispatch::float_mask_where(
             resolved.operand(tensor),
             mask.into(),
@@ -223,7 +223,7 @@ impl BasicOps for Float {
         values: BridgeTensor,
         update: IndexingUpdateOp,
     ) -> BridgeTensor {
-        let resolved = Resolved::into(&tensor);
+        let resolved = ResolvedOutput::into(&tensor);
         resolved.output(Dispatch::float_scatter(
             dim,
             resolved.operand(tensor),
@@ -239,7 +239,7 @@ impl BasicOps for Float {
         values: BridgeTensor,
         reduction: IndexingUpdateOp,
     ) -> BridgeTensor {
-        let resolved = Resolved::into(&data);
+        let resolved = ResolvedOutput::into(&data);
         resolved.output(Dispatch::float_scatter_nd(
             resolved.operand(data),
             indices.into(),
@@ -301,12 +301,12 @@ impl BasicOps for Float {
     }
 
     fn cat(vectors: Vec<BridgeTensor>, dim: usize) -> BridgeTensor {
-        let resolved = Resolved::combine(&vectors);
+        let resolved = ResolvedOutput::combine(&vectors);
         // Quantized parts concatenate as stored only when they share one scheme.
         let one_scheme = vectors
             .first()
             .is_some_and(|first| vectors.iter().all(|part| part.dtype() == first.dtype()));
-        match Resolved::all_quantized(&vectors) && one_scheme {
+        match ResolvedOutput::all_quantized(&vectors) && one_scheme {
             true => resolved.primitive(TensorPrimitive::QFloat(Dispatch::q_cat(
                 BridgeTensor::into_dispatch_vec(vectors),
                 dim,
@@ -323,7 +323,7 @@ impl BasicOps for Float {
 
     fn equal(lhs: BridgeTensor, rhs: BridgeTensor) -> BridgeTensor {
         let bool_dtype = lhs.device_settings().bool_dtype;
-        let resolved = Resolved::combine([&lhs, &rhs]);
+        let resolved = ResolvedOutput::combine([&lhs, &rhs]);
         BridgeTensor::bool(Dispatch::float_equal(
             resolved.operand(lhs),
             resolved.operand(rhs),
@@ -333,7 +333,7 @@ impl BasicOps for Float {
 
     fn not_equal(lhs: BridgeTensor, rhs: BridgeTensor) -> BridgeTensor {
         let bool_dtype = lhs.device_settings().bool_dtype;
-        let resolved = Resolved::combine([&lhs, &rhs]);
+        let resolved = ResolvedOutput::combine([&lhs, &rhs]);
         BridgeTensor::bool(Dispatch::float_not_equal(
             resolved.operand(lhs),
             resolved.operand(rhs),
@@ -474,7 +474,7 @@ impl Numeric for Float {
         })
     }
     fn remainder(lhs: BridgeTensor, rhs: BridgeTensor) -> BridgeTensor {
-        let resolved = Resolved::combine([&lhs, &rhs]);
+        let resolved = ResolvedOutput::combine([&lhs, &rhs]);
         resolved.output(Dispatch::float_remainder(
             resolved.operand(lhs),
             resolved.operand(rhs),
@@ -614,7 +614,7 @@ impl Numeric for Float {
     ///
     /// If the two tensors don't have a compatible shape.
     fn matmul(lhs: BridgeTensor, rhs: BridgeTensor) -> BridgeTensor {
-        let resolved = Resolved::combine([&lhs, &rhs]);
+        let resolved = ResolvedOutput::combine([&lhs, &rhs]);
         let operand = |operand: BridgeTensor| match operand.into_parts() {
             (BridgeKind::Float, operand) => TensorPrimitive::Float(operand),
             (BridgeKind::QFloat, operand) => TensorPrimitive::QFloat(operand),
@@ -669,7 +669,7 @@ impl Ordered for Float {
         descending: bool,
     ) -> (BridgeTensor, BridgeTensor) {
         let settings = tensor.device_settings();
-        let resolved = Resolved::combine([&tensor]);
+        let resolved = ResolvedOutput::combine([&tensor]);
         let (values, indices) = match tensor.into_parts() {
             (BridgeKind::Float, tensor) => {
                 let (values, indices) =
@@ -724,7 +724,7 @@ impl Ordered for Float {
 
     fn greater(lhs: BridgeTensor, rhs: BridgeTensor) -> BridgeTensor {
         let bool_dtype = lhs.device_settings().bool_dtype;
-        let resolved = Resolved::combine([&lhs, &rhs]);
+        let resolved = ResolvedOutput::combine([&lhs, &rhs]);
         BridgeTensor::bool(Dispatch::float_greater(
             resolved.operand(lhs),
             resolved.operand(rhs),
@@ -740,7 +740,7 @@ impl Ordered for Float {
 
     fn greater_equal(lhs: BridgeTensor, rhs: BridgeTensor) -> BridgeTensor {
         let bool_dtype = lhs.device_settings().bool_dtype;
-        let resolved = Resolved::combine([&lhs, &rhs]);
+        let resolved = ResolvedOutput::combine([&lhs, &rhs]);
         BridgeTensor::bool(Dispatch::float_greater_equal(
             resolved.operand(lhs),
             resolved.operand(rhs),
@@ -756,7 +756,7 @@ impl Ordered for Float {
 
     fn lower(lhs: BridgeTensor, rhs: BridgeTensor) -> BridgeTensor {
         let bool_dtype = lhs.device_settings().bool_dtype;
-        let resolved = Resolved::combine([&lhs, &rhs]);
+        let resolved = ResolvedOutput::combine([&lhs, &rhs]);
         BridgeTensor::bool(Dispatch::float_lower(
             resolved.operand(lhs),
             resolved.operand(rhs),
@@ -772,7 +772,7 @@ impl Ordered for Float {
 
     fn lower_equal(lhs: BridgeTensor, rhs: BridgeTensor) -> BridgeTensor {
         let bool_dtype = lhs.device_settings().bool_dtype;
-        let resolved = Resolved::combine([&lhs, &rhs]);
+        let resolved = ResolvedOutput::combine([&lhs, &rhs]);
         BridgeTensor::bool(Dispatch::float_lower_equal(
             resolved.operand(lhs),
             resolved.operand(rhs),
@@ -856,7 +856,7 @@ impl Ordered for Float {
         k: usize,
     ) -> (BridgeTensor, BridgeTensor) {
         let settings = tensor.device_settings();
-        let resolved = Resolved::combine([&tensor]);
+        let resolved = ResolvedOutput::combine([&tensor]);
         let (values, indices) = match tensor.into_parts() {
             (BridgeKind::Float, tensor) => {
                 let (values, indices) =
@@ -875,7 +875,7 @@ impl Ordered for Float {
 
     fn max_dim_with_indices(tensor: BridgeTensor, dim: usize) -> (BridgeTensor, BridgeTensor) {
         let settings = tensor.device_settings();
-        let resolved = Resolved::combine([&tensor]);
+        let resolved = ResolvedOutput::combine([&tensor]);
         let (values, indices) = match tensor.into_parts() {
             (BridgeKind::Float, tensor) => {
                 let (values, indices) =
@@ -908,7 +908,7 @@ impl Ordered for Float {
 
     fn min_dim_with_indices(tensor: BridgeTensor, dim: usize) -> (BridgeTensor, BridgeTensor) {
         let settings = tensor.device_settings();
-        let resolved = Resolved::combine([&tensor]);
+        let resolved = ResolvedOutput::combine([&tensor]);
         let (values, indices) = match tensor.into_parts() {
             (BridgeKind::Float, tensor) => {
                 let (values, indices) =
@@ -1023,7 +1023,7 @@ impl FloatMathOps for Float {
     }
 
     fn atan2(lhs: BridgeTensor, rhs: BridgeTensor) -> BridgeTensor {
-        let resolved = Resolved::combine([&lhs, &rhs]);
+        let resolved = ResolvedOutput::combine([&lhs, &rhs]);
         resolved.output(Dispatch::float_atan2(
             resolved.operand(lhs),
             resolved.operand(rhs),

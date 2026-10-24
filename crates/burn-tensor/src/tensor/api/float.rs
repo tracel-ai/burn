@@ -9,7 +9,7 @@ use crate::check;
 use crate::check::TensorCheck;
 use crate::check::unwrap_dim_index;
 use crate::kind::FloatMath;
-use crate::ops::{BridgeKind, BridgeTensor, Resolved};
+use crate::ops::{BridgeKind, BridgeTensor, ResolvedOutput};
 use crate::quantization::{QuantScheme, QuantizationParameters, global_scale_dtype};
 use crate::tensor::stats;
 use crate::tensor::{Distribution, TensorData};
@@ -378,6 +378,12 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     /// the whole rule.
     pub fn propagation(&self) -> DTypePropagation {
         self.primitive.propagation()
+    }
+
+    /// This tensor's dtype together with its propagation: what an operation it enters resolves
+    /// its output's dtype from (see [`ResolvedOutput`](crate::ops::ResolvedOutput)).
+    pub fn tensor_type(&self) -> crate::TensorType {
+        self.primitive.tensor_type()
     }
 
     /// This tensor, deciding the dtype of the operations it enters as `propagation` says.
@@ -1193,17 +1199,17 @@ where
 // =========================================================================
 
 fn erf_impl(p: BridgeTensor) -> BridgeTensor {
-    let resolved = Resolved::combine([&p]);
+    let resolved = ResolvedOutput::combine([&p]);
     resolved.output(Dispatch::float_erf(resolved.operand(p)))
 }
 
 fn recip_impl(p: BridgeTensor) -> BridgeTensor {
-    let resolved = Resolved::combine([&p]);
+    let resolved = ResolvedOutput::combine([&p]);
     resolved.output(Dispatch::float_recip(resolved.operand(p)))
 }
 
 fn hypot_impl(lhs: BridgeTensor, rhs: BridgeTensor) -> BridgeTensor {
-    let resolved = Resolved::combine([&lhs, &rhs]);
+    let resolved = ResolvedOutput::combine([&lhs, &rhs]);
     resolved.output(Dispatch::float_hypot(
         resolved.operand(lhs),
         resolved.operand(rhs),
@@ -1211,17 +1217,17 @@ fn hypot_impl(lhs: BridgeTensor, rhs: BridgeTensor) -> BridgeTensor {
 }
 
 fn round_impl(p: BridgeTensor) -> BridgeTensor {
-    let resolved = Resolved::combine([&p]);
+    let resolved = ResolvedOutput::combine([&p]);
     resolved.output(Dispatch::float_round(resolved.operand(p)))
 }
 
 fn floor_impl(p: BridgeTensor) -> BridgeTensor {
-    let resolved = Resolved::combine([&p]);
+    let resolved = ResolvedOutput::combine([&p]);
     resolved.output(Dispatch::float_floor(resolved.operand(p)))
 }
 
 fn ceil_impl(p: BridgeTensor) -> BridgeTensor {
-    let resolved = Resolved::combine([&p]);
+    let resolved = ResolvedOutput::combine([&p]);
     resolved.output(Dispatch::float_ceil(resolved.operand(p)))
 }
 
@@ -1278,7 +1284,7 @@ fn set_require_grad_impl(p: BridgeTensor, require_grad: bool) -> BridgeTensor {
 }
 
 fn relu_impl(p: BridgeTensor) -> BridgeTensor {
-    let resolved = Resolved::combine([&p]);
+    let resolved = ResolvedOutput::combine([&p]);
     resolved.output(Dispatch::relu(resolved.operand(p)))
 }
 
@@ -1321,7 +1327,7 @@ fn grid_sample_2d_impl(
     grid: BridgeTensor,
     options: GridSampleOptions,
 ) -> BridgeTensor {
-    let resolved = Resolved::combine([&p, &grid]);
+    let resolved = ResolvedOutput::combine([&p, &grid]);
     resolved.output(Dispatch::float_grid_sample_2d(
         resolved.operand(p),
         resolved.operand(grid),
@@ -1330,7 +1336,7 @@ fn grid_sample_2d_impl(
 }
 
 fn cross_impl(p: BridgeTensor, other: BridgeTensor, dim: usize) -> BridgeTensor {
-    let resolved = Resolved::combine([&p, &other]);
+    let resolved = ResolvedOutput::combine([&p, &other]);
     resolved.output(Dispatch::float_cross(
         resolved.operand(p),
         resolved.operand(other),
@@ -1339,7 +1345,7 @@ fn cross_impl(p: BridgeTensor, other: BridgeTensor, dim: usize) -> BridgeTensor 
 }
 
 fn powf_impl(lhs: BridgeTensor, rhs: BridgeTensor) -> BridgeTensor {
-    let resolved = Resolved::combine([&lhs, &rhs]);
+    let resolved = ResolvedOutput::combine([&lhs, &rhs]);
     match lhs.is_qfloat() && rhs.is_qfloat() {
         true => resolved.primitive(Dispatch::q_powf(lhs.into_parts().1, rhs.into_parts().1)),
         false => resolved.output(Dispatch::float_powf(
@@ -1350,7 +1356,7 @@ fn powf_impl(lhs: BridgeTensor, rhs: BridgeTensor) -> BridgeTensor {
 }
 
 fn powf_scalar_impl(p: BridgeTensor, rhs: Scalar) -> BridgeTensor {
-    let resolved = Resolved::combine([&p]);
+    let resolved = ResolvedOutput::combine([&p]);
     match p.is_qfloat() {
         true => resolved.primitive(Dispatch::q_powf_scalar(p.into_parts().1, rhs)),
         false => resolved.output(Dispatch::float_powf_scalar(resolved.operand(p), rhs)),

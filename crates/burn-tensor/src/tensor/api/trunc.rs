@@ -3,7 +3,7 @@ use burn_dispatch::Dispatch;
 
 use crate::{
     Float, Tensor,
-    ops::{BridgeTensor, Resolved},
+    ops::{BridgeTensor, ResolvedOutput},
 };
 
 impl<const D: usize> Tensor<D, Float> {
@@ -40,6 +40,6 @@ impl<const D: usize> Tensor<D, Float> {
 }
 
 fn trunc_impl(p: BridgeTensor) -> BridgeTensor {
-    let resolved = Resolved::combine([&p]);
+    let resolved = ResolvedOutput::combine([&p]);
     resolved.output(Dispatch::float_trunc(resolved.operand(p)))
 }
