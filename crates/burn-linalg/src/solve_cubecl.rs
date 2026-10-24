@@ -16,6 +16,9 @@ use burn_cubecl::{
 
 const PANEL: usize = 32;
 
+#[cfg(test)]
+mod benchmarks;
+
 // WGSL may implement division through a reciprocal that flushes subnormal
 // intermediates. Scaling both operands by an exact power of two keeps the
 // reciprocal of even the largest finite F32 denominator in the normal range.
@@ -724,6 +727,7 @@ fn blocked_rhs_config(
     preferred_units: usize,
     preferred_tile: usize,
     row_tile: usize,
+    #[cfg(test)] options: benchmarks::Options,
 ) -> BlockedRhsConfig {
     let hardware = &client.properties().hardware;
     let max_units = (hardware.max_units_per_cube.min(hardware.max_cube_dim.0) as usize)
@@ -739,6 +743,8 @@ fn blocked_rhs_config(
             .plane
             .contains(cubecl::ir::features::Plane::Ops)
         && dtype == DType::F32;
+    #[cfg(test)]
+    let use_shuffle = use_shuffle && options.plane_ops;
     let panel = if use_shuffle { plane } else { 32 };
     let mut rhs_tile = rhs.next_power_of_two().min(preferred_tile.max(1)).min(8);
     if use_shuffle {
@@ -1000,6 +1006,19 @@ fn allocate(reference: &CubeTensor, shape: Shape, dtype: DType) -> CubeTensor {
 }
 
 pub(crate) fn solve(a: CubeTensor, b: CubeTensor) -> CubeTensor {
+    solve_impl(
+        a,
+        b,
+        #[cfg(test)]
+        benchmarks::Options::default(),
+    )
+}
+
+fn solve_impl(
+    a: CubeTensor,
+    b: CubeTensor,
+    #[cfg(test)] options: benchmarks::Options,
+) -> CubeTensor {
     let a = untile(a);
     let b = untile(b);
     let shape = a.shape();
@@ -1024,6 +1043,13 @@ pub(crate) fn solve(a: CubeTensor, b: CubeTensor) -> CubeTensor {
         .min(1usize << max_units.ilog2())
         .max(1);
     let cube = CubeDim::new_1d(units as u32);
+    let use_planes = client
+        .features()
+        .plane
+        .contains(cubecl::ir::features::Plane::Ops)
+        && a.dtype == DType::F32;
+    #[cfg(test)]
+    let use_planes = use_planes && options.plane_ops;
     let factor_address = address_type(&[&lu, &pivots, &permutation, &status]);
     let pack_address = factor_address.max(a.required_address_type());
     pack::launch(
@@ -1042,6 +1068,8 @@ pub(crate) fn solve(a: CubeTensor, b: CubeTensor) -> CubeTensor {
         let panel_units = units.min((n - start).next_power_of_two());
         let panel_cube = CubeDim::new_1d(panel_units as u32);
         let shared_panel = shared_panel_config(&client, n - start, panel_units, a.dtype.size());
+        #[cfg(test)]
+        let shared_panel = shared_panel.filter(|_| options.shared_panel);
         let panel = shared_panel.map_or(PANEL, |(_, panel)| panel);
         if let Some((capacity, _)) = shared_panel {
             // SAFETY: capacity covers every remaining row; the kernel guards
@@ -1065,11 +1093,7 @@ pub(crate) fn solve(a: CubeTensor, b: CubeTensor) -> CubeTensor {
                     capacity,
                     panel,
                     panel_units,
-                    client
-                        .features()
-                        .plane
-                        .contains(cubecl::ir::features::Plane::Ops)
-                        && a.dtype == DType::F32,
+                    use_planes,
                     dtype,
                 );
             }
@@ -1087,11 +1111,7 @@ pub(crate) fn solve(a: CubeTensor, b: CubeTensor) -> CubeTensor {
                 (n - start).div_ceil(panel_units),
                 panel,
                 panel_units,
-                client
-                    .features()
-                    .plane
-                    .contains(cubecl::ir::features::Plane::Ops)
-                    && a.dtype == DType::F32,
+                use_planes,
                 dtype,
             );
         }
@@ -1164,6 +1184,8 @@ pub(crate) fn solve(a: CubeTensor, b: CubeTensor) -> CubeTensor {
         } else {
             None
         };
+        #[cfg(test)]
+        let small_rhs = small_rhs.filter(|_| options.shared_rhs);
         if let Some((solve_units, capacity, rhs_tile)) = small_rhs {
             let output = allocate(&a, output_shape.clone(), a.dtype);
             let rhs_address = address_type(&[&lu, &permutation, &b, &output]);
@@ -1186,7 +1208,16 @@ pub(crate) fn solve(a: CubeTensor, b: CubeTensor) -> CubeTensor {
             output
         } else {
             let rhs_address = address_type(&[&lu, &permutation, &b]);
-            let config = blocked_rhs_config(&client, a.dtype, rhs, 256, 1, 128);
+            let config = blocked_rhs_config(
+                &client,
+                a.dtype,
+                rhs,
+                256,
+                1,
+                128,
+                #[cfg(test)]
+                options,
+            );
             let mut physical_shape = output_shape.clone();
             physical_shape.swap(rank - 2, rank - 1);
             let mut read = allocate(&a, physical_shape.clone(), a.dtype);

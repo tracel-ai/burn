@@ -44,7 +44,7 @@ pub(crate) fn solve_host_data(a: TensorData, b: TensorData) -> TensorData {
     }
 }
 
-fn solve_data<F: SolveFloat>(
+fn solve_data<F: Float + Element>(
     a: TensorData,
     b: TensorData,
     a_shape: &[usize],
@@ -113,7 +113,7 @@ fn batch_strides(shape: &[usize]) -> Vec<usize> {
 
 /// Factor a row-major square matrix in place, storing L below the diagonal and
 /// U on and above it. The unit diagonal of L is implicit.
-fn factor<F: SolveFloat>(matrix: &mut [F], pivots: &mut [usize], n: usize) {
+fn factor<F: Float + Element>(matrix: &mut [F], pivots: &mut [usize], n: usize) {
     if n <= BLOCK_SIZE {
         factor_panel(matrix, pivots, n, n);
         return;
@@ -174,7 +174,7 @@ fn factor<F: SolveFloat>(matrix: &mut [F], pivots: &mut [usize], n: usize) {
         // of the panel, B is above/right, and C is below/right; neither input
         // overlaps C. Positive row strides give distinct output elements.
         unsafe {
-            F::gemm_subtract(
+            gemm_subtract(
                 n - end,
                 end - start,
                 n - end,
@@ -187,7 +187,12 @@ fn factor<F: SolveFloat>(matrix: &mut [F], pivots: &mut [usize], n: usize) {
 }
 
 /// Unblocked factorization of one compact row-major panel.
-fn factor_panel<F: SolveFloat>(panel: &mut [F], pivots: &mut [usize], rows: usize, width: usize) {
+fn factor_panel<F: Float + Element>(
+    panel: &mut [F],
+    pivots: &mut [usize],
+    rows: usize,
+    width: usize,
+) {
     for column in 0..width {
         let mut pivot = column;
         let mut maximum = panel[column * width + column].abs();
@@ -226,13 +231,19 @@ fn factor_panel<F: SolveFloat>(panel: &mut [F], pivots: &mut [usize], rows: usiz
 }
 
 #[inline]
-fn subtract_scaled<F: SolveFloat>(output: &mut [F], row: &[F], multiplier: F) {
+fn subtract_scaled<F: Float + Element>(output: &mut [F], row: &[F], multiplier: F) {
     for (output, value) in output.iter_mut().zip(row) {
         *output = *output - multiplier * *value;
     }
 }
 
-fn substitute<F: SolveFloat>(lu: &[F], pivots: &[usize], rhs: &mut [F], n: usize, columns: usize) {
+fn substitute<F: Float + Element>(
+    lu: &[F],
+    pivots: &[usize],
+    rhs: &mut [F],
+    n: usize,
+    columns: usize,
+) {
     for (row, &pivot) in pivots.iter().enumerate() {
         if pivot != row {
             let (before, after) = rhs.split_at_mut(pivot * columns);
@@ -263,7 +274,7 @@ fn substitute<F: SolveFloat>(lu: &[F], pivots: &[usize], rhs: &mut [F], n: usize
             // solved and remaining RHS rows are disjoint, correctly sized
             // slices with contiguous rows of `columns` elements.
             unsafe {
-                F::gemm_subtract(
+                gemm_subtract(
                     n - end,
                     end - start,
                     columns,
@@ -299,7 +310,7 @@ fn substitute<F: SolveFloat>(lu: &[F], pivots: &[usize], rhs: &mut [F], n: usize
             // SAFETY: U12 fits in LU; the top and solved RHS rows are disjoint
             // and have positive, contiguous row strides.
             unsafe {
-                F::gemm_subtract(
+                gemm_subtract(
                     start,
                     end - start,
                     columns,
@@ -313,62 +324,42 @@ fn substitute<F: SolveFloat>(lu: &[F], pivots: &[usize], rhs: &mut [F], n: usize
     }
 }
 
-trait SolveFloat: Float + Element {
-    /// Compute C -= A B with row-major strided matrices.
-    ///
-    /// # Safety
-    /// Matrices must have the given dimensions and valid positive row strides;
-    /// C must not overlap either input or alias its own elements.
-    unsafe fn gemm_subtract(
-        rows: usize,
-        inner: usize,
-        columns: usize,
-        a: (*const Self, usize),
-        b: (*const Self, usize),
-        c: (*mut Self, usize),
-    );
+/// Compute C -= A B with row-major strided matrices.
+///
+/// # Safety
+/// Matrices must have the given dimensions and valid positive row strides;
+/// C must not overlap either input or alias its own elements.
+unsafe fn gemm_subtract<F: Float + Element>(
+    rows: usize,
+    inner: usize,
+    columns: usize,
+    a: (*const F, usize),
+    b: (*const F, usize),
+    c: (*mut F, usize),
+) {
+    // SAFETY: The caller guarantees the matrix dimensions, strides and
+    // non-overlapping writable output. The host dtype dispatch selects F32/F64.
+    unsafe {
+        gemm::gemm(
+            rows,
+            columns,
+            inner,
+            c.0,
+            1,
+            c.1 as isize,
+            true,
+            a.0,
+            1,
+            a.1 as isize,
+            b.0,
+            1,
+            b.1 as isize,
+            F::one(),
+            -F::one(),
+            false,
+            false,
+            false,
+            gemm::Parallelism::None,
+        );
+    }
 }
-
-macro_rules! impl_solve_float {
-    ($float:ty) => {
-        impl SolveFloat for $float {
-            unsafe fn gemm_subtract(
-                rows: usize,
-                inner: usize,
-                columns: usize,
-                a: (*const Self, usize),
-                b: (*const Self, usize),
-                c: (*mut Self, usize),
-            ) {
-                // SAFETY: The caller guarantees the matrix dimensions,
-                // strides and non-overlapping writable output.
-                unsafe {
-                    gemm::gemm(
-                        rows,
-                        columns,
-                        inner,
-                        c.0,
-                        1,
-                        c.1 as isize,
-                        true,
-                        a.0,
-                        1,
-                        a.1 as isize,
-                        b.0,
-                        1,
-                        b.1 as isize,
-                        1.0,
-                        -1.0,
-                        false,
-                        false,
-                        false,
-                        gemm::Parallelism::None,
-                    );
-                }
-            }
-        }
-    };
-}
-
-impl_solve_float!(f32);
-impl_solve_float!(f64);

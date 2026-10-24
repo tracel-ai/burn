@@ -49,26 +49,19 @@ pub(crate) trait SolveOps: Backend {
 }
 
 #[cfg(feature = "flex")]
-macro_rules! impl_solve_host {
-    ($backend:ty) => {
-        impl SolveOps for $backend {
-            fn solve(a: FloatTensor<Self>, b: FloatTensor<Self>) -> FloatTensor<Self> {
-                let device = a.device();
-                let msg = "linalg::solve: failed to read CPU tensor data";
-                let a = try_read_sync(Self::float_into_data(a))
-                    .expect(msg)
-                    .expect(msg);
-                let b = try_read_sync(Self::float_into_data(b))
-                    .expect(msg)
-                    .expect(msg);
-                Self::float_from_data(crate::solve_host::solve_host_data(a, b), &device)
-            }
-        }
-    };
+impl SolveOps for burn_core::backend::Flex {
+    fn solve(a: FloatTensor<Self>, b: FloatTensor<Self>) -> FloatTensor<Self> {
+        let device = a.device();
+        let msg = "linalg::solve: failed to read CPU tensor data";
+        let a = try_read_sync(Self::float_into_data(a))
+            .expect(msg)
+            .expect(msg);
+        let b = try_read_sync(Self::float_into_data(b))
+            .expect(msg)
+            .expect(msg);
+        Self::float_from_data(crate::solve_host::solve_host_data(a, b), &device)
+    }
 }
-
-#[cfg(feature = "flex")]
-impl_solve_host!(burn_core::backend::Flex);
 
 #[cfg(feature = "cubecl-backend")]
 impl SolveOps for burn_cubecl::CubeBackend {
