@@ -231,6 +231,10 @@ impl QTensorOps<Self> for Dispatch {
         B::quantize(tensor, scheme, qparams)
     }
 
+    fn quantize_dynamic(tensor: FloatTensor<Self>, scheme: &QuantScheme) -> QuantizedTensor<Self> {
+        B::quantize_dynamic(tensor, scheme)
+    }
+
     fn dequantize(tensor: QuantizedTensor<Self>, dtype: FloatDType) -> FloatTensor<Self> {
         B::dequantize(tensor, dtype)
     }
