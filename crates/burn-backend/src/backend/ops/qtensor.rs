@@ -1,8 +1,5 @@
 use alloc::vec::Vec;
-use burn_std::{
-    BoolDType, FloatDType, IntDType, Shape, Slice,
-    quantization::{QuantPropagation, QuantScheme},
-};
+use burn_std::{BoolDType, FloatDType, IntDType, Shape, Slice, quantization::QuantScheme};
 
 use crate::{
     Backend, ExecutionError, TensorData, TensorMetadata, TensorPrimitive,
@@ -48,53 +45,34 @@ macro_rules! dequant_op_quant {
     }};
 }
 
-/// Automatically applies `dequantization -> float operation [-> quantization]`.
+/// Automatically applies `dequantization -> float operation`, in `f32`.
 ///
-/// The output quantization step is optional.
-/// It is only performed when the input quantization scheme is propagated.
+/// The output is float. Whether it is quantized again is not the backend's decision: the caller
+/// resolves the output's type from its inputs' (see `burn_std::TensorType::combine`) and
+/// quantizes it when that type is quantized. A backend that computes an operation on quantized
+/// values natively overrides the operation and may return the quantized output itself.
 #[macro_export]
 macro_rules! dequant_op_flow {
     // Binary tensor float op w/ lhs & rhs
     (
         float_op $float_op:expr, $t1:expr, $t2:expr
     ) => {{
-        // Heuristic: prioritize lhs scheme
-        let scheme = $t1.scheme().clone();
-        let settings = get_or_init_device_settings::<B>(&$t1.device());
-        let dtype = settings.float_dtype;
-        let propagation = settings.quantization.propagation;
-
-        let t1_f = Self::dequantize($t1, dtype);
-        let t2_f = Self::dequantize($t2, dtype);
+        let t1_f = Self::dequantize($t1, burn_std::FloatDType::F32);
+        let t2_f = Self::dequantize($t2, burn_std::FloatDType::F32);
         #[allow(clippy::redundant_closure_call)]
         let out_f = $float_op(t1_f, t2_f);
 
-        match propagation {
-            QuantPropagation::Propagate => {
-                TensorPrimitive::QFloat(Self::quantize_dynamic(out_f, &scheme))
-            }
-            QuantPropagation::Inhibit => TensorPrimitive::Float(out_f),
-        }
+        TensorPrimitive::Float(out_f)
     }};
     // Unary tensor float op
     (
         float_op $float_op:expr, $tensor:expr
     ) => {{
-        let scheme = $tensor.scheme().clone();
-        let settings = get_or_init_device_settings::<B>(&$tensor.device());
-        let dtype = settings.float_dtype;
-        let propagation = settings.quantization.propagation;
-
-        let tensor_f = Self::dequantize($tensor, dtype);
+        let tensor_f = Self::dequantize($tensor, burn_std::FloatDType::F32);
         #[allow(clippy::redundant_closure_call)]
         let out_f = $float_op(tensor_f);
 
-        match propagation {
-            QuantPropagation::Propagate => {
-                TensorPrimitive::QFloat(Self::quantize_dynamic(out_f, &scheme))
-            }
-            QuantPropagation::Inhibit => TensorPrimitive::Float(out_f),
-        }
+        TensorPrimitive::Float(out_f)
     }};
 }
 
@@ -497,51 +475,17 @@ pub trait QTensorOps<B: Backend> {
     ///
     /// The result of multiplying the two tensors together using matrix multiplication.
     fn q_matmul(lhs: TensorPrimitive<B>, rhs: TensorPrimitive<B>) -> TensorPrimitive<B> {
-        let mut propagation = QuantPropagation::Inhibit;
-        let mut scheme = QuantScheme::default();
-
-        // Pick a target dtype for any dequantization. If either operand is already
-        // a Float tensor, take its dtype so a Float-QFloat (or QFloat-Float) pair
-        // ends up matching after dequantize and `float_matmul` doesn't see a
-        // dtype mismatch. Only when both operands are QFloat do we fall back to
-        // the device default.
-        let target_dtype: Option<FloatDType> = match (&lhs, &rhs) {
-            (TensorPrimitive::Float(t), _) | (_, TensorPrimitive::Float(t)) => {
-                Some(t.dtype().into())
-            }
-            _ => None,
+        // A float operand names the precision both multiply in, so a Float-QFloat pair matches
+        // after dequantization; two quantized operands multiply in f32.
+        let float_dtype: FloatDType = match (&lhs, &rhs) {
+            (TensorPrimitive::Float(t), _) | (_, TensorPrimitive::Float(t)) => t.dtype().into(),
+            _ => FloatDType::F32,
         };
-
-        let lhs = match lhs {
-            TensorPrimitive::Float(lhs) => lhs,
-            TensorPrimitive::QFloat(lhs) => {
-                let settings = get_or_init_device_settings::<B>(&lhs.device());
-                propagation = settings.quantization.propagation;
-                scheme = lhs.scheme();
-                let float_dtype = target_dtype.unwrap_or(settings.float_dtype);
-
-                Self::dequantize(lhs, float_dtype)
-            }
+        let float = |operand| match operand {
+            TensorPrimitive::Float(operand) => operand,
+            TensorPrimitive::QFloat(operand) => Self::dequantize(operand, float_dtype),
         };
-        let rhs = match rhs {
-            TensorPrimitive::Float(rhs) => rhs,
-            TensorPrimitive::QFloat(rhs) => {
-                let settings = get_or_init_device_settings::<B>(&rhs.device());
-                propagation = settings.quantization.propagation;
-                scheme = rhs.scheme();
-                let float_dtype = target_dtype.unwrap_or(settings.float_dtype);
-
-                Self::dequantize(rhs, float_dtype)
-            }
-        };
-
-        let out_f = B::float_matmul(lhs, rhs);
-        match propagation {
-            QuantPropagation::Propagate => {
-                TensorPrimitive::QFloat(<Self>::quantize_dynamic(out_f, &scheme))
-            }
-            QuantPropagation::Inhibit => TensorPrimitive::Float(out_f),
-        }
+        TensorPrimitive::Float(B::float_matmul(float(lhs), float(rhs)))
     }
 
     /// Negates a tensor element-wise.

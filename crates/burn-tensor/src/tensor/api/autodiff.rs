@@ -270,13 +270,17 @@ impl<const D: usize, K: Autodiff> Tensor<D, K> {
             "Tensor::with_gradient_checkpointing_strategy requires autodiff; call Tensor::autodiff first"
         );
         let primitive = self.primitive;
+        let propagation = primitive.propagation();
         let (kind, mut tensor) = primitive.into_parts();
         tensor.autodiff = DispatchAutodiffContext::Enabled(strategy);
-        Self::new(match kind {
-            BridgeKind::Bool => BridgeTensor::bool(tensor),
-            BridgeKind::Int => BridgeTensor::int(tensor),
-            BridgeKind::Float => BridgeTensor::float(tensor),
-            BridgeKind::QFloat => BridgeTensor::qfloat(tensor),
-        })
+        Self::new(
+            match kind {
+                BridgeKind::Bool => BridgeTensor::bool(tensor),
+                BridgeKind::Int => BridgeTensor::int(tensor),
+                BridgeKind::Float => BridgeTensor::float(tensor),
+                BridgeKind::QFloat => BridgeTensor::qfloat(tensor),
+            }
+            .with_propagation(propagation),
+        )
     }
 }

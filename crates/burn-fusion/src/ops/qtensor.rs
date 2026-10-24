@@ -1,10 +1,9 @@
 use std::marker::PhantomData;
 
 use burn_backend::{
-    DType, ExecutionError, FloatDType, Shape, Slice, TensorData, TensorMetadata, TensorPrimitive,
-    get_or_init_device_settings,
+    DType, ExecutionError, FloatDType, Shape, Slice, TensorData, TensorPrimitive,
     ops::QTensorOps,
-    quantization::{QuantPropagation, QuantScheme, QuantizationParametersPrimitive},
+    quantization::{QuantScheme, QuantizationParametersPrimitive},
     tensor::{Device, FloatTensor, IntTensor, QuantizedTensor},
 };
 use burn_ir::{
@@ -497,36 +496,20 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
             }
         }
 
-        let mut propagation = QuantPropagation::Inhibit;
-        let mut scheme = QuantScheme::default();
         let streams = StreamId::current();
-        let mut lhs_quantized = false;
-        let mut rhs_quantized = false;
+        let lhs_quantized = matches!(lhs, TensorPrimitive::QFloat(_));
+        let rhs_quantized = matches!(rhs, TensorPrimitive::QFloat(_));
 
         let client = match &lhs {
             TensorPrimitive::Float(lhs) => lhs.client.clone(),
             TensorPrimitive::QFloat(lhs) => lhs.client.clone(),
         };
 
-        let settings = get_or_init_device_settings::<Self>(client.device());
-
-        if let TensorPrimitive::QFloat(lhs) = &lhs {
-            propagation = settings.quantization.propagation;
-            scheme = lhs.scheme();
-            lhs_quantized = true;
-        }
-        if let TensorPrimitive::QFloat(rhs) = &rhs {
-            propagation = settings.quantization.propagation;
-            scheme = rhs.scheme();
-            rhs_quantized = true;
-        }
-
-        let dtype = match propagation {
-            QuantPropagation::Propagate => DType::QFloat(scheme),
-            QuantPropagation::Inhibit => match (&lhs, &rhs) {
-                (TensorPrimitive::Float(t), _) | (_, TensorPrimitive::Float(t)) => t.dtype,
-                _ => settings.float_dtype.into(),
-            },
+        // A float operand names the output's precision; two quantized operands multiply into
+        // f32. Whether the output is quantized again is the caller's to resolve.
+        let dtype = match (&lhs, &rhs) {
+            (TensorPrimitive::Float(t), _) | (_, TensorPrimitive::Float(t)) => t.dtype,
+            _ => DType::F32,
         };
 
         let lhs = match lhs {
@@ -548,9 +531,6 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
             )
             .output();
 
-        match propagation {
-            QuantPropagation::Propagate => TensorPrimitive::QFloat(out),
-            QuantPropagation::Inhibit => TensorPrimitive::Float(out),
-        }
+        TensorPrimitive::Float(out)
     }
 }

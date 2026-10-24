@@ -1,6 +1,7 @@
 use crate::AsIndex;
 use crate::Cast;
 use crate::DType;
+use crate::DTypePropagation;
 use crate::Device;
 use crate::Tensor;
 use crate::cast::ToElement;
@@ -8,11 +9,11 @@ use crate::check;
 use crate::check::TensorCheck;
 use crate::check::unwrap_dim_index;
 use crate::kind::FloatMath;
-use crate::ops::{BridgeKind, BridgeTensor};
+use crate::ops::{BridgeKind, BridgeTensor, Resolved};
 use crate::quantization::{QuantScheme, QuantizationParameters, global_scale_dtype};
 use crate::tensor::stats;
 use crate::tensor::{Distribution, TensorData};
-use crate::{Bool, Float, Int, TensorPrimitive};
+use crate::{Bool, Float, Int};
 #[cfg(feature = "std")]
 use burn_backend::AutodiffBackend;
 use burn_backend::ElementConversion;
@@ -365,6 +366,26 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     #[must_use]
     pub fn cast<T: Cast<D, Float>>(self, dtype: T) -> Tensor<D, T::OutputKind> {
         T::cast(self, dtype)
+    }
+
+    /// Whether this tensor's dtype decides the dtype of the operations it enters.
+    ///
+    /// When an operation combines tensors of different dtypes, its output takes the dtype of
+    /// the inputs that [propagate](DTypePropagation::Propagate). A module parameter inhibits, so
+    /// a bf16 activation times an f32 weight stays bf16; inputs, created tensors and the
+    /// output of every cast propagate, so an activation cast to a quantized dtype keeps every
+    /// output it reaches quantized. See [`TensorType::combine`](crate::TensorType::combine) for
+    /// the whole rule.
+    pub fn propagation(&self) -> DTypePropagation {
+        self.primitive.propagation()
+    }
+
+    /// This tensor, deciding the dtype of the operations it enters as `propagation` says.
+    ///
+    /// The data is untouched; only how its dtype meets other tensors' changes.
+    #[must_use]
+    pub fn with_propagation(self, propagation: DTypePropagation) -> Self {
+        Self::new(self.primitive.with_propagation(propagation))
     }
 
     /// Detach the current tensor from the autodiff graph.
@@ -1172,27 +1193,36 @@ where
 // =========================================================================
 
 fn erf_impl(p: BridgeTensor) -> BridgeTensor {
-    BridgeTensor::float(Dispatch::float_erf(p.into_float()))
+    let resolved = Resolved::combine([&p]);
+    resolved.output(Dispatch::float_erf(resolved.operand(p)))
 }
 
 fn recip_impl(p: BridgeTensor) -> BridgeTensor {
-    BridgeTensor::float(Dispatch::float_recip(p.into_float()))
+    let resolved = Resolved::combine([&p]);
+    resolved.output(Dispatch::float_recip(resolved.operand(p)))
 }
 
 fn hypot_impl(lhs: BridgeTensor, rhs: BridgeTensor) -> BridgeTensor {
-    BridgeTensor::float(Dispatch::float_hypot(lhs.into_float(), rhs.into_float()))
+    let resolved = Resolved::combine([&lhs, &rhs]);
+    resolved.output(Dispatch::float_hypot(
+        resolved.operand(lhs),
+        resolved.operand(rhs),
+    ))
 }
 
 fn round_impl(p: BridgeTensor) -> BridgeTensor {
-    BridgeTensor::float(Dispatch::float_round(p.into_float()))
+    let resolved = Resolved::combine([&p]);
+    resolved.output(Dispatch::float_round(resolved.operand(p)))
 }
 
 fn floor_impl(p: BridgeTensor) -> BridgeTensor {
-    BridgeTensor::float(Dispatch::float_floor(p.into_float()))
+    let resolved = Resolved::combine([&p]);
+    resolved.output(Dispatch::float_floor(resolved.operand(p)))
 }
 
 fn ceil_impl(p: BridgeTensor) -> BridgeTensor {
-    BridgeTensor::float(Dispatch::float_ceil(p.into_float()))
+    let resolved = Resolved::combine([&p]);
+    resolved.output(Dispatch::float_ceil(resolved.operand(p)))
 }
 
 fn int_impl(p: BridgeTensor, device: Device) -> BridgeTensor {
@@ -1210,7 +1240,12 @@ fn random_like_impl(p: &BridgeTensor, distribution: Distribution) -> BridgeTenso
 }
 
 fn detach_impl(p: BridgeTensor) -> BridgeTensor {
-    BridgeTensor::float(Dispatch::float_detach(p.into_float()))
+    let propagation = p.propagation();
+    let detached = match p.into_parts() {
+        (BridgeKind::QFloat, p) => BridgeTensor::qfloat(Dispatch::q_detach(p)),
+        (_, p) => BridgeTensor::float(Dispatch::float_detach(p)),
+    };
+    detached.with_propagation(propagation)
 }
 
 fn is_require_grad_impl(p: &BridgeTensor) -> bool {
@@ -1223,8 +1258,9 @@ fn is_require_grad_impl(p: &BridgeTensor) -> bool {
 }
 
 fn set_require_grad_impl(p: BridgeTensor, require_grad: bool) -> BridgeTensor {
+    let propagation = p.propagation();
     let (kind, tensor) = p.into_parts();
-    match kind {
+    let tensor = match kind {
         BridgeKind::Float => {
             assert!(
                 !require_grad
@@ -1237,11 +1273,13 @@ fn set_require_grad_impl(p: BridgeTensor, require_grad: bool) -> BridgeTensor {
             BridgeTensor::qfloat(Dispatch::q_set_require_grad(tensor, require_grad))
         }
         _ => panic!("Should be Float primitive kind"),
-    }
+    };
+    tensor.with_propagation(propagation)
 }
 
 fn relu_impl(p: BridgeTensor) -> BridgeTensor {
-    BridgeTensor::float(Dispatch::relu(p.into_float()))
+    let resolved = Resolved::combine([&p]);
+    resolved.output(Dispatch::relu(resolved.operand(p)))
 }
 
 fn quantize_impl(
@@ -1283,59 +1321,39 @@ fn grid_sample_2d_impl(
     grid: BridgeTensor,
     options: GridSampleOptions,
 ) -> BridgeTensor {
-    BridgeTensor::float(Dispatch::float_grid_sample_2d(
-        p.into_float(),
-        grid.into_float(),
+    let resolved = Resolved::combine([&p, &grid]);
+    resolved.output(Dispatch::float_grid_sample_2d(
+        resolved.operand(p),
+        resolved.operand(grid),
         options,
     ))
 }
 
 fn cross_impl(p: BridgeTensor, other: BridgeTensor, dim: usize) -> BridgeTensor {
-    BridgeTensor::float(Dispatch::float_cross(
-        p.into_float(),
-        other.into_float(),
+    let resolved = Resolved::combine([&p, &other]);
+    resolved.output(Dispatch::float_cross(
+        resolved.operand(p),
+        resolved.operand(other),
         dim,
     ))
 }
 
 fn powf_impl(lhs: BridgeTensor, rhs: BridgeTensor) -> BridgeTensor {
-    let (lkind, lhs) = lhs.into_parts();
-    let (rkind, rhs) = rhs.into_parts();
-    match (lkind, rkind) {
-        (BridgeKind::Float, BridgeKind::Float) => {
-            BridgeTensor::float(Dispatch::float_powf(lhs, rhs))
-        }
-        (BridgeKind::QFloat, BridgeKind::QFloat) => match Dispatch::q_powf(lhs, rhs) {
-            TensorPrimitive::Float(out) => BridgeTensor::float(out),
-            TensorPrimitive::QFloat(out) => BridgeTensor::qfloat(out),
-        },
-        (BridgeKind::QFloat, BridgeKind::Float) => {
-            let dtype = rhs.dtype();
-            BridgeTensor::float(Dispatch::float_powf(
-                Dispatch::dequantize(lhs, dtype.into()),
-                rhs,
-            ))
-        }
-        (BridgeKind::Float, BridgeKind::QFloat) => {
-            let dtype = lhs.dtype();
-            BridgeTensor::float(Dispatch::float_powf(
-                lhs,
-                Dispatch::dequantize(rhs, dtype.into()),
-            ))
-        }
-        _ => panic!("Should be Float primitive kind"),
+    let resolved = Resolved::combine([&lhs, &rhs]);
+    match lhs.is_qfloat() && rhs.is_qfloat() {
+        true => resolved.primitive(Dispatch::q_powf(lhs.into_parts().1, rhs.into_parts().1)),
+        false => resolved.output(Dispatch::float_powf(
+            resolved.operand(lhs),
+            resolved.operand(rhs),
+        )),
     }
 }
 
 fn powf_scalar_impl(p: BridgeTensor, rhs: Scalar) -> BridgeTensor {
-    let (kind, lhs) = p.into_parts();
-    match kind {
-        BridgeKind::Float => BridgeTensor::float(Dispatch::float_powf_scalar(lhs, rhs)),
-        BridgeKind::QFloat => match Dispatch::q_powf_scalar(lhs, rhs) {
-            TensorPrimitive::Float(out) => BridgeTensor::float(out),
-            TensorPrimitive::QFloat(out) => BridgeTensor::qfloat(out),
-        },
-        _ => panic!("Should be Float primitive kind"),
+    let resolved = Resolved::combine([&p]);
+    match p.is_qfloat() {
+        true => resolved.primitive(Dispatch::q_powf_scalar(p.into_parts().1, rhs)),
+        false => resolved.output(Dispatch::float_powf_scalar(resolved.operand(p), rhs)),
     }
 }
 
@@ -1351,10 +1369,12 @@ fn is_distributed_impl(p: &BridgeTensor) -> bool {
 
 #[cfg(feature = "std")]
 fn set_distributed_impl(p: BridgeTensor, param_id: DistributedParamId) -> BridgeTensor {
+    let propagation = p.propagation();
     let (kind, tensor) = p.into_parts();
     match kind {
         BridgeKind::Float => {
             BridgeTensor::float(Dispatch::set_distributed_params(tensor, param_id))
+                .with_propagation(propagation)
         }
         BridgeKind::QFloat => unimplemented!(),
         _ => panic!("Should be Float primitive kind"),

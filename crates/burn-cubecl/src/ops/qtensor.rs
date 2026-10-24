@@ -1,10 +1,9 @@
 use burn_backend::{
     Bytes, DType, ExecutionError, Shape, SplitPolicy, TensorData, TensorMetadata, TensorPrimitive,
-    get_or_init_device_settings,
     ops::QTensorOps,
     quantization::{
-        QParamTensor, QuantMode, QuantPropagation, QuantScheme, QuantValue,
-        QuantizationParametersPrimitive, ScaleDtype, global_scale_dtype, params_shape,
+        QParamTensor, QuantMode, QuantScheme, QuantValue, QuantizationParametersPrimitive,
+        ScaleDtype, global_scale_dtype, params_shape,
     },
     tensor::{Device, FloatTensor, QuantizedTensor},
 };
@@ -357,42 +356,20 @@ impl QTensorOps<Self> for CubeBackend {
     }
 
     fn q_matmul(lhs: TensorPrimitive<Self>, rhs: TensorPrimitive<Self>) -> TensorPrimitive<Self> {
-        let (settings, scheme) = match (&lhs, &rhs) {
-            (TensorPrimitive::QFloat(lhs), _) => (
-                get_or_init_device_settings::<Self>(&lhs.device),
-                lhs.scheme(),
-            ),
-            (_, TensorPrimitive::QFloat(rhs)) => (
-                get_or_init_device_settings::<Self>(&rhs.device),
-                rhs.scheme(),
-            ),
-            _ => unreachable!(),
-        };
-
-        // Inherit precision for mixed inputs, default to `FloatElem` for fully quantized.
+        // A float operand names the output's precision; two quantized operands multiply into f32.
+        // Whether the output is quantized again is the caller's to resolve.
         let out_dtype = match (&lhs, &rhs) {
             (TensorPrimitive::Float(lhs), _) => lhs.dtype,
             (_, TensorPrimitive::Float(rhs)) => rhs.dtype,
-            _ => settings.float_dtype.into(),
+            _ => DType::F32,
         };
-
-        let (_lhs_dtype, lhs) = match lhs {
-            TensorPrimitive::Float(lhs) => (lhs.dtype, lhs),
-            TensorPrimitive::QFloat(lhs) => (out_dtype, lhs),
-        };
-        let (_rhs_dtype, rhs) = match rhs {
-            TensorPrimitive::Float(rhs) => (rhs.dtype, rhs),
-            TensorPrimitive::QFloat(rhs) => (out_dtype, rhs),
-        };
+        let [lhs, rhs] = [lhs, rhs].map(|operand| match operand {
+            TensorPrimitive::Float(operand) | TensorPrimitive::QFloat(operand) => operand,
+        });
 
         let out =
             kernel::matmul::matmul(lhs, rhs, None, MatmulStrategy::default(), out_dtype).unwrap();
 
-        match settings.quantization.propagation {
-            QuantPropagation::Propagate => {
-                TensorPrimitive::QFloat(Self::quantize_dynamic(out, &scheme))
-            }
-            QuantPropagation::Inhibit => TensorPrimitive::Float(out),
-        }
+        TensorPrimitive::Float(out)
     }
 }

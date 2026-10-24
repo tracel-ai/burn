@@ -20,16 +20,16 @@ use crate::{DType, Metadata, Shape, bytes::Bytes};
 
 /// Configuration for a device quantization behavior.
 ///
-/// This configuration determines how tensors are quantized and how quantization rules
-/// propagate through operations on a given device. It is applied once during device
-/// initialization. See also the [device settings](crate::DeviceSettings).
+/// This configuration determines how tensors are quantized on a given device when no scheme is
+/// named. It is applied once during device initialization. See also the
+/// [device settings](crate::DeviceSettings). Whether a quantized tensor's format reaches the
+/// outputs of the operations it enters is the tensor's own
+/// [propagation](crate::DTypePropagation), not the device's.
 #[derive(new, Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub struct QuantConfig {
     /// Defines how a tensor is quantized.
     pub scheme: QuantScheme,
-    /// How quantization is propagated during computation.
-    pub propagation: QuantPropagation,
-    // NOTE: accumulation is currently unused, only scheme and propagation have an impact
+    // NOTE: accumulation is currently unused, only the scheme has an impact
     // /// The precision used for the accumulation in various kernels.
     // pub acc: QuantAcc,
 }
@@ -57,19 +57,6 @@ pub enum Calibration {
     /// The range is `[-γ, +γ]` where γ = `mean(|W|)` per tensor or per block (BitNet b1.58
     /// §3.1). Use with `QuantValue::Q2S` and `QuantStore::PackedU32` for 2-bit packed storage.
     AbsMean,
-}
-
-/// Specify if the output of an operation is quantized using the scheme of the input
-/// or returned unquantized.
-#[derive(
-    Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, Default,
-)]
-pub enum QuantPropagation {
-    /// The output is quantized using the scheme of the input.
-    Propagate,
-    /// The output is not quantized.
-    #[default]
-    Inhibit,
 }
 
 /// The quantization tensor data parameters.

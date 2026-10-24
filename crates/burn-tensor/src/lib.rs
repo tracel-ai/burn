@@ -104,5 +104,3 @@ pub mod wgpu;
 pub mod remote;
 #[cfg(feature = "remote-server")]
 pub mod server;
-
-pub(crate) use burn_backend::TensorPrimitive;

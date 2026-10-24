@@ -146,18 +146,16 @@ fn test_prod_dim_float() {
     let tensor = QTensor::<2>::int8([[2.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
 
     let output = tensor.prod_dim(1);
+    let expected = requantized([[4.0], [60.0]], &output);
 
     output
         .dequantize()
         .into_data()
-        .assert_approx_eq::<FloatElem>(
-            &TensorData::from([[4.0], [60.0]]),
-            Tolerance::absolute(1e-1),
-        );
+        .assert_approx_eq::<FloatElem>(&expected, Tolerance::absolute(1e-1));
 
     let tensor_with_zero = QTensor::<2>::int8([[2.0, 0.0, 2.0], [3.0, 4.0, 5.0]]);
     let output = tensor_with_zero.prod_dim(1);
-    let expected = TensorData::from([[0.0], [60.0]]);
+    let expected = requantized([[0.0], [60.0]], &output);
 
     output
         .dequantize()

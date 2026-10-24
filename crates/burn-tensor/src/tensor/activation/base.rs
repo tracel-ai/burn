@@ -3,7 +3,7 @@ use burn_dispatch::Dispatch;
 
 use crate::check::TensorCheck;
 use crate::check::unwrap_dim_index;
-use crate::ops::BridgeTensor;
+use crate::ops::{BridgeTensor, Resolved};
 use crate::{AsIndex, DType, Tensor, check, s};
 
 /// Applies the rectified linear unit function element-wise
@@ -733,43 +733,58 @@ pub fn shrink<const D: usize>(tensor: Tensor<D>, lambda: f64, bias: f64) -> Tens
 // =========================================================================
 
 fn leaky_relu_impl(p: BridgeTensor, negative_slope: f64) -> BridgeTensor {
-    BridgeTensor::float(Dispatch::leaky_relu(p.into_float(), negative_slope.into()))
+    let resolved = Resolved::combine([&p]);
+    resolved.output(Dispatch::leaky_relu(
+        resolved.operand(p),
+        negative_slope.into(),
+    ))
 }
 
 fn gelu_impl(p: BridgeTensor) -> BridgeTensor {
-    BridgeTensor::float(Dispatch::gelu(p.into_float()))
+    let resolved = Resolved::combine([&p]);
+    resolved.output(Dispatch::gelu(resolved.operand(p)))
 }
 
 fn prelu_impl(p: BridgeTensor, weight: BridgeTensor) -> BridgeTensor {
-    BridgeTensor::float(Dispatch::prelu(p.into_float(), weight.into_float()))
+    let resolved = Resolved::combine([&p, &weight]);
+    resolved.output(Dispatch::prelu(
+        resolved.operand(p),
+        resolved.operand(weight),
+    ))
 }
 
 fn softmax_impl(p: BridgeTensor, dim: usize) -> BridgeTensor {
-    BridgeTensor::float(Dispatch::softmax(p.into_float(), dim))
+    let resolved = Resolved::combine([&p]);
+    resolved.output(Dispatch::softmax(resolved.operand(p), dim))
 }
 
 fn softmin_impl(p: BridgeTensor, dim: usize) -> BridgeTensor {
-    BridgeTensor::float(Dispatch::softmin(p.into_float(), dim))
+    let resolved = Resolved::combine([&p]);
+    resolved.output(Dispatch::softmin(resolved.operand(p), dim))
 }
 
 fn log_softmax_impl(p: BridgeTensor, dim: usize) -> BridgeTensor {
-    BridgeTensor::float(Dispatch::log_softmax(p.into_float(), dim))
+    let resolved = Resolved::combine([&p]);
+    resolved.output(Dispatch::log_softmax(resolved.operand(p), dim))
 }
 
 fn sigmoid_impl(p: BridgeTensor) -> BridgeTensor {
-    BridgeTensor::float(Dispatch::sigmoid(p.into_float()))
+    let resolved = Resolved::combine([&p]);
+    resolved.output(Dispatch::sigmoid(resolved.operand(p)))
 }
 
 fn hard_sigmoid_impl(p: BridgeTensor, alpha: f64, beta: f64) -> BridgeTensor {
-    BridgeTensor::float(Dispatch::hard_sigmoid(
-        p.into_float(),
+    let resolved = Resolved::combine([&p]);
+    resolved.output(Dispatch::hard_sigmoid(
+        resolved.operand(p),
         alpha.into(),
         beta.into(),
     ))
 }
 
 fn log_sigmoid_impl(p: BridgeTensor) -> BridgeTensor {
-    BridgeTensor::float(Dispatch::log_sigmoid(p.into_float()))
+    let resolved = Resolved::combine([&p]);
+    resolved.output(Dispatch::log_sigmoid(resolved.operand(p)))
 }
 
 #[cfg(test)]
