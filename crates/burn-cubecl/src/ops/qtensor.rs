@@ -1,6 +1,6 @@
 use burn_backend::{
     Bytes, DType, ExecutionError, Shape, SplitPolicy, TensorData, TensorMetadata, TensorPrimitive,
-    ops::QTensorOps,
+    ops::{FloatTensorOps, QTensorOps},
     quantization::{
         QParamTensor, QuantMode, QuantScheme, QuantValue, QuantizationParametersPrimitive,
         ScaleDtype, global_scale_dtype, params_shape,
@@ -302,7 +302,16 @@ impl QTensorOps<Self> for CubeBackend {
     }
 
     fn q_reshape(tensor: QuantizedTensor<Self>, shape: Shape) -> QuantizedTensor<Self> {
-        super::q_reshape(tensor, shape)
+        match super::q_reshape(tensor.clone(), shape.clone()) {
+            Some(reshaped) => reshaped,
+            // Its blocks cannot follow the reshape as metadata: quantized again, the block along
+            // the innermost axis, as an operation's output is.
+            None => {
+                let scheme = burn_std::innermost_scheme(tensor.scheme());
+                let float = Self::dequantize(tensor, FloatDType::F32);
+                Self::quantize_dynamic(Self::float_reshape(float, shape), &scheme)
+            }
+        }
     }
 
     async fn q_into_data(tensor: QuantizedTensor<Self>) -> Result<TensorData, ExecutionError> {

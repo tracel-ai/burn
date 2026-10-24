@@ -181,7 +181,10 @@ fn innermost(dtype: DType) -> DType {
     DType::QFloat(innermost_scheme(scheme))
 }
 
-fn innermost_scheme(scheme: QuantScheme) -> QuantScheme {
+/// `scheme` with a block spanning one axis laid along the innermost one and its values packed
+/// along it: the orientation every output of a combining operation, and every value quantized
+/// again after a layout its blocks could not follow, takes.
+pub fn innermost_scheme(scheme: QuantScheme) -> QuantScheme {
     let store = match scheme.store {
         QuantStore::Native => QuantStore::Native,
         QuantStore::PackedNative(_) => QuantStore::PackedNative(0),

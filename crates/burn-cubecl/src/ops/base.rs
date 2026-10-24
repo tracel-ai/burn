@@ -337,7 +337,9 @@ pub fn reshape(tensor: CubeTensor, shape: Shape) -> CubeTensor {
 }
 
 /// Reshape a jit tensor to a new shape
-pub fn q_reshape(tensor: CubeTensor, shape: Shape) -> CubeTensor {
+/// `tensor` reshaped to `shape` without touching its values, or `None` where its blocks or its
+/// packing cannot follow the reshape as metadata: the values then have to be quantized again.
+pub fn q_reshape(tensor: CubeTensor, shape: Shape) -> Option<CubeTensor> {
     let mut tensor = crate::kernel::untile(tensor);
     let scheme = tensor.scheme();
     let curr_shape = tensor.meta.shape();
@@ -351,10 +353,7 @@ pub fn q_reshape(tensor: CubeTensor, shape: Shape) -> CubeTensor {
             let num_quants = scheme.num_quants();
 
             if !shape[packed_d].is_multiple_of(num_quants) {
-                unimplemented!(
-                    "Cannot reshape packed tensor: inner dimension {} is not aligned with packing factor {num_quants}",
-                    shape[packed_d]
-                );
+                return None;
             }
 
             shape[packed_d] = shape[packed_d].div_ceil(num_quants);
@@ -384,7 +383,7 @@ pub fn q_reshape(tensor: CubeTensor, shape: Shape) -> CubeTensor {
                 {
                     // General reshape (e.g. [32, 4] -> [16, 8]): only valid if
                     // reshaped dimension is aligned with the block boundaries.
-                    unimplemented!("Reshape of ND block-quantized tensor is not yet supported.");
+                    return None;
                 }
             }
             ReshapeAnalysis::Broadcasted => {} // only preprends unit dims
@@ -394,9 +393,7 @@ pub fn q_reshape(tensor: CubeTensor, shape: Shape) -> CubeTensor {
                 {
                     // Split reshape (e.g. [32, 4] -> [32, 2, 2]): only valid if
                     // reshaped dimension is aligned with the block boundaries.
-                    unimplemented!(
-                        "Split reshape of ND block-quantized tensor is not yet supported."
-                    );
+                    return None;
                 }
             }
             other => unreachable!("Reshape analysis {other:?} should not update strides."),
@@ -412,14 +409,12 @@ pub fn q_reshape(tensor: CubeTensor, shape: Shape) -> CubeTensor {
             // If the new last dimension is smaller than the block size,
             // it means a single block now spans across multiple rows.
             if scales.meta.shape().num_elements() > 1 {
-                unimplemented!("Reshape would split a block across multiple rows.");
+                return None;
             }
             // A lone block is still fine as a single row (e.g. an unsqueeze), but spread over
             // several rows the per-row block index points past the one scale.
             if shape.num_elements() > shape_last {
-                unimplemented!(
-                    "Cannot reshape block-quantized tensor to {shape:?}: not a whole number of {block_size:?} blocks"
-                );
+                return None;
             }
             scales.meta.shape().clone()
         }
@@ -466,16 +461,12 @@ pub fn q_reshape(tensor: CubeTensor, shape: Shape) -> CubeTensor {
                     QuantValue::Q4S | QuantValue::Q4F | QuantValue::Q2S | QuantValue::Q2F
                 )
             {
-                todo!(
-                    "Reshape with sub-byte values is not supported when the buffer must be recomputed"
-                )
+                return None;
             }
 
             if scheme.block_size().is_some() && shape_scales.num_elements() > 1 {
                 // Original block boundaries no longer align with the layout, would have to be recomputed
-                unimplemented!(
-                    "Cannot reshape a block-quantized tensor when the reshape requires recomputing the buffer."
-                );
+                return None;
             }
 
             tensor = kernel::into_contiguous(tensor);
@@ -489,7 +480,7 @@ pub fn q_reshape(tensor: CubeTensor, shape: Shape) -> CubeTensor {
         (ReshapeAction::NoChange, ReshapeAction::NoChange) => {}
     }
 
-    tensor
+    Some(tensor)
 }
 
 pub(crate) fn max_vector_size(tensor: &CubeTensor) -> VectorSize {
