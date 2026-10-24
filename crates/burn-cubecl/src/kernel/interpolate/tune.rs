@@ -101,12 +101,13 @@ fn forward_problem(
     output_size: &[usize; 2],
     options: &InterpolateOptions,
 ) -> InterpolateForwardProblem {
+    let [_, _, in_height, in_width] = input.meta.shape().dims();
     let shape = permute_nchw_to_nhwc_shape(input.meta.shape().clone());
 
     InterpolateForwardProblem::from_input_output_shapes(
         &shape,
         output_size,
-        map_options(options.clone()),
+        map_options(options, [in_height, in_width], *output_size),
     )
 }
 

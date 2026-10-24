@@ -2,7 +2,9 @@ use super::*;
 use burn_tensor::Shape;
 use burn_tensor::Tolerance;
 use burn_tensor::module::interpolate;
-use burn_tensor::ops::{InterpolateMode, InterpolateOptions};
+use burn_tensor::ops::{
+    CoordinateTransformMode, InterpolateMode, InterpolateOptions, NearestRoundingMode,
+};
 
 #[test]
 fn test_upsample_interpolation() {
@@ -123,4 +125,219 @@ impl InterpolateTestCase {
         y.to_data()
             .assert_approx_eq::<FloatElem>(&output.into_data(), Tolerance::default());
     }
+}
+
+#[test]
+fn test_nearest_rounding_modes_half_boundary() {
+    let device = Default::default();
+    if !format!("{device:?}").to_lowercase().contains("flex") {
+        return;
+    }
+    let input = TestTensor::<4>::from_data([[[[10.0, 20.0, 30.0, 40.0]]]], &device);
+
+    // With scale = 2.0 (output width 8 via scale_factor = [1.0, 2.0]) and Asymmetric transform:
+    // x_in = x_out / 2.0 -> {0.0, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5}
+    // 1. RoundPreferFloor: ceil(x_in - 0.5) -> [0, 0, 1, 1, 2, 2, 3, 3]
+    let out_rpf = interpolate(
+        input.clone(),
+        InterpolateOptions::new(InterpolateMode::Nearest)
+            .with_coordinate_transform(CoordinateTransformMode::Asymmetric)
+            .with_nearest_mode(NearestRoundingMode::RoundPreferFloor)
+            .with_scale_factor([1.0, 2.0]),
+    );
+    TestTensor::<4>::from([[[[10.0, 10.0, 20.0, 20.0, 30.0, 30.0, 40.0, 40.0]]]])
+        .to_data()
+        .assert_approx_eq::<FloatElem>(&out_rpf.into_data(), Tolerance::default());
+
+    // 2. RoundPreferCeil: floor(x_in + 0.5) -> [0, 1, 1, 2, 2, 3, 3, 3]
+    let out_rpc = interpolate(
+        input.clone(),
+        InterpolateOptions::new(InterpolateMode::Nearest)
+            .with_coordinate_transform(CoordinateTransformMode::Asymmetric)
+            .with_nearest_mode(NearestRoundingMode::RoundPreferCeil)
+            .with_scale_factor([1.0, 2.0]),
+    );
+    TestTensor::<4>::from([[[[10.0, 20.0, 20.0, 30.0, 30.0, 40.0, 40.0, 40.0]]]])
+        .to_data()
+        .assert_approx_eq::<FloatElem>(&out_rpc.into_data(), Tolerance::default());
+
+    // 3. Floor: floor(x_in) -> [0, 0, 1, 1, 2, 2, 3, 3]
+    let out_floor = interpolate(
+        input.clone(),
+        InterpolateOptions::new(InterpolateMode::Nearest)
+            .with_coordinate_transform(CoordinateTransformMode::Asymmetric)
+            .with_nearest_mode(NearestRoundingMode::Floor)
+            .with_scale_factor([1.0, 2.0]),
+    );
+    TestTensor::<4>::from([[[[10.0, 10.0, 20.0, 20.0, 30.0, 30.0, 40.0, 40.0]]]])
+        .to_data()
+        .assert_approx_eq::<FloatElem>(&out_floor.into_data(), Tolerance::default());
+
+    // 4. Ceil: ceil(x_in) -> [0, 1, 1, 2, 2, 3, 3, 3]
+    let out_ceil = interpolate(
+        input,
+        InterpolateOptions::new(InterpolateMode::Nearest)
+            .with_coordinate_transform(CoordinateTransformMode::Asymmetric)
+            .with_nearest_mode(NearestRoundingMode::Ceil)
+            .with_scale_factor([1.0, 2.0]),
+    );
+    TestTensor::<4>::from([[[[10.0, 20.0, 20.0, 30.0, 30.0, 40.0, 40.0, 40.0]]]])
+        .to_data()
+        .assert_approx_eq::<FloatElem>(&out_ceil.into_data(), Tolerance::default());
+}
+
+#[test]
+fn test_nearest_floor_vs_round_prefer_floor() {
+    let device = Default::default();
+    if !format!("{device:?}").to_lowercase().contains("flex") {
+        return;
+    }
+    let input = TestTensor::<4>::from_data([[[[10.0, 20.0, 30.0, 40.0, 50.0]]]], &device);
+
+    // Asymmetric downsampling to size [1, 3]: s = 3/5 = 0.6
+    // x_out = 1 -> x_in = 1 / 0.6 = 1.666667
+    //   Floor(1.666667) = 1 -> 20.0
+    //   RoundPreferFloor(1.666667) = ceil(1.666667 - 0.5) = 2 -> 30.0
+    let out_floor = interpolate(
+        input.clone(),
+        InterpolateOptions::new(InterpolateMode::Nearest)
+            .with_coordinate_transform(CoordinateTransformMode::Asymmetric)
+            .with_nearest_mode(NearestRoundingMode::Floor)
+            .with_output_size([1, 3]),
+    );
+    let out_rpf = interpolate(
+        input,
+        InterpolateOptions::new(InterpolateMode::Nearest)
+            .with_coordinate_transform(CoordinateTransformMode::Asymmetric)
+            .with_nearest_mode(NearestRoundingMode::RoundPreferFloor)
+            .with_output_size([1, 3]),
+    );
+    TestTensor::<4>::from([[[[10.0, 20.0, 40.0]]]])
+        .to_data()
+        .assert_approx_eq::<FloatElem>(&out_floor.into_data(), Tolerance::default());
+    TestTensor::<4>::from([[[[10.0, 30.0, 40.0]]]])
+        .to_data()
+        .assert_approx_eq::<FloatElem>(&out_rpf.into_data(), Tolerance::default());
+
+    // Ceil vs RoundPreferCeil at x_in = 1.333333 (L_in = 4, L_out = 3, s = 0.75):
+    // x_out = 1 -> x_in = 1 / 0.75 = 1.333333
+    //   Ceil(1.333333) = 2 -> 30.0
+    //   RoundPreferCeil(1.333333) = floor(1.333333 + 0.5) = 1 -> 20.0
+    let input4 = TestTensor::<4>::from_data([[[[10.0, 20.0, 30.0, 40.0]]]], &device);
+    let out_ceil = interpolate(
+        input4.clone(),
+        InterpolateOptions::new(InterpolateMode::Nearest)
+            .with_coordinate_transform(CoordinateTransformMode::Asymmetric)
+            .with_nearest_mode(NearestRoundingMode::Ceil)
+            .with_output_size([1, 3]),
+    );
+    let out_rpc = interpolate(
+        input4,
+        InterpolateOptions::new(InterpolateMode::Nearest)
+            .with_coordinate_transform(CoordinateTransformMode::Asymmetric)
+            .with_nearest_mode(NearestRoundingMode::RoundPreferCeil)
+            .with_output_size([1, 3]),
+    );
+    TestTensor::<4>::from([[[[10.0, 30.0, 40.0]]]])
+        .to_data()
+        .assert_approx_eq::<FloatElem>(&out_ceil.into_data(), Tolerance::default());
+    TestTensor::<4>::from([[[[10.0, 20.0, 40.0]]]])
+        .to_data()
+        .assert_approx_eq::<FloatElem>(&out_rpc.into_data(), Tolerance::default());
+}
+
+#[test]
+fn test_nearest_asymmetric_vs_half_pixel_shift() {
+    let device = Default::default();
+    if !format!("{device:?}").to_lowercase().contains("flex") {
+        return;
+    }
+    let input = TestTensor::<4>::from_data([[[[10.0, 20.0]]]], &device);
+
+    let out_asym = interpolate(
+        input.clone(),
+        InterpolateOptions::new(InterpolateMode::Nearest)
+            .with_coordinate_transform(CoordinateTransformMode::Asymmetric)
+            .with_nearest_mode(NearestRoundingMode::Floor)
+            .with_output_size([1, 4]),
+    );
+    TestTensor::<4>::from([[[[10.0, 10.0, 20.0, 20.0]]]])
+        .to_data()
+        .assert_approx_eq::<FloatElem>(&out_asym.into_data(), Tolerance::default());
+
+    let out_hp = interpolate(
+        input,
+        InterpolateOptions::new(InterpolateMode::Nearest)
+            .with_coordinate_transform(CoordinateTransformMode::HalfPixel)
+            .with_nearest_mode(NearestRoundingMode::Floor)
+            .with_output_size([1, 4]),
+    );
+    TestTensor::<4>::from([[[[10.0, 10.0, 10.0, 20.0]]]])
+        .to_data()
+        .assert_approx_eq::<FloatElem>(&out_hp.into_data(), Tolerance::default());
+}
+
+#[test]
+fn test_nearest_downsample_f64_precision_coordinate_mapping() {
+    let device = Default::default();
+    if !format!("{device:?}").to_lowercase().contains("flex") {
+        return;
+    }
+    let input_vec: [f32; 14] = [
+        0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0, 13.0,
+    ];
+    let input = TestTensor::<4>::from_data([[[input_vec]]], &device);
+
+    let output = interpolate(
+        input,
+        InterpolateOptions::new(InterpolateMode::Nearest)
+            .with_coordinate_transform(CoordinateTransformMode::Asymmetric)
+            .with_nearest_mode(NearestRoundingMode::Floor)
+            .with_output_size([1, 2]),
+    );
+
+    // In f32, 1.0 / (2.0 / 14.0) = 6.9999995 which floored to 6.
+    // In f64, 1.0 / (2.0 / 14.0) = 7.0 which floors to 7.
+    let expected = TestTensor::<4>::from([[[[0.0, 7.0]]]]);
+    output
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&expected.into_data(), Tolerance::default());
+}
+
+#[test]
+fn test_nearest_exact_upsample() {
+    let device = Default::default();
+    if !format!("{device:?}").to_lowercase().contains("flex") {
+        return;
+    }
+    let input = TestTensor::<4>::from_data([[[[10.0, 20.0]]]], &device);
+
+    let output = interpolate(
+        input,
+        InterpolateOptions::new(InterpolateMode::NearestExact).with_output_size([1, 4]),
+    );
+
+    let expected = TestTensor::<4>::from([[[[10.0, 10.0, 20.0, 20.0]]]]);
+    output
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&expected.into_data(), Tolerance::default());
+}
+
+#[test]
+fn test_nearest_asymmetric_14_to_18_ratio_precision() {
+    let device = Default::default();
+    if !format!("{device:?}").to_lowercase().contains("flex") {
+        return;
+    }
+    // Shape [1, 1, 1, 14] -> [1, 1, 1, 18]
+    let input = TestTensorInt::arange(0..14, &device)
+        .float()
+        .reshape([1, 1, 1, 14]);
+    let output = burn_tensor::module::interpolate(
+        input,
+        InterpolateOptions::new(InterpolateMode::Nearest).with_output_size([1, 18]),
+    );
+    let values: Vec<f32> = output.into_data().try_into_vec_as::<f32>().unwrap();
+    // Index 9 must map to 9 * 14 / 18 = 7.0 -> element 7 (not 6)
+    assert_eq!(values[9], 7.0);
 }

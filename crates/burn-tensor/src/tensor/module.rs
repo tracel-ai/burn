@@ -2,13 +2,16 @@ use burn_backend::ops::ModuleOps;
 use burn_dispatch::Dispatch;
 use burn_std::{MatmulTransformAction, MatmulTransformAnalysis, MatmulTransformPolicy};
 
+pub use crate::ops::{
+    CoordinateTransformMode, CubicOptions, InterpolateMode, InterpolateOptions, NearestRoundingMode,
+};
 use crate::{
     Bool, DType, Int, Shape, Tensor, check,
     check::TensorCheck,
     kind::Basic,
     ops::{
         AttentionModuleOptions, AvgPoolOptions, BridgeTensor, ConvOptions, ConvTransposeOptions,
-        DeformConvOptions, InterpolateOptions, MaxPoolOptions, PadMode, UnfoldOptions,
+        DeformConvOptions, MaxPoolOptions, PadMode, UnfoldOptions,
     },
 };
 
@@ -1073,6 +1076,11 @@ pub fn interpolate_output_size(input_size: [usize; 2], options: &InterpolateOpti
     match (options.output_size, options.scale_factor) {
         (Some(output_size), None) => output_size,
         (None, Some(scale_factor)) => core::array::from_fn(|i| {
+            assert!(
+                scale_factor[i] > 0.0,
+                "Interpolate scale factor {} must be strictly positive (> 0.0)",
+                scale_factor[i]
+            );
             let size = input_size[i] as f64 * scale_factor[i] as f64;
             assert!(
                 size <= usize::MAX as f64,
@@ -1620,6 +1628,27 @@ mod tests {
             [4, usize::MAX - 1],
             &options().with_scale_factor([1.0, 2.0]),
         );
+    }
+
+    #[test]
+    #[should_panic(expected = "strictly positive")]
+    fn interpolate_output_size_rejects_non_positive_scale_factor() {
+        interpolate_output_size([4, 4], &options().with_scale_factor([0.0, 2.0]));
+    }
+
+    #[test]
+    fn interpolate_options_builder_mutual_exclusion() {
+        let opts1 = options()
+            .with_scale_factor([2.0, 2.0])
+            .with_output_size([10, 10]);
+        assert_eq!(opts1.output_size, Some([10, 10]));
+        assert_eq!(opts1.scale_factor, None);
+
+        let opts2 = options()
+            .with_output_size([10, 10])
+            .with_scale_factor([2.0, 2.0]);
+        assert_eq!(opts2.output_size, None);
+        assert_eq!(opts2.scale_factor, Some([2.0, 2.0]));
     }
 
     #[test]

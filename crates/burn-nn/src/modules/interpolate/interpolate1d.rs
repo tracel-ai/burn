@@ -10,7 +10,9 @@ use burn_core as burn;
 use burn::config::Config;
 use burn::module::{Content, DisplaySettings, Module, ModuleDisplay};
 use burn::tensor::Tensor;
-use burn::tensor::ops::InterpolateOptions;
+use burn::tensor::ops::{
+    CoordinateTransformMode, CubicOptions, InterpolateOptions, NearestRoundingMode,
+};
 
 use super::InterpolateMode;
 
@@ -40,6 +42,18 @@ pub struct Interpolate1dConfig {
     /// If `false`, half-pixel coordinate mapping is used instead.
     #[config(default = true)]
     pub align_corners: bool,
+
+    /// Coordinate transformation mode.
+    #[config(default = "None")]
+    pub coordinate_transform: Option<CoordinateTransformMode>,
+
+    /// Nearest rounding mode.
+    #[config(default = "None")]
+    pub nearest_mode: Option<NearestRoundingMode>,
+
+    /// Cubic interpolation options.
+    #[config(default = "None")]
+    pub cubic_options: Option<CubicOptions>,
 }
 
 /// Interpolate module for resizing 1D tensors with shape [N, C, L].
@@ -69,6 +83,18 @@ pub struct Interpolate1d {
 
     /// Whether to align corner pixels
     pub align_corners: bool,
+
+    /// Coordinate transformation mode
+    #[module(skip)]
+    pub coordinate_transform: Option<CoordinateTransformMode>,
+
+    /// Nearest rounding mode
+    #[module(skip)]
+    pub nearest_mode: Option<NearestRoundingMode>,
+
+    /// Cubic interpolation options
+    #[module(skip)]
+    pub cubic_options: Option<CubicOptions>,
 }
 
 impl Interpolate1dConfig {
@@ -79,6 +105,9 @@ impl Interpolate1dConfig {
             scale_factor: self.scale_factor,
             mode: self.mode,
             align_corners: self.align_corners,
+            coordinate_transform: self.coordinate_transform,
+            nearest_mode: self.nearest_mode,
+            cubic_options: self.cubic_options,
         }
     }
 }
@@ -86,8 +115,21 @@ impl Interpolate1dConfig {
 impl Interpolate1d {
     /// The options the interpolation runs with, over an input given a unit height.
     fn options(&self) -> InterpolateOptions {
-        let mut options = InterpolateOptions::new(self.mode.clone().into())
-            .with_align_corners(self.align_corners);
+        let mut options = InterpolateOptions::new(self.mode.clone().into());
+        if let Some(mut ct) = self.coordinate_transform {
+            if let CoordinateTransformMode::TfCropAndResize { ref mut roi, .. } = ct {
+                roi[0] = [0.0, 1.0];
+            }
+            options = options.with_coordinate_transform(ct);
+        } else {
+            options = options.with_align_corners(self.align_corners);
+        }
+        if let Some(nm) = self.nearest_mode {
+            options = options.with_nearest_mode(nm);
+        }
+        if let Some(co) = self.cubic_options {
+            options = options.with_cubic_options(co);
+        }
         options.output_size = self.output_size.map(|size| [1, size]);
         options.scale_factor = self.scale_factor.map(|scale| [1.0, scale]);
         options
@@ -192,6 +234,21 @@ mod tests {
         let interpolate = config.init();
         let output = interpolate.forward(input);
         assert_eq!(output.dims(), [2, 3, 6]);
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_conflicting_size_and_scale_panics() {
+        let input = Tensor::<3>::random(
+            [2, 3, 4],
+            Distribution::Uniform(0.0, 1.0),
+            &Default::default(),
+        );
+        let config = Interpolate1dConfig::new()
+            .with_output_size(Some(8))
+            .with_scale_factor(Some(2.0));
+        let interpolate = config.init();
+        let _ = interpolate.forward(input);
     }
 
     #[test]
