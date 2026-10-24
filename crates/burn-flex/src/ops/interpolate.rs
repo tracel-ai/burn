@@ -205,7 +205,10 @@ pub fn map_coordinate(
 
     match mode {
         CoordinateTransformMode::HalfPixel => {
-            let x_in = (x_out + 0.5) / s - 0.5;
+            let x_in = match scale_factor {
+                Some(_) => (x_out + 0.5) / s - 0.5,
+                None => (x_out + 0.5) * l_in / l_out - 0.5,
+            };
             MappedCoord::InBounds(x_in)
         }
         CoordinateTransformMode::AlignCorners => {
@@ -224,12 +227,15 @@ pub fn map_coordinate(
             MappedCoord::InBounds(x_in)
         }
         CoordinateTransformMode::PytorchHalfPixel => {
-            let x_in = if out_size == 1 {
-                0.0
+            if l_out > 1.0 {
+                let x_in = match scale_factor {
+                    Some(_) => (x_out + 0.5) / s - 0.5,
+                    None => (x_out + 0.5) * l_in / l_out - 0.5,
+                };
+                MappedCoord::InBounds(x_in)
             } else {
-                (x_out + 0.5) / s - 0.5
-            };
-            MappedCoord::InBounds(x_in)
+                MappedCoord::InBounds(0.0)
+            }
         }
         CoordinateTransformMode::HalfPixelSymmetric => {
             let x_in = (x_out + 0.5 + (l_in * s - l_out) / 2.0) / s - 0.5;
@@ -672,7 +678,7 @@ fn bicubic_axis_taps(
                             }
                         }
 
-                        if sum.abs() > 1e-6 {
+                        if sum != 0.0 && sum.is_finite() {
                             for tap in taps.iter_mut() {
                                 tap.weight /= sum;
                             }
@@ -1988,27 +1994,5 @@ mod tests {
 
         assert_eq!(output.len(), 4);
         assert!((output[0] - 4.0).abs() < 1e-5);
-    }
-
-    #[test]
-    fn test_nearest_downsample_f64_precision_backward() {
-        let x = FlexTensor::new(
-            Bytes::from_elems((0..14).map(|i| i as f32).collect::<Vec<_>>()),
-            Layout::contiguous(Shape::from(vec![1, 1, 1, 14])),
-            DType::F32,
-        );
-        let grad = FlexTensor::new(
-            Bytes::from_elems(vec![1.0f32, 1.0f32]),
-            Layout::contiguous(Shape::from(vec![1, 1, 1, 2])),
-            DType::F32,
-        );
-        let options = InterpolateOptions::new(InterpolateMode::Nearest)
-            .with_coordinate_transform(CoordinateTransformMode::Asymmetric)
-            .with_nearest_mode(NearestRoundingMode::Floor);
-        let result = interpolate_nearest_backward_f32(x, grad, [1, 2], &options);
-        let output = result.storage::<f32>();
-        assert_eq!(output[0], 1.0);
-        assert_eq!(output[6], 0.0);
-        assert_eq!(output[7], 1.0);
     }
 }

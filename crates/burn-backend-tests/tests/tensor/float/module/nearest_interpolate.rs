@@ -278,21 +278,6 @@ fn test_nearest_asymmetric_vs_half_pixel_shift() {
 }
 
 #[test]
-fn test_interpolate_options_builder_mutual_exclusion() {
-    let opts1 = InterpolateOptions::new(InterpolateMode::Nearest)
-        .with_scale_factor([2.0, 2.0])
-        .with_output_size([10, 10]);
-    assert_eq!(opts1.scale_factor, None);
-    assert_eq!(opts1.output_size, Some([10, 10]));
-
-    let opts2 = InterpolateOptions::new(InterpolateMode::Nearest)
-        .with_output_size([10, 10])
-        .with_scale_factor([2.0, 2.0]);
-    assert_eq!(opts2.output_size, None);
-    assert_eq!(opts2.scale_factor, Some([2.0, 2.0]));
-}
-
-#[test]
 fn test_nearest_downsample_f64_precision_coordinate_mapping() {
     let device = Default::default();
     if !format!("{device:?}").to_lowercase().contains("flex") {

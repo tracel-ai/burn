@@ -5,6 +5,14 @@ Changes for the next release. For published releases, see
 
 ## Unreleased
 
+### ONNX Resize operators and coordinate transformations
+
+- Added comprehensive ONNX `Resize` operator semantics to `burn::tensor::module::interpolate`, supporting all standard coordinate transformation modes (`HalfPixel`, `AlignCorners`, `Asymmetric`, `PytorchHalfPixel`, `HalfPixelSymmetric`, and `TfCropAndResize`).
+- Added nearest rounding modes (`RoundPreferFloor`, `RoundPreferCeil`, `Floor`, and `Ceil`).
+- Added cubic interpolation options supporting configurable spline coefficients `a` and `exclude_outside` tap weight renormalization.
+- Enabled scale-driven coordinate mapping across forward and backward passes in `burn-flex`.
+- Migrated coordinate transformations and tap arithmetic to `f64` precision to eliminate boundary truncation and floating-point ratio drift.
+
 ### Device-time instrumentation
 
 `burn-instrument` and `#[compute]` annotations measure device time by model component. Measurement

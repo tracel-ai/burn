@@ -2,7 +2,18 @@ use super::*;
 use burn_tensor::Shape;
 use burn_tensor::Tolerance;
 use burn_tensor::module::interpolate;
-use burn_tensor::ops::{InterpolateMode, InterpolateOptions};
+use burn_tensor::ops::{CoordinateTransformMode, InterpolateMode, InterpolateOptions};
+
+struct TestAutodiffTensor;
+
+impl TestAutodiffTensor {
+    fn from_data<const D: usize>(
+        data: impl Into<burn_tensor::TensorData>,
+        device: &burn_tensor::Device,
+    ) -> TestTensor<D> {
+        TestTensor::<D>::from_data(data, &device.clone().autodiff())
+    }
+}
 
 #[test]
 fn test_upsample_interpolation() {
@@ -173,20 +184,46 @@ fn test_bilinear_backward_crop_extrapolation_zero_gradient() {
 
 #[test]
 fn test_bilinear_backward_non_integer_scale_gradients() {
-    let device = AutodiffDevice::new();
+    let device = Default::default();
     if !format!("{device:?}").to_lowercase().contains("flex") {
         return;
     }
-    let input = TestTensor::<4>::from_data([[[[1.0, 2.0], [3.0, 4.0]]]], &device).require_grad();
+    // Shape [1, 1, 1, 4] with scale [1.0, 0.6] -> output shape [1, 1, 1, 2]
+    // 4 * 0.6 = 2.4 (non-integral, ratio 2/4 = 0.5 != scale 0.6)
+    // x_out = 0 -> x_in = 0.5 / 0.6 - 0.5 = 1/3 -> taps 0 (w=2/3), 1 (w=1/3)
+    // x_out = 1 -> x_in = 1.5 / 0.6 - 0.5 = 2.0 -> tap 2 (w=1.0)
+    let input = TestAutodiffTensor::from_data([[[[1.0, 2.0, 3.0, 4.0]]]], &device).require_grad();
 
-    let options = InterpolateOptions::new(InterpolateMode::Bilinear).with_scale_factor([1.5, 2.5]);
+    let options = InterpolateOptions::new(InterpolateMode::Bilinear)
+        .with_coordinate_transform(CoordinateTransformMode::HalfPixel)
+        .with_scale_factor([1.0, 0.6]);
 
     let output = burn_tensor::module::interpolate(input.clone(), options);
     let grad = output.backward();
     let input_grad = input.grad(&grad).unwrap();
     let grad_values: Vec<f32> = input_grad.into_data().try_into_vec_as::<f32>().unwrap();
+
     assert_eq!(grad_values.len(), 4);
-    assert!(grad_values.iter().all(|&g| g > 0.0 && g.is_finite()));
+    assert!(
+        (grad_values[0] - 2.0 / 3.0).abs() < 1e-5,
+        "Expected 2/3, got {}",
+        grad_values[0]
+    );
+    assert!(
+        (grad_values[1] - 1.0 / 3.0).abs() < 1e-5,
+        "Expected 1/3, got {}",
+        grad_values[1]
+    );
+    assert!(
+        (grad_values[2] - 1.0).abs() < 1e-5,
+        "Expected 1.0, got {}",
+        grad_values[2]
+    );
+    assert!(
+        (grad_values[3] - 0.0).abs() < 1e-5,
+        "Expected 0.0, got {}",
+        grad_values[3]
+    );
 }
 
 #[test]
