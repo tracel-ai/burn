@@ -46,7 +46,9 @@ first. On a tracked non-leaf, it also panics: retaining intermediate gradients w
 their source graph is currently unsupported. `set_require_grad(false)` starts a new untracked
 lineage, cutting any connection to upstream tensors; it doesn't merely disable gradient storage.
 Disabling gradients on a plain tensor is harmless. Quantized tensors cannot retain gradients; their
-`require_grad()` and `set_require_grad(...)` calls leave them unchanged.
+`require_grad()` and `set_require_grad(...)` calls leave them unchanged. A quantized tensor made
+from a tracked one is tracked, though: quantizing and decoding pass the gradient straight through,
+so the rounding is never differentiated and the tensor it was quantized from receives it.
 
 `detach()` keeps the autodiff association but starts a new graph lineage, preserving a leaf's
 gradient-retention setting. `without_autodiff()` removes the association entirely.
