@@ -631,3 +631,30 @@ fn should_panic_when_reshape_splits_a_block_across_rows() {
         .dequantize()
         .into_data();
 }
+
+/// Attention heads split out of a quantized signal, transposed, and laid back in rows: the
+/// transposed view's blocks cannot follow a reshape as metadata, so the values are quantized
+/// again, and they hold what the decoded tensor reshaped holds, up to one rounding.
+#[test]
+fn should_reshape_transposed_block_quantized_heads_back_into_rows() {
+    let device: burn_tensor::Device = Default::default();
+    let values = (0..2 * 4 * 64)
+        .map(|value| (value as f32 / 64.).sin())
+        .collect::<Vec<_>>();
+    let scheme = device
+        .settings()
+        .quantization
+        .scheme
+        .with_value(QuantValue::Q8S)
+        .per_block([32], ScaleDtype::F32);
+    // `[sequence, heads, head_dim]`, quantized along `head_dim`.
+    let heads = TestTensor::<3>::from_data(TensorData::new(values, [2, 4, 64]), &device)
+        .quantize_dynamic(&scheme);
+
+    let rows = heads.clone().swap_dims(0, 1).reshape([4, 2 * 64]);
+    let expected = heads.dequantize().swap_dims(0, 1).reshape([4, 2 * 64]);
+
+    rows.dequantize()
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&expected.into_data(), Tolerance::absolute(1e-2));
+}
