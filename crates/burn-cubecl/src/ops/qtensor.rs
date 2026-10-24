@@ -274,7 +274,28 @@ impl QTensorOps<Self> for CubeBackend {
         }
     }
 
-    // TODO: quantize_dynamic (we can compute min-max on the fly and scale, especially when not per-tensor)
+    /// A single-level block scheme along the innermost axis computes its scales in one pass
+    /// ([`symmetric_block_scales`](kernel::quantization::symmetric_block_scales)) rather than
+    /// through the composed min-max calibration's chain of reductions and arithmetic; every other
+    /// scheme takes the composed calibration.
+    fn quantize_dynamic(tensor: FloatTensor<Self>, scheme: &QuantScheme) -> QuantizedTensor<Self> {
+        let scales = kernel::quantization::symmetric_block_scales(&tensor, scheme);
+        let qparams = match scales {
+            Some(scales) => QuantizationParametersPrimitive {
+                scales,
+                global: None,
+            },
+            None => {
+                let (min, max) = burn_backend::quantization::compute_range::<Self>(
+                    scheme,
+                    tensor.clone(),
+                    &burn_backend::quantization::Calibration::MinMax,
+                );
+                burn_backend::quantization::compute_q_params(scheme, min, max)
+            }
+        };
+        Self::quantize(tensor, scheme, qparams)
+    }
 
     fn quantize(
         tensor: FloatTensor<Self>,

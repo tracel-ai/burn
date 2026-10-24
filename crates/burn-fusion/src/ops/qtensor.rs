@@ -7,9 +7,9 @@ use burn_backend::{
     tensor::{Device, FloatTensor, IntTensor, QuantizedTensor},
 };
 use burn_ir::{
-    BaseOperationIr, DequantizeOpIr, FlipOpIr, FloatOperationIr, GatherOpIr, HandleContainer,
-    MatmulOpIr, OperationIr, OperationOutput, PermuteOpIr, QuantizationParametersIr, QuantizeOpIr,
-    SelectOpIr, ShapeOpIr, SliceOpIr, SwapDimsOpIr,
+    BaseOperationIr, CustomOpIr, DequantizeOpIr, FlipOpIr, FloatOperationIr, GatherOpIr,
+    HandleContainer, MatmulOpIr, OperationIr, OperationOutput, PermuteOpIr,
+    QuantizationParametersIr, QuantizeOpIr, SelectOpIr, ShapeOpIr, SliceOpIr, SwapDimsOpIr,
 };
 
 use crate::{
@@ -81,6 +81,48 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
                 streams,
                 OperationIr::Float(desc.tensor.dtype, FloatOperationIr::Quantize(desc.clone())),
                 QuantizeOp::<B>::new(desc),
+            )
+            .output()
+    }
+
+    /// One operation the backend runs whole, so it quantizes with its own calibration (a
+    /// single pass where it has one) rather than the composed one's chain of operations.
+    fn quantize_dynamic(tensor: FloatTensor<Self>, scheme: &QuantScheme) -> QuantizedTensor<Self> {
+        #[derive(new, Debug)]
+        struct QuantizeDynamicOp<B: FusionBackend> {
+            desc: CustomOpIr,
+            scheme: QuantScheme,
+            _b: PhantomData<B>,
+        }
+
+        impl<B: FusionBackend> Operation<B::FusionRuntime> for QuantizeDynamicOp<B> {
+            fn execute(
+                &self,
+                handles: &mut HandleContainer<B::Handle>,
+            ) -> Result<(), ExecutionError> {
+                let ([input], [out]) = self.desc.as_fixed();
+                let tensor = handles.get_float_tensor::<B>(input);
+                let output = B::quantize_dynamic(tensor, &self.scheme);
+                handles.register_quantized_tensor::<B>(&out.id, output);
+                Ok(())
+            }
+        }
+
+        let streams = StreamId::current();
+        let client = tensor.client.clone();
+        let input = tensor.into_ir();
+        let out = burn_ir::TensorIr::uninit(
+            client.create_empty_handle(),
+            input.shape.clone(),
+            DType::QFloat(*scheme),
+        );
+        let desc = CustomOpIr::new("quantize_dynamic", &[input], &[out]);
+
+        client
+            .register(
+                streams,
+                OperationIr::Custom(desc.clone()),
+                QuantizeDynamicOp::<B>::new(desc, *scheme),
             )
             .output()
     }
