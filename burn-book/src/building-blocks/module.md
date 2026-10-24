@@ -35,13 +35,17 @@ configuration and runtime state, including generic fields. Skipped fields still 
 `Clone + Debug + Send`; they are cloned but excluded from traversal, checkpoints, device movement
 and training/validation transitions.
 
-For an adapter with a generic child `M` and configuration `C`, keep `M: Module + ModuleDisplay` and
-mark the `C` field with `#[module(skip)]`. Your own `Forward` trait can be an additional bound on
-`M`; the derive does not constrain forward methods.
+Bounds are inferred from field types, so a child `Wrapper<T>` needs `Module + ModuleDisplay`
+without requiring `T` to implement those traits. For a generic child `M` and configuration `C`,
+mark the `C` field with `#[module(skip)]`. Your own `Forward` bounds are preserved; the derive
+does not constrain forward methods.
+
+Named and tuple structs can contain recursive children such as `Vec<Self>` or `Option<Box<Self>>`.
+These children participate in traversal, checkpoints and state transitions like any other submodule.
 
 Custom generic types such as `Block<f32>` are treated as submodules; use `#[module(skip)]` if they
 hold configuration instead. For structures requiring custom traversal, use a
-[manual implementation](../migrating-to-0.22.md#manual-module-implementations).
+[manual implementation](https://github.com/tracel-ai/burn/blob/release/0.22/burn-book/src/migrating-to-0.22.md#manual-module-implementations).
 
 ## Forward Contract
 

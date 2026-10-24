@@ -35,14 +35,27 @@ execution modes.
 For tensor operations, trace the public API through the bridge and dispatch layers to the backend
 implementation. Consider the applicable autodiff, IR, fusion, and router paths as well. The
 [operation guide](contributor-book/src/guides/adding-a-new-operation-to-burn.md) explains where each
-part belongs and which tests it needs.
+part belongs and which tests it needs. Decorator backends (autodiff, fusion, router, dispatch) fall
+back to default decompositions and capability flags unless they override them. Check whether an
+inherited default loses required behavior or intended acceleration; some defaults are intentional,
+such as fusion keeping `linear` decomposed to preserve downstream fusion.
 
 - Keep changes focused. Separate mechanical moves and renames from behavior changes so the diff can
   be reviewed independently.
 - Preserve feature isolation and `no_std` support where the affected crates provide it.
 - For backend changes, account for supported layouts, dtypes, and hardware capabilities. State
   unsupported cases explicitly rather than assuming the development machine represents every device.
+- Validate user input at the `burn-tensor` API boundary with `check!(TensorCheck::...)`, naming the
+  operation and the offending values. Make new backend trait methods required rather than adding
+  `unimplemented!()` defaults.
+- Derive dtypes and epsilons from the input (`FloatDType::finfo`) instead of hardcoding `f32` or
+  `i64`; some devices lack 64-bit integers. Handle quantized inputs and zero-sized dimensions.
+- Avoid host synchronization (`into_data`, `into_scalar`) in forward passes, losses, and metrics.
 - Update documentation and examples in the same change when behavior or APIs change.
+- Record user-visible changes in [burn-book/src/changelog.md](burn-book/src/changelog.md), following
+  the [changelog policy](CONTRIBUTING.md#changelog). Highlight major changes with descriptive
+  subsections; keep entries concise and include migration steps for API changes. Update existing
+  entries when follow-up work changes them.
 
 ### Backends and Kernels
 
@@ -86,6 +99,18 @@ Start with checks and tests for the affected crates and backend. Follow the
 [testing guide](contributor-book/src/getting-started/testing.md) for shared tensor and autodiff
 suites, backend aliases, and fusion configurations. Include regression coverage for bug fixes.
 
+Keep tests focused on behavior introduced or changed by the PR. Each case should catch a distinct
+plausible failure, using inputs that distinguish a correct implementation from a plausible wrong
+one. Numerical operations need value checks; changes to shapes, metadata, or input validation should
+test that behavior directly. Avoid redundant cases, assertions that mirror the implementation, and
+unrelated edge cases. Extend existing tests or shared suites (`burn-backend-tests` for behavior
+shared across backends) instead of duplicating coverage across layers; test each contract once, at
+the layer that owns it. Do not widen visibility or add production code only so tests can reach it.
+Prefer a small, discriminating set over exhaustive combinations unless those combinations exercise
+different behavior.
+
+Check that dependency updates do not change unrelated entries in `Cargo.lock`.
+
 The repository validation commands, run from the repository root, are:
 
 ```sh
@@ -106,6 +131,9 @@ Follow the [contribution policy](CONTRIBUTING.md#ai-assisted-contributions) when
 contributor remains responsible for understanding and validating the submitted changes.
 
 - When preparing or updating a PR, read and use the [PR template](.github/pull_request_template.md).
+- Use Conventional Commits for commit messages and PR titles, following the
+  [title and commit policy](CONTRIBUTING.md#pr-titles-and-commit-messages), and keep the PR title
+  aligned with the final scope of the change.
 - Complete its AI Usage section accurately. Describe your involvement in implementation, tests,
   investigation, documentation, the PR description, or review, including whether you assisted with
   specific tasks or carried out most or all of the work autonomously. Explicitly say when you wrote
@@ -125,4 +153,6 @@ contributor remains responsible for understanding and validating the submitted c
   final review and merge decisions.
 
 Keep this file aligned with the code and contribution policy. Put detailed procedures in the
-contributor documentation and link to them here.
+contributor documentation and link to them here. Copilot code review reads this file together with
+[.github/copilot-instructions.md](.github/copilot-instructions.md) and the path-specific files in
+`.github/instructions/`.

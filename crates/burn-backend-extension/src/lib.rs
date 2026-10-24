@@ -66,7 +66,8 @@ pub fn backend_dispatch(attr: TokenStream, item: TokenStream) -> TokenStream {
 ///
 /// The backend comes from one routing tensor, preferring a float. The autodiff contexts of all
 /// tensor-bearing inputs are merged; disabled inputs act as constants, while enabled inputs must
-/// share a gradient-checkpointing strategy.
+/// share a gradient-checkpointing strategy. Only an autodiff-associated float selects the autodiff
+/// implementation; enabled integer and boolean inputs propagate context without requiring it.
 ///
 /// Struct and enum inputs derive [`ExtensionType`] and use `#[extension_type]` on the corresponding
 /// method argument. Autodiff support for custom operations requires a handwritten implementation of the extension trait

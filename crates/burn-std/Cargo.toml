@@ -64,7 +64,6 @@ reqwest = { workspace = true, optional = true }
 tokio = { workspace = true, optional = true }
 
 [dev-dependencies]
-dashmap = { workspace = true }
 paste = { workspace = true }
 rand = { workspace = true, features = ["thread_rng"] }
 serde_json = { workspace = true, features = ["alloc"] }

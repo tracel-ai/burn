@@ -1,0 +1,401 @@
+use std::sync::Arc;
+use std::time::{Duration, Instant};
+
+use burn_tensor::{Device, FloatDType};
+
+use super::pricing::{Floors, Pricing};
+use super::recorder::RunRecorder;
+use super::watching::{Claim, Watching};
+use crate::{Breakdown, ComponentObservation, Measurement, Peaks};
+
+/// Measures a model on a device into a [`Measurement`]: one instrumented
+/// run's [`Breakdown`], the device's [`Peaks`], and the wall time of a clean
+/// run, with nothing instrumenting it.
+///
+/// ```rust,ignore
+/// let measurement = Instrument::new(&device).measure(|| model.forward(input.clone()));
+/// measurement.write(std::fs::File::create("model.json")?)?;
+/// ```
+///
+/// See the [crate docs](crate#measuring-a-model) for what an instrumented run
+/// records and how far its numbers are to be trusted.
+pub struct Instrument {
+    device: Device,
+    claim: Claim,
+    warmup: usize,
+    samples: usize,
+    dtype: FloatDType,
+}
+
+impl Instrument {
+    /// How many times [`measure`](Self::measure) runs the model before
+    /// anything is measured, unless [`warmup`](Self::warmup) says otherwise.
+    pub const WARMUP_RUNS: usize = 5;
+
+    /// The seed the device is set to before the pricing run and the timed run.
+    /// Repeats device randomness when both runs make the same random draws;
+    /// it does not reset model state or host-side random generators.
+    pub const SEED: u64 = 0;
+
+    /// How many clean runs [`measure`](Self::measure) takes the median of,
+    /// unless [`samples`](Self::samples) says otherwise.
+    pub const SAMPLE_RUNS: usize = 10;
+
+    /// An instrument for work running on `device`, and the process's one until
+    /// it is dropped.
+    ///
+    /// It warms the model up [`WARMUP_RUNS`](Self::WARMUP_RUNS) times, takes
+    /// the clean wall as the median of [`SAMPLE_RUNS`](Self::SAMPLE_RUNS)
+    /// clean runs, and probes the arithmetic peak at the device's default
+    /// float dtype; see [`warmup`](Self::warmup), [`samples`](Self::samples)
+    /// and [`dtype`](Self::dtype).
+    ///
+    /// # Panics
+    ///
+    /// If another instrument exists in the process. Refused here, before the
+    /// device is synced or its fusion worker pointed anywhere: either would
+    /// disturb the run the other is instrumenting.
+    ///
+    /// If `device` fuses and this crate was built without its `fusion`
+    /// feature: the instrument could not see the blocks, and would place every
+    /// fused kernel on whichever component sealed it.
+    pub fn new(device: &Device) -> Self {
+        #[cfg(not(feature = "fusion"))]
+        assert!(
+            device.as_dispatch().fusion_worker().is_none(),
+            "the device fuses, so instrumenting it needs burn-instrument's `fusion` feature"
+        );
+        Self {
+            claim: Claim::take(),
+            device: device.clone(),
+            warmup: Self::WARMUP_RUNS,
+            samples: Self::SAMPLE_RUNS,
+            dtype: device.settings().float_dtype,
+        }
+    }
+
+    /// Run the model `runs` times before anything is measured. The first run
+    /// compiles and autotunes, and a tuner's candidates instrumented as the
+    /// run's would be recorded as untagged kernels.
+    pub fn warmup(mut self, runs: usize) -> Self {
+        self.warmup = runs;
+        self
+    }
+
+    /// Take the clean wall as the median of `runs` clean runs, or leave
+    /// it unmeasured for `0`.
+    pub fn samples(mut self, runs: usize) -> Self {
+        self.samples = runs;
+        self
+    }
+
+    /// Probe the arithmetic peak at `dtype`, which should be the one the run
+    /// computes in.
+    pub fn dtype(mut self, dtype: FloatDType) -> Self {
+        self.dtype = dtype;
+        self
+    }
+
+    /// Warm `model` up, measure the device's peaks and its clean wall, then
+    /// price it and run it once more instrumented: see
+    /// [`breakdown`](Self::breakdown).
+    ///
+    /// `model` runs once per warmup, once per sample, once priced and once
+    /// instrumented, and
+    /// what it returns is held until the run it belongs to has ended: an
+    /// output dropped inside the run would let the fuser skip the work that
+    /// wrote it. Each clean run is synced, so call it on work already
+    /// synced and keep other threads off the device: see
+    /// [`breakdown`](Self::breakdown).
+    ///
+    /// # Replay requirements
+    ///
+    /// Reuse the same inputs and equivalent model state for each invocation. The pricing
+    /// and timed runs must enter the same annotated components in the same order, with
+    /// equivalent shapes and values wherever they affect bounds. Advancing a batch iterator,
+    /// growing a KV cache, or changing routing decisions can invalidate the result.
+    /// Reseeding the device does not reset application or model state. Mismatches are not
+    /// checked and can silently assign incorrect bounds; see [`breakdown`](Self::breakdown).
+    ///
+    /// # Panics
+    ///
+    /// If the device stops answering.
+    pub fn measure<T>(self, mut model: impl FnMut() -> T) -> Measurement {
+        for _ in 0..self.warmup {
+            self.run_clean(&mut model);
+        }
+        // Before anything is timed: the probes are saturating kernels that
+        // move clocks and thermals for whatever runs after them.
+        let peaks = Peaks::new(&self.device, self.dtype);
+        let clean_wall = self.clean_wall(&mut model);
+        let device = format!("{:?}", self.device);
+        Measurement {
+            device,
+            peaks: Some(peaks),
+            clean_wall,
+            breakdown: self.breakdown(model),
+        }
+    }
+
+    /// Price `model`, then run it instrumented, and end the run, without
+    /// warming it up or measuring what it is scored against.
+    ///
+    /// The pricing run evaluates the floor of every component it enters, and
+    /// is not timed, so a floor may read values back. The instrumented run
+    /// evaluates none: each entry takes the floor of the pricing run's entry
+    /// at the same position.
+    ///
+    /// Instrumented, every component `model` enters arrives
+    /// from this thread and every kernel the runtime issues for it from
+    /// whichever thread issued it, until the run's last queued segment has
+    /// executed and its timings are read back. What `model` returns is
+    /// held until then.
+    ///
+    /// Instrumented, the model runs the graph it runs in production — nothing
+    /// is drained at a boundary — so call it on work already synced: an
+    /// operation queued before it would be watched too. Run it once
+    /// beforehand, so the tuner's work is not recorded as the run's, and keep
+    /// other threads off the device while it runs: see the
+    /// [crate docs](crate#measuring-a-model).
+    ///
+    /// Taken by value: an instrument holds one run, and its breakdown is read
+    /// once that run has ended. Re-seeds the device.
+    ///
+    /// # Replay requirements
+    ///
+    /// Both calls must enter the same annotated components in the same order, with
+    /// equivalent shapes and values wherever they affect bounds. Reuse inputs and restore
+    /// equivalent model state if a call advances an iterator, grows a KV cache, or changes
+    /// routing decisions. Bounds calculations must also preserve state and randomness
+    /// needed by the forward pass.
+    ///
+    /// The device is set to [`SEED`](Self::SEED) before both runs, which repeats the same
+    /// sequence of device random draws; it does not reset model state or host-side random
+    /// generators. Nothing checks that the runs match. A mismatch can silently assign a
+    /// different component's bounds or score a component for different inputs.
+    ///
+    /// # Panics
+    ///
+    /// If the device stops answering at the end of the run.
+    pub fn breakdown<T>(self, mut model: impl FnMut() -> T) -> Breakdown {
+        let floors = self.price(&mut model);
+        self.device.seed(Self::SEED);
+        // One recorder, three observations: the components arrive on this
+        // thread and the kernels and fusion blocks on whichever thread runs
+        // them, so the tree is written from both. Each kernel lands under the
+        // attribution of the thread that issued it — see `LaunchCursor`.
+        // Built here rather than in `new`, so its epoch is the run's.
+        let recorder = Arc::new(RunRecorder::new(&self.device, floors));
+        let watching = Watching::new(&recorder, self.claim);
+        let observation = ComponentObservation::new(Box::new(Arc::clone(&recorder)));
+        let output = model();
+        drop(observation);
+        let breakdown = recorder.finish(watching);
+        drop(output);
+        breakdown
+    }
+
+    /// Run `model` under a pricing observer to its end, its output held to
+    /// the sync, and say the floor each entry declared.
+    fn price<T>(&self, model: &mut impl FnMut() -> T) -> Floors {
+        self.device.seed(Self::SEED);
+        let pricing = Pricing::default();
+        let observation = ComponentObservation::new(Box::new(pricing.clone()));
+        let output = model();
+        drop(observation);
+        self.device.sync().expect("the device answers");
+        drop(output);
+        pricing.floors()
+    }
+
+    /// The median wall time of the configured samples, or `None` for none.
+    fn clean_wall<T>(&self, model: &mut impl FnMut() -> T) -> Option<Duration> {
+        let samples = (0..self.samples)
+            .map(|_| {
+                let start = Instant::now();
+                self.run_clean(model);
+                start.elapsed()
+            })
+            .collect();
+        median(samples)
+    }
+
+    /// Run `model` clean to its end, its output held to the sync.
+    fn run_clean<T>(&self, model: &mut impl FnMut() -> T) {
+        let output = model();
+        self.device.sync().expect("the device answers");
+        drop(output);
+    }
+}
+
+/// The middle of `samples`, the later of the two for an even count: robust to
+/// the one run a background task or a clock change slowed, which a mean is
+/// not.
+fn median(mut samples: Vec<Duration>) -> Option<Duration> {
+    samples.sort();
+    samples.get(samples.len() / 2).copied()
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::BTreeSet;
+    use std::sync::Mutex;
+
+    use burn_tensor::{Int, Tensor};
+
+    use super::*;
+    use crate::{Bounds, compute};
+
+    /// One instrument at a time, in a process where every test runs alongside
+    /// the others.
+    static SERIAL: Mutex<()> = Mutex::new(());
+
+    fn serial() -> std::sync::MutexGuard<'static, ()> {
+        SERIAL
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+    }
+
+    /// The model runs once per warmup, once per sample, once priced and once
+    /// instrumented: a warmup left out would leave the tuner's candidates in
+    /// the breakdown.
+    #[test]
+    fn measure_runs_the_model_once_per_warmup_sample_pricing_and_instrumented_run() {
+        let _serial = serial();
+        let mut runs = 0;
+        let measurement = Instrument::new(&Device::flex())
+            .warmup(2)
+            .samples(3)
+            .measure(|| runs += 1);
+        assert_eq!(runs, 2 + 3 + 1 + 1);
+        assert!(measurement.clean_wall.is_some());
+    }
+
+    /// What `#[compute]` expands to, as a crate depending on `burn` sees it.
+    mod burn {
+        pub use crate as instrument;
+    }
+
+    /// A lookup whose floor is the number of distinct indices it is handed.
+    #[derive(Default)]
+    struct Lookup {
+        /// How many times its floor was evaluated.
+        priced: std::cell::Cell<usize>,
+    }
+
+    impl Lookup {
+        fn bounds(&self, indices: &Tensor<1, Int>) -> Bounds {
+            self.priced.set(self.priced.get() + 1);
+            let indices = indices.clone().into_data();
+            let distinct: BTreeSet<i64> = indices.iter::<i64>().collect();
+            Bounds {
+                read: distinct.len() as u64,
+                write: 0,
+                flops: 0,
+            }
+        }
+
+        #[compute(bounds = Self::bounds)]
+        fn forward(&self, indices: Tensor<1, Int>) -> Tensor<1, Int> {
+            indices
+        }
+    }
+
+    /// The floor is evaluated in the pricing run alone, where it may read the
+    /// values back, and the timed run's entry takes it.
+    #[test]
+    fn a_floor_read_from_the_values_is_priced_once_and_scores_the_timed_run() {
+        let _serial = serial();
+        let device = Device::flex();
+        let indices = Tensor::<1, Int>::from_ints([3, 1, 3, 7], &device);
+        let lookup = Lookup::default();
+
+        let breakdown = Instrument::new(&device).breakdown(|| lookup.forward(indices.clone()));
+
+        assert_eq!(lookup.priced.get(), 1, "the timed run evaluates no floor");
+        assert_eq!(
+            breakdown.tree[0].bounds,
+            Some(Bounds {
+                read: 3,
+                write: 0,
+                flops: 0,
+            })
+        );
+    }
+
+    /// Helpers called to calculate bounds are not model entries: recording them would
+    /// shift the floors assigned to the timed run's components.
+    #[test]
+    fn annotated_bounds_helpers_do_not_shift_the_timed_runs_floors() {
+        let _serial = serial();
+        struct Router;
+
+        impl Router {
+            #[compute(label = "routes", bounds = Bounds { read: 100, write: 0, flops: 0 })]
+            fn routes(&self) -> u64 {
+                10
+            }
+
+            fn bounds(&self) -> Bounds {
+                Bounds {
+                    read: self.routes() * 100,
+                    write: 0,
+                    flops: 0,
+                }
+            }
+
+            #[compute(bounds = Self::bounds)]
+            fn forward(&self) -> u64 {
+                self.routes()
+            }
+        }
+
+        let breakdown = Instrument::new(&Device::flex()).breakdown(|| Router.forward());
+        let parent = &breakdown.tree[0];
+        let child = &parent.children[0];
+        assert_eq!(
+            (parent.bounds.unwrap().read, child.bounds.unwrap().read),
+            (1000, 100)
+        );
+    }
+
+    /// No samples is no clean wall, rather than a wall of zero that the report
+    /// would split into a host time of nothing.
+    #[test]
+    fn no_samples_leave_the_clean_wall_unmeasured() {
+        let _serial = serial();
+        let measurement = Instrument::new(&Device::flex()).samples(0).measure(|| ());
+        assert_eq!(measurement.clean_wall, None);
+    }
+
+    /// The median, not the mean: one slow run moves a mean and not the middle.
+    #[test]
+    fn the_clean_wall_is_the_median_sample() {
+        let millis = |values: &[u64]| values.iter().copied().map(Duration::from_millis).collect();
+        assert_eq!(
+            median(millis(&[9, 1, 2, 90, 3])),
+            Some(Duration::from_millis(3))
+        );
+        assert_eq!(
+            median(millis(&[4, 1, 3, 2])),
+            Some(Duration::from_millis(3))
+        );
+        assert_eq!(median(Vec::new()), None);
+    }
+
+    /// A second instrument is refused before it touches the device: built while
+    /// another exists, it would sync the device and point the fusion worker
+    /// away from the run the first is instrumenting, before `breakdown` could
+    /// refuse it.
+    #[test]
+    fn a_second_instrument_is_refused_before_it_touches_the_device() {
+        let _serial = serial();
+        let device = Device::flex();
+        let first = Instrument::new(&device);
+        let second = std::panic::catch_unwind(|| Instrument::new(&Device::flex()));
+        assert!(second.is_err(), "refused while the first exists");
+
+        drop(first);
+        drop(Instrument::new(&device));
+    }
+}

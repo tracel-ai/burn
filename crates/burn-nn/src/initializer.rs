@@ -114,15 +114,24 @@ impl Initializer {
             move |device, require_grad| {
                 let config = config.clone();
                 let shape = shape.clone();
-                device.memory_persistent_allocations((), move |_| {
-                    let mut tensor = config.init_tensor(shape.clone(), fan_in, fan_out, device);
+                let mut tensor = if matches!(&config, Initializer::Orthogonal { .. }) {
+                    // Only the final weight needs persistent storage. QR uses temporary tensors
+                    // with many different sizes, which cannot share exact-fit persistent buffers.
+                    let tensor = config.init_tensor(shape, fan_in, fan_out, device);
+                    device.memory_persistent_allocations(tensor, |tensor| {
+                        tensor.empty_like().slice_assign([..; D], tensor)
+                    })
+                } else {
+                    device.memory_persistent_allocations((), move |_| {
+                        config.init_tensor(shape.clone(), fan_in, fan_out, device)
+                    })
+                };
 
-                    if require_grad {
-                        tensor = tensor.require_grad();
-                    }
+                if require_grad {
+                    tensor = tensor.require_grad();
+                }
 
-                    tensor
-                })
+                tensor
             },
             device,
             true,
@@ -287,6 +296,29 @@ mod tests {
         let _ = param.val();
 
         assert!(param.is_initialized());
+    }
+
+    #[test]
+    fn orthogonal_parameter_preserves_seeded_values_and_gradients() {
+        let device = test_device().autodiff();
+        let initializer = Initializer::Orthogonal { gain: 2.0 };
+
+        for shape in [[4, 8], [8, 4], [4, 4]] {
+            device.seed(42);
+            let expected: Tensor<2> = initializer.init_tensor(shape, None, None, &device);
+            device.seed(42);
+            let actual: Tensor<2> = initializer.init(shape, &device).val();
+
+            assert_eq!(actual.to_data(), expected.into_data());
+            assert!(actual.is_require_grad());
+
+            let gradients = actual.clone().sum().backward();
+            let gradient = actual.grad(&gradients).unwrap();
+            assert_eq!(
+                gradient.into_data(),
+                Tensor::<2>::ones(shape, &device).into_data()
+            );
+        }
     }
 
     #[test]

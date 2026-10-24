@@ -2,7 +2,7 @@ use burn_core as burn;
 
 use crate::{ModuleStore, SafetensorsStore};
 use burn_core::module::{Module, Param};
-use burn_core::tensor::{Device, Tensor, shape};
+use burn_core::tensor::{Device, Tensor};
 
 // Test module for direct access tests
 #[derive(Module, Debug)]
@@ -70,10 +70,10 @@ fn test_memory_get_tensor_existing() {
     assert!(snapshot.is_some());
 
     let snapshot = snapshot.unwrap();
-    assert_eq!(snapshot.shape, shape![2, 2]);
+    assert_eq!(snapshot.shape(), [2, 2]);
 
     // Verify data
-    let data = crate::bridge::to_data(snapshot).unwrap();
+    let data = snapshot.to_data().unwrap();
     let values: Vec<f32> = data.try_to_vec().unwrap();
     assert_eq!(values, vec![1.0, 2.0, 3.0, 4.0]);
 }
@@ -94,7 +94,7 @@ fn test_memory_get_tensor_nested() {
     assert!(snapshot.is_some());
 
     let snapshot = snapshot.unwrap();
-    let data = crate::bridge::to_data(snapshot).unwrap();
+    let data = snapshot.to_data().unwrap();
     let values: Vec<f32> = data.try_to_vec().unwrap();
     assert_eq!(values, vec![1.0, 2.0]);
 }
@@ -205,9 +205,9 @@ fn test_file_get_tensor_existing() {
     assert!(snapshot.is_some());
 
     let snapshot = snapshot.unwrap();
-    assert_eq!(snapshot.shape, shape![2, 2]);
+    assert_eq!(snapshot.shape(), [2, 2]);
 
-    let data = crate::bridge::to_data(snapshot).unwrap();
+    let data = snapshot.to_data().unwrap();
     let values: Vec<f32> = data.try_to_vec().unwrap();
     assert_eq!(values, vec![1.0, 2.0, 3.0, 4.0]);
 }

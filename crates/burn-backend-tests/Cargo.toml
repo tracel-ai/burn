@@ -14,9 +14,6 @@ version.workspace = true
 [lints]
 workspace = true
 
-[lib]
-proc-macro = true
-
 [features]
 default = [
     "burn-tensor/default",
@@ -43,6 +40,8 @@ persistence = ["burn-tensor/persistence"]
 autotune = ["burn-tensor/autotune"]
 autotune-checks = ["burn-tensor/autotune-checks"]
 memory-checks = ["burn-fusion?/memory-checks"]
+# Runs the suite with autotune racing only cubek's tile-DSL matmul and attention routines.
+tile-kernels-only = ["cube", "burn-cubecl/tile-kernels-only"]
 fusion = [
     "burn-tensor/fusion",
     "burn-fusion/test-util",
@@ -66,8 +65,9 @@ capture = ["burn-tensor/capture"]
 distributed = ["cuda"]
 
 [dependencies]
-burn-tensor = { workspace = true, features = ["autodiff", "capture"] }
+burn-tensor = { workspace = true, features = ["autodiff", "capture", "extension"] }
 burn-backend = { workspace = true }
+burn-dispatch = { workspace = true }
 
 # For random tests
 cubek = { workspace = true, features = ["random"], optional = true }
@@ -76,6 +76,7 @@ cubek = { workspace = true, features = ["random"], optional = true }
 burn-autodiff = { workspace = true, features = ["export_tests"] }
 
 burn-cubecl-fusion = { workspace = true, optional = true }
+burn-cubecl = { workspace = true, optional = true }
 
 # Enabled alongside the `fusion` feature so spy-based tests can import the spy API.
 burn-fusion = { workspace = true, optional = true }
@@ -86,12 +87,6 @@ burn-flex = { workspace = true, optional = true }
 num-traits = { workspace = true }
 serial_test = { workspace = true }
 rand.workspace = true
-
-# might-panic macro
-proc-macro2 = { workspace = true }
-quote = { workspace = true }
-syn = { workspace = true }
-
 
 [dev-dependencies]
 # Used to initialize device settings (test dtypes)

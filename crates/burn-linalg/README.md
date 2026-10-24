@@ -53,45 +53,46 @@ The comparison variants are:
   reductions/shuffles. Subgroup paths currently apply to F32 only.
 - `fallback`: disable all three optimizations together.
 
-Measured on 2026-10-23 with an NVIDIA GeForce RTX 3060 (12 GB, device 1), driver
-580.178.04, Intel Core i5-12400F and Rust 1.98.0, in release mode. Medians below are
-microseconds per solve; lower is better. [All results](benches/solve-rtx3060.csv)
-include the 10th and 90th percentile samples. A dash marks an inapplicable variant.
+Measured on 2026-10-24 with an NVIDIA GeForce RTX 3060 (12 GB, device 1), driver
+580.178.04, Intel Core i5-12400F and Rust 1.98.0, in release mode, after merging main
+at `3da5d2a3c` (CubeCL `81fc3092`, CubeK `ed2b87d6`). Medians below are microseconds
+per solve; lower is better. [All results](benches/solve-rtx3060.csv) include the 10th and
+90th percentile samples. A dash marks an inapplicable variant.
 
 | Dtype | Batch / n / RHS | Auto | Register panel | Blocked RHS | No subgroups | All fallbacks |
 |---|---|---:|---:|---:|---:|---:|
-| F32 | 1 / 16 / 1 | 73.14 | 97.54 | 81.76 | 81.49 | 114.38 |
-| F32 | 256 / 16 / 8 | 196.63 | 138.55 | 226.86 | 224.06 | 272.44 |
-| F32 | 64 / 31 / 8 | 223.58 | 195.31 | 207.82 | 252.48 | 246.87 |
-| F32 | 64 / 32 / 8 | 208.85 | 181.98 | – | 289.71 | 250.04 |
-| F32 | 1 / 64 / 1 | 226.77 | 339.44 | – | 275.44 | 389.02 |
-| F32 | 64 / 65 / 8 | 440.51 | 570.72 | – | 741.22 | 870.59 |
-| F32 | 1 / 128 / 32 | 718.36 | 935.98 | – | 847.58 | 1027.21 |
-| F32 | 16 / 129 / 8 | 604.31 | 815.91 | – | 959.39 | 1040.53 |
-| F32 | 1 / 256 / 1 | 1443.08 | 1694.71 | – | 1506.07 | 1874.58 |
-| F32 | 16 / 256 / 32 | 1881.77 | 2297.88 | – | 2882.21 | 3299.57 |
-| F32 | 1 / 512 / 8 | 2502.96 | 3613.64 | – | 2829.40 | 3982.59 |
-| F32 | 1 / 1024 / 8 | 6577.21 | 10017.51 | – | 7351.33 | 10901.40 |
-| F64 | 1 / 16 / 1 | 112.97 | 135.91 | 119.45 | – | 142.81 |
-| F64 | 256 / 16 / 8 | 636.07 | 409.12 | 834.87 | – | 611.77 |
-| F64 | 64 / 31 / 8 | 625.28 | 342.78 | 641.99 | – | 405.15 |
-| F64 | 64 / 32 / 8 | 751.43 | 410.21 | – | – | 410.41 |
-| F64 | 1 / 64 / 1 | 566.08 | 854.72 | – | – | 857.23 |
-| F64 | 64 / 65 / 8 | 2000.16 | 2234.55 | – | – | 2228.66 |
-| F64 | 1 / 128 / 32 | 1262.70 | 1745.33 | – | – | 1684.87 |
-| F64 | 16 / 129 / 8 | 2084.35 | 2445.20 | – | – | 2435.31 |
-| F64 | 1 / 256 / 1 | 2939.48 | 3929.40 | – | – | 3890.49 |
-| F64 | 16 / 256 / 32 | 6790.58 | 7672.81 | – | – | 7635.89 |
-| F64 | 1 / 512 / 8 | 6420.17 | 9615.12 | – | – | 9636.37 |
-| F64 | 1 / 1024 / 8 | 24183.89 | 32754.63 | – | – | 32741.43 |
+| F32 | 1 / 16 / 1 | 80.20 | 98.16 | 83.43 | 81.28 | 113.13 |
+| F32 | 256 / 16 / 8 | 202.88 | 141.86 | 237.56 | 230.23 | 275.83 |
+| F32 | 64 / 31 / 8 | 228.77 | 199.61 | 221.79 | 259.56 | 248.54 |
+| F32 | 64 / 32 / 8 | 221.07 | 192.56 | – | 292.38 | 251.44 |
+| F32 | 1 / 64 / 1 | 229.83 | 325.51 | – | 270.58 | 366.75 |
+| F32 | 64 / 65 / 8 | 426.92 | 540.57 | – | 592.11 | 690.48 |
+| F32 | 1 / 128 / 32 | 481.34 | 663.96 | – | 565.12 | 754.36 |
+| F32 | 16 / 129 / 8 | 589.97 | 809.65 | – | 766.82 | 997.17 |
+| F32 | 1 / 256 / 1 | 1025.59 | 1448.66 | – | 1176.83 | 1613.71 |
+| F32 | 16 / 256 / 32 | 1879.20 | 2263.27 | – | 2751.90 | 3157.41 |
+| F32 | 1 / 512 / 8 | 2221.07 | 3298.88 | – | 2472.11 | 3613.23 |
+| F32 | 1 / 1024 / 8 | 6409.92 | 9907.14 | – | 6907.90 | 10469.73 |
+| F64 | 1 / 16 / 1 | 108.87 | 132.11 | 113.17 | – | 137.02 |
+| F64 | 256 / 16 / 8 | 597.12 | 390.45 | 801.55 | – | 597.01 |
+| F64 | 64 / 31 / 8 | 506.64 | 340.15 | 556.94 | – | 390.69 |
+| F64 | 64 / 32 / 8 | 566.07 | 388.90 | – | – | 388.88 |
+| F64 | 1 / 64 / 1 | 401.35 | 606.16 | – | – | 605.83 |
+| F64 | 64 / 65 / 8 | 1725.20 | 1939.28 | – | – | 1932.71 |
+| F64 | 1 / 128 / 32 | 1112.23 | 1442.82 | – | – | 1441.70 |
+| F64 | 16 / 129 / 8 | 1676.53 | 2067.69 | – | – | 2067.10 |
+| F64 | 1 / 256 / 1 | 2617.32 | 3510.81 | – | – | 3510.61 |
+| F64 | 16 / 256 / 32 | 6721.35 | 7613.85 | – | – | 7622.48 |
+| F64 | 1 / 512 / 8 | 6209.58 | 9356.10 | – | – | 9361.92 |
+| F64 | 1 / 1024 / 8 | 23837.97 | 31688.44 | – | – | 31696.15 |
 
-The combined paths provide up to 1.98x speedup over all fallbacks in this run
-(F32, batch 64, n=65, RHS=8). Each specialization has workloads that
+The combined paths provide up to 1.69x speedup over all fallbacks in this run
+(F32, batch 16, n=129, RHS=8). Each specialization has workloads that
 benefit, supporting retention of both panel implementations, the small-system RHS kernel,
-and subgroup operations. Automatic selection is not uniformly fastest: for F64, batch 64,
-n=31 and RHS=8, shared panels take 625.28 us versus 342.78 us
-with register panels. The F32 n=31 case also favors blocked RHS substitution. These losses
-identify small batched systems as a target for further dispatch tuning across devices.
+and subgroup operations. Automatic selection is not uniformly fastest: for
+F64, batch 256, n=16 and RHS=8, Auto takes 597.12 us
+versus 390.45 us with `register_panel`. These losses identify dispatch decisions for
+further tuning across devices.
 Other CubeCL runtimes, strided/broadcast performance, low-precision API overhead and fusion
 latency were not benchmarked.
 

@@ -12,11 +12,12 @@ use alloc::format;
 use alloc::string::String;
 use alloc::string::ToString;
 use alloc::vec;
+use alloc::vec::Vec;
 
-use burn_pack::Tensor as PackTensor;
+use crate::StoreTensor;
 
 use burn_core::tensor::shape;
-use burn_core::tensor::{DType, TensorData};
+use burn_core::tensor::{DType, Shape, TensorData};
 use hashbrown::HashSet;
 
 // Module type names as they appear in the container stack
@@ -43,7 +44,7 @@ mod module_names {
 
 /// Where in a module hierarchy a tensor was found.
 ///
-/// The one thing a [`PackTensor`] cannot carry. Its contents are Burn module vocabulary
+/// The one thing a [`StoreTensor`] cannot carry. Its contents are Burn module vocabulary
 /// (`"Struct:Linear"`, `"Vec"`, `"Enum:ConvType"`), produced by the `Module` derive macro,
 /// while `burn-pack` is a format crate with no notion of modules at all. Rather than push that
 /// vocabulary into the on-disk type, the traversal hands it to adapters alongside the tensor.
@@ -103,7 +104,7 @@ pub trait ModuleAdapter: Send + Sync {
     /// `tensor.name` is the parameter's path in the module being traversed, not the key it was
     /// stored under. An adapter that renames sets it, and the next adapter in a chain sees the
     /// renamed value.
-    fn adapt(&self, tensor: PackTensor, ctx: ModuleContext<'_>) -> PackTensor;
+    fn adapt(&self, tensor: StoreTensor, ctx: ModuleContext<'_>) -> StoreTensor;
 
     /// Get alternative parameter name to try during matching
     ///
@@ -172,7 +173,7 @@ impl ChainAdapter {
 }
 
 impl ModuleAdapter for ChainAdapter {
-    fn adapt(&self, tensor: PackTensor, ctx: ModuleContext<'_>) -> PackTensor {
+    fn adapt(&self, tensor: StoreTensor, ctx: ModuleContext<'_>) -> StoreTensor {
         self.second.adapt(self.first.adapt(tensor, ctx), ctx)
     }
 
@@ -200,7 +201,7 @@ impl ModuleAdapter for ChainAdapter {
 pub struct IdentityAdapter;
 
 impl ModuleAdapter for IdentityAdapter {
-    fn adapt(&self, tensor: PackTensor, _ctx: ModuleContext<'_>) -> PackTensor {
+    fn adapt(&self, tensor: StoreTensor, _ctx: ModuleContext<'_>) -> StoreTensor {
         tensor
     }
 
@@ -210,8 +211,8 @@ impl ModuleAdapter for IdentityAdapter {
 }
 
 /// Compose a dtype cast onto a tensor's data, leaving it deferred.
-fn cast(tensor: PackTensor, target: DType) -> PackTensor {
-    let (name, shape) = (tensor.name.clone(), tensor.shape.clone());
+fn cast(tensor: StoreTensor, target: DType) -> StoreTensor {
+    let (name, shape) = (tensor.name().to_string(), Shape::from(tensor.shape()));
 
     bridge::map_data(tensor, name, target, shape, move |data| {
         data.convert_dtype(target)
@@ -219,15 +220,15 @@ fn cast(tensor: PackTensor, target: DType) -> PackTensor {
 }
 
 /// The last segment of a tensor's name, which is the parameter's own name.
-fn param_name(tensor: &PackTensor) -> &str {
-    tensor.name.rsplit('.').next().unwrap_or("")
+fn param_name(tensor: &StoreTensor) -> &str {
+    tensor.name().rsplit('.').next().unwrap_or("")
 }
 
 /// Replace the last segment of a tensor's name, leaving its data untouched.
-fn rename_param(mut tensor: PackTensor, new_name: &str) -> PackTensor {
-    let keep = tensor.name.rfind('.').map(|i| i + 1).unwrap_or(0);
-    tensor.name.truncate(keep);
-    tensor.name.push_str(new_name);
+fn rename_param(mut tensor: StoreTensor, new_name: &str) -> StoreTensor {
+    let keep = tensor.name().rfind('.').map_or(0, |i| i + 1);
+    let name = format!("{}{new_name}", &tensor.name()[..keep]);
+    tensor.set_name(name);
     tensor
 }
 
@@ -351,9 +352,9 @@ impl Default for HalfPrecisionAdapter {
 }
 
 impl ModuleAdapter for HalfPrecisionAdapter {
-    fn adapt(&self, tensor: PackTensor, ctx: ModuleContext<'_>) -> PackTensor {
+    fn adapt(&self, tensor: StoreTensor, ctx: ModuleContext<'_>) -> StoreTensor {
         // Determine target dtype from source: F32 -> F16, F16 -> F32, anything else -> skip
-        let target_dtype = match tensor.dtype {
+        let target_dtype = match tensor.dtype() {
             DType::F32 => DType::F16,
             DType::F16 => DType::F32,
             _ => return tensor,
@@ -422,8 +423,8 @@ impl FloatCastAdapter {
 }
 
 impl ModuleAdapter for FloatCastAdapter {
-    fn adapt(&self, tensor: PackTensor, _ctx: ModuleContext<'_>) -> PackTensor {
-        if !tensor.dtype.is_float() || tensor.dtype == self.target {
+    fn adapt(&self, tensor: StoreTensor, _ctx: ModuleContext<'_>) -> StoreTensor {
+        if !tensor.dtype().is_float() || tensor.dtype() == self.target {
             return tensor;
         }
 
@@ -444,7 +445,7 @@ impl ModuleAdapter for FloatCastAdapter {
 pub struct PyTorchToBurnAdapter;
 
 impl ModuleAdapter for PyTorchToBurnAdapter {
-    fn adapt(&self, tensor: PackTensor, ctx: ModuleContext<'_>) -> PackTensor {
+    fn adapt(&self, tensor: StoreTensor, ctx: ModuleContext<'_>) -> StoreTensor {
         adapt_pytorch_tensor(tensor, ctx, PyTorchConversionDirection::PyTorchToBurn)
     }
 
@@ -471,7 +472,7 @@ impl ModuleAdapter for PyTorchToBurnAdapter {
 pub struct BurnToPyTorchAdapter;
 
 impl ModuleAdapter for BurnToPyTorchAdapter {
-    fn adapt(&self, tensor: PackTensor, ctx: ModuleContext<'_>) -> PackTensor {
+    fn adapt(&self, tensor: StoreTensor, ctx: ModuleContext<'_>) -> StoreTensor {
         adapt_pytorch_tensor(tensor, ctx, PyTorchConversionDirection::BurnToPyTorch)
     }
 
@@ -527,10 +528,10 @@ fn burn_norm_param_to_pytorch(param_name: &str) -> Option<&'static str> {
 
 /// Core tensor adaptation logic for PyTorch format conversions
 fn adapt_pytorch_tensor(
-    tensor: PackTensor,
+    tensor: StoreTensor,
     ctx: ModuleContext<'_>,
     direction: PyTorchConversionDirection,
-) -> PackTensor {
+) -> StoreTensor {
     // Get module type for matching (ignores Vec/Array wrappers)
     let Some(module_type) = ctx.module_type() else {
         return tensor; // No user-defined module found
@@ -538,7 +539,7 @@ fn adapt_pytorch_tensor(
     let param = param_name(&tensor);
 
     // Linear: transpose weight (bidirectional - same operation both ways)
-    if module_type == module_names::LINEAR && param == "weight" && tensor.shape.len() == 2 {
+    if module_type == module_names::LINEAR && param == "weight" && tensor.shape().len() == 2 {
         return transpose_2d_tensor(tensor);
     }
 
@@ -558,8 +559,8 @@ fn adapt_pytorch_tensor(
 }
 
 /// Transpose a 2D tensor
-fn transpose_2d_tensor(tensor: PackTensor) -> PackTensor {
-    if tensor.shape.len() != 2 {
+fn transpose_2d_tensor(tensor: StoreTensor) -> StoreTensor {
+    if tensor.shape().len() != 2 {
         return tensor;
     }
 
@@ -567,12 +568,18 @@ fn transpose_2d_tensor(tensor: PackTensor) -> PackTensor {
     // elements: `DType::size()` is 0 for a sub-byte value type, and a packed store's byte
     // length is recomputed per line, so transposing one both scrambles the scales and
     // contradicts the length declared below. Pass it through instead.
-    if matches!(tensor.dtype, DType::QFloat(_)) {
+    if matches!(tensor.dtype(), DType::QFloat(_)) {
         return tensor;
     }
 
-    let (name, dtype) = (tensor.name.clone(), tensor.dtype);
-    let transposed_shape = shape![tensor.shape[1], tensor.shape[0]];
+    // A source that holds the matrix in transposed order, as a PyTorch `.t()` view does,
+    // reads its transpose as a straight copy.
+    if let Some(transposed) = tensor.stored_transpose() {
+        return transposed;
+    }
+
+    let (name, dtype) = (tensor.name().to_string(), tensor.dtype());
+    let transposed_shape = shape![tensor.shape()[1], tensor.shape()[0]];
 
     // Compose the transpose onto the byte source; it runs when the data is finally drawn.
     bridge::map_data(tensor, name, dtype, transposed_shape, transpose_tensor_data)
@@ -580,33 +587,64 @@ fn transpose_2d_tensor(tensor: PackTensor) -> PackTensor {
 
 /// Transpose tensor data (assumes 2D shape is already validated)
 fn transpose_tensor_data(data: TensorData) -> TensorData {
-    let shape = data.shape();
-    let rows = shape[0];
-    let cols = shape[1];
-    let transposed_shape = vec![cols, rows];
+    let (bytes, shape, dtype) = data.into_parts();
+    let (rows, cols) = (shape[0], shape[1]);
 
-    // Get the raw bytes and element size
-    let bytes = data.as_bytes();
-    let element_size = data.dtype().size();
+    // Moving whole elements as fixed-size arrays turns each copy into a register move rather
+    // than a `memcpy` of a run-time length. Valid for fixed-width dtypes, which is why
+    // quantized data is turned away before it gets here.
+    let transposed = match dtype.size() {
+        1 => transpose_elements::<1>(&bytes, rows, cols),
+        2 => transpose_elements::<2>(&bytes, rows, cols),
+        4 => transpose_elements::<4>(&bytes, rows, cols),
+        8 => transpose_elements::<8>(&bytes, rows, cols),
+        size => unreachable!("no fixed-width dtype is {size} bytes wide"),
+    };
 
-    // Create a new buffer for transposed data
-    let mut transposed_bytes = vec![0u8; bytes.len()];
+    TensorData::from_bytes_vec(transposed, vec![cols, rows], dtype)
+}
 
-    // Transpose at the byte level - valid for fixed-width dtypes, which is why quantized
-    // data is turned away before it gets here
-    for i in 0..rows {
-        for j in 0..cols {
-            let src_idx = (i * cols + j) * element_size;
-            let dst_idx = (j * rows + i) * element_size;
+/// Transpose a row-major `[rows, cols]` matrix of `N`-byte elements into a row-major
+/// `[cols, rows]` one.
+///
+/// Copies `TILE` x `TILE` tiles, so the source and output rows a tile touches stay in cache
+/// while it is copied, instead of striding across the whole output for every element.
+///
+/// `transpose` in `crates/pytorch-reader/src/pickle_reader.rs` is the same copy; keep them in
+/// sync.
+fn transpose_elements<const N: usize>(bytes: &[u8], rows: usize, cols: usize) -> Vec<u8> {
+    const TILE: usize = 32;
 
-            // Copy the bytes for this element
-            transposed_bytes[dst_idx..dst_idx + element_size]
-                .copy_from_slice(&bytes[src_idx..src_idx + element_size]);
-        }
+    if rows == 0 || cols == 0 {
+        return Vec::new();
     }
-
-    // Create new TensorData from transposed bytes
-    TensorData::from_bytes_vec(transposed_bytes, transposed_shape, data.dtype())
+    let (src, _) = bytes.as_chunks::<N>();
+    debug_assert_eq!(
+        src.len(),
+        rows * cols,
+        "source is not a [{rows}, {cols}] matrix"
+    );
+    let mut out = vec![[0; N]; rows * cols];
+    // A band of output rows is a band of source columns; fill it one tile of source rows at a
+    // time. Each tile is bounded by the dimension it spans before multiplying, so its length
+    // never exceeds `rows * cols`, which the allocation above shows fits.
+    out.chunks_mut(TILE.min(cols) * rows)
+        .zip((0..cols).step_by(TILE))
+        .for_each(|(band, col_start)| {
+            src.chunks(TILE.min(rows) * cols)
+                .zip((0..rows).step_by(TILE))
+                .for_each(|(block, row_start)| {
+                    band.chunks_exact_mut(rows)
+                        .zip(col_start..)
+                        .for_each(|(out_row, col)| {
+                            out_row[row_start..]
+                                .iter_mut()
+                                .zip(block.chunks_exact(cols))
+                                .for_each(|(dst, src_row)| *dst = src_row[col]);
+                        });
+                });
+        });
+    out.into_flattened()
 }
 
 #[cfg(test)]
@@ -648,12 +686,12 @@ mod tests {
     }
 
     /// A tensor holding `data`, standing in for one the collector produced.
-    fn tensor_with(name: &str, data: TensorData) -> PackTensor {
-        bridge::from_data(data, name.to_string(), None)
+    fn tensor_with(name: &str, data: TensorData) -> StoreTensor {
+        bridge::from_data(data, name.to_string(), None).into()
     }
 
     /// An F32 tensor of ones.
-    fn tensor(name: &str, shape: Shape) -> PackTensor {
+    fn tensor(name: &str, shape: Shape) -> StoreTensor {
         let values = vec![1.0f32; shape.iter().product()];
         tensor_with(name, TensorData::new(values, shape))
     }
@@ -669,13 +707,13 @@ mod tests {
         name: &str,
         shape: Shape,
         container_type: &str,
-    ) -> PackTensor {
+    ) -> StoreTensor {
         let containers = containers(container_type);
         adapter.adapt(tensor(name, shape), ModuleContext::new(&containers))
     }
 
     /// Adapt a tensor reached outside any user-defined module.
-    fn adapt_without_module(adapter: &dyn ModuleAdapter, tensor: PackTensor) -> PackTensor {
+    fn adapt_without_module(adapter: &dyn ModuleAdapter, tensor: StoreTensor) -> StoreTensor {
         adapter.adapt(tensor, ModuleContext::new(&[]))
     }
 
@@ -685,11 +723,11 @@ mod tests {
 
         // Linear layer weight should be transposed
         let adapted = adapt_in(&adapter, "fc.weight", shape![10, 5], module_names::LINEAR);
-        assert_eq!(adapted.shape, shape![5, 10]);
+        assert_eq!(adapted.shape(), [5, 10]);
 
         // Linear layer bias should not be transposed
         let adapted = adapt_in(&adapter, "fc.bias", shape![10], module_names::LINEAR);
-        assert_eq!(adapted.shape, shape![10]);
+        assert_eq!(adapted.shape(), [10]);
     }
 
     #[test]
@@ -703,11 +741,11 @@ mod tests {
             shape![10],
             module_names::BATCH_NORM,
         );
-        assert_eq!(adapted.name, "norm.gamma");
+        assert_eq!(adapted.name(), "norm.gamma");
 
         // BatchNorm bias -> beta
         let adapted = adapt_in(&adapter, "norm.bias", shape![10], module_names::BATCH_NORM);
-        assert_eq!(adapted.name, "norm.beta");
+        assert_eq!(adapted.name(), "norm.beta");
     }
 
     #[test]
@@ -716,7 +754,7 @@ mod tests {
 
         // Linear layer weight should be transposed
         let adapted = adapt_in(&adapter, "fc.weight", shape![5, 10], module_names::LINEAR);
-        assert_eq!(adapted.shape, shape![10, 5]);
+        assert_eq!(adapted.shape(), [10, 5]);
     }
 
     #[test]
@@ -725,11 +763,11 @@ mod tests {
 
         // BatchNorm gamma -> weight
         let adapted = adapt_in(&adapter, "norm.gamma", shape![10], module_names::BATCH_NORM);
-        assert_eq!(adapted.name, "norm.weight");
+        assert_eq!(adapted.name(), "norm.weight");
 
         // BatchNorm beta -> bias
         let adapted = adapt_in(&adapter, "norm.beta", shape![10], module_names::BATCH_NORM);
-        assert_eq!(adapted.name, "norm.bias");
+        assert_eq!(adapted.name(), "norm.bias");
     }
 
     /// Renaming a parameter must leave the rest of the path alone, including a name with no
@@ -744,10 +782,10 @@ mod tests {
             shape![10],
             module_names::LAYER_NORM,
         );
-        assert_eq!(adapted.name, "encoder.layers.0.norm.gamma");
+        assert_eq!(adapted.name(), "encoder.layers.0.norm.gamma");
 
         let adapted = adapt_in(&adapter, "weight", shape![10], module_names::LAYER_NORM);
-        assert_eq!(adapted.name, "gamma");
+        assert_eq!(adapted.name(), "gamma");
     }
 
     #[test]
@@ -776,6 +814,49 @@ mod tests {
         assert_eq!(values, vec![1.0, 3.0, 2.0, 4.0]);
     }
 
+    /// Shapes larger than the transpose's tile and not a multiple of it, for every element
+    /// width, against `out[j][i] = in[i][j]`; and empty shapes, which have no tiles at all.
+    #[test]
+    fn transpose_matches_the_definition_across_tiles() {
+        fn check<T>(rows: usize, cols: usize)
+        where
+            T: burn_core::tensor::Element + TryFrom<usize> + PartialEq + core::fmt::Debug,
+            T::Error: core::fmt::Debug,
+        {
+            let value = |i: usize, j: usize| T::try_from((i * cols + j) % 251).unwrap();
+            let values: Vec<T> = (0..rows)
+                .flat_map(|i| (0..cols).map(move |j| value(i, j)))
+                .collect();
+            let expected: Vec<T> = (0..cols)
+                .flat_map(|j| (0..rows).map(move |i| value(i, j)))
+                .collect();
+
+            let transposed = transpose_tensor_data(TensorData::new(values, [rows, cols]));
+            assert_eq!(*transposed.shape(), shape![cols, rows]);
+            assert_eq!(
+                transposed.try_to_vec::<T>().unwrap(),
+                expected,
+                "{} {rows}x{cols}",
+                core::any::type_name::<T>()
+            );
+        }
+
+        for (rows, cols) in [
+            (37, 70),
+            (70, 37),
+            (32, 64),
+            (1, 45),
+            (45, 1),
+            (0, 3),
+            (3, 0),
+        ] {
+            check::<u8>(rows, cols);
+            check::<u16>(rows, cols);
+            check::<u32>(rows, cols);
+            check::<u64>(rows, cols);
+        }
+    }
+
     /// A transposed tensor must actually carry transposed bytes, not just a swapped shape.
     /// `map_data` defers the transform, so nothing checks it until the data is drawn.
     #[test]
@@ -789,11 +870,8 @@ mod tests {
             ModuleContext::new(&containers),
         );
 
-        assert_eq!(adapted.shape, shape![3, 2]);
-        let values = bridge::to_data(&adapted)
-            .unwrap()
-            .try_into_vec::<f32>()
-            .unwrap();
+        assert_eq!(adapted.shape(), [3, 2]);
+        let values = adapted.to_data().unwrap().try_into_vec::<f32>().unwrap();
         assert_eq!(values, vec![1.0, 4.0, 2.0, 5.0, 3.0, 6.0]);
     }
 
@@ -803,11 +881,11 @@ mod tests {
 
         // Without container info, no transformation occurs for linear layers
         let adapted = adapt_without_module(&adapter, tensor("fc.weight", shape![10, 5]));
-        assert_eq!(adapted.shape, shape![10, 5]); // No transposition without container info
+        assert_eq!(adapted.shape(), [10, 5]); // No transposition without container info
 
         // Test a non-linear, non-norm parameter - should pass through unchanged
         let adapted = adapt_without_module(&adapter, tensor("other.weight", shape![10, 5]));
-        assert_eq!(adapted.shape, shape![10, 5]); // No transposition
+        assert_eq!(adapted.shape(), [10, 5]); // No transposition
     }
 
     /// A `Vec<Linear>` still adapts as a Linear: the collection wrapper sits on top of the
@@ -825,7 +903,7 @@ mod tests {
             tensor("layers.0.weight", shape![10, 5]),
             ModuleContext::new(&containers),
         );
-        assert_eq!(adapted.shape, shape![5, 10]);
+        assert_eq!(adapted.shape(), [5, 10]);
     }
 
     #[derive(Clone)]
@@ -836,7 +914,7 @@ mod tests {
     }
 
     impl ModuleAdapter for RenameParamAdapter {
-        fn adapt(&self, tensor: PackTensor, _ctx: ModuleContext<'_>) -> PackTensor {
+        fn adapt(&self, tensor: StoreTensor, _ctx: ModuleContext<'_>) -> StoreTensor {
             self.called.fetch_add(1, Ordering::Relaxed);
 
             if param_name(&tensor) != self.from {
@@ -867,7 +945,7 @@ mod tests {
     }
 
     impl ModuleAdapter for AltNameAdapter {
-        fn adapt(&self, tensor: PackTensor, _ctx: ModuleContext<'_>) -> PackTensor {
+        fn adapt(&self, tensor: StoreTensor, _ctx: ModuleContext<'_>) -> StoreTensor {
             tensor
         }
 
@@ -908,7 +986,7 @@ mod tests {
         let chain = a.chain(b);
         let adapted = adapt_in(&chain, "fc.weight", shape![2, 2], module_names::LINEAR);
 
-        assert_eq!(adapted.name, "fc.b");
+        assert_eq!(adapted.name(), "fc.b");
         assert_eq!(called1.load(Ordering::Relaxed), 1);
         assert_eq!(called2.load(Ordering::Relaxed), 1);
     }
@@ -985,10 +1063,10 @@ mod tests {
         let adapter = HalfPrecisionAdapter::new();
 
         let adapted = adapt_in(&adapter, "fc.weight", shape![2, 3], module_names::LINEAR);
-        assert_eq!(adapted.dtype, DType::F16);
-        assert_eq!(adapted.shape, shape![2, 3]);
+        assert_eq!(adapted.dtype(), DType::F16);
+        assert_eq!(adapted.shape(), [2, 3]);
 
-        let data = bridge::to_data(&adapted).unwrap();
+        let data = adapted.to_data().unwrap();
         assert_eq!(data.dtype(), DType::F16);
     }
 
@@ -1001,7 +1079,7 @@ mod tests {
 
         let adapted = adapt_in(&adapter, "fc.weight", shape![2, 3], module_names::LINEAR);
         assert_eq!(adapted.byte_len(), 6 * 2);
-        assert_eq!(bridge::to_data(&adapted).unwrap().bytes().len(), 6 * 2);
+        assert_eq!(adapted.to_data().unwrap().bytes().len(), 6 * 2);
     }
 
     #[test]
@@ -1016,7 +1094,7 @@ mod tests {
             tensor_with("fc.weight", data),
             ModuleContext::new(&containers),
         );
-        assert_eq!(adapted.dtype, DType::F32);
+        assert_eq!(adapted.dtype(), DType::F32);
     }
 
     #[test]
@@ -1030,7 +1108,7 @@ mod tests {
             shape![10],
             module_names::BATCH_NORM,
         );
-        assert_eq!(adapted.dtype, DType::F32); // unchanged
+        assert_eq!(adapted.dtype(), DType::F32); // unchanged
     }
 
     #[test]
@@ -1040,13 +1118,37 @@ mod tests {
         for (name, shape, module) in [
             ("fc.weight", shape![2, 3], module_names::LINEAR),
             ("emb.weight", shape![100, 64], module_names::EMBEDDING),
+            ("conv.weight", shape![3, 3, 3], module_names::CONV1D),
             ("conv.weight", shape![3, 3, 3, 3], module_names::CONV2D),
+            ("conv.weight", shape![3, 3, 3, 3, 3], module_names::CONV3D),
+            (
+                "convt.weight",
+                shape![3, 3, 3],
+                module_names::CONV_TRANSPOSE1D,
+            ),
+            (
+                "convt.weight",
+                shape![3, 3, 3, 3],
+                module_names::CONV_TRANSPOSE2D,
+            ),
+            (
+                "convt.weight",
+                shape![3, 3, 3, 3, 3],
+                module_names::CONV_TRANSPOSE3D,
+            ),
+            (
+                "dconv.weight",
+                shape![3, 3, 3, 3],
+                module_names::DEFORM_CONV2D,
+            ),
             ("norm.gamma", shape![10], module_names::LAYER_NORM),
             ("gn.gamma", shape![10], module_names::GROUP_NORM),
+            ("inorm.gamma", shape![10], module_names::INSTANCE_NORM),
             ("rms.weight", shape![10], module_names::RMS_NORM),
+            ("prelu.alpha", shape![10], module_names::PRELU),
         ] {
             assert_eq!(
-                adapt_in(&adapter, name, shape, module).dtype,
+                adapt_in(&adapter, name, shape, module).dtype(),
                 DType::F16,
                 "{module} should be converted"
             );
@@ -1059,11 +1161,11 @@ mod tests {
 
         // LayerNorm removed from conversion set
         let adapted = adapt_in(&adapter, "norm.gamma", shape![10], module_names::LAYER_NORM);
-        assert_eq!(adapted.dtype, DType::F32);
+        assert_eq!(adapted.dtype(), DType::F32);
 
         // Linear still converted
         let adapted = adapt_in(&adapter, "fc.weight", shape![2, 3], module_names::LINEAR);
-        assert_eq!(adapted.dtype, DType::F16);
+        assert_eq!(adapted.dtype(), DType::F16);
     }
 
     #[test]
@@ -1072,7 +1174,7 @@ mod tests {
 
         // Custom module should now be converted
         let adapted = adapt_in(&adapter, "custom.weight", shape![5], "Struct:CustomLayer");
-        assert_eq!(adapted.dtype, DType::F16);
+        assert_eq!(adapted.dtype(), DType::F16);
     }
 
     #[test]
@@ -1080,7 +1182,7 @@ mod tests {
         let adapter = HalfPrecisionAdapter::new().with_module("Struct:CustomLayer");
 
         let adapted = adapt_in(&adapter, "custom.weight", shape![5], "Struct:CustomLayer");
-        assert_eq!(adapted.dtype, DType::F16);
+        assert_eq!(adapted.dtype(), DType::F16);
     }
 
     #[test]
@@ -1090,8 +1192,8 @@ mod tests {
         let adapted = adapt_in(&adapter, "fc.weight", shape![10, 5], module_names::LINEAR);
 
         // Should be both transposed and cast
-        assert_eq!(adapted.shape, shape![5, 10]);
-        assert_eq!(adapted.dtype, DType::F16);
+        assert_eq!(adapted.shape(), [5, 10]);
+        assert_eq!(adapted.dtype(), DType::F16);
     }
 
     #[test]
@@ -1100,7 +1202,7 @@ mod tests {
 
         // No module type info: skip
         let adapted = adapt_without_module(&adapter, tensor("fc.weight", shape![2, 3]));
-        assert_eq!(adapted.dtype, DType::F32);
+        assert_eq!(adapted.dtype(), DType::F32);
     }
 
     #[test]
@@ -1114,19 +1216,12 @@ mod tests {
         let qfloat_dtype = DType::QFloat(QuantScheme::default());
         let shape = shape![2, 3];
         let bytes = Bytes::from_bytes_vec(vec![0u8; bridge::data_len(qfloat_dtype, &shape)]);
-        let qfloat = PackTensor::new("fc.weight".to_string(), qfloat_dtype, shape, None, bytes);
+        let source =
+            burn_pack::Tensor::new("fc.weight".to_string(), qfloat_dtype, shape, None, bytes);
 
         let containers = containers(module_names::LINEAR);
-        let adapted = adapter.adapt(qfloat, ModuleContext::new(&containers));
-        assert_eq!(adapted.dtype, qfloat_dtype);
-    }
-
-    #[test]
-    fn test_half_precision_default_module_count() {
-        let adapter = HalfPrecisionAdapter::new();
-        // 14 modules: Linear, Embedding, Conv1d-3d, ConvTranspose1d-3d,
-        // DeformConv2d, LayerNorm, GroupNorm, InstanceNorm, RmsNorm, PRelu
-        assert_eq!(adapter.modules.len(), 14);
+        let adapted = adapter.adapt(source.into(), ModuleContext::new(&containers));
+        assert_eq!(adapted.dtype(), qfloat_dtype);
     }
 
     #[test]
@@ -1134,12 +1229,12 @@ mod tests {
         let adapter = HalfPrecisionAdapter::new().without_module("Struct:LayerNorm");
 
         let adapted = adapt_in(&adapter, "norm.gamma", shape![10], module_names::LAYER_NORM);
-        assert_eq!(adapted.dtype, DType::F32);
+        assert_eq!(adapted.dtype(), DType::F32);
     }
 
     /// A tensor with a specific float dtype (values convertible exactly in F16/BF16 so
     /// round-trips can be checked precisely).
-    fn float_tensor(dtype: DType) -> PackTensor {
+    fn float_tensor(dtype: DType) -> StoreTensor {
         let values = vec![1.0f32, -2.0, 0.5, 4.0, -0.25, 8.0];
         let data = TensorData::new(values, shape![2, 3]).convert_dtype(dtype);
         tensor_with("fc.weight", data)
@@ -1152,11 +1247,11 @@ mod tests {
         let containers = containers(module_names::LINEAR);
 
         let adapted = adapter.adapt(float_tensor(DType::BF16), ModuleContext::new(&containers));
-        assert_eq!(adapted.dtype, DType::F16);
-        assert_eq!(adapted.shape, shape![2, 3]);
-        assert_eq!(adapted.name, "fc.weight");
+        assert_eq!(adapted.dtype(), DType::F16);
+        assert_eq!(adapted.shape(), [2, 3]);
+        assert_eq!(adapted.name(), "fc.weight");
 
-        let data = bridge::to_data(&adapted).unwrap();
+        let data = adapted.to_data().unwrap();
         assert_eq!(data.dtype(), DType::F16);
         let values = data
             .convert_dtype(DType::F32)
@@ -1171,18 +1266,18 @@ mod tests {
         let adapter = FloatCastAdapter::to(DType::F16);
         let containers = containers("Struct:CustomLayer");
         let adapted = adapter.adapt(float_tensor(DType::F32), ModuleContext::new(&containers));
-        assert_eq!(adapted.dtype, DType::F16);
+        assert_eq!(adapted.dtype(), DType::F16);
 
         // Even with no container info at all.
         let adapted = adapt_without_module(&adapter, float_tensor(DType::F32));
-        assert_eq!(adapted.dtype, DType::F16);
+        assert_eq!(adapted.dtype(), DType::F16);
     }
 
     #[test]
     fn test_float_cast_passthrough_on_target_dtype() {
         let adapter = FloatCastAdapter::to(DType::F16);
         let adapted = adapt_without_module(&adapter, float_tensor(DType::F16));
-        assert_eq!(adapted.dtype, DType::F16);
+        assert_eq!(adapted.dtype(), DType::F16);
     }
 
     #[test]
@@ -1192,7 +1287,7 @@ mod tests {
 
         let data = TensorData::new(vec![1i64, 2, 3], shape![3]);
         let adapted = adapter.adapt(tensor_with("idx", data), ModuleContext::new(&containers));
-        assert_eq!(adapted.dtype, DType::I64);
+        assert_eq!(adapted.dtype(), DType::I64);
     }
 
     /// A quantized weight is packed values plus an inline scale tail, not a grid of
@@ -1208,23 +1303,25 @@ mod tests {
         let quantized = Tensor::<2>::random(shape![3, 8], Distribution::Default, &device)
             .quantize_dynamic(&QuantScheme::default().with_value(QuantValue::Q4S));
 
-        let source = bridge::from_tensor(&quantized, "fc.weight".to_string(), None);
+        let source = StoreTensor::from(bridge::from_tensor(
+            &quantized,
+            "fc.weight".to_string(),
+            None,
+        ));
         let (shape, bytes) = (
-            source.shape.clone(),
-            bridge::to_data(&source).unwrap().as_bytes().to_vec(),
+            source.shape().to_vec(),
+            source.to_data().unwrap().as_bytes().to_vec(),
         );
 
         let containers = containers(module_names::LINEAR);
         let adapted = BurnToPyTorchAdapter.adapt(source, ModuleContext::new(&containers));
 
         assert_eq!(
-            adapted.shape, shape,
+            adapted.shape(),
+            shape.as_slice(),
             "a quantized weight must pass through unchanged"
         );
-        assert_eq!(
-            bridge::to_data(&adapted).unwrap().as_bytes().to_vec(),
-            bytes
-        );
+        assert_eq!(adapted.to_data().unwrap().as_bytes().to_vec(), bytes);
     }
 
     /// A stack of only collection wrappers has no user-defined module in it.
@@ -1240,8 +1337,8 @@ mod tests {
         let adapter = PyTorchToBurnAdapter.chain(FloatCastAdapter::to(DType::F16));
 
         let adapted = adapt_in(&adapter, "fc.weight", shape![10, 5], module_names::LINEAR);
-        assert_eq!(adapted.shape, shape![5, 10]);
-        assert_eq!(adapted.dtype, DType::F16);
+        assert_eq!(adapted.shape(), [5, 10]);
+        assert_eq!(adapted.dtype(), DType::F16);
     }
 
     #[test]
@@ -1255,6 +1352,6 @@ mod tests {
         let adapter = HalfPrecisionAdapter::new().with_module("BatchNorm");
 
         let adapted = adapt_in(&adapter, "bn.weight", shape![10], module_names::BATCH_NORM);
-        assert_eq!(adapted.dtype, DType::F16);
+        assert_eq!(adapted.dtype(), DType::F16);
     }
 }

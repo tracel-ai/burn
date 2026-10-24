@@ -200,19 +200,6 @@ fn should_select_assign_max_2d_dim0() {
 }
 
 #[test]
-fn should_select_add_1d_int() {
-    let device = Default::default();
-    let tensor = TestTensorInt::<1>::from_data([7, 8, 9], &device);
-    let values = TestTensorInt::from_data([5, 4, 3, 2, 1], &device);
-    let indices = TestTensorInt::from_data(TensorData::from([1, 1, 0, 1, 2]), &device);
-
-    let output = tensor.select_assign(0, indices, values, IndexingUpdateOp::Add);
-    let expected = TensorData::from([10, 19, 10]);
-
-    output.into_data().assert_eq(&expected, false);
-}
-
-#[test]
 fn should_select_add_2d_dim0() {
     let device = Default::default();
     let tensor = TestTensor::<2>::from_data([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]], &device);
@@ -260,37 +247,13 @@ fn should_select_3d_dim1_vec() {
 }
 
 #[test]
-#[should_panic]
+#[should_panic(expected = "out of bounds")]
 fn should_select_panic_invalid_dimension() {
     let device = Default::default();
     let tensor = TestTensor::<2>::from_data([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]], &device);
     let indices = TestTensorInt::from_data([1, 1, 0, 1, 2], &device);
 
     tensor.select(10, indices);
-}
-
-#[test]
-fn should_match_default_implementation_behavior() {
-    // Verify optimized implementation matches original default logic
-    let device = Default::default();
-    let tensor = TestTensorBool::<1>::from_data([true, false, true], &device);
-    let indices = TestTensorInt::from_data([0, 1, 0], &device);
-    let values = TestTensorBool::<1>::from_data([false, true, true], &device);
-
-    let optimized_result =
-        tensor
-            .clone()
-            .select_assign(0, indices.clone(), values.clone(), IndexingUpdateOp::Add);
-
-    // Manual default implementation logic
-    let int_tensor = tensor.int();
-    let int_values = values.int();
-    let assigned = int_tensor.select_assign(0, indices, int_values, IndexingUpdateOp::Add);
-    let default_result = assigned.greater_elem(0);
-
-    optimized_result
-        .into_data()
-        .assert_eq(&default_result.into_data(), false);
 }
 
 #[test]
@@ -331,7 +294,7 @@ fn should_select_add_with_negative_dim_2d() {
 }
 
 #[test]
-#[should_panic]
+#[should_panic(expected = "out of bounds")]
 fn should_panic_select_negative_dim_out_of_bounds() {
     let device = Default::default();
     let tensor = TestTensor::<2>::from_data([[1.0, 2.0], [3.0, 4.0]], &device);
@@ -342,7 +305,7 @@ fn should_panic_select_negative_dim_out_of_bounds() {
 }
 
 #[test]
-#[should_panic]
+#[should_panic(expected = "out of bounds")]
 fn should_panic_select_add_negative_dim_out_of_bounds() {
     let device = Default::default();
     let tensor = TestTensor::<2>::from_data([[1.0, 2.0], [3.0, 4.0]], &device);

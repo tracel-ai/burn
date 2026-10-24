@@ -1,4 +1,4 @@
-use burn_backend::ops::AttentionModuleOptions;
+use burn_backend::ops::{AttentionModuleOptions, CausalAlignment};
 use burn_backend::tensor::IndexingUpdateOp;
 use core::hash::Hash;
 use serde::{Deserialize, Serialize};
@@ -135,8 +135,6 @@ pub enum OperationIr {
     Custom(CustomOpIr),
     /// A tensor is dropped.
     Drop(TensorIr),
-    /// Operation specific to a distributed tensor.
-    Distributed(DistributedOperationIr),
     /// Activation function operation (relu, gelu, sigmoid, softmax, …).
     Activation(ActivationOperationIr),
 }
@@ -214,6 +212,10 @@ pub enum FloatOperationIr {
     Powf(BinaryOpIr),
     /// Operation corresponding to [hypot](burn_backend::ops::FloatTensorOps::float_hypot).
     Hypot(BinaryOpIr),
+    /// Operation corresponding to [fmod](burn_backend::ops::FloatTensorOps::float_fmod).
+    Fmod(BinaryOpIr),
+    /// Operation corresponding to [fmod scalar](burn_backend::ops::FloatTensorOps::float_fmod_scalar).
+    FmodScalar(ScalarOpIr),
 }
 
 /// Operation intermediate representation specific to module.
@@ -426,7 +428,7 @@ pub enum BaseOperationIr {
     ///
     /// Float => [select assign](burn_backend::ops::FloatTensorOps::float_select_assign).
     /// Int => [select assign](burn_backend::ops::IntTensorOps::int_select_assign).
-    /// Bool => [select assign](burn_backend::ops::BoolTensorOps::bool_select_or).
+    /// Bool => [select assign](burn_backend::ops::BoolTensorOps::bool_select_assign).
     SelectAssign(SelectAssignOpIr),
     /// Operation corresponding to:
     ///
@@ -450,7 +452,7 @@ pub enum BaseOperationIr {
     ///
     /// Float => [scatter](burn_backend::ops::FloatTensorOps::float_scatter).
     /// Int => [scatter](burn_backend::ops::IntTensorOps::int_scatter).
-    /// Bool => [scatter](burn_backend::ops::BoolTensorOps::bool_scatter_or).
+    /// Bool => [scatter](burn_backend::ops::BoolTensorOps::bool_scatter).
     Scatter(ScatterOpIr),
     /// Multi-dimensional scatter operation.
     ScatterNd(ScatterNdOpIr),
@@ -869,22 +871,6 @@ pub enum BoolOperationIr {
     Xor(BinaryOpIr),
 }
 
-/// Operations that can be done on distributed tensors.
-#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
-#[allow(clippy::large_enum_variant)]
-pub enum DistributedOperationIr {
-    /// Operation corresponding to:
-    /// [all_reduce](burn_backend::distributed::DistributedOps::all_reduce).
-    AllReduce(AllReduceOpIr),
-    /// Resolve the pending collective operations on the executing device. Corresponds to
-    /// [sync_collective](burn_backend::distributed::DistributedOps::sync_collective).
-    ///
-    /// Fire-and-forget and payload-free: it syncs whichever device the interpreter is bound to.
-    /// Modeled as an operation (not a side-channel call) so it travels the normal op stream
-    /// alongside [`AllReduce`](DistributedOperationIr::AllReduce) and is ordered against it.
-    SyncCollective,
-}
-
 /// Swap dim operation intermediate representation.
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 pub struct SwapDimsOpIr {
@@ -1243,44 +1229,6 @@ pub struct CatOpIr {
     pub tensors: Vec<TensorIr>,
     pub dim: usize,
     pub out: TensorIr,
-}
-
-#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
-#[allow(missing_docs)]
-pub struct AllReduceOpIr {
-    pub tensor: TensorIr,
-    pub out: TensorIr,
-    /// How to reduce the values across the participating devices.
-    pub op: burn_backend::distributed::ReduceOperation,
-    /// The devices participating in the collective operation.
-    pub device_ids: Vec<DeviceIdIr>,
-}
-
-/// Serializable representation of a [device id](burn_backend::DeviceId).
-///
-/// The intermediate representation is part of the wire protocol (e.g. the remote backend), so it
-/// cannot store `burn_backend::DeviceId` directly since that type is not serializable.
-#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
-pub struct DeviceIdIr {
-    /// Identifies the type of the device.
-    pub type_id: u16,
-    /// Identifies the device number.
-    pub index_id: u16,
-}
-
-impl From<burn_backend::DeviceId> for DeviceIdIr {
-    fn from(value: burn_backend::DeviceId) -> Self {
-        Self {
-            type_id: value.type_id,
-            index_id: value.index_id,
-        }
-    }
-}
-
-impl From<DeviceIdIr> for burn_backend::DeviceId {
-    fn from(value: DeviceIdIr) -> Self {
-        burn_backend::DeviceId::new(value.type_id, value.index_id)
-    }
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
@@ -2071,6 +2019,9 @@ pub struct AttentionOptionsIr {
     pub scale: Option<ScalarIr>,
     pub softcap: Option<ScalarIr>,
     pub is_causal: bool,
+    /// Missing in IR recorded before the field existed; that IR was bottom-right aligned.
+    #[serde(default)]
+    pub causal_alignment: CausalAlignment,
 }
 
 impl From<AttentionOptionsIr> for AttentionModuleOptions {
@@ -2079,6 +2030,7 @@ impl From<AttentionOptionsIr> for AttentionModuleOptions {
             scale: ir.scale.map(|s| s.elem()),
             softcap: ir.softcap.map(|s| s.elem()),
             is_causal: ir.is_causal,
+            causal_alignment: ir.causal_alignment,
         }
     }
 }
@@ -2089,6 +2041,7 @@ impl From<AttentionModuleOptions> for AttentionOptionsIr {
             scale: ir.scale.map(ScalarIr::Float),
             softcap: ir.softcap.map(ScalarIr::Float),
             is_causal: ir.is_causal,
+            causal_alignment: ir.causal_alignment,
         }
     }
 }
@@ -2258,7 +2211,6 @@ impl OperationIr {
             OperationIr::Init(repr) => repr.inputs(),
             OperationIr::Custom(repr) => repr.inputs(),
             OperationIr::Drop(repr) => Box::new([repr].into_iter()),
-            OperationIr::Distributed(repr) => repr.inputs(),
             OperationIr::Activation(repr) => repr.inputs(),
         }
     }
@@ -2278,7 +2230,6 @@ impl OperationIr {
             OperationIr::Init(repr) => repr.outputs(),
             OperationIr::Custom(repr) => repr.outputs(),
             OperationIr::Drop(_repr) => Box::new([].into_iter()),
-            OperationIr::Distributed(repr) => repr.outputs(),
             OperationIr::Activation(repr) => repr.outputs(),
         }
     }
@@ -2318,7 +2269,6 @@ impl OperationIr {
 
                 output
             }
-            OperationIr::Distributed(repr) => repr.mark_read_only(nodes),
             OperationIr::Activation(repr) => repr.mark_read_only(nodes),
         }
     }
@@ -2343,7 +2293,6 @@ impl OperationIr {
             OperationIr::Init(repr) => repr.visit_mut(v),
             OperationIr::Custom(repr) => repr.visit_mut(v),
             OperationIr::Drop(repr) => v.visit_tensor_mut(repr),
-            OperationIr::Distributed(repr) => repr.visit_mut(v),
             OperationIr::Activation(repr) => repr.visit_mut(v),
         }
     }
@@ -3302,6 +3251,8 @@ impl FloatOperationIr {
             FloatOperationIr::ArcTan2(repr) => Box::new([&repr.lhs, &repr.rhs].into_iter()),
             FloatOperationIr::Powf(repr) => Box::new([&repr.lhs, &repr.rhs].into_iter()),
             FloatOperationIr::Hypot(repr) => Box::new([&repr.lhs, &repr.rhs].into_iter()),
+            FloatOperationIr::Fmod(repr) => Box::new([&repr.lhs, &repr.rhs].into_iter()),
+            FloatOperationIr::FmodScalar(repr) => Box::new([&repr.lhs].into_iter()),
         }
     }
     fn outputs(&self) -> Box<dyn Iterator<Item = &TensorIr> + '_> {
@@ -3341,6 +3292,8 @@ impl FloatOperationIr {
             FloatOperationIr::ArcTan2(repr) => Box::new([&repr.out].into_iter()),
             FloatOperationIr::Powf(repr) => Box::new([&repr.out].into_iter()),
             FloatOperationIr::Hypot(repr) => Box::new([&repr.out].into_iter()),
+            FloatOperationIr::Fmod(repr) => Box::new([&repr.out].into_iter()),
+            FloatOperationIr::FmodScalar(repr) => Box::new([&repr.out].into_iter()),
         }
     }
 
@@ -3442,6 +3395,13 @@ impl FloatOperationIr {
             FloatOperationIr::Hypot(repr) => {
                 repr.lhs.mark_read_only(nodes, &mut output);
                 repr.rhs.mark_read_only(nodes, &mut output);
+            }
+            FloatOperationIr::Fmod(repr) => {
+                repr.lhs.mark_read_only(nodes, &mut output);
+                repr.rhs.mark_read_only(nodes, &mut output);
+            }
+            FloatOperationIr::FmodScalar(repr) => {
+                repr.lhs.mark_read_only(nodes, &mut output);
             }
         };
 
@@ -3599,6 +3559,16 @@ impl FloatOperationIr {
                 v.visit_tensor_mut(&mut repr.lhs);
                 v.visit_tensor_mut(&mut repr.rhs);
                 v.visit_tensor_mut(&mut repr.out);
+            }
+            FloatOperationIr::Fmod(repr) => {
+                v.visit_tensor_mut(&mut repr.lhs);
+                v.visit_tensor_mut(&mut repr.rhs);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            FloatOperationIr::FmodScalar(repr) => {
+                v.visit_tensor_mut(&mut repr.lhs);
+                v.visit_tensor_mut(&mut repr.out);
+                v.visit_scalar_mut(&mut repr.rhs);
             }
         }
     }
@@ -4881,45 +4851,6 @@ impl ModuleOperationIr {
                 v.visit_tensor_mut(&mut repr.output_grad);
                 v.visit_tensor_mut(&mut repr.out);
             }
-        }
-    }
-}
-
-impl DistributedOperationIr {
-    fn inputs(&self) -> Box<dyn Iterator<Item = &TensorIr> + '_> {
-        match self {
-            DistributedOperationIr::AllReduce(repr) => Box::new([&repr.tensor].into_iter()),
-            DistributedOperationIr::SyncCollective => Box::new([].into_iter()),
-        }
-    }
-
-    fn outputs(&self) -> Box<dyn Iterator<Item = &TensorIr> + '_> {
-        match self {
-            DistributedOperationIr::AllReduce(repr) => Box::new([&repr.out].into_iter()),
-            DistributedOperationIr::SyncCollective => Box::new([].into_iter()),
-        }
-    }
-
-    fn mark_read_only(&mut self, nodes: &[TensorId]) -> Vec<TensorIr> {
-        let mut output = Vec::new();
-
-        match self {
-            DistributedOperationIr::AllReduce(repr) => {
-                repr.tensor.mark_read_only(nodes, &mut output);
-            }
-            DistributedOperationIr::SyncCollective => {}
-        }
-
-        output
-    }
-
-    fn visit_mut(&mut self, v: &mut impl IrVisitorMut) {
-        match self {
-            DistributedOperationIr::AllReduce(repr) => {
-                v.visit_tensor_mut(&mut repr.tensor);
-                v.visit_tensor_mut(&mut repr.out);
-            }
-            DistributedOperationIr::SyncCollective => {}
         }
     }
 }

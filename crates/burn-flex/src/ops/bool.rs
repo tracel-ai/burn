@@ -5,7 +5,7 @@ use alloc::vec::Vec;
 use burn_backend::{
     DType, ExecutionError, TensorData,
     ops::{BoolTensorOps, IntTensorOps},
-    tensor::{BoolTensor, Device, FloatTensor, IntTensor},
+    tensor::{BoolTensor, Device, FloatTensor, IndexingUpdateOp, IntTensor},
 };
 use burn_std::{Bytes, FloatDType, IntDType, Shape, Slice, bf16, f16};
 
@@ -281,13 +281,27 @@ impl BoolTensorOps<Flex> for Flex {
         crate::ops::gather_scatter::gather_bool(tensor, dim, indices)
     }
 
-    fn bool_scatter_or(
+    fn bool_scatter(
         dim: usize,
         tensor: BoolTensor<Flex>,
         indices: IntTensor<Flex>,
         value: BoolTensor<Flex>,
+        update: IndexingUpdateOp,
     ) -> BoolTensor<Flex> {
-        crate::ops::gather_scatter::scatter_or(tensor, dim, indices, value)
+        crate::ops::gather_scatter::scatter_bool(tensor, dim, indices, value, update)
+    }
+
+    fn bool_scatter_nd(
+        data: BoolTensor<Flex>,
+        indices: IntTensor<Flex>,
+        values: BoolTensor<Flex>,
+        reduction: IndexingUpdateOp,
+    ) -> BoolTensor<Flex> {
+        crate::ops::gather_scatter::scatter_nd_bool(data, indices, values, reduction)
+    }
+
+    fn bool_gather_nd(data: BoolTensor<Flex>, indices: IntTensor<Flex>) -> BoolTensor<Flex> {
+        crate::ops::gather_scatter::gather_nd_bool(data, indices)
     }
 
     fn bool_equal_elem(lhs: BoolTensor<Flex>, rhs: burn_backend::Scalar) -> BoolTensor<Flex> {
@@ -360,13 +374,14 @@ impl BoolTensorOps<Flex> for Flex {
         crate::ops::gather_scatter::select::<u8>(tensor, dim, indices)
     }
 
-    fn bool_select_or(
+    fn bool_select_assign(
         tensor: BoolTensor<Flex>,
         dim: usize,
         indices: IntTensor<Flex>,
         value: BoolTensor<Flex>,
+        update: IndexingUpdateOp,
     ) -> BoolTensor<Flex> {
-        crate::ops::gather_scatter::select_or(tensor, dim, indices, value)
+        crate::ops::gather_scatter::select_assign_bool(tensor, dim, indices, value, update)
     }
 
     fn bool_transpose(tensor: BoolTensor<Flex>) -> BoolTensor<Flex> {

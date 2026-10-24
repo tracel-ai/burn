@@ -17,6 +17,7 @@ fn init_device_settings() {
         .unwrap();
 }
 
+pub(crate) mod cholesky;
 pub(crate) mod cosine_similarity;
 pub(crate) mod det;
 pub(crate) mod diag;

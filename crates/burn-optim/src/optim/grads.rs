@@ -117,6 +117,17 @@ mod tests {
         assert_eq!(grads_2.len(), 2);
     }
 
+    #[test]
+    #[should_panic(expected = "Tensor type mismatch")]
+    fn test_get_with_wrong_rank_has_clear_error() {
+        let device = Device::default();
+        let layer = layer(&device.clone().autodiff());
+        let mut grads = GradientsParams::new();
+        grads.register(layer.weight.id, Tensor::<2>::zeros([20, 20], &device));
+
+        let _ = grads.get::<1>(layer.weight.id);
+    }
+
     fn layer(device: &Device) -> Linear {
         LinearConfig::new(20, 20).init(device)
     }

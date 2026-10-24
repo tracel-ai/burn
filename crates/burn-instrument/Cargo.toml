@@ -1,0 +1,66 @@
+[package]
+authors = ["nathanielsimard <nathaniel.simard.42@gmail.com>"]
+categories = ["science", "development-tools::profiling"]
+description = "Measure where a Burn model's device time goes, component by component"
+documentation = "https://docs.rs/burn-instrument"
+edition.workspace = true
+keywords = ["deep-learning", "machine-learning", "profiling"]
+license.workspace = true
+name = "burn-instrument"
+readme.workspace = true
+repository = "https://github.com/tracel-ai/burn/tree/main/crates/burn-instrument"
+version.workspace = true
+
+[lints]
+workspace = true
+
+[features]
+default = ["std", "instrument", "fusion", "burn-tensor/default"]
+doc = ["default", "cubecl", "instrument", "fusion"]
+std = [
+    "burn-tensor/std",
+    "dep:serde",
+    "dep:serde_json",
+    "dep:thiserror",
+    "serde/std",
+    "serde_json/std",
+    "burn-fusion?/std",
+    "burn-ir?/std",
+]
+# Installing an observer, which arms every annotated method: without it, `observing()` is always
+# `None` and an annotation compiles to the method's body, so a library annotates its components
+# without costing a build that never measures. Off in burn unless its `instrument` feature asks.
+instrument = ["std"]
+# The device's peaks, and with `instrument` the collector, which reads a cubecl runtime's launches.
+# A runtime enables it, so it must not arm the annotations on its own.
+cubecl = ["std", "dep:cubecl", "dep:cubecl-common", "burn-tensor/cubecl"]
+# The collector also reads the fusion server's blocks, so it can collect a device that fuses.
+# Enabled with `burn-core/fusion`, so a build that cannot fuse does not compile the fusion server
+# for it; a collector built without it refuses a device that fuses rather than place its kernels
+# wrongly.
+fusion = ["dep:burn-fusion", "dep:burn-ir", "burn-tensor/fusion"]
+
+# The collector's integration tests, which need kernels to place. Enable a cubecl runtime
+# separately (e.g. `burn-tensor/wgpu`) and select it with BURN_DEVICE; add `fusion` for the fused
+# half.
+collector-tests = ["cubecl", "instrument"]
+
+[dependencies]
+burn-instrument-macros = { workspace = true }
+burn-tensor = { workspace = true }
+
+serde = { workspace = true, optional = true }
+serde_json = { workspace = true, optional = true }
+thiserror = { workspace = true, optional = true }
+
+burn-fusion = { workspace = true, optional = true }
+burn-ir = { workspace = true, optional = true }
+cubecl = { workspace = true, optional = true, features = ["std"] }
+cubecl-common = { workspace = true, optional = true, features = ["std"] }
+
+[dev-dependencies]
+burn-tensor = { workspace = true, features = ["flex"] }
+
+[package.metadata.docs.rs]
+features = ["doc"]
+rustdoc-args = ["--cfg", "docsrs"]

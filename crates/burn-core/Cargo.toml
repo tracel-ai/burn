@@ -34,8 +34,12 @@ doc = [
     "burn-std/doc",
     "burn-dataset/doc",
     "burn-tensor/doc",
+    "burn-instrument/doc",
     "dep:regex"
 ]
+# Arms the `#[compute]` annotations, so `instrument::Instrument` can measure a model built from
+# them. Off, they compile away.
+instrument = ["std", "burn-instrument/instrument"]
 tracing = [
     "burn-std/tracing",
     "burn-tensor/tracing",
@@ -54,6 +58,7 @@ sqlite-bundled = ["burn-dataset?/sqlite-bundled"]
 std = [
     "burn-std/std",
     "burn-pack/std",
+    "burn-instrument/std",
     "burn-tensor/std",
     "half/std",
     "log",
@@ -73,14 +78,14 @@ audio = ["burn-dataset?/audio"]
 remote = ["burn-tensor/remote"]
 remote-server = ["burn-tensor/remote-server"]
 remote-websocket = ["burn-tensor/remote-websocket"]
-cuda = ["burn-tensor/cuda", "dep:burn-cuda"]
-rocm = ["burn-tensor/rocm", "dep:burn-rocm"]
+cuda = ["burn-tensor/cuda", "dep:burn-cuda", "burn-instrument/cubecl"]
+rocm = ["burn-tensor/rocm", "dep:burn-rocm", "burn-instrument/cubecl"]
 flex = ["burn-tensor/flex"]
 vulkan = ["wgpu", "burn-tensor/vulkan", "burn-wgpu/vulkan"]
 webgpu = ["wgpu", "burn-tensor/webgpu", "burn-wgpu/webgpu"]
-wgpu = ["burn-tensor/wgpu", "dep:burn-wgpu"]
+wgpu = ["burn-tensor/wgpu", "dep:burn-wgpu", "burn-instrument/cubecl"]
 metal = ["wgpu", "burn-tensor/metal", "burn-wgpu/metal"]
-cpu = ["burn-tensor/cpu", "dep:burn-cpu"]
+cpu = ["burn-tensor/cpu", "dep:burn-cpu", "burn-instrument/cubecl"]
 autodiff = ["burn-tensor/autodiff"]
 capture = ["burn-tensor/capture"]
 ir = ["burn-ir"]
@@ -111,6 +116,7 @@ autotune-checks = [
 fusion = [
     "dep:burn-fusion",
     "burn-tensor/fusion",
+    "burn-instrument/fusion",
     "burn-cpu?/fusion",
     "burn-cuda?/fusion",
     "burn-rocm?/fusion",
@@ -138,6 +144,7 @@ extension-tests = ["extension", "fusion", "dep:burn-cubecl", "burn-fusion/test-u
 # ** Please make sure all dependencies support no_std when std is disabled **
 
 burn-std = { workspace = true }
+burn-instrument = { workspace = true }
 burn-dataset = { workspace = true, optional = true }
 burn-derive = { workspace = true }
 burn-pack = { workspace = true, default-features = false }

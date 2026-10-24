@@ -26,9 +26,9 @@ mod benchmarks;
 fn divide<F: Float>(numerator: F, denominator: F) -> F {
     let mut numerator = numerator;
     let mut denominator = denominator;
-    if F::abs(denominator) > F::new(1.0_f32 / f32::MIN_POSITIVE) {
-        numerator *= F::new(0.25_f32);
-        denominator *= F::new(0.25_f32);
+    if F::abs(denominator) > F::new((1.0_f32 / f32::MIN_POSITIVE) as f64) {
+        numerator *= F::new(0.25);
+        denominator *= F::new(0.25);
     }
     numerator / denominator
 }
@@ -41,8 +41,8 @@ fn pivot_candidate_wins<F: Float>(
     previous_row: u32,
     invalid: u32,
 ) -> bool {
-    let is_nan = value == F::new(-2.0_f32);
-    let previous_is_nan = previous_value == F::new(-2.0_f32);
+    let is_nan = value == F::new(-2.0);
+    let previous_is_nan = previous_value == F::new(-2.0);
     let mut wins = false;
     if row < invalid {
         if previous_row == invalid {
@@ -69,7 +69,7 @@ fn reduce_pivot<F: Float>(
     let units = CUBE_DIM as usize;
     let mut ordered_value = value;
     if bool::cast_from(value.is_nan()) {
-        ordered_value = F::new(-2.0_f32);
+        ordered_value = F::new(-2.0);
     }
     if comptime!(use_planes) {
         // Three reductions: finite maximum, its smallest row, and a NaN row.
@@ -82,12 +82,12 @@ fn reduce_pivot<F: Float>(
         }
         let mut plane_row = plane_min(winning_row);
         let mut nan_row = invalid;
-        if ordered_value == F::new(-2.0_f32) {
+        if ordered_value == F::new(-2.0) {
             nan_row = row;
         }
         let plane_nan_row = plane_min(nan_row);
         if plane_nan_row < invalid {
-            plane_value = F::new(-2.0_f32);
+            plane_value = F::new(-2.0);
             plane_row = plane_nan_row;
         }
 
@@ -103,7 +103,7 @@ fn reduce_pivot<F: Float>(
         // reads before the next pivot can overwrite the candidate arrays.
         let plane_dim = PLANE_DIM as usize;
         let planes = units.div_ceil(plane_dim);
-        let mut best_value = F::new(-1.0_f32);
+        let mut best_value = F::new(-1.0);
         let mut best_row = invalid;
         for plane in 0..planes {
             let candidate_value = max_values[plane];
@@ -241,7 +241,7 @@ fn factor_panel_shared<F: Float>(
     }
 
     for k in 0..width {
-        let mut max_value = F::new(-1.0_f32);
+        let mut max_value = F::new(-1.0);
         let mut max_row = n as u32;
         let mut local_row = lane;
         while local_row < remaining {
@@ -249,7 +249,7 @@ fn factor_panel_shared<F: Float>(
                 let global_row = (start + local_row) as u32;
                 let mut candidate = F::abs(rows[k * rows_capacity + local_row]);
                 if bool::cast_from(candidate.is_nan()) {
-                    candidate = F::new(-2.0_f32);
+                    candidate = F::new(-2.0);
                 }
                 if pivot_candidate_wins::<F>(candidate, global_row, max_value, max_row, n as u32) {
                     max_value = candidate;
@@ -276,7 +276,7 @@ fn factor_panel_shared<F: Float>(
                 permutation[batch * n + start + k] = permutation[batch * n + pivot];
                 permutation[batch * n + pivot] = previous;
             }
-            if pivot_value == F::new(0.0_f32) {
+            if pivot_value == F::new(0.0) {
                 status[batch] = 1;
             }
         }
@@ -292,11 +292,11 @@ fn factor_panel_shared<F: Float>(
         if lane == 0 {
             let diagonal = rows[k * rows_capacity + pivot_local];
             let magnitude = F::abs(diagonal);
-            let mut inverse = F::new(0.0_f32);
-            if magnitude >= F::new(f32::MIN_POSITIVE)
-                && magnitude <= F::new(1.0_f32 / f32::MIN_POSITIVE)
+            let mut inverse = F::new(0.0);
+            if magnitude >= F::new(f32::MIN_POSITIVE as f64)
+                && magnitude <= F::new((1.0_f32 / f32::MIN_POSITIVE) as f64)
             {
-                inverse = F::new(1.0_f32) / diagonal;
+                inverse = F::new(1.0) / diagonal;
             }
             exchange[2 * panel] = inverse;
         }
@@ -318,10 +318,10 @@ fn factor_panel_shared<F: Float>(
                 }
             }
             if local_row > k {
-                let mut multiplier = F::new(0.0_f32);
-                if inverse != F::new(0.0_f32) {
+                let mut multiplier = F::new(0.0);
+                if inverse != F::new(0.0) {
                     multiplier = rows[k * rows_capacity + local_row] * inverse;
-                } else if diagonal != F::new(0.0_f32) {
+                } else if diagonal != F::new(0.0) {
                     multiplier = divide::<F>(rows[k * rows_capacity + local_row], diagonal);
                 }
                 rows[k * rows_capacity + local_row] = multiplier;
@@ -381,7 +381,7 @@ fn factor_panel<F: Float>(
         let row = start + lane + r * units;
         #[unroll]
         for col in 0..panel {
-            let mut value = F::new(0.0_f32);
+            let mut value = F::new(0.0);
             if row < n && col < width {
                 value = lu[base + (start + col) * n + row];
             }
@@ -390,12 +390,12 @@ fn factor_panel<F: Float>(
     }
 
     for k in 0..width {
-        let mut max_value = F::new(-1.0_f32);
+        let mut max_value = F::new(-1.0);
         let mut max_row = n as u32;
         #[unroll]
         for r in 0..rows_per_unit {
             let row = start + lane + r * units;
-            let mut candidate = F::new(0.0_f32);
+            let mut candidate = F::new(0.0);
             #[unroll]
             for col in 0..panel {
                 if col == k {
@@ -404,7 +404,7 @@ fn factor_panel<F: Float>(
             }
             if row >= start + k && row < n {
                 if bool::cast_from(candidate.is_nan()) {
-                    candidate = F::new(-2.0_f32);
+                    candidate = F::new(-2.0);
                 }
                 if pivot_candidate_wins::<F>(candidate, row as u32, max_value, max_row, n as u32) {
                     max_value = candidate;
@@ -426,7 +426,7 @@ fn factor_panel<F: Float>(
             let old = permutation[batch * n + start + k];
             permutation[batch * n + start + k] = permutation[batch * n + pivot];
             permutation[batch * n + pivot] = old;
-            if pivot_value == F::new(0.0_f32) {
+            if pivot_value == F::new(0.0) {
                 status[batch] = 1;
             }
         }
@@ -456,7 +456,7 @@ fn factor_panel<F: Float>(
                     rows[r * panel + col] = exchange[panel + col];
                 }
             }
-            let mut value = F::new(0.0_f32);
+            let mut value = F::new(0.0);
             #[unroll]
             for col in 0..panel {
                 if col == k {
@@ -465,8 +465,8 @@ fn factor_panel<F: Float>(
             }
             // Continue safely after a zero pivot; the final status check reports
             // singularity. Avoid forming an overflowing reciprocal for tiny pivots.
-            let mut multiplier = F::new(0.0_f32);
-            if diagonal != F::new(0.0_f32) {
+            let mut multiplier = F::new(0.0);
+            if diagonal != F::new(0.0) {
                 multiplier = divide::<F>(value, diagonal);
             }
             if row > start + k && row < n {
@@ -531,7 +531,7 @@ fn swap_and_solve_upper<F: Float>(
         let mut values = Array::<F>::new(panel);
         #[unroll]
         for row in 0..panel {
-            let mut value = F::new(0.0_f32);
+            let mut value = F::new(0.0);
             if row < width {
                 value = lu[base + col * n + start + row];
             }
@@ -843,7 +843,7 @@ fn blocked_rhs<F: Float>(
         // equals panel, and units is exactly panel*rhs_tile.
         let row = UNIT_POS_PLANE as usize;
         let col = PLANE_POS as usize;
-        let mut value = F::new(0.0_f32);
+        let mut value = F::new(0.0);
         if row < width && col < cols {
             value = input[batch_base + (first_col + col) * n + start + row];
         }
@@ -933,7 +933,7 @@ fn blocked_rhs<F: Float>(
             let mut values = Array::<F>::new(rhs_tile);
             #[unroll]
             for col in 0..rhs_tile {
-                let mut value = F::new(0.0_f32);
+                let mut value = F::new(0.0);
                 if col < cols {
                     value = input[batch_base + (first_col + col) * n + row];
                 }

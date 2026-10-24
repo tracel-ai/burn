@@ -328,6 +328,35 @@ pub trait FloatTensorOps<B: Backend> {
     /// The result of applying the modulus of the scalar to the tensor.
     fn float_remainder_scalar(lhs: FloatTensor<B>, rhs: Scalar) -> FloatTensor<B>;
 
+    /// Computes the floating-point remainder of dividing `lhs` by `rhs` element-wise.
+    ///
+    /// Unlike [float_remainder](FloatTensorOps::float_remainder), the result has the same sign
+    /// as `lhs`, matching C's `fmod`.
+    ///
+    /// # Arguments
+    ///
+    /// * `lhs` - The dividend tensor.
+    /// * `rhs` - The divisor tensor.
+    ///
+    /// # Returns
+    ///
+    /// The element-wise floating-point remainder.
+    fn float_fmod(lhs: FloatTensor<B>, rhs: FloatTensor<B>) -> FloatTensor<B>;
+
+    /// Computes the floating-point remainder of dividing `lhs` by a scalar element-wise.
+    ///
+    /// The result has the same sign as `lhs`, matching C's `fmod`.
+    ///
+    /// # Arguments
+    ///
+    /// * `lhs` - The dividend tensor.
+    /// * `rhs` - The divisor scalar.
+    ///
+    /// # Returns
+    ///
+    /// The element-wise floating-point remainder.
+    fn float_fmod_scalar(lhs: FloatTensor<B>, rhs: Scalar) -> FloatTensor<B>;
+
     /// Multiplies two tensors together using matrix multiplication.
     ///
     /// # Arguments

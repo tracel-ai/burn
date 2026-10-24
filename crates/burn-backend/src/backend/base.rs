@@ -123,6 +123,7 @@ pub trait Backend:
     + QTensorOps<Self>
     + TransactionOps<Self>
     + DistributedOps<Self>
+    + CollectiveOps<Self>
     + Clone
     + Default
     + Sized

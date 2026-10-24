@@ -30,7 +30,7 @@ std = [
     "burn-fusion?/std",
     "burn-cubecl-fusion?/std",
 ]
-doc = ["default", "wgpu", "fft"]
+doc = ["default", "wgpu", "fft", "dep:branches"]
 # Native FFT kernels, enabled by burn-signal.
 fft = ["cubek/fft"]
 
@@ -65,6 +65,11 @@ autotune-checks = [
     "burn-cubecl-fusion?/autotune-checks",
 ]
 
+# Autotune races only cubek's tile-DSL matmul and attention routines, never the multi-level ones
+# or the old attention: an input they don't serve fails instead of falling back. For measuring
+# them through burn's tests and benches, not for use.
+tile-kernels-only = ["autotune", "cubek/microkernel", "cubek/attention-tiled"]
+
 fusion = ["burn-fusion", "burn-cubecl-fusion"]
 fusion-experimental = ["fusion"]
 
@@ -72,6 +77,7 @@ template = []
 
 
 [dependencies]
+branches = { workspace = true, optional = true }
 burn-cubecl-fusion = { workspace = true, optional = true }
 burn-fusion = { workspace = true, optional = true }
 burn-ir = { workspace = true }

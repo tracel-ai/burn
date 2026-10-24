@@ -3,6 +3,32 @@ use burn_tensor::TensorData;
 use burn_tensor::Tolerance;
 
 #[test]
+fn should_diff_powi_scalar_positive_exponent() {
+    let device = AutodiffDevice::new();
+    let input = TestTensor::<1>::from_data([-2.0, 0.5], &device).require_grad();
+    let output = input.clone().powi_scalar(3).mul_scalar(2.0);
+    let grads = output.backward();
+    input
+        .grad(&grads)
+        .unwrap()
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&TensorData::from([24.0, 1.5]), Tolerance::default());
+}
+
+#[test]
+fn should_diff_powi_scalar_negative_exponent() {
+    let device = AutodiffDevice::new();
+    let input = TestTensor::<1>::from_data([-2.0, 0.5], &device).require_grad();
+    let output = input.clone().powi_scalar(-3).mul_scalar(2.0);
+    let grads = output.backward();
+    input
+        .grad(&grads)
+        .unwrap()
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&TensorData::from([-0.375, -96.0]), Tolerance::default());
+}
+
+#[test]
 fn should_diff_powf_scalar() {
     let data_1 = TensorData::from([[0.0, 1.0], [3.0, 4.0]]);
     let data_2 = TensorData::from([[6.0, 7.0], [9.0, 10.0]]);

@@ -28,6 +28,12 @@ macro_rules! check {
 }
 
 mod check;
+#[cfg(any(feature = "flex", feature = "cubecl-backend"))]
+mod cholesky;
+#[cfg(feature = "flex")]
+mod cholesky_cpu;
+#[cfg(feature = "cubecl-backend")]
+mod cholesky_gpu;
 mod functions;
 mod ops;
 #[cfg(feature = "cubecl-backend")]

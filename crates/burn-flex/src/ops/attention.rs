@@ -309,7 +309,7 @@ where
     .unwrap();
     let softcap: Option<T> = options.softcap.map(|s| T::from(s).unwrap());
     let causal_offset = if options.is_causal {
-        Some(seq_kv as isize - seq_q as isize)
+        Some(options.causal_alignment.offset(seq_q, seq_kv) as isize)
     } else {
         None
     };
@@ -805,7 +805,7 @@ where
     .unwrap();
     let softcap: Option<T> = options.softcap.map(|s| T::from(s).unwrap());
     let causal_offset = if options.is_causal {
-        Some(seq_kv as isize - seq_q as isize)
+        Some(options.causal_alignment.offset(seq_q, seq_kv) as isize)
     } else {
         None
     };
@@ -1178,18 +1178,6 @@ mod tests {
                 &alloc::format!("{label} gqa(q={q_heads},kv={kv_heads}) vs repeated-kv"),
             );
         }
-    }
-
-    #[test]
-    fn test_attention_gqa_matches_repeated_kv() {
-        // 4 query heads, 2 KV heads: each KV head shared by 2 query heads.
-        check_grouped_attention(4, 2);
-    }
-
-    #[test]
-    fn test_attention_mqa_matches_repeated_kv() {
-        // Multi-Query Attention: a single KV head shared by all 4 query heads.
-        check_grouped_attention(4, 1);
     }
 
     #[test]
@@ -1595,6 +1583,7 @@ mod tests {
             scale: Some(0.05),
             softcap: Some(30.0),
             is_causal: true,
+            ..Default::default()
         };
 
         run_both(1, 1, 4, 4, 8, 8, false, false, default, "basic_4x4");

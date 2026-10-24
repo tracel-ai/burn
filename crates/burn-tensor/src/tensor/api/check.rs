@@ -1,5 +1,5 @@
 use crate::bridge::{BasicOps, Ordered};
-use crate::{DType, Shape, Slice, Tensor, cast::ToElement};
+use crate::{DType, Device, Shape, Slice, Tensor};
 use alloc::format;
 use alloc::string::{String, ToString};
 use alloc::vec;
@@ -244,6 +244,30 @@ impl TensorCheck {
         check
     }
 
+    pub(crate) fn reshape<const D2: usize>(source: &Shape, target: &Shape) -> Self {
+        let mut check = Self::Ok;
+
+        if source.num_elements() != target.num_elements() {
+            check = check.register(
+                "Reshape",
+                TensorError::new(format!(
+                    "The given shape doesn't have the same number of elements as the current shape. Current shape: {source}, target shape: {target}."
+                )),
+            );
+        }
+
+        if target.num_dims() != D2 {
+            check = check.register(
+                "Reshape",
+                TensorError::new(format!(
+                    "The given shape doesn't have the same number of dimensions as the target tensor. Target shape: {target}, expected rank: {D2}."
+                )),
+            );
+        }
+
+        check
+    }
+
     pub(crate) fn squeeze<const D2: usize>(dim: usize, tensor_dims: &[usize]) -> Self {
         let mut check = Self::Ok;
         // This should actually be to check that the dimension to squeeze
@@ -390,28 +414,24 @@ impl TensorCheck {
     }
 
     pub(crate) fn one_hot_tensor<const D: usize, K: Ordered>(
-        index_tensor: Tensor<D, K>,
+        index_tensor: &Tensor<D, K>,
         num_classes: usize,
+        classes: &[Option<usize>],
     ) -> Self {
         let mut check = Self::Ok;
-        if index_tensor
-            .clone()
-            .greater_equal_scalar(num_classes as i32)
-            .any()
-            .into_scalar::<i64>()
-            .to_bool()
-        {
-            check = check.register(
-                "One Hot",
-                TensorError::new(format!(
-                    "Can't create a one hot tensor from ({index_tensor:?}) containing indexes greater or equal to the number of classes ({num_classes})",
-                )),
-            );
-        } else if num_classes <= 1 {
+        if num_classes <= 1 {
             check = check.register(
                 "One Hot",
                 TensorError::new("Can't create a one hot tensor with less than 2 classes"),
             )
+        } else if classes.iter().any(Option::is_none) {
+            // `one_hot_fill` keeps an off_value row for out-of-range indices; `one_hot` rejects them
+            check = check.register(
+                "One Hot",
+                TensorError::new(format!(
+                    "Can't create a one hot tensor from ({index_tensor:?}) containing indexes outside [-{num_classes}, {num_classes})",
+                )),
+            );
         }
         check
     }
@@ -663,6 +683,88 @@ impl TensorCheck {
                     )),
                 );
             }
+        }
+
+        check
+    }
+
+    pub(crate) fn collective<const D: usize, K: BasicOps>(
+        ops: &str,
+        tensors: &[Tensor<D, K>],
+    ) -> Self {
+        let Some(first) = tensors.first() else {
+            return Self::Ok.register(
+                ops,
+                TensorError::new("Can't run a collective over an empty list of tensors."),
+            );
+        };
+
+        let shape = first.shape();
+        let dtype = first.dtype();
+
+        for (member, tensor) in tensors.iter().enumerate() {
+            let quantized = Self::quantized_unsupported(ops, tensor.dtype());
+            if matches!(quantized, Self::Failed(_)) {
+                return quantized;
+            }
+
+            if tensor.shape() != shape || tensor.dtype() != dtype {
+                return Self::Ok.register(
+                    ops,
+                    TensorError::new(
+                        "Can't run a collective over members of different shapes or dtypes.",
+                    )
+                    .details(format!(
+                        "Member {member} holds {:?} of {:?}, member 0 holds {:?} of {:?}.",
+                        tensor.shape(),
+                        tensor.dtype(),
+                        shape,
+                        dtype,
+                    )),
+                );
+            }
+        }
+
+        Self::Ok
+    }
+
+    pub(crate) fn collective_chunks<const D: usize, K: BasicOps>(
+        ops: &str,
+        tensors: &[Tensor<D, K>],
+        dim: usize,
+    ) -> Self {
+        let check = Self::Ok;
+        // An empty list is `collective`'s to report.
+        let Some(first) = tensors.first() else {
+            return check;
+        };
+
+        let members = tensors.len();
+        let len = first.shape()[dim];
+
+        if len < members {
+            return check.register(
+                ops,
+                TensorError::new(
+                    "Can't give every member a chunk of a dimension shorter than the group.",
+                )
+                .details(format!(
+                    "Dimension {dim} holds {len} elements over {members} members."
+                )),
+            );
+        }
+
+        check
+    }
+
+    pub(crate) fn collective_devices(ops: &str, devices: &[Device]) -> Self {
+        let check = Self::Ok;
+
+        if devices.is_empty() {
+            return check.register(
+                ops,
+                TensorError::new("Can't broadcast to an empty list of devices."),
+            );
         }
 
         check
@@ -1420,21 +1522,21 @@ mod tests {
     use macros::check;
 
     #[test]
-    #[should_panic]
+    #[should_panic(expected = "range that exceeds the current tensor")]
     fn index_range_exceed_dimension() {
         let slices = vec![Slice::from(0..2), Slice::from(0..4), Slice::from(1..8)];
         check!(TensorCheck::slice::<3>(&Shape::new([3, 5, 7]), &slices));
     }
 
     #[test]
-    #[should_panic]
+    #[should_panic(expected = "higher number of dimensions than the current")]
     fn index_range_exceed_number_of_dimensions() {
         let slices = vec![Slice::from(0..1), Slice::from(0..1), Slice::from(0..1)];
         check!(TensorCheck::slice::<2>(&Shape::new([3, 5]), &slices));
     }
 
     #[test]
-    #[should_panic]
+    #[should_panic(expected = "incompatible shapes")]
     fn binary_ops_shapes_no_broadcast() {
         check!(TensorCheck::binary_ops_ew_shape::<2>(
             TensorCheck::Ok,
@@ -1455,7 +1557,7 @@ mod tests {
     }
 
     #[test]
-    #[should_panic]
+    #[should_panic(expected = "not on the same device")]
     fn binary_ops_devices() {
         check!(TensorCheck::binary_ops_device(
             TensorCheck::Ok,
@@ -1466,19 +1568,19 @@ mod tests {
     }
 
     #[test]
-    #[should_panic]
+    #[should_panic(expected = "The given dimensions are out of bounds")]
     fn movedim_args_vec_out_of_bounds() {
         check!(TensorCheck::movedim_args_vec::<3>(&vec![0, 1, 3]));
     }
 
     #[test]
-    #[should_panic]
+    #[should_panic(expected = "contain duplicates")]
     fn movedim_args_vec_duplicates() {
         check!(TensorCheck::movedim_args_vec::<3>(&vec![0, 1, 1]));
     }
 
     #[test]
-    #[should_panic]
+    #[should_panic(expected = "source and destination must be equal")]
     fn movedim_args_length() {
         check!(TensorCheck::movedim_args_length(
             &vec![0, 1],
@@ -1487,7 +1589,7 @@ mod tests {
     }
 
     #[test]
-    #[should_panic]
+    #[should_panic(expected = "unsqueezed rank must be greater")]
     fn unsqueeze_dim_same_rank() {
         check!(TensorCheck::unsqueeze_dim::<3, 3>(2));
     }

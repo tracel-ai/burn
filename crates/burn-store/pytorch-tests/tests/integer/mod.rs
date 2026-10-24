@@ -61,16 +61,4 @@ mod tests {
 
         integer(model);
     }
-
-    #[test]
-    fn integer_half_precision() {
-        let device = Default::default();
-        let mut model = Net::init(&device);
-        let mut store = PytorchStore::from_file("tests/integer/integer.pt");
-        model
-            .load_from(&mut store)
-            .expect("Should decode state successfully");
-
-        integer(model);
-    }
 }

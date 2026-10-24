@@ -36,7 +36,7 @@ fn should_squeeze_last() {
 }
 /// Test if the function panics when the squeezed dimension is not of size 1.
 #[test]
-#[should_panic]
+#[should_panic(expected = "because its size is not 1")]
 fn should_squeeze_panic() {
     let tensor = TestTensor::<4>::ones(Shape::new([2, 3, 4, 5]), &Default::default());
     let _squeezed_tensor: TestTensor<3> = tensor.squeeze_dim(2);
@@ -79,16 +79,14 @@ fn should_squeeze_dims_with_negative_indices() {
 
 /// Test to make sure the function panics if a non-singleton dimension is squeezed
 #[test]
-#[should_panic]
-fn should_squeeze_dims_work_if_non_singleton() {
+#[should_panic(expected = "because its size is not 1")]
+fn should_squeeze_dims_panic_if_non_singleton() {
     let tensor = TestTensor::<3>::ones(Shape::new([2, 3, 4]), &Default::default());
-    let squeezed_tensor: TestTensor<3> = tensor.squeeze_dims(&[1]);
-    let expected_shape = Shape::new([2, 3, 4]);
-    assert_eq!(squeezed_tensor.shape(), expected_shape);
+    let _squeezed_tensor: TestTensor<2> = tensor.squeeze_dims(&[1]);
 }
 
 #[test]
-#[should_panic]
+#[should_panic(expected = "do not match the required D2 size 2")]
 fn should_panic_squeeze_consumes_all_singleton() {
     let tensor = TestTensor::<3>::ones(Shape::new([1, 3, 1]), &Default::default());
     let _squeezed_tensor: TestTensor<2> = tensor.squeeze(); // output rank should be 1
@@ -96,7 +94,7 @@ fn should_panic_squeeze_consumes_all_singleton() {
 
 /// Test to make sure the function panics if too many dimensions are requested to be squeezed
 #[test]
-#[should_panic]
+#[should_panic(expected = "Attempted to squeeze too many dimensions")]
 fn should_squeeze_dims_panic_on_too_many_dimensions() {
     let tensor = TestTensor::<3>::ones(Shape::new([1, 1, 1]), &Default::default());
     let _: TestTensor<1> = tensor.squeeze_dims(&[0, 1, 2]);
@@ -104,7 +102,7 @@ fn should_squeeze_dims_panic_on_too_many_dimensions() {
 
 /// Test to make sure function panics if dimensions are mismatched
 #[test]
-#[should_panic]
+#[should_panic(expected = "do not match the required D2 size 3")]
 fn should_squeeze_dims_dimension_mismatch_panic() {
     let tensor = TestTensor::<4>::ones(Shape::new([1, 3, 1, 5]), &Default::default());
     let _: TestTensor<3> = tensor.squeeze_dims(&[0, 2]);
@@ -135,6 +133,15 @@ fn should_unsqueeze_dim_last() {
     let unsqueezed_tensor: TestTensor<5> = tensor.unsqueeze_dim(4);
     let expected_shape = Shape::new([5, 4, 3, 2, 1]);
     assert_eq!(unsqueezed_tensor.shape(), expected_shape);
+}
+
+/// Regression test for unsqueezing a tensor with a zero-length dimension.
+#[test]
+fn should_unsqueeze_dim_zero_length() {
+    let tensor = TestTensor::<1>::zeros([0], &Default::default());
+    let unsqueezed_tensor: TestTensor<2> = tensor.unsqueeze_dim(0);
+    assert_eq!(unsqueezed_tensor.shape(), Shape::new([1, 0]));
+    assert_eq!(unsqueezed_tensor.into_data().num_elements(), 0);
 }
 
 /// Test if the function panics when the unsqueezed dimension is out of bounds.
@@ -224,7 +231,7 @@ fn should_unsqueeze_dims_handle_repeated_middle_axes() {
 }
 
 #[test]
-#[should_panic]
+#[should_panic(expected = "unsqueeze arg -6 is out of range")]
 fn should_unsqueeze_dims_panic() {
     let input_tensor = TestTensor::<3>::ones(Shape::new([3, 4, 5]), &Default::default());
     let _output_tensor: TestTensor<5> = input_tensor.unsqueeze_dims(&[0, -6]);
@@ -235,21 +242,21 @@ fn should_unsqueeze_dims_panic() {
 /// rejected with a clear error instead of triggering an out-of-bounds read in
 /// the copy loop.
 #[test]
-#[should_panic]
+#[should_panic(expected = "unsqueeze arg 3 is out of range")]
 fn should_unsqueeze_dims_panic_duplicate_pushed_out_of_range() {
     let input_tensor = TestTensor::<1>::ones(Shape::new([4]), &Default::default());
     let _: TestTensor<3> = input_tensor.unsqueeze_dims(&[2, 2]);
 }
 
 #[test]
-#[should_panic]
+#[should_panic(expected = "Resulting dimensions cannot be zero")]
 fn squeeze_all_singleton_not_supported() {
     let tensor = TestTensor::<3>::ones(Shape::new([1, 1, 1]), &Default::default());
     let _ = tensor.squeeze::<0>();
 }
 
 #[test]
-#[should_panic]
+#[should_panic(expected = "Resulting dimensions cannot be zero")]
 fn squeeze_dim_singleton_not_supported() {
     let tensor = TestTensor::<1>::ones(Shape::new([1]), &Default::default());
     let _ = tensor.squeeze_dim::<0>(0);

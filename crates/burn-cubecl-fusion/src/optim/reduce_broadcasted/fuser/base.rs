@@ -21,6 +21,10 @@ pub struct ReduceBroadcastedFuser {
     num_ops: usize,
     state: ReduceBroadcastedStatus,
     max_bindings: u32,
+    /// Whether nothing was fused or finished since the last reset, so a reset has nothing to undo.
+    /// The stream resets every fuser after each block it executes, and rebuilding the blocks
+    /// clones the default reduce fuser.
+    fresh: bool,
 }
 
 impl Clone for ReduceBroadcastedFuser {
@@ -31,6 +35,7 @@ impl Clone for ReduceBroadcastedFuser {
             num_ops: self.num_ops,
             state: self.state.clone(),
             max_bindings: self.max_bindings,
+            fresh: self.fresh,
         }
     }
 }
@@ -47,6 +52,7 @@ impl ReduceBroadcastedFuser {
             num_ops: 0,
             state: ReduceBroadcastedStatus::Starting,
             max_bindings,
+            fresh: true,
         }
     }
 
@@ -137,6 +143,7 @@ impl ReduceBroadcastedFuser {
 
 impl OperationFuser<CubeOptimization> for ReduceBroadcastedFuser {
     fn fuse(&mut self, operation: &OperationIr) {
+        self.fresh = false;
         if matches!(
             &self.state,
             ReduceBroadcastedStatus::Closed | ReduceBroadcastedStatus::Abort
@@ -160,6 +167,7 @@ impl OperationFuser<CubeOptimization> for ReduceBroadcastedFuser {
     }
 
     fn finish(&mut self) -> CubeOptimization {
+        self.fresh = false;
         let analyzer = FullFuserAnalyzer::new(&self.blocks);
         let mut full = ReduceBroadcastedFullFuser::new(self.max_bindings, analyzer);
         let mut num_ops = 0;
@@ -178,10 +186,14 @@ impl OperationFuser<CubeOptimization> for ReduceBroadcastedFuser {
     }
 
     fn reset(&mut self) {
+        if self.fresh {
+            return;
+        }
         let block = ReduceBlockFuser::new(self.fuser_default.clone());
         self.blocks = vec![block];
         self.num_ops = 0;
         self.state = ReduceBroadcastedStatus::Starting;
+        self.fresh = true;
     }
 
     fn status(&self) -> FuserStatus {
