@@ -181,6 +181,8 @@ loading those checkpoints by filtering to `linear_inner` and `linear_outer`.
 
 - Reduce classification metric memory use by storing confusion codes as U8 on devices that support
   it, retaining the default integer dtype otherwise.
+  ([#6224](https://github.com/tracel-ai/burn/pull/6224))
+  [@Mikyx-1](https://github.com/Mikyx-1)
 - Avoid retaining temporary QR buffers after orthogonal parameter initialization.
   ([#6172](https://github.com/tracel-ai/burn/pull/6172))
   [@EthanAlmloff](https://github.com/EthanAlmloff) [@laggui](https://github.com/laggui)
