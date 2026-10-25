@@ -141,8 +141,18 @@ fn expand_after_narrow() {
 #[should_panic(
     expected = "The given shape doesn't have the same number of dimensions as the target tensor."
 )]
-fn should_fail_expand_shape_rank_mismatch() {
+fn should_fail_expand_shape_rank_mismatch_shorter() {
     let tensor = TestTensor::<1>::from([1.0, 2.0, 3.0]);
     // Passing a Shape with rank 2 to expand targeting rank 3 must be rejected.
     let _: TestTensor<3> = tensor.expand(Shape::from([2, 3]));
+}
+
+#[test]
+#[should_panic(
+    expected = "The given shape doesn't have the same number of dimensions as the target tensor."
+)]
+fn should_fail_expand_shape_rank_mismatch_longer() {
+    let tensor = TestTensor::<1>::from([1.0, 2.0, 3.0]);
+    // Passing a Shape with rank 3 to expand targeting rank 2 must be rejected.
+    let _: TestTensor<2> = tensor.expand(Shape::from([1, 2, 3]));
 }
