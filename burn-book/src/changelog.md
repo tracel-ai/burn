@@ -23,6 +23,11 @@ Reports also include the measured cost of a kernel launch.
   [CubeCL #1914](https://github.com/tracel-ai/cubecl/pull/1914),
   [CubeCL #1915](https://github.com/tracel-ai/cubecl/pull/1915))
   [@louisfd](https://github.com/louisfd)
+- Reports no longer score a component that is only partly fused, such as a layer projection that
+  ran alone in one layer and fused with the residual add in the others; its row reads
+  `partly fused ↓` instead of a percentage far past the peak. `FusedElsewhere::contains` is replaced
+  by `share`, which returns a `FusedShare`. ([#6222](https://github.com/tracel-ai/burn/pull/6222))
+  [@nathanielsimard](https://github.com/nathanielsimard)
 
 ### Execution performance
 
