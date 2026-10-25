@@ -263,16 +263,14 @@ pub fn attention_backward_default<B: Backend>(
         val_dim,
     } = shapes;
     let groups = shapes.groups();
-    let scale = options
-        .scale
-        .unwrap_or_else(|| 1.0 / (head_dim as f64).sqrt());
     let scores = masked_scores::<B>(query.clone(), key.clone(), shapes, options);
     let logsumexp = B::float_cast(
         B::float_reshape(logsumexp, Shape::new([batch, q_heads, seq_q, 1])),
         scores.scores.dtype().into(),
     );
     let probabilities = B::float_exp(B::float_sub(scores.scores, logsumexp));
-    // The query heads sharing a key head as rows of one matrix, as the fallback folds them.
+    // The query heads sharing a key head stacked as the rows of one matrix, as the fallback
+    // stacks them.
     let rows = |tensor: FloatTensor<B>, last: usize| {
         B::float_reshape(tensor, Shape::new([batch, kv_heads, groups * seq_q, last]))
     };
@@ -294,7 +292,7 @@ pub fn attention_backward_default<B: Backend>(
         }
         None => scores_grad,
     };
-    let scores_grad = B::float_mul_scalar(scores_grad, scale.into());
+    let scores_grad = B::float_mul_scalar(scores_grad, scores.scale.into());
     let query_grad = B::float_reshape(
         B::float_matmul(scores_grad.clone(), key),
         Shape::new([batch, q_heads, seq_q, head_dim]),
@@ -312,12 +310,14 @@ pub fn attention_backward_default<B: Backend>(
 struct MaskedScores<B: Backend> {
     /// `[batch_size, num_heads, seq_len_q, seq_len_k]`.
     scores: FloatTensor<B>,
+    /// What the products were scaled by.
+    scale: f64,
     /// `tanh(s / softcap)` of the scaled scores where there is a softcap: what its derivative
     /// reads.
     softcap_tanh: Option<FloatTensor<B>>,
 }
 
-/// [`MaskedScores`] of `query` against `key`, the query heads sharing a key head folded into the
+/// [`MaskedScores`] of `query` against `key`, the query heads sharing a key head stacked as the
 /// rows of one product.
 fn masked_scores<B: Backend>(
     query: FloatTensor<B>,
@@ -368,11 +368,12 @@ fn masked_scores<B: Backend>(
     };
     MaskedScores {
         scores,
+        scale,
         softcap_tanh,
     }
 }
 
-/// `probabilities · value`, the query heads sharing a key head folded into the rows of one
+/// `probabilities · value`, the query heads sharing a key head stacked as the rows of one
 /// product: `[batch_size, num_heads, seq_len_q, val_dim]`.
 fn grouped_matmul<B: Backend>(
     probabilities: FloatTensor<B>,

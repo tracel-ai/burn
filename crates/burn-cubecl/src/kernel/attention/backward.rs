@@ -3,13 +3,15 @@
 //! attentions [`backward_serves`] admits.
 
 use crate::{
-    CubeBackend,
+    CubeBackend, CubeDevice,
     ops::{numeric::full_device_dtype, swap_dims},
     tensor::CubeTensor,
 };
 use burn_backend::ops::{AttentionBackward, AttentionModuleOptions, CausalAlignment};
 use burn_backend::{DType, Shape, cubecl::dtype_to_storage_type};
+use cubecl::client::Client;
 use cubecl::prelude::InputScalar;
+use cubecl::std::tensor::TensorHandle;
 use cubek::attention::kernels::select::selector::QueryPositions;
 use cubek::attention::kernels::tune::{AttentionTuneInputs, launch_tuned};
 use cubek::attention::kernels::{AttentionScoring, AttentionVisibility, ScoreScale};
@@ -78,20 +80,8 @@ pub fn attention_with_logsumexp(
     );
     // The routines write `[b, q, h, dv]`, a token's heads adjacent; burn's attention is
     // `[b, h, q, dv]`, viewed without a copy.
-    let out = CubeTensor::new(
-        client.clone(),
-        out.handle,
-        *out.metadata,
-        device.clone(),
-        dtype,
-    );
-    let logsumexp = CubeTensor::new(
-        client,
-        logsumexp.handle,
-        *logsumexp.metadata,
-        device,
-        DType::F32,
-    );
+    let out = cube_tensor(out, &client, &device, dtype);
+    let logsumexp = cube_tensor(logsumexp, &client, &device, DType::F32);
     (swap_dims(out, 1, 2), logsumexp)
 }
 
@@ -127,19 +117,26 @@ pub fn attention_backward(
         panic!("cubek's attention backward pass declines these operands: {why:?}")
     });
     let gradients = launch_backward(&device, tensors);
-    let tensor = |handle: cubecl::std::tensor::TensorHandle| {
-        CubeTensor::new(
-            client.clone(),
-            handle.handle,
-            *handle.metadata,
-            device.clone(),
-            dtype,
-        )
-    };
     AttentionBackward::new(
-        tensor(gradients.query),
-        tensor(gradients.key),
-        tensor(gradients.value),
+        cube_tensor(gradients.query, &client, &device, dtype),
+        cube_tensor(gradients.key, &client, &device, dtype),
+        cube_tensor(gradients.value, &client, &device, dtype),
+    )
+}
+
+/// `handle`, which cubek wrote, as a tensor of `dtype` on `client`'s `device`.
+fn cube_tensor(
+    handle: TensorHandle,
+    client: &Client,
+    device: &CubeDevice,
+    dtype: DType,
+) -> CubeTensor {
+    CubeTensor::new(
+        client.clone(),
+        handle.handle,
+        *handle.metadata,
+        device.clone(),
+        dtype,
     )
 }
 
