@@ -1,5 +1,7 @@
 mod base;
 mod connected_components;
+#[cfg(feature = "flex")]
+pub(crate) mod median;
 mod morphology;
 mod nms;
 mod ops;
