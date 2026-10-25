@@ -1,6 +1,7 @@
 use super::{BlockPlan, HandleInput, InputReference};
 use super::{LaunchPlan, NormalHandleInput, PotentialInplace};
 use crate::CubeFusionHandle;
+use crate::engine::codegen::ir::FuseType;
 use crate::engine::launch::{QuantParamsHandleInput, QuantValuesHandleInput};
 use crate::engine::trace::block::FuseBlock;
 use crate::engine::trace::{FuseResources, RegisterTensor, TensorView};
@@ -76,7 +77,10 @@ impl<'a> InputPlanner<'a> {
                     };
                     let params = handle.params(scheme).unwrap();
                     let precision = tensor_relative.dtype.into();
-                    let precision_scales = params.dtype.into();
+                    // The scheme's own scale type rather than the handle's dtype, which only
+                    // carries a byte scale's width.
+                    let precision_scales = FuseType::from_scale_dtype(scheme.scale_dtype())
+                        .expect("a fused kernel only registers scales it reads");
 
                     let global_shape = tensor_global.shape.clone();
                     let shape_params = params_shape(&global_shape, &scheme);

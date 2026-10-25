@@ -670,10 +670,7 @@ fn should_quantize_mxfp8_blocks_as_their_calibrated_scales_do() {
         return;
     }
     let device = Default::default();
-    let scheme = QuantScheme::default()
-        .with_value(QuantValue::E4M3)
-        .per_block([32], ScaleDtype::UE8M0)
-        .with_store(QuantStore::PackedU32(0));
+    let scheme = mxfp8();
     let values: Vec<f32> = (0..4 * 96)
         .map(|i| match i / 32 {
             2 => 0.0,
@@ -690,4 +687,74 @@ fn should_quantize_mxfp8_blocks_as_their_calibrated_scales_do() {
     let dynamic = tensor.quantize_dynamic(&scheme).into_data();
 
     assert_eq!(dynamic.as_bytes(), calibrated.as_bytes());
+}
+
+/// MXFP8 under its stated scheme: `e4m3` values in words of four under 32-wide `ue8m0` scales.
+fn mxfp8() -> QuantScheme {
+    QuantScheme::default()
+        .with_value(QuantValue::E4M3)
+        .per_block([32], ScaleDtype::UE8M0)
+        .with_store(QuantStore::PackedU32(0))
+}
+
+/// What one MXFP8 rounding may move a value by: half a step of `e4m3`'s three mantissa bits,
+/// relative to the value, and the step of the smallest code a block's scale reaches, for a
+/// value near zero.
+fn mxfp8_step() -> Tolerance<FloatElem> {
+    Tolerance::rel_abs(1.0 / 16.0, 1e-2)
+}
+
+fn mxfp8_values(offset: f32) -> Vec<f32> {
+    (0..2 * 64)
+        .map(|i| (i as f32 * 0.21 + offset).cos() * (1 + i / 32) as f32)
+        .collect()
+}
+
+/// An MXFP8 tensor decodes to its values up to one rounding: each block's power-of-two scale
+/// applied to its own `e4m3` codes.
+#[test]
+fn should_round_trip_mxfp8_within_a_step() {
+    let device = Default::default();
+    let input = TestTensor::<2>::from_data(TensorData::new(mxfp8_values(0.0), [2, 64]), &device);
+
+    let decoded = input.clone().quantize_dynamic(&mxfp8()).dequantize();
+
+    decoded
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&input.into_data(), mxfp8_step());
+}
+
+/// An MXFP8 tensor decoded inside an element-wise expression, where a fused kernel reads its
+/// `ue8m0` scales, decodes to its values as it does alone. The values reach 4, where half an
+/// `e4m3` step is 0.25, doubled here; bounded absolutely, since the residual cancels some sums.
+#[test]
+fn should_decode_mxfp8_inside_an_elementwise_expression() {
+    let device = Default::default();
+    let input = TestTensor::<2>::from_data(TensorData::new(mxfp8_values(0.0), [2, 64]), &device);
+    let residual = TestTensor::<2>::from_data(TensorData::new(mxfp8_values(0.7), [2, 64]), &device);
+    let quantized = input.clone().quantize_dynamic(&mxfp8());
+
+    let sum = (quantized.dequantize() * 2.0) + residual.clone();
+
+    sum.into_data().assert_approx_eq::<FloatElem>(
+        &((input * 2.0) + residual).into_data(),
+        Tolerance::absolute(0.5),
+    );
+}
+
+/// Two MXFP8 tensors added, each decoded from its own values and scales and the sum quantized
+/// once more: the float sum up to three roundings of half an `e4m3` step at the magnitudes they
+/// reach, 0.25 each.
+#[test]
+fn should_add_two_mxfp8_tensors() {
+    let device = Default::default();
+    let lhs = TestTensor::<2>::from_data(TensorData::new(mxfp8_values(0.0), [2, 64]), &device);
+    let rhs = TestTensor::<2>::from_data(TensorData::new(mxfp8_values(1.3), [2, 64]), &device);
+
+    let sum = lhs.clone().quantize_dynamic(&mxfp8()) + rhs.clone().quantize_dynamic(&mxfp8());
+
+    assert_eq!(sum.dtype(), DType::QFloat(mxfp8()));
+    sum.dequantize()
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&(lhs + rhs).into_data(), Tolerance::absolute(0.75));
 }
