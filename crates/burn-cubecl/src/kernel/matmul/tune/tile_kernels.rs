@@ -41,11 +41,7 @@ pub fn matmul_autotune(
     let tune_client = client.clone();
     let tune_id = CubeTuneId::new(&lhs.client, &lhs.device);
     let tunables = TUNER.init(&tune_id, move || {
-        let hw = Hardware::new(
-            tune_client.properties_shared(),
-            tune_client.target_properties(),
-        );
-        candidates(&hw)
+        candidates(&Hardware::from_client(&tune_client))
     });
 
     TUNER.execute(&tune_id, &client, tunables, (lhs, rhs, output.clone()));
@@ -110,7 +106,7 @@ where
         return Err("the tile-DSL routines read no quantized operand through burn".into());
     }
     let client = out.client.clone();
-    let hw = Hardware::new(client.properties_shared(), client.target_properties());
+    let hw = Hardware::from_client(&client);
     let plain = |tensor: CubeTensor| {
         let elem = dtype_to_storage_type(tensor.dtype);
         PlainTensor::new(tensor.binding(), elem)
