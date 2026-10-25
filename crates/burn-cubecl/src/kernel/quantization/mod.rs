@@ -1,7 +1,7 @@
 mod dequantize;
 mod quantize;
-mod scales;
+mod symmetric_blocks;
 
 pub use dequantize::*;
 pub use quantize::*;
-pub use scales::*;
+pub use symmetric_blocks::*;

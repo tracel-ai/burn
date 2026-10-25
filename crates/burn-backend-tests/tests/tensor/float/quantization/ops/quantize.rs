@@ -2,8 +2,8 @@ use super::*;
 use alloc::{vec, vec::Vec};
 use burn_tensor::Tolerance;
 use burn_tensor::quantization::{
-    DecodedScales, QuantScheme, QuantStore, QuantValue, QuantizationParameters, QuantizedBytes,
-    ScaleDtype,
+    Calibration, DecodedScales, QuantScheme, QuantStore, QuantValue, QuantizationParameters,
+    QuantizedBytes, ScaleDtype, compute_q_params, compute_range,
 };
 use burn_tensor::{DType, Device, Element, TensorData};
 
@@ -657,4 +657,37 @@ fn should_reshape_transposed_block_quantized_heads_back_into_rows() {
     rows.dequantize()
         .into_data()
         .assert_approx_eq::<FloatElem>(&expected.into_data(), Tolerance::absolute(1e-2));
+}
+
+/// Quantizing dynamically stores what quantizing under the scales min-max calibration computes
+/// does, byte for byte: MXFP8's `e4m3` values under power-of-two block scales, a block of zeros
+/// among them, which quantizes to zeros rather than dividing by its zero scale.
+#[test]
+fn should_quantize_mxfp8_blocks_as_their_calibrated_scales_do() {
+    // The calibrated path at f16 quantizes the block of zeros to the format's largest code: byte
+    // equality holds only against its f32 run.
+    if !matches!(FloatElem::dtype(), DType::F32) {
+        return;
+    }
+    let device = Default::default();
+    let scheme = QuantScheme::default()
+        .with_value(QuantValue::E4M3)
+        .per_block([32], ScaleDtype::UE8M0)
+        .with_store(QuantStore::PackedU32(0));
+    let values: Vec<f32> = (0..4 * 96)
+        .map(|i| match i / 32 {
+            2 => 0.0,
+            block => (i as f32 * 0.37).sin() * (1 + block) as f32 * 3.0,
+        })
+        .collect();
+    let tensor = TestTensor::<2>::from_data(TensorData::new(values, [4, 96]), &device);
+    let range = compute_range(&scheme, &tensor, &Calibration::MinMax);
+
+    let calibrated = tensor
+        .clone()
+        .quantize(&scheme, compute_q_params(&scheme, range))
+        .into_data();
+    let dynamic = tensor.quantize_dynamic(&scheme).into_data();
+
+    assert_eq!(dynamic.as_bytes(), calibrated.as_bytes());
 }

@@ -274,26 +274,20 @@ impl QTensorOps<Self> for CubeBackend {
         }
     }
 
-    /// A single-level block scheme along the innermost axis computes its scales in one pass
-    /// ([`symmetric_block_scales`](kernel::quantization::symmetric_block_scales)) rather than
-    /// through the composed min-max calibration's chain of reductions and arithmetic; every other
-    /// scheme takes the composed calibration.
+    /// A single-level block scheme along the innermost axis quantizes in one launch
+    /// ([`quantize_symmetric_blocks`](kernel::quantization::quantize_symmetric_blocks)) rather
+    /// than through the composed min-max calibration's chain of reductions and arithmetic, then a
+    /// quantize; every other scheme takes the composed calibration.
     fn quantize_dynamic(tensor: FloatTensor<Self>, scheme: &QuantScheme) -> QuantizedTensor<Self> {
-        let scales = kernel::quantization::symmetric_block_scales(&tensor, scheme);
-        let qparams = match scales {
-            Some(scales) => QuantizationParametersPrimitive {
-                scales,
-                global: None,
-            },
-            None => {
-                let (min, max) = burn_backend::quantization::compute_range::<Self>(
-                    scheme,
-                    tensor.clone(),
-                    &burn_backend::quantization::Calibration::MinMax,
-                );
-                burn_backend::quantization::compute_q_params(scheme, min, max)
-            }
-        };
+        if let Some(quantized) = kernel::quantization::quantize_symmetric_blocks(&tensor, scheme) {
+            return quantized;
+        }
+        let (min, max) = burn_backend::quantization::compute_range::<Self>(
+            scheme,
+            tensor.clone(),
+            &burn_backend::quantization::Calibration::MinMax,
+        );
+        let qparams = burn_backend::quantization::compute_q_params(scheme, min, max);
         Self::quantize(tensor, scheme, qparams)
     }
 
