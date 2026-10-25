@@ -39,7 +39,7 @@ use crate::module::{LoraAdapter, Param, ParamGroup, Quantizer, Reparameterizer};
 /// ```
 #[derive(Debug, Clone)]
 pub struct Lora {
-    /// Rank of the low-rank decomposition.
+    /// Rank of the low-rank decomposition. Must be greater than zero.
     pub rank: usize,
     /// Scaling numerator; the adapter contribution is scaled by `alpha / rank`.
     pub alpha: f64,
@@ -56,6 +56,10 @@ pub struct Lora {
 
 impl Lora {
     /// Create a new LoRA reparameterizer with the given rank and alpha.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `rank` is zero.
     pub fn new(rank: usize, alpha: f64) -> Self {
         Self::assert_valid_rank(rank);
         Self {
