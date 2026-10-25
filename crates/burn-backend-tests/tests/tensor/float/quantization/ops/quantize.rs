@@ -758,3 +758,26 @@ fn should_add_two_mxfp8_tensors() {
         .into_data()
         .assert_approx_eq::<FloatElem>(&(lhs + rhs).into_data(), Tolerance::absolute(0.75));
 }
+
+/// Rows sliced out of an MXFP8 tensor decode to the decoded tensor's rows, whether the slice is a
+/// view of its words and scales — rows from 128, where both regions start on a boundary a kernel
+/// binds at — or the rows have to be quantized again, from 40, where the scales do not.
+#[test]
+fn should_slice_rows_of_mxfp8_as_its_decoded_rows() {
+    let device = Default::default();
+    let values: Vec<f32> = (0..256 * 128)
+        .map(|i| (i as f32 * 0.013).sin() * (1 + i % 7) as f32)
+        .collect();
+    let quantized = TestTensor::<2>::from_data(TensorData::new(values, [256, 128]), &device)
+        .quantize_dynamic(&mxfp8());
+    let decoded = quantized.clone().dequantize();
+
+    for rows in [128..256, 0..40, 40..48] {
+        let sliced = quantized.clone().slice([rows.clone(), 0..128]);
+        assert_eq!(sliced.dtype(), DType::QFloat(mxfp8()));
+        sliced.dequantize().into_data().assert_eq(
+            &decoded.clone().slice([rows.clone(), 0..128]).into_data(),
+            true,
+        );
+    }
+}

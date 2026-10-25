@@ -7,7 +7,7 @@ use burn_backend::{
     },
     tensor::{Device, FloatTensor, QuantizedTensor},
 };
-use burn_std::{FloatDType, Metadata, quantization::global_scale_size};
+use burn_std::{FloatDType, Metadata, Slice, quantization::global_scale_size};
 use cubecl::server::{MemoryLayout, MemoryLayoutDescriptor, MemoryLayoutStrategy};
 use cubecl::{e2m1x2, quant::scheme::QuantStore};
 
@@ -314,6 +314,28 @@ impl QTensorOps<Self> for CubeBackend {
 
     fn q_to_device(tensor: QuantizedTensor<Self>, device: &Device<Self>) -> QuantizedTensor<Self> {
         super::to_device(tensor, device)
+    }
+
+    fn q_slice(tensor: QuantizedTensor<Self>, slices: &[Slice]) -> QuantizedTensor<Self> {
+        let ranges = slices
+            .iter()
+            .enumerate()
+            .map(|(axis, slice)| slice.to_range(tensor.meta.shape()[axis]))
+            .collect::<Vec<_>>();
+        let steps_one = slices.iter().all(|slice| slice.step == 1);
+        match steps_one
+            .then(|| super::q_slice(tensor.clone(), &ranges))
+            .flatten()
+        {
+            Some(sliced) => sliced,
+            // Its words or its blocks cannot follow the slice as a view: quantized again, the
+            // block along the innermost axis, as an operation's output is.
+            None => {
+                let scheme = burn_std::innermost_scheme(tensor.scheme());
+                let float = Self::dequantize(tensor, FloatDType::F32);
+                Self::quantize_dynamic(Self::float_slice(float, slices), &scheme)
+            }
+        }
     }
 
     fn q_reshape(tensor: QuantizedTensor<Self>, shape: Shape) -> QuantizedTensor<Self> {
