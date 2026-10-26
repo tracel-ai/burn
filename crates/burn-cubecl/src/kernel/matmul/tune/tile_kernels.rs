@@ -1,11 +1,11 @@
 //! Matmul autotune over cubek's tile-DSL routines alone ([`cubek::matmul::kernels`]): what the
-//! `tile-kernels-only` feature races instead of the multi-level candidates. A product none of
-//! them serves fails rather than falling back, so a test run lists what they don't serve yet.
+//! `tile-kernels-only` feature races instead of the multi-level candidates. A product no routine
+//! serves fails rather than falling back, so a test run lists what they don't serve yet.
 
 use crate::{CubeTuneId, kernel::matmul::utils::init_matmul_output, tensor::CubeTensor};
 use burn_backend::DType;
 use burn_backend::cubecl::dtype_to_storage_type;
-use cubecl::tune::{LocalTuner, Tunable, TunableSet, TuneGroup, local_tuner};
+use cubecl::tune::{LocalTuner, Tunable, TunableSet, local_tuner};
 use cubek::matmul::kernels::{
     CubeShuffleMatmulRoutine, CubeStagedMatmulRoutine, HypercubeLastArrivalMatmulRoutine,
     MatmulRoutine, MatmulRoutineCandidate, PlaneShuffleMatmulRoutine, UnitRegistersMatmulRoutine,
@@ -17,12 +17,10 @@ use cubek::matmul::kernels::{
 use cubek::microkernel::matmul::MatmulMicrokernel;
 use cubek::std::{
     Hardware,
-    autotune::{CandidatePriority, priority_of},
+    autotune::{Autotune, GroupPriority},
 };
-use std::sync::Arc;
 
 type Inputs = (CubeTensor, CubeTensor, CubeTensor);
-type MatmulTunables = TunableSet<MatmulTuneKey, Inputs, ()>;
 
 /// Executes autotune on matmul operations, over cubek's tile-DSL routines alone.
 pub fn matmul_autotune(
@@ -43,21 +41,7 @@ pub fn matmul_autotune(
     let tune_client = client.clone();
     let tune_id = CubeTuneId::new(&lhs.client, &lhs.device);
     let tunables = TUNER.init(&tune_id, move || {
-        let hw = Hardware::new(
-            tune_client.properties_shared(),
-            tune_client.target_properties(),
-        );
-        let routines = TuneGroup::<MatmulTuneKey>::new("tile-kernels", |_| 0);
-        let set = TunableSet::new(key, |_key: &MatmulTuneKey, (lhs, rhs, out): &Inputs| {
-            (lhs.clone(), rhs.clone(), out.copy())
-        });
-        // Not the relay hypercube routine: its cubes wait on each other.
-        let set = with_routine(set, &routines, PlaneShuffleMatmulRoutine, &hw);
-        let set = with_routine(set, &routines, CubeShuffleMatmulRoutine, &hw);
-        let set = with_routine(set, &routines, UnitWholeKMatmulRoutine, &hw);
-        let set = with_routine(set, &routines, CubeStagedMatmulRoutine, &hw);
-        let set = with_routine(set, &routines, HypercubeLastArrivalMatmulRoutine, &hw);
-        with_routine(set, &routines, UnitRegistersMatmulRoutine, &hw)
+        candidates(&Hardware::from_client(&tune_client))
     });
 
     TUNER.execute(&tune_id, &client, tunables, (lhs, rhs, output.clone()));
@@ -65,41 +49,55 @@ pub fn matmul_autotune(
     output
 }
 
-/// Every setting `routine` lists on `hw`, each a candidate of `group` placed per key by
-/// [`priority_of`]: a setting compiling the launch an earlier one compiles sits out the round.
-fn with_routine<R, M: MatmulMicrokernel, SM: PartialEq + Clone + 'static>(
-    mut set: MatmulTunables,
-    group: &TuneGroup<MatmulTuneKey>,
-    routine: R,
-    hw: &Hardware,
-) -> MatmulTunables
-where
-    R: MatmulRoutine<M, SM> + Copy + Send + Sync + 'static,
-    R::Settings: Send + Sync,
-{
-    let candidates: Arc<[MatmulRoutineCandidate<R>]> =
-        MatmulRoutineCandidate::list(routine, hw).into();
-    for position in 0..candidates.len() {
-        let (running, ranking, hw) = (candidates.clone(), candidates.clone(), hw.clone());
-        let tunable = Tunable::new(
-            &candidates[position].settings().to_string(),
-            move |(lhs, rhs, out): Inputs| launch(&running[position], &hw, lhs, rhs, out),
+/// Every routine's settings in one group, all of them raced in one round, and the unit routine's
+/// lead under them, which serves any product on any device. Not the relay hypercube routine: its
+/// cubes wait on each other.
+fn candidates(hw: &Hardware) -> TunableSet<MatmulTuneKey, Inputs, ()> {
+    let mut autotune = Autotune::new(key);
+    let routines = autotune.group("tile-kernels", GroupPriority::DEFAULT);
+    let lead = MatmulRoutineCandidate::list(UnitRegistersMatmulRoutine, hw).swap_remove(0);
+    autotune
+        .prioritized(
+            &routines,
+            MatmulRoutineCandidate::list(PlaneShuffleMatmulRoutine, hw),
+            launch,
         )
-        .group(group, move |key| {
-            priority_of(&ranking, position, key).map_or(-1, CandidatePriority::get)
-        });
-        set = set.with(tunable);
-    }
-    set
+        .prioritized(
+            &routines,
+            MatmulRoutineCandidate::list(CubeShuffleMatmulRoutine, hw),
+            launch,
+        )
+        .prioritized(
+            &routines,
+            MatmulRoutineCandidate::list(UnitWholeKMatmulRoutine, hw),
+            launch,
+        )
+        .prioritized(
+            &routines,
+            MatmulRoutineCandidate::list(CubeStagedMatmulRoutine, hw),
+            launch,
+        )
+        .prioritized(
+            &routines,
+            MatmulRoutineCandidate::list(HypercubeLastArrivalMatmulRoutine, hw),
+            launch,
+        )
+        .prioritized(
+            &routines,
+            MatmulRoutineCandidate::list(UnitRegistersMatmulRoutine, hw),
+            launch,
+        )
+        .floor(Tunable::new(
+            "unit-registers-lead",
+            move |inputs: Inputs| launch(&lead, inputs),
+        ))
+        .finish()
 }
 
 /// `lhs · rhs` written into `out` by `candidate`'s routine at its setting, or why it did not run.
 fn launch<R, M: MatmulMicrokernel, SM: PartialEq + Clone + 'static>(
     candidate: &MatmulRoutineCandidate<R>,
-    hw: &Hardware,
-    lhs: CubeTensor,
-    rhs: CubeTensor,
-    out: CubeTensor,
+    (lhs, rhs, out): Inputs,
 ) -> Result<(), String>
 where
     R: MatmulRoutine<M, SM> + Copy,
@@ -108,6 +106,7 @@ where
         return Err("the tile-DSL routines read no quantized operand through burn".into());
     }
     let client = out.client.clone();
+    let hw = Hardware::from_client(&client);
     let plain = |tensor: CubeTensor| {
         let elem = dtype_to_storage_type(tensor.dtype);
         PlainTensor::new(tensor.binding(), elem)
@@ -115,7 +114,7 @@ where
     let settings = candidate.settings();
     candidate
         .routine()
-        .launch_into(hw, &client, plain(lhs), plain(rhs), plain(out), settings)
+        .launch_into(&hw, &client, plain(lhs), plain(rhs), plain(out), settings)
         .map_err(|why| format!("{settings} does not serve this problem: {why:?}"))
 }
 

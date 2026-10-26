@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 use crate::Bounds;
 use crate::component_path::ComponentPath;
 
-use super::FusedElsewhere;
+use super::{FusedElsewhere, FusedShare};
 
 /// One instrumented run, broken down by component.
 ///
@@ -127,11 +127,20 @@ impl Breakdown {
             + self.outside_wait
     }
 
-    /// The components whose work all ran in a fused kernel recorded elsewhere: no
-    /// kernel under them, and named by a kernel on a component above them or outside
-    /// every component, or holding one that is. A component between the kernel and
-    /// the ones it names did no work of its own either. Such a component ran nothing, so its floor is the kernel's
-    /// that carried its work, and a report sets the component's own aside.
+    /// The components whose work ran in a fused kernel recorded elsewhere: named by a
+    /// kernel on a component above them or outside every component, or holding one
+    /// that is.
+    ///
+    /// [`All`](FusedShare::All) of it where no kernel is under the component — a
+    /// component between the kernel and the ones it names did no work of its own
+    /// either. Such a component ran nothing, so its floor is the kernel's that carried
+    /// its work, and a report sets the component's own aside.
+    ///
+    /// [`Part`](FusedShare::Part) of it where the component ran kernels besides: a
+    /// stack of layers whose first layer's projection ran alone and whose others fused
+    /// with the residual add is one component, holding one launch and named by the
+    /// fused kernel for the rest. Its time is only what it ran itself, and its floor
+    /// prices every entry, so a report does not score the one against the other.
     ///
     /// Asked of the kernels rather than inferred from a zero: a component that
     /// registered no device work — views and reshapes — also has no kernel, and
@@ -149,7 +158,7 @@ impl Breakdown {
             .collect();
         components
             .iter()
-            .filter(|(path, component)| {
+            .filter_map(|(path, component)| {
                 let ran_nothing = component
                     .walk()
                     .iter()
@@ -173,9 +182,12 @@ impl Breakdown {
                     .iter()
                     .chain(&self.end_of_run)
                     .any(|kernel| names(kernel, path));
-                ran_nothing && (named_above || named_outside)
+                let share = match ran_nothing {
+                    true => FusedShare::All,
+                    false => FusedShare::Part,
+                };
+                (named_above || named_outside).then_some((*component, share))
             })
-            .map(|(_, component)| *component)
             .collect()
     }
 
@@ -462,9 +474,10 @@ mod tests {
         assert!(own.moves_within(parts) && own.bytes() < parts.bytes());
     }
 
-    /// A component is fused elsewhere only when it ran no kernel of its own: one
+    /// A component is all fused elsewhere only when it ran no kernel of its own: one
     /// whose kernels lost their timings reads zero too, and setting its floor
-    /// aside would hide the work it did.
+    /// aside would hide the work it did. It is part fused, its time not the whole
+    /// of its work.
     #[test]
     fn a_component_fused_elsewhere_ran_no_kernel_of_its_own() {
         let kernel = |name: &str, total: u64, fuses: &[&str]| Kernel {
@@ -508,13 +521,19 @@ mod tests {
         };
 
         let fused_elsewhere = breakdown.fused_elsewhere();
-        let fused: Vec<&str> = breakdown
+        let fused: Vec<(&str, FusedShare)> = breakdown
             .components()
             .into_iter()
-            .filter(|(_, component)| fused_elsewhere.contains(component))
-            .map(|(_, component)| component.label.as_str())
+            .filter_map(|(_, component)| {
+                fused_elsewhere
+                    .share(component)
+                    .map(|share| (component.label.as_str(), share))
+            })
             .collect();
-        assert_eq!(fused, ["norm"]);
+        assert_eq!(
+            fused,
+            [("norm", FusedShare::All), ("query", FusedShare::Part)]
+        );
     }
 
     /// A component whose only work was a child's, fused into a kernel above
@@ -567,7 +586,7 @@ mod tests {
         let fused: Vec<&str> = breakdown
             .components()
             .into_iter()
-            .filter(|(_, component)| fused_elsewhere.contains(component))
+            .filter(|(_, component)| fused_elsewhere.share(component) == Some(FusedShare::All))
             .map(|(_, component)| component.label.as_str())
             .collect();
         assert_eq!(fused, ["norm", "attention", "query"]);
