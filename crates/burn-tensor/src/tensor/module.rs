@@ -466,6 +466,7 @@ pub fn avg_pool2d(x: Tensor<4>, options: AvgPoolOptions<2>) -> Tensor<4> {
             options.kernel_size,
             options.stride,
             padding,
+            options.dilation,
             count_include_pad,
             options.ceil_mode,
         )))
@@ -480,10 +481,12 @@ pub fn avg_pool2d(x: Tensor<4>, options: AvgPoolOptions<2>) -> Tensor<4> {
 ///
 /// - If any dimension of `kernel_size` is 0.
 /// - If any dimension of `stride` is 0.
-/// - If any dimension of `padding` exceeds `kernel_size / 2`.
+/// - If any dimension of `dilation` is 0.
+/// - If any dimension of `padding` exceeds half the effective kernel size, `(kernel_size - 1) * dilation + 1`.
 pub fn avg_pool3d(x: Tensor<5>, options: AvgPoolOptions<3>) -> Tensor<5> {
     let kernel_size = options.kernel_size;
     let stride = options.stride;
+    let dilation = options.dilation;
     assert!(
         kernel_size.iter().all(|&k| k > 0),
         "avg_pool3d: kernel_size must be > 0, got {kernel_size:?}"
@@ -492,13 +495,19 @@ pub fn avg_pool3d(x: Tensor<5>, options: AvgPoolOptions<3>) -> Tensor<5> {
         stride.iter().all(|&s| s > 0),
         "avg_pool3d: stride must be > 0, got {stride:?}"
     );
+    assert!(
+        dilation.iter().all(|&d| d > 0),
+        "avg_pool3d: dilation must be > 0, got {dilation:?}"
+    );
     avg_pool(x, &options, |x, padding, count_include_pad| {
         for i in 0..3 {
+            let effective_kernel = (kernel_size[i] - 1) * dilation[i] + 1;
             assert!(
-                padding[i] <= kernel_size[i] / 2,
-                "avg_pool3d: padding must be <= kernel_size / 2, got padding={:?}, kernel_size={:?}",
+                padding[i] <= effective_kernel / 2,
+                "avg_pool3d: padding must be <= effective kernel size / 2, got padding={:?}, kernel_size={:?}, dilation={:?}",
                 padding,
-                kernel_size
+                kernel_size,
+                dilation
             );
         }
         Tensor::new(BridgeTensor::float(Dispatch::avg_pool3d(
@@ -506,6 +515,7 @@ pub fn avg_pool3d(x: Tensor<5>, options: AvgPoolOptions<3>) -> Tensor<5> {
             kernel_size,
             stride,
             padding,
+            dilation,
             count_include_pad,
             options.ceil_mode,
         )))
@@ -522,6 +532,7 @@ pub fn avg_pool1d(x: Tensor<3>, options: AvgPoolOptions<1>) -> Tensor<3> {
             options.kernel_size[0],
             options.stride[0],
             padding[0],
+            options.dilation[0],
             count_include_pad,
             options.ceil_mode,
         )))
@@ -828,7 +839,7 @@ pub fn max_pool_output_size<const N: usize>(
 
 /// The spatial size of the output [`avg_pool1d`], [`avg_pool2d`] or [`avg_pool3d`] returns for
 /// an input whose spatial size is `input_size`, or `None` where the options cannot size it: a
-/// zero kernel or stride, or a padded input shorter than the kernel.
+/// zero kernel, stride or dilation, or a padded input shorter than the dilated kernel.
 pub fn avg_pool_output_size<const N: usize>(
     input_size: [usize; N],
     options: &AvgPoolOptions<N>,
@@ -846,7 +857,7 @@ pub fn avg_pool_output_size<const N: usize>(
             kernel_size: options.kernel_size[i],
             stride: options.stride[i],
             padding: options.padding[i],
-            dilation: 1,
+            dilation: options.dilation[i],
             ceil_mode: options.ceil_mode,
         }
         .output_size(padding)
@@ -1264,12 +1275,14 @@ pub fn conv2d_weight_backward(
 }
 
 /// Backward pass for the [avg pooling 2d](ModuleOps::avg_pool2d) operation.
+#[allow(clippy::too_many_arguments)]
 pub fn avg_pool2d_backward(
     x: Tensor<4>,
     grad: Tensor<4>,
     kernel_size: [usize; 2],
     stride: [usize; 2],
     padding: [usize; 2],
+    dilation: [usize; 2],
     count_include_pad: bool,
     ceil_mode: bool,
 ) -> Tensor<4> {
@@ -1279,6 +1292,7 @@ pub fn avg_pool2d_backward(
         kernel_size,
         stride,
         padding,
+        dilation,
         count_include_pad,
         ceil_mode,
     )))
@@ -1317,14 +1331,17 @@ pub fn max_pool2d_with_indices_backward(
 ///
 /// - If any dimension of `kernel_size` is 0.
 /// - If any dimension of `stride` is 0.
-/// - If any dimension of `padding` exceeds `kernel_size / 2`.
+/// - If any dimension of `dilation` is 0.
+/// - If any dimension of `padding` exceeds half the effective kernel size, `(kernel_size - 1) * dilation + 1`.
 /// - If `grad` dimensions do not match the expected forward output shape.
+#[allow(clippy::too_many_arguments)]
 pub fn avg_pool3d_backward(
     x: Tensor<5>,
     grad: Tensor<5>,
     kernel_size: [usize; 3],
     stride: [usize; 3],
     padding: [usize; 3],
+    dilation: [usize; 3],
     count_include_pad: bool,
     ceil_mode: bool,
 ) -> Tensor<5> {
@@ -1336,12 +1353,18 @@ pub fn avg_pool3d_backward(
         stride.iter().all(|&s| s > 0),
         "avg_pool3d_backward: stride must be > 0, got {stride:?}"
     );
+    assert!(
+        dilation.iter().all(|&d| d > 0),
+        "avg_pool3d_backward: dilation must be > 0, got {dilation:?}"
+    );
     for i in 0..3 {
+        let effective_kernel = (kernel_size[i] - 1) * dilation[i] + 1;
         assert!(
-            padding[i] <= kernel_size[i] / 2,
-            "avg_pool3d_backward: padding must be <= kernel_size / 2, got padding={:?}, kernel_size={:?}",
+            padding[i] <= effective_kernel / 2,
+            "avg_pool3d_backward: padding must be <= effective kernel size / 2, got padding={:?}, kernel_size={:?}, dilation={:?}",
             padding,
-            kernel_size
+            kernel_size,
+            dilation
         );
     }
     let [batch_size, channels, d_in, h_in, w_in] = x.dims();
@@ -1352,7 +1375,7 @@ pub fn avg_pool3d_backward(
             kernel_size[0],
             stride[0],
             padding[0],
-            1,
+            dilation[0],
             d_in,
             ceil_mode,
         ),
@@ -1360,7 +1383,7 @@ pub fn avg_pool3d_backward(
             kernel_size[1],
             stride[1],
             padding[1],
-            1,
+            dilation[1],
             h_in,
             ceil_mode,
         ),
@@ -1368,7 +1391,7 @@ pub fn avg_pool3d_backward(
             kernel_size[2],
             stride[2],
             padding[2],
-            1,
+            dilation[2],
             w_in,
             ceil_mode,
         ),
@@ -1386,6 +1409,7 @@ pub fn avg_pool3d_backward(
         kernel_size,
         stride,
         padding,
+        dilation,
         count_include_pad,
         ceil_mode,
     )))
@@ -1533,16 +1557,15 @@ mod tests {
                     if let Some(size) = pooled(move || max_pool1d(input, options)) {
                         assert_eq!(sized, Some([size]), "{max:?} over {size_in}");
                     }
-                    if dilation == 1 {
-                        let avg = AvgPoolOptions::new([kernel_size])
-                            .with_stride([stride])
-                            .with_padding_pairs([(begin, end)])
-                            .with_ceil_mode(ceil_mode);
-                        let sized = avg_pool_output_size([size_in], &avg);
-                        let (input, options) = (x.clone(), avg.clone());
-                        if let Some(size) = pooled(move || avg_pool1d(input, options)) {
-                            assert_eq!(sized, Some([size]), "{avg:?} over {size_in}");
-                        }
+                    let avg = AvgPoolOptions::new([kernel_size])
+                        .with_stride([stride])
+                        .with_dilation([dilation])
+                        .with_padding_pairs([(begin, end)])
+                        .with_ceil_mode(ceil_mode);
+                    let sized = avg_pool_output_size([size_in], &avg);
+                    let (input, options) = (x.clone(), avg.clone());
+                    if let Some(size) = pooled(move || avg_pool1d(input, options)) {
+                        assert_eq!(sized, Some([size]), "{avg:?} over {size_in}");
                     }
                 }
             }
@@ -1675,10 +1698,38 @@ mod tests {
     }
 
     #[test]
+    #[should_panic(expected = "avg_pool3d: dilation must be > 0")]
+    fn test_avg_pool3d_dilation_zero_panics() {
+        let tensor = Tensor::<5>::zeros([1, 1, 4, 4, 4], &Default::default());
+        let mut options = AvgPoolOptions::new([2, 2, 2]);
+        options.dilation = [0, 1, 1];
+        avg_pool3d(tensor, options);
+    }
+
+    #[test]
+    #[should_panic(expected = "avg_pool3d: padding must be <= effective kernel size / 2")]
+    fn test_avg_pool3d_padding_greater_than_half_effective_kernel_panics() {
+        let tensor = Tensor::<5>::zeros([1, 1, 4, 4, 4], &Default::default());
+        let options = AvgPoolOptions::new([3, 1, 1])
+            .with_dilation([2, 1, 1])
+            .with_padding([3, 0, 0]);
+        avg_pool3d(tensor, options);
+    }
+
+    #[test]
     #[should_panic(expected = "grad shape")]
     fn test_avg_pool3d_backward_grad_shape_mismatch_panics() {
         let tensor = Tensor::<5>::zeros([1, 1, 4, 4, 4], &Default::default());
         let grad = Tensor::<5>::zeros([1, 1, 2, 2, 2], &Default::default());
-        avg_pool3d_backward(tensor, grad, [2, 2, 2], [1, 1, 1], [0, 0, 0], true, false);
+        avg_pool3d_backward(
+            tensor,
+            grad,
+            [2, 2, 2],
+            [1, 1, 1],
+            [0, 0, 0],
+            [1, 1, 1],
+            true,
+            false,
+        );
     }
 }

@@ -1422,6 +1422,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
         kernel_size: usize,
         stride: usize,
         padding: usize,
+        dilation: usize,
         count_include_pad: bool,
         ceil_mode: bool,
     ) -> AutodiffTensor<B> {
@@ -1429,7 +1430,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
         struct AvgPool1D;
 
         impl<B: Backend> Backward<B, 1> for AvgPool1D {
-            type State = (NodeId, usize, usize, usize, bool, bool);
+            type State = (NodeId, usize, usize, usize, usize, bool, bool);
 
             fn backward(
                 self,
@@ -1439,7 +1440,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
             ) {
                 let [node_parent] = ops.parents;
                 let grad = grads.consume::<B>(&ops.node);
-                let (x_state, kernel_size, stride, padding, count_include_pad, ceil_mode) =
+                let (x_state, kernel_size, stride, padding, dilation, count_include_pad, ceil_mode) =
                     ops.state;
                 let x = checkpointer.retrieve_node_output(x_state);
 
@@ -1450,6 +1451,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
                         kernel_size,
                         stride,
                         padding,
+                        dilation,
                         count_include_pad,
                         ceil_mode,
                     );
@@ -1471,6 +1473,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
                         kernel_size,
                         stride,
                         padding,
+                        dilation,
                         count_include_pad,
                         ceil_mode,
                     ),
@@ -1479,6 +1482,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
                         kernel_size,
                         stride,
                         padding,
+                        dilation,
                         count_include_pad,
                         ceil_mode,
                     ),
@@ -1489,6 +1493,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
                 kernel_size,
                 stride,
                 padding,
+                dilation,
                 count_include_pad,
                 ceil_mode,
             )),
@@ -1500,6 +1505,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
         kernel_size: [usize; 2],
         stride: [usize; 2],
         padding: [usize; 2],
+        dilation: [usize; 2],
         count_include_pad: bool,
         ceil_mode: bool,
     ) -> AutodiffTensor<B> {
@@ -1507,7 +1513,15 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
         struct AvgPool2D;
 
         impl<B: Backend> Backward<B, 1> for AvgPool2D {
-            type State = (NodeId, [usize; 2], [usize; 2], [usize; 2], bool, bool);
+            type State = (
+                NodeId,
+                [usize; 2],
+                [usize; 2],
+                [usize; 2],
+                [usize; 2],
+                bool,
+                bool,
+            );
 
             fn backward(
                 self,
@@ -1517,7 +1531,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
             ) {
                 let [node_parent] = ops.parents;
                 let grad = grads.consume::<B>(&ops.node);
-                let (x_state, kernel_size, stride, padding, count_include_pad, ceil_mode) =
+                let (x_state, kernel_size, stride, padding, dilation, count_include_pad, ceil_mode) =
                     ops.state;
                 let x = checkpointer.retrieve_node_output(x_state);
 
@@ -1528,6 +1542,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
                         kernel_size,
                         stride,
                         padding,
+                        dilation,
                         count_include_pad,
                         ceil_mode,
                     );
@@ -1549,6 +1564,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
                         kernel_size,
                         stride,
                         padding,
+                        dilation,
                         count_include_pad,
                         ceil_mode,
                     ),
@@ -1557,6 +1573,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
                         kernel_size,
                         stride,
                         padding,
+                        dilation,
                         count_include_pad,
                         ceil_mode,
                     ),
@@ -1567,6 +1584,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
                 kernel_size,
                 stride,
                 padding,
+                dilation,
                 count_include_pad,
                 ceil_mode,
             )),
@@ -1579,6 +1597,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
         _kernel_size: [usize; 2],
         _stride: [usize; 2],
         _padding: [usize; 2],
+        _dilation: [usize; 2],
         _count_include_pad: bool,
         _ceil_mode: bool,
     ) -> AutodiffTensor<B> {
@@ -1590,6 +1609,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
         kernel_size: [usize; 3],
         stride: [usize; 3],
         padding: [usize; 3],
+        dilation: [usize; 3],
         count_include_pad: bool,
         ceil_mode: bool,
     ) -> AutodiffTensor<B> {
@@ -1597,7 +1617,15 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
         struct AvgPool3D;
 
         impl<B: Backend> Backward<B, 1> for AvgPool3D {
-            type State = (NodeId, [usize; 3], [usize; 3], [usize; 3], bool, bool);
+            type State = (
+                NodeId,
+                [usize; 3],
+                [usize; 3],
+                [usize; 3],
+                [usize; 3],
+                bool,
+                bool,
+            );
 
             fn backward(
                 self,
@@ -1607,7 +1635,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
             ) {
                 let [node_parent] = ops.parents;
                 let grad = grads.consume::<B>(&ops.node);
-                let (x_state, kernel_size, stride, padding, count_include_pad, ceil_mode) =
+                let (x_state, kernel_size, stride, padding, dilation, count_include_pad, ceil_mode) =
                     ops.state;
                 let x = checkpointer.retrieve_node_output(x_state);
 
@@ -1618,6 +1646,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
                         kernel_size,
                         stride,
                         padding,
+                        dilation,
                         count_include_pad,
                         ceil_mode,
                     );
@@ -1639,6 +1668,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
                         kernel_size,
                         stride,
                         padding,
+                        dilation,
                         count_include_pad,
                         ceil_mode,
                     ),
@@ -1647,6 +1677,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
                         kernel_size,
                         stride,
                         padding,
+                        dilation,
                         count_include_pad,
                         ceil_mode,
                     ),
@@ -1657,6 +1688,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
                 kernel_size,
                 stride,
                 padding,
+                dilation,
                 count_include_pad,
                 ceil_mode,
             )),
@@ -1669,6 +1701,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
         _kernel_size: [usize; 3],
         _stride: [usize; 3],
         _padding: [usize; 3],
+        _dilation: [usize; 3],
         _count_include_pad: bool,
         _ceil_mode: bool,
     ) -> AutodiffTensor<B> {
