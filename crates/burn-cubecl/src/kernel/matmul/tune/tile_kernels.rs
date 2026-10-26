@@ -112,16 +112,16 @@ where
         return Err("the tile-DSL routines read no quantized operand through burn".into());
     }
     let client = out.client.clone();
-    let hw = Hardware::from_client(&client);
     let plain = |tensor: CubeTensor| {
         let elem = dtype_to_storage_type(tensor.dtype);
         PlainTensor::new(tensor.binding(), elem)
     };
-    let settings = candidate.settings();
     candidate
-        .routine()
-        .launch_into(&hw, &client, plain(lhs), plain(rhs), plain(out), settings)
-        .map_err(|why| format!("{settings} does not serve this problem: {why:?}"))
+        .launch_into(&client, plain(lhs), plain(rhs), plain(out))
+        .map_err(|why| {
+            let settings = candidate.settings();
+            format!("{settings} does not serve this problem: {why:?}")
+        })
 }
 
 /// What `lhs · rhs` costs at least: its operations against the instruction its elements run on,
