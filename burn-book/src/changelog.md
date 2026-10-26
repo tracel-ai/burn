@@ -269,6 +269,9 @@ loading those checkpoints by filtering to `linear_inner` and `linear_outer`.
   ranks. The array form of `reshape` retains its `0`/`-1` placeholders.
   ([#6112](https://github.com/tracel-ai/burn/pull/6112))
   [@mattisonchao](https://github.com/mattisonchao) [@laggui](https://github.com/laggui)
+- Reject `expand(Shape)` arguments whose rank differs from the output tensor rank, with a clear
+  validation error. ([#6211](https://github.com/tracel-ai/burn/pull/6211))
+  [@onenewcode](https://github.com/onenewcode)
 - Clarify tensor type-mismatch panics with the requested type and guidance to check the rank,
   including gradient lookups.
   ([#5971](https://github.com/tracel-ai/burn/pull/5971)) [@tandede](https://github.com/tandede)
