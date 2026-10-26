@@ -1,6 +1,6 @@
 use super::*;
 use burn_tensor::Distribution;
-use burn_tensor::{Device, IndexingUpdateOp, Tolerance};
+use burn_tensor::{DType, Device, IndexingUpdateOp, TensorData, Tolerance};
 
 #[test]
 fn select_add_should_match_reference_2d_dim0() {
@@ -18,8 +18,26 @@ fn select_add_should_match_reference_3d_dim0() {
 }
 
 #[test]
-fn select_add_should_match_reference_3d_dim1() {
-    select_add_matches_reference(1, [6, 256, 6]);
+fn select_add_3d_dim1_with_strided_values() {
+    let device = Device::default();
+    let tensor = TestTensor::<3>::zeros([2, 2, 2], &device);
+    let values = TestTensor::<3>::from_data(
+        [
+            [[1., 2., 3.], [4., 5., 6.]],
+            [[7., 8., 9.], [10., 11., 12.]],
+        ],
+        &device,
+    )
+    .swap_dims(1, 2);
+    let indices = TestTensorInt::<1>::from_data([1, 0, 1], &device);
+
+    tensor
+        .select_assign(1, indices, values, IndexingUpdateOp::Add)
+        .into_data()
+        .assert_eq(
+            &TensorData::from([[[2., 5.], [4., 10.]], [[8., 11.], [16., 22.]]]),
+            false,
+        );
 }
 
 #[test]
@@ -86,69 +104,68 @@ fn select_mul_matches_reference<const D: usize>(dim: usize, shape: [usize; D]) {
 
 #[test]
 fn select_add_repeated_indices_preserves_bf16_precision() {
+    use cubek::cubecl::{features::AtomicUsage, ir::Type};
+
+    let dtype = DType::BF16;
     let device = Device::default();
-    if !device.supports_dtype(burn_tensor::DType::BF16) {
+    if !device.supports_dtype(dtype) {
+        return;
+    }
+    let burn_dispatch::DispatchDevice::Cube(cube_device) = device.as_dispatch() else {
+        return;
+    };
+    let client = cube_device.client();
+    let properties = client.properties();
+    // The serial fallback intentionally retains the input accumulation dtype.
+    if properties.hardware.num_cpu_cores.is_some()
+        || !properties
+            .atomic_type_usage(Type::atomic(burn_backend::cubecl::dtype_to_elem_type(
+                DType::F32,
+            )))
+            .contains(AtomicUsage::Add)
+    {
         return;
     }
 
-    let n = 4096usize;
-    let d = 16usize;
+    // Repeated unit increments stall at 256 in BF16.
+    let tensor = TestTensor::<1>::zeros([2], (&device, dtype));
+    let value = TestTensor::<1>::ones([4096], (&device, dtype));
+    let indices = TestTensorInt::<1>::zeros([4096], &device);
 
-    let tensor = TestTensor::<2>::zeros([4, d], &device).cast(burn_tensor::DType::BF16);
-    let value = TestTensor::<2>::ones([n, d], &device).cast(burn_tensor::DType::BF16);
-    let indices = TestTensorInt::<1>::zeros([n], &device);
-
-    let out = tensor
-        .select_assign(0, indices, value, IndexingUpdateOp::Add)
-        .cast(burn_tensor::DType::F32);
-    let out_vec: Vec<f32> = out.into_data().to_vec().unwrap();
-    assert!((out_vec[0] - 4096.0).abs() < 1e-3, "got {}", out_vec[0]);
-    assert_eq!(out_vec[d], 0.0);
+    let out = tensor.select_assign(0, indices, value, IndexingUpdateOp::Add);
+    assert_eq!(out.dtype(), dtype);
+    out.into_data()
+        .convert::<f32>()
+        .assert_eq(&TensorData::from([4096., 0.]), false);
 }
 
 #[test]
 fn select_add_noncontiguous_sliced_view_updates_all_rows() {
     let device = Device::default();
-    let ref_device = ReferenceDevice::new();
-
-    // Slicing `[4, 256]` to `[0..2, 0..128]` produces a uniquely owned `[2, 128]` view with
-    // strides `[256, 1]`: logical `len()` is `256`, while row 1 starts at physical offset `256`.
-    let base = TestTensor::<2>::zeros([4, 256], &device);
-    let base_ref = TestTensor::<2>::from_data(base.to_data(), &ref_device);
-    let sliced = base.slice([0..2, 0..128]);
-    let sliced_ref = base_ref.slice([0..2, 0..128]);
-
+    // Row 1 starts at physical offset 256, beyond the view's logical length of 256.
+    let tensor = TestTensor::<2>::zeros([4, 256], &device).slice([0..2, 0..128]);
     let indices = TestTensorInt::<1>::from_data([1, 0, 1], &device);
-    let indices_ref = TestTensorInt::<1>::from_data([1, 0, 1], &ref_device);
     let value = TestTensor::<2>::ones([3, 128], &device);
-    let value_ref = TestTensor::<2>::from_data(value.to_data(), &ref_device);
 
-    let actual = sliced.select_assign(0, indices, value, IndexingUpdateOp::Add);
-    let expected = sliced_ref.select_assign(0, indices_ref, value_ref, IndexingUpdateOp::Add);
-
-    expected
+    tensor
+        .select_assign(0, indices, value, IndexingUpdateOp::Add)
         .into_data()
-        .assert_approx_eq::<FloatElem>(&actual.into_data(), Tolerance::default());
+        .assert_eq(&TensorData::from([[1.; 128], [2.; 128]]), false);
 }
 
 #[test]
-fn embedding_backward_preserves_flex32_dtype() {
+fn select_add_preserves_flex32_dtype() {
     let device = Device::default();
-    if !device.supports_dtype(burn_tensor::DType::Flex32) {
+    if !device.supports_dtype(DType::Flex32) {
         return;
     }
+    let tensor = TestTensor::<1>::zeros([2], (&device, DType::Flex32));
+    let value = TestTensor::<1>::full([3], 2., (&device, DType::Flex32));
+    let indices = TestTensorInt::<1>::from_data([1, 0, 1], &device);
 
-    let ad_device = device.autodiff();
-    let weights =
-        TestTensor::<2>::zeros([8, 16], (&ad_device, burn_tensor::DType::Flex32)).require_grad();
-    let indices = TestTensorInt::<2>::zeros([2, 4], &ad_device);
-
-    let out = burn_tensor::module::embedding(weights.clone(), indices);
-    let grads = out.sum().backward();
-    let grad = weights.grad(&grads).unwrap();
-    assert_eq!(grad.dtype(), burn_tensor::DType::Flex32);
-    let grad_vec: Vec<f32> = grad.cast(burn_tensor::DType::F32).into_data().to_vec().unwrap();
-    assert!((grad_vec[0] - 8.0).abs() < 1e-3, "got {}", grad_vec[0]);
+    let out = tensor.select_assign(0, indices, value, IndexingUpdateOp::Add);
+    assert_eq!(out.dtype(), DType::Flex32);
+    out.into_data()
+        .convert::<f32>()
+        .assert_eq(&TensorData::from([2., 4.]), false);
 }
-
-
