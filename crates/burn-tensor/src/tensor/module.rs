@@ -28,16 +28,14 @@ pub fn batch_norm<const D: usize>(
     variance: Tensor<1>,
     epsilon: f64,
 ) -> Tensor<D> {
-    assert!(D >= 2, "batch norm requires an input rank of at least 2");
-    let channels = input.dims()[1];
-    assert_eq!(gamma.dims(), [channels], "invalid batch norm gamma shape");
-    assert_eq!(beta.dims(), [channels], "invalid batch norm beta shape");
-    assert_eq!(mean.dims(), [channels], "invalid batch norm mean shape");
-    assert_eq!(
-        variance.dims(),
-        [channels],
-        "invalid batch norm variance shape"
-    );
+    check!(TensorCheck::batch_norm(
+        "batch_norm",
+        &input,
+        &gamma,
+        &beta,
+        Some(&mean),
+        Some(&variance),
+    ));
     Tensor::new(BridgeTensor::float(Dispatch::batch_norm(
         input.primitive.into_float(),
         gamma.primitive.into_float(),
@@ -88,10 +86,14 @@ pub fn batch_norm_train<const D: usize>(
     beta: Tensor<1>,
     epsilon: f64,
 ) -> BatchNormTrainOutput<D> {
-    assert!(D >= 2, "batch norm requires an input rank of at least 2");
-    let channels = input.dims()[1];
-    assert_eq!(gamma.dims(), [channels], "invalid batch norm gamma shape");
-    assert_eq!(beta.dims(), [channels], "invalid batch norm beta shape");
+    check!(TensorCheck::batch_norm(
+        "batch_norm_train",
+        &input,
+        &gamma,
+        &beta,
+        None,
+        None,
+    ));
     let result = Dispatch::batch_norm_train(
         input.primitive.into_float(),
         gamma.primitive.into_float(),
@@ -161,8 +163,9 @@ pub fn conv1d(
     let options = options.into();
     check!(TensorCheck::conv(
         "conv1d",
-        x.dims(),
-        weight.dims(),
+        &x,
+        &weight,
+        bias.as_ref(),
         options.groups,
     ));
 
@@ -188,8 +191,9 @@ pub fn conv2d(
     let options = options.into();
     check!(TensorCheck::conv(
         "conv2d",
-        x.dims(),
-        weight.dims(),
+        &x,
+        &weight,
+        bias.as_ref(),
         options.groups,
     ));
 
@@ -215,8 +219,9 @@ pub fn conv3d(
     let options = options.into();
     check!(TensorCheck::conv(
         "conv3d",
-        x.dims(),
-        weight.dims(),
+        &x,
+        &weight,
+        bias.as_ref(),
         options.groups,
     ));
 
@@ -241,12 +246,30 @@ pub fn deform_conv2d(
     bias: Option<Tensor<1>>,
     options: DeformConvOptions<2>,
 ) -> Tensor<4> {
-    check!(TensorCheck::conv(
+    let mut check = TensorCheck::conv(
         "deform_conv2d",
-        x.dims(),
-        weight.dims(),
+        &x,
+        &weight,
+        bias.as_ref(),
         options.weight_groups,
-    ));
+    )
+    .binary_ops_device("deform_conv2d", &x.device(), &offset.device());
+
+    let in_dtype = x.dtype();
+    let off_dtype = offset.dtype();
+    if !matches!(in_dtype, DType::QFloat(_)) && !matches!(off_dtype, DType::QFloat(_)) {
+        check = check.binary_ops_dtype("deform_conv2d", in_dtype, off_dtype);
+    }
+
+    if let Some(mask) = &mask {
+        check = check.binary_ops_device("deform_conv2d", &x.device(), &mask.device());
+        let m_dtype = mask.dtype();
+        if !matches!(in_dtype, DType::QFloat(_)) && !matches!(m_dtype, DType::QFloat(_)) {
+            check = check.binary_ops_dtype("deform_conv2d", in_dtype, m_dtype);
+        }
+    }
+    check!(check);
+
     Tensor::new(BridgeTensor::float(Dispatch::deform_conv2d(
         x.primitive.into_float(),
         offset.primitive.into_float(),
@@ -266,8 +289,9 @@ pub fn conv_transpose1d(
 ) -> Tensor<3> {
     check!(TensorCheck::conv_transpose(
         "conv_transpose1d",
-        x.dims(),
-        weight.dims(),
+        &x,
+        &weight,
+        bias.as_ref(),
     ));
     Tensor::new(BridgeTensor::float(Dispatch::conv_transpose1d(
         x.primitive.into_float(),
@@ -286,8 +310,9 @@ pub fn conv_transpose2d(
 ) -> Tensor<4> {
     check!(TensorCheck::conv_transpose(
         "conv_transpose2d",
-        x.dims(),
-        weight.dims(),
+        &x,
+        &weight,
+        bias.as_ref(),
     ));
     Tensor::new(BridgeTensor::float(Dispatch::conv_transpose2d(
         x.primitive.into_float(),
@@ -306,8 +331,9 @@ pub fn conv_transpose3d(
 ) -> Tensor<5> {
     check!(TensorCheck::conv_transpose(
         "conv_transpose3d",
-        x.dims(),
-        weight.dims(),
+        &x,
+        &weight,
+        bias.as_ref(),
     ));
     Tensor::new(BridgeTensor::float(Dispatch::conv_transpose3d(
         x.primitive.into_float(),
@@ -1119,6 +1145,13 @@ pub fn linear<const D: usize>(
     weight: Tensor<2>,
     bias: Option<Tensor<1>>,
 ) -> Tensor<D> {
+    check!(TensorCheck::linear(
+        "linear",
+        &input,
+        &weight,
+        bias.as_ref()
+    ));
+
     if D == 1 {
         // Insert and remove an extra batch dimension for the batch matmul to work.
         let input = input.unsqueeze::<2>();
@@ -1217,6 +1250,14 @@ pub fn attention(
         &key.shape(),
         &value.shape(),
     );
+    check!(TensorCheck::attention(
+        "attention",
+        &query,
+        &key,
+        &value,
+        mask.as_ref(),
+        attn_bias.as_ref(),
+    ));
     Tensor::new(BridgeTensor::float(Dispatch::attention(
         query.primitive.into_float(),
         key.primitive.into_float(),
@@ -1470,6 +1511,12 @@ pub fn layer_norm<const D: usize>(
     beta: Option<Tensor<1>>,
     epsilon: f64,
 ) -> Tensor<D> {
+    check!(TensorCheck::layer_norm(
+        "layer_norm",
+        &input,
+        &gamma,
+        beta.as_ref()
+    ));
     Tensor::new(layer_norm_impl(
         input.primitive,
         gamma.primitive,
@@ -1680,5 +1727,173 @@ mod tests {
         let tensor = Tensor::<5>::zeros([1, 1, 4, 4, 4], &Default::default());
         let grad = Tensor::<5>::zeros([1, 1, 2, 2, 2], &Default::default());
         avg_pool3d_backward(tensor, grad, [2, 2, 2], [1, 1, 1], [0, 0, 0], true, false);
+    }
+
+    #[test]
+    #[should_panic(expected = "do not have the same dtype")]
+    fn test_conv2d_dtype_mismatch_panics() {
+        let device = Default::default();
+        let x = Tensor::<4>::ones([1, 2, 7, 6], &device).cast(crate::FloatDType::BF16);
+        let weight = Tensor::<4>::ones([2, 2, 3, 2], &device).cast(crate::FloatDType::F32);
+        let options = ConvOptions::new([1, 1], [0, 0], [1, 1], 1);
+        conv2d(x, weight, None, options);
+    }
+
+    #[test]
+    #[should_panic(expected = "do not have the same dtype")]
+    fn test_conv2d_bias_dtype_mismatch_panics() {
+        let device = Default::default();
+        let x = Tensor::<4>::ones([1, 2, 7, 6], &device).cast(crate::FloatDType::BF16);
+        let weight = Tensor::<4>::ones([2, 2, 3, 2], &device).cast(crate::FloatDType::BF16);
+        let bias = Tensor::<1>::ones([2], &device).cast(crate::FloatDType::F32);
+        let options = ConvOptions::new([1, 1], [0, 0], [1, 1], 1);
+        conv2d(x, weight, Some(bias), options);
+    }
+
+    #[test]
+    #[should_panic(expected = "do not have the same dtype")]
+    fn test_conv_transpose2d_dtype_mismatch_panics() {
+        let device = Default::default();
+        let x = Tensor::<4>::ones([1, 2, 7, 6], &device).cast(crate::FloatDType::BF16);
+        let weight = Tensor::<4>::ones([2, 2, 3, 2], &device).cast(crate::FloatDType::F32);
+        let options = ConvTransposeOptions::new([1, 1], [0, 0], [0, 0], [1, 1], 1);
+        conv_transpose2d(x, weight, None, options);
+    }
+
+    #[test]
+    #[should_panic(expected = "do not have the same dtype")]
+    fn test_linear_dtype_mismatch_panics() {
+        let device = Default::default();
+        let input = Tensor::<2>::ones([2, 4], &device).cast(crate::FloatDType::BF16);
+        let weight = Tensor::<2>::ones([4, 8], &device).cast(crate::FloatDType::F32);
+        linear(input, weight, None);
+    }
+
+    #[test]
+    #[should_panic(expected = "do not have the same dtype")]
+    fn test_linear_bias_dtype_mismatch_panics() {
+        let device = Default::default();
+        let input = Tensor::<2>::ones([2, 4], &device).cast(crate::FloatDType::BF16);
+        let weight = Tensor::<2>::ones([4, 8], &device).cast(crate::FloatDType::BF16);
+        let bias = Tensor::<1>::ones([8], &device).cast(crate::FloatDType::F32);
+        linear(input, weight, Some(bias));
+    }
+
+    #[test]
+    #[should_panic(expected = "do not have the same dtype")]
+    fn test_layer_norm_dtype_mismatch_panics() {
+        let device = Default::default();
+        let input = Tensor::<2>::ones([2, 4], &device).cast(crate::FloatDType::BF16);
+        let gamma = Tensor::<1>::ones([4], &device).cast(crate::FloatDType::F32);
+        layer_norm(input, gamma, None, 1e-5);
+    }
+
+    #[test]
+    #[should_panic(expected = "do not have the same dtype")]
+    fn test_batch_norm_dtype_mismatch_panics() {
+        let device = Default::default();
+        let input = Tensor::<4>::ones([2, 3, 4, 4], &device).cast(crate::FloatDType::BF16);
+        let gamma = Tensor::<1>::ones([3], &device).cast(crate::FloatDType::F32);
+        let beta = Tensor::<1>::ones([3], &device).cast(crate::FloatDType::F32);
+        let mean = Tensor::<1>::ones([3], &device).cast(crate::FloatDType::F32);
+        let var = Tensor::<1>::ones([3], &device).cast(crate::FloatDType::F32);
+        batch_norm(input, gamma, beta, mean, var, 1e-5);
+    }
+
+    #[test]
+    #[should_panic(expected = "do not have the same dtype")]
+    fn test_attention_dtype_mismatch_panics() {
+        let device = Default::default();
+        let query = Tensor::<4>::ones([2, 4, 8, 16], &device).cast(crate::FloatDType::BF16);
+        let key = Tensor::<4>::ones([2, 4, 8, 16], &device).cast(crate::FloatDType::F32);
+        let value = Tensor::<4>::ones([2, 4, 8, 16], &device).cast(crate::FloatDType::BF16);
+        let options = AttentionModuleOptions::default();
+        attention(query, key, value, None, None, options);
+    }
+
+    #[test]
+    #[should_panic(expected = "do not have the same dtype")]
+    fn test_conv1d_dtype_mismatch_panics() {
+        let device = Default::default();
+        let x = Tensor::<3>::ones([1, 2, 7], &device).cast(crate::FloatDType::BF16);
+        let weight = Tensor::<3>::ones([2, 2, 3], &device).cast(crate::FloatDType::F32);
+        let options = ConvOptions::new([1], [0], [1], 1);
+        conv1d(x, weight, None, options);
+    }
+
+    #[test]
+    #[should_panic(expected = "do not have the same dtype")]
+    fn test_conv3d_dtype_mismatch_panics() {
+        let device = Default::default();
+        let x = Tensor::<5>::ones([1, 2, 4, 4, 4], &device).cast(crate::FloatDType::BF16);
+        let weight = Tensor::<5>::ones([2, 2, 2, 2, 2], &device).cast(crate::FloatDType::F32);
+        let options = ConvOptions::new([1, 1, 1], [0, 0, 0], [1, 1, 1], 1);
+        conv3d(x, weight, None, options);
+    }
+
+    #[test]
+    #[should_panic(expected = "do not have the same dtype")]
+    fn test_conv_transpose2d_bias_dtype_mismatch_panics() {
+        let device = Default::default();
+        let x = Tensor::<4>::ones([1, 2, 7, 6], &device).cast(crate::FloatDType::BF16);
+        let weight = Tensor::<4>::ones([2, 2, 3, 2], &device).cast(crate::FloatDType::BF16);
+        let bias = Tensor::<1>::ones([2], &device).cast(crate::FloatDType::F32);
+        let options = ConvTransposeOptions::new([1, 1], [0, 0], [0, 0], [1, 1], 1);
+        conv_transpose2d(x, weight, Some(bias), options);
+    }
+
+    #[test]
+    #[should_panic(expected = "do not have the same dtype")]
+    fn test_layer_norm_beta_dtype_mismatch_panics() {
+        let device = Default::default();
+        let input = Tensor::<2>::ones([2, 4], &device).cast(crate::FloatDType::BF16);
+        let gamma = Tensor::<1>::ones([4], &device).cast(crate::FloatDType::BF16);
+        let beta = Tensor::<1>::ones([4], &device).cast(crate::FloatDType::F32);
+        layer_norm(input, gamma, Some(beta), 1e-5);
+    }
+
+    #[test]
+    #[should_panic(expected = "do not have the same dtype")]
+    fn test_batch_norm_train_dtype_mismatch_panics() {
+        let device = Default::default();
+        let input = Tensor::<4>::ones([2, 3, 4, 4], &device).cast(crate::FloatDType::BF16);
+        let gamma = Tensor::<1>::ones([3], &device).cast(crate::FloatDType::F32);
+        let beta = Tensor::<1>::ones([3], &device).cast(crate::FloatDType::F32);
+        batch_norm_train(input, gamma, beta, 1e-5);
+    }
+
+    #[test]
+    #[should_panic(expected = "do not have the same dtype")]
+    fn test_attention_attn_bias_dtype_mismatch_panics() {
+        let device = Default::default();
+        let query = Tensor::<4>::ones([2, 4, 8, 16], &device).cast(crate::FloatDType::BF16);
+        let key = Tensor::<4>::ones([2, 4, 8, 16], &device).cast(crate::FloatDType::BF16);
+        let value = Tensor::<4>::ones([2, 4, 8, 16], &device).cast(crate::FloatDType::BF16);
+        let attn_bias = Tensor::<4>::ones([2, 4, 8, 16], &device).cast(crate::FloatDType::F32);
+        let options = AttentionModuleOptions::default();
+        attention(query, key, value, None, Some(attn_bias), options);
+    }
+
+    #[test]
+    #[should_panic(expected = "do not have the same dtype")]
+    fn test_deform_conv2d_offset_dtype_mismatch_panics() {
+        let device = Default::default();
+        let x = Tensor::<4>::ones([1, 2, 4, 4], &device).cast(crate::FloatDType::BF16);
+        let offset = Tensor::<4>::ones([1, 8, 2, 2], &device).cast(crate::FloatDType::F32);
+        let weight = Tensor::<4>::ones([2, 2, 3, 3], &device).cast(crate::FloatDType::BF16);
+        let options = DeformConvOptions::new([1, 1], [0, 0], [1, 1], 1, 1);
+        deform_conv2d(x, offset, weight, None, None, options);
+    }
+
+    #[test]
+    #[should_panic(expected = "do not have the same dtype")]
+    fn test_deform_conv2d_mask_dtype_mismatch_panics() {
+        let device = Default::default();
+        let x = Tensor::<4>::ones([1, 2, 4, 4], &device).cast(crate::FloatDType::BF16);
+        let offset = Tensor::<4>::ones([1, 8, 2, 2], &device).cast(crate::FloatDType::BF16);
+        let weight = Tensor::<4>::ones([2, 2, 3, 3], &device).cast(crate::FloatDType::BF16);
+        let mask = Tensor::<4>::ones([1, 4, 2, 2], &device).cast(crate::FloatDType::F32);
+        let options = DeformConvOptions::new([1, 1], [0, 0], [1, 1], 1, 1);
+        deform_conv2d(x, offset, weight, Some(mask), None, options);
     }
 }

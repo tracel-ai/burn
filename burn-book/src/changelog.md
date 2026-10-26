@@ -260,6 +260,8 @@ loading those checkpoints by filtering to `linear_inner` and `linear_outer`.
 
 #### Fusion and correctness fixes
 
+- Enforce device and dtype compatibility across module operations (conv, linear, normalization, attention), preventing silent NaNs and out-of-bounds reads when parameters have mismatched precisions.
+  ([#6216](https://github.com/tracel-ai/burn/issues/6216))
 - Preserve zero-length dimensions in `reshape(Shape)` and `unsqueeze`, and reject mismatched target
   ranks. The array form of `reshape` retains its `0`/`-1` placeholders.
   ([#6112](https://github.com/tracel-ai/burn/pull/6112))

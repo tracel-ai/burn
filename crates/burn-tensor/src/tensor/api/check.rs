@@ -1,5 +1,5 @@
 use crate::bridge::{BasicOps, Ordered};
-use crate::{DType, Device, Shape, Slice, Tensor};
+use crate::{Bool, DType, Device, Shape, Slice, Tensor};
 use alloc::format;
 use alloc::string::{String, ToString};
 use alloc::vec;
@@ -1277,7 +1277,7 @@ impl TensorCheck {
     }
 
     /// Checks if tensor devices are equal.
-    fn binary_ops_device<Device: PartialEq + core::fmt::Debug>(
+    pub(crate) fn binary_ops_device<Device: PartialEq + core::fmt::Debug>(
         self,
         ops: &str,
         lhs: &Device,
@@ -1288,6 +1288,18 @@ impl TensorCheck {
                 ops,
                 TensorError::new("The provided tensors are not on the same device.").details(
                     format!("Lhs tensor device {lhs:?}, Rhs tensor device {rhs:?}.",),
+                ),
+            ),
+            false => self,
+        }
+    }
+
+    pub(crate) fn binary_ops_dtype(self, ops: &str, lhs: DType, rhs: DType) -> Self {
+        match lhs != rhs {
+            true => self.register(
+                ops,
+                TensorError::new("The provided tensors do not have the same dtype.").details(
+                    format!("Lhs tensor dtype {lhs:?}, Rhs tensor dtype {rhs:?}."),
                 ),
             ),
             false => self,
@@ -1368,15 +1380,23 @@ impl TensorCheck {
     }
 
     /// Checks if input is compatible with convolution weights.
-    pub(crate) fn conv<const D1: usize, const D2: usize>(
+    pub(crate) fn conv<const D1: usize, const D2: usize, K: BasicOps>(
         ops: &str,
-        x: [usize; D1],
-        weight: [usize; D2],
+        x: &Tensor<D1, K>,
+        weight: &Tensor<D2, K>,
+        bias: Option<&Tensor<1, K>>,
         groups: usize,
     ) -> Self {
-        let mut check = TensorCheck::Ok;
-        let channels = x[1];
-        let expected = weight[1] * groups;
+        let mut check = TensorCheck::Ok.binary_ops_device(ops, &x.device(), &weight.device());
+
+        let x_dtype = x.dtype();
+        let w_dtype = weight.dtype();
+        if !matches!(x_dtype, DType::QFloat(_)) && !matches!(w_dtype, DType::QFloat(_)) {
+            check = check.binary_ops_dtype(ops, x_dtype, w_dtype);
+        }
+
+        let channels = x.dims()[1];
+        let expected = weight.dims()[1] * groups;
         if channels != expected {
             check = check.register(
                 ops,
@@ -1384,18 +1404,35 @@ impl TensorCheck {
                 .details(format!("got: {channels}, expected: {expected}")),
             );
         }
+
+        if let Some(bias) = bias {
+            check = check.binary_ops_device(ops, &x.device(), &bias.device());
+            let b_dtype = bias.dtype();
+            if !matches!(x_dtype, DType::QFloat(_)) && !matches!(b_dtype, DType::QFloat(_)) {
+                check = check.binary_ops_dtype(ops, x_dtype, b_dtype);
+            }
+        }
+
         check
     }
 
     /// Checks if input is compatible with transposed convolution weights.
-    pub fn conv_transpose<const D1: usize, const D2: usize>(
+    pub(crate) fn conv_transpose<const D1: usize, const D2: usize, K: BasicOps>(
         ops: &str,
-        x: [usize; D1],
-        weight: [usize; D2],
+        x: &Tensor<D1, K>,
+        weight: &Tensor<D2, K>,
+        bias: Option<&Tensor<1, K>>,
     ) -> Self {
-        let mut check = TensorCheck::Ok;
-        let channels = x[1];
-        let expected = weight[0];
+        let mut check = TensorCheck::Ok.binary_ops_device(ops, &x.device(), &weight.device());
+
+        let x_dtype = x.dtype();
+        let w_dtype = weight.dtype();
+        if !matches!(x_dtype, DType::QFloat(_)) && !matches!(w_dtype, DType::QFloat(_)) {
+            check = check.binary_ops_dtype(ops, x_dtype, w_dtype);
+        }
+
+        let channels = x.dims()[1];
+        let expected = weight.dims()[0];
         if channels != expected {
             check = check.register(
                 ops,
@@ -1403,6 +1440,240 @@ impl TensorCheck {
                 .details(format!("got: {channels}, expected: {expected}")),
             );
         }
+
+        if let Some(bias) = bias {
+            check = check.binary_ops_device(ops, &x.device(), &bias.device());
+            let b_dtype = bias.dtype();
+            if !matches!(x_dtype, DType::QFloat(_)) && !matches!(b_dtype, DType::QFloat(_)) {
+                check = check.binary_ops_dtype(ops, x_dtype, b_dtype);
+            }
+        }
+
+        check
+    }
+
+    /// Checks if input is compatible with linear weights and bias.
+    pub(crate) fn linear<const D: usize, K: BasicOps>(
+        ops: &str,
+        input: &Tensor<D, K>,
+        weight: &Tensor<2, K>,
+        bias: Option<&Tensor<1, K>>,
+    ) -> Self {
+        let mut check = TensorCheck::Ok.binary_ops_device(ops, &input.device(), &weight.device());
+
+        let in_dtype = input.dtype();
+        let w_dtype = weight.dtype();
+        if !matches!(in_dtype, DType::QFloat(_)) && !matches!(w_dtype, DType::QFloat(_)) {
+            check = check.binary_ops_dtype(ops, in_dtype, w_dtype);
+        }
+
+        if D < 1 {
+            return check.register(
+                ops,
+                TensorError::new("Linear requires input with at least 1 dimension."),
+            );
+        }
+
+        let d_in = input.dims()[D - 1];
+        let expected_in = weight.dims()[0];
+        if d_in != expected_in {
+            check = check.register(
+                ops,
+                TensorError::new(format!(
+                    "Last dimension of input ({d_in}) must match input dimension of weight ({expected_in})."
+                )),
+            );
+        }
+
+        if let Some(bias) = bias {
+            check = check.binary_ops_device(ops, &input.device(), &bias.device());
+            let b_dtype = bias.dtype();
+            if !matches!(in_dtype, DType::QFloat(_)) && !matches!(b_dtype, DType::QFloat(_)) {
+                check = check.binary_ops_dtype(ops, in_dtype, b_dtype);
+            }
+            let d_out = weight.dims()[1];
+            let bias_dim = bias.dims()[0];
+            if bias_dim != d_out {
+                check = check.register(
+                    ops,
+                    TensorError::new(format!(
+                        "Bias dimension ({bias_dim}) must match output dimension of weight ({d_out})."
+                    )),
+                );
+            }
+        }
+
+        check
+    }
+
+    /// Checks if input is compatible with layer norm parameters.
+    pub(crate) fn layer_norm<const D: usize, K: BasicOps>(
+        ops: &str,
+        input: &Tensor<D, K>,
+        gamma: &Tensor<1, K>,
+        beta: Option<&Tensor<1, K>>,
+    ) -> Self {
+        let mut check = TensorCheck::Ok.binary_ops_device(ops, &input.device(), &gamma.device());
+
+        let in_dtype = input.dtype();
+        let g_dtype = gamma.dtype();
+        if !matches!(in_dtype, DType::QFloat(_)) && !matches!(g_dtype, DType::QFloat(_)) {
+            check = check.binary_ops_dtype(ops, in_dtype, g_dtype);
+        }
+
+        if D < 1 {
+            return check.register(
+                ops,
+                TensorError::new("Layer norm requires input with at least 1 dimension."),
+            );
+        }
+
+        let d_model = input.dims()[D - 1];
+        let gamma_dim = gamma.dims()[0];
+        if d_model != gamma_dim {
+            check = check.register(
+                ops,
+                TensorError::new(format!(
+                    "Last dimension of input ({d_model}) must match gamma dimension ({gamma_dim})."
+                )),
+            );
+        }
+
+        if let Some(beta) = beta {
+            check = check.binary_ops_device(ops, &input.device(), &beta.device());
+            let b_dtype = beta.dtype();
+            if !matches!(in_dtype, DType::QFloat(_)) && !matches!(b_dtype, DType::QFloat(_)) {
+                check = check.binary_ops_dtype(ops, in_dtype, b_dtype);
+            }
+            let beta_dim = beta.dims()[0];
+            if d_model != beta_dim {
+                check = check.register(
+                    ops,
+                    TensorError::new(format!(
+                        "Last dimension of input ({d_model}) must match beta dimension ({beta_dim})."
+                    )),
+                );
+            }
+        }
+
+        check
+    }
+
+    /// Checks if input is compatible with batch norm parameters.
+    pub(crate) fn batch_norm<const D: usize, K: BasicOps>(
+        ops: &str,
+        input: &Tensor<D, K>,
+        gamma: &Tensor<1, K>,
+        beta: &Tensor<1, K>,
+        mean: Option<&Tensor<1, K>>,
+        variance: Option<&Tensor<1, K>>,
+    ) -> Self {
+        let mut check = TensorCheck::Ok
+            .binary_ops_device(ops, &input.device(), &gamma.device())
+            .binary_ops_device(ops, &input.device(), &beta.device());
+
+        let in_dtype = input.dtype();
+        let g_dtype = gamma.dtype();
+        let b_dtype = beta.dtype();
+        if !matches!(in_dtype, DType::QFloat(_)) && !matches!(g_dtype, DType::QFloat(_)) {
+            check = check.binary_ops_dtype(ops, in_dtype, g_dtype);
+        }
+        if !matches!(in_dtype, DType::QFloat(_)) && !matches!(b_dtype, DType::QFloat(_)) {
+            check = check.binary_ops_dtype(ops, in_dtype, b_dtype);
+        }
+
+        if D < 2 {
+            return check.register(
+                ops,
+                TensorError::new("Batch norm requires an input rank of at least 2."),
+            );
+        }
+
+        let channels = input.dims()[1];
+        let gamma_dim = gamma.dims()[0];
+        let beta_dim = beta.dims()[0];
+
+        if gamma_dim != channels || beta_dim != channels {
+            check = check.register(
+                ops,
+                TensorError::new(format!(
+                    "Channels dimension of input ({channels}) must match gamma ({gamma_dim}) and beta ({beta_dim})."
+                )),
+            );
+        }
+
+        if let Some(mean) = mean {
+            check = check.binary_ops_device(ops, &input.device(), &mean.device());
+            let m_dtype = mean.dtype();
+            if !matches!(in_dtype, DType::QFloat(_)) && !matches!(m_dtype, DType::QFloat(_)) {
+                check = check.binary_ops_dtype(ops, in_dtype, m_dtype);
+            }
+            let mean_dim = mean.dims()[0];
+            if mean_dim != channels {
+                check = check.register(
+                    ops,
+                    TensorError::new(format!(
+                        "Channels dimension of input ({channels}) must match mean ({mean_dim})."
+                    )),
+                );
+            }
+        }
+
+        if let Some(variance) = variance {
+            check = check.binary_ops_device(ops, &input.device(), &variance.device());
+            let v_dtype = variance.dtype();
+            if !matches!(in_dtype, DType::QFloat(_)) && !matches!(v_dtype, DType::QFloat(_)) {
+                check = check.binary_ops_dtype(ops, in_dtype, v_dtype);
+            }
+            let var_dim = variance.dims()[0];
+            if var_dim != channels {
+                check = check.register(
+                    ops,
+                    TensorError::new(format!(
+                        "Channels dimension of input ({channels}) must match variance ({var_dim})."
+                    )),
+                );
+            }
+        }
+
+        check
+    }
+
+    /// Checks if inputs are compatible for attention.
+    pub(crate) fn attention<K: BasicOps>(
+        ops: &str,
+        query: &Tensor<4, K>,
+        key: &Tensor<4, K>,
+        value: &Tensor<4, K>,
+        mask: Option<&Tensor<4, Bool>>,
+        attn_bias: Option<&Tensor<4, K>>,
+    ) -> Self {
+        let mut check = Self::Ok
+            .binary_ops_device(ops, &query.device(), &key.device())
+            .binary_ops_device(ops, &query.device(), &value.device());
+
+        let q_dtype = query.dtype();
+        let k_dtype = key.dtype();
+        let v_dtype = value.dtype();
+        if !matches!(q_dtype, DType::QFloat(_)) && !matches!(k_dtype, DType::QFloat(_)) {
+            check = check.binary_ops_dtype(ops, q_dtype, k_dtype);
+        }
+        if !matches!(q_dtype, DType::QFloat(_)) && !matches!(v_dtype, DType::QFloat(_)) {
+            check = check.binary_ops_dtype(ops, q_dtype, v_dtype);
+        }
+
+        if let Some(mask) = mask {
+            check = check.binary_ops_device(ops, &query.device(), &mask.device());
+        }
+
+        if let Some(attn_bias) = attn_bias {
+            check = check.binary_ops_device(ops, &query.device(), &attn_bias.device());
+            let b_dtype = attn_bias.dtype();
+            if !matches!(q_dtype, DType::QFloat(_)) && !matches!(b_dtype, DType::QFloat(_)) {
+                check = check.binary_ops_dtype(ops, q_dtype, b_dtype);
+            }
+        }
+
         check
     }
 
@@ -1564,6 +1835,72 @@ mod tests {
             "Test",
             &5, // We can pass anything that implements PartialEq as device
             &8
+        ));
+    }
+
+    #[test]
+    #[should_panic(expected = "do not have the same dtype")]
+    fn binary_ops_dtypes_mismatch() {
+        check!(TensorCheck::binary_ops_dtype(
+            TensorCheck::Ok,
+            "Test",
+            DType::BF16,
+            DType::F32
+        ));
+    }
+
+    #[test]
+    fn binary_ops_dtypes_match() {
+        check!(TensorCheck::binary_ops_dtype(
+            TensorCheck::Ok,
+            "Test",
+            DType::BF16,
+            DType::BF16
+        ));
+    }
+
+    #[test]
+    #[should_panic(expected = "must match input dimension of weight")]
+    fn linear_shape_mismatch_panics() {
+        let device = Default::default();
+        let input = Tensor::<2>::ones([2, 4], &device);
+        let weight = Tensor::<2>::ones([5, 8], &device);
+        check!(TensorCheck::linear("linear", &input, &weight, None));
+    }
+
+    #[test]
+    #[should_panic(expected = "must match output dimension of weight")]
+    fn linear_bias_shape_mismatch_panics() {
+        let device = Default::default();
+        let input = Tensor::<2>::ones([2, 4], &device);
+        let weight = Tensor::<2>::ones([4, 8], &device);
+        let bias = Tensor::<1>::ones([6], &device);
+        check!(TensorCheck::linear("linear", &input, &weight, Some(&bias)));
+    }
+
+    #[test]
+    #[should_panic(expected = "must match gamma dimension")]
+    fn layer_norm_shape_mismatch_panics() {
+        let device = Default::default();
+        let input = Tensor::<2>::ones([2, 4], &device);
+        let gamma = Tensor::<1>::ones([5], &device);
+        check!(TensorCheck::layer_norm("layer_norm", &input, &gamma, None));
+    }
+
+    #[test]
+    #[should_panic(expected = "must match gamma")]
+    fn batch_norm_shape_mismatch_panics() {
+        let device = Default::default();
+        let input = Tensor::<4>::ones([2, 3, 4, 4], &device);
+        let gamma = Tensor::<1>::ones([4], &device);
+        let beta = Tensor::<1>::ones([4], &device);
+        check!(TensorCheck::batch_norm(
+            "batch_norm",
+            &input,
+            &gamma,
+            &beta,
+            None,
+            None
         ));
     }
 
