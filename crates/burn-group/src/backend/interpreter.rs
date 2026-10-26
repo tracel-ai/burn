@@ -31,8 +31,8 @@ pub trait DynGroupInterpreter: Send {
     /// When the tensor is not on the group.
     fn sharding(&self, id: &TensorId) -> Sharding;
 
-    /// A new tensor holding `data`, replicated. It stays on the host until an op, a read or a
-    /// reshard needs it, so a split that comes first uploads each member only its chunk.
+    /// A new tensor holding `data`, replicated. It stays on the host until an op needs it, so a
+    /// split that comes first uploads each member only its chunk.
     fn register_tensor_data(&mut self, data: TensorData) -> TensorId;
 
     /// Runs `op` on every member's shards, after resharding each input as the op's
@@ -360,22 +360,22 @@ impl<B: BackendIr> GroupInterpreter<B> {
             Resharding::Keep => {
                 self.on_host.insert(id, data);
             }
-            Resharding::Slice { dim } => {
-                let split = DimSplit {
-                    dim,
-                    len: tensor.shape[dim],
-                    members: num_members,
-                };
-                for (interpreter, chunk) in
-                    self.interpreters.iter_mut().zip(split.data_chunks(&data))
-                {
-                    interpreter.register_tensor_data_id(id, chunk);
-                }
-            }
+            Resharding::Slice { dim } => self.register_chunks(id, &data, dim),
             resharding => unreachable!("A replicated tensor is never resharded by {resharding:?}"),
         }
         self.shardings.insert(id, sharding);
         Ok(id)
+    }
+
+    fn register_chunks(&mut self, id: TensorId, data: &TensorData, dim: usize) {
+        let split = DimSplit {
+            dim,
+            len: data.shape()[dim],
+            members: self.interpreters.len(),
+        };
+        for (interpreter, chunk) in self.interpreters.iter_mut().zip(split.data_chunks(data)) {
+            interpreter.register_tensor_data_id(id, chunk);
+        }
     }
 
     /// The data of a tensor still on the host, which leaves it when the tensor is given up.
@@ -450,5 +450,57 @@ struct MemberShapes<'a> {
 impl IrVisitorMut for MemberShapes<'_> {
     fn visit_tensor_mut(&mut self, tensor: &mut TensorIr) {
         *tensor = self.member.local_tensor(tensor, self.shardings[&tensor.id]);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use burn_flex::{Flex, FlexDevice};
+    use burn_std::future::block_on;
+
+    use super::*;
+
+    fn whole(id: TensorId, status: TensorStatus) -> TensorIr {
+        TensorIr {
+            id,
+            shape: [4, 6].into(),
+            status,
+            dtype: DType::F32,
+        }
+    }
+
+    #[test]
+    fn a_split_of_data_uploads_no_member_the_whole_tensor() {
+        let mut group = GroupInterpreter::<Flex>::new(vec![FlexDevice, FlexDevice]);
+        let id = group.register_tensor_data(TensorData::new(vec![0f32; 24], [4, 6]));
+
+        let split = group
+            .reshard(
+                whole(id, TensorStatus::ReadOnly),
+                Sharding::Split { dim: 1 },
+            )
+            .unwrap();
+
+        for interpreter in &group.interpreters {
+            assert!(interpreter.read_failure(&id).is_some());
+            assert!(interpreter.read_failure(&split).is_none());
+        }
+    }
+
+    #[test]
+    fn data_resharded_as_replicated_stays_on_the_host() {
+        let data = TensorData::new((0..24).map(|i| i as f32).collect::<Vec<_>>(), [4, 6]);
+        let mut group = GroupInterpreter::<Flex>::new(vec![FlexDevice, FlexDevice]);
+        let id = group.register_tensor_data(data.clone());
+
+        let kept = group
+            .reshard(whole(id, TensorStatus::ReadWrite), Sharding::Replicated)
+            .unwrap();
+
+        for interpreter in &group.interpreters {
+            assert!(interpreter.read_failure(&kept).is_some());
+        }
+        let read = block_on(group.read(whole(kept, TensorStatus::ReadWrite))).unwrap();
+        assert_eq!(read, data);
     }
 }

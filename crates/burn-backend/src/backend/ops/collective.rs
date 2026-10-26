@@ -435,35 +435,37 @@ impl DimSplit {
             .collect()
     }
 
-    /// Each member's chunk of `data`, in member order, cut on the host.
+    /// Each member's chunk of `data`, in member order, cut on the host one at a time.
     ///
     /// # Panics
     ///
-    /// When `data` is quantized: its packed values and scales do not cut along a dim.
-    pub fn data_chunks(&self, data: &TensorData) -> Vec<TensorData> {
+    /// When `data` is quantized, since its packed values and scales do not cut along a dim, or
+    /// when its `dim` does not hold `len` elements.
+    pub fn data_chunks(self, data: &TensorData) -> impl Iterator<Item = TensorData> + '_ {
         assert!(
             !matches!(data.dtype(), DType::QFloat(_)),
             "A quantized tensor is not cut along a dim"
         );
         let shape = data.shape();
+        assert_eq!(
+            shape[self.dim], self.len,
+            "dimension {} of a tensor of shape {shape:?} does not hold {} elements",
+            self.dim, self.len,
+        );
         let outer: usize = shape.as_slice()[..self.dim].iter().product();
         let row = shape.as_slice()[self.dim + 1..].iter().product::<usize>() * data.dtype().size();
         let bytes = data.as_bytes();
-        (0..self.members)
-            .map(|member| {
-                let range = self.range(member);
-                let mut chunk = Vec::with_capacity(outer * range.len() * row);
-                for block in 0..outer {
-                    let start = block * self.len * row;
-                    chunk.extend_from_slice(
-                        &bytes[start + range.start * row..start + range.end * row],
-                    );
-                }
-                let mut chunk_shape = shape.clone();
-                chunk_shape[self.dim] = range.len();
-                TensorData::from_bytes_vec(chunk, chunk_shape, data.dtype())
-            })
-            .collect()
+        (0..self.members).map(move |member| {
+            let range = self.range(member);
+            let mut chunk = Vec::with_capacity(outer * range.len() * row);
+            for block in 0..outer {
+                let start = block * self.len * row;
+                chunk.extend_from_slice(&bytes[start + range.start * row..start + range.end * row]);
+            }
+            let mut chunk_shape = shape.clone();
+            chunk_shape[self.dim] = range.len();
+            TensorData::from_bytes_vec(chunk, chunk_shape, data.dtype())
+        })
     }
 }
 
@@ -492,7 +494,7 @@ mod tests {
             members: 2,
         };
 
-        let chunks = split.data_chunks(&data);
+        let chunks: Vec<_> = split.data_chunks(&data).collect();
 
         assert_eq!(
             chunks,
