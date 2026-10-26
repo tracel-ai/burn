@@ -318,6 +318,16 @@ impl BridgeTensor {
         }
     }
 
+    #[cfg(any(feature = "autodiff", feature = "group"))]
+    pub(crate) fn from_parts(kind: BridgeKind, tensor: DispatchTensor) -> Self {
+        match kind {
+            BridgeKind::Bool => Self::bool(tensor),
+            BridgeKind::Int => Self::int(tensor),
+            BridgeKind::Float => Self::float(tensor),
+            BridgeKind::QFloat => Self::qfloat(tensor),
+        }
+    }
+
     #[cfg(feature = "autodiff")]
     pub(crate) fn as_float(&self) -> &DispatchTensor {
         match self.as_variant() {
