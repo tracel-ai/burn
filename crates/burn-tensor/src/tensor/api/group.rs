@@ -9,6 +9,9 @@ impl<const D: usize, K: Basic> Tensor<D, K> {
     /// shard a parameter, shard it before requiring its gradient, as with
     /// [`to_device`](Tensor::to_device).
     ///
+    /// A tensor made from data and split before anything uses it is cut on the host, so no
+    /// member ever holds it whole.
+    ///
     /// # Panics
     ///
     /// When [`try_with_sharding`](Self::try_with_sharding) refuses the sharding.

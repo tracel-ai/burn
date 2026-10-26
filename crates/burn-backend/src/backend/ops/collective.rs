@@ -4,7 +4,7 @@ use crate::{
     tensor::{BoolTensor, Device, FloatTensor, IntTensor},
 };
 use alloc::vec::Vec;
-use burn_std::Slice;
+use burn_std::{DType, Slice, TensorData};
 use core::{marker::PhantomData, ops::Range};
 
 /// Collectives over a group of devices, called once with every member's tensor.
@@ -434,6 +434,37 @@ impl DimSplit {
             })
             .collect()
     }
+
+    /// Each member's chunk of `data`, in member order, cut on the host.
+    ///
+    /// # Panics
+    ///
+    /// When `data` is quantized: its packed values and scales do not cut along a dim.
+    pub fn data_chunks(&self, data: &TensorData) -> Vec<TensorData> {
+        assert!(
+            !matches!(data.dtype(), DType::QFloat(_)),
+            "A quantized tensor is not cut along a dim"
+        );
+        let shape = data.shape();
+        let outer: usize = shape.as_slice()[..self.dim].iter().product();
+        let row = shape.as_slice()[self.dim + 1..].iter().product::<usize>() * data.dtype().size();
+        let bytes = data.as_bytes();
+        (0..self.members)
+            .map(|member| {
+                let range = self.range(member);
+                let mut chunk = Vec::with_capacity(outer * range.len() * row);
+                for block in 0..outer {
+                    let start = block * self.len * row;
+                    chunk.extend_from_slice(
+                        &bytes[start + range.start * row..start + range.end * row],
+                    );
+                }
+                let mut chunk_shape = shape.clone();
+                chunk_shape[self.dim] = range.len();
+                TensorData::from_bytes_vec(chunk, chunk_shape, data.dtype())
+            })
+            .collect()
+    }
 }
 
 #[cfg(test)]
@@ -450,5 +481,25 @@ mod tests {
         let ranges: Vec<_> = (0..3).map(|member| split.range(member)).collect();
 
         assert_eq!(ranges, [0..3, 3..5, 5..7]);
+    }
+
+    #[test]
+    fn data_chunks_cut_every_block_along_an_inner_dim() {
+        let data = TensorData::new((0..12).collect::<Vec<i32>>(), [2, 3, 2]);
+        let split = DimSplit {
+            dim: 1,
+            len: 3,
+            members: 2,
+        };
+
+        let chunks = split.data_chunks(&data);
+
+        assert_eq!(
+            chunks,
+            [
+                TensorData::new(vec![0, 1, 2, 3, 6, 7, 8, 9], [2, 2, 2]),
+                TensorData::new(vec![4, 5, 10, 11], [2, 1, 2]),
+            ]
+        );
     }
 }
