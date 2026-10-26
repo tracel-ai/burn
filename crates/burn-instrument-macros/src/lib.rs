@@ -40,6 +40,8 @@ use proc_macro::TokenStream;
 ///   yield `Bounds` or `Option<Bounds>`. Omitted, the component is timed and not scored, which is right for one
 ///   that will be fused into its neighbour. Evaluated only for an observer that prices: the
 ///   instrument prices in a run it does not time, so the expression may read values back.
+///   Observation is suspended while evaluating it, so annotated helpers do not become model
+///   entries. The expression must preserve model state and randomness needed by the forward pass.
 ///
 /// The method must take `self` (the type names the component), and with a bare-path `bounds` bind each
 /// parameter to a plain name (the path is handed them by name). It may be an inherent method, a

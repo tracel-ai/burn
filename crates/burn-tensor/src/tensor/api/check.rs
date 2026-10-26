@@ -1301,6 +1301,16 @@ impl TensorCheck {
         to: &Shape,
     ) -> Self {
         let mut check = TensorCheck::Ok;
+
+        if to.num_dims() != D2 {
+            return check.register(
+                ops,
+                TensorError::new(format!(
+                    "The given shape doesn't have the same number of dimensions as the target tensor. Target shape: {to}, expected rank: {D2}."
+                )),
+            );
+        }
+
         let max_dims = core::cmp::max(D1, D2);
 
         // Calculate the starting indices for each shape array, ensuring alignment from the right.

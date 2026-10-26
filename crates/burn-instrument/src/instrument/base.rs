@@ -32,9 +32,9 @@ impl Instrument {
     /// anything is measured, unless [`warmup`](Self::warmup) says otherwise.
     pub const WARMUP_RUNS: usize = 5;
 
-    /// The seed the device is set to before the pricing run and the timed
-    /// run, so a model that draws random values, such as dropout, draws the
-    /// same in both and its floors are the timed run's.
+    /// The seed the device is set to before the pricing run and the timed run.
+    /// Repeats device randomness when both runs make the same random draws;
+    /// it does not reset model state or host-side random generators.
     pub const SEED: u64 = 0;
 
     /// How many clean runs [`measure`](Self::measure) takes the median of,
@@ -108,6 +108,15 @@ impl Instrument {
     /// synced and keep other threads off the device: see
     /// [`breakdown`](Self::breakdown).
     ///
+    /// # Replay requirements
+    ///
+    /// Reuse the same inputs and equivalent model state for each invocation. The pricing
+    /// and timed runs must enter the same annotated components in the same order, with
+    /// equivalent shapes and values wherever they affect bounds. Advancing a batch iterator,
+    /// growing a KV cache, or changing routing decisions can invalidate the result.
+    /// Reseeding the device does not reset application or model state. Mismatches are not
+    /// checked and can silently assign incorrect bounds; see [`breakdown`](Self::breakdown).
+    ///
     /// # Panics
     ///
     /// If the device stops answering.
@@ -134,10 +143,7 @@ impl Instrument {
     /// The pricing run evaluates the floor of every component it enters, and
     /// is not timed, so a floor may read values back. The instrumented run
     /// evaluates none: each entry takes the floor of the pricing run's entry
-    /// at the same position. The device is set to [`SEED`](Self::SEED) before
-    /// both, so they enter the same components with the same values; a model
-    /// whose components or values change between two calls is scored against
-    /// floors that are not its own.
+    /// at the same position.
     ///
     /// Instrumented, every component `model` enters arrives
     /// from this thread and every kernel the runtime issues for it from
@@ -154,6 +160,19 @@ impl Instrument {
     ///
     /// Taken by value: an instrument holds one run, and its breakdown is read
     /// once that run has ended. Re-seeds the device.
+    ///
+    /// # Replay requirements
+    ///
+    /// Both calls must enter the same annotated components in the same order, with
+    /// equivalent shapes and values wherever they affect bounds. Reuse inputs and restore
+    /// equivalent model state if a call advances an iterator, grows a KV cache, or changes
+    /// routing decisions. Bounds calculations must also preserve state and randomness
+    /// needed by the forward pass.
+    ///
+    /// The device is set to [`SEED`](Self::SEED) before both runs, which repeats the same
+    /// sequence of device random draws; it does not reset model state or host-side random
+    /// generators. Nothing checks that the runs match. A mismatch can silently assign a
+    /// different component's bounds or score a component for different inputs.
     ///
     /// # Panics
     ///
@@ -301,6 +320,42 @@ mod tests {
                 write: 0,
                 flops: 0,
             })
+        );
+    }
+
+    /// Helpers called to calculate bounds are not model entries: recording them would
+    /// shift the floors assigned to the timed run's components.
+    #[test]
+    fn annotated_bounds_helpers_do_not_shift_the_timed_runs_floors() {
+        let _serial = serial();
+        struct Router;
+
+        impl Router {
+            #[compute(label = "routes", bounds = Bounds { read: 100, write: 0, flops: 0 })]
+            fn routes(&self) -> u64 {
+                10
+            }
+
+            fn bounds(&self) -> Bounds {
+                Bounds {
+                    read: self.routes() * 100,
+                    write: 0,
+                    flops: 0,
+                }
+            }
+
+            #[compute(bounds = Self::bounds)]
+            fn forward(&self) -> u64 {
+                self.routes()
+            }
+        }
+
+        let breakdown = Instrument::new(&Device::flex()).breakdown(|| Router.forward());
+        let parent = &breakdown.tree[0];
+        let child = &parent.children[0];
+        assert_eq!(
+            (parent.bounds.unwrap().read, child.bounds.unwrap().read),
+            (1000, 100)
         );
     }
 

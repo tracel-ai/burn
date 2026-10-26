@@ -12,7 +12,7 @@
 use std::collections::{HashMap, HashSet};
 use std::fmt::{self, Display};
 
-use burn_instrument::{Component, ComponentPath, Measurement};
+use burn_instrument::{Component, ComponentPath, FusedShare, Measurement};
 
 use crate::Report;
 use crate::millis::Millis;
@@ -68,7 +68,8 @@ impl<'a> Comparison<'a> {
     }
 
     /// Whether `compared`'s work changed hands between the two measurements: fused into an
-    /// ancestor's kernel in one and launched on its own in the other.
+    /// ancestor's kernel in one, all or part of it, and launched on its own in the other, or
+    /// all of it fused in one and part of it in the other.
     ///
     /// Not a delta of any kind. A component that fused away since the saved measurement reads zero
     /// because its work moved up, and the ancestor that absorbed it gained that time, so
@@ -76,8 +77,8 @@ impl<'a> Comparison<'a> {
     /// twice with opposite signs.
     fn changed_hands(&self, compared: &Compared<'_>) -> bool {
         compared.was.is_some_and(|was| {
-            self.was.roofline().fused_elsewhere().contains(was)
-                != self.now.roofline().fused_elsewhere().contains(compared.now)
+            self.was.roofline().fused_elsewhere().share(was)
+                != self.now.roofline().fused_elsewhere().share(compared.now)
         })
     }
 
@@ -209,14 +210,10 @@ impl Display for Comparison<'_> {
                 // a `was` to print and no delta to draw from it.
                 Some(was) if self.changed_hands(component) => (
                     format!("{:.3}", Millis(self.was.reading().apportioned(was))),
-                    match self
-                        .now
-                        .roofline()
-                        .fused_elsewhere()
-                        .contains(component.now)
-                    {
-                        true => "fused ↓".to_string(),
-                        false => "unfused".to_string(),
+                    match self.now.roofline().fused_elsewhere().share(component.now) {
+                        Some(FusedShare::All) => "fused ↓".to_string(),
+                        Some(FusedShare::Part) => "partly fused ↓".to_string(),
+                        None => "unfused".to_string(),
                     },
                 ),
                 Some(was) => {

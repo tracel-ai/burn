@@ -95,18 +95,18 @@ pub fn observing() -> Option<Observing> {
     return None;
 }
 
-/// An observer installed for **this thread**, arming its annotated methods until it drops.
+/// A scoped change to component observation on **this thread**.
 ///
-/// A forward pass runs on one thread, so an observer is installed there and nothing else in the
-/// process is measured or slowed. It is removed when this guard drops, so a panicking run cannot
-/// leave the thread observed by an observer nobody holds.
+/// Installs an observer or suspends observation until the guard drops, restoring the previous
+/// observer even if the scope unwinds. Other threads' component observation is unaffected.
+/// Without the `instrument` feature, the guard is inert and observers cannot be installed.
 ///
 /// Neither `Send` nor `Sync`: it restores the slot of the thread that made it, and dropped on
 /// another thread it would stop observing one that holds no observer.
-#[cfg(feature = "instrument")]
-#[must_use = "the observer is uninstalled as soon as this is dropped"]
+#[must_use = "the previous observation is restored as soon as this guard is dropped"]
 pub struct ComponentObservation {
     /// The observer this one replaced, put back on drop.
+    #[cfg(feature = "instrument")]
     replaced: Option<Box<dyn ComponentObserver>>,
     _thread: core::marker::PhantomData<*const ()>,
 }
@@ -119,8 +119,14 @@ impl ComponentObservation {
     /// observer then sees the components again: each guard puts back what it replaced, so guards
     /// drop in the reverse order they were made, as scopes drop them.
     pub fn new(observer: Box<dyn ComponentObserver>) -> Self {
-        let replaced = OBSERVER.with(|slot| slot.replace(Some(observer)));
-        OBSERVED.with(|observed| observed.set(true));
+        Self::replace(Some(observer))
+    }
+
+    /// `None` suspends observation until the guard restores it, including on unwind.
+    fn replace(observer: Option<Box<dyn ComponentObserver>>) -> Self {
+        let enabled = observer.is_some();
+        let replaced = OBSERVER.with(|slot| slot.replace(observer));
+        OBSERVED.with(|observed| observed.set(enabled));
         Self {
             replaced,
             _thread: core::marker::PhantomData,
@@ -164,6 +170,19 @@ impl Observing {
         prices
     }
 
+    /// Suspend observation while a bounds expression runs, so its annotated helpers
+    /// do not become entries of the model. Dropping the guard restores observation.
+    #[doc(hidden)]
+    #[inline]
+    pub fn suspend(self) -> ComponentObservation {
+        #[cfg(feature = "instrument")]
+        return ComponentObservation::replace(None);
+        #[cfg(not(feature = "instrument"))]
+        ComponentObservation {
+            _thread: core::marker::PhantomData,
+        }
+    }
+
     #[cfg_attr(not(feature = "instrument"), allow(unused_variables))]
     fn with_observer(call: impl FnOnce(&dyn ComponentObserver)) {
         #[cfg(feature = "instrument")]
@@ -200,6 +219,29 @@ mod tests {
     #[test]
     fn nothing_is_observed_until_an_observer_is_installed() {
         assert!(observing().is_none());
+    }
+
+    /// A failed bounds calculation must not disable observation for subsequent components.
+    #[test]
+    fn observation_is_restored_after_bounds_panic() {
+        let (seen, _observation) = installed();
+        let failed = std::panic::catch_unwind(|| {
+            let _suspended = observing().unwrap().suspend();
+            panic!("bounds failed");
+        });
+        assert!(failed.is_err());
+
+        drop(
+            observing()
+                .expect("observation restored")
+                .enter(Declaration {
+                    label: "after panic",
+                    variant: None,
+                    site: "test::forward",
+                    bounds: None,
+                }),
+        );
+        assert_eq!(seen.events(), ["+after panic:-:-", "-"]);
     }
 
     /// A tag closes when its guard drops, so children close before their parent and an early return

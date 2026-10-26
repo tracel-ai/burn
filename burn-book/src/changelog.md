@@ -23,6 +23,11 @@ Reports also include the measured cost of a kernel launch.
   [CubeCL #1914](https://github.com/tracel-ai/cubecl/pull/1914),
   [CubeCL #1915](https://github.com/tracel-ai/cubecl/pull/1915))
   [@louisfd](https://github.com/louisfd)
+- Reports no longer score a component that is only partly fused, such as a layer projection that
+  ran alone in one layer and fused with the residual add in the others; its row reads
+  `partly fused ↓` instead of a percentage far past the peak. `FusedElsewhere::contains` is replaced
+  by `share`, which returns a `FusedShare`. ([#6222](https://github.com/tracel-ai/burn/pull/6222))
+  [@nathanielsimard](https://github.com/nathanielsimard)
 
 ### Execution performance
 
@@ -264,6 +269,9 @@ loading those checkpoints by filtering to `linear_inner` and `linear_outer`.
   ranks. The array form of `reshape` retains its `0`/`-1` placeholders.
   ([#6112](https://github.com/tracel-ai/burn/pull/6112))
   [@mattisonchao](https://github.com/mattisonchao) [@laggui](https://github.com/laggui)
+- Reject `expand(Shape)` arguments whose rank differs from the output tensor rank, with a clear
+  validation error. ([#6211](https://github.com/tracel-ai/burn/pull/6211))
+  [@onenewcode](https://github.com/onenewcode)
 - Clarify tensor type-mismatch panics with the requested type and guidance to check the rank,
   including gradient lookups.
   ([#5971](https://github.com/tracel-ai/burn/pull/5971)) [@tandede](https://github.com/tandede)
