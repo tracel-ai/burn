@@ -39,7 +39,7 @@ use crate::module::{LoraAdapter, Param, ParamGroup, Quantizer, Reparameterizer};
 /// ```
 #[derive(Debug, Clone)]
 pub struct Lora {
-    /// Rank of the low-rank decomposition.
+    /// Rank of the low-rank decomposition. Must be greater than zero.
     pub rank: usize,
     /// Scaling numerator; the adapter contribution is scaled by `alpha / rank`.
     pub alpha: f64,
@@ -56,7 +56,12 @@ pub struct Lora {
 
 impl Lora {
     /// Create a new LoRA reparameterizer with the given rank and alpha.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `rank` is zero.
     pub fn new(rank: usize, alpha: f64) -> Self {
+        Self::assert_valid_rank(rank);
         Self {
             rank,
             alpha,
@@ -64,6 +69,10 @@ impl Lora {
             dtype: None,
             param_group: ParamGroup::all(),
         }
+    }
+
+    fn assert_valid_rank(rank: usize) {
+        assert!(rank > 0, "LoRA rank must be greater than 0, got {rank}");
     }
 
     /// Set the parameter group on which to apply LoRA adapters.
@@ -87,6 +96,8 @@ impl Reparameterizer for Lora {
         path: &str,
         param: Param<Tensor<D>>,
     ) -> (Param<Tensor<D>>, Option<Self::Reparam>) {
+        Self::assert_valid_rank(self.rank);
+
         // LoRA only adapts 2-D weight matrices. Every other base parameter is frozen too, so that
         // only the adapter factors are trained (the canonical LoRA fine-tuning contract).
         if D != 2 {
@@ -549,5 +560,39 @@ mod tests {
             Tolerance::default(),
         );
         assert!(!merged.train().weight.base().is_require_grad());
+    }
+
+    #[test]
+    #[should_panic(expected = "LoRA rank must be greater than 0")]
+    fn lora_new_rejects_rank_zero() {
+        let _ = Lora::new(0, 4.0);
+    }
+
+    #[test]
+    #[should_panic(expected = "LoRA rank must be greater than 0")]
+    fn lora_rejects_rank_zero_set_after_construction() {
+        let device = test_device();
+        let mut lora = Lora::new(2, 4.0);
+        lora.rank = 0;
+        let _ = SimpleLinear::new(4, 6, &device).apply_lora(lora);
+    }
+
+    #[test]
+    #[should_panic(expected = "LoRA rank must be greater than 0")]
+    fn qlora_rejects_rank_zero_set_after_construction() {
+        use crate::module::Quantizer;
+        use burn_tensor::quantization::{Calibration, QuantValue};
+
+        let device = test_device();
+        let scheme = device
+            .settings()
+            .quantization
+            .scheme
+            .with_value(QuantValue::Q8S);
+        let quantizer = Quantizer::new(Calibration::MinMax, scheme);
+
+        let mut lora = Lora::new(2, 4.0);
+        lora.rank = 0;
+        let _ = SimpleLinear::new(8, 8, &device).apply_qlora(QLora::new(lora, quantizer));
     }
 }
