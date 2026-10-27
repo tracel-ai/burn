@@ -207,8 +207,12 @@ where
 }
 
 /// What `lhs · rhs` costs at least: its operations against the instruction its elements run on,
-/// and its compulsory bytes against a copy's bandwidth, whichever is slower for the problem. A
-/// quantized input is counted at the output's element, which it is multiplied in.
+/// and its compulsory bytes against the bus in the direction most of them go, whichever is slower
+/// for the problem. A quantized input is counted at the output's element, which it is multiplied
+/// in.
+///
+/// A product of few rows reads far more than it writes, and streams past a copy's bandwidth: a
+/// bound at the copy would end the round at a candidate a fraction of the bus behind the best.
 fn roofline(_key: &MatmulTuneKey, (lhs, rhs, out): &Inputs) -> Roofline {
     let (lhs_shape, rhs_shape) = (lhs.meta.shape(), rhs.meta.shape());
     let elem = |tensor: &CubeTensor| match tensor.try_scheme() {
@@ -227,11 +231,16 @@ fn roofline(_key: &MatmulTuneKey, (lhs, rhs, out): &Inputs) -> Roofline {
             out: dtype_to_storage_type(out.dtype),
         },
     };
+    let (read, written) = cost.traffic();
+    let memory = match read >= written {
+        true => MemoryAccess::Read,
+        false => MemoryAccess::Write,
+    };
     Roofline {
         client: out.client.clone(),
         ceiling: Ceiling::Either {
             compute: cost.compute_key(&out.client),
-            memory: MemoryAccess::Copy,
+            memory,
         },
         work: cost.work(),
     }
