@@ -453,34 +453,35 @@ impl DimSplit {
             self.dim,
             self.len,
         );
-        let outer: usize = shape.as_slice()[..self.dim].iter().product();
-        let row = shape.as_slice()[self.dim + 1..].iter().product::<usize>() * data.dtype().size();
         (0..self.members).map(move |member| {
-            let range = self.range(member);
-            // A contiguous chunk is a window into `data`, so a file-backed tensor reads only that
-            // range. A heap allocation has no window, and is copied.
-            let window = (outer == 1)
-                .then(|| data.bytes().view(range.start * row, range.end * row).ok())
-                .flatten();
-            let chunk = window.unwrap_or_else(|| {
-                let bytes = data.as_bytes();
-                let len = outer * range.len() * row;
-                // A u128 buffer is aligned to `MAX_ALIGN`, so the chunk is not copied again to
-                // reach it.
-                let mut chunk =
-                    Bytes::from_elems(Vec::<u128>::with_capacity(len.div_ceil(size_of::<u128>())));
-                for block in 0..outer {
-                    let start = block * self.len * row;
-                    chunk.extend_from_byte_slice(
-                        &bytes[start + range.start * row..start + range.end * row],
-                    );
-                }
-                chunk
-            });
             let mut chunk_shape = shape.clone();
-            chunk_shape[self.dim] = range.len();
-            TensorData::from_bytes(chunk, chunk_shape, data.dtype())
+            chunk_shape[self.dim] = self.range(member).len();
+            TensorData::from_bytes(self.chunk_bytes(data, member), chunk_shape, data.dtype())
         })
+    }
+
+    /// `member`'s bytes of `data`: a window into it when the chunk is contiguous and its storage
+    /// has windows, so a file-backed tensor reads only that range, and a copy otherwise.
+    fn chunk_bytes(&self, data: &TensorData, member: usize) -> Bytes {
+        let shape = data.shape().as_slice();
+        let blocks: usize = shape[..self.dim].iter().product();
+        let row = shape[self.dim + 1..].iter().product::<usize>() * data.dtype().size();
+        let range = self.range(member);
+        let in_block = range.start * row..range.end * row;
+        if blocks == 1
+            && let Ok(window) = data.bytes().view(in_block.start, in_block.end)
+        {
+            return window;
+        }
+        let bytes = data.as_bytes();
+        let block_len = self.len * row;
+        // A u128 buffer is aligned to `MAX_ALIGN`, so the chunk is not copied again to reach it.
+        let capacity = (blocks * in_block.len()).div_ceil(size_of::<u128>());
+        let mut chunk = Bytes::from_elems(Vec::<u128>::with_capacity(capacity));
+        for start in (0..blocks).map(|block| block * block_len) {
+            chunk.extend_from_byte_slice(&bytes[start + in_block.start..start + in_block.end]);
+        }
+        chunk
     }
 }
 
