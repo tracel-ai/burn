@@ -10,7 +10,9 @@ use super::{BatchDataLoader, BatchStrategy, DataLoader, DataLoaderIterator, Prog
 use std::sync::{Arc, OnceLock, mpsc, mpsc::SyncSender};
 use std::thread;
 
-const MAX_QUEUED_ITEMS: usize = 100;
+/// Finished batches each worker may queue ahead of the consumer by default, as PyTorch's
+/// `prefetch_factor`. See [`MultiThreadDataLoader::with_prefetch`].
+const DEFAULT_PREFETCH_PER_WORKER: usize = 2;
 
 type RngSeed = <StdRng as SeedableRng>::Seed;
 
@@ -23,6 +25,7 @@ pub struct MultiThreadDataLoader<I, O> {
     device: Device,
     seed: Option<RngSeed>,
     num_threads: usize,
+    prefetch: usize,
 
     // The lazily initialized data loaders
     dataloaders: OnceLock<Vec<BatchDataLoader<I, O>>>,
@@ -128,9 +131,24 @@ where
             num_threads,
             device,
             seed,
+            prefetch: DEFAULT_PREFETCH_PER_WORKER * num_threads,
             dataloaders: OnceLock::new(),
             workers: OnceLock::new(),
         }
+    }
+
+    /// Sets how many finished batches the workers may queue ahead of the consumer.
+    ///
+    /// A batch is built as soon as a worker is free, so while the consumer is busy the queue
+    /// fills up to this many, and each worker holds one more it is waiting to hand over. A
+    /// batcher that builds its batches on a device keeps that many batches resident there:
+    /// lower this when device memory is tight, raise it when batches take long to build.
+    /// `0` hands each batch over directly, with nothing queued.
+    ///
+    /// Defaults to two batches per worker.
+    pub fn with_prefetch(mut self, prefetch: usize) -> Self {
+        self.prefetch = prefetch;
+        self
     }
 
     /// Force initialization if needed.
@@ -247,7 +265,7 @@ where
     fn iter<'a>(&'a self) -> Box<dyn DataLoaderIterator<O> + 'a> {
         let workers = self.workers();
 
-        let (sender, receiver) = mpsc::sync_channel::<Message<O>>(MAX_QUEUED_ITEMS);
+        let (sender, receiver) = mpsc::sync_channel::<Message<O>>(self.prefetch);
         let unit: Option<String> = Some("items".to_string());
 
         let mut progresses = Vec::with_capacity(workers.senders.len());
@@ -283,14 +301,17 @@ where
     }
 
     fn to_device(&self, device: &Device) -> Arc<dyn DataLoader<O>> {
-        Arc::new(Self::from_seed(
-            self.strategy.clone_dyn(),
-            self.dataset.clone(),
-            self.batcher.clone(),
-            self.num_threads,
-            device.clone(),
-            self.seed,
-        ))
+        Arc::new(
+            Self::from_seed(
+                self.strategy.clone_dyn(),
+                self.dataset.clone(),
+                self.batcher.clone(),
+                self.num_threads,
+                device.clone(),
+                self.seed,
+            )
+            .with_prefetch(self.prefetch),
+        )
     }
 
     fn slice(&self, start: usize, end: usize) -> Arc<dyn DataLoader<O>> {
@@ -301,7 +322,8 @@ where
             self.num_threads,
             self.device.clone(),
             self.seed,
-        );
+        )
+        .with_prefetch(self.prefetch);
         Arc::new(dataloader)
     }
 }
@@ -383,8 +405,21 @@ mod tests {
     use burn_dataset::DatasetError;
     use burn_dataset::InMemDataset;
     use std::collections::HashSet;
+    use std::sync::atomic::{AtomicUsize, Ordering};
     use std::sync::mpsc;
     use std::time::Duration;
+
+    /// Counts the batches it has built, so a test can tell how far ahead of the consumer the
+    /// workers ran.
+    #[derive(Clone)]
+    struct CountingBatcher(Arc<AtomicUsize>);
+
+    impl<I> Batcher<I, usize> for CountingBatcher {
+        fn batch(&self, items: Vec<I>, _device: &Device) -> usize {
+            self.0.fetch_add(1, Ordering::SeqCst);
+            items.len()
+        }
+    }
 
     /// A dataset that returns a real error (not an out-of-bounds panic) at one index,
     /// to exercise the worker-error-propagation path below.
@@ -642,6 +677,38 @@ mod tests {
             .expect("dataloader hung instead of reporting the worker error");
         assert!(error.contains("simulated dataset failure"), "{error}");
         handle.join().unwrap();
+    }
+
+    #[test]
+    fn test_multi_thread_batch_dataloader_builds_no_further_ahead_than_its_prefetch() {
+        let built = Arc::new(AtomicUsize::new(0));
+        let num_workers = 2;
+        let prefetch = 3;
+        let dataloader = MultiThreadDataLoader::new(
+            Box::new(FixBatchStrategy::new(1)),
+            Arc::new(FakeDataset::<String>::new(100)),
+            Arc::new(CountingBatcher(built.clone())),
+            num_workers,
+            Default::default(),
+            None,
+        )
+        .with_prefetch(prefetch);
+
+        let mut iterator = dataloader.iter();
+        iterator.next().unwrap().unwrap();
+        // Long enough for the workers to run as far ahead as they are allowed to.
+        thread::sleep(Duration::from_millis(200));
+
+        // The one taken, `prefetch` queued, and one per worker waiting to hand its batch over.
+        let bound = 1 + prefetch + num_workers;
+        let ahead = built.load(Ordering::SeqCst);
+        assert!(
+            ahead <= bound,
+            "{ahead} batches built, at most {bound} allowed"
+        );
+
+        // Bounding the queue must not lose anything.
+        assert_eq!(iterator.map(Result::unwrap).count(), 99);
     }
 
     #[test]

@@ -12,6 +12,7 @@ pub struct DataLoaderBuilder<I, O> {
     strategy: Option<Box<dyn BatchStrategy<I>>>,
     batcher: Arc<dyn Batcher<I, O>>,
     num_threads: Option<usize>,
+    prefetch: Option<usize>,
     shuffle: Option<u64>,
     device: Option<Device>,
 }
@@ -38,6 +39,7 @@ where
             batcher: Arc::new(batcher),
             strategy: None,
             num_threads: None,
+            prefetch: None,
             shuffle: None,
             device: None,
         }
@@ -95,6 +97,28 @@ where
         self
     }
 
+    /// Sets how many finished batches the workers may queue ahead of the consumer.
+    ///
+    /// Workers build batches as long as there is room in the queue, so a batcher that builds
+    /// its batches on a device keeps up to this many resident there, plus one per worker. Lower
+    /// it when device memory is tight, raise it when batches take long to build. `0` hands each
+    /// batch over directly, with nothing queued. Has no effect without workers, where a batch
+    /// is built only when it is asked for.
+    ///
+    /// Defaults to two batches per worker.
+    ///
+    /// # Arguments
+    ///
+    /// * `prefetch` - The number of batches the workers may queue.
+    ///
+    /// # Returns
+    ///
+    /// The data loader builder.
+    pub fn prefetch(mut self, prefetch: usize) -> Self {
+        self.prefetch = Some(prefetch);
+        self
+    }
+
     /// Sets the data loader device.
     ///
     /// # Arguments
@@ -134,14 +158,18 @@ where
         if let Some(num_threads) = self.num_threads
             && num_threads > 0
         {
-            return Arc::new(MultiThreadDataLoader::new(
+            let dataloader = MultiThreadDataLoader::new(
                 strategy,
                 dataset,
                 self.batcher,
                 num_threads,
                 device,
                 rng,
-            ));
+            );
+            return Arc::new(match self.prefetch {
+                Some(prefetch) => dataloader.with_prefetch(prefetch),
+                None => dataloader,
+            });
         }
 
         Arc::new(BatchDataLoader::new(
@@ -199,6 +227,17 @@ mod tests {
         for device in dataloader.iter().map(Result::unwrap) {
             assert_eq!(device, default_device)
         }
+    }
+
+    #[test]
+    fn test_dataloader_prefetch_still_yields_every_batch() {
+        let dataloader = DataLoaderBuilder::new(TestBatcherDevice::new())
+            .batch_size(1)
+            .num_workers(2)
+            .prefetch(0)
+            .build(FakeDataset::<String>::new(9));
+
+        assert_eq!(dataloader.iter().map(Result::unwrap).count(), 9);
     }
 
     #[test]
