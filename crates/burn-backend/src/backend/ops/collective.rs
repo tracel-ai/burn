@@ -460,29 +460,44 @@ impl DimSplit {
         })
     }
 
-    /// `member`'s bytes of `data`: a window into it when the chunk is contiguous and its storage
-    /// has windows, so a file-backed tensor reads only that range, and a copy otherwise.
+    /// `member`'s bytes of `data`. A chunk in one piece is a window into `data` where its storage
+    /// has windows, so a file-backed tensor reads only that range.
     fn chunk_bytes(&self, data: &TensorData, member: usize) -> Bytes {
-        let shape = data.shape().as_slice();
-        let blocks: usize = shape[..self.dim].iter().product();
-        let row = shape[self.dim + 1..].iter().product::<usize>() * data.dtype().size();
-        let range = self.range(member);
-        let in_block = range.start * row..range.end * row;
-        if blocks == 1
-            && let Ok(window) = data.bytes().view(in_block.start, in_block.end)
+        let pieces = self.byte_ranges(data, member);
+        if let [piece] = pieces.as_slice()
+            && let Ok(window) = data.bytes().view(piece.start, piece.end)
         {
             return window;
         }
-        let bytes = data.as_bytes();
-        let block_len = self.len * row;
-        // A u128 buffer is aligned to `MAX_ALIGN`, so the chunk is not copied again to reach it.
-        let capacity = (blocks * in_block.len()).div_ceil(size_of::<u128>());
-        let mut chunk = Bytes::from_elems(Vec::<u128>::with_capacity(capacity));
-        for start in (0..blocks).map(|block| block * block_len) {
-            chunk.extend_from_byte_slice(&bytes[start + in_block.start..start + in_block.end]);
-        }
-        chunk
+        concatenated(data.as_bytes(), &pieces)
     }
+
+    /// Where `member`'s chunk sits in `data`: one byte range for each index of the dims before
+    /// `dim`.
+    fn byte_ranges(&self, data: &TensorData, member: usize) -> Vec<Range<usize>> {
+        let shape = data.shape().as_slice();
+        let blocks: usize = shape[..self.dim].iter().product();
+        let row_size = shape[self.dim + 1..].iter().product::<usize>() * data.dtype().size();
+        let rows = self.range(member);
+        (0..blocks)
+            .map(|block| {
+                let start = (block * self.len + rows.start) * row_size;
+                start..start + rows.len() * row_size
+            })
+            .collect()
+    }
+}
+
+/// The `ranges` of `bytes` end to end, in a u128 buffer: it is aligned to `MAX_ALIGN`, so the
+/// result is not copied again to reach it.
+fn concatenated(bytes: &[u8], ranges: &[Range<usize>]) -> Bytes {
+    let len: usize = ranges.iter().map(Range::len).sum();
+    let mut concatenated =
+        Bytes::from_elems(Vec::<u128>::with_capacity(len.div_ceil(size_of::<u128>())));
+    for range in ranges {
+        concatenated.extend_from_byte_slice(&bytes[range.clone()]);
+    }
+    concatenated
 }
 
 #[cfg(test)]
