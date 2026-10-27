@@ -6,7 +6,7 @@ use burn_core::{
 };
 use burn_std::{bf16, f16};
 
-use super::coordinate;
+use super::base::coordinate;
 
 /// Select source pixels on the CPU, then gather from the original tensor so the
 /// existing gather operation retains its autodiff graph and backward scatter-add.

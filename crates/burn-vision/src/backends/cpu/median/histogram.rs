@@ -1,4 +1,4 @@
-use super::coordinate;
+use super::base::coordinate;
 use burn_core::tensor::{DType, Element, ElementConversion};
 use bytemuck::Pod;
 
