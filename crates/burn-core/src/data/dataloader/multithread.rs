@@ -10,8 +10,8 @@ use super::{BatchDataLoader, BatchStrategy, DataLoader, DataLoaderIterator, Prog
 use std::sync::{Arc, OnceLock, mpsc, mpsc::SyncSender};
 use std::thread;
 
-/// Finished batches each worker may queue ahead of the consumer by default, as PyTorch's
-/// `prefetch_factor`. See [`MultiThreadDataLoader::with_prefetch`].
+/// Finished batches each worker may queue ahead of the consumer by default.
+/// See [`MultiThreadDataLoader::with_prefetch`].
 const DEFAULT_PREFETCH_PER_WORKER: usize = 2;
 
 type RngSeed = <StdRng as SeedableRng>::Seed;
@@ -138,11 +138,7 @@ where
     }
 
     /// Sets how many finished batches the workers may queue ahead of the consumer.
-    ///
-    /// A batch is built as soon as a worker is free, so while the consumer is busy the queue
-    /// fills up to this many, and each worker holds one more it is waiting to hand over. A
-    /// batcher that builds its batches on a device keeps that many batches resident there:
-    /// lower this when device memory is tight, raise it when batches take long to build.
+    /// Lower this when device memory is tight, raise it when batches take long to build.
     /// `0` hands each batch over directly, with nothing queued.
     ///
     /// Defaults to two batches per worker.
@@ -680,7 +676,7 @@ mod tests {
     }
 
     #[test]
-    fn test_multi_thread_batch_dataloader_builds_no_further_ahead_than_its_prefetch() {
+    fn build_no_further_ahead_than_prefetch() {
         let built = Arc::new(AtomicUsize::new(0));
         let num_workers = 2;
         let prefetch = 3;

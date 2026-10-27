@@ -97,13 +97,9 @@ where
         self
     }
 
-    /// Sets how many finished batches the workers may queue ahead of the consumer.
-    ///
-    /// Workers build batches as long as there is room in the queue, so a batcher that builds
-    /// its batches on a device keeps up to this many resident there, plus one per worker. Lower
-    /// it when device memory is tight, raise it when batches take long to build. `0` hands each
-    /// batch over directly, with nothing queued. Has no effect without workers, where a batch
-    /// is built only when it is asked for.
+    /// Sets how many finished batches the workers may queue ahead of the consumer. Lower it
+    /// when device memory is tight, raise it when batches take long to build. `0` hands each
+    /// batch over directly, with nothing queued. Has no effect without workers.
     ///
     /// Defaults to two batches per worker.
     ///
@@ -230,7 +226,7 @@ mod tests {
     }
 
     #[test]
-    fn test_dataloader_prefetch_still_yields_every_batch() {
+    fn prefetch_yields_every_batch() {
         let dataloader = DataLoaderBuilder::new(TestBatcherDevice::new())
             .batch_size(1)
             .num_workers(2)
