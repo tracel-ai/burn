@@ -10,7 +10,7 @@ use burn_core::module::{
     Module, Param,
     parallel::{
         AutoregressiveLayer, DistributedLayer, DistributedLayeredModel, LayerParallelism,
-        LayerPlacement,
+        LayerPlacement, LayerStage,
     },
 };
 use burn_tensor::{Device, Distribution, Tensor, Tolerance};
@@ -28,6 +28,18 @@ fn a_layer_built_off_its_placed_device_is_refused() {
     let stack = Stack::new(&LayerPlacement::even(core::slice::from_ref(&flex), 4));
 
     DistributedLayeredModel::new(stack, &LayerPlacement::even(&[flex, cpu], 4));
+}
+
+#[test]
+fn a_device_returned_to_later_starts_a_stage_of_its_own() {
+    let (flex, cpu) = devices();
+    let stages =
+        [(flex.clone(), 2), (cpu, 1), (flex, 1)].map(|(device, num_hidden_layers)| LayerStage {
+            device,
+            num_hidden_layers,
+        });
+
+    assert_eq!(LayerPlacement::new(&stages).stages(), stages);
 }
 
 #[test]

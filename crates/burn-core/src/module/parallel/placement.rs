@@ -78,6 +78,21 @@ impl LayerPlacement {
         }
     }
 
+    /// Each device's run of consecutive hidden layers, in forward order.
+    pub fn stages(&self) -> Vec<LayerStage> {
+        let mut stages: Vec<LayerStage> = Vec::new();
+        for device in &self.hidden {
+            match stages.last_mut() {
+                Some(stage) if &stage.device == device => stage.num_hidden_layers += 1,
+                _ => stages.push(LayerStage {
+                    device: device.clone(),
+                    num_hidden_layers: 1,
+                }),
+            }
+        }
+        stages
+    }
+
     /// The hidden layers shared out in order across `devices`, as evenly as the count allows:
     /// when it does not divide, the first devices take one layer more. Devices past the layer
     /// count are left out rather than given a stage with nothing to run; [`new`](Self::new) places
