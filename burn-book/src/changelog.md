@@ -246,6 +246,9 @@ loading those checkpoints by filtering to `linear_inner` and `linear_outer`.
   ([#5965](https://github.com/tracel-ai/burn/pull/5965),
   [#5945](https://github.com/tracel-ai/burn/pull/5945),
   [#6028](https://github.com/tracel-ai/burn/pull/6028))
+- Correct BLEU and ROUGE-L scores and prevent panics when prediction and reference sequence lengths
+  differ. ([#6242](https://github.com/tracel-ai/burn/pull/6242))
+  [@onenewcode](https://github.com/onenewcode)
 - Fix CPU non-maximum-suppression results and restore GPU acceleration for connected components.
   ([#6019](https://github.com/tracel-ai/burn/pull/6019),
   [#6003](https://github.com/tracel-ai/burn/pull/6003))
