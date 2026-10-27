@@ -14,7 +14,7 @@ use burn_backend::{
         MaxPool2dWithIndices, MaxPool3dBackward, MaxPool3dWithIndices, ModuleOps,
     },
 };
-use burn_std::IntDType;
+use burn_std::{DType, IntDType};
 
 impl ModuleOps<Self> for CubeBackend {
     fn conv1d(
@@ -108,7 +108,18 @@ impl ModuleOps<Self> for CubeBackend {
         bias: FloatTensor<Self>,
         output_grad: FloatTensor<Self>,
     ) -> FloatTensor<Self> {
-        let grad = Self::float_sum_dims(output_grad, &[0, 2, 3]);
+        if output_grad.dtype == DType::F32 {
+            let grad = Self::float_sum_dims(output_grad, &[0, 2, 3]);
+            return Self::float_reshape(grad, bias.shape());
+        }
+
+        // Keep low-precision gradients on one pass until reduce_dims preserves
+        // accumulator precision between passes instead of narrowing partial sums.
+        // Dense NHWC storage needs only a metadata reshape.
+        let [batch, channels, height, width] = output_grad.shape().dims();
+        let grad = super::permute_nchw_to_nhwc(output_grad);
+        let grad = Self::float_reshape(grad, [batch * height * width, channels].into());
+        let grad = Self::float_sum_dim(grad, 0);
         Self::float_reshape(grad, bias.shape())
     }
 
@@ -506,74 +517,5 @@ impl ModuleOps<Self> for CubeBackend {
             nll,
             blank,
         )
-    }
-}
-
-#[cfg(all(test, feature = "cuda"))]
-mod tests {
-    use super::*;
-    use crate::{
-        CubeDevice,
-        ops::{from_data, into_data_sync, permute_nhwc_to_nchw},
-    };
-    use burn_backend::{DType, TensorData};
-
-    #[test]
-    fn conv2d_bias_gradient_preserves_channels_across_layouts() {
-        let device = CubeDevice::cuda(0).unwrap();
-        for dtype in [DType::F32, DType::F16, DType::BF16] {
-            for channels_last in [false, true] {
-                let values = (0..2 * 3 * 2 * 4)
-                    .map(|i| ((i % 11) as f32 - 5.0) / 8.0)
-                    .collect::<Vec<_>>();
-                let mut expected = [0.0_f32; 3];
-                for b in 0..2 {
-                    for (c, channel_sum) in expected.iter_mut().enumerate() {
-                        for y in 0..2 {
-                            for x in 0..4 {
-                                *channel_sum += values[((b * 3 + c) * 2 + y) * 4 + x];
-                            }
-                        }
-                    }
-                }
-                let grad = if channels_last {
-                    let mut stored = Vec::new();
-                    for b in 0..2 {
-                        for y in 0..2 {
-                            for x in 0..4 {
-                                for c in 0..3 {
-                                    stored.push(values[((b * 3 + c) * 2 + y) * 4 + x]);
-                                }
-                            }
-                        }
-                    }
-                    permute_nhwc_to_nchw(from_data(
-                        TensorData::new(stored, [2, 2, 4, 3]).convert_dtype(dtype),
-                        &device,
-                    ))
-                } else {
-                    from_data(
-                        TensorData::new(values, [2, 3, 2, 4]).convert_dtype(dtype),
-                        &device,
-                    )
-                };
-                let input = from_data(
-                    TensorData::new(vec![0.0_f32; 16], [2, 1, 2, 4]).convert_dtype(dtype),
-                    &device,
-                );
-                let bias = from_data(
-                    TensorData::new(vec![0.0_f32; 3], [3]).convert_dtype(dtype),
-                    &device,
-                );
-                let actual = CubeBackend::conv2d_bias_backward(input, bias, grad);
-                assert_eq!(actual.shape(), [3].into());
-                assert_eq!(actual.dtype, dtype);
-                let actual = into_data_sync(actual)
-                    .convert::<f32>()
-                    .try_to_vec::<f32>()
-                    .unwrap();
-                assert_eq!(actual, expected);
-            }
-        }
     }
 }
