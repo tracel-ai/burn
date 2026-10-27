@@ -37,6 +37,9 @@ doc = [
     "burn-instrument/doc",
     "dep:regex"
 ]
+# Arms the `#[compute]` annotations, so `instrument::Instrument` can measure a model built from
+# them. Off, they compile away.
+instrument = ["std", "burn-instrument/instrument"]
 tracing = [
     "burn-std/tracing",
     "burn-tensor/tracing",
@@ -85,6 +88,7 @@ metal = ["wgpu", "burn-tensor/metal", "burn-wgpu/metal"]
 cpu = ["burn-tensor/cpu", "dep:burn-cpu", "burn-instrument/cubecl"]
 autodiff = ["burn-tensor/autodiff"]
 capture = ["burn-tensor/capture"]
+group = ["burn-tensor/group"]
 ir = ["burn-ir"]
 
 # Backend features

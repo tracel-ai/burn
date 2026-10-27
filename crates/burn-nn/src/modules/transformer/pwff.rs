@@ -2,8 +2,11 @@ use crate::Initializer;
 use burn_core as burn;
 
 use crate::activation::{Activation, ActivationConfig};
+use crate::modules::bounds;
+use crate::modules::role::Role;
 use crate::{Dropout, DropoutConfig, Linear, LinearConfig};
 use burn::config::Config;
+use burn::instrument::{self, Bounds, compute};
 use burn::module::{Content, DisplaySettings, Module, ModuleDisplay};
 use burn::tensor::{Device, Tensor, assert_shape};
 
@@ -95,6 +98,18 @@ impl PositionWiseFeedForwardConfig {
 }
 
 impl PositionWiseFeedForward {
+    /// The floor for the feed-forward alone: read the input and both projections' parameters
+    /// once, write the output once. The hidden activation between them is what a fuser keeps
+    /// out of memory, and the outer projection undoes the inner one's widening with the same
+    /// arithmetic.
+    pub(crate) fn bounds<const D: usize>(&self, input: &Tensor<D>) -> Bounds {
+        Bounds {
+            read: instrument::tensor_bytes(input) + bounds::parameters(self),
+            write: instrument::tensor_bytes(input),
+            flops: 2 * self.linear_inner.bounds(input).flops,
+        }
+    }
+
     /// Applies the forward pass on the input tensor.
     ///
     /// # Shapes
@@ -105,15 +120,16 @@ impl PositionWiseFeedForward {
     /// # Panics
     ///
     /// Panics if the last axis of `input` is not `d_model`.
+    #[compute(bounds = Self::bounds)]
     pub fn forward<const D: usize>(&self, input: Tensor<D>) -> Tensor<D> {
         let [d_model, _] = self.linear_inner.weight.shape().dims();
         assert_shape!(input, [.., d_model]);
 
-        let x = self.linear_inner.forward(input);
+        let x = Role::INNER.run(|| self.linear_inner.forward(input));
         let x = self.activation.forward(x);
         let x = self.dropout.forward(x);
 
-        self.linear_outer.forward(x)
+        Role::OUTER.run(|| self.linear_outer.forward(x))
     }
 }
 

@@ -1,3 +1,6 @@
+use crate::modules::bounds::{self, Windows};
+use burn::instrument::{Bounds, compute};
+use burn::tensor::module::avg_pool_output_size;
 use burn_core as burn;
 
 use crate::PaddingConfig3d;
@@ -86,15 +89,8 @@ impl AvgPool3dConfig {
 }
 
 impl AvgPool3d {
-    /// Applies the forward pass on the input tensor.
-    ///
-    /// See [avg_pool3d](burn::tensor::module::avg_pool3d) for more information.
-    ///
-    /// # Shapes
-    ///
-    /// - input: `[batch_size, channels, depth_in, height_in, width_in]`
-    /// - output: `[batch_size, channels, depth_out, height_out, width_out]`
-    pub fn forward(&self, input: Tensor<5>) -> Tensor<5> {
+    /// The options the pool runs with, its padding resolved against `input`'s size.
+    fn options(&self, input: &Tensor<5>) -> AvgPoolOptions<3> {
         let [_batch_size, _channels_in, depth_in, height_in, width_in] = input.dims();
         let (padding_depth, padding_height, padding_width) =
             self.padding.calculate_padding_3d_pairs(
@@ -105,14 +101,36 @@ impl AvgPool3d {
                 &self.stride,
             );
 
-        avg_pool3d(
-            input,
-            AvgPoolOptions::new(self.kernel_size)
-                .with_stride(self.stride)
-                .with_padding_pairs([padding_depth, padding_height, padding_width])
-                .with_count_include_pad(self.count_include_pad)
-                .with_ceil_mode(self.ceil_mode),
+        AvgPoolOptions::new(self.kernel_size)
+            .with_stride(self.stride)
+            .with_padding_pairs([padding_depth, padding_height, padding_width])
+            .with_count_include_pad(self.count_include_pad)
+            .with_ceil_mode(self.ceil_mode)
+    }
+
+    /// None where the pool cannot size its output, which it rejects.
+    fn bounds(&self, input: &Tensor<5>) -> Option<Bounds> {
+        let options = self.options(input);
+        let output_size = avg_pool_output_size(bounds::spatial(input), &options)?;
+        Some(
+            Windows::avg_pool(&options)
+                .over(input, output_size)
+                .resampling(input),
         )
+    }
+
+    /// Applies the forward pass on the input tensor.
+    ///
+    /// See [avg_pool3d](burn::tensor::module::avg_pool3d) for more information.
+    ///
+    /// # Shapes
+    ///
+    /// - input: `[batch_size, channels, depth_in, height_in, width_in]`
+    /// - output: `[batch_size, channels, depth_out, height_out, width_out]`
+    #[compute(bounds = Self::bounds)]
+    pub fn forward(&self, input: Tensor<5>) -> Tensor<5> {
+        let options = self.options(&input);
+        avg_pool3d(input, options)
     }
 }
 

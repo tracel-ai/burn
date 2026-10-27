@@ -37,6 +37,7 @@ fn cost((query, key, value, mask, _attn_bias, options): &Inputs) -> AttentionCos
         dims: AttentionDims {
             batch: query.meta.shape[0],
             num_heads: query.meta.shape[1],
+            num_kv_heads: key.meta.shape[1],
             seq_q: query.meta.shape[2],
             head_dim: query.meta.shape[3],
             seq_kv: value.meta.shape[2],
@@ -44,6 +45,7 @@ fn cost((query, key, value, mask, _attn_bias, options): &Inputs) -> AttentionCos
         },
         masked: mask.is_some(),
         causal: options.is_causal,
+        sliding_window: None,
         types: AttentionGlobalTypes {
             query: query_type,
             key: dtype_to_storage_type(key.dtype),

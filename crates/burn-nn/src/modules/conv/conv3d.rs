@@ -1,6 +1,9 @@
 use crate::Initializer;
 use alloc::format;
 
+use crate::modules::bounds::{self, Windows};
+use burn::instrument::{Bounds, compute};
+use burn::tensor::module::conv_output_size;
 use burn_core as burn;
 
 use crate::PaddingConfig3d;
@@ -143,15 +146,8 @@ impl ModuleDisplay for Conv3d {
 }
 
 impl Conv3d {
-    /// Applies the forward pass on the input tensor.
-    ///
-    /// See [conv3d](burn::tensor::module::conv3d) for more information.
-    ///
-    /// # Shapes
-    ///
-    /// - input: `[batch_size, channels_in, depth_in, height_in, width_in]`
-    /// - output: `[batch_size, channels_out, depth_out, height_out, width_out]`
-    pub fn forward(&self, input: Tensor<5>) -> Tensor<5> {
+    /// The options the convolution runs with, its padding resolved against `input`'s size.
+    fn options(&self, input: &Tensor<5>) -> ConvOptions<3> {
         let [_batch_size, _channels_in, depth_in, height_in, width_in] = input.dims();
         let padding = self.padding.calculate_padding_3d(
             depth_in,
@@ -160,11 +156,34 @@ impl Conv3d {
             &self.kernel_size,
             &self.stride,
         );
+        ConvOptions::new(self.stride, padding, self.dilation, self.groups)
+    }
+
+    /// None where the convolution cannot size its output, which it rejects.
+    fn bounds(&self, input: &Tensor<5>) -> Option<Bounds> {
+        let options = self.options(input);
+        let weight = self.weight.val();
+        let output_size = conv_output_size(bounds::spatial(input), &weight.shape(), &options)?;
+        let windowing = Windows::convolution(self.kernel_size, &options).over(input, output_size);
+        Some(windowing.convolution(input, &weight, &self.bias))
+    }
+
+    /// Applies the forward pass on the input tensor.
+    ///
+    /// See [conv3d](burn::tensor::module::conv3d) for more information.
+    ///
+    /// # Shapes
+    ///
+    /// - input: `[batch_size, channels_in, depth_in, height_in, width_in]`
+    /// - output: `[batch_size, channels_out, depth_out, height_out, width_out]`
+    #[compute(bounds = Self::bounds)]
+    pub fn forward(&self, input: Tensor<5>) -> Tensor<5> {
+        let options = self.options(&input);
         conv3d(
             input,
             self.weight.val(),
             self.bias.as_ref().map(|bias| bias.val()),
-            ConvOptions::new(self.stride, padding, self.dilation, self.groups),
+            options,
         )
     }
 }

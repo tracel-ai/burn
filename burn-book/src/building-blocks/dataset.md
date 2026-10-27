@@ -29,8 +29,7 @@ in-bounds item. Accessing an index at or beyond `len()` must panic, as with inde
 `DatasetError::new(error)` wraps an error when a default-error implementation needs to propagate it.
 
 Dataset iteration yields `Result<I, E>` for each index. The iterator advances past a failed item,
-so callers can choose whether to stop or continue. Only exhaustion ends the iterator. In 0.21,
-`get` returned `Option<I>`; see [Migrating to Burn 0.22](../migrating-to-0.22.md#datasets-and-dataloaders).
+so callers can choose whether to stop or continue. Only exhaustion ends the iterator.
 
 The dataset trait assumes a fixed-length set of items that can be randomly accessed in constant
 time. This is a major difference from datasets that use Apache Arrow underneath to improve streaming

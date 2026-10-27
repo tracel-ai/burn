@@ -410,7 +410,7 @@ impl UnfoldOptions {
 }
 
 /// Algorithm used.
-#[derive(new, Debug, Clone, serde::Deserialize, serde::Serialize)]
+#[derive(new, Debug, Clone, Copy, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
 pub enum InterpolateMode {
     /// Nearest-neighbor floor interpolation.
     /// Matches the legacy behavior of OpenCV’s INTER_NEAREST. It results in a bottom-right shift when resizing.
@@ -434,44 +434,158 @@ pub enum InterpolateMode {
     Lanczos3,
 }
 
+/// Coordinate transformation mode for interpolation.
+#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
+pub enum CoordinateTransformMode {
+    /// Half-pixel coordinate mapping: `(x_out + 0.5) / scale - 0.5`.
+    HalfPixel,
+    /// Align corners coordinate mapping: `x_out * (l_in - 1) / (l_out - 1)`.
+    AlignCorners,
+    /// Asymmetric coordinate mapping: `x_out / scale`.
+    Asymmetric,
+    /// PyTorch half-pixel coordinate mapping: `(x_out + 0.5) / scale - 0.5` if `l_out > 1` else `0.0`.
+    PytorchHalfPixel,
+    /// Half-pixel symmetric coordinate mapping.
+    HalfPixelSymmetric,
+    /// TensorFlow crop and resize coordinate mapping with normalized ROI bounding box.
+    TfCropAndResize {
+        /// Normalized bounding box per spatial axis: [[y_start, y_end], [x_start, x_end]]
+        roi: [[f32; 2]; 2],
+        /// Extrapolation fill value for coordinates outside bounds
+        extrapolation_value: f32,
+    },
+}
+
+/// Nearest rounding mode for nearest neighbor interpolation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub enum NearestRoundingMode {
+    /// Round with preference to floor at 0.5 boundaries (`ceil(x - 0.5)`).
+    RoundPreferFloor,
+    /// Round with preference to ceil at 0.5 boundaries (`floor(x + 0.5)`).
+    RoundPreferCeil,
+    /// Floor rounding (`floor(x)`).
+    Floor,
+    /// Ceil rounding (`ceil(x)`).
+    Ceil,
+}
+
+/// Configuration options for bicubic interpolation.
+#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct CubicOptions {
+    /// Cubic spline parameter 'a'. Default: -0.75 (PyTorch/ONNX), -0.5 (TensorFlow).
+    pub a: f32,
+    /// Zero out-of-bounds tap weights and renormalize remaining weights.
+    pub exclude_outside: bool,
+}
+
+impl Default for CubicOptions {
+    fn default() -> Self {
+        Self {
+            a: -0.75,
+            exclude_outside: false,
+        }
+    }
+}
+
 /// Interpolation options.
-#[derive(Debug, Clone)]
+///
+/// Flex supports all coordinate transforms, rounding modes and cubic options.
+/// CubeCL supports the default nearest and nearest-exact combinations, plus bilinear,
+/// bicubic and Lanczos3 with `AlignCorners` or `HalfPixel` and default cubic options.
+/// With CubeCL, explicit scales must equal the resolved output/input ratios exactly,
+/// unless the transform is `AlignCorners`. Unsupported combinations panic.
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct InterpolateOptions {
     /// Algorithm used.
     pub mode: InterpolateMode,
-    /// If `true`, the input and output tensors are aligned by their corner pixels.
-    /// If `false`, half-pixel coordinate mapping is used instead.
-    pub align_corners: bool,
+    /// Coordinate transformation mode.
+    pub coordinate_transform: CoordinateTransformMode,
+    /// Nearest rounding mode.
+    pub nearest_mode: NearestRoundingMode,
+    /// Cubic interpolation options.
+    pub cubic_options: CubicOptions,
     /// Output spatial size `[height, width]`.
     ///
     /// Exactly one of `output_size` or `scale_factor` must be set when calling
-    /// `burn_tensor::module::interpolate`. Backends receive the resolved size as a
-    /// separate argument and ignore this field.
+    /// `burn_tensor::module::interpolate`.
     pub output_size: Option<[usize; 2]>,
     /// Scale factor `[scale_height, scale_width]` applied to the input spatial size.
     /// The output size is `floor(input_size * scale_factor)`.
-    ///
-    /// Exactly one of `output_size` or `scale_factor` must be set when calling
-    /// `burn_tensor::module::interpolate`. Backends ignore this field.
+    /// Scale-dependent transforms use these supplied factors for coordinates rather
+    /// than recomputing the output/input ratio. `AlignCorners` and `TfCropAndResize`
+    /// map coordinates from the resolved sizes instead.
     pub scale_factor: Option<[f32; 2]>,
 }
 
 impl InterpolateOptions {
-    /// Create new interpolate options with the given mode.
-    /// Defaults to `align_corners = true` and no output size or scale factor.
+    /// Create new interpolate options with mode-dependent defaults.
     pub fn new(mode: InterpolateMode) -> Self {
+        let (coordinate_transform, nearest_mode) = match mode {
+            InterpolateMode::Nearest => (
+                CoordinateTransformMode::Asymmetric,
+                NearestRoundingMode::Floor,
+            ),
+            InterpolateMode::NearestExact => (
+                CoordinateTransformMode::HalfPixel,
+                NearestRoundingMode::RoundPreferCeil,
+            ),
+            InterpolateMode::Bilinear | InterpolateMode::Bicubic | InterpolateMode::Lanczos3 => (
+                CoordinateTransformMode::AlignCorners,
+                NearestRoundingMode::RoundPreferFloor,
+            ),
+        };
+
         Self {
             mode,
-            align_corners: true,
+            coordinate_transform,
+            nearest_mode,
+            cubic_options: CubicOptions::default(),
             output_size: None,
             scale_factor: None,
         }
     }
 
-    /// Set align_corners.
-    pub fn with_align_corners(mut self, align_corners: bool) -> Self {
-        self.align_corners = align_corners;
+    /// Set coordinate transformation mode.
+    pub fn with_coordinate_transform(mut self, mode: CoordinateTransformMode) -> Self {
+        self.coordinate_transform = mode;
         self
+    }
+
+    /// Set nearest rounding mode.
+    pub fn with_nearest_mode(mut self, mode: NearestRoundingMode) -> Self {
+        self.nearest_mode = mode;
+        self
+    }
+
+    /// Set cubic options.
+    pub fn with_cubic_options(mut self, options: CubicOptions) -> Self {
+        self.cubic_options = options;
+        self
+    }
+
+    /// Set corner alignment for bilinear, bicubic and Lanczos3 interpolation.
+    /// `true` selects `AlignCorners`; `false` selects `HalfPixel`.
+    /// Nearest modes are unchanged; use [`Self::with_coordinate_transform`] to set their mapping.
+    pub fn with_align_corners(mut self, align_corners: bool) -> Self {
+        if !matches!(
+            self.mode,
+            InterpolateMode::Nearest | InterpolateMode::NearestExact
+        ) {
+            self.coordinate_transform = if align_corners {
+                CoordinateTransformMode::AlignCorners
+            } else {
+                CoordinateTransformMode::HalfPixel
+            };
+        }
+        self
+    }
+
+    /// Returns `true` if coordinate transform is `AlignCorners`.
+    pub fn align_corners(&self) -> bool {
+        matches!(
+            self.coordinate_transform,
+            CoordinateTransformMode::AlignCorners
+        )
     }
 
     /// Set the output size `[height, width]`, clearing any scale factor.
@@ -618,7 +732,47 @@ pub struct AttentionModuleOptions {
     /// can only attend to key positions at or before it. This is more efficient than
     /// passing an explicit lower-triangular bool mask because backends can use optimized
     /// kernel paths (e.g. flash attention with causal mode).
+    ///
+    /// When `seq_q != seq_k`, [`causal_alignment`](Self::causal_alignment) decides which
+    /// query row lines up with which key column.
     pub is_causal: bool,
+
+    /// Where the causal diagonal is anchored when `seq_q != seq_k`. Ignored unless
+    /// `is_causal` is set. Both alignments agree when `seq_q == seq_k`.
+    ///
+    /// Options serialized before this field existed deserialize as
+    /// [`BottomRight`](CausalAlignment::BottomRight), the alignment burn used until then.
+    #[serde(default)]
+    pub causal_alignment: CausalAlignment,
+}
+
+/// Anchor of the causal diagonal for [`AttentionModuleOptions::is_causal`].
+///
+/// Query `i` may attend key `j` iff `j <= i + offset`, where `offset` is `0` for
+/// [`TopLeft`](Self::TopLeft) and `seq_k - seq_q` for [`BottomRight`](Self::BottomRight).
+#[derive(
+    Debug, Clone, Copy, Default, PartialEq, Eq, Hash, serde::Deserialize, serde::Serialize,
+)]
+pub enum CausalAlignment {
+    /// The last query row sees every key: `offset = seq_k - seq_q`. This is the
+    /// KV-cache convention (the queries are the newest `seq_q` positions), used by
+    /// FlashAttention 2.1+ and by ONNX `Attention` when a `past_key` is supplied.
+    #[default]
+    BottomRight,
+    /// The first query row sees the first key: `offset = 0` (`tril` on `[seq_q, seq_k]`).
+    /// This is PyTorch's `scaled_dot_product_attention(is_causal=True)` and ONNX
+    /// `Attention` without a KV cache.
+    TopLeft,
+}
+
+impl CausalAlignment {
+    /// The offset of the causal diagonal: query `i` may attend key `j` iff `j <= i + offset`.
+    pub fn offset(self, seq_q: usize, seq_k: usize) -> i64 {
+        match self {
+            CausalAlignment::BottomRight => seq_k as i64 - seq_q as i64,
+            CausalAlignment::TopLeft => 0,
+        }
+    }
 }
 
 /// Computation to be used to update the existing values in indexed assignment operations (scatter/select).

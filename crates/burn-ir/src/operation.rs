@@ -1,4 +1,4 @@
-use burn_backend::ops::AttentionModuleOptions;
+use burn_backend::ops::{AttentionModuleOptions, CausalAlignment};
 use burn_backend::tensor::IndexingUpdateOp;
 use core::hash::Hash;
 use serde::{Deserialize, Serialize};
@@ -10,8 +10,9 @@ use alloc::{string::String, vec::Vec};
 use burn_backend::{
     DType, Distribution, Slice,
     ops::{
-        ConvOptions, ConvTransposeOptions, DeformConvOptions, GridSampleOptions,
-        GridSamplePaddingMode, InterpolateMode, InterpolateOptions, PadMode,
+        ConvOptions, ConvTransposeOptions, CoordinateTransformMode, CubicOptions,
+        DeformConvOptions, GridSampleOptions, GridSamplePaddingMode, InterpolateMode,
+        InterpolateOptions, NearestRoundingMode, PadMode,
     },
     quantization::QuantScheme,
 };
@@ -135,8 +136,6 @@ pub enum OperationIr {
     Custom(CustomOpIr),
     /// A tensor is dropped.
     Drop(TensorIr),
-    /// Operation specific to a distributed tensor.
-    Distributed(DistributedOperationIr),
     /// Activation function operation (relu, gelu, sigmoid, softmax, …).
     Activation(ActivationOperationIr),
 }
@@ -873,22 +872,6 @@ pub enum BoolOperationIr {
     Xor(BinaryOpIr),
 }
 
-/// Operations that can be done on distributed tensors.
-#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
-#[allow(clippy::large_enum_variant)]
-pub enum DistributedOperationIr {
-    /// Operation corresponding to:
-    /// [all_reduce](burn_backend::distributed::DistributedOps::all_reduce).
-    AllReduce(AllReduceOpIr),
-    /// Resolve the pending collective operations on the executing device. Corresponds to
-    /// [sync_collective](burn_backend::distributed::DistributedOps::sync_collective).
-    ///
-    /// Fire-and-forget and payload-free: it syncs whichever device the interpreter is bound to.
-    /// Modeled as an operation (not a side-channel call) so it travels the normal op stream
-    /// alongside [`AllReduce`](DistributedOperationIr::AllReduce) and is ordered against it.
-    SyncCollective,
-}
-
 /// Swap dim operation intermediate representation.
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 pub struct SwapDimsOpIr {
@@ -1247,44 +1230,6 @@ pub struct CatOpIr {
     pub tensors: Vec<TensorIr>,
     pub dim: usize,
     pub out: TensorIr,
-}
-
-#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
-#[allow(missing_docs)]
-pub struct AllReduceOpIr {
-    pub tensor: TensorIr,
-    pub out: TensorIr,
-    /// How to reduce the values across the participating devices.
-    pub op: burn_backend::distributed::ReduceOperation,
-    /// The devices participating in the collective operation.
-    pub device_ids: Vec<DeviceIdIr>,
-}
-
-/// Serializable representation of a [device id](burn_backend::DeviceId).
-///
-/// The intermediate representation is part of the wire protocol (e.g. the remote backend), so it
-/// cannot store `burn_backend::DeviceId` directly since that type is not serializable.
-#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
-pub struct DeviceIdIr {
-    /// Identifies the type of the device.
-    pub type_id: u16,
-    /// Identifies the device number.
-    pub index_id: u16,
-}
-
-impl From<burn_backend::DeviceId> for DeviceIdIr {
-    fn from(value: burn_backend::DeviceId) -> Self {
-        Self {
-            type_id: value.type_id,
-            index_id: value.index_id,
-        }
-    }
-}
-
-impl From<DeviceIdIr> for burn_backend::DeviceId {
-    fn from(value: DeviceIdIr) -> Self {
-        burn_backend::DeviceId::new(value.type_id, value.index_id)
-    }
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
@@ -2053,11 +1998,99 @@ pub enum InterpolateModeIr {
     Lanczos3,
 }
 
-#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[allow(missing_docs)]
+pub enum CoordinateTransformModeIr {
+    HalfPixel,
+    AlignCorners,
+    Asymmetric,
+    PytorchHalfPixel,
+    HalfPixelSymmetric,
+    TfCropAndResize {
+        roi: [[f32; 2]; 2],
+        extrapolation_value: f32,
+    },
+}
+
+fn canonicalize_f32_bits(val: f32) -> u32 {
+    if val == 0.0 {
+        0.0f32.to_bits()
+    } else {
+        val.to_bits()
+    }
+}
+
+impl Hash for CoordinateTransformModeIr {
+    fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
+        core::mem::discriminant(self).hash(state);
+        match self {
+            Self::HalfPixel
+            | Self::AlignCorners
+            | Self::Asymmetric
+            | Self::PytorchHalfPixel
+            | Self::HalfPixelSymmetric => {}
+            Self::TfCropAndResize {
+                roi,
+                extrapolation_value,
+            } => {
+                for row in roi {
+                    for val in row {
+                        canonicalize_f32_bits(*val).hash(state);
+                    }
+                }
+                canonicalize_f32_bits(*extrapolation_value).hash(state);
+            }
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
+#[allow(missing_docs)]
+pub enum NearestRoundingModeIr {
+    RoundPreferFloor,
+    RoundPreferCeil,
+    Floor,
+    Ceil,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[allow(missing_docs)]
+pub struct CubicOptionsIr {
+    pub a: f32,
+    pub exclude_outside: bool,
+}
+
+impl Hash for CubicOptionsIr {
+    fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
+        canonicalize_f32_bits(self.a).hash(state);
+        self.exclude_outside.hash(state);
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[allow(missing_docs)]
 pub struct InterpolateOptionsIr {
     pub mode: InterpolateModeIr,
-    pub align_corners: bool,
+    pub coordinate_transform: CoordinateTransformModeIr,
+    pub nearest_mode: NearestRoundingModeIr,
+    pub cubic_options: CubicOptionsIr,
+    pub output_size: Option<[usize; 2]>,
+    pub scale_factor: Option<[f32; 2]>,
+}
+
+impl Hash for InterpolateOptionsIr {
+    fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
+        self.mode.hash(state);
+        self.coordinate_transform.hash(state);
+        self.nearest_mode.hash(state);
+        self.cubic_options.hash(state);
+        self.output_size.hash(state);
+        if let Some(scale) = self.scale_factor {
+            for s in scale {
+                canonicalize_f32_bits(s).hash(state);
+            }
+        }
+    }
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
@@ -2075,6 +2108,9 @@ pub struct AttentionOptionsIr {
     pub scale: Option<ScalarIr>,
     pub softcap: Option<ScalarIr>,
     pub is_causal: bool,
+    /// Missing in IR recorded before the field existed; that IR was bottom-right aligned.
+    #[serde(default)]
+    pub causal_alignment: CausalAlignment,
 }
 
 impl From<AttentionOptionsIr> for AttentionModuleOptions {
@@ -2083,6 +2119,7 @@ impl From<AttentionOptionsIr> for AttentionModuleOptions {
             scale: ir.scale.map(|s| s.elem()),
             softcap: ir.softcap.map(|s| s.elem()),
             is_causal: ir.is_causal,
+            causal_alignment: ir.causal_alignment,
         }
     }
 }
@@ -2093,6 +2130,7 @@ impl From<AttentionModuleOptions> for AttentionOptionsIr {
             scale: ir.scale.map(ScalarIr::Float),
             softcap: ir.softcap.map(ScalarIr::Float),
             is_causal: ir.is_causal,
+            causal_alignment: ir.causal_alignment,
         }
     }
 }
@@ -2144,9 +2182,94 @@ impl From<InterpolateModeIr> for InterpolateMode {
     }
 }
 
+impl From<CoordinateTransformModeIr> for CoordinateTransformMode {
+    fn from(val: CoordinateTransformModeIr) -> Self {
+        match val {
+            CoordinateTransformModeIr::HalfPixel => Self::HalfPixel,
+            CoordinateTransformModeIr::AlignCorners => Self::AlignCorners,
+            CoordinateTransformModeIr::Asymmetric => Self::Asymmetric,
+            CoordinateTransformModeIr::PytorchHalfPixel => Self::PytorchHalfPixel,
+            CoordinateTransformModeIr::HalfPixelSymmetric => Self::HalfPixelSymmetric,
+            CoordinateTransformModeIr::TfCropAndResize {
+                roi,
+                extrapolation_value,
+            } => Self::TfCropAndResize {
+                roi,
+                extrapolation_value,
+            },
+        }
+    }
+}
+
+impl From<CoordinateTransformMode> for CoordinateTransformModeIr {
+    fn from(val: CoordinateTransformMode) -> Self {
+        match val {
+            CoordinateTransformMode::HalfPixel => Self::HalfPixel,
+            CoordinateTransformMode::AlignCorners => Self::AlignCorners,
+            CoordinateTransformMode::Asymmetric => Self::Asymmetric,
+            CoordinateTransformMode::PytorchHalfPixel => Self::PytorchHalfPixel,
+            CoordinateTransformMode::HalfPixelSymmetric => Self::HalfPixelSymmetric,
+            CoordinateTransformMode::TfCropAndResize {
+                roi,
+                extrapolation_value,
+            } => Self::TfCropAndResize {
+                roi,
+                extrapolation_value,
+            },
+        }
+    }
+}
+
+impl From<NearestRoundingModeIr> for NearestRoundingMode {
+    fn from(val: NearestRoundingModeIr) -> Self {
+        match val {
+            NearestRoundingModeIr::RoundPreferFloor => Self::RoundPreferFloor,
+            NearestRoundingModeIr::RoundPreferCeil => Self::RoundPreferCeil,
+            NearestRoundingModeIr::Floor => Self::Floor,
+            NearestRoundingModeIr::Ceil => Self::Ceil,
+        }
+    }
+}
+
+impl From<NearestRoundingMode> for NearestRoundingModeIr {
+    fn from(val: NearestRoundingMode) -> Self {
+        match val {
+            NearestRoundingMode::RoundPreferFloor => Self::RoundPreferFloor,
+            NearestRoundingMode::RoundPreferCeil => Self::RoundPreferCeil,
+            NearestRoundingMode::Floor => Self::Floor,
+            NearestRoundingMode::Ceil => Self::Ceil,
+        }
+    }
+}
+
+impl From<CubicOptionsIr> for CubicOptions {
+    fn from(val: CubicOptionsIr) -> Self {
+        Self {
+            a: val.a,
+            exclude_outside: val.exclude_outside,
+        }
+    }
+}
+
+impl From<CubicOptions> for CubicOptionsIr {
+    fn from(val: CubicOptions) -> Self {
+        Self {
+            a: val.a,
+            exclude_outside: val.exclude_outside,
+        }
+    }
+}
+
 impl From<InterpolateOptionsIr> for InterpolateOptions {
     fn from(val: InterpolateOptionsIr) -> Self {
-        Self::new(val.mode.into()).with_align_corners(val.align_corners)
+        Self {
+            mode: val.mode.into(),
+            coordinate_transform: val.coordinate_transform.into(),
+            nearest_mode: val.nearest_mode.into(),
+            cubic_options: val.cubic_options.into(),
+            output_size: val.output_size,
+            scale_factor: val.scale_factor,
+        }
     }
 }
 
@@ -2166,7 +2289,11 @@ impl From<InterpolateOptions> for InterpolateOptionsIr {
     fn from(val: InterpolateOptions) -> Self {
         Self {
             mode: val.mode.into(),
-            align_corners: val.align_corners,
+            coordinate_transform: val.coordinate_transform.into(),
+            nearest_mode: val.nearest_mode.into(),
+            cubic_options: val.cubic_options.into(),
+            output_size: val.output_size,
+            scale_factor: val.scale_factor,
         }
     }
 }
@@ -2262,7 +2389,6 @@ impl OperationIr {
             OperationIr::Init(repr) => repr.inputs(),
             OperationIr::Custom(repr) => repr.inputs(),
             OperationIr::Drop(repr) => Box::new([repr].into_iter()),
-            OperationIr::Distributed(repr) => repr.inputs(),
             OperationIr::Activation(repr) => repr.inputs(),
         }
     }
@@ -2282,7 +2408,6 @@ impl OperationIr {
             OperationIr::Init(repr) => repr.outputs(),
             OperationIr::Custom(repr) => repr.outputs(),
             OperationIr::Drop(_repr) => Box::new([].into_iter()),
-            OperationIr::Distributed(repr) => repr.outputs(),
             OperationIr::Activation(repr) => repr.outputs(),
         }
     }
@@ -2322,7 +2447,6 @@ impl OperationIr {
 
                 output
             }
-            OperationIr::Distributed(repr) => repr.mark_read_only(nodes),
             OperationIr::Activation(repr) => repr.mark_read_only(nodes),
         }
     }
@@ -2347,7 +2471,6 @@ impl OperationIr {
             OperationIr::Init(repr) => repr.visit_mut(v),
             OperationIr::Custom(repr) => repr.visit_mut(v),
             OperationIr::Drop(repr) => v.visit_tensor_mut(repr),
-            OperationIr::Distributed(repr) => repr.visit_mut(v),
             OperationIr::Activation(repr) => repr.visit_mut(v),
         }
     }
@@ -4910,45 +5033,6 @@ impl ModuleOperationIr {
     }
 }
 
-impl DistributedOperationIr {
-    fn inputs(&self) -> Box<dyn Iterator<Item = &TensorIr> + '_> {
-        match self {
-            DistributedOperationIr::AllReduce(repr) => Box::new([&repr.tensor].into_iter()),
-            DistributedOperationIr::SyncCollective => Box::new([].into_iter()),
-        }
-    }
-
-    fn outputs(&self) -> Box<dyn Iterator<Item = &TensorIr> + '_> {
-        match self {
-            DistributedOperationIr::AllReduce(repr) => Box::new([&repr.out].into_iter()),
-            DistributedOperationIr::SyncCollective => Box::new([].into_iter()),
-        }
-    }
-
-    fn mark_read_only(&mut self, nodes: &[TensorId]) -> Vec<TensorIr> {
-        let mut output = Vec::new();
-
-        match self {
-            DistributedOperationIr::AllReduce(repr) => {
-                repr.tensor.mark_read_only(nodes, &mut output);
-            }
-            DistributedOperationIr::SyncCollective => {}
-        }
-
-        output
-    }
-
-    fn visit_mut(&mut self, v: &mut impl IrVisitorMut) {
-        match self {
-            DistributedOperationIr::AllReduce(repr) => {
-                v.visit_tensor_mut(&mut repr.tensor);
-                v.visit_tensor_mut(&mut repr.out);
-            }
-            DistributedOperationIr::SyncCollective => {}
-        }
-    }
-}
-
 impl InitOperationIr {
     fn inputs(&self) -> Box<dyn Iterator<Item = &TensorIr> + '_> {
         Box::new([].into_iter())
@@ -5450,5 +5534,50 @@ mod tests {
             panic!("expected pad operation");
         };
         assert_eq!(desc.mode, PadModeIr::Constant(ScalarIr::Float(7.0)));
+    }
+
+    #[test]
+    fn interpolate_options_ir_hash_canonicalizes_signed_zero() {
+        use core::hash::{Hash, Hasher};
+        use std::collections::hash_map::DefaultHasher;
+
+        fn calculate_hash<T: Hash>(t: &T) -> u64 {
+            let mut s = DefaultHasher::new();
+            t.hash(&mut s);
+            s.finish()
+        }
+
+        let opt1 = InterpolateOptionsIr {
+            mode: InterpolateModeIr::Bicubic,
+            coordinate_transform: CoordinateTransformModeIr::TfCropAndResize {
+                roi: [[0.0, 0.0], [1.0, 1.0]],
+                extrapolation_value: 0.0,
+            },
+            nearest_mode: NearestRoundingModeIr::Floor,
+            cubic_options: CubicOptionsIr {
+                a: 0.0,
+                exclude_outside: true,
+            },
+            output_size: Some([4, 4]),
+            scale_factor: None,
+        };
+
+        let opt2 = InterpolateOptionsIr {
+            mode: InterpolateModeIr::Bicubic,
+            coordinate_transform: CoordinateTransformModeIr::TfCropAndResize {
+                roi: [[-0.0, -0.0], [1.0, 1.0]],
+                extrapolation_value: -0.0,
+            },
+            nearest_mode: NearestRoundingModeIr::Floor,
+            cubic_options: CubicOptionsIr {
+                a: -0.0,
+                exclude_outside: true,
+            },
+            output_size: Some([4, 4]),
+            scale_factor: None,
+        };
+
+        assert_eq!(opt1, opt2);
+        assert_eq!(calculate_hash(&opt1), calculate_hash(&opt2));
     }
 }

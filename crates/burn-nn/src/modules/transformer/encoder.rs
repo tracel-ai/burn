@@ -4,6 +4,8 @@ use burn_core as burn;
 use alloc::vec::Vec;
 
 use super::{PositionWiseFeedForward, PositionWiseFeedForwardConfig};
+use crate::modules::bounds;
+use crate::modules::role::Role;
 use crate::{
     Dropout, DropoutConfig, LayerNorm, LayerNormConfig,
     activation::ActivationConfig,
@@ -11,6 +13,7 @@ use crate::{
     cache::TensorCache,
 };
 use burn::config::Config;
+use burn::instrument::{self, Bounds, compute};
 use burn::module::{Content, DisplaySettings, Module, ModuleDisplay};
 use burn::tensor::{Bool, Device, Tensor};
 
@@ -158,12 +161,29 @@ impl TransformerEncoderConfig {
 }
 
 impl TransformerEncoder {
+    /// The floor for the encoder alone: read its input, masks and every layer's parameters once,
+    /// write its output once, with every layer's arithmetic.
+    fn bounds(&self, input: &TransformerEncoderInput) -> Bounds {
+        Bounds {
+            read: instrument::tensor_bytes(&input.tensor)
+                + bounds::masks(&input.mask_pad, &input.mask_attn)
+                + bounds::parameters(self),
+            write: instrument::tensor_bytes(&input.tensor),
+            flops: self
+                .layers
+                .iter()
+                .map(|layer| layer.flops(&input.tensor))
+                .sum(),
+        }
+    }
+
     /// Applies the forward pass on the input tensor.
     ///
     /// # Shapes
     ///
     /// - tensor: `[batch_size, seq_length, d_model]`
     /// - output: `[batch_size, seq_length, d_model]`
+    #[compute(bounds = Self::bounds)]
     pub fn forward(&self, input: TransformerEncoderInput) -> Tensor<3> {
         let mut x = input.tensor;
 
@@ -179,6 +199,7 @@ impl TransformerEncoder {
     ///
     /// - tensor: `[batch_size, seq_length, d_model]`
     /// - output: `[batch_size, seq_length, d_model]`
+    #[compute]
     pub fn forward_autoregressive_inference(
         &self,
         input: TransformerEncoderInput,
@@ -226,6 +247,29 @@ pub struct TransformerEncoderLayer {
 }
 
 impl TransformerEncoderLayer {
+    /// The floor for the layer alone: read its input, masks and parameters once, write its output
+    /// once, with its attention's and feed-forward's arithmetic. Every activation between them is
+    /// what a fuser keeps out of memory.
+    fn bounds(
+        &self,
+        input: &Tensor<3>,
+        mask_pad: &Option<Tensor<2, Bool>>,
+        mask_attn: &Option<Tensor<3, Bool>>,
+    ) -> Bounds {
+        Bounds {
+            read: instrument::tensor_bytes(input)
+                + bounds::masks(mask_pad, mask_attn)
+                + bounds::parameters(self),
+            write: instrument::tensor_bytes(input),
+            flops: self.flops(input),
+        }
+    }
+
+    /// The layer's arithmetic over `input`: its self-attention's and its feed-forward's.
+    fn flops(&self, input: &Tensor<3>) -> u64 {
+        self.mha.flops(input, input) + self.pwff.bounds(input).flops
+    }
+
     /// Create a new transformer encoder layer from the given configuration.
     pub fn new(config: &TransformerEncoderConfig, device: &Device) -> Self {
         let mha = MultiHeadAttentionConfig::new(config.d_model, config.n_heads)
@@ -262,6 +306,7 @@ impl TransformerEncoderLayer {
     ///
     /// - input: `[batch_size, seq_length, d_model]`
     /// - output: `[batch_size, seq_length, d_model]`
+    #[compute(bounds = Self::bounds)]
     pub fn forward(
         &self,
         input: Tensor<3>,
@@ -274,7 +319,7 @@ impl TransformerEncoderLayer {
 
         // Normalize.
         if self.norm_first {
-            residual_path = self.norm_2.forward(residual_path)
+            residual_path = Role::ATTENTION_NORM.run(|| self.norm_2.forward(residual_path))
         }
 
         // Multi-head attention.
@@ -293,9 +338,9 @@ impl TransformerEncoderLayer {
         // Feed forward residual path.
         // Normalize.
         let residual_path = if self.norm_first {
-            self.norm_1.forward(x.clone())
+            Role::FEED_FORWARD_NORM.run(|| self.norm_1.forward(x.clone()))
         } else {
-            x = self.norm_1.forward(x);
+            x = Role::ATTENTION_NORM.run(|| self.norm_1.forward(x));
             x.clone()
         };
 
@@ -307,13 +352,14 @@ impl TransformerEncoderLayer {
         // Main path.
         // Normalize.
         if !self.norm_first {
-            x = self.norm_2.forward(x)
+            x = Role::FEED_FORWARD_NORM.run(|| self.norm_2.forward(x))
         }
 
         x
     }
 
     /// Applies the forward pass using an autoregressive cache.
+    #[compute]
     pub fn forward_autoregressive_inference(
         &self,
         input: Tensor<3>,
@@ -327,9 +373,9 @@ impl TransformerEncoderLayer {
 
         // Normalize.
         if self.norm_first {
-            residual_path = cache
-                .norm_2
-                .forward_autoregressive(residual_path, 1, |x| self.norm_2.forward(x))
+            residual_path = cache.norm_2.forward_autoregressive(residual_path, 1, |x| {
+                Role::ATTENTION_NORM.run(|| self.norm_2.forward(x))
+            })
         }
 
         // Multi-head attention.
@@ -348,13 +394,13 @@ impl TransformerEncoderLayer {
         // Feed forward residual path.
         // Normalize.
         let residual_path = if self.norm_first {
-            cache
-                .norm_1
-                .forward_autoregressive(x.clone(), 1, |x| self.norm_1.forward(x))
+            cache.norm_1.forward_autoregressive(x.clone(), 1, |x| {
+                Role::FEED_FORWARD_NORM.run(|| self.norm_1.forward(x))
+            })
         } else {
-            x = cache
-                .norm_1
-                .forward_autoregressive(x, 1, |x| self.norm_1.forward(x));
+            x = cache.norm_1.forward_autoregressive(x, 1, |x| {
+                Role::ATTENTION_NORM.run(|| self.norm_1.forward(x))
+            });
             x.clone()
         };
 
@@ -368,9 +414,9 @@ impl TransformerEncoderLayer {
         // Main path.
         // Normalize.
         if !self.norm_first {
-            x = cache
-                .norm_2
-                .forward_autoregressive(x, 1, |x| self.norm_2.forward(x))
+            x = cache.norm_2.forward_autoregressive(x, 1, |x| {
+                Role::FEED_FORWARD_NORM.run(|| self.norm_2.forward(x))
+            })
         }
 
         x
@@ -421,6 +467,84 @@ impl TransformerEncoderAutoregressiveCache {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// An encoder layer's two norms are one type and stay two components, each named for the
+    /// sublayer it normalizes around: before it with `norm_first`, after it otherwise.
+    #[cfg(feature = "std")]
+    #[test]
+    fn an_encoder_layer_names_its_norms() {
+        let device = Device::default();
+        let post_norm = [
+            "multi head attention (unpriced)",
+            "attention norm (unpriced)",
+            "position wise feed forward",
+            "feed forward norm (unpriced)",
+        ];
+        let pre_norm = [
+            "attention norm (unpriced)",
+            "multi head attention (unpriced)",
+            "feed forward norm (unpriced)",
+            "position wise feed forward",
+        ];
+
+        for (norm_first, expected) in [(false, post_norm), (true, pre_norm)] {
+            let encoder = TransformerEncoderConfig::new(8, 16, 2, 1)
+                .with_norm_first(norm_first)
+                .init(&device);
+            let input = TransformerEncoderInput::new(Tensor::<3>::zeros([1, 3, 8], &device));
+
+            let recorded = crate::recording::recorded(|| {
+                encoder.forward(input);
+            });
+
+            // The layer's sublayers, two levels below the encoder.
+            let sublayers: Vec<String> = recorded
+                .lines()
+                .into_iter()
+                .filter_map(|line| line.strip_prefix("    ").map(str::to_string))
+                .filter(|line| !line.starts_with(' '))
+                .collect();
+            assert_eq!(sublayers, expected, "norm_first: {norm_first}");
+        }
+    }
+
+    /// An encoder, its layer and the layer's feed-forward move no more than their parts do, in
+    /// either direction, and do their arithmetic.
+    #[cfg(feature = "std")]
+    #[test]
+    fn an_encoder_moves_within_its_parts() {
+        let device = Device::default();
+        let encoder = TransformerEncoderConfig::new(8, 16, 2, 2).init(&device);
+        let input = || Tensor::<3>::zeros([1, 3, 8], &device);
+        let layer = &encoder.layers[0];
+
+        for recorded in [
+            crate::recording::recorded(|| {
+                encoder.forward(TransformerEncoderInput::new(input()));
+            }),
+            crate::recording::recorded(|| {
+                layer.forward(input(), None, None);
+            }),
+            crate::recording::recorded(|| {
+                layer.pwff.forward(input());
+            }),
+        ] {
+            let declared = recorded.lines()[0].clone();
+            let whole = recorded
+                .declared(&declared)
+                .expect("the composite is priced");
+            let parts = recorded.parts();
+            assert!(
+                whole.moves_within(parts),
+                "{declared}: {whole:?} past {parts:?}"
+            );
+            assert!(
+                whole.bytes() < parts.bytes(),
+                "{declared} keeps traffic out of memory"
+            );
+            assert_eq!(whole.flops, parts.flops, "{declared}");
+        }
+    }
     use crate::attention::generate_autoregressive_mask;
     use burn::tensor::Distribution;
     use burn::tensor::Tolerance;

@@ -1,8 +1,8 @@
 use std::time::Duration;
 
 use burn_instrument::{
-    Bounds, Breakdown, Component, ComponentPath, ComputePeak, Kernel, Measurement, Peaks, Unplaced,
-    Variant,
+    Bounds, Breakdown, Component, ComponentPath, ComputePeak, FusedShare, Kernel, Measurement,
+    Peaks, Unplaced, Variant,
 };
 use burn_tensor::FloatDType;
 
@@ -75,7 +75,6 @@ fn tree() -> Vec<Component> {
         },
         Component {
             label: "transformer block".into(),
-            observed: None,
             entries: 2,
             bounds: Some(Bounds {
                 read: 82_500_000,
@@ -85,7 +84,6 @@ fn tree() -> Vec<Component> {
             children: vec![
                 Component {
                     label: "attn norm".into(),
-                    observed: None,
                     entries: 2,
                     bounds: Some(Bounds {
                         read: 15_000_000,
@@ -97,7 +95,6 @@ fn tree() -> Vec<Component> {
                 },
                 Component {
                     label: "attention".into(),
-                    observed: None,
                     entries: 2,
                     bounds: Some(Bounds {
                         read: 45_000_000,
@@ -107,7 +104,6 @@ fn tree() -> Vec<Component> {
                     children: vec![
                         Component {
                             label: "query".into(),
-                            observed: None,
                             entries: 2,
                             bounds: Some(Bounds {
                                 read: 30_000_000,
@@ -119,7 +115,6 @@ fn tree() -> Vec<Component> {
                         },
                         Component {
                             label: "attention engine".into(),
-                            observed: None,
                             entries: 2,
                             bounds: Some(Bounds {
                                 read: 30_000_000,
@@ -134,7 +129,6 @@ fn tree() -> Vec<Component> {
                 },
                 Component {
                     label: "feed forward".into(),
-                    observed: None,
                     entries: 2,
                     bounds: Some(Bounds {
                         read: 45_000_000,
@@ -144,7 +138,6 @@ fn tree() -> Vec<Component> {
                     children: vec![
                         Component {
                             label: "gate".into(),
-                            observed: None,
                             entries: 2,
                             bounds: Some(Bounds {
                                 read: 30_000_000,
@@ -156,7 +149,6 @@ fn tree() -> Vec<Component> {
                         },
                         Component {
                             label: "down".into(),
-                            observed: None,
                             entries: 2,
                             bounds: Some(Bounds {
                                 read: 30_000_000,
@@ -204,50 +196,6 @@ fn tree() -> Vec<Component> {
     ]
 }
 
-/// A component is held to its declared floor plus the traffic observed beyond
-/// it, and its heading says so.
-#[test]
-fn observed_traffic_raises_the_floor_and_marks_the_row() {
-    let declared = Bounds {
-        read: 100,
-        write: 10,
-        flops: 50,
-    };
-    let observed = Bounds {
-        read: 300,
-        write: 0,
-        flops: 0,
-    };
-    let plain = Component {
-        label: "routed experts".into(),
-        bounds: Some(declared),
-        ..component()
-    };
-    let read = Component {
-        observed: Some(observed),
-        ..plain.clone()
-    };
-
-    let unscored = measurement();
-    let roofline = Roofline::new(&unscored.breakdown, peaks(), TimeReading::InPlace);
-    let floor = |component: &Component| roofline.floor_of(component).map(|floor| floor.time);
-    let at = |bounds: Bounds| Floor::new(bounds, &peaks()).map(|floor| floor.time);
-    assert_eq!(floor(&plain), at(declared));
-    assert_eq!(floor(&read), at(declared + observed));
-
-    let mut measurement = measurement();
-    measurement.breakdown.tree.push(read);
-    let table = Report::new(&measurement).to_string();
-    assert!(
-        table.contains("routed experts · floor read from the run"),
-        "{table}"
-    );
-    assert!(
-        !table.contains("embedding · floor read from the run"),
-        "{table}"
-    );
-}
-
 /// An empty component, so a fixture states only the fields it is about.
 fn component() -> Component {
     Component {
@@ -255,7 +203,6 @@ fn component() -> Component {
         variants: Vec::new(),
         sites: Vec::new(),
         bounds: None,
-        observed: None,
         entries: 1,
         children: Vec::new(),
         kernels: Vec::new(),
@@ -570,7 +517,8 @@ fn a_parent_fused_with_its_child_counts_shared_work_once() {
         rendered
             .roofline()
             .fused_elsewhere()
-            .contains(&block.children[0])
+            .share(&block.children[0])
+            == Some(FusedShare::All)
     );
     assert_eq!(counted_beside_its_children(&rendered, block), total);
     assert_eq!(
@@ -603,7 +551,8 @@ fn a_row_whose_work_ran_in_an_untagged_kernel_says_so() {
         rendered
             .roofline()
             .fused_elsewhere()
-            .contains(&block.children[0])
+            .share(&block.children[0])
+            == Some(FusedShare::All)
     );
     assert_eq!(
         rendered.roofline().deepest_floor(&block.children[0]),
@@ -638,14 +587,76 @@ fn a_parents_own_work_fused_with_a_priced_child_still_counts() {
     let rendered = Report::new(&measurement);
     let block = &measurement.breakdown.tree[1];
     assert!(
-        !rendered
+        rendered
             .roofline()
             .fused_elsewhere()
-            .contains(&block.children[0])
+            .share(&block.children[0])
+            == Some(FusedShare::Part)
     );
     assert_eq!(
         counted_beside_its_children(&rendered, block),
         residual.total
+    );
+}
+
+/// A stack whose first layer's projection ran alone and whose second fused with
+/// the residual add holds one launch on the projection and the rest in a kernel on
+/// the block. The projection's time is then one layer's and its floor both
+/// layers', so it is not scored — the percentage would be far past the peak and
+/// say nothing — and neither is the component holding it. Its floor still counts
+/// on the ladder in place of the kernel.
+#[test]
+fn a_component_part_of_whose_work_fused_elsewhere_is_not_scored() {
+    let mut measurement = measurement();
+    let block = &mut measurement.breakdown.tree[1];
+    block.children[1].children[0].kernels = vec![kernel("Matmul", 1, 10)];
+    block.kernels = vec![Kernel {
+        fuses: vec![ComponentPath::new(["attention", "query"])],
+        fuses_own: true,
+        ..kernel("MatmulAdd", 1, 80)
+    }];
+    measurement.breakdown.timed_alone = false;
+
+    let rendered = Report::new(&measurement);
+    let block = &measurement.breakdown.tree[1];
+    let attention = &block.children[1];
+    let query = &attention.children[0];
+    for component in [attention, query] {
+        assert_eq!(
+            rendered.roofline().fused_elsewhere().share(component),
+            Some(FusedShare::Part),
+            "{}",
+            component.label
+        );
+        assert!(
+            rendered.roofline().score_of(component).is_none(),
+            "{}",
+            component.label
+        );
+    }
+    assert!(rendered.roofline().score_of(block).is_some());
+    assert_eq!(
+        rendered.roofline().deepest_floor(query),
+        rendered.roofline().floor_of(query).unwrap().time,
+        "its floor stands for both layers"
+    );
+
+    let table = rendered.to_string();
+    let row = table
+        .lines()
+        .find(|line| line.contains(" query ×2"))
+        .expect("the projection's component");
+    assert!(row.contains("partly fused ↓"), "{row}");
+    assert!(row.contains("bytes"), "and keeps its floor:\n{row}");
+    assert!(
+        table.contains("partly fused ↓    a component part of whose work"),
+        "{table}"
+    );
+    assert!(
+        !table
+            .lines()
+            .any(|line| line.contains("attention › query") && line.contains("peak")),
+        "nor is it worth reading first:\n{table}"
     );
 }
 
@@ -974,6 +985,7 @@ fn an_unprobed_device_scores_nothing_rather_than_printing_a_guess() {
 #[test]
 fn an_impossible_write_ceiling_is_reported_not_divided_by() {
     let broken = Peaks {
+        launch_seconds: None,
         copy_bytes_per_s: Some(156.0e9),
         read_bytes_per_s: Some(227.0e9),
         write_bytes_per_s: Some(281.0e9),
@@ -1011,6 +1023,7 @@ fn ceilings_that_do_not_predict_each_other_are_a_caveat_not_a_fallback() {
     // Plausible in their ordering, so nothing is rejected; but 234 and 212
     // predict a 222 GB/s copy ceiling against a measured 140.
     let odd = Peaks {
+        launch_seconds: None,
         copy_bytes_per_s: Some(140.0e9),
         read_bytes_per_s: Some(234.0e9),
         write_bytes_per_s: Some(212.0e9),

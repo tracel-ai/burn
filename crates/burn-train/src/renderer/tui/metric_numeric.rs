@@ -105,7 +105,7 @@ impl NumericMetricsState {
             return;
         }
 
-        self.num_samples_train = Some(progress.split.items_total);
+        self.num_samples_train = progress.split.total.filter(|n| *n > 0);
     }
 
     /// Update the state with the validation progress.
@@ -115,15 +115,18 @@ impl NumericMetricsState {
         }
 
         // If num_samples_train is None, keep the default max_samples for validation.
-        if let Some(num_sample_train) = self.num_samples_train {
+        if let (Some(num_sample_train), Some(total)) = (
+            self.num_samples_train.filter(|n| *n > 0),
+            progress.split.total.filter(|n| *n > 0),
+        ) {
             for (_recent, full) in self.data.values_mut() {
-                let ratio = progress.split.items_total as f64 / num_sample_train as f64;
+                let ratio = total as f64 / num_sample_train as f64;
                 full.update_max_sample(TuiSplit::Valid, ratio);
             }
         }
 
         self.epoch = progress.global.items_processed;
-        self.num_samples_valid = Some(progress.split.items_total);
+        self.num_samples_valid = progress.split.total.filter(|n| *n > 0);
     }
 
     /// Update the state with the testing progress.
@@ -132,14 +135,17 @@ impl NumericMetricsState {
             return;
         }
 
-        if let Some(num_sample_train) = self.num_samples_train {
+        if let (Some(num_sample_train), Some(total)) = (
+            self.num_samples_train.filter(|n| *n > 0),
+            progress.split.total.filter(|n| *n > 0),
+        ) {
             for (_recent, full) in self.data.values_mut() {
-                let ratio = progress.split.items_total as f64 / num_sample_train as f64;
+                let ratio = total as f64 / num_sample_train as f64;
                 full.update_max_sample(TuiSplit::Test, ratio);
             }
         }
 
-        self.num_samples_test = Some(progress.split.items_total);
+        self.num_samples_test = progress.split.total.filter(|n| *n > 0);
     }
 
     /// Create a view to display the numeric metrics.

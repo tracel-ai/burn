@@ -180,6 +180,13 @@ impl Device {
     pub(crate) fn into_dispatch(self) -> DispatchDevice {
         self.blob.into_inner()
     }
+
+    pub(crate) fn as_dispatch_vec(devices: &[Self]) -> Vec<DispatchDevice> {
+        devices
+            .iter()
+            .map(|device| device.as_dispatch().clone())
+            .collect()
+    }
 }
 
 impl<D: Into<DispatchDevice>> From<D> for Device {

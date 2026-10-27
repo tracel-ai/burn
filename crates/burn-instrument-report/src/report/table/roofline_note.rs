@@ -60,18 +60,6 @@ impl Display for RooflineNote<'_, '_> {
         for line in lines {
             writeln!(f, "  {line}")?;
         }
-        // The one reading a fused run adds: a component part of whose work fused
-        // with a neighbour's took less than its floor prices, since that
-        // part runs in a kernel recorded elsewhere.
-        if !measurement.breakdown.unfused {
-            for line in [
-                "  In a fused run it can also be a component part of whose work fused with a",
-                "  neighbour's: that part ran in a kernel listed on a component above it, or",
-                "  outside every component (`· fuses ↑`).",
-            ] {
-                writeln!(f, "  {line}")?;
-            }
-        }
         Ok(())
     }
 }

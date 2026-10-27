@@ -3,7 +3,7 @@
 use std::fmt::{self, Display};
 use std::time::Duration;
 
-use burn_instrument::{Component, Kernel};
+use burn_instrument::{Component, FusedShare, Kernel};
 
 use crate::Report;
 use crate::millis::Millis;
@@ -46,7 +46,7 @@ impl<'r, 'a> ComponentTable<'r, 'a> {
         component: &Component,
         depth: usize,
     ) -> fmt::Result {
-        let fused_elsewhere = self.report.roofline().fused_elsewhere().contains(component);
+        let fused = self.report.roofline().fused_elsewhere().share(component);
         let indent = "  ".repeat(depth);
         let label = fit(heading(component), self.width.saturating_sub(depth * 2));
         let scored = self.report.roofline().score_of(component);
@@ -73,13 +73,18 @@ impl<'r, 'a> ComponentTable<'r, 'a> {
                     Millis(score.floor.time).to_string(),
                     Millis(score.gain(self.report.reading().apportioned(component))).to_string(),
                 ),
-                // Priced but not scored — it measured no time of its own. The floor is
-                // still the declaration's, and its parent's floor counts it, so the
-                // component says what that is rather than leaving the parent's figure to be
-                // reconciled against blanks.
+                // Priced but not scored — it measured no time of its own, or only part
+                // of its work's, the rest fused into a kernel listed below it, which says
+                // so where the percentage would be. The floor is still the
+                // declaration's, and its parent's floor counts it, so the component says
+                // what that is rather than leaving the parent's figure to be reconciled
+                // against blanks.
                 (None, Some(floor)) => (
                     floor.bound.to_string(),
-                    String::new(),
+                    match fused {
+                        Some(FusedShare::Part) => "partly fused ↓".to_string(),
+                        Some(FusedShare::All) | None => String::new(),
+                    },
                     Millis(floor.time).to_string(),
                     "—".to_string(),
                 ),
@@ -95,9 +100,9 @@ impl<'r, 'a> ComponentTable<'r, 'a> {
         // `fused ↓` rather than `0.0`: a zero reads as a component that cost
         // nothing, and this one's cost is in a fused kernel listed below it — on a
         // component above, after that component's children, or outside every component.
-        let (time, of_work, host) = match fused_elsewhere {
-            true => ("fused ↓".to_string(), String::new(), String::new()),
-            false => (
+        let (time, of_work, host) = match fused {
+            Some(FusedShare::All) => ("fused ↓".to_string(), String::new(), String::new()),
+            Some(FusedShare::Part) | None => (
                 Millis(self.report.reading().apportioned(component)).to_string(),
                 Share {
                     part: component.total_time(),
@@ -203,8 +208,8 @@ impl Display for ComponentTable<'_, '_> {
                 )?;
             }
         }
-        // The two marks a fused run adds, explained where they are read and
-        // only where they appear.
+        // The marks a fused run adds, explained where they are read and only
+        // where they appear.
         if breakdown.kernels().any(|kernel| !kernel.fuses.is_empty()) {
             writeln!(f)?;
             writeln!(
@@ -215,6 +220,20 @@ impl Display for ComponentTable<'_, '_> {
                 f,
                 "  fused ↓           a component whose work all ran in such a kernel below it; its floor is set aside"
             )?;
+            let partly_fused = breakdown
+                .tree
+                .iter()
+                .flat_map(|component| component.walk())
+                .any(|(_, component)| {
+                    self.report.roofline().fused_elsewhere().share(component)
+                        == Some(FusedShare::Part)
+                });
+            if partly_fused {
+                writeln!(
+                    f,
+                    "  partly fused ↓    a component part of whose work ran in such a kernel; its time is only the rest, so it is not scored"
+                )?;
+            }
         }
         writeln!(f, "  {}", "─".repeat(rule))
     }
@@ -228,8 +247,7 @@ fn bar(fraction: f64) -> String {
 }
 
 /// A component's heading: what it is called, how many times the run entered it,
-/// which executions served those entries, and whether its floor includes
-/// observed traffic.
+/// and which executions served those entries.
 ///
 /// The variant sits beside the count rather than on a line of its own because a
 /// component that routed one way is one fact about that component, and a second line per
@@ -242,9 +260,6 @@ fn heading(component: &Component) -> String {
     let served_by = ServedBy(component);
     if !served_by.is_empty() {
         heading.push_str(&format!(" · {served_by}"));
-    }
-    if component.observed.is_some() {
-        heading.push_str(" · floor read from the run");
     }
     heading
 }
