@@ -227,6 +227,10 @@ loading those checkpoints by filtering to `linear_inner` and `linear_outer`.
   [#5977](https://github.com/tracel-ai/burn/pull/5977))
 - Add the Matthews correlation coefficient metric for binary and multiclass classification.
   ([#5818](https://github.com/tracel-ai/burn/pull/5818))
+- Reject incompatible devices and dtypes in convolution, linear, normalization, and attention
+  operations before backend execution, including mismatches introduced by dequantization.
+  Packed quantized linear weights remain supported.
+  ([#6225](https://github.com/tracel-ai/burn/pull/6225)) [@onenewcode](https://github.com/onenewcode)
 - Improve half-precision CTC loss and transposed-convolution accuracy. Fix CTC execution through
   router and remote backends and reject CTC inputs exceeding the device shared-memory limit.
   ([#6103](https://github.com/tracel-ai/burn/pull/6103),
