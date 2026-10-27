@@ -305,6 +305,7 @@ loading those checkpoints by filtering to `linear_inner` and `linear_outer`.
   declaring graph inputs and outputs. ([#5990](https://github.com/tracel-ai/burn/pull/5990))
 - Add `Graph::capture_error`, which reports why a graph replays by re-running its closure, for
   example an allocation that grew the memory pool inside the capture window.
+  ([#6255](https://github.com/tracel-ai/burn/pull/6255))
 
 #### Fusion and correctness fixes
 
