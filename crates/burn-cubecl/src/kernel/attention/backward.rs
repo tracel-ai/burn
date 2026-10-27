@@ -14,7 +14,9 @@ use cubecl::prelude::InputScalar;
 use cubecl::std::tensor::TensorHandle;
 use cubek::attention::kernels::select::selector::QueryPositions;
 use cubek::attention::kernels::tune::{AttentionTuneInputs, launch_tuned};
-use cubek::attention::kernels::{AttentionScoring, AttentionVisibility, ScoreScale};
+use cubek::attention::kernels::{
+    AttentionScoring, AttentionVisibility, QueryPlacement, ScoreScale,
+};
 use cubek::attention_backward::{AttentionBackwardTensors, attention_backward as launch_backward};
 use cubek::matmul::kernels::tensor::PlainTensor;
 use cubek::std::autotune::GroupPriority;
@@ -65,7 +67,7 @@ pub fn attention_with_logsumexp(
         plain(lengths),
         None,
         AttentionScoring {
-            visibility: AttentionVisibility::new(options.is_causal, None),
+            visibility: visibility(&options),
             scale: score_scale(&options, head_dim),
         },
     )
@@ -111,7 +113,7 @@ pub fn attention_backward(
         plain(out_grad),
         plain(logsumexp),
         score_scale(&options, head_dim).value(),
-        AttentionVisibility::new(options.is_causal, None),
+        visibility(&options),
     )
     .unwrap_or_else(|why| {
         panic!("cubek's attention backward pass declines these operands: {why:?}")
@@ -144,6 +146,18 @@ fn cube_tensor(
 fn plain(tensor: CubeTensor) -> PlainTensor {
     let elem = dtype_to_storage_type(tensor.dtype);
     PlainTensor::new(tensor.binding(), elem)
+}
+
+/// Which keys `options` let a query see, the causal diagonal placed by their alignment.
+fn visibility(options: &AttentionModuleOptions) -> AttentionVisibility {
+    AttentionVisibility::new(
+        options.is_causal,
+        None,
+        match options.causal_alignment {
+            CausalAlignment::BottomRight => QueryPlacement::Last,
+            CausalAlignment::TopLeft => QueryPlacement::First,
+        },
+    )
 }
 
 /// The scale `options` give the scores, standard where they give none.
