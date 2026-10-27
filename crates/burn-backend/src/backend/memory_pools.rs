@@ -13,7 +13,8 @@
 /// through the pools.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct SlicedPoolReport {
-    /// Size of each page in bytes.
+    /// Size of each page in bytes; for a pool whose allocations each own
+    /// their page, the largest page it accepts.
     pub page_size: u64,
     /// Pages currently held.
     pub pages: u64,

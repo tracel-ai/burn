@@ -160,8 +160,9 @@ pub trait Backend:
     /// stream has failed.
     ///
     /// One entry per pool that carves pages, the pools a growth left behind
-    /// last. Pools of other kinds — an allocation's own page, the metadata
-    /// churn — are left out.
+    /// last, and per pool whose allocations each own their page, which reports
+    /// the largest page it accepts. Persistent and dedicated allocations are
+    /// left out.
     #[allow(unused_variables)]
     fn memory_pool_report(device: &Self::Device) -> Option<Vec<SlicedPoolReport>> {
         None

@@ -259,8 +259,9 @@ impl Backend for CubeBackend {
 
         // One entry per pool that carves pages — the pool sized to what it
         // serves, the pools a growth left behind, and the metadata pool —
-        // in the order allocations are routed through them. Pools whose
-        // allocations own their page have no page size to report.
+        // in the order allocations are routed through them. A pool whose
+        // allocations each own their page reports the largest it accepts:
+        // a memory without sub-slicing (every wasm build) has no other kind.
         Some(
             report
                 .streams
@@ -270,6 +271,10 @@ impl Backend for CubeBackend {
                     let page_size = match pool.kind {
                         MemoryPoolKind::Sliced { page_size, .. } => page_size,
                         MemoryPoolKind::Adaptive { page_size, .. } => page_size,
+                        // The pool of zero-sized allocations holds no bytes.
+                        MemoryPoolKind::Exclusive { max_alloc_size } if max_alloc_size > 0 => {
+                            max_alloc_size
+                        }
                         _ => return None,
                     };
                     Some(SlicedPoolReport {
