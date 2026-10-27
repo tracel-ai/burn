@@ -35,6 +35,41 @@ pub enum BleuSmoothing {
     Exponential,
 }
 
+#[derive(Clone)]
+struct BleuState {
+    clipped_counts: Vec<usize>,
+    total_counts: Vec<usize>,
+    candidate_len: usize,
+    reference_len: usize,
+    running_count: usize,
+    current_value: f64,
+    current_count: usize,
+}
+
+impl BleuState {
+    fn new(max_n: usize) -> Self {
+        Self {
+            clipped_counts: vec![0; max_n],
+            total_counts: vec![0; max_n],
+            candidate_len: 0,
+            reference_len: 0,
+            running_count: 0,
+            current_value: f64::NAN,
+            current_count: 0,
+        }
+    }
+
+    fn clear(&mut self) {
+        self.clipped_counts.fill(0);
+        self.total_counts.fill(0);
+        self.candidate_len = 0;
+        self.reference_len = 0;
+        self.running_count = 0;
+        self.current_value = f64::NAN;
+        self.current_count = 0;
+    }
+}
+
 /// Computes the BLEU (Bilingual Evaluation Understudy) score between predicted
 /// and reference token sequences.
 ///
@@ -53,10 +88,8 @@ pub enum BleuSmoothing {
 /// sentences and computes a single corpus-style BLEU score, following the
 /// same pattern CER/WER use for edit-distance aggregation.
 ///
-/// Epoch-level (running) aggregation averages these batch scores, which is
-/// slightly inaccurate compared to true corpus BLEU. Correct corpus-level
-/// accumulation would require a custom metric state; a TODO is left for
-/// future work.
+/// Epoch-level (running) aggregation uses corpus-wide n-gram counts and token
+/// lengths, matching corpus BLEU across all updates.
 ///
 /// # References
 ///
@@ -71,13 +104,7 @@ pub struct BleuScore {
     max_n: usize,
     pad_token: Option<usize>,
     smoothing: BleuSmoothing,
-    clipped_counts: Vec<usize>,
-    total_counts: Vec<usize>,
-    candidate_len: usize,
-    reference_len: usize,
-    running_count: usize,
-    current_value: f64,
-    current_count: usize,
+    state: BleuState,
 }
 
 /// The [BLEU score metric](BleuScore) input type.
@@ -111,13 +138,7 @@ impl BleuScore {
             max_n,
             pad_token: None,
             smoothing: BleuSmoothing::default(),
-            clipped_counts: vec![0; max_n],
-            total_counts: vec![0; max_n],
-            candidate_len: 0,
-            reference_len: 0,
-            running_count: 0,
-            current_value: f64::NAN,
-            current_count: 0,
+            state: BleuState::new(max_n),
         }
     }
 
@@ -144,10 +165,10 @@ impl BleuScore {
 
     fn running_score(&self) -> f64 {
         corpus_bleu(
-            &self.clipped_counts,
-            &self.total_counts,
-            self.candidate_len,
-            self.reference_len,
+            &self.state.clipped_counts,
+            &self.state.total_counts,
+            self.state.candidate_len,
+            self.state.reference_len,
             self.max_n,
             &self.smoothing,
         )
@@ -155,7 +176,7 @@ impl BleuScore {
 
     fn serialized_entry(&self, value: NumericEntry) -> SerializedEntry {
         let epoch = format_float(self.running_score(), 2);
-        let batch = format_float(self.current_value, 2);
+        let batch = format_float(self.state.current_value, 2);
         SerializedEntry::new(
             format!("epoch {epoch} % - batch {batch} %"),
             value.serialize(),
@@ -325,22 +346,21 @@ impl Metric for BleuScore {
             &self.smoothing,
         );
 
-        for (total, batch) in self.clipped_counts.iter_mut().zip(clipped_counts) {
+        for (total, batch) in self.state.clipped_counts.iter_mut().zip(clipped_counts) {
             *total += batch;
         }
-        for (total, batch) in self.total_counts.iter_mut().zip(total_counts) {
+        for (total, batch) in self.state.total_counts.iter_mut().zip(total_counts) {
             *total += batch;
         }
-        self.candidate_len += total_candidate_len;
-        self.reference_len += total_reference_len;
-        self.running_count += batch_size;
-        self.current_value = value;
-        self.current_count = batch_size;
+        self.state.candidate_len += total_candidate_len;
+        self.state.reference_len += total_reference_len;
+        self.state.running_count += batch_size;
+        self.state.current_value = value;
+        self.state.current_count = batch_size;
 
-        let running_value = self.running_score();
         Ok(self.serialized_entry(NumericEntry::Aggregated {
-            aggregated_value: running_value,
-            count: self.running_count,
+            aggregated_value: self.state.current_value,
+            count: self.state.current_count,
         }))
     }
 
@@ -349,13 +369,7 @@ impl Metric for BleuScore {
     }
 
     fn clear(&mut self) {
-        self.clipped_counts.fill(0);
-        self.total_counts.fill(0);
-        self.candidate_len = 0;
-        self.reference_len = 0;
-        self.running_count = 0;
-        self.current_value = f64::NAN;
-        self.current_count = 0;
+        self.state.clear();
     }
 
     fn name(&self) -> MetricName {
@@ -374,15 +388,15 @@ impl Metric for BleuScore {
 impl Numeric for BleuScore {
     fn value(&self) -> Option<NumericEntry> {
         Some(NumericEntry::Aggregated {
-            aggregated_value: self.current_value,
-            count: self.current_count,
+            aggregated_value: self.state.current_value,
+            count: self.state.current_count,
         })
     }
 
     fn running_value(&self) -> Option<NumericEntry> {
         Some(NumericEntry::Aggregated {
             aggregated_value: self.running_score(),
-            count: self.running_count,
+            count: self.state.running_count,
         })
     }
 
