@@ -1,5 +1,5 @@
 #![allow(clippy::single_range_in_vec_init)]
-use crate::check::{unwrap_dim_index, unwrap_shape_reshape};
+use crate::check::unwrap_dim_index;
 use crate::kind::Basic;
 use crate::ops::BridgeTensor;
 
@@ -397,38 +397,50 @@ where
     ///
     /// The tensor has the same data and number of elements as the input.
     ///
-    /// A `-1` in the shape is used to infer the remaining dimensions, e.g.: `[2, -1]`
-    /// will reshape the tensor with [2, 3, 4] dimensions to [2, 12].
+    /// Nonnegative dimensions are literal sizes, including zero-length dimensions. An array
+    /// can contain a single `-1` to infer a dimension from the element count. For example,
+    /// `[2, -1]` reshapes an input of shape `[2, 3, 4]` to `[2, 12]`.
     ///
-    /// A `0` in the shape instructs to keep the current dimension from the original tensor,
-    /// e.g.: `[2, 0, 4]` will reshape the tensor with [2, 3, 4] dimensions to [2, 3, 4].
-    /// This is useful when reshaping tensors with unknown dimensions and combining with `-1`
-    /// to infer the remaining dimensions, e.g. `[0, -1]` will reshape the tensor
-    /// with [1, 3, 4] dimensions to [1, 12].
+    /// A [`Shape`] is an already-resolved result containing concrete dimension sizes. It is
+    /// used as given, including any zero-length dimensions, with no dimension inference.
     ///
-    /// These placeholders only apply to the array form. A [`Shape`] is used as given, so a `0`
-    /// in a `Shape` is a zero-length dimension.
+    /// Wrap an array in [`ZeroDimPlaceholders`] to make `0` copy the input dimension at the
+    /// same position instead. For example, `ZeroDimPlaceholders([0, -1])` reshapes an input
+    /// of shape `[2, 3, 4]` to `[2, 12]`. This opt-in follows ONNX's `allowzero=0` semantics;
+    /// ordinary arrays follow `allowzero=1` semantics.
     ///
     /// # Arguments
-    /// - `shape`: The new shape of the tensor.
+    /// - `shape`: An array, a resolved [`Shape`], or an array wrapped in [`ZeroDimPlaceholders`].
     ///
     /// # Panics
     /// - If the shape array contains more than one `-1`.
     /// - If the shape array contains a dimension below `-1`.
+    /// - If `-1` cannot be inferred uniquely, including when another resolved dimension is zero.
+    /// - If a `0` in [`ZeroDimPlaceholders`] has no corresponding input dimension to copy.
     /// - If the resolved shape does not have the same number of elements as the original shape.
     /// - If a given [`Shape`] does not have `D2` dimensions.
     ///
     /// # Example
     ///
     /// ```rust
-    /// use burn_tensor::Tensor;
+    /// use burn_tensor::{Shape, Tensor, ZeroDimPlaceholders};
     ///
     /// let device = Default::default();
     /// // Create a tensor with dimensions [2, 3, 4]
     /// let tensor = Tensor::<3>::ones([2, 3, 4], &device);
-    /// // Reshape it to [2, 12], where 12 is inferred from the number of elements.
-    /// let reshaped = tensor.reshape([2, -1]);
-    /// println!("{reshaped}");
+    /// // Infer the second dimension.
+    /// let reshaped = tensor.clone().reshape([2, -1]);
+    /// assert_eq!(reshaped.dims(), [2, 12]);
+    /// // Explicitly copy the first input dimension and infer the second.
+    /// let reshaped = tensor.reshape(ZeroDimPlaceholders([0, -1]));
+    /// assert_eq!(reshaped.dims(), [2, 12]);
+    ///
+    /// // Arrays and Shape both preserve literal zeros.
+    /// let empty = Tensor::<3>::zeros([1, 24, 0], &device);
+    /// let reshaped = empty.clone().reshape([1, 24, 16, 0]);
+    /// assert_eq!(reshaped.dims(), [1, 24, 16, 0]);
+    /// let reshaped: Tensor<4> = empty.reshape(Shape::new([1, 24, 16, 0]));
+    /// assert_eq!(reshaped.dims(), [1, 24, 16, 0]);
     /// ```
     pub fn reshape<const D2: usize, S: ReshapeArgs<D2>>(self, shape: S) -> Tensor<D2, K> {
         // Convert reshape args to shape
@@ -3408,22 +3420,56 @@ macro_rules! impl_movedim_args {
 
 impl_movedim_args!(usize, isize, i64, u64, i32, u32, i16, u16, i8, u8);
 
-/// Trait used for reshape arguments.
+/// Arguments to [`Tensor::reshape`].
+///
+/// Arrays contain literal sizes, including zeros, and may use `-1` to infer one dimension.
+/// A [`Shape`] is an already-resolved result containing only concrete dimension sizes.
+/// [`ZeroDimPlaceholders`] opts an array into copying input dimensions at zero entries.
 pub trait ReshapeArgs<const D2: usize>: Debug {
-    /// Converts to a shape.
+    /// Resolves and validates the output dimensions against `source`.
     fn into_shape<const D: usize>(self, source: Shape) -> Shape;
 }
 
 impl<const D2: usize, I: AsIndex> ReshapeArgs<D2> for [I; D2] {
     fn into_shape<const D: usize>(self, source: Shape) -> Shape {
-        unwrap_shape_reshape(source.reshape(self))
+        let args = self.map(|dim| dim.as_index());
+        check!(TensorCheck::reshape_args(&source, &args));
+
+        let mut dims = args.map(|dim| if dim == -1 { 1 } else { dim as usize });
+        if let Some(index) = args.iter().position(|&dim| dim == -1) {
+            let known_size = dims.iter().product();
+            check!(TensorCheck::reshape_infer(&source, &args, known_size));
+            dims[index] = source.num_elements() / known_size;
+        }
+
+        ReshapeArgs::<D2>::into_shape::<D>(Shape::new(dims), source)
+    }
+}
+
+/// A reshape array whose zero entries copy the corresponding input dimensions.
+///
+/// Positive values remain literal sizes, and `-1` infers one dimension. This opts into ONNX's
+/// `allowzero=0` semantics; ordinary arrays passed to [`Tensor::reshape`] treat zeros literally.
+/// Copied dimensions may themselves be zero. Inference is ambiguous if any resolved dimension
+/// other than `-1` is zero.
+#[derive(Debug, Clone, Copy)]
+pub struct ZeroDimPlaceholders<I, const D: usize>(pub [I; D]);
+
+impl<const D2: usize, I: AsIndex> ReshapeArgs<D2> for ZeroDimPlaceholders<I, D2> {
+    fn into_shape<const D: usize>(self, source: Shape) -> Shape {
+        let mut args = self.0.map(|dim| dim.as_index());
+        check!(TensorCheck::reshape_placeholders(&source, &args));
+        for (index, dim) in args.iter_mut().enumerate() {
+            if *dim == 0 {
+                *dim = source[index].as_index();
+            }
+        }
+        ReshapeArgs::<D2>::into_shape::<D>(args, source)
     }
 }
 
 impl<const D2: usize> ReshapeArgs<D2> for Shape {
     fn into_shape<const D: usize>(self, source: Shape) -> Shape {
-        // A `Shape` holds concrete dimensions, so a `0` is a zero-length dimension rather than
-        // the "keep this dimension" placeholder of the array form.
         check!(TensorCheck::reshape::<D2>(&source, &self));
         self
     }
