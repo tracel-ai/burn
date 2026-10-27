@@ -9,14 +9,13 @@
 
 use crate::{
     CubeTuneId,
-    kernel::{into_contiguous, matmul::utils::init_matmul_output, quantization::dequantize},
+    kernel::{matmul::utils::init_matmul_output, quantization::dequantize},
     ops::swap_dims,
     tensor::CubeTensor,
 };
+use burn_backend::DType;
 use burn_backend::cubecl::dtype_to_storage_type;
-use burn_backend::{DType, TensorMetadata};
 use cubecl::throughput::MemoryAccess;
-use cubecl::tile::Axis;
 use cubecl::tune::{LocalTuner, Tunable, TunableSet, local_tuner};
 use cubek::matmul::definition::{MatmulCost, MatmulGlobalElems};
 use cubek::matmul::kernels::{
@@ -24,10 +23,10 @@ use cubek::matmul::kernels::{
     MatmulPackedCandidate, MatmulRoutine, MatmulRoutineCandidate, PlaneShuffleMatmulRoutine,
     UnitRegistersMatmulRoutine, UnitWholeKMatmulRoutine,
     select::problem::OperandKind,
-    tensor::{PackedTensor, PlainTensor, StoredTensor, WordsLaid},
+    tensor::StoredTensor,
     tune::key::{MatmulTuneKey, create_key},
 };
-use cubek::microkernel::matmul::{MatmulMicrokernel, stored::Operand};
+use cubek::microkernel::matmul::MatmulMicrokernel;
 use cubek::std::{
     Hardware,
     autotune::{Autotune, Ceiling, GroupPriority, Roofline},
@@ -163,18 +162,18 @@ fn candidates(hw: &Hardware) -> TunableSet<MatmulTuneKey, Inputs, ()> {
 
 /// `lhs · rhs` written into `out` by `candidate`'s float routine at its setting, a quantized input
 /// dequantized into the output's element first, or why it did not run.
-fn launch<R, Mk: MatmulMicrokernel, SM: PartialEq + Clone + 'static>(
+fn launch<R, M: MatmulMicrokernel, SM: PartialEq + Clone + 'static>(
     candidate: &MatmulRoutineCandidate<R>,
     (lhs, rhs, out): Inputs,
 ) -> Result<(), String>
 where
-    R: MatmulRoutine<Mk, SM> + Copy,
+    R: MatmulRoutine<M, SM> + Copy,
 {
     let client = out.client.clone();
-    let decoded = |tensor: CubeTensor| StoredTensor::Plain(plain(dequantize(tensor, out.dtype)));
-    let (lhs, rhs) = (decoded(lhs), decoded(rhs));
+    let lhs = StoredTensor::Plain(dequantize(lhs, out.dtype).plain());
+    let rhs = StoredTensor::Plain(dequantize(rhs, out.dtype).plain());
     candidate
-        .launch_into(&client, lhs, rhs, plain(out))
+        .launch_into(&client, lhs, rhs, out.plain())
         .map_err(|why| {
             let settings = candidate.settings();
             format!("{settings} does not serve this problem: {why:?}")
@@ -182,76 +181,24 @@ where
 }
 
 /// `lhs · rhs` written into `out` by `candidate`'s routine at a setting it lists for a packed
-/// input, each quantized input read as it is stored ([`packed`]), or why it did not run.
-fn launch_packed<R, Mk: MatmulMicrokernel, SM>(
+/// input, each input read as it is stored ([`CubeTensor::stored`]), or why it did not run.
+fn launch_packed<R, M: MatmulMicrokernel, SM>(
     candidate: &MatmulPackedCandidate<R>,
     (lhs, rhs, out): Inputs,
 ) -> Result<(), String>
 where
-    R: MatmulRoutine<Mk, SM> + Copy,
+    R: MatmulRoutine<M, SM> + Copy,
 {
-    if lhs.try_scheme().is_none() && rhs.try_scheme().is_none() {
-        return Err("a packed setting reads a packed input, and both are float".into());
-    }
     let client = out.client.clone();
-    let stored = |tensor: CubeTensor, axes| match tensor.try_scheme() {
-        Some(_) => packed(tensor, axes).map(StoredTensor::Packed),
-        None => Ok(StoredTensor::Plain(plain(tensor))),
+    let declined = |why| {
+        let settings = candidate.settings();
+        format!("{settings} does not serve this packed problem: {why:?}")
     };
-    let (lhs, rhs) = (stored(lhs, [M, K])?, stored(rhs, [K, N])?);
+    let lhs = lhs.stored([M, K]).map_err(declined)?;
+    let rhs = rhs.stored([K, N]).map_err(declined)?;
     candidate
-        .launch_into(&client, lhs, rhs, plain(out))
-        .map_err(|why| {
-            let settings = candidate.settings();
-            format!("{settings} does not serve this packed problem: {why:?}")
-        })
-}
-
-/// `tensor` bound as its values, at the element they are stored in.
-fn plain(tensor: CubeTensor) -> PlainTensor {
-    let elem = dtype_to_storage_type(tensor.dtype);
-    PlainTensor::new(tensor.binding(), elem)
-}
-
-/// The quantized `tensor`, one row-major matrix over `axes`, as the routines read it packed: its
-/// words along the axis its scheme packs, under its block scales and its per-tensor scale where
-/// its scheme has one, each scale region ending on a whole word.
-///
-/// Anything else is declined, and decoded by the float routines instead: a batch of matrices, a
-/// view other than row-major, storage tiles, or a scheme with no block scales along that axis.
-fn packed(tensor: CubeTensor, axes: [Axis; 2]) -> Result<PackedTensor, String> {
-    let scheme = tensor.scheme();
-    let shape = tensor.meta.shape().clone();
-    let operand = Operand::axis_of(&scheme, axes)
-        .and_then(|axis| Operand::of_scheme(&scheme, axis, axes))
-        .ok_or("the packed routines read block scales along the axis the words run along")?;
-    let scales = |scale: CubeTensor| plain(whole_words(into_contiguous(scale)));
-    let global = tensor.global().map(scales);
-    let (words, block_scales) = tensor
-        .quantized_handles()
-        .expect("a quantized tensor holds its values and its scales");
-    if shape.rank() != 2 || words.meta.is_tiled() || !words.is_contiguous() {
-        return Err("the packed routines read one quantized matrix in row-major rows".into());
-    }
-    Ok(PackedTensor::new(
-        plain(words),
-        WordsLaid::InRows,
-        scales(block_scales),
-        global,
-        scheme,
-        operand,
-        [(axes[0], shape[0]), (axes[1], shape[1])],
-    ))
-}
-
-/// The contiguous `tensor` with its binding ending on the `u32` word that holds its last element:
-/// the routines read scales a word at a time. A quantized buffer starts each region on a word, so
-/// the word's tail is allocated.
-fn whole_words(mut tensor: CubeTensor) -> CubeTensor {
-    let bytes = (tensor.meta.num_elements() * tensor.dtype.size()) as u64;
-    let end = tensor.handle.offset_start.unwrap_or(0) + bytes.next_multiple_of(4);
-    tensor.handle.offset_end = Some(tensor.handle.size() - end);
-    tensor
+        .launch_into(&client, lhs, rhs, out.plain())
+        .map_err(declined)
 }
 
 /// What `lhs · rhs` costs at least: its operations against the instruction its elements run on,
