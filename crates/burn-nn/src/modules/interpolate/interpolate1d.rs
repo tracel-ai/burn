@@ -237,13 +237,9 @@ mod tests {
     }
 
     #[test]
-    #[should_panic]
+    #[should_panic(expected = "only one of output_size or scale_factor")]
     fn test_conflicting_size_and_scale_panics() {
-        let input = Tensor::<3>::random(
-            [2, 3, 4],
-            Distribution::Uniform(0.0, 1.0),
-            &Default::default(),
-        );
+        let input = Tensor::<3>::zeros([1, 1, 2], &Default::default());
         let config = Interpolate1dConfig::new()
             .with_output_size(Some(8))
             .with_scale_factor(Some(2.0));

@@ -274,35 +274,20 @@ fn test_bilinear_scale_driven_mapping() {
     if !format!("{device:?}").to_lowercase().contains("flex") {
         return;
     }
-    // 4x4 input where each row is [10.0, 20.0, 30.0, 40.0]
-    let input = TestTensor::<4>::from_data(
-        [[[
-            [10.0, 20.0, 30.0, 40.0],
-            [10.0, 20.0, 30.0, 40.0],
-            [10.0, 20.0, 30.0, 40.0],
-            [10.0, 20.0, 30.0, 40.0],
-        ]]],
-        &device,
-    );
-
-    // Downsample size 4 with scale_factor = [0.6, 0.6] -> output size [2, 2].
-    // If scale 0.6 is used:
-    // x_in = (x_out + 0.5) / 0.6 - 0.5
-    // x_out = 0 -> x_in = 1/3 -> (1 - 1/3)*10.0 + (1/3)*20.0 = 13.333333
-    // x_out = 1 -> x_in = 2.0 -> 30.0
-    // If 2/4 = 0.5 were used instead, x_out = 0 -> 15.0 and x_out = 1 -> 35.0.
+    let input = TestTensor::<4>::from_data([[[[10., 20., 30., 40.]]]], &device);
+    // Scale 0.6 samples coordinates 1/3 and 2; the rounded size ratio 2/4 would differ.
     let output = interpolate(
         input,
         InterpolateOptions::new(InterpolateMode::Bilinear)
             .with_coordinate_transform(CoordinateTransformMode::HalfPixel)
-            .with_scale_factor([0.6, 0.6]),
+            .with_scale_factor([1.0, 0.6]),
     );
 
-    let expected = TestTensor::<4>::from([[[[13.333333, 30.0], [13.333333, 30.0]]]]);
+    let expected = burn_tensor::TensorData::from([[[[40.0 / 3.0, 30.0]]]]);
 
     output
         .into_data()
-        .assert_approx_eq::<FloatElem>(&expected.into_data(), Tolerance::default());
+        .assert_approx_eq::<FloatElem>(&expected, Tolerance::default());
 }
 
 #[test]
@@ -322,10 +307,10 @@ fn test_bilinear_pytorch_half_pixel_output_size_one() {
             .with_output_size([1, 1]),
     );
 
-    let expected = TestTensor::<4>::from([[[[10.0]]]]);
+    let expected = burn_tensor::TensorData::from([[[[10.0]]]]);
     output
         .into_data()
-        .assert_approx_eq::<FloatElem>(&expected.into_data(), Tolerance::default());
+        .assert_approx_eq::<FloatElem>(&expected, Tolerance::default());
 }
 
 #[test]
@@ -336,12 +321,7 @@ fn test_bilinear_half_pixel_symmetric_centering() {
     }
     let input = TestTensor::<4>::from_data([[[[10.0, 20.0, 30.0, 40.0]]]], &device);
 
-    // L_in = 4, L_out = 2 (derived from scale_factor = 0.6, 4 * 0.6 = 2)
-    // Uneven product: L_in * s = 2.4 != L_out
-    // Offset: (2.4 - 2.0) / 2 = 0.2
-    // x_in = (x_out + 0.5 + 0.2) / 0.6 - 0.5
-    // x_out = 0 -> (0.7 / 0.6) - 0.5 = 2/3 -> (1 - 2/3)*10 + (2/3)*20 = 16.666667
-    // x_out = 1 -> (1.7 / 0.6) - 0.5 = 7/3 -> (1 - 1/3)*30 + (1/3)*40 = 33.333333
+    // The truncated output width adds a centering offset of (2.4 - 2) / 2.
     let output = interpolate(
         input,
         InterpolateOptions::new(InterpolateMode::Bilinear)
@@ -349,41 +329,26 @@ fn test_bilinear_half_pixel_symmetric_centering() {
             .with_scale_factor([1.0, 0.6]),
     );
 
-    let expected = TestTensor::<4>::from([[[[16.666667, 33.333333]]]]);
+    let expected = burn_tensor::TensorData::from([[[[16.666667, 33.333333]]]]);
     output
         .into_data()
-        .assert_approx_eq::<FloatElem>(&expected.into_data(), Tolerance::default());
+        .assert_approx_eq::<FloatElem>(&expected, Tolerance::default());
 }
 
 #[test]
-fn test_bilinear_align_corners_single_pixel_finite() {
+fn test_bilinear_align_corners_output_size_one() {
     let device = Default::default();
-    let input = TestTensor::<4>::from_data(
-        [[[
-            [1.0, 2.0, 3.0, 4.0],
-            [5.0, 6.0, 7.0, 8.0],
-            [9.0, 10.0, 11.0, 12.0],
-            [13.0, 14.0, 15.0, 16.0],
-        ]]],
-        &device,
-    );
-
+    let input = TestTensor::<4>::from_data([[[[10., 20.], [30., 40.]]]], &device);
     let output = interpolate(
         input,
         InterpolateOptions::new(InterpolateMode::Bilinear)
             .with_coordinate_transform(CoordinateTransformMode::AlignCorners)
             .with_output_size([1, 1]),
     );
-
-    let data = output.clone().into_data().convert::<f32>();
-    let val = data.as_slice::<f32>().unwrap()[0];
-    assert!(val.is_finite());
-    assert!(!val.is_nan());
-
-    let expected = TestTensor::<4>::from([[[[1.0]]]]);
-    output
-        .into_data()
-        .assert_approx_eq::<FloatElem>(&expected.into_data(), Tolerance::default());
+    output.into_data().assert_eq(
+        &burn_tensor::TensorData::from([[[[10.]]]]).convert::<FloatElem>(),
+        false,
+    );
 }
 
 #[test]
@@ -393,38 +358,22 @@ fn test_tf_crop_and_resize_in_bounds() {
         return;
     }
     let input = TestTensor::<4>::from_data(
-        [[[
-            [0.0, 1.0, 2.0, 3.0, 4.0],
-            [5.0, 6.0, 7.0, 8.0, 9.0],
-            [10.0, 11.0, 12.0, 13.0, 14.0],
-            [15.0, 16.0, 17.0, 18.0, 19.0],
-            [20.0, 21.0, 22.0, 23.0, 24.0],
-        ]]],
+        [[[[11., 23., 37.], [41., 53., 67.], [79., 83., 97.]]]],
         &device,
     );
-
-    // ROI: [[0.25, 0.75], [0.25, 0.75]]
-    // L_in = 5, L_out = 3
-    // y_in = 0.25 * 4 + y_out * (0.5 * 4 / 2) = 1.0 + y_out * 1.0 -> {1.0, 2.0, 3.0}
-    // x_in = 0.25 * 4 + x_out * (0.5 * 4 / 2) = 1.0 + x_out * 1.0 -> {1.0, 2.0, 3.0}
-    // Output should sample exactly the inner 3x3 block:
-    // [[6, 7, 8], [11, 12, 13], [16, 17, 18]]
     let output = interpolate(
         input,
         InterpolateOptions::new(InterpolateMode::Bilinear)
             .with_coordinate_transform(CoordinateTransformMode::TfCropAndResize {
-                roi: [[0.25, 0.75], [0.25, 0.75]],
+                roi: [[0.0, 0.5], [0.5, 1.0]],
                 extrapolation_value: 0.0,
             })
-            .with_output_size([3, 3]),
+            .with_output_size([2, 2]),
     );
-
-    let expected =
-        TestTensor::<4>::from([[[[6.0, 7.0, 8.0], [11.0, 12.0, 13.0], [16.0, 17.0, 18.0]]]]);
-
-    output
-        .into_data()
-        .assert_approx_eq::<FloatElem>(&expected.into_data(), Tolerance::default());
+    output.into_data().assert_approx_eq::<FloatElem>(
+        &burn_tensor::TensorData::from([[[[23., 37.], [53., 67.]]]]),
+        Tolerance::default(),
+    );
 }
 
 #[test]
@@ -434,40 +383,23 @@ fn test_tf_crop_and_resize_extrapolation() {
         return;
     }
     let input = TestTensor::<4>::from_data(
-        [[[
-            [0.0, 1.0, 2.0, 3.0, 4.0],
-            [5.0, 6.0, 7.0, 8.0, 9.0],
-            [10.0, 11.0, 12.0, 13.0, 14.0],
-            [15.0, 16.0, 17.0, 18.0, 19.0],
-            [20.0, 21.0, 22.0, 23.0, 24.0],
-        ]]],
+        [[[[11., 23., 37.], [41., 53., 67.], [79., 83., 97.]]]],
         &device,
     );
-
-    // Height ROI: [-0.5, 1.5]
-    // L_in = 5, L_out = 3
-    // y_in:
-    // y_out = 0 -> -0.5 * 4 = -2.0 (< 0.0: extrapolated)
-    // y_out = 1 -> -0.5 * 4 + 1 * (2.0 * 4 / 2) = -2.0 + 4.0 = 2.0 (in bounds)
-    // y_out = 2 -> -0.5 * 4 + 2 * (2.0 * 4 / 2) = -2.0 + 8.0 = 6.0 (> 4.0: extrapolated)
-    // Width ROI: [0.25, 0.75] -> x_in in {1.0, 2.0, 3.0}
-    // Extrapolation value: 99.0
+    // The first and last rows sample outside opposite ends of the input.
     let output = interpolate(
         input,
         InterpolateOptions::new(InterpolateMode::Bilinear)
             .with_coordinate_transform(CoordinateTransformMode::TfCropAndResize {
-                roi: [[-0.5, 1.5], [0.25, 0.75]],
+                roi: [[-0.5, 1.5], [0.5, 1.0]],
                 extrapolation_value: 99.0,
             })
-            .with_output_size([3, 3]),
+            .with_output_size([3, 2]),
     );
-
-    let expected =
-        TestTensor::<4>::from([[[[99.0, 99.0, 99.0], [11.0, 12.0, 13.0], [99.0, 99.0, 99.0]]]]);
-
-    output
-        .into_data()
-        .assert_approx_eq::<FloatElem>(&expected.into_data(), Tolerance::default());
+    output.into_data().assert_approx_eq::<FloatElem>(
+        &burn_tensor::TensorData::from([[[[99., 99.], [53., 67.], [99., 99.]]]]),
+        Tolerance::default(),
+    );
 }
 
 #[test]
@@ -476,36 +408,21 @@ fn test_tf_crop_and_resize_output_size_one() {
     if !format!("{device:?}").to_lowercase().contains("flex") {
         return;
     }
-    let input = TestTensor::<4>::from_data(
-        [[[
-            [0.0, 1.0, 2.0, 3.0, 4.0],
-            [5.0, 6.0, 7.0, 8.0, 9.0],
-            [10.0, 11.0, 12.0, 13.0, 14.0],
-            [15.0, 16.0, 17.0, 18.0, 19.0],
-            [20.0, 21.0, 22.0, 23.0, 24.0],
-        ]]],
-        &device,
-    );
-
-    // L_out = 1 formula: 0.5 * (r_start + r_end) * (L_in - 1)
-    // With ROI [[0.0, 1.0], [0.0, 1.0]]:
-    // y_in = 0.5 * 1.0 * 4 = 2.0
-    // x_in = 0.5 * 1.0 * 4 = 2.0
-    // Sampled element at (2, 2) is 12.0
+    let input = TestTensor::<4>::from_data([[[[10., 20.], [30., 40.]]]], &device);
+    // The ROI midpoint is (0.25, 0.75), requiring interpolation on both axes.
     let output = interpolate(
         input,
         InterpolateOptions::new(InterpolateMode::Bilinear)
             .with_coordinate_transform(CoordinateTransformMode::TfCropAndResize {
-                roi: [[0.0, 1.0], [0.0, 1.0]],
+                roi: [[0.0, 0.5], [0.5, 1.0]],
                 extrapolation_value: 0.0,
             })
             .with_output_size([1, 1]),
     );
-
-    let expected = TestTensor::<4>::from([[[[12.0]]]]);
-    output
-        .into_data()
-        .assert_approx_eq::<FloatElem>(&expected.into_data(), Tolerance::default());
+    output.into_data().assert_approx_eq::<FloatElem>(
+        &burn_tensor::TensorData::from([[[[22.5]]]]),
+        Tolerance::default(),
+    );
 }
 
 #[test]
@@ -514,11 +431,7 @@ fn test_tf_crop_and_resize_inverted_roi() {
     if !format!("{device:?}").to_lowercase().contains("flex") {
         return;
     }
-    let input = TestTensor::<4>::from_data(
-        [[[[0.0, 1.0, 2.0], [3.0, 4.0, 5.0], [6.0, 7.0, 8.0]]]],
-        &device,
-    );
-
+    let input = TestTensor::<4>::from_data([[[[10., 20.], [30., 40.]]]], &device);
     let output = interpolate(
         input,
         InterpolateOptions::new(InterpolateMode::Bilinear)
@@ -526,44 +439,10 @@ fn test_tf_crop_and_resize_inverted_roi() {
                 roi: [[0.0, 1.0], [1.0, 0.0]],
                 extrapolation_value: 99.0,
             })
-            .with_output_size([3, 3]),
+            .with_output_size([2, 2]),
     );
-
-    let expected = TestTensor::<4>::from([[[[2.0, 1.0, 0.0], [5.0, 4.0, 3.0], [8.0, 7.0, 6.0]]]]);
-
-    output
-        .into_data()
-        .assert_approx_eq::<FloatElem>(&expected.into_data(), Tolerance::default());
-}
-
-#[test]
-fn test_tf_crop_and_resize_single_pixel_finite() {
-    let device = Default::default();
-    if !format!("{device:?}").to_lowercase().contains("flex") {
-        return;
-    }
-    let input = TestTensor::<4>::from_data(
-        [[[
-            [1.0, 2.0, 3.0, 4.0],
-            [5.0, 6.0, 7.0, 8.0],
-            [9.0, 10.0, 11.0, 12.0],
-            [13.0, 14.0, 15.0, 16.0],
-        ]]],
-        &device,
+    output.into_data().assert_approx_eq::<FloatElem>(
+        &burn_tensor::TensorData::from([[[[20., 10.], [40., 30.]]]]),
+        Tolerance::default(),
     );
-
-    let output = interpolate(
-        input,
-        InterpolateOptions::new(InterpolateMode::Bilinear)
-            .with_coordinate_transform(CoordinateTransformMode::TfCropAndResize {
-                roi: [[0.0, 1.0], [0.0, 1.0]],
-                extrapolation_value: 0.0,
-            })
-            .with_output_size([1, 1]),
-    );
-
-    let data = output.into_data().convert::<f32>();
-    let val = data.as_slice::<f32>().unwrap()[0];
-    assert!(val.is_finite());
-    assert!(!val.is_nan());
 }
