@@ -253,7 +253,7 @@ loading those checkpoints by filtering to `linear_inner` and `linear_outer`.
   `dilation: [1; N]` to `AvgPoolOptions` struct literals. **Breaking for third-party backends:**
   The `ModuleOps` average pooling methods and their backward passes take a `dilation` argument after
   `padding`, as do `module::avg_pool2d_backward` and `module::avg_pool3d_backward`.
-  ([#XXXX](https://github.com/tracel-ai/burn/pull/XXXX))
+  ([#6235](https://github.com/tracel-ai/burn/pull/6235))
   [@ashokram-si](https://github.com/ashokram-si)
 - Support all indexing update operations for boolean `scatter` and `select_assign`, and add boolean
   `scatter_nd` and `gather_nd`. `Add`/`Max` use logical OR; `Mul`/`Min` use logical AND.
