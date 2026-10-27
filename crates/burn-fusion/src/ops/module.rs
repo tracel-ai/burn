@@ -775,6 +775,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         kernel_size: usize,
         stride: usize,
         padding: usize,
+        dilation: usize,
         count_include_pad: bool,
         ceil_mode: bool,
     ) -> FloatTensor<Self> {
@@ -788,6 +789,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
                     args.kernel_size,
                     args.stride,
                     args.padding,
+                    args.dilation,
                     args.count_include_pad,
                     args.ceil_mode,
                 );
@@ -803,6 +805,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             kernel_size,
             stride,
             padding,
+            dilation,
             count_include_pad,
             ceil_mode,
             || client.create_empty_handle(),
@@ -822,6 +825,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         kernel_size: [usize; 2],
         stride: [usize; 2],
         padding: [usize; 2],
+        dilation: [usize; 2],
         count_include_pad: bool,
         ceil_mode: bool,
     ) -> FloatTensor<Self> {
@@ -835,6 +839,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
                     args.kernel_size,
                     args.stride,
                     args.padding,
+                    args.dilation,
                     args.count_include_pad,
                     args.ceil_mode,
                 );
@@ -851,6 +856,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             kernel_size,
             stride,
             padding,
+            dilation,
             count_include_pad,
             ceil_mode,
             || client.create_empty_handle(),
@@ -870,6 +876,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         kernel_size: [usize; 3],
         stride: [usize; 3],
         padding: [usize; 3],
+        dilation: [usize; 3],
         count_include_pad: bool,
         ceil_mode: bool,
     ) -> FloatTensor<Self> {
@@ -883,6 +890,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
                     args.kernel_size,
                     args.stride,
                     args.padding,
+                    args.dilation,
                     args.count_include_pad,
                     args.ceil_mode,
                 );
@@ -899,6 +907,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             kernel_size,
             stride,
             padding,
+            dilation,
             count_include_pad,
             ceil_mode,
             || client.create_empty_handle(),
@@ -919,6 +928,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         kernel_size: usize,
         stride: usize,
         padding: usize,
+        dilation: usize,
         count_include_pad: bool,
         ceil_mode: bool,
     ) -> FloatTensor<Self> {
@@ -934,6 +944,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
                     args.kernel_size,
                     args.stride,
                     args.padding,
+                    args.dilation,
                     args.count_include_pad,
                     args.ceil_mode,
                 );
@@ -951,6 +962,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             kernel_size,
             stride,
             padding,
+            dilation,
             count_include_pad,
             ceil_mode,
             || client.create_empty_handle(),
@@ -971,6 +983,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         kernel_size: [usize; 2],
         stride: [usize; 2],
         padding: [usize; 2],
+        dilation: [usize; 2],
         count_include_pad: bool,
         ceil_mode: bool,
     ) -> FloatTensor<Self> {
@@ -986,6 +999,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
                     args.kernel_size,
                     args.stride,
                     args.padding,
+                    args.dilation,
                     args.count_include_pad,
                     args.ceil_mode,
                 );
@@ -1003,6 +1017,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             kernel_size,
             stride,
             padding,
+            dilation,
             count_include_pad,
             ceil_mode,
             || client.create_empty_handle(),
@@ -1023,6 +1038,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         kernel_size: [usize; 3],
         stride: [usize; 3],
         padding: [usize; 3],
+        dilation: [usize; 3],
         count_include_pad: bool,
         ceil_mode: bool,
     ) -> FloatTensor<Self> {
@@ -1038,6 +1054,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
                     args.kernel_size,
                     args.stride,
                     args.padding,
+                    args.dilation,
                     args.count_include_pad,
                     args.ceil_mode,
                 );
@@ -1055,6 +1072,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             kernel_size,
             stride,
             padding,
+            dilation,
             count_include_pad,
             ceil_mode,
             || client.create_empty_handle(),

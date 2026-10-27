@@ -249,6 +249,9 @@ pub struct AvgPoolOptions<const N: usize> {
     /// Padding as `(begin, end)` pairs for each spatial dimension.
     pub padding: [(usize, usize); N],
 
+    /// Dilation (non-zero).
+    pub dilation: [usize; N],
+
     /// If true, padded values are counted in the denominator of the average.
     pub count_include_pad: bool,
 
@@ -259,14 +262,15 @@ pub struct AvgPoolOptions<const N: usize> {
 impl<const N: usize> AvgPoolOptions<N> {
     /// Constructs average pooling options with the given kernel size.
     ///
-    /// Defaults to a stride equal to the kernel size, no padding, counting
-    /// padded values in the average and floor mode.
+    /// Defaults to a stride equal to the kernel size, no padding, a dilation
+    /// of 1, counting padded values in the average and floor mode.
     pub fn new(kernel_size: [usize; N]) -> Self {
         let kernel_size = kernel_size.map(|k| check_nonzero(k, "kernel size must be non-zero"));
         Self {
             kernel_size,
             stride: kernel_size,
             padding: [(0, 0); N],
+            dilation: [1; N],
             count_include_pad: true,
             ceil_mode: false,
         }
@@ -287,6 +291,14 @@ impl<const N: usize> AvgPoolOptions<N> {
     /// Sets explicit `(begin, end)` padding for every spatial dimension.
     pub fn with_padding_pairs(mut self, padding: [(usize, usize); N]) -> Self {
         self.padding = padding;
+        self
+    }
+
+    /// Sets the dilation.
+    ///
+    /// Window element `k` reads input position `start + k * dilation`, as in max pooling.
+    pub fn with_dilation(mut self, dilation: [usize; N]) -> Self {
+        self.dilation = dilation.map(|d| check_nonzero(d, "dilation must be non-zero"));
         self
     }
 
@@ -873,6 +885,7 @@ mod tests {
         assert!(!max.ceil_mode);
         assert_eq!(avg.stride, [2, 3]);
         assert_eq!(avg.padding, [(0, 0), (0, 0)]);
+        assert_eq!(avg.dilation, [1, 1]);
         assert!(avg.count_include_pad);
         assert!(!avg.ceil_mode);
     }
@@ -897,6 +910,12 @@ mod tests {
     #[should_panic = "dilation must be non-zero"]
     fn max_pool_options_dilation_zero() {
         let _opt = MaxPoolOptions::new([1, 1]).with_dilation([0, 1]);
+    }
+
+    #[test]
+    #[should_panic = "dilation must be non-zero"]
+    fn avg_pool_options_dilation_zero() {
+        let _opt = AvgPoolOptions::new([1, 1]).with_dilation([0, 1]);
     }
 
     #[test]

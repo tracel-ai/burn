@@ -708,6 +708,7 @@ impl_ir_create!(
         kernel_size: usize,
         stride: usize,
         padding: usize,
+        dilation: usize,
         count_include_pad: bool,
         ceil_mode: bool
     },
@@ -716,7 +717,7 @@ impl_ir_create!(
         &[kernel_size],
         &[stride],
         &[padding],
-        &[1],
+        &[dilation],
         ceil_mode
     )
     .unwrap(),
@@ -730,6 +731,7 @@ impl_ir_create!(
         kernel_size: usize,
         stride: usize,
         padding: usize,
+        dilation: usize,
         count_include_pad: bool,
         ceil_mode: bool
     },
@@ -743,6 +745,7 @@ impl_ir_create!(
         kernel_size: [usize; 2],
         stride: [usize; 2],
         padding: [usize; 2],
+        dilation: [usize; 2],
         count_include_pad: bool,
         ceil_mode: bool
     },
@@ -751,7 +754,7 @@ impl_ir_create!(
         &kernel_size,
         &stride,
         &padding,
-        &[1, 1],
+        &dilation,
         ceil_mode
     )
     .unwrap(),
@@ -765,6 +768,7 @@ impl_ir_create!(
         kernel_size: [usize; 2],
         stride: [usize; 2],
         padding: [usize; 2],
+        dilation: [usize; 2],
         count_include_pad: bool,
         ceil_mode: bool
     },
@@ -778,6 +782,7 @@ impl_ir_create!(
         kernel_size: [usize; 3],
         stride: [usize; 3],
         padding: [usize; 3],
+        dilation: [usize; 3],
         count_include_pad: bool,
         ceil_mode: bool
     },
@@ -786,7 +791,7 @@ impl_ir_create!(
         &kernel_size,
         &stride,
         &padding,
-        &[1, 1, 1],
+        &dilation,
         ceil_mode
     )
     .unwrap(),
@@ -800,6 +805,7 @@ impl_ir_create!(
         kernel_size: [usize; 3],
         stride: [usize; 3],
         padding: [usize; 3],
+        dilation: [usize; 3],
         count_include_pad: bool,
         ceil_mode: bool
     },
