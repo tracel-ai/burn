@@ -130,8 +130,8 @@ impl LayerParallelism for Model {
         &self.head
     }
 
-    fn into_layers(self) -> LayerStack<Self> {
-        LayerStack {
+    fn into_layers(self) -> LayerSequence<Self> {
+        LayerSequence {
             input: self.embedding,
             hidden: self.blocks,
             output: self.head,

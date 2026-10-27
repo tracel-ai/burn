@@ -9,8 +9,8 @@ use burn_core as burn;
 use burn_core::module::{
     Module, Param,
     parallel::{
-        DeviceShare, DistributedLayer, DistributedLayeredModel, LayerParallelism, LayerPlacement,
-        LayerStack, LayerStage,
+        DistributedLayer, DistributedLayeredModel, LayerParallelism, LayerPlacement, LayerSequence,
+        LayerStage,
     },
 };
 use burn_tensor::{Device, Distribution, Tensor, Tolerance};
@@ -43,7 +43,7 @@ fn a_device_returned_to_later_starts_a_stage_of_its_own() {
 }
 
 #[test]
-fn each_device_is_handed_the_layers_placed_on_it() {
+fn each_stage_holds_the_layers_placed_on_its_device() {
     let (flex, cpu) = devices();
     let stages = [(flex.clone(), 2), (cpu.clone(), 1), (flex.clone(), 1)].map(
         |(device, num_hidden_layers)| LayerStage {
@@ -53,37 +53,17 @@ fn each_device_is_handed_the_layers_placed_on_it() {
     );
     let placement = LayerPlacement::new(&stages);
 
-    let shares =
-        DistributedLayeredModel::new(Stack::new(&placement), &placement).into_device_shares();
+    let staged = DistributedLayeredModel::new(Stack::new(&placement), &placement).into_stages();
 
-    let [on_flex, on_cpu] = shares.as_slice() else {
-        panic!("one share per device, got {}", shares.len());
-    };
-    assert_eq!((&on_flex.device, &on_cpu.device), (&flex, &cpu));
-    assert!(on_flex.input.is_some() && on_flex.output.is_some());
-    assert!(on_cpu.input.is_none() && on_cpu.output.is_none());
-    let stages = |share: &DeviceShare<Stack>| {
-        share
-            .stages
-            .iter()
-            .map(|stage| {
-                (
-                    stage.stage,
-                    stage.first_layer,
-                    stage.layers.len(),
-                    stage.next.clone(),
-                )
-            })
-            .collect::<Vec<_>>()
-    };
-    assert_eq!(
-        stages(on_flex),
-        [(0, 0, 2, cpu.clone()), (2, 3, 1, flex.clone())]
-    );
-    assert_eq!(stages(on_cpu), [(1, 2, 1, flex.clone())]);
-    for share in &shares {
-        for layer in share.stages.iter().flat_map(|stage| &stage.layers) {
-            assert_eq!(layer.devices(), [share.device.clone()]);
+    let held: Vec<(Device, usize)> = staged
+        .stages
+        .iter()
+        .map(|stage| (stage.device.clone(), stage.layers.len()))
+        .collect();
+    assert_eq!(held, [(flex.clone(), 2), (cpu, 1), (flex, 1)]);
+    for stage in &staged.stages {
+        for layer in &stage.layers {
+            assert_eq!(layer.devices(), [stage.device.clone()]);
         }
     }
 }
@@ -184,8 +164,8 @@ impl LayerParallelism for Stack {
         &self.output
     }
 
-    fn into_layers(self) -> LayerStack<Self> {
-        LayerStack {
+    fn into_layers(self) -> LayerSequence<Self> {
+        LayerSequence {
             input: self.input,
             hidden: self.hidden,
             output: self.output,

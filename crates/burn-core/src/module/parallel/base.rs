@@ -47,8 +47,8 @@ pub type HiddenLayerSignal<M> = <<M as LayerParallelism>::InputLayer as Distribu
 ///         &self.head
 ///     }
 ///
-///     fn into_layers(self) -> LayerStack<Self> {
-///         LayerStack {
+///     fn into_layers(self) -> LayerSequence<Self> {
+///         LayerSequence {
 ///             input: self.embedding,
 ///             hidden: self.blocks,
 ///             output: self.head,
@@ -79,12 +79,12 @@ pub trait LayerParallelism: Module {
 
     /// The model taken apart into its layers, the hidden ones in the order
     /// [`layers_hidden`](Self::layers_hidden) gives them.
-    fn into_layers(self) -> LayerStack<Self>;
+    fn into_layers(self) -> LayerSequence<Self>;
 }
 
 /// The layers of a [`LayerParallelism`] model, owned.
 #[derive(Debug)]
-pub struct LayerStack<M: LayerParallelism> {
+pub struct LayerSequence<M: LayerParallelism> {
     /// The input layer.
     pub input: M::InputLayer,
     /// The hidden layers, in forward order.

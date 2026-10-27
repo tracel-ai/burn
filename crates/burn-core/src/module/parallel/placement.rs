@@ -92,12 +92,6 @@ impl LayerPlacement {
         devices
     }
 
-    /// Where the input layer's output goes: the first hidden layer's device, or the output
-    /// layer's when there is no hidden layer.
-    pub fn after_input(&self) -> &Device {
-        self.hidden.first().unwrap_or(&self.output)
-    }
-
     /// Each device's run of consecutive hidden layers, in forward order.
     pub fn stages(&self) -> Vec<LayerStage> {
         let mut stages: Vec<LayerStage> = Vec::new();

@@ -1,5 +1,5 @@
 use burn::{
-    module::parallel::{DistributedLayer, LayerParallelism, LayerPlacement, LayerStack},
+    module::parallel::{DistributedLayer, LayerParallelism, LayerPlacement, LayerSequence},
     nn::{LayerNorm, LayerNormConfig, Linear, LinearConfig},
     prelude::*,
     store::BurnpackStore,
@@ -83,8 +83,8 @@ impl LayerParallelism for LayeredModel {
         &self.head
     }
 
-    fn into_layers(self) -> LayerStack<Self> {
-        LayerStack {
+    fn into_layers(self) -> LayerSequence<Self> {
+        LayerSequence {
             input: self.embedding,
             hidden: self.hiddens,
             output: self.head,
