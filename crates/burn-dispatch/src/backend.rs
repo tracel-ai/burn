@@ -289,6 +289,10 @@ impl Backend for Dispatch {
         dispatch_device!(device, |device| B::memory_pool_usage(device))
     }
 
+    fn memory_capacity(device: &Self::Device) -> Option<u64> {
+        dispatch_device!(device, |device| B::memory_capacity(device))
+    }
+
     fn staging<'a, Iter>(data: Iter, device: &Self::Device)
     where
         Iter: Iterator<Item = &'a mut burn_backend::TensorData>,
