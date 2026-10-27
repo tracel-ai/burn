@@ -48,7 +48,12 @@ pub fn matmul_autotune(
         candidates(&Hardware::from_client(&tune_client))
     });
 
-    TUNER.execute(&tune_id, &client, tunables, run_as((lhs, rhs, output.clone())));
+    TUNER.execute(
+        &tune_id,
+        &client,
+        tunables,
+        run_as((lhs, rhs, output.clone())),
+    );
 
     output
 }
