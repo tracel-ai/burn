@@ -12,7 +12,7 @@ use burn_backend::{
     tensor::{FloatTensor, IntTensor},
 };
 use burn_ir::*;
-use burn_std::{IntDType, Shape};
+use burn_std::IntDType;
 use std::marker::PhantomData;
 
 macro_rules! make_ops {
@@ -1860,12 +1860,8 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             .output()
     }
 
-    fn has_attention_backward(
-        query: &Shape,
-        key: &Shape,
-        options: &AttentionModuleOptions,
-    ) -> bool {
-        B::has_attention_backward(query, key, options)
+    fn has_attention_backward() -> bool {
+        B::has_attention_backward()
     }
 
     fn attention_with_logsumexp(
@@ -1874,8 +1870,6 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         value: FloatTensor<Self>,
         options: AttentionModuleOptions,
     ) -> (FloatTensor<Self>, FloatTensor<Self>) {
-        // Its own non-fuseable IR node, as `attention` is, dispatched to the inner backend's
-        // kernel.
         make_ops!(
             AttentionWithLogsumexpOps,
             AttentionWithLogsumexpOpIr,
@@ -1923,13 +1917,19 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             AttentionBackwardOps,
             AttentionBackwardOpIr,
             |args: &AttentionBackwardOpIr, handles: &mut HandleContainer<B::Handle>| {
+                let query = handles.get_float_tensor::<B>(&args.query);
+                let key = handles.get_float_tensor::<B>(&args.key);
+                let value = handles.get_float_tensor::<B>(&args.value);
+                let out = handles.get_float_tensor::<B>(&args.out);
+                let logsumexp = handles.get_float_tensor::<B>(&args.logsumexp);
+                let out_grad = handles.get_float_tensor::<B>(&args.out_grad);
                 let gradients = B::attention_backward(
-                    handles.get_float_tensor::<B>(&args.query),
-                    handles.get_float_tensor::<B>(&args.key),
-                    handles.get_float_tensor::<B>(&args.value),
-                    handles.get_float_tensor::<B>(&args.out),
-                    handles.get_float_tensor::<B>(&args.logsumexp),
-                    handles.get_float_tensor::<B>(&args.out_grad),
+                    query,
+                    key,
+                    value,
+                    out,
+                    logsumexp,
+                    out_grad,
                     args.options.clone().into(),
                 );
                 handles.register_float_tensor::<B>(&args.query_grad.id, gradients.query_grad);

@@ -35,6 +35,19 @@ impl AttentionShapes {
         self.q_heads / self.kv_heads
     }
 
+    /// What the scores are scaled by: `options`' scale, or `1 / √head_dim`.
+    fn scale(&self, options: &AttentionModuleOptions) -> f64 {
+        options
+            .scale
+            .unwrap_or_else(|| 1.0 / (self.head_dim as f64).sqrt())
+    }
+
+    /// `[batch, kv_heads, groups · seq_q, last]`: the query heads sharing a K/V head stacked as
+    /// the rows of one matrix.
+    fn grouped_rows(&self, last: usize) -> Shape {
+        Shape::new([self.batch, self.kv_heads, self.groups() * self.seq_q, last])
+    }
+
     /// Validates the shapes of an attention call, panicking with a descriptive message
     /// when they do not satisfy the contract.
     ///
@@ -91,118 +104,18 @@ pub fn attention_fallback<B: Backend>(
     attn_bias: Option<FloatTensor<B>>,
     options: AttentionModuleOptions,
 ) -> FloatTensor<B> {
-    if let Some(softcap) = options.softcap {
-        assert!(softcap > 0.0, "softcap must be positive, got {softcap}");
-    }
     let shapes = AttentionShapes::new(&query.shape(), &key.shape(), &value.shape());
-    let AttentionShapes {
-        batch,
-        q_heads,
-        kv_heads,
-        seq_q,
-        seq_k,
-        head_dim,
-        val_dim,
-    } = shapes;
-    let groups = shapes.groups();
-
-    // Grouped-query attention: query head `h` reads K/V head `h / groups`. The query
-    // heads sharing a K/V head are adjacent, so folding them into the row dimension
-    // (`[batch, kv_heads, groups * seq_q, head_dim]`) turns GQA into plain attention
-    // over `kv_heads` heads without repeating K and V. Scores are unfolded back to
-    // `[batch, q_heads, seq_q, seq_k]` so masks, bias and causality see query rows.
-    let query = if groups > 1 {
-        B::float_reshape(
-            query,
-            Shape::new([batch, kv_heads, groups * seq_q, head_dim]),
-        )
-    } else {
-        query
-    };
-
-    // Attention scores: A = QKᵗ * scale
-    let scale = options
-        .scale
-        .unwrap_or_else(|| 1.0 / (head_dim as f64).sqrt());
-    let transposed_key = B::float_transpose(key);
-    let qk = B::float_matmul(query, transposed_key);
-    let qk = if groups > 1 {
-        B::float_reshape(qk, Shape::new([batch, q_heads, seq_q, seq_k]))
-    } else {
-        qk
-    };
-    let attention_scores = B::float_mul_scalar(qk, scale.into());
-
-    // Softcap: softcap * tanh(scores / softcap)
-    // Applied to raw logits before any -inf masking, so that tanh does not
-    // map -inf to a finite value (which would break masking semantics).
-    let attention_scores = if let Some(softcap) = options.softcap {
-        let scaled = B::float_div_scalar(attention_scores, softcap.into());
-        let tanh = B::float_tanh(scaled);
-        B::float_mul_scalar(tanh, softcap.into())
-    } else {
-        attention_scores
-    };
-
-    // Bool masking
-    let attention_scores = if let Some(mask) = mask {
-        B::float_mask_fill(attention_scores, mask, f32::NEG_INFINITY.into())
-    } else {
-        attention_scores
-    };
-
-    // Causal masking: mask positions where col > row (future positions)
-    let attention_scores = if options.is_causal {
-        let causal_mask = build_causal_mask::<B>(
-            &attention_scores,
-            options.causal_alignment.offset(seq_q, seq_k),
-        );
-        B::float_mask_fill(attention_scores, causal_mask, f32::NEG_INFINITY.into())
-    } else {
-        attention_scores
-    };
-
-    // Additive bias (ALiBi, relative position biases, etc.)
-    let attention_scores = if let Some(bias) = attn_bias {
-        B::float_add(attention_scores, bias)
-    } else {
-        attention_scores
-    };
-
-    // NaN-safe softmax: S = softmax(A)
-    // When all positions in a row are masked (-inf), naive softmax has two NaN paths:
-    //   (1) max is -inf, so the shift -inf - (-inf) = NaN;
-    //   (2) after fixing (1), all exp values are 0, so sum is 0 and 0/0 = NaN.
-    // Clamping max to finfo.min (most negative finite value) and sum to finfo.min_positive
-    // (smallest positive normal) avoids both, yielding 0 for fully-masked rows.
-    let finfo = attention_scores.dtype().finfo().expect("float tensor");
-    let max_per_dim = B::float_max_dim(attention_scores.clone(), 3);
-    let max_per_dim = B::float_clamp_min(max_per_dim, finfo.min.into());
-    let minus_max = B::float_sub(attention_scores, max_per_dim);
-    let numerator = B::float_exp(minus_max);
-    let sum_exp = B::float_sum_dim(numerator.clone(), 3);
-    let sum_exp = B::float_clamp_min(sum_exp, finfo.min_positive.into());
-    let softmax = B::float_div(numerator, sum_exp);
-
-    // Context: S · V
-    if groups > 1 {
-        let softmax = B::float_reshape(
-            softmax,
-            Shape::new([batch, kv_heads, groups * seq_q, seq_k]),
-        );
-        let context = B::float_matmul(softmax, value);
-        B::float_reshape(context, Shape::new([batch, q_heads, seq_q, val_dim]))
-    } else {
-        B::float_matmul(softmax, value)
-    }
+    let products = scaled_products::<B>(query, key, shapes.scale(&options), shapes);
+    let scores = attention_scores::<B>(products, mask, attn_bias, shapes, options);
+    let softmax = Softmax::<B>::new(scores);
+    context::<B>(softmax.probabilities, value, shapes)
 }
 
 /// [`attention_fallback`] without a mask or an additive bias, and each query's logsumexp of its
 /// scores, `[batch_size, num_heads, seq_len_q]` in `f32`: the forward
 /// [`attention_with_logsumexp`](crate::ops::ModuleOps::attention_with_logsumexp) composes from
-/// tensor operations. The scores are the fallback's, scaled, capped and causally masked; a query
-/// whose every key is masked holds a logsumexp no score reaches, so its probabilities read back
-/// as zero.
+/// tensor operations. A query whose every key is masked holds a logsumexp no score reaches, so its
+/// probabilities read back as zero.
 pub fn attention_with_logsumexp_default<B: Backend>(
     query: FloatTensor<B>,
     key: FloatTensor<B>,
@@ -210,29 +123,20 @@ pub fn attention_with_logsumexp_default<B: Backend>(
     options: AttentionModuleOptions,
 ) -> (FloatTensor<B>, FloatTensor<B>) {
     let shapes = AttentionShapes::new(&query.shape(), &key.shape(), &value.shape());
-    let AttentionShapes {
-        batch,
-        q_heads,
-        seq_q,
-        ..
-    } = shapes;
-    let scores = masked_scores::<B>(query, key, shapes, options).scores;
-    let finfo = scores.dtype().finfo().expect("float tensor");
-    let max = B::float_clamp_min(B::float_max_dim(scores.clone(), 3), finfo.min.into());
-    let numerator = B::float_exp(B::float_sub(scores, max.clone()));
-    let sum = B::float_clamp_min(
-        B::float_sum_dim(numerator.clone(), 3),
-        finfo.min_positive.into(),
-    );
-    let probabilities = B::float_div(numerator, sum.clone());
+    let products = scaled_products::<B>(query, key, shapes.scale(&options), shapes);
+    let scores = attention_scores::<B>(products, None, None, shapes, options);
+    let softmax = Softmax::<B>::new(scores);
     let logsumexp = B::float_cast(
         B::float_reshape(
-            B::float_add(max, B::float_log(sum)),
-            Shape::new([batch, q_heads, seq_q]),
+            B::float_add(softmax.max, B::float_log(softmax.sum)),
+            Shape::new([shapes.batch, shapes.q_heads, shapes.seq_q]),
         ),
         FloatDType::F32,
     );
-    (grouped_matmul::<B>(probabilities, value, shapes), logsumexp)
+    (
+        context::<B>(softmax.probabilities, value, shapes),
+        logsumexp,
+    )
 }
 
 /// The gradients of [`attention_with_logsumexp_default`]'s attention against its query, key and
@@ -256,48 +160,57 @@ pub fn attention_backward_default<B: Backend>(
     let AttentionShapes {
         batch,
         q_heads,
-        kv_heads,
         seq_q,
         seq_k,
         head_dim,
         val_dim,
+        ..
     } = shapes;
-    let groups = shapes.groups();
-    let scores = masked_scores::<B>(query.clone(), key.clone(), shapes, options);
+    let scale = shapes.scale(&options);
+    let products = scaled_products::<B>(query.clone(), key.clone(), scale, shapes);
+    // `tanh(s / softcap)` of the scaled scores, what the softcap's derivative reads.
+    let softcap_tanh = options
+        .softcap
+        .map(|softcap| B::float_tanh(B::float_div_scalar(products.clone(), softcap.into())));
+    let scores = attention_scores::<B>(products, None, None, shapes, options);
     let logsumexp = B::float_cast(
         B::float_reshape(logsumexp, Shape::new([batch, q_heads, seq_q, 1])),
-        scores.scores.dtype().into(),
+        scores.dtype().into(),
     );
-    let probabilities = B::float_exp(B::float_sub(scores.scores, logsumexp));
-    // The query heads sharing a key head stacked as the rows of one matrix, as the fallback
-    // stacks them.
-    let rows = |tensor: FloatTensor<B>, last: usize| {
-        B::float_reshape(tensor, Shape::new([batch, kv_heads, groups * seq_q, last]))
-    };
+    let probabilities = B::float_exp(B::float_sub(scores, logsumexp));
     let delta = B::float_sum_dim(B::float_mul(out_grad.clone(), out), 3);
-    let out_grad = rows(out_grad, val_dim);
-    let probabilities = rows(probabilities, seq_k);
+    let out_grad = B::float_reshape(out_grad, shapes.grouped_rows(val_dim));
+    let probabilities = B::float_reshape(probabilities, shapes.grouped_rows(seq_k));
     let value_grad = B::float_matmul(B::float_transpose(probabilities.clone()), out_grad.clone());
     let probabilities_grad = B::float_matmul(out_grad, B::float_transpose(value));
     let scores_grad = B::float_mul(
         probabilities,
-        B::float_sub(probabilities_grad, rows(delta, 1)),
+        B::float_sub(
+            probabilities_grad,
+            B::float_reshape(delta, shapes.grouped_rows(1)),
+        ),
     );
     // Through the softcap: d(c · tanh(s / c)) / ds = 1 − tanh²(s / c).
-    let scores_grad = match scores.softcap_tanh {
+    let scores_grad = match softcap_tanh {
         Some(tanh) => {
             let squared = B::float_mul(tanh.clone(), tanh);
             let derivative = B::float_add_scalar(B::float_neg(squared), 1.0.into());
-            B::float_mul(scores_grad, rows(derivative, seq_k))
+            B::float_mul(
+                scores_grad,
+                B::float_reshape(derivative, shapes.grouped_rows(seq_k)),
+            )
         }
         None => scores_grad,
     };
-    let scores_grad = B::float_mul_scalar(scores_grad, scores.scale.into());
+    let scores_grad = B::float_mul_scalar(scores_grad, scale.into());
     let query_grad = B::float_reshape(
         B::float_matmul(scores_grad.clone(), key),
         Shape::new([batch, q_heads, seq_q, head_dim]),
     );
-    let key_grad = B::float_matmul(B::float_transpose(scores_grad), rows(query, head_dim));
+    let key_grad = B::float_matmul(
+        B::float_transpose(scores_grad),
+        B::float_reshape(query, shapes.grouped_rows(head_dim)),
+    );
     AttentionBackward {
         query_grad,
         key_grad,
@@ -305,98 +218,141 @@ pub fn attention_backward_default<B: Backend>(
     }
 }
 
-/// An attention's scores as [`attention_fallback`] takes them before its bool mask and additive
-/// bias: scaled, capped, and causally masked to `-inf`.
-struct MaskedScores<B: Backend> {
-    /// `[batch_size, num_heads, seq_len_q, seq_len_k]`.
-    scores: FloatTensor<B>,
-    /// What the products were scaled by.
-    scale: f64,
-    /// `tanh(s / softcap)` of the scaled scores where there is a softcap: what its derivative
-    /// reads.
-    softcap_tanh: Option<FloatTensor<B>>,
-}
-
-/// [`MaskedScores`] of `query` against `key`, the query heads sharing a key head stacked as the
-/// rows of one product.
-fn masked_scores<B: Backend>(
+/// `query · keyᵗ · scale`, `[batch_size, num_heads, seq_len_q, seq_len_k]`.
+///
+/// Grouped-query attention: query head `h` reads K/V head `h / groups`. The query heads sharing a
+/// K/V head are adjacent, so stacking them as rows ([`AttentionShapes::grouped_rows`]) turns GQA
+/// into plain attention over `kv_heads` heads without repeating K and V. The products are laid
+/// back as `[batch, q_heads, seq_q, seq_k]` so masks, bias and causality see query rows.
+fn scaled_products<B: Backend>(
     query: FloatTensor<B>,
     key: FloatTensor<B>,
+    scale: f64,
     shapes: AttentionShapes,
-    options: AttentionModuleOptions,
-) -> MaskedScores<B> {
+) -> FloatTensor<B> {
     let AttentionShapes {
         batch,
         q_heads,
-        kv_heads,
         seq_q,
         seq_k,
         head_dim,
         ..
     } = shapes;
     let groups = shapes.groups();
-    let scale = options
-        .scale
-        .unwrap_or_else(|| 1.0 / (head_dim as f64).sqrt());
-    let query = B::float_reshape(
-        query,
-        Shape::new([batch, kv_heads, groups * seq_q, head_dim]),
-    );
-    let products = B::float_reshape(
-        B::float_matmul(query, B::float_transpose(key)),
-        Shape::new([batch, q_heads, seq_q, seq_k]),
-    );
-    let scaled = B::float_mul_scalar(products, scale.into());
-    let (scores, softcap_tanh) = match options.softcap {
-        Some(softcap) => {
-            assert!(softcap > 0.0, "softcap must be positive, got {softcap}");
-            let tanh = B::float_tanh(B::float_div_scalar(scaled, softcap.into()));
-            (
-                B::float_mul_scalar(tanh.clone(), softcap.into()),
-                Some(tanh),
-            )
-        }
-        None => (scaled, None),
+    let query = if groups > 1 {
+        B::float_reshape(query, shapes.grouped_rows(head_dim))
+    } else {
+        query
     };
-    let scores = match options.is_causal {
-        true => {
-            let causal =
-                build_causal_mask::<B>(&scores, options.causal_alignment.offset(seq_q, seq_k));
-            B::float_mask_fill(scores, causal, f32::NEG_INFINITY.into())
-        }
-        false => scores,
+    let transposed_key = B::float_transpose(key);
+    let qk = B::float_matmul(query, transposed_key);
+    let qk = if groups > 1 {
+        B::float_reshape(qk, Shape::new([batch, q_heads, seq_q, seq_k]))
+    } else {
+        qk
     };
-    MaskedScores {
-        scores,
-        scale,
-        softcap_tanh,
+    B::float_mul_scalar(qk, scale.into())
+}
+
+/// The attention scores from the scaled `products`: capped, masked and biased, in the order
+/// documented on [`attention`](crate::ops::ModuleOps::attention).
+fn attention_scores<B: Backend>(
+    products: FloatTensor<B>,
+    mask: Option<BoolTensor<B>>,
+    attn_bias: Option<FloatTensor<B>>,
+    shapes: AttentionShapes,
+    options: AttentionModuleOptions,
+) -> FloatTensor<B> {
+    // Softcap: softcap * tanh(scores / softcap)
+    // Applied to raw logits before any -inf masking, so that tanh does not
+    // map -inf to a finite value (which would break masking semantics).
+    let attention_scores = if let Some(softcap) = options.softcap {
+        assert!(softcap > 0.0, "softcap must be positive, got {softcap}");
+        let scaled = B::float_div_scalar(products, softcap.into());
+        let tanh = B::float_tanh(scaled);
+        B::float_mul_scalar(tanh, softcap.into())
+    } else {
+        products
+    };
+
+    // Bool masking
+    let attention_scores = if let Some(mask) = mask {
+        B::float_mask_fill(attention_scores, mask, f32::NEG_INFINITY.into())
+    } else {
+        attention_scores
+    };
+
+    // Causal masking: mask positions where col > row (future positions)
+    let attention_scores = if options.is_causal {
+        let causal_mask = build_causal_mask::<B>(
+            &attention_scores,
+            options.causal_alignment.offset(shapes.seq_q, shapes.seq_k),
+        );
+        B::float_mask_fill(attention_scores, causal_mask, f32::NEG_INFINITY.into())
+    } else {
+        attention_scores
+    };
+
+    // Additive bias (ALiBi, relative position biases, etc.)
+    if let Some(bias) = attn_bias {
+        B::float_add(attention_scores, bias)
+    } else {
+        attention_scores
     }
 }
 
-/// `probabilities · value`, the query heads sharing a key head stacked as the rows of one
-/// product: `[batch_size, num_heads, seq_len_q, val_dim]`.
-fn grouped_matmul<B: Backend>(
+/// The softmax of attention scores along their keys, with the max and the sum it divides by:
+/// `logsumexp = max + log(sum)`.
+struct Softmax<B: Backend> {
+    probabilities: FloatTensor<B>,
+    /// `[batch_size, num_heads, seq_len_q, 1]`.
+    max: FloatTensor<B>,
+    /// `[batch_size, num_heads, seq_len_q, 1]`.
+    sum: FloatTensor<B>,
+}
+
+impl<B: Backend> Softmax<B> {
+    /// NaN-safe softmax: S = softmax(A)
+    ///
+    /// When all positions in a row are masked (-inf), naive softmax has two NaN paths:
+    ///   (1) max is -inf, so the shift -inf - (-inf) = NaN;
+    ///   (2) after fixing (1), all exp values are 0, so sum is 0 and 0/0 = NaN.
+    ///
+    /// Clamping max to finfo.min (most negative finite value) and sum to finfo.min_positive
+    /// (smallest positive normal) avoids both, yielding 0 for fully-masked rows.
+    fn new(attention_scores: FloatTensor<B>) -> Self {
+        let finfo = attention_scores.dtype().finfo().expect("float tensor");
+        let max_per_dim = B::float_max_dim(attention_scores.clone(), 3);
+        let max_per_dim = B::float_clamp_min(max_per_dim, finfo.min.into());
+        let minus_max = B::float_sub(attention_scores, max_per_dim.clone());
+        let numerator = B::float_exp(minus_max);
+        let sum_exp = B::float_sum_dim(numerator.clone(), 3);
+        let sum_exp = B::float_clamp_min(sum_exp, finfo.min_positive.into());
+        Self {
+            probabilities: B::float_div(numerator, sum_exp.clone()),
+            max: max_per_dim,
+            sum: sum_exp,
+        }
+    }
+}
+
+/// Context: S · V, `[batch_size, num_heads, seq_len_q, val_dim]`, with the query heads sharing a
+/// key/value head stacked as rows as in [`scaled_products`].
+fn context<B: Backend>(
     probabilities: FloatTensor<B>,
     value: FloatTensor<B>,
     shapes: AttentionShapes,
 ) -> FloatTensor<B> {
-    let AttentionShapes {
-        batch,
-        q_heads,
-        kv_heads,
-        seq_q,
-        seq_k,
-        val_dim,
-        ..
-    } = shapes;
-    let probabilities = B::float_reshape(
-        probabilities,
-        Shape::new([batch, kv_heads, shapes.groups() * seq_q, seq_k]),
-    );
-    B::float_reshape(
-        B::float_matmul(probabilities, value),
-        Shape::new([batch, q_heads, seq_q, val_dim]),
-    )
+    if shapes.groups() > 1 {
+        let probabilities = B::float_reshape(probabilities, shapes.grouped_rows(shapes.seq_k));
+        let context = B::float_matmul(probabilities, value);
+        B::float_reshape(
+            context,
+            Shape::new([shapes.batch, shapes.q_heads, shapes.seq_q, shapes.val_dim]),
+        )
+    } else {
+        B::float_matmul(probabilities, value)
+    }
 }
 
 /// Builds a causal (upper-triangular) bool mask where `true` means "mask this position".

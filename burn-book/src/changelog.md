@@ -97,9 +97,10 @@ positions when sequence lengths differ.
   [#6246](https://github.com/tracel-ai/burn/pull/6246)) [@louisfd](https://github.com/louisfd)
 - Add the experimental `attention-backward` feature: attention's backward pass runs as CubeCL
   kernels from the forward's saved logsumexp, rather than autodiff over the decomposed attention.
-  It covers attention without a mask, bias or softcap, causal or not; a top-left causal mask over
-  sequences of different lengths, like the other cases, keeps the decomposed gradients. Backends can provide their own through `ModuleOps::attention_with_logsumexp` and
-  `ModuleOps::attention_backward`. [@louisfd](https://github.com/louisfd)
+  The kernels take attention without a mask, bias or softcap, causal or not; a softcap or a
+  top-left causal mask over sequences of different lengths is composed from tensor operations,
+  and a mask or an additive bias keeps the decomposed gradients. Backends can provide their own
+  through `ModuleOps::attention_with_logsumexp` and `ModuleOps::attention_backward`. [@louisfd](https://github.com/louisfd)
 
 #### Compilation and autotuning
 

@@ -71,7 +71,7 @@ pub fn attention_with_logsumexp(
     )
     .unwrap_or_else(|why| panic!("no tile-DSL attention routine serves these operands: {why:?}"))
     .with_logsumexp();
-    let logsumexp = inputs.logsumexp().expect("asked for");
+    let logsumexp = inputs.logsumexp().expect("`with_logsumexp` binds one");
     let out = launch_tuned(
         QueryPositions::of(seq_q),
         &device,

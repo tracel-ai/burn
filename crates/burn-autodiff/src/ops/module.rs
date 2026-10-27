@@ -2239,13 +2239,10 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
         attn_bias: Option<FloatTensor<Autodiff<B, C>>>,
         options: AttentionModuleOptions,
     ) -> FloatTensor<Autodiff<B, C>> {
-        // A backend without a backward pass of its own for this attention, or one with a mask or
-        // an additive bias, is differentiated through the decomposed attention: the autodiff layer
-        // derives the gradient from its tensor operations.
-        let native = mask.is_none()
-            && attn_bias.is_none()
-            && B::has_attention_backward(&query.shape(), &key.shape(), &options);
-        if !native {
+        // Backends without a native attention_backward, and attentions with a mask or an additive
+        // bias, fall back to the decomposed attention, built from differentiable tensor ops so the
+        // autodiff layer derives the gradient automatically.
+        if !B::has_attention_backward() || mask.is_some() || attn_bias.is_some() {
             return attention_fallback::<Self>(query, key, value, mask, attn_bias, options);
         }
 

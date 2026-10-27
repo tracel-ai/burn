@@ -8,7 +8,7 @@ use burn_backend::ops::{
 };
 use burn_backend::tensor::{BoolTensor, FloatTensor, IntTensor};
 use burn_ir::*;
-use burn_std::{IntDType, Shape};
+use burn_std::IntDType;
 
 use crate::{BackendRouter, RouterChannel, RouterClient};
 
@@ -60,13 +60,10 @@ impl<R: RouterChannel> ModuleOps<Self> for BackendRouter<R> {
             .output()
     }
 
-    fn has_attention_backward(
-        _query: &Shape,
-        _key: &Shape,
-        _options: &AttentionModuleOptions,
-    ) -> bool {
-        // As `has_ctc_loss_backward`: the backend on the other side answers both operations with
-        // its own kernels, or with the default composition when it has none.
+    fn has_attention_backward() -> bool {
+        // The forward and the backward are one operation each for the backend on the other side:
+        // the interpreter answers them with that backend's own kernels, or with the default
+        // composition when it has none.
         true
     }
 

@@ -2094,13 +2094,20 @@ impl<B: BackendIr> TensorInterpreter<B> {
                     handles.register_float_tensor::<B>(&desc.logsumexp.id, logsumexp);
                 }
                 ModuleOperationIr::AttentionBackward(desc) => {
+                    let query = handles.get_float_tensor::<B>(&desc.query);
+                    let key = handles.get_float_tensor::<B>(&desc.key);
+                    let value = handles.get_float_tensor::<B>(&desc.value);
+                    let out = handles.get_float_tensor::<B>(&desc.out);
+                    let logsumexp = handles.get_float_tensor::<B>(&desc.logsumexp);
+                    let out_grad = handles.get_float_tensor::<B>(&desc.out_grad);
+
                     let gradients = B::attention_backward(
-                        handles.get_float_tensor::<B>(&desc.query),
-                        handles.get_float_tensor::<B>(&desc.key),
-                        handles.get_float_tensor::<B>(&desc.value),
-                        handles.get_float_tensor::<B>(&desc.out),
-                        handles.get_float_tensor::<B>(&desc.logsumexp),
-                        handles.get_float_tensor::<B>(&desc.out_grad),
+                        query,
+                        key,
+                        value,
+                        out,
+                        logsumexp,
+                        out_grad,
                         desc.options.clone().into(),
                     );
 

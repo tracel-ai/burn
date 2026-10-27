@@ -1077,24 +1077,19 @@ pub trait ModuleOps<B: Backend> {
         options: AttentionModuleOptions,
     ) -> FloatTensor<B>;
 
-    /// Whether this backend computes attention's backward pass natively
-    /// ([attention_backward](ModuleOps::attention_backward)) for `query` and `key` of these shapes
-    /// and `options`, with no mask and no additive bias.
+    /// Returns `true` if this backend implements
+    /// [attention_backward](ModuleOps::attention_backward) natively.
     ///
-    /// Autodiff queries it to decide between two paths:
-    /// - `true`: the forward pass is [attention_with_logsumexp](ModuleOps::attention_with_logsumexp),
-    ///   and the backward pass `attention_backward`, which reads back the probabilities from the
+    /// Autodiff queries this flag, for an attention with no mask and no additive bias, to decide
+    /// between two paths:
+    /// - `true`: the forward pass is [attention_with_logsumexp](ModuleOps::attention_with_logsumexp)
+    ///   and the backward pass `attention_backward`, which reads the probabilities back from the
     ///   logsumexp instead of keeping the scores.
     /// - `false`: autodiff differentiates the decomposed
     ///   [attention_fallback](attention::attention_fallback).
     ///
-    /// Backends that override `attention_backward` must also override this to return `true` for
-    /// what they serve.
-    fn has_attention_backward(
-        _query: &Shape,
-        _key: &Shape,
-        _options: &AttentionModuleOptions,
-    ) -> bool {
+    /// Backends that override `attention_backward` must also override this to return `true`.
+    fn has_attention_backward() -> bool {
         false
     }
 

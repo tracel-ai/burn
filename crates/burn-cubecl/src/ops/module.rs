@@ -490,12 +490,8 @@ impl ModuleOps<Self> for CubeBackend {
     }
 
     #[cfg(feature = "attention-backward")]
-    fn has_attention_backward(
-        query: &burn_std::Shape,
-        key: &burn_std::Shape,
-        options: &AttentionModuleOptions,
-    ) -> bool {
-        kernel::attention::backward_serves(query, key, options)
+    fn has_attention_backward() -> bool {
+        true
     }
 
     #[cfg(feature = "attention-backward")]
@@ -506,7 +502,7 @@ impl ModuleOps<Self> for CubeBackend {
         options: AttentionModuleOptions,
     ) -> (FloatTensor<Self>, FloatTensor<Self>) {
         // What the kernels do not serve, a softcap or a causal mask anchored at the top left, is
-        // composed: a router asks for both operations whatever the options.
+        // composed.
         if !kernel::attention::backward_serves(&query.shape(), &key.shape(), &options) {
             return burn_backend::ops::attention::attention_with_logsumexp_default::<Self>(
                 query, key, value, options,

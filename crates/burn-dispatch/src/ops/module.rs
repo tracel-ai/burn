@@ -672,13 +672,10 @@ impl ModuleOps<Self> for Dispatch {
     }
 
     #[backend_dispatch(skip)]
-    fn has_attention_backward(
-        _query: &burn_backend::Shape,
-        _key: &burn_backend::Shape,
-        _options: &burn_backend::ops::AttentionModuleOptions,
-    ) -> bool {
-        // As `has_ctc_loss_backward`: autodiff queries this flag statically, so `false` makes it
-        // differentiate the decomposed attention, safe for every inner backend.
+    fn has_attention_backward() -> bool {
+        // Dispatch routes per-tensor at runtime, but autodiff queries this flag statically.
+        // Returning `false` makes autodiff differentiate the decomposed attention, which is safe
+        // for every inner backend regardless of whether it has its own attention_backward.
         false
     }
 
