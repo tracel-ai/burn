@@ -344,9 +344,9 @@ pub fn matmul_autotune(
 
         // CPU GEMM (CPU-only via the `cpu` group; the size limit is specific to this strategy), at
         // the settings fitted to a CPU: a plane a core, where the routine's default spreads over four.
-        let cpu_gemm_strategy = TiledStrategy::CpuGemm(UnitRegistersMatmulRoutineSettings::cpu(
-            &Hardware::from_client(&tune_client),
-        ));
+        let cpu_gemm_strategy = TiledStrategy::CpuGemm(
+            UnitRegistersMatmulRoutineSettings::cpu_col_rhs(&Hardware::from_client(&tune_client)),
+        );
         set = set.with(
             Tunable::new(&cpu_gemm_strategy.to_string(), move |(lhs, rhs, out)| {
                 launch_matmul::<_>(&cpu_gemm_strategy, lhs, rhs, out)
