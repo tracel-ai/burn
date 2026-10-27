@@ -1,3 +1,5 @@
+use alloc::vec::Vec;
+
 use burn_tensor::Device;
 
 use super::{DistributedLayer, LayerParallelism, LayerPlacement, LayerStage};
@@ -63,6 +65,51 @@ impl<M: LayerParallelism> DistributedLayeredModel<M> {
         self.model
     }
 
+    /// The layers dealt out to the devices they run on, one share per device in the order of
+    /// [`LayerPlacement::devices`], for a caller that drives each device on its own.
+    pub fn into_device_shares(self) -> Vec<DeviceShare<M>> {
+        let placement = self.placement;
+        let layers = self.model.into_layers();
+        let mut shares: Vec<DeviceShare<M>> = placement
+            .devices()
+            .into_iter()
+            .map(|device| DeviceShare {
+                device,
+                input: None,
+                stages: Vec::new(),
+                output: None,
+            })
+            .collect();
+        let share_on = |shares: &[DeviceShare<M>], device: &Device| {
+            shares
+                .iter()
+                .position(|share| &share.device == device)
+                .expect("the placement lists every device a layer runs on")
+        };
+
+        let index = share_on(&shares, &placement.input);
+        shares[index].input = Some(layers.input);
+        let stages = placement.stages();
+        let mut hidden = layers.hidden.into_iter();
+        let mut first_layer = 0;
+        for (stage, placed) in stages.iter().enumerate() {
+            let next = stages
+                .get(stage + 1)
+                .map_or(&placement.output, |next| &next.device);
+            let index = share_on(&shares, &placed.device);
+            shares[index].stages.push(StageShare {
+                stage,
+                first_layer,
+                layers: hidden.by_ref().take(placed.num_hidden_layers).collect(),
+                next: next.clone(),
+            });
+            first_layer += placed.num_hidden_layers;
+        }
+        let index = share_on(&shares, &placement.output);
+        shares[index].output = Some(layers.output);
+        shares
+    }
+
     fn assert_placed(model: &M, placement: &LayerPlacement) {
         let count = model.layers_hidden().count();
         assert!(
@@ -101,6 +148,33 @@ impl<M: LayerParallelism> DistributedLayeredModel<M> {
             num_hidden_layers: self.placement.hidden.len(),
         }])
     }
+}
+
+/// The layers of a [`DistributedLayeredModel`] one device holds: the input layer when it runs
+/// there, the stages placed on it, and the output layer when it runs there.
+#[derive(Debug)]
+pub struct DeviceShare<M: LayerParallelism> {
+    /// The device that holds them.
+    pub device: Device,
+    /// The input layer, on the one device that runs it.
+    pub input: Option<M::InputLayer>,
+    /// The stages on the device, in forward order.
+    pub stages: Vec<StageShare<M>>,
+    /// The output layer, on the one device that runs it.
+    pub output: Option<M::OutputLayer>,
+}
+
+/// One stage's hidden layers, and where what they return goes.
+#[derive(Debug)]
+pub struct StageShare<M: LayerParallelism> {
+    /// Its place among the model's stages.
+    pub stage: usize,
+    /// The model's index of its first hidden layer.
+    pub first_layer: usize,
+    /// Its hidden layers, in forward order.
+    pub layers: Vec<M::HiddenLayer>,
+    /// The next stage's device, or the output layer's after the last stage.
+    pub next: Device,
 }
 
 impl<M: LayerParallelism> core::ops::Deref for DistributedLayeredModel<M> {
@@ -175,6 +249,7 @@ mod tests {
 
     use super::*;
     use crate as burn;
+    use crate::module::parallel::LayerStack;
     use crate::{test_device, test_utils::SimpleLinear};
 
     const WIDTH: usize = 8;
@@ -275,6 +350,14 @@ mod tests {
 
         fn layer_output(&self) -> &Head {
             &self.output
+        }
+
+        fn into_layers(self) -> LayerStack<Self> {
+            LayerStack {
+                input: self.input,
+                hidden: self.hidden,
+                output: self.output,
+            }
         }
     }
 

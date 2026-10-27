@@ -78,6 +78,26 @@ impl LayerPlacement {
         }
     }
 
+    /// Every device a layer runs on, each once, in forward order: the input layer's first.
+    pub fn devices(&self) -> Vec<Device> {
+        let mut devices: Vec<Device> = Vec::new();
+        for device in core::iter::once(&self.input)
+            .chain(&self.hidden)
+            .chain(core::iter::once(&self.output))
+        {
+            if !devices.contains(device) {
+                devices.push(device.clone());
+            }
+        }
+        devices
+    }
+
+    /// Where the input layer's output goes: the first hidden layer's device, or the output
+    /// layer's when there is no hidden layer.
+    pub fn after_input(&self) -> &Device {
+        self.hidden.first().unwrap_or(&self.output)
+    }
+
     /// Each device's run of consecutive hidden layers, in forward order.
     pub fn stages(&self) -> Vec<LayerStage> {
         let mut stages: Vec<LayerStage> = Vec::new();

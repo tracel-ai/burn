@@ -1,3 +1,5 @@
+use alloc::vec::Vec;
+
 use super::DistributedLayer;
 use crate::module::Module;
 
@@ -44,6 +46,14 @@ pub type HiddenLayerSignal<M> = <<M as LayerParallelism>::InputLayer as Distribu
 ///     fn layer_output(&self) -> &Head {
 ///         &self.head
 ///     }
+///
+///     fn into_layers(self) -> LayerStack<Self> {
+///         LayerStack {
+///             input: self.embedding,
+///             hidden: self.blocks,
+///             output: self.head,
+///         }
+///     }
 /// }
 ///
 /// let placement = LayerPlacement::even(&devices, config.num_blocks);
@@ -66,4 +76,19 @@ pub trait LayerParallelism: Module {
 
     /// The output layer.
     fn layer_output(&self) -> &Self::OutputLayer;
+
+    /// The model taken apart into its layers, the hidden ones in the order
+    /// [`layers_hidden`](Self::layers_hidden) gives them.
+    fn into_layers(self) -> LayerStack<Self>;
+}
+
+/// The layers of a [`LayerParallelism`] model, owned.
+#[derive(Debug)]
+pub struct LayerStack<M: LayerParallelism> {
+    /// The input layer.
+    pub input: M::InputLayer,
+    /// The hidden layers, in forward order.
+    pub hidden: Vec<M::HiddenLayer>,
+    /// The output layer.
+    pub output: M::OutputLayer,
 }
