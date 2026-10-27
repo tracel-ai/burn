@@ -472,6 +472,7 @@ impl DimSplit {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use alloc::vec;
 
     #[test]
     fn a_split_gives_the_first_members_one_more() {
