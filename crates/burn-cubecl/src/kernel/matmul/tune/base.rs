@@ -1,7 +1,7 @@
 use crate::{
     CubeTuneId,
     kernel::matmul::{
-        launch_matmul, launch_matmul_naive, tune::bounds::with_matmul_bounds,
+        launch_matmul, launch_matmul_naive, long_k, tune::bounds::with_matmul_bounds,
         utils::init_matmul_output,
     },
     tensor::CubeTensor,
@@ -246,6 +246,28 @@ pub fn matmul_autotune(
                     PRIORITY_MIN
                 }
             }),
+        );
+
+        // A small output over a long k, which the tiled routines run on one cube.
+        let long_k = TuneGroup::<MatmulAutotuneKey>::new("long_k", |key| {
+            let definition = &key.definition;
+            if definition.m * definition.n <= long_k::MAX_OUTPUT && definition.k >= long_k::MIN_K {
+                PRIORITY_MAX
+            } else {
+                PRIORITY_NEVER
+            }
+        });
+        set = set.with(
+            Tunable::new("matmul_long_k", |(lhs, rhs, out)| {
+                if !long_k::applies(&lhs, &rhs, &out) {
+                    return Err(String::from(
+                        "the long-k route takes a small float output over a long k",
+                    ));
+                }
+                long_k::matmul_long_k(lhs, rhs, out);
+                Ok(())
+            })
+            .group(&long_k, |_key| PRIORITY_MAX),
         );
 
         // Matrix Vector multiplication kernels.

@@ -1,4 +1,4 @@
-use super::init_matmul_output;
+use super::{init_matmul_output, long_k};
 use crate::{kernel::quantization::dequantize, tensor::CubeTensor};
 use burn_backend::cubecl::dtype_to_storage_type;
 use burn_backend::{DType, TensorMetadata};
@@ -79,7 +79,11 @@ pub fn matmul(
 
     match strategy {
         MatmulStrategy::Cube => {
-            launch_matmul(&Strategy::default(), lhs, rhs, out_launch)?;
+            if long_k::applies(&lhs, &rhs, &out_launch) {
+                long_k::matmul_long_k(lhs, rhs, out_launch);
+            } else {
+                launch_matmul(&Strategy::default(), lhs, rhs, out_launch)?;
+            }
             Ok(out)
         }
         #[cfg(feature = "autotune")]
