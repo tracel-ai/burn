@@ -4,10 +4,8 @@ use burn::data::dataloader::DataLoaderBuilder;
 use burn::data::dataset::transform::SamplerDataset;
 use burn::module::Lora;
 use burn::prelude::*;
-use burn::train::metric::{
-    AccuracyMetric, CudaMetric, IterationSpeedMetric, LearningRateMetric, LossMetric,
-};
-use burn::train::{ExecutionStrategy, Learner, SupervisedTraining};
+use burn::train::metric::{AccuracyMetric, CudaMetric, IterationSpeedMetric, LossMetric};
+use burn::train::{ExecutionStrategy, Learner, SupervisedTraining, metric::LearningRateMetric};
 
 use crate::{
     TextClassificationDataset,
@@ -76,7 +74,7 @@ pub fn lora_finetuning<D: TextClassificationDataset + 'static>(
         .metric_valid_numeric(LossMetric::new())
         .metric_train_numeric(AccuracyMetric::new())
         .metric_valid_numeric(AccuracyMetric::new())
-        .metric_train_numeric(LearningRateMetric::new())
+        .metrics(LearningRateMetric::new())
         .with_default_checkpointers()
         .with_training_strategy(strategy.into())
         .num_epochs(config.num_epochs)

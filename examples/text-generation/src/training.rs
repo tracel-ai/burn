@@ -13,10 +13,8 @@ use burn::{
     prelude::*,
     train::{
         Learner, SupervisedTraining,
-        metric::{
-            AccuracyMetric, CudaMetric, IterationSpeedMetric, LearningRateMetric, LossMetric,
-            PerplexityMetric,
-        },
+        metric::LearningRateMetric,
+        metric::{AccuracyMetric, CudaMetric, IterationSpeedMetric, LossMetric, PerplexityMetric},
     },
 };
 use std::sync::Arc;
@@ -81,7 +79,7 @@ pub fn train<D: Dataset<TextGenerationItem> + 'static>(
         .metric_valid_numeric(LossMetric::new())
         .metric_train_numeric(IterationSpeedMetric::new())
         .metric_valid_numeric(IterationSpeedMetric::new())
-        .metric_train_numeric(LearningRateMetric::new())
+        .metrics(LearningRateMetric::new())
         .with_default_checkpointers()
         .grads_accumulation(accum)
         .num_epochs(config.num_epochs)

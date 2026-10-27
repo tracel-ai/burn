@@ -10,12 +10,18 @@ use burn_core::{
         dataloader::{DataLoader, DataLoaderBuilder, DataLoaderIterator, Progress},
         dataset::{DatasetError, InMemDataset},
     },
+    module::ParamGroup,
     tensor::{Device, Tensor},
 };
-use burn_optim::lr_scheduler::{LrScheduler, LrSchedulerRecord};
+use burn_optim::lr_scheduler::{
+    LrScheduler, LrSchedulerRecord, exponential::ExponentialLrSchedulerConfig,
+    module_lr_scheduler::ModuleLrSchedulerConfig,
+};
 use burn_train::{
     ExecutionStrategy, Interrupter, Learner, MultiDeviceOptim, SupervisedTraining,
-    logger::InMemoryMetricLogger,
+    logger::{FileMetricLogger, MetricLogger},
+    metric::LearningRateMetric,
+    metric::{LossMetric, NumericEntry, store::Split},
 };
 use common::*;
 
@@ -45,6 +51,83 @@ fn zero_accumulation_interval_is_rejected() {
 
     let _ =
         SupervisedTraining::<ToyModel>::new(dir.path(), dl_train, dl_valid).grads_accumulation(0);
+}
+
+/// Learning-rate samples include partial updates and all groups without adding loss samples.
+#[rstest::rstest]
+#[case::without_accumulation(None, 3, None, 3)]
+#[case::partial_only(None, 1, Some(2), 1)]
+#[case::full_windows(None, 4, Some(2), 2)]
+#[case::single_tail(None, 5, Some(2), 3)]
+#[case::main_device_tail(Some(MultiDeviceOptim::OptimMainDevice), 5, Some(2), 2)]
+#[case::sharded_tail(Some(MultiDeviceOptim::OptimSharded), 5, Some(2), 2)]
+fn learning_rates_follow_optimizer_updates(
+    #[case] mode: Option<MultiDeviceOptim>,
+    #[case] batches: usize,
+    #[case] accumulation: Option<usize>,
+    #[case] updates: usize,
+) {
+    let device = Device::flex().autodiff();
+    let learner = Learner::new(
+        ToyModel::new(&device),
+        burn_optim::SgdConfig::new().init(),
+        ModuleLrSchedulerConfig::new(ExponentialLrSchedulerConfig::new(0.1, 0.5).into())
+            .with_group(
+                ParamGroup::from_predicate("weight"),
+                ExponentialLrSchedulerConfig::new(0.2, 0.25),
+            )
+            .init()
+            .unwrap(),
+    );
+    let train = DataLoaderBuilder::new(DummyBatcher)
+        .batch_size(1)
+        .set_device(device.clone())
+        .build(InMemDataset::new(vec![(); batches]));
+    let (_, valid) = make_dataloaders();
+    let strategy = match mode {
+        None => ExecutionStrategy::single(device),
+        Some(mode) => ExecutionStrategy::multi(vec![device.clone(), device], mode),
+    };
+    let dir = tempfile::tempdir().unwrap();
+    let training = SupervisedTraining::new(dir.path(), train, valid);
+    let training = match accumulation {
+        Some(interval) => training.grads_accumulation(interval),
+        None => training,
+    };
+    let result = training
+        .num_epochs(1)
+        .with_training_strategy(strategy.into())
+        .metrics(LossMetric::new())
+        .metrics(LearningRateMetric::new())
+        .with_metric_logger(FileMetricLogger::new(dir.path()))
+        .with_application_logger(None)
+        .launch(learner);
+    assert!(result.error.is_none());
+    let mut logger = FileMetricLogger::new(dir.path());
+    for (name, rates) in [
+        ("Learning Rate", [0.1, 0.05, 0.025]),
+        ("Learning Rate (group 1)", [0.2, 0.05, 0.0125]),
+    ] {
+        let entries = logger.read_numeric(name, 1, &Split::Train).unwrap();
+        assert_eq!(entries.len(), updates + 1, "{name}");
+        for (entry, expected) in entries[..updates].iter().zip(rates) {
+            assert!(
+                matches!(entry, NumericEntry::Value(rate) if *rate == expected),
+                "{name}: {entry:?}"
+            );
+        }
+        assert!(
+            matches!(entries.last(), Some(NumericEntry::Final(rate)) if *rate == rates[updates - 1])
+        );
+        assert!(
+            logger
+                .read_numeric(name, 1, &Split::Valid)
+                .unwrap()
+                .is_empty()
+        );
+    }
+    let loss = logger.read_numeric("Loss", 1, &Split::Train).unwrap();
+    assert_eq!(loss.len(), batches + 1);
 }
 
 #[rstest::rstest]
@@ -92,7 +175,8 @@ fn accumulation_respects_exhaustion_and_abort(
         .grads_accumulation(2)
         .with_interrupter(interrupter)
         .with_training_strategy(strategy.into())
-        .with_metric_logger(InMemoryMetricLogger::new())
+        .metrics(LearningRateMetric::new())
+        .with_metric_logger(FileMetricLogger::new(dir.path()))
         .with_application_logger(None)
         .launch(learner);
     assert_eq!(result.error.is_some(), matches!(end, EndCondition::Error));
@@ -105,6 +189,10 @@ fn accumulation_respects_exhaustion_and_abort(
         EndCondition::Error | EndCondition::Interrupted => ([1.0, 2.0], 0),
     };
     assert_eq!(calls.load(Ordering::SeqCst), updates);
+    let entries = FileMetricLogger::new(dir.path())
+        .read_numeric("Learning Rate", 1, &Split::Train)
+        .unwrap();
+    assert_eq!(entries.len(), if updates == 0 { 0 } else { updates + 1 });
     // Each batch has gradient w - target. Single-device windows are [0,2], [4,6], [8].
     // Two devices process [0,2] and [4,6,8], so their windows are [0,4,2,6], [8].
     for (actual, expected) in result

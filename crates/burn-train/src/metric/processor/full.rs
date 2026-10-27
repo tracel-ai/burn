@@ -1,6 +1,8 @@
 use super::{EventProcessorError, EventProcessorTraining, ItemLazy, LearnerEvent, MetricsTraining};
 use crate::logger::{EvaluationProgressLogger, TrainingProgressLogger};
+use crate::metric::MetricDefinition;
 use crate::metric::MetricMetadata;
+use crate::metric::optimizer::OptimizerStepMetrics;
 use crate::metric::processor::{EvaluatorEvent, EventProcessorEvaluation, MetricsEvaluation};
 use crate::metric::store::{EpochSummary, EventStoreClient, MetricsUpdate, Split};
 use crate::renderer::{MetricState, MetricsRenderer};
@@ -11,6 +13,8 @@ use std::sync::Arc;
 ///   - Render metrics using a [metrics renderer](MetricsRenderer).
 pub struct FullEventProcessorTraining<T: ItemLazy, V: ItemLazy> {
     metrics: MetricsTraining<T, V>,
+    optimizer_metrics: OptimizerStepMetrics,
+    optimizer_definitions: Vec<MetricDefinition>,
     renderer: Box<dyn MetricsRenderer>,
     store: Arc<EventStoreClient>,
     progress_logger: Option<Box<dyn TrainingProgressLogger>>,
@@ -38,12 +42,24 @@ impl<T: ItemLazy, V: ItemLazy> FullEventProcessorTraining<T, V> {
     ) -> Self {
         Self {
             metrics,
+            optimizer_metrics: OptimizerStepMetrics::default(),
+            optimizer_definitions: Vec::new(),
             renderer,
             store,
             progress_logger: None,
             current_epoch: 1,
             total_epochs: 0,
         }
+    }
+
+    pub(crate) fn with_optimizer_metrics(
+        mut self,
+        optimizer_metrics: OptimizerStepMetrics,
+        definitions: Vec<MetricDefinition>,
+    ) -> Self {
+        self.optimizer_metrics = optimizer_metrics;
+        self.optimizer_definitions = definitions;
+        self
     }
 
     pub(crate) fn with_progress_logger(mut self, logger: Box<dyn TrainingProgressLogger>) -> Self {
@@ -233,7 +249,8 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining<LearnerEvent<T>, LearnerEv
             } => {
                 self.total_epochs = total_epochs;
                 self.current_epoch = 1;
-                let definitions = self.metrics.metric_definitions();
+                let mut definitions = self.metrics.metric_definitions();
+                definitions.extend(self.optimizer_definitions.iter().cloned());
                 self.store
                     .add_event_train(crate::metric::store::Event::MetricsInit(
                         definitions.clone(),
@@ -251,12 +268,21 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining<LearnerEvent<T>, LearnerEv
                 epoch_number,
                 progress,
             } => {
+                self.optimizer_metrics.clear();
                 self.store
                     .add_event_train(crate::metric::store::Event::StartSplit(epoch_number));
                 self.renderer.start_split(Split::Train.into(), &progress);
                 if let Some(logger) = &mut self.progress_logger {
                     logger.start_split(Split::Train.into(), &progress);
                 }
+            }
+            LearnerEvent::OptimizerStep(observations) => {
+                let observations = observations
+                    .sync()
+                    .map_err(|error| EventProcessorError::sync(Split::Train, error))?;
+                let (update, failed) = self.optimizer_metrics.update(&observations);
+                failures.extend(failed);
+                self.handle_train_metrics_update(update);
             }
             LearnerEvent::ProcessedItem(item) => {
                 let item = match item.sync() {
@@ -284,6 +310,9 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining<LearnerEvent<T>, LearnerEv
                 let (update, failed) = self.metrics.end_epoch_train();
                 self.handle_train_metrics_update(update);
                 failures.extend(failed);
+                let (update, failed) = self.optimizer_metrics.end_epoch();
+                failures.extend(failed);
+                self.handle_train_metrics_update(update);
 
                 self.store
                     .add_event_train(crate::metric::store::Event::EndEpoch(EpochSummary::new(
@@ -316,7 +345,7 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining<LearnerEvent<T>, LearnerEv
     fn process_valid(&mut self, event: LearnerEvent<V>) -> Result<(), EventProcessorError> {
         let mut failures = Vec::new();
         match event {
-            LearnerEvent::Start { .. } => {} // no-op: valid has no separate start event
+            LearnerEvent::Start { .. } | LearnerEvent::OptimizerStep(_) => {} // training only
             LearnerEvent::StartSplit {
                 epoch_number,
                 progress,
