@@ -255,18 +255,11 @@ pub fn deform_conv2d(
     )
     .binary_ops_device("deform_conv2d", &x.device(), &offset.device());
 
-    let in_dtype = x.dtype();
-    let off_dtype = offset.dtype();
-    if !matches!(in_dtype, DType::QFloat(_)) && !matches!(off_dtype, DType::QFloat(_)) {
-        check = check.binary_ops_dtype("deform_conv2d", in_dtype, off_dtype);
-    }
+    check = check.binary_ops_float_dtype("deform_conv2d", &x, &offset);
 
     if let Some(mask) = &mask {
         check = check.binary_ops_device("deform_conv2d", &x.device(), &mask.device());
-        let m_dtype = mask.dtype();
-        if !matches!(in_dtype, DType::QFloat(_)) && !matches!(m_dtype, DType::QFloat(_)) {
-            check = check.binary_ops_dtype("deform_conv2d", in_dtype, m_dtype);
-        }
+        check = check.binary_ops_float_dtype("deform_conv2d", &x, mask);
     }
     check!(check);
 
@@ -1542,6 +1535,7 @@ fn layer_norm_impl(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::Device;
     use crate::ops::InterpolateMode;
 
     fn options() -> InterpolateOptions {
@@ -1794,9 +1788,9 @@ mod tests {
         let device = Default::default();
         let input = Tensor::<4>::ones([2, 3, 4, 4], &device).cast(crate::FloatDType::BF16);
         let gamma = Tensor::<1>::ones([3], &device).cast(crate::FloatDType::F32);
-        let beta = Tensor::<1>::ones([3], &device).cast(crate::FloatDType::F32);
-        let mean = Tensor::<1>::ones([3], &device).cast(crate::FloatDType::F32);
-        let var = Tensor::<1>::ones([3], &device).cast(crate::FloatDType::F32);
+        let beta = Tensor::<1>::ones([3], &device).cast(crate::FloatDType::BF16);
+        let mean = Tensor::<1>::ones([3], &device).cast(crate::FloatDType::BF16);
+        let var = Tensor::<1>::ones([3], &device).cast(crate::FloatDType::BF16);
         batch_norm(input, gamma, beta, mean, var, 1e-5);
     }
 
@@ -1858,7 +1852,7 @@ mod tests {
         let device = Default::default();
         let input = Tensor::<4>::ones([2, 3, 4, 4], &device).cast(crate::FloatDType::BF16);
         let gamma = Tensor::<1>::ones([3], &device).cast(crate::FloatDType::F32);
-        let beta = Tensor::<1>::ones([3], &device).cast(crate::FloatDType::F32);
+        let beta = Tensor::<1>::ones([3], &device).cast(crate::FloatDType::BF16);
         batch_norm_train(input, gamma, beta, 1e-5);
     }
 
@@ -1869,7 +1863,7 @@ mod tests {
         let query = Tensor::<4>::ones([2, 4, 8, 16], &device).cast(crate::FloatDType::BF16);
         let key = Tensor::<4>::ones([2, 4, 8, 16], &device).cast(crate::FloatDType::BF16);
         let value = Tensor::<4>::ones([2, 4, 8, 16], &device).cast(crate::FloatDType::BF16);
-        let attn_bias = Tensor::<4>::ones([2, 4, 8, 16], &device).cast(crate::FloatDType::F32);
+        let attn_bias = Tensor::<4>::ones([2, 4, 8, 8], &device).cast(crate::FloatDType::F32);
         let options = AttentionModuleOptions::default();
         attention(query, key, value, None, Some(attn_bias), options);
     }
@@ -1879,7 +1873,7 @@ mod tests {
     fn test_deform_conv2d_offset_dtype_mismatch_panics() {
         let device = Default::default();
         let x = Tensor::<4>::ones([1, 2, 4, 4], &device).cast(crate::FloatDType::BF16);
-        let offset = Tensor::<4>::ones([1, 8, 2, 2], &device).cast(crate::FloatDType::F32);
+        let offset = Tensor::<4>::ones([1, 18, 2, 2], &device).cast(crate::FloatDType::F32);
         let weight = Tensor::<4>::ones([2, 2, 3, 3], &device).cast(crate::FloatDType::BF16);
         let options = DeformConvOptions::new([1, 1], [0, 0], [1, 1], 1, 1);
         deform_conv2d(x, offset, weight, None, None, options);
@@ -1890,10 +1884,60 @@ mod tests {
     fn test_deform_conv2d_mask_dtype_mismatch_panics() {
         let device = Default::default();
         let x = Tensor::<4>::ones([1, 2, 4, 4], &device).cast(crate::FloatDType::BF16);
-        let offset = Tensor::<4>::ones([1, 8, 2, 2], &device).cast(crate::FloatDType::BF16);
+        let offset = Tensor::<4>::ones([1, 18, 2, 2], &device).cast(crate::FloatDType::BF16);
         let weight = Tensor::<4>::ones([2, 2, 3, 3], &device).cast(crate::FloatDType::BF16);
-        let mask = Tensor::<4>::ones([1, 4, 2, 2], &device).cast(crate::FloatDType::F32);
+        let mask = Tensor::<4>::ones([1, 9, 2, 2], &device).cast(crate::FloatDType::F32);
         let options = DeformConvOptions::new([1, 1], [0, 0], [1, 1], 1, 1);
         deform_conv2d(x, offset, weight, Some(mask), None, options);
+    }
+
+    #[test]
+    #[should_panic(expected = "do not have the same dtype")]
+    fn test_conv2d_quantized_weight_dtype_mismatch_panics() {
+        let device = Device::default();
+        let input = Tensor::<4>::ones([1, 1, 1, 1], &device).cast(crate::FloatDType::BF16);
+        let weight = Tensor::<4>::ones([1, 1, 1, 1], &device)
+            .quantize_dynamic(&device.settings().quantization.scheme);
+        let options = ConvOptions::new([1, 1], [0, 0], [1, 1], 1);
+        conv2d(input, weight, None, options);
+    }
+
+    #[test]
+    #[should_panic(expected = "do not have the same dtype")]
+    fn test_linear_quantized_input_dtype_mismatch_panics() {
+        let device = Device::default();
+        let input = Tensor::<2>::ones([1, 1], &device)
+            .quantize_dynamic(&device.settings().quantization.scheme);
+        let weight = Tensor::<2>::ones([1, 1], &device).cast(crate::FloatDType::BF16);
+        linear(input, weight, None);
+    }
+
+    #[test]
+    fn test_conv2d_quantized_weight_matching_dtype() {
+        let device = Device::default();
+        let input = Tensor::<4>::from_floats([[[[1.0, 3.0]]]], &device);
+        let weight = Tensor::<4>::from_floats([[[[2.0]]]], &device)
+            .quantize_dynamic(&device.settings().quantization.scheme);
+        let options = ConvOptions::new([1, 1], [0, 0], [1, 1], 1);
+        let output = conv2d(input, weight, None, options);
+        output.into_data().assert_approx_eq::<f32>(
+            &crate::TensorData::from([[[[2.0f32, 6.0]]]]),
+            crate::Tolerance::relative(0.01),
+        );
+    }
+
+    #[test]
+    fn test_linear_quantized_weight_and_bias_with_bf16_input() {
+        let device = Device::default();
+        let scheme = device.settings().quantization.scheme;
+        let input = Tensor::<2>::from_floats([[1.0, 2.0]], &device).cast(crate::FloatDType::BF16);
+        let weight = Tensor::<2>::from_floats([[2.0], [3.0]], &device).quantize_dynamic(&scheme);
+        let bias = Tensor::<1>::from_floats([1.0], &device).quantize_dynamic(&scheme);
+        let output = linear(input, weight, Some(bias));
+        assert_eq!(output.dtype(), DType::BF16);
+        output.into_data().assert_approx_eq::<f32>(
+            &crate::TensorData::from([[9.0f32]]),
+            crate::Tolerance::relative(0.01),
+        );
     }
 }

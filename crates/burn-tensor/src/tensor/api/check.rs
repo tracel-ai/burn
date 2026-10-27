@@ -37,6 +37,14 @@ pub(crate) enum TensorCheck {
     Failed(FailedTensorCheck),
 }
 
+// Match BridgeTensor::into_float without materializing a quantized tensor.
+fn dequantized_dtype<const D: usize, K: BasicOps>(tensor: &Tensor<D, K>) -> DType {
+    match tensor.dtype() {
+        DType::QFloat(_) => tensor.primitive.device_settings().float_dtype.into(),
+        dtype => dtype,
+    }
+}
+
 impl TensorCheck {
     /// Checks device and shape compatibility for element wise binary operations.
     pub(crate) fn binary_ops_ew<const D: usize, K: BasicOps>(
@@ -1306,6 +1314,16 @@ impl TensorCheck {
         }
     }
 
+    /// Checks the dtypes passed to float backend operations after `into_float`.
+    pub(crate) fn binary_ops_float_dtype<const D1: usize, const D2: usize, K: BasicOps>(
+        self,
+        ops: &str,
+        lhs: &Tensor<D1, K>,
+        rhs: &Tensor<D2, K>,
+    ) -> Self {
+        self.binary_ops_dtype(ops, dequantized_dtype(lhs), dequantized_dtype(rhs))
+    }
+
     /// Checks if expand operation is possible for the given shapes.
     pub(crate) fn expand<const D1: usize, const D2: usize>(
         ops: &str,
@@ -1388,12 +1406,7 @@ impl TensorCheck {
         groups: usize,
     ) -> Self {
         let mut check = TensorCheck::Ok.binary_ops_device(ops, &x.device(), &weight.device());
-
-        let x_dtype = x.dtype();
-        let w_dtype = weight.dtype();
-        if !matches!(x_dtype, DType::QFloat(_)) && !matches!(w_dtype, DType::QFloat(_)) {
-            check = check.binary_ops_dtype(ops, x_dtype, w_dtype);
-        }
+        check = check.binary_ops_float_dtype(ops, x, weight);
 
         let channels = x.dims()[1];
         let expected = weight.dims()[1] * groups;
@@ -1407,10 +1420,7 @@ impl TensorCheck {
 
         if let Some(bias) = bias {
             check = check.binary_ops_device(ops, &x.device(), &bias.device());
-            let b_dtype = bias.dtype();
-            if !matches!(x_dtype, DType::QFloat(_)) && !matches!(b_dtype, DType::QFloat(_)) {
-                check = check.binary_ops_dtype(ops, x_dtype, b_dtype);
-            }
+            check = check.binary_ops_float_dtype(ops, x, bias);
         }
 
         check
@@ -1424,12 +1434,7 @@ impl TensorCheck {
         bias: Option<&Tensor<1, K>>,
     ) -> Self {
         let mut check = TensorCheck::Ok.binary_ops_device(ops, &x.device(), &weight.device());
-
-        let x_dtype = x.dtype();
-        let w_dtype = weight.dtype();
-        if !matches!(x_dtype, DType::QFloat(_)) && !matches!(w_dtype, DType::QFloat(_)) {
-            check = check.binary_ops_dtype(ops, x_dtype, w_dtype);
-        }
+        check = check.binary_ops_float_dtype(ops, x, weight);
 
         let channels = x.dims()[1];
         let expected = weight.dims()[0];
@@ -1443,10 +1448,7 @@ impl TensorCheck {
 
         if let Some(bias) = bias {
             check = check.binary_ops_device(ops, &x.device(), &bias.device());
-            let b_dtype = bias.dtype();
-            if !matches!(x_dtype, DType::QFloat(_)) && !matches!(b_dtype, DType::QFloat(_)) {
-                check = check.binary_ops_dtype(ops, x_dtype, b_dtype);
-            }
+            check = check.binary_ops_float_dtype(ops, x, bias);
         }
 
         check
@@ -1461,10 +1463,11 @@ impl TensorCheck {
     ) -> Self {
         let mut check = TensorCheck::Ok.binary_ops_device(ops, &input.device(), &weight.device());
 
-        let in_dtype = input.dtype();
-        let w_dtype = weight.dtype();
-        if !matches!(in_dtype, DType::QFloat(_)) && !matches!(w_dtype, DType::QFloat(_)) {
-            check = check.binary_ops_dtype(ops, in_dtype, w_dtype);
+        let quantized_weight = matches!(weight.dtype(), DType::QFloat(_));
+        // Packed-weight matmul accepts mixed float/quantized operands. The ordinary
+        // linear path dequantizes quantized operands to the device's default dtype.
+        if !quantized_weight {
+            check = check.binary_ops_float_dtype(ops, input, weight);
         }
 
         if D < 1 {
@@ -1487,9 +1490,15 @@ impl TensorCheck {
 
         if let Some(bias) = bias {
             check = check.binary_ops_device(ops, &input.device(), &bias.device());
-            let b_dtype = bias.dtype();
-            if !matches!(in_dtype, DType::QFloat(_)) && !matches!(b_dtype, DType::QFloat(_)) {
-                check = check.binary_ops_dtype(ops, in_dtype, b_dtype);
+            if quantized_weight {
+                // The tensor addition dequantizes a quantized bias to the output dtype.
+                let in_dtype = input.dtype();
+                let b_dtype = bias.dtype();
+                if !matches!(in_dtype, DType::QFloat(_)) && !matches!(b_dtype, DType::QFloat(_)) {
+                    check = check.binary_ops_dtype(ops, in_dtype, b_dtype);
+                }
+            } else {
+                check = check.binary_ops_float_dtype(ops, input, bias);
             }
             let d_out = weight.dims()[1];
             let bias_dim = bias.dims()[0];
@@ -1514,12 +1523,7 @@ impl TensorCheck {
         beta: Option<&Tensor<1, K>>,
     ) -> Self {
         let mut check = TensorCheck::Ok.binary_ops_device(ops, &input.device(), &gamma.device());
-
-        let in_dtype = input.dtype();
-        let g_dtype = gamma.dtype();
-        if !matches!(in_dtype, DType::QFloat(_)) && !matches!(g_dtype, DType::QFloat(_)) {
-            check = check.binary_ops_dtype(ops, in_dtype, g_dtype);
-        }
+        check = check.binary_ops_float_dtype(ops, input, gamma);
 
         if D < 1 {
             return check.register(
@@ -1541,10 +1545,7 @@ impl TensorCheck {
 
         if let Some(beta) = beta {
             check = check.binary_ops_device(ops, &input.device(), &beta.device());
-            let b_dtype = beta.dtype();
-            if !matches!(in_dtype, DType::QFloat(_)) && !matches!(b_dtype, DType::QFloat(_)) {
-                check = check.binary_ops_dtype(ops, in_dtype, b_dtype);
-            }
+            check = check.binary_ops_float_dtype(ops, input, beta);
             let beta_dim = beta.dims()[0];
             if d_model != beta_dim {
                 check = check.register(
@@ -1571,16 +1572,8 @@ impl TensorCheck {
         let mut check = TensorCheck::Ok
             .binary_ops_device(ops, &input.device(), &gamma.device())
             .binary_ops_device(ops, &input.device(), &beta.device());
-
-        let in_dtype = input.dtype();
-        let g_dtype = gamma.dtype();
-        let b_dtype = beta.dtype();
-        if !matches!(in_dtype, DType::QFloat(_)) && !matches!(g_dtype, DType::QFloat(_)) {
-            check = check.binary_ops_dtype(ops, in_dtype, g_dtype);
-        }
-        if !matches!(in_dtype, DType::QFloat(_)) && !matches!(b_dtype, DType::QFloat(_)) {
-            check = check.binary_ops_dtype(ops, in_dtype, b_dtype);
-        }
+        check = check.binary_ops_float_dtype(ops, input, gamma);
+        check = check.binary_ops_float_dtype(ops, input, beta);
 
         if D < 2 {
             return check.register(
@@ -1604,10 +1597,7 @@ impl TensorCheck {
 
         if let Some(mean) = mean {
             check = check.binary_ops_device(ops, &input.device(), &mean.device());
-            let m_dtype = mean.dtype();
-            if !matches!(in_dtype, DType::QFloat(_)) && !matches!(m_dtype, DType::QFloat(_)) {
-                check = check.binary_ops_dtype(ops, in_dtype, m_dtype);
-            }
+            check = check.binary_ops_float_dtype(ops, input, mean);
             let mean_dim = mean.dims()[0];
             if mean_dim != channels {
                 check = check.register(
@@ -1621,10 +1611,7 @@ impl TensorCheck {
 
         if let Some(variance) = variance {
             check = check.binary_ops_device(ops, &input.device(), &variance.device());
-            let v_dtype = variance.dtype();
-            if !matches!(in_dtype, DType::QFloat(_)) && !matches!(v_dtype, DType::QFloat(_)) {
-                check = check.binary_ops_dtype(ops, in_dtype, v_dtype);
-            }
+            check = check.binary_ops_float_dtype(ops, input, variance);
             let var_dim = variance.dims()[0];
             if var_dim != channels {
                 check = check.register(
@@ -1651,16 +1638,8 @@ impl TensorCheck {
         let mut check = Self::Ok
             .binary_ops_device(ops, &query.device(), &key.device())
             .binary_ops_device(ops, &query.device(), &value.device());
-
-        let q_dtype = query.dtype();
-        let k_dtype = key.dtype();
-        let v_dtype = value.dtype();
-        if !matches!(q_dtype, DType::QFloat(_)) && !matches!(k_dtype, DType::QFloat(_)) {
-            check = check.binary_ops_dtype(ops, q_dtype, k_dtype);
-        }
-        if !matches!(q_dtype, DType::QFloat(_)) && !matches!(v_dtype, DType::QFloat(_)) {
-            check = check.binary_ops_dtype(ops, q_dtype, v_dtype);
-        }
+        check = check.binary_ops_float_dtype(ops, query, key);
+        check = check.binary_ops_float_dtype(ops, query, value);
 
         if let Some(mask) = mask {
             check = check.binary_ops_device(ops, &query.device(), &mask.device());
@@ -1668,10 +1647,7 @@ impl TensorCheck {
 
         if let Some(attn_bias) = attn_bias {
             check = check.binary_ops_device(ops, &query.device(), &attn_bias.device());
-            let b_dtype = attn_bias.dtype();
-            if !matches!(q_dtype, DType::QFloat(_)) && !matches!(b_dtype, DType::QFloat(_)) {
-                check = check.binary_ops_dtype(ops, q_dtype, b_dtype);
-            }
+            check = check.binary_ops_float_dtype(ops, query, attn_bias);
         }
 
         check
@@ -1835,27 +1811,6 @@ mod tests {
             "Test",
             &5, // We can pass anything that implements PartialEq as device
             &8
-        ));
-    }
-
-    #[test]
-    #[should_panic(expected = "do not have the same dtype")]
-    fn binary_ops_dtypes_mismatch() {
-        check!(TensorCheck::binary_ops_dtype(
-            TensorCheck::Ok,
-            "Test",
-            DType::BF16,
-            DType::F32
-        ));
-    }
-
-    #[test]
-    fn binary_ops_dtypes_match() {
-        check!(TensorCheck::binary_ops_dtype(
-            TensorCheck::Ok,
-            "Test",
-            DType::BF16,
-            DType::BF16
         ));
     }
 
