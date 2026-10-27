@@ -164,6 +164,13 @@ pub struct RouterClientRegistration<R: RouterChannel> {
     _channel: PhantomData<R>,
 }
 
+impl<R: RouterChannel> RouterClientRegistration<R> {
+    /// Keeps the client registered for the rest of the process, as [`get_client`]'s clients are.
+    pub fn keep(self) {
+        core::mem::forget(self);
+    }
+}
+
 impl<R: RouterChannel> Drop for RouterClientRegistration<R> {
     fn drop(&mut self) {
         CLIENTS.remove(self.key);
