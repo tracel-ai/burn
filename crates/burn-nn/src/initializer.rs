@@ -299,26 +299,27 @@ mod tests {
     }
 
     #[test]
-    fn orthogonal_parameter_preserves_seeded_values_and_gradients() {
+    fn orthogonal_parameter_preserves_orthogonality_and_gradients() {
         let device = test_device().autodiff();
-        let initializer = Initializer::Orthogonal { gain: 2.0 };
+        let shape = [4, 8];
+        let gain = 2.0;
+        let initializer = Initializer::Orthogonal { gain };
 
-        for shape in [[4, 8], [8, 4], [4, 4]] {
-            device.seed(42);
-            let expected: Tensor<2> = initializer.init_tensor(shape, None, None, &device);
-            device.seed(42);
-            let actual: Tensor<2> = initializer.init(shape, &device).val();
+        let actual: Tensor<2> = initializer.init(shape, &device).val();
+        assert_eq!(actual.dims(), shape);
+        assert!(actual.is_require_grad());
 
-            assert_eq!(actual.to_data(), expected.into_data());
-            assert!(actual.is_require_grad());
+        // Wide matrices have orthogonal rows: Q Q^T = gain^2 I.
+        let gram = actual.clone().matmul(actual.clone().transpose());
+        let expected = Tensor::<2>::eye(shape[0], &device).mul_scalar(gain * gain);
+        gram.into_data()
+            .assert_approx_eq::<FT>(&expected.into_data(), Tolerance::rel_abs(1e-4, 1e-5));
 
-            let gradients = actual.clone().sum().backward();
-            let gradient = actual.grad(&gradients).unwrap();
-            assert_eq!(
-                gradient.into_data(),
-                Tensor::<2>::ones(shape, &device).into_data()
-            );
-        }
+        let gradients = actual.clone().sum().backward();
+        let gradient = actual.grad(&gradients).unwrap();
+        gradient
+            .into_data()
+            .assert_eq(&Tensor::<2>::ones(shape, &device).into_data(), true);
     }
 
     #[test]

@@ -91,7 +91,8 @@ positions when sequence lengths differ.
 - Add the experimental `burn-cubecl/tile-kernels-only` feature for benchmarking CubeK's new matmul
   and attention routines. It is disabled by default and rejects unsupported inputs without a
   fallback; fused matmul and convolution are unchanged. Quantized matmul inputs are read packed
-  where the routines can, and dequantized first elsewhere.
+  where the routines can, and dequantized first elsewhere. Attention takes a bool mask and both
+  causal alignments.
   ([#6193](https://github.com/tracel-ai/burn/pull/6193),
   [#6199](https://github.com/tracel-ai/burn/pull/6199),
   [#6246](https://github.com/tracel-ai/burn/pull/6246)) [@louisfd](https://github.com/louisfd)
@@ -233,6 +234,10 @@ loading those checkpoints by filtering to `linear_inner` and `linear_outer`.
   [#5977](https://github.com/tracel-ai/burn/pull/5977))
 - Add the Matthews correlation coefficient metric for binary and multiclass classification.
   ([#5818](https://github.com/tracel-ai/burn/pull/5818))
+- Reject incompatible devices and dtypes in convolution, linear, normalization, and attention
+  operations before backend execution, including mismatches introduced by dequantization.
+  Packed quantized linear weights remain supported.
+  ([#6225](https://github.com/tracel-ai/burn/pull/6225)) [@onenewcode](https://github.com/onenewcode)
 - Improve half-precision CTC loss and transposed-convolution accuracy. Fix CTC execution through
   router and remote backends and reject CTC inputs exceeding the device shared-memory limit.
   ([#6103](https://github.com/tracel-ai/burn/pull/6103),
