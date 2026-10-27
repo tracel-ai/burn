@@ -1,11 +1,6 @@
-use alloc::vec::Vec;
-
 use burn_tensor::Device;
 
-use super::{
-    AutoregressiveLayer, DistributedLayer, HiddenLayerSignal, LayerParallelism, LayerPlacement,
-    LayerStage,
-};
+use super::{DistributedLayer, LayerParallelism, LayerPlacement, LayerStage};
 use crate::module::{Devices, Module, ModuleMapper, ModuleVisitor};
 
 /// What a [`LayerParallelism`] model takes: its input layer's input.
@@ -50,35 +45,17 @@ impl<M: LayerParallelism> DistributedLayeredModel<M> {
 
     /// Run each layer on its device, moving what passes between them.
     pub fn forward(&self, input: LayerParallelismInput<M>) -> LayerParallelismOutput<M> {
-        let signal = self.forward_input(input);
-        let signal = self.forward_hidden_with(signal, |_, layer, signal| layer.forward(signal));
-        self.model.layer_output().forward(signal)
-    }
-
-    /// The input layer run on its device: what the hidden layers pass along.
-    pub fn forward_input(&self, input: LayerParallelismInput<M>) -> HiddenLayerSignal<M> {
-        self.model
+        let placement = &self.placement;
+        let mut signal = self
+            .model
             .layer_input()
-            .forward(input.to_device(&self.placement.input))
-    }
-
-    /// `signal` run through the hidden layers in order, moved onto each one's device before
-    /// `forward` runs it with the layer's index, then onto the output layer's device: the middle
-    /// of the forward, for a caller whose hidden layers take more than the signal, such as caches
-    /// or a table kept per device, or whose output layer runs in more than one way.
-    pub fn forward_hidden_with(
-        &self,
-        signal: HiddenLayerSignal<M>,
-        mut forward: impl FnMut(usize, &M::HiddenLayer, HiddenLayerSignal<M>) -> HiddenLayerSignal<M>,
-    ) -> HiddenLayerSignal<M> {
+            .forward(input.to_device(&placement.input));
+        for (layer, device) in self.model.layers_hidden().zip(&placement.hidden) {
+            signal = layer.forward(signal.to_device(device));
+        }
         self.model
-            .layers_hidden()
-            .zip(&self.placement.hidden)
-            .enumerate()
-            .fold(signal, |signal, (index, (layer, device))| {
-                forward(index, layer, signal.to_device(device))
-            })
-            .to_device(&self.placement.output)
+            .layer_output()
+            .forward(signal.to_device(&placement.output))
     }
 
     /// The model on its own, no longer carrying where its layers run.
@@ -124,54 +101,6 @@ impl<M: LayerParallelism> DistributedLayeredModel<M> {
             num_hidden_layers: self.placement.hidden.len(),
         }])
     }
-}
-
-impl<M: LayerParallelism> DistributedLayeredModel<M>
-where
-    M::HiddenLayer: AutoregressiveLayer,
-{
-    /// A cache for every hidden layer, each made by its layer.
-    pub fn new_autoregressive_cache(&self) -> DistributedAutoregressiveCache<M> {
-        DistributedAutoregressiveCache {
-            hidden: self
-                .model
-                .layers_hidden()
-                .map(AutoregressiveLayer::new_autoregressive_cache)
-                .collect(),
-        }
-    }
-
-    /// Run the positions that follow the ones `cache` has seen, each hidden layer reading and
-    /// extending its own cache on its own device. Only the signal moves between devices.
-    ///
-    /// # Panics
-    ///
-    /// Panics when `cache` was made for a model with another number of hidden layers.
-    pub fn forward_autoregressive_inference(
-        &self,
-        input: LayerParallelismInput<M>,
-        cache: &mut DistributedAutoregressiveCache<M>,
-    ) -> LayerParallelismOutput<M> {
-        assert_eq!(
-            cache.hidden.len(),
-            self.placement.hidden.len(),
-            "the cache must hold one entry per hidden layer of this model"
-        );
-        let signal = self.forward_input(input);
-        let signal = self.forward_hidden_with(signal, |index, layer, signal| {
-            layer.forward_autoregressive_inference(signal, &mut cache.hidden[index])
-        });
-        self.model.layer_output().forward(signal)
-    }
-}
-
-/// The caches of a [`DistributedLayeredModel`]'s hidden layers, made by
-/// [`new_autoregressive_cache`](DistributedLayeredModel::new_autoregressive_cache).
-pub struct DistributedAutoregressiveCache<M: LayerParallelism>
-where
-    M::HiddenLayer: AutoregressiveLayer,
-{
-    hidden: Vec<<M::HiddenLayer as AutoregressiveLayer>::Cache>,
 }
 
 impl<M: LayerParallelism> core::ops::Deref for DistributedLayeredModel<M> {
