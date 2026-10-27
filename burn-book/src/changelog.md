@@ -5,13 +5,28 @@ Changes for the next release. For published releases, see
 
 ## Unreleased
 
-### ONNX Resize operators and coordinate transformations
+### Interpolation coordinate transforms and rounding
 
-- Added comprehensive ONNX `Resize` operator semantics to `burn::tensor::module::interpolate`, supporting all standard coordinate transformation modes (`HalfPixel`, `AlignCorners`, `Asymmetric`, `PytorchHalfPixel`, `HalfPixelSymmetric`, and `TfCropAndResize`).
-- Added nearest rounding modes (`RoundPreferFloor`, `RoundPreferCeil`, `Floor`, and `Ceil`).
-- Added cubic interpolation options supporting configurable spline coefficients `a` and `exclude_outside` tap weight renormalization.
-- Enabled scale-driven coordinate mapping across forward and backward passes in `burn-flex`.
-- Migrated coordinate transformations and tap arithmetic to `f64` precision to eliminate boundary truncation and floating-point ratio drift.
+Interpolation gains coordinate transforms, nearest rounding modes, crop ROIs and configurable
+cubic coefficients with outside-tap exclusion, allowing ONNX importers to express these Resize
+attributes. Flex implements the extended options, including scale-driven coordinates in forward
+and backward passes. Antialiasing remains unsupported.
+
+**API migration:** `InterpolateOptions::align_corners` is replaced by `coordinate_transform`.
+Use `.with_align_corners(bool)` for bilinear, bicubic and Lanczos3, or
+`.with_coordinate_transform(mode)` for an explicit transform. The alignment builder leaves
+nearest modes unchanged. Read corner alignment with `.align_corners()`.
+
+Explicit scales now affect coordinates as well as output size, so scale-dependent transforms can
+produce different values when `input_size * scale_factor` is nonintegral. To retain mapping based
+on resolved sizes, use `.with_output_size(...)` instead.
+
+Extended combinations require Flex. CubeCL supports the default nearest combinations and
+bilinear, bicubic and Lanczos3 with `AlignCorners` or `HalfPixel` and default cubic options.
+Except with `AlignCorners`, supplied scales must exactly equal the resolved output/input ratios;
+unsupported combinations panic. Flex uses `f64` coordinate arithmetic and preserves half-pixel
+ties when resizing by output size.
+([#6154](https://github.com/tracel-ai/burn/pull/6154), [@Sadik00789](https://github.com/Sadik00789))
 
 ### Device-time instrumentation
 

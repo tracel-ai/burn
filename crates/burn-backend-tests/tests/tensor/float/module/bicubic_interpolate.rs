@@ -329,12 +329,12 @@ fn test_bicubic_negative_retained_weight_sum_normalization() {
     if !format!("{device:?}").to_lowercase().contains("flex") {
         return;
     }
-    // [10.0, 20.0] resized to 1 pixel with a = -8.0, HalfPixel, exclude_outside = true
+    // [10.0, 20.0] resized to 1 pixel with a = 8.0, HalfPixel, exclude_outside = true
     let input = TestTensor::<4>::from_data([[[[10.0, 20.0]]]], &device);
     let options = InterpolateOptions::new(InterpolateMode::Bicubic)
         .with_coordinate_transform(CoordinateTransformMode::HalfPixel)
         .with_cubic_options(CubicOptions {
-            a: -8.0,
+            a: 8.0,
             exclude_outside: true,
         })
         .with_output_size([1, 1]);
@@ -343,4 +343,28 @@ fn test_bicubic_negative_retained_weight_sum_normalization() {
     let val: f32 = output.into_data().try_into_vec_as::<f32>().unwrap()[0];
     // Both valid weights are -0.5, summing to -1.0. Normalizing gives 0.5 each -> 15.0
     assert!((val - 15.0).abs() < 1e-4, "Expected 15.0, got {val}");
+}
+
+#[test]
+fn test_bicubic_small_nonzero_weight_sum_normalization() {
+    let device = Default::default();
+    if !format!("{device:?}").to_lowercase().contains("flex") {
+        return;
+    }
+    let input = TestTensor::<4>::from_data([[[[10.0, 20.0]]]], &device);
+    let output = interpolate(
+        input,
+        InterpolateOptions::new(InterpolateMode::Bicubic)
+            .with_coordinate_transform(CoordinateTransformMode::HalfPixel)
+            .with_cubic_options(CubicOptions {
+                a: 3.999999,
+                exclude_outside: true,
+            })
+            .with_output_size([1, 1]),
+    );
+    // Both retained weights are equal and nonzero, even though their sum is below 1e-6.
+    output.into_data().assert_eq(
+        &burn_tensor::TensorData::from([[[[15.0]]]]).convert::<FloatElem>(),
+        false,
+    );
 }

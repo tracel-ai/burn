@@ -4,17 +4,6 @@ use burn_tensor::Tolerance;
 use burn_tensor::module::interpolate;
 use burn_tensor::ops::{CoordinateTransformMode, InterpolateMode, InterpolateOptions};
 
-struct TestAutodiffTensor;
-
-impl TestAutodiffTensor {
-    fn from_data<const D: usize>(
-        data: impl Into<burn_tensor::TensorData>,
-        device: &burn_tensor::Device,
-    ) -> TestTensor<D> {
-        TestTensor::<D>::from_data(data, &device.clone().autodiff())
-    }
-}
-
 #[test]
 fn test_upsample_interpolation() {
     let test = InterpolateTestCase {
@@ -155,8 +144,10 @@ fn test_nearest_asymmetric_14_to_18_backward_scatter() {
     let grad = output.backward();
     let input_grad = input.grad(&grad).unwrap();
     let grad_values: Vec<f32> = input_grad.into_data().try_into_vec_as::<f32>().unwrap();
-    // Element 7 must receive gradients scattered from output index 9
-    assert!(grad_values[7] >= 1.0);
+    assert_eq!(
+        grad_values,
+        [2., 1., 1., 2., 1., 1., 1., 2., 1., 1., 2., 1., 1., 1.]
+    );
 }
 
 #[test]
@@ -178,52 +169,34 @@ fn test_bilinear_backward_crop_extrapolation_zero_gradient() {
     let output = burn_tensor::module::interpolate(input.clone(), options);
     let grad = output.backward();
     let input_grad = input.grad(&grad).unwrap();
-    let grad_values: Vec<f32> = input_grad.into_data().try_into_vec_as::<f32>().unwrap();
-    assert!(grad_values.iter().all(|&g| g.is_finite()));
+    // Only the first two coordinates on each axis are inside the ROI.
+    let expected =
+        burn_tensor::TensorData::from([[[[16.0 / 9.0, 8.0 / 9.0], [8.0 / 9.0, 4.0 / 9.0]]]]);
+    input_grad
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&expected, Tolerance::default());
 }
 
 #[test]
 fn test_bilinear_backward_non_integer_scale_gradients() {
-    let device = Default::default();
+    let device = AutodiffDevice::new();
     if !format!("{device:?}").to_lowercase().contains("flex") {
         return;
     }
-    // Shape [1, 1, 1, 4] with scale [1.0, 0.6] -> output shape [1, 1, 1, 2]
-    // 4 * 0.6 = 2.4 (non-integral, ratio 2/4 = 0.5 != scale 0.6)
-    // x_out = 0 -> x_in = 0.5 / 0.6 - 0.5 = 1/3 -> taps 0 (w=2/3), 1 (w=1/3)
-    // x_out = 1 -> x_in = 1.5 / 0.6 - 0.5 = 2.0 -> tap 2 (w=1.0)
-    let input = TestAutodiffTensor::from_data([[[[1.0, 2.0, 3.0, 4.0]]]], &device).require_grad();
-
+    let input = TestTensor::<4>::from_data([[[[11.0, 23.0, 37.0, 41.0]]]], &device).require_grad();
     let options = InterpolateOptions::new(InterpolateMode::Bilinear)
         .with_coordinate_transform(CoordinateTransformMode::HalfPixel)
         .with_scale_factor([1.0, 0.6]);
 
-    let output = burn_tensor::module::interpolate(input.clone(), options);
+    let output = interpolate(input.clone(), options);
     let grad = output.backward();
-    let input_grad = input.grad(&grad).unwrap();
-    let grad_values: Vec<f32> = input_grad.into_data().try_into_vec_as::<f32>().unwrap();
-
-    assert_eq!(grad_values.len(), 4);
-    assert!(
-        (grad_values[0] - 2.0 / 3.0).abs() < 1e-5,
-        "Expected 2/3, got {}",
-        grad_values[0]
-    );
-    assert!(
-        (grad_values[1] - 1.0 / 3.0).abs() < 1e-5,
-        "Expected 1/3, got {}",
-        grad_values[1]
-    );
-    assert!(
-        (grad_values[2] - 1.0).abs() < 1e-5,
-        "Expected 1.0, got {}",
-        grad_values[2]
-    );
-    assert!(
-        (grad_values[3] - 0.0).abs() < 1e-5,
-        "Expected 0.0, got {}",
-        grad_values[3]
-    );
+    // A scale of 0.6 samples coordinates 1/3 and 2, unlike the size ratio 2/4.
+    let expected = burn_tensor::TensorData::from([[[[2.0 / 3.0, 1.0 / 3.0, 1.0, 0.0]]]]);
+    input
+        .grad(&grad)
+        .unwrap()
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&expected, Tolerance::default());
 }
 
 #[test]
@@ -232,28 +205,50 @@ fn test_bicubic_backward_exclude_outside_tap_gradient() {
     if !format!("{device:?}").to_lowercase().contains("flex") {
         return;
     }
+    let input = TestTensor::<4>::from_data([[[[11.0, 23.0, 37.0, 41.0]]]], &device).require_grad();
+    let options = InterpolateOptions::new(InterpolateMode::Bicubic)
+        .with_coordinate_transform(CoordinateTransformMode::Asymmetric)
+        .with_cubic_options(burn_tensor::ops::CubicOptions {
+            a: -0.5,
+            exclude_outside: true,
+        })
+        .with_scale_factor([1.0, 2.0]);
+
+    let output = interpolate(input.clone(), options);
+    let grad = output.slice([0..1, 0..1, 0..1, 1..2]).backward();
+    // At coordinate 0.5 the retained weights are [9, 9, -1] / 16, with sum 17/16.
+    let expected = burn_tensor::TensorData::from([[[[9.0 / 17.0, 9.0 / 17.0, -1.0 / 17.0, 0.0]]]]);
+    input
+        .grad(&grad)
+        .unwrap()
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&expected, Tolerance::default());
+}
+
+#[test]
+fn test_nearest_half_pixel_symmetric_tie_backward() {
+    let device = AutodiffDevice::new();
+    if !format!("{device:?}").to_lowercase().contains("flex") {
+        return;
+    }
     let input = TestTensor::<4>::from_data(
-        [[[
-            [1.0, 2.0, 3.0, 4.0],
-            [5.0, 6.0, 7.0, 8.0],
-            [9.0, 10.0, 11.0, 12.0],
-            [13.0, 14.0, 15.0, 16.0],
-        ]]],
+        [[[[
+            11., 23., 37., 41., 53., 67., 79., 83., 97., 101., 113., 127., 139., 149.,
+        ]]]],
         &device,
     )
     .require_grad();
-
-    let options = InterpolateOptions::new(InterpolateMode::Bicubic)
-        .with_cubic_options(burn_tensor::ops::CubicOptions {
-            a: -0.75,
-            exclude_outside: true,
-        })
-        .with_output_size([2, 2]);
-
-    let output = burn_tensor::module::interpolate(input.clone(), options);
-    let grad = output.backward();
-    let input_grad = input.grad(&grad).unwrap();
-    let grad_values: Vec<f32> = input_grad.into_data().try_into_vec_as::<f32>().unwrap();
-    assert_eq!(grad_values.len(), 16);
-    assert!(grad_values.iter().all(|&g| g.is_finite()));
+    let output = interpolate(
+        input.clone(),
+        InterpolateOptions::new(InterpolateMode::NearestExact)
+            .with_coordinate_transform(CoordinateTransformMode::HalfPixelSymmetric)
+            .with_output_size([1, 9]),
+    );
+    let grads = output.slice([0..1, 0..1, 0..1, 4..5]).backward();
+    let mut expected = [0.0f32; 14];
+    expected[7] = 1.0;
+    input.grad(&grads).unwrap().into_data().assert_eq(
+        &burn_tensor::TensorData::from([[[expected]]]).convert::<FloatElem>(),
+        false,
+    );
 }

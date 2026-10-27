@@ -341,3 +341,55 @@ fn test_nearest_asymmetric_14_to_18_ratio_precision() {
     // Index 9 must map to 9 * 14 / 18 = 7.0 -> element 7 (not 6)
     assert_eq!(values[9], 7.0);
 }
+
+#[test]
+fn test_nearest_exact_size_based_tie() {
+    let device = Default::default();
+    if !format!("{device:?}").to_lowercase().contains("flex") {
+        return;
+    }
+    let input = TestTensor::<4>::from_data(
+        [[[[
+            11., 23., 37., 41., 53., 67., 79., 83., 97., 101., 113., 127., 139., 149.,
+        ]]]],
+        &device,
+    );
+    let output = interpolate(
+        input,
+        InterpolateOptions::new(InterpolateMode::NearestExact)
+            .with_coordinate_transform(CoordinateTransformMode::HalfPixel)
+            .with_output_size([1, 9]),
+    );
+    // Output index 4 maps exactly to 6.5; RoundPreferCeil must select input 7.
+    let expected =
+        burn_tensor::TensorData::from([[[[11., 37., 41., 67., 83., 97., 113., 127., 149.]]]]);
+    output
+        .into_data()
+        .assert_eq(&expected.convert::<FloatElem>(), false);
+}
+
+#[test]
+fn test_nearest_half_pixel_symmetric_size_based_tie() {
+    let device = Default::default();
+    if !format!("{device:?}").to_lowercase().contains("flex") {
+        return;
+    }
+    let input = TestTensor::<4>::from_data(
+        [[[[
+            11., 23., 37., 41., 53., 67., 79., 83., 97., 101., 113., 127., 139., 149.,
+        ]]]],
+        &device,
+    );
+    let output = interpolate(
+        input,
+        InterpolateOptions::new(InterpolateMode::NearestExact)
+            .with_coordinate_transform(CoordinateTransformMode::HalfPixelSymmetric)
+            .with_output_size([1, 9]),
+    );
+    // Output index 4 maps exactly to 6.5; RoundPreferCeil must select input 7.
+    let expected =
+        burn_tensor::TensorData::from([[[[11., 37., 41., 67., 83., 97., 113., 127., 149.]]]]);
+    output
+        .into_data()
+        .assert_eq(&expected.convert::<FloatElem>(), false);
+}

@@ -488,6 +488,12 @@ impl Default for CubicOptions {
 }
 
 /// Interpolation options.
+///
+/// Flex supports all coordinate transforms, rounding modes and cubic options.
+/// CubeCL supports the default nearest and nearest-exact combinations, plus bilinear,
+/// bicubic and Lanczos3 with `AlignCorners` or `HalfPixel` and default cubic options.
+/// With CubeCL, explicit scales must equal the resolved output/input ratios exactly,
+/// unless the transform is `AlignCorners`. Unsupported combinations panic.
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct InterpolateOptions {
     /// Algorithm used.
@@ -505,6 +511,9 @@ pub struct InterpolateOptions {
     pub output_size: Option<[usize; 2]>,
     /// Scale factor `[scale_height, scale_width]` applied to the input spatial size.
     /// The output size is `floor(input_size * scale_factor)`.
+    /// Scale-dependent transforms use these supplied factors for coordinates rather
+    /// than recomputing the output/input ratio. `AlignCorners` and `TfCropAndResize`
+    /// map coordinates from the resolved sizes instead.
     pub scale_factor: Option<[f32; 2]>,
 }
 
@@ -554,7 +563,9 @@ impl InterpolateOptions {
         self
     }
 
-    /// Set align_corners (`true` maps to `AlignCorners`, `false` maps to `HalfPixel`).
+    /// Set corner alignment for bilinear, bicubic and Lanczos3 interpolation.
+    /// `true` selects `AlignCorners`; `false` selects `HalfPixel`.
+    /// Nearest modes are unchanged; use [`Self::with_coordinate_transform`] to set their mapping.
     pub fn with_align_corners(mut self, align_corners: bool) -> Self {
         if !matches!(
             self.mode,

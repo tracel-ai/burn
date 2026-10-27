@@ -238,7 +238,12 @@ pub fn map_coordinate(
             }
         }
         CoordinateTransformMode::HalfPixelSymmetric => {
-            let x_in = (x_out + 0.5 + (l_in * s - l_out) / 2.0) / s - 0.5;
+            let x_in = match scale_factor {
+                Some(_) => (x_out + 0.5 + (l_in * s - l_out) / 2.0) / s - 0.5,
+                // With explicit sizes the centering offset is zero. Avoid rounding a
+                // scale ratio before mapping coordinates, which can move nearest ties.
+                None => (x_out + 0.5) * l_in / l_out - 0.5,
+            };
             MappedCoord::InBounds(x_in)
         }
         CoordinateTransformMode::TfCropAndResize {

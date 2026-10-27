@@ -1042,11 +1042,14 @@ pub fn adaptive_avg_pool1d(x: Tensor<3>, output_size: usize) -> Tensor<3> {
 ///
 /// The output spatial size is taken from `options.output_size`, or computed as
 /// `floor(input_size * scale_factor)` from `options.scale_factor`.
+/// Explicit scales also drive scale-dependent coordinate transforms. See
+/// [`InterpolateOptions`] for backend support and scale restrictions.
 ///
 /// # Panics
 ///
 /// Panics unless exactly one of `output_size` or `scale_factor` is set, or if the
-/// scaled size exceeds `usize::MAX`.
+/// scaled size exceeds `usize::MAX`. Scale factors must be strictly positive.
+/// Panics if the selected backend does not support the interpolation options.
 ///
 /// # Example
 ///
