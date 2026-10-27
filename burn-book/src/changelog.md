@@ -290,7 +290,8 @@ loading those checkpoints by filtering to `linear_inner` and `linear_outer`.
 - Add `Tensor::round_to(decimals)` for rounding to a specified number of decimal places.
   ([#5842](https://github.com/tracel-ai/burn/pull/5842))
 - Add dilation to average pooling with `AvgPoolOptions::with_dilation`, matching max pooling.
-  `count_include_pad` counts the dilated taps that land in padding. **Breaking:** Add
+  CubeCL backends use CubeK kernels for dilated 1D/2D average pooling, preserving the NHWC layout
+  optimization. `count_include_pad` counts the dilated taps that land in padding. **Breaking:** Add
   `dilation: [1; N]` to `AvgPoolOptions` struct literals. **Breaking for third-party backends:**
   The `ModuleOps` average pooling methods and their backward passes take a `dilation` argument after
   `padding`, as do `module::avg_pool2d_backward` and `module::avg_pool3d_backward`.
