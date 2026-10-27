@@ -91,7 +91,8 @@ positions when sequence lengths differ.
 - Add the experimental `burn-cubecl/tile-kernels-only` feature for benchmarking CubeK's new matmul
   and attention routines. It is disabled by default and rejects unsupported inputs without a
   fallback; fused matmul and convolution are unchanged. Quantized matmul inputs are read packed
-  where the routines can, and dequantized first elsewhere.
+  where the routines can, and dequantized first elsewhere. Attention takes a bool mask and both
+  causal alignments.
   ([#6193](https://github.com/tracel-ai/burn/pull/6193),
   [#6199](https://github.com/tracel-ai/burn/pull/6199),
   [#6246](https://github.com/tracel-ai/burn/pull/6246)) [@louisfd](https://github.com/louisfd)

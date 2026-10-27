@@ -7,7 +7,7 @@ use burn_backend::DType;
 use burn_backend::cubecl::dtype_to_storage_type;
 use cubecl::tile::{Axis, launch::Refusal};
 use cubek::matmul::kernels::tensor::{PackedTensor, PlainTensor, StoredTensor, WordsLaid};
-use cubek::microkernel::matmul::stored::Operand;
+use cubek::std::layout::stored::Operand;
 
 /// What [`CubeTensor::stored`] declines of a quantized tensor: a scheme with no block scales along
 /// the axis its words run along.
