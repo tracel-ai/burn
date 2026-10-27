@@ -15,7 +15,7 @@ use burn_backend::{
         attention::AttentionShapes,
     },
 };
-use burn_std::{FloatDType, IntDType};
+use burn_std::{DType, FloatDType, IntDType};
 
 impl ModuleOps<Self> for CubeBackend {
     fn conv1d(
@@ -98,6 +98,30 @@ impl ModuleOps<Self> for CubeBackend {
             Default::default(),
         )
         .unwrap()
+    }
+
+    /// Sums gradients `[batch, output_channels, height, width]` over batch and
+    /// spatial axes, returning `[output_channels]` with the same dtype and device.
+    /// `bias` has shape `[output_channels]`. The unused input `x` has layout
+    /// `[batch, input_channels, input_height, input_width]`.
+    fn conv2d_bias_backward(
+        _x: FloatTensor<Self>,
+        bias: FloatTensor<Self>,
+        output_grad: FloatTensor<Self>,
+    ) -> FloatTensor<Self> {
+        if output_grad.dtype == DType::F32 {
+            let grad = Self::float_sum_dims(output_grad, &[0, 2, 3]);
+            return Self::float_reshape(grad, bias.shape());
+        }
+
+        // Keep low-precision gradients on one pass until reduce_dims preserves
+        // accumulator precision between passes instead of narrowing partial sums.
+        // Dense NHWC storage needs only a metadata reshape.
+        let [batch, channels, height, width] = output_grad.shape().dims();
+        let grad = super::permute_nchw_to_nhwc(output_grad);
+        let grad = Self::float_reshape(grad, [batch * height * width, channels].into());
+        let grad = Self::float_sum_dim(grad, 0);
+        Self::float_reshape(grad, bias.shape())
     }
 
     fn deform_conv2d(

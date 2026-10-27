@@ -70,6 +70,10 @@ positions when sequence lengths differ.
 
 #### Kernels
 
+- Avoid a full-sized gradient copy in CubeCL FP32 `conv2d` bias backward, while retaining
+  single-pass accumulation for FP16/BF16 to avoid intermediate overflow.
+  ([#6173](https://github.com/tracel-ai/burn/pull/6173))
+  [@EthanAlmloff](https://github.com/EthanAlmloff)
 - Enable CUDA tensor-core acceleration on Blackwell and Blackwell Ultra GPUs, including B300.
   ([#6161](https://github.com/tracel-ai/burn/pull/6161))
 - Improve CubeCL CPU matrix multiplication by selecting tile sizes that fit the vector width.
@@ -86,9 +90,11 @@ positions when sequence lengths differ.
   ([#6036](https://github.com/tracel-ai/burn/pull/6036)) [@louisfd](https://github.com/louisfd)
 - Add the experimental `burn-cubecl/tile-kernels-only` feature for benchmarking CubeK's new matmul
   and attention routines. It is disabled by default and rejects unsupported inputs without a
-  fallback; fused matmul and convolution are unchanged.
+  fallback; fused matmul and convolution are unchanged. Quantized matmul inputs are read packed
+  where the routines can, and dequantized first elsewhere.
   ([#6193](https://github.com/tracel-ai/burn/pull/6193),
-  [#6199](https://github.com/tracel-ai/burn/pull/6199)) [@louisfd](https://github.com/louisfd)
+  [#6199](https://github.com/tracel-ai/burn/pull/6199),
+  [#6246](https://github.com/tracel-ai/burn/pull/6246)) [@louisfd](https://github.com/louisfd)
 - Add the experimental `attention-backward` feature: attention's backward pass runs as CubeCL
   kernels from the forward's saved logsumexp, rather than autodiff over the decomposed attention.
   It covers attention without a mask, bias or softcap, causal or not; a top-left causal mask over
