@@ -303,6 +303,8 @@ loading those checkpoints by filtering to `linear_inner` and `linear_outer`.
   ([#6087](https://github.com/tracel-ai/burn/pull/6087)) [@laggui](https://github.com/laggui)
 - Add `CaptureScope::input`, `CaptureScope::complete_with`, and `Tensor::capture_id` helpers for
   declaring graph inputs and outputs. ([#5990](https://github.com/tracel-ai/burn/pull/5990))
+- Add `Graph::capture_error`, which reports why a graph replays by re-running its closure, for
+  example an allocation that grew the memory pool inside the capture window.
 
 #### Fusion and correctness fixes
 
