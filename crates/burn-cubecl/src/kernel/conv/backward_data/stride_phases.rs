@@ -69,6 +69,11 @@ pub(crate) fn dgrad_stride_phases<const N: usize>(
         return Err(ConvSetupError::Unknown);
     }
     let out_grad = crate::kernel::untile(out_grad);
+    let out_grad = if out_grad.meta.strides()[N + 1] != 1 {
+        crate::kernel::into_contiguous_aligned(out_grad)
+    } else {
+        out_grad
+    };
     let weights = crate::kernel::into_contiguous_aligned(weights);
     let contraction = weights.meta.shape()[..N + 1]
         .iter()
