@@ -97,15 +97,17 @@ where
         self
     }
 
-    /// Sets how many finished batches the workers may queue ahead of the consumer. Lower it
-    /// when device memory is tight, raise it when batches take long to build. `0` hands each
-    /// batch over directly, with nothing queued. Has no effect without workers.
+    /// Sets the total number of finished batches the workers may queue ahead of the consumer,
+    /// shared by all workers. Lower it when device memory is tight, raise it when batches take
+    /// long to build. `0` hands each batch over directly, with nothing queued. Has no effect
+    /// without workers.
     ///
-    /// Defaults to two batches per worker.
+    /// Only the default scales with the number of workers: two batches per worker, so eight
+    /// with four workers. An explicit `prefetch(2)` queues two batches in total.
     ///
     /// # Arguments
     ///
-    /// * `prefetch` - The number of batches the workers may queue.
+    /// * `prefetch` - The total number of batches the workers may queue.
     ///
     /// # Returns
     ///

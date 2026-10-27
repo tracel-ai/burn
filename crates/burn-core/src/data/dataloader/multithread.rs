@@ -137,11 +137,12 @@ where
         }
     }
 
-    /// Sets how many finished batches the workers may queue ahead of the consumer.
-    /// Lower this when device memory is tight, raise it when batches take long to build.
-    /// `0` hands each batch over directly, with nothing queued.
+    /// Sets the total number of finished batches the workers may queue ahead of the consumer,
+    /// shared by all workers. Lower this when device memory is tight, raise it when batches take
+    /// long to build. `0` hands each batch over directly, with nothing queued.
     ///
-    /// Defaults to two batches per worker.
+    /// Only the default scales with the number of workers: two batches per worker, so eight
+    /// with four workers. An explicit `with_prefetch(2)` queues two batches in total.
     pub fn with_prefetch(mut self, prefetch: usize) -> Self {
         self.prefetch = prefetch;
         self
