@@ -1308,6 +1308,7 @@ dependencies = [
 name = "burn-linalg"
 version = "0.23.0-pre.1"
 dependencies = [
+ "burn-autodiff",
  "burn-core",
  "burn-cubecl",
  "burn-fusion",

@@ -375,6 +375,15 @@ let pack_tensor = tensor.into_pack();
 
 ### Extensions
 
+#### Batched linear solves
+
+`burn::linalg::solve` solves square, nonsingular systems `A @ X = B` with vector or matrix
+right-hand sides and broadcast batches. Flex and CubeCL provide optimized factorization and
+substitution paths with autodiff support. F16 and BF16 inputs compute in F32 and cast back;
+nonsquare or singular systems are rejected.
+([#5856](https://github.com/tracel-ai/burn/pull/5856))
+[@Mikyx-1](https://github.com/Mikyx-1)
+
 #### Cholesky decomposition
 
 `burn::linalg::cholesky(a, upper)` factors real symmetric positive-definite matrices, including
