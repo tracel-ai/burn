@@ -107,3 +107,14 @@ fn test_variance_negative_dim() {
         .into_data()
         .assert_approx_eq::<FloatElem>(&mean.into_data(), Tolerance::default());
 }
+
+#[test]
+fn test_variance_empty_reduction_axis_is_nan() {
+    let tensor = TestTensor::<2>::empty([0, 3], &Default::default());
+
+    for output in [tensor.clone().var(0), tensor.var_bias(0)] {
+        let values = output.into_data().try_to_vec::<FloatElem>().unwrap();
+        assert_eq!(values.len(), 3);
+        assert!(values.iter().all(|value| value.is_nan()));
+    }
+}

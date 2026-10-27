@@ -5,6 +5,11 @@ Changes for the next release. For published releases, see
 
 ## Unreleased
 
+### Tensor operations
+
+- Avoid underflow in sample variance for empty reduction axes so results are consistent across
+  debug and optimized builds. ([#6236](https://github.com/tracel-ai/burn/issues/6236))
+
 ### Device-time instrumentation
 
 `burn-instrument` and `#[compute]` annotations measure device time by model component. Measurement
