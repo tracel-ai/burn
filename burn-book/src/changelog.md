@@ -204,6 +204,16 @@ For example, update custom progress logger implementations:
   error observed before that update discards the pending window.
   ([#6184](https://github.com/tracel-ai/burn/pull/6184))
 
+#### Dataloader prefetch
+
+A multi-threaded dataloader now queues at most two finished batches per worker ahead of the
+consumer, down from a fixed 100. A batcher that builds batches on a device keeps every queued batch
+resident there, which could exhaust the memory of a small GPU during training. Set the queue with
+`DataLoaderBuilder::prefetch(n)` or `MultiThreadDataLoader::with_prefetch(n)`: lower it when device
+memory is tight, raise it when batches are slow to build, or use `0` to hand each batch over
+directly. Each worker also holds the batch it is waiting to send.
+[@Charles23R](https://github.com/Charles23R)
+
 #### Stateful feed-forward activations
 
 Stateful `PositionWiseFeedForward` activations such as PReLU and SwiGLU are now trained and
