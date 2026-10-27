@@ -1793,6 +1793,7 @@ impl<B: BackendIr> TensorInterpreter<B> {
                         desc.kernel_size,
                         desc.stride,
                         desc.padding,
+                        desc.dilation,
                         desc.count_include_pad,
                         desc.ceil_mode,
                     );
@@ -1806,6 +1807,7 @@ impl<B: BackendIr> TensorInterpreter<B> {
                         desc.kernel_size,
                         desc.stride,
                         desc.padding,
+                        desc.dilation,
                         desc.count_include_pad,
                         desc.ceil_mode,
                     );
@@ -1821,6 +1823,7 @@ impl<B: BackendIr> TensorInterpreter<B> {
                         desc.kernel_size,
                         desc.stride,
                         desc.padding,
+                        desc.dilation,
                         desc.count_include_pad,
                         desc.ceil_mode,
                     );
@@ -1836,6 +1839,7 @@ impl<B: BackendIr> TensorInterpreter<B> {
                         desc.kernel_size,
                         desc.stride,
                         desc.padding,
+                        desc.dilation,
                         desc.count_include_pad,
                         desc.ceil_mode,
                     );
@@ -1849,6 +1853,7 @@ impl<B: BackendIr> TensorInterpreter<B> {
                         desc.kernel_size,
                         desc.stride,
                         desc.padding,
+                        desc.dilation,
                         desc.count_include_pad,
                         desc.ceil_mode,
                     );
@@ -1864,6 +1869,7 @@ impl<B: BackendIr> TensorInterpreter<B> {
                         desc.kernel_size,
                         desc.stride,
                         desc.padding,
+                        desc.dilation,
                         desc.count_include_pad,
                         desc.ceil_mode,
                     );

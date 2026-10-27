@@ -746,6 +746,7 @@ pub trait ModuleOps<B: Backend> {
         kernel_size: usize,
         stride: usize,
         padding: usize,
+        dilation: usize,
         count_include_pad: bool,
         ceil_mode: bool,
     ) -> FloatTensor<B> {
@@ -754,17 +755,20 @@ pub trait ModuleOps<B: Backend> {
             kernel_size,
             stride,
             padding,
+            dilation,
             count_include_pad,
             ceil_mode,
         )
     }
     /// Backward pass for the [avg pooling 1d](ModuleOps::avg_pool1d) operation.
+    #[allow(clippy::too_many_arguments)]
     fn avg_pool1d_backward(
         x: FloatTensor<B>,
         grad: FloatTensor<B>,
         kernel_size: usize,
         stride: usize,
         padding: usize,
+        dilation: usize,
         count_include_pad: bool,
         ceil_mode: bool,
     ) -> FloatTensor<B> {
@@ -774,6 +778,7 @@ pub trait ModuleOps<B: Backend> {
             kernel_size,
             stride,
             padding,
+            dilation,
             count_include_pad,
             ceil_mode,
         )
@@ -788,16 +793,19 @@ pub trait ModuleOps<B: Backend> {
         kernel_size: [usize; 2],
         stride: [usize; 2],
         padding: [usize; 2],
+        dilation: [usize; 2],
         count_include_pad: bool,
         ceil_mode: bool,
     ) -> FloatTensor<B>;
     /// Backward pass for the [avg pooling 2d](ModuleOps::avg_pool2d) operation.
+    #[allow(clippy::too_many_arguments)]
     fn avg_pool2d_backward(
         x: FloatTensor<B>,
         grad: FloatTensor<B>,
         kernel_size: [usize; 2],
         stride: [usize; 2],
         padding: [usize; 2],
+        dilation: [usize; 2],
         count_include_pad: bool,
         ceil_mode: bool,
     ) -> FloatTensor<B>;
@@ -811,16 +819,19 @@ pub trait ModuleOps<B: Backend> {
         kernel_size: [usize; 3],
         stride: [usize; 3],
         padding: [usize; 3],
+        dilation: [usize; 3],
         count_include_pad: bool,
         ceil_mode: bool,
     ) -> FloatTensor<B>;
     /// Backward pass for the [avg pooling 3d](ModuleOps::avg_pool3d) operation.
+    #[allow(clippy::too_many_arguments)]
     fn avg_pool3d_backward(
         x: FloatTensor<B>,
         grad: FloatTensor<B>,
         kernel_size: [usize; 3],
         stride: [usize; 3],
         padding: [usize; 3],
+        dilation: [usize; 3],
         count_include_pad: bool,
         ceil_mode: bool,
     ) -> FloatTensor<B>;
