@@ -11,6 +11,7 @@
 //! [`Comparison`].
 
 mod comparison;
+mod components;
 mod millis;
 mod reading;
 mod report;
