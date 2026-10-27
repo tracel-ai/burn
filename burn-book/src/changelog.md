@@ -27,6 +27,10 @@ Except with `AlignCorners`, supplied scales must exactly equal the resolved outp
 unsupported combinations panic. Flex uses `f64` coordinate arithmetic and preserves half-pixel
 ties when resizing by output size.
 ([#6154](https://github.com/tracel-ai/burn/pull/6154), [@Sadik00789](https://github.com/Sadik00789))
+### Training metrics
+
+- `BleuScore` now computes its running and final values from n-gram counts accumulated across the
+  epoch, instead of averaging per-batch BLEU scores.
 
 ### Device-time instrumentation
 
