@@ -274,6 +274,8 @@ loading those checkpoints by filtering to `linear_inner` and `linear_outer`.
 
 #### Fusion and correctness fixes
 
+- Return NaN for variance reductions over empty axes instead of panicking or returning zero.
+  ([issue #6236](https://github.com/tracel-ai/burn/issues/6236))
 - Preserve zero-length dimensions in `reshape(Shape)` and `unsqueeze`, and reject mismatched target
   ranks. The array form of `reshape` retains its `0`/`-1` placeholders.
   ([#6112](https://github.com/tracel-ai/burn/pull/6112))
