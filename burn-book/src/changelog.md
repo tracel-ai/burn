@@ -212,7 +212,7 @@ resident there, which could exhaust the memory of a small GPU during training. S
 `DataLoaderBuilder::prefetch(n)` or `MultiThreadDataLoader::with_prefetch(n)`: lower it when device
 memory is tight, raise it when batches are slow to build, or use `0` to hand each batch over
 directly. Each worker also holds the batch it is waiting to send.
-[@Charles23R](https://github.com/Charles23R)
+([#6252](https://github.com/tracel-ai/burn/pull/6252))
 
 #### Stateful feed-forward activations
 
