@@ -5,18 +5,9 @@ use burn_tensor::Device;
 use super::{DistributedLayer, LayerParallelism, LayerPlacement, LayerSequence, LayerStage};
 use crate::module::{Devices, Module, ModuleMapper, ModuleVisitor};
 
-/// What a [`LayerParallelism`] model takes: its input layer's input.
-pub type LayerParallelismInput<M> =
-    <<M as LayerParallelism>::InputLayer as DistributedLayer>::Input;
-
-/// What a [`LayerParallelism`] model returns: its output layer's output.
-pub type LayerParallelismOutput<M> =
-    <<M as LayerParallelism>::OutputLayer as DistributedLayer>::Output;
-
 /// A [`LayerParallelism`] model split across devices, holding where each of its layers runs so
-/// the forward reads it rather than working it out again on every call. Dereferences to the model,
-/// and is itself a [`Module`], so records, devices and training flags work as they do on the model
-/// alone.
+/// the forward reads it rather than working it out again on every call. It is itself a
+/// [`Module`], so records, devices and training flags work as they do on the model alone.
 #[derive(Clone, Debug)]
 pub struct DistributedLayeredModel<M: LayerParallelism> {
     model: M,
@@ -32,7 +23,7 @@ impl<M: LayerParallelism> DistributedLayeredModel<M> {
     /// Panics when `placement` does not give a device to every hidden layer, or when a layer holds
     /// a tensor off the device `placement` gives it.
     pub fn new(model: M, placement: &LayerPlacement) -> Self {
-        Self::assert_placed(&model, placement);
+        assert_built_where_placed(&model, placement);
 
         Self {
             model,
@@ -46,7 +37,10 @@ impl<M: LayerParallelism> DistributedLayeredModel<M> {
     }
 
     /// Run each layer on its device, moving what passes between them.
-    pub fn forward(&self, input: LayerParallelismInput<M>) -> LayerParallelismOutput<M> {
+    pub fn forward(
+        &self,
+        input: <M::InputLayer as DistributedLayer>::Input,
+    ) -> <M::OutputLayer as DistributedLayer>::Output {
         let placement = &self.placement;
         let mut signal = self
             .model
@@ -60,12 +54,23 @@ impl<M: LayerParallelism> DistributedLayeredModel<M> {
             .forward(signal.to_device(&placement.output))
     }
 
+    /// The model, its layers where the placement puts them.
+    pub fn model(&self) -> &M {
+        &self.model
+    }
+
     /// The model on its own, no longer carrying where its layers run.
     pub fn into_inner(self) -> M {
         self.model
     }
 
     /// The model taken apart, its hidden layers cut into the placement's stages.
+    ///
+    /// # Panics
+    ///
+    /// Panics when a stage would hold a layer off its device, which is what an
+    /// [`into_layers`](LayerParallelism::into_layers) giving the hidden layers in another order than
+    /// [`layers_hidden`](LayerParallelism::layers_hidden) does.
     pub fn into_stages(self) -> StagedLayers<M> {
         let LayerSequence {
             input,
@@ -77,9 +82,10 @@ impl<M: LayerParallelism> DistributedLayeredModel<M> {
             .placement
             .stages()
             .into_iter()
-            .map(|stage| HeldStage {
-                layers: hidden.by_ref().take(stage.num_hidden_layers).collect(),
-                device: stage.device,
+            .enumerate()
+            .map(|(index, stage)| {
+                let layers = hidden.by_ref().take(stage.num_hidden_layers).collect();
+                hold_stage::<M>(index, stage, layers)
             })
             .collect();
         StagedLayers {
@@ -89,71 +95,12 @@ impl<M: LayerParallelism> DistributedLayeredModel<M> {
         }
     }
 
-    fn assert_placed(model: &M, placement: &LayerPlacement) {
-        let count = model.layers_hidden().count();
-        assert!(
-            count == placement.hidden.len(),
-            "the placement must give a device to every hidden layer: the model has {count}, the \
-             placement gives {}",
-            placement.hidden.len()
-        );
-
-        assert!(
-            Self::layer_is_on(model.layer_input(), &placement.input),
-            "the input layer must be built on {:?}",
-            placement.input
-        );
-        for (index, (layer, device)) in model.layers_hidden().zip(&placement.hidden).enumerate() {
-            assert!(
-                Self::layer_is_on(layer, device),
-                "hidden layer {index} must be built on {device:?}"
-            );
-        }
-        assert!(
-            Self::layer_is_on(model.layer_output(), &placement.output),
-            "the output layer must be built on {:?}",
-            placement.output
-        );
-    }
-
-    fn layer_is_on(layer: &impl Module, device: &Device) -> bool {
-        layer.devices().iter().all(|found| found == device)
-    }
-
     /// A move of the whole model puts every layer on one device, the hidden layer count unchanged.
     fn on_one_device(&self, device: &Device) -> LayerPlacement {
         LayerPlacement::new(&[LayerStage {
             device: device.clone(),
             num_hidden_layers: self.placement.hidden.len(),
         }])
-    }
-}
-
-/// A [`DistributedLayeredModel`]'s layers, owned, its hidden layers in the placement's stages.
-#[derive(Debug)]
-pub struct StagedLayers<M: LayerParallelism> {
-    /// The input layer.
-    pub input: M::InputLayer,
-    /// The stages, in forward order.
-    pub stages: Vec<HeldStage<M>>,
-    /// The output layer.
-    pub output: M::OutputLayer,
-}
-
-/// One stage's hidden layers and the device they run on.
-#[derive(Debug)]
-pub struct HeldStage<M: LayerParallelism> {
-    /// The device every layer of the stage runs on.
-    pub device: Device,
-    /// The stage's hidden layers, in forward order.
-    pub layers: Vec<M::HiddenLayer>,
-}
-
-impl<M: LayerParallelism> core::ops::Deref for DistributedLayeredModel<M> {
-    type Target = M;
-
-    fn deref(&self) -> &M {
-        &self.model
     }
 }
 
@@ -213,6 +160,75 @@ impl<M: LayerParallelism> Module for DistributedLayeredModel<M> {
     }
 }
 
+/// A [`DistributedLayeredModel`]'s layers, owned, its hidden layers in the placement's stages.
+#[derive(Debug)]
+pub struct StagedLayers<M: LayerParallelism> {
+    /// The input layer.
+    pub input: M::InputLayer,
+    /// The stages, in forward order.
+    pub stages: Vec<HeldStage<M>>,
+    /// The output layer.
+    pub output: M::OutputLayer,
+}
+
+/// One stage's hidden layers and the device they run on.
+#[derive(Debug)]
+pub struct HeldStage<M: LayerParallelism> {
+    /// The device every layer of the stage runs on.
+    pub device: Device,
+    /// The stage's hidden layers, in forward order.
+    pub layers: Vec<M::HiddenLayer>,
+}
+
+/// `layers` as stage `index`, checked to be on the stage's device.
+fn hold_stage<M: LayerParallelism>(
+    index: usize,
+    stage: LayerStage,
+    layers: Vec<M::HiddenLayer>,
+) -> HeldStage<M> {
+    assert!(
+        layers.iter().all(|layer| layer_is_on(layer, &stage.device)),
+        "stage {index} holds a layer off {:?}: `into_layers` must give the hidden layers in \
+         the order `layers_hidden` does",
+        stage.device
+    );
+    HeldStage {
+        layers,
+        device: stage.device,
+    }
+}
+
+fn assert_built_where_placed<M: LayerParallelism>(model: &M, placement: &LayerPlacement) {
+    let count = model.layers_hidden().count();
+    assert!(
+        count == placement.hidden.len(),
+        "the placement must give a device to every hidden layer: the model has {count}, the \
+         placement gives {}",
+        placement.hidden.len()
+    );
+
+    assert!(
+        layer_is_on(model.layer_input(), &placement.input),
+        "the input layer must be built on {:?}",
+        placement.input
+    );
+    for (index, (layer, device)) in model.layers_hidden().zip(&placement.hidden).enumerate() {
+        assert!(
+            layer_is_on(layer, device),
+            "hidden layer {index} must be built on {device:?}"
+        );
+    }
+    assert!(
+        layer_is_on(model.layer_output(), &placement.output),
+        "the output layer must be built on {:?}",
+        placement.output
+    );
+}
+
+fn layer_is_on(layer: &impl Module, device: &Device) -> bool {
+    layer.devices().iter().all(|found| found == device)
+}
+
 #[cfg(test)]
 mod tests {
     use alloc::vec::Vec;
@@ -266,8 +282,9 @@ mod tests {
 
         let grads = stack.forward(input).sum().backward();
 
-        let hidden = stack.hidden.iter().map(|layer| &layer.linear);
-        for (index, linear) in [&stack.input.linear, &stack.output.linear]
+        let model = stack.model();
+        let hidden = model.hidden.iter().map(|layer| &layer.linear);
+        for (index, linear) in [&model.input.linear, &model.output.linear]
             .into_iter()
             .chain(hidden)
             .enumerate()

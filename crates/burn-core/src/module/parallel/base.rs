@@ -3,10 +3,6 @@ use alloc::vec::Vec;
 use super::DistributedLayer;
 use crate::module::Module;
 
-/// What the hidden layers of a [`LayerParallelism`] model take and return: whatever its input
-/// layer produces.
-pub type HiddenLayerSignal<M> = <<M as LayerParallelism>::InputLayer as DistributedLayer>::Output;
-
 /// A model that runs as an input layer, then hidden layers in order, then an output layer, so its
 /// layers can be split across devices by a [`DistributedLayeredModel`](super::DistributedLayeredModel).
 ///
@@ -57,7 +53,8 @@ pub type HiddenLayerSignal<M> = <<M as LayerParallelism>::InputLayer as Distribu
 /// }
 ///
 /// let placement = LayerPlacement::even(&devices, config.num_blocks);
-/// let model = DistributedLayeredModel::new(Model::new(&config, &placement), &placement);
+/// let model = Model::new(&config, &placement);
+/// let model = DistributedLayeredModel::new(model, &placement);
 /// let predictions = model.forward(features);
 /// ```
 pub trait LayerParallelism: Module {
@@ -81,6 +78,10 @@ pub trait LayerParallelism: Module {
     /// [`layers_hidden`](Self::layers_hidden) gives them.
     fn into_layers(self) -> LayerSequence<Self>;
 }
+
+/// What the hidden layers of a [`LayerParallelism`] model take and return: whatever its input
+/// layer produces.
+pub type HiddenLayerSignal<M> = <<M as LayerParallelism>::InputLayer as DistributedLayer>::Output;
 
 /// The layers of a [`LayerParallelism`] model, owned.
 #[derive(Debug)]

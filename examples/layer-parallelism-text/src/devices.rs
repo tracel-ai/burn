@@ -17,22 +17,22 @@ pub fn available() -> Vec<Device> {
 /// runtime wins over a portable one.
 #[cfg(any(feature = "cuda", feature = "rocm", feature = "wgpu"))]
 fn runtimes_in_order() -> Vec<Vec<Device>> {
-    #[allow(unused_mut)]
-    let mut kinds: Vec<DeviceType> = Vec::new();
-    #[cfg(feature = "cuda")]
-    kinds.push(DeviceType::Cuda);
-    #[cfg(feature = "rocm")]
-    kinds.push(DeviceType::Rocm);
-    #[cfg(feature = "metal")]
-    kinds.push(DeviceType::Metal);
-    #[cfg(feature = "vulkan")]
-    kinds.push(DeviceType::Vulkan);
-    #[cfg(feature = "webgpu")]
-    kinds.push(DeviceType::WebGpu);
+    let kinds: &[DeviceType] = &[
+        #[cfg(feature = "cuda")]
+        DeviceType::Cuda,
+        #[cfg(feature = "rocm")]
+        DeviceType::Rocm,
+        #[cfg(feature = "metal")]
+        DeviceType::Metal,
+        #[cfg(feature = "vulkan")]
+        DeviceType::Vulkan,
+        #[cfg(feature = "webgpu")]
+        DeviceType::WebGpu,
+    ];
 
     kinds
-        .into_iter()
-        .map(|kind| Device::enumerate(kind).into_vec())
+        .iter()
+        .map(|kind| Device::enumerate(kind.clone()).into_vec())
         .collect()
 }
 

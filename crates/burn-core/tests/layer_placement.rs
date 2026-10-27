@@ -63,7 +63,7 @@ fn each_stage_holds_the_layers_placed_on_its_device() {
     assert_eq!(held, [(flex.clone(), 2), (cpu, 1), (flex, 1)]);
     for stage in &staged.stages {
         for layer in &stage.layers {
-            assert_eq!(layer.devices(), [stage.device.clone()]);
+            assert_eq!(layer.devices(), core::slice::from_ref(&stage.device));
         }
     }
 }
@@ -102,8 +102,8 @@ fn gradients_of_a_split_model_match_the_gradients_on_one_device() {
     let stack = DistributedLayeredModel::new(stack, &placement);
     let grads = stack.forward(input).sum().backward();
 
-    let first = stack.hidden[0].linear.weight.grad(&grads).unwrap();
-    let last = stack.hidden[3].linear.weight.grad(&grads).unwrap();
+    let first = stack.model().hidden[0].linear.weight.grad(&grads).unwrap();
+    let last = stack.model().hidden[3].linear.weight.grad(&grads).unwrap();
     assert_eq!(first.device(), flex.clone().inner());
     assert_eq!(last.device(), cpu.inner());
     first
@@ -113,6 +113,18 @@ fn gradients_of_a_split_model_match_the_gradients_on_one_device() {
     last.to_device(&flex.inner())
         .into_data()
         .assert_approx_eq::<f32>(&expected_last.into_data(), Tolerance::default());
+}
+
+#[test]
+#[should_panic(expected = "`into_layers` must give the hidden layers in the order")]
+fn hidden_layers_handed_over_out_of_order_are_refused() {
+    let (flex, cpu) = devices();
+    let placement = LayerPlacement::even(&[flex, cpu], 4);
+    let model = Reversed {
+        stack: Stack::new(&placement),
+    };
+
+    DistributedLayeredModel::new(model, &placement).into_stages();
 }
 
 #[derive(Module, Debug)]
@@ -210,5 +222,43 @@ impl DistributedLayer for Linear {
 
     fn forward(&self, input: Tensor<2>) -> Tensor<2> {
         input.matmul(self.weight.val().transpose())
+    }
+}
+
+/// A model whose `into_layers` disagrees with `layers_hidden` on the order of the hidden layers.
+#[derive(Module, Debug)]
+struct Reversed {
+    stack: Stack,
+}
+
+impl LayerParallelism for Reversed {
+    type InputLayer = Linear;
+    type HiddenLayer = Tanh;
+    type OutputLayer = Linear;
+
+    fn layer_input(&self) -> &Linear {
+        self.stack.layer_input()
+    }
+
+    fn layers_hidden(&self) -> impl Iterator<Item = &Tanh> {
+        self.stack.layers_hidden()
+    }
+
+    fn layer_output(&self) -> &Linear {
+        self.stack.layer_output()
+    }
+
+    fn into_layers(self) -> LayerSequence<Self> {
+        let LayerSequence {
+            input,
+            mut hidden,
+            output,
+        } = self.stack.into_layers();
+        hidden.reverse();
+        LayerSequence {
+            input,
+            hidden,
+            output,
+        }
     }
 }

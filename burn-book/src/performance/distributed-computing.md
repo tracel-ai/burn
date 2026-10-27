@@ -96,23 +96,13 @@ through Burn's non-DDP multi-device training path.
 
 DDP and the multi-device strategy keep a whole copy of the model on each device. When the model does
 not fit on one, layer parallelism splits it by whole layers instead: each device holds a run of
-consecutive layers, and what one layer returns moves to the next layer's device.
+consecutive layers, and only what one layer returns moves to the next layer's device.
 
-The split is described by a struct built for it, usually not the one the model trained with, since
-a split layer may be represented differently. Each layer implements
-`burn::module::parallel::DistributedLayer`, and the model implements `LayerParallelism`, naming its
-input layer, its hidden layers and its output layer:
+A model splits by implementing `LayerParallelism`, which names its input layer, its hidden layers and
+its output layer, each a `DistributedLayer`. What passes between the layers is any `Module`, such as
+a tensor, or a struct carrying a transformer's hidden states and padding mask:
 
 ```rust, ignore
-impl DistributedLayer for Block {
-    type Input = Tensor<2>;
-    type Output = Tensor<2>;
-
-    fn forward(&self, hidden: Tensor<2>) -> Tensor<2> {
-        relu(self.linear.forward(hidden.clone())) + hidden
-    }
-}
-
 impl LayerParallelism for Model {
     type InputLayer = Embedding;
     type HiddenLayer = Block;
@@ -140,72 +130,34 @@ impl LayerParallelism for Model {
 }
 ```
 
-What the input layer returns is what every hidden layer takes and returns, `HiddenLayerSignal`. It
-is a module, so it can move between devices: tensors, tuples, arrays, `Vec` and `Option` already
-are, and a struct of tensors with a transformer's masks can derive `Module`.
-
-A `LayerPlacement` gives every layer a device, either evenly across some devices or as stages of
-chosen sizes, and each layer is built on its device:
-
-```rust, ignore
-impl Model {
-    pub fn new(config: &ModelConfig, placement: &LayerPlacement) -> Self {
-        Self {
-            embedding: Embedding::new(config, &placement.input),
-            blocks: placement.hidden.iter().map(|device| Block::new(config, device)).collect(),
-            head: Head::new(config, &placement.output),
-        }
-    }
-}
-```
-
-`DistributedLayeredModel::new` moves nothing. It checks the placement has a device for every hidden
-layer and that every layer's parameters and held tensors are on that device. The result runs each
-layer where it is, dereferences to the model and is itself a `Module`.
-
-The `burn-nn` layers built from a config initialize lazily, so the model allocates nothing until its
-weights load, and each weight then loads onto its own layer's device. The model never lands whole on
-one device, which is how one too large for a device loads. Weights trained on another struct load by
-remapping their keys:
+A `LayerPlacement` gives every layer a device, evenly, by stages of chosen sizes, or by device
+memory. Build each layer on its device, then wrap the model: `DistributedLayeredModel::new` moves
+nothing, and refuses a layer built anywhere else. The `burn-nn` layers initialize lazily, so each
+weight then loads straight onto its layer's device and the model never exists whole on one device.
+Weights trained on another struct load by remapping their keys:
 
 ```rust, ignore
 let placement = LayerPlacement::even(&devices, config.num_blocks);
-let mut model = DistributedLayeredModel::new(Model::new(&config, &placement), &placement);
+let model = Model::new(&config, &placement); // Each layer built on `placement`'s device for it.
+let mut model = DistributedLayeredModel::new(model, &placement);
 let mut store = SafetensorsStore::from_file("model.safetensors")
     .with_key_remapping(r"^layers\.", "blocks.");
 model.load_from(&mut store)?;
-```
-
-Two things to watch:
-
-- **A weight shared by two layers is on one device.** An output head tied to the input embedding
-  can only be split when the placement puts both on the same device; otherwise `new` refuses it.
-- **A model already built moves with `fork`, not `to_device`.** To split one that exists on a single
-  device, fork each layer onto its device before `new`. A moved parameter is no longer a leaf, so it
-  gets no gradient and the optimizer skips it.
-
-Layers run one after another, so what this buys today is capacity rather than speed: each device
-waits for the one before it, and every move costs the size of the signal. Overlapping them takes a
-schedule that splits a batch into microbatches, such as GPipe or 1F1B, which is not implemented yet.
-The `layer-parallelism` example splits a small model across one device per GPU, loading a
-checkpoint of its single-device shape, and checks the predictions against that shape.
-
-### Training a Split Model
-
-A split model trains as it would on one device. Every parameter is built on its layer's device, so
-its gradient lands there and the optimizer updates it there. Build the model on autodiff devices,
-and put the targets on the output layer's device, where the loss runs:
-
-```rust, ignore
-let devices = [Device::cuda(0).autodiff(), Device::cuda(1).autodiff()];
-let placement = LayerPlacement::even(&devices, 8);
-let mut model = DistributedLayeredModel::new(Model::new(&config, &placement), &placement);
 
 let predictions = model.forward(features);
-let loss = loss_fn.forward(predictions, targets.to_device(&placement.output), Reduction::Mean);
-let grads = GradientsParams::from_grads(loss.backward(), &model);
-model = optim.step(lr, model, grads);
 ```
+
+It trains as on one device: build it on autodiff devices, and each gradient lands on its parameter's
+device, where the optimizer updates it. The loss runs on the output layer's device.
+
+- **A weight shared by two layers must be on one device.** A head tied to the input embedding only
+  splits when the placement puts both on the same device; otherwise `new` refuses it.
+- **Split an existing model with `fork`, not `to_device`.** A moved parameter is no longer a leaf, so
+  it gets no gradient and the optimizer skips it.
+
+Layers run one after another, so this buys capacity rather than speed. The `layer-parallelism-text`
+example splits the transformer the `text-classification` example trains, checks it against the
+single-device model, and fine-tunes it through the split.
 
 ## Remote Devices
 
