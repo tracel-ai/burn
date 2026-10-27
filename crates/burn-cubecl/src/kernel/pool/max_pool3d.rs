@@ -34,6 +34,7 @@ fn max_pool3d_forward_kernel<F: Float, I: Int>(
     indices: &mut Tensor<I>,
     out_shape: Sequence<FastDivmod<usize>>,
     args: MaxPool3dArgs,
+    neg_inf: InputScalar,
     #[define(F, I)] _dtypes: [ElemType; 2],
 ) {
     if ABSOLUTE_POS >= output.len() {
@@ -65,7 +66,8 @@ fn max_pool3d_forward_kernel<F: Float, I: Int>(
     let dilation_h = args.dilation_h;
     let dilation_w = args.dilation_w;
 
-    let mut max_val = F::new(f64::NEG_INFINITY);
+    // A runtime scalar: WGSL has no literal for an infinity.
+    let mut max_val = neg_inf.get::<F>();
     let mut max_idx = 0usize;
     let mut first_valid = true;
 
@@ -309,6 +311,7 @@ pub fn max_pool3d_with_indices(
             dilation[1],
             dilation[2],
         ),
+        InputScalar::new(f32::NEG_INFINITY, dtype_to_storage_type(dtype)),
         [
             dtype_to_storage_type(dtype),
             dtype_to_storage_type(dtype_indices),
