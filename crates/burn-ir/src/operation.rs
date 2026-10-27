@@ -10,8 +10,9 @@ use alloc::{string::String, vec::Vec};
 use burn_backend::{
     DType, Distribution, Slice,
     ops::{
-        ConvOptions, ConvTransposeOptions, DeformConvOptions, GridSampleOptions,
-        GridSamplePaddingMode, InterpolateMode, InterpolateOptions, PadMode,
+        ConvOptions, ConvTransposeOptions, CoordinateTransformMode, CubicOptions,
+        DeformConvOptions, GridSampleOptions, GridSamplePaddingMode, InterpolateMode,
+        InterpolateOptions, NearestRoundingMode, PadMode,
     },
     quantization::QuantScheme,
 };
@@ -2003,11 +2004,99 @@ pub enum InterpolateModeIr {
     Lanczos3,
 }
 
-#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[allow(missing_docs)]
+pub enum CoordinateTransformModeIr {
+    HalfPixel,
+    AlignCorners,
+    Asymmetric,
+    PytorchHalfPixel,
+    HalfPixelSymmetric,
+    TfCropAndResize {
+        roi: [[f32; 2]; 2],
+        extrapolation_value: f32,
+    },
+}
+
+fn canonicalize_f32_bits(val: f32) -> u32 {
+    if val == 0.0 {
+        0.0f32.to_bits()
+    } else {
+        val.to_bits()
+    }
+}
+
+impl Hash for CoordinateTransformModeIr {
+    fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
+        core::mem::discriminant(self).hash(state);
+        match self {
+            Self::HalfPixel
+            | Self::AlignCorners
+            | Self::Asymmetric
+            | Self::PytorchHalfPixel
+            | Self::HalfPixelSymmetric => {}
+            Self::TfCropAndResize {
+                roi,
+                extrapolation_value,
+            } => {
+                for row in roi {
+                    for val in row {
+                        canonicalize_f32_bits(*val).hash(state);
+                    }
+                }
+                canonicalize_f32_bits(*extrapolation_value).hash(state);
+            }
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
+#[allow(missing_docs)]
+pub enum NearestRoundingModeIr {
+    RoundPreferFloor,
+    RoundPreferCeil,
+    Floor,
+    Ceil,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[allow(missing_docs)]
+pub struct CubicOptionsIr {
+    pub a: f32,
+    pub exclude_outside: bool,
+}
+
+impl Hash for CubicOptionsIr {
+    fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
+        canonicalize_f32_bits(self.a).hash(state);
+        self.exclude_outside.hash(state);
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[allow(missing_docs)]
 pub struct InterpolateOptionsIr {
     pub mode: InterpolateModeIr,
-    pub align_corners: bool,
+    pub coordinate_transform: CoordinateTransformModeIr,
+    pub nearest_mode: NearestRoundingModeIr,
+    pub cubic_options: CubicOptionsIr,
+    pub output_size: Option<[usize; 2]>,
+    pub scale_factor: Option<[f32; 2]>,
+}
+
+impl Hash for InterpolateOptionsIr {
+    fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
+        self.mode.hash(state);
+        self.coordinate_transform.hash(state);
+        self.nearest_mode.hash(state);
+        self.cubic_options.hash(state);
+        self.output_size.hash(state);
+        if let Some(scale) = self.scale_factor {
+            for s in scale {
+                canonicalize_f32_bits(s).hash(state);
+            }
+        }
+    }
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
@@ -2125,9 +2214,94 @@ impl From<InterpolateModeIr> for InterpolateMode {
     }
 }
 
+impl From<CoordinateTransformModeIr> for CoordinateTransformMode {
+    fn from(val: CoordinateTransformModeIr) -> Self {
+        match val {
+            CoordinateTransformModeIr::HalfPixel => Self::HalfPixel,
+            CoordinateTransformModeIr::AlignCorners => Self::AlignCorners,
+            CoordinateTransformModeIr::Asymmetric => Self::Asymmetric,
+            CoordinateTransformModeIr::PytorchHalfPixel => Self::PytorchHalfPixel,
+            CoordinateTransformModeIr::HalfPixelSymmetric => Self::HalfPixelSymmetric,
+            CoordinateTransformModeIr::TfCropAndResize {
+                roi,
+                extrapolation_value,
+            } => Self::TfCropAndResize {
+                roi,
+                extrapolation_value,
+            },
+        }
+    }
+}
+
+impl From<CoordinateTransformMode> for CoordinateTransformModeIr {
+    fn from(val: CoordinateTransformMode) -> Self {
+        match val {
+            CoordinateTransformMode::HalfPixel => Self::HalfPixel,
+            CoordinateTransformMode::AlignCorners => Self::AlignCorners,
+            CoordinateTransformMode::Asymmetric => Self::Asymmetric,
+            CoordinateTransformMode::PytorchHalfPixel => Self::PytorchHalfPixel,
+            CoordinateTransformMode::HalfPixelSymmetric => Self::HalfPixelSymmetric,
+            CoordinateTransformMode::TfCropAndResize {
+                roi,
+                extrapolation_value,
+            } => Self::TfCropAndResize {
+                roi,
+                extrapolation_value,
+            },
+        }
+    }
+}
+
+impl From<NearestRoundingModeIr> for NearestRoundingMode {
+    fn from(val: NearestRoundingModeIr) -> Self {
+        match val {
+            NearestRoundingModeIr::RoundPreferFloor => Self::RoundPreferFloor,
+            NearestRoundingModeIr::RoundPreferCeil => Self::RoundPreferCeil,
+            NearestRoundingModeIr::Floor => Self::Floor,
+            NearestRoundingModeIr::Ceil => Self::Ceil,
+        }
+    }
+}
+
+impl From<NearestRoundingMode> for NearestRoundingModeIr {
+    fn from(val: NearestRoundingMode) -> Self {
+        match val {
+            NearestRoundingMode::RoundPreferFloor => Self::RoundPreferFloor,
+            NearestRoundingMode::RoundPreferCeil => Self::RoundPreferCeil,
+            NearestRoundingMode::Floor => Self::Floor,
+            NearestRoundingMode::Ceil => Self::Ceil,
+        }
+    }
+}
+
+impl From<CubicOptionsIr> for CubicOptions {
+    fn from(val: CubicOptionsIr) -> Self {
+        Self {
+            a: val.a,
+            exclude_outside: val.exclude_outside,
+        }
+    }
+}
+
+impl From<CubicOptions> for CubicOptionsIr {
+    fn from(val: CubicOptions) -> Self {
+        Self {
+            a: val.a,
+            exclude_outside: val.exclude_outside,
+        }
+    }
+}
+
 impl From<InterpolateOptionsIr> for InterpolateOptions {
     fn from(val: InterpolateOptionsIr) -> Self {
-        Self::new(val.mode.into()).with_align_corners(val.align_corners)
+        Self {
+            mode: val.mode.into(),
+            coordinate_transform: val.coordinate_transform.into(),
+            nearest_mode: val.nearest_mode.into(),
+            cubic_options: val.cubic_options.into(),
+            output_size: val.output_size,
+            scale_factor: val.scale_factor,
+        }
     }
 }
 
@@ -2147,7 +2321,11 @@ impl From<InterpolateOptions> for InterpolateOptionsIr {
     fn from(val: InterpolateOptions) -> Self {
         Self {
             mode: val.mode.into(),
-            align_corners: val.align_corners,
+            coordinate_transform: val.coordinate_transform.into(),
+            nearest_mode: val.nearest_mode.into(),
+            cubic_options: val.cubic_options.into(),
+            output_size: val.output_size,
+            scale_factor: val.scale_factor,
         }
     }
 }
@@ -5451,5 +5629,50 @@ mod tests {
             panic!("expected pad operation");
         };
         assert_eq!(desc.mode, PadModeIr::Constant(ScalarIr::Float(7.0)));
+    }
+
+    #[test]
+    fn interpolate_options_ir_hash_canonicalizes_signed_zero() {
+        use core::hash::{Hash, Hasher};
+        use std::collections::hash_map::DefaultHasher;
+
+        fn calculate_hash<T: Hash>(t: &T) -> u64 {
+            let mut s = DefaultHasher::new();
+            t.hash(&mut s);
+            s.finish()
+        }
+
+        let opt1 = InterpolateOptionsIr {
+            mode: InterpolateModeIr::Bicubic,
+            coordinate_transform: CoordinateTransformModeIr::TfCropAndResize {
+                roi: [[0.0, 0.0], [1.0, 1.0]],
+                extrapolation_value: 0.0,
+            },
+            nearest_mode: NearestRoundingModeIr::Floor,
+            cubic_options: CubicOptionsIr {
+                a: 0.0,
+                exclude_outside: true,
+            },
+            output_size: Some([4, 4]),
+            scale_factor: None,
+        };
+
+        let opt2 = InterpolateOptionsIr {
+            mode: InterpolateModeIr::Bicubic,
+            coordinate_transform: CoordinateTransformModeIr::TfCropAndResize {
+                roi: [[-0.0, -0.0], [1.0, 1.0]],
+                extrapolation_value: -0.0,
+            },
+            nearest_mode: NearestRoundingModeIr::Floor,
+            cubic_options: CubicOptionsIr {
+                a: -0.0,
+                exclude_outside: true,
+            },
+            output_size: Some([4, 4]),
+            scale_factor: None,
+        };
+
+        assert_eq!(opt1, opt2);
+        assert_eq!(calculate_hash(&opt1), calculate_hash(&opt2));
     }
 }

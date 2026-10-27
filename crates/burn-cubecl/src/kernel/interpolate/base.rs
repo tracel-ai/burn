@@ -6,7 +6,13 @@ use crate::{
     tensor::CubeTensor,
 };
 use burn_backend::cubecl::dtype_to_storage_type;
-use burn_backend::{Shape, TensorMetadata, ops::InterpolateMode, ops::InterpolateOptions};
+use burn_backend::{
+    Shape, TensorMetadata,
+    ops::{
+        CoordinateTransformMode, CubicOptions, InterpolateMode, InterpolateOptions,
+        NearestRoundingMode,
+    },
+};
 use cubek::interpolate::{
     InterpolateStrategy as CubekInterpolateStrategy,
     definition::{
@@ -68,7 +74,7 @@ pub fn execute_interpolate(
     options: InterpolateOptions,
     strategy: CubekInterpolateStrategy,
 ) -> Result<CubeTensor, InterpolateError> {
-    let [batch_size, channels, _, _] = input.meta.shape().dims();
+    let [batch_size, channels, in_height, in_width] = input.meta.shape().dims();
     let [out_height, out_width] = output_size;
 
     let input = into_contiguous(permute_nchw_to_nhwc(input));
@@ -85,7 +91,7 @@ pub fn execute_interpolate(
         &input.client.clone(),
         input.clone().binding(),
         output.clone().binding(),
-        map_options(options.clone()),
+        map_options(&options, [in_height, in_width], output_size),
         strategy,
         dtype_to_storage_type(input.dtype),
     )?;
@@ -99,7 +105,7 @@ pub fn execute_interpolate(
 pub fn interpolate_backward(
     input: CubeTensor,
     out_grad: CubeTensor,
-    _output_size: [usize; 2],
+    output_size: [usize; 2],
     options: InterpolateOptions,
 ) -> CubeTensor {
     let input = permute_nchw_to_nhwc(input);
@@ -113,12 +119,13 @@ pub fn interpolate_backward(
         input.dtype,
     );
 
+    let [_, in_height, in_width, _] = input.meta.shape().dims();
     cubek_interpolate_backward(
         &input.client.clone(),
         input.clone().binding(),
         out_grad.binding(),
         output.clone().binding(),
-        map_options(options.clone()),
+        map_options(&options, [in_height, in_width], output_size),
         dtype_to_storage_type(input.dtype),
     )
     .unwrap_or_else(|e| {
@@ -141,9 +148,105 @@ pub(crate) fn map_mode(mode: InterpolateMode) -> CubekInterpolateMode {
     }
 }
 
-pub(crate) fn map_options(options: InterpolateOptions) -> CubekInterpolateOptions {
+pub(crate) fn map_options(
+    options: &InterpolateOptions,
+    in_size: [usize; 2],
+    output_size: [usize; 2],
+) -> CubekInterpolateOptions {
+    if options.cubic_options != CubicOptions::default() {
+        panic!(
+            "CubeCL backend does not yet support extended coordinate transform/nearest modes. Please run on Flex or wait for cubek upstream integration."
+        );
+    }
+
+    if matches!(
+        options.mode,
+        InterpolateMode::Nearest | InterpolateMode::NearestExact
+    ) {
+        match (
+            options.mode,
+            options.coordinate_transform,
+            options.nearest_mode,
+        ) {
+            (
+                InterpolateMode::Nearest,
+                CoordinateTransformMode::Asymmetric,
+                NearestRoundingMode::Floor,
+            )
+            | (
+                InterpolateMode::NearestExact,
+                CoordinateTransformMode::HalfPixel,
+                NearestRoundingMode::RoundPreferCeil,
+            ) => {}
+            _ => panic!(
+                "CubeCL backend does not yet support nearest interpolation with mode {:?}, transform {:?}, and rounding {:?}. Please run on Flex or wait for cubek upstream integration.",
+                options.mode, options.coordinate_transform, options.nearest_mode
+            ),
+        }
+    }
+
+    if let Some(scale) = options.scale_factor {
+        let is_align_corners =
+            options.coordinate_transform == CoordinateTransformMode::AlignCorners;
+        let is_compatible_half_pixel_or_asym = match (options.mode, options.coordinate_transform) {
+            (InterpolateMode::Nearest, CoordinateTransformMode::Asymmetric)
+            | (InterpolateMode::NearestExact, CoordinateTransformMode::HalfPixel)
+            | (
+                InterpolateMode::Bilinear | InterpolateMode::Bicubic | InterpolateMode::Lanczos3,
+                CoordinateTransformMode::HalfPixel,
+            ) => {
+                let ratio_h = output_size[0] as f64 / in_size[0] as f64;
+                let ratio_w = output_size[1] as f64 / in_size[1] as f64;
+                f64::from(scale[0]) == ratio_h && f64::from(scale[1]) == ratio_w
+            }
+            _ => false,
+        };
+
+        if !is_align_corners && !is_compatible_half_pixel_or_asym {
+            panic!(
+                "CubeCL backend does not yet support extended scale-driven coordinate mapping where scale differs from output/input ratio. Please run on Flex or wait for cubek upstream integration."
+            );
+        }
+    }
+
+    let align_corners = match options.coordinate_transform {
+        CoordinateTransformMode::Asymmetric if matches!(options.mode, InterpolateMode::Nearest) => {
+            false
+        }
+        CoordinateTransformMode::HalfPixel => false,
+        CoordinateTransformMode::AlignCorners => true,
+        _ => {
+            panic!(
+                "CubeCL backend does not yet support extended coordinate transform/nearest modes. Please run on Flex or wait for cubek upstream integration."
+            );
+        }
+    };
+
     CubekInterpolateOptions {
         mode: map_mode(options.mode),
-        align_corners: options.align_corners,
+        align_corners,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    #[should_panic(expected = "CubeCL backend does not yet support nearest interpolation")]
+    fn test_cubecl_rejects_unsupported_nearest_combinations() {
+        let options = InterpolateOptions::new(InterpolateMode::Nearest)
+            .with_coordinate_transform(CoordinateTransformMode::HalfPixel)
+            .with_nearest_mode(NearestRoundingMode::Floor);
+        let _ = map_options(&options, [1, 2], [1, 4]);
+    }
+
+    #[test]
+    #[should_panic(expected = "CubeCL backend does not yet support nearest interpolation")]
+    fn test_cubecl_rejects_nearest_exact_with_asymmetric() {
+        let options = InterpolateOptions::new(InterpolateMode::NearestExact)
+            .with_coordinate_transform(CoordinateTransformMode::Asymmetric)
+            .with_nearest_mode(NearestRoundingMode::RoundPreferCeil);
+        let _ = map_options(&options, [1, 2], [1, 4]);
     }
 }

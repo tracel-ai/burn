@@ -743,53 +743,53 @@ impl ModuleOps<Flex> for Flex {
         options: InterpolateOptions,
     ) -> FloatTensor<Flex> {
         match (options.mode, x.dtype()) {
-            (InterpolateMode::Nearest, DType::F32) => {
-                interpolate::interpolate_nearest_f32(x, output_size, options.align_corners)
+            (InterpolateMode::Nearest | InterpolateMode::NearestExact, DType::F32) => {
+                interpolate::interpolate_nearest_f32(x, output_size, &options)
             }
-            (InterpolateMode::Nearest, DType::F64) => {
-                interpolate::interpolate_nearest_f64(x, output_size, options.align_corners)
+            (InterpolateMode::Nearest | InterpolateMode::NearestExact, DType::F64) => {
+                interpolate::interpolate_nearest_f64(x, output_size, &options)
             }
-            (InterpolateMode::Nearest, DType::F16) => {
-                interpolate::interpolate_nearest_f16(x, output_size, options.align_corners)
+            (InterpolateMode::Nearest | InterpolateMode::NearestExact, DType::F16) => {
+                interpolate::interpolate_nearest_f16(x, output_size, &options)
             }
-            (InterpolateMode::Nearest, DType::BF16) => {
-                interpolate::interpolate_nearest_bf16(x, output_size, options.align_corners)
+            (InterpolateMode::Nearest | InterpolateMode::NearestExact, DType::BF16) => {
+                interpolate::interpolate_nearest_bf16(x, output_size, &options)
             }
             (InterpolateMode::Bilinear, DType::F32) => {
-                interpolate::interpolate_bilinear_f32(x, output_size, options.align_corners)
+                interpolate::interpolate_bilinear_f32(x, output_size, &options)
             }
             (InterpolateMode::Bilinear, DType::F64) => {
-                interpolate::interpolate_bilinear_f64(x, output_size, options.align_corners)
+                interpolate::interpolate_bilinear_f64(x, output_size, &options)
             }
             (InterpolateMode::Bilinear, DType::F16) => {
-                interpolate::interpolate_bilinear_f16(x, output_size, options.align_corners)
+                interpolate::interpolate_bilinear_f16(x, output_size, &options)
             }
             (InterpolateMode::Bilinear, DType::BF16) => {
-                interpolate::interpolate_bilinear_bf16(x, output_size, options.align_corners)
+                interpolate::interpolate_bilinear_bf16(x, output_size, &options)
             }
             (InterpolateMode::Bicubic, DType::F32) => {
-                interpolate::interpolate_bicubic_f32(x, output_size, options.align_corners)
+                interpolate::interpolate_bicubic_f32(x, output_size, &options)
             }
             (InterpolateMode::Bicubic, DType::F64) => {
-                interpolate::interpolate_bicubic_f64(x, output_size, options.align_corners)
+                interpolate::interpolate_bicubic_f64(x, output_size, &options)
             }
             (InterpolateMode::Bicubic, DType::F16) => {
-                interpolate::interpolate_bicubic_f16(x, output_size, options.align_corners)
+                interpolate::interpolate_bicubic_f16(x, output_size, &options)
             }
             (InterpolateMode::Bicubic, DType::BF16) => {
-                interpolate::interpolate_bicubic_bf16(x, output_size, options.align_corners)
+                interpolate::interpolate_bicubic_bf16(x, output_size, &options)
             }
             (InterpolateMode::Lanczos3, DType::F32) => {
-                interpolate::interpolate_lanczos3_f32(x, output_size, options.align_corners)
+                interpolate::interpolate_lanczos3_f32(x, output_size, &options)
             }
             (InterpolateMode::Lanczos3, DType::F64) => {
-                interpolate::interpolate_lanczos3_f64(x, output_size, options.align_corners)
+                interpolate::interpolate_lanczos3_f64(x, output_size, &options)
             }
             (InterpolateMode::Lanczos3, DType::F16) => {
-                interpolate::interpolate_lanczos3_f16(x, output_size, options.align_corners)
+                interpolate::interpolate_lanczos3_f16(x, output_size, &options)
             }
             (InterpolateMode::Lanczos3, DType::BF16) => {
-                interpolate::interpolate_lanczos3_bf16(x, output_size, options.align_corners)
+                interpolate::interpolate_lanczos3_bf16(x, output_size, &options)
             }
             (mode, dtype) => panic!(
                 "interpolate: unsupported mode {:?} / dtype {:?}",
@@ -805,101 +805,41 @@ impl ModuleOps<Flex> for Flex {
         options: InterpolateOptions,
     ) -> FloatTensor<Flex> {
         match (options.mode, x.dtype()) {
-            (InterpolateMode::Nearest, DType::F32) => {
-                interpolate::interpolate_nearest_backward_f32(
-                    x,
-                    grad,
-                    output_size,
-                    options.align_corners,
-                )
+            (InterpolateMode::Nearest | InterpolateMode::NearestExact, DType::F32) => {
+                interpolate::interpolate_nearest_backward_f32(x, grad, output_size, &options)
             }
-            (InterpolateMode::Nearest, DType::F64) => {
-                interpolate::interpolate_nearest_backward_f64(
-                    x,
-                    grad,
-                    output_size,
-                    options.align_corners,
-                )
+            (InterpolateMode::Nearest | InterpolateMode::NearestExact, DType::F64) => {
+                interpolate::interpolate_nearest_backward_f64(x, grad, output_size, &options)
             }
-            (InterpolateMode::Nearest, DType::F16) => {
-                interpolate::interpolate_nearest_backward_f16(
-                    x,
-                    grad,
-                    output_size,
-                    options.align_corners,
-                )
+            (InterpolateMode::Nearest | InterpolateMode::NearestExact, DType::F16) => {
+                interpolate::interpolate_nearest_backward_f16(x, grad, output_size, &options)
             }
-            (InterpolateMode::Nearest, DType::BF16) => {
-                interpolate::interpolate_nearest_backward_bf16(
-                    x,
-                    grad,
-                    output_size,
-                    options.align_corners,
-                )
+            (InterpolateMode::Nearest | InterpolateMode::NearestExact, DType::BF16) => {
+                interpolate::interpolate_nearest_backward_bf16(x, grad, output_size, &options)
             }
             (InterpolateMode::Bilinear, DType::F32) => {
-                interpolate::interpolate_bilinear_backward_f32(
-                    x,
-                    grad,
-                    output_size,
-                    options.align_corners,
-                )
+                interpolate::interpolate_bilinear_backward_f32(x, grad, output_size, &options)
             }
             (InterpolateMode::Bilinear, DType::F64) => {
-                interpolate::interpolate_bilinear_backward_f64(
-                    x,
-                    grad,
-                    output_size,
-                    options.align_corners,
-                )
+                interpolate::interpolate_bilinear_backward_f64(x, grad, output_size, &options)
             }
             (InterpolateMode::Bilinear, DType::F16) => {
-                interpolate::interpolate_bilinear_backward_f16(
-                    x,
-                    grad,
-                    output_size,
-                    options.align_corners,
-                )
+                interpolate::interpolate_bilinear_backward_f16(x, grad, output_size, &options)
             }
             (InterpolateMode::Bilinear, DType::BF16) => {
-                interpolate::interpolate_bilinear_backward_bf16(
-                    x,
-                    grad,
-                    output_size,
-                    options.align_corners,
-                )
+                interpolate::interpolate_bilinear_backward_bf16(x, grad, output_size, &options)
             }
             (InterpolateMode::Bicubic, DType::F32) => {
-                interpolate::interpolate_bicubic_backward_f32(
-                    x,
-                    grad,
-                    output_size,
-                    options.align_corners,
-                )
+                interpolate::interpolate_bicubic_backward_f32(x, grad, output_size, &options)
             }
             (InterpolateMode::Bicubic, DType::F64) => {
-                interpolate::interpolate_bicubic_backward_f64(
-                    x,
-                    grad,
-                    output_size,
-                    options.align_corners,
-                )
+                interpolate::interpolate_bicubic_backward_f64(x, grad, output_size, &options)
             }
             (InterpolateMode::Bicubic, DType::F16) => {
-                interpolate::interpolate_bicubic_backward_f16(
-                    x,
-                    grad,
-                    output_size,
-                    options.align_corners,
-                )
+                interpolate::interpolate_bicubic_backward_f16(x, grad, output_size, &options)
             }
             (InterpolateMode::Bicubic, DType::BF16) => {
-                interpolate::interpolate_bicubic_backward_bf16(
-                    x,
-                    grad,
-                    output_size,
-                    options.align_corners,
-                )
+                interpolate::interpolate_bicubic_backward_bf16(x, grad, output_size, &options)
             }
             (mode, dtype) => {
                 panic!(

@@ -5,8 +5,9 @@ use crate::{Backend, Scalar, TensorMetadata};
 #[allow(deprecated)]
 pub use burn_std::ops::{
     AttentionModuleOptions, AvgPoolOptions, CausalAlignment, ConvOptions, ConvTransposeOptions,
-    DeformConvOptions, GridSampleOptions, GridSamplePaddingMode, InterpolateMode,
-    InterpolateOptions, MaxPoolOptions, PadMode, PaddedConvOptions, UnfoldOptions,
+    CoordinateTransformMode, CubicOptions, DeformConvOptions, GridSampleOptions,
+    GridSamplePaddingMode, InterpolateMode, InterpolateOptions, MaxPoolOptions,
+    NearestRoundingMode, PadMode, PaddedConvOptions, UnfoldOptions,
 };
 use burn_std::{IndexingUpdateOp, IntDType, Shape};
 
