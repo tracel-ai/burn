@@ -1,7 +1,7 @@
 use std::{collections::HashMap, iter};
 
 use burn_backend::{
-    DType, DTypeUsage, DTypeUsageSet, DeviceSettings, ExecutionError, TensorData, ops::DimSplit,
+    DType, DTypeUsageSet, DeviceSettings, ExecutionError, TensorData, ops::DimSplit,
 };
 use burn_ir::{BackendIr, IrVisitorMut, OperationIr, TensorId, TensorIr, TensorStatus};
 use burn_router::TensorInterpreter;
@@ -32,8 +32,7 @@ pub trait DynGroupInterpreter: Send {
     fn sharding(&self, id: &TensorId) -> Sharding;
 
     /// A new tensor holding `data`, replicated. It stays on the host until it is used, so a split
-    /// by `with_sharding`, or by an op that consumes it, uploads each member only its chunk,
-    /// unless a member cannot store its dtype.
+    /// by `with_sharding`, or by an op that consumes it, uploads each member only its chunk.
     fn register_tensor_data(&mut self, data: TensorData) -> TensorId;
 
     /// Runs `op` on every member's shards, after resharding each input as the op's
@@ -145,14 +144,8 @@ impl<B: BackendIr> DynGroupInterpreter for GroupInterpreter<B> {
 
     fn register_tensor_data(&mut self, data: TensorData) -> TensorId {
         let id = self.new_tensor_id();
-        let dtype = data.dtype();
         self.on_host.insert(id, data);
         self.shardings.insert(id, Sharding::Replicated);
-        // A member that cannot hold the dtype fails in its backend, which must happen here, where
-        // the data was given, as it does on one device.
-        if !self.dtype_usage(dtype).contains(DTypeUsage::Storage) {
-            self.upload(id);
-        }
         id
     }
 
@@ -219,7 +212,7 @@ impl<B: BackendIr> DynGroupInterpreter for GroupInterpreter<B> {
 impl<B: BackendIr> GroupInterpreter<B> {
     fn run(&mut self, mut op: OperationIr) {
         let plan = OpPlan::new(&op, &self.shardings, self.interpreters.len());
-        let temporaries = self.reshard_inputs(&mut op, &plan);
+        let temporaries = self.shard_inputs(&mut op, &plan);
         for (id, sharding) in plan.output_shardings() {
             self.shardings.insert(*id, *sharding);
         }
@@ -239,7 +232,9 @@ impl<B: BackendIr> GroupInterpreter<B> {
         temporaries.into_iter().for_each(|id| self.drop_tensor(id));
     }
 
-    fn reshard_inputs(&mut self, op: &mut OperationIr, plan: &OpPlan) -> Vec<TensorId> {
+    /// Gets every input of `op` onto the members as the plan shards it: uploaded whole, cut on the
+    /// host, or resharded. Returns the temporaries to drop after the op.
+    fn shard_inputs(&mut self, op: &mut OperationIr, plan: &OpPlan) -> Vec<TensorId> {
         let inputs: Vec<TensorIr> = op.inputs().cloned().collect();
         let mut resharded = ReshardedInputs::default();
         for input in &inputs {

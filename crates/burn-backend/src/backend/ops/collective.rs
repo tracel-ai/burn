@@ -112,20 +112,6 @@ pub struct EmulatedCollectives<B> {
     _backend: PhantomData<B>,
 }
 
-/// Dimension `dim`, of length `len`, cut into one chunk per member, a member being one of the
-/// tensors a collective is given: as even as possible, with the first members holding one more.
-///
-/// A caller that splits a tensor itself must cut it the same way, so this is public.
-#[derive(Clone, Copy, Debug)]
-pub struct DimSplit {
-    /// The dimension the chunks cut along.
-    pub dim: usize,
-    /// How many elements that dimension holds.
-    pub len: usize,
-    /// How many chunks it is cut into, one per member.
-    pub members: usize,
-}
-
 impl<B: Backend> EmulatedCollectives<B> {
     /// See [`CollectiveOps::float_all_reduce`].
     pub fn float_all_reduce(
@@ -400,6 +386,20 @@ impl<B: Backend> EmulatedCollectives<B> {
     }
 }
 
+/// Dimension `dim`, of length `len`, cut into one chunk per member, a member being one of the
+/// tensors a collective is given: as even as possible, with the first members holding one more.
+///
+/// A caller that splits a tensor itself must cut it the same way, so this is public.
+#[derive(Clone, Copy, Debug)]
+pub struct DimSplit {
+    /// The dimension the chunks cut along.
+    pub dim: usize,
+    /// How many elements that dimension holds.
+    pub len: usize,
+    /// How many chunks it is cut into, one per member.
+    pub members: usize,
+}
+
 impl DimSplit {
     fn new<T: TensorMetadata>(tensors: &[T], dim: usize) -> Self {
         let split = Self {
@@ -464,38 +464,42 @@ impl DimSplit {
     /// has windows, so a file-backed tensor reads only that range.
     fn chunk_bytes(&self, data: &TensorData, member: usize) -> Bytes {
         let pieces = self.byte_ranges(data, member);
-        if let [piece] = pieces.as_slice()
+        if pieces.len() == 1
+            && let Some(piece) = pieces.clone().next()
             && let Ok(window) = data.bytes().view(piece.start, piece.end)
         {
             return window;
         }
-        concatenated(data.as_bytes(), &pieces)
+        concatenated(data.as_bytes(), pieces)
     }
 
     /// Where `member`'s chunk sits in `data`: one byte range for each index of the dims before
     /// `dim`.
-    fn byte_ranges(&self, data: &TensorData, member: usize) -> Vec<Range<usize>> {
+    fn byte_ranges(
+        &self,
+        data: &TensorData,
+        member: usize,
+    ) -> impl ExactSizeIterator<Item = Range<usize>> + Clone + use<> {
         let shape = data.shape().as_slice();
         let blocks: usize = shape[..self.dim].iter().product();
         let row_size = shape[self.dim + 1..].iter().product::<usize>() * data.dtype().size();
         let rows = self.range(member);
-        (0..blocks)
-            .map(|block| {
-                let start = (block * self.len + rows.start) * row_size;
-                start..start + rows.len() * row_size
-            })
-            .collect()
+        let len = self.len;
+        (0..blocks).map(move |block| {
+            let start = (block * len + rows.start) * row_size;
+            start..start + rows.len() * row_size
+        })
     }
 }
 
 /// The `ranges` of `bytes` end to end, in a u128 buffer: it is aligned to `MAX_ALIGN`, so the
 /// result is not copied again to reach it.
-fn concatenated(bytes: &[u8], ranges: &[Range<usize>]) -> Bytes {
-    let len: usize = ranges.iter().map(Range::len).sum();
+fn concatenated(bytes: &[u8], ranges: impl Iterator<Item = Range<usize>> + Clone) -> Bytes {
+    let len: usize = ranges.clone().map(|range| range.len()).sum();
     let mut concatenated =
         Bytes::from_elems(Vec::<u128>::with_capacity(len.div_ceil(size_of::<u128>())));
     for range in ranges {
-        concatenated.extend_from_byte_slice(&bytes[range.clone()]);
+        concatenated.extend_from_byte_slice(&bytes[range]);
     }
     concatenated
 }
