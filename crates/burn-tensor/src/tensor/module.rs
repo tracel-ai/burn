@@ -2,9 +2,7 @@ use burn_backend::ops::ModuleOps;
 use burn_dispatch::Dispatch;
 use burn_std::{MatmulTransformAction, MatmulTransformAnalysis, MatmulTransformPolicy};
 
-pub use crate::ops::{
-    CoordinateTransformMode, CubicOptions, InterpolateMode, InterpolateOptions, NearestRoundingMode,
-};
+pub use crate::ops::{CoordinateTransformMode, InterpolateMode, InterpolateOptions};
 use crate::{
     Bool, DType, Int, Shape, Tensor, check,
     check::TensorCheck,

@@ -7,7 +7,7 @@ pub use interpolate2d::*;
 use burn_core as burn;
 
 use burn::config::Config;
-use burn::tensor::ops::InterpolateMode as OpsInterpolateMode;
+use burn::tensor::ops::{CoordinateTransformMode, InterpolateMode as OpsInterpolateMode};
 
 /// Algorithm used for downsampling and upsampling
 ///
@@ -32,7 +32,10 @@ pub enum InterpolateMode {
     /// interpolation between nearby sample points.
     ///
     /// It is applicable for both temporal and spatial data.
-    Linear,
+    Linear {
+        /// Mapping from output coordinates to input coordinates.
+        coordinate_transform: CoordinateTransformMode,
+    },
 
     /// Cubic interpolation
     ///
@@ -41,14 +44,22 @@ pub enum InterpolateMode {
     ///
     /// It is applicable for both temporal and spatial data and generally
     /// provides smoother results than linear interpolation.
-    Cubic,
+    Cubic {
+        /// Mapping from output coordinates to input coordinates.
+        coordinate_transform: CoordinateTransformMode,
+        /// Cubic convolution coefficient, conventionally `-0.75`.
+        a: f32,
+    },
 
     /// Lanczos3 interpolation
     ///
     /// This mode uses a 6-tap sinc-based Lanczos filter (a=3) to calculate
     /// the output value. It generally provides high-quality results,
     /// especially for downsampling.
-    Lanczos,
+    Lanczos {
+        /// Mapping from output coordinates to input coordinates.
+        coordinate_transform: CoordinateTransformMode,
+    },
 }
 
 impl From<InterpolateMode> for OpsInterpolateMode {
@@ -56,9 +67,23 @@ impl From<InterpolateMode> for OpsInterpolateMode {
         match mode {
             InterpolateMode::Nearest => OpsInterpolateMode::Nearest,
             InterpolateMode::NearestExact => OpsInterpolateMode::NearestExact,
-            InterpolateMode::Linear => OpsInterpolateMode::Bilinear,
-            InterpolateMode::Cubic => OpsInterpolateMode::Bicubic,
-            InterpolateMode::Lanczos => OpsInterpolateMode::Lanczos3,
+            InterpolateMode::Linear {
+                coordinate_transform,
+            } => OpsInterpolateMode::Bilinear {
+                coordinate_transform,
+            },
+            InterpolateMode::Cubic {
+                coordinate_transform,
+                a,
+            } => OpsInterpolateMode::Bicubic {
+                coordinate_transform,
+                a,
+            },
+            InterpolateMode::Lanczos {
+                coordinate_transform,
+            } => OpsInterpolateMode::Lanczos3 {
+                coordinate_transform,
+            },
         }
     }
 }

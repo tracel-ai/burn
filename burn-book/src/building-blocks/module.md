@@ -593,6 +593,7 @@ Interpolation modules resize tensors using one of the available `InterpolateMode
 | Mode      | Description                                        |
 | --------- | -------------------------------------------------- |
 | `Nearest` | Nearest-neighbor interpolation                     |
+| `NearestExact` | Nearest-neighbor interpolation with half-pixel mapping |
 | `Linear`  | Linear interpolation (bilinear for 2D)             |
 | `Cubic`   | Cubic interpolation (bicubic for 2D)               |
 | `Lanczos` | Lanczos3 resampling (6-tap sinc-based filter, a=3) |
@@ -605,7 +606,25 @@ one of `output_size` or `scale_factor` must be set; `forward` panics otherwise.
 | `output_size`   | `Option<usize>` / `Option<[usize; 2]>` | `None`    | Target output size; set this or `scale_factor` |
 | `scale_factor`  | `Option<f32>` / `Option<[f32; 2]>`     | `None`    | Output is `floor(input * scale_factor)`        |
 | `mode`          | `InterpolateMode`                      | `Nearest` | Interpolation algorithm                        |
-| `align_corners` | `bool`                                 | `true`    | Align input/output corner pixels               |
+
+`Nearest` uses asymmetric coordinates and floor rounding. `NearestExact` uses half-pixel
+coordinates and rounds ties upward. These modes have no overrides. Linear, cubic and Lanczos
+modes carry their coordinate transform; cubic also carries its coefficient `a`:
+
+```rust,ignore
+Interpolate2dConfig::new()
+    .with_output_size(Some([224, 224]))
+    .with_mode(InterpolateMode::Cubic {
+        coordinate_transform: CoordinateTransformMode::HalfPixel,
+        a: -0.75,
+    })
+    .init();
+```
+
+Use `AlignCorners` to align the first and last pixel centers, or `HalfPixel` for resizing without
+corner alignment. `Asymmetric` coordinates for non-nearest modes and cubic coefficients other
+than `-0.75` require Flex. On CubeCL, explicit scales must exactly match the resolved output/input
+ratios unless using `AlignCorners`.
 
 ### RNNs
 

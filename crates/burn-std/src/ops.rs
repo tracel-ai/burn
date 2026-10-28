@@ -422,28 +422,49 @@ impl UnfoldOptions {
 }
 
 /// Algorithm used.
-#[derive(new, Debug, Clone, Copy, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, serde::Deserialize, serde::Serialize)]
 pub enum InterpolateMode {
-    /// Nearest-neighbor floor interpolation.
-    /// Matches the legacy behavior of OpenCV’s INTER_NEAREST. It results in a bottom-right shift when resizing.
-    /// <https://en.wikipedia.org/wiki/Nearest-neighbor_interpolation>
+    /// Nearest neighbor with asymmetric coordinates and floor rounding.
     Nearest,
-
-    /// Nearest-neighbor exact interpolation.
-    /// <https://en.wikipedia.org/wiki/Nearest-neighbor_interpolation>
+    /// Nearest neighbor with half-pixel coordinates and rounding ties upward.
     NearestExact,
-
     /// Bilinear interpolation.
-    /// <https://en.wikipedia.org/wiki/Bilinear_interpolation>
-    Bilinear,
+    Bilinear {
+        /// Mapping from output coordinates to input coordinates.
+        coordinate_transform: CoordinateTransformMode,
+    },
+    /// Bicubic interpolation with edge clamping.
+    Bicubic {
+        /// Mapping from output coordinates to input coordinates.
+        coordinate_transform: CoordinateTransformMode,
+        /// Cubic convolution coefficient. The conventional Burn value is `-0.75`.
+        a: f32,
+    },
+    /// Lanczos interpolation with a radius of three pixels.
+    Lanczos3 {
+        /// Mapping from output coordinates to input coordinates.
+        coordinate_transform: CoordinateTransformMode,
+    },
+}
 
-    /// Bicubic interpolation.
-    /// <https://en.wikipedia.org/wiki/Bicubic_interpolation>
-    Bicubic,
-
-    /// Lanczos3 interpolation (6-tap sinc-based filter).
-    /// <https://en.wikipedia.org/wiki/Lanczos_resampling>
-    Lanczos3,
+impl InterpolateMode {
+    /// The coordinate mapping used by this interpolation mode.
+    pub fn coordinate_transform(&self) -> CoordinateTransformMode {
+        match *self {
+            Self::Nearest => CoordinateTransformMode::Asymmetric,
+            Self::NearestExact => CoordinateTransformMode::HalfPixel,
+            Self::Bilinear {
+                coordinate_transform,
+            }
+            | Self::Bicubic {
+                coordinate_transform,
+                ..
+            }
+            | Self::Lanczos3 {
+                coordinate_transform,
+            } => coordinate_transform,
+        }
+    }
 }
 
 /// Coordinate transformation mode for interpolation.
@@ -455,67 +476,19 @@ pub enum CoordinateTransformMode {
     AlignCorners,
     /// Asymmetric coordinate mapping: `x_out / scale`.
     Asymmetric,
-    /// PyTorch half-pixel coordinate mapping: `(x_out + 0.5) / scale - 0.5` if `l_out > 1` else `0.0`.
-    PytorchHalfPixel,
-    /// Half-pixel symmetric coordinate mapping.
-    HalfPixelSymmetric,
-    /// TensorFlow crop and resize coordinate mapping with normalized ROI bounding box.
-    TfCropAndResize {
-        /// Normalized bounding box per spatial axis: [[y_start, y_end], [x_start, x_end]]
-        roi: [[f32; 2]; 2],
-        /// Extrapolation fill value for coordinates outside bounds
-        extrapolation_value: f32,
-    },
-}
-
-/// Nearest rounding mode for nearest neighbor interpolation.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-pub enum NearestRoundingMode {
-    /// Round with preference to floor at 0.5 boundaries (`ceil(x - 0.5)`).
-    RoundPreferFloor,
-    /// Round with preference to ceil at 0.5 boundaries (`floor(x + 0.5)`).
-    RoundPreferCeil,
-    /// Floor rounding (`floor(x)`).
-    Floor,
-    /// Ceil rounding (`ceil(x)`).
-    Ceil,
-}
-
-/// Configuration options for bicubic interpolation.
-#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
-pub struct CubicOptions {
-    /// Cubic spline parameter 'a'. Default: -0.75 (PyTorch/ONNX), -0.5 (TensorFlow).
-    pub a: f32,
-    /// Zero out-of-bounds tap weights and renormalize remaining weights.
-    pub exclude_outside: bool,
-}
-
-impl Default for CubicOptions {
-    fn default() -> Self {
-        Self {
-            a: -0.75,
-            exclude_outside: false,
-        }
-    }
 }
 
 /// Interpolation options.
 ///
-/// Flex supports all coordinate transforms, rounding modes and cubic options.
-/// CubeCL supports the default nearest and nearest-exact combinations, plus bilinear,
-/// bicubic and Lanczos3 with `AlignCorners` or `HalfPixel` and default cubic options.
+/// Flex supports all interpolation modes and their settings.
+/// CubeCL supports nearest and nearest-exact, plus bilinear,
+/// bicubic and Lanczos3 with `AlignCorners` or `HalfPixel`, and cubic coefficient `-0.75`.
 /// With CubeCL, explicit scales must equal the resolved output/input ratios exactly,
 /// unless the transform is `AlignCorners`. Unsupported combinations panic.
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct InterpolateOptions {
     /// Algorithm used.
     pub mode: InterpolateMode,
-    /// Coordinate transformation mode.
-    pub coordinate_transform: CoordinateTransformMode,
-    /// Nearest rounding mode.
-    pub nearest_mode: NearestRoundingMode,
-    /// Cubic interpolation options.
-    pub cubic_options: CubicOptions,
     /// Output spatial size `[height, width]`.
     ///
     /// Exactly one of `output_size` or `scale_factor` must be set when calling
@@ -524,80 +497,19 @@ pub struct InterpolateOptions {
     /// Scale factor `[scale_height, scale_width]` applied to the input spatial size.
     /// The output size is `floor(input_size * scale_factor)`.
     /// Scale-dependent transforms use these supplied factors for coordinates rather
-    /// than recomputing the output/input ratio. `AlignCorners` and `TfCropAndResize`
-    /// map coordinates from the resolved sizes instead.
+    /// than recomputing the output/input ratio. `AlignCorners` maps coordinates
+    /// from the resolved sizes instead.
     pub scale_factor: Option<[f32; 2]>,
 }
 
 impl InterpolateOptions {
-    /// Create new interpolate options with mode-dependent defaults.
+    /// Create interpolation options for the selected algorithm and its settings.
     pub fn new(mode: InterpolateMode) -> Self {
-        let (coordinate_transform, nearest_mode) = match mode {
-            InterpolateMode::Nearest => (
-                CoordinateTransformMode::Asymmetric,
-                NearestRoundingMode::Floor,
-            ),
-            InterpolateMode::NearestExact => (
-                CoordinateTransformMode::HalfPixel,
-                NearestRoundingMode::RoundPreferCeil,
-            ),
-            InterpolateMode::Bilinear | InterpolateMode::Bicubic | InterpolateMode::Lanczos3 => (
-                CoordinateTransformMode::AlignCorners,
-                NearestRoundingMode::RoundPreferFloor,
-            ),
-        };
-
         Self {
             mode,
-            coordinate_transform,
-            nearest_mode,
-            cubic_options: CubicOptions::default(),
             output_size: None,
             scale_factor: None,
         }
-    }
-
-    /// Set coordinate transformation mode.
-    pub fn with_coordinate_transform(mut self, mode: CoordinateTransformMode) -> Self {
-        self.coordinate_transform = mode;
-        self
-    }
-
-    /// Set nearest rounding mode.
-    pub fn with_nearest_mode(mut self, mode: NearestRoundingMode) -> Self {
-        self.nearest_mode = mode;
-        self
-    }
-
-    /// Set cubic options.
-    pub fn with_cubic_options(mut self, options: CubicOptions) -> Self {
-        self.cubic_options = options;
-        self
-    }
-
-    /// Set corner alignment for bilinear, bicubic and Lanczos3 interpolation.
-    /// `true` selects `AlignCorners`; `false` selects `HalfPixel`.
-    /// Nearest modes are unchanged; use [`Self::with_coordinate_transform`] to set their mapping.
-    pub fn with_align_corners(mut self, align_corners: bool) -> Self {
-        if !matches!(
-            self.mode,
-            InterpolateMode::Nearest | InterpolateMode::NearestExact
-        ) {
-            self.coordinate_transform = if align_corners {
-                CoordinateTransformMode::AlignCorners
-            } else {
-                CoordinateTransformMode::HalfPixel
-            };
-        }
-        self
-    }
-
-    /// Returns `true` if coordinate transform is `AlignCorners`.
-    pub fn align_corners(&self) -> bool {
-        matches!(
-            self.coordinate_transform,
-            CoordinateTransformMode::AlignCorners
-        )
     }
 
     /// Set the output size `[height, width]`, clearing any scale factor.
@@ -613,6 +525,15 @@ impl InterpolateOptions {
         self.output_size = None;
         self
     }
+}
+
+/// Interpolation algorithm for sampling an explicit coordinate grid.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
+pub enum GridSampleMode {
+    /// Nearest-neighbor sampling.
+    Nearest,
+    /// Bilinear sampling.
+    Bilinear,
 }
 
 /// Padding mode for grid sampling when coordinates are out of bounds.
@@ -632,8 +553,8 @@ pub enum GridSamplePaddingMode {
 /// Options for grid sampling operations.
 #[derive(Debug, Clone)]
 pub struct GridSampleOptions {
-    /// Interpolation mode (bilinear, nearest, or bicubic).
-    pub mode: InterpolateMode,
+    /// Interpolation mode (bilinear or nearest).
+    pub mode: GridSampleMode,
     /// Padding mode for out-of-bounds coordinates.
     pub padding_mode: GridSamplePaddingMode,
     /// If `true`, grid values of -1 and 1 correspond to the corner pixels.
@@ -645,15 +566,15 @@ pub struct GridSampleOptions {
 impl Default for GridSampleOptions {
     fn default() -> Self {
         Self {
-            mode: InterpolateMode::Bilinear,
+            mode: GridSampleMode::Bilinear,
             padding_mode: GridSamplePaddingMode::Zeros,
             align_corners: false,
         }
     }
 }
 
-impl From<InterpolateMode> for GridSampleOptions {
-    fn from(value: InterpolateMode) -> Self {
+impl From<GridSampleMode> for GridSampleOptions {
+    fn from(value: GridSampleMode) -> Self {
         GridSampleOptions::new(value)
     }
 }
@@ -662,7 +583,7 @@ impl GridSampleOptions {
     /// Create new grid sample options with the given interpolation mode.
     ///
     /// Uses default values for padding_mode (Zeros) and align_corners (false).
-    pub fn new(mode: InterpolateMode) -> Self {
+    pub fn new(mode: GridSampleMode) -> Self {
         Self {
             mode,
             ..Default::default()
