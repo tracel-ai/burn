@@ -5,7 +5,6 @@
     feature = "cuda",
     feature = "rocm",
     feature = "metal",
-    feature = "metal-native",
     feature = "metal-native"
 ))]
 
