@@ -5,7 +5,7 @@ use burn_backend::{
 };
 use burn_ir::{BackendIr, IrVisitorMut, OperationIr, TensorId, TensorIr, TensorStatus};
 use burn_router::TensorInterpreter;
-use burn_std::{QuantConfig, future::DynFut};
+use burn_std::{AllocationProperty, QuantConfig, future::DynFut};
 
 use super::{GroupError, MemberDevice};
 use super::{
@@ -143,6 +143,13 @@ impl<B: BackendIr> DynGroupInterpreter for GroupInterpreter<B> {
     }
 
     fn register_tensor_data(&mut self, data: TensorData) -> TensorId {
+        // A lazy device read takes its buffer as it is at first access, and its source can still
+        // change that buffer in place, so the group keeps a host copy instead.
+        let data = if data.bytes().property() == AllocationProperty::Device {
+            TensorData::from_bytes_vec(data.as_bytes().to_vec(), data.shape().clone(), data.dtype())
+        } else {
+            data
+        };
         let id = self.new_tensor_id();
         self.on_host.insert(id, data);
         self.shardings.insert(id, Sharding::Replicated);
@@ -457,9 +464,57 @@ impl IrVisitorMut for MemberShapes<'_> {
 mod tests {
     use burn_flex::{Flex, FlexDevice};
     use burn_ir::{FloatOperationIr, MatmulOpIr};
-    use burn_std::{Bytes, FileReadCounter, QuantScheme, QuantStore, QuantValue, future::block_on};
+    use std::{
+        mem::MaybeUninit,
+        sync::{Arc, Mutex, OnceLock},
+    };
+
+    use burn_std::{
+        AccessError, AccessPolicy, AllocationController, Bytes, FileReadCounter, QuantScheme,
+        QuantStore, QuantValue, future::block_on,
+    };
 
     use super::*;
+
+    /// Device memory copied to the host on first access, as a CubeCL lazy read is.
+    struct LazyDeviceRead {
+        device: Arc<Mutex<Vec<u8>>>,
+        host: OnceLock<Vec<u8>>,
+    }
+
+    impl LazyDeviceRead {
+        fn host(&self) -> &[u8] {
+            self.host
+                .get_or_init(|| self.device.lock().unwrap().clone())
+        }
+    }
+
+    impl AllocationController for LazyDeviceRead {
+        fn alloc_align(&self) -> usize {
+            1
+        }
+
+        fn property(&self) -> AllocationProperty {
+            AllocationProperty::Device
+        }
+
+        fn capacity(&self) -> usize {
+            self.device.lock().unwrap().len()
+        }
+
+        fn memory(&self, _policy: AccessPolicy) -> Result<&[MaybeUninit<u8>], AccessError> {
+            let host = self.host();
+            // SAFETY: `u8` and `MaybeUninit<u8>` share a layout, and every byte is initialized.
+            Ok(unsafe { std::slice::from_raw_parts(host.as_ptr().cast(), host.len()) })
+        }
+
+        unsafe fn memory_mut(
+            &mut self,
+            _policy: AccessPolicy,
+        ) -> Result<&mut [MaybeUninit<u8>], AccessError> {
+            Err(AccessError::Read("a device read is read-only".into()))
+        }
+    }
 
     fn whole(id: TensorId, status: TensorStatus) -> TensorIr {
         TensorIr {
@@ -533,6 +588,25 @@ mod tests {
         .unwrap();
         assert_eq!(read, TensorData::new(vec![6f32; 16], [4, 4]));
         std::fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    fn data_read_lazily_off_a_device_keeps_its_value_when_the_device_buffer_changes() {
+        let data = TensorData::new(vec![1f32; 24], [4, 6]);
+        let device = Arc::new(Mutex::new(data.as_bytes().to_vec()));
+        let read = LazyDeviceRead {
+            device: device.clone(),
+            host: OnceLock::new(),
+        };
+        // SAFETY: the controller holds exactly the 96 bytes of the tensor.
+        let bytes = unsafe { Bytes::from_controller(Box::new(read), 96) };
+        let mut group = GroupInterpreter::<Flex>::new(vec![FlexDevice, FlexDevice]);
+        let id = group.register_tensor_data(TensorData::from_bytes(bytes, [4, 6], DType::F32));
+
+        device.lock().unwrap().fill(0);
+
+        let read = block_on(group.read(whole(id, TensorStatus::ReadOnly))).unwrap();
+        assert_eq!(read, data);
     }
 
     #[test]
