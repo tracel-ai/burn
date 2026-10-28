@@ -1,7 +1,7 @@
 name: Staging
 
-# louisfd/staging collects reviewed changes and reaches main through one
-# standing PR. That PR may only merge once every tracel-ai git dependency is
+# A staging/<name> branch collects reviewed changes and reaches main through
+# one standing PR. That PR may only merge once every tracel-ai git dependency is
 # pinned at a commit already on that repo's default branch.
 
 on:
@@ -19,7 +19,7 @@ concurrency:
 
 jobs:
   pins-on-main:
-    if: github.head_ref == 'louisfd/staging'
+    if: startsWith(github.head_ref, 'staging/')
     runs-on: ubuntu-24.04
     steps:
       - name: checkout

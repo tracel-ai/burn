@@ -17,7 +17,7 @@ on:
   pull_request:
     types: [opened, synchronize]
     branches-ignore:
-      - "louisfd/**"
+      - "staging/**"
     paths:
       - "Cargo.lock"
       - "**.rs"
