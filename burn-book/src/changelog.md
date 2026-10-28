@@ -106,12 +106,14 @@ positions when sequence lengths differ.
   ([#6193](https://github.com/tracel-ai/burn/pull/6193),
   [#6199](https://github.com/tracel-ai/burn/pull/6199),
   [#6246](https://github.com/tracel-ai/burn/pull/6246)) [@louisfd](https://github.com/louisfd)
-- Add the experimental `attention-backward` feature: attention's backward pass runs as CubeCL
-  kernels from the forward's saved logsumexp, rather than autodiff over the decomposed attention.
-  The kernels take attention without a mask, bias or softcap, causal or not; a softcap or a
-  top-left causal mask over sequences of different lengths is composed from tensor operations,
-  and a mask or an additive bias keeps the decomposed gradients. Backends can provide their own
-  through `ModuleOps::attention_with_logsumexp` and `ModuleOps::attention_backward`. [@louisfd](https://github.com/louisfd)
+- Run attention's backward pass on CubeCL backends as CubeK kernels from the forward's saved
+  logsumexp, rather than autodiff over the decomposed attention. The kernels take f32, f16 and
+  bf16 attention without a mask, bias or softcap, causal or not; a softcap, a top-left causal
+  mask over sequences of different lengths or an element the kernels do not take is composed from
+  tensor operations, and a mask or an additive bias keeps the decomposed gradients. Autotune
+  may pick a routine that sums the query gradient with atomic adds, so its last bits can differ
+  from run to run. Backends can provide their own through `ModuleOps::attention_with_logsumexp`
+  and `ModuleOps::attention_backward`. [@louisfd](https://github.com/louisfd)
 
 #### Compilation and autotuning
 
