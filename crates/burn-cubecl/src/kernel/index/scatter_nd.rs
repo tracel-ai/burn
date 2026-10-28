@@ -150,12 +150,12 @@ fn bool_scatter_nd_mark_kernel<T: Numeric, M: Numeric, I: Int>(
     }
 }
 
-/// Writes `absorbing` into `data` wherever the contiguous `mask` (of `data`'s shape) is
+/// Writes `absorbing` into `data` wherever the `mask` (of `data`'s shape) is
 /// set. One unit per element, so each position has a single writer.
 #[cube(launch_unchecked, address_type = "dynamic")]
 fn bool_scatter_nd_merge_kernel<T: Numeric, M: Numeric>(
     data: &mut Tensor<T>,
-    mask: &Tensor<M>,
+    mask: LinearView<'_, M>,
     data_shape: Sequence<FastDivmod<usize>>,
     num_elems: usize,
     #[comptime] absorbing: bool,
@@ -164,7 +164,7 @@ fn bool_scatter_nd_merge_kernel<T: Numeric, M: Numeric>(
     if ABSOLUTE_POS >= num_elems {
         terminate!();
     }
-    if mask[ABSOLUTE_POS] == M::from_int(0) {
+    if mask.read(ABSOLUTE_POS) == M::from_int(0) {
         terminate!();
     }
 
@@ -370,7 +370,7 @@ fn bool_scatter_nd_merge(tensor: CubeTensor, mask: CubeTensor, absorbing: bool) 
             cube_dim,
             address_type!(tensor, mask),
             tensor.clone().into_tensor_arg(),
-            mask.into_tensor_arg(),
+            mask.into_linear_view(),
             shape_divmod(&tensor),
             num_elems,
             absorbing,

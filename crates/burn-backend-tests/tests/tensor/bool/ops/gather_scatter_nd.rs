@@ -113,8 +113,9 @@ fn test_bool_scatter_nd_and_with_repeated_targets() {
     }
 }
 
-/// Scatters whole rows: row 0 gets two updates, row 1 none, and row 2 one that never holds
+/// Scatters whole rows: row 1 gets two updates, row 0 none, and row 2 one that never holds
 /// the absorbing value, so most positions must keep their data value.
+/// On CUDA/ROCm, targeting row 1 exercises padding in the fallback's [3, 2] u32 mask.
 fn scatter_nd_bool_rows(
     data: [[bool; 2]; 3],
     values: [[bool; 2]; 3],
@@ -122,7 +123,7 @@ fn scatter_nd_bool_rows(
 ) -> TensorData {
     let device = Default::default();
     let data = TestTensorBool::<2>::from_data(data, &device);
-    let indices = TestTensorInt::<2>::from_ints([[0], [0], [2]], &device);
+    let indices = TestTensorInt::<2>::from_ints([[1], [1], [2]], &device);
     let values = TestTensorBool::<2>::from_data(values, &device);
 
     data.scatter_nd(indices, values, update).into_data()
@@ -130,7 +131,7 @@ fn scatter_nd_bool_rows(
 
 #[test]
 fn test_bool_scatter_nd_or_keeps_unset_values() {
-    let data = [[false, false], [false, true], [true, false]];
+    let data = [[false, true], [false, false], [true, false]];
     let values = [[false, false], [false, true], [false, false]];
     let expected = TensorData::from([[false, true], [false, true], [true, false]]);
     for update in [IndexingUpdateOp::Add, IndexingUpdateOp::Max] {
@@ -140,9 +141,9 @@ fn test_bool_scatter_nd_or_keeps_unset_values() {
 
 #[test]
 fn test_bool_scatter_nd_and_keeps_unset_values() {
-    let data = [[true, true], [false, true], [true, false]];
+    let data = [[false, true], [true, true], [true, false]];
     let values = [[true, true], [true, false], [true, true]];
-    let expected = TensorData::from([[true, false], [false, true], [true, false]]);
+    let expected = TensorData::from([[false, true], [true, false], [true, false]]);
     for update in [IndexingUpdateOp::Mul, IndexingUpdateOp::Min] {
         scatter_nd_bool_rows(data, values, update).assert_eq(&expected, false);
     }
