@@ -654,6 +654,88 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
         self.is_nan().any()
     }
 
+    /// Find the maximum value, ignoring NaN.
+    ///
+    /// The result is NaN only if every element is NaN, like NumPy's `nanmax`. Use
+    /// [`max`](Tensor::max) to propagate NaN instead.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::Tensor;
+    ///
+    /// let device = Default::default();
+    /// let tensor = Tensor::<2>::from_data([[1.0, f64::NAN, 3.0], [5.0, 9.0, f64::NAN]], &device);
+    /// let tensor = tensor.nan_max();
+    /// println!("{tensor}");
+    /// // [9.0]
+    /// ```
+    pub fn nan_max(self) -> Tensor<1> {
+        self.flatten::<1>(0, D - 1).nan_max_dim(0)
+    }
+
+    /// Find the maximum value along the given dimension, ignoring NaN.
+    ///
+    /// The reduced dimension has size 1 in the output. A slice is NaN only if all its elements
+    /// are NaN, like NumPy's `nanmax`. Use [`max_dim`](Tensor::max_dim) to propagate NaN instead.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::Tensor;
+    ///
+    /// let device = Default::default();
+    /// let tensor = Tensor::<2>::from_data([[1.0, f64::NAN, 3.0], [f64::NAN, f64::NAN, f64::NAN]], &device);
+    /// let tensor = tensor.nan_max_dim(1);
+    /// println!("{tensor}");
+    /// // [[3.0], [NaN]]
+    /// ```
+    pub fn nan_max_dim<I: AsIndex>(self, dim: I) -> Self {
+        let dim = unwrap_dim_index(dim.try_dim_index(D), "Nan Max Dim");
+        nan_reduce_dim(self, dim, f64::NEG_INFINITY, Tensor::max_dim)
+    }
+
+    /// Find the minimum value, ignoring NaN.
+    ///
+    /// The result is NaN only if every element is NaN, like NumPy's `nanmin`. Use
+    /// [`min`](Tensor::min) to propagate NaN instead.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::Tensor;
+    ///
+    /// let device = Default::default();
+    /// let tensor = Tensor::<2>::from_data([[1.0, f64::NAN, 3.0], [5.0, -9.0, f64::NAN]], &device);
+    /// let tensor = tensor.nan_min();
+    /// println!("{tensor}");
+    /// // [-9.0]
+    /// ```
+    pub fn nan_min(self) -> Tensor<1> {
+        self.flatten::<1>(0, D - 1).nan_min_dim(0)
+    }
+
+    /// Find the minimum value along the given dimension, ignoring NaN.
+    ///
+    /// The reduced dimension has size 1 in the output. A slice is NaN only if all its elements
+    /// are NaN, like NumPy's `nanmin`. Use [`min_dim`](Tensor::min_dim) to propagate NaN instead.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::Tensor;
+    ///
+    /// let device = Default::default();
+    /// let tensor = Tensor::<2>::from_data([[1.0, f64::NAN, 3.0], [f64::NAN, f64::NAN, f64::NAN]], &device);
+    /// let tensor = tensor.nan_min_dim(1);
+    /// println!("{tensor}");
+    /// // [[1.0], [NaN]]
+    /// ```
+    pub fn nan_min_dim<I: AsIndex>(self, dim: I) -> Self {
+        let dim = unwrap_dim_index(dim.try_dim_index(D), "Nan Min Dim");
+        nan_reduce_dim(self, dim, f64::INFINITY, Tensor::min_dim)
+    }
+
     /// Returns a new tensor with boolean elements indicating whether each element of the input is infinite (either +INF or -INF).
     ///
     /// # Returns
@@ -1276,6 +1358,19 @@ fn is_nan_impl(p: BridgeTensor) -> BridgeTensor {
 fn is_inf_impl(p: BridgeTensor) -> BridgeTensor {
     let bool_dtype = p.device_settings().bool_dtype;
     BridgeTensor::bool(Dispatch::float_is_inf(p.into_float(), bool_dtype))
+}
+
+/// Reduces `dim` with NaN replaced by `identity`, then puts NaN back in the slices that held
+/// only NaN.
+fn nan_reduce_dim<const D: usize>(
+    tensor: Tensor<D>,
+    dim: usize,
+    identity: f64,
+    reduce: fn(Tensor<D>, usize) -> Tensor<D>,
+) -> Tensor<D> {
+    let nan = tensor.clone().is_nan();
+    let all_nan = nan.clone().all_dim(dim);
+    reduce(tensor.mask_fill(nan, identity), dim).mask_fill(all_nan, f64::NAN)
 }
 
 fn grid_sample_2d_impl(

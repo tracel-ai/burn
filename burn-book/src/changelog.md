@@ -335,6 +335,8 @@ loading those checkpoints by filtering to `linear_inner` and `linear_outer`.
   [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
 - Add `Tensor::round_to(decimals)` for rounding to a specified number of decimal places.
   ([#5842](https://github.com/tracel-ai/burn/pull/5842))
+- Add `nan_max`, `nan_min`, `nan_max_dim` and `nan_min_dim` for float tensors. They ignore NaN and
+  return NaN only for all-NaN inputs, like NumPy's `nanmax` and `nanmin`.
 - Add dilation to average pooling with `AvgPoolOptions::with_dilation`, matching max pooling.
   CubeCL backends use CubeK kernels for dilated 1D/2D average pooling, preserving the NHWC layout
   optimization. `count_include_pad` counts the dilated taps that land in padding. **Breaking:** Add
