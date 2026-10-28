@@ -590,7 +590,11 @@ impl<B: BackendIr> TensorInterpreter<B> {
                     let output = B::int_cat(tensors, desc.dim);
                     handles.register_int_tensor::<B>(&desc.out.id, output);
                 }
-                BaseOperationIr::Cast(_) => unreachable!(),
+                BaseOperationIr::Cast(desc) => {
+                    let tensor = handles.get_int_tensor::<B>(&desc.input);
+                    let output = B::int_cast(tensor, desc.out.dtype.into());
+                    handles.register_int_tensor::<B>(&desc.out.id, output);
+                }
                 BaseOperationIr::Empty(desc) => {
                     let shape = desc.out.shape.clone();
                     let output = B::int_empty(shape, &self.device, desc.out.dtype.into());
@@ -2494,7 +2498,7 @@ mod tests {
     use super::*;
     use burn_backend::quantization::{QuantScheme, QuantStore, QuantValue};
     use burn_flex::Flex;
-    use burn_ir::MatmulOpIr;
+    use burn_ir::{CastOpIr, MatmulOpIr};
 
     #[test]
     fn a_quantized_matmul_yields_the_dtype_the_client_recorded() {
@@ -2522,5 +2526,23 @@ mod tests {
             .expect("flex reads synchronously")
             .unwrap();
         assert_eq!(data.dtype(), DType::F16);
+    }
+
+    #[test]
+    fn an_int_cast_yields_the_element_the_client_recorded() {
+        let mut interpreter = TensorInterpreter::<Flex>::new(Default::default());
+        let input = interpreter.register_tensor_data_desc(TensorData::from([1i32, -2, 3]));
+        let mut out = TensorIr::uninit(TensorId::new(u64::MAX), Shape::new([3]), DType::I64);
+
+        interpreter.register_op(OperationIr::BaseInt(BaseOperationIr::Cast(CastOpIr {
+            input,
+            out: out.clone(),
+        })));
+
+        out.status = TensorStatus::ReadWrite;
+        let data = burn_std::reader::try_read_sync(interpreter.read_tensor_async(out))
+            .expect("flex reads synchronously")
+            .unwrap();
+        data.assert_eq(&TensorData::from([1i64, -2, 3]), true);
     }
 }

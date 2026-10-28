@@ -206,6 +206,8 @@ all-to-all, and broadcast also support boolean tensors. Quantized tensors are re
   ([#5983](https://github.com/tracel-ai/burn/pull/5983),
   [#5989](https://github.com/tracel-ai/burn/pull/5989),
   [#6017](https://github.com/tracel-ai/burn/pull/6017))
+- Fix router and remote servers panicking when an integer tensor is cast to another integer
+  element type.
 
 ### Training and modules
 
