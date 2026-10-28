@@ -337,6 +337,12 @@ pub enum ModuleOperationIr {
     InterpolateBackward(InterpolateBackwardOpIr),
     /// Operation corresponding to [attention](burn_backend::ops::ModuleOps::attention).
     Attention(AttentionOpIr),
+    /// Operation corresponding to
+    /// [attention_with_logsumexp](burn_backend::ops::ModuleOps::attention_with_logsumexp).
+    AttentionWithLogsumexp(AttentionWithLogsumexpOpIr),
+    /// Operation corresponding to
+    /// [attention_backward](burn_backend::ops::ModuleOps::attention_backward).
+    AttentionBackward(Box<AttentionBackwardOpIr>),
     /// Operation corresponding to [ctc_loss](burn_backend::ops::ModuleOps::ctc_loss).
     CtcLoss(CtcLossOpIr),
     /// Operation corresponding to
@@ -2151,6 +2157,32 @@ pub struct AttentionOpIr {
     pub attn_bias: Option<TensorIr>,
     pub options: AttentionOptionsIr,
     pub out: TensorIr,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
+#[allow(missing_docs)]
+pub struct AttentionWithLogsumexpOpIr {
+    pub query: TensorIr,
+    pub key: TensorIr,
+    pub value: TensorIr,
+    pub options: AttentionOptionsIr,
+    pub out: TensorIr,
+    pub logsumexp: TensorIr,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
+#[allow(missing_docs)]
+pub struct AttentionBackwardOpIr {
+    pub query: TensorIr,
+    pub key: TensorIr,
+    pub value: TensorIr,
+    pub out: TensorIr,
+    pub logsumexp: TensorIr,
+    pub out_grad: TensorIr,
+    pub options: AttentionOptionsIr,
+    pub query_grad: TensorIr,
+    pub key_grad: TensorIr,
+    pub value_grad: TensorIr,
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
@@ -4189,6 +4221,20 @@ impl ModuleOperationIr {
                     Box::new([&repr.query, &repr.key, &repr.value].into_iter())
                 }
             }
+            ModuleOperationIr::AttentionWithLogsumexp(repr) => {
+                Box::new([&repr.query, &repr.key, &repr.value].into_iter())
+            }
+            ModuleOperationIr::AttentionBackward(repr) => Box::new(
+                [
+                    &repr.query,
+                    &repr.key,
+                    &repr.value,
+                    &repr.out,
+                    &repr.logsumexp,
+                    &repr.out_grad,
+                ]
+                .into_iter(),
+            ),
             ModuleOperationIr::CtcLoss(repr) => Box::new(
                 [
                     &repr.log_probs,
@@ -4329,6 +4375,12 @@ impl ModuleOperationIr {
             ModuleOperationIr::Interpolate(repr) => Box::new([&repr.out].into_iter()),
             ModuleOperationIr::InterpolateBackward(repr) => Box::new([&repr.out].into_iter()),
             ModuleOperationIr::Attention(repr) => Box::new([&repr.out].into_iter()),
+            ModuleOperationIr::AttentionWithLogsumexp(repr) => {
+                Box::new([&repr.out, &repr.logsumexp].into_iter())
+            }
+            ModuleOperationIr::AttentionBackward(repr) => {
+                Box::new([&repr.query_grad, &repr.key_grad, &repr.value_grad].into_iter())
+            }
             ModuleOperationIr::CtcLoss(repr) => Box::new([&repr.out].into_iter()),
             ModuleOperationIr::CtcLossBackward(repr) => Box::new([&repr.out].into_iter()),
             ModuleOperationIr::LayerNorm(repr) => Box::new([&repr.out].into_iter()),
@@ -4607,6 +4659,19 @@ impl ModuleOperationIr {
                 if let Some(attn_bias) = &mut repr.attn_bias {
                     attn_bias.mark_read_only(nodes, &mut output);
                 }
+            }
+            ModuleOperationIr::AttentionWithLogsumexp(repr) => {
+                repr.query.mark_read_only(nodes, &mut output);
+                repr.key.mark_read_only(nodes, &mut output);
+                repr.value.mark_read_only(nodes, &mut output);
+            }
+            ModuleOperationIr::AttentionBackward(repr) => {
+                repr.query.mark_read_only(nodes, &mut output);
+                repr.key.mark_read_only(nodes, &mut output);
+                repr.value.mark_read_only(nodes, &mut output);
+                repr.out.mark_read_only(nodes, &mut output);
+                repr.logsumexp.mark_read_only(nodes, &mut output);
+                repr.out_grad.mark_read_only(nodes, &mut output);
             }
             ModuleOperationIr::CtcLoss(repr) => {
                 repr.log_probs.mark_read_only(nodes, &mut output);
@@ -4964,6 +5029,36 @@ impl ModuleOperationIr {
                     v.visit_tensor_mut(attn_bias);
                 }
                 v.visit_tensor_mut(&mut repr.out);
+                if let Some(scale) = &mut repr.options.scale {
+                    v.visit_scalar_mut(scale);
+                }
+                if let Some(softcap) = &mut repr.options.softcap {
+                    v.visit_scalar_mut(softcap);
+                }
+            }
+            ModuleOperationIr::AttentionWithLogsumexp(repr) => {
+                v.visit_tensor_mut(&mut repr.query);
+                v.visit_tensor_mut(&mut repr.key);
+                v.visit_tensor_mut(&mut repr.value);
+                v.visit_tensor_mut(&mut repr.out);
+                v.visit_tensor_mut(&mut repr.logsumexp);
+                if let Some(scale) = &mut repr.options.scale {
+                    v.visit_scalar_mut(scale);
+                }
+                if let Some(softcap) = &mut repr.options.softcap {
+                    v.visit_scalar_mut(softcap);
+                }
+            }
+            ModuleOperationIr::AttentionBackward(repr) => {
+                v.visit_tensor_mut(&mut repr.query);
+                v.visit_tensor_mut(&mut repr.key);
+                v.visit_tensor_mut(&mut repr.value);
+                v.visit_tensor_mut(&mut repr.out);
+                v.visit_tensor_mut(&mut repr.logsumexp);
+                v.visit_tensor_mut(&mut repr.out_grad);
+                v.visit_tensor_mut(&mut repr.query_grad);
+                v.visit_tensor_mut(&mut repr.key_grad);
+                v.visit_tensor_mut(&mut repr.value_grad);
                 if let Some(scale) = &mut repr.options.scale {
                     v.visit_scalar_mut(scale);
                 }

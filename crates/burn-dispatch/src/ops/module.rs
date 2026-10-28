@@ -1,9 +1,9 @@
 use burn_backend::{
     IntDType,
     ops::{
-        BatchNormTrain, BatchNormTrainBackward, DeformConv2dBackward, MaxPool1dBackward,
-        MaxPool1dWithIndices, MaxPool2dBackward, MaxPool2dWithIndices, MaxPool3dBackward,
-        MaxPool3dWithIndices, ModuleOps,
+        AttentionBackward, BatchNormTrain, BatchNormTrainBackward, DeformConv2dBackward,
+        MaxPool1dBackward, MaxPool1dWithIndices, MaxPool2dBackward, MaxPool2dWithIndices,
+        MaxPool3dBackward, MaxPool3dWithIndices, ModuleOps,
     },
     tensor::{FloatTensor, IntTensor},
 };
@@ -684,6 +684,39 @@ impl ModuleOps<Self> for Dispatch {
     }
 
     #[backend_dispatch(skip)]
+    fn has_attention_backward() -> bool {
+        // Dispatch routes per-tensor at runtime, but autodiff queries this flag statically.
+        // Returning `false` makes autodiff differentiate the decomposed attention, which is safe
+        // for every inner backend regardless of whether it has its own attention_backward.
+        false
+    }
+
+    #[backend_dispatch(skip)]
+    fn attention_with_logsumexp(
+        query: FloatTensor<Self>,
+        key: FloatTensor<Self>,
+        value: FloatTensor<Self>,
+        options: burn_backend::ops::AttentionModuleOptions,
+    ) -> (FloatTensor<Self>, FloatTensor<Self>) {
+        Self::attention_with_logsumexp_dispatch(query, key, value, options)
+    }
+
+    #[backend_dispatch(skip)]
+    fn attention_backward(
+        query: FloatTensor<Self>,
+        key: FloatTensor<Self>,
+        value: FloatTensor<Self>,
+        out: FloatTensor<Self>,
+        logsumexp: FloatTensor<Self>,
+        out_grad: FloatTensor<Self>,
+        options: burn_backend::ops::AttentionModuleOptions,
+    ) -> AttentionBackward<Self> {
+        let (query_grad, key_grad, value_grad) =
+            Self::attention_backward_dispatch(query, key, value, out, logsumexp, out_grad, options);
+        AttentionBackward::new(query_grad, key_grad, value_grad)
+    }
+
+    #[backend_dispatch(skip)]
     fn has_ctc_loss_backward() -> bool {
         // Dispatch routes per-tensor at runtime, but autodiff queries this flag
         // statically. Returning `false` makes autodiff differentiate through
@@ -732,6 +765,29 @@ impl ModuleOps<Self> for Dispatch {
 
 #[backend_dispatch]
 impl Dispatch {
+    fn attention_with_logsumexp_dispatch(
+        query: FloatTensor<Self>,
+        key: FloatTensor<Self>,
+        value: FloatTensor<Self>,
+        options: burn_backend::ops::AttentionModuleOptions,
+    ) -> (FloatTensor<Self>, FloatTensor<Self>) {
+        B::attention_with_logsumexp(query, key, value, options)
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn attention_backward_dispatch(
+        query: FloatTensor<Self>,
+        key: FloatTensor<Self>,
+        value: FloatTensor<Self>,
+        out: FloatTensor<Self>,
+        logsumexp: FloatTensor<Self>,
+        out_grad: FloatTensor<Self>,
+        options: burn_backend::ops::AttentionModuleOptions,
+    ) -> (FloatTensor<Self>, FloatTensor<Self>, FloatTensor<Self>) {
+        let output = B::attention_backward(query, key, value, out, logsumexp, out_grad, options);
+        (output.query_grad, output.key_grad, output.value_grad)
+    }
+
     fn deform_conv2d_backward_dispatch(
         x: FloatTensor<Self>,
         offset: FloatTensor<Self>,
