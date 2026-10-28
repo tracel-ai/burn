@@ -6,7 +6,7 @@
 //! product ([`elected`]); the autotune then races it fused against the fallback, the routine
 //! storing its product and the block running as its own kernel.
 
-mod carrier;
+mod runner;
 mod sink;
 
 use super::optimization::MatmulOptimizationTuneArg;
@@ -22,7 +22,6 @@ use burn_backend::cubecl::dtype_to_storage_type;
 use burn_fusion::stream::Context;
 use burn_ir::TensorIr;
 use burn_std::DType;
-use carrier::Carrier;
 use cubecl::{
     AutotuneKey, CubeTuneId,
     tile::launch::{Refusal, SinkLaunch, SinkLaunchVisitor},
@@ -42,6 +41,7 @@ use cubek::matmul::kernels::{
     },
 };
 use cubek::std::Hardware;
+use runner::SinkRunner;
 use serde::{Deserialize, Serialize};
 
 /// Why a fused product did not run fused; the fallback runs it instead.
@@ -183,8 +183,8 @@ impl SinkLaunchVisitor for FusedRun<'_> {
         let info = &self.arg.info;
         let launch =
             prepared.map_err(|why| TraceError::RunnerError(TileFusedMatmulError::Routine(why)))?;
-        let carrier = Carrier::new(launch, info.matmul.out.clone());
-        FuseTraceLauncher::new(&info.trace, &carrier).launch(
+        let runner = SinkRunner::new(launch, info.matmul.out.clone());
+        FuseTraceLauncher::new(&info.trace, &runner).launch(
             &info.client,
             &info.device,
             self.context,

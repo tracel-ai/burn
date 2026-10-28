@@ -23,7 +23,7 @@ use std::collections::BTreeMap;
 ///
 /// The routine binds its own operands before the launcher runs, so the launch rides here, taken
 /// once: [`TraceRunner::run`] takes `&self`.
-pub(super) struct Carrier<L> {
+pub(super) struct SinkRunner<L> {
     launch: Cell<Option<L>>,
     product: FuseArg,
     /// The width the routine stores its lines in, which the block must store in too.
@@ -32,7 +32,7 @@ pub(super) struct Carrier<L> {
     elements: usize,
 }
 
-impl<L: SinkLaunch> Carrier<L> {
+impl<L: SinkLaunch> SinkRunner<L> {
     pub(super) fn new(launch: L, product: FuseArg) -> Self {
         Self {
             width: launch.width(),
@@ -45,7 +45,7 @@ impl<L: SinkLaunch> Carrier<L> {
 
 /// Burn's planning, under the routine's store width: the block is planned around a kernel whose
 /// width is already settled.
-impl<L> Vectorization for Carrier<L> {
+impl<L> Vectorization for SinkRunner<L> {
     fn vectorization<'a>(
         &self,
         _context: &Context<CubeFusionHandle>,
@@ -77,7 +77,7 @@ impl<L> Vectorization for Carrier<L> {
     }
 }
 
-impl<L: SinkLaunch> TraceRunner for Carrier<L> {
+impl<L: SinkLaunch> TraceRunner for SinkRunner<L> {
     type Error = TileFusedMatmulError;
 
     fn run<'a>(
