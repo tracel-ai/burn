@@ -72,6 +72,34 @@ fn test_median_with_indices() {
 }
 
 #[test]
+fn test_median_nan_propagation() {
+    // With NaN sorted last, the middle element of the first row is 3.0.
+    let tensor = TestTensor::<2>::from([[3.0, f32::NAN, 1.0, f32::NAN], [4.0, 1.0, 3.0, 2.0]]);
+
+    let values = tensor.median(1).into_data().convert::<f32>();
+    let values = values.as_slice::<f32>().unwrap();
+
+    assert!(values[0].is_nan());
+    assert_eq!(values[1], 2.0);
+}
+
+#[test]
+fn test_median_with_indices_nan_propagation() {
+    let tensor = TestTensor::<2>::from([[3.0, f32::NAN, 1.0, f32::NAN], [4.0, 1.0, 3.0, 2.0]]);
+
+    let (values, indices) = tensor.median_with_indices(1);
+    let values = values.into_data().convert::<f32>();
+    let values = values.as_slice::<f32>().unwrap();
+
+    assert!(values[0].is_nan());
+    assert_eq!(values[1], 2.0);
+    // The first NaN, as for `max_dim_with_indices`.
+    indices
+        .into_data()
+        .assert_eq(&TensorData::from([[1], [3]]), false);
+}
+
+#[test]
 fn test_median_all_elements() {
     let tensor = TestTensor::<2>::from_data(
         [
