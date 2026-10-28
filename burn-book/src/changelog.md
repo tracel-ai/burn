@@ -420,6 +420,16 @@ let pack_tensor = tensor.into_pack();
 
 ### Extensions
 
+#### Vision
+
+- Speed up Flex CPU median blur for F16, BF16, F32, F64, and integer tensors by selecting
+  neighborhood medians without stacking the images. U8, I8, and exact normalized RGB8 inputs
+  use sliding histograms for larger filters. Floating-point autodiff uses the selected source
+  pixels for backward. `median` and `MedianBlur` now also accept `Tensor<4, Int>` images;
+  specify `Tensor::<4>` on float constructors if their kind was previously inferred from these calls.
+  ([#6219](https://github.com/tracel-ai/burn/pull/6219))
+  [@Mikyx-1](https://github.com/Mikyx-1)
+
 #### Batched linear solves
 
 `burn::linalg::solve` solves square, nonsingular systems `A @ X = B` with vector or matrix

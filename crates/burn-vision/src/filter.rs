@@ -4,6 +4,7 @@ use burn_core::{
     config::Config,
     tensor::{
         Device, FloatDType,
+        kind::Ordered,
         module::conv2d,
         ops::{ConvOptions, PadMode},
     },
@@ -135,15 +136,29 @@ impl BoxBlur {
     }
 }
 
-/// Apply a depth-wise square median filter to the given images
-pub fn median(images: Tensor<4>, size: usize) -> Tensor<4> {
+/// Applies a depthwise square median filter to `[N, C, H, W]` images.
+///
+/// Borders replicate the nearest pixel. For an even `size`, the filter selects
+/// the upper median, with the window centered toward the top/left.
+/// Float and integer tensors on Flex use direct CPU selection. Floating-point
+/// gradients flow to the selected source pixels. Other backends retain the
+/// tensor implementation.
+///
+/// Use `Tensor<4>` for floating-point images and `Tensor<4, Int>` for integer
+/// images; explicitly specify the kind when constructing an otherwise untyped tensor.
+pub fn median<K: Ordered>(images: Tensor<4, K>, size: usize) -> Tensor<4, K> {
+    #[cfg(feature = "flex")]
+    if let Some(output) = crate::backends::cpu::median::try_median(&images, size) {
+        return output;
+    }
+
     let dims @ [batch, channels, height, width] = images.dims();
     let reach = size / 2;
     let padded = images.pad((reach, reach, reach, reach), PadMode::Edge);
 
     // One whole copy of the image per position of the kernel_size. Stacked, the
     // median is a sort down the stack and a slice through the middle.
-    let kernel_size: Vec<Tensor<4>> = (0..size)
+    let kernel_size: Vec<Tensor<4, K>> = (0..size)
         .flat_map(|y| (0..size).map(move |x| (y, x)))
         .map(|(y, x)| {
             padded
@@ -216,19 +231,22 @@ impl MedianBlur {
     }
 
     /// Unconditionally applies the median filter to the batch of images.
-    pub fn apply(&self, images: Tensor<4>) -> Tensor<4> {
+    pub fn apply<K: Ordered>(&self, images: Tensor<4, K>) -> Tensor<4, K> {
         median(images, self.kernel_size)
     }
 
     /// Applies the median filter with probability `probability`, otherwise
     /// returns the images unchanged.
-    pub fn forward(&self, images: Tensor<4>) -> Tensor<4> {
+    pub fn forward<K: Ordered>(&self, images: Tensor<4, K>) -> Tensor<4, K> {
         match self.sample() {
             true => self.apply(images),
             false => images,
         }
     }
 }
+
+#[cfg(all(test, feature = "flex"))]
+mod median_tests;
 
 #[cfg(test)]
 mod tests {
