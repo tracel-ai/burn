@@ -734,6 +734,12 @@ impl Device {
         Dispatch::memory_pool_usage(self.as_dispatch())
     }
 
+    /// How many bytes this device can hold at once, as its runtime states it: a budget to size a
+    /// workload by, not what is free. `None` on a backend that states no figure.
+    pub fn memory_capacity(&self) -> Option<u64> {
+        Dispatch::memory_capacity(self.as_dispatch())
+    }
+
     /// Prepares the given data for transfer between the CPU and accelerator devices such as GPUs.
     ///
     /// Depending on the backend, the data may be transferred to pinned memory

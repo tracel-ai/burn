@@ -1,14 +1,30 @@
-use super::{conv, ctc, linear, pool};
+use super::{attention, conv, ctc, linear, pool};
 use crate::ops::unfold::{create_unfolding_weight, unfold4d_using_conv2d};
 use crate::tensor::{BoolTensor, FloatTensor, IntTensor};
 use crate::{Backend, Scalar, TensorMetadata};
 #[allow(deprecated)]
 pub use burn_std::ops::{
     AttentionModuleOptions, AvgPoolOptions, CausalAlignment, ConvOptions, ConvTransposeOptions,
-    DeformConvOptions, GridSampleOptions, GridSamplePaddingMode, InterpolateMode,
-    InterpolateOptions, MaxPoolOptions, PadMode, PaddedConvOptions, UnfoldOptions,
+    CoordinateTransformMode, CubicOptions, DeformConvOptions, GridSampleOptions,
+    GridSamplePaddingMode, InterpolateMode, InterpolateOptions, MaxPoolOptions,
+    NearestRoundingMode, PadMode, PaddedConvOptions, UnfoldOptions,
 };
 use burn_std::{IndexingUpdateOp, IntDType, Shape};
+
+/// Gradients computed during the backward pass for each input of
+/// [attention_with_logsumexp](ModuleOps::attention_with_logsumexp).
+#[derive(new)]
+pub struct AttentionBackward<B: Backend> {
+    /// Query gradient, `[batch_size, num_heads, seq_len_q, head_dim]`.
+    pub query_grad: FloatTensor<B>,
+
+    /// Key gradient, `[batch_size, num_kv_heads, seq_len_k, head_dim]`: every query head of a
+    /// group summed into its key head.
+    pub key_grad: FloatTensor<B>,
+
+    /// Value gradient, `[batch_size, num_kv_heads, seq_len_k, val_dim]`.
+    pub value_grad: FloatTensor<B>,
+}
 
 /// Gradient computed during the backward pass for each tensor used by [conv2d](ModuleOps::conv2d).
 #[derive(new)]
@@ -745,6 +761,7 @@ pub trait ModuleOps<B: Backend> {
         kernel_size: usize,
         stride: usize,
         padding: usize,
+        dilation: usize,
         count_include_pad: bool,
         ceil_mode: bool,
     ) -> FloatTensor<B> {
@@ -753,17 +770,20 @@ pub trait ModuleOps<B: Backend> {
             kernel_size,
             stride,
             padding,
+            dilation,
             count_include_pad,
             ceil_mode,
         )
     }
     /// Backward pass for the [avg pooling 1d](ModuleOps::avg_pool1d) operation.
+    #[allow(clippy::too_many_arguments)]
     fn avg_pool1d_backward(
         x: FloatTensor<B>,
         grad: FloatTensor<B>,
         kernel_size: usize,
         stride: usize,
         padding: usize,
+        dilation: usize,
         count_include_pad: bool,
         ceil_mode: bool,
     ) -> FloatTensor<B> {
@@ -773,6 +793,7 @@ pub trait ModuleOps<B: Backend> {
             kernel_size,
             stride,
             padding,
+            dilation,
             count_include_pad,
             ceil_mode,
         )
@@ -787,16 +808,19 @@ pub trait ModuleOps<B: Backend> {
         kernel_size: [usize; 2],
         stride: [usize; 2],
         padding: [usize; 2],
+        dilation: [usize; 2],
         count_include_pad: bool,
         ceil_mode: bool,
     ) -> FloatTensor<B>;
     /// Backward pass for the [avg pooling 2d](ModuleOps::avg_pool2d) operation.
+    #[allow(clippy::too_many_arguments)]
     fn avg_pool2d_backward(
         x: FloatTensor<B>,
         grad: FloatTensor<B>,
         kernel_size: [usize; 2],
         stride: [usize; 2],
         padding: [usize; 2],
+        dilation: [usize; 2],
         count_include_pad: bool,
         ceil_mode: bool,
     ) -> FloatTensor<B>;
@@ -810,16 +834,19 @@ pub trait ModuleOps<B: Backend> {
         kernel_size: [usize; 3],
         stride: [usize; 3],
         padding: [usize; 3],
+        dilation: [usize; 3],
         count_include_pad: bool,
         ceil_mode: bool,
     ) -> FloatTensor<B>;
     /// Backward pass for the [avg pooling 3d](ModuleOps::avg_pool3d) operation.
+    #[allow(clippy::too_many_arguments)]
     fn avg_pool3d_backward(
         x: FloatTensor<B>,
         grad: FloatTensor<B>,
         kernel_size: [usize; 3],
         stride: [usize; 3],
         padding: [usize; 3],
+        dilation: [usize; 3],
         count_include_pad: bool,
         ceil_mode: bool,
     ) -> FloatTensor<B>;
@@ -1060,6 +1087,59 @@ pub trait ModuleOps<B: Backend> {
         attn_bias: Option<FloatTensor<B>>,
         options: AttentionModuleOptions,
     ) -> FloatTensor<B>;
+
+    /// Returns `true` if this backend implements
+    /// [attention_backward](ModuleOps::attention_backward) natively.
+    ///
+    /// Autodiff queries this flag, for an attention with no mask and no additive bias, to decide
+    /// between two paths:
+    /// - `true`: the forward pass is [attention_with_logsumexp](ModuleOps::attention_with_logsumexp)
+    ///   and the backward pass `attention_backward`, which reads the probabilities back from the
+    ///   logsumexp instead of keeping the scores.
+    /// - `false`: autodiff differentiates the decomposed
+    ///   [attention_fallback](attention::attention_fallback).
+    ///
+    /// Backends that override `attention_backward` must also override this to return `true`.
+    fn has_attention_backward() -> bool {
+        false
+    }
+
+    /// [attention](ModuleOps::attention) with no mask and no additive bias, and each query's
+    /// logsumexp of its scores, `[batch_size, num_heads, seq_len_q]` in `f32` whatever the
+    /// operands' dtype: the forward pass [attention_backward](ModuleOps::attention_backward) reads
+    /// back, where `exp(score − logsumexp)` is where its precision is lost.
+    ///
+    /// The default composes it from tensor operations
+    /// ([attention::attention_with_logsumexp_default]).
+    fn attention_with_logsumexp(
+        query: FloatTensor<B>,
+        key: FloatTensor<B>,
+        value: FloatTensor<B>,
+        options: AttentionModuleOptions,
+    ) -> (FloatTensor<B>, FloatTensor<B>) {
+        attention::attention_with_logsumexp_default::<B>(query, key, value, options)
+    }
+
+    /// Backward pass for [attention_with_logsumexp](ModuleOps::attention_with_logsumexp): the
+    /// gradients against the query, the key and the value, from `out_grad`, the loss's gradient
+    /// against the output, and the forward's `out` and `logsumexp`.
+    ///
+    /// Autodiff only calls it when [has_attention_backward](ModuleOps::has_attention_backward)
+    /// returns `true`. The default composes the gradients from tensor operations
+    /// ([attention::attention_backward_default]).
+    fn attention_backward(
+        query: FloatTensor<B>,
+        key: FloatTensor<B>,
+        value: FloatTensor<B>,
+        out: FloatTensor<B>,
+        logsumexp: FloatTensor<B>,
+        out_grad: FloatTensor<B>,
+        options: AttentionModuleOptions,
+    ) -> AttentionBackward<B> {
+        attention::attention_backward_default::<B>(
+            query, key, value, out, logsumexp, out_grad, options,
+        )
+    }
 
     /// Applies Layer Normalization over the last dimension of the input tensor.
     ///

@@ -2,13 +2,16 @@ use burn_backend::ops::ModuleOps;
 use burn_dispatch::Dispatch;
 use burn_std::{MatmulTransformAction, MatmulTransformAnalysis, MatmulTransformPolicy};
 
+pub use crate::ops::{
+    CoordinateTransformMode, CubicOptions, InterpolateMode, InterpolateOptions, NearestRoundingMode,
+};
 use crate::{
     Bool, DType, Int, Shape, Tensor, check,
     check::TensorCheck,
     kind::Basic,
     ops::{
         AttentionModuleOptions, AvgPoolOptions, BridgeTensor, ConvOptions, ConvTransposeOptions,
-        DeformConvOptions, InterpolateOptions, MaxPoolOptions, PadMode, UnfoldOptions,
+        DeformConvOptions, MaxPoolOptions, PadMode, UnfoldOptions,
     },
 };
 
@@ -28,16 +31,14 @@ pub fn batch_norm<const D: usize>(
     variance: Tensor<1>,
     epsilon: f64,
 ) -> Tensor<D> {
-    assert!(D >= 2, "batch norm requires an input rank of at least 2");
-    let channels = input.dims()[1];
-    assert_eq!(gamma.dims(), [channels], "invalid batch norm gamma shape");
-    assert_eq!(beta.dims(), [channels], "invalid batch norm beta shape");
-    assert_eq!(mean.dims(), [channels], "invalid batch norm mean shape");
-    assert_eq!(
-        variance.dims(),
-        [channels],
-        "invalid batch norm variance shape"
-    );
+    check!(TensorCheck::batch_norm(
+        "batch_norm",
+        &input,
+        &gamma,
+        &beta,
+        Some(&mean),
+        Some(&variance),
+    ));
     Tensor::new(BridgeTensor::float(Dispatch::batch_norm(
         input.primitive.into_float(),
         gamma.primitive.into_float(),
@@ -88,10 +89,14 @@ pub fn batch_norm_train<const D: usize>(
     beta: Tensor<1>,
     epsilon: f64,
 ) -> BatchNormTrainOutput<D> {
-    assert!(D >= 2, "batch norm requires an input rank of at least 2");
-    let channels = input.dims()[1];
-    assert_eq!(gamma.dims(), [channels], "invalid batch norm gamma shape");
-    assert_eq!(beta.dims(), [channels], "invalid batch norm beta shape");
+    check!(TensorCheck::batch_norm(
+        "batch_norm_train",
+        &input,
+        &gamma,
+        &beta,
+        None,
+        None,
+    ));
     let result = Dispatch::batch_norm_train(
         input.primitive.into_float(),
         gamma.primitive.into_float(),
@@ -161,8 +166,9 @@ pub fn conv1d(
     let options = options.into();
     check!(TensorCheck::conv(
         "conv1d",
-        x.dims(),
-        weight.dims(),
+        &x,
+        &weight,
+        bias.as_ref(),
         options.groups,
     ));
 
@@ -188,8 +194,9 @@ pub fn conv2d(
     let options = options.into();
     check!(TensorCheck::conv(
         "conv2d",
-        x.dims(),
-        weight.dims(),
+        &x,
+        &weight,
+        bias.as_ref(),
         options.groups,
     ));
 
@@ -215,8 +222,9 @@ pub fn conv3d(
     let options = options.into();
     check!(TensorCheck::conv(
         "conv3d",
-        x.dims(),
-        weight.dims(),
+        &x,
+        &weight,
+        bias.as_ref(),
         options.groups,
     ));
 
@@ -241,12 +249,23 @@ pub fn deform_conv2d(
     bias: Option<Tensor<1>>,
     options: DeformConvOptions<2>,
 ) -> Tensor<4> {
-    check!(TensorCheck::conv(
+    let mut check = TensorCheck::conv(
         "deform_conv2d",
-        x.dims(),
-        weight.dims(),
+        &x,
+        &weight,
+        bias.as_ref(),
         options.weight_groups,
-    ));
+    )
+    .binary_ops_device("deform_conv2d", &x.device(), &offset.device());
+
+    check = check.binary_ops_float_dtype("deform_conv2d", &x, &offset);
+
+    if let Some(mask) = &mask {
+        check = check.binary_ops_device("deform_conv2d", &x.device(), &mask.device());
+        check = check.binary_ops_float_dtype("deform_conv2d", &x, mask);
+    }
+    check!(check);
+
     Tensor::new(BridgeTensor::float(Dispatch::deform_conv2d(
         x.primitive.into_float(),
         offset.primitive.into_float(),
@@ -266,8 +285,9 @@ pub fn conv_transpose1d(
 ) -> Tensor<3> {
     check!(TensorCheck::conv_transpose(
         "conv_transpose1d",
-        x.dims(),
-        weight.dims(),
+        &x,
+        &weight,
+        bias.as_ref(),
     ));
     Tensor::new(BridgeTensor::float(Dispatch::conv_transpose1d(
         x.primitive.into_float(),
@@ -286,8 +306,9 @@ pub fn conv_transpose2d(
 ) -> Tensor<4> {
     check!(TensorCheck::conv_transpose(
         "conv_transpose2d",
-        x.dims(),
-        weight.dims(),
+        &x,
+        &weight,
+        bias.as_ref(),
     ));
     Tensor::new(BridgeTensor::float(Dispatch::conv_transpose2d(
         x.primitive.into_float(),
@@ -306,8 +327,9 @@ pub fn conv_transpose3d(
 ) -> Tensor<5> {
     check!(TensorCheck::conv_transpose(
         "conv_transpose3d",
-        x.dims(),
-        weight.dims(),
+        &x,
+        &weight,
+        bias.as_ref(),
     ));
     Tensor::new(BridgeTensor::float(Dispatch::conv_transpose3d(
         x.primitive.into_float(),
@@ -466,6 +488,7 @@ pub fn avg_pool2d(x: Tensor<4>, options: AvgPoolOptions<2>) -> Tensor<4> {
             options.kernel_size,
             options.stride,
             padding,
+            options.dilation,
             count_include_pad,
             options.ceil_mode,
         )))
@@ -480,10 +503,12 @@ pub fn avg_pool2d(x: Tensor<4>, options: AvgPoolOptions<2>) -> Tensor<4> {
 ///
 /// - If any dimension of `kernel_size` is 0.
 /// - If any dimension of `stride` is 0.
-/// - If any dimension of `padding` exceeds `kernel_size / 2`.
+/// - If any dimension of `dilation` is 0.
+/// - If any dimension of `padding` exceeds half the effective kernel size, `(kernel_size - 1) * dilation + 1`.
 pub fn avg_pool3d(x: Tensor<5>, options: AvgPoolOptions<3>) -> Tensor<5> {
     let kernel_size = options.kernel_size;
     let stride = options.stride;
+    let dilation = options.dilation;
     assert!(
         kernel_size.iter().all(|&k| k > 0),
         "avg_pool3d: kernel_size must be > 0, got {kernel_size:?}"
@@ -492,13 +517,19 @@ pub fn avg_pool3d(x: Tensor<5>, options: AvgPoolOptions<3>) -> Tensor<5> {
         stride.iter().all(|&s| s > 0),
         "avg_pool3d: stride must be > 0, got {stride:?}"
     );
+    assert!(
+        dilation.iter().all(|&d| d > 0),
+        "avg_pool3d: dilation must be > 0, got {dilation:?}"
+    );
     avg_pool(x, &options, |x, padding, count_include_pad| {
         for i in 0..3 {
+            let effective_kernel = (kernel_size[i] - 1) * dilation[i] + 1;
             assert!(
-                padding[i] <= kernel_size[i] / 2,
-                "avg_pool3d: padding must be <= kernel_size / 2, got padding={:?}, kernel_size={:?}",
+                padding[i] <= effective_kernel / 2,
+                "avg_pool3d: padding must be <= effective kernel size / 2, got padding={:?}, kernel_size={:?}, dilation={:?}",
                 padding,
-                kernel_size
+                kernel_size,
+                dilation
             );
         }
         Tensor::new(BridgeTensor::float(Dispatch::avg_pool3d(
@@ -506,6 +537,7 @@ pub fn avg_pool3d(x: Tensor<5>, options: AvgPoolOptions<3>) -> Tensor<5> {
             kernel_size,
             stride,
             padding,
+            dilation,
             count_include_pad,
             options.ceil_mode,
         )))
@@ -522,6 +554,7 @@ pub fn avg_pool1d(x: Tensor<3>, options: AvgPoolOptions<1>) -> Tensor<3> {
             options.kernel_size[0],
             options.stride[0],
             padding[0],
+            options.dilation[0],
             count_include_pad,
             options.ceil_mode,
         )))
@@ -828,7 +861,7 @@ pub fn max_pool_output_size<const N: usize>(
 
 /// The spatial size of the output [`avg_pool1d`], [`avg_pool2d`] or [`avg_pool3d`] returns for
 /// an input whose spatial size is `input_size`, or `None` where the options cannot size it: a
-/// zero kernel or stride, or a padded input shorter than the kernel.
+/// zero kernel, stride or dilation, or a padded input shorter than the dilated kernel.
 pub fn avg_pool_output_size<const N: usize>(
     input_size: [usize; N],
     options: &AvgPoolOptions<N>,
@@ -846,7 +879,7 @@ pub fn avg_pool_output_size<const N: usize>(
             kernel_size: options.kernel_size[i],
             stride: options.stride[i],
             padding: options.padding[i],
-            dilation: 1,
+            dilation: options.dilation[i],
             ceil_mode: options.ceil_mode,
         }
         .output_size(padding)
@@ -1039,11 +1072,14 @@ pub fn adaptive_avg_pool1d(x: Tensor<3>, output_size: usize) -> Tensor<3> {
 ///
 /// The output spatial size is taken from `options.output_size`, or computed as
 /// `floor(input_size * scale_factor)` from `options.scale_factor`.
+/// Explicit scales also drive scale-dependent coordinate transforms. See
+/// [`InterpolateOptions`] for backend support and scale restrictions.
 ///
 /// # Panics
 ///
 /// Panics unless exactly one of `output_size` or `scale_factor` is set, or if the
-/// scaled size exceeds `usize::MAX`.
+/// scaled size exceeds `usize::MAX`. Scale factors must be strictly positive.
+/// Panics if the selected backend does not support the interpolation options.
 ///
 /// # Example
 ///
@@ -1073,6 +1109,11 @@ pub fn interpolate_output_size(input_size: [usize; 2], options: &InterpolateOpti
     match (options.output_size, options.scale_factor) {
         (Some(output_size), None) => output_size,
         (None, Some(scale_factor)) => core::array::from_fn(|i| {
+            assert!(
+                scale_factor[i] > 0.0,
+                "Interpolate scale factor {} must be strictly positive (> 0.0)",
+                scale_factor[i]
+            );
             let size = input_size[i] as f64 * scale_factor[i] as f64;
             assert!(
                 size <= usize::MAX as f64,
@@ -1119,6 +1160,13 @@ pub fn linear<const D: usize>(
     weight: Tensor<2>,
     bias: Option<Tensor<1>>,
 ) -> Tensor<D> {
+    check!(TensorCheck::linear(
+        "linear",
+        &input,
+        &weight,
+        bias.as_ref()
+    ));
+
     if D == 1 {
         // Insert and remove an extra batch dimension for the batch matmul to work.
         let input = input.unsqueeze::<2>();
@@ -1217,6 +1265,14 @@ pub fn attention(
         &key.shape(),
         &value.shape(),
     );
+    check!(TensorCheck::attention(
+        "attention",
+        &query,
+        &key,
+        &value,
+        mask.as_ref(),
+        attn_bias.as_ref(),
+    ));
     Tensor::new(BridgeTensor::float(Dispatch::attention(
         query.primitive.into_float(),
         key.primitive.into_float(),
@@ -1264,12 +1320,14 @@ pub fn conv2d_weight_backward(
 }
 
 /// Backward pass for the [avg pooling 2d](ModuleOps::avg_pool2d) operation.
+#[allow(clippy::too_many_arguments)]
 pub fn avg_pool2d_backward(
     x: Tensor<4>,
     grad: Tensor<4>,
     kernel_size: [usize; 2],
     stride: [usize; 2],
     padding: [usize; 2],
+    dilation: [usize; 2],
     count_include_pad: bool,
     ceil_mode: bool,
 ) -> Tensor<4> {
@@ -1279,6 +1337,7 @@ pub fn avg_pool2d_backward(
         kernel_size,
         stride,
         padding,
+        dilation,
         count_include_pad,
         ceil_mode,
     )))
@@ -1317,14 +1376,17 @@ pub fn max_pool2d_with_indices_backward(
 ///
 /// - If any dimension of `kernel_size` is 0.
 /// - If any dimension of `stride` is 0.
-/// - If any dimension of `padding` exceeds `kernel_size / 2`.
+/// - If any dimension of `dilation` is 0.
+/// - If any dimension of `padding` exceeds half the effective kernel size, `(kernel_size - 1) * dilation + 1`.
 /// - If `grad` dimensions do not match the expected forward output shape.
+#[allow(clippy::too_many_arguments)]
 pub fn avg_pool3d_backward(
     x: Tensor<5>,
     grad: Tensor<5>,
     kernel_size: [usize; 3],
     stride: [usize; 3],
     padding: [usize; 3],
+    dilation: [usize; 3],
     count_include_pad: bool,
     ceil_mode: bool,
 ) -> Tensor<5> {
@@ -1336,12 +1398,18 @@ pub fn avg_pool3d_backward(
         stride.iter().all(|&s| s > 0),
         "avg_pool3d_backward: stride must be > 0, got {stride:?}"
     );
+    assert!(
+        dilation.iter().all(|&d| d > 0),
+        "avg_pool3d_backward: dilation must be > 0, got {dilation:?}"
+    );
     for i in 0..3 {
+        let effective_kernel = (kernel_size[i] - 1) * dilation[i] + 1;
         assert!(
-            padding[i] <= kernel_size[i] / 2,
-            "avg_pool3d_backward: padding must be <= kernel_size / 2, got padding={:?}, kernel_size={:?}",
+            padding[i] <= effective_kernel / 2,
+            "avg_pool3d_backward: padding must be <= effective kernel size / 2, got padding={:?}, kernel_size={:?}, dilation={:?}",
             padding,
-            kernel_size
+            kernel_size,
+            dilation
         );
     }
     let [batch_size, channels, d_in, h_in, w_in] = x.dims();
@@ -1352,7 +1420,7 @@ pub fn avg_pool3d_backward(
             kernel_size[0],
             stride[0],
             padding[0],
-            1,
+            dilation[0],
             d_in,
             ceil_mode,
         ),
@@ -1360,7 +1428,7 @@ pub fn avg_pool3d_backward(
             kernel_size[1],
             stride[1],
             padding[1],
-            1,
+            dilation[1],
             h_in,
             ceil_mode,
         ),
@@ -1368,7 +1436,7 @@ pub fn avg_pool3d_backward(
             kernel_size[2],
             stride[2],
             padding[2],
-            1,
+            dilation[2],
             w_in,
             ceil_mode,
         ),
@@ -1386,6 +1454,7 @@ pub fn avg_pool3d_backward(
         kernel_size,
         stride,
         padding,
+        dilation,
         count_include_pad,
         ceil_mode,
     )))
@@ -1470,6 +1539,12 @@ pub fn layer_norm<const D: usize>(
     beta: Option<Tensor<1>>,
     epsilon: f64,
 ) -> Tensor<D> {
+    check!(TensorCheck::layer_norm(
+        "layer_norm",
+        &input,
+        &gamma,
+        beta.as_ref()
+    ));
     Tensor::new(layer_norm_impl(
         input.primitive,
         gamma.primitive,
@@ -1495,6 +1570,7 @@ fn layer_norm_impl(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::Device;
     use crate::ops::InterpolateMode;
 
     fn options() -> InterpolateOptions {
@@ -1533,16 +1609,15 @@ mod tests {
                     if let Some(size) = pooled(move || max_pool1d(input, options)) {
                         assert_eq!(sized, Some([size]), "{max:?} over {size_in}");
                     }
-                    if dilation == 1 {
-                        let avg = AvgPoolOptions::new([kernel_size])
-                            .with_stride([stride])
-                            .with_padding_pairs([(begin, end)])
-                            .with_ceil_mode(ceil_mode);
-                        let sized = avg_pool_output_size([size_in], &avg);
-                        let (input, options) = (x.clone(), avg.clone());
-                        if let Some(size) = pooled(move || avg_pool1d(input, options)) {
-                            assert_eq!(sized, Some([size]), "{avg:?} over {size_in}");
-                        }
+                    let avg = AvgPoolOptions::new([kernel_size])
+                        .with_stride([stride])
+                        .with_dilation([dilation])
+                        .with_padding_pairs([(begin, end)])
+                        .with_ceil_mode(ceil_mode);
+                    let sized = avg_pool_output_size([size_in], &avg);
+                    let (input, options) = (x.clone(), avg.clone());
+                    if let Some(size) = pooled(move || avg_pool1d(input, options)) {
+                        assert_eq!(sized, Some([size]), "{avg:?} over {size_in}");
                     }
                 }
             }
@@ -1597,6 +1672,14 @@ mod tests {
                 .with_scale_factor([2.0, 2.0]),
         );
         assert_eq!(size, [8, 8]);
+
+        let size = interpolate_output_size(
+            [4, 4],
+            &options()
+                .with_scale_factor([2.0, 2.0])
+                .with_output_size([2, 2]),
+        );
+        assert_eq!(size, [2, 2]);
     }
 
     #[test]
@@ -1620,6 +1703,12 @@ mod tests {
             [4, usize::MAX - 1],
             &options().with_scale_factor([1.0, 2.0]),
         );
+    }
+
+    #[test]
+    #[should_panic(expected = "strictly positive")]
+    fn interpolate_output_size_rejects_non_positive_scale_factor() {
+        interpolate_output_size([4, 4], &options().with_scale_factor([0.0, 2.0]));
     }
 
     #[test]
@@ -1675,10 +1764,256 @@ mod tests {
     }
 
     #[test]
+    #[should_panic(expected = "avg_pool3d: dilation must be > 0")]
+    fn test_avg_pool3d_dilation_zero_panics() {
+        let tensor = Tensor::<5>::zeros([1, 1, 4, 4, 4], &Default::default());
+        let mut options = AvgPoolOptions::new([2, 2, 2]);
+        options.dilation = [0, 1, 1];
+        avg_pool3d(tensor, options);
+    }
+
+    #[test]
+    #[should_panic(expected = "avg_pool3d: padding must be <= effective kernel size / 2")]
+    fn test_avg_pool3d_padding_greater_than_half_effective_kernel_panics() {
+        let tensor = Tensor::<5>::zeros([1, 1, 4, 4, 4], &Default::default());
+        let options = AvgPoolOptions::new([3, 1, 1])
+            .with_dilation([2, 1, 1])
+            .with_padding([3, 0, 0]);
+        avg_pool3d(tensor, options);
+    }
+
+    #[test]
     #[should_panic(expected = "grad shape")]
     fn test_avg_pool3d_backward_grad_shape_mismatch_panics() {
         let tensor = Tensor::<5>::zeros([1, 1, 4, 4, 4], &Default::default());
         let grad = Tensor::<5>::zeros([1, 1, 2, 2, 2], &Default::default());
-        avg_pool3d_backward(tensor, grad, [2, 2, 2], [1, 1, 1], [0, 0, 0], true, false);
+        avg_pool3d_backward(
+            tensor,
+            grad,
+            [2, 2, 2],
+            [1, 1, 1],
+            [0, 0, 0],
+            [1, 1, 1],
+            true,
+            false,
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "do not have the same dtype")]
+    fn test_conv2d_dtype_mismatch_panics() {
+        let device = Default::default();
+        let x = Tensor::<4>::ones([1, 2, 7, 6], &device).cast(crate::FloatDType::BF16);
+        let weight = Tensor::<4>::ones([2, 2, 3, 2], &device).cast(crate::FloatDType::F32);
+        let options = ConvOptions::new([1, 1], [0, 0], [1, 1], 1);
+        conv2d(x, weight, None, options);
+    }
+
+    #[test]
+    #[should_panic(expected = "do not have the same dtype")]
+    fn test_conv2d_bias_dtype_mismatch_panics() {
+        let device = Default::default();
+        let x = Tensor::<4>::ones([1, 2, 7, 6], &device).cast(crate::FloatDType::BF16);
+        let weight = Tensor::<4>::ones([2, 2, 3, 2], &device).cast(crate::FloatDType::BF16);
+        let bias = Tensor::<1>::ones([2], &device).cast(crate::FloatDType::F32);
+        let options = ConvOptions::new([1, 1], [0, 0], [1, 1], 1);
+        conv2d(x, weight, Some(bias), options);
+    }
+
+    #[test]
+    #[should_panic(expected = "do not have the same dtype")]
+    fn test_conv_transpose2d_dtype_mismatch_panics() {
+        let device = Default::default();
+        let x = Tensor::<4>::ones([1, 2, 7, 6], &device).cast(crate::FloatDType::BF16);
+        let weight = Tensor::<4>::ones([2, 2, 3, 2], &device).cast(crate::FloatDType::F32);
+        let options = ConvTransposeOptions::new([1, 1], [0, 0], [0, 0], [1, 1], 1);
+        conv_transpose2d(x, weight, None, options);
+    }
+
+    #[test]
+    #[should_panic(expected = "do not have the same dtype")]
+    fn test_linear_dtype_mismatch_panics() {
+        let device = Default::default();
+        let input = Tensor::<2>::ones([2, 4], &device).cast(crate::FloatDType::BF16);
+        let weight = Tensor::<2>::ones([4, 8], &device).cast(crate::FloatDType::F32);
+        linear(input, weight, None);
+    }
+
+    #[test]
+    #[should_panic(expected = "do not have the same dtype")]
+    fn test_linear_bias_dtype_mismatch_panics() {
+        let device = Default::default();
+        let input = Tensor::<2>::ones([2, 4], &device).cast(crate::FloatDType::BF16);
+        let weight = Tensor::<2>::ones([4, 8], &device).cast(crate::FloatDType::BF16);
+        let bias = Tensor::<1>::ones([8], &device).cast(crate::FloatDType::F32);
+        linear(input, weight, Some(bias));
+    }
+
+    #[test]
+    #[should_panic(expected = "do not have the same dtype")]
+    fn test_layer_norm_dtype_mismatch_panics() {
+        let device = Default::default();
+        let input = Tensor::<2>::ones([2, 4], &device).cast(crate::FloatDType::BF16);
+        let gamma = Tensor::<1>::ones([4], &device).cast(crate::FloatDType::F32);
+        layer_norm(input, gamma, None, 1e-5);
+    }
+
+    #[test]
+    #[should_panic(expected = "do not have the same dtype")]
+    fn test_batch_norm_dtype_mismatch_panics() {
+        let device = Default::default();
+        let input = Tensor::<4>::ones([2, 3, 4, 4], &device).cast(crate::FloatDType::BF16);
+        let gamma = Tensor::<1>::ones([3], &device).cast(crate::FloatDType::F32);
+        let beta = Tensor::<1>::ones([3], &device).cast(crate::FloatDType::BF16);
+        let mean = Tensor::<1>::ones([3], &device).cast(crate::FloatDType::BF16);
+        let var = Tensor::<1>::ones([3], &device).cast(crate::FloatDType::BF16);
+        batch_norm(input, gamma, beta, mean, var, 1e-5);
+    }
+
+    #[test]
+    #[should_panic(expected = "do not have the same dtype")]
+    fn test_attention_dtype_mismatch_panics() {
+        let device = Default::default();
+        let query = Tensor::<4>::ones([2, 4, 8, 16], &device).cast(crate::FloatDType::BF16);
+        let key = Tensor::<4>::ones([2, 4, 8, 16], &device).cast(crate::FloatDType::F32);
+        let value = Tensor::<4>::ones([2, 4, 8, 16], &device).cast(crate::FloatDType::BF16);
+        let options = AttentionModuleOptions::default();
+        attention(query, key, value, None, None, options);
+    }
+
+    #[test]
+    #[should_panic(expected = "do not have the same dtype")]
+    fn test_conv1d_dtype_mismatch_panics() {
+        let device = Default::default();
+        let x = Tensor::<3>::ones([1, 2, 7], &device).cast(crate::FloatDType::BF16);
+        let weight = Tensor::<3>::ones([2, 2, 3], &device).cast(crate::FloatDType::F32);
+        let options = ConvOptions::new([1], [0], [1], 1);
+        conv1d(x, weight, None, options);
+    }
+
+    #[test]
+    #[should_panic(expected = "do not have the same dtype")]
+    fn test_conv3d_dtype_mismatch_panics() {
+        let device = Default::default();
+        let x = Tensor::<5>::ones([1, 2, 4, 4, 4], &device).cast(crate::FloatDType::BF16);
+        let weight = Tensor::<5>::ones([2, 2, 2, 2, 2], &device).cast(crate::FloatDType::F32);
+        let options = ConvOptions::new([1, 1, 1], [0, 0, 0], [1, 1, 1], 1);
+        conv3d(x, weight, None, options);
+    }
+
+    #[test]
+    #[should_panic(expected = "do not have the same dtype")]
+    fn test_conv_transpose2d_bias_dtype_mismatch_panics() {
+        let device = Default::default();
+        let x = Tensor::<4>::ones([1, 2, 7, 6], &device).cast(crate::FloatDType::BF16);
+        let weight = Tensor::<4>::ones([2, 2, 3, 2], &device).cast(crate::FloatDType::BF16);
+        let bias = Tensor::<1>::ones([2], &device).cast(crate::FloatDType::F32);
+        let options = ConvTransposeOptions::new([1, 1], [0, 0], [0, 0], [1, 1], 1);
+        conv_transpose2d(x, weight, Some(bias), options);
+    }
+
+    #[test]
+    #[should_panic(expected = "do not have the same dtype")]
+    fn test_layer_norm_beta_dtype_mismatch_panics() {
+        let device = Default::default();
+        let input = Tensor::<2>::ones([2, 4], &device).cast(crate::FloatDType::BF16);
+        let gamma = Tensor::<1>::ones([4], &device).cast(crate::FloatDType::BF16);
+        let beta = Tensor::<1>::ones([4], &device).cast(crate::FloatDType::F32);
+        layer_norm(input, gamma, Some(beta), 1e-5);
+    }
+
+    #[test]
+    #[should_panic(expected = "do not have the same dtype")]
+    fn test_batch_norm_train_dtype_mismatch_panics() {
+        let device = Default::default();
+        let input = Tensor::<4>::ones([2, 3, 4, 4], &device).cast(crate::FloatDType::BF16);
+        let gamma = Tensor::<1>::ones([3], &device).cast(crate::FloatDType::F32);
+        let beta = Tensor::<1>::ones([3], &device).cast(crate::FloatDType::BF16);
+        batch_norm_train(input, gamma, beta, 1e-5);
+    }
+
+    #[test]
+    #[should_panic(expected = "do not have the same dtype")]
+    fn test_attention_attn_bias_dtype_mismatch_panics() {
+        let device = Default::default();
+        let query = Tensor::<4>::ones([2, 4, 8, 16], &device).cast(crate::FloatDType::BF16);
+        let key = Tensor::<4>::ones([2, 4, 8, 16], &device).cast(crate::FloatDType::BF16);
+        let value = Tensor::<4>::ones([2, 4, 8, 16], &device).cast(crate::FloatDType::BF16);
+        let attn_bias = Tensor::<4>::ones([2, 4, 8, 8], &device).cast(crate::FloatDType::F32);
+        let options = AttentionModuleOptions::default();
+        attention(query, key, value, None, Some(attn_bias), options);
+    }
+
+    #[test]
+    #[should_panic(expected = "do not have the same dtype")]
+    fn test_deform_conv2d_offset_dtype_mismatch_panics() {
+        let device = Default::default();
+        let x = Tensor::<4>::ones([1, 2, 4, 4], &device).cast(crate::FloatDType::BF16);
+        let offset = Tensor::<4>::ones([1, 18, 2, 2], &device).cast(crate::FloatDType::F32);
+        let weight = Tensor::<4>::ones([2, 2, 3, 3], &device).cast(crate::FloatDType::BF16);
+        let options = DeformConvOptions::new([1, 1], [0, 0], [1, 1], 1, 1);
+        deform_conv2d(x, offset, weight, None, None, options);
+    }
+
+    #[test]
+    #[should_panic(expected = "do not have the same dtype")]
+    fn test_deform_conv2d_mask_dtype_mismatch_panics() {
+        let device = Default::default();
+        let x = Tensor::<4>::ones([1, 2, 4, 4], &device).cast(crate::FloatDType::BF16);
+        let offset = Tensor::<4>::ones([1, 18, 2, 2], &device).cast(crate::FloatDType::BF16);
+        let weight = Tensor::<4>::ones([2, 2, 3, 3], &device).cast(crate::FloatDType::BF16);
+        let mask = Tensor::<4>::ones([1, 9, 2, 2], &device).cast(crate::FloatDType::F32);
+        let options = DeformConvOptions::new([1, 1], [0, 0], [1, 1], 1, 1);
+        deform_conv2d(x, offset, weight, Some(mask), None, options);
+    }
+
+    #[test]
+    #[should_panic(expected = "do not have the same dtype")]
+    fn test_conv2d_quantized_weight_dtype_mismatch_panics() {
+        let device = Device::default();
+        let input = Tensor::<4>::ones([1, 1, 1, 1], &device).cast(crate::FloatDType::BF16);
+        let weight = Tensor::<4>::ones([1, 1, 1, 1], &device)
+            .quantize_dynamic(&device.settings().quantization.scheme);
+        let options = ConvOptions::new([1, 1], [0, 0], [1, 1], 1);
+        conv2d(input, weight, None, options);
+    }
+
+    #[test]
+    #[should_panic(expected = "do not have the same dtype")]
+    fn test_linear_quantized_input_dtype_mismatch_panics() {
+        let device = Device::default();
+        let input = Tensor::<2>::ones([1, 1], &device)
+            .quantize_dynamic(&device.settings().quantization.scheme);
+        let weight = Tensor::<2>::ones([1, 1], &device).cast(crate::FloatDType::BF16);
+        linear(input, weight, None);
+    }
+
+    #[test]
+    fn test_conv2d_quantized_weight_matching_dtype() {
+        let device = Device::default();
+        let input = Tensor::<4>::from_floats([[[[1.0, 3.0]]]], &device);
+        let weight = Tensor::<4>::from_floats([[[[2.0]]]], &device)
+            .quantize_dynamic(&device.settings().quantization.scheme);
+        let options = ConvOptions::new([1, 1], [0, 0], [1, 1], 1);
+        let output = conv2d(input, weight, None, options);
+        output.into_data().assert_approx_eq::<f32>(
+            &crate::TensorData::from([[[[2.0f32, 6.0]]]]),
+            crate::Tolerance::relative(0.01),
+        );
+    }
+
+    #[test]
+    fn test_linear_quantized_weight_and_bias_with_bf16_input() {
+        let device = Device::default();
+        let scheme = device.settings().quantization.scheme;
+        let input = Tensor::<2>::from_floats([[1.0, 2.0]], &device).cast(crate::FloatDType::BF16);
+        let weight = Tensor::<2>::from_floats([[2.0], [3.0]], &device).quantize_dynamic(&scheme);
+        let bias = Tensor::<1>::from_floats([1.0], &device).quantize_dynamic(&scheme);
+        let output = linear(input, weight, Some(bias));
+        assert_eq!(output.dtype(), DType::BF16);
+        output.into_data().assert_approx_eq::<f32>(
+            &crate::TensorData::from([[9.0f32]]),
+            crate::Tolerance::relative(0.01),
+        );
     }
 }

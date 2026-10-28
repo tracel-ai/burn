@@ -249,6 +249,9 @@ pub struct AvgPoolOptions<const N: usize> {
     /// Padding as `(begin, end)` pairs for each spatial dimension.
     pub padding: [(usize, usize); N],
 
+    /// Dilation (non-zero).
+    pub dilation: [usize; N],
+
     /// If true, padded values are counted in the denominator of the average.
     pub count_include_pad: bool,
 
@@ -259,14 +262,15 @@ pub struct AvgPoolOptions<const N: usize> {
 impl<const N: usize> AvgPoolOptions<N> {
     /// Constructs average pooling options with the given kernel size.
     ///
-    /// Defaults to a stride equal to the kernel size, no padding, counting
-    /// padded values in the average and floor mode.
+    /// Defaults to a stride equal to the kernel size, no padding, a dilation
+    /// of 1, counting padded values in the average and floor mode.
     pub fn new(kernel_size: [usize; N]) -> Self {
         let kernel_size = kernel_size.map(|k| check_nonzero(k, "kernel size must be non-zero"));
         Self {
             kernel_size,
             stride: kernel_size,
             padding: [(0, 0); N],
+            dilation: [1; N],
             count_include_pad: true,
             ceil_mode: false,
         }
@@ -287,6 +291,14 @@ impl<const N: usize> AvgPoolOptions<N> {
     /// Sets explicit `(begin, end)` padding for every spatial dimension.
     pub fn with_padding_pairs(mut self, padding: [(usize, usize); N]) -> Self {
         self.padding = padding;
+        self
+    }
+
+    /// Sets the dilation.
+    ///
+    /// Window element `k` reads input position `start + k * dilation`, as in max pooling.
+    pub fn with_dilation(mut self, dilation: [usize; N]) -> Self {
+        self.dilation = dilation.map(|d| check_nonzero(d, "dilation must be non-zero"));
         self
     }
 
@@ -410,7 +422,7 @@ impl UnfoldOptions {
 }
 
 /// Algorithm used.
-#[derive(new, Debug, Clone, serde::Deserialize, serde::Serialize)]
+#[derive(new, Debug, Clone, Copy, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
 pub enum InterpolateMode {
     /// Nearest-neighbor floor interpolation.
     /// Matches the legacy behavior of OpenCV’s INTER_NEAREST. It results in a bottom-right shift when resizing.
@@ -434,44 +446,158 @@ pub enum InterpolateMode {
     Lanczos3,
 }
 
+/// Coordinate transformation mode for interpolation.
+#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
+pub enum CoordinateTransformMode {
+    /// Half-pixel coordinate mapping: `(x_out + 0.5) / scale - 0.5`.
+    HalfPixel,
+    /// Align corners coordinate mapping: `x_out * (l_in - 1) / (l_out - 1)`.
+    AlignCorners,
+    /// Asymmetric coordinate mapping: `x_out / scale`.
+    Asymmetric,
+    /// PyTorch half-pixel coordinate mapping: `(x_out + 0.5) / scale - 0.5` if `l_out > 1` else `0.0`.
+    PytorchHalfPixel,
+    /// Half-pixel symmetric coordinate mapping.
+    HalfPixelSymmetric,
+    /// TensorFlow crop and resize coordinate mapping with normalized ROI bounding box.
+    TfCropAndResize {
+        /// Normalized bounding box per spatial axis: [[y_start, y_end], [x_start, x_end]]
+        roi: [[f32; 2]; 2],
+        /// Extrapolation fill value for coordinates outside bounds
+        extrapolation_value: f32,
+    },
+}
+
+/// Nearest rounding mode for nearest neighbor interpolation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub enum NearestRoundingMode {
+    /// Round with preference to floor at 0.5 boundaries (`ceil(x - 0.5)`).
+    RoundPreferFloor,
+    /// Round with preference to ceil at 0.5 boundaries (`floor(x + 0.5)`).
+    RoundPreferCeil,
+    /// Floor rounding (`floor(x)`).
+    Floor,
+    /// Ceil rounding (`ceil(x)`).
+    Ceil,
+}
+
+/// Configuration options for bicubic interpolation.
+#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct CubicOptions {
+    /// Cubic spline parameter 'a'. Default: -0.75 (PyTorch/ONNX), -0.5 (TensorFlow).
+    pub a: f32,
+    /// Zero out-of-bounds tap weights and renormalize remaining weights.
+    pub exclude_outside: bool,
+}
+
+impl Default for CubicOptions {
+    fn default() -> Self {
+        Self {
+            a: -0.75,
+            exclude_outside: false,
+        }
+    }
+}
+
 /// Interpolation options.
-#[derive(Debug, Clone)]
+///
+/// Flex supports all coordinate transforms, rounding modes and cubic options.
+/// CubeCL supports the default nearest and nearest-exact combinations, plus bilinear,
+/// bicubic and Lanczos3 with `AlignCorners` or `HalfPixel` and default cubic options.
+/// With CubeCL, explicit scales must equal the resolved output/input ratios exactly,
+/// unless the transform is `AlignCorners`. Unsupported combinations panic.
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct InterpolateOptions {
     /// Algorithm used.
     pub mode: InterpolateMode,
-    /// If `true`, the input and output tensors are aligned by their corner pixels.
-    /// If `false`, half-pixel coordinate mapping is used instead.
-    pub align_corners: bool,
+    /// Coordinate transformation mode.
+    pub coordinate_transform: CoordinateTransformMode,
+    /// Nearest rounding mode.
+    pub nearest_mode: NearestRoundingMode,
+    /// Cubic interpolation options.
+    pub cubic_options: CubicOptions,
     /// Output spatial size `[height, width]`.
     ///
     /// Exactly one of `output_size` or `scale_factor` must be set when calling
-    /// `burn_tensor::module::interpolate`. Backends receive the resolved size as a
-    /// separate argument and ignore this field.
+    /// `burn_tensor::module::interpolate`.
     pub output_size: Option<[usize; 2]>,
     /// Scale factor `[scale_height, scale_width]` applied to the input spatial size.
     /// The output size is `floor(input_size * scale_factor)`.
-    ///
-    /// Exactly one of `output_size` or `scale_factor` must be set when calling
-    /// `burn_tensor::module::interpolate`. Backends ignore this field.
+    /// Scale-dependent transforms use these supplied factors for coordinates rather
+    /// than recomputing the output/input ratio. `AlignCorners` and `TfCropAndResize`
+    /// map coordinates from the resolved sizes instead.
     pub scale_factor: Option<[f32; 2]>,
 }
 
 impl InterpolateOptions {
-    /// Create new interpolate options with the given mode.
-    /// Defaults to `align_corners = true` and no output size or scale factor.
+    /// Create new interpolate options with mode-dependent defaults.
     pub fn new(mode: InterpolateMode) -> Self {
+        let (coordinate_transform, nearest_mode) = match mode {
+            InterpolateMode::Nearest => (
+                CoordinateTransformMode::Asymmetric,
+                NearestRoundingMode::Floor,
+            ),
+            InterpolateMode::NearestExact => (
+                CoordinateTransformMode::HalfPixel,
+                NearestRoundingMode::RoundPreferCeil,
+            ),
+            InterpolateMode::Bilinear | InterpolateMode::Bicubic | InterpolateMode::Lanczos3 => (
+                CoordinateTransformMode::AlignCorners,
+                NearestRoundingMode::RoundPreferFloor,
+            ),
+        };
+
         Self {
             mode,
-            align_corners: true,
+            coordinate_transform,
+            nearest_mode,
+            cubic_options: CubicOptions::default(),
             output_size: None,
             scale_factor: None,
         }
     }
 
-    /// Set align_corners.
-    pub fn with_align_corners(mut self, align_corners: bool) -> Self {
-        self.align_corners = align_corners;
+    /// Set coordinate transformation mode.
+    pub fn with_coordinate_transform(mut self, mode: CoordinateTransformMode) -> Self {
+        self.coordinate_transform = mode;
         self
+    }
+
+    /// Set nearest rounding mode.
+    pub fn with_nearest_mode(mut self, mode: NearestRoundingMode) -> Self {
+        self.nearest_mode = mode;
+        self
+    }
+
+    /// Set cubic options.
+    pub fn with_cubic_options(mut self, options: CubicOptions) -> Self {
+        self.cubic_options = options;
+        self
+    }
+
+    /// Set corner alignment for bilinear, bicubic and Lanczos3 interpolation.
+    /// `true` selects `AlignCorners`; `false` selects `HalfPixel`.
+    /// Nearest modes are unchanged; use [`Self::with_coordinate_transform`] to set their mapping.
+    pub fn with_align_corners(mut self, align_corners: bool) -> Self {
+        if !matches!(
+            self.mode,
+            InterpolateMode::Nearest | InterpolateMode::NearestExact
+        ) {
+            self.coordinate_transform = if align_corners {
+                CoordinateTransformMode::AlignCorners
+            } else {
+                CoordinateTransformMode::HalfPixel
+            };
+        }
+        self
+    }
+
+    /// Returns `true` if coordinate transform is `AlignCorners`.
+    pub fn align_corners(&self) -> bool {
+        matches!(
+            self.coordinate_transform,
+            CoordinateTransformMode::AlignCorners
+        )
     }
 
     /// Set the output size `[height, width]`, clearing any scale factor.
@@ -759,6 +885,7 @@ mod tests {
         assert!(!max.ceil_mode);
         assert_eq!(avg.stride, [2, 3]);
         assert_eq!(avg.padding, [(0, 0), (0, 0)]);
+        assert_eq!(avg.dilation, [1, 1]);
         assert!(avg.count_include_pad);
         assert!(!avg.ceil_mode);
     }
@@ -783,6 +910,12 @@ mod tests {
     #[should_panic = "dilation must be non-zero"]
     fn max_pool_options_dilation_zero() {
         let _opt = MaxPoolOptions::new([1, 1]).with_dilation([0, 1]);
+    }
+
+    #[test]
+    #[should_panic = "dilation must be non-zero"]
+    fn avg_pool_options_dilation_zero() {
+        let _opt = AvgPoolOptions::new([1, 1]).with_dilation([0, 1]);
     }
 
     #[test]

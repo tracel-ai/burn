@@ -1,14 +1,13 @@
 //! The component tree, each component scored against the wall it is bound by.
 
 use std::fmt::{self, Display};
-use std::time::Duration;
 
-use burn_instrument::{Component, Kernel};
+use burn_instrument::{Component, FusedShare, Kernel};
 
 use crate::Report;
+use crate::components::{ComponentReading, KernelReading, UnclaimedReading, WorkShare};
 use crate::millis::Millis;
 use crate::served_by::ServedBy;
-use crate::share::Share;
 
 /// The table's body: each component's line, its children's beneath it, then the kernels it
 /// launched itself, and the kernels no component claimed.
@@ -18,19 +17,23 @@ use crate::share::Share;
 /// pushing every number on one component out of its column.
 pub(super) struct ComponentTable<'r, 'a> {
     report: &'r Report<'a>,
-    /// The device time every share is of.
-    whole: Duration,
+    /// The run's components, read once: what every line prints, and what the column's width
+    /// and the legend are measured from.
+    components: Vec<ComponentReading<'a>>,
+    /// The kernels no component claimed, read once.
+    unclaimed: Vec<UnclaimedReading<'a>>,
     /// The width of the component column.
     width: usize,
 }
 
 impl<'r, 'a> ComponentTable<'r, 'a> {
     pub(super) fn new(report: &'r Report<'a>) -> Self {
-        let breakdown = &report.measurement().breakdown;
+        let components = report.components();
         Self {
             report,
-            whole: breakdown.total_time(),
-            width: column_width(&breakdown.tree),
+            width: column_width(&components),
+            unclaimed: report.unclaimed(),
+            components,
         }
     }
 
@@ -43,70 +46,71 @@ impl<'r, 'a> ComponentTable<'r, 'a> {
     fn write_component(
         &self,
         f: &mut fmt::Formatter<'_>,
-        component: &Component,
+        reading: &ComponentReading<'_>,
         depth: usize,
     ) -> fmt::Result {
-        let fused_elsewhere = self.report.roofline().fused_elsewhere().contains(component);
+        let fused = reading.fused;
         let indent = "  ".repeat(depth);
-        let label = fit(heading(component), self.width.saturating_sub(depth * 2));
-        let scored = self.report.roofline().score_of(component);
-        let (bound, achieved, floor, gain) =
-            match (scored, self.report.roofline().floor_of(component)) {
-                (Some(score), _) => (
-                    score.floor.bound.to_string(),
-                    // A component above 100% is marked and keeps its figure. The peaks are
-                    // measured rather than looked up, so 105% is a component at the roof read
-                    // through a probe that came in a little low, and 568% is a declared
-                    // bound that is wrong — different findings, and one number
-                    // separates them where a shared ">100%" gave both the same answer.
-                    // Marked rather than suppressed: this is usually the most
-                    // interesting component on the page. The systemically broken denominator
-                    // is caught at the peak, not here.
-                    //
-                    // Only the bar is clamped, because a bar cannot say more than full.
-                    match score.achieved > 1.0 {
-                        true => format!("{} {:>3.0}%*", bar(1.0), score.achieved * 100.0),
-                        false => {
-                            format!("{} {:>3.0}% ", bar(score.achieved), score.achieved * 100.0)
-                        }
-                    },
-                    Millis(score.floor.time).to_string(),
-                    Millis(score.gain(self.report.reading().apportioned(component))).to_string(),
-                ),
-                // Priced but not scored — it measured no time of its own. The floor is
-                // still the declaration's, and its parent's floor counts it, so the
-                // component says what that is rather than leaving the parent's figure to be
-                // reconciled against blanks.
-                (None, Some(floor)) => (
-                    floor.bound.to_string(),
-                    String::new(),
-                    Millis(floor.time).to_string(),
-                    "—".to_string(),
-                ),
-                // A component nobody priced is timed and says so, rather than being
-                // scored against a floor no kernel could meet.
-                (None, None) => (
-                    "—".to_string(),
-                    String::new(),
-                    "—".to_string(),
-                    "—".to_string(),
-                ),
-            };
+        let label = fit(
+            heading(reading.component),
+            self.width.saturating_sub(depth * 2),
+        );
+        let (bound, achieved, floor, gain) = match (reading.score, reading.floor) {
+            (Some(score), _) => (
+                score.floor.bound.to_string(),
+                // A component above 100% is marked and keeps its figure. The peaks are
+                // measured rather than looked up, so 105% is a component at the roof read
+                // through a probe that came in a little low, and 568% is a declared
+                // bound that is wrong — different findings, and one number
+                // separates them where a shared ">100%" gave both the same answer.
+                // Marked rather than suppressed: this is usually the most
+                // interesting component on the page. The systemically broken denominator
+                // is caught at the peak, not here.
+                //
+                // Only the bar is clamped, because a bar cannot say more than full.
+                match score.achieved > 1.0 {
+                    true => format!("{} {:>3.0}%*", bar(1.0), score.achieved * 100.0),
+                    false => {
+                        format!("{} {:>3.0}% ", bar(score.achieved), score.achieved * 100.0)
+                    }
+                },
+                Millis(score.floor.time).to_string(),
+                Millis(score.gain(reading.time.unwrap_or_default())).to_string(),
+            ),
+            // Priced but not scored — it measured no time of its own, or only part
+            // of its work's, the rest fused into a kernel listed below it, which says
+            // so where the percentage would be. The floor is still the
+            // declaration's, and its parent's floor counts it, so the component says
+            // what that is rather than leaving the parent's figure to be reconciled
+            // against blanks.
+            (None, Some(floor)) => (
+                floor.bound.to_string(),
+                match fused {
+                    Some(FusedShare::Part) => "partly fused ↓".to_string(),
+                    Some(FusedShare::All) | None => String::new(),
+                },
+                Millis(floor.time).to_string(),
+                "—".to_string(),
+            ),
+            // A component nobody priced is timed and says so, rather than being
+            // scored against a floor no kernel could meet.
+            (None, None) => (
+                "—".to_string(),
+                String::new(),
+                "—".to_string(),
+                "—".to_string(),
+            ),
+        };
         // `fused ↓` rather than `0.0`: a zero reads as a component that cost
         // nothing, and this one's cost is in a fused kernel listed below it — on a
         // component above, after that component's children, or outside every component.
-        let (time, of_work, host) = match fused_elsewhere {
-            true => ("fused ↓".to_string(), String::new(), String::new()),
-            false => (
-                Millis(self.report.reading().apportioned(component)).to_string(),
-                Share {
-                    part: component.total_time(),
-                    whole: self.whole,
-                }
-                .to_string(),
-                self.report
-                    .host_split()
-                    .share(component.total_wait())
+        let (time, of_work, host) = match reading.time {
+            None => ("fused ↓".to_string(), String::new(), String::new()),
+            Some(time) => (
+                Millis(time).to_string(),
+                share_column(reading.share),
+                reading
+                    .host
                     .map(|host| Millis(host).to_string())
                     .unwrap_or_default(),
             ),
@@ -124,27 +128,24 @@ impl<'r, 'a> ComponentTable<'r, 'a> {
             gain,
             width = self.width.saturating_sub(depth * 2),
         )?;
-        for child in &component.children {
+        for child in &reading.children {
             self.write_component(f, child, depth + 1)?;
         }
         // The kernels this component launched itself, after the components it
         // entered. A kernel here that sits above a component's own component is one that
         // fused across it — the fuser's behaviour, read off the indentation rather
         // than asked about.
-        for (name, kernel) in named(&component.kernels) {
+        for kernel in &reading.kernels {
             writeln!(
                 f,
                 "  {}· {:<width$} {:>8} {:>7}",
                 "  ".repeat(depth + 1),
                 fit(
-                    launched(&name, kernel),
+                    launched(kernel),
                     self.width.saturating_sub(depth * 2 + KERNEL_INDENT)
                 ),
-                Millis(self.report.reading().apportion(kernel.total)),
-                Share {
-                    part: kernel.total,
-                    whole: self.whole,
-                },
+                Millis(kernel.time),
+                share_column(kernel.share),
                 width = self.width.saturating_sub(depth * 2 + KERNEL_INDENT),
             )?;
         }
@@ -154,7 +155,6 @@ impl<'r, 'a> ComponentTable<'r, 'a> {
 
 impl Display for ComponentTable<'_, '_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let breakdown = &self.report.measurement().breakdown;
         let width = self.width;
         let rule = width + 70;
         writeln!(
@@ -179,33 +179,38 @@ impl Display for ComponentTable<'_, '_> {
             "recoverable"
         )?;
         writeln!(f, "  {}", "─".repeat(rule))?;
-        for component in &breakdown.tree {
+        for component in &self.components {
             self.write_component(f, component, 0)?;
         }
         // Kernels nobody's component claimed, and the fused work the last
         // components left for the sync that ends the run. Work the device did
         // is still work, and a component saying so beats a silent omission.
-        for (heading, kernels) in [
-            ("end of run", &breakdown.end_of_run),
-            ("untagged", &breakdown.untagged),
-        ] {
-            if kernels.is_empty() {
-                continue;
-            }
-            writeln!(f, "  {heading:<width$}")?;
-            for (name, kernel) in named(kernels) {
+        for group in &self.unclaimed {
+            writeln!(f, "  {:<width$}", group.unclaimed)?;
+            for kernel in &group.kernels {
                 writeln!(
                     f,
                     "    · {:<width$} {:>8}",
-                    fit(launched(&name, kernel), width.saturating_sub(KERNEL_INDENT)),
-                    Millis(self.report.reading().apportion(kernel.total)),
+                    fit(launched(kernel), width.saturating_sub(KERNEL_INDENT)),
+                    Millis(kernel.time),
                     width = width.saturating_sub(KERNEL_INDENT),
                 )?;
             }
         }
-        // The two marks a fused run adds, explained where they are read and
-        // only where they appear.
-        if breakdown.kernels().any(|kernel| !kernel.fuses.is_empty()) {
+        // The marks a fused run adds, explained where they are read and only
+        // where they appear.
+        let readings: Vec<&ComponentReading<'_>> = self
+            .components
+            .iter()
+            .flat_map(ComponentReading::walk)
+            .map(|(_, reading)| reading)
+            .collect();
+        let fuses = readings
+            .iter()
+            .flat_map(|reading| &reading.kernels)
+            .chain(self.unclaimed.iter().flat_map(|group| &group.kernels))
+            .any(|kernel| !kernel.kernel.fuses.is_empty());
+        if fuses {
             writeln!(f)?;
             writeln!(
                 f,
@@ -215,6 +220,15 @@ impl Display for ComponentTable<'_, '_> {
                 f,
                 "  fused ↓           a component whose work all ran in such a kernel below it; its floor is set aside"
             )?;
+            let partly_fused = readings
+                .iter()
+                .any(|reading| reading.fused == Some(FusedShare::Part));
+            if partly_fused {
+                writeln!(
+                    f,
+                    "  partly fused ↓    a component part of whose work ran in such a kernel; its time is only the rest, so it is not scored"
+                )?;
+            }
         }
         writeln!(f, "  {}", "─".repeat(rule))
     }
@@ -245,7 +259,7 @@ fn heading(component: &Component) -> String {
     heading
 }
 
-/// How wide the component column has to be for `tree` to fit in it.
+/// How wide the component column has to be for `components` to fit in it.
 ///
 /// Computed rather than fixed: a heading carries its variants, and the longest
 /// of those is not knowable in advance. Floored so a shallow tree still lines
@@ -254,25 +268,25 @@ fn heading(component: &Component) -> String {
 /// nested component that routed three ways — the case the variant column exists for —
 /// and a heading past it is elided by [`fit`] rather than overflowing, so the
 /// columns hold whatever a component is called.
-fn column_width(tree: &[Component]) -> usize {
+fn column_width(components: &[ComponentReading<'_>]) -> usize {
     const NARROWEST: usize = 28;
     const WIDEST: usize = 64;
 
-    tree.iter()
-        .flat_map(|component| component.walk())
-        .flat_map(|(depth, component)| {
+    components
+        .iter()
+        .flat_map(ComponentReading::walk)
+        .flat_map(|(depth, reading)| {
             // The kernel lines share this column with the component headings,
             // one indent deeper, and a kernel that names the components it
             // fused is the longest thing in the table. Measured here because
             // the alternative is a `· fuses ↑ a + b` elided down to `· fuse…` —
             // the annotation cut off is exactly the one nothing else states.
-            let kernels: Vec<usize> = named(&component.kernels)
-                .into_iter()
-                .map(|(name, kernel)| {
-                    depth * 2 + KERNEL_INDENT + launched(&name, kernel).chars().count()
-                })
+            let kernels: Vec<usize> = reading
+                .kernels
+                .iter()
+                .map(|kernel| depth * 2 + KERNEL_INDENT + launched(kernel).chars().count())
                 .collect();
-            std::iter::once(depth * 2 + heading(component).chars().count()).chain(kernels)
+            std::iter::once(depth * 2 + heading(reading.component).chars().count()).chain(kernels)
         })
         .max()
         .unwrap_or(NARROWEST)
@@ -303,7 +317,8 @@ const KERNEL_INDENT: usize = 4;
 
 /// A kernel's line: its name, how many times it launched, and — where it
 /// fused components' work — whose, listed above it.
-fn launched(name: &str, kernel: &Kernel) -> String {
+fn launched(reading: &KernelReading<'_>) -> String {
+    let (name, kernel): (&str, &Kernel) = (&reading.name, reading.kernel);
     match kernel.fuses.as_slice() {
         [] => format!("{name} ×{}", kernel.launches),
         fuses => format!(
@@ -318,29 +333,7 @@ fn launched(name: &str, kernel: &Kernel) -> String {
     }
 }
 
-/// A component's kernels under the shortest names that still tell them apart.
-///
-/// A kernel's type name carries its whole generic instantiation and runs to
-/// several hundred characters, so the table would be unreadable at full
-/// length. `Short` — the last path segment before the generics — is what reads
-/// well, but three matmul families instantiate one `MatmulEntry` and collapsing
-/// them would print two different kernels under one name, which is worse than
-/// a long name. So `Short` is used only where it stays unambiguous *within the
-/// component*, and the fuller form serves the rest.
-fn named(kernels: &[Kernel]) -> Vec<(String, &Kernel)> {
-    use cubecl::config::{TypeNameFormatLevel, type_name_format};
-
-    let short: Vec<String> = kernels
-        .iter()
-        .map(|kernel| type_name_format(&kernel.name, TypeNameFormatLevel::Short))
-        .collect();
-    let distinct = short.iter().collect::<std::collections::HashSet<_>>().len();
-    let level = match distinct == kernels.len() {
-        true => TypeNameFormatLevel::Short,
-        false => TypeNameFormatLevel::Balanced,
-    };
-    kernels
-        .iter()
-        .map(|kernel| (type_name_format(&kernel.name, level), kernel))
-        .collect()
+/// A share as the table's column prints it, blank where the run timed nothing.
+fn share_column(share: Option<WorkShare>) -> String {
+    share.map(|share| share.to_string()).unwrap_or_default()
 }

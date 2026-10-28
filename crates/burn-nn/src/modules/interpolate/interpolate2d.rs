@@ -10,7 +10,9 @@ use burn_core as burn;
 use burn::config::Config;
 use burn::module::{Content, DisplaySettings, Module, ModuleDisplay};
 use burn::tensor::Tensor;
-use burn::tensor::ops::InterpolateOptions;
+use burn::tensor::ops::{
+    CoordinateTransformMode, CubicOptions, InterpolateOptions, NearestRoundingMode,
+};
 
 use super::InterpolateMode;
 
@@ -40,6 +42,18 @@ pub struct Interpolate2dConfig {
     /// If `false`, half-pixel coordinate mapping is used instead.
     #[config(default = true)]
     pub align_corners: bool,
+
+    /// Coordinate transformation mode.
+    #[config(default = "None")]
+    pub coordinate_transform: Option<CoordinateTransformMode>,
+
+    /// Nearest rounding mode.
+    #[config(default = "None")]
+    pub nearest_mode: Option<NearestRoundingMode>,
+
+    /// Cubic interpolation options.
+    #[config(default = "None")]
+    pub cubic_options: Option<CubicOptions>,
 }
 
 /// Interpolate module for resizing tensors with shape [N, C, H, W].
@@ -70,6 +84,18 @@ pub struct Interpolate2d {
 
     /// Whether to align corner pixels
     pub align_corners: bool,
+
+    /// Coordinate transformation mode
+    #[module(skip)]
+    pub coordinate_transform: Option<CoordinateTransformMode>,
+
+    /// Nearest rounding mode
+    #[module(skip)]
+    pub nearest_mode: Option<NearestRoundingMode>,
+
+    /// Cubic interpolation options
+    #[module(skip)]
+    pub cubic_options: Option<CubicOptions>,
 }
 
 impl Interpolate2dConfig {
@@ -80,14 +106,27 @@ impl Interpolate2dConfig {
             scale_factor: self.scale_factor,
             mode: self.mode,
             align_corners: self.align_corners,
+            coordinate_transform: self.coordinate_transform,
+            nearest_mode: self.nearest_mode,
+            cubic_options: self.cubic_options,
         }
     }
 }
 impl Interpolate2d {
     /// The options the interpolation runs with.
     fn options(&self) -> InterpolateOptions {
-        let mut options = InterpolateOptions::new(self.mode.clone().into())
-            .with_align_corners(self.align_corners);
+        let mut options = InterpolateOptions::new(self.mode.clone().into());
+        if let Some(ct) = self.coordinate_transform {
+            options = options.with_coordinate_transform(ct);
+        } else {
+            options = options.with_align_corners(self.align_corners);
+        }
+        if let Some(nm) = self.nearest_mode {
+            options = options.with_nearest_mode(nm);
+        }
+        if let Some(co) = self.cubic_options {
+            options = options.with_cubic_options(co);
+        }
         options.output_size = self.output_size;
         options.scale_factor = self.scale_factor;
         options
@@ -190,6 +229,17 @@ mod tests {
         let interpolate = config.init();
         let output = interpolate.forward(input);
         assert_eq!(output.dims(), [2, 3, 6, 6]);
+    }
+
+    #[test]
+    fn test_nearest_preserves_asymmetric_with_align_corners() {
+        let input = Tensor::<4>::from_floats([[[[10.0, 20.0, 30.0, 40.0]]]], &Default::default());
+        let config = Interpolate2dConfig::new()
+            .with_output_size(Some([1, 2]))
+            .with_align_corners(true);
+        let interpolate = config.init();
+        let output = interpolate.forward(input);
+        assert_eq!(output.into_data().as_slice::<f32>().unwrap(), &[10.0, 30.0]);
     }
 
     #[test]

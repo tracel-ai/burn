@@ -63,6 +63,8 @@ remote-server = ["remote", "burn-dispatch/remote-server"]
 # Add the WebSocket transport, for clients and servers.
 remote-websocket = ["remote", "burn-dispatch/remote-websocket"]
 capture = ["burn-dispatch/capture", "dep:burn-capture"]
+# Experimental: tensors split over a group of devices.
+group = ["burn-dispatch/group"]
 
 # For backend extensions
 extension = []
@@ -71,6 +73,7 @@ extension = []
 persistence = ["burn-dispatch/persistence"]
 autotune = ["burn-dispatch/autotune"]
 autotune-checks = ["burn-dispatch/autotune-checks"]
+attention-backward = ["burn-dispatch/attention-backward"]
 fusion = ["burn-dispatch/fusion"]
 simd = ["burn-dispatch/simd"]
 rayon = ["burn-dispatch/rayon"]

@@ -1,3 +1,4 @@
+use super::{avg_pool3d, avg_pool3d_backward};
 use crate::{
     kernel::{
         into_contiguous_aligned,
@@ -181,10 +182,26 @@ pub(crate) fn avg_pool2d(
     kernel_size: [usize; 2],
     stride: [usize; 2],
     padding: [usize; 2],
+    dilation: [usize; 2],
     count_include_pad: bool,
     ceil_mode: bool,
 ) -> CubeTensor {
     let [batch_size, channels, in_h, in_w] = x.meta.shape().dims();
+    if dilation != [1, 1] {
+        // The CubeK kernel has no dilation; pool as a 3D input of depth one instead.
+        let x = reshape(x, Shape::new([batch_size, channels, 1, in_h, in_w]));
+        let output = avg_pool3d(
+            x,
+            [1, kernel_size[0], kernel_size[1]],
+            [1, stride[0], stride[1]],
+            [0, padding[0], padding[1]],
+            [1, dilation[0], dilation[1]],
+            count_include_pad,
+            ceil_mode,
+        );
+        let [_, _, _, out_h, out_w] = output.meta.shape().dims();
+        return reshape(output, Shape::new([batch_size, channels, out_h, out_w]));
+    }
     let dilation = 1;
 
     let size_0 = calculate_pool_output_size(
@@ -229,16 +246,35 @@ pub(crate) fn avg_pool2d(
     permute_nhwc_to_nchw(output)
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn avg_pool2d_backward(
     x: CubeTensor,
     grad: CubeTensor,
     kernel_size: [usize; 2],
     stride: [usize; 2],
     padding: [usize; 2],
+    dilation: [usize; 2],
     count_include_pad: bool,
     ceil_mode: bool,
 ) -> CubeTensor {
     let [batches, channels, height, width] = x.meta.shape().dims();
+    if dilation != [1, 1] {
+        // The CubeK kernel has no dilation; pool as a 3D input of depth one instead.
+        let [_, _, out_h, out_w] = grad.meta.shape().dims();
+        let x = reshape(x, Shape::new([batches, channels, 1, height, width]));
+        let grad = reshape(grad, Shape::new([batches, channels, 1, out_h, out_w]));
+        let x_grad = avg_pool3d_backward(
+            x,
+            grad,
+            [1, kernel_size[0], kernel_size[1]],
+            [1, stride[0], stride[1]],
+            [0, padding[0], padding[1]],
+            [1, dilation[0], dilation[1]],
+            count_include_pad,
+            ceil_mode,
+        );
+        return reshape(x_grad, Shape::new([batches, channels, height, width]));
+    }
     let input = into_contiguous_aligned(permute_nchw_to_nhwc(x));
     let grad = into_contiguous_aligned(permute_nchw_to_nhwc(grad));
 

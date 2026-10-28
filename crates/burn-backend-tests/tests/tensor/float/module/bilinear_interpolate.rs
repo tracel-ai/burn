@@ -1,7 +1,7 @@
 use super::*;
 use burn_tensor::Tolerance;
 use burn_tensor::module::interpolate;
-use burn_tensor::ops::{InterpolateMode, InterpolateOptions};
+use burn_tensor::ops::{CoordinateTransformMode, InterpolateMode, InterpolateOptions};
 use burn_tensor::{DType, Shape};
 
 #[test]
@@ -265,5 +265,184 @@ fn test_upsample_half_pixel() {
             [12.0, 12.25, 12.75, 13.25, 13.75, 14.25, 14.75, 15.0],
         ]]]),
         false,
+    );
+}
+
+#[test]
+fn test_bilinear_scale_driven_mapping() {
+    let device = Default::default();
+    if !format!("{device:?}").to_lowercase().contains("flex") {
+        return;
+    }
+    let input = TestTensor::<4>::from_data([[[[10., 20., 30., 40.]]]], &device);
+    // Scale 0.6 samples coordinates 1/3 and 2; the rounded size ratio 2/4 would differ.
+    let output = interpolate(
+        input,
+        InterpolateOptions::new(InterpolateMode::Bilinear)
+            .with_coordinate_transform(CoordinateTransformMode::HalfPixel)
+            .with_scale_factor([1.0, 0.6]),
+    );
+
+    let expected = burn_tensor::TensorData::from([[[[40.0 / 3.0, 30.0]]]]);
+
+    output
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&expected, Tolerance::default());
+}
+
+#[test]
+fn test_bilinear_pytorch_half_pixel_output_size_one() {
+    let device = Default::default();
+    if !format!("{device:?}").to_lowercase().contains("flex") {
+        return;
+    }
+    let input = TestTensor::<4>::from_data([[[[10.0, 20.0, 30.0, 40.0]]]], &device);
+
+    // PytorchHalfPixel should return 0.0 coordinate when L_out == 1.
+    // Thus x_in = 0.0 -> value 10.0.
+    let output = interpolate(
+        input,
+        InterpolateOptions::new(InterpolateMode::Bilinear)
+            .with_coordinate_transform(CoordinateTransformMode::PytorchHalfPixel)
+            .with_output_size([1, 1]),
+    );
+
+    let expected = burn_tensor::TensorData::from([[[[10.0]]]]);
+    output
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&expected, Tolerance::default());
+}
+
+#[test]
+fn test_bilinear_half_pixel_symmetric_centering() {
+    let device = Default::default();
+    if !format!("{device:?}").to_lowercase().contains("flex") {
+        return;
+    }
+    let input = TestTensor::<4>::from_data([[[[10.0, 20.0, 30.0, 40.0]]]], &device);
+
+    // The truncated output width adds a centering offset of (2.4 - 2) / 2.
+    let output = interpolate(
+        input,
+        InterpolateOptions::new(InterpolateMode::Bilinear)
+            .with_coordinate_transform(CoordinateTransformMode::HalfPixelSymmetric)
+            .with_scale_factor([1.0, 0.6]),
+    );
+
+    let expected = burn_tensor::TensorData::from([[[[16.666667, 33.333333]]]]);
+    output
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&expected, Tolerance::default());
+}
+
+#[test]
+fn test_bilinear_align_corners_output_size_one() {
+    let device = Default::default();
+    let input = TestTensor::<4>::from_data([[[[10., 20.], [30., 40.]]]], &device);
+    let output = interpolate(
+        input,
+        InterpolateOptions::new(InterpolateMode::Bilinear)
+            .with_coordinate_transform(CoordinateTransformMode::AlignCorners)
+            .with_output_size([1, 1]),
+    );
+    output.into_data().assert_eq(
+        &burn_tensor::TensorData::from([[[[10.]]]]).convert::<FloatElem>(),
+        false,
+    );
+}
+
+#[test]
+fn test_tf_crop_and_resize_in_bounds() {
+    let device = Default::default();
+    if !format!("{device:?}").to_lowercase().contains("flex") {
+        return;
+    }
+    let input = TestTensor::<4>::from_data(
+        [[[[11., 23., 37.], [41., 53., 67.], [79., 83., 97.]]]],
+        &device,
+    );
+    let output = interpolate(
+        input,
+        InterpolateOptions::new(InterpolateMode::Bilinear)
+            .with_coordinate_transform(CoordinateTransformMode::TfCropAndResize {
+                roi: [[0.0, 0.5], [0.5, 1.0]],
+                extrapolation_value: 0.0,
+            })
+            .with_output_size([2, 2]),
+    );
+    output.into_data().assert_approx_eq::<FloatElem>(
+        &burn_tensor::TensorData::from([[[[23., 37.], [53., 67.]]]]),
+        Tolerance::default(),
+    );
+}
+
+#[test]
+fn test_tf_crop_and_resize_extrapolation() {
+    let device = Default::default();
+    if !format!("{device:?}").to_lowercase().contains("flex") {
+        return;
+    }
+    let input = TestTensor::<4>::from_data(
+        [[[[11., 23., 37.], [41., 53., 67.], [79., 83., 97.]]]],
+        &device,
+    );
+    // The first and last rows sample outside opposite ends of the input.
+    let output = interpolate(
+        input,
+        InterpolateOptions::new(InterpolateMode::Bilinear)
+            .with_coordinate_transform(CoordinateTransformMode::TfCropAndResize {
+                roi: [[-0.5, 1.5], [0.5, 1.0]],
+                extrapolation_value: 99.0,
+            })
+            .with_output_size([3, 2]),
+    );
+    output.into_data().assert_approx_eq::<FloatElem>(
+        &burn_tensor::TensorData::from([[[[99., 99.], [53., 67.], [99., 99.]]]]),
+        Tolerance::default(),
+    );
+}
+
+#[test]
+fn test_tf_crop_and_resize_output_size_one() {
+    let device = Default::default();
+    if !format!("{device:?}").to_lowercase().contains("flex") {
+        return;
+    }
+    let input = TestTensor::<4>::from_data([[[[10., 20.], [30., 40.]]]], &device);
+    // The ROI midpoint is (0.25, 0.75), requiring interpolation on both axes.
+    let output = interpolate(
+        input,
+        InterpolateOptions::new(InterpolateMode::Bilinear)
+            .with_coordinate_transform(CoordinateTransformMode::TfCropAndResize {
+                roi: [[0.0, 0.5], [0.5, 1.0]],
+                extrapolation_value: 0.0,
+            })
+            .with_output_size([1, 1]),
+    );
+    output.into_data().assert_approx_eq::<FloatElem>(
+        &burn_tensor::TensorData::from([[[[22.5]]]]),
+        Tolerance::default(),
+    );
+}
+
+#[test]
+fn test_tf_crop_and_resize_inverted_roi() {
+    let device = Default::default();
+    if !format!("{device:?}").to_lowercase().contains("flex") {
+        return;
+    }
+    let input = TestTensor::<4>::from_data([[[[10., 20.], [30., 40.]]]], &device);
+    let output = interpolate(
+        input,
+        InterpolateOptions::new(InterpolateMode::Bilinear)
+            .with_coordinate_transform(CoordinateTransformMode::TfCropAndResize {
+                roi: [[0.0, 1.0], [1.0, 0.0]],
+                extrapolation_value: 99.0,
+            })
+            .with_output_size([2, 2]),
+    );
+    output.into_data().assert_approx_eq::<FloatElem>(
+        &burn_tensor::TensorData::from([[[[20., 10.], [40., 30.]]]]),
+        Tolerance::default(),
     );
 }

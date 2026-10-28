@@ -294,6 +294,10 @@ impl Backend for CubeBackend {
         })
     }
 
+    fn memory_capacity(device: &Self::Device) -> Option<u64> {
+        device.client().properties().memory.max_memory()
+    }
+
     fn staging<'a, Iter>(data: Iter, device: &Self::Device)
     where
         Iter: Iterator<Item = &'a mut TensorData>,

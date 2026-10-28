@@ -15,7 +15,7 @@ use burn_backend::{
         attention::AttentionShapes,
     },
 };
-use burn_std::{FloatDType, IntDType};
+use burn_std::{DType, FloatDType, IntDType};
 
 impl ModuleOps<Self> for CubeBackend {
     fn conv1d(
@@ -98,6 +98,30 @@ impl ModuleOps<Self> for CubeBackend {
             Default::default(),
         )
         .unwrap()
+    }
+
+    /// Sums gradients `[batch, output_channels, height, width]` over batch and
+    /// spatial axes, returning `[output_channels]` with the same dtype and device.
+    /// `bias` has shape `[output_channels]`. The unused input `x` has layout
+    /// `[batch, input_channels, input_height, input_width]`.
+    fn conv2d_bias_backward(
+        _x: FloatTensor<Self>,
+        bias: FloatTensor<Self>,
+        output_grad: FloatTensor<Self>,
+    ) -> FloatTensor<Self> {
+        if output_grad.dtype == DType::F32 {
+            let grad = Self::float_sum_dims(output_grad, &[0, 2, 3]);
+            return Self::float_reshape(grad, bias.shape());
+        }
+
+        // Keep low-precision gradients on one pass until reduce_dims preserves
+        // accumulator precision between passes instead of narrowing partial sums.
+        // Dense NHWC storage needs only a metadata reshape.
+        let [batch, channels, height, width] = output_grad.shape().dims();
+        let grad = super::permute_nchw_to_nhwc(output_grad);
+        let grad = Self::float_reshape(grad, [batch * height * width, channels].into());
+        let grad = Self::float_sum_dim(grad, 0);
+        Self::float_reshape(grad, bias.shape())
     }
 
     fn deform_conv2d(
@@ -199,6 +223,7 @@ impl ModuleOps<Self> for CubeBackend {
         kernel_size: [usize; 2],
         stride: [usize; 2],
         padding: [usize; 2],
+        dilation: [usize; 2],
         count_include_pad: bool,
         ceil_mode: bool,
     ) -> FloatTensor<Self> {
@@ -207,6 +232,7 @@ impl ModuleOps<Self> for CubeBackend {
             kernel_size,
             stride,
             padding,
+            dilation,
             count_include_pad,
             ceil_mode,
         )
@@ -218,6 +244,7 @@ impl ModuleOps<Self> for CubeBackend {
         kernel_size: [usize; 2],
         stride: [usize; 2],
         padding: [usize; 2],
+        dilation: [usize; 2],
         count_include_pad: bool,
         ceil_mode: bool,
     ) -> FloatTensor<Self> {
@@ -227,6 +254,7 @@ impl ModuleOps<Self> for CubeBackend {
             kernel_size,
             stride,
             padding,
+            dilation,
             count_include_pad,
             ceil_mode,
         )
@@ -314,6 +342,7 @@ impl ModuleOps<Self> for CubeBackend {
         kernel_size: [usize; 3],
         stride: [usize; 3],
         padding: [usize; 3],
+        dilation: [usize; 3],
         count_include_pad: bool,
         ceil_mode: bool,
     ) -> FloatTensor<Self> {
@@ -322,6 +351,7 @@ impl ModuleOps<Self> for CubeBackend {
             kernel_size,
             stride,
             padding,
+            dilation,
             count_include_pad,
             ceil_mode,
         )
@@ -333,6 +363,7 @@ impl ModuleOps<Self> for CubeBackend {
         kernel_size: [usize; 3],
         stride: [usize; 3],
         padding: [usize; 3],
+        dilation: [usize; 3],
         count_include_pad: bool,
         ceil_mode: bool,
     ) -> FloatTensor<Self> {
@@ -342,6 +373,7 @@ impl ModuleOps<Self> for CubeBackend {
             kernel_size,
             stride,
             padding,
+            dilation,
             count_include_pad,
             ceil_mode,
         )
@@ -463,6 +495,46 @@ impl ModuleOps<Self> for CubeBackend {
             Default::default(),
         )
         .expect("Kernel to never fail")
+    }
+
+    #[cfg(feature = "attention-backward")]
+    fn has_attention_backward() -> bool {
+        true
+    }
+
+    #[cfg(feature = "attention-backward")]
+    fn attention_with_logsumexp(
+        query: FloatTensor<Self>,
+        key: FloatTensor<Self>,
+        value: FloatTensor<Self>,
+        options: AttentionModuleOptions,
+    ) -> (FloatTensor<Self>, FloatTensor<Self>) {
+        // What the kernels do not serve, a softcap or a causal mask anchored at the top left, is
+        // composed.
+        if !kernel::attention::backward_serves(&query.shape(), &key.shape(), &options) {
+            return burn_backend::ops::attention::attention_with_logsumexp_default::<Self>(
+                query, key, value, options,
+            );
+        }
+        kernel::attention::attention_with_logsumexp(query, key, value, options)
+    }
+
+    #[cfg(feature = "attention-backward")]
+    fn attention_backward(
+        query: FloatTensor<Self>,
+        key: FloatTensor<Self>,
+        value: FloatTensor<Self>,
+        out: FloatTensor<Self>,
+        logsumexp: FloatTensor<Self>,
+        out_grad: FloatTensor<Self>,
+        options: AttentionModuleOptions,
+    ) -> burn_backend::ops::AttentionBackward<Self> {
+        if !kernel::attention::backward_serves(&query.shape(), &key.shape(), &options) {
+            return burn_backend::ops::attention::attention_backward_default::<Self>(
+                query, key, value, out, logsumexp, out_grad, options,
+            );
+        }
+        kernel::attention::attention_backward(query, key, value, out, logsumexp, out_grad, options)
     }
 
     fn has_ctc_loss_backward() -> bool {

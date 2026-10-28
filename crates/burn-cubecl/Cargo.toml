@@ -1,4 +1,5 @@
 [package]
+workspace = "../.."
 authors = ["nathanielsimard <nathaniel.simard.42@gmail.com>"]
 categories = ["science"]
 description = "Generic backend that can be compiled just-in-time to any shader language target"
@@ -64,6 +65,10 @@ autotune-checks = [
     "cubecl/autotune-checks",
     "burn-cubecl-fusion?/autotune-checks",
 ]
+
+# Attention's backward pass through cubek's tile-DSL routines, for training: autodiff runs it
+# instead of differentiating the decomposed attention, where it serves the attention.
+attention-backward = ["cubek/attention-backward", "cubek/attention-tiled"]
 
 # Autotune races only cubek's tile-DSL matmul and attention routines, never the multi-level ones
 # or the old attention: an input they don't serve fails instead of falling back. For measuring

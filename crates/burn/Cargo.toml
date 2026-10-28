@@ -1,4 +1,5 @@
 [package]
+workspace = "../.."
 authors = ["nathanielsimard <nathaniel.simard.42@gmail.com>"]
 categories = ["science", "no-std", "embedded", "wasm"]
 description = "Flexible and Comprehensive Deep Learning Framework in Rust"
@@ -118,6 +119,9 @@ fusion = ["ir", "burn-core/fusion", "burn-linalg?/fusion", "burn-signal?/fusion"
 persistence = ["burn-core/persistence", "cubecl?/persistence"]
 autotune = ["burn-core/autotune", "burn-signal?/autotune"]
 autotune-checks = ["burn-core/autotune-checks"]
+# Attention's backward pass through CubeCL kernels, rather than autodiff over the decomposed
+# attention.
+attention-backward = ["burn-core/attention-backward"]
 simd = ["burn-core/simd"]
 rayon = ["burn-core/rayon"]
 
@@ -142,6 +146,8 @@ cpu = ["burn-core/cpu", "burn-linalg?/cpu", "burn-signal?/cpu", "burn-vision?/cp
 # Backend extensions
 extension = ["burn-core/extension"]
 capture = ["burn-core/capture", "burn-linalg?/capture", "burn-signal?/capture"]
+# Experimental: tensors split over a group of devices, for tensor parallelism.
+group = ["burn-core/group"]
 
 [dependencies]
 
