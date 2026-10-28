@@ -63,6 +63,7 @@ autotune = ["burn-cubecl-fusion?/autotune"]
 autotune-checks = [
     "autotune",
     "cubecl/autotune-checks",
+    "cubek/autotune-checks",
     "burn-cubecl-fusion?/autotune-checks",
 ]
 
