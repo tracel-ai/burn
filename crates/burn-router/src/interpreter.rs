@@ -2088,6 +2088,39 @@ impl<B: BackendIr> TensorInterpreter<B> {
 
                     handles.register_float_tensor::<B>(&desc.out.id, output);
                 }
+                ModuleOperationIr::AttentionWithLogsumexp(desc) => {
+                    let query = handles.get_float_tensor::<B>(&desc.query);
+                    let key = handles.get_float_tensor::<B>(&desc.key);
+                    let value = handles.get_float_tensor::<B>(&desc.value);
+
+                    let (out, logsumexp) =
+                        B::attention_with_logsumexp(query, key, value, desc.options.clone().into());
+
+                    handles.register_float_tensor::<B>(&desc.out.id, out);
+                    handles.register_float_tensor::<B>(&desc.logsumexp.id, logsumexp);
+                }
+                ModuleOperationIr::AttentionBackward(desc) => {
+                    let query = handles.get_float_tensor::<B>(&desc.query);
+                    let key = handles.get_float_tensor::<B>(&desc.key);
+                    let value = handles.get_float_tensor::<B>(&desc.value);
+                    let out = handles.get_float_tensor::<B>(&desc.out);
+                    let logsumexp = handles.get_float_tensor::<B>(&desc.logsumexp);
+                    let out_grad = handles.get_float_tensor::<B>(&desc.out_grad);
+
+                    let gradients = B::attention_backward(
+                        query,
+                        key,
+                        value,
+                        out,
+                        logsumexp,
+                        out_grad,
+                        desc.options.clone().into(),
+                    );
+
+                    handles.register_float_tensor::<B>(&desc.query_grad.id, gradients.query_grad);
+                    handles.register_float_tensor::<B>(&desc.key_grad.id, gradients.key_grad);
+                    handles.register_float_tensor::<B>(&desc.value_grad.id, gradients.value_grad);
+                }
                 ModuleOperationIr::CtcLoss(desc) => {
                     let log_probs = handles.get_float_tensor::<B>(&desc.log_probs);
                     let targets = handles.get_int_tensor::<B>(&desc.targets);

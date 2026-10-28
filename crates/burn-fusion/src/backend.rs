@@ -176,6 +176,10 @@ impl<B: FusionBackend> Backend for Fusion<B> {
         client.sync(move || B::memory_pool_usage(&device))
     }
 
+    fn memory_capacity(device: &Self::Device) -> Option<u64> {
+        B::memory_capacity(device)
+    }
+
     fn staging<'a, Iter>(data: Iter, device: &Self::Device)
     where
         Iter: Iterator<Item = &'a mut burn_backend::TensorData>,

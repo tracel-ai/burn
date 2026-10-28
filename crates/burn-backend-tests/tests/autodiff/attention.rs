@@ -1,7 +1,9 @@
 use super::*;
+use burn_backend::ops::ModuleOps;
+use burn_dispatch::Dispatch;
 use burn_tensor::activation::softmax;
-use burn_tensor::module::attention;
-use burn_tensor::ops::AttentionModuleOptions;
+use burn_tensor::module::{attention, attention_fallback};
+use burn_tensor::ops::{AttentionModuleOptions, CausalAlignment};
 use burn_tensor::{Bool, Distribution, Tensor, TensorData, Tolerance};
 
 /// Attention gradients match the same computation spelled out as tensor ops, for every
@@ -157,6 +159,75 @@ fn attention_grouped_query_grads_match_repeated_kv() {
             actual
                 .into_data()
                 .assert_approx_eq::<FloatElem>(&expected.into_data(), Tolerance::permissive());
+        }
+    }
+}
+
+/// The two operations a backend's own attention backward pass is made of, called directly: the
+/// forward with its logsumexp is the attention, and the backward's gradients are autodiff's over
+/// the decomposed attention ([`attention_fallback`], never the backend's own backward pass), for grouped heads, a custom scale, causal masks of either anchor and
+/// a softcap. A backend without kernels of its own runs the composed defaults.
+#[test]
+fn attention_backward_matches_autodiff_over_the_decomposed_attention() {
+    let device = AutodiffDevice::new();
+    let plain = burn_tensor::Device::default();
+    let (b, q_heads, kv_heads, sq, sk, e) = (2, 4, 2, 5, 7, 8);
+    let random = |shape: [usize; 4]| {
+        TestTensor::<4>::random(shape, Distribution::Default, &device).into_data()
+    };
+    let (q_data, k_data, v_data, out_grad_data) = (
+        random([b, q_heads, sq, e]),
+        random([b, kv_heads, sk, e]),
+        random([b, kv_heads, sk, e]),
+        random([b, q_heads, sq, e]),
+    );
+
+    for options in [
+        AttentionModuleOptions::default(),
+        AttentionModuleOptions {
+            is_causal: true,
+            scale: Some(0.3),
+            ..Default::default()
+        },
+        AttentionModuleOptions {
+            is_causal: true,
+            causal_alignment: CausalAlignment::TopLeft,
+            ..Default::default()
+        },
+        AttentionModuleOptions {
+            softcap: Some(4.0),
+            ..Default::default()
+        },
+    ] {
+        let q = TestTensor::<4>::from_data(q_data.clone(), &device).require_grad();
+        let k = TestTensor::<4>::from_data(k_data.clone(), &device).require_grad();
+        let v = TestTensor::<4>::from_data(v_data.clone(), &device).require_grad();
+        let output = attention_fallback(q.clone(), k.clone(), v.clone(), None, None, options);
+        let out_grad = TestTensor::<4>::from_data(out_grad_data.clone(), &device);
+        let grads = (output.clone() * out_grad).sum().backward();
+        let expected = [
+            output.into_data(),
+            q.grad(&grads).unwrap().into_data(),
+            k.grad(&grads).unwrap().into_data(),
+            v.grad(&grads).unwrap().into_data(),
+        ];
+
+        let [q, k, v, out_grad] = [&q_data, &k_data, &v_data, &out_grad_data]
+            .map(|data| TestTensor::<4>::from_data(data.clone(), &plain).into_dispatch());
+        let (out, logsumexp) =
+            Dispatch::attention_with_logsumexp(q.clone(), k.clone(), v.clone(), options);
+        let gradients =
+            Dispatch::attention_backward(q, k, v, out.clone(), logsumexp, out_grad, options);
+        let actual = [
+            out,
+            gradients.query_grad,
+            gradients.key_grad,
+            gradients.value_grad,
+        ]
+        .map(|tensor| TestTensor::<4>::from_dispatch(tensor).into_data());
+
+        for (actual, expected) in actual.iter().zip(&expected) {
+            actual.assert_approx_eq::<FloatElem>(expected, Tolerance::permissive());
         }
     }
 }

@@ -348,6 +348,21 @@ The process is illustrated in the figure below for the MNIST dataset.
 
 <img title="Burn Data Loading Pipeline" alt="Burn Data Loading Pipeline" src="./dataset.png">
 
+The workers keep building batches while the model processes earlier ones, and queue them until they
+are read. By default the queue holds two batches per worker; `DataLoaderBuilder::prefetch(n)` sets
+its total capacity instead, shared by all workers. With four workers, the default queues eight
+batches, while `prefetch(2)` queues two. A batcher that creates its tensors on a GPU keeps every
+queued batch in device memory, plus one per worker waiting to be sent, so lower the queue when
+memory is tight and raise it when batches take long to build.
+
+```rust,ignore
+let dataloader = DataLoaderBuilder::new(batcher)
+    .batch_size(32)
+    .num_workers(4)
+    .prefetch(2)
+    .build(dataset);
+```
+
 Dataloader iterators yield `Result<Batch, DatasetError>`. Handle each result before using the batch.
 For example, this helper stops at the first retrieval error and returns it to the caller:
 

@@ -51,6 +51,13 @@ Reports also include the measured cost of a kernel launch.
   `partly fused ↓` instead of a percentage far past the peak. `FusedElsewhere::contains` is replaced
   by `share`, which returns a `FusedShare`. ([#6222](https://github.com/tracel-ai/burn/pull/6222))
   [@nathanielsimard](https://github.com/nathanielsimard)
+- `Report::components` and `Report::unclaimed` return each component as the report's table reads
+  it — its path, its time, its share of the work (a `WorkShare`) and of the host, how much of it
+  fused elsewhere, its score and floor — and each kernel under the name the table prints, so a
+  front door can lay a report out its own way. A component whose work all fused elsewhere reads
+  no time or share, as the table prints `fused ↓`. The table is printed from the same readings.
+  ([#6260](https://github.com/tracel-ai/burn/pull/6260))
+  [@nathanielsimard](https://github.com/nathanielsimard)
 
 ### Execution performance
 
@@ -76,8 +83,11 @@ positions when sequence lengths differ.
   [@EthanAlmloff](https://github.com/EthanAlmloff)
 - Enable CUDA tensor-core acceleration on Blackwell and Blackwell Ultra GPUs, including B300.
   ([#6161](https://github.com/tracel-ai/burn/pull/6161))
-- Improve CubeCL CPU matrix multiplication by selecting tile sizes that fit the vector width.
-  ([#6177](https://github.com/tracel-ai/burn/pull/6177))
+- Improve CubeCL CPU matrix multiplication by selecting tile sizes that fit the vector width
+  and using GEMM settings tailored to CPU hardware.
+  ([#6177](https://github.com/tracel-ai/burn/pull/6177),
+  [#6245](https://github.com/tracel-ai/burn/pull/6245))
+  [@Charles23R](https://github.com/Charles23R)
 - Speed up CubeCL `conv_transpose3d` and reduce Flex `conv2d` memory use and layout conversions.
   ([#5793](https://github.com/tracel-ai/burn/pull/5793),
   [#6075](https://github.com/tracel-ai/burn/pull/6075))
@@ -96,6 +106,12 @@ positions when sequence lengths differ.
   ([#6193](https://github.com/tracel-ai/burn/pull/6193),
   [#6199](https://github.com/tracel-ai/burn/pull/6199),
   [#6246](https://github.com/tracel-ai/burn/pull/6246)) [@louisfd](https://github.com/louisfd)
+- Add the experimental `attention-backward` feature: attention's backward pass runs as CubeCL
+  kernels from the forward's saved logsumexp, rather than autodiff over the decomposed attention.
+  The kernels take attention without a mask, bias or softcap, causal or not; a softcap or a
+  top-left causal mask over sequences of different lengths is composed from tensor operations,
+  and a mask or an additive bias keeps the decomposed gradients. Backends can provide their own
+  through `ModuleOps::attention_with_logsumexp` and `ModuleOps::attention_backward`. [@louisfd](https://github.com/louisfd)
 
 #### Compilation and autotuning
 
@@ -205,6 +221,18 @@ For example, update custom progress logger implementations:
   error observed before that update discards the pending window.
   ([#6184](https://github.com/tracel-ai/burn/pull/6184))
 
+#### Dataloader prefetch
+
+A multi-threaded dataloader now queues at most two finished batches per worker ahead of the
+consumer by default, down from a fixed 100. A batcher that builds batches on a device keeps every
+queued batch resident there, which could exhaust the memory of a small GPU during training. Set the
+queue with `DataLoaderBuilder::prefetch(n)` or `MultiThreadDataLoader::with_prefetch(n)`: lower it
+when device memory is tight, raise it when batches are slow to build, or use `0` to hand each batch
+over directly. An explicit `n` is the total queue capacity, shared by all workers; only the default
+scales with their number. With four workers, the default queues eight batches, while `prefetch(2)`
+queues two. Each worker also holds the batch it is waiting to send.
+([#6252](https://github.com/tracel-ai/burn/pull/6252))
+
 #### Stateful feed-forward activations
 
 Stateful `PositionWiseFeedForward` activations such as PReLU and SwiGLU are now trained and
@@ -260,6 +288,9 @@ loading those checkpoints by filtering to `linear_inner` and `linear_outer`.
 - Correct BLEU and ROUGE-L scores and prevent panics when prediction and reference sequence lengths
   differ. ([#6242](https://github.com/tracel-ai/burn/pull/6242))
   [@onenewcode](https://github.com/onenewcode)
+- Fix `BleuScore` running and final values to use corpus-wide statistics instead of averaging batch
+  scores. ([#6240](https://github.com/tracel-ai/burn/pull/6240))
+  [@Arc000007](https://github.com/Arc000007)
 - Fix CPU non-maximum-suppression results and restore GPU acceleration for connected components.
   ([#6019](https://github.com/tracel-ai/burn/pull/6019),
   [#6003](https://github.com/tracel-ai/burn/pull/6003))
@@ -305,12 +336,19 @@ loading those checkpoints by filtering to `linear_inner` and `linear_outer`.
   `bool_scatter_nd` and `bool_gather_nd` methods.
   ([#6035](https://github.com/tracel-ai/burn/pull/6035),
   [#6047](https://github.com/tracel-ai/burn/pull/6047))
+- Add `Device::memory_capacity()` to query the runtime-reported capacity in bytes for workload
+  sizing. The value is distinct from currently free memory; backends without a reported capacity
+  return `None`. ([#6250](https://github.com/tracel-ai/burn/pull/6250))
+  [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
 - Add dtype-aware `TensorData::random_dtype`, `zeros_dtype`, and `ones_dtype` constructors.
   ([#6088](https://github.com/tracel-ai/burn/pull/6088))
 - Add `Tolerance::get_relative()` and `get_absolute()` accessors.
   ([#6087](https://github.com/tracel-ai/burn/pull/6087)) [@laggui](https://github.com/laggui)
 - Add `CaptureScope::input`, `CaptureScope::complete_with`, and `Tensor::capture_id` helpers for
   declaring graph inputs and outputs. ([#5990](https://github.com/tracel-ai/burn/pull/5990))
+- Add `Graph::capture_error`, which reports why a graph replays by re-running its closure, for
+  example an allocation that grew the memory pool inside the capture window.
+  ([#6255](https://github.com/tracel-ai/burn/pull/6255))
 
 #### Fusion and correctness fixes
 
@@ -382,6 +420,16 @@ let pack_tensor = tensor.into_pack();
   [#6113](https://github.com/tracel-ai/burn/pull/6113))
 
 ### Extensions
+
+#### Vision
+
+- Speed up Flex CPU median blur for F16, BF16, F32, F64, and integer tensors by selecting
+  neighborhood medians without stacking the images. U8, I8, and exact normalized RGB8 inputs
+  use sliding histograms for larger filters. Floating-point autodiff uses the selected source
+  pixels for backward. `median` and `MedianBlur` now also accept `Tensor<4, Int>` images;
+  specify `Tensor::<4>` on float constructors if their kind was previously inferred from these calls.
+  ([#6219](https://github.com/tracel-ai/burn/pull/6219))
+  [@Mikyx-1](https://github.com/Mikyx-1)
 
 #### Batched linear solves
 
