@@ -178,7 +178,7 @@ impl Default for NmsOptions {
         feature = "wgpu",
         feature = "webgpu",
         feature = "vulkan",
-        feature = "metal",
+        feature = "metal", feature = "metal-native",
         feature = "cuda",
         feature = "rocm",
         feature = "cpu"
@@ -195,7 +195,7 @@ pub trait VisionBackend: Backend + BoolVisionOps + IntVisionOps + FloatVisionOps
         feature = "wgpu",
         feature = "webgpu",
         feature = "vulkan",
-        feature = "metal",
+        feature = "metal", feature = "metal-native",
         feature = "cuda",
         feature = "rocm",
         feature = "cpu"
@@ -276,7 +276,7 @@ pub trait BoolVisionOps: Backend {
         feature = "wgpu",
         feature = "webgpu",
         feature = "vulkan",
-        feature = "metal",
+        feature = "metal", feature = "metal-native",
         feature = "cuda",
         feature = "rocm",
         feature = "cpu"
@@ -322,7 +322,7 @@ pub trait IntVisionOps: Backend {
         feature = "wgpu",
         feature = "webgpu",
         feature = "vulkan",
-        feature = "metal",
+        feature = "metal", feature = "metal-native",
         feature = "cuda",
         feature = "rocm",
         feature = "cpu"

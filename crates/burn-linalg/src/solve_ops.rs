@@ -18,6 +18,7 @@ pub(crate) fn supports_device(device: &DispatchDevice) -> bool {
             feature = "webgpu",
             feature = "vulkan",
             feature = "metal",
+            feature = "metal-native",
             feature = "cuda",
             feature = "rocm",
             feature = "cpu"
@@ -36,7 +37,7 @@ pub(crate) fn supports_device(device: &DispatchDevice) -> bool {
         feature = "wgpu",
         feature = "webgpu",
         feature = "vulkan",
-        feature = "metal",
+        feature = "metal", feature = "metal-native",
         feature = "cuda",
         feature = "rocm",
         feature = "cpu"
