@@ -16,8 +16,12 @@ use burn_backend::{
     TensorData,
     backend::{DeviceId, DeviceService, ServerUtilitiesHandle},
 };
-use burn_ir::{OperationIr, TensorId, TensorIr};
-use burn_std::{DType, DeviceSettings, id::StreamId, profile::Instant};
+use burn_ir::{CapturedGraphId, OperationIr, TensorId, TensorIr};
+use burn_std::{
+    DType, DeviceSettings,
+    id::{IdGenerator, StreamId},
+    profile::Instant,
+};
 // Only the native `sync` path captures a backtrace; the wasm path returns without blocking.
 #[cfg(not(target_family = "wasm"))]
 use burn_std::backtrace::BackTrace;
@@ -661,6 +665,66 @@ impl RemoteService {
             "A remote profiling window was closed twice, or with a token this device never opened"
         );
         ProfileDuration::new_device_time_maybe(async move { None })
+    }
+
+    /// Prepare the server's backend for a graph capture where `stream_id` stands.
+    pub fn graph_prepare(&mut self, stream_id: StreamId) -> Result<(), ExecutionError> {
+        self.graph_request(|id| Task::GraphPrepare(id, stream_id))
+    }
+
+    /// Start recording the server backend's launches on `stream_id` into a graph, after every
+    /// task sent before.
+    pub fn graph_start_capture(&mut self, stream_id: StreamId) -> Result<(), ExecutionError> {
+        self.graph_request(|id| Task::GraphStartCapture(id, stream_id))
+    }
+
+    /// Stop the recording on `stream_id`, returning the id the server keeps the graph under.
+    pub fn graph_stop_capture(
+        &mut self,
+        stream_id: StreamId,
+    ) -> Result<CapturedGraphId, ExecutionError> {
+        let graph = CapturedGraphId(IdGenerator::generate());
+        self.graph_request(|id| Task::GraphStopCapture(id, stream_id, graph))?;
+        Ok(graph)
+    }
+
+    /// Replay `graph` on `stream_id`, without waiting on the server (see
+    /// [`Task::GraphReplay`]).
+    pub fn graph_replay(&mut self, stream_id: StreamId, graph: CapturedGraphId) {
+        self.submit_task(Task::GraphReplay(stream_id, graph));
+    }
+
+    /// Drop `graph` on the server.
+    pub fn graph_release(&mut self, graph: CapturedGraphId) {
+        self.submit_task(Task::GraphRelease(graph));
+    }
+
+    /// Send a graph-capture request and wait on the server's answer.
+    ///
+    /// A browser thread cannot wait, so it refuses, and the caller falls back to re-running.
+    fn graph_request(
+        &mut self,
+        make_task: impl FnOnce(RequestId) -> Task,
+    ) -> Result<(), ExecutionError> {
+        #[cfg(not(target_family = "wasm"))]
+        {
+            let rx = self.submit_request(make_task);
+            match self.executor.block_on(rx) {
+                Ok(TaskResponseContent::Graph(res)) => res,
+                Ok(other) => panic!("Invalid response for a graph capture request: {other:?}"),
+                Err(_) => Err(ExecutionError::with_context(
+                    "Remote response channel closed before the graph capture request completed",
+                )),
+            }
+        }
+        #[cfg(target_family = "wasm")]
+        {
+            let _ = make_task;
+            Err(ExecutionError::with_context(
+                "a remote device cannot capture a graph from a browser thread, which cannot wait \
+                 on the server",
+            ))
+        }
     }
 
     pub fn dtype_usage(&mut self, dtype: DType) -> DTypeUsageSet {

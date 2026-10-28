@@ -12,8 +12,9 @@ use alloc::{
     vec::Vec,
 };
 use burn_backend::{
-    Backend, DType, DeviceOps, ExecutionError, FloatDType, ProfileDuration, ProfileOptions,
-    ProfileToken, Shape, TensorData, TensorMetadata, TensorPrimitive, ops::TransactionPrimitive,
+    Backend, BackendGraph, DType, DeviceOps, ExecutionError, FloatDType, ProfileDuration,
+    ProfileOptions, ProfileToken, Shape, TensorData, TensorMetadata, TensorPrimitive,
+    ops::TransactionPrimitive,
 };
 use burn_ir::{
     ActivationOperationIr, BackendIr, BaseOperationIr, BoolOperationIr, FloatOperationIr,
@@ -2422,6 +2423,31 @@ impl<B: BackendIr> TensorInterpreter<B> {
     /// measuring it.
     pub fn profile_abandon(&self, token: ProfileToken) {
         B::profile_abandon(&self.device, token)
+    }
+
+    /// Prepare the backend for a graph capture.
+    pub fn graph_prepare(&self) -> Result<(), ExecutionError> {
+        B::graph_prepare(&self.device)
+    }
+
+    /// Start recording the backend's launches on the calling stream into a graph.
+    pub fn graph_start_capture(&self) -> Result<(), ExecutionError> {
+        B::graph_start_capture(&self.device)
+    }
+
+    /// Stop the recording on the calling stream and return the backend's graph.
+    pub fn graph_stop_capture(&self) -> Result<BackendGraph<B>, ExecutionError> {
+        B::graph_stop_capture(&self.device)
+    }
+
+    /// Replay `graph` on the calling stream.
+    ///
+    /// # Safety
+    ///
+    /// The contract of [`Backend::graph_replay`].
+    pub unsafe fn graph_replay(&self, graph: &BackendGraph<B>) -> Result<(), ExecutionError> {
+        // Safety: forwarded verbatim from this method's own contract.
+        unsafe { B::graph_replay(&self.device, graph) }
     }
 }
 

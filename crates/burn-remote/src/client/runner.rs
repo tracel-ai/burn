@@ -5,7 +5,7 @@ use burn_backend::{
     DeviceId, DeviceOps, ExecutionError, ProfileDuration, ProfileOptions, ProfileToken,
     RouterDeviceType, StreamId, TensorData,
 };
-use burn_ir::TensorIr;
+use burn_ir::{CapturedGraphId, TensorIr};
 use burn_router::{MultiBackendBridge, RouterClient, RouterTensor, get_client};
 use burn_std::{DeviceSettings, future::DynFut};
 use std::collections::{BTreeMap, BTreeSet};
@@ -98,6 +98,41 @@ impl RouterClient for RemoteClient {
     /// costs the server's backend something until it hears.
     fn profile_abandon(&self, token: ProfileToken) {
         self.handle.submit(move |s| s.profile_abandon(token));
+    }
+
+    fn graph_prepare(&self) -> Result<(), ExecutionError> {
+        let stream_id = StreamId::current();
+        self.handle
+            .submit_blocking(move |s| s.graph_prepare(stream_id))
+            .expect("Service call failed")
+    }
+
+    fn graph_start_capture(&self) -> Result<(), ExecutionError> {
+        let stream_id = StreamId::current();
+        self.handle
+            .submit_blocking(move |s| s.graph_start_capture(stream_id))
+            .expect("Service call failed")
+    }
+
+    fn graph_stop_capture(&self) -> Result<CapturedGraphId, ExecutionError> {
+        let stream_id = StreamId::current();
+        self.handle
+            .submit_blocking(move |s| s.graph_stop_capture(stream_id))
+            .expect("Service call failed")
+    }
+
+    /// `Ok` once the replay is sent: the server answers no replay, and a failed one is the error
+    /// of the next read or sync on this stream instead (see
+    /// [`GraphReplay`](crate::shared::Task::GraphReplay)).
+    unsafe fn graph_replay(&self, graph: CapturedGraphId) -> Result<(), ExecutionError> {
+        let stream_id = StreamId::current();
+        self.handle
+            .submit(move |s| s.graph_replay(stream_id, graph));
+        Ok(())
+    }
+
+    fn graph_release(&self, graph: CapturedGraphId) {
+        self.handle.submit(move |s| s.graph_release(graph));
     }
 
     fn seed(&self, seed: u64) {

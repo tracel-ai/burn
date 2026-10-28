@@ -8,6 +8,7 @@ use std::{
 use tokio::sync::{Mutex, mpsc};
 
 use crate::metrics::{MetricSide, logger_task};
+use crate::server::capture::CaptureClaim;
 use crate::server::local_comm::LocalCommService;
 use crate::server::service::{SessionChannels, SessionService};
 use crate::server::spawn::spawn_detached;
@@ -47,6 +48,8 @@ where
     pub(crate) transfer: Arc<T>,
     /// Rendezvous registry for same-host tensor transfers between this server's sessions.
     pub(crate) local_comm: Arc<LocalCommService<B>>,
+    /// Which session holds each device's graph capture, by device index.
+    captures: Vec<CaptureClaim>,
     /// Custom-op handlers shared (read-only) with every session's interpreter.
     custom_ops: CustomOpRegistry<B>,
     sessions: Mutex<HashMap<SessionId, Session>>,
@@ -73,6 +76,7 @@ where
         );
         Self {
             local_comm: Arc::new(LocalCommService::new(devices.len())),
+            captures: devices.iter().map(|_| CaptureClaim::default()).collect(),
             devices,
             transfer,
             custom_ops: CustomOpRegistry::default(),
@@ -145,6 +149,7 @@ where
                 sender,
                 self.transfer.clone(),
                 self.local_comm.clone(),
+                self.captures[device_index as usize].clone(),
                 self.probe.clone(),
             );
             self.probe.emit(|| TelemetryEvent::SessionOpened {

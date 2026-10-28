@@ -208,6 +208,9 @@ all-to-all, and broadcast also support boolean tensors. Quantized tensors are re
   [#6017](https://github.com/tracel-ai/burn/pull/6017))
 - Fix router and remote servers panicking when an integer tensor is cast to another integer
   element type.
+- `capture` on a remote device records and replays the graph on the server's device. One session
+  captures per server device at a time, and a replay that fails is the error of the next read on
+  its stream.
 
 #### Backend extensions
 

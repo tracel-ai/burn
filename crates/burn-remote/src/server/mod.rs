@@ -8,9 +8,11 @@ pub(crate) mod worker;
 
 mod authorize;
 mod backend;
+mod capture;
 mod error;
 mod logging;
 mod settings;
+mod streams;
 #[cfg(not(target_family = "wasm"))]
 mod transport;
 
