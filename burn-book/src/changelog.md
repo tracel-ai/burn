@@ -309,13 +309,22 @@ loading those checkpoints by filtering to `linear_inner` and `linear_outer`.
   ([issue #6236](https://github.com/tracel-ai/burn/issues/6236))
 - **Breaking:** `Tensor::reshape` now treats zeros in arrays as literal zero-length dimensions,
   matching concrete `Shape` arguments. Arrays still support `-1` inference. To preserve dimension
-  copying, import `burn::tensor::ZeroDimPlaceholders` and replace `x.reshape([0, -1])` with
-  `x.reshape(ZeroDimPlaceholders([0, -1]))`. ONNX importers must wrap shape arrays for `allowzero=0`
+  copying, wrap the array in `ZeroDimPlaceholders`:
+
+  ```diff
+  +use burn::tensor::ZeroDimPlaceholders;
+  +
+  -let y = x.reshape([0, -1]);
+  +let y = x.reshape(ZeroDimPlaceholders([0, -1]));
+  ```
+
+  ONNX importers must wrap shape arrays for `allowzero=0`
   (the default) and use plain arrays for `allowzero=1`; previously generated code needs migration
   or regeneration with an updated importer. Invalid copy placeholders and ambiguous inference
   involving zero-length dimensions now produce clear reshape errors. `reshape(Shape)` and
   `unsqueeze` preserve zero-length dimensions, and mismatched target ranks are rejected.
   ([#6112](https://github.com/tracel-ai/burn/pull/6112),
+  [#6257](https://github.com/tracel-ai/burn/pull/6257),
   [issue #6217](https://github.com/tracel-ai/burn/issues/6217))
   [@mattisonchao](https://github.com/mattisonchao) [@laggui](https://github.com/laggui)
 - Reject `expand(Shape)` arguments whose rank differs from the output tensor rank, with a clear
