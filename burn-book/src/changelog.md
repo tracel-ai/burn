@@ -27,10 +27,6 @@ Except with `AlignCorners`, supplied scales must exactly equal the resolved outp
 unsupported combinations panic. Flex uses `f64` coordinate arithmetic and preserves half-pixel
 ties when resizing by output size.
 ([#6154](https://github.com/tracel-ai/burn/pull/6154), [@Sadik00789](https://github.com/Sadik00789))
-### Training metrics
-
-- `BleuScore` now computes its running and final values from n-gram counts accumulated across the
-  epoch, instead of averaging per-batch BLEU scores.
 
 ### Device-time instrumentation
 
@@ -259,6 +255,9 @@ loading those checkpoints by filtering to `linear_inner` and `linear_outer`.
 - Correct BLEU and ROUGE-L scores and prevent panics when prediction and reference sequence lengths
   differ. ([#6242](https://github.com/tracel-ai/burn/pull/6242))
   [@onenewcode](https://github.com/onenewcode)
+- Fix `BleuScore` running and final values to use corpus-wide statistics instead of averaging batch
+  scores. ([#6240](https://github.com/tracel-ai/burn/pull/6240))
+  [@Arc000007](https://github.com/Arc000007)
 - Fix CPU non-maximum-suppression results and restore GPU acceleration for connected components.
   ([#6019](https://github.com/tracel-ai/burn/pull/6019),
   [#6003](https://github.com/tracel-ai/burn/pull/6003))
