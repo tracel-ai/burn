@@ -322,6 +322,7 @@ mod cube {
     feature = "cuda",
     feature = "flex",
     feature = "metal",
+    feature = "metal-native",
     feature = "rocm",
     feature = "vulkan",
     feature = "webgpu",
