@@ -26,10 +26,10 @@ pub const PROTOCOL_VERSION: u16 = 7;
 ///
 /// Only the result-producing tasks ([`Task::ReadTensors`], [`Task::SyncBackend`],
 /// [`Task::DTypeUsage`], [`Task::ProfileStart`], [`Task::ProfileEnd`], [`Task::GraphPrepare`],
-/// [`Task::GraphStartCapture`], [`Task::GraphStopCapture`]) carry a `RequestId`;
-/// the server echoes it on its [`TaskResponse`] so
-/// the client demultiplexes results back to the right pending callback. Fire-and-forget tasks
-/// have no id because no result ever comes back.
+/// [`Task::GraphStartCapture`], [`Task::GraphStopCapture`], [`Task::DeviceQuery`]) carry a
+/// `RequestId`; the server echoes it on its [`TaskResponse`] so the client demultiplexes results
+/// back to the right pending callback. Fire-and-forget tasks have no id because no result ever
+/// comes back.
 pub type RequestId = u64;
 
 /// Rendezvous id for moving a tensor between devices on one compute peer. Random, since the
@@ -351,6 +351,54 @@ pub enum Task {
     GraphReplay(StreamId, CapturedGraphId),
     /// Drop a kept graph; the client never replays it again.
     GraphRelease(CapturedGraphId),
+    /// Ask the server the device query registered under the id about the session's device.
+    DeviceQuery(RequestId, DeviceQueryId),
+}
+
+/// The id a server registers a device query under, and a client asks it by.
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Hash)]
+pub struct DeviceQueryId(String);
+
+impl DeviceQueryId {
+    /// The query named `id`.
+    pub fn new(id: impl Into<String>) -> Self {
+        Self(id.into())
+    }
+
+    /// The id as text.
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+impl From<&str> for DeviceQueryId {
+    fn from(id: &str) -> Self {
+        Self::new(id)
+    }
+}
+
+impl From<String> for DeviceQueryId {
+    fn from(id: String) -> Self {
+        Self::new(id)
+    }
+}
+
+impl core::fmt::Display for DeviceQueryId {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str(&self.0)
+    }
+}
+
+/// Why a server did not answer a [device query](Task::DeviceQuery).
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+pub enum DeviceQueryFailure {
+    /// The server registered no query under the id.
+    Unknown,
+    /// The query's handler panicked.
+    Panicked {
+        /// The panic's message.
+        reason: String,
+    },
 }
 
 #[allow(missing_docs)]
@@ -381,6 +429,7 @@ pub enum TaskResponseContent {
     /// [`GraphStartCapture`](Task::GraphStartCapture) and
     /// [`GraphStopCapture`](Task::GraphStopCapture).
     Graph(Result<(), ExecutionError>),
+    DeviceQuery(Result<serde_bytes::ByteBuf, DeviceQueryFailure>),
     /// The server's answer to an `Init` it will not serve, in place of [`Init`](Self::Init),
     /// before it closes the session.
     InitRefused(SessionRefusal),

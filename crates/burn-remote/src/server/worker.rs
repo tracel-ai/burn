@@ -41,6 +41,7 @@ use burn_backend::tensor::FloatTensor;
 use burn_ir::{BackendIr, GraphBindings, GraphId, HandleKind, TensorError};
 use burn_router::{Graph, TensorInterpreter};
 use burn_std::{ExecutionError, id::StreamId};
+use serde_bytes::ByteBuf;
 #[cfg(not(target_family = "wasm"))]
 use std::{
     any::Any,
@@ -50,6 +51,7 @@ use std::{
 use tokio::runtime::Handle;
 use tokio::sync::mpsc;
 
+use crate::server::DeviceQueries;
 use crate::server::capture::{CaptureClaim, SessionCaptures};
 use crate::server::local_comm::LocalCommService;
 use crate::server::spawn::{CatchPanic, ResponseTasks, spawn_detached};
@@ -70,6 +72,15 @@ use burn_ir::OperationIr;
 /// thread or growing memory without bound. Sized so a burst of fire-and-forget ops doesn't stall
 /// the submit loop while the worker is mid-task.
 const TASK_CHANNEL_CAPACITY: usize = 64;
+
+/// What a server shares with each of its sessions: the tensor transfers to other servers and
+/// between its own sessions, its device queries and its telemetry.
+pub(crate) struct SessionServices<B: BackendIr, T> {
+    pub(crate) transfer: Arc<T>,
+    pub(crate) local_comm: Arc<LocalCommService<B>>,
+    pub(crate) queries: DeviceQueries<B>,
+    pub(crate) probe: TelemetryProbe,
+}
 
 /// Everything constant for the lifetime of a session.
 ///
@@ -96,6 +107,7 @@ where
     /// the cache from becoming a serialization point if graph execution is ever driven from more
     /// than the current single-FIFO worker.
     graphs: Mutex<HashMap<GraphId, Graph>>,
+    queries: DeviceQueries<B>,
     captures: SessionCaptures<B>,
     probe: TelemetryProbe,
 }
@@ -111,11 +123,15 @@ where
         session_id: SessionId,
         runner: TensorInterpreter<B>,
         response_sender: mpsc::Sender<TaskResponse>,
-        transfer: Arc<T>,
-        local_comm: Arc<LocalCommService<B>>,
+        services: SessionServices<B, T>,
         capture: CaptureClaim,
-        probe: TelemetryProbe,
     ) -> mpsc::Sender<Task> {
+        let SessionServices {
+            transfer,
+            local_comm,
+            queries,
+            probe,
+        } = services;
         let handler = SessionHandler {
             session_id,
             runner,
@@ -125,6 +141,7 @@ where
             transfer,
             local_comm,
             graphs: Mutex::new(HashMap::new()),
+            queries,
             captures: SessionCaptures::new(session_id, capture),
             probe,
         };
@@ -517,6 +534,14 @@ where
                 self.captures.release(graph);
                 Ok(())
             }
+            Task::DeviceQuery(request_id, id) => {
+                let answer = self
+                    .queries
+                    .answer(&id, &self.runner.device())
+                    .map(ByteBuf::from);
+                self.send_response(request_id, TaskResponseContent::DeviceQuery(answer))
+                    .await
+            }
         }
     }
 
@@ -686,10 +711,8 @@ mod tests {
             SessionId::new(),
             TensorInterpreter::new(Default::default()),
             response_sender,
-            Arc::new(NoTransfer),
-            local_comm.clone(),
+            SessionServices::new(local_comm.clone()),
             CaptureClaim::default(),
-            TelemetryProbe::disabled(),
         );
 
         let stream_id = StreamId::current();
@@ -857,10 +880,8 @@ mod tests {
                 SessionId::new(),
                 TensorInterpreter::<Flex>::new(Default::default()),
                 response_sender,
-                Arc::new(NoTransfer),
-                Arc::new(LocalCommService::<Flex>::new(1)),
+                SessionServices::new(Arc::new(LocalCommService::<Flex>::new(1))),
                 device.clone(),
-                TelemetryProbe::disabled(),
             );
             (tasks, responses)
         };
@@ -900,6 +921,17 @@ mod tests {
             .content
     }
 
+    impl SessionServices<Flex, NoTransfer> {
+        fn new(local_comm: Arc<LocalCommService<Flex>>) -> Self {
+            Self {
+                transfer: Arc::new(NoTransfer),
+                local_comm,
+                queries: DeviceQueries::default(),
+                probe: TelemetryProbe::disabled(),
+            }
+        }
+    }
+
     impl SessionHandler<Flex, NoTransfer> {
         fn new(response_sender: mpsc::Sender<TaskResponse>, capture: CaptureClaim) -> Self {
             let session_id = SessionId::new();
@@ -912,6 +944,7 @@ mod tests {
                 transfer: Arc::new(NoTransfer),
                 local_comm: Arc::new(LocalCommService::<Flex>::new(1)),
                 graphs: Mutex::new(HashMap::new()),
+                queries: DeviceQueries::default(),
                 captures: SessionCaptures::new(session_id, capture),
                 probe: TelemetryProbe::disabled(),
             }

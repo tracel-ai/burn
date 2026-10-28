@@ -11,6 +11,7 @@ use super::{PeerAuthorizer, ServeError, ServerSettings};
 use super::{ServerLogging, Transport, spawn::os_shutdown_signal};
 #[cfg(not(target_family = "wasm"))]
 use crate::runtime;
+use crate::shared::DeviceQueryId;
 use crate::telemetry::TelemetryProbe;
 #[cfg(feature = "iroh")]
 use crate::{
@@ -83,6 +84,19 @@ impl<B: BackendIr> BackendServer<B> {
     /// Replace the custom operations with `registry`.
     pub fn with_custom_ops(mut self, registry: CustomOpRegistry<B>) -> Self {
         self.settings = self.settings.with_custom_ops(registry);
+        self
+    }
+
+    /// Answer the device query `id` with `handler`, run on the device of the session that asks
+    /// (see `RemoteDevice::query`). Registering an id again replaces its handler.
+    ///
+    /// The handler holds up the asking session's work while it runs, and is shared by every
+    /// session (see [`DeviceQueryHandler`](super::DeviceQueryHandler)).
+    pub fn with_device_query<F>(mut self, id: impl Into<DeviceQueryId>, handler: F) -> Self
+    where
+        F: Fn(&Device<B>) -> Vec<u8> + Send + Sync + 'static,
+    {
+        self.settings = self.settings.with_device_query::<B, F>(id.into(), handler);
         self
     }
 

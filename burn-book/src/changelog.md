@@ -211,6 +211,9 @@ all-to-all, and broadcast also support boolean tensors. Quantized tensors are re
 - `capture` on a remote device records and replays the graph on the server's device. One session
   captures per server device at a time, and a replay that fails is the error of the next read on
   its stream.
+- Servers answer device queries registered with `with_device_query`, asked by
+  `RemoteDevice::query`. **Breaking:** `ServeError::CustomOpBackend` is renamed `HandlerBackend`,
+  as it also covers device queries.
 
 #### Backend extensions
 

@@ -1,9 +1,9 @@
 use crate::{
     metrics::{MetricSide, TelemetryLogger, logger_task},
     shared::{
-        Encode, LocalAllReducePart, LocalTransferId, PROTOCOL_VERSION, RemoteMessage, RequestId,
-        SessionId, SessionInfo, SessionInit, Task, TaskResponse, TaskResponseContent, TensorRemote,
-        TransferCapability,
+        DeviceQueryId, Encode, LocalAllReducePart, LocalTransferId, PROTOCOL_VERSION,
+        RemoteMessage, RequestId, SessionId, SessionInfo, SessionInit, Task, TaskResponse,
+        TaskResponseContent, TensorRemote, TransferCapability,
     },
     telemetry::{CHANNEL_CAPACITY, TelemetryEvent, TelemetryProbe, serialized_len},
     transport::{
@@ -44,11 +44,12 @@ use conn::{ResponseChannel, SessionStreams};
 use pending::{PendingResponses, Responder};
 use writer::SubmitWriter;
 
-use super::{ConnectError, runtime::Executor};
+use super::{ConnectError, DeviceQueryError, runtime::Executor};
 pub(crate) use conn::{RemoteEndpoint, SubmitChannel};
 use registry::{device_count_cell, settings_cell};
 pub(crate) use registry::{device_count_for, register_endpoint, registered_device, session_end};
 pub(crate) use registry::{has_settings, new_tensor_id, session_of, settings_for};
+use serde_bytes::ByteBuf;
 
 /// How long a connection attempt, then the handshake, may each take before the server is taken to
 /// be stuck.
@@ -724,6 +725,18 @@ impl RemoteService {
                 "a remote device cannot capture a graph from a browser thread, which cannot wait \
                  on the server",
             ))
+        }
+    }
+
+    /// Ask the server the device query `id` about this device, waiting on the answer.
+    pub fn device_query(&mut self, id: DeviceQueryId) -> Result<Vec<u8>, DeviceQueryError> {
+        let rx = self.submit_request(|request| Task::DeviceQuery(request, id.clone()));
+        match self.executor.block_on(rx) {
+            Ok(TaskResponseContent::DeviceQuery(answer)) => answer
+                .map(ByteBuf::into_vec)
+                .map_err(|failure| DeviceQueryError::from_failure(id, failure)),
+            Ok(other) => panic!("Invalid response for DeviceQuery: {other:?}"),
+            Err(_) => Err(DeviceQueryError::SessionEnded),
         }
     }
 

@@ -28,6 +28,7 @@ pub use credential::Credential;
 
 pub use burn_ir as ir;
 pub use burn_router::RouterClient;
+pub use shared::DeviceQueryId;
 
 /// The router items `#[backend_extension]` names in a generated remote client and its server
 /// handlers.
@@ -77,7 +78,7 @@ mod __client {
 
     #[doc(hidden)]
     pub use client::HostSpec;
-    pub use client::{ConnectError, CustomOpClient, RemoteChannel, RemoteDevice};
+    pub use client::{ConnectError, CustomOpClient, DeviceQueryError, RemoteChannel, RemoteDevice};
 }
 #[cfg(feature = "client")]
 pub use __client::*;

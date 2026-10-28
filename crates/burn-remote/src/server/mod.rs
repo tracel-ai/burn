@@ -9,6 +9,7 @@ pub(crate) mod worker;
 mod authorize;
 mod backend;
 mod capture;
+mod device_query;
 mod error;
 mod logging;
 mod settings;
@@ -21,6 +22,8 @@ pub use authorize::{
 };
 pub use backend::BackendServer;
 pub use burn_router::{CustomOpHandler, CustomOpRegistry};
+pub(crate) use device_query::DeviceQueries;
+pub use device_query::DeviceQueryHandler;
 pub use error::ServeError;
 pub use logging::ServerLogging;
 #[doc(hidden)]

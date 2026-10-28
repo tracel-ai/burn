@@ -1,6 +1,6 @@
 use core::fmt;
 
-use crate::shared::{PROTOCOL_VERSION, SessionRefusal};
+use crate::shared::{DeviceQueryFailure, DeviceQueryId, PROTOCOL_VERSION, SessionRefusal};
 
 /// Why a remote device could not be connected.
 ///
@@ -110,6 +110,59 @@ impl std::error::Error for ConnectError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
             Self::Bind { source } => Some(source.as_ref()),
+            _ => None,
+        }
+    }
+}
+
+/// Why a [device query](crate::RemoteDevice::query) was not answered.
+#[derive(Debug)]
+pub enum DeviceQueryError {
+    /// No session could be opened with the server.
+    Connect(ConnectError),
+    /// The server registered no query under the id, as a server on another version of the
+    /// application may not.
+    Unknown {
+        /// The id asked for.
+        id: DeviceQueryId,
+    },
+    /// The server's handler for the query panicked. Its session lives on.
+    Panicked {
+        /// The id asked for.
+        id: DeviceQueryId,
+        /// The panic's message.
+        reason: String,
+    },
+    /// The session ended before the server answered.
+    SessionEnded,
+}
+
+impl DeviceQueryError {
+    pub(crate) fn from_failure(id: DeviceQueryId, failure: DeviceQueryFailure) -> Self {
+        match failure {
+            DeviceQueryFailure::Unknown => Self::Unknown { id },
+            DeviceQueryFailure::Panicked { reason } => Self::Panicked { id, reason },
+        }
+    }
+}
+
+impl fmt::Display for DeviceQueryError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Connect(error) => write!(f, "cannot connect to the server: {error}"),
+            Self::Unknown { id } => write!(f, "the server answers no device query \"{id}\""),
+            Self::Panicked { id, reason } => {
+                write!(f, "the server's device query \"{id}\" panicked: {reason}")
+            }
+            Self::SessionEnded => f.write_str("the session ended before the server answered"),
+        }
+    }
+}
+
+impl std::error::Error for DeviceQueryError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::Connect(error) => Some(error),
             _ => None,
         }
     }

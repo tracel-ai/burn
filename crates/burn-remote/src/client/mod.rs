@@ -10,6 +10,6 @@ pub(crate) mod service;
 pub use base::*;
 pub use channel::*;
 pub use custom_op::CustomOpClient;
-pub use error::ConnectError;
+pub use error::{ConnectError, DeviceQueryError};
 pub use host::HostSpec;
 pub use runner::RemoteDevice;

@@ -1,5 +1,7 @@
-use super::{RemoteChannel, RemoteClient, service};
-use crate::shared::{LocalTransferId, TaskResponseContent, TensorRemote, TransferCapability};
+use super::{DeviceQueryError, RemoteChannel, RemoteClient, service};
+use crate::shared::{
+    DeviceQueryId, LocalTransferId, TaskResponseContent, TensorRemote, TransferCapability,
+};
 use crate::{PeerAddr, PeerId};
 use burn_backend::{
     DeviceId, DeviceOps, ExecutionError, ProfileDuration, ProfileOptions, ProfileToken,
@@ -275,6 +277,24 @@ impl RemoteDevice {
     /// The index of this device on its server.
     pub fn device_index(&self) -> usize {
         self.device_index as usize
+    }
+
+    /// Ask the server the device query `id` about this device, opening its session first if it
+    /// is not open yet; the server answers with the handler registered under `id` (see
+    /// `RemoteServer::with_device_query`), in bytes the two sides agree on.
+    ///
+    /// The server runs the handler on this device's session, after the work sent before it and
+    /// ahead of the work sent after.
+    #[cfg(not(target_family = "wasm"))]
+    pub fn query(&self, id: impl Into<DeviceQueryId>) -> Result<Vec<u8>, DeviceQueryError> {
+        let client = get_client::<RemoteChannel>(self);
+        client.connect().map_err(DeviceQueryError::Connect)?;
+        let id = id.into();
+        // The service's thread is gone only when the session went with it.
+        client
+            .handle
+            .submit_blocking(move |s| s.device_query(id))
+            .unwrap_or(Err(DeviceQueryError::SessionEnded))
     }
 
     /// Whether this device's session has ended, as when its server restarted.

@@ -8,12 +8,13 @@ use std::{
 use tokio::sync::{Mutex, mpsc};
 
 use crate::metrics::{MetricSide, logger_task};
+use crate::server::DeviceQueries;
 use crate::server::capture::CaptureClaim;
 use crate::server::local_comm::LocalCommService;
 use crate::server::service::{SessionChannels, SessionService};
 use crate::server::spawn::spawn_detached;
 use crate::server::transfer::TensorTransfer;
-use crate::server::worker::SessionHandler;
+use crate::server::worker::{SessionHandler, SessionServices};
 use crate::shared::{SessionId, Task, TaskResponse};
 use crate::telemetry::{TelemetryEvent, TelemetryProbe};
 
@@ -52,6 +53,8 @@ where
     captures: Vec<CaptureClaim>,
     /// Custom-op handlers shared (read-only) with every session's interpreter.
     custom_ops: CustomOpRegistry<B>,
+    /// Device-query handlers shared (read-only) with every session.
+    queries: DeviceQueries<B>,
     sessions: Mutex<HashMap<SessionId, Session>>,
     probe: TelemetryProbe,
     /// Spawns the telemetry logger once, on the first session.
@@ -80,6 +83,7 @@ where
             devices,
             transfer,
             custom_ops: CustomOpRegistry::default(),
+            queries: DeviceQueries::default(),
             sessions: Mutex::new(HashMap::new()),
             probe: TelemetryProbe::disabled(),
             logger: Once::new(),
@@ -89,6 +93,12 @@ where
     /// Register custom-op handlers, shared read-only with every session's interpreter.
     pub fn with_custom_ops(mut self, custom_ops: CustomOpRegistry<B>) -> Self {
         self.custom_ops = custom_ops;
+        self
+    }
+
+    /// Register device-query handlers, shared read-only with every session.
+    pub(crate) fn with_device_queries(mut self, queries: DeviceQueries<B>) -> Self {
+        self.queries = queries;
         self
     }
 
@@ -147,10 +157,13 @@ where
                 session_id,
                 runner,
                 sender,
-                self.transfer.clone(),
-                self.local_comm.clone(),
+                SessionServices {
+                    transfer: self.transfer.clone(),
+                    local_comm: self.local_comm.clone(),
+                    queries: self.queries.clone(),
+                    probe: self.probe.clone(),
+                },
                 self.captures[device_index as usize].clone(),
-                self.probe.clone(),
             );
             self.probe.emit(|| TelemetryEvent::SessionOpened {
                 session: session_id,
