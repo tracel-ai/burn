@@ -51,6 +51,13 @@ Reports also include the measured cost of a kernel launch.
   `partly fused ↓` instead of a percentage far past the peak. `FusedElsewhere::contains` is replaced
   by `share`, which returns a `FusedShare`. ([#6222](https://github.com/tracel-ai/burn/pull/6222))
   [@nathanielsimard](https://github.com/nathanielsimard)
+- `Report::components` and `Report::unclaimed` return each component as the report's table reads
+  it — its path, its time, its share of the work (a `WorkShare`) and of the host, how much of it
+  fused elsewhere, its score and floor — and each kernel under the name the table prints, so a
+  front door can lay a report out its own way. A component whose work all fused elsewhere reads
+  no time or share, as the table prints `fused ↓`. The table is printed from the same readings.
+  ([#6260](https://github.com/tracel-ai/burn/pull/6260))
+  [@nathanielsimard](https://github.com/nathanielsimard)
 
 ### Execution performance
 
@@ -96,6 +103,12 @@ positions when sequence lengths differ.
   ([#6193](https://github.com/tracel-ai/burn/pull/6193),
   [#6199](https://github.com/tracel-ai/burn/pull/6199),
   [#6246](https://github.com/tracel-ai/burn/pull/6246)) [@louisfd](https://github.com/louisfd)
+- Add the experimental `attention-backward` feature: attention's backward pass runs as CubeCL
+  kernels from the forward's saved logsumexp, rather than autodiff over the decomposed attention.
+  The kernels take attention without a mask, bias or softcap, causal or not; a softcap or a
+  top-left causal mask over sequences of different lengths is composed from tensor operations,
+  and a mask or an additive bias keeps the decomposed gradients. Backends can provide their own
+  through `ModuleOps::attention_with_logsumexp` and `ModuleOps::attention_backward`. [@louisfd](https://github.com/louisfd)
 
 #### Compilation and autotuning
 
@@ -204,6 +217,18 @@ For example, update custom progress logger implementations:
 - Flush partial gradient accumulation only after normal dataloader exhaustion. An interruption or
   error observed before that update discards the pending window.
   ([#6184](https://github.com/tracel-ai/burn/pull/6184))
+
+#### Dataloader prefetch
+
+A multi-threaded dataloader now queues at most two finished batches per worker ahead of the
+consumer by default, down from a fixed 100. A batcher that builds batches on a device keeps every
+queued batch resident there, which could exhaust the memory of a small GPU during training. Set the
+queue with `DataLoaderBuilder::prefetch(n)` or `MultiThreadDataLoader::with_prefetch(n)`: lower it
+when device memory is tight, raise it when batches are slow to build, or use `0` to hand each batch
+over directly. An explicit `n` is the total queue capacity, shared by all workers; only the default
+scales with their number. With four workers, the default queues eight batches, while `prefetch(2)`
+queues two. Each worker also holds the batch it is waiting to send.
+([#6252](https://github.com/tracel-ai/burn/pull/6252))
 
 #### Stateful feed-forward activations
 

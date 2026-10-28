@@ -656,6 +656,30 @@ impl RelativeOps for ModuleOperationIr {
                 options: desc.options.clone(),
                 out: desc.out.to_relative(converter),
             }),
+            ModuleOperationIr::AttentionWithLogsumexp(desc) => {
+                ModuleOperationIr::AttentionWithLogsumexp(AttentionWithLogsumexpOpIr {
+                    query: desc.query.to_relative(converter),
+                    key: desc.key.to_relative(converter),
+                    value: desc.value.to_relative(converter),
+                    options: desc.options.clone(),
+                    out: desc.out.to_relative(converter),
+                    logsumexp: desc.logsumexp.to_relative(converter),
+                })
+            }
+            ModuleOperationIr::AttentionBackward(desc) => {
+                ModuleOperationIr::AttentionBackward(Box::new(AttentionBackwardOpIr {
+                    query: desc.query.to_relative(converter),
+                    key: desc.key.to_relative(converter),
+                    value: desc.value.to_relative(converter),
+                    out: desc.out.to_relative(converter),
+                    logsumexp: desc.logsumexp.to_relative(converter),
+                    out_grad: desc.out_grad.to_relative(converter),
+                    options: desc.options.clone(),
+                    query_grad: desc.query_grad.to_relative(converter),
+                    key_grad: desc.key_grad.to_relative(converter),
+                    value_grad: desc.value_grad.to_relative(converter),
+                }))
+            }
             ModuleOperationIr::CtcLoss(desc) => ModuleOperationIr::CtcLoss(CtcLossOpIr {
                 log_probs: desc.log_probs.to_relative(converter),
                 targets: desc.targets.to_relative(converter),

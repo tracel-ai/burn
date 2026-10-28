@@ -1523,3 +1523,108 @@ fn a_repeated_component_says_how_many_times_it_ran() {
         "the stack's component carries its layer count:\n{table}"
     );
 }
+
+/// The reading at `labels` from the root, in `components`.
+fn reading_at<'r, 'a>(
+    components: &'r [crate::ComponentReading<'a>],
+    labels: &[&str],
+) -> &'r crate::ComponentReading<'a> {
+    let path = ComponentPath::new(labels.iter().copied());
+    components
+        .iter()
+        .flat_map(crate::ComponentReading::walk)
+        .map(|(_, reading)| reading)
+        .find(|reading| reading.path == path)
+        .unwrap_or_else(|| panic!("no component at {path}"))
+}
+
+/// A front door reads a component as the table prints it. [`measurement`]'s kernels sum to
+/// 1290 µs, timed alone and apportioned onto its 2000 µs clean run, so `query`'s 160 µs read
+/// as 2000 × 160 / 1290 = 248.06 µs and a 12.4% share; its 40 MB at 198.9 GB/s are a 201.1 µs
+/// floor on `bytes`, reached at 201.1 / 248.06 = 81.1% of the peak. A run timed alone does not
+/// split off the host.
+#[test]
+fn a_component_reads_as_the_table_prints_it() {
+    let measurement = measurement();
+    let report = Report::new(&measurement);
+    let components = report.components();
+    let query = reading_at(&components, &["transformer block", "attention", "query"]);
+
+    let time = query.time.expect("its work is its own").as_secs_f64() * 1e6;
+    assert!((time - 248.062).abs() < 0.01, "{time} µs");
+    let share = query.share.expect("the run timed its kernels").0;
+    assert!((share - 0.124_031).abs() < 1e-6, "{share}");
+    assert_eq!(query.host, None, "a run timed alone splits off no host");
+    assert_eq!(query.fused, None);
+    let score = query.score.expect("priced, and its time is its own");
+    assert_eq!(score.floor.bound, Bound::Bytes);
+    let floor = score.floor.time.as_secs_f64() * 1e6;
+    assert!((floor - 201.106).abs() < 0.01, "{floor} µs");
+    assert!((score.achieved - 0.8107).abs() < 1e-3, "{}", score.achieved);
+    let names: Vec<&str> = query
+        .kernels
+        .iter()
+        .map(|kernel| kernel.name.as_str())
+        .collect();
+    assert_eq!(names, ["Matmul"]);
+
+    // Two roots and the untagged `Reshape` hold every kernel of the run.
+    let unclaimed = report.unclaimed();
+    assert_eq!(unclaimed.len(), 1);
+    assert_eq!(unclaimed[0].unclaimed, crate::Unclaimed::Untagged);
+    assert_eq!(unclaimed[0].kernels[0].name, "Reshape");
+    let total: f64 = components
+        .iter()
+        .map(|root| root.share.expect("timed").0)
+        .chain(
+            unclaimed[0]
+                .kernels
+                .iter()
+                .map(|kernel| kernel.share.expect("timed").0),
+        )
+        .sum();
+    assert!(
+        (total - 1.0).abs() < 1e-9,
+        "the shares cover the run: {total}"
+    );
+
+    // Timed in place, the 2000 µs clean run less its 1290 µs of kernels is 710 µs of host,
+    // charged by how long the device waited: `query` waited 100 µs of the run's 400.
+    let mut in_place = measurement.clone();
+    in_place.breakdown.timed_alone = false;
+    in_place.breakdown.tree[1].children[1].children[0].own_wait = Duration::from_micros(100);
+    in_place.breakdown.tree[3].own_wait = Duration::from_micros(300);
+    let report = Report::new(&in_place);
+    let components = report.components();
+    let query = reading_at(&components, &["transformer block", "attention", "query"]);
+    let host = query
+        .host
+        .expect("an in-place run splits off the host")
+        .as_secs_f64()
+        * 1e6;
+    assert!((host - 177.5).abs() < 0.01, "{host} µs");
+}
+
+/// A component whose work all fused into a kernel elsewhere hands a front door no time,
+/// share or host rather than zeros — the table prints `fused ↓` there, since a zero reads
+/// as a component that cost nothing — and sets its floor aside, as the table does: the kernel
+/// that did its work carries it.
+#[test]
+fn a_component_fused_elsewhere_reads_no_time() {
+    let mut measurement = measurement();
+    measurement.breakdown.tree[1].children[0].kernels.clear();
+    measurement.breakdown.tree[1].kernels = vec![Kernel {
+        fuses: vec![
+            ComponentPath::new(["attn norm"]),
+            ComponentPath::new(["attention", "query"]),
+        ],
+        ..kernel("ElemwiseMatmul", 2, 70)
+    }];
+    let report = Report::new(&measurement);
+    let components = report.components();
+    let norm = reading_at(&components, &["transformer block", "attn norm"]);
+    assert_eq!(norm.fused, Some(FusedShare::All));
+    assert_eq!((norm.time, norm.share, norm.host), (None, None, None));
+    assert!(norm.score.is_none(), "nothing of its own to score");
+    assert!(norm.floor.is_none(), "its floor is the fused kernel's");
+}
