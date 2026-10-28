@@ -448,6 +448,9 @@ let pack_tensor = tensor.into_pack();
 - Speed up loading strided and transposed PyTorch checkpoint weights.
   ([#6041](https://github.com/tracel-ai/burn/pull/6041),
   [#6113](https://github.com/tracel-ai/burn/pull/6113))
+- Avoid repeated SafeTensors header parsing when loading models with many tensors.
+  ([#6269](https://github.com/tracel-ai/burn/pull/6269))
+  [@Arc000007](https://github.com/Arc000007)
 
 ### Extensions
 
