@@ -6,9 +6,11 @@ use std::{
 use burn_backend::{
     DType, DTypeUsageSet, DeviceSettings, ExecutionError, TensorData, ops::DimSplit,
 };
-use burn_ir::{BackendIr, IrVisitorMut, OperationIr, TensorId, TensorIr, TensorStatus};
+use burn_ir::{
+    BackendIr, BaseOperationIr, IrVisitorMut, OperationIr, TensorId, TensorIr, TensorStatus,
+};
 use burn_router::TensorInterpreter;
-use burn_std::{QuantConfig, future::DynFut};
+use burn_std::{QuantConfig, Slice, future::DynFut};
 
 use super::{GroupError, MemberDevice};
 use super::{
@@ -291,7 +293,32 @@ impl<B: BackendIr> GroupInterpreter<B> {
             },
             shardings: &self.shardings,
         });
+        self.localize_slice_ranges(&mut op);
         self.interpreters[member].register_op(op);
+    }
+
+    /// Gives a slice the ranges of the shard one member holds, since a backend may reject the
+    /// whole tensor's range on a shard. Its rule keeps a split only on a dim the slice takes whole,
+    /// so on a member that dim's range is the whole shard.
+    fn localize_slice_ranges(&self, op: &mut OperationIr) {
+        let (tensor, ranges) = match op {
+            OperationIr::BaseFloat(BaseOperationIr::Slice(desc))
+            | OperationIr::BaseInt(BaseOperationIr::Slice(desc))
+            | OperationIr::BaseBool(BaseOperationIr::Slice(desc)) => {
+                (&desc.tensor, &mut desc.ranges)
+            }
+            OperationIr::BaseFloat(BaseOperationIr::SliceAssign(desc))
+            | OperationIr::BaseInt(BaseOperationIr::SliceAssign(desc))
+            | OperationIr::BaseBool(BaseOperationIr::SliceAssign(desc)) => {
+                (&desc.tensor, &mut desc.ranges)
+            }
+            _ => return,
+        };
+        if let Sharding::Split { dim } = self.shardings[&tensor.id]
+            && let Some(range) = ranges.get_mut(dim)
+        {
+            *range = Slice::full();
+        }
     }
 
     fn run_copied_from_first_member(&mut self, op: &OperationIr) {
