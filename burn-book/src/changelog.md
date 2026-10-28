@@ -5,11 +5,6 @@ Changes for the next release. For published releases, see
 
 ## Unreleased
 
-### Storage
-
-- Load SafeTensors headers once and reuse their validated tensor byte ranges, avoiding repeated
-  header parsing when drawing tensor data.
-
 ### Interpolation coordinate transforms and rounding
 
 Interpolation gains coordinate transforms, nearest rounding modes, crop ROIs and configurable
@@ -423,6 +418,9 @@ let pack_tensor = tensor.into_pack();
 - Speed up loading strided and transposed PyTorch checkpoint weights.
   ([#6041](https://github.com/tracel-ai/burn/pull/6041),
   [#6113](https://github.com/tracel-ai/burn/pull/6113))
+- Avoid repeated SafeTensors header parsing when loading models with many tensors.
+  ([#6269](https://github.com/tracel-ai/burn/pull/6269))
+  [@Arc000007](https://github.com/Arc000007)
 
 ### Extensions
 
