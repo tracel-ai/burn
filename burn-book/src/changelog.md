@@ -292,6 +292,10 @@ loading those checkpoints by filtering to `linear_inner` and `linear_outer`.
   `bool_scatter_nd` and `bool_gather_nd` methods.
   ([#6035](https://github.com/tracel-ai/burn/pull/6035),
   [#6047](https://github.com/tracel-ai/burn/pull/6047))
+- Add `Device::memory_capacity()` to query the runtime-reported capacity in bytes for workload
+  sizing. The value is distinct from currently free memory; backends without a reported capacity
+  return `None`. ([#6250](https://github.com/tracel-ai/burn/pull/6250))
+  [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
 - Add dtype-aware `TensorData::random_dtype`, `zeros_dtype`, and `ones_dtype` constructors.
   ([#6088](https://github.com/tracel-ai/burn/pull/6088))
 - Add `Tolerance::get_relative()` and `get_absolute()` accessors.
