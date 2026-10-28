@@ -116,6 +116,9 @@ pub fn attention_fallback<B: Backend>(
 /// [`attention_with_logsumexp`](crate::ops::ModuleOps::attention_with_logsumexp) composes from
 /// tensor operations. A query whose every key is masked holds a logsumexp no score reaches, so its
 /// probabilities read back as zero.
+///
+/// The softmax runs in `f32` whatever the inputs' precision: the backward pass reads the
+/// probabilities back from the logsumexp, which a half-precision max and sum would round.
 pub fn attention_with_logsumexp_default<B: Backend>(
     query: FloatTensor<B>,
     key: FloatTensor<B>,
@@ -125,18 +128,14 @@ pub fn attention_with_logsumexp_default<B: Backend>(
     let shapes = AttentionShapes::new(&query.shape(), &key.shape(), &value.shape());
     let products = scaled_products::<B>(query, key, shapes.scale(&options), shapes);
     let scores = attention_scores::<B>(products, None, None, shapes, options);
-    let softmax = Softmax::<B>::new(scores);
-    let logsumexp = B::float_cast(
-        B::float_reshape(
-            B::float_add(softmax.max, B::float_log(softmax.sum)),
-            Shape::new([shapes.batch, shapes.q_heads, shapes.seq_q]),
-        ),
-        FloatDType::F32,
+    let dtype = scores.dtype();
+    let softmax = Softmax::<B>::new(B::float_cast(scores, FloatDType::F32));
+    let logsumexp = B::float_reshape(
+        B::float_add(softmax.max, B::float_log(softmax.sum)),
+        Shape::new([shapes.batch, shapes.q_heads, shapes.seq_q]),
     );
-    (
-        context::<B>(softmax.probabilities, value, shapes),
-        logsumexp,
-    )
+    let probabilities = B::float_cast(softmax.probabilities, dtype.into());
+    (context::<B>(probabilities, value, shapes), logsumexp)
 }
 
 /// The gradients of [`attention_with_logsumexp_default`]'s attention against its query, key and
@@ -144,7 +143,8 @@ pub fn attention_with_logsumexp_default<B: Backend>(
 /// operations: what [`attention_backward`](crate::ops::ModuleOps::attention_backward) runs where
 /// a backend has no kernel of its own.
 ///
-/// The probabilities are read back from `logsumexp`, and the gradient against the scores is
+/// The probabilities are read back from `logsumexp` in `f32`, then cast to the inputs' precision,
+/// and the gradient against the scores is
 /// `p ⊙ (out_grad · valueᵀ − Σ out_grad ⊙ out)`, through the softcap's derivative where there is
 /// one. The query heads sharing a key head are summed into its gradients.
 pub fn attention_backward_default<B: Backend>(
@@ -173,11 +173,15 @@ pub fn attention_backward_default<B: Backend>(
         .softcap
         .map(|softcap| B::float_tanh(B::float_div_scalar(products.clone(), softcap.into())));
     let scores = attention_scores::<B>(products, None, None, shapes, options);
-    let logsumexp = B::float_cast(
-        B::float_reshape(logsumexp, Shape::new([batch, q_heads, seq_q, 1])),
-        scores.dtype().into(),
+    let dtype = scores.dtype();
+    let logsumexp = B::float_reshape(logsumexp, Shape::new([batch, q_heads, seq_q, 1]));
+    let probabilities = B::float_cast(
+        B::float_exp(B::float_sub(
+            B::float_cast(scores, FloatDType::F32),
+            logsumexp,
+        )),
+        dtype.into(),
     );
-    let probabilities = B::float_exp(B::float_sub(scores, logsumexp));
     let delta = B::float_sum_dim(B::float_mul(out_grad.clone(), out), 3);
     let out_grad = B::float_reshape(out_grad, shapes.grouped_rows(val_dim));
     let probabilities = B::float_reshape(probabilities, shapes.grouped_rows(seq_k));

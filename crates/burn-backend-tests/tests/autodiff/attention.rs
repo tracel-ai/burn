@@ -2,7 +2,7 @@ use super::*;
 use burn_backend::ops::ModuleOps;
 use burn_dispatch::Dispatch;
 use burn_tensor::activation::softmax;
-use burn_tensor::module::attention;
+use burn_tensor::module::{attention, attention_fallback};
 use burn_tensor::ops::{AttentionModuleOptions, CausalAlignment};
 use burn_tensor::{Bool, Distribution, Tensor, TensorData, Tolerance};
 
@@ -165,7 +165,7 @@ fn attention_grouped_query_grads_match_repeated_kv() {
 
 /// The two operations a backend's own attention backward pass is made of, called directly: the
 /// forward with its logsumexp is the attention, and the backward's gradients are autodiff's over
-/// the decomposed attention, for grouped heads, a custom scale, causal masks of either anchor and
+/// the decomposed attention ([`attention_fallback`], never the backend's own backward pass), for grouped heads, a custom scale, causal masks of either anchor and
 /// a softcap. A backend without kernels of its own runs the composed defaults.
 #[test]
 fn attention_backward_matches_autodiff_over_the_decomposed_attention() {
@@ -202,7 +202,7 @@ fn attention_backward_matches_autodiff_over_the_decomposed_attention() {
         let q = TestTensor::<4>::from_data(q_data.clone(), &device).require_grad();
         let k = TestTensor::<4>::from_data(k_data.clone(), &device).require_grad();
         let v = TestTensor::<4>::from_data(v_data.clone(), &device).require_grad();
-        let output = attention(q.clone(), k.clone(), v.clone(), None, None, options);
+        let output = attention_fallback(q.clone(), k.clone(), v.clone(), None, None, options);
         let out_grad = TestTensor::<4>::from_data(out_grad_data.clone(), &device);
         let grads = (output.clone() * out_grad).sum().backward();
         let expected = [
