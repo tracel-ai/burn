@@ -7,55 +7,25 @@ Changes for the next release. For published releases, see
 
 ### Interpolation options
 
-Interpolation exposes `HalfPixel`, `AlignCorners` and `Asymmetric` coordinate transforms and
-configurable cubic coefficients. Each interpolation mode owns its settings: `Nearest` fixes
-asymmetric coordinates with floor rounding, and `NearestExact` fixes half-pixel coordinates with
-ties rounded upward. Flex supports scale-driven coordinates in forward and backward passes.
-Antialiasing remains unsupported.
-
-**Breaking API changes:** coordinate transforms now belong to the linear, cubic and Lanczos enum
-variants, and the cubic coefficient `a` belongs to the cubic variant. Replace alignment settings
-with an explicit transform (`HalfPixel` for `false`, `AlignCorners` for `true`):
+**Breaking:** `InterpolateMode` variants now own their coordinate transform and cubic coefficient
+`a`. `Nearest` and `NearestExact` have fixed mappings and no overrides.
 
 ```diff
 +use burn::tensor::ops::CoordinateTransformMode;
-
 -InterpolateOptions::new(InterpolateMode::Bilinear).with_align_corners(false)
 +InterpolateOptions::new(InterpolateMode::Bilinear {
 +    coordinate_transform: CoordinateTransformMode::HalfPixel,
 +})
 ```
 
-For `Interpolate1dConfig` and `Interpolate2dConfig`, put the transform in their `mode`:
+Use `AlignCorners` for the previous `true`/default alignment and `a: -0.75` for the previous cubic
+coefficient. For `Interpolate1dConfig` and `Interpolate2dConfig`, move these settings into
+`InterpolateMode::{Linear, Cubic, Lanczos}`; update serialized configurations accordingly.
+Grid sampling now uses `GridSampleMode::{Nearest, Bilinear}`.
 
-```diff
--.with_mode(InterpolateMode::Linear)
--.with_align_corners(false)
-+.with_mode(InterpolateMode::Linear {
-+    coordinate_transform: CoordinateTransformMode::HalfPixel,
-+})
-```
-
-Use `AlignCorners` to preserve the previous default for linear, cubic and Lanczos modes, and
-`a: -0.75` to preserve the previous cubic coefficient. Nearest modes have no additional settings.
-Update serialized configurations to place algorithm-specific settings inside `mode` as well.
-Grid sampling now uses `GridSampleMode::{Nearest, Bilinear}` instead of `InterpolateMode`.
-The unimplemented bicubic choice is removed; supported sampling behavior is unchanged.
-
-For users tracking `main`, the unreleased `TfCropAndResize`, `PytorchHalfPixel`,
-`HalfPixelSymmetric`, custom nearest overrides and `CubicOptions::exclude_outside` have been
-removed. Models needing those exact semantics require a separate implementation; the remaining
-modes are not substitutes. Move `CubicOptions::a` into the cubic mode's `a` field.
-
-Explicit scales now affect coordinates as well as output size, so scale-dependent transforms can
-produce different values when `input_size * scale_factor` is nonintegral. To retain mapping based
-on resolved sizes, use `.with_output_size(...)` instead.
-
-CubeCL supports both nearest modes and bilinear, bicubic and Lanczos3 with `AlignCorners` or
-`HalfPixel`, with `a: -0.75` for bicubic. Other coefficients and asymmetric non-nearest modes require
-Flex. Except with `AlignCorners`, CubeCL requires supplied scales to exactly equal the resolved
-output/input ratios; unsupported settings panic. Flex uses `f64` coordinate arithmetic and
-preserves half-pixel ties when resizing by output size.
+Explicit scales now also drive scale-dependent coordinate mapping. Use `.with_output_size(...)`
+to retain size-derived mapping. See the [interpolation guide](building-blocks/module.md#interpolation)
+for configuration and backend limitations.
 ([#6154](https://github.com/tracel-ai/burn/pull/6154), [@Sadik00789](https://github.com/Sadik00789))
 
 ### Device-time instrumentation

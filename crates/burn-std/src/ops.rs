@@ -479,12 +479,6 @@ pub enum CoordinateTransformMode {
 }
 
 /// Interpolation options.
-///
-/// Flex supports all interpolation modes and their settings.
-/// CubeCL supports nearest and nearest-exact, plus bilinear,
-/// bicubic and Lanczos3 with `AlignCorners` or `HalfPixel`, and cubic coefficient `-0.75`.
-/// With CubeCL, explicit scales must equal the resolved output/input ratios exactly,
-/// unless the transform is `AlignCorners`. Unsupported combinations panic.
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct InterpolateOptions {
     /// Algorithm used.
