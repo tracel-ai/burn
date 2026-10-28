@@ -1,4 +1,3 @@
-use super::{avg_pool3d, avg_pool3d_backward};
 use crate::{
     kernel::{
         into_contiguous_aligned,
@@ -187,28 +186,11 @@ pub(crate) fn avg_pool2d(
     ceil_mode: bool,
 ) -> CubeTensor {
     let [batch_size, channels, in_h, in_w] = x.meta.shape().dims();
-    if dilation != [1, 1] {
-        // The CubeK kernel has no dilation; pool as a 3D input of depth one instead.
-        let x = reshape(x, Shape::new([batch_size, channels, 1, in_h, in_w]));
-        let output = avg_pool3d(
-            x,
-            [1, kernel_size[0], kernel_size[1]],
-            [1, stride[0], stride[1]],
-            [0, padding[0], padding[1]],
-            [1, dilation[0], dilation[1]],
-            count_include_pad,
-            ceil_mode,
-        );
-        let [_, _, _, out_h, out_w] = output.meta.shape().dims();
-        return reshape(output, Shape::new([batch_size, channels, out_h, out_w]));
-    }
-    let dilation = 1;
-
     let size_0 = calculate_pool_output_size(
         kernel_size[0],
         stride[0],
         padding[0],
-        dilation,
+        dilation[0],
         in_h,
         ceil_mode,
     );
@@ -216,7 +198,7 @@ pub(crate) fn avg_pool2d(
         kernel_size[1],
         stride[1],
         padding[1],
-        dilation,
+        dilation[1],
         in_w,
         ceil_mode,
     );
@@ -226,13 +208,10 @@ pub(crate) fn avg_pool2d(
     let shape_out = Shape::new([batch_size, size_0, size_1, channels]);
     let output = empty_device_dtype(x.client.clone(), x.device.clone(), shape_out, x.dtype);
 
-    let mode = PoolMode::from(AvgPoolOptions::new(
-        kernel_size,
-        stride,
-        padding,
-        ceil_mode,
-        count_include_pad,
-    ));
+    let mode = PoolMode::from(
+        AvgPoolOptions::new(kernel_size, stride, padding, ceil_mode, count_include_pad)
+            .with_dilation(dilation),
+    );
 
     pool2d(
         &output.client,
@@ -258,23 +237,6 @@ pub(crate) fn avg_pool2d_backward(
     ceil_mode: bool,
 ) -> CubeTensor {
     let [batches, channels, height, width] = x.meta.shape().dims();
-    if dilation != [1, 1] {
-        // The CubeK kernel has no dilation; pool as a 3D input of depth one instead.
-        let [_, _, out_h, out_w] = grad.meta.shape().dims();
-        let x = reshape(x, Shape::new([batches, channels, 1, height, width]));
-        let grad = reshape(grad, Shape::new([batches, channels, 1, out_h, out_w]));
-        let x_grad = avg_pool3d_backward(
-            x,
-            grad,
-            [1, kernel_size[0], kernel_size[1]],
-            [1, stride[0], stride[1]],
-            [0, padding[0], padding[1]],
-            [1, dilation[0], dilation[1]],
-            count_include_pad,
-            ceil_mode,
-        );
-        return reshape(x_grad, Shape::new([batches, channels, height, width]));
-    }
     let input = into_contiguous_aligned(permute_nchw_to_nhwc(x));
     let grad = into_contiguous_aligned(permute_nchw_to_nhwc(grad));
 
@@ -286,13 +248,10 @@ pub(crate) fn avg_pool2d_backward(
         input.dtype,
     );
 
-    let mode = PoolMode::from(AvgPoolOptions::new(
-        kernel_size,
-        stride,
-        padding,
-        ceil_mode,
-        count_include_pad,
-    ));
+    let mode = PoolMode::from(
+        AvgPoolOptions::new(kernel_size, stride, padding, ceil_mode, count_include_pad)
+            .with_dilation(dilation),
+    );
 
     pool2d_backward(
         &output.client,
