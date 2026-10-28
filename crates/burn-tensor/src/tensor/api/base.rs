@@ -2782,25 +2782,10 @@ where
                 .collect();
         }
 
-        let mut tensors = Vec::with_capacity(chunks);
-        let mut sum_chunk_size = 0;
-        if size.is_multiple_of(chunks) {
-            let chunk_size = size / chunks;
-            for _ in 0..chunks {
-                tensors.push(Self::narrow(self.clone(), dim, sum_chunk_size, chunk_size));
-                sum_chunk_size += chunk_size;
-            }
-        } else {
-            let chunk_size = (size / chunks) + 1; // assumes not divisible
-            for _ in 0..chunks - 1 {
-                tensors.push(Self::narrow(self.clone(), dim, sum_chunk_size, chunk_size));
-                sum_chunk_size += chunk_size;
-            }
-            let remainder = size % chunk_size;
-            tensors.push(Self::narrow(self.clone(), dim, sum_chunk_size, remainder));
-        }
-
-        tensors
+        // Every chunk holds `ceil(size / chunks)` elements except the last one, which holds the
+        // rest. When `chunks - 1` full chunks already cover the dimension (e.g. 6 elements into 4
+        // chunks of 2), fewer chunks are returned rather than an empty or out-of-range one.
+        self.split(size.div_ceil(chunks), dim)
     }
 
     /// Splits the tensor into chunks of a specified size along a given dimension.
