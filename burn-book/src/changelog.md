@@ -202,6 +202,11 @@ all-to-all, and broadcast also support boolean tensors. Quantized tensors are re
   followed by `with_sharding` uploads each member only its chunk, and a model that fits only once
   split can be loaded. ([#6232](https://github.com/tracel-ai/burn/pull/6232))
   [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
+- A random tensor on a device group waits until it is first used, and a split use, such as a
+  dropout mask over a split activation, has each member generate only its shard instead of copying
+  the whole tensor from the first member. Its values follow the order of first use, so they differ
+  from one device's with the same seed. ([#6272](https://github.com/tracel-ai/burn/pull/6272))
+  [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
 
 #### Remote execution
 

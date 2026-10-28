@@ -1,4 +1,7 @@
-use std::{collections::HashMap, iter};
+use std::{
+    collections::{BTreeMap, HashMap},
+    iter,
+};
 
 use burn_backend::{
     DType, DTypeUsageSet, DeviceSettings, ExecutionError, TensorData, ops::DimSplit,
@@ -37,6 +40,9 @@ pub trait DynGroupInterpreter: Send {
 
     /// Runs `op` on every member's shards, after resharding each input as the op's
     /// rule asks for.
+    ///
+    /// An op its plan defers, such as a random one, waits until its output is needed, and runs at
+    /// the sharding that need asks for.
     fn register_op(&mut self, op: OperationIr);
 
     /// The same value with another sharding, under a new id, or why no resharding produces it.
@@ -53,8 +59,8 @@ pub trait DynGroupInterpreter: Send {
     /// [`sync`](Self::sync).
     fn flush(&mut self);
 
-    /// Seeds every member's backend.
-    fn seed(&self, seed: u64);
+    /// Seeds every member's backend, once every pending op has run on the seed before.
+    fn seed(&mut self, seed: u64);
 
     /// What every member can do with `dtype`, since each op runs on all of them.
     fn dtype_usage(&self, dtype: DType) -> DTypeUsageSet;
@@ -67,6 +73,8 @@ pub struct GroupInterpreter<B: BackendIr> {
     devices: Vec<B::Device>,
     shardings: HashMap<TensorId, Sharding>,
     on_host: HashMap<TensorId, TensorData>,
+    // Ordered by id, the order the ops were issued, so running several at once is reproducible.
+    pending_ops: BTreeMap<TensorId, OperationIr>,
     next_id: u64,
     flush_error: Option<ExecutionError>,
 }
@@ -81,6 +89,7 @@ impl<B: BackendIr> GroupInterpreter<B> {
             devices,
             shardings: HashMap::new(),
             on_host: HashMap::new(),
+            pending_ops: BTreeMap::new(),
             next_id: 0,
             flush_error: None,
         }
@@ -159,6 +168,7 @@ impl<B: BackendIr> DynGroupInterpreter for GroupInterpreter<B> {
     }
 
     fn reshard(&mut self, tensor: TensorIr, sharding: Sharding) -> Result<TensorId, ShardingError> {
+        self.run_pending(tensor.id, sharding);
         let current = self.shardings[&tensor.id];
         self.resharded(&tensor, current, sharding).inspect_err(|_| {
             // The caller gave the tensor up, so a refusal must not leave it on the members.
@@ -169,6 +179,7 @@ impl<B: BackendIr> DynGroupInterpreter for GroupInterpreter<B> {
     }
 
     fn read(&mut self, tensor: TensorIr) -> DynFut<Result<TensorData, ExecutionError>> {
+        self.run_pending(tensor.id, Sharding::Replicated);
         if let Some(data) = self.take_host_data(&tensor) {
             return Box::pin(async move { Ok(data) });
         }
@@ -194,7 +205,10 @@ impl<B: BackendIr> DynGroupInterpreter for GroupInterpreter<B> {
         }
     }
 
-    fn seed(&self, seed: u64) {
+    fn seed(&mut self, seed: u64) {
+        while let Some(&id) = self.pending_ops.keys().next() {
+            self.run_pending(id, Sharding::Replicated);
+        }
         self.interpreters
             .iter()
             .for_each(|interpreter| interpreter.seed(seed));
@@ -218,10 +232,8 @@ impl<B: BackendIr> GroupInterpreter<B> {
         }
 
         match plan.execution() {
-            Execution::EveryMember => {
-                (0..self.interpreters.len()).for_each(|member| self.run_on(member, &op))
-            }
-            Execution::FirstMemberCopied => self.run_copied_from_first_member(&op),
+            Execution::Eager => self.run_on_every_member(&op),
+            Execution::Deferred => self.keep_pending(&op),
         }
 
         for input in op.inputs() {
@@ -242,6 +254,7 @@ impl<B: BackendIr> GroupInterpreter<B> {
                 continue;
             }
             let target = plan.input_sharding(&input.id);
+            self.run_pending(input.id, target);
             let consumed = inputs
                 .iter()
                 .any(|other| other.id == input.id && other.status == TensorStatus::ReadWrite);
@@ -296,6 +309,40 @@ impl<B: BackendIr> GroupInterpreter<B> {
             for (interpreter, copy) in self.interpreters.iter_mut().zip(copies.into_handles()) {
                 interpreter.register_tensor_to_device(output.id, copy);
             }
+        }
+    }
+
+    fn run_on_every_member(&mut self, op: &OperationIr) {
+        (0..self.interpreters.len()).for_each(|member| self.run_on(member, op));
+    }
+
+    fn keep_pending(&mut self, op: &OperationIr) {
+        let out = op.outputs().next().expect("A deferred op has one output");
+        self.pending_ops.insert(out.id, op.clone());
+    }
+
+    /// Runs the pending op of tensor `id`, if it has one: on every member at its shard when
+    /// `sharding` splits it, otherwise on member 0 and copied.
+    fn run_pending(&mut self, id: TensorId, sharding: Sharding) {
+        let Some(op) = self.pending_ops.remove(&id) else {
+            return;
+        };
+        let out = op.outputs().next().expect("A deferred op has one output");
+        // A split the tensor cannot take is left to the resharding after, which reports it.
+        let split = matches!(sharding, Sharding::Split { .. })
+            && Resharding::new(
+                Sharding::Replicated,
+                sharding,
+                &out.shape,
+                self.interpreters.len(),
+            )
+            .is_ok();
+        match split {
+            true => {
+                self.shardings.insert(id, sharding);
+                self.run_on_every_member(&op);
+            }
+            false => self.run_copied_from_first_member(&op),
         }
     }
 
@@ -407,7 +454,7 @@ impl<B: BackendIr> GroupInterpreter<B> {
     }
 
     fn drop_tensor(&mut self, id: TensorId) {
-        if self.on_host.remove(&id).is_some() {
+        if self.on_host.remove(&id).is_some() || self.pending_ops.remove(&id).is_some() {
             self.shardings.remove(&id);
             return;
         }
