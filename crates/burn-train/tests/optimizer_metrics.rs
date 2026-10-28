@@ -17,8 +17,8 @@ use burn_train::{
         LearningRateMetric, OptimizerMetricContext, OptimizerStepMetric, OptimizerStepOutput,
     },
     metric::{
-        LossMetric, MetricDefinition, MetricEntry, MetricId, MetricName, NumericAttributes,
-        NumericEntry, SerializedEntry,
+        LossMetric, MetricAttributes, MetricDefinition, MetricEntry, MetricId, MetricName,
+        NumericAttributes, NumericEntry, SerializedEntry,
         store::{MetricsUpdate, NumericMetricUpdate, Split},
     },
 };
@@ -232,6 +232,59 @@ fn custom_metric_consumes_builtin_observations() {
             NumericEntry::Final(0.001)
         ]
     ));
+}
+
+struct StatusMetric;
+
+impl OptimizerStepMetric for StatusMetric {
+    fn name(&self) -> MetricName {
+        Arc::new("Optimizer Status".into())
+    }
+
+    fn init(&mut self, _: &OptimizerMetricContext) -> Vec<MetricDefinition> {
+        vec![MetricDefinition {
+            metric_id: MetricId::new(self.name()),
+            name: self.name(),
+            description: None,
+            attributes: MetricAttributes::None,
+        }]
+    }
+
+    fn clear(&mut self) {}
+
+    fn update(&mut self, _: &OptimizerStepOutput) -> Result<MetricsUpdate, TensorReadError> {
+        Ok(MetricsUpdate::new(
+            vec![MetricEntry::new(
+                MetricId::new(self.name()),
+                SerializedEntry::new("active".into(), "active".into()),
+            )],
+            vec![],
+        ))
+    }
+
+    fn end_epoch(&mut self) -> Result<MetricsUpdate, TensorReadError> {
+        Ok(MetricsUpdate::new(vec![], vec![]))
+    }
+}
+
+#[test]
+fn text_optimizer_metrics_are_logged_but_excluded_from_summary() {
+    let device = Device::flex().autodiff();
+    let (train, valid) = make_dataloaders();
+    let dir = tempfile::tempdir().unwrap();
+    let result = SupervisedTraining::new(dir.path(), train, valid)
+        .metrics((
+            OptimizerMetricRegistration::new(StatusMetric),
+            LearningRateMetric::new(),
+        ))
+        .summary()
+        .with_application_logger(None)
+        .launch(make_learner(&device));
+    assert!(result.error.is_none());
+    assert_eq!(
+        std::fs::read_to_string(dir.path().join("train/epoch-1/Optimizer_Status.log")).unwrap(),
+        "active\nactive\n"
+    );
 }
 
 #[rstest::rstest]

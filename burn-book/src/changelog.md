@@ -182,6 +182,7 @@ and skipped configuration or caches. This makes reusable module definitions easi
 It records each applied update, including partial accumulation windows, with one series per
 scheduler parameter group. Custom strategies must emit
 `LearnerEvent::OptimizerStep(OptimizerStepOutput::new(rates))` after each update.
+Text optimizer series are logged and rendered but excluded from numeric training summaries.
 See [optimizer-step metrics](./building-blocks/metric.md#optimizer-step-metrics) for extensions.
 
 #### Dataloader progress and training completion

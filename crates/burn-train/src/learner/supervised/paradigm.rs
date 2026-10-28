@@ -12,7 +12,7 @@ use crate::metric::processor::{
     AsyncProcessorTraining, FullEventProcessorTraining, MetricsTraining,
 };
 use crate::metric::store::{Aggregate, Direction, EventStoreClient, LogEventStore, Split};
-use crate::metric::{Adaptor, LossMetric, Metric, Numeric};
+use crate::metric::{Adaptor, LossMetric, Metric, MetricAttributes, Numeric};
 use crate::multi::MultiDeviceLearningStrategy;
 use crate::renderer::{MetricsRenderer, default_renderer};
 use crate::single::SingleDeviceTrainingStrategy;
@@ -383,6 +383,7 @@ impl<M: LearnerModel> SupervisedTraining<M> {
         self.summary_metrics.extend(
             optimizer_definitions
                 .iter()
+                .filter(|definition| matches!(definition.attributes, MetricAttributes::Numeric(_)))
                 .map(|definition| definition.name.to_string()),
         );
         if self.tracing_logger.is_some()
