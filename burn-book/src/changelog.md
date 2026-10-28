@@ -151,7 +151,8 @@ exceed a single device's memory. The new `LayerParallelism` trait and `Distribut
 wrapper support sequential execution, transferring activations between devices.
 `DistributedLayeredModel::forward_microbatched` runs inference microbatches with a thread per stage,
 so the stages overlap. Training schedules and `Learner` integration are not included.
-([#5702](https://github.com/tracel-ai/burn/pull/5702))
+([#5702](https://github.com/tracel-ai/burn/pull/5702),
+[#6277](https://github.com/tracel-ai/burn/pull/6277))
 [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
 
 #### Distributed collectives
