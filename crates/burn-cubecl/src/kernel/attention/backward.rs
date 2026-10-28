@@ -10,25 +10,44 @@ use crate::{
 use burn_backend::ops::{AttentionBackward, AttentionModuleOptions, CausalAlignment};
 use burn_backend::{DType, Shape, cubecl::dtype_to_storage_type};
 use cubecl::client::Client;
+use cubecl::features::TypeUsage;
 use cubecl::prelude::InputScalar;
 use cubecl::std::tensor::TensorHandle;
 use cubek::attention::kernels::select::selector::QueryPositions;
 use cubek::attention::kernels::tune::{AttentionTuneInputs, launch_tuned};
 use cubek::attention::kernels::{
-    AttentionScoring, AttentionVisibility, QueryPlacement, ScoreScale,
+    AttentionScoring, AttentionTensors, AttentionVisibility, QueryPlacement, ScoreScale,
 };
 use cubek::attention_backward::{AttentionBackwardTensors, attention_backward as launch_backward};
 use cubek::matmul::kernels::tensor::PlainTensor;
 use cubek::std::autotune::GroupPriority;
 
-/// Whether cubek's backward pass serves an attention of `query` against `key` with `options`, no
-/// mask and no additive bias: no softcap, and a causal mask anchored at the bottom right, the one
-/// cubek reads, or one over as many queries as keys, where both anchors agree.
-pub fn backward_serves(query: &Shape, key: &Shape, options: &AttentionModuleOptions) -> bool {
+/// Whether cubek's forward pass with logsumexp and its backward pass serve an attention of
+/// `query` against `key` and `value` with `options`, no mask and no additive bias: operands of one
+/// element the routines take and the device runs, query heads that split evenly over the key
+/// heads, no softcap, and a causal mask anchored at the bottom right, the one cubek reads, or one
+/// over as many queries as keys, where both anchors agree.
+pub fn backward_serves(
+    query: &CubeTensor,
+    key: &CubeTensor,
+    value: &CubeTensor,
+    options: &AttentionModuleOptions,
+) -> bool {
+    let (q_shape, k_shape) = (query.meta.shape(), key.meta.shape());
+    let element = dtype_to_storage_type(query.dtype);
+    let elements = key.dtype == query.dtype
+        && value.dtype == query.dtype
+        && AttentionTensors::VERIFIED.contains(&element)
+        && query
+            .client
+            .properties()
+            .type_usage(element)
+            .is_superset(TypeUsage::Arithmetic | TypeUsage::Buffer);
+    let grouped = k_shape[1] != 0 && q_shape[1].is_multiple_of(k_shape[1]);
     let anchored = !options.is_causal
         || options.causal_alignment == CausalAlignment::BottomRight
-        || query[2] == key[2];
-    options.softcap.is_none() && anchored
+        || q_shape[2] == k_shape[2];
+    elements && grouped && options.softcap.is_none() && anchored
 }
 
 /// The attention of `query` over `key` and `value`, `[b, h, q, dv]`, and each query's logsumexp,
