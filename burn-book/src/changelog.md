@@ -394,6 +394,9 @@ loading those checkpoints by filtering to `linear_inner` and `linear_outer`.
   [#6069](https://github.com/tracel-ai/burn/pull/6069))
 - Return off-value rows from `one_hot_fill` for out-of-range indices, including NaN and infinity.
   ([#6065](https://github.com/tracel-ai/burn/pull/6065))
+- Fix boolean `scatter_nd` reductions losing updates on CubeCL backends when indices repeat a
+  target; the updates are now applied with atomic stores.
+  ([#6215](https://github.com/tracel-ai/burn/pull/6215))
 
 ### Checkpoints and interoperability
 
