@@ -82,8 +82,8 @@
 //! | CUDA                    | `cuda`   | `Device::cuda(0)`                    |
 //! | ROCm                    | `rocm`   | `Device::rocm(0)`                    |
 //! | wgpu (any graphics API) | `wgpu`   | `Device::wgpu(Default::default())`   |
-//! | Metal                   | `metal`  | `Device::metal(Default::default())`  |
-//! | Metal (cubecl runtime)  | `metal-native` | `Device::metal_native()`       |
+//! | Metal                   | `metal`  | `Device::metal()`                    |
+//! | Metal through wgpu      | `wgpu-msl` | `Device::wgpu_msl(Default::default())` |
 //! | Vulkan                  | `vulkan` | `Device::vulkan(Default::default())` |
 //! | WebGPU                  | `webgpu` | `Device::webgpu(Default::default())` |
 //! | CubeCL CPU              | `cpu`    | `Device::cpu()`                      |
@@ -125,8 +125,8 @@
 //!   - `wgpu`: Makes available the WGPU backend, on whichever graphics API the platform provides
 //!   - `webgpu`: Adds `Device::webgpu`, pinned to WebGPU (implies `wgpu`)
 //!   - `vulkan`: Adds `Device::vulkan`, pinned to Vulkan (implies `wgpu`)
-//!   - `metal`: Adds `Device::metal`, pinned to Metal with native MSL (implies `wgpu`)
-//!   - `metal-native`: Adds `Device::metal_native`, cubecl's own Metal runtime (no wgpu)
+//!   - `metal`: Adds `Device::metal`, cubecl's own Metal runtime (no wgpu)
+//!   - `wgpu-msl`: Adds `Device::wgpu_msl`, wgpu pinned to Metal compiling MSL (implies `wgpu`)
 //!   - `cuda`: Makes available the CUDA backend
 //!   - `rocm`: Makes available the ROCm backend
 //!   - `cpu`: Makes available the CubeCL CPU backend

@@ -20,10 +20,10 @@ use burn_dispatch::GradientCheckpointingStrategy;
     feature = "cuda",
     feature = "rocm",
     feature = "wgpu",
-    feature = "metal-native"
+    feature = "metal"
 ))]
 use burn_dispatch::devices::RuntimeId;
-#[cfg(any(feature = "metal", feature = "vulkan", feature = "webgpu"))]
+#[cfg(any(feature = "wgpu-msl", feature = "vulkan", feature = "webgpu"))]
 use burn_dispatch::devices::WgpuBackend;
 use burn_dispatch::{Dispatch, DispatchDevice};
 use burn_std::{BoolDType, FloatDType, IntDType, TensorData};
@@ -39,7 +39,7 @@ pub use burn_dispatch::backends::capture::{
     feature = "cuda",
     feature = "rocm",
     feature = "wgpu",
-    feature = "metal-native"
+    feature = "metal"
 ))]
 use alloc::string::String;
 use alloc::vec;
@@ -90,8 +90,8 @@ use alloc::vec::Vec;
 ///
 /// Available factory methods (each gated by its matching Cargo feature):
 /// `Device::cpu`, `Device::cuda` / `Device::rocm`
-/// (take an integer index or a [`DeviceIndex`]), `Device::wgpu` /
-/// `Device::vulkan` / `Device::metal` / `Device::webgpu` (take a
+/// (take an integer index or a [`DeviceIndex`]), `Device::metal`, `Device::wgpu` /
+/// `Device::vulkan` / `Device::wgpu_msl` / `Device::webgpu` (take a
 /// [`DeviceKind`]), `Device::flex`, `Device::capture`.
 ///
 /// # Autodiff
@@ -393,7 +393,7 @@ impl Device {
     /// `CUBECL_WGPU_DEFAULT_DEVICE`).
     ///
     /// The graphics API — and so the shader compiler — is the runtime's to settle, from the
-    /// enabled features and what the machine offers. `Device::vulkan`, `Device::metal` and
+    /// enabled features and what the machine offers. `Device::vulkan`, `Device::wgpu_msl` and
     /// `Device::webgpu` pin one instead: the same adapter on two APIs is two devices.
     ///
     /// This constructor is lazy. Use [`Device::wgpu_options`] to initialize with runtime
@@ -422,18 +422,19 @@ impl Device {
 
     /// Metal device on cubecl's own Metal runtime, with no wgpu in between: the system's
     /// default GPU.
-    #[cfg(feature = "metal-native")]
-    pub fn metal_native() -> Self {
+    #[cfg(feature = "metal")]
+    pub fn metal() -> Self {
         Self::new(burn_dispatch::devices::MetalDevice::default())
     }
 
-    /// Metal-backed WGPU device, selected via [`DeviceKind`], requiring native MSL support.
+    /// Metal-backed WGPU device, selected via [`DeviceKind`], requiring native MSL support:
+    /// wgpu compiling the same MSL [`Device::metal`] runs on cubecl's own runtime.
     ///
     /// Pinned to Metal, as `Device::vulkan` is to Vulkan. Runtime initialization panics if
     /// native MSL is unavailable on the selected device. Use [`Device::wgpu`] for automatic
     /// compiler selection with WGSL fallback.
-    #[cfg(feature = "metal")]
-    pub fn metal(device_kind: DeviceKind) -> Self {
+    #[cfg(feature = "wgpu-msl")]
+    pub fn wgpu_msl(device_kind: DeviceKind) -> Self {
         Self::new(wgpu_device(
             device_kind,
             burn_dispatch::devices::WgpuBackend::Metal,
@@ -863,7 +864,7 @@ impl Device {
             let type_id = match device_type {
                 // The cubecl runtimes are one dispatch backend, so `DispatchDeviceId::Cube`
                 // would list every runtime's devices at once. These name the runtime the
-                // caller asked for instead. `Metal`, `Vulkan` and `WebGpu` pin wgpu to the
+                // caller asked for instead. `WgpuMsl`, `Vulkan` and `WebGpu` pin wgpu to the
                 // requested graphics API; `Wgpu` leaves the API to auto-selection.
                 #[cfg(feature = "cpu")]
                 DeviceType::Cpu => {
@@ -885,13 +886,13 @@ impl Device {
                     push_cube(&mut devices, RuntimeId::Wgpu);
                     continue;
                 }
-                #[cfg(feature = "metal")]
-                DeviceType::Metal => {
+                #[cfg(feature = "wgpu-msl")]
+                DeviceType::WgpuMsl => {
                     push_wgpu(&mut devices, WgpuBackend::Metal);
                     continue;
                 }
-                #[cfg(feature = "metal-native")]
-                DeviceType::MetalNative => {
+                #[cfg(feature = "metal")]
+                DeviceType::Metal => {
                     push_cube(&mut devices, RuntimeId::Metal);
                     continue;
                 }
@@ -942,7 +943,7 @@ impl Device {
         feature = "cuda",
         feature = "rocm",
         feature = "wgpu",
-        feature = "metal-native"
+        feature = "metal"
     ))]
     pub fn enumerate_physical() -> Vec<PhysicalGpu> {
         let mut gpus: Vec<PhysicalGpu> = Vec::new();
@@ -998,7 +999,7 @@ impl Device {
     feature = "cuda",
     feature = "rocm",
     feature = "wgpu",
-    feature = "metal-native"
+    feature = "metal"
 ))]
 #[derive(Debug, Clone)]
 pub struct PhysicalGpu {
@@ -1072,7 +1073,7 @@ impl core::fmt::Display for ThroughputStat {
     feature = "cuda",
     feature = "rocm",
     feature = "wgpu",
-    feature = "metal-native"
+    feature = "metal"
 ))]
 fn push_cube(devices: &mut Vec<Device>, runtime: RuntimeId) {
     for device in Dispatch::enumerate_cube(runtime) {
@@ -1084,7 +1085,7 @@ fn push_cube(devices: &mut Vec<Device>, runtime: RuntimeId) {
 }
 
 /// Append every wgpu device on `backend`, skipping any already listed.
-#[cfg(any(feature = "metal", feature = "vulkan", feature = "webgpu"))]
+#[cfg(any(feature = "wgpu-msl", feature = "vulkan", feature = "webgpu"))]
 fn push_wgpu(devices: &mut Vec<Device>, backend: WgpuBackend) {
     push_wgpu_with(
         devices,
@@ -1093,7 +1094,7 @@ fn push_wgpu(devices: &mut Vec<Device>, backend: WgpuBackend) {
     );
 }
 
-#[cfg(any(feature = "metal", feature = "vulkan", feature = "webgpu"))]
+#[cfg(any(feature = "wgpu-msl", feature = "vulkan", feature = "webgpu"))]
 fn push_wgpu_with(
     devices: &mut Vec<Device>,
     backend: WgpuBackend,
@@ -1124,7 +1125,7 @@ fn push_wgpu_with(
 /// Map our backend-agnostic [`DeviceKind`] onto cubecl's `WgpuDevice`, on `backend`.
 ///
 /// Shared by [`Device::wgpu`], which leaves the graphics API to the runtime, and
-/// [`Device::vulkan`], [`Device::metal`] and [`Device::webgpu`], which each pin theirs.
+/// [`Device::vulkan`], [`Device::wgpu_msl`] and [`Device::webgpu`], which each pin theirs.
 #[cfg(feature = "wgpu")]
 pub(crate) fn wgpu_device(
     device_kind: DeviceKind,
@@ -1163,11 +1164,12 @@ pub enum DeviceType {
     Rocm,
     #[cfg(feature = "wgpu")]
     Wgpu,
+    /// cubecl's own Metal runtime.
     #[cfg(feature = "metal")]
     Metal,
-    /// cubecl's own Metal runtime.
-    #[cfg(feature = "metal-native")]
-    MetalNative,
+    /// wgpu pinned to Metal, compiling MSL.
+    #[cfg(feature = "wgpu-msl")]
+    WgpuMsl,
     #[cfg(feature = "vulkan")]
     Vulkan,
     #[cfg(feature = "webgpu")]
@@ -1582,7 +1584,7 @@ mod tests {
     }
 }
 
-#[cfg(all(test, any(feature = "metal", feature = "vulkan", feature = "webgpu")))]
+#[cfg(all(test, any(feature = "wgpu-msl", feature = "vulkan", feature = "webgpu")))]
 mod enumerate_wgpu_tests {
     use super::*;
     use burn_dispatch::devices::{CubeDevice, WgpuDevice, WgpuDeviceKind};
@@ -1646,8 +1648,8 @@ mod enumerate_wgpu_tests {
     #[test]
     fn enumerate_pins_the_graphics_api() {
         let cases = [
-            #[cfg(feature = "metal")]
-            (DeviceType::Metal, WgpuBackend::Metal),
+            #[cfg(feature = "wgpu-msl")]
+            (DeviceType::WgpuMsl, WgpuBackend::Metal),
             #[cfg(feature = "vulkan")]
             (DeviceType::Vulkan, WgpuBackend::Vulkan),
             #[cfg(feature = "webgpu")]
