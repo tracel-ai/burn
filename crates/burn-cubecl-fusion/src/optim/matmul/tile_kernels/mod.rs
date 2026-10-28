@@ -21,10 +21,14 @@ use crate::{
 use burn_backend::cubecl::dtype_to_storage_type;
 use burn_fusion::stream::Context;
 use burn_ir::TensorIr;
-use burn_std::DType;
+use burn_std::{DType, quantization::QParamTensor};
 use cubecl::{
     AutotuneKey, CubeTuneId,
-    tile::launch::{Refusal, SinkLaunch, SinkLaunchVisitor},
+    prelude::TensorBinding,
+    tile::{
+        Axis,
+        launch::{Refusal, SinkLaunch, SinkLaunchVisitor},
+    },
     tune::{LocalTuner, Tunable, TunableSet, local_tuner},
 };
 use cubek::matmul::kernels::{
@@ -34,13 +38,16 @@ use cubek::matmul::kernels::{
         problem::{MatmulProblem, OperandKind},
         selector::measured_table,
     },
-    tensor::PlainTensor,
+    tensor::{PackedTensor, PlainTensor, StoredTensor},
     tune::{
         MatmulTableGroups,
         key::{MatmulTuneKey, create_key},
     },
 };
-use cubek::std::Hardware;
+use cubek::std::{
+    Hardware,
+    matmul_axes::{K, M, N},
+};
 use runner::SinkRunner;
 use serde::{Deserialize, Serialize};
 
@@ -49,8 +56,8 @@ use serde::{Deserialize, Serialize};
 pub enum TileFusedMatmulError {
     /// No routine is elected for the product.
     NoRoutineElected,
-    /// A quantized operand, which the fused run does not read yet.
-    QuantizedOperand,
+    /// An operand the routines do not read as it is stored.
+    Operand(Refusal),
     /// The elected routine declined the product, or a sink.
     Routine(Refusal),
     /// The launcher ran the trace twice, and the routine's launch is taken by the first.
@@ -67,7 +74,7 @@ impl core::fmt::Display for TileFusedMatmulError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::NoRoutineElected => write!(f, "no routine is elected for the product"),
-            Self::QuantizedOperand => write!(f, "a quantized operand is not read fused yet"),
+            Self::Operand(why) => write!(f, "an operand is not read as stored: {why:?}"),
             Self::Routine(why) => write!(f, "the routine declined: {why:?}"),
             Self::RanTwice => write!(f, "the launcher ran the trace twice"),
             Self::NotOneBlock { blocks } => write!(f, "the trace holds {blocks} blocks, not one"),
@@ -132,14 +139,14 @@ fn execute_fused(
 ) -> Result<TuneOutput, TraceError<TileFusedMatmulError>> {
     let info = &arg.info;
     let op = &info.matmul.op;
-    let lhs = operand(context, &op.lhs).map_err(TraceError::RunnerError)?;
-    let rhs = operand(context, &op.rhs).map_err(TraceError::RunnerError)?;
+    let lhs = operand(context, &op.lhs, [M, K]).map_err(TraceError::RunnerError)?;
+    let rhs = operand(context, &op.rhs, [K, N]).map_err(TraceError::RunnerError)?;
     let call = MatmulCall {
         hw: Hardware::from_client(&info.client),
         client: info.client.clone(),
         tune_id: CubeTuneId::new(&info.client, &info.device),
-        lhs: MatmulCallInput::plain(lhs),
-        rhs: MatmulCallInput::plain(rhs),
+        lhs,
+        rhs,
         out: dtype_to_storage_type(context.tensors[&op.out.id].dtype),
         routes: None,
         destination: None,
@@ -149,24 +156,61 @@ fn execute_fused(
     )))
 }
 
-/// The operand `tensor` names in the trace, bound where its handle lies.
+/// The operand `tensor` names in the trace, one matrix over `axes`, bound as it is stored where
+/// its handle lies: plain, or, quantized, packed under its scales
+/// ([`PackedTensor::of_quantized`]).
 fn operand(
     context: &Context<CubeFusionHandle>,
     tensor: &TensorIr,
-) -> Result<PlainTensor, TileFusedMatmulError> {
+    axes: [Axis; 2],
+) -> Result<MatmulCallInput, TileFusedMatmulError> {
     let global = &context.tensors[&tensor.id];
-    if let DType::QFloat(_) = global.dtype {
-        return Err(TileFusedMatmulError::QuantizedOperand);
-    }
     let handle = context
         .handles
         .get_handle_ref(&global.id)
-        .expect("a fused product's operand has a handle")
-        .clone();
-    Ok(PlainTensor::new(
-        handle.binding(global.shape.clone()),
-        dtype_to_storage_type(global.dtype),
-    ))
+        .expect("a fused product's operand has a handle");
+    let meta = handle.metadata(global.shape.clone());
+    let values = handle.clone().binding(global.shape.clone());
+    let DType::QFloat(scheme) = global.dtype else {
+        let elem = dtype_to_storage_type(global.dtype);
+        return Ok(MatmulCallInput::plain(PlainTensor::new(values, elem)));
+    };
+    let qparams = handle
+        .qparams
+        .as_ref()
+        .expect("a quantized operand holds its scales");
+    let block_scales = param(handle, &qparams.scales);
+    let global_scale = qparams.global.as_ref().map(|scale| param(handle, scale));
+    let packed = PackedTensor::of_quantized(
+        &handle.client,
+        values,
+        scheme,
+        block_scales,
+        global_scale,
+        axes,
+    )
+    .map_err(TileFusedMatmulError::Operand)?;
+    Ok(MatmulCallInput {
+        tensor: StoredTensor::Packed(packed),
+        meta,
+        framework_dequantize: None,
+    })
+}
+
+/// The quantization parameter `param` of the quantized tensor `handle` holds, bound where it lies
+/// in the tensor's buffer.
+fn param(handle: &CubeFusionHandle, param: &QParamTensor) -> PlainTensor {
+    let mut buffer = handle.handle.clone();
+    buffer.offset_start = Some(param.offset_start as u64);
+    buffer.offset_end = Some(param.offset_end as u64);
+    let meta = &param.metadata;
+    let binding = TensorBinding {
+        handle: buffer.binding(),
+        strides: meta.strides.clone(),
+        shape: meta.shape.clone(),
+        tiling: meta.tiling,
+    };
+    PlainTensor::new(binding, dtype_to_storage_type(param.dtype))
 }
 
 /// A fused product waiting for its routine's launch: the trace runs with the launch storing into
