@@ -395,63 +395,47 @@ impl<N: Numeric> CumulativeOp<N> for MinOp {
     }
 }
 
-/// Generic cumulative operation kernel
+/// Generic cumulative operation kernel: one unit per line along `dim`, scanning it in order.
 ///
-/// # Limitations
-///
-/// This is a **naive sequential implementation** along the cumulative dimension:
-/// - Each output element sequentially reads all previous elements along the dimension
-/// - Computational complexity: O(n^2) memory reads where n is the size of the cumulative dimension
-/// - **Performance:** Suitable for small tensors or small dimensions. For large tensors,
-///   performance will degrade significantly compared to an optimized parallel scan algorithm.
-///
-/// # TODO
-///
-/// Implement an efficient GPU-optimized parallel scan algorithm.
+/// Each unit reads its line once and writes every prefix as it goes, so the work is linear in the
+/// number of elements. The units run in parallel across lines, not along one: a tensor that is a
+/// single long line runs on a single unit.
 #[cube(launch_unchecked, address_type = "dynamic")]
 fn cumulative_kernel<C: Numeric, O: CumulativeOpFamily>(
     input: &Tensor<C>,
-    mut output: LinearViewMut<'_, C>,
+    output: &mut Tensor<C>,
     shape: Sequence<FastDivmod<usize>>,
     #[comptime] dim: usize,
     #[define(C)] _dtype: ElemType,
 ) {
-    if !output.is_in_bounds(ABSOLUTE_POS) {
+    let length = input.shape(dim);
+    if ABSOLUTE_POS >= output.len() / length {
         terminate!();
     }
 
     let rank = comptime![shape.len()];
-    let dim_stride = input.stride(dim);
-
     let mut remainder = ABSOLUTE_POS;
-    let mut offset = 0;
-    let mut dim_idx = 0;
+    let mut input_offset = 0;
+    let mut output_offset = 0;
 
     #[unroll]
     for i in 0..shape.len() {
         let i = comptime![rank - i - 1];
-        let (rem, local_idx) = shape.index(i).div_mod(remainder);
-        remainder = rem;
-        if i == dim {
-            dim_idx = local_idx;
-        } else {
-            offset += local_idx * input.stride(i);
+        if i != dim {
+            let (rem, local_idx) = shape.index(i).div_mod(remainder);
+            remainder = rem;
+            input_offset += local_idx * input.stride(i);
+            output_offset += local_idx * output.stride(i);
         }
     }
 
-    // Read first element
-    let first_read_idx = offset + dim_idx * dim_stride;
-    let first_elem = input[first_read_idx];
-
-    // Initialize accumulator
-    let mut result = O::CumulativeOp::<C>::init_value(first_elem);
-
-    // Accumulate values
-    for i in 0..=dim_idx {
-        let read_idx = offset + i * dim_stride;
-        result = O::CumulativeOp::<C>::execute(result, input[read_idx]);
+    let input_stride = input.stride(dim);
+    let output_stride = output.stride(dim);
+    let mut result = O::CumulativeOp::<C>::init_value(input[input_offset]);
+    for i in 0..length {
+        result = O::CumulativeOp::<C>::execute(result, input[input_offset + i * input_stride]);
+        output[output_offset + i * output_stride] = result;
     }
-    output.write(ABSOLUTE_POS, result);
 }
 
 /// Compute the cumulative sum along a dimension
@@ -481,8 +465,12 @@ fn cumulative_op<O: CumulativeOpFamily>(input: CubeTensor, dim: usize) -> CubeTe
 
     let output = empty_device_dtype(client.clone(), device, input.shape(), input.dtype);
 
-    let num_elems = output.meta.num_elements();
-    let working_units = num_elems;
+    // One unit per line along `dim`; an empty tensor has none.
+    let working_units = output
+        .meta
+        .num_elements()
+        .checked_div(input.shape()[dim])
+        .unwrap_or(0);
     let cube_dim = CubeDim::new(&client, working_units);
     let cube_count = calculate_cube_count_elemwise(&client, working_units, cube_dim);
     let shape = shape_divmod(&input);
@@ -494,7 +482,7 @@ fn cumulative_op<O: CumulativeOpFamily>(input: CubeTensor, dim: usize) -> CubeTe
             cube_dim,
             address_type!(input, output),
             input.into_tensor_arg(),
-            output.clone().into_linear_view(),
+            output.clone().into_tensor_arg(),
             shape,
             dim,
             dtype_to_storage_type(output.dtype),
