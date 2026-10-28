@@ -148,8 +148,10 @@ See [runtime configuration](./advanced/runtime-configuration.md#cubek-matmul-pre
 
 Models can now be split across devices by layer, enabling training and inference with models that
 exceed a single device's memory. The new `LayerParallelism` trait and `DistributedLayeredModel`
-wrapper support sequential execution, transferring activations between devices. Pipeline scheduling
-and `Learner` integration are not included. ([#5702](https://github.com/tracel-ai/burn/pull/5702))
+wrapper support sequential execution, transferring activations between devices.
+`DistributedLayeredModel::forward_microbatched` runs inference microbatches with a thread per stage,
+so the stages overlap. Training schedules and `Learner` integration are not included.
+([#5702](https://github.com/tracel-ai/burn/pull/5702))
 [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
 
 #### Distributed collectives

@@ -85,6 +85,36 @@ fn a_model_split_across_two_devices_computes_what_one_device_does() {
         .assert_approx_eq::<f32>(&expected.into_data(), Tolerance::default());
 }
 
+#[test]
+fn microbatches_run_stage_by_stage_come_back_in_order_as_the_plain_forward_computes_them() {
+    let (flex, cpu) = devices();
+    let stages =
+        [(flex.clone(), 2), (cpu, 1), (flex.clone(), 1)].map(|(device, num_hidden_layers)| {
+            LayerStage {
+                device,
+                num_hidden_layers,
+            }
+        });
+    let placement = LayerPlacement::new(&stages);
+    let model = DistributedLayeredModel::new(Stack::new(&placement), &placement);
+    let inputs: Vec<Tensor<2>> = (0..5)
+        .map(|_| Tensor::random([3, WIDTH], Distribution::Default, &flex))
+        .collect();
+    let expected: Vec<Tensor<2>> = inputs
+        .iter()
+        .map(|input| model.forward(input.clone()))
+        .collect();
+
+    let outputs = model.forward_microbatched(inputs);
+
+    assert_eq!(outputs.len(), expected.len());
+    for (output, expected) in outputs.into_iter().zip(expected) {
+        output
+            .into_data()
+            .assert_approx_eq::<f32>(&expected.into_data(), Tolerance::default());
+    }
+}
+
 #[cfg(feature = "autodiff")]
 #[test]
 fn gradients_of_a_split_model_match_the_gradients_on_one_device() {

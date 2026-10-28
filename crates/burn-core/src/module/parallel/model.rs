@@ -2,7 +2,10 @@ use alloc::vec::Vec;
 
 use burn_tensor::Device;
 
-use super::{DistributedLayer, LayerParallelism, LayerPlacement, LayerSequence, LayerStage};
+use super::{
+    DistributedLayer, HiddenLayerSignal, LayerParallelism, LayerPlacement, LayerSequence,
+    LayerStage,
+};
 use crate::module::{Devices, Module, ModuleMapper, ModuleVisitor};
 
 /// A [`LayerParallelism`] model split across devices, holding where each of its layers runs so
@@ -178,6 +181,17 @@ pub struct HeldStage<M: LayerParallelism> {
     pub device: Device,
     /// The stage's hidden layers, in forward order.
     pub layers: Vec<M::HiddenLayer>,
+}
+
+impl<M: LayerParallelism> HeldStage<M> {
+    /// Run the stage's layers in order on its device, `signal` moved there first.
+    pub fn forward(&self, signal: HiddenLayerSignal<M>) -> HiddenLayerSignal<M> {
+        self.layers
+            .iter()
+            .fold(signal.to_device(&self.device), |signal, layer| {
+                layer.forward(signal)
+            })
+    }
 }
 
 /// `layers` as stage `index`, checked to be on the stage's device.

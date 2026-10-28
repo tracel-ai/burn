@@ -155,7 +155,11 @@ device, where the optimizer updates it. The loss runs on the output layer's devi
 - **Split an existing model with `fork`, not `to_device`.** A moved parameter is no longer a leaf, so
   it gets no gradient and the optimizer skips it.
 
-Layers run one after another, so this buys capacity rather than speed. The `layer-parallelism-text`
+Layers run one after another, so `forward` buys capacity rather than speed. For inference,
+`forward_microbatched` takes a batch already cut into microbatches and runs each stage on a thread of
+its own, so one device works on a microbatch while the next works on the one before. It pays most
+where moving between devices blocks the thread that issues it, as a copy between two runtimes does.
+Training still runs layer by layer. The `layer-parallelism-text`
 example splits the transformer the `text-classification` example trains, checks it against the
 single-device model, and fine-tunes it through the split.
 

@@ -2,6 +2,8 @@
 
 mod base;
 mod layer;
+#[cfg(feature = "std")]
+mod microbatch;
 mod model;
 mod placement;
 
