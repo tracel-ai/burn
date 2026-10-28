@@ -607,9 +607,7 @@ one of `output_size` or `scale_factor` must be set; `forward` panics otherwise.
 | `scale_factor`  | `Option<f32>` / `Option<[f32; 2]>`     | `None`    | Output is `floor(input * scale_factor)`        |
 | `mode`          | `InterpolateMode`                      | `Nearest` | Interpolation algorithm                        |
 
-`Nearest` uses asymmetric coordinates and floor rounding. `NearestExact` uses half-pixel
-coordinates and rounds ties upward. These modes have no overrides. Linear, cubic and Lanczos
-modes carry their coordinate transform; cubic also carries its coefficient `a`:
+Algorithm-specific settings belong to the `InterpolateMode` variants:
 
 ```rust,ignore
 Interpolate2dConfig::new()
@@ -620,11 +618,6 @@ Interpolate2dConfig::new()
     })
     .init();
 ```
-
-Use `AlignCorners` to align the first and last pixel centers, or `HalfPixel` for resizing without
-corner alignment. `Asymmetric` coordinates for non-nearest modes and cubic coefficients other
-than `-0.75` require Flex. On CubeCL, explicit scales must exactly match the resolved output/input
-ratios unless using `AlignCorners`.
 
 ### RNNs
 
