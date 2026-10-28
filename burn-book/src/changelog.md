@@ -83,8 +83,11 @@ positions when sequence lengths differ.
   [@EthanAlmloff](https://github.com/EthanAlmloff)
 - Enable CUDA tensor-core acceleration on Blackwell and Blackwell Ultra GPUs, including B300.
   ([#6161](https://github.com/tracel-ai/burn/pull/6161))
-- Improve CubeCL CPU matrix multiplication by selecting tile sizes that fit the vector width.
-  ([#6177](https://github.com/tracel-ai/burn/pull/6177))
+- Improve CubeCL CPU matrix multiplication by selecting tile sizes that fit the vector width
+  and using GEMM settings tailored to CPU hardware.
+  ([#6177](https://github.com/tracel-ai/burn/pull/6177),
+  [#6245](https://github.com/tracel-ai/burn/pull/6245))
+  [@Charles23R](https://github.com/Charles23R)
 - Speed up CubeCL `conv_transpose3d` and reduce Flex `conv2d` memory use and layout conversions.
   ([#5793](https://github.com/tracel-ai/burn/pull/5793),
   [#6075](https://github.com/tracel-ai/burn/pull/6075))
@@ -103,12 +106,14 @@ positions when sequence lengths differ.
   ([#6193](https://github.com/tracel-ai/burn/pull/6193),
   [#6199](https://github.com/tracel-ai/burn/pull/6199),
   [#6246](https://github.com/tracel-ai/burn/pull/6246)) [@louisfd](https://github.com/louisfd)
-- Add the experimental `attention-backward` feature: attention's backward pass runs as CubeCL
-  kernels from the forward's saved logsumexp, rather than autodiff over the decomposed attention.
-  The kernels take attention without a mask, bias or softcap, causal or not; a softcap or a
-  top-left causal mask over sequences of different lengths is composed from tensor operations,
-  and a mask or an additive bias keeps the decomposed gradients. Backends can provide their own
-  through `ModuleOps::attention_with_logsumexp` and `ModuleOps::attention_backward`. [@louisfd](https://github.com/louisfd)
+- Run attention's backward pass on CubeCL backends as CubeK kernels from the forward's saved
+  logsumexp, rather than autodiff over the decomposed attention. The kernels take f32, f16 and
+  bf16 attention without a mask, bias or softcap, causal or not; a softcap, a top-left causal
+  mask over sequences of different lengths or an element the kernels do not take is composed from
+  tensor operations, and a mask or an additive bias keeps the decomposed gradients. Autotune
+  may pick a routine that sums the query gradient with atomic adds, so its last bits can differ
+  from run to run. Backends can provide their own through `ModuleOps::attention_with_logsumexp`
+  and `ModuleOps::attention_backward`. [@louisfd](https://github.com/louisfd)
 
 #### Compilation and autotuning
 
@@ -285,6 +290,9 @@ loading those checkpoints by filtering to `linear_inner` and `linear_outer`.
 - Correct BLEU and ROUGE-L scores and prevent panics when prediction and reference sequence lengths
   differ. ([#6242](https://github.com/tracel-ai/burn/pull/6242))
   [@onenewcode](https://github.com/onenewcode)
+- Fix `BleuScore` running and final values to use corpus-wide statistics instead of averaging batch
+  scores. ([#6240](https://github.com/tracel-ai/burn/pull/6240))
+  [@Arc000007](https://github.com/Arc000007)
 - Fix CPU non-maximum-suppression results and restore GPU acceleration for connected components.
   ([#6019](https://github.com/tracel-ai/burn/pull/6019),
   [#6003](https://github.com/tracel-ai/burn/pull/6003))
@@ -315,7 +323,8 @@ loading those checkpoints by filtering to `linear_inner` and `linear_outer`.
 - Add `Tensor::round_to(decimals)` for rounding to a specified number of decimal places.
   ([#5842](https://github.com/tracel-ai/burn/pull/5842))
 - Add dilation to average pooling with `AvgPoolOptions::with_dilation`, matching max pooling.
-  `count_include_pad` counts the dilated taps that land in padding. **Breaking:** Add
+  CubeCL backends use CubeK kernels for dilated 1D/2D average pooling, preserving the NHWC layout
+  optimization. `count_include_pad` counts the dilated taps that land in padding. **Breaking:** Add
   `dilation: [1; N]` to `AvgPoolOptions` struct literals. **Breaking for third-party backends:**
   The `ModuleOps` average pooling methods and their backward passes take a `dilation` argument after
   `padding`, as do `module::avg_pool2d_backward` and `module::avg_pool3d_backward`.
@@ -329,12 +338,19 @@ loading those checkpoints by filtering to `linear_inner` and `linear_outer`.
   `bool_scatter_nd` and `bool_gather_nd` methods.
   ([#6035](https://github.com/tracel-ai/burn/pull/6035),
   [#6047](https://github.com/tracel-ai/burn/pull/6047))
+- Add `Device::memory_capacity()` to query the runtime-reported capacity in bytes for workload
+  sizing. The value is distinct from currently free memory; backends without a reported capacity
+  return `None`. ([#6250](https://github.com/tracel-ai/burn/pull/6250))
+  [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
 - Add dtype-aware `TensorData::random_dtype`, `zeros_dtype`, and `ones_dtype` constructors.
   ([#6088](https://github.com/tracel-ai/burn/pull/6088))
 - Add `Tolerance::get_relative()` and `get_absolute()` accessors.
   ([#6087](https://github.com/tracel-ai/burn/pull/6087)) [@laggui](https://github.com/laggui)
 - Add `CaptureScope::input`, `CaptureScope::complete_with`, and `Tensor::capture_id` helpers for
   declaring graph inputs and outputs. ([#5990](https://github.com/tracel-ai/burn/pull/5990))
+- Add `Graph::capture_error`, which reports why a graph replays by re-running its closure, for
+  example an allocation that grew the memory pool inside the capture window.
+  ([#6255](https://github.com/tracel-ai/burn/pull/6255))
 
 #### Fusion and correctness fixes
 
@@ -406,6 +422,16 @@ let pack_tensor = tensor.into_pack();
   [#6113](https://github.com/tracel-ai/burn/pull/6113))
 
 ### Extensions
+
+#### Vision
+
+- Speed up Flex CPU median blur for F16, BF16, F32, F64, and integer tensors by selecting
+  neighborhood medians without stacking the images. U8, I8, and exact normalized RGB8 inputs
+  use sliding histograms for larger filters. Floating-point autodiff uses the selected source
+  pixels for backward. `median` and `MedianBlur` now also accept `Tensor<4, Int>` images;
+  specify `Tensor::<4>` on float constructors if their kind was previously inferred from these calls.
+  ([#6219](https://github.com/tracel-ai/burn/pull/6219))
+  [@Mikyx-1](https://github.com/Mikyx-1)
 
 #### Batched linear solves
 

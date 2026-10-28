@@ -26,3 +26,10 @@ We have crafted some sections for you:
 As this book is geared towards contributors and not towards users of Burn, we'll assume you have a
 good understanding of software development, but will make efforts to explain anything outside of
 that scope, or at least provide links to resources that explain it better than we can.
+
+## License
+
+Unless otherwise noted, this book and its code examples are licensed under either the
+[MIT License](https://github.com/tracel-ai/burn/blob/main/LICENSE-MIT) or the
+[Apache License, Version 2.0](https://github.com/tracel-ai/burn/blob/main/LICENSE-APACHE).
+See the licenses for details.

@@ -1,7 +1,6 @@
-use super::state::{FormatOptions, NumericMetricState};
 use super::{MetricMetadata, SerializedEntry};
 use crate::metric::{
-    Metric, MetricAttributes, MetricName, Numeric, NumericAttributes, NumericEntry,
+    Metric, MetricAttributes, MetricName, Numeric, NumericAttributes, NumericEntry, format_float,
 };
 use burn_core::tensor::{Int, Tensor, TensorReadError};
 use std::collections::HashMap;
@@ -36,6 +35,117 @@ pub enum BleuSmoothing {
     Exponential,
 }
 
+#[derive(Clone)]
+struct BleuState {
+    clipped_counts: Vec<usize>,
+    total_counts: Vec<usize>,
+    candidate_len: usize,
+    reference_len: usize,
+    running_count: usize,
+    current_value: f64,
+    current_count: usize,
+}
+
+impl BleuState {
+    fn new(max_n: usize) -> Self {
+        Self {
+            clipped_counts: vec![0; max_n],
+            total_counts: vec![0; max_n],
+            candidate_len: 0,
+            reference_len: 0,
+            running_count: 0,
+            current_value: f64::NAN,
+            current_count: 0,
+        }
+    }
+
+    fn update(
+        &mut self,
+        clipped_counts: &[usize],
+        total_counts: &[usize],
+        candidate_len: usize,
+        reference_len: usize,
+        batch_size: usize,
+        smoothing: &BleuSmoothing,
+    ) {
+        self.current_value = corpus_bleu(
+            clipped_counts,
+            total_counts,
+            candidate_len,
+            reference_len,
+            self.total_counts.len(),
+            smoothing,
+        );
+        self.current_count = batch_size;
+
+        for (total, batch) in self.clipped_counts.iter_mut().zip(clipped_counts) {
+            *total += batch;
+        }
+        for (total, batch) in self.total_counts.iter_mut().zip(total_counts) {
+            *total += batch;
+        }
+        self.candidate_len += candidate_len;
+        self.reference_len += reference_len;
+        self.running_count += batch_size;
+    }
+
+    fn running_score(&self, smoothing: &BleuSmoothing) -> f64 {
+        corpus_bleu(
+            &self.clipped_counts,
+            &self.total_counts,
+            self.candidate_len,
+            self.reference_len,
+            self.total_counts.len(),
+            smoothing,
+        )
+    }
+
+    fn current_value(&self) -> NumericEntry {
+        NumericEntry::Aggregated {
+            aggregated_value: self.current_value,
+            count: self.current_count,
+        }
+    }
+
+    fn running_value(&self, smoothing: &BleuSmoothing) -> NumericEntry {
+        NumericEntry::Aggregated {
+            aggregated_value: self.running_score(smoothing),
+            count: self.running_count,
+        }
+    }
+
+    fn final_value(&self, smoothing: &BleuSmoothing) -> NumericEntry {
+        NumericEntry::Final(self.running_score(smoothing))
+    }
+
+    fn compute_update(&self, smoothing: &BleuSmoothing) -> SerializedEntry {
+        self.serialized_entry(self.current_value(), smoothing)
+    }
+
+    fn compute_final(&self, smoothing: &BleuSmoothing) -> SerializedEntry {
+        self.serialized_entry(self.final_value(smoothing), smoothing)
+    }
+
+    fn serialized_entry(&self, value: NumericEntry, smoothing: &BleuSmoothing) -> SerializedEntry {
+        let epoch = format_float(self.running_score(smoothing), 2);
+        let batch = format_float(self.current_value, 2);
+        SerializedEntry::new(
+            format!("epoch {epoch} % - batch {batch} %"),
+            value.serialize(),
+        )
+    }
+
+    fn clear(&mut self) {
+        self.clipped_counts.fill(0);
+        self.total_counts.fill(0);
+        self.candidate_len = 0;
+        self.reference_len = 0;
+        self.running_count = 0;
+        self.current_value = f64::NAN;
+        self.current_count = 0;
+    }
+}
+
 /// Computes the BLEU (Bilingual Evaluation Understudy) score between predicted
 /// and reference token sequences.
 ///
@@ -54,10 +164,8 @@ pub enum BleuSmoothing {
 /// sentences and computes a single corpus-style BLEU score, following the
 /// same pattern CER/WER use for edit-distance aggregation.
 ///
-/// Epoch-level (running) aggregation averages these batch scores, which is
-/// slightly inaccurate compared to true corpus BLEU. Correct corpus-level
-/// accumulation would require a custom metric state; a TODO is left for
-/// future work.
+/// Epoch-level (running) aggregation uses corpus-wide n-gram counts and token
+/// lengths, matching corpus BLEU across all updates.
 ///
 /// # References
 ///
@@ -69,10 +177,10 @@ pub enum BleuSmoothing {
 #[derive(Clone)]
 pub struct BleuScore {
     name: MetricName,
-    state: NumericMetricState,
     max_n: usize,
     pad_token: Option<usize>,
     smoothing: BleuSmoothing,
+    state: BleuState,
 }
 
 /// The [BLEU score metric](BleuScore) input type.
@@ -103,10 +211,10 @@ impl BleuScore {
         assert!(max_n >= 1, "max_n must be at least 1");
         Self {
             name: Arc::new(format!("BLEU-{max_n}")),
-            state: NumericMetricState::default(),
             max_n,
             pad_token: None,
             smoothing: BleuSmoothing::default(),
+            state: BleuState::new(max_n),
         }
     }
 
@@ -285,33 +393,23 @@ impl Metric for BleuScore {
             }
         }
 
-        let value = corpus_bleu(
+        self.state.update(
             &clipped_counts,
             &total_counts,
             total_candidate_len,
             total_reference_len,
-            self.max_n,
+            batch_size,
             &self.smoothing,
         );
-
-        // TODO: Epoch-level aggregation averages batch BLEU scores, which is
-        // slightly inaccurate compared to true corpus BLEU. Correct
-        // accumulation would require a custom metric state that tracks raw
-        // n-gram counts across batches.
-        self.state.update(value, batch_size);
-        Ok(self
-            .state
-            .compute_update(FormatOptions::new(self.name()).unit("%").precision(2)))
+        Ok(self.state.compute_update(&self.smoothing))
     }
 
     fn compute(&mut self) -> Result<SerializedEntry, TensorReadError> {
-        Ok(self
-            .state
-            .compute_final(FormatOptions::new(self.name()).unit("%").precision(2)))
+        Ok(self.state.compute_final(&self.smoothing))
     }
 
     fn clear(&mut self) {
-        self.state.reset();
+        self.state.clear();
     }
 
     fn name(&self) -> MetricName {
@@ -333,11 +431,11 @@ impl Numeric for BleuScore {
     }
 
     fn running_value(&self) -> Option<NumericEntry> {
-        Some(self.state.running_value())
+        Some(self.state.running_value(&self.smoothing))
     }
 
     fn final_value(&self) -> NumericEntry {
-        self.state.final_value()
+        self.state.final_value(&self.smoothing)
     }
 }
 
@@ -453,6 +551,49 @@ mod tests {
             .unwrap();
 
         assert!((metric.value().unwrap().current() - 50.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn test_bleu_running_value_uses_corpus_counts_across_batches() {
+        let device = Default::default();
+        let mut metric = BleuScore::with_max_n(1);
+
+        metric
+            .update(
+                &BleuInput::new(
+                    Tensor::from_data([[1]], &device),
+                    Tensor::from_data([[1]], &device),
+                ),
+                &MetricMetadata::fake(),
+            )
+            .unwrap();
+        metric
+            .update(
+                &BleuInput::new(
+                    Tensor::from_data(
+                        [
+                            [11, 12, 13, 14, 15, 16, 17, 18, 19, 20],
+                            [21, 22, 23, 24, 25, 26, 27, 28, 29, 30],
+                            [31, 32, 33, 34, 35, 36, 37, 38, 39, 40],
+                        ],
+                        &device,
+                    ),
+                    Tensor::from_data(
+                        [
+                            [41, 42, 43, 44, 45, 46, 47, 48, 49, 50],
+                            [51, 52, 53, 54, 55, 56, 57, 58, 59, 60],
+                            [61, 62, 63, 64, 65, 66, 67, 68, 69, 70],
+                        ],
+                        &device,
+                    ),
+                ),
+                &MetricMetadata::fake(),
+            )
+            .unwrap();
+
+        let expected = 100.0 / 31.0;
+        assert!((metric.running_value().unwrap().current() - expected).abs() < 1e-6);
+        assert!((metric.final_value().current() - expected).abs() < 1e-6);
     }
 
     /// `clear()` must reset the running statistics.

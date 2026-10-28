@@ -174,6 +174,13 @@ pub trait Backend:
         None
     }
 
+    /// How many bytes the device can hold at once, as its runtime states it. `None` on a backend
+    /// that states no figure.
+    #[allow(unused_variables)]
+    fn memory_capacity(device: &Self::Device) -> Option<u64> {
+        None
+    }
+
     /// Name of the backend.
     fn name(device: &Self::Device) -> String;
 

@@ -1,11 +1,9 @@
-//! Matmul autotune over cubek's tile-DSL routines alone ([`cubek::matmul::kernels`]): what the
-//! `tile-kernels-only` feature races instead of the multi-level candidates. A product no routine
-//! serves fails rather than falling back, so a test run lists what they don't serve yet.
-//!
-//! A quantized input races two ways: read as it is stored, packed under its scales, by the
-//! routines at the settings they list for packed inputs; and dequantized into the output's
-//! element first, by every float routine. A scheme or a layout the packed routines do not read
-//! is served by the second.
+//! Matmul over cubek's tile-DSL routines alone ([`cubek::matmul::kernels`]): what the
+//! `tile-kernels-only` feature runs instead of the multi-level candidates. cubek's selection plans
+//! the product under autotune: the few-rows or the many-rows table its rows go to, a quantized input
+//! read as stored by the routines listed for it or decoded first, and a scheme none reads
+//! dequantized here first. A product no routine serves fails rather than falling back, so a test run
+//! lists what they don't serve yet.
 
 use crate::{
     CubeTuneId,
@@ -15,27 +13,29 @@ use crate::{
 };
 use burn_backend::DType;
 use burn_backend::cubecl::dtype_to_storage_type;
-use cubecl::throughput::MemoryAccess;
-use cubecl::tune::{LocalTuner, Tunable, TunableSet, local_tuner};
-use cubek::matmul::definition::{MatmulCost, MatmulGlobalElems};
+use cubecl::std::tensor::TensorHandle;
+use cubecl::tile::Axis;
 use cubek::matmul::kernels::{
-    CubeShuffleMatmulRoutine, CubeStagedMatmulRoutine, HypercubeLastArrivalMatmulRoutine,
-    MatmulPackedCandidate, MatmulRoutine, MatmulRoutineCandidate, PlaneShuffleMatmulRoutine,
-    UnitRegistersMatmulRoutine, UnitWholeKMatmulRoutine,
-    select::problem::OperandKind,
-    tensor::StoredTensor,
-    tune::key::{MatmulTuneKey, create_key},
+    MatmulOpStrategy,
+    plan::{FrameworkDequantize, MatmulCall, MatmulCallInput},
+    select::{problem::MatmulProblem, selector::select},
+    tune::MatmulTableGroups,
 };
-use cubek::microkernel::matmul::MatmulMicrokernel;
 use cubek::std::{
     Hardware,
-    autotune::{Autotune, Ceiling, GroupPriority, Roofline},
     matmul_axes::{K, M, N},
+    plan::Plan,
 };
+use std::sync::Arc;
 
 type Inputs = (CubeTensor, CubeTensor, CubeTensor);
 
-/// Executes autotune on matmul operations, over cubek's tile-DSL routines alone.
+/// Executes autotune on matmul operations, over cubek's tile-DSL routines alone: the plan cubek's
+/// selection gives, written into `out` or into an output allocated here.
+///
+/// # Panics
+///
+/// On a product no routine serves.
 pub fn matmul_autotune(
     lhs: CubeTensor,
     rhs: CubeTensor,
@@ -48,22 +48,39 @@ pub fn matmul_autotune(
         return output;
     }
 
-    static TUNER: LocalTuner<MatmulTuneKey, CubeTuneId> = local_tuner!("tile-kernels");
-
-    let client = lhs.client.clone();
-    let tune_client = client.clone();
-    let tune_id = CubeTuneId::new(&lhs.client, &lhs.device);
-    let tunables = TUNER.init(&tune_id, move || {
-        candidates(&Hardware::from_client(&tune_client))
-    });
-
-    TUNER.execute(
-        &tune_id,
-        &client,
-        tunables,
-        run_as((lhs, rhs, output.clone())),
+    let (lhs, rhs, launched) = run_as((lhs, rhs, output.clone()));
+    let hw = Hardware::from_client(&lhs.client);
+    let (client, tune_id) = (
+        lhs.client.clone(),
+        CubeTuneId::new(&lhs.client, &lhs.device),
     );
-
+    let (lhs_shape, rhs_shape) = (lhs.meta.shape().clone(), rhs.meta.shape().clone());
+    let lhs = call_input(lhs, [M, K], out_dtype);
+    let rhs = call_input(rhs, [K, N], out_dtype);
+    let problem = MatmulProblem::new(
+        (&lhs_shape, lhs.tensor.kind()),
+        (&rhs_shape, rhs.tensor.kind()),
+    );
+    let plan = select(
+        MatmulOpStrategy::Autotune,
+        &problem,
+        &hw,
+        MatmulTableGroups::default(),
+    )
+    .unwrap_or_else(|why| panic!("cubek's selection refuses this product: {why}"));
+    let call = MatmulCall {
+        hw,
+        client,
+        tune_id,
+        lhs,
+        rhs,
+        out: dtype_to_storage_type(out_dtype),
+        routes: None,
+        destination: Some(handle_of(launched)),
+    };
+    plan.launch(&call).unwrap_or_else(|declined| {
+        panic!("no tile-kernel routine serves this product: {declined}")
+    });
     output
 }
 
@@ -88,172 +105,39 @@ fn run_as((lhs, rhs, out): Inputs) -> Inputs {
     (transposed(rhs), transposed(lhs), transposed(out))
 }
 
-/// Every routine's settings in one group, all of them raced in one round, and the unit routine's
-/// lead under them, which serves any product on any device. Not the relay hypercube routine: its
-/// cubes wait on each other. The routines that read a packed input as it is stored race at the
-/// settings they list for one, first on a quantized product; the float settings decode it first.
+/// `tensor`, the input stated over `axes`, as cubek's plan reads it: as stored, and dequantized
+/// into `out` by burn's dequantize where a plan reaches for it. A quantized input the routines
+/// cannot state as stored is dequantized here first, and the plan reads a float input.
 ///
-/// The round tries the candidates in the order their cubes suit the problem, and stops at the
-/// first one close enough to the problem's roofline ([`roofline`]), as the multi-level autotune's
-/// does: the candidates after it are never compiled.
-fn candidates(hw: &Hardware) -> TunableSet<MatmulTuneKey, Inputs, ()> {
-    let mut autotune = Autotune::new(key).bounded(roofline);
-    let routines = autotune.group("tile-kernels", GroupPriority::DEFAULT);
-    let lead = MatmulRoutineCandidate::list(UnitRegistersMatmulRoutine, hw).swap_remove(0);
-    autotune
-        .prioritized(
-            &routines,
-            MatmulRoutineCandidate::list(PlaneShuffleMatmulRoutine, hw),
-            launch,
-        )
-        .prioritized(
-            &routines,
-            MatmulRoutineCandidate::list(CubeShuffleMatmulRoutine, hw),
-            launch,
-        )
-        .prioritized(
-            &routines,
-            MatmulRoutineCandidate::list(UnitWholeKMatmulRoutine, hw),
-            launch,
-        )
-        .prioritized(
-            &routines,
-            MatmulRoutineCandidate::list(CubeStagedMatmulRoutine, hw),
-            launch,
-        )
-        .prioritized(
-            &routines,
-            MatmulRoutineCandidate::list(HypercubeLastArrivalMatmulRoutine, hw),
-            launch,
-        )
-        .prioritized(
-            &routines,
-            MatmulRoutineCandidate::list(UnitRegistersMatmulRoutine, hw),
-            launch,
-        )
-        .prioritized(
-            &routines,
-            MatmulPackedCandidate::of(
-                PlaneShuffleMatmulRoutine,
-                PlaneShuffleMatmulRoutine.packed_settings(),
-                hw,
-            ),
-            launch_packed,
-        )
-        .prioritized(
-            &routines,
-            MatmulPackedCandidate::of(
-                CubeShuffleMatmulRoutine,
-                CubeShuffleMatmulRoutine.packed_settings(hw),
-                hw,
-            ),
-            launch_packed,
-        )
-        .prioritized(
-            &routines,
-            MatmulPackedCandidate::of(
-                CubeStagedMatmulRoutine,
-                CubeStagedMatmulRoutine.packed_settings(hw),
-                hw,
-            ),
-            launch_packed,
-        )
-        .floor(Tunable::new(
-            "unit-registers-lead",
-            move |inputs: Inputs| launch(&lead, inputs),
-        ))
-        .finish()
-}
-
-/// `lhs · rhs` written into `out` by `candidate`'s float routine at its setting, a quantized input
-/// dequantized into the output's element first, or why it did not run.
-fn launch<R, M: MatmulMicrokernel, SM: PartialEq + Clone + 'static>(
-    candidate: &MatmulRoutineCandidate<R>,
-    (lhs, rhs, out): Inputs,
-) -> Result<(), String>
-where
-    R: MatmulRoutine<M, SM> + Copy,
-{
-    let client = out.client.clone();
-    let lhs = StoredTensor::Plain(dequantize(lhs, out.dtype).plain());
-    let rhs = StoredTensor::Plain(dequantize(rhs, out.dtype).plain());
-    candidate
-        .launch_into(&client, lhs, rhs, out.plain())
-        .map_err(|why| {
-            let settings = candidate.settings();
-            format!("{settings} does not serve this problem: {why:?}")
-        })
-}
-
-/// `lhs · rhs` written into `out` by `candidate`'s routine at a setting it lists for a packed
-/// input, each input read as it is stored ([`CubeTensor::stored`]), or why it did not run.
-fn launch_packed<R, M: MatmulMicrokernel, SM>(
-    candidate: &MatmulPackedCandidate<R>,
-    (lhs, rhs, out): Inputs,
-) -> Result<(), String>
-where
-    R: MatmulRoutine<M, SM> + Copy,
-{
-    let client = out.client.clone();
-    let declined = |why| {
-        let settings = candidate.settings();
-        format!("{settings} does not serve this packed problem: {why:?}")
-    };
-    let lhs = lhs.stored([M, K]).map_err(declined)?;
-    let rhs = rhs.stored([K, N]).map_err(declined)?;
-    candidate
-        .launch_into(&client, lhs, rhs, out.plain())
-        .map_err(declined)
-}
-
-/// What `lhs · rhs` costs at least: its operations against the instruction its elements run on,
-/// and its compulsory bytes against the bus in the direction most of them go, whichever is slower
-/// for the problem. A quantized input is counted at the output's element, which it is multiplied
-/// in.
+/// # Panics
 ///
-/// A product of few rows reads far more than it writes, and streams past a copy's bandwidth: a
-/// bound at the copy would end the round at a candidate a fraction of the bus behind the best.
-fn roofline(_key: &MatmulTuneKey, (lhs, rhs, out): &Inputs) -> Roofline {
-    let (lhs_shape, rhs_shape) = (lhs.meta.shape(), rhs.meta.shape());
-    let elem = |tensor: &CubeTensor| match tensor.try_scheme() {
-        Some(_) => dtype_to_storage_type(out.dtype),
-        None => dtype_to_storage_type(tensor.dtype),
-    };
-    let rank = lhs_shape.len();
-    let cost = MatmulCost {
-        batches: out.meta.shape()[..rank - 2].iter().product(),
-        m: lhs_shape[rank - 2],
-        k: lhs_shape[rank - 1],
-        n: rhs_shape[rank - 1],
-        elems: MatmulGlobalElems {
-            lhs: elem(lhs),
-            rhs: elem(rhs),
-            out: dtype_to_storage_type(out.dtype),
+/// On a float input stored in a way the routines cannot state.
+fn call_input(tensor: CubeTensor, axes: [Axis; 2], out: DType) -> MatmulCallInput {
+    let quantized = tensor.try_scheme().is_some();
+    let framework_dequantize = quantized.then(|| {
+        let packed = tensor.clone();
+        Arc::new(move || Ok(dequantize(packed.clone(), out).plain())) as FrameworkDequantize
+    });
+    let meta = (*tensor.meta).clone();
+    match tensor.clone().stored(axes) {
+        Ok(stored) => MatmulCallInput {
+            tensor: stored,
+            meta,
+            framework_dequantize,
         },
-    };
-    let (read, written) = cost.traffic();
-    let memory = match read >= written {
-        true => MemoryAccess::Read,
-        false => MemoryAccess::Write,
-    };
-    Roofline {
-        client: out.client.clone(),
-        ceiling: Ceiling::Either {
-            compute: cost.compute_key(&out.client),
-            memory,
-        },
-        work: cost.work(),
+        Err(_) if quantized => MatmulCallInput::plain(dequantize(tensor, out).plain()),
+        Err(why) => panic!("the routines read no such input: {why:?}"),
     }
 }
 
-fn key((lhs, rhs, out): &Inputs) -> MatmulTuneKey {
-    let kind = |tensor: &CubeTensor| match tensor.try_scheme() {
-        Some(scheme) => OperandKind::Quantized(*scheme),
-        None => OperandKind::Float,
-    };
-    create_key(
-        dtype_to_storage_type(out.dtype),
-        (&lhs.meta, kind(lhs)),
-        (&rhs.meta, kind(rhs)),
+/// `tensor`'s buffer under its shape and strides, the output a plan writes into.
+fn handle_of(tensor: CubeTensor) -> TensorHandle {
+    let shape = tensor.meta.shape().clone();
+    let strides = tensor.meta.strides().clone();
+    TensorHandle::new(
+        tensor.handle,
+        shape,
+        strides,
+        dtype_to_storage_type(tensor.dtype),
     )
 }

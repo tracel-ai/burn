@@ -63,12 +63,9 @@ autotune = ["burn-cubecl-fusion?/autotune"]
 autotune-checks = [
     "autotune",
     "cubecl/autotune-checks",
+    "cubek/autotune-checks",
     "burn-cubecl-fusion?/autotune-checks",
 ]
-
-# Attention's backward pass through cubek's tile-DSL routines, for training: autodiff runs it
-# instead of differentiating the decomposed attention, where it serves the attention.
-attention-backward = ["cubek/attention-backward", "cubek/attention-tiled"]
 
 # Autotune races only cubek's tile-DSL matmul and attention routines, never the multi-level ones
 # or the old attention: an input they don't serve fails instead of falling back. For measuring
@@ -76,7 +73,6 @@ attention-backward = ["cubek/attention-backward", "cubek/attention-tiled"]
 tile-kernels-only = [
     "autotune",
     "cubek/microkernel",
-    "cubek/attention-tiled",
     "burn-cubecl-fusion?/tile-kernels-only",
 ]
 
@@ -100,6 +96,8 @@ burn-backend = { workspace = true, features = [
 cubecl = { workspace = true, features = ["stdlib"] }
 cubek = { workspace = true, features = [
     "attention",
+    "attention-tiled",
+    "attention-backward",
     "matmul",
     "matmul-multi-level",
     "matmul-tiled",
