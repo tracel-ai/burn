@@ -51,6 +51,13 @@ Reports also include the measured cost of a kernel launch.
   `partly fused ↓` instead of a percentage far past the peak. `FusedElsewhere::contains` is replaced
   by `share`, which returns a `FusedShare`. ([#6222](https://github.com/tracel-ai/burn/pull/6222))
   [@nathanielsimard](https://github.com/nathanielsimard)
+- `Report::components` and `Report::unclaimed` return each component as the report's table reads
+  it — its path, its time, its share of the work (a `WorkShare`) and of the host, how much of it
+  fused elsewhere, its score and floor — and each kernel under the name the table prints, so a
+  front door can lay a report out its own way. A component whose work all fused elsewhere reads
+  no time or share, as the table prints `fused ↓`. The table is printed from the same readings.
+  ([#6260](https://github.com/tracel-ai/burn/pull/6260))
+  [@nathanielsimard](https://github.com/nathanielsimard)
 
 ### Execution performance
 
