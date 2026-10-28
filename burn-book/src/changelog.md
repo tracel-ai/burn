@@ -117,6 +117,13 @@ all-to-all, and broadcast also support boolean tensors. Quantized tensors are re
   Workers must yield the same number of training batches; uneven exhaustion now reports an error.
   ([#6184](https://github.com/tracel-ai/burn/pull/6184))
 
+#### Device groups
+
+- A tensor made from data on a device group stays on the host until it is used, so `from_data`
+  followed by `with_sharding` uploads each member only its chunk, and a model that fits only once
+  split can be loaded. ([#6232](https://github.com/tracel-ai/burn/pull/6232))
+  [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
+
 #### Remote execution
 
 **Breaking:** Remote clients and servers must be upgraded together for the new protocol.
