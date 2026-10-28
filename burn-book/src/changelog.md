@@ -179,6 +179,7 @@ all-to-all, and broadcast also support boolean tensors. Quantized tensors are re
   ([#6184](https://github.com/tracel-ai/burn/pull/6184))
 - Float collectives under autodiff run on the backend's native collective, NCCL on CUDA, with a
   backward of their own, instead of being emulated with tracked transfers between devices.
+  ([#6274](https://github.com/tracel-ai/burn/pull/6274))
   [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
 
 #### Device groups
