@@ -490,6 +490,10 @@ with `measure_memory`, and may implement `device_description`, `measure_telemetr
   ([#6263](https://github.com/tracel-ai/burn/pull/6263), [@b84330808](https://github.com/b84330808))
 - Fix CubeCL `max_pool3d`, which did not compile on WebGPU or any other WGSL target.
   [@vboussot](https://github.com/vboussot)
+- Fix integer `powi` and `powi_scalar` returning wrapped values for negative exponents on Flex and
+  CubeCL backends. They now give `1 / base^|exponent|` truncated toward zero: 0 unless the base is
+  1 or -1. ([#PR_NUMBER](https://github.com/tracel-ai/burn/pull/PR_NUMBER),
+  [@b84330808](https://github.com/b84330808))
 - Return NaN for variance reductions over empty axes instead of panicking or returning zero.
   ([issue #6236](https://github.com/tracel-ai/burn/issues/6236))
 - **Breaking:** `Tensor::reshape` now treats zeros in arrays as literal zero-length dimensions,
