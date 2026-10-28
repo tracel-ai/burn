@@ -90,7 +90,17 @@ impl<T: Int, N: Size> BinaryOpInt<T, N> for BitwiseShlOp {
 #[cube]
 impl<T: Int, N: Size> BinaryOpInt<T, N> for PowiOp {
     fn execute(lhs: Vector<T, N>, rhs: Vector<T, N>) -> Vector<T, N> {
-        powi_int(lhs, Vector::<i32, N>::cast_from(rhs))
+        let zero = Vector::zero();
+        let one = Vector::one();
+        let minus_one = Vector::new(T::new(-1));
+
+        // `powi_int` reads the exponent as unsigned. That keeps its parity, so the result is still
+        // right for a base of 1 or -1. Any other base gives `1 / lhs^|rhs|`, which truncates to 0.
+        let pow = powi_int(lhs, Vector::<i32, N>::cast_from(rhs));
+        let unit_base = lhs.equal(&one).or(lhs.equal(&minus_one));
+        let truncated = select_many(unit_base, pow, zero);
+
+        select_many(rhs.less_than(&zero), truncated, pow)
     }
 }
 
