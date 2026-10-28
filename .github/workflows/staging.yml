@@ -1,0 +1,47 @@
+name: Staging
+
+# A staging/<name> branch collects reviewed changes and reaches main through
+# one standing PR. That PR may only merge once every tracel-ai git dependency is
+# pinned at a commit already on that repo's default branch.
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pins-on-main:
+    if: startsWith(github.head_ref, 'staging/')
+    runs-on: ubuntu-24.04
+    steps:
+      - name: checkout
+        uses: actions/checkout@v6
+      - name: Every tracel-ai pin is on its main
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          fail=0
+          pins=$(git ls-files '*Cargo.toml' | xargs grep -hoE 'github\.com/tracel-ai/[A-Za-z0-9_-]+(\.git)?"[^}]*rev = "[0-9a-f]+"' \
+            | sed -E 's#^github\.com/tracel-ai/([A-Za-z0-9_-]+)(\.git)?".*rev = "([0-9a-f]+)"$#\1 \3#' | sort -u)
+          if [ -z "$pins" ]; then
+            echo "No tracel-ai git pins."
+            exit 0
+          fi
+          while read -r repo rev; do
+            main=$(gh api "repos/tracel-ai/$repo" --jq .default_branch)
+            # rev...main is "ahead" or "identical" exactly when rev is on main.
+            status=$(gh api "repos/tracel-ai/$repo/compare/$rev...$main" --jq .status 2>/dev/null || echo "not found")
+            case $status in
+              ahead|identical) echo "ok: $repo pinned at ${rev:0:9}, on $repo $main" ;;
+              *) echo "::error::$repo pinned at ${rev:0:9}, not on $repo $main yet ($status)"; fail=1 ;;
+            esac
+          done <<< "$pins"
+          exit $fail

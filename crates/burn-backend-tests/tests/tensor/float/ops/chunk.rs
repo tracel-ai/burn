@@ -79,6 +79,45 @@ fn test_chunk_not_divisible() {
 }
 
 #[test]
+fn test_chunk_fewer_chunks_without_remainder() {
+    // Chunks of ceil(6 / 4) = 2 cover the dimension after three chunks.
+    let tensors = TestTensorInt::arange(0..6, &Default::default())
+        .float()
+        .chunk(4, 0);
+    assert_eq!(tensors.len(), 3);
+
+    let expected = [
+        TensorData::from([0, 1]),
+        TensorData::from([2, 3]),
+        TensorData::from([4, 5]),
+    ];
+
+    for (index, tensor) in tensors.iter().enumerate() {
+        tensor.to_data().assert_eq(&expected[index], false);
+    }
+}
+
+#[test]
+fn test_chunk_fewer_chunks_with_remainder() {
+    // Chunks of ceil(7 / 5) = 2 leave a single element for the fourth and last chunk.
+    let tensors = TestTensorInt::arange(0..7, &Default::default())
+        .float()
+        .chunk(5, 0);
+    assert_eq!(tensors.len(), 4);
+
+    let expected = [
+        TensorData::from([0, 1]),
+        TensorData::from([2, 3]),
+        TensorData::from([4, 5]),
+        TensorData::from([6]),
+    ];
+
+    for (index, tensor) in tensors.iter().enumerate() {
+        tensor.to_data().assert_eq(&expected[index], false);
+    }
+}
+
+#[test]
 #[should_panic(expected = "=== Tensor Operation Error ===")]
 fn test_invalid_dim() {
     let _tensors = TestTensorInt::arange(0..12, &Default::default()).chunk(6, 1);

@@ -252,6 +252,63 @@ impl TensorCheck {
         check
     }
 
+    pub(crate) fn reshape_args(source: &Shape, args: &[isize]) -> Self {
+        let mut check = Self::Ok;
+        if args.iter().any(|&dim| dim < -1) {
+            check = check.register(
+                "Reshape",
+                TensorError::new(
+                    "The given shape cannot contain negative dimensions (other than -1).",
+                )
+                .details(format!(
+                    "Current shape: {source}, target dimensions: {args:?}."
+                )),
+            );
+        }
+        if args.iter().filter(|&&dim| dim == -1).count() > 1 {
+            check = check.register(
+                "Reshape",
+                TensorError::new("Repeated -1 in reshape.").details(format!(
+                    "Current shape: {source}, target dimensions: {args:?}."
+                )),
+            );
+        }
+        check
+    }
+
+    pub(crate) fn reshape_infer(source: &Shape, args: &[isize], known_size: usize) -> Self {
+        if known_size == 0 {
+            return Self::Ok.register(
+                "Reshape",
+                TensorError::new("Cannot infer a dimension when another resolved dimension is zero.")
+                    .details(format!("Current shape: {source}, target dimensions: {args:?}. Specify all dimensions explicitly.")),
+            );
+        }
+        if !source.num_elements().is_multiple_of(known_size) {
+            return Self::Ok.register(
+                "Reshape",
+                TensorError::new("Cannot infer a valid target shape.").details(format!(
+                    "Current shape: {source}, target dimensions: {args:?}."
+                )),
+            );
+        }
+        Self::Ok
+    }
+
+    pub(crate) fn reshape_placeholders(source: &Shape, args: &[isize]) -> Self {
+        let mut check = Self::Ok;
+        for (index, &dim) in args.iter().enumerate().skip(source.num_dims()) {
+            if dim == 0 {
+                check = check.register(
+                    "Reshape",
+                    TensorError::new(format!("Zero placeholder at dimension {index} has no corresponding input dimension to copy."))
+                        .details(format!("Current shape: {source}, target dimensions: {args:?}. Pass a plain array for literal zero-length dimensions.")),
+                );
+            }
+        }
+        check
+    }
+
     pub(crate) fn reshape<const D2: usize>(source: &Shape, target: &Shape) -> Self {
         let mut check = Self::Ok;
 
@@ -1743,20 +1800,6 @@ pub(crate) mod macros {
         };
     }
     pub(crate) use check;
-}
-
-pub(crate) fn unwrap_shape_reshape(result: Result<Shape, burn_std::MetadataError>) -> Shape {
-    match result {
-        Ok(shape) => shape,
-        // `shape.reshape(new_shape)` should only return `MetadataError::Invalid`.
-        Err(burn_std::MetadataError::Invalid { reason }) => {
-            macros::check!({
-                TensorCheck::Ok.register("Reshape", crate::check::TensorError::new(reason))
-            });
-            unreachable!()
-        }
-        Err(e) => panic!("{e:?}"),
-    }
 }
 
 #[track_caller]
