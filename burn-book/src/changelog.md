@@ -83,8 +83,11 @@ positions when sequence lengths differ.
   [@EthanAlmloff](https://github.com/EthanAlmloff)
 - Enable CUDA tensor-core acceleration on Blackwell and Blackwell Ultra GPUs, including B300.
   ([#6161](https://github.com/tracel-ai/burn/pull/6161))
-- Improve CubeCL CPU matrix multiplication by selecting tile sizes that fit the vector width.
-  ([#6177](https://github.com/tracel-ai/burn/pull/6177))
+- Improve CubeCL CPU matrix multiplication by selecting tile sizes that fit the vector width
+  and using GEMM settings tailored to CPU hardware.
+  ([#6177](https://github.com/tracel-ai/burn/pull/6177),
+  [#6245](https://github.com/tracel-ai/burn/pull/6245))
+  [@Charles23R](https://github.com/Charles23R)
 - Speed up CubeCL `conv_transpose3d` and reduce Flex `conv2d` memory use and layout conversions.
   ([#5793](https://github.com/tracel-ai/burn/pull/5793),
   [#6075](https://github.com/tracel-ai/burn/pull/6075))
