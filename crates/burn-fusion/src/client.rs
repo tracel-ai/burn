@@ -11,9 +11,14 @@ use burn_std::device_handle::{CallError, CallResultExt};
 
 use burn_backend::{TensorData, backend::ExecutionError};
 use burn_ir::{OperationIr, TensorError, TensorId, TensorIr};
-use std::sync::{
-    Arc,
-    atomic::{AtomicU64, Ordering},
+use std::{
+    panic::{AssertUnwindSafe, catch_unwind},
+    sync::{
+        Arc,
+        atomic::{AtomicU64, Ordering},
+        mpsc,
+    },
+    thread,
 };
 
 /// Use a mutex to communicate with the fusion server.
@@ -547,12 +552,12 @@ where
         resolved.unwrap_or_else(|err| Err(crate::backend::server_error(err)))
     }
 
-    /// Resolve the given float tensor as a read does, keeping the failure claiming it as it is
-    /// carried, so it propagates from its root.
+    /// Start resolving the given float tensor as a read does, keeping the failure claiming it as it
+    /// is carried, so it propagates from its root.
     pub fn resolve_carrying_float<B>(
         &self,
         tensor: FusionTensor<R>,
-    ) -> Result<B::FloatTensorPrimitive, TensorError>
+    ) -> Resolving<B::FloatTensorPrimitive>
     where
         B: FusionBackend<FusionRuntime = R>,
     {
@@ -561,11 +566,12 @@ where
         })
     }
 
-    /// Resolve the given int tensor as a read does, keeping the failure claiming it as it is carried.
+    /// Start resolving the given int tensor as a read does, keeping the failure claiming it as it
+    /// is carried.
     pub fn resolve_carrying_int<B>(
         &self,
         tensor: FusionTensor<R>,
-    ) -> Result<B::IntTensorPrimitive, TensorError>
+    ) -> Resolving<B::IntTensorPrimitive>
     where
         B: FusionBackend<FusionRuntime = R>,
     {
@@ -574,11 +580,12 @@ where
         })
     }
 
-    /// Resolve the given bool tensor as a read does, keeping the failure claiming it as it is carried.
+    /// Start resolving the given bool tensor as a read does, keeping the failure claiming it as it
+    /// is carried.
     pub fn resolve_carrying_bool<B>(
         &self,
         tensor: FusionTensor<R>,
-    ) -> Result<B::BoolTensorPrimitive, TensorError>
+    ) -> Resolving<B::BoolTensorPrimitive>
     where
         B: FusionBackend<FusionRuntime = R>,
     {
@@ -593,16 +600,48 @@ where
         read: impl FnOnce(&mut FusionServer<R>, TensorIr, StreamId) -> Result<T, TensorError>
         + Send
         + 'static,
-    ) -> Result<T, TensorError> {
+    ) -> Resolving<T> {
         // `into_ir()` runs on this thread: on the server thread, a cross-stream tensor's
         // `shared_view` would `submit_blocking` again and panic on the re-entrancy.
         let stream = tensor.stream;
         let tensor = tensor.into_ir();
-        let read = self
-            .server
-            .submit_blocking(move |server| read(server, tensor, stream));
+        let (sender, receiver) = mpsc::sync_channel(1);
+        self.server.submit(move |server| {
+            let read = catch_unwind(AssertUnwindSafe(|| read(server, tensor, stream)));
+            let _ = sender.send(read);
+        });
+        self.server.flush_queue();
         held::release();
-        read.unwrap_or_else(|err| Err(TensorError::new(crate::backend::server_error(err))))
+        Resolving { receiver }
+    }
+}
+
+/// A tensor the fusion server is resolving, so the servers of several devices can resolve theirs
+/// at once.
+pub struct Resolving<T> {
+    receiver: mpsc::Receiver<thread::Result<Result<T, TensorError>>>,
+}
+
+impl<T> Resolving<T> {
+    /// Wait for the server to resolve the tensor.
+    pub fn wait(self) -> Result<T, TensorError> {
+        let failure = match self.receiver.recv() {
+            Ok(Ok(resolved)) => return resolved,
+            Ok(Err(payload)) => {
+                let message = payload
+                    .downcast_ref::<&str>()
+                    .map(|message| message.to_string())
+                    .or_else(|| payload.downcast_ref::<String>().cloned());
+                match message {
+                    Some(message) => {
+                        format!("the fusion server panicked resolving a tensor: {message}")
+                    }
+                    None => "the fusion server panicked resolving a tensor".to_string(),
+                }
+            }
+            Err(_) => "the fusion server stopped before resolving a tensor".to_string(),
+        };
+        Err(TensorError::new(ExecutionError::with_context(failure)))
     }
 }
 
