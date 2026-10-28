@@ -24,11 +24,11 @@ impl<B: Backend, C: CheckpointStrategy> CollectiveOps<Self> for Autodiff<B, C> {
         tensors: Vec<FloatTensor<Self>>,
         op: ReduceOperation,
     ) -> Vec<FloatTensor<Self>> {
-        FloatCollective::AllReduce { op }.record(tensors)
+        FloatCollective::AllReduce { op }.run(tensors)
     }
 
     fn float_all_gather(tensors: Vec<FloatTensor<Self>>, dim: usize) -> Vec<FloatTensor<Self>> {
-        FloatCollective::AllGather { dim }.record(tensors)
+        FloatCollective::AllGather { dim }.run(tensors)
     }
 
     fn float_reduce_scatter(
@@ -36,7 +36,7 @@ impl<B: Backend, C: CheckpointStrategy> CollectiveOps<Self> for Autodiff<B, C> {
         dim: usize,
         op: ReduceOperation,
     ) -> Vec<FloatTensor<Self>> {
-        FloatCollective::ReduceScatter { dim, op }.record(tensors)
+        FloatCollective::ReduceScatter { dim, op }.run(tensors)
     }
 
     fn float_all_to_all(
@@ -48,7 +48,7 @@ impl<B: Backend, C: CheckpointStrategy> CollectiveOps<Self> for Autodiff<B, C> {
             split_dim,
             concat_dim,
         }
-        .record(tensors)
+        .run(tensors)
     }
 
     fn int_all_reduce(tensors: Vec<IntTensor<Self>>, op: ReduceOperation) -> Vec<IntTensor<Self>> {
@@ -99,63 +99,65 @@ impl<B: Backend, C: CheckpointStrategy> CollectiveOps<Self> for Autodiff<B, C> {
 /// A float collective over every member, whose backward is another collective over them.
 #[derive(Clone, Copy, Debug)]
 enum FloatCollective {
+    /// Every member receives `op` over every member's tensor.
     AllReduce { op: ReduceOperation },
+    /// Every member receives every member's tensor, concatenated along `dim`.
     AllGather { dim: usize },
+    /// Member `i` receives chunk `i` along `dim` of `op` over every member's tensor.
     ReduceScatter { dim: usize, op: ReduceOperation },
+    /// Member `i` receives chunk `i` along `split_dim` of every member's tensor, concatenated
+    /// along `concat_dim`.
     AllToAll { split_dim: usize, concat_dim: usize },
 }
 
-/// The backward of one collective, which needs every member's output gradient at once.
-///
-/// Each output's own step leaves its gradient registered for this one, which runs after them all
-/// since every output is a child of its node.
-#[derive(Debug)]
-struct CollectiveStep<B: Backend> {
-    collective: FloatCollective,
-    node: NodeRef,
-    inputs: Vec<Option<NodeRef>>,
-    input_shape: Shape,
-    outputs: Vec<CollectiveOutput<B>>,
-}
-
-/// A member's output, with what it takes to stand in a zero gradient when the loss never used it.
-#[derive(Debug)]
-struct CollectiveOutput<B: Backend> {
-    node: NodeRef,
-    shape: Shape,
-    device: Device<B>,
-    dtype: DType,
-}
-
-#[derive(Debug)]
-struct CollectiveOutputStep {
-    node: NodeRef,
-}
-
 impl FloatCollective {
-    /// Runs the collective on the inner backend, its outputs the children of one backward step.
-    fn record<B: Backend>(self, tensors: Vec<AutodiffTensor<B>>) -> Vec<AutodiffTensor<B>> {
+    /// Runs the collective on the inner backend and records its backward when any member is
+    /// tracked.
+    fn run<B: Backend>(self, tensors: Vec<AutodiffTensor<B>>) -> Vec<AutodiffTensor<B>> {
         let (primitives, guards): (Vec<_>, Vec<_>) =
             tensors.into_iter().map(AutodiffTensor::into_parts).unzip();
         let inputs: Vec<NodeRef> = guards
             .iter()
             .map(|guard| guard.node_ref().clone())
             .collect();
-        let requirement = Requirement::from_nodes(&inputs);
-        let property = ComputingProperty::ComputeBound;
+        let outputs = match Requirement::from_nodes(&inputs) {
+            Requirement::None => self.untracked(primitives, &inputs),
+            requirement => self.tracked(primitives, &inputs, requirement),
+        };
+        drop(guards);
+        outputs
+    }
 
-        if requirement.is_none() {
-            return self
-                .forward::<B>(primitives)
-                .into_iter()
-                .map(|output| {
-                    AutodiffTensor::from_parents(output, &inputs, requirement, property.clone())
-                })
-                .collect();
-        }
+    /// The outputs with no backward recorded, since no member needs a gradient.
+    fn untracked<B: Backend>(
+        self,
+        primitives: Vec<FloatTensor<B>>,
+        inputs: &[NodeRef],
+    ) -> Vec<AutodiffTensor<B>> {
+        self.forward::<B>(primitives)
+            .into_iter()
+            .map(|output| {
+                AutodiffTensor::from_parents(
+                    output,
+                    inputs,
+                    Requirement::None,
+                    ComputingProperty::ComputeBound,
+                )
+            })
+            .collect()
+    }
 
+    /// The outputs as children of the collective's own node, whose backward takes all their
+    /// gradients at once.
+    fn tracked<B: Backend>(
+        self,
+        primitives: Vec<FloatTensor<B>>,
+        inputs: &[NodeRef],
+        requirement: Requirement,
+    ) -> Vec<AutodiffTensor<B>> {
         let input_shape = primitives[0].shape();
-        let node: NodeRef = Node::from_parents(&inputs, requirement, property.clone()).into();
+        let node: NodeRef =
+            Node::from_parents(inputs, requirement, ComputingProperty::ComputeBound).into();
         let outputs: Vec<AutodiffTensor<B>> = self
             .forward::<B>(primitives)
             .into_iter()
@@ -164,25 +166,25 @@ impl FloatCollective {
                     output,
                     core::slice::from_ref(&node),
                     requirement,
-                    property.clone(),
+                    ComputingProperty::ComputeBound,
                 )
             })
             .collect();
 
-        let step = CollectiveStep {
-            collective: self,
-            node: node.clone(),
+        let backward = CollectiveBackward {
+            forward: self,
             inputs: inputs.iter().map(Node::clone_if_require_grad).collect(),
             input_shape,
             outputs: outputs.iter().map(CollectiveOutput::new).collect(),
+            node: node.clone(),
         };
-        // Registered before its outputs, so that they join its graph.
+        // Registered before the outputs' steps, so that they join its graph.
         node.client.register(
             Arc::new(node.id),
-            Box::new(step),
+            Box::new(backward),
             CheckpointerBuilder::default(),
         );
-        let outputs = outputs
+        outputs
             .into_iter()
             .map(|output| {
                 let step = CollectiveOutputStep {
@@ -190,11 +192,10 @@ impl FloatCollective {
                 };
                 output.register_step(step, CheckpointerBuilder::default())
             })
-            .collect();
-        drop(guards);
-        outputs
+            .collect()
     }
 
+    /// The collective itself, on the inner backend.
     fn forward<B: Backend>(self, tensors: Vec<FloatTensor<B>>) -> Vec<FloatTensor<B>> {
         match self {
             Self::AllReduce { op } => B::float_all_reduce(tensors, op),
@@ -207,20 +208,23 @@ impl FloatCollective {
         }
     }
 
-    /// The members' input gradients from their output gradients.
-    fn adjoint<B: Backend>(self, grads: Vec<FloatTensor<B>>) -> Vec<FloatTensor<B>> {
+    /// The members' input gradients from their output gradients: all-reduce is its own adjoint,
+    /// all-gather and reduce-scatter are each other's, and all-to-all swaps its dims.
+    fn backward<B: Backend>(self, grads: Vec<FloatTensor<B>>) -> Vec<FloatTensor<B>> {
         match self {
             Self::AllReduce { op } => B::float_all_reduce(grads, op),
             Self::AllGather { dim } => B::float_reduce_scatter(grads, dim, ReduceOperation::Sum),
-            Self::ReduceScatter { dim, op } => Self::reduce_scatter_adjoint::<B>(grads, dim, op),
+            Self::ReduceScatter { dim, op } => Self::reduce_scatter_backward::<B>(grads, dim, op),
             Self::AllToAll {
                 split_dim,
                 concat_dim,
-            } => Self::all_to_all_adjoint::<B>(grads, split_dim, concat_dim),
+            } => Self::all_to_all_backward::<B>(grads, split_dim, concat_dim),
         }
     }
 
-    fn reduce_scatter_adjoint<B: Backend>(
+    /// Every member's output gradient gathered onto each member, divided by the member count for a
+    /// mean.
+    fn reduce_scatter_backward<B: Backend>(
         grads: Vec<FloatTensor<B>>,
         dim: usize,
         op: ReduceOperation,
@@ -240,47 +244,55 @@ impl FloatCollective {
         }
     }
 
-    fn all_to_all_adjoint<B: Backend>(
+    /// The all-to-all with its dims swapped, sending each chunk's gradient back to its member.
+    fn all_to_all_backward<B: Backend>(
         grads: Vec<FloatTensor<B>>,
         split_dim: usize,
         concat_dim: usize,
     ) -> Vec<FloatTensor<B>> {
         match Self::alike(&grads) {
             true => B::float_all_to_all(grads, concat_dim, split_dim),
-            false => Self::uneven_all_to_all_adjoint::<B>(grads, split_dim, concat_dim),
+            false => Self::uneven_all_to_all_backward::<B>(grads, split_dim, concat_dim),
         }
     }
 
-    /// Member `j` takes piece `j` along `concat_dim` of every output gradient, each cut into equal
-    /// pieces of its own length, since uneven chunks left the gradients of different shapes.
-    fn uneven_all_to_all_adjoint<B: Backend>(
+    /// The all-to-all's backward when uneven chunks left the gradients of different shapes, which
+    /// no collective takes.
+    fn uneven_all_to_all_backward<B: Backend>(
         grads: Vec<FloatTensor<B>>,
         split_dim: usize,
         concat_dim: usize,
     ) -> Vec<FloatTensor<B>> {
-        let members = grads.len();
-        grads
-            .iter()
-            .enumerate()
-            .map(|(member, own)| {
-                let device = own.device();
-                let pieces = grads
-                    .iter()
-                    .map(|grad| {
-                        let split = DimSplit {
-                            dim: concat_dim,
-                            len: grad.shape()[concat_dim],
-                            members,
-                        };
-                        let piece = B::float_slice(grad.clone(), &split.slices(member));
-                        B::float_to_device(piece, &device)
-                    })
-                    .collect();
-                B::float_cat(pieces, split_dim)
-            })
+        (0..grads.len())
+            .map(|member| Self::uneven_member_gradient::<B>(&grads, member, split_dim, concat_dim))
             .collect()
     }
 
+    /// Piece `member` along `concat_dim` of every output gradient, each cut into equal pieces of
+    /// its own length, concatenated along `split_dim` on the member's device.
+    fn uneven_member_gradient<B: Backend>(
+        grads: &[FloatTensor<B>],
+        member: usize,
+        split_dim: usize,
+        concat_dim: usize,
+    ) -> FloatTensor<B> {
+        let device = grads[member].device();
+        let pieces = grads
+            .iter()
+            .map(|grad| {
+                let split = DimSplit {
+                    dim: concat_dim,
+                    len: grad.shape()[concat_dim],
+                    members: grads.len(),
+                };
+                let piece = B::float_slice(grad.clone(), &split.slices(member));
+                B::float_to_device(piece, &device)
+            })
+            .collect();
+        B::float_cat(pieces, split_dim)
+    }
+
+    /// Whether every tensor has one shape, which a native collective requires of its members.
     fn alike<T: TensorMetadata>(grads: &[T]) -> bool {
         grads
             .windows(2)
@@ -288,7 +300,27 @@ impl FloatCollective {
     }
 }
 
-impl<B: Backend> Step for CollectiveStep<B> {
+/// The backward of one collective, which needs every member's output gradient at once.
+///
+/// Each output's own step leaves its gradient registered for this one, which runs after them all
+/// since every output is a child of its node.
+#[derive(Debug)]
+struct CollectiveBackward<B: Backend> {
+    /// The collective run forward, whose backward this step runs.
+    forward: FloatCollective,
+    /// The collective's own node: a child of every input, the parent of every output.
+    node: NodeRef,
+    /// Each member's input node, `None` where that member needs no gradient.
+    inputs: Vec<Option<NodeRef>>,
+    /// The shape every member's input shares.
+    input_shape: Shape,
+    /// Each member's output.
+    outputs: Vec<CollectiveOutput<B>>,
+}
+
+impl<B: Backend> Step for CollectiveBackward<B> {
+    /// Takes every output's gradient, with zeros for one the loss never used, runs the backward
+    /// collective, and registers each tracked input's gradient.
     fn step(self: Box<Self>, grads: &mut Gradients, _checkpointer: &mut Checkpointer) {
         let output_grads: Vec<_> = self
             .outputs
@@ -300,7 +332,7 @@ impl<B: Backend> Step for CollectiveStep<B> {
         }
 
         let input_grads = match self.input_shape.num_elements() {
-            // An adjoint would split a dimension that holds no element, which a collective refuses.
+            // The backward would split a dimension that holds no element, which a collective refuses.
             0 => self
                 .outputs
                 .iter()
@@ -315,7 +347,7 @@ impl<B: Backend> Step for CollectiveStep<B> {
                         grad.unwrap_or_else(|| output.zeros(output.shape.clone()))
                     })
                     .collect();
-                self.collective.adjoint::<B>(output_grads)
+                self.forward.backward::<B>(output_grads)
             }
         };
 
@@ -326,16 +358,32 @@ impl<B: Backend> Step for CollectiveStep<B> {
         }
     }
 
+    /// The collective's node's depth, one past its deepest input.
     fn depth(&self) -> usize {
         self.node.order
     }
 
+    /// The tracked inputs.
     fn parents(&self) -> &[Parent] {
         &self.node.parents
     }
 }
 
+/// A member's output, with what it takes to stand in a zero gradient when the loss never used it.
+#[derive(Debug)]
+struct CollectiveOutput<B: Backend> {
+    /// The output's node, under which its gradient is registered.
+    node: NodeRef,
+    /// The output's shape, which differs between members when chunks are uneven.
+    shape: Shape,
+    /// The member's device.
+    device: Device<B>,
+    /// The output's dtype, which its gradient shares.
+    dtype: DType,
+}
+
 impl<B: Backend> CollectiveOutput<B> {
+    /// What the backward needs of `output`, without holding its tensor.
     fn new(output: &AutodiffTensor<B>) -> Self {
         Self {
             node: output.node.clone(),
@@ -345,18 +393,30 @@ impl<B: Backend> CollectiveOutput<B> {
         }
     }
 
+    /// Zeros of `shape` on the member's device, in the output's dtype.
     fn zeros(&self, shape: Shape) -> FloatTensor<B> {
         B::float_zeros(shape, &self.device, self.dtype.into())
     }
 }
 
+/// An output's step, which does nothing: it only places the output on the graph, as a child of
+/// the collective's node, and leaves the output's gradient for that node's backward.
+#[derive(Debug)]
+struct CollectiveOutputStep {
+    /// The output's node.
+    node: NodeRef,
+}
+
 impl Step for CollectiveOutputStep {
+    /// Leaves the output's gradient registered, for the collective's backward to consume.
     fn step(self: Box<Self>, _grads: &mut Gradients, _checkpointer: &mut Checkpointer) {}
 
+    /// One past the collective's node, so this step runs before that node's backward.
     fn depth(&self) -> usize {
         self.node.order
     }
 
+    /// The collective's node.
     fn parents(&self) -> &[Parent] {
         &self.node.parents
     }

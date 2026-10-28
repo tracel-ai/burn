@@ -93,12 +93,20 @@ impl Gradients {
     ///
     /// Each tensor should be consumed exactly 1 time if its gradients are only required during the
     /// backward pass, otherwise, it may be consume multiple times.
+    ///
+    /// # Panics
+    ///
+    /// When the tensor is untracked, or no gradient was registered for it.
     pub fn consume<B: Backend>(&mut self, node: &NodeRef) -> FloatTensor<B> {
         self.consume_if_registered::<B>(node)
             .expect("Can't consume the gradients before they are registered at least once.")
     }
 
     /// Consumes the gradients for a given tensor, if any were registered.
+    ///
+    /// # Panics
+    ///
+    /// When the tensor is untracked.
     pub fn consume_if_registered<B: Backend>(&mut self, node: &NodeRef) -> Option<FloatTensor<B>> {
         let tensor = match node.requirement {
             Requirement::Grad => self.container.get::<TensorPrimitive<B>>(&node.id.value),
