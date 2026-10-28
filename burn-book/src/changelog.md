@@ -5,6 +5,11 @@ Changes for the next release. For published releases, see
 
 ## Unreleased
 
+### Storage
+
+- Load SafeTensors headers once and reuse their validated tensor byte ranges, avoiding repeated
+  header parsing when drawing tensor data.
+
 ### Interpolation coordinate transforms and rounding
 
 Interpolation gains coordinate transforms, nearest rounding modes, crop ROIs and configurable
