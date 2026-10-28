@@ -1,5 +1,5 @@
-use burn_backend::ops::CollectiveOps;
-use burn_dispatch::Dispatch;
+use burn_backend::ops::{CollectiveOps, EmulatedCollectives};
+use burn_dispatch::{Dispatch, DispatchTensor};
 use burn_tensor::{
     DType, Device, TensorData, Tolerance, distributed::ReduceOperation, kind::Basic,
 };
@@ -165,6 +165,11 @@ mod emulated {
         }
     }
 
+    #[test]
+    fn should_carry_gradients_through_every_collective() {
+        group().autodiff().gradients();
+    }
+
     /// Dispatch runs a backend's collective only when every member is on it. Reductions only: a
     /// bool moved from Flex to a cubecl device fails in `bool_from_data` before any collective.
     #[cfg(feature = "cube")]
@@ -291,6 +296,22 @@ mod nccl {
         let Some(mut group) = group() else { return };
         group.cols *= 2;
         group.along_the_middle_dim();
+    }
+
+    #[test]
+    #[serial]
+    fn should_carry_gradients_through_every_collective() {
+        let Some(group) = group() else { return };
+        group.autodiff().gradients();
+    }
+
+    #[test]
+    #[serial]
+    fn should_carry_gradients_through_uneven_chunks() {
+        let Some(mut group) = group() else { return };
+        group.rows += 1;
+        group.cols += 1;
+        group.autodiff().gradients();
     }
 
     /// Even chunks, so every collective runs over NCCL except broadcast and an all-to-all across
@@ -454,6 +475,100 @@ impl Group {
         self.assert_float(Self::flattened(outputs), |_| gathered.float());
         let outputs = TestTensor::reduce_scatter(self.float_3d(), 1, ReduceOperation::Sum);
         self.assert_float(Self::flattened(outputs), |member| chunk(member).float());
+    }
+
+    /// Each float collective's gradients against those of its emulation, which records the
+    /// transfers, slices and concatenations it is made of.
+    fn gradients(&self) {
+        for op in [ReduceOperation::Sum, ReduceOperation::Mean] {
+            self.assert_gradients(
+                |members| TestTensor::all_reduce(members, op),
+                |members| EmulatedCollectives::<Dispatch>::float_all_reduce(members, op),
+            );
+        }
+        for dim in [0, 1] {
+            self.assert_gradients(
+                |members| TestTensor::all_gather(members, dim),
+                |members| EmulatedCollectives::<Dispatch>::float_all_gather(members, dim),
+            );
+            for op in [ReduceOperation::Sum, ReduceOperation::Mean] {
+                self.assert_gradients(
+                    |members| TestTensor::reduce_scatter(members, dim, op),
+                    |members| {
+                        EmulatedCollectives::<Dispatch>::float_reduce_scatter(members, dim, op)
+                    },
+                );
+            }
+        }
+        for [split_dim, concat_dim] in [[0, 0], [1, 1], [0, 1]] {
+            self.assert_gradients(
+                |members| TestTensor::all_to_all(members, split_dim, concat_dim),
+                |members| {
+                    EmulatedCollectives::<Dispatch>::float_all_to_all(
+                        members, split_dim, concat_dim,
+                    )
+                },
+            );
+        }
+    }
+
+    fn assert_gradients(
+        &self,
+        collective: impl Fn(Vec<TestTensor<2>>) -> Vec<TestTensor<2>>,
+        emulated: impl Fn(Vec<DispatchTensor>) -> Vec<DispatchTensor>,
+    ) {
+        let expected = self.gradients_through(|members| {
+            let members = members.into_iter().map(Tensor::into_dispatch).collect();
+            emulated(members)
+                .into_iter()
+                .map(Tensor::from_dispatch)
+                .collect()
+        });
+        let grads = self.gradients_through(collective);
+        for (grad, expected) in grads.into_iter().zip(expected) {
+            grad.assert_approx_eq::<FloatElem>(&expected, Tolerance::default());
+        }
+    }
+
+    /// Every member's gradient of a loss that weighs the outputs apart, and leaves out member 0's,
+    /// whose gradient then never reaches the collective.
+    fn gradients_through(
+        &self,
+        collective: impl Fn(Vec<TestTensor<2>>) -> Vec<TestTensor<2>>,
+    ) -> Vec<TensorData> {
+        let members: Vec<_> = self
+            .float()
+            .into_iter()
+            .map(|member| member.require_grad())
+            .collect();
+        let root = &self.devices[0];
+        let loss = collective(members.clone())
+            .into_iter()
+            .enumerate()
+            .skip(1)
+            .map(|(member, output)| {
+                let weighed = (output.clone() * output).sum().mul_scalar(member as f32);
+                weighed.to_device(root)
+            })
+            .reduce(|lhs, rhs| lhs + rhs)
+            .expect("a group has a second member");
+
+        let grads = loss.backward();
+        members
+            .iter()
+            .map(|member| {
+                member
+                    .grad(&grads)
+                    .expect("every member reaches the loss")
+                    .into_data()
+            })
+            .collect()
+    }
+
+    /// The group on its members' autodiff devices.
+    fn autodiff(self) -> Self {
+        let devices = self.devices.into_iter().map(Device::autodiff).collect();
+        Self { devices, ..self }
     }
 
     fn values(&self, member: usize) -> Grid {
