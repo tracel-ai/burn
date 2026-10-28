@@ -146,6 +146,14 @@ See [runtime configuration](./advanced/runtime-configuration.md#cubek-matmul-pre
 
 ### Distributed and remote execution
 
+#### Layer parallelism
+
+Models can now be split across devices by layer, enabling training and inference with models that
+exceed a single device's memory. The new `LayerParallelism` trait and `DistributedLayeredModel`
+wrapper support sequential execution, transferring activations between devices. Pipeline scheduling
+and `Learner` integration are not included. ([#5702](https://github.com/tracel-ai/burn/pull/5702))
+[@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
+
 #### Distributed collectives
 
 **Breaking:** `distributed::all_reduce` and `CollectiveTensor` have been removed. Use
@@ -354,11 +362,30 @@ loading those checkpoints by filtering to `linear_inner` and `linear_outer`.
 
 #### Fusion and correctness fixes
 
+- Fix `chunk` panicking when the requested number of chunks cannot all be filled. It now returns
+  fewer chunks, as documented; for example, 6 elements in 4 chunks give 3 chunks of 2.
+  ([#6263](https://github.com/tracel-ai/burn/pull/6263), [@b84330808](https://github.com/b84330808))
 - Return NaN for variance reductions over empty axes instead of panicking or returning zero.
   ([issue #6236](https://github.com/tracel-ai/burn/issues/6236))
-- Preserve zero-length dimensions in `reshape(Shape)` and `unsqueeze`, and reject mismatched target
-  ranks. The array form of `reshape` retains its `0`/`-1` placeholders.
-  ([#6112](https://github.com/tracel-ai/burn/pull/6112))
+- **Breaking:** `Tensor::reshape` now treats zeros in arrays as literal zero-length dimensions,
+  matching concrete `Shape` arguments. Arrays still support `-1` inference. To preserve dimension
+  copying, wrap the array in `ZeroDimPlaceholders`:
+
+  ```diff
+  +use burn::tensor::ZeroDimPlaceholders;
+  +
+  -let y = x.reshape([0, -1]);
+  +let y = x.reshape(ZeroDimPlaceholders([0, -1]));
+  ```
+
+  ONNX importers must wrap shape arrays for `allowzero=0`
+  (the default) and use plain arrays for `allowzero=1`; previously generated code needs migration
+  or regeneration with an updated importer. Invalid copy placeholders and ambiguous inference
+  involving zero-length dimensions now produce clear reshape errors. `reshape(Shape)` and
+  `unsqueeze` preserve zero-length dimensions, and mismatched target ranks are rejected.
+  ([#6112](https://github.com/tracel-ai/burn/pull/6112),
+  [#6257](https://github.com/tracel-ai/burn/pull/6257),
+  [issue #6217](https://github.com/tracel-ai/burn/issues/6217))
   [@mattisonchao](https://github.com/mattisonchao) [@laggui](https://github.com/laggui)
 - Reject `expand(Shape)` arguments whose rank differs from the output tensor rank, with a clear
   validation error. ([#6211](https://github.com/tracel-ai/burn/pull/6211))
@@ -396,6 +423,9 @@ loading those checkpoints by filtering to `linear_inner` and `linear_outer`.
   [#6069](https://github.com/tracel-ai/burn/pull/6069))
 - Return off-value rows from `one_hot_fill` for out-of-range indices, including NaN and infinity.
   ([#6065](https://github.com/tracel-ai/burn/pull/6065))
+- Fix boolean `scatter_nd` reductions losing updates on CubeCL backends when indices repeat a
+  target; the updates are now applied with atomic stores.
+  ([#6215](https://github.com/tracel-ai/burn/pull/6215))
 
 ### Checkpoints and interoperability
 
@@ -420,6 +450,9 @@ let pack_tensor = tensor.into_pack();
 - Speed up loading strided and transposed PyTorch checkpoint weights.
   ([#6041](https://github.com/tracel-ai/burn/pull/6041),
   [#6113](https://github.com/tracel-ai/burn/pull/6113))
+- Avoid repeated SafeTensors header parsing when loading models with many tensors.
+  ([#6269](https://github.com/tracel-ai/burn/pull/6269))
+  [@Arc000007](https://github.com/Arc000007)
 
 ### Extensions
 

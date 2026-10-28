@@ -1,0 +1,397 @@
+use alloc::vec::Vec;
+
+use burn_tensor::Device;
+
+use super::{DistributedLayer, LayerParallelism, LayerPlacement, LayerSequence, LayerStage};
+use crate::module::{Devices, Module, ModuleMapper, ModuleVisitor};
+
+/// A [`LayerParallelism`] model split across devices, holding where each of its layers runs so
+/// the forward reads it rather than working it out again on every call. It is itself a
+/// [`Module`], so records, devices and training flags work as they do on the model alone.
+#[derive(Clone, Debug)]
+pub struct DistributedLayeredModel<M: LayerParallelism> {
+    model: M,
+    placement: LayerPlacement,
+}
+
+impl<M: LayerParallelism> DistributedLayeredModel<M> {
+    /// Split `model` across the devices `placement` gives its layers. Nothing moves: each layer is
+    /// built where it runs, and this checks it is.
+    ///
+    /// # Panics
+    ///
+    /// Panics when `placement` does not give a device to every hidden layer, or when a layer holds
+    /// a tensor off the device `placement` gives it.
+    pub fn new(model: M, placement: &LayerPlacement) -> Self {
+        assert_built_where_placed(&model, placement);
+
+        Self {
+            model,
+            placement: placement.clone(),
+        }
+    }
+
+    /// Where each layer runs, which is where its own parameters are.
+    pub fn placement(&self) -> &LayerPlacement {
+        &self.placement
+    }
+
+    /// Run each layer on its device, moving what passes between them.
+    pub fn forward(
+        &self,
+        input: <M::InputLayer as DistributedLayer>::Input,
+    ) -> <M::OutputLayer as DistributedLayer>::Output {
+        let placement = &self.placement;
+        let mut signal = self
+            .model
+            .layer_input()
+            .forward(input.to_device(&placement.input));
+        for (layer, device) in self.model.layers_hidden().zip(&placement.hidden) {
+            signal = layer.forward(signal.to_device(device));
+        }
+        self.model
+            .layer_output()
+            .forward(signal.to_device(&placement.output))
+    }
+
+    /// The model, its layers where the placement puts them.
+    pub fn model(&self) -> &M {
+        &self.model
+    }
+
+    /// The model on its own, no longer carrying where its layers run.
+    pub fn into_inner(self) -> M {
+        self.model
+    }
+
+    /// The model taken apart, its hidden layers cut into the placement's stages.
+    ///
+    /// # Panics
+    ///
+    /// Panics when a stage would hold a layer off its device, which is what an
+    /// [`into_layers`](LayerParallelism::into_layers) giving the hidden layers in another order than
+    /// [`layers_hidden`](LayerParallelism::layers_hidden) does.
+    pub fn into_stages(self) -> StagedLayers<M> {
+        let LayerSequence {
+            input,
+            hidden,
+            output,
+        } = self.model.into_layers();
+        let mut hidden = hidden.into_iter();
+        let stages = self
+            .placement
+            .stages()
+            .into_iter()
+            .enumerate()
+            .map(|(index, stage)| {
+                let layers = hidden.by_ref().take(stage.num_hidden_layers).collect();
+                hold_stage::<M>(index, stage, layers)
+            })
+            .collect();
+        StagedLayers {
+            input,
+            stages,
+            output,
+        }
+    }
+
+    /// A move of the whole model puts every layer on one device, the hidden layer count unchanged.
+    fn on_one_device(&self, device: &Device) -> LayerPlacement {
+        LayerPlacement::new(&[LayerStage {
+            device: device.clone(),
+            num_hidden_layers: self.placement.hidden.len(),
+        }])
+    }
+}
+
+/// A mapper is trusted to leave each parameter where it found it, so only a move of the whole
+/// model rewrites the placement.
+impl<M: LayerParallelism> Module for DistributedLayeredModel<M> {
+    fn collect_devices(&self, devices: Devices) -> Devices {
+        self.model.collect_devices(devices)
+    }
+
+    fn fork(self, device: &Device) -> Self {
+        let placement = self.on_one_device(device);
+        Self {
+            model: self.model.fork(device),
+            placement,
+        }
+    }
+
+    fn to_device(self, device: &Device) -> Self {
+        let placement = self.on_one_device(device);
+        Self {
+            model: self.model.to_device(device),
+            placement,
+        }
+    }
+
+    fn train(self) -> Self {
+        Self {
+            model: self.model.train(),
+            placement: self.placement,
+        }
+    }
+
+    fn valid(&self) -> Self {
+        Self {
+            model: self.model.valid(),
+            placement: self.placement.clone(),
+        }
+    }
+
+    fn visit<Visitor: ModuleVisitor>(&self, visitor: &mut Visitor) {
+        self.model.visit(visitor);
+    }
+
+    fn map<Mapper: ModuleMapper>(self, mapper: &mut Mapper) -> Self {
+        Self {
+            model: self.model.map(mapper),
+            placement: self.placement,
+        }
+    }
+
+    fn materialize(self) -> Self {
+        Self {
+            model: self.model.materialize(),
+            placement: self.placement,
+        }
+    }
+}
+
+/// A [`DistributedLayeredModel`]'s layers, owned, its hidden layers in the placement's stages.
+#[derive(Debug)]
+pub struct StagedLayers<M: LayerParallelism> {
+    /// The input layer.
+    pub input: M::InputLayer,
+    /// The stages, in forward order.
+    pub stages: Vec<HeldStage<M>>,
+    /// The output layer.
+    pub output: M::OutputLayer,
+}
+
+/// One stage's hidden layers and the device they run on.
+#[derive(Debug)]
+pub struct HeldStage<M: LayerParallelism> {
+    /// The device every layer of the stage runs on.
+    pub device: Device,
+    /// The stage's hidden layers, in forward order.
+    pub layers: Vec<M::HiddenLayer>,
+}
+
+/// `layers` as stage `index`, checked to be on the stage's device.
+fn hold_stage<M: LayerParallelism>(
+    index: usize,
+    stage: LayerStage,
+    layers: Vec<M::HiddenLayer>,
+) -> HeldStage<M> {
+    assert!(
+        layers.iter().all(|layer| layer_is_on(layer, &stage.device)),
+        "stage {index} holds a layer off {:?}: `into_layers` must give the hidden layers in \
+         the order `layers_hidden` does",
+        stage.device
+    );
+    HeldStage {
+        layers,
+        device: stage.device,
+    }
+}
+
+fn assert_built_where_placed<M: LayerParallelism>(model: &M, placement: &LayerPlacement) {
+    let count = model.layers_hidden().count();
+    assert!(
+        count == placement.hidden.len(),
+        "the placement must give a device to every hidden layer: the model has {count}, the \
+         placement gives {}",
+        placement.hidden.len()
+    );
+
+    assert!(
+        layer_is_on(model.layer_input(), &placement.input),
+        "the input layer must be built on {:?}",
+        placement.input
+    );
+    for (index, (layer, device)) in model.layers_hidden().zip(&placement.hidden).enumerate() {
+        assert!(
+            layer_is_on(layer, device),
+            "hidden layer {index} must be built on {device:?}"
+        );
+    }
+    assert!(
+        layer_is_on(model.layer_output(), &placement.output),
+        "the output layer must be built on {:?}",
+        placement.output
+    );
+}
+
+fn layer_is_on(layer: &impl Module, device: &Device) -> bool {
+    layer.devices().iter().all(|found| found == device)
+}
+
+#[cfg(test)]
+mod tests {
+    use alloc::vec::Vec;
+
+    use burn_tensor::{Distribution, Tensor, Tolerance};
+
+    use super::*;
+    use crate as burn;
+    use crate::module::parallel::LayerSequence;
+    use crate::{test_device, test_utils::SimpleLinear};
+
+    const WIDTH: usize = 8;
+
+    #[test]
+    fn the_forward_on_one_device_is_the_plain_forward() {
+        let device = test_device();
+        let stack = Stack::new(3, &device);
+        let input = Tensor::random([4, WIDTH], Distribution::Default, &device);
+        let expected = stack.plain_forward(input.clone());
+
+        let placement = LayerPlacement::even(core::slice::from_ref(&device), 3);
+        DistributedLayeredModel::new(stack, &placement)
+            .forward(input)
+            .into_data()
+            .assert_approx_eq::<f32>(&expected.into_data(), Tolerance::default());
+    }
+
+    #[test]
+    #[should_panic(expected = "every hidden layer")]
+    fn a_placement_short_of_a_hidden_layer_is_refused() {
+        let device = test_device();
+        let placement = LayerPlacement::even(core::slice::from_ref(&device), 2);
+        DistributedLayeredModel::new(Stack::new(3, &device), &placement);
+    }
+
+    #[test]
+    #[should_panic(expected = "every hidden layer")]
+    fn a_placement_past_the_last_hidden_layer_is_refused() {
+        let device = test_device();
+        let placement = LayerPlacement::even(core::slice::from_ref(&device), 4);
+        DistributedLayeredModel::new(Stack::new(3, &device), &placement);
+    }
+
+    #[cfg(feature = "autodiff")]
+    #[test]
+    fn every_parameter_receives_a_gradient() {
+        let device = test_device().autodiff();
+        let placement = LayerPlacement::even(core::slice::from_ref(&device), 3);
+        let stack = DistributedLayeredModel::new(Stack::new(3, &device), &placement);
+        let input = Tensor::random([4, WIDTH], Distribution::Default, &device);
+
+        let grads = stack.forward(input).sum().backward();
+
+        let model = stack.model();
+        let hidden = model.hidden.iter().map(|layer| &layer.linear);
+        for (index, linear) in [&model.input.linear, &model.output.linear]
+            .into_iter()
+            .chain(hidden)
+            .enumerate()
+        {
+            assert!(
+                linear.weight.grad(&grads).is_some(),
+                "layer {index} has no gradient"
+            );
+        }
+    }
+
+    #[derive(Module, Debug)]
+    struct Stack {
+        input: Tanh,
+        hidden: Vec<Tanh>,
+        output: Head,
+    }
+
+    impl Stack {
+        fn new(hidden: usize, device: &Device) -> Self {
+            Self {
+                input: Tanh::new(device),
+                hidden: (0..hidden).map(|_| Tanh::new(device)).collect(),
+                output: Head {
+                    linear: SimpleLinear::new(WIDTH, 2, device),
+                },
+            }
+        }
+
+        /// The reference the split forward has to reproduce.
+        fn plain_forward(&self, input: Tensor<2>) -> Tensor<2> {
+            let hidden = self
+                .hidden
+                .iter()
+                .fold(self.input.forward(input), |x, layer| layer.forward(x));
+            self.output.forward(hidden)
+        }
+    }
+
+    impl LayerParallelism for Stack {
+        type InputLayer = Tanh;
+        type HiddenLayer = Tanh;
+        type OutputLayer = Head;
+
+        fn layer_input(&self) -> &Tanh {
+            &self.input
+        }
+
+        fn layers_hidden(&self) -> impl Iterator<Item = &Tanh> {
+            self.hidden.iter()
+        }
+
+        fn layer_output(&self) -> &Head {
+            &self.output
+        }
+
+        fn into_layers(self) -> LayerSequence<Self> {
+            LayerSequence {
+                input: self.input,
+                hidden: self.hidden,
+                output: self.output,
+            }
+        }
+    }
+
+    #[derive(Module, Debug)]
+    struct Tanh {
+        linear: SimpleLinear,
+    }
+
+    impl Tanh {
+        fn new(device: &Device) -> Self {
+            Self {
+                linear: SimpleLinear::new(WIDTH, WIDTH, device),
+            }
+        }
+    }
+
+    impl DistributedLayer for Tanh {
+        type Input = Tensor<2>;
+        type Output = Tensor<2>;
+
+        fn forward(&self, input: Tensor<2>) -> Tensor<2> {
+            linear(&self.linear, input).tanh()
+        }
+    }
+
+    #[derive(Module, Debug)]
+    struct Head {
+        linear: SimpleLinear,
+    }
+
+    impl DistributedLayer for Head {
+        type Input = Tensor<2>;
+        type Output = Tensor<2>;
+
+        fn forward(&self, input: Tensor<2>) -> Tensor<2> {
+            linear(&self.linear, input)
+        }
+    }
+
+    /// `SimpleLinear` is a bare pair of parameters, with no forward of its own.
+    fn linear(layer: &SimpleLinear, x: Tensor<2>) -> Tensor<2> {
+        let out = x.matmul(layer.weight.val().transpose());
+        match &layer.bias {
+            Some(bias) => out + bias.val().unsqueeze(),
+            None => out,
+        }
+    }
+}
