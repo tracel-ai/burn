@@ -59,6 +59,82 @@ impl BleuState {
         }
     }
 
+    fn update(
+        &mut self,
+        clipped_counts: &[usize],
+        total_counts: &[usize],
+        candidate_len: usize,
+        reference_len: usize,
+        batch_size: usize,
+        smoothing: &BleuSmoothing,
+    ) {
+        self.current_value = corpus_bleu(
+            clipped_counts,
+            total_counts,
+            candidate_len,
+            reference_len,
+            self.total_counts.len(),
+            smoothing,
+        );
+        self.current_count = batch_size;
+
+        for (total, batch) in self.clipped_counts.iter_mut().zip(clipped_counts) {
+            *total += batch;
+        }
+        for (total, batch) in self.total_counts.iter_mut().zip(total_counts) {
+            *total += batch;
+        }
+        self.candidate_len += candidate_len;
+        self.reference_len += reference_len;
+        self.running_count += batch_size;
+    }
+
+    fn running_score(&self, smoothing: &BleuSmoothing) -> f64 {
+        corpus_bleu(
+            &self.clipped_counts,
+            &self.total_counts,
+            self.candidate_len,
+            self.reference_len,
+            self.total_counts.len(),
+            smoothing,
+        )
+    }
+
+    fn current_value(&self) -> NumericEntry {
+        NumericEntry::Aggregated {
+            aggregated_value: self.current_value,
+            count: self.current_count,
+        }
+    }
+
+    fn running_value(&self, smoothing: &BleuSmoothing) -> NumericEntry {
+        NumericEntry::Aggregated {
+            aggregated_value: self.running_score(smoothing),
+            count: self.running_count,
+        }
+    }
+
+    fn final_value(&self, smoothing: &BleuSmoothing) -> NumericEntry {
+        NumericEntry::Final(self.running_score(smoothing))
+    }
+
+    fn compute_update(&self, smoothing: &BleuSmoothing) -> SerializedEntry {
+        self.serialized_entry(self.current_value(), smoothing)
+    }
+
+    fn compute_final(&self, smoothing: &BleuSmoothing) -> SerializedEntry {
+        self.serialized_entry(self.final_value(smoothing), smoothing)
+    }
+
+    fn serialized_entry(&self, value: NumericEntry, smoothing: &BleuSmoothing) -> SerializedEntry {
+        let epoch = format_float(self.running_score(smoothing), 2);
+        let batch = format_float(self.current_value, 2);
+        SerializedEntry::new(
+            format!("epoch {epoch} % - batch {batch} %"),
+            value.serialize(),
+        )
+    }
+
     fn clear(&mut self) {
         self.clipped_counts.fill(0);
         self.total_counts.fill(0);
@@ -161,26 +237,6 @@ impl BleuScore {
     pub fn with_smoothing(mut self, smoothing: BleuSmoothing) -> Self {
         self.smoothing = smoothing;
         self
-    }
-
-    fn running_score(&self) -> f64 {
-        corpus_bleu(
-            &self.state.clipped_counts,
-            &self.state.total_counts,
-            self.state.candidate_len,
-            self.state.reference_len,
-            self.max_n,
-            &self.smoothing,
-        )
-    }
-
-    fn serialized_entry(&self, value: NumericEntry) -> SerializedEntry {
-        let epoch = format_float(self.running_score(), 2);
-        let batch = format_float(self.state.current_value, 2);
-        SerializedEntry::new(
-            format!("epoch {epoch} % - batch {batch} %"),
-            value.serialize(),
-        )
     }
 }
 
@@ -337,35 +393,19 @@ impl Metric for BleuScore {
             }
         }
 
-        let value = corpus_bleu(
+        self.state.update(
             &clipped_counts,
             &total_counts,
             total_candidate_len,
             total_reference_len,
-            self.max_n,
+            batch_size,
             &self.smoothing,
         );
-
-        for (total, batch) in self.state.clipped_counts.iter_mut().zip(clipped_counts) {
-            *total += batch;
-        }
-        for (total, batch) in self.state.total_counts.iter_mut().zip(total_counts) {
-            *total += batch;
-        }
-        self.state.candidate_len += total_candidate_len;
-        self.state.reference_len += total_reference_len;
-        self.state.running_count += batch_size;
-        self.state.current_value = value;
-        self.state.current_count = batch_size;
-
-        Ok(self.serialized_entry(NumericEntry::Aggregated {
-            aggregated_value: self.state.current_value,
-            count: self.state.current_count,
-        }))
+        Ok(self.state.compute_update(&self.smoothing))
     }
 
     fn compute(&mut self) -> Result<SerializedEntry, TensorReadError> {
-        Ok(self.serialized_entry(NumericEntry::Final(self.running_score())))
+        Ok(self.state.compute_final(&self.smoothing))
     }
 
     fn clear(&mut self) {
@@ -387,21 +427,15 @@ impl Metric for BleuScore {
 
 impl Numeric for BleuScore {
     fn value(&self) -> Option<NumericEntry> {
-        Some(NumericEntry::Aggregated {
-            aggregated_value: self.state.current_value,
-            count: self.state.current_count,
-        })
+        Some(self.state.current_value())
     }
 
     fn running_value(&self) -> Option<NumericEntry> {
-        Some(NumericEntry::Aggregated {
-            aggregated_value: self.running_score(),
-            count: self.state.running_count,
-        })
+        Some(self.state.running_value(&self.smoothing))
     }
 
     fn final_value(&self) -> NumericEntry {
-        NumericEntry::Final(self.running_score())
+        self.state.final_value(&self.smoothing)
     }
 }
 
