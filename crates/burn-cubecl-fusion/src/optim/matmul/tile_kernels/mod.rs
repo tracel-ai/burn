@@ -25,15 +25,23 @@ use burn_std::DType;
 use carrier::Carrier;
 use cubecl::{
     AutotuneKey, CubeTuneId,
-    client::Client,
     tile::launch::{Refusal, SinkLaunch, SinkLaunchVisitor},
     tune::{LocalTuner, Tunable, TunableSet, local_tuner},
 };
 use cubek::matmul::kernels::{
-    select::problem::OperandKind,
-    tensor::{PlainTensor, StoredTensor},
-    tune::key::{MatmulTuneKey, create_key},
+    MatmulOpStrategy,
+    plan::{MatmulCall, MatmulCallInput},
+    select::{
+        problem::{MatmulProblem, OperandKind},
+        selector::measured_table,
+    },
+    tensor::PlainTensor,
+    tune::{
+        MatmulTableGroups,
+        key::{MatmulTuneKey, create_key},
+    },
 };
+use cubek::std::Hardware;
 use serde::{Deserialize, Serialize};
 
 /// Why a fused product did not run fused; the fallback runs it instead.
@@ -101,18 +109,20 @@ pub(crate) fn execute(arg: MatmulOptimizationTuneArg, context: &mut Context<Cube
     TUNER.execute(&tune_id, &client, tunables, TuneInput::new(context, arg));
 }
 
-/// The routine cubek's matmul tables elected for `lhs · rhs`, prepared for a sink and handed to
-/// `visitor`; `None` where no routine is elected.
+/// The routine cubek's matmul table elected for `call`, prepared for a sink and handed to
+/// `visitor`; `None` where the product's plan is no single table, or the table has not measured
+/// the product's key yet.
 ///
-/// None is yet: the tables that answer it move into cubek, and until then every fused product runs
-/// its fallback.
-fn elected<V: SinkLaunchVisitor>(
-    _client: &Client,
-    _lhs: StoredTensor,
-    _rhs: StoredTensor,
-    _visitor: V,
-) -> Option<V::Output> {
-    None
+/// The table is the one the unfused product races on, under the same device identity, so the
+/// fused product launches whichever routine the unfused one settled.
+fn elected<V: SinkLaunchVisitor>(call: &MatmulCall, visitor: V) -> Option<V::Output> {
+    let problem = MatmulProblem::new(
+        (call.lhs.meta.shape(), call.lhs.tensor.kind()),
+        (call.rhs.meta.shape(), call.rhs.tensor.kind()),
+    );
+    let table = measured_table(MatmulOpStrategy::Autotune, &problem, &call.hw)?;
+    let (settings, _) = table.fastest_routine(call, MatmulTableGroups::default())?;
+    Some(settings.sink_launch(call, visitor))
 }
 
 /// The product's routine storing into the trace's block.
@@ -120,19 +130,30 @@ fn execute_fused(
     arg: &MatmulOptimizationTuneArg,
     context: &mut Context<CubeFusionHandle>,
 ) -> Result<TuneOutput, TraceError<TileFusedMatmulError>> {
-    let op = &arg.info.matmul.op;
+    let info = &arg.info;
+    let op = &info.matmul.op;
     let lhs = operand(context, &op.lhs).map_err(TraceError::RunnerError)?;
     let rhs = operand(context, &op.rhs).map_err(TraceError::RunnerError)?;
-    elected(&arg.info.client, lhs, rhs, FusedRun { arg, context }).unwrap_or(Err(
-        TraceError::RunnerError(TileFusedMatmulError::NoRoutineElected),
-    ))
+    let call = MatmulCall {
+        hw: Hardware::from_client(&info.client),
+        client: info.client.clone(),
+        tune_id: CubeTuneId::new(&info.client, &info.device),
+        lhs: MatmulCallInput::plain(lhs),
+        rhs: MatmulCallInput::plain(rhs),
+        out: dtype_to_storage_type(context.tensors[&op.out.id].dtype),
+        routes: None,
+        destination: None,
+    };
+    elected(&call, FusedRun { arg, context }).unwrap_or(Err(TraceError::RunnerError(
+        TileFusedMatmulError::NoRoutineElected,
+    )))
 }
 
 /// The operand `tensor` names in the trace, bound where its handle lies.
 fn operand(
     context: &Context<CubeFusionHandle>,
     tensor: &TensorIr,
-) -> Result<StoredTensor, TileFusedMatmulError> {
+) -> Result<PlainTensor, TileFusedMatmulError> {
     let global = &context.tensors[&tensor.id];
     if let DType::QFloat(_) = global.dtype {
         return Err(TileFusedMatmulError::QuantizedOperand);
@@ -142,10 +163,10 @@ fn operand(
         .get_handle_ref(&global.id)
         .expect("a fused product's operand has a handle")
         .clone();
-    Ok(StoredTensor::Plain(PlainTensor::new(
+    Ok(PlainTensor::new(
         handle.binding(global.shape.clone()),
         dtype_to_storage_type(global.dtype),
-    )))
+    ))
 }
 
 /// A fused product waiting for its routine's launch: the trace runs with the launch storing into
