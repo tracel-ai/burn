@@ -2,12 +2,14 @@
 
 mod base;
 mod layer;
-#[cfg(feature = "std")]
-mod microbatch;
 mod model;
+#[cfg(feature = "std")]
+mod pipeline;
 mod placement;
 
 pub use base::*;
 pub use layer::*;
 pub use model::*;
+#[cfg(feature = "std")]
+pub use pipeline::*;
 pub use placement::*;

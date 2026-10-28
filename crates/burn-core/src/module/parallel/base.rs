@@ -61,9 +61,9 @@ pub trait LayerParallelism: Module {
     /// Runs first, on what the model takes; what it returns is what the hidden layers pass along.
     type InputLayer: DistributedLayer<Input: Module, Output: Module>;
     /// Each hidden layer.
-    type HiddenLayer: DistributedLayer<Input = HiddenLayerSignal<Self>, Output = HiddenLayerSignal<Self>>;
+    type HiddenLayer: DistributedLayer<Input = HiddenSignal<Self>, Output = HiddenSignal<Self>>;
     /// Runs last; what it returns is what the model returns.
-    type OutputLayer: DistributedLayer<Input = HiddenLayerSignal<Self>>;
+    type OutputLayer: DistributedLayer<Input = HiddenSignal<Self>>;
 
     /// The input layer.
     fn layer_input(&self) -> &Self::InputLayer;
@@ -79,9 +79,15 @@ pub trait LayerParallelism: Module {
     fn into_layers(self) -> LayerSequence<Self>;
 }
 
+/// What a [`LayerParallelism`] model takes: what its input layer takes.
+pub type InputSignal<M> = <<M as LayerParallelism>::InputLayer as DistributedLayer>::Input;
+
 /// What the hidden layers of a [`LayerParallelism`] model take and return: whatever its input
 /// layer produces.
-pub type HiddenLayerSignal<M> = <<M as LayerParallelism>::InputLayer as DistributedLayer>::Output;
+pub type HiddenSignal<M> = <<M as LayerParallelism>::InputLayer as DistributedLayer>::Output;
+
+/// What a [`LayerParallelism`] model returns: what its output layer returns.
+pub type OutputSignal<M> = <<M as LayerParallelism>::OutputLayer as DistributedLayer>::Output;
 
 /// The layers of a [`LayerParallelism`] model, owned.
 #[derive(Debug)]

@@ -9,8 +9,8 @@ use burn_core as burn;
 use burn_core::module::{
     Module, Param,
     parallel::{
-        DistributedLayer, DistributedLayeredModel, LayerParallelism, LayerPlacement, LayerSequence,
-        LayerStage,
+        DistributedLayer, DistributedLayeredModel, LayerParallelism, LayerPipeline, LayerPlacement,
+        LayerSequence, LayerStage,
     },
 };
 use burn_tensor::{Device, Distribution, Tensor, Tolerance};
@@ -86,7 +86,7 @@ fn a_model_split_across_two_devices_computes_what_one_device_does() {
 }
 
 #[test]
-fn microbatches_run_stage_by_stage_come_back_in_order_as_the_plain_forward_computes_them() {
+fn a_pipeline_returns_each_batch_in_order_as_the_plain_forward_computes_it() {
     let (flex, cpu) = devices();
     let stages =
         [(flex.clone(), 2), (cpu, 1), (flex.clone(), 1)].map(|(device, num_hidden_layers)| {
@@ -105,7 +105,7 @@ fn microbatches_run_stage_by_stage_come_back_in_order_as_the_plain_forward_compu
         .map(|input| model.forward(input.clone()))
         .collect();
 
-    let outputs = model.forward_microbatched(inputs);
+    let outputs = LayerPipeline::new(model).forward(inputs);
 
     assert_eq!(outputs.len(), expected.len());
     for (output, expected) in outputs.into_iter().zip(expected) {
