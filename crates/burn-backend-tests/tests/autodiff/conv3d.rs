@@ -1,5 +1,9 @@
 use super::*;
-use burn_tensor::{Shape, Tolerance, module::conv3d, ops::ConvOptions};
+use burn_tensor::{
+    Shape, Tolerance,
+    module::conv3d,
+    ops::{ConvOptions, PadMode},
+};
 
 #[test]
 fn test_conv3d_basic() {
@@ -589,6 +593,59 @@ fn test_conv3d_groups_stride_2_no_pad() {
         bias: TestTensor::from_data([1., 1.], &device),
     };
     test.assert_grads(grads);
+}
+
+#[test]
+fn test_conv3d_asymmetric_padding_matches_explicit_padding_backward() {
+    let device = AutodiffDevice::new();
+    let x_data = TestTensorInt::arange(0..120, &device)
+        .reshape::<5, _>([1, 2, 3, 4, 5])
+        .into_data();
+    let weight_data = TestTensorInt::arange(0..108, &device)
+        .reshape::<5, _>([3, 2, 2, 3, 3])
+        .into_data();
+    let bias_data = TestTensorInt::arange(0..3, &device).into_data();
+    let padding = [(0, 1), (2, 0), (1, 2)];
+
+    let x = TestTensor::from_data(x_data.clone(), &device).require_grad();
+    let weight = TestTensor::from_data(weight_data.clone(), &device).require_grad();
+    let bias = TestTensor::from_data(bias_data.clone(), &device).require_grad();
+    let output = conv3d(
+        x.clone(),
+        weight.clone(),
+        Some(bias.clone()),
+        ConvOptions::new_with_padding([2, 1, 1], padding, [1, 1, 1], 1),
+    );
+    let grads = output.clone().sum().backward();
+
+    let x_ref = TestTensor::from_data(x_data, &device).require_grad();
+    let weight_ref = TestTensor::from_data(weight_data, &device).require_grad();
+    let bias_ref = TestTensor::from_data(bias_data, &device).require_grad();
+    let output_ref = conv3d(
+        x_ref.clone().pad(padding, PadMode::Constant(0.0)),
+        weight_ref.clone(),
+        Some(bias_ref.clone()),
+        ConvOptions::new([2, 1, 1], [0, 0, 0], [1, 1, 1], 1),
+    );
+    let grads_ref = output_ref.clone().sum().backward();
+
+    let tolerance = Tolerance::rel_abs(0.01, 0.01);
+    output
+        .to_data()
+        .assert_approx_eq::<FloatElem>(&output_ref.to_data(), tolerance);
+    x.grad(&grads)
+        .unwrap()
+        .to_data()
+        .assert_approx_eq::<FloatElem>(&x_ref.grad(&grads_ref).unwrap().to_data(), tolerance);
+    weight
+        .grad(&grads)
+        .unwrap()
+        .to_data()
+        .assert_approx_eq::<FloatElem>(&weight_ref.grad(&grads_ref).unwrap().to_data(), tolerance);
+    bias.grad(&grads)
+        .unwrap()
+        .to_data()
+        .assert_approx_eq::<FloatElem>(&bias_ref.grad(&grads_ref).unwrap().to_data(), tolerance);
 }
 
 struct Conv3dTestCase {

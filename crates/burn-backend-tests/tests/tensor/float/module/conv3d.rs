@@ -260,6 +260,27 @@ fn test_conv3d_depth_padding_only_slice() {
     ]]));
 }
 
+#[test]
+fn test_conv3d_asymmetric_padding() {
+    let device = Default::default();
+    let x = TestTensorInt::arange(0..64, &device)
+        .reshape::<5, _>([1, 1, 4, 4, 4])
+        .float();
+    let weight = TestTensor::<5>::ones([1, 1, 3, 3, 3], &device);
+
+    let output = conv3d(
+        x,
+        weight,
+        None,
+        ConvOptions::new_with_padding([2, 2, 2], [(0, 1), (1, 0), (0, 0)], [1, 1, 1], 1),
+    );
+
+    output.into_data().assert_approx_eq::<FloatElem>(
+        &TestTensor::<5>::from_data([[[[[342.], [675.]], [[516.], [882.]]]]], &device).into_data(),
+        Tolerance::rel_abs(0.01, 0.01),
+    );
+}
+
 struct Conv3dTestCase {
     batch_size: usize,
     channels_in: usize,
