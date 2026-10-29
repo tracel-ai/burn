@@ -2,6 +2,7 @@
 use super::{autotune_reduce, autotune_reduce_with_indices, autotune_sum};
 use crate::ops::permute;
 use crate::{
+    kernel::utils::{device_threads, few_outputs_over_a_long_axis},
     ops::numeric::{empty_device_contiguous_dtype, fill_device_dtype, zeros_client},
     tensor::CubeTensor,
 };
@@ -432,19 +433,7 @@ pub fn reduce_dim(
         return Ok(output);
     }
 
-    // An extremum does not depend on the order the axis is walked in, so a long axis feeding few
-    // outputs takes the cube routine, as for the extremum with its index.
-    let routine = if matches!(
-        config,
-        ReduceOperationConfig::Min | ReduceOperationConfig::Max
-    ) && few_outputs_over_a_long_axis(input.meta.shape(), dim)
-    {
-        RoutineStrategy::Cube(BlueprintStrategy::Inferred(CubeStrategy {
-            use_planes: false,
-        }))
-    } else {
-        RoutineStrategy::Unit(BlueprintStrategy::Inferred(UnitStrategy))
-    };
+    let routine = default_routine(&input, dim, config);
     let result = match strategy {
         KernelReduceStrategy::Unspecified => cubek::reduce::reduce(
             &client,
@@ -556,20 +545,7 @@ pub fn reduce_dim_with_indices(
 
     let client = input.client.clone();
 
-    // An extremum and its first index do not depend on the order the axis is walked in, so a long
-    // axis feeding few outputs takes the cube routine: the unit routine would walk it on a handful
-    // of threads. Top-k keeps the unit routine.
-    let routine = if matches!(
-        config,
-        ReduceOperationConfig::Min | ReduceOperationConfig::Max
-    ) && few_outputs_over_a_long_axis(input.meta.shape(), dim)
-    {
-        RoutineStrategy::Cube(BlueprintStrategy::Inferred(CubeStrategy {
-            use_planes: false,
-        }))
-    } else {
-        RoutineStrategy::Unit(BlueprintStrategy::Inferred(UnitStrategy))
-    };
+    let routine = default_routine(&input, dim, config);
     let result = match strategy {
         KernelReduceStrategy::Unspecified => cubek::reduce::reduce_with_indices(
             &client,
@@ -669,13 +645,27 @@ impl Default for KernelReduceStrategy {
     }
 }
 
-/// The most outputs an extremum takes the cube routine for: past them the unit routine has threads
-/// enough to fill the device.
-const LONG_AXIS_MAX_OUTPUTS: usize = 256;
-/// The shortest axis an extremum takes the cube routine for.
-const LONG_AXIS_MIN_LENGTH: usize = 1 << 16;
-
-/// At most [`LONG_AXIS_MAX_OUTPUTS`] outputs over an axis of at least [`LONG_AXIS_MIN_LENGTH`].
-fn few_outputs_over_a_long_axis(shape: &Shape, dim: usize) -> bool {
-    shape[dim] >= LONG_AXIS_MIN_LENGTH && shape.num_elements() / shape[dim] <= LONG_AXIS_MAX_OUTPUTS
+/// The routine a reduction takes without autotune: the unit routine, a thread per output walking
+/// its axis, unless the outputs cannot fill the device while their axes can. An extremum and its
+/// first index do not depend on the order the axis is walked in, so they then take the cube routine,
+/// a cube per output; other reductions, top-k included, keep the unit routine's order.
+fn default_routine(
+    input: &CubeTensor,
+    dim: usize,
+    config: ReduceOperationConfig,
+) -> RoutineStrategy {
+    let shape = input.meta.shape();
+    let length = shape[dim];
+    let outputs = shape.num_elements() / length.max(1);
+    if matches!(
+        config,
+        ReduceOperationConfig::Min | ReduceOperationConfig::Max
+    ) && few_outputs_over_a_long_axis(device_threads(input), outputs, length)
+    {
+        RoutineStrategy::Cube(BlueprintStrategy::Inferred(CubeStrategy {
+            use_planes: false,
+        }))
+    } else {
+        RoutineStrategy::Unit(BlueprintStrategy::Inferred(UnitStrategy))
+    }
 }
