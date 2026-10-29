@@ -70,7 +70,11 @@ autotune-checks = [
 # Autotune races only cubek's tile-DSL matmul and attention routines, never the multi-level ones
 # or the old attention: an input they don't serve fails instead of falling back. For measuring
 # them through burn's tests and benches, not for use.
-tile-kernels-only = ["autotune", "cubek/microkernel"]
+tile-kernels-only = [
+    "autotune",
+    "cubek/microkernel",
+    "burn-cubecl-fusion?/tile-kernels-only",
+]
 
 fusion = ["burn-fusion", "burn-cubecl-fusion"]
 fusion-experimental = ["fusion"]
