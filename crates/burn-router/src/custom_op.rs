@@ -2,6 +2,7 @@ use alloc::string::{String, ToString};
 use alloc::sync::Arc;
 use burn_backend::backend::BackendTypes;
 use burn_ir::{BackendIr, CustomOpIr, HandleContainer};
+use core::any::TypeId;
 use hashbrown::HashMap;
 
 /// A handler that executes a single custom operation against a backend's tensor handles.
@@ -32,8 +33,35 @@ pub type CustomOpHandler<B> = Arc<
 /// global/static registry to manage.
 #[derive(Clone)]
 pub struct CustomOpRegistry<B: BackendIr> {
-    handlers: HashMap<String, CustomOpHandler<B>>,
+    handlers: HashMap<String, RegisteredHandler<B>>,
 }
+
+/// A handler with the type of the function it was registered from, which tells a repeated
+/// registration of the same function apart from a different function under the same id.
+#[derive(Clone)]
+struct RegisteredHandler<B: BackendIr> {
+    function: TypeId,
+    handler: CustomOpHandler<B>,
+}
+
+/// A different handler is already registered under the custom operation's id.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CustomOpConflict {
+    /// The id both handlers claim.
+    pub id: String,
+}
+
+impl core::fmt::Display for CustomOpConflict {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(
+            f,
+            "a different handler is already registered for custom operation `{}`",
+            self.id
+        )
+    }
+}
+
+impl core::error::Error for CustomOpConflict {}
 
 impl<B: BackendIr> Default for CustomOpRegistry<B> {
     fn default() -> Self {
@@ -57,12 +85,43 @@ impl<B: BackendIr> CustomOpRegistry<B> {
     where
         F: Fn(&mut HandleContainer<B::Handle>, &CustomOpIr, &B::Device) + Send + Sync + 'static,
     {
-        self.handlers.insert(id.to_string(), Arc::new(handler));
+        self.handlers
+            .insert(id.to_string(), RegisteredHandler::new(handler));
+    }
+
+    /// Register the handler executed for `id`, unless a different handler already claims it.
+    ///
+    /// Registering the same function again, such as a closure from the same source location,
+    /// replaces it and succeeds, so registering a set of handlers twice is harmless. A different
+    /// function under the same id is refused and the registry keeps the first.
+    pub fn try_register<F>(&mut self, id: &str, handler: F) -> Result<(), CustomOpConflict>
+    where
+        F: Fn(&mut HandleContainer<B::Handle>, &CustomOpIr, &B::Device) + Send + Sync + 'static,
+    {
+        if let Some(registered) = self.handlers.get(id)
+            && registered.function != TypeId::of::<F>()
+        {
+            return Err(CustomOpConflict { id: id.to_string() });
+        }
+        self.register(id, handler);
+        Ok(())
     }
 
     /// Get the handler registered for `id`, if any.
     pub(crate) fn get(&self, id: &str) -> Option<&CustomOpHandler<B>> {
-        self.handlers.get(id)
+        self.handlers.get(id).map(|registered| &registered.handler)
+    }
+}
+
+impl<B: BackendIr> RegisteredHandler<B> {
+    fn new<F>(handler: F) -> Self
+    where
+        F: Fn(&mut HandleContainer<B::Handle>, &CustomOpIr, &B::Device) + Send + Sync + 'static,
+    {
+        Self {
+            function: TypeId::of::<F>(),
+            handler: Arc::new(handler),
+        }
     }
 }
 
@@ -141,6 +200,24 @@ mod tests {
             burn_ir::HandleKind::Int(_) => {}
             _ => panic!("expected an int tensor"),
         }
+    }
+
+    #[test]
+    fn try_register_refuses_a_different_handler_under_a_taken_id() {
+        fn noop(
+            _: &mut HandleContainer<<Flex as BackendIr>::Handle>,
+            _: &CustomOpIr,
+            _: &<Flex as BackendTypes>::Device,
+        ) {
+        }
+        let mut registry = CustomOpRegistry::<Flex>::new();
+        registry.try_register("op", noop).unwrap();
+        // The same function again is a repeated registration, not a conflict.
+        registry.try_register("op", noop).unwrap();
+        assert_eq!(
+            registry.try_register("op", |_, _, _| {}),
+            Err(CustomOpConflict { id: "op".into() })
+        );
     }
 
     #[test]
