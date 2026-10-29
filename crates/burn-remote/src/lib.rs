@@ -29,6 +29,15 @@ pub use credential::Credential;
 pub use burn_ir as ir;
 pub use burn_router::RouterClient;
 
+/// The router items `#[backend_extension]` names in a generated remote client and its server
+/// handlers.
+#[doc(hidden)]
+pub mod extension {
+    pub use burn_router::{
+        BackendRouter, CustomOpRegistry, RouterChannel, RouterClient, RouterTensor,
+    };
+}
+
 /// Network-traffic savings metric for op-graph caching, shared by the client device service and the
 /// server session worker.
 #[cfg(any(feature = "client", feature = "server"))]
