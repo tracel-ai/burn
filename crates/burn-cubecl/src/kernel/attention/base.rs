@@ -148,7 +148,7 @@ pub fn flash_attention(
         &dtypes,
         AttentionOptions {
             causal: options.is_causal,
-            sliding_window: None,
+            sliding_window: options.sliding_window,
             accumulator_precision: AccumulatorPrecision::Strict(cubecl::ir::ElemType::Float(
                 cubecl::ir::FloatKind::F32,
             )),
