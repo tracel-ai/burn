@@ -70,7 +70,10 @@ pub fn attention_autotune(
         None,
         scoring,
     )
-    .unwrap_or_else(|why| panic!("no tile-DSL attention routine serves these operands: {why:?}"));
+    .unwrap_or_else(|why| panic!("no tile-DSL attention routine serves these operands: {why:?}"))
+    // burn's key and value are the call's own, every position attended: the autotune key holds
+    // their extent rather than standing for a cache's.
+    .attending_every_position();
     // A mask broadcast over the batch or the heads is read at stride zero there, never copied.
     let inputs = match mask {
         Some(mask) => {
