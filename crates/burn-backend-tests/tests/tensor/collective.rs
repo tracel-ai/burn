@@ -1,6 +1,8 @@
-use burn_backend::ops::CollectiveOps;
-use burn_dispatch::Dispatch;
-use burn_tensor::{Device, TensorData, Tolerance, distributed::ReduceOperation, kind::Basic};
+use burn_backend::ops::{CollectiveOps, EmulatedCollectives};
+use burn_dispatch::{Dispatch, DispatchTensor};
+use burn_tensor::{
+    DType, Device, TensorData, Tolerance, distributed::ReduceOperation, kind::Basic,
+};
 use core::ops::Range;
 
 use super::*;
@@ -118,6 +120,28 @@ mod emulated {
         }
     }
 
+    /// The backward of a gather scatters along the gathered dimension, which an empty one cannot
+    /// be split along.
+    #[test]
+    fn should_carry_gradients_through_an_empty_dimension() {
+        let device = Device::default().autodiff();
+        let members: Vec<_> = (0..3)
+            .map(|_| TestTensor::<1>::zeros([0], &device).require_grad())
+            .collect();
+
+        let loss = TestTensor::all_gather(members.clone(), 0)
+            .into_iter()
+            .map(|output| output.sum())
+            .reduce(|lhs, rhs| lhs + rhs)
+            .expect("a group has members");
+        let grads = loss.backward();
+
+        for member in members {
+            let grad = member.grad(&grads).expect("every member reaches the loss");
+            assert_eq!(grad.dims(), [0]);
+        }
+    }
+
     #[cfg(any(feature = "flex", feature = "cuda"))]
     #[test]
     fn should_average_f16_past_the_range_of_its_sum() {
@@ -163,6 +187,23 @@ mod emulated {
         }
     }
 
+    #[test]
+    fn should_carry_gradients_through_every_collective() {
+        group().autodiff().gradients();
+    }
+
+    /// Member 0's output is left out of the loss, so its gradient is zeros made in its dtype.
+    #[cfg(any(feature = "flex", feature = "cuda"))]
+    #[test]
+    fn should_carry_f16_gradients_through_every_collective() {
+        Group {
+            cast: Some(DType::F16),
+            ..group()
+        }
+        .autodiff()
+        .gradients();
+    }
+
     /// Dispatch runs a backend's collective only when every member is on it. Reductions only: a
     /// bool moved from Flex to a cubecl device fails in `bool_from_data` before any collective.
     #[cfg(feature = "cube")]
@@ -182,6 +223,7 @@ mod emulated {
             rows: 4,
             cols: 3,
             strided: false,
+            cast: None,
         }
     }
 }
@@ -291,6 +333,13 @@ mod nccl {
         group.along_the_middle_dim();
     }
 
+    #[test]
+    #[serial]
+    fn should_carry_gradients_through_every_collective() {
+        let Some(group) = group() else { return };
+        group.autodiff().gradients();
+    }
+
     /// Even chunks, so every collective runs over NCCL except broadcast and an all-to-all across
     /// two dimensions, which are emulated.
     fn group() -> Option<Group> {
@@ -301,17 +350,20 @@ mod nccl {
             rows: 2 * members,
             cols: members,
             strided: false,
+            cast: None,
         })
     }
 }
 
 /// Member `r` holds `rows` by `cols` values counting up from an offset that grows with `r * r`,
-/// so sums are negative and no mean divides evenly; laid out column-major when `strided`.
+/// so sums are negative and no mean divides evenly; laid out column-major when `strided`, and
+/// float members cast to `cast` when set.
 struct Group {
     devices: Vec<Device>,
     rows: usize,
     cols: usize,
     strided: bool,
+    cast: Option<DType>,
 }
 
 /// Values on the host, row by row: what a member's tensor should hold.
@@ -347,8 +399,6 @@ impl Group {
     /// Every member holds 40000, whose sum overflows f16 though the mean does not.
     #[cfg(any(feature = "flex", feature = "cuda"))]
     fn f16_mean_past_the_range_of_its_sum(&self) {
-        use burn_tensor::DType;
-
         let members = self
             .devices
             .iter()
@@ -456,6 +506,109 @@ impl Group {
         self.assert_float(Self::flattened(outputs), |member| chunk(member).float());
     }
 
+    /// Each float collective's gradients against those of its emulation, which records the
+    /// transfers, slices and concatenations it is made of.
+    fn gradients(&self) {
+        for op in [ReduceOperation::Sum, ReduceOperation::Mean] {
+            self.assert_gradients(
+                |members| TestTensor::all_reduce(members, op),
+                |members| EmulatedCollectives::<Dispatch>::float_all_reduce(members, op),
+            );
+        }
+        for dim in [0, 1] {
+            self.assert_gradients(
+                |members| TestTensor::all_gather(members, dim),
+                |members| EmulatedCollectives::<Dispatch>::float_all_gather(members, dim),
+            );
+            for op in [ReduceOperation::Sum, ReduceOperation::Mean] {
+                self.assert_gradients(
+                    |members| TestTensor::reduce_scatter(members, dim, op),
+                    |members| {
+                        EmulatedCollectives::<Dispatch>::float_reduce_scatter(members, dim, op)
+                    },
+                );
+            }
+        }
+        for [split_dim, concat_dim] in [[0, 0], [1, 1], [0, 1]] {
+            self.assert_gradients(
+                |members| TestTensor::all_to_all(members, split_dim, concat_dim),
+                |members| {
+                    EmulatedCollectives::<Dispatch>::float_all_to_all(
+                        members, split_dim, concat_dim,
+                    )
+                },
+            );
+        }
+    }
+
+    fn assert_gradients(
+        &self,
+        collective: impl Fn(Vec<TestTensor<2>>) -> Vec<TestTensor<2>>,
+        emulated: impl Fn(Vec<DispatchTensor>) -> Vec<DispatchTensor>,
+    ) {
+        for untracked in [None, Some(1)] {
+            let expected = self.gradients_through(untracked, |members| {
+                let members = members.into_iter().map(Tensor::into_dispatch).collect();
+                emulated(members)
+                    .into_iter()
+                    .map(Tensor::from_dispatch)
+                    .collect()
+            });
+            let grads = self.gradients_through(untracked, &collective);
+            for (grad, expected) in grads.into_iter().zip(expected) {
+                grad.assert_approx_eq::<FloatElem>(&expected, Tolerance::default());
+            }
+        }
+    }
+
+    /// Every tracked member's gradient of a loss that weighs the outputs apart, and leaves out
+    /// member 0's, whose gradient then never reaches the collective.
+    fn gradients_through(
+        &self,
+        untracked: Option<usize>,
+        collective: impl Fn(Vec<TestTensor<2>>) -> Vec<TestTensor<2>>,
+    ) -> Vec<TensorData> {
+        let members: Vec<_> = self
+            .float()
+            .into_iter()
+            .enumerate()
+            .map(|(member, tensor)| match Some(member) == untracked {
+                true => tensor,
+                false => tensor.require_grad(),
+            })
+            .collect();
+        let root = &self.devices[0];
+        let loss = collective(members.clone())
+            .into_iter()
+            .enumerate()
+            .skip(1)
+            .map(|(member, output)| {
+                let weighed = (output.clone() * output).sum().mul_scalar(member as f32);
+                weighed.to_device(root)
+            })
+            .reduce(|lhs, rhs| lhs + rhs)
+            .expect("a group has a second member");
+
+        let grads = loss.backward();
+        members
+            .iter()
+            .enumerate()
+            .filter(|(member, _)| Some(*member) != untracked)
+            .map(|(_, member)| {
+                let grad = member.grad(&grads).expect("every member reaches the loss");
+                assert_eq!(grad.device(), member.device());
+                assert_eq!(grad.dtype(), member.dtype());
+                grad.into_data()
+            })
+            .collect()
+    }
+
+    /// The group on its members' autodiff devices.
+    fn autodiff(self) -> Self {
+        let devices = self.devices.into_iter().map(Device::autodiff).collect();
+        Self { devices, ..self }
+    }
+
     fn values(&self, member: usize) -> Grid {
         let len = self.rows * self.cols;
         let first = (member * len + member * member) as i32 - (len * self.devices.len()) as i32;
@@ -475,9 +628,15 @@ impl Group {
     }
 
     fn float(&self) -> Vec<TestTensor<2>> {
-        self.members(|values, device| match self.strided {
-            true => TestTensor::<2>::from_data(values.transposed().float(), device).transpose(),
-            false => TestTensor::<2>::from_data(values.float(), device),
+        self.members(|values, device| {
+            let tensor = match self.strided {
+                true => TestTensor::<2>::from_data(values.transposed().float(), device).transpose(),
+                false => TestTensor::<2>::from_data(values.float(), device),
+            };
+            match self.cast {
+                Some(dtype) => tensor.cast(dtype),
+                None => tensor,
+            }
         })
     }
 
