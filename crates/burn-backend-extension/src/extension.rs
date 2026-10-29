@@ -12,10 +12,11 @@ use syn::{
 use crate::{
     BACKENDS,
     ir::{Backend, InputKind, Invocation, Operation, OperationInput, OperationOutput, TensorKind},
+    parse::strip_argument_attributes,
     routing::{self, OutputRoute},
 };
 
-pub(crate) fn expand(attr: TokenStream2, item: TokenStream2) -> syn::Result<TokenStream2> {
+pub fn expand(attr: TokenStream2, item: TokenStream2) -> syn::Result<TokenStream2> {
     let backends: Backends = syn::parse2(attr)?;
     let trait_definition: ItemTrait = syn::parse2(item)?;
     let extension = lower_extension(backends, &trait_definition)?;
@@ -266,25 +267,36 @@ fn lower_extension(attr: Backends, item: &ItemTrait) -> syn::Result<Extension> {
     })
 }
 
-fn strip_argument_attributes(signature: &mut Signature) {
-    for argument in &mut signature.inputs {
-        if let FnArg::Typed(argument) = argument {
-            argument.attrs.retain(|attribute| {
-                !attribute.path().is_ident("extension_type") && !attribute.path().is_ident("fusion")
-            });
-        }
-    }
-}
-
-fn expand_extension(ir: Extension, mut original_trait: ItemTrait) -> TokenStream2 {
+fn expand_extension(mut ir: Extension, mut original_trait: ItemTrait) -> TokenStream2 {
     let trait_name = &ir.trait_name;
-    let fusion = if ir.backends.fusion.0 {
-        let cfg = ir.backends.fusion.1.as_ref().map(|c| quote!(#[#c]));
-        let implementation =
-            crate::fusion::expand(&original_trait).unwrap_or_else(syn::Error::into_compile_error);
-        quote!(#cfg #implementation)
+    let fusion_cfg = ir.backends.fusion.1.as_ref().map(|c| quote!(#[#c]));
+    // With Fusion listed, `Remote` is generated from the same metadata: a client for the router
+    // backend, which the generated `Fusion<B>` implementation wraps into the remote backend, and
+    // the server's handlers. Without it, the remote implementation stays handwritten.
+    let remote_gate = ir
+        .backends
+        .concrete
+        .iter_mut()
+        .find(|backend| ir.backends.fusion.0 && backend.ident == "Remote")
+        .map(|backend| {
+            let remote_cfg = backend.cfg_attr.take();
+            let gate = quote!(#remote_cfg #fusion_cfg);
+            // The remote backend implements the trait only where the generated client exists; an
+            // empty gate keeps an ungated backend ungated.
+            backend.cfg_attr = (!gate.is_empty()).then(|| gate.clone());
+            gate
+        });
+    // One parse feeds both emitters; each implements every method, a malformed one included, so
+    // its error is the only one.
+    let (fusion, remote) = if ir.backends.fusion.0 {
+        let model = crate::parse::LazyTrait::new(&original_trait);
+        let implementation = crate::fusion::expand(&model, remote_gate.as_ref());
+        let remote = remote_gate
+            .as_ref()
+            .map(|gate| crate::remote::expand(&model, gate));
+        (quote!(#fusion_cfg #implementation), remote)
     } else {
-        quote!()
+        (quote!(), None)
     };
 
     // Argument attributes `#[extension_type]` and `#[fusion(...)]` are macro helpers. Strip them from the
@@ -302,6 +314,7 @@ fn expand_extension(ir: Extension, mut original_trait: ItemTrait) -> TokenStream
     quote! {
         #original_trait
         #fusion
+        #remote
 
         impl #trait_name for burn::backend::Dispatch {
             #( #dispatch_methods )*

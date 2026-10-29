@@ -1,5 +1,5 @@
 use burn_backend::{DTypeUsageSet, ExecutionError, ProfileOptions, ProfileToken, TensorData};
-use burn_ir::{GraphBindings, GraphId, OperationIr, TensorId, TensorIr};
+use burn_ir::{CapturedGraphId, GraphBindings, GraphId, OperationIr, TensorId, TensorIr};
 use burn_std::{
     DType, DeviceSettings,
     distributed::ReduceOperation,
@@ -20,15 +20,16 @@ use crate::{
 /// messages after the handshake are framed, or which operations a server can
 /// run, so a mismatched peer is refused at the handshake rather than failing
 /// mid-session.
-pub const PROTOCOL_VERSION: u16 = 6;
+pub const PROTOCOL_VERSION: u16 = 7;
 
 /// Routing id for a task whose result is fetched back.
 ///
 /// Only the result-producing tasks ([`Task::ReadTensors`], [`Task::SyncBackend`],
-/// [`Task::DTypeUsage`], [`Task::ProfileStart`], [`Task::ProfileEnd`]) carry a `RequestId`;
-/// the server echoes it on its [`TaskResponse`] so
-/// the client demultiplexes results back to the right pending callback. Fire-and-forget tasks
-/// have no id because no result ever comes back.
+/// [`Task::DTypeUsage`], [`Task::ProfileStart`], [`Task::ProfileEnd`], [`Task::CapturePrepare`],
+/// [`Task::CaptureStart`], [`Task::CaptureStop`], [`Task::DeviceQuery`]) carry a
+/// `RequestId`; the server echoes it on its [`TaskResponse`] so the client demultiplexes results
+/// back to the right pending callback. Fire-and-forget tasks have no id because no result ever
+/// comes back.
 pub type RequestId = u64;
 
 /// Rendezvous id for moving a tensor between devices on one compute peer. Random, since the
@@ -329,6 +330,75 @@ pub enum Task {
     /// something for as long as it stays open, so the client says so rather
     /// than leaving it.
     ProfileAbandon(StreamId, ProfileToken),
+    /// Prepare the server's backend for a graph capture where `stream_id` stands.
+    ///
+    /// The session holds its device's capture from here until the capture ends, or the session
+    /// does: another session's capture on the device is refused meanwhile.
+    CapturePrepare(RequestId, StreamId),
+    /// Start recording the server backend's launches on `stream_id` into a graph, after every
+    /// earlier task. Answered, since a backend that cannot record one, or a device another
+    /// session is capturing on, says so here and the client falls back to re-running.
+    CaptureStart(RequestId, StreamId),
+    /// Stop the recording on `stream_id` and keep the graph under the id the client picked,
+    /// until a [`CaptureRelease`](Task::CaptureRelease) of it.
+    CaptureStop(RequestId, StreamId, CapturedGraphId),
+    /// Replay a kept graph on `stream_id`.
+    ///
+    /// Fire-and-forget: a graph replays once per step, where a round trip would cost what the
+    /// graph saves. A failed replay is the answer to the next
+    /// [`ReadTensors`](Task::ReadTensors) or [`SyncBackend`](Task::SyncBackend) on `stream_id`,
+    /// in place of that task's own result.
+    CaptureReplay(StreamId, CapturedGraphId),
+    /// Drop a kept graph; the client never replays it again.
+    CaptureRelease(CapturedGraphId),
+    /// Ask the server the device query registered under the id about the session's device.
+    DeviceQuery(RequestId, DeviceQueryId),
+}
+
+/// The id a server registers a device query under, and a client asks it by.
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Hash)]
+pub struct DeviceQueryId(String);
+
+impl DeviceQueryId {
+    /// The query named `id`.
+    pub fn new(id: impl Into<String>) -> Self {
+        Self(id.into())
+    }
+
+    /// The id as text.
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+impl From<&str> for DeviceQueryId {
+    fn from(id: &str) -> Self {
+        Self::new(id)
+    }
+}
+
+impl From<String> for DeviceQueryId {
+    fn from(id: String) -> Self {
+        Self::new(id)
+    }
+}
+
+impl core::fmt::Display for DeviceQueryId {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str(&self.0)
+    }
+}
+
+/// Why a server did not answer a [device query](Task::DeviceQuery).
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+pub enum DeviceQueryFailure {
+    /// The server registered no query under the id.
+    Unknown,
+    /// The query's handler panicked.
+    Panicked {
+        /// The panic's message.
+        reason: String,
+    },
 }
 
 #[allow(missing_docs)]
@@ -355,6 +425,12 @@ pub enum TaskResponseContent {
     /// The window's duration on the server's clock; `None` when it carried no
     /// measurement.
     ProfileEnd(Result<Option<Duration>, ExecutionError>),
+    /// The answer to [`CapturePrepare`](Task::CapturePrepare),
+    /// [`CaptureStart`](Task::CaptureStart) and
+    /// [`CaptureStop`](Task::CaptureStop).
+    Capture(Result<(), ExecutionError>),
+    /// The answer to [`DeviceQuery`](Task::DeviceQuery).
+    DeviceQuery(Result<serde_bytes::ByteBuf, DeviceQueryFailure>),
     /// The server's answer to an `Init` it will not serve, in place of [`Init`](Self::Init),
     /// before it closes the session.
     InitRefused(SessionRefusal),

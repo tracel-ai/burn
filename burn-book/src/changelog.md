@@ -211,6 +211,36 @@ all-to-all, and broadcast also support boolean tensors. Quantized tensors are re
   ([#5983](https://github.com/tracel-ai/burn/pull/5983),
   [#5989](https://github.com/tracel-ai/burn/pull/5989),
   [#6017](https://github.com/tracel-ai/burn/pull/6017))
+- Fix router and remote servers panicking when an integer tensor is cast to another integer
+  element type. ([#6308](https://github.com/tracel-ai/burn/pull/6308))
+- Fix a HIP worker crashing when a session ends as the process exits.
+  ([#6308](https://github.com/tracel-ai/burn/pull/6308))
+- `capture` on a remote device records and replays the graph on the server's device. One session
+  captures per server device at a time. A replay that fails is the error of the next read or sync
+  on its stream. ([#6308](https://github.com/tracel-ai/burn/pull/6308))
+- A read on a router or remote server of a tensor whose producing work failed reports that failure
+  instead of ending the session. ([#6308](https://github.com/tracel-ai/burn/pull/6308))
+- Servers answer device queries registered with `with_device_query`, asked by
+  `RemoteDevice::query`. **Breaking:** `ServeError::CustomOpBackend` is renamed `HandlerBackend`,
+  as it also covers device queries. ([#6308](https://github.com/tracel-ai/burn/pull/6308))
+
+#### Backend extensions
+
+Backend extensions run on the remote backend without handwritten remote code: listing `Remote`
+beside `Fusion` in `#[backend_extension]` generates the client, which sends each call as a custom
+operation's IR, and `<Trait>Handlers::register` for the server's `CustomOpRegistry`. Ordinary
+arguments that are not primitives take `#[fusion(scalar = .., decode = ..)]`, and extension values
+opt in with `#[extension_type(fusion, remote)]`. `CustomOpRegistry::try_register` refuses a
+handler from another `HandlerSource` under an id already taken.
+([#6308](https://github.com/tracel-ai/burn/pull/6308))
+
+**API migration:** a `#[backend_extension]` Fusion operation's default id is now
+`"Trait::method"` instead of the method name, so two traits' same-named methods no longer share
+an id. A custom optimizer matching a default id must match the new one, or the method can keep its
+old id with `#[fusion(id = "method")]`. An extension listing both `Fusion` and `Remote` now
+generates its `BackendRouter<_>` implementation, so a handwritten `impl Trait for BackendRouter<_>`
+conflicts with it (E0119); delete the handwritten one.
+([#6308](https://github.com/tracel-ai/burn/pull/6308))
 
 ### Training and modules
 
