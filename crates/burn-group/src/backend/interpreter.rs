@@ -143,8 +143,9 @@ impl<B: BackendIr> DynGroupInterpreter for GroupInterpreter<B> {
     }
 
     fn register_tensor_data(&mut self, data: TensorData) -> TensorId {
-        // A lazy device read takes its buffer as it is at first access, and its source can still
-        // change that buffer in place, so the group keeps a host copy instead.
+        // TODO: Remove once CubeCL lazy reads hold their source until read.
+        // A lazy device read sees in-place writes to its source, so it is copied to the host,
+        // which also frees the source's device buffer, rather than read in place.
         let data = if data.bytes().property() == AllocationProperty::Device {
             TensorData::from_bytes_vec(data.as_bytes().to_vec(), data.shape().clone(), data.dtype())
         } else {
