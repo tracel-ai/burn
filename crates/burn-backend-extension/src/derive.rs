@@ -30,6 +30,15 @@ pub(crate) struct CaseField {
     pub(crate) tensor_kind: Option<TensorKind>,
 }
 
+impl CaseField {
+    /// The field's scalar encoding for the remote backend, `#[extension_type(scalar ..)]`.
+    pub(crate) fn scalar_annotation(&self) -> Option<&syn::Attribute> {
+        self.attrs.iter().find(|attr| {
+            attr.path().is_ident("extension_type") && matches!(attr.meta, syn::Meta::List(_))
+        })
+    }
+}
+
 fn build_case(path: TokenStream, fields: &Fields) -> DeriveCase {
     let (style, raw): (CaseStyle, Vec<&syn::Field>) = match fields {
         Fields::Named(fields) => (CaseStyle::Named, fields.named.iter().collect()),

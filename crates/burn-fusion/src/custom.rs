@@ -12,8 +12,8 @@ use crate::{ExecutionError, FusionBackend, FusionRuntime, FusionTensor};
 use burn_backend::Device;
 use burn_backend::TensorMetadata;
 pub use burn_ir::{
-    BackendIr, CustomOpIr, HandleContainer, OperationIr, OperationOutput, ScalarIr, TensorHandle,
-    TensorId, TensorIr,
+    BackendIr, CustomOpIr, HandleContainer, OperationIr, OperationOutput, ScalarIr, TensorError,
+    TensorHandle, TensorId, TensorIr,
 };
 use burn_std::{DType, Shape};
 
@@ -217,8 +217,10 @@ where
 ///
 /// Implemented for the tensor leaves and for derived extension values opting into `remote`. All
 /// methods traverse tensor leaves in the same order as [`FusionValueAdapter`]. The non-tensor part
-/// of a value (its enum variant and its ordinary fields) travels as scalars: the variant's index
-/// first, then each field in declaration order, nested values inline.
+/// of an input (its enum variant and its ordinary fields) travels as scalars: the variant's index
+/// first, then each field in declaration order, nested values inline. An output records only the
+/// variant of each enum it holds, after every input's scalars, so the server checks the backend's
+/// output against the IR without the metadata that described it.
 #[doc(hidden)]
 #[diagnostic::on_unimplemented(
     message = "`{Self}` cannot travel as a custom operation's IR",
@@ -253,17 +255,126 @@ pub trait RemoteValueAdapter<B: BackendIr> {
         inputs: &mut core::slice::Iter<'_, TensorIr>,
         scalars: &mut core::slice::Iter<'_, ScalarIr>,
     ) -> Self::Value;
-    /// Register every tensor leaf of an output under the next output id.
+    /// Record the variant of every enum the output metadata describes, in the order
+    /// [`register_output`](Self::register_output) checks them: an enum's own variant before those
+    /// of its fields.
+    fn append_output_variants(meta: &Self::Metadata, scalars: &mut Vec<ScalarIr>);
+    /// Register every tensor leaf of an output under the next output id, checking each enum's
+    /// variant against the next one `variants` records.
+    ///
+    /// # Errors
+    ///
+    /// If the value has more tensors than the IR has outputs, a tensor's dtype differs from the
+    /// one its output IR describes, or an enum is in another variant than the IR records. The
+    /// leaves before the mismatch are registered.
     ///
     /// # Panics
     ///
-    /// If the value has more tensors than the IR has outputs and, in debug builds, if a dtype
-    /// differs from the one the client described.
+    /// If `variants` runs out before the value's enums do.
     fn register_output(
         value: Self::Value,
         outputs: &mut core::slice::Iter<'_, TensorIr>,
+        variants: &mut core::slice::Iter<'_, ScalarIr>,
         handles: &mut HandleContainer<B::Handle>,
-    );
+    ) -> Result<(), IrMismatch>;
+}
+
+/// How a call of a custom operation, or the backend's output, differs from the operation's IR.
+#[doc(hidden)]
+#[derive(Debug, PartialEq)]
+pub enum IrMismatch {
+    /// The IR has more inputs than the operation's signature reads.
+    ExtraInput,
+    /// The output has more tensors than the IR has outputs.
+    ExtraTensor,
+    /// The output has fewer tensors than the IR has outputs.
+    MissingTensor,
+    /// A tensor's dtype differs from the one its output IR describes.
+    DType {
+        /// The dtype the IR describes.
+        expected: DType,
+        /// The dtype the backend returned.
+        actual: DType,
+    },
+    /// An enum is in another variant than the IR records.
+    Variant {
+        /// The enum's name.
+        output: &'static str,
+        /// The index of the variant the IR records.
+        expected: u64,
+        /// The index of the variant the backend returned.
+        actual: u64,
+    },
+    /// The IR has more scalars than the operation's signature and output variants read.
+    ExtraScalar,
+}
+
+impl IrMismatch {
+    /// Mark every output of `ir` failed with this mismatch, so a read of any of them reports it.
+    ///
+    /// The failure displaces the leaves registered before the mismatch was found, so no output of
+    /// the operation is readable.
+    pub fn fail_outputs<H: Clone>(self, ir: &CustomOpIr, handles: &mut HandleContainer<H>) {
+        let error = TensorError::new(ExecutionError::with_context(format!(
+            "custom operation `{}`: {self}",
+            ir.id
+        )));
+        for output in &ir.outputs {
+            handles.set_error(output.id, error.clone());
+        }
+    }
+}
+
+impl core::fmt::Display for IrMismatch {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::ExtraInput => f.write_str("the IR carries more inputs than the signature"),
+            Self::ExtraTensor => f.write_str(
+                "the backend returned more output tensors than the custom operation's IR describes",
+            ),
+            Self::MissingTensor => f.write_str(
+                "the backend returned fewer output tensors than the custom operation's IR describes",
+            ),
+            Self::DType { expected, actual } => write!(
+                f,
+                "the backend returned a {actual:?} output where the IR describes {expected:?}"
+            ),
+            Self::Variant {
+                output,
+                expected,
+                actual,
+            } => write!(
+                f,
+                "the backend returned a `{output}` in variant {actual} where the IR records variant {expected}"
+            ),
+            Self::ExtraScalar => {
+                f.write_str("the IR carries more scalars than the signature and outputs")
+            }
+        }
+    }
+}
+
+/// Check that an enum output is in the variant `variants` records next.
+///
+/// # Errors
+///
+/// [`IrMismatch::Variant`] if the recorded variant is not `actual`.
+#[doc(hidden)]
+pub fn check_output_variant(
+    variants: &mut core::slice::Iter<'_, ScalarIr>,
+    output: &'static str,
+    actual: u64,
+) -> Result<(), IrMismatch> {
+    let expected = u64::from_scalar_ir(next_scalar(variants));
+    if expected == actual {
+        Ok(())
+    } else {
+        Err(IrMismatch::Variant {
+            output,
+            expected,
+            actual,
+        })
+    }
 }
 
 macro_rules! remote_tensor_adapter {
@@ -271,24 +382,64 @@ macro_rules! remote_tensor_adapter {
         impl<B: BackendIr> RemoteValueAdapter<B> for $name {
             type Metadata = TensorSpec;
             type Value = B::$primitive;
-            fn to_metadata(value: &Self::Value) -> TensorSpec { TensorSpec::new(value.shape(), value.dtype()) }
+            fn to_metadata(value: &Self::Value) -> TensorSpec {
+                TensorSpec::new(value.shape(), value.dtype())
+            }
             fn append_scalars(_: &TensorSpec, _: &mut Vec<ScalarIr>) {}
-            fn append_input(value: Self::Value, input: &mut impl FnMut(B::Handle)) { input(B::$to_handle(value)); }
-            fn append_output_ir(meta: &TensorSpec, out: &mut Vec<TensorIr>, create: &mut impl FnMut() -> TensorId) {
-                debug_assert!(($check)(meta.dtype), "custom output metadata has the wrong dtype category for {}", stringify!($name));
+            fn append_input(value: Self::Value, input: &mut impl FnMut(B::Handle)) {
+                input(B::$to_handle(value));
+            }
+            fn append_output_ir(
+                meta: &TensorSpec,
+                out: &mut Vec<TensorIr>,
+                create: &mut impl FnMut() -> TensorId,
+            ) {
+                debug_assert!(
+                    ($check)(meta.dtype),
+                    "custom output metadata has the wrong dtype category for {}",
+                    stringify!($name)
+                );
                 out.push(TensorIr::uninit(create(), meta.shape.clone(), meta.dtype));
             }
-            fn build_output(meta: &TensorSpec, handles: &mut impl Iterator<Item = B::Handle>) -> Self::Value {
-                let handle = handles.next().expect("registration returns one handle per output");
-                B::$from_handle(TensorHandle { handle, shape: meta.shape.clone() })
+            fn build_output(
+                meta: &TensorSpec,
+                handles: &mut impl Iterator<Item = B::Handle>,
+            ) -> Self::Value {
+                let handle = handles
+                    .next()
+                    .expect("registration returns one handle per output");
+                B::$from_handle(TensorHandle {
+                    handle,
+                    shape: meta.shape.clone(),
+                })
             }
-            fn read_input(handles: &mut HandleContainer<B::Handle>, inputs: &mut core::slice::Iter<'_, TensorIr>, _: &mut core::slice::Iter<'_, ScalarIr>) -> Self::Value {
-                handles.$get::<B>(inputs.next().expect("the custom operation's IR has fewer inputs than its signature"))
+            fn read_input(
+                handles: &mut HandleContainer<B::Handle>,
+                inputs: &mut core::slice::Iter<'_, TensorIr>,
+                _: &mut core::slice::Iter<'_, ScalarIr>,
+            ) -> Self::Value {
+                handles.$get::<B>(
+                    inputs
+                        .next()
+                        .expect("the custom operation's IR has fewer inputs than its signature"),
+                )
             }
-            fn register_output(value: Self::Value, outputs: &mut core::slice::Iter<'_, TensorIr>, handles: &mut HandleContainer<B::Handle>) {
-                let output = outputs.next().expect("the backend returned more output tensors than the custom operation's IR describes");
-                debug_assert_eq!(value.dtype(), output.dtype, "the backend's output dtype differs from the custom operation's metadata");
+            fn append_output_variants(_: &TensorSpec, _: &mut Vec<ScalarIr>) {}
+            fn register_output(
+                value: Self::Value,
+                outputs: &mut core::slice::Iter<'_, TensorIr>,
+                _: &mut core::slice::Iter<'_, ScalarIr>,
+                handles: &mut HandleContainer<B::Handle>,
+            ) -> Result<(), IrMismatch> {
+                let output = outputs.next().ok_or(IrMismatch::ExtraTensor)?;
+                if value.dtype() != output.dtype {
+                    return Err(IrMismatch::DType {
+                        expected: output.dtype,
+                        actual: value.dtype(),
+                    });
+                }
                 handles.$register::<B>(&output.id, value);
+                Ok(())
             }
         }
     };
@@ -375,6 +526,19 @@ pub fn next_scalar(scalars: &mut core::slice::Iter<'_, ScalarIr>) -> ScalarIr {
     *scalars
         .next()
         .expect("the custom operation's IR has fewer scalars than its signature")
+}
+
+/// Encode `value` as the scalar a custom operation's IR carries for an argument or field that
+/// `decode` rebuilds.
+///
+/// `decode` is not called: taking it makes encoding another type than the one `decode` takes, and
+/// [`decode_scalar`] therefore decodes, a type error rather than a scalar converted on the server.
+#[doc(hidden)]
+pub fn encode_scalar<T, R>(value: T, _decode: &impl FnOnce(T) -> R) -> ScalarIr
+where
+    burn_std::Scalar: From<T>,
+{
+    ScalarIr::from(burn_std::Scalar::from(value))
 }
 
 /// Decode `scalar` as the primitive `decode` takes, then hand it to `decode`.

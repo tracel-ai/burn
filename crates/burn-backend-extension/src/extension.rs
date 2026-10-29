@@ -12,6 +12,7 @@ use syn::{
 use crate::{
     BACKENDS,
     ir::{Backend, InputKind, Invocation, Operation, OperationInput, OperationOutput, TensorKind},
+    parse::strip_argument_attributes,
     routing::{self, OutputRoute},
 };
 
@@ -266,16 +267,6 @@ fn lower_extension(attr: Backends, item: &ItemTrait) -> syn::Result<Extension> {
     })
 }
 
-fn strip_argument_attributes(signature: &mut Signature) {
-    for argument in &mut signature.inputs {
-        if let FnArg::Typed(argument) = argument {
-            argument.attrs.retain(|attribute| {
-                !attribute.path().is_ident("extension_type") && !attribute.path().is_ident("fusion")
-            });
-        }
-    }
-}
-
 fn expand_extension(mut ir: Extension, mut original_trait: ItemTrait) -> TokenStream2 {
     let trait_name = &ir.trait_name;
     let fusion_cfg = ir.backends.fusion.1.as_ref().map(|c| quote!(#[#c]));
@@ -290,23 +281,23 @@ fn expand_extension(mut ir: Extension, mut original_trait: ItemTrait) -> TokenSt
         .map(|backend| {
             let remote_cfg = backend.cfg_attr.take();
             let gate = quote!(#remote_cfg #fusion_cfg);
-            // The remote backend implements the trait only where the generated client exists.
-            backend.cfg_attr = Some(gate.clone());
+            // The remote backend implements the trait only where the generated client exists; an
+            // empty gate keeps an ungated backend ungated.
+            backend.cfg_attr = (!gate.is_empty()).then(|| gate.clone());
             gate
         });
-    let fusion = if ir.backends.fusion.0 {
-        let implementation = crate::fusion::expand(&original_trait, remote_gate.as_ref())
-            .unwrap_or_else(syn::Error::into_compile_error);
-        quote!(#fusion_cfg #implementation)
+    // One parse feeds both emitters; each implements every method, a malformed one included, so
+    // its error is the only one.
+    let (fusion, remote) = if ir.backends.fusion.0 {
+        let model = crate::parse::LazyTrait::new(&original_trait);
+        let implementation = crate::fusion::expand(&model, remote_gate.as_ref());
+        let remote = remote_gate
+            .as_ref()
+            .map(|gate| crate::remote::expand(&model, gate));
+        (quote!(#fusion_cfg #implementation), remote)
     } else {
-        quote!()
+        (quote!(), None)
     };
-    let remote = remote_gate.map(|gate| {
-        crate::remote::expand(&original_trait, &gate).unwrap_or_else(|error| {
-            let error = error.into_compile_error();
-            quote!(#gate #error)
-        })
-    });
 
     // Argument attributes `#[extension_type]` and `#[fusion(...)]` are macro helpers. Strip them from the
     // argument list before re-emitting the trait, otherwise rustc rejects it as an unknown attribute.

@@ -227,11 +227,15 @@ operation's IR, and `<Trait>Handlers::register` for the server's `CustomOpRegist
 arguments that are not primitives take `#[fusion(scalar = .., decode = ..)]`, and extension values
 opt in with `#[extension_type(fusion, remote)]`. `CustomOpRegistry::try_register` refuses a
 different handler under an id already taken.
+([#6308](https://github.com/tracel-ai/burn/pull/6308))
 
 **API migration:** a `#[backend_extension]` Fusion operation's default id is now
 `"Trait::method"` instead of the method name, so two traits' same-named methods no longer share
 an id. A custom optimizer matching a default id must match the new one, or the method can keep its
-old id with `#[fusion(id = "method")]`.
+old id with `#[fusion(id = "method")]`. An extension listing both `Fusion` and `Remote` now
+generates its `BackendRouter<_>` implementation, so a handwritten `impl Trait for BackendRouter<_>`
+conflicts with it (E0119); delete the handwritten one.
+([#6308](https://github.com/tracel-ai/burn/pull/6308))
 
 ### Training and modules
 

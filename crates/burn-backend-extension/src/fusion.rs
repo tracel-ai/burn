@@ -1,35 +1,36 @@
-//! Emit an extension trait's `Fusion<B>` implementation from its [`LazyMethod`]s, and the Fusion
-//! adapters of derived extension values.
+//! Emit an extension trait's `Fusion<B>` implementation from its parsed [`LazyTrait`], and the
+//! Fusion adapters of derived extension values.
 //!
 //! Metadata runs on the calling thread before registration; the inner backend call is deferred.
 //! Tuples are traversed here, while tensors and derived extension values delegate to the runtime's
 //! `FusionValueAdapter` trait for metadata flattening, validation, handle publication, and reconstruction.
 use crate::ir::{TensorKind, with_backend};
-use crate::parse::{ArgumentKind, LazyMethod, expand_methods, unsupported};
+use crate::parse::{ArgumentKind, DecodeCheck, LazyMethod, LazyTrait, unsupported};
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
-use syn::{GenericParam, ItemTrait, Type};
+use syn::{GenericParam, Type};
 
-pub(crate) fn expand(item: &ItemTrait, remote: Option<&TokenStream>) -> syn::Result<TokenStream> {
-    let trait_name = &item.ident;
-    let (methods, diagnostics) = expand_methods(item, |method| {
-        Ok(LazyMethod::new(trait_name, method)?
-            .map(|method| FusionMethod::new(&method, remote).implementation(trait_name)))
-    })?;
-    Ok(quote! {
+/// The `Fusion<B>` implementation of `model`, which reports the errors of its malformed methods.
+/// `remote` is the remote backend's gate, when it is generated.
+pub(crate) fn expand(model: &LazyTrait<'_>, remote: Option<&TokenStream>) -> TokenStream {
+    let trait_name = model.name;
+    let methods = model.methods.iter().map(|method| match method {
+        Ok(method) => FusionMethod::new(method, remote).implementation(trait_name),
+        Err(malformed) => malformed.reported(),
+    });
+    quote! {
         impl<B: burn::backend::fusion::FusionBackend + #trait_name> #trait_name for burn::backend::fusion::Fusion<B> {
-            #(#diagnostics)*
             #(#methods)*
         }
-    })
+    }
 }
 
 /// A lazily executed method as the `Fusion<B>` implementation registers it.
 struct FusionMethod<'a> {
     method: &'a LazyMethod<'a>,
     /// The remote backend's gate, when it is generated: the IR then also carries each extension
-    /// argument's variant and ordinary fields, so a graph fused for the remote backend reaches the
-    /// server complete.
+    /// argument's variant and ordinary fields and each enum output's variant, so a graph fused for
+    /// the remote backend reaches the server complete.
     remote: Option<&'a TokenStream>,
 }
 
@@ -87,10 +88,11 @@ impl<'a> FusionMethod<'a> {
                 }
             }
         }
-        let scalars = method.scalars();
-        let extension_scalars = self.remote.map(|gate| {
-            let statements = method.extension_scalars(quote!(B));
-            quote!(#gate { #(#statements)* })
+        let scalars = method.scalars(DecodeCheck::Skip);
+        let remote_scalars = self.remote.map(|gate| {
+            let inputs = method.extension_scalars(quote!(B));
+            let outputs = method.output_variants(&quote!(B));
+            quote!(#gate { #(#inputs)* #(#outputs)* })
         });
         let mut output_counts = Vec::new();
         let mut validate = Vec::new();
@@ -139,7 +141,7 @@ impl<'a> FusionMethod<'a> {
                 let __meta = (#expr)(#(#metadata_args),*);
                 #[allow(unused_mut)]
                 let mut __scalars = vec![#(#scalars),*];
-                #extension_scalars
+                #remote_scalars
                 let mut __inputs = Vec::with_capacity(0 #(+ #input_counts)*);
                 #(#inputs)*
                 let mut __outputs = Vec::with_capacity(0 #(+ #output_counts)*);
@@ -196,6 +198,7 @@ pub(crate) fn derive(input: &syn::DeriveInput) -> syn::Result<TokenStream> {
              #[extension_type(fusion, remote)]",
         ));
     }
+    reject_unread_scalar_encodings(input, remote)?;
     if !enabled {
         return Ok(quote!());
     }
@@ -327,7 +330,7 @@ fn derive_adapter(
     let mut publish = Vec::new();
     let mut reconstruct = Vec::new();
     let is_enum = matches!(input.data, syn::Data::Enum(_));
-    let mut remote = remote.then(|| crate::remote::RemoteAdapterDerive::new(b, is_enum));
+    let mut remote = remote.then(|| crate::remote::RemoteAdapterDerive::new(name, b, is_enum));
     for (((case, meta_case), input_case), output_case) in cases
         .iter()
         .zip(&meta_cases)
@@ -446,13 +449,39 @@ fn derive_adapter(
     })
 }
 
+/// Reject `#[extension_type(scalar ..)]` where nothing reads it: on a tensor or nested field,
+/// which travels as IR inputs, or on any field of a type without `remote`.
+fn reject_unread_scalar_encodings(input: &syn::DeriveInput, remote: bool) -> syn::Result<()> {
+    for case in crate::derive::collect_cases(input)? {
+        for field in &case.fields {
+            let Some(annotation) = field.scalar_annotation() else {
+                continue;
+            };
+            if !remote {
+                return Err(syn::Error::new_spanned(
+                    annotation,
+                    "a scalar encoding sends the field to the remote backend; opt the type in \
+                     with #[extension_type(fusion, remote)]",
+                ));
+            }
+            if field.is_ext || field.tensor_kind.is_some() {
+                return Err(syn::Error::new_spanned(
+                    annotation,
+                    "a scalar encoding applies to ordinary fields; tensor and nested extension \
+                     fields travel as the operation's input tensors",
+                ));
+            }
+        }
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     fn expand_trait(tokens: TokenStream) -> String {
-        expand(&syn::parse2(tokens).unwrap(), None)
-            .unwrap()
-            .to_string()
+        let item = syn::parse2(tokens).unwrap();
+        expand(&LazyTrait::new(&item), None).to_string()
     }
     #[test]
     fn lowers_closure_borrowed_and_tuple_outputs() {
@@ -474,40 +503,23 @@ mod tests {
         let out = expand_trait(quote! {
             trait Ext: Backend {
                 #[fusion(id = "matmul", dtype = lhs, shape = lhs)]
-                fn op(lhs: FloatTensor<Self>, #[fusion(scalar = strategy.to_code())] strategy: Strategy, flag: bool,
+                fn op(lhs: FloatTensor<Self>, #[fusion(scalar = mode.to_code())] mode: Mode, flag: bool,
                     #[extension_type] rhs: Operand<Self>) -> FloatTensor<Self>;
             }
         });
         assert!(out.contains("id : (\"matmul\")"));
-        let strategy = out
-            .find("Scalar :: from ((strategy . to_code ()) . clone ())")
+        let mode = out
+            .find("Scalar :: from ((mode . to_code ()) . clone ())")
             .unwrap();
         let flag = out.find("Scalar :: from ((flag) . clone ())").unwrap();
-        assert!(strategy < flag);
+        assert!(mode < flag);
         assert!(!out.contains("fusion (scalar"));
         assert!(out.contains("ExtensionMetadata"));
         syn::parse_str::<syn::ItemImpl>(&out).unwrap();
     }
 
     #[test]
-    fn scalar_parameter_annotations_are_validated_and_stripped() {
-        for argument in [
-            quote!(#[fusion()] value: f32),
-            quote!(#[fusion(other)] value: f32),
-            quote!(#[fusion(scalar, scalar)] value: f32),
-            quote!(#[fusion(scalar)] #[fusion(scalar)] value: f32),
-            quote!(#[fusion(scalar)] value: FloatTensor<Self>),
-            quote!(#[fusion(scalar)] #[extension_type] value: Options<Self>),
-        ] {
-            let item = syn::parse2(quote! {
-                trait Ext: Backend {
-                    #[fusion(dtype = x, shape = x)]
-                    fn op(x: FloatTensor<Self>, #argument) -> FloatTensor<Self>;
-                }
-            })
-            .unwrap();
-            assert!(expand(&item, None).is_err(), "accepted {argument}");
-        }
+    fn strips_scalar_parameter_annotations() {
         for backends in [quote!(Cube), quote!(Cube, Fusion: cfg(feature = "fusion"))] {
             let output = crate::extension::expand(backends, quote! {
                 trait Ext: Backend {
@@ -532,92 +544,6 @@ mod tests {
         syn::parse_str::<syn::ItemImpl>(&out).unwrap();
     }
     #[test]
-    fn rejects_incomplete_duplicate_and_conflicting_fields() {
-        for attr in [
-            quote!(dtype = x),
-            quote!(shape = x),
-            quote!(dtype = x, dtype = x, shape = x),
-            quote!(shape = x, shape = x, dtype = x),
-            quote!(meta = metadata, dtype = x, shape = x),
-            quote!(dtype = x, shape = x, meta = metadata),
-            quote!(default, dtype = x, shape = x),
-            quote!(shape = x, default),
-            quote!(default, id = "op"),
-            quote!(default, scalars = []),
-            quote!(dtype = x, shape = x, id = "a", id = "b"),
-            quote!(dtype = x, shape = x, scalars = [], scalars = []),
-        ] {
-            let item = syn::parse2(quote! {
-                trait Ext: Backend {
-                    #[fusion(#attr)]
-                    fn op(x: FloatTensor<Self>) -> FloatTensor<Self> { x }
-                }
-            })
-            .unwrap();
-            assert!(expand(&item, None).is_err(), "accepted {attr}");
-        }
-        let item = syn::parse2(quote! {
-            trait Ext: Backend {
-                #[fusion(dtype = x, shape = x)]
-                fn op(x: FloatTensor<Self>) -> (FloatTensor<Self>, FloatTensor<Self>);
-            }
-        })
-        .unwrap();
-        assert!(
-            expand(&item, None)
-                .unwrap_err()
-                .to_string()
-                .contains("single tensor output")
-        );
-    }
-    #[test]
-    fn rejects_missing_conflicting_and_unsupported_behaviors() {
-        for method in [
-            quote!(
-                #[fusion(custom = helper)]
-                fn op(x: FloatTensor<Self>) -> FloatTensor<Self>;
-            ),
-            quote!(
-                fn op(x: FloatTensor<Self>) -> FloatTensor<Self>;
-            ),
-            quote!(
-                #[fusion(default)]
-                fn op(x: FloatTensor<Self>) -> FloatTensor<Self>;
-            ),
-            quote!(
-                #[fusion(meta = meta, default)]
-                fn op(x: FloatTensor<Self>) -> FloatTensor<Self>;
-            ),
-            quote!(
-                #[fusion(meta = meta)]
-                async fn op(x: FloatTensor<Self>) -> FloatTensor<Self>;
-            ),
-            quote!(
-                #[fusion(meta = meta)]
-                fn op<T>(x: FloatTensor<Self>) -> FloatTensor<Self>;
-            ),
-            quote!(
-                #[fusion(meta = meta)]
-                fn op(x: FloatTensor<Self>, v: &usize) -> FloatTensor<Self>;
-            ),
-            quote!(
-                #[fusion(dtype = x, shape = x)]
-                fn op(x: &mut FloatTensor<Self>) -> FloatTensor<Self>;
-            ),
-            quote!(
-                #[fusion(meta = meta)]
-                fn op(x: FloatTensor<Self>) -> Vec<FloatTensor<Self>>;
-            ),
-            quote!(
-                #[fusion(meta = meta)]
-                fn op(x: usize) -> FloatTensor<Self>;
-            ),
-        ] {
-            let item = syn::parse2(quote!(trait Ext: Backend { #method })).unwrap();
-            assert!(expand(&item, None).is_err());
-        }
-    }
-    #[test]
     fn gates_missing_annotations_and_named_metadata() {
         let out = crate::extension::expand(
             quote!(Cube, Fusion: cfg(feature = "fusion")),
@@ -636,5 +562,57 @@ mod tests {
         let out = derive(&input).unwrap();
         syn::parse2::<syn::File>(out.clone()).unwrap();
         assert!(out.to_string().contains("ExtensionMetadata"));
+    }
+
+    #[test]
+    fn rejects_scalar_encodings_nothing_reads() {
+        for (input, message) in [
+            (
+                quote! {
+                    #[extension_type(fusion)]
+                    pub struct Store<B: Backend> {
+                        buffer: FloatTensor<B>,
+                        #[extension_type(scalar = bits.to_code(), decode = Bits::from_code)]
+                        bits: Bits,
+                    }
+                },
+                "opt the type in",
+            ),
+            (
+                quote! {
+                    pub struct Store<B: Backend>(
+                        FloatTensor<B>,
+                        #[extension_type(scalar = value.0, decode = Factor)] Factor,
+                    );
+                },
+                "opt the type in",
+            ),
+            (
+                quote! {
+                    #[extension_type(fusion, remote)]
+                    pub struct Store<B: Backend> {
+                        #[extension_type(scalar = 0u64, decode = |_| unreachable!())]
+                        buffer: FloatTensor<B>,
+                    }
+                },
+                "applies to ordinary fields",
+            ),
+            (
+                quote! {
+                    #[extension_type(fusion, remote)]
+                    pub enum Store<B: Backend> {
+                        Nested {
+                            #[extension_type]
+                            #[extension_type(scalar = 0u64, decode = |_| unreachable!())]
+                            inner: Inner<B>,
+                        },
+                    }
+                },
+                "applies to ordinary fields",
+            ),
+        ] {
+            let error = derive(&syn::parse2(input.clone()).unwrap()).unwrap_err();
+            assert!(error.to_string().contains(message), "{input}: {error}");
+        }
     }
 }

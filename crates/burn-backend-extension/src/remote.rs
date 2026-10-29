@@ -1,20 +1,23 @@
-//! Emit, from an extension trait's parsed [`LazyMethod`]s, custom operations that travel as IR alone.
+//! Emit, from an extension trait's parsed [`LazyTrait`], custom operations that travel as IR alone.
 //!
 //! The remote backend runs an operation on a server that has nothing but its `CustomOpIr`, so the
 //! IR carries every argument: tensors as inputs in declaration order (leaf order inside extension
 //! values), outputs from the method's Fusion metadata, and as scalars first every ordinary argument
-//! in declaration order, then each extension argument's variant and ordinary fields. The Fusion
-//! wrapper builds the same IR, so an operation fused into a cached graph reaches the server the
-//! same way as one sent alone.
+//! in declaration order, then each extension argument's variant and ordinary fields, then the
+//! variant of each enum in the output. The Fusion wrapper builds the same IR, so an operation fused
+//! into a cached graph reaches the server the same way as one sent alone.
 //!
 //! Two items are generated: the client, an implementation for `BackendRouter<R>` that the
 //! generated `Fusion<B>` implementation wraps, and the server's handlers, a type registering one
-//! handler per method in a `CustomOpRegistry<B>` for any backend `B` implementing the trait.
+//! handler per method in a `CustomOpRegistry<B>` for any backend `B` implementing the trait. A
+//! handler checks the backend's outputs against the IR alone; the server never runs the metadata
+//! callable.
 use crate::derive::{DeriveCase, gen_case_ctor, gen_case_pattern};
-use crate::parse::{ArgumentKind, LazyMethod, ScalarArgument, ScalarDecode, expand_methods};
+use crate::parse::{
+    ArgumentKind, DecodeCheck, LazyMethod, LazyTrait, MalformedMethod, ScalarArgument,
+};
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
-use syn::ItemTrait;
 
 /// The router backend the client is implemented for. Generated generic parameters carry a `__`
 /// prefix so they cannot shadow a type the trait's signatures name.
@@ -22,29 +25,34 @@ fn router() -> TokenStream {
     quote!(burn::backend::remote_extension::BackendRouter<__R>)
 }
 
-/// The client implementation and the server handlers of `item`, both behind `gate`.
-pub(crate) fn expand(item: &ItemTrait, gate: &TokenStream) -> syn::Result<TokenStream> {
-    let trait_name = &item.ident;
+/// The client implementation and the server handlers of `model`, both behind `gate`.
+///
+/// The client reports the error of a method whose arguments the server cannot rebuild; the error
+/// of a method that cannot be lowered at all is the Fusion implementation's to report.
+pub(crate) fn expand(model: &LazyTrait<'_>, gate: &TokenStream) -> TokenStream {
+    let trait_name = model.name;
+    let mut methods = Vec::new();
     let mut registrations = Vec::new();
-    let (methods, diagnostics) = expand_methods(item, |method| {
-        let Some(method) = LazyMethod::new(trait_name, method)? else {
-            return Ok(None);
-        };
-        let method = RemoteMethod::new(&method)?;
-        registrations.push(method.handler(trait_name));
-        Ok(Some(method.client()))
-    })?;
-    let vis = &item.vis;
+    for method in &model.methods {
+        match method.as_ref().map(RemoteMethod::new) {
+            Ok(Ok(method)) => {
+                methods.push(method.client());
+                registrations.push(method.handler(trait_name));
+            }
+            Ok(Err(malformed)) => methods.push(malformed.reported()),
+            Err(malformed) => methods.push(malformed.unreported()),
+        }
+    }
+    let vis = model.vis;
     let handlers = format_ident!("{trait_name}Handlers");
     let doc = format!(
         "The server side of [`{trait_name}`] on the remote backend: one custom operation handler \
          per method.\n\nRegister them with the registry the server is given for the backend it \
          hosts, once, before serving."
     );
-    Ok(quote! {
+    quote! {
         #gate
         impl<__R: burn::backend::remote_extension::RouterChannel> #trait_name for burn::backend::remote_extension::BackendRouter<__R> {
-            #(#diagnostics)*
             #(#methods)*
         }
 
@@ -69,7 +77,7 @@ pub(crate) fn expand(item: &ItemTrait, gate: &TokenStream) -> syn::Result<TokenS
                 #(#registrations)*
             }
         }
-    })
+    }
 }
 
 /// A lazily executed method as the remote backend sends and serves it.
@@ -83,7 +91,8 @@ impl<'a> RemoteMethod<'a> {
     /// # Errors
     ///
     /// An ordinary argument the server cannot rebuild from its scalar.
-    fn new(method: &'a LazyMethod<'a>) -> syn::Result<Self> {
+    fn new(method: &'a LazyMethod<'a>) -> Result<Self, MalformedMethod<'a>> {
+        let malformed = |error| MalformedMethod::new(method.method, error);
         let mut decodes = Vec::new();
         for argument in &method.arguments {
             let ArgumentKind::Ordinary { scalar } = &argument.kind else {
@@ -92,34 +101,18 @@ impl<'a> RemoteMethod<'a> {
             let name = argument.name;
             let ty = &argument.arg.ty;
             let Some(scalar) = scalar else {
-                return Err(syn::Error::new_spanned(
+                return Err(malformed(syn::Error::new_spanned(
                     argument.arg,
                     format!(
                         "the remote backend receives `{name}` as an IR scalar, and this type has no \
                          scalar encoding; annotate it with \
                          `#[fusion(scalar = <expression>, decode = <callable>)]`"
                     ),
-                ));
+                )));
             };
             let next = quote!(burn::backend::fusion::custom::next_scalar(&mut __scalars));
-            decodes.push(match &scalar.decode {
-                ScalarDecode::FromScalar => quote! {
-                    let #name: #ty = <#ty as burn::backend::fusion::custom::FromScalarIr>::from_scalar_ir(#next);
-                },
-                ScalarDecode::Callable(decode) => quote! {
-                    let #name: #ty = burn::backend::fusion::custom::decode_scalar(#next, #decode);
-                },
-                ScalarDecode::Missing => {
-                    return Err(syn::Error::new_spanned(
-                        argument.arg,
-                        format!(
-                            "the remote backend rebuilds `{name}` from its scalar; add \
-                             `decode = <callable>` beside `scalar = ..`, taking the encoded \
-                             primitive and returning the argument"
-                        ),
-                    ));
-                }
-            });
+            let decoded = scalar.decode(ty, next).map_err(malformed)?;
+            decodes.push(quote!(let #name: #ty = #decoded;));
         }
         Ok(Self { method, decodes })
     }
@@ -153,8 +146,9 @@ impl<'a> RemoteMethod<'a> {
                 None => metadata_args.push(quote!(&#name)),
             }
         }
-        let scalars = method.scalars();
+        let scalars = method.scalars(DecodeCheck::Enforce);
         let extension_scalars = method.extension_scalars(backend.clone());
+        let output_variants = method.output_variants(&backend);
         let mut output_ir = Vec::new();
         let reconstruct = method.output.map_leaves(&backend, &mut |adapter, member| {
             let adapter = quote!(<#adapter as #support::RemoteValueAdapter<#backend>>);
@@ -175,6 +169,7 @@ impl<'a> RemoteMethod<'a> {
                 #[allow(unused_mut)]
                 let mut __scalars = vec![#(#scalars),*];
                 #(#extension_scalars)*
+                #(#output_variants)*
                 let mut __client = None;
                 #[cfg(debug_assertions)]
                 let mut __device_id = None;
@@ -209,6 +204,12 @@ impl<'a> RemoteMethod<'a> {
     }
 
     /// The registration of the server handler rebuilding a call of the method on `__B`.
+    ///
+    /// The handler checks the input and scalar counts and each output tensor's dtype and each
+    /// enum's variant against the IR, in every build. On a mismatch it marks every output of the
+    /// operation failed, so the client's next read of one reports it, as a failed kernel would.
+    /// An IR with fewer inputs or scalars than the signature reads still panics: the call cannot
+    /// be rebuilt from it, and neither can a scalar of another kind or one `decode` rejects.
     fn handler(&self, trait_name: &syn::Ident) -> TokenStream {
         let method = self.method;
         let decodes = &self.decodes;
@@ -233,20 +234,19 @@ impl<'a> RemoteMethod<'a> {
                 });
             }
         }
+        let support = quote!(burn::backend::fusion::custom);
         let mut register = Vec::new();
         method.output.map_leaves(&quote!(__B), &mut |adapter, member| {
             register.push(quote! {
-                <#adapter as burn::backend::fusion::custom::RemoteValueAdapter<__B>>::register_output(__output #member, &mut __outputs, __handles);
+                if let Err(mismatch) = <#adapter as #support::RemoteValueAdapter<__B>>::register_output(__output #member, &mut __outputs, &mut __scalars, __handles) {
+                    return mismatch.fail_outputs(__ir, __handles);
+                }
             });
             quote!()
         });
         let call = method.call(trait_name, quote!(__B), &invoke);
         let id = &method.id;
-        let gates = method
-            .method
-            .attrs
-            .iter()
-            .filter(|a| a.path().is_ident("cfg"));
+        let gates = method.gates();
         quote! {
             #(#gates)*
             registry.try_register(#id, |__handles, __ir, _| {
@@ -254,19 +254,18 @@ impl<'a> RemoteMethod<'a> {
                 let mut __scalars = __ir.scalars.iter();
                 #(#decodes)*
                 #(#reads)*
-                assert!(
-                    __inputs.next().is_none() && __scalars.next().is_none(),
-                    "the IR of custom operation `{}` carries more inputs or scalars than its signature",
-                    __ir.id,
-                );
+                if __inputs.next().is_some() {
+                    return #support::IrMismatch::ExtraInput.fail_outputs(__ir, __handles);
+                }
                 let __output = #call;
                 let mut __outputs = __ir.outputs.iter();
                 #(#register)*
-                assert!(
-                    __outputs.next().is_none(),
-                    "the backend returned fewer output tensors than custom operation `{}` describes",
-                    __ir.id,
-                );
+                if __outputs.next().is_some() {
+                    return #support::IrMismatch::MissingTensor.fail_outputs(__ir, __handles);
+                }
+                if __scalars.next().is_some() {
+                    #support::IrMismatch::ExtraScalar.fail_outputs(__ir, __handles);
+                }
             })
             .unwrap_or_else(|conflict| {
                 panic!("{conflict}; give one of the methods sharing it its own `#[fusion(id = ..)]`")
@@ -281,6 +280,8 @@ impl<'a> RemoteMethod<'a> {
 /// Fusion adapters visit tensor leaves and ordinary fields in one order: the Fusion wrapper builds
 /// a custom operation's inputs and outputs with the one, and the server reads them with the other.
 pub(crate) struct RemoteAdapterDerive {
+    /// The value's type, which names it in a variant mismatch.
+    name: syn::Ident,
     backend: syn::Ident,
     is_enum: bool,
     /// The statements of the case being walked.
@@ -290,6 +291,7 @@ pub(crate) struct RemoteAdapterDerive {
     encode: Vec<TokenStream>,
     append: Vec<TokenStream>,
     outputs: Vec<TokenStream>,
+    variants: Vec<TokenStream>,
     build: Vec<TokenStream>,
     read: Vec<TokenStream>,
     register: Vec<TokenStream>,
@@ -302,15 +304,17 @@ struct CaseStatements {
     scalars: Vec<TokenStream>,
     inputs: Vec<TokenStream>,
     output_ir: Vec<TokenStream>,
+    variants: Vec<TokenStream>,
     built: Vec<TokenStream>,
     reads: Vec<TokenStream>,
     registrations: Vec<TokenStream>,
 }
 
 impl RemoteAdapterDerive {
-    /// Start the implementation for a value generic over `backend`.
-    pub(crate) fn new(backend: &syn::Ident, is_enum: bool) -> Self {
+    /// Start the implementation for the value `name`, generic over `backend`.
+    pub(crate) fn new(name: &syn::Ident, backend: &syn::Ident, is_enum: bool) -> Self {
         Self {
+            name: name.clone(),
             backend: backend.clone(),
             is_enum,
             case: CaseStatements::default(),
@@ -318,6 +322,7 @@ impl RemoteAdapterDerive {
             encode: Vec::new(),
             append: Vec::new(),
             outputs: Vec::new(),
+            variants: Vec::new(),
             build: Vec::new(),
             read: Vec::new(),
             register: Vec::new(),
@@ -343,12 +348,14 @@ impl RemoteAdapterDerive {
             .push(quote!(#adapter::append_input(#value, input);));
         case.output_ir
             .push(quote!(#adapter::append_output_ir(#state, out, create);));
+        case.variants
+            .push(quote!(#adapter::append_output_variants(#state, __scalars);));
         case.built
             .push(quote!(#adapter::build_output(#state, handles)));
         case.reads
             .push(quote!(#adapter::read_input(handles, inputs, __scalars)));
         case.registrations
-            .push(quote!(#adapter::register_output(#value, outputs, handles);));
+            .push(quote!(#adapter::register_output(#value, outputs, variants, handles)?;));
     }
 
     /// Add an ordinary field, which travels as a scalar.
@@ -360,31 +367,13 @@ impl RemoteAdapterDerive {
     ) -> syn::Result<()> {
         let support = quote!(burn::backend::fusion::custom);
         let (name, scalar) = field_scalar(field)?;
-        let ty = &field.ty;
-        let encoded = &scalar.encode;
-        let next = quote!(#support::next_scalar(__scalars));
-        let read = match scalar.decode {
-            ScalarDecode::Callable(decode) => {
-                quote!(#support::decode_scalar::<_, #ty>(#next, #decode))
-            }
-            ScalarDecode::FromScalar => {
-                quote!(<#ty as #support::FromScalarIr>::from_scalar_ir(#next))
-            }
-            ScalarDecode::Missing => {
-                return Err(syn::Error::new_spanned(
-                    ty,
-                    format!(
-                        "a `remote` extension value rebuilds `{name}` from its scalar; add \
-                         `decode = <callable>` beside `scalar = ..`"
-                    ),
-                ));
-            }
-        };
+        let encoded = scalar.to_ir(DecodeCheck::Enforce);
+        let read = scalar.decode(&field.ty, quote!(#support::next_scalar(__scalars)))?;
         let case = &mut self.case;
         case.scalars.push(quote! {{
             #[allow(unused_variables)]
             let #name = #state;
-            __scalars.push(#support::ScalarIr::from(burn::backend::Scalar::from((#encoded).clone())));
+            __scalars.push(#encoded);
         }});
         case.descriptions.push(quote!(#value.clone()));
         case.built.push(quote!(#state.clone()));
@@ -401,6 +390,7 @@ impl RemoteAdapterDerive {
             scalars,
             inputs,
             output_ir,
+            variants,
             built,
             reads,
             registrations,
@@ -414,6 +404,10 @@ impl RemoteAdapterDerive {
         let variant = self
             .is_enum
             .then(|| quote!(__scalars.push(#support::ScalarIr::UInt(#index));));
+        let name = &self.name;
+        let check_variant = self
+            .is_enum
+            .then(|| quote!(#support::check_output_variant(variants, stringify!(#name), #index)?;));
         let description = gen_case_ctor(meta_case, &descriptions);
         let rebuilt = gen_case_ctor(case, &built);
         let decoded = gen_case_ctor(case, &reads);
@@ -423,6 +417,8 @@ impl RemoteAdapterDerive {
         self.append.push(quote!(#tensor_pattern => { #(#inputs)* }));
         self.outputs
             .push(quote!(#meta_tensor_pattern => { #(#output_ir)* }));
+        self.variants
+            .push(quote!(#meta_tensor_pattern => { #variant #(#variants)* }));
         self.build.push(quote!(#meta_pattern => #rebuilt,));
         self.read.push(if self.is_enum {
             quote!(#index => #decoded,)
@@ -430,7 +426,7 @@ impl RemoteAdapterDerive {
             quote!(_ => #decoded,)
         });
         self.register
-            .push(quote!(#tensor_pattern => { #(#registrations)* }));
+            .push(quote!(#tensor_pattern => { #check_variant #(#registrations)* Ok(()) }));
     }
 
     /// The implementation, for `input` with metadata type `metadata`.
@@ -448,6 +444,7 @@ impl RemoteAdapterDerive {
             encode,
             append,
             outputs,
+            variants,
             build,
             read,
             register,
@@ -477,6 +474,7 @@ impl RemoteAdapterDerive {
                 fn append_scalars(meta: &Self::Metadata, __scalars: &mut Vec<#support::ScalarIr>) { match meta { #(#encode)* } }
                 fn append_input(value: Self, input: &mut impl FnMut(#b::Handle)) { match value { #(#append)* } }
                 fn append_output_ir(meta: &Self::Metadata, out: &mut Vec<#support::TensorIr>, create: &mut impl FnMut() -> #support::TensorId) { match meta { #(#outputs)* } }
+                fn append_output_variants(meta: &Self::Metadata, __scalars: &mut Vec<#support::ScalarIr>) { match meta { #(#variants)* } }
                 fn build_output(meta: &Self::Metadata, handles: &mut impl Iterator<Item = #b::Handle>) -> Self { match meta { #(#build)* } }
                 fn read_input(
                     handles: &mut #support::HandleContainer<#b::Handle>,
@@ -486,8 +484,9 @@ impl RemoteAdapterDerive {
                 fn register_output(
                     value: Self,
                     outputs: &mut core::slice::Iter<'_, #support::TensorIr>,
+                    variants: &mut core::slice::Iter<'_, #support::ScalarIr>,
                     handles: &mut #support::HandleContainer<#b::Handle>,
-                ) { match value { #(#register)* } }
+                ) -> Result<(), #support::IrMismatch> { match value { #(#register)* } }
             }
         }
     }
@@ -501,11 +500,7 @@ fn field_scalar(field: &crate::derive::CaseField) -> syn::Result<(syn::Ident, Sc
         .member
         .clone()
         .unwrap_or_else(|| format_ident!("value"));
-    let annotation = field
-        .attrs
-        .iter()
-        .find(|a| a.path().is_ident("extension_type") && matches!(a.meta, syn::Meta::List(_)));
-    match ScalarArgument::new(&name, &field.ty, annotation)? {
+    match ScalarArgument::new(&name, &field.ty, field.scalar_annotation())? {
         Some(scalar) => Ok((name, scalar)),
         None => Err(syn::Error::new_spanned(
             &field.ty,
@@ -555,12 +550,116 @@ mod tests {
     }
 
     #[test]
+    fn handler_registration_carries_the_method_gates() {
+        let out = expand(
+            quote!(Flex, Fusion, Remote),
+            quote! {
+                pub trait Ext: Backend {
+                    #[cfg_attr(feature = "a", cfg(feature = "b"))]
+                    #[fusion(dtype = x, shape = x)]
+                    fn op(x: FloatTensor<Self>) -> FloatTensor<Self>;
+                }
+            },
+        );
+        assert!(out.contains(
+            "# [cfg_attr (feature = \"a\" , cfg (feature = \"b\"))] registry . try_register"
+        ));
+    }
+
+    /// A method that cannot be lowered is reported once, by the Fusion implementation; the client
+    /// still implements it, so the remote dispatch arm adds no error of its own.
+    #[test]
+    fn a_malformed_method_is_reported_once() {
+        let out = expand(
+            quote!(Flex, Fusion, Remote: cfg(feature = "remote")),
+            quote! {
+                pub trait Ext: Backend {
+                    fn op(x: FloatTensor<Self>) -> FloatTensor<Self>;
+                }
+            },
+        );
+        assert_eq!(out.matches("compile_error").count(), 1, "{out}");
+        assert!(out.contains("BackendRouter"), "{out}");
+    }
+
+    /// An argument the server cannot rebuild is reported once, by the client, which leaves the
+    /// method out of the handlers. With `Remote` the only concrete backend, a method without
+    /// tensor inputs still dispatches to it rather than adding an error about the backend count.
+    #[test]
+    fn a_remote_error_is_reported_once() {
+        let load = quote! {
+            #[fusion(default)]
+            fn load(index: usize) -> FloatTensor<Self> { todo!() }
+        };
+        for (backends, load) in [
+            (quote!(Flex, Fusion, Remote), quote!()),
+            (quote!(Fusion, Remote), load),
+        ] {
+            let out = expand(
+                backends.clone(),
+                quote! {
+                    pub trait Ext: Backend {
+                        #[fusion(dtype = x, shape = x)]
+                        fn op(x: FloatTensor<Self>, window: (usize, usize)) -> FloatTensor<Self>;
+                        #load
+                    }
+                },
+            );
+            assert_eq!(out.matches("compile_error").count(), 1, "{backends}: {out}");
+            assert!(out.contains("no scalar encoding"), "{backends}: {out}");
+            assert!(
+                !out.contains("registry . try_register"),
+                "{backends}: {out}"
+            );
+        }
+    }
+
+    /// An ungated `Remote` keeps an ungated dispatch arm, rather than one behind an empty gate.
+    #[test]
+    fn ungated_remote_dispatch_stays_ungated() {
+        let out = expand(
+            quote!(Fusion, Remote),
+            quote! {
+                pub trait Ext: Backend {
+                    #[fusion(dtype = x, shape = x)]
+                    fn op(x: FloatTensor<Self>) -> FloatTensor<Self>;
+                    #[fusion(default)]
+                    fn load(index: usize) -> FloatTensor<Self> { todo!() }
+                }
+            },
+        );
+        assert!(!out.contains("match ()"), "{out}");
+    }
+
+    /// A scalar with a decoding callable is encoded through `encode_scalar` in the client only:
+    /// the Fusion wrapper, which also builds without the remote backend, never names the callable.
+    #[test]
+    fn only_the_client_ties_an_encoding_to_its_decoding() {
+        let out = expand(
+            quote!(Flex, Fusion, Remote: cfg(feature = "remote")),
+            quote! {
+                pub trait Ext: Backend {
+                    #[fusion(dtype = x, shape = x)]
+                    fn op(
+                        x: FloatTensor<Self>,
+                        #[fusion(scalar = mode.to_code(), decode = remote_only::decode)] mode: Mode,
+                    ) -> FloatTensor<Self>;
+                }
+            },
+        );
+        let client = out.find("BackendRouter < __R >").unwrap();
+        let (fusion, client) = out.split_at(client);
+        assert!(!fusion.contains("remote_only"), "{fusion}");
+        assert!(client.contains("encode_scalar"), "{client}");
+    }
+
+    #[test]
     fn remote_without_fusion_stays_handwritten() {
         let out = expand(
             quote!(Remote),
             quote! {
                 pub trait Ext: Backend {
-                    fn op(x: FloatTensor<Self>, tile: (usize, usize)) -> FloatTensor<Self>;
+                    fn op(x: FloatTensor<Self>, window: (usize, usize)) -> FloatTensor<Self>;
                 }
             },
         );
@@ -571,10 +670,10 @@ mod tests {
     #[test]
     fn rejects_arguments_the_server_cannot_rebuild() {
         for (argument, message) in [
-            (quote!(tile: (usize, usize)), "no scalar encoding"),
+            (quote!(window: (usize, usize)), "no scalar encoding"),
             (quote!(scheme: QuantScheme), "no scalar encoding"),
             (
-                quote!(#[fusion(scalar = strategy.to_code())] strategy: Strategy),
+                quote!(#[fusion(scalar = mode.to_code())] mode: Mode),
                 "add `decode = <callable>`",
             ),
         ] {

@@ -167,10 +167,12 @@ pub fn backend_dispatch(attr: TokenStream, item: TokenStream) -> TokenStream {
 /// use `id = "custom_matmul"` to override it.
 /// Integer parameters (8–64 bits, `usize`, `isize`), `f32`, `f64`, and `bool` are exposed to custom
 /// optimizers automatically, in declaration order. These are host values, not tensor contents.
-/// Other ordinary arguments and extension fields are captured for execution only.
+/// Other ordinary arguments and extension fields are captured for execution only, except that
+/// where `Remote` is enabled, each extension argument's variant and ordinary fields follow them,
+/// then each enum output's variant, for every Fusion backend (see [Remote](#remote)).
 ///
 /// Mark aliases or types convertible to `burn::backend::Scalar` with `#[fusion(scalar)]`.
-/// For custom encodings, annotate the parameter with `#[fusion(scalar = strategy.to_code())]`.
+/// For custom encodings, annotate the parameter with `#[fusion(scalar = mask.to_code())]`.
 /// The expression returns a value convertible to `Scalar` and runs before inputs are consumed.
 /// The original argument is still passed to the backend; marked and inferred scalars share
 /// declaration order. Add `decode = callable` beside the encoding to rebuild the argument from
@@ -203,7 +205,12 @@ pub fn backend_dispatch(attr: TokenStream, item: TokenStream) -> TokenStream {
 /// - **inputs**: every tensor, in declaration order, an extension value's in field order;
 /// - **outputs**: one per output tensor, described by the method's Fusion metadata;
 /// - **scalars**: every ordinary argument in declaration order, then each extension argument's
-///   variant index (enums) and ordinary fields, in declaration order, nested values inline.
+///   variant index (enums) and ordinary fields, in declaration order, nested values inline, then
+///   the variant index of each enum in the output, an enum's own before its fields'.
+///
+/// The IR describes what the operation computes, never how: kernel strategies, tiling, and other
+/// backend-specific choices are the server backend's to make, for instance by autotuning, so any
+/// backend implementing the trait serves the same IR.
 ///
 /// Fusion builds the same IR, so an operation fused into a cached graph for the remote backend
 /// reaches the server as complete as one sent alone. Two items are generated, behind both the
@@ -222,8 +229,8 @@ pub fn backend_dispatch(attr: TokenStream, item: TokenStream) -> TokenStream {
 ///     #[fusion(dtype = query, shape = query)]
 ///     fn attend(
 ///         query: FloatTensor<Self>,
-///         #[fusion(scalar = strategy.to_code(), decode = |code| Strategy::from_code(code).expect("a strategy"))]
-///         strategy: Strategy,
+///         #[fusion(scalar = mask.to_code(), decode = |code| Mask::from_code(code).expect("a mask"))]
+///         mask: Mask,
 ///         #[extension_type] kv: Kv<Self>,
 ///     ) -> FloatTensor<Self>;
 /// }
@@ -236,26 +243,30 @@ pub fn backend_dispatch(attr: TokenStream, item: TokenStream) -> TokenStream {
 ///
 /// Every ordinary argument must travel as a scalar: primitives do on their own, and anything else
 /// needs `#[fusion(scalar = expression, decode = callable)]`. The callable takes the primitive the
-/// expression returned, inferred from its signature, and returns the argument; a code that
-/// can fail to decode is unwrapped there. A bare `#[fusion(scalar)]` decodes when the type is an
-/// alias of a primitive. Anything else is a compile error under `Remote`. Extension arguments
-/// derive [`ExtensionType`] with `#[extension_type(fusion, remote)]`.
+/// expression returns and returns the argument; a code that can fail to decode is unwrapped
+/// there. An expression of another primitive type than the callable takes is a compile error,
+/// checked only where `Remote` is generated, so the callable may name items that exist only
+/// there. A bare `#[fusion(scalar)]` decodes when the type is an alias of a primitive. Anything
+/// else is a compile error under `Remote`. Extension arguments derive [`ExtensionType`] with
+/// `#[extension_type(fusion, remote)]`.
 ///
-/// The handler checks that the IR holds exactly the inputs and scalars the signature reads and
-/// that the backend returns one tensor per output id; debug builds also check the client's dtypes
-/// and that inputs share a device. Output shapes and ordinary output fields come from the
-/// metadata, as with Fusion. Without `Fusion`, `Remote` only routes, to a handwritten
-/// implementation.
+/// The handler never runs the metadata callable: it checks the backend's outputs against the IR
+/// alone. In every build, it checks the tensor count, dtypes and enum variants: that the IR holds
+/// no more inputs and scalars than the signature and outputs read, and that the backend returns
+/// one tensor per output id, each of the dtype its output IR describes, and each enum in the
+/// variant the IR records. Output shapes are not checked; they and ordinary output fields come
+/// from the client's metadata, as with Fusion. Debug builds also check that the client's inputs
+/// share a device. Without `Fusion`, `Remote` only routes, to a handwritten implementation.
 ///
 /// `register` panics if another handler already claims one of the operation ids: two traits
 /// with the same name, or two methods given the same explicit `id`, must be told apart with
 /// `#[fusion(id = ..)]`. Registering the same trait twice is harmless.
 ///
-/// A handler trusts the IR it receives. One that does not match the method's signature (fewer
-/// or more inputs or scalars than it reads, an unknown enum variant index, a scalar that does not
-/// decode, or an operation id with no registered handler) panics on the thread serving that
-/// client's session: the session stops answering, rather than one operation returning an error.
-/// Client and server must therefore be built from the same trait definition.
+/// A failed check marks every output of the operation failed, naming the operation id and the
+/// mismatch, so the client's next read of one reports it, as a failed kernel would. IR that
+/// cannot be read as the signature (fewer inputs or scalars than it reads, an unknown enum variant
+/// index, or a scalar that does not decode) panics in the handler instead. Client and server must
+/// therefore be built from the same trait definition.
 #[proc_macro_attribute]
 pub fn backend_extension(attr: TokenStream, item: TokenStream) -> TokenStream {
     extension::expand(attr.into(), item.into())
@@ -282,7 +293,8 @@ pub fn backend_extension(attr: TokenStream, item: TokenStream) -> TokenStream {
 /// section). An enum travels as its variant index; ordinary fields travel as scalars, which
 /// primitives do on their own and other types through
 /// `#[extension_type(scalar = expression, decode = callable)]` on the field. The expression sees a
-/// named field by its name, as a reference, and a positional one as `value`.
+/// named field by its name, as a reference, and a positional one as `value`. The annotation on a
+/// tensor or nested field, or on a type without `remote`, is a compile error.
 ///
 /// Tensor fields are mapped automatically. Nested extension values must be marked with
 /// `#[extension_type]`; other fields pass through unchanged.

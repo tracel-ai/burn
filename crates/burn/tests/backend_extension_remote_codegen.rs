@@ -13,7 +13,7 @@
 
 use burn::backend::{
     Backend, Dispatch, ExtensionType, Flex, FloatDType, IntDType, backend_extension,
-    fusion::custom::TensorSpec,
+    fusion::custom::{ExtensionMetadata, TensorSpec},
     ops::{BoolTensorOps, FloatTensorOps, IntTensorOps},
     tensor::{FloatTensor, IntTensor},
 };
@@ -78,6 +78,72 @@ pub struct Summary<B: Backend> {
     pub count: usize,
 }
 
+/// A tuple struct with a nested extension value and a positional, custom-encoded field.
+#[derive(ExtensionType)]
+#[extension_type(fusion, remote)]
+pub struct Weighted<B: Backend>(
+    #[extension_type] pub Operand<B>,
+    #[extension_type(scalar = value.0, decode = Factor)] pub Factor,
+);
+
+/// An enum output whose variant the metadata selects from an ordinary argument.
+#[derive(ExtensionType)]
+#[extension_type(fusion, remote)]
+pub enum Picked<B: Backend> {
+    One(FloatTensor<B>),
+    Two {
+        values: FloatTensor<B>,
+        positive: IntTensor<B>,
+    },
+}
+
+/// Generated behind a `Remote` condition, which holds in this test.
+#[backend_extension(Flex, Fusion, Remote: cfg(feature = "remote-websocket"))]
+pub trait LayoutBackend: Backend {
+    /// `x` plus the weighted operand: `One` alone, or `Two` with which elements are positive.
+    #[fusion(meta = |x, _weighted, two| if *two {
+        PickedMetadata::Two {
+            values: x.clone(),
+            positive: TensorSpec::new(x.shape.clone(), DType::I64),
+        }
+    } else {
+        PickedMetadata::One(x.clone())
+    })]
+    fn pick(
+        x: &FloatTensor<Self>,
+        #[extension_type] weighted: Weighted<Self>,
+        two: bool,
+    ) -> Picked<Self>;
+
+    /// `x` negated, and which elements of `x` are positive; a tuple output.
+    #[fusion(meta = |x| (x.clone(), TensorSpec::new(x.shape.clone(), DType::I64)))]
+    fn split(x: &FloatTensor<Self>) -> (FloatTensor<Self>, IntTensor<Self>);
+
+    /// `x` plus the operand's values; the metadata names `Self`.
+    #[fusion(meta = |x: &TensorSpec, _operand: &<Operand<Self> as ExtensionMetadata>::Metadata| x.clone())]
+    fn offset(x: FloatTensor<Self>, #[extension_type] operand: Operand<Self>) -> FloatTensor<Self>;
+}
+
+/// An enum output whose variants hold the same tensors: only the variant tells them apart.
+#[derive(ExtensionType)]
+#[extension_type(fusion, remote)]
+pub enum Signed<B: Backend> {
+    Kept(FloatTensor<B>),
+    Negated(FloatTensor<B>),
+}
+
+/// Describes outputs other than the ones the backend returns.
+#[backend_extension(Flex, Fusion, Remote)]
+pub trait MisdescribedBackend: Backend {
+    /// Described as `Kept` while the backend returns `Negated`.
+    #[fusion(meta = |x| SignedMetadata::Kept(x.clone()))]
+    fn misdescribed(x: &FloatTensor<Self>) -> Signed<Self>;
+
+    /// Described as `I64` while the backend returns `x` itself, a float tensor.
+    #[fusion(meta = |x| TensorSpec::new(x.shape.clone(), DType::I64))]
+    fn misdescribed_dtype(x: &FloatTensor<Self>) -> IntTensor<Self>;
+}
+
 #[backend_extension(Flex, Fusion, Remote)]
 pub trait ExampleBackend: Backend {
     /// `x` joined with the operand, plus `bias`, which elements are positive, and how many
@@ -112,28 +178,13 @@ impl ExampleBackend for Flex {
         operand: Operand<Self>,
     ) -> Summary<Self> {
         let count = burn::backend::TensorMetadata::shape(&x).num_elements();
-        let other = match operand {
-            Operand::Dense { values } => values,
-            Operand::Masked { values, mask, fill } => {
-                let mask = Flex::int_into_float(mask, FloatDType::F32);
-                let kept = Flex::float_mul(values, mask.clone());
-                let dropped = Flex::float_mul_scalar(
-                    Flex::float_add_scalar(Flex::float_neg(mask), 1.0.into()),
-                    fill.into(),
-                );
-                Flex::float_add(kept, dropped)
-            }
-            Operand::Scaled { values, factor } => Flex::float_mul_scalar(values, factor.0.into()),
-        };
+        let other = operand_values(operand);
         let joined = match join {
             Join::Add => Flex::float_add(x, other),
             Join::Mul => Flex::float_mul(x, other),
         };
         let combined = Flex::float_add_scalar(joined, bias.into());
-        let positive = Flex::bool_into_int(
-            Flex::float_greater_elem(combined.clone(), 0.0.into(), BoolDType::Native),
-            IntDType::I64,
-        );
+        let positive = positive(combined.clone());
         Summary {
             combined,
             positive,
@@ -151,6 +202,65 @@ impl ExampleBackend for Flex {
         ranges[rank - 1] = burn::tensor::Slice::from(0..k);
         Flex::int_slice(order, &ranges)
     }
+}
+
+impl LayoutBackend for Flex {
+    fn pick(x: &FloatTensor<Self>, weighted: Weighted<Self>, two: bool) -> Picked<Self> {
+        let Weighted(operand, factor) = weighted;
+        let weight = Flex::float_mul_scalar(operand_values(operand), factor.0.into());
+        let values = Flex::float_add(x.clone(), weight);
+        if two {
+            Picked::Two {
+                positive: positive(values.clone()),
+                values,
+            }
+        } else {
+            Picked::One(values)
+        }
+    }
+
+    fn split(x: &FloatTensor<Self>) -> (FloatTensor<Self>, IntTensor<Self>) {
+        (Flex::float_neg(x.clone()), positive(x.clone()))
+    }
+
+    fn offset(x: FloatTensor<Self>, operand: Operand<Self>) -> FloatTensor<Self> {
+        Flex::float_add(x, operand_values(operand))
+    }
+}
+
+impl MisdescribedBackend for Flex {
+    fn misdescribed(x: &FloatTensor<Self>) -> Signed<Self> {
+        Signed::Negated(Flex::float_neg(x.clone()))
+    }
+
+    fn misdescribed_dtype(x: &FloatTensor<Self>) -> IntTensor<Self> {
+        x.clone()
+    }
+}
+
+/// The operand's values, with the mask and fill or the factor applied.
+fn operand_values(operand: Operand<Flex>) -> FloatTensor<Flex> {
+    match operand {
+        Operand::Dense { values } => values,
+        Operand::Masked { values, mask, fill } => {
+            let mask = Flex::int_into_float(mask, FloatDType::F32);
+            let kept = Flex::float_mul(values, mask.clone());
+            let dropped = Flex::float_mul_scalar(
+                Flex::float_add_scalar(Flex::float_neg(mask), 1.0.into()),
+                fill.into(),
+            );
+            Flex::float_add(kept, dropped)
+        }
+        Operand::Scaled { values, factor } => Flex::float_mul_scalar(values, factor.0.into()),
+    }
+}
+
+/// One where an element is positive, zero elsewhere.
+fn positive(values: FloatTensor<Flex>) -> IntTensor<Flex> {
+    Flex::bool_into_int(
+        Flex::float_greater_elem(values, 0.0.into(), BoolDType::Native),
+        IntDType::I64,
+    )
 }
 
 /// Two traits whose methods share a name, served from one registry.
@@ -203,6 +313,7 @@ impl ClashingBackend for Flex {
 fn remote_device() -> Device {
     let mut registry = CustomOpRegistry::<Flex>::new();
     ExampleBackendHandlers::register(&mut registry);
+    LayoutBackendHandlers::register(&mut registry);
     serve(registry)
 }
 
@@ -213,6 +324,13 @@ fn serve(registry: CustomOpRegistry<Flex>) -> Device {
     let server = RemoteServer::new([Device::flex()]).with_custom_ops(registry);
     std::thread::spawn(move || server.serve(WebSocketTransport::from_listener(listener)));
     Device::remote_options(&host).init().unwrap()
+}
+
+/// A remote device whose server serves [`MisdescribedBackend`].
+fn misdescribed_device() -> Device {
+    let mut registry = CustomOpRegistry::<Flex>::new();
+    MisdescribedBackendHandlers::register(&mut registry);
+    serve(registry)
 }
 
 /// What `combine` returns, read back to the host.
@@ -233,8 +351,18 @@ enum Variant {
 
 fn combine(device: &Device, join: Join, variant: Variant) -> Combined {
     let x = Tensor::<2>::from_floats([[1.0, -2.0, 3.0], [-4.0, 5.0, -6.0]], device);
+    let operand = operand(device, variant);
+    let summary = <Dispatch as ExampleBackend>::combine(x.into_dispatch(), 0.25, join, operand);
+    Combined {
+        combined: floats(summary.combined),
+        positive: ints(summary.positive),
+        count: summary.count,
+    }
+}
+
+fn operand(device: &Device, variant: Variant) -> Operand<Dispatch> {
     let values = Tensor::<2>::from_floats([[0.5, 1.5, -2.5], [3.5, -4.5, 5.5]], device);
-    let operand = match variant {
+    match variant {
         Variant::Dense => Operand::Dense {
             values: values.into_dispatch(),
         },
@@ -247,19 +375,52 @@ fn combine(device: &Device, join: Join, variant: Variant) -> Combined {
             values: values.into_dispatch(),
             factor: Factor(-3.0),
         },
-    };
-    let summary = <Dispatch as ExampleBackend>::combine(x.into_dispatch(), 0.25, join, operand);
-    Combined {
-        combined: Tensor::<2>::from_dispatch(summary.combined)
-            .into_data()
-            .try_to_vec()
-            .unwrap(),
-        positive: Tensor::<2, Int>::from_dispatch(summary.positive)
-            .into_data()
-            .try_to_vec()
-            .unwrap(),
-        count: summary.count,
     }
+}
+
+/// What `pick` returns, read back to the host.
+#[derive(Debug, PartialEq)]
+enum PickedValues {
+    One(Vec<f32>),
+    Two(Vec<f32>, Vec<i64>),
+}
+
+fn pick(device: &Device, variant: Variant, two: bool) -> PickedValues {
+    let x = Tensor::<2>::from_floats([[1.0, -2.0, 3.0], [-4.0, 5.0, -6.0]], device);
+    let weighted = Weighted(operand(device, variant), Factor(0.5));
+    match <Dispatch as LayoutBackend>::pick(&x.into_dispatch(), weighted, two) {
+        Picked::One(values) => PickedValues::One(floats(values)),
+        Picked::Two { values, positive } => PickedValues::Two(floats(values), ints(positive)),
+    }
+}
+
+fn split(device: &Device) -> (Vec<f32>, Vec<i64>) {
+    let x = Tensor::<2>::from_floats([[1.0, -2.0, 3.0], [-4.0, 5.0, -6.0]], device);
+    let (negated, positive) = <Dispatch as LayoutBackend>::split(&x.into_dispatch());
+    (floats(negated), ints(positive))
+}
+
+fn offset(device: &Device) -> Vec<f32> {
+    let x = Tensor::<2>::from_floats([[1.0, -2.0, 3.0], [-4.0, 5.0, -6.0]], device);
+    let operand = operand(device, Variant::Masked);
+    floats(<Dispatch as LayoutBackend>::offset(
+        x.into_dispatch(),
+        operand,
+    ))
+}
+
+fn floats(tensor: FloatTensor<Dispatch>) -> Vec<f32> {
+    Tensor::<2>::from_dispatch(tensor)
+        .into_data()
+        .try_to_vec()
+        .unwrap()
+}
+
+fn ints(tensor: IntTensor<Dispatch>) -> Vec<i64> {
+    Tensor::<2, Int>::from_dispatch(tensor)
+        .into_data()
+        .try_to_vec()
+        .unwrap()
 }
 
 fn top_positions(device: &Device, k: usize) -> Vec<i64> {
@@ -271,6 +432,9 @@ fn top_positions(device: &Device, k: usize) -> Vec<i64> {
         .unwrap()
 }
 
+/// The server rebuilds every argument from the IR alone: each ordinary argument, extension
+/// variant and field, scalar or tensor, reaches the backend with the value the client passed, so
+/// the remote result equals the local one.
 #[test]
 fn generated_remote_extension_matches_local() {
     let remote = remote_device();
@@ -285,6 +449,70 @@ fn generated_remote_extension_matches_local() {
         }
     }
     assert_eq!(top_positions(&remote, 2), top_positions(&local, 2));
+}
+
+/// Every output shape travels: both variants of an enum output, as the metadata selects them, and
+/// a tuple, with a borrowed input and a tuple struct carrying a nested extension value and a
+/// positional scalar field, all from a trait whose `Remote` is behind a condition.
+#[test]
+fn generated_remote_extension_returns_structured_outputs() {
+    let remote = remote_device();
+    let local = Device::flex();
+    for variant in [Variant::Dense, Variant::Masked, Variant::Scaled] {
+        for two in [false, true] {
+            let picked = pick(&remote, variant, two);
+            assert_eq!(matches!(picked, PickedValues::Two(..)), two, "{picked:?}");
+            assert_eq!(picked, pick(&local, variant, two), "{variant:?} {two}");
+        }
+    }
+    assert_eq!(split(&remote), split(&local));
+}
+
+/// The server never evaluates the metadata callable, so one whose types name `Self` builds and
+/// runs with `Remote` listed: the handlers' impl block has a `Self` of its own, and metadata run
+/// there would not compile.
+#[test]
+fn metadata_naming_self_runs_remotely() {
+    assert_eq!(offset(&remote_device()), offset(&Device::flex()));
+}
+
+/// The server checks the backend's output against the IR in every build: an enum in another
+/// variant than the client recorded is refused, even when both variants hold the same tensors, so
+/// reading the output fails rather than returning a value the client takes for the other variant.
+#[test]
+fn an_output_in_another_variant_than_the_ir_records_is_refused() {
+    let x = Tensor::<2>::from_floats([[1.0, -2.0], [3.0, -4.0]], &misdescribed_device());
+    let Signed::Kept(values) = <Dispatch as MisdescribedBackend>::misdescribed(&x.into_dispatch())
+    else {
+        unreachable!("the client builds the variant its metadata describes");
+    };
+    let error = Tensor::<2>::from_dispatch(values)
+        .try_into_data()
+        .unwrap_err()
+        .to_string();
+    assert!(
+        error.contains(
+            "custom operation `MisdescribedBackend::misdescribed`: the backend returned a `Signed` \
+             in variant 1 where the IR records variant 0"
+        ),
+        "{error}"
+    );
+}
+
+/// A tensor in another dtype than its output IR describes is refused in release builds too, so
+/// reading it fails rather than reinterpreting its bytes.
+#[test]
+fn an_output_in_another_dtype_than_the_ir_describes_is_refused() {
+    let x = Tensor::<2>::from_floats([[1.0, -2.0], [3.0, -4.0]], &misdescribed_device());
+    let values = <Dispatch as MisdescribedBackend>::misdescribed_dtype(&x.into_dispatch());
+    let error = Tensor::<2, Int>::from_dispatch(values)
+        .try_into_data()
+        .unwrap_err()
+        .to_string();
+    assert!(
+        error.contains("the backend returned a F32 output where the IR describes I64"),
+        "{error}"
+    );
 }
 
 /// Recurring calls inside a larger graph are fused into an op-graph the client caches, so the
@@ -341,6 +569,8 @@ fn same_named_methods_of_two_traits_share_a_registry() {
     assert_eq!(run(&remote), run(&local));
 }
 
+/// A registry refuses a second handler under an id another trait's method already claims, rather
+/// than serving one trait's calls with the other's handler.
 #[test]
 #[should_panic(expected = "already registered for custom operation `ShiftBackend::forward`")]
 fn a_different_handler_under_a_taken_id_is_refused() {
