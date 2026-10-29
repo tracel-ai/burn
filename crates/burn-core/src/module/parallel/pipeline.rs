@@ -25,16 +25,16 @@ const BATCHES_AHEAD: usize = 1;
 /// runtimes does, since that hop then stalls only its own stage.
 ///
 /// ```rust,ignore
-/// let pipeline = LayerPipeline::new(model);
+/// let pipeline = InferencePipeline::new(model);
 /// let outputs = pipeline.forward(batches);
 /// ```
 #[derive(Debug)]
-pub struct LayerPipeline<M: LayerParallelism> {
+pub struct InferencePipeline<M: LayerParallelism> {
     layers: StagedLayers<M>,
     placement: LayerPlacement,
 }
 
-impl<M: LayerParallelism> LayerPipeline<M> {
+impl<M: LayerParallelism> InferencePipeline<M> {
     /// The stages of `model`, as its placement cuts them.
     pub fn new(model: DistributedLayeredModel<M>) -> Self {
         Self {

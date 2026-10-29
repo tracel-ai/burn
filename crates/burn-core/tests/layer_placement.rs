@@ -9,8 +9,8 @@ use burn_core as burn;
 use burn_core::module::{
     Module, Param,
     parallel::{
-        DistributedLayer, DistributedLayeredModel, LayerParallelism, LayerPipeline, LayerPlacement,
-        LayerSequence, LayerStage,
+        DistributedLayer, DistributedLayeredModel, InferencePipeline, LayerParallelism,
+        LayerPlacement, LayerSequence, LayerStage,
     },
 };
 use burn_tensor::{Device, Distribution, Tensor, Tolerance};
@@ -105,7 +105,7 @@ fn a_pipeline_returns_each_batch_in_order_as_the_plain_forward_computes_it() {
         .map(|input| model.forward(input.clone()))
         .collect();
 
-    let outputs = LayerPipeline::new(model).forward(inputs);
+    let outputs = InferencePipeline::new(model).forward(inputs);
 
     assert_eq!(outputs.len(), expected.len());
     for (output, expected) in outputs.into_iter().zip(expected) {
