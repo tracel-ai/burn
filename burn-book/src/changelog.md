@@ -183,6 +183,9 @@ all-to-all, and broadcast also support boolean tensors. Quantized tensors are re
 - Coordinate DDP batch availability before backward passes and synchronize epoch transitions.
   Workers must yield the same number of training batches; uneven exhaustion now reports an error.
   ([#6184](https://github.com/tracel-ai/burn/pull/6184))
+- Drain every device's pending fusion work at once before a collective, speeding up
+  tensor-parallel decode. ([#6293](https://github.com/tracel-ai/burn/pull/6293))
+  [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
 
 #### Device groups
 
