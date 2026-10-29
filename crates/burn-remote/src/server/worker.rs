@@ -822,8 +822,9 @@ mod tests {
         }
     }
 
-    /// The client does not wait on a replay, so the next read of its stream answers for it, once;
-    /// another stream's sync is not its to report.
+    /// The client does not wait on a replay, so the next read of its stream answers for it, once,
+    /// with the first replay that failed: a later one ran on what the first left. Another stream's
+    /// sync is not its to report.
     #[tokio::test]
     async fn a_failed_replay_answers_the_next_read_of_its_stream() {
         let (response_sender, mut responses) = mpsc::channel(4);
@@ -840,6 +841,7 @@ mod tests {
         for task in [
             Task::RegisterTensor(replayed, tensor.id, TensorData::new(vec![1.0f32, 2.0], [2])),
             Task::GraphReplay(replayed, CapturedGraphId(9)),
+            Task::GraphReplay(replayed, CapturedGraphId(10)),
             Task::SyncBackend(1, other),
             Task::ReadTensors(2, replayed, vec![tensor]),
         ] {
@@ -851,10 +853,7 @@ mod tests {
         ));
         match next_answer(&mut responses).await {
             TaskResponseContent::ReadTensors(Err(error)) => {
-                assert!(
-                    error.to_string().contains("unknown captured graph"),
-                    "{error}"
-                )
+                assert!(error.to_string().contains("(9)"), "{error}")
             }
             other => panic!("expected the replay's error, got {other:?}"),
         }

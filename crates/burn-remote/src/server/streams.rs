@@ -5,10 +5,16 @@ use burn_std::id::StreamId;
 /// The server stream each client stream of one session runs on.
 ///
 /// A client numbers its streams with a counter local to its process, so two clients send the
-/// same small ids. Run under those ids, one session's operations would share a stream with
-/// another's, and be recorded into the graph that session captures on it. Each session's streams
-/// are instead allocated by the server the first time the client names them, and never shared
-/// with another session.
+/// same small ids. Run under those ids, every session's operations would land on the same
+/// streams. Each session's streams are instead allocated by the server the first time the client
+/// names them, and never shared with another session.
+///
+/// Distinct logical streams can still share a backend stream: a backend folds them onto a fixed
+/// pool, so another session's launches can land on the stream a capture records (see
+/// [`CaptureClaim`](super::capture::CaptureClaim)).
+///
+/// The map keeps every stream the client has named for the life of the session, since the
+/// client never says that it is done with one.
 #[derive(Default)]
 pub(crate) struct ServerStreams {
     streams: HashMap<StreamId, StreamId>,

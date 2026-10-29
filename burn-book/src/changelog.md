@@ -211,8 +211,10 @@ all-to-all, and broadcast also support boolean tensors. Quantized tensors are re
 - Fix a HIP worker crashing when a session ends as the process exits.
   ([#6308](https://github.com/tracel-ai/burn/pull/6308))
 - `capture` on a remote device records and replays the graph on the server's device. One session
-  captures per server device at a time, and a replay that fails is the error of the next read on
-  its stream. ([#6308](https://github.com/tracel-ai/burn/pull/6308))
+  captures per server device at a time. A replay that fails is the error of the next read or sync
+  on its stream. ([#6308](https://github.com/tracel-ai/burn/pull/6308))
+- A read on a router or remote server of a tensor whose producing work failed reports that failure
+  instead of ending the session. ([#6308](https://github.com/tracel-ai/burn/pull/6308))
 - Servers answer device queries registered with `with_device_query`, asked by
   `RemoteDevice::query`. **Breaking:** `ServeError::CustomOpBackend` is renamed `HandlerBackend`,
   as it also covers device queries. ([#6308](https://github.com/tracel-ai/burn/pull/6308))

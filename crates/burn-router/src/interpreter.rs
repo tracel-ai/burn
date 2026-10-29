@@ -2330,24 +2330,46 @@ impl<B: BackendIr> TensorInterpreter<B> {
     }
 
     /// Read a tensor's data, returning a future for the host readback.
+    ///
+    /// A tensor a failure claimed reads as that failure.
     pub fn read_tensor_async(
         &mut self,
         tensor: TensorIr,
     ) -> DynFut<Result<TensorData, ExecutionError>> {
-        self.take_for_read(&tensor).into_data()
+        match self.context.handles.take_error(&tensor) {
+            Some(error) => {
+                let error = ExecutionError::from(error);
+                Box::pin(async move { Err(error) })
+            }
+            None => self.take_for_read(&tensor).into_data(),
+        }
     }
 
     /// Read several tensors in the order given, those that are not quantized as one backend
     /// transaction.
+    ///
+    /// When a failure claimed one of them, the read is that failure; the others are still taken.
     pub fn read_tensors_async(
         &mut self,
         tensors: &[TensorIr],
     ) -> DynFut<Result<Vec<TensorData>, ExecutionError>> {
         let mut batch = ReadBatch::default();
+        let mut failure = None;
         for tensor in tensors {
-            batch.push(self.take_for_read(tensor));
+            match self.context.handles.take_error(tensor) {
+                Some(error) => {
+                    failure.get_or_insert(error);
+                }
+                None => batch.push(self.take_for_read(tensor)),
+            }
         }
-        Box::pin(batch.execute())
+        match failure {
+            Some(error) => {
+                let error = ExecutionError::from(error);
+                Box::pin(async move { Err(error) })
+            }
+            None => Box::pin(batch.execute()),
+        }
     }
 
     fn take_for_read(&mut self, tensor: &TensorIr) -> ReadPrimitive<B> {
@@ -2552,6 +2574,43 @@ mod tests {
             .expect("flex reads synchronously")
             .unwrap();
         assert_eq!(data.dtype(), DType::F16);
+    }
+
+    /// A tensor a failure claimed reads as that failure, rather than panicking the worker that
+    /// serves the read, and a read-write read releases it as it would release a handle.
+    #[test]
+    fn a_failed_tensor_reads_as_its_failure() {
+        let mut interpreter = TensorInterpreter::<Flex>::new(Default::default());
+        let written = interpreter.register_tensor_data_desc(TensorData::from([1.0f32]));
+        let failed = TensorIr::uninit(TensorId::new(u64::MAX), Shape::new([1]), DType::F32);
+        interpreter.set_error(
+            failed.id,
+            TensorError::new(ExecutionError::with_context("the work failed")),
+        );
+
+        let read = TensorIr {
+            status: TensorStatus::ReadOnly,
+            ..failed
+        };
+        let error = burn_std::reader::try_read_sync(
+            interpreter.read_tensors_async(&[written, read.clone()]),
+        )
+        .expect("flex reads synchronously")
+        .unwrap_err();
+        assert!(error.to_string().contains("the work failed"), "{error}");
+
+        // A read-write read is the tensor's last use, so it releases the failure with it.
+        let last = TensorIr {
+            status: TensorStatus::ReadWrite,
+            ..read
+        };
+        let read = burn_std::reader::try_read_sync(interpreter.read_tensor_async(last.clone()))
+            .expect("flex reads synchronously");
+        assert!(read.is_err());
+        assert_eq!(
+            interpreter.read_failure(&last.id),
+            Some(format!("tensor {:?} was never produced", last.id))
+        );
     }
 
     #[test]

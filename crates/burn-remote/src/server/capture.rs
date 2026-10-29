@@ -17,9 +17,12 @@ use crate::shared::SessionId;
 /// ends, and any other session's capture is refused meanwhile, so its client falls back to
 /// re-running the closure.
 ///
-/// The claim does not stop the other sessions' operations: one that folds onto the capturing
-/// backend stream pays what the backend charges a neighbour of a capture (a refused read on
-/// wgpu, a deferred flush on CUDA and HIP).
+/// The claim does not stop the other sessions' operations. One that folds onto the capturing
+/// backend stream pays what the backend charges a neighbour of a capture: a refused read on
+/// wgpu; on CUDA and HIP a deferred flush, and launches that join the recording. Keeping them
+/// out takes a backend stream reserved for the capture, which the backend does not offer.
+///
+/// A session that prepares a capture and never starts it holds the device until it ends.
 #[derive(Clone, Default)]
 pub(crate) struct CaptureClaim {
     holder: Arc<Mutex<Option<SessionId>>>,
@@ -55,6 +58,9 @@ impl CaptureClaim {
 ///
 /// Every stream here is a server stream (see [`ServerStreams`](super::streams::ServerStreams)).
 /// The session holds its device's [claim](CaptureClaim) exactly while a capture is open.
+/// [Closing](Self::close) ends the open capture and releases the claim; dropping releases it
+/// too, so a teardown that panics before or inside the close still hands the device on, though
+/// its backend stream may be left recording and the next capture on it fail.
 pub(crate) struct SessionCaptures<B: BackendIr> {
     session: SessionId,
     device: CaptureClaim,
@@ -62,7 +68,7 @@ pub(crate) struct SessionCaptures<B: BackendIr> {
     /// The hardware graphs the backend recorded for the client, by the id the client picked (see
     /// [`Task::GraphStopCapture`](crate::shared::Task::GraphStopCapture)), until it releases them.
     graphs: HashMap<CapturedGraphId, BackendGraph<B>>,
-    /// The latest failed replay of each stream, until a read or a sync on that stream reports it.
+    /// The first failed replay of each stream, until a read or a sync on that stream reports it.
     replay_failures: HashMap<StreamId, ExecutionError>,
 }
 
@@ -146,8 +152,9 @@ impl<B: BackendIr> SessionCaptures<B> {
         Ok(())
     }
 
-    /// Replay `graph` on `stream`. A failure is kept for the next read or sync of `stream`,
-    /// since the client does not wait on the replay.
+    /// Replay `graph` on `stream`. The client does not wait on the replay, so a failure is kept
+    /// for the next read or sync of `stream`; a later replay that succeeds does not clear it, as
+    /// it ran on what the failed one left.
     pub(crate) fn replay(
         &mut self,
         runner: &TensorInterpreter<B>,
@@ -155,9 +162,12 @@ impl<B: BackendIr> SessionCaptures<B> {
         graph: CapturedGraphId,
     ) {
         let replayed = match self.graphs.get(&graph) {
-            // Safety: the client upholds `Backend::graph_replay`'s contract for the tensors it
-            // holds of this session — the one `Graph::replay` forwards on its side — and this
-            // replay runs in the order it sent it, on the stream it names.
+            // Safety: a server's backend keeps the memory a graph's launches touched in place for
+            // as long as the graph lives (see `BackendServer`), so a tensor the client dropped
+            // since is never freed or reused under a replay. Holding the tensors here instead
+            // would raise their reference counts and stop the client's in-place input refreshes
+            // from reaching the graph. This replay runs in the order the client sent it, on the
+            // stream it names.
             Some(captured) => stream.executes(|| unsafe { runner.graph_replay(captured) }),
             None => Err(ExecutionError::with_context(format!(
                 "replay of unknown captured graph {graph:?}"
@@ -165,7 +175,7 @@ impl<B: BackendIr> SessionCaptures<B> {
         };
         if let Err(failure) = replayed {
             log::warn!("Session {}: {failure}", self.session);
-            self.replay_failures.insert(stream, failure);
+            self.replay_failures.entry(stream).or_insert(failure);
         }
     }
 
@@ -174,7 +184,7 @@ impl<B: BackendIr> SessionCaptures<B> {
         self.graphs.remove(&graph);
     }
 
-    /// The latest replay on `stream` that failed since the last call, which a read or sync of
+    /// The first replay on `stream` that failed since the last call, which a read or sync of
     /// `stream` answers with in place of its own result.
     pub(crate) fn take_replay_failure(&mut self, stream: StreamId) -> Option<ExecutionError> {
         self.replay_failures.remove(&stream)
@@ -219,5 +229,34 @@ impl<B: BackendIr> SessionCaptures<B> {
             self.device.release(self.session);
         }
         self.open = open;
+    }
+}
+
+impl<B: BackendIr> Drop for SessionCaptures<B> {
+    fn drop(&mut self) {
+        self.device.release(self.session);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use burn_flex::Flex;
+
+    /// A session's captures let go of the device however they end: a teardown that panics before
+    /// or inside [closing](SessionCaptures::close) them only drops them, and every other session
+    /// would otherwise be refused a capture on the device for the rest of the server's life.
+    #[test]
+    fn dropped_captures_hand_the_device_on() {
+        let runner = TensorInterpreter::<Flex>::new(Default::default());
+        let device = CaptureClaim::default();
+        let stream = StreamId { value: 0 };
+
+        let mut first = SessionCaptures::<Flex>::new(SessionId::new(), device.clone());
+        first.prepare(&runner, stream).unwrap();
+        drop(first);
+
+        let mut second = SessionCaptures::<Flex>::new(SessionId::new(), device);
+        second.prepare(&runner, stream).unwrap();
     }
 }

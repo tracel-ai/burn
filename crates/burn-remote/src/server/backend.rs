@@ -38,6 +38,14 @@ use crate::{
 ///     })
 ///     .serve(WebSocketTransport::new(3000))?;
 /// ```
+///
+/// # Graph capture
+///
+/// A client's capture records and replays on `B`. The server holds no reference to the tensors a
+/// graph touched, since that would keep the client's in-place input refreshes from reaching the
+/// graph, so `B`'s graphs must keep the memory their launches touched in place for as long as
+/// they live: never freed, reused or moved, whatever happens to the tensors. CubeCL's graphs do.
+/// A backend whose graphs do not must not record one, and answer the capture with an error.
 pub struct BackendServer<B: BackendIr> {
     devices: Vec<Device<B>>,
     settings: ServerSettings,

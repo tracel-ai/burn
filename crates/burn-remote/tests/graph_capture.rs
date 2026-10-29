@@ -74,6 +74,39 @@ fn a_remote_capture_replays_on_the_server_device() {
     rt.shutdown_background();
 }
 
+/// A graph reads its inputs where the capture found them, so refreshing an input in place
+/// between replays is how a caller feeds it: each replay computes from the refreshed values.
+/// Anything on the server that keeps an extra reference to a captured tensor stops the refresh
+/// from writing in place, and every replay then returns the captured result.
+///
+/// Safety of the `replay` calls: the closure borrows `input`, which outlives the graph, and the
+/// refreshes, replays and reads run in turn on this thread.
+#[test]
+fn a_remote_replay_sees_inputs_refreshed_in_place() {
+    let server_device = Device::default();
+    if !records_a_graph(&server_device) {
+        println!("the server's backend records no graph; a re-run closure sees refreshes anyway");
+        return;
+    }
+    let (rt, host) = serve(server_device);
+    let device = Device::remote_options(&host).init().unwrap();
+
+    let input = std::cell::RefCell::new(Tensor::<1>::from_floats(INPUT, &device));
+    let mut graph = burn_tensor::capture(&device, || input.borrow().clone().mul_scalar(2.0));
+    assert!(graph.is_hardware(), "{:?}", graph.capture_error());
+
+    for value in [10.0, 20.0, 30.0] {
+        input
+            .borrow_mut()
+            .inplace(|tensor| tensor.mul_scalar(0.0).add_scalar(value));
+        let out = unsafe { graph.replay() }.clone();
+        assert_eq!(out.try_into_vec_as::<f32>().unwrap(), [2.0 * value; 4]);
+    }
+
+    drop(graph);
+    rt.shutdown_background();
+}
+
 /// A replay is not waited on, so one the server cannot run is the error of the next read on its
 /// stream, rather than that read returning what the step before it wrote.
 #[test]
