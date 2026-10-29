@@ -372,7 +372,7 @@ loading those checkpoints by filtering to `linear_inner` and `linear_outer`.
   ([#6263](https://github.com/tracel-ai/burn/pull/6263), [@b84330808](https://github.com/b84330808))
 - Propagate NaN from either operand in `max_pair` and `min_pair`. A NaN in the second operand was
   dropped, so `max_pair` gave 1 for (1, NaN) but NaN for (NaN, 2).
-  ([#PR_NUMBER](https://github.com/tracel-ai/burn/pull/PR_NUMBER),
+  ([#6279](https://github.com/tracel-ai/burn/pull/6279),
   [@b84330808](https://github.com/b84330808))
 - Return NaN for variance reductions over empty axes instead of panicking or returning zero.
   ([issue #6236](https://github.com/tracel-ai/burn/issues/6236))
