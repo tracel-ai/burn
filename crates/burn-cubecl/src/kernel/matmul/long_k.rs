@@ -1,20 +1,18 @@
-//! A matmul whose output is too small to fill the device but whose inner dimension is long, such as
-//! the `[32, V] @ [V, 32]` joint histogram of a mutual information over `V` pixels.
+//! A matmul whose output has too few elements to fill the device while its inner dimension `k` is
+//! long.
 //!
-//! The tiled routines split the output, not `k`, so such a problem runs on one cube walking all of
-//! `k`. Here each thread owns one output element and walks `k` alone. The products are summed in
+//! The tiled routines split the output, not `k`, so such a problem runs on a few cubes walking all
+//! of `k`. Here each thread owns one output element and walks `k` alone. The products are summed in
 //! the order of `k`, one `acc += lhs * rhs` at a time, the order of the unit routines' register
 //! tiles, so the two give the same bits.
 
 use burn_backend::{DType, cubecl::dtype_to_storage_type};
 use cubecl::{calculate_cube_count_elemwise, prelude::*};
 
-use crate::{kernel::utils::address_type, tensor::CubeTensor};
-
-/// The largest output, in elements, this route takes: past it the tiled routines fill the device.
-pub(crate) const MAX_OUTPUT: usize = 64 * 64;
-/// The shortest inner dimension this route takes.
-pub(crate) const MIN_K: usize = 1 << 16;
+use crate::{
+    kernel::utils::{address_type, device_threads, few_outputs_over_a_long_axis},
+    tensor::CubeTensor,
+};
 
 #[cube(launch, address_type = "dynamic")]
 fn matmul_long_k_kernel<F: Float>(
@@ -75,7 +73,7 @@ fn matmul_long_k_kernel<F: Float>(
 }
 
 /// Whether `out = lhs @ rhs` takes the long-`k` route: an `f32` or `f64` matmul without broadcast
-/// batch dimensions, an output within [`MAX_OUTPUT`] elements and a `k` of at least [`MIN_K`].
+/// batch dimensions whose output is too small to fill the device while its products are not.
 pub(crate) fn applies(lhs: &CubeTensor, rhs: &CubeTensor, out: &CubeTensor) -> bool {
     let [lhs_shape, rhs_shape, out_shape] = [lhs, rhs, out].map(|t| t.meta.shape());
     let rank = out_shape.len();
@@ -90,15 +88,18 @@ pub(crate) fn applies(lhs: &CubeTensor, rhs: &CubeTensor, out: &CubeTensor) -> b
         && rhs.dtype == out.dtype
         // One accumulator per thread over a long k: a half-precision one would overflow.
         && matches!(out.dtype, DType::F32 | DType::F64)
-        && out_shape[rank - 2] * out_shape[rank - 1] <= MAX_OUTPUT
-        && lhs_shape[rank - 1] >= MIN_K
+        && few_outputs_over_a_long_axis(
+            device_threads(out),
+            out_shape.num_elements(),
+            lhs_shape[rank - 1],
+        )
 }
 
 /// `out = lhs @ rhs` by the long-`k` route, for operands it [`applies`] to.
 pub(crate) fn matmul_long_k(lhs: CubeTensor, rhs: CubeTensor, out: CubeTensor) {
     let elements = out.meta.shape().num_elements();
     // A plane per cube spreads the few threads over as many cores as there are planes.
-    let cube_dim = CubeDim::new_1d(32);
+    let cube_dim = CubeDim::new_1d(out.client.properties().hardware.plane_size_max);
     let cube_count = calculate_cube_count_elemwise(&out.client, elements, cube_dim);
     let dtype = out.dtype;
     matmul_long_k_kernel::launch(

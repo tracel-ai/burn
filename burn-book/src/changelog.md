@@ -77,8 +77,8 @@ positions when sequence lengths differ.
 
 #### Kernels
 
-- Run a CubeCL matmul with a small output (at most 64 x 64) over a long inner dimension with one
-  thread per output element instead of a single cube, also as a matmul autotune candidate.
+- Run a CubeCL matmul whose output is too small to fill the device over a long inner dimension with
+  one thread per output element instead of a few cubes, also as a matmul autotune candidate.
   [@vboussot](https://github.com/vboussot)
 - Avoid a full-sized gradient copy in CubeCL FP32 `conv2d` bias backward, while retaining
   single-pass accumulation for FP16/BF16 to avoid intermediate overflow.
