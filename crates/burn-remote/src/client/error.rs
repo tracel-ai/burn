@@ -137,8 +137,9 @@ pub enum DeviceQueryError {
     SessionEnded,
 }
 
-impl DeviceQueryError {
-    pub(crate) fn from_failure(id: DeviceQueryId, failure: DeviceQueryFailure) -> Self {
+/// The error of the query `id`, from the failure the server answered it with.
+impl From<(DeviceQueryId, DeviceQueryFailure)> for DeviceQueryError {
+    fn from((id, failure): (DeviceQueryId, DeviceQueryFailure)) -> Self {
         match failure {
             DeviceQueryFailure::Unknown => Self::Unknown { id },
             DeviceQueryFailure::Panicked { reason } => Self::Panicked { id, reason },

@@ -734,7 +734,7 @@ impl RemoteService {
         match self.executor.block_on(rx) {
             Ok(TaskResponseContent::DeviceQuery(answer)) => answer
                 .map(ByteBuf::into_vec)
-                .map_err(|failure| DeviceQueryError::from_failure(id, failure)),
+                .map_err(|failure| DeviceQueryError::from((id, failure))),
             Ok(other) => panic!("Invalid response for DeviceQuery: {other:?}"),
             Err(_) => Err(DeviceQueryError::SessionEnded),
         }
