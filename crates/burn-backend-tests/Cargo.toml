@@ -40,8 +40,6 @@ persistence = ["burn-tensor/persistence"]
 autotune = ["burn-tensor/autotune"]
 autotune-checks = ["burn-tensor/autotune-checks"]
 memory-checks = ["burn-fusion?/memory-checks"]
-# Runs the suite with autotune racing only cubek's tile-DSL matmul and attention routines.
-tile-kernels-only = ["cube", "burn-cubecl/tile-kernels-only"]
 fusion = [
     "burn-tensor/fusion",
     "burn-fusion/test-util",
