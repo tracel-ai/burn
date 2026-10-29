@@ -72,25 +72,6 @@ pub struct SessionCaptures<B: BackendIr> {
     replay_failures: HashMap<StreamId, ExecutionError>,
 }
 
-/// A capture the session opened and has not ended, with the stream it runs on.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum OpenCapture {
-    /// Prepared: the client is running its warmup before the recording starts.
-    Prepared(StreamId),
-    /// The backend records the stream's launches into a graph.
-    Recording(StreamId),
-}
-
-impl OpenCapture {
-    /// Why another capture cannot open beside this one.
-    fn refusal(&self) -> ExecutionError {
-        let (Self::Prepared(stream) | Self::Recording(stream)) = self;
-        ExecutionError::with_context(format!(
-            "the session already has a graph capture open on {stream}"
-        ))
-    }
-}
-
 impl<B: BackendIr> SessionCaptures<B> {
     /// The captures of `session`, which runs on the device `capture_lock` guards.
     pub fn new(session: SessionId, capture_lock: DeviceCaptureLock) -> Self {
@@ -235,6 +216,25 @@ impl<B: BackendIr> SessionCaptures<B> {
 impl<B: BackendIr> Drop for SessionCaptures<B> {
     fn drop(&mut self) {
         self.capture_lock.release(self.session);
+    }
+}
+
+/// A capture the session opened and has not ended, with the stream it runs on.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum OpenCapture {
+    /// Prepared: the client is running its warmup before the recording starts.
+    Prepared(StreamId),
+    /// The backend records the stream's launches into a graph.
+    Recording(StreamId),
+}
+
+impl OpenCapture {
+    /// Why another capture cannot open beside this one.
+    fn refusal(&self) -> ExecutionError {
+        let (Self::Prepared(stream) | Self::Recording(stream)) = self;
+        ExecutionError::with_context(format!(
+            "the session already has a graph capture open on {stream}"
+        ))
     }
 }
 
