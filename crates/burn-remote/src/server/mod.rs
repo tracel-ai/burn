@@ -23,7 +23,6 @@ pub use authorize::{
 pub use backend::BackendServer;
 pub use burn_router::{CustomOpHandler, CustomOpRegistry};
 pub(crate) use device_query::DeviceQueries;
-pub use device_query::DeviceQueryHandler;
 pub use error::ServeError;
 pub use logging::ServerLogging;
 #[doc(hidden)]

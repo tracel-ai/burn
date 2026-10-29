@@ -98,8 +98,11 @@ impl<B: BackendIr> BackendServer<B> {
     /// Answer the device query `id` with `handler`, run on the device of the session that asks
     /// (see `RemoteDevice::query`). Registering an id again replaces its handler.
     ///
-    /// The handler holds up the asking session's work while it runs, and is shared by every
-    /// session (see [`DeviceQueryHandler`](super::DeviceQueryHandler)).
+    /// The handler runs on the worker of the session that asks, in order with that session's
+    /// tasks, so the session's work waits until it returns. A panic is answered to the client as
+    /// a failure and the session goes on serving, but one handler serves every session: a panic
+    /// while it holds a lock of its own, such as a `Mutex`, poisons that lock for every session
+    /// after it.
     pub fn with_device_query<F>(mut self, id: impl Into<DeviceQueryId>, handler: F) -> Self
     where
         F: Fn(&Device<B>) -> Vec<u8> + Send + Sync + 'static,

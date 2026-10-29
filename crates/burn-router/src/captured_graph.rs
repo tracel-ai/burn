@@ -9,6 +9,7 @@ use burn_ir::CapturedGraphId;
 ///
 /// Clones share the graph. Dropping the last one [releases](RouterClient::graph_release) it on
 /// the interpreter, after every operation the client registered before.
+#[derive(Clone)]
 pub struct RouterGraph<C: RouterClient> {
     captured: Arc<CapturedGraph<C>>,
 }
@@ -42,14 +43,6 @@ impl<C: RouterClient> RouterGraph<C> {
 impl<C: RouterClient> Drop for CapturedGraph<C> {
     fn drop(&mut self) {
         self.client.graph_release(self.id);
-    }
-}
-
-impl<C: RouterClient> Clone for RouterGraph<C> {
-    fn clone(&self) -> Self {
-        Self {
-            captured: self.captured.clone(),
-        }
     }
 }
 

@@ -125,7 +125,7 @@ impl RouterClient for RemoteClient {
 
     /// `Ok` once the replay is sent: the server answers no replay, and a failed one is the error
     /// of the next read or sync on this stream instead (see
-    /// [`GraphReplay`](crate::shared::Task::GraphReplay)).
+    /// [`CaptureReplay`](crate::shared::Task::CaptureReplay)).
     unsafe fn graph_replay(&self, graph: CapturedGraphId) -> Result<(), ExecutionError> {
         let stream_id = StreamId::current();
         self.handle
@@ -281,7 +281,7 @@ impl RemoteDevice {
 
     /// Ask the server the device query `id` about this device, opening its session first if it
     /// is not open yet; the server answers with the handler registered under `id` (see
-    /// `RemoteServer::with_device_query`), in bytes the two sides agree on.
+    /// `BackendServer::with_device_query`), in bytes the two sides agree on.
     ///
     /// The server runs the handler on this device's session, after the work sent before it and
     /// ahead of the work sent after.

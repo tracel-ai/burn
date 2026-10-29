@@ -9,14 +9,8 @@ use burn_ir::BackendIr;
 
 use crate::shared::{DeviceQueryFailure, DeviceQueryId};
 
-/// Answers a device query: what the server says about the device a session runs on, as bytes the
-/// client and the handler agree on.
-///
-/// It runs on the worker of the session that asks, in order with that session's tasks, so the
-/// session's work waits until it returns. A panic is answered to the client as a failure and the
-/// session goes on serving, but one handler serves every session: a panic while it holds a lock
-/// of its own, such as a `Mutex`, poisons that lock for every session after it.
-pub type DeviceQueryHandler<B> = Arc<dyn Fn(&Device<B>) -> Vec<u8> + Send + Sync>;
+/// Answers a device query (see [`BackendServer::with_device_query`](super::BackendServer::with_device_query)).
+type DeviceQueryHandler<B> = Arc<dyn Fn(&Device<B>) -> Vec<u8> + Send + Sync>;
 
 /// The device queries a server answers, by id, shared read-only with every session.
 ///

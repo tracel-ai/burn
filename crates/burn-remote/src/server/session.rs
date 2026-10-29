@@ -9,7 +9,7 @@ use tokio::sync::{Mutex, mpsc};
 
 use crate::metrics::{MetricSide, logger_task};
 use crate::server::DeviceQueries;
-use crate::server::capture::CaptureClaim;
+use crate::server::capture::DeviceCaptureLock;
 use crate::server::local_comm::LocalCommService;
 use crate::server::service::{SessionChannels, SessionService};
 use crate::server::spawn::spawn_detached;
@@ -45,12 +45,10 @@ where
 {
     /// All devices this server hosts, indexed by the device index the client selects at
     /// session init. `devices[0]` is the default device (`DeviceIndex::Default`).
-    devices: Vec<Device<B>>,
+    devices: Vec<HostedDevice<B>>,
     pub(crate) transfer: Arc<T>,
     /// Rendezvous registry for same-host tensor transfers between this server's sessions.
     pub(crate) local_comm: Arc<LocalCommService<B>>,
-    /// Which session holds each device's graph capture, by device index.
-    captures: Vec<CaptureClaim>,
     /// Custom-op handlers shared (read-only) with every session's interpreter.
     custom_ops: CustomOpRegistry<B>,
     /// Device-query handlers shared (read-only) with every session.
@@ -59,6 +57,12 @@ where
     probe: TelemetryProbe,
     /// Spawns the telemetry logger once, on the first session.
     logger: Once,
+}
+
+/// A device this server hosts, with the lock its sessions' graph captures share.
+struct HostedDevice<B: BackendIr> {
+    device: Device<B>,
+    capture_lock: DeviceCaptureLock,
 }
 
 struct Session {
@@ -79,8 +83,13 @@ where
         );
         Self {
             local_comm: Arc::new(LocalCommService::new(devices.len())),
-            captures: devices.iter().map(|_| CaptureClaim::default()).collect(),
-            devices,
+            devices: devices
+                .into_iter()
+                .map(|device| HostedDevice {
+                    device,
+                    capture_lock: DeviceCaptureLock::default(),
+                })
+                .collect(),
             transfer,
             custom_ops: CustomOpRegistry::default(),
             queries: DeviceQueries::default(),
@@ -124,15 +133,17 @@ where
     /// device 0 — for a collective that would reduce a device against itself and silently corrupt
     /// the result instead of producing a clear failure.
     pub(crate) fn device(&self, device_index: u32) -> Device<B> {
-        self.devices
-            .get(device_index as usize)
-            .cloned()
-            .unwrap_or_else(|| {
-                panic!(
-                    "Requested device index {device_index} but server hosts only {} device(s)",
-                    self.devices.len()
-                )
-            })
+        self.hosted(device_index).device.clone()
+    }
+
+    /// The hosted device at `device_index`, failing as [`device`](Self::device) does.
+    fn hosted(&self, device_index: u32) -> &HostedDevice<B> {
+        self.devices.get(device_index as usize).unwrap_or_else(|| {
+            panic!(
+                "Requested device index {device_index} but server hosts only {} device(s)",
+                self.devices.len()
+            )
+        })
     }
 
     async fn with_session<R>(
@@ -163,7 +174,7 @@ where
                     queries: self.queries.clone(),
                     probe: self.probe.clone(),
                 },
-                self.captures[device_index as usize].clone(),
+                self.hosted(device_index).capture_lock.clone(),
             );
             self.probe.emit(|| TelemetryEvent::SessionOpened {
                 session: session_id,

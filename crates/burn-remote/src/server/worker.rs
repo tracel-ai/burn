@@ -38,7 +38,7 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
 use burn_backend::tensor::FloatTensor;
-use burn_ir::{BackendIr, GraphBindings, GraphId, HandleKind, TensorError};
+use burn_ir::{BackendIr, GraphBindings, GraphId, HandleKind, TensorError, TensorIr};
 use burn_router::{Graph, TensorInterpreter};
 use burn_std::{ExecutionError, id::StreamId};
 use serde_bytes::ByteBuf;
@@ -52,7 +52,7 @@ use tokio::runtime::Handle;
 use tokio::sync::mpsc;
 
 use crate::server::DeviceQueries;
-use crate::server::capture::{CaptureClaim, SessionCaptures};
+use crate::server::capture::{DeviceCaptureLock, SessionCaptures};
 use crate::server::local_comm::LocalCommService;
 use crate::server::spawn::{CatchPanic, ResponseTasks, spawn_detached};
 use crate::server::streams::ServerStreams;
@@ -124,7 +124,7 @@ where
         runner: TensorInterpreter<B>,
         response_sender: mpsc::Sender<TaskResponse>,
         services: SessionServices<B, T>,
-        capture: CaptureClaim,
+        capture_lock: DeviceCaptureLock,
     ) -> mpsc::Sender<Task> {
         let SessionServices {
             transfer,
@@ -142,7 +142,7 @@ where
             local_comm,
             graphs: Mutex::new(HashMap::new()),
             queries,
-            captures: SessionCaptures::new(session_id, capture),
+            captures: SessionCaptures::new(session_id, capture_lock),
             probe,
         };
         let (sender, receiver) = mpsc::channel(TASK_CHANNEL_CAPACITY);
@@ -445,27 +445,7 @@ where
                 Ok(())
             }
             Task::ReadTensors(request_id, stream_id, tensors) => {
-                // The tensors are taken here, in stream order; only the host readback waits.
-                self.probe.emit(|| TelemetryEvent::Read {
-                    session: self.session_id,
-                    request: request_id,
-                });
-                let read = self.on_stream(stream_id, |runner| runner.read_tensors_async(&tensors));
-                match self.take_replay_failure(stream_id) {
-                    // The tensors are still taken and read, but the client learns its replay
-                    // failed rather than reading what the step before it wrote.
-                    Some(failure) => self.answer_when_ready(
-                        request_id,
-                        async move {
-                            let _ = read.await;
-                            Err(failure)
-                        },
-                        TaskResponseContent::ReadTensors,
-                    ),
-                    None => {
-                        self.answer_when_ready(request_id, read, TaskResponseContent::ReadTensors)
-                    }
-                }
+                self.read_tensors(request_id, stream_id, tensors);
                 Ok(())
             }
             Task::SyncBackend(request_id, stream_id) => {
@@ -507,30 +487,30 @@ where
                 self.answer_when_ready(request_id, measured, TaskResponseContent::ProfileEnd);
                 Ok(())
             }
-            Task::GraphPrepare(request_id, stream_id) => {
+            Task::CapturePrepare(request_id, stream_id) => {
                 let stream = self.streams.of(stream_id);
                 let res = self.captures.prepare(&self.runner, stream);
-                self.send_response(request_id, TaskResponseContent::Graph(res))
+                self.send_response(request_id, TaskResponseContent::Capture(res))
                     .await
             }
-            Task::GraphStartCapture(request_id, stream_id) => {
+            Task::CaptureStart(request_id, stream_id) => {
                 let stream = self.streams.of(stream_id);
                 let res = self.captures.start(&self.runner, stream);
-                self.send_response(request_id, TaskResponseContent::Graph(res))
+                self.send_response(request_id, TaskResponseContent::Capture(res))
                     .await
             }
-            Task::GraphStopCapture(request_id, stream_id, graph) => {
+            Task::CaptureStop(request_id, stream_id, graph) => {
                 let stream = self.streams.of(stream_id);
                 let res = self.captures.stop(&self.runner, stream, graph);
-                self.send_response(request_id, TaskResponseContent::Graph(res))
+                self.send_response(request_id, TaskResponseContent::Capture(res))
                     .await
             }
-            Task::GraphReplay(stream_id, graph) => {
+            Task::CaptureReplay(stream_id, graph) => {
                 let stream = self.streams.of(stream_id);
                 self.captures.replay(&self.runner, stream, graph);
                 Ok(())
             }
-            Task::GraphRelease(graph) => {
+            Task::CaptureRelease(graph) => {
                 self.captures.release(graph);
                 Ok(())
             }
@@ -607,6 +587,29 @@ where
     ) -> R {
         let stream = self.streams.of(stream);
         stream.executes(|| f(&mut self.runner))
+    }
+
+    /// Take `tensors` on the client's `stream`, in stream order, and answer `request_id` with
+    /// their data once the host readback completes, without the worker waiting on it.
+    ///
+    /// A replay on `stream` that failed since the last read or sync is the answer instead: the tensors
+    /// are still taken and read, but the client learns its replay failed rather than reading
+    /// what the step before it wrote.
+    fn read_tensors(&mut self, request_id: RequestId, stream: StreamId, tensors: Vec<TensorIr>) {
+        self.probe.emit(|| TelemetryEvent::Read {
+            session: self.session_id,
+            request: request_id,
+        });
+        let read = self.on_stream(stream, |runner| runner.read_tensors_async(&tensors));
+        let failure = self.take_replay_failure(stream);
+        let answer = async move {
+            let data = read.await;
+            match failure {
+                Some(failure) => Err(failure),
+                None => data,
+            }
+        };
+        self.answer_when_ready(request_id, answer, TaskResponseContent::ReadTensors);
     }
 
     /// The replay on the client's `stream` that failed since its last read or sync.
@@ -712,7 +715,7 @@ mod tests {
             TensorInterpreter::new(Default::default()),
             response_sender,
             SessionServices::new(local_comm.clone()),
-            CaptureClaim::default(),
+            DeviceCaptureLock::default(),
         );
 
         let stream_id = StreamId::current();
@@ -756,7 +759,7 @@ mod tests {
     #[tokio::test]
     async fn a_panic_aborts_the_responses_still_in_flight() {
         let (response_sender, mut responses) = mpsc::channel(1);
-        let mut handler = SessionHandler::new(response_sender, CaptureClaim::default());
+        let mut handler = SessionHandler::new(response_sender, DeviceCaptureLock::default());
         let stalled = handler.response_sender.clone();
         handler.response_tasks.spawn(async move {
             let _held = stalled;
@@ -779,7 +782,7 @@ mod tests {
             panic!("the backend failed")
         }
         let (response_sender, mut responses) = mpsc::channel(1);
-        let mut handler = SessionHandler::new(response_sender, CaptureClaim::default());
+        let mut handler = SessionHandler::new(response_sender, DeviceCaptureLock::default());
 
         let request_id: RequestId = 7;
         handler.answer_when_ready(
@@ -804,18 +807,18 @@ mod tests {
     #[tokio::test]
     async fn a_backend_without_graphs_answers_the_capture_with_its_error() {
         let (response_sender, mut responses) = mpsc::channel(1);
-        let mut handler = SessionHandler::new(response_sender, CaptureClaim::default());
+        let mut handler = SessionHandler::new(response_sender, DeviceCaptureLock::default());
 
         let request_id: RequestId = 3;
         handler
-            .process_task(Task::GraphStartCapture(request_id, StreamId::current()))
+            .process_task(Task::CaptureStart(request_id, StreamId::current()))
             .await
             .unwrap();
 
         let response = responses.recv().await.unwrap();
         assert_eq!(response.id, request_id);
         match response.content {
-            TaskResponseContent::Graph(Err(error)) => {
+            TaskResponseContent::Capture(Err(error)) => {
                 assert!(error.to_string().contains("not supported"), "{error}")
             }
             other => panic!("expected a capture error, got {other:?}"),
@@ -828,7 +831,7 @@ mod tests {
     #[tokio::test]
     async fn a_failed_replay_answers_the_next_read_of_its_stream() {
         let (response_sender, mut responses) = mpsc::channel(4);
-        let mut handler = SessionHandler::new(response_sender, CaptureClaim::default());
+        let mut handler = SessionHandler::new(response_sender, DeviceCaptureLock::default());
         let replayed = StreamId { value: 0 };
         let other = StreamId { value: 1 };
         let tensor = TensorIr {
@@ -840,8 +843,8 @@ mod tests {
 
         for task in [
             Task::RegisterTensor(replayed, tensor.id, TensorData::new(vec![1.0f32, 2.0], [2])),
-            Task::GraphReplay(replayed, CapturedGraphId(9)),
-            Task::GraphReplay(replayed, CapturedGraphId(10)),
+            Task::CaptureReplay(replayed, CapturedGraphId(9)),
+            Task::CaptureReplay(replayed, CapturedGraphId(10)),
             Task::SyncBackend(1, other),
             Task::ReadTensors(2, replayed, vec![tensor]),
         ] {
@@ -872,15 +875,15 @@ mod tests {
     /// so the capture here never gets past its preparation.
     #[tokio::test(flavor = "multi_thread")]
     async fn a_session_ended_mid_capture_hands_the_device_to_the_next() {
-        let device = CaptureClaim::default();
-        let spawn = |device: &CaptureClaim| {
+        let capture_lock = DeviceCaptureLock::default();
+        let spawn = |capture_lock: &DeviceCaptureLock| {
             let (response_sender, responses) = mpsc::channel(4);
             let tasks = SessionHandler::spawn(
                 SessionId::new(),
                 TensorInterpreter::<Flex>::new(Default::default()),
                 response_sender,
                 SessionServices::new(Arc::new(LocalCommService::<Flex>::new(1))),
-                device.clone(),
+                capture_lock.clone(),
             );
             (tasks, responses)
         };
@@ -890,14 +893,14 @@ mod tests {
         ) -> Result<(), ExecutionError> {
             // Both sessions name the same client stream.
             let stream = StreamId { value: 0 };
-            tasks.send(Task::GraphPrepare(0, stream)).await.unwrap();
+            tasks.send(Task::CapturePrepare(0, stream)).await.unwrap();
             match responses.recv().await.unwrap().content {
-                TaskResponseContent::Graph(res) => res,
+                TaskResponseContent::Capture(res) => res,
                 other => panic!("expected a capture answer, got {other:?}"),
             }
         }
-        let (first, mut first_responses) = spawn(&device);
-        let (second, mut second_responses) = spawn(&device);
+        let (first, mut first_responses) = spawn(&capture_lock);
+        let (second, mut second_responses) = spawn(&capture_lock);
 
         prepare(&first, &mut first_responses).await.unwrap();
         let refused = prepare(&second, &mut second_responses).await.unwrap_err();
@@ -932,7 +935,10 @@ mod tests {
     }
 
     impl SessionHandler<Flex, NoTransfer> {
-        fn new(response_sender: mpsc::Sender<TaskResponse>, capture: CaptureClaim) -> Self {
+        fn new(
+            response_sender: mpsc::Sender<TaskResponse>,
+            capture_lock: DeviceCaptureLock,
+        ) -> Self {
             let session_id = SessionId::new();
             Self {
                 session_id,
@@ -944,7 +950,7 @@ mod tests {
                 local_comm: Arc::new(LocalCommService::<Flex>::new(1)),
                 graphs: Mutex::new(HashMap::new()),
                 queries: DeviceQueries::default(),
-                captures: SessionCaptures::new(session_id, capture),
+                captures: SessionCaptures::new(session_id, capture_lock),
                 probe: TelemetryProbe::disabled(),
             }
         }

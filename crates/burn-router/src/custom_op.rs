@@ -94,6 +94,10 @@ impl<B: BackendIr> CustomOpRegistry<B> {
     /// Registering the same function again, such as a closure from the same source location,
     /// replaces it and succeeds, so registering a set of handlers twice is harmless. A different
     /// function under the same id is refused and the registry keeps the first.
+    ///
+    /// Functions are told apart by their type, so handlers whose types are the same pass as one
+    /// function: every `Box<dyn Fn>` and every `fn` pointer of the handler signature, and one
+    /// closure registered with different captured values, which replaces the first.
     pub fn try_register<F>(&mut self, id: &str, handler: F) -> Result<(), CustomOpConflict>
     where
         F: Fn(&mut HandleContainer<B::Handle>, &CustomOpIr, &B::Device) + Send + Sync + 'static,

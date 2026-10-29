@@ -11,7 +11,7 @@ use burn_std::id::StreamId;
 ///
 /// Distinct logical streams can still share a backend stream: a backend folds them onto a fixed
 /// pool, so another session's launches can land on the stream a capture records (see
-/// [`CaptureClaim`](super::capture::CaptureClaim)).
+/// [`DeviceCaptureLock`](super::capture::DeviceCaptureLock)).
 ///
 /// The map keeps every stream the client has named for the life of the session, since the
 /// client never says that it is done with one.

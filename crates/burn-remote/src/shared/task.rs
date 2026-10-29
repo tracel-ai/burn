@@ -25,8 +25,8 @@ pub const PROTOCOL_VERSION: u16 = 7;
 /// Routing id for a task whose result is fetched back.
 ///
 /// Only the result-producing tasks ([`Task::ReadTensors`], [`Task::SyncBackend`],
-/// [`Task::DTypeUsage`], [`Task::ProfileStart`], [`Task::ProfileEnd`], [`Task::GraphPrepare`],
-/// [`Task::GraphStartCapture`], [`Task::GraphStopCapture`], [`Task::DeviceQuery`]) carry a
+/// [`Task::DTypeUsage`], [`Task::ProfileStart`], [`Task::ProfileEnd`], [`Task::CapturePrepare`],
+/// [`Task::CaptureStart`], [`Task::CaptureStop`], [`Task::DeviceQuery`]) carry a
 /// `RequestId`; the server echoes it on its [`TaskResponse`] so the client demultiplexes results
 /// back to the right pending callback. Fire-and-forget tasks have no id because no result ever
 /// comes back.
@@ -334,23 +334,23 @@ pub enum Task {
     ///
     /// The session holds its device's capture from here until the capture ends, or the session
     /// does: another session's capture on the device is refused meanwhile.
-    GraphPrepare(RequestId, StreamId),
+    CapturePrepare(RequestId, StreamId),
     /// Start recording the server backend's launches on `stream_id` into a graph, after every
     /// earlier task. Answered, since a backend that cannot record one, or a device another
     /// session is capturing on, says so here and the client falls back to re-running.
-    GraphStartCapture(RequestId, StreamId),
+    CaptureStart(RequestId, StreamId),
     /// Stop the recording on `stream_id` and keep the graph under the id the client picked,
-    /// until a [`GraphRelease`](Task::GraphRelease) of it.
-    GraphStopCapture(RequestId, StreamId, CapturedGraphId),
+    /// until a [`CaptureRelease`](Task::CaptureRelease) of it.
+    CaptureStop(RequestId, StreamId, CapturedGraphId),
     /// Replay a kept graph on `stream_id`.
     ///
     /// Fire-and-forget: a graph replays once per step, where a round trip would cost what the
     /// graph saves. A failed replay is the answer to the next
     /// [`ReadTensors`](Task::ReadTensors) or [`SyncBackend`](Task::SyncBackend) on `stream_id`,
     /// in place of that task's own result.
-    GraphReplay(StreamId, CapturedGraphId),
+    CaptureReplay(StreamId, CapturedGraphId),
     /// Drop a kept graph; the client never replays it again.
-    GraphRelease(CapturedGraphId),
+    CaptureRelease(CapturedGraphId),
     /// Ask the server the device query registered under the id about the session's device.
     DeviceQuery(RequestId, DeviceQueryId),
 }
@@ -425,10 +425,11 @@ pub enum TaskResponseContent {
     /// The window's duration on the server's clock; `None` when it carried no
     /// measurement.
     ProfileEnd(Result<Option<Duration>, ExecutionError>),
-    /// The answer to [`GraphPrepare`](Task::GraphPrepare),
-    /// [`GraphStartCapture`](Task::GraphStartCapture) and
-    /// [`GraphStopCapture`](Task::GraphStopCapture).
-    Graph(Result<(), ExecutionError>),
+    /// The answer to [`CapturePrepare`](Task::CapturePrepare),
+    /// [`CaptureStart`](Task::CaptureStart) and
+    /// [`CaptureStop`](Task::CaptureStop).
+    Capture(Result<(), ExecutionError>),
+    /// The answer to [`DeviceQuery`](Task::DeviceQuery).
     DeviceQuery(Result<serde_bytes::ByteBuf, DeviceQueryFailure>),
     /// The server's answer to an `Init` it will not serve, in place of [`Init`](Self::Init),
     /// before it closes the session.
