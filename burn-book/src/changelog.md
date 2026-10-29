@@ -207,13 +207,15 @@ all-to-all, and broadcast also support boolean tensors. Quantized tensors are re
   [#5989](https://github.com/tracel-ai/burn/pull/5989),
   [#6017](https://github.com/tracel-ai/burn/pull/6017))
 - Fix router and remote servers panicking when an integer tensor is cast to another integer
-  element type.
+  element type. ([#6308](https://github.com/tracel-ai/burn/pull/6308))
+- Fix a HIP worker crashing when a session ends as the process exits.
+  ([#6308](https://github.com/tracel-ai/burn/pull/6308))
 - `capture` on a remote device records and replays the graph on the server's device. One session
   captures per server device at a time, and a replay that fails is the error of the next read on
-  its stream.
+  its stream. ([#6308](https://github.com/tracel-ai/burn/pull/6308))
 - Servers answer device queries registered with `with_device_query`, asked by
   `RemoteDevice::query`. **Breaking:** `ServeError::CustomOpBackend` is renamed `HandlerBackend`,
-  as it also covers device queries.
+  as it also covers device queries. ([#6308](https://github.com/tracel-ai/burn/pull/6308))
 
 #### Backend extensions
 
