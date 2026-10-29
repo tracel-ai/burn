@@ -248,13 +248,6 @@ scales with their number. With four workers, the default queues eight batches, w
 queues two. Each worker also holds the batch it is waiting to send.
 ([#6252](https://github.com/tracel-ai/burn/pull/6252))
 
-#### Dataset loading
-
-- Return `InvalidData` errors instead of panicking when `InMemDataset::from_json_rows` reads
-  malformed JSON or encounters a line-reading error.
-  ([issue #6283](https://github.com/tracel-ai/burn/issues/6283))
-  [@onenewcode](https://github.com/onenewcode)
-
 #### Stateful feed-forward activations
 
 Stateful `PositionWiseFeedForward` activations such as PReLU and SwiGLU are now trained and
