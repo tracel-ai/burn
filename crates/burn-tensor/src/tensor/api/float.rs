@@ -717,13 +717,13 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     /// # Example
     ///
     /// ```ignore
-    /// use burn_tensor::ops::{GridSampleOptions, GridSamplePaddingMode, InterpolateMode};
+    /// use burn_tensor::ops::{GridSampleOptions, GridSamplePaddingMode, GridSampleMode};
     ///
     /// // Default options (bilinear, zeros padding, align_corners=false)
     /// let output = tensor.grid_sample_2d(grid, GridSampleOptions::default());
     ///
     /// // Custom options
-    /// let options = GridSampleOptions::new(InterpolateMode::Bilinear)
+    /// let options = GridSampleOptions::new(GridSampleMode::Bilinear)
     ///     .with_padding_mode(GridSamplePaddingMode::Border)
     ///     .with_align_corners(true);
     /// let output = tensor.grid_sample_2d(grid, options);
