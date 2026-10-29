@@ -1,24 +1,20 @@
-//! A sum or mean with few outputs over a long axis, such as the marginals of a mutual information
-//! over `V` pixels (`[1, 32, V]` over `V`) or the gradient of a per-image minimum (`[1, 1, V]` over
-//! `V`).
+//! A sum or mean whose outputs are too few to fill the device while the axis they are taken over is
+//! long.
 //!
-//! The unit routine gives each output one thread walking its whole axis, so a handful of outputs
-//! leave the device idle. Here the axis is cut into chunks: one thread sums each chunk of each
-//! output, then one thread per output adds its chunks in order.
+//! The unit routine gives each output one thread walking its whole axis, so such a reduction leaves
+//! the device idle. Here the axis is cut into chunks: one thread sums each chunk of each output,
+//! then one thread per output adds its chunks in order.
 
 use burn_backend::DType;
 use burn_backend::cubecl::{dtype_to_elem_type, dtype_to_storage_type};
 use cubecl::{calculate_cube_count_elemwise, prelude::*};
 use cubek::reduce::{ReduceDtypes, components::instructions::ReduceOperationConfig};
 
-use crate::{kernel::utils::address_type, ops::numeric::empty_device_dtype, tensor::CubeTensor};
-
-/// The most outputs this route takes: past them the unit routine has threads enough.
-const MAX_OUTPUTS: usize = 256;
-/// The shortest axis this route takes.
-const MIN_LENGTH: usize = 1 << 16;
-/// The length of the axis one thread sums before the chunks are added together.
-const CHUNK: usize = 4096;
+use crate::{
+    kernel::utils::{address_type, chunk_length, device_threads, few_outputs_over_a_long_axis},
+    ops::numeric::empty_device_dtype,
+    tensor::CubeTensor,
+};
 
 /// Each thread sums one chunk of one output's axis into `partial`, laid out `[outputs, chunks]`.
 #[cube(launch, address_type = "dynamic")]
@@ -90,8 +86,8 @@ fn sum_chunks_kernel<F: Float>(
 }
 
 /// Whether the chunked route takes this reduction in place of the unit routine: a float sum or
-/// mean accumulated in its own type, over an axis of at least [`MIN_LENGTH`], into at most
-/// [`MAX_OUTPUTS`] values.
+/// mean accumulated in its own type, whose outputs are too few to fill the device while its terms
+/// are not.
 pub(crate) fn applies(
     input: &CubeTensor,
     dim: usize,
@@ -108,8 +104,11 @@ pub(crate) fn applies(
         && dtypes.accumulation == float
         && dtypes.output == float
         && input.qparams.is_none()
-        && shape[dim] >= MIN_LENGTH
-        && shape.num_elements() / shape[dim] <= MAX_OUTPUTS
+        && few_outputs_over_a_long_axis(
+            device_threads(input),
+            shape.num_elements() / shape[dim].max(1),
+            shape[dim],
+        )
 }
 
 /// `output` = the sum (or mean) of `input` over `dim` by the chunked route, for a reduction it
@@ -118,15 +117,16 @@ pub(crate) fn reduce_long_axis(input: CubeTensor, output: CubeTensor, dim: usize
     let client = input.client.clone();
     let dtype = input.dtype;
     let length = input.meta.shape()[dim];
-    let chunks = length.div_ceil(CHUNK);
     let outputs = output.meta.shape().num_elements();
+    let chunk = chunk_length(length);
+    let chunks = length.div_ceil(chunk);
     let partial = empty_device_dtype(
         client.clone(),
         input.device.clone(),
         [outputs * chunks].into(),
         dtype,
     );
-    let cube_dim = CubeDim::new_1d(256);
+    let cube_dim = CubeDim::new(&client, outputs * chunks);
     sum_chunk_kernel::launch(
         &client,
         calculate_cube_count_elemwise(&client, outputs * chunks, cube_dim),
@@ -136,11 +136,12 @@ pub(crate) fn reduce_long_axis(input: CubeTensor, output: CubeTensor, dim: usize
         partial.clone().into_tensor_arg(),
         output.clone().into_tensor_arg(),
         dim,
-        CHUNK,
+        chunk,
         chunks,
         dtype_to_storage_type(dtype),
     );
-    let cube_dim = CubeDim::new_1d(32);
+    // A plane per cube spreads the few threads over as many cores as there are planes.
+    let cube_dim = CubeDim::new_1d(client.properties().hardware.plane_size_max);
     sum_chunks_kernel::launch(
         &client,
         calculate_cube_count_elemwise(&client, outputs, cube_dim),

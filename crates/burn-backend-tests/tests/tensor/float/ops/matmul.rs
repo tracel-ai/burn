@@ -490,9 +490,9 @@ fn float_should_panic_when_batch_dimensions_are_not_broadcastable() {
 
 #[test]
 fn test_float_matmul_long_k() {
-    // A small output over a long k, batched, the right operand transposed: the shape of a joint
-    // histogram over pixels. Small integers keep every partial sum exact in f32 and f64, the types
-    // this route takes; a half-precision sum this long is not exact.
+    // A small output over a long k, batched, the right operand transposed. Small integers keep
+    // every partial sum exact in f32 and f64, the types this route takes; a half-precision sum this
+    // long is not exact.
     if FloatElem::EPSILON.elem::<f32>() > f32::EPSILON {
         return;
     }

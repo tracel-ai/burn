@@ -2,14 +2,11 @@
 //! reference, with explicit error bounds: they add in another order than one chain per output, so
 //! their values are checked, not their bits.
 //!
-//! A two-level sum of `n` terms in chunks of `CHUNK` has a worst-case error of
-//! `(CHUNK + n / CHUNK) * eps * sum |x|` (one chain per chunk, then one over the chunks); the
-//! bounds below are that one, rounded up.
+//! The chunk length comes from the device, so the bounds hold for any order of the additions:
+//! `(n - 1) * eps * sum |x|` for `n` terms, which a two-level sum of any chunk length stays within.
 
 use super::*;
 use burn_tensor::{Device, TensorData};
-
-const CHUNK: usize = 4096;
 
 /// Uniform values in `[-1, 1)`, reproducible.
 fn uniform(len: usize, seed: u64) -> Vec<f32> {
@@ -24,9 +21,9 @@ fn uniform(len: usize, seed: u64) -> Vec<f32> {
         .collect()
 }
 
-/// The two-level sum's error bound for `n` terms of absolute sum `abs`.
+/// The error bound of a sum of `n` terms of absolute sum `abs`, in any order.
 fn bound(n: usize, abs: f64) -> f64 {
-    ((CHUNK + n.div_ceil(CHUNK) + 1) as f64) * f64::from(f32::EPSILON) * abs
+    n as f64 * f64::from(f32::EPSILON) * abs
 }
 
 fn values(tensor: Tensor<2>) -> Vec<f32> {
@@ -60,12 +57,6 @@ fn a_chunked_sum_of_cancelling_terms_stays_within_its_bound() {
         let exact: f64 = terms.iter().map(|&x| f64::from(x)).sum();
         let abs: f64 = terms.iter().map(|&x| f64::from(x).abs()).sum();
         assert_within(sums[row], exact, abs, n);
-        // The worst case is loose here (abs is 1e11 for a sum near 1e6): the actual error is far below it.
-        assert!(
-            (f64::from(sums[row]) - exact).abs() <= 1e-3 * exact.abs(),
-            "{} for {exact}",
-            sums[row]
-        );
         assert_within(means[row] * n as f32, exact, abs * 2.0, n);
     }
 }

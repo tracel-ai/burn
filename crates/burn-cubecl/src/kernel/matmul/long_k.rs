@@ -1,21 +1,18 @@
-//! A matmul whose output is too small to fill the device but whose inner dimension is long, such as
-//! the `[32, V] @ [V, 32]` joint histogram of a mutual information over `V` pixels.
+//! A matmul whose output has too few elements to fill the device while its inner dimension `k` is
+//! long.
 //!
-//! The tiled routines split the output, not `k`, so such a problem runs on one cube walking all of
-//! `k`. Here `k` is cut into chunks: one thread sums each chunk of each output element, one
+//! The tiled routines split the output, not `k`, so such a problem runs on a few cubes walking all
+//! of `k`. Here `k` is cut into chunks: one thread sums each chunk of each output element, one
 //! `acc += lhs * rhs` at a time, then one thread per element adds its chunks in order.
 
 use burn_backend::{DType, cubecl::dtype_to_storage_type};
 use cubecl::{calculate_cube_count_elemwise, prelude::*};
 
-use crate::{kernel::utils::address_type, ops::numeric::empty_device_dtype, tensor::CubeTensor};
-
-/// The largest output, in elements, this route takes: past it the tiled routines fill the device.
-pub(crate) const MAX_OUTPUT: usize = 64 * 64;
-/// The length of `k` one thread sums before the chunks are added together.
-const CHUNK: usize = 4096;
-/// The shortest inner dimension this route takes.
-pub(crate) const MIN_K: usize = 1 << 16;
+use crate::{
+    kernel::utils::{address_type, chunk_length, device_threads, few_outputs_over_a_long_axis},
+    ops::numeric::empty_device_dtype,
+    tensor::CubeTensor,
+};
 
 /// Each thread sums one chunk of `k` for one output element into `partial`, laid out
 /// `[batch, chunks, m, n]`.
@@ -112,7 +109,7 @@ fn matmul_long_k_sum_kernel<F: Float>(
 }
 
 /// Whether `out = lhs @ rhs` takes the long-`k` route: an `f32` or `f64` matmul without broadcast
-/// batch dimensions, an output within [`MAX_OUTPUT`] elements and a `k` of at least [`MIN_K`].
+/// batch dimensions whose output is too small to fill the device while its products are not.
 pub(crate) fn applies(lhs: &CubeTensor, rhs: &CubeTensor, out: &CubeTensor) -> bool {
     let [lhs_shape, rhs_shape, out_shape] = [lhs, rhs, out].map(|t| t.meta.shape());
     let rank = out_shape.len();
@@ -127,8 +124,11 @@ pub(crate) fn applies(lhs: &CubeTensor, rhs: &CubeTensor, out: &CubeTensor) -> b
         && rhs.dtype == out.dtype
         // One accumulator per thread over a long k: a half-precision one would overflow.
         && matches!(out.dtype, DType::F32 | DType::F64)
-        && out_shape[rank - 2] * out_shape[rank - 1] <= MAX_OUTPUT
-        && lhs_shape[rank - 1] >= MIN_K
+        && few_outputs_over_a_long_axis(
+            device_threads(out),
+            out_shape.num_elements(),
+            lhs_shape[rank - 1],
+        )
 }
 
 /// `out = lhs @ rhs` by the long-`k` route, for operands it [`applies`] to.
@@ -136,8 +136,9 @@ pub(crate) fn matmul_long_k(lhs: CubeTensor, rhs: CubeTensor, out: CubeTensor) {
     let shape = out.meta.shape().clone();
     let rank = shape.len();
     let size_k = lhs.meta.shape()[rank - 1];
-    let chunks = size_k.div_ceil(CHUNK);
     let outputs = shape.num_elements();
+    let chunk = chunk_length(size_k);
+    let chunks = size_k.div_ceil(chunk);
     let client = out.client.clone();
     let dtype = out.dtype;
     let partial = empty_device_dtype(
@@ -146,7 +147,7 @@ pub(crate) fn matmul_long_k(lhs: CubeTensor, rhs: CubeTensor, out: CubeTensor) {
         [outputs * chunks].into(),
         dtype,
     );
-    let cube_dim = CubeDim::new_1d(256);
+    let cube_dim = CubeDim::new(&client, outputs * chunks);
     matmul_long_k_chunk_kernel::launch(
         &client,
         calculate_cube_count_elemwise(&client, outputs * chunks, cube_dim),
@@ -157,12 +158,12 @@ pub(crate) fn matmul_long_k(lhs: CubeTensor, rhs: CubeTensor, out: CubeTensor) {
         partial.clone().into_tensor_arg(),
         shape[rank - 2],
         shape[rank - 1],
-        CHUNK,
+        chunk,
         chunks,
         dtype_to_storage_type(dtype),
     );
     // A plane per cube spreads the few threads over as many cores as there are planes.
-    let cube_dim = CubeDim::new_1d(32);
+    let cube_dim = CubeDim::new_1d(client.properties().hardware.plane_size_max);
     matmul_long_k_sum_kernel::launch(
         &client,
         calculate_cube_count_elemwise(&client, outputs, cube_dim),
