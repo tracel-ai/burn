@@ -4,7 +4,7 @@ use crate::{
     tensor::{BoolTensor, Device, FloatTensor, IntTensor},
 };
 use alloc::vec::Vec;
-use burn_std::Slice;
+use burn_std::{Bytes, DType, Slice, TensorData};
 use core::{marker::PhantomData, ops::Range};
 
 /// Collectives over a group of devices, called once with every member's tensor.
@@ -110,20 +110,6 @@ pub trait CollectiveOps<B: Backend> {
 /// name an override can call when it falls back.
 pub struct EmulatedCollectives<B> {
     _backend: PhantomData<B>,
-}
-
-/// Dimension `dim`, of length `len`, cut into one chunk per member, a member being one of the
-/// tensors a collective is given: as even as possible, with the first members holding one more.
-///
-/// A caller that splits a tensor itself must cut it the same way, so this is public.
-#[derive(Clone, Copy, Debug)]
-pub struct DimSplit {
-    /// The dimension the chunks cut along.
-    pub dim: usize,
-    /// How many elements that dimension holds.
-    pub len: usize,
-    /// How many chunks it is cut into, one per member.
-    pub members: usize,
 }
 
 impl<B: Backend> EmulatedCollectives<B> {
@@ -400,6 +386,20 @@ impl<B: Backend> EmulatedCollectives<B> {
     }
 }
 
+/// Dimension `dim`, of length `len`, cut into one chunk per member, a member being one of the
+/// tensors a collective is given: as even as possible, with the first members holding one more.
+///
+/// A caller that splits a tensor itself must cut it the same way, so this is public.
+#[derive(Clone, Copy, Debug)]
+pub struct DimSplit {
+    /// The dimension the chunks cut along.
+    pub dim: usize,
+    /// How many elements that dimension holds.
+    pub len: usize,
+    /// How many chunks it is cut into, one per member.
+    pub members: usize,
+}
+
 impl DimSplit {
     fn new<T: TensorMetadata>(tensors: &[T], dim: usize) -> Self {
         let split = Self {
@@ -434,11 +434,82 @@ impl DimSplit {
             })
             .collect()
     }
+
+    /// Each member's chunk of `data`, in member order, cut on the host one at a time.
+    ///
+    /// # Panics
+    ///
+    /// When `data` is quantized, since its packed values and scales do not cut along a dim, or
+    /// when its `dim` does not hold `len` elements.
+    pub fn data_chunks(self, data: &TensorData) -> impl Iterator<Item = TensorData> + '_ {
+        assert!(
+            !matches!(data.dtype(), DType::QFloat(_)),
+            "A quantized tensor is not cut along a dim"
+        );
+        let shape = data.shape();
+        assert!(
+            shape.as_slice().get(self.dim) == Some(&self.len),
+            "dimension {} of a tensor of shape {shape:?} does not hold {} elements",
+            self.dim,
+            self.len,
+        );
+        (0..self.members).map(move |member| {
+            let mut chunk_shape = shape.clone();
+            chunk_shape[self.dim] = self.range(member).len();
+            TensorData::from_bytes(self.chunk_bytes(data, member), chunk_shape, data.dtype())
+        })
+    }
+
+    /// `member`'s bytes of `data`. A chunk in one piece is a window into `data` where its storage
+    /// has windows, so a file-backed tensor reads only that range.
+    fn chunk_bytes(&self, data: &TensorData, member: usize) -> Bytes {
+        let pieces = self.byte_ranges(data, member);
+        if pieces.len() == 1
+            && let Some(piece) = pieces.clone().next()
+            && let Ok(window) = data.bytes().view(piece.start, piece.end)
+        {
+            return window;
+        }
+        concatenated(data.as_bytes(), pieces)
+    }
+
+    /// Where `member`'s chunk sits in `data`: one byte range for each index of the dims before
+    /// `dim`.
+    fn byte_ranges(
+        &self,
+        data: &TensorData,
+        member: usize,
+    ) -> impl ExactSizeIterator<Item = Range<usize>> + Clone + use<> {
+        let shape = data.shape().as_slice();
+        let blocks: usize = shape[..self.dim].iter().product();
+        let row_size = shape[self.dim + 1..].iter().product::<usize>() * data.dtype().size();
+        let rows = self.range(member);
+        let len = self.len;
+        (0..blocks).map(move |block| {
+            let start = (block * len + rows.start) * row_size;
+            start..start + rows.len() * row_size
+        })
+    }
+}
+
+/// The `ranges` of `bytes` end to end, in a u128 buffer: it is aligned to `MAX_ALIGN`, so the
+/// result is not copied again to reach it.
+fn concatenated(bytes: &[u8], ranges: impl Iterator<Item = Range<usize>> + Clone) -> Bytes {
+    let len: usize = ranges.clone().map(|range| range.len()).sum();
+    let mut concatenated =
+        Bytes::from_elems(Vec::<u128>::with_capacity(len.div_ceil(size_of::<u128>())));
+    for range in ranges {
+        concatenated.extend_from_byte_slice(&bytes[range]);
+    }
+    concatenated
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use alloc::vec;
+    #[cfg(feature = "std")]
+    use burn_std::Reader;
 
     #[test]
     fn a_split_gives_the_first_members_one_more() {
@@ -450,5 +521,65 @@ mod tests {
         let ranges: Vec<_> = (0..3).map(|member| split.range(member)).collect();
 
         assert_eq!(ranges, [0..3, 3..5, 5..7]);
+    }
+
+    #[test]
+    fn data_chunks_cut_every_block_along_an_inner_dim() {
+        let data = TensorData::new((0..12).collect::<Vec<i32>>(), [2, 3, 2]);
+        let split = DimSplit {
+            dim: 1,
+            len: 3,
+            members: 2,
+        };
+
+        let chunks: Vec<_> = split.data_chunks(&data).collect();
+
+        assert_eq!(
+            chunks,
+            [
+                TensorData::new(vec![0, 1, 2, 3, 6, 7, 8, 9], [2, 2, 2]),
+                TensorData::new(vec![4, 5, 10, 11], [2, 1, 2]),
+            ]
+        );
+    }
+
+    #[cfg(feature = "std")]
+    #[test]
+    fn data_chunks_along_the_first_dim_read_only_their_range_of_a_file() {
+        let whole = TensorData::new((0..12).collect::<Vec<i32>>(), [4, 3]);
+        let path = std::env::temp_dir().join(format!("burn-data-chunks-{}", std::process::id()));
+        std::fs::write(&path, whole.as_bytes()).unwrap();
+        let bytes = Bytes::from_file(&path, 48, 0);
+        let data = TensorData::from_bytes(bytes, [4, 3], DType::I32);
+        let split = DimSplit {
+            dim: 0,
+            len: 4,
+            members: 2,
+        };
+
+        let chunks: Vec<_> = split.data_chunks(&data).collect();
+
+        assert_eq!(
+            chunks,
+            [
+                TensorData::new(vec![0, 1, 2, 3, 4, 5], [2, 3]),
+                TensorData::new(vec![6, 7, 8, 9, 10, 11], [2, 3]),
+            ]
+        );
+        assert!(data.bytes().read(Reader::new().no_copy()).is_err());
+        std::fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    #[should_panic(expected = "dimension 2 of a tensor of shape")]
+    fn data_chunks_refuse_a_dim_the_tensor_lacks() {
+        let data = TensorData::new((0..12).collect::<Vec<i32>>(), [2, 6]);
+        let split = DimSplit {
+            dim: 2,
+            len: 4,
+            members: 2,
+        };
+
+        let _ = split.data_chunks(&data);
     }
 }

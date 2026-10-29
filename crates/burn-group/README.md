@@ -45,8 +45,10 @@ let output = hidden.matmul(w2);
 
 A group's members are Cube devices, of one runtime or of several, or Flex devices. Members on
 different runtimes form a group whose every collective is emulated through the host: correct, and
-far slower than members that share a runtime. A tensor is created whole on every member before
-`with_sharding` splits it.
+far slower than members that share a runtime. A tensor made from data stays on the host until it
+is used, and a split of it there, by `with_sharding` or by an op that consumes it, uploads each
+member only its chunk. Any other tensor, `random` and `zeros` among them, is created whole on
+every member before `with_sharding` splits it.
 
 <!-- burn-crate-footer -->
 
