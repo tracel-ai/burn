@@ -73,7 +73,9 @@ impl Conv3dConfig {
     pub fn init(&self, device: &Device) -> Conv3d {
         checks::checks_channels_div_groups(self.channels[0], self.channels[1], self.groups);
         if self.padding == PaddingConfig3d::Same {
-            checks::check_same_padding_support(&self.kernel_size);
+            let effective_kernel: [usize; 3] =
+                core::array::from_fn(|i| (self.kernel_size[i] - 1) * self.dilation[i] + 1);
+            checks::check_same_padding_support(&effective_kernel);
         }
 
         let shape = [
@@ -149,11 +151,13 @@ impl Conv3d {
     /// The options the convolution runs with, its padding resolved against `input`'s size.
     fn options(&self, input: &Tensor<5>) -> ConvOptions<3> {
         let [_batch_size, _channels_in, depth_in, height_in, width_in] = input.dims();
+        let effective_kernel =
+            core::array::from_fn(|i| (self.kernel_size[i] - 1) * self.dilation[i] + 1);
         let padding = self.padding.calculate_padding_3d(
             depth_in,
             height_in,
             width_in,
-            &self.kernel_size,
+            &effective_kernel,
             &self.stride,
         );
         ConvOptions::new(self.stride, padding, self.dilation, self.groups)
@@ -267,6 +271,20 @@ mod tests {
         let device = Default::default();
         let config = Conv3dConfig::new([4, 4], [2, 2, 2]).with_padding(PaddingConfig3d::Same);
         let _ = config.init(&device);
+    }
+
+    #[test]
+    fn same_with_dilation_uses_effective_kernel() {
+        let device = Default::default();
+        let conv = Conv3dConfig::new([1, 1], [2, 2, 2])
+            .with_padding(PaddingConfig3d::Same)
+            .with_dilation([2, 2, 2])
+            .with_bias(false)
+            .init(&device);
+
+        let output = conv.forward(Tensor::<5>::zeros([1, 1, 4, 5, 6], &device));
+
+        assert_eq!(output.dims(), [1, 1, 4, 5, 6]);
     }
 
     #[test]
