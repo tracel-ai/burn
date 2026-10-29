@@ -159,7 +159,8 @@ pub fn backend_dispatch(attr: TokenStream, item: TokenStream) -> TokenStream {
 ///
 /// ## Optimizer integration
 ///
-/// The operation ID defaults to the method name; use `id = "custom_matmul"` to override it.
+/// The operation ID defaults to the trait and method names, as in `"AttentionBackend::attend"`;
+/// use `id = "custom_matmul"` to override it.
 /// Integer parameters (8–64 bits, `usize`, `isize`), `f32`, `f64`, and `bool` are exposed to custom
 /// optimizers automatically, in declaration order. These are host values, not tensor contents.
 /// Other ordinary arguments and extension fields are captured for execution only.

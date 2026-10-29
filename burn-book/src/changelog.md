@@ -209,6 +209,13 @@ all-to-all, and broadcast also support boolean tensors. Quantized tensors are re
 - Fix router and remote servers panicking when an integer tensor is cast to another integer
   element type.
 
+#### Backend extensions
+
+**API migration:** a `#[backend_extension]` Fusion operation's default id is now
+`"Trait::method"` instead of the method name, so two traits' same-named methods no longer share
+an id. A custom optimizer matching a default id must match the new one, or the method can keep its
+old id with `#[fusion(id = "method")]`.
+
 ### Training and modules
 
 #### More flexible `#[derive(Module)]`

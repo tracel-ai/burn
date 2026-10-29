@@ -25,7 +25,7 @@ fn unsupported(item: impl quote::ToTokens) -> syn::Error {
 pub(crate) fn expand(item: &ItemTrait) -> syn::Result<TokenStream> {
     let trait_name = &item.ident;
     let (methods, diagnostics) = expand_methods(item, |method| {
-        Ok(LazyMethod::parse(method)?.map(|method| method.fusion(trait_name)))
+        Ok(LazyMethod::parse(trait_name, method)?.map(|method| method.fusion(trait_name)))
     })?;
     Ok(quote! {
         impl<B: burn::backend::fusion::FusionBackend + #trait_name> #trait_name for burn::backend::fusion::Fusion<B> {
@@ -112,8 +112,9 @@ struct LazyMethod<'a> {
 }
 
 impl<'a> LazyMethod<'a> {
-    /// Parse a method's `#[fusion(...)]` annotations, or `None` when it inherits its default body.
-    fn parse(method: &'a TraitItemFn) -> syn::Result<Option<Self>> {
+    /// Parse a method of `trait_name` from its `#[fusion(...)]` annotations, or `None` when it
+    /// inherits its default body.
+    fn parse(trait_name: &syn::Ident, method: &'a TraitItemFn) -> syn::Result<Option<Self>> {
         let annotations: Vec<_> = method
             .attrs
             .iter()
@@ -292,9 +293,11 @@ impl<'a> LazyMethod<'a> {
         reject_borrowed_output(ty)?;
         let output = OperationOutput::extension(ty);
         validate_output(&output)?;
+        // The default id names the trait as well as the method: a server registers the handlers
+        // of several traits in one registry, and their methods may share a name.
         let id = id.map(|id| quote!(#id)).unwrap_or_else(|| {
             let name = &sig.ident;
-            quote!(stringify!(#name))
+            quote!(concat!(stringify!(#trait_name), "::", stringify!(#name)))
         });
         Ok(Some(Self {
             method,
@@ -934,7 +937,7 @@ mod tests {
                 fn op(x: &FloatTensor<Self>, option: usize) -> (FloatTensor<Self>, FloatTensor<Self>);
             }
         });
-        assert!(out.contains("id : (stringify ! (op))"));
+        assert!(out.contains("id : (concat ! (stringify ! (Ext) , \"::\" , stringify ! (op)))"));
         assert!(out.contains("TensorSpec"));
         assert!(out.contains(":: resolve_inputs"));
         assert!(out.contains("validate_outputs"));
