@@ -1,3 +1,5 @@
+#[cfg(feature = "autotune")]
+use crate::tune::TunedTrace;
 use crate::{
     CubeFusionHandle, FallbackOperation,
     engine::{
@@ -6,7 +8,6 @@ use crate::{
         trace::{FuseTrace, TuneOutput},
     },
     optim::{FusedOperation, elemwise::ElemwiseRunner, matmul::args::MatmulArg},
-    tune::TunedTrace,
 };
 use burn_fusion::stream::Context;
 use burn_ir::BinaryOpIr;
@@ -24,6 +25,7 @@ pub struct MatmulOptimizationTuneArg {
     pub(crate) fallback: Box<dyn FallbackOperation>,
 }
 
+#[cfg(feature = "autotune")]
 impl TunedTrace for MatmulOptimizationTuneArg {
     fn trace(&self) -> &FuseTrace {
         &self.info.trace
