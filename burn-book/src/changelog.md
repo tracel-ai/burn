@@ -211,6 +211,13 @@ all-to-all, and broadcast also support boolean tensors. Quantized tensors are re
 
 #### Backend extensions
 
+Backend extensions run on the remote backend without handwritten remote code: listing `Remote`
+beside `Fusion` in `#[backend_extension]` generates the client, which sends each call as a custom
+operation's IR, and `<Trait>Handlers::register` for the server's `CustomOpRegistry`. Ordinary
+arguments that are not primitives take `#[fusion(scalar = .., decode = ..)]`, and extension values
+opt in with `#[extension_type(fusion, remote)]`. `CustomOpRegistry::try_register` refuses a
+different handler under an id already taken.
+
 **API migration:** a `#[backend_extension]` Fusion operation's default id is now
 `"Trait::method"` instead of the method name, so two traits' same-named methods no longer share
 an id. A custom optimizer matching a default id must match the new one, or the method can keep its

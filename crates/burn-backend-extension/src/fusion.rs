@@ -22,10 +22,10 @@ fn unsupported(item: impl quote::ToTokens) -> syn::Error {
     )
 }
 
-pub(crate) fn expand(item: &ItemTrait) -> syn::Result<TokenStream> {
+pub(crate) fn expand(item: &ItemTrait, remote: Option<&TokenStream>) -> syn::Result<TokenStream> {
     let trait_name = &item.ident;
     let (methods, diagnostics) = expand_methods(item, |method| {
-        Ok(LazyMethod::parse(trait_name, method)?.map(|method| method.fusion(trait_name)))
+        Ok(LazyMethod::parse(trait_name, method)?.map(|method| method.fusion(trait_name, remote)))
     })?;
     Ok(quote! {
         impl<B: burn::backend::fusion::FusionBackend + #trait_name> #trait_name for burn::backend::fusion::Fusion<B> {
@@ -37,7 +37,7 @@ pub(crate) fn expand(item: &ItemTrait) -> syn::Result<TokenStream> {
 
 /// Expand every method, keeping the diagnostic of a `cfg`-gated method behind its gate: a disabled
 /// method must not cause a diagnostic in this configuration.
-fn expand_methods(
+pub(crate) fn expand_methods(
     item: &ItemTrait,
     mut expand: impl FnMut(&TraitItemFn) -> syn::Result<Option<TokenStream>>,
 ) -> syn::Result<(Vec<TokenStream>, Vec<TokenStream>)> {
@@ -67,27 +67,44 @@ fn expand_methods(
     Ok((methods, diagnostics))
 }
 
+/// How an ordinary argument travels as an IR scalar, and how the receiving side rebuilds it.
+pub(crate) struct ScalarArgument {
+    /// Evaluated with the argument in scope; the result converts into `Scalar`.
+    pub(crate) encode: Expr,
+    pub(crate) decode: ScalarDecode,
+}
+
+/// How a scalar is turned back into the argument it encoded.
+pub(crate) enum ScalarDecode {
+    /// The argument's type implements `FromScalarIr`: a primitive, or an alias of one.
+    FromScalar,
+    /// A callable taking the encoded primitive and returning the argument.
+    Callable(Expr),
+    /// A custom encoding without its decoding, which only the remote backend needs.
+    Missing,
+}
+
 /// What an argument of a lazily executed method is.
 // Parsed once per argument at expansion time, so boxing the scalar encoding buys nothing.
 #[allow(clippy::large_enum_variant)]
-enum ArgumentKind<'a> {
+pub(crate) enum ArgumentKind<'a> {
     /// A tensor primitive, owned or borrowed.
     Tensor { kind: TensorKind, borrowed: bool },
     /// A derived extension value, owned.
     Extension { ty: &'a Type },
     /// Any other owned argument, with its scalar encoding when it has one.
-    Ordinary { scalar: Option<Expr> },
+    Ordinary { scalar: Option<ScalarArgument> },
 }
 
-struct Argument<'a> {
-    name: &'a syn::Ident,
-    arg: &'a syn::PatType,
-    kind: ArgumentKind<'a>,
+pub(crate) struct Argument<'a> {
+    pub(crate) name: &'a syn::Ident,
+    pub(crate) arg: &'a syn::PatType,
+    pub(crate) kind: ArgumentKind<'a>,
 }
 
 impl Argument<'_> {
     /// The adapter type implementing a runtime support trait for this tensor or extension value.
-    fn adapter(&self, backend: TokenStream) -> Option<TokenStream> {
+    pub(crate) fn adapter(&self, backend: TokenStream) -> Option<TokenStream> {
         match &self.kind {
             ArgumentKind::Tensor { kind, .. } => {
                 let kind = kind.variant();
@@ -99,22 +116,25 @@ impl Argument<'_> {
     }
 }
 
-/// A trait method executed lazily from output metadata: what its Fusion implementation is
-/// generated from.
-struct LazyMethod<'a> {
-    method: &'a TraitItemFn,
+/// A trait method executed lazily from output metadata: the input Fusion and the remote backend
+/// generate their implementations from.
+pub(crate) struct LazyMethod<'a> {
+    pub(crate) method: &'a TraitItemFn,
     /// The signature without the macro's argument attributes.
-    signature: syn::Signature,
-    id: TokenStream,
+    pub(crate) signature: syn::Signature,
+    pub(crate) id: TokenStream,
     metadata: Expr,
-    arguments: Vec<Argument<'a>>,
-    output: OperationOutput,
+    pub(crate) arguments: Vec<Argument<'a>>,
+    pub(crate) output: OperationOutput,
 }
 
 impl<'a> LazyMethod<'a> {
     /// Parse a method of `trait_name` from its `#[fusion(...)]` annotations, or `None` when it
     /// inherits its default body.
-    fn parse(trait_name: &syn::Ident, method: &'a TraitItemFn) -> syn::Result<Option<Self>> {
+    pub(crate) fn parse(
+        trait_name: &syn::Ident,
+        method: &'a TraitItemFn,
+    ) -> syn::Result<Option<Self>> {
         let annotations: Vec<_> = method
             .attrs
             .iter()
@@ -311,7 +331,7 @@ impl<'a> LazyMethod<'a> {
 
     /// The metadata callable. An immediately invoked closure needs explicit parameter types for
     /// expressions like `x.shape`, so untyped parameters get them for `backend`.
-    fn metadata(&self, backend: TokenStream) -> Expr {
+    pub(crate) fn metadata(&self, backend: TokenStream) -> Expr {
         let mut expr = self.metadata.clone();
         if let Expr::Closure(closure) = &mut expr {
             for (pat, argument) in closure.inputs.iter_mut().zip(&self.arguments) {
@@ -342,7 +362,7 @@ impl<'a> LazyMethod<'a> {
     }
 
     /// The method's attributes other than the macro's own.
-    fn attrs(&self) -> impl Iterator<Item = &syn::Attribute> {
+    pub(crate) fn attrs(&self) -> impl Iterator<Item = &syn::Attribute> {
         self.method
             .attrs
             .iter()
@@ -350,22 +370,39 @@ impl<'a> LazyMethod<'a> {
     }
 
     /// The scalar values of the ordinary arguments, in declaration order.
-    fn scalars(&self) -> Vec<TokenStream> {
+    pub(crate) fn scalars(&self) -> Vec<TokenStream> {
         self.arguments
             .iter()
             .filter_map(|argument| match &argument.kind {
                 ArgumentKind::Ordinary {
-                    scalar: Some(value),
-                } => Some(quote!(burn::backend::fusion::custom::ScalarIr::from(
-                    burn::backend::Scalar::from((#value).clone())
-                ))),
+                    scalar: Some(scalar),
+                } => {
+                    let value = &scalar.encode;
+                    Some(quote!(burn::backend::fusion::custom::ScalarIr::from(
+                        burn::backend::Scalar::from((#value).clone())
+                    )))
+                }
                 _ => None,
             })
             .collect()
     }
 
+    /// Statements appending each extension argument's variant and ordinary fields to `__scalars`,
+    /// after the ordinary arguments' scalars, read from the `__metadata_{name}` bindings.
+    pub(crate) fn extension_scalars(&self, backend: TokenStream) -> Vec<TokenStream> {
+        self.arguments
+            .iter()
+            .filter(|argument| matches!(argument.kind, ArgumentKind::Extension { .. }))
+            .map(|argument| {
+                let adapter = argument.adapter(backend.clone()).expect("extension adapter");
+                let meta = format_ident!("__metadata_{}", argument.name);
+                quote!(<#adapter as burn::backend::fusion::custom::RemoteValueAdapter<#backend>>::append_scalars(&#meta, &mut __scalars);)
+            })
+            .collect()
+    }
+
     /// The call of the method on `backend` with the given arguments.
-    fn call(
+    pub(crate) fn call(
         &self,
         trait_name: &syn::Ident,
         backend: TokenStream,
@@ -381,7 +418,9 @@ impl<'a> LazyMethod<'a> {
     }
 
     /// The `Fusion<B>` implementation: register the operation and defer the inner backend call.
-    fn fusion(&self, trait_name: &syn::Ident) -> TokenStream {
+    /// With `remote`, the IR also carries each extension argument's variant and ordinary fields,
+    /// so a graph fused for the remote backend reaches the server complete.
+    fn fusion(&self, trait_name: &syn::Ident, remote: Option<&TokenStream>) -> TokenStream {
         let mut metadata_args = Vec::new();
         let mut prepare = Vec::new();
         let mut retrieve = Vec::new();
@@ -429,6 +468,10 @@ impl<'a> LazyMethod<'a> {
             }
         }
         let scalars = self.scalars();
+        let extension_scalars = remote.map(|gate| {
+            let statements = self.extension_scalars(quote!(B));
+            quote!(#gate { #(#statements)* })
+        });
         let mut output_counts = Vec::new();
         let mut validate = Vec::new();
         let mut publish = Vec::new();
@@ -468,7 +511,9 @@ impl<'a> LazyMethod<'a> {
                 #(#prepare)*
                 #(#metadata_inputs)*
                 let __meta = (#expr)(#(#metadata_args),*);
-                let __scalars = vec![#(#scalars),*];
+                #[allow(unused_mut)]
+                let mut __scalars = vec![#(#scalars),*];
+                #extension_scalars
                 let mut __inputs = Vec::with_capacity(0 #(+ #input_counts)*);
                 #(#inputs)*
                 let mut __outputs = Vec::with_capacity(0 #(+ #output_counts)*);
@@ -495,7 +540,7 @@ impl<'a> LazyMethod<'a> {
 
 /// Primitive parameters are scalar IR inputs; custom types can opt in or provide an encoding.
 /// The macro cannot resolve aliases or inspect a type declared in another crate.
-fn scalar_argument(name: &syn::Ident, arg: &syn::PatType) -> syn::Result<Option<Expr>> {
+fn scalar_argument(name: &syn::Ident, arg: &syn::PatType) -> syn::Result<Option<ScalarArgument>> {
     let attrs: Vec<_> = arg
         .attrs
         .iter()
@@ -508,31 +553,65 @@ fn scalar_argument(name: &syn::Ident, arg: &syn::PatType) -> syn::Result<Option<
         ));
     }
     if let Some(attr) = attrs.first() {
-        let mut value = None;
-        attr.parse_nested_meta(|meta| {
-            if !meta.path.is_ident("scalar") || value.is_some() {
-                return Err(meta.error("expected scalar or scalar = expression"));
-            }
-            value = Some(if meta.input.peek(syn::Token![=]) {
-                meta.value()?.parse()?
-            } else {
-                syn::parse_quote!(#name)
-            });
-            Ok(())
-        })?;
-        return value.map(Some).ok_or_else(|| {
-            syn::Error::new_spanned(attr, "expected scalar or scalar = expression")
-        });
+        return parse_scalar_attribute(attr, name).map(Some);
     }
-    let Type::Path(ty) = arg.ty.as_ref() else {
-        return Ok(None);
+    Ok(is_primitive(&arg.ty).then(|| ScalarArgument {
+        encode: syn::parse_quote!(#name),
+        decode: ScalarDecode::FromScalar,
+    }))
+}
+
+/// Parse `scalar`, `scalar = expression`, and an optional `decode = callable` from one attribute.
+/// A bare `scalar` encodes `name` itself.
+pub(crate) fn parse_scalar_attribute(
+    attr: &syn::Attribute,
+    name: &syn::Ident,
+) -> syn::Result<ScalarArgument> {
+    let mut encode: Option<Option<Expr>> = None;
+    let mut decode = None;
+    attr.parse_nested_meta(|meta| {
+        if meta.path.is_ident("scalar") && encode.is_none() {
+            encode = Some(if meta.input.peek(syn::Token![=]) {
+                Some(meta.value()?.parse()?)
+            } else {
+                None
+            });
+            return Ok(());
+        }
+        if meta.path.is_ident("decode") && decode.is_none() {
+            decode = Some(meta.value()?.parse::<Expr>()?);
+            return Ok(());
+        }
+        Err(meta.error("expected scalar, scalar = expression, or decode = callable"))
+    })?;
+    let Some(encode) = encode else {
+        return Err(syn::Error::new_spanned(
+            attr,
+            "expected scalar or scalar = expression",
+        ));
+    };
+    let decode = match (&encode, decode) {
+        (_, Some(decode)) => ScalarDecode::Callable(decode),
+        (None, None) => ScalarDecode::FromScalar,
+        (Some(_), None) => ScalarDecode::Missing,
+    };
+    Ok(ScalarArgument {
+        encode: encode.unwrap_or_else(|| syn::parse_quote!(#name)),
+        decode,
+    })
+}
+
+/// Whether `ty` names a primitive that converts into `Scalar` and back.
+pub(crate) fn is_primitive(ty: &Type) -> bool {
+    let Type::Path(ty) = ty else {
+        return false;
     };
     let segments: Vec<_> = ty.path.segments.iter().collect();
     let primitive_path = segments.len() == 1
         || (segments.len() == 3
             && (segments[0].ident == "core" || segments[0].ident == "std")
             && segments[1].ident == "primitive");
-    let primitive = ty.qself.is_none()
+    ty.qself.is_none()
         && primitive_path
         && segments
             .iter()
@@ -554,8 +633,7 @@ fn scalar_argument(name: &syn::Ident, arg: &syn::PatType) -> syn::Result<Option<
                     | "u64"
                     | "usize"
             )
-        });
-    Ok(primitive.then(|| syn::parse_quote!(#name)))
+        })
 }
 
 /// Lower field expressions to the same metadata callback used by `meta`.
@@ -643,6 +721,7 @@ fn walk_output(
 
 pub(crate) fn derive(input: &syn::DeriveInput) -> syn::Result<TokenStream> {
     let mut enabled = false;
+    let mut remote = false;
     let mut cfg = None;
     for attr in input
         .attrs
@@ -650,8 +729,12 @@ pub(crate) fn derive(input: &syn::DeriveInput) -> syn::Result<TokenStream> {
         .filter(|a| a.path().is_ident("extension_type"))
     {
         attr.parse_nested_meta(|meta| {
+            if meta.path.is_ident("remote") && !remote {
+                remote = true;
+                return Ok(());
+            }
             if !meta.path.is_ident("fusion") || enabled {
-                return Err(meta.error("expected fusion or fusion: cfg(...)"));
+                return Err(meta.error("expected fusion, fusion: cfg(...), or remote"));
             }
             enabled = true;
             if meta.input.peek(syn::Token![:]) {
@@ -661,11 +744,18 @@ pub(crate) fn derive(input: &syn::DeriveInput) -> syn::Result<TokenStream> {
             Ok(())
         })?;
     }
+    if remote && !enabled {
+        return Err(syn::Error::new_spanned(
+            &input.ident,
+            "remote extends the Fusion metadata; enable fusion beside it: \
+             #[extension_type(fusion, remote)]",
+        ));
+    }
     if !enabled {
         return Ok(quote!());
     }
     let gate = cfg.map(|c| quote!(#[#c]));
-    let result = derive_adapter(input, &gate).unwrap_or_else(|e| {
+    let result = derive_adapter(input, &gate, remote).unwrap_or_else(|e| {
         let e = e.into_compile_error();
         quote!(#gate #e)
     });
@@ -717,10 +807,7 @@ fn fusion_type_definition(
         _ => return Err(unsupported(input)),
     };
     for field in fields {
-        let is_ext = field
-            .attrs
-            .iter()
-            .any(|a| a.path().is_ident("extension_type"));
+        let is_ext = crate::derive::is_nested_extension(&field.attrs);
         if field_adapter(&field.ty, is_ext)?.is_some() {
             field.ty = if TensorKind::from_type(&field.ty).is_some() {
                 match kind {
@@ -754,6 +841,7 @@ fn fusion_type_definition(
 fn derive_adapter(
     input: &syn::DeriveInput,
     gate: &Option<TokenStream>,
+    remote: bool,
 ) -> syn::Result<TokenStream> {
     use crate::derive::{collect_cases, gen_case_ctor, gen_case_pattern};
     if input.generics.params.len() != 1 {
@@ -793,6 +881,8 @@ fn derive_adapter(
     let mut validate = Vec::new();
     let mut publish = Vec::new();
     let mut reconstruct = Vec::new();
+    let is_enum = matches!(input.data, syn::Data::Enum(_));
+    let mut remote = remote.then(|| crate::remote::RemoteAdapterDerive::new(b, is_enum));
     for (((case, meta_case), input_case), output_case) in cases
         .iter()
         .zip(&meta_cases)
@@ -819,6 +909,9 @@ fn derive_adapter(
             let value = &field.bind;
             let state = &meta_field.bind;
             if let Some(adapter) = field_adapter(&field.ty, field.is_ext)? {
+                if let Some(remote) = &mut remote {
+                    remote.adapted_field(&adapter, value, state);
+                }
                 let adapter =
                     quote!(<#adapter as burn::backend::fusion::custom::FusionValueAdapter<#b>>);
                 descriptions.push(quote!(#adapter::to_metadata(#value)));
@@ -832,6 +925,9 @@ fn derive_adapter(
                     .push(quote!(#adapter::register_output_handles(#value, #state, handles);));
                 reconstructions.push(quote!(#adapter::build_fused_output(#state, tensors)));
             } else {
+                if let Some(remote) = &mut remote {
+                    remote.ordinary_field(field, value, state)?;
+                }
                 descriptions.push(quote!(#value.clone()));
                 inputs.push(quote!(#value));
                 reads.push(quote!(#state.clone()));
@@ -853,8 +949,10 @@ fn derive_adapter(
         validate.push(quote!((#tensor_pattern, #output_pattern) => { #(#checks)* Ok(()) }));
         publish.push(quote!((#tensor_pattern, #output_pattern) => { #(#publications)* }));
         reconstruct.push(quote!(#meta_pattern => #reconstructed));
+        if let Some(remote) = &mut remote {
+            remote.end_case(case, meta_case);
+        }
     }
-    let is_enum = matches!(input.data, syn::Data::Enum(_));
     let mismatch = is_enum.then(|| quote! {
         _ => Err(burn::backend::fusion::ExecutionError::generic("Fusion custom output variant differs from its metadata")),
     });
@@ -862,7 +960,9 @@ fn derive_adapter(
         is_enum.then(|| quote! { _ => unreachable!("output variants were validated"), });
     let bounds = &backend.bounds;
     let (impl_generics, ty_generics, where_clause) = input.generics.split_for_impl();
+    let remote = remote.map(|remote| remote.finish(input, backend, &metadata, gate));
     Ok(quote! {
+        #remote
         #gate
         #[doc = "Tensor metadata and ordinary fields for the corresponding backend extension value."]
         #[derive(Clone, Debug)]
@@ -927,7 +1027,9 @@ fn reject_borrowed_output(ty: &Type) -> syn::Result<()> {
 mod tests {
     use super::*;
     fn expand_trait(tokens: TokenStream) -> String {
-        expand(&syn::parse2(tokens).unwrap()).unwrap().to_string()
+        expand(&syn::parse2(tokens).unwrap(), None)
+            .unwrap()
+            .to_string()
     }
     #[test]
     fn lowers_closure_borrowed_and_tuple_outputs() {
@@ -981,7 +1083,7 @@ mod tests {
                 }
             })
             .unwrap();
-            assert!(expand(&item).is_err(), "accepted {argument}");
+            assert!(expand(&item, None).is_err(), "accepted {argument}");
         }
         for backends in [quote!(Cube), quote!(Cube, Fusion: cfg(feature = "fusion"))] {
             let output = crate::extension::expand(backends, quote! {
@@ -1056,7 +1158,7 @@ mod tests {
                 }
             })
             .unwrap();
-            assert!(expand(&item).is_err(), "accepted {attr}");
+            assert!(expand(&item, None).is_err(), "accepted {attr}");
         }
         let item = syn::parse2(quote! {
             trait Ext: Backend {
@@ -1066,7 +1168,7 @@ mod tests {
         })
         .unwrap();
         assert!(
-            expand(&item)
+            expand(&item, None)
                 .unwrap_err()
                 .to_string()
                 .contains("single tensor output")
@@ -1116,7 +1218,7 @@ mod tests {
             ),
         ] {
             let item = syn::parse2(quote!(trait Ext: Backend { #method })).unwrap();
-            assert!(expand(&item).is_err());
+            assert!(expand(&item, None).is_err());
         }
     }
     #[test]

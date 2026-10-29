@@ -14,6 +14,8 @@
 //! - `ir` describes tensor inputs, outputs, and backend calls independently of either frontend.
 //! - `routing` owns shared backend selection, input extraction, invocation, and output wrapping.
 //! - `derive` maps extension structs and enums across the dispatch boundary.
+//! - `fusion` lowers methods to lazy Fusion operations; `remote` reuses its parsing to send them
+//!   to the remote backend as IR.
 //! - `catalog` is the single list of runtime backends used by generated and handwritten paths.
 
 use proc_macro::TokenStream;
@@ -24,6 +26,7 @@ mod dispatch;
 mod extension;
 mod fusion;
 mod ir;
+mod remote;
 mod routing;
 
 pub(crate) use catalog::{BACKENDS, BackendSpec};
@@ -169,7 +172,8 @@ pub fn backend_dispatch(attr: TokenStream, item: TokenStream) -> TokenStream {
 /// For custom encodings, annotate the parameter with `#[fusion(scalar = strategy.to_code())]`.
 /// The expression returns a value convertible to `Scalar` and runs before inputs are consumed.
 /// The original argument is still passed to the backend; marked and inferred scalars share
-/// declaration order.
+/// declaration order. Add `decode = callable` beside the encoding to rebuild the argument from
+/// its scalar, which the remote backend requires (see [Remote](#remote)).
 ///
 /// ## Requirements
 ///
@@ -188,6 +192,69 @@ pub fn backend_dispatch(attr: TokenStream, item: TokenStream) -> TokenStream {
 ///
 /// For other signatures, use an existing default body or omit `Fusion` from `#[backend_extension]`
 /// and implement the trait for `Fusion<B>` manually.
+///
+/// # Remote
+///
+/// Listing `Remote` beside `Fusion` runs the extension on Burn's remote backend with no
+/// handwritten code. The server only receives the operation's `CustomOpIr`, so it carries the
+/// whole call:
+///
+/// - **inputs**: every tensor, in declaration order, an extension value's in field order;
+/// - **outputs**: one per output tensor, described by the method's Fusion metadata;
+/// - **scalars**: every ordinary argument in declaration order, then each extension argument's
+///   variant index (enums) and ordinary fields, in declaration order, nested values inline.
+///
+/// Fusion builds the same IR, so an operation fused into a cached graph for the remote backend
+/// reaches the server as complete as one sent alone. Two items are generated, behind both the
+/// `Remote` and the `Fusion` conditions:
+///
+/// - the client, `impl<R: RouterChannel> Trait for BackendRouter<R>`, which the generated
+///   `Fusion<B>` implementation wraps into the remote backend. The remote backend is
+///   `Fusion<BackendRouter<_>>` whenever Burn's `fusion` feature is on, so `Fusion`'s condition
+///   must hold there too; where it does not, the `Remote` dispatch arm is left out.
+/// - `TraitHandlers`, with the trait's visibility, whose `register` adds one handler per method to
+///   the server's registry for any backend implementing the trait:
+///
+/// ```rust,ignore
+/// #[backend_extension(Cube, Fusion, Remote)]
+/// pub trait AttentionBackend: Backend {
+///     #[fusion(dtype = query, shape = query)]
+///     fn attend(
+///         query: FloatTensor<Self>,
+///         #[fusion(scalar = strategy.to_code(), decode = |code| Strategy::from_code(code).expect("a strategy"))]
+///         strategy: Strategy,
+///         #[extension_type] kv: Kv<Self>,
+///     ) -> FloatTensor<Self>;
+/// }
+///
+/// // On the server, once per trait:
+/// let mut registry = CustomOpRegistry::<Cube>::new();
+/// AttentionBackendHandlers::register(&mut registry);
+/// RemoteServer::new(devices).with_custom_ops(registry).serve(transport)?;
+/// ```
+///
+/// Every ordinary argument must travel as a scalar: primitives do on their own, and anything else
+/// needs `#[fusion(scalar = expression, decode = callable)]`. The callable takes the primitive the
+/// expression returned, inferred from its signature, and returns the argument; a code that
+/// can fail to decode is unwrapped there. A bare `#[fusion(scalar)]` decodes when the type is an
+/// alias of a primitive. Anything else is a compile error under `Remote`. Extension arguments
+/// derive [`ExtensionType`] with `#[extension_type(fusion, remote)]`.
+///
+/// The handler checks that the IR holds exactly the inputs and scalars the signature reads and
+/// that the backend returns one tensor per output id; debug builds also check the client's dtypes
+/// and that inputs share a device. Output shapes and ordinary output fields come from the
+/// metadata, as with Fusion. Without `Fusion`, `Remote` only routes, to a handwritten
+/// implementation.
+///
+/// `register` panics if another handler already claims one of the operation ids: two traits
+/// with the same name, or two methods given the same explicit `id`, must be told apart with
+/// `#[fusion(id = ..)]`. Registering the same trait twice is harmless.
+///
+/// A handler trusts the IR it receives. One that does not match the method's signature (fewer
+/// or more inputs or scalars than it reads, an unknown enum variant index, a scalar that does not
+/// decode, or an operation id with no registered handler) panics on the thread serving that
+/// client's session: the session stops answering, rather than one operation returning an error.
+/// Client and server must therefore be built from the same trait definition.
 #[proc_macro_attribute]
 pub fn backend_extension(attr: TokenStream, item: TokenStream) -> TokenStream {
     extension::expand(attr.into(), item.into())
@@ -208,6 +275,13 @@ pub fn backend_extension(attr: TokenStream, item: TokenStream) -> TokenStream {
 /// later values for those fields. The callback must calculate what a direct backend call would return;
 /// otherwise enabling Fusion changes the result. Generated code does not check these field values.
 /// Empty variants are supported, but each operation still needs an input tensor for its device.
+///
+/// Add `remote` beside `fusion`, as in `#[extension_type(fusion, remote)]`, to send the value to
+/// the remote backend as part of a custom operation's IR (see [`backend_extension`]'s Remote
+/// section). An enum travels as its variant index; ordinary fields travel as scalars, which
+/// primitives do on their own and other types through
+/// `#[extension_type(scalar = expression, decode = callable)]` on the field. The expression sees a
+/// named field by its name, as a reference, and a positional one as `value`.
 ///
 /// Tensor fields are mapped automatically. Nested extension values must be marked with
 /// `#[extension_type]`; other fields pass through unchanged.

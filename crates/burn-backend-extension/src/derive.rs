@@ -23,7 +23,8 @@ pub(crate) struct DeriveCase {
 
 pub(crate) struct CaseField {
     pub(crate) bind: Ident,
-    member: Option<Ident>,
+    pub(crate) member: Option<Ident>,
+    pub(crate) attrs: Vec<syn::Attribute>,
     pub(crate) ty: Type,
     pub(crate) is_ext: bool,
     pub(crate) tensor_kind: Option<TensorKind>,
@@ -41,11 +42,9 @@ fn build_case(path: TokenStream, fields: &Fields) -> DeriveCase {
         .map(|(index, field)| CaseField {
             bind: format_ident!("__ext_f{index}"),
             member: field.ident.clone(),
+            attrs: field.attrs.clone(),
             ty: field.ty.clone(),
-            is_ext: field
-                .attrs
-                .iter()
-                .any(|attr| attr.path().is_ident("extension_type")),
+            is_ext: is_nested_extension(&field.attrs),
             tensor_kind: TensorKind::from_type(&field.ty),
         })
         .collect();
@@ -54,6 +53,14 @@ fn build_case(path: TokenStream, fields: &Fields) -> DeriveCase {
         style,
         fields,
     }
+}
+
+/// Whether a field is a nested extension value: a bare `#[extension_type]`. The list form,
+/// `#[extension_type(scalar = ..)]`, encodes an ordinary field instead.
+pub(crate) fn is_nested_extension(attrs: &[syn::Attribute]) -> bool {
+    attrs.iter().any(|attr| {
+        attr.path().is_ident("extension_type") && matches!(attr.meta, syn::Meta::Path(_))
+    })
 }
 
 pub(crate) fn collect_cases(input: &DeriveInput) -> syn::Result<Vec<DeriveCase>> {

@@ -276,16 +276,37 @@ fn strip_argument_attributes(signature: &mut Signature) {
     }
 }
 
-fn expand_extension(ir: Extension, mut original_trait: ItemTrait) -> TokenStream2 {
+fn expand_extension(mut ir: Extension, mut original_trait: ItemTrait) -> TokenStream2 {
     let trait_name = &ir.trait_name;
+    let fusion_cfg = ir.backends.fusion.1.as_ref().map(|c| quote!(#[#c]));
+    // With Fusion listed, `Remote` is generated from the same metadata: a client for the router
+    // backend, which the generated `Fusion<B>` implementation wraps into the remote backend, and
+    // the server's handlers. Without it, the remote implementation stays handwritten.
+    let remote_gate = ir
+        .backends
+        .concrete
+        .iter_mut()
+        .find(|backend| ir.backends.fusion.0 && backend.ident == "Remote")
+        .map(|backend| {
+            let remote_cfg = backend.cfg_attr.take();
+            let gate = quote!(#remote_cfg #fusion_cfg);
+            // The remote backend implements the trait only where the generated client exists.
+            backend.cfg_attr = Some(gate.clone());
+            gate
+        });
     let fusion = if ir.backends.fusion.0 {
-        let cfg = ir.backends.fusion.1.as_ref().map(|c| quote!(#[#c]));
-        let implementation =
-            crate::fusion::expand(&original_trait).unwrap_or_else(syn::Error::into_compile_error);
-        quote!(#cfg #implementation)
+        let implementation = crate::fusion::expand(&original_trait, remote_gate.as_ref())
+            .unwrap_or_else(syn::Error::into_compile_error);
+        quote!(#fusion_cfg #implementation)
     } else {
         quote!()
     };
+    let remote = remote_gate.map(|gate| {
+        crate::remote::expand(&original_trait, &gate).unwrap_or_else(|error| {
+            let error = error.into_compile_error();
+            quote!(#gate #error)
+        })
+    });
 
     // Argument attributes `#[extension_type]` and `#[fusion(...)]` are macro helpers. Strip them from the
     // argument list before re-emitting the trait, otherwise rustc rejects it as an unknown attribute.
@@ -302,6 +323,7 @@ fn expand_extension(ir: Extension, mut original_trait: ItemTrait) -> TokenStream
     quote! {
         #original_trait
         #fusion
+        #remote
 
         impl #trait_name for burn::backend::Dispatch {
             #( #dispatch_methods )*
