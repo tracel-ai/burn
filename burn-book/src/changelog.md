@@ -380,7 +380,7 @@ loading those checkpoints by filtering to `linear_inner` and `linear_outer`.
 - Return NaN from `median` and `median_with_indices` when the reduced slice contains NaN, as
   PyTorch does, with the index of the first NaN. They could return a finite value, such as 3 for
   `[3, NaN, 1]`.
-  ([#PR_NUMBER](https://github.com/tracel-ai/burn/pull/PR_NUMBER),
+  ([#6307](https://github.com/tracel-ai/burn/pull/6307),
   [@b84330808](https://github.com/b84330808))
 - Return NaN for variance reductions over empty axes instead of panicking or returning zero.
   ([issue #6236](https://github.com/tracel-ai/burn/issues/6236))
