@@ -79,13 +79,7 @@ impl OperationFuser<CubeOptimization> for MatmulFuser {
                     (Some(lhs), Some(rhs)) => {
                         let out = self.fuser.output_unhandled(&op.out);
 
-                        self.matmul = Some(FusedMatmul::new(
-                            lhs,
-                            rhs,
-                            out,
-                            op.clone().into(),
-                            Default::default(),
-                        ));
+                        self.matmul = Some(FusedMatmul::new(lhs, rhs, out, op.clone().into()));
                     }
                     _ => {
                         self.fuser.close();

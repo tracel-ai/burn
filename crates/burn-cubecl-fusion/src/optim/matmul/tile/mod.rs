@@ -1,4 +1,4 @@
-//! The fused matmul on cubek's tile routines (`tile-kernels-only`).
+//! The fused matmul on cubek's tile routines.
 //!
 //! A routine stores its product through a destination the caller chooses, so the fused one is
 //! the unfused routine's own kernel storing into the trace's element-wise block ([`TraceSink`](sink::TraceSink))
