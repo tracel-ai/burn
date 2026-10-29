@@ -5,27 +5,29 @@ Changes for the next release. For published releases, see
 
 ## Unreleased
 
-### Interpolation coordinate transforms and rounding
+### Interpolation options
 
-Interpolation gains coordinate transforms, nearest rounding modes, crop ROIs and configurable
-cubic coefficients with outside-tap exclusion, allowing ONNX importers to express these Resize
-attributes. Flex implements the extended options, including scale-driven coordinates in forward
-and backward passes. Antialiasing remains unsupported.
+**Breaking:** `InterpolateMode` variants now own their coordinate transform and cubic coefficient
+`a`. `Nearest` and `NearestExact` have fixed mappings and no overrides.
+Configurable coordinate transforms are limited to `HalfPixel` and `AlignCorners`;
+asymmetric coordinates remain the fixed mapping of `Nearest`.
 
-**API migration:** `InterpolateOptions::align_corners` is replaced by `coordinate_transform`.
-Use `.with_align_corners(bool)` for bilinear, bicubic and Lanczos3, or
-`.with_coordinate_transform(mode)` for an explicit transform. The alignment builder leaves
-nearest modes unchanged. Read corner alignment with `.align_corners()`.
+```diff
++use burn::tensor::ops::CoordinateTransformMode;
+-InterpolateOptions::new(InterpolateMode::Bilinear).with_align_corners(false)
++InterpolateOptions::new(InterpolateMode::Bilinear {
++    coordinate_transform: CoordinateTransformMode::HalfPixel,
++})
+```
 
-Explicit scales now affect coordinates as well as output size, so scale-dependent transforms can
-produce different values when `input_size * scale_factor` is nonintegral. To retain mapping based
-on resolved sizes, use `.with_output_size(...)` instead.
+Use `AlignCorners` for the previous `true`/default alignment and `a: -0.75` for the previous cubic
+coefficient. For `Interpolate1dConfig` and `Interpolate2dConfig`, move these settings into
+`InterpolateMode::{Linear, Cubic, Lanczos}`; update serialized configurations accordingly.
+Grid sampling now uses `GridSampleMode::{Nearest, Bilinear}`.
 
-Extended combinations require Flex. CubeCL supports the default nearest combinations and
-bilinear, bicubic and Lanczos3 with `AlignCorners` or `HalfPixel` and default cubic options.
-Except with `AlignCorners`, supplied scales must exactly equal the resolved output/input ratios;
-unsupported combinations panic. Flex uses `f64` coordinate arithmetic and preserves half-pixel
-ties when resizing by output size.
+Explicit scales now also drive scale-dependent coordinate mapping. Use `.with_output_size(...)`
+to retain size-derived mapping. See the [interpolation guide](building-blocks/module.md#interpolation)
+for configuration and backend limitations.
 ([#6154](https://github.com/tracel-ai/burn/pull/6154), [@Sadik00789](https://github.com/Sadik00789))
 
 ### Device-time instrumentation
