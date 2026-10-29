@@ -182,6 +182,9 @@ all-to-all, and broadcast also support boolean tensors. Quantized tensors are re
   collective's outputs share that backward, so their losses must go through a single `backward`.
   ([#6274](https://github.com/tracel-ai/burn/pull/6274))
   [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
+- Drain every device's pending fusion work at once before a collective, speeding up
+  tensor-parallel decode. ([#6293](https://github.com/tracel-ai/burn/pull/6293))
+  [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
 
 #### Device groups
 
@@ -297,6 +300,9 @@ loading those checkpoints by filtering to `linear_inner` and `linear_outer`.
   ([#6039](https://github.com/tracel-ai/burn/pull/6039))
 - Correct accelerated attention results for padding masks broadcast across query positions.
   ([#6008](https://github.com/tracel-ai/burn/pull/6008))
+- Correct `Same` padding for dilated 1D, 2D, and 3D convolutions, including Conv3d configurations
+  whose effective kernel permits symmetric padding.
+  ([#6286](https://github.com/tracel-ai/burn/pull/6286)) [@onenewcode](https://github.com/onenewcode)
 - Correct max-pooling SAME padding with dilation. Reject unsupported asymmetric
   deformable-convolution padding and invalid binary-cross-entropy inputs.
   ([#6023](https://github.com/tracel-ai/burn/pull/6023),

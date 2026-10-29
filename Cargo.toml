@@ -223,11 +223,11 @@ burn-wgpu = { path = "crates/burn-wgpu", version = "0.23.0-pre.1", default-featu
 pytorch-reader = { path = "crates/pytorch-reader", version = "0.23.0-pre.1" }
 
 ### For the main burn branch. ###
-# cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "7b0f9eb55eac6cdfae958a68f57ea982a9130d26" }
-# cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "7b0f9eb55eac6cdfae958a68f57ea982a9130d26" }
-# cubecl-environment = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "7b0f9eb55eac6cdfae958a68f57ea982a9130d26" }
-# cubecl-zspace = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "7b0f9eb55eac6cdfae958a68f57ea982a9130d26" }
-# cubek = { git = "https://github.com/tracel-ai/cubek", default-features = false, rev = "1a5d3516555d671e3ccbd8ba7c2b11c5f47ffaa1" }
+cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "bbd78b506a76a4c7ce63b4363efbbff64111acd9" }
+cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "bbd78b506a76a4c7ce63b4363efbbff64111acd9" }
+cubecl-environment = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "bbd78b506a76a4c7ce63b4363efbbff64111acd9" }
+cubecl-zspace = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "bbd78b506a76a4c7ce63b4363efbbff64111acd9" }
+cubek = { git = "https://github.com/tracel-ai/cubek", default-features = false, rev = "17e417b4b02c92cfd56c0acb14c954dd4db70a54" }
 ### For local development. ###
 # cubecl = { path = "../cubecl/crates/cubecl", default-features = false }
 # cubecl-common = { path = "../cubecl/crates/cubecl-common", default-features = false }
@@ -235,11 +235,11 @@ pytorch-reader = { path = "crates/pytorch-reader", version = "0.23.0-pre.1" }
 # cubecl-zspace = { path = "../cubecl/crates/cubecl-zspace", default-features = false }
 # cubek = { path = "../cubek/crates/cubek", default-features = false }
 ### For the release. ###
-cubecl = { version = "=0.12.0-pre.1", default-features = false }
-cubecl-common = { version = "=0.12.0-pre.1", default-features = false }
-cubecl-environment = { version = "=0.12.0-pre.1", default-features = false }
-cubecl-zspace = { version = "=0.12.0-pre.1", default-features = false }
-cubek = { version = "=0.4.0-pre.1", default-features = false }
+# cubecl = { version = "=0.12.0-pre.1", default-features = false }
+# cubecl-common = { version = "=0.12.0-pre.1", default-features = false }
+# cubecl-environment = { version = "=0.12.0-pre.1", default-features = false }
+# cubecl-zspace = { version = "=0.12.0-pre.1", default-features = false }
+# cubek = { version = "=0.4.0-pre.1", default-features = false }
 
 [profile.dev]
 debug = 1 # Speed up compilation time and not necessary.
