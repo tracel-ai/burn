@@ -2044,7 +2044,6 @@ impl Hash for InterpolateModeIr {
 pub enum CoordinateTransformModeIr {
     HalfPixel,
     AlignCorners,
-    Asymmetric,
 }
 
 fn canonicalize_f32_bits(val: f32) -> u32 {
@@ -2209,7 +2208,6 @@ impl From<CoordinateTransformModeIr> for CoordinateTransformMode {
         match val {
             CoordinateTransformModeIr::HalfPixel => Self::HalfPixel,
             CoordinateTransformModeIr::AlignCorners => Self::AlignCorners,
-            CoordinateTransformModeIr::Asymmetric => Self::Asymmetric,
         }
     }
 }
@@ -2219,7 +2217,6 @@ impl From<CoordinateTransformMode> for CoordinateTransformModeIr {
         match val {
             CoordinateTransformMode::HalfPixel => Self::HalfPixel,
             CoordinateTransformMode::AlignCorners => Self::AlignCorners,
-            CoordinateTransformMode::Asymmetric => Self::Asymmetric,
         }
     }
 }

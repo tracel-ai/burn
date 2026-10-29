@@ -9,6 +9,8 @@ Changes for the next release. For published releases, see
 
 **Breaking:** `InterpolateMode` variants now own their coordinate transform and cubic coefficient
 `a`. `Nearest` and `NearestExact` have fixed mappings and no overrides.
+Configurable coordinate transforms are limited to `HalfPixel` and `AlignCorners`;
+asymmetric coordinates remain the fixed mapping of `Nearest`.
 
 ```diff
 +use burn::tensor::ops::CoordinateTransformMode;

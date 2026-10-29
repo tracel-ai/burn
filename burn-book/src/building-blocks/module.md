@@ -607,7 +607,10 @@ one of `output_size` or `scale_factor` must be set; `forward` panics otherwise.
 | `scale_factor`  | `Option<f32>` / `Option<[f32; 2]>`     | `None`    | Output is `floor(input * scale_factor)`        |
 | `mode`          | `InterpolateMode`                      | `Nearest` | Interpolation algorithm                        |
 
-Algorithm-specific settings belong to the `InterpolateMode` variants:
+Algorithm-specific settings belong to the `InterpolateMode` variants.
+`Linear`, `Cubic` and `Lanczos` accept `HalfPixel` or `AlignCorners` coordinate transforms.
+`Nearest` uses fixed asymmetric coordinates with floor rounding; `NearestExact` uses fixed
+half-pixel coordinates with ties rounded upward.
 
 ```rust,ignore
 Interpolate2dConfig::new()

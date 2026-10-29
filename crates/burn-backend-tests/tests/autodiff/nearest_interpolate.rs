@@ -178,13 +178,13 @@ fn test_bicubic_backward_custom_coefficient_clamps_boundary() {
     }
     let input = TestTensor::<4>::from_data([[[[11.0, 23.0, 37.0, 41.0]]]], &device).require_grad();
     let options = InterpolateOptions::new(InterpolateMode::Bicubic {
-        coordinate_transform: CoordinateTransformMode::Asymmetric,
+        coordinate_transform: CoordinateTransformMode::HalfPixel,
         a: -0.5,
     })
-    .with_scale_factor([1.0, 2.0]);
+    .with_scale_factor([1.0, 0.5]);
 
     let output = interpolate(input.clone(), options);
-    let grad = output.slice([0..1, 0..1, 0..1, 1..2]).backward();
+    let grad = output.slice([0..1, 0..1, 0..1, 0..1]).backward();
     // At coordinate 0.5 the weights are [-1, 9, 9, -1] / 16; the first two taps clamp to input 0.
     let expected = burn_tensor::TensorData::from([[[[8.0 / 16.0, 9.0 / 16.0, -1.0 / 16.0, 0.0]]]]);
     input

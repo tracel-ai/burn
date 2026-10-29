@@ -447,35 +447,13 @@ pub enum InterpolateMode {
     },
 }
 
-impl InterpolateMode {
-    /// The coordinate mapping used by this interpolation mode.
-    pub fn coordinate_transform(&self) -> CoordinateTransformMode {
-        match *self {
-            Self::Nearest => CoordinateTransformMode::Asymmetric,
-            Self::NearestExact => CoordinateTransformMode::HalfPixel,
-            Self::Bilinear {
-                coordinate_transform,
-            }
-            | Self::Bicubic {
-                coordinate_transform,
-                ..
-            }
-            | Self::Lanczos3 {
-                coordinate_transform,
-            } => coordinate_transform,
-        }
-    }
-}
-
-/// Coordinate transformation mode for interpolation.
+/// Coordinate transformation mode for bilinear, bicubic and Lanczos3 interpolation.
 #[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum CoordinateTransformMode {
     /// Half-pixel coordinate mapping: `(x_out + 0.5) / scale - 0.5`.
     HalfPixel,
     /// Align corners coordinate mapping: `x_out * (l_in - 1) / (l_out - 1)`.
     AlignCorners,
-    /// Asymmetric coordinate mapping: `x_out / scale`.
-    Asymmetric,
 }
 
 /// Interpolation options.

@@ -149,6 +149,23 @@ fn test_nearest_downsample_f64_precision_coordinate_mapping() {
 }
 
 #[test]
+#[cfg(feature = "flex")]
+fn test_nearest_scale_driven_mapping() {
+    let device = Default::default();
+    let input = TestTensor::<4>::from_data([[[[10., 20., 30., 40.]]]], &device);
+    let output = interpolate(
+        input,
+        InterpolateOptions::new(InterpolateMode::Nearest).with_scale_factor([1.0, 0.6]),
+    );
+
+    // The second coordinate is 1 / 0.6, which floors to 1; a size-derived scale would select 2.
+    output.into_data().assert_eq(
+        &burn_tensor::TensorData::from([[[[10., 20.]]]]).convert::<FloatElem>(),
+        false,
+    );
+}
+
+#[test]
 fn test_nearest_presets() {
     let device = Default::default();
     let input = TestTensor::<4>::from_data([[[[10., 20., 30., 40.]]]], &device);

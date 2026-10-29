@@ -156,16 +156,21 @@ pub(crate) fn map_options(
             "CubeCL bicubic interpolation requires coefficient a = -0.75, got {a}"
         );
     }
-    let coordinate_transform = options.mode.coordinate_transform();
-    let align_corners = match coordinate_transform {
-        CoordinateTransformMode::Asymmetric if matches!(options.mode, InterpolateMode::Nearest) => {
-            false
+    let align_corners = match options.mode {
+        InterpolateMode::Nearest | InterpolateMode::NearestExact => false,
+        InterpolateMode::Bilinear {
+            coordinate_transform,
         }
-        CoordinateTransformMode::HalfPixel => false,
-        CoordinateTransformMode::AlignCorners => true,
-        CoordinateTransformMode::Asymmetric => {
-            panic!("CubeCL only supports asymmetric coordinates for nearest interpolation")
+        | InterpolateMode::Bicubic {
+            coordinate_transform,
+            ..
         }
+        | InterpolateMode::Lanczos3 {
+            coordinate_transform,
+        } => match coordinate_transform {
+            CoordinateTransformMode::HalfPixel => false,
+            CoordinateTransformMode::AlignCorners => true,
+        },
     };
     if let Some(scale) = options.scale_factor {
         let matches_ratio = f64::from(scale[0]) == output_size[0] as f64 / in_size[0] as f64

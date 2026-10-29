@@ -203,10 +203,6 @@ pub fn map_coordinate(
                 x_out * (l_in - 1.0) / (l_out - 1.0)
             }
         }
-        CoordinateTransformMode::Asymmetric => match scale_factor {
-            Some(_) => x_out / s,
-            None => x_out * l_in / l_out,
-        },
     }
 }
 
@@ -216,13 +212,26 @@ fn nearest_axis_map(
     scale_factor: Option<f32>,
     mode: InterpolateMode,
 ) -> Vec<usize> {
-    let coord_mode = mode.coordinate_transform();
     (0..out_size)
         .map(|out_coord| {
-            let x_in = map_coordinate(out_coord, in_size, out_size, scale_factor, coord_mode);
             let idx = match mode {
-                InterpolateMode::Nearest => x_in.floor() as isize,
-                InterpolateMode::NearestExact => (x_in + 0.5).floor() as isize,
+                InterpolateMode::Nearest => {
+                    let x_in = match scale_factor {
+                        Some(scale) => out_coord as f64 / f64::from(scale),
+                        None => out_coord as f64 * in_size as f64 / out_size as f64,
+                    };
+                    x_in.floor() as isize
+                }
+                InterpolateMode::NearestExact => {
+                    let x_in = map_coordinate(
+                        out_coord,
+                        in_size,
+                        out_size,
+                        scale_factor,
+                        CoordinateTransformMode::HalfPixel,
+                    );
+                    (x_in + 0.5).floor() as isize
+                }
                 _ => unreachable!("nearest sampling requires a nearest interpolation mode"),
             };
             idx.clamp(0, in_size as isize - 1) as usize
@@ -376,6 +385,12 @@ fn interpolate_bilinear_impl<T>(
 where
     T: Float + burn_backend::Element + bytemuck::Pod + Send + Sync,
 {
+    let InterpolateMode::Bilinear {
+        coordinate_transform,
+    } = options.mode
+    else {
+        unreachable!("bilinear sampling requires a bilinear interpolation mode");
+    };
     let x = x.to_contiguous();
     let input = x.storage::<T>();
     let shape = x.layout().shape();
@@ -392,18 +407,8 @@ where
 
     let scale_y = options.scale_factor.map(|s| s[0]);
     let scale_x = options.scale_factor.map(|s| s[1]);
-    let y_axis_taps = bilinear_axis_taps(
-        in_height,
-        out_height,
-        scale_y,
-        options.mode.coordinate_transform(),
-    );
-    let x_axis_taps = bilinear_axis_taps(
-        in_width,
-        out_width,
-        scale_x,
-        options.mode.coordinate_transform(),
-    );
+    let y_axis_taps = bilinear_axis_taps(in_height, out_height, scale_y, coordinate_transform);
+    let x_axis_taps = bilinear_axis_taps(in_width, out_width, scale_x, coordinate_transform);
 
     let out_numel = batch * channels * out_height * out_width;
     let in_hw = in_height * in_width;
@@ -561,7 +566,11 @@ fn interpolate_bicubic_impl<T>(
 where
     T: Float + burn_backend::Element + bytemuck::Pod + Send + Sync,
 {
-    let InterpolateMode::Bicubic { a, .. } = options.mode else {
+    let InterpolateMode::Bicubic {
+        coordinate_transform,
+        a,
+    } = options.mode
+    else {
         unreachable!("bicubic sampling requires a bicubic interpolation mode");
     };
     let x = x.to_contiguous();
@@ -580,20 +589,8 @@ where
 
     let scale_y = options.scale_factor.map(|s| s[0]);
     let scale_x = options.scale_factor.map(|s| s[1]);
-    let y_axis_taps = bicubic_axis_taps(
-        in_height,
-        out_height,
-        scale_y,
-        options.mode.coordinate_transform(),
-        a,
-    );
-    let x_axis_taps = bicubic_axis_taps(
-        in_width,
-        out_width,
-        scale_x,
-        options.mode.coordinate_transform(),
-        a,
-    );
+    let y_axis_taps = bicubic_axis_taps(in_height, out_height, scale_y, coordinate_transform, a);
+    let x_axis_taps = bicubic_axis_taps(in_width, out_width, scale_x, coordinate_transform, a);
 
     let out_numel = batch * channels * out_height * out_width;
     let in_hw = in_height * in_width;
@@ -789,6 +786,12 @@ fn interpolate_lanczos3_impl<T>(
 where
     T: Float + burn_backend::Element + bytemuck::Pod + Send + Sync,
 {
+    let InterpolateMode::Lanczos3 {
+        coordinate_transform,
+    } = options.mode
+    else {
+        unreachable!("lanczos3 sampling requires a lanczos3 interpolation mode");
+    };
     let x = x.to_contiguous();
     let input = x.storage::<T>();
     let shape = x.layout().shape();
@@ -805,18 +808,8 @@ where
 
     let scale_y = options.scale_factor.map(|s| s[0]);
     let scale_x = options.scale_factor.map(|s| s[1]);
-    let y_axis_taps = lanczos3_axis_taps(
-        in_height,
-        out_height,
-        scale_y,
-        options.mode.coordinate_transform(),
-    );
-    let x_axis_taps = lanczos3_axis_taps(
-        in_width,
-        out_width,
-        scale_x,
-        options.mode.coordinate_transform(),
-    );
+    let y_axis_taps = lanczos3_axis_taps(in_height, out_height, scale_y, coordinate_transform);
+    let x_axis_taps = lanczos3_axis_taps(in_width, out_width, scale_x, coordinate_transform);
 
     let out_numel = batch * channels * out_height * out_width;
     let in_hw = in_height * in_width;
@@ -1028,6 +1021,12 @@ fn interpolate_bilinear_backward_impl<T>(
 where
     T: Float + burn_backend::Element + bytemuck::Pod + Send + Sync,
 {
+    let InterpolateMode::Bilinear {
+        coordinate_transform,
+    } = options.mode
+    else {
+        unreachable!("bilinear sampling requires a bilinear interpolation mode");
+    };
     let grad = grad.to_contiguous();
     let grad_data = grad.storage::<T>();
     let shape = x.layout().shape();
@@ -1044,18 +1043,8 @@ where
 
     let scale_y = options.scale_factor.map(|s| s[0]);
     let scale_x = options.scale_factor.map(|s| s[1]);
-    let y_axis_taps = bilinear_axis_taps(
-        in_height,
-        out_height,
-        scale_y,
-        options.mode.coordinate_transform(),
-    );
-    let x_axis_taps = bilinear_axis_taps(
-        in_width,
-        out_width,
-        scale_x,
-        options.mode.coordinate_transform(),
-    );
+    let y_axis_taps = bilinear_axis_taps(in_height, out_height, scale_y, coordinate_transform);
+    let x_axis_taps = bilinear_axis_taps(in_width, out_width, scale_x, coordinate_transform);
 
     let in_numel = batch * channels * in_height * in_width;
     let mut input_grad = vec![T::zero(); in_numel];
@@ -1136,7 +1125,11 @@ fn interpolate_bicubic_backward_impl<T>(
 where
     T: Float + burn_backend::Element + bytemuck::Pod + Send + Sync,
 {
-    let InterpolateMode::Bicubic { a, .. } = options.mode else {
+    let InterpolateMode::Bicubic {
+        coordinate_transform,
+        a,
+    } = options.mode
+    else {
         unreachable!("bicubic sampling requires a bicubic interpolation mode");
     };
     let grad = grad.to_contiguous();
@@ -1155,20 +1148,8 @@ where
 
     let scale_y = options.scale_factor.map(|s| s[0]);
     let scale_x = options.scale_factor.map(|s| s[1]);
-    let y_axis_taps = bicubic_axis_taps(
-        in_height,
-        out_height,
-        scale_y,
-        options.mode.coordinate_transform(),
-        a,
-    );
-    let x_axis_taps = bicubic_axis_taps(
-        in_width,
-        out_width,
-        scale_x,
-        options.mode.coordinate_transform(),
-        a,
-    );
+    let y_axis_taps = bicubic_axis_taps(in_height, out_height, scale_y, coordinate_transform, a);
+    let x_axis_taps = bicubic_axis_taps(in_width, out_width, scale_x, coordinate_transform, a);
 
     let in_numel = batch * channels * in_height * in_width;
     let mut input_grad = vec![T::zero(); in_numel];
