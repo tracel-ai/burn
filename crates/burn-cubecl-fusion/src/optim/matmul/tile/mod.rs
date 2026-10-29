@@ -2,7 +2,7 @@
 //!
 //! A routine stores its product through a destination the caller chooses, so the fused one is
 //! the unfused routine's own kernel storing into the trace's element-wise block ([`TraceSink`](sink::TraceSink))
-//! instead of a buffer. Which routine runs is the one cubek's matmul tables elected for the
+//! instead of a buffer. Which routine runs is the one cubek's matmul autotunes elected for the
 //! product ([`elected`]); the autotune then races it fused against the fallback, the routine
 //! storing its product and the block running as its own kernel.
 
@@ -36,11 +36,11 @@ use cubek::matmul::kernels::{
     plan::{MatmulCall, MatmulCallInput},
     select::{
         problem::{MatmulProblem, OperandKind},
-        selector::measured_table,
+        selector::measured_autotune,
     },
     tensor::{PackedTensor, PlainTensor, StoredTensor},
     tune::{
-        MatmulTableGroups,
+        MatmulAutotuneGroups,
         key::{MatmulTuneKey, create_key},
     },
 };
@@ -116,19 +116,19 @@ pub(crate) fn execute(arg: MatmulOptimizationTuneArg, context: &mut Context<Cube
     TUNER.execute(&tune_id, &client, tunables, TuneInput::new(context, arg));
 }
 
-/// The routine cubek's matmul table elected for `call`, prepared for a sink and handed to
-/// `visitor`; `None` where the product's plan is no single table, or the table has not measured
-/// the product's key yet.
+/// The routine cubek's matmul autotune elected for `call`, prepared for a sink and handed to
+/// `visitor`; `None` where the product's plan is no single autotune, or the autotune has not
+/// measured the product's key yet.
 ///
-/// The table is the one the unfused product races on, under the same device identity, so the
+/// The autotune is the one the unfused product races on, under the same device identity, so the
 /// fused product launches whichever routine the unfused one settled.
 fn elected<V: SinkLaunchVisitor>(call: &MatmulCall, visitor: V) -> Option<V::Output> {
     let problem = MatmulProblem::new(
         (call.lhs.meta.shape(), call.lhs.tensor.kind()),
         (call.rhs.meta.shape(), call.rhs.tensor.kind()),
     );
-    let table = measured_table(MatmulOpStrategy::Autotune, &problem, &call.hw)?;
-    let (settings, _) = table.fastest_routine(call, MatmulTableGroups::default())?;
+    let autotune = measured_autotune(MatmulOpStrategy::Autotune, &problem, &call.hw)?;
+    let (settings, _) = autotune.fastest_routine(call, MatmulAutotuneGroups::default())?;
     Some(settings.sink_launch(call, visitor))
 }
 

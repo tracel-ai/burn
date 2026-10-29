@@ -9,7 +9,7 @@ use burn_backend::ops::{AttentionModuleOptions, CausalAlignment};
 use burn_backend::{DType, Shape, cubecl::dtype_to_storage_type};
 use cubecl::features::TypeUsage;
 use cubecl::prelude::InputScalar;
-use cubek::attention::kernels::select::selector::QueryPositions;
+use cubek::attention::kernels::select::problem::QueryPositions;
 use cubek::attention::kernels::tune::{AttentionTuneInputs, launch_tuned};
 use cubek::attention::kernels::{
     AttentionScoring, AttentionTensors, AttentionVisibility, QueryPlacement, ScoreScale,
