@@ -242,6 +242,10 @@ fn into_u8_pixels(item: ImageDatasetItem) -> Vec<u8> {
 // ...
 // root/cat/cat1.png
 let dataset = ImageFolderDataset::new_classification("path/to/dataset/root").unwrap();
+
+// Labels are assigned to the class folders in sorted order. The name of a label can be looked
+// up, for example to display a prediction.
+assert_eq!(dataset.class_name(0), Some("cat"));
 ```
 
 ```rust, ignore

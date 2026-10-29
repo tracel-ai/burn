@@ -512,6 +512,7 @@ type ImageDatasetMapper =
 /// A generic dataset to load images from disk.
 pub struct ImageFolderDataset {
     dataset: ImageDatasetMapper,
+    class_names: HashMap<usize, String>,
 }
 
 impl Dataset<ImageDatasetItem> for ImageFolderDataset {
@@ -726,10 +727,17 @@ impl ImageFolderDataset {
         let annotations = parse_coco_bbox_annotations(&json)?;
         let items = parse_coco_images(&images_path, annotations, &json)?;
         let dataset = InMemDataset::new(items);
+        let class_names = classes
+            .iter()
+            .map(|(name, &label)| (label, name.clone()))
+            .collect();
         let mapper = PathToImageDatasetItem { classes };
         let dataset = MapperDataset::new(dataset, mapper);
 
-        Ok(Self { dataset })
+        Ok(Self {
+            dataset,
+            class_names,
+        })
     }
 
     /// Create an image dataset with the specified items.
@@ -757,12 +765,27 @@ impl ImageFolderDataset {
             .map(|(idx, cls)| (cls.to_string(), idx))
             .collect();
 
+        let class_names = classes_map
+            .iter()
+            .map(|(name, &label)| (label, name.clone()))
+            .collect();
         let mapper = PathToImageDatasetItem {
             classes: classes_map,
         };
         let dataset = MapperDataset::new(dataset, mapper);
 
-        Ok(Self { dataset })
+        Ok(Self {
+            dataset,
+            class_names,
+        })
+    }
+
+    /// Returns the class name for a label, as used in [`Annotation`] values and
+    /// [`BoundingBox::label`].
+    ///
+    /// Returns `None` if no class has this label.
+    pub fn class_name(&self, label: usize) -> Option<&str> {
+        self.class_names.get(&label).map(String::as_str)
     }
 
     /// Check if extension is supported.
@@ -801,6 +824,15 @@ mod tests {
         assert_eq!(dataset.get(0).unwrap().annotation, Annotation::Label(0));
         assert_eq!(dataset.get(1).unwrap().annotation, Annotation::Label(1));
         assert_eq!(dataset.get(2).unwrap().annotation, Annotation::Label(1));
+    }
+
+    #[test]
+    pub fn image_folder_dataset_class_names() {
+        let dataset = ImageFolderDataset::new_classification(DATASET_ROOT).unwrap();
+
+        assert_eq!(dataset.class_name(0), Some("orange"));
+        assert_eq!(dataset.class_name(1), Some("red"));
+        assert_eq!(dataset.class_name(2), None);
     }
 
     #[test]
@@ -1153,6 +1185,15 @@ mod tests {
                     .collect()
             })
         );
+    }
+
+    #[test]
+    pub fn coco_detection_dataset_class_names() {
+        let dataset = ImageFolderDataset::new_coco_detection(COCO_JSON, COCO_IMAGES).unwrap();
+
+        assert_eq!(dataset.class_name(0), Some("dot"));
+        assert_eq!(dataset.class_name(1), Some("triangle"));
+        assert_eq!(dataset.class_name(2), None);
     }
 
     #[test]
