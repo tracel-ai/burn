@@ -212,6 +212,19 @@ fn test_min_pair() {
 }
 
 #[test]
+fn test_max_min_pair_nan_propagation() {
+    // NaN in either operand gives NaN.
+    let a = TestTensor::<1>::from([1.0, f32::NAN]);
+    let b = TestTensor::<1>::from([f32::NAN, 2.0]);
+
+    for output in [a.clone().max_pair(b.clone()), a.min_pair(b)] {
+        let output = output.into_data().convert::<f32>();
+        let values = output.as_slice::<f32>().unwrap();
+        assert!(values.iter().all(|value| value.is_nan()), "{values:?}");
+    }
+}
+
+#[test]
 fn test_max_abs() {
     let tensor = TestTensor::<2>::from_data([[0., 1., -2.], [-5., 6., 1.]], &Default::default());
 

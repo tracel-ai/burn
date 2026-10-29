@@ -380,6 +380,10 @@ loading those checkpoints by filtering to `linear_inner` and `linear_outer`.
 - Fix `chunk` panicking when the requested number of chunks cannot all be filled. It now returns
   fewer chunks, as documented; for example, 6 elements in 4 chunks give 3 chunks of 2.
   ([#6263](https://github.com/tracel-ai/burn/pull/6263), [@b84330808](https://github.com/b84330808))
+- Propagate NaN from either operand in `max_pair` and `min_pair`. A NaN in the second operand was
+  dropped, so `max_pair` gave 1 for (1, NaN) but NaN for (NaN, 2).
+  ([#6279](https://github.com/tracel-ai/burn/pull/6279),
+  [@b84330808](https://github.com/b84330808))
 - Return NaN for variance reductions over empty axes instead of panicking or returning zero.
   ([issue #6236](https://github.com/tracel-ai/burn/issues/6236))
 - **Breaking:** `Tensor::reshape` now treats zeros in arrays as literal zero-length dimensions,

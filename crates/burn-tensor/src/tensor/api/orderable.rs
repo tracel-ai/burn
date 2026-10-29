@@ -4,7 +4,7 @@ use burn_std::{AsIndex, IndexingUpdateOp};
 
 use crate::check::unwrap_dim_index;
 use crate::kind::Ordered;
-use crate::{Bool, Int, TensorData, check};
+use crate::{Bool, Float, Int, TensorData, check};
 use crate::{Tensor, check::TensorCheck};
 
 impl<const D: usize, K> Tensor<D, K>
@@ -744,6 +744,10 @@ where
     /// A tensor with the same shape as the input tensors containing the maximum value found
     /// in the input tensors.
     ///
+    /// # NaN behavior
+    ///
+    /// For floating-point tensors, the result is NaN where either input is NaN.
+    ///
     /// # Example
     ///
     /// ```rust
@@ -758,6 +762,7 @@ where
     /// ```
     pub fn max_pair(self, other: Self) -> Self {
         let mask = self.clone().lower(other.clone());
+        let mask = or_where_nan(mask, &other);
         self.mask_where(mask, other)
     }
 
@@ -982,6 +987,10 @@ where
     /// A tensor with the same shape as the input tensors containing the minimum value found
     /// between each element of the two source tensors.
     ///
+    /// # NaN behavior
+    ///
+    /// For floating-point tensors, the result is NaN where either input is NaN.
+    ///
     /// # Example
     ///
     /// ```rust
@@ -996,6 +1005,7 @@ where
     /// ```
     pub fn min_pair(self, other: Self) -> Self {
         let mask = other.clone().lower(self.clone());
+        let mask = or_where_nan(mask, &other);
         self.mask_where(mask, other)
     }
 
@@ -1211,6 +1221,19 @@ where
     /// ```
     pub fn max_dims<I: AsIndex>(self, dims: &[I]) -> Self {
         dims.iter().fold(self, |tensor, &dim| tensor.max_dim(dim))
+    }
+}
+
+/// Extends a mask that selects `other` to the positions where `other` is NaN. Comparisons with
+/// NaN are false, so a mask built from `lower` alone keeps the other operand there.
+fn or_where_nan<const D: usize, K: Ordered>(
+    mask: Tensor<D, Bool>,
+    other: &Tensor<D, K>,
+) -> Tensor<D, Bool> {
+    if other.primitive.is_float() {
+        mask.bool_or(Tensor::<D, Float>::new(other.primitive.clone()).is_nan())
+    } else {
+        mask
     }
 }
 
