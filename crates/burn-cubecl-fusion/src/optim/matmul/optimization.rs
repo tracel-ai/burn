@@ -1,61 +1,16 @@
-use super::args::FusedMatmulInputLaunch;
-#[cfg(all(feature = "autotune", not(feature = "tile-kernels-only")))]
-use super::tune::fused_matmul_autotune;
-#[cfg(not(feature = "tile-kernels-only"))]
-use crate::engine::trace::TraceError;
 use crate::{
     CubeFusionHandle, FallbackOperation,
     engine::{
-        codegen::ir::{FuseArg, FuseBlockConfig, FuseType, GlobalArgsLaunch, RefLayout},
-        launch::{
-            FuseTraceLauncher, HandleInput, LaunchPlan,
-            runner::{TraceRunner, Vectorization, VectorizationAxis},
-        },
+        codegen::ir::FuseArg,
+        launch::FuseTraceLauncher,
         trace::{FuseTrace, TuneOutput},
     },
-    optim::{
-        FusedOperation,
-        elemwise::ElemwiseRunner,
-        matmul::args::{FusedMatmulArgs, MatmulArg},
-    },
+    optim::{FusedOperation, elemwise::ElemwiseRunner, matmul::args::MatmulArg},
     tune::TunedTrace,
 };
 use burn_fusion::stream::Context;
 use burn_ir::BinaryOpIr;
-use cubecl::{
-    client::Client,
-    std::tensor::{MatrixBatchLayout, matrix_batch_layout},
-};
-use cubek::{
-    matmul::{
-        definition::{
-            MatmulElems, MatmulGlobalElems, MatmulProblem, MatmulSetupError, MatmulVectorSizes,
-        },
-        multi_level::{
-            BatchMatmulRoutine,
-            components::tile::TileMatmulKind,
-            launch_kernel_virtual,
-            routines::{
-                batch::{
-                    double_buffering::{CyclicDoubleBufferingAlgorithm, DoubleBufferingArgs},
-                    double_unit::DoubleUnitAlgorithm,
-                    gemv_innerproduct::{
-                        DoubleVecMatInnerProductAlgorithm, VecMatInnerProductAlgorithm,
-                    },
-                    ordered_double_buffering::{
-                        OrderedDoubleBufferingAlgorithm, OrderedSelectionArgs,
-                    },
-                    simple::{SimpleAlgorithm, SimpleArgs},
-                    simple_unit::SimpleUnitAlgorithm,
-                },
-                gemm::GemmRoutine,
-                gemv_unit_perpendicular::GemvUnitPerpendicularRoutine,
-            },
-        },
-        routine::BlueprintStrategy,
-    },
-    std::MatrixLayout,
-};
+use cubecl::client::Client;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
@@ -95,6 +50,7 @@ pub struct MatmulOptimizationState {
 
 impl MatmulOptimizationInfo {
     /// Returns the number of output buffers added by fusion.
+    #[cfg(feature = "autotune")]
     pub fn num_output_buffers(&self) -> usize {
         self.trace_fallback.resources.outputs.len()
     }
@@ -106,18 +62,6 @@ impl MatmulOptimizationInfo {
 }
 
 impl MatmulOptimizationTuneArg {
-    #[cfg(not(feature = "tile-kernels-only"))]
-    pub(crate) fn execute_fused(
-        &self,
-        context: &mut Context<CubeFusionHandle>,
-        selector: FusedMatmulSelector,
-    ) -> Result<TuneOutput, TraceError<FusedMatmulError>> {
-        let launch = FusedMatmulLaunch::new(&self.info.matmul, selector);
-        let launcher = FuseTraceLauncher::new(&self.info.trace, &launch);
-
-        launcher.launch(&self.info.client, &self.info.device, context)
-    }
-
     pub fn execute_fallback(&self, context: &mut Context<CubeFusionHandle>) -> TuneOutput {
         self.fallback.run(context);
 
@@ -185,21 +129,8 @@ impl MatmulOptimization {
             fallback,
         };
 
-        #[cfg(feature = "tile-kernels-only")]
-        super::tile_kernels::execute(arg, context);
-
-        #[cfg(not(feature = "tile-kernels-only"))]
-        Self::execute_multi_level(arg, context);
-    }
-
-    /// Run the product on the multi-level kernels, fused or through its fallback.
-    #[cfg(not(feature = "tile-kernels-only"))]
-    fn execute_multi_level(
-        arg: MatmulOptimizationTuneArg,
-        context: &mut Context<CubeFusionHandle>,
-    ) {
         // A storage-tiled operand is read through its binding by the eager matmul, which stages
-        // to its tiles; the fused kernel assembles its own arguments and would read it as rows.
+        // to its tiles; the fused product is not verified on them.
         let op = &arg.info.matmul.op;
         let stored = [op.lhs.id, op.rhs.id].iter().any(|id| {
             context
@@ -212,16 +143,13 @@ impl MatmulOptimization {
             return;
         }
 
+        // The fused product runs the routine the unfused one measured fastest, and races the
+        // fallback; without autotune nothing is measured, so the fallback runs.
         #[cfg(feature = "autotune")]
-        fused_matmul_autotune(arg, context);
+        super::tile::execute(arg, context);
 
         #[cfg(not(feature = "autotune"))]
-        if arg
-            .execute_fused(context, FusedMatmulSelector::default())
-            .is_err()
-        {
-            arg.execute_fallback(context);
-        }
+        arg.execute_fallback(context);
     }
 
     /// Number of operations fused.
@@ -256,509 +184,12 @@ impl MatmulOptimization {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Debug)]
-pub enum FusedMatmulSelector {
-    Simple {
-        multi_rows: bool,
-        tile_matmul: AcceleratedTileKind,
-    },
-    DoubleBuffering {
-        specialized: bool,
-        tile_matmul: AcceleratedTileKind,
-    },
-    OrderedDoubleBuffering {
-        tile_matmul: AcceleratedTileKind,
-    },
-    SimpleVecMat,
-    DoubleVecMat,
-    GemmNoStage,
-    GemvUnitPerpendicular,
-    SimpleUnit,
-    DoubleUnit,
-}
-
-impl FusedMatmulSelector {
-    /// Not efficient, but only called once when initializing the tunables.
-    pub fn name(&self) -> String {
-        let name = match self {
-            FusedMatmulSelector::Simple {
-                multi_rows,
-                tile_matmul,
-            } => match multi_rows {
-                false => format!("simple_{tile_matmul:?}"),
-                true => format!("simple_multirows_{tile_matmul:?}"),
-            },
-            FusedMatmulSelector::DoubleBuffering {
-                specialized,
-                tile_matmul,
-            } => match specialized {
-                false => format!("double_buffering_{tile_matmul:?}"),
-                true => format!("double_buffering_specialized_{tile_matmul:?}"),
-            },
-            FusedMatmulSelector::OrderedDoubleBuffering { tile_matmul } => {
-                format!("double_buffering_ordered_{tile_matmul:?}").to_lowercase()
-            }
-            FusedMatmulSelector::SimpleVecMat => "simple_vec_mat".into(),
-            FusedMatmulSelector::DoubleVecMat => "double_buffering_vec_mat".into(),
-            FusedMatmulSelector::GemmNoStage => "gemm".into(),
-            FusedMatmulSelector::GemvUnitPerpendicular => "gemv_unit_perpendicular".into(),
-            FusedMatmulSelector::SimpleUnit => "simple_unit".into(),
-            FusedMatmulSelector::DoubleUnit => "double_buffering_unit".into(),
-        };
-
-        format!("fused_{name}")
-    }
-}
-
-impl Default for FusedMatmulSelector {
-    fn default() -> Self {
-        FusedMatmulSelector::Simple {
-            multi_rows: false,
-            tile_matmul: AcceleratedTileKind::Cmma,
-        }
-    }
-}
-
 #[derive(new, Clone, Serialize, Deserialize, Debug)]
 pub struct FusedMatmul {
     pub(crate) lhs: MatmulArg,
     pub(crate) rhs: MatmulArg,
     pub(crate) out: FuseArg,
     pub(crate) op: BinaryOpIr,
-    pub(crate) selector: FusedMatmulSelector,
-}
-
-#[derive(new)]
-pub struct FusedMatmulLaunch<'a> {
-    pub(crate) matmul: &'a FusedMatmul,
-    pub(crate) selector: FusedMatmulSelector,
-}
-
-#[derive(Debug)]
-pub enum FusedMatmulError {
-    LaunchError(MatmulSetupError),
-    InvalidInput(&'static str),
-}
-
-impl From<MatmulSetupError> for FusedMatmulError {
-    fn from(value: MatmulSetupError) -> Self {
-        Self::LaunchError(value)
-    }
-}
-
-impl<'a> Vectorization for FusedMatmulLaunch<'a> {
-    fn axis(&self, plan: &LaunchPlan<'_>) -> VectorizationAxis {
-        let lhs_id = self.matmul.op.lhs.id;
-        let rhs_id = self.matmul.op.rhs.id;
-
-        let mut tensor_lhs = None;
-        let mut tensor_rhs = None;
-
-        for input in plan.handle_inputs.iter() {
-            match input {
-                HandleInput::Normal(input) => {
-                    if input.relative_id == lhs_id {
-                        tensor_lhs = Some((input.global_ir.id, &input.handle.strides));
-                    }
-                    if input.relative_id == rhs_id {
-                        tensor_rhs = Some((input.global_ir.id, &input.handle.strides));
-                    }
-                }
-                HandleInput::QuantValues(input) => {
-                    if input.relative_id == lhs_id {
-                        tensor_lhs = Some((input.global_ir.id, &input.handle.strides));
-                    }
-                    if input.relative_id == rhs_id {
-                        tensor_rhs = Some((input.global_ir.id, &input.handle.strides));
-                    }
-                }
-                HandleInput::QuantParams(_) => {}
-            }
-        }
-
-        let (lhs_id_global, lhs_strides) = tensor_lhs.unwrap();
-        let (rhs_id_global, rhs_strides) = tensor_rhs.unwrap();
-
-        let mut axis = VectorizationAxis::default();
-
-        // A transposed operand is loaded along its contiguous dimension, the second to last.
-        // Its vector size belongs to the input, though, and an element-wise block reading the
-        // same input applies it along the last dimension, which isn't contiguous: it would
-        // read the wrong elements. Such an operand keeps the default axis.
-        let read_by_block = |relative_id| {
-            plan.blocks
-                .iter()
-                .any(|block| block.reads.contains_key(&relative_id))
-        };
-
-        if let MatrixBatchLayout::MildlyPermuted { transposed, .. } =
-            matrix_batch_layout(lhs_strides, self.matmul.lhs.scheme())
-            && transposed
-            && !read_by_block(lhs_id)
-        {
-            axis.insert(lhs_id_global, lhs_strides.len() - 2);
-        }
-
-        if let MatrixBatchLayout::MildlyPermuted { transposed, .. } =
-            matrix_batch_layout(rhs_strides, self.matmul.rhs.scheme())
-            && transposed
-            && !read_by_block(rhs_id)
-        {
-            axis.insert(rhs_id_global, rhs_strides.len() - 2);
-        }
-
-        axis
-    }
-}
-
-impl TraceRunner for FusedMatmulLaunch<'_> {
-    type Error = FusedMatmulError;
-
-    fn run<'a>(
-        &'a self,
-        client: &'a Client,
-        inputs: GlobalArgsLaunch,
-        outputs: GlobalArgsLaunch,
-        configs: &'a [FuseBlockConfig],
-    ) -> Result<(), FusedMatmulError> {
-        let global_elems = MatmulGlobalElems {
-            lhs: self.matmul.lhs.precision().into_storage_type(),
-            rhs: self.matmul.rhs.precision().into_storage_type(),
-            out: self.matmul.out.precision().into_storage_type(),
-        };
-        let dtypes = MatmulElems::from_globals(&global_elems);
-        self.matmul_fused(client, inputs, outputs, &configs[0], dtypes)
-    }
-}
-
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
-/// Which tile matmul to use for accelerated algorithms
-pub enum AcceleratedTileKind {
-    #[default]
-    Cmma,
-    Mma,
-}
-
-impl FusedMatmulLaunch<'_> {
-    fn matmul_fused<'a>(
-        &'a self,
-        client: &'a Client,
-        inputs: GlobalArgsLaunch,
-        outputs: GlobalArgsLaunch,
-        config: &'a FuseBlockConfig,
-        dtypes: MatmulElems,
-    ) -> Result<(), FusedMatmulError> {
-        let lhs_shape = inputs.shape(self.matmul.lhs.data());
-        let rhs_shape = inputs.shape(self.matmul.rhs.data());
-        let out_shape = outputs.shape_ref(&config.ref_layout, config.rank);
-
-        let lhs_strides = inputs.strides(self.matmul.lhs.data());
-        let lhs_scheme = self.matmul.lhs.scheme();
-        let rhs_strides = inputs.strides(self.matmul.rhs.data());
-        let rhs_scheme = self.matmul.rhs.scheme();
-
-        if matrix_batch_layout(&lhs_strides, lhs_scheme) == MatrixBatchLayout::HighlyPermuted {
-            return Err(FusedMatmulError::InvalidInput(
-                "Lhs needs to be contiguous, but can't when fusing.",
-            ));
-        }
-        if matrix_batch_layout(&rhs_strides, rhs_scheme) == MatrixBatchLayout::HighlyPermuted {
-            return Err(FusedMatmulError::InvalidInput(
-                "Rhs needs to be contiguous, but can't when fusing.",
-            ));
-        }
-
-        let mut vector_sizes = MatmulVectorSizes {
-            lhs: inputs.vector_size(self.matmul.lhs.data()),
-            rhs: inputs.vector_size(self.matmul.rhs.data()),
-            out: match &config.ref_layout {
-                RefLayout::Concrete(arg) => match arg {
-                    FuseArg::Input(..) => inputs.vector_size(arg),
-                    FuseArg::Output(..) => outputs.vector_size(arg),
-                    _ => panic!("Invalid ref layout"),
-                },
-                RefLayout::Virtual(_) => 1,
-            },
-        };
-
-        let address_type = inputs
-            .required_address_type()
-            .max(outputs.required_address_type());
-
-        if vector_sizes.out == 1 && (vector_sizes.lhs > 1 || vector_sizes.rhs > 1) {
-            return Err(FusedMatmulError::InvalidInput(
-                "Output vector size of 1 removes the gain from fusion",
-            ));
-        }
-
-        if let MatmulArg::Quantized { scheme, .. } = self.matmul.lhs {
-            vector_sizes.lhs *= scheme.num_quants();
-        }
-        if let MatmulArg::Quantized { scheme, .. } = self.matmul.rhs {
-            vector_sizes.rhs *= scheme.num_quants();
-        }
-
-        let out_strides = MatrixLayout::RowMajor.to_strides(&out_shape);
-        let problem = MatmulProblem::from_shapes_and_strides(
-            lhs_shape,
-            rhs_shape,
-            out_shape,
-            lhs_strides,
-            rhs_strides,
-            out_strides,
-            dtypes.as_global_elems(),
-            address_type,
-            self.matmul.lhs.scheme(),
-            self.matmul.rhs.scheme(),
-        )?;
-
-        match self.selector {
-            FusedMatmulSelector::Simple {
-                multi_rows,
-                tile_matmul,
-            } => {
-                let args = SimpleArgs {
-                    multi_rows,
-                    tile_matmul: match tile_matmul {
-                        AcceleratedTileKind::Cmma => TileMatmulKind::Cmma,
-                        AcceleratedTileKind::Mma => TileMatmulKind::Mma,
-                    },
-                };
-
-                match launch_inner_fix_dtype::<SimpleAlgorithm>(
-                    client,
-                    FusedMatmulInputLaunch::new(
-                        inputs,
-                        config.clone(),
-                        self.matmul.lhs.clone(),
-                        self.matmul.rhs.clone(),
-                        None,
-                        self.matmul.out.clone(),
-                    ),
-                    outputs,
-                    problem,
-                    vector_sizes,
-                    &BlueprintStrategy::Inferred(args),
-                ) {
-                    Ok(_) => Ok(()),
-                    Err(err) => Err(FusedMatmulError::LaunchError(err)),
-                }
-            }
-
-            FusedMatmulSelector::DoubleBuffering {
-                specialized,
-                tile_matmul,
-            } => {
-                let args = DoubleBufferingArgs {
-                    specialized,
-                    tile_matmul: match tile_matmul {
-                        AcceleratedTileKind::Cmma => TileMatmulKind::Cmma,
-                        AcceleratedTileKind::Mma => TileMatmulKind::Mma,
-                    },
-                };
-
-                match launch_inner_fix_dtype::<CyclicDoubleBufferingAlgorithm>(
-                    client,
-                    FusedMatmulInputLaunch::new(
-                        inputs,
-                        config.clone(),
-                        self.matmul.lhs.clone(),
-                        self.matmul.rhs.clone(),
-                        None,
-                        self.matmul.out.clone(),
-                    ),
-                    outputs,
-                    problem,
-                    vector_sizes,
-                    &BlueprintStrategy::Inferred(args),
-                ) {
-                    Ok(_) => Ok(()),
-                    Err(err) => Err(FusedMatmulError::LaunchError(err)),
-                }
-            }
-
-            FusedMatmulSelector::OrderedDoubleBuffering { tile_matmul } => {
-                let row_count = match self.matmul.lhs.precision() {
-                    FuseType::F16 | FuseType::BF16 => 8,
-                    _ => 4,
-                };
-
-                let args = OrderedSelectionArgs {
-                    row_count: Some(row_count),
-                    rows_per_plane: Some(2),
-                    partition_k: Some(2),
-                    tile_matmul: match tile_matmul {
-                        AcceleratedTileKind::Cmma => TileMatmulKind::Cmma,
-                        AcceleratedTileKind::Mma => TileMatmulKind::Mma,
-                    },
-                };
-
-                match launch_inner_fix_dtype::<OrderedDoubleBufferingAlgorithm>(
-                    client,
-                    FusedMatmulInputLaunch::new(
-                        inputs,
-                        config.clone(),
-                        self.matmul.lhs.clone(),
-                        self.matmul.rhs.clone(),
-                        None,
-                        self.matmul.out.clone(),
-                    ),
-                    outputs,
-                    problem,
-                    vector_sizes,
-                    &BlueprintStrategy::Inferred(args),
-                ) {
-                    Ok(_) => Ok(()),
-                    Err(err) => Err(FusedMatmulError::LaunchError(err)),
-                }
-            }
-
-            FusedMatmulSelector::SimpleUnit => {
-                match launch_inner_fix_dtype::<SimpleUnitAlgorithm>(
-                    client,
-                    FusedMatmulInputLaunch::new(
-                        inputs,
-                        config.clone(),
-                        self.matmul.lhs.clone(),
-                        self.matmul.rhs.clone(),
-                        None,
-                        self.matmul.out.clone(),
-                    ),
-                    outputs,
-                    problem,
-                    vector_sizes,
-                    &Default::default(),
-                ) {
-                    Ok(_) => Ok(()),
-                    Err(err) => Err(FusedMatmulError::LaunchError(err)),
-                }
-            }
-
-            FusedMatmulSelector::DoubleUnit => {
-                match launch_inner_fix_dtype::<DoubleUnitAlgorithm>(
-                    client,
-                    FusedMatmulInputLaunch::new(
-                        inputs,
-                        config.clone(),
-                        self.matmul.lhs.clone(),
-                        self.matmul.rhs.clone(),
-                        None,
-                        self.matmul.out.clone(),
-                    ),
-                    outputs,
-                    problem,
-                    vector_sizes,
-                    &Default::default(),
-                ) {
-                    Ok(_) => Ok(()),
-                    Err(err) => Err(FusedMatmulError::LaunchError(err)),
-                }
-            }
-
-            FusedMatmulSelector::SimpleVecMat => {
-                match launch_inner_fix_dtype::<VecMatInnerProductAlgorithm>(
-                    client,
-                    FusedMatmulInputLaunch::new(
-                        inputs,
-                        config.clone(),
-                        self.matmul.lhs.clone(),
-                        self.matmul.rhs.clone(),
-                        None,
-                        self.matmul.out.clone(),
-                    ),
-                    outputs,
-                    problem,
-                    vector_sizes,
-                    &Default::default(),
-                ) {
-                    Ok(_) => Ok(()),
-                    Err(err) => Err(FusedMatmulError::LaunchError(err)),
-                }
-            }
-
-            FusedMatmulSelector::DoubleVecMat => {
-                match launch_inner_fix_dtype::<DoubleVecMatInnerProductAlgorithm>(
-                    client,
-                    FusedMatmulInputLaunch::new(
-                        inputs,
-                        config.clone(),
-                        self.matmul.lhs.clone(),
-                        self.matmul.rhs.clone(),
-                        None,
-                        self.matmul.out.clone(),
-                    ),
-                    outputs,
-                    problem,
-                    vector_sizes,
-                    &Default::default(),
-                ) {
-                    Ok(_) => Ok(()),
-                    Err(err) => Err(FusedMatmulError::LaunchError(err)),
-                }
-            }
-
-            FusedMatmulSelector::GemmNoStage => {
-                match launch_inner_fix_dtype::<GemmRoutine>(
-                    client,
-                    FusedMatmulInputLaunch::new(
-                        inputs,
-                        config.clone(),
-                        self.matmul.lhs.clone(),
-                        self.matmul.rhs.clone(),
-                        None,
-                        self.matmul.out.clone(),
-                    ),
-                    outputs,
-                    problem,
-                    vector_sizes,
-                    &Default::default(),
-                ) {
-                    Ok(_) => Ok(()),
-                    Err(err) => Err(FusedMatmulError::LaunchError(err)),
-                }
-            }
-
-            FusedMatmulSelector::GemvUnitPerpendicular => {
-                match launch_inner_fix_dtype::<GemvUnitPerpendicularRoutine>(
-                    client,
-                    FusedMatmulInputLaunch::new(
-                        inputs,
-                        config.clone(),
-                        self.matmul.lhs.clone(),
-                        self.matmul.rhs.clone(),
-                        None,
-                        self.matmul.out.clone(),
-                    ),
-                    outputs,
-                    problem,
-                    vector_sizes,
-                    &Default::default(),
-                ) {
-                    Ok(_) => Ok(()),
-                    Err(err) => Err(FusedMatmulError::LaunchError(err)),
-                }
-            }
-        }
-    }
-}
-
-fn launch_inner_fix_dtype<A: BatchMatmulRoutine<()>>(
-    client: &Client,
-    input: FusedMatmulInputLaunch,
-    output: GlobalArgsLaunch,
-    problem: MatmulProblem,
-    vector_sizes: MatmulVectorSizes,
-    blueprint_strategy: &BlueprintStrategy<A>,
-) -> Result<(), MatmulSetupError> {
-    launch_kernel_virtual::<FusedMatmulArgs, A>(
-        client,
-        input,
-        output,
-        (),
-        problem,
-        vector_sizes,
-        blueprint_strategy,
-    )
 }
 
 /// Name of the matmul fusion optimization.

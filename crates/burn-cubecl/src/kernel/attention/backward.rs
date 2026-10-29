@@ -2,6 +2,7 @@
 //! tile-DSL routines: what autodiff records instead of the decomposed attention, for the
 //! attentions [`backward_serves`] admits.
 
+use super::tile::routines_take;
 use crate::{
     CubeBackend, CubeDevice,
     ops::{numeric::full_device_dtype, swap_dims},
@@ -10,13 +11,12 @@ use crate::{
 use burn_backend::ops::{AttentionBackward, AttentionModuleOptions, CausalAlignment};
 use burn_backend::{DType, Shape, cubecl::dtype_to_storage_type};
 use cubecl::client::Client;
-use cubecl::features::TypeUsage;
 use cubecl::prelude::InputScalar;
 use cubecl::std::tensor::TensorHandle;
 use cubek::attention::kernels::select::selector::QueryPositions;
 use cubek::attention::kernels::tune::{AttentionTuneInputs, launch_tuned};
 use cubek::attention::kernels::{
-    AttentionScoring, AttentionTensors, AttentionVisibility, QueryPlacement, ScoreScale,
+    AttentionScoring, AttentionVisibility, QueryPlacement, ScoreScale,
 };
 use cubek::attention_backward::{AttentionBackwardTensors, attention_backward as launch_backward};
 use cubek::matmul::kernels::tensor::PlainTensor;
@@ -34,20 +34,10 @@ pub fn backward_serves(
     options: &AttentionModuleOptions,
 ) -> bool {
     let (q_shape, k_shape) = (query.meta.shape(), key.meta.shape());
-    let element = dtype_to_storage_type(query.dtype);
-    let elements = key.dtype == query.dtype
-        && value.dtype == query.dtype
-        && AttentionTensors::VERIFIED.contains(&element)
-        && query
-            .client
-            .properties()
-            .type_usage(element)
-            .is_superset(TypeUsage::Arithmetic | TypeUsage::Buffer);
-    let grouped = k_shape[1] != 0 && q_shape[1].is_multiple_of(k_shape[1]);
     let anchored = !options.is_causal
         || options.causal_alignment == CausalAlignment::BottomRight
         || q_shape[2] == k_shape[2];
-    elements && grouped && options.softcap.is_none() && anchored
+    routines_take(query, key, value) && options.softcap.is_none() && anchored
 }
 
 /// The attention of `query` over `key` and `value`, `[b, h, q, dv]`, and each query's logsumexp,

@@ -1,25 +1,21 @@
-//! Matmul over cubek's tile-DSL routines alone ([`cubek::matmul::kernels`]): what the
-//! `tile-kernels-only` feature runs instead of the multi-level candidates. cubek's selection plans
-//! the product under autotune: the few-rows or the many-rows table its rows go to, a quantized input
-//! read as stored by the routines listed for it or decoded first, and a scheme none reads
-//! dequantized here first. A product no routine serves fails rather than falling back, so a test run
-//! lists what they don't serve yet.
+//! Matmul over cubek's tile-DSL routines ([`cubek::matmul::kernels`]). cubek's selection plans the
+//! product: under autotune, the few-rows or the many-rows table its rows go to; by rule otherwise.
+//! A quantized input is read as stored by the routines listed for it or decoded first, and a scheme
+//! none reads is dequantized here first.
 
-use crate::{
-    CubeTuneId,
-    kernel::{matmul::utils::init_matmul_output, quantization::dequantize},
-    ops::swap_dims,
-    tensor::CubeTensor,
-};
+use crate::{CubeTuneId, kernel::quantization::dequantize, ops::swap_dims, tensor::CubeTensor};
 use burn_backend::DType;
 use burn_backend::cubecl::dtype_to_storage_type;
 use cubecl::std::tensor::TensorHandle;
-use cubecl::tile::Axis;
-use cubek::matmul::kernels::{
-    MatmulOpStrategy,
-    plan::{FrameworkDequantize, MatmulCall, MatmulCallInput},
-    select::{problem::MatmulProblem, selector::select},
-    tune::MatmulTableGroups,
+use cubecl::tile::{Axis, launch::Refusal};
+use cubek::matmul::{
+    definition::MatmulSetupError,
+    kernels::{
+        MatmulOpStrategy,
+        plan::{FrameworkDequantize, MatmulCall, MatmulCallInput},
+        select::{problem::MatmulProblem, selector::select},
+        tune::MatmulTableGroups,
+    },
 };
 use cubek::std::{
     Hardware,
@@ -30,44 +26,36 @@ use std::sync::Arc;
 
 type Inputs = (CubeTensor, CubeTensor, CubeTensor);
 
-/// Executes autotune on matmul operations, over cubek's tile-DSL routines alone: the plan cubek's
-/// selection gives, written into `out` or into an output allocated here.
+/// Writes `lhs · rhs` into `out`, through the plan cubek's selection gives under `strategy`.
 ///
-/// # Panics
+/// # Errors
 ///
-/// On a product no routine serves.
-pub fn matmul_autotune(
+/// A product cubek's selection refuses or no routine of its plan serves.
+pub(crate) fn launch(
     lhs: CubeTensor,
     rhs: CubeTensor,
-    out: Option<CubeTensor>,
+    out: CubeTensor,
     out_dtype: DType,
-) -> CubeTensor {
-    let output = out.unwrap_or_else(|| init_matmul_output(&lhs, &rhs, out_dtype));
-
+    strategy: MatmulOpStrategy,
+) -> Result<(), MatmulSetupError> {
     if lhs.meta.shape().iter().any(|&d| d == 0) || rhs.meta.shape().iter().any(|&d| d == 0) {
-        return output;
+        return Ok(());
     }
 
-    let (lhs, rhs, launched) = run_as((lhs, rhs, output.clone()));
+    let (lhs, rhs, out) = run_as((lhs, rhs, out));
     let hw = Hardware::from_client(&lhs.client);
     let (client, tune_id) = (
         lhs.client.clone(),
         CubeTuneId::new(&lhs.client, &lhs.device),
     );
     let (lhs_shape, rhs_shape) = (lhs.meta.shape().clone(), rhs.meta.shape().clone());
-    let lhs = call_input(lhs, [M, K], out_dtype);
-    let rhs = call_input(rhs, [K, N], out_dtype);
+    let lhs = call_input(lhs, [M, K], out_dtype).map_err(invalid)?;
+    let rhs = call_input(rhs, [K, N], out_dtype).map_err(invalid)?;
     let problem = MatmulProblem::new(
         (&lhs_shape, lhs.tensor.kind()),
         (&rhs_shape, rhs.tensor.kind()),
     );
-    let plan = select(
-        MatmulOpStrategy::Autotune,
-        &problem,
-        &hw,
-        MatmulTableGroups::default(),
-    )
-    .unwrap_or_else(|why| panic!("cubek's selection refuses this product: {why}"));
+    let plan = select(strategy, &problem, &hw, MatmulTableGroups::default()).map_err(invalid)?;
     let call = MatmulCall {
         hw,
         client,
@@ -76,12 +64,15 @@ pub fn matmul_autotune(
         rhs,
         out: dtype_to_storage_type(out_dtype),
         routes: None,
-        destination: Some(handle_of(launched)),
+        destination: Some(handle_of(out)),
     };
-    plan.launch(&call).unwrap_or_else(|declined| {
-        panic!("no tile-kernel routine serves this product: {declined}")
-    });
-    output
+    plan.launch(&call).map_err(invalid)?;
+    Ok(())
+}
+
+/// What cubek answered, as the error burn's matmul reports.
+fn invalid(why: impl std::fmt::Display + 'static) -> MatmulSetupError {
+    MatmulSetupError::InvalidConfig(Box::new(why))
 }
 
 /// The product the routines run for `lhs · rhs` into `out`: itself, or, where it writes a single
@@ -109,10 +100,10 @@ fn run_as((lhs, rhs, out): Inputs) -> Inputs {
 /// into `out` by burn's dequantize where a plan reaches for it. A quantized input the routines
 /// cannot state as stored is dequantized here first, and the plan reads a float input.
 ///
-/// # Panics
+/// # Errors
 ///
-/// On a float input stored in a way the routines cannot state.
-fn call_input(tensor: CubeTensor, axes: [Axis; 2], out: DType) -> MatmulCallInput {
+/// A float input stored in a way the routines cannot state.
+fn call_input(tensor: CubeTensor, axes: [Axis; 2], out: DType) -> Result<MatmulCallInput, Refusal> {
     let quantized = tensor.try_scheme().is_some();
     let framework_dequantize = quantized.then(|| {
         let packed = tensor.clone();
@@ -120,13 +111,13 @@ fn call_input(tensor: CubeTensor, axes: [Axis; 2], out: DType) -> MatmulCallInpu
     });
     let meta = (*tensor.meta).clone();
     match tensor.clone().stored(axes) {
-        Ok(stored) => MatmulCallInput {
+        Ok(stored) => Ok(MatmulCallInput {
             tensor: stored,
             meta,
             framework_dequantize,
-        },
-        Err(_) if quantized => MatmulCallInput::plain(dequantize(tensor, out).plain()),
-        Err(why) => panic!("the routines read no such input: {why:?}"),
+        }),
+        Err(_) if quantized => Ok(MatmulCallInput::plain(dequantize(tensor, out).plain())),
+        Err(why) => Err(why),
     }
 }
 
