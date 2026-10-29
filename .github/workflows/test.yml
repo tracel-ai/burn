@@ -16,8 +16,6 @@ on:
       - "!LICENSE-MIT"
   pull_request:
     types: [opened, synchronize]
-    # Only PRs to main run CI: PRs into dev/louisfd run none, and the
-    # copy on staging/louisfd is tested through its standing PR to main.
     branches:
       - main
     paths:
