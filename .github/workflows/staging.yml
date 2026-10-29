@@ -23,7 +23,7 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - name: checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
       - name: Every tracel-ai pin is on its main
         env:
           GH_TOKEN: ${{ github.token }}
