@@ -618,6 +618,7 @@ where
 
 /// A tensor the fusion server is resolving, so the servers of several devices can resolve theirs
 /// at once.
+#[must_use = "the resolved tensor is lost unless it is waited on"]
 pub struct Resolving<T> {
     receiver: mpsc::Receiver<thread::Result<Result<T, TensorError>>>,
 }
