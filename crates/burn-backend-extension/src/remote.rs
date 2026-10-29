@@ -1,4 +1,4 @@
-//! Lower backend extension methods to custom operations that travel as IR alone.
+//! Emit, from an extension trait's parsed [`LazyMethod`]s, custom operations that travel as IR alone.
 //!
 //! The remote backend runs an operation on a server that has nothing but its `CustomOpIr`, so the
 //! IR carries every argument: tensors as inputs in declaration order (leaf order inside extension
@@ -11,10 +11,7 @@
 //! generated `Fusion<B>` implementation wraps, and the server's handlers, a type registering one
 //! handler per method in a `CustomOpRegistry<B>` for any backend `B` implementing the trait.
 use crate::derive::{DeriveCase, gen_case_ctor, gen_case_pattern};
-use crate::fusion::{
-    ArgumentKind, LazyMethod, ScalarDecode, expand_methods, is_primitive, parse_scalar_attribute,
-};
-use crate::ir::{OperationOutput, with_backend};
+use crate::parse::{ArgumentKind, LazyMethod, ScalarArgument, ScalarDecode, expand_methods};
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
 use syn::ItemTrait;
@@ -30,12 +27,12 @@ pub(crate) fn expand(item: &ItemTrait, gate: &TokenStream) -> syn::Result<TokenS
     let trait_name = &item.ident;
     let mut registrations = Vec::new();
     let (methods, diagnostics) = expand_methods(item, |method| {
-        let Some(method) = LazyMethod::parse(trait_name, method)? else {
+        let Some(method) = LazyMethod::new(trait_name, method)? else {
             return Ok(None);
         };
-        let decoded = decode_arguments(&method)?;
-        registrations.push(handler(trait_name, &method, &decoded));
-        Ok(Some(client(&method)))
+        let method = RemoteMethod::new(&method)?;
+        registrations.push(method.handler(trait_name));
+        Ok(Some(method.client()))
     })?;
     let vis = &item.vis;
     let handlers = format_ident!("{trait_name}Handlers");
@@ -75,14 +72,22 @@ pub(crate) fn expand(item: &ItemTrait, gate: &TokenStream) -> syn::Result<TokenS
     })
 }
 
-/// The decoding of each ordinary argument, or the error naming what it lacks.
-fn decode_arguments(method: &LazyMethod<'_>) -> syn::Result<Vec<Option<TokenStream>>> {
-    method
-        .arguments
-        .iter()
-        .map(|argument| {
+/// A lazily executed method as the remote backend sends and serves it.
+struct RemoteMethod<'a> {
+    method: &'a LazyMethod<'a>,
+    /// The statement rebuilding each ordinary argument from its scalar, in declaration order.
+    decodes: Vec<TokenStream>,
+}
+
+impl<'a> RemoteMethod<'a> {
+    /// # Errors
+    ///
+    /// An ordinary argument the server cannot rebuild from its scalar.
+    fn new(method: &'a LazyMethod<'a>) -> syn::Result<Self> {
+        let mut decodes = Vec::new();
+        for argument in &method.arguments {
             let ArgumentKind::Ordinary { scalar } = &argument.kind else {
-                return Ok(None);
+                continue;
             };
             let name = argument.name;
             let ty = &argument.arg.ty;
@@ -97,7 +102,7 @@ fn decode_arguments(method: &LazyMethod<'_>) -> syn::Result<Vec<Option<TokenStre
                 ));
             };
             let next = quote!(burn::backend::fusion::custom::next_scalar(&mut __scalars));
-            Ok(Some(match &scalar.decode {
+            decodes.push(match &scalar.decode {
                 ScalarDecode::FromScalar => quote! {
                     let #name: #ty = <#ty as burn::backend::fusion::custom::FromScalarIr>::from_scalar_ir(#next);
                 },
@@ -114,198 +119,159 @@ fn decode_arguments(method: &LazyMethod<'_>) -> syn::Result<Vec<Option<TokenStre
                         ),
                     ));
                 }
-            }))
-        })
-        .collect()
-}
-
-/// The `BackendRouter<R>` method: describe the call as IR and send it through the router client.
-fn client(method: &LazyMethod<'_>) -> TokenStream {
-    let backend = router();
-    let support = quote!(burn::backend::fusion::custom);
-    let mut metadata_inputs = Vec::new();
-    let mut metadata_args = Vec::new();
-    let mut inputs = Vec::new();
-    for argument in &method.arguments {
-        let name = argument.name;
-        match argument.adapter(backend.clone()) {
-            Some(adapter) => {
-                let adapter = quote!(<#adapter as #support::RemoteValueAdapter<#backend>>);
-                let borrowed = matches!(argument.kind, ArgumentKind::Tensor { borrowed: true, .. });
-                let meta = format_ident!("__metadata_{name}");
-                let (reference, value) = if borrowed {
-                    (quote!(#name), quote!((*#name).clone()))
-                } else {
-                    (quote!(&#name), quote!(#name))
-                };
-                metadata_inputs.push(quote!(let #meta = #adapter::to_metadata(#reference);));
-                metadata_args.push(quote!(&#meta));
-                inputs.push(quote!(#adapter::append_input(#value, &mut __input);));
-            }
-            None => metadata_args.push(quote!(&#name)),
-        }
-    }
-    let scalars = method.scalars();
-    let extension_scalars = method.extension_scalars(backend.clone());
-    let mut output_ir = Vec::new();
-    let reconstruct = walk_client_output(&method.output, quote!(__meta), &mut output_ir);
-    let expr = method.metadata(backend.clone());
-    let id = &method.id;
-    let signature = &method.signature;
-    let attrs = method.attrs();
-    quote! {
-        #(#attrs)* #signature {
-            use burn::backend::remote_extension::RouterClient as _;
-            #(#metadata_inputs)*
-            let __meta = (#expr)(#(#metadata_args),*);
-            #[allow(unused_mut)]
-            let mut __scalars = vec![#(#scalars),*];
-            #(#extension_scalars)*
-            let mut __client = None;
-            #[cfg(debug_assertions)]
-            let mut __device_id = None;
-            let mut __inputs = Vec::new();
-            {
-                let mut __input = |tensor: burn::backend::remote_extension::RouterTensor<<__R as burn::backend::remote_extension::RouterChannel>::Client>| {
-                    #[cfg(debug_assertions)] {
-                        let id = burn::backend::Device::to_id(&tensor.client.device());
-                        assert_eq!(*__device_id.get_or_insert(id), id, "custom operation inputs must share a device");
-                    }
-                    __client.get_or_insert_with(|| tensor.client.clone());
-                    __inputs.push(tensor.into_ir());
-                };
-                #(#inputs)*
-            }
-            let __client = __client.expect("a custom operation requires at least one input tensor");
-            let mut __outputs = Vec::new();
-            {
-                let mut __create = || __client.create_empty_handle();
-                #(#output_ir)*
-            }
-            let __desc = #support::CustomOpIr {
-                id: (#id).into(),
-                inputs: __inputs,
-                outputs: __outputs,
-                scalars: __scalars,
-            };
-            let mut __handles = __client.register(#support::OperationIr::Custom(__desc)).into_iter();
-            #reconstruct
-        }
-    }
-}
-
-/// Append the output IR of every leaf, returning the expression reassembling the output.
-fn walk_client_output(
-    output: &OperationOutput,
-    meta: TokenStream,
-    output_ir: &mut Vec<TokenStream>,
-) -> TokenStream {
-    if let OperationOutput::Tuple(items) = output {
-        let items = items.iter().enumerate().map(|(i, item)| {
-            let i = syn::Index::from(i);
-            walk_client_output(item, quote!(#meta.#i), output_ir)
-        });
-        let items: Vec<_> = items.collect();
-        return quote!((#(#items,)*));
-    }
-    let adapter = output_adapter(output, router());
-    let backend = router();
-    let adapter = quote!(<#adapter as burn::backend::fusion::custom::RemoteValueAdapter<#backend>>);
-    output_ir.push(quote!(#adapter::append_output_ir(&#meta, &mut __outputs, &mut __create);));
-    quote!(#adapter::build_output(&#meta, &mut __handles))
-}
-
-/// Register every output leaf, in leaf order.
-fn walk_handler_output(
-    output: &OperationOutput,
-    value: TokenStream,
-    register: &mut Vec<TokenStream>,
-) {
-    if let OperationOutput::Tuple(items) = output {
-        for (i, item) in items.iter().enumerate() {
-            let i = syn::Index::from(i);
-            walk_handler_output(item, quote!(#value.#i), register);
-        }
-        return;
-    }
-    let adapter = output_adapter(output, quote!(__B));
-    register.push(quote! {
-        <#adapter as burn::backend::fusion::custom::RemoteValueAdapter<__B>>::register_output(#value, &mut __outputs, __handles);
-    });
-}
-
-fn output_adapter(output: &OperationOutput, backend: TokenStream) -> TokenStream {
-    match output {
-        OperationOutput::Tensor(kind) => {
-            let kind = kind.variant();
-            quote!(burn::backend::fusion::custom::#kind)
-        }
-        OperationOutput::Extension(ty) => with_backend(ty, backend),
-        _ => unreachable!("lazy outputs are validated while parsing"),
-    }
-}
-
-/// The registration of the server handler rebuilding a call to `method` on `__B`.
-fn handler(
-    trait_name: &syn::Ident,
-    method: &LazyMethod<'_>,
-    decoded: &[Option<TokenStream>],
-) -> TokenStream {
-    let ordinary = decoded.iter().flatten();
-    let mut reads = Vec::new();
-    let mut invoke = Vec::new();
-    for argument in &method.arguments {
-        let name = argument.name;
-        match &argument.kind {
-            ArgumentKind::Ordinary { .. } => invoke.push(quote!(#name)),
-            ArgumentKind::Tensor { borrowed, .. } => {
-                invoke.push(if *borrowed {
-                    quote!(&#name)
-                } else {
-                    quote!(#name)
-                });
-            }
-            ArgumentKind::Extension { .. } => invoke.push(quote!(#name)),
-        }
-        if let Some(adapter) = argument.adapter(quote!(__B)) {
-            reads.push(quote! {
-                let #name = <#adapter as burn::backend::fusion::custom::RemoteValueAdapter<__B>>::read_input(__handles, &mut __inputs, &mut __scalars);
             });
         }
+        Ok(Self { method, decodes })
     }
-    let mut register = Vec::new();
-    walk_handler_output(&method.output, quote!(__output), &mut register);
-    let call = method.call(trait_name, quote!(__B), &invoke);
-    let id = &method.id;
-    let gates = method
-        .method
-        .attrs
-        .iter()
-        .filter(|a| a.path().is_ident("cfg"));
-    quote! {
-        #(#gates)*
-        registry.try_register(#id, |__handles, __ir, _| {
-            let mut __inputs = __ir.inputs.iter();
-            let mut __scalars = __ir.scalars.iter();
-            #(#ordinary)*
-            #(#reads)*
-            assert!(
-                __inputs.next().is_none() && __scalars.next().is_none(),
-                "the IR of custom operation `{}` carries more inputs or scalars than its signature",
-                __ir.id,
+
+    /// The `BackendRouter<R>` method: describe the call as IR and send it through the router
+    /// client.
+    fn client(&self) -> TokenStream {
+        let method = self.method;
+        let backend = router();
+        let support = quote!(burn::backend::fusion::custom);
+        let mut metadata_inputs = Vec::new();
+        let mut metadata_args = Vec::new();
+        let mut inputs = Vec::new();
+        for argument in &method.arguments {
+            let name = argument.name;
+            match argument.adapter(backend.clone()) {
+                Some(adapter) => {
+                    let adapter = quote!(<#adapter as #support::RemoteValueAdapter<#backend>>);
+                    let borrowed =
+                        matches!(argument.kind, ArgumentKind::Tensor { borrowed: true, .. });
+                    let meta = format_ident!("__metadata_{name}");
+                    let (reference, value) = if borrowed {
+                        (quote!(#name), quote!((*#name).clone()))
+                    } else {
+                        (quote!(&#name), quote!(#name))
+                    };
+                    metadata_inputs.push(quote!(let #meta = #adapter::to_metadata(#reference);));
+                    metadata_args.push(quote!(&#meta));
+                    inputs.push(quote!(#adapter::append_input(#value, &mut __input);));
+                }
+                None => metadata_args.push(quote!(&#name)),
+            }
+        }
+        let scalars = method.scalars();
+        let extension_scalars = method.extension_scalars(backend.clone());
+        let mut output_ir = Vec::new();
+        let reconstruct = method.output.map_leaves(&backend, &mut |adapter, member| {
+            let adapter = quote!(<#adapter as #support::RemoteValueAdapter<#backend>>);
+            output_ir.push(
+                quote!(#adapter::append_output_ir(&__meta #member, &mut __outputs, &mut __create);),
             );
-            let __output = #call;
-            let mut __outputs = __ir.outputs.iter();
-            #(#register)*
-            assert!(
-                __outputs.next().is_none(),
-                "the backend returned fewer output tensors than custom operation `{}` describes",
-                __ir.id,
-            );
-        })
-        .unwrap_or_else(|conflict| {
-            panic!("{conflict}; give one of the methods sharing it its own `#[fusion(id = ..)]`")
+            quote!(#adapter::build_output(&__meta #member, &mut __handles))
         });
+        let expr = method.metadata(backend.clone());
+        let id = &method.id;
+        let signature = &method.signature;
+        let attrs = method.attrs();
+        quote! {
+            #(#attrs)* #signature {
+                use burn::backend::remote_extension::RouterClient as _;
+                #(#metadata_inputs)*
+                let __meta = (#expr)(#(#metadata_args),*);
+                #[allow(unused_mut)]
+                let mut __scalars = vec![#(#scalars),*];
+                #(#extension_scalars)*
+                let mut __client = None;
+                #[cfg(debug_assertions)]
+                let mut __device_id = None;
+                let mut __inputs = Vec::new();
+                {
+                    let mut __input = |tensor: burn::backend::remote_extension::RouterTensor<<__R as burn::backend::remote_extension::RouterChannel>::Client>| {
+                        #[cfg(debug_assertions)] {
+                            let id = burn::backend::Device::to_id(&tensor.client.device());
+                            assert_eq!(*__device_id.get_or_insert(id), id, "custom operation inputs must share a device");
+                        }
+                        __client.get_or_insert_with(|| tensor.client.clone());
+                        __inputs.push(tensor.into_ir());
+                    };
+                    #(#inputs)*
+                }
+                let __client = __client.expect("a custom operation requires at least one input tensor");
+                let mut __outputs = Vec::new();
+                {
+                    let mut __create = || __client.create_empty_handle();
+                    #(#output_ir)*
+                }
+                let __desc = #support::CustomOpIr {
+                    id: (#id).into(),
+                    inputs: __inputs,
+                    outputs: __outputs,
+                    scalars: __scalars,
+                };
+                let mut __handles = __client.register(#support::OperationIr::Custom(__desc)).into_iter();
+                #reconstruct
+            }
+        }
+    }
+
+    /// The registration of the server handler rebuilding a call of the method on `__B`.
+    fn handler(&self, trait_name: &syn::Ident) -> TokenStream {
+        let method = self.method;
+        let decodes = &self.decodes;
+        let mut reads = Vec::new();
+        let mut invoke = Vec::new();
+        for argument in &method.arguments {
+            let name = argument.name;
+            match &argument.kind {
+                ArgumentKind::Ordinary { .. } => invoke.push(quote!(#name)),
+                ArgumentKind::Tensor { borrowed, .. } => {
+                    invoke.push(if *borrowed {
+                        quote!(&#name)
+                    } else {
+                        quote!(#name)
+                    });
+                }
+                ArgumentKind::Extension { .. } => invoke.push(quote!(#name)),
+            }
+            if let Some(adapter) = argument.adapter(quote!(__B)) {
+                reads.push(quote! {
+                    let #name = <#adapter as burn::backend::fusion::custom::RemoteValueAdapter<__B>>::read_input(__handles, &mut __inputs, &mut __scalars);
+                });
+            }
+        }
+        let mut register = Vec::new();
+        method.output.map_leaves(&quote!(__B), &mut |adapter, member| {
+            register.push(quote! {
+                <#adapter as burn::backend::fusion::custom::RemoteValueAdapter<__B>>::register_output(__output #member, &mut __outputs, __handles);
+            });
+            quote!()
+        });
+        let call = method.call(trait_name, quote!(__B), &invoke);
+        let id = &method.id;
+        let gates = method
+            .method
+            .attrs
+            .iter()
+            .filter(|a| a.path().is_ident("cfg"));
+        quote! {
+            #(#gates)*
+            registry.try_register(#id, |__handles, __ir, _| {
+                let mut __inputs = __ir.inputs.iter();
+                let mut __scalars = __ir.scalars.iter();
+                #(#decodes)*
+                #(#reads)*
+                assert!(
+                    __inputs.next().is_none() && __scalars.next().is_none(),
+                    "the IR of custom operation `{}` carries more inputs or scalars than its signature",
+                    __ir.id,
+                );
+                let __output = #call;
+                let mut __outputs = __ir.outputs.iter();
+                #(#register)*
+                assert!(
+                    __outputs.next().is_none(),
+                    "the backend returned fewer output tensors than custom operation `{}` describes",
+                    __ir.id,
+                );
+            })
+            .unwrap_or_else(|conflict| {
+                panic!("{conflict}; give one of the methods sharing it its own `#[fusion(id = ..)]`")
+            });
+        }
     }
 }
 
@@ -530,9 +496,7 @@ impl RemoteAdapterDerive {
 /// The scalar encoding of an ordinary field: its `#[extension_type(scalar ..)]` annotation, or
 /// the field itself when it is a primitive. The encoding sees a named field by its name and a
 /// positional one as `value`.
-fn field_scalar(
-    field: &crate::derive::CaseField,
-) -> syn::Result<(syn::Ident, crate::fusion::ScalarArgument)> {
+fn field_scalar(field: &crate::derive::CaseField) -> syn::Result<(syn::Ident, ScalarArgument)> {
     let name = field
         .member
         .clone()
@@ -541,26 +505,17 @@ fn field_scalar(
         .attrs
         .iter()
         .find(|a| a.path().is_ident("extension_type") && matches!(a.meta, syn::Meta::List(_)));
-    if let Some(annotation) = annotation {
-        return Ok((name.clone(), parse_scalar_attribute(annotation, &name)?));
+    match ScalarArgument::new(&name, &field.ty, annotation)? {
+        Some(scalar) => Ok((name, scalar)),
+        None => Err(syn::Error::new_spanned(
+            &field.ty,
+            format!(
+                "a `remote` extension value sends `{name}` as an IR scalar, and this type has no \
+                 scalar encoding; annotate the field with \
+                 `#[extension_type(scalar = <expression>, decode = <callable>)]`"
+            ),
+        )),
     }
-    if is_primitive(&field.ty) {
-        return Ok((
-            name.clone(),
-            crate::fusion::ScalarArgument {
-                encode: syn::parse_quote!(#name),
-                decode: ScalarDecode::FromScalar,
-            },
-        ));
-    }
-    Err(syn::Error::new_spanned(
-        &field.ty,
-        format!(
-            "a `remote` extension value sends `{name}` as an IR scalar, and this type has no scalar \
-             encoding; annotate the field with \
-             `#[extension_type(scalar = <expression>, decode = <callable>)]`"
-        ),
-    ))
 }
 
 #[cfg(test)]

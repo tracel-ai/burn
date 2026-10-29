@@ -14,8 +14,8 @@
 //! - `ir` describes tensor inputs, outputs, and backend calls independently of either frontend.
 //! - `routing` owns shared backend selection, input extraction, invocation, and output wrapping.
 //! - `derive` maps extension structs and enums across the dispatch boundary.
-//! - `fusion` lowers methods to lazy Fusion operations; `remote` reuses its parsing to send them
-//!   to the remote backend as IR.
+//! - `parse` reads an extension's lazily executed methods; `fusion` emits their lazy Fusion
+//!   operations from it, and `remote` the remote backend's client and server handlers.
 //! - `catalog` is the single list of runtime backends used by generated and handwritten paths.
 
 use proc_macro::TokenStream;
@@ -26,6 +26,7 @@ mod dispatch;
 mod extension;
 mod fusion;
 mod ir;
+mod parse;
 mod remote;
 mod routing;
 
