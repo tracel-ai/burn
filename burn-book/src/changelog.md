@@ -295,6 +295,9 @@ loading those checkpoints by filtering to `linear_inner` and `linear_outer`.
   ([#6039](https://github.com/tracel-ai/burn/pull/6039))
 - Correct accelerated attention results for padding masks broadcast across query positions.
   ([#6008](https://github.com/tracel-ai/burn/pull/6008))
+- Correct `Same` padding for dilated 1D, 2D, and 3D convolutions, including Conv3d configurations
+  whose effective kernel permits symmetric padding.
+  ([#6286](https://github.com/tracel-ai/burn/pull/6286)) [@onenewcode](https://github.com/onenewcode)
 - Correct max-pooling SAME padding with dilation. Reject unsupported asymmetric
   deformable-convolution padding and invalid binary-cross-entropy inputs.
   ([#6023](https://github.com/tracel-ai/burn/pull/6023),
