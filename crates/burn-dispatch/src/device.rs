@@ -273,6 +273,13 @@ impl Default for DispatchDevice {
                             "BURN_DEVICE=metal requested, but the 'metal' feature is not enabled."
                         );
                     }
+                    "metal-native" => {
+                        #[cfg(feature = "metal-native")]
+                        return Self::Cube(CubeDevice::Metal(Default::default()));
+                        panic!(
+                            "BURN_DEVICE=metal-native requested, but the 'metal-native' feature is not enabled."
+                        );
+                    }
                     "vulkan" => {
                         #[cfg(feature = "vulkan")]
                         return Self::Cube(CubeDevice::Wgpu(
@@ -329,6 +336,9 @@ impl Default for DispatchDevice {
         // want — a discrete accelerator, then the portable path, then the CPU.
         #[cfg(feature = "cuda")]
         return Self::Cube(CubeDevice::Cuda(Default::default()));
+
+        #[cfg(feature = "metal-native")]
+        return Self::Cube(CubeDevice::Metal(Default::default()));
 
         #[cfg(feature = "metal")]
         return Self::Cube(CubeDevice::Wgpu(Default::default()));
@@ -685,6 +695,13 @@ impl From<CudaDevice> for DispatchDevice {
 impl From<RocmDevice> for DispatchDevice {
     fn from(device: RocmDevice) -> Self {
         DispatchDevice::Cube(CubeDevice::Hip(device))
+    }
+}
+
+#[cfg(feature = "metal-native")]
+impl From<MetalDevice> for DispatchDevice {
+    fn from(device: MetalDevice) -> Self {
+        DispatchDevice::Cube(CubeDevice::Metal(device))
     }
 }
 

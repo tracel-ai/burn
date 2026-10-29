@@ -1199,9 +1199,9 @@ fn cube_runtime_enabled(runtime: RuntimeId) -> bool {
             feature = "webgpu"
         )),
         RuntimeId::Cpu => cfg!(feature = "cpu"),
-        // burn's `metal` feature is wgpu compiling to MSL; cubecl's native Metal runtime has no
-        // burn feature to enable it.
-        RuntimeId::Metal => false,
+        // burn's `metal` feature is wgpu compiling to MSL; `metal-native` is cubecl's own Metal
+        // runtime.
+        RuntimeId::Metal => cfg!(feature = "metal-native"),
     }
 }
 

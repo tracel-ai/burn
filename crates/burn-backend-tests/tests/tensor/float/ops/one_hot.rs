@@ -89,7 +89,7 @@ fn one_hot_fill_should_panic_when_negative_axis_out_range_of_rank() {
 }
 
 // Skip on metal - F64 not supported
-#[cfg(not(feature = "metal"))]
+#[cfg(not(any(feature = "metal", feature = "metal-native")))]
 #[test]
 fn one_hot_fill_should_keep_dtype() {
     let tensor = TestTensor::<1>::from([0.0, 2.0]).cast(burn_tensor::DType::F64);
