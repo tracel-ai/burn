@@ -16,13 +16,13 @@ type DeviceQueryHandler<B> = Arc<dyn Fn(&Device<B>) -> Vec<u8> + Send + Sync>;
 ///
 /// A query is a side request, not a tensor operation: it asks about the session's device, such as
 /// its hardware properties, which the client cannot learn from the operations it sends.
-pub(crate) struct DeviceQueries<B: BackendIr> {
+pub struct DeviceQueries<B: BackendIr> {
     handlers: HashMap<DeviceQueryId, DeviceQueryHandler<B>>,
 }
 
 impl<B: BackendIr> DeviceQueries<B> {
     /// Answer `id` with `handler`, replacing the handler `id` had.
-    pub(crate) fn register<F>(&mut self, id: DeviceQueryId, handler: F)
+    pub fn register<F>(&mut self, id: DeviceQueryId, handler: F)
     where
         F: Fn(&Device<B>) -> Vec<u8> + Send + Sync + 'static,
     {
@@ -31,7 +31,7 @@ impl<B: BackendIr> DeviceQueries<B> {
 
     /// The answer to `id` about `device`. A handler that panics is answered as a failure rather
     /// than taking the session down with it.
-    pub(crate) fn answer(
+    pub fn answer(
         &self,
         id: &DeviceQueryId,
         device: &Device<B>,

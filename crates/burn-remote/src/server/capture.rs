@@ -24,7 +24,7 @@ use crate::shared::SessionId;
 ///
 /// A session that prepares a capture and never starts it holds the device until it ends.
 #[derive(Clone, Default)]
-pub(crate) struct DeviceCaptureLock {
+pub struct DeviceCaptureLock {
     holder: Arc<Mutex<Option<SessionId>>>,
 }
 
@@ -61,7 +61,7 @@ impl DeviceCaptureLock {
 /// [Closing](Self::close) ends the open capture and releases the lock; dropping releases it
 /// too, so a teardown that panics before or inside the close still hands the device on, though
 /// its backend stream may be left recording and the next capture on it fail.
-pub(crate) struct SessionCaptures<B: BackendIr> {
+pub struct SessionCaptures<B: BackendIr> {
     session: SessionId,
     capture_lock: DeviceCaptureLock,
     open: Option<OpenCapture>,
@@ -93,7 +93,7 @@ impl OpenCapture {
 
 impl<B: BackendIr> SessionCaptures<B> {
     /// The captures of `session`, which runs on the device `capture_lock` guards.
-    pub(crate) fn new(session: SessionId, capture_lock: DeviceCaptureLock) -> Self {
+    pub fn new(session: SessionId, capture_lock: DeviceCaptureLock) -> Self {
         Self {
             session,
             capture_lock,
@@ -104,7 +104,7 @@ impl<B: BackendIr> SessionCaptures<B> {
     }
 
     /// Prepare the backend for a capture on `stream`, taking the device's lock.
-    pub(crate) fn prepare(
+    pub fn prepare(
         &mut self,
         runner: &TensorInterpreter<B>,
         stream: StreamId,
@@ -119,7 +119,7 @@ impl<B: BackendIr> SessionCaptures<B> {
     }
 
     /// Start recording `stream`'s launches, after the preparation on it if there was one.
-    pub(crate) fn start(
+    pub fn start(
         &mut self,
         runner: &TensorInterpreter<B>,
         stream: StreamId,
@@ -136,7 +136,7 @@ impl<B: BackendIr> SessionCaptures<B> {
     }
 
     /// Stop the recording on `stream` and keep its graph under `graph`.
-    pub(crate) fn stop(
+    pub fn stop(
         &mut self,
         runner: &TensorInterpreter<B>,
         stream: StreamId,
@@ -155,7 +155,7 @@ impl<B: BackendIr> SessionCaptures<B> {
     /// Replay `graph` on `stream`. The client does not wait on the replay, so a failure is kept
     /// for the next read or sync of `stream`; a later replay that succeeds does not clear it, as
     /// it ran on what the failed one left.
-    pub(crate) fn replay(
+    pub fn replay(
         &mut self,
         runner: &TensorInterpreter<B>,
         stream: StreamId,
@@ -180,13 +180,13 @@ impl<B: BackendIr> SessionCaptures<B> {
     }
 
     /// Drop `graph`; the client never replays it again.
-    pub(crate) fn release(&mut self, graph: CapturedGraphId) {
+    pub fn release(&mut self, graph: CapturedGraphId) {
         self.graphs.remove(&graph);
     }
 
     /// The first replay on `stream` that failed since the last call, which a read or sync of
     /// `stream` answers with in place of its own result.
-    pub(crate) fn take_replay_failure(&mut self, stream: StreamId) -> Option<ExecutionError> {
+    pub fn take_replay_failure(&mut self, stream: StreamId) -> Option<ExecutionError> {
         self.replay_failures.remove(&stream)
     }
 
@@ -195,7 +195,7 @@ impl<B: BackendIr> SessionCaptures<B> {
     ///
     /// A prepared capture is started and stopped at once, since a backend leaves a prepared
     /// stream only through a recording.
-    pub(crate) fn close(mut self, runner: &TensorInterpreter<B>) {
+    pub fn close(mut self, runner: &TensorInterpreter<B>) {
         let ended = match self.open {
             Some(OpenCapture::Prepared(stream)) => self
                 .start(runner, stream)

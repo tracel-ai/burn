@@ -52,11 +52,11 @@ use tokio::runtime::Handle;
 use tokio::sync::mpsc;
 
 use crate::server::DeviceQueries;
-use crate::server::capture::{DeviceCaptureLock, SessionCaptures};
+use crate::server::ServerStreams;
 use crate::server::local_comm::LocalCommService;
 use crate::server::spawn::{CatchPanic, ResponseTasks, spawn_detached};
-use crate::server::streams::ServerStreams;
 use crate::server::transfer::TensorTransfer;
+use crate::server::{DeviceCaptureLock, SessionCaptures};
 use crate::shared::{
     LocalAllReducePart, RequestId, SessionId, Task, TaskResponse, TaskResponseContent,
 };
@@ -75,11 +75,11 @@ const TASK_CHANNEL_CAPACITY: usize = 64;
 
 /// What a server shares with each of its sessions: the tensor transfers to other servers and
 /// between its own sessions, its device queries and its telemetry.
-pub(crate) struct SessionServices<B: BackendIr, T> {
-    pub(crate) transfer: Arc<T>,
-    pub(crate) local_comm: Arc<LocalCommService<B>>,
-    pub(crate) queries: DeviceQueries<B>,
-    pub(crate) probe: TelemetryProbe,
+pub struct SessionServices<B: BackendIr, T> {
+    pub transfer: Arc<T>,
+    pub local_comm: Arc<LocalCommService<B>>,
+    pub queries: DeviceQueries<B>,
+    pub probe: TelemetryProbe,
 }
 
 /// Everything constant for the lifetime of a session.

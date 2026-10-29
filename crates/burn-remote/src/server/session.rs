@@ -8,8 +8,8 @@ use std::{
 use tokio::sync::{Mutex, mpsc};
 
 use crate::metrics::{MetricSide, logger_task};
+use crate::server::DeviceCaptureLock;
 use crate::server::DeviceQueries;
-use crate::server::capture::DeviceCaptureLock;
 use crate::server::local_comm::LocalCommService;
 use crate::server::service::{SessionChannels, SessionService};
 use crate::server::spawn::spawn_detached;
@@ -106,7 +106,7 @@ where
     }
 
     /// Register device-query handlers, shared read-only with every session.
-    pub(crate) fn with_device_queries(mut self, queries: DeviceQueries<B>) -> Self {
+    pub fn with_device_queries(mut self, queries: DeviceQueries<B>) -> Self {
         self.queries = queries;
         self
     }

@@ -16,13 +16,13 @@ use burn_std::id::StreamId;
 /// The map keeps every stream the client has named for the life of the session, since the
 /// client never says that it is done with one.
 #[derive(Default)]
-pub(crate) struct ServerStreams {
+pub struct ServerStreams {
     streams: HashMap<StreamId, StreamId>,
 }
 
 impl ServerStreams {
     /// The server stream the client's `stream` runs on.
-    pub(crate) fn of(&mut self, stream: StreamId) -> StreamId {
+    pub fn of(&mut self, stream: StreamId) -> StreamId {
         *self
             .streams
             .entry(stream)
