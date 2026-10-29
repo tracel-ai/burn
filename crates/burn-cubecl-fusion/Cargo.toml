@@ -18,6 +18,8 @@ workspace = true
 default = ["autotune", "std", "cubecl/default", "burn-fusion/default"]
 
 autotune = []
+# The fused matmul runs on cubek's tile routines, as burn-cubecl's feature of the same name.
+tile-kernels-only = ["autotune", "cubek/matmul-tiled", "cubek/microkernel"]
 autotune-checks = ["cubecl/autotune-checks", "half"]
 doc = ["default", "dep:branches"]
 test-util = []

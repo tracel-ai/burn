@@ -1,6 +1,8 @@
 use super::args::FusedMatmulInputLaunch;
-#[cfg(feature = "autotune")]
+#[cfg(all(feature = "autotune", not(feature = "tile-kernels-only")))]
 use super::tune::fused_matmul_autotune;
+#[cfg(not(feature = "tile-kernels-only"))]
+use crate::engine::trace::TraceError;
 use crate::{
     CubeFusionHandle, FallbackOperation,
     engine::{
@@ -9,7 +11,7 @@ use crate::{
             FuseTraceLauncher, HandleInput, LaunchPlan,
             runner::{TraceRunner, Vectorization, VectorizationAxis},
         },
-        trace::{FuseTrace, TraceError, TuneOutput},
+        trace::{FuseTrace, TuneOutput},
     },
     optim::{
         FusedOperation,
@@ -104,6 +106,7 @@ impl MatmulOptimizationInfo {
 }
 
 impl MatmulOptimizationTuneArg {
+    #[cfg(not(feature = "tile-kernels-only"))]
     pub(crate) fn execute_fused(
         &self,
         context: &mut Context<CubeFusionHandle>,
@@ -182,9 +185,22 @@ impl MatmulOptimization {
             fallback,
         };
 
+        #[cfg(feature = "tile-kernels-only")]
+        super::tile_kernels::execute(arg, context);
+
+        #[cfg(not(feature = "tile-kernels-only"))]
+        Self::execute_multi_level(arg, context);
+    }
+
+    /// Run the product on the multi-level kernels, fused or through its fallback.
+    #[cfg(not(feature = "tile-kernels-only"))]
+    fn execute_multi_level(
+        arg: MatmulOptimizationTuneArg,
+        context: &mut Context<CubeFusionHandle>,
+    ) {
         // A storage-tiled operand is read through its binding by the eager matmul, which stages
         // to its tiles; the fused kernel assembles its own arguments and would read it as rows.
-        let op = &self.info.matmul.op;
+        let op = &arg.info.matmul.op;
         let stored = [op.lhs.id, op.rhs.id].iter().any(|id| {
             context
                 .handles
@@ -307,7 +323,7 @@ impl Default for FusedMatmulSelector {
 pub struct FusedMatmul {
     pub(crate) lhs: MatmulArg,
     pub(crate) rhs: MatmulArg,
-    out: FuseArg,
+    pub(crate) out: FuseArg,
     pub(crate) op: BinaryOpIr,
     pub(crate) selector: FusedMatmulSelector,
 }
