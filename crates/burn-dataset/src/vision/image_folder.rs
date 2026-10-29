@@ -512,7 +512,6 @@ type ImageDatasetMapper =
 /// A generic dataset to load images from disk.
 pub struct ImageFolderDataset {
     dataset: ImageDatasetMapper,
-    class_names: HashMap<usize, String>,
 }
 
 impl Dataset<ImageDatasetItem> for ImageFolderDataset {
@@ -727,17 +726,10 @@ impl ImageFolderDataset {
         let annotations = parse_coco_bbox_annotations(&json)?;
         let items = parse_coco_images(&images_path, annotations, &json)?;
         let dataset = InMemDataset::new(items);
-        let class_names = classes
-            .iter()
-            .map(|(name, &label)| (label, name.clone()))
-            .collect();
         let mapper = PathToImageDatasetItem { classes };
         let dataset = MapperDataset::new(dataset, mapper);
 
-        Ok(Self {
-            dataset,
-            class_names,
-        })
+        Ok(Self { dataset })
     }
 
     /// Create an image dataset with the specified items.
@@ -765,19 +757,12 @@ impl ImageFolderDataset {
             .map(|(idx, cls)| (cls.to_string(), idx))
             .collect();
 
-        let class_names = classes_map
-            .iter()
-            .map(|(name, &label)| (label, name.clone()))
-            .collect();
         let mapper = PathToImageDatasetItem {
             classes: classes_map,
         };
         let dataset = MapperDataset::new(dataset, mapper);
 
-        Ok(Self {
-            dataset,
-            class_names,
-        })
+        Ok(Self { dataset })
     }
 
     /// Returns the class name for a label, as used in [`Annotation`] values and
@@ -785,7 +770,11 @@ impl ImageFolderDataset {
     ///
     /// Returns `None` if no class has this label.
     pub fn class_name(&self, label: usize) -> Option<&str> {
-        self.class_names.get(&label).map(String::as_str)
+        self.dataset
+            .mapper()
+            .classes
+            .iter()
+            .find_map(|(name, &id)| (id == label).then_some(name.as_str()))
     }
 
     /// Check if extension is supported.
