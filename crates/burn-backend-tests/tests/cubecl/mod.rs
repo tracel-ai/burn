@@ -16,6 +16,7 @@ mod conv_transpose3d;
 mod cross;
 mod gather;
 mod interpolate_nearest;
+mod long_axis_numerics;
 mod mask_fill;
 mod mask_where;
 mod matmul;

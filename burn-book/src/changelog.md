@@ -79,8 +79,11 @@ positions when sequence lengths differ.
 
 - Take a CubeCL `min_dim`, `max_dim`, `argmin` or `argmax` of a few outputs over a long axis (at least
   65536 elements) on the cube reduce routine instead of one thread per output when autotune is off.
-- Run a CubeCL matmul with a small output (at most 64 x 64) over a long inner dimension with one
-  thread per output element instead of a single cube, also as a matmul autotune candidate.
+  [@vboussot](https://github.com/vboussot)
+- Run a CubeCL matmul with a small output (at most 64 x 64) over a long inner dimension as chunks
+  of 4096 summed in parallel, then across the chunks, instead of on a single cube, also as a matmul
+  autotune candidate. A float `sum_dim` or `mean_dim` of a few outputs over a long axis (at least
+  65536 elements) takes the same two-level sum when autotune is off, instead of one thread per output.
   [@vboussot](https://github.com/vboussot)
 - Avoid a full-sized gradient copy in CubeCL FP32 `conv2d` bias backward, while retaining
   single-pass accumulation for FP16/BF16 to avoid intermediate overflow.

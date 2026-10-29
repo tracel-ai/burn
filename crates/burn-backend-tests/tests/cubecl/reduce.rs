@@ -410,3 +410,35 @@ fn reduction_extrema_over_a_long_axis_should_match_reference_backend() {
         .into_data()
         .assert_eq(&tensor_ref.min_dim(1).into_data(), false);
 }
+
+#[test]
+fn reduction_sum_and_mean_over_a_long_axis_should_match_reference_backend() {
+    // Few outputs over a long axis take the chunked route. Small integers keep every partial sum
+    // exact, so any order gives the reference's values.
+    let device = Default::default();
+    let ref_device = ReferenceDevice::new();
+    let length = 70_001;
+    let values: Vec<f32> = (0..3 * length).map(|i| ((i * 7919) % 17) as f32).collect();
+    let tensor =
+        TestTensor::<2>::from_data(burn_tensor::TensorData::new(values, [3, length]), &device);
+    let tensor_ref = TestTensor::<2>::from_data(tensor.to_data(), &ref_device);
+    tensor
+        .clone()
+        .sum_dim(1)
+        .into_data()
+        .assert_eq(&tensor_ref.clone().sum_dim(1).into_data(), false);
+    tensor
+        .clone()
+        .mean_dim(1)
+        .into_data()
+        .assert_approx_eq::<FloatElem>(
+            &tensor_ref.clone().mean_dim(1).into_data(),
+            Tolerance::default(),
+        );
+    // The same axis strided: the transposed tensor reduced over its first axis.
+    tensor
+        .transpose()
+        .sum_dim(0)
+        .into_data()
+        .assert_eq(&tensor_ref.transpose().sum_dim(0).into_data(), false);
+}

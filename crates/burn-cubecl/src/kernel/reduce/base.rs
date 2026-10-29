@@ -1,3 +1,4 @@
+use super::long_axis;
 #[cfg(feature = "autotune")]
 use super::{autotune_reduce, autotune_reduce_with_indices, autotune_sum};
 use crate::ops::permute;
@@ -429,6 +430,14 @@ pub fn reduce_dim(
     // A zero-length axis other than `dim` leaves no output to compute, and cubek cannot size a
     // launch over zero output units. A `k` too large for the axis still goes to cubek to be rejected.
     if output.meta.num_elements() == 0 && axis_length >= accumulator_len {
+        return Ok(output);
+    }
+
+    if matches!(strategy, KernelReduceStrategy::Unspecified)
+        && long_axis::applies(&input, dim, config, &dtypes)
+    {
+        let mean = matches!(config, ReduceOperationConfig::Mean);
+        long_axis::reduce_long_axis(input, output.clone(), dim, mean);
         return Ok(output);
     }
 

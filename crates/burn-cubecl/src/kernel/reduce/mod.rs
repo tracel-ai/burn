@@ -1,6 +1,7 @@
 mod base;
 #[cfg(feature = "autotune")]
 mod bounds;
+mod long_axis;
 #[cfg(feature = "autotune")]
 mod tune;
 
