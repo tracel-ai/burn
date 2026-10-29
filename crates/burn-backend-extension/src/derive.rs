@@ -15,24 +15,24 @@ enum CaseStyle {
 }
 
 /// One derive case: a struct is one case and an enum contributes one case per variant.
-pub(crate) struct DeriveCase {
+pub struct DeriveCase {
     path: TokenStream,
     style: CaseStyle,
-    pub(crate) fields: Vec<CaseField>,
+    pub fields: Vec<CaseField>,
 }
 
-pub(crate) struct CaseField {
-    pub(crate) bind: Ident,
-    pub(crate) member: Option<Ident>,
-    pub(crate) attrs: Vec<syn::Attribute>,
-    pub(crate) ty: Type,
-    pub(crate) is_ext: bool,
-    pub(crate) tensor_kind: Option<TensorKind>,
+pub struct CaseField {
+    pub bind: Ident,
+    pub member: Option<Ident>,
+    pub attrs: Vec<syn::Attribute>,
+    pub ty: Type,
+    pub is_ext: bool,
+    pub tensor_kind: Option<TensorKind>,
 }
 
 impl CaseField {
     /// The field's scalar encoding for the remote backend, `#[extension_type(scalar ..)]`.
-    pub(crate) fn scalar_annotation(&self) -> Option<&syn::Attribute> {
+    pub fn scalar_annotation(&self) -> Option<&syn::Attribute> {
         self.attrs.iter().find(|attr| {
             attr.path().is_ident("extension_type") && matches!(attr.meta, syn::Meta::List(_))
         })
@@ -66,13 +66,13 @@ fn build_case(path: TokenStream, fields: &Fields) -> DeriveCase {
 
 /// Whether a field is a nested extension value: a bare `#[extension_type]`. The list form,
 /// `#[extension_type(scalar = ..)]`, encodes an ordinary field instead.
-pub(crate) fn is_nested_extension(attrs: &[syn::Attribute]) -> bool {
+pub fn is_nested_extension(attrs: &[syn::Attribute]) -> bool {
     attrs.iter().any(|attr| {
         attr.path().is_ident("extension_type") && matches!(attr.meta, syn::Meta::Path(_))
     })
 }
 
-pub(crate) fn collect_cases(input: &DeriveInput) -> syn::Result<Vec<DeriveCase>> {
+pub fn collect_cases(input: &DeriveInput) -> syn::Result<Vec<DeriveCase>> {
     let name = &input.ident;
     match &input.data {
         Data::Struct(data) => Ok(vec![build_case(quote!(#name), &data.fields)]),
@@ -92,7 +92,7 @@ pub(crate) fn collect_cases(input: &DeriveInput) -> syn::Result<Vec<DeriveCase>>
 }
 
 /// Destructure a case, binding only the fields selected by `needed`.
-pub(crate) fn gen_case_pattern(case: &DeriveCase, needed: impl Fn(usize) -> bool) -> TokenStream {
+pub fn gen_case_pattern(case: &DeriveCase, needed: impl Fn(usize) -> bool) -> TokenStream {
     let path = &case.path;
     match case.style {
         CaseStyle::Unit => quote!(#path),
@@ -122,7 +122,7 @@ pub(crate) fn gen_case_pattern(case: &DeriveCase, needed: impl Fn(usize) -> bool
     }
 }
 
-pub(crate) fn gen_case_ctor(case: &DeriveCase, expressions: &[TokenStream]) -> TokenStream {
+pub fn gen_case_ctor(case: &DeriveCase, expressions: &[TokenStream]) -> TokenStream {
     let path = &case.path;
     match case.style {
         CaseStyle::Unit => quote!(#path),
@@ -243,7 +243,7 @@ fn gen_autodiff_routing_arm(case: &DeriveCase) -> TokenStream {
     }
 }
 
-pub(crate) fn expand(input: TokenStream) -> syn::Result<TokenStream> {
+pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
     let input: DeriveInput = syn::parse2(input)?;
     let fusion = crate::fusion::derive(&input)?;
     let name = &input.ident;

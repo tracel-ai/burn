@@ -11,17 +11,17 @@ use syn::spanned::Spanned;
 use syn::{Expr, FnArg, ItemTrait, Pat, ReturnType, TraitItem, TraitItemFn, Type};
 
 /// The lazily executed methods of an extension trait.
-pub(crate) struct LazyTrait<'a> {
-    pub(crate) name: &'a syn::Ident,
-    pub(crate) vis: &'a syn::Visibility,
+pub struct LazyTrait<'a> {
+    pub name: &'a syn::Ident,
+    pub vis: &'a syn::Visibility,
     /// Every method that does not inherit its default body, in declaration order, or why it
     /// cannot be lowered.
-    pub(crate) methods: Vec<Result<LazyMethod<'a>, MalformedMethod<'a>>>,
+    pub methods: Vec<Result<LazyMethod<'a>, MalformedMethod<'a>>>,
 }
 
 impl<'a> LazyTrait<'a> {
     /// Parse every method of `item`.
-    pub(crate) fn new(item: &'a ItemTrait) -> Self {
+    pub fn new(item: &'a ItemTrait) -> Self {
         let methods = item
             .items
             .iter()
@@ -47,24 +47,24 @@ impl<'a> LazyTrait<'a> {
 /// An emitter still implements it, with a body standing in for the lowering: the implementation
 /// stays complete, so the error is the only one, and the method's own attributes keep a `cfg`-gated
 /// method's error behind its gates.
-pub(crate) struct MalformedMethod<'a> {
+pub struct MalformedMethod<'a> {
     method: &'a TraitItemFn,
     error: syn::Error,
 }
 
 impl<'a> MalformedMethod<'a> {
-    pub(crate) fn new(method: &'a TraitItemFn, error: syn::Error) -> Self {
+    pub fn new(method: &'a TraitItemFn, error: syn::Error) -> Self {
         Self { method, error }
     }
 
     /// The method, whose body reports the error.
-    pub(crate) fn reported(&self) -> TokenStream {
+    pub fn reported(&self) -> TokenStream {
         self.implementation(self.error.to_compile_error())
     }
 
     /// The method, for an emitter beside the one reporting the error: a second report would only
     /// repeat it, and the build fails on the first.
-    pub(crate) fn unreported(&self) -> TokenStream {
+    pub fn unreported(&self) -> TokenStream {
         self.implementation(quote!(unreachable!(
             "the method's lowering error is reported once"
         )))
@@ -79,14 +79,14 @@ impl<'a> MalformedMethod<'a> {
 
 /// A trait method executed lazily from output metadata: the input Fusion and the remote backend
 /// generate their implementations from.
-pub(crate) struct LazyMethod<'a> {
-    pub(crate) method: &'a TraitItemFn,
+pub struct LazyMethod<'a> {
+    pub method: &'a TraitItemFn,
     /// The signature without the macro's argument attributes.
-    pub(crate) signature: syn::Signature,
-    pub(crate) id: TokenStream,
+    pub signature: syn::Signature,
+    pub id: TokenStream,
     metadata: Expr,
-    pub(crate) arguments: Vec<Argument<'a>>,
-    pub(crate) output: LazyOutput,
+    pub arguments: Vec<Argument<'a>>,
+    pub output: LazyOutput,
 }
 
 impl<'a> LazyMethod<'a> {
@@ -192,7 +192,7 @@ impl<'a> LazyMethod<'a> {
 
     /// The metadata callable. An immediately invoked closure needs explicit parameter types for
     /// expressions like `x.shape`, so untyped parameters get them for `backend`.
-    pub(crate) fn metadata(&self, backend: TokenStream) -> Expr {
+    pub fn metadata(&self, backend: TokenStream) -> Expr {
         let mut expr = self.metadata.clone();
         if let Expr::Closure(closure) = &mut expr {
             for (pat, argument) in closure.inputs.iter_mut().zip(&self.arguments) {
@@ -223,12 +223,12 @@ impl<'a> LazyMethod<'a> {
     }
 
     /// The method's attributes other than the macro's own.
-    pub(crate) fn attrs(&self) -> impl Iterator<Item = &syn::Attribute> {
+    pub fn attrs(&self) -> impl Iterator<Item = &syn::Attribute> {
         method_attrs(self.method)
     }
 
     /// The attributes deciding whether the method exists.
-    pub(crate) fn gates(&self) -> impl Iterator<Item = &syn::Attribute> {
+    pub fn gates(&self) -> impl Iterator<Item = &syn::Attribute> {
         self.method
             .attrs
             .iter()
@@ -236,7 +236,7 @@ impl<'a> LazyMethod<'a> {
     }
 
     /// The scalar values of the ordinary arguments, in declaration order.
-    pub(crate) fn scalars(&self, check: DecodeCheck) -> Vec<TokenStream> {
+    pub fn scalars(&self, check: DecodeCheck) -> Vec<TokenStream> {
         self.arguments
             .iter()
             .filter_map(|argument| match &argument.kind {
@@ -250,7 +250,7 @@ impl<'a> LazyMethod<'a> {
 
     /// Statements appending each extension argument's variant and ordinary fields to `__scalars`,
     /// after the ordinary arguments' scalars, read from the `__metadata_{name}` bindings.
-    pub(crate) fn extension_scalars(&self, backend: TokenStream) -> Vec<TokenStream> {
+    pub fn extension_scalars(&self, backend: TokenStream) -> Vec<TokenStream> {
         self.arguments
             .iter()
             .filter(|argument| matches!(argument.kind, ArgumentKind::Extension { .. }))
@@ -264,7 +264,7 @@ impl<'a> LazyMethod<'a> {
 
     /// Statements appending the variant of every enum in the output, described by `__meta`, to
     /// `__scalars`, after the inputs' scalars.
-    pub(crate) fn output_variants(&self, backend: &TokenStream) -> Vec<TokenStream> {
+    pub fn output_variants(&self, backend: &TokenStream) -> Vec<TokenStream> {
         let mut statements = Vec::new();
         self.output.map_leaves(backend, &mut |adapter, member| {
             statements.push(quote!(<#adapter as burn::backend::fusion::custom::RemoteValueAdapter<#backend>>::append_output_variants(&__meta #member, &mut __scalars);));
@@ -274,7 +274,7 @@ impl<'a> LazyMethod<'a> {
     }
 
     /// The call of the method on `backend` with the given arguments.
-    pub(crate) fn call(
+    pub fn call(
         &self,
         trait_name: &syn::Ident,
         backend: TokenStream,
@@ -290,10 +290,10 @@ impl<'a> LazyMethod<'a> {
     }
 }
 
-pub(crate) struct Argument<'a> {
-    pub(crate) name: &'a syn::Ident,
-    pub(crate) arg: &'a syn::PatType,
-    pub(crate) kind: ArgumentKind<'a>,
+pub struct Argument<'a> {
+    pub name: &'a syn::Ident,
+    pub arg: &'a syn::PatType,
+    pub kind: ArgumentKind<'a>,
 }
 
 impl<'a> Argument<'a> {
@@ -340,7 +340,7 @@ impl<'a> Argument<'a> {
     }
 
     /// The adapter type implementing a runtime support trait for this tensor or extension value.
-    pub(crate) fn adapter(&self, backend: TokenStream) -> Option<TokenStream> {
+    pub fn adapter(&self, backend: TokenStream) -> Option<TokenStream> {
         match &self.kind {
             ArgumentKind::Tensor { kind, .. } => Some(tensor_adapter(*kind)),
             ArgumentKind::Extension { ty } => Some(with_backend(ty, backend)),
@@ -352,7 +352,7 @@ impl<'a> Argument<'a> {
 /// What an argument of a lazily executed method is.
 // Parsed once per argument at expansion time, so boxing the scalar encoding buys nothing.
 #[allow(clippy::large_enum_variant)]
-pub(crate) enum ArgumentKind<'a> {
+pub enum ArgumentKind<'a> {
     /// A tensor primitive, owned or borrowed.
     Tensor { kind: TensorKind, borrowed: bool },
     /// A derived extension value, owned.
@@ -362,7 +362,7 @@ pub(crate) enum ArgumentKind<'a> {
 }
 
 /// What a lazily executed method returns: tensors, derived extension values, and tuples of those.
-pub(crate) enum LazyOutput {
+pub enum LazyOutput {
     Tensor(TensorKind),
     Extension(Box<Type>),
     Tuple(Vec<LazyOutput>),
@@ -377,7 +377,7 @@ impl LazyOutput {
     /// The output's shape with each tensor or extension leaf replaced by `leaf(adapter, member)`,
     /// in leaf order: `adapter` is the leaf's adapter type for `backend`, and `member` the field
     /// access reaching the leaf from the whole output (`.1 .0`, empty for a leaf output).
-    pub(crate) fn map_leaves(
+    pub fn map_leaves(
         &self,
         backend: &TokenStream,
         leaf: &mut impl FnMut(&TokenStream, &TokenStream) -> TokenStream,
@@ -424,7 +424,7 @@ impl TryFrom<OperationOutput> for LazyOutput {
 }
 
 /// How an ordinary argument travels as an IR scalar, and how the receiving side rebuilds it.
-pub(crate) struct ScalarArgument {
+pub struct ScalarArgument {
     /// The argument or field the encoding sees.
     name: syn::Ident,
     /// Evaluated with the argument in scope; the result converts into `Scalar`.
@@ -435,7 +435,7 @@ pub(crate) struct ScalarArgument {
 impl ScalarArgument {
     /// The encoding of `name`, of type `ty`: its scalar `annotation`, or `name` itself when `ty`
     /// is a primitive; `None` without either.
-    pub(crate) fn new(
+    pub fn new(
         name: &syn::Ident,
         ty: &Type,
         annotation: Option<&syn::Attribute>,
@@ -455,7 +455,7 @@ impl ScalarArgument {
     /// With [`DecodeCheck::Enforce`] and a decoding callable, the encoded value must have the type
     /// the callable takes, so encoding another primitive is a compile error at the annotation
     /// rather than a scalar the server converts.
-    pub(crate) fn to_ir(&self, check: DecodeCheck) -> TokenStream {
+    pub fn to_ir(&self, check: DecodeCheck) -> TokenStream {
         let encode = &self.encode;
         match (&self.decode, check) {
             (ScalarDecode::Callable(decode), DecodeCheck::Enforce) => {
@@ -472,7 +472,7 @@ impl ScalarArgument {
     /// # Errors
     ///
     /// If the encoding is custom and has no decoding callable.
-    pub(crate) fn decode(&self, ty: &Type, next: TokenStream) -> syn::Result<TokenStream> {
+    pub fn decode(&self, ty: &Type, next: TokenStream) -> syn::Result<TokenStream> {
         let support = quote!(burn::backend::fusion::custom);
         match &self.decode {
             ScalarDecode::FromScalar => {
@@ -498,7 +498,7 @@ impl ScalarArgument {
 
 /// Whether an encoded scalar is tied, at compile time, to the type its decoding callable takes.
 #[derive(Clone, Copy)]
-pub(crate) enum DecodeCheck {
+pub enum DecodeCheck {
     /// Where only Fusion reads the IR: nothing decodes, and the callable may name items that
     /// exist only where the remote backend does.
     Skip,
@@ -516,7 +516,7 @@ enum ScalarDecode {
     Missing,
 }
 
-pub(crate) fn unsupported(item: impl quote::ToTokens) -> syn::Error {
+pub fn unsupported(item: impl quote::ToTokens) -> syn::Error {
     syn::Error::new_spanned(
         item,
         "unsupported lazy Fusion signature; use #[fusion(default)] or omit Fusion from #[backend_extension] and implement the trait manually",
@@ -604,7 +604,7 @@ fn stripped_signature(method: &TraitItemFn) -> syn::Signature {
 
 /// Remove the macro's argument attributes, `#[extension_type]` and `#[fusion(..)]`, which rustc
 /// rejects as unknown once the macro has read them.
-pub(crate) fn strip_argument_attributes(signature: &mut syn::Signature) {
+pub fn strip_argument_attributes(signature: &mut syn::Signature) {
     for arg in &mut signature.inputs {
         if let FnArg::Typed(arg) = arg {
             arg.attrs

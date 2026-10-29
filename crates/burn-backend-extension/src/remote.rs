@@ -29,7 +29,7 @@ fn router() -> TokenStream {
 ///
 /// The client reports the error of a method whose arguments the server cannot rebuild; the error
 /// of a method that cannot be lowered at all is the Fusion implementation's to report.
-pub(crate) fn expand(model: &LazyTrait<'_>, gate: &TokenStream) -> TokenStream {
+pub fn expand(model: &LazyTrait<'_>, gate: &TokenStream) -> TokenStream {
     let trait_name = model.name;
     let mut methods = Vec::new();
     let mut registrations = Vec::new();
@@ -279,7 +279,7 @@ impl<'a> RemoteMethod<'a> {
 /// It is fed by the field walk that builds the value's `FusionValueAdapter`, so the remote and the
 /// Fusion adapters visit tensor leaves and ordinary fields in one order: the Fusion wrapper builds
 /// a custom operation's inputs and outputs with the one, and the server reads them with the other.
-pub(crate) struct RemoteAdapterDerive {
+pub struct RemoteAdapterDerive {
     /// The value's type, which names it in a variant mismatch.
     name: syn::Ident,
     backend: syn::Ident,
@@ -312,7 +312,7 @@ struct CaseStatements {
 
 impl RemoteAdapterDerive {
     /// Start the implementation for the value `name`, generic over `backend`.
-    pub(crate) fn new(name: &syn::Ident, backend: &syn::Ident, is_enum: bool) -> Self {
+    pub fn new(name: &syn::Ident, backend: &syn::Ident, is_enum: bool) -> Self {
         Self {
             name: name.clone(),
             backend: backend.clone(),
@@ -331,12 +331,7 @@ impl RemoteAdapterDerive {
 
     /// Add a tensor or nested extension field, delegating to its own `adapter`. `value` binds the
     /// field in the value and `state` in its metadata.
-    pub(crate) fn adapted_field(
-        &mut self,
-        adapter: &TokenStream,
-        value: &syn::Ident,
-        state: &syn::Ident,
-    ) {
+    pub fn adapted_field(&mut self, adapter: &TokenStream, value: &syn::Ident, state: &syn::Ident) {
         let b = &self.backend;
         let adapter = quote!(<#adapter as burn::backend::fusion::custom::RemoteValueAdapter<#b>>);
         let case = &mut self.case;
@@ -359,7 +354,7 @@ impl RemoteAdapterDerive {
     }
 
     /// Add an ordinary field, which travels as a scalar.
-    pub(crate) fn ordinary_field(
+    pub fn ordinary_field(
         &mut self,
         field: &crate::derive::CaseField,
         value: &syn::Ident,
@@ -383,7 +378,7 @@ impl RemoteAdapterDerive {
 
     /// Close the case whose fields were just added: `case` is the value's and `meta_case` its
     /// metadata's, whose bindings are distinct.
-    pub(crate) fn end_case(&mut self, case: &DeriveCase, meta_case: &DeriveCase) {
+    pub fn end_case(&mut self, case: &DeriveCase, meta_case: &DeriveCase) {
         let support = quote!(burn::backend::fusion::custom);
         let CaseStatements {
             descriptions,
@@ -430,7 +425,7 @@ impl RemoteAdapterDerive {
     }
 
     /// The implementation, for `input` with metadata type `metadata`.
-    pub(crate) fn finish(
+    pub fn finish(
         self,
         input: &syn::DeriveInput,
         backend: &syn::TypeParam,

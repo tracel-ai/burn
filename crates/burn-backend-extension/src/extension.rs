@@ -16,7 +16,7 @@ use crate::{
     routing::{self, OutputRoute},
 };
 
-pub(crate) fn expand(attr: TokenStream2, item: TokenStream2) -> syn::Result<TokenStream2> {
+pub fn expand(attr: TokenStream2, item: TokenStream2) -> syn::Result<TokenStream2> {
     let backends: Backends = syn::parse2(attr)?;
     let trait_definition: ItemTrait = syn::parse2(item)?;
     let extension = lower_extension(backends, &trait_definition)?;

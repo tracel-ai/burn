@@ -12,7 +12,7 @@ use syn::{GenericParam, Type};
 
 /// The `Fusion<B>` implementation of `model`, which reports the errors of its malformed methods.
 /// `remote` is the remote backend's gate, when it is generated.
-pub(crate) fn expand(model: &LazyTrait<'_>, remote: Option<&TokenStream>) -> TokenStream {
+pub fn expand(model: &LazyTrait<'_>, remote: Option<&TokenStream>) -> TokenStream {
     let trait_name = model.name;
     let methods = model.methods.iter().map(|method| match method {
         Ok(method) => FusionMethod::new(method, remote).implementation(trait_name),
@@ -166,7 +166,7 @@ impl<'a> FusionMethod<'a> {
     }
 }
 
-pub(crate) fn derive(input: &syn::DeriveInput) -> syn::Result<TokenStream> {
+pub fn derive(input: &syn::DeriveInput) -> syn::Result<TokenStream> {
     let mut enabled = false;
     let mut remote = false;
     let mut cfg = None;
