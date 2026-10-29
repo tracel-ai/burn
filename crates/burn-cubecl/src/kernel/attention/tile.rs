@@ -33,6 +33,25 @@ pub(crate) fn routines_take(query: &CubeTensor, key: &CubeTensor, value: &CubeTe
     elements && grouped
 }
 
+/// How `options` score an attention whose query heads are `head_dim` wide: the keys a query sees,
+/// the causal diagonal placed by their alignment, and the scale, standard where they give none.
+pub(crate) fn scoring(options: &AttentionModuleOptions, head_dim: usize) -> AttentionScoring {
+    AttentionScoring {
+        visibility: AttentionVisibility::new(
+            options.is_causal,
+            None,
+            match options.causal_alignment {
+                CausalAlignment::BottomRight => QueryPlacement::Last,
+                CausalAlignment::TopLeft => QueryPlacement::First,
+            },
+        ),
+        scale: match options.scale {
+            Some(scale) => ScoreScale::Custom(scale as f32),
+            None => ScoreScale::standard(head_dim),
+        },
+    }
+}
+
 /// Whether the tile routines serve the forward pass of an attention of `query` against `key` and
 /// `value` with `options`: operands they [take](routines_take), no additive bias and no softcap.
 /// A mask, a custom scale and a causal mask anchored at either corner they read.
@@ -73,20 +92,6 @@ pub fn attention_autotune(
         InputScalar::new(seq_kv as u32, dtype_to_storage_type(DType::U32)),
         DType::U32,
     );
-    let scoring = AttentionScoring {
-        visibility: AttentionVisibility::new(
-            options.is_causal,
-            None,
-            match options.causal_alignment {
-                CausalAlignment::BottomRight => QueryPlacement::Last,
-                CausalAlignment::TopLeft => QueryPlacement::First,
-            },
-        ),
-        scale: match options.scale {
-            Some(scale) => ScoreScale::Custom(scale as f32),
-            None => ScoreScale::standard(head_dim),
-        },
-    };
     let inputs = AttentionTuneInputs::new(
         &client,
         query.plain(),
@@ -95,7 +100,7 @@ pub fn attention_autotune(
         None,
         lengths.plain(),
         None,
-        scoring,
+        scoring(&options, head_dim),
     )
     .unwrap_or_else(|why| panic!("no tile-DSL attention routine serves these operands: {why:?}"))
     // burn's key and value are the call's own, every position attended: the autotune key holds
