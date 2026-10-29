@@ -35,7 +35,7 @@ pub use shared::DeviceQueryId;
 #[doc(hidden)]
 pub mod extension {
     pub use burn_router::{
-        BackendRouter, CustomOpRegistry, RouterChannel, RouterClient, RouterTensor,
+        BackendRouter, CustomOpRegistry, HandlerSource, RouterChannel, RouterClient, RouterTensor,
     };
 }
 

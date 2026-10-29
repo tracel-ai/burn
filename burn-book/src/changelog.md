@@ -226,7 +226,7 @@ beside `Fusion` in `#[backend_extension]` generates the client, which sends each
 operation's IR, and `<Trait>Handlers::register` for the server's `CustomOpRegistry`. Ordinary
 arguments that are not primitives take `#[fusion(scalar = .., decode = ..)]`, and extension values
 opt in with `#[extension_type(fusion, remote)]`. `CustomOpRegistry::try_register` refuses a
-different handler under an id already taken.
+handler from another `HandlerSource` under an id already taken.
 ([#6308](https://github.com/tracel-ai/burn/pull/6308))
 
 **API migration:** a `#[backend_extension]` Fusion operation's default id is now

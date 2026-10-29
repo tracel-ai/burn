@@ -246,10 +246,11 @@ impl<'a> RemoteMethod<'a> {
         });
         let call = method.call(trait_name, quote!(__B), &invoke);
         let id = &method.id;
+        let name = method.method.sig.ident.to_string();
         let gates = method.gates();
         quote! {
             #(#gates)*
-            registry.try_register(#id, |__handles, __ir, _| {
+            registry.try_register(#id, burn::backend::remote_extension::HandlerSource::new::<Self>(#name), |__handles, __ir, _| {
                 let mut __inputs = __ir.inputs.iter();
                 let mut __scalars = __ir.scalars.iter();
                 #(#decodes)*
