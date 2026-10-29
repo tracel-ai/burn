@@ -79,6 +79,16 @@ positions when sequence lengths differ.
 
 #### Kernels
 
+- Take a CubeCL `min_dim`, `max_dim`, `argmin` or `argmax` whose outputs are too few to fill the
+  device, but whose terms are not, on the cube reduce routine instead of one thread per output when
+  autotune is off.
+  [@vboussot](https://github.com/vboussot)
+- Run a CubeCL matmul whose output is too small to fill the device over a long inner dimension as
+  chunks summed in parallel, then across the chunks, instead of on a few cubes, also as a matmul
+  autotune candidate. A float `sum_dim` or `mean_dim` whose outputs are too few to fill the device,
+  but whose terms are not, takes the same two-level sum when autotune is off, instead of one thread
+  per output. The chunk count comes from the device's thread count.
+  [@vboussot](https://github.com/vboussot)
 - Avoid a full-sized gradient copy in CubeCL FP32 `conv2d` bias backward, while retaining
   single-pass accumulation for FP16/BF16 to avoid intermediate overflow.
   ([#6173](https://github.com/tracel-ai/burn/pull/6173))

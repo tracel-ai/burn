@@ -1,7 +1,9 @@
+use super::long_axis;
 #[cfg(feature = "autotune")]
 use super::{autotune_reduce, autotune_reduce_with_indices, autotune_sum};
 use crate::ops::permute;
 use crate::{
+    kernel::utils::{device_threads, few_outputs_over_a_long_axis},
     ops::numeric::{empty_device_contiguous_dtype, fill_device_dtype, zeros_client},
     tensor::CubeTensor,
 };
@@ -14,7 +16,7 @@ use cubek::reduce::{
     ReduceDtypes, ReduceError, ReduceStrategy, ReduceWithIndicesDtypes,
     components::instructions::ReduceOperationConfig,
     launch::{RoutineStrategy, VectorizationStrategy},
-    routines::{BlueprintStrategy, unit::UnitStrategy},
+    routines::{BlueprintStrategy, cube::CubeStrategy, unit::UnitStrategy},
     shared_sum,
 };
 use serde::{Deserialize, Serialize};
@@ -432,6 +434,15 @@ pub fn reduce_dim(
         return Ok(output);
     }
 
+    if matches!(strategy, KernelReduceStrategy::Unspecified)
+        && long_axis::applies(&input, dim, config, &dtypes)
+    {
+        let mean = matches!(config, ReduceOperationConfig::Mean);
+        long_axis::reduce_long_axis(input, output.clone(), dim, mean);
+        return Ok(output);
+    }
+
+    let routine = default_routine(&input, dim, config);
     let result = match strategy {
         KernelReduceStrategy::Unspecified => cubek::reduce::reduce(
             &client,
@@ -439,7 +450,7 @@ pub fn reduce_dim(
             output.clone().binding(),
             dim,
             ReduceStrategy {
-                routine: RoutineStrategy::Unit(BlueprintStrategy::Inferred(UnitStrategy)),
+                routine,
                 vectorization: VectorizationStrategy {
                     parallel_output_vectorization: false,
                 },
@@ -543,6 +554,7 @@ pub fn reduce_dim_with_indices(
 
     let client = input.client.clone();
 
+    let routine = default_routine(&input, dim, config);
     let result = match strategy {
         KernelReduceStrategy::Unspecified => cubek::reduce::reduce_with_indices(
             &client,
@@ -551,7 +563,7 @@ pub fn reduce_dim_with_indices(
             indices.clone().binding(),
             dim,
             ReduceStrategy {
-                routine: RoutineStrategy::Unit(BlueprintStrategy::Inferred(UnitStrategy)),
+                routine,
                 vectorization: VectorizationStrategy {
                     parallel_output_vectorization: false,
                 },
@@ -639,5 +651,30 @@ impl Default for KernelReduceStrategy {
 
         #[cfg(not(feature = "autotune"))]
         return Self::Unspecified;
+    }
+}
+
+/// The routine a reduction takes without autotune: the unit routine, a thread per output walking
+/// its axis, unless the outputs cannot fill the device while their axes can. An extremum and its
+/// first index do not depend on the order the axis is walked in, so they then take the cube routine,
+/// a cube per output; other reductions, top-k included, keep the unit routine's order.
+fn default_routine(
+    input: &CubeTensor,
+    dim: usize,
+    config: ReduceOperationConfig,
+) -> RoutineStrategy {
+    let shape = input.meta.shape();
+    let length = shape[dim];
+    let outputs = shape.num_elements() / length.max(1);
+    if matches!(
+        config,
+        ReduceOperationConfig::Min | ReduceOperationConfig::Max
+    ) && few_outputs_over_a_long_axis(device_threads(input), outputs, length)
+    {
+        RoutineStrategy::Cube(BlueprintStrategy::Inferred(CubeStrategy {
+            use_planes: false,
+        }))
+    } else {
+        RoutineStrategy::Unit(BlueprintStrategy::Inferred(UnitStrategy))
     }
 }
