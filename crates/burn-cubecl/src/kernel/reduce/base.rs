@@ -14,7 +14,7 @@ use cubek::reduce::{
     ReduceDtypes, ReduceError, ReduceStrategy, ReduceWithIndicesDtypes,
     components::instructions::ReduceOperationConfig,
     launch::{RoutineStrategy, VectorizationStrategy},
-    routines::{BlueprintStrategy, unit::UnitStrategy},
+    routines::{BlueprintStrategy, cube::CubeStrategy, unit::UnitStrategy},
     shared_sum,
 };
 use serde::{Deserialize, Serialize};
@@ -432,6 +432,19 @@ pub fn reduce_dim(
         return Ok(output);
     }
 
+    // An extremum does not depend on the order the axis is walked in, so a long axis feeding few
+    // outputs takes the cube routine, as for the extremum with its index.
+    let routine = if matches!(
+        config,
+        ReduceOperationConfig::Min | ReduceOperationConfig::Max
+    ) && few_outputs_over_a_long_axis(input.meta.shape(), dim)
+    {
+        RoutineStrategy::Cube(BlueprintStrategy::Inferred(CubeStrategy {
+            use_planes: false,
+        }))
+    } else {
+        RoutineStrategy::Unit(BlueprintStrategy::Inferred(UnitStrategy))
+    };
     let result = match strategy {
         KernelReduceStrategy::Unspecified => cubek::reduce::reduce(
             &client,
@@ -439,7 +452,7 @@ pub fn reduce_dim(
             output.clone().binding(),
             dim,
             ReduceStrategy {
-                routine: RoutineStrategy::Unit(BlueprintStrategy::Inferred(UnitStrategy)),
+                routine,
                 vectorization: VectorizationStrategy {
                     parallel_output_vectorization: false,
                 },
@@ -543,6 +556,20 @@ pub fn reduce_dim_with_indices(
 
     let client = input.client.clone();
 
+    // An extremum and its first index do not depend on the order the axis is walked in, so a long
+    // axis feeding few outputs takes the cube routine: the unit routine would walk it on a handful
+    // of threads. Top-k keeps the unit routine.
+    let routine = if matches!(
+        config,
+        ReduceOperationConfig::Min | ReduceOperationConfig::Max
+    ) && few_outputs_over_a_long_axis(input.meta.shape(), dim)
+    {
+        RoutineStrategy::Cube(BlueprintStrategy::Inferred(CubeStrategy {
+            use_planes: false,
+        }))
+    } else {
+        RoutineStrategy::Unit(BlueprintStrategy::Inferred(UnitStrategy))
+    };
     let result = match strategy {
         KernelReduceStrategy::Unspecified => cubek::reduce::reduce_with_indices(
             &client,
@@ -551,7 +578,7 @@ pub fn reduce_dim_with_indices(
             indices.clone().binding(),
             dim,
             ReduceStrategy {
-                routine: RoutineStrategy::Unit(BlueprintStrategy::Inferred(UnitStrategy)),
+                routine,
                 vectorization: VectorizationStrategy {
                     parallel_output_vectorization: false,
                 },
@@ -640,4 +667,15 @@ impl Default for KernelReduceStrategy {
         #[cfg(not(feature = "autotune"))]
         return Self::Unspecified;
     }
+}
+
+/// The most outputs an extremum takes the cube routine for: past them the unit routine has threads
+/// enough to fill the device.
+const LONG_AXIS_MAX_OUTPUTS: usize = 256;
+/// The shortest axis an extremum takes the cube routine for.
+const LONG_AXIS_MIN_LENGTH: usize = 1 << 16;
+
+/// At most [`LONG_AXIS_MAX_OUTPUTS`] outputs over an axis of at least [`LONG_AXIS_MIN_LENGTH`].
+fn few_outputs_over_a_long_axis(shape: &Shape, dim: usize) -> bool {
+    shape[dim] >= LONG_AXIS_MIN_LENGTH && shape.num_elements() / shape[dim] <= LONG_AXIS_MAX_OUTPUTS
 }
