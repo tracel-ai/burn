@@ -54,6 +54,11 @@ where
     /// Create from a json rows file (one json per line).
     ///
     /// [Supported field types](https://docs.rs/serde_json/latest/serde_json/value/enum.Value.html)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the file cannot be opened or read. Invalid UTF-8 or a line that
+    /// cannot be deserialized into `I` returns [`std::io::ErrorKind::InvalidData`].
     pub fn from_json_rows<P: AsRef<Path>>(path: P) -> Result<Self, std::io::Error> {
         let file = File::open(path)?;
         let reader = BufReader::new(file);
