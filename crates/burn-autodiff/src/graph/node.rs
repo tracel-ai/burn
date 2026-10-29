@@ -53,7 +53,7 @@ pub struct Parent {
 }
 
 impl Node {
-    /// A node one deeper than the deepest of `parent_nodes`, on the first one's graph.
+    /// A node one deeper than the deepest of `parent_nodes`, with the tracked ones as parents.
     pub fn from_parents(
         parent_nodes: &[NodeRef],
         requirement: Requirement,

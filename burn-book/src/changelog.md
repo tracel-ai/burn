@@ -178,7 +178,8 @@ all-to-all, and broadcast also support boolean tensors. Quantized tensors are re
   Workers must yield the same number of training batches; uneven exhaustion now reports an error.
   ([#6184](https://github.com/tracel-ai/burn/pull/6184))
 - Float collectives under autodiff run on the backend's native collective, NCCL on CUDA, with a
-  backward of their own, instead of being emulated with tracked transfers between devices.
+  backward of their own, instead of being emulated with tracked transfers between devices. A
+  collective's outputs share that backward, so their losses must go through a single `backward`.
   ([#6274](https://github.com/tracel-ai/burn/pull/6274))
   [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
 

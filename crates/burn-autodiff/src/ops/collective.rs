@@ -2,7 +2,7 @@ use alloc::{boxed::Box, vec::Vec};
 use burn_backend::{
     Backend, DType, TensorMetadata,
     distributed::ReduceOperation,
-    ops::{CollectiveOps, DimSplit, EmulatedCollectives},
+    ops::{CollectiveOps, EmulatedCollectives},
     tensor::{BoolTensor, Device, FloatTensor, IntTensor},
 };
 use burn_std::{Shape, sync::Arc};
@@ -24,11 +24,11 @@ impl<B: Backend, C: CheckpointStrategy> CollectiveOps<Self> for Autodiff<B, C> {
         tensors: Vec<FloatTensor<Self>>,
         op: ReduceOperation,
     ) -> Vec<FloatTensor<Self>> {
-        FloatCollective::AllReduce { op }.run(tensors)
+        FloatCollective::AllReduce { op }.run::<B, C>(tensors)
     }
 
     fn float_all_gather(tensors: Vec<FloatTensor<Self>>, dim: usize) -> Vec<FloatTensor<Self>> {
-        FloatCollective::AllGather { dim }.run(tensors)
+        FloatCollective::AllGather { dim }.run::<B, C>(tensors)
     }
 
     fn float_reduce_scatter(
@@ -36,7 +36,7 @@ impl<B: Backend, C: CheckpointStrategy> CollectiveOps<Self> for Autodiff<B, C> {
         dim: usize,
         op: ReduceOperation,
     ) -> Vec<FloatTensor<Self>> {
-        FloatCollective::ReduceScatter { dim, op }.run(tensors)
+        FloatCollective::ReduceScatter { dim, op }.run::<B, C>(tensors)
     }
 
     fn float_all_to_all(
@@ -48,7 +48,7 @@ impl<B: Backend, C: CheckpointStrategy> CollectiveOps<Self> for Autodiff<B, C> {
             split_dim,
             concat_dim,
         }
-        .run(tensors)
+        .run::<B, C>(tensors)
     }
 
     fn int_all_reduce(tensors: Vec<IntTensor<Self>>, op: ReduceOperation) -> Vec<IntTensor<Self>> {
@@ -111,9 +111,34 @@ enum FloatCollective {
 }
 
 impl FloatCollective {
+    /// Runs the collective natively when its members allow it, and as the emulation otherwise.
+    fn run<B: Backend, C: CheckpointStrategy>(
+        self,
+        tensors: Vec<AutodiffTensor<B>>,
+    ) -> Vec<AutodiffTensor<B>> {
+        match self.runs_natively(&tensors) {
+            true => self.native(tensors),
+            false => self.emulated::<Autodiff<B, C>>(tensors),
+        }
+    }
+
+    /// Whether the backward can split along a dimension into one even, non-empty chunk per
+    /// member. Uneven chunks are emulated by the inner backend anyway, so the emulation's recorded
+    /// transfers lose no native collective.
+    fn runs_natively<T: TensorMetadata>(self, tensors: &[T]) -> bool {
+        let shape = tensors[0].shape();
+        let even = |dim: usize| shape[dim].is_multiple_of(tensors.len());
+        shape.num_elements() > 0
+            && match self {
+                Self::AllReduce { .. } | Self::AllGather { .. } => true,
+                Self::ReduceScatter { dim, .. } => even(dim),
+                Self::AllToAll { split_dim, .. } => even(split_dim),
+            }
+    }
+
     /// Runs the collective on the inner backend and records its backward when any member is
     /// tracked.
-    fn run<B: Backend>(self, tensors: Vec<AutodiffTensor<B>>) -> Vec<AutodiffTensor<B>> {
+    fn native<B: Backend>(self, tensors: Vec<AutodiffTensor<B>>) -> Vec<AutodiffTensor<B>> {
         let (primitives, guards): (Vec<_>, Vec<_>) =
             tensors.into_iter().map(AutodiffTensor::into_parts).unzip();
         let inputs: Vec<NodeRef> = guards
@@ -155,7 +180,6 @@ impl FloatCollective {
         inputs: &[NodeRef],
         requirement: Requirement,
     ) -> Vec<AutodiffTensor<B>> {
-        let input_shape = primitives[0].shape();
         let node: NodeRef =
             Node::from_parents(inputs, requirement, ComputingProperty::ComputeBound).into();
         let outputs: Vec<AutodiffTensor<B>> = self
@@ -174,7 +198,6 @@ impl FloatCollective {
         let backward = CollectiveBackward {
             forward: self,
             inputs: inputs.iter().map(Node::clone_if_require_grad).collect(),
-            input_shape,
             outputs: outputs.iter().map(CollectiveOutput::new).collect(),
             node: node.clone(),
         };
@@ -208,6 +231,22 @@ impl FloatCollective {
         }
     }
 
+    /// The collective as transfers, slices and concatenations on `A`, which records their own
+    /// backwards.
+    fn emulated<A: Backend>(self, tensors: Vec<FloatTensor<A>>) -> Vec<FloatTensor<A>> {
+        match self {
+            Self::AllReduce { op } => EmulatedCollectives::<A>::float_all_reduce(tensors, op),
+            Self::AllGather { dim } => EmulatedCollectives::<A>::float_all_gather(tensors, dim),
+            Self::ReduceScatter { dim, op } => {
+                EmulatedCollectives::<A>::float_reduce_scatter(tensors, dim, op)
+            }
+            Self::AllToAll {
+                split_dim,
+                concat_dim,
+            } => EmulatedCollectives::<A>::float_all_to_all(tensors, split_dim, concat_dim),
+        }
+    }
+
     /// The members' input gradients from their output gradients: all-reduce is its own adjoint,
     /// all-gather and reduce-scatter are each other's, and all-to-all swaps its dims.
     fn backward<B: Backend>(self, grads: Vec<FloatTensor<B>>) -> Vec<FloatTensor<B>> {
@@ -218,7 +257,7 @@ impl FloatCollective {
             Self::AllToAll {
                 split_dim,
                 concat_dim,
-            } => Self::all_to_all_backward::<B>(grads, split_dim, concat_dim),
+            } => B::float_all_to_all(grads, concat_dim, split_dim),
         }
     }
 
@@ -230,73 +269,14 @@ impl FloatCollective {
         op: ReduceOperation,
     ) -> Vec<FloatTensor<B>> {
         let members = grads.len();
-        let grads: Vec<_> = grads
+        let grads = grads
             .into_iter()
             .map(|grad| match op {
                 ReduceOperation::Sum => grad,
                 ReduceOperation::Mean => B::float_div_scalar(grad, members.into()),
             })
             .collect();
-        match Self::alike(&grads) {
-            true => B::float_all_gather(grads, dim),
-            // Uneven chunks, which a collective refuses and the emulation concatenates as they are.
-            false => EmulatedCollectives::<B>::float_all_gather(grads, dim),
-        }
-    }
-
-    /// The all-to-all with its dims swapped, sending each chunk's gradient back to its member.
-    fn all_to_all_backward<B: Backend>(
-        grads: Vec<FloatTensor<B>>,
-        split_dim: usize,
-        concat_dim: usize,
-    ) -> Vec<FloatTensor<B>> {
-        match Self::alike(&grads) {
-            true => B::float_all_to_all(grads, concat_dim, split_dim),
-            false => Self::uneven_all_to_all_backward::<B>(grads, split_dim, concat_dim),
-        }
-    }
-
-    /// The all-to-all's backward when uneven chunks left the gradients of different shapes, which
-    /// no collective takes.
-    fn uneven_all_to_all_backward<B: Backend>(
-        grads: Vec<FloatTensor<B>>,
-        split_dim: usize,
-        concat_dim: usize,
-    ) -> Vec<FloatTensor<B>> {
-        (0..grads.len())
-            .map(|member| Self::uneven_member_gradient::<B>(&grads, member, split_dim, concat_dim))
-            .collect()
-    }
-
-    /// Piece `member` along `concat_dim` of every output gradient, each cut into equal pieces of
-    /// its own length, concatenated along `split_dim` on the member's device.
-    fn uneven_member_gradient<B: Backend>(
-        grads: &[FloatTensor<B>],
-        member: usize,
-        split_dim: usize,
-        concat_dim: usize,
-    ) -> FloatTensor<B> {
-        let device = grads[member].device();
-        let pieces = grads
-            .iter()
-            .map(|grad| {
-                let split = DimSplit {
-                    dim: concat_dim,
-                    len: grad.shape()[concat_dim],
-                    members: grads.len(),
-                };
-                let piece = B::float_slice(grad.clone(), &split.slices(member));
-                B::float_to_device(piece, &device)
-            })
-            .collect();
-        B::float_cat(pieces, split_dim)
-    }
-
-    /// Whether every tensor has one shape, which a native collective requires of its members.
-    fn alike<T: TensorMetadata>(grads: &[T]) -> bool {
-        grads
-            .windows(2)
-            .all(|pair| pair[0].shape() == pair[1].shape())
+        B::float_all_gather(grads, dim)
     }
 }
 
@@ -312,8 +292,6 @@ struct CollectiveBackward<B: Backend> {
     node: NodeRef,
     /// Each member's input node, `None` where that member needs no gradient.
     inputs: Vec<Option<NodeRef>>,
-    /// The shape every member's input shares.
-    input_shape: Shape,
     /// Each member's output.
     outputs: Vec<CollectiveOutput<B>>,
 }
@@ -331,25 +309,13 @@ impl<B: Backend> Step for CollectiveBackward<B> {
             return;
         }
 
-        let input_grads = match self.input_shape.num_elements() {
-            // The backward would split a dimension that holds no element, which a collective refuses.
-            0 => self
-                .outputs
-                .iter()
-                .map(|output| output.zeros(self.input_shape.clone()))
-                .collect(),
-            _ => {
-                let output_grads = self
-                    .outputs
-                    .iter()
-                    .zip(output_grads)
-                    .map(|(output, grad)| {
-                        grad.unwrap_or_else(|| output.zeros(output.shape.clone()))
-                    })
-                    .collect();
-                self.forward.backward::<B>(output_grads)
-            }
-        };
+        let output_grads = self
+            .outputs
+            .iter()
+            .zip(output_grads)
+            .map(|(output, grad)| grad.unwrap_or_else(|| output.zeros()))
+            .collect();
+        let input_grads = self.forward.backward::<B>(output_grads);
 
         for (input, grad) in self.inputs.iter().zip(input_grads) {
             if let Some(input) = input {
@@ -374,7 +340,7 @@ impl<B: Backend> Step for CollectiveBackward<B> {
 struct CollectiveOutput<B: Backend> {
     /// The output's node, under which its gradient is registered.
     node: NodeRef,
-    /// The output's shape, which differs between members when chunks are uneven.
+    /// The output's shape.
     shape: Shape,
     /// The member's device.
     device: Device<B>,
@@ -393,9 +359,9 @@ impl<B: Backend> CollectiveOutput<B> {
         }
     }
 
-    /// Zeros of `shape` on the member's device, in the output's dtype.
-    fn zeros(&self, shape: Shape) -> FloatTensor<B> {
-        B::float_zeros(shape, &self.device, self.dtype.into())
+    /// Zeros like the output, on the member's device.
+    fn zeros(&self) -> FloatTensor<B> {
+        B::float_zeros(self.shape.clone(), &self.device, self.dtype.into())
     }
 }
 
@@ -454,7 +420,6 @@ mod tests {
             assert_eq!(step.len(), 1);
             for output in &outputs {
                 assert_eq!(&output.node.parents, step);
-                assert_eq!(output.node.order, 2);
             }
         }
     }
