@@ -3,7 +3,13 @@
 //! Replaces platform-specific implementations (neon.rs) with a single
 //! portable implementation that auto-dispatches to NEON/AVX2/SSE/SIMD128/scalar.
 
-use macerator::{Scalar, Simd, VBitAnd, VBitOr, VBitXor, vload_unaligned, vstore_unaligned};
+use alloc::vec::Vec;
+use core::mem::MaybeUninit;
+
+use macerator::{
+    Scalar, Simd, VBitAnd, VBitOr, VBitXor, VCeil, VFloor, VRoundTiesEven, VTrunc, Vector,
+    vload_unaligned, vstore_unaligned,
+};
 
 #[cfg(feature = "rayon")]
 use rayon::prelude::*;
@@ -197,6 +203,232 @@ fn recip_inplace_f32_par(a: &mut [f32]) {
     a.par_chunks_mut(CHUNK_SIZE).for_each(|chunk| {
         recip_inplace_f32_seq(chunk);
     });
+}
+
+// ============================================================================
+// Lane-wise maps (rounding, exp, sigmoid)
+// ============================================================================
+
+/// An elementwise op on vectors, run over slices by [`map_inplace`] and
+/// [`map_to_vec`]. Each output lane must depend only on the same input lane,
+/// since the drivers also apply it to the padding lanes of a short tail.
+pub trait LaneOp<F: Scalar>: Copy + Send + Sync {
+    fn apply<S: Simd>(self, v: Vector<S, F>) -> Vector<S, F>;
+}
+
+/// Applies `op` to every element of `a` in place.
+#[inline]
+pub fn map_inplace<F: Scalar + Send, O: LaneOp<F>>(a: &mut [F], op: O) {
+    #[cfg(feature = "rayon")]
+    if a.len() >= PARALLEL_THRESHOLD {
+        a.par_chunks_mut(CHUNK_SIZE)
+            .for_each(|chunk| map_inplace_seq(chunk, op));
+        return;
+    }
+
+    map_inplace_seq(a, op);
+}
+
+/// Returns `op` of each element of `src`, computed in one pass into a new
+/// vector.
+#[inline]
+pub fn map_to_vec<F: Scalar + Send + Sync, O: LaneOp<F>>(src: &[F], op: O) -> Vec<F> {
+    let mut out = Vec::with_capacity(src.len());
+    let dst = &mut out.spare_capacity_mut()[..src.len()];
+
+    #[cfg(feature = "rayon")]
+    if src.len() >= PARALLEL_THRESHOLD {
+        dst.par_chunks_mut(CHUNK_SIZE)
+            .zip(src.par_chunks(CHUNK_SIZE))
+            .for_each(|(d, s)| map_into_seq(s, d, op));
+    } else {
+        map_into_seq(src, dst, op);
+    }
+    #[cfg(not(feature = "rayon"))]
+    map_into_seq(src, dst, op);
+
+    // SAFETY: `map_into_seq` wrote every one of the `src.len()` elements.
+    unsafe { out.set_len(src.len()) };
+    out
+}
+
+#[macerator::with_simd]
+fn map_inplace_seq<S: Simd, F: Scalar, O: LaneOp<F>>(a: &mut [F], op: O) {
+    let p = a.as_mut_ptr();
+    // SAFETY: `p` is valid for `a.len()` reads and writes.
+    unsafe { map_raw::<S, F, O>(p, p, a.len(), op) }
+}
+
+#[macerator::with_simd]
+fn map_into_seq<S: Simd, F: Scalar, O: LaneOp<F>>(src: &[F], dst: &mut [MaybeUninit<F>], op: O) {
+    assert_eq!(src.len(), dst.len());
+    // SAFETY: `src` and `dst` are distinct borrows of `src.len()` elements, and
+    // `MaybeUninit<F>` has the layout of `F`.
+    unsafe { map_raw::<S, F, O>(src.as_ptr(), dst.as_mut_ptr().cast(), src.len(), op) }
+}
+
+/// Writes `op(src[i])` to `dst[i]` for every `i < len`. The tail shorter than
+/// a vector goes through `op` in a padded buffer, so each element gets the
+/// same result wherever it sits in the slice.
+///
+/// # Safety
+///
+/// `src` must be valid and aligned for `len` reads and `dst` for `len`
+/// writes. They are either equal or don't overlap.
+#[inline(always)]
+unsafe fn map_raw<S: Simd, F: Scalar, O: LaneOp<F>>(src: *const F, dst: *mut F, len: usize, op: O) {
+    let lanes = F::lanes::<S>();
+    let simd_len = len / lanes * lanes;
+    let unrolled_len = len / (4 * lanes) * (4 * lanes);
+
+    // Four independent vectors per iteration, to match LLVM's unrolled
+    // autovectorized loops on the cheap ops and overlap the long ones. The
+    // loads come first because `src` and `dst` may alias, so the compiler
+    // can't move later loads above earlier stores.
+    let mut i = 0;
+    while i < unrolled_len {
+        unsafe {
+            let v0 = vload_unaligned::<S, F>(src.add(i));
+            let v1 = vload_unaligned::<S, F>(src.add(i + lanes));
+            let v2 = vload_unaligned::<S, F>(src.add(i + 2 * lanes));
+            let v3 = vload_unaligned::<S, F>(src.add(i + 3 * lanes));
+            vstore_unaligned::<S, F>(dst.add(i), op.apply(v0));
+            vstore_unaligned::<S, F>(dst.add(i + lanes), op.apply(v1));
+            vstore_unaligned::<S, F>(dst.add(i + 2 * lanes), op.apply(v2));
+            vstore_unaligned::<S, F>(dst.add(i + 3 * lanes), op.apply(v3));
+        }
+        i += 4 * lanes;
+    }
+    while i < simd_len {
+        unsafe {
+            let v = vload_unaligned::<S, F>(src.add(i));
+            vstore_unaligned::<S, F>(dst.add(i), op.apply(v));
+        }
+        i += lanes;
+    }
+
+    let tail = len - simd_len;
+    if tail > 0 {
+        let mut buf = [F::default(); 64];
+        assert!(lanes <= buf.len(), "SIMD lane count {lanes} exceeds 64");
+        // SAFETY: the tail is in bounds of both buffers, and the assertion
+        // above keeps one vector within `buf`.
+        unsafe {
+            core::ptr::copy_nonoverlapping(src.add(simd_len), buf.as_mut_ptr(), tail);
+            let v = vload_unaligned::<S, F>(buf.as_ptr());
+            vstore_unaligned::<S, F>(buf.as_mut_ptr(), op.apply(v));
+            core::ptr::copy_nonoverlapping(buf.as_ptr(), dst.add(simd_len), tail);
+        }
+    }
+}
+
+// Rounding is exact, so these match std's `floor`, `ceil`, `trunc` and
+// `round_ties_even` bit for bit, signed zeros included.
+
+#[derive(Clone, Copy)]
+pub struct Floor;
+#[derive(Clone, Copy)]
+pub struct Ceil;
+#[derive(Clone, Copy)]
+pub struct Trunc;
+/// Nearest integer, ties to even.
+#[derive(Clone, Copy)]
+pub struct RoundTiesEven;
+
+impl<F: VFloor> LaneOp<F> for Floor {
+    #[inline(always)]
+    fn apply<S: Simd>(self, v: Vector<S, F>) -> Vector<S, F> {
+        v.floor()
+    }
+}
+
+impl<F: VCeil> LaneOp<F> for Ceil {
+    #[inline(always)]
+    fn apply<S: Simd>(self, v: Vector<S, F>) -> Vector<S, F> {
+        v.ceil()
+    }
+}
+
+impl<F: VTrunc> LaneOp<F> for Trunc {
+    #[inline(always)]
+    fn apply<S: Simd>(self, v: Vector<S, F>) -> Vector<S, F> {
+        v.trunc()
+    }
+}
+
+impl<F: VRoundTiesEven> LaneOp<F> for RoundTiesEven {
+    #[inline(always)]
+    fn apply<S: Simd>(self, v: Vector<S, F>) -> Vector<S, F> {
+        v.round_ties_even()
+    }
+}
+
+/// `e^x` for f32 lanes: Cody-Waite reduction to `|r|` of about `ln(2) / 2` and
+/// the Cephes `expf` polynomial. Within 2 ulp of libm over the whole range,
+/// subnormal results included. Results below the smallest subnormal give 0,
+/// results that overflow give +inf, and NaN passes through.
+#[inline(always)]
+pub fn exp_f32<S: Simd>(x: Vector<S, f32>) -> Vector<S, f32> {
+    // exp(-104) rounds to 0 and exp(89) overflows, so clamping changes no
+    // result and bounds `n` for the exponent bits below.
+    let xc = x.max((-104.0f32).splat()).min(89.0f32.splat());
+    // Adding 1.5 * 2^23 rounds `x * log2(e)` to an integer, ties to even,
+    // and leaves it in the low mantissa bits. Cheaper than `round_to_int`,
+    // which pays for saturation the clamp already rules out.
+    let magic = 12_582_912.0f32.splat::<S>();
+    let t = xc * core::f32::consts::LOG2_E.splat() + magic;
+    let nf = t - magic;
+    let n = t.reinterpret::<i32>() - magic.reinterpret::<i32>();
+    // ln(2) split in two; the high part has 9 significant bits, so the first
+    // product is exact for the clamped `n`.
+    let r = xc - nf * 0.693_359_4f32.splat() - nf * (-2.121_944_4e-4f32).splat();
+
+    let mut p = 1.987_569_1e-4f32.splat::<S>();
+    p = p.mul_add(r, 1.398_199_9e-3f32.splat());
+    p = p.mul_add(r, 8.333_452e-3f32.splat());
+    p = p.mul_add(r, 4.166_579_6e-2f32.splat());
+    p = p.mul_add(r, 1.666_666_6e-1f32.splat());
+    p = p.mul_add(r, 0.5f32.splat());
+    let y = p.mul_add(r * r, r) + 1.0f32.splat();
+
+    // 2^n as two factors keeps both biased exponents in range for every
+    // clamped `n` (-150 for subnormals up to 128), and the last multiply
+    // rounds once into the subnormal or overflow range.
+    let n1 = n >> 1;
+    let n2 = n - n1;
+    let bias = 127i32.splat::<S>();
+    let s1 = ((n1 + bias) << 23).reinterpret::<f32>();
+    let s2 = ((n2 + bias) << 23).reinterpret::<f32>();
+    let out = y * s1 * s2;
+
+    // `min` and `max` return a backend-dependent operand for NaN.
+    let is_nan = !x.le(x);
+    is_nan.select(x, out)
+}
+
+/// [`exp_f32`] as a [`LaneOp`].
+#[derive(Clone, Copy)]
+pub struct Exp;
+
+impl LaneOp<f32> for Exp {
+    #[inline(always)]
+    fn apply<S: Simd>(self, v: Vector<S, f32>) -> Vector<S, f32> {
+        exp_f32::<S>(v)
+    }
+}
+
+/// Logistic sigmoid for f32 lanes, built on `e = exp(-|x|)` so it never
+/// overflows: `s = 1 / (1 + e)` for `x >= 0` and `e * s` below.
+#[derive(Clone, Copy)]
+pub struct Sigmoid;
+
+impl LaneOp<f32> for Sigmoid {
+    #[inline(always)]
+    fn apply<S: Simd>(self, x: Vector<S, f32>) -> Vector<S, f32> {
+        let e = exp_f32::<S>(0.0f32.splat::<S>() - x.abs());
+        let s = 1.0f32.splat::<S>() / (1.0f32.splat() + e);
+        x.ge(0.0f32.splat()).select(s, e * s)
+    }
 }
 
 // ============================================================================
@@ -1117,6 +1349,135 @@ mod tests {
         let mut a = [1.0f32, 2.0, 4.0, 0.5, 10.0];
         recip_inplace_f32(&mut a);
         assert_eq!(a, [1.0, 0.5, 0.25, 2.0, 0.1]);
+    }
+
+    /// Distance in representable f32 values; both inputs must be >= 0.
+    fn ulps(a: f32, b: f32) -> u32 {
+        a.to_bits().abs_diff(b.to_bits())
+    }
+
+    #[test]
+    fn exp_f32_within_2_ulp_of_libm() {
+        // Every 1/256 step from deep underflow to overflow, which crosses the
+        // subnormal range below -87.3 and the overflow edge at 88.72.
+        let input: Vec<f32> = (-105 * 256..=90 * 256)
+            .map(|i| i as f32 / 256.0)
+            .chain([88.72283, 88.72284, -87.33655, -103.27893])
+            .collect();
+        let mut out = input.clone();
+        map_inplace(&mut out, Exp);
+        for (&x, &y) in input.iter().zip(&out) {
+            let expected = libm::expf(x);
+            assert!(
+                ulps(y, expected) <= 2,
+                "exp({x}) = {y:e}, libm gives {expected:e}"
+            );
+        }
+    }
+
+    #[test]
+    fn exp_f32_special_values() {
+        let mut a = [
+            f32::NAN,
+            f32::INFINITY,
+            f32::NEG_INFINITY,
+            0.0,
+            -0.0,
+            200.0,
+            -200.0,
+        ];
+        map_inplace(&mut a, Exp);
+        assert!(a[0].is_nan());
+        assert_eq!(&a[1..], &[f32::INFINITY, 0.0, 1.0, 1.0, f32::INFINITY, 0.0]);
+    }
+
+    #[test]
+    fn sigmoid_f32_matches_stable_scalar() {
+        let input: Vec<f32> = (-120 * 16..=120 * 16).map(|i| i as f32 / 16.0).collect();
+        let out = map_to_vec(&input, Sigmoid);
+        for (&x, &y) in input.iter().zip(&out) {
+            let expected = if x >= 0.0 {
+                1.0 / (1.0 + libm::expf(-x))
+            } else {
+                let e = libm::expf(x);
+                e / (1.0 + e)
+            };
+            assert!(
+                ulps(y, expected) <= 3,
+                "sigmoid({x}) = {y:e}, expected {expected:e}"
+            );
+        }
+
+        let mut special = [f32::NAN, f32::INFINITY, f32::NEG_INFINITY, -0.0];
+        map_inplace(&mut special, Sigmoid);
+        assert!(special[0].is_nan());
+        assert_eq!(&special[1..], &[1.0, 0.0, 0.5]);
+    }
+
+    // Ties, signed zeros, values past the last fractional bit, and NaN/inf,
+    // repeated to 69 = 4 * 16 + 5 elements so the unrolled loop runs and a tail
+    // is left on every lane width up to 16.
+    const ROUND_CASES: [f64; 18] = [
+        0.5,
+        1.5,
+        2.5,
+        -0.5,
+        -1.5,
+        -2.5,
+        -0.3,
+        0.7,
+        -0.0,
+        0.0,
+        8_388_609.0,
+        // Ties just below 2^23 and 2^52, the last values with a half bit in
+        // f32 and f64.
+        8_388_607.5,
+        4_503_599_627_370_495.5,
+        4_503_599_627_370_497.0,
+        -1.0e300,
+        f64::INFINITY,
+        f64::NEG_INFINITY,
+        f64::NAN,
+    ];
+
+    fn check_round<O: LaneOp<f32> + LaneOp<f64>>(op: O, scalar_f64: fn(f64) -> f64) {
+        let f64_in: Vec<f64> = ROUND_CASES.iter().copied().cycle().take(69).collect();
+        let f32_in: Vec<f32> = f64_in.iter().map(|&x| x as f32).collect();
+
+        let mut out = f64_in.clone();
+        map_inplace(&mut out, op);
+        for (&x, &y) in f64_in.iter().zip(&out) {
+            assert_eq!(y.to_bits(), scalar_f64(x).to_bits(), "f64 {x}");
+        }
+
+        let out = map_to_vec(&f32_in, op);
+        for (&x, &y) in f32_in.iter().zip(&out) {
+            let expected = scalar_f64(x as f64) as f32;
+            assert_eq!(y.to_bits(), expected.to_bits(), "f32 {x}");
+        }
+    }
+
+    /// Above `PARALLEL_THRESHOLD`, `map_to_vec` writes rayon chunks into
+    /// uninitialized memory; every element must still be written once.
+    #[cfg(feature = "rayon")]
+    #[test]
+    fn map_to_vec_parallel_writes_every_element() {
+        let input: Vec<f32> = (0..PARALLEL_THRESHOLD + 3)
+            .map(|i| i as f32 * 0.25 - 1000.5)
+            .collect();
+        let out = map_to_vec(&input, Floor);
+        assert_eq!(out.len(), input.len());
+        for (i, (&x, &y)) in input.iter().zip(&out).enumerate() {
+            assert_eq!(y.to_bits(), x.floor().to_bits(), "index {i}");
+        }
+    }
+
+    #[test]
+    fn rounding_matches_scalar_bitwise() {
+        check_round(Floor, f64::floor);
+        check_round(Ceil, f64::ceil);
+        check_round(Trunc, f64::trunc);
+        check_round(RoundTiesEven, f64::round_ties_even);
     }
 
     // ================================================================
