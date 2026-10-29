@@ -177,6 +177,11 @@ all-to-all, and broadcast also support boolean tensors. Quantized tensors are re
 - Coordinate DDP batch availability before backward passes and synchronize epoch transitions.
   Workers must yield the same number of training batches; uneven exhaustion now reports an error.
   ([#6184](https://github.com/tracel-ai/burn/pull/6184))
+- Float collectives under autodiff run on the backend's native collective, NCCL on CUDA, with a
+  backward of their own, instead of being emulated with tracked transfers between devices. A
+  collective's outputs share that backward, so their losses must go through a single `backward`.
+  ([#6274](https://github.com/tracel-ai/burn/pull/6274))
+  [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
 - Drain every device's pending fusion work at once before a collective, speeding up
   tensor-parallel decode. ([#6293](https://github.com/tracel-ai/burn/pull/6293))
   [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
@@ -275,6 +280,10 @@ For example, update custom progress logger implementations:
 - Flush partial gradient accumulation only after normal dataloader exhaustion. An interruption or
   error observed before that update discards the pending window.
   ([#6184](https://github.com/tracel-ai/burn/pull/6184))
+- Return errors instead of panicking when `InMemDataset::from_json_rows` encounters unreadable
+  lines, invalid UTF-8, or JSON that cannot be deserialized.
+  ([#6284](https://github.com/tracel-ai/burn/pull/6284))
+  [@onenewcode](https://github.com/onenewcode)
 
 #### Dataloader prefetch
 
@@ -325,6 +334,9 @@ loading those checkpoints by filtering to `linear_inner` and `linear_outer`.
   ([#6039](https://github.com/tracel-ai/burn/pull/6039))
 - Correct accelerated attention results for padding masks broadcast across query positions.
   ([#6008](https://github.com/tracel-ai/burn/pull/6008))
+- Correct `Same` padding for dilated 1D, 2D, and 3D convolutions, including Conv3d configurations
+  whose effective kernel permits symmetric padding.
+  ([#6286](https://github.com/tracel-ai/burn/pull/6286)) [@onenewcode](https://github.com/onenewcode)
 - Correct max-pooling SAME padding with dilation. Reject unsupported asymmetric
   deformable-convolution padding and invalid binary-cross-entropy inputs.
   ([#6023](https://github.com/tracel-ai/burn/pull/6023),
