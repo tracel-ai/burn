@@ -45,6 +45,7 @@ hip = ["cubecl/hip", "burn-backend/cubecl-hip"]
 cpu = ["cubecl/cpu", "burn-backend/cubecl-cpu"]
 wgpu = ["cubecl/wgpu", "burn-backend/cubecl-wgpu"]
 metal = ["wgpu", "cubecl/metal", "burn-backend/cubecl-metal"]
+metal-native = ["cubecl/metal-native", "burn-backend/cubecl-metal-native"]
 vulkan = ["wgpu", "cubecl/vulkan", "burn-backend/cubecl-vulkan"]
 webgpu = ["wgpu", "cubecl/webgpu", "burn-backend/cubecl-webgpu"]
 

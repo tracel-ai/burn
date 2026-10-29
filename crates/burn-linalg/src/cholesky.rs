@@ -10,8 +10,8 @@ use burn_std::{DType, Shape};
 
 #[backend_extension(
     Flex: cfg(feature = "flex"),
-    Cube: cfg(any(feature = "wgpu", feature = "webgpu", feature = "vulkan",
-        feature = "metal", feature = "cuda", feature = "rocm", feature = "cpu")),
+    Cube: cfg(any(feature = "wgpu", feature = "webgpu", feature = "vulkan", feature = "metal",
+        feature = "metal-native", feature = "cuda", feature = "rocm", feature = "cpu")),
     Fusion: cfg(feature = "fusion")
 )]
 pub(crate) trait CholeskyOps: Backend {
@@ -44,6 +44,7 @@ mod tests {
             feature = "webgpu",
             feature = "vulkan",
             feature = "metal",
+            feature = "metal-native",
             feature = "cuda",
             feature = "rocm",
             feature = "cpu"
