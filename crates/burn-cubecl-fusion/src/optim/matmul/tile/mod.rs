@@ -21,25 +21,15 @@ use crate::{
 };
 use burn_backend::cubecl::dtype_to_storage_type;
 use burn_fusion::stream::Context;
-use burn_ir::TensorIr;
-use burn_std::{DType, quantization::QParamTensor};
 use cubecl::{
     AutotuneKey, CubeTuneId,
-    prelude::TensorBinding,
-    tile::{
-        Axis,
-        launch::{Refusal, SinkLaunch, SinkLaunchVisitor},
-    },
+    tile::launch::{Refusal, SinkLaunch, SinkLaunchVisitor},
     tune::{LocalTuner, Tunable, TunableSet, local_tuner},
 };
 use cubek::matmul::kernels::{
     MatmulOpStrategy,
-    plan::{MatmulCall, MatmulCallInput},
-    select::{
-        problem::{MatmulProblem, OperandKind},
-        selector::measured_table,
-    },
-    tensor::{PackedTensor, PlainTensor, StoredTensor},
+    plan::MatmulCall,
+    select::{problem::MatmulProblem, selector::measured_table},
     tune::{
         MatmulTableGroups,
         key::{MatmulTuneKey, create_key},

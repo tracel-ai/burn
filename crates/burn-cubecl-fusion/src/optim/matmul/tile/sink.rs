@@ -11,7 +11,7 @@ use cubecl::{
         layout::{Coords1d, plain::PlainLayout},
     },
     tile::{
-        Geometry, Partitioning, Tile, TileSpec,
+        Partitioning, Tile, TileSpec,
         kind::{GlobalOperand, Write},
         launch::{Destination, DestinationLaunch, Unbound},
         layout::RuntimeGeometry,
