@@ -250,6 +250,10 @@ For example, update custom progress logger implementations:
 - Flush partial gradient accumulation only after normal dataloader exhaustion. An interruption or
   error observed before that update discards the pending window.
   ([#6184](https://github.com/tracel-ai/burn/pull/6184))
+- Return errors instead of panicking when `InMemDataset::from_json_rows` encounters unreadable
+  lines, invalid UTF-8, or JSON that cannot be deserialized.
+  ([#6284](https://github.com/tracel-ai/burn/pull/6284))
+  [@onenewcode](https://github.com/onenewcode)
 
 #### Dataloader prefetch
 
