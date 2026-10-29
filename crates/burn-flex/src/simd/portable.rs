@@ -209,6 +209,10 @@ fn recip_inplace_f32_par(a: &mut [f32]) {
 // Lane-wise maps (rounding, exp, sigmoid)
 // ============================================================================
 
+/// Lanes in the widest register of the smallest element: 64 `u8` lanes in
+/// 512 bits. Sizes the stack buffers that run a short tail through a vector.
+pub const MAX_LANES: usize = 64;
+
 /// An elementwise op on vectors, run over slices by [`map_inplace`] and
 /// [`map_to_vec`]. Each output lane must depend only on the same input lane,
 /// since the drivers also apply it to the padding lanes of a short tail.
@@ -273,8 +277,9 @@ fn map_into_seq<S: Simd, F: Scalar, O: LaneOp<F>>(src: &[F], dst: &mut [MaybeUni
 ///
 /// # Safety
 ///
-/// `src` must be valid and aligned for `len` reads and `dst` for `len`
-/// writes. They are either equal or don't overlap.
+/// `src` must be valid for `len` reads and `dst` for `len` writes, both
+/// aligned to `F`: the vector loads and stores are unaligned, but the tail
+/// copies use `copy_nonoverlapping`. They are either equal or don't overlap.
 #[inline(always)]
 unsafe fn map_raw<S: Simd, F: Scalar, O: LaneOp<F>>(src: *const F, dst: *mut F, len: usize, op: O) {
     let lanes = F::lanes::<S>();
@@ -309,8 +314,11 @@ unsafe fn map_raw<S: Simd, F: Scalar, O: LaneOp<F>>(src: *const F, dst: *mut F, 
 
     let tail = len - simd_len;
     if tail > 0 {
-        let mut buf = [F::default(); 64];
-        assert!(lanes <= buf.len(), "SIMD lane count {lanes} exceeds 64");
+        let mut buf = [F::default(); MAX_LANES];
+        assert!(
+            lanes <= MAX_LANES,
+            "SIMD lane count {lanes} exceeds {MAX_LANES}"
+        );
         // SAFETY: the tail is in bounds of both buffers, and the assertion
         // above keeps one vector within `buf`.
         unsafe {

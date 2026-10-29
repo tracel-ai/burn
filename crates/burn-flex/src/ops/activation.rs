@@ -397,8 +397,11 @@ fn softmax_row_f32_simd<S: macerator::Simd>(input: &[f32], output: &mut [f32]) {
     let mut sum = sum_vec.reduce_add();
     let tail = len - simd_len;
     if tail > 0 {
-        let mut buf = [0.0f32; 64];
-        assert!(lanes <= buf.len(), "SIMD f32 lane count {lanes} exceeds 64");
+        let mut buf = [0.0f32; crate::simd::MAX_LANES];
+        assert!(
+            lanes <= buf.len(),
+            "SIMD f32 lane count {lanes} exceeds the buffer"
+        );
         buf[..tail].copy_from_slice(&input[simd_len..]);
         // SAFETY: the assertion above keeps one vector within `buf`.
         unsafe {
