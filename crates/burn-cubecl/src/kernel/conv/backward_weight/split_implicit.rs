@@ -171,6 +171,12 @@ pub(crate) fn wgrad_split_implicit<const N: usize, const SPATIAL_LAST: bool>(
         return Err(ConvSetupError::Unknown);
     }
     let out_channels = out_grad.meta.shape()[dim_c];
+    let output_dtype = out_grad.dtype;
+    // Partial sums must keep enough range until all splits have been combined.
+    let partial_dtype = match output_dtype {
+        DType::F16 | DType::BF16 => DType::F32,
+        dtype => dtype,
+    };
     let rows = out_grad.meta.shape()[..dim_c].iter().product::<usize>();
     let columns = weight_shape[1..].iter().product::<usize>();
     // Bound partial weights to 64 MiB even with eight-byte elements.
@@ -190,7 +196,7 @@ pub(crate) fn wgrad_split_implicit<const N: usize, const SPATIAL_LAST: bool>(
         input.client.clone(),
         input.device.clone(),
         [splits, out_channels, columns].into(),
-        out_grad.dtype,
+        partial_dtype,
     );
     let conv = ConvolutionProblem {
         m: out_channels,
@@ -224,7 +230,7 @@ pub(crate) fn wgrad_split_implicit<const N: usize, const SPATIAL_LAST: bool>(
         global_dtypes: MatmulGlobalElems {
             lhs: dtype_to_storage_type(out_grad.dtype),
             rhs: dtype_to_storage_type(input.dtype),
-            out: dtype_to_storage_type(out_grad.dtype),
+            out: dtype_to_storage_type(partial_dtype),
         },
         address_type: address_type!(input, out_grad, partial),
     };
@@ -372,6 +378,11 @@ pub(crate) fn wgrad_split_implicit<const N: usize, const SPATIAL_LAST: bool>(
     // Spatial-last columns store [out_channels, in_channels, ...kernel].
     // Restore the documented channel-last shape through metadata after reduction.
     let finish = |gradient| {
+        let gradient = if partial_dtype == output_dtype {
+            gradient
+        } else {
+            crate::kernel::cast(gradient, output_dtype)
+        };
         if const { SPATIAL_LAST } {
             let mut shape = vec![out_channels, channels];
             shape.extend_from_slice(&weight_shape[1..N + 1]);
@@ -677,6 +688,44 @@ mod tests {
                         .unwrap(),
                 );
             }
+        }
+    }
+
+    #[test]
+    fn split_implicit_reduces_f16_partials_without_overflow() {
+        let device = CubeDevice::cuda(0).unwrap();
+        let input_values = [vec![200.0_f32; 512 * 4], vec![-200.0_f32; 512 * 4]].concat();
+        let input = crate::ops::from_data(
+            TensorData::new(input_values, [2, 16, 32, 4]).convert_dtype(DType::F16),
+            &device,
+        );
+        let grad = crate::ops::from_data(
+            TensorData::new(vec![1.0_f32; 2 * 16 * 32 * 8], [2, 16, 32, 8])
+                .convert_dtype(DType::F16),
+            &device,
+        );
+
+        let options = ConvOptions::new([1; 2], [0; 2], [1; 2], 1);
+        let outputs = [
+            wgrad_split_implicit::<2, false>(
+                input.clone(),
+                grad.clone(),
+                [8, 1, 1, 4].into(),
+                options.clone(),
+            ),
+            wgrad_split_implicit::<2, true>(input, grad, [8, 1, 1, 4].into(), options),
+        ];
+        for output in outputs {
+            let values = crate::ops::into_data_sync(output.unwrap())
+                .convert::<f32>()
+                .try_to_vec::<f32>()
+                .unwrap();
+            assert!(
+                values
+                    .iter()
+                    .all(|value| value.is_finite() && value.abs() < 1.0),
+                "{values:?}"
+            );
         }
     }
 }
