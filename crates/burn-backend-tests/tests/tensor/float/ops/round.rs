@@ -17,11 +17,11 @@ fn should_support_round_ops() {
 
 #[test]
 fn should_round_ties_even() {
-    let data = TensorData::from([1.5, 2.5, 3.5, 4.5, 5.5, 6.5]);
+    let data = TensorData::from([1.5, 2.5, 3.5, 4.5, 5.5, 6.5, 14.5, 15.5, -14.5, -15.5]);
     let tensor = TestTensor::<1>::from_data(data, &Default::default());
 
     let output = tensor.round();
-    let expected = TensorData::from([2., 2., 4., 4., 6., 6.]);
+    let expected = TensorData::from([2., 2., 4., 4., 6., 6., 14., 16., -14., -16.]);
 
     output
         .into_data()
@@ -68,13 +68,18 @@ fn round_to_zero_matches_round() {
 
 #[test]
 fn should_support_round_to_negative_decimals() {
-    // Negative decimals round to the left of the decimal point, keeping the
-    // round-half-to-even tie breaking of `round`.
-    let data = TensorData::from([1234.56, -1234.56, 987.65, 1550.0, 1450.0, 0.0]);
+    // Avoid halfway cases here: inexact scaling can move them across the rounding
+    // boundary (e.g. Vulkan f16 division can produce 15.4921875 for 1550 / 100).
+    // Tie breaking is tested directly in `should_round_ties_even`.
+    let data = TensorData::from([
+        1234.56, -1234.56, 987.65, 1560.0, 1440.0, -1560.0, -1440.0, 0.0,
+    ]);
     let tensor = TestTensor::<1>::from_data(data, &Default::default());
 
     let output = tensor.round_to(-2);
-    let expected = TensorData::from([1200.0, -1200.0, 1000.0, 1600.0, 1400.0, 0.0]);
+    let expected = TensorData::from([
+        1200.0, -1200.0, 1000.0, 1600.0, 1400.0, -1600.0, -1400.0, 0.0,
+    ]);
 
     output
         .into_data()
