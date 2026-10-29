@@ -79,6 +79,10 @@ positions when sequence lengths differ.
 
 #### Kernels
 
+- Take a CubeCL `min_dim`, `max_dim`, `argmin` or `argmax` whose outputs are too few to fill the
+  device, but whose terms are not, on the cube reduce routine instead of one thread per output when
+  autotune is off.
+  [@vboussot](https://github.com/vboussot)
 - Avoid a full-sized gradient copy in CubeCL FP32 `conv2d` bias backward, while retaining
   single-pass accumulation for FP16/BF16 to avoid intermediate overflow.
   ([#6173](https://github.com/tracel-ai/burn/pull/6173))
