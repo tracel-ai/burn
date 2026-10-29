@@ -1,8 +1,11 @@
 use crate::{
     CubeTuneId,
-    kernel::matmul::{
-        launch_matmul, launch_matmul_naive, tune::bounds::with_matmul_bounds,
-        utils::init_matmul_output,
+    kernel::{
+        matmul::{
+            launch_matmul, launch_matmul_naive, long_k, tune::bounds::with_matmul_bounds,
+            utils::init_matmul_output,
+        },
+        utils::{device_threads, few_outputs_over_a_long_axis},
     },
     tensor::CubeTensor,
 };
@@ -90,6 +93,7 @@ pub fn matmul_autotune(
     let client = lhs.client.clone();
     let tune_client = client.clone();
     let num_cpu_cores = client.properties().hardware.num_cpu_cores;
+    let threads = device_threads(&lhs);
 
     static TUNER: LocalTuner<MatmulAutotuneKey, CubeTuneId> = local_tuner!();
 
@@ -246,6 +250,29 @@ pub fn matmul_autotune(
                     PRIORITY_MIN
                 }
             }),
+        );
+
+        // An output too small to fill the device over a long k, which the tiled routines run on a
+        // few cubes.
+        let long_k = TuneGroup::<MatmulAutotuneKey>::new("long_k", move |key| {
+            let definition = &key.definition;
+            if few_outputs_over_a_long_axis(threads, definition.m * definition.n, definition.k) {
+                PRIORITY_MAX
+            } else {
+                PRIORITY_NEVER
+            }
+        });
+        set = set.with(
+            Tunable::new("matmul_long_k", |(lhs, rhs, out)| {
+                if !long_k::applies(&lhs, &rhs, &out) {
+                    return Err(String::from(
+                        "the long-k route takes a small float output over a long k",
+                    ));
+                }
+                long_k::matmul_long_k(lhs, rhs, out);
+                Ok(())
+            })
+            .group(&long_k, |_key| PRIORITY_MAX),
         );
 
         // Matrix Vector multiplication kernels.

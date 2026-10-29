@@ -487,3 +487,35 @@ fn float_should_panic_when_batch_dimensions_are_not_broadcastable() {
     let tensor_3 = tensor_1.matmul(tensor_2);
     tensor_3.into_data();
 }
+
+#[test]
+fn test_float_matmul_long_k() {
+    // A small output over a long k, batched, the right operand transposed. Small integers keep
+    // every partial sum exact in f32 and f64, the types this route takes; a half-precision sum this
+    // long is not exact.
+    if FloatElem::EPSILON.elem::<f32>() > f32::EPSILON {
+        return;
+    }
+    let device = Default::default();
+    let [b, m, n, k] = [2, 3, 5, 70_000];
+    let lhs: Vec<f32> = (0..b * m * k).map(|i| (i % 3) as f32).collect();
+    let rhs: Vec<f32> = (0..b * n * k).map(|i| ((i / 7) % 2) as f32).collect();
+    let mut expected = vec![0.0f32; b * m * n];
+    for bi in 0..b {
+        for mi in 0..m {
+            for ni in 0..n {
+                expected[(bi * m + mi) * n + ni] = (0..k)
+                    .map(|ki| lhs[(bi * m + mi) * k + ki] * rhs[(bi * n + ni) * k + ki])
+                    .sum();
+            }
+        }
+    }
+    let lhs = TestTensor::<1>::from_data(lhs.as_slice(), &device).reshape([b, m, k]);
+    let rhs = TestTensor::<1>::from_data(rhs.as_slice(), &device).reshape([b, n, k]);
+
+    let output = lhs.matmul(rhs.swap_dims(1, 2));
+
+    output
+        .into_data()
+        .assert_eq(&TensorData::new(expected, [b, m, n]), false);
+}
