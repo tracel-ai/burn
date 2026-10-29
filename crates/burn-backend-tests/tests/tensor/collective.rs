@@ -1,8 +1,6 @@
 use burn_backend::ops::CollectiveOps;
 use burn_dispatch::Dispatch;
-use burn_tensor::{
-    DType, Device, TensorData, Tolerance, distributed::ReduceOperation, kind::Basic,
-};
+use burn_tensor::{Device, TensorData, Tolerance, distributed::ReduceOperation, kind::Basic};
 use core::ops::Range;
 
 use super::*;
@@ -349,6 +347,8 @@ impl Group {
     /// Every member holds 40000, whose sum overflows f16 though the mean does not.
     #[cfg(any(feature = "flex", feature = "cuda"))]
     fn f16_mean_past_the_range_of_its_sum(&self) {
+        use burn_tensor::DType;
+
         let members = self
             .devices
             .iter()

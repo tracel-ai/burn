@@ -15,6 +15,8 @@ impl AutodiffDevice {
 #[path = "../autodiff/mod.rs"]
 mod base;
 
+// The same tests again, on a device that checkpoints its gradients.
+#[allow(clippy::duplicate_mod)]
 mod checkpointing {
     pub use super::FloatElem;
 
