@@ -564,7 +564,10 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an [`ExecutionError`] if an operation failed to execute.
+    /// Returns an [`ExecutionError`] when the device can no longer execute work: it is poisoned,
+    /// or a remote device's session ended. A failure of an operation itself is deferred to the
+    /// tensors it was going to write, and operations reading them are skipped: the read of one of
+    /// those tensors reports it, while work sharing no tensor with the failure is unaffected.
     pub fn sync(&self) -> Result<(), ExecutionError> {
         Dispatch::sync(self.as_dispatch())
     }
@@ -585,7 +588,8 @@ impl Device {
     /// # Errors
     ///
     /// Returns an [`ExecutionError`] when the buffered operations cannot be dispatched, e.g. on a
-    /// device that is poisoned.
+    /// device that is poisoned or a remote device whose session ended. As with
+    /// [`sync`](Self::sync), a failure of an operation itself is reported by a read.
     pub fn flush(&self) -> Result<(), ExecutionError> {
         Dispatch::flush(self.as_dispatch())
     }
