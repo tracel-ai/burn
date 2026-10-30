@@ -15,7 +15,7 @@ use burn::{
 fn orthogonal_initialization_uses_dynamic_pools_for_qr() {
     let device = Device::default();
     device.memory_cleanup();
-    let before = device.memory_pool_usage().unwrap().bytes_in_use;
+    let before = device.measure_memory().unwrap().usage.bytes_in_use;
 
     let weights: Tensor<2> = Initializer::Orthogonal { gain: 1.0 }
         .init([32, 16], &device)
@@ -23,7 +23,7 @@ fn orthogonal_initialization_uses_dynamic_pools_for_qr() {
     let weight_bytes = (weights.shape().num_elements() * weights.dtype().size()) as u64;
     device.sync().unwrap();
 
-    let pools = device.memory_pool_report().unwrap();
+    let pools = device.measure_memory().unwrap().pools;
     assert!(
         pools.iter().any(|pool| pool.largest_alloc >= weight_bytes),
         "QR temporaries should use dynamic pools: {pools:?}"
@@ -31,7 +31,7 @@ fn orthogonal_initialization_uses_dynamic_pools_for_qr() {
 
     device.memory_cleanup();
     assert_eq!(
-        device.memory_pool_usage().unwrap().bytes_in_use,
+        device.measure_memory().unwrap().usage.bytes_in_use,
         before + weight_bytes,
         "only the final weights should remain allocated after cleanup"
     );

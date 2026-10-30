@@ -1,4 +1,7 @@
-use burn_backend::{DTypeUsageSet, ExecutionError, ProfileOptions, ProfileToken, TensorData};
+use burn_backend::{
+    DTypeUsageSet, DeviceDescription, DeviceTelemetry, ExecutionError, MemoryReport, Peak,
+    PeakError, PeakKey, ProfileOptions, ProfileToken, TensorData,
+};
 use burn_ir::{CapturedGraphId, GraphBindings, GraphId, OperationIr, TensorId, TensorIr};
 use burn_std::{
     DType, DeviceSettings,
@@ -20,13 +23,14 @@ use crate::{
 /// messages after the handshake are framed, or which operations a server can
 /// run, so a mismatched peer is refused at the handshake rather than failing
 /// mid-session.
-pub const PROTOCOL_VERSION: u16 = 7;
+pub const PROTOCOL_VERSION: u16 = 8;
 
 /// Routing id for a task whose result is fetched back.
 ///
 /// Only the result-producing tasks ([`Task::ReadTensors`], [`Task::SyncBackend`],
 /// [`Task::DTypeUsage`], [`Task::ProfileStart`], [`Task::ProfileEnd`], [`Task::CapturePrepare`],
-/// [`Task::CaptureStart`], [`Task::CaptureStop`], [`Task::DeviceQuery`]) carry a
+/// [`Task::CaptureStart`], [`Task::CaptureStop`], [`Task::DeviceQuery`] and the description and
+/// measurement tasks) carry a
 /// `RequestId`; the server echoes it on its [`TaskResponse`] so the client demultiplexes results
 /// back to the right pending callback. Fire-and-forget tasks have no id because no result ever
 /// comes back.
@@ -353,6 +357,15 @@ pub enum Task {
     CaptureRelease(CapturedGraphId),
     /// Ask the server the device query registered under the id about the session's device.
     DeviceQuery(RequestId, DeviceQueryId),
+    /// What the session's device is, as its driver states it.
+    DeviceDescription(RequestId),
+    /// One reading of the counters of the session's device.
+    MeasureTelemetry(RequestId),
+    /// What the allocator of the session's device holds, where `stream_id` stands, after every
+    /// earlier task.
+    MeasureMemory(RequestId, StreamId),
+    /// The peak throughput of the session's device for each key.
+    MeasurePeaks(RequestId, Vec<PeakKey>),
 }
 
 /// The id a server registers a device query under, and a client asks it by.
@@ -431,6 +444,14 @@ pub enum TaskResponseContent {
     Capture(Result<(), ExecutionError>),
     /// The answer to [`DeviceQuery`](Task::DeviceQuery).
     DeviceQuery(Result<serde_bytes::ByteBuf, DeviceQueryFailure>),
+    /// The answer to [`DeviceDescription`](Task::DeviceDescription).
+    DeviceDescription(Option<DeviceDescription>),
+    /// The answer to [`MeasureTelemetry`](Task::MeasureTelemetry).
+    Telemetry(DeviceTelemetry),
+    /// The answer to [`MeasureMemory`](Task::MeasureMemory).
+    Memory(Option<MemoryReport>),
+    /// The answer to [`MeasurePeaks`](Task::MeasurePeaks), one per key in order.
+    Peaks(Vec<Result<Peak, PeakError>>),
     /// The server's answer to an `Init` it will not serve, in place of [`Init`](Self::Init),
     /// before it closes the session.
     InitRefused(SessionRefusal),
