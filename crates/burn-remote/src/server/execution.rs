@@ -13,8 +13,9 @@ use burn_std::id::StreamId;
 /// succeeds, so a failed close is tried again then. A session reads and closes only the modes it
 /// opened.
 ///
-/// A token names the server stream it was opened on (see
-/// [`ServerStreams`](super::streams::ServerStreams)), which is where it closes.
+/// The session keeps the token its backend handed out, which names the server stream the mode
+/// was opened on (see [`ServerStreams`](super::streams::ServerStreams)), where it closes. The
+/// client's copy names the client's stream instead, so a mode is found by its token's id.
 #[derive(Default)]
 pub struct SessionExecutionModes {
     open: Vec<ExecutionModeToken>,
@@ -39,10 +40,8 @@ impl SessionExecutionModes {
         runner: &TensorInterpreter<B>,
         token: ExecutionModeToken,
     ) -> Result<ExecutionStatistics, ExecutionError> {
-        if !self.open.contains(&token) {
-            return Err(UnknownExecutionMode.into());
-        }
-        runner.execution_mode_statistics(token)
+        let held = self.held(token).ok_or(UnknownExecutionMode)?;
+        runner.execution_mode_statistics(self.open[held])
     }
 
     /// Close the session's mode `token` after everything the session ran on the stream it was
@@ -52,14 +51,18 @@ impl SessionExecutionModes {
         runner: &TensorInterpreter<B>,
         token: ExecutionModeToken,
     ) -> Result<ExecutionStatistics, ExecutionError> {
-        let Some(position) = self.open.iter().position(|held| *held == token) else {
-            return Err(UnknownExecutionMode.into());
-        };
+        let held = self.held(token).ok_or(UnknownExecutionMode)?;
+        let token = self.open[held];
         let closed = token
             .opened_on
             .executes(|| runner.execution_mode_close(token))?;
-        self.open.swap_remove(position);
+        self.open.swap_remove(held);
         Ok(closed)
+    }
+
+    /// Where the session keeps the mode the client's `token` names, by its id.
+    fn held(&self, token: ExecutionModeToken) -> Option<usize> {
+        self.open.iter().position(|held| held.id == token.id)
     }
 
     /// Close every mode the session still holds, as it ends.

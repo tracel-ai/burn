@@ -747,13 +747,20 @@ impl RemoteService {
         stream_id: StreamId,
         mode: ExecutionMode,
     ) -> Result<Option<ExecutionModeToken>, ExecutionError> {
-        self.execution_request(
+        let opened = self.execution_request(
             |id| Task::ExecutionModeOpen(id, stream_id, mode),
             |answer| match answer {
                 TaskResponseContent::ExecutionModeOpen(res) => Ok(res),
                 other => Err(other),
             },
-        )
+        )?;
+        // The server's token names the server stream it opened on; the layers above this one —
+        // a client-side fusion queue — drain the stream the token names before closing, which is
+        // this client's. The server finds its mode by the id alone.
+        Ok(opened.map(|token| ExecutionModeToken {
+            opened_on: stream_id,
+            ..token
+        }))
     }
 
     /// What the work under the server's mode `token` has triggered so far.
