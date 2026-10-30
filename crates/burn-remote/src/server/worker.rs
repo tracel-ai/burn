@@ -296,12 +296,16 @@ where
                 graph_id,
                 bindings,
             } => {
-                let graph = {
-                    let cache = self.graphs.lock().unwrap();
-                    cache
-                        .get(&graph_id)
-                        .cloned()
-                        .ok_or_else(|| format!("Execute of unknown graph {graph_id:?}"))?
+                let graph = self.graphs.lock().unwrap().get(&graph_id).cloned();
+                let Some(graph) = graph else {
+                    let reason = format!("Execute of unknown graph {graph_id:?}");
+                    // The bindings do not say which tensors are outputs, but the inputs are
+                    // written and the outputs are not, so only the outputs are claimed.
+                    let error = TensorError::new(ExecutionError::generic(reason.clone()));
+                    for (_, id) in bindings.tensors {
+                        self.runner.claim_unwritten(id, error.clone());
+                    }
+                    return Err(reason);
                 };
                 self.emit_graph_executed(graph_id, stream_id, &bindings);
                 self.on_stream(stream_id, |runner| graph.replay(runner, bindings));
@@ -338,10 +342,14 @@ where
                     }
                     None => {
                         self.emit_transfer(peer, TransferScope::Remote, TransferPhase::Failed);
-                        return Err(format!(
+                        let reason = format!(
                             "Failed to download tensor for transfer {:?} from {:?}",
                             remote.capability, remote.peer,
-                        ));
+                        );
+                        // The tensor is never written, so a read of it reports why.
+                        let error = TensorError::new(ExecutionError::generic(reason.clone()));
+                        self.runner.set_error(new_id, error);
+                        return Err(reason);
                     }
                 };
                 // Register on the client stream that will consume `new_id`, carried over the
@@ -359,9 +367,13 @@ where
                 // Source side of a same-host transfer. Grab the device-resident primitive
                 // (no host readback) and park it in the registry for the target session to
                 // pick up. Runs in order on this session's worker, so it is ordered after the op
-                // that produced `tensor` — the handle is guaranteed present. Read it back on the
-                // client stream that produced it, carried over the wire.
-                let kind = self.on_stream(stream_id, |runner| runner.get_tensor(&tensor));
+                // that produced `tensor` — the handle is present, or a failure claimed it, which
+                // the target is handed instead. Read it back on the client stream that produced
+                // it, carried over the wire.
+                let kind = match self.runner.take_error(&tensor) {
+                    Some(error) => Err(error),
+                    None => Ok(self.on_stream(stream_id, |runner| runner.get_tensor(&tensor))),
+                };
                 self.local_comm
                     .expose(self.session_id, transfer_id, kind)
                     .await;
@@ -377,11 +389,18 @@ where
                 // in order so subsequent ops on this session that consume `new_id` see it
                 // registered first — same ordering contract as `RegisterTensorRemote`. The wait
                 // blocks only this session's worker, not the source session's.
-                let kind = self.local_comm.take(transfer_id).await;
-                self.on_stream(stream_id, |runner| {
-                    runner.register_tensor_to_device(new_id, kind)
-                });
-                self.emit_transfer(None, TransferScope::Local, TransferPhase::Completed);
+                match self.local_comm.take(transfer_id).await {
+                    Ok(kind) => {
+                        self.on_stream(stream_id, |runner| {
+                            runner.register_tensor_to_device(new_id, kind)
+                        });
+                        self.emit_transfer(None, TransferScope::Local, TransferPhase::Completed);
+                    }
+                    Err(error) => {
+                        self.runner.set_error(new_id, error.propagated());
+                        self.emit_transfer(None, TransferScope::Local, TransferPhase::Failed);
+                    }
+                }
                 Ok(())
             }
             Task::AllReduceLocal { stream_id, part } => {
@@ -913,6 +932,102 @@ mod tests {
         let closed = tokio::time::timeout(Duration::from_secs(10), first_responses.recv()).await;
         assert!(matches!(closed, Ok(None)), "the first session never ended");
         prepare(&second, &mut second_responses).await.unwrap();
+    }
+
+    fn float(id: u64) -> TensorIr {
+        TensorIr {
+            id: TensorId::new(id),
+            shape: Shape::new([2]),
+            status: TensorStatus::ReadOnly,
+            dtype: DType::F32,
+        }
+    }
+
+    async fn read_error(
+        handler: &mut SessionHandler<Flex, NoTransfer>,
+        responses: &mut mpsc::Receiver<TaskResponse>,
+        tensor: TensorIr,
+    ) -> ExecutionError {
+        handler
+            .process_task(Task::ReadTensors(0, StreamId::current(), vec![tensor]))
+            .await
+            .unwrap();
+        match next_answer(responses).await {
+            TaskResponseContent::ReadTensors(Err(error)) => error,
+            other => panic!("expected a read error, got {other:?}"),
+        }
+    }
+
+    /// A same-host transfer of a tensor a failure claimed hands the target that failure, rather
+    /// than panicking the source session and leaving the target waiting for good.
+    #[tokio::test]
+    async fn a_local_transfer_of_a_failed_tensor_claims_the_target() {
+        let (response_sender, mut responses) = mpsc::channel(1);
+        let mut handler = SessionHandler::new(response_sender, DeviceCaptureLock::default());
+        let stream_id = StreamId::current();
+        let (source, target) = (float(1), float(2));
+        handler.runner.set_error(
+            source.id,
+            TensorError::new(ExecutionError::with_context("the source failed")),
+        );
+
+        for task in [
+            Task::ExposeTensorLocal {
+                stream_id,
+                tensor: source,
+                transfer_id: LocalTransferId::from(0),
+            },
+            Task::RegisterTensorLocal {
+                stream_id,
+                transfer_id: LocalTransferId::from(0),
+                new_id: target.id,
+            },
+        ] {
+            handler.process_task(task).await.unwrap();
+        }
+
+        let error = read_error(&mut handler, &mut responses, target).await;
+        assert!(error.to_string().contains("the source failed"), "{error}");
+    }
+
+    /// An execute of a graph the server does not hold claims the outputs it binds, and leaves its
+    /// inputs readable.
+    #[tokio::test]
+    async fn an_unknown_graph_claims_its_outputs() {
+        let (response_sender, mut responses) = mpsc::channel(1);
+        let mut handler = SessionHandler::new(response_sender, DeviceCaptureLock::default());
+        let stream_id = StreamId::current();
+        let (input, output) = (float(1), float(2));
+        let data = TensorData::new(vec![1.0f32, 2.0], [2]);
+
+        handler
+            .process_task(Task::RegisterTensor(stream_id, input.id, data.clone()))
+            .await
+            .unwrap();
+        let executed = handler
+            .process_task(Task::ExecuteGraph {
+                stream_id,
+                graph_id: GraphId(7),
+                bindings: GraphBindings {
+                    tensors: vec![(TensorId::new(0), input.id), (TensorId::new(1), output.id)],
+                    shapes: Vec::new(),
+                    scalars: Vec::new(),
+                    ranges: Vec::new(),
+                },
+            })
+            .await;
+        assert!(executed.is_err());
+
+        let error = read_error(&mut handler, &mut responses, output).await;
+        assert!(error.to_string().contains("unknown graph"), "{error}");
+        handler
+            .process_task(Task::ReadTensors(0, stream_id, vec![input]))
+            .await
+            .unwrap();
+        match next_answer(&mut responses).await {
+            TaskResponseContent::ReadTensors(Ok(read)) => read[0].assert_eq(&data, true),
+            other => panic!("expected the input's data, got {other:?}"),
+        }
     }
 
     async fn next_answer(responses: &mut mpsc::Receiver<TaskResponse>) -> TaskResponseContent {

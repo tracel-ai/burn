@@ -147,6 +147,18 @@ impl<B: BackendIr> TensorInterpreter<B> {
         self.context.handles.set_error(id, error);
     }
 
+    /// Register `id` as failed by `error`, unless something wrote it or a failure already claims
+    /// it: for a failure that cannot name its write set.
+    pub fn claim_unwritten(&mut self, id: TensorId, error: TensorError) {
+        self.context.handles.claim_unwritten(id, error);
+    }
+
+    /// The failure `tensor` carries, taken the way [`get_tensor`](Self::get_tensor) takes its
+    /// handle: a read-write use releases it.
+    pub fn take_error(&mut self, tensor: &TensorIr) -> Option<TensorError> {
+        self.context.handles.take_error(tensor)
+    }
+
     /// Why `id` cannot be read, if it cannot: a failure claimed it, or nothing produced it.
     pub fn read_failure(&self, id: &TensorId) -> Option<String> {
         let handles = &self.context.handles;
