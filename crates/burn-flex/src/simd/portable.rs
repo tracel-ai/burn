@@ -7,8 +7,8 @@ use alloc::vec::Vec;
 use core::mem::MaybeUninit;
 
 use macerator::{
-    Scalar, Simd, VBitAnd, VBitOr, VBitXor, VCeil, VFloor, VRoundTiesEven, VTrunc, Vector,
-    vload_unaligned, vstore_unaligned,
+    Scalar, Simd, VBitAnd, VBitOr, VBitXor, VCeil, VDiv, VFloor, VMul, VRoundTiesEven, VTrunc,
+    Vector, vload_unaligned, vstore_unaligned,
 };
 
 #[cfg(feature = "rayon")]
@@ -368,6 +368,57 @@ impl<F: VRoundTiesEven> LaneOp<F> for RoundTiesEven {
     #[inline(always)]
     fn apply<S: Simd>(self, v: Vector<S, F>) -> Vector<S, F> {
         v.round_ties_even()
+    }
+}
+
+/// `x^n` for an integer `n`, with the multiplications of `powi_float` in
+/// `ops/float.rs` in the same order, so it matches it bit for bit: square and
+/// multiply as `num_traits::pow` does, and for negative `n` the reciprocal of
+/// the half power squared, divided by `x` once more when `n` is odd.
+#[derive(Clone, Copy)]
+pub struct PowI(pub i32);
+
+/// `num_traits::pow`, step for step.
+#[inline(always)]
+fn pow_vec<S: Simd, F: VMul + num_traits::One>(
+    mut base: Vector<S, F>,
+    mut exp: u32,
+) -> Vector<S, F> {
+    if exp == 0 {
+        return F::one().splat();
+    }
+    while exp & 1 == 0 {
+        base = base * base;
+        exp >>= 1;
+    }
+    if exp == 1 {
+        return base;
+    }
+    let mut acc = base;
+    while exp > 1 {
+        exp >>= 1;
+        base = base * base;
+        if exp & 1 == 1 {
+            acc *= base;
+        }
+    }
+    acc
+}
+
+impl<F: VMul + VDiv + num_traits::One> LaneOp<F> for PowI {
+    #[inline(always)]
+    fn apply<S: Simd>(self, x: Vector<S, F>) -> Vector<S, F> {
+        let magnitude = self.0.unsigned_abs();
+        if self.0 >= 0 {
+            return pow_vec(x, magnitude);
+        }
+        let reciprocal = F::one().splat::<S>() / pow_vec(x, magnitude / 2);
+        let result = reciprocal * reciprocal;
+        if magnitude & 1 == 1 {
+            result / x
+        } else {
+            result
+        }
     }
 }
 
