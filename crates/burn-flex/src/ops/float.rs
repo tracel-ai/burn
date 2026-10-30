@@ -1085,6 +1085,12 @@ impl FloatTensorOps<Flex> for Flex {
     }
 
     fn float_atan2(lhs: FloatTensor<Flex>, rhs: FloatTensor<Flex>) -> FloatTensor<Flex> {
+        #[cfg(feature = "simd")]
+        let (lhs, rhs) =
+            match crate::ops::binary::simd_zip_map::<f32, _>(lhs, rhs, crate::simd::Atan2) {
+                Ok(out) => return out,
+                Err(operands) => operands,
+            };
         binary_op(
             lhs,
             rhs,
@@ -1303,6 +1309,12 @@ impl FloatTensorOps<Flex> for Flex {
     }
 
     fn float_hypot(lhs: FloatTensor<Flex>, rhs: FloatTensor<Flex>) -> FloatTensor<Flex> {
+        #[cfg(feature = "simd")]
+        let (lhs, rhs) =
+            match crate::ops::binary::simd_zip_map::<f32, _>(lhs, rhs, crate::simd::Hypot) {
+                Ok(out) => return out,
+                Err(operands) => operands,
+            };
         binary_op(
             lhs,
             rhs,
