@@ -483,3 +483,20 @@ Except as contained in this notice, the name of a copyright holder shall
 not be used in advertising or otherwise to promote the sale, use or other
 dealings in these Data Files or Software without prior written
 authorization of the copyright holder.
+
+## FreeBSD msun (via the libm crate)
+
+**Source**: https://github.com/freebsd/freebsd-src/tree/main/lib/msun/src
+(`e_logf.c` and `s_erff.c`), as ported in https://github.com/rust-lang/compiler-builtins/tree/main/libm
+
+The f32 `ln` and `erf` SIMD kernels in `crates/burn-flex/src/simd/portable.rs` are adapted
+from these routines.
+
+```text
+Copyright (C) 1993 by Sun Microsystems, Inc. All rights reserved.
+
+Developed at SunPro, a Sun Microsystems, Inc. business.
+Permission to use, copy, modify, and distribute this
+software is freely granted, provided that this notice
+is preserved.
+```
