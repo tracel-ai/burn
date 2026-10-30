@@ -38,7 +38,7 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
 use burn_backend::tensor::FloatTensor;
-use burn_ir::{BackendIr, GraphBindings, GraphId, HandleKind, TensorError, TensorIr};
+use burn_ir::{BackendIr, GraphBindings, GraphId, HandleKind, TensorError, TensorId, TensorIr};
 use burn_router::{Graph, TensorInterpreter};
 use burn_std::{ExecutionError, id::StreamId};
 use serde_bytes::ByteBuf;
@@ -342,14 +342,13 @@ where
                     }
                     None => {
                         self.emit_transfer(peer, TransferScope::Remote, TransferPhase::Failed);
-                        let reason = format!(
-                            "Failed to download tensor for transfer {:?} from {:?}",
-                            remote.capability, remote.peer,
+                        return self.fail_tensor(
+                            new_id,
+                            format!(
+                                "Failed to download tensor for transfer {:?} from {:?}",
+                                remote.capability, remote.peer,
+                            ),
                         );
-                        // The tensor is never written, so a read of it reports why.
-                        let error = TensorError::new(ExecutionError::generic(reason.clone()));
-                        self.runner.set_error(new_id, error);
-                        return Err(reason);
                     }
                 };
                 // Register on the client stream that will consume `new_id`, carried over the
@@ -581,12 +580,15 @@ where
                 });
                 Ok(())
             }
-            Err(reason) => {
-                let error = TensorError::new(ExecutionError::generic(reason.clone()));
-                self.runner.set_error(part.out, error);
-                Err(reason)
-            }
+            Err(reason) => self.fail_tensor(part.out, reason),
         }
+    }
+
+    /// Claim `id`, which this task was going to write, with `reason`, and report the task failed.
+    fn fail_tensor(&mut self, id: TensorId, reason: String) -> Result<(), String> {
+        let error = TensorError::new(ExecutionError::generic(reason.clone()));
+        self.runner.set_error(id, error);
+        Err(reason)
     }
 
     /// This member's tensor, unless the op producing it failed or it is not a float.
@@ -943,30 +945,6 @@ mod tests {
         prepare(&second, &mut second_responses).await.unwrap();
     }
 
-    fn float(id: u64) -> TensorIr {
-        TensorIr {
-            id: TensorId::new(id),
-            shape: Shape::new([2]),
-            status: TensorStatus::ReadOnly,
-            dtype: DType::F32,
-        }
-    }
-
-    async fn read_error(
-        handler: &mut SessionHandler<Flex, NoTransfer>,
-        responses: &mut mpsc::Receiver<TaskResponse>,
-        tensor: TensorIr,
-    ) -> ExecutionError {
-        handler
-            .process_task(Task::ReadTensors(0, StreamId::current(), vec![tensor]))
-            .await
-            .unwrap();
-        match next_answer(responses).await {
-            TaskResponseContent::ReadTensors(Err(error)) => error,
-            other => panic!("expected a read error, got {other:?}"),
-        }
-    }
-
     /// A same-host transfer of a tensor a failure claimed hands the target that failure, rather
     /// than panicking the source session and leaving the target waiting for good.
     #[tokio::test]
@@ -1045,6 +1023,30 @@ mod tests {
             .expect("the server answers")
             .unwrap()
             .content
+    }
+
+    fn float(id: u64) -> TensorIr {
+        TensorIr {
+            id: TensorId::new(id),
+            shape: Shape::new([2]),
+            status: TensorStatus::ReadOnly,
+            dtype: DType::F32,
+        }
+    }
+
+    async fn read_error(
+        handler: &mut SessionHandler<Flex, NoTransfer>,
+        responses: &mut mpsc::Receiver<TaskResponse>,
+        tensor: TensorIr,
+    ) -> ExecutionError {
+        handler
+            .process_task(Task::ReadTensors(0, StreamId::current(), vec![tensor]))
+            .await
+            .unwrap();
+        match next_answer(responses).await {
+            TaskResponseContent::ReadTensors(Err(error)) => error,
+            other => panic!("expected a read error, got {other:?}"),
+        }
     }
 
     impl SessionServices<Flex, NoTransfer> {

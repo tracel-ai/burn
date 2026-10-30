@@ -2667,34 +2667,6 @@ mod tests {
         );
     }
 
-    fn read(
-        interpreter: &mut TensorInterpreter<Flex>,
-        tensor: &TensorIr,
-    ) -> Result<TensorData, ExecutionError> {
-        let tensor = TensorIr {
-            status: TensorStatus::ReadOnly,
-            ..tensor.clone()
-        };
-        burn_std::reader::try_read_sync(interpreter.read_tensor_async(tensor))
-            .expect("flex reads synchronously")
-    }
-
-    fn exp(input: &TensorIr, out: u64) -> (OperationIr, TensorIr) {
-        let out = TensorIr::uninit(TensorId::new(out), input.shape.clone(), DType::F32);
-        let input = TensorIr {
-            status: TensorStatus::ReadOnly,
-            ..input.clone()
-        };
-        let op = OperationIr::Float(
-            DType::F32,
-            FloatOperationIr::Exp(burn_ir::UnaryOpIr {
-                input,
-                out: out.clone(),
-            }),
-        );
-        (op, out)
-    }
-
     /// An operation reading a tensor a failure claimed does not run: its output reports the root
     /// failure, and an operation sharing no tensor with it still runs.
     #[test]
@@ -2799,5 +2771,33 @@ mod tests {
             .expect("flex reads synchronously")
             .unwrap();
         data.assert_eq(&TensorData::from([1i64, -2, 3]), true);
+    }
+
+    fn read(
+        interpreter: &mut TensorInterpreter<Flex>,
+        tensor: &TensorIr,
+    ) -> Result<TensorData, ExecutionError> {
+        let tensor = TensorIr {
+            status: TensorStatus::ReadOnly,
+            ..tensor.clone()
+        };
+        burn_std::reader::try_read_sync(interpreter.read_tensor_async(tensor))
+            .expect("flex reads synchronously")
+    }
+
+    fn exp(input: &TensorIr, out: u64) -> (OperationIr, TensorIr) {
+        let out = TensorIr::uninit(TensorId::new(out), input.shape.clone(), DType::F32);
+        let input = TensorIr {
+            status: TensorStatus::ReadOnly,
+            ..input.clone()
+        };
+        let op = OperationIr::Float(
+            DType::F32,
+            FloatOperationIr::Exp(burn_ir::UnaryOpIr {
+                input,
+                out: out.clone(),
+            }),
+        );
+        (op, out)
     }
 }

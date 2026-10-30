@@ -129,18 +129,6 @@ fn restarted_server(rt: &tokio::runtime::Runtime) -> (RemoteHost, Device) {
     (host, old)
 }
 
-fn panic_message(panic: Box<dyn std::any::Any + Send>) -> String {
-    panic
-        .downcast_ref::<String>()
-        .cloned()
-        .or_else(|| {
-            panic
-                .downcast_ref::<&str>()
-                .map(|message| message.to_string())
-        })
-        .unwrap_or_default()
-}
-
 fn host_of(listener: &std::net::TcpListener) -> RemoteHost {
     RemoteHost::websocket(&format!("ws://{}", listener.local_addr().unwrap()))
 }
