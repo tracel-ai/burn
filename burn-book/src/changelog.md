@@ -277,6 +277,15 @@ bounds are inferred from the actual field types, and generics can be shared betw
 and skipped configuration or caches. This makes reusable module definitions easier to write.
 ([#6059](https://github.com/tracel-ai/burn/pull/6059))
 
+#### Optimizer-step metrics
+
+**Breaking:** Replace `metric_train_numeric(LearningRateMetric::new())` with
+`metrics(LearningRateMetric::new())`. Learning rates are recorded per applied optimizer update
+and parameter group, including partial accumulation windows. Custom strategies must emit
+`LearnerEvent::OptimizerStep` after each update.
+Use `OnOptimizerStep::with(...)` to register standard metrics for optimizer updates.
+See [optimizer-step metrics](./building-blocks/metric.md#optimizer-step-metrics).
+
 #### Dataloader progress and training completion
 
 **Breaking:** Progress counts samples in yielded batches, independently of iterator exhaustion.

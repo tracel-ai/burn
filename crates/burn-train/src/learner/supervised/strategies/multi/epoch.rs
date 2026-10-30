@@ -117,6 +117,11 @@ impl<M: LearnerModel> MultiDeviceTrainEpoch<M> {
                 let grads = accumulator.grads();
                 learner.lr_step();
                 learner.optimizer_step(grads);
+                interrupter.fail_on_error(event_processor.process_train(
+                    LearnerEvent::OptimizerStep(
+                        crate::metric::optimizer::OptimizerStepOutput::new(learner.lr_current()),
+                    ),
+                ));
                 accumulation_current = 0;
             }
 
@@ -143,6 +148,9 @@ impl<M: LearnerModel> MultiDeviceTrainEpoch<M> {
             let grads = accumulator.grads();
             learner.lr_step();
             learner.optimizer_step(grads);
+            interrupter.fail_on_error(event_processor.process_train(LearnerEvent::OptimizerStep(
+                crate::metric::optimizer::OptimizerStepOutput::new(learner.lr_current()),
+            )));
         }
 
         let mut progress = Progress::aggregate(iterators.iter().map(|it| it.progress()));
@@ -211,6 +219,11 @@ impl<M: LearnerModel> MultiDeviceTrainEpoch<M> {
 
             if accumulation <= accumulation_current {
                 Self::step_sharded(learner, &mut accumulators, &devices);
+                interrupter.fail_on_error(event_processor.process_train(
+                    LearnerEvent::OptimizerStep(
+                        crate::metric::optimizer::OptimizerStepOutput::new(learner.lr_current()),
+                    ),
+                ));
                 accumulation_current = 0;
             }
 
@@ -235,6 +248,9 @@ impl<M: LearnerModel> MultiDeviceTrainEpoch<M> {
         interrupter.fail_on_error(event_processor.flush());
         if accumulation_current > 0 && !interrupter.should_stop() {
             Self::step_sharded(learner, &mut accumulators, &devices);
+            interrupter.fail_on_error(event_processor.process_train(LearnerEvent::OptimizerStep(
+                crate::metric::optimizer::OptimizerStepOutput::new(learner.lr_current()),
+            )));
         }
 
         let mut progress = Progress::aggregate(iterators.iter().map(|it| it.progress()));

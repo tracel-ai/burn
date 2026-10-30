@@ -136,12 +136,20 @@ impl<M: LearnerModel> DdpTrainEpoch<M> {
 
                         learner.lr_step();
                         learner.optimizer_step(grads);
+                        processor
+                            .lock()
+                            .unwrap()
+                            .optimizer_step(worker_id, learner.lr_current());
                         accumulation_current = 0;
                     }
                 }
                 None => {
                     learner.lr_step();
                     learner.optimizer_step(item.grads);
+                    processor
+                        .lock()
+                        .unwrap()
+                        .optimizer_step(worker_id, learner.lr_current());
                 }
             }
 
@@ -160,6 +168,10 @@ impl<M: LearnerModel> DdpTrainEpoch<M> {
             let grads = accumulator.grads();
             learner.lr_step();
             learner.optimizer_step(grads);
+            processor
+                .lock()
+                .unwrap()
+                .optimizer_step(worker_id, learner.lr_current());
         }
         let mut progress = iterator.progress();
 
