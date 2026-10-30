@@ -8,9 +8,10 @@ use core::marker::PhantomData;
 
 use burn_backend::{
     backend::{
-        AutodiffBackend, Backend, BackendTypes, EnvironmentBundle, EnvironmentError, EnvironmentId,
-        EnvironmentOrigin, ExecutionError, ExecutionMode, ExecutionModeToken, ExecutionStatistics,
-        MemoryPoolUsage, ProfileDuration, ProfileOptions, ProfileToken, SlicedPoolReport,
+        AutodiffBackend, Backend, BackendTypes, DeviceDescription, DeviceTelemetry,
+        EnvironmentBundle, EnvironmentError, EnvironmentId, EnvironmentOrigin, ExecutionError,
+        ExecutionMode, ExecutionModeToken, ExecutionStatistics, MemoryReport, Peak, PeakError,
+        PeakKey, ProfileDuration, ProfileOptions, ProfileToken,
     },
     tensor::{BoolTensor, IntTensor, QuantizedTensor},
 };
@@ -147,16 +148,20 @@ impl<B: Backend, C: CheckpointStrategy> Backend for Autodiff<B, C> {
         B::memory_cleanup(device)
     }
 
-    fn memory_pool_report(device: &Self::Device) -> Option<Vec<SlicedPoolReport>> {
-        B::memory_pool_report(device)
+    fn device_description(device: &Self::Device) -> Option<DeviceDescription> {
+        B::device_description(device)
     }
 
-    fn memory_pool_usage(device: &Self::Device) -> Option<MemoryPoolUsage> {
-        B::memory_pool_usage(device)
+    fn measure_telemetry(device: &Self::Device) -> DeviceTelemetry {
+        B::measure_telemetry(device)
     }
 
-    fn memory_capacity(device: &Self::Device) -> Option<u64> {
-        B::memory_capacity(device)
+    fn measure_memory(device: &Self::Device) -> Option<MemoryReport> {
+        B::measure_memory(device)
+    }
+
+    fn measure_peaks(device: &Self::Device, keys: &[PeakKey]) -> Vec<Result<Peak, PeakError>> {
+        B::measure_peaks(device, keys)
     }
 
     fn staging<'a, Iter>(data: Iter, device: &Self::Device)

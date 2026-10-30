@@ -14,9 +14,9 @@ use crate::distributed::{DistributedParamId, DistributedParams};
 
 use super::DeviceOps;
 use super::profile::profile_unsupported;
+use super::{DeviceDescription, DeviceTelemetry, MemoryReport, Peak, PeakError, PeakKey};
 use super::{EnvironmentBundle, EnvironmentError, EnvironmentId, EnvironmentOrigin};
 use super::{ExecutionMode, ExecutionModeToken, ExecutionStatistics, UnknownExecutionMode};
-use super::{MemoryPoolUsage, SlicedPoolReport};
 use super::{ProfileDuration, ProfileOptions, ProfileToken, profile_system_time};
 
 /// The mapping of types used by Backend and traits.
@@ -157,30 +157,36 @@ pub trait Backend:
     #[allow(unused_variables)]
     fn memory_cleanup(device: &Self::Device) {}
 
-    /// The dynamic pools' measured state, in the order allocations are routed
-    /// through them. `None` on a backend that does not report one, or whose
-    /// stream has failed.
-    ///
-    /// One entry per pool that carves pages, the pools a growth left behind
-    /// last. Pools of other kinds — an allocation's own page, the metadata
-    /// churn — are left out.
+    /// What `device` is, as its driver states it, without opening it: cheap
+    /// enough to describe every device a machine has. `None` from a backend
+    /// whose driver states nothing.
     #[allow(unused_variables)]
-    fn memory_pool_report(device: &Self::Device) -> Option<Vec<SlicedPoolReport>> {
+    fn device_description(device: &Self::Device) -> Option<DeviceDescription> {
         None
     }
 
-    /// The device allocator's current state. `None` on a backend that does not
-    /// report one, or whose stream has failed.
+    /// One reading of the counters of the card behind `device`. Every figure
+    /// is `None` from a backend that reads none.
     #[allow(unused_variables)]
-    fn memory_pool_usage(device: &Self::Device) -> Option<MemoryPoolUsage> {
+    fn measure_telemetry(device: &Self::Device) -> DeviceTelemetry {
+        DeviceTelemetry::default()
+    }
+
+    /// What `device`'s allocator holds now, after the work registered so far
+    /// on the calling stream. `None` from a backend that does not report it,
+    /// or whose stream has failed.
+    #[allow(unused_variables)]
+    fn measure_memory(device: &Self::Device) -> Option<MemoryReport> {
         None
     }
 
-    /// How many bytes the device can hold at once, as its runtime states it. `None` on a backend
-    /// that states no figure.
+    /// The peak throughput of `device` for each of `keys`, in order, by
+    /// launching a probe for each: the peak, or why the device has none. Every
+    /// key is [unsupported](PeakError::Unsupported) by a backend that runs no
+    /// probe.
     #[allow(unused_variables)]
-    fn memory_capacity(device: &Self::Device) -> Option<u64> {
-        None
+    fn measure_peaks(device: &Self::Device, keys: &[PeakKey]) -> Vec<Result<Peak, PeakError>> {
+        keys.iter().map(|_| Err(PeakError::Unsupported)).collect()
     }
 
     /// Name of the backend.

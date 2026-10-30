@@ -3,9 +3,10 @@ use alloc::boxed::Box;
 use alloc::string::String;
 use alloc::vec::Vec;
 use burn_backend::{
-    DType, EnvironmentBundle, EnvironmentError, EnvironmentId, EnvironmentOrigin, ExecutionMode,
-    ExecutionModeToken, ExecutionStatistics, ProfileDuration, ProfileOptions, ProfileToken,
-    TensorData, UnknownExecutionMode,
+    DType, DeviceDescription, DeviceTelemetry, EnvironmentBundle, EnvironmentError, EnvironmentId,
+    EnvironmentOrigin, ExecutionMode, ExecutionModeToken, ExecutionStatistics, MemoryReport, Peak,
+    PeakError, PeakKey, ProfileDuration, ProfileOptions, ProfileToken, TensorData,
+    UnknownExecutionMode,
     backend::{DeviceId, DeviceOps, ExecutionError},
 };
 use burn_ir::{CapturedGraphId, GraphBindings, GraphId, OperationIr, TensorId, TensorIr};
@@ -185,6 +186,28 @@ pub trait RouterClient: Clone + Send + Sync + Sized {
     fn environment_save(&self, id: EnvironmentId) -> Result<EnvironmentBundle, EnvironmentError> {
         let _ = id;
         Err(environment_unsupported())
+    }
+
+    /// What the interpreter's device is, as its driver states it — see
+    /// [`Backend::device_description`](burn_backend::Backend::device_description).
+    fn device_description(&self) -> Option<DeviceDescription> {
+        None
+    }
+
+    /// One reading of the counters of the interpreter's device.
+    fn measure_telemetry(&self) -> DeviceTelemetry {
+        DeviceTelemetry::default()
+    }
+
+    /// What the allocator of the interpreter's device holds, after every
+    /// operation registered so far on the calling stream.
+    fn measure_memory(&self) -> Option<MemoryReport> {
+        None
+    }
+
+    /// The peak throughput of the interpreter's device for each of `keys`.
+    fn measure_peaks(&self, keys: &[PeakKey]) -> Vec<Result<Peak, PeakError>> {
+        keys.iter().map(|_| Err(PeakError::Unsupported)).collect()
     }
 
     /// Prepare the interpreter's backend for a graph capture — see

@@ -4,10 +4,10 @@ use crate::{
     stream::{Context, OrderedExecution},
 };
 use burn_backend::{
-    Backend, BackendGraph, BackendTypes, DType, DeviceOps, EnvironmentBundle, EnvironmentError,
-    EnvironmentId, EnvironmentOrigin, ExecutionError, ExecutionMode, ExecutionModeToken,
-    ExecutionStatistics, MemoryPoolUsage, ProfileDuration, ProfileOptions, ProfileToken,
-    SlicedPoolReport, profile_with_tokens,
+    Backend, BackendGraph, BackendTypes, DType, DeviceDescription, DeviceOps, DeviceTelemetry,
+    EnvironmentBundle, EnvironmentError, EnvironmentId, EnvironmentOrigin, ExecutionError,
+    ExecutionMode, ExecutionModeToken, ExecutionStatistics, MemoryReport, Peak, PeakError, PeakKey,
+    ProfileDuration, ProfileOptions, ProfileToken, profile_with_tokens,
     tensor::{BoolTensor, Device, FloatTensor, IntTensor, QuantizedTensor},
 };
 use burn_ir::{BackendIr, HandleContainer, OperationIr, TensorHandle, TensorIr};
@@ -242,28 +242,28 @@ impl<B: FusionBackend> Backend for Fusion<B> {
         B::memory_cleanup(device)
     }
 
-    fn memory_pool_report(device: &Self::Device) -> Option<Vec<SlicedPoolReport>> {
-        // Reads the *calling* stream, which is the one the layout was installed
-        // on and the one fused operations allocate from, so it hops exactly as
-        // the install does.
+    fn device_description(device: &Self::Device) -> Option<DeviceDescription> {
+        B::device_description(device)
+    }
+
+    fn measure_telemetry(device: &Self::Device) -> DeviceTelemetry {
+        B::measure_telemetry(device)
+    }
+
+    /// Read on the *calling* stream, after its queue drains: the pools it
+    /// reports are the ones that stream's fused operations allocate from, and
+    /// what it still holds queued would otherwise be missing from the usage.
+    fn measure_memory(device: &Self::Device) -> Option<MemoryReport> {
         let client = GlobalFusionClient::<B::FusionRuntime>::load(device);
         let device = device.clone();
 
-        client.sync(move || B::memory_pool_report(&device))
+        client.sync(move || B::measure_memory(&device))
     }
 
-    fn memory_pool_usage(device: &Self::Device) -> Option<MemoryPoolUsage> {
-        // Combined across the runtime's streams, so no hop is needed for the
-        // reading itself — but recorded operations have to be drained first or
-        // they are missing from it.
-        let client = GlobalFusionClient::<B::FusionRuntime>::load(device);
-        let device = device.clone();
-
-        client.sync(move || B::memory_pool_usage(&device))
-    }
-
-    fn memory_capacity(device: &Self::Device) -> Option<u64> {
-        B::memory_capacity(device)
+    /// The probes launch on the backend directly: the queue holds none of
+    /// their work.
+    fn measure_peaks(device: &Self::Device, keys: &[PeakKey]) -> Vec<Result<Peak, PeakError>> {
+        B::measure_peaks(device, keys)
     }
 
     fn staging<'a, Iter>(data: Iter, device: &Self::Device)

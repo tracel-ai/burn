@@ -12,9 +12,10 @@ use alloc::{
     vec::Vec,
 };
 use burn_backend::{
-    Backend, BackendGraph, DType, DeviceOps, EnvironmentBundle, EnvironmentError, EnvironmentId,
-    EnvironmentOrigin, ExecutionError, ExecutionMode, ExecutionModeToken, ExecutionStatistics,
-    FloatDType, ProfileDuration, ProfileOptions, ProfileToken, Shape, TensorData, TensorMetadata,
+    Backend, BackendGraph, DType, DeviceDescription, DeviceOps, DeviceTelemetry, EnvironmentBundle,
+    EnvironmentError, EnvironmentId, EnvironmentOrigin, ExecutionError, ExecutionMode,
+    ExecutionModeToken, ExecutionStatistics, FloatDType, MemoryReport, Peak, PeakError, PeakKey,
+    ProfileDuration, ProfileOptions, ProfileToken, Shape, TensorData, TensorMetadata,
     TensorPrimitive, ops::TransactionPrimitive,
 };
 use burn_ir::{
@@ -2541,6 +2542,27 @@ impl<B: BackendIr> TensorInterpreter<B> {
         id: EnvironmentId,
     ) -> Result<EnvironmentBundle, EnvironmentError> {
         B::environment_save(&self.device, id)
+    }
+
+    /// What the backend's device is, as its driver states it.
+    pub fn device_description(&self) -> Option<DeviceDescription> {
+        B::device_description(&self.device)
+    }
+
+    /// One reading of the counters of the backend's device.
+    pub fn measure_telemetry(&self) -> DeviceTelemetry {
+        B::measure_telemetry(&self.device)
+    }
+
+    /// What the allocator of the backend's device holds, where the calling
+    /// stream stands.
+    pub fn measure_memory(&self) -> Option<MemoryReport> {
+        B::measure_memory(&self.device)
+    }
+
+    /// The peak throughput of the backend's device for each of `keys`.
+    pub fn measure_peaks(&self, keys: &[PeakKey]) -> Vec<Result<Peak, PeakError>> {
+        B::measure_peaks(&self.device, keys)
     }
 
     /// Prepare the backend for a graph capture.

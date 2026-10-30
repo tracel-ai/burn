@@ -2,9 +2,10 @@ use super::{DeviceQueryError, RemoteChannel, RemoteClient, service};
 use crate::shared::{DeviceQueryId, LocalTransferId, TensorRemote, TransferCapability};
 use crate::{PeerAddr, PeerId};
 use burn_backend::{
-    DeviceId, DeviceOps, EnvironmentBundle, EnvironmentError, EnvironmentId, EnvironmentOrigin,
-    ExecutionError, ExecutionMode, ExecutionModeToken, ExecutionStatistics, ProfileDuration,
-    ProfileOptions, ProfileToken, RouterDeviceType, StreamId, TensorData,
+    DeviceDescription, DeviceId, DeviceOps, DeviceTelemetry, EnvironmentBundle, EnvironmentError,
+    EnvironmentId, EnvironmentOrigin, ExecutionError, ExecutionMode, ExecutionModeToken,
+    ExecutionStatistics, MemoryReport, Peak, PeakError, PeakKey, ProfileDuration, ProfileOptions,
+    ProfileToken, RouterDeviceType, StreamId, TensorData,
 };
 use burn_ir::{CapturedGraphId, TensorIr};
 use burn_router::{MultiBackendBridge, RouterClient, RouterTensor, get_client};
@@ -154,6 +155,34 @@ impl RouterClient for RemoteClient {
         self.handle
             .submit_blocking(move |s| s.environment_save(stream_id, id))
             .map_err(service_failed)?
+    }
+
+    fn device_description(&self) -> Option<DeviceDescription> {
+        self.handle
+            .submit_blocking(|s| s.device_description())
+            .ok()
+            .flatten()
+    }
+
+    fn measure_telemetry(&self) -> DeviceTelemetry {
+        self.handle
+            .submit_blocking(|s| s.measure_telemetry())
+            .unwrap_or_default()
+    }
+
+    fn measure_memory(&self) -> Option<MemoryReport> {
+        let stream_id = StreamId::current();
+        self.handle
+            .submit_blocking(move |s| s.measure_memory(stream_id))
+            .ok()
+            .flatten()
+    }
+
+    fn measure_peaks(&self, keys: &[PeakKey]) -> Vec<Result<Peak, PeakError>> {
+        let requested = keys.to_vec();
+        self.handle
+            .submit_blocking(move |s| s.measure_peaks(requested))
+            .unwrap_or_else(|_| vec![Err(PeakError::Unsupported); keys.len()])
     }
 
     fn graph_prepare(&self) -> Result<(), ExecutionError> {

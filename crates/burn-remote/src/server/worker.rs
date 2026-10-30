@@ -591,6 +591,29 @@ where
                 self.send_response(request_id, TaskResponseContent::EnvironmentSaved(res))
                     .await
             }
+            Task::DeviceDescription(request_id) => {
+                let description = self.runner.device_description();
+                self.send_response(
+                    request_id,
+                    TaskResponseContent::DeviceDescription(description),
+                )
+                .await
+            }
+            Task::MeasureTelemetry(request_id) => {
+                let telemetry = self.runner.measure_telemetry();
+                self.send_response(request_id, TaskResponseContent::Telemetry(telemetry))
+                    .await
+            }
+            Task::MeasureMemory(request_id, stream_id) => {
+                let memory = self.on_stream(stream_id, |runner| runner.measure_memory());
+                self.send_response(request_id, TaskResponseContent::Memory(memory))
+                    .await
+            }
+            Task::MeasurePeaks(request_id, keys) => {
+                let peaks = self.runner.measure_peaks(&keys);
+                self.send_response(request_id, TaskResponseContent::Peaks(peaks))
+                    .await
+            }
         }
     }
 

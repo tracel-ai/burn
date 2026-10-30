@@ -12,9 +12,10 @@ use crate::{
     },
 };
 use burn_backend::{
-    DTypeUsageSet, EnvironmentBundle, EnvironmentError, EnvironmentId, EnvironmentOrigin,
-    ExecutionError, ExecutionMode, ExecutionModeToken, ExecutionStatistics, ProfileDuration,
-    ProfileOptions, ProfileTicks, ProfileToken, TensorData,
+    DTypeUsageSet, DeviceDescription, DeviceTelemetry, EnvironmentBundle, EnvironmentError,
+    EnvironmentId, EnvironmentOrigin, ExecutionError, ExecutionMode, ExecutionModeToken,
+    ExecutionStatistics, MemoryReport, Peak, PeakError, PeakKey, ProfileDuration, ProfileOptions,
+    ProfileTicks, ProfileToken, TensorData,
     backend::{DeviceId, DeviceService, ServerUtilitiesHandle},
 };
 use burn_ir::{CapturedGraphId, OperationIr, TensorId, TensorIr};
@@ -836,6 +837,80 @@ impl RemoteService {
         }
     }
 
+    /// What the server's device is, as its driver states it. `None` when the server could not be
+    /// asked, as from a browser thread, which cannot wait on it.
+    pub fn device_description(&mut self) -> Option<DeviceDescription> {
+        self.report(Task::DeviceDescription, |answer| match answer {
+            TaskResponseContent::DeviceDescription(description) => Some(description),
+            _ => None,
+        })
+        .flatten()
+    }
+
+    /// One reading of the counters of the server's device; every figure `None` when the server
+    /// could not be asked.
+    pub fn measure_telemetry(&mut self) -> DeviceTelemetry {
+        self.report(Task::MeasureTelemetry, |answer| match answer {
+            TaskResponseContent::Telemetry(telemetry) => Some(telemetry),
+            _ => None,
+        })
+        .unwrap_or_default()
+    }
+
+    /// What the allocator of the server's device holds where `stream_id` stands, after every task
+    /// sent before.
+    pub fn measure_memory(&mut self, stream_id: StreamId) -> Option<MemoryReport> {
+        self.report(
+            |id| Task::MeasureMemory(id, stream_id),
+            |answer| match answer {
+                TaskResponseContent::Memory(memory) => Some(memory),
+                _ => None,
+            },
+        )
+        .flatten()
+    }
+
+    /// The peak throughput of the server's device for each of `keys`; every key unsupported when
+    /// the server could not be asked.
+    pub fn measure_peaks(&mut self, keys: Vec<PeakKey>) -> Vec<Result<Peak, PeakError>> {
+        let count = keys.len();
+        self.report(
+            |id| Task::MeasurePeaks(id, keys),
+            |answer| match answer {
+                TaskResponseContent::Peaks(peaks) => Some(peaks),
+                _ => None,
+            },
+        )
+        .unwrap_or_else(|| vec![Err(PeakError::Unsupported); count])
+    }
+
+    /// Send a report request and wait on the server's answer, which `answer` takes out of the
+    /// response. `None` when the server could not be asked, answered with another kind of
+    /// response, or ended the session first: a report is not work, so an unreachable server
+    /// reports nothing rather than failing the caller.
+    fn report<Answer>(
+        &mut self,
+        make_task: impl FnOnce(RequestId) -> Task,
+        answer: impl FnOnce(TaskResponseContent) -> Option<Answer>,
+    ) -> Option<Answer> {
+        #[cfg(not(target_family = "wasm"))]
+        {
+            let rx = self.submit_request(make_task);
+            match self.executor.block_on(rx) {
+                Ok(response) => answer(response).or_else(|| {
+                    log::error!("Invalid response for a device report");
+                    None
+                }),
+                Err(_) => None,
+            }
+        }
+        #[cfg(target_family = "wasm")]
+        {
+            let _ = (make_task, answer);
+            None
+        }
+    }
+
     /// Ask the server the device query `id` about this device, waiting on the answer.
     pub fn device_query(&mut self, id: DeviceQueryId) -> Result<Vec<u8>, DeviceQueryError> {
         let rx = self.submit_request(|request| Task::DeviceQuery(request, id.clone()));
@@ -855,13 +930,20 @@ impl RemoteService {
         stream_id: StreamId,
         mode: ExecutionMode,
     ) -> Result<Option<ExecutionModeToken>, ExecutionError> {
-        self.execution_request(
+        let opened = self.execution_request(
             |id| Task::ExecutionModeOpen(id, stream_id, mode),
             |answer| match answer {
                 TaskResponseContent::ExecutionModeOpen(res) => Ok(res),
                 other => Err(other),
             },
-        )
+        )?;
+        // The server's token names the server stream it opened on; the layers above this one —
+        // a client-side fusion queue — drain the stream the token names before closing, which is
+        // this client's. The server finds its mode by the id alone.
+        Ok(opened.map(|token| ExecutionModeToken {
+            opened_on: stream_id,
+            ..token
+        }))
     }
 
     /// What the work under the server's mode `token` has triggered so far.

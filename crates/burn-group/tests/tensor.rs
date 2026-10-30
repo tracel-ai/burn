@@ -205,6 +205,18 @@ fn a_random_tensor_is_the_same_on_every_member() {
 }
 
 #[test]
+fn a_random_mask_over_a_split_tensor_is_generated_split() {
+    let device = group(2);
+    let mask = Tensor::<2>::random([4, 6], Distribution::Bernoulli(0.5), &device);
+    let x = Tensor::<2>::ones([4, 6], &device).with_sharding(Split { dim: 1 });
+
+    let _masked = x * mask.clone();
+
+    // Generated whole and copied from member 0, it would still be replicated.
+    assert_eq!(mask.sharding(), Some(Split { dim: 1 }));
+}
+
+#[test]
 #[should_panic(expected = "is not a partial sum and cannot become one")]
 fn a_whole_tensor_is_not_sharded_as_a_partial_sum() {
     Tensor::<2>::zeros([4, 6], &group(2)).with_sharding(PartialSum);

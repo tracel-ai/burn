@@ -202,6 +202,11 @@ all-to-all, and broadcast also support boolean tensors. Quantized tensors are re
   followed by `with_sharding` uploads each member only its chunk, and a model that fits only once
   split can be loaded. ([#6232](https://github.com/tracel-ai/burn/pull/6232))
   [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
+- A random tensor on a device group waits until it is first used, and a split use, such as a
+  dropout mask over a split activation, has each member generate only its shard instead of copying
+  the whole tensor from the first member. Its values follow the order of first use, so they differ
+  from one device's with the same seed. ([#6272](https://github.com/tracel-ai/burn/pull/6272))
+  [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
 
 #### Remote execution
 
@@ -401,6 +406,30 @@ loading those checkpoints by filtering to `linear_inner` and `linear_outer`.
 
 ### Tensors and backends
 
+#### Describing and measuring a device
+
+**Breaking:** What a device is and what it measures are `Backend` methods in Burn's own types, so a
+remote device answers them from its server. `Device::description()` states what the driver says
+without opening the device; `measure_telemetry()`, `measure_memory()` and `measure_peaks(&keys)`
+run something — read the card's counters, look through the allocator, launch probes. A cubecl
+device's features, limits and compile target are `Device::capabilities()`, answered by the server
+for a remote device.
+
+```diff
+-device.memory_pool_usage()  /  device.memory_pool_report()
++device.measure_memory()       // .usage, .pools
+-device.memory_capacity()
++device.description()          // .max_memory
+-device.performance_stats(&[ThroughputKey { mode: ThroughputMode::memory(MemoryAccess::Copy) }])
++device.measure_peaks(&[PeakKey::Memory(MemoryAccess::Copy)])   // Peak { per_second }
+-device.identity()
++device.capabilities()         // .properties.identity
+```
+
+Third-party backends replace `memory_pool_report`, `memory_pool_usage` and `memory_capacity`
+with `measure_memory`, and may implement `device_description`, `measure_telemetry` and
+`measure_peaks`.
+
 #### NdArray and LibTorch backend removal
 
 **Breaking:** The deprecated NdArray and LibTorch backends have been removed. Replace `NdArray` or
@@ -440,9 +469,9 @@ loading those checkpoints by filtering to `linear_inner` and `linear_outer`.
   `bool_scatter_nd` and `bool_gather_nd` methods.
   ([#6035](https://github.com/tracel-ai/burn/pull/6035),
   [#6047](https://github.com/tracel-ai/burn/pull/6047))
-- Add `Device::memory_capacity()` to query the runtime-reported capacity in bytes for workload
-  sizing. The value is distinct from currently free memory; backends without a reported capacity
-  return `None`. ([#6250](https://github.com/tracel-ai/burn/pull/6250))
+- Report the runtime-stated capacity in bytes for workload sizing, now
+  `Device::description()`'s `max_memory`. The value is distinct from currently free memory;
+  backends without a reported capacity return `None`. ([#6250](https://github.com/tracel-ai/burn/pull/6250))
   [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
 - Add dtype-aware `TensorData::random_dtype`, `zeros_dtype`, and `ones_dtype` constructors.
   ([#6088](https://github.com/tracel-ai/burn/pull/6088))

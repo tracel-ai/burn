@@ -1,8 +1,9 @@
 use super::{RouterChannel, RouterClient, RouterGraph, RouterTensor, get_client};
-use alloc::{format, string::String};
+use alloc::{format, string::String, vec::Vec};
 use burn_backend::{
-    Backend, BackendGraph, BackendTypes, DType, EnvironmentBundle, EnvironmentError, EnvironmentId,
-    EnvironmentOrigin, ExecutionError, ExecutionMode, ExecutionModeToken, ExecutionStatistics,
+    Backend, BackendGraph, BackendTypes, DType, DeviceDescription, DeviceTelemetry,
+    EnvironmentBundle, EnvironmentError, EnvironmentId, EnvironmentOrigin, ExecutionError,
+    ExecutionMode, ExecutionModeToken, ExecutionStatistics, MemoryReport, Peak, PeakError, PeakKey,
     ProfileDuration, ProfileOptions, ProfileToken, profile_with_tokens,
 };
 use core::marker::PhantomData;
@@ -137,6 +138,22 @@ impl<R: RouterChannel> Backend for BackendRouter<R> {
     ) -> Result<EnvironmentBundle, EnvironmentError> {
         let client = get_client::<R>(device);
         client.environment_save(id)
+    }
+
+    fn device_description(device: &Self::Device) -> Option<DeviceDescription> {
+        get_client::<R>(device).device_description()
+    }
+
+    fn measure_telemetry(device: &Self::Device) -> DeviceTelemetry {
+        get_client::<R>(device).measure_telemetry()
+    }
+
+    fn measure_memory(device: &Self::Device) -> Option<MemoryReport> {
+        get_client::<R>(device).measure_memory()
+    }
+
+    fn measure_peaks(device: &Self::Device, keys: &[PeakKey]) -> Vec<Result<Peak, PeakError>> {
+        get_client::<R>(device).measure_peaks(keys)
     }
 
     fn dtype_usage(device: &Self::Device, dtype: DType) -> burn_backend::DTypeUsageSet {
