@@ -164,7 +164,11 @@ Models can now be split across devices by layer, enabling training and inference
 exceed a single device's memory. The new `LayerParallelism` trait and `DistributedLayeredModel`
 wrapper support sequential execution, transferring activations between devices.
 `InferencePipeline` streams several batches through such a model with a thread per stage, so the
-stages overlap. Training schedules and `Learner` integration are not included.
+stages overlap, and `TrainingPipeline` trains it with the GPipe or 1F1B schedule. A signal
+passed between layers derives `BackwardSignal` to train through. `Learner` integration is not
+included.
+**Breaking:** `LayerParallelism` requires `from_layers`, which rebuilds the model from the
+`LayerSequence` that `into_layers` returns.
 ([#5702](https://github.com/tracel-ai/burn/pull/5702),
 [#6277](https://github.com/tracel-ai/burn/pull/6277))
 [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)

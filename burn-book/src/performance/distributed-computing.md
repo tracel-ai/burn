@@ -127,6 +127,14 @@ impl LayerParallelism for Model {
             output: self.head,
         }
     }
+
+    fn from_layers(layers: LayerSequence<Self>) -> Self {
+        Self {
+            embedding: layers.input,
+            blocks: layers.hidden,
+            head: layers.output,
+        }
+    }
 }
 ```
 
@@ -159,15 +167,41 @@ Layers run one after another, so `forward` buys capacity rather than speed. For 
 `InferencePipeline` streams several batches through the same model, each stage on a thread of its
 own, so one device works on a batch while the next works on the one before. It pays most where
 moving between devices blocks the thread that issues it, as a copy between two runtimes does.
-Training still runs layer by layer.
 
 ```rust, ignore
 let pipeline = InferencePipeline::new(model);
 let predictions = pipeline.forward(batches); // One output per batch, in order.
 ```
 
+A `TrainingPipeline` trains the same way. Each step takes a batch cut into microbatches, every
+stage runs their forward and backward passes on a thread of its own, and one optimizer step
+follows. When the microbatches hold as many rows each and the loss is a mean over them, a step
+updates the model as one step on the whole batch does. The `PipelineSchedule` sets
+the order of the passes: `GPipe` runs every forward before any backward, and
+`OneForwardOneBackward` (1F1B) starts each backward as early as it can, so a stage holds fewer
+microbatches' activations at once.
+
+```rust, ignore
+let schedule = PipelineSchedule::OneForwardOneBackward;
+let mut training = TrainingPipeline::new(model, schedule, AdamConfig::new().init());
+let losses = training.step(inputs, targets, |output, target| loss(output, target), lr);
+let model = training.into_model(); // A `DistributedLayeredModel` again, to save.
+```
+
+A training stage runs its backward from the gradient the next stage sends back, so what passes
+between the layers implements `BackwardSignal`. A tensor does; a struct of tensors derives it, and
+`#[backward_signal(skip)]` clones any other field through:
+
+```rust, ignore
+#[derive(Module, BackwardSignal, Debug)]
+struct Encoded {
+    hidden: Tensor<3>,
+    mask_pad: Tensor<2, Bool>,
+}
+```
+
 The `layer-parallelism-text` example splits the transformer the `text-classification` example
-trains, checks it against the single-device model, and fine-tunes it through the split.
+trains, checks it against the single-device model, and fine-tunes it as a training pipeline.
 
 ## Remote Devices
 

@@ -23,6 +23,9 @@ doc = [
 ]
 std = ["burn-core/std", "burn-pack/std", "num-traits/std", "serde/std", "log"]
 tracing = ["burn-core/tracing"]
+# Two fixed CPU backends, which the pipeline training tests split a model across.
+flex = ["burn-core/flex"]
+cpu = ["burn-core/cpu"]
 
 # collective = ["burn-collective"]
 

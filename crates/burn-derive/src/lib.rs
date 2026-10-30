@@ -11,6 +11,8 @@
 //!   constructor and `with_*` setters for optional fields and fields marked `#[config(default = ...)]`.
 //! - `#[derive(RecordState)]` decomposes an optimizer or scheduler state into named tensors and
 //!   scalars for the burnpack format.
+//! - `#[derive(BackwardSignal)]` lets a struct passed between the layers of a split model be
+//!   trained as a pipeline. `#[backward_signal(skip)]` clones a field through.
 //!
 //! The function-like macros below implement `burn::tensor::assert_shape!`,
 //! `debug_assert_shape!` and `einsum!`, and are not part of the public API.
@@ -20,6 +22,7 @@ extern crate derive_new;
 
 use proc_macro::TokenStream;
 
+pub(crate) mod backward_signal;
 pub(crate) mod config;
 pub(crate) mod einsum;
 pub(crate) mod module;
@@ -110,6 +113,18 @@ pub fn config_derive(input: TokenStream) -> TokenStream {
 pub fn record_state_derive(input: TokenStream) -> TokenStream {
     let input = syn::parse(input).unwrap();
     record_state::derive_impl(&input)
+}
+
+/// Derive macro for the `BackwardSignal` trait, for a struct passed between the layers of a split
+/// model that is trained as a pipeline.
+///
+/// Each field must implement `BackwardSignal`, as float, int and bool tensors, `Option` and `Vec`
+/// of them, and other derived signals do. A field marked `#[backward_signal(skip)]` is cloned
+/// through instead, and must implement `Clone`.
+#[proc_macro_derive(BackwardSignal, attributes(backward_signal))]
+pub fn backward_signal_derive(input: TokenStream) -> TokenStream {
+    let input = syn::parse(input).unwrap();
+    backward_signal::derive_impl(&input).into()
 }
 
 /// Implementation of `burn_tensor::assert_shape!`. Not part of the public API.

@@ -50,6 +50,14 @@ use crate::module::Module;
 ///             output: self.head,
 ///         }
 ///     }
+///
+///     fn from_layers(layers: LayerSequence<Self>) -> Self {
+///         Self {
+///             embedding: layers.input,
+///             blocks: layers.hidden,
+///             head: layers.output,
+///         }
+///     }
 /// }
 ///
 /// let placement = LayerPlacement::even(&devices, config.num_blocks);
@@ -77,6 +85,10 @@ pub trait LayerParallelism: Module {
     /// The model taken apart into its layers, the hidden ones in the order
     /// [`layers_hidden`](Self::layers_hidden) gives them.
     fn into_layers(self) -> LayerSequence<Self>;
+
+    /// The model put back together from `layers`, given as [`into_layers`](Self::into_layers) gives
+    /// them.
+    fn from_layers(layers: LayerSequence<Self>) -> Self;
 }
 
 /// What a [`LayerParallelism`] model takes: what its input layer takes.

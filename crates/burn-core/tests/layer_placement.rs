@@ -10,7 +10,7 @@ use burn_core::module::{
     Module, Param,
     parallel::{
         DistributedLayer, DistributedLayeredModel, InferencePipeline, LayerParallelism,
-        LayerPlacement, LayerSequence, LayerStage,
+        LayerPlacement, LayerSequence, LayerStage, PipelineParts,
     },
 };
 use burn_tensor::{Device, Distribution, Tensor, Tolerance};
@@ -88,17 +88,35 @@ fn a_model_split_across_two_devices_computes_what_one_device_does() {
 #[test]
 fn a_pipeline_returns_each_batch_in_order_as_the_plain_forward_computes_it() {
     let (flex, cpu) = devices();
-    let stages =
-        [(flex.clone(), 2), (cpu, 1), (flex.clone(), 1)].map(|(device, num_hidden_layers)| {
-            LayerStage {
-                device,
-                num_hidden_layers,
-            }
-        });
-    let placement = LayerPlacement::new(&stages);
+    let placement = placement([(flex.clone(), 2), (cpu, 1), (flex, 1)]);
+
+    assert_pipeline_matches_forward(&placement);
+}
+
+#[test]
+fn outer_layers_on_devices_of_their_own_run_as_parts_of_their_own() {
+    let (flex, cpu) = devices();
+    let placement = placement([(flex.clone(), 0), (cpu, 1), (flex, 0)]);
     let model = DistributedLayeredModel::new(Stack::new(&placement), &placement);
+
+    let parts = PipelineParts::new(model.into_stages(), &placement);
+
+    assert!(parts.input.stage.is_none() && parts.output.stage.is_none());
+    assert_eq!(parts.middle.len(), 1);
+    assert_pipeline_matches_forward(&placement);
+}
+
+fn placement<const N: usize>(stages: [(Device, usize); N]) -> LayerPlacement {
+    LayerPlacement::new(&stages.map(|(device, num_hidden_layers)| LayerStage {
+        device,
+        num_hidden_layers,
+    }))
+}
+
+fn assert_pipeline_matches_forward(placement: &LayerPlacement) {
+    let model = DistributedLayeredModel::new(Stack::new(placement), placement);
     let inputs: Vec<Tensor<2>> = (0..5)
-        .map(|_| Tensor::random([3, WIDTH], Distribution::Default, &flex))
+        .map(|_| Tensor::random([3, WIDTH], Distribution::Default, &placement.input))
         .collect();
     let expected: Vec<Tensor<2>> = inputs
         .iter()
@@ -213,6 +231,14 @@ impl LayerParallelism for Stack {
             output: self.output,
         }
     }
+
+    fn from_layers(layers: LayerSequence<Self>) -> Self {
+        Self {
+            input: layers.input,
+            hidden: layers.hidden,
+            output: layers.output,
+        }
+    }
 }
 
 #[derive(Module, Debug)]
@@ -289,6 +315,22 @@ impl LayerParallelism for Reversed {
             input,
             hidden,
             output,
+        }
+    }
+
+    fn from_layers(layers: LayerSequence<Self>) -> Self {
+        let LayerSequence {
+            input,
+            mut hidden,
+            output,
+        } = layers;
+        hidden.reverse();
+        Self {
+            stack: Stack {
+                input,
+                hidden,
+                output,
+            },
         }
     }
 }
