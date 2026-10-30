@@ -1,6 +1,6 @@
 <div align="center">
   <img src="assets/burn-symbol-colour.svg" alt="The Burn logo" height="200"/>
-
+  <br /><br />
 
 [![Rust 1.95 or later](https://img.shields.io/badge/Rust-1.95%2B-f15a24?style=flat-square&logo=rust&logoColor=white)](https://crates.io/crates/burn)
 [![License](https://img.shields.io/badge/License-MIT%2FApache--2.0-f15a24?style=flat-square)](#license)
@@ -14,6 +14,8 @@
 
   <p><b>A tensor library and deep learning framework for numerical computing, training and inference.</b></p>
 </div>
+
+---
 
 <div align="left">
 
