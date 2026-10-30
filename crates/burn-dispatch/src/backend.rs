@@ -1217,13 +1217,13 @@ fn cube_runtime_enabled(runtime: RuntimeId) -> bool {
         RuntimeId::Wgpu => cfg!(any(
             feature = "wgpu",
             feature = "vulkan",
-            feature = "metal",
+            feature = "wgpu-msl",
             feature = "webgpu"
         )),
         RuntimeId::Cpu => cfg!(feature = "cpu"),
-        // burn's `metal` feature is wgpu compiling to MSL; `metal-native` is cubecl's own Metal
-        // runtime.
-        RuntimeId::Metal => cfg!(feature = "metal-native"),
+        // `metal` is cubecl's own Metal runtime; `wgpu-msl` is wgpu compiling to MSL, a
+        // `RuntimeId::Wgpu` device.
+        RuntimeId::Metal => cfg!(feature = "metal"),
     }
 }
 

@@ -76,7 +76,7 @@ fn main() {
             println!("  - WGPU (GPU)");
             #[cfg(feature = "cuda")]
             println!("  - CUDA (NVIDIA GPU)");
-            #[cfg(feature = "metal")]
+            #[cfg(feature = "wgpu-msl")]
             println!("  - Metal (Apple GPU)");
             println!();
 
@@ -160,7 +160,7 @@ bench_backend!(
     "CUDA Backend (NVIDIA GPU)"
 );
 
-#[cfg(feature = "metal")]
+#[cfg(feature = "wgpu-msl")]
 bench_backend!(
     Device::wgpu(Default::default()),
     metal_backend,

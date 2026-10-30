@@ -8,7 +8,7 @@ fn main() {
     let rocm = cfg!(feature = "rocm");
     let cpu = cfg!(feature = "cpu");
     let metal = cfg!(feature = "metal");
-    let metal_native = cfg!(feature = "metal-native");
+    let wgpu_msl = cfg!(feature = "wgpu-msl");
     let vulkan = cfg!(feature = "vulkan");
     let webgpu = cfg!(feature = "webgpu");
     let wgpu = cfg!(feature = "wgpu");
@@ -19,7 +19,7 @@ fn main() {
     // variant in the dispatch enums.
     let group = cfg!(feature = "group");
 
-    let cube = cuda || rocm || cpu || metal || metal_native || vulkan || webgpu || wgpu;
+    let cube = cuda || rocm || cpu || metal || wgpu_msl || vulkan || webgpu || wgpu;
     let local = cube || flex;
     let executing = local || remote;
 
