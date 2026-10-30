@@ -14,6 +14,11 @@ use cubecl::{
     ir::ElemType,
     server::{ProfileError, ProfilingToken, ServerError},
 };
+#[cfg(all(feature = "persistence", not(target_family = "wasm")))]
+use {
+    crate::environment::EnvironmentStorage,
+    burn_backend::{EnvironmentBundle, EnvironmentError, EnvironmentId, EnvironmentOrigin},
+};
 
 #[cfg(not(feature = "fusion"))]
 use burn_backend::tensor::{BoolTensor, FloatTensor, IntTensor, QuantizedTensor};
@@ -188,6 +193,44 @@ impl Backend for CubeBackend {
             token: ProfilingToken { id: token.id },
         };
         device.client().profile_abandon(window);
+    }
+
+    #[cfg(all(feature = "persistence", not(target_family = "wasm")))]
+    fn environment_create(
+        _device: &Self::Device,
+        name: String,
+        origin: EnvironmentOrigin,
+    ) -> Result<EnvironmentId, EnvironmentError> {
+        EnvironmentStorage::current().create(name, origin)
+    }
+
+    /// Activated for the whole process, as cubecl keeps one environment
+    /// active per process. The launches the calling stream's client still
+    /// buffers are flushed first, so they compile into the environment they
+    /// were issued in.
+    #[cfg(all(feature = "persistence", not(target_family = "wasm")))]
+    fn environment_activate(
+        device: &Self::Device,
+        id: EnvironmentId,
+    ) -> Result<EnvironmentId, EnvironmentError> {
+        device.client().flush().map_err(server_err)?;
+        EnvironmentStorage::current().activate(id)
+    }
+
+    #[cfg(all(feature = "persistence", not(target_family = "wasm")))]
+    fn environment_active(_device: &Self::Device) -> Result<EnvironmentId, EnvironmentError> {
+        Ok(EnvironmentStorage::current().active())
+    }
+
+    /// The launches the calling stream's client still buffers are flushed
+    /// first, so what they compile is saved with the rest.
+    #[cfg(all(feature = "persistence", not(target_family = "wasm")))]
+    fn environment_save(
+        device: &Self::Device,
+        id: EnvironmentId,
+    ) -> Result<EnvironmentBundle, EnvironmentError> {
+        device.client().flush().map_err(server_err)?;
+        EnvironmentStorage::current().save(id)
     }
 
     fn graph_prepare(device: &Self::Device) -> Result<(), ExecutionError> {

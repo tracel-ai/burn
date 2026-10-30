@@ -59,7 +59,7 @@ tracing = [
 ]
 
 # Compile persistent caches; runtime configuration controls which caches are used.
-persistence = ["cubecl/persistence"]
+persistence = ["cubecl/persistence", "dep:cubecl-environment"]
 autotune = ["burn-cubecl-fusion?/autotune"]
 autotune-checks = [
     "autotune",
@@ -87,6 +87,9 @@ burn-backend = { workspace = true, features = [
     "cubecl-device",
 ] }
 cubecl = { workspace = true, features = ["stdlib"] }
+# The environment storage a device's compute environments are kept in, which `cubecl` does not
+# re-export.
+cubecl-environment = { workspace = true, optional = true, features = ["persistence"] }
 cubek = { workspace = true, features = [
     "attention",
     "attention-tiled",

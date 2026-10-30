@@ -1,8 +1,10 @@
 use crate::{RouterChannel, RouterTensor};
 use alloc::boxed::Box;
+use alloc::string::String;
 use alloc::vec::Vec;
 use burn_backend::{
-    DType, ProfileDuration, ProfileOptions, ProfileToken, TensorData,
+    DType, EnvironmentBundle, EnvironmentError, EnvironmentId, EnvironmentOrigin, ProfileDuration,
+    ProfileOptions, ProfileToken, TensorData,
     backend::{DeviceId, DeviceOps, ExecutionError},
 };
 use burn_ir::{CapturedGraphId, GraphBindings, GraphId, OperationIr, TensorId, TensorIr};
@@ -110,6 +112,41 @@ pub trait RouterClient: Clone + Send + Sync + Sized {
         let _ = self.profile_end(token, ProfileOptions::default());
     }
 
+    /// Create a compute environment in the storage the interpreter's backend
+    /// reaches — see
+    /// [`Backend::environment_create`](burn_backend::Backend::environment_create).
+    ///
+    /// The default refuses, as from an interpreter whose backend keeps no
+    /// compute environment.
+    fn environment_create(
+        &self,
+        name: String,
+        origin: EnvironmentOrigin,
+    ) -> Result<EnvironmentId, EnvironmentError> {
+        let _ = (name, origin);
+        Err(environment_unsupported())
+    }
+
+    /// Make `id` the compute environment of the interpreter's backend, after
+    /// every operation registered so far on the calling stream — see
+    /// [`Backend::environment_activate`](burn_backend::Backend::environment_activate).
+    fn environment_activate(&self, id: EnvironmentId) -> Result<EnvironmentId, EnvironmentError> {
+        let _ = id;
+        Err(environment_unsupported())
+    }
+
+    /// The compute environment of the interpreter's backend.
+    fn environment_active(&self) -> Result<EnvironmentId, EnvironmentError> {
+        Err(environment_unsupported())
+    }
+
+    /// Serialize the compute environment `id`, after every operation
+    /// registered so far on the calling stream.
+    fn environment_save(&self, id: EnvironmentId) -> Result<EnvironmentBundle, EnvironmentError> {
+        let _ = id;
+        Err(environment_unsupported())
+    }
+
     /// Prepare the interpreter's backend for a graph capture — see
     /// [`Backend::graph_prepare`](burn_backend::Backend::graph_prepare).
     ///
@@ -182,6 +219,13 @@ pub trait RouterClient: Clone + Send + Sync + Sized {
 }
 
 /// The error of the graph-capture methods of an interpreter that cannot record a graph.
+/// The answer of an interpreter whose backend keeps no compute environment.
+fn environment_unsupported() -> EnvironmentError {
+    EnvironmentError::Unsupported {
+        reason: alloc::string::String::from("the interpreter's backend keeps none"),
+    }
+}
+
 fn graph_unsupported() -> ExecutionError {
     ExecutionError::Generic {
         reason: alloc::string::String::from("graph capture is not supported by this router client"),

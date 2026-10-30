@@ -98,6 +98,9 @@ pub use burn_std::{
 mod device;
 pub use device::*;
 
+mod environment;
+pub use environment::*;
+
 /// Configure a wgpu runtime or share an application's existing wgpu setup.
 #[cfg(feature = "wgpu")]
 pub mod wgpu;

@@ -1,8 +1,9 @@
 use super::{RouterChannel, RouterClient, RouterGraph, RouterTensor, get_client};
 use alloc::{format, string::String};
 use burn_backend::{
-    Backend, BackendGraph, BackendTypes, DType, ExecutionError, ProfileDuration, ProfileOptions,
-    ProfileToken, profile_with_tokens,
+    Backend, BackendGraph, BackendTypes, DType, EnvironmentBundle, EnvironmentError, EnvironmentId,
+    EnvironmentOrigin, ExecutionError, ProfileDuration, ProfileOptions, ProfileToken,
+    profile_with_tokens,
 };
 use core::marker::PhantomData;
 
@@ -82,6 +83,36 @@ impl<R: RouterChannel> Backend for BackendRouter<R> {
     fn profile_abandon(device: &Self::Device, token: ProfileToken) {
         let client = get_client::<R>(device);
         client.profile_abandon(token);
+    }
+
+    fn environment_create(
+        device: &Self::Device,
+        name: String,
+        origin: EnvironmentOrigin,
+    ) -> Result<EnvironmentId, EnvironmentError> {
+        let client = get_client::<R>(device);
+        client.environment_create(name, origin)
+    }
+
+    fn environment_activate(
+        device: &Self::Device,
+        id: EnvironmentId,
+    ) -> Result<EnvironmentId, EnvironmentError> {
+        let client = get_client::<R>(device);
+        client.environment_activate(id)
+    }
+
+    fn environment_active(device: &Self::Device) -> Result<EnvironmentId, EnvironmentError> {
+        let client = get_client::<R>(device);
+        client.environment_active()
+    }
+
+    fn environment_save(
+        device: &Self::Device,
+        id: EnvironmentId,
+    ) -> Result<EnvironmentBundle, EnvironmentError> {
+        let client = get_client::<R>(device);
+        client.environment_save(id)
     }
 
     fn dtype_usage(device: &Self::Device, dtype: DType) -> burn_backend::DTypeUsageSet {

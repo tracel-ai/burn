@@ -1,7 +1,8 @@
 use std::sync::Arc;
 
 use burn_backend::{
-    DType, DTypeUsageSet, DeviceSettings, ExecutionError, TensorData, TensorMetadata,
+    DType, DTypeUsageSet, DeviceSettings, EnvironmentBundle, EnvironmentError, EnvironmentId,
+    EnvironmentOrigin, ExecutionError, TensorData, TensorMetadata,
 };
 use burn_ir::{GraphBindings, GraphId, OperationIr, TensorId, TensorIr};
 use burn_router::{RouterClient, RouterTensor};
@@ -96,6 +97,27 @@ impl RouterClient for GroupClient {
         self.interpreter.lock().dtype_usage(dtype)
     }
 
+    /// A group's members each keep their own environment: create and activate one on them.
+    fn environment_create(
+        &self,
+        _name: String,
+        _origin: EnvironmentOrigin,
+    ) -> Result<EnvironmentId, EnvironmentError> {
+        Err(group_environment())
+    }
+
+    fn environment_activate(&self, _id: EnvironmentId) -> Result<EnvironmentId, EnvironmentError> {
+        Err(group_environment())
+    }
+
+    fn environment_active(&self) -> Result<EnvironmentId, EnvironmentError> {
+        Err(group_environment())
+    }
+
+    fn environment_save(&self, _id: EnvironmentId) -> Result<EnvironmentBundle, EnvironmentError> {
+        Err(group_environment())
+    }
+
     fn register_and_execute_graph(&self, _: GraphId, _: Vec<OperationIr>, _: GraphBindings) {
         unreachable!("Only router fusion replays graphs, and a device group runs without it")
     }
@@ -106,5 +128,12 @@ impl RouterClient for GroupClient {
 
     fn register_alias(&self, _: TensorId, _: TensorId) {
         unreachable!("Only router fusion aliases handles, and a device group runs without it")
+    }
+}
+
+/// The answer of a device group to an environment call.
+fn group_environment() -> EnvironmentError {
+    EnvironmentError::IncompatibleDevice {
+        reason: "a device group keeps no environment of its own: use its devices'".into(),
     }
 }

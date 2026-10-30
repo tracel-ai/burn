@@ -1111,6 +1111,7 @@ dependencies = [
  "burn-ir",
  "burn-std",
  "cubecl",
+ "cubecl-environment",
  "cubek",
  "derive-new",
  "futures-lite",

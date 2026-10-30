@@ -4,8 +4,9 @@ use crate::shared::{
 };
 use crate::{PeerAddr, PeerId};
 use burn_backend::{
-    DeviceId, DeviceOps, ExecutionError, ProfileDuration, ProfileOptions, ProfileToken,
-    RouterDeviceType, StreamId, TensorData,
+    DeviceId, DeviceOps, EnvironmentBundle, EnvironmentError, EnvironmentId, EnvironmentOrigin,
+    ExecutionError, ProfileDuration, ProfileOptions, ProfileToken, RouterDeviceType, StreamId,
+    TensorData,
 };
 use burn_ir::{CapturedGraphId, TensorIr};
 use burn_router::{MultiBackendBridge, RouterClient, RouterTensor, get_client};
@@ -100,6 +101,36 @@ impl RouterClient for RemoteClient {
     /// costs the server's backend something until it hears.
     fn profile_abandon(&self, token: ProfileToken) {
         self.handle.submit(move |s| s.profile_abandon(token));
+    }
+
+    fn environment_create(
+        &self,
+        name: String,
+        origin: EnvironmentOrigin,
+    ) -> Result<EnvironmentId, EnvironmentError> {
+        self.handle
+            .submit_blocking(move |s| s.environment_create(name, origin))
+            .map_err(service_failed)?
+    }
+
+    fn environment_activate(&self, id: EnvironmentId) -> Result<EnvironmentId, EnvironmentError> {
+        let stream_id = StreamId::current();
+        self.handle
+            .submit_blocking(move |s| s.environment_activate(stream_id, id))
+            .map_err(service_failed)?
+    }
+
+    fn environment_active(&self) -> Result<EnvironmentId, EnvironmentError> {
+        self.handle
+            .submit_blocking(|s| s.environment_active())
+            .map_err(service_failed)?
+    }
+
+    fn environment_save(&self, id: EnvironmentId) -> Result<EnvironmentBundle, EnvironmentError> {
+        let stream_id = StreamId::current();
+        self.handle
+            .submit_blocking(move |s| s.environment_save(stream_id, id))
+            .map_err(service_failed)?
     }
 
     fn graph_prepare(&self) -> Result<(), ExecutionError> {
@@ -534,4 +565,11 @@ impl MultiBackendBridge for RemoteBridge {
     ) -> Self::TensorHandle {
         tensor.change_backend(target_device)
     }
+}
+
+/// The remote service could not run a call: its thread panicked, or is gone.
+fn service_failed(err: burn_std::device_handle::CallError) -> EnvironmentError {
+    EnvironmentError::Execution(ExecutionError::with_context(format!(
+        "the remote service failed to run a call: {err:?}"
+    )))
 }
