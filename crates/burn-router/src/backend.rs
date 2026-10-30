@@ -120,8 +120,7 @@ impl<R: RouterChannel> Backend for BackendRouter<R> {
 
     fn flush(device: &Self::Device) -> Result<(), ExecutionError> {
         let client = get_client::<R>(device);
-        client.flush();
-        Ok(())
+        client.flush()
     }
 
     fn graph_prepare(device: &Self::Device) -> Result<(), ExecutionError> {

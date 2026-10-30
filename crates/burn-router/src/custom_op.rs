@@ -270,11 +270,19 @@ mod tests {
         );
     }
 
+    /// An op with no handler claims its outputs, so the read of one reports the missing handler
+    /// rather than the interpreter's caller panicking.
     #[test]
-    #[should_panic(expected = "No custom-op handler registered")]
-    fn unregistered_custom_op_panics() {
+    fn an_unregistered_custom_op_claims_its_outputs() {
         let mut interp = TensorInterpreter::<Flex>::new(Default::default());
-        let desc = CustomOpIr::new("missing", &[], &[]);
+        let out = TensorIr::uninit(TensorId::new(u64::MAX), Shape::new([1]), DType::F32);
+        let desc = CustomOpIr::new("missing", &[], slice::from_ref(&out));
         interp.register_op(OperationIr::Custom(desc));
+
+        let reason = interp.read_failure(&out.id).expect("the output is claimed");
+        assert!(
+            reason.contains("No custom-op handler registered"),
+            "{reason}"
+        );
     }
 }
