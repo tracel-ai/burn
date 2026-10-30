@@ -1415,7 +1415,7 @@ fn dropping_the_serving_future_ends_its_live_sessions() {
     rt.shutdown_background();
 }
 
-/// Once its session ended, a device's flush, sync and read report why, as a poisoned device's do,
+/// Once its session ended, a device's flush, sync and read report it poisoned, and why,
 /// and work queued in between neither panics nor reaches anything.
 #[test]
 fn an_ended_session_is_reported_by_flush_sync_and_read() {
@@ -1444,6 +1444,7 @@ fn an_ended_session_is_reported_by_flush_sync_and_read() {
             device.sync().unwrap_err(),
             doubled.try_into_data().unwrap_err(),
         ] {
+            assert!(error.is_device_poisoned(), "{error}");
             assert!(error.to_string().contains("session ended"), "{error}");
         }
     });

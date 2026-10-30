@@ -57,11 +57,6 @@ impl PendingResponses {
         rx
     }
 
-    /// The session these requests are answered on, which reports why it ended.
-    pub(crate) fn session(&self) -> &Arc<SessionEnd> {
-        &self.session
-    }
-
     /// A cheap, cloneable handle the response-demux task uses to deliver replies.
     pub(crate) fn responder(&self) -> Responder {
         Responder {

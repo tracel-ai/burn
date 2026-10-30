@@ -11,7 +11,7 @@ use burn_std::{DeviceSettings, device_handle::CallError, future::DynFut};
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::{Mutex, MutexGuard, PoisonError};
 
-use service::RemoteEndpoint;
+use service::{RemoteEndpoint, RemoteService};
 
 // It is very important to block on any request made via the service, since ordering is
 // crucial when registering operations or creating tensors. The `DeviceHandle` queue
@@ -65,16 +65,12 @@ impl RouterClient for RemoteClient {
 
     fn sync(&self) -> Result<(), ExecutionError> {
         let stream_id = StreamId::current();
-        self.handle
-            .submit_blocking(|s| s.sync(stream_id))
-            .unwrap_or_else(|err| Err(service_error(err)))
+        self.call(|s| s.sync(stream_id))
     }
 
     fn profile_start(&self) -> Result<Option<ProfileToken>, ExecutionError> {
         let stream_id = StreamId::current();
-        self.handle
-            .submit_blocking(move |s| s.profile_start(stream_id))
-            .unwrap_or_else(|err| Err(service_error(err)))
+        self.call(move |s| s.profile_start(stream_id))
     }
 
     fn profile_end(
@@ -89,7 +85,7 @@ impl RouterClient for RemoteClient {
         // tasks around it; the measurement is awaited through the duration.
         self.handle
             .submit_blocking(move |s| s.profile_end(token, options))
-            .map_err(service_error)
+            .map_err(RemoteClient::service_stopped)
     }
 
     /// Told to the server rather than closed: the close is a blocking round
@@ -101,23 +97,17 @@ impl RouterClient for RemoteClient {
 
     fn graph_prepare(&self) -> Result<(), ExecutionError> {
         let stream_id = StreamId::current();
-        self.handle
-            .submit_blocking(move |s| s.graph_prepare(stream_id))
-            .unwrap_or_else(|err| Err(service_error(err)))
+        self.call(move |s| s.graph_prepare(stream_id))
     }
 
     fn graph_start_capture(&self) -> Result<(), ExecutionError> {
         let stream_id = StreamId::current();
-        self.handle
-            .submit_blocking(move |s| s.graph_start_capture(stream_id))
-            .unwrap_or_else(|err| Err(service_error(err)))
+        self.call(move |s| s.graph_start_capture(stream_id))
     }
 
     fn graph_stop_capture(&self) -> Result<CapturedGraphId, ExecutionError> {
         let stream_id = StreamId::current();
-        self.handle
-            .submit_blocking(move |s| s.graph_stop_capture(stream_id))
-            .unwrap_or_else(|err| Err(service_error(err)))
+        self.call(move |s| s.graph_stop_capture(stream_id))
     }
 
     /// `Ok` once the replay is sent: the server answers no replay, and a failed one is the error
@@ -151,13 +141,11 @@ impl RouterClient for RemoteClient {
     fn dtype_usage(&self, dtype: burn_std::DType) -> burn_backend::DTypeUsageSet {
         self.handle
             .submit_blocking(move |s| s.dtype_usage(dtype))
-            .expect("Service call failed")
+            .unwrap_or_default()
     }
 
     fn flush(&self) -> Result<(), ExecutionError> {
-        self.handle
-            .submit_blocking(|s| s.flush())
-            .unwrap_or_else(|err| Err(service_error(err)))
+        self.call(|s| s.flush())
     }
 
     fn register_and_execute_graph(
@@ -191,15 +179,28 @@ impl RemoteClient {
         self.handle
             .submit_blocking(move |s| s.read_tensors(stream_id, tensors))
             .unwrap_or_else(|err| {
-                let error = service_error(err);
+                let error = Self::service_stopped(err);
                 Box::pin(async move { Err(error) })
             })
     }
 }
 
-/// The service's thread is gone, with the session it held.
-fn service_error(err: CallError) -> ExecutionError {
-    ExecutionError::with_context(format!("The remote device's service stopped: {err:?}"))
+impl RemoteClient {
+    /// Run `call` on the service, which reports an error of its own or the service having
+    /// stopped.
+    fn call<T: Send>(
+        &self,
+        call: impl FnOnce(&mut RemoteService) -> Result<T, ExecutionError> + Send,
+    ) -> Result<T, ExecutionError> {
+        self.handle
+            .submit_blocking(call)
+            .unwrap_or_else(|err| Err(Self::service_stopped(err)))
+    }
+
+    /// The service's thread is gone, with the session it held.
+    fn service_stopped(err: CallError) -> ExecutionError {
+        ExecutionError::device_poisoned(format!("The remote device's service stopped: {err:?}"))
+    }
 }
 
 #[derive(Clone, Debug)]

@@ -95,6 +95,8 @@ pub struct RemoteService {
     batch: OutgoingBatch,
     /// Request-id allocation + the callbacks awaiting response-producing tasks.
     pending: PendingResponses,
+    /// Whether, and why, this device's session ended; shared with `pending` and the device.
+    session: Arc<SessionEnd>,
     /// The client stream each open profiling window was opened on, by token id.
     ///
     /// The server orders a task against the other tasks of the stream the
@@ -128,6 +130,7 @@ impl DeviceService for RemoteService {
             .unwrap_or_else(|| panic!("No endpoint registered for device id {device_id}"));
         let executor = Executor::session();
         let session_id = session_of(id);
+        let session = session_end(id);
 
         let probe = if TelemetryLogger::enabled() {
             TelemetryProbe::new(CHANNEL_CAPACITY)
@@ -154,7 +157,8 @@ impl DeviceService for RemoteService {
                 let remote = cfg.remote();
                 OutgoingBatch::new(remote.flush_threshold, remote.flush_bytes_threshold)
             },
-            pending: PendingResponses::new(session_end(id)),
+            pending: PendingResponses::new(session.clone()),
+            session,
             profile_streams: HashMap::new(),
             probe,
             logger,
@@ -537,12 +541,12 @@ impl RemoteService {
         tensors: Vec<TensorIr>,
     ) -> DynFut<Result<Vec<TensorData>, ExecutionError>> {
         let rx = self.submit_request(|id| Task::ReadTensors(id, stream_id, tensors));
-        let session = self.pending.session().clone();
+        let session = self.session.clone();
         Box::pin(async move {
             match rx.await {
                 Ok(TaskResponseContent::ReadTensors(res)) => res,
                 Ok(other) => panic!("Invalid response for ReadTensors: {other:?}"),
-                Err(_) => Err(ended(&session)),
+                Err(_) => Err(session.unanswered()),
             }
         })
     }
@@ -554,7 +558,7 @@ impl RemoteService {
             match self.executor.block_on(rx) {
                 Ok(TaskResponseContent::SyncBackend(res)) => res,
                 Ok(other) => panic!("Invalid response for SyncBackend: {other:?}"),
-                Err(_) => Err(self.ended()),
+                Err(_) => Err(self.session.unanswered()),
             }
         }
         #[cfg(target_family = "wasm")]
@@ -584,7 +588,7 @@ impl RemoteService {
             let opened = match self.executor.block_on(rx) {
                 Ok(TaskResponseContent::ProfileStart(res)) => res,
                 Ok(other) => panic!("Invalid response for ProfileStart: {other:?}"),
-                Err(_) => Err(self.ended()),
+                Err(_) => Err(self.session.unanswered()),
             };
             if let Ok(Some(token)) = &opened {
                 self.profile_streams.insert(token.id, stream_id);
@@ -610,13 +614,13 @@ impl RemoteService {
             return Self::no_such_window();
         };
         let rx = self.submit_request(|id| Task::ProfileEnd(id, stream_id, token, options));
-        let session = self.pending.session().clone();
+        let session = self.session.clone();
 
         ProfileDuration::new_device_time_maybe(async move {
             let duration = match rx.await {
                 Ok(TaskResponseContent::ProfileEnd(res)) => res,
                 Ok(other) => panic!("Invalid response for ProfileEnd: {other:?}"),
-                Err(_) => Err(ended(&session)),
+                Err(_) => Err(session.unanswered()),
             };
             match duration {
                 Ok(Some(duration)) => {
@@ -712,7 +716,7 @@ impl RemoteService {
             match self.executor.block_on(rx) {
                 Ok(TaskResponseContent::Capture(res)) => res,
                 Ok(other) => panic!("Invalid response for a graph capture request: {other:?}"),
-                Err(_) => Err(self.ended()),
+                Err(_) => Err(self.session.unanswered()),
             }
         }
         #[cfg(target_family = "wasm")]
@@ -737,12 +741,16 @@ impl RemoteService {
         }
     }
 
+    /// What the server's device can do with `dtype`.
+    ///
+    /// Nothing, once the session has ended: the answer cannot fail, and the next flush, sync or
+    /// read reports why.
     pub fn dtype_usage(&mut self, dtype: DType) -> DTypeUsageSet {
         let rx = self.submit_request(|id| Task::DTypeUsage(id, dtype));
         match self.executor.block_on(rx) {
             Ok(TaskResponseContent::DTypeUsage(set)) => set,
             Ok(other) => panic!("Invalid response for DTypeUsage: {other:?}"),
-            Err(_) => panic!("Remote response channel closed before dtype_usage completed"),
+            Err(_) => DTypeUsageSet::empty(),
         }
     }
 
@@ -775,12 +783,6 @@ impl RemoteService {
         if self.batch.push(task) {
             self.send_batch();
         }
-    }
-
-    /// Why a request was never answered: the session ended under it.
-    #[cfg(not(target_family = "wasm"))]
-    fn ended(&self) -> ExecutionError {
-        ended(self.pending.session())
     }
 
     /// Append a task and flush the buffer immediately.
@@ -883,7 +885,7 @@ impl RemoteService {
     /// going to write, and the read of one of those reports it.
     pub fn flush(&mut self) -> Result<(), ExecutionError> {
         self.send_batch();
-        match self.pending.session().error() {
+        match self.session.error() {
             Some(error) => Err(error),
             None => Ok(()),
         }
@@ -898,7 +900,7 @@ impl RemoteService {
         if self.batch.is_empty() {
             return;
         }
-        if self.pending.session().has_ended() {
+        if self.session.has_ended() {
             // Nothing reaches an ended session: the tensors this work names went with it.
             self.batch.take();
             return;
@@ -918,13 +920,6 @@ impl RemoteService {
         let writer = self.writer.as_ref().expect("writer is set by try_connect");
         writer.send(&self.executor, batch);
     }
-}
-
-/// Why a request on `session` was never answered.
-fn ended(session: &SessionEnd) -> ExecutionError {
-    session.error().unwrap_or_else(|| {
-        ExecutionError::with_context("The remote session dropped a request before answering it")
-    })
 }
 
 impl Drop for RemoteService {
