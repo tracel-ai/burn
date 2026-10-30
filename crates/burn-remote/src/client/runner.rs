@@ -4,8 +4,9 @@ use crate::shared::{
 };
 use crate::{PeerAddr, PeerId};
 use burn_backend::{
-    DeviceId, DeviceOps, ExecutionError, ProfileDuration, ProfileOptions, ProfileToken,
-    RouterDeviceType, StreamId, TensorData,
+    DeviceId, DeviceOps, ExecutionError, ExecutionStatistics, ProcessMode, ProcessModeToken,
+    ProfileDuration, ProfileOptions, ProfileToken, RouterDeviceType, StreamId, StreamMode,
+    StreamModeToken, TensorData,
 };
 use burn_ir::{CapturedGraphId, TensorIr};
 use burn_router::{MultiBackendBridge, RouterClient, RouterTensor, get_client};
@@ -100,6 +101,51 @@ impl RouterClient for RemoteClient {
     /// costs the server's backend something until it hears.
     fn profile_abandon(&self, token: ProfileToken) {
         self.handle.submit(move |s| s.profile_abandon(token));
+    }
+
+    fn process_mode_open(
+        &self,
+        mode: ProcessMode,
+    ) -> Result<Option<ProcessModeToken>, ExecutionError> {
+        let stream_id = StreamId::current();
+        self.handle
+            .submit_blocking(move |s| s.process_mode_open(stream_id, mode))
+            .expect("Service call failed")
+    }
+
+    fn process_mode_statistics(
+        &self,
+        token: ProcessModeToken,
+    ) -> Result<ExecutionStatistics, ExecutionError> {
+        self.handle
+            .submit_blocking(move |s| s.process_mode_statistics(token))
+            .expect("Service call failed")
+    }
+
+    fn process_mode_close(
+        &self,
+        token: ProcessModeToken,
+    ) -> Result<ExecutionStatistics, ExecutionError> {
+        let stream_id = StreamId::current();
+        self.handle
+            .submit_blocking(move |s| s.process_mode_close(stream_id, token))
+            .expect("Service call failed")
+    }
+
+    fn stream_mode_open(
+        &self,
+        mode: StreamMode,
+    ) -> Result<Option<StreamModeToken>, ExecutionError> {
+        let stream_id = StreamId::current();
+        self.handle
+            .submit_blocking(move |s| s.stream_mode_open(stream_id, mode))
+            .expect("Service call failed")
+    }
+
+    fn stream_mode_close(&self, token: StreamModeToken) -> Result<(), ExecutionError> {
+        self.handle
+            .submit_blocking(move |s| s.stream_mode_close(token))
+            .expect("Service call failed")
     }
 
     fn graph_prepare(&self) -> Result<(), ExecutionError> {

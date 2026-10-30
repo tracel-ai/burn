@@ -56,7 +56,7 @@ use crate::server::ServerStreams;
 use crate::server::local_comm::LocalCommService;
 use crate::server::spawn::{CatchPanic, ResponseTasks, spawn_detached};
 use crate::server::transfer::TensorTransfer;
-use crate::server::{DeviceCaptureLock, SessionCaptures};
+use crate::server::{DeviceCaptureLock, SessionCaptures, SessionExecutionModes};
 use crate::shared::{
     LocalAllReducePart, RequestId, SessionId, Task, TaskResponse, TaskResponseContent,
 };
@@ -109,6 +109,7 @@ where
     graphs: Mutex<HashMap<GraphId, Graph>>,
     queries: DeviceQueries<B>,
     captures: SessionCaptures<B>,
+    execution_modes: SessionExecutionModes,
     probe: TelemetryProbe,
 }
 
@@ -143,6 +144,7 @@ where
             graphs: Mutex::new(HashMap::new()),
             queries,
             captures: SessionCaptures::new(session_id, capture_lock),
+            execution_modes: SessionExecutionModes::default(),
             probe,
         };
         let (sender, receiver) = mpsc::channel(TASK_CHANNEL_CAPACITY);
@@ -225,11 +227,15 @@ where
             runner,
             response_sender,
             captures,
+            execution_modes,
             ..
         } = self;
         // Before the syncs below, which a stream left recording would refuse, and before the
         // response sender, so a client that sees its session end can capture on the device again.
         captures.close(&runner);
+        // So the server runs launches again, its other sessions' included, once a session that
+        // left a mode open is gone.
+        execution_modes.close(&runner);
         // Released next, so the client sees its session end even if a sync below hangs.
         drop(response_sender);
         let device = runner.device();
@@ -522,6 +528,38 @@ where
                 self.send_response(request_id, TaskResponseContent::DeviceQuery(answer))
                     .await
             }
+            Task::ProcessModeOpen(request_id, stream_id, mode) => {
+                let stream = self.streams.of(stream_id);
+                let res = self
+                    .execution_modes
+                    .open_process(&self.runner, stream, mode);
+                self.send_response(request_id, TaskResponseContent::ProcessModeOpen(res))
+                    .await
+            }
+            Task::ProcessModeStatistics(request_id, token) => {
+                let res = self.execution_modes.process_statistics(&self.runner, token);
+                self.send_response(request_id, TaskResponseContent::ProcessModeStatistics(res))
+                    .await
+            }
+            Task::ProcessModeClose(request_id, stream_id, token) => {
+                let stream = self.streams.of(stream_id);
+                let res = self
+                    .execution_modes
+                    .close_process(&self.runner, stream, token);
+                self.send_response(request_id, TaskResponseContent::ProcessModeStatistics(res))
+                    .await
+            }
+            Task::StreamModeOpen(request_id, stream_id, mode) => {
+                let stream = self.streams.of(stream_id);
+                let res = self.execution_modes.open_stream(&self.runner, stream, mode);
+                self.send_response(request_id, TaskResponseContent::StreamModeOpen(res))
+                    .await
+            }
+            Task::StreamModeClose(request_id, token) => {
+                let res = self.execution_modes.close_stream(&self.runner, token);
+                self.send_response(request_id, TaskResponseContent::StreamModeClose(res))
+                    .await
+            }
         }
     }
 
@@ -689,7 +727,7 @@ mod tests {
         PeerAddr, PeerId,
         shared::{LocalTransferId, TransferCapability},
     };
-    use burn_backend::{DType, Shape, TensorData};
+    use burn_backend::{DType, ProcessMode, ProcessModeToken, Shape, TensorData};
     use burn_flex::Flex;
     use burn_ir::{CapturedGraphId, TensorId, TensorIr, TensorStatus};
     use std::time::Duration;
@@ -915,6 +953,34 @@ mod tests {
         prepare(&second, &mut second_responses).await.unwrap();
     }
 
+    /// A backend that runs every launch opens no mode, and a session reads and closes only the
+    /// modes it opened.
+    #[tokio::test]
+    async fn a_session_answers_only_for_the_modes_it_opened() {
+        let (response_sender, mut responses) = mpsc::channel(4);
+        let mut handler = SessionHandler::new(response_sender, DeviceCaptureLock::default());
+        let stream = StreamId { value: 0 };
+        let foreign = ProcessModeToken { id: 1 };
+
+        for task in [
+            Task::ProcessModeOpen(1, stream, ProcessMode::CompileOnly),
+            Task::ProcessModeStatistics(2, foreign),
+            Task::ProcessModeClose(3, stream, foreign),
+        ] {
+            handler.process_task(task).await.unwrap();
+        }
+        assert!(matches!(
+            next_answer(&mut responses).await,
+            TaskResponseContent::ProcessModeOpen(Ok(None))
+        ));
+        for _ in 0..2 {
+            assert!(matches!(
+                next_answer(&mut responses).await,
+                TaskResponseContent::ProcessModeStatistics(Err(_))
+            ));
+        }
+    }
+
     async fn next_answer(responses: &mut mpsc::Receiver<TaskResponse>) -> TaskResponseContent {
         tokio::time::timeout(Duration::from_secs(10), responses.recv())
             .await
@@ -951,6 +1017,7 @@ mod tests {
                 graphs: Mutex::new(HashMap::new()),
                 queries: DeviceQueries::default(),
                 captures: SessionCaptures::new(session_id, capture_lock),
+                execution_modes: SessionExecutionModes::default(),
                 probe: TelemetryProbe::disabled(),
             }
         }

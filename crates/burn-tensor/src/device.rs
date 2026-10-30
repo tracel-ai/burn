@@ -22,6 +22,8 @@ use burn_dispatch::devices::WgpuBackend;
 use burn_dispatch::{Dispatch, DispatchDevice};
 use burn_std::{BoolDType, FloatDType, IntDType, TensorData};
 
+use crate::{ProcessMode, ProcessModeGuard, StreamMode, StreamModeGuard};
+
 #[cfg(feature = "capture")]
 pub use burn_dispatch::backends::capture::{
     CaptureError, CaptureScope, CaptureTensor, CapturedGraph, CompletedCaptureScope,
@@ -639,6 +641,53 @@ impl Device {
         func: impl FnOnce() -> O + Send,
     ) -> Result<(O, ProfileDuration), ExecutionError> {
         Dispatch::profile(self.as_dispatch(), options, func)
+    }
+
+    /// Run this device's work under `mode` until the returned guard closes:
+    /// only compile what the work launches, or compile it and tune by
+    /// measuring, discarding the launches themselves.
+    ///
+    /// A pass that wants a workload's kernels compiled and its autotune keys
+    /// tuned, and not its results, runs the workload once inside the guard and
+    /// reads what it triggered from the guard's [reader](ProcessModeGuard::reader).
+    /// The mode applies where the device's work runs: on a remote device, on
+    /// its server.
+    ///
+    /// ```rust,ignore
+    /// let gather = device.process_mode(ProcessMode::CompileOnly)?;
+    /// model.forward(input.clone());
+    /// let gathered = gather.close()?;
+    ///
+    /// let tune = device.process_mode(ProcessMode::CompileAndAutotune)?;
+    /// model.forward(input);
+    /// let tuned = tune.close()?;
+    /// ```
+    ///
+    /// Opens after every operation registered so far on the calling stream.
+    /// A backend that compiles nothing runs every launch whatever the mode
+    /// ([`ProcessModeGuard::applies`] says so). The cubecl runtimes apply a
+    /// mode to the whole process, so every device of the process runs under
+    /// it there, and one mode is open at a time.
+    ///
+    /// # Errors
+    ///
+    /// Another mode is open where this one would apply, or the device could
+    /// not be reached — a remote device from a browser thread, which cannot
+    /// wait on the server.
+    pub fn process_mode(&self, mode: ProcessMode) -> Result<ProcessModeGuard, ExecutionError> {
+        ProcessModeGuard::new(self.clone(), mode)
+    }
+
+    /// Put the calling stream of this device in `mode`, whatever the open
+    /// [process mode](Self::process_mode) says, until the returned guard
+    /// closes: what a step that has to run for real inside a pass that
+    /// discards launches opens.
+    ///
+    /// # Errors
+    ///
+    /// The device could not be reached.
+    pub fn stream_mode(&self, mode: StreamMode) -> Result<StreamModeGuard, ExecutionError> {
+        StreamModeGuard::new(self.clone(), mode)
     }
 
     /// Seeds the random number generator for this device.

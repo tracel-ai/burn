@@ -4,8 +4,9 @@ use crate::{
     stream::{Context, OrderedExecution},
 };
 use burn_backend::{
-    Backend, BackendGraph, BackendTypes, DType, DeviceOps, ExecutionError, MemoryPoolUsage,
-    ProfileDuration, ProfileOptions, ProfileToken, SlicedPoolReport, profile_with_tokens,
+    Backend, BackendGraph, BackendTypes, DType, DeviceOps, ExecutionError, ExecutionStatistics,
+    MemoryPoolUsage, ProcessMode, ProcessModeToken, ProfileDuration, ProfileOptions, ProfileToken,
+    SlicedPoolReport, StreamMode, StreamModeToken, profile_with_tokens,
     tensor::{BoolTensor, Device, FloatTensor, IntTensor, QuantizedTensor},
 };
 use burn_ir::{BackendIr, HandleContainer, OperationIr, TensorHandle, TensorIr};
@@ -114,6 +115,63 @@ impl<B: FusionBackend> Backend for Fusion<B> {
         let client = GlobalFusionClient::<B::FusionRuntime>::load(device);
         let device = device.clone();
         let _ = client.run(move || B::profile_abandon(&device, token));
+    }
+
+    /// Opened after the calling stream's queue drains, so what was registered
+    /// before runs under the mode it was registered in.
+    fn process_mode_open(
+        device: &Self::Device,
+        mode: ProcessMode,
+    ) -> Result<Option<ProcessModeToken>, ExecutionError> {
+        let client = GlobalFusionClient::<B::FusionRuntime>::load(device);
+        let device = device.clone();
+        client
+            .try_sync(move || B::process_mode_open(&device, mode))
+            .map_err(server_error)?
+    }
+
+    /// Read where the backend counts, without a hop through the queue: the
+    /// queue holds launches, not their statistics.
+    fn process_mode_statistics(
+        device: &Self::Device,
+        token: ProcessModeToken,
+    ) -> Result<ExecutionStatistics, ExecutionError> {
+        B::process_mode_statistics(device, token)
+    }
+
+    /// Closed after the calling stream's queue drains, so what was registered
+    /// under the mode runs under it.
+    fn process_mode_close(
+        device: &Self::Device,
+        token: ProcessModeToken,
+    ) -> Result<ExecutionStatistics, ExecutionError> {
+        let client = GlobalFusionClient::<B::FusionRuntime>::load(device);
+        let device = device.clone();
+        client
+            .try_sync(move || B::process_mode_close(&device, token))
+            .map_err(server_error)?
+    }
+
+    fn stream_mode_open(
+        device: &Self::Device,
+        mode: StreamMode,
+    ) -> Result<Option<StreamModeToken>, ExecutionError> {
+        let client = GlobalFusionClient::<B::FusionRuntime>::load(device);
+        let device = device.clone();
+        client
+            .try_sync(move || B::stream_mode_open(&device, mode))
+            .map_err(server_error)?
+    }
+
+    fn stream_mode_close(
+        device: &Self::Device,
+        token: StreamModeToken,
+    ) -> Result<(), ExecutionError> {
+        let client = GlobalFusionClient::<B::FusionRuntime>::load(device);
+        let device = device.clone();
+        client
+            .try_sync(move || B::stream_mode_close(&device, token))
+            .map_err(server_error)?
     }
 
     fn ad_enabled(_device: &Self::Device) -> bool {

@@ -12,8 +12,9 @@ use alloc::{
     vec::Vec,
 };
 use burn_backend::{
-    Backend, BackendGraph, DType, DeviceOps, ExecutionError, FloatDType, ProfileDuration,
-    ProfileOptions, ProfileToken, Shape, TensorData, TensorMetadata, TensorPrimitive,
+    Backend, BackendGraph, DType, DeviceOps, ExecutionError, ExecutionStatistics, FloatDType,
+    ProcessMode, ProcessModeToken, ProfileDuration, ProfileOptions, ProfileToken, Shape,
+    StreamMode, StreamModeToken, TensorData, TensorMetadata, TensorPrimitive,
     ops::TransactionPrimitive,
 };
 use burn_ir::{
@@ -2445,6 +2446,43 @@ impl<B: BackendIr> TensorInterpreter<B> {
     /// measuring it.
     pub fn profile_abandon(&self, token: ProfileToken) {
         B::profile_abandon(&self.device, token)
+    }
+
+    /// Run the backend's work under `mode`, after every operation on the calling stream.
+    pub fn process_mode_open(
+        &self,
+        mode: ProcessMode,
+    ) -> Result<Option<ProcessModeToken>, ExecutionError> {
+        B::process_mode_open(&self.device, mode)
+    }
+
+    /// What the work under the mode `token` opened has triggered so far.
+    pub fn process_mode_statistics(
+        &self,
+        token: ProcessModeToken,
+    ) -> Result<ExecutionStatistics, ExecutionError> {
+        B::process_mode_statistics(&self.device, token)
+    }
+
+    /// Close the mode `token` opened, after every operation on the calling stream.
+    pub fn process_mode_close(
+        &self,
+        token: ProcessModeToken,
+    ) -> Result<ExecutionStatistics, ExecutionError> {
+        B::process_mode_close(&self.device, token)
+    }
+
+    /// Put the calling stream of the backend in `mode`.
+    pub fn stream_mode_open(
+        &self,
+        mode: StreamMode,
+    ) -> Result<Option<StreamModeToken>, ExecutionError> {
+        B::stream_mode_open(&self.device, mode)
+    }
+
+    /// Close the stream mode `token` opened.
+    pub fn stream_mode_close(&self, token: StreamModeToken) -> Result<(), ExecutionError> {
+        B::stream_mode_close(&self.device, token)
     }
 
     /// Prepare the backend for a graph capture.

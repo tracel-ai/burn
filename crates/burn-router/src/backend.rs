@@ -1,8 +1,9 @@
 use super::{RouterChannel, RouterClient, RouterGraph, RouterTensor, get_client};
 use alloc::{format, string::String};
 use burn_backend::{
-    Backend, BackendGraph, BackendTypes, DType, ExecutionError, ProfileDuration, ProfileOptions,
-    ProfileToken, profile_with_tokens,
+    Backend, BackendGraph, BackendTypes, DType, ExecutionError, ExecutionStatistics, ProcessMode,
+    ProcessModeToken, ProfileDuration, ProfileOptions, ProfileToken, StreamMode, StreamModeToken,
+    profile_with_tokens,
 };
 use core::marker::PhantomData;
 
@@ -82,6 +83,46 @@ impl<R: RouterChannel> Backend for BackendRouter<R> {
     fn profile_abandon(device: &Self::Device, token: ProfileToken) {
         let client = get_client::<R>(device);
         client.profile_abandon(token);
+    }
+
+    fn process_mode_open(
+        device: &Self::Device,
+        mode: ProcessMode,
+    ) -> Result<Option<ProcessModeToken>, ExecutionError> {
+        let client = get_client::<R>(device);
+        client.process_mode_open(mode)
+    }
+
+    fn process_mode_statistics(
+        device: &Self::Device,
+        token: ProcessModeToken,
+    ) -> Result<ExecutionStatistics, ExecutionError> {
+        let client = get_client::<R>(device);
+        client.process_mode_statistics(token)
+    }
+
+    fn process_mode_close(
+        device: &Self::Device,
+        token: ProcessModeToken,
+    ) -> Result<ExecutionStatistics, ExecutionError> {
+        let client = get_client::<R>(device);
+        client.process_mode_close(token)
+    }
+
+    fn stream_mode_open(
+        device: &Self::Device,
+        mode: StreamMode,
+    ) -> Result<Option<StreamModeToken>, ExecutionError> {
+        let client = get_client::<R>(device);
+        client.stream_mode_open(mode)
+    }
+
+    fn stream_mode_close(
+        device: &Self::Device,
+        token: StreamModeToken,
+    ) -> Result<(), ExecutionError> {
+        let client = get_client::<R>(device);
+        client.stream_mode_close(token)
     }
 
     fn dtype_usage(device: &Self::Device, dtype: DType) -> burn_backend::DTypeUsageSet {

@@ -14,6 +14,10 @@ use crate::distributed::{DistributedParamId, DistributedParams};
 
 use super::DeviceOps;
 use super::profile::profile_unsupported;
+use super::{
+    ExecutionStatistics, ProcessMode, ProcessModeToken, StreamMode, StreamModeToken,
+    execution_mode_unknown,
+};
 use super::{MemoryPoolUsage, SlicedPoolReport};
 use super::{ProfileDuration, ProfileOptions, ProfileToken, profile_system_time};
 
@@ -287,6 +291,96 @@ pub trait Backend:
     /// instead.
     fn profile_abandon(device: &Self::Device, token: ProfileToken) {
         let _ = Self::profile_end(device, token, ProfileOptions::default());
+    }
+
+    /// Run the work `device` is asked to do under `mode` until
+    /// [`process_mode_close`](Self::process_mode_close), counting what it
+    /// triggers into the [statistics](Self::process_mode_statistics) of the
+    /// returned token.
+    ///
+    /// Opens after every operation registered so far on the calling stream:
+    /// a backend that queues operations runs those first, under the mode they
+    /// were registered in. Operations another stream still holds queued are
+    /// not waited for, and may run under the new mode.
+    ///
+    /// `None`, the default, from a backend that compiles nothing and so runs
+    /// every launch whatever the mode: the work runs, and nothing is counted.
+    ///
+    /// The contract is the device's: at least `device` runs under the mode.
+    /// A backend whose runtime only applies a mode to the whole process applies
+    /// it to every device of that process, and refuses a second mode while
+    /// one is open there.
+    ///
+    /// # Errors
+    ///
+    /// Another mode is open where this one would apply, or the device could
+    /// not be reached.
+    fn process_mode_open(
+        _device: &Self::Device,
+        _mode: ProcessMode,
+    ) -> Result<Option<ProcessModeToken>, ExecutionError> {
+        Ok(None)
+    }
+
+    /// What the work run under the mode `token` opened has triggered so far.
+    /// Opens and closes nothing, so it can be read from any thread while the
+    /// work runs.
+    ///
+    /// # Errors
+    ///
+    /// The backend has no mode open under `token`, or the device could not be
+    /// reached.
+    fn process_mode_statistics(
+        _device: &Self::Device,
+        _token: ProcessModeToken,
+    ) -> Result<ExecutionStatistics, ExecutionError> {
+        Err(execution_mode_unknown())
+    }
+
+    /// Close the mode `token` opened, after every operation registered so far
+    /// on the calling stream, and answer what the work run under it triggered.
+    ///
+    /// # Errors
+    ///
+    /// The backend has no mode open under `token`, or the device could not be
+    /// reached.
+    fn process_mode_close(
+        _device: &Self::Device,
+        _token: ProcessModeToken,
+    ) -> Result<ExecutionStatistics, ExecutionError> {
+        Err(execution_mode_unknown())
+    }
+
+    /// Put the calling stream of `device` in `mode`, whatever the open
+    /// [`ProcessMode`] says, until
+    /// [`stream_mode_close`](Self::stream_mode_close): what a step that has to
+    /// run inside a pass that discards launches opens.
+    ///
+    /// Opens after every operation registered so far on the calling stream.
+    /// `None`, the default, from a backend that discards nothing.
+    ///
+    /// # Errors
+    ///
+    /// The device could not be reached.
+    fn stream_mode_open(
+        _device: &Self::Device,
+        _mode: StreamMode,
+    ) -> Result<Option<StreamModeToken>, ExecutionError> {
+        Ok(None)
+    }
+
+    /// Close the stream mode `token` opened, after every operation registered
+    /// so far on the calling stream.
+    ///
+    /// # Errors
+    ///
+    /// The backend has no stream mode open under `token`, or the device could
+    /// not be reached.
+    fn stream_mode_close(
+        _device: &Self::Device,
+        _token: StreamModeToken,
+    ) -> Result<(), ExecutionError> {
+        Err(execution_mode_unknown())
     }
 
     /// Prepare `device` for an upcoming graph capture: route allocations into a

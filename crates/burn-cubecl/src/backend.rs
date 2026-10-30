@@ -1,8 +1,10 @@
+use crate::execution::OPEN_MODES;
 use crate::{CubeDevice, tensor::CubeTensor};
 use burn_backend::cubecl::dtype_to_storage_type;
 use burn_backend::{
     Backend, BackendGraph, BackendTypes, DTypeUsage, DTypeUsageSet, ExecutionError,
-    MemoryPoolUsage, ProfileDuration, ProfileOptions, ProfileToken, SlicedPoolReport, TensorData,
+    ExecutionStatistics, MemoryPoolUsage, ProcessMode, ProcessModeToken, ProfileDuration,
+    ProfileOptions, ProfileToken, SlicedPoolReport, StreamMode, StreamModeToken, TensorData,
     profile_with_tokens,
 };
 use burn_std::{BoolStore, DType, id::StreamId, quantization::quantizable};
@@ -188,6 +190,43 @@ impl Backend for CubeBackend {
             token: ProfilingToken { id: token.id },
         };
         device.client().profile_abandon(window);
+    }
+
+    /// Applied to the whole process, as cubecl applies one.
+    fn process_mode_open(
+        _device: &Self::Device,
+        mode: ProcessMode,
+    ) -> Result<Option<ProcessModeToken>, ExecutionError> {
+        OPEN_MODES.lock().open_process(mode).map(Some)
+    }
+
+    fn process_mode_statistics(
+        _device: &Self::Device,
+        token: ProcessModeToken,
+    ) -> Result<ExecutionStatistics, ExecutionError> {
+        OPEN_MODES.lock().process_statistics(token)
+    }
+
+    fn process_mode_close(
+        _device: &Self::Device,
+        token: ProcessModeToken,
+    ) -> Result<ExecutionStatistics, ExecutionError> {
+        OPEN_MODES.lock().close_process(token)
+    }
+
+    fn stream_mode_open(
+        device: &Self::Device,
+        mode: StreamMode,
+    ) -> Result<Option<StreamModeToken>, ExecutionError> {
+        let client = device.client();
+        Ok(Some(OPEN_MODES.lock().open_stream(mode, &client)))
+    }
+
+    fn stream_mode_close(
+        _device: &Self::Device,
+        token: StreamModeToken,
+    ) -> Result<(), ExecutionError> {
+        OPEN_MODES.lock().close_stream(token)
     }
 
     fn graph_prepare(device: &Self::Device) -> Result<(), ExecutionError> {

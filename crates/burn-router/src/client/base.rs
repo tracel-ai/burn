@@ -2,8 +2,10 @@ use crate::{RouterChannel, RouterTensor};
 use alloc::boxed::Box;
 use alloc::vec::Vec;
 use burn_backend::{
-    DType, ProfileDuration, ProfileOptions, ProfileToken, TensorData,
+    DType, ExecutionStatistics, ProcessMode, ProcessModeToken, ProfileDuration, ProfileOptions,
+    ProfileToken, StreamMode, StreamModeToken, TensorData,
     backend::{DeviceId, DeviceOps, ExecutionError},
+    execution_mode_unknown,
 };
 use burn_ir::{CapturedGraphId, GraphBindings, GraphId, OperationIr, TensorId, TensorIr};
 use burn_std::{backtrace::BackTrace, future::DynFut};
@@ -108,6 +110,54 @@ pub trait RouterClient: Clone + Send + Sync + Sized {
     /// the caller is unwinding — does that instead.
     fn profile_abandon(&self, token: ProfileToken) {
         let _ = self.profile_end(token, ProfileOptions::default());
+    }
+
+    /// Run the interpreter backend's work under `mode`, after every operation
+    /// registered so far on the calling stream — see
+    /// [`Backend::process_mode_open`](burn_backend::Backend::process_mode_open).
+    ///
+    /// `None`, the default, from an interpreter whose backend runs every launch.
+    fn process_mode_open(
+        &self,
+        mode: ProcessMode,
+    ) -> Result<Option<ProcessModeToken>, ExecutionError> {
+        let _ = mode;
+        Ok(None)
+    }
+
+    /// What the work under the mode `token` opened has triggered so far.
+    fn process_mode_statistics(
+        &self,
+        token: ProcessModeToken,
+    ) -> Result<ExecutionStatistics, ExecutionError> {
+        let _ = token;
+        Err(execution_mode_unknown())
+    }
+
+    /// Close the mode `token` opened, after every operation registered so far
+    /// on the calling stream, and answer what the work under it triggered.
+    fn process_mode_close(
+        &self,
+        token: ProcessModeToken,
+    ) -> Result<ExecutionStatistics, ExecutionError> {
+        let _ = token;
+        Err(execution_mode_unknown())
+    }
+
+    /// Put the calling stream of the interpreter's backend in `mode` — see
+    /// [`Backend::stream_mode_open`](burn_backend::Backend::stream_mode_open).
+    fn stream_mode_open(
+        &self,
+        mode: StreamMode,
+    ) -> Result<Option<StreamModeToken>, ExecutionError> {
+        let _ = mode;
+        Ok(None)
+    }
+
+    /// Close the stream mode `token` opened.
+    fn stream_mode_close(&self, token: StreamModeToken) -> Result<(), ExecutionError> {
+        let _ = token;
+        Err(execution_mode_unknown())
     }
 
     /// Prepare the interpreter's backend for a graph capture — see

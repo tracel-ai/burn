@@ -1,4 +1,7 @@
-use burn_backend::{DTypeUsageSet, ExecutionError, ProfileOptions, ProfileToken, TensorData};
+use burn_backend::{
+    DTypeUsageSet, ExecutionError, ExecutionStatistics, ProcessMode, ProcessModeToken,
+    ProfileOptions, ProfileToken, StreamMode, StreamModeToken, TensorData,
+};
 use burn_ir::{CapturedGraphId, GraphBindings, GraphId, OperationIr, TensorId, TensorIr};
 use burn_std::{
     DType, DeviceSettings,
@@ -20,13 +23,14 @@ use crate::{
 /// messages after the handshake are framed, or which operations a server can
 /// run, so a mismatched peer is refused at the handshake rather than failing
 /// mid-session.
-pub const PROTOCOL_VERSION: u16 = 7;
+pub const PROTOCOL_VERSION: u16 = 8;
 
 /// Routing id for a task whose result is fetched back.
 ///
 /// Only the result-producing tasks ([`Task::ReadTensors`], [`Task::SyncBackend`],
 /// [`Task::DTypeUsage`], [`Task::ProfileStart`], [`Task::ProfileEnd`], [`Task::CapturePrepare`],
-/// [`Task::CaptureStart`], [`Task::CaptureStop`], [`Task::DeviceQuery`]) carry a
+/// [`Task::CaptureStart`], [`Task::CaptureStop`], [`Task::DeviceQuery`] and the execution-mode
+/// tasks) carry a
 /// `RequestId`; the server echoes it on its [`TaskResponse`] so the client demultiplexes results
 /// back to the right pending callback. Fire-and-forget tasks have no id because no result ever
 /// comes back.
@@ -353,6 +357,20 @@ pub enum Task {
     CaptureRelease(CapturedGraphId),
     /// Ask the server the device query registered under the id about the session's device.
     DeviceQuery(RequestId, DeviceQueryId),
+    /// Run the server backend's work under a process mode, after every earlier task, until a
+    /// [`ProcessModeClose`](Task::ProcessModeClose) of the token it answers, or the session
+    /// ends.
+    ProcessModeOpen(RequestId, StreamId, ProcessMode),
+    /// What the work under an open process mode has triggered so far.
+    ProcessModeStatistics(RequestId, ProcessModeToken),
+    /// Close an open process mode after every earlier task, answering what the work under it
+    /// triggered.
+    ProcessModeClose(RequestId, StreamId, ProcessModeToken),
+    /// Put the server stream of `stream_id` in a stream mode, after every earlier task, until a
+    /// [`StreamModeClose`](Task::StreamModeClose) of the token it answers, or the session ends.
+    StreamModeOpen(RequestId, StreamId, StreamMode),
+    /// Close an open stream mode, on the stream it was opened on, after every earlier task.
+    StreamModeClose(RequestId, StreamModeToken),
 }
 
 /// The id a server registers a device query under, and a client asks it by.
@@ -431,6 +449,17 @@ pub enum TaskResponseContent {
     Capture(Result<(), ExecutionError>),
     /// The answer to [`DeviceQuery`](Task::DeviceQuery).
     DeviceQuery(Result<serde_bytes::ByteBuf, DeviceQueryFailure>),
+    /// The answer to [`ProcessModeOpen`](Task::ProcessModeOpen): `None` when the server's
+    /// backend runs every launch.
+    ProcessModeOpen(Result<Option<ProcessModeToken>, ExecutionError>),
+    /// The answer to [`ProcessModeStatistics`](Task::ProcessModeStatistics) and
+    /// [`ProcessModeClose`](Task::ProcessModeClose).
+    ProcessModeStatistics(Result<ExecutionStatistics, ExecutionError>),
+    /// The answer to [`StreamModeOpen`](Task::StreamModeOpen): `None` when the server's backend
+    /// discards nothing.
+    StreamModeOpen(Result<Option<StreamModeToken>, ExecutionError>),
+    /// The answer to [`StreamModeClose`](Task::StreamModeClose).
+    StreamModeClose(Result<(), ExecutionError>),
     /// The server's answer to an `Init` it will not serve, in place of [`Init`](Self::Init),
     /// before it closes the session.
     InitRefused(SessionRefusal),
