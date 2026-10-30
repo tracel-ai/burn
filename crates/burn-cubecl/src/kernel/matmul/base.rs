@@ -63,8 +63,8 @@ pub fn matmul(
 ) -> Result<CubeTensor, MatmulSetupError> {
     let out = out.unwrap_or_else(|| init_matmul_output(&lhs, &rhs, out_dtype));
 
-    // No routine table lists a scheme with a tensor-wide scale, so such an input is dequantized
-    // up front.
+    // No routine of cubek's autotune reads a scheme with a tensor-wide scale, so such an input
+    // is dequantized up front.
     let mut lhs = maybe_dequantize(lhs, out_dtype);
     let rhs = maybe_dequantize(rhs, out_dtype);
 
