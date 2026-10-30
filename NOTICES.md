@@ -500,3 +500,17 @@ Permission to use, copy, modify, and distribute this
 software is freely granted, provided that this notice
 is preserved.
 ```
+
+## Cephes Math Library
+
+**Source**: https://www.netlib.org/cephes/
+
+Polynomial coefficients for several f32 SIMD kernels in `crates/burn-flex/src/simd/portable.rs`
+come from the Cephes Math Library by Stephen L. Moshier.
+
+```text
+Some software in this archive may be from the book _Methods and Programs for Mathematical Functions_
+(Prentice-Hall or Simon & Schuster International, 1989) or from the Cephes Mathematical Library, a
+commercial product. In either event, it is copyrighted by the author. What you see here may be used
+freely but it comes with no support or guarantee.
+```
