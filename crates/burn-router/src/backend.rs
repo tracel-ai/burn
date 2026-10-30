@@ -1,8 +1,8 @@
 use super::{RouterChannel, RouterClient, RouterGraph, RouterTensor, get_client};
 use alloc::{format, string::String};
 use burn_backend::{
-    Backend, BackendGraph, BackendTypes, DType, ExecutionError, ProfileDuration, ProfileOptions,
-    ProfileToken, profile_with_tokens,
+    Backend, BackendGraph, BackendTypes, DType, ExecutionError, ExecutionMode, ExecutionModeToken,
+    ExecutionStatistics, ProfileDuration, ProfileOptions, ProfileToken, profile_with_tokens,
 };
 use core::marker::PhantomData;
 
@@ -82,6 +82,30 @@ impl<R: RouterChannel> Backend for BackendRouter<R> {
     fn profile_abandon(device: &Self::Device, token: ProfileToken) {
         let client = get_client::<R>(device);
         client.profile_abandon(token);
+    }
+
+    fn execution_mode_open(
+        device: &Self::Device,
+        mode: ExecutionMode,
+    ) -> Result<Option<ExecutionModeToken>, ExecutionError> {
+        let client = get_client::<R>(device);
+        client.execution_mode_open(mode)
+    }
+
+    fn execution_mode_statistics(
+        device: &Self::Device,
+        token: ExecutionModeToken,
+    ) -> Result<ExecutionStatistics, ExecutionError> {
+        let client = get_client::<R>(device);
+        client.execution_mode_statistics(token)
+    }
+
+    fn execution_mode_close(
+        device: &Self::Device,
+        token: ExecutionModeToken,
+    ) -> Result<ExecutionStatistics, ExecutionError> {
+        let client = get_client::<R>(device);
+        client.execution_mode_close(token)
     }
 
     fn dtype_usage(device: &Self::Device, dtype: DType) -> burn_backend::DTypeUsageSet {

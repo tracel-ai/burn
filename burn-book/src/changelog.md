@@ -93,6 +93,10 @@ positions when sequence lengths differ.
 - Speed up CubeCL `conv_transpose3d` and reduce Flex `conv2d` memory use and layout conversions.
   ([#5793](https://github.com/tracel-ai/burn/pull/5793),
   [#6075](https://github.com/tracel-ai/burn/pull/6075))
+- Speed up Flex CPU F32 `exp`, `sigmoid`, and `softmax` with a SIMD `exp` within 2 ulp of libm, and
+  run F32/F64 `round`, `floor`, `ceil`, and `trunc` with SIMD rounding. Flex `round` now returns
+  `-0.0` for `-0.5` on every layout, as IEEE ties-to-even does.
+  ([#6313](https://github.com/tracel-ai/burn/pull/6313)) [@antimora](https://github.com/antimora)
 - Run GELU and sigmoid forward and backward operations in single CubeCL kernels.
   ([#6114](https://github.com/tracel-ai/burn/pull/6114)) [@ssoj13](https://github.com/ssoj13)
 - Allow more CubeCL slices to share their source buffer, avoiding copies of KV-cache prefixes.
@@ -430,6 +434,8 @@ loading those checkpoints by filtering to `linear_inner` and `linear_outer`.
 - Fix `chunk` panicking when the requested number of chunks cannot all be filled. It now returns
   fewer chunks, as documented; for example, 6 elements in 4 chunks give 3 chunks of 2.
   ([#6263](https://github.com/tracel-ai/burn/pull/6263), [@b84330808](https://github.com/b84330808))
+- Fix CubeCL `max_pool3d`, which did not compile on WebGPU or any other WGSL target.
+  [@vboussot](https://github.com/vboussot)
 - Return NaN for variance reductions over empty axes instead of panicking or returning zero.
   ([issue #6236](https://github.com/tracel-ai/burn/issues/6236))
 - **Breaking:** `Tensor::reshape` now treats zeros in arrays as literal zero-length dimensions,
@@ -491,6 +497,9 @@ loading those checkpoints by filtering to `linear_inner` and `linear_outer`.
 - Fix boolean `scatter_nd` reductions losing updates on CubeCL backends when indices repeat a
   target; the updates are now applied with atomic stores.
   ([#6215](https://github.com/tracel-ai/burn/pull/6215))
+- Fix CPU and WGPU reads on one stream returning a tensor's old values while another stream's
+  in-place write to it was still queued. ([#6332](https://github.com/tracel-ai/burn/pull/6332),
+  [CubeCL #2002](https://github.com/tracel-ai/cubecl/pull/2002))
 
 ### Checkpoints and interoperability
 
