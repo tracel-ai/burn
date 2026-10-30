@@ -13,8 +13,8 @@ use alloc::vec;
 use burn_backend::distributed::{DistributedParamId, DistributedParams};
 use burn_backend::{
     AutodiffBackend, Backend, BackendGraph, BackendTypes, DType, DeviceDescription,
-    DeviceTelemetry, ExecutionError, MemoryReport, Peak, PeakError, PeakKey, ProfileDuration,
-    ProfileOptions, ProfileToken,
+    DeviceTelemetry, ExecutionError, ExecutionMode, ExecutionModeToken, ExecutionStatistics,
+    MemoryReport, Peak, PeakError, PeakKey, ProfileDuration, ProfileOptions, ProfileToken,
 };
 
 /// A captured graph from one of the dispatched backends (see
@@ -213,6 +213,27 @@ impl Backend for Dispatch {
 
     fn profile_abandon(device: &Self::Device, token: ProfileToken) {
         dispatch_device!(device, |device| B::profile_abandon(device, token))
+    }
+
+    fn execution_mode_open(
+        device: &Self::Device,
+        mode: ExecutionMode,
+    ) -> Result<Option<ExecutionModeToken>, ExecutionError> {
+        dispatch_device!(device, |device| B::execution_mode_open(device, mode))
+    }
+
+    fn execution_mode_statistics(
+        device: &Self::Device,
+        token: ExecutionModeToken,
+    ) -> Result<ExecutionStatistics, ExecutionError> {
+        dispatch_device!(device, |device| B::execution_mode_statistics(device, token))
+    }
+
+    fn execution_mode_close(
+        device: &Self::Device,
+        token: ExecutionModeToken,
+    ) -> Result<ExecutionStatistics, ExecutionError> {
+        dispatch_device!(device, |device| B::execution_mode_close(device, token))
     }
 
     fn graph_prepare(device: &Self::Device) -> Result<(), ExecutionError> {

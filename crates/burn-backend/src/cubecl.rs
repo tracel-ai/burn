@@ -15,6 +15,7 @@ use cubecl::ir::{ElemType, FloatKind, IntKind, UIntKind};
 
 pub mod autotune;
 mod device;
+mod execution;
 
 pub use cubecl::throughput::{
     MemoryAccess, ThroughputError, ThroughputKey, ThroughputMode, ThroughputValue,

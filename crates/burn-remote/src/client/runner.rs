@@ -4,9 +4,9 @@ use crate::shared::{
 };
 use crate::{PeerAddr, PeerId};
 use burn_backend::{
-    DeviceDescription, DeviceId, DeviceOps, DeviceTelemetry, ExecutionError, MemoryReport, Peak,
-    PeakError, PeakKey, ProfileDuration, ProfileOptions, ProfileToken, RouterDeviceType, StreamId,
-    TensorData,
+    DeviceDescription, DeviceId, DeviceOps, DeviceTelemetry, ExecutionError, ExecutionMode,
+    ExecutionModeToken, ExecutionStatistics, MemoryReport, Peak, PeakError, PeakKey,
+    ProfileDuration, ProfileOptions, ProfileToken, RouterDeviceType, StreamId, TensorData,
 };
 use burn_ir::{CapturedGraphId, TensorIr};
 use burn_router::{MultiBackendBridge, RouterClient, RouterTensor, get_client};
@@ -101,6 +101,36 @@ impl RouterClient for RemoteClient {
     /// costs the server's backend something until it hears.
     fn profile_abandon(&self, token: ProfileToken) {
         self.handle.submit(move |s| s.profile_abandon(token));
+    }
+
+    fn execution_mode_open(
+        &self,
+        mode: ExecutionMode,
+    ) -> Result<Option<ExecutionModeToken>, ExecutionError> {
+        let stream_id = StreamId::current();
+        self.handle
+            .submit_blocking(move |s| s.execution_mode_open(stream_id, mode))
+            .map_err(service_failed)?
+    }
+
+    fn execution_mode_statistics(
+        &self,
+        token: ExecutionModeToken,
+    ) -> Result<ExecutionStatistics, ExecutionError> {
+        self.handle
+            .submit_blocking(move |s| s.execution_mode_statistics(token))
+            .map_err(service_failed)?
+    }
+
+    /// An error rather than a panic when the service is gone: a guard closes its mode from
+    /// `Drop`, possibly while a panic is already unwinding.
+    fn execution_mode_close(
+        &self,
+        token: ExecutionModeToken,
+    ) -> Result<ExecutionStatistics, ExecutionError> {
+        self.handle
+            .submit_blocking(move |s| s.execution_mode_close(token))
+            .map_err(service_failed)?
     }
 
     fn device_description(&self) -> Option<DeviceDescription> {
@@ -563,4 +593,9 @@ impl MultiBackendBridge for RemoteBridge {
     ) -> Self::TensorHandle {
         tensor.change_backend(target_device)
     }
+}
+
+/// The remote service could not run a call: its thread panicked, or is gone.
+fn service_failed(err: burn_std::device_handle::CallError) -> ExecutionError {
+    ExecutionError::with_context(format!("the remote service failed to run a call: {err:?}"))
 }

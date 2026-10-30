@@ -1,10 +1,11 @@
+use crate::execution::OPEN_MODES;
 use crate::{CubeDevice, tensor::CubeTensor};
 use burn_backend::cubecl::{ThroughputKey, dtype_to_storage_type, measure_peak_throughput};
 use burn_backend::{
     Backend, BackendGraph, BackendTypes, DTypeUsage, DTypeUsageSet, DeviceDescription,
-    DeviceTelemetry, ExecutionError, MemoryPoolUsage, MemoryReport, Peak, PeakError, PeakKey,
-    ProfileDuration, ProfileOptions, ProfileToken, SlicedPoolReport, TensorData,
-    profile_with_tokens,
+    DeviceTelemetry, ExecutionError, ExecutionMode, ExecutionModeToken, ExecutionStatistics,
+    MemoryPoolUsage, MemoryReport, Peak, PeakError, PeakKey, ProfileDuration, ProfileOptions,
+    ProfileToken, SlicedPoolReport, TensorData, profile_with_tokens,
 };
 use burn_std::{BoolStore, DType, id::StreamId, quantization::quantizable};
 use cubecl::device::DeviceId;
@@ -189,6 +190,36 @@ impl Backend for CubeBackend {
             token: ProfilingToken { id: token.id },
         };
         device.client().profile_abandon(window);
+    }
+
+    /// A process mode applies to the whole process, as cubecl applies one.
+    fn execution_mode_open(
+        device: &Self::Device,
+        mode: ExecutionMode,
+    ) -> Result<Option<ExecutionModeToken>, ExecutionError> {
+        let client = device.client();
+        OPEN_MODES.lock().open(mode, &client).map(Some)
+    }
+
+    fn execution_mode_statistics(
+        _device: &Self::Device,
+        token: ExecutionModeToken,
+    ) -> Result<ExecutionStatistics, ExecutionError> {
+        OPEN_MODES.lock().statistics(token)
+    }
+
+    /// The launches the opening stream's client still buffers were issued
+    /// under the mode, and only count once the runtime takes them: they are
+    /// flushed first. A flush that fails still closes the mode.
+    fn execution_mode_close(
+        device: &Self::Device,
+        token: ExecutionModeToken,
+    ) -> Result<ExecutionStatistics, ExecutionError> {
+        let flushed = token
+            .opened_on
+            .executes(|| device.client().flush().map_err(server_err));
+        let closed = OPEN_MODES.lock().close(token);
+        flushed.and(closed)
     }
 
     fn graph_prepare(device: &Self::Device) -> Result<(), ExecutionError> {

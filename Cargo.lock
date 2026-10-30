@@ -1208,6 +1208,7 @@ dependencies = [
  "burn-remote",
  "paste",
  "portable-atomic",
+ "rmp-serde",
 ]
 
 [[package]]
