@@ -513,7 +513,7 @@ enum ScalarDecode {
     /// The argument's type implements `FromScalarIr`: a primitive, or an alias of one.
     FromScalar,
     /// A callable taking the encoded primitive and returning the argument.
-    Callable(Expr),
+    Callable(Box<Expr>),
     /// A custom encoding without its decoding, which only the remote backend needs.
     Missing,
 }
@@ -664,7 +664,7 @@ fn parse_scalar_attribute(attr: &syn::Attribute, name: &syn::Ident) -> syn::Resu
         ));
     };
     let decode = match (&encode, decode) {
-        (_, Some(decode)) => ScalarDecode::Callable(decode),
+        (_, Some(decode)) => ScalarDecode::Callable(Box::new(decode)),
         (None, None) => ScalarDecode::FromScalar,
         (Some(_), None) => ScalarDecode::Missing,
     };
