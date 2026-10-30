@@ -46,6 +46,18 @@ pub enum ExecutionMode {
     Stream(StreamMode),
 }
 
+impl From<ProcessMode> for ExecutionMode {
+    fn from(mode: ProcessMode) -> Self {
+        Self::Process(mode)
+    }
+}
+
+impl From<StreamMode> for ExecutionMode {
+    fn from(mode: StreamMode) -> Self {
+        Self::Stream(mode)
+    }
+}
+
 /// An open [`ExecutionMode`] on a device, handed out by
 /// [`execution_mode_open`](super::Backend::execution_mode_open) and passed back
 /// to read its statistics and to close it.

@@ -22,7 +22,7 @@ use burn_dispatch::devices::WgpuBackend;
 use burn_dispatch::{Dispatch, DispatchDevice};
 use burn_std::{BoolDType, FloatDType, IntDType, TensorData};
 
-use crate::{ProcessMode, ProcessModeGuard, StreamMode, StreamModeGuard};
+use crate::{ExecutionMode, ExecutionModeGuard};
 
 #[cfg(feature = "capture")]
 pub use burn_dispatch::backends::capture::{
@@ -643,55 +643,55 @@ impl Device {
         Dispatch::profile(self.as_dispatch(), options, func)
     }
 
-    /// Run this device's work under `mode` until the returned guard closes:
-    /// only compile what the work launches, or compile it and tune by
-    /// measuring, discarding the launches themselves.
+    /// Open `mode` on this device until the returned guard closes.
     ///
-    /// A pass that wants a workload's kernels compiled and its autotune keys
-    /// tuned, and not its results, runs the workload once inside the guard and
-    /// reads what it triggered from the guard's [reader](ProcessModeGuard::reader).
-    /// The mode applies where the device's work runs: on a remote device, on
-    /// its server.
+    /// - A [`ProcessMode`](crate::ProcessMode) applies to all the device's work: `CompileOnly`
+    ///   compiles what the work launches, `CompileAndAutotune` also tunes it by
+    ///   measuring, and both discard the launches themselves. A pass that wants
+    ///   a workload's kernels compiled and its autotune keys tuned, and not its
+    ///   results, runs the workload once inside the guard and reads what it
+    ///   triggered from the guard's [reader](ExecutionModeGuard::reader).
+    /// - A [`StreamMode`](crate::StreamMode) applies to the calling stream's work alone
+    ///   ([`StreamId::current`](crate::StreamId::current); another stream
+    ///   opens its own from inside [`StreamId::executes`](crate::StreamId::executes)),
+    ///   whatever the process mode says: `Execute` is how a step that has to
+    ///   run for real does so inside a pass that discards launches.
     ///
     /// ```rust,ignore
-    /// let compile = device.process_mode(ProcessMode::CompileOnly)?;
+    /// let compile = device.mode(ProcessMode::CompileOnly)?;
     /// model.forward(input.clone());
     /// let compiled = compile.close()?;
     ///
-    /// let tune = device.process_mode(ProcessMode::CompileAndAutotune)?;
+    /// let tune = device.mode(ProcessMode::CompileAndAutotune)?;
+    /// let execute = device.mode(StreamMode::Execute)?;
+    /// step_that_must_run();
+    /// execute.close()?;
     /// model.forward(input);
     /// let tuned = tune.close()?;
     /// ```
     ///
-    /// Opens after every operation registered so far on the calling stream.
-    /// A backend that compiles nothing runs every launch whatever the mode
-    /// ([`ProcessModeGuard::applies`] says so).
+    /// The mode applies where the device's work runs: on a remote device, on
+    /// its server. It opens after every operation registered so far on the
+    /// calling stream. A backend that compiles nothing runs every launch
+    /// whatever the mode ([`ExecutionModeGuard::applies`] says so).
     ///
-    /// The cubecl runtimes apply a mode to the whole process: every device of
-    /// the process runs under it, one mode is open at a time, and opening the
-    /// mode already open joins it, its statistics then counting both openers'
-    /// work. On a remote device, that process is the server's — the work of
-    /// every client of the server is discarded while the mode is open.
-    ///
-    /// # Errors
-    ///
-    /// Another mode is open where this one would apply, the device is a group
-    /// (open the mode on its devices), or the device could not be reached — a
-    /// remote device from a browser thread, which cannot wait on the server.
-    pub fn process_mode(&self, mode: ProcessMode) -> Result<ProcessModeGuard, ExecutionError> {
-        ProcessModeGuard::new(self.clone(), mode)
-    }
-
-    /// Put the calling stream of this device in `mode`, whatever the open
-    /// [process mode](Self::process_mode) says, until the returned guard
-    /// closes: what a step that has to run for real inside a pass that
-    /// discards launches opens.
+    /// The cubecl runtimes apply a process mode to the whole process: every
+    /// device of the process runs under it, one is open at a time, and opening
+    /// the one already open joins it, its statistics then counting both
+    /// openers' work. On a remote device, that process is the server's — the
+    /// work of every client of the server is discarded while it is open.
     ///
     /// # Errors
     ///
-    /// The device could not be reached.
-    pub fn stream_mode(&self, mode: StreamMode) -> Result<StreamModeGuard, ExecutionError> {
-        StreamModeGuard::new(self.clone(), mode)
+    /// Another process mode is open where this one would apply, the device is
+    /// a group (open the mode on its devices), or the device could not be
+    /// reached — a remote device from a browser thread, which cannot wait on
+    /// the server.
+    pub fn mode(
+        &self,
+        mode: impl Into<ExecutionMode>,
+    ) -> Result<ExecutionModeGuard, ExecutionError> {
+        ExecutionModeGuard::new(self.clone(), mode.into())
     }
 
     /// Seeds the random number generator for this device.

@@ -1,5 +1,4 @@
-//! Tests of the execution modes a device opens: [`Device::process_mode`] and
-//! [`Device::stream_mode`].
+//! Tests of the execution modes a device opens with [`Device::mode`].
 //!
 //! Kept in its own test binary because a process mode that discards launches
 //! applies to the whole process on the cubecl runtimes, including the launches
@@ -25,7 +24,7 @@ use serial_test::serial;
 /// Whether `device` applies execution modes, asserting that a cubecl device
 /// does: a test on a backend that compiles nothing has nothing to check.
 fn applies_modes(device: &Device) -> bool {
-    let probe = device.process_mode(ProcessMode::CompileOnly).unwrap();
+    let probe = device.mode(ProcessMode::CompileOnly).unwrap();
     let applies = probe.applies();
     probe.close().unwrap();
     assert!(
@@ -47,9 +46,9 @@ fn a_stream_in_execute_runs_inside_a_discarding_pass() {
     let input = TestTensor::<2>::from_data([[1.0, 2.0], [3.0, 4.0]], &device);
     device.sync().unwrap();
 
-    let compile = device.process_mode(ProcessMode::CompileOnly).unwrap();
+    let compile = device.mode(ProcessMode::CompileOnly).unwrap();
     let reader = compile.reader();
-    let execute = device.stream_mode(StreamMode::Execute).unwrap();
+    let execute = device.mode(StreamMode::Execute).unwrap();
     let output = input.clone().mul_scalar(3.5).add_scalar(-2.0).into_data();
     execute.close().unwrap();
     let statistics = compile.close().unwrap();
@@ -81,7 +80,7 @@ fn work_registered_before_the_mode_opens_runs() {
     device.sync().unwrap();
     let before = input.exp();
 
-    let compile = device.process_mode(ProcessMode::CompileOnly).unwrap();
+    let compile = device.mode(ProcessMode::CompileOnly).unwrap();
     compile.close().unwrap();
 
     before.into_data().assert_approx_eq::<FloatElem>(
@@ -102,7 +101,7 @@ fn work_registered_under_the_mode_counts_whoever_closes_it() {
     let input = TestTensor::<1>::from_data([0.5, 1.5], &device);
     device.sync().unwrap();
 
-    let compile = device.process_mode(ProcessMode::CompileOnly).unwrap();
+    let compile = device.mode(ProcessMode::CompileOnly).unwrap();
     let _discarded = input.tanh().sqrt();
     let statistics = std::thread::spawn(move || compile.close().unwrap())
         .join()
@@ -124,24 +123,20 @@ fn another_mode_is_refused_while_one_is_open() {
         return;
     }
 
-    let tune = device
-        .process_mode(ProcessMode::CompileAndAutotune)
-        .unwrap();
-    assert!(device.process_mode(ProcessMode::CompileOnly).is_err());
+    let tune = device.mode(ProcessMode::CompileAndAutotune).unwrap();
+    assert!(device.mode(ProcessMode::CompileOnly).is_err());
 
-    let joined = device
-        .process_mode(ProcessMode::CompileAndAutotune)
-        .unwrap();
+    let joined = device.mode(ProcessMode::CompileAndAutotune).unwrap();
     tune.close().unwrap();
     joined.reader().statistics().unwrap();
     assert!(
-        device.process_mode(ProcessMode::CompileOnly).is_err(),
+        device.mode(ProcessMode::CompileOnly).is_err(),
         "the joined guard still holds the mode open"
     );
     joined.close().unwrap();
 
     device
-        .process_mode(ProcessMode::CompileOnly)
+        .mode(ProcessMode::CompileOnly)
         .unwrap()
         .close()
         .unwrap();
@@ -157,7 +152,7 @@ fn a_dropped_guard_closes_its_mode() {
     }
     let input = TestTensor::<1>::from_data([1.0, 2.0], &device);
 
-    let compile = device.process_mode(ProcessMode::CompileOnly).unwrap();
+    let compile = device.mode(ProcessMode::CompileOnly).unwrap();
     core::mem::drop(compile);
 
     input
@@ -168,7 +163,7 @@ fn a_dropped_guard_closes_its_mode() {
             Tolerance::default(),
         );
     device
-        .process_mode(ProcessMode::CompileAndAutotune)
+        .mode(ProcessMode::CompileAndAutotune)
         .expect("no mode is left open")
         .close()
         .unwrap();
