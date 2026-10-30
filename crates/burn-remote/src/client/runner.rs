@@ -476,6 +476,11 @@ impl RemoteTensorHandle {
             .handle
             .submit(move |s| s.register_failure(stream_id, new_id, reason));
 
+        // `into_ir()` suppressed the handle's drop, expecting the transfer to consume the source.
+        if matches!(self.tensor.status, burn_ir::TensorStatus::ReadWrite) {
+            self.client
+                .register_op(burn_ir::OperationIr::Drop(self.tensor.clone()));
+        }
         self.tensor.id = new_id;
         self.client = target_client;
         self
