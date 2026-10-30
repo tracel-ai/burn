@@ -5,27 +5,29 @@ Changes for the next release. For published releases, see
 
 ## Unreleased
 
-### Interpolation coordinate transforms and rounding
+### Interpolation options
 
-Interpolation gains coordinate transforms, nearest rounding modes, crop ROIs and configurable
-cubic coefficients with outside-tap exclusion, allowing ONNX importers to express these Resize
-attributes. Flex implements the extended options, including scale-driven coordinates in forward
-and backward passes. Antialiasing remains unsupported.
+**Breaking:** `InterpolateMode` variants now own their coordinate transform and cubic coefficient
+`a`. `Nearest` and `NearestExact` have fixed mappings and no overrides.
+Configurable coordinate transforms are limited to `HalfPixel` and `AlignCorners`;
+asymmetric coordinates remain the fixed mapping of `Nearest`.
 
-**API migration:** `InterpolateOptions::align_corners` is replaced by `coordinate_transform`.
-Use `.with_align_corners(bool)` for bilinear, bicubic and Lanczos3, or
-`.with_coordinate_transform(mode)` for an explicit transform. The alignment builder leaves
-nearest modes unchanged. Read corner alignment with `.align_corners()`.
+```diff
++use burn::tensor::ops::CoordinateTransformMode;
+-InterpolateOptions::new(InterpolateMode::Bilinear).with_align_corners(false)
++InterpolateOptions::new(InterpolateMode::Bilinear {
++    coordinate_transform: CoordinateTransformMode::HalfPixel,
++})
+```
 
-Explicit scales now affect coordinates as well as output size, so scale-dependent transforms can
-produce different values when `input_size * scale_factor` is nonintegral. To retain mapping based
-on resolved sizes, use `.with_output_size(...)` instead.
+Use `AlignCorners` for the previous `true`/default alignment and `a: -0.75` for the previous cubic
+coefficient. For `Interpolate1dConfig` and `Interpolate2dConfig`, move these settings into
+`InterpolateMode::{Linear, Cubic, Lanczos}`; update serialized configurations accordingly.
+Grid sampling now uses `GridSampleMode::{Nearest, Bilinear}`.
 
-Extended combinations require Flex. CubeCL supports the default nearest combinations and
-bilinear, bicubic and Lanczos3 with `AlignCorners` or `HalfPixel` and default cubic options.
-Except with `AlignCorners`, supplied scales must exactly equal the resolved output/input ratios;
-unsupported combinations panic. Flex uses `f64` coordinate arithmetic and preserves half-pixel
-ties when resizing by output size.
+Explicit scales now also drive scale-dependent coordinate mapping. Use `.with_output_size(...)`
+to retain size-derived mapping. See the [interpolation guide](building-blocks/module.md#interpolation)
+for configuration and backend limitations.
 ([#6154](https://github.com/tracel-ai/burn/pull/6154), [@Sadik00789](https://github.com/Sadik00789))
 
 ### Device-time instrumentation
@@ -106,12 +108,14 @@ positions when sequence lengths differ.
   ([#6193](https://github.com/tracel-ai/burn/pull/6193),
   [#6199](https://github.com/tracel-ai/burn/pull/6199),
   [#6246](https://github.com/tracel-ai/burn/pull/6246)) [@louisfd](https://github.com/louisfd)
-- Add the experimental `attention-backward` feature: attention's backward pass runs as CubeCL
-  kernels from the forward's saved logsumexp, rather than autodiff over the decomposed attention.
-  The kernels take attention without a mask, bias or softcap, causal or not; a softcap or a
-  top-left causal mask over sequences of different lengths is composed from tensor operations,
-  and a mask or an additive bias keeps the decomposed gradients. Backends can provide their own
-  through `ModuleOps::attention_with_logsumexp` and `ModuleOps::attention_backward`. [@louisfd](https://github.com/louisfd)
+- Run attention's backward pass on CubeCL backends as CubeK kernels from the forward's saved
+  logsumexp, rather than autodiff over the decomposed attention. The kernels take f32, f16 and
+  bf16 attention without a mask, bias or softcap, causal or not; a softcap, a top-left causal
+  mask over sequences of different lengths or an element the kernels do not take is composed from
+  tensor operations, and a mask or an additive bias keeps the decomposed gradients. Autotune
+  may pick a routine that sums the query gradient with atomic adds, so its last bits can differ
+  from run to run. Backends can provide their own through `ModuleOps::attention_with_logsumexp`
+  and `ModuleOps::attention_backward`. [@louisfd](https://github.com/louisfd)
 
 #### Compilation and autotuning
 
@@ -148,8 +152,11 @@ See [runtime configuration](./advanced/runtime-configuration.md#cubek-matmul-pre
 
 Models can now be split across devices by layer, enabling training and inference with models that
 exceed a single device's memory. The new `LayerParallelism` trait and `DistributedLayeredModel`
-wrapper support sequential execution, transferring activations between devices. Pipeline scheduling
-and `Learner` integration are not included. ([#5702](https://github.com/tracel-ai/burn/pull/5702))
+wrapper support sequential execution, transferring activations between devices.
+`LayerPipeline` streams several inference batches through such a model with a thread per stage,
+so the stages overlap. Training schedules and `Learner` integration are not included.
+([#5702](https://github.com/tracel-ai/burn/pull/5702),
+[#6277](https://github.com/tracel-ai/burn/pull/6277))
 [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
 
 #### Distributed collectives
@@ -170,6 +177,14 @@ all-to-all, and broadcast also support boolean tensors. Quantized tensors are re
 - Coordinate DDP batch availability before backward passes and synchronize epoch transitions.
   Workers must yield the same number of training batches; uneven exhaustion now reports an error.
   ([#6184](https://github.com/tracel-ai/burn/pull/6184))
+- Float collectives under autodiff run on the backend's native collective, NCCL on CUDA, with a
+  backward of their own, instead of being emulated with tracked transfers between devices. A
+  collective's outputs share that backward, so their losses must go through a single `backward`.
+  ([#6274](https://github.com/tracel-ai/burn/pull/6274))
+  [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
+- Drain every device's pending fusion work at once before a collective, speeding up
+  tensor-parallel decode. ([#6293](https://github.com/tracel-ai/burn/pull/6293))
+  [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
 
 #### Device groups
 
@@ -196,6 +211,36 @@ all-to-all, and broadcast also support boolean tensors. Quantized tensors are re
   ([#5983](https://github.com/tracel-ai/burn/pull/5983),
   [#5989](https://github.com/tracel-ai/burn/pull/5989),
   [#6017](https://github.com/tracel-ai/burn/pull/6017))
+- Fix router and remote servers panicking when an integer tensor is cast to another integer
+  element type. ([#6308](https://github.com/tracel-ai/burn/pull/6308))
+- Fix a HIP worker crashing when a session ends as the process exits.
+  ([#6308](https://github.com/tracel-ai/burn/pull/6308))
+- `capture` on a remote device records and replays the graph on the server's device. One session
+  captures per server device at a time. A replay that fails is the error of the next read or sync
+  on its stream. ([#6308](https://github.com/tracel-ai/burn/pull/6308))
+- A read on a router or remote server of a tensor whose producing work failed reports that failure
+  instead of ending the session. ([#6308](https://github.com/tracel-ai/burn/pull/6308))
+- Servers answer device queries registered with `with_device_query`, asked by
+  `RemoteDevice::query`. **Breaking:** `ServeError::CustomOpBackend` is renamed `HandlerBackend`,
+  as it also covers device queries. ([#6308](https://github.com/tracel-ai/burn/pull/6308))
+
+#### Backend extensions
+
+Backend extensions run on the remote backend without handwritten remote code: listing `Remote`
+beside `Fusion` in `#[backend_extension]` generates the client, which sends each call as a custom
+operation's IR, and `<Trait>Handlers::register` for the server's `CustomOpRegistry`. Ordinary
+arguments that are not primitives take `#[fusion(scalar = .., decode = ..)]`, and extension values
+opt in with `#[extension_type(fusion, remote)]`. `CustomOpRegistry::try_register` refuses a
+handler from another `HandlerSource` under an id already taken.
+([#6308](https://github.com/tracel-ai/burn/pull/6308))
+
+**API migration:** a `#[backend_extension]` Fusion operation's default id is now
+`"Trait::method"` instead of the method name, so two traits' same-named methods no longer share
+an id. A custom optimizer matching a default id must match the new one, or the method can keep its
+old id with `#[fusion(id = "method")]`. An extension listing both `Fusion` and `Remote` now
+generates its `BackendRouter<_>` implementation, so a handwritten `impl Trait for BackendRouter<_>`
+conflicts with it (E0119); delete the handwritten one.
+([#6308](https://github.com/tracel-ai/burn/pull/6308))
 
 ### Training and modules
 
@@ -235,6 +280,10 @@ For example, update custom progress logger implementations:
 - Flush partial gradient accumulation only after normal dataloader exhaustion. An interruption or
   error observed before that update discards the pending window.
   ([#6184](https://github.com/tracel-ai/burn/pull/6184))
+- Return errors instead of panicking when `InMemDataset::from_json_rows` encounters unreadable
+  lines, invalid UTF-8, or JSON that cannot be deserialized.
+  ([#6284](https://github.com/tracel-ai/burn/pull/6284))
+  [@onenewcode](https://github.com/onenewcode)
 
 #### Dataloader prefetch
 
@@ -285,6 +334,9 @@ loading those checkpoints by filtering to `linear_inner` and `linear_outer`.
   ([#6039](https://github.com/tracel-ai/burn/pull/6039))
 - Correct accelerated attention results for padding masks broadcast across query positions.
   ([#6008](https://github.com/tracel-ai/burn/pull/6008))
+- Correct `Same` padding for dilated 1D, 2D, and 3D convolutions, including Conv3d configurations
+  whose effective kernel permits symmetric padding.
+  ([#6286](https://github.com/tracel-ai/burn/pull/6286)) [@onenewcode](https://github.com/onenewcode)
 - Correct max-pooling SAME padding with dilation. Reject unsupported asymmetric
   deformable-convolution padding and invalid binary-cross-entropy inputs.
   ([#6023](https://github.com/tracel-ai/burn/pull/6023),

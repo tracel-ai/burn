@@ -1,11 +1,13 @@
-use super::{RemoteChannel, RemoteClient, service};
-use crate::shared::{LocalTransferId, TaskResponseContent, TensorRemote, TransferCapability};
+use super::{DeviceQueryError, RemoteChannel, RemoteClient, service};
+use crate::shared::{
+    DeviceQueryId, LocalTransferId, TaskResponseContent, TensorRemote, TransferCapability,
+};
 use crate::{PeerAddr, PeerId};
 use burn_backend::{
     DeviceId, DeviceOps, ExecutionError, ProfileDuration, ProfileOptions, ProfileToken,
     RouterDeviceType, StreamId, TensorData,
 };
-use burn_ir::TensorIr;
+use burn_ir::{CapturedGraphId, TensorIr};
 use burn_router::{MultiBackendBridge, RouterClient, RouterTensor, get_client};
 use burn_std::{DeviceSettings, future::DynFut};
 use std::collections::{BTreeMap, BTreeSet};
@@ -98,6 +100,41 @@ impl RouterClient for RemoteClient {
     /// costs the server's backend something until it hears.
     fn profile_abandon(&self, token: ProfileToken) {
         self.handle.submit(move |s| s.profile_abandon(token));
+    }
+
+    fn graph_prepare(&self) -> Result<(), ExecutionError> {
+        let stream_id = StreamId::current();
+        self.handle
+            .submit_blocking(move |s| s.graph_prepare(stream_id))
+            .expect("Service call failed")
+    }
+
+    fn graph_start_capture(&self) -> Result<(), ExecutionError> {
+        let stream_id = StreamId::current();
+        self.handle
+            .submit_blocking(move |s| s.graph_start_capture(stream_id))
+            .expect("Service call failed")
+    }
+
+    fn graph_stop_capture(&self) -> Result<CapturedGraphId, ExecutionError> {
+        let stream_id = StreamId::current();
+        self.handle
+            .submit_blocking(move |s| s.graph_stop_capture(stream_id))
+            .expect("Service call failed")
+    }
+
+    /// `Ok` once the replay is sent: the server answers no replay, and a failed one is the error
+    /// of the next read or sync on this stream instead (see
+    /// [`CaptureReplay`](crate::shared::Task::CaptureReplay)).
+    unsafe fn graph_replay(&self, graph: CapturedGraphId) -> Result<(), ExecutionError> {
+        let stream_id = StreamId::current();
+        self.handle
+            .submit(move |s| s.graph_replay(stream_id, graph));
+        Ok(())
+    }
+
+    fn graph_release(&self, graph: CapturedGraphId) {
+        self.handle.submit(move |s| s.graph_release(graph));
     }
 
     fn seed(&self, seed: u64) {
@@ -240,6 +277,24 @@ impl RemoteDevice {
     /// The index of this device on its server.
     pub fn device_index(&self) -> usize {
         self.device_index as usize
+    }
+
+    /// Ask the server the device query `id` about this device, opening its session first if it
+    /// is not open yet; the server answers with the handler registered under `id` (see
+    /// `BackendServer::with_device_query`), in bytes the two sides agree on.
+    ///
+    /// The server runs the handler on this device's session, after the work sent before it and
+    /// ahead of the work sent after.
+    #[cfg(not(target_family = "wasm"))]
+    pub fn query(&self, id: impl Into<DeviceQueryId>) -> Result<Vec<u8>, DeviceQueryError> {
+        let client = get_client::<RemoteChannel>(self);
+        client.connect().map_err(DeviceQueryError::Connect)?;
+        let id = id.into();
+        // The service's thread is gone only when the session went with it.
+        client
+            .handle
+            .submit_blocking(move |s| s.device_query(id))
+            .unwrap_or(Err(DeviceQueryError::SessionEnded))
     }
 
     /// Whether this device's session has ended, as when its server restarted.

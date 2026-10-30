@@ -114,7 +114,6 @@ autotune-checks = [
     "burn-rocm?/autotune-checks",
     "burn-wgpu?/autotune-checks",
 ]
-attention-backward = ["burn-tensor/attention-backward"]
 fusion = [
     "dep:burn-fusion",
     "burn-tensor/fusion",

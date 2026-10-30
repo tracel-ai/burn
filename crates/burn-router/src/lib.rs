@@ -22,6 +22,7 @@
 
 mod backend;
 mod bridge;
+mod captured_graph;
 mod channel;
 mod client;
 mod custom_op;
@@ -34,6 +35,7 @@ mod tensor;
 
 pub use backend::*;
 pub use bridge::*;
+pub use captured_graph::*;
 pub use channel::*;
 pub use client::*;
 pub use custom_op::*;

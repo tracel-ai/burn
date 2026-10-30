@@ -11,6 +11,7 @@ use super::{PeerAuthorizer, ServeError, ServerSettings};
 use super::{ServerLogging, Transport, spawn::os_shutdown_signal};
 #[cfg(not(target_family = "wasm"))]
 use crate::runtime;
+use crate::shared::DeviceQueryId;
 use crate::telemetry::TelemetryProbe;
 #[cfg(feature = "iroh")]
 use crate::{
@@ -37,6 +38,14 @@ use crate::{
 ///     })
 ///     .serve(WebSocketTransport::new(3000))?;
 /// ```
+///
+/// # Graph capture
+///
+/// A client's capture records and replays on `B`. The server holds no reference to the tensors a
+/// graph touched, since that would keep the client's in-place input refreshes from reaching the
+/// graph, so `B`'s graphs must keep the memory their launches touched in place for as long as
+/// they live: never freed, reused or moved, whatever happens to the tensors. CubeCL's graphs do.
+/// A backend whose graphs do not must not record one, and answer the capture with an error.
 pub struct BackendServer<B: BackendIr> {
     devices: Vec<Device<B>>,
     settings: ServerSettings,
@@ -83,6 +92,22 @@ impl<B: BackendIr> BackendServer<B> {
     /// Replace the custom operations with `registry`.
     pub fn with_custom_ops(mut self, registry: CustomOpRegistry<B>) -> Self {
         self.settings = self.settings.with_custom_ops(registry);
+        self
+    }
+
+    /// Answer the device query `id` with `handler`, run on the device of the session that asks
+    /// (see `RemoteDevice::query`). Registering an id again replaces its handler.
+    ///
+    /// The handler runs on the worker of the session that asks, in order with that session's
+    /// tasks, so the session's work waits until it returns. A panic is answered to the client as
+    /// a failure and the session goes on serving, but one handler serves every session: a panic
+    /// while it holds a lock of its own, such as a `Mutex`, poisons that lock for every session
+    /// after it.
+    pub fn with_device_query<F>(mut self, id: impl Into<DeviceQueryId>, handler: F) -> Self
+    where
+        F: Fn(&Device<B>) -> Vec<u8> + Send + Sync + 'static,
+    {
+        self.settings = self.settings.with_device_query::<B, F>(id.into(), handler);
         self
     }
 
