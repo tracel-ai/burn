@@ -1,4 +1,4 @@
-use burn_backend::tensor::Device;
+use burn_backend::{DTypeUsageSet, tensor::Device};
 use burn_ir::BackendIr;
 use burn_router::{CustomOpRegistry, TensorInterpreter};
 use std::{
@@ -15,7 +15,7 @@ use crate::server::service::{SessionChannels, SessionService};
 use crate::server::spawn::spawn_detached;
 use crate::server::transfer::TensorTransfer;
 use crate::server::worker::{SessionHandler, SessionServices};
-use crate::shared::{SessionId, Task, TaskResponse};
+use crate::shared::{HANDSHAKE_DTYPES, SessionId, Task, TaskResponse};
 use crate::telemetry::{TelemetryEvent, TelemetryProbe};
 
 /// Capacity for the per-session response queue.
@@ -223,6 +223,14 @@ where
     /// it can enumerate every device behind the address (see [`RemoteDevice::enumerate`]).
     fn device_count(&self) -> u32 {
         self.devices.len() as u32
+    }
+
+    fn dtype_usage(&self, device_index: u32) -> Vec<(burn_std::DType, DTypeUsageSet)> {
+        let device = self.device(device_index);
+        HANDSHAKE_DTYPES
+            .into_iter()
+            .map(|dtype| (dtype, B::dtype_usage(&device, dtype)))
+            .collect()
     }
 
     /// Drop the session, detaching its handler. Removing the map entry drops the inbound task

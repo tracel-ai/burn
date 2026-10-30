@@ -4,7 +4,10 @@ use burn_backend::{
 use burn_std::sync::Arc;
 use hashbrown::HashMap;
 
-use crate::{BackendIr, QuantizationParametersIr, TensorHandle, TensorId, TensorIr, TensorStatus};
+use crate::{
+    BackendIr, OperationIr, QuantizationParametersIr, TensorHandle, TensorId, TensorIr,
+    TensorStatus,
+};
 
 /// Keep all [tensor handles](BackendIr::Handle) in one place and ensure that all resources
 /// are used optimally.
@@ -84,6 +87,21 @@ impl TensorError {
             cause: Arc::new(cause),
             depth: 0,
         }
+    }
+
+    /// A fresh failure from a caught panic, carrying its message: what `panic!` produces, a
+    /// `&'static str` or a `String`.
+    pub fn from_panic(payload: &(dyn core::any::Any + Send)) -> Self {
+        let message = payload
+            .downcast_ref::<&'static str>()
+            .copied()
+            .or_else(|| {
+                payload
+                    .downcast_ref::<alloc::string::String>()
+                    .map(|s| s.as_str())
+            })
+            .unwrap_or("<non-string panic payload>");
+        Self::new(ExecutionError::generic(message))
     }
 
     /// What the failing work reported, whole — the error a read hands back at
@@ -279,12 +297,12 @@ impl<H: Clone> HandleContainer<H> {
     /// Claim `id`, but only if nothing wrote it and no failure already claims
     /// it.
     ///
-    /// For the one caller that cannot name its write set: a panic that escaped
-    /// the strategy walk itself, raised outside every scope, where all that is
-    /// known is that something in the consumed segment did not finish. Claiming
-    /// broadly from there would error outputs that other operations wrote, and
-    /// would overwrite a precise claim with a vaguer one — so it claims only
-    /// what is neither, which is exactly the set nothing else can account for.
+    /// For a failure that knows the tensors its work touches but not which of
+    /// them it writes, such as a panic that escaped fusion's strategy walk
+    /// outside every scope. Claiming broadly from there would error tensors
+    /// that other work wrote, and would overwrite a precise claim with a vaguer
+    /// one — so it claims only what is neither, which is exactly the set
+    /// nothing else can account for.
     pub fn claim_unwritten(&mut self, id: TensorId, error: TensorError) {
         if let Some(Handle::Existing(_) | Handle::Errored(_)) = self.handles.get(&id) {
             return;
@@ -298,6 +316,54 @@ impl<H: Clone> HandleContainer<H> {
         match self.handles.get(id) {
             Some(Handle::Errored(error)) => Some(error),
             _ => None,
+        }
+    }
+
+    /// The failure that errored any tensor `op` reads — the check a unit of
+    /// work makes before it runs.
+    ///
+    /// Work whose input was never written must not run: those bytes are
+    /// whatever the allocation happened to hold, and computing on them turns a
+    /// failure that named one tensor into a wrong answer that names none. The
+    /// caller claims the outputs with the same error instead (see
+    /// [`set_output_errors`](Self::set_output_errors)), so a read below the
+    /// skip still reports the failure that started it.
+    pub fn input_error(&self, op: &OperationIr) -> Option<&TensorError> {
+        // This runs before every operation, so it has to be free while nothing
+        // has failed: asking anyway costs a boxed iterator per operation.
+        if !self.has_errors() {
+            return None;
+        }
+
+        // A drop names its tensor as an input, but it does not read it — it is
+        // what releases it, and releasing is how an error stops being held.
+        // Skip it and the error outlives every tensor that could report it:
+        // the bound this design rests on is that an error lives exactly as
+        // long as the tensor carrying it.
+        if let OperationIr::Drop(_) = op {
+            return None;
+        }
+
+        // `inputs()` rather than `nodes()`, which collects into a fresh `Vec`.
+        op.inputs().find_map(|node| self.error(&node.id))
+    }
+
+    /// Record `error` on every tensor `op` was going to write, so a read of one
+    /// reports it instead of handing back bytes nothing wrote.
+    pub fn set_output_errors(&mut self, op: &OperationIr, error: &TensorError) {
+        for node in op.outputs() {
+            self.set_error(node.id, error.clone());
+        }
+    }
+
+    /// Release the inputs `op` consumes, for an operation that did not run or stopped part way.
+    ///
+    /// A read-write input is its tensor's last use, so no `Drop` follows it: had the operation
+    /// run, taking the handle would have released it. Without this, a skipped operation would
+    /// hold its inputs — and the errors they carry — for as long as the container lives.
+    pub fn free_inputs(&mut self, op: &OperationIr) {
+        for node in op.inputs() {
+            self.free(node);
         }
     }
 

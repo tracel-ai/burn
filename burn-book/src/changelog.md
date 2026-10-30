@@ -230,6 +230,15 @@ all-to-all, and broadcast also support boolean tensors. Quantized tensors are re
   on its stream. ([#6308](https://github.com/tracel-ai/burn/pull/6308))
 - A read on a router or remote server of a tensor whose producing work failed reports that failure
   instead of ending the session. ([#6308](https://github.com/tracel-ai/burn/pull/6308))
+- Remote and router errors follow the CubeCL and fusion model. On the server, an operation reading
+  a failed tensor is skipped and a failed transfer or unknown graph claims
+  the tensors it was going to write; a read of one reports the root failure while the session
+  keeps running. On the client, a lost connection ends the session instead of panicking inside an
+  operation: every later `flush`, `sync` and read reports why as a poisoned device
+  (`ExecutionError::is_device_poisoned`), and a `to_device` across it yields a tensor whose read
+  reports the same. A group's `flush` reports a member's error instead of holding it for `sync`.
+  **Breaking:** `RouterClient::flush` returns `Result<(), ExecutionError>`.
+  ([#6329](https://github.com/tracel-ai/burn/pull/6329))
 - Servers answer device queries registered with `with_device_query`, asked by
   `RemoteDevice::query`. **Breaking:** `ServeError::CustomOpBackend` is renamed `HandlerBackend`,
   as it also covers device queries. ([#6308](https://github.com/tracel-ai/burn/pull/6308))

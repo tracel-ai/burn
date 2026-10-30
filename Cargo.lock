@@ -1426,6 +1426,7 @@ dependencies = [
  "burn-ir",
  "burn-std",
  "hashbrown 0.16.1",
+ "log",
  "portable-atomic",
  "serde",
  "spin 0.12.3",
