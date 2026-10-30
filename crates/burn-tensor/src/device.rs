@@ -28,6 +28,8 @@ use burn_dispatch::devices::WgpuBackend;
 use burn_dispatch::{Dispatch, DispatchDevice};
 use burn_std::{BoolDType, FloatDType, IntDType, TensorData};
 
+use crate::{ExecutionMode, ExecutionModeGuard};
+
 #[cfg(feature = "capture")]
 pub use burn_dispatch::backends::capture::{
     CaptureError, CaptureScope, CaptureTensor, CapturedGraph, CompletedCaptureScope,
@@ -583,7 +585,12 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an [`ExecutionError`] if an operation failed to execute.
+    /// Returns an [`ExecutionError`] when the device can no longer execute work: it is poisoned,
+    /// or a remote device's session ended. A failure of an operation itself is deferred to the
+    /// tensors it was going to write, and operations reading them are skipped: the read of one of
+    /// those tensors reports it, while work sharing no tensor with the failure is unaffected.
+    /// The exception is the replay of a captured graph on a remote device, which the server cannot
+    /// attribute to tensors: its failure is reported by the next sync or read on its stream.
     pub fn sync(&self) -> Result<(), ExecutionError> {
         Dispatch::sync(self.as_dispatch())
     }
@@ -604,7 +611,8 @@ impl Device {
     /// # Errors
     ///
     /// Returns an [`ExecutionError`] when the buffered operations cannot be dispatched, e.g. on a
-    /// device that is poisoned.
+    /// device that is poisoned or a remote device whose session ended. As with
+    /// [`sync`](Self::sync), a failure of an operation itself is reported by a read.
     pub fn flush(&self) -> Result<(), ExecutionError> {
         Dispatch::flush(self.as_dispatch())
     }
@@ -658,6 +666,57 @@ impl Device {
         func: impl FnOnce() -> O + Send,
     ) -> Result<(O, ProfileDuration), ExecutionError> {
         Dispatch::profile(self.as_dispatch(), options, func)
+    }
+
+    /// Open `mode` on this device until the returned guard closes.
+    ///
+    /// - A [`ProcessMode`](crate::ProcessMode) applies to all the device's work: `CompileOnly`
+    ///   compiles what the work launches, `CompileAndAutotune` also tunes it by
+    ///   measuring, and both discard the launches themselves. A pass that wants
+    ///   a workload's kernels compiled and its autotune keys tuned, and not its
+    ///   results, runs the workload once inside the guard and reads what it
+    ///   triggered from the guard's [reader](ExecutionModeGuard::reader).
+    /// - A [`StreamMode`](crate::StreamMode) applies to the calling stream's work alone
+    ///   ([`StreamId::current`](crate::StreamId::current); another stream
+    ///   opens its own from inside [`StreamId::executes`](crate::StreamId::executes)),
+    ///   whatever the process mode says: `Execute` is how a step that has to
+    ///   run for real does so inside a pass that discards launches.
+    ///
+    /// ```rust,ignore
+    /// let compile = device.mode(ProcessMode::CompileOnly)?;
+    /// model.forward(input.clone());
+    /// let compiled = compile.close()?;
+    ///
+    /// let tune = device.mode(ProcessMode::CompileAndAutotune)?;
+    /// let execute = device.mode(StreamMode::Execute)?;
+    /// step_that_must_run();
+    /// execute.close()?;
+    /// model.forward(input);
+    /// let tuned = tune.close()?;
+    /// ```
+    ///
+    /// The mode applies where the device's work runs: on a remote device, on
+    /// its server. It opens after every operation registered so far on the
+    /// calling stream. A backend that compiles nothing runs every launch
+    /// whatever the mode ([`ExecutionModeGuard::applies`] says so).
+    ///
+    /// The cubecl runtimes apply a process mode to the whole process: every
+    /// device of the process runs under it, one is open at a time, and opening
+    /// the one already open joins it, its statistics then counting both
+    /// openers' work. On a remote device, that process is the server's — the
+    /// work of every client of the server is discarded while it is open.
+    ///
+    /// # Errors
+    ///
+    /// Another process mode is open where this one would apply, the device is
+    /// a group (open the mode on its devices), or the device could not be
+    /// reached — a remote device from a browser thread, which cannot wait on
+    /// the server.
+    pub fn mode(
+        &self,
+        mode: impl Into<ExecutionMode>,
+    ) -> Result<ExecutionModeGuard, ExecutionError> {
+        ExecutionModeGuard::new(self.clone(), mode.into())
     }
 
     /// Seeds the random number generator for this device.

@@ -32,6 +32,11 @@ impl From<LearningRate> for ModuleLearningRate {
 }
 
 impl ModuleLearningRate {
+    /// Iterate over group rates in scheduler registration order, with the base rate first.
+    pub fn group_rates(&self) -> impl ExactSizeIterator<Item = LearningRate> + '_ {
+        self.groups.iter().map(|group| group.lr)
+    }
+
     /// Get the effective learning rate for the given parameter.
     pub fn lr_from_param(&self, id: ParamId, path: Option<&str>) -> LearningRate {
         self.groups
@@ -113,6 +118,11 @@ impl ModuleLrSchedulerConfig {
 }
 
 impl ModuleLrScheduler {
+    /// Number of learning-rate groups, including the base group.
+    pub fn num_groups(&self) -> usize {
+        self.groups.len()
+    }
+
     /// Create a [ModuleLrScheduler].
     ///
     /// # Arguments
@@ -306,8 +316,13 @@ mod tests {
                 .init()
                 .unwrap();
 
-        // Each group returns its own initial LR
+        // Each group returns its own initial LR, in registration order.
+        assert_eq!(scheduler.num_groups(), 3);
         let policy = scheduler.step();
+        assert_eq!(
+            policy.group_rates().collect::<Vec<_>>(),
+            vec![0.001, 0.1, 0.5]
+        );
         check_approx(policy.lr_from_param(id_a, None), 0.1);
         check_approx(policy.lr_from_param(id_b, None), 0.5);
         check_approx(policy.lr_from_param(id_default, None), 0.001);

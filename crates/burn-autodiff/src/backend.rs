@@ -9,8 +9,8 @@ use core::marker::PhantomData;
 use burn_backend::{
     backend::{
         AutodiffBackend, Backend, BackendTypes, EnvironmentBundle, EnvironmentError, EnvironmentId,
-        EnvironmentOrigin, ExecutionError, MemoryPoolUsage, ProfileDuration, ProfileOptions,
-        ProfileToken, SlicedPoolReport,
+        EnvironmentOrigin, ExecutionError, ExecutionMode, ExecutionModeToken, ExecutionStatistics,
+        MemoryPoolUsage, ProfileDuration, ProfileOptions, ProfileToken, SlicedPoolReport,
     },
     tensor::{BoolTensor, IntTensor, QuantizedTensor},
 };
@@ -82,6 +82,27 @@ impl<B: Backend, C: CheckpointStrategy> Backend for Autodiff<B, C> {
 
     fn profile_abandon(device: &Self::Device, token: ProfileToken) {
         B::profile_abandon(device, token)
+    }
+
+    fn execution_mode_open(
+        device: &Self::Device,
+        mode: ExecutionMode,
+    ) -> Result<Option<ExecutionModeToken>, ExecutionError> {
+        B::execution_mode_open(device, mode)
+    }
+
+    fn execution_mode_statistics(
+        device: &Self::Device,
+        token: ExecutionModeToken,
+    ) -> Result<ExecutionStatistics, ExecutionError> {
+        B::execution_mode_statistics(device, token)
+    }
+
+    fn execution_mode_close(
+        device: &Self::Device,
+        token: ExecutionModeToken,
+    ) -> Result<ExecutionStatistics, ExecutionError> {
+        B::execution_mode_close(device, token)
     }
 
     fn environment_create(

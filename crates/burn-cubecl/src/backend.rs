@@ -1,10 +1,13 @@
+use crate::execution::OPEN_MODES;
 use crate::{CubeDevice, tensor::CubeTensor};
 use burn_backend::cubecl::dtype_to_storage_type;
 use burn_backend::{
-    Backend, BackendGraph, BackendTypes, DTypeUsage, DTypeUsageSet, ExecutionError,
-    MemoryPoolUsage, ProfileDuration, ProfileOptions, ProfileToken, SlicedPoolReport, TensorData,
-    profile_with_tokens,
+    Backend, BackendGraph, BackendTypes, DTypeUsage, DTypeUsageSet, ExecutionError, ExecutionMode,
+    ExecutionModeToken, ExecutionStatistics, MemoryPoolUsage, ProfileDuration, ProfileOptions,
+    ProfileToken, SlicedPoolReport, TensorData, profile_with_tokens,
 };
+#[cfg(all(feature = "persistence", not(target_family = "wasm")))]
+use burn_backend::{EnvironmentBundle, EnvironmentError, EnvironmentId, EnvironmentOrigin};
 use burn_std::{BoolStore, DType, id::StreamId, quantization::quantizable};
 use cubecl::device::DeviceId;
 use cubecl::{
@@ -13,11 +16,6 @@ use cubecl::{
     features::{MmaConfig, TypeUsage},
     ir::ElemType,
     server::{ProfileError, ProfilingToken, ServerError},
-};
-#[cfg(all(feature = "persistence", not(target_family = "wasm")))]
-use {
-    crate::environment::EnvironmentStorage,
-    burn_backend::{EnvironmentBundle, EnvironmentError, EnvironmentId, EnvironmentOrigin},
 };
 
 #[cfg(not(feature = "fusion"))]
@@ -195,13 +193,43 @@ impl Backend for CubeBackend {
         device.client().profile_abandon(window);
     }
 
+    /// A process mode applies to the whole process, as cubecl applies one.
+    fn execution_mode_open(
+        device: &Self::Device,
+        mode: ExecutionMode,
+    ) -> Result<Option<ExecutionModeToken>, ExecutionError> {
+        let client = device.client();
+        OPEN_MODES.lock().open(mode, &client).map(Some)
+    }
+
+    fn execution_mode_statistics(
+        _device: &Self::Device,
+        token: ExecutionModeToken,
+    ) -> Result<ExecutionStatistics, ExecutionError> {
+        OPEN_MODES.lock().statistics(token)
+    }
+
+    /// The launches the opening stream's client still buffers were issued
+    /// under the mode, and only count once the runtime takes them: they are
+    /// flushed first. A flush that fails still closes the mode.
+    fn execution_mode_close(
+        device: &Self::Device,
+        token: ExecutionModeToken,
+    ) -> Result<ExecutionStatistics, ExecutionError> {
+        let flushed = token
+            .opened_on
+            .executes(|| device.client().flush().map_err(server_err));
+        let closed = OPEN_MODES.lock().close(token);
+        flushed.and(closed)
+    }
+
     #[cfg(all(feature = "persistence", not(target_family = "wasm")))]
     fn environment_create(
         _device: &Self::Device,
         name: String,
         origin: EnvironmentOrigin,
     ) -> Result<EnvironmentId, EnvironmentError> {
-        EnvironmentStorage::current().create(name, origin)
+        Ok(EnvironmentId::create(&name, origin)?)
     }
 
     /// Activated for the whole process, as cubecl keeps one environment
@@ -214,12 +242,12 @@ impl Backend for CubeBackend {
         id: EnvironmentId,
     ) -> Result<EnvironmentId, EnvironmentError> {
         device.client().flush().map_err(server_err)?;
-        EnvironmentStorage::current().activate(id)
+        Ok(id.activate()?)
     }
 
     #[cfg(all(feature = "persistence", not(target_family = "wasm")))]
     fn environment_active(_device: &Self::Device) -> Result<EnvironmentId, EnvironmentError> {
-        Ok(EnvironmentStorage::current().active())
+        Ok(EnvironmentId::active())
     }
 
     /// The launches the calling stream's client still buffers are flushed
@@ -230,7 +258,7 @@ impl Backend for CubeBackend {
         id: EnvironmentId,
     ) -> Result<EnvironmentBundle, EnvironmentError> {
         device.client().flush().map_err(server_err)?;
-        EnvironmentStorage::current().save(id)
+        Ok(id.save()?)
     }
 
     fn graph_prepare(device: &Self::Device) -> Result<(), ExecutionError> {

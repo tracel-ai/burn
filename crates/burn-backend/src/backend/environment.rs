@@ -9,39 +9,11 @@
 //! each other's autotune answers, and unlike devices share an environment
 //! without reading each other's.
 
-use alloc::string::String;
-use burn_std::{Bytes, ExecutionError};
+use alloc::string::{String, ToString};
+use burn_std::ExecutionError;
+use burn_std::environment::EnvironmentError as StorageError;
 
-/// Names a compute environment in the storage that keeps it.
-#[derive(Debug, Clone, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
-pub struct EnvironmentId {
-    /// The storage the environment lives in, as the backend that keeps it
-    /// identifies it: a device whose backend answers another reaches some
-    /// other storage, and cannot activate it.
-    pub storage: u64,
-    /// The environment's name in that storage.
-    pub name: String,
-}
-
-/// A compute environment serialized whole, every device's entries in it: what
-/// [`environment_save`](super::Backend::environment_save) answers and an
-/// [`EnvironmentOrigin::Bundle`] is created from.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-pub struct EnvironmentBundle {
-    /// The serialized environment, in the backend's own format.
-    pub bytes: Bytes,
-}
-
-/// What a new compute environment holds.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-pub enum EnvironmentOrigin {
-    /// Nothing.
-    Empty,
-    /// What the environment of the id holds now, copied.
-    Fork(EnvironmentId),
-    /// What the bundle holds.
-    Bundle(EnvironmentBundle),
-}
+pub use burn_std::environment::{EnvironmentBundle, EnvironmentId, EnvironmentOrigin};
 
 /// Why a compute environment could not be created, activated or saved.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -64,6 +36,11 @@ pub enum EnvironmentError {
         /// The environment's name.
         name: String,
     },
+    /// The environment would be created from itself.
+    SelfFork {
+        /// The environment's name.
+        name: String,
+    },
     /// The storage refused a read or a write.
     Storage {
         /// Why, in the storage's words.
@@ -71,6 +48,19 @@ pub enum EnvironmentError {
     },
     /// The device could not be reached, or the work it held failed.
     Execution(ExecutionError),
+}
+
+impl From<StorageError> for EnvironmentError {
+    fn from(error: StorageError) -> Self {
+        match error {
+            StorageError::IncompatibleStorage { .. } => Self::IncompatibleDevice {
+                reason: error.to_string(),
+            },
+            StorageError::Active { name } => Self::Active { name },
+            StorageError::SelfFork { name } => Self::SelfFork { name },
+            StorageError::Storage { reason } => Self::Storage { reason },
+        }
+    }
 }
 
 impl From<ExecutionError> for EnvironmentError {
@@ -94,6 +84,10 @@ impl core::fmt::Display for EnvironmentError {
             Self::Active { name } => write!(
                 f,
                 "the compute environment {name} is active, and cannot be replaced"
+            ),
+            Self::SelfFork { name } => write!(
+                f,
+                "the compute environment {name} cannot be created from itself"
             ),
             Self::Storage { reason } => write!(f, "the environment storage failed: {reason}"),
             Self::Execution(error) => write!(f, "{error}"),

@@ -230,6 +230,15 @@ all-to-all, and broadcast also support boolean tensors. Quantized tensors are re
   on its stream. ([#6308](https://github.com/tracel-ai/burn/pull/6308))
 - A read on a router or remote server of a tensor whose producing work failed reports that failure
   instead of ending the session. ([#6308](https://github.com/tracel-ai/burn/pull/6308))
+- Remote and router errors follow the CubeCL and fusion model. On the server, an operation reading
+  a failed tensor is skipped and a failed transfer or unknown graph claims
+  the tensors it was going to write; a read of one reports the root failure while the session
+  keeps running. On the client, a lost connection ends the session instead of panicking inside an
+  operation: every later `flush`, `sync` and read reports why as a poisoned device
+  (`ExecutionError::is_device_poisoned`), and a `to_device` across it yields a tensor whose read
+  reports the same. A group's `flush` reports a member's error instead of holding it for `sync`.
+  **Breaking:** `RouterClient::flush` returns `Result<(), ExecutionError>`.
+  ([#6329](https://github.com/tracel-ai/burn/pull/6329))
 - Servers answer device queries registered with `with_device_query`, asked by
   `RemoteDevice::query`. **Breaking:** `ServeError::CustomOpBackend` is renamed `HandlerBackend`,
   as it also covers device queries. ([#6308](https://github.com/tracel-ai/burn/pull/6308))
@@ -254,12 +263,28 @@ conflicts with it (E0119); delete the handwritten one.
 
 ### Training and modules
 
+#### Linear-algebra layers behind `linalg`
+
+**Breaking:** `burn` and `burn-nn` no longer build `burn-linalg` unless the `linalg` feature is
+enabled. `CosineSimilarity`, `PairwiseDistance`, `CosineEmbeddingLoss`, `TripletMarginLoss`, and
+`Initializer::Orthogonal` are now behind it. Add `linalg` to your `burn` features (or `burn-nn`
+features) to keep using them. ([#6327](https://github.com/tracel-ai/burn/pull/6327))
+
 #### More flexible `#[derive(Module)]`
 
 `#[derive(Module)]` now supports generic fields, associated types, and recursive modules. Trait
 bounds are inferred from the actual field types, and generics can be shared between module fields
 and skipped configuration or caches. This makes reusable module definitions easier to write.
 ([#6059](https://github.com/tracel-ai/burn/pull/6059))
+
+#### Optimizer-step metrics
+
+**Breaking:** Replace `metric_train_numeric(LearningRateMetric::new())` with
+`metrics(LearningRateMetric::new())`. Learning rates are recorded per applied optimizer update
+and parameter group, including partial accumulation windows. Custom strategies must emit
+`LearnerEvent::OptimizerStep` after each update.
+Use `OnOptimizerStep::with(...)` to register standard metrics for optimizer updates.
+See [optimizer-step metrics](./building-blocks/metric.md#optimizer-step-metrics).
 
 #### Dataloader progress and training completion
 
@@ -497,6 +522,9 @@ loading those checkpoints by filtering to `linear_inner` and `linear_outer`.
 - Fix boolean `scatter_nd` reductions losing updates on CubeCL backends when indices repeat a
   target; the updates are now applied with atomic stores.
   ([#6215](https://github.com/tracel-ai/burn/pull/6215))
+- Fix CPU and WGPU reads on one stream returning a tensor's old values while another stream's
+  in-place write to it was still queued. ([#6332](https://github.com/tracel-ai/burn/pull/6332),
+  [CubeCL #2002](https://github.com/tracel-ai/cubecl/pull/2002))
 
 ### Checkpoints and interoperability
 

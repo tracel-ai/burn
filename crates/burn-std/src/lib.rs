@@ -80,6 +80,13 @@ pub use cubecl_environment::bytes::*;
 pub use cubecl_environment::future::reader;
 pub use cubecl_environment::{backtrace, future, rand, stream, sync};
 
+/// Compute environment values, kept by the cubecl runtimes and carried by every backend.
+pub mod environment {
+    pub use cubecl_environment::environment::{
+        EnvironmentBundle, EnvironmentError, EnvironmentId, EnvironmentOrigin,
+    };
+}
+
 pub use half::{bf16, f16};
 
 pub use cubecl_common::flex32;

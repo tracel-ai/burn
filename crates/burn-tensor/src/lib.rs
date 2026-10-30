@@ -98,6 +98,9 @@ pub use burn_std::{
 mod device;
 pub use device::*;
 
+mod execution;
+pub use execution::*;
+
 mod environment;
 pub use environment::*;
 

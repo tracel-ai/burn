@@ -42,8 +42,7 @@ pub mod element;
 pub use element::{BoolElement, CubeElement, FloatElement, IntElement};
 
 mod backend;
-#[cfg(all(feature = "persistence", not(target_family = "wasm")))]
-mod environment;
+mod execution;
 
 pub use backend::*;
 

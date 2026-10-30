@@ -14,6 +14,7 @@ use burn_std::{
 use cubecl::ir::{ElemType, FloatKind, IntKind, UIntKind};
 
 pub mod autotune;
+mod execution;
 
 pub use cubecl::throughput::{
     MemoryAccess, ThroughputError, ThroughputKey, ThroughputMode, ThroughputValue,

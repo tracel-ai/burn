@@ -111,6 +111,22 @@ fn the_active_environment_is_not_replaced() {
     );
 }
 
+/// An environment is not created from itself, which would empty it before
+/// copying it in.
+#[test]
+#[serial]
+fn an_environment_is_not_forked_into_itself() {
+    let device = device();
+    let source = ComputeEnvironment::new(&device, "source").unwrap();
+
+    let forked = source.fork("source");
+
+    assert!(
+        matches!(forked, Err(EnvironmentError::SelfFork { .. })),
+        "{forked:?}"
+    );
+}
+
 /// A bundle that does not read replaces nothing: the environment of that name
 /// keeps what it held.
 #[test]

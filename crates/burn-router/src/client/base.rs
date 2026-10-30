@@ -3,8 +3,9 @@ use alloc::boxed::Box;
 use alloc::string::String;
 use alloc::vec::Vec;
 use burn_backend::{
-    DType, EnvironmentBundle, EnvironmentError, EnvironmentId, EnvironmentOrigin, ProfileDuration,
-    ProfileOptions, ProfileToken, TensorData,
+    DType, EnvironmentBundle, EnvironmentError, EnvironmentId, EnvironmentOrigin, ExecutionMode,
+    ExecutionModeToken, ExecutionStatistics, ProfileDuration, ProfileOptions, ProfileToken,
+    TensorData, UnknownExecutionMode,
     backend::{DeviceId, DeviceOps, ExecutionError},
 };
 use burn_ir::{CapturedGraphId, GraphBindings, GraphId, OperationIr, TensorId, TensorIr};
@@ -69,7 +70,13 @@ pub trait RouterClient: Clone + Send + Sync + Sized {
     /// Unlike [`sync`](Self::sync), this does not block on results — it only ensures the
     /// buffered operations are handed off for execution (and, for the remote backend, sent to
     /// the server) instead of sitting in a local buffer.
-    fn flush(&self);
+    ///
+    /// # Errors
+    ///
+    /// Returns an [`ExecutionError`] when the work can no longer be executed at all, such as a
+    /// remote session that ended. A failure of the work itself is deferred to the tensors it was
+    /// going to write and reported by a read of one of them.
+    fn flush(&self) -> Result<(), ExecutionError>;
     /// Create a new (uninitialized) empty tensor and returns its corresponding [tensor id](TensorId).
     fn create_empty_handle(&self) -> TensorId;
     /// Create a new [RouterTensor] from the tensor data.
@@ -110,6 +117,39 @@ pub trait RouterClient: Clone + Send + Sync + Sized {
     /// the caller is unwinding — does that instead.
     fn profile_abandon(&self, token: ProfileToken) {
         let _ = self.profile_end(token, ProfileOptions::default());
+    }
+
+    /// Open `mode` on the interpreter's backend, after every operation
+    /// registered so far on the calling stream — see
+    /// [`Backend::execution_mode_open`](burn_backend::Backend::execution_mode_open).
+    ///
+    /// `None`, the default, from an interpreter whose backend runs every launch.
+    fn execution_mode_open(
+        &self,
+        mode: ExecutionMode,
+    ) -> Result<Option<ExecutionModeToken>, ExecutionError> {
+        let _ = mode;
+        Ok(None)
+    }
+
+    /// What the work under the mode `token` opened has triggered so far.
+    fn execution_mode_statistics(
+        &self,
+        token: ExecutionModeToken,
+    ) -> Result<ExecutionStatistics, ExecutionError> {
+        let _ = token;
+        Err(UnknownExecutionMode.into())
+    }
+
+    /// Close the mode `token` opened, after every operation registered so far
+    /// on the stream it was opened on, and answer what the work under it
+    /// triggered.
+    fn execution_mode_close(
+        &self,
+        token: ExecutionModeToken,
+    ) -> Result<ExecutionStatistics, ExecutionError> {
+        let _ = token;
+        Err(UnknownExecutionMode.into())
     }
 
     /// Create a compute environment in the storage the interpreter's backend

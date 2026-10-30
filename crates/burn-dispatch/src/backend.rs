@@ -13,8 +13,9 @@ use alloc::vec;
 use burn_backend::distributed::{DistributedParamId, DistributedParams};
 use burn_backend::{
     AutodiffBackend, Backend, BackendGraph, BackendTypes, DType, EnvironmentBundle,
-    EnvironmentError, EnvironmentId, EnvironmentOrigin, ExecutionError, MemoryPoolUsage,
-    ProfileDuration, ProfileOptions, ProfileToken, SlicedPoolReport,
+    EnvironmentError, EnvironmentId, EnvironmentOrigin, ExecutionError, ExecutionMode,
+    ExecutionModeToken, ExecutionStatistics, MemoryPoolUsage, ProfileDuration, ProfileOptions,
+    ProfileToken, SlicedPoolReport,
 };
 
 /// A captured graph from one of the dispatched backends (see
@@ -213,6 +214,27 @@ impl Backend for Dispatch {
 
     fn profile_abandon(device: &Self::Device, token: ProfileToken) {
         dispatch_device!(device, |device| B::profile_abandon(device, token))
+    }
+
+    fn execution_mode_open(
+        device: &Self::Device,
+        mode: ExecutionMode,
+    ) -> Result<Option<ExecutionModeToken>, ExecutionError> {
+        dispatch_device!(device, |device| B::execution_mode_open(device, mode))
+    }
+
+    fn execution_mode_statistics(
+        device: &Self::Device,
+        token: ExecutionModeToken,
+    ) -> Result<ExecutionStatistics, ExecutionError> {
+        dispatch_device!(device, |device| B::execution_mode_statistics(device, token))
+    }
+
+    fn execution_mode_close(
+        device: &Self::Device,
+        token: ExecutionModeToken,
+    ) -> Result<ExecutionStatistics, ExecutionError> {
+        dispatch_device!(device, |device| B::execution_mode_close(device, token))
     }
 
     fn environment_create(
