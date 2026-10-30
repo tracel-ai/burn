@@ -492,7 +492,8 @@ loading those checkpoints by filtering to `linear_inner` and `linear_outer`.
   target; the updates are now applied with atomic stores.
   ([#6215](https://github.com/tracel-ai/burn/pull/6215))
 - Fix CPU and WGPU reads on one stream returning a tensor's old values while another stream's
-  in-place write to it was still queued. ([CubeCL #2002](https://github.com/tracel-ai/cubecl/pull/2002))
+  in-place write to it was still queued. ([#6332](https://github.com/tracel-ai/burn/pull/6332),
+  [CubeCL #2002](https://github.com/tracel-ai/cubecl/pull/2002))
 
 ### Checkpoints and interoperability
 
