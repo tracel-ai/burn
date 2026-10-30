@@ -4,7 +4,10 @@ use burn_backend::{
 use burn_std::sync::Arc;
 use hashbrown::HashMap;
 
-use crate::{BackendIr, QuantizationParametersIr, TensorHandle, TensorId, TensorIr, TensorStatus};
+use crate::{
+    BackendIr, OperationIr, QuantizationParametersIr, TensorHandle, TensorId, TensorIr,
+    TensorStatus,
+};
 
 /// Keep all [tensor handles](BackendIr::Handle) in one place and ensure that all resources
 /// are used optimally.
@@ -298,6 +301,43 @@ impl<H: Clone> HandleContainer<H> {
         match self.handles.get(id) {
             Some(Handle::Errored(error)) => Some(error),
             _ => None,
+        }
+    }
+
+    /// The failure that errored any tensor `op` reads — the check a unit of
+    /// work makes before it runs.
+    ///
+    /// Work whose input was never written must not run: those bytes are
+    /// whatever the allocation happened to hold, and computing on them turns a
+    /// failure that named one tensor into a wrong answer that names none. The
+    /// caller claims the outputs with the same error instead (see
+    /// [`set_output_errors`](Self::set_output_errors)), so a read below the
+    /// skip still reports the failure that started it.
+    pub fn input_error(&self, op: &OperationIr) -> Option<&TensorError> {
+        // This runs before every operation, so it has to be free while nothing
+        // has failed: asking anyway costs a boxed iterator per operation.
+        if !self.has_errors() {
+            return None;
+        }
+
+        // A drop names its tensor as an input, but it does not read it — it is
+        // what releases it, and releasing is how an error stops being held.
+        // Skip it and the error outlives every tensor that could report it:
+        // the bound this design rests on is that an error lives exactly as
+        // long as the tensor carrying it.
+        if let OperationIr::Drop(_) = op {
+            return None;
+        }
+
+        // `inputs()` rather than `nodes()`, which collects into a fresh `Vec`.
+        op.inputs().find_map(|node| self.error(&node.id))
+    }
+
+    /// Record `error` on every tensor `op` was going to write, so a read of one
+    /// reports it instead of handing back bytes nothing wrote.
+    pub fn set_output_errors(&mut self, op: &OperationIr, error: &TensorError) {
+        for node in op.outputs() {
+            self.set_error(node.id, error.clone());
         }
     }
 
