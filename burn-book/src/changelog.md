@@ -320,6 +320,8 @@ loading those checkpoints by filtering to `linear_inner` and `linear_outer`.
   [#5977](https://github.com/tracel-ai/burn/pull/5977))
 - Add the Matthews correlation coefficient metric for binary and multiclass classification.
   ([#5818](https://github.com/tracel-ai/burn/pull/5818))
+- Add `ImageFolderDataset::class_name` to look up the class name of a label.
+  ([#6310](https://github.com/tracel-ai/burn/pull/6310))
 - Reject incompatible devices and dtypes in convolution, linear, normalization, and attention
   operations before backend execution, including mismatches introduced by dequantization.
   Packed quantized linear weights remain supported.
