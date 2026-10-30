@@ -68,6 +68,11 @@ impl ActivationOps<Flex> for Flex {
 
     fn gelu(tensor: FloatTensor<Flex>) -> FloatTensor<Flex> {
         // 0.5 * x * (1 + erf(x / sqrt(2)))
+        #[cfg(feature = "simd")]
+        let tensor = match crate::ops::unary::simd_map::<f32, _>(tensor, crate::simd::Gelu) {
+            Ok(out) => return out,
+            Err(tensor) => tensor,
+        };
         use crate::ops::unary::{erf_f32, erf_f64};
         let sqrt2_f32: f32 = core::f32::consts::SQRT_2;
         let sqrt2_f64: f64 = core::f64::consts::SQRT_2;
@@ -80,6 +85,11 @@ impl ActivationOps<Flex> for Flex {
 
     fn gelu_backward(x: FloatTensor<Flex>, grad: FloatTensor<Flex>) -> FloatTensor<Flex> {
         // d/dx[gelu(x)] = 0.5 * (1 + erf(x/sqrt(2))) + x * (1/sqrt(2*pi)) * exp(-x^2/2)
+        #[cfg(feature = "simd")]
+        let x = match crate::ops::unary::simd_map::<f32, _>(x, crate::simd::GeluGrad) {
+            Ok(dx) => return Flex::float_mul(dx, grad),
+            Err(x) => x,
+        };
         use crate::ops::unary::{erf_f32, erf_f64};
         let sqrt2_f32: f32 = core::f32::consts::SQRT_2;
         let sqrt2_f64: f64 = core::f64::consts::SQRT_2;
