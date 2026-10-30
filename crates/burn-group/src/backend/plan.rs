@@ -9,7 +9,7 @@ use burn_ir::{
 use crate::{ElementwiseRule, MatmulRule, OpSharding, ReducedDims, ReshapeRule, Sharding, SumRule};
 
 /// Where each tensor of one op must be for the op to run on every member, where its outputs land,
-/// and what each member runs.
+/// and when the members run it.
 #[derive(Debug)]
 pub struct OpPlan {
     input_shardings: HashMap<TensorId, Sharding>,
@@ -17,13 +17,13 @@ pub struct OpPlan {
     execution: Execution,
 }
 
-/// What each member runs for one op.
+/// When the members run one op.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Execution {
-    /// Each member runs the op on its own shards.
-    EveryMember,
-    /// Member 0 runs the op and the others take a copy, so random values agree.
-    FirstMemberCopied,
+    /// Now, each member on its own shards.
+    Eager,
+    /// When its output is first needed: split if that use splits it, else on member 0 and copied.
+    Deferred,
 }
 
 impl OpPlan {
@@ -94,7 +94,7 @@ impl OpPlan {
         Self {
             input_shardings: op.inputs().map(replicated).collect(),
             output_shardings: op.outputs().map(replicated).collect(),
-            execution: Execution::EveryMember,
+            execution: Execution::Eager,
         }
     }
 }
@@ -178,7 +178,7 @@ impl GroupShardings<'_> {
             inputs.map(|input| self.sharding(input)),
             inputs.map(|input| &input.shape),
         );
-        OpPlan::from_rule(inputs, out, sharding, Execution::EveryMember)
+        OpPlan::from_rule(inputs, out, sharding, Execution::Eager)
     }
 
     fn matmul(&self, desc: &MatmulOpIr) -> Option<OpPlan> {
@@ -192,13 +192,13 @@ impl GroupShardings<'_> {
             [&desc.lhs, &desc.rhs],
             &desc.out,
             sharding,
-            Execution::EveryMember,
+            Execution::Eager,
         )
     }
 
     fn sum(&self, input: &TensorIr, out: &TensorIr, reduced_dims: ReducedDims) -> Option<OpPlan> {
         let sharding = SumRule::new(self.sharding(input), reduced_dims).sharding();
-        OpPlan::from_rule([input], out, sharding, Execution::EveryMember)
+        OpPlan::from_rule([input], out, sharding, Execution::Eager)
     }
 
     fn reshape(&self, desc: &ShapeOpIr) -> Option<OpPlan> {
@@ -209,7 +209,7 @@ impl GroupShardings<'_> {
             self.num_members,
         )
         .sharding();
-        OpPlan::from_rule([&desc.input], &desc.out, sharding, Execution::EveryMember)
+        OpPlan::from_rule([&desc.input], &desc.out, sharding, Execution::Eager)
     }
 
     fn random(&self, out: &TensorIr) -> Option<OpPlan> {
@@ -217,7 +217,7 @@ impl GroupShardings<'_> {
             inputs: [],
             output: Sharding::Replicated,
         };
-        OpPlan::from_rule([], out, sharding, Execution::FirstMemberCopied)
+        OpPlan::from_rule([], out, sharding, Execution::Deferred)
     }
 
     fn sharding(&self, tensor: &TensorIr) -> Sharding {
