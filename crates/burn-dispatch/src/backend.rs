@@ -12,8 +12,9 @@ use alloc::vec;
 #[cfg(feature = "autodiff")]
 use burn_backend::distributed::{DistributedParamId, DistributedParams};
 use burn_backend::{
-    AutodiffBackend, Backend, BackendGraph, BackendTypes, DType, ExecutionError, MemoryPoolUsage,
-    ProfileDuration, ProfileOptions, ProfileToken, SlicedPoolReport,
+    AutodiffBackend, Backend, BackendGraph, BackendTypes, DType, ExecutionError, ExecutionMode,
+    ExecutionModeToken, ExecutionStatistics, MemoryPoolUsage, ProfileDuration, ProfileOptions,
+    ProfileToken, SlicedPoolReport,
 };
 
 /// A captured graph from one of the dispatched backends (see
@@ -212,6 +213,27 @@ impl Backend for Dispatch {
 
     fn profile_abandon(device: &Self::Device, token: ProfileToken) {
         dispatch_device!(device, |device| B::profile_abandon(device, token))
+    }
+
+    fn execution_mode_open(
+        device: &Self::Device,
+        mode: ExecutionMode,
+    ) -> Result<Option<ExecutionModeToken>, ExecutionError> {
+        dispatch_device!(device, |device| B::execution_mode_open(device, mode))
+    }
+
+    fn execution_mode_statistics(
+        device: &Self::Device,
+        token: ExecutionModeToken,
+    ) -> Result<ExecutionStatistics, ExecutionError> {
+        dispatch_device!(device, |device| B::execution_mode_statistics(device, token))
+    }
+
+    fn execution_mode_close(
+        device: &Self::Device,
+        token: ExecutionModeToken,
+    ) -> Result<ExecutionStatistics, ExecutionError> {
+        dispatch_device!(device, |device| B::execution_mode_close(device, token))
     }
 
     fn graph_prepare(device: &Self::Device) -> Result<(), ExecutionError> {
@@ -1199,9 +1221,9 @@ fn cube_runtime_enabled(runtime: RuntimeId) -> bool {
             feature = "webgpu"
         )),
         RuntimeId::Cpu => cfg!(feature = "cpu"),
-        // burn's `metal` feature is wgpu compiling to MSL; cubecl's native Metal runtime has no
-        // burn feature to enable it.
-        RuntimeId::Metal => false,
+        // burn's `metal` feature is wgpu compiling to MSL; `metal-native` is cubecl's own Metal
+        // runtime.
+        RuntimeId::Metal => cfg!(feature = "metal-native"),
     }
 }
 

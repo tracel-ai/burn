@@ -2,6 +2,7 @@
 //! tile-DSL routines: what autodiff records instead of the decomposed attention, for the
 //! attentions [`backward_serves`] admits.
 
+use super::tile::{routines_take, scoring};
 use crate::{
     CubeBackend, CubeDevice,
     ops::{numeric::full_device_dtype, swap_dims},
@@ -10,16 +11,11 @@ use crate::{
 use burn_backend::ops::{AttentionBackward, AttentionModuleOptions, CausalAlignment};
 use burn_backend::{DType, Shape, cubecl::dtype_to_storage_type};
 use cubecl::client::Client;
-use cubecl::features::TypeUsage;
 use cubecl::prelude::InputScalar;
 use cubecl::std::tensor::TensorHandle;
 use cubek::attention::kernels::select::selector::QueryPositions;
 use cubek::attention::kernels::tune::{AttentionTuneInputs, launch_tuned};
-use cubek::attention::kernels::{
-    AttentionScoring, AttentionTensors, AttentionVisibility, QueryPlacement, ScoreScale,
-};
 use cubek::attention_backward::{AttentionBackwardTensors, attention_backward as launch_backward};
-use cubek::matmul::kernels::tensor::PlainTensor;
 use cubek::std::autotune::GroupPriority;
 
 /// Whether cubek's forward pass with logsumexp and its backward pass serve an attention of
@@ -34,20 +30,10 @@ pub fn backward_serves(
     options: &AttentionModuleOptions,
 ) -> bool {
     let (q_shape, k_shape) = (query.meta.shape(), key.meta.shape());
-    let element = dtype_to_storage_type(query.dtype);
-    let elements = key.dtype == query.dtype
-        && value.dtype == query.dtype
-        && AttentionTensors::VERIFIED.contains(&element)
-        && query
-            .client
-            .properties()
-            .type_usage(element)
-            .is_superset(TypeUsage::Arithmetic | TypeUsage::Buffer);
-    let grouped = k_shape[1] != 0 && q_shape[1].is_multiple_of(k_shape[1]);
     let anchored = !options.is_causal
         || options.causal_alignment == CausalAlignment::BottomRight
         || q_shape[2] == k_shape[2];
-    elements && grouped && options.softcap.is_none() && anchored
+    routines_take(query, key, value) && options.softcap.is_none() && anchored
 }
 
 /// The attention of `query` over `key` and `value`, `[b, h, q, dv]`, and each query's logsumexp,
@@ -79,18 +65,16 @@ pub fn attention_with_logsumexp(
     );
     let inputs = AttentionTuneInputs::new(
         &client,
-        plain(query),
-        plain(key),
-        plain(value),
+        query.plain(),
+        key.plain(),
+        value.plain(),
         None,
-        plain(lengths),
+        lengths.plain(),
         None,
-        AttentionScoring {
-            visibility: visibility(&options),
-            scale: score_scale(&options, head_dim),
-        },
+        scoring(&options, head_dim),
     )
     .unwrap_or_else(|why| panic!("no tile-DSL attention routine serves these operands: {why:?}"))
+    .attending_every_position()
     .with_logsumexp();
     let logsumexp = inputs.logsumexp().expect("`with_logsumexp` binds one");
     let out = launch_tuned(
@@ -122,17 +106,17 @@ pub fn attention_backward(
     options: AttentionModuleOptions,
 ) -> AttentionBackward<CubeBackend> {
     let (client, device, dtype) = (query.client.clone(), query.device.clone(), query.dtype);
-    let head_dim = query.meta.shape()[3];
+    let scoring = scoring(&options, query.meta.shape()[3]);
     let tensors = AttentionBackwardTensors::new(
         &client,
-        plain(query),
-        plain(key),
-        plain(value),
-        plain(out),
-        plain(out_grad),
-        plain(logsumexp),
-        score_scale(&options, head_dim).value(),
-        visibility(&options),
+        query.plain(),
+        key.plain(),
+        value.plain(),
+        out.plain(),
+        out_grad.plain(),
+        logsumexp.plain(),
+        scoring.scale.value(),
+        scoring.visibility,
     )
     .unwrap_or_else(|why| {
         panic!("cubek's attention backward pass declines these operands: {why:?}")
@@ -159,30 +143,4 @@ fn cube_tensor(
         device.clone(),
         dtype,
     )
-}
-
-/// `tensor` as cubek binds it, read where it lies.
-fn plain(tensor: CubeTensor) -> PlainTensor {
-    let elem = dtype_to_storage_type(tensor.dtype);
-    PlainTensor::new(tensor.binding(), elem)
-}
-
-/// Which keys `options` let a query see, the causal diagonal placed by their alignment.
-fn visibility(options: &AttentionModuleOptions) -> AttentionVisibility {
-    AttentionVisibility::new(
-        options.is_causal,
-        None,
-        match options.causal_alignment {
-            CausalAlignment::BottomRight => QueryPlacement::Last,
-            CausalAlignment::TopLeft => QueryPlacement::First,
-        },
-    )
-}
-
-/// The scale `options` give the scores, standard where they give none.
-fn score_scale(options: &AttentionModuleOptions, head_dim: usize) -> ScoreScale {
-    match options.scale {
-        Some(scale) => ScoreScale::Custom(scale as f32),
-        None => ScoreScale::standard(head_dim),
-    }
 }

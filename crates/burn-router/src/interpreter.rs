@@ -12,9 +12,9 @@ use alloc::{
     vec::Vec,
 };
 use burn_backend::{
-    Backend, BackendGraph, DType, DeviceOps, ExecutionError, FloatDType, ProfileDuration,
-    ProfileOptions, ProfileToken, Shape, TensorData, TensorMetadata, TensorPrimitive,
-    ops::TransactionPrimitive,
+    Backend, BackendGraph, DType, DeviceOps, ExecutionError, ExecutionMode, ExecutionModeToken,
+    ExecutionStatistics, FloatDType, ProfileDuration, ProfileOptions, ProfileToken, Shape,
+    TensorData, TensorMetadata, TensorPrimitive, ops::TransactionPrimitive,
 };
 use burn_ir::{
     ActivationOperationIr, BackendIr, BaseOperationIr, BoolOperationIr, FloatOperationIr,
@@ -2484,6 +2484,30 @@ impl<B: BackendIr> TensorInterpreter<B> {
     /// measuring it.
     pub fn profile_abandon(&self, token: ProfileToken) {
         B::profile_abandon(&self.device, token)
+    }
+
+    /// Open `mode` on the backend where the calling stream stands.
+    pub fn execution_mode_open(
+        &self,
+        mode: ExecutionMode,
+    ) -> Result<Option<ExecutionModeToken>, ExecutionError> {
+        B::execution_mode_open(&self.device, mode)
+    }
+
+    /// What the work under the mode `token` opened has triggered so far.
+    pub fn execution_mode_statistics(
+        &self,
+        token: ExecutionModeToken,
+    ) -> Result<ExecutionStatistics, ExecutionError> {
+        B::execution_mode_statistics(&self.device, token)
+    }
+
+    /// Close the mode `token` opened.
+    pub fn execution_mode_close(
+        &self,
+        token: ExecutionModeToken,
+    ) -> Result<ExecutionStatistics, ExecutionError> {
+        B::execution_mode_close(&self.device, token)
     }
 
     /// Prepare the backend for a graph capture.

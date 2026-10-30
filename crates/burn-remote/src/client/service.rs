@@ -12,8 +12,8 @@ use crate::{
     },
 };
 use burn_backend::{
-    DTypeUsageSet, ExecutionError, ProfileDuration, ProfileOptions, ProfileTicks, ProfileToken,
-    TensorData,
+    DTypeUsageSet, ExecutionError, ExecutionMode, ExecutionModeToken, ExecutionStatistics,
+    ProfileDuration, ProfileOptions, ProfileTicks, ProfileToken, TensorData,
     backend::{DeviceId, DeviceService, ServerUtilitiesHandle},
 };
 use burn_ir::{CapturedGraphId, OperationIr, TensorId, TensorIr};
@@ -753,6 +753,87 @@ impl RemoteService {
                 .map_err(|failure| DeviceQueryError::from((id, failure))),
             Ok(other) => panic!("Invalid response for DeviceQuery: {other:?}"),
             Err(_) => Err(DeviceQueryError::SessionEnded),
+        }
+    }
+
+    /// Open `mode` on the server's backend where `stream_id` stands, after every task sent
+    /// before.
+    pub fn execution_mode_open(
+        &mut self,
+        stream_id: StreamId,
+        mode: ExecutionMode,
+    ) -> Result<Option<ExecutionModeToken>, ExecutionError> {
+        self.execution_request(
+            |id| Task::ExecutionModeOpen(id, stream_id, mode),
+            |answer| match answer {
+                TaskResponseContent::ExecutionModeOpen(res) => Ok(res),
+                other => Err(other),
+            },
+        )
+    }
+
+    /// What the work under the server's mode `token` has triggered so far.
+    pub fn execution_mode_statistics(
+        &mut self,
+        token: ExecutionModeToken,
+    ) -> Result<ExecutionStatistics, ExecutionError> {
+        self.execution_request(
+            |id| Task::ExecutionModeStatistics(id, token),
+            |answer| match answer {
+                TaskResponseContent::ExecutionStatistics(res) => Ok(res),
+                other => Err(other),
+            },
+        )
+    }
+
+    /// Close the server's mode `token` on the stream it was opened on, after every task sent
+    /// before.
+    pub fn execution_mode_close(
+        &mut self,
+        token: ExecutionModeToken,
+    ) -> Result<ExecutionStatistics, ExecutionError> {
+        self.execution_request(
+            |id| Task::ExecutionModeClose(id, token),
+            |answer| match answer {
+                TaskResponseContent::ExecutionStatistics(res) => Ok(res),
+                other => Err(other),
+            },
+        )
+    }
+
+    /// Send an execution-mode request and wait on the server's answer, which `answer` takes
+    /// out of the response, handing back a response of another kind.
+    ///
+    /// A browser thread cannot wait, so it refuses: a mode it could not confirm open would
+    /// leave the caller believing its launches are discarded while they run.
+    fn execution_request<Answer>(
+        &mut self,
+        make_task: impl FnOnce(RequestId) -> Task,
+        answer: impl FnOnce(
+            TaskResponseContent,
+        ) -> Result<Result<Answer, ExecutionError>, TaskResponseContent>,
+    ) -> Result<Answer, ExecutionError> {
+        #[cfg(not(target_family = "wasm"))]
+        {
+            let rx = self.submit_request(make_task);
+            match self.executor.block_on(rx) {
+                Ok(response) => answer(response).unwrap_or_else(|other| {
+                    Err(ExecutionError::with_context(format!(
+                        "Invalid response for an execution-mode request: {other:?}"
+                    )))
+                }),
+                Err(_) => Err(ExecutionError::with_context(
+                    "Remote response channel closed before the execution-mode request completed",
+                )),
+            }
+        }
+        #[cfg(target_family = "wasm")]
+        {
+            let _ = (make_task, answer);
+            Err(ExecutionError::with_context(
+                "a remote device cannot change its execution mode from a browser thread, which \
+                 cannot wait on the server",
+            ))
         }
     }
 

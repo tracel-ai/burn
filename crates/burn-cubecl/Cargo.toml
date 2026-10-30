@@ -45,6 +45,7 @@ hip = ["cubecl/hip", "burn-backend/cubecl-hip"]
 cpu = ["cubecl/cpu", "burn-backend/cubecl-cpu"]
 wgpu = ["cubecl/wgpu", "burn-backend/cubecl-wgpu"]
 metal = ["wgpu", "cubecl/metal", "burn-backend/cubecl-metal"]
+metal-native = ["cubecl/metal-native", "burn-backend/cubecl-metal-native"]
 vulkan = ["wgpu", "cubecl/vulkan", "burn-backend/cubecl-vulkan"]
 webgpu = ["wgpu", "cubecl/webgpu", "burn-backend/cubecl-webgpu"]
 
@@ -67,10 +68,6 @@ autotune-checks = [
     "burn-cubecl-fusion?/autotune-checks",
 ]
 
-# Autotune races only cubek's tile-DSL matmul and attention routines, never the multi-level ones
-# or the old attention: an input they don't serve fails instead of falling back. For measuring
-# them through burn's tests and benches, not for use.
-tile-kernels-only = ["autotune", "cubek/microkernel"]
 
 fusion = ["burn-fusion", "burn-cubecl-fusion"]
 fusion-experimental = ["fusion"]
@@ -95,8 +92,8 @@ cubek = { workspace = true, features = [
     "attention-tiled",
     "attention-backward",
     "matmul",
-    "matmul-multi-level",
     "matmul-tiled",
+    "microkernel",
     "convolution",
     "interpolate",
     "pool",

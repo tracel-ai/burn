@@ -30,6 +30,7 @@ flex-rayon = ["flex", "burn-flex/rayon"]
 vulkan = ["wgpu", "burn-tensor/vulkan"]
 webgpu = ["wgpu", "burn-tensor/webgpu"]
 metal = ["wgpu", "burn-tensor/metal"]
+metal-native = ["burn-tensor/metal-native", "cube"]
 wgpu = ["burn-tensor/wgpu", "quantization", "cube"]
 cpu = ["burn-tensor/cpu", "cube"]
 # Runs the test suite against a remote `burn-remote` server.
@@ -40,8 +41,6 @@ persistence = ["burn-tensor/persistence"]
 autotune = ["burn-tensor/autotune"]
 autotune-checks = ["burn-tensor/autotune-checks"]
 memory-checks = ["burn-fusion?/memory-checks"]
-# Runs the suite with autotune racing only cubek's tile-DSL matmul and attention routines.
-tile-kernels-only = ["cube", "burn-cubecl/tile-kernels-only"]
 fusion = [
     "burn-tensor/fusion",
     "burn-fusion/test-util",

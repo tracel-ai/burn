@@ -93,6 +93,10 @@ positions when sequence lengths differ.
 - Speed up CubeCL `conv_transpose3d` and reduce Flex `conv2d` memory use and layout conversions.
   ([#5793](https://github.com/tracel-ai/burn/pull/5793),
   [#6075](https://github.com/tracel-ai/burn/pull/6075))
+- Speed up Flex CPU F32 `exp`, `sigmoid`, and `softmax` with a SIMD `exp` within 2 ulp of libm, and
+  run F32/F64 `round`, `floor`, `ceil`, and `trunc` with SIMD rounding. Flex `round` now returns
+  `-0.0` for `-0.5` on every layout, as IEEE ties-to-even does.
+  ([#6313](https://github.com/tracel-ai/burn/pull/6313)) [@antimora](https://github.com/antimora)
 - Run GELU and sigmoid forward and backward operations in single CubeCL kernels.
   ([#6114](https://github.com/tracel-ai/burn/pull/6114)) [@ssoj13](https://github.com/ssoj13)
 - Allow more CubeCL slices to share their source buffer, avoiding copies of KV-cache prefixes.
@@ -100,14 +104,20 @@ positions when sequence lengths differ.
   [@ssoj13](https://github.com/ssoj13) [@laggui](https://github.com/laggui)
 - Reduce fusion's CPU overhead by skipping unnecessary reduction-fuser resets.
   ([#6036](https://github.com/tracel-ai/burn/pull/6036)) [@louisfd](https://github.com/louisfd)
-- Add the experimental `burn-cubecl/tile-kernels-only` feature for benchmarking CubeK's new matmul
-  and attention routines. It is disabled by default and rejects unsupported inputs without a
-  fallback; fused matmul and convolution are unchanged. Quantized matmul inputs are read packed
-  where the routines can, and dequantized first elsewhere. Attention takes a bool mask and both
-  causal alignments.
+- Run matmul, fused matmul and attention on CubeCL backends through CubeK's tile routines, chosen
+  by CubeK's autotune or, without the `autotune` feature, by its rules. Quantized matmul inputs are
+  read packed where the routines can, and dequantized first elsewhere. Attention takes a bool mask,
+  a custom scale and both causal alignments; an additive bias or a softcap runs the decomposed
+  attention. Without `autotune`, a fused matmul runs its matmul and element-wise block as separate
+  kernels. The multi-level matmul and flash attention paths are removed with the experimental
+  `tile-kernels-only` feature. Migration: `MatmulStrategy::Cube` now names CubeK's rule-based
+  choice; `AttentionStrategy` keeps only `Autotune` and `Fallback`, and `attention` returns the
+  tensor rather than a `Result`; `matmul_autotune`, `flash_attention` and
+  `flash_unsupported_options` are gone (use `matmul` and `attention`).
   ([#6193](https://github.com/tracel-ai/burn/pull/6193),
   [#6199](https://github.com/tracel-ai/burn/pull/6199),
-  [#6246](https://github.com/tracel-ai/burn/pull/6246)) [@louisfd](https://github.com/louisfd)
+  [#6246](https://github.com/tracel-ai/burn/pull/6246),
+  [#6273](https://github.com/tracel-ai/burn/pull/6273)) [@louisfd](https://github.com/louisfd)
 - Run attention's backward pass on CubeCL backends as CubeK kernels from the forward's saved
   logsumexp, rather than autodiff over the decomposed attention. The kernels take f32, f16 and
   bf16 attention without a mask, bias or softcap, causal or not; a softcap, a top-left causal
@@ -329,6 +339,8 @@ loading those checkpoints by filtering to `linear_inner` and `linear_outer`.
   [#5977](https://github.com/tracel-ai/burn/pull/5977))
 - Add the Matthews correlation coefficient metric for binary and multiclass classification.
   ([#5818](https://github.com/tracel-ai/burn/pull/5818))
+- Add `ImageFolderDataset::class_name` to look up the class name of a label.
+  ([#6310](https://github.com/tracel-ai/burn/pull/6310))
 - Reject incompatible devices and dtypes in convolution, linear, normalization, and attention
   operations before backend execution, including mismatches introduced by dequantization.
   Packed quantized linear weights remain supported.
@@ -431,6 +443,8 @@ loading those checkpoints by filtering to `linear_inner` and `linear_outer`.
 - Fix `chunk` panicking when the requested number of chunks cannot all be filled. It now returns
   fewer chunks, as documented; for example, 6 elements in 4 chunks give 3 chunks of 2.
   ([#6263](https://github.com/tracel-ai/burn/pull/6263), [@b84330808](https://github.com/b84330808))
+- Fix CubeCL `max_pool3d`, which did not compile on WebGPU or any other WGSL target.
+  [@vboussot](https://github.com/vboussot)
 - Return NaN for variance reductions over empty axes instead of panicking or returning zero.
   ([issue #6236](https://github.com/tracel-ai/burn/issues/6236))
 - **Breaking:** `Tensor::reshape` now treats zeros in arrays as literal zero-length dimensions,
@@ -492,6 +506,9 @@ loading those checkpoints by filtering to `linear_inner` and `linear_outer`.
 - Fix boolean `scatter_nd` reductions losing updates on CubeCL backends when indices repeat a
   target; the updates are now applied with atomic stores.
   ([#6215](https://github.com/tracel-ai/burn/pull/6215))
+- Fix CPU and WGPU reads on one stream returning a tensor's old values while another stream's
+  in-place write to it was still queued. ([#6332](https://github.com/tracel-ai/burn/pull/6332),
+  [CubeCL #2002](https://github.com/tracel-ai/cubecl/pull/2002))
 
 ### Checkpoints and interoperability
 

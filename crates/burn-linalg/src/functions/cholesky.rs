@@ -84,6 +84,7 @@ pub fn cholesky<const D: usize>(mut a: Tensor<D>, upper: bool) -> Tensor<D> {
                     feature = "webgpu",
                     feature = "vulkan",
                     feature = "metal",
+                    feature = "metal-native",
                     feature = "cuda",
                     feature = "rocm",
                     feature = "cpu"
