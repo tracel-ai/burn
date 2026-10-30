@@ -460,7 +460,7 @@ impl super::Encode for TaskResponse {}
 pub enum TaskResponseContent {
     /// Server responds with the selected device's settings plus the total number of devices
     /// it hosts (so the client can enumerate them, see [`RemoteDevice::enumerate`]).
-    Init(SessionInfo),
+    Init(Box<SessionInfo>),
     ReadTensors(Result<Vec<TensorData>, ExecutionError>),
     SyncBackend(Result<(), ExecutionError>),
     DTypeUsage(DTypeUsageSet),

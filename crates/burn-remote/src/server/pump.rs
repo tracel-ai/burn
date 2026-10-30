@@ -70,13 +70,13 @@ where
     // `RemoteDevice::defaults`/`enumerate` without an extra round-trip.
     let info = TaskResponse {
         id: 0,
-        content: TaskResponseContent::Init(SessionInfo {
+        content: TaskResponseContent::Init(Box::new(SessionInfo {
             version: PROTOCOL_VERSION,
             settings: service.device_settings(init.device_index),
             device_count,
             peer_id: server_peer_id,
             dtype_usage: service.dtype_usage(init.device_index),
-        }),
+        })),
     };
     let info = info
         .encode()

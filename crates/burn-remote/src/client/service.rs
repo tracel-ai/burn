@@ -266,7 +266,7 @@ impl RemoteService {
                         server_version: info.version,
                     });
                 }
-                Ok(info)
+                Ok(*info)
             }
             TaskResponseContent::InitRefused(refusal) => Err(refusal.into()),
             other => Err(failed(format!(
