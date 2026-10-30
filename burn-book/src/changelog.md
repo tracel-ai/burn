@@ -99,10 +99,11 @@ positions when sequence lengths differ.
   and the GELU backward pass also run with SIMD; `log` matches the `libm` crate bit for bit, `tanh`
   is within 2 ulp of libm, and `erf` within 1 ulp. F32 `log1p`, `atanh`, `log_sigmoid`, and the
   log-sigmoid backward pass also run with SIMD; `log1p` and `atanh` match the `libm` crate bit for
-  bit.
+  bit. F32 `sin` and `cos` run with SIMD within 2 ulp of libm, and `tan` within 4.
   ([#6313](https://github.com/tracel-ai/burn/pull/6313),
   [#6341](https://github.com/tracel-ai/burn/pull/6341),
-  [#6345](https://github.com/tracel-ai/burn/pull/6345)) [@antimora](https://github.com/antimora)
+  [#6345](https://github.com/tracel-ai/burn/pull/6345),
+  [#6347](https://github.com/tracel-ai/burn/pull/6347)) [@antimora](https://github.com/antimora)
 - Run GELU and sigmoid forward and backward operations in single CubeCL kernels.
   ([#6114](https://github.com/tracel-ai/burn/pull/6114)) [@ssoj13](https://github.com/ssoj13)
 - Allow more CubeCL slices to share their source buffer, avoiding copies of KV-cache prefixes.

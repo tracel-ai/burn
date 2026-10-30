@@ -32,8 +32,9 @@ pub use portable::{
 
 #[cfg(feature = "simd")]
 pub(crate) use portable::{
-    Atanh, Ceil, Erf, Exp, Floor, Gelu, GeluGrad, LaneOp, Ln, Ln1p, LogSigmoid, LogSigmoidGrad,
-    MAX_LANES, RoundTiesEven, Sigmoid, Tanh, Trunc, exp_f32, map_inplace, map_to_vec,
+    Atanh, Ceil, Cos, Erf, Exp, Floor, Gelu, GeluGrad, LaneOp, Ln, Ln1p, LogSigmoid,
+    LogSigmoidGrad, MAX_LANES, RoundTiesEven, Sigmoid, Sin, Tan, Tanh, Trunc, exp_f32, map_inplace,
+    map_to_vec,
 };
 
 // When simd feature disabled: use scalar fallback (bool ops + CmpOp only)
