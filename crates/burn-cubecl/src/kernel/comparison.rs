@@ -1,3 +1,4 @@
+use crate::kernel::memory_order::in_memory_order;
 use crate::{
     kernel::utils::{address_type, broadcast_shape},
     ops::{max_vector_size, numeric::empty_device_dtype},
@@ -245,66 +246,69 @@ pub(crate) fn launch_scalar_cmp<O: ComparisonOpFamily>(
     scalar: InputScalar,
     dtype_bool: DType,
 ) -> CubeTensor {
-    let vector_size = max_vector_size(&tensor);
-    let client = tensor.client.clone();
-    let num_elems = tensor.meta.num_elements();
+    let output_shape = tensor.shape();
+    in_memory_order([tensor], output_shape, |[tensor], _shape| {
+        let vector_size = max_vector_size(&tensor);
+        let client = tensor.client.clone();
+        let num_elems = tensor.meta.num_elements();
 
-    let working_units = num_elems / vector_size as usize;
-    let cube_dim = CubeDim::new(&tensor.client, working_units);
-    let cube_count = calculate_cube_count_elemwise(&tensor.client, working_units, cube_dim);
+        let working_units = num_elems / vector_size as usize;
+        let cube_dim = CubeDim::new(&tensor.client, working_units);
+        let cube_count = calculate_cube_count_elemwise(&tensor.client, working_units, cube_dim);
 
-    let dtypes = [
-        dtype_to_storage_type(tensor.dtype),
-        dtype_to_storage_type(dtype_bool),
-    ];
-    let same_tensor_type = dtypes[0] == dtypes[1];
+        let dtypes = [
+            dtype_to_storage_type(tensor.dtype),
+            dtype_to_storage_type(dtype_bool),
+        ];
+        let same_tensor_type = dtypes[0] == dtypes[1];
 
-    if same_tensor_type && tensor.can_mut() && tensor.is_nonoverlapping() {
-        unsafe {
-            kernel_scalar_cmp::launch_unchecked::<O>(
-                &client,
-                cube_count,
-                cube_dim,
-                address_type!(tensor),
-                vector_size,
-                tensor.clone().into_linear_view(),
-                scalar,
-                tensor.as_linear_view_alias(0),
-                dtypes,
+        if same_tensor_type && tensor.can_mut() && tensor.is_nonoverlapping() {
+            unsafe {
+                kernel_scalar_cmp::launch_unchecked::<O>(
+                    &client,
+                    cube_count,
+                    cube_dim,
+                    address_type!(tensor),
+                    vector_size,
+                    tensor.clone().into_linear_view(),
+                    scalar,
+                    tensor.as_linear_view_alias(0),
+                    dtypes,
+                );
+            }
+
+            CubeTensor::new(
+                tensor.client.clone(),
+                tensor.handle.clone(),
+                *tensor.meta.clone(),
+                tensor.device.clone(),
+                dtype_bool,
+            )
+        } else {
+            let output = empty_device_dtype(
+                tensor.client.clone(),
+                tensor.device.clone(),
+                tensor.shape(),
+                dtype_bool,
             );
+
+            unsafe {
+                kernel_scalar_cmp::launch_unchecked::<O>(
+                    &client,
+                    cube_count,
+                    cube_dim,
+                    address_type!(tensor, output),
+                    vector_size,
+                    tensor.into_linear_view(),
+                    scalar,
+                    output.clone().into_linear_view(),
+                    dtypes,
+                );
+            }
+
+            output
         }
-
-        CubeTensor::new(
-            tensor.client.clone(),
-            tensor.handle.clone(),
-            *tensor.meta.clone(),
-            tensor.device.clone(),
-            dtype_bool,
-        )
-    } else {
-        let output = empty_device_dtype(
-            tensor.client.clone(),
-            tensor.device.clone(),
-            tensor.shape(),
-            dtype_bool,
-        );
-
-        unsafe {
-            kernel_scalar_cmp::launch_unchecked::<O>(
-                &client,
-                cube_count,
-                cube_dim,
-                address_type!(tensor, output),
-                vector_size,
-                tensor.into_linear_view(),
-                scalar,
-                output.clone().into_linear_view(),
-                dtypes,
-            );
-        }
-
-        output
-    }
+    })
 }
 
 pub fn equal(lhs: CubeTensor, rhs: CubeTensor, dtype_bool: DType) -> CubeTensor {
