@@ -87,6 +87,7 @@ where
         let passes = self.schedule.passes(shape);
         let scale = 1.0 / shape.num_microbatches as f32;
         let mut links = Links::new(shape.num_stages - 1);
+        let devices = signal_devices(&self.parts);
 
         let gradients = thread::scope(|scope| {
             let input = scope.spawn({
@@ -94,6 +95,7 @@ where
                     part: self.parts.input.clone(),
                     to_next: links.to_next.next().unwrap(),
                     from_next: links.from_next.next().unwrap(),
+                    next_device: devices[1].clone(),
                 };
                 let passes = &passes[0];
                 move || worker.part.stream.executes(|| worker.run(passes, inputs))
@@ -103,13 +105,16 @@ where
                 .middle
                 .iter()
                 .zip(&passes[1..])
-                .map(|(part, passes)| {
+                .zip(devices.windows(3))
+                .map(|((part, passes), devices)| {
                     let worker = MiddleWorker {
                         part: part.clone(),
                         from_previous: links.from_previous.next().unwrap(),
                         to_next: links.to_next.next().unwrap(),
                         to_previous: links.to_previous.next().unwrap(),
                         from_next: links.from_next.next().unwrap(),
+                        previous_device: devices[0].clone(),
+                        next_device: devices[2].clone(),
                     };
                     scope.spawn(move || worker.part.stream.executes(|| worker.run(passes)))
                 })
@@ -119,6 +124,7 @@ where
                     part: self.parts.output.clone(),
                     from_previous: links.from_previous.next().unwrap(),
                     to_previous: links.to_previous.next().unwrap(),
+                    previous_device: devices[shape.num_stages - 2].clone(),
                 };
                 let passes = &passes[shape.num_stages - 1];
                 let loss = &loss;
@@ -276,6 +282,7 @@ struct InputWorker<M: LayerParallelism> {
     part: InputPart<M>,
     to_next: Sender<HiddenSignal<M>>,
     from_next: Receiver<HiddenSignal<M>>,
+    next_device: Device,
 }
 
 impl<M: LayerParallelism> InputWorker<M>
@@ -283,7 +290,6 @@ where
     HiddenSignal<M>: BackwardSignal,
 {
     fn run(self, passes: &[StagePass], inputs: Vec<InputSignal<M>>) -> OuterGradients {
-        let output_device = signal_device(&self.part.stage, &self.part.device);
         let mut inputs = inputs.into_iter();
         let mut in_flight = VecDeque::new();
         let mut layer = GradientsAccumulator::new();
@@ -292,12 +298,12 @@ where
             match pass {
                 StagePass::Forward { .. } => {
                     let output = self.part.forward(inputs.next().unwrap());
-                    send(&self.to_next, output.clone());
+                    send(&self.to_next, output.clone(), &self.next_device);
                     in_flight.push_back(output);
                 }
                 StagePass::Backward { .. } => {
                     let output: HiddenSignal<M> = in_flight.pop_front().unwrap();
-                    let grad = receive(&self.from_next).to_device(&output_device);
+                    let grad = receive(&self.from_next);
                     let mut grads = backward_from(output, grad);
                     accumulate(&mut layer, &self.part.layer, &mut grads);
                     if let Some(held) = &self.part.stage {
@@ -321,6 +327,8 @@ struct MiddleWorker<M: LayerParallelism> {
     to_next: Sender<HiddenSignal<M>>,
     to_previous: Sender<HiddenSignal<M>>,
     from_next: Receiver<HiddenSignal<M>>,
+    previous_device: Device,
+    next_device: Device,
 }
 
 impl<M: LayerParallelism> MiddleWorker<M>
@@ -334,16 +342,16 @@ where
             match pass {
                 StagePass::Forward { .. } => {
                     let stage = &self.part.stage;
-                    let input = cut(receive(&self.from_previous), &stage.device);
+                    let input = receive(&self.from_previous).detach_require_grad();
                     let output = stage.forward(input.clone());
-                    send(&self.to_next, output.clone());
+                    send(&self.to_next, output.clone(), &self.next_device);
                     in_flight.push_back(Boundary { input, output });
                 }
                 StagePass::Backward { .. } => {
                     let Boundary { input, output } = in_flight.pop_front().unwrap();
-                    let grad = receive(&self.from_next).to_device(&self.part.stage.device);
+                    let grad = receive(&self.from_next);
                     let mut grads = backward_from(output, grad);
-                    send(&self.to_previous, input.grad(&grads));
+                    send(&self.to_previous, input.grad(&grads), &self.previous_device);
                     accumulate(&mut layers, &self.part.stage.layers, &mut grads);
                 }
             }
@@ -357,6 +365,7 @@ struct OutputWorker<M: LayerParallelism> {
     part: OutputPart<M>,
     from_previous: Receiver<HiddenSignal<M>>,
     to_previous: Sender<HiddenSignal<M>>,
+    previous_device: Device,
 }
 
 impl<M: LayerParallelism> OutputWorker<M>
@@ -370,7 +379,6 @@ where
         loss: &impl Fn(OutputSignal<M>, T) -> Tensor<1>,
         scale: f32,
     ) -> OutputGradients {
-        let input_device = signal_device(&self.part.stage, &self.part.device);
         let mut targets = targets.into_iter();
         let mut in_flight = VecDeque::new();
         let mut losses = Vec::new();
@@ -379,7 +387,7 @@ where
         for pass in passes {
             match pass {
                 StagePass::Forward { .. } => {
-                    let input = cut(receive(&self.from_previous), &input_device);
+                    let input = receive(&self.from_previous).detach_require_grad();
                     let value = loss(self.part.forward(input.clone()), targets.next().unwrap());
                     losses.push(value.clone().detach());
                     in_flight.push_back(Scored {
@@ -390,7 +398,7 @@ where
                 StagePass::Backward { .. } => {
                     let Scored { input, loss } = in_flight.pop_front().unwrap();
                     let mut grads = loss.backward();
-                    send(&self.to_previous, input.grad(&grads));
+                    send(&self.to_previous, input.grad(&grads), &self.previous_device);
                     if let Some(held) = &self.part.stage {
                         accumulate(&mut stage, &held.layers, &mut grads);
                     }
@@ -418,11 +426,6 @@ struct Scored<S> {
     loss: Tensor<1>,
 }
 
-/// `signal` on `device`, cut from the graph of the part that sent it.
-fn cut<S: BackwardSignal + Module>(signal: S, device: &Device) -> S {
-    signal.to_device(device).detach_require_grad()
-}
-
 /// The backward of the part that produced `output`, given the gradient the next part sent back.
 fn backward_from<S: BackwardSignal>(output: S, grad: S) -> Gradients {
     output
@@ -439,15 +442,28 @@ fn accumulate<T: Module>(
     accumulator.accumulate(module, GradientsParams::from_module(grads, module));
 }
 
-/// Where the hidden signal meets an outer part: on its stage's device, or on its own.
-fn signal_device<M: LayerParallelism>(stage: &Option<HeldStage<M>>, device: &Device) -> Device {
-    stage.as_ref().map_or(device, |stage| &stage.device).clone()
+/// Where each part, in forward order, takes and gives the signal between parts: an outer part
+/// on its stage's device when it holds one, on its own otherwise.
+fn signal_devices<M: LayerParallelism>(parts: &PipelineParts<M>) -> Vec<Device> {
+    let outer = |stage: &Option<HeldStage<M>>, device: &Device| {
+        stage.as_ref().map_or(device, |stage| &stage.device).clone()
+    };
+    core::iter::once(outer(&parts.input.stage, &parts.input.device))
+        .chain(parts.middle.iter().map(|part| part.stage.device.clone()))
+        .chain(core::iter::once(outer(
+            &parts.output.stage,
+            &parts.output.device,
+        )))
+        .collect()
 }
 
-/// A send to a part that has already stopped, which only a panic there does; the step re-raises
-/// that panic once every part has stopped.
-fn send<S>(to: &Sender<S>, signal: S) {
-    let _ = to.send(signal);
+/// `signal` moved to the receiving part's `device`, then sent. The sender moves it so the copy
+/// queues before the work it issues next; moved by the receiver, it would wait behind that work.
+///
+/// A send to a part that has already stopped, which only a panic there does, is dropped; the step
+/// re-raises that panic once every part has stopped.
+fn send<S: Module>(to: &Sender<S>, signal: S, device: &Device) {
+    let _ = to.send(signal.to_device(device));
 }
 
 /// What the neighbour sends next. A neighbour that stopped first has panicked, so this part stops
