@@ -439,6 +439,32 @@ impl LaneOp<f32> for Sigmoid {
     }
 }
 
+/// `ln(sigmoid(x))` for f32 lanes, as `-ln(1 + e^-x)` for `x >= 0` and
+/// `x - ln(1 + e^x)` below, so the exponential never overflows.
+#[derive(Clone, Copy)]
+pub struct LogSigmoid;
+
+impl LaneOp<f32> for LogSigmoid {
+    #[inline(always)]
+    fn apply<S: Simd>(self, x: Vector<S, f32>) -> Vector<S, f32> {
+        let zero = 0.0f32.splat::<S>();
+        let l = Ln1p.apply(exp_f32::<S>(zero - x.abs()));
+        // `-1 * l` rather than `0 - l`, so an underflowed `l` gives -0.
+        x.ge(zero).select((-1.0f32).splat() * l, x - l)
+    }
+}
+
+/// The derivative of [`LogSigmoid`], `sigmoid(-x)`.
+#[derive(Clone, Copy)]
+pub struct LogSigmoidGrad;
+
+impl LaneOp<f32> for LogSigmoidGrad {
+    #[inline(always)]
+    fn apply<S: Simd>(self, x: Vector<S, f32>) -> Vector<S, f32> {
+        Sigmoid.apply(0.0f32.splat::<S>() - x)
+    }
+}
+
 /// The polynomial with coefficients `c`, highest degree first, at `x`.
 #[inline(always)]
 fn horner<S: Simd, const N: usize>(x: Vector<S, f32>, c: [f32; N]) -> Vector<S, f32> {
@@ -456,8 +482,8 @@ fn with_sign_of<S: Simd>(mag: Vector<S, f32>, sign: Vector<S, f32>) -> Vector<S,
     (mag.reinterpret::<i32>() | sign_bit).reinterpret::<f32>()
 }
 
-// `Ln` and `erf_f32` are adapted from FreeBSD msun's `e_logf.c` and
-// `s_erff.c`, by way of the `libm` crate, under this notice:
+// `Ln`, `Ln1p` and `erf_f32` are adapted from FreeBSD msun's `e_logf.c`,
+// `s_log1pf.c` and `s_erff.c`, by way of the `libm` crate, under this notice:
 //
 // ====================================================
 // Copyright (C) 1993 by Sun Microsystems, Inc. All rights reserved.
@@ -505,6 +531,89 @@ impl LaneOp<f32> for Ln {
         let out = x.eq(0.0f32.splat()).select(f32::NEG_INFINITY.splat(), out);
         let out = x.lt(0.0f32.splat()).select(f32::NAN.splat(), out);
         (!x.lt(f32::INFINITY.splat())).select(x, out)
+    }
+}
+
+/// `ln(1 + x)` for f32 lanes: the `libm` crate's `log1pf` (FreeBSD
+/// `s_log1pf.c`), step for step and without fused multiply-adds, so it
+/// matches it bit for bit. Both of its reductions are computed and selected
+/// per lane. -1 gives -inf, inputs below -1 give NaN, and +inf and NaN pass
+/// through.
+#[derive(Clone, Copy)]
+pub struct Ln1p;
+
+impl LaneOp<f32> for Ln1p {
+    #[allow(clippy::excessive_precision)]
+    #[inline(always)]
+    fn apply<S: Simd>(self, x: Vector<S, f32>) -> Vector<S, f32> {
+        let one = 1.0f32.splat::<S>();
+        let zero = 0.0f32.splat::<S>();
+
+        // Near 0, where 1 + x is in [sqrt(2)/2, sqrt(2)), f = x and k = 0.
+        // Elsewhere 1 + x is split into 2^k * m like `Ln`, and `c` corrects
+        // for the rounding of 1 + x. `Mask` isn't `Copy`, so each select takes
+        // a fresh comparison.
+        let near = || {
+            !(x.lt(f32::from_bits(0xbe95_f619).splat())
+                | !x.lt(f32::from_bits(0x3ed4_13d0).splat()))
+        };
+        let u = one + x;
+        let iu = u.reinterpret::<i32>() + (0x3f80_0000 - 0x3f35_04f3).splat();
+        let k_far = ((iu >> 23) - 0x7f.splat()).to_float();
+        let c_far = (!k_far.lt(2.0f32.splat())).select(one - (u - x), x - (u - one)) / u;
+        let c_far = k_far.lt(25.0f32.splat()).select(c_far, zero);
+        let f_far = ((iu & 0x007f_ffff.splat()) + 0x3f35_04f3.splat()).reinterpret::<f32>() - one;
+
+        let f = near().select(x, f_far);
+        let c = near().select(zero, c_far);
+        let k = near().select(zero, k_far);
+
+        let s = f / (2.0f32.splat() + f);
+        let z = s * s;
+        let w = z * z;
+        let t1 = w * (0.40000972152f32.splat() + w * 0.24279078841f32.splat());
+        let t2 = z * (0.66666662693f32.splat() + w * 0.28498786688f32.splat());
+        let r = t2 + t1;
+        let hfsq = 0.5f32.splat() * f * f;
+        let out = s * (hfsq + r) + (k * 9.0580006145e-06f32.splat() + c) - hfsq
+            + f
+            + k * 6.9313812256e-01f32.splat();
+
+        // |x| < 2^-24 gives x itself.
+        let out = x
+            .abs()
+            .lt(f32::from_bits(0x3380_0000).splat())
+            .select(x, out);
+        let out = x
+            .eq((-1.0f32).splat())
+            .select(f32::NEG_INFINITY.splat(), out);
+        let out = x.lt((-1.0f32).splat()).select(f32::NAN.splat(), out);
+        (!x.lt(f32::INFINITY.splat())).select(x, out)
+    }
+}
+
+/// `atanh(x)` for f32 lanes: the `libm` crate's `atanhf` (from musl) on
+/// [`Ln1p`], so it matches it bit for bit. +-1 give +-inf and inputs beyond
+/// them give NaN.
+#[derive(Clone, Copy)]
+pub struct Atanh;
+
+impl LaneOp<f32> for Atanh {
+    #[inline(always)]
+    fn apply<S: Simd>(self, x: Vector<S, f32>) -> Vector<S, f32> {
+        let a = x.abs();
+        let one = 1.0f32.splat::<S>();
+        let two = 2.0f32.splat::<S>();
+        let half = 0.5f32.splat::<S>();
+
+        // Both ranges are half of `Ln1p` of their own argument.
+        let small = two * a + two * a * a / (one - a);
+        let large = two * (a / (one - a));
+        let y = half * Ln1p.apply(a.lt(half).select(small, large));
+
+        // Below 2^-32 atanh(x) rounds to x.
+        let y = a.lt(f32::from_bits(0x2f80_0000).splat()).select(a, y);
+        with_sign_of(y, x)
     }
 }
 
@@ -1730,6 +1839,81 @@ mod tests {
             &special[3..],
             &[f32::NEG_INFINITY, f32::NEG_INFINITY, f32::INFINITY]
         );
+    }
+
+    /// Checks `op` bit for bit against `reference` on every 1999th bit pattern
+    /// of both signs, which crosses each range of the libm routine, then on
+    /// `extra`.
+    fn check_bitwise(op: impl LaneOp<f32>, reference: fn(f32) -> f32, extra: &[f32]) {
+        let input: Vec<f32> = (0..=u32::MAX)
+            .step_by(1999)
+            .map(f32::from_bits)
+            .chain(extra.iter().copied())
+            .collect();
+        let out = map_to_vec(&input, op);
+        for (&x, &y) in input.iter().zip(&out) {
+            let expected = reference(x);
+            assert!(
+                y.to_bits() == expected.to_bits() || (y.is_nan() && expected.is_nan()),
+                "{x:e} gives {y:e}, libm gives {expected:e}"
+            );
+        }
+    }
+
+    const INF_NAN_ZEROS: [f32; 5] = [f32::NAN, f32::INFINITY, f32::NEG_INFINITY, 0.0, -0.0];
+
+    #[test]
+    fn ln_1p_f32_matches_libm_bitwise() {
+        // Both sides of the two cutoffs between libm's reductions.
+        let extra = [
+            -1.0,
+            -0.999_999_94,
+            f32::from_bits(0xbe95_f619),
+            f32::from_bits(0xbe95_f61a),
+            f32::from_bits(0x3ed4_13cf),
+            f32::from_bits(0x3ed4_13d0),
+            5.9e-8,
+            -5.9e-8,
+            f32::MAX,
+        ];
+        check_bitwise(Ln1p, libm::log1pf, &[&INF_NAN_ZEROS[..], &extra].concat());
+    }
+
+    #[test]
+    fn atanh_f32_matches_libm_bitwise() {
+        let extra = [1.0, -1.0, 0.5, -0.5, 0.999_999_94, 1.5, 2.3e-10];
+        check_bitwise(Atanh, libm::atanhf, &[&INF_NAN_ZEROS[..], &extra].concat());
+    }
+
+    #[test]
+    fn log_sigmoid_f32_matches_stable_scalar() {
+        // Past +-104, where the exponential underflows and the result is -0
+        // or x itself.
+        let input: Vec<f32> = (-120 * 256..=120 * 256)
+            .map(|i| i as f32 / 256.0)
+            .chain([f32::INFINITY, f32::NEG_INFINITY])
+            .collect();
+        let out = map_to_vec(&input, LogSigmoid);
+        let grad = map_to_vec(&input, LogSigmoidGrad);
+        for ((&x, &y), &dy) in input.iter().zip(&out).zip(&grad) {
+            let expected = if x >= 0.0 {
+                -libm::log1pf(libm::expf(-x))
+            } else {
+                x - libm::log1pf(libm::expf(x))
+            };
+            assert!(
+                ulps(y, expected) <= 1,
+                "log_sigmoid({x}) = {y:e}, expected {expected:e}"
+            );
+            let e = libm::expf(-x.abs());
+            let s = 1.0 / (1.0 + e);
+            let expected = if x >= 0.0 { e * s } else { s };
+            assert!(
+                ulps(dy, expected) <= 2,
+                "log_sigmoid'({x}) = {dy:e}, expected {expected:e}"
+            );
+        }
+        assert!(map_to_vec(&[f32::NAN], LogSigmoid)[0].is_nan());
     }
 
     /// Every 1/4096 step over [-12, 12], which crosses each branch and reaches
