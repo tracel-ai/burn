@@ -1466,14 +1466,16 @@ fn a_device_whose_server_restarted_is_replaced_by_a_new_one() {
     let doubled = Tensor::<1>::from_floats([3.0], &new) * 2.0;
     assert_eq!(doubled.try_into_vec_as::<f32>().unwrap(), vec![6.0]);
 
+    // A move to or from the ended device is not sent: the moved tensor reports that end.
     for (from, to) in [(&old, &new), (&new, &old)] {
-        let moved = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            Tensor::<1>::from_floats([1.0], from).to_device(to)
-        }))
-        .expect_err("a tensor moved across a device whose session ended");
-        let message = panic_message(moved);
-        assert!(message.contains("session has ended"), "{message}");
+        let moved = Tensor::<1>::from_floats([1.0], from).to_device(to);
+        let error = with_deadlock_watchdog(HANG_LIMIT, move || moved.try_into_data())
+            .expect_err("a tensor moved across a device whose session ended");
+        assert!(error.to_string().contains("session ended"), "{error}");
     }
+    // The new device still runs work after a move from the ended one was failed on it.
+    let doubled = Tensor::<1>::from_floats([4.0], &new) * 2.0;
+    assert_eq!(doubled.try_into_vec_as::<f32>().unwrap(), vec![8.0]);
 
     rt.shutdown_background();
 }

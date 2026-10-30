@@ -403,6 +403,15 @@ where
                 }
                 Ok(())
             }
+            Task::RegisterFailure {
+                stream_id,
+                id,
+                reason,
+            } => {
+                let error = TensorError::new(ExecutionError::generic(reason));
+                self.on_stream(stream_id, |runner| runner.set_error(id, error));
+                Ok(())
+            }
             Task::AllReduceLocal { stream_id, part } => {
                 self.all_reduce_local(stream_id, part).await
             }

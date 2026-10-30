@@ -521,6 +521,15 @@ impl RemoteService {
         self.send_batch();
     }
 
+    /// Register `id` as failed by `reason` on the server.
+    pub fn register_failure(&mut self, stream_id: StreamId, id: TensorId, reason: String) {
+        self.submit_task(Task::RegisterFailure {
+            stream_id,
+            id,
+            reason,
+        });
+    }
+
     /// Send one member's part of an all-reduce, flushing immediately: its session waits there
     /// for the other members' parts, which the caller sends next.
     pub fn all_reduce_local(&mut self, stream_id: StreamId, part: LocalAllReducePart) {

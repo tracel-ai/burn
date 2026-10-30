@@ -20,7 +20,7 @@ use crate::{
 /// messages after the handshake are framed, or which operations a server can
 /// run, so a mismatched peer is refused at the handshake rather than failing
 /// mid-session.
-pub const PROTOCOL_VERSION: u16 = 7;
+pub const PROTOCOL_VERSION: u16 = 8;
 
 /// Routing id for a task whose result is fetched back.
 ///
@@ -306,6 +306,13 @@ pub enum Task {
         stream_id: StreamId,
         transfer_id: LocalTransferId,
         new_id: TensorId,
+    },
+    /// Register `id` as failed by `reason`: its data was never produced, so a read of it reports
+    /// why. For a transfer whose source could not send it, as when its session ended.
+    RegisterFailure {
+        stream_id: StreamId,
+        id: TensorId,
+        reason: String,
     },
     /// One member's part of an all-reduce over devices of this server.
     AllReduceLocal {

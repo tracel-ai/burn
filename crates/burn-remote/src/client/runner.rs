@@ -298,6 +298,11 @@ impl RemoteDevice {
     pub(crate) fn session_ended(&self) -> bool {
         service::session_end(self.id).has_ended()
     }
+
+    /// The error every use of this device reports once its session has ended.
+    pub(crate) fn session_error(&self) -> Option<ExecutionError> {
+        service::session_end(self.id).error()
+    }
 }
 
 impl PartialEq for RemoteDevice {
@@ -409,15 +414,14 @@ impl RemoteTensorHandle {
     /// index), the data never leaves the process — see [`change_backend_local`]. Otherwise we
     /// fall back to the cross-server path that streams the data server-to-server without the
     /// client ever seeing it.
+    ///
+    /// A move to or from a device whose session has ended sends no transfer: its tensors are gone
+    /// with it. The tensor on the target is failed by that end instead, and a read of it reports
+    /// why. Only an end this client has already seen is caught.
     pub(crate) fn change_backend(self, target_device: &RemoteDevice) -> Self {
-        // A device and its replacement share a peer, so a move between them would wait forever on
-        // the same-server path. Only an end this client has already seen is caught.
-        for (side, device) in [("from", &self.client.device), ("to", target_device)] {
-            assert!(
-                !device.session_ended(),
-                "Cannot move a tensor {side} a remote device whose session has ended; its \
-                 tensors are gone with it. Connect again with `Device::remote_options`."
-            );
+        let ended = [&self.client.device, target_device].map(RemoteDevice::session_error);
+        if let Some(error) = ended.into_iter().flatten().next() {
+            return self.fail_on(target_device, error);
         }
         if self.client.device.peer_id() == target_device.peer_id() {
             self.change_backend_local(target_device)
@@ -429,6 +433,22 @@ impl RemoteTensorHandle {
             );
             self.change_backend_remote(target_device)
         }
+    }
+
+    /// The tensor on `target_device`, failed by `error` instead of transferred. A target whose
+    /// session ended takes nothing, and every use of the tensor reports that end.
+    fn fail_on(mut self, target_device: &RemoteDevice, error: ExecutionError) -> Self {
+        let target_client = get_client::<RemoteChannel>(target_device);
+        let stream_id = StreamId::current();
+        let new_id = service::new_tensor_id();
+        let reason = format!("the transfer from {:?} failed: {error}", self.client.device);
+        target_client
+            .handle
+            .submit(move |s| s.register_failure(stream_id, new_id, reason));
+
+        self.tensor.id = new_id;
+        self.client = target_client;
+        self
     }
 
     /// Same-host transfer: hand the device-resident primitive from the source session to the
