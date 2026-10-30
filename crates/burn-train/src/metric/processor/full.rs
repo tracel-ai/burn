@@ -258,11 +258,8 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining<LearnerEvent<T>, LearnerEv
                     logger.start_split(Split::Train.into(), &progress);
                 }
             }
-            LearnerEvent::OptimizerStep(observations) => {
-                let observations = observations
-                    .sync()
-                    .map_err(|error| EventProcessorError::sync(Split::Train, error))?;
-                let (update, failed) = self.metrics.update_optimizer(&observations);
+            LearnerEvent::OptimizerStep(output) => {
+                let (update, failed) = self.metrics.update_optimizer(&output);
                 failures.extend(failed);
                 self.handle_train_metrics_update(update);
             }

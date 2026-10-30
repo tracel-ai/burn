@@ -47,7 +47,7 @@ with `OnOptimizerStep::with(...)`, then register through `.metrics(...)` or `.me
 Implement `Adaptor<YourInput>` for `OptimizerStepOutput` to supply their inputs.
 
 Custom strategies emit `LearnerEvent::OptimizerStep(OptimizerStepOutput::new(rates))` after each
-update. See the `OptimizerStepOutput` API docs for attaching custom observations.
+update.
 
 ## Using Metrics with the Learner
 

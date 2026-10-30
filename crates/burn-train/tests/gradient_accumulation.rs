@@ -20,8 +20,7 @@ use burn_optim::lr_scheduler::{
 use burn_train::{
     ExecutionStrategy, Interrupter, Learner, MultiDeviceOptim, SupervisedTraining,
     logger::{FileMetricLogger, MetricLogger},
-    metric::LearningRateMetric,
-    metric::{LossMetric, NumericEntry, store::Split},
+    metric::{LearningRateMetric, LossMetric, NumericEntry, store::Split},
 };
 use common::*;
 
@@ -95,11 +94,9 @@ fn learning_rates_follow_optimizer_updates(
         None => training,
     };
     let result = training
-        .num_epochs(1)
         .with_training_strategy(strategy.into())
         .metrics(LossMetric::new())
         .metrics(LearningRateMetric::new())
-        .with_metric_logger(FileMetricLogger::new(dir.path()))
         .with_application_logger(None)
         .launch(learner);
     assert!(result.error.is_none());
@@ -171,12 +168,10 @@ fn accumulation_respects_exhaustion_and_abort(
     };
     let dir = tempfile::tempdir().unwrap();
     let result = SupervisedTraining::new(dir.path(), train, valid)
-        .num_epochs(1)
         .grads_accumulation(2)
         .with_interrupter(interrupter)
         .with_training_strategy(strategy.into())
         .metrics(LearningRateMetric::new())
-        .with_metric_logger(FileMetricLogger::new(dir.path()))
         .with_application_logger(None)
         .launch(learner);
     assert_eq!(result.error.is_some(), matches!(end, EndCondition::Error));

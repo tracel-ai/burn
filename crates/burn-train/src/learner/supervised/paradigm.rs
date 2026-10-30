@@ -526,28 +526,14 @@ fn autodiff_device(mut device: Device, grad_checkpointing: bool) -> Device {
     device
 }
 
-/// Associates one metric or a tuple of metrics with applied optimizer updates.
+/// Associates one metric or a tuple with applied optimizer updates.
 ///
-/// Pass to [`SupervisedTraining::metrics`] for numeric reporting or
-/// [`SupervisedTraining::metrics_text`] for text reporting. Each metric uses the existing
-/// [`Metric`] trait and an [`Adaptor`] from [`OptimizerStepOutput`] to its input.
-/// The association does not collect observations; the training strategy supplies them.
+/// Register through [`SupervisedTraining::metrics`] or [`SupervisedTraining::metrics_text`].
+/// Inputs are adapted from [`OptimizerStepOutput`]; metadata includes learning rates and counts
+/// optimizer updates within the training split.
 ///
-/// Observations are synchronized before metrics run. Metadata counts optimizer updates within
-/// the training split and includes the applied learning rates. Epoch finalization also runs for
-/// interrupted or failed splits, but is skipped if no optimizer observations were successfully
-/// synchronized. Metric state is cleared between splits.
-///
-/// ```
-/// use burn_train::{LearnerModel, OnOptimizerStep, SupervisedTraining};
-/// use burn_train::metric::{Adaptor, Metric, Numeric, OptimizerStepOutput};
-///
-/// # fn register<M, A, B>(training: SupervisedTraining<M>, first: A, second: B)
-/// # where M: LearnerModel, A: Metric + Numeric + 'static, B: Metric + Numeric + 'static,
-/// # OptimizerStepOutput: Adaptor<A::Input> + Adaptor<B::Input> {
-/// let training = training.metrics(OnOptimizerStep::with((first, second)));
-/// # }
-/// ```
+/// Metrics are finalized and cleared at split end, including interrupted or failed splits.
+/// Finalization is skipped when no optimizer-step events were received.
 #[derive(Debug)]
 pub struct OnOptimizerStep<T> {
     metrics: T,

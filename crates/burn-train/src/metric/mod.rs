@@ -1,4 +1,4 @@
-/// Metrics and observations for applied optimizer updates.
+/// Metrics for applied optimizer updates.
 pub mod optimizer;
 pub use optimizer::{LearningRateMetric, OptimizerStepOutput};
 
