@@ -210,7 +210,14 @@ pub fn exp(tensor: FlexTensor) -> FlexTensor {
 
 /// Natural logarithm: ln(x)
 pub fn log(tensor: FlexTensor) -> FlexTensor {
-    unary_op(tensor, |x| x.ln(), |x| x.ln())
+    #[cfg(feature = "simd")]
+    let tensor = match simd_map::<f32, _>(tensor, crate::simd::Ln) {
+        Ok(out) => return out,
+        Err(tensor) => tensor,
+    };
+    // libm's logf, which the SIMD path matches bit for bit, so f32 results
+    // don't depend on the layout.
+    unary_op(tensor, libm::logf, |x| x.ln())
 }
 
 /// Natural logarithm of (1 + x): ln(1 + x)
@@ -298,6 +305,11 @@ pub fn sinh(tensor: FlexTensor) -> FlexTensor {
 
 /// Hyperbolic tangent
 pub fn tanh(tensor: FlexTensor) -> FlexTensor {
+    #[cfg(feature = "simd")]
+    let tensor = match simd_map::<f32, _>(tensor, crate::simd::Tanh) {
+        Ok(out) => return out,
+        Err(tensor) => tensor,
+    };
     unary_op(tensor, |x| x.tanh(), |x| x.tanh())
 }
 
@@ -373,6 +385,11 @@ pub fn trunc(tensor: FlexTensor) -> FlexTensor {
 
 /// Error function
 pub fn erf(tensor: FlexTensor) -> FlexTensor {
+    #[cfg(feature = "simd")]
+    let tensor = match simd_map::<f32, _>(tensor, crate::simd::Erf) {
+        Ok(out) => return out,
+        Err(tensor) => tensor,
+    };
     unary_op(tensor, erf_f32, erf_f64)
 }
 
@@ -380,11 +397,9 @@ pub fn erf(tensor: FlexTensor) -> FlexTensor {
 // Error function implementation
 // ============================================================================
 //
-// Delegates to libm for full f32 / f64 precision. The previous Abramowitz
-// and Stegun 7.1.26 formula was capped at ~1.5e-7 max absolute error,
-// adequate for f32 but well short of f64's ~2.2e-16 precision. libm's erf
-// is derived from fdlibm and lands within a few ulps across the full
-// range in both precisions.
+// Scalar erf for f64, and for f32 tensors the SIMD path doesn't take.
+// Delegates to libm, which is derived from fdlibm and lands within a few
+// ulps across the full range in both precisions.
 
 /// Error function for f32.
 pub fn erf_f32(x: f32) -> f32 {
