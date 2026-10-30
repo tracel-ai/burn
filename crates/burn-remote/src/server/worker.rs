@@ -571,6 +571,26 @@ where
                 self.send_response(request_id, TaskResponseContent::ExecutionStatistics(res))
                     .await
             }
+            Task::EnvironmentCreate(request_id, name, origin) => {
+                let res = self.runner.environment_create(name, origin);
+                self.send_response(request_id, TaskResponseContent::Environment(res))
+                    .await
+            }
+            Task::EnvironmentActivate(request_id, stream_id, id) => {
+                let res = self.on_stream(stream_id, |runner| runner.environment_activate(id));
+                self.send_response(request_id, TaskResponseContent::Environment(res))
+                    .await
+            }
+            Task::EnvironmentActive(request_id) => {
+                let res = self.runner.environment_active();
+                self.send_response(request_id, TaskResponseContent::Environment(res))
+                    .await
+            }
+            Task::EnvironmentSave(request_id, stream_id, id) => {
+                let res = self.on_stream(stream_id, |runner| runner.environment_save(id));
+                self.send_response(request_id, TaskResponseContent::EnvironmentSaved(res))
+                    .await
+            }
             Task::DeviceDescription(request_id) => {
                 let description = self.runner.device_description();
                 self.send_response(

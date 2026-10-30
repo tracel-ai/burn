@@ -12,10 +12,11 @@ use alloc::{
     vec::Vec,
 };
 use burn_backend::{
-    Backend, BackendGraph, DType, DeviceDescription, DeviceOps, DeviceTelemetry, ExecutionError,
-    ExecutionMode, ExecutionModeToken, ExecutionStatistics, FloatDType, MemoryReport, Peak,
-    PeakError, PeakKey, ProfileDuration, ProfileOptions, ProfileToken, Shape, TensorData,
-    TensorMetadata, TensorPrimitive, ops::TransactionPrimitive,
+    Backend, BackendGraph, DType, DeviceDescription, DeviceOps, DeviceTelemetry, EnvironmentBundle,
+    EnvironmentError, EnvironmentId, EnvironmentOrigin, ExecutionError, ExecutionMode,
+    ExecutionModeToken, ExecutionStatistics, FloatDType, MemoryReport, Peak, PeakError, PeakKey,
+    ProfileDuration, ProfileOptions, ProfileToken, Shape, TensorData, TensorMetadata,
+    TensorPrimitive, ops::TransactionPrimitive,
 };
 use burn_ir::{
     ActivationOperationIr, BackendIr, BaseOperationIr, BoolOperationIr, FloatOperationIr,
@@ -2509,6 +2510,38 @@ impl<B: BackendIr> TensorInterpreter<B> {
         token: ExecutionModeToken,
     ) -> Result<ExecutionStatistics, ExecutionError> {
         B::execution_mode_close(&self.device, token)
+    }
+
+    /// Create a compute environment in the storage the backend reaches.
+    pub fn environment_create(
+        &self,
+        name: String,
+        origin: EnvironmentOrigin,
+    ) -> Result<EnvironmentId, EnvironmentError> {
+        B::environment_create(&self.device, name, origin)
+    }
+
+    /// Make `id` the backend's compute environment, where the calling stream
+    /// stands.
+    pub fn environment_activate(
+        &self,
+        id: EnvironmentId,
+    ) -> Result<EnvironmentId, EnvironmentError> {
+        B::environment_activate(&self.device, id)
+    }
+
+    /// The backend's compute environment.
+    pub fn environment_active(&self) -> Result<EnvironmentId, EnvironmentError> {
+        B::environment_active(&self.device)
+    }
+
+    /// Serialize the compute environment `id`, where the calling stream
+    /// stands.
+    pub fn environment_save(
+        &self,
+        id: EnvironmentId,
+    ) -> Result<EnvironmentBundle, EnvironmentError> {
+        B::environment_save(&self.device, id)
     }
 
     /// What the backend's device is, as its driver states it.

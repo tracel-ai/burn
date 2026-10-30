@@ -12,9 +12,10 @@ use crate::{
     },
 };
 use burn_backend::{
-    DTypeUsageSet, DeviceDescription, DeviceTelemetry, ExecutionError, ExecutionMode,
-    ExecutionModeToken, ExecutionStatistics, MemoryReport, Peak, PeakError, PeakKey,
-    ProfileDuration, ProfileOptions, ProfileTicks, ProfileToken, TensorData,
+    DTypeUsageSet, DeviceDescription, DeviceTelemetry, EnvironmentBundle, EnvironmentError,
+    EnvironmentId, EnvironmentOrigin, ExecutionError, ExecutionMode, ExecutionModeToken,
+    ExecutionStatistics, MemoryReport, Peak, PeakError, PeakKey, ProfileDuration, ProfileOptions,
+    ProfileTicks, ProfileToken, TensorData,
     backend::{DeviceId, DeviceService, ServerUtilitiesHandle},
 };
 use burn_ir::{CapturedGraphId, OperationIr, TensorId, TensorIr};
@@ -741,6 +742,97 @@ impl RemoteService {
             Err(ExecutionError::with_context(
                 "a remote device cannot capture a graph from a browser thread, which cannot wait \
                  on the server",
+            ))
+        }
+    }
+
+    /// Create the compute environment `name` in the storage of the server's backend.
+    pub fn environment_create(
+        &mut self,
+        name: String,
+        origin: EnvironmentOrigin,
+    ) -> Result<EnvironmentId, EnvironmentError> {
+        self.environment_request(
+            |id| Task::EnvironmentCreate(id, name, origin),
+            |answer| match answer {
+                TaskResponseContent::Environment(res) => Ok(res),
+                other => Err(other),
+            },
+        )
+    }
+
+    /// Make `id` the environment of the server's backend where `stream_id` stands, after every
+    /// task sent before.
+    pub fn environment_activate(
+        &mut self,
+        stream_id: StreamId,
+        id: EnvironmentId,
+    ) -> Result<EnvironmentId, EnvironmentError> {
+        self.environment_request(
+            |request| Task::EnvironmentActivate(request, stream_id, id),
+            |answer| match answer {
+                TaskResponseContent::Environment(res) => Ok(res),
+                other => Err(other),
+            },
+        )
+    }
+
+    /// The environment of the server's backend.
+    pub fn environment_active(&mut self) -> Result<EnvironmentId, EnvironmentError> {
+        self.environment_request(Task::EnvironmentActive, |answer| match answer {
+            TaskResponseContent::Environment(res) => Ok(res),
+            other => Err(other),
+        })
+    }
+
+    /// Serialize the environment `id` where `stream_id` stands, after every task sent before.
+    pub fn environment_save(
+        &mut self,
+        stream_id: StreamId,
+        id: EnvironmentId,
+    ) -> Result<EnvironmentBundle, EnvironmentError> {
+        self.environment_request(
+            |request| Task::EnvironmentSave(request, stream_id, id),
+            |answer| match answer {
+                TaskResponseContent::EnvironmentSaved(res) => Ok(res),
+                other => Err(other),
+            },
+        )
+    }
+
+    /// Send an environment request and wait on the server's answer, which `answer` takes out of
+    /// the response, handing back a response of another kind.
+    fn environment_request<Answer>(
+        &mut self,
+        make_task: impl FnOnce(RequestId) -> Task,
+        answer: impl FnOnce(
+            TaskResponseContent,
+        ) -> Result<Result<Answer, EnvironmentError>, TaskResponseContent>,
+    ) -> Result<Answer, EnvironmentError> {
+        let failed =
+            |reason: String| EnvironmentError::Execution(ExecutionError::with_context(reason));
+        #[cfg(not(target_family = "wasm"))]
+        {
+            let rx = self.submit_request(make_task);
+            match self.executor.block_on(rx) {
+                Ok(response) => answer(response).unwrap_or_else(|other| {
+                    Err(failed(format!(
+                        "Invalid response for an environment request: {other:?}"
+                    )))
+                }),
+                Err(_) => Err(failed(
+                    "Remote response channel closed before the environment request completed"
+                        .into(),
+                )),
+            }
+        }
+        #[cfg(target_family = "wasm")]
+        {
+            let _ = (make_task, answer);
+            Err(failed(
+                "a remote device cannot reach its environment from a browser thread, which \
+                 cannot wait on the server"
+                    .into(),
             ))
         }
     }

@@ -15,6 +15,7 @@ use crate::distributed::{DistributedParamId, DistributedParams};
 use super::DeviceOps;
 use super::profile::profile_unsupported;
 use super::{DeviceDescription, DeviceTelemetry, MemoryReport, Peak, PeakError, PeakKey};
+use super::{EnvironmentBundle, EnvironmentError, EnvironmentId, EnvironmentOrigin};
 use super::{ExecutionMode, ExecutionModeToken, ExecutionStatistics, UnknownExecutionMode};
 use super::{ProfileDuration, ProfileOptions, ProfileToken, profile_system_time};
 
@@ -363,6 +364,68 @@ pub trait Backend:
         _token: ExecutionModeToken,
     ) -> Result<ExecutionStatistics, ExecutionError> {
         Err(UnknownExecutionMode.into())
+    }
+
+    /// Create the compute environment `name` in the storage `device` reaches,
+    /// holding what `origin` says, and answer its id. It is active nowhere
+    /// until [activated](Self::environment_activate).
+    ///
+    /// An environment of that name already in the storage is replaced.
+    ///
+    /// # Errors
+    ///
+    /// The backend keeps no compute environment, the environment to replace is
+    /// active, a fork's source lives in a storage `device` does not reach, or
+    /// the storage refused the write.
+    fn environment_create(
+        _device: &Self::Device,
+        _name: String,
+        _origin: EnvironmentOrigin,
+    ) -> Result<EnvironmentId, EnvironmentError> {
+        Err(EnvironmentError::unsupported())
+    }
+
+    /// Make `id` the compute environment `device`'s work reads and writes,
+    /// after every operation registered so far on the calling stream, and
+    /// answer the one it replaces.
+    ///
+    /// The contract is the device's: at least `device` works in it. A backend
+    /// whose runtime keeps one environment for the whole process activates it
+    /// for every device of that process — on a server, for every client.
+    ///
+    /// # Errors
+    ///
+    /// The backend keeps no compute environment, or `id` lives in a storage
+    /// `device` does not reach.
+    fn environment_activate(
+        _device: &Self::Device,
+        _id: EnvironmentId,
+    ) -> Result<EnvironmentId, EnvironmentError> {
+        Err(EnvironmentError::unsupported())
+    }
+
+    /// The compute environment `device`'s work reads and writes now.
+    ///
+    /// # Errors
+    ///
+    /// The backend keeps no compute environment.
+    fn environment_active(_device: &Self::Device) -> Result<EnvironmentId, EnvironmentError> {
+        Err(EnvironmentError::unsupported())
+    }
+
+    /// Serialize the compute environment `id` whole, after every operation
+    /// registered so far on the calling stream, so what that work compiled
+    /// and tuned is in it.
+    ///
+    /// # Errors
+    ///
+    /// The backend keeps no compute environment, `id` lives in a storage
+    /// `device` does not reach, or the storage refused the read.
+    fn environment_save(
+        _device: &Self::Device,
+        _id: EnvironmentId,
+    ) -> Result<EnvironmentBundle, EnvironmentError> {
+        Err(EnvironmentError::unsupported())
     }
 
     /// Prepare `device` for an upcoming graph capture: route allocations into a
