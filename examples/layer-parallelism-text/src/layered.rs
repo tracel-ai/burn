@@ -1,5 +1,7 @@
 use burn::{
-    module::parallel::{DistributedLayer, LayerParallelism, LayerPlacement, LayerSequence},
+    module::parallel::{
+        BackwardSignal, DistributedLayer, LayerParallelism, LayerPlacement, LayerSequence,
+    },
     nn::{
         Embedding, EmbeddingConfig, Linear, LinearConfig,
         attention::SeqLengthOption,
@@ -105,6 +107,14 @@ impl LayerParallelism for LayeredClassifier {
             output: self.output,
         }
     }
+
+    fn from_layers(layers: LayerSequence<Self>) -> Self {
+        Self {
+            input: layers.input,
+            hidden: layers.hidden,
+            output: layers.output,
+        }
+    }
 }
 
 /// What the model takes: token ids, and which of them are padding.
@@ -116,7 +126,7 @@ pub struct Tokens {
 
 /// What passes between the layers. The padding mask travels with the hidden states, since every
 /// encoder layer reads it.
-#[derive(Module, Debug)]
+#[derive(Module, BackwardSignal, Debug)]
 pub struct Encoded {
     hidden: Tensor<3>,
     mask_pad: Tensor<2, Bool>,

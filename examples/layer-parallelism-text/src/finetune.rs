@@ -8,9 +8,9 @@ use burn::{
             transform::{SamplerDataset, SamplerDatasetOptions},
         },
     },
-    module::parallel::{DistributedLayeredModel, LayerPlacement},
+    module::parallel::{DistributedLayeredModel, LayerPlacement, PipelineSchedule},
     nn::loss::CrossEntropyLossConfig,
-    optim::{AdamConfig, GradientsParams},
+    optim::{AdamConfig, parallel::TrainingPipeline},
     prelude::*,
     store::{BurnpackStore, ModuleSnapshot},
 };
@@ -29,6 +29,9 @@ use crate::{
 };
 
 const BATCH: usize = 32;
+/// Each step's batch is cut into this many microbatches, which the stages overlap.
+const MICROBATCHES: usize = 4;
+const SCHEDULE: PipelineSchedule = PipelineSchedule::OneForwardOneBackward;
 const STEPS: usize = 300;
 const EVAL: usize = 512;
 const LEARNING_RATE: f64 = 3e-4;
@@ -38,7 +41,8 @@ const LOG_EVERY: usize = 25;
 
 /// Fine-tune the AG News classifier `text-classification` trained on one device for DbPedia,
 /// split across `devices`: its embeddings and encoder layers load straight onto their devices, the
-/// head starts afresh for DbPedia's classes, and every parameter trains on the device it lives on.
+/// head starts afresh for DbPedia's classes, and it trains as a pipeline: each stage runs its
+/// microbatches' passes on a thread of its own, and every parameter is updated on its device.
 pub fn finetune(devices: Vec<Device>, artifact_dir: &str) {
     assert!(!devices.is_empty(), "no device to place the model on");
     // Every device needs autodiff, since a gradient has to survive the hop back to the layer before.
@@ -72,43 +76,53 @@ pub fn finetune(devices: Vec<Device>, artifact_dir: &str) {
 
     let batcher = TextClassificationBatcher::new(tokenizer, config.seq_length);
     let eval = sample(DbPediaDataset::test(), EVAL);
+    let mut training = TrainingPipeline::new(model, SCHEDULE, AdamConfig::new().init());
     println!(
         "test accuracy before: {:.3}",
-        accuracy(&model, &batcher, &eval)
+        accuracy(&training, &batcher, &eval, &placement.input)
     );
 
     // DbPedia's splits are ordered by class, so batches are drawn at random.
     let train = SamplerDataset::new(DbPediaDataset::train(), seeded(STEPS * BATCH));
-    let mut optimizer = AdamConfig::new().init();
     for step in 1..=STEPS {
         let items = (step * BATCH - BATCH..step * BATCH)
-            .filter_map(|index| train.get(index).ok())
+            .map(|index| {
+                train
+                    .get(index)
+                    .expect("the sampler draws an item for every index of every step")
+            })
             .collect();
         let batch: TextClassificationTrainingBatch = batcher.batch(items, &placement.input);
-        let logits = model.forward(Tokens {
-            ids: batch.tokens,
-            mask_pad: batch.mask_pad,
-        });
-        let labels = batch.labels.to_device(&logits.device());
-        let loss = CrossEntropyLossConfig::new()
-            .init(&logits.device())
-            .forward(logits, labels);
+        let losses = training.step(
+            microbatches(batch.tokens, batch.mask_pad),
+            batch.labels.chunk(MICROBATCHES, 0),
+            |logits, labels| {
+                let labels = labels.to_device(&logits.device());
+                CrossEntropyLossConfig::new()
+                    .init(&logits.device())
+                    .forward(logits, labels)
+            },
+            LEARNING_RATE,
+        );
         if step == 1 || step % LOG_EVERY == 0 {
-            println!(
-                "step {step:>3}: loss {:.4}",
-                loss.clone().into_scalar::<f32>()
-            );
+            let loss = Tensor::cat(losses, 0).mean().into_scalar::<f32>();
+            println!("step {step:>3}: loss {loss:.4}");
         }
-
-        // Each parameter is updated on its own device: the optimizer follows the gradients.
-        let grads = GradientsParams::from_grads(loss.backward(), &model);
-        model = optimizer.step(LEARNING_RATE, model, grads);
     }
 
     println!(
         "test accuracy after:  {:.3}",
-        accuracy(&model, &batcher, &eval)
+        accuracy(&training, &batcher, &eval, &placement.input)
     );
+}
+
+/// A batch's tokens cut into `MICROBATCHES` inputs along the batch.
+fn microbatches(ids: Tensor<2, Int>, mask_pad: Tensor<2, Bool>) -> Vec<Tokens> {
+    ids.chunk(MICROBATCHES, 0)
+        .into_iter()
+        .zip(mask_pad.chunk(MICROBATCHES, 0))
+        .map(|(ids, mask_pad)| Tokens { ids, mask_pad })
+        .collect()
 }
 
 /// `count` items of `dataset` drawn at random, held so every evaluation reads the same ones.
@@ -127,22 +141,27 @@ fn seeded(count: usize) -> SamplerDatasetOptions {
 }
 
 fn accuracy(
-    model: &DistributedLayeredModel<LayeredClassifier>,
+    training: &TrainingPipeline<LayeredClassifier>,
     batcher: &TextClassificationBatcher,
     items: &[TextClassificationItem],
+    device: &Device,
 ) -> f32 {
-    let model = model.valid();
-    let device = &model.placement().input;
-    let correct: usize = items
+    let batches: Vec<TextClassificationTrainingBatch> = items
         .chunks(BATCH)
-        .map(|chunk| {
-            let batch: TextClassificationTrainingBatch = batcher.batch(chunk.to_vec(), device);
-            let logits = model.forward(Tokens {
-                ids: batch.tokens,
-                mask_pad: batch.mask_pad,
-            });
-            correct_count(logits, batch.labels)
+        .map(|chunk| batcher.batch(chunk.to_vec(), device))
+        .collect();
+    let inputs = batches
+        .iter()
+        .map(|batch| Tokens {
+            ids: batch.tokens.clone(),
+            mask_pad: batch.mask_pad.clone(),
         })
+        .collect();
+    let correct: usize = training
+        .forward(inputs)
+        .into_iter()
+        .zip(batches)
+        .map(|(logits, batch)| correct_count(logits, batch.labels))
         .sum();
     correct as f32 / items.len() as f32
 }
