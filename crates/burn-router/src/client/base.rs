@@ -2,11 +2,12 @@ use crate::{RouterChannel, RouterTensor};
 use alloc::boxed::Box;
 use alloc::vec::Vec;
 use burn_backend::{
-    DType, ProfileDuration, ProfileOptions, ProfileToken, TensorData,
+    DType, ExecutionMode, ExecutionModeToken, ExecutionStatistics, ProfileDuration, ProfileOptions,
+    ProfileToken, TensorData, UnknownExecutionMode,
     backend::{DeviceId, DeviceOps, ExecutionError},
 };
-use burn_ir::{GraphBindings, GraphId, OperationIr, TensorId, TensorIr};
-use burn_std::future::DynFut;
+use burn_ir::{CapturedGraphId, GraphBindings, GraphId, OperationIr, TensorId, TensorIr};
+use burn_std::{backtrace::BackTrace, future::DynFut};
 use core::{marker::PhantomData, ops::DerefMut};
 use hashbrown::HashMap;
 use spin::Mutex;
@@ -110,6 +111,82 @@ pub trait RouterClient: Clone + Send + Sync + Sized {
         let _ = self.profile_end(token, ProfileOptions::default());
     }
 
+    /// Open `mode` on the interpreter's backend, after every operation
+    /// registered so far on the calling stream — see
+    /// [`Backend::execution_mode_open`](burn_backend::Backend::execution_mode_open).
+    ///
+    /// `None`, the default, from an interpreter whose backend runs every launch.
+    fn execution_mode_open(
+        &self,
+        mode: ExecutionMode,
+    ) -> Result<Option<ExecutionModeToken>, ExecutionError> {
+        let _ = mode;
+        Ok(None)
+    }
+
+    /// What the work under the mode `token` opened has triggered so far.
+    fn execution_mode_statistics(
+        &self,
+        token: ExecutionModeToken,
+    ) -> Result<ExecutionStatistics, ExecutionError> {
+        let _ = token;
+        Err(UnknownExecutionMode.into())
+    }
+
+    /// Close the mode `token` opened, after every operation registered so far
+    /// on the stream it was opened on, and answer what the work under it
+    /// triggered.
+    fn execution_mode_close(
+        &self,
+        token: ExecutionModeToken,
+    ) -> Result<ExecutionStatistics, ExecutionError> {
+        let _ = token;
+        Err(UnknownExecutionMode.into())
+    }
+
+    /// Prepare the interpreter's backend for a graph capture — see
+    /// [`Backend::graph_prepare`](burn_backend::Backend::graph_prepare).
+    ///
+    /// `Ok`, the default, from an interpreter whose backend needs no preparing.
+    fn graph_prepare(&self) -> Result<(), ExecutionError> {
+        Ok(())
+    }
+
+    /// Start recording the interpreter backend's launches into a graph, after every operation
+    /// registered so far on the calling stream — see
+    /// [`Backend::graph_start_capture`](burn_backend::Backend::graph_start_capture).
+    ///
+    /// The default errors, as from an interpreter whose backend cannot record one, so the
+    /// caller falls back to re-running its operations.
+    fn graph_start_capture(&self) -> Result<(), ExecutionError> {
+        Err(graph_unsupported())
+    }
+
+    /// Stop the recording after every operation registered so far on the calling stream, and
+    /// return the id the interpreter keeps the graph under until it is
+    /// [released](Self::graph_release).
+    fn graph_stop_capture(&self) -> Result<CapturedGraphId, ExecutionError> {
+        Err(graph_unsupported())
+    }
+
+    /// Replay `graph` after every operation registered so far on the calling stream.
+    ///
+    /// # Safety
+    ///
+    /// The contract of [`Backend::graph_replay`](burn_backend::Backend::graph_replay), for the
+    /// tensors of this client the graph read or wrote.
+    unsafe fn graph_replay(&self, graph: CapturedGraphId) -> Result<(), ExecutionError> {
+        let _ = graph;
+        Err(graph_unsupported())
+    }
+
+    /// Free `graph` on the interpreter, which is never asked to replay it again.
+    ///
+    /// Nothing, the default, for an interpreter that never captures one.
+    fn graph_release(&self, graph: CapturedGraphId) {
+        let _ = graph;
+    }
+
     /// Register a reusable group of operations (in relative form) under `graph_id` *and* run its
     /// first invocation with `bindings`, so it can later be replayed by id with
     /// [`execute_graph`](Self::execute_graph).
@@ -138,6 +215,14 @@ pub trait RouterClient: Clone + Send + Sync + Sized {
     fn register_alias(&self, new_id: TensorId, src_id: TensorId);
 }
 
+/// The error of the graph-capture methods of an interpreter that cannot record a graph.
+fn graph_unsupported() -> ExecutionError {
+    ExecutionError::Generic {
+        reason: alloc::string::String::from("graph capture is not supported by this router client"),
+        backtrace: BackTrace::capture(),
+    }
+}
+
 pub(crate) struct RouterClientLocator {
     clients: Mutex<Option<HashMap<Key, Box<dyn core::any::Any + Send>>>>,
 }
@@ -162,6 +247,13 @@ pub fn get_client<R: RouterChannel>(device: &R::Device) -> Client<R> {
 pub struct RouterClientRegistration<R: RouterChannel> {
     key: Key,
     _channel: PhantomData<R>,
+}
+
+impl<R: RouterChannel> RouterClientRegistration<R> {
+    /// Keeps the client registered for the rest of the process, as [`get_client`]'s clients are.
+    pub fn keep(self) {
+        core::mem::forget(self);
+    }
 }
 
 impl<R: RouterChannel> Drop for RouterClientRegistration<R> {

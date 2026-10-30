@@ -124,3 +124,103 @@ impl InterpolateTestCase {
             .assert_approx_eq::<FloatElem>(&output.into_data(), Tolerance::default());
     }
 }
+
+#[test]
+fn test_nearest_downsample_f64_precision_coordinate_mapping() {
+    let device = Default::default();
+    if !format!("{device:?}").to_lowercase().contains("flex") {
+        return;
+    }
+    let input = TestTensorInt::arange(0..14, &device)
+        .float()
+        .reshape([1, 1, 1, 14]);
+
+    let output = interpolate(
+        input,
+        InterpolateOptions::new(InterpolateMode::Nearest).with_output_size([1, 2]),
+    );
+
+    // In f32, 1.0 / (2.0 / 14.0) = 6.9999995 which floored to 6.
+    // In f64, 1.0 / (2.0 / 14.0) = 7.0 which floors to 7.
+    let expected = burn_tensor::TensorData::from([[[[0.0, 7.0]]]]);
+    output
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&expected, Tolerance::default());
+}
+
+#[test]
+#[cfg(feature = "flex")]
+fn test_nearest_scale_driven_mapping() {
+    let device = Default::default();
+    let input = TestTensor::<4>::from_data([[[[10., 20., 30., 40.]]]], &device);
+    let output = interpolate(
+        input,
+        InterpolateOptions::new(InterpolateMode::Nearest).with_scale_factor([1.0, 0.6]),
+    );
+
+    // The second coordinate is 1 / 0.6, which floors to 1; a size-derived scale would select 2.
+    output.into_data().assert_eq(
+        &burn_tensor::TensorData::from([[[[10., 20.]]]]).convert::<FloatElem>(),
+        false,
+    );
+}
+
+#[test]
+fn test_nearest_presets() {
+    let device = Default::default();
+    let input = TestTensor::<4>::from_data([[[[10., 20., 30., 40.]]]], &device);
+    for (mode, expected) in [
+        (InterpolateMode::Nearest, [10., 30.]),
+        (InterpolateMode::NearestExact, [20., 40.]),
+    ] {
+        let output = interpolate(
+            input.clone(),
+            InterpolateOptions::new(mode).with_output_size([1, 2]),
+        );
+        output.into_data().assert_eq(
+            &burn_tensor::TensorData::from([[[expected]]]).convert::<FloatElem>(),
+            false,
+        );
+    }
+}
+
+#[test]
+fn test_nearest_asymmetric_14_to_18_ratio_precision() {
+    let device = Default::default();
+    if !format!("{device:?}").to_lowercase().contains("flex") {
+        return;
+    }
+    // Shape [1, 1, 1, 14] -> [1, 1, 1, 18]
+    let input = TestTensorInt::arange(0..14, &device)
+        .float()
+        .reshape([1, 1, 1, 14]);
+    let output = burn_tensor::module::interpolate(
+        input,
+        InterpolateOptions::new(InterpolateMode::Nearest).with_output_size([1, 18]),
+    );
+    let values: Vec<f32> = output.into_data().try_into_vec_as::<f32>().unwrap();
+    // Index 9 must map to 9 * 14 / 18 = 7.0 -> element 7 (not 6)
+    assert_eq!(values[9], 7.0);
+}
+
+#[test]
+fn test_nearest_exact_size_based_tie() {
+    let options = InterpolateOptions::new(InterpolateMode::NearestExact);
+    let device = Default::default();
+    if !format!("{device:?}").to_lowercase().contains("flex") {
+        return;
+    }
+    let input = TestTensor::<4>::from_data(
+        [[[[
+            11., 23., 37., 41., 53., 67., 79., 83., 97., 101., 113., 127., 139., 149.,
+        ]]]],
+        &device,
+    );
+    let output = interpolate(input, options.with_output_size([1, 9]));
+    // Output index 4 maps exactly to 6.5; RoundPreferCeil must select input 7.
+    let expected =
+        burn_tensor::TensorData::from([[[[11., 37., 41., 67., 83., 97., 113., 127., 149.]]]]);
+    output
+        .into_data()
+        .assert_eq(&expected.convert::<FloatElem>(), false);
+}

@@ -51,6 +51,7 @@ macro_rules! avg_pool3d_typed {
             kernel_size: [usize; 3],
             stride: [usize; 3],
             padding: [usize; 3],
+            dilation: [usize; 3],
             count_include_pad: bool,
             ceil_mode: bool,
         ) -> FlexTensor {
@@ -59,6 +60,7 @@ macro_rules! avg_pool3d_typed {
                 kernel_size,
                 stride,
                 padding,
+                dilation,
                 count_include_pad,
                 ceil_mode,
                 $dtype,
@@ -102,6 +104,7 @@ macro_rules! avg_pool3d_backward_typed {
             kernel_size: [usize; 3],
             stride: [usize; 3],
             padding: [usize; 3],
+            dilation: [usize; 3],
             count_include_pad: bool,
         ) -> FlexTensor {
             avg_pool3d_backward_impl::<$T>(
@@ -110,6 +113,7 @@ macro_rules! avg_pool3d_backward_typed {
                 kernel_size,
                 stride,
                 padding,
+                dilation,
                 count_include_pad,
                 $dtype,
                 $zero,
@@ -213,8 +217,10 @@ pub fn max_pool3d_with_indices_bf16(
     (convert_f32_to_bf16(&output_f32), indices)
 }
 
+/// The range of kernel taps `k` whose input position `out * stride + k * dilation - pad`
+/// lands inside the input.
 #[inline]
-fn valid_range_maxpool(
+fn valid_kernel_range(
     out: usize,
     kernel: usize,
     stride: usize,
@@ -277,11 +283,11 @@ where
     let x_data: &[T] = x.storage();
     let kernel = |od: usize, oh: usize, ow: usize, x_offset: usize| {
         let (kd_start, kd_end) =
-            valid_range_maxpool(od, kernel_d, stride_d, pad_d, dilation_d, in_d);
+            valid_kernel_range(od, kernel_d, stride_d, pad_d, dilation_d, in_d);
         let (kh_start, kh_end) =
-            valid_range_maxpool(oh, kernel_h, stride_h, pad_h, dilation_h, in_h);
+            valid_kernel_range(oh, kernel_h, stride_h, pad_h, dilation_h, in_h);
         let (kw_start, kw_end) =
-            valid_range_maxpool(ow, kernel_w, stride_w, pad_w, dilation_w, in_w);
+            valid_kernel_range(ow, kernel_w, stride_w, pad_w, dilation_w, in_w);
 
         let mut max_val = neg_inf;
         let mut max_idx: i64 = -1;
@@ -633,6 +639,7 @@ pub fn avg_pool3d_bf16(
     kernel_size: [usize; 3],
     stride: [usize; 3],
     padding: [usize; 3],
+    dilation: [usize; 3],
     count_include_pad: bool,
     ceil_mode: bool,
 ) -> FlexTensor {
@@ -642,44 +649,28 @@ pub fn avg_pool3d_bf16(
         kernel_size,
         stride,
         padding,
+        dilation,
         count_include_pad,
         ceil_mode,
     );
     convert_f32_to_bf16(&result_f32)
 }
+
+/// The number of kernel taps that land inside the padded input, which `count_include_pad`
+/// divides by. Taps past the end padding, from a ceil-mode window, are not counted.
 #[inline(always)]
-fn padded_len_avgpool(out: usize, kernel: usize, stride: usize, pad: usize, input: usize) -> usize {
-    let out = out as isize;
-    let kernel = kernel as isize;
-    let stride = stride as isize;
-    let pad = pad as isize;
-    let input = input as isize;
-
-    let start = 0isize;
-    let end = (input + 2 * pad - out * stride).max(0).min(kernel);
-
-    (end - start).max(0) as usize
-}
-
-#[inline(always)]
-fn valid_range_avgpool(
+fn padded_len_avgpool(
     out: usize,
     kernel: usize,
     stride: usize,
     pad: usize,
+    dilation: usize,
     input: usize,
-) -> (usize, usize) {
-    let out = out as isize;
-    let kernel = kernel as isize;
-    let stride = stride as isize;
-    let pad = pad as isize;
-    let input = input as isize;
-
-    let start = (pad - out * stride).max(0).min(kernel);
-    let end = (input + pad - out * stride).max(0).min(kernel);
-    let end = end.max(start);
-
-    (start as usize, end as usize)
+) -> usize {
+    (input + 2 * pad)
+        .saturating_sub(out * stride)
+        .div_ceil(dilation)
+        .min(kernel)
 }
 
 /// Generic 3D average pooling implementation.
@@ -691,6 +682,7 @@ fn avg_pool3d_impl<#[cfg(feature = "simd")] S: macerator::Simd, T, Div>(
     kernel_size: [usize; 3],
     stride: [usize; 3],
     padding: [usize; 3],
+    dilation: [usize; 3],
     count_include_pad: bool,
     ceil_mode: bool,
     dtype: DType,
@@ -713,11 +705,7 @@ where
     let [kernel_d, kernel_h, kernel_w] = kernel_size;
     let [stride_d, stride_h, stride_w] = stride;
     let [pad_d, pad_h, pad_w] = padding;
-
-    // Avg pool doesn't use dilation in typical implementations
-    let dilation_d = 1;
-    let dilation_h = 1;
-    let dilation_w = 1;
+    let [dilation_d, dilation_h, dilation_w] = dilation;
 
     let out_d = pool_output_size(in_d, kernel_d, pad_d, stride_d, dilation_d, ceil_mode);
     let out_h = pool_output_size(in_h, kernel_h, pad_h, stride_h, dilation_h, ceil_mode);
@@ -728,30 +716,34 @@ where
     let _kernel_volume = kernel_d * kernel_h * kernel_w;
 
     let kernel = |od: usize, oh: usize, ow: usize, x_offset: usize| {
-        let pd_len = padded_len_avgpool(od, kernel_d, stride_d, pad_d, in_d);
-        let ph_len = padded_len_avgpool(oh, kernel_h, stride_h, pad_h, in_h);
-        let pw_len = padded_len_avgpool(ow, kernel_w, stride_w, pad_w, in_w);
+        let pd_len = padded_len_avgpool(od, kernel_d, stride_d, pad_d, dilation_d, in_d);
+        let ph_len = padded_len_avgpool(oh, kernel_h, stride_h, pad_h, dilation_h, in_h);
+        let pw_len = padded_len_avgpool(ow, kernel_w, stride_w, pad_w, dilation_w, in_w);
 
         let pad_count = pd_len * ph_len * pw_len;
 
-        let (kd_start, kd_end) = valid_range_avgpool(od, kernel_d, stride_d, pad_d, in_d);
-        let (kh_start, kh_end) = valid_range_avgpool(oh, kernel_h, stride_h, pad_h, in_h);
-        let (kw_start, kw_end) = valid_range_avgpool(ow, kernel_w, stride_w, pad_w, in_w);
+        let (kd_start, kd_end) =
+            valid_kernel_range(od, kernel_d, stride_d, pad_d, dilation_d, in_d);
+        let (kh_start, kh_end) =
+            valid_kernel_range(oh, kernel_h, stride_h, pad_h, dilation_h, in_h);
+        let (kw_start, kw_end) =
+            valid_kernel_range(ow, kernel_w, stride_w, pad_w, dilation_w, in_w);
 
         let count = (kd_end - kd_start) * (kh_end - kh_start) * (kw_end - kw_start);
 
         let mut sum = zero;
 
         for kd in kd_start..kd_end {
-            let id = od * stride_d + kd - pad_d; // safe: valid range guarantees no underflow
+            // safe: valid range guarantees no underflow
+            let id = od * stride_d + kd * dilation_d - pad_d;
             let id_base = id * in_h * in_w;
 
             for kh in kh_start..kh_end {
-                let ih = oh * stride_h + kh - pad_h;
+                let ih = oh * stride_h + kh * dilation_h - pad_h;
                 let ih_base = ih * in_w;
 
                 for kw in kw_start..kw_end {
-                    let iw = ow * stride_w + kw - pad_w;
+                    let iw = ow * stride_w + kw * dilation_w - pad_w;
                     sum = T::add(sum, x_data[x_offset + id_base + ih_base + iw]);
                 }
             }
@@ -845,6 +837,7 @@ pub fn avg_pool2d_f32(
     kernel_size: [usize; 2],
     stride: [usize; 2],
     padding: [usize; 2],
+    dilation: [usize; 2],
     count_include_pad: bool,
     ceil_mode: bool,
 ) -> FlexTensor {
@@ -854,6 +847,7 @@ pub fn avg_pool2d_f32(
         [1, kernel_size[0], kernel_size[1]],
         [1, stride[0], stride[1]],
         [0, padding[0], padding[1]],
+        [1, dilation[0], dilation[1]],
         count_include_pad,
         ceil_mode,
     );
@@ -866,6 +860,7 @@ pub fn avg_pool2d_f64(
     kernel_size: [usize; 2],
     stride: [usize; 2],
     padding: [usize; 2],
+    dilation: [usize; 2],
     count_include_pad: bool,
     ceil_mode: bool,
 ) -> FlexTensor {
@@ -875,6 +870,7 @@ pub fn avg_pool2d_f64(
         [1, kernel_size[0], kernel_size[1]],
         [1, stride[0], stride[1]],
         [0, padding[0], padding[1]],
+        [1, dilation[0], dilation[1]],
         count_include_pad,
         ceil_mode,
     );
@@ -887,6 +883,7 @@ pub fn avg_pool2d_f16(
     kernel_size: [usize; 2],
     stride: [usize; 2],
     padding: [usize; 2],
+    dilation: [usize; 2],
     count_include_pad: bool,
     ceil_mode: bool,
 ) -> FlexTensor {
@@ -896,6 +893,7 @@ pub fn avg_pool2d_f16(
         [1, kernel_size[0], kernel_size[1]],
         [1, stride[0], stride[1]],
         [0, padding[0], padding[1]],
+        [1, dilation[0], dilation[1]],
         count_include_pad,
         ceil_mode,
     );
@@ -908,6 +906,7 @@ pub fn avg_pool2d_bf16(
     kernel_size: [usize; 2],
     stride: [usize; 2],
     padding: [usize; 2],
+    dilation: [usize; 2],
     count_include_pad: bool,
     ceil_mode: bool,
 ) -> FlexTensor {
@@ -917,6 +916,7 @@ pub fn avg_pool2d_bf16(
         [1, kernel_size[0], kernel_size[1]],
         [1, stride[0], stride[1]],
         [0, padding[0], padding[1]],
+        [1, dilation[0], dilation[1]],
         count_include_pad,
         ceil_mode,
     );
@@ -933,6 +933,7 @@ pub fn avg_pool1d_f32(
     kernel_size: usize,
     stride: usize,
     padding: usize,
+    dilation: usize,
     count_include_pad: bool,
     ceil_mode: bool,
 ) -> FlexTensor {
@@ -942,6 +943,7 @@ pub fn avg_pool1d_f32(
         [1, 1, kernel_size],
         [1, 1, stride],
         [0, 0, padding],
+        [1, 1, dilation],
         count_include_pad,
         ceil_mode,
     );
@@ -1304,6 +1306,7 @@ pub fn avg_pool2d_backward_f32(
     kernel_size: [usize; 2],
     stride: [usize; 2],
     padding: [usize; 2],
+    dilation: [usize; 2],
     count_include_pad: bool,
 ) -> FlexTensor {
     let x_3d = expand_2d_to_3d(&x);
@@ -1314,6 +1317,7 @@ pub fn avg_pool2d_backward_f32(
         [1, kernel_size[0], kernel_size[1]],
         [1, stride[0], stride[1]],
         [0, padding[0], padding[1]],
+        [1, dilation[0], dilation[1]],
         count_include_pad,
     );
     squeeze_3d_to_2d(result)
@@ -1326,6 +1330,7 @@ pub fn avg_pool2d_backward_f64(
     kernel_size: [usize; 2],
     stride: [usize; 2],
     padding: [usize; 2],
+    dilation: [usize; 2],
     count_include_pad: bool,
 ) -> FlexTensor {
     let x_3d = expand_2d_to_3d(&x);
@@ -1336,6 +1341,7 @@ pub fn avg_pool2d_backward_f64(
         [1, kernel_size[0], kernel_size[1]],
         [1, stride[0], stride[1]],
         [0, padding[0], padding[1]],
+        [1, dilation[0], dilation[1]],
         count_include_pad,
     );
     squeeze_3d_to_2d(result)
@@ -1348,6 +1354,7 @@ pub fn avg_pool2d_backward_f16(
     kernel_size: [usize; 2],
     stride: [usize; 2],
     padding: [usize; 2],
+    dilation: [usize; 2],
     count_include_pad: bool,
 ) -> FlexTensor {
     let x_3d = expand_2d_to_3d(&x);
@@ -1358,6 +1365,7 @@ pub fn avg_pool2d_backward_f16(
         [1, kernel_size[0], kernel_size[1]],
         [1, stride[0], stride[1]],
         [0, padding[0], padding[1]],
+        [1, dilation[0], dilation[1]],
         count_include_pad,
     );
     squeeze_3d_to_2d(result)
@@ -1370,6 +1378,7 @@ pub fn avg_pool2d_backward_bf16(
     kernel_size: [usize; 2],
     stride: [usize; 2],
     padding: [usize; 2],
+    dilation: [usize; 2],
     count_include_pad: bool,
 ) -> FlexTensor {
     let x_f32 = convert_bf16_to_f32(&x);
@@ -1380,6 +1389,7 @@ pub fn avg_pool2d_backward_bf16(
         kernel_size,
         stride,
         padding,
+        dilation,
         count_include_pad,
     );
     convert_f32_to_bf16(&result_f32)
@@ -1414,6 +1424,7 @@ pub fn avg_pool3d_backward_bf16(
     kernel_size: [usize; 3],
     stride: [usize; 3],
     padding: [usize; 3],
+    dilation: [usize; 3],
     count_include_pad: bool,
 ) -> FlexTensor {
     let x_f32 = convert_bf16_to_f32(&x);
@@ -1424,6 +1435,7 @@ pub fn avg_pool3d_backward_bf16(
         kernel_size,
         stride,
         padding,
+        dilation,
         count_include_pad,
     );
     convert_f32_to_bf16(&result_f32)
@@ -1437,6 +1449,7 @@ fn avg_pool3d_backward_impl<T>(
     kernel_size: [usize; 3],
     stride: [usize; 3],
     padding: [usize; 3],
+    dilation: [usize; 3],
     count_include_pad: bool,
     dtype: DType,
     zero: T,
@@ -1458,6 +1471,7 @@ where
     let [kernel_d, kernel_h, kernel_w] = kernel_size;
     let [stride_d, stride_h, stride_w] = stride;
     let [pad_d, pad_h, pad_w] = padding;
+    let [dilation_d, dilation_h, dilation_w] = dilation;
 
     let grad_shape = grad.layout().shape();
     let out_d = grad_shape[2];
@@ -1483,13 +1497,15 @@ where
                         // Count valid positions for this output
                         let mut count = 0usize;
                         for kd in 0..kernel_d {
-                            let id = (od * stride_d + kd) as isize - pad_d as isize;
+                            let id = (od * stride_d + kd * dilation_d) as isize - pad_d as isize;
                             if id >= 0 && id < in_d as isize {
                                 for kh in 0..kernel_h {
-                                    let ih = (oh * stride_h + kh) as isize - pad_h as isize;
+                                    let ih =
+                                        (oh * stride_h + kh * dilation_h) as isize - pad_h as isize;
                                     if ih >= 0 && ih < in_h as isize {
                                         for kw in 0..kernel_w {
-                                            let iw = (ow * stride_w + kw) as isize - pad_w as isize;
+                                            let iw = (ow * stride_w + kw * dilation_w) as isize
+                                                - pad_w as isize;
                                             if iw >= 0 && iw < in_w as isize {
                                                 count += 1;
                                             }
@@ -1500,9 +1516,12 @@ where
                         }
 
                         let divisor = if count_include_pad {
-                            let pd_len = padded_len_avgpool(od, kernel_d, stride_d, pad_d, in_d);
-                            let ph_len = padded_len_avgpool(oh, kernel_h, stride_h, pad_h, in_h);
-                            let pw_len = padded_len_avgpool(ow, kernel_w, stride_w, pad_w, in_w);
+                            let pd_len =
+                                padded_len_avgpool(od, kernel_d, stride_d, pad_d, dilation_d, in_d);
+                            let ph_len =
+                                padded_len_avgpool(oh, kernel_h, stride_h, pad_h, dilation_h, in_h);
+                            let pw_len =
+                                padded_len_avgpool(ow, kernel_w, stride_w, pad_w, dilation_w, in_w);
                             (pd_len * ph_len * pw_len).max(1)
                         } else {
                             count.max(1)
@@ -1511,21 +1530,23 @@ where
                         // Distribute gradient
                         let distributed = div_fn(grad_val, divisor);
                         for kd in 0..kernel_d {
-                            let id = (od * stride_d + kd) as isize - pad_d as isize;
+                            let id = (od * stride_d + kd * dilation_d) as isize - pad_d as isize;
                             if id < 0 || id >= in_d as isize {
                                 continue;
                             }
                             let id = id as usize;
 
                             for kh in 0..kernel_h {
-                                let ih = (oh * stride_h + kh) as isize - pad_h as isize;
+                                let ih =
+                                    (oh * stride_h + kh * dilation_h) as isize - pad_h as isize;
                                 if ih < 0 || ih >= in_h as isize {
                                     continue;
                                 }
                                 let ih = ih as usize;
 
                                 for kw in 0..kernel_w {
-                                    let iw = (ow * stride_w + kw) as isize - pad_w as isize;
+                                    let iw =
+                                        (ow * stride_w + kw * dilation_w) as isize - pad_w as isize;
                                     if iw < 0 || iw >= in_w as isize {
                                         continue;
                                     }
@@ -1831,11 +1852,11 @@ mod tests {
         let x = FlexTensor::from_data(TensorData::new(x_data, vec![1, 1, 3, 3]));
 
         // count_include_pad = true: divide by kernel size (4)
-        let result_include = avg_pool2d_f32(x.clone(), [2, 2], [2, 2], [1, 1], true, false);
+        let result_include = avg_pool2d_f32(x.clone(), [2, 2], [2, 2], [1, 1], [1, 1], true, false);
         let out_include: Vec<f32> = result_include.into_data().try_into_vec().unwrap();
 
         // count_include_pad = false: divide by actual count
-        let result_exclude = avg_pool2d_f32(x, [2, 2], [2, 2], [1, 1], false, false);
+        let result_exclude = avg_pool2d_f32(x, [2, 2], [2, 2], [1, 1], [1, 1], false, false);
         let out_exclude: Vec<f32> = result_exclude.into_data().try_into_vec().unwrap();
 
         // Corner position with padding: only 1 valid element
@@ -1908,13 +1929,21 @@ mod tests {
     fn test_avg_pool3d_backward_ceil_mode_nonuniform_gradient() {
         for count_include_pad in [true, false] {
             let x = FlexTensor::from_data(TensorData::new(vec![1.0f32; 27], [1, 1, 3, 3, 3]));
-            let output = avg_pool3d_f32(x.clone(), [3; 3], [3; 3], [1; 3], count_include_pad, true);
+            let output = avg_pool3d_f32(
+                x.clone(),
+                [3; 3],
+                [3; 3],
+                [1; 3],
+                [1; 3],
+                count_include_pad,
+                true,
+            );
             let grad = FlexTensor::from_data(TensorData::new(
                 vec![216.0f32, 144.0, 144.0, 96.0, 144.0, 96.0, 96.0, 64.0],
                 output.layout().shape().clone(),
             ));
             let actual =
-                avg_pool3d_backward_f32(x, grad, [3; 3], [3; 3], [1; 3], count_include_pad);
+                avg_pool3d_backward_f32(x, grad, [3; 3], [3; 3], [1; 3], [1; 3], count_include_pad);
             let actual: Vec<f32> = actual.into_data().try_into_vec().unwrap();
             let expected = if count_include_pad {
                 vec![8.0; 27]
@@ -1937,7 +1966,7 @@ mod tests {
         // Backward with gradient of 4.0 for each output (will distribute as 1.0 each)
         let grad = FlexTensor::from_data(TensorData::new(vec![4.0f32; 4], vec![1, 1, 2, 2]));
 
-        let x_grad = avg_pool2d_backward_f32(x, grad, [2, 2], [2, 2], [0, 0], false);
+        let x_grad = avg_pool2d_backward_f32(x, grad, [2, 2], [2, 2], [0, 0], [1, 1], false);
         let grad_data: Vec<f32> = x_grad.into_data().try_into_vec().unwrap();
 
         // Each position in input should receive grad/4 = 1.0

@@ -15,12 +15,20 @@ pub use burn_backend::{
 use burn_dispatch::DispatchDeviceId;
 #[cfg(feature = "autodiff")]
 use burn_dispatch::GradientCheckpointingStrategy;
-#[cfg(any(feature = "cpu", feature = "cuda", feature = "rocm", feature = "wgpu"))]
+#[cfg(any(
+    feature = "cpu",
+    feature = "cuda",
+    feature = "rocm",
+    feature = "wgpu",
+    feature = "metal-native"
+))]
 use burn_dispatch::devices::RuntimeId;
 #[cfg(any(feature = "metal", feature = "vulkan", feature = "webgpu"))]
 use burn_dispatch::devices::WgpuBackend;
 use burn_dispatch::{Dispatch, DispatchDevice};
 use burn_std::{BoolDType, FloatDType, IntDType, TensorData};
+
+use crate::{ExecutionMode, ExecutionModeGuard};
 
 #[cfg(feature = "capture")]
 pub use burn_dispatch::backends::capture::{
@@ -28,7 +36,13 @@ pub use burn_dispatch::backends::capture::{
     IntoCaptureOutputs, TensorId,
 };
 
-#[cfg(any(feature = "cpu", feature = "cuda", feature = "rocm", feature = "wgpu"))]
+#[cfg(any(
+    feature = "cpu",
+    feature = "cuda",
+    feature = "rocm",
+    feature = "wgpu",
+    feature = "metal-native"
+))]
 use alloc::string::String;
 use alloc::vec;
 use alloc::vec::Vec;
@@ -179,6 +193,13 @@ impl Device {
     /// Crate-internal owning extraction of the underlying dispatch device.
     pub(crate) fn into_dispatch(self) -> DispatchDevice {
         self.blob.into_inner()
+    }
+
+    pub(crate) fn as_dispatch_vec(devices: &[Self]) -> Vec<DispatchDevice> {
+        devices
+            .iter()
+            .map(|device| device.as_dispatch().clone())
+            .collect()
     }
 }
 
@@ -333,7 +354,7 @@ impl Device {
     /// Default CPU device backed by CubeCL's CPU backend.
     #[cfg(feature = "cpu")]
     pub fn cpu() -> Self {
-        Self::new(burn_dispatch::devices::CpuDevice::default())
+        Self::new(burn_dispatch::devices::CpuDevice)
     }
 
     /// CUDA device at the given hardware index.
@@ -399,6 +420,13 @@ impl Device {
             device_kind,
             burn_dispatch::devices::WgpuBackend::Vulkan,
         ))
+    }
+
+    /// Metal device on cubecl's own Metal runtime, with no wgpu in between: the system's
+    /// default GPU.
+    #[cfg(feature = "metal-native")]
+    pub fn metal_native() -> Self {
+        Self::new(burn_dispatch::devices::MetalDevice::default())
     }
 
     /// Metal-backed WGPU device, selected via [`DeviceKind`], requiring native MSL support.
@@ -634,6 +662,57 @@ impl Device {
         Dispatch::profile(self.as_dispatch(), options, func)
     }
 
+    /// Open `mode` on this device until the returned guard closes.
+    ///
+    /// - A [`ProcessMode`](crate::ProcessMode) applies to all the device's work: `CompileOnly`
+    ///   compiles what the work launches, `CompileAndAutotune` also tunes it by
+    ///   measuring, and both discard the launches themselves. A pass that wants
+    ///   a workload's kernels compiled and its autotune keys tuned, and not its
+    ///   results, runs the workload once inside the guard and reads what it
+    ///   triggered from the guard's [reader](ExecutionModeGuard::reader).
+    /// - A [`StreamMode`](crate::StreamMode) applies to the calling stream's work alone
+    ///   ([`StreamId::current`](crate::StreamId::current); another stream
+    ///   opens its own from inside [`StreamId::executes`](crate::StreamId::executes)),
+    ///   whatever the process mode says: `Execute` is how a step that has to
+    ///   run for real does so inside a pass that discards launches.
+    ///
+    /// ```rust,ignore
+    /// let compile = device.mode(ProcessMode::CompileOnly)?;
+    /// model.forward(input.clone());
+    /// let compiled = compile.close()?;
+    ///
+    /// let tune = device.mode(ProcessMode::CompileAndAutotune)?;
+    /// let execute = device.mode(StreamMode::Execute)?;
+    /// step_that_must_run();
+    /// execute.close()?;
+    /// model.forward(input);
+    /// let tuned = tune.close()?;
+    /// ```
+    ///
+    /// The mode applies where the device's work runs: on a remote device, on
+    /// its server. It opens after every operation registered so far on the
+    /// calling stream. A backend that compiles nothing runs every launch
+    /// whatever the mode ([`ExecutionModeGuard::applies`] says so).
+    ///
+    /// The cubecl runtimes apply a process mode to the whole process: every
+    /// device of the process runs under it, one is open at a time, and opening
+    /// the one already open joins it, its statistics then counting both
+    /// openers' work. On a remote device, that process is the server's — the
+    /// work of every client of the server is discarded while it is open.
+    ///
+    /// # Errors
+    ///
+    /// Another process mode is open where this one would apply, the device is
+    /// a group (open the mode on its devices), or the device could not be
+    /// reached — a remote device from a browser thread, which cannot wait on
+    /// the server.
+    pub fn mode(
+        &self,
+        mode: impl Into<ExecutionMode>,
+    ) -> Result<ExecutionModeGuard, ExecutionError> {
+        ExecutionModeGuard::new(self.clone(), mode.into())
+    }
+
     /// Seeds the random number generator for this device.
     ///
     /// Seeding before tensor operations that involve randomness (e.g. [`Tensor::random`](crate::Tensor::random))
@@ -725,6 +804,12 @@ impl Device {
     /// does not report it.
     pub fn memory_pool_usage(&self) -> Option<MemoryPoolUsage> {
         Dispatch::memory_pool_usage(self.as_dispatch())
+    }
+
+    /// How many bytes this device can hold at once, as its runtime states it: a budget to size a
+    /// workload by, not what is free. `None` on a backend that states no figure.
+    pub fn memory_capacity(&self) -> Option<u64> {
+        Dispatch::memory_capacity(self.as_dispatch())
     }
 
     /// Prepares the given data for transfer between the CPU and accelerator devices such as GPUs.
@@ -858,6 +943,11 @@ impl Device {
                     push_wgpu(&mut devices, WgpuBackend::Metal);
                     continue;
                 }
+                #[cfg(feature = "metal-native")]
+                DeviceType::MetalNative => {
+                    push_cube(&mut devices, RuntimeId::Metal);
+                    continue;
+                }
                 #[cfg(feature = "vulkan")]
                 DeviceType::Vulkan => {
                     push_wgpu(&mut devices, WgpuBackend::Vulkan);
@@ -900,7 +990,13 @@ impl Device {
     /// holding both devices, so a caller placing work on cards never puts two stages on one
     /// card by another name. Opens every device of every runtime, so call it once and keep
     /// the answer.
-    #[cfg(any(feature = "cpu", feature = "cuda", feature = "rocm", feature = "wgpu"))]
+    #[cfg(any(
+        feature = "cpu",
+        feature = "cuda",
+        feature = "rocm",
+        feature = "wgpu",
+        feature = "metal-native"
+    ))]
     pub fn enumerate_physical() -> Vec<PhysicalGpu> {
         let mut gpus: Vec<PhysicalGpu> = Vec::new();
         for device in Dispatch::enumerate(DispatchDeviceId::Cube) {
@@ -950,7 +1046,13 @@ impl Device {
 }
 
 /// One card and every device that reaches it, from [`Device::enumerate_physical`].
-#[cfg(any(feature = "cpu", feature = "cuda", feature = "rocm", feature = "wgpu"))]
+#[cfg(any(
+    feature = "cpu",
+    feature = "cuda",
+    feature = "rocm",
+    feature = "wgpu",
+    feature = "metal-native"
+))]
 #[derive(Debug, Clone)]
 pub struct PhysicalGpu {
     /// The card's PCI address, Windows LUID and vendor, from whichever of its runtimes reported
@@ -1018,7 +1120,13 @@ impl core::fmt::Display for ThroughputStat {
 ///
 /// A filter can name the same runtime twice (e.g. two `DeviceType::Cuda` entries),
 /// and a caller enumerating hardware should see each device once.
-#[cfg(any(feature = "cpu", feature = "cuda", feature = "rocm", feature = "wgpu"))]
+#[cfg(any(
+    feature = "cpu",
+    feature = "cuda",
+    feature = "rocm",
+    feature = "wgpu",
+    feature = "metal-native"
+))]
 fn push_cube(devices: &mut Vec<Device>, runtime: RuntimeId) {
     for device in Dispatch::enumerate_cube(runtime) {
         let device = Device::new(device);
@@ -1110,6 +1218,9 @@ pub enum DeviceType {
     Wgpu,
     #[cfg(feature = "metal")]
     Metal,
+    /// cubecl's own Metal runtime.
+    #[cfg(feature = "metal-native")]
+    MetalNative,
     #[cfg(feature = "vulkan")]
     Vulkan,
     #[cfg(feature = "webgpu")]

@@ -29,6 +29,7 @@
 //! | `Flex`     | `flex`     | Pure Rust CPU backend using `burn-flex` |
 //! | `Remote`   | `remote`   | Devices hosted by another process or machine, through `burn-remote` |
 //! | `Capture`  | `capture`  | Records operation graphs instead of executing them, through `burn-capture` |
+//! | `Group`    | `group`    | Experimental: tensors split over a group of Cube or Flex devices, through `burn-group` |
 //! | `Autodiff` | `autodiff` | Autodiff-enabled backend (used in combination with any of the backends above) |
 //!
 //! **Note:** The features can be combined freely. The cubecl-backed ones all
@@ -43,6 +44,8 @@ mod macros;
 pub mod backend;
 /// Dispatch device module.
 pub mod device;
+#[cfg(feature = "group")]
+mod group;
 mod ops;
 /// Dispatch tensor module.
 pub mod tensor;
@@ -95,6 +98,9 @@ pub mod backends {
 
     #[cfg(feature = "remote")]
     pub use burn_remote::RemoteBackend as Remote;
+    #[cfg(feature = "remote")]
+    #[doc(hidden)]
+    pub use burn_remote::extension as remote_extension;
 
     /// Public graph-capture API types.
     #[cfg(feature = "capture")]
@@ -106,6 +112,11 @@ pub mod backends {
     }
     #[cfg(feature = "capture")]
     pub use burn_capture::CaptureBackend as Capture;
+
+    #[cfg(feature = "group")]
+    pub use burn_group::GroupBackend as Group;
+    #[cfg(feature = "group")]
+    pub use burn_group::{GroupError, Sharding, ShardingError};
 }
 
 // Re-export devices
@@ -129,6 +140,8 @@ pub mod devices {
     pub use burn_cubecl::cubecl::cuda::CudaDevice;
     #[cfg(feature = "rocm")]
     pub use burn_cubecl::cubecl::hip::AmdDevice as RocmDevice;
+    #[cfg(feature = "metal-native")]
+    pub use burn_cubecl::cubecl::metal::MetalDevice;
     #[cfg(feature = "wgpu")]
     pub use burn_cubecl::cubecl::wgpu::{
         AutoCompiler, AutoGraphicsApi, WgpuBackend, WgpuDevice, WgpuDeviceKind, init_setup_async,
@@ -146,6 +159,9 @@ pub mod devices {
 
     #[cfg(feature = "remote")]
     pub use burn_remote::RemoteDevice;
+
+    #[cfg(feature = "group")]
+    pub use burn_group::GroupDevice;
 }
 
 /// The remote backend's crate, for `burn::remote` and `burn::server` to build on. Not a user path.

@@ -1,3 +1,4 @@
+use burn::data::dataloader::Progress;
 use burn::{
     config::Config,
     data::{dataloader::DataLoaderBuilder, dataset::vision::MnistDataset},
@@ -50,13 +51,14 @@ impl TrainingProgressLogger for CustomRenderer {
 
     fn update_epoch(&mut self, _epoch: usize) {}
 
-    fn start_split(&mut self, _split: &str, _total_items: usize) {}
+    fn start_split(&mut self, _split: &str, _progress: &Progress) {}
 
-    fn update_split(&mut self, items_processed: usize) {
+    fn update_split(&mut self, progress: &Progress) {
+        let items_processed = progress.items_processed;
         dbg!(items_processed);
     }
 
-    fn end_split(&mut self) {}
+    fn end_split(&mut self, _: &Progress) {}
 
     fn end(&mut self) {}
 
@@ -80,13 +82,14 @@ impl MetricsRendererEvaluation for CustomRenderer {
 impl EvaluationProgressLogger for CustomRenderer {
     fn start_global_progress(&mut self, _total_tests: usize) {}
 
-    fn start_test(&mut self, _name: &str, _total_items: usize) {}
+    fn start_test(&mut self, _name: &str, _progress: &Progress) {}
 
-    fn update_test_progress(&mut self, items_processed: usize) {
+    fn update_test_progress(&mut self, progress: &Progress) {
+        let items_processed = progress.items_processed;
         dbg!(items_processed);
     }
 
-    fn end_test(&mut self) {}
+    fn end_test(&mut self, _: &Progress) {}
 
     fn end_global_progress(&mut self) {}
 

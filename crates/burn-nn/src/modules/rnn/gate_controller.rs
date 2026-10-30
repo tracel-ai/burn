@@ -1,6 +1,7 @@
 use crate::Initializer;
 use burn_core as burn;
 
+use crate::modules::role::Role;
 use crate::{Linear, LinearConfig, LinearLayout};
 use burn::module::Module;
 use burn::tensor::{Device, Tensor};
@@ -60,7 +61,20 @@ impl GateController {
     ///     H = hidden state
     ///     b = bias terms
     pub fn gate_product(&self, input: Tensor<2>, hidden: Tensor<2>) -> Tensor<2> {
-        self.input_transform.forward(input) + self.hidden_transform.forward(hidden)
+        let (input_part, hidden_part) = self.transformed(input, hidden);
+        input_part + hidden_part
+    }
+
+    /// The input and the hidden state, each through its transform: `(Wx*X + bx, Wh*H + bh)`.
+    pub(crate) fn transformed(
+        &self,
+        input: Tensor<2>,
+        hidden: Tensor<2>,
+    ) -> (Tensor<2>, Tensor<2>) {
+        (
+            Role::INPUT_TRANSFORM.run(|| self.input_transform.forward(input)),
+            Role::HIDDEN_TRANSFORM.run(|| self.hidden_transform.forward(hidden)),
+        )
     }
 
     /// Used to initialize a gate controller with known weight layers,

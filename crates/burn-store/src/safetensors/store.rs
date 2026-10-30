@@ -11,7 +11,7 @@ use alloc::format;
 use alloc::string::{String, ToString};
 use alloc::vec::Vec;
 use burn_core::tensor::{BoolStore, DType, Shape};
-use burn_pack::{Error as PackError, Tensor as PackTensor};
+use burn_pack::Tensor as PackTensor;
 
 use crate::StoreTensor;
 use core::fmt;
@@ -1068,18 +1068,22 @@ fn lazy_tensors<S>(source: Arc<S>) -> Result<Vec<PackTensor>, SafetensorsStoreEr
 where
     S: Deref<Target = [u8]> + Send + Sync + 'static,
 {
-    // Parse to get metadata (with a memory map, safetensors won't copy data)
-    let tensors = safetensors::SafeTensors::deserialize(&source)?;
+    // Parse and validate the header once. Tensor offsets are relative to the data section,
+    // whose start can be derived from the validated metadata length.
+    let (_, metadata) = safetensors::SafeTensors::read_metadata(&source)?;
+    let data_start = source.len() - metadata.data_len();
     let mut loaded = Vec::new();
 
-    for (name, view) in tensors.tensors() {
-        // Extract metadata without materializing data
-        let dtype = safetensor_dtype_to_burn(view.dtype())?;
-        let shape: Shape = view.shape().into();
+    for (name, info) in metadata.tensors() {
+        let dtype = safetensor_dtype_to_burn(info.dtype)?;
+        let shape: Shape = info.shape.as_slice().into();
+        let (start, end) = info.data_offsets;
+        let tensor_start = data_start + start;
+        let tensor_end = data_start + end;
 
-        // Create a lazy closure that will deserialize only this tensor when needed
+        // Capture the validated byte range so drawing this tensor does not parse the header
+        // again or look up its name in the metadata index.
         let source = source.clone();
-        let tensor_name = name.to_string();
         let tensor_shape = shape.clone();
 
         // Safetensors carries no parameter identity, so `param_id` stays empty and loading
@@ -1091,21 +1095,9 @@ where
             shape,
             None,
             move || {
-                // Re-parse when needed; this only walks the header again.
-                // A malformed or truncated container, not a disk problem: classifying it as
-                // I/O would arrive mid-write next to the writer's own file errors and send
-                // the reader looking at their disk.
-                let tensors = safetensors::SafeTensors::deserialize(&source).map_err(|e| {
-                    PackError::ValidationError(format!("Failed to deserialize safetensors: {}", e))
-                })?;
-
-                // Find our specific tensor
-                let tensor = tensors.tensor(&tensor_name).map_err(|e| {
-                    PackError::ValidationError(format!("Tensor '{}' not found: {}", tensor_name, e))
-                })?;
-
-                // Only now do we actually copy this tensor's data
-                let bytes = burn_core::tensor::Bytes::from_bytes_vec(tensor.data().to_vec());
+                let bytes = burn_core::tensor::Bytes::from_bytes_vec(
+                    source[tensor_start..tensor_end].to_vec(),
+                );
                 bridge::tensor_data(bytes, tensor_shape.clone(), dtype)
             },
         ));

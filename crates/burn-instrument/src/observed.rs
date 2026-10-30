@@ -3,7 +3,7 @@
 
 use std::sync::Mutex;
 
-use crate::{Bounds, ComponentObservation, ComponentObserver, Declaration, ObservedBounds};
+use crate::{Bounds, ComponentObservation, ComponentObserver, Declaration};
 
 /// One entry, as it was declared.
 struct Entry {
@@ -19,8 +19,6 @@ struct Entry {
 enum Event {
     Enter(Entry),
     Exit,
-    /// Traffic observed under the open component, priced on arrival.
-    Observed(Bounds),
 }
 
 /// What one run entered.
@@ -46,11 +44,6 @@ impl ComponentObserver for &'static Entered {
     fn exit(&self) {
         self.events.lock().unwrap().push(Event::Exit);
         *self.depth.lock().unwrap() -= 1;
-    }
-
-    fn observe(&self, observed: ObservedBounds) {
-        let priced = observed.resolve();
-        self.events.lock().unwrap().push(Event::Observed(priced));
     }
 }
 
@@ -88,12 +81,11 @@ impl Entered {
         let events = self.events.lock().unwrap();
         read(&mut events.iter().filter_map(|event| match event {
             Event::Enter(entry) => Some(entry),
-            Event::Exit | Event::Observed(_) => None,
+            Event::Exit => None,
         }))
     }
 
-    /// Every entry as `+label:variant:bytes`, every exit as `-`, and observed traffic as
-    /// `?bytes`.
+    /// Every entry as `+label:variant:bytes`, and every exit as `-`.
     pub(crate) fn events(&self) -> Vec<String> {
         self.events
             .lock()
@@ -101,7 +93,6 @@ impl Entered {
             .iter()
             .map(|event| match event {
                 Event::Exit => "-".to_string(),
-                Event::Observed(bounds) => format!("?{}", bounds.bytes()),
                 Event::Enter(entry) => format!(
                     "+{}:{}:{}",
                     entry.label,

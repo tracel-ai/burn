@@ -1,3 +1,5 @@
+use crate::modules::bounds::{self, Windows};
+use burn::instrument::{Bounds, compute};
 use burn_core as burn;
 
 use super::output_size;
@@ -67,11 +69,38 @@ impl LpPool2dConfig {
 }
 
 impl LpPool2d {
+    /// The floor for an Lp pool alone: a resampling to the size its windows cover, reading the
+    /// positions they read. None where the pool rejects its input or its windows.
+    fn bounds(&self, input: &Tensor<4>) -> Option<Bounds> {
+        let input_size: [usize; 2] = bounds::spatial(input);
+        let empty = input_size.contains(&0);
+        let overhangs = !self.ceil_mode && (0..2).any(|i| self.kernel_size[i] > input_size[i]);
+        if empty || self.kernel_size.contains(&0) || self.stride.contains(&0) || overhangs {
+            return None;
+        }
+        let output_size: [usize; 2] = core::array::from_fn(|i| {
+            output_size(
+                input_size[i],
+                self.kernel_size[i],
+                self.stride[i],
+                self.ceil_mode,
+            )
+        });
+        let windows = Windows {
+            kernel_size: self.kernel_size,
+            stride: self.stride,
+            padding_begin: [0; 2],
+            dilation: [1; 2],
+        };
+        Some(windows.over(input, output_size).resampling(input))
+    }
+
     /// Applies Lp pooling over the last two input dimensions.
     ///
     /// The input shape is `[batch_size, channels, height_in, width_in]`; the
     /// output shape is `[batch_size, channels, height_out, width_out]`. For
     /// partial windows in ceil mode, only input elements are included in the norm.
+    #[compute(bounds = Self::bounds)]
     pub fn forward(&self, input: Tensor<4>) -> Tensor<4> {
         assert!(
             self.p.is_finite() && self.p > 0.0,

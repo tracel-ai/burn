@@ -67,6 +67,7 @@ fn avg_pool2d_backward_should_match_reference_backend() {
         kernel_size,
         stride,
         padding,
+        [1, 1],
         count_include_pad,
         false,
     );
@@ -76,6 +77,7 @@ fn avg_pool2d_backward_should_match_reference_backend() {
         kernel_size,
         stride,
         padding,
+        [1, 1],
         count_include_pad,
         false,
     );

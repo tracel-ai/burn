@@ -114,15 +114,24 @@ impl Initializer {
             move |device, require_grad| {
                 let config = config.clone();
                 let shape = shape.clone();
-                device.memory_persistent_allocations((), move |_| {
-                    let mut tensor = config.init_tensor(shape.clone(), fan_in, fan_out, device);
+                let mut tensor = if matches!(&config, Initializer::Orthogonal { .. }) {
+                    // Only the final weight needs persistent storage. QR uses temporary tensors
+                    // with many different sizes, which cannot share exact-fit persistent buffers.
+                    let tensor = config.init_tensor(shape, fan_in, fan_out, device);
+                    device.memory_persistent_allocations(tensor, |tensor| {
+                        tensor.empty_like().slice_assign([..; D], tensor)
+                    })
+                } else {
+                    device.memory_persistent_allocations((), move |_| {
+                        config.init_tensor(shape.clone(), fan_in, fan_out, device)
+                    })
+                };
 
-                    if require_grad {
-                        tensor = tensor.require_grad();
-                    }
+                if require_grad {
+                    tensor = tensor.require_grad();
+                }
 
-                    tensor
-                })
+                tensor
             },
             device,
             true,
@@ -287,6 +296,30 @@ mod tests {
         let _ = param.val();
 
         assert!(param.is_initialized());
+    }
+
+    #[test]
+    fn orthogonal_parameter_preserves_orthogonality_and_gradients() {
+        let device = test_device().autodiff();
+        let shape = [4, 8];
+        let gain = 2.0;
+        let initializer = Initializer::Orthogonal { gain };
+
+        let actual: Tensor<2> = initializer.init(shape, &device).val();
+        assert_eq!(actual.dims(), shape);
+        assert!(actual.is_require_grad());
+
+        // Wide matrices have orthogonal rows: Q Q^T = gain^2 I.
+        let gram = actual.clone().matmul(actual.clone().transpose());
+        let expected = Tensor::<2>::eye(shape[0], &device).mul_scalar(gain * gain);
+        gram.into_data()
+            .assert_approx_eq::<FT>(&expected.into_data(), Tolerance::rel_abs(1e-4, 1e-5));
+
+        let gradients = actual.clone().sum().backward();
+        let gradient = actual.grad(&gradients).unwrap();
+        gradient
+            .into_data()
+            .assert_eq(&Tensor::<2>::ones(shape, &device).into_data(), true);
     }
 
     #[test]

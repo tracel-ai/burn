@@ -30,6 +30,7 @@ flex-rayon = ["flex", "burn-flex/rayon"]
 vulkan = ["wgpu", "burn-tensor/vulkan"]
 webgpu = ["wgpu", "burn-tensor/webgpu"]
 metal = ["wgpu", "burn-tensor/metal"]
+metal-native = ["burn-tensor/metal-native", "cube"]
 wgpu = ["burn-tensor/wgpu", "quantization", "cube"]
 cpu = ["burn-tensor/cpu", "cube"]
 # Runs the test suite against a remote `burn-remote` server.
@@ -74,6 +75,7 @@ cubek = { workspace = true, features = ["random"], optional = true }
 burn-autodiff = { workspace = true, features = ["export_tests"] }
 
 burn-cubecl-fusion = { workspace = true, optional = true }
+burn-cubecl = { workspace = true, optional = true }
 
 # Enabled alongside the `fusion` feature so spy-based tests can import the spy API.
 burn-fusion = { workspace = true, optional = true }

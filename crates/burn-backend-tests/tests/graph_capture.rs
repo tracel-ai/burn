@@ -71,4 +71,26 @@ mod cube {
             .into_data()
             .assert_approx_eq::<FloatElem>(&expected, Tolerance::default());
     }
+
+    /// A closure that grows the memory pool inside the capture window cannot be
+    /// recorded, since every replay must reuse the buffers prepared before it:
+    /// the graph falls back to re-running the closure and says why. A backend
+    /// without graph support fails at the start instead, so the assertions hold
+    /// there too.
+    #[test]
+    #[serial]
+    fn capture_reports_why_it_falls_back() {
+        let device = Device::default();
+        let mut runs = 0;
+
+        // Each run asks for a size no earlier run allocated, so the captured run
+        // cannot reuse a warmup buffer and must grow the pool.
+        let graph = burn_tensor::capture(&device, || {
+            runs += 1;
+            TestTensor::<1>::ones([786_433 * runs], &device)
+        });
+
+        assert!(!graph.is_hardware());
+        assert!(graph.capture_error().is_some());
+    }
 }
