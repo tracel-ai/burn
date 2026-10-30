@@ -86,6 +86,14 @@ impl ActivationOps<Flex> for Flex {
     fn gelu_backward(x: FloatTensor<Flex>, grad: FloatTensor<Flex>) -> FloatTensor<Flex> {
         // d/dx[gelu(x)] = 0.5 * (1 + erf(x/sqrt(2))) + x * (1/sqrt(2*pi)) * exp(-x^2/2)
         #[cfg(feature = "simd")]
+        let (x, grad) =
+            match crate::ops::binary::simd_zip_map::<f32, _>(x, grad, crate::simd::GeluBackward) {
+                Ok(out) => return out,
+                Err(operands) => operands,
+            };
+        // A strided or broadcast `grad` still lets a contiguous `x` take the
+        // SIMD derivative, with the multiply taking any layout.
+        #[cfg(feature = "simd")]
         let x = match crate::ops::unary::simd_map::<f32, _>(x, crate::simd::GeluGrad) {
             Ok(dx) => return Flex::float_mul(dx, grad),
             Err(x) => x,
@@ -175,6 +183,16 @@ impl ActivationOps<Flex> for Flex {
     fn log_sigmoid_backward(x: FloatTensor<Flex>, grad: FloatTensor<Flex>) -> FloatTensor<Flex> {
         // d/dx[log_sigmoid(x)] = sigmoid(-x) * (-1) * (-1) = 1 - sigmoid(x) = sigmoid(-x)
         // So: grad * sigmoid(-x)
+        #[cfg(feature = "simd")]
+        let (x, grad) = match crate::ops::binary::simd_zip_map::<f32, _>(
+            x,
+            grad,
+            crate::simd::LogSigmoidBackward,
+        ) {
+            Ok(out) => return out,
+            Err(operands) => operands,
+        };
+        // As in `gelu_backward`.
         #[cfg(feature = "simd")]
         let x = match crate::ops::unary::simd_map::<f32, _>(x, crate::simd::LogSigmoidGrad) {
             Ok(dx) => return Flex::float_mul(dx, grad),

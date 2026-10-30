@@ -7,7 +7,7 @@ use alloc::vec::Vec;
 use core::mem::MaybeUninit;
 
 use macerator::{
-    Scalar, Simd, VBitAnd, VBitOr, VBitXor, VCeil, VFloor, VRoundTiesEven, VTrunc, Vector,
+    Mask, Scalar, Simd, VBitAnd, VBitOr, VBitXor, VCeil, VFloor, VRoundTiesEven, VTrunc, Vector,
     vload_unaligned, vstore_unaligned,
 };
 
@@ -326,6 +326,151 @@ unsafe fn map_raw<S: Simd, F: Scalar, O: LaneOp<F>>(src: *const F, dst: *mut F, 
             let v = vload_unaligned::<S, F>(buf.as_ptr());
             vstore_unaligned::<S, F>(buf.as_mut_ptr(), op.apply(v));
             core::ptr::copy_nonoverlapping(buf.as_ptr(), dst.add(simd_len), tail);
+        }
+    }
+}
+
+/// An elementwise op on two vectors, run over slice pairs by
+/// [`zip_map_inplace`] and [`zip_map_to_vec`]. Like [`LaneOp`], each output
+/// lane must depend only on the same lane of each input.
+pub trait LaneOp2<F: Scalar>: Copy + Send + Sync {
+    fn apply<S: Simd>(self, a: Vector<S, F>, b: Vector<S, F>) -> Vector<S, F>;
+}
+
+/// `O` with its operands swapped, so a result can be written into either.
+#[derive(Clone, Copy)]
+pub struct Swap<O>(pub O);
+
+impl<F: Scalar, O: LaneOp2<F>> LaneOp2<F> for Swap<O> {
+    #[inline(always)]
+    fn apply<S: Simd>(self, a: Vector<S, F>, b: Vector<S, F>) -> Vector<S, F> {
+        self.0.apply(b, a)
+    }
+}
+
+/// Sets `a[i] = op(a[i], b[i])` for every `i`.
+#[inline]
+pub fn zip_map_inplace<F: Scalar + Send + Sync, O: LaneOp2<F>>(a: &mut [F], b: &[F], op: O) {
+    assert_eq!(a.len(), b.len());
+    #[cfg(feature = "rayon")]
+    if a.len() >= PARALLEL_THRESHOLD {
+        a.par_chunks_mut(CHUNK_SIZE)
+            .zip(b.par_chunks(CHUNK_SIZE))
+            .for_each(|(a, b)| zip_inplace_seq(a, b, op));
+        return;
+    }
+
+    zip_inplace_seq(a, b, op);
+}
+
+/// Returns `op(a[i], b[i])` for every `i`, computed in one pass into a new
+/// vector.
+#[inline]
+pub fn zip_map_to_vec<F: Scalar + Send + Sync, O: LaneOp2<F>>(a: &[F], b: &[F], op: O) -> Vec<F> {
+    assert_eq!(a.len(), b.len());
+    let mut out = Vec::with_capacity(a.len());
+    let dst = &mut out.spare_capacity_mut()[..a.len()];
+
+    #[cfg(feature = "rayon")]
+    if a.len() >= PARALLEL_THRESHOLD {
+        dst.par_chunks_mut(CHUNK_SIZE)
+            .zip(a.par_chunks(CHUNK_SIZE).zip(b.par_chunks(CHUNK_SIZE)))
+            .for_each(|(d, (a, b))| zip_into_seq(a, b, d, op));
+    } else {
+        zip_into_seq(a, b, dst, op);
+    }
+    #[cfg(not(feature = "rayon"))]
+    zip_into_seq(a, b, dst, op);
+
+    // SAFETY: `zip_into_seq` wrote every one of the `a.len()` elements.
+    unsafe { out.set_len(a.len()) };
+    out
+}
+
+#[macerator::with_simd]
+fn zip_inplace_seq<S: Simd, F: Scalar, O: LaneOp2<F>>(a: &mut [F], b: &[F], op: O) {
+    let p = a.as_mut_ptr();
+    // SAFETY: `p` is valid for `a.len()` reads and writes and `b` for as many
+    // reads.
+    unsafe { zip_raw::<S, F, O>(p, b.as_ptr(), p, a.len(), op) }
+}
+
+#[macerator::with_simd]
+fn zip_into_seq<S: Simd, F: Scalar, O: LaneOp2<F>>(
+    a: &[F],
+    b: &[F],
+    dst: &mut [MaybeUninit<F>],
+    op: O,
+) {
+    // SAFETY: `dst` is a distinct borrow of `a.len()` elements, and
+    // `MaybeUninit<F>` has the layout of `F`.
+    unsafe { zip_raw::<S, F, O>(a.as_ptr(), b.as_ptr(), dst.as_mut_ptr().cast(), a.len(), op) }
+}
+
+/// Writes `op(a[i], b[i])` to `dst[i]` for every `i < len`, with a short tail
+/// through `op` in padded buffers as in [`map_raw`].
+///
+/// # Safety
+///
+/// `a` and `b` must be valid for `len` reads and `dst` for `len` writes, all
+/// aligned to `F`. `dst` either equals `a` or overlaps neither input.
+#[inline(always)]
+unsafe fn zip_raw<S: Simd, F: Scalar, O: LaneOp2<F>>(
+    a: *const F,
+    b: *const F,
+    dst: *mut F,
+    len: usize,
+    op: O,
+) {
+    let lanes = F::lanes::<S>();
+    let simd_len = len / lanes * lanes;
+    let unrolled_len = len / (4 * lanes) * (4 * lanes);
+
+    // Four vectors per iteration with the loads first, as in `map_raw`.
+    let mut i = 0;
+    while i < unrolled_len {
+        unsafe {
+            let a0 = vload_unaligned::<S, F>(a.add(i));
+            let a1 = vload_unaligned::<S, F>(a.add(i + lanes));
+            let a2 = vload_unaligned::<S, F>(a.add(i + 2 * lanes));
+            let a3 = vload_unaligned::<S, F>(a.add(i + 3 * lanes));
+            let b0 = vload_unaligned::<S, F>(b.add(i));
+            let b1 = vload_unaligned::<S, F>(b.add(i + lanes));
+            let b2 = vload_unaligned::<S, F>(b.add(i + 2 * lanes));
+            let b3 = vload_unaligned::<S, F>(b.add(i + 3 * lanes));
+            vstore_unaligned::<S, F>(dst.add(i), op.apply(a0, b0));
+            vstore_unaligned::<S, F>(dst.add(i + lanes), op.apply(a1, b1));
+            vstore_unaligned::<S, F>(dst.add(i + 2 * lanes), op.apply(a2, b2));
+            vstore_unaligned::<S, F>(dst.add(i + 3 * lanes), op.apply(a3, b3));
+        }
+        i += 4 * lanes;
+    }
+    while i < simd_len {
+        unsafe {
+            let va = vload_unaligned::<S, F>(a.add(i));
+            let vb = vload_unaligned::<S, F>(b.add(i));
+            vstore_unaligned::<S, F>(dst.add(i), op.apply(va, vb));
+        }
+        i += lanes;
+    }
+
+    let tail = len - simd_len;
+    if tail > 0 {
+        let mut buf_a = [F::default(); MAX_LANES];
+        let mut buf_b = [F::default(); MAX_LANES];
+        assert!(
+            lanes <= MAX_LANES,
+            "SIMD lane count {lanes} exceeds {MAX_LANES}"
+        );
+        // SAFETY: the tail is in bounds of every buffer, and the assertion
+        // above keeps one vector within `buf_a` and `buf_b`.
+        unsafe {
+            core::ptr::copy_nonoverlapping(a.add(simd_len), buf_a.as_mut_ptr(), tail);
+            core::ptr::copy_nonoverlapping(b.add(simd_len), buf_b.as_mut_ptr(), tail);
+            let va = vload_unaligned::<S, F>(buf_a.as_ptr());
+            let vb = vload_unaligned::<S, F>(buf_b.as_ptr());
+            vstore_unaligned::<S, F>(buf_a.as_mut_ptr(), op.apply(va, vb));
+            core::ptr::copy_nonoverlapping(buf_a.as_ptr(), dst.add(simd_len), tail);
         }
     }
 }
@@ -1066,6 +1211,103 @@ impl LaneOp<f32> for Acos {
             core::f32::consts::PI.splat::<S>() - (s + s),
             high().select(s + s, core::f32::consts::FRAC_PI_2.splat::<S>() - s),
         )
+    }
+}
+
+/// `atan2(y, x)` for f32 lanes, with `y` first: `atan(|y| / |x|)` reflected
+/// to `pi - t` where `x` has its sign bit set, then given the sign of `y`. The
+/// IEEE special cases come out as in libm: both zeros give +-0 or +-pi by the
+/// sign of `x`, both infinities give +-pi/4 or +-3pi/4, and NaN gives NaN.
+#[derive(Clone, Copy)]
+pub struct Atan2;
+
+impl LaneOp2<f32> for Atan2 {
+    #[allow(clippy::excessive_precision)]
+    #[inline(always)]
+    fn apply<S: Simd>(self, y: Vector<S, f32>, x: Vector<S, f32>) -> Vector<S, f32> {
+        let a = y.abs();
+        let b = x.abs();
+        let inf = f32::INFINITY.splat::<S>();
+
+        let t = Atan.apply(a / b);
+        // 0/0 and 0/inf are 0 and inf/inf is pi/4 in the first quadrant.
+        let t = a.eq(0.0f32.splat()).select(0.0f32.splat(), t);
+        let t = (a.eq(inf) & b.eq(inf)).select(core::f32::consts::FRAC_PI_4.splat(), t);
+        // pi - t with pi in two parts, the low one -8.742278e-8.
+        let reflected = ((-8.742_278e-8f32).splat::<S>() - t) + core::f32::consts::PI.splat();
+        let x_negative = x.reinterpret::<i32>().lt(0i32.splat());
+        let t = select_by_int_mask(x_negative, reflected, t);
+
+        let out = with_sign_of(t, y);
+        // Either NaN gives NaN, which `a == 0` above could have hidden.
+        (!(x.eq(x) & y.eq(y))).select(x + y, out)
+    }
+}
+
+/// `if_true` where the lanes of the i32 comparison `mask` hold, else
+/// `if_false`.
+#[inline(always)]
+fn select_by_int_mask<S: Simd>(
+    mask: Mask<S, i32>,
+    if_true: Vector<S, f32>,
+    if_false: Vector<S, f32>,
+) -> Vector<S, f32> {
+    mask.select(if_true.reinterpret::<i32>(), if_false.reinterpret::<i32>())
+        .reinterpret::<f32>()
+}
+
+/// `hypot(x, y)` for f32 lanes, as `sqrt(x^2 + y^2)` after scaling both by a
+/// power of two from the larger exponent, so the larger square neither
+/// overflows nor underflows and scaling it is exact. An infinite input gives +inf, even
+/// against NaN, as IEEE specifies.
+#[derive(Clone, Copy)]
+pub struct Hypot;
+
+impl LaneOp2<f32> for Hypot {
+    #[inline(always)]
+    fn apply<S: Simd>(self, x: Vector<S, f32>, y: Vector<S, f32>) -> Vector<S, f32> {
+        let a = x.abs();
+        let b = y.abs();
+        let inf = f32::INFINITY.splat::<S>();
+
+        // The larger magnitude's biased exponent `e` picks the scale 2^(127 - e),
+        // which brings it near 1. Its biased exponent 254 - e is kept at 1 or
+        // more so it stays a normal number; the inputs in the top binade then
+        // land in [2, 4) instead, still far from overflow.
+        let larger = a.ge(b).select(a, b);
+        let e = larger.reinterpret::<i32>() >> 23;
+        let scale_exp = 254i32.splat::<S>() - e;
+        let scale_exp = scale_exp.lt(1i32.splat()).select(1i32.splat(), scale_exp);
+        let scale = (scale_exp << 23).reinterpret::<f32>();
+
+        let sa = a * scale;
+        let sb = b * scale;
+        let h = (sa * sa + sb * sb).sqrt() / scale;
+        (a.eq(inf) | b.eq(inf)).select(inf, h)
+    }
+}
+
+/// The GELU backward pass, [`GeluGrad`] of `x` times the incoming gradient,
+/// in one pass.
+#[derive(Clone, Copy)]
+pub struct GeluBackward;
+
+impl LaneOp2<f32> for GeluBackward {
+    #[inline(always)]
+    fn apply<S: Simd>(self, x: Vector<S, f32>, grad: Vector<S, f32>) -> Vector<S, f32> {
+        GeluGrad.apply(x) * grad
+    }
+}
+
+/// The log-sigmoid backward pass, [`LogSigmoidGrad`] of `x` times the
+/// incoming gradient, in one pass.
+#[derive(Clone, Copy)]
+pub struct LogSigmoidBackward;
+
+impl LaneOp2<f32> for LogSigmoidBackward {
+    #[inline(always)]
+    fn apply<S: Simd>(self, x: Vector<S, f32>, grad: Vector<S, f32>) -> Vector<S, f32> {
+        LogSigmoidGrad.apply(x) * grad
     }
 }
 
@@ -2165,6 +2407,96 @@ mod tests {
         assert_eq!(ends[1].to_bits(), core::f32::consts::PI.to_bits());
     }
 
+    /// Checks the two-input `op` against `reference` within `max_ulps` on
+    /// seeded random pairs, uniform over all bit patterns and over [-10, 10],
+    /// then on `extra` pairs in a call of their own. Zeros must match in sign.
+    fn check_pairs(
+        op: impl LaneOp2<f32>,
+        reference: fn(f32, f32) -> f32,
+        max_ulps: u64,
+        extra: &[(f32, f32)],
+    ) {
+        let check = |xs: &[f32], ys: &[f32]| {
+            let out = zip_map_to_vec(xs, ys, op);
+            for ((&x, &y), &o) in xs.iter().zip(ys).zip(&out) {
+                let e = reference(x, y);
+                let ok = if e.is_nan() {
+                    o.is_nan()
+                } else if e == 0.0 {
+                    o.to_bits() == e.to_bits()
+                } else {
+                    signed_ulps(o, e) <= max_ulps
+                };
+                assert!(ok, "({x:e}, {y:e}) gives {o:e}, libm gives {e:e}");
+            }
+        };
+        let mut state = 0x9e37_79b9_7f4a_7c15u64;
+        let mut next = move || {
+            state ^= state << 13;
+            state ^= state >> 7;
+            state ^= state << 17;
+            state
+        };
+        let bits: Vec<f32> = (0..400_000)
+            .map(|_| f32::from_bits(next() as u32))
+            .collect();
+        let small: Vec<f32> = (0..400_000)
+            .map(|_| (next() >> 40) as f32 / (1u64 << 24) as f32 * 20.0 - 10.0)
+            .collect();
+        check(&bits[..200_000], &bits[200_000..]);
+        check(&small[..200_000], &small[200_000..]);
+        let (xs, ys): (Vec<f32>, Vec<f32>) = extra.iter().copied().unzip();
+        check(&xs, &ys);
+    }
+
+    /// Every pair of zeros, ones, infinities, NaN and a subnormal, both signs.
+    fn special_pairs() -> Vec<(f32, f32)> {
+        let v = [
+            0.0,
+            -0.0,
+            1.0,
+            -1.0,
+            f32::INFINITY,
+            f32::NEG_INFINITY,
+            f32::NAN,
+            f32::from_bits(1),
+        ];
+        v.iter()
+            .flat_map(|&a| v.iter().map(move |&b| (a, b)))
+            .collect()
+    }
+
+    // The extra pairs include the worst cases of 52M random pairs on NEON and
+    // SSE4.2.
+
+    #[test]
+    fn atan2_f32_within_3_ulp_of_libm() {
+        let mut extra = special_pairs();
+        extra.extend([
+            (f32::from_bits(0x1b4f_0572), f32::from_bits(0x1bed_c8a0)),
+            (f32::from_bits(0xc033_4ba6), f32::from_bits(0x40c6_e730)),
+            (f32::from_bits(0xc081_c660), f32::from_bits(0x4110_8d10)),
+            (f32::MAX, f32::from_bits(1)),
+            (f32::from_bits(1), -f32::MAX),
+        ]);
+        check_pairs(Atan2, libm::atan2f, 3, &extra);
+    }
+
+    #[test]
+    fn hypot_f32_within_1_ulp_of_libm() {
+        let mut extra = special_pairs();
+        extra.extend([
+            (f32::from_bits(0x0fb2_6aa6), f32::from_bits(0x13ba_2dc9)),
+            (f32::from_bits(0xc0b2_87d6), f32::from_bits(0xc081_19b5)),
+            (f32::MAX, f32::MAX),
+            (f32::MAX, 1.0),
+            (3e38, 2e38),
+            (f32::from_bits(3), f32::from_bits(4)),
+            (1e-30, 1e-30),
+        ]);
+        check_pairs(Hypot, libm::hypotf, 1, &extra);
+    }
+
     #[test]
     fn exp_f32_within_2_ulp_of_libm() {
         // Every 1/256 step from deep underflow to overflow, which crosses the
@@ -2479,6 +2811,33 @@ mod tests {
         assert_eq!(out.len(), input.len());
         for (i, (&x, &y)) in input.iter().zip(&out).enumerate() {
             assert_eq!(y.to_bits(), x.floor().to_bits(), "index {i}");
+        }
+    }
+
+    /// Above `PARALLEL_THRESHOLD` both zip maps split into rayon chunks, which
+    /// must pair each `a` chunk with its own `b` chunk. Subtraction shows a
+    /// swap or a misaligned pair.
+    #[cfg(feature = "rayon")]
+    #[test]
+    fn zip_maps_parallel_pair_every_element() {
+        #[derive(Clone, Copy)]
+        struct Sub;
+        impl LaneOp2<f32> for Sub {
+            fn apply<S: Simd>(self, a: Vector<S, f32>, b: Vector<S, f32>) -> Vector<S, f32> {
+                a - b
+            }
+        }
+
+        let n = PARALLEL_THRESHOLD + 3;
+        let a: Vec<f32> = (0..n).map(|i| i as f32).collect();
+        let b: Vec<f32> = (0..n).map(|i| (i % 7) as f32).collect();
+        let out = zip_map_to_vec(&a, &b, Sub);
+        let mut inplace = a.clone();
+        zip_map_inplace(&mut inplace, &b, Sub);
+        for i in 0..n {
+            let expected = a[i] - b[i];
+            assert_eq!(out[i], expected, "index {i}");
+            assert_eq!(inplace[i], expected, "index {i}");
         }
     }
 
