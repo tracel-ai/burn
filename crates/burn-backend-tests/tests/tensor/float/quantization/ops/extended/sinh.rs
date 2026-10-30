@@ -10,6 +10,7 @@ fn should_support_sinh_ops() {
     let output = tensor.sinh();
     let expected = TensorData::from([[0.0000, 1.1752, 3.6269], [10.0179, 27.2899, 74.2032]]);
 
+    let expected = requantized(expected, &output);
     output
         .dequantize()
         .into_data()

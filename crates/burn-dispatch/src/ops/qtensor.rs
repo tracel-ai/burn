@@ -50,7 +50,7 @@ macro_rules! wrap_q_matmul_autodiff {
     ($Backend:ident, $output:expr, $strategy:expr) => {{
         match $output {
             TensorPrimitive::QFloat(output) => TensorPrimitive::QFloat(DispatchTensor {
-                kind: DispatchTensorKind::$Backend(BackendTensor::Quantized(output)),
+                kind: DispatchTensorKind::$Backend(BackendTensor::AutodiffQuantized(output)),
                 autodiff: DispatchAutodiffContext::Enabled($strategy),
             }),
             TensorPrimitive::Float(output) => TensorPrimitive::Float(DispatchTensor {
@@ -69,12 +69,28 @@ macro_rules! q_matmul_qq_arms {
             $(
                 #[cfg($cfg)]
                 (DispatchTensorKind::$Backend(lhs), DispatchTensorKind::$Backend(rhs)) => {
-                    type B = crate::backends::$Backend;
-                    let output = B::q_matmul(
-                        TensorPrimitive::QFloat(lhs.quantized()),
-                        TensorPrimitive::QFloat(rhs.quantized()),
-                    );
-                    wrap_q_matmul_concrete!($Backend, output, $autodiff)
+                    match $autodiff {
+                        // Quantized operands carry their own node under autodiff, so the
+                        // product runs where gradients reach them.
+                        #[cfg(feature = "autodiff")]
+                        DispatchAutodiffContext::Enabled(strategy) => {
+                            with_autodiff_backend!($Backend, strategy, |B| {
+                                let output = B::q_matmul(
+                                    TensorPrimitive::QFloat(lhs.autodiff_quantized()),
+                                    TensorPrimitive::QFloat(rhs.autodiff_quantized()),
+                                );
+                                wrap_q_matmul_autodiff!($Backend, output, strategy)
+                            })
+                        }
+                        _ => {
+                            type B = crate::backends::$Backend;
+                            let output = B::q_matmul(
+                                TensorPrimitive::QFloat(lhs.quantized()),
+                                TensorPrimitive::QFloat(rhs.quantized()),
+                            );
+                            wrap_q_matmul_concrete!($Backend, output, $autodiff)
+                        }
+                    }
                 }
             )*
             #[allow(unreachable_patterns)]
@@ -104,7 +120,7 @@ macro_rules! q_matmul_fq_arms {
                                 let lhs = <B as burn_backend::AutodiffBackend>::from_inner(lhs.float());
                                 let output = B::q_matmul(
                                     TensorPrimitive::Float(lhs),
-                                    TensorPrimitive::QFloat(rhs.quantized()),
+                                    TensorPrimitive::QFloat(rhs.autodiff_quantized()),
                                 );
                                 wrap_q_matmul_autodiff!($Backend, output, strategy)
                             })
@@ -127,7 +143,7 @@ macro_rules! q_matmul_fq_arms {
                         with_autodiff_backend!($Backend, strategy, |B| {
                             let output = B::q_matmul(
                                 TensorPrimitive::Float(lhs.autodiff()),
-                                TensorPrimitive::QFloat(rhs.quantized()),
+                                TensorPrimitive::QFloat(rhs.autodiff_quantized()),
                             );
                             wrap_q_matmul_autodiff!($Backend, output, strategy)
                         })
@@ -162,7 +178,7 @@ macro_rules! q_matmul_qf_arms {
                             with_autodiff_backend!($Backend, strategy, |B| {
                                 let rhs = <B as burn_backend::AutodiffBackend>::from_inner(rhs.float());
                                 let output = B::q_matmul(
-                                    TensorPrimitive::QFloat(lhs.quantized()),
+                                    TensorPrimitive::QFloat(lhs.autodiff_quantized()),
                                     TensorPrimitive::Float(rhs),
                                 );
                                 wrap_q_matmul_autodiff!($Backend, output, strategy)
@@ -185,7 +201,7 @@ macro_rules! q_matmul_qf_arms {
                         };
                         with_autodiff_backend!($Backend, strategy, |B| {
                             let output = B::q_matmul(
-                                TensorPrimitive::QFloat(lhs.quantized()),
+                                TensorPrimitive::QFloat(lhs.autodiff_quantized()),
                                 TensorPrimitive::Float(rhs.autodiff()),
                             );
                             wrap_q_matmul_autodiff!($Backend, output, strategy)
@@ -213,6 +229,10 @@ impl QTensorOps<Self> for Dispatch {
         qparams: QuantizationParametersPrimitive<Self>,
     ) -> QuantizedTensor<Self> {
         B::quantize(tensor, scheme, qparams)
+    }
+
+    fn quantize_dynamic(tensor: FloatTensor<Self>, scheme: &QuantScheme) -> QuantizedTensor<Self> {
+        B::quantize_dynamic(tensor, scheme)
     }
 
     fn dequantize(tensor: QuantizedTensor<Self>, dtype: FloatDType) -> FloatTensor<Self> {

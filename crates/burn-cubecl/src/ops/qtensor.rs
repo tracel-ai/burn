@@ -1,14 +1,13 @@
 use burn_backend::{
     Bytes, DType, ExecutionError, Shape, SplitPolicy, TensorData, TensorMetadata, TensorPrimitive,
-    get_or_init_device_settings,
-    ops::QTensorOps,
+    ops::{FloatTensorOps, QTensorOps},
     quantization::{
-        QParamTensor, QuantMode, QuantPropagation, QuantScheme, QuantValue,
-        QuantizationParametersPrimitive, ScaleDtype, global_scale_dtype, params_shape,
+        QParamTensor, QuantMode, QuantScheme, QuantValue, QuantizationParametersPrimitive,
+        ScaleDtype, global_scale_dtype, params_shape,
     },
     tensor::{Device, FloatTensor, QuantizedTensor},
 };
-use burn_std::{FloatDType, Metadata, quantization::global_scale_size};
+use burn_std::{FloatDType, Metadata, Slice, quantization::global_scale_size};
 use cubecl::server::{MemoryLayout, MemoryLayoutDescriptor, MemoryLayoutStrategy};
 use cubecl::{e2m1x2, quant::scheme::QuantStore};
 
@@ -275,7 +274,22 @@ impl QTensorOps<Self> for CubeBackend {
         }
     }
 
-    // TODO: quantize_dynamic (we can compute min-max on the fly and scale, especially when not per-tensor)
+    /// A single-level block scheme along the innermost axis quantizes in one launch
+    /// ([`quantize_symmetric_blocks`](kernel::quantization::quantize_symmetric_blocks)) rather
+    /// than through the composed min-max calibration's chain of reductions and arithmetic, then a
+    /// quantize; every other scheme takes the composed calibration.
+    fn quantize_dynamic(tensor: FloatTensor<Self>, scheme: &QuantScheme) -> QuantizedTensor<Self> {
+        if let Some(quantized) = kernel::quantization::quantize_symmetric_blocks(&tensor, scheme) {
+            return quantized;
+        }
+        let (min, max) = burn_backend::quantization::compute_range::<Self>(
+            scheme,
+            tensor.clone(),
+            &burn_backend::quantization::Calibration::MinMax,
+        );
+        let qparams = burn_backend::quantization::compute_q_params(scheme, min, max);
+        Self::quantize(tensor, scheme, qparams)
+    }
 
     fn quantize(
         tensor: FloatTensor<Self>,
@@ -302,8 +316,39 @@ impl QTensorOps<Self> for CubeBackend {
         super::to_device(tensor, device)
     }
 
+    fn q_slice(tensor: QuantizedTensor<Self>, slices: &[Slice]) -> QuantizedTensor<Self> {
+        let ranges = slices
+            .iter()
+            .enumerate()
+            .map(|(axis, slice)| slice.to_range(tensor.meta.shape()[axis]))
+            .collect::<Vec<_>>();
+        let steps_one = slices.iter().all(|slice| slice.step == 1);
+        match steps_one
+            .then(|| super::q_slice(tensor.clone(), &ranges))
+            .flatten()
+        {
+            Some(sliced) => sliced,
+            // Its words or its blocks cannot follow the slice as a view: quantized again, the
+            // block along the innermost axis, as an operation's output is.
+            None => {
+                let scheme = burn_std::innermost_scheme(tensor.scheme());
+                let float = Self::dequantize(tensor, FloatDType::F32);
+                Self::quantize_dynamic(Self::float_slice(float, slices), &scheme)
+            }
+        }
+    }
+
     fn q_reshape(tensor: QuantizedTensor<Self>, shape: Shape) -> QuantizedTensor<Self> {
-        super::q_reshape(tensor, shape)
+        match super::q_reshape(tensor.clone(), shape.clone()) {
+            Some(reshaped) => reshaped,
+            // Its blocks cannot follow the reshape as metadata: quantized again, the block along
+            // the innermost axis, as an operation's output is.
+            None => {
+                let scheme = burn_std::innermost_scheme(tensor.scheme());
+                let float = Self::dequantize(tensor, FloatDType::F32);
+                Self::quantize_dynamic(Self::float_reshape(float, shape), &scheme)
+            }
+        }
     }
 
     async fn q_into_data(tensor: QuantizedTensor<Self>) -> Result<TensorData, ExecutionError> {
@@ -357,42 +402,20 @@ impl QTensorOps<Self> for CubeBackend {
     }
 
     fn q_matmul(lhs: TensorPrimitive<Self>, rhs: TensorPrimitive<Self>) -> TensorPrimitive<Self> {
-        let (settings, scheme) = match (&lhs, &rhs) {
-            (TensorPrimitive::QFloat(lhs), _) => (
-                get_or_init_device_settings::<Self>(&lhs.device),
-                lhs.scheme(),
-            ),
-            (_, TensorPrimitive::QFloat(rhs)) => (
-                get_or_init_device_settings::<Self>(&rhs.device),
-                rhs.scheme(),
-            ),
-            _ => unreachable!(),
-        };
-
-        // Inherit precision for mixed inputs, default to `FloatElem` for fully quantized.
+        // A float operand names the output's precision; two quantized operands multiply into f32.
+        // Whether the output is quantized again is the caller's to resolve.
         let out_dtype = match (&lhs, &rhs) {
             (TensorPrimitive::Float(lhs), _) => lhs.dtype,
             (_, TensorPrimitive::Float(rhs)) => rhs.dtype,
-            _ => settings.float_dtype.into(),
+            _ => DType::F32,
         };
-
-        let (_lhs_dtype, lhs) = match lhs {
-            TensorPrimitive::Float(lhs) => (lhs.dtype, lhs),
-            TensorPrimitive::QFloat(lhs) => (out_dtype, lhs),
-        };
-        let (_rhs_dtype, rhs) = match rhs {
-            TensorPrimitive::Float(rhs) => (rhs.dtype, rhs),
-            TensorPrimitive::QFloat(rhs) => (out_dtype, rhs),
-        };
+        let [lhs, rhs] = [lhs, rhs].map(|operand| match operand {
+            TensorPrimitive::Float(operand) | TensorPrimitive::QFloat(operand) => operand,
+        });
 
         let out =
             kernel::matmul::matmul(lhs, rhs, None, MatmulStrategy::default(), out_dtype).unwrap();
 
-        match settings.quantization.propagation {
-            QuantPropagation::Propagate => {
-                TensorPrimitive::QFloat(Self::quantize_dynamic(out, &scheme))
-            }
-            QuantPropagation::Inhibit => TensorPrimitive::Float(out),
-        }
+        TensorPrimitive::Float(out)
     }
 }

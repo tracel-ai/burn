@@ -1,9 +1,11 @@
-use burn_backend::ops::{BoolTensorOps, FloatTensorOps, IntTensorOps};
+use burn_backend::ops::{BoolTensorOps, FloatTensorOps, IntTensorOps, QTensorOps};
+use burn_backend::quantization::QuantScheme;
 use burn_backend::{DType, FloatDType, IntDType};
 use burn_dispatch::Dispatch;
+use burn_std::DTypePropagation;
 
 use crate::kind::Basic;
-use crate::ops::BridgeTensor;
+use crate::ops::{BridgeKind, BridgeTensor};
 use crate::{Bool, Float, Int, Tensor};
 
 /// Trait for types that represent a valid cast target from a tensor of kind `K`.
@@ -23,16 +25,17 @@ pub trait Cast<const D: usize, K: Basic> {
 impl<const D: usize> Cast<D, Float> for FloatDType {
     type OutputKind = Float;
 
+    /// A float tensor in `dtype`; a quantized tensor is dequantized into it. The output
+    /// propagates, as every cast's does: a cast states the dtype the data flows in.
     fn cast(tensor: Tensor<D, Float>, dtype: Self) -> Tensor<D, Float> {
-        if tensor.primitive.is_float() {
-            let current: FloatDType = tensor.dtype().into();
-            if current == dtype {
-                return tensor;
-            }
-            Tensor::new(float_cast_impl(tensor.primitive, dtype))
-        } else {
-            panic!("Should be Float primitive kind");
+        if tensor.primitive.is_float() && FloatDType::from(tensor.dtype()) == dtype {
+            return Tensor::new(
+                tensor
+                    .primitive
+                    .with_propagation(DTypePropagation::Propagate),
+            );
         }
+        Tensor::new(float_cast_impl(tensor.primitive, dtype))
     }
 }
 
@@ -44,18 +47,29 @@ impl<const D: usize> Cast<D, Float> for IntDType {
     }
 }
 
-/// Backward-compatible impl: only float `DType` variants are accepted.
+/// A float `DType` casts as its [`FloatDType`] does; a quantized one quantizes the tensor under
+/// its scheme.
 ///
 /// # Panics
 ///
-/// Panics if `dtype` is not a float variant (e.g., `DType::I32`).
+/// Panics if `dtype` is not a float or quantized variant (e.g., `DType::I32`).
 /// Use [`IntDType`] directly for cross-kind casting to int.
 impl<const D: usize> Cast<D, Float> for DType {
     type OutputKind = Float;
 
     fn cast(tensor: Tensor<D, Float>, dtype: Self) -> Tensor<D, Float> {
-        let float_dtype: FloatDType = dtype.into();
-        <FloatDType as Cast<D, Float>>::cast(tensor, float_dtype)
+        match dtype {
+            DType::QFloat(_) if tensor.dtype() == dtype => Tensor::new(
+                tensor
+                    .primitive
+                    .with_propagation(DTypePropagation::Propagate),
+            ),
+            DType::QFloat(scheme) => Tensor::new(quantize_cast_impl(tensor.primitive, &scheme)),
+            dtype => {
+                let float_dtype: FloatDType = dtype.into();
+                <FloatDType as Cast<D, Float>>::cast(tensor, float_dtype)
+            }
+        }
     }
 }
 
@@ -120,7 +134,20 @@ impl<const D: usize> Cast<D, Bool> for FloatDType {
 // =========================================================================
 
 fn float_cast_impl(p: BridgeTensor, dtype: FloatDType) -> BridgeTensor {
-    BridgeTensor::float(Dispatch::float_cast(p.into_float(), dtype))
+    match p.into_parts() {
+        (BridgeKind::QFloat, p) => BridgeTensor::float(Dispatch::dequantize(p, dtype)),
+        (BridgeKind::Float, p) => BridgeTensor::float(Dispatch::float_cast(p, dtype)),
+        _ => panic!("Should be Float primitive kind"),
+    }
+}
+
+fn quantize_cast_impl(p: BridgeTensor, scheme: &QuantScheme) -> BridgeTensor {
+    let float = match p.into_parts() {
+        (BridgeKind::QFloat, p) => Dispatch::dequantize(p, FloatDType::F32),
+        (BridgeKind::Float, p) => p,
+        _ => panic!("Should be Float primitive kind"),
+    };
+    BridgeTensor::qfloat(Dispatch::quantize_dynamic(float, scheme))
 }
 
 fn float_to_int_impl(p: BridgeTensor, dtype: IntDType) -> BridgeTensor {

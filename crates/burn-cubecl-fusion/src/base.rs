@@ -157,7 +157,10 @@ impl CubeFusionHandle {
                 ScaleDtype::F32 => DType::F32,
                 ScaleDtype::F16 => DType::F16,
                 ScaleDtype::BF16 => DType::BF16,
-                ScaleDtype::UE8M0 | ScaleDtype::UE4M3 => unimplemented!("Not yet supported"),
+                // Bytes the kernel argument reads at the scale's own type: the handle only
+                // carries their width.
+                ScaleDtype::UE8M0 => DType::U8,
+                ScaleDtype::UE4M3 => unimplemented!("Not yet supported"),
             },
             strides: qparams.scales.metadata.strides().clone(),
             tiles: None,

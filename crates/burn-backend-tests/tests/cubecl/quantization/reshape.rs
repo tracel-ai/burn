@@ -261,8 +261,7 @@ fn packed_dimension_alignment_failure_should_panic() {
 }
 
 #[test]
-#[should_panic] // "Split reshape of ND block-quantized tensor" error is shadowed by the CallError
-fn nd_block_split_reshape_should_panic() {
+fn nd_block_split_reshape_quantizes_again() {
     let shape = [2, 4, 8];
     let numel = Shape::from(shape).num_elements() as i64;
     let device = Default::default();
@@ -280,11 +279,15 @@ fn nd_block_split_reshape_should_panic() {
         .into_data();
 
     // Make the quantized tensor non-contiguous, then split its first physical dimension while
-    // retaining the packed trailing dimension. This reaches ReshapeAnalysis::Split.
-    let _ = TestTensor::<3>::from_data(data, &device)
+    // retaining the packed trailing dimension. This reaches ReshapeAnalysis::Split, which the
+    // blocks cannot follow as metadata: the reshape decodes and quantizes again.
+    let q = TestTensor::<3>::from_data(data, &device)
         .quantize_dynamic(&scheme)
-        .permute([1, 0, 2])
-        .reshape::<4, _>([2, 2, 2, 8])
+        .permute([1, 0, 2]);
+    let expected = q.clone().dequantize().reshape::<4, _>([2, 2, 2, 8]);
+
+    q.reshape::<4, _>([2, 2, 2, 8])
         .dequantize()
-        .into_data();
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&expected.into_data(), Tolerance::absolute(1e-2));
 }

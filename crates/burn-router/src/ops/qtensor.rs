@@ -1,8 +1,7 @@
 use burn_backend::{
-    DType, ExecutionError, FloatDType, Shape, Slice, TensorData, TensorMetadata, TensorPrimitive,
-    get_or_init_device_settings,
+    DType, ExecutionError, FloatDType, Shape, Slice, TensorData, TensorPrimitive,
     ops::{FloatTensorOps, QTensorOps},
-    quantization::{QuantPropagation, QuantScheme, QuantizationParametersPrimitive},
+    quantization::{QuantScheme, QuantizationParametersPrimitive},
     tensor::{Device, FloatTensor, IntTensor, QuantizedTensor},
 };
 use burn_ir::{
@@ -107,12 +106,6 @@ impl<R: RouterChannel> QTensorOps<Self> for BackendRouter<R> {
 
     fn q_matmul(lhs: TensorPrimitive<Self>, rhs: TensorPrimitive<Self>) -> TensorPrimitive<Self> {
         // rhs's scheme and lhs's float dtype win, as in the default `q_matmul` and fusion.
-        let scheme = match (&lhs, &rhs) {
-            (_, TensorPrimitive::QFloat(tensor)) | (TensorPrimitive::QFloat(tensor), _) => {
-                Some(tensor.scheme())
-            }
-            _ => None,
-        };
         let float_dtype = match (&lhs, &rhs) {
             (TensorPrimitive::Float(tensor), _) | (_, TensorPrimitive::Float(tensor)) => {
                 Some(tensor.dtype)
@@ -124,11 +117,9 @@ impl<R: RouterChannel> QTensorOps<Self> for BackendRouter<R> {
         });
 
         let client = lhs.client.clone();
-        let settings = get_or_init_device_settings::<Self>(&client.device());
-        let dtype = match (scheme, settings.quantization.propagation) {
-            (Some(scheme), QuantPropagation::Propagate) => DType::QFloat(scheme),
-            _ => float_dtype.unwrap_or_else(|| settings.float_dtype.into()),
-        };
+        // A float operand names the output's precision; two quantized operands multiply into
+        // f32. Whether the output is quantized again is the caller's to resolve.
+        let dtype = float_dtype.unwrap_or(DType::F32);
         let desc = MatmulOpIr::create_mixed(lhs.into_ir(), rhs.into_ir(), dtype, || {
             client.create_empty_handle()
         });
@@ -136,9 +127,6 @@ impl<R: RouterChannel> QTensorOps<Self> for BackendRouter<R> {
         let out = client
             .register(OperationIr::Float(dtype, FloatOperationIr::Matmul(desc)))
             .output();
-        match dtype {
-            DType::QFloat(_) => TensorPrimitive::QFloat(out),
-            _ => TensorPrimitive::Float(out),
-        }
+        TensorPrimitive::Float(out)
     }
 }

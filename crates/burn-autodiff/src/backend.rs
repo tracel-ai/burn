@@ -1,6 +1,7 @@
 use crate::{
     checkpoint::strategy::{CheckpointStrategy, NoCheckpointing},
     grads::Gradients,
+    qtensor::AutodiffQTensor,
     tensor::AutodiffTensor,
 };
 use alloc::{format, string::String, vec::Vec};
@@ -36,7 +37,7 @@ impl<B: BackendTypes, C: CheckpointStrategy> BackendTypes for Autodiff<B, C> {
 
     type BoolTensorPrimitive = B::BoolTensorPrimitive;
 
-    type QuantizedTensorPrimitive = B::QuantizedTensorPrimitive;
+    type QuantizedTensorPrimitive = AutodiffQTensor<B>;
 
     // A replayed graph would skip re-recording the autodiff tape, so capture
     // is not supported under autodiff.
@@ -208,11 +209,11 @@ impl<B: Backend, C: CheckpointStrategy> AutodiffBackend for Autodiff<B, C> {
     }
 
     fn q_inner(tensor: QuantizedTensor<Self>) -> QuantizedTensor<Self::InnerBackend> {
-        tensor
+        tensor.primitive
     }
 
     fn q_from_inner(tensor: QuantizedTensor<Self::InnerBackend>) -> QuantizedTensor<Self> {
-        tensor
+        AutodiffQTensor::new(tensor)
     }
 
     fn set_distributed_params(

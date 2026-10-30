@@ -1,7 +1,7 @@
 use alloc::vec::Vec;
 use burn_backend::{TensorMetadata, TensorPrimitive, get_or_init_device_settings};
 use burn_dispatch::{Dispatch, DispatchTensor};
-use burn_std::DeviceSettings;
+use burn_std::{DTypePropagation, DeviceSettings, TensorType};
 
 /// A type-level representation of the kind of a float tensor
 #[derive(Clone, Debug)]
@@ -85,8 +85,12 @@ impl Kind {
 /// the uniform [`DispatchTensor`] used by the underlying dispatch layer. This
 /// separation keeps tensor kind tracking out of the backends while avoiding
 /// exposure of backend-level primitives in the public API.
+///
+/// It also carries the tensor's [propagation](DTypePropagation), which no backend sees: the bridge
+/// resolves every operation's output type from its inputs' before dispatching it.
 pub struct BridgeTensor {
     blob: bridge_opaque::Opaque,
+    propagation: DTypePropagation,
 }
 
 // Aligned, type-erased storage for `BridgeTensorVariant`. See `crate::macros`
@@ -102,13 +106,14 @@ impl core::fmt::Debug for BridgeTensor {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.debug_struct("BridgeTensor")
             .field("kind", &self.kind())
+            .field("propagation", &self.propagation)
             .finish()
     }
 }
 
 impl Clone for BridgeTensor {
     fn clone(&self) -> Self {
-        Self::new(self.as_variant().clone())
+        Self::new(self.as_variant().clone()).with_propagation(self.propagation)
     }
 }
 
@@ -121,9 +126,31 @@ impl BridgeTensor {
         self.blob.into_inner()
     }
 
+    /// A tensor that propagates, as every tensor does until a parameter inhibits it.
     fn new(inner: BridgeTensorVariant) -> Self {
         Self {
             blob: bridge_opaque::Opaque::new(inner),
+            propagation: DTypePropagation::Propagate,
+        }
+    }
+
+    /// Whether this tensor's dtype decides the outputs it reaches.
+    pub fn propagation(&self) -> DTypePropagation {
+        self.propagation
+    }
+
+    /// This tensor, propagating as `propagation` says.
+    pub fn with_propagation(mut self, propagation: DTypePropagation) -> Self {
+        self.propagation = propagation;
+        self
+    }
+
+    /// This tensor's dtype together with its propagation: what an operation it enters resolves
+    /// its output's dtype from.
+    pub fn tensor_type(&self) -> TensorType {
+        TensorType {
+            dtype: self.dtype(),
+            propagation: self.propagation,
         }
     }
 }

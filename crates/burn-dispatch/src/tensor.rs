@@ -10,7 +10,7 @@ use crate::GradientCheckpointingStrategy;
 #[cfg(feature = "autodiff")]
 use alloc::boxed::Box;
 #[cfg(feature = "autodiff")]
-use burn_backend::tensor::FloatTensor;
+use burn_backend::tensor::{FloatTensor, QuantizedTensor};
 
 use alloc::{format, string::String};
 
@@ -31,6 +31,9 @@ pub enum BackendTensor<B: BackendTypes> {
     #[cfg(feature = "autodiff")]
     /// Autodiff float tensor handle.
     Autodiff(FloatTensor<Autodiff<B>>),
+    #[cfg(feature = "autodiff")]
+    /// Autodiff quantized tensor handle: packed values gradients reach through their node.
+    AutodiffQuantized(QuantizedTensor<Autodiff<B>>),
 }
 
 impl<B: Backend> BackendTensor<B> {
@@ -43,6 +46,10 @@ impl<B: Backend> BackendTensor<B> {
             BackendTensor::Quantized(_) => panic!("Should be float, got quantized"),
             #[cfg(feature = "autodiff")]
             BackendTensor::Autodiff(_) => panic!("Should be float, got autodiff"),
+            #[cfg(feature = "autodiff")]
+            BackendTensor::AutodiffQuantized(_) => {
+                panic!("Should be float, got autodiff quantized")
+            }
         }
     }
     /// Returns the inner float tensor primitive.
@@ -54,6 +61,10 @@ impl<B: Backend> BackendTensor<B> {
             BackendTensor::Quantized(_) => panic!("Should be float, got quantized"),
             #[cfg(feature = "autodiff")]
             BackendTensor::Autodiff(_) => panic!("Should be float, got autodiff"),
+            #[cfg(feature = "autodiff")]
+            BackendTensor::AutodiffQuantized(_) => {
+                panic!("Should be float, got autodiff quantized")
+            }
         }
     }
 
@@ -66,6 +77,8 @@ impl<B: Backend> BackendTensor<B> {
             BackendTensor::Quantized(_) => panic!("Should be int, got quantized"),
             #[cfg(feature = "autodiff")]
             BackendTensor::Autodiff(_) => panic!("Should be int, got autodiff"),
+            #[cfg(feature = "autodiff")]
+            BackendTensor::AutodiffQuantized(_) => panic!("Should be int, got autodiff quantized"),
         }
     }
 
@@ -78,13 +91,35 @@ impl<B: Backend> BackendTensor<B> {
             BackendTensor::Quantized(_) => panic!("Should be bool, got quantized"),
             #[cfg(feature = "autodiff")]
             BackendTensor::Autodiff(_) => panic!("Should be bool, got autodiff"),
+            #[cfg(feature = "autodiff")]
+            BackendTensor::AutodiffQuantized(_) => panic!("Should be bool, got autodiff quantized"),
         }
     }
 
-    /// Returns the inner quantized tensor primitive.
+    /// Returns the inner quantized tensor primitive; a tracked one gives up its node.
     pub fn quantized(self) -> B::QuantizedTensorPrimitive {
         match self {
             BackendTensor::Quantized(tensor) => tensor,
+            #[cfg(feature = "autodiff")]
+            BackendTensor::AutodiffQuantized(tensor) => tensor.into_primitive(),
+            _ => unreachable!(),
+        }
+    }
+
+    #[cfg(feature = "autodiff")]
+    /// [`autodiff_quantized`](Self::autodiff_quantized) of a borrowed handle.
+    pub fn to_autodiff_quantized(&self) -> QuantizedTensor<Autodiff<B>> {
+        self.clone().autodiff_quantized()
+    }
+
+    #[cfg(feature = "autodiff")]
+    /// The quantized tensor as `Autodiff<B>` holds it: tracked as it is, or an untracked leaf.
+    pub fn autodiff_quantized(self) -> QuantizedTensor<Autodiff<B>> {
+        match self {
+            BackendTensor::AutodiffQuantized(tensor) => tensor,
+            BackendTensor::Quantized(tensor) => {
+                <Autodiff<B> as burn_backend::AutodiffBackend>::q_from_inner(tensor)
+            }
             _ => unreachable!(),
         }
     }
@@ -129,7 +164,10 @@ impl<B: Backend> BackendTensor<B> {
             BackendTensor::Autodiff(tensor) => BackendTensor::Float(tensor),
             BackendTensor::Int(tensor) => BackendTensor::Int(tensor),
             BackendTensor::Bool(tensor) => BackendTensor::Bool(tensor),
-            BackendTensor::Quantized(tensor) => BackendTensor::Quantized(tensor),
+            BackendTensor::Quantized(tensor) => BackendTensor::Quantized(
+                <Autodiff<B> as burn_backend::AutodiffBackend>::q_from_inner(tensor),
+            ),
+            BackendTensor::AutodiffQuantized(tensor) => BackendTensor::Quantized(tensor),
             BackendTensor::Float(_) => {
                 unreachable!("an untracked float handle can't be lifted to Autodiff<B>")
             }
@@ -145,6 +183,8 @@ impl<B: Backend> BackendTensor<B> {
             BackendTensor::Quantized(_) => "Quantized",
             #[cfg(feature = "autodiff")]
             BackendTensor::Autodiff(_) => "Autodiff",
+            #[cfg(feature = "autodiff")]
+            BackendTensor::AutodiffQuantized(_) => "AutodiffQuantized",
         }
     }
 }
@@ -159,6 +199,8 @@ impl<B: BackendTypes> TensorMetadata for BackendTensor<B> {
             BackendTensor::Quantized(tensor) => tensor.device(),
             #[cfg(feature = "autodiff")]
             BackendTensor::Autodiff(tensor) => tensor.device(),
+            #[cfg(feature = "autodiff")]
+            BackendTensor::AutodiffQuantized(tensor) => tensor.device(),
         }
     }
     fn dtype(&self) -> DType {
@@ -169,6 +211,8 @@ impl<B: BackendTypes> TensorMetadata for BackendTensor<B> {
             BackendTensor::Quantized(tensor) => tensor.dtype(),
             #[cfg(feature = "autodiff")]
             BackendTensor::Autodiff(tensor) => tensor.dtype(),
+            #[cfg(feature = "autodiff")]
+            BackendTensor::AutodiffQuantized(tensor) => tensor.dtype(),
         }
     }
 
@@ -180,6 +224,8 @@ impl<B: BackendTypes> TensorMetadata for BackendTensor<B> {
             BackendTensor::Quantized(tensor) => tensor.shape(),
             #[cfg(feature = "autodiff")]
             BackendTensor::Autodiff(tensor) => tensor.shape(),
+            #[cfg(feature = "autodiff")]
+            BackendTensor::AutodiffQuantized(tensor) => tensor.shape(),
         }
     }
 
@@ -191,6 +237,8 @@ impl<B: BackendTypes> TensorMetadata for BackendTensor<B> {
             BackendTensor::Quantized(tensor) => tensor.can_mut(),
             #[cfg(feature = "autodiff")]
             BackendTensor::Autodiff(tensor) => tensor.can_mut(),
+            #[cfg(feature = "autodiff")]
+            BackendTensor::AutodiffQuantized(tensor) => tensor.can_mut(),
         }
     }
 }
@@ -528,7 +576,12 @@ macro_rules! impl_dispatch_conversion {
                     DispatchTensorKind::$backend(t) => match t {
                         BackendTensor::Int(t) => Ok(BackendTensor::Int(t)),
                         BackendTensor::Bool(t) => Ok(BackendTensor::Bool(t)),
-                        BackendTensor::Quantized(t) => Ok(BackendTensor::Quantized(t)),
+                        BackendTensor::Quantized(t) => Ok(BackendTensor::Quantized(
+                            <Autodiff<$backend, C> as burn_backend::AutodiffBackend>::q_from_inner(
+                                t,
+                            ),
+                        )),
+                        BackendTensor::AutodiffQuantized(t) => Ok(BackendTensor::Quantized(t)),
                         BackendTensor::Float(_) => Err(format!(
                             "Expected Autodiff {} float tensor, got unwrapped float",
                             stringify!($backend),
@@ -561,11 +614,12 @@ macro_rules! impl_dispatch_conversion {
                     // Pass-throughs for non-differentiable types
                     BackendTensor::Int(t) => DispatchTensorKind::$backend(BackendTensor::Int(t)),
                     BackendTensor::Bool(t) => DispatchTensorKind::$backend(BackendTensor::Bool(t)),
+                    // A quantized tensor keeps the node gradients reach it through.
                     BackendTensor::Quantized(t) => {
-                        DispatchTensorKind::$backend(BackendTensor::Quantized(t))
+                        DispatchTensorKind::$backend(BackendTensor::AutodiffQuantized(t))
                     }
 
-                    BackendTensor::Autodiff(_) => {
+                    BackendTensor::Autodiff(_) | BackendTensor::AutodiffQuantized(_) => {
                         panic!("Unexpected Autodiff variant provided to `from_backend`",)
                     }
                 };

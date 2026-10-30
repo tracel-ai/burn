@@ -1,7 +1,7 @@
 use super::*;
 use burn_tensor::Tolerance;
 use burn_tensor::{
-    Device, Element, FloatDType, TensorData,
+    DType, Device, Element, FloatDType, TensorData,
     quantization::{CalibrationRange, QuantValue, ScaleDtype, compute_q_params},
 };
 
@@ -128,7 +128,7 @@ fn block_tensor_symmetric_int8_all_zero() {
 }
 
 #[test]
-fn quant_scheme_should_inhibit_by_default() {
+fn a_quantized_tensor_propagates_its_scheme() {
     let device = Device::default();
     let scheme = device
         .settings()
@@ -136,25 +136,17 @@ fn quant_scheme_should_inhibit_by_default() {
         .scheme
         .with_value(QuantValue::Q8S);
 
-    let tensor_1 = TestTensor::<2>::from_data(
+    let tensor = TestTensor::<2>::from_data(
         [[1.0, 6.35, 0., 0.], [2.0, 3.0, 0., 0.], [1.0, 3.0, 0., 0.]],
         &device,
     )
     .quantize_dynamic(&scheme);
-    let _tensor_2 = TestTensor::<2>::from_data(
-        [
-            [4.0, 8.0, 12.7, 0.],
-            [2.0, 3.0, 6.0, 0.],
-            [0., 0., 0., 0.],
-            [0., 0., 0., 0.],
-        ],
-        &device,
-    )
-    .quantize_dynamic(&scheme);
 
-    // let tensor_3 = tensor_1.clone().matmul(tensor_2);
-    // assert_eq!(tensor_3.to_data().dtype, FloatElem::dtype());
-
-    let tensor_4 = tensor_1.add_scalar(1.);
-    assert_eq!(tensor_4.to_data().dtype(), FloatElem::dtype());
+    // A quantize is a cast: its output propagates, so the operations it enters stay quantized.
+    assert_eq!(tensor.clone().add_scalar(1.).dtype(), DType::QFloat(scheme));
+    // Dequantized, the same operation is float.
+    assert_eq!(
+        tensor.dequantize().add_scalar(1.).to_data().dtype(),
+        FloatElem::dtype()
+    );
 }

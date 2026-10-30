@@ -2,8 +2,8 @@ use super::*;
 use alloc::{vec, vec::Vec};
 use burn_tensor::Tolerance;
 use burn_tensor::quantization::{
-    DecodedScales, QuantScheme, QuantStore, QuantValue, QuantizationParameters, QuantizedBytes,
-    ScaleDtype,
+    Calibration, DecodedScales, QuantScheme, QuantStore, QuantValue, QuantizationParameters,
+    QuantizedBytes, ScaleDtype, compute_q_params, compute_range,
 };
 use burn_tensor::{DType, Device, Element, TensorData};
 
@@ -105,7 +105,7 @@ fn should_quantize_dequantize_symmetric_single_with_transform() {
     let quant = input.quantize_dynamic(&scheme);
     let result = quant * 10;
 
-    let data = result.into_data();
+    let data = result.dequantize().into_data();
     let expected = [
         0.0, 9.76378, 19.52756, 29.29134, 39.05512, 48.818897, 61.02362, 70.7874, 80.551186,
         90.31496, 100.07874, 109.84252, 119.60631, 129.37009, 139.13387, 148.89764, 161.10237,
@@ -630,4 +630,154 @@ fn should_panic_when_reshape_splits_a_block_across_rows() {
         .reshape([2, 16])
         .dequantize()
         .into_data();
+}
+
+/// Attention heads split out of a quantized signal, transposed, and laid back in rows: the
+/// transposed view's blocks cannot follow a reshape as metadata, so the values are quantized
+/// again, and they hold what the decoded tensor reshaped holds, up to one rounding.
+#[test]
+fn should_reshape_transposed_block_quantized_heads_back_into_rows() {
+    let device: burn_tensor::Device = Default::default();
+    let values = (0..2 * 4 * 64)
+        .map(|value| (value as f32 / 64.).sin())
+        .collect::<Vec<_>>();
+    let scheme = device
+        .settings()
+        .quantization
+        .scheme
+        .with_value(QuantValue::Q8S)
+        .per_block([32], ScaleDtype::F32);
+    // `[sequence, heads, head_dim]`, quantized along `head_dim`.
+    let heads = TestTensor::<3>::from_data(TensorData::new(values, [2, 4, 64]), &device)
+        .quantize_dynamic(&scheme);
+
+    let rows = heads.clone().swap_dims(0, 1).reshape([4, 2 * 64]);
+    let expected = heads.dequantize().swap_dims(0, 1).reshape([4, 2 * 64]);
+
+    rows.dequantize()
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&expected.into_data(), Tolerance::absolute(1e-2));
+}
+
+/// Quantizing dynamically stores what quantizing under the scales min-max calibration computes
+/// does, byte for byte: MXFP8's `e4m3` values under power-of-two block scales, a block of zeros
+/// among them, which quantizes to zeros rather than dividing by its zero scale.
+#[test]
+fn should_quantize_mxfp8_blocks_as_their_calibrated_scales_do() {
+    // The calibrated path at f16 quantizes the block of zeros to the format's largest code: byte
+    // equality holds only against its f32 run.
+    if !matches!(FloatElem::dtype(), DType::F32) {
+        return;
+    }
+    let device = Default::default();
+    let scheme = mxfp8();
+    let values: Vec<f32> = (0..4 * 96)
+        .map(|i| match i / 32 {
+            2 => 0.0,
+            block => (i as f32 * 0.37).sin() * (1 + block) as f32 * 3.0,
+        })
+        .collect();
+    let tensor = TestTensor::<2>::from_data(TensorData::new(values, [4, 96]), &device);
+    let range = compute_range(&scheme, &tensor, &Calibration::MinMax);
+
+    let calibrated = tensor
+        .clone()
+        .quantize(&scheme, compute_q_params(&scheme, range))
+        .into_data();
+    let dynamic = tensor.quantize_dynamic(&scheme).into_data();
+
+    assert_eq!(dynamic.as_bytes(), calibrated.as_bytes());
+}
+
+/// MXFP8 under its stated scheme: `e4m3` values in words of four under 32-wide `ue8m0` scales.
+fn mxfp8() -> QuantScheme {
+    QuantScheme::default()
+        .with_value(QuantValue::E4M3)
+        .per_block([32], ScaleDtype::UE8M0)
+        .with_store(QuantStore::PackedU32(0))
+}
+
+/// What one MXFP8 rounding may move a value by: half a step of `e4m3`'s three mantissa bits,
+/// relative to the value, and the step of the smallest code a block's scale reaches, for a
+/// value near zero.
+fn mxfp8_step() -> Tolerance<FloatElem> {
+    Tolerance::rel_abs(1.0 / 16.0, 1e-2)
+}
+
+fn mxfp8_values(offset: f32) -> Vec<f32> {
+    (0..2 * 64)
+        .map(|i| (i as f32 * 0.21 + offset).cos() * (1 + i / 32) as f32)
+        .collect()
+}
+
+/// An MXFP8 tensor decodes to its values up to one rounding: each block's power-of-two scale
+/// applied to its own `e4m3` codes.
+#[test]
+fn should_round_trip_mxfp8_within_a_step() {
+    let device = Default::default();
+    let input = TestTensor::<2>::from_data(TensorData::new(mxfp8_values(0.0), [2, 64]), &device);
+
+    let decoded = input.clone().quantize_dynamic(&mxfp8()).dequantize();
+
+    decoded
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&input.into_data(), mxfp8_step());
+}
+
+/// An MXFP8 tensor decoded inside an element-wise expression, where a fused kernel reads its
+/// `ue8m0` scales, decodes to its values as it does alone. The values reach 4, where half an
+/// `e4m3` step is 0.25, doubled here; bounded absolutely, since the residual cancels some sums.
+#[test]
+fn should_decode_mxfp8_inside_an_elementwise_expression() {
+    let device = Default::default();
+    let input = TestTensor::<2>::from_data(TensorData::new(mxfp8_values(0.0), [2, 64]), &device);
+    let residual = TestTensor::<2>::from_data(TensorData::new(mxfp8_values(0.7), [2, 64]), &device);
+    let quantized = input.clone().quantize_dynamic(&mxfp8());
+
+    let sum = (quantized.dequantize() * 2.0) + residual.clone();
+
+    sum.into_data().assert_approx_eq::<FloatElem>(
+        &((input * 2.0) + residual).into_data(),
+        Tolerance::absolute(0.5),
+    );
+}
+
+/// Two MXFP8 tensors added, each decoded from its own values and scales and the sum quantized
+/// once more: the float sum up to three roundings of half an `e4m3` step at the magnitudes they
+/// reach, 0.25 each.
+#[test]
+fn should_add_two_mxfp8_tensors() {
+    let device = Default::default();
+    let lhs = TestTensor::<2>::from_data(TensorData::new(mxfp8_values(0.0), [2, 64]), &device);
+    let rhs = TestTensor::<2>::from_data(TensorData::new(mxfp8_values(1.3), [2, 64]), &device);
+
+    let sum = lhs.clone().quantize_dynamic(&mxfp8()) + rhs.clone().quantize_dynamic(&mxfp8());
+
+    assert_eq!(sum.dtype(), DType::QFloat(mxfp8()));
+    sum.dequantize()
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&(lhs + rhs).into_data(), Tolerance::absolute(0.75));
+}
+
+/// Rows sliced out of an MXFP8 tensor decode to the decoded tensor's rows, whether the slice is a
+/// view of its words and scales — rows from 128, where both regions start on a boundary a kernel
+/// binds at — or the rows have to be quantized again, from 40, where the scales do not.
+#[test]
+fn should_slice_rows_of_mxfp8_as_its_decoded_rows() {
+    let device = Default::default();
+    let values: Vec<f32> = (0..256 * 128)
+        .map(|i| (i as f32 * 0.013).sin() * (1 + i % 7) as f32)
+        .collect();
+    let quantized = TestTensor::<2>::from_data(TensorData::new(values, [256, 128]), &device)
+        .quantize_dynamic(&mxfp8());
+    let decoded = quantized.clone().dequantize();
+
+    for rows in [128..256, 0..40, 40..48] {
+        let sliced = quantized.clone().slice([rows.clone(), 0..128]);
+        assert_eq!(sliced.dtype(), DType::QFloat(mxfp8()));
+        sliced.dequantize().into_data().assert_eq(
+            &decoded.clone().slice([rows.clone(), 0..128]).into_data(),
+            true,
+        );
+    }
 }

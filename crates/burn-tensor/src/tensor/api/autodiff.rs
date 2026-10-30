@@ -270,8 +270,9 @@ impl<const D: usize, K: Autodiff> Tensor<D, K> {
             "Tensor::with_gradient_checkpointing_strategy requires autodiff; call Tensor::autodiff first"
         );
         let primitive = self.primitive;
+        let propagation = primitive.propagation();
         let (kind, mut tensor) = primitive.into_parts();
         tensor.autodiff = DispatchAutodiffContext::Enabled(strategy);
-        Self::new(BridgeTensor::from_parts(kind, tensor))
+        Self::new(BridgeTensor::from_parts(kind, tensor).with_propagation(propagation))
     }
 }
