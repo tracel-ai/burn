@@ -13,8 +13,7 @@
 [![Discord](https://img.shields.io/discord/1038839012602941528.svg?label=Chat&style=flat-square&color=f15a24&logo=discord&logoColor=white)](https://discord.gg/uPEBbYYDB6)
 [![Documentation](https://img.shields.io/badge/docs-latest-f15a24?style=flat-square)](https://burn.dev/docs/burn)
 [![Ask DeepWiki](https://img.shields.io/badge/Ask-DeepWiki-f15a24?style=flat-square)](https://deepwiki.com/tracel-ai/burn)
-
-[<img src="https://www.runblaze.dev/ci-blaze-powered.png" alt="CI powered by Blaze" width="125px"/>](https://www.runblaze.dev)
+[![Blaze: macOS CI](assets/ci-powered-by-blaze.svg)](https://runblaze.dev)
 
 </div>
 
