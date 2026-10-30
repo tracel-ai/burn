@@ -142,28 +142,6 @@ impl PaddingConfig3d {
             }
         }
     }
-
-    /// Calculate symmetric padding for 3D operations.
-    /// Returns padding values [depth, height, width] (same for both sides).
-    /// Panics if asymmetric padding is detected.
-    pub(crate) fn calculate_padding_3d(
-        &self,
-        depth: usize,
-        height: usize,
-        width: usize,
-        kernel_size: &[usize; 3],
-        stride: &[usize; 3],
-    ) -> [usize; 3] {
-        let ((front, back), (top, bottom), (left, right)) =
-            self.calculate_padding_3d_pairs(depth, height, width, kernel_size, stride);
-        if front != back || top != bottom || left != right {
-            panic!(
-                "Asymmetric 3D 'Same' padding is not supported. \
-                Use odd kernel sizes for symmetric padding."
-            );
-        }
-        [front, top, left]
-    }
 }
 
 #[cfg(test)]
@@ -242,17 +220,8 @@ mod tests {
     fn test_padding_config_3d_calculate_valid() {
         let padding = PaddingConfig3d::Valid;
         assert_eq!(
-            padding.calculate_padding_3d(10, 10, 10, &[3, 3, 3], &[1, 1, 1]),
-            [0, 0, 0]
-        );
-    }
-
-    #[test]
-    fn test_padding_config_3d_calculate_explicit() {
-        let padding = PaddingConfig3d::Explicit(1, 2, 3);
-        assert_eq!(
-            padding.calculate_padding_3d(10, 10, 10, &[3, 3, 3], &[1, 1, 1]),
-            [1, 2, 3]
+            padding.calculate_padding_3d_pairs(10, 10, 10, &[3, 3, 3], &[1, 1, 1]),
+            ((0, 0), (0, 0), (0, 0))
         );
     }
 
@@ -261,8 +230,18 @@ mod tests {
         let padding = PaddingConfig3d::Same;
         // kernel=3, stride=1: total=2, symmetric (1,1) per dim
         assert_eq!(
-            padding.calculate_padding_3d(10, 10, 10, &[3, 3, 3], &[1, 1, 1]),
-            [1, 1, 1]
+            padding.calculate_padding_3d_pairs(10, 10, 10, &[3, 3, 3], &[1, 1, 1]),
+            ((1, 1), (1, 1), (1, 1))
+        );
+    }
+
+    #[test]
+    fn test_padding_config_3d_calculate_same_odd_kernel_stride_2() {
+        let padding = PaddingConfig3d::Same;
+        // kernel=3, stride=2, size=4: size_out=2, needed = 1*2+3 = 5, total=1, pad_start=0, pad_end=1
+        assert_eq!(
+            padding.calculate_padding_3d_pairs(4, 4, 4, &[3, 3, 3], &[2, 2, 2]),
+            ((0, 1), (0, 1), (0, 1))
         );
     }
 

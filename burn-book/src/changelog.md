@@ -361,6 +361,9 @@ loading those checkpoints by filtering to `linear_inner` and `linear_outer`.
 - Fix CPU non-maximum-suppression results and restore GPU acceleration for connected components.
   ([#6019](https://github.com/tracel-ai/burn/pull/6019),
   [#6003](https://github.com/tracel-ai/burn/pull/6003))
+- Accept asymmetric padding in `conv3d`, and stop `Conv3d` with `PaddingConfig3d::Same` from
+  panicking when the padding is asymmetric, for example with a stride above 1.
+  ([#4837](https://github.com/tracel-ai/burn/issues/4837), [#6289](https://github.com/tracel-ai/burn/pull/6289))
 
 ### Tensors and backends
 
