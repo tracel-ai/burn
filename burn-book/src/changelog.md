@@ -228,6 +228,7 @@ all-to-all, and broadcast also support boolean tensors. Quantized tensors are re
   (`ExecutionError::is_device_poisoned`), and a `to_device` across it yields a tensor whose read
   reports the same. A group's `flush` reports a member's error instead of holding it for `sync`.
   **Breaking:** `RouterClient::flush` returns `Result<(), ExecutionError>`.
+  ([#6329](https://github.com/tracel-ai/burn/pull/6329))
 - Servers answer device queries registered with `with_device_query`, asked by
   `RemoteDevice::query`. **Breaking:** `ServeError::CustomOpBackend` is renamed `HandlerBackend`,
   as it also covers device queries. ([#6308](https://github.com/tracel-ai/burn/pull/6308))
