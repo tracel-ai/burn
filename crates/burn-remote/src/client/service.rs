@@ -445,7 +445,7 @@ impl RemoteService {
         });
     }
 
-    /// Register a tensor produced by a cross-server transfer, flushing immediately.
+    /// Register a tensor produced by a cross-server transfer, sending it immediately.
     ///
     /// This is a coordination point with no following barrier on this client — the caller
     /// (`change_backend`) switches to the target client right after submitting it — so we
@@ -462,7 +462,7 @@ impl RemoteService {
         self.send_batch();
     }
 
-    /// Expose a tensor for a cross-server transfer, flushing immediately.
+    /// Expose a tensor for a cross-server transfer, sending it immediately.
     ///
     /// Flushed for the same reason as [`register_tensor_remote`](Self::register_tensor_remote):
     /// the source server must actually receive the expose so the target server's download can
@@ -485,9 +485,9 @@ impl RemoteService {
         self.send_batch();
     }
 
-    /// Expose a tensor for a same-host transfer, flushing immediately.
+    /// Expose a tensor for a same-host transfer, sending it immediately.
     ///
-    /// Source side of the local path; flushed for the same reason as
+    /// Source side of the local path; sent at once for the same reason as
     /// [`expose_tensor_remote`](Self::expose_tensor_remote).
     pub fn expose_tensor_local(
         &mut self,
@@ -503,9 +503,9 @@ impl RemoteService {
         self.send_batch();
     }
 
-    /// Register a tensor produced by a same-host transfer, flushing immediately.
+    /// Register a tensor produced by a same-host transfer, sending it immediately.
     ///
-    /// Target side of the local path; flushed for the same reason as
+    /// Target side of the local path; sent at once for the same reason as
     /// [`register_tensor_remote`](Self::register_tensor_remote).
     pub fn register_tensor_local(
         &mut self,
@@ -530,7 +530,7 @@ impl RemoteService {
         });
     }
 
-    /// Send one member's part of an all-reduce, flushing immediately: its session waits there
+    /// Send one member's part of an all-reduce, sending it immediately: its session waits there
     /// for the other members' parts, which the caller sends next.
     pub fn all_reduce_local(&mut self, stream_id: StreamId, part: LocalAllReducePart) {
         self.probe
@@ -794,12 +794,12 @@ impl RemoteService {
         }
     }
 
-    /// Append a task and flush the buffer immediately.
+    /// Append a task and send the buffer immediately.
     ///
-    /// Use this when the caller is about to await a response: flushing enqueues the batch
-    /// to the writer task, and the FIFO writer guarantees it reaches the wire before any
-    /// later frame — so the response can't be missed. We no longer block on the actual
-    /// send; correctness comes from FIFO enqueue order plus the oneshot await.
+    /// Use this when the caller is about to await a response: sending enqueues the batch to the
+    /// writer task, and the FIFO writer guarantees it reaches the wire before any later frame —
+    /// so the response can't be missed. Correctness comes from FIFO enqueue order plus the
+    /// oneshot await, not from waiting on the send.
     fn submit_blocking(&mut self, task: RemoteMessage) {
         self.batch.push(task);
         self.send_batch();
@@ -807,7 +807,8 @@ impl RemoteService {
 
     /// Open the session and run the init handshake, unless it is already open. A failed attempt
     /// leaves nothing behind, so the next call tries again, with the device's latest dialing
-    /// hints.
+    /// hints — unless work was queued for the session, which ends it instead (see
+    /// [`send_batch`](Self::send_batch)).
     ///
     /// Runs on the device-runner thread, so the check needs no lock, and never from
     /// [`init`](Self::init), which holds cubecl's global device-registry lock.

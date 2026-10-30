@@ -297,12 +297,12 @@ impl<H: Clone> HandleContainer<H> {
     /// Claim `id`, but only if nothing wrote it and no failure already claims
     /// it.
     ///
-    /// For the one caller that cannot name its write set: a panic that escaped
-    /// the strategy walk itself, raised outside every scope, where all that is
-    /// known is that something in the consumed segment did not finish. Claiming
-    /// broadly from there would error outputs that other operations wrote, and
-    /// would overwrite a precise claim with a vaguer one — so it claims only
-    /// what is neither, which is exactly the set nothing else can account for.
+    /// For a failure that knows the tensors its work touches but not which of
+    /// them it writes, such as a panic that escaped fusion's strategy walk
+    /// outside every scope. Claiming broadly from there would error tensors
+    /// that other work wrote, and would overwrite a precise claim with a vaguer
+    /// one — so it claims only what is neither, which is exactly the set
+    /// nothing else can account for.
     pub fn claim_unwritten(&mut self, id: TensorId, error: TensorError) {
         if let Some(Handle::Existing(_) | Handle::Errored(_)) = self.handles.get(&id) {
             return;

@@ -568,6 +568,8 @@ impl Device {
     /// or a remote device's session ended. A failure of an operation itself is deferred to the
     /// tensors it was going to write, and operations reading them are skipped: the read of one of
     /// those tensors reports it, while work sharing no tensor with the failure is unaffected.
+    /// The exception is the replay of a captured graph on a remote device, which the server cannot
+    /// attribute to tensors: its failure is reported by the next sync or read on its stream.
     pub fn sync(&self) -> Result<(), ExecutionError> {
         Dispatch::sync(self.as_dispatch())
     }
