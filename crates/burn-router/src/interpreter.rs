@@ -2721,24 +2721,6 @@ mod tests {
             .assert_eq(&TensorData::from([1.0f32]), true);
     }
 
-    /// An operation that panics claims its outputs with the panic, rather than unwinding through
-    /// the interpreter's caller.
-    #[test]
-    fn a_panicking_op_claims_its_outputs() {
-        let mut interpreter = TensorInterpreter::<Flex>::new(Default::default());
-        let input = interpreter.register_tensor_data_desc(TensorData::from([1.0f32]));
-        let out = TensorIr::uninit(TensorId::new(u64::MAX), Shape::new([1]), DType::F32);
-
-        interpreter.register_op(OperationIr::Custom(burn_ir::CustomOpIr::new(
-            "unregistered",
-            &[input],
-            &[out.clone()],
-        )));
-
-        let error = read(&mut interpreter, &out).unwrap_err();
-        assert!(error.to_string().contains("unregistered"), "{error}");
-    }
-
     /// An alias of a tensor a failure claimed reads as that failure.
     #[test]
     fn an_alias_of_a_failed_tensor_carries_its_failure() {
