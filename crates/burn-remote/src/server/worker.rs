@@ -235,7 +235,7 @@ where
         captures.close(&runner);
         // So the server runs launches again, its other sessions' included, once a session that
         // left a mode open is gone.
-        execution_modes.close(&runner);
+        execution_modes.close_all(&runner);
         // Released next, so the client sees its session end even if a sync below hangs.
         drop(response_sender);
         let device = runner.device();
@@ -528,36 +528,20 @@ where
                 self.send_response(request_id, TaskResponseContent::DeviceQuery(answer))
                     .await
             }
-            Task::ProcessModeOpen(request_id, stream_id, mode) => {
+            Task::ExecutionModeOpen(request_id, stream_id, mode) => {
                 let stream = self.streams.of(stream_id);
-                let res = self
-                    .execution_modes
-                    .open_process(&self.runner, stream, mode);
-                self.send_response(request_id, TaskResponseContent::ProcessModeOpen(res))
+                let res = self.execution_modes.open(&self.runner, stream, mode);
+                self.send_response(request_id, TaskResponseContent::ExecutionModeOpen(res))
                     .await
             }
-            Task::ProcessModeStatistics(request_id, token) => {
-                let res = self.execution_modes.process_statistics(&self.runner, token);
-                self.send_response(request_id, TaskResponseContent::ProcessModeStatistics(res))
+            Task::ExecutionModeStatistics(request_id, token) => {
+                let res = self.execution_modes.statistics(&self.runner, token);
+                self.send_response(request_id, TaskResponseContent::ExecutionStatistics(res))
                     .await
             }
-            Task::ProcessModeClose(request_id, stream_id, token) => {
-                let stream = self.streams.of(stream_id);
-                let res = self
-                    .execution_modes
-                    .close_process(&self.runner, stream, token);
-                self.send_response(request_id, TaskResponseContent::ProcessModeStatistics(res))
-                    .await
-            }
-            Task::StreamModeOpen(request_id, stream_id, mode) => {
-                let stream = self.streams.of(stream_id);
-                let res = self.execution_modes.open_stream(&self.runner, stream, mode);
-                self.send_response(request_id, TaskResponseContent::StreamModeOpen(res))
-                    .await
-            }
-            Task::StreamModeClose(request_id, token) => {
-                let res = self.execution_modes.close_stream(&self.runner, token);
-                self.send_response(request_id, TaskResponseContent::StreamModeClose(res))
+            Task::ExecutionModeClose(request_id, token) => {
+                let res = self.execution_modes.close(&self.runner, token);
+                self.send_response(request_id, TaskResponseContent::ExecutionStatistics(res))
                     .await
             }
         }
@@ -727,7 +711,7 @@ mod tests {
         PeerAddr, PeerId,
         shared::{LocalTransferId, TransferCapability},
     };
-    use burn_backend::{DType, ProcessMode, ProcessModeToken, Shape, TensorData};
+    use burn_backend::{DType, ExecutionMode, ExecutionModeToken, ProcessMode, Shape, TensorData};
     use burn_flex::Flex;
     use burn_ir::{CapturedGraphId, TensorId, TensorIr, TensorStatus};
     use std::time::Duration;
@@ -960,23 +944,26 @@ mod tests {
         let (response_sender, mut responses) = mpsc::channel(4);
         let mut handler = SessionHandler::new(response_sender, DeviceCaptureLock::default());
         let stream = StreamId { value: 0 };
-        let foreign = ProcessModeToken { id: 1 };
+        let foreign = ExecutionModeToken {
+            id: 1,
+            opened_on: stream,
+        };
 
         for task in [
-            Task::ProcessModeOpen(1, stream, ProcessMode::CompileOnly),
-            Task::ProcessModeStatistics(2, foreign),
-            Task::ProcessModeClose(3, stream, foreign),
+            Task::ExecutionModeOpen(1, stream, ExecutionMode::Process(ProcessMode::CompileOnly)),
+            Task::ExecutionModeStatistics(2, foreign),
+            Task::ExecutionModeClose(3, foreign),
         ] {
             handler.process_task(task).await.unwrap();
         }
         assert!(matches!(
             next_answer(&mut responses).await,
-            TaskResponseContent::ProcessModeOpen(Ok(None))
+            TaskResponseContent::ExecutionModeOpen(Ok(None))
         ));
         for _ in 0..2 {
             assert!(matches!(
                 next_answer(&mut responses).await,
-                TaskResponseContent::ProcessModeStatistics(Err(_))
+                TaskResponseContent::ExecutionStatistics(Err(_))
             ));
         }
     }

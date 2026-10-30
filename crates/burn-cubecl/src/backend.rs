@@ -2,10 +2,9 @@ use crate::execution::OPEN_MODES;
 use crate::{CubeDevice, tensor::CubeTensor};
 use burn_backend::cubecl::dtype_to_storage_type;
 use burn_backend::{
-    Backend, BackendGraph, BackendTypes, DTypeUsage, DTypeUsageSet, ExecutionError,
-    ExecutionStatistics, MemoryPoolUsage, ProcessMode, ProcessModeToken, ProfileDuration,
-    ProfileOptions, ProfileToken, SlicedPoolReport, StreamMode, StreamModeToken, TensorData,
-    profile_with_tokens,
+    Backend, BackendGraph, BackendTypes, DTypeUsage, DTypeUsageSet, ExecutionError, ExecutionMode,
+    ExecutionModeToken, ExecutionStatistics, MemoryPoolUsage, ProfileDuration, ProfileOptions,
+    ProfileToken, SlicedPoolReport, TensorData, profile_with_tokens,
 };
 use burn_std::{BoolStore, DType, id::StreamId, quantization::quantizable};
 use cubecl::device::DeviceId;
@@ -192,41 +191,34 @@ impl Backend for CubeBackend {
         device.client().profile_abandon(window);
     }
 
-    /// Applied to the whole process, as cubecl applies one.
-    fn process_mode_open(
-        _device: &Self::Device,
-        mode: ProcessMode,
-    ) -> Result<Option<ProcessModeToken>, ExecutionError> {
-        OPEN_MODES.lock().open_process(mode).map(Some)
-    }
-
-    fn process_mode_statistics(
-        _device: &Self::Device,
-        token: ProcessModeToken,
-    ) -> Result<ExecutionStatistics, ExecutionError> {
-        OPEN_MODES.lock().process_statistics(token)
-    }
-
-    fn process_mode_close(
-        _device: &Self::Device,
-        token: ProcessModeToken,
-    ) -> Result<ExecutionStatistics, ExecutionError> {
-        OPEN_MODES.lock().close_process(token)
-    }
-
-    fn stream_mode_open(
+    /// A process mode applies to the whole process, as cubecl applies one.
+    fn execution_mode_open(
         device: &Self::Device,
-        mode: StreamMode,
-    ) -> Result<Option<StreamModeToken>, ExecutionError> {
+        mode: ExecutionMode,
+    ) -> Result<Option<ExecutionModeToken>, ExecutionError> {
         let client = device.client();
-        Ok(Some(OPEN_MODES.lock().open_stream(mode, &client)))
+        OPEN_MODES.lock().open(mode, &client).map(Some)
     }
 
-    fn stream_mode_close(
+    fn execution_mode_statistics(
         _device: &Self::Device,
-        token: StreamModeToken,
-    ) -> Result<(), ExecutionError> {
-        OPEN_MODES.lock().close_stream(token)
+        token: ExecutionModeToken,
+    ) -> Result<ExecutionStatistics, ExecutionError> {
+        OPEN_MODES.lock().statistics(token)
+    }
+
+    /// The launches the opening stream's client still buffers were issued
+    /// under the mode, and only count once the runtime takes them: they are
+    /// flushed first. A flush that fails still closes the mode.
+    fn execution_mode_close(
+        device: &Self::Device,
+        token: ExecutionModeToken,
+    ) -> Result<ExecutionStatistics, ExecutionError> {
+        let flushed = token
+            .opened_on
+            .executes(|| device.client().flush().map_err(server_err));
+        let closed = OPEN_MODES.lock().close(token);
+        flushed.and(closed)
     }
 
     fn graph_prepare(device: &Self::Device) -> Result<(), ExecutionError> {

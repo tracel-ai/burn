@@ -3,7 +3,7 @@ pub use burn_backend::{
 };
 
 use crate::Device;
-use burn_backend::{Backend, ExecutionError, ProcessModeToken, StreamModeToken};
+use burn_backend::{Backend, ExecutionError, ExecutionMode, ExecutionModeToken};
 use burn_dispatch::Dispatch;
 
 /// A [`ProcessMode`] open on a device, from
@@ -17,27 +17,15 @@ use burn_dispatch::Dispatch;
 #[derive(Debug)]
 #[must_use = "the mode closes when the guard drops"]
 pub struct ProcessModeGuard {
-    device: Device,
     mode: ProcessMode,
-    /// `None` on a backend that runs every launch whatever the mode, and once
-    /// closed.
-    token: Option<ProcessModeToken>,
+    open: OpenExecutionMode,
 }
 
 impl ProcessModeGuard {
-    /// Open `mode` on `device`, after every operation registered so far on
-    /// the calling stream.
-    ///
-    /// # Errors
-    ///
-    /// Another mode is open where this one would apply, or the device could
-    /// not be reached.
-    pub fn new(device: Device, mode: ProcessMode) -> Result<Self, ExecutionError> {
-        let token = Dispatch::process_mode_open(device.as_dispatch(), mode)?;
+    pub(crate) fn new(device: Device, mode: ProcessMode) -> Result<Self, ExecutionError> {
         Ok(Self {
-            device,
             mode,
-            token,
+            open: OpenExecutionMode::new(device, ExecutionMode::Process(mode))?,
         })
     }
 
@@ -49,48 +37,38 @@ impl ProcessModeGuard {
     /// Whether the device applies the mode. A backend that compiles nothing
     /// runs every launch whatever the mode, and counts nothing.
     pub fn applies(&self) -> bool {
-        self.token.is_some()
+        self.open.token.is_some()
     }
 
     /// What reads what the work under the mode triggered, from any thread.
-    pub fn reader(&self) -> ProcessModeReader {
-        ProcessModeReader {
-            device: self.device.clone(),
-            token: self.token,
+    pub fn reader(&self) -> ExecutionStatisticsReader {
+        ExecutionStatisticsReader {
+            device: self.open.device.clone(),
+            token: self.open.token,
         }
     }
 
-    /// Close the mode, after every operation registered so far on the
-    /// calling stream, and answer what the work under it triggered.
+    /// Close the mode, after every operation registered so far on the stream
+    /// that opened it, and answer what the work under it triggered.
     ///
     /// # Errors
     ///
-    /// The device could not be reached.
+    /// The work queued before the close failed, or the device could not be
+    /// reached. Dropping the guard then tries the close again.
     pub fn close(mut self) -> Result<ExecutionStatistics, ExecutionError> {
-        match self.token.take() {
-            Some(token) => Dispatch::process_mode_close(self.device.as_dispatch(), token),
-            None => Ok(ExecutionStatistics::default()),
-        }
-    }
-}
-
-impl Drop for ProcessModeGuard {
-    fn drop(&mut self) {
-        if let Some(token) = self.token.take() {
-            let _ = Dispatch::process_mode_close(self.device.as_dispatch(), token);
-        }
+        self.open.close()
     }
 }
 
 /// Reads what the work under an open [`ProcessModeGuard`] triggered, from any
 /// thread, and opens nothing.
 #[derive(Debug, Clone)]
-pub struct ProcessModeReader {
+pub struct ExecutionStatisticsReader {
     device: Device,
-    token: Option<ProcessModeToken>,
+    token: Option<ExecutionModeToken>,
 }
 
-impl ProcessModeReader {
+impl ExecutionStatisticsReader {
     /// What the work under the mode triggered so far. Nothing, on a backend
     /// that does not apply it.
     ///
@@ -99,7 +77,7 @@ impl ProcessModeReader {
     /// The mode is closed, or the device could not be reached.
     pub fn statistics(&self) -> Result<ExecutionStatistics, ExecutionError> {
         match self.token {
-            Some(token) => Dispatch::process_mode_statistics(self.device.as_dispatch(), token),
+            Some(token) => Dispatch::execution_mode_statistics(self.device.as_dispatch(), token),
             None => Ok(ExecutionStatistics::default()),
         }
     }
@@ -111,21 +89,14 @@ impl ProcessModeReader {
 #[derive(Debug)]
 #[must_use = "the mode closes when the guard drops"]
 pub struct StreamModeGuard {
-    device: Device,
-    /// `None` on a backend that discards nothing, and once closed.
-    token: Option<StreamModeToken>,
+    open: OpenExecutionMode,
 }
 
 impl StreamModeGuard {
-    /// Put the calling stream of `device` in `mode`, after every operation
-    /// registered so far on it.
-    ///
-    /// # Errors
-    ///
-    /// The device could not be reached.
-    pub fn new(device: Device, mode: StreamMode) -> Result<Self, ExecutionError> {
-        let token = Dispatch::stream_mode_open(device.as_dispatch(), mode)?;
-        Ok(Self { device, token })
+    pub(crate) fn new(device: Device, mode: StreamMode) -> Result<Self, ExecutionError> {
+        Ok(Self {
+            open: OpenExecutionMode::new(device, ExecutionMode::Stream(mode))?,
+        })
     }
 
     /// Close the mode, after every operation registered so far on the stream
@@ -133,19 +104,42 @@ impl StreamModeGuard {
     ///
     /// # Errors
     ///
-    /// The device could not be reached.
+    /// The work queued before the close failed, or the device could not be
+    /// reached. Dropping the guard then tries the close again.
     pub fn close(mut self) -> Result<(), ExecutionError> {
-        match self.token.take() {
-            Some(token) => Dispatch::stream_mode_close(self.device.as_dispatch(), token),
-            None => Ok(()),
-        }
+        self.open.close().map(|_| ())
     }
 }
 
-impl Drop for StreamModeGuard {
+/// A mode open on a device, held until a close of it succeeds: a mode left
+/// open would discard every later launch, so a close that failed is tried
+/// again on drop.
+#[derive(Debug)]
+struct OpenExecutionMode {
+    device: Device,
+    /// `None` on a backend that does not apply the mode, and once closed.
+    token: Option<ExecutionModeToken>,
+}
+
+impl OpenExecutionMode {
+    fn new(device: Device, mode: ExecutionMode) -> Result<Self, ExecutionError> {
+        let token = Dispatch::execution_mode_open(device.as_dispatch(), mode)?;
+        Ok(Self { device, token })
+    }
+
+    fn close(&mut self) -> Result<ExecutionStatistics, ExecutionError> {
+        let Some(token) = self.token else {
+            return Ok(ExecutionStatistics::default());
+        };
+        let closed = Dispatch::execution_mode_close(self.device.as_dispatch(), token)?;
+        self.token = None;
+        Ok(closed)
+    }
+}
+
+impl Drop for OpenExecutionMode {
     fn drop(&mut self) {
-        if let Some(token) = self.token.take() {
-            let _ = Dispatch::stream_mode_close(self.device.as_dispatch(), token);
-        }
+        // What failed is the answer of `close`, which a caller wanting it calls.
+        let _ = self.close();
     }
 }

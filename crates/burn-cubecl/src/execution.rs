@@ -2,16 +2,16 @@
 //! cubecl's.
 //!
 //! Cubecl applies a process mode to the whole process, so every device of
-//! this process runs under the one open here, and one mode is open at a time.
-//! Opens of the mode already open join it: they share its collector, so each
-//! token reads what every device triggered while the mode was open.
+//! this process runs under the one open here, and one is open at a time.
+//! Opens of the process mode already open join it: they share its collector,
+//! so each token reads what every device triggered while the mode was open.
 
 use alloc::vec::Vec;
 use burn_backend::{
-    AutotuneStatistics, CompilationStatistics, ExecutionError, ExecutionStatistics, ProcessMode,
-    ProcessModeToken, StreamMode, StreamModeToken, execution_mode_unknown,
+    ExecutionError, ExecutionMode, ExecutionModeToken, ExecutionStatistics, ProcessMode,
+    UnknownExecutionMode,
 };
-use burn_std::sync::Mutex;
+use burn_std::{id::StreamId, sync::Mutex};
 use cubecl::client::Client;
 use cubecl::execution as cube;
 
@@ -20,7 +20,7 @@ struct OpenProcessMode {
     mode: ProcessMode,
     /// One override per token: cubecl closes the mode once the last drops.
     /// Before the collector they count into, so they drop first.
-    overrides: Vec<(ProcessModeToken, cube::ProcessModeOverride)>,
+    overrides: Vec<(ExecutionModeToken, cube::ProcessModeOverride)>,
     collector: cube::StatisticsCollector,
 }
 
@@ -28,7 +28,7 @@ struct OpenProcessMode {
 /// out for them.
 pub(crate) struct OpenModes {
     process: Option<OpenProcessMode>,
-    streams: Vec<(StreamModeToken, cube::StreamModeOverride)>,
+    streams: Vec<(ExecutionModeToken, cube::StreamModeOverride)>,
     next_id: u64,
 }
 
@@ -40,75 +40,92 @@ pub(crate) static OPEN_MODES: Mutex<OpenModes> = Mutex::new(OpenModes {
 });
 
 impl OpenModes {
-    /// Open `mode` for the whole process, or join it if it is already open.
-    pub(crate) fn open_process(
+    /// Open `mode`: a process mode for the whole process, joining it if it is
+    /// already open, or a stream mode for `client`'s stream.
+    pub(crate) fn open(
         &mut self,
-        mode: ProcessMode,
-    ) -> Result<ProcessModeToken, ExecutionError> {
-        let token = ProcessModeToken { id: self.next_id() };
-        let process = match &mut self.process {
-            Some(process) if process.mode != mode => {
-                return Err(ExecutionError::with_context(alloc::format!(
-                    "{mode:?} cannot open while {:?} is open: the cubecl runtimes apply one \
-                     process mode to the whole process",
-                    process.mode
-                )));
-            }
-            Some(process) => process,
-            None => self.process.insert(OpenProcessMode {
-                mode,
-                overrides: Vec::new(),
-                collector: cube::StatisticsCollector::new(),
-            }),
+        mode: ExecutionMode,
+        client: &Client,
+    ) -> Result<ExecutionModeToken, ExecutionError> {
+        let token = ExecutionModeToken {
+            id: self.next_id(),
+            opened_on: StreamId::current(),
         };
-        let execution = cube::ProcessModeOverride::new(mode.into_cube(), &process.collector);
-        process.overrides.push((token, execution));
+        match mode {
+            ExecutionMode::Process(mode) => self.open_process(token, mode)?,
+            ExecutionMode::Stream(mode) => {
+                let execution = cube::StreamModeOverride::new(mode.into(), client);
+                self.streams.push((token, execution));
+            }
+        }
         Ok(token)
     }
 
     /// What the work under the mode `token` holds open has triggered so far.
-    pub(crate) fn process_statistics(
+    pub(crate) fn statistics(
         &self,
-        token: ProcessModeToken,
+        token: ExecutionModeToken,
     ) -> Result<ExecutionStatistics, ExecutionError> {
+        if self.streams.iter().any(|(held, _)| *held == token) {
+            return Ok(ExecutionStatistics::default());
+        }
         match &self.process {
-            Some(process) if process.holds(token) => Ok(process.statistics()),
-            _ => Err(execution_mode_unknown()),
+            Some(process) if process.holds(token) => Ok(process.collector.statistics().into()),
+            _ => Err(UnknownExecutionMode.into()),
         }
     }
 
-    /// Let go of the mode `token` holds open, closing it if no other token
-    /// does.
-    pub(crate) fn close_process(
+    /// Let go of the mode `token` holds open. A process mode closes once no
+    /// other token holds it.
+    pub(crate) fn close(
         &mut self,
-        token: ProcessModeToken,
+        token: ExecutionModeToken,
     ) -> Result<ExecutionStatistics, ExecutionError> {
+        if let Some(position) = self.streams.iter().position(|(held, _)| *held == token) {
+            self.streams.swap_remove(position);
+            return Ok(ExecutionStatistics::default());
+        }
         let Some(process) = self.process.as_mut().filter(|process| process.holds(token)) else {
-            return Err(execution_mode_unknown());
+            return Err(UnknownExecutionMode.into());
         };
         process.overrides.retain(|(held, _)| *held != token);
-        let statistics = process.statistics();
+        let statistics = process.collector.statistics().into();
         if process.overrides.is_empty() {
             self.process = None;
         }
         Ok(statistics)
     }
 
-    /// Put `client`'s stream in `mode` until the token closes.
-    pub(crate) fn open_stream(&mut self, mode: StreamMode, client: &Client) -> StreamModeToken {
-        let token = StreamModeToken { id: self.next_id() };
-        let execution = cube::StreamModeOverride::new(mode.into_cube(), client);
-        self.streams.push((token, execution));
-        token
-    }
-
-    /// Close the stream mode `token` holds open.
-    pub(crate) fn close_stream(&mut self, token: StreamModeToken) -> Result<(), ExecutionError> {
-        let before = self.streams.len();
-        self.streams.retain(|(held, _)| *held != token);
-        match self.streams.len() < before {
-            true => Ok(()),
-            false => Err(execution_mode_unknown()),
+    /// Cubecl's override is built before anything is recorded, so one that
+    /// panics leaves no mode behind that nothing could close.
+    fn open_process(
+        &mut self,
+        token: ExecutionModeToken,
+        mode: ProcessMode,
+    ) -> Result<(), ExecutionError> {
+        match &mut self.process {
+            Some(process) if process.mode != mode => {
+                Err(ExecutionError::with_context(alloc::format!(
+                    "{mode:?} cannot open while {:?} is open: the cubecl runtimes apply one \
+                     process mode to the whole process",
+                    process.mode
+                )))
+            }
+            Some(process) => {
+                let execution = cube::ProcessModeOverride::new(mode.into(), &process.collector);
+                process.overrides.push((token, execution));
+                Ok(())
+            }
+            None => {
+                let collector = cube::StatisticsCollector::new();
+                let execution = cube::ProcessModeOverride::new(mode.into(), &collector);
+                self.process = Some(OpenProcessMode {
+                    mode,
+                    overrides: alloc::vec![(token, execution)],
+                    collector,
+                });
+                Ok(())
+            }
         }
     }
 
@@ -119,62 +136,7 @@ impl OpenModes {
 }
 
 impl OpenProcessMode {
-    fn holds(&self, token: ProcessModeToken) -> bool {
+    fn holds(&self, token: ExecutionModeToken) -> bool {
         self.overrides.iter().any(|(held, _)| *held == token)
-    }
-
-    fn statistics(&self) -> ExecutionStatistics {
-        let statistics = self.collector.statistics();
-        let compilation = statistics.compilation;
-        let autotune = statistics.autotune;
-        ExecutionStatistics {
-            compilation: CompilationStatistics {
-                registered: compilation.registered as u64,
-                compiled: compilation.compiled as u64,
-                loaded: compilation.loaded as u64,
-                failed: compilation.failed as u64,
-                abandoned: compilation.abandoned as u64,
-                refused: compilation.refused as u64,
-                stored: compilation.stored as u64,
-            },
-            autotune: AutotuneStatistics {
-                registered: autotune.registered as u64,
-                measured: autotune.measured as u64,
-                loaded: autotune.loaded as u64,
-                failed: autotune.failed as u64,
-                abandoned: autotune.abandoned as u64,
-                persisted: autotune.persisted as u64,
-            },
-        }
-    }
-}
-
-/// The cubecl name of a mode.
-trait IntoCube {
-    type Cube;
-
-    fn into_cube(self) -> Self::Cube;
-}
-
-impl IntoCube for ProcessMode {
-    type Cube = cube::ProcessMode;
-
-    fn into_cube(self) -> cube::ProcessMode {
-        match self {
-            Self::Execute => cube::ProcessMode::Execute,
-            Self::CompileOnly => cube::ProcessMode::CompileOnly,
-            Self::CompileAndAutotune => cube::ProcessMode::CompileAndAutotune,
-        }
-    }
-}
-
-impl IntoCube for StreamMode {
-    type Cube = cube::StreamMode;
-
-    fn into_cube(self) -> cube::StreamMode {
-        match self {
-            Self::Execute => cube::StreamMode::Execute,
-            Self::Discard => cube::StreamMode::Discard,
-        }
     }
 }

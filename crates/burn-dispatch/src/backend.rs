@@ -12,9 +12,9 @@ use alloc::vec;
 #[cfg(feature = "autodiff")]
 use burn_backend::distributed::{DistributedParamId, DistributedParams};
 use burn_backend::{
-    AutodiffBackend, Backend, BackendGraph, BackendTypes, DType, ExecutionError,
-    ExecutionStatistics, MemoryPoolUsage, ProcessMode, ProcessModeToken, ProfileDuration,
-    ProfileOptions, ProfileToken, SlicedPoolReport, StreamMode, StreamModeToken,
+    AutodiffBackend, Backend, BackendGraph, BackendTypes, DType, ExecutionError, ExecutionMode,
+    ExecutionModeToken, ExecutionStatistics, MemoryPoolUsage, ProfileDuration, ProfileOptions,
+    ProfileToken, SlicedPoolReport,
 };
 
 /// A captured graph from one of the dispatched backends (see
@@ -215,39 +215,25 @@ impl Backend for Dispatch {
         dispatch_device!(device, |device| B::profile_abandon(device, token))
     }
 
-    fn process_mode_open(
+    fn execution_mode_open(
         device: &Self::Device,
-        mode: ProcessMode,
-    ) -> Result<Option<ProcessModeToken>, ExecutionError> {
-        dispatch_device!(device, |device| B::process_mode_open(device, mode))
+        mode: ExecutionMode,
+    ) -> Result<Option<ExecutionModeToken>, ExecutionError> {
+        dispatch_device!(device, |device| B::execution_mode_open(device, mode))
     }
 
-    fn process_mode_statistics(
+    fn execution_mode_statistics(
         device: &Self::Device,
-        token: ProcessModeToken,
+        token: ExecutionModeToken,
     ) -> Result<ExecutionStatistics, ExecutionError> {
-        dispatch_device!(device, |device| B::process_mode_statistics(device, token))
+        dispatch_device!(device, |device| B::execution_mode_statistics(device, token))
     }
 
-    fn process_mode_close(
+    fn execution_mode_close(
         device: &Self::Device,
-        token: ProcessModeToken,
+        token: ExecutionModeToken,
     ) -> Result<ExecutionStatistics, ExecutionError> {
-        dispatch_device!(device, |device| B::process_mode_close(device, token))
-    }
-
-    fn stream_mode_open(
-        device: &Self::Device,
-        mode: StreamMode,
-    ) -> Result<Option<StreamModeToken>, ExecutionError> {
-        dispatch_device!(device, |device| B::stream_mode_open(device, mode))
-    }
-
-    fn stream_mode_close(
-        device: &Self::Device,
-        token: StreamModeToken,
-    ) -> Result<(), ExecutionError> {
-        dispatch_device!(device, |device| B::stream_mode_close(device, token))
+        dispatch_device!(device, |device| B::execution_mode_close(device, token))
     }
 
     fn graph_prepare(device: &Self::Device) -> Result<(), ExecutionError> {

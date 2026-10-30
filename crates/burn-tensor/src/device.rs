@@ -654,9 +654,9 @@ impl Device {
     /// its server.
     ///
     /// ```rust,ignore
-    /// let gather = device.process_mode(ProcessMode::CompileOnly)?;
+    /// let compile = device.process_mode(ProcessMode::CompileOnly)?;
     /// model.forward(input.clone());
-    /// let gathered = gather.close()?;
+    /// let compiled = compile.close()?;
     ///
     /// let tune = device.process_mode(ProcessMode::CompileAndAutotune)?;
     /// model.forward(input);
@@ -665,15 +665,19 @@ impl Device {
     ///
     /// Opens after every operation registered so far on the calling stream.
     /// A backend that compiles nothing runs every launch whatever the mode
-    /// ([`ProcessModeGuard::applies`] says so). The cubecl runtimes apply a
-    /// mode to the whole process, so every device of the process runs under
-    /// it there, and one mode is open at a time.
+    /// ([`ProcessModeGuard::applies`] says so).
+    ///
+    /// The cubecl runtimes apply a mode to the whole process: every device of
+    /// the process runs under it, one mode is open at a time, and opening the
+    /// mode already open joins it, its statistics then counting both openers'
+    /// work. On a remote device, that process is the server's — the work of
+    /// every client of the server is discarded while the mode is open.
     ///
     /// # Errors
     ///
-    /// Another mode is open where this one would apply, or the device could
-    /// not be reached — a remote device from a browser thread, which cannot
-    /// wait on the server.
+    /// Another mode is open where this one would apply, the device is a group
+    /// (open the mode on its devices), or the device could not be reached — a
+    /// remote device from a browser thread, which cannot wait on the server.
     pub fn process_mode(&self, mode: ProcessMode) -> Result<ProcessModeGuard, ExecutionError> {
         ProcessModeGuard::new(self.clone(), mode)
     }

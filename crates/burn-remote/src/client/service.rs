@@ -12,9 +12,8 @@ use crate::{
     },
 };
 use burn_backend::{
-    DTypeUsageSet, ExecutionError, ExecutionStatistics, ProcessMode, ProcessModeToken,
-    ProfileDuration, ProfileOptions, ProfileTicks, ProfileToken, StreamMode, StreamModeToken,
-    TensorData,
+    DTypeUsageSet, ExecutionError, ExecutionMode, ExecutionModeToken, ExecutionStatistics,
+    ProfileDuration, ProfileOptions, ProfileTicks, ProfileToken, TensorData,
     backend::{DeviceId, DeviceService, ServerUtilitiesHandle},
 };
 use burn_ir::{CapturedGraphId, OperationIr, TensorId, TensorIr};
@@ -741,78 +740,49 @@ impl RemoteService {
         }
     }
 
-    /// Run the server backend's work under `mode` after every task sent before.
-    pub fn process_mode_open(
+    /// Open `mode` on the server's backend where `stream_id` stands, after every task sent
+    /// before.
+    pub fn execution_mode_open(
         &mut self,
         stream_id: StreamId,
-        mode: ProcessMode,
-    ) -> Result<Option<ProcessModeToken>, ExecutionError> {
+        mode: ExecutionMode,
+    ) -> Result<Option<ExecutionModeToken>, ExecutionError> {
         self.execution_request(
-            |id| Task::ProcessModeOpen(id, stream_id, mode),
+            |id| Task::ExecutionModeOpen(id, stream_id, mode),
             |answer| match answer {
-                TaskResponseContent::ProcessModeOpen(res) => Ok(res),
+                TaskResponseContent::ExecutionModeOpen(res) => Ok(res),
                 other => Err(other),
             },
         )
     }
 
     /// What the work under the server's mode `token` has triggered so far.
-    pub fn process_mode_statistics(
+    pub fn execution_mode_statistics(
         &mut self,
-        token: ProcessModeToken,
+        token: ExecutionModeToken,
     ) -> Result<ExecutionStatistics, ExecutionError> {
         self.execution_request(
-            |id| Task::ProcessModeStatistics(id, token),
-            Self::statistics_answer,
-        )
-    }
-
-    /// Close the server's mode `token` after every task sent before.
-    pub fn process_mode_close(
-        &mut self,
-        stream_id: StreamId,
-        token: ProcessModeToken,
-    ) -> Result<ExecutionStatistics, ExecutionError> {
-        self.execution_request(
-            |id| Task::ProcessModeClose(id, stream_id, token),
-            Self::statistics_answer,
-        )
-    }
-
-    /// Put the server stream of `stream_id` in `mode` after every task sent before.
-    pub fn stream_mode_open(
-        &mut self,
-        stream_id: StreamId,
-        mode: StreamMode,
-    ) -> Result<Option<StreamModeToken>, ExecutionError> {
-        self.execution_request(
-            |id| Task::StreamModeOpen(id, stream_id, mode),
+            |id| Task::ExecutionModeStatistics(id, token),
             |answer| match answer {
-                TaskResponseContent::StreamModeOpen(res) => Ok(res),
+                TaskResponseContent::ExecutionStatistics(res) => Ok(res),
                 other => Err(other),
             },
         )
     }
 
-    /// Close the server's stream mode `token`, on the stream it was opened on, after every task
-    /// sent before.
-    pub fn stream_mode_close(&mut self, token: StreamModeToken) -> Result<(), ExecutionError> {
+    /// Close the server's mode `token` on the stream it was opened on, after every task sent
+    /// before.
+    pub fn execution_mode_close(
+        &mut self,
+        token: ExecutionModeToken,
+    ) -> Result<ExecutionStatistics, ExecutionError> {
         self.execution_request(
-            |id| Task::StreamModeClose(id, token),
+            |id| Task::ExecutionModeClose(id, token),
             |answer| match answer {
-                TaskResponseContent::StreamModeClose(res) => Ok(res),
+                TaskResponseContent::ExecutionStatistics(res) => Ok(res),
                 other => Err(other),
             },
         )
-    }
-
-    fn statistics_answer(
-        answer: TaskResponseContent,
-    ) -> Result<Result<ExecutionStatistics, ExecutionError>, TaskResponseContent> {
-        match answer {
-            TaskResponseContent::ProcessModeStatistics(res) => Ok(res),
-            other => Err(other),
-        }
     }
 
     /// Send an execution-mode request and wait on the server's answer, which `answer` takes
@@ -832,7 +802,9 @@ impl RemoteService {
             let rx = self.submit_request(make_task);
             match self.executor.block_on(rx) {
                 Ok(response) => answer(response).unwrap_or_else(|other| {
-                    panic!("Invalid response for an execution-mode request: {other:?}")
+                    Err(ExecutionError::with_context(format!(
+                        "Invalid response for an execution-mode request: {other:?}"
+                    )))
                 }),
                 Err(_) => Err(ExecutionError::with_context(
                     "Remote response channel closed before the execution-mode request completed",

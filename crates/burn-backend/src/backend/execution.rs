@@ -11,30 +11,19 @@
 //! nothing and run every launch; and it travels, so a backend executing on
 //! another machine applies it there.
 
-use burn_std::{ExecutionError, backtrace::BackTrace};
+use burn_std::{ExecutionError, backtrace::BackTrace, id::StreamId};
 
 /// What a device does with the work it is asked to run.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub enum ProcessMode {
     /// Launches run. What a device does when no mode is open on it.
     Execute,
-    /// Launches and tune candidates queue their kernels and are discarded. The
-    /// queue compiles in one batch, at the next launch that loads a kernel. A
-    /// tune measures and decides nothing.
+    /// Launches are discarded. Their kernels are compiled and their autotune
+    /// keys registered, but no candidate is measured and nothing is decided.
     CompileOnly,
-    /// Launches compile their kernels and are discarded. A tune measures its
-    /// candidates for real.
+    /// Launches are discarded. Their kernels are compiled, and their autotune
+    /// keys tuned by measuring the candidates.
     CompileAndAutotune,
-}
-
-impl ProcessMode {
-    /// The mode every stream has under it, unless a stream opens its own.
-    pub fn stream_mode(self) -> StreamMode {
-        match self {
-            Self::Execute => StreamMode::Execute,
-            Self::CompileOnly | Self::CompileAndAutotune => StreamMode::Discard,
-        }
-    }
 }
 
 /// Whether a stream's launches run.
@@ -42,27 +31,32 @@ impl ProcessMode {
 pub enum StreamMode {
     /// They run.
     Execute,
-    /// Their kernels compile, as the open [`ProcessMode`] says, and the
-    /// launches are discarded.
+    /// They are discarded, their kernels compiled as the open [`ProcessMode`]
+    /// says.
     Discard,
 }
 
-/// An open [`ProcessMode`] on a device, handed out by
-/// [`process_mode_open`](super::Backend::process_mode_open) and passed back to
-/// read its statistics and to close it.
+/// A mode a device opens, with
+/// [`execution_mode_open`](super::Backend::execution_mode_open).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
-pub struct ProcessModeToken {
-    /// The backend's own identifier for the open mode.
-    pub id: u64,
+pub enum ExecutionMode {
+    /// For all the device's work.
+    Process(ProcessMode),
+    /// For the calling stream's work alone, whatever the process mode says.
+    Stream(StreamMode),
 }
 
-/// An open [`StreamMode`] on one stream of a device, handed out by
-/// [`stream_mode_open`](super::Backend::stream_mode_open) and passed back to
-/// close it.
+/// An open [`ExecutionMode`] on a device, handed out by
+/// [`execution_mode_open`](super::Backend::execution_mode_open) and passed back
+/// to read its statistics and to close it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
-pub struct StreamModeToken {
+pub struct ExecutionModeToken {
     /// The backend's own identifier for the open mode.
     pub id: u64,
+    /// The stream the mode was opened on, which is where it closes: the work
+    /// registered there before the close runs under the mode, whichever
+    /// thread closes it.
+    pub opened_on: StreamId,
 }
 
 /// What the work run under an open [`ProcessMode`] triggered: the kernels
@@ -82,8 +76,8 @@ pub struct ExecutionStatistics {
     Debug, Clone, Copy, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize,
 )]
 pub struct CompilationStatistics {
-    /// Queued, or asked for by a launch that found them neither loaded nor
-    /// queued. A kernel tried again after failing registers again.
+    /// Asked for by a launch that found them neither compiled nor queued. A
+    /// kernel tried again after failing registers again.
     pub registered: u64,
     /// Compiled by the backend's compiler.
     pub compiled: u64,
@@ -91,8 +85,8 @@ pub struct CompilationStatistics {
     pub loaded: u64,
     /// Failed to compile.
     pub failed: u64,
-    /// Dropped before it settled: the batch compiling it panicked, or the
-    /// device holding it went away.
+    /// Dropped before it settled: its compilation panicked, or the device
+    /// holding it went away.
     pub abandoned: u64,
     /// Compiled or read from the store, then refused by the device when it
     /// was loaded: counted among [`compiled`](Self::compiled) or
@@ -116,9 +110,9 @@ impl CompilationStatistics {
     Debug, Clone, Copy, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize,
 )]
 pub struct AutotuneStatistics {
-    /// Gathered by a [`CompileOnly`](ProcessMode::CompileOnly) pass, or
-    /// reached ungathered by a tune that measures or a read of the persistent
-    /// autotune cache.
+    /// Registered by a [`CompileOnly`](ProcessMode::CompileOnly) pass, or
+    /// reached unregistered by a tune that measures or by a read of the
+    /// persistent autotune cache.
     pub registered: u64,
     /// Tuned by measuring their candidates.
     pub measured: u64,
@@ -140,13 +134,19 @@ impl AutotuneStatistics {
     }
 }
 
-/// The error a backend answers with when asked about a mode it never handed
-/// out, which is every mode for a backend that opens none.
-pub fn execution_mode_unknown() -> ExecutionError {
-    ExecutionError::Generic {
-        reason: alloc::string::String::from(
-            "no execution mode is open under this token on this backend",
-        ),
-        backtrace: BackTrace::capture(),
+/// A backend has no mode open under the token it was asked about: it never
+/// handed it out, it is closed, or another session of a remote device opened
+/// it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct UnknownExecutionMode;
+
+impl From<UnknownExecutionMode> for ExecutionError {
+    fn from(_: UnknownExecutionMode) -> Self {
+        ExecutionError::Generic {
+            reason: alloc::string::String::from(
+                "no execution mode is open under this token on this backend",
+            ),
+            backtrace: BackTrace::capture(),
+        }
     }
 }

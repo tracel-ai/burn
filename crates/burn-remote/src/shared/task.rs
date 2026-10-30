@@ -1,6 +1,6 @@
 use burn_backend::{
-    DTypeUsageSet, ExecutionError, ExecutionStatistics, ProcessMode, ProcessModeToken,
-    ProfileOptions, ProfileToken, StreamMode, StreamModeToken, TensorData,
+    DTypeUsageSet, ExecutionError, ExecutionMode, ExecutionModeToken, ExecutionStatistics,
+    ProfileOptions, ProfileToken, TensorData,
 };
 use burn_ir::{CapturedGraphId, GraphBindings, GraphId, OperationIr, TensorId, TensorIr};
 use burn_std::{
@@ -357,20 +357,15 @@ pub enum Task {
     CaptureRelease(CapturedGraphId),
     /// Ask the server the device query registered under the id about the session's device.
     DeviceQuery(RequestId, DeviceQueryId),
-    /// Run the server backend's work under a process mode, after every earlier task, until a
-    /// [`ProcessModeClose`](Task::ProcessModeClose) of the token it answers, or the session
-    /// ends.
-    ProcessModeOpen(RequestId, StreamId, ProcessMode),
-    /// What the work under an open process mode has triggered so far.
-    ProcessModeStatistics(RequestId, ProcessModeToken),
-    /// Close an open process mode after every earlier task, answering what the work under it
-    /// triggered.
-    ProcessModeClose(RequestId, StreamId, ProcessModeToken),
-    /// Put the server stream of `stream_id` in a stream mode, after every earlier task, until a
-    /// [`StreamModeClose`](Task::StreamModeClose) of the token it answers, or the session ends.
-    StreamModeOpen(RequestId, StreamId, StreamMode),
-    /// Close an open stream mode, on the stream it was opened on, after every earlier task.
-    StreamModeClose(RequestId, StreamModeToken),
+    /// Open an execution mode on the server's backend where `stream_id` stands, after every
+    /// earlier task, until an [`ExecutionModeClose`](Task::ExecutionModeClose) of the token it
+    /// answers, or the session ends.
+    ExecutionModeOpen(RequestId, StreamId, ExecutionMode),
+    /// What the work under an open execution mode has triggered so far.
+    ExecutionModeStatistics(RequestId, ExecutionModeToken),
+    /// Close an open execution mode on the stream it was opened on, after every earlier task,
+    /// answering what the work under it triggered.
+    ExecutionModeClose(RequestId, ExecutionModeToken),
 }
 
 /// The id a server registers a device query under, and a client asks it by.
@@ -449,17 +444,12 @@ pub enum TaskResponseContent {
     Capture(Result<(), ExecutionError>),
     /// The answer to [`DeviceQuery`](Task::DeviceQuery).
     DeviceQuery(Result<serde_bytes::ByteBuf, DeviceQueryFailure>),
-    /// The answer to [`ProcessModeOpen`](Task::ProcessModeOpen): `None` when the server's
+    /// The answer to [`ExecutionModeOpen`](Task::ExecutionModeOpen): `None` when the server's
     /// backend runs every launch.
-    ProcessModeOpen(Result<Option<ProcessModeToken>, ExecutionError>),
-    /// The answer to [`ProcessModeStatistics`](Task::ProcessModeStatistics) and
-    /// [`ProcessModeClose`](Task::ProcessModeClose).
-    ProcessModeStatistics(Result<ExecutionStatistics, ExecutionError>),
-    /// The answer to [`StreamModeOpen`](Task::StreamModeOpen): `None` when the server's backend
-    /// discards nothing.
-    StreamModeOpen(Result<Option<StreamModeToken>, ExecutionError>),
-    /// The answer to [`StreamModeClose`](Task::StreamModeClose).
-    StreamModeClose(Result<(), ExecutionError>),
+    ExecutionModeOpen(Result<Option<ExecutionModeToken>, ExecutionError>),
+    /// The answer to [`ExecutionModeStatistics`](Task::ExecutionModeStatistics) and
+    /// [`ExecutionModeClose`](Task::ExecutionModeClose).
+    ExecutionStatistics(Result<ExecutionStatistics, ExecutionError>),
     /// The server's answer to an `Init` it will not serve, in place of [`Init`](Self::Init),
     /// before it closes the session.
     InitRefused(SessionRefusal),

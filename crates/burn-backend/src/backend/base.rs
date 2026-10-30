@@ -14,10 +14,7 @@ use crate::distributed::{DistributedParamId, DistributedParams};
 
 use super::DeviceOps;
 use super::profile::profile_unsupported;
-use super::{
-    ExecutionStatistics, ProcessMode, ProcessModeToken, StreamMode, StreamModeToken,
-    execution_mode_unknown,
-};
+use super::{ExecutionMode, ExecutionModeToken, ExecutionStatistics, UnknownExecutionMode};
 use super::{MemoryPoolUsage, SlicedPoolReport};
 use super::{ProfileDuration, ProfileOptions, ProfileToken, profile_system_time};
 
@@ -293,10 +290,15 @@ pub trait Backend:
         let _ = Self::profile_end(device, token, ProfileOptions::default());
     }
 
-    /// Run the work `device` is asked to do under `mode` until
-    /// [`process_mode_close`](Self::process_mode_close), counting what it
-    /// triggers into the [statistics](Self::process_mode_statistics) of the
-    /// returned token.
+    /// Open `mode` on `device` until
+    /// [`execution_mode_close`](Self::execution_mode_close).
+    ///
+    /// - A [`ProcessMode`](super::ProcessMode) applies to all the device's work, and counts what
+    ///   that work triggers into the token's
+    ///   [statistics](Self::execution_mode_statistics).
+    /// - A [`StreamMode`](super::StreamMode) applies to the calling stream's work alone, whatever
+    ///   the process mode says: what a step that has to run for real inside a
+    ///   pass that discards launches opens. It counts nothing.
     ///
     /// Opens after every operation registered so far on the calling stream:
     /// a backend that queues operations runs those first, under the mode they
@@ -306,81 +308,55 @@ pub trait Backend:
     /// `None`, the default, from a backend that compiles nothing and so runs
     /// every launch whatever the mode: the work runs, and nothing is counted.
     ///
-    /// The contract is the device's: at least `device` runs under the mode.
-    /// A backend whose runtime only applies a mode to the whole process applies
-    /// it to every device of that process, and refuses a second mode while
-    /// one is open there.
+    /// The contract is the device's: at least `device` runs under a process
+    /// mode. A backend whose runtime only applies one to the whole process
+    /// applies it to every device of that process — on a server, to the work
+    /// of all its clients — and refuses a second process mode while one is
+    /// open there.
     ///
     /// # Errors
     ///
-    /// Another mode is open where this one would apply, or the device could
-    /// not be reached.
-    fn process_mode_open(
+    /// Another process mode is open where this one would apply, or the device
+    /// could not be reached.
+    fn execution_mode_open(
         _device: &Self::Device,
-        _mode: ProcessMode,
-    ) -> Result<Option<ProcessModeToken>, ExecutionError> {
+        _mode: ExecutionMode,
+    ) -> Result<Option<ExecutionModeToken>, ExecutionError> {
         Ok(None)
     }
 
-    /// What the work run under the mode `token` opened has triggered so far.
-    /// Opens and closes nothing, so it can be read from any thread while the
-    /// work runs.
+    /// What the work run under the mode `token` opened has triggered so far;
+    /// nothing, for a stream mode. Opens and closes nothing, so it can be read
+    /// from any thread while the work runs.
     ///
     /// # Errors
     ///
     /// The backend has no mode open under `token`, or the device could not be
     /// reached.
-    fn process_mode_statistics(
+    fn execution_mode_statistics(
         _device: &Self::Device,
-        _token: ProcessModeToken,
+        _token: ExecutionModeToken,
     ) -> Result<ExecutionStatistics, ExecutionError> {
-        Err(execution_mode_unknown())
+        Err(UnknownExecutionMode.into())
     }
 
     /// Close the mode `token` opened, after every operation registered so far
-    /// on the calling stream, and answer what the work run under it triggered.
+    /// on [the stream it was opened on](ExecutionModeToken::opened_on), and
+    /// answer what the work run under it triggered.
+    ///
+    /// A backend that fails to run the queued operations still closes the
+    /// mode, and answers the failure: a mode left open would discard every
+    /// later launch.
     ///
     /// # Errors
     ///
-    /// The backend has no mode open under `token`, or the device could not be
-    /// reached.
-    fn process_mode_close(
+    /// The backend has no mode open under `token`, the queued operations
+    /// failed, or the device could not be reached.
+    fn execution_mode_close(
         _device: &Self::Device,
-        _token: ProcessModeToken,
+        _token: ExecutionModeToken,
     ) -> Result<ExecutionStatistics, ExecutionError> {
-        Err(execution_mode_unknown())
-    }
-
-    /// Put the calling stream of `device` in `mode`, whatever the open
-    /// [`ProcessMode`] says, until
-    /// [`stream_mode_close`](Self::stream_mode_close): what a step that has to
-    /// run inside a pass that discards launches opens.
-    ///
-    /// Opens after every operation registered so far on the calling stream.
-    /// `None`, the default, from a backend that discards nothing.
-    ///
-    /// # Errors
-    ///
-    /// The device could not be reached.
-    fn stream_mode_open(
-        _device: &Self::Device,
-        _mode: StreamMode,
-    ) -> Result<Option<StreamModeToken>, ExecutionError> {
-        Ok(None)
-    }
-
-    /// Close the stream mode `token` opened, after every operation registered
-    /// so far on the calling stream.
-    ///
-    /// # Errors
-    ///
-    /// The backend has no stream mode open under `token`, or the device could
-    /// not be reached.
-    fn stream_mode_close(
-        _device: &Self::Device,
-        _token: StreamModeToken,
-    ) -> Result<(), ExecutionError> {
-        Err(execution_mode_unknown())
+        Err(UnknownExecutionMode.into())
     }
 
     /// Prepare `device` for an upcoming graph capture: route allocations into a

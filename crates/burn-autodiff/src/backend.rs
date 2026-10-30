@@ -8,9 +8,9 @@ use core::marker::PhantomData;
 
 use burn_backend::{
     backend::{
-        AutodiffBackend, Backend, BackendTypes, ExecutionError, ExecutionStatistics,
-        MemoryPoolUsage, ProcessMode, ProcessModeToken, ProfileDuration, ProfileOptions,
-        ProfileToken, SlicedPoolReport, StreamMode, StreamModeToken,
+        AutodiffBackend, Backend, BackendTypes, ExecutionError, ExecutionMode, ExecutionModeToken,
+        ExecutionStatistics, MemoryPoolUsage, ProfileDuration, ProfileOptions, ProfileToken,
+        SlicedPoolReport,
     },
     tensor::{BoolTensor, IntTensor, QuantizedTensor},
 };
@@ -84,39 +84,25 @@ impl<B: Backend, C: CheckpointStrategy> Backend for Autodiff<B, C> {
         B::profile_abandon(device, token)
     }
 
-    fn process_mode_open(
+    fn execution_mode_open(
         device: &Self::Device,
-        mode: ProcessMode,
-    ) -> Result<Option<ProcessModeToken>, ExecutionError> {
-        B::process_mode_open(device, mode)
+        mode: ExecutionMode,
+    ) -> Result<Option<ExecutionModeToken>, ExecutionError> {
+        B::execution_mode_open(device, mode)
     }
 
-    fn process_mode_statistics(
+    fn execution_mode_statistics(
         device: &Self::Device,
-        token: ProcessModeToken,
+        token: ExecutionModeToken,
     ) -> Result<ExecutionStatistics, ExecutionError> {
-        B::process_mode_statistics(device, token)
+        B::execution_mode_statistics(device, token)
     }
 
-    fn process_mode_close(
+    fn execution_mode_close(
         device: &Self::Device,
-        token: ProcessModeToken,
+        token: ExecutionModeToken,
     ) -> Result<ExecutionStatistics, ExecutionError> {
-        B::process_mode_close(device, token)
-    }
-
-    fn stream_mode_open(
-        device: &Self::Device,
-        mode: StreamMode,
-    ) -> Result<Option<StreamModeToken>, ExecutionError> {
-        B::stream_mode_open(device, mode)
-    }
-
-    fn stream_mode_close(
-        device: &Self::Device,
-        token: StreamModeToken,
-    ) -> Result<(), ExecutionError> {
-        B::stream_mode_close(device, token)
+        B::execution_mode_close(device, token)
     }
 
     fn memory_persistent_allocations<
