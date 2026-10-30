@@ -2,6 +2,7 @@ use alloc::string::{String, ToString};
 use alloc::sync::Arc;
 use burn_backend::backend::BackendTypes;
 use burn_ir::{BackendIr, CustomOpIr, HandleContainer};
+use core::any::TypeId;
 use hashbrown::HashMap;
 
 /// A handler that executes a single custom operation against a backend's tensor handles.
@@ -32,7 +33,56 @@ pub type CustomOpHandler<B> = Arc<
 /// global/static registry to manage.
 #[derive(Clone)]
 pub struct CustomOpRegistry<B: BackendIr> {
-    handlers: HashMap<String, CustomOpHandler<B>>,
+    handlers: HashMap<String, RegisteredHandler<B>>,
+}
+
+/// Where a handler is registered from: the type that registers it and the name it gives the
+/// handler there, such as a trait's generated handler set and one of its methods.
+///
+/// [`CustomOpRegistry::try_register`] tells a repeated registration from a conflict by it: the
+/// same source registering again replaces its handler, and another source under a taken id is
+/// refused. The handler's own type cannot tell them apart, as every `fn` pointer and every
+/// `Box<dyn Fn>` of the handler signature shares one.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct HandlerSource {
+    owner: TypeId,
+    name: &'static str,
+}
+
+/// A handler with the source it was registered from, `None` for [`CustomOpRegistry::register`].
+#[derive(Clone)]
+struct RegisteredHandler<B: BackendIr> {
+    source: Option<HandlerSource>,
+    handler: CustomOpHandler<B>,
+}
+
+/// A different handler is already registered under the custom operation's id.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CustomOpConflict {
+    /// The id both handlers claim.
+    pub id: String,
+}
+
+impl core::fmt::Display for CustomOpConflict {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(
+            f,
+            "a different handler is already registered for custom operation `{}`",
+            self.id
+        )
+    }
+}
+
+impl core::error::Error for CustomOpConflict {}
+
+impl HandlerSource {
+    /// The handler `Owner` registers under `name`.
+    pub fn new<Owner: ?Sized + 'static>(name: &'static str) -> Self {
+        Self {
+            owner: TypeId::of::<Owner>(),
+            name,
+        }
+    }
 }
 
 impl<B: BackendIr> Default for CustomOpRegistry<B> {
@@ -57,12 +107,51 @@ impl<B: BackendIr> CustomOpRegistry<B> {
     where
         F: Fn(&mut HandleContainer<B::Handle>, &CustomOpIr, &B::Device) + Send + Sync + 'static,
     {
-        self.handlers.insert(id.to_string(), Arc::new(handler));
+        self.insert(id, None, handler);
+    }
+
+    /// Register the handler executed for `id` from `source`, unless another source already
+    /// claims `id`.
+    ///
+    /// The same source registering again replaces its handler and succeeds, so registering a set
+    /// of handlers twice is harmless. Another source under the same id, or a handler registered
+    /// with [`register`](Self::register), is refused, and the registry keeps the first.
+    ///
+    /// # Errors
+    ///
+    /// [`CustomOpConflict`] when another source holds `id`.
+    pub fn try_register<F>(
+        &mut self,
+        id: &str,
+        source: HandlerSource,
+        handler: F,
+    ) -> Result<(), CustomOpConflict>
+    where
+        F: Fn(&mut HandleContainer<B::Handle>, &CustomOpIr, &B::Device) + Send + Sync + 'static,
+    {
+        if let Some(registered) = self.handlers.get(id)
+            && registered.source != Some(source)
+        {
+            return Err(CustomOpConflict { id: id.to_string() });
+        }
+        self.insert(id, Some(source), handler);
+        Ok(())
     }
 
     /// Get the handler registered for `id`, if any.
     pub(crate) fn get(&self, id: &str) -> Option<&CustomOpHandler<B>> {
-        self.handlers.get(id)
+        self.handlers.get(id).map(|registered| &registered.handler)
+    }
+
+    fn insert<F>(&mut self, id: &str, source: Option<HandlerSource>, handler: F)
+    where
+        F: Fn(&mut HandleContainer<B::Handle>, &CustomOpIr, &B::Device) + Send + Sync + 'static,
+    {
+        let registered = RegisteredHandler {
+            source,
+            handler: Arc::new(handler),
+        };
+        self.handlers.insert(id.to_string(), registered);
     }
 }
 
@@ -141,6 +230,44 @@ mod tests {
             burn_ir::HandleKind::Int(_) => {}
             _ => panic!("expected an int tensor"),
         }
+    }
+
+    #[test]
+    fn try_register_refuses_another_source_under_a_taken_id() {
+        type Handler = fn(
+            &mut HandleContainer<<Flex as BackendIr>::Handle>,
+            &CustomOpIr,
+            &<Flex as BackendTypes>::Device,
+        );
+        struct First;
+        struct Second;
+        // Two different functions of one `fn` pointer type, which their types cannot tell apart.
+        let first: Handler = |_, _, _| {};
+        let second: Handler = |_, _, _| {};
+        let mut registry = CustomOpRegistry::<Flex>::new();
+
+        registry
+            .try_register("op", HandlerSource::new::<First>("op"), first)
+            .unwrap();
+        // The same source again is a repeated registration, not a conflict.
+        registry
+            .try_register("op", HandlerSource::new::<First>("op"), first)
+            .unwrap();
+        let conflict = Err(CustomOpConflict { id: "op".into() });
+        assert_eq!(
+            registry.try_register("op", HandlerSource::new::<Second>("op"), second),
+            conflict
+        );
+        assert_eq!(
+            registry.try_register("op", HandlerSource::new::<First>("other"), second),
+            conflict
+        );
+
+        registry.register("plain", first);
+        assert_eq!(
+            registry.try_register("plain", HandlerSource::new::<First>("plain"), first),
+            Err(CustomOpConflict { id: "plain".into() })
+        );
     }
 
     #[test]

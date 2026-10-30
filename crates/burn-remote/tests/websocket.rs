@@ -3,10 +3,10 @@
 mod common;
 
 use burn_backend::{distributed::ReduceOperation, ops::CollectiveOps};
-use burn_dispatch::Dispatch;
+use burn_dispatch::{Dispatch, DispatchDevice};
 use burn_flex::Flex;
 use burn_remote::{
-    ConnectError,
+    ConnectError, DeviceQueryError,
     server::{
         AuthorizationRequest, BackendServer, ClientId, ServeError, TokenAuthorizer,
         WebSocketTransport,
@@ -1136,6 +1136,44 @@ fn a_block_quantized_transpose_reads_and_moves_as_it_does_locally() {
 
     assert_same_bytes(&transposed.clone().into_data(), &expected);
     assert_same_bytes(&transposed.to_device(&device_2).into_data(), &expected);
+
+    rt.shutdown_background();
+}
+
+/// A device query is answered by the handler last registered under its id; an id with none, or
+/// a handler that panics, is an error, and the session goes on serving.
+#[test]
+fn a_device_query_is_answered_by_its_handler() {
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .enable_io()
+        .build()
+        .unwrap();
+    let host = serve(
+        &rt,
+        BackendServer::<Flex>::new(vec![Default::default()])
+            .with_device_query("properties", |_| b"replaced".to_vec())
+            .with_device_query("properties", |device| format!("{device:?}").into_bytes())
+            .with_device_query("panics", |_| panic!("no properties here")),
+    );
+
+    let device = Device::remote_options(&host).init().unwrap();
+    let DispatchDevice::Remote(remote) = device.as_dispatch() else {
+        panic!("a remote device dispatches to the remote backend")
+    };
+
+    let properties = remote.query("properties").unwrap();
+    let flex: <Flex as burn_backend::BackendTypes>::Device = Default::default();
+    assert_eq!(properties, format!("{flex:?}").into_bytes());
+    assert!(matches!(
+        remote.query("missing"),
+        Err(DeviceQueryError::Unknown { id }) if id.as_str() == "missing"
+    ));
+    assert!(matches!(
+        remote.query("panics"),
+        Err(DeviceQueryError::Panicked { reason, .. }) if reason == "no properties here"
+    ));
+    let doubled = Tensor::<1>::from_floats([1.0, 2.0], &device) * 2.0;
+    assert_eq!(doubled.try_into_vec_as::<f32>().unwrap(), vec![2.0, 4.0]);
 
     rt.shutdown_background();
 }

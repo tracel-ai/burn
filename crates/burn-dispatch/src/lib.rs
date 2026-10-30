@@ -98,6 +98,9 @@ pub mod backends {
 
     #[cfg(feature = "remote")]
     pub use burn_remote::RemoteBackend as Remote;
+    #[cfg(feature = "remote")]
+    #[doc(hidden)]
+    pub use burn_remote::extension as remote_extension;
 
     /// Public graph-capture API types.
     #[cfg(feature = "capture")]
