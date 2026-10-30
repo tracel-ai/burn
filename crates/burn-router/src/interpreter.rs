@@ -267,6 +267,7 @@ impl<B: BackendIr> TensorInterpreter<B> {
         let handles = &mut self.context.handles;
         if let Some(error) = handles.input_error(&op) {
             let error = error.propagated();
+            handles.free_inputs(&op);
             handles.set_output_errors(&op, &error);
             return;
         }
@@ -277,7 +278,15 @@ impl<B: BackendIr> TensorInterpreter<B> {
                 std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| self.execute_op(&op)));
             if let Err(panic) = executed {
                 let error = TensorError::from_panic(panic.as_ref());
+                // The panic hook has printed the payload; this names the consequence, and is
+                // the only report of an operation with no outputs to carry the error.
+                log::warn!(
+                    "an operation failed: {}; the tensors it was going to write hold that error, \
+                     and reading one of them reports it",
+                    error.root(),
+                );
                 let handles = &mut self.context.handles;
+                handles.free_inputs(&op);
                 handles.set_output_errors(&op, &error);
             }
         }
@@ -2710,6 +2719,48 @@ mod tests {
         read(&mut interpreter, &independent_out)
             .unwrap()
             .assert_eq(&TensorData::from([1.0f32]), true);
+    }
+
+    /// A skipped operation still releases the inputs it consumes: no `Drop` follows a read-write
+    /// use, so the healthy operand's buffer and the failed operand's error would otherwise stay
+    /// held for the life of the interpreter.
+    #[test]
+    fn a_skipped_op_releases_the_inputs_it_consumes() {
+        let mut interpreter = TensorInterpreter::<Flex>::new(Default::default());
+        let healthy = interpreter.register_tensor_data_desc(TensorData::from([1.0f32]));
+        let failed = TensorIr::uninit(TensorId::new(u64::MAX), Shape::new([1]), DType::F32);
+        interpreter.set_error(
+            failed.id,
+            TensorError::new(ExecutionError::with_context("the root failure")),
+        );
+        let out = TensorIr::uninit(TensorId::new(u64::MAX - 1), Shape::new([1]), DType::F32);
+
+        let consumed = |tensor: &TensorIr| TensorIr {
+            status: TensorStatus::ReadWrite,
+            ..tensor.clone()
+        };
+        interpreter.register_op(OperationIr::NumericFloat(
+            DType::F32,
+            NumericOperationIr::Add(burn_ir::BinaryOpIr {
+                lhs: consumed(&failed),
+                rhs: consumed(&healthy),
+                out: out.clone(),
+            }),
+        ));
+
+        let handles = &interpreter.context.handles;
+        assert!(
+            !handles.has_handle(&healthy.id),
+            "the healthy operand leaked"
+        );
+        assert!(
+            handles.error(&failed.id).is_none(),
+            "the failed operand's error leaked"
+        );
+        assert!(
+            handles.error(&out.id).is_some(),
+            "the output was not claimed"
+        );
     }
 
     /// An alias of a tensor a failure claimed reads as that failure.

@@ -356,6 +356,17 @@ impl<H: Clone> HandleContainer<H> {
         }
     }
 
+    /// Release the inputs `op` consumes, for an operation that did not run or stopped part way.
+    ///
+    /// A read-write input is its tensor's last use, so no `Drop` follows it: had the operation
+    /// run, taking the handle would have released it. Without this, a skipped operation would
+    /// hold its inputs — and the errors they carry — for as long as the container lives.
+    pub fn free_inputs(&mut self, op: &OperationIr) {
+        for node in op.inputs() {
+            self.free(node);
+        }
+    }
+
     /// The failure `tensor` carries, released when this read consumes the
     /// tensor. The fallible half of [`get_handle`](Self::get_handle): a read
     /// asks for this first and reports it, rather than tripping over the
