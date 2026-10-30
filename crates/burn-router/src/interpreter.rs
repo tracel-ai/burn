@@ -254,16 +254,6 @@ impl<B: BackendIr> TensorInterpreter<B> {
     }
 }
 
-/// The message inside a caught panic payload: what `panic!` produces.
-#[cfg(feature = "std")]
-fn panic_message(panic: &(dyn core::any::Any + Send)) -> &str {
-    panic
-        .downcast_ref::<&'static str>()
-        .copied()
-        .or_else(|| panic.downcast_ref::<String>().map(String::as_str))
-        .unwrap_or("<non-string panic payload>")
-}
-
 impl<B: BackendIr> TensorInterpreter<B> {
     /// Execute a tensor operation.
     ///
@@ -286,8 +276,9 @@ impl<B: BackendIr> TensorInterpreter<B> {
             let executed =
                 std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| self.execute_op(&op)));
             if let Err(panic) = executed {
-                let error = TensorError::new(ExecutionError::generic(panic_message(&*panic)));
-                self.context.handles.set_output_errors(&op, &error);
+                let error = TensorError::from_panic(panic.as_ref());
+                let handles = &mut self.context.handles;
+                handles.set_output_errors(&op, &error);
             }
         }
         #[cfg(not(feature = "std"))]

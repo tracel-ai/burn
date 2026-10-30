@@ -89,6 +89,21 @@ impl TensorError {
         }
     }
 
+    /// A fresh failure from a caught panic, carrying its message: what `panic!` produces, a
+    /// `&'static str` or a `String`.
+    pub fn from_panic(payload: &(dyn core::any::Any + Send)) -> Self {
+        let message = payload
+            .downcast_ref::<&'static str>()
+            .copied()
+            .or_else(|| {
+                payload
+                    .downcast_ref::<alloc::string::String>()
+                    .map(|s| s.as_str())
+            })
+            .unwrap_or("<non-string panic payload>");
+        Self::new(ExecutionError::generic(message))
+    }
+
     /// What the failing work reported, whole — the error a read hands back at
     /// [`depth`](Self::depth) zero, backtrace included.
     pub fn cause(&self) -> &ExecutionError {

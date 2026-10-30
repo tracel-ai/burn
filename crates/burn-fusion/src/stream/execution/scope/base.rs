@@ -222,8 +222,7 @@ impl<'a, W: Handles> WriteScope<'a, W> {
                 Outcome::Reported(error)
             }
             Err(panic) => {
-                let error =
-                    TensorError::new(ExecutionError::generic(panic_message(panic.as_ref())));
+                let error = TensorError::from_panic(panic.as_ref());
                 self.work.claim(self.target.handles(), &error);
                 Outcome::Panicked(panic)
             }
@@ -247,16 +246,6 @@ impl<W: Handles> Drop for WriteScope<'_, W> {
         ));
         self.work.claim(self.target.handles(), &error);
     }
-}
-
-/// The message inside a caught panic payload. Covers what `panic!` produces:
-/// `&'static str` and `String`.
-pub fn panic_message(panic: &(dyn core::any::Any + Send)) -> &str {
-    panic
-        .downcast_ref::<&'static str>()
-        .copied()
-        .or_else(|| panic.downcast_ref::<String>().map(String::as_str))
-        .unwrap_or("<non-string panic payload>")
 }
 
 #[cfg(test)]
