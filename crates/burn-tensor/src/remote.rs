@@ -15,8 +15,8 @@ use core::future::Future;
 
 use burn_dispatch::__remote::HostSpec;
 pub use burn_dispatch::__remote::{
-    ConnectError, Credential, CustomOpClient, Endpoint, EndpointAddr, EndpointId, InvalidRelays,
-    IrohHost, IrohIdentity, IrohRelays, RelayUrl,
+    ConnectError, Credential, CustomOpClient, DeviceQueryError, DeviceQueryId, Endpoint,
+    EndpointAddr, EndpointId, InvalidRelays, IrohHost, IrohIdentity, IrohRelays, RelayUrl,
 };
 
 use crate::{Device, DeviceIndex, Devices};

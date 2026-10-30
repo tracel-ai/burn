@@ -1,5 +1,8 @@
 use alloc::format;
 
+use crate::modules::bounds::{self, Windows};
+use burn::instrument::{Bounds, compute};
+use burn::tensor::module::conv_output_size;
 use burn_core as burn;
 
 use crate::{Initializer, PaddingConfig1d, conv::checks};
@@ -136,6 +139,28 @@ impl Conv1dConfig {
 }
 
 impl Conv1d {
+    /// The options the convolution runs with, its padding resolved against `input`'s size.
+    fn options(&self, input: &Tensor<3>) -> ConvOptions<1> {
+        let length = input.dims()[2];
+        let effective_kernel = (self.kernel_size - 1) * self.dilation + 1;
+
+        // Calculate padding as pair - handles Same, Valid, and Explicit uniformly
+        let (left, right) =
+            self.padding
+                .calculate_padding_1d_pair(length, effective_kernel, self.stride);
+
+        ConvOptions::new_with_padding([self.stride], [(left, right)], [self.dilation], self.groups)
+    }
+
+    /// None where the convolution cannot size its output, which it rejects.
+    fn bounds(&self, input: &Tensor<3>) -> Option<Bounds> {
+        let options = self.options(input);
+        let weight = self.weight.val();
+        let output_size = conv_output_size(bounds::spatial(input), &weight.shape(), &options)?;
+        let windowing = Windows::convolution([self.kernel_size], &options).over(input, output_size);
+        Some(windowing.convolution(input, &weight, &self.bias))
+    }
+
     /// Applies the forward pass on the input tensor.
     ///
     /// See [conv1d](burn::tensor::module::conv1d) for more information.
@@ -144,21 +169,9 @@ impl Conv1d {
     ///
     /// - input: `[batch_size, channels_in, length_in]`
     /// - output: `[batch_size, channels_out, length_out]`
+    #[compute(bounds = Self::bounds)]
     pub fn forward(&self, input: Tensor<3>) -> Tensor<3> {
-        let length = input.dims()[2];
-
-        // Calculate padding as pair - handles Same, Valid, and Explicit uniformly
-        let (left, right) =
-            self.padding
-                .calculate_padding_1d_pair(length, self.kernel_size, self.stride);
-
-        let options = ConvOptions::new_with_padding(
-            [self.stride],
-            [(left, right)],
-            [self.dilation],
-            self.groups,
-        );
-
+        let options = self.options(&input);
         conv1d(
             input,
             self.weight.val(),
@@ -218,6 +231,20 @@ mod tests {
 
         // Same padding should preserve spatial dimensions
         assert_eq!(output.dims(), [1, 4, 5]);
+    }
+
+    #[test]
+    fn same_with_dilation_uses_effective_kernel() {
+        let device = Default::default();
+        let conv = Conv1dConfig::new(1, 1, 3)
+            .with_padding(PaddingConfig1d::Same)
+            .with_dilation(2)
+            .with_bias(false)
+            .init(&device);
+
+        let output = conv.forward(Tensor::<3>::zeros([1, 1, 10], &device));
+
+        assert_eq!(output.dims(), [1, 1, 10]);
     }
 
     #[test]

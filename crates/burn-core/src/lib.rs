@@ -26,7 +26,9 @@
 //! - `std` (default): standard library support. Without it the crate is `no_std` with `alloc`.
 //! - `dataset`: the dataset library in [`data`]; `vision`, `audio` and `sqlite` add sources.
 //! - `network`: file downloads with a progress bar.
-//! - `tracing`: instrument operations with the `tracing` crate.
+//! - `instrument`: arm the `#[compute]` annotations, for [`instrument`] to measure a model.
+//!   Without it they compile away.
+//! - `tracing`: trace operations with the `tracing` crate.
 
 // `derive_new` provides the `#[derive(new)]` macro used across the crate; the lint mistakenly
 // reports the `#[macro_use]` as unused.

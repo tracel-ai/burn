@@ -1,12 +1,12 @@
 use super::qtensor::*;
 use super::*;
-use burn_tensor::{TensorData, Tolerance};
+use burn_tensor::{TensorData, Tolerance, ZeroDimPlaceholders};
 
 #[test]
 fn should_support_reshape_1d() {
-    let tensor = QTensor::<2>::int8([[0.0, 1.0, 2.0, 3.0]]);
+    let tensor = QTensor::<1>::int8([0.0, 1.0, 2.0, 3.0]);
 
-    let output = tensor.clone().reshape([1, 4]);
+    let output = tensor.reshape([1, 4]);
     let expected = TensorData::from([[0.0, 1.0, 2.0, 3.0]]);
 
     output
@@ -19,7 +19,7 @@ fn should_support_reshape_1d() {
 fn should_support_reshape_2d() {
     let tensor = QTensor::<2>::int8([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
 
-    let output = tensor.clone().reshape([6]);
+    let output = tensor.reshape([6]);
     let expected = TensorData::from([0.0, 1.0, 2.0, 3.0, 4.0, 5.0]);
 
     output
@@ -29,25 +29,16 @@ fn should_support_reshape_2d() {
 }
 
 #[test]
-fn should_support_dim_infererence() {
-    let tensor = QTensor::<1>::int8([0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0])
-        .reshape([4, 3]);
+fn should_reshape_with_zero_dim_placeholders() {
+    let tensor = QTensor::<2>::int8([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
 
-    // Infer the dimension via -1
-    let reshaped = tensor.clone().reshape([2, -1]);
-    assert_eq!(reshaped.shape(), [2, 6].into());
+    let output = tensor.reshape(ZeroDimPlaceholders([0, 1, -1]));
+    let expected = TensorData::from([[[0.0, 1.0, 2.0]], [[3.0, 4.0, 5.0]]]);
 
-    // Infer the dimension via 0 (keep from the source) and -1 (infer)
-    let reshaped = reshaped.reshape([0, 2, -1]);
-    assert_eq!(reshaped.shape(), [2, 2, 3].into());
-
-    // This is effectively as if we did a flatten
-    let reshaped = tensor.clone().reshape([-1]);
-    assert_eq!(reshaped.shape(), [12].into());
-
-    // Keeping the first dimension the same (using 0)
-    let reshaped = tensor.clone().reshape([0, 3]);
-    assert_eq!(reshaped.shape(), [4, 3].into());
+    output
+        .dequantize()
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&expected, Tolerance::rel_abs(2e-2, 1e-2));
 }
 
 #[test]
@@ -60,18 +51,4 @@ fn should_not_corrupt_after_slice() {
         &TestTensor::<1>::zeros([2], &Default::default()).to_data(),
         true,
     );
-}
-
-#[test]
-#[should_panic(expected = "Repeated -1 in reshape")]
-fn multiple_neg_ones() {
-    let tensor = QTensor::<1>::int8([0.0, 1.0, 2.0]);
-    let _ = tensor.reshape([-1, -1]);
-}
-
-#[test]
-#[should_panic(expected = "cannot contain negative dimensions")]
-fn neg_value() {
-    let tensor = QTensor::<1>::int8([0.0, 1.0, 2.0]);
-    let _ = tensor.reshape([-2, -1]);
 }

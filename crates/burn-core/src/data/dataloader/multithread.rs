@@ -10,7 +10,9 @@ use super::{BatchDataLoader, BatchStrategy, DataLoader, DataLoaderIterator, Prog
 use std::sync::{Arc, OnceLock, mpsc, mpsc::SyncSender};
 use std::thread;
 
-const MAX_QUEUED_ITEMS: usize = 100;
+/// Finished batches each worker may queue ahead of the consumer by default.
+/// See [`MultiThreadDataLoader::with_prefetch`].
+const DEFAULT_PREFETCH_PER_WORKER: usize = 2;
 
 type RngSeed = <StdRng as SeedableRng>::Seed;
 
@@ -23,6 +25,7 @@ pub struct MultiThreadDataLoader<I, O> {
     device: Device,
     seed: Option<RngSeed>,
     num_threads: usize,
+    prefetch: usize,
 
     // The lazily initialized data loaders
     dataloaders: OnceLock<Vec<BatchDataLoader<I, O>>>,
@@ -39,7 +42,7 @@ pub enum Message<O> {
     Batch(usize, O, Progress),
 
     /// The thread is done.
-    Done,
+    Done(usize, Progress),
 
     /// The worker hit an unrecoverable error (e.g. `Dataset::get` failed) and stopped early.
     Error(usize, String),
@@ -47,6 +50,7 @@ pub enum Message<O> {
 
 struct MultiThreadsDataloaderIterator<O> {
     num_done: usize,
+    terminated: bool,
     num_workers: usize,
     receiver: mpsc::Receiver<Message<O>>,
     progresses: Vec<Progress>,
@@ -59,7 +63,7 @@ struct WorkerPool<O> {
     /// One command channel per worker; sending a per-epoch sender starts a pass.
     senders: Vec<mpsc::Sender<WorkerCommand<O>>>,
     handles: Vec<thread::JoinHandle<()>>,
-    item_counts: Vec<usize>,
+    totals: Vec<Option<usize>>,
 }
 
 impl<O> Drop for WorkerPool<O> {
@@ -127,9 +131,21 @@ where
             num_threads,
             device,
             seed,
+            prefetch: DEFAULT_PREFETCH_PER_WORKER * num_threads,
             dataloaders: OnceLock::new(),
             workers: OnceLock::new(),
         }
+    }
+
+    /// Sets the total number of finished batches the workers may queue ahead of the consumer,
+    /// shared by all workers. Lower this when device memory is tight, raise it when batches take
+    /// long to build. `0` hands each batch over directly, with nothing queued.
+    ///
+    /// Only the default scales with the number of workers: two batches per worker, so eight
+    /// with four workers. An explicit `with_prefetch(2)` queues two batches in total.
+    pub fn with_prefetch(mut self, prefetch: usize) -> Self {
+        self.prefetch = prefetch;
+        self
     }
 
     /// Force initialization if needed.
@@ -183,7 +199,7 @@ where
     fn workers(&self) -> &WorkerPool<O> {
         self.workers.get_or_init(|| {
             let dataloaders = self.initialize();
-            let item_counts: Vec<usize> = dataloaders.iter().map(|d| d.num_items()).collect();
+            let totals = dataloaders.iter().map(|d| d.expected_num_items()).collect();
 
             let mut senders = Vec::with_capacity(dataloaders.len());
             let mut handles = Vec::with_capacity(dataloaders.len());
@@ -209,7 +225,10 @@ where
                                             break;
                                         }
                                     }
-                                    None => break,
+                                    None => {
+                                        sender.send(Message::Done(index, iterator.progress())).ok();
+                                        break;
+                                    }
                                     Some(Err(dataset_err)) => {
                                         sender
                                             .send(Message::Error(index, dataset_err.to_string()))
@@ -218,7 +237,6 @@ where
                                     }
                                 }
                             }
-                            sender.send(Message::Done).ok();
                         }
                     })
                     .unwrap();
@@ -230,7 +248,7 @@ where
             WorkerPool {
                 senders,
                 handles,
-                item_counts,
+                totals,
             }
         })
     }
@@ -244,12 +262,12 @@ where
     fn iter<'a>(&'a self) -> Box<dyn DataLoaderIterator<O> + 'a> {
         let workers = self.workers();
 
-        let (sender, receiver) = mpsc::sync_channel::<Message<O>>(MAX_QUEUED_ITEMS);
+        let (sender, receiver) = mpsc::sync_channel::<Message<O>>(self.prefetch);
         let unit: Option<String> = Some("items".to_string());
 
         let mut progresses = Vec::with_capacity(workers.senders.len());
-        for (command_sender, &num_items) in workers.senders.iter().zip(workers.item_counts.iter()) {
-            progresses.push(Progress::new(0, num_items, unit.clone()));
+        for (command_sender, &total) in workers.senders.iter().zip(workers.totals.iter()) {
+            progresses.push(Progress::new(0, total, unit.clone()));
             command_sender
                 .send(sender.clone())
                 .expect("Dataloader worker thread should be alive");
@@ -266,6 +284,13 @@ where
         ))
     }
 
+    fn expected_num_items(&self) -> Option<usize> {
+        self.initialize()
+            .iter()
+            .map(|loader| loader.expected_num_items())
+            .sum()
+    }
+
     fn num_items(&self) -> usize {
         // For num_items, we can directly use the dataset size without
         // necessarily initializing the full loader
@@ -273,14 +298,17 @@ where
     }
 
     fn to_device(&self, device: &Device) -> Arc<dyn DataLoader<O>> {
-        Arc::new(Self::from_seed(
-            self.strategy.clone_dyn(),
-            self.dataset.clone(),
-            self.batcher.clone(),
-            self.num_threads,
-            device.clone(),
-            self.seed,
-        ))
+        Arc::new(
+            Self::from_seed(
+                self.strategy.clone_dyn(),
+                self.dataset.clone(),
+                self.batcher.clone(),
+                self.num_threads,
+                device.clone(),
+                self.seed,
+            )
+            .with_prefetch(self.prefetch),
+        )
     }
 
     fn slice(&self, start: usize, end: usize) -> Arc<dyn DataLoader<O>> {
@@ -291,7 +319,8 @@ where
             self.num_threads,
             self.device.clone(),
             self.seed,
-        );
+        )
+        .with_prefetch(self.prefetch);
         Arc::new(dataloader)
     }
 }
@@ -304,6 +333,7 @@ impl<O> MultiThreadsDataloaderIterator<O> {
     ) -> Self {
         MultiThreadsDataloaderIterator {
             num_done: 0,
+            terminated: false,
             num_workers,
             receiver,
             progresses,
@@ -312,16 +342,9 @@ impl<O> MultiThreadsDataloaderIterator<O> {
 }
 impl<O: std::fmt::Debug> DataLoaderIterator<O> for MultiThreadsDataloaderIterator<O> {
     fn progress(&self) -> Progress {
-        let mut items_total = 0;
-        let mut items_processed = 0;
-        let unit: Option<String> = Some("items".to_string());
-
-        for progress in self.progresses.iter() {
-            items_total += progress.items_total;
-            items_processed += progress.items_processed;
-        }
-
-        Progress::new(items_processed, items_total, unit)
+        let mut progress = Progress::aggregate(&self.progresses);
+        progress.unit = Some("items".to_string());
+        progress
     }
 }
 
@@ -329,7 +352,11 @@ impl<O: std::fmt::Debug> Iterator for MultiThreadsDataloaderIterator<O> {
     type Item = Result<O, burn_dataset::DatasetError>;
 
     fn next(&mut self) -> Option<Self::Item> {
+        if self.terminated {
+            return None;
+        }
         if self.num_workers == 0 {
+            self.terminated = true;
             return None;
         }
 
@@ -341,19 +368,26 @@ impl<O: std::fmt::Debug> Iterator for MultiThreadsDataloaderIterator<O> {
                     }
                     return Some(Ok(item));
                 }
-                Ok(Message::Done) => {
+                Ok(Message::Done(index, progress)) => {
+                    self.progresses[index] = progress;
                     self.num_done += 1;
                     if self.num_done == self.num_workers {
-                        // Workers stay alive for the next epoch; nothing to join.
+                        self.terminated = true;
                         return None;
                     }
                 }
                 Ok(Message::Error(index, msg)) => {
+                    self.terminated = true;
                     return Some(Err(burn_dataset::DatasetError::new(std::io::Error::other(
                         format!("dataloader worker {index} failed: {msg}"),
                     ))));
                 }
-                Err(_) => return None,
+                Err(_) => {
+                    self.terminated = true;
+                    return Some(Err(burn_dataset::DatasetError::new(std::io::Error::other(
+                        "dataloader workers disconnected before completing",
+                    ))));
+                }
             }
         }
     }
@@ -368,8 +402,21 @@ mod tests {
     use burn_dataset::DatasetError;
     use burn_dataset::InMemDataset;
     use std::collections::HashSet;
+    use std::sync::atomic::{AtomicUsize, Ordering};
     use std::sync::mpsc;
     use std::time::Duration;
+
+    /// Counts the batches it has built, so a test can tell how far ahead of the consumer the
+    /// workers ran.
+    #[derive(Clone)]
+    struct CountingBatcher(Arc<AtomicUsize>);
+
+    impl<I> Batcher<I, usize> for CountingBatcher {
+        fn batch(&self, items: Vec<I>, _device: &Device) -> usize {
+            self.0.fetch_add(1, Ordering::SeqCst);
+            items.len()
+        }
+    }
 
     /// A dataset that returns a real error (not an out-of-bounds panic) at one index,
     /// to exercise the worker-error-propagation path below.
@@ -614,17 +661,84 @@ mod tests {
 
         let (done_tx, done_rx) = mpsc::channel();
         let handle = thread::spawn(move || {
-            let saw_error = dataloader.iter().any(|batch| batch.is_err());
-            done_tx.send(saw_error).ok();
+            let mut iterator = dataloader.iter();
+            let error = iterator
+                .find_map(Result::err)
+                .expect("expected a worker error");
+            assert!(iterator.next().is_none());
+            done_tx.send(error.to_string()).unwrap();
         });
 
-        let saw_error = done_rx
+        let error = done_rx
             .recv_timeout(Duration::from_secs(10))
             .expect("dataloader hung instead of reporting the worker error");
+        assert!(error.contains("simulated dataset failure"), "{error}");
+        handle.join().unwrap();
+    }
+
+    #[test]
+    fn build_no_further_ahead_than_prefetch() {
+        let built = Arc::new(AtomicUsize::new(0));
+        let num_workers = 2;
+        let prefetch = 3;
+        let dataloader = MultiThreadDataLoader::new(
+            Box::new(FixBatchStrategy::new(1)),
+            Arc::new(FakeDataset::<String>::new(100)),
+            Arc::new(CountingBatcher(built.clone())),
+            num_workers,
+            Default::default(),
+            None,
+        )
+        .with_prefetch(prefetch);
+
+        let mut iterator = dataloader.iter();
+        iterator.next().unwrap().unwrap();
+        // Long enough for the workers to run as far ahead as they are allowed to.
+        thread::sleep(Duration::from_millis(200));
+
+        // The one taken, `prefetch` queued, and one per worker waiting to hand its batch over.
+        let bound = 1 + prefetch + num_workers;
+        let ahead = built.load(Ordering::SeqCst);
         assert!(
-            saw_error,
-            "expected the dataloader to yield an Err on a worker error"
+            ahead <= bound,
+            "{ahead} batches built, at most {bound} allowed"
         );
-        let _ = handle.join();
+
+        // Bounding the queue must not lose anything.
+        assert_eq!(iterator.map(Result::unwrap).count(), 99);
+    }
+
+    #[test]
+    fn completion_waits_for_queued_batches_and_all_workers() {
+        let (sender, receiver) = mpsc::channel();
+        let initial = vec![Progress::new(0, None, None); 2];
+        sender
+            .send(Message::Batch(0, 10, Progress::new(1, None, None)))
+            .unwrap();
+        let done = Progress::new(1, 1, None);
+        sender.send(Message::Done(0, done.clone())).unwrap();
+        sender
+            .send(Message::Batch(1, 20, Progress::new(1, None, None)))
+            .unwrap();
+        sender.send(Message::Done(1, done)).unwrap();
+        // Keep the sender alive: completion must come from worker messages, not disconnection.
+        let mut iterator = MultiThreadsDataloaderIterator::new(receiver, 2, initial);
+        assert_eq!(iterator.progress().items_processed, 0);
+        assert_eq!(iterator.next().unwrap().unwrap(), 10);
+        assert_eq!(iterator.progress().items_processed, 1);
+        assert_eq!(iterator.next().unwrap().unwrap(), 20);
+        assert!(iterator.next().is_none());
+        assert_eq!(iterator.progress().total, Some(2));
+        assert!(iterator.next().is_none());
+    }
+
+    #[test]
+    fn worker_disconnection_terminates_the_iterator() {
+        let (sender, receiver) = mpsc::channel::<Message<usize>>();
+        drop(sender);
+        let mut iterator =
+            MultiThreadsDataloaderIterator::new(receiver, 1, vec![Progress::new(0, 1, None)]);
+        assert!(iterator.next().unwrap().is_err());
+        assert!(iterator.next().is_none());
     }
 }

@@ -191,3 +191,50 @@ impl AvgPool2dTestCase {
         );
     }
 }
+
+#[test]
+fn test_avg_pool2d_dilation_gradient() {
+    // Kernel 2, dilation 2, stride [1, 2], padding 1 over a 4x5 input. With stride 2 and
+    // dilation 2 along the width, the windows only read the odd columns.
+    let device = AutodiffDevice::new();
+    for (count_include_pad, expected) in [
+        (
+            true,
+            [
+                [0.0, 2.25, 0.0, 2.75, 0.0],
+                [0.0, 4.5, 0.0, 5.5, 0.0],
+                [0.0, 7.5, 0.0, 8.5, 0.0],
+                [0.0, 3.75, 0.0, 4.25, 0.0],
+            ],
+        ),
+        (
+            false,
+            [
+                [0.0, 3.25, 0.0, 4.25, 0.0],
+                [0.0, 7.5, 0.0, 10.5, 0.0],
+                [0.0, 18.75, 0.0, 21.75, 0.0],
+                [0.0, 5.5, 0.0, 6.5, 0.0],
+            ],
+        ),
+    ] {
+        let x = TestTensor::<4>::ones([1, 1, 4, 5], &device).require_grad();
+        let output = avg_pool2d(
+            x.clone(),
+            AvgPoolOptions::new([2, 2])
+                .with_stride([1, 2])
+                .with_padding([1, 1])
+                .with_dilation([2, 2])
+                .with_count_include_pad(count_include_pad),
+        );
+        assert_eq!(output.dims(), [1, 1, 4, 3]);
+        let upstream = TestTensor::from_data(
+            TensorData::new((1..=12).map(|v| v as f32).collect(), output.shape()),
+            &device,
+        );
+        let grads = (output * upstream).backward();
+        x.grad(&grads)
+            .unwrap()
+            .into_data()
+            .assert_approx_eq::<FloatElem>(&TensorData::from([[expected]]), Tolerance::default());
+    }
+}

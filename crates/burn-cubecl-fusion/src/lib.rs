@@ -16,9 +16,6 @@
 //! - `autotune-checks`: check autotuned variants against each other for correctness.
 //! - `tracing`: instrument operations with the `tracing` crate.
 
-// TODO: remove when fixed in cubecl
-#![allow(semicolon_in_expressions_from_non_local_macros)]
-
 #[macro_use]
 extern crate derive_new;
 
@@ -30,6 +27,7 @@ pub mod inspect;
 mod base;
 
 pub mod engine;
+#[cfg(feature = "autotune")]
 pub(crate) mod tune;
 
 pub use base::*;

@@ -18,6 +18,20 @@ fn should_support_exp_transposed() {
 }
 
 #[test]
+fn should_support_exp_on_row_slice() {
+    // The second row is contiguous but starts past the first element, so a
+    // kernel that ignores the view's offset reads [0, 1] instead.
+    let tensor = TestTensor::<2>::from([[0.0, 1.0], [2.0, 3.0]]);
+
+    let output = tensor.slice([1..2, 0..2]).exp();
+    let expected = TensorData::from([[E * E, E * E * E]]);
+
+    output
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&expected, Tolerance::default());
+}
+
+#[test]
 fn should_support_exp_ops() {
     let data = TensorData::from([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
     let tensor = TestTensor::<2>::from_data(data, &Default::default());

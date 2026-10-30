@@ -115,6 +115,58 @@ demonstrates a WGSL source kernel. The
 [macro reference source](https://github.com/tracel-ai/burn/blob/main/crates/burn-backend-extension/src/lib.rs)
 describes supported signatures, metadata validation, operation IDs, and scalar encodings.
 
+## Remote
+
+Listing `Remote` beside `Fusion` runs the extension on Burn's remote backend without handwritten
+remote code. The generated client sends each call as a custom operation's IR, which carries the
+input tensors, the output descriptions computed from the method's Fusion metadata, and every
+ordinary argument as a scalar. The server rebuilds the call from that IR alone, so register the
+generated handlers with the `CustomOpRegistry` of the backend it hosts:
+
+```rust, ignore
+#[backend_extension(Cube, Fusion, Remote)]
+pub trait AttentionBackend: burn::backend::Backend {
+    #[fusion(dtype = query, shape = query)]
+    fn attend(
+        query: FloatTensor<Self>,
+        #[fusion(scalar = mask.to_code(), decode = |code| Mask::from_code(code).unwrap())]
+        mask: Mask,
+        scale: f32,
+        #[extension_type] kv: Kv<Self>,
+    ) -> FloatTensor<Self>;
+}
+
+// On the server, once per trait, before serving.
+let mut registry = CustomOpRegistry::<Cube>::new();
+AttentionBackendHandlers::register(&mut registry);
+RemoteServer::new(devices).with_custom_ops(registry).serve(transport)?;
+```
+
+The IR describes what the operation computes, never how: its inputs, its operation arguments,
+such as the mask and the scale above, and its output descriptions. Kernel strategies, tiling, and
+anything else specific to one backend stay out of it; the server's backend chooses how to run the
+operation, for example by autotuning. A Flex implementation of `AttentionBackend` serves the same
+IR as the CubeCL one.
+
+Primitive arguments travel on their own. Any other ordinary argument needs
+`#[fusion(scalar = .., decode = ..)]`: the expression encodes it as a primitive, and the callable
+takes that primitive and rebuilds the argument. Encoding a different primitive than the callable
+takes is a compile error. Structs and enums passed to or returned from the operation opt in with
+`#[extension_type(fusion, remote)]`; their ordinary fields take
+`#[extension_type(scalar = .., decode = ..)]` in the same way.
+
+The client also records the variant of each enum in the output. Each handler checks the backend's
+output against the IR alone, without running the metadata again: the tensor count, each tensor's
+dtype, and each enum's variant must match the IR. Output shapes are not checked. A mismatch marks
+the operation's outputs failed, so the client's next read of one reports it, as a failed kernel
+would. Build the client and the server from the same trait definition.
+
+Where `Remote` is enabled, the Fusion IR changes on every Fusion backend, not only the remote one:
+each extension argument's enum variant and ordinary fields, then each enum output's variant, are
+appended to the operation's scalars, so a graph fused for the remote backend reaches the server
+complete. Custom optimizers matching the operation see these scalars after the ordinary
+arguments' scalars.
+
 ## Passing structs and enums of tensors
 
 An extension operation is not limited to individual tensor arguments. A custom struct or enum whose

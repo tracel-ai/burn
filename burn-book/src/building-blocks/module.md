@@ -45,7 +45,7 @@ These children participate in traversal, checkpoints and state transitions like 
 
 Custom generic types such as `Block<f32>` are treated as submodules; use `#[module(skip)]` if they
 hold configuration instead. For structures requiring custom traversal, use a
-[manual implementation](../migrating-to-0.22.md#manual-module-implementations).
+[manual implementation](https://github.com/tracel-ai/burn/blob/release/0.22/burn-book/src/migrating-to-0.22.md#manual-module-implementations).
 
 ## Forward Contract
 
@@ -593,6 +593,7 @@ Interpolation modules resize tensors using one of the available `InterpolateMode
 | Mode      | Description                                        |
 | --------- | -------------------------------------------------- |
 | `Nearest` | Nearest-neighbor interpolation                     |
+| `NearestExact` | Nearest-neighbor interpolation with half-pixel mapping |
 | `Linear`  | Linear interpolation (bilinear for 2D)             |
 | `Cubic`   | Cubic interpolation (bicubic for 2D)               |
 | `Lanczos` | Lanczos3 resampling (6-tap sinc-based filter, a=3) |
@@ -605,7 +606,21 @@ one of `output_size` or `scale_factor` must be set; `forward` panics otherwise.
 | `output_size`   | `Option<usize>` / `Option<[usize; 2]>` | `None`    | Target output size; set this or `scale_factor` |
 | `scale_factor`  | `Option<f32>` / `Option<[f32; 2]>`     | `None`    | Output is `floor(input * scale_factor)`        |
 | `mode`          | `InterpolateMode`                      | `Nearest` | Interpolation algorithm                        |
-| `align_corners` | `bool`                                 | `true`    | Align input/output corner pixels               |
+
+Algorithm-specific settings belong to the `InterpolateMode` variants.
+`Linear`, `Cubic` and `Lanczos` accept `HalfPixel` or `AlignCorners` coordinate transforms.
+`Nearest` uses fixed asymmetric coordinates with floor rounding; `NearestExact` uses fixed
+half-pixel coordinates with ties rounded upward.
+
+```rust,ignore
+Interpolate2dConfig::new()
+    .with_output_size(Some([224, 224]))
+    .with_mode(InterpolateMode::Cubic {
+        coordinate_transform: CoordinateTransformMode::HalfPixel,
+        a: -0.75,
+    })
+    .init();
+```
 
 ### RNNs
 

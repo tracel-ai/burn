@@ -5,6 +5,7 @@ use burn::tensor::assert_shape;
 use burn_core as burn;
 
 use burn::config::Config;
+use burn::instrument::{self, Bounds, compute};
 use burn::module::Module;
 use burn::module::Param;
 use burn::module::{Content, DisplaySettings, ModuleDisplay};
@@ -61,6 +62,16 @@ pub struct RmsNorm {
 }
 
 impl RmsNorm {
+    /// The floor for a normalization alone: read the input and the parameters once, write the
+    /// output once. The statistics are a pass over the same bytes, so no arithmetic is declared.
+    fn bounds<const D: usize>(&self, x: &Tensor<D>) -> Bounds {
+        Bounds {
+            read: instrument::tensor_bytes(x) + instrument::tensor_bytes(&self.gamma.val()),
+            write: instrument::tensor_bytes(x),
+            flops: 0,
+        }
+    }
+
     /// Applies the forward pass on the input tensor.
     ///
     /// See the [RmsNorm](RmsNorm) documentation for more information.
@@ -73,6 +84,7 @@ impl RmsNorm {
     /// # Panics
     ///
     /// Panics if the last axis of `x` is not `d_model`.
+    #[compute(bounds = Self::bounds)]
     pub fn forward<const D: usize>(&self, x: Tensor<D>) -> Tensor<D> {
         let [d_model] = self.gamma.shape().dims();
         assert_shape!(x, [.., d_model]);
