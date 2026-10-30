@@ -46,12 +46,11 @@ pub trait DynGroupInterpreter: Send {
     /// gathered onto the first member and read there.
     fn read(&mut self, tensor: TensorIr) -> DynFut<Result<TensorData, ExecutionError>>;
 
-    /// Waits for every member's work to finish, returning first any error a flush kept.
+    /// Waits for every member's work to finish.
     fn sync(&mut self) -> Result<(), ExecutionError>;
 
-    /// Submits every member's queued work without waiting, keeping the first error for
-    /// [`sync`](Self::sync).
-    fn flush(&mut self);
+    /// Submits every member's queued work without waiting, and returns the first member's error.
+    fn flush(&mut self) -> Result<(), ExecutionError>;
 
     /// Seeds every member's backend.
     fn seed(&self, seed: u64);
@@ -68,7 +67,6 @@ pub struct GroupInterpreter<B: BackendIr> {
     shardings: HashMap<TensorId, Sharding>,
     on_host: HashMap<TensorId, TensorData>,
     next_id: u64,
-    flush_error: Option<ExecutionError>,
 }
 
 impl<B: BackendIr> GroupInterpreter<B> {
@@ -82,7 +80,6 @@ impl<B: BackendIr> GroupInterpreter<B> {
             shardings: HashMap::new(),
             on_host: HashMap::new(),
             next_id: 0,
-            flush_error: None,
         }
     }
 
@@ -178,20 +175,20 @@ impl<B: BackendIr> DynGroupInterpreter for GroupInterpreter<B> {
     }
 
     fn sync(&mut self) -> Result<(), ExecutionError> {
-        if let Some(error) = self.flush_error.take() {
-            return Err(error);
-        }
         self.interpreters
             .iter()
             .try_for_each(TensorInterpreter::sync)
     }
 
-    fn flush(&mut self) {
+    fn flush(&mut self) -> Result<(), ExecutionError> {
+        // Every member is flushed, whichever fails first.
+        let mut first_error = None;
         for device in &self.devices {
             if let Err(error) = B::flush(device) {
-                self.flush_error.get_or_insert(error);
+                first_error.get_or_insert(error);
             }
         }
+        first_error.map_or(Ok(()), Err)
     }
 
     fn seed(&self, seed: u64) {
