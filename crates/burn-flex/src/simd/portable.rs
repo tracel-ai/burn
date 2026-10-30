@@ -1311,6 +1311,62 @@ impl LaneOp2<f32> for LogSigmoidBackward {
     }
 }
 
+/// Where `sinh` and `cosh` overflow into libm's scaled `exp`: ln(f32::MAX).
+const HYPERBOLIC_MAX: u32 = 0x42b1_7217;
+
+/// `sinh(x)` for f32 lanes, on |x| with the sign restored: the odd Taylor
+/// series to x^11 below |x| = 1, where the next term is under 2e-10 of the
+/// result, and `(e^x - e^-x) / 2` on [`exp_f32`] above, where the difference
+/// magnifies the error of `e^x` at most coth(1), about 1.31 times. A vector with a lane at or
+/// beyond ln(f32::MAX) goes through `libm::sinhf`.
+#[derive(Clone, Copy)]
+pub struct Sinh;
+
+impl LaneOp<f32> for Sinh {
+    #[inline(always)]
+    fn apply<S: Simd>(self, x: Vector<S, f32>) -> Vector<S, f32> {
+        let a = x.abs();
+        if (!a.lt(f32::from_bits(HYPERBOLIC_MAX).splat()) & a.eq(a)).any() {
+            return per_lane(x, libm::sinhf);
+        }
+        let one = 1.0f32.splat::<S>();
+        let z = a * a;
+        // 1/3!, 1/5!, ..., 1/11!, highest degree first.
+        let p = horner(
+            z,
+            [
+                1.0 / 39_916_800.0,
+                1.0 / 362_880.0,
+                1.0 / 5040.0,
+                1.0 / 120.0,
+                1.0 / 6.0,
+            ],
+        );
+        let small = (p * z).mul_add(a, a);
+        let e = exp_f32::<S>(a);
+        let large = 0.5f32.splat::<S>() * (e - one / e);
+        with_sign_of(a.lt(one).select(small, large), x)
+    }
+}
+
+/// `cosh(x)` for f32 lanes, as `(e^x + e^-x) / 2` on [`exp_f32`]; the sum
+/// doesn't cancel, so the error stays near that of `e^x`. A vector with a lane
+/// at or beyond ln(f32::MAX) goes through `libm::coshf`.
+#[derive(Clone, Copy)]
+pub struct Cosh;
+
+impl LaneOp<f32> for Cosh {
+    #[inline(always)]
+    fn apply<S: Simd>(self, x: Vector<S, f32>) -> Vector<S, f32> {
+        let a = x.abs();
+        if (!a.lt(f32::from_bits(HYPERBOLIC_MAX).splat()) & a.eq(a)).any() {
+            return per_lane(x, libm::coshf);
+        }
+        let e = exp_f32::<S>(a);
+        0.5f32.splat::<S>() * (e + 1.0f32.splat::<S>() / e)
+    }
+}
+
 /// `v` with its sign flipped where `sign` is negative.
 #[inline(always)]
 fn xor_sign_of<S: Simd>(v: Vector<S, f32>, sign: Vector<S, f32>) -> Vector<S, f32> {
@@ -2497,6 +2553,51 @@ mod tests {
         check_pairs(Hypot, libm::hypotf, 1, &extra);
     }
 
+    // The SIMD-path extras include the worst cases of an exhaustive run over
+    // all 2^32 inputs on NEON and SSE4.2, the switch at |x| = 1 in sinh and the
+    // last value below the cutoff; the libm-path extras start at the cutoff.
+    const HYPERBOLIC_SIMD: [f32; 4] = [1.0, 0.999_999_94, 1.000_000_1, 88.72];
+    const HYPERBOLIC_LIBM: [f32; 8] = [
+        88.722_83,
+        89.0,
+        -90.0,
+        f32::INFINITY,
+        f32::NEG_INFINITY,
+        0.5,
+        -2.0,
+        1e-5,
+    ];
+
+    /// NaN stays on the SIMD path next to an ordinary lane.
+    fn check_nan_on_simd_path(op: impl LaneOp<f32>, reference: fn(f32) -> f32) {
+        let out = map_to_vec(&[f32::NAN, 1.0], op);
+        assert!(out[0].is_nan(), "{out:?}");
+        assert!(signed_ulps(out[1], reference(1.0)) <= 2);
+    }
+
+    #[test]
+    fn sinh_f32_within_2_ulp_of_libm() {
+        let mut extra = HYPERBOLIC_SIMD.to_vec();
+        extra.push(f32::from_bits(0x3cfe_52cf));
+        check_within(Sinh, libm::sinhf, 2, f32::MAX, &extra);
+        // Small lanes next to ones past the cutoff go through libm whole.
+        check_values(Sinh, libm::sinhf, 2, &HYPERBOLIC_LIBM);
+        check_nan_on_simd_path(Sinh, libm::sinhf);
+        let zeros = map_to_vec(&[0.0, -0.0], Sinh);
+        assert_eq!(zeros[0].to_bits(), 0.0f32.to_bits());
+        assert_eq!(zeros[1].to_bits(), (-0.0f32).to_bits());
+    }
+
+    #[test]
+    fn cosh_f32_within_2_ulp_of_libm() {
+        let mut extra = HYPERBOLIC_SIMD.to_vec();
+        extra.push(f32::from_bits(0x3f85_75b3));
+        check_within(Cosh, libm::coshf, 2, f32::MAX, &extra);
+        check_values(Cosh, libm::coshf, 2, &HYPERBOLIC_LIBM);
+        check_nan_on_simd_path(Cosh, libm::coshf);
+        assert_eq!(map_to_vec(&[0.0, -0.0], Cosh), [1.0, 1.0]);
+    }
+
     #[test]
     fn exp_f32_within_2_ulp_of_libm() {
         // Every 1/256 step from deep underflow to overflow, which crosses the
@@ -2515,7 +2616,6 @@ mod tests {
             );
         }
     }
-
     #[test]
     fn exp_f32_special_values() {
         let mut a = [

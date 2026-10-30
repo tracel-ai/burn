@@ -32,9 +32,9 @@ pub use portable::{
 
 #[cfg(feature = "simd")]
 pub(crate) use portable::{
-    Acos, Asin, Atan, Atan2, Atanh, Ceil, Cos, Erf, Exp, Floor, Gelu, GeluBackward, GeluGrad,
+    Acos, Asin, Atan, Atan2, Atanh, Ceil, Cos, Cosh, Erf, Exp, Floor, Gelu, GeluBackward, GeluGrad,
     Hypot, LaneOp, LaneOp2, Ln, Ln1p, LogSigmoid, LogSigmoidBackward, LogSigmoidGrad, MAX_LANES,
-    RoundTiesEven, Sigmoid, Sin, Swap, Tan, Tanh, Trunc, exp_f32, map_inplace, map_to_vec,
+    RoundTiesEven, Sigmoid, Sin, Sinh, Swap, Tan, Tanh, Trunc, exp_f32, map_inplace, map_to_vec,
     zip_map_inplace, zip_map_to_vec,
 };
 
