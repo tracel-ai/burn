@@ -259,10 +259,10 @@ impl<B: BackendIr> TensorInterpreter<B> {
     ///
     /// Failures are deferred to the tensors the operation was going to write,
     /// as on fusion and CubeCL backends: an operation reading a tensor a
-    /// failure claimed is skipped and its outputs carry that failure, and one
-    /// that panics claims its outputs with the panic's message. Either is
-    /// reported by the read of one of those outputs, while work sharing no
-    /// tensor with the failure runs as usual.
+    /// failure claimed is skipped and its outputs carry that failure, reported
+    /// by the read of one of those outputs, while work sharing no tensor with
+    /// the failure runs as usual. A backend reports its failures as errors; one
+    /// that panics is not caught here.
     pub fn register_op(&mut self, op: OperationIr) {
         let handles = &mut self.context.handles;
         if let Some(error) = handles.input_error(&op) {
@@ -272,25 +272,6 @@ impl<B: BackendIr> TensorInterpreter<B> {
             return;
         }
 
-        #[cfg(feature = "std")]
-        {
-            let executed =
-                std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| self.execute_op(&op)));
-            if let Err(panic) = executed {
-                let error = TensorError::from_panic(panic.as_ref());
-                // The panic hook has printed the payload; this names the consequence, and is
-                // the only report of an operation with no outputs to carry the error.
-                log::warn!(
-                    "an operation failed: {}; the tensors it was going to write hold that error, \
-                     and reading one of them reports it",
-                    error.root(),
-                );
-                let handles = &mut self.context.handles;
-                handles.free_inputs(&op);
-                handles.set_output_errors(&op, &error);
-            }
-        }
-        #[cfg(not(feature = "std"))]
         self.execute_op(&op);
     }
 
@@ -2368,11 +2349,15 @@ impl<B: BackendIr> TensorInterpreter<B> {
             },
             OperationIr::Custom(desc) => match self.custom_ops.get(&desc.id) {
                 Some(handler) => handler(handles, desc, &self.device),
-                None => panic!(
-                    "No custom-op handler registered for `{}`. Register one on the server via \
-                     `CustomOpRegistry`/the server builder before starting it.",
-                    desc.id
-                ),
+                None => {
+                    let error = TensorError::new(ExecutionError::with_context(format!(
+                        "No custom-op handler registered for `{}`. Register one on the server \
+                         via `CustomOpRegistry`/the server builder before starting it.",
+                        desc.id
+                    )));
+                    handles.free_inputs(op);
+                    handles.set_output_errors(op, &error);
+                }
             },
             OperationIr::Init(_) => {
                 // Nothing to do.
