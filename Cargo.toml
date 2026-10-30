@@ -223,11 +223,11 @@ burn-wgpu = { path = "crates/burn-wgpu", version = "0.23.0-pre.1", default-featu
 pytorch-reader = { path = "crates/pytorch-reader", version = "0.23.0-pre.1" }
 
 ### For the main burn branch. ###
-cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "07cd07a2da9c4405044993c6ec2dc51b9d685508" }
-cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "07cd07a2da9c4405044993c6ec2dc51b9d685508" }
-cubecl-environment = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "07cd07a2da9c4405044993c6ec2dc51b9d685508" }
-cubecl-zspace = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "07cd07a2da9c4405044993c6ec2dc51b9d685508" }
-cubek = { git = "https://github.com/tracel-ai/cubek", default-features = false, rev = "732476fa455791e40c8e6f3ead0f30209eb45040" }
+cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "fdba0a849104c0d805a86c883b32ce06c2c85ba1" }
+cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "fdba0a849104c0d805a86c883b32ce06c2c85ba1" }
+cubecl-environment = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "fdba0a849104c0d805a86c883b32ce06c2c85ba1" }
+cubecl-zspace = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "fdba0a849104c0d805a86c883b32ce06c2c85ba1" }
+cubek = { git = "https://github.com/tracel-ai/cubek", default-features = false, rev = "06e1c8ec2057898d0f1118060c6bd46baa38f708" }
 ### For local development. ###
 # cubecl = { path = "../cubecl/crates/cubecl", default-features = false }
 # cubecl-common = { path = "../cubecl/crates/cubecl-common", default-features = false }
