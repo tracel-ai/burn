@@ -507,6 +507,8 @@ pub enum DecodeCheck {
 }
 
 /// How a scalar is turned back into the argument it encoded.
+// Keep the expression inline in this short-lived parsing state to avoid a separate allocation.
+#[allow(clippy::large_enum_variant)]
 enum ScalarDecode {
     /// The argument's type implements `FromScalarIr`: a primitive, or an alias of one.
     FromScalar,
