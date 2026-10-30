@@ -8,9 +8,12 @@ pub(crate) mod worker;
 
 mod authorize;
 mod backend;
+mod capture;
+mod device_query;
 mod error;
 mod logging;
 mod settings;
+mod streams;
 #[cfg(not(target_family = "wasm"))]
 mod transport;
 
@@ -19,11 +22,14 @@ pub use authorize::{
 };
 pub use backend::BackendServer;
 pub use burn_router::{CustomOpHandler, CustomOpRegistry};
+pub(crate) use capture::{DeviceCaptureLock, SessionCaptures};
+pub(crate) use device_query::DeviceQueries;
 pub use error::ServeError;
 pub use logging::ServerLogging;
 #[doc(hidden)]
 pub use settings::ServerSettings;
 pub(crate) use settings::SessionSetup;
+pub(crate) use streams::ServerStreams;
 #[cfg(not(target_family = "wasm"))]
 pub use transport::Transport;
 

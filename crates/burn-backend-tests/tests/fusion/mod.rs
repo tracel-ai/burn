@@ -1,6 +1,8 @@
 pub use super::*;
 
 mod cat;
+#[cfg(feature = "cube")]
+mod dequantize;
 mod fusion_f16_broadcast;
 mod fusion_f16_write_vectorization;
 mod fusion_shape;

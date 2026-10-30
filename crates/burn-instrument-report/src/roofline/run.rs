@@ -4,7 +4,9 @@
 use std::collections::HashSet;
 use std::time::Duration;
 
-use burn_instrument::{Bounds, Breakdown, Component, ComponentPath, FusedElsewhere, Peaks};
+use burn_instrument::{
+    Bounds, Breakdown, Component, ComponentPath, FusedElsewhere, FusedShare, Peaks,
+};
 
 use super::{Floor, Score};
 use crate::reading::TimeReading;
@@ -16,8 +18,9 @@ pub(crate) struct Roofline<'a> {
     peaks: Peaks,
     /// What the work no floor prices stands at.
     reading: TimeReading,
-    /// The components whose work all ran in a fused kernel recorded elsewhere, and so have
-    /// their floors set aside. See [`fused_elsewhere`](Self::fused_elsewhere).
+    /// The components whose work ran in a fused kernel recorded elsewhere: all of it, and their
+    /// floors are set aside, or part of it, and they are not scored. See
+    /// [`fused_elsewhere`](Self::fused_elsewhere).
     fused_elsewhere: FusedElsewhere<'a>,
 }
 
@@ -35,13 +38,17 @@ impl<'a> Roofline<'a> {
         &self.peaks
     }
 
-    /// The components whose work all ran in a fused kernel recorded elsewhere — on a
+    /// The components whose work ran in a fused kernel recorded elsewhere — on a
     /// component above them, or outside every component.
     ///
-    /// Such a component ran nothing, so it has no time to score and its declared
-    /// floor is set aside: the work it declared is in the kernel that carried
-    /// it out, which stands at what it took on the component that holds it. Counting
+    /// One whose work [all](FusedShare::All) ran there ran nothing, so it has no time to
+    /// score and its declared floor is set aside: the work it declared is in the kernel that
+    /// carried it out, which stands at what it took on the component that holds it. Counting
     /// the floor as well would price that work twice.
+    ///
+    /// One whose work [partly](FusedShare::Part) ran there keeps its floor, which the ladder
+    /// counts in place of the kernel, but has no score: its time is only the part it ran
+    /// itself, and its floor's percentage of that is no reading of anything.
     pub(crate) fn fused_elsewhere(&self) -> &FusedElsewhere<'a> {
         &self.fused_elsewhere
     }
@@ -56,10 +63,12 @@ impl<'a> Roofline<'a> {
     /// the clean run.
     ///
     /// `None` where nothing under the component was timed: a percentage over
-    /// zero measured time is not a percentage.
+    /// zero measured time is not a percentage. `None` too where part of its
+    /// work was timed elsewhere. See [`fused_elsewhere`](Self::fused_elsewhere).
     pub(crate) fn score_of(&self, component: &Component) -> Option<Score> {
         let measured = self.reading.apportioned(component);
-        (!measured.is_zero())
+        let partly_fused = self.fused_elsewhere.share(component) == Some(FusedShare::Part);
+        (!measured.is_zero() && !partly_fused)
             .then(|| Score::new(self.priced(component)?, measured, &self.peaks))
             .flatten()
     }
@@ -135,14 +144,14 @@ impl<'a> Roofline<'a> {
     /// What `component` is held to, unless its work all ran elsewhere. See
     /// [`fused_elsewhere`](Self::fused_elsewhere).
     fn priced(&self, component: &Component) -> Option<Bounds> {
-        match self.fused_elsewhere.contains(component) {
-            true => None,
-            false => Self::held(component),
+        match self.fused_elsewhere.share(component) {
+            Some(FusedShare::All) => None,
+            Some(FusedShare::Part) | None => Self::held(component),
         }
     }
 
-    /// What `component` is held to: its declared bounds plus the traffic observed
-    /// beyond them, with at least the arithmetic of its parts.
+    /// What `component` is held to: its declared bounds, with at least the
+    /// arithmetic of its parts.
     ///
     /// Fusion removes traffic, never arithmetic, so a composite that prices
     /// only the traffic it must move — the whole model does, rather than
@@ -150,7 +159,7 @@ impl<'a> Roofline<'a> {
     /// it to do. Everything a component is scored against goes through here, so its
     /// floor and its percentage cannot be of two different bounds.
     fn held(component: &Component) -> Option<Bounds> {
-        let own = component.bounds? + component.observed.unwrap_or_default();
+        let own = component.bounds?;
         let flops = component
             .parts_bounds()
             .map_or(own.flops, |parts| own.flops.max(parts.flops));

@@ -39,9 +39,14 @@ impl<M: LearnerModel> SingleDeviceValidEpoch<M> {
         let model = learner.model().valid();
 
         let mut iterator = self.dataloader.iter();
+        interrupter.fail_on_error(processor.process_valid(LearnerEvent::StartSplit {
+            epoch_number: epoch,
+            progress: iterator.progress(),
+        }));
         let mut iteration = 0;
 
-        while let Some(item) = iterator.next() {
+        while !interrupter.should_stop() {
+            let Some(item) = iterator.next() else { break };
             let item = match item {
                 Ok(item) => item,
                 Err(err) => {
@@ -61,6 +66,15 @@ impl<M: LearnerModel> SingleDeviceValidEpoch<M> {
                 break;
             }
         }
+        interrupter.fail_on_error(processor.flush());
+
+        let mut progress = iterator.progress();
+        if !interrupter.should_stop() {
+            progress.resolve_total();
+        }
+        interrupter
+            .fail_on_error(processor.process_valid(LearnerEvent::EndSplit { epoch, progress }));
+        interrupter.fail_on_error(processor.flush());
     }
 }
 
@@ -89,14 +103,19 @@ impl<M: LearnerModel> SingleDeviceTrainEpoch<M> {
 
         // Single device / dataloader
         let mut iterator = self.dataloader.iter();
+        interrupter.fail_on_error(processor.process_train(LearnerEvent::StartSplit {
+            epoch_number: epoch,
+            progress: iterator.progress(),
+        }));
         let mut iteration = 0;
         let mut accumulator = GradientsAccumulator::new();
         let mut accumulation_current = 0;
 
-        while let Some(item) = iterator.next() {
-            let item = match item {
-                Ok(item) => item,
-                Err(err) => {
+        while !interrupter.should_stop() {
+            let item = match iterator.next() {
+                Some(Ok(item)) => item,
+                None => break,
+                Some(Err(err)) => {
                     interrupter.fail(err);
                     break;
                 }
@@ -112,7 +131,7 @@ impl<M: LearnerModel> SingleDeviceTrainEpoch<M> {
                     accumulator.accumulate(&learner.model(), item.grads);
                     accumulation_current += 1;
 
-                    if accumulation <= accumulation_current || progress.is_completed() {
+                    if accumulation <= accumulation_current {
                         let grads = accumulator.grads();
 
                         learner.lr_step();
@@ -139,5 +158,20 @@ impl<M: LearnerModel> SingleDeviceTrainEpoch<M> {
                 break;
             }
         }
+        // Drain pending reports before deciding whether to apply the final window.
+        interrupter.fail_on_error(processor.flush());
+        if accumulation_current > 0 && !interrupter.should_stop() {
+            let grads = accumulator.grads();
+            learner.lr_step();
+            learner.optimizer_step(grads);
+        }
+
+        let mut progress = iterator.progress();
+        if !interrupter.should_stop() {
+            progress.resolve_total();
+        }
+        interrupter
+            .fail_on_error(processor.process_train(LearnerEvent::EndSplit { epoch, progress }));
+        interrupter.fail_on_error(processor.flush());
     }
 }

@@ -181,17 +181,16 @@ pub(crate) fn avg_pool2d(
     kernel_size: [usize; 2],
     stride: [usize; 2],
     padding: [usize; 2],
+    dilation: [usize; 2],
     count_include_pad: bool,
     ceil_mode: bool,
 ) -> CubeTensor {
     let [batch_size, channels, in_h, in_w] = x.meta.shape().dims();
-    let dilation = 1;
-
     let size_0 = calculate_pool_output_size(
         kernel_size[0],
         stride[0],
         padding[0],
-        dilation,
+        dilation[0],
         in_h,
         ceil_mode,
     );
@@ -199,7 +198,7 @@ pub(crate) fn avg_pool2d(
         kernel_size[1],
         stride[1],
         padding[1],
-        dilation,
+        dilation[1],
         in_w,
         ceil_mode,
     );
@@ -209,13 +208,10 @@ pub(crate) fn avg_pool2d(
     let shape_out = Shape::new([batch_size, size_0, size_1, channels]);
     let output = empty_device_dtype(x.client.clone(), x.device.clone(), shape_out, x.dtype);
 
-    let mode = PoolMode::from(AvgPoolOptions::new(
-        kernel_size,
-        stride,
-        padding,
-        ceil_mode,
-        count_include_pad,
-    ));
+    let mode = PoolMode::from(
+        AvgPoolOptions::new(kernel_size, stride, padding, ceil_mode, count_include_pad)
+            .with_dilation(dilation),
+    );
 
     pool2d(
         &output.client,
@@ -229,12 +225,14 @@ pub(crate) fn avg_pool2d(
     permute_nhwc_to_nchw(output)
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn avg_pool2d_backward(
     x: CubeTensor,
     grad: CubeTensor,
     kernel_size: [usize; 2],
     stride: [usize; 2],
     padding: [usize; 2],
+    dilation: [usize; 2],
     count_include_pad: bool,
     ceil_mode: bool,
 ) -> CubeTensor {
@@ -250,13 +248,10 @@ pub(crate) fn avg_pool2d_backward(
         input.dtype,
     );
 
-    let mode = PoolMode::from(AvgPoolOptions::new(
-        kernel_size,
-        stride,
-        padding,
-        ceil_mode,
-        count_include_pad,
-    ));
+    let mode = PoolMode::from(
+        AvgPoolOptions::new(kernel_size, stride, padding, ceil_mode, count_include_pad)
+            .with_dilation(dilation),
+    );
 
     pool2d_backward(
         &output.client,

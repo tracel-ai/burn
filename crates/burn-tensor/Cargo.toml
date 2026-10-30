@@ -42,6 +42,7 @@ cubecl-cuda = ["burn-backend/cubecl-cuda"]
 cubecl-hip = ["burn-backend/cubecl-hip"]
 cubecl-wgpu = ["burn-backend/cubecl-wgpu"]
 cubecl-metal = ["burn-backend/cubecl-metal"]
+cubecl-metal-native = ["burn-backend/cubecl-metal-native"]
 cubecl-vulkan = ["burn-backend/cubecl-vulkan"]
 cubecl-webgpu = ["burn-backend/cubecl-webgpu"]
 cubecl-cpu = ["burn-backend/cubecl-cpu"]
@@ -54,6 +55,7 @@ wgpu = ["burn-dispatch/wgpu", "cubecl-wgpu", "cubecl"]
 vulkan = ["wgpu", "burn-dispatch/vulkan", "cubecl-vulkan"]
 webgpu = ["wgpu", "burn-dispatch/webgpu", "cubecl-webgpu"]
 metal = ["wgpu", "burn-dispatch/metal", "cubecl-metal"]
+metal-native = ["burn-dispatch/metal-native", "cubecl-metal-native", "cubecl"]
 cpu = ["burn-dispatch/cpu", "cubecl-cpu", "cubecl"]
 autodiff = ["burn-dispatch/autodiff"]
 # Remote compute client over Iroh.
@@ -63,6 +65,8 @@ remote-server = ["remote", "burn-dispatch/remote-server"]
 # Add the WebSocket transport, for clients and servers.
 remote-websocket = ["remote", "burn-dispatch/remote-websocket"]
 capture = ["burn-dispatch/capture", "dep:burn-capture"]
+# Experimental: tensors split over a group of devices.
+group = ["burn-dispatch/group"]
 
 # For backend extensions
 extension = []

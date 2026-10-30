@@ -745,4 +745,18 @@ pub(crate) trait BasicOps: TensorKind {
     ///
     /// A tensor view with shape ``[pre=..., windows, post=..., size]``.
     fn unfold(tensor: BridgeTensor, dim: usize, size: usize, step: usize) -> BridgeTensor;
+
+    /// Every member receives every member's tensor, concatenated along `dim` in member order.
+    fn all_gather(tensors: Vec<BridgeTensor>, dim: usize) -> Vec<BridgeTensor>;
+
+    /// Member `i` receives chunk `i` along `split_dim` of every member's tensor, concatenated
+    /// along `concat_dim` in member order.
+    fn all_to_all(
+        tensors: Vec<BridgeTensor>,
+        split_dim: usize,
+        concat_dim: usize,
+    ) -> Vec<BridgeTensor>;
+
+    /// Each of `devices` receives `tensor`.
+    fn broadcast(tensor: BridgeTensor, devices: &[Device]) -> Vec<BridgeTensor>;
 }

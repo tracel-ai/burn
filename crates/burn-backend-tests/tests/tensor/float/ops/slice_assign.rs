@@ -10,7 +10,7 @@ fn should_support_slice_assign_1d() {
     let tensor = TestTensor::<1>::from_data(data, &device);
     let tensor_assigned = TestTensor::<1>::from_data(data_assigned, &device);
 
-    let output = tensor.slice_assign([0..2], tensor_assigned);
+    let output = tensor.slice_assign(0..2, tensor_assigned);
     let expected = TensorData::from([10.0, 5.0, 2.0]);
 
     output.into_data().assert_eq(&expected, false);
@@ -345,7 +345,7 @@ fn should_support_slice_assign_empty_range_1d() {
     let values: TestTensor<1> = TestTensor::empty([0], &device);
 
     // Empty slice assignment should return tensor unchanged
-    let output = tensor.clone().slice_assign([2..2], values);
+    let output = tensor.clone().slice_assign(2..2, values);
     let expected = TensorData::from([1.0, 2.0, 3.0, 4.0, 5.0]);
 
     output.into_data().assert_eq(&expected, false);

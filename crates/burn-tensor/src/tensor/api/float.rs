@@ -106,8 +106,9 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     /// strategy as [`round`](Self::round), and `decimals == 0` is equivalent to
     /// [`round`](Self::round).
     ///
-    /// Scaling is inexact and can overflow in the tensor's dtype, producing infinity
-    /// or NaN, particularly for low-precision dtypes or large absolute decimal counts.
+    /// Scaling is inexact and can move halfway cases across the rounding boundary.
+    /// It can also overflow in the tensor's dtype, producing infinity or NaN,
+    /// particularly for low-precision dtypes or large absolute decimal counts.
     ///
     /// # Panics
     ///
@@ -716,13 +717,13 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     /// # Example
     ///
     /// ```ignore
-    /// use burn_tensor::ops::{GridSampleOptions, GridSamplePaddingMode, InterpolateMode};
+    /// use burn_tensor::ops::{GridSampleOptions, GridSamplePaddingMode, GridSampleMode};
     ///
     /// // Default options (bilinear, zeros padding, align_corners=false)
     /// let output = tensor.grid_sample_2d(grid, GridSampleOptions::default());
     ///
     /// // Custom options
-    /// let options = GridSampleOptions::new(InterpolateMode::Bilinear)
+    /// let options = GridSampleOptions::new(GridSampleMode::Bilinear)
     ///     .with_padding_mode(GridSamplePaddingMode::Border)
     ///     .with_align_corners(true);
     /// let output = tensor.grid_sample_2d(grid, options);

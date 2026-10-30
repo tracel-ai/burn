@@ -356,16 +356,6 @@ impl_ir_create!(
 );
 
 impl_ir_create!(
-    AllReduceOpIr {
-        tensor: TensorIr,
-        op: burn_backend::distributed::ReduceOperation,
-        device_ids: Vec<DeviceIdIr>
-    },
-    shape = tensor.shape.clone(),
-    dtype = tensor.dtype
-);
-
-impl_ir_create!(
     GatherOpIr {
         tensor: TensorIr,
         dim: usize,
@@ -718,6 +708,7 @@ impl_ir_create!(
         kernel_size: usize,
         stride: usize,
         padding: usize,
+        dilation: usize,
         count_include_pad: bool,
         ceil_mode: bool
     },
@@ -726,7 +717,7 @@ impl_ir_create!(
         &[kernel_size],
         &[stride],
         &[padding],
-        &[1],
+        &[dilation],
         ceil_mode
     )
     .unwrap(),
@@ -740,6 +731,7 @@ impl_ir_create!(
         kernel_size: usize,
         stride: usize,
         padding: usize,
+        dilation: usize,
         count_include_pad: bool,
         ceil_mode: bool
     },
@@ -753,6 +745,7 @@ impl_ir_create!(
         kernel_size: [usize; 2],
         stride: [usize; 2],
         padding: [usize; 2],
+        dilation: [usize; 2],
         count_include_pad: bool,
         ceil_mode: bool
     },
@@ -761,7 +754,7 @@ impl_ir_create!(
         &kernel_size,
         &stride,
         &padding,
-        &[1, 1],
+        &dilation,
         ceil_mode
     )
     .unwrap(),
@@ -775,6 +768,7 @@ impl_ir_create!(
         kernel_size: [usize; 2],
         stride: [usize; 2],
         padding: [usize; 2],
+        dilation: [usize; 2],
         count_include_pad: bool,
         ceil_mode: bool
     },
@@ -788,6 +782,7 @@ impl_ir_create!(
         kernel_size: [usize; 3],
         stride: [usize; 3],
         padding: [usize; 3],
+        dilation: [usize; 3],
         count_include_pad: bool,
         ceil_mode: bool
     },
@@ -796,7 +791,7 @@ impl_ir_create!(
         &kernel_size,
         &stride,
         &padding,
-        &[1, 1, 1],
+        &dilation,
         ceil_mode
     )
     .unwrap(),
@@ -810,6 +805,7 @@ impl_ir_create!(
         kernel_size: [usize; 3],
         stride: [usize; 3],
         padding: [usize; 3],
+        dilation: [usize; 3],
         count_include_pad: bool,
         ceil_mode: bool
     },
@@ -1641,6 +1637,66 @@ impl MaxPool1dWithIndicesOpIr {
             ceil_mode,
             out,
             out_indices,
+        }
+    }
+}
+
+impl AttentionWithLogsumexpOpIr {
+    pub fn create(
+        query: TensorIr,
+        key: TensorIr,
+        value: TensorIr,
+        options: AttentionOptionsIr,
+        mut new_id: impl FnMut() -> TensorId,
+    ) -> Self {
+        let [batch, heads, queries] = [query.shape[0], query.shape[1], query.shape[2]];
+        let out = TensorIr::uninit(
+            new_id(),
+            Shape::new([batch, heads, queries, value.shape[3]]),
+            query.dtype,
+        );
+        // The logsumexp is `f32` whatever the operands: `exp(score − logsumexp)` is where the
+        // backward pass's precision is lost.
+        let logsumexp = TensorIr::uninit(new_id(), Shape::new([batch, heads, queries]), DType::F32);
+
+        AttentionWithLogsumexpOpIr {
+            query,
+            key,
+            value,
+            options,
+            out,
+            logsumexp,
+        }
+    }
+}
+
+impl AttentionBackwardOpIr {
+    #[allow(clippy::too_many_arguments)]
+    pub fn create(
+        query: TensorIr,
+        key: TensorIr,
+        value: TensorIr,
+        out: TensorIr,
+        logsumexp: TensorIr,
+        out_grad: TensorIr,
+        options: AttentionOptionsIr,
+        mut new_id: impl FnMut() -> TensorId,
+    ) -> Self {
+        let query_grad = TensorIr::uninit(new_id(), query.shape.clone(), query.dtype);
+        let key_grad = TensorIr::uninit(new_id(), key.shape.clone(), key.dtype);
+        let value_grad = TensorIr::uninit(new_id(), value.shape.clone(), value.dtype);
+
+        AttentionBackwardOpIr {
+            query,
+            key,
+            value,
+            out,
+            logsumexp,
+            out_grad,
+            options,
+            query_grad,
+            key_grad,
+            value_grad,
         }
     }
 }

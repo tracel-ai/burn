@@ -17,7 +17,7 @@ fn should_quantize_dequantize_symmetric_arange<S: Into<Shape>>(
     let ref_device = ReferenceDevice::new();
 
     let scheme = QuantScheme::default().with_value(value).with_store(store);
-    let scheme_ref = scheme.clone().with_store(QuantStore::Native);
+    let scheme_ref = scheme.with_store(QuantStore::Native);
 
     let input: TestTensor<2> = TestTensorInt::arange(0..shape.num_elements() as i64, &device)
         .float()
@@ -50,7 +50,7 @@ fn should_quantize_dequantize_symmetric_per_block_arange<S: Into<Shape>>(
         .with_value(value)
         .per_block([block_size as u8], ScaleDtype::F32)
         .with_store(store);
-    let scheme_ref = scheme.clone().with_store(QuantStore::Native);
+    let scheme_ref = scheme.with_store(QuantStore::Native);
 
     let shape = shape.into();
     let input: TestTensor<2> = TestTensorInt::arange(0..shape.num_elements() as i64, &device)
@@ -80,7 +80,7 @@ fn should_quantize_dequantize_symmetric_per_block(
         .with_value(value)
         .per_block([block_size as u8], ScaleDtype::F32)
         .with_store(store);
-    let scheme_ref = scheme.clone().with_store(QuantStore::Native);
+    let scheme_ref = scheme.with_store(QuantStore::Native);
 
     let device = Default::default();
     let ref_device = ReferenceDevice::new();

@@ -24,8 +24,8 @@
 //!   backend.
 //! - [`activation`], [`loss`] and [`module`]: functional forms of activations, losses and neural
 //!   network operations such as convolution and pooling.
-//! - [`quantization`], [`grid`] and [`distributed`]: quantized tensors, grid sampling and
-//!   collective operations across devices.
+//! - [`quantization`], [`grid`] and [`distributed`]: quantized tensors, grid sampling and the
+//!   configuration of gradient synchronization across devices.
 //! - `einsum!`, `assert_shape!` and [`s!`]: macros for Einstein summation, shape checks and
 //!   slicing.
 //!
@@ -87,6 +87,8 @@ pub use burn_derive::{__assert_shape, __debug_assert_shape, __einsum};
 // Re-exported types
 #[cfg(feature = "autodiff")]
 pub use burn_dispatch::GradientCheckpointingStrategy;
+#[cfg(feature = "group")]
+pub use burn_dispatch::backends::{Sharding, ShardingError};
 pub use burn_std::{
     AllocationProperty, Bytes, bf16, f16, flex32,
     reader::{read_sync, try_read_sync},
@@ -99,6 +101,9 @@ pub use device::*;
 /// Configure a wgpu runtime or share an application's existing wgpu setup.
 #[cfg(feature = "wgpu")]
 pub mod wgpu;
+
+#[cfg(feature = "group")]
+pub mod group;
 
 #[cfg(feature = "remote")]
 pub mod remote;

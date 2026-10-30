@@ -1,3 +1,5 @@
+use crate::modules::bounds::{self, Windowing};
+use burn::instrument::{Bounds, compute};
 use burn_core as burn;
 
 use burn::config::Config;
@@ -48,6 +50,16 @@ impl AdaptiveAvgPool3dConfig {
 }
 
 impl AdaptiveAvgPool3d {
+    /// The floor for an adaptive pool alone: a resampling to its configured size.
+    fn bounds(&self, input: &Tensor<5>) -> Bounds {
+        Windowing {
+            output_size: self.output_size,
+            // The windows cover the whole input.
+            read_size: bounds::spatial(input),
+        }
+        .resampling(input)
+    }
+
     /// Applies the forward pass on the input tensor.
     ///
     /// See [adaptive_avg_pool3d](burn::tensor::module::adaptive_avg_pool3d) for more information.
@@ -56,6 +68,7 @@ impl AdaptiveAvgPool3d {
     ///
     /// - input: `[batch_size, channels, depth_in, height_in, width_in]`
     /// - output: `[batch_size, channels, depth_out, height_out, width_out]`
+    #[compute(bounds = Self::bounds)]
     pub fn forward(&self, input: Tensor<5>) -> Tensor<5> {
         adaptive_avg_pool3d(input, self.output_size)
     }

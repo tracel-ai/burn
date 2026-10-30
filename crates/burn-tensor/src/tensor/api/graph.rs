@@ -1,4 +1,4 @@
-use crate::Device;
+use crate::{Device, ExecutionError};
 use burn_backend::{Backend, BackendGraph};
 use burn_dispatch::Dispatch;
 
@@ -27,9 +27,9 @@ pub struct Graph<T, F> {
     device: Device,
     output: T,
     closure: F,
-    /// The captured hardware graph, or `None` to re-run the closure (a backend
-    /// without graph support, or a capture that failed).
-    hardware: Option<BackendGraph<Dispatch>>,
+    /// The captured hardware graph, or why replay re-runs the closure instead
+    /// (a backend without graph support, or a capture that failed).
+    hardware: Result<BackendGraph<Dispatch>, ExecutionError>,
 }
 
 /// Capture `closure` for repeated replay (see [`Graph`]).
@@ -73,13 +73,12 @@ where
         Ok(()) => {
             let output = closure();
             // A failed stop still resets the stream out of capture mode (the
-            // backend guarantees this even on error), so falling back to `None` —
-            // re-running the closure on replay — stays correct; we lose the
-            // graph, not stream health.
-            (Dispatch::graph_stop_capture(dispatch).ok(), output)
+            // backend guarantees this even on error), so re-running the closure
+            // on replay stays correct; we lose the graph, not stream health.
+            (Dispatch::graph_stop_capture(dispatch), output)
         }
         // No hardware graph support: fall back to re-running the closure.
-        Err(_) => (None, closure()),
+        Err(error) => (Err(error), closure()),
     };
 
     Graph {
@@ -127,12 +126,12 @@ where
     /// and is trivially safe.
     pub unsafe fn replay(&mut self) -> &T {
         match &self.hardware {
-            Some(graph) => {
+            Ok(graph) => {
                 // Safety: forwarded verbatim from this method's own contract.
                 unsafe { Dispatch::graph_replay(self.device.as_dispatch(), graph) }
                     .expect("graph replay should succeed");
             }
-            None => {
+            Err(_) => {
                 self.output = (self.closure)();
             }
         }
@@ -148,6 +147,14 @@ where
     /// Whether this graph replays as a hardware dispatch (`true`) or by
     /// re-running the closure (`false`).
     pub fn is_hardware(&self) -> bool {
-        self.hardware.is_some()
+        self.hardware.is_ok()
+    }
+
+    /// Why this graph replays by re-running the closure: the backend's error
+    /// from starting or stopping the capture, which on a backend without graph
+    /// support is its "not supported" error. `None` if it replays as a hardware
+    /// dispatch.
+    pub fn capture_error(&self) -> Option<&ExecutionError> {
+        self.hardware.as_ref().err()
     }
 }

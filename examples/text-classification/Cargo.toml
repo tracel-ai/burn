@@ -24,6 +24,9 @@ metal = ["burn/metal"]
 # DDP (distributed data-parallel) training. The distributed runtime is always available with
 # `std`, so this feature is just a marker that selects the DDP code paths in the example.
 ddp = []
+# Arms the model's `#[compute]` annotations for the `profile` example; the other examples leave
+# them compiled away.
+profile = ["burn/instrument"]
 
 [dependencies]
 # Burn
@@ -49,3 +52,11 @@ tokenizers = { version = "0.23.2", default-features = false, features = [
 # Utils
 derive-new = { workspace = true }
 serde = { workspace = true, features = ["std", "derive"] }
+
+[dev-dependencies]
+# The report the `profile` example prints.
+burn-instrument-report = { workspace = true }
+
+[[example]]
+name = "profile"
+required-features = ["profile"]

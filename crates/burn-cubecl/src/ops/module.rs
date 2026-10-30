@@ -10,11 +10,11 @@ use burn_backend::{
     TensorMetadata,
     ops::{
         AttentionModuleOptions, ConvOptions, ConvTransposeOptions, DeformConv2dBackward,
-        DeformConvOptions, InterpolateOptions, MaxPool2dBackward, MaxPool2dWithIndices,
-        MaxPool3dBackward, MaxPool3dWithIndices, ModuleOps,
+        DeformConvOptions, FloatTensorOps, InterpolateOptions, MaxPool2dBackward,
+        MaxPool2dWithIndices, MaxPool3dBackward, MaxPool3dWithIndices, ModuleOps,
     },
 };
-use burn_std::IntDType;
+use burn_std::{DType, FloatDType, IntDType};
 
 impl ModuleOps<Self> for CubeBackend {
     fn conv1d(
@@ -97,6 +97,30 @@ impl ModuleOps<Self> for CubeBackend {
             Default::default(),
         )
         .unwrap()
+    }
+
+    /// Sums gradients `[batch, output_channels, height, width]` over batch and
+    /// spatial axes, returning `[output_channels]` with the same dtype and device.
+    /// `bias` has shape `[output_channels]`. The unused input `x` has layout
+    /// `[batch, input_channels, input_height, input_width]`.
+    fn conv2d_bias_backward(
+        _x: FloatTensor<Self>,
+        bias: FloatTensor<Self>,
+        output_grad: FloatTensor<Self>,
+    ) -> FloatTensor<Self> {
+        if output_grad.dtype == DType::F32 {
+            let grad = Self::float_sum_dims(output_grad, &[0, 2, 3]);
+            return Self::float_reshape(grad, bias.shape());
+        }
+
+        // Keep low-precision gradients on one pass until reduce_dims preserves
+        // accumulator precision between passes instead of narrowing partial sums.
+        // Dense NHWC storage needs only a metadata reshape.
+        let [batch, channels, height, width] = output_grad.shape().dims();
+        let grad = super::permute_nchw_to_nhwc(output_grad);
+        let grad = Self::float_reshape(grad, [batch * height * width, channels].into());
+        let grad = Self::float_sum_dim(grad, 0);
+        Self::float_reshape(grad, bias.shape())
     }
 
     fn deform_conv2d(
@@ -198,6 +222,7 @@ impl ModuleOps<Self> for CubeBackend {
         kernel_size: [usize; 2],
         stride: [usize; 2],
         padding: [usize; 2],
+        dilation: [usize; 2],
         count_include_pad: bool,
         ceil_mode: bool,
     ) -> FloatTensor<Self> {
@@ -206,6 +231,7 @@ impl ModuleOps<Self> for CubeBackend {
             kernel_size,
             stride,
             padding,
+            dilation,
             count_include_pad,
             ceil_mode,
         )
@@ -217,6 +243,7 @@ impl ModuleOps<Self> for CubeBackend {
         kernel_size: [usize; 2],
         stride: [usize; 2],
         padding: [usize; 2],
+        dilation: [usize; 2],
         count_include_pad: bool,
         ceil_mode: bool,
     ) -> FloatTensor<Self> {
@@ -226,6 +253,7 @@ impl ModuleOps<Self> for CubeBackend {
             kernel_size,
             stride,
             padding,
+            dilation,
             count_include_pad,
             ceil_mode,
         )
@@ -313,6 +341,7 @@ impl ModuleOps<Self> for CubeBackend {
         kernel_size: [usize; 3],
         stride: [usize; 3],
         padding: [usize; 3],
+        dilation: [usize; 3],
         count_include_pad: bool,
         ceil_mode: bool,
     ) -> FloatTensor<Self> {
@@ -321,6 +350,7 @@ impl ModuleOps<Self> for CubeBackend {
             kernel_size,
             stride,
             padding,
+            dilation,
             count_include_pad,
             ceil_mode,
         )
@@ -332,6 +362,7 @@ impl ModuleOps<Self> for CubeBackend {
         kernel_size: [usize; 3],
         stride: [usize; 3],
         padding: [usize; 3],
+        dilation: [usize; 3],
         count_include_pad: bool,
         ceil_mode: bool,
     ) -> FloatTensor<Self> {
@@ -341,6 +372,7 @@ impl ModuleOps<Self> for CubeBackend {
             kernel_size,
             stride,
             padding,
+            dilation,
             count_include_pad,
             ceil_mode,
         )
@@ -435,13 +467,6 @@ impl ModuleOps<Self> for CubeBackend {
         attn_bias: Option<FloatTensor<Self>>,
         options: AttentionModuleOptions,
     ) -> FloatTensor<Self> {
-        // Fall back to naive attention for features the flash kernel doesn't support.
-        if attn_bias.is_some() || options.softcap.is_some() || options.scale.is_some() {
-            return burn_backend::ops::attention::attention_fallback::<Self>(
-                query, key, value, mask, attn_bias, options,
-            );
-        }
-
         kernel::attention::attention(
             query,
             key,
@@ -451,7 +476,43 @@ impl ModuleOps<Self> for CubeBackend {
             options,
             Default::default(),
         )
-        .expect("Kernel to never fail")
+    }
+
+    fn has_attention_backward() -> bool {
+        true
+    }
+
+    fn attention_with_logsumexp(
+        query: FloatTensor<Self>,
+        key: FloatTensor<Self>,
+        value: FloatTensor<Self>,
+        options: AttentionModuleOptions,
+    ) -> (FloatTensor<Self>, FloatTensor<Self>) {
+        // What the kernels do not serve, a softcap or a causal mask anchored at the top left, is
+        // composed.
+        if !kernel::attention::backward_serves(&query, &key, &value, &options) {
+            return burn_backend::ops::attention::attention_with_logsumexp_default::<Self>(
+                query, key, value, options,
+            );
+        }
+        kernel::attention::attention_with_logsumexp(query, key, value, options)
+    }
+
+    fn attention_backward(
+        query: FloatTensor<Self>,
+        key: FloatTensor<Self>,
+        value: FloatTensor<Self>,
+        out: FloatTensor<Self>,
+        logsumexp: FloatTensor<Self>,
+        out_grad: FloatTensor<Self>,
+        options: AttentionModuleOptions,
+    ) -> burn_backend::ops::AttentionBackward<Self> {
+        if !kernel::attention::backward_serves(&query, &key, &value, &options) {
+            return burn_backend::ops::attention::attention_backward_default::<Self>(
+                query, key, value, out, logsumexp, out_grad, options,
+            );
+        }
+        kernel::attention::attention_backward(query, key, value, out, logsumexp, out_grad, options)
     }
 
     fn has_ctc_loss_backward() -> bool {
@@ -465,7 +526,14 @@ impl ModuleOps<Self> for CubeBackend {
         target_lengths: IntTensor<Self>,
         blank: usize,
     ) -> FloatTensor<Self> {
-        kernel::ctc::ctc_loss(log_probs, targets, input_lengths, target_lengths, blank)
+        let dtype = log_probs.dtype.into();
+        let log_probs = match dtype {
+            FloatDType::F16 | FloatDType::BF16 => Self::float_cast(log_probs, FloatDType::F32),
+            _ => log_probs,
+        };
+        let loss = kernel::ctc::ctc_loss(log_probs, targets, input_lengths, target_lengths, blank);
+
+        Self::float_cast(loss, dtype)
     }
 
     fn ctc_loss_backward(
@@ -476,6 +544,12 @@ impl ModuleOps<Self> for CubeBackend {
         grad_loss: FloatTensor<Self>,
         blank: usize,
     ) -> FloatTensor<Self> {
+        let dtype = log_probs.dtype.into();
+        let log_probs = match dtype {
+            FloatDType::F16 | FloatDType::BF16 => Self::float_cast(log_probs, FloatDType::F32),
+            _ => log_probs,
+        };
+        let grad_loss = Self::float_cast(grad_loss, log_probs.dtype.into());
         let (log_alpha_full, log_beta_full, nll) = kernel::ctc::ctc_alpha_beta(
             log_probs.clone(),
             targets.clone(),
@@ -483,7 +557,7 @@ impl ModuleOps<Self> for CubeBackend {
             target_lengths,
             blank,
         );
-        burn_backend::ops::ctc::ctc_grad_from_alpha_beta_default::<Self>(
+        let grad = burn_backend::ops::ctc::ctc_grad_from_alpha_beta_default::<Self>(
             log_probs,
             targets,
             input_lengths,
@@ -492,6 +566,8 @@ impl ModuleOps<Self> for CubeBackend {
             log_beta_full,
             nll,
             blank,
-        )
+        );
+
+        Self::float_cast(grad, dtype)
     }
 }

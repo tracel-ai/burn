@@ -1,22 +1,25 @@
 use crate::{
     FusionBackend, FusionDevice, FusionHandle, FusionRuntime, FusionServer, FusionTensor,
-    FusionUtilities, UnfusedOp,
+    UnfusedOp,
     stream::{StreamId, execution::Operation},
     tensor::held,
 };
 use burn_backend::{
     Device, DeviceHandle, DeviceId, DeviceService, DeviceServiceStage, ServerUtilitiesHandle,
 };
-use burn_std::{
-    CommunicationId,
-    device_handle::{CallError, CallResultExt},
-};
+use burn_std::device_handle::{CallError, CallResultExt};
 
 use burn_backend::{TensorData, backend::ExecutionError};
 use burn_ir::{OperationIr, TensorError, TensorId, TensorIr};
-use burn_std::sync::RwLock;
-use hashbrown::HashSet;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::{
+    panic::{AssertUnwindSafe, catch_unwind},
+    sync::{
+        Arc,
+        atomic::{AtomicU64, Ordering},
+        mpsc,
+    },
+    thread,
+};
 
 /// Use a mutex to communicate with the fusion server.
 pub struct GlobalFusionClient<R: FusionRuntime> {
@@ -26,15 +29,11 @@ pub struct GlobalFusionClient<R: FusionRuntime> {
 
 impl<R: FusionRuntime> DeviceService for FusionServer<R> {
     fn init(device_id: DeviceId) -> Self {
-        let device = FusionDevice::<R>::from_id(device_id);
-        let utilities = FusionUtilities {
-            initialized_comms: RwLock::new(HashSet::default()),
-        };
-        FusionServer::new(device, utilities)
+        FusionServer::new(FusionDevice::<R>::from_id(device_id))
     }
 
-    fn utilities(&self) -> burn_backend::ServerUtilitiesHandle {
-        self.utilities.clone()
+    fn utilities(&self) -> ServerUtilitiesHandle {
+        Arc::new(())
     }
     fn stage() -> DeviceServiceStage {
         DeviceServiceStage::Upstream
@@ -553,12 +552,12 @@ where
         resolved.unwrap_or_else(|err| Err(crate::backend::server_error(err)))
     }
 
-    /// Resolve the given float tensor as a read does, keeping the failure claiming it as it is
-    /// carried, so it propagates from its root.
+    /// Start resolving the given float tensor as a read does, keeping the failure claiming it as it
+    /// is carried, so it propagates from its root.
     pub fn resolve_carrying_float<B>(
         &self,
         tensor: FusionTensor<R>,
-    ) -> Result<B::FloatTensorPrimitive, TensorError>
+    ) -> Resolving<B::FloatTensorPrimitive>
     where
         B: FusionBackend<FusionRuntime = R>,
     {
@@ -567,11 +566,12 @@ where
         })
     }
 
-    /// Resolve the given int tensor as a read does, keeping the failure claiming it as it is carried.
+    /// Start resolving the given int tensor as a read does, keeping the failure claiming it as it
+    /// is carried.
     pub fn resolve_carrying_int<B>(
         &self,
         tensor: FusionTensor<R>,
-    ) -> Result<B::IntTensorPrimitive, TensorError>
+    ) -> Resolving<B::IntTensorPrimitive>
     where
         B: FusionBackend<FusionRuntime = R>,
     {
@@ -580,11 +580,12 @@ where
         })
     }
 
-    /// Resolve the given bool tensor as a read does, keeping the failure claiming it as it is carried.
+    /// Start resolving the given bool tensor as a read does, keeping the failure claiming it as it
+    /// is carried.
     pub fn resolve_carrying_bool<B>(
         &self,
         tensor: FusionTensor<R>,
-    ) -> Result<B::BoolTensorPrimitive, TensorError>
+    ) -> Resolving<B::BoolTensorPrimitive>
     where
         B: FusionBackend<FusionRuntime = R>,
     {
@@ -599,50 +600,49 @@ where
         read: impl FnOnce(&mut FusionServer<R>, TensorIr, StreamId) -> Result<T, TensorError>
         + Send
         + 'static,
-    ) -> Result<T, TensorError> {
+    ) -> Resolving<T> {
         // `into_ir()` runs on this thread: on the server thread, a cross-stream tensor's
         // `shared_view` would `submit_blocking` again and panic on the re-entrancy.
         let stream = tensor.stream;
         let tensor = tensor.into_ir();
-        let read = self
-            .server
-            .submit_blocking(move |server| read(server, tensor, stream));
+        let (sender, receiver) = mpsc::sync_channel(1);
+        self.server.submit(move |server| {
+            let read = catch_unwind(AssertUnwindSafe(|| read(server, tensor, stream)));
+            let _ = sender.send(read);
+        });
+        self.server.flush_queue();
         held::release();
-        read.unwrap_or_else(|err| Err(TensorError::new(crate::backend::server_error(err))))
+        Resolving { receiver }
     }
+}
 
-    /// Synchronize the collective operations.
-    pub fn sync_collective<B>(&self, device: &B::Device)
-    where
-        B: FusionBackend<FusionRuntime = R>,
-    {
-        // Ensure that all operations are resolved before calling sync_collective.
-        self.sync(|| ());
-        B::sync_collective(device)
-    }
+/// A tensor the fusion server is resolving, so the servers of several devices can resolve theirs
+/// at once.
+#[must_use = "the resolved tensor is lost unless it is waited on"]
+pub struct Resolving<T> {
+    receiver: mpsc::Receiver<thread::Result<Result<T, TensorError>>>,
+}
 
-    /// Ensure that communication between the given devices is initialized.
-    /// Initializing communication is generally blocking, so we make sure to flush those operations.
-    pub fn ensure_collective_init<B>(&self, device_ids: Vec<DeviceId>)
-    where
-        B: FusionBackend<FusionRuntime = R>,
-    {
-        let utilities = self
-            .server
-            .utilities()
-            .downcast::<FusionUtilities>()
-            .expect("Can downcast to `FusionUtilities`");
-        let id = CommunicationId::from(device_ids);
-
-        if !utilities.initialized_comms.read().contains(&id) {
-            // Communication initialization is blocking for the server, so we need to flush right away to make sure other devices
-            // aren't waiting indefinitely on this initialization call.
-            // This is already handled by cubecl, but since fusion adds another layer of streams and asynchronous submits,
-            // we also needed to add some logic here to flush the fusion server.
-            self.flush_queue();
-            let mut initialized_comms = utilities.initialized_comms.write();
-            initialized_comms.insert(id);
-        }
+impl<T> Resolving<T> {
+    /// Wait for the server to resolve the tensor.
+    pub fn wait(self) -> Result<T, TensorError> {
+        let failure = match self.receiver.recv() {
+            Ok(Ok(resolved)) => return resolved,
+            Ok(Err(payload)) => {
+                let message = payload
+                    .downcast_ref::<&str>()
+                    .map(|message| message.to_string())
+                    .or_else(|| payload.downcast_ref::<String>().cloned());
+                match message {
+                    Some(message) => {
+                        format!("the fusion server panicked resolving a tensor: {message}")
+                    }
+                    None => "the fusion server panicked resolving a tensor".to_string(),
+                }
+            }
+            Err(_) => "the fusion server stopped before resolving a tensor".to_string(),
+        };
+        Err(TensorError::new(ExecutionError::with_context(failure)))
     }
 }
 
@@ -693,10 +693,5 @@ impl<R: FusionRuntime + 'static> ServerHandle<R> {
     fn flush_queue(&self) {
         crate::tensor::deferred::flush();
         self.handle.flush_queue();
-    }
-
-    fn utilities(&self) -> ServerUtilitiesHandle {
-        crate::tensor::deferred::flush();
-        self.handle.utilities()
     }
 }
