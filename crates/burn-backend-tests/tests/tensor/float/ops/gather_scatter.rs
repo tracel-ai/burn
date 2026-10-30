@@ -2,6 +2,38 @@ use super::*;
 use burn_tensor::{IndexingUpdateOp, TensorData};
 
 #[test]
+fn gather_last_axis_then_broadcast() {
+    let device = Default::default();
+    let tensor = TestTensor::<2>::from_data([[7.0, 2.0], [3.0, 11.0]], &device);
+    let indices = tensor.clone().argmax(1);
+    let selected = tensor.clone().gather(1, indices.clone());
+    let mask = TestTensorBool::<2>::zeros([2, 2], &device).scatter(
+        1,
+        indices,
+        TestTensorBool::ones([2, 1], &device),
+        IndexingUpdateOp::Assign,
+    );
+    let mask = mask.bool_and(selected.clone().abs().lower_elem(f32::INFINITY));
+    (tensor - selected)
+        .mask_fill(mask, 0.0)
+        .into_data()
+        .assert_eq(&TensorData::from([[0.0, -5.0], [-8.0, 0.0]]), false);
+}
+
+#[test]
+fn gather_first_axis_then_broadcast_singleton_last_axis() {
+    let device = Default::default();
+    let tensor = TestTensor::<2>::from_data([[7.0], [13.0], [3.0]], &device);
+    let indices = TestTensorInt::<2>::from_data([[2], [0]], &device);
+    let selected = tensor.gather(0, indices);
+    let other =
+        TestTensor::<2>::from_data([[1.0, 2.0, 4.0, 8.0], [10.0, 20.0, 30.0, 40.0]], &device);
+    (other + selected).into_data().assert_eq(
+        &TensorData::from([[4.0, 5.0, 7.0, 11.0], [17.0, 27.0, 37.0, 47.0]]),
+        false,
+    );
+}
+#[test]
 fn should_gather_1d_dim0() {
     let device = Default::default();
     let tensor = TestTensor::<1>::from_data([0.0, 1.0, 2.0], &device);

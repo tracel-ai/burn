@@ -1,4 +1,4 @@
-//! Conversion helpers between burn's [`DType`] and cubecl's
+//! Shared CubeCL math and conversion helpers between burn's [`DType`] and cubecl's
 //! `ElemType` / `StorageType`, and between their `ReduceOperation`s.
 //!
 //! These are exposed as plain named functions (rather than `From`/`Into`
@@ -14,6 +14,32 @@ use burn_std::{
 use cubecl::ir::{ElemType, FloatKind, IntKind, UIntKind};
 
 pub mod autotune;
+
+/// Accurate `log(1 + x)` near zero, shared by fused and unfused CubeCL kernels.
+pub use math::stable_log1p;
+
+// CubeCL generates undocumented expansion modules beside annotated functions.
+#[allow(missing_docs)]
+mod math {
+    use cubecl::prelude::*;
+
+    /// Accurate log1p near zero without rounding away the input.
+    #[cube]
+    pub fn stable_log1p<F: Float, N: Size>(input: Vector<F, N>) -> Vector<F, N> {
+        // Eight terms keep the truncation error below f64 precision for |x| < 0.01.
+        // In particular, no addition to one can erase a small input before its log.
+        let mut polynomial = Vector::new(F::new(-1.0 / 8.0));
+        polynomial = Vector::new(F::new(1.0 / 7.0)) + input * polynomial;
+        polynomial = Vector::new(F::new(-1.0 / 6.0)) + input * polynomial;
+        polynomial = Vector::new(F::new(1.0 / 5.0)) + input * polynomial;
+        polynomial = Vector::new(F::new(-1.0 / 4.0)) + input * polynomial;
+        polynomial = Vector::new(F::new(1.0 / 3.0)) + input * polynomial;
+        polynomial = Vector::new(F::new(-1.0 / 2.0)) + input * polynomial;
+        polynomial = Vector::one() + input * polynomial;
+        let small = input.abs().less_than(&Vector::new(F::new(0.01)));
+        select_many(small, input * polynomial, Vector::log1p(input))
+    }
+}
 
 pub use cubecl::throughput::{
     MemoryAccess, ThroughputError, ThroughputKey, ThroughputMode, ThroughputValue,

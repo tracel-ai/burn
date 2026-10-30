@@ -198,12 +198,11 @@ fn sigmoid_f64(x: f64) -> f64 {
 // Fused softmax
 // ============================================================================
 //
-// Backs the `ActivationOps::softmax` hook, replacing the default 5-op
-// decomposition (`max_dim`/`sub`/`exp`/`sum_dim`/`div`).
+// Backs the `ActivationOps::softmax` hook without allocating intermediate tensors.
 
 /// Fused softmax along `dim`.
 ///
-/// Three-pass row-wise algorithm (max, exp+sum, normalize) keeping each row
+/// Three-pass row-wise algorithm (max, non-max exponential sum, normalize) keeping each row
 /// cache-hot. Rows are processed in parallel via rayon. For axes other than
 /// the last, the tensor is permuted to put `dim` last, the fused kernel runs,
 /// and the result is permuted back (both permutes are metadata-only; the
@@ -331,18 +330,26 @@ fn softmax_rows_f32_simd<S: macerator::Simd>(input: &[f32], output: &mut [f32], 
 #[inline]
 fn softmax_row_f32_scalar(input: &[f32], output: &mut [f32]) {
     let mut max_val = f32::NEG_INFINITY;
-    for &x in input {
+    let mut max_index = 0;
+    for (i, &x) in input.iter().enumerate() {
         if x > max_val {
             max_val = x;
+            max_index = i;
         }
     }
     let mut sum = 0.0f32;
     for (i, &x) in input.iter().enumerate() {
         let e = (x - max_val).exp();
         output[i] = e;
-        sum += e;
+        if i != max_index {
+            sum += e;
+        }
     }
-    let inv = 1.0f32 / sum;
+    let inv = if max_val.is_finite() {
+        (-sum.ln_1p()).exp()
+    } else {
+        f32::NAN
+    };
     for x in output.iter_mut() {
         *x *= inv;
     }
@@ -379,9 +386,10 @@ fn softmax_row_f32_simd<S: macerator::Simd>(input: &[f32], output: &mut [f32]) {
         }
     }
 
-    // Pass 2: compute exp(x - max), store in output, accumulate sum.
-    // The tail runs through the same SIMD exp in a padded buffer, so every
-    // element of the row is computed the same way.
+    // Pass 2: compute SIMD exponentials and sum all but one maximum.
+    // Exclude the selected lane before reduction; subtracting one afterward
+    // would already have lost small contributions.
+    let max_index = input.iter().position(|&x| x == max_val).unwrap_or(len);
     let max_vec = max_val.splat::<S>();
     let mut sum_vec = 0.0f32.splat::<S>();
     let mut i = 0;
@@ -390,13 +398,21 @@ fn softmax_row_f32_simd<S: macerator::Simd>(input: &[f32], output: &mut [f32]) {
             let x = vload_unaligned::<S, _>(input.as_ptr().add(i));
             let e = crate::simd::exp_f32::<S>(x - max_vec);
             vstore_unaligned::<S, _>(output.as_mut_ptr().add(i), e);
-            sum_vec += e;
+            if (i..i + lanes).contains(&max_index) {
+                let selected = output[max_index];
+                output[max_index] = 0.0;
+                sum_vec += vload_unaligned::<S, _>(output.as_ptr().add(i));
+                output[max_index] = selected;
+            } else {
+                sum_vec += e;
+            }
         }
         i += lanes;
     }
     let mut sum = sum_vec.reduce_add();
     let tail = len - simd_len;
     if tail > 0 {
+        // Use the same SIMD exponential for the tail as for the full vectors.
         let mut buf = [0.0f32; crate::simd::MAX_LANES];
         assert!(
             lanes <= buf.len(),
@@ -409,12 +425,21 @@ fn softmax_row_f32_simd<S: macerator::Simd>(input: &[f32], output: &mut [f32]) {
             vstore_unaligned::<S, _>(buf.as_mut_ptr(), crate::simd::exp_f32::<S>(x - max_vec));
         }
         output[simd_len..].copy_from_slice(&buf[..tail]);
+        if (simd_len..len).contains(&max_index) {
+            buf[max_index - simd_len] = 0.0;
+        }
         sum += buf[..tail].iter().sum::<f32>();
     }
 
     // Pass 3: normalize.
     // SIMD splat + multiply, scalar tail.
-    let inv = 1.0f32 / sum;
+    // exp(-log1p(sum)) preserves a representable correction near one. Non-finite
+    // maxima keep the previous all-NaN result, including single-class rows.
+    let inv = if max_val.is_finite() {
+        (-sum.ln_1p()).exp()
+    } else {
+        f32::NAN
+    };
     let inv_vec = inv.splat::<S>();
     let mut i = 0;
     while i < simd_len {
@@ -474,31 +499,35 @@ macro_rules! softmax_last_dtype {
     };
 }
 
-/// Half-precision softmax row kernel. Accumulates in f32 for numerical
-/// stability and converts back to the target type at each write. This
-/// double-rounds across passes 2 and 3; acceptable for half precision. An
-/// f32 scratch buffer would remove the double rounding at the cost of a
-/// per-row allocation.
+/// Half-precision softmax row kernel. Accumulates the non-max exponentials in f32
+/// and rounds only the final probabilities to the storage type. Recomputing the
+/// exponentials avoids a per-row scratch allocation and intermediate rounding.
 macro_rules! softmax_row_half {
     ($fn_name:ident, $T:ty) => {
         #[inline]
         fn $fn_name(input: &[$T], output: &mut [$T]) {
             let mut max_val = f32::NEG_INFINITY;
-            for &x in input {
+            let mut max_index = 0;
+            for (i, &x) in input.iter().enumerate() {
                 let xf = x.to_f32();
                 if xf > max_val {
                     max_val = xf;
+                    max_index = i;
                 }
             }
             let mut sum = 0.0f32;
             for (i, &x) in input.iter().enumerate() {
-                let e = (x.to_f32() - max_val).exp();
-                output[i] = <$T>::from_f32(e);
-                sum += e;
+                if i != max_index {
+                    sum += (x.to_f32() - max_val).exp();
+                }
             }
-            let inv = 1.0f32 / sum;
-            for x in output.iter_mut() {
-                *x = <$T>::from_f32(x.to_f32() * inv);
+            let correction = if max_val.is_finite() {
+                sum.ln_1p()
+            } else {
+                f32::NAN
+            };
+            for (&x, out) in input.iter().zip(output.iter_mut()) {
+                *out = <$T>::from_f32((x.to_f32() - max_val - correction).exp());
             }
         }
     };
@@ -507,18 +536,26 @@ macro_rules! softmax_row_half {
 #[inline]
 fn softmax_row_f64(input: &[f64], output: &mut [f64]) {
     let mut max_val = f64::NEG_INFINITY;
-    for &x in input {
+    let mut max_index = 0;
+    for (i, &x) in input.iter().enumerate() {
         if x > max_val {
             max_val = x;
+            max_index = i;
         }
     }
     let mut sum = 0.0f64;
     for (i, &x) in input.iter().enumerate() {
         let e = (x - max_val).exp();
         output[i] = e;
-        sum += e;
+        if i != max_index {
+            sum += e;
+        }
     }
-    let inv = 1.0f64 / sum;
+    let inv = if max_val.is_finite() {
+        (-sum.ln_1p()).exp()
+    } else {
+        f64::NAN
+    };
     for x in output.iter_mut() {
         *x *= inv;
     }

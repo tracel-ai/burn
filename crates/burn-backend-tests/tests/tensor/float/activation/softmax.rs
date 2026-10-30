@@ -2,6 +2,98 @@ use super::*;
 use burn_tensor::Tolerance;
 use burn_tensor::{TensorData, activation};
 
+fn assert_many_small_contributions(dtype: burn_tensor::DType, transposed: bool) {
+    // Independent 80-digit decimal references for 1 / (1 + 32 * exp(-gap)).
+    let (gap, largest, tail, relative_error) = match dtype {
+        burn_tensor::DType::F32 => (18.0, 0.9999995126408857, 1.522997232224319e-8, 1e-5),
+        // exp(log_softmax) rounds the non-max log probability at magnitude 9 in f16.
+        burn_tensor::DType::F16 => (9.0, 0.9960664204223475, 1.229243618016421e-4, 1e-2),
+        burn_tensor::DType::BF16 => (8.0, 0.9893792080282476, 3.318997491172619e-4, 1e-3),
+        burn_tensor::DType::F64 => (40.0, 0.9999999999999999, 4.248354255291588e-18, 1e-12),
+        _ => unreachable!(),
+    };
+    // 100 rows cross the Rayon chunk boundary. Length 33 exercises SIMD and its scalar tail.
+    let shape = [100, 33];
+    let mut input = vec![-gap; 100 * 33];
+    let mut expected = vec![tail; 100 * 33];
+    for row in 0..100 {
+        let index = row * 33 + row % 33;
+        input[index] = 0.0;
+        expected[index] = largest;
+    }
+    let tensor =
+        TestTensor::<2>::from_data(TensorData::new(input, shape), &Default::default()).cast(dtype);
+    let output = if transposed {
+        activation::softmax(tensor.transpose(), 0).transpose()
+    } else {
+        activation::softmax(tensor, 1)
+    }
+    .into_data()
+    .convert::<f64>();
+    let values: Vec<f64> = output.iter::<f64>().collect();
+    for row in 0..100 {
+        let dominant = values[row * 33 + row % 33];
+        assert!(
+            dominant < 1.0,
+            "{dtype:?}, row {row}: small contributions were lost: {dominant}"
+        );
+    }
+    output.assert_approx_eq::<f64>(
+        &TensorData::new(expected, shape)
+            .convert_dtype(dtype)
+            .convert::<f64>(),
+        Tolerance::relative(relative_error),
+    );
+}
+
+#[test]
+fn test_softmax_many_small_contributions() {
+    assert_many_small_contributions(<FloatElem as burn_tensor::Element>::dtype(), false);
+}
+
+#[test]
+fn test_softmax_many_small_contributions_non_last_axis() {
+    assert_many_small_contributions(<FloatElem as burn_tensor::Element>::dtype(), true);
+}
+
+#[cfg(feature = "flex")]
+#[test]
+fn test_softmax_many_small_contributions_f64() {
+    assert_many_small_contributions(burn_tensor::DType::F64, false);
+}
+
+#[cfg(feature = "flex")]
+#[test]
+fn test_softmax_many_small_contributions_bf16() {
+    assert_many_small_contributions(burn_tensor::DType::BF16, false);
+}
+
+#[test]
+fn test_softmax_single_finite_class() {
+    let tensor = TestTensor::<2>::from([[9.0], [-3.0]]);
+    activation::softmax(tensor, 1)
+        .into_data()
+        .assert_eq(&TensorData::from([[1.0], [1.0]]), false);
+}
+
+#[test]
+fn test_softmax_invalid_single_class() {
+    let tensor = TestTensor::<2>::from([[f32::NEG_INFINITY], [f32::NAN], [f32::INFINITY]]);
+    let output = activation::softmax(tensor, 1).into_data();
+    assert!(output.iter::<f64>().all(f64::is_nan), "{output:?}");
+}
+
+#[test]
+fn test_softmax_invalid_multi_class() {
+    let tensor = TestTensor::<2>::from([
+        [f32::NEG_INFINITY, f32::NEG_INFINITY],
+        [f32::NAN, 0.0],
+        [f32::INFINITY, 0.0],
+    ]);
+    let output = activation::softmax(tensor, 1).into_data();
+    assert!(output.iter::<f64>().all(f64::is_nan), "{output:?}");
+}
+
 #[test]
 fn test_softmax_d2() {
     let tensor = TestTensor::<2>::from([[1.0, 7.0], [13.0, -3.0]]);

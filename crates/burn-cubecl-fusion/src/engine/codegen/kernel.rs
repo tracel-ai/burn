@@ -534,8 +534,13 @@ fn gather<C: Numeric, N: Size>(
         config,
     );
 
-    // TODO: new IR to differentiate between Gather and GatherBroadcasted at comptime?
-    let stride_indices_vector = global_stride(inputs, config.rank - 1, pos_indices);
+    // A singleton gather axis may be broadcast by later fused operations. Every lane
+    // must then read the same index rather than advancing into the next row.
+    let stride_indices_vector = if global_shape(inputs, config.rank - 1, pos_indices) == 1usize {
+        0usize
+    } else {
+        global_stride(inputs, config.rank - 1, pos_indices)
+    };
 
     if comptime![dim == config.rank - 1] {
         // Per-element indexing (along the dimension)
@@ -563,7 +568,11 @@ fn gather<C: Numeric, N: Size>(
             result.insert(i, input.extract(0usize));
         }
     } else {
-        let stride_input_vector = global_stride(inputs, config.rank - 1, pos_input);
+        let stride_input_vector = if global_shape(inputs, config.rank - 1, pos_input) == 1usize {
+            0usize
+        } else {
+            global_stride(inputs, config.rank - 1, pos_input)
+        };
 
         #[unroll]
         for i in 0..vector_size {
@@ -1160,7 +1169,7 @@ fn fmod_vector<F: Float, N: Size>(lhs: Vector<F, N>, rhs: Vector<F, N>) -> Vecto
 
 unary_func!(exp, Vector::<C, N>::exp, Float);
 unary_func!(log, Vector::<C, N>::ln, Float);
-unary_func!(log1p, Vector::<C, N>::log1p, Float);
+unary_func!(log1p, burn_backend::cubecl::stable_log1p::<C, N>, Float);
 unary_func!(sqrt, Vector::<C, N>::sqrt, Float);
 unary_func!(cos, Vector::<C, N>::cos, Float);
 unary_func!(sin, Vector::<C, N>::sin, Float);

@@ -1,5 +1,6 @@
 use crate::tensor::FloatTensor;
 use crate::{Backend, Scalar, TensorMetadata, get_or_init_device_settings};
+use burn_std::IndexingUpdateOp;
 use core::f64::consts::SQRT_2;
 
 /// Activation function operations.
@@ -220,9 +221,8 @@ pub trait ActivationOps<B: Backend> {
 
     /// Applies the softmax function along the given dimension.
     ///
-    /// Uses the max-shift trick for numerical stability: the per-row `max` is detached
-    /// so no gradient flows back through it (the shift is a numerical-stability
-    /// transformation, not part of the function).
+    /// Exponentiates the stable log-softmax decomposition to preserve small gradients
+    /// when the largest probability rounds to one.
     ///
     /// # Arguments
     ///
@@ -233,17 +233,13 @@ pub trait ActivationOps<B: Backend> {
     ///
     /// The output tensor.
     fn softmax(tensor: FloatTensor<B>, dim: usize) -> FloatTensor<B> {
-        let max = B::float_max_dim(B::float_detach(tensor.clone()), dim);
-        let shifted = B::float_sub(tensor, max);
-        let exp = B::float_exp(shifted);
-        let sum = B::float_sum_dim(exp.clone(), dim);
-        B::float_div(exp, sum)
+        B::float_exp(Self::log_softmax(tensor, dim))
     }
 
     /// Applies the log-softmax function along the given dimension.
     ///
-    /// Computed via the log-sum-exp trick with a detached max-shift for numerical
-    /// stability.
+    /// Excludes exactly one maximum from the exponential sum and uses `log1p` to
+    /// preserve small log probabilities. The selected maximum remains differentiable.
     ///
     /// # Arguments
     ///
@@ -254,10 +250,40 @@ pub trait ActivationOps<B: Backend> {
     ///
     /// The output tensor.
     fn log_softmax(tensor: FloatTensor<B>, dim: usize) -> FloatTensor<B> {
-        let max = B::float_max_dim(B::float_detach(tensor.clone()), dim);
-        let shifted = B::float_sub(tensor, max);
-        let log_sum_exp = B::float_log(B::float_sum_dim(B::float_exp(shifted.clone()), dim));
-        B::float_sub(shifted, log_sum_exp)
+        let shape = tensor.shape();
+        if shape.num_elements() == 0 {
+            // Retain backend-specific validation and behavior for empty reductions.
+            let max = B::float_max_dim(B::float_detach(tensor.clone()), dim);
+            let shifted = B::float_sub(tensor, max);
+            let correction = B::float_log(B::float_sum_dim(B::float_exp(shifted.clone()), dim));
+            return B::float_sub(shifted, correction);
+        }
+        let device = tensor.device();
+        let settings = get_or_init_device_settings::<B>(&device);
+        let indices = B::float_argmax(tensor.clone(), dim, settings.int_dtype);
+        let max = B::float_gather(dim, tensor.clone(), indices.clone());
+        let selected = B::bool_scatter(
+            dim,
+            B::bool_zeros(shape, &device, settings.bool_dtype),
+            indices,
+            B::bool_ones(max.shape(), &device, settings.bool_dtype),
+            IndexingUpdateOp::Assign,
+        );
+
+        // Preserve NaNs for non-finite maxima, including single-class invalid inputs.
+        let finite_max = B::float_lower_elem(
+            B::float_abs(max.clone()),
+            f64::INFINITY.into(),
+            settings.bool_dtype,
+        );
+        let selected = B::bool_and(selected, finite_max);
+
+        // An exact constant zero at one argmax avoids cancellation in its gradient.
+        // Other logits still depend on the gathered maximum; do not detach it.
+        let shifted = B::float_mask_fill(B::float_sub(tensor, max), selected.clone(), 0.0.into());
+        let others = B::float_mask_fill(B::float_exp(shifted.clone()), selected, 0.0.into());
+        let correction = B::float_log1p(B::float_sum_dim(others, dim));
+        B::float_sub(shifted, correction)
     }
 
     /// Applies the softmin function along the given dimension.
