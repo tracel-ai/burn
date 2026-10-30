@@ -111,9 +111,9 @@ fn scatter_mul_matches_reference<const D: usize>(dim: usize, shape: [usize; D]) 
     index_shape[dim] = shape[dim];
     let mut indices: TestTensorInt<D> =
         TestTensorInt::<1>::arange(0..shape[dim] as i64, &device).reshape(index_shape);
-    for axis in 0..D {
+    for (axis, &len) in shape.iter().enumerate() {
         if axis != dim {
-            indices = indices.repeat_dim(axis, shape[axis]);
+            indices = indices.repeat_dim(axis, len);
         }
     }
 

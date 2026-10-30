@@ -83,6 +83,7 @@
 //! | ROCm                    | `rocm`   | `Device::rocm(0)`                    |
 //! | wgpu (any graphics API) | `wgpu`   | `Device::wgpu(Default::default())`   |
 //! | Metal                   | `metal`  | `Device::metal(Default::default())`  |
+//! | Metal (cubecl runtime)  | `metal-native` | `Device::metal_native()`       |
 //! | Vulkan                  | `vulkan` | `Device::vulkan(Default::default())` |
 //! | WebGPU                  | `webgpu` | `Device::webgpu(Default::default())` |
 //! | CubeCL CPU              | `cpu`    | `Device::cpu()`                      |
@@ -125,6 +126,7 @@
 //!   - `webgpu`: Adds `Device::webgpu`, pinned to WebGPU (implies `wgpu`)
 //!   - `vulkan`: Adds `Device::vulkan`, pinned to Vulkan (implies `wgpu`)
 //!   - `metal`: Adds `Device::metal`, pinned to Metal with native MSL (implies `wgpu`)
+//!   - `metal-native`: Adds `Device::metal_native`, cubecl's own Metal runtime (no wgpu)
 //!   - `cuda`: Makes available the CUDA backend
 //!   - `rocm`: Makes available the ROCm backend
 //!   - `cpu`: Makes available the CubeCL CPU backend

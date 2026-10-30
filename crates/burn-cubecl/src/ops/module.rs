@@ -12,7 +12,6 @@ use burn_backend::{
         AttentionModuleOptions, ConvOptions, ConvTransposeOptions, DeformConv2dBackward,
         DeformConvOptions, FloatTensorOps, InterpolateOptions, MaxPool2dBackward,
         MaxPool2dWithIndices, MaxPool3dBackward, MaxPool3dWithIndices, ModuleOps,
-        attention::AttentionShapes,
     },
 };
 use burn_std::{DType, FloatDType, IntDType};
@@ -468,23 +467,6 @@ impl ModuleOps<Self> for CubeBackend {
         attn_bias: Option<FloatTensor<Self>>,
         options: AttentionModuleOptions,
     ) -> FloatTensor<Self> {
-        let shapes = AttentionShapes::new(&query.shape(), &key.shape(), &value.shape());
-
-        // Fall back to naive attention for features the flash kernel doesn't support.
-        // Grouped K/V heads are supported by the kernel.
-        if kernel::attention::flash_unsupported_options(
-            &options,
-            attn_bias.is_some(),
-            shapes.seq_q,
-            shapes.seq_k,
-        )
-        .is_some()
-        {
-            return burn_backend::ops::attention::attention_fallback::<Self>(
-                query, key, value, mask, attn_bias, options,
-            );
-        }
-
         kernel::attention::attention(
             query,
             key,
@@ -494,7 +476,6 @@ impl ModuleOps<Self> for CubeBackend {
             options,
             Default::default(),
         )
-        .expect("Kernel to never fail")
     }
 
     fn has_attention_backward() -> bool {

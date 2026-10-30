@@ -140,6 +140,8 @@ pub mod devices {
     pub use burn_cubecl::cubecl::cuda::CudaDevice;
     #[cfg(feature = "rocm")]
     pub use burn_cubecl::cubecl::hip::AmdDevice as RocmDevice;
+    #[cfg(feature = "metal-native")]
+    pub use burn_cubecl::cubecl::metal::MetalDevice;
     #[cfg(feature = "wgpu")]
     pub use burn_cubecl::cubecl::wgpu::{
         AutoCompiler, AutoGraphicsApi, WgpuBackend, WgpuDevice, WgpuDeviceKind, init_setup_async,

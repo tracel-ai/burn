@@ -34,6 +34,11 @@ impl MatmulFuser {
         let max_bindings = props.hardware.max_bindings;
         let settings_matmul = FuseSettings {
             output_shape_updates: false,
+            // An output aliasing an input reuses that input's buffer argument in the compiled
+            // kernel, found by its position among the kernel's arguments. The routine's kernel
+            // declares its own operands before the trace's, so the alias would name another
+            // argument and the output would never be written.
+            inplace: false,
             ..Default::default()
         };
         let settings_fallback = FuseSettings::default();
@@ -79,13 +84,7 @@ impl OperationFuser<CubeOptimization> for MatmulFuser {
                     (Some(lhs), Some(rhs)) => {
                         let out = self.fuser.output_unhandled(&op.out);
 
-                        self.matmul = Some(FusedMatmul::new(
-                            lhs,
-                            rhs,
-                            out,
-                            op.clone().into(),
-                            Default::default(),
-                        ));
+                        self.matmul = Some(FusedMatmul::new(lhs, rhs, out, op.clone().into()));
                     }
                     _ => {
                         self.fuser.close();

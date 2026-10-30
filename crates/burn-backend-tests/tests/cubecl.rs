@@ -13,6 +13,7 @@ mod cube {
 
         impl ReferenceDevice {
             // Flex keeps sub-byte reference values in native i8 storage.
+            #[allow(clippy::new_ret_no_self)]
             pub fn new() -> burn_tensor::Device {
                 burn_tensor::Device::flex()
             }

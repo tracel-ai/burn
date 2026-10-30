@@ -100,14 +100,20 @@ positions when sequence lengths differ.
   [@ssoj13](https://github.com/ssoj13) [@laggui](https://github.com/laggui)
 - Reduce fusion's CPU overhead by skipping unnecessary reduction-fuser resets.
   ([#6036](https://github.com/tracel-ai/burn/pull/6036)) [@louisfd](https://github.com/louisfd)
-- Add the experimental `burn-cubecl/tile-kernels-only` feature for benchmarking CubeK's new matmul
-  and attention routines. It is disabled by default and rejects unsupported inputs without a
-  fallback; fused matmul and convolution are unchanged. Quantized matmul inputs are read packed
-  where the routines can, and dequantized first elsewhere. Attention takes a bool mask and both
-  causal alignments.
+- Run matmul, fused matmul and attention on CubeCL backends through CubeK's tile routines, chosen
+  by CubeK's autotune or, without the `autotune` feature, by its rules. Quantized matmul inputs are
+  read packed where the routines can, and dequantized first elsewhere. Attention takes a bool mask,
+  a custom scale and both causal alignments; an additive bias or a softcap runs the decomposed
+  attention. Without `autotune`, a fused matmul runs its matmul and element-wise block as separate
+  kernels. The multi-level matmul and flash attention paths are removed with the experimental
+  `tile-kernels-only` feature. Migration: `MatmulStrategy::Cube` now names CubeK's rule-based
+  choice; `AttentionStrategy` keeps only `Autotune` and `Fallback`, and `attention` returns the
+  tensor rather than a `Result`; `matmul_autotune`, `flash_attention` and
+  `flash_unsupported_options` are gone (use `matmul` and `attention`).
   ([#6193](https://github.com/tracel-ai/burn/pull/6193),
   [#6199](https://github.com/tracel-ai/burn/pull/6199),
-  [#6246](https://github.com/tracel-ai/burn/pull/6246)) [@louisfd](https://github.com/louisfd)
+  [#6246](https://github.com/tracel-ai/burn/pull/6246),
+  [#6273](https://github.com/tracel-ai/burn/pull/6273)) [@louisfd](https://github.com/louisfd)
 - Run attention's backward pass on CubeCL backends as CubeK kernels from the forward's saved
   logsumexp, rather than autodiff over the decomposed attention. The kernels take f32, f16 and
   bf16 attention without a mask, bias or softcap, causal or not; a softcap, a top-left causal

@@ -16,8 +16,8 @@ on:
       - "!LICENSE-MIT"
   pull_request:
     types: [opened, synchronize]
-    branches-ignore:
-      - "staging/**"
+    branches:
+      - main
     paths:
       - "Cargo.lock"
       - "**.rs"
