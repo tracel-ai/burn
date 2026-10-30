@@ -12,8 +12,9 @@ use alloc::{
     vec::Vec,
 };
 use burn_backend::{
-    Backend, DType, DeviceOps, ExecutionError, FloatDType, ProfileDuration, ProfileOptions,
-    ProfileToken, Shape, TensorData, TensorMetadata, TensorPrimitive, ops::TransactionPrimitive,
+    Backend, BackendGraph, DType, DeviceOps, ExecutionError, FloatDType, ProfileDuration,
+    ProfileOptions, ProfileToken, Shape, TensorData, TensorMetadata, TensorPrimitive,
+    ops::TransactionPrimitive,
 };
 use burn_ir::{
     ActivationOperationIr, BackendIr, BaseOperationIr, BoolOperationIr, FloatOperationIr,
@@ -590,7 +591,11 @@ impl<B: BackendIr> TensorInterpreter<B> {
                     let output = B::int_cat(tensors, desc.dim);
                     handles.register_int_tensor::<B>(&desc.out.id, output);
                 }
-                BaseOperationIr::Cast(_) => unreachable!(),
+                BaseOperationIr::Cast(desc) => {
+                    let tensor = handles.get_int_tensor::<B>(&desc.input);
+                    let output = B::int_cast(tensor, desc.out.dtype.into());
+                    handles.register_int_tensor::<B>(&desc.out.id, output);
+                }
                 BaseOperationIr::Empty(desc) => {
                     let shape = desc.out.shape.clone();
                     let output = B::int_empty(shape, &self.device, desc.out.dtype.into());
@@ -1793,6 +1798,7 @@ impl<B: BackendIr> TensorInterpreter<B> {
                         desc.kernel_size,
                         desc.stride,
                         desc.padding,
+                        desc.dilation,
                         desc.count_include_pad,
                         desc.ceil_mode,
                     );
@@ -1806,6 +1812,7 @@ impl<B: BackendIr> TensorInterpreter<B> {
                         desc.kernel_size,
                         desc.stride,
                         desc.padding,
+                        desc.dilation,
                         desc.count_include_pad,
                         desc.ceil_mode,
                     );
@@ -1821,6 +1828,7 @@ impl<B: BackendIr> TensorInterpreter<B> {
                         desc.kernel_size,
                         desc.stride,
                         desc.padding,
+                        desc.dilation,
                         desc.count_include_pad,
                         desc.ceil_mode,
                     );
@@ -1836,6 +1844,7 @@ impl<B: BackendIr> TensorInterpreter<B> {
                         desc.kernel_size,
                         desc.stride,
                         desc.padding,
+                        desc.dilation,
                         desc.count_include_pad,
                         desc.ceil_mode,
                     );
@@ -1849,6 +1858,7 @@ impl<B: BackendIr> TensorInterpreter<B> {
                         desc.kernel_size,
                         desc.stride,
                         desc.padding,
+                        desc.dilation,
                         desc.count_include_pad,
                         desc.ceil_mode,
                     );
@@ -1864,6 +1874,7 @@ impl<B: BackendIr> TensorInterpreter<B> {
                         desc.kernel_size,
                         desc.stride,
                         desc.padding,
+                        desc.dilation,
                         desc.count_include_pad,
                         desc.ceil_mode,
                     );
@@ -2082,6 +2093,39 @@ impl<B: BackendIr> TensorInterpreter<B> {
 
                     handles.register_float_tensor::<B>(&desc.out.id, output);
                 }
+                ModuleOperationIr::AttentionWithLogsumexp(desc) => {
+                    let query = handles.get_float_tensor::<B>(&desc.query);
+                    let key = handles.get_float_tensor::<B>(&desc.key);
+                    let value = handles.get_float_tensor::<B>(&desc.value);
+
+                    let (out, logsumexp) =
+                        B::attention_with_logsumexp(query, key, value, desc.options.clone().into());
+
+                    handles.register_float_tensor::<B>(&desc.out.id, out);
+                    handles.register_float_tensor::<B>(&desc.logsumexp.id, logsumexp);
+                }
+                ModuleOperationIr::AttentionBackward(desc) => {
+                    let query = handles.get_float_tensor::<B>(&desc.query);
+                    let key = handles.get_float_tensor::<B>(&desc.key);
+                    let value = handles.get_float_tensor::<B>(&desc.value);
+                    let out = handles.get_float_tensor::<B>(&desc.out);
+                    let logsumexp = handles.get_float_tensor::<B>(&desc.logsumexp);
+                    let out_grad = handles.get_float_tensor::<B>(&desc.out_grad);
+
+                    let gradients = B::attention_backward(
+                        query,
+                        key,
+                        value,
+                        out,
+                        logsumexp,
+                        out_grad,
+                        desc.options.clone().into(),
+                    );
+
+                    handles.register_float_tensor::<B>(&desc.query_grad.id, gradients.query_grad);
+                    handles.register_float_tensor::<B>(&desc.key_grad.id, gradients.key_grad);
+                    handles.register_float_tensor::<B>(&desc.value_grad.id, gradients.value_grad);
+                }
                 ModuleOperationIr::CtcLoss(desc) => {
                     let log_probs = handles.get_float_tensor::<B>(&desc.log_probs);
                     let targets = handles.get_int_tensor::<B>(&desc.targets);
@@ -2286,24 +2330,46 @@ impl<B: BackendIr> TensorInterpreter<B> {
     }
 
     /// Read a tensor's data, returning a future for the host readback.
+    ///
+    /// A tensor a failure claimed reads as that failure.
     pub fn read_tensor_async(
         &mut self,
         tensor: TensorIr,
     ) -> DynFut<Result<TensorData, ExecutionError>> {
-        self.take_for_read(&tensor).into_data()
+        match self.context.handles.take_error(&tensor) {
+            Some(error) => {
+                let error = ExecutionError::from(error);
+                Box::pin(async move { Err(error) })
+            }
+            None => self.take_for_read(&tensor).into_data(),
+        }
     }
 
     /// Read several tensors in the order given, those that are not quantized as one backend
     /// transaction.
+    ///
+    /// When a failure claimed one of them, the read is that failure; the others are still taken.
     pub fn read_tensors_async(
         &mut self,
         tensors: &[TensorIr],
     ) -> DynFut<Result<Vec<TensorData>, ExecutionError>> {
         let mut batch = ReadBatch::default();
+        let mut failure = None;
         for tensor in tensors {
-            batch.push(self.take_for_read(tensor));
+            match self.context.handles.take_error(tensor) {
+                Some(error) => {
+                    failure.get_or_insert(error);
+                }
+                None => batch.push(self.take_for_read(tensor)),
+            }
         }
-        Box::pin(batch.execute())
+        match failure {
+            Some(error) => {
+                let error = ExecutionError::from(error);
+                Box::pin(async move { Err(error) })
+            }
+            None => Box::pin(batch.execute()),
+        }
     }
 
     fn take_for_read(&mut self, tensor: &TensorIr) -> ReadPrimitive<B> {
@@ -2380,6 +2446,31 @@ impl<B: BackendIr> TensorInterpreter<B> {
     pub fn profile_abandon(&self, token: ProfileToken) {
         B::profile_abandon(&self.device, token)
     }
+
+    /// Prepare the backend for a graph capture.
+    pub fn graph_prepare(&self) -> Result<(), ExecutionError> {
+        B::graph_prepare(&self.device)
+    }
+
+    /// Start recording the backend's launches on the calling stream into a graph.
+    pub fn graph_start_capture(&self) -> Result<(), ExecutionError> {
+        B::graph_start_capture(&self.device)
+    }
+
+    /// Stop the recording on the calling stream and return the backend's graph.
+    pub fn graph_stop_capture(&self) -> Result<BackendGraph<B>, ExecutionError> {
+        B::graph_stop_capture(&self.device)
+    }
+
+    /// Replay `graph` on the calling stream.
+    ///
+    /// # Safety
+    ///
+    /// The contract of [`Backend::graph_replay`].
+    pub unsafe fn graph_replay(&self, graph: &BackendGraph<B>) -> Result<(), ExecutionError> {
+        // Safety: forwarded verbatim from this method's own contract.
+        unsafe { B::graph_replay(&self.device, graph) }
+    }
 }
 
 /// A tensor taken from the handle container to be read.
@@ -2455,7 +2546,7 @@ mod tests {
     use super::*;
     use burn_backend::quantization::{QuantScheme, QuantStore, QuantValue};
     use burn_flex::Flex;
-    use burn_ir::MatmulOpIr;
+    use burn_ir::{CastOpIr, MatmulOpIr};
 
     #[test]
     fn a_quantized_matmul_yields_the_dtype_the_client_recorded() {
@@ -2483,5 +2574,60 @@ mod tests {
             .expect("flex reads synchronously")
             .unwrap();
         assert_eq!(data.dtype(), DType::F16);
+    }
+
+    /// A tensor a failure claimed reads as that failure, rather than panicking the worker that
+    /// serves the read, and a read-write read releases it as it would release a handle.
+    #[test]
+    fn a_failed_tensor_reads_as_its_failure() {
+        let mut interpreter = TensorInterpreter::<Flex>::new(Default::default());
+        let written = interpreter.register_tensor_data_desc(TensorData::from([1.0f32]));
+        let failed = TensorIr::uninit(TensorId::new(u64::MAX), Shape::new([1]), DType::F32);
+        interpreter.set_error(
+            failed.id,
+            TensorError::new(ExecutionError::with_context("the work failed")),
+        );
+
+        let read = TensorIr {
+            status: TensorStatus::ReadOnly,
+            ..failed
+        };
+        let error = burn_std::reader::try_read_sync(
+            interpreter.read_tensors_async(&[written, read.clone()]),
+        )
+        .expect("flex reads synchronously")
+        .unwrap_err();
+        assert!(error.to_string().contains("the work failed"), "{error}");
+
+        // A read-write read is the tensor's last use, so it releases the failure with it.
+        let last = TensorIr {
+            status: TensorStatus::ReadWrite,
+            ..read
+        };
+        let read = burn_std::reader::try_read_sync(interpreter.read_tensor_async(last.clone()))
+            .expect("flex reads synchronously");
+        assert!(read.is_err());
+        assert_eq!(
+            interpreter.read_failure(&last.id),
+            Some(format!("tensor {:?} was never produced", last.id))
+        );
+    }
+
+    #[test]
+    fn an_int_cast_yields_the_element_the_client_recorded() {
+        let mut interpreter = TensorInterpreter::<Flex>::new(Default::default());
+        let input = interpreter.register_tensor_data_desc(TensorData::from([1i32, -2, 3]));
+        let mut out = TensorIr::uninit(TensorId::new(u64::MAX), Shape::new([3]), DType::I64);
+
+        interpreter.register_op(OperationIr::BaseInt(BaseOperationIr::Cast(CastOpIr {
+            input,
+            out: out.clone(),
+        })));
+
+        out.status = TensorStatus::ReadWrite;
+        let data = burn_std::reader::try_read_sync(interpreter.read_tensor_async(out))
+            .expect("flex reads synchronously")
+            .unwrap();
+        data.assert_eq(&TensorData::from([1i64, -2, 3]), true);
     }
 }

@@ -52,12 +52,12 @@ pub trait RouterChannel: Clone + Send + Sync + 'static + Sized {
 
         if desc.dtype.is_float() {
             handle = Self::Bridge::change_backend_float(handle, desc.shape.clone(), device);
-        } else if desc.dtype.is_int() {
+        } else if desc.dtype.is_int() || desc.dtype.is_uint() {
             handle = Self::Bridge::change_backend_int(handle, desc.shape.clone(), device);
         } else if desc.dtype.is_bool() {
             handle = Self::Bridge::change_backend_bool(handle, desc.shape.clone(), device);
         } else {
-            unimplemented!()
+            unimplemented!("moving a {:?} tensor to another router client", desc.dtype)
         }
 
         // Register tensor handle on target client

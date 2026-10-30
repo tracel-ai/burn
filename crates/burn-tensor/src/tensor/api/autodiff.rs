@@ -1,7 +1,7 @@
 use crate::{Tensor, kind::Autodiff};
 
 #[cfg(feature = "autodiff")]
-use crate::ops::{BridgeKind, BridgeTensor};
+use crate::ops::BridgeTensor;
 #[cfg(feature = "autodiff")]
 use burn_backend::{AutodiffBackend, ops::FloatTensorOps};
 #[cfg(feature = "autodiff")]
@@ -273,14 +273,6 @@ impl<const D: usize, K: Autodiff> Tensor<D, K> {
         let propagation = primitive.propagation();
         let (kind, mut tensor) = primitive.into_parts();
         tensor.autodiff = DispatchAutodiffContext::Enabled(strategy);
-        Self::new(
-            match kind {
-                BridgeKind::Bool => BridgeTensor::bool(tensor),
-                BridgeKind::Int => BridgeTensor::int(tensor),
-                BridgeKind::Float => BridgeTensor::float(tensor),
-                BridgeKind::QFloat => BridgeTensor::qfloat(tensor),
-            }
-            .with_propagation(propagation),
-        )
+        Self::new(BridgeTensor::from_parts(kind, tensor).with_propagation(propagation))
     }
 }

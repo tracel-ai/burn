@@ -2,7 +2,7 @@ use super::*;
 use burn_tensor::Shape;
 use burn_tensor::Tolerance;
 use burn_tensor::module::interpolate;
-use burn_tensor::ops::{InterpolateMode, InterpolateOptions};
+use burn_tensor::ops::{CoordinateTransformMode, InterpolateMode, InterpolateOptions};
 
 #[test]
 fn test_upsample_interpolation() {
@@ -178,7 +178,10 @@ fn test_1d_lanczos3() {
 
     let output = interpolate(
         input,
-        InterpolateOptions::new(InterpolateMode::Lanczos3).with_output_size([1, 9]),
+        InterpolateOptions::new(InterpolateMode::Lanczos3 {
+            coordinate_transform: CoordinateTransformMode::AlignCorners,
+        })
+        .with_output_size([1, 9]),
     );
     assert_eq!(output.dims(), [1, 1, 1, 9]);
 
@@ -223,9 +226,14 @@ impl InterpolateTestCase {
         );
         let output = interpolate(
             x,
-            InterpolateOptions::new(InterpolateMode::Lanczos3)
-                .with_align_corners(align_corners)
-                .with_output_size([self.height_out, self.width_out]),
+            InterpolateOptions::new(InterpolateMode::Lanczos3 {
+                coordinate_transform: if align_corners {
+                    CoordinateTransformMode::AlignCorners
+                } else {
+                    CoordinateTransformMode::HalfPixel
+                },
+            })
+            .with_output_size([self.height_out, self.width_out]),
         );
 
         let tolerance = Tolerance::permissive();

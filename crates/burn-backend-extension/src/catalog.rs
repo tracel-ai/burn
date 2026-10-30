@@ -5,14 +5,14 @@ use quote::{format_ident, quote};
 use syn::parse::{Parse, ParseStream};
 use syn::{Ident, Token};
 
-pub(crate) struct BackendSpec {
-    pub(crate) name: &'static str,
-    pub(crate) cfg: &'static str,
+pub struct BackendSpec {
+    pub name: &'static str,
+    pub cfg: &'static str,
     distributed: bool,
     unidirectional_transfer: bool,
 }
 
-pub(crate) const BACKENDS: &[BackendSpec] = &[
+pub const BACKENDS: &[BackendSpec] = &[
     BackendSpec {
         // Every cubecl runtime is this one backend; a device says which of them
         // it runs on. `cube_backend` is set when any of their features is.
@@ -32,6 +32,12 @@ pub(crate) const BACKENDS: &[BackendSpec] = &[
         name: "Remote",
         cfg: "feature = \"remote\"",
         distributed: true,
+        unidirectional_transfer: false,
+    },
+    BackendSpec {
+        name: "Group",
+        cfg: "feature = \"group\"",
+        distributed: false,
         unidirectional_transfer: false,
     },
     BackendSpec {
@@ -82,7 +88,7 @@ impl Parse for CatalogInput {
     }
 }
 
-pub(crate) fn expand(input: TokenStream) -> syn::Result<TokenStream> {
+pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
     let CatalogInput {
         kind,
         callback,

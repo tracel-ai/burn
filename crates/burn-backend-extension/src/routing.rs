@@ -19,7 +19,7 @@ use crate::ir::{
 
 /// How a generated operation's output tensor is represented at the dispatch boundary.
 #[derive(Clone, Copy)]
-pub(crate) enum OutputRoute {
+pub enum OutputRoute {
     /// A concrete primitive with disabled autodiff metadata.
     ConcreteDisabled,
     /// A concrete primitive carried by an enabled autodiff context.
@@ -29,7 +29,7 @@ pub(crate) enum OutputRoute {
 }
 
 /// Whether the active operation inputs contain an autodiff-associated float tensor.
-pub(crate) enum AutodiffFloatInputPresence {
+pub enum AutodiffFloatInputPresence {
     /// The signature cannot carry a float input.
     Never,
     /// Autodiff float presence depends on the active runtime inputs and their contexts.
@@ -41,7 +41,7 @@ pub(crate) enum AutodiffFloatInputPresence {
 /// `backend_dispatch` expands inside `burn-dispatch`, while backend extensions expand in downstream
 /// crates through the public `burn::backend` facade. Keeping the paths explicit lets both frontends
 /// share the routing mechanics without coupling their generated public representation.
-pub(crate) struct RoutingPaths {
+pub struct RoutingPaths {
     /// Internal backend alias used while invoking the selected backend implementation.
     backend_alias: syn::Ident,
     /// Module containing the concrete backend types and the `Autodiff` wrapper.
@@ -59,7 +59,7 @@ pub(crate) struct RoutingPaths {
 }
 
 impl RoutingPaths {
-    pub(crate) fn dispatch() -> Self {
+    pub fn dispatch() -> Self {
         Self {
             backend_alias: format_ident!("B"),
             backend_root: quote!(crate::backends),
@@ -73,7 +73,7 @@ impl RoutingPaths {
         }
     }
 
-    pub(crate) fn extension() -> Self {
+    pub fn extension() -> Self {
         Self {
             backend_alias: format_ident!("_B"),
             backend_root: quote!(burn::backend),
@@ -87,24 +87,24 @@ impl RoutingPaths {
 }
 
 /// Configuration for the nested concrete-backend match inside an autodiff dispatch kind.
-pub(crate) struct AutodiffKindMatch {
-    pub(crate) cfg_attr: Option<TokenStream>,
-    pub(crate) inner_kind: TokenStream,
-    pub(crate) nested_autodiff: Option<TokenStream>,
-    pub(crate) fallback: TokenStream,
+pub struct AutodiffKindMatch {
+    pub cfg_attr: Option<TokenStream>,
+    pub inner_kind: TokenStream,
+    pub nested_autodiff: Option<TokenStream>,
+    pub fallback: TokenStream,
 }
 
 /// Concrete and autodiff arms for matching a dispatch tensor's backend kind.
-pub(crate) struct BackendKindArms {
-    pub(crate) concrete: Vec<TokenStream>,
-    pub(crate) autodiff: Option<TokenStream>,
+pub struct BackendKindArms {
+    pub concrete: Vec<TokenStream>,
+    pub autodiff: Option<TokenStream>,
 }
 
 /// Generate the backend-kind match arms shared by dispatch and backend extensions.
 ///
 /// The caller supplies only the body for each backend. This keeps backend cfg attributes, autodiff
 /// nesting, payload binding, and unsupported-backend fallbacks identical across both frontends.
-pub(crate) fn backend_kind_arms(
+pub fn backend_kind_arms(
     paths: &RoutingPaths,
     backends: &[ir::Backend],
     payload: Option<&syn::Ident>,
@@ -160,7 +160,7 @@ pub(crate) fn backend_kind_arms(
 }
 
 /// Select the concrete autodiff backend type from its runtime checkpointing strategy.
-pub(crate) fn with_autodiff_backend(
+pub fn with_autodiff_backend(
     paths: &RoutingPaths,
     backend: &syn::Ident,
     strategy_expr: TokenStream,
@@ -189,7 +189,7 @@ pub(crate) fn with_autodiff_backend(
 }
 
 /// Wrap one concrete or autodiff tensor primitive in its dispatch enum representation.
-pub(crate) fn wrap_tensor_kind(
+pub fn wrap_tensor_kind(
     paths: &RoutingPaths,
     kind: TensorKind,
     backend: &syn::Ident,
@@ -240,14 +240,14 @@ enum RoutingCandidate {
     Optional(TokenStream),
 }
 
-pub(crate) enum BackendSelection<'a> {
+pub enum BackendSelection<'a> {
     /// Select and extract the backend directly from a tensor input.
     FromInput(&'a OperationInput),
     /// Select the backend through the operation's routing candidates.
     FromCandidates,
 }
 
-pub(crate) fn backend_selection(operation: &Operation) -> BackendSelection<'_> {
+pub fn backend_selection(operation: &Operation) -> BackendSelection<'_> {
     operation
         .inputs
         .iter()
@@ -326,7 +326,7 @@ fn routing_tensor_init(
     }
 }
 
-pub(crate) fn operation_routing_tensor(
+pub fn operation_routing_tensor(
     operation: &Operation,
     paths: &RoutingPaths,
     missing_message: &str,
@@ -353,7 +353,7 @@ pub(crate) fn operation_routing_tensor(
 /// `__has_autodiff_float_input` determines whether execution needs the autodiff backend: a float or
 /// quantized input in an enabled context, the two kinds autodiff tracks. Computing them together
 /// avoids walking tensor containers twice.
-pub(crate) fn operation_autodiff_routing(
+pub fn operation_autodiff_routing(
     operation: &Operation,
     paths: &RoutingPaths,
 ) -> (TokenStream, bool) {
@@ -494,7 +494,7 @@ fn routing_candidate(
     }
 }
 
-pub(crate) fn invoke(operation: &Operation, paths: &RoutingPaths) -> TokenStream {
+pub fn invoke(operation: &Operation, paths: &RoutingPaths) -> TokenStream {
     match &operation.invocation {
         Invocation::Body(body) => quote!(let __output = #body;),
         Invocation::Trait {
@@ -897,7 +897,7 @@ fn extract_extension(
     }
 }
 
-pub(crate) fn wrap_output(
+pub fn wrap_output(
     output: &OperationOutput,
     paths: &RoutingPaths,
     backend: &syn::Ident,
@@ -1059,7 +1059,7 @@ fn route_fragments(
 }
 
 /// Generate backend-dispatch routes after the routing tensor selected a concrete backend.
-pub(crate) fn dispatch_backend_routes(
+pub fn dispatch_backend_routes(
     operation: &Operation,
     backend: &syn::Ident,
     autodiff_float_inputs: &AutodiffFloatInputPresence,
@@ -1172,7 +1172,7 @@ pub(crate) fn dispatch_backend_routes(
 }
 
 /// Generate backend-extension routes after the routing tensor selected a concrete backend.
-pub(crate) fn extension_backend_routes(
+pub fn extension_backend_routes(
     operation: &Operation,
     backend: &syn::Ident,
     autodiff: bool,

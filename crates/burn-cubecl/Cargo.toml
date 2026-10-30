@@ -1,4 +1,5 @@
 [package]
+workspace = "../.."
 authors = ["nathanielsimard <nathaniel.simard.42@gmail.com>"]
 categories = ["science"]
 description = "Generic backend that can be compiled just-in-time to any shader language target"
@@ -62,13 +63,14 @@ autotune = ["burn-cubecl-fusion?/autotune"]
 autotune-checks = [
     "autotune",
     "cubecl/autotune-checks",
+    "cubek/autotune-checks",
     "burn-cubecl-fusion?/autotune-checks",
 ]
 
 # Autotune races only cubek's tile-DSL matmul and attention routines, never the multi-level ones
 # or the old attention: an input they don't serve fails instead of falling back. For measuring
 # them through burn's tests and benches, not for use.
-tile-kernels-only = ["autotune", "cubek/microkernel", "cubek/attention-tiled"]
+tile-kernels-only = ["autotune", "cubek/microkernel"]
 
 fusion = ["burn-fusion", "burn-cubecl-fusion"]
 fusion-experimental = ["fusion"]
@@ -90,6 +92,8 @@ burn-backend = { workspace = true, features = [
 cubecl = { workspace = true, features = ["stdlib"] }
 cubek = { workspace = true, features = [
     "attention",
+    "attention-tiled",
+    "attention-backward",
     "matmul",
     "matmul-multi-level",
     "matmul-tiled",

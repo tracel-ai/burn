@@ -10,8 +10,9 @@ use alloc::{string::String, vec::Vec};
 use burn_backend::{
     DType, Distribution, Slice,
     ops::{
-        ConvOptions, ConvTransposeOptions, DeformConvOptions, GridSampleOptions,
-        GridSamplePaddingMode, InterpolateMode, InterpolateOptions, PadMode,
+        ConvOptions, ConvTransposeOptions, CoordinateTransformMode, DeformConvOptions,
+        GridSampleMode, GridSampleOptions, GridSamplePaddingMode, InterpolateMode,
+        InterpolateOptions, PadMode,
     },
     quantization::QuantScheme,
 };
@@ -336,6 +337,12 @@ pub enum ModuleOperationIr {
     InterpolateBackward(InterpolateBackwardOpIr),
     /// Operation corresponding to [attention](burn_backend::ops::ModuleOps::attention).
     Attention(AttentionOpIr),
+    /// Operation corresponding to
+    /// [attention_with_logsumexp](burn_backend::ops::ModuleOps::attention_with_logsumexp).
+    AttentionWithLogsumexp(AttentionWithLogsumexpOpIr),
+    /// Operation corresponding to
+    /// [attention_backward](burn_backend::ops::ModuleOps::attention_backward).
+    AttentionBackward(Box<AttentionBackwardOpIr>),
     /// Operation corresponding to [ctc_loss](burn_backend::ops::ModuleOps::ctc_loss).
     CtcLoss(CtcLossOpIr),
     /// Operation corresponding to
@@ -1754,6 +1761,7 @@ pub struct AvgPool1dOpIr {
     pub kernel_size: usize,
     pub stride: usize,
     pub padding: usize,
+    pub dilation: usize,
     pub count_include_pad: bool,
     pub ceil_mode: bool,
     pub out: TensorIr,
@@ -1766,6 +1774,7 @@ pub struct AvgPool2dOpIr {
     pub kernel_size: [usize; 2],
     pub stride: [usize; 2],
     pub padding: [usize; 2],
+    pub dilation: [usize; 2],
     pub count_include_pad: bool,
     pub ceil_mode: bool,
     pub out: TensorIr,
@@ -1778,6 +1787,7 @@ pub struct AvgPool3dOpIr {
     pub kernel_size: [usize; 3],
     pub stride: [usize; 3],
     pub padding: [usize; 3],
+    pub dilation: [usize; 3],
     pub count_include_pad: bool,
     pub ceil_mode: bool,
     pub out: TensorIr,
@@ -1791,6 +1801,7 @@ pub struct AvgPool1dBackwardOpIr {
     pub kernel_size: usize,
     pub stride: usize,
     pub padding: usize,
+    pub dilation: usize,
     pub count_include_pad: bool,
     pub ceil_mode: bool,
     pub out: TensorIr,
@@ -1804,6 +1815,7 @@ pub struct AvgPool2dBackwardOpIr {
     pub kernel_size: [usize; 2],
     pub stride: [usize; 2],
     pub padding: [usize; 2],
+    pub dilation: [usize; 2],
     pub count_include_pad: bool,
     pub ceil_mode: bool,
     pub out: TensorIr,
@@ -1817,6 +1829,7 @@ pub struct AvgPool3dBackwardOpIr {
     pub kernel_size: [usize; 3],
     pub stride: [usize; 3],
     pub padding: [usize; 3],
+    pub dilation: [usize; 3],
     pub count_include_pad: bool,
     pub ceil_mode: bool,
     pub out: TensorIr,
@@ -1987,21 +2000,78 @@ pub struct MaxPool3dWithIndicesBackwardOpIr {
     pub out: TensorIr,
 }
 
-#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[allow(missing_docs)]
 pub enum InterpolateModeIr {
     Nearest,
     NearestExact,
-    Bilinear,
-    Bicubic,
-    Lanczos3,
+    Bilinear {
+        coordinate_transform: CoordinateTransformModeIr,
+    },
+    Bicubic {
+        coordinate_transform: CoordinateTransformModeIr,
+        a: f32,
+    },
+    Lanczos3 {
+        coordinate_transform: CoordinateTransformModeIr,
+    },
 }
 
-#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
+impl Hash for InterpolateModeIr {
+    fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
+        core::mem::discriminant(self).hash(state);
+        match self {
+            Self::Nearest | Self::NearestExact => {}
+            Self::Bilinear {
+                coordinate_transform,
+            }
+            | Self::Lanczos3 {
+                coordinate_transform,
+            } => coordinate_transform.hash(state),
+            Self::Bicubic {
+                coordinate_transform,
+                a,
+            } => {
+                coordinate_transform.hash(state);
+                canonicalize_f32_bits(*a).hash(state);
+            }
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
+#[allow(missing_docs)]
+pub enum CoordinateTransformModeIr {
+    HalfPixel,
+    AlignCorners,
+}
+
+fn canonicalize_f32_bits(val: f32) -> u32 {
+    if val == 0.0 {
+        0.0f32.to_bits()
+    } else {
+        val.to_bits()
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[allow(missing_docs)]
 pub struct InterpolateOptionsIr {
     pub mode: InterpolateModeIr,
-    pub align_corners: bool,
+    pub output_size: Option<[usize; 2]>,
+    pub scale_factor: Option<[f32; 2]>,
+}
+
+impl Hash for InterpolateOptionsIr {
+    fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
+        self.mode.hash(state);
+        self.output_size.hash(state);
+        if let Some(scale) = self.scale_factor {
+            for s in scale {
+                canonicalize_f32_bits(s).hash(state);
+            }
+        }
+    }
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
@@ -2060,6 +2130,32 @@ pub struct AttentionOpIr {
 
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 #[allow(missing_docs)]
+pub struct AttentionWithLogsumexpOpIr {
+    pub query: TensorIr,
+    pub key: TensorIr,
+    pub value: TensorIr,
+    pub options: AttentionOptionsIr,
+    pub out: TensorIr,
+    pub logsumexp: TensorIr,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
+#[allow(missing_docs)]
+pub struct AttentionBackwardOpIr {
+    pub query: TensorIr,
+    pub key: TensorIr,
+    pub value: TensorIr,
+    pub out: TensorIr,
+    pub logsumexp: TensorIr,
+    pub out_grad: TensorIr,
+    pub options: AttentionOptionsIr,
+    pub query_grad: TensorIr,
+    pub key_grad: TensorIr,
+    pub value_grad: TensorIr,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
+#[allow(missing_docs)]
 pub struct CtcLossOpIr {
     pub log_probs: TensorIr,
     pub targets: TensorIr,
@@ -2086,16 +2182,52 @@ impl From<InterpolateModeIr> for InterpolateMode {
         match val {
             InterpolateModeIr::Nearest => Self::Nearest,
             InterpolateModeIr::NearestExact => Self::NearestExact,
-            InterpolateModeIr::Bilinear => Self::Bilinear,
-            InterpolateModeIr::Bicubic => Self::Bicubic,
-            InterpolateModeIr::Lanczos3 => Self::Lanczos3,
+            InterpolateModeIr::Bilinear {
+                coordinate_transform,
+            } => Self::Bilinear {
+                coordinate_transform: coordinate_transform.into(),
+            },
+            InterpolateModeIr::Bicubic {
+                coordinate_transform,
+                a,
+            } => Self::Bicubic {
+                coordinate_transform: coordinate_transform.into(),
+                a,
+            },
+            InterpolateModeIr::Lanczos3 {
+                coordinate_transform,
+            } => Self::Lanczos3 {
+                coordinate_transform: coordinate_transform.into(),
+            },
+        }
+    }
+}
+
+impl From<CoordinateTransformModeIr> for CoordinateTransformMode {
+    fn from(val: CoordinateTransformModeIr) -> Self {
+        match val {
+            CoordinateTransformModeIr::HalfPixel => Self::HalfPixel,
+            CoordinateTransformModeIr::AlignCorners => Self::AlignCorners,
+        }
+    }
+}
+
+impl From<CoordinateTransformMode> for CoordinateTransformModeIr {
+    fn from(val: CoordinateTransformMode) -> Self {
+        match val {
+            CoordinateTransformMode::HalfPixel => Self::HalfPixel,
+            CoordinateTransformMode::AlignCorners => Self::AlignCorners,
         }
     }
 }
 
 impl From<InterpolateOptionsIr> for InterpolateOptions {
     fn from(val: InterpolateOptionsIr) -> Self {
-        Self::new(val.mode.into()).with_align_corners(val.align_corners)
+        Self {
+            mode: val.mode.into(),
+            output_size: val.output_size,
+            scale_factor: val.scale_factor,
+        }
     }
 }
 
@@ -2104,9 +2236,23 @@ impl From<InterpolateMode> for InterpolateModeIr {
         match val {
             InterpolateMode::Nearest => Self::Nearest,
             InterpolateMode::NearestExact => Self::NearestExact,
-            InterpolateMode::Bilinear => Self::Bilinear,
-            InterpolateMode::Bicubic => Self::Bicubic,
-            InterpolateMode::Lanczos3 => Self::Lanczos3,
+            InterpolateMode::Bilinear {
+                coordinate_transform,
+            } => Self::Bilinear {
+                coordinate_transform: coordinate_transform.into(),
+            },
+            InterpolateMode::Bicubic {
+                coordinate_transform,
+                a,
+            } => Self::Bicubic {
+                coordinate_transform: coordinate_transform.into(),
+                a,
+            },
+            InterpolateMode::Lanczos3 {
+                coordinate_transform,
+            } => Self::Lanczos3 {
+                coordinate_transform: coordinate_transform.into(),
+            },
         }
     }
 }
@@ -2115,7 +2261,8 @@ impl From<InterpolateOptions> for InterpolateOptionsIr {
     fn from(val: InterpolateOptions) -> Self {
         Self {
             mode: val.mode.into(),
-            align_corners: val.align_corners,
+            output_size: val.output_size,
+            scale_factor: val.scale_factor,
         }
     }
 }
@@ -2140,8 +2287,33 @@ pub enum GridSamplePaddingModeIr {
 
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 #[allow(missing_docs)]
+pub enum GridSampleModeIr {
+    Nearest,
+    Bilinear,
+}
+
+impl From<GridSampleMode> for GridSampleModeIr {
+    fn from(value: GridSampleMode) -> Self {
+        match value {
+            GridSampleMode::Nearest => Self::Nearest,
+            GridSampleMode::Bilinear => Self::Bilinear,
+        }
+    }
+}
+
+impl From<GridSampleModeIr> for GridSampleMode {
+    fn from(value: GridSampleModeIr) -> Self {
+        match value {
+            GridSampleModeIr::Nearest => Self::Nearest,
+            GridSampleModeIr::Bilinear => Self::Bilinear,
+        }
+    }
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
+#[allow(missing_docs)]
 pub struct GridSampleOptionsIr {
-    pub mode: InterpolateModeIr,
+    pub mode: GridSampleModeIr,
     pub padding_mode: GridSamplePaddingModeIr,
     pub align_corners: bool,
 }
@@ -4005,6 +4177,20 @@ impl ModuleOperationIr {
                     Box::new([&repr.query, &repr.key, &repr.value].into_iter())
                 }
             }
+            ModuleOperationIr::AttentionWithLogsumexp(repr) => {
+                Box::new([&repr.query, &repr.key, &repr.value].into_iter())
+            }
+            ModuleOperationIr::AttentionBackward(repr) => Box::new(
+                [
+                    &repr.query,
+                    &repr.key,
+                    &repr.value,
+                    &repr.out,
+                    &repr.logsumexp,
+                    &repr.out_grad,
+                ]
+                .into_iter(),
+            ),
             ModuleOperationIr::CtcLoss(repr) => Box::new(
                 [
                     &repr.log_probs,
@@ -4145,6 +4331,12 @@ impl ModuleOperationIr {
             ModuleOperationIr::Interpolate(repr) => Box::new([&repr.out].into_iter()),
             ModuleOperationIr::InterpolateBackward(repr) => Box::new([&repr.out].into_iter()),
             ModuleOperationIr::Attention(repr) => Box::new([&repr.out].into_iter()),
+            ModuleOperationIr::AttentionWithLogsumexp(repr) => {
+                Box::new([&repr.out, &repr.logsumexp].into_iter())
+            }
+            ModuleOperationIr::AttentionBackward(repr) => {
+                Box::new([&repr.query_grad, &repr.key_grad, &repr.value_grad].into_iter())
+            }
             ModuleOperationIr::CtcLoss(repr) => Box::new([&repr.out].into_iter()),
             ModuleOperationIr::CtcLossBackward(repr) => Box::new([&repr.out].into_iter()),
             ModuleOperationIr::LayerNorm(repr) => Box::new([&repr.out].into_iter()),
@@ -4423,6 +4615,19 @@ impl ModuleOperationIr {
                 if let Some(attn_bias) = &mut repr.attn_bias {
                     attn_bias.mark_read_only(nodes, &mut output);
                 }
+            }
+            ModuleOperationIr::AttentionWithLogsumexp(repr) => {
+                repr.query.mark_read_only(nodes, &mut output);
+                repr.key.mark_read_only(nodes, &mut output);
+                repr.value.mark_read_only(nodes, &mut output);
+            }
+            ModuleOperationIr::AttentionBackward(repr) => {
+                repr.query.mark_read_only(nodes, &mut output);
+                repr.key.mark_read_only(nodes, &mut output);
+                repr.value.mark_read_only(nodes, &mut output);
+                repr.out.mark_read_only(nodes, &mut output);
+                repr.logsumexp.mark_read_only(nodes, &mut output);
+                repr.out_grad.mark_read_only(nodes, &mut output);
             }
             ModuleOperationIr::CtcLoss(repr) => {
                 repr.log_probs.mark_read_only(nodes, &mut output);
@@ -4780,6 +4985,36 @@ impl ModuleOperationIr {
                     v.visit_tensor_mut(attn_bias);
                 }
                 v.visit_tensor_mut(&mut repr.out);
+                if let Some(scale) = &mut repr.options.scale {
+                    v.visit_scalar_mut(scale);
+                }
+                if let Some(softcap) = &mut repr.options.softcap {
+                    v.visit_scalar_mut(softcap);
+                }
+            }
+            ModuleOperationIr::AttentionWithLogsumexp(repr) => {
+                v.visit_tensor_mut(&mut repr.query);
+                v.visit_tensor_mut(&mut repr.key);
+                v.visit_tensor_mut(&mut repr.value);
+                v.visit_tensor_mut(&mut repr.out);
+                v.visit_tensor_mut(&mut repr.logsumexp);
+                if let Some(scale) = &mut repr.options.scale {
+                    v.visit_scalar_mut(scale);
+                }
+                if let Some(softcap) = &mut repr.options.softcap {
+                    v.visit_scalar_mut(softcap);
+                }
+            }
+            ModuleOperationIr::AttentionBackward(repr) => {
+                v.visit_tensor_mut(&mut repr.query);
+                v.visit_tensor_mut(&mut repr.key);
+                v.visit_tensor_mut(&mut repr.value);
+                v.visit_tensor_mut(&mut repr.out);
+                v.visit_tensor_mut(&mut repr.logsumexp);
+                v.visit_tensor_mut(&mut repr.out_grad);
+                v.visit_tensor_mut(&mut repr.query_grad);
+                v.visit_tensor_mut(&mut repr.key_grad);
+                v.visit_tensor_mut(&mut repr.value_grad);
                 if let Some(scale) = &mut repr.options.scale {
                     v.visit_scalar_mut(scale);
                 }
@@ -5356,5 +5591,38 @@ mod tests {
             panic!("expected pad operation");
         };
         assert_eq!(desc.mode, PadModeIr::Constant(ScalarIr::Float(7.0)));
+    }
+
+    #[test]
+    fn interpolate_options_ir_hash_canonicalizes_signed_zero() {
+        use core::hash::{Hash, Hasher};
+        use std::collections::hash_map::DefaultHasher;
+
+        fn calculate_hash<T: Hash>(t: &T) -> u64 {
+            let mut s = DefaultHasher::new();
+            t.hash(&mut s);
+            s.finish()
+        }
+
+        let opt1 = InterpolateOptionsIr {
+            mode: InterpolateModeIr::Bicubic {
+                coordinate_transform: CoordinateTransformModeIr::HalfPixel,
+                a: 0.0,
+            },
+            output_size: Some([4, 4]),
+            scale_factor: None,
+        };
+
+        let opt2 = InterpolateOptionsIr {
+            mode: InterpolateModeIr::Bicubic {
+                coordinate_transform: CoordinateTransformModeIr::HalfPixel,
+                a: -0.0,
+            },
+            output_size: Some([4, 4]),
+            scale_factor: None,
+        };
+
+        assert_eq!(opt1, opt2);
+        assert_eq!(calculate_hash(&opt1), calculate_hash(&opt2));
     }
 }

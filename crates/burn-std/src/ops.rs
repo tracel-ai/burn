@@ -249,6 +249,9 @@ pub struct AvgPoolOptions<const N: usize> {
     /// Padding as `(begin, end)` pairs for each spatial dimension.
     pub padding: [(usize, usize); N],
 
+    /// Dilation (non-zero).
+    pub dilation: [usize; N],
+
     /// If true, padded values are counted in the denominator of the average.
     pub count_include_pad: bool,
 
@@ -259,14 +262,15 @@ pub struct AvgPoolOptions<const N: usize> {
 impl<const N: usize> AvgPoolOptions<N> {
     /// Constructs average pooling options with the given kernel size.
     ///
-    /// Defaults to a stride equal to the kernel size, no padding, counting
-    /// padded values in the average and floor mode.
+    /// Defaults to a stride equal to the kernel size, no padding, a dilation
+    /// of 1, counting padded values in the average and floor mode.
     pub fn new(kernel_size: [usize; N]) -> Self {
         let kernel_size = kernel_size.map(|k| check_nonzero(k, "kernel size must be non-zero"));
         Self {
             kernel_size,
             stride: kernel_size,
             padding: [(0, 0); N],
+            dilation: [1; N],
             count_include_pad: true,
             ceil_mode: false,
         }
@@ -287,6 +291,14 @@ impl<const N: usize> AvgPoolOptions<N> {
     /// Sets explicit `(begin, end)` padding for every spatial dimension.
     pub fn with_padding_pairs(mut self, padding: [(usize, usize); N]) -> Self {
         self.padding = padding;
+        self
+    }
+
+    /// Sets the dilation.
+    ///
+    /// Window element `k` reads input position `start + k * dilation`, as in max pooling.
+    pub fn with_dilation(mut self, dilation: [usize; N]) -> Self {
+        self.dilation = dilation.map(|d| check_nonzero(d, "dilation must be non-zero"));
         self
     }
 
@@ -410,68 +422,66 @@ impl UnfoldOptions {
 }
 
 /// Algorithm used.
-#[derive(new, Debug, Clone, serde::Deserialize, serde::Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, serde::Deserialize, serde::Serialize)]
 pub enum InterpolateMode {
-    /// Nearest-neighbor floor interpolation.
-    /// Matches the legacy behavior of OpenCV’s INTER_NEAREST. It results in a bottom-right shift when resizing.
-    /// <https://en.wikipedia.org/wiki/Nearest-neighbor_interpolation>
+    /// Nearest neighbor with asymmetric coordinates and floor rounding.
     Nearest,
-
-    /// Nearest-neighbor exact interpolation.
-    /// <https://en.wikipedia.org/wiki/Nearest-neighbor_interpolation>
+    /// Nearest neighbor with half-pixel coordinates and rounding ties upward.
     NearestExact,
-
     /// Bilinear interpolation.
-    /// <https://en.wikipedia.org/wiki/Bilinear_interpolation>
-    Bilinear,
+    Bilinear {
+        /// Mapping from output coordinates to input coordinates.
+        coordinate_transform: CoordinateTransformMode,
+    },
+    /// Bicubic interpolation with edge clamping.
+    Bicubic {
+        /// Mapping from output coordinates to input coordinates.
+        coordinate_transform: CoordinateTransformMode,
+        /// Cubic convolution coefficient. The conventional Burn value is `-0.75`.
+        a: f32,
+    },
+    /// Lanczos interpolation with a radius of three pixels.
+    Lanczos3 {
+        /// Mapping from output coordinates to input coordinates.
+        coordinate_transform: CoordinateTransformMode,
+    },
+}
 
-    /// Bicubic interpolation.
-    /// <https://en.wikipedia.org/wiki/Bicubic_interpolation>
-    Bicubic,
-
-    /// Lanczos3 interpolation (6-tap sinc-based filter).
-    /// <https://en.wikipedia.org/wiki/Lanczos_resampling>
-    Lanczos3,
+/// Coordinate transformation mode for bilinear, bicubic and Lanczos3 interpolation.
+#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
+pub enum CoordinateTransformMode {
+    /// Half-pixel coordinate mapping: `(x_out + 0.5) / scale - 0.5`.
+    HalfPixel,
+    /// Align corners coordinate mapping: `x_out * (l_in - 1) / (l_out - 1)`.
+    AlignCorners,
 }
 
 /// Interpolation options.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct InterpolateOptions {
     /// Algorithm used.
     pub mode: InterpolateMode,
-    /// If `true`, the input and output tensors are aligned by their corner pixels.
-    /// If `false`, half-pixel coordinate mapping is used instead.
-    pub align_corners: bool,
     /// Output spatial size `[height, width]`.
     ///
     /// Exactly one of `output_size` or `scale_factor` must be set when calling
-    /// `burn_tensor::module::interpolate`. Backends receive the resolved size as a
-    /// separate argument and ignore this field.
+    /// `burn_tensor::module::interpolate`.
     pub output_size: Option<[usize; 2]>,
     /// Scale factor `[scale_height, scale_width]` applied to the input spatial size.
     /// The output size is `floor(input_size * scale_factor)`.
-    ///
-    /// Exactly one of `output_size` or `scale_factor` must be set when calling
-    /// `burn_tensor::module::interpolate`. Backends ignore this field.
+    /// Scale-dependent transforms use these supplied factors for coordinates rather
+    /// than recomputing the output/input ratio. `AlignCorners` maps coordinates
+    /// from the resolved sizes instead.
     pub scale_factor: Option<[f32; 2]>,
 }
 
 impl InterpolateOptions {
-    /// Create new interpolate options with the given mode.
-    /// Defaults to `align_corners = true` and no output size or scale factor.
+    /// Create interpolation options for the selected algorithm and its settings.
     pub fn new(mode: InterpolateMode) -> Self {
         Self {
             mode,
-            align_corners: true,
             output_size: None,
             scale_factor: None,
         }
-    }
-
-    /// Set align_corners.
-    pub fn with_align_corners(mut self, align_corners: bool) -> Self {
-        self.align_corners = align_corners;
-        self
     }
 
     /// Set the output size `[height, width]`, clearing any scale factor.
@@ -487,6 +497,15 @@ impl InterpolateOptions {
         self.output_size = None;
         self
     }
+}
+
+/// Interpolation algorithm for sampling an explicit coordinate grid.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
+pub enum GridSampleMode {
+    /// Nearest-neighbor sampling.
+    Nearest,
+    /// Bilinear sampling.
+    Bilinear,
 }
 
 /// Padding mode for grid sampling when coordinates are out of bounds.
@@ -506,8 +525,8 @@ pub enum GridSamplePaddingMode {
 /// Options for grid sampling operations.
 #[derive(Debug, Clone)]
 pub struct GridSampleOptions {
-    /// Interpolation mode (bilinear, nearest, or bicubic).
-    pub mode: InterpolateMode,
+    /// Interpolation mode (bilinear or nearest).
+    pub mode: GridSampleMode,
     /// Padding mode for out-of-bounds coordinates.
     pub padding_mode: GridSamplePaddingMode,
     /// If `true`, grid values of -1 and 1 correspond to the corner pixels.
@@ -519,15 +538,15 @@ pub struct GridSampleOptions {
 impl Default for GridSampleOptions {
     fn default() -> Self {
         Self {
-            mode: InterpolateMode::Bilinear,
+            mode: GridSampleMode::Bilinear,
             padding_mode: GridSamplePaddingMode::Zeros,
             align_corners: false,
         }
     }
 }
 
-impl From<InterpolateMode> for GridSampleOptions {
-    fn from(value: InterpolateMode) -> Self {
+impl From<GridSampleMode> for GridSampleOptions {
+    fn from(value: GridSampleMode) -> Self {
         GridSampleOptions::new(value)
     }
 }
@@ -536,7 +555,7 @@ impl GridSampleOptions {
     /// Create new grid sample options with the given interpolation mode.
     ///
     /// Uses default values for padding_mode (Zeros) and align_corners (false).
-    pub fn new(mode: InterpolateMode) -> Self {
+    pub fn new(mode: GridSampleMode) -> Self {
         Self {
             mode,
             ..Default::default()
@@ -759,6 +778,7 @@ mod tests {
         assert!(!max.ceil_mode);
         assert_eq!(avg.stride, [2, 3]);
         assert_eq!(avg.padding, [(0, 0), (0, 0)]);
+        assert_eq!(avg.dilation, [1, 1]);
         assert!(avg.count_include_pad);
         assert!(!avg.ceil_mode);
     }
@@ -783,6 +803,12 @@ mod tests {
     #[should_panic = "dilation must be non-zero"]
     fn max_pool_options_dilation_zero() {
         let _opt = MaxPoolOptions::new([1, 1]).with_dilation([0, 1]);
+    }
+
+    #[test]
+    #[should_panic = "dilation must be non-zero"]
+    fn avg_pool_options_dilation_zero() {
+        let _opt = AvgPoolOptions::new([1, 1]).with_dilation([0, 1]);
     }
 
     #[test]

@@ -1,7 +1,8 @@
 # Distributed Computing
 
-Burn supports data-parallel training across multiple devices and transparent execution on devices
-hosted by another process. These capabilities can be used independently or together:
+Burn supports data-parallel training across multiple devices, splitting one model across several
+devices, and transparent execution on devices hosted by another process. These capabilities can be
+used independently or together:
 
 - The types in `burn::tensor::distributed` configure gradient synchronization across a group of
   devices.
@@ -9,6 +10,8 @@ hosted by another process. These capabilities can be used independently or toget
   during distributed data-parallel (DDP) training.
 - A remote `Device` sends normal tensor operations to a Burn compute server. A set of remote devices
   can also participate in DDP.
+- `burn::module::parallel::LayerParallelism` splits one model by whole layers across several
+  devices, so a model too large for one device runs as a sequence of stages.
 
 ## Distributed Tensor Operations
 
@@ -89,6 +92,83 @@ DDP differs from `ExecutionStrategy::MultiDevice`: DDP gives each device a model
 collectives to synchronize gradients, whereas the multi-device strategy coordinates optimization
 through Burn's non-DDP multi-device training path.
 
+## Layer Parallelism
+
+DDP and the multi-device strategy keep a whole copy of the model on each device. When the model does
+not fit on one, layer parallelism splits it by whole layers instead: each device holds a run of
+consecutive layers, and only what one layer returns moves to the next layer's device.
+
+A model splits by implementing `LayerParallelism`, which names its input layer, its hidden layers and
+its output layer, each a `DistributedLayer`. What passes between the layers is any `Module`, such as
+a tensor, or a struct carrying a transformer's hidden states and padding mask:
+
+```rust, ignore
+impl LayerParallelism for Model {
+    type InputLayer = Embedding;
+    type HiddenLayer = Block;
+    type OutputLayer = Head;
+
+    fn layer_input(&self) -> &Embedding {
+        &self.embedding
+    }
+
+    fn layers_hidden(&self) -> impl Iterator<Item = &Block> {
+        self.blocks.iter()
+    }
+
+    fn layer_output(&self) -> &Head {
+        &self.head
+    }
+
+    fn into_layers(self) -> LayerSequence<Self> {
+        LayerSequence {
+            input: self.embedding,
+            hidden: self.blocks,
+            output: self.head,
+        }
+    }
+}
+```
+
+A `LayerPlacement` gives every layer a device, evenly, by stages of chosen sizes, or by device
+memory. Build each layer on its device, then wrap the model: `DistributedLayeredModel::new` moves
+nothing, and refuses a layer built anywhere else. The `burn-nn` layers initialize lazily, so each
+weight then loads straight onto its layer's device and the model never exists whole on one device.
+Weights trained on another struct load by remapping their keys:
+
+```rust, ignore
+let placement = LayerPlacement::even(&devices, config.num_blocks);
+let model = Model::new(&config, &placement); // Each layer built on `placement`'s device for it.
+let mut model = DistributedLayeredModel::new(model, &placement);
+let mut store = SafetensorsStore::from_file("model.safetensors")
+    .with_key_remapping(r"^layers\.", "blocks.");
+model.load_from(&mut store)?;
+
+let predictions = model.forward(features);
+```
+
+It trains as on one device: build it on autodiff devices, and each gradient lands on its parameter's
+device, where the optimizer updates it. The loss runs on the output layer's device.
+
+- **A weight shared by two layers must be on one device.** A head tied to the input embedding only
+  splits when the placement puts both on the same device; otherwise `new` refuses it.
+- **Split an existing model with `fork`, not `to_device`.** A moved parameter is no longer a leaf, so
+  it gets no gradient and the optimizer skips it.
+
+Layers run one after another, so `forward` buys capacity rather than speed. For inference, a
+`LayerPipeline` streams several batches through the same model, each stage on a thread of its own,
+so one device works on a batch while the next works on the one before. It pays most where moving
+between devices blocks the thread that issues it, as a copy between two runtimes does. Training
+still runs layer by layer.
+
+```rust, ignore
+let pipeline = LayerPipeline::new(model);
+let predictions = pipeline.forward(batches); // One output per batch, in order.
+```
+
+The `layer-parallelism-text` example splits the transformer the `text-classification` example
+trains, checks it against the single-device model, and fine-tunes it through the split.
+
 ## Remote Devices
 
 A remote device implements the same `Device` interface as a local CUDA, WGPU, or CPU device. Tensor
@@ -165,6 +245,8 @@ across the selected server devices.
   synchronization.
 - Use local DDP when several devices are directly available to the training process.
 - Use remote devices with DDP when a Burn server exposes several accelerators to a client.
+- Use layer parallelism when one copy of the model does not fit on a device, or to run a model
+  across devices of different backends.
 
 DDP runs on the CubeCL backends and on remote devices.
 CUDA devices with NCCL, local or on one remote server, synchronize gradients natively, and the

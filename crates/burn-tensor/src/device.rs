@@ -340,7 +340,7 @@ impl Device {
     /// Default CPU device backed by CubeCL's CPU backend.
     #[cfg(feature = "cpu")]
     pub fn cpu() -> Self {
-        Self::new(burn_dispatch::devices::CpuDevice::default())
+        Self::new(burn_dispatch::devices::CpuDevice)
     }
 
     /// CUDA device at the given hardware index.
@@ -732,6 +732,12 @@ impl Device {
     /// does not report it.
     pub fn memory_pool_usage(&self) -> Option<MemoryPoolUsage> {
         Dispatch::memory_pool_usage(self.as_dispatch())
+    }
+
+    /// How many bytes this device can hold at once, as its runtime states it: a budget to size a
+    /// workload by, not what is free. `None` on a backend that states no figure.
+    pub fn memory_capacity(&self) -> Option<u64> {
+        Dispatch::memory_capacity(self.as_dispatch())
     }
 
     /// Prepares the given data for transfer between the CPU and accelerator devices such as GPUs.

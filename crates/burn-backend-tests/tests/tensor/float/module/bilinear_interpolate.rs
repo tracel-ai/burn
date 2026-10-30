@@ -1,7 +1,7 @@
 use super::*;
 use burn_tensor::Tolerance;
 use burn_tensor::module::interpolate;
-use burn_tensor::ops::{InterpolateMode, InterpolateOptions};
+use burn_tensor::ops::{CoordinateTransformMode, InterpolateMode, InterpolateOptions};
 use burn_tensor::{DType, Shape};
 
 #[test]
@@ -99,7 +99,10 @@ fn test_1d_bilinear() {
 
     let output = interpolate(
         input,
-        InterpolateOptions::new(InterpolateMode::Bilinear).with_output_size([1, 9]),
+        InterpolateOptions::new(InterpolateMode::Bilinear {
+            coordinate_transform: CoordinateTransformMode::AlignCorners,
+        })
+        .with_output_size([1, 9]),
     );
 
     assert_eq!(output.dims(), [1, 1, 1, 9]);
@@ -182,7 +185,10 @@ fn should_interpolate_cast() {
     .cast(DType::F32); // ok for f32 backends, casts dtype for f16 tests
     let output = interpolate(
         x,
-        InterpolateOptions::new(InterpolateMode::Bilinear).with_output_size([8, 8]),
+        InterpolateOptions::new(InterpolateMode::Bilinear {
+            coordinate_transform: CoordinateTransformMode::AlignCorners,
+        })
+        .with_output_size([8, 8]),
     );
 
     let expected = TestTensor::<4>::from([[[
@@ -231,9 +237,14 @@ impl InterpolateTestCase {
         );
         let output = interpolate(
             x,
-            InterpolateOptions::new(InterpolateMode::Bilinear)
-                .with_align_corners(align_corners)
-                .with_output_size([self.height_out, self.width_out]),
+            InterpolateOptions::new(InterpolateMode::Bilinear {
+                coordinate_transform: if align_corners {
+                    CoordinateTransformMode::AlignCorners
+                } else {
+                    CoordinateTransformMode::HalfPixel
+                },
+            })
+            .with_output_size([self.height_out, self.width_out]),
         );
 
         let tolerance = Tolerance::permissive();
@@ -264,6 +275,46 @@ fn test_upsample_half_pixel() {
             [11.0, 11.25, 11.75, 12.25, 12.75, 13.25, 13.75, 14.0],
             [12.0, 12.25, 12.75, 13.25, 13.75, 14.25, 14.75, 15.0],
         ]]]),
+        false,
+    );
+}
+
+#[test]
+fn test_bilinear_scale_driven_mapping() {
+    let device = Default::default();
+    if !format!("{device:?}").to_lowercase().contains("flex") {
+        return;
+    }
+    let input = TestTensor::<4>::from_data([[[[10., 20., 30., 40.]]]], &device);
+    // Scale 0.6 samples coordinates 1/3 and 2; the rounded size ratio 2/4 would differ.
+    let output = interpolate(
+        input,
+        InterpolateOptions::new(InterpolateMode::Bilinear {
+            coordinate_transform: CoordinateTransformMode::HalfPixel,
+        })
+        .with_scale_factor([1.0, 0.6]),
+    );
+
+    let expected = burn_tensor::TensorData::from([[[[40.0 / 3.0, 30.0]]]]);
+
+    output
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&expected, Tolerance::default());
+}
+
+#[test]
+fn test_bilinear_align_corners_output_size_one() {
+    let device = Default::default();
+    let input = TestTensor::<4>::from_data([[[[10., 20.], [30., 40.]]]], &device);
+    let output = interpolate(
+        input,
+        InterpolateOptions::new(InterpolateMode::Bilinear {
+            coordinate_transform: CoordinateTransformMode::AlignCorners,
+        })
+        .with_output_size([1, 1]),
+    );
+    output.into_data().assert_eq(
+        &burn_tensor::TensorData::from([[[[10.]]]]).convert::<FloatElem>(),
         false,
     );
 }

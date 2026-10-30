@@ -5,6 +5,31 @@ Changes for the next release. For published releases, see
 
 ## Unreleased
 
+### Interpolation options
+
+**Breaking:** `InterpolateMode` variants now own their coordinate transform and cubic coefficient
+`a`. `Nearest` and `NearestExact` have fixed mappings and no overrides.
+Configurable coordinate transforms are limited to `HalfPixel` and `AlignCorners`;
+asymmetric coordinates remain the fixed mapping of `Nearest`.
+
+```diff
++use burn::tensor::ops::CoordinateTransformMode;
+-InterpolateOptions::new(InterpolateMode::Bilinear).with_align_corners(false)
++InterpolateOptions::new(InterpolateMode::Bilinear {
++    coordinate_transform: CoordinateTransformMode::HalfPixel,
++})
+```
+
+Use `AlignCorners` for the previous `true`/default alignment and `a: -0.75` for the previous cubic
+coefficient. For `Interpolate1dConfig` and `Interpolate2dConfig`, move these settings into
+`InterpolateMode::{Linear, Cubic, Lanczos}`; update serialized configurations accordingly.
+Grid sampling now uses `GridSampleMode::{Nearest, Bilinear}`.
+
+Explicit scales now also drive scale-dependent coordinate mapping. Use `.with_output_size(...)`
+to retain size-derived mapping. See the [interpolation guide](building-blocks/module.md#interpolation)
+for configuration and backend limitations.
+([#6154](https://github.com/tracel-ai/burn/pull/6154), [@Sadik00789](https://github.com/Sadik00789))
+
 ### Device-time instrumentation
 
 `burn-instrument` and `#[compute]` annotations measure device time by model component. Measurement
@@ -23,6 +48,18 @@ Reports also include the measured cost of a kernel launch.
   [CubeCL #1914](https://github.com/tracel-ai/cubecl/pull/1914),
   [CubeCL #1915](https://github.com/tracel-ai/cubecl/pull/1915))
   [@louisfd](https://github.com/louisfd)
+- Reports no longer score a component that is only partly fused, such as a layer projection that
+  ran alone in one layer and fused with the residual add in the others; its row reads
+  `partly fused ↓` instead of a percentage far past the peak. `FusedElsewhere::contains` is replaced
+  by `share`, which returns a `FusedShare`. ([#6222](https://github.com/tracel-ai/burn/pull/6222))
+  [@nathanielsimard](https://github.com/nathanielsimard)
+- `Report::components` and `Report::unclaimed` return each component as the report's table reads
+  it — its path, its time, its share of the work (a `WorkShare`) and of the host, how much of it
+  fused elsewhere, its score and floor — and each kernel under the name the table prints, so a
+  front door can lay a report out its own way. A component whose work all fused elsewhere reads
+  no time or share, as the table prints `fused ↓`. The table is printed from the same readings.
+  ([#6260](https://github.com/tracel-ai/burn/pull/6260))
+  [@nathanielsimard](https://github.com/nathanielsimard)
 
 ### Execution performance
 
@@ -42,10 +79,17 @@ positions when sequence lengths differ.
 
 #### Kernels
 
+- Avoid a full-sized gradient copy in CubeCL FP32 `conv2d` bias backward, while retaining
+  single-pass accumulation for FP16/BF16 to avoid intermediate overflow.
+  ([#6173](https://github.com/tracel-ai/burn/pull/6173))
+  [@EthanAlmloff](https://github.com/EthanAlmloff)
 - Enable CUDA tensor-core acceleration on Blackwell and Blackwell Ultra GPUs, including B300.
   ([#6161](https://github.com/tracel-ai/burn/pull/6161))
-- Improve CubeCL CPU matrix multiplication by selecting tile sizes that fit the vector width.
-  ([#6177](https://github.com/tracel-ai/burn/pull/6177))
+- Improve CubeCL CPU matrix multiplication by selecting tile sizes that fit the vector width
+  and using GEMM settings tailored to CPU hardware.
+  ([#6177](https://github.com/tracel-ai/burn/pull/6177),
+  [#6245](https://github.com/tracel-ai/burn/pull/6245))
+  [@Charles23R](https://github.com/Charles23R)
 - Speed up CubeCL `conv_transpose3d` and reduce Flex `conv2d` memory use and layout conversions.
   ([#5793](https://github.com/tracel-ai/burn/pull/5793),
   [#6075](https://github.com/tracel-ai/burn/pull/6075))
@@ -58,9 +102,20 @@ positions when sequence lengths differ.
   ([#6036](https://github.com/tracel-ai/burn/pull/6036)) [@louisfd](https://github.com/louisfd)
 - Add the experimental `burn-cubecl/tile-kernels-only` feature for benchmarking CubeK's new matmul
   and attention routines. It is disabled by default and rejects unsupported inputs without a
-  fallback; fused matmul and convolution are unchanged.
+  fallback; fused matmul and convolution are unchanged. Quantized matmul inputs are read packed
+  where the routines can, and dequantized first elsewhere. Attention takes a bool mask and both
+  causal alignments.
   ([#6193](https://github.com/tracel-ai/burn/pull/6193),
-  [#6199](https://github.com/tracel-ai/burn/pull/6199)) [@louisfd](https://github.com/louisfd)
+  [#6199](https://github.com/tracel-ai/burn/pull/6199),
+  [#6246](https://github.com/tracel-ai/burn/pull/6246)) [@louisfd](https://github.com/louisfd)
+- Run attention's backward pass on CubeCL backends as CubeK kernels from the forward's saved
+  logsumexp, rather than autodiff over the decomposed attention. The kernels take f32, f16 and
+  bf16 attention without a mask, bias or softcap, causal or not; a softcap, a top-left causal
+  mask over sequences of different lengths or an element the kernels do not take is composed from
+  tensor operations, and a mask or an additive bias keeps the decomposed gradients. Autotune
+  may pick a routine that sums the query gradient with atomic adds, so its last bits can differ
+  from run to run. Backends can provide their own through `ModuleOps::attention_with_logsumexp`
+  and `ModuleOps::attention_backward`. [@louisfd](https://github.com/louisfd)
 
 #### Compilation and autotuning
 
@@ -93,6 +148,17 @@ See [runtime configuration](./advanced/runtime-configuration.md#cubek-matmul-pre
 
 ### Distributed and remote execution
 
+#### Layer parallelism
+
+Models can now be split across devices by layer, enabling training and inference with models that
+exceed a single device's memory. The new `LayerParallelism` trait and `DistributedLayeredModel`
+wrapper support sequential execution, transferring activations between devices.
+`LayerPipeline` streams several inference batches through such a model with a thread per stage,
+so the stages overlap. Training schedules and `Learner` integration are not included.
+([#5702](https://github.com/tracel-ai/burn/pull/5702),
+[#6277](https://github.com/tracel-ai/burn/pull/6277))
+[@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
+
 #### Distributed collectives
 
 **Breaking:** `distributed::all_reduce` and `CollectiveTensor` have been removed. Use
@@ -111,6 +177,21 @@ all-to-all, and broadcast also support boolean tensors. Quantized tensors are re
 - Coordinate DDP batch availability before backward passes and synchronize epoch transitions.
   Workers must yield the same number of training batches; uneven exhaustion now reports an error.
   ([#6184](https://github.com/tracel-ai/burn/pull/6184))
+- Float collectives under autodiff run on the backend's native collective, NCCL on CUDA, with a
+  backward of their own, instead of being emulated with tracked transfers between devices. A
+  collective's outputs share that backward, so their losses must go through a single `backward`.
+  ([#6274](https://github.com/tracel-ai/burn/pull/6274))
+  [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
+- Drain every device's pending fusion work at once before a collective, speeding up
+  tensor-parallel decode. ([#6293](https://github.com/tracel-ai/burn/pull/6293))
+  [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
+
+#### Device groups
+
+- A tensor made from data on a device group stays on the host until it is used, so `from_data`
+  followed by `with_sharding` uploads each member only its chunk, and a model that fits only once
+  split can be loaded. ([#6232](https://github.com/tracel-ai/burn/pull/6232))
+  [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
 
 #### Remote execution
 
@@ -130,6 +211,36 @@ all-to-all, and broadcast also support boolean tensors. Quantized tensors are re
   ([#5983](https://github.com/tracel-ai/burn/pull/5983),
   [#5989](https://github.com/tracel-ai/burn/pull/5989),
   [#6017](https://github.com/tracel-ai/burn/pull/6017))
+- Fix router and remote servers panicking when an integer tensor is cast to another integer
+  element type. ([#6308](https://github.com/tracel-ai/burn/pull/6308))
+- Fix a HIP worker crashing when a session ends as the process exits.
+  ([#6308](https://github.com/tracel-ai/burn/pull/6308))
+- `capture` on a remote device records and replays the graph on the server's device. One session
+  captures per server device at a time. A replay that fails is the error of the next read or sync
+  on its stream. ([#6308](https://github.com/tracel-ai/burn/pull/6308))
+- A read on a router or remote server of a tensor whose producing work failed reports that failure
+  instead of ending the session. ([#6308](https://github.com/tracel-ai/burn/pull/6308))
+- Servers answer device queries registered with `with_device_query`, asked by
+  `RemoteDevice::query`. **Breaking:** `ServeError::CustomOpBackend` is renamed `HandlerBackend`,
+  as it also covers device queries. ([#6308](https://github.com/tracel-ai/burn/pull/6308))
+
+#### Backend extensions
+
+Backend extensions run on the remote backend without handwritten remote code: listing `Remote`
+beside `Fusion` in `#[backend_extension]` generates the client, which sends each call as a custom
+operation's IR, and `<Trait>Handlers::register` for the server's `CustomOpRegistry`. Ordinary
+arguments that are not primitives take `#[fusion(scalar = .., decode = ..)]`, and extension values
+opt in with `#[extension_type(fusion, remote)]`. `CustomOpRegistry::try_register` refuses a
+handler from another `HandlerSource` under an id already taken.
+([#6308](https://github.com/tracel-ai/burn/pull/6308))
+
+**API migration:** a `#[backend_extension]` Fusion operation's default id is now
+`"Trait::method"` instead of the method name, so two traits' same-named methods no longer share
+an id. A custom optimizer matching a default id must match the new one, or the method can keep its
+old id with `#[fusion(id = "method")]`. An extension listing both `Fusion` and `Remote` now
+generates its `BackendRouter<_>` implementation, so a handwritten `impl Trait for BackendRouter<_>`
+conflicts with it (E0119); delete the handwritten one.
+([#6308](https://github.com/tracel-ai/burn/pull/6308))
 
 ### Training and modules
 
@@ -169,6 +280,22 @@ For example, update custom progress logger implementations:
 - Flush partial gradient accumulation only after normal dataloader exhaustion. An interruption or
   error observed before that update discards the pending window.
   ([#6184](https://github.com/tracel-ai/burn/pull/6184))
+- Return errors instead of panicking when `InMemDataset::from_json_rows` encounters unreadable
+  lines, invalid UTF-8, or JSON that cannot be deserialized.
+  ([#6284](https://github.com/tracel-ai/burn/pull/6284))
+  [@onenewcode](https://github.com/onenewcode)
+
+#### Dataloader prefetch
+
+A multi-threaded dataloader now queues at most two finished batches per worker ahead of the
+consumer by default, down from a fixed 100. A batcher that builds batches on a device keeps every
+queued batch resident there, which could exhaust the memory of a small GPU during training. Set the
+queue with `DataLoaderBuilder::prefetch(n)` or `MultiThreadDataLoader::with_prefetch(n)`: lower it
+when device memory is tight, raise it when batches are slow to build, or use `0` to hand each batch
+over directly. An explicit `n` is the total queue capacity, shared by all workers; only the default
+scales with their number. With four workers, the default queues eight batches, while `prefetch(2)`
+queues two. Each worker also holds the batch it is waiting to send.
+([#6252](https://github.com/tracel-ai/burn/pull/6252))
 
 #### Stateful feed-forward activations
 
@@ -179,6 +306,10 @@ loading those checkpoints by filtering to `linear_inner` and `linear_outer`.
 
 #### Modules, losses, and metrics
 
+- Reduce classification metric memory use by storing confusion codes as U8 on devices that support
+  it, retaining the default integer dtype otherwise.
+  ([#6224](https://github.com/tracel-ai/burn/pull/6224))
+  [@Mikyx-1](https://github.com/Mikyx-1)
 - Avoid retaining temporary QR buffers after orthogonal parameter initialization.
   ([#6172](https://github.com/tracel-ai/burn/pull/6172))
   [@EthanAlmloff](https://github.com/EthanAlmloff) [@laggui](https://github.com/laggui)
@@ -189,6 +320,10 @@ loading those checkpoints by filtering to `linear_inner` and `linear_outer`.
   [#5977](https://github.com/tracel-ai/burn/pull/5977))
 - Add the Matthews correlation coefficient metric for binary and multiclass classification.
   ([#5818](https://github.com/tracel-ai/burn/pull/5818))
+- Reject incompatible devices and dtypes in convolution, linear, normalization, and attention
+  operations before backend execution, including mismatches introduced by dequantization.
+  Packed quantized linear weights remain supported.
+  ([#6225](https://github.com/tracel-ai/burn/pull/6225)) [@onenewcode](https://github.com/onenewcode)
 - Improve half-precision CTC loss and transposed-convolution accuracy. Fix CTC execution through
   router and remote backends and reject CTC inputs exceeding the device shared-memory limit.
   ([#6103](https://github.com/tracel-ai/burn/pull/6103),
@@ -199,6 +334,9 @@ loading those checkpoints by filtering to `linear_inner` and `linear_outer`.
   ([#6039](https://github.com/tracel-ai/burn/pull/6039))
 - Correct accelerated attention results for padding masks broadcast across query positions.
   ([#6008](https://github.com/tracel-ai/burn/pull/6008))
+- Correct `Same` padding for dilated 1D, 2D, and 3D convolutions, including Conv3d configurations
+  whose effective kernel permits symmetric padding.
+  ([#6286](https://github.com/tracel-ai/burn/pull/6286)) [@onenewcode](https://github.com/onenewcode)
 - Correct max-pooling SAME padding with dilation. Reject unsupported asymmetric
   deformable-convolution padding and invalid binary-cross-entropy inputs.
   ([#6023](https://github.com/tracel-ai/burn/pull/6023),
@@ -214,6 +352,12 @@ loading those checkpoints by filtering to `linear_inner` and `linear_outer`.
   ([#5965](https://github.com/tracel-ai/burn/pull/5965),
   [#5945](https://github.com/tracel-ai/burn/pull/5945),
   [#6028](https://github.com/tracel-ai/burn/pull/6028))
+- Correct BLEU and ROUGE-L scores and prevent panics when prediction and reference sequence lengths
+  differ. ([#6242](https://github.com/tracel-ai/burn/pull/6242))
+  [@onenewcode](https://github.com/onenewcode)
+- Fix `BleuScore` running and final values to use corpus-wide statistics instead of averaging batch
+  scores. ([#6240](https://github.com/tracel-ai/burn/pull/6240))
+  [@Arc000007](https://github.com/Arc000007)
 - Fix CPU non-maximum-suppression results and restore GPU acceleration for connected components.
   ([#6019](https://github.com/tracel-ai/burn/pull/6019),
   [#6003](https://github.com/tracel-ai/burn/pull/6003))
@@ -243,6 +387,14 @@ loading those checkpoints by filtering to `linear_inner` and `linear_outer`.
   [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
 - Add `Tensor::round_to(decimals)` for rounding to a specified number of decimal places.
   ([#5842](https://github.com/tracel-ai/burn/pull/5842))
+- Add dilation to average pooling with `AvgPoolOptions::with_dilation`, matching max pooling.
+  CubeCL backends use CubeK kernels for dilated 1D/2D average pooling, preserving the NHWC layout
+  optimization. `count_include_pad` counts the dilated taps that land in padding. **Breaking:** Add
+  `dilation: [1; N]` to `AvgPoolOptions` struct literals. **Breaking for third-party backends:**
+  The `ModuleOps` average pooling methods and their backward passes take a `dilation` argument after
+  `padding`, as do `module::avg_pool2d_backward` and `module::avg_pool3d_backward`.
+  ([#6235](https://github.com/tracel-ai/burn/pull/6235))
+  [@ashokram-si](https://github.com/ashokram-si)
 - Support all indexing update operations for boolean `scatter` and `select_assign`, and add boolean
   `scatter_nd` and `gather_nd`. `Add`/`Max` use logical OR; `Mul`/`Min` use logical AND.
   **Breaking for third-party backends:** In `BoolTensorOps`, replace `bool_scatter_or` and
@@ -251,19 +403,50 @@ loading those checkpoints by filtering to `linear_inner` and `linear_outer`.
   `bool_scatter_nd` and `bool_gather_nd` methods.
   ([#6035](https://github.com/tracel-ai/burn/pull/6035),
   [#6047](https://github.com/tracel-ai/burn/pull/6047))
+- Add `Device::memory_capacity()` to query the runtime-reported capacity in bytes for workload
+  sizing. The value is distinct from currently free memory; backends without a reported capacity
+  return `None`. ([#6250](https://github.com/tracel-ai/burn/pull/6250))
+  [@ThierryCantin-Demers](https://github.com/ThierryCantin-Demers)
 - Add dtype-aware `TensorData::random_dtype`, `zeros_dtype`, and `ones_dtype` constructors.
   ([#6088](https://github.com/tracel-ai/burn/pull/6088))
 - Add `Tolerance::get_relative()` and `get_absolute()` accessors.
   ([#6087](https://github.com/tracel-ai/burn/pull/6087)) [@laggui](https://github.com/laggui)
 - Add `CaptureScope::input`, `CaptureScope::complete_with`, and `Tensor::capture_id` helpers for
   declaring graph inputs and outputs. ([#5990](https://github.com/tracel-ai/burn/pull/5990))
+- Add `Graph::capture_error`, which reports why a graph replays by re-running its closure, for
+  example an allocation that grew the memory pool inside the capture window.
+  ([#6255](https://github.com/tracel-ai/burn/pull/6255))
 
 #### Fusion and correctness fixes
 
-- Preserve zero-length dimensions in `reshape(Shape)` and `unsqueeze`, and reject mismatched target
-  ranks. The array form of `reshape` retains its `0`/`-1` placeholders.
-  ([#6112](https://github.com/tracel-ai/burn/pull/6112))
+- Fix `chunk` panicking when the requested number of chunks cannot all be filled. It now returns
+  fewer chunks, as documented; for example, 6 elements in 4 chunks give 3 chunks of 2.
+  ([#6263](https://github.com/tracel-ai/burn/pull/6263), [@b84330808](https://github.com/b84330808))
+- Return NaN for variance reductions over empty axes instead of panicking or returning zero.
+  ([issue #6236](https://github.com/tracel-ai/burn/issues/6236))
+- **Breaking:** `Tensor::reshape` now treats zeros in arrays as literal zero-length dimensions,
+  matching concrete `Shape` arguments. Arrays still support `-1` inference. To preserve dimension
+  copying, wrap the array in `ZeroDimPlaceholders`:
+
+  ```diff
+  +use burn::tensor::ZeroDimPlaceholders;
+  +
+  -let y = x.reshape([0, -1]);
+  +let y = x.reshape(ZeroDimPlaceholders([0, -1]));
+  ```
+
+  ONNX importers must wrap shape arrays for `allowzero=0`
+  (the default) and use plain arrays for `allowzero=1`; previously generated code needs migration
+  or regeneration with an updated importer. Invalid copy placeholders and ambiguous inference
+  involving zero-length dimensions now produce clear reshape errors. `reshape(Shape)` and
+  `unsqueeze` preserve zero-length dimensions, and mismatched target ranks are rejected.
+  ([#6112](https://github.com/tracel-ai/burn/pull/6112),
+  [#6257](https://github.com/tracel-ai/burn/pull/6257),
+  [issue #6217](https://github.com/tracel-ai/burn/issues/6217))
   [@mattisonchao](https://github.com/mattisonchao) [@laggui](https://github.com/laggui)
+- Reject `expand(Shape)` arguments whose rank differs from the output tensor rank, with a clear
+  validation error. ([#6211](https://github.com/tracel-ai/burn/pull/6211))
+  [@onenewcode](https://github.com/onenewcode)
 - Clarify tensor type-mismatch panics with the requested type and guidance to check the rank,
   including gradient lookups.
   ([#5971](https://github.com/tracel-ai/burn/pull/5971)) [@tandede](https://github.com/tandede)
@@ -297,6 +480,9 @@ loading those checkpoints by filtering to `linear_inner` and `linear_outer`.
   [#6069](https://github.com/tracel-ai/burn/pull/6069))
 - Return off-value rows from `one_hot_fill` for out-of-range indices, including NaN and infinity.
   ([#6065](https://github.com/tracel-ai/burn/pull/6065))
+- Fix boolean `scatter_nd` reductions losing updates on CubeCL backends when indices repeat a
+  target; the updates are now applied with atomic stores.
+  ([#6215](https://github.com/tracel-ai/burn/pull/6215))
 
 ### Checkpoints and interoperability
 
@@ -321,8 +507,30 @@ let pack_tensor = tensor.into_pack();
 - Speed up loading strided and transposed PyTorch checkpoint weights.
   ([#6041](https://github.com/tracel-ai/burn/pull/6041),
   [#6113](https://github.com/tracel-ai/burn/pull/6113))
+- Avoid repeated SafeTensors header parsing when loading models with many tensors.
+  ([#6269](https://github.com/tracel-ai/burn/pull/6269))
+  [@Arc000007](https://github.com/Arc000007)
 
 ### Extensions
+
+#### Vision
+
+- Speed up Flex CPU median blur for F16, BF16, F32, F64, and integer tensors by selecting
+  neighborhood medians without stacking the images. U8, I8, and exact normalized RGB8 inputs
+  use sliding histograms for larger filters. Floating-point autodiff uses the selected source
+  pixels for backward. `median` and `MedianBlur` now also accept `Tensor<4, Int>` images;
+  specify `Tensor::<4>` on float constructors if their kind was previously inferred from these calls.
+  ([#6219](https://github.com/tracel-ai/burn/pull/6219))
+  [@Mikyx-1](https://github.com/Mikyx-1)
+
+#### Batched linear solves
+
+`burn::linalg::solve` solves square, nonsingular systems `A @ X = B` with vector or matrix
+right-hand sides and broadcast batches. Flex and CubeCL provide optimized factorization and
+substitution paths with autodiff support. F16 and BF16 inputs compute in F32 and cast back;
+nonsquare or singular systems are rejected.
+([#5856](https://github.com/tracel-ai/burn/pull/5856))
+[@Mikyx-1](https://github.com/Mikyx-1)
 
 #### Cholesky decomposition
 

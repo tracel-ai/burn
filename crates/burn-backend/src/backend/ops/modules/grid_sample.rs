@@ -1,6 +1,6 @@
 use crate::{
     Backend, TensorMetadata, get_or_init_device_settings,
-    ops::{GridSampleOptions, GridSamplePaddingMode, InterpolateMode},
+    ops::{GridSampleMode, GridSampleOptions, GridSamplePaddingMode},
     tensor::FloatTensor,
 };
 use alloc::vec;
@@ -24,7 +24,7 @@ pub fn float_grid_sample_2d_ref<B: Backend>(
     options: GridSampleOptions,
 ) -> FloatTensor<B> {
     match options.mode {
-        InterpolateMode::Bilinear => float_grid_sample_2d_bilinear::<B>(
+        GridSampleMode::Bilinear => float_grid_sample_2d_bilinear::<B>(
             tensor,
             grid,
             options.padding_mode,

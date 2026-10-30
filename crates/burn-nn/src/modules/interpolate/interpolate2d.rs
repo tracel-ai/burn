@@ -35,11 +35,6 @@ pub struct Interpolate2dConfig {
     /// Determines how the output values are calculated.
     #[config(default = "InterpolateMode::Nearest")]
     pub mode: InterpolateMode,
-
-    /// If `true`, the input and output tensors are aligned by their corner pixels.
-    /// If `false`, half-pixel coordinate mapping is used instead.
-    #[config(default = true)]
-    pub align_corners: bool,
 }
 
 /// Interpolate module for resizing tensors with shape [N, C, H, W].
@@ -67,9 +62,6 @@ pub struct Interpolate2d {
     /// Interpolation mode used for resizing
     #[module(skip)]
     pub mode: InterpolateMode,
-
-    /// Whether to align corner pixels
-    pub align_corners: bool,
 }
 
 impl Interpolate2dConfig {
@@ -79,15 +71,13 @@ impl Interpolate2dConfig {
             output_size: self.output_size,
             scale_factor: self.scale_factor,
             mode: self.mode,
-            align_corners: self.align_corners,
         }
     }
 }
 impl Interpolate2d {
     /// The options the interpolation runs with.
     fn options(&self) -> InterpolateOptions {
-        let mut options = InterpolateOptions::new(self.mode.clone().into())
-            .with_align_corners(self.align_corners);
+        let mut options = InterpolateOptions::new(self.mode.clone().into());
         options.output_size = self.output_size;
         options.scale_factor = self.scale_factor;
         options
@@ -157,6 +147,7 @@ mod tests {
     use burn::tensor::Distribution;
 
     use super::*;
+    use burn::tensor::ops::CoordinateTransformMode;
 
     #[test]
     fn test_module() {
@@ -186,10 +177,40 @@ mod tests {
         // Test with different interpolation mode
         let config = Interpolate2dConfig::new()
             .with_output_size(Some([6, 6]))
-            .with_mode(InterpolateMode::Linear);
+            .with_mode(InterpolateMode::Linear {
+                coordinate_transform: CoordinateTransformMode::AlignCorners,
+            });
         let interpolate = config.init();
         let output = interpolate.forward(input);
         assert_eq!(output.dims(), [2, 3, 6, 6]);
+    }
+
+    #[test]
+    fn test_nearest_default_mapping() {
+        let input = Tensor::<4>::from_floats([[[[10.0, 20.0, 30.0, 40.0]]]], &Default::default());
+        let config = Interpolate2dConfig::new().with_output_size(Some([1, 2]));
+        let interpolate = config.init();
+        let output = interpolate.forward(input);
+        assert_eq!(output.into_data().as_slice::<f32>().unwrap(), &[10.0, 30.0]);
+    }
+
+    #[test]
+    fn linear_coordinate_transform() {
+        let input = Tensor::<4>::from_floats([[[[0.0, 6.0], [12.0, 18.0]]]], &Default::default());
+        let output = Interpolate2dConfig::new()
+            .with_mode(InterpolateMode::Linear {
+                coordinate_transform: CoordinateTransformMode::HalfPixel,
+            })
+            .with_output_size(Some([4, 4]))
+            .init()
+            .forward(input);
+        let expected = burn::tensor::TensorData::from([[[
+            [0.0, 1.5, 4.5, 6.0],
+            [3.0, 4.5, 7.5, 9.0],
+            [9.0, 10.5, 13.5, 15.0],
+            [12.0, 13.5, 16.5, 18.0],
+        ]]]);
+        output.into_data().assert_eq(&expected, false);
     }
 
     #[test]
