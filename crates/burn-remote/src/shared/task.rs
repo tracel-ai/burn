@@ -1,4 +1,7 @@
-use burn_backend::{DTypeUsageSet, ExecutionError, ProfileOptions, ProfileToken, TensorData};
+use burn_backend::{
+    DTypeUsageSet, ExecutionError, ExecutionMode, ExecutionModeToken, ExecutionStatistics,
+    ProfileOptions, ProfileToken, TensorData,
+};
 use burn_ir::{CapturedGraphId, GraphBindings, GraphId, OperationIr, TensorId, TensorIr};
 use burn_std::{
     DType, DeviceSettings,
@@ -20,13 +23,14 @@ use crate::{
 /// messages after the handshake are framed, or which operations a server can
 /// run, so a mismatched peer is refused at the handshake rather than failing
 /// mid-session.
-pub const PROTOCOL_VERSION: u16 = 7;
+pub const PROTOCOL_VERSION: u16 = 8;
 
 /// Routing id for a task whose result is fetched back.
 ///
 /// Only the result-producing tasks ([`Task::ReadTensors`], [`Task::SyncBackend`],
 /// [`Task::DTypeUsage`], [`Task::ProfileStart`], [`Task::ProfileEnd`], [`Task::CapturePrepare`],
-/// [`Task::CaptureStart`], [`Task::CaptureStop`], [`Task::DeviceQuery`]) carry a
+/// [`Task::CaptureStart`], [`Task::CaptureStop`], [`Task::DeviceQuery`] and the execution-mode
+/// tasks) carry a
 /// `RequestId`; the server echoes it on its [`TaskResponse`] so the client demultiplexes results
 /// back to the right pending callback. Fire-and-forget tasks have no id because no result ever
 /// comes back.
@@ -353,6 +357,15 @@ pub enum Task {
     CaptureRelease(CapturedGraphId),
     /// Ask the server the device query registered under the id about the session's device.
     DeviceQuery(RequestId, DeviceQueryId),
+    /// Open an execution mode on the server's backend where `stream_id` stands, after every
+    /// earlier task, until an [`ExecutionModeClose`](Task::ExecutionModeClose) of the token it
+    /// answers, or the session ends.
+    ExecutionModeOpen(RequestId, StreamId, ExecutionMode),
+    /// What the work under an open execution mode has triggered so far.
+    ExecutionModeStatistics(RequestId, ExecutionModeToken),
+    /// Close an open execution mode on the stream it was opened on, after every earlier task,
+    /// answering what the work under it triggered.
+    ExecutionModeClose(RequestId, ExecutionModeToken),
 }
 
 /// The id a server registers a device query under, and a client asks it by.
@@ -431,6 +444,12 @@ pub enum TaskResponseContent {
     Capture(Result<(), ExecutionError>),
     /// The answer to [`DeviceQuery`](Task::DeviceQuery).
     DeviceQuery(Result<serde_bytes::ByteBuf, DeviceQueryFailure>),
+    /// The answer to [`ExecutionModeOpen`](Task::ExecutionModeOpen): `None` when the server's
+    /// backend runs every launch.
+    ExecutionModeOpen(Result<Option<ExecutionModeToken>, ExecutionError>),
+    /// The answer to [`ExecutionModeStatistics`](Task::ExecutionModeStatistics) and
+    /// [`ExecutionModeClose`](Task::ExecutionModeClose).
+    ExecutionStatistics(Result<ExecutionStatistics, ExecutionError>),
     /// The server's answer to an `Init` it will not serve, in place of [`Init`](Self::Init),
     /// before it closes the session.
     InitRefused(SessionRefusal),
