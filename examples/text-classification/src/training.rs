@@ -10,14 +10,16 @@ use crate::{
     model::TextClassificationModelConfig,
 };
 
-use burn::train::{ExecutionStrategy, Learner, SupervisedTraining, metric::LearningRateMetric};
+use burn::train::{ExecutionStrategy, Learner, SupervisedTraining};
 use burn::{
     data::{dataloader::DataLoaderBuilder, dataset::transform::SamplerDataset},
     lr_scheduler::noam::NoamLrSchedulerConfig,
     nn::{attention::SeqLengthOption, transformer::TransformerEncoderConfig},
     optim::AdamConfig,
     prelude::*,
-    train::metric::{AccuracyMetric, CudaMetric, IterationSpeedMetric, LossMetric},
+    train::metric::{
+        AccuracyMetric, CudaMetric, IterationSpeedMetric, LearningRateMetric, LossMetric,
+    },
 };
 use std::{path::PathBuf, sync::Arc};
 
@@ -90,14 +92,13 @@ pub fn train<D: TextClassificationDataset + 'static>(
 
     // Initialize learner
     let training = SupervisedTraining::new(artifact_dir, dataloader_train, dataloader_test)
-        .metric_train(CudaMetric::new())
-        .metric_valid(CudaMetric::new())
+        .metrics_text(CudaMetric::new())
         .metric_train(IterationSpeedMetric::new())
-        .metric_train_numeric(LossMetric::new())
-        .metric_valid_numeric(LossMetric::new())
-        .metric_train_numeric(AccuracyMetric::new())
-        .metric_valid_numeric(AccuracyMetric::new())
-        .metrics(LearningRateMetric::new())
+        .metrics((
+            LossMetric::new(),
+            AccuracyMetric::new(),
+            LearningRateMetric::new(),
+        ))
         .with_default_checkpointers()
         .with_training_strategy(strategy.into())
         .num_epochs(config.num_epochs)

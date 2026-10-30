@@ -13,8 +13,10 @@ use burn::{
     prelude::*,
     train::{
         Learner, SupervisedTraining,
-        metric::LearningRateMetric,
-        metric::{AccuracyMetric, CudaMetric, IterationSpeedMetric, LossMetric, PerplexityMetric},
+        metric::{
+            AccuracyMetric, CudaMetric, IterationSpeedMetric, LearningRateMetric, LossMetric,
+            PerplexityMetric,
+        },
     },
 };
 use std::sync::Arc;
@@ -69,17 +71,14 @@ pub fn train<D: Dataset<TextGenerationItem> + 'static>(
         .unwrap();
 
     let training = SupervisedTraining::new(artifact_dir, dataloader_train, dataloader_test)
-        .metric_train(CudaMetric::new())
-        .metric_valid(CudaMetric::new())
-        .metric_train_numeric(AccuracyMetric::new().with_pad_token(tokenizer.pad_token()))
-        .metric_valid_numeric(AccuracyMetric::new().with_pad_token(tokenizer.pad_token()))
-        .metric_train_numeric(PerplexityMetric::new().with_pad_token(tokenizer.pad_token()))
-        .metric_valid_numeric(PerplexityMetric::new().with_pad_token(tokenizer.pad_token()))
-        .metric_train_numeric(LossMetric::new())
-        .metric_valid_numeric(LossMetric::new())
-        .metric_train_numeric(IterationSpeedMetric::new())
-        .metric_valid_numeric(IterationSpeedMetric::new())
-        .metrics(LearningRateMetric::new())
+        .metrics_text(CudaMetric::new())
+        .metrics((
+            AccuracyMetric::new().with_pad_token(tokenizer.pad_token()),
+            PerplexityMetric::new().with_pad_token(tokenizer.pad_token()),
+            LossMetric::new(),
+            IterationSpeedMetric::new(),
+            LearningRateMetric::new(),
+        ))
         .with_default_checkpointers()
         .grads_accumulation(accum)
         .num_epochs(config.num_epochs)
