@@ -6,7 +6,7 @@ pub fn var<const D: usize>(tensor: Tensor<D>, dim: usize) -> Tensor<D> {
 }
 
 pub fn var_with_mean<const D: usize>(tensor: Tensor<D>, mean: Tensor<D>, dim: usize) -> Tensor<D> {
-    let n = tensor.shape()[dim] - 1;
+    let n = tensor.shape()[dim].saturating_sub(1);
     var_with_mean_n(tensor, mean, dim, n)
 }
 

@@ -1,20 +1,24 @@
+use crate::engine::codegen::ir::FuseArg;
+#[cfg(feature = "autotune")]
 use crate::{
     engine::{
-        codegen::ir::{FuseArg, FuseBlockConfig, GlobalArgsLaunch, RefLayout},
+        codegen::ir::{FuseBlockConfig, GlobalArgsLaunch, RefLayout},
         launch::runner::{TraceRunner, Vectorization},
     },
     optim::reduce_broadcasted::unit::{
         ElemwiseFuseBlockLaunch, ReduceFuseBlockLaunch, reduce_kernel_broadcasted,
     },
 };
+#[cfg(feature = "autotune")]
 use cubecl::{
     ir::{ElemType, FloatKind},
     prelude::*,
     server::LaunchError,
 };
+use cubek::reduce::components::instructions::ReduceOperationConfig;
+#[cfg(feature = "autotune")]
 use cubek::reduce::{
     ReduceDtypes, VectorizationMode,
-    components::instructions::ReduceOperationConfig,
     launch::RoutineStrategy,
     output_vectorization_axis,
     routines::{
@@ -31,6 +35,7 @@ pub struct ReduceBroadcastedFuseBlock {
     pub(crate) output: FuseArg,
 }
 
+#[cfg(feature = "autotune")]
 #[derive(new)]
 pub struct FusedReduceBroadcastedLaunch<'a> {
     blocks: &'a Vec<ReduceBroadcastedFuseBlock>,
@@ -39,8 +44,10 @@ pub struct FusedReduceBroadcastedLaunch<'a> {
     _strategy: RoutineStrategy,
 }
 
+#[cfg(feature = "autotune")]
 impl Vectorization for FusedReduceBroadcastedLaunch<'_> {}
 
+#[cfg(feature = "autotune")]
 impl TraceRunner for FusedReduceBroadcastedLaunch<'_> {
     type Error = LaunchError;
 

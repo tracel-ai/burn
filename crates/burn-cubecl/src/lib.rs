@@ -1,7 +1,5 @@
 #![warn(missing_docs)]
 #![cfg_attr(docsrs, feature(doc_cfg))]
-// TODO: remove when fixed in cubecl
-#![allow(semicolon_in_expressions_from_non_local_macros)]
 
 //! The Burn backend for every [CubeCL](https://github.com/tracel-ai/cubecl) runtime.
 //!

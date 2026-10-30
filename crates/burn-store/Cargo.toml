@@ -60,7 +60,7 @@ textdistance = { workspace = true }
 safetensors = { workspace = true, optional = true }
 
 [dev-dependencies]
-# burn-import = { path = "../burn-import", version = "0.22.0" } # disabled (circular dep in publish, only for bench)
+# burn-import = { path = "../burn-import", version = "0.23.0-pre.1" } # disabled (circular dep in publish, only for bench)
 burn-core = { workspace = true, features = ["flex"] }
 burn-nn = { workspace = true }
 

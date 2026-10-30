@@ -217,3 +217,28 @@ fn test_avg_pool1d_asymmetric_padding_ceil_mode() {
         .to_data()
         .assert_approx_eq::<FloatElem>(&output.into_data(), Tolerance::default());
 }
+
+#[test]
+fn test_avg_pool1d_dilation_asymmetric_padding() {
+    // ONNX `test_averagepool_1d_dilations_same_upper` and `_same_lower`: kernel 3, stride 2,
+    // dilation 2, with the extra SAME padding at the end or at the start.
+    let x = TestTensor::<3>::from([[[1.0, 2.0, 3.0, 4.0, 5.0, 6.0]]]);
+    let options = AvgPoolOptions::new([3]).with_stride([2]).with_dilation([2]);
+
+    for (padding, include_pad, exclude_pad) in [
+        ((1, 2), [2.0, 4.0, 10.0 / 3.0], [3.0, 4.0, 5.0]),
+        ((2, 1), [4.0 / 3.0, 3.0, 8.0 / 3.0], [2.0, 3.0, 4.0]),
+    ] {
+        let options = options.clone().with_padding_pairs([padding]);
+
+        let output = avg_pool1d(x.clone(), options.clone());
+        TestTensor::<3>::from([[include_pad]])
+            .to_data()
+            .assert_approx_eq::<FloatElem>(&output.into_data(), Tolerance::default());
+
+        let output = avg_pool1d(x.clone(), options.with_count_include_pad(false));
+        TestTensor::<3>::from([[exclude_pad]])
+            .to_data()
+            .assert_approx_eq::<FloatElem>(&output.into_data(), Tolerance::default());
+    }
+}

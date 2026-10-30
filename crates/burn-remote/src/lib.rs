@@ -28,6 +28,16 @@ pub use credential::Credential;
 
 pub use burn_ir as ir;
 pub use burn_router::RouterClient;
+pub use shared::DeviceQueryId;
+
+/// The router items `#[backend_extension]` names in a generated remote client and its server
+/// handlers.
+#[doc(hidden)]
+pub mod extension {
+    pub use burn_router::{
+        BackendRouter, CustomOpRegistry, HandlerSource, RouterChannel, RouterClient, RouterTensor,
+    };
+}
 
 /// Network-traffic savings metric for op-graph caching, shared by the client device service and the
 /// server session worker.
@@ -68,7 +78,7 @@ mod __client {
 
     #[doc(hidden)]
     pub use client::HostSpec;
-    pub use client::{ConnectError, CustomOpClient, RemoteChannel, RemoteDevice};
+    pub use client::{ConnectError, CustomOpClient, DeviceQueryError, RemoteChannel, RemoteDevice};
 }
 #[cfg(feature = "client")]
 pub use __client::*;

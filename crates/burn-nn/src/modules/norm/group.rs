@@ -1,7 +1,9 @@
 use crate::Initializer;
+use crate::modules::bounds;
 use burn_core as burn;
 
 use burn::config::Config;
+use burn::instrument::{self, Bounds, compute};
 use burn::module::Module;
 use burn::module::Param;
 use burn::module::{Content, DisplaySettings, ModuleDisplay};
@@ -104,6 +106,18 @@ impl GroupNormConfig {
 }
 
 impl GroupNorm {
+    /// The floor for a normalization alone: read the input and the parameters once, write the
+    /// output once. The statistics are a pass over the same bytes, so no arithmetic is declared.
+    fn bounds<const D: usize>(&self, input: &Tensor<D>) -> Bounds {
+        Bounds {
+            read: instrument::tensor_bytes(input)
+                + bounds::optional_parameter(&self.gamma)
+                + bounds::optional_parameter(&self.beta),
+            write: instrument::tensor_bytes(input),
+            flops: 0,
+        }
+    }
+
     /// Applies the forward pass on the input tensor.
     ///
     /// See [GroupNorm](GroupNorm) for more information.
@@ -116,6 +130,7 @@ impl GroupNorm {
     /// # Panics
     ///
     /// Panics if the input has rank < 2 or its second axis is not `num_channels`.
+    #[compute(bounds = Self::bounds)]
     pub fn forward<const D: usize>(&self, input: Tensor<D>) -> Tensor<D> {
         assert_shape!(input, [_, self.num_channels, ..]);
 
@@ -213,6 +228,28 @@ mod tests {
     use burn::tensor::TensorData;
     use burn::tensor::Tolerance;
     type FT = f32;
+
+    /// A norm without learnable parameters reads only its input.
+    #[cfg(feature = "std")]
+    #[test]
+    fn a_norm_without_parameters_reads_its_input() {
+        let device = Default::default();
+        let norm = GroupNormConfig::new(2, 4).with_affine(false).init(&device);
+        let input = Tensor::<3>::zeros([2, 4, 5], &device);
+
+        let recorded = crate::recording::recorded(|| {
+            norm.forward(input);
+        });
+
+        assert_eq!(
+            recorded.declared("group norm"),
+            Some(Bounds {
+                read: 2 * 4 * 5 * 4,
+                write: 2 * 4 * 5 * 4,
+                flops: 0,
+            })
+        );
+    }
 
     #[test]
     #[should_panic(

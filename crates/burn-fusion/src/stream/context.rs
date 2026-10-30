@@ -208,7 +208,6 @@ impl RelativeOps for OperationIr {
             OperationIr::Custom(ops) => OperationIr::Custom(ops.to_relative(converter)),
             OperationIr::Init(ops) => OperationIr::Init(ops.to_relative(converter)),
             OperationIr::Drop(tensor) => OperationIr::Drop(tensor.to_relative(converter)),
-            OperationIr::Distributed(ops) => OperationIr::Distributed(ops.to_relative(converter)),
             OperationIr::Activation(ops) => OperationIr::Activation(ops.to_relative(converter)),
         }
     }
@@ -423,6 +422,7 @@ impl RelativeOps for ModuleOperationIr {
                 kernel_size: desc.kernel_size,
                 stride: desc.stride,
                 padding: desc.padding,
+                dilation: desc.dilation,
                 count_include_pad: desc.count_include_pad,
                 ceil_mode: desc.ceil_mode,
                 out: desc.out.to_relative(converter),
@@ -432,6 +432,7 @@ impl RelativeOps for ModuleOperationIr {
                 kernel_size: desc.kernel_size,
                 stride: desc.stride,
                 padding: desc.padding,
+                dilation: desc.dilation,
                 count_include_pad: desc.count_include_pad,
                 ceil_mode: desc.ceil_mode,
                 out: desc.out.to_relative(converter),
@@ -443,6 +444,7 @@ impl RelativeOps for ModuleOperationIr {
                     kernel_size: desc.kernel_size,
                     stride: desc.stride,
                     padding: desc.padding,
+                    dilation: desc.dilation,
                     count_include_pad: desc.count_include_pad,
                     ceil_mode: desc.ceil_mode,
                     out: desc.out.to_relative(converter),
@@ -455,6 +457,7 @@ impl RelativeOps for ModuleOperationIr {
                     kernel_size: desc.kernel_size,
                     stride: desc.stride,
                     padding: desc.padding,
+                    dilation: desc.dilation,
                     count_include_pad: desc.count_include_pad,
                     ceil_mode: desc.ceil_mode,
                     out: desc.out.to_relative(converter),
@@ -465,6 +468,7 @@ impl RelativeOps for ModuleOperationIr {
                 kernel_size: desc.kernel_size,
                 stride: desc.stride,
                 padding: desc.padding,
+                dilation: desc.dilation,
                 count_include_pad: desc.count_include_pad,
                 ceil_mode: desc.ceil_mode,
                 out: desc.out.to_relative(converter),
@@ -476,6 +480,7 @@ impl RelativeOps for ModuleOperationIr {
                     kernel_size: desc.kernel_size,
                     stride: desc.stride,
                     padding: desc.padding,
+                    dilation: desc.dilation,
                     count_include_pad: desc.count_include_pad,
                     ceil_mode: desc.ceil_mode,
                     out: desc.out.to_relative(converter),
@@ -651,6 +656,30 @@ impl RelativeOps for ModuleOperationIr {
                 options: desc.options.clone(),
                 out: desc.out.to_relative(converter),
             }),
+            ModuleOperationIr::AttentionWithLogsumexp(desc) => {
+                ModuleOperationIr::AttentionWithLogsumexp(AttentionWithLogsumexpOpIr {
+                    query: desc.query.to_relative(converter),
+                    key: desc.key.to_relative(converter),
+                    value: desc.value.to_relative(converter),
+                    options: desc.options.clone(),
+                    out: desc.out.to_relative(converter),
+                    logsumexp: desc.logsumexp.to_relative(converter),
+                })
+            }
+            ModuleOperationIr::AttentionBackward(desc) => {
+                ModuleOperationIr::AttentionBackward(Box::new(AttentionBackwardOpIr {
+                    query: desc.query.to_relative(converter),
+                    key: desc.key.to_relative(converter),
+                    value: desc.value.to_relative(converter),
+                    out: desc.out.to_relative(converter),
+                    logsumexp: desc.logsumexp.to_relative(converter),
+                    out_grad: desc.out_grad.to_relative(converter),
+                    options: desc.options.clone(),
+                    query_grad: desc.query_grad.to_relative(converter),
+                    key_grad: desc.key_grad.to_relative(converter),
+                    value_grad: desc.value_grad.to_relative(converter),
+                }))
+            }
             ModuleOperationIr::CtcLoss(desc) => ModuleOperationIr::CtcLoss(CtcLossOpIr {
                 log_probs: desc.log_probs.to_relative(converter),
                 targets: desc.targets.to_relative(converter),
@@ -1691,22 +1720,6 @@ impl RelativeOps for TensorIr {
             .insert(self.id, relative_tensor.clone());
 
         relative_tensor
-    }
-}
-
-impl RelativeOps for DistributedOperationIr {
-    fn to_relative(&self, converter: &mut OperationConverter) -> Self {
-        match self {
-            DistributedOperationIr::AllReduce(desc) => {
-                DistributedOperationIr::AllReduce(AllReduceOpIr {
-                    tensor: desc.tensor.to_relative(converter),
-                    out: desc.out.to_relative(converter),
-                    op: desc.op,
-                    device_ids: desc.device_ids.clone(),
-                })
-            }
-            DistributedOperationIr::SyncCollective => DistributedOperationIr::SyncCollective,
-        }
     }
 }
 

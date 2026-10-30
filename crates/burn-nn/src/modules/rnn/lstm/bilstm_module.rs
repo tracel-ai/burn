@@ -2,10 +2,12 @@ use crate::Initializer;
 use burn_core as burn;
 
 use crate::activation::ActivationConfig;
+use crate::modules::role::Role;
 use crate::{Lstm, LstmConfig, LstmState};
 use alloc::vec;
 use burn::Tensor;
 use burn::config::Config;
+use burn::instrument::compute;
 use burn::module::{Content, DisplaySettings, Module, ModuleDisplay};
 use burn::prelude::Device;
 use burn::prelude::s;
@@ -126,6 +128,7 @@ impl BiLstm {
     ///   - `[sequence_length, batch_size, hidden_size * 2]` if `batch_first` is false
     /// - state: A `LstmState` represents the final forward and reverse states. Both `state.cell` and
     ///   `state.hidden` have the shape `[2, batch_size, hidden_size]`.
+    #[compute]
     pub fn forward(
         &self,
         batched_input: Tensor<3>,
@@ -146,16 +149,18 @@ impl BiLstm {
 
         // forward direction
         let (hidden_forward, state_forward) =
-            self.forward.forward(batched_input.clone(), state_forward);
+            Role::FORWARD.run(|| self.forward.forward(batched_input.clone(), state_forward));
 
         // reverse direction
-        let (hidden_reverse, state_reverse) = self.reverse.forward_iter(
-            batched_input.iter_dim(1).enumerate().rev(),
-            state_reverse,
-            batch_size,
-            seq_length,
-            &device,
-        );
+        let (hidden_reverse, state_reverse) = Role::REVERSE.run(|| {
+            self.reverse.forward_iter(
+                batched_input.iter_dim(1).enumerate().rev(),
+                state_reverse,
+                batch_size,
+                seq_length,
+                &device,
+            )
+        });
 
         let output = Tensor::cat([hidden_forward, hidden_reverse].to_vec(), 2);
 

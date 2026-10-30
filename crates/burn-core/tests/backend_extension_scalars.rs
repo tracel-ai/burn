@@ -70,7 +70,7 @@ fn scalars_preserve_types_order_and_values_across_calls() {
         .flat_map(|block| block.operations)
         .filter_map(|operation| match operation {
             OperationIr::Custom(op) => {
-                assert_eq!(op.id, "scalar_probe");
+                assert_eq!(op.id, "ScalarProbe::scalar_probe");
                 Some(op.scalars)
             }
             _ => None,

@@ -13,10 +13,9 @@ pub(crate) enum ActionMessage<B: Backend> {
 }
 
 pub(crate) enum DistributedSyncMessage<B: Backend> {
-    RegisterSyncParameters(Vec<DistributedParams>),
+    RegisterSyncParameters((Device<B>, Vec<DistributedParams>)),
     TensorSync((TensorRef<B>, DistributedParams)),
-    #[allow(clippy::type_complexity)]
-    CollectiveSync((Device<B>, oneshot::Sender<Box<dyn FnOnce() + Send>>)),
+    CollectiveSync((Device<B>, oneshot::Sender<()>)),
 }
 
 #[derive(Clone)]
@@ -25,10 +24,10 @@ pub struct DistributedSyncClient<B: Backend> {
 }
 
 impl<B: Backend> DistributedSyncClient<B> {
-    pub(crate) fn new(num_devices: usize, config: DistributedConfig) -> Self {
+    pub(crate) fn new(devices: &[Device<B>], config: DistributedConfig) -> Self {
         let (tx, rx) = std::sync::mpsc::channel();
 
-        let mut server = DistributedSyncServer::new(num_devices, config);
+        let mut server = DistributedSyncServer::new(devices, config);
         spawn(move || {
             while let ActionMessage::Message(msg) =
                 rx.recv().expect("Gradient sync server disconnected.")
@@ -39,10 +38,14 @@ impl<B: Backend> DistributedSyncClient<B> {
         Self { sender: tx }
     }
 
-    pub fn register_sync_parameters(&self, sharded_params: Vec<DistributedParams>) {
+    pub fn register_sync_parameters(
+        &self,
+        device: Device<B>,
+        sharded_params: Vec<DistributedParams>,
+    ) {
         self.sender
             .send(ActionMessage::Message(
-                DistributedSyncMessage::RegisterSyncParameters(sharded_params),
+                DistributedSyncMessage::RegisterSyncParameters((device, sharded_params)),
             ))
             .unwrap();
     }
@@ -64,12 +67,11 @@ impl<B: Backend> DistributedSyncClient<B> {
             ))
             .unwrap();
 
-        let sync = rx.recv().expect("Can receive callback");
-
-        sync();
+        rx.recv().expect("Can receive callback");
     }
 
     pub(crate) fn close(&self) {
-        self.sender.send(ActionMessage::Close()).unwrap();
+        // A server that died has nothing left to close.
+        let _ = self.sender.send(ActionMessage::Close());
     }
 }

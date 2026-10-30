@@ -9,6 +9,7 @@ pub(crate) fn avg_pool1d_from_2d<B: Backend>(
     kernel_size: usize,
     stride: usize,
     padding: usize,
+    dilation: usize,
     count_include_pad: bool,
     ceil_mode: bool,
 ) -> FloatTensor<B> {
@@ -20,6 +21,7 @@ pub(crate) fn avg_pool1d_from_2d<B: Backend>(
         [kernel_size, 1],
         [stride, 1],
         [padding, 0],
+        [dilation, 1],
         count_include_pad,
         ceil_mode,
     );
@@ -29,12 +31,14 @@ pub(crate) fn avg_pool1d_from_2d<B: Backend>(
     B::float_reshape(x, Shape::from([batch_size, channels, length]))
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn avg_pool1d_backward_from_2d<B: Backend>(
     x: FloatTensor<B>,
     grad: FloatTensor<B>,
     kernel_size: usize,
     stride: usize,
     padding: usize,
+    dilation: usize,
     count_include_pad: bool,
     ceil_mode: bool,
 ) -> FloatTensor<B> {
@@ -50,6 +54,7 @@ pub(crate) fn avg_pool1d_backward_from_2d<B: Backend>(
         [kernel_size, 1],
         [stride, 1],
         [padding, 0],
+        [dilation, 1],
         count_include_pad,
         ceil_mode,
     );

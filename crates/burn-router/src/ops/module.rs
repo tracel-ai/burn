@@ -1,9 +1,10 @@
 use alloc::boxed::Box;
 
 use burn_backend::ops::{
-    AttentionModuleOptions, ConvOptions, ConvTransposeOptions, DeformConv2dBackward,
-    DeformConvOptions, InterpolateOptions, MaxPool1dBackward, MaxPool1dWithIndices,
-    MaxPool2dBackward, MaxPool2dWithIndices, MaxPool3dBackward, MaxPool3dWithIndices, ModuleOps,
+    AttentionBackward, AttentionModuleOptions, ConvOptions, ConvTransposeOptions,
+    DeformConv2dBackward, DeformConvOptions, InterpolateOptions, MaxPool1dBackward,
+    MaxPool1dWithIndices, MaxPool2dBackward, MaxPool2dWithIndices, MaxPool3dBackward,
+    MaxPool3dWithIndices, ModuleOps,
 };
 use burn_backend::tensor::{BoolTensor, FloatTensor, IntTensor};
 use burn_ir::*;
@@ -57,6 +58,65 @@ impl<R: RouterChannel> ModuleOps<Self> for BackendRouter<R> {
         client
             .register(OperationIr::Module(ModuleOperationIr::CtcLoss(desc)))
             .output()
+    }
+
+    fn has_attention_backward() -> bool {
+        // The forward and the backward are one operation each for the backend on the other side:
+        // the interpreter answers them with that backend's own kernels, or with the default
+        // composition when it has none.
+        true
+    }
+
+    fn attention_with_logsumexp(
+        query: FloatTensor<Self>,
+        key: FloatTensor<Self>,
+        value: FloatTensor<Self>,
+        options: AttentionModuleOptions,
+    ) -> (FloatTensor<Self>, FloatTensor<Self>) {
+        let client = query.client.clone();
+        let desc = AttentionWithLogsumexpOpIr::create(
+            query.into_ir(),
+            key.into_ir(),
+            value.into_ir(),
+            options.into(),
+            || client.create_empty_handle(),
+        );
+
+        let [out, logsumexp] = client
+            .register(OperationIr::Module(
+                ModuleOperationIr::AttentionWithLogsumexp(desc),
+            ))
+            .outputs();
+        (out, logsumexp)
+    }
+
+    fn attention_backward(
+        query: FloatTensor<Self>,
+        key: FloatTensor<Self>,
+        value: FloatTensor<Self>,
+        out: FloatTensor<Self>,
+        logsumexp: FloatTensor<Self>,
+        out_grad: FloatTensor<Self>,
+        options: AttentionModuleOptions,
+    ) -> AttentionBackward<Self> {
+        let client = query.client.clone();
+        let desc = AttentionBackwardOpIr::create(
+            query.into_ir(),
+            key.into_ir(),
+            value.into_ir(),
+            out.into_ir(),
+            logsumexp.into_ir(),
+            out_grad.into_ir(),
+            options.into(),
+            || client.create_empty_handle(),
+        );
+
+        let [query_grad, key_grad, value_grad] = client
+            .register(OperationIr::Module(ModuleOperationIr::AttentionBackward(
+                Box::new(desc),
+            )))
+            .outputs();
+        AttentionBackward::new(query_grad, key_grad, value_grad)
     }
 
     fn has_ctc_loss_backward() -> bool {
@@ -668,6 +728,7 @@ impl<R: RouterChannel> ModuleOps<Self> for BackendRouter<R> {
         kernel_size: usize,
         stride: usize,
         padding: usize,
+        dilation: usize,
         count_include_pad: bool,
         ceil_mode: bool,
     ) -> FloatTensor<Self> {
@@ -677,6 +738,7 @@ impl<R: RouterChannel> ModuleOps<Self> for BackendRouter<R> {
             kernel_size,
             stride,
             padding,
+            dilation,
             count_include_pad,
             ceil_mode,
             || client.create_empty_handle(),
@@ -692,6 +754,7 @@ impl<R: RouterChannel> ModuleOps<Self> for BackendRouter<R> {
         kernel_size: [usize; 2],
         stride: [usize; 2],
         padding: [usize; 2],
+        dilation: [usize; 2],
         count_include_pad: bool,
         ceil_mode: bool,
     ) -> FloatTensor<Self> {
@@ -701,6 +764,7 @@ impl<R: RouterChannel> ModuleOps<Self> for BackendRouter<R> {
             kernel_size,
             stride,
             padding,
+            dilation,
             count_include_pad,
             ceil_mode,
             || client.create_empty_handle(),
@@ -716,6 +780,7 @@ impl<R: RouterChannel> ModuleOps<Self> for BackendRouter<R> {
         kernel_size: [usize; 3],
         stride: [usize; 3],
         padding: [usize; 3],
+        dilation: [usize; 3],
         count_include_pad: bool,
         ceil_mode: bool,
     ) -> FloatTensor<Self> {
@@ -725,6 +790,7 @@ impl<R: RouterChannel> ModuleOps<Self> for BackendRouter<R> {
             kernel_size,
             stride,
             padding,
+            dilation,
             count_include_pad,
             ceil_mode,
             || client.create_empty_handle(),
@@ -741,6 +807,7 @@ impl<R: RouterChannel> ModuleOps<Self> for BackendRouter<R> {
         kernel_size: usize,
         stride: usize,
         padding: usize,
+        dilation: usize,
         count_include_pad: bool,
         ceil_mode: bool,
     ) -> FloatTensor<Self> {
@@ -751,6 +818,7 @@ impl<R: RouterChannel> ModuleOps<Self> for BackendRouter<R> {
             kernel_size,
             stride,
             padding,
+            dilation,
             count_include_pad,
             ceil_mode,
             || client.create_empty_handle(),
@@ -769,6 +837,7 @@ impl<R: RouterChannel> ModuleOps<Self> for BackendRouter<R> {
         kernel_size: [usize; 2],
         stride: [usize; 2],
         padding: [usize; 2],
+        dilation: [usize; 2],
         count_include_pad: bool,
         ceil_mode: bool,
     ) -> FloatTensor<Self> {
@@ -779,6 +848,7 @@ impl<R: RouterChannel> ModuleOps<Self> for BackendRouter<R> {
             kernel_size,
             stride,
             padding,
+            dilation,
             count_include_pad,
             ceil_mode,
             || client.create_empty_handle(),
@@ -797,6 +867,7 @@ impl<R: RouterChannel> ModuleOps<Self> for BackendRouter<R> {
         kernel_size: [usize; 3],
         stride: [usize; 3],
         padding: [usize; 3],
+        dilation: [usize; 3],
         count_include_pad: bool,
         ceil_mode: bool,
     ) -> FloatTensor<Self> {
@@ -807,6 +878,7 @@ impl<R: RouterChannel> ModuleOps<Self> for BackendRouter<R> {
             kernel_size,
             stride,
             padding,
+            dilation,
             count_include_pad,
             ceil_mode,
             || client.create_empty_handle(),

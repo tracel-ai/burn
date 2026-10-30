@@ -98,7 +98,7 @@ fn should_support_full_sliceing_1d() {
     let data = TensorData::from([0.0, 1.0, 2.0]);
     let tensor = TestTensor::<1>::from_data(data.clone(), &Default::default());
 
-    let output = tensor.slice([0..3]);
+    let output = tensor.slice(0..3);
 
     output.into_data().assert_eq(&data, false);
 }
@@ -122,7 +122,7 @@ fn should_support_partial_sliceing_1d() {
     let data = TensorData::from([0.0, 1.0, 2.0]);
     let tensor = TestTensor::<1>::from_data(data, &Default::default());
 
-    let output = tensor.slice([1..3]);
+    let output = tensor.slice(1..3);
     let expected = TensorData::from([1.0, 2.0]);
 
     output.into_data().assert_eq(&expected, false);
@@ -133,7 +133,7 @@ fn should_support_full_sliceing_2d() {
     let data = TensorData::from([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
     let tensor = TestTensor::<2>::from_data(data.clone(), &Default::default());
 
-    let output = tensor.clone().slice([0..2]);
+    let output = tensor.clone().slice(0..2);
     output.into_data().assert_eq(&data, false);
 
     let output = tensor.slice([0..2, 0..3]);
@@ -201,7 +201,7 @@ fn should_support_slice_fill_1d() {
     let device = Default::default();
     let tensor = TestTensor::<1>::from_data(data, &device);
 
-    let output = tensor.slice_fill([0..2], -1.0);
+    let output = tensor.slice_fill(0..2, -1.0);
     let expected = TensorData::from([-1.0, -1.0, 2.0]);
 
     output.into_data().assert_eq(&expected, false);
@@ -235,7 +235,7 @@ fn should_support_slice_fill_cast_f32() {
 }
 
 // Skip on metal - F64 not supported
-#[cfg(not(feature = "metal"))]
+#[cfg(not(any(feature = "metal", feature = "metal-native")))]
 #[test]
 fn should_support_slice_fill_cast_f64() {
     let data = TensorData::from([0.0, 1.0, 2.0]);
@@ -363,7 +363,7 @@ fn clamp_when_slice_exceeds_dimension() {
     let tensor = TestTensor::<1>::from([0.0, 1.0, 2.0]);
     let data = tensor.to_data();
 
-    let output = tensor.slice([0..4]);
+    let output = tensor.slice(0..4);
     output.into_data().assert_eq(&data, true);
 }
 
@@ -417,7 +417,7 @@ fn missing_dimensions() {
 fn should_slice_aggregation_result() {
     let tensor = TestTensor::<1>::from([0.0, 1.0, 2.0]).mean();
 
-    let output = tensor.clone().slice([(0..1)]);
+    let output = tensor.clone().slice(0..1);
     output.into_data().assert_eq(&tensor.into_data(), true);
 }
 
@@ -448,7 +448,7 @@ fn should_support_empty_slice() {
     let data = TensorData::from([0.0, 1.0, 2.0]);
     let tensor = TestTensor::<1>::from_data(data, &Default::default());
 
-    let output = tensor.slice([1..1]);
+    let output = tensor.slice(1..1);
 
     // Should produce an empty tensor with shape [0]
     assert_eq!(output.dims(), [0]);
@@ -470,7 +470,7 @@ fn should_support_empty_slice_2d() {
 }
 
 // Skip on metal - F64 not supported
-#[cfg(not(feature = "metal"))]
+#[cfg(not(any(feature = "metal", feature = "metal-native")))]
 #[test]
 fn should_keep_dtype_on_empty_slice() {
     let device = Default::default();

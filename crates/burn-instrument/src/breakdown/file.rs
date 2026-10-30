@@ -21,7 +21,7 @@ const FORMAT_BEFORE_VERSION_3: &str = "burn-instrument pass";
 ///
 /// Every change to what a file serializes as (a field added, removed, renamed or re-encoded) is a
 /// new version, so a saved measurement is read back as it was taken or not at all.
-pub const MEASUREMENT_FILE_VERSION: u32 = 3;
+pub const MEASUREMENT_FILE_VERSION: u32 = 4;
 
 /// An instrumented run and what it is scored against: what a measurement file holds.
 ///
@@ -206,13 +206,13 @@ mod tests {
         assert_eq!(read.clean_wall, None);
     }
 
-    /// The format version 3 is, field for field. A change that fails this test is a new
+    /// The format version 4 is, field for field. A change that fails this test is a new
     /// [`MEASUREMENT_FILE_VERSION`], not an edit to the expected text.
     #[test]
-    fn version_three_is_pinned() {
+    fn version_four_is_pinned() {
         let expected = r#"{
   "format": "burn-instrument measurement",
-  "version": 3,
+  "version": 4,
   "device": "Rocm(0)",
   "peaks": {
     "copy_bytes_per_s": 161000000000.0,
@@ -221,7 +221,8 @@ mod tests {
     "flops": {
       "per_s": 49300000000000.0,
       "dtype": "F16"
-    }
+    },
+    "launch_seconds": 2.5e-6
   },
   "clean_wall": 2000,
   "breakdown": {
@@ -242,7 +243,6 @@ mod tests {
           "write": 16,
           "flops": 128
         },
-        "observed": null,
         "entries": 2,
         "children": [],
         "kernels": [
@@ -275,7 +275,7 @@ mod tests {
 }"#;
         assert_eq!(written(&measurement()), expected);
         assert_eq!(
-            Measurement::read(expected.as_bytes()).expect("version 3 reads"),
+            Measurement::read(expected.as_bytes()).expect("version 4 reads"),
             measurement(),
             "and reads back as the measurement it pins"
         );
@@ -287,7 +287,9 @@ mod tests {
     fn a_file_unlike_what_its_version_writes_is_refused() {
         let pinned = written(&measurement());
         let unknown = pinned.replace(r#""unfused": false"#, r#""unfused": false, "extra": 1"#);
-        let missing = pinned.replace(r#""observed": null,"#, "");
+        let bounds = pinned.find(r#""bounds""#).unwrap();
+        let after_bounds = bounds + pinned[bounds..].find(r#""entries""#).unwrap();
+        let missing = pinned.replace(&pinned[bounds..after_bounds], "");
         let no_peaks = pinned.replace(
             &pinned[pinned.find(r#""peaks""#).unwrap()..pinned.find(r#""clean_wall""#).unwrap()],
             "",
@@ -317,7 +319,7 @@ mod tests {
             Measurement::read(wide.as_bytes()),
             Err(MeasurementFileError::UnsupportedVersion {
                 found: 4_294_967_296,
-                supported: 3
+                supported: 4
             })
         ));
     }
@@ -332,7 +334,7 @@ mod tests {
             Measurement::read(file.as_bytes()),
             Err(MeasurementFileError::UnsupportedVersion {
                 found: 1,
-                supported: 3
+                supported: 4
             })
         ));
     }
@@ -352,6 +354,7 @@ mod tests {
         Measurement {
             device: "Rocm(0)".to_string(),
             peaks: Some(Peaks {
+                launch_seconds: Some(2.5e-6),
                 copy_bytes_per_s: Some(161.0e9),
                 read_bytes_per_s: Some(199.0e9),
                 write_bytes_per_s: Some(137.0e9),
@@ -374,7 +377,6 @@ mod tests {
                         write: 16,
                         flops: 128,
                     }),
-                    observed: None,
                     entries: 2,
                     children: Vec::new(),
                     kernels: vec![Kernel {

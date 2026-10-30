@@ -1,9 +1,9 @@
 use crate::{
     metrics::{MetricSide, TelemetryLogger, logger_task},
     shared::{
-        Encode, LocalTransferId, PROTOCOL_VERSION, RemoteMessage, RequestId, SessionId,
-        SessionInfo, SessionInit, Task, TaskResponse, TaskResponseContent, TensorRemote,
-        TransferCapability,
+        DeviceQueryId, Encode, LocalAllReducePart, LocalTransferId, PROTOCOL_VERSION,
+        RemoteMessage, RequestId, SessionId, SessionInfo, SessionInit, Task, TaskResponse,
+        TaskResponseContent, TensorRemote, TransferCapability,
     },
     telemetry::{CHANNEL_CAPACITY, TelemetryEvent, TelemetryProbe, serialized_len},
     transport::{
@@ -16,8 +16,12 @@ use burn_backend::{
     TensorData,
     backend::{DeviceId, DeviceService, ServerUtilitiesHandle},
 };
-use burn_ir::{OperationIr, TensorId, TensorIr};
-use burn_std::{DType, DeviceSettings, id::StreamId, profile::Instant};
+use burn_ir::{CapturedGraphId, OperationIr, TensorId, TensorIr};
+use burn_std::{
+    DType, DeviceSettings,
+    id::{IdGenerator, StreamId},
+    profile::Instant,
+};
 // Only the native `sync` path captures a backtrace; the wasm path returns without blocking.
 #[cfg(not(target_family = "wasm"))]
 use burn_std::backtrace::BackTrace;
@@ -40,11 +44,12 @@ use conn::{ResponseChannel, SessionStreams};
 use pending::{PendingResponses, Responder};
 use writer::SubmitWriter;
 
-use super::{ConnectError, runtime::Executor};
+use super::{ConnectError, DeviceQueryError, runtime::Executor};
 pub(crate) use conn::{RemoteEndpoint, SubmitChannel};
 use registry::{device_count_cell, settings_cell};
 pub(crate) use registry::{device_count_for, register_endpoint, registered_device, session_end};
-pub(crate) use registry::{has_settings, new_tensor_id, settings_for};
+pub(crate) use registry::{has_settings, new_tensor_id, session_of, settings_for};
+use serde_bytes::ByteBuf;
 
 /// How long a connection attempt, then the handshake, may each take before the server is taken to
 /// be stuck.
@@ -124,7 +129,7 @@ impl DeviceService for RemoteService {
         } = registered_device(id)
             .unwrap_or_else(|| panic!("No endpoint registered for device id {device_id}"));
         let executor = Executor::session();
-        let session_id = SessionId::new();
+        let session_id = session_of(id);
 
         let probe = if TelemetryLogger::enabled() {
             TelemetryProbe::new(CHANNEL_CAPACITY)
@@ -512,6 +517,15 @@ impl RemoteService {
         self.flush();
     }
 
+    /// Send one member's part of an all-reduce, flushing immediately: its session waits there
+    /// for the other members' parts, which the caller sends next.
+    pub fn all_reduce_local(&mut self, stream_id: StreamId, part: LocalAllReducePart) {
+        self.probe
+            .emit(|| part.op_event(self.session_id, stream_id));
+        self.submit_task(Task::AllReduceLocal { stream_id, part });
+        self.flush();
+    }
+
     pub fn seed(&mut self, seed: u64) {
         self.submit_task(Task::Seed(seed));
     }
@@ -652,6 +666,78 @@ impl RemoteService {
             "A remote profiling window was closed twice, or with a token this device never opened"
         );
         ProfileDuration::new_device_time_maybe(async move { None })
+    }
+
+    /// Prepare the server's backend for a graph capture where `stream_id` stands.
+    pub fn graph_prepare(&mut self, stream_id: StreamId) -> Result<(), ExecutionError> {
+        self.capture_request(|id| Task::CapturePrepare(id, stream_id))
+    }
+
+    /// Start recording the server backend's launches on `stream_id` into a graph, after every
+    /// task sent before.
+    pub fn graph_start_capture(&mut self, stream_id: StreamId) -> Result<(), ExecutionError> {
+        self.capture_request(|id| Task::CaptureStart(id, stream_id))
+    }
+
+    /// Stop the recording on `stream_id`, returning the id the server keeps the graph under.
+    pub fn graph_stop_capture(
+        &mut self,
+        stream_id: StreamId,
+    ) -> Result<CapturedGraphId, ExecutionError> {
+        let graph = CapturedGraphId(IdGenerator::generate());
+        self.capture_request(|id| Task::CaptureStop(id, stream_id, graph))?;
+        Ok(graph)
+    }
+
+    /// Replay `graph` on `stream_id`, without waiting on the server (see
+    /// [`Task::CaptureReplay`]).
+    pub fn graph_replay(&mut self, stream_id: StreamId, graph: CapturedGraphId) {
+        self.submit_task(Task::CaptureReplay(stream_id, graph));
+    }
+
+    /// Drop `graph` on the server.
+    pub fn graph_release(&mut self, graph: CapturedGraphId) {
+        self.submit_task(Task::CaptureRelease(graph));
+    }
+
+    /// Send a graph-capture request and wait on the server's answer.
+    ///
+    /// A browser thread cannot wait, so it refuses, and the caller falls back to re-running.
+    fn capture_request(
+        &mut self,
+        make_task: impl FnOnce(RequestId) -> Task,
+    ) -> Result<(), ExecutionError> {
+        #[cfg(not(target_family = "wasm"))]
+        {
+            let rx = self.submit_request(make_task);
+            match self.executor.block_on(rx) {
+                Ok(TaskResponseContent::Capture(res)) => res,
+                Ok(other) => panic!("Invalid response for a graph capture request: {other:?}"),
+                Err(_) => Err(ExecutionError::with_context(
+                    "Remote response channel closed before the graph capture request completed",
+                )),
+            }
+        }
+        #[cfg(target_family = "wasm")]
+        {
+            let _ = make_task;
+            Err(ExecutionError::with_context(
+                "a remote device cannot capture a graph from a browser thread, which cannot wait \
+                 on the server",
+            ))
+        }
+    }
+
+    /// Ask the server the device query `id` about this device, waiting on the answer.
+    pub fn device_query(&mut self, id: DeviceQueryId) -> Result<Vec<u8>, DeviceQueryError> {
+        let rx = self.submit_request(|request| Task::DeviceQuery(request, id.clone()));
+        match self.executor.block_on(rx) {
+            Ok(TaskResponseContent::DeviceQuery(answer)) => answer
+                .map(ByteBuf::into_vec)
+                .map_err(|failure| DeviceQueryError::from((id, failure))),
+            Ok(other) => panic!("Invalid response for DeviceQuery: {other:?}"),
+            Err(_) => Err(DeviceQueryError::SessionEnded),
+        }
     }
 
     pub fn dtype_usage(&mut self, dtype: DType) -> DTypeUsageSet {

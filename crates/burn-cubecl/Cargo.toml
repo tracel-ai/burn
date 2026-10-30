@@ -1,4 +1,5 @@
 [package]
+workspace = "../.."
 authors = ["nathanielsimard <nathaniel.simard.42@gmail.com>"]
 categories = ["science"]
 description = "Generic backend that can be compiled just-in-time to any shader language target"
@@ -44,6 +45,7 @@ hip = ["cubecl/hip", "burn-backend/cubecl-hip"]
 cpu = ["cubecl/cpu", "burn-backend/cubecl-cpu"]
 wgpu = ["cubecl/wgpu", "burn-backend/cubecl-wgpu"]
 metal = ["wgpu", "cubecl/metal", "burn-backend/cubecl-metal"]
+metal-native = ["cubecl/metal-native", "burn-backend/cubecl-metal-native"]
 vulkan = ["wgpu", "cubecl/vulkan", "burn-backend/cubecl-vulkan"]
 webgpu = ["wgpu", "cubecl/webgpu", "burn-backend/cubecl-webgpu"]
 
@@ -62,8 +64,10 @@ autotune = ["burn-cubecl-fusion?/autotune"]
 autotune-checks = [
     "autotune",
     "cubecl/autotune-checks",
+    "cubek/autotune-checks",
     "burn-cubecl-fusion?/autotune-checks",
 ]
+
 
 fusion = ["burn-fusion", "burn-cubecl-fusion"]
 fusion-experimental = ["fusion"]
@@ -85,9 +89,11 @@ burn-backend = { workspace = true, features = [
 cubecl = { workspace = true, features = ["stdlib"] }
 cubek = { workspace = true, features = [
     "attention",
+    "attention-tiled",
+    "attention-backward",
     "matmul",
-    "matmul-multi-level",
     "matmul-tiled",
+    "microkernel",
     "convolution",
     "interpolate",
     "pool",

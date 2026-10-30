@@ -176,6 +176,10 @@ impl<B: FusionBackend> Backend for Fusion<B> {
         client.sync(move || B::memory_pool_usage(&device))
     }
 
+    fn memory_capacity(device: &Self::Device) -> Option<u64> {
+        B::memory_capacity(device)
+    }
+
     fn staging<'a, Iter>(data: Iter, device: &Self::Device)
     where
         Iter: Iterator<Item = &'a mut burn_backend::TensorData>,
@@ -397,10 +401,6 @@ pub enum OperationRan {
 
 /// Trait that allows an existing [backend](Backend) to specify graph optimizations using
 /// [operation fuser](crate::OperationFuser).
-///
-/// Collective operations on the remote/router interpreter path are driven through the
-/// [`DistributedOps`](burn_backend::distributed::DistributedOps) supertrait of [`Backend`], which
-/// every fusion backend satisfies unconditionally.
 pub trait FusionBackend:
     BackendIr<Handle = FusionHandle<Self::FusionRuntime>, Device = FusionDevice<Self::FusionRuntime>>
 {

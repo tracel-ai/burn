@@ -16,12 +16,27 @@ struct Model {
     w: Param<Tensor<1>>,
 }
 
+#[derive(Module, Debug)]
+struct MultiTensorModel {
+    first: Param<Tensor<1>>,
+    second: Param<Tensor<1>>,
+    third: Param<Tensor<1>>,
+}
+
 fn model(device: &Device) -> Model {
     Model {
         w: Param::initialized(
             ParamId::new(),
             Tensor::<1>::from_data([1.0, 2.0, 3.0, 4.0], device),
         ),
+    }
+}
+
+fn multi_tensor_model(device: &Device) -> MultiTensorModel {
+    MultiTensorModel {
+        first: Param::initialized(ParamId::new(), Tensor::from_data([1.0, 2.0], device)),
+        second: Param::initialized(ParamId::new(), Tensor::from_data([3.0, 4.0], device)),
+        third: Param::initialized(ParamId::new(), Tensor::from_data([5.0, 6.0], device)),
     }
 }
 
@@ -148,6 +163,37 @@ fn a_successful_save_lands_at_the_destination() {
 
     // Nothing but the container itself.
     assert_eq!(std::fs::read_dir(dir.path()).unwrap().count(), 1);
+}
+
+/// Every deferred tensor reads its own validated byte range from the shared container.
+#[test]
+fn loading_multiple_tensors_uses_each_tensor_data_range() {
+    let device: Device = Default::default();
+    let model = multi_tensor_model(&device);
+    let mut store = SafetensorsStore::from_bytes(None);
+    model.save_into(&mut store).unwrap();
+    let bytes = store.get_bytes().unwrap();
+
+    let mut loaded = MultiTensorModel {
+        first: Param::initialized(ParamId::new(), Tensor::zeros([2], &device)),
+        second: Param::initialized(ParamId::new(), Tensor::zeros([2], &device)),
+        third: Param::initialized(ParamId::new(), Tensor::zeros([2], &device)),
+    };
+    let mut store = SafetensorsStore::from_bytes(Some(bytes));
+    loaded.load_from(&mut store).unwrap();
+
+    assert_eq!(
+        loaded.first.val().to_data().try_to_vec::<f32>().unwrap(),
+        vec![1.0, 2.0]
+    );
+    assert_eq!(
+        loaded.second.val().to_data().try_to_vec::<f32>().unwrap(),
+        vec![3.0, 4.0]
+    );
+    assert_eq!(
+        loaded.third.val().to_data().try_to_vec::<f32>().unwrap(),
+        vec![5.0, 6.0]
+    );
 }
 
 /// Saving replaces the destination rather than truncating it, so the new file is a new inode.

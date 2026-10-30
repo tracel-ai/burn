@@ -8,11 +8,13 @@
 
 use std::time::Duration;
 
-use burn_instrument::{Measurement, PeakFinding, Peaks};
+use burn_instrument::{ComponentPath, Measurement, PeakFinding, Peaks};
 
 use crate::Comparison;
+use crate::components::{ComponentReading, KernelReading, Unclaimed, UnclaimedReading, WorkShare};
 use crate::reading::{HostSplit, TimeReading};
 use crate::roofline::{Ladder, Roofline};
+use crate::share::Share;
 
 /// A measurement, scored against its device's peaks, and the table that
 /// renders it ([`Display`](std::fmt::Display)).
@@ -30,6 +32,8 @@ pub struct Report<'a> {
     reading: TimeReading,
     /// Whether the run splits into the device's time and the host's.
     host_split: HostSplit,
+    /// Every kernel's device time, summed once: what every share is of.
+    device_time: Duration,
 }
 
 impl<'a> Report<'a> {
@@ -51,6 +55,7 @@ impl<'a> Report<'a> {
             roofline: Roofline::new(&measurement.breakdown, peaks.trusted(), reading),
             reading,
             host_split: HostSplit::new(measurement),
+            device_time: measurement.breakdown.total_time(),
         }
     }
 
@@ -83,6 +88,45 @@ impl<'a> Report<'a> {
                 .map(|component| self.roofline.outermost_floor(component))
                 .sum(),
         }
+    }
+
+    /// The run's components as the table reads them, roots first, in first-seen order.
+    pub fn components(&self) -> Vec<ComponentReading<'a>> {
+        self.measurement
+            .breakdown
+            .tree
+            .iter()
+            .map(|root| {
+                ComponentReading::new(self, root, ComponentPath::new([root.label.as_str()]))
+            })
+            .collect()
+    }
+
+    /// The kernels no component claimed, as the table lists them after the components: the
+    /// end of the run's, then the untagged; a group with no kernel is left out.
+    pub fn unclaimed(&self) -> Vec<UnclaimedReading<'a>> {
+        let breakdown = &self.measurement.breakdown;
+        [
+            (Unclaimed::EndOfRun, &breakdown.end_of_run),
+            (Unclaimed::Untagged, &breakdown.untagged),
+        ]
+        .into_iter()
+        .filter(|(_, kernels)| !kernels.is_empty())
+        .map(|(unclaimed, kernels)| UnclaimedReading {
+            unclaimed,
+            kernels: KernelReading::list(self, kernels),
+        })
+        .collect()
+    }
+
+    /// `part` of the run's device time; `None` where the run timed nothing.
+    pub(crate) fn share(&self, part: Duration) -> Option<WorkShare> {
+        Share {
+            part,
+            whole: self.device_time,
+        }
+        .fraction()
+        .map(WorkShare)
     }
 
     /// The measurement this report scores.

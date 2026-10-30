@@ -66,6 +66,10 @@ impl ExecutionStrategy {
 
 impl ExecutionStrategy {
     /// Creates a distributed data parallel (DDP) strategy.
+    ///
+    /// # Panics
+    ///
+    /// When another distributed context is alive for the same backend in this process.
     pub fn ddp(devices: Vec<Device>, config: DistributedConfig) -> Self {
         let context = DistributedContext::init(devices.clone(), config);
         Self::DistributedDataParallel { devices, context }

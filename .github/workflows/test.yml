@@ -16,6 +16,8 @@ on:
       - "!LICENSE-MIT"
   pull_request:
     types: [opened, synchronize]
+    branches:
+      - main
     paths:
       - "Cargo.lock"
       - "**.rs"
@@ -45,7 +47,7 @@ env:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   prepare-checks:
@@ -75,6 +77,7 @@ jobs:
         with:
           rust-toolchain: ${{ matrix.toolchain }}
           cache-key: ${{ matrix.rust }}-linux
+          save-if: ${{ github.ref == 'refs/heads/main' }}
       # --------------------------------------------------------------------------------
       - name: Audit
         run: cargo xtask check audit
@@ -112,6 +115,7 @@ jobs:
         with:
           rust-toolchain: ${{ matrix.toolchain }}
           cache-key: ${{ matrix.rust }}-linux
+          save-if: ${{ github.ref == 'refs/heads/main' }}
       # --------------------------------------------------------------------------------
       - name: Documentation Build
         run: cargo xtask doc build
@@ -145,6 +149,7 @@ jobs:
           rust-toolchain: ${{ matrix.toolchain }}
           # Keep caches isolated per shard to prevent race conditions or bloated sizes
           cache-key: ${{ matrix.rust }}-${{ matrix.ci_type }}-linux
+          save-if: ${{ github.ref == 'refs/heads/main' }}
           # Coverage builds can exhaust disk space; examples only run cargo check.
           enable-cache: ${{ matrix.rust != 'stable' || matrix.ci_type == 'examples' }}
       # # --------------------------------------------------------------------------------
@@ -186,6 +191,7 @@ jobs:
         with:
           rust-toolchain: ${{ needs.prepare-checks.outputs.rust-prev-version }}
           cache-key: prev-compile-linux
+          save-if: ${{ github.ref == 'refs/heads/main' }}
       - name: Check workspace crates and examples
         # Match the portable workspace build's exclusions for CUDA and ROCm SDKs.
         run: cargo xtask compile --exclude burn-cuda,burn-rocm
@@ -239,6 +245,7 @@ jobs:
         with:
           rust-toolchain: ${{ matrix.toolchain }}
           cache-key: ${{ matrix.rust }}-linux-no-std
+          save-if: ${{ github.ref == 'refs/heads/main' }}
       # --------------------------------------------------------------------------------
       - name: Crates Build
         run: cargo xtask --context no-std build --ci
@@ -270,6 +277,7 @@ jobs:
         with:
           rust-toolchain: ${{ matrix.toolchain }}
           cache-key: ${{ matrix.rust }}-${{ matrix.ci_type }}-windows
+          save-if: ${{ github.ref == 'refs/heads/main' }}
       # --------------------------------------------------------------------------------
       - name: Tests
         run: cargo xtask test ${{ env.TEST_RELEASE_FLAG }} --ci ${{ matrix.ci_type }}
@@ -294,6 +302,7 @@ jobs:
         with:
           rust-toolchain: ${{ matrix.toolchain }}
           cache-key: ${{ matrix.rust }}-macos
+          save-if: ${{ github.ref == 'refs/heads/main' }}
       # --------------------------------------------------------------------------------
       - name: Device check
         run: system_profiler SPHardwareDataType

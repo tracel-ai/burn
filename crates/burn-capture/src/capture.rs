@@ -925,6 +925,34 @@ mod tests {
         ));
     }
 
+    #[test]
+    fn unsigned_int_tensor_can_move_from_completed_scope_to_new_device() {
+        let first_device = CaptureDevice::default();
+        let second_device = CaptureDevice::default();
+        let mut escaped = None;
+
+        first_device
+            .capture_scope(|scope| {
+                let tensor =
+                    CaptureBackend::int_from_data(TensorData::from([1u8, 200]), &first_device);
+                let tensor_id = tensor.id();
+                escaped = Some(tensor);
+                scope.complete([tensor_id], [])
+            })
+            .unwrap();
+
+        let captured = second_device
+            .capture_scope(|scope| {
+                let tensor = CaptureBackend::int_to_device(escaped.take().unwrap(), &second_device);
+                let tensor_id = tensor.id();
+                scope.complete([tensor_id], [])
+            })
+            .unwrap();
+
+        let moved = captured.values.into_values().next().unwrap();
+        moved.assert_eq(&TensorData::from([1u8, 200]), true);
+    }
+
     #[cfg(feature = "std")]
     #[test]
     fn completing_scope_immediately_rejects_more_operations() {

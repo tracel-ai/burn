@@ -2,19 +2,27 @@
 
 mod common;
 
+use burn_backend::{distributed::ReduceOperation, ops::CollectiveOps};
+use burn_dispatch::{Dispatch, DispatchDevice};
 use burn_flex::Flex;
 use burn_remote::{
-    ConnectError,
+    ConnectError, DeviceQueryError,
     server::{
         AuthorizationRequest, BackendServer, ClientId, ServeError, TokenAuthorizer,
         WebSocketTransport,
     },
+    telemetry::{OpClass, TelemetryEvent, TelemetryProbe, TelemetrySubscription},
 };
+use burn_std::id::ParamId;
 use burn_tensor::{
     Bool, DType, Device, DeviceType, Distribution, Int, Tensor, TensorData, Tolerance, Transaction,
-    quantization::ScaleDtype, remote::RemoteHost, server::RemoteServer,
+    distributed::{DistributedConfig, DistributedContext},
+    quantization::ScaleDtype,
+    remote::RemoteHost,
+    server::RemoteServer,
 };
 use common::{assert_same_bytes, int8_scheme, wire_floats, wire_schemes};
+use serial_test::serial;
 
 const TOKEN: &str = "fleet-token";
 
@@ -23,6 +31,26 @@ const MANY_FRAMES_LONG: usize = 1024 * 1024;
 
 /// Far beyond what a bounded step here takes when it works, so only a hang reaches it.
 const HANG_LIMIT: std::time::Duration = std::time::Duration::from_secs(10);
+
+/// Far beyond what the concurrent rounds take when they work.
+const CONCURRENT_LIMIT: std::time::Duration = std::time::Duration::from_secs(30);
+
+/// The environment variable naming the server a `transfer_client` process dials.
+const TRANSFER_CLIENT_SERVER: &str = "BURN_REMOTE_TRANSFER_CLIENT_SERVER";
+
+/// The environment variable giving a `transfer_client` process its index, which sets the values
+/// of its tensors.
+const TRANSFER_CLIENT_INDEX: &str = "BURN_REMOTE_TRANSFER_CLIENT_INDEX";
+
+/// What a `transfer_client` prints once connected, and after each round.
+const TRANSFER_CLIENT_READY: &str = "transfer client ready";
+const TRANSFER_CLIENT_DONE: &str = "transfer client round done";
+
+/// Rounds of `two_clients_keep_their_own_transfers`, each one transfer per client.
+const TRANSFER_ROUNDS: usize = 200;
+
+/// Far beyond what every round of `two_clients_keep_their_own_transfers` takes when it works.
+const TRANSFER_LIMIT: std::time::Duration = std::time::Duration::from_secs(60);
 
 /// Run `body` on a worker thread and fail the test if it does not finish within `timeout`.
 ///
@@ -267,6 +295,123 @@ fn a_dial_waits_for_a_websocket_server_that_starts_late() {
     });
 
     rt.shutdown_background();
+}
+
+/// A `transfer_client` process, killed when dropped.
+struct TransferClient {
+    index: usize,
+    child: std::process::Child,
+    rounds: std::process::ChildStdin,
+    lines: std::io::Lines<std::io::BufReader<std::process::ChildStdout>>,
+}
+
+impl TransferClient {
+    fn spawn(address: &str, index: usize) -> Self {
+        let mut child = std::process::Command::new(std::env::current_exe().unwrap())
+            .args(["transfer_client", "--exact", "--ignored", "--nocapture"])
+            .env(TRANSFER_CLIENT_SERVER, address)
+            .env(TRANSFER_CLIENT_INDEX, index.to_string())
+            .stdin(std::process::Stdio::piped())
+            .stdout(std::process::Stdio::piped())
+            .spawn()
+            .unwrap();
+        let rounds = child.stdin.take().unwrap();
+        let stdout = child.stdout.take().unwrap();
+        let lines = std::io::BufRead::lines(std::io::BufReader::new(stdout));
+        Self {
+            index,
+            child,
+            rounds,
+            lines,
+        }
+    }
+
+    /// Wait for the client to print `marker`, which libtest may prefix with the test's name.
+    fn wait_for(&mut self, marker: &str) {
+        for line in self.lines.by_ref() {
+            if line.unwrap().ends_with(marker) {
+                return;
+            }
+        }
+        let status = self.child.wait().unwrap();
+        panic!("transfer client {} stopped with {status}", self.index);
+    }
+
+    fn start_round(&mut self) {
+        std::io::Write::write_all(&mut self.rounds, b"go\n").unwrap();
+    }
+}
+
+impl Drop for TransferClient {
+    fn drop(&mut self) {
+        let _ = self.child.kill();
+        let _ = self.child.wait();
+    }
+}
+
+#[test]
+fn two_clients_keep_their_own_transfers() {
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()
+        .unwrap();
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let address = format!("ws://{}", listener.local_addr().unwrap());
+    let serving = BackendServer::<Flex>::new(vec![Default::default(), Default::default()])
+        .serve_async(WebSocketTransport::from_listener(listener));
+    rt.spawn(async move { serving.await.unwrap() });
+
+    // Each round starts in both processes at once, so their transfers are in flight together and
+    // any id the two clients share meets in the server's one registry.
+    let mut clients = [0, 1].map(|index| TransferClient::spawn(&address, index));
+    with_deadlock_watchdog(TRANSFER_LIMIT, move || {
+        clients
+            .iter_mut()
+            .for_each(|client| client.wait_for(TRANSFER_CLIENT_READY));
+        for _ in 0..TRANSFER_ROUNDS {
+            clients.iter_mut().for_each(TransferClient::start_round);
+            clients
+                .iter_mut()
+                .for_each(|client| client.wait_for(TRANSFER_CLIENT_DONE));
+        }
+    });
+    rt.shutdown_background();
+}
+
+/// One client of `two_clients_keep_their_own_transfers`, in a process of its own so that it
+/// connects as a client of its own. Each round, started by a line on stdin, moves a tensor between
+/// the server's two devices and checks that it arrives as it left.
+#[test]
+#[ignore = "started by two_clients_keep_their_own_transfers"]
+fn transfer_client() {
+    let (Ok(address), Ok(index)) = (
+        std::env::var(TRANSFER_CLIENT_SERVER),
+        std::env::var(TRANSFER_CLIENT_INDEX),
+    ) else {
+        return;
+    };
+    let index: usize = index.parse().unwrap();
+    let host = RemoteHost::websocket(&address);
+    let devices = [0, 1].map(|device| {
+        Device::remote_options(&host)
+            .device_index(device)
+            .init()
+            .unwrap()
+    });
+    println!("{TRANSFER_CLIENT_READY}");
+
+    with_deadlock_watchdog(TRANSFER_LIMIT, move || {
+        let mut rounds = std::io::stdin().lines();
+        for round in 0..TRANSFER_ROUNDS {
+            rounds.next().unwrap().unwrap();
+            let value = (index * TRANSFER_ROUNDS + round) as f32;
+            let expected = TensorData::new(vec![value; 256], [256]);
+            let moved = Tensor::<1>::from_data(expected.clone(), &devices[round % 2])
+                .to_device(&devices[(round + 1) % 2]);
+            moved.into_data().assert_eq(&expected, false);
+            println!("{TRANSFER_CLIENT_DONE}");
+        }
+    });
 }
 
 #[test]
@@ -541,6 +686,380 @@ fn a_quantized_tensor_moves_between_devices_of_one_server_and_back() {
 }
 
 #[test]
+fn an_all_reduce_over_one_servers_devices_reaches_every_member() {
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()
+        .unwrap();
+    let (probe, mut events) = TelemetryProbe::channel(4096);
+    let host = serve(
+        &rt,
+        BackendServer::<Flex>::new(vec![Default::default(), Default::default()])
+            .with_telemetry(probe),
+    );
+    let devices = [0, 1].map(|index| {
+        Device::remote_options(&host)
+            .device_index(index)
+            .init()
+            .unwrap()
+    });
+    let members = [[1.0, -2.5], [3.5, 4.0]]
+        .iter()
+        .zip(&devices)
+        .map(|(values, device)| Tensor::<1>::from_floats(*values, device).into_dispatch())
+        .collect();
+
+    let reduced = with_deadlock_watchdog(HANG_LIMIT, move || {
+        Dispatch::float_all_reduce(members, ReduceOperation::Mean)
+            .into_iter()
+            .map(|tensor| Tensor::<1>::from_dispatch(tensor).into_data())
+            .collect::<Vec<_>>()
+    });
+
+    for data in reduced {
+        data.assert_eq(&TensorData::from([2.25f32, 0.75]), false);
+    }
+    assert_eq!(all_reduce_parts_run_by(&mut events), 2);
+    rt.shutdown_background();
+}
+
+// One gradient sync server per backend type per process, so the tests that start one take turns.
+#[test]
+#[serial]
+fn ddp_over_one_servers_devices_averages_the_gradients() {
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()
+        .unwrap();
+    let (probe, mut events) = TelemetryProbe::channel(4096);
+    let host = serve(
+        &rt,
+        BackendServer::<Flex>::new(vec![Default::default(), Default::default()])
+            .with_telemetry(probe),
+    );
+    let devices: Vec<Device> = (0..2)
+        .map(|index| {
+            Device::remote_options(&host)
+                .device_index(index)
+                .init()
+                .unwrap()
+                .autodiff()
+        })
+        .collect();
+
+    for gradient in ddp_averaged_gradients(devices) {
+        gradient.assert_eq(&TensorData::from([2.0f32, 1.5]), false);
+    }
+    assert_eq!(all_reduce_parts_run_by(&mut events), 2);
+    rt.shutdown_background();
+}
+
+#[test]
+#[serial]
+fn ddp_over_a_repeated_device_averages_the_gradients() {
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()
+        .unwrap();
+    let host = serve(&rt, BackendServer::<Flex>::new(vec![Default::default()]));
+    let device = Device::remote_options(&host).init().unwrap().autodiff();
+
+    for gradient in ddp_averaged_gradients(vec![device.clone(), device]) {
+        gradient.assert_eq(&TensorData::from([2.0f32, 1.5]), false);
+    }
+    rt.shutdown_background();
+}
+
+/// Each member's gradient of `sum(weights * input)`, which is its own input until DDP averages it,
+/// for the inputs `[1, -2]` and `[3, 5]`.
+fn ddp_averaged_gradients(devices: Vec<Device>) -> Vec<TensorData> {
+    let config = DistributedConfig {
+        all_reduce_op: ReduceOperation::Mean,
+    };
+    let _context = DistributedContext::init(devices.clone(), config);
+    let param = ParamId::new();
+
+    with_deadlock_watchdog(HANG_LIMIT, move || {
+        std::thread::scope(|scope| {
+            let peers: Vec<_> = devices
+                .iter()
+                .zip([[1.0, -2.0], [3.0, 5.0]])
+                .map(|(device, input)| {
+                    scope.spawn(move || {
+                        let weights = Tensor::<1>::from_floats([0.5, 0.5], device)
+                            .require_grad()
+                            .set_distributed(param);
+                        let input = Tensor::<1>::from_floats(input, device);
+                        let gradients = (weights.clone() * input).sum().backward();
+                        weights.grad(&gradients).unwrap().into_data()
+                    })
+                })
+                .collect();
+            peers
+                .into_iter()
+                .map(|peer| peer.join().unwrap())
+                .collect::<Vec<_>>()
+        })
+    })
+}
+
+#[test]
+#[serial]
+fn ddp_releases_no_device_until_every_backward_ended() {
+    const ROUNDS: usize = 20;
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()
+        .unwrap();
+    let host = serve(
+        &rt,
+        BackendServer::<Flex>::new(vec![Default::default(), Default::default()]),
+    );
+    let devices: Vec<Device> = (0..2)
+        .map(|index| {
+            Device::remote_options(&host)
+                .device_index(index)
+                .init()
+                .unwrap()
+                .autodiff()
+        })
+        .collect();
+    let config = DistributedConfig {
+        all_reduce_op: ReduceOperation::Mean,
+    };
+    let _context = DistributedContext::init(devices.clone(), config);
+    let param = ParamId::new();
+
+    let gradients = with_deadlock_watchdog(HANG_LIMIT, move || {
+        std::thread::scope(|scope| {
+            let peers: Vec<_> = devices
+                .iter()
+                .enumerate()
+                .map(|(index, device)| {
+                    scope.spawn(move || {
+                        let weights = Tensor::<1>::from_floats([0.5, 0.5], device).require_grad();
+                        let rounds: Vec<_> = (0..ROUNDS)
+                            .map(|_| {
+                                // Backward runs the deepest steps first. Device 1's weights end a
+                                // long chain, so its gradient goes out before the chain's own
+                                // steps, while device 0 is done and starts its next round.
+                                let input = match index {
+                                    1 => {
+                                        let leaf = Tensor::<1>::from_floats([1.0, 1.0], device)
+                                            .require_grad();
+                                        (0..200).fold(leaf, |chain, _| chain * 1.0)
+                                    }
+                                    _ => Tensor::<1>::from_floats([3.0, 2.0], device),
+                                };
+                                let marked = weights.clone().set_distributed(param);
+                                let loss = (marked.clone() * input).sum();
+                                marked.grad(&loss.backward()).unwrap()
+                            })
+                            .collect();
+                        rounds
+                            .into_iter()
+                            .map(|gradient| gradient.into_data())
+                            .collect::<Vec<_>>()
+                    })
+                })
+                .collect();
+            peers
+                .into_iter()
+                .flat_map(|peer| peer.join().unwrap())
+                .collect::<Vec<_>>()
+        })
+    });
+
+    for gradient in gradients {
+        gradient.assert_eq(&TensorData::from([2.0f32, 1.5]), false);
+    }
+    rt.shutdown_background();
+}
+
+#[test]
+#[serial]
+fn a_second_ddp_context_on_one_backend_is_refused() {
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()
+        .unwrap();
+    let host = serve(
+        &rt,
+        BackendServer::<Flex>::new(vec![Default::default(), Default::default()]),
+    );
+    let devices: Vec<Device> = (0..2)
+        .map(|index| {
+            Device::remote_options(&host)
+                .device_index(index)
+                .init()
+                .unwrap()
+                .autodiff()
+        })
+        .collect();
+    let config = DistributedConfig {
+        all_reduce_op: ReduceOperation::Mean,
+    };
+    let _first = DistributedContext::init(devices.clone(), config.clone());
+
+    let second = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        DistributedContext::init(devices, config)
+    }));
+
+    assert!(second.is_err());
+    rt.shutdown_background();
+}
+
+/// A backward on server device `index`, alone, while devices 0 and 1 of three form a DDP group,
+/// with its weights marked as `mark` when given. It returns its own gradient, unsynced.
+fn lone_backward_beside_a_ddp_group(index: usize, mark: Option<ParamId>) -> TensorData {
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()
+        .unwrap();
+    let host = serve(&rt, BackendServer::<Flex>::new(vec![Default::default(); 3]));
+    let devices: Vec<Device> = (0..3)
+        .map(|index| {
+            Device::remote_options(&host)
+                .device_index(index)
+                .init()
+                .unwrap()
+                .autodiff()
+        })
+        .collect();
+    let config = DistributedConfig {
+        all_reduce_op: ReduceOperation::Mean,
+    };
+    let _context = DistributedContext::init(devices[..2].to_vec(), config);
+    let device = devices[index].clone();
+
+    let gradient = with_deadlock_watchdog(HANG_LIMIT, move || {
+        let weights = Tensor::<1>::from_floats([0.5, 0.5], &device).require_grad();
+        let weights = match mark {
+            Some(param) => weights.set_distributed(param),
+            None => weights,
+        };
+        let input = Tensor::<1>::from_floats([1.0, -2.0], &device);
+        let gradients = (weights.clone() * input).sum().backward();
+        weights.grad(&gradients).unwrap().into_data()
+    });
+    rt.shutdown_background();
+    gradient
+}
+
+#[test]
+#[serial]
+fn a_backward_outside_the_ddp_group_is_left_unsynced() {
+    let gradient = lone_backward_beside_a_ddp_group(2, Some(ParamId::new()));
+
+    gradient.assert_eq(&TensorData::from([1.0f32, -2.0]), false);
+}
+
+#[test]
+#[serial]
+fn a_backward_without_distributed_params_on_a_ddp_device_does_not_wait() {
+    let gradient = lone_backward_beside_a_ddp_group(0, None);
+
+    gradient.assert_eq(&TensorData::from([1.0f32, -2.0]), false);
+}
+
+/// Rounds enough for parts sent to several sessions to interleave between concurrent calls.
+const CONCURRENT_ROUNDS: usize = 300;
+
+/// All-reduce over `devices` and read every member's result, `CONCURRENT_ROUNDS` times.
+fn all_reduce_rounds(devices: &[Device]) {
+    for _ in 0..CONCURRENT_ROUNDS {
+        let members = devices
+            .iter()
+            .map(|device| Tensor::<1>::from_floats([1.0, 2.0], device).into_dispatch())
+            .collect();
+        for reduced in Dispatch::float_all_reduce(members, ReduceOperation::Sum) {
+            let _ = Tensor::<1>::from_dispatch(reduced).into_data();
+        }
+    }
+}
+
+/// Move a tensor from `home` to `away` and back, `CONCURRENT_ROUNDS` times.
+fn to_device_rounds(home: &Device, away: &Device) {
+    for _ in 0..CONCURRENT_ROUNDS {
+        let tensor = Tensor::<1>::from_floats([1.0, 2.0], home).to_device(away) * 2.0;
+        let _ = tensor.to_device(home).into_data();
+    }
+}
+
+#[test]
+fn concurrent_all_reduces_over_one_servers_devices_finish() {
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()
+        .unwrap();
+    let host = serve(
+        &rt,
+        BackendServer::<Flex>::new(vec![Default::default(), Default::default()]),
+    );
+    let devices = [0, 1].map(|index| {
+        Device::remote_options(&host)
+            .device_index(index)
+            .init()
+            .unwrap()
+    });
+
+    with_deadlock_watchdog(CONCURRENT_LIMIT, move || {
+        std::thread::scope(|scope| {
+            for _ in 0..4 {
+                scope.spawn(|| all_reduce_rounds(&devices));
+            }
+        });
+    });
+    rt.shutdown_background();
+}
+
+#[test]
+fn an_all_reduce_beside_to_device_swaps_finishes() {
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()
+        .unwrap();
+    let host = serve(
+        &rt,
+        BackendServer::<Flex>::new(vec![Default::default(), Default::default()]),
+    );
+    let devices = [0, 1].map(|index| {
+        Device::remote_options(&host)
+            .device_index(index)
+            .init()
+            .unwrap()
+    });
+
+    with_deadlock_watchdog(CONCURRENT_LIMIT, move || {
+        let [first, second] = &devices;
+        std::thread::scope(|scope| {
+            scope.spawn(|| all_reduce_rounds(&devices));
+            scope.spawn(|| all_reduce_rounds(&devices));
+            scope.spawn(|| to_device_rounds(first, second));
+            scope.spawn(|| to_device_rounds(second, first));
+        });
+    });
+    rt.shutdown_background();
+}
+
+/// The all-reduce parts the server ran itself, which an emulated all-reduce never sends.
+fn all_reduce_parts_run_by(events: &mut TelemetrySubscription) -> usize {
+    let mut seen = Vec::new();
+    events.drain_into(&mut seen);
+    seen.iter()
+        .filter(|event| {
+            matches!(
+                event.as_ref(),
+                TelemetryEvent::Op {
+                    kind: OpClass::Distributed,
+                    ..
+                }
+            )
+        })
+        .count()
+}
+
+#[test]
 fn quantized_data_crosses_the_wire_byte_for_byte() {
     let rt = tokio::runtime::Builder::new_multi_thread()
         .enable_io()
@@ -617,6 +1136,44 @@ fn a_block_quantized_transpose_reads_and_moves_as_it_does_locally() {
 
     assert_same_bytes(&transposed.clone().into_data(), &expected);
     assert_same_bytes(&transposed.to_device(&device_2).into_data(), &expected);
+
+    rt.shutdown_background();
+}
+
+/// A device query is answered by the handler last registered under its id; an id with none, or
+/// a handler that panics, is an error, and the session goes on serving.
+#[test]
+fn a_device_query_is_answered_by_its_handler() {
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .enable_io()
+        .build()
+        .unwrap();
+    let host = serve(
+        &rt,
+        BackendServer::<Flex>::new(vec![Default::default()])
+            .with_device_query("properties", |_| b"replaced".to_vec())
+            .with_device_query("properties", |device| format!("{device:?}").into_bytes())
+            .with_device_query("panics", |_| panic!("no properties here")),
+    );
+
+    let device = Device::remote_options(&host).init().unwrap();
+    let DispatchDevice::Remote(remote) = device.as_dispatch() else {
+        panic!("a remote device dispatches to the remote backend")
+    };
+
+    let properties = remote.query("properties").unwrap();
+    let flex: <Flex as burn_backend::BackendTypes>::Device = Default::default();
+    assert_eq!(properties, format!("{flex:?}").into_bytes());
+    assert!(matches!(
+        remote.query("missing"),
+        Err(DeviceQueryError::Unknown { id }) if id.as_str() == "missing"
+    ));
+    assert!(matches!(
+        remote.query("panics"),
+        Err(DeviceQueryError::Panicked { reason, .. }) if reason == "no properties here"
+    ));
+    let doubled = Tensor::<1>::from_floats([1.0, 2.0], &device) * 2.0;
+    assert_eq!(doubled.try_into_vec_as::<f32>().unwrap(), vec![2.0, 4.0]);
 
     rt.shutdown_background();
 }

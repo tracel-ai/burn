@@ -3,7 +3,9 @@ use burn_core as burn;
 
 use super::gate_controller::GateController;
 use crate::activation::{Activation, ActivationConfig};
+use crate::modules::role::Role;
 use burn::config::Config;
+use burn::instrument::compute;
 use burn::module::Module;
 use burn::module::{Content, DisplaySettings, ModuleDisplay};
 use burn::tensor::Device;
@@ -175,6 +177,7 @@ impl Gru {
     /// # Returns
     /// - output: `[batch_size, sequence_length, hidden_size]`
     /// - final_hidden: Final hidden state `[batch_size, hidden_size]`
+    #[compute]
     pub(crate) fn forward_iter<I: Iterator<Item = (Tensor<3>, usize)>>(
         &self,
         input_timestep_iter: I,
@@ -195,22 +198,24 @@ impl Gru {
             let input_t = input_t.squeeze_dim(1);
 
             // u(pdate)g(ate) tensors
-            let biased_ug_input_sum =
-                self.gate_product(&input_t, &hidden_t, None, &self.update_gate);
+            let biased_ug_input_sum = Role::UPDATE_GATE
+                .run(|| self.gate_product(&input_t, &hidden_t, None, &self.update_gate));
             let update_values = self.gate_activation.forward(biased_ug_input_sum);
 
             // r(eset)g(ate) tensors
-            let biased_rg_input_sum =
-                self.gate_product(&input_t, &hidden_t, None, &self.reset_gate);
+            let biased_rg_input_sum = Role::RESET_GATE
+                .run(|| self.gate_product(&input_t, &hidden_t, None, &self.reset_gate));
             let reset_values = self.gate_activation.forward(biased_rg_input_sum);
 
             // n(ew)g(ate) tensor
-            let biased_ng_input_sum = if self.reset_after {
-                self.gate_product(&input_t, &hidden_t, Some(&reset_values), &self.new_gate)
-            } else {
-                let reset_t = hidden_t.clone().mul(reset_values);
-                self.gate_product(&input_t, &reset_t, None, &self.new_gate)
-            };
+            let biased_ng_input_sum = Role::NEW_GATE.run(|| {
+                if self.reset_after {
+                    self.gate_product(&input_t, &hidden_t, Some(&reset_values), &self.new_gate)
+                } else {
+                    let reset_t = hidden_t.clone().mul(reset_values);
+                    self.gate_product(&input_t, &reset_t, None, &self.new_gate)
+                }
+            });
             let candidate_state = self.hidden_activation.forward(biased_ng_input_sum);
 
             // calculate linear interpolation between previous hidden state and candidate state:
@@ -251,18 +256,7 @@ impl Gru {
         reset: Option<&Tensor<2>>,
         gate: &GateController,
     ) -> Tensor<2> {
-        let input_product = input.clone().matmul(gate.input_transform.weight.val());
-        let hidden_product = hidden.clone().matmul(gate.hidden_transform.weight.val());
-
-        let input_part = match &gate.input_transform.bias {
-            Some(bias) => input_product + bias.val().unsqueeze(),
-            None => input_product,
-        };
-
-        let hidden_part = match &gate.hidden_transform.bias {
-            Some(bias) => hidden_product + bias.val().unsqueeze(),
-            None => hidden_product,
-        };
+        let (input_part, hidden_part) = gate.transformed(input.clone(), hidden.clone());
 
         match reset {
             Some(r) => input_part + r.clone().mul(hidden_part),
@@ -381,6 +375,7 @@ impl BiGru {
     ///   - `[sequence_length, batch_size, hidden_size * 2]` if `batch_first` is false
     /// - state: The final forward and reverse hidden states stacked along dimension 0
     ///   with shape `[2, batch_size, hidden_size]`.
+    #[compute]
     pub fn forward(
         &self,
         batched_input: Tensor<3>,
@@ -412,22 +407,26 @@ impl BiGru {
         };
 
         // forward direction
-        let (batched_hidden_state_forward, final_state_forward) = self.forward.forward_iter(
-            batched_input.clone().iter_dim(1).zip(0..seq_length),
-            init_state_forward,
-            batch_size,
-            seq_length,
-            &device,
-        );
+        let (batched_hidden_state_forward, final_state_forward) = Role::FORWARD.run(|| {
+            self.forward.forward_iter(
+                batched_input.clone().iter_dim(1).zip(0..seq_length),
+                init_state_forward,
+                batch_size,
+                seq_length,
+                &device,
+            )
+        });
 
         // reverse direction
-        let (batched_hidden_state_reverse, final_state_reverse) = self.reverse.forward_iter(
-            batched_input.iter_dim(1).rev().zip((0..seq_length).rev()),
-            init_state_reverse,
-            batch_size,
-            seq_length,
-            &device,
-        );
+        let (batched_hidden_state_reverse, final_state_reverse) = Role::REVERSE.run(|| {
+            self.reverse.forward_iter(
+                batched_input.iter_dim(1).rev().zip((0..seq_length).rev()),
+                init_state_reverse,
+                batch_size,
+                seq_length,
+                &device,
+            )
+        });
 
         let output = Tensor::cat(
             [batched_hidden_state_forward, batched_hidden_state_reverse].to_vec(),
@@ -454,6 +453,35 @@ mod tests {
     use burn::module::Param;
     use burn::tensor::Tolerance;
     use burn::tensor::{Distribution, TensorData};
+
+    /// Both directions of a bidirectional layer are recorded, each under its role.
+    #[cfg(feature = "std")]
+    #[test]
+    fn a_bidirectional_layer_records_both_directions() {
+        let device = Default::default();
+        let gru = BiGruConfig::new(3, 4, true).init(&device);
+        let input = Tensor::<3>::zeros([1, 2, 3], &device);
+
+        let recorded = crate::recording::recorded(|| {
+            gru.forward(input, None);
+        });
+
+        let directions: Vec<_> = recorded
+            .lines()
+            .into_iter()
+            .filter(|line| !line.starts_with("      "))
+            .collect();
+        assert_eq!(
+            directions,
+            [
+                "bi gru (unpriced)",
+                "  forward (unpriced)",
+                "    gru (unpriced)",
+                "  reverse (unpriced)",
+                "    gru (unpriced)",
+            ]
+        );
+    }
 
     type FT = f32;
 

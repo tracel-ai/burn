@@ -1,7 +1,7 @@
 use super::classification::{ClassReduction, ClassificationMetricConfig, DecisionRule};
 use burn_core::{
     prelude::{Bool, Int, Tensor},
-    tensor::IndexingUpdateOp,
+    tensor::{IndexingUpdateOp, IntDType},
 };
 use std::fmt::{self, Debug};
 
@@ -71,8 +71,14 @@ impl ConfusionStats {
                     .bool()
             }
         };
+        // Each prediction/target pair is encoded as a value in 0..=3.
+        let confusion_classes = if input.predictions.device().supports_dtype(IntDType::U8) {
+            prediction_mask.cast(IntDType::U8) + input.targets.clone().cast(IntDType::U8) * 2
+        } else {
+            prediction_mask.int() + input.targets.clone().int() * 2
+        };
         Self {
-            confusion_classes: prediction_mask.int() + input.targets.clone().int() * 2,
+            confusion_classes,
             class_reduction: config.class_reduction,
         }
     }
@@ -131,7 +137,11 @@ mod tests {
         metric::classification::{ClassReduction, ClassificationMetricConfig, DecisionRule},
         tests::{ClassificationType, THRESHOLD, dummy_classification_input},
     };
-    use burn_core::prelude::TensorData;
+    use burn_core::{
+        prelude::{Bool, Tensor, TensorData},
+        tensor::{BoolDType, Device, IntDType},
+    };
+    use burn_flex::{Flex, FlexTensor};
     use rstest::{fixture, rstest};
     use std::num::NonZeroUsize;
 
@@ -184,6 +194,56 @@ mod tests {
     #[once]
     fn threshold_config_macro() -> ClassificationMetricConfig {
         threshold_config(THRESHOLD, ClassReduction::Macro)
+    }
+
+    #[rstest]
+    #[case::threshold(DecisionRule::Threshold(THRESHOLD))]
+    #[case::top_k(DecisionRule::TopK(NonZeroUsize::new(2).unwrap()))]
+    fn test_compact_confusion_codes(#[case] decision_rule: DecisionRule) {
+        let device = Device::flex();
+        let input = ConfusionStatsInput::new(
+            Tensor::from_data([[0.1, 0.9, 0.2, 0.8]], &device),
+            Tensor::from_bool([[false, false, true, true]], &device),
+        );
+        let config = ClassificationMetricConfig {
+            decision_rule,
+            class_reduction: ClassReduction::Micro,
+        };
+
+        let stats = ConfusionStats::new(&input, &config);
+
+        assert_eq!(stats.confusion_classes.dtype(), IntDType::U8.into());
+        stats
+            .confusion_classes
+            .into_data()
+            .assert_eq(&TensorData::from([[0u8, 1, 2, 3]]), true);
+    }
+
+    #[test]
+    fn test_noncanonical_boolean_targets() {
+        let device = Device::flex();
+        let targets = Tensor::<2, Bool>::from_primitive::<Flex>(FlexTensor::from_data(
+            TensorData::from_bytes_vec(vec![0, 0, 2, 255], [1, 4], BoolDType::U8.into()),
+        ));
+        let input =
+            ConfusionStatsInput::new(Tensor::from_data([[0.1, 0.9, 0.2, 0.8]], &device), targets);
+
+        ConfusionStats::new(&input, &threshold_config_micro())
+            .confusion_classes
+            .into_data()
+            .assert_eq(&TensorData::from([[0u8, 1, 2, 3]]), true);
+    }
+
+    #[test]
+    fn test_counts_exceed_u8_range() {
+        let device = Device::flex();
+        let predictions = Tensor::<2>::ones([300, 1], &device);
+        let input = ConfusionStatsInput::new(predictions.clone(), predictions.bool());
+
+        ConfusionStats::new(&input, &threshold_config_micro())
+            .true_positive()
+            .into_data()
+            .assert_eq(&TensorData::from([300.0f32]), false);
     }
 
     #[rstest]

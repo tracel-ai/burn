@@ -15,7 +15,13 @@ pub use burn_backend::{
 use burn_dispatch::DispatchDeviceId;
 #[cfg(feature = "autodiff")]
 use burn_dispatch::GradientCheckpointingStrategy;
-#[cfg(any(feature = "cpu", feature = "cuda", feature = "rocm", feature = "wgpu"))]
+#[cfg(any(
+    feature = "cpu",
+    feature = "cuda",
+    feature = "rocm",
+    feature = "wgpu",
+    feature = "metal-native"
+))]
 use burn_dispatch::devices::RuntimeId;
 #[cfg(any(feature = "metal", feature = "vulkan", feature = "webgpu"))]
 use burn_dispatch::devices::WgpuBackend;
@@ -28,7 +34,13 @@ pub use burn_dispatch::backends::capture::{
     IntoCaptureOutputs, TensorId,
 };
 
-#[cfg(any(feature = "cpu", feature = "cuda", feature = "rocm", feature = "wgpu"))]
+#[cfg(any(
+    feature = "cpu",
+    feature = "cuda",
+    feature = "rocm",
+    feature = "wgpu",
+    feature = "metal-native"
+))]
 use alloc::string::String;
 use alloc::vec;
 use alloc::vec::Vec;
@@ -179,6 +191,13 @@ impl Device {
     /// Crate-internal owning extraction of the underlying dispatch device.
     pub(crate) fn into_dispatch(self) -> DispatchDevice {
         self.blob.into_inner()
+    }
+
+    pub(crate) fn as_dispatch_vec(devices: &[Self]) -> Vec<DispatchDevice> {
+        devices
+            .iter()
+            .map(|device| device.as_dispatch().clone())
+            .collect()
     }
 }
 
@@ -333,7 +352,7 @@ impl Device {
     /// Default CPU device backed by CubeCL's CPU backend.
     #[cfg(feature = "cpu")]
     pub fn cpu() -> Self {
-        Self::new(burn_dispatch::devices::CpuDevice::default())
+        Self::new(burn_dispatch::devices::CpuDevice)
     }
 
     /// CUDA device at the given hardware index.
@@ -399,6 +418,13 @@ impl Device {
             device_kind,
             burn_dispatch::devices::WgpuBackend::Vulkan,
         ))
+    }
+
+    /// Metal device on cubecl's own Metal runtime, with no wgpu in between: the system's
+    /// default GPU.
+    #[cfg(feature = "metal-native")]
+    pub fn metal_native() -> Self {
+        Self::new(burn_dispatch::devices::MetalDevice::default())
     }
 
     /// Metal-backed WGPU device, selected via [`DeviceKind`], requiring native MSL support.
@@ -727,6 +753,12 @@ impl Device {
         Dispatch::memory_pool_usage(self.as_dispatch())
     }
 
+    /// How many bytes this device can hold at once, as its runtime states it: a budget to size a
+    /// workload by, not what is free. `None` on a backend that states no figure.
+    pub fn memory_capacity(&self) -> Option<u64> {
+        Dispatch::memory_capacity(self.as_dispatch())
+    }
+
     /// Prepares the given data for transfer between the CPU and accelerator devices such as GPUs.
     ///
     /// Depending on the backend, the data may be transferred to pinned memory
@@ -858,6 +890,11 @@ impl Device {
                     push_wgpu(&mut devices, WgpuBackend::Metal);
                     continue;
                 }
+                #[cfg(feature = "metal-native")]
+                DeviceType::MetalNative => {
+                    push_cube(&mut devices, RuntimeId::Metal);
+                    continue;
+                }
                 #[cfg(feature = "vulkan")]
                 DeviceType::Vulkan => {
                     push_wgpu(&mut devices, WgpuBackend::Vulkan);
@@ -900,7 +937,13 @@ impl Device {
     /// holding both devices, so a caller placing work on cards never puts two stages on one
     /// card by another name. Opens every device of every runtime, so call it once and keep
     /// the answer.
-    #[cfg(any(feature = "cpu", feature = "cuda", feature = "rocm", feature = "wgpu"))]
+    #[cfg(any(
+        feature = "cpu",
+        feature = "cuda",
+        feature = "rocm",
+        feature = "wgpu",
+        feature = "metal-native"
+    ))]
     pub fn enumerate_physical() -> Vec<PhysicalGpu> {
         let mut gpus: Vec<PhysicalGpu> = Vec::new();
         for device in Dispatch::enumerate(DispatchDeviceId::Cube) {
@@ -950,7 +993,13 @@ impl Device {
 }
 
 /// One card and every device that reaches it, from [`Device::enumerate_physical`].
-#[cfg(any(feature = "cpu", feature = "cuda", feature = "rocm", feature = "wgpu"))]
+#[cfg(any(
+    feature = "cpu",
+    feature = "cuda",
+    feature = "rocm",
+    feature = "wgpu",
+    feature = "metal-native"
+))]
 #[derive(Debug, Clone)]
 pub struct PhysicalGpu {
     /// The card's PCI address, Windows LUID and vendor, from whichever of its runtimes reported
@@ -1018,7 +1067,13 @@ impl core::fmt::Display for ThroughputStat {
 ///
 /// A filter can name the same runtime twice (e.g. two `DeviceType::Cuda` entries),
 /// and a caller enumerating hardware should see each device once.
-#[cfg(any(feature = "cpu", feature = "cuda", feature = "rocm", feature = "wgpu"))]
+#[cfg(any(
+    feature = "cpu",
+    feature = "cuda",
+    feature = "rocm",
+    feature = "wgpu",
+    feature = "metal-native"
+))]
 fn push_cube(devices: &mut Vec<Device>, runtime: RuntimeId) {
     for device in Dispatch::enumerate_cube(runtime) {
         let device = Device::new(device);
@@ -1110,6 +1165,9 @@ pub enum DeviceType {
     Wgpu,
     #[cfg(feature = "metal")]
     Metal,
+    /// cubecl's own Metal runtime.
+    #[cfg(feature = "metal-native")]
+    MetalNative,
     #[cfg(feature = "vulkan")]
     Vulkan,
     #[cfg(feature = "webgpu")]
