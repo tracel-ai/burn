@@ -1,5 +1,5 @@
 //! Matmul over cubek's tile-DSL routines ([`cubek::matmul::kernels`]). cubek's selection plans the
-//! product: under autotune, the few-rows or the many-rows table its rows go to; by rule otherwise.
+//! product: under autotune, the few-rows or the many-rows autotune its rows go to; by rule otherwise.
 //! A quantized input is read as stored by the routines listed for it or decoded first, and a scheme
 //! none reads is dequantized here first.
 
